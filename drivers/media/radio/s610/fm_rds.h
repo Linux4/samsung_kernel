@@ -1,9 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * drivers/media/radio/s610/fm_rds.h
  *
  * FM Radio RDS driver header for SAMSUNG S610 chip
  *
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -37,12 +38,8 @@ void fm_rds_parser(struct fm_rds_parser_info *pi, u16 info, u8 blk_type, u8 err_
 void fm_rds_write_data_pi(struct s610_radio *radio,
 	struct fm_rds_parser_info *pi);
 void fm_rds_parser_reset(struct fm_rds_parser_info *pi);
-
 extern void fm_update_rds_sync_status(struct s610_radio *radio, bool synced);
-#ifndef	USE_RDS_HW_DECODER
 extern bool fm_get_rds_sync_status(struct s610_radio *radio);
-#endif	/*USE_RDS_HW_DECODER*/
-
 extern int fm_set_flags(struct s610_radio *radio, u16 flags);
 extern u32 fmspeedy_get_reg(u32 addr);
 extern u32 fmspeedy_get_reg_work(u32 addr);
@@ -53,9 +50,6 @@ extern struct s610_radio *gradio;
 #define RDS_BLK_TYPE_SHIFT	5
 #define RDS_ERR_CNT_MASK	0x1F
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
-
-#define USE_RDS_BLOCK_SEQ_CORRECT
-/*#undef  USE_RDS_BLOCK_SEQ_CORRECT*/
 
 #define BUF_LEN 32
 #define BLK_LEN 26
@@ -111,7 +105,6 @@ u16 OFFSET_WORD[] = {
 u8 burstErrorPattern[] = { 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31 };
 u8 burstErrorLen[] = { 1, 2, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5 };
 
-#ifndef	USE_RDS_HW_DECODER
 u16 CRC_LUT[] = {
 0x0000, 0x01b9, 0x0372, 0x02cb,
 0x035d, 0x02e4, 0x002f, 0x0196,
@@ -2162,6 +2155,4 @@ u16 CRC_LUT[] = {
 0x0064, 0x01dd, 0x0316, 0x02af,
 0x0339, 0x0280, 0x004b, 0x01f2,
 };
-#endif	/*USE_RDS_HW_DECODER*/
-
 #endif	/*fm_rds.h*/

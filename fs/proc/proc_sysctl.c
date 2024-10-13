@@ -12,7 +12,11 @@
 #include <linux/cred.h>
 #include <linux/namei.h>
 #include <linux/mm.h>
+#include <linux/uio.h>
 #include <linux/module.h>
+#include <linux/bpf-cgroup.h>
+#include <linux/mount.h>
+#include <linux/kmemleak.h>
 #include "internal.h"
 
 static const struct dentry_operations proc_sys_dentry_operations;
@@ -20,6 +24,10 @@ static const struct file_operations proc_sys_file_operations;
 static const struct inode_operations proc_sys_inode_operations;
 static const struct file_operations proc_sys_dir_file_operations;
 static const struct inode_operations proc_sys_dir_operations;
+
+/* shared constants to be used in various sysctls */
+const int sysctl_vals[] = { -1, 0, 1, 2, 4, 100, 200, 1000, 3000, INT_MAX };
+EXPORT_SYMBOL(sysctl_vals);
 
 /* Support for permanently empty directories */
 
@@ -262,42 +270,9 @@ static void unuse_table(struct ctl_table_header *p)
 			complete(p->unregistering);
 }
 
-static void proc_sys_prune_dcache(struct ctl_table_header *head)
+static void proc_sys_invalidate_dcache(struct ctl_table_header *head)
 {
-	struct inode *inode;
-	struct proc_inode *ei;
-	struct hlist_node *node;
-	struct super_block *sb;
-
-	rcu_read_lock();
-	for (;;) {
-		node = hlist_first_rcu(&head->inodes);
-		if (!node)
-			break;
-		ei = hlist_entry(node, struct proc_inode, sysctl_inodes);
-		spin_lock(&sysctl_lock);
-		hlist_del_init_rcu(&ei->sysctl_inodes);
-		spin_unlock(&sysctl_lock);
-
-		inode = &ei->vfs_inode;
-		sb = inode->i_sb;
-		if (!atomic_inc_not_zero(&sb->s_active))
-			continue;
-		inode = igrab(inode);
-		rcu_read_unlock();
-		if (unlikely(!inode)) {
-			deactivate_super(sb);
-			rcu_read_lock();
-			continue;
-		}
-
-		d_prune_aliases(inode);
-		iput(inode);
-		deactivate_super(sb);
-
-		rcu_read_lock();
-	}
-	rcu_read_unlock();
+	proc_invalidate_siblings_dcache(&head->inodes, &sysctl_lock);
 }
 
 /* called under sysctl_lock, will reacquire if has to wait */
@@ -319,10 +294,10 @@ static void start_unregistering(struct ctl_table_header *p)
 		spin_unlock(&sysctl_lock);
 	}
 	/*
-	 * Prune dentries for unregistered sysctls: namespaced sysctls
+	 * Invalidate dentries for unregistered sysctls: namespaced sysctls
 	 * can have duplicate names and contaminate dcache very badly.
 	 */
-	proc_sys_prune_dcache(p);
+	proc_sys_invalidate_dcache(p);
 	/*
 	 * do not remove from the list until nobody holds it; walking the
 	 * list in do_sysctl() relies on that.
@@ -478,7 +453,7 @@ static struct inode *proc_sys_make_inode(struct super_block *sb,
 	}
 	ei->sysctl = head;
 	ei->sysctl_entry = table;
-	hlist_add_head_rcu(&ei->sysctl_inodes, &head->inodes);
+	hlist_add_head_rcu(&ei->sibling_inodes, &head->inodes);
 	head->count++;
 	spin_unlock(&sysctl_lock);
 
@@ -509,7 +484,7 @@ static struct inode *proc_sys_make_inode(struct super_block *sb,
 void proc_sys_evict_inode(struct inode *inode, struct ctl_table_header *head)
 {
 	spin_lock(&sysctl_lock);
-	hlist_del_init_rcu(&PROC_I(inode)->sysctl_inodes);
+	hlist_del_init_rcu(&PROC_I(inode)->sibling_inodes);
 	if (!--head->count)
 		kfree_rcu(head, rcu);
 	spin_unlock(&sysctl_lock);
@@ -567,14 +542,15 @@ out:
 	return err;
 }
 
-static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
-		size_t count, loff_t *ppos, int write)
+static ssize_t proc_sys_call_handler(struct kiocb *iocb, struct iov_iter *iter,
+		int write)
 {
-	struct inode *inode = file_inode(filp);
+	struct inode *inode = file_inode(iocb->ki_filp);
 	struct ctl_table_header *head = grab_header(inode);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
+	size_t count = iov_iter_count(iter);
+	char *kbuf;
 	ssize_t error;
-	size_t res;
 
 	if (IS_ERR(head))
 		return PTR_ERR(head);
@@ -592,27 +568,54 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 	if (!table->proc_handler)
 		goto out;
 
+	/* don't even try if the size is too large */
+	error = -ENOMEM;
+	if (count >= KMALLOC_MAX_SIZE)
+		goto out;
+	kbuf = kvzalloc(count + 1, GFP_KERNEL);
+	if (!kbuf)
+		goto out;
+
+	if (write) {
+		error = -EFAULT;
+		if (!copy_from_iter_full(kbuf, count, iter))
+			goto out_free_buf;
+		kbuf[count] = '\0';
+	}
+
+	error = BPF_CGROUP_RUN_PROG_SYSCTL(head, table, write, &kbuf, &count,
+					   &iocb->ki_pos);
+	if (error)
+		goto out_free_buf;
+
 	/* careful: calling conventions are nasty here */
-	res = count;
-	error = table->proc_handler(table, write, buf, &res, ppos);
-	if (!error)
-		error = res;
+	error = table->proc_handler(table, write, kbuf, &count, &iocb->ki_pos);
+	if (error)
+		goto out_free_buf;
+
+	if (!write) {
+		error = -EFAULT;
+		if (copy_to_iter(kbuf, count, iter) < count)
+			goto out_free_buf;
+	}
+
+	error = count;
+out_free_buf:
+	kvfree(kbuf);
 out:
 	sysctl_head_finish(head);
 
 	return error;
 }
 
-static ssize_t proc_sys_read(struct file *filp, char __user *buf,
-				size_t count, loff_t *ppos)
+static ssize_t proc_sys_read(struct kiocb *iocb, struct iov_iter *iter)
 {
-	return proc_sys_call_handler(filp, (void __user *)buf, count, ppos, 0);
+	return proc_sys_call_handler(iocb, iter, 0);
 }
 
-static ssize_t proc_sys_write(struct file *filp, const char __user *buf,
-				size_t count, loff_t *ppos)
+static ssize_t proc_sys_write(struct kiocb *iocb, struct iov_iter *iter)
 {
-	return proc_sys_call_handler(filp, (void __user *)buf, count, ppos, 1);
+	return proc_sys_call_handler(iocb, iter, 1);
 }
 
 static int proc_sys_open(struct inode *inode, struct file *filp)
@@ -849,8 +852,10 @@ static int proc_sys_getattr(const struct path *path, struct kstat *stat,
 static const struct file_operations proc_sys_file_operations = {
 	.open		= proc_sys_open,
 	.poll		= proc_sys_poll,
-	.read		= proc_sys_read,
-	.write		= proc_sys_write,
+	.read_iter	= proc_sys_read,
+	.write_iter	= proc_sys_write,
+	.splice_read	= generic_file_splice_read,
+	.splice_write	= iter_file_splice_write,
 	.llseek		= default_llseek,
 };
 
@@ -1101,6 +1106,11 @@ static int sysctl_check_table_array(const char *path, struct ctl_table *table)
 			err |= sysctl_err(path, table, "array not allowed");
 	}
 
+	if (table->proc_handler == proc_dou8vec_minmax) {
+		if (table->maxlen != sizeof(u8))
+			err |= sysctl_err(path, table, "array not allowed");
+	}
+
 	return err;
 }
 
@@ -1116,6 +1126,7 @@ static int sysctl_check_table(const char *path, struct ctl_table *table)
 		    (table->proc_handler == proc_douintvec) ||
 		    (table->proc_handler == proc_douintvec_minmax) ||
 		    (table->proc_handler == proc_dointvec_minmax) ||
+		    (table->proc_handler == proc_dou8vec_minmax) ||
 		    (table->proc_handler == proc_dointvec_jiffies) ||
 		    (table->proc_handler == proc_dointvec_userhz_jiffies) ||
 		    (table->proc_handler == proc_dointvec_ms_jiffies) ||
@@ -1375,6 +1386,38 @@ struct ctl_table_header *register_sysctl(const char *path, struct ctl_table *tab
 					path, table);
 }
 EXPORT_SYMBOL(register_sysctl);
+
+/**
+ * __register_sysctl_init() - register sysctl table to path
+ * @path: path name for sysctl base
+ * @table: This is the sysctl table that needs to be registered to the path
+ * @table_name: The name of sysctl table, only used for log printing when
+ *              registration fails
+ *
+ * The sysctl interface is used by userspace to query or modify at runtime
+ * a predefined value set on a variable. These variables however have default
+ * values pre-set. Code which depends on these variables will always work even
+ * if register_sysctl() fails. If register_sysctl() fails you'd just loose the
+ * ability to query or modify the sysctls dynamically at run time. Chances of
+ * register_sysctl() failing on init are extremely low, and so for both reasons
+ * this function does not return any error as it is used by initialization code.
+ *
+ * Context: Can only be called after your respective sysctl base path has been
+ * registered. So for instance, most base directories are registered early on
+ * init before init levels are processed through proc_sys_init() and
+ * sysctl_init().
+ */
+void __init __register_sysctl_init(const char *path, struct ctl_table *table,
+				 const char *table_name)
+{
+	struct ctl_table_header *hdr = register_sysctl(path, table);
+
+	if (unlikely(!hdr)) {
+		pr_err("failed when register_sysctl %s to %s\n", table_name, path);
+		return;
+	}
+	kmemleak_not_leak(hdr);
+}
 
 static char *append_path(const char *path, char *pos, const char *name)
 {
@@ -1699,8 +1742,157 @@ int __init proc_sys_init(void)
 
 	proc_sys_root = proc_mkdir("sys", NULL);
 	proc_sys_root->proc_iops = &proc_sys_dir_operations;
-	proc_sys_root->proc_fops = &proc_sys_dir_file_operations;
+	proc_sys_root->proc_dir_ops = &proc_sys_dir_file_operations;
 	proc_sys_root->nlink = 0;
 
 	return sysctl_init();
+}
+
+struct sysctl_alias {
+	const char *kernel_param;
+	const char *sysctl_param;
+};
+
+/*
+ * Historically some settings had both sysctl and a command line parameter.
+ * With the generic sysctl. parameter support, we can handle them at a single
+ * place and only keep the historical name for compatibility. This is not meant
+ * to add brand new aliases. When adding existing aliases, consider whether
+ * the possibly different moment of changing the value (e.g. from early_param
+ * to the moment do_sysctl_args() is called) is an issue for the specific
+ * parameter.
+ */
+static const struct sysctl_alias sysctl_aliases[] = {
+	{"hardlockup_all_cpu_backtrace",	"kernel.hardlockup_all_cpu_backtrace" },
+	{"hung_task_panic",			"kernel.hung_task_panic" },
+	{"numa_zonelist_order",			"vm.numa_zonelist_order" },
+	{"softlockup_all_cpu_backtrace",	"kernel.softlockup_all_cpu_backtrace" },
+	{"softlockup_panic",			"kernel.softlockup_panic" },
+	{ }
+};
+
+static const char *sysctl_find_alias(char *param)
+{
+	const struct sysctl_alias *alias;
+
+	for (alias = &sysctl_aliases[0]; alias->kernel_param != NULL; alias++) {
+		if (strcmp(alias->kernel_param, param) == 0)
+			return alias->sysctl_param;
+	}
+
+	return NULL;
+}
+
+/* Set sysctl value passed on kernel command line. */
+static int process_sysctl_arg(char *param, char *val,
+			       const char *unused, void *arg)
+{
+	char *path;
+	struct vfsmount **proc_mnt = arg;
+	struct file_system_type *proc_fs_type;
+	struct file *file;
+	int len;
+	int err;
+	loff_t pos = 0;
+	ssize_t wret;
+
+	if (strncmp(param, "sysctl", sizeof("sysctl") - 1) == 0) {
+		param += sizeof("sysctl") - 1;
+
+		if (param[0] != '/' && param[0] != '.')
+			return 0;
+
+		param++;
+	} else {
+		param = (char *) sysctl_find_alias(param);
+		if (!param)
+			return 0;
+	}
+
+	if (!val)
+		return -EINVAL;
+	len = strlen(val);
+	if (len == 0)
+		return -EINVAL;
+
+	/*
+	 * To set sysctl options, we use a temporary mount of proc, look up the
+	 * respective sys/ file and write to it. To avoid mounting it when no
+	 * options were given, we mount it only when the first sysctl option is
+	 * found. Why not a persistent mount? There are problems with a
+	 * persistent mount of proc in that it forces userspace not to use any
+	 * proc mount options.
+	 */
+	if (!*proc_mnt) {
+		proc_fs_type = get_fs_type("proc");
+		if (!proc_fs_type) {
+			pr_err("Failed to find procfs to set sysctl from command line\n");
+			return 0;
+		}
+		*proc_mnt = kern_mount(proc_fs_type);
+		put_filesystem(proc_fs_type);
+		if (IS_ERR(*proc_mnt)) {
+			pr_err("Failed to mount procfs to set sysctl from command line\n");
+			return 0;
+		}
+	}
+
+	path = kasprintf(GFP_KERNEL, "sys/%s", param);
+	if (!path)
+		panic("%s: Failed to allocate path for %s\n", __func__, param);
+	strreplace(path, '.', '/');
+
+	file = file_open_root((*proc_mnt)->mnt_root, *proc_mnt, path, O_WRONLY, 0);
+	if (IS_ERR(file)) {
+		err = PTR_ERR(file);
+		if (err == -ENOENT)
+			pr_err("Failed to set sysctl parameter '%s=%s': parameter not found\n",
+				param, val);
+		else if (err == -EACCES)
+			pr_err("Failed to set sysctl parameter '%s=%s': permission denied (read-only?)\n",
+				param, val);
+		else
+			pr_err("Error %pe opening proc file to set sysctl parameter '%s=%s'\n",
+				file, param, val);
+		goto out;
+	}
+	wret = kernel_write(file, val, len, &pos);
+	if (wret < 0) {
+		err = wret;
+		if (err == -EINVAL)
+			pr_err("Failed to set sysctl parameter '%s=%s': invalid value\n",
+				param, val);
+		else
+			pr_err("Error %pe writing to proc file to set sysctl parameter '%s=%s'\n",
+				ERR_PTR(err), param, val);
+	} else if (wret != len) {
+		pr_err("Wrote only %zd bytes of %d writing to proc file %s to set sysctl parameter '%s=%s\n",
+			wret, len, path, param, val);
+	}
+
+	err = filp_close(file, NULL);
+	if (err)
+		pr_err("Error %pe closing proc file to set sysctl parameter '%s=%s\n",
+			ERR_PTR(err), param, val);
+out:
+	kfree(path);
+	return 0;
+}
+
+void do_sysctl_args(void)
+{
+	char *command_line;
+	struct vfsmount *proc_mnt = NULL;
+
+	command_line = kstrdup(saved_command_line, GFP_KERNEL);
+	if (!command_line)
+		panic("%s: Failed to allocate copy of command line\n", __func__);
+
+	parse_args("Setting sysctl args", command_line,
+		   NULL, 0, -1, -1, &proc_mnt, process_sysctl_arg);
+
+	if (proc_mnt)
+		kern_unmount(proc_mnt);
+
+	kfree(command_line);
 }

@@ -330,8 +330,8 @@ schedule:
 
 /* method to find out whether the firmware has to be downloaded or not */
 static int technisat_usb2_identify_state(struct usb_device *udev,
-		struct dvb_usb_device_properties *props,
-		struct dvb_usb_device_description **desc, int *cold)
+		const struct dvb_usb_device_properties *props,
+		const struct dvb_usb_device_description **desc, int *cold)
 {
 	int ret;
 	u8 *version;
@@ -566,8 +566,9 @@ static int technisat_usb2_frontend_attach(struct dvb_usb_adapter *a)
 			a->fe_adap[0].fe->ops.set_voltage = technisat_usb2_set_voltage;
 
 			/* if everything was successful assign a nice name to the frontend */
-			strlcpy(a->fe_adap[0].fe->ops.info.name, a->dev->desc->name,
-					sizeof(a->fe_adap[0].fe->ops.info.name));
+			strscpy(a->fe_adap[0].fe->ops.info.name,
+				a->dev->desc->name,
+				sizeof(a->fe_adap[0].fe->ops.info.name));
 		} else {
 			dvb_frontend_detach(a->fe_adap[0].fe);
 			a->fe_adap[0].fe = NULL;
@@ -655,14 +656,14 @@ unlock:
 	for (i = 1; i < ARRAY_SIZE(state->buf); i++) {
 		if (buf[i] == 0xff) {
 			ev.pulse = 0;
-			ev.duration = 888888*2;
+			ev.duration = 889 * 2;
 			ir_raw_event_store(d->rc_dev, &ev);
 			break;
 		}
 
 		ev.pulse = !ev.pulse;
 		ev.duration = (buf[i] * FIRMWARE_CLOCK_DIVISOR *
-			       FIRMWARE_CLOCK_TICK) / 1000;
+			       FIRMWARE_CLOCK_TICK) / (1000 * 1000);
 		ir_raw_event_store(d->rc_dev, &ev);
 	}
 

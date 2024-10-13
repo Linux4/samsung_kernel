@@ -20,14 +20,14 @@
 
 #ifndef S2MU106_CHARGER_H
 #define S2MU106_CHARGER_H
-#include <linux/mfd/slsi/s2mu106/s2mu106.h>
+#include <linux/mfd/samsung/s2mu106.h>
 
-#if defined(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/common/muic.h>
-#include <linux/muic/common/muic_notifier.h>
-#endif /* CONFIG_MUIC_NOTIFIER */
+#if IS_ENABLED(CONFIG_ERD_MUIC_NOTIFIER)
+#include <linux/muic/muic.h>
+#include <linux/muic/muic_notifier.h>
+#endif /* CONFIG_ERD_MUIC_NOTIFIER */
 
-#include <linux/power/s2mu00x_battery.h>
+#include <linux/power/s2m_chg_manager.h>
 
 /* define function if need */
 #define ENABLE_MIVR 0
@@ -39,9 +39,7 @@
 /* Test debug log enable */
 #define EN_TEST_READ 1
 
-
 #define HEALTH_DEBOUNCE_CNT 1
-
 
 #define MINVAL(a, b) ((a <= b) ? a : b)
 #define MASK(width, shift)	(((0x1 << (width)) - 1) << shift)
@@ -92,16 +90,17 @@
 #define S2MU106_CHG_CTRL23		0x2F
 #define S2MU106_CHG_CTRL24		0x30
 
+#define S2MU106_CHG_SC_OTP34		0x8B
 
 /* S2MU106_CHG_CTRL0 */
-#define REG_MODE_SHIFT		0
-#define REG_MODE_WIDTH		4
-#define REG_MODE_MASK		MASK(REG_MODE_WIDTH, REG_MODE_SHIFT)
+#define REG_MODE_SHIFT			0
+#define REG_MODE_WIDTH			4
+#define REG_MODE_MASK			MASK(REG_MODE_WIDTH, REG_MODE_SHIFT)
 
-#define CHARGER_OFF_MODE	0
-#define BUCK_MODE		1
-#define CHG_MODE		3
-#define OTG_BST_MODE		6
+#define CHARGER_OFF_MODE		0
+#define BUCK_MODE			1
+#define CHG_MODE			3
+#define OTG_BST_MODE			6
 
 /* S2MU106_CHG_CTRL1 */
 #define INPUT_CURRENT_LIMIT_SHIFT	0
@@ -110,9 +109,9 @@
 					INPUT_CURRENT_LIMIT_SHIFT)
 
 /* S2MU106_CHG_CTRL5 */
-#define SET_VF_VBAT_SHIFT	0
-#define SET_VF_VBAT_WIDTH	7
-#define SET_VF_VBAT_MASK	MASK(SET_VF_VBAT_WIDTH, SET_VF_VBAT_SHIFT)
+#define SET_VF_VBAT_SHIFT		0
+#define SET_VF_VBAT_WIDTH		7
+#define SET_VF_VBAT_MASK		MASK(SET_VF_VBAT_WIDTH, SET_VF_VBAT_SHIFT)
 
 /* S2MU106_CHG_CTRL7 */
 #define FAST_CHARGING_CURRENT_SHIFT	0
@@ -121,9 +120,9 @@
 					FAST_CHARGING_CURRENT_SHIFT)
 
 /* S2MU106_CHG_CTRL9 */
-#define BAT_OCP_SHIFT	0
-#define BAT_OCP_WIDTH	3
-#define BAT_OCP_MASK	MASK(BAT_OCP_WIDTH, BAT_OCP_SHIFT)
+#define BAT_OCP_SHIFT			0
+#define BAT_OCP_WIDTH			3
+#define BAT_OCP_MASK			MASK(BAT_OCP_WIDTH, BAT_OCP_SHIFT)
 
 /* S2MU106_CHG_CTRL10 */
 #define FIRST_TOPOFF_CURRENT_SHIFT	4
@@ -137,13 +136,13 @@
 					SECOND_TOPOFF_CURRENT_SHIFT)
 
 /* S2MU106_CHG_STATUS0 */
-#define WCIN_STATUS_SHIFT	4
-#define WCIN_STATUS_WIDTH	3
-#define WCIN_STATUS_MASK	MASK(WCIN_STATUS_WIDTH, WCIN_STATUS_SHIFT)
+#define WCIN_STATUS_SHIFT		4
+#define WCIN_STATUS_WIDTH		3
+#define WCIN_STATUS_MASK		MASK(WCIN_STATUS_WIDTH, WCIN_STATUS_SHIFT)
 
-#define CHGIN_STATUS_SHIFT	0
-#define CHGIN_STATUS_WIDTH	3
-#define CHGIN_STATUS_MASK	MASK(CHGIN_STATUS_WIDTH, CHGIN_STATUS_SHIFT)
+#define CHGIN_STATUS_SHIFT		0
+#define CHGIN_STATUS_WIDTH		3
+#define CHGIN_STATUS_MASK		MASK(CHGIN_STATUS_WIDTH, CHGIN_STATUS_SHIFT)
 
 
 /* S2MU106_CHG_STATUS1 */
@@ -152,15 +151,15 @@
 #define CHG_FAULT_STATUS_MASK		MASK(CHG_FAULT_STATUS_WIDTH,\
 					 CHG_FAULT_STATUS_SHIFT)
 
-#define CHG_STATUS_NORMAL	0
-#define CHG_STATUS_WD_SUSPEND	1
-#define CHG_STATUS_WD_RST	2
-#define CHG_STATUS_TSD		3
-#define CHG_STATUS_TFB		4
+#define CHG_STATUS_NORMAL		0
+#define CHG_STATUS_WD_SUSPEND		1
+#define CHG_STATUS_WD_RST		2
+#define CHG_STATUS_TSD			3
+#define CHG_STATUS_TFB			4
 #define CHG_STATUS_TO_PRE_CHARGE	6
 #define CHG_STATUS_TO_FAST_CHARGE	7
 
-#define CHG_CV_STATUS_SHIFT	3
+#define CHG_CV_STATUS_SHIFT		3
 #define CHG_CV_STATUS_MASK		BIT(CHG_Restart_STATUS_SHIFT)
 
 #define CHG_Restart_STATUS_SHIFT	2
@@ -169,54 +168,54 @@
 #define TOP_OFF_STATUS_SHIFT		1
 #define TOP_OFF_STATUS_MASK		BIT(TOP_OFF_STATUS_SHIFT)
 
-#define DONE_STATUS_SHIFT	0
-#define DONE_STATUS_MASK	BIT(DONE_STATUS_SHIFT)
+#define DONE_STATUS_SHIFT		0
+#define DONE_STATUS_MASK		BIT(DONE_STATUS_SHIFT)
 
 /* S2MU106_CHG_STATUS2 */
-#define OTG_STATUS_SHIFT	6
-#define OTG_STATUS_WIDTH	2
-#define OTG_STATUS_MASK		MASK(OTG_STATUS_WIDTH, OTG_STATUS_SHIFT)
+#define OTG_STATUS_SHIFT		6
+#define OTG_STATUS_WIDTH		2
+#define OTG_STATUS_MASK			MASK(OTG_STATUS_WIDTH, OTG_STATUS_SHIFT)
 
-#define TX_STATUS_SHIFT		4
-#define TX_STATUS_WIDTH		2
-#define TX_STATUS_MASK		MASK(TX_STATUS_WIDTH, TX_STATUS_SHIFT)
+#define TX_STATUS_SHIFT			4
+#define TX_STATUS_WIDTH			2
+#define TX_STATUS_MASK			MASK(TX_STATUS_WIDTH, TX_STATUS_SHIFT)
 
 /* S2MU106_CHG_STATUS3 */
-#define BAT_STATUS_SHIFT	1
-#define BAT_STATUS_WIDTH	3
-#define BAT_STATUS_MASK		MASK(BAT_STATUS_WIDTH, BAT_STATUS_SHIFT)
+#define BAT_STATUS_SHIFT		1
+#define BAT_STATUS_WIDTH		3
+#define BAT_STATUS_MASK			MASK(BAT_STATUS_WIDTH, BAT_STATUS_SHIFT)
 
-#define DET_BAT_STATUS_SHIFT	0
-#define DET_BAT_STATUS_MASK	BIT(DET_BAT_STATUS_SHIFT)
+#define DET_BAT_STATUS_SHIFT		0
+#define DET_BAT_STATUS_MASK		BIT(DET_BAT_STATUS_SHIFT)
 
 /* S2MU106_CHG_STATUS5 */
-#define ICR_STATUS_SHIFT	2
-#define ICR_STATUS_MASK		BIT(ICR_STATUS_SHIFT)
+#define ICR_STATUS_SHIFT		2
+#define ICR_STATUS_MASK			BIT(ICR_STATUS_SHIFT)
 
-#define IVR_STATUS_SHIFT	3
-#define IVR_STATUS_MASK		BIT(IVR_STATUS_SHIFT)
+#define IVR_STATUS_SHIFT		3
+#define IVR_STATUS_MASK			BIT(IVR_STATUS_SHIFT)
 
 /* S2MU106_CHG_CTRL3 */
 #define OTG_OCP_SW_ON_SHIFT		5
 #define OTG_OCP_SW_ON_MASK		BIT(OTG_OCP_SW_ON_SHIFT)
 
-#define OTG_OCP_SW_OFF_SHIFT	4
+#define OTG_OCP_SW_OFF_SHIFT		4
 #define OTG_OCP_SW_OFF_MASK		BIT(OTG_OCP_SW_OFF_SHIFT)
 
-#define SET_OTG_OCP_SHIFT	2
-#define SET_OTG_OCP_WIDTH	2
-#define SET_OTG_OCP_MASK	MASK(SET_OTG_OCP_WIDTH, SET_OTG_OCP_SHIFT)
+#define SET_OTG_OCP_SHIFT		2
+#define SET_OTG_OCP_WIDTH		2
+#define SET_OTG_OCP_MASK		MASK(SET_OTG_OCP_WIDTH, SET_OTG_OCP_SHIFT)
 
 /* S2MU106_CHG_CTRL4 */
-#define SET_CHGIN_IVR_SHIFT	2
-#define SET_CHGIN_IVR_WIDTH	2
-#define SET_CHGIN_IVR_MASK	MASK(SET_CHGIN_IVR_WIDTH,\
-				SET_CHGIN_IVR_SHIFT)
+#define SET_CHGIN_IVR_SHIFT		2
+#define SET_CHGIN_IVR_WIDTH		2
+#define SET_CHGIN_IVR_MASK		MASK(SET_CHGIN_IVR_WIDTH,\
+					SET_CHGIN_IVR_SHIFT)
 
-#define SET_WCIN_IVR_SHIFT	2
-#define SET_WCIN_IVR_WIDTH	2
-#define SET_WCIN_IVR_MASK	MASK(SET_WCIN_IVR_WIDTH,\
-				SET_WCIN_IVR_SHIFT)
+#define SET_WCIN_IVR_SHIFT		2
+#define SET_WCIN_IVR_WIDTH		2
+#define SET_WCIN_IVR_MASK		MASK(SET_WCIN_IVR_WIDTH,\
+					SET_WCIN_IVR_SHIFT)
 
 /* S2MU106_CHG_CTRL6 */
 #define COOL_CHARGING_CURRENT_SHIFT	0
@@ -225,9 +224,9 @@
 					COOL_CHARGING_CURRENT_SHIFT)
 
 /* S2MU106_CHG_CTRL8 */
-#define SET_VSYS_SHIFT	0
-#define SET_VSYS_WIDTH	3
-#define SET_VSYS_MASK	MASK(SET_VSYS_WIDTH, SET_VSYS_SHIFT)
+#define SET_VSYS_SHIFT			0
+#define SET_VSYS_WIDTH			3
+#define SET_VSYS_MASK			MASK(SET_VSYS_WIDTH, SET_VSYS_SHIFT)
 
 /* S2MU106_CHG_CTRL10 */
 #define SECOND_TOPOFF_CURRENT_SHIFT	0
@@ -236,30 +235,30 @@
 					SECOND_TOPOFF_CURRENT_SHIFT)
 
 /* S2MU106_CHG_CTRL12 */
-#define SET_EN_WDT_AP_RESET_SHIFT 5
-#define SET_EN_WDT_AP_RESET_MASK BIT(SET_EN_WDT_AP_RESET_SHIFT)
+#define SET_EN_WDT_AP_RESET_SHIFT	5
+#define SET_EN_WDT_AP_RESET_MASK	BIT(SET_EN_WDT_AP_RESET_SHIFT)
 
-#define SET_EN_WDT_SHIFT 4
-#define SET_EN_WDT_MASK BIT(SET_EN_WDT_SHIFT)
+#define SET_EN_WDT_SHIFT		4
+#define SET_EN_WDT_MASK			BIT(SET_EN_WDT_SHIFT)
 
-#define WDT_TIME_SHIFT        1
-#define WDT_TIME_WIDTH        3
-#define WDT_TIME_MASK        MASK(WDT_TIME_WIDTH, WDT_TIME_SHIFT)
+#define WDT_TIME_SHIFT			1
+#define WDT_TIME_WIDTH			3
+#define WDT_TIME_MASK			MASK(WDT_TIME_WIDTH, WDT_TIME_SHIFT)
 
-#define WDT_CLR_SHIFT 0
-#define WDT_CLR_MASK BIT(WDT_CLR_SHIFT)
+#define WDT_CLR_SHIFT			0
+#define WDT_CLR_MASK			BIT(WDT_CLR_SHIFT)
 
 /* S2MU106_CHG_CTRL13 */
-#define SET_TIME_FC_CHG_SHIFT	3
-#define SET_TIME_FC_CHG_WIDTH	3
-#define SET_TIME_FC_CHG_MASK	MASK(SET_TIME_FC_CHG_WIDTH, SET_TIME_FC_CHG_SHIFT)
+#define SET_TIME_FC_CHG_SHIFT		3
+#define SET_TIME_FC_CHG_WIDTH		3
+#define SET_TIME_FC_CHG_MASK		MASK(SET_TIME_FC_CHG_WIDTH, SET_TIME_FC_CHG_SHIFT)
 
 /* S2MU106_CHG_CTRL14 */
-#define TOP_OFF_TIME_SHIFT    0
-#define TOP_OFF_TIME_WIDTH    3
-#define TOP_OFF_TIME_MASK    MASK(TOP_OFF_TIME_WIDTH, TOP_OFF_TIME_SHIFT)
+#define TOP_OFF_TIME_SHIFT		0
+#define TOP_OFF_TIME_WIDTH		3
+#define TOP_OFF_TIME_MASK		MASK(TOP_OFF_TIME_WIDTH, TOP_OFF_TIME_SHIFT)
 
-#define FAKE_BAT_LEVEL          50
+#define FAKE_BAT_LEVEL			50
 
 #define HV_MAINS_IVR_INPUT		2000
 #define HV_MAINS_IVR_STEP		300
@@ -268,17 +267,14 @@ enum {
 	CHIP_ID = 0,
 };
 
-ssize_t s2mu106_chg_show_attrs(struct device *dev,
-		struct device_attribute *attr, char *buf);
+ssize_t s2mu106_chg_show_attrs(struct device *dev, struct device_attribute *attr, char *buf);
+ssize_t s2mu106_chg_store_attrs(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
 
-ssize_t s2mu106_chg_store_attrs(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count);
-
-#define S2MU106_CHARGER_ATTR(_name)				\
-{							                    \
-	.attr = {.name = #_name, .mode = 0664},	    \
-	.show = s2mu106_chg_show_attrs,			    \
-	.store = s2mu106_chg_store_attrs,			\
+#define S2MU106_CHARGER_ATTR(_name)			\
+{							\
+	.attr = {.name = #_name, .mode = 0664},		\
+	.show = s2mu106_chg_show_attrs,			\
+	.store = s2mu106_chg_store_attrs,		\
 }
 
 enum {
@@ -336,9 +332,9 @@ enum {
 	S2MU106_SET_BAT_OCP_7000mA   = 0x7,
 };
 
-typedef struct s2mu106_charger_platform_data {
-	s2mu00x_charging_current_t *charging_current_table;
-	s2mu00x_charging_current_t *charging_current;
+struct s2mu106_charger_platform_data {
+	s2m_charging_current_t *charging_current_table;
+	s2m_charging_current_t *charging_current;
 	int chg_float_voltage;
 	char *charger_name;
 	char *fuelgauge_name;
@@ -346,7 +342,7 @@ typedef struct s2mu106_charger_platform_data {
 	int recharge_vcell;
 	uint32_t is_1MHz_switching:1;
 	int chg_switching_freq;
-} s2mu106_charger_platform_data_t;
+};
 
 
 struct s2mu106_charger_data {
@@ -361,7 +357,7 @@ struct s2mu106_charger_data {
 	struct power_supply *psy_otg;
 	struct power_supply_desc psy_otg_desc;
 
-	s2mu106_charger_platform_data_t *pdata;
+	struct s2mu106_charger_platform_data *pdata;
 	int dev_id;
 	int input_current;
 	int charging_current;
@@ -394,7 +390,7 @@ struct s2mu106_charger_data {
 
 	int charge_mode;
 
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_ERD_MUIC_NOTIFIER)
 	struct notifier_block cable_check;
 #endif
 };

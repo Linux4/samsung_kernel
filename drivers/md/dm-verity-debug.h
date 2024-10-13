@@ -33,7 +33,12 @@ struct blks_info{
     atomic_t dmv_ctr_cnt;
 };
 extern struct blks_info *b_info;
-extern int ignore_fs_panic;
+
+/* ignore_fs_panic is not ported.
+   we may not need to ignore_fs_panic.
+   verity_is_system_shutting_down is added.
+ */
+//extern int ignore_fs_panic;
 
 extern int verity_handle_err_hex_debug(struct dm_verity *v, enum verity_block_type type,
 					     unsigned long long block, struct dm_verity_io *io, struct bvec_iter *iter);

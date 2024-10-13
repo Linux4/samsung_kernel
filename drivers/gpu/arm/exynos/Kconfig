@@ -24,7 +24,7 @@ config MALI_EXYNOS_CLOCK
     depends on MALI_MIDGARD && CAL_IF
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
-    default y
+    default n
     help
       Choose this option to enable frequency setting Mali DDK.
 
@@ -33,7 +33,7 @@ config MALI_EXYNOS_DVFS
     depends on MALI_MIDGARD && MALI_EXYNOS_CLOCK
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
-    default y
+    default n
     help
       Choose this option to enable DVFS in the Mali Midgard DDK.
 
@@ -51,7 +51,7 @@ config MALI_EXYNOS_PM
     depends on EXYNOS_PD
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
-    default y
+    default n
     help
       Choose this option to enable runtime power management in the Mali Midgard DDK.
 
@@ -60,7 +60,7 @@ config MALI_EXYNOS_RTPM
     depends on MALI_EXYNOS_PM
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
-    default y
+    default n
     help
       Choose this option to enable runtime power management in the Mali Midgard DDK.
 
@@ -90,7 +90,7 @@ config MALI_EXYNOS_QOS
     depends on MALI_MIDGARD && PM_DEVFREQ && CPU_FREQ
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
-    default y
+    default n
     help
       Choose this option to enable PM_QOS in the Mali tTRx DDK.
 
@@ -108,7 +108,7 @@ config MALI_EXYNOS_BTS_MO
     depends on MALI_EXYNOS_QOS
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
-    default y
+    default n
     help
       Choose this option to enable BTS in the Mali tTRx DDK.
 
@@ -134,7 +134,7 @@ config MALI_EXYNOS_DEBUG
     depends on !KUNIT && !SEC_KUNIT
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
-    default y
+    default n
     help
       Mali Exynos integration debug features
 
@@ -156,7 +156,7 @@ config MALI_EXYNOS_CL_BOOST
     depends on MALI_MIDGARD
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
-    default y
+    default n
 
 config MALI_NOTIFY_UTILISATION
     bool "Added frag utilisation notifier"
@@ -223,6 +223,14 @@ config MALI_EXYNOS_INTERACTIVE_BOOST
     help
       Choose this option to for GPU interactive boost support.
 
+config MALI_EXYNOS_EHMP
+    bool "Enable Mali EHMP support"
+	depends on MALI_EXYNOS_QOS
+	default y if SOC_EXYNOS9810
+	default n
+    help
+      Choose this option to for Mali EHMP support.
+
 # This is a legacy config that's unfortunately used by the other drivers... Need to find a better
 # place to put this.
 config EXYNOS_SOC_NAME
@@ -233,13 +241,13 @@ config EXYNOS_SOC_NAME
 
 config MALI_EXYNOS_UNIT_TESTS
     bool "Build unit tests for Mali Unified Driver vendor code"
-    default n
+    default y
     help
       Choose this option to build unit tests for Mali LSI vendor code
 
 config MALI_EXYNOS_DEBUG_FAULT_DUMP
     bool "dump mali trace data on gpu fault"
     depends on MALI_MIDGARD
-    default n
+    default y
     help
       MALI_MIDGARD_ENABLE_TRACE must be enabled for more detailed logs

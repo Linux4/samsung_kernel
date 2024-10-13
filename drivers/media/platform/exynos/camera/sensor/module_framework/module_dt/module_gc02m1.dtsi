@@ -12,10 +12,9 @@
 #include <dt-bindings/camera/exynos_is_dt.h>
 
 #ifndef USE_VENDOR_PWR_PIN_NAME
-#define GC02M1_IOVDD	<>
-#define GC02M1_AVDD	<>
-
-#define GC02M1_MACRO_IOVDD	<>
+#define GC02M1_IOVDD "CAM_VLDO3"     /* CAM_VDDIO_1P8 : CAM_VLDO3 is used for all camera commonly */
+#define GC02M1_AVDD	"CAM_VLDO6"     /* RCAM1_AVDD1_2P9 */
+#define GC02M1_DVDD	"CAM_VLDO1"     /* RCAM1_DVDD_1P1 */
 #endif
 
 / {
@@ -41,9 +40,6 @@
 				setfile_name = "setfile_gc02m1.bin";
 				sensor_module_type = <SENSOR_TYPE_MONO>;
 
-				gc02m1_iovdd-supply = GC02M1_IOVDD;
-				gc02m1_avdd-supply = GC02M1_AVDD;
-				
 				status = "okay";
 
 				/* sensor modes */
@@ -53,24 +49,8 @@
 
 					/* 0 : 1600x1200@30fps 4:3 */
 					mode0 {
-						common = <1600 1200 30 0 0 CSI_DATA_LANES_1 676 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <1600 1200 30 0 0 CSI_DATA_LANES_1 672 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 1600 1200	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-					};
-					/* 1 : 1600x900@30fps 16:9 */
-					mode1 {
-						common = <1600 900 30 0 1 CSI_DATA_LANES_1 676 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 1600 900	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-					};
-					/* 2 : 800x600@60fps Fasten AE */
-					mode2 {
-						common = <800 600 60 0 2 CSI_DATA_LANES_1 676 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 800 600	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -141,8 +121,6 @@
 				sensor_name = "GC02M1";
 				setfile_name = "setfile_gc02m1_macro.bin";
 
-				gc02m1_macro_iovdd-supply = GC02M1_IOVDD;
-
 				status = "okay";
 
 				/* sensor modes */
@@ -152,24 +130,8 @@
 
 					/* 0 : 1600x1200@30fps 4:3 */
 					mode0 {
-						common = <1600 1200 30 0 0 CSI_DATA_LANES_1 676 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <1600 1200 30 0 0 CSI_DATA_LANES_1 672 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 1600 1200	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-					};
-					/* 1 : 1600x900@30fps 16:9 */
-					mode1 {
-						common = <1600 900 30 0 1 CSI_DATA_LANES_1 676 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 1600 900	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-					};
-					/* 2 : 800x600@60fps Fasten AE */
-					mode2 {
-						common = <800 600 60 0 2 CSI_DATA_LANES_1 676 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 800 600	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;

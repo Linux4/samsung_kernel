@@ -51,7 +51,7 @@ static int create_dump_bin_file(void)
 
 	shub_infof();
 
-	sensorhub_dump = kvzalloc(sensorhub_dump_size, GFP_KERNEL);
+	sensorhub_dump = vzalloc(sensorhub_dump_size);
 	if (ZERO_OR_NULL_PTR(sensorhub_dump)) {
 		shub_infof("fail to alloc memory");
 		return -EINVAL;

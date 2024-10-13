@@ -20,7 +20,7 @@
 
 #ifndef S2MU106_PMETER_H
 #define S2MU106_PMETER_H
-#include <linux/mfd/slsi/s2mu106/s2mu106.h>
+#include <linux/mfd/samsung/s2mu106.h>
 #include <linux/platform_device.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
@@ -91,27 +91,26 @@ enum pm_type {
 	PM_TYPE_MAX,
 };
 
-enum { 
+enum {
 	CONTINUOUS_MODE = 0,
 	REQUEST_RESPONSE_MODE,
 };
-#if 0
-enum power_supply_pm_property {
-	POWER_SUPPLY_PROP_VWCIN,
-	POWER_SUPPLY_PROP_VBYP,
-	POWER_SUPPLY_PROP_VSYS,
-	POWER_SUPPLY_PROP_VBAT,
-	POWER_SUPPLY_PROP_VGPADC,
-	POWER_SUPPLY_PROP_VCC1,
-	POWER_SUPPLY_PROP_VCC2,
-	POWER_SUPPLY_PROP_ICHGIN,
-	POWER_SUPPLY_PROP_IWCIN,
-	POWER_SUPPLY_PROP_IOTG,
-	POWER_SUPPLY_PROP_ITX,
-	POWER_SUPPLY_PROP_CO_ENABLE,
-	POWER_SUPPLY_PROP_RR_ENABLE,
-};
-#endif
+
+//enum power_supply_pm_property {
+//	POWER_SUPPLY_PROP_VWCIN,
+//	POWER_SUPPLY_PROP_VBYP,
+//	POWER_SUPPLY_PROP_VSYS,
+//	POWER_SUPPLY_PROP_VBAT,
+//	POWER_SUPPLY_PROP_VGPADC,
+//	POWER_SUPPLY_PROP_VCC1,
+//	POWER_SUPPLY_PROP_VCC2,
+//	POWER_SUPPLY_PROP_ICHGIN,
+//	POWER_SUPPLY_PROP_IWCIN,
+//	POWER_SUPPLY_PROP_IOTG,
+//	POWER_SUPPLY_PROP_ITX,
+//	POWER_SUPPLY_PROP_CO_ENABLE,
+//	POWER_SUPPLY_PROP_RR_ENABLE,
+//};
 
 #define HYST_LEV_VCHGIN_SHIFT	4
 #define HYST_LEV_VCHGIN_MASK	0x70
@@ -145,7 +144,7 @@ struct s2mu106_pmeter_data {
 	struct power_supply	*psy_pm;
 	struct power_supply_desc psy_pm_desc;
 
-	struct mutex 	pmeter_mutex;
+	struct mutex		pmeter_mutex;
 };
 
 #endif /*S2MU106_PMETER_H*/

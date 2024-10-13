@@ -52,24 +52,24 @@ config FLASH_CURRENT_CHANGE_SUPPORT
         default n
         help
            Change torch current in capturing image.
-config CAMERA_PST_V01
-        bool "This camera is pst_v01"
+config CAMERA_HST_V01
+        bool "This camera is hst_v01"
         depends on VENDER_MCD
         default n
         help
-          This camera is pst_v01.
-config CAMERA_PST_V02
-        bool "This camera is pst_v02"
+          This camera is hst_v01.
+config CAMERA_HST_V02
+        bool "This camera is hst_v02"
         depends on VENDER_MCD
         default n
         help
-          This camera is pst_v02.
-config CAMERA_PST_V03
-        bool "This camera is pst_v03"
+          This camera is hst_v02.
+config CAMERA_HST_V03
+        bool "This camera is hst_v03"
         depends on VENDER_MCD
         default n
         help
-          This camera is pst_v03.
+          This camera is hst_v03.
 config SECURE_CAMERA_USE
         bool "Use secure camera"
         depends on VENDER_MCD
@@ -112,3 +112,9 @@ config CAMERA_USE_INTERNAL_MCU
 	default n
 	help
 	  Use internal MCU for OIS.
+config CAMERA_CNT_V02
+        bool "This camera is cnt_v02"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is cnt_v02.

@@ -12,6 +12,11 @@
 #include "camerapp-hw-api-gdc.h"
 #include "camerapp-hw-reg-gdc-v301.h"
 #include <linux/smc.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+#include <soc/samsung/exynos-smc.h>
+#endif
+
 
 u32 camerapp_hw_gdc_get_ver(void __iomem *base_addr)
 {
@@ -59,6 +64,7 @@ u32 camerapp_hw_gdc_sw_reset(void __iomem *base_addr)
 	smc_ret = exynos_smc(0x82000410, 0x1, 0x18210204, 0x2);
 	if (smc_ret)
 		gdc_dbg("gdc setting non secure mode is failed\n");
+
 	return 0;
 }
 
@@ -622,6 +628,11 @@ void camerapp_hw_gdc_status_read(void __iomem *base_addr)
 		cacheStatus0, hitFifoStatus0, missFifoStatus0,
 		wdmaStatus, rdmaStatus);
 
+}
+
+void camerapp_hw_gdc_votf_enable(void __iomem *base_addr, u8 rw)
+{
+	return;
 }
 
 void camerapp_gdc_sfr_dump(void __iomem *base_addr)

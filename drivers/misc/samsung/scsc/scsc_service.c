@@ -334,8 +334,12 @@ int scsc_mx_service_start(struct scsc_service *service, scsc_mifram_ref ref)
 	struct scsc_mx *mx = service->mx;
 	struct srvman *srvman = scsc_mx_get_srvman(mx);
 	struct mxman *mxman = scsc_mx_get_mxman(service->mx);
-	int                 r;
+	int            r;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+	struct  __kernel_old_timeval tval = {};
+#else
 	struct timeval tval = {};
+#endif
 
 	SCSC_TAG_INFO(MXMAN, "%d\n", service->id);
 #ifdef CONFIG_SCSC_CHV_SUPPORT
@@ -347,7 +351,11 @@ int scsc_mx_service_start(struct scsc_service *service, scsc_mifram_ref ref)
 	wake_lock(&srvman->sm_wake_lock);
 #endif
 	if (srvman_start_not_allowed(srvman)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+		tval = ns_to_kernel_old_timeval(mxman->last_panic_time);
+#else
 		tval = ns_to_timeval(mxman->last_panic_time);
+#endif
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
 
@@ -429,7 +437,11 @@ int scsc_mx_service_stop(struct scsc_service *service)
 	struct srvman *srvman = scsc_mx_get_srvman(mx);
 	struct mxman *mxman = scsc_mx_get_mxman(service->mx);
 	int r;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+	struct  __kernel_old_timeval tval = {};
+#else
 	struct timeval tval = {};
+#endif
 
 	SCSC_TAG_INFO(MXMAN, "%d\n", service->id);
 #ifdef CONFIG_SCSC_CHV_SUPPORT
@@ -441,7 +453,11 @@ int scsc_mx_service_stop(struct scsc_service *service)
 	wake_lock(&srvman->sm_wake_lock);
 #endif
 	if (srvman_start_stop_not_allowed(srvman)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+		tval = ns_to_kernel_old_timeval(mxman->last_panic_time);
+#else
 		tval = ns_to_timeval(mxman->last_panic_time);
+#endif
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
 
@@ -712,7 +728,11 @@ int scsc_mx_service_close(struct scsc_service *service)
 	struct scsc_mx *mx = service->mx;
 	struct srvman  *srvman = scsc_mx_get_srvman(mx);
 	bool           empty;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+	struct  __kernel_old_timeval tval = {};
+#else
 	struct timeval tval = {};
+#endif
 
 	SCSC_TAG_INFO(MXMAN, "%d\n", service->id);
 
@@ -722,7 +742,11 @@ int scsc_mx_service_close(struct scsc_service *service)
 #endif
 
 	if (srvman_start_stop_not_allowed(srvman)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+		tval = ns_to_kernel_old_timeval(mxman->last_panic_time);
+#else
 		tval = ns_to_timeval(mxman->last_panic_time);
+#endif
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
 
@@ -795,7 +819,11 @@ struct scsc_service *scsc_mx_service_open(struct scsc_mx *mx, enum scsc_service_
 	struct srvman       *srvman = scsc_mx_get_srvman(mx);
 	struct mxman        *mxman = scsc_mx_get_mxman(mx);
 	bool                empty;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+	struct  __kernel_old_timeval tval = {};
+#else
 	struct timeval tval = {};
+#endif
 
 	SCSC_TAG_INFO(MXMAN, "%d\n", id);
 
@@ -804,7 +832,11 @@ struct scsc_service *scsc_mx_service_open(struct scsc_mx *mx, enum scsc_service_
 	wake_lock(&srvman->sm_wake_lock);
 #endif
 	if (srvman_start_not_allowed(srvman)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+		tval = ns_to_kernel_old_timeval(mxman->last_panic_time);
+#else
 		tval = ns_to_timeval(mxman->last_panic_time);
+#endif
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
 		/* Print the last panic record to help track ancient failures */

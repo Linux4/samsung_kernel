@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_vdma.h
- *
- * ALSA SoC Audio Layer - Samsung Abox Virtual DMA driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox Virtual DMA driver
  *
  * Copyright (c) 2017 Samsung Electronics Co. Ltd.
  *

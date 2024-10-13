@@ -28,6 +28,7 @@ u32 camerapp_sfr_get_reg(void __iomem *base_addr, const struct camerapp_sfr_reg 
 
 	return reg_value;
 }
+EXPORT_SYMBOL(camerapp_sfr_get_reg);
 
 void camerapp_sfr_set_reg(void __iomem *base_addr, const struct camerapp_sfr_reg *reg, u32 val)
 {
@@ -37,6 +38,7 @@ void camerapp_sfr_set_reg(void __iomem *base_addr, const struct camerapp_sfr_reg
 	writel(val, base_addr + reg->sfr_offset);
 	return;
 }
+EXPORT_SYMBOL(camerapp_sfr_set_reg);
 
 u32 camerapp_sfr_get_field(void __iomem *base_addr, const struct camerapp_sfr_reg *reg,
 	const struct camerapp_sfr_field *field)
@@ -52,6 +54,7 @@ u32 camerapp_sfr_get_field(void __iomem *base_addr, const struct camerapp_sfr_re
 
 	return field_value;
 }
+EXPORT_SYMBOL(camerapp_sfr_get_field);
 
 void camerapp_sfr_set_field(void __iomem *base_addr, const struct camerapp_sfr_reg *reg,
 	const struct camerapp_sfr_field *field, u32 val)
@@ -70,6 +73,7 @@ void camerapp_sfr_set_field(void __iomem *base_addr, const struct camerapp_sfr_r
 	writel(reg_value, base_addr + (reg->sfr_offset));
 	return;
 }
+EXPORT_SYMBOL(camerapp_sfr_set_field);
 
 u32 camerapp_sfr_get_field_value(u32 reg_value, const struct camerapp_sfr_field *field)
 {
@@ -81,6 +85,7 @@ u32 camerapp_sfr_get_field_value(u32 reg_value, const struct camerapp_sfr_field 
 
 	return field_value;
 }
+EXPORT_SYMBOL(camerapp_sfr_get_field_value);
 
 u32 camerapp_sfr_set_field_value(u32 reg_value, const struct camerapp_sfr_field *field, u32 val)
 {
@@ -96,6 +101,7 @@ u32 camerapp_sfr_set_field_value(u32 reg_value, const struct camerapp_sfr_field 
 
 	return reg_value;
 }
+EXPORT_SYMBOL(camerapp_sfr_set_field_value);
 
 void camerapp_sfr_dump_regs(void __iomem *base_addr, const struct camerapp_sfr_reg *regs, u32 total_cnt)
 {
@@ -110,3 +116,5 @@ void camerapp_sfr_dump_regs(void __iomem *base_addr, const struct camerapp_sfr_r
 	}
 	return;
 }
+EXPORT_SYMBOL(camerapp_sfr_dump_regs);
+MODULE_LICENSE("GPL");

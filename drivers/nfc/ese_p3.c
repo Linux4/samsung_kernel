@@ -924,7 +924,7 @@ static int spip3_probe(struct spi_device *spi)
 	delay_params = devm_kzalloc(&spi->dev, sizeof(struct spi_geni_qcom_ctrl_data),
 			GFP_KERNEL);
 	pr_info("%s success alloc ctrl_data!\n", __func__);
-	delay_params->spi_cs_clk_delay = 35; /*clock cycles*/
+	delay_params->spi_cs_clk_delay = 133; /*clock cycles*/
 	delay_params->spi_inter_words_delay = 0;
 	spi->controller_data = delay_params;
 #endif

@@ -1,9 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Windfarm PowerMac thermal control.  SMU "satellite" controller sensors.
  *
  * Copyright (C) 2005 Paul Mackerras, IBM Corp. <paulus@samba.org>
- *
- * Released under the terms of the GNU GPL v2.
  */
 
 #include <linux/types.h>
@@ -172,6 +171,7 @@ static void wf_sat_release(struct kref *ref)
 
 	if (sat->nr >= 0)
 		sats[sat->nr] = NULL;
+	of_node_put(sat->node);
 	kfree(sat);
 }
 
@@ -197,7 +197,7 @@ static int wf_sat_probe(struct i2c_client *client,
 	struct wf_sat *sat;
 	struct wf_sat_sensor *sens;
 	const u32 *reg;
-	const char *loc, *type;
+	const char *loc;
 	u8 chip, core;
 	struct device_node *child;
 	int shift, cpu, index;
@@ -217,10 +217,8 @@ static int wf_sat_probe(struct i2c_client *client,
 
 	vsens[0] = vsens[1] = -1;
 	isens[0] = isens[1] = -1;
-	child = NULL;
-	while ((child = of_get_next_child(dev, child)) != NULL) {
+	for_each_child_of_node(dev, child) {
 		reg = of_get_property(child, "reg", NULL);
-		type = of_get_property(child, "device_type", NULL);
 		loc = of_get_property(child, "location", NULL);
 		if (reg == NULL || loc == NULL)
 			continue;
@@ -249,15 +247,15 @@ static int wf_sat_probe(struct i2c_client *client,
 			continue;
 		}
 
-		if (strcmp(type, "voltage-sensor") == 0) {
+		if (of_node_is_type(child, "voltage-sensor")) {
 			name = "cpu-voltage";
 			shift = 4;
 			vsens[core] = index;
-		} else if (strcmp(type, "current-sensor") == 0) {
+		} else if (of_node_is_type(child, "current-sensor")) {
 			name = "cpu-current";
 			shift = 8;
 			isens[core] = index;
-		} else if (strcmp(type, "temp-sensor") == 0) {
+		} else if (of_node_is_type(child, "temp-sensor")) {
 			name = "cpu-temp";
 			shift = 10;
 		} else

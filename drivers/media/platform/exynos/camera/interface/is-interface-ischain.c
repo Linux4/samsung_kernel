@@ -14,7 +14,7 @@
 #include <linux/workqueue.h>
 #include <linux/bug.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-core.h"
 #include "is-err.h"
@@ -64,6 +64,9 @@ static int is_interface_3aa_probe(struct is_interface_ischain *itfc,
 		break;
 	case DEV_HW_3AA2:
 		handler_id = ID_3AA_2;
+		break;
+	case DEV_HW_3AA3:
+		handler_id = ID_3AA_3;
 		break;
 	default:
 		err_itfc("invalid hw_id(%d)", hw_id);
@@ -410,6 +413,156 @@ static int is_interface_clh_probe(struct is_interface_ischain *itfc,
 	return ret;
 }
 
+static int is_interface_ypp_probe(struct is_interface_ischain *itfc,
+	int hw_id, struct platform_device *pdev, struct is_hardware *hardware)
+{
+	struct is_interface_hwip *itf_ypp = NULL;
+	int i, ret = 0;
+	int hw_slot = -1;
+	int handler_id = 0;
+	struct is_hw_ip *hw_ip;
+
+	FIMC_BUG(!itfc);
+	FIMC_BUG(!pdev);
+
+	switch (hw_id) {
+	case DEV_HW_YPP:
+		handler_id = ID_YPP;
+		break;
+	default:
+		err_itfc("invalid hw_id(%d)", hw_id);
+		return -EINVAL;
+	}
+
+	hw_slot = is_hw_slot_id(hw_id);
+	if (!valid_hw_slot_id(hw_slot)) {
+		err_itfc("invalid hw_slot (%d) ", hw_slot);
+		return -EINVAL;
+	}
+
+	hw_ip = &(hardware->hw_ip[hw_slot]);
+	itfc->itf_ip[hw_slot].hw_ip = hw_ip;
+
+	itf_ypp = &itfc->itf_ip[hw_slot];
+	itf_ypp->id = hw_id;
+	itf_ypp->state = 0;
+
+	ret = is_hw_get_address(itf_ypp, pdev, hw_id);
+	if (ret) {
+		err_itfc("[ID:%2d] hw_get_address failed (%d)", hw_id, ret);
+		return -EINVAL;
+	}
+
+	ret = is_hw_get_irq(itf_ypp, pdev, hw_id);
+	if (ret) {
+		err_itfc("[ID:%2d] hw_get_irq failed (%d)", hw_id, ret);
+		return -EINVAL;
+	}
+
+	ret = is_hw_request_irq(itf_ypp, hw_id);
+	if (ret) {
+		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < INTR_HWIP_MAX; i++) {
+		itf_ypp->handler[i].valid = false;
+
+		/* TODO: this is not cool */
+		gPtr_lib_support.intr_handler_taaisp[handler_id][i]
+			= (struct hwip_intr_handler *)&itf_ypp->handler[i];
+	}
+
+	/* library data settings */
+	if (!gPtr_lib_support.minfo) {
+		gPtr_lib_support.itfc		= itfc;
+		gPtr_lib_support.minfo		= itfc->minfo;
+
+		gPtr_lib_support.pdev		= pdev;
+
+#if !defined(ENABLE_DYNAMIC_MEM)
+		info_itfc("[ID:%2d] kvaddr for taaisp: 0x%lx\n", hw_id,
+			CALL_BUFOP(gPtr_lib_support.minfo->pb_clahe, kvaddr,
+					gPtr_lib_support.minfo->pb_clahe));
+#endif
+	}
+
+	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_ypp->state);
+
+	dbg_itfc("[ID:%2d] probe done\n", hw_id);
+
+	return ret;
+}
+
+static int is_interface_lme_probe(struct is_interface_ischain *itfc,
+	int hw_id, struct platform_device *pdev, struct is_hardware *hardware)
+{
+	struct is_interface_hwip *itf_lme = NULL;
+	int i, ret = 0;
+	int hw_slot = -1;
+	int handler_id = 0;
+	struct is_hw_ip *hw_ip;
+
+	FIMC_BUG(!itfc);
+	FIMC_BUG(!pdev);
+
+	hw_slot = is_hw_slot_id(hw_id);
+	if (!valid_hw_slot_id(hw_slot)) {
+		err_itfc("invalid hw_slot (%d) ", hw_slot);
+		return -EINVAL;
+	}
+
+	hw_ip = &(hardware->hw_ip[hw_slot]);
+	itfc->itf_ip[hw_slot].hw_ip = hw_ip;
+
+	itf_lme = &itfc->itf_ip[hw_slot];
+	itf_lme->id = hw_id;
+	itf_lme->state = 0;
+
+	ret = is_hw_get_address(itf_lme, pdev, hw_id);
+	if (ret) {
+		err_itfc("[ID:%2d] hw_get_address failed (%d)", hw_id, ret);
+		return -EINVAL;
+	}
+
+	ret = is_hw_get_irq(itf_lme, pdev, hw_id);
+	if (ret) {
+		err_itfc("[ID:%2d] hw_get_irq failed (%d)", hw_id, ret);
+		return -EINVAL;
+	}
+
+	ret = is_hw_request_irq(itf_lme, hw_id);
+	if (ret) {
+		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < INTR_HWIP_MAX; i++) {
+		itf_lme->handler[i].valid = false;
+
+		gPtr_lib_support.intr_handler_taaisp[handler_id][i]
+			= (struct hwip_intr_handler *)&itf_lme->handler[i];
+	}
+	if (!gPtr_lib_support.minfo) {
+		gPtr_lib_support.itfc		= itfc;
+		gPtr_lib_support.minfo		= itfc->minfo;
+
+		gPtr_lib_support.pdev		= pdev;
+
+#if !defined(ENABLE_DYNAMIC_MEM)
+		info_itfc("[ID:%2d] kvaddr for taaisp: 0x%lx\n", hw_id,
+			CALL_BUFOP(gPtr_lib_support.minfo->pb_clahe, kvaddr,
+					gPtr_lib_support.minfo->pb_clahe));
+#endif
+	}
+
+	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_lme->state);
+
+	dbg_itfc("[ID:%2d] probe done\n", hw_id);
+
+	return ret;
+}
+
 int is_interface_ischain_probe(struct is_interface_ischain *this,
 	struct is_hardware *hardware, struct is_resourcemgr *resourcemgr,
 	struct platform_device *pdev, ulong core_regs)
@@ -474,6 +627,24 @@ int is_interface_ischain_probe(struct is_interface_ischain *this,
 		}
 	}
 
+	for (i = 0; i < pdata->num_of_ip.ypp; i++) {
+		hw_id = DEV_HW_YPP + i;
+		ret = is_interface_ypp_probe(this, hw_id, pdev, hardware);
+		if (ret) {
+			err_itfc("interface probe fail (hw_ip: %d)", hw_id);
+			return -EINVAL;
+		}
+	}
+
+	for (i = 0; i < pdata->num_of_ip.lme; i++) {
+		hw_id = DEV_HW_LME + i;
+		ret = is_interface_lme_probe(this, hw_id, pdev, hardware);
+		if (ret) {
+			err_itfc("interface probe fail (hw_ip: %d)", hw_id);
+			return -EINVAL;
+		}
+	}
+
 	set_bit(IS_CHAIN_IF_STATE_INIT, &this->state);
 	dbg_itfc("interface ishchain probe done (hw_id: %d)(ret: %d)", hw_id, ret);
 
@@ -498,7 +669,7 @@ static void wq_func_subdev(struct is_subdev *leader,
 	u32 findex, mindex;
 	struct is_video_ctx *ldr_vctx, *sub_vctx;
 	struct is_framemgr *ldr_framemgr, *sub_framemgr;
-	struct is_frame *ldr_frame;
+	struct is_frame *ldr_frame = NULL;
 
 	FIMC_BUG_VOID(!sub_frame);
 
@@ -532,6 +703,9 @@ static void wq_func_subdev(struct is_subdev *leader,
 		sub_frame->stream->fvalid = 0;
 		goto complete;
 	}
+	/* fix:temp code for orbds, lmeds dqbuf*/
+	if (subdev->id == ENTRY_3AO || subdev->id == ENTRY_3AL)
+		status = 0;
 
 	if (status) {
 		msrinfo("[ERR] NDONE(%d, E%X)\n", subdev, subdev, ldr_frame, sub_frame->index, status);
@@ -539,6 +713,7 @@ static void wq_func_subdev(struct is_subdev *leader,
 		sub_frame->stream->fvalid = 0;
 	} else {
 		msrdbgs(1, " DONE(%d)\n", subdev, subdev, ldr_frame, sub_frame->index);
+		//msrinfo(" DONE(%d)\n", subdev, subdev, ldr_frame, sub_frame->index);
 		sub_frame->stream->fvalid = 1;
 	}
 
@@ -567,9 +742,7 @@ complete:
 
 	trans_frame(sub_framemgr, sub_frame, FS_COMPLETE);
 
-	/* for debug */
-	DBG_DIGIT_TAG((ldr_frame->group) ? ((struct is_group *)ldr_frame->group)->slot : 0,
-			0, GET_QUEUE(sub_vctx), sub_frame, fcount, 1);
+	is_dbg_draw_digit(GET_QUEUE(sub_vctx), sub_frame, fcount, 0);
 
 	CALL_VOPS(sub_vctx, done, sub_frame->index, done_state);
 
@@ -632,7 +805,90 @@ static void wq_func_frame(struct is_subdev *leader,
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_4, flags);
 }
 
-static void wq_func_3xc(struct work_struct *data, u32 wq_id)
+static struct is_subdev *get_subdev_from_wq_id(struct is_device_ischain *device, u32 wq_id)
+{
+	struct is_subdev *subdev;
+
+	switch (wq_id) {
+	case WORK_30C_FDONE:
+		subdev = &device->txc;
+		break;
+	case WORK_30P_FDONE:
+		subdev = &device->txp;
+		break;
+	case WORK_30F_FDONE:
+		subdev = &device->txf;
+		break;
+	case WORK_30G_FDONE:
+		subdev = &device->txg;
+		break;
+	case WORK_30O_FDONE:
+		subdev = &device->txo;
+		break;
+	case WORK_30L_FDONE:
+		subdev = &device->txl;
+		break;
+	case WORK_LMES_FDONE:
+		subdev = &device->lmes;
+		break;
+	case WORK_LMEC_FDONE:
+		subdev = &device->lmec;
+		break;
+	case WORK_ORB0C_FDONE:
+		subdev = &device->orbxc;
+		break;
+	case WORK_I0C_FDONE:
+		subdev = &device->ixc;
+		break;
+	case WORK_I0P_FDONE:
+		subdev = &device->ixp;
+		break;
+	case WORK_I0T_FDONE:
+		subdev = &device->ixt;
+		break;
+	case WORK_I0G_FDONE:
+		subdev = &device->ixg;
+		break;
+	case WORK_I0V_FDONE:
+		subdev = &device->ixv;
+		break;
+	case WORK_I0W_FDONE:
+		subdev = &device->ixw;
+		break;
+	case WORK_ME0C_FDONE:
+		subdev = &device->mexc;
+		break;
+	case WORK_M0P_FDONE:
+		subdev = &device->m0p;
+		break;
+	case WORK_M1P_FDONE:
+		subdev = &device->m1p;
+		break;
+	case WORK_M2P_FDONE:
+		subdev = &device->m2p;
+		break;
+	case WORK_M3P_FDONE:
+		subdev = &device->m3p;
+		break;
+	case WORK_M4P_FDONE:
+		subdev = &device->m4p;
+		break;
+	case WORK_M5P_FDONE:
+		subdev = &device->m5p;
+		break;
+	case WORK_CL0C_FDONE:
+		subdev = &device->clhc;
+		break;
+	default:
+		merr("invalid wq_id(%d)", device, wq_id);
+		subdev = NULL;
+		break;
+	}
+
+	return subdev;
+}
+
+static void wq_func_subdev_xxx(struct work_struct *data, u32 wq_id)
 {
 	u32 instance, fcount, rcount, status;
 	struct is_interface *itf;
@@ -662,7 +918,12 @@ static void wq_func_3xc(struct work_struct *data, u32 wq_id)
 			goto p_err;
 		}
 
-		subdev = &device->txc;
+		subdev = get_subdev_from_wq_id(device, wq_id);
+		if (!subdev) {
+			merr("subdev is NULL", device);
+			goto p_err;
+		}
+
 		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
 			merr("subdev is not start", device);
 			goto p_err;
@@ -684,1029 +945,119 @@ p_err:
 
 static void wq_func_30c(struct work_struct *data)
 {
-	wq_func_3xc(data, WORK_30C_FDONE);
-}
-
-static void wq_func_31c(struct work_struct *data)
-{
-	wq_func_3xc(data, WORK_31C_FDONE);
-}
-
-static void wq_func_32c(struct work_struct *data)
-{
-	wq_func_3xc(data, WORK_32C_FDONE);
-}
-
-static void wq_func_3xp(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->txp;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_30C_FDONE);
 }
 
 static void wq_func_30p(struct work_struct *data)
 {
-	wq_func_3xp(data, WORK_30P_FDONE);
-}
-
-static void wq_func_31p(struct work_struct *data)
-{
-	wq_func_3xp(data, WORK_31P_FDONE);
-}
-
-static void wq_func_32p(struct work_struct *data)
-{
-	wq_func_3xp(data, WORK_32P_FDONE);
-}
-
-static void wq_func_3xf(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->txf;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_30P_FDONE);
 }
 
 static void wq_func_30f(struct work_struct *data)
 {
-	wq_func_3xf(data, WORK_30F_FDONE);
-}
-
-static void wq_func_31f(struct work_struct *data)
-{
-	wq_func_3xf(data, WORK_31F_FDONE);
-}
-
-static void wq_func_32f(struct work_struct *data)
-{
-	wq_func_3xf(data, WORK_32F_FDONE);
-}
-
-static void wq_func_3xg(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->txg;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_30F_FDONE);
 }
 
 static void wq_func_30g(struct work_struct *data)
 {
-	wq_func_3xg(data, WORK_30G_FDONE);
+	wq_func_subdev_xxx(data, WORK_30G_FDONE);
 }
 
-static void wq_func_31g(struct work_struct *data)
+static void wq_func_30o(struct work_struct *data)
 {
-	wq_func_3xg(data, WORK_31G_FDONE);
+	wq_func_subdev_xxx(data, WORK_30O_FDONE);
 }
 
-static void wq_func_32g(struct work_struct *data)
+static void wq_func_30l(struct work_struct *data)
 {
-	wq_func_3xg(data, WORK_32G_FDONE);
-}
-
-static void wq_func_orbxc(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->orbxc;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_30L_FDONE);
 }
 
 static void wq_func_orb0c(struct work_struct *data)
 {
-	wq_func_orbxc(data, WORK_ORB0C_FDONE);
-}
-
-static void wq_func_orb1c(struct work_struct *data)
-{
-	wq_func_orbxc(data, WORK_ORB1C_FDONE);
-}
-
-static void wq_func_ixc(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->ixc;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_ORB0C_FDONE);
 }
 
 static void wq_func_i0c(struct work_struct *data)
 {
-	wq_func_ixc(data, WORK_I0C_FDONE);
-}
-
-static void wq_func_i1c(struct work_struct *data)
-{
-	wq_func_ixc(data, WORK_I1C_FDONE);
-}
-
-static void wq_func_ixp(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->ixp;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
-}
-
-static void wq_func_ixt(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->ixt;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
-}
-
-static void wq_func_ixg(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->ixg;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
-}
-
-static void wq_func_ixv(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->ixv;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
-}
-
-static void wq_func_ixw(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->ixw;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_I0C_FDONE);
 }
 
 #if defined(SOC_TNR_MERGER)
 static void wq_func_i0t(struct work_struct *data)
 {
-	wq_func_ixt(data, WORK_I0T_FDONE);
+	wq_func_subdev_xxx(data, WORK_I0T_FDONE);
 }
 
 static void wq_func_i0g(struct work_struct *data)
 {
-	wq_func_ixg(data, WORK_I0G_FDONE);
+	wq_func_subdev_xxx(data, WORK_I0G_FDONE);
 }
 
 static void wq_func_i0v(struct work_struct *data)
 {
-	wq_func_ixv(data, WORK_I0V_FDONE);
+	wq_func_subdev_xxx(data, WORK_I0V_FDONE);
 }
 
 static void wq_func_i0w(struct work_struct *data)
 {
-	wq_func_ixw(data, WORK_I0W_FDONE);
+	wq_func_subdev_xxx(data, WORK_I0W_FDONE);
 }
 #endif
 
 static void wq_func_i0p(struct work_struct *data)
 {
-	wq_func_ixp(data, WORK_I0P_FDONE);
-}
-
-static void wq_func_i1p(struct work_struct *data)
-{
-	wq_func_ixp(data, WORK_I1P_FDONE);
-}
-
-static void wq_func_mexc(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->mexc;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_I0P_FDONE);
 }
 
 static void wq_func_me0c(struct work_struct *data)
 {
-	wq_func_mexc(data, WORK_ME0C_FDONE);
-}
-
-static void wq_func_me1c(struct work_struct *data)
-{
-	wq_func_mexc(data, WORK_ME1C_FDONE);
+	wq_func_subdev_xxx(data, WORK_ME0C_FDONE);
 }
 
 static void wq_func_m0p(struct work_struct *data)
 {
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[WORK_M0P_FDONE]);
-
-	get_req_work(&itf->work_list[WORK_M0P_FDONE], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->m0p;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[WORK_M0P_FDONE], work);
-		get_req_work(&itf->work_list[WORK_M0P_FDONE], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_M0P_FDONE);
 }
 
 static void wq_func_m1p(struct work_struct *data)
 {
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[WORK_M1P_FDONE]);
-
-	get_req_work(&itf->work_list[WORK_M1P_FDONE], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->m1p;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[WORK_M1P_FDONE], work);
-		get_req_work(&itf->work_list[WORK_M1P_FDONE], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_M1P_FDONE);
 }
 
 static void wq_func_m2p(struct work_struct *data)
 {
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[WORK_M2P_FDONE]);
-
-	get_req_work(&itf->work_list[WORK_M2P_FDONE], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->m2p;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[WORK_M2P_FDONE], work);
-		get_req_work(&itf->work_list[WORK_M2P_FDONE], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_M2P_FDONE);
 }
 
 static void wq_func_m3p(struct work_struct *data)
 {
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[WORK_M3P_FDONE]);
-
-	get_req_work(&itf->work_list[WORK_M3P_FDONE], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->m3p;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[WORK_M3P_FDONE], work);
-		get_req_work(&itf->work_list[WORK_M3P_FDONE], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_M3P_FDONE);
 }
 
 static void wq_func_m4p(struct work_struct *data)
 {
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[WORK_M4P_FDONE]);
-
-	get_req_work(&itf->work_list[WORK_M4P_FDONE], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->m4p;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[WORK_M4P_FDONE], work);
-		get_req_work(&itf->work_list[WORK_M4P_FDONE], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_M4P_FDONE);
 }
 
 static void wq_func_m5p(struct work_struct *data)
 {
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[WORK_M5P_FDONE]);
-
-	get_req_work(&itf->work_list[WORK_M5P_FDONE], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->m5p;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[WORK_M5P_FDONE], work);
-		get_req_work(&itf->work_list[WORK_M5P_FDONE], &work);
-	}
-}
-
-static void wq_func_clxc(struct work_struct *data, u32 wq_id)
-{
-	u32 instance, fcount, rcount, status;
-	struct is_interface *itf;
-	struct is_device_ischain *device;
-	struct is_subdev *leader, *subdev;
-	struct is_work *work;
-	struct is_msg *msg;
-
-	itf = container_of(data, struct is_interface, work_wq[wq_id]);
-
-	get_req_work(&itf->work_list[wq_id], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct is_core *)itf->core)->ischain[instance];
-		if (!test_bit(IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->clhc;
-		if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[wq_id], work);
-		get_req_work(&itf->work_list[wq_id], &work);
-	}
+	wq_func_subdev_xxx(data, WORK_M5P_FDONE);
 }
 
 static void wq_func_cl0c(struct work_struct *data)
 {
-	wq_func_clxc(data, WORK_CL0C_FDONE);
+	wq_func_subdev_xxx(data, WORK_CL0C_FDONE);
+}
+
+static void wq_func_lmes(struct work_struct *data)
+{
+	wq_func_subdev_xxx(data, WORK_LMES_FDONE);
+}
+
+static void wq_func_lmec(struct work_struct *data)
+{
+	wq_func_subdev_xxx(data, WORK_LMEC_FDONE);
 }
 
 static void wq_func_group_xxx(struct is_groupmgr *groupmgr,
@@ -1876,6 +1227,7 @@ static void wq_func_shot(struct work_struct *data)
 		case GROUP_ID(GROUP_ID_PAF0):
 		case GROUP_ID(GROUP_ID_PAF1):
 		case GROUP_ID(GROUP_ID_PAF2):
+		case GROUP_ID(GROUP_ID_PAF3):
 			group = &device->group_paf;
 			break;
 		case GROUP_ID(GROUP_ID_3AA0):
@@ -1886,6 +1238,9 @@ static void wq_func_shot(struct work_struct *data)
 		case GROUP_ID(GROUP_ID_ISP0):
 		case GROUP_ID(GROUP_ID_ISP1):
 			group = &device->group_isp;
+			break;
+		case GROUP_ID(GROUP_ID_YPP):
+			group = &device->group_ypp;
 			break;
 		case GROUP_ID(GROUP_ID_MCS0):
 		case GROUP_ID(GROUP_ID_MCS1):
@@ -1930,7 +1285,7 @@ static void wq_func_shot(struct work_struct *data)
 				clear_bit(group->leader.id, &frame->out_flag);
 #ifdef MEASURE_TIME
 #ifdef EXTERNAL_TIME
-			do_gettimeofday(&frame->tzone[TM_SHOT_D]);
+			ktime_get_ts64(&frame->tzone[TM_SHOT_D]);
 #endif
 #endif
 
@@ -1987,6 +1342,14 @@ static inline void print_framemgr_spinlock_usage(struct is_core *core)
 			if (test_bit(IS_SUBDEV_OPEN, &subdev->state) && (framemgr = GET_SUBDEV_FRAMEMGR(subdev)))
 				info("[@] framemgr(%s) sindex : 0x%08lX\n", framemgr->name, framemgr->sindex);
 
+			subdev = &ischain->txo;
+			if (test_bit(IS_SUBDEV_OPEN, &subdev->state) && (framemgr = GET_SUBDEV_FRAMEMGR(subdev)))
+				info("[@] framemgr(%s) sindex : 0x%08lX\n", framemgr->name, framemgr->sindex);
+
+			subdev = &ischain->txl;
+			if (test_bit(IS_SUBDEV_OPEN, &subdev->state) && (framemgr = GET_SUBDEV_FRAMEMGR(subdev)))
+				info("[@] framemgr(%s) sindex : 0x%08lX\n", framemgr->name, framemgr->sindex);
+
 			subdev = &ischain->orbxc;
 			if (test_bit(IS_SUBDEV_OPEN, &subdev->state) && (framemgr = GET_SUBDEV_FRAMEMGR(subdev)))
 				info("[@] framemgr(%s) sindex : 0x%08lX\n", framemgr->name, framemgr->sindex);
@@ -2023,19 +1386,6 @@ static inline void print_framemgr_spinlock_usage(struct is_core *core)
 			subdev = &ischain->mexc;
 			if (test_bit(IS_SUBDEV_OPEN, &subdev->state) && (framemgr = GET_SUBDEV_FRAMEMGR(subdev)))
 				info("[@] framemgr(%s) sindex : 0x%08lX\n", framemgr->name, framemgr->sindex);
-
-			/* DIS GROUP */
-			subdev = &ischain->group_dis.leader;
-			if (test_bit(IS_SUBDEV_OPEN, &subdev->state) && (framemgr = GET_SUBDEV_FRAMEMGR(subdev)))
-				info("[@] framemgr(%s) sindex : 0x%08lX\n", framemgr->name, framemgr->sindex);
-
-			subdev = &ischain->scc;
-			if (test_bit(IS_SUBDEV_OPEN, &subdev->state) && (framemgr = GET_SUBDEV_FRAMEMGR(subdev)))
-				info("[@] framemgr(%s) sindex : 0x%08lX\n", framemgr->name, framemgr->sindex);
-
-			subdev = &ischain->scp;
-			if (test_bit(IS_SUBDEV_OPEN, &subdev->state) && (framemgr = GET_SUBDEV_FRAMEMGR(subdev)))
-				info("[@] framemgr(%s) sindex : 0x%08lX\n", framemgr->name, framemgr->sindex);
 		}
 	}
 }
@@ -2056,7 +1406,7 @@ IS_TIMER_FUNC(interface_timer)
 	FIMC_BUG_VOID(!itf->core);
 
 	if (!test_bit(IS_IF_STATE_OPEN, &itf->state)) {
-		pr_info("shot timer is terminated\n");
+		is_info("shot timer is terminated\n");
 		return;
 	}
 
@@ -2106,17 +1456,6 @@ IS_TIMER_FUNC(interface_timer)
 					framemgr_x_barrier_irqr(framemgr, FMGR_IDX_7, flags);
 				} else {
 					minfo("\n### group_isp framemgr is null ###\n", device);
-				}
-			}
-
-			if (test_bit(IS_GROUP_START, &device->group_dis.state)) {
-				framemgr = GET_HEAD_GROUP_FRAMEMGR(&device->group_dis);
-				if (framemgr) {
-					framemgr_e_barrier_irqs(framemgr, FMGR_IDX_8, flags);
-					shot_count += framemgr->queued_count[FS_PROCESS];
-					framemgr_x_barrier_irqr(framemgr, FMGR_IDX_8, flags);
-				} else {
-					minfo("\n### group_dis framemgr is null ###\n", device);
 				}
 			}
 
@@ -2255,16 +1594,11 @@ int is_interface_probe(struct is_interface *this,
 	INIT_WORK(&this->work_wq[WORK_30P_FDONE], wq_func_30p);
 	INIT_WORK(&this->work_wq[WORK_30F_FDONE], wq_func_30f);
 	INIT_WORK(&this->work_wq[WORK_30G_FDONE], wq_func_30g);
-	INIT_WORK(&this->work_wq[WORK_31C_FDONE], wq_func_31c);
-	INIT_WORK(&this->work_wq[WORK_31P_FDONE], wq_func_31p);
-	INIT_WORK(&this->work_wq[WORK_31F_FDONE], wq_func_31f);
-	INIT_WORK(&this->work_wq[WORK_31G_FDONE], wq_func_31g);
-	INIT_WORK(&this->work_wq[WORK_32C_FDONE], wq_func_32c);
-	INIT_WORK(&this->work_wq[WORK_32P_FDONE], wq_func_32p);
-	INIT_WORK(&this->work_wq[WORK_32F_FDONE], wq_func_32f);
-	INIT_WORK(&this->work_wq[WORK_32G_FDONE], wq_func_32g);
+	INIT_WORK(&this->work_wq[WORK_30O_FDONE], wq_func_30o);
+	INIT_WORK(&this->work_wq[WORK_30L_FDONE], wq_func_30l);
+	INIT_WORK(&this->work_wq[WORK_LMES_FDONE], wq_func_lmes);
+	INIT_WORK(&this->work_wq[WORK_LMEC_FDONE], wq_func_lmec);
 	INIT_WORK(&this->work_wq[WORK_ORB0C_FDONE], wq_func_orb0c);
-	INIT_WORK(&this->work_wq[WORK_ORB1C_FDONE], wq_func_orb1c);
 	INIT_WORK(&this->work_wq[WORK_I0C_FDONE], wq_func_i0c);
 	INIT_WORK(&this->work_wq[WORK_I0P_FDONE], wq_func_i0p);
 #if defined(SOC_TNR_MERGER)
@@ -2273,10 +1607,7 @@ int is_interface_probe(struct is_interface *this,
 	INIT_WORK(&this->work_wq[WORK_I0V_FDONE], wq_func_i0v);
 	INIT_WORK(&this->work_wq[WORK_I0W_FDONE], wq_func_i0w);
 #endif
-	INIT_WORK(&this->work_wq[WORK_I1C_FDONE], wq_func_i1c);
-	INIT_WORK(&this->work_wq[WORK_I1P_FDONE], wq_func_i1p);
 	INIT_WORK(&this->work_wq[WORK_ME0C_FDONE], wq_func_me0c);
-	INIT_WORK(&this->work_wq[WORK_ME1C_FDONE], wq_func_me1c);
 
 	INIT_WORK(&this->work_wq[WORK_M0P_FDONE], wq_func_m0p);
 	INIT_WORK(&this->work_wq[WORK_M1P_FDONE], wq_func_m1p);

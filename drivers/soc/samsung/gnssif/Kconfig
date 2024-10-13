@@ -1,5 +1,5 @@
 config EXYNOS_GNSS_IF
-	bool "Exynos GNSS interface driver"
+	tristate "Exynos GNSS interface driver"
 	default n
-	---help---
+	help
 	  Exynos GNSS interface driver

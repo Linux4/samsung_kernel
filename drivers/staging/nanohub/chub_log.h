@@ -1,29 +1,34 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * CHUB IF Driver Log
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Authors:
+ *      Boojin Kim <boojin.kim@samsung.com>
+ *      Sukwon Ryu <sw.ryoo@samsung.com>
+ *
  */
 
 #ifndef __CHUB_LOG_H_
 #define __CHUB_LOG_H_
 
 #include <linux/device.h>
-#include "chub_ipc.h"
 
-struct log_kernel_buffer {
-	char *buffer;
-	unsigned int buffer_size;
-	unsigned int index;
-	bool wrap;
-	volatile bool updated;
-	wait_queue_head_t wq;
-	u32 log_file_index;
-	u32 index_writer;
-	u32 index_reader;
+#if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
+#include <soc/samsung/exynos/memlogger.h>
+
+struct memlogs {
+	struct memlog *memlog_chub;
+	struct memlog_obj *memlog_file_chub;
+	struct memlog_obj *memlog_obj_chub;
+	struct memlog_obj *memlog_arr_file_chub;
+	struct memlog_obj *memlog_arr_chub;
+	struct memlog_obj *memlog_sram_file_chub;
+	struct memlog_obj *memlog_sram_chub;
+	struct memlog_obj *memlog_printf_file_chub;
+	struct memlog_obj *memlog_printf_chub;
 };
+#endif
 
 struct log_buffer_info {
 	struct list_head list;
@@ -35,7 +40,7 @@ struct log_buffer_info {
 	ssize_t log_file_index;
 	char save_file_name[64];
 	struct LOG_BUFFER *log_buffer;
-	struct log_kernel_buffer kernel_buffer;
+	struct runtimelog_buf *rt_log;
 	bool sram_log_buffer;
 	bool support_log_save;
 };
@@ -48,18 +53,17 @@ struct LOG_BUFFER {
 	char buffer[0];
 };
 
-void log_flush(struct log_buffer_info *info);
-void log_schedule_flush_all(void);
-void log_flush_all(void);
-struct log_buffer_info *log_register_buffer(struct device *dev, int id,
-					    struct LOG_BUFFER *buffer,
-					    char *name, bool sram);
+int logbuf_printf(void *chub_p, void *log_p, u32 len);
+void chub_printf(struct device * dev, int level, int fw_idx, const char *fmt, ...);
+#define nanohub_debug(fmt, ...)			chub_printf(NULL, 'D', 0, fmt, ##__VA_ARGS__)
+#define nanohub_info(fmt, ...)			chub_printf(NULL, 'I', 0, fmt, ##__VA_ARGS__)
+#define nanohub_warn(fmt, ...)			chub_printf(NULL, 'W', 0, fmt, ##__VA_ARGS__)
+#define nanohub_err(fmt, ...)			chub_printf(NULL, 'E', 0, fmt, ##__VA_ARGS__)
+#define nanohub_dev_debug(dev, fmt, ...)	chub_printf(dev, 'D', 0, fmt, ##__VA_ARGS__)
+#define nanohub_dev_info(dev, fmt, ...)		chub_printf(dev, 'I', 0, fmt, ##__VA_ARGS__)
+#define nanohub_dev_warn(dev, fmt, ...)		chub_printf(dev, 'W', 0, fmt, ##__VA_ARGS__)
+#define nanohub_dev_err(dev, fmt, ...)		chub_printf(dev, 'E', 0, fmt, ##__VA_ARGS__)
 
-#ifdef CONFIG_CONTEXTHUB_DEBUG
-void log_dump_all(int err);
-#else
-#define log_dump_all(err) do {} while (0)
-#endif
-
-void log_printf(const char *format, ...);
+int contexthub_sync_memlogger(void *chub_p);
+int contexthub_log_init(void *chub_p);
 #endif /* __CHUB_LOG_H_ */

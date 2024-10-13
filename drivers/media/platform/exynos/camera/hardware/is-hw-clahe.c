@@ -27,7 +27,7 @@ static int __nocfi is_hw_clh_open(struct is_hw_ip *hw_ip, u32 instance,
 	if (test_bit(HW_OPEN, &hw_ip->state))
 		return 0;
 
-	frame_manager_probe(hw_ip->framemgr, BIT(hw_ip->id), "HWCLH");
+	frame_manager_probe(hw_ip->framemgr, hw_ip->id, "HWCLH");
 	frame_manager_open(hw_ip->framemgr, IS_MAX_HW_FRAME);
 
 	hw_ip->priv_info = vzalloc(sizeof(struct is_hw_clh));
@@ -39,9 +39,9 @@ static int __nocfi is_hw_clh_open(struct is_hw_ip *hw_ip, u32 instance,
 
 	hw_clh = (struct is_hw_clh *)hw_ip->priv_info;
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
+	is_fpsimd_get_func();
 	ret = get_lib_func(LIB_FUNC_CLAHE, (void **)&hw_clh->lib_func);
-	fpsimd_put();
+	is_fpsimd_put_func();
 #else
 	ret = get_lib_func(LIB_FUNC_CLAHE, (void **)&hw_clh->lib_func);
 #endif

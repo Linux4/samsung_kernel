@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_dma.c
- *
- * ALSA SoC Audio Layer - Samsung Abox DMA driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox DMA driver
  *
  * Copyright (c) 2019 Samsung Electronics Co. Ltd.
  *
@@ -31,6 +31,7 @@
 #include "abox.h"
 #include "abox_dump.h"
 #include "abox_dma.h"
+#include "abox_memlog.h"
 
 static const struct snd_pcm_hardware abox_dma_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED
@@ -47,64 +48,113 @@ static const struct snd_pcm_hardware abox_dma_hardware = {
 	.periods_max		= BUFFER_BYTES_MAX / PERIOD_BYTES_MIN,
 };
 
-static unsigned int abox_dma_iova(struct abox_dma_data *data)
+unsigned int abox_dma_iova(struct abox_dma_data *data)
 {
 	unsigned int id = data->dai_drv->id;
 	unsigned int ret;
 
 	if (id >= ABOX_RDMA0 && id < ABOX_WDMA0)
-		ret = IOVA_RDMA_BUFFER(id);
+		ret = IOVA_RDMA_BUFFER(id - ABOX_RDMA0);
 	else if (id >= ABOX_WDMA0 && id < ABOX_WDMA0_DUAL)
-		ret = IOVA_WDMA_BUFFER(id);
+		ret = IOVA_WDMA_BUFFER(id - ABOX_WDMA0);
 	else if (id >= ABOX_WDMA0_DUAL && id < ABOX_DDMA0)
-		ret = IOVA_DUAL_BUFFER(id);
+		ret = IOVA_DUAL_BUFFER(id - ABOX_WDMA0_DUAL);
 	else if (id >= ABOX_DDMA0 && id < ABOX_UAIF0)
-		ret = IOVA_DDMA_BUFFER(id);
+		ret = IOVA_DDMA_BUFFER(id - ABOX_DDMA0);
 	else
 		ret = 0;
 
 	return ret;
 }
 
+bool abox_dma_is_opened(struct device *dev)
+{
+	struct abox_dma_data *data = dev_get_drvdata(dev);
+
+	abox_dbg(dev, "%s\n", __func__);
+
+	return !!data->substream;
+}
+
 enum abox_irq abox_dma_get_irq(struct abox_dma_data *data,
 		enum abox_dma_irq irq)
 {
+	if (!data || !data->of_data || !data->of_data->get_irq)
+		return -EINVAL;
+
 	return data->of_data->get_irq(data, irq);
 }
 
-static void abox_dma_acquire_irq(struct abox_dma_data *data)
+void abox_dma_acquire_irq(struct abox_dma_data *data, enum abox_dma_irq dma_irq)
 {
 	struct device *dev_gic = data->abox_data->dev_gic;
 	enum abox_irq irq;
+
+	/* Acquire IRQ from the firmware */
+	irq = abox_dma_get_irq(data, dma_irq);
+	if (irq < 0 || irq > IRQ_COUNT)
+		return;
+
+	abox_gic_target(dev_gic, irq, ABOX_GIC_AP);
+	abox_gic_enable(dev_gic, irq, true);
+}
+
+void abox_dma_release_irq(struct abox_dma_data *data, enum abox_dma_irq dma_irq)
+{
+	struct device *dev_gic = data->abox_data->dev_gic;
+	enum abox_irq irq;
+
+	/* Return back IRQ to the firmware */
+	irq = abox_dma_get_irq(data, dma_irq);
+	if (irq < 0 || irq > IRQ_COUNT)
+		return;
+
+	abox_gic_enable(dev_gic, irq, false);
+	abox_gic_target(dev_gic, irq, ABOX_GIC_CORE0);
+}
+
+static void abox_dma_acquire_irq_all(struct abox_dma_data *data)
+{
 	int i;
 
 	/* Acquire IRQ from the firmware */
-	for (i = DMA_IRQ_BUF_DONE; i < DMA_IRQ_COUNT; i++) {
-		irq = abox_dma_get_irq(data, i);
-		if (irq < 0 || irq > IRQ_COUNT)
-			continue;
-
-		abox_gic_target(dev_gic, irq, ABOX_GIC_AP);
-		abox_gic_enable(dev_gic, irq, true);
-	}
-
+	for (i = DMA_IRQ_BUF_DONE; i < DMA_IRQ_COUNT; i++)
+		abox_dma_acquire_irq(data, i);
 }
 
-static void abox_dma_release_irq(struct abox_dma_data *data)
+static void abox_dma_release_irq_all(struct abox_dma_data *data)
 {
-	struct device *dev_gic = data->abox_data->dev_gic;
-	enum abox_irq irq;
 	int i;
 
 	/* Return back IRQ to the firmware */
-	for (i = DMA_IRQ_BUF_DONE; i < DMA_IRQ_COUNT; i++) {
-		irq = abox_dma_get_irq(data, i);
-		if (irq < 0 || irq > IRQ_COUNT)
-			continue;
+	for (i = DMA_IRQ_BUF_DONE; i < DMA_IRQ_COUNT; i++)
+		abox_dma_release_irq(data, i);
+}
 
-		abox_gic_enable(dev_gic, irq, false);
-		abox_gic_target(dev_gic, irq, ABOX_GIC_CORE0);
-	}
+int abox_dma_register_irq(struct abox_dma_data *data,
+		enum abox_dma_irq irq, irq_handler_t handler, void *dev_id)
+{
+	struct device *dev_gic = data->abox_data->dev_gic;
+	enum abox_irq _irq;
+
+	_irq = abox_dma_get_irq(data, irq);
+	if (_irq < 0 || _irq > IRQ_COUNT)
+		return -EINVAL;
+
+	return abox_gic_register_irq_handler(dev_gic, _irq, handler, dev_id);
+}
+
+void abox_dma_unregister_irq(struct abox_dma_data *data,
+		enum abox_dma_irq irq)
+{
+	struct device *dev_gic = data->abox_data->dev_gic;
+	enum abox_irq _irq;
+
+	_irq = abox_dma_get_irq(data, irq);
+	if (_irq < 0 || _irq > IRQ_COUNT)
+		return;
+
+	abox_gic_unregister_irq_handler(dev_gic, _irq);
 }
 
 int abox_dma_mixer_control_get(struct snd_kcontrol *kcontrol,
@@ -119,15 +169,11 @@ int abox_dma_mixer_control_get(struct snd_kcontrol *kcontrol,
 	int sign_bit = mc->sign_bit;
 	unsigned int mask = (1 << fls(max)) - 1;
 	int val;
-	int ret;
 
 	if (sign_bit)
 		mask = (unsigned int)(BIT(sign_bit + 1) - 1);
 
-	ret = snd_soc_component_read(cmpnt, reg, &val);
-	if (ret < 0)
-		return ret;
-
+	val = snd_soc_component_read(cmpnt, reg);
 	val >>= shift;
 	val &= mask;
 
@@ -170,14 +216,14 @@ int abox_dma_mixer_control_put(struct snd_kcontrol *kcontrol,
 
 static int abox_dma_progress(struct snd_soc_component *cmpnt)
 {
-	unsigned int val = 0;
+	unsigned int val;
 
-	snd_soc_component_read(cmpnt, DMA_REG_STATUS, &val);
+	val = snd_soc_component_read(cmpnt, DMA_REG_STATUS);
 
 	return !!(val & ABOX_DMA_PROGRESS_MASK);
 }
 
-static void abox_dma_barrier(struct device *dev, struct abox_dma_data *data,
+void abox_dma_barrier(struct device *dev, struct abox_dma_data *data,
 		int enable)
 {
 	const int wait_ns = 10000000; /* 10ms */
@@ -190,6 +236,12 @@ static void abox_dma_barrier(struct device *dev, struct abox_dma_data *data,
 		}
 		dev_warn_ratelimited(dev, "%s timeout\n",
 				enable ? "enable" : "disable");
+
+		/* Disable DMA by force */
+		snd_soc_component_update_bits(data->cmpnt, DMA_REG_CTRL,
+				ABOX_DMA_ENABLE_MASK, 1 << ABOX_DMA_ENABLE_L);
+		snd_soc_component_update_bits(data->cmpnt, DMA_REG_CTRL,
+				ABOX_DMA_ENABLE_MASK, 0 << ABOX_DMA_ENABLE_L);
 		break;
 	}
 }
@@ -199,7 +251,7 @@ static irqreturn_t abox_dma_buf_done(int irq, void *dev_id)
 	struct device *dev = dev_id;
 	struct abox_dma_data *data = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "%s(%d)\n", __func__, irq);
+	abox_dbg(dev, "%s(%d)\n", __func__, irq);
 
 	snd_pcm_period_elapsed(data->substream);
 
@@ -209,10 +261,11 @@ static irqreturn_t abox_dma_buf_done(int irq, void *dev_id)
 static irqreturn_t abox_dma_fade_done(int irq, void *dev_id)
 {
 	struct device *dev = dev_id;
+	struct abox_dma_data *data = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "%s(%d)\n", __func__, irq);
+	abox_dbg(dev, "%s(%d)\n", __func__, irq);
 
-	/* ToDo */
+	complete(&data->func_changed);
 
 	return IRQ_HANDLED;
 }
@@ -223,17 +276,13 @@ static irqreturn_t abox_dma_err(int irq, void *dev_id)
 	struct abox_dma_data *data = dev_get_drvdata(dev);
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	unsigned int reg, val;
-	int ret;
 
-	dev_dbg(dev, "%s(%d)\n", __func__, irq);
+	abox_dbg(dev, "%s(%d)\n", __func__, irq);
 
-	dev_err(dev, "Error\n");
-	for (reg = DMA_REG_CTRL0; reg <= DMA_REG_STATUS; reg++) {
-		ret = snd_soc_component_read(cmpnt, reg, &val);
-		if (ret < 0)
-			continue;
-
-		dev_err(dev, "%08x: %08x\n", reg, val);
+	abox_err(dev, "Error\n");
+	for (reg = DMA_REG_CTRL0; reg <= DMA_REG_MAX; reg += 4) {
+		val = snd_soc_component_read(cmpnt, reg);
+		abox_err(dev, "%08x: %08x\n", reg, val);
 	}
 
 	return IRQ_HANDLED;
@@ -245,12 +294,14 @@ static const irq_handler_t abox_dma_irq_handlers[DMA_IRQ_COUNT] = {
 	abox_dma_err,
 };
 
-static int abox_dma_hw_params(struct snd_pcm_substream *substream,
-	struct snd_pcm_hw_params *params)
+static int abox_dma_hw_params(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream,
+		struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(cpu_dai);
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	struct device *dev = data->dev;
 	struct device *dev_abox = data->dev_abox;
@@ -258,24 +309,32 @@ static int abox_dma_hw_params(struct snd_pcm_substream *substream,
 	unsigned int reg, mask, val;
 	int ret;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	data->hw_params = *params;
 
-	ret = snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
-	if (ret < 0) {
-		dev_err(dev, "memory allocation fail: %d\n", ret);
-		return ret;
-	} else if (ret > 0) {
-		abox_iommu_unmap(dev_abox, iova);
-		ret = abox_iommu_map(dev_abox, iova, runtime->dma_addr,
-				PAGE_ALIGN(runtime->dma_bytes),
-				runtime->dma_area);
+	if (!rtd->dai_link->no_pcm) {
+		ret = snd_pcm_lib_malloc_pages(substream,
+				params_buffer_bytes(params));
 		if (ret < 0) {
-			dev_err(dev, "memory mapping fail: %d\n", ret);
-			snd_pcm_lib_free_pages(substream);
+			abox_err(dev, "memory allocation fail: %d\n", ret);
 			return ret;
+		} else if (ret > 0) {
+			abox_iommu_unmap(dev_abox, iova);
+			ret = abox_iommu_map(dev_abox, iova, runtime->dma_addr,
+					PAGE_ALIGN(runtime->dma_bytes),
+					runtime->dma_area);
+			if (ret < 0) {
+				abox_err(dev, "memory mapping fail: %d\n", ret);
+				snd_pcm_lib_free_pages(substream);
+				return ret;
+			}
 		}
+	}
+
+	if (data->buf_type == BUFFER_TYPE_RAM) {
+		if (data->ramb.bytes >= params_buffer_bytes(params))
+			iova = data->ramb.addr;
 	}
 
 	reg = DMA_REG_BUF_STR;
@@ -308,7 +367,14 @@ static int abox_dma_hw_params(struct snd_pcm_substream *substream,
 
 	reg = DMA_REG_CTRL;
 	mask = ABOX_DMA_WIDTH_MASK;
-	val = (params_width(params) - 1) << ABOX_DMA_WIDTH_L;
+	val = ((params_width(params) / 8) - 1) << ABOX_DMA_WIDTH_L;
+	ret = snd_soc_component_update_bits_async(cmpnt, reg, mask, val);
+	if (ret < 0)
+		return ret;
+
+	reg = DMA_REG_CTRL;
+	mask = ABOX_DMA_PACKED_MASK;
+	val = (params_physical_width(params) == 24) << ABOX_DMA_PACKED_L;
 	ret = snd_soc_component_update_bits_async(cmpnt, reg, mask, val);
 	if (ret < 0)
 		return ret;
@@ -322,9 +388,10 @@ static int abox_dma_hw_params(struct snd_pcm_substream *substream,
 
 	snd_soc_component_async_complete(cmpnt);
 
-	abox_dma_acquire_irq(data);
+	if (!rtd->dai_link->no_pcm)
+		abox_dma_acquire_irq_all(data);
 
-	dev_info(dev, "%s:Total=%u PrdSz=%u(%u) #Prds=%u rate=%u, width=%d, channels=%u\n",
+	abox_info(dev, "%s:Total=%u PrdSz=%u(%u) #Prds=%u rate=%u, width=%d, channels=%u\n",
 			snd_pcm_stream_str(substream),
 			params_buffer_bytes(params), params_period_size(params),
 			params_period_bytes(params), params_periods(params),
@@ -334,30 +401,54 @@ static int abox_dma_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int abox_dma_hw_free(struct snd_pcm_substream *substream)
+static int abox_dma_hw_free(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(cpu_dai);
 	struct device *dev = data->dev;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	abox_dma_release_irq(data);
+	if (rtd->dai_link->no_pcm)
+		return 0;
+
+	abox_dma_release_irq_all(data);
 
 	return snd_pcm_lib_free_pages(substream);
 }
 
-static int abox_dma_trigger(struct snd_pcm_substream *substream, int cmd)
+static int abox_dma_prepare(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(cpu_dai);
+	struct device *dev = data->dev;
+
+	abox_dbg(dev, "%s\n", __func__);
+
+	/* set auto fade in before dma enable */
+	snd_soc_component_update_bits(data->cmpnt, DMA_REG_CTRL,
+			ABOX_DMA_AUTO_FADE_IN_MASK,
+			data->auto_fade_in ? ABOX_DMA_AUTO_FADE_IN_MASK : 0);
+
+	return 0;
+}
+
+static int abox_dma_trigger(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream, int cmd)
+{
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(cpu_dai);
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	struct device *dev = data->dev;
 	unsigned int reg, mask, val;
-	int id = data->id;
 	int ret;
 
-	dev_info(dev, "%s[%d](%d)\n", __func__, id, cmd);
+	abox_info(dev, "%s(%d)\n", __func__, cmd);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -365,10 +456,7 @@ static int abox_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		abox_dma_barrier(dev, data, 0);
 		reg = DMA_REG_CTRL;
 		mask = ABOX_DMA_ENABLE_MASK;
-		ret = snd_soc_component_read(cmpnt, reg, &val);
-		if (ret < 0)
-			break;
-
+		val = snd_soc_component_read(cmpnt, reg);
 		val = (val & ~mask) | ((1 << ABOX_DMA_ENABLE_L) & mask);
 		ret = snd_soc_component_write(cmpnt, reg, val);
 		break;
@@ -379,10 +467,7 @@ static int abox_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		abox_dma_barrier(dev, data, 1);
 		reg = DMA_REG_CTRL;
 		mask = ABOX_DMA_FUNC_MASK;
-		ret = snd_soc_component_read(cmpnt, reg, &val);
-		if (ret < 0)
-			break;
-
+		val = snd_soc_component_read(cmpnt, reg);
 		/* normal mode */
 		val = (val & ~mask) | ((0 << ABOX_DMA_FUNC_L) & mask);
 		ret = snd_soc_component_write(cmpnt, reg, val);
@@ -392,10 +477,7 @@ static int abox_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		abox_dma_barrier(dev, data, 1);
 		reg = DMA_REG_CTRL;
 		mask = ABOX_DMA_ENABLE_MASK;
-		ret = snd_soc_component_read(cmpnt, reg, &val);
-		if (ret < 0)
-			break;
-
+		val = snd_soc_component_read(cmpnt, reg);
 		val = (val & ~mask) | ((0 << ABOX_DMA_ENABLE_L) & mask);
 		ret = snd_soc_component_write(cmpnt, reg, val);
 		break;
@@ -406,10 +488,7 @@ static int abox_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		abox_dma_barrier(dev, data, 1);
 		reg = DMA_REG_CTRL;
 		mask = ABOX_DMA_FUNC_MASK;
-		ret = snd_soc_component_read(cmpnt, reg, &val);
-		if (ret < 0)
-			break;
-
+		val = snd_soc_component_read(cmpnt, reg);
 		/* pending mode */
 		val = (val & ~mask) | ((1 << ABOX_DMA_FUNC_L) & mask);
 		ret = snd_soc_component_write(cmpnt, reg, val);
@@ -427,12 +506,13 @@ static size_t abox_dma_read_pointer(struct abox_dma_data *data)
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	unsigned int status = 0;
 	unsigned int buf_str, buf_end, buf_offset;
-	size_t offset, count, buffer_bytes, period_bytes;
+	size_t offset, count, period_bytes;
+	ssize_t buffer_bytes;
 
-	snd_soc_component_read(cmpnt, DMA_REG_STATUS, &status);
-	snd_soc_component_read(cmpnt, DMA_REG_BUF_STR, &buf_str);
-	snd_soc_component_read(cmpnt, DMA_REG_BUF_END, &buf_end);
-	snd_soc_component_read(cmpnt, DMA_REG_BUF_OFFSET, &buf_offset);
+	status = snd_soc_component_read(cmpnt, DMA_REG_STATUS);
+	buf_str = snd_soc_component_read(cmpnt, DMA_REG_BUF_STR);
+	buf_end = snd_soc_component_read(cmpnt, DMA_REG_BUF_END);
+	buf_offset = snd_soc_component_read(cmpnt, DMA_REG_BUF_OFFSET);
 
 	buffer_bytes = buf_end - buf_str;
 	period_bytes = buf_offset;
@@ -458,13 +538,14 @@ static size_t abox_dma_read_pointer(struct abox_dma_data *data)
 	return offset + count;
 }
 
-static snd_pcm_uframes_t abox_dma_pointer(struct snd_pcm_substream *substream)
+static snd_pcm_uframes_t abox_dma_pointer(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(cpu_dai);
 	struct device *dev = data->dev;
-	int id = data->id;
 	size_t pointer;
 
 	if (abox_dma_progress(data->cmpnt))
@@ -472,114 +553,108 @@ static snd_pcm_uframes_t abox_dma_pointer(struct snd_pcm_substream *substream)
 	else
 		pointer = 0;
 
-	dev_dbg(dev, "%s[%d]: pointer=%08zx\n", __func__, id, pointer);
+	abox_dbg(dev, "%s: pointer=%08zx\n", __func__, pointer);
 
 	return bytes_to_frames(runtime, (ssize_t)pointer);
 }
 
-static int abox_dma_open(struct snd_pcm_substream *substream)
+static int abox_dma_open(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(cpu_dai);
 	struct device *dev = data->dev;
 	struct abox_data *abox_data = data->abox_data;
 
-	dev_info(dev, "%s\n", __func__);
+	abox_info(dev, "%s\n", __func__);
 
-	abox_request_cpu_gear_dai(dev, abox_data, rtd->cpu_dai,
+	abox_request_cpu_gear_dai(dev, abox_data, cpu_dai,
 			abox_data->cpu_gear_min);
-	snd_soc_set_runtime_hwparams(substream, &abox_dma_hardware);
+	if (substream->runtime)
+		snd_soc_set_runtime_hwparams(substream, &abox_dma_hardware);
 	data->substream = substream;
 
 	return 0;
 }
 
-static int abox_dma_close(struct snd_pcm_substream *substream)
+static int abox_dma_close(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(cpu_dai);
 	struct device *dev = data->dev;
 
-	dev_info(dev, "%s\n", __func__);
+	abox_info(dev, "%s\n", __func__);
 
 	data->substream = NULL;
 
 	return 0;
 }
 
-static int abox_dma_mmap(struct snd_pcm_substream *substream,
+static int abox_dma_mmap(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream,
 		struct vm_area_struct *vma)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(cpu_dai);
 	struct device *dev = data->dev;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	return dma_mmap_writecombine(dev, vma,
-			runtime->dma_area,
-			runtime->dma_addr,
+	return dma_mmap_wc(dev, vma, runtime->dma_area, runtime->dma_addr,
 			runtime->dma_bytes);
 }
 
-static struct snd_pcm_ops abox_dma_ops = {
-	.open		= abox_dma_open,
-	.close		= abox_dma_close,
-	.hw_params	= abox_dma_hw_params,
-	.hw_free	= abox_dma_hw_free,
-	.trigger	= abox_dma_trigger,
-	.pointer	= abox_dma_pointer,
-	.mmap		= abox_dma_mmap,
-};
-
-static int abox_dma_pcm_new(struct snd_soc_pcm_runtime *runtime)
+static int abox_dma_pcm_new(struct snd_soc_component *component,
+		struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_pcm *pcm = runtime->pcm;
+	struct snd_pcm *pcm = rtd->pcm;
 	struct snd_pcm_substream *substream =
 			pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream ?
 			pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream :
 			pcm->streams[SNDRV_PCM_STREAM_CAPTURE].substream;
 	struct snd_dma_buffer *dmab = &substream->dma_buffer;
-	struct snd_soc_dai *dai = runtime->cpu_dai;
+	struct snd_soc_dai *dai = asoc_rtd_to_cpu(rtd, 0);
 	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
 	struct device *dev = data->dev;
 	struct device *dev_abox = data->dev_abox;
 	int ret;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	ret = snd_pcm_lib_preallocate_pages(substream, SNDRV_DMA_TYPE_DEV,
-			dev, data->dmab.bytes, data->dmab.bytes);
-	if (ret < 0)
-		return ret;
+	if (dmab->bytes < BUFFER_BYTES_MIN)
+		dmab->bytes = BUFFER_BYTES_MIN;
+
+	snd_pcm_lib_preallocate_pages(substream, SNDRV_DMA_TYPE_DEV,
+			dev, dmab->bytes, dmab->bytes);
 
 	ret = abox_iommu_map(dev_abox, abox_dma_iova(data), dmab->addr,
 			dmab->bytes, dmab->area);
 	if (ret < 0)
-		snd_pcm_lib_preallocate_free(substream);
+		snd_pcm_lib_preallocate_free_for_all(pcm);
 
 	data->dmab = *dmab;
 
 	return ret;
 }
 
-static void abox_dma_pcm_free(struct snd_pcm *pcm)
+static void abox_dma_pcm_free(struct snd_soc_component *component,
+		struct snd_pcm *pcm)
 {
-	struct snd_pcm_substream *substream =
-			pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream ?
-			pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream :
-			pcm->streams[SNDRV_PCM_STREAM_CAPTURE].substream;
-	struct snd_soc_pcm_runtime *runtime = pcm->private_data;
-	struct snd_soc_dai *dai = runtime->cpu_dai;
+	struct snd_soc_pcm_runtime *rtd = snd_pcm_chip(pcm);
+	struct snd_soc_dai *dai = asoc_rtd_to_cpu(rtd, 0);
 	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
 	struct device *dev = data->dev;
 	struct device *dev_abox = data->dev_abox;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	abox_iommu_unmap(dev_abox, abox_dma_iova(data));
-	snd_pcm_lib_preallocate_free(substream);
+	snd_pcm_lib_preallocate_free_for_all(pcm);
 }
 
 static int abox_dma_probe(struct snd_soc_component *cmpnt)
@@ -587,7 +662,7 @@ static int abox_dma_probe(struct snd_soc_component *cmpnt)
 	struct device *dev = cmpnt->dev;
 	struct abox_dma_data *data = snd_soc_component_get_drvdata(cmpnt);
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	data->cmpnt = cmpnt;
 
@@ -598,7 +673,7 @@ static void abox_dma_remove(struct snd_soc_component *cmpnt)
 {
 	struct device *dev = cmpnt->dev;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 }
 
 static unsigned int abox_dma_read(struct snd_soc_component *cmpnt,
@@ -606,19 +681,13 @@ static unsigned int abox_dma_read(struct snd_soc_component *cmpnt,
 {
 	struct abox_dma_data *data = snd_soc_component_get_drvdata(cmpnt);
 	struct abox_data *abox_data = data->abox_data;
-	unsigned int val;
-	int ret;
 
-	if (reg > DMA_REG_STATUS) {
-		dev_warn(cmpnt->dev, "invalid dma register:%#x\n", reg);
+	if (reg > DMA_REG_MAX) {
+		abox_warn(cmpnt->dev, "invalid dma register:%#x\n", reg);
 		dump_stack();
 	}
 
-	ret = snd_soc_component_read(abox_data->cmpnt, base + reg, &val);
-	if (ret < 0)
-		return ret;
-
-	return val;
+	return snd_soc_component_read(abox_data->cmpnt, base + reg);
 }
 
 static int abox_dma_write(struct snd_soc_component *cmpnt,
@@ -628,8 +697,8 @@ static int abox_dma_write(struct snd_soc_component *cmpnt,
 	struct abox_data *abox_data = data->abox_data;
 	int ret;
 
-	if (reg > DMA_REG_STATUS) {
-		dev_warn(cmpnt->dev, "invalid dma register:%#x\n", reg);
+	if (reg > DMA_REG_MAX) {
+		abox_warn(cmpnt->dev, "invalid dma register:%#x\n", reg);
 		dump_stack();
 	}
 
@@ -640,6 +709,21 @@ static int abox_dma_write(struct snd_soc_component *cmpnt,
 	return 0;
 }
 
+const struct snd_soc_component_driver abox_dma = {
+	.probe			= abox_dma_probe,
+	.remove			= abox_dma_remove,
+	.pcm_construct		= abox_dma_pcm_new,
+	.pcm_destruct		= abox_dma_pcm_free,
+	.open			= abox_dma_open,
+	.close			= abox_dma_close,
+	.hw_params		= abox_dma_hw_params,
+	.hw_free		= abox_dma_hw_free,
+	.prepare		= abox_dma_prepare,
+	.trigger		= abox_dma_trigger,
+	.pointer		= abox_dma_pointer,
+	.mmap			= abox_dma_mmap,
+};
+
 int abox_dma_set_dst_bit_width(struct device *dev, int width)
 {
 	struct abox_dma_data *data = dev_get_drvdata(dev);
@@ -647,7 +731,7 @@ int abox_dma_set_dst_bit_width(struct device *dev, int width)
 	unsigned int reg, mask, val;
 	int ret;
 
-	dev_dbg(dev, "%s(%d)\n", __func__, width);
+	abox_dbg(dev, "%s(%d)\n", __func__, width);
 
 	reg = DMA_REG_BIT_CTRL0;
 	mask = ABOX_DMA_DST_BIT_WIDTH_MASK;
@@ -662,19 +746,26 @@ int abox_dma_get_dst_bit_width(struct device *dev)
 	struct abox_dma_data *data = dev_get_drvdata(dev);
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	unsigned int reg, val;
-	int width, ret;
+	int width;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	reg = DMA_REG_BIT_CTRL0;
-	ret = snd_soc_component_read(cmpnt, reg, &val);
-	if (ret < 0)
-		return ret;
+	val = snd_soc_component_read(cmpnt, reg);
 	val &= ABOX_DMA_DST_BIT_WIDTH_MASK;
 	val >>= ABOX_DMA_DST_BIT_WIDTH_L;
 	width = (val + 1) * 8;
 
 	return width;
+}
+
+int abox_dma_get_channels(struct device *dev)
+{
+	struct abox_dma_data *data = dev_get_drvdata(dev);
+
+	abox_dbg(dev, "%s\n", __func__);
+
+	return params_channels(&data->hw_params);
 }
 
 static void hw_param_mask_set(struct snd_pcm_hw_params *params,
@@ -702,17 +793,21 @@ static void hw_param_interval_set(struct snd_pcm_hw_params *params,
 }
 
 int abox_dma_hw_params_fixup(struct device *dev,
-		struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params)
 {
-	struct abox_dma_data *data = dev_get_drvdata(dev);
-	const struct snd_pcm_hw_params *fix = &data->hw_params;
+	struct abox_dma_data *data;
+	const struct snd_pcm_hw_params *fix;
 	const struct snd_mask *mask;
 	const struct snd_interval *interval;
 	snd_pcm_hw_param_t param;
-	int ret;
 
-	dev_dbg(dev, "%s:Total=%u PrdSz=%u(%u) #Prds=%u rate=%u, width=%d, channels=%u\n",
+	if (!dev)
+		return -EINVAL;
+
+	data = dev_get_drvdata(dev);
+	fix = &data->hw_params;
+
+	abox_dbg(dev, "%s:Total=%u PrdSz=%u(%u) #Prds=%u rate=%u, width=%d, channels=%u\n",
 			__func__, params_buffer_bytes(fix),
 			params_period_size(fix), params_period_bytes(fix),
 			params_periods(fix), params_rate(fix),
@@ -733,14 +828,7 @@ int abox_dma_hw_params_fixup(struct device *dev,
 					interval);
 	}
 
-	/* ignore refine errors for compress offload */
-	if (substream && substream->runtime) {
-		ret = snd_pcm_hw_refine(substream, params);
-		if (ret < 0)
-			dev_dbg(dev, "hw_refine error: %d", ret);
-	}
-
-	dev_dbg(dev, "%s:Total=%u PrdSz=%u(%u) #Prds=%u rate=%u, width=%d, channels=%u\n",
+	abox_dbg(dev, "%s:Total=%u PrdSz=%u(%u) #Prds=%u rate=%u, width=%d, channels=%u\n",
 			__func__, params_buffer_bytes(params),
 			params_period_size(params), params_period_bytes(params),
 			params_periods(params), params_rate(params),
@@ -757,11 +845,14 @@ void abox_dma_hw_params_set(struct device *dev, unsigned int rate,
 	struct snd_pcm_hw_params *params = &data->hw_params;
 	unsigned int buffer_size, format, pwidth;
 
-	dev_dbg(dev, "%s(%u, %u, %u, %u, %u, %d)\n", __func__, rate, width,
+	abox_dbg(dev, "%s(%u, %u, %u, %u, %u, %d)\n", __func__, rate, width,
 			channels, period_size, periods, packed);
 
 	if (!rate)
 		rate = params_rate(params);
+
+	if (!width)
+		width = params_width(params);
 
 	switch (width) {
 	case 8:
@@ -834,7 +925,7 @@ int abox_dma_hw_params_get(struct snd_kcontrol *kcontrol,
 	enum abox_dma_param param = mc->reg;
 	long value;
 
-	dev_dbg(dev, "%s(%d)\n", __func__, param);
+	abox_dbg(dev, "%s(%d)\n", __func__, param);
 
 	switch (param) {
 	case DMA_RATE:
@@ -874,7 +965,10 @@ int abox_dma_hw_params_put(struct snd_kcontrol *kcontrol,
 	enum abox_dma_param param = mc->reg;
 	long value = ucontrol->value.integer.value[0];
 
-	dev_dbg(dev, "%s(%d, %ld)\n", __func__, param, value);
+	abox_dbg(dev, "%s(%d, %ld)\n", __func__, param, value);
+
+	if (value < mc->min || value > mc->max)
+		return -EINVAL;
 
 	switch (param) {
 	case DMA_RATE:
@@ -902,13 +996,82 @@ int abox_dma_hw_params_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+int abox_dma_auto_fade_in_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
+	struct device *dev = cmpnt->dev;
+	struct abox_dma_data *data = dev_get_drvdata(dev);
+
+	abox_dbg(dev, "%s\n", __func__);
+
+	ucontrol->value.integer.value[0] = data->auto_fade_in;
+
+	return 0;
+}
+
+int abox_dma_auto_fade_in_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
+	struct device *dev = cmpnt->dev;
+	struct abox_dma_data *data = dev_get_drvdata(dev);
+	bool value = !!ucontrol->value.integer.value[0];
+
+	abox_dbg(dev, "%s(%d)\n", __func__, value);
+
+	data->auto_fade_in = value;
+
+	return 0;
+}
+
+static const char * const dma_func_texts[] = {
+	"Normal", "Pending", "Mute",
+};
+SOC_ENUM_SINGLE_DECL(abox_dma_func_enum, DMA_REG_CTRL,
+		ABOX_DMA_FUNC_L, dma_func_texts);
+
+int abox_dma_func_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
+	struct device *dev = cmpnt->dev;
+	struct abox_dma_data *data = dev_get_drvdata(dev);
+	unsigned int *item = ucontrol->value.enumerated.item;
+	int ret;
+
+	abox_dbg(dev, "%s(%d)\n", __func__, item[0]);
+
+	if (abox_dma_progress(cmpnt)) {
+		static const unsigned int VOL_MAX = 0x800000;
+		unsigned int change = 1, rate, wait_ms;
+
+		change = snd_soc_component_read(cmpnt, DMA_REG_VOL_CHANGE);
+		rate = params_rate(&data->hw_params);
+		wait_ms = DIV_ROUND_UP(MSEC_PER_SEC * VOL_MAX, change);
+		wait_ms = DIV_ROUND_UP(wait_ms, rate);
+
+		reinit_completion(&data->func_changed);
+		ret = snd_soc_put_enum_double(kcontrol, ucontrol);
+		if (ret > 0) {
+			abox_info(dev, "func %d, wait %u ms\n", item[0], wait_ms);
+			wait_for_completion_timeout(&data->func_changed,
+					msecs_to_jiffies(wait_ms));
+		}
+	} else {
+		ret = snd_soc_put_enum_double(kcontrol, ucontrol);
+	}
+
+	return ret;
+}
+
 struct snd_soc_dai *abox_dma_get_dai(struct device *dev, enum abox_dma_dai type)
 {
 	struct abox_dma_data *data = dev_get_drvdata(dev);
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	struct snd_soc_dai *dai;
 
-	dev_dbg(dev, "%s(%d)\n", __func__, type);
+	abox_dbg(dev, "%s(%d)\n", __func__, type);
 
 	list_for_each_entry(dai, &cmpnt->dai_list, list) {
 		if (type-- == 0)
@@ -916,6 +1079,87 @@ struct snd_soc_dai *abox_dma_get_dai(struct device *dev, enum abox_dma_dai type)
 	}
 
 	return ERR_PTR(-EINVAL);
+}
+
+int abox_dma_can_close(struct snd_soc_pcm_runtime *rtd, int stream)
+{
+	int rdir = stream == SNDRV_PCM_STREAM_PLAYBACK ?
+			SNDRV_PCM_STREAM_CAPTURE : SNDRV_PCM_STREAM_PLAYBACK;
+
+	switch (rtd->dpcm[rdir].state) {
+	case SND_SOC_DPCM_STATE_OPEN:
+	case SND_SOC_DPCM_STATE_HW_PARAMS:
+	case SND_SOC_DPCM_STATE_PREPARE:
+	case SND_SOC_DPCM_STATE_START:
+	case SND_SOC_DPCM_STATE_STOP:
+	case SND_SOC_DPCM_STATE_PAUSED:
+	case SND_SOC_DPCM_STATE_SUSPEND:
+	case SND_SOC_DPCM_STATE_HW_FREE:
+		return 0;
+	default:
+		return 1;
+	}
+}
+
+int abox_dma_can_free(struct snd_soc_pcm_runtime *rtd, int stream)
+{
+	int rdir = stream == SNDRV_PCM_STREAM_PLAYBACK ?
+			SNDRV_PCM_STREAM_CAPTURE : SNDRV_PCM_STREAM_PLAYBACK;
+
+	switch (rtd->dpcm[rdir].state) {
+	case SND_SOC_DPCM_STATE_HW_PARAMS:
+	case SND_SOC_DPCM_STATE_PREPARE:
+	case SND_SOC_DPCM_STATE_START:
+	case SND_SOC_DPCM_STATE_STOP:
+	case SND_SOC_DPCM_STATE_PAUSED:
+	case SND_SOC_DPCM_STATE_SUSPEND:
+		return 0;
+	default:
+		return 1;
+	}
+}
+
+int abox_dma_can_stop(struct snd_soc_pcm_runtime *rtd, int stream)
+{
+	int rdir = stream == SNDRV_PCM_STREAM_PLAYBACK ?
+			SNDRV_PCM_STREAM_CAPTURE : SNDRV_PCM_STREAM_PLAYBACK;
+
+	switch (rtd->dpcm[rdir].state) {
+	case SND_SOC_DPCM_STATE_START:
+	case SND_SOC_DPCM_STATE_PAUSED:
+	case SND_SOC_DPCM_STATE_SUSPEND:
+		return 0;
+	default:
+		return 1;
+	}
+}
+
+int abox_dma_can_start(struct snd_soc_pcm_runtime *rtd, int stream)
+{
+	int rdir = stream == SNDRV_PCM_STREAM_PLAYBACK ?
+			SNDRV_PCM_STREAM_CAPTURE : SNDRV_PCM_STREAM_PLAYBACK;
+
+	switch (rtd->dpcm[rdir].state) {
+	case SND_SOC_DPCM_STATE_START:
+		return 0;
+	default:
+		return 1;
+	}
+}
+
+int abox_dma_can_prepare(struct snd_soc_pcm_runtime *rtd, int stream)
+{
+	return abox_dma_can_start(rtd, stream);
+}
+
+int abox_dma_can_params(struct snd_soc_pcm_runtime *rtd, int stream)
+{
+	return abox_dma_can_free(rtd, stream);
+}
+
+int abox_dma_can_open(struct snd_soc_pcm_runtime *rtd, int stream)
+{
+	return abox_dma_can_close(rtd, stream);
 }
 
 static unsigned int abox_dma_get_dst_format(struct abox_dma_data *data)
@@ -928,39 +1172,46 @@ static unsigned int abox_dma_get_dst_format(struct abox_dma_data *data)
 	return abox_get_format(width, channels);
 }
 
-static int abox_ddma_set_format(struct abox_dma_data *data)
+static int abox_dma_dump_set_format(struct abox_dma_data *data)
 {
 	struct abox_data *abox_data = data->abox_data;
-	unsigned int val, format;
-	int ret;
+	enum abox_widget w;
+	unsigned int format;
+	int idx, ret;
 
-	dev_dbg(data->dev, "%s\n", __func__);
+	abox_dbg(data->dev, "%s\n", __func__);
 
-	ret = snd_soc_component_read(data->cmpnt, DMA_REG_CTRL, &val);
-	if (ret < 0)
-		return ret;
+	if (!data->of_data->get_src_widget)
+		return 0;
 
-	val = (val & ABOX_DMA_DEBUG_SRC_MASK) >> ABOX_DMA_DEBUG_SRC_L;
-	switch (val) {
-	case 0x0 ... 0xb:
+	w = data->of_data->get_src_widget(data);
+	if (w < 0)
+		return w;
+
+	switch (w) {
+	case ABOX_WIDGET_SPUS_IN0 ... ABOX_WIDGET_SPUS_IN11:
+		idx = w - ABOX_WIDGET_SPUS_IN0;
 		format = abox_dma_get_dst_format(dev_get_drvdata(
-				abox_data->dev_rdma[val - 0x0]));
+				abox_data->dev_rdma[idx]));
 		break;
-	case 0x10 ... 0x17:
+	case ABOX_WIDGET_SPUS_ASRC0 ... ABOX_WIDGET_SPUS_ASRC7:
+		idx = w - ABOX_WIDGET_SPUS_ASRC0;
 		format = abox_cmpnt_asrc_get_dst_format(abox_data,
-				SNDRV_PCM_STREAM_PLAYBACK, val - 0x10);
+				SNDRV_PCM_STREAM_PLAYBACK, idx);
 		break;
-	case 0x18:
+	case ABOX_WIDGET_SIFS0:
 		format = abox_cmpnt_sif_get_dst_format(abox_data,
 				SNDRV_PCM_STREAM_PLAYBACK, 0);
 		break;
-	case 0x20 ... 0x24:
+	case ABOX_WIDGET_NSRC0 ... ABOX_WIDGET_NSRC7:
+		idx = w - ABOX_WIDGET_NSRC0;
 		format = abox_cmpnt_sif_get_dst_format(abox_data,
-				SNDRV_PCM_STREAM_CAPTURE, val - 0x20);
+				SNDRV_PCM_STREAM_CAPTURE, idx);
 		break;
-	case 0x30 ... 0x33:
+	case ABOX_WIDGET_SPUM_ASRC0 ... ABOX_WIDGET_SPUM_ASRC3:
+		idx = w - ABOX_WIDGET_SPUM_ASRC0;
 		format = abox_cmpnt_asrc_get_dst_format(abox_data,
-				SNDRV_PCM_STREAM_CAPTURE, val - 0x30);
+				SNDRV_PCM_STREAM_CAPTURE, idx);
 		break;
 	default:
 		return -EINVAL;
@@ -971,10 +1222,10 @@ static int abox_ddma_set_format(struct abox_dma_data *data)
 	return ret;
 }
 
-static const unsigned int ABOX_DDMA_BUFFER_SIZE = SZ_512K;
-static const unsigned int ABOX_DDMA_OFFSET = SZ_32K;
+static const unsigned int ABOX_DMA_DUMP_BUFFER_SIZE = SZ_512K;
+static const unsigned int ABOX_DMA_DUMP_OFFSET = SZ_4K;
 
-static int abox_ddma_set_buffer(struct abox_dma_data *data)
+static int abox_dma_dump_set_buffer(struct abox_dma_data *data)
 {
 	struct abox_dma_dump *dump = data->dump;
 	struct device *dev = data->dev;
@@ -984,12 +1235,12 @@ static int abox_ddma_set_buffer(struct abox_dma_data *data)
 	unsigned int reg, mask, val;
 	int ret;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	if (dump->area)
-		dev_err(dev, "memory leak suspected\n");
+		abox_err(dev, "memory leak suspected\n");
 
-	dump->bytes = ABOX_DDMA_BUFFER_SIZE;
+	dump->bytes = ABOX_DMA_DUMP_BUFFER_SIZE;
 	dump->area = dma_alloc_coherent(dev, dump->bytes, &dump->addr,
 			GFP_KERNEL);
 	if (!dump->area)
@@ -1014,7 +1265,7 @@ static int abox_ddma_set_buffer(struct abox_dma_data *data)
 
 	reg = DMA_REG_BUF_OFFSET;
 	mask = ABOX_DMA_BUF_OFFSET_MASK;
-	val = ABOX_DDMA_OFFSET;
+	val = ABOX_DMA_DUMP_OFFSET;
 	ret = snd_soc_component_update_bits_async(cmpnt, reg, mask, val);
 	if (ret < 0)
 		return ret;
@@ -1031,16 +1282,16 @@ static int abox_ddma_set_buffer(struct abox_dma_data *data)
 	return ret;
 }
 
-static void abox_ddma_free_buffer(struct abox_dma_data *data)
+static void abox_dma_dump_free_buffer(struct abox_dma_data *data)
 {
 	struct abox_dma_dump *dump = data->dump;
 	struct device *dev = data->dev;
 	struct device *dev_abox = data->abox_data->dev;
 	struct snd_dma_buffer *dmab = &data->dmab;
-	unsigned int size = ABOX_DDMA_BUFFER_SIZE;
+	unsigned int size = ABOX_DMA_DUMP_BUFFER_SIZE;
 	unsigned int iova = abox_dma_iova(data);
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	if (dump->area) {
 		abox_iommu_unmap(dev_abox, iova);
@@ -1051,18 +1302,18 @@ static void abox_ddma_free_buffer(struct abox_dma_data *data)
 	}
 }
 
-static bool abox_ddma_started(struct abox_dma_data *data)
+static bool abox_dma_dump_started(struct abox_dma_data *data)
 {
-	unsigned int val = 0;
+	unsigned int val;
 
-	snd_soc_component_read(data->cmpnt, DMA_REG_CTRL, &val);
+	val = snd_soc_component_read(data->cmpnt, DMA_REG_CTRL);
 
 	return (val & ABOX_DMA_ENABLE_MASK);
 }
 
-static int abox_ddma_stop(struct abox_dma_data *data)
+static int abox_dma_dump_stop(struct abox_dma_data *data)
 {
-	dev_dbg(data->dev, "%s\n", __func__);
+	abox_dbg(data->dev, "%s\n", __func__);
 
 	snd_soc_component_update_bits(data->cmpnt, DMA_REG_CTRL,
 			ABOX_DMA_ENABLE_MASK, 0 << ABOX_DMA_ENABLE_L);
@@ -1074,18 +1325,18 @@ static int abox_ddma_stop(struct abox_dma_data *data)
 	return 0;
 }
 
-static int abox_ddma_start(struct abox_dma_data *data)
+static int abox_dma_dump_start(struct abox_dma_data *data)
 {
 	int ret;
 
-	dev_dbg(data->dev, "%s\n", __func__);
+	abox_dbg(data->dev, "%s\n", __func__);
 
 	/* restart if it has started already */
-	if (abox_ddma_started(data))
-		abox_ddma_stop(data);
+	if (abox_dma_dump_started(data))
+		abox_dma_dump_stop(data);
 
-	abox_dma_acquire_irq(data);
-	ret = abox_ddma_set_format(data);
+	abox_dma_acquire_irq_all(data);
+	ret = abox_dma_dump_set_format(data);
 	if (ret < 0)
 		return ret;
 	data->dump->pointer = 0;
@@ -1097,101 +1348,61 @@ static int abox_ddma_start(struct abox_dma_data *data)
 	return 0;
 }
 
-static int abox_ddma_file_notify(void *priv, bool enabled)
+static int abox_dma_dump_file_notify(void *priv, bool enabled)
 {
 	struct abox_dma_data *data = priv;
 	int ret;
 
-	dev_dbg(data->dev, "%s(%d)\n", __func__, enabled);
+	abox_dbg(data->dev, "%s(%d)\n", __func__, enabled);
 
 	if (enabled)
-		ret = abox_ddma_start(data);
+		ret = abox_dma_dump_start(data);
 	else
-		ret = abox_ddma_stop(data);
+		ret = abox_dma_dump_stop(data);
 
 	return ret;
 }
 
-static int abox_ddma_register_event_notifier(struct abox_dma_data *data)
+static int abox_dma_dump_register_event_notifier(struct abox_dma_data *data)
 {
 	struct abox_data *abox_data = data->abox_data;
-	unsigned int val;
 	enum abox_widget w;
-	int ret;
 
-	dev_dbg(data->dev, "%s\n", __func__);
+	abox_dbg(data->dev, "%s\n", __func__);
 
-	ret = snd_soc_component_read(data->cmpnt, DMA_REG_CTRL, &val);
-	if (ret < 0)
-		return ret;
+	if (!data->of_data->get_src_widget)
+		return 0;
 
-	val = (val & ABOX_DMA_DEBUG_SRC_MASK) >> ABOX_DMA_DEBUG_SRC_L;
-	switch (val) {
-	case 0x0 ... 0xb:
-		w = ABOX_WIDGET_SPUS_IN0 + val - 0x0;
-		break;
-	case 0x10 ... 0x17:
-		w = ABOX_WIDGET_SPUS_ASRC0 + val - 0x10;
-		break;
-	case 0x18:
-		w = ABOX_WIDGET_SIFS0 + val - 0x18;
-		break;
-	case 0x20 ... 0x24:
-		w = ABOX_WIDGET_NSRC0 + val - 0x20;
-		break;
-	case 0x30 ... 0x33:
-		w = ABOX_WIDGET_SPUM_ASRC0 + val - 0x30;
-		break;
-	default:
-		return -EINVAL;
-	}
+	w = data->of_data->get_src_widget(data);
+	if (w < 0)
+		return w;
 
-	abox_cmpnt_register_event_notifier(abox_data, w, abox_ddma_file_notify,
-			data);
+	abox_cmpnt_register_event_notifier(abox_data, w,
+			abox_dma_dump_file_notify, data);
 
 	return 0;
 }
 
-static int abox_ddma_unregister_event_notifier(struct abox_dma_data *data)
+static int abox_dma_dump_unregister_event_notifier(struct abox_dma_data *data)
 {
 	struct abox_data *abox_data = data->abox_data;
-	unsigned int val;
 	enum abox_widget w;
-	int ret;
 
-	dev_dbg(data->dev, "%s\n", __func__);
+	abox_dbg(data->dev, "%s\n", __func__);
 
-	ret = snd_soc_component_read(data->cmpnt, DMA_REG_CTRL, &val);
-	if (ret < 0)
-		return ret;
+	if (!data->of_data->get_src_widget)
+		return 0;
 
-	val = (val & ABOX_DMA_DEBUG_SRC_MASK) >> ABOX_DMA_DEBUG_SRC_L;
-	switch (val) {
-	case 0x0 ... 0xb:
-		w = ABOX_WIDGET_SPUS_IN0 + val - 0x0;
-		break;
-	case 0x10 ... 0x17:
-		w = ABOX_WIDGET_SPUS_ASRC0 + val - 0x10;
-		break;
-	case 0x18:
-		w = ABOX_WIDGET_SIFS0 + val - 0x18;
-		break;
-	case 0x20 ... 0x24:
-		w = ABOX_WIDGET_NSRC0 + val - 0x20;
-		break;
-	case 0x30 ... 0x33:
-		w = ABOX_WIDGET_SPUM_ASRC0 + val - 0x30;
-		break;
-	default:
-		return -EINVAL;
-	}
+	w = data->of_data->get_src_widget(data);
+	if (w < 0)
+		return w;
 
 	abox_cmpnt_unregister_event_notifier(abox_data, w);
 
 	return 0;
 }
 
-static ssize_t abox_ddma_file_read(struct file *file, char __user *buffer,
+static ssize_t abox_dma_dump_file_read(struct file *file, char __user *buffer,
 		size_t count, loff_t *ppos)
 {
 	struct abox_dma_data *data = file->private_data;
@@ -1202,7 +1413,6 @@ static ssize_t abox_ddma_file_read(struct file *file, char __user *buffer,
 
 	do {
 		pointer = abox_dma_read_pointer(data);
-
 		if (pointer < dump->pointer)
 			size = pointer + dump->bytes - dump->pointer;
 		else
@@ -1213,11 +1423,11 @@ static ssize_t abox_ddma_file_read(struct file *file, char __user *buffer,
 				return -EAGAIN;
 
 			if (abox_dma_progress(data->cmpnt)) {
-				msleep(1);
+				fsleep(1);
 				continue;
 			}
 
-			if (size && !abox_ddma_started(data))
+			if (size && !abox_dma_dump_started(data))
 				break;
 
 			dump->updated = false;
@@ -1229,7 +1439,7 @@ static ssize_t abox_ddma_file_read(struct file *file, char __user *buffer,
 	} while (size < count);
 
 	total = size = min(size, count);
-	dev_dbg(dev, "%s: %#zx, %#zx, %#zx, %#zx\n", __func__, count,
+	abox_dbg(dev, "%s: %#zx, %#zx, %#zx, %#zx\n", __func__, count,
 			dump->pointer, pointer, size);
 
 	if (size > dump->bytes - dump->pointer) {
@@ -1249,12 +1459,12 @@ static ssize_t abox_ddma_file_read(struct file *file, char __user *buffer,
 	return total;
 }
 
-static irqreturn_t abox_ddma_file_buf_done(int irq, void *dev_id)
+static irqreturn_t abox_dma_dump_file_buf_done(int irq, void *dev_id)
 {
 	struct device *dev = dev_id;
 	struct abox_dma_data *data = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "%s(%d)\n", __func__, irq);
+	abox_dbg(dev, "%s(%d)\n", __func__, irq);
 
 	if (data->dump) {
 		data->dump->updated = true;
@@ -1264,67 +1474,111 @@ static irqreturn_t abox_ddma_file_buf_done(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int abox_ddma_file_open(struct inode *i, struct file *f)
+static int abox_dma_dump_file_open(struct inode *i, struct file *f)
 {
 	struct abox_dma_data *data = abox_dump_get_data(f);
 	struct abox_data *abox_data = data->abox_data;
 	struct device *dev = data->dev;
 	int ret;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
+
+	if (atomic_cmpxchg(&data->dump->open_state, 0, 1)) {
+		abox_err(dev, "already opened\n");
+
+		return -EBUSY;
+	}
 
 	pm_runtime_get_sync(dev);
+	abox_wait_for_boot(abox_data, abox_get_waiting_jiffies(true));
 	abox_gic_register_irq_handler(abox_data->dev_gic,
 			abox_dma_get_irq(data, DMA_IRQ_BUF_DONE),
-			abox_ddma_file_buf_done, dev);
+			abox_dma_dump_file_buf_done, dev);
 	f->private_data = data;
-	abox_ddma_register_event_notifier(data);
-	ret = abox_ddma_set_buffer(data);
+	ret = abox_dma_dump_register_event_notifier(data);
 	if (ret < 0)
-		return ret;
-	ret = abox_ddma_start(data);
-
+		goto out;
+	ret = abox_dma_dump_set_buffer(data);
+	if (ret < 0)
+		goto out;
+	ret = abox_dma_dump_start(data);
+out:
+	if (ret < 0)
+		atomic_set(&data->dump->open_state, 0);
 	return ret;
 }
 
-static int abox_ddma_file_release(struct inode *i, struct file *f)
+static int abox_dma_dump_file_release(struct inode *i, struct file *f)
 {
 	struct abox_dma_data *data = f->private_data;
 	struct device *dev = data->dev;
 	int ret;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	ret = abox_ddma_stop(data);
-	abox_ddma_free_buffer(data);
-	abox_ddma_unregister_event_notifier(data);
-	abox_dma_release_irq(data);
+	ret = abox_dma_dump_stop(data);
+	abox_dma_dump_free_buffer(data);
+	abox_dma_dump_unregister_event_notifier(data);
+	abox_dma_release_irq_all(data);
 	abox_gic_register_irq_handler(data->abox_data->dev_gic,
 			abox_dma_get_irq(data, DMA_IRQ_BUF_DONE),
 			abox_dma_irq_handlers[DMA_IRQ_BUF_DONE], dev);
 	pm_runtime_put(dev);
+	atomic_cmpxchg(&data->dump->open_state, 1, 0);
 
 	return ret;
 }
 
-static unsigned int abox_ddma_file_poll(struct file *file, poll_table *wait)
+static unsigned int abox_dma_dump_file_poll(struct file *file, poll_table *wait)
 {
 	struct abox_dma_data *data = file->private_data;
 
-	dev_dbg(data->dev, "%s\n", __func__);
+	abox_dbg(data->dev, "%s\n", __func__);
 
 	poll_wait(file, &data->dump->waitqueue, wait);
 	return POLLIN | POLLRDNORM;
 }
 
-static const struct file_operations abox_ddma_fops = {
-	.llseek = generic_file_llseek,
-	.read = abox_ddma_file_read,
-	.poll = abox_ddma_file_poll,
-	.open = abox_ddma_file_open,
-	.release = abox_ddma_file_release,
-	.owner = THIS_MODULE,
+static const struct proc_ops abox_dma_dump_fops = {
+	.proc_lseek = generic_file_llseek,
+	.proc_read = abox_dma_dump_file_read,
+	.proc_poll = abox_dma_dump_file_poll,
+	.proc_open = abox_dma_dump_file_open,
+	.proc_release = abox_dma_dump_file_release,
 };
+
+static int abox_dma_dump_pcm_new(struct snd_soc_component *component,
+		struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_dai *dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
+	struct device *dev = data->dev;
+
+	data->dump = devm_kzalloc(dev, sizeof(*data->dump), GFP_KERNEL);
+	if (!data->dump)
+		return -ENOMEM;
+	atomic_set(&data->dump->open_state, 0);
+	data->dump->file = abox_dump_register_file(data->dai_drv->name, data,
+			&abox_dma_dump_fops);
+	init_waitqueue_head(&data->dump->waitqueue);
+	return abox_dma_pcm_new(component, rtd);
+}
+
+static void abox_dma_dump_pcm_free(struct snd_soc_component *component,
+		struct snd_pcm *pcm)
+{
+	struct snd_soc_pcm_runtime *rtd = snd_pcm_chip(pcm);
+	struct snd_soc_dai *dai = asoc_rtd_to_cpu(rtd, 0);
+	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
+	struct device *dev = data->dev;
+
+	abox_dbg(dev, "%s\n", __func__);
+
+	if (!IS_ERR_OR_NULL(data->dump->file))
+		abox_dump_unregister_file(data->dump->file);
+	devm_kfree(dev, data->dump);
+	abox_dma_pcm_free(component, pcm);
+}
 
 static enum abox_irq abox_ddma_get_irq(struct abox_dma_data *data,
 		enum abox_dma_irq irq)
@@ -1361,6 +1615,37 @@ static char *abox_ddma_get_dai_name(struct device *dev, enum abox_dma_dai dai,
 	return devm_kasprintf(dev, GFP_KERNEL, "DBG%d", id);
 }
 
+static enum abox_widget abox_ddma_get_src_widget(struct abox_dma_data *data)
+{
+	enum abox_widget w;
+	unsigned int val;
+
+	val = snd_soc_component_read(data->cmpnt, DMA_REG_CTRL);
+	val = (val & ABOX_DMA_DEBUG_SRC_MASK) >> ABOX_DMA_DEBUG_SRC_L;
+	switch (val) {
+	case 0x0 ... 0xb:
+		w = ABOX_WIDGET_SPUS_IN0 + val - 0x0;
+		break;
+	case 0x10 ... 0x17:
+		w = ABOX_WIDGET_SPUS_ASRC0 + val - 0x10;
+		break;
+	case 0x18:
+		w = ABOX_WIDGET_SIFS0 + val - 0x18;
+		break;
+	case 0x20 ... 0x27:
+		w = ABOX_WIDGET_NSRC0 + val - 0x20;
+		break;
+	case 0x30 ... 0x33:
+		w = ABOX_WIDGET_SPUM_ASRC0 + val - 0x30;
+		break;
+	default:
+		w = -EINVAL;
+		break;
+	}
+
+	return w;
+}
+
 const static struct snd_soc_dai_driver abox_ddma_dai_drv = {
 	.capture = {
 		.stream_name = "Capture",
@@ -1378,7 +1663,8 @@ static const char * const abox_ddma_src_enum_texts[] = {
 	"RDMA6", "RDMA7", "RDMA8", "RDMA9", "RDMA10", "RDMA11",
 	"SPUS_ASRC0", "SPUS_ASRC1", "SPUS_ASRC2", "SPUS_ASRC3", "SPUS_ASRC4",
 	"SPUS_ASRC5", "SPUS_ASRC6", "SPUS_ASRC7", "SPUS_MIXER",
-	"SPUM_SIFM0", "SPUM_SIFM1", "SPUM_SIFM2", "SPUM_SIFM3", "SPUM_SIFM4",
+	"SPUM_SIFM0", "SPUM_SIFM1", "SPUM_SIFM2", "SPUM_SIFM3",
+	"SPUM_SIFM4", "SPUM_SIFM5", "SPUM_SIFM6", "SPUM_SIFM7",
 	"SPUM_ASRC0", "SPUM_ASRC1", "SPUM_ASRC2", "SPUM_ASRC3",
 };
 
@@ -1387,7 +1673,8 @@ static const unsigned int abox_ddma_src_enum_values[] = {
 	0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
 	0x10, 0x11, 0x12, 0x13, 0x14,
 	0x15, 0x16, 0x17, 0x18,
-	0x20, 0x21, 0x22, 0x23, 0x24,
+	0x20, 0x21, 0x22, 0x23,
+	0x24, 0x25, 0x26, 0x27,
 	0x30, 0x31, 0x32, 0x33,
 };
 
@@ -1400,8 +1687,11 @@ static const struct soc_enum abox_ddma_src_enum[] = {
 
 static const struct snd_kcontrol_new abox_ddma_controls[] = {
 	SOC_ENUM("SRC", abox_ddma_src_enum),
-	SOC_SINGLE("Auto Fade In", DMA_REG_CTRL,
-			ABOX_DMA_AUTO_FADE_IN_L, 1, 0),
+	SOC_ENUM_EXT("Func", abox_dma_func_enum,
+			snd_soc_get_enum_double, abox_dma_func_put),
+	SOC_SINGLE_EXT("Auto Fade In", DMA_REG_CTRL,
+			ABOX_DMA_AUTO_FADE_IN_L, 1, 0,
+			abox_dma_auto_fade_in_get, abox_dma_auto_fade_in_put),
 	SOC_SINGLE("Vol Factor", DMA_REG_VOL_FACTOR,
 			ABOX_DMA_VOL_FACTOR_L, 0xffffff, 0),
 	SOC_SINGLE("Vol Change", DMA_REG_VOL_CHANGE,
@@ -1426,36 +1716,6 @@ static int abox_ddma_write(struct snd_soc_component *cmpnt,
 	return abox_dma_write(cmpnt, base, reg, val);
 }
 
-static int abox_ddma_pcm_new(struct snd_soc_pcm_runtime *runtime)
-{
-	struct snd_soc_dai *dai = runtime->cpu_dai;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
-	struct device *dev = data->dev;
-
-	data->dump = devm_kzalloc(dev, sizeof(*data->dump), GFP_KERNEL);
-	if (!data->dump)
-		return -ENOMEM;
-	data->dump->file = abox_dump_register_file(data->dai_drv->name, data,
-			&abox_ddma_fops);
-	init_waitqueue_head(&data->dump->waitqueue);
-	return abox_dma_pcm_new(runtime);
-}
-
-static void abox_ddma_pcm_free(struct snd_pcm *pcm)
-{
-	struct snd_soc_pcm_runtime *runtime = pcm->private_data;
-	struct snd_soc_dai *dai = runtime->cpu_dai;
-	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
-	struct device *dev = data->dev;
-
-	dev_dbg(dev, "%s\n", __func__);
-
-	if (!IS_ERR_OR_NULL(data->dump->file))
-		abox_dump_unregister_file(data->dump->file);
-	devm_kfree(dev, data->dump);
-	abox_dma_pcm_free(pcm);
-}
-
 const static struct snd_soc_component_driver abox_ddma = {
 	.controls		= abox_ddma_controls,
 	.num_controls		= ARRAY_SIZE(abox_ddma_controls),
@@ -1463,9 +1723,16 @@ const static struct snd_soc_component_driver abox_ddma = {
 	.remove			= abox_dma_remove,
 	.read			= abox_ddma_read,
 	.write			= abox_ddma_write,
-	.pcm_new		= abox_ddma_pcm_new,
-	.pcm_free		= abox_ddma_pcm_free,
-	.ops			= &abox_dma_ops,
+	.pcm_construct		= abox_dma_dump_pcm_new,
+	.pcm_destruct		= abox_dma_dump_pcm_free,
+	.open			= abox_dma_open,
+	.close			= abox_dma_close,
+	.hw_params		= abox_dma_hw_params,
+	.hw_free		= abox_dma_hw_free,
+	.prepare		= abox_dma_prepare,
+	.trigger		= abox_dma_trigger,
+	.pointer		= abox_dma_pointer,
+	.mmap			= abox_dma_mmap,
 };
 
 static enum abox_irq abox_dual_get_irq(struct abox_dma_data *data,
@@ -1535,9 +1802,16 @@ const static struct snd_soc_component_driver abox_dual = {
 	.remove			= abox_dma_remove,
 	.read			= abox_dual_read,
 	.write			= abox_dual_write,
-	.pcm_new		= abox_dma_pcm_new,
-	.pcm_free		= abox_dma_pcm_free,
-	.ops			= &abox_dma_ops,
+	.pcm_construct		= abox_dma_dump_pcm_new,
+	.pcm_destruct		= abox_dma_dump_pcm_free,
+	.open			= abox_dma_open,
+	.close			= abox_dma_close,
+	.hw_params		= abox_dma_hw_params,
+	.hw_free		= abox_dma_hw_free,
+	.prepare		= abox_dma_prepare,
+	.trigger		= abox_dma_trigger,
+	.pointer		= abox_dma_pointer,
+	.mmap			= abox_dma_mmap,
 };
 
 static const struct of_device_id samsung_abox_dma_match[] = {
@@ -1547,6 +1821,7 @@ static const struct of_device_id samsung_abox_dma_match[] = {
 			.get_irq = abox_ddma_get_irq,
 			.get_dai_id = abox_ddma_get_dai_id,
 			.get_dai_name = abox_ddma_get_dai_name,
+			.get_src_widget = abox_ddma_get_src_widget,
 			.dai_drv = &abox_ddma_dai_drv,
 			.num_dai = 1,
 			.cmpnt_drv = &abox_ddma,
@@ -1576,6 +1851,7 @@ static int samsung_abox_dma_probe(struct platform_device *pdev)
 	struct device_node *np = dev->of_node;
 	struct abox_dma_data *data;
 	const struct abox_dma_of_data *of_data;
+	const char *type;
 	u32 value;
 	int i, ret;
 
@@ -1587,9 +1863,10 @@ static int samsung_abox_dma_probe(struct platform_device *pdev)
 	data->dev = dev;
 	data->dev_abox = dev_abox;
 	data->abox_data = abox_data;
-	dma_set_mask(dev, DMA_BIT_MASK(36));
+	init_completion(&data->func_changed);
+	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
 
-	data->sfr_base = devm_get_ioremap(pdev, "sfr", NULL, NULL);
+	data->sfr_base = devm_get_ioremap(pdev, "sfr", &data->sfr_phys, NULL);
 	if (IS_ERR(data->sfr_base))
 		return PTR_ERR(data->sfr_base);
 
@@ -1599,8 +1876,20 @@ static int samsung_abox_dma_probe(struct platform_device *pdev)
 
 	ret = of_samsung_property_read_u32(dev, np, "buffer_bytes", &value);
 	if (ret < 0)
-		value = BUFFER_BYTES_MIN;
+		value = 0;
 	data->dmab.bytes = value;
+
+	ret = of_samsung_property_read_string(dev, np, "buffer_type", &type);
+	if (ret < 0)
+		type = "";
+	if (!strncmp(type, "ion", sizeof("ion")))
+		data->buf_type = BUFFER_TYPE_ION;
+	else if (!strncmp(type, "dma", sizeof("dma")))
+		data->buf_type = BUFFER_TYPE_DMA;
+	else if (!strncmp(type, "ram", sizeof("ram")))
+		data->buf_type = BUFFER_TYPE_RAM;
+	else
+		data->buf_type = BUFFER_TYPE_DMA;
 
 	of_data = data->of_data = of_device_get_match_data(dev);
 
@@ -1644,20 +1933,21 @@ static int samsung_abox_dma_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_driver samsung_abox_dma_driver = {
+static void samsung_abox_dma_shutdown(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+
+	abox_dbg(dev, "%s\n", __func__);
+	pm_runtime_disable(dev);
+}
+
+struct platform_driver samsung_abox_dma_driver = {
 	.probe  = samsung_abox_dma_probe,
 	.remove = samsung_abox_dma_remove,
+	.shutdown = samsung_abox_dma_shutdown,
 	.driver = {
-		.name = "samsung-abox-dma",
+		.name = "abox-dma",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(samsung_abox_dma_match),
 	},
 };
-
-module_platform_driver(samsung_abox_dma_driver);
-
-/* Module information */
-MODULE_AUTHOR("Gyeongtaek Lee, <gt82.lee@samsung.com>");
-MODULE_DESCRIPTION("Samsung ASoC A-Box DMA Driver");
-MODULE_ALIAS("platform:samsung-abox-dma");
-MODULE_LICENSE("GPL");

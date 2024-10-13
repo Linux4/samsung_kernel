@@ -13,10 +13,11 @@
 #ifndef __MFC_DEBUGFS_H
 #define __MFC_DEBUGFS_H __FILE__
 
-#include "mfc_common.h"
+#include "base/mfc_common.h"
 
 extern struct mfc_dev *g_mfc_dev;
 
 void mfc_init_debugfs(struct mfc_dev *dev);
+void mfc_deinit_debugfs(struct mfc_dev *dev);
 
 #endif /* __MFC_DEBUGFS_H */

@@ -79,6 +79,7 @@ int is_i2c_transfer(struct i2c_adapter *adapter, struct i2c_msg *msg, u32 size)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_i2c_transfer);
 
 int is_sensor_addr8_read8(struct i2c_client *client,
 	u8 addr, u8 *val)
@@ -117,6 +118,7 @@ int is_sensor_addr8_read8(struct i2c_client *client,
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_addr8_read8);
 
 int is_sensor_read8(struct i2c_client *client,
 	u16 addr, u8 *val)
@@ -157,6 +159,7 @@ int is_sensor_read8(struct i2c_client *client,
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_read8);
 
 int is_sensor_read16(struct i2c_client *client,
 	u16 addr, u16 *val)
@@ -200,13 +203,14 @@ int is_sensor_read16(struct i2c_client *client,
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_read16);
 
+#define ADDR_SIZE 2
 int is_sensor_read8_size(struct i2c_client *client, void *buf,
 	u16 addr, size_t size)
 {
 	int ret = 0;
-	const u32 addr_size = 2;
-	u8 addr_buf[addr_size];
+	u8 addr_buf[ADDR_SIZE];
 
 	if (!client->adapter) {
 		pr_err("Could not find adapter!\n");
@@ -218,8 +222,8 @@ int is_sensor_read8_size(struct i2c_client *client, void *buf,
 	addr_buf[0] = ((u16)addr) >> 8;
 	addr_buf[1] = (u8)addr;
 
-	ret = i2c_master_send(client, addr_buf, addr_size);
-	if (addr_size != ret) {
+	ret = i2c_master_send(client, addr_buf, ADDR_SIZE);
+	if (ret != ADDR_SIZE) {
 		pr_err("%s: failed to i2c send(%d)\n", __func__, ret);
 		return ret;
 	}
@@ -233,6 +237,7 @@ int is_sensor_read8_size(struct i2c_client *client, void *buf,
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_read8_size);
 
 int is_sensor_write(struct i2c_client *client,
 	u8 *buf, u32 size)
@@ -255,6 +260,7 @@ int is_sensor_write(struct i2c_client *client,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(is_sensor_write);
 
 int is_sensor_addr8_write8(struct i2c_client *client,
 	u8 addr, u8 val)
@@ -286,6 +292,7 @@ int is_sensor_addr8_write8(struct i2c_client *client,
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_addr8_write8);
 
 int is_sensor_write8(struct i2c_client *client,
 	u16 addr, u8 val)
@@ -320,6 +327,7 @@ int is_sensor_write8(struct i2c_client *client,
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_write8);
 
 int is_sensor_write8_array(struct i2c_client *client,
 	u16 addr, u8 *val, u32 num)
@@ -369,6 +377,7 @@ int is_sensor_write8_array(struct i2c_client *client,
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_write8_array);
 
 int is_sensor_write16(struct i2c_client *client,
 	u16 addr, u16 val)
@@ -404,6 +413,7 @@ int is_sensor_write16(struct i2c_client *client,
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_write16);
 
 int is_sensor_write16_array(struct i2c_client *client,
 	u16 addr, u16 *val, u32 num)
@@ -411,7 +421,7 @@ int is_sensor_write16_array(struct i2c_client *client,
 	int ret = 0;
 	struct i2c_msg msg[1];
 	int i = 0;
-	u8 wbuf[22];
+	u8 wbuf[10];
 
 	if (val == NULL) {
 		pr_err("val array is null\n");
@@ -419,8 +429,8 @@ int is_sensor_write16_array(struct i2c_client *client,
 		goto p_err;
 	}
 
-	if (num > 10) {
-		pr_err("currently limit max num is 10, need to fix it!\n");
+	if (num > 4) {
+		pr_err("currently limit max num is 4, need to fix it!\n");
 		ret = -ENODEV;
 		goto p_err;
 	}
@@ -454,6 +464,7 @@ int is_sensor_write16_array(struct i2c_client *client,
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_write16_array);
 
 int is_sensor_write16_burst(struct i2c_client *client,
 	u16 addr, u16 *val, u32 num)
@@ -508,6 +519,7 @@ p_err_free:
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_write16_burst);
 
 int is_sensor_write8_sequential(struct i2c_client *client,
 	u16 addr, u8 *val, u16 num)
@@ -561,3 +573,106 @@ p_err_free:
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_sensor_write8_sequential);
+
+int is_sensor_data_read16(struct i2c_client *client,
+		u16 *val)
+{
+	int ret = 0;
+	struct i2c_msg msg[1];
+	u8 wbuf[2] = {0, 0};
+
+	if (!client->adapter) {
+		pr_err("Could not find adapter!\n");
+		ret = -ENODEV;
+		goto p_err;
+	}
+
+	/* 1. I2C operation for reading data */
+	msg[0].addr = client->addr;
+	msg[0].flags = I2C_M_RD; /* write : 0, read : 1 */
+	msg[0].len = 2;
+	msg[0].buf = wbuf;
+
+	ret = is_i2c_transfer(client->adapter, msg, 1);
+	if (ret < 0) {
+		pr_err("i2c transfer fail(%d)", ret);
+		goto p_err;
+	}
+
+	*val = ((wbuf[0] << 8) | wbuf[1]);
+
+	i2c_info("I2CR16(%d) : 0x%08X\n", client->addr, *val);
+
+	return 0;
+p_err:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(is_sensor_data_read16);
+
+int is_sensor_data_write16(struct i2c_client *client,
+		u8 val_high, u8 val_low)
+{
+	int ret = 0;
+	struct i2c_msg msg[1];
+	u8 wbuf[2];
+
+	if (!client->adapter) {
+		pr_err("Could not find adapter!\n");
+		ret = -ENODEV;
+		goto p_err;
+	}
+
+	msg->addr = client->addr;
+	msg->flags = 0;
+	msg->len = 2;
+	msg->buf = wbuf;
+	wbuf[0] = val_high;
+	wbuf[1] = val_low;
+	ret = is_i2c_transfer(client->adapter, msg, 1);
+	if (ret < 0) {
+		pr_err("i2c transfer fail(%d)", ret);
+		goto p_err;
+	}
+
+	i2c_info("I2CR08(%d) : 0x%04X%04X\n", client->addr, val_high, val_low);
+	return 0;
+p_err:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(is_sensor_data_write16);
+
+int is_sensor_addr_data_write16(struct i2c_client *client,
+		u8 addr, u8 val_high, u8 val_low)
+{
+	int ret = 0;
+	struct i2c_msg msg[1];
+	u8 wbuf[3];
+
+	if (!client->adapter) {
+		pr_err("Could not find adapter!\n");
+		ret = -ENODEV;
+		goto p_err;
+	}
+
+	msg->addr = client->addr;
+	msg->flags = 0;
+	msg->len = 3;
+	msg->buf = wbuf;
+	wbuf[0] = addr;
+	wbuf[1] = val_high;
+	wbuf[2] = val_low;
+
+	ret = is_i2c_transfer(client->adapter, msg, 1);
+	if (ret < 0) {
+		pr_err("i2c transfer fail(%d)", ret);
+		goto p_err;
+	}
+
+	i2c_info("I2CW16(%d) : 0x%04X%04X\n", client->addr, val_high, val_low);
+
+	return 0;
+p_err:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(is_sensor_addr_data_write16);

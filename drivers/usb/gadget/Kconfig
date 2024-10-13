@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 #
 # USB Gadget support on a system involves
 #    (a) a peripheral controller, and
@@ -18,8 +19,8 @@ menuconfig USB_GADGET
 	select USB_COMMON
 	select NLS
 	help
-	   USB is a master/slave protocol, organized with one master
-	   host (such as a PC) controlling up to 127 peripheral devices.
+	   USB is a host/device protocol, organized with one host (such as a
+	   PC) controlling up to 127 peripheral devices.
 	   The USB hardware is asymmetric, which makes it easier to set up:
 	   you can't connect a "to-the-host" connector to a peripheral.
 
@@ -96,9 +97,9 @@ config USB_GADGET_DEBUG_FS
 	   to conserve kernel memory, say "N".
 
 config USB_GADGET_VBUS_DRAW
-	int "Maximum VBUS Power usage (2-500 mA)"
-	range 2 500
-	default 2
+	int "Maximum VBUS Power usage (0-900 mA)"
+	range 0 900
+	default 0
 	help
 	   Some devices need to draw power from USB when they are
 	   configured, perhaps to operate circuitry or to recharge
@@ -106,8 +107,10 @@ config USB_GADGET_VBUS_DRAW
 	   such as an AC adapter or batteries.
 
 	   Enter the maximum power your device draws through USB, in
-	   milliAmperes.  The permitted range of values is 2 - 500 mA;
+	   milliAmperes.  The permitted range of values is 0 - 900 mA;
 	   0 mA would be legal, but can make some hosts misbehave.
+	   Exceptionally, when connecting to a USB port capable of
+	   PD charging, it should be specified as 0mA.
 
 	   This value will be used except for system-specific gadget
 	   drivers that have more specific information.
@@ -133,28 +136,6 @@ config U_SERIAL_CONSOLE
 	depends on USB_U_SERIAL
 	help
 	   It supports the serial gadget can be used as a console.
-
-config USB_OLD_CONFIGFS
-	bool "Old style configfs"
-	depends on USB_CONFIGFS
-	default n
-	help
-	   It supports old style configfs
-
-config USB_ANDROID_SAMSUNG_COMPOSITE
-	bool "Samsung Composite function"
-	depends on USB_CONFIGFS
-	help
-	   Provides SAMSUNG composite driver.
-
-config USB_DUN_SUPPORT
-	bool "DUN support function"
-	depends on USB_ANDROID_SAMSUNG_COMPOSITE
-	help
-	  Provides USB modem serial driver.
-	  This function makes connection to acm from data router.
-	  It uses misc register.
-	  Support fops : open, close, release, read, poll, llseek, ioctl
 
 source "drivers/usb/gadget/udc/Kconfig"
 
@@ -237,19 +218,10 @@ config USB_F_PRINTER
 config USB_F_TCM
 	tristate
 
-config USB_F_MTP
-	tristate
-
-config USB_F_PTP
-	tristate
-
-config USB_F_AUDIO_SRC
-	tristate
-
 config USB_F_ACC
 	tristate
 
-config USB_F_SIMMIAN
+config USB_F_AUDIO_SRC
 	tristate
 
 config USB_F_CONN_GADGET
@@ -270,7 +242,7 @@ config USB_CONFIGFS
 	  specified simply by creating appropriate directories in configfs.
 	  Associating functions with configurations is done by creating
 	  appropriate symbolic links.
-	  For more information see Documentation/usb/gadget_configfs.txt.
+	  For more information see Documentation/usb/gadget_configfs.rst.
 
 config USB_CONFIGFS_UEVENT
 	bool "Uevent notification of Gadget state"
@@ -315,6 +287,7 @@ config USB_CONFIGFS_NCM
 	depends on NET
 	select USB_U_ETHER
 	select USB_F_NCM
+	select CRC32
 	help
 	  NCM is an advanced protocol for Ethernet encapsulation, allows
 	  grouping of several ethernet frames into one USB transfer and
@@ -364,6 +337,7 @@ config USB_CONFIGFS_EEM
 	depends on NET
 	select USB_U_ETHER
 	select USB_F_EEM
+	select CRC32
 	help
 	  CDC EEM is a newer USB standard that is somewhat simpler than CDC ECM
 	  and therefore can be supported by more hardware.  Technically ECM and
@@ -420,49 +394,22 @@ config USB_CONFIGFS_F_FS
 	  mass storage) and other are implemented in user space.
 
 config USB_CONFIGFS_F_DM
-	bool "DM gadget"
+	tristate "DM gadget"
 	depends on USB_CONFIGFS
 	select USB_F_DM
+	select USB_U_SERIAL
 	help
 	  USB gadget DM(Diagnosis Monitor) support
 
-config USB_CONFIGFS_F_ADB
-	bool "ADB gadget"
-	depends on USB_CONFIGFS
-	select USB_F_ADB
-	help
-	  USB gadget ADB support
-
-config USB_CONFIGFS_F_SIMMIAN
-       bool "Android gadget SIMMIAN function"
-       depends on USB_CONFIGFS
-       select USB_F_SIMMIAN
-       help
-         Provides SIMMIAN function for android gadget driver.
-
-config USB_CONFIGFS_F_MTP
-	bool "MTP gadget"
-	depends on USB_CONFIGFS
-	select USB_F_MTP
-	help
-	  USB gadget MTP support
-
-config USB_CONFIGFS_F_PTP
-	bool "PTP gadget"
-	depends on USB_CONFIGFS && USB_CONFIGFS_F_MTP
-	select USB_F_PTP
-	help
-	  USB gadget PTP support
-
 config USB_CONFIGFS_F_CONN_GADGET
-        bool "Conn gadget function"
-        depends on USB_CONFIGFS
-        select USB_F_CONN_GADGET
-        help
-          SydeSync
+	tristate "F_CONN gadget"
+	depends on USB_CONFIGFS
+	select USB_F_CONN_GADGET
+	help
+	  USB Sidesync function support
 
 config USB_CONFIGFS_F_SS_MON_GADGET
-	bool "F_SAMSUNG gadget"
+	tristate "F_SAMSUNG gadget"
 	depends on USB_CONFIGFS
 	select USB_F_SS_MON_GADGET
 	help
@@ -485,19 +432,6 @@ config USB_CONFIGFS_F_AUDIO_SRC
 	select USB_F_AUDIO_SRC
 	help
 	  USB gadget Audio Source support
-
-config USB_RNDIS_MULTIPACKET
-	bool "Samsung Rndis Multi Packet support"
-	depends on USB_CONFIGFS_UEVENT
-	help
-	  Rndis Multipacket Support.
-
-config USB_NCM_SUPPORT_MTU_CHANGE
-	bool "Samsung NCM MTU size change support"
-	depends on USB_CONFIGFS_NCM
-	default y
-	help
-	  NCM MTU size change support.
 
 config USB_CONFIGFS_F_UAC1
 	bool "Audio Class 1.0"
@@ -571,13 +505,14 @@ config USB_CONFIGFS_F_HID
 	  The HID function driver provides generic emulation of USB
 	  Human Interface Devices (HID).
 
-	  For more information, see Documentation/usb/gadget_hid.txt.
+	  For more information, see Documentation/usb/gadget_hid.rst.
 
 config USB_CONFIGFS_F_UVC
 	bool "USB Webcam function"
 	depends on USB_CONFIGFS
 	depends on VIDEO_V4L2
 	depends on VIDEO_DEV
+	select VIDEOBUF2_DMA_SG
 	select VIDEOBUF2_VMALLOC
 	select USB_F_UVC
 	help
@@ -596,7 +531,7 @@ config USB_CONFIGFS_F_PRINTER
 	  receive or send printer data. It can use ioctl calls to
 	  the device file to get or set printer status.
 
-	  For more information, see Documentation/usb/gadget_printer.txt
+	  For more information, see Documentation/usb/gadget_printer.rst
 	  which includes sample code for accessing the device file.
 
 config USB_CONFIGFS_F_TCM
@@ -613,34 +548,6 @@ config USB_CONFIGFS_F_TCM
 	  Both protocols can work on USB2.0 and USB3.0.
 	  UAS utilizes the USB 3.0 feature called streams support.
 
-choice
-	tristate "USB Gadget precomposed configurations"
-	default USB_ETH
-	optional
-	help
-	  A Linux "Gadget Driver" talks to the USB Peripheral Controller
-	  driver through the abstract "gadget" API.  Some other operating
-	  systems call these "client" drivers, of which "class drivers"
-	  are a subset (implementing a USB device class specification).
-	  A gadget driver implements one or more USB functions using
-	  the peripheral hardware.
-
-	  Gadget drivers are hardware-neutral, or "platform independent",
-	  except that they sometimes must understand quirks or limitations
-	  of the particular controllers they work with.  For example, when
-	  a controller doesn't support alternate configurations or provide
-	  enough of the right types of endpoints, the gadget driver might
-	  not be able work with that controller, or might need to implement
-	  a less common variant of a device class protocol.
-
-	  The available choices each represent a single precomposed USB
-	  gadget configuration. In the device model, each option contains
-	  both the device instantiation as a child for a USB gadget
-	  controller, and the relevant drivers for each function declared
-	  by the device.
-
 source "drivers/usb/gadget/legacy/Kconfig"
-
-endchoice
 
 endif # USB_GADGET

@@ -20,7 +20,7 @@
 
 #include <linux/slab.h>
 
-#define SBM_CMD_RESET	128
+#define SBM_SUBCMD_RESET	128
 
 static int set_sar_backoff_reset_value(int32_t value)
 {
@@ -31,7 +31,8 @@ static int set_sar_backoff_reset_value(int32_t value)
 		return ret;
 	}
 
-	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_SAR_BACKOFF_MOTION, SBM_CMD_RESET, (char *)&value, sizeof(value));
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_SAR_BACKOFF_MOTION, SBM_SUBCMD_RESET,
+				(char *)&value, sizeof(value));
 	if (ret < 0) {
 		shub_errf("CMD fail %d", ret);
 		return ret;
@@ -56,41 +57,25 @@ static int inject_sar_backoff_motion_additional_data(char *buf, int count)
 	return set_sar_backoff_reset_value(value);
 }
 
+
+static struct sensor_funcs sar_backoff_motion_sensor_funcs = {
+	.inject_additional_data = inject_sar_backoff_motion_additional_data,
+};
+
 int init_sar_backoff_motion(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_SAR_BACKOFF_MOTION);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "sar_backoff_motion");
-		sensor->receive_event_size = 1;
-		sensor->report_event_size = 1;
-		sensor->event_buffer.value = kzalloc(sensor->receive_event_size, GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->inject_additional_data = inject_sar_backoff_motion_additional_data;
+		ret = init_default_func(sensor, "sar_backoff_motion", 1, 1, 1);
+		sensor->funcs = &sar_backoff_motion_sensor_funcs;
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs  = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs  = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

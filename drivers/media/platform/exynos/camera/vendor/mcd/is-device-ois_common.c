@@ -261,9 +261,9 @@ int is_ois_gpio_on(struct is_core *core)
 		err("gpio_cfg is fail(%d)", ret);
 		goto p_err;
 	}
+
 #if defined (CONFIG_CAMERA_USE_INTERNAL_MCU)
-	is_vender_resource_get(&core->vender);
-	msleep(50);
+	is_vender_mcu_power_on(false);
 #endif
 
 p_err:
@@ -292,7 +292,7 @@ int is_ois_gpio_off(struct is_core *core)
 	module_pdata = module->pdata;
 
 #if defined (CONFIG_CAMERA_USE_INTERNAL_MCU)
-	is_vender_resource_put(&core->vender); 
+	is_vender_mcu_power_off(false);
 #endif
 
 	if (!module_pdata->gpio_cfg) {
@@ -642,6 +642,17 @@ void is_ois_fw_update(struct is_core *core)
 	msleep(50);
 	CALL_OISOPS(ois_device, ois_fw_update, core);
 	is_ois_gpio_off(core);
+
+	return;
+}
+
+void is_ois_get_hall_pos(struct is_core *core, u16 *targetPos, u16 *hallPos)
+{
+	struct is_device_ois *ois_device = NULL;
+
+	ois_device = is_ois_get_device(core);
+
+	CALL_OISOPS(ois_device, ois_get_hall_pos, core, targetPos, hallPos);
 
 	return;
 }

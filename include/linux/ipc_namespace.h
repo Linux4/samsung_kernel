@@ -19,6 +19,7 @@ struct ipc_ids {
 	struct rw_semaphore rwsem;
 	struct idr ipcs_idr;
 	int max_idx;
+	int last_idx;	/* For wrap around detection */
 #ifdef CONFIG_CHECKPOINT_RESTORE
 	int next_id;
 #endif
@@ -66,6 +67,8 @@ struct ipc_namespace {
 	/* user_ns which owns the ipc ns */
 	struct user_namespace *user_ns;
 	struct ucounts *ucounts;
+
+	struct llist_node mnt_llist;
 
 	struct ns_common ns;
 } __randomize_layout;
@@ -129,6 +132,16 @@ static inline struct ipc_namespace *get_ipc_ns(struct ipc_namespace *ns)
 	return ns;
 }
 
+static inline struct ipc_namespace *get_ipc_ns_not_zero(struct ipc_namespace *ns)
+{
+	if (ns) {
+		if (refcount_inc_not_zero(&ns->count))
+			return ns;
+	}
+
+	return NULL;
+}
+
 extern void put_ipc_ns(struct ipc_namespace *ns);
 #else
 static inline struct ipc_namespace *copy_ipcs(unsigned long flags,
@@ -141,6 +154,11 @@ static inline struct ipc_namespace *copy_ipcs(unsigned long flags,
 }
 
 static inline struct ipc_namespace *get_ipc_ns(struct ipc_namespace *ns)
+{
+	return ns;
+}
+
+static inline struct ipc_namespace *get_ipc_ns_not_zero(struct ipc_namespace *ns)
 {
 	return ns;
 }

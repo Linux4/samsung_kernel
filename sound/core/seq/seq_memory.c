@@ -1,30 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  ALSA sequencer Memory Manager
  *  Copyright (c) 1998 by Frank van de Pol <fvdpol@coil.demon.nl>
  *                        Jaroslav Kysela <perex@perex.cz>
  *                2000 by Takashi Iwai <tiwai@suse.de>
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License
- *   along with this program; if not, write to the Free Software
- *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
- *
  */
 
 #include <linux/init.h>
 #include <linux/export.h>
 #include <linux/slab.h>
 #include <linux/sched/signal.h>
-#include <linux/vmalloc.h>
+#include <linux/mm.h>
 #include <sound/core.h>
 
 #include <sound/seq_kernel.h>
@@ -126,15 +112,19 @@ EXPORT_SYMBOL(snd_seq_dump_var_event);
  * expand the variable length event to linear buffer space.
  */
 
-static int seq_copy_in_kernel(char **bufptr, const void *src, int size)
+static int seq_copy_in_kernel(void *ptr, void *src, int size)
 {
+	char **bufptr = ptr;
+
 	memcpy(*bufptr, src, size);
 	*bufptr += size;
 	return 0;
 }
 
-static int seq_copy_in_user(char __user **bufptr, const void *src, int size)
+static int seq_copy_in_user(void *ptr, void *src, int size)
 {
+	char __user **bufptr = ptr;
+
 	if (copy_to_user(*bufptr, src, size))
 		return -EFAULT;
 	*bufptr += size;
@@ -163,8 +153,7 @@ int snd_seq_expand_var_event(const struct snd_seq_event *event, int count, char 
 		return newlen;
 	}
 	err = snd_seq_dump_var_event(event,
-				     in_kernel ? (snd_seq_dump_func_t)seq_copy_in_kernel :
-				     (snd_seq_dump_func_t)seq_copy_in_user,
+				     in_kernel ? seq_copy_in_kernel : seq_copy_in_user,
 				     &buf);
 	return err < 0 ? err : newlen;
 }
@@ -244,13 +233,13 @@ static int snd_seq_cell_alloc(struct snd_seq_pool *pool,
 
 		set_current_state(TASK_INTERRUPTIBLE);
 		add_wait_queue(&pool->output_sleep, &wait);
-		spin_unlock_irq(&pool->lock);
+		spin_unlock_irqrestore(&pool->lock, flags);
 		if (mutexp)
 			mutex_unlock(mutexp);
 		schedule();
 		if (mutexp)
 			mutex_lock(mutexp);
-		spin_lock_irq(&pool->lock);
+		spin_lock_irqsave(&pool->lock, flags);
 		remove_wait_queue(&pool->output_sleep, &wait);
 		/* interrupted? */
 		if (signal_pending(current)) {
@@ -384,21 +373,20 @@ int snd_seq_pool_init(struct snd_seq_pool *pool)
 {
 	int cell;
 	struct snd_seq_event_cell *cellptr;
-	unsigned long flags;
 
 	if (snd_BUG_ON(!pool))
 		return -EINVAL;
 
-	cellptr = vmalloc(array_size(sizeof(struct snd_seq_event_cell),
-				     pool->size));
+	cellptr = kvmalloc_array(sizeof(struct snd_seq_event_cell), pool->size,
+				 GFP_KERNEL);
 	if (!cellptr)
 		return -ENOMEM;
 
 	/* add new cells to the free cell list */
-	spin_lock_irqsave(&pool->lock, flags);
+	spin_lock_irq(&pool->lock);
 	if (pool->ptr) {
-		spin_unlock_irqrestore(&pool->lock, flags);
-		vfree(cellptr);
+		spin_unlock_irq(&pool->lock);
+		kvfree(cellptr);
 		return 0;
 	}
 
@@ -416,7 +404,7 @@ int snd_seq_pool_init(struct snd_seq_pool *pool)
 	/* init statistics */
 	pool->max_used = 0;
 	pool->total_elements = pool->size;
-	spin_unlock_irqrestore(&pool->lock, flags);
+	spin_unlock_irq(&pool->lock);
 	return 0;
 }
 
@@ -435,7 +423,6 @@ void snd_seq_pool_mark_closing(struct snd_seq_pool *pool)
 /* remove events */
 int snd_seq_pool_done(struct snd_seq_pool *pool)
 {
-	unsigned long flags;
 	struct snd_seq_event_cell *ptr;
 
 	if (snd_BUG_ON(!pool))
@@ -449,18 +436,18 @@ int snd_seq_pool_done(struct snd_seq_pool *pool)
 		schedule_timeout_uninterruptible(1);
 	
 	/* release all resources */
-	spin_lock_irqsave(&pool->lock, flags);
+	spin_lock_irq(&pool->lock);
 	ptr = pool->ptr;
 	pool->ptr = NULL;
 	pool->free = NULL;
 	pool->total_elements = 0;
-	spin_unlock_irqrestore(&pool->lock, flags);
+	spin_unlock_irq(&pool->lock);
 
-	vfree(ptr);
+	kvfree(ptr);
 
-	spin_lock_irqsave(&pool->lock, flags);
+	spin_lock_irq(&pool->lock);
 	pool->closing = 0;
-	spin_unlock_irqrestore(&pool->lock, flags);
+	spin_unlock_irq(&pool->lock);
 
 	return 0;
 }

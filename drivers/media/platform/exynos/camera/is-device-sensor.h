@@ -15,7 +15,7 @@
 #include <dt-bindings/camera/exynos_is_dt.h>
 
 #include <exynos-is-sensor.h>
-#include "is-mem.h"
+#include "pablo-mem.h"
 #include "is-video.h"
 #include "is-resourcemgr.h"
 #include "is-groupmgr.h"
@@ -174,6 +174,17 @@ enum is_sensor_subdev_ioctl {
 	SENSOR_IOCTL_REGISTE_VOTF,
 	SENSOR_IOCTL_G_FRAME_ID,
 	SENSOR_IOCTL_G_HW_FCOUNT,
+
+	SENSOR_IOCTL_CSI_S_CTRL,
+	SENSOR_IOCTL_CSI_G_CTRL,
+	SENSOR_IOCTL_MOD_S_CTRL,
+	SENSOR_IOCTL_MOD_G_CTRL,
+	SENSOR_IOCTL_MOD_S_EXT_CTRL,
+	SENSOR_IOCTL_MOD_G_EXT_CTRL,
+	SENSOR_IOCTL_ACT_S_CTRL,
+	SENSOR_IOCTL_ACT_G_CTRL,
+	SENSOR_IOCTL_FLS_S_CTRL,
+	SENSOR_IOCTL_FLS_G_CTRL,
 };
 
 #if defined(SECURE_CAMERA_IRIS)
@@ -336,6 +347,7 @@ enum is_sensor_cal_status {
 };
 
 struct is_device_sensor {
+	char					*sensor_name;
 	u32						instance;	/* logical stream id: decide at open time*/
 	u32						device_id;	/* physical sensor node id: it is decided at probe time */
 	u32						sensor_id;	/* physical module enum */
@@ -343,7 +355,6 @@ struct is_device_sensor {
 
 	struct v4l2_device				v4l2_dev;
 	struct platform_device				*pdev;
-	struct is_mem					mem;
 
 	struct is_image					image;
 
@@ -466,6 +477,8 @@ struct is_device_sensor {
 	bool					reboot;
 
 	bool					use_stripe_flag;
+
+	u32					obte_config;
 };
 
 int is_sensor_open(struct is_device_sensor *device,
@@ -533,7 +546,6 @@ int is_sensor_g_bns_width(struct is_device_sensor *device);
 int is_sensor_g_bns_height(struct is_device_sensor *device);
 int is_sensor_g_bns_ratio(struct is_device_sensor *device);
 int is_sensor_g_bratio(struct is_device_sensor *device);
-int is_sensor_g_sensorcrop_bratio(struct is_device_sensor *device);
 int is_sensor_g_module(struct is_device_sensor *device,
 	struct is_module_enum **module);
 int is_sensor_deinit_module(struct is_module_enum *module);
@@ -543,6 +555,7 @@ int is_search_sensor_module_with_sensorid(struct is_device_sensor *device,
 	u32 sensor_id, struct is_module_enum **module);
 int is_search_sensor_module_with_position(struct is_device_sensor *device,
 	u32 position, struct is_module_enum **module);
+int is_sensor_votf_tag(struct is_device_sensor *device, struct is_subdev *subdev);
 int is_sensor_dm_tag(struct is_device_sensor *device,
 	struct is_frame *frame);
 int is_sensor_buf_tag(struct is_device_sensor *device,

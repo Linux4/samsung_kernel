@@ -25,7 +25,8 @@
 /* the maximum number of PHY for each module */
 #define EXYNOS_MIPI_PHYS_MASTER_NUM	4
 
-#define EXYNOS_MIPI_PHY_M4M4_ISO_BYPASS (1U << 0)
+//#define EXYNOS_MIPI_PHY_M4M4_ISO_BYPASS (1U << 0)
+#define EXYNOS_MIPI_PHY_M4M4_ISO_BYPASS (1U)
 
 #define MIPI_PHY_MxMx_UNIQUE	(0 << 1)
 #define MIPI_PHY_MxMx_SHARED	(1 << 1)
@@ -631,6 +632,7 @@ static int exynos_mipi_dsim_phy_power_off(struct phy *phy)
 	return __set_phy_state(state, phy_desc, 0);
 }
 
+#if 0
 static int exynos_mipi_dsim_phy_set(struct phy *phy, int option, void *info)
 {
 	struct mipi_phy_desc *phy_desc = phy_get_drvdata(phy);
@@ -638,6 +640,7 @@ static int exynos_mipi_dsim_phy_set(struct phy *phy, int option, void *info)
 
 	return __set_phy_cfg(state, phy_desc, option, info);
 }
+#endif
 
 static struct phy *exynos_mipi_phy_of_xlate(struct device *dev,
 					struct of_phandle_args *args)
@@ -654,7 +657,9 @@ static struct phy_ops exynos_mipi_phy_ops = {
 	.init		= exynos_mipi_dsim_phy_init,
 	.power_on	= exynos_mipi_dsim_phy_power_on,
 	.power_off	= exynos_mipi_dsim_phy_power_off,
+#if 0
 	.set		= exynos_mipi_dsim_phy_set,
+#endif
 	.owner		= THIS_MODULE,
 };
 

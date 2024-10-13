@@ -1,23 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  exynos_adc.c - Support for ADC in EXYNOS SoCs
  *
  *  8 ~ 10 channel, 10/12-bit ADC
  *
  *  Copyright (C) 2013 Naveen Krishna Chatradhi <ch.naveen@samsung.com>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <linux/module.h>
@@ -128,7 +115,7 @@
 /* Bit definitions for ADC_V3 */
 #define ADC_V3_DAT_FLAG		(1u << 31)
 
-#define MAX_ADC_V3_CHANNELS		10
+#define MAX_ADC_V3_CHANNELS		8
 #define MAX_ADC_V2_CHANNELS		10
 #define MAX_ADC_V1_CHANNELS		8
 #define MAX_EXYNOS3250_ADC_CHANNELS	2
@@ -241,8 +228,8 @@ static int exynos_adc_enable_clk(struct exynos_adc *info)
 }
 static void exynos_adc_update_ip_idle_status(struct exynos_adc *info, int idle)
 {
-#ifdef CONFIG_ARCH_EXYNOS_PM
-	exynos_update_ip_idle_status(info->idle_ip_index, idle);
+#ifdef CONFIG_EXYNOS_CPUPM
+	//exynos_update_ip_idle_status(info->idle_ip_index, idle);
 #endif
 }
 static int exynos_adc_enable_access(struct exynos_adc *info)
@@ -334,6 +321,18 @@ static void exynos_adc_v1_start_conv(struct exynos_adc *info,
 	writel(con1 | ADC_CON_EN_START, ADC_V1_CON(info->regs));
 }
 
+/* Exynos4212 and 4412 is like ADCv1 but with four channels only */
+static const struct exynos_adc_data exynos4212_adc_data = {
+	.num_channels	= MAX_EXYNOS4212_ADC_CHANNELS,
+	.mask		= ADC_DATX_MASK,	/* 12 bit ADC resolution */
+	.phy_offset	= EXYNOS_ADCV1_PHY_OFFSET,
+
+	.init_hw	= exynos_adc_v1_init_hw,
+	.exit_hw	= exynos_adc_v1_exit_hw,
+	.clear_irq	= exynos_adc_v1_clear_irq,
+	.start_conv	= exynos_adc_v1_start_conv,
+};
+
 static irqreturn_t exynos_adc_v1_isr(int irq, void *dev_id)
 {
 	struct exynos_adc *info = (struct exynos_adc *)dev_id;
@@ -350,17 +349,6 @@ static irqreturn_t exynos_adc_v1_isr(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
-/* Exynos4212 and 4412 is like ADCv1 but with four channels only */
-static const struct exynos_adc_data exynos4212_adc_data = {
-	.num_channels	= MAX_EXYNOS4212_ADC_CHANNELS,
-	.mask		= ADC_DATX_MASK,	/* 12 bit ADC resolution */
-	.phy_offset	= EXYNOS_ADCV1_PHY_OFFSET,
-
-	.init_hw	= exynos_adc_v1_init_hw,
-	.exit_hw	= exynos_adc_v1_exit_hw,
-	.clear_irq	= exynos_adc_v1_clear_irq,
-	.start_conv	= exynos_adc_v1_start_conv,
-};
 
 static const struct exynos_adc_data exynos_adc_v1_data = {
 	.num_channels	= MAX_ADC_V1_CHANNELS,
@@ -894,7 +882,6 @@ static const struct iio_chan_spec exynos_adc_iio_channels[] = {
 	ADC_CHANNEL(6, "adc6"),
 	ADC_CHANNEL(7, "adc7"),
 	ADC_CHANNEL(8, "adc8"),
-	ADC_CHANNEL(9, "adc9"),
 };
 
 static int exynos_adc_remove_devices(struct device *dev, void *c)
@@ -973,8 +960,6 @@ static int exynos_adc_probe(struct platform_device *pdev)
 	int irq;
 	unsigned int sysreg;
 
-	dev_set_socdata(&pdev->dev, "Exynos", "ADC");
-
 	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(struct exynos_adc));
 	if (!indio_dev) {
 		dev_err(&pdev->dev, "failed allocating iio device\n");
@@ -1022,10 +1007,8 @@ static int exynos_adc_probe(struct platform_device *pdev)
 	}
 
 	irq = platform_get_irq(pdev, 0);
-	if (irq < 0) {
-		dev_err(&pdev->dev, "no irq resource?\n");
+	if (irq < 0)
 		return irq;
-	}
 	info->irq = irq;
 
 	irq = platform_get_irq(pdev, 1);
@@ -1035,8 +1018,8 @@ static int exynos_adc_probe(struct platform_device *pdev)
 	info->tsirq = irq;
 
 	info->dev = &pdev->dev;
-#ifdef CONFIG_ARCH_EXYNOS_PM
-	info->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev));
+#ifdef CONFIG_EXYNOS_CPUPM
+//	info->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev), 1);
 #endif
 	init_completion(&info->completion);
 

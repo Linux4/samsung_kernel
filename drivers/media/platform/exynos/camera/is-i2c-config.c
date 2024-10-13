@@ -101,10 +101,19 @@ int is_i2c_pin_control(struct is_module_enum *module, u32 scenario, u32 value)
 				ret |= is_i2c_pin_config(device->ois->client, i2c_config_state);
 			}
 		}
-		if (device->actuator[module->position]) {
-			info("%s[%d] actuator i2c config(%d), position(%d), scenario(%d)\n",
-				__func__, __LINE__, i2c_config_state, module->position, scenario);
-			ret |= is_i2c_pin_config(device->actuator[module->position]->client, i2c_config_state);
+		if (device->actuator[module->device]) {
+			i2c_channel = module->ext.actuator_con.peri_setting.i2c.channel;
+
+			if (i2c_config_state == I2C_PIN_STATE_ON)
+				atomic_inc(&core->i2c_rsccount[i2c_channel]);
+			else if (i2c_config_state == I2C_PIN_STATE_OFF)
+				atomic_dec(&core->i2c_rsccount[i2c_channel]);
+
+			if (atomic_read(&core->i2c_rsccount[i2c_channel]) == value) {
+				info("%s[%d] actuator i2c config(%d), position(%d), scenario(%d), i2c_channel(%d)\n",
+					__func__, __LINE__, i2c_config_state, module->position, scenario, i2c_channel);
+				ret |= is_i2c_pin_config(device->actuator[module->position]->client, i2c_config_state);
+			}
 		}
 		if (device->aperture) {
 			info("%s[%d] aperture i2c config(%d), position(%d), scenario(%d)\n",
@@ -163,3 +172,4 @@ int is_i2c_pin_control(struct is_module_enum *module, u32 scenario, u32 value)
 	return ret;
 }
 #endif
+

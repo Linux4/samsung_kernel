@@ -100,16 +100,14 @@
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
 						20 { pname = "MCLK"; pin = <PIN_MCLK 0 1>; };
-						30 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						40 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
-						50 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						60 { pname = "rst_low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpp5 2 0x1>; };
-						70 { pname = "ldo_off"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpc0 5 0x1>; };
-						80 { pname = "tx_int"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa3 3 0x1>; };
-						90 { pname = "VDDD_1.2V_TOF"; pin = <PIN_REGULATOR 0 0>; };
-						100 { pname = "VDDIO_1.8V_TOF"; pin = <PIN_REGULATOR 0 0>; };
-						110 { pname = "VDDA_2.7V_TOF"; pin = <PIN_REGULATOR 0 0>; };
-						120 { pname = "VDDD_3.3V_TOF"; pin = <PIN_REGULATOR 0 0>; };
+						30 { pname = "pin"; pin = <PIN_OUTPUT 0 0>; };
+						40 { pname = "rst_low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpp5 2 0x1>; };
+						50 { pname = "ldo_off"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpc0 5 0x1>; };
+						60 { pname = "tx_int"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa3 3 0x1>; };
+						70 { pname = "VDDD_1.2V_TOF"; pin = <PIN_REGULATOR 0 0>; };
+						80 { pname = "VDDIO_1.8V_TOF"; pin = <PIN_REGULATOR 0 0>; };
+						90 { pname = "VDDA_2.7V_TOF"; pin = <PIN_REGULATOR 0 0>; };
+						100 { pname = "VDDD_3.3V_TOF"; pin = <PIN_REGULATOR 0 0>; };
 					};
 
 					scenario_read_rom_on {

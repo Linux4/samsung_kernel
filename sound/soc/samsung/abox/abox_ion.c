@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_ion.c
- *
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
  * ALSA SoC - Samsung Abox ION buffer module
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
@@ -11,15 +11,14 @@
 #include <sound/samsung/abox.h>
 #include <sound/sounddev_abox.h>
 
+#include <linux/compat.h>
+#include <linux/ion.h>
+#include <linux/dma-heap.h>
 #include <linux/dma-buf.h>
-#include <linux/dma-buf-container.h>
-#include <linux/ion_exynos.h>
-
-#include "../../../../drivers/iommu/exynos-iommu.h"
-#include "../../../../drivers/staging/android/uapi/ion.h"
 
 #include "abox.h"
 #include "abox_ion.h"
+#include "abox_memlog.h"
 
 int abox_ion_get_mmap_fd(struct device *dev,
 		struct abox_ion_buf *buf,
@@ -27,17 +26,15 @@ int abox_ion_get_mmap_fd(struct device *dev,
 {
 	struct dma_buf *temp_buf;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	if (buf->fd < 0)
-		buf->fd = dma_buf_fd(buf->dma_buf, O_CLOEXEC);
-
+	buf->fd = dma_buf_fd(buf->dma_buf, O_CLOEXEC);
 	if (buf->fd < 0) {
-		dev_err(dev, "%s dma_buf_fd is failed\n", __func__);
+		abox_err(dev, "%s dma_buf_fd is failed\n", __func__);
 		return -EFAULT;
 	}
 
-	dev_info(dev, "%s fd(%d)\n", __func__, buf->fd);
+	abox_info(dev, "%s fd(%d)\n", __func__, buf->fd);
 
 	mmap_fd->dir = (buf->direction != DMA_FROM_DEVICE) ?
 			SNDRV_PCM_STREAM_PLAYBACK : SNDRV_PCM_STREAM_CAPTURE;
@@ -47,7 +44,7 @@ int abox_ion_get_mmap_fd(struct device *dev,
 
 	temp_buf = dma_buf_get(buf->fd);
 	if (IS_ERR(temp_buf))
-		dev_err(dev, "dma_buf_get(%d) failed: %ld\n", buf->fd,
+		abox_err(dev, "dma_buf_get(%d) failed: %ld\n", buf->fd,
 				PTR_ERR(temp_buf));
 
 	return 0;
@@ -61,13 +58,13 @@ static int abox_ion_hwdep_ioctl_common(struct snd_hwdep *hw, struct file *filp,
 	struct snd_pcm_mmap_fd mmap_fd;
 	int ret;
 
-	dev_dbg(dev, "%s(%#x)\n", __func__, cmd);
+	abox_dbg(dev, "%s(%#x)\n", __func__, cmd);
 
 	switch (cmd) {
 	case SNDRV_PCM_IOCTL_MMAP_DATA_FD:
 		ret = abox_ion_get_mmap_fd(dev, buf, &mmap_fd);
 		if (ret < 0) {
-			dev_err(dev, "MMAP_DATA_FD failed: %d\n", ret);
+			abox_err(dev, "MMAP_DATA_FD failed: %d\n", ret);
 			break;
 		}
 
@@ -75,7 +72,7 @@ static int abox_ion_hwdep_ioctl_common(struct snd_hwdep *hw, struct file *filp,
 			ret = -EFAULT;
 		break;
 	default:
-		dev_err(dev, "unknown ioctl = %#x\n", cmd);
+		abox_err(dev, "unknown ioctl = %#x\n", cmd);
 		ret = -ENOTTY;
 		break;
 	}
@@ -95,15 +92,26 @@ static int abox_ion_hwdep_ioctl_compat(struct snd_hwdep *hw, struct file *file,
 	return abox_ion_hwdep_ioctl_common(hw, file, cmd, compat_ptr(arg));
 }
 
-int abox_ion_new_hwdep(struct snd_soc_pcm_runtime *runtime,
+static int abox_ion_hwdep_mmap(struct snd_hwdep *hw, struct file *file,
+		struct vm_area_struct *vma)
+{
+	struct abox_ion_buf *buf = hw->private_data;
+	struct device *dev = buf->dev;
+
+	abox_dbg(dev, "%s\n", __func__);
+
+	return dma_buf_mmap(buf->dma_buf, vma, 0);
+}
+
+int abox_ion_new_hwdep(struct snd_soc_pcm_runtime *rtd,
 		struct abox_ion_buf *buf, struct snd_hwdep **hwdep)
 {
-	struct device *dev = runtime->cpu_dai->dev;
+	struct device *dev = asoc_rtd_to_cpu(rtd, 0)->dev;
 	char *id;
-	int device = runtime->pcm->device;
+	int device = rtd->pcm->device;
 	int ret;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	if (!buf)
 		return -EINVAL;
@@ -112,9 +120,9 @@ int abox_ion_new_hwdep(struct snd_soc_pcm_runtime *runtime,
 	if (!id)
 		return -ENOMEM;
 
-	ret = snd_hwdep_new(runtime->card->snd_card, id, device, hwdep);
+	ret = snd_hwdep_new(rtd->card->snd_card, id, device, hwdep);
 	if (ret < 0) {
-		dev_err(dev, "failed to create hwdep %s: %d\n", id, ret);
+		abox_err(dev, "failed to create hwdep %s: %d\n", id, ret);
 		goto out;
 	}
 
@@ -123,6 +131,7 @@ int abox_ion_new_hwdep(struct snd_soc_pcm_runtime *runtime,
 	(*hwdep)->private_data = buf;
 	(*hwdep)->ops.ioctl = abox_ion_hwdep_ioctl;
 	(*hwdep)->ops.ioctl_compat = abox_ion_hwdep_ioctl_compat;
+	(*hwdep)->ops.mmap = abox_ion_hwdep_mmap;
 out:
 	kfree(id);
 	return ret;
@@ -134,8 +143,9 @@ struct abox_ion_buf *abox_ion_alloc(struct device *dev,
 		size_t size,
 		bool playback)
 {
+	const char *dma_heap_name = "system-uncached";
 	struct device *dev_abox = data->dev;
-	const char *heapname = "ion_system_heap";
+	struct dma_heap *dma_heap;
 	struct abox_ion_buf *buf;
 	int ret;
 
@@ -150,40 +160,48 @@ struct abox_ion_buf *abox_ion_alloc(struct device *dev,
 	buf->iova = iova;
 	buf->fd = -EINVAL;
 
-	buf->dma_buf = ion_alloc_dmabuf(heapname, buf->size,
-			ION_FLAG_SYNC_FORCE);
+	dma_heap = dma_heap_find(dma_heap_name);
+	if (!dma_heap) {
+		ret = -EPERM;
+		abox_err(dev, "can't find dma heap: %d\n", ret);
+		goto error_alloc;
+	}
+
+	buf->dma_buf = dma_heap_buffer_alloc(dma_heap, buf->size, O_RDWR, 0);
+	dma_heap_put(dma_heap);
 	if (IS_ERR(buf->dma_buf)) {
 		ret = PTR_ERR(buf->dma_buf);
+		abox_err(dev, "failed to alloc dma buffer: %d\n", ret);
 		goto error_alloc;
 	}
 
 	buf->attachment = dma_buf_attach(buf->dma_buf, dev_abox);
 	if (IS_ERR(buf->attachment)) {
 		ret = PTR_ERR(buf->attachment);
+		abox_err(dev, "failed to dma_buf_attach(): %d\n", ret);
 		goto error_attach;
 	}
 
 	buf->sgt = dma_buf_map_attachment(buf->attachment, buf->direction);
 	if (IS_ERR(buf->sgt)) {
 		ret = PTR_ERR(buf->sgt);
+		abox_err(dev, "failed to dma_buf_map_attachment(): %d\n", ret);
 		goto error_map_dmabuf;
 	}
 
 	buf->kva = dma_buf_vmap(buf->dma_buf);
-	if (!buf->kva) {
-		ret = -ENOMEM;
-		goto error_dma_buf_vmap;
-	}
+	if (!buf->kva)
+		dev_warn_once(dev, "failed to dma_buf_vmap()\n");
 
 	ret = abox_iommu_map_sg(dev_abox,
 			buf->iova,
 			buf->sgt->sgl,
-			buf->sgt->nents,
+			buf->sgt->orig_nents,
 			buf->direction,
 			buf->size,
 			buf->kva);
 	if (ret < 0) {
-		dev_err(dev, "Failed to iommu_map(%pad): %d\n",
+		abox_err(dev, "Failed to iommu_map(%pad): %d\n",
 				&buf->iova, ret);
 		goto error_iommu_map_sg;
 	}
@@ -192,7 +210,6 @@ struct abox_ion_buf *abox_ion_alloc(struct device *dev,
 
 error_iommu_map_sg:
 	dma_buf_vunmap(buf->dma_buf, buf->kva);
-error_dma_buf_vmap:
 	dma_buf_unmap_attachment(buf->attachment, buf->sgt, buf->direction);
 error_map_dmabuf:
 	dma_buf_detach(buf->dma_buf, buf->attachment);
@@ -201,7 +218,7 @@ error_attach:
 error_alloc:
 	kfree(buf);
 error:
-	dev_err(dev, "%s: Error occured while allocating\n", __func__);
+	abox_err(dev, "%s: Error occured while allocating\n", __func__);
 	return ERR_PTR(ret);
 }
 
@@ -213,7 +230,7 @@ int abox_ion_free(struct device *dev,
 
 	ret = abox_iommu_unmap(data->dev, buf->iova);
 	if (ret < 0)
-		dev_err(dev, "Failed to iommu_unmap: %d\n", ret);
+		abox_err(dev, "Failed to iommu_unmap: %d\n", ret);
 
 	dma_buf_vunmap(buf->dma_buf, buf->kva);
 

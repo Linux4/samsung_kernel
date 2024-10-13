@@ -302,103 +302,14 @@
 		};
 	};
 
-	is_sensor3: is_sensor3@14400000 {
-		/* CSIS0 */
-		compatible = "samsung,exynos-is-sensor";
-		#address-cells = <1>;
-		#size-cells = <1>;
-		reg = <0x0 0x14400000 0x1000>, /* MIPI-CSI0 */
-			<0x0 0x14490000 0x10000>; /* PHY: m0s4s4s2 */
-		reg-names = "csi", "phy";
-		interrupts = <0 INTREQ__CSIS0 IRQ_TYPE_LEVEL_HIGH>, /*MIPI-CSI0 */
-			<0 INTREQ__CSIS_DMA_0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA_0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA_0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA_0 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "csi",
-			"mode0_VC0", "mode0_VC1", "mode0_VC2", "mode0_VC3";
-		phys = <&mipi_phy_csis0_m0s4s4s2 0>;
-		phy-names = "csis_dphy";
-		clocks = <&clock CIS_CLK0>,
-			<&clock CIS_CLK1>,
-			<&clock CIS_CLK2>,
-
-			<&clock GATE_CSIS0_QCH>,
-			<&clock GATE_CSIS1_QCH>,
-			<&clock GATE_CSIS2_QCH>;
-		clock-names = "CIS_CLK0",
-			"CIS_CLK1",
-			"CIS_CLK2",
-
-			"GATE_CSIS0_QCH",
-			"GATE_CSIS1_QCH",
-			"GATE_CSIS2_QCH";
-		iommus = <&sysmmu_is0>;
-
-		/* without PAF HW */
-		sensor3_ch_mode0: sensor3-ch-mode0 {
-			reg = <0x14431000 0x100>, /* DMA0 VC0 */
-				<0x14431400 0x100>, /* DMA0 Common */
-				<0x14431100 0x100>, /* DMA0 VC1 */
-				<0x14431400 0x100>, /* DMA0 Common */
-				<0x14431200 0x100>, /* DMA0 VC2 */
-				<0x14431400 0x100>, /* DMA0 Common */
-				<0x14431300 0x100>, /* DMA0 VC3 */
-				<0x14431400 0x100>; /* DMA0 Common */
-		};
-	};
-
-	is_sensor4: is_sensor4@14420000 {
-		/* CSIS2 */
-		compatible = "samsung,exynos-is-sensor";
-		#address-cells = <1>;
-		#size-cells = <1>;
-		reg = <0x0 0x14420000 0x1000>, /* MIPI-CSI2 */
-			<0x0 0x144B0000 0x10000>; /* PHY: m0s4s4s2 */
-		reg-names = "csi", "phy";
-		interrupts = <0 INTREQ__CSIS2 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI2 */
-			<0 INTREQ__CSIS_DMA_1 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA_1 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA_1 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA_1 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "csi",
-			"mode0_VC0", "mode0_VC1", "mode0_VC2", "mode0_VC3";
-		phys = <&mipi_phy_csis2_m0s4s4s2 0>;
-		phy-names = "csis_dphy";
-		clocks = <&clock CIS_CLK0>,
-			<&clock CIS_CLK1>,
-			<&clock CIS_CLK2>,
-
-			<&clock GATE_CSIS0_QCH>,
-			<&clock GATE_CSIS1_QCH>,
-			<&clock GATE_CSIS2_QCH>;
-		clock-names = "CIS_CLK0",
-			"CIS_CLK1",
-			"CIS_CLK2",
-
-			"GATE_CSIS0_QCH",
-			"GATE_CSIS1_QCH",
-			"GATE_CSIS2_QCH";
-		iommus = <&sysmmu_is0>;
-
-		/* without PAF HW */
-		sensor4_ch_mode0: sensor4-ch-mode0 {
-			reg = <0x14432000 0x100>, /* DMA1 VC0 */
-				<0x14432400 0x100>, /* DMA1 Common */
-				<0x14432100 0x100>, /* DMA1 VC1 */
-				<0x14432400 0x100>, /* DMA1 Common */
-				<0x14432200 0x100>, /* DMA1 VC2 */
-				<0x14432400 0x100>, /* DMA1 Common */
-				<0x14432300 0x100>, /* DMA1 VC3 */
-				<0x14432400 0x100>; /* DMA1 Common */
-		};
-	};
-
 	lic_lut_origin: lic-lut-origin {
 		#define LIC_MODE_DYNAMIC	(0)
 		#define LIC_MODE_STATIC		(1)
 		#define LIC_PATH_OTF		(0)
 		#define LIC_PATH_DMA		(1)
+
+		lic_mode_default = <LIC_MODE_DYNAMIC>;
+
 		/*
 		 * When DYNAMIC mode is selected, param means enable limitation for DMA path.
 		 * Example:

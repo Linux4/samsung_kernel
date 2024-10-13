@@ -45,7 +45,7 @@ void pmucal_powermode_hint_clear(void)
 			+ pmucal_cpuinform_list[cpu].offset);
 }
 
-int __init pmucal_cpuinform_init(void)
+int pmucal_cpuinform_init(void)
 {
 	int i, j;
 

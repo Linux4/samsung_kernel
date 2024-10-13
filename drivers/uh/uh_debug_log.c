@@ -34,16 +34,15 @@ ssize_t	uh_log_read(struct file *filep, char __user *buf, size_t size, loff_t *o
 	return size;
 }
 
-static const struct file_operations uh_proc_fops = {
-	.owner		= THIS_MODULE,
-	.read		= uh_log_read,
+static const struct proc_ops uh_proc_ops = {
+	.proc_read		= uh_log_read,
 };
 
 static int __init uh_log_init(void)
 {
 	struct proc_dir_entry *entry;
 
-	entry = proc_create("uh_log", 0644, NULL, &uh_proc_fops);
+	entry = proc_create("uh_log", 0644, NULL, &uh_proc_ops);
 	if (!entry) {
 		pr_err("uh_log: Error creating proc entry\n");
 		return -ENOMEM;

@@ -17,7 +17,7 @@
 #include <sound/soc.h>
 #include <sound/samsung/abox_ipc.h>
 
-#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
 #include <sound/samsung/sec_audio_debug.h>
 #endif
 
@@ -31,6 +31,13 @@
 typedef irqreturn_t (*abox_ipc_handler_t)(int ipc_id, void *dev_id,
 		ABOX_IPC_MSG *msg);
 
+enum abox_modem_event {
+	ABOX_MODEM_EVENT_RESET,
+	ABOX_MODEM_EVENT_EXIT,
+	ABOX_MODEM_EVENT_ONLINE,
+	ABOX_MODEM_EVENT_OFFLINE,
+	ABOX_MODEM_EVENT_WATCHDOG,
+};
 /**
  * abox irq handler type definition
  * @param[in]	ipc_id	id of ipc
@@ -41,7 +48,7 @@ typedef irqreturn_t (*abox_ipc_handler_t)(int ipc_id, void *dev_id,
  */
 typedef abox_ipc_handler_t abox_irq_handler_t;
 
-#ifdef CONFIG_SND_SOC_SAMSUNG_ABOX
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX)
 /**
  * Check ABOX is on
  * @return		true if A-Box is on, false on otherwise
@@ -76,7 +83,7 @@ extern unsigned int abox_get_requiring_aud_freq_in_khz(void);
  * @param[in]	sync		1 to wait for ack. 0 if not.
  * @return	error code if any
  */
-extern int abox_request_ipc(struct device *dev, int hw_irq, const void *msg,
+extern int abox_request_ipc(struct device *dev, int hw_irq, const ABOX_IPC_MSG *msg,
 		size_t size, int atomic, int sync);
 
 /**
@@ -127,11 +134,10 @@ static inline int abox_register_irq_handler(struct device *dev, int ipc_id,
  * UAIF/DSIF hw params fixup helper
  * @param[in]	rtd	snd_soc_pcm_runtime
  * @param[out]	params	snd_pcm_hw_params
- * @param[in]	stream	SNDRV_PCM_STREAM_PLAYBACK or SNDRV_PCM_STREAM_CAPTURE
  * @return		error code if any
  */
 extern int abox_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
-		struct snd_pcm_hw_params *params, int stream);
+		struct snd_pcm_hw_params *params);
 
 /**
  * Request or release dram during cpuidle (count based API)
@@ -232,6 +238,8 @@ enum abox_call_event {
 };
 
 extern int register_abox_call_event_notifier(struct notifier_block *nb);
+
+extern int abox_notify_modem_event(enum abox_modem_event event);
 
 #else /* !CONFIG_SND_SOC_SAMSUNG_ABOX */
 

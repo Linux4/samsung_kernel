@@ -198,8 +198,13 @@ static bool scsc_is_chunk_supported(u8 type)
 	return false;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+static int scsc_log_collector_compare(void *priv, const struct list_head *A, const struct list_head *B)
+{
+#else
 static int scsc_log_collector_compare(void *priv, struct list_head *A, struct list_head *B)
 {
+#endif
 	struct scsc_log_client *a = list_entry(A, typeof(*a), list);
 	struct scsc_log_client *b = list_entry(B, typeof(*b), list);
 

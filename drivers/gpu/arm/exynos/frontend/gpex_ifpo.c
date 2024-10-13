@@ -24,6 +24,7 @@
 #include <gpex_clock.h>
 #include <gpexbe_devicetree.h>
 #include <gpexbe_pm.h>
+#include <gpexwa_ehmp.h>
 
 struct ifpo_info {
 	ifpo_mode mode;
@@ -37,6 +38,9 @@ int gpex_ifpo_power_down()
 	int ret = 0;
 
 	if (!ifpo.mode)
+		return 0;
+
+	if (gpexwa_ehmp_skip_ifpo_power_down())
 		return 0;
 
 	gpex_clock_mutex_lock();

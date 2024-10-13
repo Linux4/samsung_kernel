@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_shm.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Shared Memory module
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Shared Memory module
  *
  * Copyright (c) 2019 Samsung Electronics Co. Ltd.
  *

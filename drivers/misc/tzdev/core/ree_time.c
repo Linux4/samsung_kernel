@@ -17,6 +17,8 @@
 #include "tzdev_internal.h"
 #include "core/iwsock.h"
 #include "core/ree_time.h"
+#include "core/subsystem.h"
+#include "core/sysdep.h"
 
 MODULE_AUTHOR("Konstantin Karasev");
 MODULE_DESCRIPTION("REE Time service");
@@ -35,7 +37,6 @@ static int tz_ree_time_kthread(void *data)
 	ssize_t len;
 	int req;
 	int ret;
-	struct timespec ts;
 	struct tz_ree_time ree_time;
 
 	(void)data;
@@ -65,10 +66,8 @@ static int tz_ree_time_kthread(void *data)
 				ERR("failed to fetch request, err = %zd\n", len);
 				break;
 			}
+			sysdep_get_ts(&ree_time);
 
-			getnstimeofday(&ts);
-			ree_time.sec = ts.tv_sec;
-			ree_time.nsec = ts.tv_nsec;
 			if ((len = tz_iwsock_write(ree_time_conn, &ree_time,
 							sizeof(ree_time), 0))
 					!= sizeof(ree_time)) {
@@ -84,7 +83,7 @@ out:
 	return ret;
 }
 
-static int __init tz_ree_time_init(void)
+int tz_ree_time_init(void)
 {
 	ree_time_kthread = kthread_run(tz_ree_time_kthread, NULL, "ree_time");
 	if (IS_ERR(ree_time_kthread))
@@ -93,10 +92,10 @@ static int __init tz_ree_time_init(void)
 	return 0;
 }
 
-static void __init tz_ree_time_fini(void)
+void tz_ree_time_fini(void)
 {
 	kthread_stop(ree_time_kthread);
 }
 
-module_init(tz_ree_time_init);
-module_exit(tz_ree_time_fini);
+tzdev_initcall(tz_ree_time_init);
+tzdev_exitcall(tz_ree_time_fini);

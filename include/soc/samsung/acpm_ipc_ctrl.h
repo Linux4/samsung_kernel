@@ -25,7 +25,7 @@ struct ipc_config {
 
 #define ACPM_IPC_PS_HOLD_DOWN			(0xDD)
 
-#ifdef CONFIG_EXYNOS_ACPM
+#if defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE)
 unsigned int acpm_ipc_request_channel(struct device_node *np, ipc_callback handler,
 		unsigned int *id, unsigned int *size);
 unsigned int acpm_ipc_release_channel(struct device_node *np, unsigned int channel_id);

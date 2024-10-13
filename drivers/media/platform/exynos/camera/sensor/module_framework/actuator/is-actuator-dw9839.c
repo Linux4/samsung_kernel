@@ -14,13 +14,13 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-actuator-dw9839.h"
 #include "is-device-sensor.h"
 #include "is-device-sensor-peri.h"
 #include "is-core.h"
-#include "is-helper-actuator-i2c.h"
+#include "is-helper-i2c.h"
 
 #include "interface/is-interface-library.h"
 
@@ -269,9 +269,7 @@ int sensor_dw9839_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	struct is_actuator *actuator;
 	struct i2c_client *client = NULL;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	FIMC_BUG(!subdev);
@@ -301,8 +299,7 @@ int sensor_dw9839_actuator_init(struct v4l2_subdev *subdev, u32 val)
 		goto p_err;
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 	/* dw9839 actuator do not use af cal */
@@ -320,9 +317,7 @@ int sensor_dw9839_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	struct is_actuator *actuator = NULL;
 	struct i2c_client *client = NULL;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	dbg_actuator("%s\n", __func__);
@@ -348,8 +343,7 @@ int sensor_dw9839_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	*info = status;
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 p_err:
@@ -363,9 +357,7 @@ int sensor_dw9839_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	struct i2c_client *client;
 	u32 position = 0;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	FIMC_BUG(!subdev);
@@ -402,8 +394,7 @@ int sensor_dw9839_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	dbg_actuator("%s: position(%d)\n", __func__, position);
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 p_err:
 	I2C_MUTEX_UNLOCK(actuator->i2c_lock);
@@ -422,9 +413,7 @@ int sensor_dw9839_actuator_get_actual_position(struct v4l2_subdev *subdev, u32 *
 	u64 temp;
 
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	FIMC_BUG(!subdev);
@@ -471,8 +460,7 @@ int sensor_dw9839_actuator_get_actual_position(struct v4l2_subdev *subdev, u32 *
 			actuator->position, *info);
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 p_err:
@@ -538,10 +526,39 @@ p_err:
 	return ret;
 }
 
+long sensor_dw9839_actuator_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_ACT_S_CTRL:
+		ret = sensor_dw9839_actuator_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_ACT_G_CTRL:
+		ret = sensor_dw9839_actuator_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_g_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = sensor_dw9839_actuator_init,
-	.g_ctrl = sensor_dw9839_actuator_g_ctrl,
-	.s_ctrl = sensor_dw9839_actuator_s_ctrl,
+	.ioctl = sensor_dw9839_actuator_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
@@ -595,15 +612,10 @@ static int sensor_dw9839_actuator_probe(struct i2c_client *client,
 		goto p_err;
 	}
 
-	sensor_peri = find_peri_by_act_id(device, ACTUATOR_NAME_DW9839);
-	if (!sensor_peri) {
-		probe_info("sensor peri is net yet probed");
-		return -EPROBE_DEFER;
-	}
 
 	actuator = kzalloc(sizeof(struct is_actuator), GFP_KERNEL);
 	if (!actuator) {
-		err("acuator is NULL");
+		err("actuator is NULL");
 		ret = -ENOMEM;
 		goto p_err;
 	}
@@ -614,7 +626,6 @@ static int sensor_dw9839_actuator_probe(struct i2c_client *client,
 		ret = -ENOMEM;
 		goto p_err;
 	}
-	sensor_peri->subdev_actuator = subdev_actuator;
 
 	/* This name must is match to sensor_open_extended actuator name */
 	actuator->id = ACTUATOR_NAME_DW9839;
@@ -642,8 +653,6 @@ static int sensor_dw9839_actuator_probe(struct i2c_client *client,
 	v4l2_set_subdevdata(subdev_actuator, actuator);
 	v4l2_set_subdev_hostdata(subdev_actuator, device);
 
-	set_bit(IS_SENSOR_ACTUATOR_AVAILABLE, &sensor_peri->peri_state);
-
 	snprintf(subdev_actuator->name, V4L2_SUBDEV_NAME_SIZE, "actuator-subdev.%d", actuator->id);
 
 	probe_info("%s done\n", __func__);
@@ -651,10 +660,9 @@ static int sensor_dw9839_actuator_probe(struct i2c_client *client,
 
 p_err:
 	if (actuator)
-		kzfree(actuator);
-
+		kfree_sensitive(actuator);
 	if (subdev_actuator)
-		kzfree(subdev_actuator);
+		kfree_sensitive(subdev_actuator);
 
 	return ret;
 }
@@ -695,3 +703,5 @@ static int __init sensor_actuator_dw9839_init(void)
 	return ret;
 }
 late_initcall_sync(sensor_actuator_dw9839_init);
+
+MODULE_LICENSE("GPL");

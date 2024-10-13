@@ -14,7 +14,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-actuator-ak737x.h"
 #include "is-device-sensor.h"
@@ -160,8 +160,8 @@ static int sensor_ak737x_soft_landing_on_recording(struct v4l2_subdev *subdev)
 	I2C_MUTEX_LOCK(actuator->i2c_lock);
 
 	if (actuator->vendor_soft_landing_list_len > 0) {
-	pr_info("[%s][%d] E\n", __func__, actuator->device);
-	
+		pr_info("[%s][%d] E\n", __func__, actuator->device);
+
 		if (actuator->vendor_soft_landing_seqid == 1) {
 			/* setting mode on */
 			ret = is_sensor_addr8_write8(client, AK737X_REG_SETTING_MODE_ON, 0x3B);
@@ -171,15 +171,32 @@ static int sensor_ak737x_soft_landing_on_recording(struct v4l2_subdev *subdev)
 			ret = is_sensor_addr8_write8(client, AK737X_REG_CHANGE_GAIN_PARAMETER, 0x0A);
 			if (ret < 0)
 				goto p_err;
+		} else if (actuator->vendor_soft_landing_seqid == 2) {
+			/* setting mode on */
+			ret = is_sensor_addr8_write8(client, AK737X_REG_SETTING_MODE_ON, 0x3B);
+			if (ret < 0)
+				goto p_err;
+			/* change Gamma parameter */
+			ret = is_sensor_addr8_write8(client, AK737X_REG_CHANGE_GAMMA_PARAMETER, 0x40);
+			if (ret < 0)
+				goto p_err;
+			/* change Gain1 parameter */
+			ret = is_sensor_addr8_write8(client, AK737X_REG_CHANGE_GAIN1_PARAMETER, 0x08);
+			if (ret < 0)
+				goto p_err;
+			/* change Gain2 parameter */
+			ret = is_sensor_addr8_write8(client, AK737X_REG_CHANGE_GAIN_PARAMETER, 0x08);
+			if (ret < 0)
+				goto p_err;
 		}
 
-	for (i = 0; i < actuator->vendor_soft_landing_list_len; i += 2) {
-		ret = sensor_ak737x_write_position(client, actuator->vendor_soft_landing_list[i]);
-		if (ret < 0)
-			goto p_err;
+		for (i = 0; i < actuator->vendor_soft_landing_list_len; i += 2) {
+			ret = sensor_ak737x_write_position(client, actuator->vendor_soft_landing_list[i]);
+			if (ret < 0)
+				goto p_err;
 
-		msleep(actuator->vendor_soft_landing_list[i + 1]);
-	}
+			msleep(actuator->vendor_soft_landing_list[i + 1]);
+		}
 
 		pr_info("[%s][%d] X\n", __func__, actuator->device);
 	}
@@ -201,9 +218,7 @@ int sensor_ak737x_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	struct is_device_sensor *device = NULL;
 #endif
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	u32 product_id_list[AK737X_MAX_PRODUCT_LIST] = {0, };
@@ -253,7 +268,7 @@ int sensor_ak737x_actuator_init(struct v4l2_subdev *subdev, u32 val)
 		ret = is_sensor_addr8_write8(client, AK737X_REG_CONT1, AK737X_MODE_STANDBY);
 		if (ret < 0)
 			goto p_err;
-		msleep(1);
+		usleep_range(1000, 1010);
 	}
 
 	for (i = 0; i < product_id_len; i += 2) {
@@ -322,9 +337,7 @@ int sensor_ak737x_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	struct i2c_client *client = NULL;
 	enum is_actuator_status status = ACTUATOR_STATUS_NO_BUSY;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	dbg_actuator("%s\n", __func__);
@@ -365,9 +378,7 @@ int sensor_ak737x_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	struct i2c_client *client;
 	u32 position = 0;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	WARN_ON(!subdev);
@@ -458,6 +469,36 @@ p_err:
 	return ret;
 }
 
+long sensor_ak737x_actuator_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_ACT_S_CTRL:
+		ret = sensor_ak737x_actuator_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_ACT_G_CTRL:
+		ret = sensor_ak737x_actuator_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_g_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 #ifdef USE_AF_SLEEP_MODE
 static int sensor_ak737x_actuator_set_active(struct v4l2_subdev *subdev, int enable)
 {
@@ -519,8 +560,7 @@ p_err:
 
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = sensor_ak737x_actuator_init,
-	.g_ctrl = sensor_ak737x_actuator_g_ctrl,
-	.s_ctrl = sensor_ak737x_actuator_s_ctrl,
+	.ioctl = sensor_ak737x_actuator_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
@@ -686,3 +726,6 @@ static struct i2c_driver actuator_ak737x_driver = {
 	.id_table = actuator_ak737x_idt
 };
 module_i2c_driver(actuator_ak737x_driver);
+
+MODULE_LICENSE("GPL");
+MODULE_SOFTDEP("pre: fimc-is");

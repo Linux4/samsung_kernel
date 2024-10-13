@@ -130,6 +130,7 @@ struct csis_irq_src {
 	u32			dma_end;
 	u32			line_end;
 	u32			dma_abort;
+	u32			dma_qreqn;
 	bool			err_flag;
 	u32			err_id[CSI_VIRTUAL_CH_MAX];
 };
@@ -312,7 +313,11 @@ int is_hw_overflow_recovery(void);
 #endif
 unsigned int get_dma(struct is_device_sensor *device, u32 *dma_ch);
 void is_hw_interrupt_relay(struct is_group *group, void *hw_ip);
+void is_hw_configure_llc(bool on, int scenario_id);
+void is_hw_configure_bts_scen(struct is_resourcemgr *resourcemgr, int scenario_id);
 
+void is_hw_chain_probe(void *core_data);
+struct is_mem *is_hw_get_iommu_mem(u32 vid);
 /*
  * ********************
  * RUNTIME-PM FUNCTIONS
@@ -335,4 +340,28 @@ void is_hw_djag_adjust_out_size(struct is_device_ischain *ischain,
 					u32 in_width, u32 in_height,
 					u32 *out_width, u32 *out_height);
 
+/*
+ * ************
+ * FP/SIMD APIS
+ * ************
+ */
+struct is_fpsimd_state {
+	__uint128_t	vregs[32];
+	__u32		fpsr;
+	__u32		fpcr;
+	__u32		__reserved[2];
+};
+
+#if defined(ENABLE_FPSIMD_FOR_USER)
+extern void is_fpsimd_save_state(struct is_fpsimd_state *state);
+extern void is_fpsimd_load_state(struct is_fpsimd_state *state);
+void is_fpsimd_get_isr(void);
+void is_fpsimd_put_isr(void);
+void is_fpsimd_get_func(void);
+void is_fpsimd_put_func(void);
+void is_fpsimd_get_task(void);
+void is_fpsimd_put_task(void);
+void is_fpsimd_set_task_using(struct task_struct *t);
+void is_fpsimd_probe(void);
+#endif
 #endif

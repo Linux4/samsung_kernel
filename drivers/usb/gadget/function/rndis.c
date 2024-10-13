@@ -40,15 +40,8 @@
 #include "rndis.h"
 
 int rndis_ul_max_pkt_per_xfer_rcvd;
-module_param(rndis_ul_max_pkt_per_xfer_rcvd, int, S_IRUGO);
-MODULE_PARM_DESC(rndis_ul_max_pkt_per_xfer_rcvd,
-		"Max num of REMOTE_NDIS_PACKET_MSGs received in a single transfer");
-
 int rndis_ul_max_xfer_size_rcvd;
-module_param(rndis_ul_max_xfer_size_rcvd, int, S_IRUGO);
-MODULE_PARM_DESC(rndis_ul_max_xfer_size_rcvd,
-		"Max size of bus transfer received");
-
+u8 g_max_pkt_per_xfer;
 
 /* The driver for your USB chip needs to support ep0 OUT to work with
  * RNDIS, plus all three CDC Ethernet endpoints (interrupt not optional).
@@ -82,7 +75,7 @@ static rndis_resp_t *rndis_add_response(struct rndis_params *params,
 
 #ifdef CONFIG_USB_GADGET_DEBUG_FILES
 
-static const struct file_operations rndis_proc_fops;
+static const struct proc_ops rndis_proc_ops;
 
 #endif /* CONFIG_USB_GADGET_DEBUG_FILES */
 
@@ -584,8 +577,8 @@ static int rndis_init_response(struct rndis_params *params,
 	resp->MinorVersion = cpu_to_le32(RNDIS_MINOR_VERSION);
 	resp->DeviceFlags = cpu_to_le32(RNDIS_DF_CONNECTIONLESS);
 	resp->Medium = cpu_to_le32(RNDIS_MEDIUM_802_3);
-	resp->MaxPacketsPerTransfer = cpu_to_le32(params->max_pkt_per_xfer);
-	resp->MaxTransferSize = cpu_to_le32(params->max_pkt_per_xfer *
+	resp->MaxPacketsPerTransfer = cpu_to_le32(g_max_pkt_per_xfer);
+	resp->MaxTransferSize = cpu_to_le32(g_max_pkt_per_xfer *
 		(params->dev->mtu
 		+ sizeof(struct ethhdr)
 		+ sizeof(struct rndis_packet_msg_type)
@@ -762,6 +755,7 @@ static int rndis_indicate_status_msg(struct rndis_params *params, u32 status)
 
 int rndis_signal_connect(struct rndis_params *params)
 {
+	pr_info("%s: add spinlock for list\n", __func__);
 	params->media_state = RNDIS_MEDIA_STATE_CONNECTED;
 	return rndis_indicate_status_msg(params, RNDIS_STATUS_MEDIA_CONNECT);
 }
@@ -916,7 +910,7 @@ struct rndis_params *rndis_register(void (*resp_avail)(void *v), void *v)
 
 		sprintf(name, NAME_TEMPLATE, i);
 		proc_entry = proc_create_data(name, 0660, NULL,
-					      &rndis_proc_fops, params);
+					      &rndis_proc_ops, params);
 		if (!proc_entry) {
 			kfree(params);
 			rndis_put_nr(i);
@@ -933,6 +927,7 @@ struct rndis_params *rndis_register(void (*resp_avail)(void *v), void *v)
 	params->resp_avail = resp_avail;
 	params->v = v;
 	INIT_LIST_HEAD(&params->resp_queue);
+	spin_lock_init(&params->resp_lock);
 	pr_debug("%s: configNr = %d\n", __func__, i);
 
 	return params;
@@ -977,7 +972,7 @@ int rndis_set_param_dev(struct rndis_params *params, struct net_device *dev,
 
 	rndis_ul_max_xfer_size_rcvd = 0;
 	rndis_ul_max_pkt_per_xfer_rcvd = 0;
-	
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(rndis_set_param_dev);
@@ -1014,7 +1009,7 @@ void rndis_set_max_pkt_xfer(struct rndis_params *params, u8 max_pkt_per_xfer)
 {
 	pr_debug("%s:\n", __func__);
 
-	params->max_pkt_per_xfer = max_pkt_per_xfer;
+	g_max_pkt_per_xfer = max_pkt_per_xfer;
 }
 
 void rndis_add_hdr(struct sk_buff *skb)
@@ -1032,16 +1027,19 @@ void rndis_add_hdr(struct sk_buff *skb)
 }
 EXPORT_SYMBOL_GPL(rndis_add_hdr);
 
+
 void rndis_free_response(struct rndis_params *params, u8 *buf)
 {
 	rndis_resp_t *r, *n;
 
+	spin_lock(&params->resp_lock);
 	list_for_each_entry_safe(r, n, &params->resp_queue, list) {
 		if (r->buf == buf) {
 			list_del(&r->list);
 			kfree(r);
 		}
 	}
+	spin_unlock(&params->resp_lock);
 }
 EXPORT_SYMBOL_GPL(rndis_free_response);
 
@@ -1051,14 +1049,17 @@ u8 *rndis_get_next_response(struct rndis_params *params, u32 *length)
 
 	if (!length) return NULL;
 
+	spin_lock(&params->resp_lock);
 	list_for_each_entry_safe(r, n, &params->resp_queue, list) {
 		if (!r->send) {
 			r->send = 1;
 			*length = r->length;
+			spin_unlock(&params->resp_lock);
 			return r->buf;
 		}
 	}
 
+	spin_unlock(&params->resp_lock);
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(rndis_get_next_response);
@@ -1075,7 +1076,9 @@ static rndis_resp_t *rndis_add_response(struct rndis_params *params, u32 length)
 	r->length = length;
 	r->send = 0;
 
+	spin_lock(&params->resp_lock);
 	list_add_tail(&r->list, &params->resp_queue);
+	spin_unlock(&params->resp_lock);
 	return r;
 }
 
@@ -1083,7 +1086,7 @@ int rndis_rm_hdr(struct gether *port,
 			struct sk_buff *skb,
 			struct sk_buff_head *list)
 {
-	int num_pkts = 1;
+	u32 num_pkts = 1;
 
 	if (skb->len > rndis_ul_max_xfer_size_rcvd)
 		rndis_ul_max_xfer_size_rcvd = skb->len;
@@ -1099,9 +1102,9 @@ int rndis_rm_hdr(struct gether *port,
 			return 0;
 		}
 
-		if (skb->len < sizeof *hdr) {
+		if (skb->len < sizeof(*hdr)) {
 			pr_err("invalid rndis pkt: skblen:%u hdr_len:%zu",
-					skb->len, sizeof *hdr);
+					skb->len, sizeof(*hdr));
 			dev_kfree_skb_any(skb);
 			return -EINVAL;
 		}
@@ -1142,7 +1145,7 @@ int rndis_rm_hdr(struct gether *port,
 			return -ENOMEM;
 		}
 
-		skb_pull(skb, msg_len - sizeof *hdr);
+		skb_pull(skb, msg_len - sizeof(*hdr));
 		skb_trim(skb2, data_len);
 		skb_queue_tail(list, skb2);
 
@@ -1239,13 +1242,12 @@ static int rndis_proc_open(struct inode *inode, struct file *file)
 	return single_open(file, rndis_proc_show, PDE_DATA(inode));
 }
 
-static const struct file_operations rndis_proc_fops = {
-	.owner		= THIS_MODULE,
-	.open		= rndis_proc_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= single_release,
-	.write		= rndis_proc_write,
+static const struct proc_ops rndis_proc_ops = {
+	.proc_open	= rndis_proc_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= single_release,
+	.proc_write	= rndis_proc_write,
 };
 
 #define	NAME_TEMPLATE "driver/rndis-%03d"

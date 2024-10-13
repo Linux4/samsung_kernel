@@ -141,14 +141,14 @@ static void __init bcm47xx_register_bcma(void)
 
 /*
  * Memory setup is done in the early part of MIPS's arch_mem_init. It's supposed
- * to detect memory and record it with add_memory_region.
+ * to detect memory and record it with memblock_add.
  * Any extra initializaion performed here must not use kmalloc or bootmem.
  */
 void __init plat_mem_setup(void)
 {
 	struct cpuinfo_mips *c = &current_cpu_data;
 
-	if ((c->cputype == CPU_74K) || (c->cputype == CPU_1074K)) {
+	if (c->cputype == CPU_74K) {
 		pr_info("Using bcma bus\n");
 #ifdef CONFIG_BCM47XX_BCMA
 		bcm47xx_bus_type = BCM47XX_BUS_TYPE_BCMA;
@@ -274,7 +274,7 @@ static int __init bcm47xx_register_bus_complete(void)
 	bcm47xx_leds_register();
 	bcm47xx_workarounds();
 
-	fixed_phy_add(PHY_POLL, 0, &bcm47xx_fixed_phy_status, -1);
+	fixed_phy_add(PHY_POLL, 0, &bcm47xx_fixed_phy_status);
 	return 0;
 }
 device_initcall(bcm47xx_register_bus_complete);

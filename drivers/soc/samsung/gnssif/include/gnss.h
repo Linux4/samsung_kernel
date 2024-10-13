@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2014 Samsung Electronics.
  *
@@ -83,7 +84,7 @@ struct gnss_mbox {
 	int irq_req_wake_clr;
 	int irq_simple_lock;
 
-	unsigned reg_bcmd_ctrl[BCMD_CTRL_COUNT];
+	unsigned int reg_bcmd_ctrl[BCMD_CTRL_COUNT];
 
 	int id;
 };
@@ -129,11 +130,20 @@ struct gnss_pdata {
 	struct gnss_io_t *iodev;
 	struct shmem_link_device *shmd;
 
-	u32 shmem_base;
+	u64 shmem_base;
 	u32 shmem_size;
-	u32 ipcmem_offset;
+	u32 code_offset;
+	u32 code_allowed_size;
+	u32 ipc_offset;
 	u32 ipc_size;
-	u32 ipc_reg_cnt;
+	u32 ipc_rx_offset;
+	u32 ipc_rx_size;
+	u32 ipc_tx_offset;
+	u32 ipc_tx_size;
+	u32 ipc_reg_offset;
+	u32 ipc_reg_size;
+	u32 base_addr;
+	u32 base_addr_2nd;
 };
 
 struct gnss_irq {
@@ -145,7 +155,7 @@ struct gnss_irq {
 	bool registered;
 };
 
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 #define gif_dt_read_enum(np, prop, dest) \
 	do { \
 		u32 val; \
@@ -188,7 +198,7 @@ struct gnss_irq {
 #define CALLER	(__builtin_return_address(0))
 
 #define gif_err_limited(fmt, ...) \
-	 printk_ratelimited(KERN_ERR LOG_TAG "%s: " pr_fmt(fmt), __func__, ##__VA_ARGS__)
+	printk_ratelimited(KERN_ERR LOG_TAG "%s: " pr_fmt(fmt), __func__, ##__VA_ARGS__)
 #define gif_err(fmt, ...) \
 	pr_err(LOG_TAG "%s: " pr_fmt(fmt), __func__, ##__VA_ARGS__)
 #define gif_debug(fmt, ...) \

@@ -11,6 +11,7 @@
 #include "free-space-cache.h"
 #include "inode-map.h"
 #include "transaction.h"
+#include "delalloc-space.h"
 
 static void fail_caching_thread(struct btrfs_root *root)
 {
@@ -106,7 +107,7 @@ again:
 
 		if (last != (u64)-1 && last + 1 != key.objectid) {
 			__btrfs_add_free_space(fs_info, ctl, last + 1,
-					       key.objectid - last - 1);
+					       key.objectid - last - 1, 0);
 			wake_up(&root->ino_cache_wait);
 		}
 
@@ -117,7 +118,7 @@ next:
 
 	if (last < root->highest_objectid - 1) {
 		__btrfs_add_free_space(fs_info, ctl, last + 1,
-				       root->highest_objectid - last - 1);
+				       root->highest_objectid - last - 1, 0);
 	}
 
 	spin_lock(&root->ino_cache_lock);
@@ -174,7 +175,9 @@ static void start_caching(struct btrfs_root *root)
 	ret = btrfs_find_free_objectid(root, &objectid);
 	if (!ret && objectid <= BTRFS_LAST_FREE_OBJECTID) {
 		__btrfs_add_free_space(fs_info, ctl, objectid,
-				       BTRFS_LAST_FREE_OBJECTID - objectid + 1);
+				       BTRFS_LAST_FREE_OBJECTID - objectid + 1,
+				       0);
+		wake_up(&root->ino_cache_wait);
 	}
 
 	tsk = kthread_run(caching_kthread, root, "btrfs-ino-cache-%llu",
@@ -219,7 +222,7 @@ void btrfs_return_ino(struct btrfs_root *root, u64 objectid)
 		return;
 again:
 	if (root->ino_cache_state == BTRFS_CACHE_FINISHED) {
-		__btrfs_add_free_space(fs_info, pinned, objectid, 1);
+		__btrfs_add_free_space(fs_info, pinned, objectid, 1, 0);
 	} else {
 		down_write(&fs_info->commit_root_sem);
 		spin_lock(&root->ino_cache_lock);
@@ -232,7 +235,7 @@ again:
 
 		start_caching(root);
 
-		__btrfs_add_free_space(fs_info, pinned, objectid, 1);
+		__btrfs_add_free_space(fs_info, pinned, objectid, 1, 0);
 
 		up_write(&fs_info->commit_root_sem);
 	}
@@ -279,7 +282,7 @@ void btrfs_unpin_free_ino(struct btrfs_root *root)
 		spin_unlock(rbroot_lock);
 		if (count)
 			__btrfs_add_free_space(root->fs_info, ctl,
-					       info->offset, count);
+					       info->offset, count, 0);
 		kmem_cache_free(btrfs_free_space_cachep, info);
 	}
 }
@@ -434,7 +437,7 @@ int btrfs_save_ino_cache(struct btrfs_root *root,
 	 * 1 item for free space object
 	 * 3 items for pre-allocation
 	 */
-	trans->bytes_reserved = btrfs_calc_trans_metadata_size(fs_info, 10);
+	trans->bytes_reserved = btrfs_calc_insert_metadata_size(fs_info, 10);
 	ret = btrfs_block_rsv_add(root, trans->block_rsv,
 				  trans->bytes_reserved,
 				  BTRFS_RESERVE_NO_FLUSH);
@@ -492,7 +495,8 @@ again:
 	/* Just to make sure we have enough space */
 	prealloc += 8 * PAGE_SIZE;
 
-	ret = btrfs_delalloc_reserve_space(inode, &data_reserved, 0, prealloc);
+	ret = btrfs_delalloc_reserve_space(BTRFS_I(inode), &data_reserved, 0,
+					   prealloc);
 	if (ret)
 		goto out_put;
 
@@ -512,67 +516,12 @@ out_release:
 	trace_btrfs_space_reservation(fs_info, "ino_cache", trans->transid,
 				      trans->bytes_reserved, 0);
 	btrfs_block_rsv_release(fs_info, trans->block_rsv,
-				trans->bytes_reserved);
+				trans->bytes_reserved, NULL);
 out:
 	trans->block_rsv = rsv;
 	trans->bytes_reserved = num_bytes;
 
 	btrfs_free_path(path);
 	extent_changeset_free(data_reserved);
-	return ret;
-}
-
-int btrfs_find_highest_objectid(struct btrfs_root *root, u64 *objectid)
-{
-	struct btrfs_path *path;
-	int ret;
-	struct extent_buffer *l;
-	struct btrfs_key search_key;
-	struct btrfs_key found_key;
-	int slot;
-
-	path = btrfs_alloc_path();
-	if (!path)
-		return -ENOMEM;
-
-	search_key.objectid = BTRFS_LAST_FREE_OBJECTID;
-	search_key.type = -1;
-	search_key.offset = (u64)-1;
-	ret = btrfs_search_slot(NULL, root, &search_key, path, 0, 0);
-	if (ret < 0)
-		goto error;
-	BUG_ON(ret == 0); /* Corruption */
-	if (path->slots[0] > 0) {
-		slot = path->slots[0] - 1;
-		l = path->nodes[0];
-		btrfs_item_key_to_cpu(l, &found_key, slot);
-		*objectid = max_t(u64, found_key.objectid,
-				  BTRFS_FIRST_FREE_OBJECTID - 1);
-	} else {
-		*objectid = BTRFS_FIRST_FREE_OBJECTID - 1;
-	}
-	ret = 0;
-error:
-	btrfs_free_path(path);
-	return ret;
-}
-
-int btrfs_find_free_objectid(struct btrfs_root *root, u64 *objectid)
-{
-	int ret;
-	mutex_lock(&root->objectid_mutex);
-
-	if (unlikely(root->highest_objectid >= BTRFS_LAST_FREE_OBJECTID)) {
-		btrfs_warn(root->fs_info,
-			   "the objectid of root %llu reaches its highest value",
-			   root->root_key.objectid);
-		ret = -ENOSPC;
-		goto out;
-	}
-
-	*objectid = ++root->highest_objectid;
-	ret = 0;
-out:
-	mutex_unlock(&root->objectid_mutex);
 	return ret;
 }

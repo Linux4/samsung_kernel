@@ -1,9 +1,5 @@
-/* Copyright (C) 2003-2013 Jozsef Kadlecsik <kadlec@blackhole.kfki.hu>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- */
+// SPDX-License-Identifier: GPL-2.0-only
+/* Copyright (C) 2003-2013 Jozsef Kadlecsik <kadlec@netfilter.org> */
 
 /* Kernel module implementing an IP set type: the hash:net,port type */
 
@@ -33,7 +29,7 @@
 #define IPSET_TYPE_REV_MAX	7 /* skbinfo support added */
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Jozsef Kadlecsik <kadlec@blackhole.kfki.hu>");
+MODULE_AUTHOR("Jozsef Kadlecsik <kadlec@netfilter.org>");
 IP_SET_MODULE_DESC("hash:net,port", IPSET_TYPE_REV_MIN, IPSET_TYPE_REV_MAX);
 MODULE_ALIAS("ip_set_hash:net,port");
 
@@ -61,7 +57,7 @@ struct hash_netport4_elem {
 
 /* Common functions */
 
-static inline bool
+static bool
 hash_netport4_data_equal(const struct hash_netport4_elem *ip1,
 			 const struct hash_netport4_elem *ip2,
 			 u32 *multi)
@@ -72,25 +68,25 @@ hash_netport4_data_equal(const struct hash_netport4_elem *ip1,
 	       ip1->cidr == ip2->cidr;
 }
 
-static inline int
+static int
 hash_netport4_do_data_match(const struct hash_netport4_elem *elem)
 {
 	return elem->nomatch ? -ENOTEMPTY : 1;
 }
 
-static inline void
+static void
 hash_netport4_data_set_flags(struct hash_netport4_elem *elem, u32 flags)
 {
 	elem->nomatch = !!((flags >> 16) & IPSET_FLAG_NOMATCH);
 }
 
-static inline void
+static void
 hash_netport4_data_reset_flags(struct hash_netport4_elem *elem, u8 *flags)
 {
 	swap(*flags, elem->nomatch);
 }
 
-static inline void
+static void
 hash_netport4_data_netmask(struct hash_netport4_elem *elem, u8 cidr)
 {
 	elem->ip &= ip_set_netmask(cidr);
@@ -116,7 +112,7 @@ nla_put_failure:
 	return true;
 }
 
-static inline void
+static void
 hash_netport4_data_next(struct hash_netport4_elem *next,
 			const struct hash_netport4_elem *d)
 {
@@ -157,11 +153,11 @@ static int
 hash_netport4_uadt(struct ip_set *set, struct nlattr *tb[],
 		   enum ipset_adt adt, u32 *lineno, u32 flags, bool retried)
 {
-	const struct hash_netport4 *h = set->data;
+	struct hash_netport4 *h = set->data;
 	ipset_adtfn adtfn = set->variant->adt[adt];
 	struct hash_netport4_elem e = { .cidr = HOST_MASK - 1 };
 	struct ip_set_ext ext = IP_SET_INIT_UEXT(set);
-	u32 port, port_to, p = 0, ip = 0, ip_to = 0;
+	u32 port, port_to, p = 0, ip = 0, ip_to = 0, i = 0;
 	bool with_ports = false;
 	u8 cidr;
 	int ret;
@@ -249,8 +245,12 @@ hash_netport4_uadt(struct ip_set *set, struct nlattr *tb[],
 		e.ip = htonl(ip);
 		ip = ip_set_range_to_cidr(ip, ip_to, &cidr);
 		e.cidr = cidr - 1;
-		for (; p <= port_to; p++) {
+		for (; p <= port_to; p++, i++) {
 			e.port = htons(p);
+			if (i > IPSET_MAX_RANGE) {
+				hash_netport4_data_next(&h->next, &e);
+				return -ERANGE;
+			}
 			ret = adtfn(set, &e, &ext, &ext, flags);
 			if (ret && !ip_set_eexist(ret, flags))
 				return ret;
@@ -274,7 +274,7 @@ struct hash_netport6_elem {
 
 /* Common functions */
 
-static inline bool
+static bool
 hash_netport6_data_equal(const struct hash_netport6_elem *ip1,
 			 const struct hash_netport6_elem *ip2,
 			 u32 *multi)
@@ -285,25 +285,25 @@ hash_netport6_data_equal(const struct hash_netport6_elem *ip1,
 	       ip1->cidr == ip2->cidr;
 }
 
-static inline int
+static int
 hash_netport6_do_data_match(const struct hash_netport6_elem *elem)
 {
 	return elem->nomatch ? -ENOTEMPTY : 1;
 }
 
-static inline void
+static void
 hash_netport6_data_set_flags(struct hash_netport6_elem *elem, u32 flags)
 {
 	elem->nomatch = !!((flags >> 16) & IPSET_FLAG_NOMATCH);
 }
 
-static inline void
+static void
 hash_netport6_data_reset_flags(struct hash_netport6_elem *elem, u8 *flags)
 {
 	swap(*flags, elem->nomatch);
 }
 
-static inline void
+static void
 hash_netport6_data_netmask(struct hash_netport6_elem *elem, u8 cidr)
 {
 	ip6_netmask(&elem->ip, cidr);
@@ -329,7 +329,7 @@ nla_put_failure:
 	return true;
 }
 
-static inline void
+static void
 hash_netport6_data_next(struct hash_netport6_elem *next,
 			const struct hash_netport6_elem *d)
 {

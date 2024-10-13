@@ -119,8 +119,6 @@ __visible_for_testing bool check_slab_ptr(void *ptr)
 
 int init_defex_context(struct defex_context *dc, int syscall, struct task_struct *p, struct file *f)
 {
-	const struct cred *cred_ptr;
-
 	memset(dc, 0, offsetof(struct defex_context, cred));
 	if (check_slab_ptr(f)) {
 		get_file(f);
@@ -129,13 +127,9 @@ int init_defex_context(struct defex_context *dc, int syscall, struct task_struct
 	dc->syscall_no = syscall;
 	dc->task = p;
 	if (p == current)
-		cred_ptr = get_current_cred();
-	else
-		cred_ptr = get_task_cred(p);
-	if (!cred_ptr)
+		dc->cred = (struct cred *)current_cred();
+	if (!dc->cred)
 		return 0;
-	memcpy(&dc->cred, cred_ptr, sizeof(struct cred));
-	put_cred(cred_ptr);
 	return 1;
 }
 
@@ -198,12 +192,12 @@ const struct path *get_dc_target_dpath(struct defex_context *dc)
 {
 	const struct path *dpath;
 
-	if (dc->target_dpath)
+	if (dc->target_dpath && check_slab_ptr((void *)dc->target_dpath))
 		return dc->target_dpath;
 
 	if (dc->target_file) {
 		dpath = &(dc->target_file->f_path);
-		if (dpath->dentry && dpath->dentry->d_inode) {
+		if (check_slab_ptr((void *)dpath) && dpath->dentry && dpath->dentry->d_inode) {
 			dc->target_dpath = dpath;
 			return dpath;
 		}

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #include <linux/of_graph.h>
@@ -108,26 +100,24 @@ void adv7533_dsi_power_off(struct adv7511 *adv)
 	regmap_write(adv->regmap_cec, 0x27, 0x0b);
 }
 
-void adv7533_mode_set(struct adv7511 *adv, struct drm_display_mode *mode)
+enum drm_mode_status adv7533_mode_valid(struct adv7511 *adv,
+					const struct drm_display_mode *mode)
 {
+	unsigned long max_lane_freq;
 	struct mipi_dsi_device *dsi = adv->dsi;
-	int lanes, ret;
+	u8 bpp = mipi_dsi_pixel_format_to_bpp(dsi->format);
 
-	if (adv->num_dsi_lanes != 4)
-		return;
+	/* Check max clock for either 7533 or 7535 */
+	if (mode->clock > (adv->type == ADV7533 ? 80000 : 148500))
+		return MODE_CLOCK_HIGH;
 
-	if (mode->clock > 80000)
-		lanes = 4;
-	else
-		lanes = 3;
+	/* Check max clock for each lane */
+	max_lane_freq = (adv->type == ADV7533 ? 800000 : 891000);
 
-	if (lanes != dsi->lanes) {
-		mipi_dsi_detach(dsi);
-		dsi->lanes = lanes;
-		ret = mipi_dsi_attach(dsi);
-		if (ret)
-			dev_err(&dsi->dev, "failed to change host lanes\n");
-	}
+	if (mode->clock * bpp > max_lane_freq * adv->num_dsi_lanes)
+		return MODE_CLOCK_HIGH;
+
+	return MODE_OK;
 }
 
 int adv7533_patch_registers(struct adv7511 *adv)

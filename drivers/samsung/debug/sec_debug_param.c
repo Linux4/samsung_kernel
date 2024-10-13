@@ -236,19 +236,16 @@ static ssize_t secdbg_param_summ_read(struct file *file, char __user *buf, size_
 	return ret;
 }
 
-static const struct file_operations dparam_dhst_file_ops = {
-	.owner = THIS_MODULE,
-	.read = secdbg_param_dhst_read,
+static const struct proc_ops dparam_dhst_file_ops = {
+	.proc_read = secdbg_param_dhst_read,
 };
 
-static const struct file_operations dparam_bore_file_ops = {
-	.owner = THIS_MODULE,
-	.read = secdbg_param_bore_read,
+static const struct proc_ops dparam_bore_file_ops = {
+	.proc_read = secdbg_param_bore_read,
 };
 
-static const struct file_operations dparam_summ_file_ops = {
-	.owner = THIS_MODULE,
-	.read = secdbg_param_summ_read,
+static const struct proc_ops dparam_summ_file_ops = {
+	.proc_read = secdbg_param_summ_read,
 };
 
 static int __init secdbg_param_init(void)

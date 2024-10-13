@@ -117,4 +117,5 @@ bool is_ois_gyrocal_test(struct is_core *core, long *raw_data_x, long *raw_data_
 bool is_aperture_hall_test(struct is_core *core, u16 *hall_value);
 #endif
 #endif
+void is_ois_get_hall_pos(struct is_core *core, u16 *targetPos, u16 *hallPos);
 #endif

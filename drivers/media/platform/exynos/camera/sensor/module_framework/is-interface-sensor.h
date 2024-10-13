@@ -12,7 +12,7 @@
 #define IS_SENSOR_INTERFACE_H
 
 #include "is-core.h"
-#include "is-mem.h"
+#include "pablo-mem.h"
 #include "is-config.h"
 #include "exynos-is-sensor.h"
 #include "is-metadata.h"
@@ -127,6 +127,16 @@ enum itf_vc_stat_type {
 	/* Types for PDP 1.1 in 2020 EVT1 */
 	VC_STAT_TYPE_PDP_1_1_PDAF_STAT0 = 800,
 	VC_STAT_TYPE_PDP_1_1_PDAF_STAT1,
+	
+	/* Types for PDP 3.0 in Olympus EVT0 */
+	VC_STAT_TYPE_PDP_3_0_PDAF_STAT0 = 900,
+	VC_STAT_TYPE_PDP_3_0_PDAF_STAT1,
+	VC_STAT_TYPE_PDP_3_0_PDAF_PD_DUMP,
+
+	/* Types for PDP 3.1 in Olympus EVT1 */
+	VC_STAT_TYPE_PDP_3_1_PDAF_STAT0 = 1000,
+	VC_STAT_TYPE_PDP_3_1_PDAF_STAT1,
+	VC_STAT_TYPE_PDP_3_1_PDAF_PD_DUMP,
 };
 
 enum itf_vc_sensor_mode {
@@ -159,8 +169,16 @@ enum itf_vc_sensor_mode {
 	VC_SENSOR_MODE_SUPER_PD_TAIL,
 	VC_SENSOR_MODE_SUPER_PD_2_NORMAL,
 	VC_SENSOR_MODE_SUPER_PD_2_TAIL,
-
-	VC_SENSOR_MODE_SUPER_PD_5_TAIL = 413,
+	VC_SENSOR_MODE_SUPER_PD_3_NORMAL,
+	VC_SENSOR_MODE_SUPER_PD_3_TAIL,        // GW2(Hubble X1/X2/Z3), GH1(Hubble Z3). LLLLL RRRRR
+	VC_SENSOR_MODE_SUPER_PD_4_NORMAL_FULL,
+	VC_SENSOR_MODE_SUPER_PD_4_NORMAL_3BIN,
+	VC_SENSOR_MODE_SUPER_PD_4_NORMAL_6BIN,
+	VC_SENSOR_MODE_SUPER_PD_4_TAIL,        // HM1(Hubble Z3). LRLRLRLRLRLRLRLR
+	VC_SENSOR_MODE_SUPER_PD_5_NORMAL_FULL,
+	VC_SENSOR_MODE_SUPER_PD_5_NORMAL_2BIN,
+	VC_SENSOR_MODE_SUPER_PD_5_NORMAL_4BIN,
+	VC_SENSOR_MODE_SUPER_PD_5_TAIL,        /* GM2(PD1962). LLLLL RRRRR */
 
 	/* IMX PDAF */
 	VC_SENSOR_MODE_IMX_PDAF = 500,
@@ -248,17 +266,17 @@ struct wb_gains {
 };
 
 struct roi_setting_t {
-	bool update;
+	bool    update;
 #ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
-	u16 roi_start_x[2];
-	u16 roi_start_y[2];
-	u16 roi_end_x[2];
-	u16 roi_end_y[2];
+	u16     roi_start_x[2];
+	u16     roi_start_y[2];
+	u16     roi_end_x[2];
+	u16     roi_end_y[2];
 #else
-	u16 roi_start_x;
-	u16 roi_start_y;
-	u16 roi_end_x;
-	u16 roi_end_y;
+	u16 	roi_start_x;
+	u16 	roi_start_y;
+	u16 	roi_end_x;
+	u16 	roi_end_y;
 #endif
 };
 
@@ -329,7 +347,7 @@ typedef struct {
 	/** Video Timing Pixel Clock, vt_pix_clk_freq. */
 	unsigned int pclk;
 	unsigned int min_frame_us_time;
-#ifdef REAR_SUB_CAMERA
+#ifdef CAMERA_REAR2
 	unsigned int min_sync_frame_us_time;
 #endif
 
@@ -383,6 +401,7 @@ typedef struct {
 	unsigned int product_name; /* sensor names such as IMX134, IMX135, and S5K3L2 */
 	unsigned int sens_config_index_cur;
 	unsigned int sens_config_index_pre;
+	unsigned int sens_config_ex_mode_cur;
 	unsigned int cur_frame_rate;
 	unsigned int pre_frame_rate;
 	bool is_active_area;
@@ -416,8 +435,8 @@ typedef struct {
 /*	SysSema_t pFlashCtrl_IsrSema; //[2014.08.13, kh14.koo] to add for sema of KTD2692 (flash dirver) */
 
 	bool binning; /* If binning is set, sensor should binning for size */
-
 	bool dual_slave;
+	bool lte_multi_capture_mode;
 
 	u32 cis_rev;
 	u32 cis_model_id;
@@ -493,6 +512,7 @@ struct is_cis_ops {
 #endif
 	int (*cis_set_frs_control)(struct v4l2_subdev *subdev, u32 command);
 	int (*cis_set_super_slow_motion_roi)(struct v4l2_subdev *subdev, struct v4l2_rect *ssm_roi);
+	int (*cis_set_super_slow_motion_setting)(struct v4l2_subdev *subdev, struct v4l2_rect *setting);
 #ifdef CAMERA_REAR2_SENSOR_SHIFT_CROP
 	int (*cis_update_pdaf_tail_size)(struct v4l2_subdev *subdev, struct is_sensor_cfg *select);
 #endif
@@ -503,10 +523,12 @@ struct is_cis_ops {
 	int (*cis_get_super_slow_motion_gmc)(struct v4l2_subdev *subdev, u32 *gmc);
 	int (*cis_get_super_slow_motion_frame_id)(struct v4l2_subdev *subdev, u32 *frameid);
 	int (*cis_set_super_slow_motion_flicker)(struct v4l2_subdev *subdev, u32 flicker);
+	int (*cis_get_super_slow_motion_flicker)(struct v4l2_subdev *subdev, u32 *flicker);
 	int (*cis_get_super_slow_motion_md_threshold)(struct v4l2_subdev *subdev, u32 *threshold);
 	int (*cis_set_super_slow_motion_gmc_table_idx)(struct v4l2_subdev *subdev, u32 idx);
 	int (*cis_set_super_slow_motion_gmc_block_with_md_low)(struct v4l2_subdev *subdev, u32 idx);
 	int (*cis_recover_stream_on)(struct v4l2_subdev *subdev);
+	int (*cis_recover_stream_off)(struct v4l2_subdev *subdev);
 	int (*cis_set_laser_control)(struct v4l2_subdev *subdev, u32 onoff);
 	int (*cis_set_factory_control)(struct v4l2_subdev *subdev, u32 command);
 	int (*cis_set_laser_current)(struct v4l2_subdev *subdev, u32 value);
@@ -522,10 +544,10 @@ struct is_cis_ops {
 	int (*cis_active_test)(struct v4l2_subdev *subdev);
 	int (*cis_set_dual_setting)(struct v4l2_subdev *subdev, u32 mode);
 	int (*cis_get_binning_ratio)(struct v4l2_subdev *subdev, u32 mode, int *binning_ratio);
-	int (*cis_set_totalgain)(struct v4l2_subdev *subdev, struct ae_param *target_exposure, struct ae_param *again, struct ae_param *dgain);
 	int (*cis_init_3hdr_lsc_table)(struct v4l2_subdev *subdev, void *data);
 	int (*cis_set_tone_stat)(struct v4l2_subdev *subdev, struct sensor_imx_3hdr_tone_control tone_control);
 	int (*cis_set_ev_stat)(struct v4l2_subdev *subdev, struct sensor_imx_3hdr_ev_control ev_control);
+	int (*cis_set_totalgain)(struct v4l2_subdev *subdev, struct ae_param *target_exposure, struct ae_param *again, struct ae_param *dgain);
 };
 
 struct is_sensor_ctl
@@ -703,6 +725,7 @@ struct is_actuator_ops {
 #ifdef USE_AF_SLEEP_MODE
 	int (*set_active)(struct v4l2_subdev *subdev, int enable);
 #endif
+	int (*soft_landing_on_recording)(struct v4l2_subdev *subdev);
 };
 
 struct is_aperture_ops {
@@ -890,7 +913,7 @@ struct is_cis_interface_ops {
 
 	bool (*is_actuator_available)(struct is_sensor_interface *itf);
 	bool (*is_flash_available)(struct is_sensor_interface *itf);
-	int (*get_sensor_mode)(struct is_sensor_interface *itf);
+	int (*get_sensor_type)(struct is_sensor_interface *itf);
 	bool (*is_ois_available)(struct is_sensor_interface *itf);
 	bool (*is_aperture_available)(struct is_sensor_interface *itf);
 #if !defined(DISABLE_LASER_AF)
@@ -1047,12 +1070,19 @@ struct is_cis_ext2_interface_ops {
 				u32 gr_gain, u32 r_gain, u32 b_gain, u32 gb_gain);
 	int (*set_sensor_info_mfhdr_mode_change)(struct is_sensor_interface *itf,
 				u32 count, u32 *long_expo, u32 *long_again, u32 *long_dgain,
-				u32 *expo, u32 *again, u32 *dgain);
+				u32 *expo, u32 *again, u32 *dgain, u32 *sensitivity);
 	int (*set_mainflash_duration)(struct is_sensor_interface *itf,
 				u32 mainflash_duration);
-	int(*set_previous_dm)(struct is_sensor_interface *itf);
-	int (*get_delayed_preflash_time)(struct is_sensor_interface *itf, u32 *delayedTime);
-	void *reserved[11];
+	int (*set_previous_dm)(struct is_sensor_interface *itf);
+	int(*get_delayed_preflash_time)(struct is_sensor_interface *itf, u32 *delayedTime);
+	int (*request_direct_flash)(struct is_sensor_interface *itf,
+				u32 mode,
+				bool on,
+				u32 intensity,
+				u32 time);
+	int (*set_lte_multi_capture_mode)(struct is_sensor_interface *itf,
+				bool lte_multi_capture_mode);
+	void *reserved[9];
 };
 
 struct is_cis_event_ops {
@@ -1116,15 +1146,6 @@ struct is_actuator_interface_ops {
 					camera2_shot_t *shot);
 };
 
-struct is_apature_info_t {
-	int	cur_value;
-	bool	zoom_running;
-};
-
-struct is_aperture_interface_ops {
-	int (*set_aperture_value)(struct is_sensor_interface *itf, int value);
-	int (*get_aperture_value)(struct is_sensor_interface *itf, struct is_apature_info_t *param);
-};
 
 /* Flash interface */
 struct is_flash_expo_gain {
@@ -1168,6 +1189,19 @@ struct is_flash_interface_ops {
 					camera2_shot_t *shot);
 };
 
+
+struct is_apature_info_t {
+	int	cur_value;
+	bool	zoom_running;
+};
+
+struct is_aperture_interface_ops {
+	int (*set_aperture_value)(struct is_sensor_interface *itf, int value);
+	int (*get_aperture_value)(struct is_sensor_interface *itf, struct is_apature_info_t *param);
+};
+/* arguments: stat_type, frame_count, notifier_data */
+typedef int (*vc_dma_notifier_t)(int, unsigned int, void *);
+
 struct is_csi_interface_ops {
 	int (*get_vc_dma_buf)(struct is_sensor_interface *itf,
 				enum itf_vc_buf_data_type request_data_type,
@@ -1190,7 +1224,13 @@ struct is_csi_interface_ops {
 				u32 *sensor_shifted_num);
 	int (*reserved[3])(struct is_sensor_interface *itf);
 #else
-	int (*reserved[4])(struct is_sensor_interface *itf);
+	int (*register_vc_dma_notifier)(struct is_sensor_interface *itf,
+					enum itf_vc_stat_type type,
+					vc_dma_notifier_t notifier, void *data);
+	int (*unregister_vc_dma_notifier)(struct is_sensor_interface *itf,
+					enum itf_vc_stat_type type,
+					vc_dma_notifier_t notifier);
+	int (*reserved[2])(struct is_sensor_interface *itf);
 #endif
 };
 
@@ -1199,20 +1239,28 @@ struct paf_setting_t {
 	u32 reg_data;
 };
 
-/* arguments: stat_type, frame_count, notifier_data */
 typedef int (*paf_notifier_t)(int, unsigned int, void *);
 
 struct is_paf_interface_ops {
 	int (*set_paf_param)(struct is_sensor_interface *itf,
 				struct paf_setting_t *regs, u32 regs_size);
 	int (*get_paf_ready)(struct is_sensor_interface *itf, u32 *ready);
-	int (*register_paf_notifier)(struct is_sensor_interface *itf,
-					enum itf_vc_stat_type type,
-					paf_notifier_t notifier, void *data);
-	int (*unregister_paf_notifier)(struct is_sensor_interface *itf,
-					enum itf_vc_stat_type type,
-					paf_notifier_t notifier);
-	int (*reserved[4])(struct is_sensor_interface *itf);
+    int (*register_paf_notifier)(struct is_sensor_interface *itf, enum itf_vc_stat_type type, paf_notifier_t notifier, void *data);
+    int (*unregister_paf_notifier)(struct is_sensor_interface *itf, enum itf_vc_stat_type type, paf_notifier_t notifier);
+    int (*reserved[4])(struct is_sensor_interface *itf);
+};
+
+#if !defined(DISABLE_LASER_AF)
+struct is_laser_af_interface_ops
+{
+	int (*get_distance)(struct is_sensor_interface *itf, u32 *distance_mm,
+			u32 *confidence);
+};
+#endif
+
+struct is_tof_af_interface_ops
+{
+	int (*get_data)(struct is_sensor_interface *itf, struct tof_data_t *data);
 };
 
 struct is_dual_interface_ops {
@@ -1249,18 +1297,7 @@ struct is_laser_af_ops
 			u32 *confidence);
 };
 
-#if !defined(DISABLE_LASER_AF)
-struct is_laser_af_interface_ops
-{
-	int (*get_distance)(struct is_sensor_interface *itf, u32 *distance_mm,
-			u32 *confidence);
-};
-#endif
 
-struct is_tof_af_interface_ops
-{
-	int (*get_data)(struct is_sensor_interface *itf, struct tof_data_t **data);
-};
 
 struct is_sensor_interface {
 	u32					magic;

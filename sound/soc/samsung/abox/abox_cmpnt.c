@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_cmpnt.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Component driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Component driver
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
  *
@@ -16,13 +16,21 @@
 #include <sound/soc.h>
 #include <sound/tlv.h>
 
+#include "abox_soc.h"
 #include "abox.h"
 #include "abox_dump.h"
 #include "abox_vdma.h"
 #include "abox_dma.h"
 #include "abox_if.h"
-#include "abox_cmpnt.h"
 #include "abox_vss.h"
+#include "abox_cmpnt.h"
+#include "abox_memlog.h"
+
+#define SOC_DAPM_SINGLE_EXT(xname, reg, shift, max, invert, xget, xput) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
+	.info = snd_soc_info_volsw, \
+	.get = xget, .put = xput, \
+	.private_value = SOC_SINGLE_VALUE(reg, shift, max, invert, 0) }
 
 enum asrc_tick {
 	TICK_CP = 0x0,
@@ -191,6 +199,8 @@ static const struct asrc_ctrl asrc_table[ASRC_RATE_COUNT][ASRC_RATE_COUNT] = {
 	},
 };
 
+static enum abox_dai get_sink_dai_id(struct abox_data *data, enum abox_dai id);
+
 static unsigned int cal_ofactor(const struct asrc_ctrl *ctrl)
 {
 	unsigned int isr, osr, ofactor;
@@ -199,7 +209,7 @@ static unsigned int cal_ofactor(const struct asrc_ctrl *ctrl)
 	osr = (ctrl->osr / 100) << ctrl->dcmf;
 	ofactor = ctrl->ifactor * isr / osr;
 
-	return ofactor;
+	return (unsigned int)ofactor;
 }
 
 static unsigned int is_limit(unsigned int is_default)
@@ -272,7 +282,7 @@ static void __maybe_unused set_sif_width(struct abox_data *data,
 		format = SNDRV_PCM_FORMAT_S32;
 		break;
 	default:
-		dev_err(dev, "%s(%d): invalid argument\n", __func__, width);
+		abox_err(dev, "%s(%d): invalid argument\n", __func__, width);
 	}
 
 	set_sif_format(data, configmsg, format);
@@ -301,7 +311,7 @@ static int rate_get(struct snd_kcontrol *kcontrol,
 	unsigned int reg = mc->reg;
 	unsigned int val = get_sif_rate(data, reg);
 
-	dev_dbg(dev, "%s(%#x): %u\n", __func__, reg, val);
+	abox_dbg(dev, "%s(%#x): %u\n", __func__, reg, val);
 
 	ucontrol->value.integer.value[0] = val;
 
@@ -311,22 +321,28 @@ static int rate_get(struct snd_kcontrol *kcontrol,
 static int rate_put_ipc(struct device *adev, unsigned int val,
 		enum ABOX_CONFIGMSG configmsg)
 {
+	static DEFINE_MUTEX(lock);
 	struct abox_data *data = dev_get_drvdata(adev);
 	ABOX_IPC_MSG msg;
 	struct IPC_ABOX_CONFIG_MSG *abox_config_msg = &msg.msg.config;
 	int ret;
 
-	dev_dbg(adev, "%s(%u, %#x)\n", __func__, val, configmsg);
+	abox_dbg(adev, "%s(%u, %#x)\n", __func__, val, configmsg);
 
-	set_sif_rate(data, configmsg, val);
+	mutex_lock(&lock);
+
+	if (val > 0)
+		set_sif_rate(data, configmsg, val);
 
 	msg.ipcid = IPC_ABOX_CONFIG;
 	abox_config_msg->param1 = get_sif_rate(data, configmsg);
 	abox_config_msg->msgtype = configmsg;
 	ret = abox_request_ipc(adev, msg.ipcid, &msg, sizeof(msg), 0, 0);
 	if (ret < 0)
-		dev_err(adev, "%s(%u, %#x) failed: %d\n", __func__, val,
+		abox_err(adev, "%s(%u, %#x) failed: %d\n", __func__, val,
 				configmsg, ret);
+
+	mutex_unlock(&lock);
 
 	return ret;
 }
@@ -341,7 +357,10 @@ static int rate_put(struct snd_kcontrol *kcontrol,
 	unsigned int reg = mc->reg;
 	unsigned int val = (unsigned int)ucontrol->value.integer.value[0];
 
-	dev_info(dev, "%s(%#x, %u)\n", __func__, reg, val);
+	abox_info(dev, "%s(%#x, %u)\n", __func__, reg, val);
+
+	if (val < mc->min || val > mc->max)
+		return -EINVAL;
 
 	return rate_put_ipc(dev, val, reg);
 }
@@ -349,17 +368,23 @@ static int rate_put(struct snd_kcontrol *kcontrol,
 static int format_put_ipc(struct device *adev, snd_pcm_format_t format,
 		unsigned int channels, enum ABOX_CONFIGMSG configmsg)
 {
+	static DEFINE_MUTEX(lock);
 	struct abox_data *data = dev_get_drvdata(adev);
+	struct regmap *regmap = data->regmap;
 	ABOX_IPC_MSG msg;
 	struct IPC_ABOX_CONFIG_MSG *abox_config_msg = &msg.msg.config;
 	int width = snd_pcm_format_width(format);
 	int ret;
 
-	dev_dbg(adev, "%s(%d, %u, %#x)\n", __func__, width, channels,
+	abox_dbg(adev, "%s(%d, %u, %#x)\n", __func__, width, channels,
 			configmsg);
 
-	set_sif_format(data, configmsg, format);
-	set_sif_channels(data, configmsg, channels);
+	mutex_lock(&lock);
+
+	if (format > 0)
+		set_sif_format(data, configmsg, format);
+	if (channels > 0)
+		set_sif_channels(data, configmsg, channels);
 
 	width = get_sif_width(data, configmsg);
 	channels = get_sif_channels(data, configmsg);
@@ -368,21 +393,21 @@ static int format_put_ipc(struct device *adev, snd_pcm_format_t format,
 	switch (configmsg) {
 	case SET_SIFS0_RATE:
 	case SET_SIFS0_FORMAT:
-		regmap_update_bits(data->regmap, ABOX_SPUS_CTRL1,
+		regmap_update_bits(regmap, ABOX_SPUS_CTRL1,
 				ABOX_MIXP_FORMAT_MASK,
 				abox_get_format(width, channels) <<
 				ABOX_MIXP_FORMAT_L);
 		break;
 	case SET_PIFS1_RATE:
 	case SET_PIFS1_FORMAT:
-		regmap_update_bits(data->regmap, ABOX_SPUM_CTRL1,
+		regmap_update_bits(regmap, ABOX_SPUM_CTRL1,
 				ABOX_RECP_SRC_FORMAT_MASK(1),
 				abox_get_format(width, channels) <<
 				ABOX_RECP_SRC_FORMAT_L(1));
 		break;
 	case SET_PIFS0_RATE:
 	case SET_PIFS0_FORMAT:
-		regmap_update_bits(data->regmap, ABOX_SPUM_CTRL1,
+		regmap_update_bits(regmap, ABOX_SPUM_CTRL1,
 				ABOX_RECP_SRC_FORMAT_MASK(0),
 				abox_get_format(width, channels) <<
 				ABOX_RECP_SRC_FORMAT_L(0));
@@ -398,8 +423,10 @@ static int format_put_ipc(struct device *adev, snd_pcm_format_t format,
 	abox_config_msg->msgtype = configmsg;
 	ret = abox_request_ipc(adev, msg.ipcid, &msg, sizeof(msg), 0, 0);
 	if (ret < 0)
-		dev_err(adev, "%d(%d bit, %u channels) failed: %d\n", configmsg,
+		abox_err(adev, "%d(%d bit, %u channels) failed: %d\n", configmsg,
 				width, channels, ret);
+
+	mutex_unlock(&lock);
 
 	return ret;
 }
@@ -415,7 +442,7 @@ static int width_get(struct snd_kcontrol *kcontrol,
 	unsigned int reg = mc->reg;
 	unsigned int val = get_sif_width(data, reg);
 
-	dev_dbg(dev, "%s(%#x): %u\n", __func__, reg, val);
+	abox_dbg(dev, "%s(%#x): %u\n", __func__, reg, val);
 
 	ucontrol->value.integer.value[0] = val;
 
@@ -429,7 +456,7 @@ static int width_put_ipc(struct device *dev, unsigned int val,
 	snd_pcm_format_t format = SNDRV_PCM_FORMAT_S16;
 	unsigned int channels = data->sif_channels[sif_idx(configmsg)];
 
-	dev_dbg(dev, "%s(%u, %#x)\n", __func__, val, configmsg);
+	abox_dbg(dev, "%s(%u, %#x)\n", __func__, val, configmsg);
 
 	switch (val) {
 	case 16:
@@ -442,14 +469,14 @@ static int width_put_ipc(struct device *dev, unsigned int val,
 		format = SNDRV_PCM_FORMAT_S32;
 		break;
 	default:
-		dev_warn(dev, "%s(%u, %#x) invalid argument\n", __func__,
+		abox_warn(dev, "%s(%u, %#x) invalid argument\n", __func__,
 				val, configmsg);
 		break;
 	}
 
 	if (configmsg == SET_PIFS1_FORMAT)
 		format_put_ipc(dev, format, channels, SET_PIFS0_FORMAT);
-	return format_put_ipc(dev, format, channels, configmsg);
+	return format_put_ipc(dev, format, 0, configmsg);
 }
 
 static int width_put(struct snd_kcontrol *kcontrol,
@@ -462,7 +489,10 @@ static int width_put(struct snd_kcontrol *kcontrol,
 	unsigned int reg = mc->reg;
 	unsigned int val = (unsigned int)ucontrol->value.integer.value[0];
 
-	dev_info(dev, "%s(%#x, %u)\n", __func__, reg, val);
+	abox_info(dev, "%s(%#x, %u)\n", __func__, reg, val);
+
+	if (val < mc->min || val > mc->max)
+		return -EINVAL;
 
 	return width_put_ipc(dev, val, reg);
 }
@@ -478,7 +508,7 @@ static int channels_get(struct snd_kcontrol *kcontrol,
 	unsigned int reg = mc->reg;
 	unsigned int val = get_sif_channels(data, reg);
 
-	dev_dbg(dev, "%s(%#x): %u\n", __func__, reg, val);
+	abox_dbg(dev, "%s(%#x): %u\n", __func__, reg, val);
 
 	ucontrol->value.integer.value[0] = val;
 
@@ -488,13 +518,11 @@ static int channels_get(struct snd_kcontrol *kcontrol,
 static int channels_put_ipc(struct device *dev, unsigned int val,
 		enum ABOX_CONFIGMSG configmsg)
 {
-	struct abox_data *data = dev_get_drvdata(dev);
-	snd_pcm_format_t format = data->sif_format[sif_idx(configmsg)];
 	unsigned int channels = val;
 
-	dev_dbg(dev, "%s(%u, %#x)\n", __func__, val, configmsg);
+	abox_dbg(dev, "%s(%u, %#x)\n", __func__, val, configmsg);
 
-	return format_put_ipc(dev, format, channels, configmsg);
+	return format_put_ipc(dev, 0, channels, configmsg);
 }
 
 static int channels_put(struct snd_kcontrol *kcontrol,
@@ -507,7 +535,10 @@ static int channels_put(struct snd_kcontrol *kcontrol,
 	unsigned int reg = mc->reg;
 	unsigned int val = (unsigned int)ucontrol->value.integer.value[0];
 
-	dev_info(dev, "%s(%#x, %u)\n", __func__, reg, val);
+	abox_info(dev, "%s(%#x, %u)\n", __func__, reg, val);
+
+	if (val < mc->min || val > mc->max)
+		return -EINVAL;
 
 	return channels_put_ipc(dev, val, reg);
 }
@@ -521,7 +552,7 @@ static int audio_mode_get(struct snd_kcontrol *kcontrol,
 	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
 	unsigned int item;
 
-	dev_dbg(dev, "%s: %u\n", __func__, data->audio_mode);
+	abox_dbg(dev, "%s: %u\n", __func__, data->audio_mode);
 
 	item = snd_soc_enum_val_to_item(e, data->audio_mode);
 	ucontrol->value.enumerated.item[0] = item;
@@ -535,7 +566,7 @@ static int audio_mode_put_ipc(struct device *dev, enum audio_mode mode)
 	ABOX_IPC_MSG msg;
 	struct IPC_SYSTEM_MSG *system_msg = &msg.msg.system;
 
-	dev_dbg(dev, "%s(%d)\n", __func__, mode);
+	abox_dbg(dev, "%s(%d)\n", __func__, mode);
 
 	data->audio_mode_time = local_clock();
 
@@ -559,19 +590,28 @@ static int audio_mode_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	mode = snd_soc_enum_item_to_val(e, item[0]);
-	dev_info(dev, "%s(%u)\n", __func__, mode);
+	abox_info(dev, "%s(%u)\n", __func__, mode);
 
-	if (IS_ENABLED(CONFIG_SOC_EXYNOS9830)) {
-		if (mode == MODE_IN_CALL)
+	if (IS_ENABLED(CONFIG_SOC_EXYNOS9830) ||
+		IS_ENABLED(CONFIG_SOC_EXYNOS2100)) {
+
+		switch (mode) {
+		case MODE_IN_CALL:
 			abox_vss_notify_call(dev, data, 1);
-		else if (mode == MODE_NORMAL)
+			break;
+		case MODE_NORMAL:
 			abox_vss_notify_call(dev, data, 0);
+			break;
+		default:
+			/* nothing to do */
+			break;
+		}
 	}
 
 	return audio_mode_put_ipc(dev, mode);
 }
 
-static const char * const audio_mode_enum_texts[] = {
+static const char *const audio_mode_enum_texts[] = {
 	"NORMAL",
 	"RINGTONE",
 	"IN_CALL",
@@ -591,7 +631,7 @@ static const unsigned int audio_mode_enum_values[] = {
 	MODE_RESERVED1,
 	MODE_IN_LOOPBACK,
 };
-SOC_VALUE_ENUM_SINGLE_DECL(audio_mode_enum, SND_SOC_NOPM, 0, 0,
+static SOC_VALUE_ENUM_SINGLE_DECL(audio_mode_enum, SND_SOC_NOPM, 0, 0,
 		audio_mode_enum_texts, audio_mode_enum_values);
 
 static int sound_type_get(struct snd_kcontrol *kcontrol,
@@ -603,7 +643,7 @@ static int sound_type_get(struct snd_kcontrol *kcontrol,
 	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
 	unsigned int item;
 
-	dev_dbg(dev, "%s: %u\n", __func__, data->sound_type);
+	abox_dbg(dev, "%s: %u\n", __func__, data->sound_type);
 
 	item = snd_soc_enum_val_to_item(e, data->sound_type);
 	ucontrol->value.enumerated.item[0] = item;
@@ -617,7 +657,7 @@ static int sound_type_put_ipc(struct device *dev, enum sound_type type)
 	ABOX_IPC_MSG msg;
 	struct IPC_SYSTEM_MSG *system_msg = &msg.msg.system;
 
-	dev_dbg(dev, "%s(%d)\n", __func__, type);
+	abox_dbg(dev, "%s(%d)\n", __func__, type);
 
 	msg.ipcid = IPC_SYSTEM;
 	system_msg->msgtype = ABOX_SET_TYPE;
@@ -639,11 +679,11 @@ static int sound_type_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	type = snd_soc_enum_item_to_val(e, item[0]);
-	dev_info(dev, "%s(%d)\n", __func__, type);
+	abox_info(dev, "%s(%d)\n", __func__, type);
 
 	return sound_type_put_ipc(dev, type);
 }
-static const char * const sound_type_enum_texts[] = {
+static const char *const sound_type_enum_texts[] = {
 	"VOICE",
 	"SPEAKER",
 	"HEADSET",
@@ -659,7 +699,7 @@ static const unsigned int sound_type_enum_values[] = {
 	SOUND_TYPE_USB,
 	SOUND_TYPE_CALLFWD,
 };
-SOC_VALUE_ENUM_SINGLE_DECL(sound_type_enum, SND_SOC_NOPM, 0, 0,
+static SOC_VALUE_ENUM_SINGLE_DECL(sound_type_enum, SND_SOC_NOPM, 0, 0,
 		sound_type_enum_texts, sound_type_enum_values);
 
 static int tickle_get(struct snd_kcontrol *kcontrol,
@@ -669,7 +709,7 @@ static int tickle_get(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	struct abox_data *data = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	ucontrol->value.integer.value[0] = data->enabled;
 
@@ -683,7 +723,7 @@ static int tickle_put(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	long val = ucontrol->value.integer.value[0];
 
-	dev_dbg(dev, "%s(%ld)\n", __func__, val);
+	abox_dbg(dev, "%s(%ld)\n", __func__, val);
 
 	if (!!val)
 		pm_request_resume(dev);
@@ -703,7 +743,7 @@ static int asrc_factor_get(struct snd_kcontrol *kcontrol,
 	unsigned int reg = mc->reg;
 	unsigned int val = s_default;
 
-	dev_dbg(dev, "%s(%#x): %u\n", __func__, reg, val);
+	abox_dbg(dev, "%s(%#x): %u\n", __func__, reg, val);
 
 	ucontrol->value.integer.value[0] = val;
 
@@ -717,7 +757,7 @@ static int asrc_factor_put_ipc(struct device *adev, unsigned int val,
 	struct IPC_ABOX_CONFIG_MSG *abox_config_msg = &msg.msg.config;
 	int ret;
 
-	dev_dbg(adev, "%s(%u, %#x)\n", __func__, val, configmsg);
+	abox_dbg(adev, "%s(%u, %#x)\n", __func__, val, configmsg);
 
 	s_default = val;
 
@@ -726,7 +766,7 @@ static int asrc_factor_put_ipc(struct device *adev, unsigned int val,
 	abox_config_msg->msgtype = configmsg;
 	ret = abox_request_ipc(adev, msg.ipcid, &msg, sizeof(msg), 0, 0);
 	if (ret < 0)
-		dev_err(adev, "%s(%u, %#x) failed: %d\n", __func__, val,
+		abox_err(adev, "%s(%u, %#x) failed: %d\n", __func__, val,
 				configmsg, ret);
 
 	return ret;
@@ -742,7 +782,10 @@ static int asrc_factor_put(struct snd_kcontrol *kcontrol,
 	unsigned int reg = mc->reg;
 	unsigned int val = (unsigned int)ucontrol->value.integer.value[0];
 
-	dev_info(dev, "%s(%#x, %u)\n", __func__, reg, val);
+	abox_info(dev, "%s(%#x, %u)\n", __func__, reg, val);
+
+	if (val < mc->min || val > mc->max)
+		return -EINVAL;
 
 	return asrc_factor_put_ipc(dev, val, reg);
 }
@@ -768,17 +811,17 @@ static int spus_asrc_enable_put(struct snd_kcontrol *kcontrol,
 
 	ret = sscanf(kcontrol->id.name, "%*s %*s ASRC%d", &idx);
 	if (ret < 1) {
-		dev_err(dev, "%s(%s): %d\n", __func__, kcontrol->id.name, ret);
+		abox_err(dev, "%s(%s): %d\n", __func__, kcontrol->id.name, ret);
 		return ret;
 	}
 	if (idx < 0 || idx >= ARRAY_SIZE(spus_asrc_force_enable)) {
-		dev_err(dev, "%s(%s): %d\n", __func__, kcontrol->id.name, idx);
+		abox_err(dev, "%s(%s): %d\n", __func__, kcontrol->id.name, idx);
 		return -EINVAL;
 	}
 
-	dev_info(dev, "%s(%ld, %d)\n", __func__, val, idx);
+	abox_info(dev, "%s(%ld, %d)\n", __func__, val, idx);
 
-	spus_asrc_force_enable[idx] = val;
+	spus_asrc_force_enable[idx] = !!val;
 
 	return snd_soc_put_volsw(kcontrol, ucontrol);
 }
@@ -793,17 +836,17 @@ static int spum_asrc_enable_put(struct snd_kcontrol *kcontrol,
 
 	ret = sscanf(kcontrol->id.name, "%*s %*s ASRC%d", &idx);
 	if (ret < 1) {
-		dev_err(dev, "%s(%s): %d\n", __func__, kcontrol->id.name, ret);
+		abox_err(dev, "%s(%s): %d\n", __func__, kcontrol->id.name, ret);
 		return ret;
 	}
 	if (idx < 0 || idx >= ARRAY_SIZE(spum_asrc_force_enable)) {
-		dev_err(dev, "%s(%s): %d\n", __func__, kcontrol->id.name, idx);
+		abox_err(dev, "%s(%s): %d\n", __func__, kcontrol->id.name, idx);
 		return -EINVAL;
 	}
 
-	dev_info(dev, "%s(%ld, %d)\n", __func__, val, idx);
+	abox_info(dev, "%s(%ld, %d)\n", __func__, val, idx);
 
-	spum_asrc_force_enable[idx] = val;
+	spum_asrc_force_enable[idx] = !!val;
 
 	return snd_soc_put_volsw(kcontrol, ucontrol);
 }
@@ -829,7 +872,7 @@ static int asrc_apf_coef_get(struct snd_kcontrol *kcontrol,
 	int stream = mc->reg;
 	int idx = mc->shift;
 
-	dev_dbg(dev, "%s(%d, %d)\n", __func__, stream, idx);
+	abox_dbg(dev, "%s(%d, %d)\n", __func__, stream, idx);
 
 	ucontrol->value.integer.value[0] = get_apf_coef(data, stream, idx);
 
@@ -848,7 +891,7 @@ static int asrc_apf_coef_put(struct snd_kcontrol *kcontrol,
 	int idx = mc->shift;
 	long val = ucontrol->value.integer.value[0];
 
-	dev_dbg(dev, "%s(%d, %d, %ld)\n", __func__, stream, idx, val);
+	abox_dbg(dev, "%s(%d, %d, %ld)\n", __func__, stream, idx, val);
 
 	set_apf_coef(data, stream, idx, val);
 
@@ -861,9 +904,9 @@ static int wake_lock_get(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
 	struct device *dev = cmpnt->dev;
 	struct abox_data *data = dev_get_drvdata(dev);
-	unsigned int val = data->ws.active;
+	unsigned int val = data->ws->active;
 
-	dev_dbg(dev, "%s: %u\n", __func__, val);
+	abox_dbg(dev, "%s: %u\n", __func__, val);
 
 	ucontrol->value.integer.value[0] = val;
 
@@ -878,12 +921,12 @@ static int wake_lock_put(struct snd_kcontrol *kcontrol,
 	struct abox_data *data = dev_get_drvdata(dev);
 	unsigned int val = (unsigned int)ucontrol->value.integer.value[0];
 
-	dev_info(dev, "%s(%u)\n", __func__, val);
+	abox_info(dev, "%s(%u)\n", __func__, val);
 
 	if (val)
-		__pm_stay_awake(&data->ws);
+		__pm_stay_awake(data->ws);
 	else
-		__pm_relax(&data->ws);
+		__pm_relax(data->ws);
 
 	return 0;
 }
@@ -896,7 +939,7 @@ static int reset_log_get(struct snd_kcontrol *kcontrol,
 	struct abox_data *data = dev_get_drvdata(dev);
 	unsigned long *addr;
 
-	dev_dbg(dev, "%s: %u\n", __func__);
+	abox_dbg(dev, "%s: %u\n", __func__);
 
 	for (addr = data->slog_base + ABOX_SLOG_OFFSET; (void *)addr <
 			data->slog_base + data->slog_size; addr++) {
@@ -920,10 +963,10 @@ static int reset_log_put(struct snd_kcontrol *kcontrol,
 	struct abox_data *data = dev_get_drvdata(dev);
 	unsigned int val = (unsigned int)ucontrol->value.integer.value[0];
 
-	dev_dbg(dev, "%s(%u)\n", __func__, val);
+	abox_dbg(dev, "%s(%u)\n", __func__, val);
 
 	if (val) {
-		dev_info(dev, "reset silent log area\n");
+		abox_info(dev, "reset silent log area\n");
 		memset(data->slog_base + ABOX_SLOG_OFFSET, 0,
 				data->slog_size - ABOX_SLOG_OFFSET);
 	}
@@ -961,7 +1004,7 @@ static int spus_asrc_os_get(struct snd_kcontrol *kcontrol,
 	unsigned int *item = ucontrol->value.enumerated.item;
 	enum asrc_tick tick = spus_asrc_os[idx];
 
-	dev_dbg(dev, "%s(%d): %d\n", __func__, idx, tick);
+	abox_dbg(dev, "%s(%d): %d\n", __func__, idx, tick);
 
 	item[0] = snd_soc_enum_val_to_item(e, tick);
 
@@ -982,7 +1025,7 @@ static int spus_asrc_os_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	tick = snd_soc_enum_item_to_val(e, item[0]);
-	dev_dbg(dev, "%s(%d, %d)\n", __func__, idx, tick);
+	abox_dbg(dev, "%s(%d, %d)\n", __func__, idx, tick);
 	spus_asrc_os[idx] = tick;
 
 	return 0;
@@ -998,7 +1041,7 @@ static int spus_asrc_is_get(struct snd_kcontrol *kcontrol,
 	unsigned int *item = ucontrol->value.enumerated.item;
 	enum asrc_tick tick = spus_asrc_is[idx];
 
-	dev_dbg(dev, "%s(%d): %d\n", __func__, idx, tick);
+	abox_dbg(dev, "%s(%d): %d\n", __func__, idx, tick);
 
 	item[0] = snd_soc_enum_val_to_item(e, tick);
 
@@ -1019,7 +1062,7 @@ static int spus_asrc_is_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	tick = snd_soc_enum_item_to_val(e, item[0]);
-	dev_dbg(dev, "%s(%d, %d)\n", __func__, idx, tick);
+	abox_dbg(dev, "%s(%d, %d)\n", __func__, idx, tick);
 	spus_asrc_is[idx] = tick;
 
 	return 0;
@@ -1035,7 +1078,7 @@ static int spum_asrc_os_get(struct snd_kcontrol *kcontrol,
 	unsigned int *item = ucontrol->value.enumerated.item;
 	enum asrc_tick tick = spum_asrc_os[idx];
 
-	dev_dbg(dev, "%s(%d): %d\n", __func__, idx, tick);
+	abox_dbg(dev, "%s(%d): %d\n", __func__, idx, tick);
 
 	item[0] = snd_soc_enum_val_to_item(e, tick);
 
@@ -1056,7 +1099,7 @@ static int spum_asrc_os_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	tick = snd_soc_enum_item_to_val(e, item[0]);
-	dev_dbg(dev, "%s(%d, %d)\n", __func__, idx, tick);
+	abox_dbg(dev, "%s(%d, %d)\n", __func__, idx, tick);
 	spum_asrc_os[idx] = tick;
 
 	return 0;
@@ -1072,7 +1115,7 @@ static int spum_asrc_is_get(struct snd_kcontrol *kcontrol,
 	unsigned int *item = ucontrol->value.enumerated.item;
 	enum asrc_tick tick = spum_asrc_is[idx];
 
-	dev_dbg(dev, "%s(%d): %d\n", __func__, idx, tick);
+	abox_dbg(dev, "%s(%d): %d\n", __func__, idx, tick);
 
 	item[0] = snd_soc_enum_val_to_item(e, tick);
 
@@ -1093,7 +1136,7 @@ static int spum_asrc_is_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	tick = snd_soc_enum_item_to_val(e, item[0]);
-	dev_dbg(dev, "%s(%d, %d)\n", __func__, idx, tick);
+	abox_dbg(dev, "%s(%d, %d)\n", __func__, idx, tick);
 	spum_asrc_is[idx] = tick;
 
 	return 0;
@@ -1145,6 +1188,26 @@ static const struct snd_kcontrol_new cmpnt_controls[] = {
 	SOC_SINGLE_EXT("SIFM4 Width", SET_SIFM4_FORMAT, 16, 32, 0,
 			width_get, width_put),
 	SOC_SINGLE_EXT("SIFS0 Channel", SET_SIFS0_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFS1 Channel", SET_SIFS1_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFS2 Channel", SET_SIFS2_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFS3 Channel", SET_SIFS3_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFS4 Channel", SET_SIFS4_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFS5 Channel", SET_SIFS5_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFM0 Channel", SET_SIFM0_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFM1 Channel", SET_SIFM1_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFM2 Channel", SET_SIFM2_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFM3 Channel", SET_SIFM3_FORMAT, 1, 8, 0,
+			channels_get, channels_put),
+	SOC_SINGLE_EXT("SIFM4 Channel", SET_SIFM4_FORMAT, 1, 8, 0,
 			channels_get, channels_put),
 	SOC_VALUE_ENUM_EXT("Audio Mode", audio_mode_enum,
 			audio_mode_get, audio_mode_put),
@@ -1544,7 +1607,7 @@ static void asrc_cache_widget(struct snd_soc_dapm_widget *w,
 {
 	struct device *dev = w->dapm->dev;
 
-	dev_dbg(dev, "%s(%s, %d, %d)\n", __func__, w->name, idx, stream);
+	abox_dbg(dev, "%s(%s, %d, %d)\n", __func__, w->name, idx, stream);
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
 		spus_asrc_widgets[idx] = w;
@@ -1599,7 +1662,7 @@ static struct snd_soc_dapm_widget *asrc_get_widget(
 	}
 
 	dev = w->dapm->dev;
-	dev_dbg(dev, "%s(%d, %d): %s\n", __func__, idx, stream, w->name);
+	abox_dbg(dev, "%s(%d, %d): %s\n", __func__, idx, stream, w->name);
 
 	return w;
 }
@@ -1613,7 +1676,7 @@ static bool is_direct_connection(struct snd_soc_component *cmpnt,
 	switch (dai) {
 	case ABOX_RSRC0:
 	case ABOX_RSRC1:
-		snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL2, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL2);
 		val &= ABOX_RSRC_CONNECTION_TYPE_MASK(dai - ABOX_RSRC0);
 		val >>= ABOX_RSRC_CONNECTION_TYPE_L(dai - ABOX_RSRC0);
 		ret = !val;
@@ -1626,7 +1689,7 @@ static bool is_direct_connection(struct snd_soc_component *cmpnt,
 	case ABOX_NSRC5:
 	case ABOX_NSRC6:
 	case ABOX_NSRC7:
-		snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL2, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL2);
 		val &= ABOX_NSRC_CONNECTION_TYPE_MASK(dai - ABOX_NSRC0);
 		val >>= ABOX_NSRC_CONNECTION_TYPE_L(dai - ABOX_NSRC0);
 		ret = !val;
@@ -1638,8 +1701,6 @@ static bool is_direct_connection(struct snd_soc_component *cmpnt,
 
 	return ret;
 }
-
-static enum abox_dai get_sink_dai_id(struct abox_data *data, enum abox_dai id);
 
 static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 {
@@ -1687,7 +1748,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 	case ABOX_UAIF4:
 	case ABOX_UAIF5:
 	case ABOX_UAIF6:
-		snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL0, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL0);
 		val &= ABOX_ROUTE_UAIF_SPK_MASK(id - ABOX_UAIF0);
 		val >>= ABOX_ROUTE_UAIF_SPK_L(id - ABOX_UAIF0);
 		switch (val) {
@@ -1715,7 +1776,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 		}
 		break;
 	case ABOX_DSIF:
-		snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL0, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL0);
 		val &= ABOX_ROUTE_DSIF_MASK;
 		val >>= ABOX_ROUTE_DSIF_L;
 		switch (val) {
@@ -1754,7 +1815,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 		break;
 	case ABOX_RSRC0:
 	case ABOX_RSRC1:
-		snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL2, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL2);
 		val &= ABOX_ROUTE_RSRC_MASK(id - ABOX_RSRC0);
 		val >>= ABOX_ROUTE_RSRC_L(id - ABOX_RSRC0);
 		switch (val) {
@@ -1798,7 +1859,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 	case ABOX_NSRC5:
 	case ABOX_NSRC6:
 	case ABOX_NSRC7:
-		snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL1, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL1);
 		val &= ABOX_ROUTE_NSRC_MASK(id - ABOX_NSRC0);
 		val >>= ABOX_ROUTE_NSRC_L(id - ABOX_NSRC0);
 		switch (val) {
@@ -1887,7 +1948,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 	case ABOX_RDMA1_BE:
 	case ABOX_RDMA2_BE:
 	case ABOX_RDMA3_BE:
-		snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC0, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC0);
 		val &= ABOX_FUNC_CHAIN_SRC_IN_MASK(id - ABOX_RDMA0);
 		val >>= ABOX_FUNC_CHAIN_SRC_IN_L(id - ABOX_RDMA0);
 		switch (val) {
@@ -1910,7 +1971,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 	case ABOX_RDMA5_BE:
 	case ABOX_RDMA6_BE:
 	case ABOX_RDMA7_BE:
-		snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC1, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC1);
 		val &= ABOX_FUNC_CHAIN_SRC_IN_MASK(id - ABOX_RDMA0);
 		val >>= ABOX_FUNC_CHAIN_SRC_IN_L(id - ABOX_RDMA0);
 		switch (val) {
@@ -1933,7 +1994,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 	case ABOX_RDMA9_BE:
 	case ABOX_RDMA10_BE:
 	case ABOX_RDMA11_BE:
-		snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC2, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC2);
 		val &= ABOX_FUNC_CHAIN_SRC_IN_MASK(id - ABOX_RDMA0);
 		val >>= ABOX_FUNC_CHAIN_SRC_IN_L(id - ABOX_RDMA0);
 		switch (val) {
@@ -1949,7 +2010,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 		}
 		break;
 	case ABOX_SIFSM:
-		snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL0, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL0);
 		val &= ABOX_ROUTE_SPUSM_MASK;
 		val >>= ABOX_ROUTE_SPUSM_L;
 		switch (val) {
@@ -1982,7 +2043,7 @@ static enum abox_dai get_source_dai_id(struct abox_data *data, enum abox_dai id)
 		}
 		break;
 	case ABOX_SIFST:
-		snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL2, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL2);
 		val &= ABOX_ROUTE_SPUST_MASK;
 		val >>= ABOX_ROUTE_SPUST_L;
 		switch (val) {
@@ -2037,7 +2098,7 @@ static enum abox_dai get_sink_dai_id(struct abox_data *data, enum abox_dai id)
 	case ABOX_RDMA1_BE:
 	case ABOX_RDMA2_BE:
 	case ABOX_RDMA3_BE:
-		snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC0, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC0);
 		val &= ABOX_FUNC_CHAIN_SRC_OUT_MASK(id - ABOX_RDMA0);
 		val >>= ABOX_FUNC_CHAIN_SRC_OUT_L(id - ABOX_RDMA0);
 		switch (val) {
@@ -2072,7 +2133,7 @@ static enum abox_dai get_sink_dai_id(struct abox_data *data, enum abox_dai id)
 	case ABOX_RDMA5_BE:
 	case ABOX_RDMA6_BE:
 	case ABOX_RDMA7_BE:
-		snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC1, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC1);
 		val &= ABOX_FUNC_CHAIN_SRC_OUT_MASK(id - ABOX_RDMA0);
 		val >>= ABOX_FUNC_CHAIN_SRC_OUT_L(id - ABOX_RDMA0);
 		switch (val) {
@@ -2107,7 +2168,7 @@ static enum abox_dai get_sink_dai_id(struct abox_data *data, enum abox_dai id)
 	case ABOX_RDMA9_BE:
 	case ABOX_RDMA10_BE:
 	case ABOX_RDMA11_BE:
-		snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC2, &val);
+		val = snd_soc_component_read(cmpnt, ABOX_SPUS_CTRL_FC2);
 		val &= ABOX_FUNC_CHAIN_SRC_OUT_MASK(id - ABOX_RDMA0);
 		val >>= ABOX_FUNC_CHAIN_SRC_OUT_L(id - ABOX_RDMA0);
 		switch (val) {
@@ -2208,10 +2269,12 @@ static enum abox_dai get_sink_dai_id(struct abox_data *data, enum abox_dai id)
 static struct snd_soc_dai *find_dai(struct snd_soc_card *card, enum abox_dai id)
 {
 	struct snd_soc_pcm_runtime *rtd;
+	struct snd_soc_dai *cpu_dai;
 
 	list_for_each_entry(rtd, &card->rtd_list, list) {
-		if (rtd->cpu_dai->id == id)
-			return rtd->cpu_dai;
+		cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+		if (cpu_dai->id == id)
+			return cpu_dai;
 	}
 
 	return NULL;
@@ -2246,14 +2309,6 @@ static int get_configmsg(enum abox_dai id, enum ABOX_CONFIGMSG *rate,
 	case ABOX_SIFS5:
 		*rate = SET_SIFS5_RATE;
 		*format = SET_SIFS5_FORMAT;
-		break;
-	case ABOX_RSRC0:
-		*rate = SET_PIFS0_RATE;
-		*format = SET_PIFS0_FORMAT;
-		break;
-	case ABOX_RSRC1:
-		*rate = SET_PIFS1_RATE;
-		*format = SET_PIFS1_FORMAT;
 		break;
 	case ABOX_NSRC0:
 		*rate = SET_SIFM0_RATE;
@@ -2306,7 +2361,7 @@ static int set_sif_params(struct abox_data *data, enum abox_dai id,
 
 	ret = get_configmsg(id, &msg_rate, &msg_format);
 	if (ret < 0) {
-		dev_err(adev, "can't set sif params: %d\n", ret);
+		abox_err(adev, "can't set sif params: %d\n", ret);
 		return ret;
 	}
 
@@ -2342,12 +2397,11 @@ static unsigned int sifsx_cnt_val(unsigned long aclk, unsigned int rate,
 	return DIV_ROUND_CLOSEST_ULL(aclk * n, d) - 1 + correction;
 }
 
-static int set_cnt_val(struct abox_data *data, struct snd_soc_dai *dai,
+static int set_cnt_val(struct abox_data *data, enum abox_dai id,
 		struct snd_pcm_hw_params *params)
 {
-	struct device *dev = dai->dev;
+	struct device *dev = data->dev;
 	struct regmap *regmap = data->regmap;
-	enum abox_dai id = dai->id;
 	int idx = id - ABOX_SIFS0;
 	unsigned int rate = params_rate(params);
 	unsigned int width = params_width(params);
@@ -2359,12 +2413,17 @@ static int set_cnt_val(struct abox_data *data, struct snd_soc_dai *dai,
 
 	ret = abox_register_bclk_usage(dev, data, id, rate, channels, width);
 	if (ret < 0)
-		dev_err(dev, "Unable to register bclk usage: %d\n", ret);
+		abox_err(dev, "Unable to register bclk usage: %d\n", ret);
+
+	ret = clk_set_rate(data->clk_cnt, 36864000);
+	if (ret < 0) {
+		abox_err(dev, "AUD_CNT set error=%d\n", ret);
+	}
 
 	clk = clk_get_rate(data->clk_cnt);
 	cnt_val = sifsx_cnt_val(clk, rate, pwidth, channels);
 
-	dev_info(dev, "%s[%#x](%ubit %uchannel %uHz at %luHz): %u\n",
+	abox_info(dev, "%s[%#x](%ubit %uchannel %uHz at %luHz): %u\n",
 			__func__, id, width, channels, rate, clk, cnt_val);
 
 	ret = regmap_update_bits(regmap, ABOX_SPUS_CTRL_SIFS_CNT(idx),
@@ -2374,19 +2433,18 @@ static int set_cnt_val(struct abox_data *data, struct snd_soc_dai *dai,
 	return ret;
 }
 
-static int hw_params_fixup(struct snd_soc_dai *dai,
-		struct snd_pcm_hw_params *params, int stream)
+static int hw_params_fixup(struct abox_data *data, enum abox_dai id,
+		struct snd_pcm_hw_params *params)
 {
-	struct device *dev = dai->dev;
-	struct abox_data *data = abox_get_data(dev);
+	struct device *dev = data->dev;
 	enum ABOX_CONFIGMSG msg_rate, msg_format;
 	unsigned int rate, channels, width;
 	snd_pcm_format_t format;
 	int ret = 0;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, dai->name, stream);
+	abox_dbg(dev, "%s(%#x)\n", __func__, id);
 
-	ret = get_configmsg(dai->id, &msg_rate, &msg_format);
+	ret = get_configmsg(id, &msg_rate, &msg_format);
 	if (ret < 0)
 		return ret;
 
@@ -2411,7 +2469,7 @@ static int hw_params_fixup(struct snd_soc_dai *dai,
 	}
 
 	if (rate || channels || format)
-		dev_dbg(dev, "%s: %d bit, %u ch, %uHz\n", dai->name,
+		abox_dbg(dev, "%#x: %d bit, %u ch, %uHz\n", id,
 				width, channels, rate);
 
 	return ret;
@@ -2435,17 +2493,18 @@ static int asrc_set_in_loop(struct abox_data *data, int spum_idx, int sifs_idx,
 	if (sifs_idx < 0)
 		return -EINVAL;
 
-	dev_dbg(data->dev, "%s(%d, %d, %u, %u, %u, %u)\n", __func__, spum_idx,
-			sifs_idx, channels, rate, tgt_rate, tgt_width);
-
 	stream = SNDRV_PCM_STREAM_CAPTURE;
 	dev_dma = data->dev_wdma[spum_idx];
-	res = abox_dma_hw_params_fixup(dev_dma, NULL, &params);
+	res = abox_dma_hw_params_fixup(dev_dma, &params);
 	if (res < 0)
-		dev_err(dev_dma, "hw params get failed: %d\n", res);
+		abox_err(dev_dma, "hw params get failed: %d\n", res);
 
 	rate = params_rate(&params);
 	channels = params_channels(&params);
+
+	abox_info(data->dev, "%s(%d, %d, %u, %u, %u, %u)\n", __func__, spum_idx,
+			sifs_idx, channels, rate, tgt_rate, tgt_width);
+
 	res = asrc_set(data, stream, spum_idx, channels, rate,
 			tgt_rate,tgt_width);
 	if (res < 0)
@@ -2462,9 +2521,9 @@ static int asrc_set_in_loop(struct abox_data *data, int spum_idx, int sifs_idx,
 		if (PCM_RUNTIME_CHECK(dma_data->substream))
 			continue;
 
-		res = abox_dma_hw_params_fixup(dev_dma, NULL, &params);
+		res = abox_dma_hw_params_fixup(dev_dma, &params);
 		if (res < 0)
-			dev_err(dev_dma, "hw params get failed: %d\n", res);
+			abox_err(dev_dma, "hw params get failed: %d\n", res);
 
 		rate = params_rate(&params);
 		channels = params_channels(&params);
@@ -2477,17 +2536,15 @@ static int asrc_set_in_loop(struct abox_data *data, int spum_idx, int sifs_idx,
 	return ret;
 }
 
-static int sifs_hw_params_fixup(struct snd_soc_dai *dai,
-		struct snd_pcm_hw_params *params, int stream)
+static int sifs_hw_params_fixup(struct abox_data *data, enum abox_dai id,
+		struct snd_pcm_hw_params *params)
 {
-	struct snd_soc_component *cmpnt = dai->component;
-	struct device *dev = dai->dev;
-	struct abox_data *data = dev_get_drvdata(dev);
-	enum abox_dai id = dai->id;
+	struct device *dev = data->dev;
+	struct snd_soc_component *cmpnt = data->cmpnt;
 	enum abox_dai _id;
 	struct snd_soc_dai *_dai;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, dai->name, stream);
+	abox_dbg(dev, "%s(%#x)\n", __func__, id);
 
 	_id = get_sink_dai_id(data, id);
 	switch (_id) {
@@ -2500,10 +2557,8 @@ static int sifs_hw_params_fixup(struct snd_soc_dai *dai,
 	case ABOX_UAIF6:
 	case ABOX_DSIF:
 		_dai = find_dai(cmpnt->card, _id);
-		abox_if_hw_params_fixup(_dai, params, stream);
+		abox_if_hw_params_fixup(_dai, params);
 		break;
-	case ABOX_RSRC0:
-	case ABOX_RSRC1:
 	case ABOX_NSRC0:
 	case ABOX_NSRC1:
 	case ABOX_NSRC2:
@@ -2512,29 +2567,29 @@ static int sifs_hw_params_fixup(struct snd_soc_dai *dai,
 	case ABOX_NSRC5:
 	case ABOX_NSRC6:
 	case ABOX_NSRC7:
-		hw_params_fixup(dai, params, stream);
-		set_cnt_val(data, dai, params);
+		hw_params_fixup(data, id, params);
+		set_cnt_val(data, id, params);
 		break;
 	default:
-		dev_err(dev, "%s, %d: invalid sink dai:%#x\n", dai->name,
-				stream, _id);
+		/* Use sifs format if sink is unknown */
+		hw_params_fixup(data, id, params);
+		abox_err(dev, "%#x: invalid sink dai:%#x\n", id, _id);
 		return 0;
 	}
 
 	return set_sif_params(data, id, params);
 }
 
-static int sifm_hw_params_fixup(struct snd_soc_dai *dai,
-		struct snd_pcm_hw_params *params, int stream)
+static int sifm_hw_params_fixup(struct abox_data *data, enum abox_dai id,
+		struct snd_pcm_hw_params *params)
 {
-	struct snd_soc_component *cmpnt = dai->component;
-	struct device *dev = dai->dev;
-	struct abox_data *data = dev_get_drvdata(dev);
-	enum abox_dai id = dai->id;
+	struct device *dev = data->dev;
+	struct snd_soc_component *cmpnt = data->cmpnt;
 	enum abox_dai _id;
 	struct snd_soc_dai *_dai;
+	int ret;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, dai->name, stream);
+	abox_dbg(dev, "%s(%#x)\n", __func__, id);
 
 	_id = get_source_dai_id(data, id);
 	switch (_id) {
@@ -2548,7 +2603,10 @@ static int sifm_hw_params_fixup(struct snd_soc_dai *dai,
 	case ABOX_DSIF:
 	case ABOX_SPDY:
 		_dai = find_dai(cmpnt->card, _id);
-		abox_if_hw_params_fixup(_dai, params, stream);
+		abox_if_hw_params_fixup(_dai, params);
+		ret = abox_cmpnt_adjust_sbank(data, id, params, 0);
+		if (ret < 0)
+			return ret;
 		break;
 	case ABOX_SIFS0:
 	case ABOX_SIFS1:
@@ -2556,8 +2614,7 @@ static int sifm_hw_params_fixup(struct snd_soc_dai *dai,
 	case ABOX_SIFS3:
 	case ABOX_SIFS4:
 	case ABOX_SIFS5:
-		_dai = find_dai(cmpnt->card, _id);
-		sifs_hw_params_fixup(_dai, params, stream);
+		sifs_hw_params_fixup(data, _id, params);
 
 		/**
 		 * When NSRC is connected with SIFS,
@@ -2570,8 +2627,7 @@ static int sifm_hw_params_fixup(struct snd_soc_dai *dai,
 				params_rate(params), params_width(params));
 		break;
 	default:
-		dev_err(dev, "%s, %d: invalid source dai:%#x\n", dai->name,
-				stream, _id);
+		abox_err(dev, "%#x: invalid source dai:%#x\n", id, _id);
 		return 0;
 	}
 
@@ -2579,17 +2635,15 @@ static int sifm_hw_params_fixup(struct snd_soc_dai *dai,
 }
 
 static int rdma_hw_params_fixup(struct snd_soc_dai *dai,
-		struct snd_pcm_hw_params *params, int stream)
+		struct snd_pcm_hw_params *params)
 {
-	struct snd_soc_component *cmpnt = dai->component;
 	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
 	struct device *dev = dai->dev;
 	enum abox_dai id = dai->id;
 	enum abox_dai _id;
-	struct snd_soc_dai *_dai;
-	int ret;
+	int width, ret;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, dai->name, stream);
+	abox_dbg(dev, "%s(%s)\n", __func__, dai->name);
 
 	_id = get_sink_dai_id(data->abox_data, id);
 	switch (_id) {
@@ -2599,13 +2653,12 @@ static int rdma_hw_params_fixup(struct snd_soc_dai *dai,
 	case ABOX_SIFS3:
 	case ABOX_SIFS4:
 	case ABOX_SIFS5:
-		_dai = find_dai(cmpnt->card, _id);
-		ret = sifs_hw_params_fixup(_dai, params, stream);
-		abox_dma_set_dst_bit_width(dev, params_width(params));
+		ret = sifs_hw_params_fixup(data->abox_data, _id, params);
+		width = params_width(params);
+		abox_dma_set_dst_bit_width(dev, width);
 		break;
 	default:
-		dev_err(dev, "%s, %d: invalid sifs dai:%#x\n", dai->name,
-				stream, _id);
+		abox_err(dev, "%s: invalid sifs dai:%#x\n", dai->name, _id);
 		ret = -EINVAL;
 		break;
 	}
@@ -2614,22 +2667,18 @@ static int rdma_hw_params_fixup(struct snd_soc_dai *dai,
 }
 
 static int wdma_hw_params_fixup(struct snd_soc_dai *dai,
-		struct snd_pcm_hw_params *params, int stream)
+		struct snd_pcm_hw_params *params)
 {
-	struct snd_soc_component *cmpnt = dai->component;
 	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
 	struct device *dev = dai->dev;
 	enum abox_dai id = dai->id;
 	enum abox_dai _id;
-	struct snd_soc_dai *_dai;
-	int ret;
+	int width, ret;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, dai->name, stream);
+	abox_dbg(dev, "%s(%s)\n", __func__, dai->name);
 
 	_id = get_source_dai_id(data->abox_data, id);
 	switch (_id) {
-	case ABOX_RSRC0:
-	case ABOX_RSRC1:
 	case ABOX_NSRC0:
 	case ABOX_NSRC1:
 	case ABOX_NSRC2:
@@ -2638,13 +2687,12 @@ static int wdma_hw_params_fixup(struct snd_soc_dai *dai,
 	case ABOX_NSRC5:
 	case ABOX_NSRC6:
 	case ABOX_NSRC7:
-		_dai = find_dai(cmpnt->card, _id);
-		ret = sifm_hw_params_fixup(_dai, params, stream);
-		abox_dma_set_dst_bit_width(dev, params_width(params));
+		ret = sifm_hw_params_fixup(data->abox_data, _id, params);
+		width = params_width(params);
+		abox_dma_set_dst_bit_width(dev, width);
 		break;
 	default:
-		dev_err(dev, "%s, %d: invalid sifs dai:%#x\n", dai->name,
-				stream, _id);
+		abox_err(dev, "%s: invalid sifs dai:%#x\n", dai->name, _id);
 		ret = -EINVAL;
 		break;
 	}
@@ -2653,23 +2701,25 @@ static int wdma_hw_params_fixup(struct snd_soc_dai *dai,
 }
 
 static int rdma_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
-		struct snd_pcm_hw_params *params, int stream)
+		struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_hw_params _params = *params;
+	struct snd_soc_dai *cpu_dai;
 
-	rdma_hw_params_fixup(rtd->cpu_dai, &_params, stream);
-	return abox_dma_hw_params_fixup(rtd->cpu_dai->dev,
-			snd_soc_dpcm_get_substream(rtd, stream), params);
+	cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	rdma_hw_params_fixup(cpu_dai, &_params);
+	return abox_dma_hw_params_fixup(cpu_dai->dev, params);
 }
 
 static int wdma_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
-		struct snd_pcm_hw_params *params, int stream)
+		struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_hw_params _params = *params;
+	struct snd_soc_dai *cpu_dai;
 
-	wdma_hw_params_fixup(rtd->cpu_dai, &_params, stream);
-	return abox_dma_hw_params_fixup(rtd->cpu_dai->dev,
-			snd_soc_dpcm_get_substream(rtd, stream), params);
+	cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	wdma_hw_params_fixup(cpu_dai, &_params);
+	return abox_dma_hw_params_fixup(cpu_dai->dev, params);
 }
 
 unsigned int abox_cmpnt_sif_get_dst_format(struct abox_data *data,
@@ -2681,22 +2731,21 @@ unsigned int abox_cmpnt_sif_get_dst_format(struct abox_data *data,
 	};
 	static const enum ABOX_CONFIGMSG configmsg_c[] = {
 		SET_SIFM0_FORMAT, SET_SIFM1_FORMAT, SET_SIFM2_FORMAT,
-		SET_SIFM3_FORMAT, SET_SIFM4_FORMAT, SET_SIFM5_FORMAT,
-		SET_SIFM6_FORMAT, SET_SIFM7_FORMAT,
+		SET_SIFM3_FORMAT, SET_SIFM4_FORMAT,
 	};
 	const enum ABOX_CONFIGMSG *configmsg;
 	unsigned int width, channels, format;
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		if (id >= ARRAY_SIZE(configmsg_p)) {
-			dev_err(data->dev, "%s(%d, %d): invalid argument\n",
+			abox_err(data->dev, "%s(%d, %d): invalid argument\n",
 					__func__, stream, id);
 			return -EINVAL;
 		}
 		configmsg = configmsg_p;
 	} else {
 		if (id >= ARRAY_SIZE(configmsg_c)) {
-			dev_err(data->dev, "%s(%d, %d): invalid argument\n",
+			abox_err(data->dev, "%s(%d, %d): invalid argument\n",
 					__func__, stream, id);
 			return -EINVAL;
 		}
@@ -3029,7 +3078,6 @@ static int asrc_get_id(struct snd_soc_component *cmpnt, int idx, int stream)
 	const struct snd_kcontrol_new *kcontrol;
 	struct soc_mixer_control *mc;
 	unsigned int reg, mask, val;
-	int ret;
 
 	kcontrol = asrc_get_id_kcontrol(idx, stream);
 	if (IS_ERR(kcontrol))
@@ -3038,9 +3086,7 @@ static int asrc_get_id(struct snd_soc_component *cmpnt, int idx, int stream)
 	mc = (struct soc_mixer_control *)kcontrol->private_value;
 	reg = mc->reg;
 	mask = ((1 << fls(mc->max)) - 1) << mc->shift;
-	ret = snd_soc_component_read(cmpnt, reg, &val);
-	if (ret < 0)
-		return ret;
+	val = snd_soc_component_read(cmpnt, reg);
 
 	return (val & mask) >> mc->shift;
 }
@@ -3051,7 +3097,6 @@ static bool asrc_get_active(struct snd_soc_component *cmpnt, int idx,
 	const struct snd_kcontrol_new *kcontrol;
 	struct soc_mixer_control *mc;
 	unsigned int reg, mask, val;
-	int ret;
 
 	kcontrol = asrc_get_kcontrol(idx, stream);
 	if (IS_ERR(kcontrol))
@@ -3060,9 +3105,7 @@ static bool asrc_get_active(struct snd_soc_component *cmpnt, int idx,
 	mc = (struct soc_mixer_control *)kcontrol->private_value;
 	reg = mc->reg;
 	mask = 1 << mc->shift;
-	ret = snd_soc_component_read(cmpnt, reg, &val);
-	if (ret < 0)
-		return false;
+	val = snd_soc_component_read(cmpnt, reg);
 
 	return !!(val & mask);
 }
@@ -3106,7 +3149,7 @@ static int asrc_put_id(struct snd_soc_component *cmpnt, int idx, int stream,
 	struct soc_mixer_control *mc;
 	unsigned int reg, mask, val;
 
-	dev_dbg(dev, "%s(%d, %d, %d)\n", __func__, idx, stream, id);
+	abox_info(dev, "%s(%d, %d, %d)\n", __func__, idx, stream, id);
 
 	kcontrol = asrc_get_id_kcontrol(idx, stream);
 	if (IS_ERR(kcontrol))
@@ -3127,23 +3170,19 @@ static int asrc_put_active(struct snd_soc_dapm_widget *w, int stream, int on)
 	const struct snd_kcontrol_new *kcontrol;
 	struct soc_mixer_control *mc;
 	unsigned int reg, mask, val;
-	int ret;
 
-	dev_dbg(dev, "%s(%s, %d, %d)\n", __func__, w->name, stream, on);
+	abox_info(dev, "%s(%s, %d, %d)\n", __func__, w->name, stream, on);
 
 	kcontrol = asrc_get_kcontrol(asrc_get_idx(w), stream);
 	if (IS_ERR(kcontrol))
 		return PTR_ERR(kcontrol);
 
+	abox_info(dev, "%s %s\n", w->name, on ? "on" : "off");
 	mc = (struct soc_mixer_control *)kcontrol->private_value;
 	reg = mc->reg;
 	mask = 1 << mc->shift;
 	val = !!on << mc->shift;
-	ret = snd_soc_component_update_bits(cmpnt, reg, mask, val);
-	if (ret != 0)
-		dev_info(dev, "%s %s\n", w->name, on ? "on" : "off");
-
-	return (ret < 0) ? ret : 0;
+	return snd_soc_component_update_bits(cmpnt, reg, mask, val);
 }
 
 static int asrc_exchange_id(struct snd_soc_component *cmpnt, int stream,
@@ -3154,7 +3193,7 @@ static int asrc_exchange_id(struct snd_soc_component *cmpnt, int stream,
 	int id2 = asrc_get_id(cmpnt, idx2, stream);
 	int ret;
 
-	dev_dbg(dev, "%s(%d, %d, %d)\n", __func__, stream, idx1, idx2);
+	abox_info(dev, "%s(%d, %d, %d)\n", __func__, stream, idx1, idx2);
 
 	if (idx1 == idx2)
 		return 0;
@@ -3285,23 +3324,12 @@ static int asrc_get_channels(int id, int stream)
 		return spum_asrc_channels[id];
 }
 
-static void asrc_set_channels(struct device *dev, int id, int stream, int channels)
+static void asrc_set_channels(int id, int stream, int channels)
 {
-	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		if(id >= ARRAY_SIZE(spus_asrc_channels) || id < 0) {
-			dev_err(dev, "error : %s(%d, %d, %d)\n", __func__, id, stream,
-					channels);
-			return;
-		}
+	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
 		spus_asrc_channels[id] = channels;
-	} else {
-		if(id >= ARRAY_SIZE(spum_asrc_channels) || id < 0) {
-			dev_err(dev, "error : %s(%d, %d, %d)\n", __func__, id, stream,
-					channels);
-			return;
-		}
+	else
 		spum_asrc_channels[id] = channels;
-	}
 }
 
 static int asrc_is_avail_id(struct snd_soc_dapm_widget *w, int id,
@@ -3341,7 +3369,7 @@ static int asrc_is_avail_id(struct snd_soc_dapm_widget *w, int id,
 			ret = !asrc_get_id_active(cmpnt, id + 1, stream);
 	}
 out:
-	dev_info(dev, "%s(%d, %d, %d): %d\n", __func__,
+	abox_dbg(dev, "%s(%d, %d, %d): %d\n", __func__,
 			id, stream, channels, ret);
 	return ret;
 }
@@ -3351,7 +3379,6 @@ static int asrc_assign_id(struct snd_soc_dapm_widget *w, int stream,
 {
 	struct snd_soc_dapm_context *dapm = w->dapm;
 	struct snd_soc_component *cmpnt = dapm->component;
-	struct device *dev = cmpnt->dev;
 	int i, id, ret = -EINVAL;
 
 	id = asrc_get_lock_id(stream, asrc_get_idx(w));
@@ -3359,7 +3386,7 @@ static int asrc_assign_id(struct snd_soc_dapm_widget *w, int stream,
 		ret = asrc_exchange_id(cmpnt, stream, asrc_get_idx(w),
 				asrc_get_idx_of_id(cmpnt, id, stream));
 		if (ret >= 0)
-			asrc_set_channels(dev, id, stream, channels);
+			asrc_set_channels(id, stream, channels);
 		return ret;
 	}
 
@@ -3370,7 +3397,7 @@ static int asrc_assign_id(struct snd_soc_dapm_widget *w, int stream,
 			ret = asrc_exchange_id(cmpnt, stream, asrc_get_idx(w),
 					asrc_get_idx_of_id(cmpnt, id, stream));
 			if (ret >= 0)
-				asrc_set_channels(dev, id, stream, channels);
+				asrc_set_channels(id, stream, channels);
 			break;
 		}
 	}
@@ -3382,7 +3409,6 @@ static void asrc_release_id(struct snd_soc_dapm_widget *w, int stream)
 {
 	struct snd_soc_dapm_context *dapm = w->dapm;
 	struct snd_soc_component *cmpnt = dapm->component;
-	struct device *dev = cmpnt->dev;
 	int idx = asrc_get_idx(w);
 	int id = asrc_get_id(cmpnt, idx, stream);
 
@@ -3392,8 +3418,7 @@ static void asrc_release_id(struct snd_soc_dapm_widget *w, int stream)
 	if (asrc_get_lock_id(stream, idx) >= 0)
 		return;
 
-	asrc_set_channels(dev, id, stream, 0);
-
+	asrc_set_channels(id, stream, 0);
 	asrc_put_active(w, stream, 0);
 }
 
@@ -3407,9 +3432,9 @@ unsigned int abox_cmpnt_asrc_get_dst_format(struct abox_data *data,
 	channels = asrc_get_channels(id, stream);
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-		snd_soc_component_read(cmpnt, ABOX_SPUS_ASRC_CTRL(id), &val);
+		val = snd_soc_component_read(cmpnt, ABOX_SPUS_ASRC_CTRL(id));
 	else
-		snd_soc_component_read(cmpnt, ABOX_SPUM_ASRC_CTRL(id), &val);
+		val = snd_soc_component_read(cmpnt, ABOX_SPUM_ASRC_CTRL(id));
 	width = (val & ABOX_ASRC_BIT_WIDTH_MASK) >> ABOX_ASRC_BIT_WIDTH_L;
 
 	return (width << 0x3) | (channels - 1);
@@ -3419,7 +3444,7 @@ void abox_cmpnt_asrc_release(struct abox_data *data, int stream, int idx)
 {
 	struct snd_soc_component *cmpnt = data->cmpnt;
 
-	dev_dbg(cmpnt->dev, "%s(%d, %d)\n", __func__, stream, idx);
+	abox_dbg(cmpnt->dev, "%s(%d, %d)\n", __func__, stream, idx);
 
 	asrc_release_id(asrc_get_widget(cmpnt, idx, stream), stream);
 }
@@ -3438,11 +3463,11 @@ static int update_bits_async(struct device *dev,
 {
 	int ret;
 
-	dev_dbg(dev, "%s(%s, %#x, %#x, %#x)\n", __func__, name, reg, mask, val);
+	abox_dbg(dev, "%s(%s, %#x, %#x, %#x)\n", __func__, name, reg, mask, val);
 
 	ret = snd_soc_component_update_bits_async(cmpnt, reg, mask, val);
 	if (ret < 0)
-		dev_err(dev, "%s(%s, %#x, %#x, %#x): %d\n", __func__, name, reg,
+		abox_err(dev, "%s(%s, %#x, %#x, %#x): %d\n", __func__, name, reg,
 				mask, val, ret);
 
 	return ret;
@@ -3455,6 +3480,7 @@ static int asrc_update_tick(struct abox_data *data, int stream, int id)
 		{600000000, 1, 1},
 		{400000000, 3, 2},
 		{300000000, 2, 1},
+		{250000000, 5, 2},
 		{200000000, 3, 1},
 		{150000000, 4, 1},
 		{100000000, 6, 1},
@@ -3468,10 +3494,10 @@ static int asrc_update_tick(struct abox_data *data, int stream, int id)
 	int ticknum = 1, tickdiv = 1;
 	int i, res, ret = 0;
 
-	dev_dbg(dev, "%s(%d, %d, %luHz)\n", __func__, stream, id, aclk);
+	abox_dbg(dev, "%s(%d, %d, %luHz)\n", __func__, stream, id, aclk);
 
 	if (idx < 0) {
-		dev_err(dev, "%s(%d, %d): invalid idx: %d\n", __func__,
+		abox_err(dev, "%s(%d, %d): invalid idx: %d\n", __func__,
 				stream, id, idx);
 		return -EINVAL;
 	}
@@ -3488,12 +3514,6 @@ static int asrc_update_tick(struct abox_data *data, int stream, int id)
 
 	if ((itick == TICK_SYNC) && (otick == TICK_SYNC))
 		return 0;
-
-	res = snd_soc_component_read(cmpnt, reg, &val);
-	if (res < 0) {
-		dev_err(dev, "%s: read fail(%#x): %d\n", __func__, reg, res);
-		ret = res;
-	}
 
 	for (i = 0; i < ARRAY_SIZE(tick_table); i++) {
 		if (aclk > tick_table[i][0])
@@ -3515,8 +3535,8 @@ static int asrc_update_tick(struct abox_data *data, int stream, int id)
 	if (res < 0)
 		ret = res;
 
-	/* Todo: change it to dev_dbg() */
-	dev_info(dev, "asrc tick(%d, %d) aclk=%luHz: %d, %d\n",
+	/* Todo: change it to abox_dbg() */
+	abox_info(dev, "asrc tick(%d, %d) aclk=%luHz: %d, %d\n",
 			stream, id, aclk, ticknum, tickdiv);
 
 	return ret;
@@ -3532,13 +3552,16 @@ int abox_cmpnt_update_asrc_tick(struct device *adev)
 	if (!cmpnt)
 		return 0;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	for (stream = 0; stream <= SNDRV_PCM_STREAM_LAST; stream++) {
 		for (id = 0; id < asrc_get_num(stream); id++) {
-			res = asrc_update_tick(data, stream, id);
-			if (res < 0)
-				ret = res;
+			if (pm_runtime_get_if_in_use(dev) > 0) {
+				res = asrc_update_tick(data, stream, id);
+				if (res < 0)
+					ret = res;
+				pm_runtime_put(dev);
+			}
 		}
 	}
 
@@ -3560,17 +3583,17 @@ static int asrc_config_async(struct abox_data *data, int id, int stream,
 	struct asrc_ctrl ctrl;
 	int res, ret = 0;
 
-	dev_dbg(dev, "%s(%d, %d, %d, %uHz, %d, %uHz, %u, %ubit, %d)\n",
+	abox_dbg(dev, "%s(%d, %d, %d, %uHz, %d, %uHz, %u, %ubit, %d)\n",
 			__func__, id, stream, itick, isr,
 			otick, osr, s_default, width, apf_coef);
 
 	if ((itick == TICK_SYNC) == (otick == TICK_SYNC)) {
-		dev_err(dev, "%s: itick=%d otick=%d\n", __func__, itick, otick);
+		abox_err(dev, "%s: itick=%d otick=%d\n", __func__, itick, otick);
 		return -EINVAL;
 	}
 
 	if (s_default == 0) {
-		dev_err(dev, "invalid default\n");
+		abox_err(dev, "invalid default\n");
 		return -EINVAL;
 	}
 
@@ -3592,7 +3615,7 @@ static int asrc_config_async(struct abox_data *data, int id, int stream,
 		swap(ctrl.ifactor, ofactor);
 	}
 
-	dev_dbg(dev, "asrc(%d, %d): %d, %uHz, %d, %uHz, %d, %d, %u, %u, %u, %u\n",
+	abox_dbg(dev, "asrc(%d, %d): %d, %uHz, %d, %uHz, %d, %d, %u, %u, %u, %u\n",
 			stream, id, itick, ctrl.isr, otick, ctrl.osr,
 			1 << ctrl.ovsf, 1 << ctrl.dcmf, ctrl.ifactor, ofactor,
 			is_limit(ctrl.ifactor), os_limit(ofactor));
@@ -3687,8 +3710,8 @@ static int asrc_config_async(struct abox_data *data, int id, int stream,
 }
 
 static int asrc_config_sync(struct abox_data *data, int id, int stream,
-		unsigned int isr, unsigned int osr, unsigned int width,
-		int apf_coef)
+		unsigned int isr, unsigned int osr,
+		unsigned int width, int apf_coef)
 {
 	struct device *dev = data->dev;
 	struct snd_soc_component *cmpnt = data->cmpnt;
@@ -3697,7 +3720,7 @@ static int asrc_config_sync(struct abox_data *data, int id, int stream,
 	unsigned int reg, mask, val;
 	int res, ret = 0;
 
-	dev_dbg(dev, "%s(%d, %d, %uHz, %uHz, %ubit, %d)\n", __func__,
+	abox_dbg(dev, "%s(%d, %d, %uHz, %uHz, %ubit, %d)\n", __func__,
 			id, stream, isr, osr, width, apf_coef);
 
 	ctrl = &asrc_table[to_asrc_rate(isr)][to_asrc_rate(osr)];
@@ -3706,71 +3729,71 @@ static int asrc_config_sync(struct abox_data *data, int id, int stream,
 	mask = ABOX_ASRC_BIT_WIDTH_MASK;
 	val = ((width / 8) - 1) << ABOX_ASRC_BIT_WIDTH_L;
 	res = update_bits_async(dev, cmpnt, "width", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	mask = ABOX_ASRC_IS_SYNC_MODE_MASK;
 	val = 0 << ABOX_ASRC_IS_SYNC_MODE_L;
 	res = update_bits_async(dev, cmpnt, "is sync", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	mask = ABOX_ASRC_OS_SYNC_MODE_MASK;
 	val = 0 << ABOX_ASRC_OS_SYNC_MODE_L;
 	res = update_bits_async(dev, cmpnt, "os sync", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	mask = ABOX_ASRC_OVSF_RATIO_MASK;
 	val = ctrl->ovsf << ABOX_ASRC_OVSF_RATIO_L;
 	res = update_bits_async(dev, cmpnt, "ovsf ratio", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	mask = ABOX_ASRC_DCMF_RATIO_MASK;
 	val = ctrl->dcmf << ABOX_ASRC_DCMF_RATIO_L;
 	res = update_bits_async(dev, cmpnt, "dcmf ratio", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	mask = ABOX_ASRC_IS_SOURCE_SEL_MASK;
 	val = TICK_SYNC << ABOX_ASRC_IS_SOURCE_SEL_L;
 	res = update_bits_async(dev, cmpnt, "is source", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	mask = ABOX_ASRC_OS_SOURCE_SEL_MASK;
 	val = TICK_SYNC << ABOX_ASRC_OS_SOURCE_SEL_L;
 	res = update_bits_async(dev, cmpnt, "os source", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	reg = spus ? ABOX_SPUS_ASRC_IS_PARA0(id) : ABOX_SPUM_ASRC_IS_PARA0(id);
 	mask = ABOX_ASRC_IS_DEFAULT_MASK;
 	val = ctrl->ifactor;
 	res = update_bits_async(dev, cmpnt, "is default", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	reg = spus ? ABOX_SPUS_ASRC_IS_PARA1(id) : ABOX_SPUM_ASRC_IS_PARA1(id);
 	mask = ABOX_ASRC_IS_TPERIOD_LIMIT_MASK;
 	val = is_limit(val);
 	res = update_bits_async(dev, cmpnt, "is tperiod limit", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	reg = spus ? ABOX_SPUS_ASRC_OS_PARA0(id) : ABOX_SPUM_ASRC_OS_PARA0(id);
 	mask = ABOX_ASRC_OS_DEFAULT_MASK;
 	val = cal_ofactor(ctrl);
 	res = update_bits_async(dev, cmpnt, "os default", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	reg = spus ? ABOX_SPUS_ASRC_OS_PARA1(id) : ABOX_SPUM_ASRC_OS_PARA1(id);
 	mask = ABOX_ASRC_OS_TPERIOD_LIMIT_MASK;
 	val = os_limit(val);
 	res = update_bits_async(dev, cmpnt, "os tperiod limit", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
 		ret = res;
 
 	reg = spus ? ABOX_SPUS_ASRC_FILTER_CTRL(id) :
@@ -3778,7 +3801,11 @@ static int asrc_config_sync(struct abox_data *data, int id, int stream,
 	mask = ABOX_ASRC_APF_COEF_SEL_MASK;
 	val = apf_coef << ABOX_ASRC_APF_COEF_SEL_L;
 	res = update_bits_async(dev, cmpnt, "apf coef sel", reg, mask, val);
-	if (res != 0)
+	if (res < 0)
+		ret = res;
+
+	res = asrc_update_tick(data, stream, id);
+	if (res < 0)
 		ret = res;
 
 	snd_soc_component_async_complete(cmpnt);
@@ -3794,30 +3821,29 @@ static int asrc_config(struct abox_data *data, int id, int stream,
 	struct device *dev = data->dev;
 	int ret;
 
+	abox_info(dev, "%s(%d, %d, %d, %uHz, %d, %uHz, %ubit, %d)\n",
+			__func__, id, stream, itick, isr, otick, osr,
+			width, apf_coef);
+
 	if ((itick == TICK_SYNC) && (otick == TICK_SYNC)) {
-		ret = asrc_config_sync(data, id, stream, isr, osr, width,
-				apf_coef);
+		ret = asrc_config_sync(data, id, stream, isr, osr,
+				width, apf_coef);
 	} else {
 		if (itick == TICK_CP) {
 			ret = asrc_config_async(data, id, stream,
-					itick, isr, otick, osr, s_default,
-					width, apf_coef);
+					itick, isr, otick, osr,
+					s_default, width, apf_coef);
 		} else if (otick == TICK_CP) {
 			ret = asrc_config_async(data, id, stream,
-					itick, isr, otick, osr, s_default,
-					width, apf_coef);
+					itick, isr, otick, osr,
+					s_default, width, apf_coef);
 		} else {
-			dev_err(dev, "not supported\n");
+			abox_err(dev, "not supported\n");
 			ret = -EINVAL;
 		}
 	}
 
-	if (ret != 0)
-		dev_info(dev, "%s(%d, %d, %d, %uHz, %d, %uHz, %ubit, %d)\n",
-				__func__, id, stream, itick, isr, otick, osr,
-				width, apf_coef);
-
-	return (ret < 0) ? ret : 0;
+	return ret;
 }
 
 static int asrc_set(struct abox_data *data, int stream, int idx,
@@ -3832,12 +3858,12 @@ static int asrc_set(struct abox_data *data, int stream, int idx,
 	bool force_enable;
 	int on, ret;
 
-	dev_dbg(dev, "%s(%d, %d, %d, %uHz, %uHz, %ubit)\n", __func__,
+	abox_info(dev, "%s(%d, %d, %d, %uHz, %uHz, %ubit)\n", __func__,
 			stream, idx, channels, rate, tgt_rate, tgt_width);
 
 	ret = asrc_assign_id(w, stream, channels);
 	if (ret < 0)
-		dev_err(dev, "%s: assign failed: %d\n", __func__, ret);
+		abox_err(dev, "%s: assign failed: %d\n", __func__, ret);
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		force_enable = spus_asrc_force_enable[idx];
@@ -3855,7 +3881,7 @@ static int asrc_set(struct abox_data *data, int stream, int idx,
 				tgt_width, apf_coef);
 	}
 	if (ret < 0)
-		dev_err(dev, "%s: config failed: %d\n", __func__, ret);
+		abox_err(dev, "%s: config failed: %d\n", __func__, ret);
 
 	on = force_enable || (rate != tgt_rate) ||
 			(itick != TICK_SYNC) || (otick != TICK_SYNC);
@@ -3877,18 +3903,22 @@ static int asrc_event(struct snd_soc_dapm_widget *w, int e, int stream)
 	unsigned int rate = 0, width = 0, channels = 0;
 	int id, ret = 0;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, w->name, e);
+	abox_info(dev, "%s(%s, %d)\n", __func__, w->name, e);
 
 	switch (e) {
+	case 0x0:
+		/* special case internally defined in abox driver
+		 * fall-through
+		 */
 	case SND_SOC_DAPM_PRE_PMU:
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
 			dev_dma = data->dev_rdma[idx];
 		else
 			dev_dma = data->dev_wdma[idx];
 
-		ret = abox_dma_hw_params_fixup(dev_dma, NULL, &params);
+		ret = abox_dma_hw_params_fixup(dev_dma, &params);
 		if (ret < 0) {
-			dev_err(dev_dma, "hw params get failed: %d\n", ret);
+			abox_err(dev_dma, "hw params get failed: %d\n", ret);
 			break;
 		}
 
@@ -3896,7 +3926,7 @@ static int asrc_event(struct snd_soc_dapm_widget *w, int e, int stream)
 		width = params_width(&params);
 		channels = params_channels(&params);
 		if (!rate || !width || !channels) {
-			dev_err(dev_dma, "hw params invalid: %u %u %u\n",
+			abox_err(dev_dma, "hw params invalid: %u %u %u\n",
 					rate, width, channels);
 			ret = -EINVAL;
 			break;
@@ -3904,20 +3934,19 @@ static int asrc_event(struct snd_soc_dapm_widget *w, int e, int stream)
 
 		dai_dma = abox_dma_get_dai(dev_dma, DMA_DAI_PCM);
 		if (IS_ERR_OR_NULL(dai_dma)) {
-			dev_err(dev_dma, "dai get failed: %ld\n",
+			abox_err(dev_dma, "dai get failed: %ld\n",
 					PTR_ERR(dai_dma));
 			break;
 		}
 
 		tgt_params = params;
-		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-			ret = rdma_hw_params_fixup(dai_dma, &tgt_params,
-					stream);
-		else
-			ret = wdma_hw_params_fixup(dai_dma, &tgt_params,
-					stream);
+		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			ret = rdma_hw_params_fixup(dai_dma, &tgt_params);
+		} else {
+			ret = wdma_hw_params_fixup(dai_dma, &tgt_params);
+		}
 		if (ret < 0)
-			dev_err(dev_dma, "hw params fixup failed: %d\n", ret);
+			abox_err(dev_dma, "hw params fixup failed: %d\n", ret);
 
 		tgt_rate = params_rate(&tgt_params);
 		tgt_width = params_width(&tgt_params);
@@ -3925,14 +3954,15 @@ static int asrc_event(struct snd_soc_dapm_widget *w, int e, int stream)
 		ret = asrc_set(data, stream, idx, channels, rate, tgt_rate,
 				tgt_width);
 		if (ret < 0)
-			dev_err(dev, "%s: set failed: %d\n", __func__, ret);
+			abox_err(dev, "%s: set failed: %d\n", __func__, ret);
+
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		/* ASRC will be released in DMA stop. */
 		break;
 	}
 
-	if (asrc_get_active(data->cmpnt, idx, stream)) {
+	if (asrc_get_active(data->cmpnt, idx, stream) && e) {
 		id = asrc_get_id(data->cmpnt, idx, stream);
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
 			notify_event(data, ABOX_WIDGET_SPUS_ASRC0 + id, e);
@@ -3955,7 +3985,7 @@ static int spum_asrc_event(struct snd_soc_dapm_widget *w,
 	return asrc_event(w, e, SNDRV_PCM_STREAM_CAPTURE);
 }
 
-static const char * const spus_inx_texts[] = {
+static const char *const spus_inx_texts[] = {
 	"RDMA", "SIFSM", "RESERVED", "SIFST",
 };
 static SOC_ENUM_SINGLE_DECL(spus_in0_enum, ABOX_SPUS_CTRL_FC0,
@@ -4111,10 +4141,10 @@ int abox_cmpnt_sifsm_prepare(struct device *dev, struct abox_data *data,
 {
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	enum abox_dai src;
-	unsigned int reg_val, val;
+	unsigned int reg, reg_val, val;
 	int idx, ret = 0;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	switch (get_source_dai_id(data, dai)) {
 	case ABOX_SIFSM:
@@ -4132,11 +4162,8 @@ int abox_cmpnt_sifsm_prepare(struct device *dev, struct abox_data *data,
 		switch (src) {
 		case ABOX_UAIF0 ... ABOX_UAIF6:
 			idx = src - ABOX_UAIF0;
-			ret = snd_soc_component_read(cmpnt,
-					ABOX_UAIF_CTRL1(idx), &reg_val);
-			if (ret < 0)
-				break;
-
+			reg = ABOX_UAIF_CTRL1(idx);
+			reg_val = snd_soc_component_read(cmpnt, reg);
 			val = (reg_val & ABOX_FORMAT_MASK) >> ABOX_FORMAT_L;
 			ret = snd_soc_component_update_bits(cmpnt,
 					ABOX_SIDETONE_CTRL,
@@ -4145,11 +4172,7 @@ int abox_cmpnt_sifsm_prepare(struct device *dev, struct abox_data *data,
 			break;
 		case ABOX_BI_PDI0 ... ABOX_BI_PDI3:
 			idx = src - ABOX_BI_PDI0;
-			ret = snd_soc_component_read(cmpnt, ABOX_SW_PDI_CTRL0,
-					&reg_val);
-			if (ret < 0)
-				break;
-
+			reg_val = snd_soc_component_read(cmpnt, ABOX_SW_PDI_CTRL0);
 			val = (reg_val & ABOX_BI_PDI_FORMAT_MASK(idx)) >>
 					ABOX_BI_PDI_FORMAT_L(idx);
 			ret = snd_soc_component_update_bits(cmpnt,
@@ -4159,11 +4182,7 @@ int abox_cmpnt_sifsm_prepare(struct device *dev, struct abox_data *data,
 			break;
 		case ABOX_BI_PDI4 ... ABOX_BI_PDI7:
 			idx = src - ABOX_BI_PDI4;
-			ret = snd_soc_component_read(cmpnt, ABOX_SW_PDI_CTRL1,
-					&reg_val);
-			if (ret < 0)
-				break;
-
+			reg_val = snd_soc_component_read(cmpnt, ABOX_SW_PDI_CTRL1);
 			val = (reg_val & ABOX_BI_PDI_FORMAT_MASK(idx)) >>
 					ABOX_BI_PDI_FORMAT_L(idx);
 			ret = snd_soc_component_update_bits(cmpnt,
@@ -4173,11 +4192,7 @@ int abox_cmpnt_sifsm_prepare(struct device *dev, struct abox_data *data,
 			break;
 		case ABOX_TX_PDI0 ... ABOX_TX_PDI2:
 			idx = src - ABOX_TX_PDI0;
-			ret = snd_soc_component_read(cmpnt, ABOX_SW_PDI_CTRL2,
-					&reg_val);
-			if (ret < 0)
-				break;
-
+			reg_val = snd_soc_component_read(cmpnt, ABOX_SW_PDI_CTRL2);
 			val = (reg_val & ABOX_TX_PDI_FORMAT_MASK(idx)) >>
 					ABOX_TX_PDI_FORMAT_L(idx);
 			ret = snd_soc_component_update_bits(cmpnt,
@@ -4187,11 +4202,7 @@ int abox_cmpnt_sifsm_prepare(struct device *dev, struct abox_data *data,
 			break;
 		case ABOX_RX_PDI0 ... ABOX_RX_PDI1:
 			idx = src - ABOX_RX_PDI0;
-			ret = snd_soc_component_read(cmpnt, ABOX_SW_PDI_CTRL3,
-					&reg_val);
-			if (ret < 0)
-				break;
-
+			reg_val = snd_soc_component_read(cmpnt, ABOX_SW_PDI_CTRL3);
 			val = (reg_val & ABOX_RX_PDI_FORMAT_MASK(idx)) >>
 					ABOX_RX_PDI_FORMAT_L(idx);
 			ret = snd_soc_component_update_bits(cmpnt,
@@ -4212,7 +4223,7 @@ int abox_cmpnt_sifsm_prepare(struct device *dev, struct abox_data *data,
 	return ret;
 }
 
-static const char * const sidetone_mode_texts[] = {
+static const char *const sidetone_mode_texts[] = {
 	"Normal", "Zero", "Bypass",
 };
 static SOC_ENUM_SINGLE_DECL(sidetone_mode, ABOX_SIDETONE_CTRL,
@@ -4220,7 +4231,7 @@ static SOC_ENUM_SINGLE_DECL(sidetone_mode, ABOX_SIDETONE_CTRL,
 
 static DECLARE_TLV_DB_LINEAR(sidetone_gain_tlv, 0, 3600);
 
-static const char * const sidetone_headroom_hpf_texts[] = {
+static const char *const sidetone_headroom_hpf_texts[] = {
 	"6dB", "12dB", "18dB", "24dB",
 };
 static const unsigned int sidetone_headroom_hpf_values[] = {
@@ -4231,7 +4242,7 @@ static SOC_VALUE_ENUM_SINGLE_DECL(sidetone_headroom_hpf,
 		ABOX_SDTN_HEADROOM_HPF_MASK, sidetone_headroom_hpf_texts,
 		sidetone_headroom_hpf_values);
 
-static const char * const sidetone_headroom_eq_texts[] = {
+static const char *const sidetone_headroom_eq_texts[] = {
 	"12dB", "18dB", "24dB",
 };
 static const unsigned int sidetone_headroom_eq_values[] = {
@@ -4260,11 +4271,11 @@ static SOC_VALUE_ENUM_SINGLE_DECL(sidetone_headroom_highsh,
 
 static struct snd_kcontrol_new sidetone_controls[] = {
 	SOC_SINGLE("SIDETONE IN CH", ABOX_SIDETONE_CTRL,
-			ABOX_SDTN_CH_SEL_IN_L, 1, 0),
+			ABOX_SDTN_CH_SEL_IN_L, 7, 0),
 	SOC_SINGLE("SIDETONE OUT CH", ABOX_SIDETONE_CTRL,
-			ABOX_SDTN_CH_SEL_OUT_L, 1, 0),
+			ABOX_SDTN_CH_SEL_OUT_L, 7, 0),
 	SOC_SINGLE("SIDETONE OUT2 CH", ABOX_SIDETONE_CTRL,
-			ABOX_SDTN_CH_SEL_OUT2_L, 1, 0),
+			ABOX_SDTN_CH_SEL_OUT2_L, 7, 0),
 	SOC_SINGLE("SIDETONE OUT2 EN", ABOX_SIDETONE_CTRL,
 			ABOX_SDTN_OUT2_ENABLE_L, 1, 0),
 	SOC_ENUM("SIDETONE MODE", sidetone_mode),
@@ -4365,7 +4376,7 @@ static const struct snd_soc_dapm_route sidetone_routes[] = {
 	{"SIFST", NULL, "SIDETONE"},
 };
 
-static const char * const sifsx_texts[] = {
+static const char *const sifsx_texts[] = {
 	"SPUS OUT0", "SPUS OUT1", "SPUS OUT2", "SPUS OUT3",
 	"SPUS OUT4", "SPUS OUT5", "SPUS OUT6", "SPUS OUT7",
 	"SPUS OUT8", "SPUS OUT9", "SPUS OUT10", "SPUS OUT11",
@@ -4416,7 +4427,7 @@ static const struct snd_kcontrol_new sifs5_out_controls[] = {
 	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
 };
 
-static const char * const sifsm_texts[] = {
+static const char *const sifsm_texts[] = {
 	"SPUS IN0", "SPUS IN1", "SPUS IN2", "SPUS IN3",
 	"SPUS IN4", "SPUS IN5", "SPUS IN6", "SPUS IN7",
 	"SPUS IN8", "SPUS IN9", "SPUS IN10", "SPUS IN11",
@@ -4434,7 +4445,7 @@ static const struct snd_kcontrol_new sifst_controls[] = {
 	SOC_DAPM_ENUM("DEMUX", sifst_enum),
 };
 
-static const char * const uaif_spkx_texts[] = {
+static const char *const uaif_spkx_texts[] = {
 	"RESERVED", "SIFS0", "SIFS1", "SIFS2",
 	"SIFS3", "SIFS4", "SIFS5", "RESERVED",
 	"RESERVED", "RESERVED", "RESERVED", "RESERVED",
@@ -4476,8 +4487,9 @@ static const struct snd_kcontrol_new uaif6_spk_controls[] = {
 	SOC_DAPM_ENUM("MUX", uaif6_spk_enum),
 };
 
-static const char * const dsif_spk_texts[] = {
-	"RESERVED", "RESERVED", "SIFS1", "SIFS2", "SIFS3", "SIFS4", "SIFS5",
+static const char *const dsif_spk_texts[] = {
+	"RESERVED", "RESERVED", "SIFS1", "SIFS2",
+	"SIFS3", "SIFS4", "SIFS5",
 };
 static SOC_ENUM_SINGLE_DECL(dsif_spk_enum, ABOX_ROUTE_CTRL0, ABOX_ROUTE_DSIF_L,
 		dsif_spk_texts);
@@ -4564,23 +4576,13 @@ static SOC_ENUM_SINGLE_DECL(nsrc4_enum, ABOX_ROUTE_CTRL1, ABOX_ROUTE_NSRC_L(4),
 static const struct snd_kcontrol_new nsrc4_controls[] = {
 	SOC_DAPM_ENUM("DEMUX", nsrc4_enum),
 };
-static SOC_ENUM_SINGLE_DECL(nsrc5_enum, ABOX_ROUTE_CTRL1, ABOX_ROUTE_NSRC_L(5),
-		nsrcx_texts);
-static const struct snd_kcontrol_new nsrc5_controls[] = {
-	SOC_DAPM_ENUM("DEMUX", nsrc5_enum),
-};
-static SOC_ENUM_SINGLE_DECL(nsrc6_enum, ABOX_ROUTE_CTRL1, ABOX_ROUTE_NSRC_L(6),
-		nsrcx_texts);
-static const struct snd_kcontrol_new nsrc6_controls[] = {
-	SOC_DAPM_ENUM("DEMUX", nsrc6_enum),
-};
 
 static const struct snd_kcontrol_new recp_controls[] = {
 	SOC_DAPM_SINGLE("PIFS0", ABOX_SPUM_CTRL1, ABOX_RECP_SRC_VALID_L, 1, 0),
 	SOC_DAPM_SINGLE("PIFS1", ABOX_SPUM_CTRL1, ABOX_RECP_SRC_VALID_H, 1, 0),
 };
 
-static const char * const sifmx_texts[] = {
+static const char *const sifmx_texts[] = {
 	"WDMA", "SIFMS",
 };
 static SOC_ENUM_SINGLE_DECL(sifm0_enum, ABOX_SPUM_CTRL0,
@@ -4620,8 +4622,7 @@ static const struct snd_kcontrol_new sifm6_controls[] = {
 };
 
 static const char * const sifms_texts[] = {
-	"RESERVED", "SIFM0", "SIFM1", "SIFM2",
-	"SIFM3", "SIFM4", "SIFM5", "SIFM6",
+	"SIFM0", "SIFM1", "SIFM2", "SIFM3", "SIFM4",
 };
 static SOC_ENUM_SINGLE_DECL(sifms_enum, ABOX_SPUM_CTRL1, ABOX_SIFMS_OUT_SEL_L,
 		sifms_texts);
@@ -4839,6 +4840,15 @@ static const struct snd_soc_dapm_widget cmpnt_widgets[] = {
 	SND_SOC_DAPM_MUX_E("SIFS5", SND_SOC_NOPM, 0, 0, sifs5_controls,
 			sifs5_event,
 			SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
+
+	SND_SOC_DAPM_MIXER("STMIX", SND_SOC_NOPM, 0, 0, NULL, 0),
+
+	SND_SOC_DAPM_PGA("SIFS0 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("SIFS1 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("SIFS2 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("SIFS3 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("SIFS4 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("SIFS5 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
 
 	SND_SOC_DAPM_SWITCH("SIFS0 OUT", SND_SOC_NOPM, 0, 0,
 			sifs0_out_controls),
@@ -5362,7 +5372,7 @@ static int cmpnt_probe(struct snd_soc_component *cmpnt)
 	struct abox_data *data = dev_get_drvdata(dev);
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	snd_soc_component_init_regmap(cmpnt, data->regmap);
 
@@ -5391,32 +5401,12 @@ static int cmpnt_probe(struct snd_soc_component *cmpnt)
 
 	snd_soc_dapm_add_routes(dapm, sidetone_routes,
 			ARRAY_SIZE(sidetone_routes));
-	if (cmpnt->name_prefix) {
-		struct snd_soc_dapm_route *routes;
-		int i, num = ARRAY_SIZE(sidetone_routes);
-
-		routes = kmemdup(sidetone_routes, sizeof(sidetone_routes),
-				GFP_KERNEL);
-		for (i = 0; i < num; i++) {
-			routes[i].sink = kasprintf(GFP_KERNEL, "%s %s",
-					cmpnt->name_prefix, routes[i].sink);
-			routes[i].source = kasprintf(GFP_KERNEL, "%s %s",
-					cmpnt->name_prefix, routes[i].source);
-		}
-
-		snd_soc_dapm_weak_routes(dapm, routes, num);
-
-		for (i = 0; i < num; i++) {
-			kfree(routes[i].sink);
-			kfree(routes[i].source);
-		}
-		kfree(routes);
-	} else {
-		snd_soc_dapm_weak_routes(dapm, sidetone_routes,
-				ARRAY_SIZE(sidetone_routes));
-	}
+	snd_soc_dapm_weak_routes(dapm, sidetone_routes,
+			ARRAY_SIZE(sidetone_routes));
 
 	data->cmpnt = cmpnt;
+
+	abox_add_extra_firmware_controls(data);
 
 	/* vdma and dump are initialized in abox component probe
 	 * to set vdma to sound card 1 and dump to sound card 2.
@@ -5424,7 +5414,7 @@ static int cmpnt_probe(struct snd_soc_component *cmpnt)
 	abox_vdma_register_card(dev);
 	abox_dump_init(dev);
 
-	wakeup_source_init(&data->ws, "abox");
+	data->ws = wakeup_source_register(NULL, "abox");
 
 	return 0;
 }
@@ -5434,9 +5424,9 @@ static void cmpnt_remove(struct snd_soc_component *cmpnt)
 	struct device *dev = cmpnt->dev;
 	struct abox_data *data = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	wakeup_source_trash(&data->ws);
+	wakeup_source_unregister(data->ws);
 }
 
 static const struct snd_soc_component_driver abox_cmpnt_drv = {
@@ -5452,7 +5442,8 @@ static const struct snd_soc_component_driver abox_cmpnt_drv = {
 };
 
 int abox_cmpnt_adjust_sbank(struct abox_data *data,
-		enum abox_dai id, struct snd_pcm_hw_params *params)
+		enum abox_dai id, struct snd_pcm_hw_params *params,
+		unsigned int sbank_size)
 {
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	unsigned int time, size, reg, val;
@@ -5488,10 +5479,6 @@ int abox_cmpnt_adjust_sbank(struct abox_data *data,
 	case ABOX_RDMA11_BE:
 		reg = ABOX_SPUS_SBANK_RDMA(id - ABOX_RDMA0_BE);
 		break;
-	case ABOX_RSRC0:
-	case ABOX_RSRC1:
-		reg = ABOX_SPUM_SBANK_RSRC(id - ABOX_RSRC0);
-		break;
 	case ABOX_NSRC0:
 	case ABOX_NSRC1:
 	case ABOX_NSRC2:
@@ -5508,7 +5495,10 @@ int abox_cmpnt_adjust_sbank(struct abox_data *data,
 
 	time = hw_param_interval_c(params, SNDRV_PCM_HW_PARAM_PERIOD_TIME)->min;
 	time /= 1000;
-	if (time <= 10)
+
+	if (sbank_size >= SZ_16 && sbank_size <= SZ_512)
+		size = sbank_size;
+	else if (time <= 10)
 		size = SZ_128;
 	else
 		size = SZ_512;
@@ -5516,26 +5506,27 @@ int abox_cmpnt_adjust_sbank(struct abox_data *data,
 	/* Sbank size unit is 16byte(= 4 shifts) */
 	val = size << (ABOX_SBANK_SIZE_L - 4);
 
-	dev_info(cmpnt->dev, "%s(%#x, %ums): %u\n", __func__, id, time, size);
-
 	ret = snd_soc_component_update_bits(cmpnt, reg, mask, val);
 	if (ret < 0) {
-		dev_err(cmpnt->dev, "sbank write error: %d\n", ret);
+		abox_err(cmpnt->dev, "sbank write error: %d\n", ret);
 		return ret;
+	} else if (ret > 0) {
+		abox_info(cmpnt->dev, "%s(%#x, %ums): %u\n", __func__, id, time, size);
 	}
 
 	return size;
 }
 
-int abox_cmpnt_reset_cnt_val(struct device *dev,
-		struct snd_soc_component *cmpnt, enum abox_dai id)
+int abox_cmpnt_reset_cnt_val(struct abox_data *data, enum abox_dai id)
 {
+	struct device *dev = data->dev;
+	struct snd_soc_component *cmpnt = data->cmpnt;
 	unsigned int idx, val, sifs_id;
 	int ret = 0;
 
-	dev_dbg(dev, "%s(%#x)\n", __func__, id);
+	abox_dbg(dev, "%s(%#x)\n", __func__, id);
 
-	ret = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL0, &val);
+	val = snd_soc_component_read(cmpnt, ABOX_ROUTE_CTRL0);
 	if (ret < 0)
 		return ret;
 
@@ -5564,10 +5555,11 @@ int abox_cmpnt_reset_cnt_val(struct device *dev,
 				ABOX_SPUS_CTRL_SIFS_CNT(sifs_id), 0);
 		if (ret < 0)
 			return ret;
-		dev_info(dev, "reset sifs%d_cnt_val\n", sifs_id);
+		abox_info(dev, "reset sifs%d_cnt_val\n", sifs_id);
 	}
 
 	return ret;
+
 }
 
 static int sifs_hw_params(struct snd_pcm_substream *substream,
@@ -5580,7 +5572,7 @@ static int sifs_hw_params(struct snd_pcm_substream *substream,
 	if (substream->stream != SNDRV_PCM_STREAM_CAPTURE)
 		goto out;
 
-	ret = set_cnt_val(data, dai, params);
+	ret = set_cnt_val(data, dai->id, params);
 out:
 	return ret;
 }
@@ -5602,7 +5594,7 @@ static int src_hw_params(struct snd_pcm_substream *substream,
 
 	dev_dbg(dev, "%s[%#x]\n", __func__, id);
 
-	ret = abox_cmpnt_adjust_sbank(data, id, params);
+	ret = abox_cmpnt_adjust_sbank(data, id, params, 0);
 	if (ret < 0)
 		return ret;
 
@@ -6003,13 +5995,14 @@ int abox_cmpnt_update_cnt_val(struct device *adev)
 }
 
 int abox_cmpnt_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
-		struct snd_pcm_hw_params *params, int stream)
+		struct snd_pcm_hw_params *params)
 {
-	struct snd_soc_dai *dai = rtd->cpu_dai;
+	struct snd_soc_dai *dai = asoc_rtd_to_cpu(rtd, 0);
 	struct device *dev = dai->dev;
+	struct abox_data *data;
 	int ret;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, dai->name, stream);
+	abox_dbg(dev, "%s(%s)\n", __func__, dai->name);
 
 	switch (dai->id) {
 	case ABOX_RDMA0:
@@ -6024,7 +6017,7 @@ int abox_cmpnt_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
 	case ABOX_RDMA9:
 	case ABOX_RDMA10:
 	case ABOX_RDMA11:
-		ret = rdma_hw_params_fixup(dai, params, stream);
+		ret = rdma_hw_params_fixup(dai, params);
 		break;
 	case ABOX_UAIF0:
 	case ABOX_UAIF1:
@@ -6034,7 +6027,7 @@ int abox_cmpnt_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
 	case ABOX_UAIF5:
 	case ABOX_UAIF6:
 	case ABOX_SPDY:
-		ret = abox_if_hw_params_fixup(dai, params, stream);
+		ret = abox_if_hw_params_fixup(dai, params);
 		break;
 	case ABOX_SIFS0:
 	case ABOX_SIFS1:
@@ -6042,10 +6035,10 @@ int abox_cmpnt_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
 	case ABOX_SIFS3:
 	case ABOX_SIFS4:
 	case ABOX_SIFS5:
-		ret = sifs_hw_params_fixup(dai, params, stream);
+		/* deprecated call-path */
+		data = dev_get_drvdata(dev);
+		ret = sifs_hw_params_fixup(data, dai->id, params);
 		break;
-	case ABOX_RSRC0:
-	case ABOX_RSRC1:
 	case ABOX_NSRC0:
 	case ABOX_NSRC1:
 	case ABOX_NSRC2:
@@ -6054,7 +6047,9 @@ int abox_cmpnt_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
 	case ABOX_NSRC5:
 	case ABOX_NSRC6:
 	case ABOX_NSRC7:
-		ret = sifm_hw_params_fixup(dai, params, stream);
+		/* deprecated call-path */
+		data = dev_get_drvdata(dev);
+		ret = sifm_hw_params_fixup(data, dai->id, params);
 		break;
 	case ABOX_RDMA0_BE:
 	case ABOX_RDMA1_BE:
@@ -6068,7 +6063,7 @@ int abox_cmpnt_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
 	case ABOX_RDMA9_BE:
 	case ABOX_RDMA10_BE:
 	case ABOX_RDMA11_BE:
-		ret = rdma_be_hw_params_fixup(rtd, params, stream);
+		ret = rdma_be_hw_params_fixup(rtd, params);
 		break;
 	case ABOX_WDMA0_BE:
 	case ABOX_WDMA1_BE:
@@ -6078,10 +6073,10 @@ int abox_cmpnt_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
 	case ABOX_WDMA5_BE:
 	case ABOX_WDMA6_BE:
 	case ABOX_WDMA7_BE:
-		ret = wdma_be_hw_params_fixup(rtd, params, stream);
+		ret = wdma_be_hw_params_fixup(rtd, params);
 		break;
 	default:
-		dev_err(dev, "invalid hw_params fixup request\n");
+		abox_err(dev, "invalid hw_params fixup request\n");
 		ret = -EINVAL;
 		break;
 	}
@@ -6140,7 +6135,7 @@ int abox_cmpnt_register_if(struct device *dev_abox,
 	int ret;
 
 	if (id >= ARRAY_SIZE(data->dev_if)) {
-		dev_err(dev, "%s: invalid id(%u)\n", __func__, id);
+		abox_err(dev, "%s: invalid id(%u)\n", __func__, id);
 		return -EINVAL;
 	}
 
@@ -6210,7 +6205,7 @@ int abox_cmpnt_register_rdma(struct device *dev_abox,
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 
 	if (id >= ARRAY_SIZE(data->dev_rdma)) {
-		dev_err(dev, "%s: invalid id(%u)\n", __func__, id);
+		abox_err(dev, "%s: invalid id(%u)\n", __func__, id);
 		return -EINVAL;
 	}
 
@@ -6264,7 +6259,7 @@ int abox_cmpnt_register_wdma(struct device *dev_abox,
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 
 	if (id >= ARRAY_SIZE(data->dev_wdma)) {
-		dev_err(dev, "%s: invalid id(%u)\n", __func__, id);
+		abox_err(dev, "%s: invalid id(%u)\n", __func__, id);
 		return -EINVAL;
 	}
 
@@ -6280,7 +6275,7 @@ int abox_cmpnt_restore(struct device *adev)
 	struct abox_data *data = dev_get_drvdata(adev);
 	int i;
 
-	dev_dbg(adev, "%s\n", __func__);
+	abox_dbg(adev, "%s\n", __func__);
 
 	for (i = SET_SIFS0_RATE; i <= SET_PIFS0_RATE; i++)
 		rate_put_ipc(adev, data->sif_rate[sif_idx(i)], i);

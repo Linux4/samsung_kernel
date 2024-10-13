@@ -563,7 +563,11 @@ void handle_klogbuf_out_string(int level, struct device *dev, int tag,
 {
 	if (IS_PRINTK_REDIRECT_ALLOWED(force, level, tag)) {
 		if (!dev)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+			vprintk_emit(0, level, NULL, fmt, args);
+#else
 			vprintk_emit(0, level, NULL, 0, fmt, args);
+#endif
 		else
 			dev_vprintk_emit(level, dev, fmt, args);
 	}

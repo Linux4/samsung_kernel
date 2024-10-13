@@ -19,7 +19,7 @@
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
@@ -39,7 +39,6 @@
 #include "is-cis-gc5035.h"
 #include "is-cis-gc5035-setA.h"
 #include "is-cis-gc5035-setB.h"
-#include "is-cis-gc5035-setC.h"
 
 #include "is-helper-i2c.h"
 #include "is-vender-specific.h"
@@ -56,7 +55,7 @@
 static const struct v4l2_subdev_ops subdev_ops;
 
 #if defined(CONFIG_VENDER_MCD_V2)
-extern const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX];
+//extern const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX];
 #endif
 
 static const u32 *sensor_gc5035_global;
@@ -846,10 +845,6 @@ static int sensor_gc5035_cis_dpc_enable(struct v4l2_subdev *subdev) {
 			info("%s dpc_setfile_B\n", __func__);
 			sensor_gc5035_setfiles = sensor_gc5035_dpc_setfiles_B;
 			sensor_gc5035_setfile_sizes = sensor_gc5035_dpc_setfile_B_sizes;
-		} else if (strcmp(setfile, "setC") == 0) {
-			info("%s dpc_setfile_C\n", __func__);
-			sensor_gc5035_setfiles = sensor_gc5035_dpc_setfiles_C;
-			sensor_gc5035_setfile_sizes = sensor_gc5035_dpc_setfile_C_sizes;
 		} else {
 			err("%s setfile index out of bound, take default (dpc_setfile_A)", __func__);
 			sensor_gc5035_setfiles = sensor_gc5035_dpc_setfiles_A;
@@ -989,7 +984,7 @@ int sensor_gc5035_cis_set_global_setting(struct v4l2_subdev *subdev)
 		setfile = "default";
 	}
 
-	if (strcmp(setfile, "setC") == 0) {
+	if (strcmp(setfile, "setB") == 0) {
 		ret = sensor_cis_set_registers_addr8(subdev, sensor_gc5035_image_direction_setting, sensor_gc5035_image_direction_setting_size);
 		if (ret < 0) {
 			err("sensor_gc5035_image_direction_setting fail!!");
@@ -2317,11 +2312,6 @@ int cis_gc5035_probe(struct i2c_client *client,
 	u32 sensor_id = 0;
 	char const *setfile;
 
-#if defined(CONFIG_VENDER_MCD_V2) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_REAR)
-	struct is_vender_specific *specific = NULL;
-	u32 rom_position = 0;
-#endif
-
 	FIMC_BUG(!client);
 	FIMC_BUG(!is_dev);
 
@@ -2370,38 +2360,6 @@ int cis_gc5035_probe(struct i2c_client *client,
 	cis->device = sensor_id;
 	cis->client = client;
 	sensor_peri->module->client = cis->client;
-
-#if defined(CONFIG_VENDER_MCD_V2)
-	if (of_property_read_bool(dnode, "use_sensor_otp")) {
-		ret = of_property_read_u32(dnode, "rom_position", &rom_position);
-		if (ret) {
-			err("sensor_id read is fail(%d)", ret);
-		} else {
-			specific = core->vender.private_data;
-			specific->rom_client[rom_position] = cis->client;
-			specific->rom_data[rom_position].rom_type = ROM_TYPE_OTPROM;
-			specific->rom_data[rom_position].rom_valid = true;
-
-			if (vender_rom_addr[rom_position]) {
-				specific->rom_cal_map_addr[rom_position] = vender_rom_addr[rom_position];
-				probe_info("%s: rom_id=%d, OTP Registered\n", __func__, rom_position);
-			} else {
-				probe_info("%s: GC5035 OTP addrress not defined!\n", __func__);
-			}
-		}
-	}
-#else
-#if defined(CONFIG_VENDER_MCD) && defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT)
-	rom_position = 0;
-	specific = core->vender.private_data;
-	specific->front_cis_client = client;
-#endif
-#if defined(CONFIG_VENDER_MCD) && defined(CONFIG_CAMERA_OTPROM_SUPPORT_REAR)
-	rom_position = 0;
-	specific = core->vender.private_data;
-	specific->rear_cis_client = client;
-#endif
-#endif
 
 	cis->ctrl_delay = N_PLUS_TWO_FRAME;
 
@@ -2474,26 +2432,9 @@ int cis_gc5035_probe(struct i2c_client *client,
 		sensor_gc5035_dpc_init_setting_size = ARRAY_SIZE(sensor_gc5035_setfile_B_Otp_Read_Initial_Setting);
 		sensor_gc5035_dpc_function_enable = sensor_gc5035_setfile_B_DPC_Function_Enable;
 		sensor_gc5035_dpc_function_enable_size = ARRAY_SIZE(sensor_gc5035_setfile_B_DPC_Function_Enable);
-	} else if (strcmp(setfile, "setC") == 0) {
-		probe_info("%s setfile_C\n", __func__);
-		sensor_gc5035_global = sensor_gc5035_setfile_C_Global;
-		sensor_gc5035_global_size = ARRAY_SIZE(sensor_gc5035_setfile_C_Global);
-		sensor_gc5035_setfiles = sensor_gc5035_setfiles_C;
-		sensor_gc5035_setfile_sizes = sensor_gc5035_setfile_C_sizes;
-		sensor_gc5035_pllinfos = sensor_gc5035_pllinfos_C;
-		sensor_gc5035_max_setfile_num = ARRAY_SIZE(sensor_gc5035_setfiles_C);
-		sensor_gc5035_fsync_master = sensor_gc5035_setfile_C_Fsync_Master;
-		sensor_gc5035_fsync_master_size = ARRAY_SIZE(sensor_gc5035_setfile_C_Fsync_Master);
-		sensor_gc5035_fsync_slave = sensor_gc5035_setfile_C_Fsync_Slave;
-		sensor_gc5035_fsync_slave_size = ARRAY_SIZE(sensor_gc5035_setfile_C_Fsync_Slave);
-		sensor_gc5035_dpc_init_setting = sensor_gc5035_setfile_C_Otp_Read_Initial_Setting;
-		sensor_gc5035_dpc_init_setting_size = ARRAY_SIZE(sensor_gc5035_setfile_C_Otp_Read_Initial_Setting);
-		sensor_gc5035_dpc_function_enable = sensor_gc5035_setfile_C_DPC_Function_Enable;
-		sensor_gc5035_dpc_function_enable_size = ARRAY_SIZE(sensor_gc5035_setfile_C_DPC_Function_Enable);
-		sensor_gc5035_image_direction_setting = sensor_gc5035_setfile_C_Image_Direction_Setting;
-		sensor_gc5035_image_direction_setting_size = ARRAY_SIZE(sensor_gc5035_setfile_C_Image_Direction_Setting);
-
-		/* setfile C is for B_First Bayer Order so update*/
+		sensor_gc5035_image_direction_setting = sensor_gc5035_setfile_B_Image_Direction_Setting;
+		sensor_gc5035_image_direction_setting_size = ARRAY_SIZE(sensor_gc5035_setfile_B_Image_Direction_Setting);
+		/* setfile B is for B_First Bayer Order so update*/
 		probe_info("%s update bayer order to B_FIRST\n", __func__);
 		cis->bayer_order = OTF_INPUT_ORDER_BAYER_BG_GR;
 	} else {

@@ -407,7 +407,7 @@ struct ect_info
 	int block_precedence;
 };
 
-#if defined(CONFIG_ECT)
+#if defined(CONFIG_ECT) || defined(CONFIG_ECT_MODULE)
 void ect_init(phys_addr_t address, phys_addr_t size);
 int ect_parse_binary_header(void);
 void* ect_get_block(char *block_name);

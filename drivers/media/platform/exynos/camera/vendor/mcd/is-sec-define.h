@@ -20,14 +20,13 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <video/videonode.h>
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 #include <linux/syscalls.h>
@@ -92,7 +91,8 @@
 #define FW_MODULE_COMPANY_DI		'D'
 
 #define FW_2L4_L		"L12XL"		/* BSS DNS */
-#define FW_2LD_L		"M12XL"		/* PST */
+#define FW_2LD_L		"R12LL"		/* HST1 HST2 */
+#define FW_HM1_L		"SA8XL"		/* HST3 */
 #define FW_3J1_X		"X10LL"		/* BSS DNS PST */
 
 #define SDCARD_FW
@@ -104,6 +104,7 @@
 /* Rear setfile */
 #define IS_2L4_SETF			"setfile_2l4.bin"
 #define IS_2LD_SETF			"setfile_2ld.bin"
+#define IS_HM1_SETF			"setfile_hm1.bin"
 #define IS_3M3_SETF			"setfile_3m3.bin"
 #define IS_3M5_SETF			"setfile_3m5.bin"
 
@@ -117,6 +118,7 @@
 #define IS_KEY_FROM_SDCARD		"/data/media/0/1q2w3e4r.key"
 
 #define IS_HEADER_VER_SIZE      11
+#define IS_HEADER_VER_OFFSET    (IS_HEADER_VER_SIZE + IS_SIGNATURE_LEN)
 #define IS_CAM_VER_SIZE         11
 #define IS_OEM_VER_SIZE         11
 #define IS_AWB_VER_SIZE         11
@@ -142,7 +144,8 @@
 #define IS_PAF_CAL_ERR_CHECK_OFFSET	0x14
 
 #define IS_ROM_CRC_MAX_LIST 30
-#define IS_ROM_DUAL_TILT_MAX_LIST 9
+#define IS_ROM_DUAL_TILT_MAX_LIST 10
+#define IS_DUAL_TILT_PROJECT_NAME_SIZE 20
 #define IS_ROM_OIS_MAX_LIST 14
 
 #define IS_MAX_TUNNING_BUFFER_SIZE (15 * 1024)
@@ -246,8 +249,7 @@ struct is_rom_info {
 	int32_t		rom_header_f3_mtf_data_addr;
 	int32_t		rom_awb_master_addr;
 	int32_t		rom_awb_module_addr;
-	int32_t		rom_af_cal_macro_addr;
-	int32_t		rom_af_cal_d50_addr;
+	int32_t		rom_af_cal_d_addr[AF_CAL_D_MAX];
 	int32_t		rom_af_cal_pan_addr;
 
 	int32_t		rom_header_sensor2_id_addr;
@@ -255,8 +257,7 @@ struct is_rom_info {
 	int32_t		rom_header_sensor2_mtf_data_addr;
 	int32_t		rom_sensor2_awb_master_addr;
 	int32_t		rom_sensor2_awb_module_addr;
-	int32_t		rom_sensor2_af_cal_macro_addr;
-	int32_t		rom_sensor2_af_cal_d50_addr;
+	int32_t		rom_sensor2_af_cal_d_addr[AF_CAL_D_MAX];
 	int32_t		rom_sensor2_af_cal_pan_addr;
 
 	int32_t		rom_dualcal_slave0_start_addr;
@@ -266,6 +267,28 @@ struct is_rom_info {
 	int32_t		rom_dualcal_slave2_start_addr;
 	int32_t		rom_dualcal_slave2_size;
 
+	int32_t		rom_pdxtc_cal_data_start_addr;
+	int32_t		rom_pdxtc_cal_data_coef_size;
+	int32_t		rom_pdxtc_cal_data_val_size;
+	int32_t		rom_pdxtc_cal_data_0_size;
+	int32_t		rom_pdxtc_cal_data_1_size;
+
+	int32_t		rom_spdc_cal_data_start_addr;
+	int32_t		rom_spdc_cal_data_size;
+
+	int32_t		rom_xtc_cal_data_start_addr;
+	int32_t		rom_xtc_cal_data_size;
+
+	bool	rom_pdxtc_cal_endian_check;
+	u32		rom_pdxtc_cal_data_addr_list[CROSSTALK_CAL_MAX];
+	u32		rom_pdxtc_cal_data_addr_list_len;
+	bool	rom_gcc_cal_endian_check;
+	u32		rom_gcc_cal_data_addr_list[CROSSTALK_CAL_MAX];
+	u32		rom_gcc_cal_data_addr_list_len;
+	bool	rom_xtc_cal_endian_check;
+	u32		rom_xtc_cal_data_addr_list[CROSSTALK_CAL_MAX];
+	u32		rom_xtc_cal_data_addr_list_len;
+
 	int32_t		rom_tof_cal_size_addr[TOF_CAL_SIZE_MAX];
 	int32_t		rom_tof_cal_size_addr_len;
 	int32_t		rom_tof_cal_start_addr;
@@ -273,6 +296,11 @@ struct is_rom_info {
 	int32_t		rom_tof_cal_result_addr;
 	int32_t		rom_tof_cal_validation_addr[TOF_CAL_VALID_MAX];
 	int32_t		rom_tof_cal_validation_addr_len;
+
+	u16		rom_dualcal_slave1_cropshift_x_addr;
+	u16		rom_dualcal_slave1_cropshift_y_addr;
+
+	u16		rom_dualcal_slave1_dummy_flag_addr;
 
 	u32		bin_start_addr;		/* DDK */
 	u32		bin_end_addr;

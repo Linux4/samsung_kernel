@@ -11,13 +11,6 @@
 
 #include <dt-bindings/camera/exynos_is_dt.h>
 
-#ifndef USE_VENDOR_PWR_PIN_NAME
-#define RCAM_AF_VDD	<>
-#define GM2_AVDD		<>
-#define GM2_DVDD		<>
-#define GM2_IOVDD	<>
-#endif
-
 / {
 	fragment@camera {
 		target-path = "/";
@@ -40,16 +33,11 @@
 				sensor_name = "S5KGM2";
 				setfile_name = "setfile_gm2.bin";
 
-				rcam_af_vdd-supply = RCAM_AF_VDD;
-				gm2_avdd-supply = GM2_AVDD;
-				gm2_dvdd-supply = GM2_DVDD;
-				gm2_iovdd-supply = GM2_IOVDD;
-				
 				status = "okay";
 
 				vc_extra {
 					/* ex) statX = <stat_type, sensor_mode, max_width, max_height, max_element> */
-					stat0 = </* VC_STAT_TYPE_TAIL_FOR_SW_PDAF */ 100 /* VC_SENSOR_MODE_SUPER_PD_5_TAIL */ 413 500 2976 2>;	/* VC_BUF_DATA_TYPE_SENSOR_STAT1 */
+					stat0 = </* not avaliable */>;									/* VC_BUF_DATA_TYPE_SENSOR_STAT1 */
 					stat1 = </* not avaliable */>;									/* VC_BUF_DATA_TYPE_GENERAL_STAT1 */
 					stat2 = </* not avaliable */>;									/* VC_BUF_DATA_TYPE_SENSOR_STAT2 */
 					stat3 = </* not avaliable */>;									/* VC_BUF_DATA_TYPE_GENERAL_STAT2 */
@@ -58,22 +46,22 @@
 				/*
 				 * [Mode Information]
 				 *
-				 * Reference File : S5KGM2SP_EVT0_Setfile_Ver2.4_200330.xlsx
-				 * Update Data    : 2020-04-02
+				 * Reference File : S5KGM2SP_EVT0_Setfile_Ver1.4_190729.xlsx
+				 * Update Data    : 2019-07-30
 				 * Author         : kmin.kim
 				 *
 				 * - Remosaic Full For Single Still Remosaic Capture -
-				 *    [  0 ] FULL : Remosaic Full 8000x6000 10fps  2054Mbps     : Single Still Remosaic Capture (4:3)
+				 *    [  0 ] FULL : Remosaic Full 8000x6000 10fps       : Single Still Remosaic Capture (4:3)
 				 *
 				 * - 2x2 BIN For Still Preview / Capture -
-				 *    [  1 ] 2SUM2BIN : 2 Binning Full 4000x3000 30fps  1352MBps  : Single Still Preview/Capture (4:3)
-				 *    [  2 ] 2SUM2BIN : 2 Binning Crop 4000X2256 30fps  1248MBps  : Single Still Preview/Capture (16:9)
-				 *    [  3 ] 2SUM2BIN : 2 Binning Crop 4000X1844 30fps  1352MBps  : Single Still Preview/Capture (19.5:9)
-				 *    [  4 ] 2SUM2BIN : 2 Binning Crop 3680X3000 30fps  1352MBps  : MMS (11:9)
-				 *    [  5 ] 2SUM2BIN : 2 Binning Crop 3000X3000 30fps  1352MBps  : Single Still Preview/Capture (1:1)
-				 *    [  6 ] 4SUM4BIN : 4 Binning Full 2000X1500 94fps  1352MBps  : Fast-AE (2000x1500@94fps)
-				 *    [  7 ] 4SUM4BIN : 4 Binning Crop 2000X1128 120fps 1352MBps  : SlowMotion (1280x720@120fps)
-				 *    [  8 ] 4SUM4BIN : 4 Binning Crop 1920X1080 240fps 2054Mbps  : SlowMotion (1280x720@240fps)
+				 *    [  1 ] 2SUM2BIN : 2 Binning Full 4000x3000 30fps    : Single Still Preview/Capture (4:3)
+				 *    [  2 ] 2SUM2BIN : 2 Binning Crop 4000X2256 30fps    : Single Still Preview/Capture (16:9)
+				 *    [  3 ] 2SUM2BIN : 2 Binning Crop 4000X1844 30fps    : Single Still Preview/Capture (19.5:9)
+				 *    [  4 ] 2SUM2BIN : 2 Binning Crop 3680X3000 30fps    : MMS (11:9)
+				 *    [  5 ] 2SUM2BIN : 2 Binning Crop 3000X3000 30fps    : Single Still Preview/Capture (1:1)
+				 *    [  6 ] 4SUM4BIN : 4 Binning Full 2000X1500 94fps    : Fast-AE (2000x1500@94fps)
+				 *    [  7 ] 4SUM4BIN : 4 Binning Crop 2000X1128 120fps   : SlowMotion (1280x720@120fps)
+				 *    [  8 ] 4SUM4BIN : 4 Binning Crop 1920X1080 240fps   : SlowMotion (1280x720@240fps)
 				 *
 				 */
 
@@ -93,50 +81,46 @@
 					/* 2SUM2BIN Full For Single Still Preview / Capture */
 					mode1 {
 						common = <4000 3000 30 0 1 CSI_DATA_LANES_4 1352 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 4000 3000>;
-						vc1 = </* in */ 1 HW_FORMAT_RAW10 500 2976	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 500 2976>; /* dummy 4 pixels in a line for 16byte DAM align */
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { dummy_pixel = <1 4>; };
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 500 2976		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 500 2976>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 500 2976>;
 					};
 
 					/* 2SUM2BIN Crop For Single Still Preview / Capture */
 					mode2 {
-						common = <4000 2256 30 0 2 CSI_DATA_LANES_4 1248 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 2256 	/* out */ HW_FORMAT_RAW10 VC_NOTHING 4000 2256>;
-						vc1 = </* in */ 1 HW_FORMAT_RAW10 500 2240   	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 500 2240>; /* dummy 4 pixels in a line for 16byte DAM align */
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0     	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { dummy_pixel = <1 4>; };
+						common = <4000 2256 30 0 2 CSI_DATA_LANES_4 1352 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 2256 	/* out */ HW_FORMAT_RAW10 VC_NOTHING 4880 3660>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 500 2240   	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0     	/* out */ HW_FORMAT_USER VC_MIPISTAT 500 2240>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0     	/* out */ HW_FORMAT_USER VC_PRIVATE 500 2240>;
 					};
 
 					/* 2SUM2BIN Crop For Single Still Preview / Capture */
 					mode3{
 						common = <4000 1844 30 0 3 CSI_DATA_LANES_4 1352 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 1844	/* out */ HW_FORMAT_RAW10 VC_NOTHING 4000 1844>;
-						vc1 = </* in */ 1 HW_FORMAT_RAW10 500 1824	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 500 1824>; /* dummy 4 pixels in a line for 16byte DAM align */
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { dummy_pixel = <1 4>; };
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 1844	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 500 1824	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 500 1824>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 500 1824>;
 					};
 
 					/* 2SUM2BIN Crop For Single Still Preview / Capture */
 					mode4 {
 						common = <3680 3000 30 0 4 CSI_DATA_LANES_4 1352 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 3680 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 3680 3000>;
-						vc1 = </* in */ 1 HW_FORMAT_RAW10 460 2976	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 460 2976>; /* dummy 4 pixels in a line for 16byte DAM align */
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { dummy_pixel = <1 4>; };
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 3680 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 460 2976	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 460 2976>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 460 2976>;
 					};
 
 					/* 2SUM2BIN Crop For Single Still Preview / Capture */
 					mode5 {
 						common = <3000 3000 30 0 5 CSI_DATA_LANES_4 1352 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW10 3000 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 3000 3000>;
-						vc1 = </* in */ 1 HW_FORMAT_RAW10 376 2976	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 376 2976>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 3000 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 376 2976	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 376 2976>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 376 2976>;
 					};
 
 					/* 4SUM4BIN Full For Fast-AE (2000x1500@94fps) */
@@ -169,12 +153,24 @@
 
 				power_seq {
 					use = <1>;
+					gpio_mclk = <&gpc0 0 0x1>;
+
 					scenario_normal_on {
 						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "MCLK"; pin = <PIN_MCLK 1 0>; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						20 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa2 3 0x1>; };
+						30 { pname = "S2MPB03_VLDO3"; pin = <PIN_REGULATOR 1 0>; };
+						40 { pname = "S2MPB03_VLDO6"; pin = <PIN_REGULATOR 1 0>; };
+						50 { pname = "S2MPB03_VLDO1"; pin = <PIN_REGULATOR 1 0>; };
+						60 { pname = "vdd_ldo32"; pin = <PIN_REGULATOR 1 1000>; };
+						70 { pname = "none"; pin = <PIN_NONE 0 0>; };
+						80 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
+						90 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
+						100 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 5000>; gpio = <&gpa2 3 0x1>; };
 					};
 
 					scenario_normal_off {
@@ -183,6 +179,18 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "sen_rst"; pin = <PIN_RESET 0 10>; gpio = <&gpa2 3 0x1>; };
+						20 { pname = "sen_rst input"; pin = <PIN_INPUT 0 0>; gpio = <&gpa2 3 0x1>; };
+						30 { pname = "vdd_ldo32"; pin = <PIN_REGULATOR 0 0>; };
+						40 { pname = "S2MPB03_VLDO1"; pin = <PIN_REGULATOR 0 0>; };
+						50 { pname = "S2MPB03_VLDO6"; pin = <PIN_REGULATOR 0 0>; };
+						60 { pname = "S2MPB03_VLDO3"; pin = <PIN_REGULATOR 0 0>; };
+						70 { pname = "none"; pin = <PIN_NONE 0 0>; };
+						80 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
+						90 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						100 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						110 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						120 { pname = "MCLK"; pin = <PIN_MCLK 0 0>; share = <SRT_ACQUIRE SHARED_PIN1 0>; };
 					};
 
 					scenario_vision_on {
@@ -191,6 +199,18 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa2 3 0x1>; };
+						20 { pname = "S2MPB03_VLDO6"; pin = <PIN_REGULATOR 1 0>; };
+						30 { pname = "S2MPB03_VLDO3"; pin = <PIN_REGULATOR 1 0>; };
+						40 { pname = "S2MPB03_VLDO1"; pin = <PIN_REGULATOR 1 0>; };
+						50 { pname = "vdd_ldo32"; pin = <PIN_REGULATOR 1 1000>; };
+						60 { pname = "mipi_sel"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpg2 5 0x0>; };
+						70 { pname = "cam_mipi_sel"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpg2 7 0x0>; };
+						80 { pname = "MCLK"; pin = <PIN_MCLK 1 1000>; };
+						90 { pname = "none"; pin = <PIN_NONE 0 0>; };
+						100 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
+						110 { pname = "pin"; pin = <PIN_FUNCTION 2 1000>; };
+						120 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 5000>; gpio = <&gpa2 3 0x1>; };
 					};
 
 					scenario_vision_off {
@@ -199,16 +219,18 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
-					};
-
-					scenario_read_rom_on {
-						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
-						gpio_scenario = <GPIO_SCENARIO_ON>;
-					};
-
-					scenario_read_rom_off {
-						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
-						gpio_scenario = <GPIO_SCENARIO_OFF>;
+						10 { pname = "sen_rst"; pin = <PIN_RESET 0 10>; gpio = <&gpa2 3 0x1>; };
+						20 { pname = "sen_rst input"; pin = <PIN_INPUT 0 0>; gpio = <&gpa2 3 0x1>; };
+						30 { pname = "vdd_ldo32"; pin = <PIN_REGULATOR 0 0>; };
+						40 { pname = "S2MPB03_VLDO1"; pin = <PIN_REGULATOR 0 0>; };
+						50 { pname = "S2MPB03_VLDO6"; pin = <PIN_REGULATOR 0 0>; };
+						60 { pname = "S2MPB03_VLDO3"; pin = <PIN_REGULATOR 0 0>; };
+						70 { pname = "none"; pin = <PIN_NONE 0 0>; };
+						80 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
+						90 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						100 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						110 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						120 { pname = "MCLK"; pin = <PIN_MCLK 0 0>; };
 					};
 				};
 			};

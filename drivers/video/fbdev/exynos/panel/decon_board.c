@@ -103,12 +103,13 @@ run_list(dev, "subnode_4"); pre-configured lcd_pin pinctrl at subnode_1 will be 
 /* #define CONFIG_BOARD_DEBUG */
 
 #define BOARD_DTS_NAME	"decon_board"
-#if defined(CONFIG_EXYNOS_DPU20)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU20)
 #define PANEL_DTS_NAME	"lcd_info"
-#elif defined(CONFIG_EXYNOS_DPU30)
+#elif IS_ENABLED(CONFIG_EXYNOS_DPU30)
 #define PANEL_DTS_NAME	"panel-ddi-info"
 #endif
 #define PANEL_LUT_NAME	"panel-lut"
+#define PANEL_PBA_NODE	"panel_not_connected"
 
 #if defined(CONFIG_BOARD_DEBUG)
 #define dbg_none(fmt, ...)		pr_debug(pr_fmt("%s: %3d: %s: " fmt), BOARD_DTS_NAME, __LINE__, __func__, ##__VA_ARGS__)
@@ -154,6 +155,11 @@ struct action_info {
 	struct list_head		node;
 };
 
+struct regulator_info {
+	struct regulator_bulk_data *bulk;
+	struct list_head head;
+};
+
 enum {
 	ACTION_DUMMY,
 	ACTION_GPIO_HIGH,
@@ -187,6 +193,7 @@ const char *action_list[ACTION_MAX] = {
 };
 
 static struct dt_node_info	*dt_nodes[10];
+static struct list_head regulator_list;
 
 #if defined(CONFIG_EXYNOS_DPU20)
 static inline int get_boot_lcdtype(void)
@@ -198,7 +205,7 @@ static inline unsigned int get_boot_lcdconnected(void)
 {
 	return get_boot_lcdtype() ? 1 : 0;
 }
-#elif defined(CONFIG_EXYNOS_DPU30)
+#elif IS_ENABLED(CONFIG_EXYNOS_DPU30)
 static inline int get_boot_lcdtype(void)
 {
 	return boot_panel_id;
@@ -262,9 +269,9 @@ static int print_action(struct action_info *action)
 
 static int secprintf(char *buf, size_t size, s64 nsec)
 {
-	struct timeval tv = ns_to_timeval(nsec);
+	struct timespec64 tv = ns_to_timespec64(nsec);
 
-	return scnprintf(buf, size, "%lu.%06lu", (unsigned long)tv.tv_sec, tv.tv_usec);
+	return scnprintf(buf, size, "%lu.%06lu", (unsigned long)tv.tv_sec, tv.tv_nsec/1000);
 }
 
 static void print_timer(struct timer_info *timer)
@@ -358,6 +365,27 @@ static struct timer_info *find_timer(const char *name)
 	return timer;
 }
 
+/*
+ * Try to find target regulator in decon board regulator list
+ * If registerd in list already, return it.
+ */
+
+struct regulator_bulk_data *find_regulator_in_regulator_list(const char *name)
+{
+	struct regulator_info *iter = NULL;
+
+	list_for_each_entry(iter, &regulator_list, head) {
+		if (STREQ(iter->bulk->supply, name)) {
+			dbg_info("(%s)(%s) found in regulator list.\n", name, iter->bulk->supply);
+			return iter->bulk;
+		}
+	}
+
+	dbg_info("(%s) need to get.\n", __func__, __LINE__, name);
+
+	return NULL;
+}
+
 static int decide_type(struct action_info *action)
 {
 	int i, ret = 0;
@@ -398,8 +426,11 @@ static int is_dummy_regulator(struct regulator_bulk_data *bulk)
 
 	rdev = bulk->consumer->rdev;
 
+#if SHOULD_CHECK_LATER
 	ret = (rdev && rdev != dummy_regulator_rdev) ? 0 : 1;
-
+#else
+	ret = 0;
+#endif
 	return ret;
 }
 
@@ -410,6 +441,7 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 	struct platform_device *pdev = NULL;
 	char *timer_name = NULL;
 	unsigned int delay = 0;
+	struct regulator_info *reg_info = NULL;
 
 	if (!action) {
 		dbg_warn("invalid action\n");
@@ -436,11 +468,20 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 		break;
 	case ACTION_REGULATOR_ENABLE:
 	case ACTION_REGULATOR_DISABLE:
-		action->bulk = kzalloc(sizeof(struct regulator_bulk_data), GFP_KERNEL);
-		action->bulk->supply = subinfo;
-		ret = regulator_bulk_get(NULL, 1, action->bulk);
-		if (ret < 0)
-			dbg_warn("regulator_bulk_get fail %d %s\n", ret, subinfo);
+		action->bulk = find_regulator_in_regulator_list(subinfo);
+		if (!action->bulk) {
+			action->bulk = kzalloc(sizeof(struct regulator_bulk_data), GFP_KERNEL);
+			action->bulk->supply = subinfo;
+			ret = regulator_bulk_get(NULL, 1, action->bulk);
+
+			if (ret < 0)
+				dbg_warn("regulator_bulk_get fail %d %s\n", ret, subinfo);
+
+			reg_info = kzalloc(sizeof(struct regulator_info), GFP_KERNEL);
+
+			reg_info->bulk = action->bulk;
+			list_add_tail(&reg_info->head, &regulator_list);
+		}
 
 		if (is_dummy_regulator(action->bulk)) {
 			dbg_warn("regulator_bulk_get invalid %s maybe dummy regulator\n", subinfo);
@@ -658,6 +699,17 @@ struct device_node *of_find_decon_board(struct device *dev)
 
 	return np;
 }
+static int skip_list(const char *node_name, const char *type_name)
+{
+	int ret = 0;
+
+	if (STRNEQ(PANEL_PBA_NODE, node_name))
+		ret = 0;
+	else if (!get_boot_lcdconnected() && !STRNEQ("delay", type_name) && !STRNEQ("timer", type_name))
+		ret = 1;
+
+	return ret;
+}
 
 static int make_list(struct device *dev, struct list_head *lh, const char *name)
 {
@@ -691,7 +743,7 @@ static int make_list(struct device *dev, struct list_head *lh, const char *name)
 		of_property_read_string_index(np, "type", i * 2, &type);
 		of_property_read_string_index(np, "type", i * 2 + 1, &subinfo);
 
-		if (!get_boot_lcdconnected() && !STRNEQ("delay", type) && !STRNEQ("timer", type)) {
+		if (skip_list(name, type)) {
 			dbg_info("lcdtype(%d) is invalid, so skip to add %s: %2d: %s\n", get_boot_lcdtype(), name, count, type);
 			continue;
 		}
@@ -758,7 +810,7 @@ static int make_text(struct device *dev, struct list_head *lh, const char *name,
 		type = type_list[i * 2];
 		subinfo = type_list[i * 2 + 1];
 
-		if (!get_boot_lcdconnected() && !STRNEQ("delay", type) && !STRNEQ("timer", type)) {
+		if (skip_list(name, type)) {
 			dbg_info("lcdtype(%d) is invalid, so skip to add %s: %2d: %s\n", get_boot_lcdtype(), name, count, type);
 			continue;
 		}
@@ -1378,7 +1430,11 @@ int of_update_phandle_property_list(struct device_node *from, const char *phandl
 		seq_printf(&m, "%s ", node_names[i]);
 	}
 
+#if SHOULD_CHECK_LATER
 	ret = of_update_property(parent, prop_new);
+#else
+	ret = of_add_property(parent, prop_new);
+#endif
 	if (ret) {
 		dbg_info("of_update_property fail: %d\n", ret);
 		kfree(prop_new->value);
@@ -1467,7 +1523,11 @@ static int __of_update_recommend(struct device_node *np, unsigned int recommend)
 		prop_new->value = "ok";
 		prop_new->length = sizeof("ok");
 
+#if SHOULD_CHECK_LATER
 		ret = of_update_property(np, prop_new);
+#else
+		ret = of_add_property(np, prop_new);
+#endif
 	} else {
 		struct property *prop = NULL;
 
@@ -1582,46 +1642,33 @@ static int __init panel_lut_ddi_recommend_init(void)
 	return 0;
 }
 
-static int __init decon_board_init(void)
+int panel_clean_board(struct device *dev)
+{
+	if (!get_boot_lcdconnected())
+	{
+		run_list(dev, PANEL_PBA_NODE);
+	}
+	return 0;
+}
+
+
+int __init decon_board_init(void)
 {
 	panel_lut_ddi_recommend_init();
+	INIT_LIST_HEAD(&regulator_list);
 
 	return 0;
 }
-core_initcall(decon_board_init);
+//core_initcall(decon_board_init);
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_A12S_BLIC_DUAL
-static int a12s_regulator_core_initcall(void)
+int __init decon_board_late_initcall(void)
 {
-	struct device_node *np = NULL;
-	struct property *prop_new =    NULL;
-	int ret = 0;
-
-	if (boot_blic_type != 1)
-		return 0;
-
-	pr_info("%s: ++\n", __func__);
-
-	np = of_find_node_by_name(NULL, "__gpio_lcd_bl_en");
-	if (!np)
-		pr_info("%s: of_find_node_by_name fail(%d)\n", __func__, "__gpio_lcd_bl_en");
-
-	prop_new = kzalloc(sizeof(struct property), GFP_KERNEL);
-	if (!prop_new)
-		return -ENOMEM;
-
-	prop_new->name = "compatible";
-	prop_new->value = "regulator-void";
-	prop_new->length = sizeof("regulator-void");
-
-	ret = of_update_property(np, prop_new);
-	if (ret < 0)
-		pr_info("%s: of_update_property fail(%d)\n", __func__, ret);
-
-	pr_info("%s: --\n", __func__);
+	struct platform_device *pdev = of_find_device_by_path("/panel_drv@0");
+	struct device *dev = pdev ? &(pdev->dev) : NULL;
+	panel_clean_board(dev);
 
 	return 0;
 }
-core_initcall(a12s_regulator_core_initcall);
-#endif
+//late_initcall_sync(decon_board_late_initcall);
+
 

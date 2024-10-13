@@ -22,6 +22,7 @@
 #define SCALER_CFG_DRCG_EN		(1 << 31)
 #define SCALER_CFG_CORE_BYP_EN		(1 << 29)
 #define SCALER_CFG_SRAM_CG_EN		(1 << 28)
+#define SCALER_CFG_VOTF_EN		(1 << 27)
 #define SCALER_CFG_FILL_EN		(1 << 24)
 #define SCALER_CFG_BL_DIV_ALPHA_EN	(1 << 17)
 #define SCALER_CFG_BLEND_EN		(1 << 16)
@@ -41,6 +42,7 @@
 #define SCALER_INT_EN_ALL_v3		0x83ffffff
 #define SCALER_INT_EN_ALL_v4		0xb2ffffff
 #define SCALER_INT_EN_ALL_v5		0xe0ffffff
+#define SCALER_INT_EN_ALL_v6		0xfcffffff
 #define SCALER_INT_EN_DEFAULT		0xffffffff
 #define SCALER_INT_OK(status)		((status) == SCALER_INT_EN_FRAME_END)
 
@@ -87,6 +89,7 @@
 #define SCALER_CFG_FMT_ABGR2101010	(0x19 << 0)
 #define SCALER_CFG_FMT_RGBA1010102	(0x1a << 0)
 #define SCALER_CFG_FMT_BGRA1010102	(0x1b << 0)
+#define SCALER_CFG_FMT_Y_MONO		(0x1c << 0)
 #define SCALER_CFG_SBWC_LOSSY_BYTES32NUM(x)	(((x) & 0x7) << 11)
 
 /* Source Y Base Address */
@@ -96,6 +99,8 @@
 #define SCALER_SRC_SPAN			0x1c
 #define SCALER_SRC_CSPAN_MASK		(0xffff << 16)
 #define SCALER_SRC_YSPAN_MASK		(0xffff << 0)
+#define SCALER_SRC_YSPAN		0x1c
+#define SCALER_SRC_CSPAN		0x2c
 
 #define SCALER_SRC_Y_POS		0x20
 #define SCALER_SRC_WH			0x24
@@ -110,6 +115,8 @@
 #define SCALER_DST_SPAN			0x3c
 #define SCALER_DST_CSPAN_MASK		(0xffff << 16)
 #define SCALER_DST_YSPAN_MASK		(0xffff << 0)
+#define SCALER_DST_YSPAN		0x3c
+#define SCALER_DST_CSPAN		0x4c
 
 #define SCALER_DST_WH			0x40
 
@@ -180,12 +187,16 @@
 #define SCALER_SRC_2BIT_SPAN		0x288
 #define SCALER_SRC_2BIT_YSPAN_MASK	(0x7fff << 0)
 #define SCALER_SRC_2BIT_CSPAN_MASK	(0x7fff << 16)
+#define SCALER_SRC_HEADER_YSPAN		0x288
+#define SCALER_SRC_HEADER_CSPAN		0x28C
 
 #define SCALER_DST_2BIT_Y_BASE		0x2A0
 #define SCALER_DST_2BIT_C_BASE		0x2A4
 #define SCALER_DST_2BIT_SPAN		0x2A8
 #define SCALER_DST_2BIT_YSPAN_MASK	(0x7fff << 0)
 #define SCALER_DST_2BIT_CSPAN_MASK	(0x7fff << 16)
+#define SCALER_DST_HEADER_YSPAN		0x2A8
+#define SCALER_DST_HEADER_CSPAN		0x2AC
 
 #define SCALER_FILL_COLOR		0x290
 
@@ -247,15 +258,46 @@
 				(0x3FFF << SCALER_BLEND_SRC_WH_HEIGHT_SHIFT)
 
 /* macros to make words to SFR */
-#define SCALER_VAL_WH(w, h)	 (((w) & 0x3FFF) << 16) | ((h) & 0x3FFF)
+#define SCALER_VAL_WH(w, h)	 (((w) & 0x7FFF) << 16) | ((h) & 0x7FFF)
 #define SCALER_VAL_SRC_POS(l, t) (((l) & 0x3FFF) << 18) | (((t) & 0x3FFF) << 2)
 #define SCALER_VAL_DST_POS(l, t) (((l) & 0x3FFF) << 16) | ((t) & 0x3FFF)
+
+/* vOTF */
+#define SCALER_VOTF_MASTER_ID		0x0310
+
+#define MSCL_VOTF_EN_VAL		0x1
+
+#define MSCL_VOTF_RING_CLOCK_EN		0x000c
+#define MSCL_VOTF_RING_EN		0x0010
+#define MSCL_VOTF_LOCAL_IP		0x0014
+#define MSCL_VOTF_SW_RESET		0x0018
+#define MSCL_VOTF_IMMEDIATE_MODE	0x0028
+#define MSCL_VOTF_SET_A			0x0024
+
+#define MSCL_VOTF_TWS_ENABLE		0x0100
+#define MSCL_VOTF_TWS_LIMIT		0x0104
+#define MSCL_VOTF_TWS_DEST_ID		0x0108
+#define MSCL_VOTF_TWS_LINES_IN_TOKEN	0x010c
+#define MSCL_VOTF_TWS_FLUSH		0x0110
+#define MSCL_VOTF_TWS_BUSY		0x0114
+
+#define MSCL_VOTF_TWS_OFFSET		0x001c
+
+#define MSCL_VOTF_HALF_CONNECTION	0x1
+#define MSCL_VOTF_CONNECT_BUF_IDX_SHIFT	(4)
+#define MSCL_VOTF_CONNECTION_MODE	0xD200
+
+#define SC_DPU_BUF_WRITE_COUNTER	0x18c
+#define SC_DPU_LAYER_OFFSET		0x1000
+
+#define MSCL_VOTF_IOMAP_SIZE_MIN	0xE000
+#define MSCL_VOTF_DPU_IOMAP_SIZE_MIN	(0x1000 * SC_VOTF_NUM_TRS_PER_DPU)
 
 static inline void sc_hwset_clk_request(struct sc_dev *sc, bool enable)
 {
 	if (sc->version >= SCALER_VERSION(5, 0, 1) ||
 	    sc->version == SCALER_VERSION(4, 2, 0))
-		__raw_writel(enable ? 1 : 0, sc->regs + SCALER_CLK_REQ);
+		writel(enable ? 1 : 0, sc->regs + SCALER_CLK_REQ);
 }
 
 static inline void sc_hwset_src_pos(struct sc_dev *sc, __s32 left, __s32 top,
@@ -276,6 +318,7 @@ static inline void sc_hwset_src_wh(struct sc_dev *sc, __s32 width, __s32 height,
 	__s32 pre_height = round_down(height >> pre_v_ratio, 1 << cvshift);
 	sc_dbg("width %d, height %d\n", pre_width, pre_height);
 
+#if IS_ENABLED(CONFIG_VIDEO_EXYNOS_SCALER_PRESCALE)
 	if (sc->variant->prescale) {
 		/*
 		 * crops the width and height if the pre-scaling result violates
@@ -289,6 +332,7 @@ static inline void sc_hwset_src_wh(struct sc_dev *sc, __s32 width, __s32 height,
 		__raw_writel(SCALER_VAL_WH(width, height),
 				sc->regs + SCALER_SRC_PRESC_WH);
 	}
+#endif
 
 	__raw_writel(SCALER_VAL_WH(pre_width, pre_height),
 				sc->regs + SCALER_SRC_WH);
@@ -332,19 +376,19 @@ static inline void sc_hwset_int_en(struct sc_dev *sc)
 static inline void sc_clear_aux_power_cfg(struct sc_dev *sc)
 {
 	/* Clearing all power saving features */
-	__raw_writel(__raw_readl(sc->regs + SCALER_CFG) & ~SCALER_CFG_DRCG_EN,
+	writel(readl(sc->regs + SCALER_CFG) & ~SCALER_CFG_DRCG_EN,
 			sc->regs + SCALER_CFG);
 }
 
 static inline void sc_hwset_bus_idle(struct sc_dev *sc)
 {
-	if (sc->version == SCALER_VERSION(5, 0, 1)) {
+	if (sc->version >= SCALER_VERSION(5, 0, 1)) {
 		int cnt = 1000;
 
-		__raw_writel(SCALER_CFG_STOP_REQ, sc->regs + SCALER_CFG);
+		writel(SCALER_CFG_STOP_REQ, sc->regs + SCALER_CFG);
 
 		while (cnt-- > 0)
-			if (__raw_readl(sc->regs + SCALER_CFG)
+			if (readl(sc->regs + SCALER_CFG)
 						& SCALER_CFG_RESET_OKAY)
 				break;
 
@@ -357,7 +401,6 @@ static inline void sc_hwset_init(struct sc_dev *sc)
 	unsigned long cfg;
 
 	sc_hwset_clk_request(sc, true);
-	sc_hwset_bus_idle(sc);
 
 #ifdef SC_NO_SOFTRST
 	cfg = (SCALER_CFG_CSC_Y_OFFSET_SRC | SCALER_CFG_CSC_Y_OFFSET_DST);
@@ -365,20 +408,6 @@ static inline void sc_hwset_init(struct sc_dev *sc)
 	cfg = SCALER_CFG_SOFT_RST;
 #endif
 	writel(cfg, sc->regs + SCALER_CFG);
-
-	if (sc->version >= SCALER_VERSION(3, 0, 1))
-		__raw_writel(
-			__raw_readl(sc->regs + SCALER_CFG) | SCALER_CFG_DRCG_EN,
-			sc->regs + SCALER_CFG);
-	if (sc->version >= SCALER_VERSION(4, 0, 1) &&
-			sc->version != SCALER_VERSION(4, 2, 0)) {
-		__raw_writel(
-			__raw_readl(sc->regs + SCALER_CFG) | SCALER_CFG_BURST_RD,
-			sc->regs + SCALER_CFG);
-		__raw_writel(
-			__raw_readl(sc->regs + SCALER_CFG) & ~SCALER_CFG_BURST_WR,
-			sc->regs + SCALER_CFG);
-	}
 }
 
 static inline void sc_hwset_soft_reset(struct sc_dev *sc)
@@ -387,9 +416,23 @@ static inline void sc_hwset_soft_reset(struct sc_dev *sc)
 	writel(SCALER_CFG_SOFT_RST, sc->regs + SCALER_CFG);
 }
 
+static inline bool sc_hwget_is_sbwc(struct sc_dev *sc)
+{
+	if (sc->version >= SCALER_VERSION(5, 2, 0) &&
+	    readl(sc->regs + SCALER_DST_CFG) & SCALER_CFG_SBWC_FORMAT)
+		return true;
+
+	return false;
+}
+
+static inline void sc_hwset_soft_reset_no_bus_idle(struct sc_dev *sc)
+{
+	writel(SCALER_CFG_SOFT_RST, sc->regs + SCALER_CFG);
+}
+
 static inline void sc_hwset_start(struct sc_dev *sc)
 {
-	unsigned long cfg = __raw_readl(sc->regs + SCALER_CFG);
+	unsigned long cfg = readl(sc->regs + SCALER_CFG);
 
 	cfg |= SCALER_CFG_START_CMD;
 	if (sc->version >= SCALER_VERSION(3, 0, 1)) {
@@ -431,5 +474,12 @@ void sc_hwset_polyphase_hcoef(struct sc_dev *sc,
 		unsigned int yratio, unsigned int cratio, unsigned int filter);
 void sc_hwset_polyphase_vcoef(struct sc_dev *sc,
 		unsigned int yratio, unsigned int cratio, unsigned int filter);
+
+void sc_hwset_votf_ring_clk_en(struct sc_dev *sc);
+void sc_hwset_init_votf(struct sc_dev *sc);
+void sc_hwset_votf_en(struct sc_dev *sc, bool enable);
+void sc_hwset_votf(struct sc_dev *sc, struct sc_tws *tws);
+bool sc_hwset_clear_votf_clock_en(struct sc_tws *tws);
+void sc_hwset_tws_flush(struct sc_tws *tws);
 
 #endif /*__SCALER_REGS_H__*/

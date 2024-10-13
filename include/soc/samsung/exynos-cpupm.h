@@ -9,66 +9,35 @@
 #ifndef __EXYNOS_CPUPM_H
 #define __EXYNOS_CPUPM_H __FILE__
 
+#include <dt-bindings/soc/samsung/cpupm.h>
 
 enum {
-	POWERMODE_TYPE_CLUSTER = 0,
-	POWERMODE_TYPE_SYSTEM,
+	C2_ENTER,
+	C2_EXIT,
+	CPD_ENTER,
+	CPD_EXIT,
+	DSUPD_ENTER,
+	DSUPD_EXIT,
+	SICD_ENTER,
+	SICD_EXIT,
 };
 
-extern bool exynos_cpuhp_last_cpu(unsigned int cpu);
-
-#ifdef CONFIG_ARM64_EXYNOS_CPUIDLE
+#if IS_ENABLED(CONFIG_EXYNOS_CPUPM)
+extern int exynos_cpupm_notifier_register(struct notifier_block *nb);
+extern int exynos_get_idle_ip_index(const char *name, int io_cc);
 extern void exynos_update_ip_idle_status(int index, int idle);
-extern int exynos_get_idle_ip_index(const char *name);
 extern void disable_power_mode(int cpu, int type);
 extern void enable_power_mode(int cpu, int type);
-extern int exynos_cpu_pm_enter(int cpu, int index);
-extern void exynos_cpu_pm_exit(int cpu, int cancel);
+extern void update_pm_allowed_mask(const struct cpumask *mask);
+extern void update_idle_allowed_mask(const struct cpumask *mask);
 #else
-static inline void exynos_update_ip_idle_status(int index, int idle) { return; }
-static inline int exynos_get_idle_ip_index(const char *name) { return 0; }
-static inline void disable_power_mode(int cpu, int type) { return; }
-static inline void enable_power_mode(int cpu, int type) { return; }
-static inline int exynos_cpu_pm_enter(int cpu, int index) { return 0; }
-static inline void exynos_cpu_pm_exit(int cpu, int cancel) { return; }
+static inline int exynos_cpupm_notifier_register(struct notifier_block *nb) { return 0; }
+static inline int exynos_get_idle_ip_index(const char *name, int io_cc) { return 0; }
+static inline void exynos_update_ip_idle_status(int index, int idle) { }
+static inline void disable_power_mode(int cpu, int type) { }
+static inline void enable_power_mode(int cpu, int type) { }
+static inline void update_pm_allowed_mask(const struct cpumask *mask) { }
+static inline void update_idle_allowed_mask(const struct cpumask *mask) { }
 #endif
 
-struct fix_idle_ip {
-	/* name of fix-idle-ip */
-	const char		*name;
-	/* register index of fix-idle-ip */
-	unsigned int		reg_index;
-	/* non-idle count for cpuidle-profiler */
-	unsigned int		count;
-};
-
-struct idle_ip {
-	/* list of idle-ip */
-	struct list_head	list;
-	/* name of idle-ip */
-	const char		*name;
-	/* identity of idle-ip */
-	unsigned int		index;
-	/* non-idle count for cpuidle-profiler */
-	unsigned int		count;
-};
-
-#ifdef CONFIG_SMP
-extern DEFINE_PER_CPU(bool, pending_ipi);
-static inline bool is_IPI_pending(const struct cpumask *mask)
-{
-	unsigned int cpu;
-
-	for_each_cpu_and(cpu, cpu_online_mask, mask) {
-		if (per_cpu(pending_ipi, cpu))
-			return true;
-	}
-	return false;
-}
-#else
-static inline bool is_IPI_pending(const struct cpumask *mask)
-{
-	return false;
-}
-#endif
 #endif /* __EXYNOS_CPUPM_H */

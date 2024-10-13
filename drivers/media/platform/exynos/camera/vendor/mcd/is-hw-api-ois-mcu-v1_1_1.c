@@ -14,25 +14,24 @@
 #include <linux/syscalls.h>
 #include <linux/vmalloc.h>
 #include <linux/firmware.h>
+#include <linux/delay.h>
 #include <soc/samsung/exynos-pmu.h>
 
 #include "is-sfr-ois-mcu-v1_1_1.h"
 #include "is-hw-api-ois-mcu.h"
 #include "is-binary.h"
 
-static noinline_for_stack long __get_file_size(struct file *file)
+void __is_mcu_pmu_control(int on)
 {
-	struct kstat st;
-	u32 request_mask = (STATX_MODE | STATX_SIZE);
+	if (on) {
+		exynos_pmu_update(pmu_ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
+			pmu_ois_mcu_masks[R_OIS_CPU_CONFIGURATION].sfr_offset, 0x1);
+	} else {
+		exynos_pmu_update(pmu_ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
+			pmu_ois_mcu_masks[R_OIS_CPU_CONFIGURATION].sfr_offset, 0x0);
+	}
 
-	if (vfs_getattr(&file->f_path, &st, request_mask, KSTAT_QUERY_FLAGS))
-		return -1;
-	if (!S_ISREG(st.mode))
-		return -1;
-	if (st.size != (long)st.size)
-		return -1;
-
-	return st.size;
+	info_mcu("%s onoff = %d", __func__, on);
 }
 
 int __is_mcu_core_control(void __iomem *base, int on)
@@ -45,7 +44,7 @@ int __is_mcu_core_control(void __iomem *base, int on)
 		val = 0x0;
 
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_BOOT],
-			&ois_mcu_fields[OIS_F_CM0P_BOOT_REQ], 0x1);
+			&ois_mcu_fields[OIS_F_CM0P_BOOT_REQ], val);
 
 	return 0;
 }
@@ -69,11 +68,10 @@ int __is_mcu_hw_enable(void __iomem *base)
 {
 	int ret = 0;
 
-	exynos_pmu_update(pmu_ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
-		pmu_ois_mcu_masks[R_OIS_CPU_CONFIGURATION].sfr_offset, 0x1);
+	info_mcu("%s started", __func__);
 
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
-		&ois_mcu_fields[OIS_F_CM0P_IPCLKREQ_ON], 0);
+		&ois_mcu_fields[OIS_F_CM0P_IPCLKREQ_ON], 1);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_IPCLKREQ_ENABLE], 1);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
@@ -84,12 +82,94 @@ int __is_mcu_hw_enable(void __iomem *base)
 		&ois_mcu_fields[OIS_F_CM0P_FORCE_DBG_PWRUP], 1);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_DISABLE_IRQ], 0);
+#if 0
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_WDTIRQ_TO_HOST], 1);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_CONNECT_WDT_TO_NMI], 1);
+#endif
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_REMAP_SPDMA_ADDR],
 		&ois_mcu_fields[OIS_F_CM0P_SPDMA_ADDR], 0x10730080);
+
+	info_mcu("%s end", __func__);
+
+	return ret;
+}
+
+int __is_mcu_hw_set_clock_peri(void __iomem *base)
+{
+	int ret = 0;
+
+	is_hw_set_reg(base, &ois_mcu_peri_regs[R_OIS_PERI_FS1], 0x01f0ff00);
+	is_hw_set_reg(base, &ois_mcu_peri_regs[R_OIS_PERI_FS2], 0x7f0003e0);
+	is_hw_set_reg(base, &ois_mcu_peri_regs[R_OIS_PERI_FS3], 0x001a0000);
+
+	return ret;
+}
+
+int __is_mcu_hw_set_init_peri(void __iomem *base)
+{
+	int ret = 0;
+	u32 recover_val = 0;
+	u32 src = 0;
+
+#ifdef USE_SHARED_REG_MCU_PERI_CON
+	src = is_hw_get_reg(base, &ois_mcu_peri_regs[R_OIS_PERI_CON_CTRL]);
+	recover_val = src & 0x0000FF00;
+	recover_val = recover_val | 0x22220022;
+#else
+	recover_val = 0x22221122;
+#endif
+	is_hw_set_reg(base, &ois_mcu_peri_regs[R_OIS_PERI_CON_CTRL], recover_val);
+
+	src = is_hw_get_reg(base, &ois_mcu_peri_regs[R_OIS_PUD_CTRL]);
+	recover_val = src & 0x0000FF00;
+	is_hw_set_reg(base, &ois_mcu_peri_regs[R_OIS_PUD_CTRL], recover_val);
+
+	return ret;
+}
+
+int __is_mcu_hw_set_clear_peri(void __iomem *base)
+{
+	int ret = 0;	
+	u32 recover_val = 0;
+	u32 src = 0;
+
+#ifdef USE_SHARED_REG_MCU_PERI_CON
+	src = is_hw_get_reg(base, &ois_mcu_peri_regs[R_OIS_PERI_CON_CTRL]);
+	recover_val = src & 0x0000FF00;
+#else
+	recover_val = 0x00000000;
+#endif
+	is_hw_set_reg(base, &ois_mcu_peri_regs[R_OIS_PERI_CON_CTRL], recover_val);
+
+	src = is_hw_get_reg(base, &ois_mcu_peri_regs[R_OIS_PUD_CTRL]);
+	recover_val = src & 0x0000FF00;
+	is_hw_set_reg(base, &ois_mcu_peri_regs[R_OIS_PUD_CTRL], recover_val);
+
+	return ret;
+}
+
+int __is_mcu_hw_reset_peri(void __iomem *base, int onoff)
+{
+	int ret = 0;
+	u8 val = 0;
+
+	if (onoff)
+		val = 0x1;
+	else
+		val = 0x0;
+
+	is_hw_set_reg_u8(base, &ois_mcu_peri_regs[R_OIS_PERI_USI_CON], val);
+
+	return ret;
+}
+
+int __is_mcu_hw_clear_peri(void __iomem *base)
+{
+	int ret = 0;
+
+	is_hw_set_reg_u8(base, &ois_mcu_peri_regs[R_OIS_PERI_USI_CON_CLEAR], 0x05);
 
 	return ret;
 }
@@ -98,113 +178,63 @@ int __is_mcu_hw_disable(void __iomem *base)
 {
 	int ret = 0;
 
+	info_mcu("%s started", __func__);
+
+	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
+		&ois_mcu_fields[OIS_F_CM0P_DISABLE_IRQ], 1);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_IPCLKREQ_ON], 0);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
-		&ois_mcu_fields[OIS_F_CM0P_IPCLKREQ_ENABLE], 0);
+		&ois_mcu_fields[OIS_F_CM0P_IPCLKREQ_ENABLE], 1);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_SLEEP_CTRL], 0);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_QACTIVE_DIRECT_CTRL], 1);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_FORCE_DBG_PWRUP], 0);
-	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
-		&ois_mcu_fields[OIS_F_CM0P_DISABLE_IRQ], 0);
+#if 0
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_WDTIRQ_TO_HOST], 0);
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_CTRL0],
 		&ois_mcu_fields[OIS_F_CM0P_CONNECT_WDT_TO_NMI], 0);
+#endif
 	is_hw_set_field(base, &ois_mcu_regs[R_OIS_CM0P_REMAP_SPDMA_ADDR],
 		&ois_mcu_fields[OIS_F_CM0P_SPDMA_ADDR], 0);
 
-	exynos_pmu_update(pmu_ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
-		pmu_ois_mcu_masks[R_OIS_CPU_CONFIGURATION].sfr_offset, 0x0);
+	usleep_range(1000, 1100);
+
+	info_mcu("%s end", __func__);
 
 	return ret;
 }
 
 long  __is_mcu_load_fw(void __iomem *base, struct device *dev)
 {
+	long ret = 0;
 	struct is_binary mcu_bin;
-	mm_segment_t old_fs;
-	struct file *fp;
-	char *filename;
-	u8 *buf = NULL;
-	long ret = 0, fsize, nread;
-	loff_t file_offset = 0;
 
 	BUG_ON(!base);
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
+	info_mcu("%s started", __func__);
 
-	filename = __getname();
-	if (unlikely(!filename))
-		return -ENOMEM;
-
-	snprintf(filename, PATH_MAX, "%s%s",
-		IS_MCU_SDCARD_PATH, IS_MCU_FW_NAME);
-	fp = filp_open(filename, O_RDONLY, 0);
-	if (IS_ERR_OR_NULL(fp)) {
-		__putname(filename);
-		set_fs(old_fs);
-		goto request_fw;
-	}
-
-	fsize = __get_file_size(fp);
-	if (fsize <= 0) {
-		pr_err("[@][OIS MCU] __get_file_size fail(%ld)\n",
-			fsize);
-		ret = -EBADF;
-		goto p_err2;
-	}
-
-	buf = vmalloc(fsize);
-	if (!buf) {
-		ret = -ENOMEM;
-		goto p_err2;
-	}
-
-	nread = kernel_read(fp, buf, fsize, &file_offset);
-	if (nread != fsize) {
-		pr_err("[@][OIS MCU] kernel_read was failed(%ld != %ld)n",
-			nread, fsize);
-		ret = -EIO;
-		goto p_err1;
-	}
-
-	memcpy((void *)base, (void *)buf, fsize);
-
-	info_mcu("Load FW was done (%s, %ld)\n",
-		filename, fsize);
-	ret = fsize;
-p_err1:
-	vfree(buf);
-p_err2:
-	__putname(filename);
-	filp_close(fp, current->files);
-	set_fs(old_fs);
-
-	return ret;
-
-request_fw:
-	ret = request_binary(&mcu_bin, IS_MCU_PATH, IS_MCU_FW_NAME, NULL);
+	setup_binary_loader(&mcu_bin, 3, -EAGAIN, NULL, NULL);
+	ret = request_binary(&mcu_bin, IS_MCU_PATH, IS_MCU_FW_NAME, dev);
 	if (ret) {
 		err_mcu("request_firmware was failed(%ld)\n", ret);
-		ret = -EINVAL;
+		ret = 0;
 		goto request_err;
 	}
 
 	memcpy((void *)(base), (void *)mcu_bin.data, mcu_bin.size);
-
 	info_mcu("Request FW was done (%s%s, %ld)\n",
 		IS_MCU_PATH, IS_MCU_FW_NAME, mcu_bin.size);
 
-	ret = fsize;
+	ret = mcu_bin.size;
+
 request_err:
 	release_binary(&mcu_bin);
 
-	set_fs(old_fs);
+	info_mcu("%s %d end", __func__, __LINE__);
 
 	return ret;
 }
@@ -252,7 +282,7 @@ int __is_mcu_hw_sram_dump(void __iomem *base, unsigned int range)
 	snprintf(sram_info, PATH_MAX, "%04X:", 0);
 	for (i = 0; i <= range; i++) {
 		reg_value = *(u8 *)(base + i);
-		if ((i > 0) && !(i%0x10)) {
+		if ((i > 0) && !(i % 0x10)) {
 			info_mcu("%s\n", sram_info);
 			snprintf(sram_info, PATH_MAX,
 				"%04x: %02X", i, reg_value);
@@ -267,6 +297,40 @@ int __is_mcu_hw_sram_dump(void __iomem *base, unsigned int range)
 	info_mcu("Kernel virtual for sram: %08lx\n",
 		(ulong)(base + i - 1));
 	info_mcu("SRAM DUMP --- end (v1.1.0)\n");
+
+	return 0;
+}
+
+int __is_mcu_hw_sfr_dump(void __iomem *base, unsigned int range)
+{
+	unsigned int i;
+	u8 reg_value = 0;
+	char *sram_info;
+
+	sram_info = __getname();
+	if (unlikely(!sram_info))
+		return -ENOMEM;
+
+	info_mcu("SFR DUMP ++++ start (v1.1.0)\n");
+	info_mcu("Kernel virtual for : %08lx\n", (ulong)base);
+	snprintf(sram_info, PATH_MAX, "%04X:", 0);
+	for (i = 0; i <= range; i++) {
+		reg_value = *(u8 *)(base + i);
+		if ((i > 0) && !(i%0x10)) {
+			info_mcu("%s\n", sram_info);
+			snprintf(sram_info, PATH_MAX,
+				"%04x: %02X", i, reg_value);
+		} else {
+			snprintf(sram_info + strlen(sram_info),
+				PATH_MAX, " %02X", reg_value);
+		}
+	}
+	info_mcu("%s\n", sram_info);
+
+	__putname(sram_info);
+	info_mcu("Kernel virtual for : %08lx\n",
+		(ulong)(base + i - 1));
+	info_mcu("SFR DUMP --- end (v1.1.0)\n");
 
 	return 0;
 }
@@ -286,6 +350,8 @@ int __is_mcu_hw_peri1_dump(void __iomem *base)
 {
 	info_mcu("PERI1 SFR DUMP ++++ start (v1.1.0)\n");
 
+	__is_mcu_hw_sfr_dump(base, 0xDFFF);
+
 	info_mcu("PERI1 SFR DUMP --- end (v1.1.0)\n");
 	return 0;
 }
@@ -293,6 +359,8 @@ int __is_mcu_hw_peri1_dump(void __iomem *base)
 int __is_mcu_hw_peri2_dump(void __iomem *base)
 {
 	info_mcu("PERI2 SFR DUMP ++++ start (v1.1.0)\n");
+
+	__is_mcu_hw_sfr_dump(base, 0xDFFF);
 
 	info_mcu("PERI2 SFR DUMP --- end (v1.1.0)\n");
 	return 0;

@@ -385,7 +385,8 @@ static int str_probe(struct platform_device *pdev)
 
 	/* Get SFR */
 	rsc = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	core->hw.regs = devm_ioremap_nocache(&pdev->dev, rsc->start, resource_size(rsc));
+
+	core->hw.regs = devm_ioremap(&pdev->dev, rsc->start, resource_size(rsc));
 	if (IS_ERR(core->hw.regs))
 		return PTR_ERR(core->hw.regs);
 

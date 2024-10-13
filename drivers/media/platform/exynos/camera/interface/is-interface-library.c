@@ -173,7 +173,7 @@ static inline void add_alloc_track(int type, ulong addr, size_t size)
 
 	spin_lock_irqsave(&lib->slock_mem_track, flag);
 	if ((!lib->cur_tracks)
-	    || (lib->cur_tracks && (lib->cur_tracks->num_of_track == MEM_TRACK_COUNT))) {
+		|| (lib->cur_tracks && (lib->cur_tracks->num_of_track == MEM_TRACK_COUNT))) {
 		err_lib("exceed memory track");
 		spin_unlock_irqrestore(&lib->slock_mem_track, flag);
 		return;
@@ -338,11 +338,9 @@ static void mblk_init(struct lib_mem_block *mblk, struct is_priv_buf *pb,
 	mblk->end = 0;
 	strlcpy(mblk->name, name, sizeof(mblk->name));
 	mblk->type = type;
-
 	info_lib("memory block %s - kva: 0x%lx, dva: %pad, size: %zu\n",
 			mblk->name, mblk->kva_base,
 			&mblk->dva_base, mblk->pb->size);
-
 	if (mblk->used) {
 		warn_lib("memory block (%s) was not wiped out. used: %d",
 				mblk->name, mblk->used);
@@ -575,7 +573,7 @@ static void __maybe_unused *is_alloc_dma_pb(u32 size)
 		return NULL;
 	}
 
-	pb = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, size, NULL, 0);
+	pb = CALL_PTR_MEMOP(mem, alloc, mem->priv, size, NULL, 0);
 	if (IS_ERR_OR_NULL(pb)) {
 		err_lib("failed to allocate a private buffer");
 		kfree(buf);
@@ -797,6 +795,16 @@ static void mblk_inv(struct lib_mem_block *mblk, ulong kva, u32 size)
 		DMA_FROM_DEVICE);
 }
 
+/*
+ * cache operations for secure camera
+ */
+static void mblk_inv_secure(struct lib_mem_block *mblk, ulong kva, u32 size)
+{
+	CALL_BUFOP(mblk->pb, sync_for_secure, mblk->pb,
+		(kva - mblk->kva_base),	size,
+		DMA_FROM_DEVICE);
+}
+
 static void mblk_clean(struct lib_mem_block *mblk, ulong kva, u32 size)
 {
 	CALL_BUFOP(mblk->pb, sync_for_device, mblk->pb,
@@ -808,7 +816,10 @@ void is_inv_dma_taaisp(ulong kva, u32 size)
 {
 	struct is_lib_support *lib = &gPtr_lib_support;
 
-	return mblk_inv(&lib->mb_dma_taaisp, kva, size);
+	if(lib->minfo->pb_taaisp_s)
+		return mblk_inv_secure(&lib->mb_dma_taaisp, kva, size);
+	else
+		return mblk_inv(&lib->mb_dma_taaisp, kva, size);
 }
 
 void is_inv_dma_medrc(ulong kva, u32 size)
@@ -1305,9 +1316,9 @@ static irqreturn_t  is_general_interrupt_isr (int irq, void *data)
 	struct general_intr_handler *intr_handler = (struct general_intr_handler *)data;
 
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
+	is_fpsimd_get_func();
 	intr_handler->intr_func();
-	fpsimd_put();
+	is_fpsimd_put_func();
 #else
 	intr_handler->intr_func();
 #endif
@@ -1448,7 +1459,7 @@ int is_spin_lock_finish(void *slock_lib)
 #ifdef LIB_MEM_TRACK
 	add_free_track(MT_TYPE_SPINLOCK, (ulong)slock_lib);
 #endif
-	vfree_atomic(slock_lib);
+	is_vfree_atomic(slock_lib);
 
 	return 0;
 }
@@ -1616,7 +1627,13 @@ static void __nocfi lib_task_work(struct kthread_work *work)
 	dbg_lib(3, "do task_work: func(%p), params(%p)\n",
 		cur_work->func, cur_work->params);
 
+#ifdef ENABLE_FPSIMD_FOR_USER
+	is_fpsimd_get_task();
 	cur_work->func(cur_work->params);
+	is_fpsimd_put_task();
+#else
+	cur_work->func(cur_work->params);
+#endif
 }
 
 bool lib_task_trigger(struct is_lib_support *this,
@@ -1780,7 +1797,7 @@ int is_init_ddk_thread(void)
 			return PTR_ERR(lib->task_taaisp[i].task);
 		}
 #ifdef ENABLE_FPSIMD_FOR_USER
-		fpsimd_set_task_using(lib->task_taaisp[i].task);
+		is_fpsimd_set_task_using(lib->task_taaisp[i].task);
 #endif
 		/* TODO: consider task priority group worker */
 		param.sched_priority = lib_get_task_priority(i);
@@ -1846,7 +1863,11 @@ void is_lib_flush_task_handler(int priority)
 
 	dbg_lib(3, "%s: task_index(%d), priority(%d)\n", __func__, task_index, priority);
 
+#if defined(LOCAL_FPSIMD_API)
+	/* TODO: task or workqueue for kthread_flush_worker() */
+#else
 	kthread_flush_worker(&lib->task_taaisp[task_index].worker);
+#endif
 }
 
 void is_load_clear(void)
@@ -1886,7 +1907,6 @@ static void _get_fd_data(u32 instance,
 	struct is_device_ischain *ischain = NULL;
 	struct is_region *is_region = NULL;
 	struct nfd_info *fd_info = NULL;
-	unsigned long flags = 0;
 
 	if (unlikely(!lib)) {
 		err_lib("lib is NULL");
@@ -1902,9 +1922,9 @@ static void _get_fd_data(u32 instance,
 	is_region = ischain->is_region;
 	fd_info = (struct nfd_info *)&is_region->fd_info;
 
-	spin_lock_irqsave(&is_region->fd_info_slock, flags);
+	spin_lock(&is_region->fd_info_slock);
 	memcpy((void *)fd_data, (void *)fd_info, sizeof(struct nfd_info));
-	spin_unlock_irqrestore(&is_region->fd_info_slock, flags);
+	spin_unlock(&is_region->fd_info_slock);
 
 	dbg_lib(3, "_get_fd_data: (fc: %d, fn: %d)\n",
 		fd_data->frame_count, fd_data->face_num);
@@ -1920,7 +1940,7 @@ static void is_get_fd_data(u32 instance,
 	struct is_lib_vra *lib_vra = g_lib_vra;
 
 	if (unlikely(!lib_vra)) {
-		err_lib("lib_vra is NULL");
+		//err_lib("lib_vra is NULL");
 		face_data->face_num = 0;
 		return;
 	}
@@ -2122,14 +2142,14 @@ static int is_votfitf_set_flush(struct votf_info *vinfo)
 	return ret;
 }
 
-static int is_votfitf_set_frame_size(struct votf_info *vinfo, u32 size)
+static int is_votfitf_set_lines_count(struct votf_info *vinfo, u32 cnt)
 {
 	int ret = 0;
 
 	FIMC_BUG(!vinfo);
 
 	dbg_lib(4, "%s\n", __func__);
-	ret = votfitf_set_frame_size(vinfo, size);
+	ret = votfitf_set_lines_count(vinfo, cnt);
 
 	return ret;
 }
@@ -2146,27 +2166,27 @@ static int is_votfitf_set_trs_lost_cfg(struct votf_info *vinfo, struct votf_lost
 	return ret;
 }
 
-static int is_votfitf_set_token_size(struct votf_info *vinfo, u32 size)
+static int is_votfitf_set_lines_in_token(struct votf_info *vinfo, u32 lines)
 {
 	int ret = 0;
 
 	FIMC_BUG(!vinfo);
 
 	dbg_lib(4, "%s\n", __func__);
-	ret = votfitf_set_token_size(vinfo, size);
+	ret = votfitf_set_lines_in_token(vinfo, lines);
 
 	return ret;
 
 }
 
-static int is_votfitf_set_first_token_size(struct votf_info *vinfo, u32 size)
+static int is_votfitf_set_lines_in_first_token(struct votf_info *vinfo, u32 lines)
 {
 	int ret = 0;
 
 	FIMC_BUG(!vinfo);
 
 	dbg_lib(4, "%s\n", __func__);
-	ret = votfitf_set_first_token_size(vinfo, size);
+	ret = votfitf_set_lines_in_first_token(vinfo, lines);
 
 	return ret;
 
@@ -2306,10 +2326,10 @@ void set_os_system_funcs(os_system_func_t *funcs)
 	funcs[82] = (os_system_func_t)is_votfitf_set_service_cfg;
 	funcs[83] = (os_system_func_t)is_votfitf_reset;
 	funcs[84] = (os_system_func_t)is_votfitf_set_flush;
-	funcs[85] = (os_system_func_t)is_votfitf_set_frame_size;
+	funcs[85] = (os_system_func_t)is_votfitf_set_lines_count;
 	funcs[86] = (os_system_func_t)is_votfitf_set_trs_lost_cfg;
-	funcs[87] = (os_system_func_t)is_votfitf_set_token_size;
-	funcs[88] = (os_system_func_t)is_votfitf_set_first_token_size;
+	funcs[87] = (os_system_func_t)is_votfitf_set_lines_in_token;
+	funcs[88] = (os_system_func_t)is_votfitf_set_lines_in_first_token;
 
 	funcs[91] = (os_system_func_t)is_get_binary_version;
 	/* TODO: re-odering function table */
@@ -2374,8 +2394,14 @@ void set_os_system_funcs_for_rta(os_system_func_t *funcs)
 }
 #endif
 
+#if !IS_ENABLED(CONFIG_DISABLE_CAMERA_MEM_ATTR)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0))
 static int is_memory_page_range(pte_t *ptep, pgtable_t token, unsigned long addr,
 			void *data)
+#else
+static int is_memory_page_range(pte_t *ptep, unsigned long addr,
+			void *data)
+#endif
 {
 	struct is_memory_change_data *cdata = data;
 	pte_t pte = *ptep;
@@ -2486,6 +2512,7 @@ int is_memory_attribute_rox(struct is_memory_attribute *attribute)
 
 	return 0;
 }
+#endif
 
 #define INDEX_VRA_BIN	0
 #define INDEX_ISP_BIN	1
@@ -2498,6 +2525,7 @@ int __nocfi is_load_ddk_bin(int loadType)
 	struct device *device = &gPtr_lib_support.pdev->dev;
 	/* fixup the memory attribute for every region */
 	ulong lib_addr;
+	size_t bin_size;
 #ifdef CONFIG_RKP
 	rkp_dynamic_load_t rkp_dyn;
 	static rkp_dynamic_load_t rkp_dyn_before = {0};
@@ -2505,16 +2533,22 @@ int __nocfi is_load_ddk_bin(int loadType)
 	ulong lib_isp = DDK_LIB_ADDR;
 
 #ifdef USE_ONE_BINARY
-	size_t bin_size = VRA_LIB_SIZE + DDK_LIB_SIZE;
+	bin_size = VRA_LIB_SIZE + DDK_LIB_SIZE;
 #else
-	size_t bin_size = DDK_LIB_SIZE;
+	bin_size = DDK_LIB_SIZE;
 #endif
 
 	ulong lib_vra = VRA_LIB_ADDR;
+#if !IS_ENABLED(CONFIG_DISABLE_CAMERA_MEM_ATTR)
 	struct is_memory_attribute memory_attribute[] = {
 		{__pgprot(PTE_RDONLY), PFN_UP(LIB_VRA_CODE_SIZE), lib_vra},
 		{__pgprot(PTE_RDONLY), PFN_UP(LIB_ISP_CODE_SIZE), lib_isp}
 	};
+#endif
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	struct is_core *core = (struct is_core *)dev_get_drvdata(device);
+	struct is_minfo *minfo = &core->resourcemgr.minfo;
+#endif
 
 #ifdef USE_ONE_BINARY
 	lib_addr = LIB_START;
@@ -2546,6 +2580,8 @@ int __nocfi is_load_ddk_bin(int loadType)
 #endif
 #endif
 
+	info_lib("lib_addr : 0x%lx\n", lib_addr);
+
 	if (loadType == BINARY_LOAD_ALL) {
 #ifdef CONFIG_RKP
 		memset(&rkp_dyn, 0, sizeof(rkp_dyn));
@@ -2564,6 +2600,7 @@ int __nocfi is_load_ddk_bin(int loadType)
 			uh_call(UH_APP_RKP, RKP_DYNAMIC_LOAD, RKP_DYN_COMMAND_RM,(u64)&rkp_dyn_before, 0, 0);
 		memcpy(&rkp_dyn_before, &rkp_dyn, sizeof(rkp_dynamic_load_t));
 #endif
+#ifndef CONFIG_DISABLE_CAMERA_MEM_ATTR
 		ret = is_memory_attribute_nxrw(&memory_attribute[INDEX_ISP_BIN]);
 		if (ret) {
 			err_lib("failed to change into NX memory attribute (%d)", ret);
@@ -2577,13 +2614,15 @@ int __nocfi is_load_ddk_bin(int loadType)
 			return ret;
 		}
 #endif
-
-		info_lib("binary info[%s] - type: C/D, from: %s\n",
+#endif
+		info_lib("binary info 1[%s] - type: C/D, from: %s\n",
 			bin_type,
 			was_loaded_by(&bin) ? "built-in" : "user-provided");
 		if (bin.size <= bin_size) {
 			memcpy((void *)lib_addr, bin.data, bin.size);
-			__flush_dcache_area((void *)lib_addr, bin.size);
+#if !defined(MODULE)
+			//__flush_dcache_area((void *)lib_addr, bin.size);
+#endif
 		} else {
 			err_lib("DDK bin size is bigger than memory area. %zd[%zd]",
 				bin.size, bin_size);
@@ -2597,6 +2636,7 @@ int __nocfi is_load_ddk_bin(int loadType)
 			err_lib("fail to load verify FIMC in EL2");
 		}
 #else
+#ifndef CONFIG_DISABLE_CAMERA_MEM_ATTR
 		ret = is_memory_attribute_rox(&memory_attribute[INDEX_ISP_BIN]);
 		if (ret) {
 			err_lib("failed to change into EX memory attribute (%d)", ret);
@@ -2611,24 +2651,29 @@ int __nocfi is_load_ddk_bin(int loadType)
 		}
 #endif
 #endif
+#endif
 	} else { /* loadType == BINARY_LOAD_DATA */
 		if ((bin.size > CAMERA_BINARY_DDK_DATA_OFFSET) && (bin.size <= bin_size)) {
-			info_lib("binary info[%s] - type: D, from: %s\n",
+			info_lib("binary info 2[%s] - type: D, from: %s\n",
 				bin_type,
 				was_loaded_by(&bin) ? "built-in" : "user-provided");
 			memcpy((void *)lib_addr + CAMERA_BINARY_VRA_DATA_OFFSET + CDH_SIZE,
 				bin.data + CAMERA_BINARY_VRA_DATA_OFFSET + CDH_SIZE,
 				CAMERA_BINARY_VRA_DATA_SIZE);
-			__flush_dcache_area((void *)lib_addr + CAMERA_BINARY_VRA_DATA_OFFSET + CDH_SIZE,
-								CAMERA_BINARY_VRA_DATA_SIZE);
-			info_lib("binary info[%s] - type: D, from: %s\n",
+#if !defined(MODULE)
+		//	__flush_dcache_area((void *)lib_addr + CAMERA_BINARY_VRA_DATA_OFFSET + CDH_SIZE,
+		//						CAMERA_BINARY_VRA_DATA_SIZE);
+#endif
+			info_lib("binary info 3[%s] - type: D, from: %s\n",
 				bin_type,
 				was_loaded_by(&bin) ? "built-in" : "user-provided");
 			memcpy((void *)lib_addr + CAMERA_BINARY_DDK_DATA_OFFSET + CDH_SIZE,
 				bin.data + CAMERA_BINARY_DDK_DATA_OFFSET + CDH_SIZE,
 				(bin.size - CAMERA_BINARY_DDK_DATA_OFFSET - CDH_SIZE));
-			__flush_dcache_area((void *)lib_addr + CAMERA_BINARY_DDK_DATA_OFFSET + CDH_SIZE,
-								bin.size - CAMERA_BINARY_DDK_DATA_OFFSET - CDH_SIZE);
+#if !defined(MODULE)
+			//__flush_dcache_area((void *)lib_addr + CAMERA_BINARY_DDK_DATA_OFFSET + CDH_SIZE,
+			//					bin.size - CAMERA_BINARY_DDK_DATA_OFFSET - CDH_SIZE);
+#endif
 		} else {
 			err_lib("DDK bin size is bigger than memory area. %zd[%zd]",
 				bin.size, bin_size);
@@ -2640,16 +2685,44 @@ int __nocfi is_load_ddk_bin(int loadType)
 	carve_binary_version(IS_BIN_LIBRARY, IS_BIN_LIB_HINT_DDK, &bin);
 	release_binary(&bin);
 
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	{
+		u32 ddk_heap_size = 0;
+		u32 env_args[4];
+
+		((ddk_get_env_func_t)DDK_GET_ENV_ADDR)((void *)env_args);
+
+		ddk_heap_size = env_args[0];
+
+		ret = is_heap_mem_alloc_dynamic(&core->resourcemgr, IS_BIN_LIB_HINT_DDK, ddk_heap_size);
+		if (ret) {
+			err_lib("failed to alloc memory for DDK heap(%d)", ret);
+			goto fail;
+		}
+		info_lib("DDK heap start: 0x%lx, size: 0x%x", minfo->kvaddr_heap_ddk, ddk_heap_size);
+
+	}
+#endif
+
 	gPtr_lib_support.log_ptr = 0;
 	set_os_system_funcs(os_system_funcs);
 	/* call start_up function for DDK binary */
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
-	((start_up_func_t)lib_isp)((void **)os_system_funcs);
-	fpsimd_put();
+	is_fpsimd_get_func();
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	((start_up_func_t)lib_isp)((void **)os_system_funcs, (void *)minfo->kvaddr_heap_ddk);
 #else
 	((start_up_func_t)lib_isp)((void **)os_system_funcs);
 #endif
+	is_fpsimd_put_func();
+#else
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	((start_up_func_t)lib_isp)((void **)os_system_funcs, (void *)minfo->kvaddr_heap_ddk);
+#else
+	((start_up_func_t)lib_isp)((void **)os_system_funcs);
+#endif
+#endif
+
 	return 0;
 
 fail:
@@ -2673,14 +2746,14 @@ int __nocfi is_load_vra_bin(int loadType)
 		{__pgprot(PTE_RDONLY), PFN_UP(LIB_VRA_CODE_SIZE), lib_vra},
 		{__pgprot(PTE_RDONLY), PFN_UP(LIB_ISP_CODE_SIZE), lib_isp}
 	};
-
+#ifndef CONFIG_DISABLE_CAMERA_MEM_ATTR
 	/* load VRA library */
 	ret = is_memory_attribute_nxrw(&memory_attribute[INDEX_VRA_BIN]);
 	if (ret) {
 		err_lib("failed to change into NX memory attribute (%d)", ret);
 		return ret;
 	}
-
+#endif
 	setup_binary_loader(&bin, 3, -EAGAIN, NULL, NULL);
 	ret = request_binary(&bin, IS_ISP_LIB_SDCARD_PATH,
 						IS_VRA_LIB, device);
@@ -2698,19 +2771,23 @@ int __nocfi is_load_vra_bin(int loadType)
 			(unsigned int)bin.size, (unsigned int)VRA_LIB_SIZE);
 		goto fail;
 	}
-	__flush_dcache_area((void *)lib_vra, bin.size);
+#if !defined(MODULE)
+//	__flush_dcache_area((void *)lib_vra, bin.size);
+#endif
 	flush_icache_range(lib_vra, bin.size);
 
 	release_binary(&bin);
-
+#ifndef CONFIG_DISABLE_CAMERA_MEM_ATTR
 	ret = is_memory_attribute_rox(&memory_attribute[INDEX_VRA_BIN]);
 	if (ret) {
 		err_lib("failed to change into EX memory attribute (%d)", ret);
 		return ret;
 	}
 #endif
+#endif
 
-	is_lib_vra_os_funcs();
+	if (IS_ENABLED(ENABLE_VRA))
+		is_lib_vra_os_funcs();
 
 	return 0;
 
@@ -2734,13 +2811,15 @@ int __nocfi is_load_rta_bin(int loadType)
 #ifdef CONFIG_RKP
 	rkp_dynamic_load_t rkp_dyn;
 	static rkp_dynamic_load_t rkp_dyn_before = {0};
-#endif
-
 	struct is_memory_attribute rta_memory_attribute = {
 		__pgprot(PTE_RDONLY), PFN_UP(LIB_RTA_CODE_SIZE), lib_rta};
+#endif
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	struct is_core *core = (struct is_core *)dev_get_drvdata(device);
+	struct is_minfo *minfo = &core->resourcemgr.minfo;
+#endif
 
 	/* load RTA library */
-
 	setup_binary_loader(&bin, 3, -EAGAIN, NULL, NULL);
 #ifdef CAMERA_FW_LOADING_FROM
 	ret = is_vender_request_binary(&bin, IS_ISP_LIB_SDCARD_PATH, IS_FW_DUMP_PATH,
@@ -2765,18 +2844,21 @@ int __nocfi is_load_rta_bin(int loadType)
 		if (rkp_dyn_before.type)
 			uh_call(UH_APP_RKP, RKP_DYNAMIC_LOAD, RKP_DYN_COMMAND_RM, (u64)&rkp_dyn_before, 0, 0);
 		memcpy(&rkp_dyn_before, &rkp_dyn, sizeof(rkp_dynamic_load_t));
-#endif
+#ifndef CONFIG_DISABLE_CAMERA_MEM_ATTR
 		ret = is_memory_attribute_nxrw(&rta_memory_attribute);
 		if (ret) {
 			err_lib("failed to change into NX memory attribute (%d)", ret);
 			return ret;
 		}
-
+#endif
+#endif
 		info_lib("binary info[RTA] - type: C/D, from: %s\n",
 			was_loaded_by(&bin) ? "built-in" : "user-provided");
 		if (bin.size <= RTA_LIB_SIZE) {
 			memcpy((void *)lib_rta, bin.data, bin.size);
-			__flush_dcache_area((void *)lib_rta, bin.size);
+#if !defined(MODULE)
+			//__flush_dcache_area((void *)lib_rta, bin.size);
+#endif
 		} else {
 			err_lib("RTA bin size is bigger than memory area. %d[%d]",
 				(unsigned int)bin.size, (unsigned int)RTA_LIB_SIZE);
@@ -2788,12 +2870,13 @@ int __nocfi is_load_rta_bin(int loadType)
 		if (ret) {
 			err_lib("fail to load verify FIMC in EL2");
 		}
-#else
+#ifndef CONFIG_DISABLE_CAMERA_MEM_ATTR
 		ret = is_memory_attribute_rox(&rta_memory_attribute);
 		if (ret) {
 			err_lib("failed to change into EX memory attribute (%d)", ret);
 			return ret;
 		}
+#endif
 #endif
 
 	} else { /* loadType == BINARY_LOAD_DATA */
@@ -2803,8 +2886,10 @@ int __nocfi is_load_rta_bin(int loadType)
 			memcpy((void *)lib_rta + CAMERA_BINARY_RTA_DATA_OFFSET,
 				bin.data + CAMERA_BINARY_RTA_DATA_OFFSET,
 				bin.size - CAMERA_BINARY_RTA_DATA_OFFSET);
-			__flush_dcache_area((void *)lib_rta + CAMERA_BINARY_RTA_DATA_OFFSET,
-								bin.size - CAMERA_BINARY_RTA_DATA_OFFSET);
+#if !defined(MODULE)
+			//__flush_dcache_area((void *)lib_rta + CAMERA_BINARY_RTA_DATA_OFFSET,
+			//					bin.size - CAMERA_BINARY_RTA_DATA_OFFSET);
+#endif
 		} else {
 			err_lib("RTA bin size is bigger than memory area. %d[%d]",
 				(unsigned int)bin.size, (unsigned int)RTA_LIB_SIZE);
@@ -2816,17 +2901,42 @@ int __nocfi is_load_rta_bin(int loadType)
 	carve_binary_version(IS_BIN_LIBRARY, IS_BIN_LIB_HINT_RTA, &bin);
 	release_binary(&bin);
 
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	{
+		u32 rta_heap_size = 0;
+		u32 env_args[4];
+
+		((rta_get_env_func_t)RTA_GET_ENV_ADDR)((void *)&env_args);
+		rta_heap_size = env_args[0];
+
+		ret = is_heap_mem_alloc_dynamic(&core->resourcemgr, IS_BIN_LIB_HINT_RTA, rta_heap_size);
+		if (ret) {
+			err_lib("failed to alloc memory for RTA heap(%d)", ret);
+			goto fail;
+		}
+		info_lib("RTA heap start: 0x%lx, size: 0x%x", minfo->kvaddr_heap_rta, rta_heap_size);
+
+	}
+#endif
+
 	set_os_system_funcs_for_rta(os_system_funcs);
 	/* call start_up function for RTA binary */
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
+	is_fpsimd_get_func();
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	((rta_start_up_func_t)lib_rta)((void *)minfo->kvaddr_heap_rta, (void **)os_system_funcs);
+#else
 	((rta_start_up_func_t)lib_rta)(NULL, (void **)os_system_funcs);
-	fpsimd_put();
+#endif
+	is_fpsimd_put_func();
+#else
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	((rta_start_up_func_t)lib_rta)((void *)minfo->kvaddr_heap_rta, (void **)os_system_funcs);
 #else
 	((rta_start_up_func_t)lib_rta)(NULL, (void **)os_system_funcs);
 #endif
 #endif
-
+#endif
 	return ret;
 
 fail:
@@ -2912,7 +3022,7 @@ int is_load_bin(void)
 #endif
 	if (ret) {
 		err_lib("load_rta_bin() failed (%d)\n", ret);
-		is_load_ctrl_unlock();
+    is_load_ctrl_unlock();
 		return ret;
 	}
 	is_load_ctrl_unlock();

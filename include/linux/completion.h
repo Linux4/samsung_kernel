@@ -9,8 +9,7 @@
  * See kernel/sched/completion.c for details.
  */
 
-#include <linux/wait.h>
-#include <linux/sec_debug_complete_hint.h>
+#include <linux/swait.h>
 
 /*
  * struct completion - structure used to maintain state for a "completion"
@@ -26,10 +25,7 @@
  */
 struct completion {
 	unsigned int done;
-	wait_queue_head_t wait;
-#ifdef CONFIG_SEC_DEBUG_COMPLETE_HINT
-	struct secdbg_hint hint;
-#endif
+	struct swait_queue_head wait;
 };
 
 #define init_completion_map(x, m) __init_completion(x)
@@ -38,7 +34,7 @@ static inline void complete_acquire(struct completion *x) {}
 static inline void complete_release(struct completion *x) {}
 
 #define COMPLETION_INITIALIZER(work) \
-	{ 0, __WAIT_QUEUE_HEAD_INITIALIZER((work).wait) }
+	{ 0, __SWAIT_QUEUE_HEAD_INITIALIZER((work).wait) }
 
 #define COMPLETION_INITIALIZER_ONSTACK_MAP(work, map) \
 	(*({ init_completion_map(&(work), &(map)); &(work); }))
@@ -89,10 +85,7 @@ static inline void complete_release(struct completion *x) {}
 static inline void __init_completion(struct completion *x)
 {
 	x->done = 0;
-#ifdef CONFIG_SEC_DEBUG_COMPLETE_HINT
-	secdbg_hint_init(&x->hint);
-#endif
-	init_waitqueue_head(&x->wait);
+	init_swait_queue_head(&x->wait);
 }
 
 /**

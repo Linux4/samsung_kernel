@@ -1,16 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Pinctrl for Cirrus Logic CS47L15
  *
- * Copyright 2018 Cirrus Logic
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Copyright (C) 2018-2019 Cirrus Logic, Inc. and
+ *                         Cirrus Logic International Semiconductor Ltd.
  */
 
 #include <linux/err.h>
-#include <linux/module.h>
-
 #include <linux/mfd/madera/core.h>
 
 #include "pinctrl-madera.h"

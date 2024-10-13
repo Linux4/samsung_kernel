@@ -18,27 +18,31 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <video/videonode.h>
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/vmalloc.h>
 #include <linux/interrupt.h>
 #include <linux/pm_qos.h>
 #include <linux/bug.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/gpio.h>
+#include <linux/version.h>
 
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #endif
 #if defined(CONFIG_SECURE_CAMERA_USE)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <soc/samsung/exynos-smc.h>
+#else
 #include <linux/smc.h>
+#endif
 #endif
 
 #include "is-core.h"
@@ -52,24 +56,35 @@
 #include "is-dvfs.h"
 #include "is-device-sensor.h"
 #include "sensor/module_framework/is-device-sensor-peri.h"
+#include "pablo-obte.h"
 
 #ifdef ENABLE_FAULT_HANDLER
+#ifdef CONFIG_EXYNOS_IOVMM
 #include <linux/exynos_iovmm.h>
+#else
+#include <linux/iommu.h>
+#ifdef USE_CAMERA_IOVM_BEST_FIT
+#include <linux/dma-iommu.h>
+#endif
+#endif
 #endif
 
 struct device *is_dev = NULL;
+EXPORT_SYMBOL_GPL(is_dev);
 
-extern struct pm_qos_request exynos_isp_qos_int;
-extern struct pm_qos_request exynos_isp_qos_mem;
-extern struct pm_qos_request exynos_isp_qos_cam;
+extern struct is_pm_qos_request exynos_isp_qos_int;
+extern struct is_pm_qos_request exynos_isp_qos_mem;
+extern struct is_pm_qos_request exynos_isp_qos_cam;
 
 /* sysfs global variable for debug */
 struct is_sysfs_debug sysfs_debug;
 
 /* sysfs global variable for set position to actuator */
 struct is_sysfs_actuator sysfs_actuator;
+EXPORT_SYMBOL_GPL(sysfs_actuator);
 #ifdef FIXED_SENSOR_DEBUG
 struct is_sysfs_sensor sysfs_sensor;
+EXPORT_SYMBOL_GPL(sysfs_sensor);
 #endif
 
 int debug_clk;
@@ -88,6 +103,7 @@ int debug_csi;
 module_param(debug_csi, int, 0644);
 int debug_sensor;
 module_param(debug_sensor, int, 0644);
+EXPORT_SYMBOL_GPL(debug_sensor);
 int debug_time_launch;
 module_param(debug_time_launch, int, 0644);
 int debug_time_queue;
@@ -102,7 +118,33 @@ int debug_s2d;
 module_param(debug_s2d, int, 0644);
 int debug_dvfs;
 module_param(debug_dvfs, int, 0644);
+int debug_mem;
+module_param(debug_mem, int, 0644);
 
+#ifdef MODULE
+extern struct platform_driver is_sensor_driver;
+extern struct spi_driver is_spi_driver;
+extern struct platform_driver sensor_module_driver;
+extern struct i2c_driver sensor_i2c_dummy_driver;
+#endif
+extern struct platform_driver pablo_iommu_group_driver;
+
+struct device *is_get_is_dev(void)
+{
+	return is_dev;
+}
+EXPORT_SYMBOL_GPL(is_get_is_dev);
+
+struct is_core *is_get_is_core(void)
+{
+	if (!is_dev) {
+		warn("is_dev is not yet probed");
+		return NULL;
+	}
+
+	return (struct is_core *)dev_get_drvdata(is_dev);
+}
+EXPORT_SYMBOL_GPL(is_get_is_core);
 
 struct is_device_sensor *is_get_sensor_device(struct is_core *core)
 {
@@ -294,66 +336,66 @@ int is_secure_func(struct is_core *core,
 	return ret;
 }
 #ifdef ENABLE_FAULT_HANDLER
-static void is_print_target_dva(struct is_frame *leader_frame)
+static void is_print_target_dva(struct is_frame *leader_frame, u32 instance)
 {
 	u32 plane_index;
 
 	for (plane_index = 0; plane_index < IS_MAX_PLANES; plane_index++) {
 		if (leader_frame->txcTargetAddress[plane_index])
 			pr_err("[@][%d] txcTargetAddress[%d]: 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->txcTargetAddress[plane_index]);
 		if (leader_frame->txpTargetAddress[plane_index])
 			pr_err("[@][%d] txpTargetAddress[%d]: 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->txpTargetAddress[plane_index]);
 		if (leader_frame->ixcTargetAddress[plane_index])
 			pr_err("[@][%d] ixcTargetAddress[%d]: 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->ixcTargetAddress[plane_index]);
 		if (leader_frame->ixpTargetAddress[plane_index])
 			pr_err("[@][%d] ixpTargetAddress[%d]: 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->ixpTargetAddress[plane_index]);
 		if (leader_frame->ixtTargetAddress[plane_index])
 			pr_err("[@][%d] ixtTargetAddress[%d]: 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->ixtTargetAddress[plane_index]);
 		if (leader_frame->mexcTargetAddress[plane_index])
 			pr_err("[@][%d] mexcTargetAddress[%d]: 0x%16LX\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->mexcTargetAddress[plane_index]);
 		if (leader_frame->orbxcTargetAddress[plane_index])
 			pr_err("[@][%d] orbxcTargetAddress[%d]: 0x%16LX\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->orbxcTargetAddress[plane_index]);
 		if (leader_frame->sc0TargetAddress[plane_index])
 			pr_err("[@][%d] sc0TargetAddress[%d]: 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->sc0TargetAddress[plane_index]);
 		if (leader_frame->sc1TargetAddress[plane_index])
 			pr_err("[@][%d] sc1TargetAddress[%d] = 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->sc1TargetAddress[plane_index]);
 		if (leader_frame->sc2TargetAddress[plane_index])
 			pr_err("[@][%d] sc2TargetAddress[%d] = 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->sc2TargetAddress[plane_index]);
 		if (leader_frame->sc3TargetAddress[plane_index])
 			pr_err("[@][%d] sc3TargetAddress[%d] = 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->sc3TargetAddress[plane_index]);
 		if (leader_frame->sc4TargetAddress[plane_index])
 			pr_err("[@][%d] sc4TargetAddress[%d] = 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->sc4TargetAddress[plane_index]);
 		if (leader_frame->sc5TargetAddress[plane_index])
 			pr_err("[@][%d] sc5TargetAddress[%d] = 0x%08X\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->sc5TargetAddress[plane_index]);
 		if (leader_frame->orbxcTargetAddress[plane_index])
 			pr_err("[@][%d] orbxcTargetAddress[%d] = 0x%16LX\n",
-				leader_frame->instance,
+				instance,
 				plane_index, leader_frame->orbxcTargetAddress[plane_index]);
 	}
 }
@@ -376,7 +418,7 @@ void is_print_frame_dva(struct is_subdev *subdev)
 
 				shot = framemgr->frames[j].shot;
 				if (shot)
-					is_print_target_dva(&framemgr->frames[j]);
+					is_print_target_dva(&framemgr->frames[j], subdev->instance);
 			}
 		}
 	}
@@ -509,6 +551,7 @@ static void wq_func_print_clk(struct work_struct *data)
 	CALL_POPS(core, print_clk);
 }
 
+#if defined(CONFIG_EXYNOS_IOVMM)
 static int __attribute__((unused)) is_fault_handler(struct iommu_domain *domain,
 	struct device *dev,
 	unsigned long fault_addr,
@@ -524,7 +567,31 @@ static int __attribute__((unused)) is_fault_handler(struct iommu_domain *domain,
 
 	return -EINVAL;
 }
+#else
+static int __attribute__((unused)) is_fault_handler(struct iommu_fault *fault,
+	void *data)
+{
+	pr_err("[@] <Pablo IS FAULT HANDLER> ++\n");
+
+	__is_fault_handler(is_dev);
+
+	pr_err("[@] <Pablo IS FAULT HANDLER> --\n");
+
+	return -EINVAL;
+}
+#endif
 #endif /* ENABLE_FAULT_HANDLER */
+
+void is_register_iommu_fault_handler(struct device *dev)
+{
+#ifdef ENABLE_FAULT_HANDLER
+#ifdef CONFIG_EXYNOS_IOVMM
+	iovmm_set_fault_handler(dev, is_fault_handler, NULL);
+#else
+	iommu_register_device_fault_handler(dev, is_fault_handler, NULL);
+#endif
+#endif
+}
 
 static ssize_t show_en_dvfs(struct device *dev, struct device_attribute *attr,
 				  char *buf)
@@ -861,7 +928,7 @@ static ssize_t show_actuator_fixed_position(struct device *dev, struct device_at
 static ssize_t show_fixed_sensor_val(struct device *dev, struct device_attribute *attr,
 				  char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "fps(%d) ex(%d %d) a_gain(%d %d) d_gain(%d %d)\n",
+	return snprintf(buf, PAGE_SIZE, "f_duration(%d) ex(%d %d) a_gain(%d %d) d_gain(%d %d)\n",
 			sysfs_sensor.frame_duration,
 			sysfs_sensor.long_exposure_time,
 			sysfs_sensor.short_exposure_time,
@@ -904,7 +971,7 @@ static ssize_t show_fixed_sensor_fps(struct device *dev, struct device_attribute
 				  char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "current_fps(%d), max_fps(%d)\n",
-			sysfs_sensor.frame_duration,
+			sysfs_sensor.set_fps,
 			sysfs_sensor.max_fps);
 }
 
@@ -926,7 +993,6 @@ static ssize_t store_fixed_sensor_fps(struct device *dev,
 			warn("Over max fps(%d), setting current fps to max(%d -> %d)\n",
 					FIXED_MAX_FPS_VALUE, input_val, FIXED_MAX_FPS_VALUE);
 
-			sysfs_sensor.set_fps = input_val;
 			input_val = sysfs_sensor.max_fps;
 		} else if (input_val < FIXED_MIN_FPS_VALUE) {
 			warn("Lower than enable to sensor fps setting, setting to (%d -> %d)\n",
@@ -935,7 +1001,8 @@ static ssize_t store_fixed_sensor_fps(struct device *dev,
 			input_val = FIXED_MIN_FPS_VALUE;
 		}
 
-		sysfs_sensor.frame_duration = input_val;
+		sysfs_sensor.set_fps = input_val;
+		sysfs_sensor.frame_duration = FPS_TO_DURATION_US(input_val);
 	} else {
 		warn("Not enable a is_fps_en, has to first setting is_fps_en\n");
 	}
@@ -1038,7 +1105,7 @@ static struct attribute_group is_debug_attr_group = {
 	.attrs	= is_debug_entries,
 };
 
-static int __init is_probe(struct platform_device *pdev)
+static int is_probe(struct platform_device *pdev)
 {
 	struct exynos_platform_is *pdata;
 	struct is_core *core;
@@ -1097,7 +1164,7 @@ static int __init is_probe(struct platform_device *pdev)
 		}
 	}
 
-	dma_set_mask(&pdev->dev, DMA_BIT_MASK(36));
+	dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
 
 	ret = is_mem_init(&core->resourcemgr.mem, core->pdev);
 	if (ret) {
@@ -1194,6 +1261,16 @@ static int __init is_probe(struct platform_device *pdev)
 	is_30g_video_probe(core);
 #endif
 
+#ifdef SOC_30O
+	/* video entity - 3a0 orbds */
+	is_30o_video_probe(core);
+#endif
+
+#ifdef SOC_30L
+	/* video entity - 3a0 lmeds */
+	is_30l_video_probe(core);
+#endif
+
 #ifdef SOC_31S
 	/* video entity - 3a1 */
 	is_31s_video_probe(core);
@@ -1219,6 +1296,16 @@ static int __init is_probe(struct platform_device *pdev)
 	is_31g_video_probe(core);
 #endif
 
+#ifdef SOC_31O
+	/* video entity - 3a0 orbds */
+	is_31o_video_probe(core);
+#endif
+
+#ifdef SOC_31L
+	/* video entity - 3a0 lmeds */
+	is_31l_video_probe(core);
+#endif
+
 #ifdef SOC_32S
 	/* video entity - 3a2 */
 	is_32s_video_probe(core);
@@ -1242,6 +1329,66 @@ static int __init is_probe(struct platform_device *pdev)
 #ifdef SOC_32G
 	/* video entity - 3a2 MRG_OUT */
 	is_32g_video_probe(core);
+#endif
+
+#ifdef SOC_32O
+	/* video entity - 3a0 orbds */
+	is_32o_video_probe(core);
+#endif
+
+#ifdef SOC_32L
+	/* video entity - 3a0 lmeds */
+	is_32l_video_probe(core);
+#endif
+
+#ifdef SOC_33S
+	/* video entity - 3a3 */
+	is_33s_video_probe(core);
+#endif
+
+#ifdef SOC_33C
+	/* video entity - 3a3 capture*/
+	is_33c_video_probe(core);
+#endif
+
+#ifdef SOC_33P
+	/* video entity - 3a3 preview */
+	is_33p_video_probe(core);
+#endif
+
+#ifdef SOC_33F
+	/* video entity - 3a3 early-FD */
+	is_33f_video_probe(core);
+#endif
+
+#ifdef SOC_33G
+	/* video entity - 3a3 MRG_OUT */
+	is_33g_video_probe(core);
+#endif
+
+#ifdef SOC_33O
+	/* video entity - 3a0 orbds */
+	is_33o_video_probe(core);
+#endif
+
+#ifdef SOC_33L
+	/* video entity - 3a0 lmeds */
+	is_33l_video_probe(core);
+#endif
+
+#ifdef SOC_LME
+	/* video entity - LME input */
+	is_lme_video_probe(core);
+#endif
+
+#ifdef SOC_LMES
+	/* video entity - LME MVF output */
+	is_lmes_video_probe(core);
+#endif
+
+#ifdef SOC_LMEC
+	/* video entity - LME cost output */
+	is_lmec_video_probe(core);
 #endif
 
 #ifdef SOC_I0S
@@ -1326,6 +1473,11 @@ static int __init is_probe(struct platform_device *pdev)
 	/* video entity - clahe */
 	is_cl0s_video_probe(core);
 	is_cl0c_video_probe(core);
+#endif
+
+#ifdef SOC_YPP
+	/* video entity - yuvpp */
+	is_ypp_video_probe(core);
 #endif
 
 	platform_set_drvdata(pdev, core);
@@ -1426,8 +1578,10 @@ static int __init is_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 #endif
 
-#ifdef ENABLE_FAULT_HANDLER
-	iovmm_set_fault_handler(is_dev, is_fault_handler, NULL);
+	is_register_iommu_fault_handler(is_dev);
+
+#ifdef USE_CAMERA_IOVM_BEST_FIT
+	iommu_dma_enable_best_fit_algo(is_dev);
 #endif
 
 	for (i = 0; i < MAX_SENSOR_SHARED_RSC; i++) {
@@ -1575,6 +1729,7 @@ static const struct of_device_id exynos_is_match[] = {
 MODULE_DEVICE_TABLE(of, exynos_is_match);
 
 static struct platform_driver is_driver = {
+	.probe		= is_probe,
 	.shutdown	= is_shutdown,
 	.driver = {
 		.name	= IS_DRV_NAME,
@@ -1583,7 +1738,6 @@ static struct platform_driver is_driver = {
 		.of_match_table = exynos_is_match,
 	}
 };
-
 #else
 static struct platform_driver is_driver = {
 	.driver = {
@@ -1593,8 +1747,81 @@ static struct platform_driver is_driver = {
 	}
 };
 #endif
+
+#ifdef MODULE
+static int is_driver_init(void)
+{
+	int ret = 0;
+
+	ret = platform_driver_register(&pablo_iommu_group_driver);
+	if (ret) {
+		err("pablo_iommu_group_driver register failed(%d)", ret);
+		return ret;
+	}
+	
+	ret = platform_driver_register(&is_driver);
+	if (ret) {
+		err("is_driver register failed(%d)", ret);
+		return ret;
+	}
+
+	ret = platform_driver_register(&is_sensor_driver);
+	if (ret) {
+		err("is_sensor_driver register failed(%d)", ret);
+		return ret;
+	}
+
+	ret = spi_register_driver(&is_spi_driver);
+	if (ret) {
+		err("is_spi_driver register failed(%d)", ret);
+		return ret;
+	}
+
+	ret = platform_driver_register(&sensor_module_driver);
+	if (ret) {
+		err("sensor_module_driver register failed(%d)", ret);
+		return ret;
+	}
+
+	ret = i2c_add_driver(&sensor_i2c_dummy_driver);
+	if (ret) {
+		err("sensor_i2c_dummy_driver register failed(%d)", ret);
+		return ret;
+	}
+
+	ret = is_vender_driver_init();
+	if (ret) {
+		err("is_vender_driver_init failed(%d)", ret);
+		return ret;
+	}
+
+	ret = pablo_obte_init();
+	if (ret) {
+		err("pablo_obte_init failed(%d)", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+void is_driver_exit(void)
+{
+	i2c_del_driver(&sensor_i2c_dummy_driver);
+	platform_driver_unregister(&sensor_module_driver);
+	spi_unregister_driver(&is_spi_driver);
+	platform_driver_unregister(&is_sensor_driver);
+	platform_driver_unregister(&is_driver);
+	pablo_obte_exit();
+}
+module_init(is_driver_init);
+module_exit(is_driver_exit);
+MODULE_SOFTDEP("pre: cmupmucal clk_exynos exynos-pmu-if pinctrl-samsung-core phy-exynos-mipi samsung-iommu samsung-iommu-group");
+#else
 builtin_platform_driver_probe(is_driver, is_probe);
+#endif
+
 
 MODULE_AUTHOR("Gilyeon im<kilyeon.im@samsung.com>");
 MODULE_DESCRIPTION("Exynos FIMC_IS2 driver");
 MODULE_LICENSE("GPL");
+

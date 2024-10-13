@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_if.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox UAIF/DSIF driver
  *
  * Copyright (c) 2017 Samsung Electronics Co. Ltd.
@@ -16,7 +16,16 @@
 
 #define UAIF_REG_CTRL0	0x0
 #define UAIF_REG_CTRL1	0x4
+#define UAIF_REG_CTRL2	0x8
+#define UAIF_REG_SPK_VOL_FACTOR	0xc
+#define UAIF_REG_SPK_VOL_CHANGE	0x10
+#define UAIF_REG_MIC_VOL_FACTOR	0x14
+#define UAIF_REG_MIC_VOL_CHANGE	0x18
+#if (ABOX_SOC_VERSION(4, 0, 0) < CONFIG_SND_SOC_SAMSUNG_ABOX_VERSION)
+#define UAIF_REG_STATUS	0x20
+#else
 #define UAIF_REG_STATUS	0xc
+#endif
 #define UAIF_REG_MAX	UAIF_REG_STATUS
 
 #define DSIF_REG_CTRL	0x0
@@ -33,7 +42,18 @@ enum abox_if_config {
 	ABOX_IF_FMT_COUNT,
 };
 
+enum abox_if_irq {
+	ABOX_IF_IRQ_SPEAKER,
+	ABOX_IF_IRQ_MIC,
+	ABOX_IF_IRQ_HOLD,
+	ABOX_IF_IRQ_RESUME,
+	ABOX_IF_IRQ_SPK_FADE_DONE,
+	ABOX_IF_IRQ_MIC_FADE_DONE,
+	ABOX_IF_IRQ_COUNT,
+};
+
 struct abox_if_of_data {
+	enum abox_irq (*get_irq)(int id, enum abox_if_irq irq);
 	enum abox_dai (*get_dai_id)(int id);
 	const char *(*get_dai_name)(int id);
 	unsigned int (*get_reg_base)(int id);
@@ -54,27 +74,32 @@ struct abox_if_data {
 	struct abox_data *abox_data;
 	const struct abox_if_of_data *of_data;
 	unsigned int config[ABOX_IF_FMT_COUNT];
+	unsigned int rconfig[ABOX_IF_FMT_COUNT];
+	unsigned long quirks;
 	bool extend_bclk;
+	bool enable_bclk; /* force enable */
+	bool mic_auto_fade_in;
+	bool spk_auto_fade_in;
+	struct completion mic_func_changed;
+	struct completion spk_func_changed;
 };
 
 /**
  * UAIF/DSIF hw params fixup helper by dai
  * @param[in]	dai	snd_soc_dai
  * @param[out]	params	snd_pcm_hw_params
- * @param[in]	stream	SNDRV_PCM_STREAM_PLAYBACK or SNDRV_PCM_STREAM_CAPTURE
  * @return		error code if any
  */
 extern int abox_if_hw_params_fixup(struct snd_soc_dai *dai,
-		struct snd_pcm_hw_params *params, int stream);
+		struct snd_pcm_hw_params *params);
 
 /**
  * UAIF/DSIF hw params fixup helper
  * @param[in]	rtd	snd_soc_pcm_runtime
  * @param[out]	params	snd_pcm_hw_params
- * @param[in]	stream	SNDRV_PCM_STREAM_PLAYBACK or SNDRV_PCM_STREAM_CAPTURE
  * @return		error code if any
  */
 extern int abox_if_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
-		struct snd_pcm_hw_params *params, int stream);
+		struct snd_pcm_hw_params *params);
 
 #endif /* __SND_SOC_ABOX_IF_H */

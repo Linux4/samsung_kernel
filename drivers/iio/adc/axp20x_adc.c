@@ -1,21 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /* ADC driver for AXP20X and AXP22X PMICs
  *
  * Copyright (c) 2016 Free Electrons NextThing Co.
  *	Quentin Schulz <quentin.schulz@free-electrons.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License version 2 as published by the
- * Free Software Foundation.
  */
 
 #include <linux/completion.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/module.h>
-#include <linux/of.h>
-#include <linux/of_device.h>
+#include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/thermal.h>
 
@@ -70,7 +67,7 @@ struct axp_data;
 
 struct axp20x_adc_iio {
 	struct regmap		*regmap;
-	struct axp_data		*data;
+	const struct axp_data	*data;
 };
 
 enum axp20x_adc_channel_v {
@@ -254,19 +251,8 @@ static int axp22x_adc_raw(struct iio_dev *indio_dev,
 			  struct iio_chan_spec const *chan, int *val)
 {
 	struct axp20x_adc_iio *info = iio_priv(indio_dev);
-	int size;
 
-	/*
-	 * N.B.: Unlike the Chinese datasheets tell, the charging current is
-	 * stored on 12 bits, not 13 bits. Only discharging current is on 13
-	 * bits.
-	 */
-	if (chan->type == IIO_CURRENT && chan->channel == AXP22X_BATT_DISCHRG_I)
-		size = 13;
-	else
-		size = 12;
-
-	*val = axp20x_read_variable_width(info->regmap, chan->address, size);
+	*val = axp20x_read_variable_width(info->regmap, chan->address, 12);
 	if (*val < 0)
 		return *val;
 
@@ -389,9 +375,8 @@ static int axp22x_adc_scale(struct iio_chan_spec const *chan, int *val,
 		return IIO_VAL_INT_PLUS_MICRO;
 
 	case IIO_CURRENT:
-		*val = 0;
-		*val2 = 500000;
-		return IIO_VAL_INT_PLUS_MICRO;
+		*val = 1;
+		return IIO_VAL_INT;
 
 	case IIO_TEMP:
 		*val = 100;
@@ -671,19 +656,17 @@ static int axp20x_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, indio_dev);
 
 	info->regmap = axp20x_dev->regmap;
-	indio_dev->dev.parent = &pdev->dev;
-	indio_dev->dev.of_node = pdev->dev.of_node;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 
-	if (!pdev->dev.of_node) {
+	if (!dev_fwnode(&pdev->dev)) {
 		const struct platform_device_id *id;
 
 		id = platform_get_device_id(pdev);
-		info->data = (struct axp_data *)id->driver_data;
+		info->data = (const struct axp_data *)id->driver_data;
 	} else {
 		struct device *dev = &pdev->dev;
 
-		info->data = (struct axp_data *)of_device_get_match_data(dev);
+		info->data = device_get_match_data(dev);
 	}
 
 	indio_dev->name = platform_get_device_id(pdev)->name;
@@ -747,7 +730,7 @@ static int axp20x_remove(struct platform_device *pdev)
 static struct platform_driver axp20x_adc_driver = {
 	.driver = {
 		.name = "axp20x-adc",
-		.of_match_table = of_match_ptr(axp20x_adc_of_match),
+		.of_match_table = axp20x_adc_of_match,
 	},
 	.id_table = axp20x_adc_id_match,
 	.probe = axp20x_probe,

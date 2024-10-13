@@ -712,3 +712,5 @@ int exynos_bcm_dbg_parse_dt(struct device_node *np,
 	return -ENODEV;
 }
 #endif
+EXPORT_SYMBOL(exynos_bcm_dbg_parse_dt);
+MODULE_LICENSE("GPL");

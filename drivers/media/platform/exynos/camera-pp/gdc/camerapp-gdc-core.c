@@ -19,10 +19,17 @@
 #include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
-#include <linux/exynos_iovmm.h>
-#include <media/v4l2-ioctl.h>
 
-#include <video/videonode.h>
+#ifdef CONFIG_EXYNOS_IOVMM
+#include <linux/exynos_iovmm.h>
+#else
+#include <linux/io.h>
+#include <linux/iommu.h>
+#endif
+
+#include <media/videobuf2-core.h>
+#include <media/videobuf2-dma-sg.h>
+#include <media/v4l2-ioctl.h>
 
 #include "camerapp-gdc.h"
 #include "camerapp-hw-api-gdc.h"
@@ -239,28 +246,13 @@ static const struct gdc_fmt *gdc_find_format(struct gdc_dev *gdc,
 static int gdc_v4l2_querycap(struct file *file, void *fh,
 			     struct v4l2_capability *cap)
 {
-	strncpy(cap->driver, MODULE_NAME, sizeof(cap->driver) - 1);
-	strncpy(cap->card, MODULE_NAME, sizeof(cap->card) - 1);
+	strncpy(cap->driver, GDC_MODULE_NAME, sizeof(cap->driver) - 1);
+	strncpy(cap->card, GDC_MODULE_NAME, sizeof(cap->card) - 1);
 
 	cap->capabilities = V4L2_CAP_STREAMING |
 		V4L2_CAP_VIDEO_CAPTURE_MPLANE | V4L2_CAP_VIDEO_OUTPUT_MPLANE;
 	cap->capabilities |= V4L2_CAP_DEVICE_CAPS;
 	cap->device_caps = 0x0100 ;
-
-	return 0;
-}
-
-static int gdc_v4l2_enum_fmt_mplane(struct file *file, void *fh,
-			     struct v4l2_fmtdesc *f)
-{
-	const struct gdc_fmt *gdc_fmt;
-
-	if (f->index >= ARRAY_SIZE(gdc_formats))
-		return -EINVAL;
-
-	gdc_fmt = &gdc_formats[f->index];
-	strncpy(f->description, gdc_fmt->name, sizeof(f->description) - 1);
-	f->pixelformat = gdc_fmt->pixelformat;
 
 	return 0;
 }
@@ -682,9 +674,6 @@ p_err:
 static const struct v4l2_ioctl_ops gdc_v4l2_ioctl_ops = {
 	.vidioc_querycap		= gdc_v4l2_querycap,
 
-	.vidioc_enum_fmt_vid_cap_mplane	= gdc_v4l2_enum_fmt_mplane,
-	.vidioc_enum_fmt_vid_out_mplane	= gdc_v4l2_enum_fmt_mplane,
-
 	.vidioc_g_fmt_vid_cap_mplane	= gdc_v4l2_g_fmt_mplane,
 	.vidioc_g_fmt_vid_out_mplane	= gdc_v4l2_g_fmt_mplane,
 
@@ -1099,7 +1088,6 @@ static void gdc_watchdog(struct timer_list *t)
 
 	if (test_bit(DEV_RUN, &gdc->state)) {
 		camerapp_gdc_sfr_dump(gdc->regs_base);
-		exynos_sysmmu_show_status(gdc->dev);
 		atomic_inc(&gdc->wdt.cnt);
 		dev_err(gdc->dev, "gdc is still running\n");
 		mod_timer(&gdc->wdt.timer, jiffies + GDC_TIMEOUT);
@@ -1109,47 +1097,6 @@ static void gdc_watchdog(struct timer_list *t)
 
 }
 
-
-#define GDC_SRC_PBCONFIG	(SYSMMU_PBUFCFG_TLB_UPDATE |		\
-			SYSMMU_PBUFCFG_ASCENDING | SYSMMU_PBUFCFG_READ)
-#define GDC_DST_PBCONFIG	(SYSMMU_PBUFCFG_TLB_UPDATE |		\
-			SYSMMU_PBUFCFG_ASCENDING | SYSMMU_PBUFCFG_WRITE)
-
-static void gdc_set_prefetch_buffers(struct device *dev, struct gdc_ctx *ctx)
-{
-	struct gdc_frame *s_frame = &ctx->s_frame;
-	struct gdc_frame *d_frame = &ctx->d_frame;
-	struct sysmmu_prefbuf pb_reg[6];
-	unsigned int i = 0;
-
-	pb_reg[i].base = s_frame->addr.y;
-	pb_reg[i].size = s_frame->addr.ysize;
-	pb_reg[i++].config = GDC_SRC_PBCONFIG;
-	if (s_frame->gdc_fmt->num_comp >= 2) {
-		pb_reg[i].base = s_frame->addr.cb;
-		pb_reg[i].size = s_frame->addr.cbsize;
-		pb_reg[i++].config = GDC_SRC_PBCONFIG;
-	}
-	if (s_frame->gdc_fmt->num_comp >= 3) {
-		pb_reg[i].base = s_frame->addr.cr;
-		pb_reg[i].size = s_frame->addr.crsize;
-		pb_reg[i++].config = GDC_SRC_PBCONFIG;
-	}
-
-	pb_reg[i].base = d_frame->addr.y;
-	pb_reg[i].size = d_frame->addr.ysize;
-	pb_reg[i++].config = GDC_DST_PBCONFIG;
-	if (d_frame->gdc_fmt->num_comp >= 2) {
-		pb_reg[i].base = d_frame->addr.cb;
-		pb_reg[i].size = d_frame->addr.cbsize;
-		pb_reg[i++].config = GDC_DST_PBCONFIG;
-	}
-	if (d_frame->gdc_fmt->num_comp >= 3) {
-		pb_reg[i].base = d_frame->addr.cr;
-		pb_reg[i].size = d_frame->addr.crsize;
-		pb_reg[i++].config = GDC_DST_PBCONFIG;
-	}
-}
 static int gdc_run_next_job(struct gdc_dev *gdc)
 {
 	unsigned long flags;
@@ -1204,8 +1151,6 @@ static int gdc_run_next_job(struct gdc_dev *gdc)
 	set_bit(DEV_RUN, &gdc->state);
 	set_bit(CTX_RUN, &ctx->flags);
 
-/* TODO: check smmu_prefetch buffer setting */
-	gdc_set_prefetch_buffers(gdc->dev, ctx);
 	mod_timer(&gdc->wdt.timer, jiffies + GDC_TIMEOUT);
 
 	if (__gdc_measure_hw_latency) {
@@ -1468,13 +1413,31 @@ static void gdc_m2m_device_run(void *priv)
 	s_frame = &ctx->s_frame;
 	d_frame = &ctx->d_frame;
 
-	gdc_get_bufaddr(gdc, ctx, v4l2_m2m_next_src_buf(ctx->m2m_ctx), s_frame);
-	gdc_get_bufaddr(gdc, ctx, v4l2_m2m_next_dst_buf(ctx->m2m_ctx), d_frame);
+	gdc_get_bufaddr(gdc, ctx, (struct vb2_buffer *)v4l2_m2m_next_src_buf(ctx->m2m_ctx), s_frame);
+	gdc_get_bufaddr(gdc, ctx, (struct vb2_buffer *)v4l2_m2m_next_dst_buf(ctx->m2m_ctx), d_frame);
 
 	gdc_dbg("gdc_src : format = %d, w = %d, h = %d\n", s_frame->gdc_fmt->cfg_val, s_frame->width, s_frame->height);
 	gdc_dbg("gdc_dst : format = %d, w = %d, h = %d\n", d_frame->gdc_fmt->cfg_val, d_frame->width, d_frame->height);
 	gdc_add_context_and_run(gdc, ctx);
 }
+
+int gdc_device_run(unsigned long i_ino)
+{
+	return -ENOMEM;
+}
+EXPORT_SYMBOL(gdc_device_run);
+
+int gdc_register_ready_frame_cb(int (*gdc_ready_frame_cb)(unsigned long i_ino))
+{
+	return -ENOMEM;
+}
+EXPORT_SYMBOL(gdc_register_ready_frame_cb);
+
+void gdc_unregister_ready_frame_cb(void)
+{
+	return;
+}
+EXPORT_SYMBOL(gdc_unregister_ready_frame_cb);
 
 static void gdc_m2m_job_abort(void *priv)
 {
@@ -1509,7 +1472,7 @@ static int gdc_register_m2m_device(struct gdc_dev *gdc, int dev_id)
 	v4l2_dev = &gdc->m2m.v4l2_dev;
 
 	scnprintf(v4l2_dev->name, sizeof(v4l2_dev->name), "%s.m2m",
-			MODULE_NAME);
+			GDC_MODULE_NAME);
 
 	ret = v4l2_device_register(dev, v4l2_dev);
 	if (ret) {
@@ -1529,7 +1492,8 @@ static int gdc_register_m2m_device(struct gdc_dev *gdc, int dev_id)
 	vfd->lock	= &gdc->lock;
 	vfd->vfl_dir	= VFL_DIR_M2M;
 	vfd->v4l2_dev	= v4l2_dev;
-	scnprintf(vfd->name, sizeof(vfd->name), "%s:m2m", MODULE_NAME);
+	vfd->device_caps = 0x0100;
+	scnprintf(vfd->name, sizeof(vfd->name), "%s:m2m", GDC_MODULE_NAME);
 
 	video_set_drvdata(vfd, gdc);
 
@@ -1541,7 +1505,7 @@ static int gdc_register_m2m_device(struct gdc_dev *gdc, int dev_id)
 		goto err_dev_alloc;
 	}
 
-	ret = video_register_device(vfd, VFL_TYPE_GRABBER,
+	ret = video_register_device(vfd, VFL_TYPE_VIDEO,
 				EXYNOS_VIDEONODE_CAMERAPP(CAMERAPP_VIDEONODE_GDC));
 	if (ret) {
 		dev_err(gdc->dev, "failed to register video device\n");
@@ -1559,12 +1523,18 @@ err_v4l2_dev:
 
 	return ret;
 }
-
+#ifdef CONFIG_EXYNOS_IOVMM
 static int __attribute__((unused)) gdc_sysmmu_fault_handler(struct iommu_domain *domain,
 	struct device *dev, unsigned long iova, int flags, void *token)
 {
 	struct gdc_dev *gdc = dev_get_drvdata(dev);
-
+#else
+static int gdc_sysmmu_fault_handler(struct iommu_fault *fault, void *data)
+{
+	struct gdc_dev *gdc = data;
+	struct device *dev = gdc->dev;
+	unsigned long iova = fault->event.addr;
+#endif
 	if (test_bit(DEV_RUN, &gdc->state)) {
 		dev_info(dev, "System MMU fault called for IOVA %#lx\n", iova);
 		camerapp_gdc_sfr_dump(gdc->regs_base);
@@ -1675,7 +1645,7 @@ static int gdc_runtime_resume(struct device *dev)
 	}
 
 	if (gdc->qosreq_intcam_level > 0)
-		pm_qos_update_request(&gdc->qosreq_intcam, gdc->qosreq_intcam_level);
+		gdc_pm_qos_update_request(&gdc->qosreq_intcam, gdc->qosreq_intcam_level);
 
 	return 0;
 }
@@ -1684,7 +1654,7 @@ static int gdc_runtime_suspend(struct device *dev)
 {
 	struct gdc_dev *gdc = dev_get_drvdata(dev);
 	if (gdc->qosreq_intcam_level > 0)
-		pm_qos_update_request(&gdc->qosreq_intcam, 0);
+		gdc_pm_qos_update_request(&gdc->qosreq_intcam, 0);
 	return 0;
 }
 #endif
@@ -1715,7 +1685,9 @@ static int gdc_probe(struct platform_device *pdev)
 	init_waitqueue_head(&gdc->wait);
 
 	rsc = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	gdc->regs_base = devm_ioremap_nocache(&pdev->dev, rsc->start, resource_size(rsc));
+	
+	gdc->regs_base = devm_ioremap(&pdev->dev, rsc->start, resource_size(rsc));
+	
 	if (IS_ERR(gdc->regs_base))
 		return PTR_ERR(gdc->regs_base);
 
@@ -1758,7 +1730,7 @@ static int gdc_probe(struct platform_device *pdev)
 	if (!of_property_read_u32(pdev->dev.of_node, "camerapp_gdc,intcam_qos_minlock",
 				(u32 *)&gdc->qosreq_intcam_level)) {
 		if (gdc->qosreq_intcam_level > 0) {
-			pm_qos_add_request(&gdc->qosreq_intcam,
+			gdc_pm_qos_add_request(&gdc->qosreq_intcam,
 						PM_QOS_INTCAM_THROUGHPUT, 0);
 			dev_info(&pdev->dev, "INTCAM Min.Lock Freq. = %u\n",
 						gdc->qosreq_intcam_level);
@@ -1774,12 +1746,13 @@ static int gdc_probe(struct platform_device *pdev)
 				NULL))
 		gdc->pb_disable = true;
 */
+#ifdef CONFIG_EXYNOS_IOVMM
 	ret = iovmm_activate(gdc->dev);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to attach iommu\n");
 		goto err_iommu;
 	}
-
+#endif
 	ret = pm_runtime_get_sync(&pdev->dev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "%s: failed to local power on (err %d)\n",
@@ -1816,9 +1789,11 @@ static int gdc_probe(struct platform_device *pdev)
 	if (!IS_ERR(gdc->pclk))
 		clk_disable_unprepare(gdc->pclk);
 	pm_runtime_put(&pdev->dev);
-
+#ifdef CONFIG_EXYNOS_IOVMM
 	iovmm_set_fault_handler(&pdev->dev, gdc_sysmmu_fault_handler, gdc);
-
+#else
+	iommu_register_device_fault_handler(&pdev->dev, gdc_sysmmu_fault_handler, gdc);
+#endif
 	dev_info(&pdev->dev,
 		"Driver probed successfully(version: %08x)\n",
 		gdc->version);
@@ -1830,10 +1805,12 @@ err_ver_aclk_get:
 err_ver_pclk_get:
 	pm_runtime_put(&pdev->dev);
 err_ver_rpm_get:
+#ifdef CONFIG_EXYNOS_IOVMM
 	iovmm_deactivate(gdc->dev);
 err_iommu:
+#endif
 	if (gdc->qosreq_intcam_level > 0)
-		pm_qos_remove_request(&gdc->qosreq_intcam);
+		gdc_pm_qos_remove_request(&gdc->qosreq_intcam);
 	gdc_unregister_m2m_device(gdc);
 err_wq:
 	return ret;
@@ -1842,16 +1819,18 @@ err_wq:
 static int gdc_remove(struct platform_device *pdev)
 {
 	struct gdc_dev *gdc = platform_get_drvdata(pdev);
-
+#ifdef CONFIG_EXYNOS_IOVMM
 	iovmm_deactivate(gdc->dev);
-
+#else
+	iommu_unregister_device_fault_handler(&pdev->dev);
+#endif
 	gdc_clk_put(gdc);
 
 	if (timer_pending(&gdc->wdt.timer))
 		del_timer(&gdc->wdt.timer);
 
 	if (gdc->qosreq_intcam_level > 0)
-		pm_qos_remove_request(&gdc->qosreq_intcam);
+		gdc_pm_qos_remove_request(&gdc->qosreq_intcam);
 
 	return 0;
 }
@@ -1865,7 +1844,9 @@ static void gdc_shutdown(struct platform_device *pdev)
 	wait_event(gdc->wait,
 			!test_bit(DEV_RUN, &gdc->state));
 
+#ifdef CONFIG_EXYNOS_IOVMM
 	iovmm_deactivate(gdc->dev);
+#endif
 }
 static const struct of_device_id exynos_gdc_match[] = {
 	{
@@ -1880,7 +1861,7 @@ static struct platform_driver gdc_driver = {
 	.remove		= gdc_remove,
 	.shutdown	= gdc_shutdown,
 	.driver = {
-		.name	= MODULE_NAME,
+		.name	= GDC_MODULE_NAME,
 		.owner	= THIS_MODULE,
 		.pm	= &gdc_pm_ops,
 		.of_match_table = of_match_ptr(exynos_gdc_match),

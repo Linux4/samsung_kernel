@@ -32,6 +32,7 @@
 #include "core/log.h"
 #include "core/mem.h"
 #include "core/notifier.h"
+#include "core/subsystem.h"
 #include "core/sysdep.h"
 
 enum {
@@ -208,7 +209,7 @@ static struct notifier_block tz_kthread_pool_post_smc_notifier = {
 	.notifier_call = tz_kthread_pool_post_smc_call,
 };
 
-static __init int tz_kthread_pool_init(void)
+int tz_kthread_pool_init(void)
 {
 	int rc;
 
@@ -244,7 +245,7 @@ static void tz_kthread_pool_park_all(void)
 	put_online_cpus();
 }
 
-early_initcall(tz_kthread_pool_init);
+tzdev_early_initcall(tz_kthread_pool_init);
 
 void tz_kthread_pool_fini(void)
 {

@@ -17,7 +17,7 @@
 #include <linux/of_gpio.h>
 
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-flash.h"
 #include "is-device-sensor.h"

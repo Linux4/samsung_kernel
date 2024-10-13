@@ -18,6 +18,8 @@
 #include "is-interface-library.h"
 #include "is-device-sensor-peri.h"
 
+extern int is_create_sysfs(void);
+
 static u32  rear_sensor_id;
 static u32  front_sensor_id;
 static u32  rear2_sensor_id;
@@ -34,6 +36,17 @@ void is_vendor_csi_stream_on(struct is_device_csi *csi)
 {
 
 }
+
+void is_vendor_csi_stream_off(struct is_device_csi *csi)
+{
+
+}
+
+bool is_vender_aeb_mode_on(void *cis_data)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(is_vender_aeb_mode_on);
 
 void is_vender_csi_err_handler(struct is_device_csi *csi)
 {
@@ -58,6 +71,10 @@ int is_vender_probe(struct is_vender *vender)
 		probe_err("failed to allocate vender specific");
 		return -ENOMEM;
 	}
+
+	ret = is_create_sysfs();
+	if (ret)
+		probe_warn("failed to create sysfs");
 
 	priv->rear_sensor_id = rear_sensor_id;
 	priv->front_sensor_id = front_sensor_id;
@@ -139,12 +156,12 @@ int is_vender_preproc_fw_load(struct is_vender *vender)
 	return ret;
 }
 
-void is_vender_resource_get(struct is_vender *vender)
+void is_vender_resource_get(struct is_vender *vender, u32 rsc_type)
 {
 
 }
 
-void is_vender_resource_put(struct is_vender *vender)
+void is_vender_resource_put(struct is_vender *vender, u32 rsc_type)
 {
 
 }
@@ -372,6 +389,7 @@ bool is_vender_wdr_mode_on(void *cis_data)
 {
 	return false;
 }
+EXPORT_SYMBOL_GPL(is_vender_wdr_mode_on);
 
 bool is_vender_enable_wdr(void *cis_data)
 {

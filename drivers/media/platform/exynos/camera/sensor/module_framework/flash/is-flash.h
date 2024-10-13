@@ -11,6 +11,7 @@
 #ifndef IS_FLASH_H
 #define IS_FLASH_H
 
+extern struct class *camera_class;
 
 static int control_flash_gpio(u32 gpio, int val) {
 	int ret = 0;

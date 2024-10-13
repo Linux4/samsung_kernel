@@ -18,11 +18,13 @@
 #include <linux/irqdomain.h>
 #include <linux/irq.h>
 #include <linux/irqchip/chained_irq.h>
+#include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 #include <linux/err.h>
 #include <linux/soc/samsung/exynos-pmu.h>
 #include <linux/soc/samsung/exynos-regs-pmu.h>
@@ -38,8 +40,10 @@ struct exynos_irq_chip {
 	u32 eint_con;
 	u32 eint_mask;
 	u32 eint_pend;
-	u32 eint_wake_mask_value;
+	u32 *eint_wake_mask_value;
 	u32 eint_wake_mask_reg;
+	void (*set_eint_wakeup_mask)(struct samsung_pinctrl_drv_data *drvdata,
+				     struct exynos_irq_chip *irq_chip);
 };
 
 static inline struct exynos_irq_chip *to_exynos_irq_chip(struct irq_chip *chip)
@@ -53,7 +57,7 @@ static void exynos_irq_mask(struct irq_data *irqd)
 	struct exynos_irq_chip *our_chip = to_exynos_irq_chip(chip);
 	struct samsung_pin_bank *bank = irq_data_get_irq_chip_data(irqd);
 	unsigned long reg_mask = our_chip->eint_mask + bank->eint_offset;
-	unsigned long mask;
+	unsigned int mask;
 	unsigned long flags;
 
 	spin_lock_irqsave(&bank->slock, flags);
@@ -81,7 +85,7 @@ static void exynos_irq_unmask(struct irq_data *irqd)
 	struct exynos_irq_chip *our_chip = to_exynos_irq_chip(chip);
 	struct samsung_pin_bank *bank = irq_data_get_irq_chip_data(irqd);
 	unsigned long reg_mask = our_chip->eint_mask + bank->eint_offset;
-	unsigned long mask;
+	unsigned int mask;
 	unsigned long flags;
 
 	/*
@@ -206,11 +210,17 @@ static void exynos_irq_release_resources(struct irq_data *irqd)
 
 /*
  * irq_chip for gpio interrupts.
+ * For normal interrupt action, interrupt mask / unmask must be paired.
+ * When S2R process, irq mask cannot be done without irq_disable callback.
+ * We added irq mask & unmask to disable & enable callback to
+ * set the interrupt mask and unmask value completely.
  */
-static struct exynos_irq_chip exynos_gpio_irq_chip = {
+static const struct exynos_irq_chip exynos_gpio_irq_chip = {
 	.chip = {
 		.name = "exynos_gpio_irq_chip",
+		.irq_enable = exynos_irq_unmask,
 		.irq_unmask = exynos_irq_unmask,
+		.irq_disable = exynos_irq_mask,
 		.irq_mask = exynos_irq_mask,
 		.irq_ack = exynos_irq_ack,
 		.irq_set_type = exynos_irq_set_type,
@@ -267,6 +277,7 @@ struct exynos_eint_gpio_save {
 	u32 eint_con;
 	u32 eint_fltcon0;
 	u32 eint_fltcon1;
+	u32 eint_mask;
 };
 
 static void exynos_eint_flt_config(int en, int sel, int width,
@@ -339,6 +350,15 @@ int exynos_eint_gpio_init(struct samsung_pinctrl_drv_data *d)
 	for (i = 0; i < d->nr_banks; ++i, ++bank) {
 		if (bank->eint_type != EINT_TYPE_GPIO)
 			continue;
+
+		bank->irq_chip = devm_kmemdup(dev, &exynos_gpio_irq_chip,
+					   sizeof(*bank->irq_chip), GFP_KERNEL);
+		if (!bank->irq_chip) {
+			ret = -ENOMEM;
+			goto err_domains;
+		}
+		bank->irq_chip->chip.name = bank->name;
+
 		bank->irq_domain = irq_domain_add_linear(bank->of_node,
 				bank->nr_pins, &exynos_eint_irqd_ops, bank);
 		if (!bank->irq_domain) {
@@ -354,8 +374,6 @@ int exynos_eint_gpio_init(struct samsung_pinctrl_drv_data *d)
 			ret = -ENOMEM;
 			goto err_domains;
 		}
-
-		bank->irq_chip = &exynos_gpio_irq_chip;
 
 		/* There is no filter selection register except for alive block */
 		/* Except for alive block, digital filter is default setting */
@@ -374,30 +392,93 @@ err_domains:
 	return ret;
 }
 
-static u64 exynos_eint_wake_mask = ULLONG_MAX;
-
-u64 exynos_get_eint_wake_mask(void)
-{
-	return exynos_eint_wake_mask;
-}
+static DECLARE_BITMAP(exynos_eint_wake_mask_array_ul, 96) =
+		      { [0 ... BITS_TO_LONGS(96) - 1] = ~0UL};
+u32 exynos_eint_wake_mask_array[3];
+EXPORT_SYMBOL(exynos_eint_wake_mask_array);
 
 static int exynos_wkup_irq_set_wake(struct irq_data *irqd, unsigned int on)
 {
-	struct irq_chip *chip = irq_data_get_irq_chip(irqd);
-	struct exynos_irq_chip *our_chip = to_exynos_irq_chip(chip);
 	struct samsung_pin_bank *bank = irq_data_get_irq_chip_data(irqd);
-	unsigned long bit = 1UL << (2 * bank->eint_offset + irqd->hwirq);
+	struct samsung_pinctrl_drv_data *d = bank->drvdata;
+	u32 bit = 0;
 
-	pr_info("wake %s for irq %d\n", on ? "enabled" : "disabled", irqd->irq);
+	bit = bank->eint_num + irqd->hwirq;
+	if (!on) {
+		exynos_eint_wake_mask_array_ul[BIT_WORD(bit)] |= BIT_MASK(bit);
+	} else {
+		exynos_eint_wake_mask_array_ul[BIT_WORD(bit)] &= ~BIT_MASK(bit);
+	}
 
-	if (!on)
-		exynos_eint_wake_mask |= bit;
-	else
-		exynos_eint_wake_mask &= ~bit;
-	our_chip->eint_wake_mask_value = exynos_eint_wake_mask;
+	bitmap_to_arr32(exynos_eint_wake_mask_array,
+			exynos_eint_wake_mask_array_ul,
+			96);
+
+	dev_info(d->dev, "wake %s for irq %d\n", on ? "enabled" : "disabled",
+		 irqd->irq);
+	dev_info(d->dev, "(%s:0x%x) dirq = %d, eint_num = %u\n",
+		 bank->name, bank->eint_offset, d->irq, bank->eint_num);
+
+	dev_info(d->dev, "exynos_eint_wake_mask value (0x%X, 0x%X, 0x%X)\n",
+		 exynos_eint_wake_mask_array[0],
+		 exynos_eint_wake_mask_array[1],
+		 exynos_eint_wake_mask_array[2]);
+	return 0;
+}
+
+static int exynos_cmgp_wkup_irq_set_wake(struct irq_data *irqd, unsigned int on)
+{
+	struct samsung_pin_bank *bank = irq_data_get_irq_chip_data(irqd);
+	struct samsung_pinctrl_drv_data *drvdata = bank->drvdata;
+	unsigned long bit = 1UL << bank->sysreg_cmgp_bit;
+
+	regmap_update_bits(drvdata->sysreg_cmgp, bank->sysreg_cmgp_offs, bit, bit);
 
 	return 0;
 }
+
+static void
+exynos_pinctrl_set_eint_wakeup_mask(struct samsung_pinctrl_drv_data *drvdata,
+				    struct exynos_irq_chip *irq_chip)
+{
+	struct regmap *pmu_regs;
+
+	if (!drvdata->retention_ctrl || !drvdata->retention_ctrl->priv) {
+		dev_warn(drvdata->dev,
+			 "No retention data configured bank with external wakeup interrupt. Wake-up mask will not be set.\n");
+		return;
+	}
+
+	pmu_regs = drvdata->retention_ctrl->priv;
+	dev_info(drvdata->dev,
+		 "Setting external wakeup interrupt mask: 0x%x\n",
+		 *irq_chip->eint_wake_mask_value);
+
+	regmap_write(pmu_regs, irq_chip->eint_wake_mask_reg,
+		     *irq_chip->eint_wake_mask_value);
+}
+
+static void
+s5pv210_pinctrl_set_eint_wakeup_mask(struct samsung_pinctrl_drv_data *drvdata,
+				    struct exynos_irq_chip *irq_chip)
+
+{
+	void __iomem *clk_base;
+
+	if (!drvdata->retention_ctrl || !drvdata->retention_ctrl->priv) {
+		dev_warn(drvdata->dev,
+			 "No retention data configured bank with external wakeup interrupt. Wake-up mask will not be set.\n");
+		return;
+	}
+
+
+	clk_base = (void __iomem *) drvdata->retention_ctrl->priv;
+
+	__raw_writel(*irq_chip->eint_wake_mask_value,
+		     clk_base + irq_chip->eint_wake_mask_reg);
+}
+
+static u32 eint_wake_mask_value = EXYNOS_EINT_WAKEUP_MASK_DISABLED;
 
 /*
  * irq_chip for wakeup interrupts
@@ -416,9 +497,10 @@ static const struct exynos_irq_chip s5pv210_wkup_irq_chip __initconst = {
 	.eint_con = EXYNOS_WKUP_ECON_OFFSET,
 	.eint_mask = EXYNOS_WKUP_EMASK_OFFSET,
 	.eint_pend = EXYNOS_WKUP_EPEND_OFFSET,
-	.eint_wake_mask_value = EXYNOS_EINT_WAKEUP_MASK_DISABLED,
-	/* Only difference with exynos4210_wkup_irq_chip: */
+	.eint_wake_mask_value = &eint_wake_mask_value,
+	/* Only differences with exynos4210_wkup_irq_chip: */
 	.eint_wake_mask_reg = S5PV210_EINT_WAKEUP_MASK,
+	.set_eint_wakeup_mask = s5pv210_pinctrl_set_eint_wakeup_mask,
 };
 
 static const struct exynos_irq_chip exynos4210_wkup_irq_chip __initconst = {
@@ -435,8 +517,9 @@ static const struct exynos_irq_chip exynos4210_wkup_irq_chip __initconst = {
 	.eint_con = EXYNOS_WKUP_ECON_OFFSET,
 	.eint_mask = EXYNOS_WKUP_EMASK_OFFSET,
 	.eint_pend = EXYNOS_WKUP_EPEND_OFFSET,
-	.eint_wake_mask_value = EXYNOS_EINT_WAKEUP_MASK_DISABLED,
+	.eint_wake_mask_value = &eint_wake_mask_value,
 	.eint_wake_mask_reg = EXYNOS_EINT_WAKEUP_MASK,
+	.set_eint_wakeup_mask = exynos_pinctrl_set_eint_wakeup_mask,
 };
 
 static const struct exynos_irq_chip exynos7_wkup_irq_chip __initconst = {
@@ -453,8 +536,28 @@ static const struct exynos_irq_chip exynos7_wkup_irq_chip __initconst = {
 	.eint_con = EXYNOS7_WKUP_ECON_OFFSET,
 	.eint_mask = EXYNOS7_WKUP_EMASK_OFFSET,
 	.eint_pend = EXYNOS7_WKUP_EPEND_OFFSET,
-	.eint_wake_mask_value = EXYNOS_EINT_WAKEUP_MASK_DISABLED,
+	.eint_wake_mask_value = &eint_wake_mask_value,
 	.eint_wake_mask_reg = EXYNOS5433_EINT_WAKEUP_MASK,
+	.set_eint_wakeup_mask = exynos_pinctrl_set_eint_wakeup_mask,
+};
+
+static const struct exynos_irq_chip exynos_cmgp_wkup_irq_chip __initconst = {
+	.chip = {
+		.name = "exynos_cmgp_wkup_irq_chip",
+		.irq_unmask = exynos_irq_unmask,
+		.irq_mask = exynos_irq_mask,
+		.irq_ack = exynos_irq_ack,
+		.irq_set_type = exynos_irq_set_type,
+		.irq_set_wake = exynos_cmgp_wkup_irq_set_wake,
+		.irq_request_resources = exynos_irq_request_resources,
+		.irq_release_resources = exynos_irq_release_resources,
+	},
+	.eint_con = EXYNOS7_WKUP_ECON_OFFSET,
+	.eint_mask = EXYNOS7_WKUP_EMASK_OFFSET,
+	.eint_pend = EXYNOS7_WKUP_EPEND_OFFSET,
+	.eint_wake_mask_value = &eint_wake_mask_value,
+	.eint_wake_mask_reg = EXYNOS5433_EINT_WAKEUP_MASK,
+	.set_eint_wakeup_mask = exynos_pinctrl_set_eint_wakeup_mask,
 };
 
 /* list of external wakeup controllers supported */
@@ -465,6 +568,8 @@ static const struct of_device_id exynos_wkup_irq_ids[] = {
 			.data = &exynos4210_wkup_irq_chip },
 	{ .compatible = "samsung,exynos7-wakeup-eint",
 			.data = &exynos7_wkup_irq_chip },
+	{ .compatible = "samsung,exynos-cmgp-wakeup-eint",
+			.data = &exynos_cmgp_wkup_irq_chip },
 	{ }
 };
 
@@ -484,7 +589,7 @@ static void exynos_irq_eint0_15(struct irq_desc *desc)
 	chained_irq_exit(chip, desc);
 }
 
-static inline void exynos_irq_demux_eint(unsigned long pend,
+static inline void exynos_irq_demux_eint(unsigned int pend,
 						struct irq_domain *domain)
 {
 	unsigned int irq;
@@ -501,8 +606,8 @@ static void exynos_irq_demux_eint16_31(struct irq_desc *desc)
 {
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	struct exynos_muxed_weint_data *eintd = irq_desc_get_handler_data(desc);
-	unsigned long pend;
-	unsigned long mask;
+	unsigned int pend;
+	unsigned int mask;
 	int i;
 
 	chained_irq_enter(chip, desc);
@@ -519,6 +624,8 @@ static void exynos_irq_demux_eint16_31(struct irq_desc *desc)
 	chained_irq_exit(chip, desc);
 }
 
+
+static int eint_num;
 /*
  * exynos_eint_wkup_init() - setup handling of external wakeup interrupts.
  * @d: driver data of samsung pinctrl driver.
@@ -531,7 +638,7 @@ int exynos_eint_wkup_init(struct samsung_pinctrl_drv_data *d)
 	struct samsung_pin_bank *bank;
 	struct exynos_weint_data *weint_data;
 	struct exynos_muxed_weint_data *muxed_data;
-	struct exynos_irq_chip *irq_chip;
+	const struct exynos_irq_chip *irq_chip;
 	unsigned int muxed_banks = 0;
 	unsigned int i;
 	int idx, irq;
@@ -543,12 +650,7 @@ int exynos_eint_wkup_init(struct samsung_pinctrl_drv_data *d)
 
 		match = of_match_node(exynos_wkup_irq_ids, np);
 		if (match) {
-			irq_chip = kmemdup(match->data,
-				sizeof(*irq_chip), GFP_KERNEL);
-			if (!irq_chip) {
-				of_node_put(np);
-				return -ENOMEM;
-			}
+			irq_chip = match->data;
 			wkup_np = np;
 			break;
 		}
@@ -561,16 +663,18 @@ int exynos_eint_wkup_init(struct samsung_pinctrl_drv_data *d)
 		if (bank->eint_type != EINT_TYPE_WKUP)
 			continue;
 
-		if (strncmp(bank->name, "gpa", 3) == 0) {
-			/* Only alive block has filter selection register. */
-			/* Setting Digital Filter */
-			exynos_eint_flt_config(EXYNOS_EINT_FLTCON_EN,
-				EXYNOS_EINT_FLTCON_SEL, 0, d, bank);
-		} else {
-			/* There is no filter selection register except for alive block */
-			/* Except for alive block, digital filter is default setting */
-			exynos_eint_flt_config(EXYNOS_EINT_FLTCON_EN, 0, 0, d, bank);
+		bank->irq_chip = devm_kmemdup(dev, irq_chip, sizeof(*irq_chip),
+					      GFP_KERNEL);
+		if (!bank->irq_chip) {
+			of_node_put(wkup_np);
+			return -ENOMEM;
 		}
+		bank->irq_chip->chip.name = bank->name;
+
+		/* Only alive block has filter selection register. */
+		/* Setting Digital Filter */
+		exynos_eint_flt_config(EXYNOS_EINT_FLTCON_EN,
+				       EXYNOS_EINT_FLTCON_SEL, 0, d, bank);
 
 		bank->irq_domain = irq_domain_add_linear(bank->of_node,
 				bank->nr_pins, &exynos_eint_irqd_ops, bank);
@@ -580,7 +684,8 @@ int exynos_eint_wkup_init(struct samsung_pinctrl_drv_data *d)
 			return -ENXIO;
 		}
 
-		bank->irq_chip = irq_chip;
+		bank->eint_num = eint_num;
+		eint_num = eint_num + bank->nr_pins;
 
 		if (!of_find_property(bank->of_node, "interrupts", NULL)) {
 			bank->eint_type = EINT_TYPE_WKUP_MUX;
@@ -631,6 +736,18 @@ int exynos_eint_wkup_init(struct samsung_pinctrl_drv_data *d)
 		}
 	}
 
+	/* Initialize to 0 to find the base of wakeup source
+	 * other than ALIVE GPIO.
+	 */
+	eint_num = 0;
+
+	d->sysreg_cmgp = syscon_regmap_lookup_by_phandle(dev->of_node,
+			"samsung,syscon-phandle");
+	if (IS_ERR(d->sysreg_cmgp)) {
+		dev_info(dev, "sysreg_cmgp is not registered\n");
+		d->sysreg_cmgp = 0;
+	}
+
 	if (!muxed_banks) {
 		of_node_put(wkup_np);
 		return 0;
@@ -664,27 +781,6 @@ int exynos_eint_wkup_init(struct samsung_pinctrl_drv_data *d)
 	return 0;
 }
 
-static void
-exynos_pinctrl_set_eint_wakeup_mask(struct samsung_pinctrl_drv_data *drvdata,
-				    struct exynos_irq_chip *irq_chip)
-{
-	struct regmap *pmu_regs;
-
-	if (!drvdata->retention_ctrl || !drvdata->retention_ctrl->priv) {
-		dev_warn(drvdata->dev,
-			 "No retention data configured bank with external wakeup interrupt. Wake-up mask will not be set.\n");
-		return;
-	}
-
-	pmu_regs = drvdata->retention_ctrl->priv;
-	dev_info(drvdata->dev,
-		 "Setting external wakeup interrupt mask: 0x%x\n",
-		 irq_chip->eint_wake_mask_value);
-
-	regmap_write(pmu_regs, irq_chip->eint_wake_mask_reg,
-		     irq_chip->eint_wake_mask_value);
-}
-
 static void exynos_pinctrl_suspend_bank(
 				struct samsung_pinctrl_drv_data *drvdata,
 				struct samsung_pin_bank *bank)
@@ -693,6 +789,9 @@ static void exynos_pinctrl_suspend_bank(
 	void __iomem *regs = bank->eint_base;
 
 	save->eint_con = readl(regs + EXYNOS_GPIO_ECON_OFFSET
+						+ bank->eint_offset);
+
+	save->eint_mask = readl(regs + bank->irq_chip->eint_mask
 						+ bank->eint_offset);
 
 	save->eint_fltcon0 = readl(regs + EXYNOS_GPIO_EFLTCON_OFFSET
@@ -725,12 +824,8 @@ void exynos_pinctrl_suspend(struct samsung_pinctrl_drv_data *drvdata)
 
 			if (!irq_chip) {
 				irq_chip = bank->irq_chip;
-				exynos_pinctrl_set_eint_wakeup_mask(drvdata,
-								    irq_chip);
-			} else if (bank->irq_chip != irq_chip) {
-				dev_warn(drvdata->dev,
-					 "More than one external wakeup interrupt chip configured (bank: %s). This is not supported by hardware nor by driver.\n",
-					 bank->name);
+				irq_chip->set_eint_wakeup_mask(drvdata,
+							       irq_chip);
 			}
 		}
 	}
@@ -746,21 +841,26 @@ static void exynos_pinctrl_resume_bank(
 	pr_debug("%s:     con %#010x => %#010x\n", bank->name,
 			readl(regs + EXYNOS_GPIO_ECON_OFFSET
 			+ bank->eint_offset), save->eint_con);
+	pr_debug("%s:    mask %#010x => %#010x\n", bank->name,
+			readl(regs + bank->irq_chip->eint_mask
+			+ bank->eint_offset), save->eint_mask);
 	pr_debug("%s: fltcon0 %#010x => %#010x\n", bank->name,
 			readl(regs + EXYNOS_GPIO_EFLTCON_OFFSET
 			+ bank->fltcon_offset), save->eint_fltcon0);
 	if (bank->nr_pins > 4) {
 	pr_debug("%s: fltcon1 %#010x => %#010x\n", bank->name,
 			readl(regs + EXYNOS_GPIO_EFLTCON_OFFSET
-				+ bank->fltcon_offset + 4), save->eint_fltcon1);
+			+ bank->fltcon_offset + 4), save->eint_fltcon1);
 	}
 
 	writel(save->eint_con, regs + EXYNOS_GPIO_ECON_OFFSET
 						+ bank->eint_offset);
+	writel(save->eint_mask, regs + bank->irq_chip->eint_mask
+						+ bank->eint_offset);
 	writel(save->eint_fltcon0, regs + EXYNOS_GPIO_EFLTCON_OFFSET
-							+ bank->fltcon_offset);
+						+ bank->fltcon_offset);
 	if (bank->nr_pins > 4) {
-	writel(save->eint_fltcon1, regs + EXYNOS_GPIO_EFLTCON_OFFSET
+		writel(save->eint_fltcon1, regs + EXYNOS_GPIO_EFLTCON_OFFSET
 							+ bank->fltcon_offset + 4);
 	}
 }
@@ -777,18 +877,9 @@ void exynos_pinctrl_resume(struct samsung_pinctrl_drv_data *drvdata)
 		} else if (bank->eint_type == EINT_TYPE_WKUP ||
 			bank->eint_type == EINT_TYPE_WKUP_MUX) {
 			/* Only alive block(gpa) has filter selection register. */
-			if (strncmp(bank->name, "gpa", 3) == 0) {
-				/* Setting Digital Filter */
-				exynos_eint_flt_config(EXYNOS_EINT_FLTCON_EN,
-						EXYNOS_EINT_FLTCON_SEL, 0, d, bank);
-			} else {
-				/*
-				 * There is no filter selection register except for alive block.
-				 * Except for alive block, digital filter is default setting
-				 * without any setting.
-				 */
-				exynos_eint_flt_config(EXYNOS_EINT_FLTCON_EN, 0, 0, d, bank);
-			}
+			/* Setting Digital Filter */
+			exynos_eint_flt_config(EXYNOS_EINT_FLTCON_EN,
+					       EXYNOS_EINT_FLTCON_SEL, 0, d, bank);
 		}
 	}
 }
@@ -842,3 +933,4 @@ exynos_retention_init(struct samsung_pinctrl_drv_data *drvdata,
 
 	return ctrl;
 }
+MODULE_LICENSE("GPL");

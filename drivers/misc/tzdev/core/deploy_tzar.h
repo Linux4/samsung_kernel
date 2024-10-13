@@ -14,13 +14,19 @@
 #ifndef __TZ_DEPLOY_TZAR_H__
 #define __TZ_DEPLOY_TZAR_H__
 
+#include <linux/kconfig.h>
+
 #ifdef CONFIG_TZDEV_DEPLOY_TZAR
 int tzdev_deploy_tzar(void);
 #else
-int tzdev_deploy_tzar(void)
+static inline int tzdev_deploy_tzar(void)
 {
 	return 0;
 }
+#endif
+
+#if IS_MODULE(CONFIG_TZDEV)
+int tz_deploy_tzar_init(void);
 #endif
 
 #endif /*__TZ_DEPLOY_TZAR_H__ */

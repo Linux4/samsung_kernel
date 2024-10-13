@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015-2020 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2015-2022 Samsung Electronics Co. Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,7 +8,7 @@
  * (at your option) any later version.
  */
 
- /* usb notify layer v3.5 */
+ /* usb notify layer v3.7 */
 
 #define pr_fmt(fmt) "usb_notify: " fmt
 
@@ -55,22 +55,9 @@ static struct dev_table essential_device_table[] = {
 	{}
 };
 
-static struct dev_table update_autotimer_device_table[] = {
-	{ .dev = { USB_DEVICE(0x04e8, 0xa500), },
-	   .index = 5, /* 5 sec timer */
-	}, /* GearVR1 */
-	{ .dev = { USB_DEVICE(0x04e8, 0xa501), },
-	   .index = 5,
-	}, /* GearVR2 */
-	{ .dev = { USB_DEVICE(0x04e8, 0xa502), },
-	   .index = 5,
-	}, /* GearVR3 */
-	{}
-};
-
 static struct dev_table unsupport_device_table[] = {
 	{ .dev = { USB_DEVICE(0x1a0a, 0x0201), },
-	},
+	}, /* The device for usb certification */
 	{}
 };
 
@@ -144,24 +131,6 @@ static int is_notify_hub(struct usb_device *dev)
 		}
 	}
 skip:
-	return ret;
-}
-
-static int get_autosuspend_time(struct usb_device *dev)
-{
-	struct dev_table *id;
-	int ret = 0;
-
-	/* check VID, PID */
-	for (id = update_autotimer_device_table; id->dev.match_flags; id++) {
-		if ((id->dev.match_flags & USB_DEVICE_ID_MATCH_VENDOR) &&
-		(id->dev.match_flags & USB_DEVICE_ID_MATCH_PRODUCT) &&
-		id->dev.idVendor == le16_to_cpu(dev->descriptor.idVendor) &&
-		id->dev.idProduct == le16_to_cpu(dev->descriptor.idProduct)) {
-			ret = id->index;
-			break;
-		}
-	}
 	return ret;
 }
 
@@ -245,6 +214,33 @@ done:
 	return;
 }
 
+static void disconnect_usb_driver(struct usb_device *dev)
+{
+	struct usb_interface *intf = NULL;
+	struct usb_driver *driver = NULL;
+	int i;
+
+	if (!dev) {
+		pr_err("%s no dev\n", __func__);
+		goto done;
+	}
+
+	if (!dev->actconfig) {
+		pr_err("%s no set config\n", __func__);
+		goto done;
+	}
+
+	for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
+		intf = dev->actconfig->interface[i];
+		if (intf->dev.driver) {
+			driver = to_usb_driver(intf->dev.driver);
+			usb_driver_release_interface(driver, intf);
+		} 
+	}
+done:
+	return;
+}
+
 static int call_device_notify(struct usb_device *dev, int connect)
 {
 	struct otg_notify *o_notify = get_otg_notify();
@@ -270,42 +266,22 @@ static int call_device_notify(struct usb_device *dev, int connect)
 			seek_usb_interface(dev);
 
 			if (!usb_check_whitelist_for_mdm(dev)) {
-				pr_info("This deice will be noattached state.\n");
+				pr_info("This device will be noattached state.\n");
+				disconnect_usb_driver(dev);
 				usb_set_device_state(dev, USB_STATE_NOTATTACHED);
 			}
-		} else
+		} else {
+			send_otg_notify(o_notify,
+				NOTIFY_EVENT_DEVICE_CONNECT, 0);
 			store_usblog_notify(NOTIFY_PORT_DISCONNECT,
 				(void *)&dev->descriptor.idVendor,
 				(void *)&dev->descriptor.idProduct);
+		}
 	} else {
 		if (connect)
 			pr_info("%s root hub\n", __func__);
 	}
 
-	return 0;
-}
-
-static int update_hub_autosuspend_timer(struct usb_device *dev)
-{
-	struct usb_device *hdev;
-	int time = 0;
-
-	if (!dev)
-		goto skip;
-
-	hdev = dev->parent;
-
-	if (hdev == NULL || dev->bus->root_hub != hdev)
-		goto skip;
-
-	/* hdev is root hub */
-	time = get_autosuspend_time(dev);
-	if (time == hdev->dev.power.autosuspend_delay)
-		goto skip;
-
-	pm_runtime_set_autosuspend_delay(&hdev->dev, time*1000);
-	pr_info("set autosuspend delay time=%d sec\n", time);
-skip:
 	return 0;
 }
 
@@ -316,6 +292,7 @@ static void check_device_speed(struct usb_device *dev, bool on)
 	struct usb_device *udev;
 	int port = 0;
 	int speed = USB_SPEED_UNKNOWN;
+	int pr_speed = USB_SPEED_UNKNOWN;
 	static int hs_hub;
 	static int ss_hub;
 
@@ -323,6 +300,8 @@ static void check_device_speed(struct usb_device *dev, bool on)
 		pr_err("%s otg_notify is null\n", __func__);
 		return;
 	}
+
+	pr_speed = get_con_dev_max_speed(o_notify);
 
 	hdev = dev->parent;
 	if (!hdev)
@@ -354,16 +333,16 @@ static void check_device_speed(struct usb_device *dev, bool on)
 		;
 
 	if (ss_hub || hs_hub) {
-		if (speed > o_notify->speed)
-			o_notify->speed = speed;
+		if (speed > pr_speed)
+			set_con_dev_max_speed(o_notify, speed);
 	} else
-		o_notify->speed = USB_SPEED_UNKNOWN;
+		set_con_dev_max_speed(o_notify, USB_SPEED_UNKNOWN);
 
 	pr_info("%s : dev->speed %s %s\n", __func__,
 		usb_speed_string(dev->speed), on ? "on" : "off");
 
 	pr_info("%s : o_notify->speed %s\n", __func__,
-		usb_speed_string(o_notify->speed));
+		usb_speed_string(get_con_dev_max_speed(o_notify)));
 }
 
 #if defined(CONFIG_USB_HW_PARAM)
@@ -469,11 +448,12 @@ static int dev_notify(struct notifier_block *self,
 		call_device_notify(dev, 1);
 		call_battery_notify(dev, 1);
 		check_device_speed(dev, 1);
-		update_hub_autosuspend_timer(dev);
 #if defined(CONFIG_USB_HW_PARAM)
 		set_hw_param(dev);
 #endif
 		check_unsupport_device(dev);
+		check_usbaudio(dev);
+		check_usbgroup(dev);
 		break;
 	case USB_DEVICE_REMOVE:
 		call_device_notify(dev, 0);

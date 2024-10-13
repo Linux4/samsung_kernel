@@ -597,24 +597,21 @@ static ssize_t sec_tsp_command_history_read(struct file *file, char __user *buf,
 	return count;
 }
 
-static const struct file_operations tsp_msg_file_ops = {
-	.owner = THIS_MODULE,
-	.read = sec_tsp_log_read,
-	.write = sec_tsp_log_write,
-	.llseek = generic_file_llseek,
+static const struct proc_ops tsp_msg_file_ops = {
+	.proc_read = sec_tsp_log_read,
+	.proc_write = sec_tsp_log_write,
+	.proc_lseek = generic_file_llseek,
 };
 
-static const struct file_operations tsp_raw_data_file_ops = {
-	.owner = THIS_MODULE,
-	.read = sec_tsp_raw_data_read,
-	.write = sec_tsp_raw_data_write,
-	.llseek = generic_file_llseek,
+static const struct proc_ops tsp_raw_data_file_ops = {
+	.proc_read = sec_tsp_raw_data_read,
+	.proc_write = sec_tsp_raw_data_write,
+	.proc_lseek = generic_file_llseek,
 };
 
-static const struct file_operations tsp_command_history_file_ops = {
-	.owner = THIS_MODULE,
-	.read = sec_tsp_command_history_read,
-	.llseek = generic_file_llseek,
+static const struct proc_ops tsp_command_history_file_ops = {
+	.proc_read = sec_tsp_command_history_read,
+	.proc_lseek = generic_file_llseek,
 };
 
 static int __init sec_tsp_log_late_init(void)

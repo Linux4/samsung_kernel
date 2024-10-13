@@ -12,14 +12,10 @@
 
 #include <linux/device.h>
 
-#if defined(CONFIG_EXYNOS_DPU20)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU20)
 extern unsigned int lcdtype;
-#elif defined(CONFIG_EXYNOS_DPU30)
+#elif IS_ENABLED(CONFIG_EXYNOS_DPU30)
 extern int boot_panel_id;
-#endif
-
-#ifdef CONFIG_EXYNOS_DECON_LCD_A12S_BLIC_DUAL
-extern int boot_blic_type;
 #endif
 
 extern void run_list(struct device *dev, const char *name);

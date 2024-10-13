@@ -172,10 +172,10 @@ int is_lib_vra_test_image_load(struct is_lib_vra *lib_vra);
 	({								\
 		int ret_call_libop;					\
 									\
-		fpsimd_get();						\
+		is_fpsimd_get_func();						\
 		ret_call_libop = ((lib)->itf_func.op ?			\
 				(lib)->itf_func.op(args) : -EINVAL);	\
-		fpsimd_put();						\
+		is_fpsimd_put_func();						\
 									\
 	ret_call_libop;})
 #else

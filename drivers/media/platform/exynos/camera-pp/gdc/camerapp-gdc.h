@@ -18,19 +18,36 @@
 #include <linux/types.h>
 #include <linux/videodev2.h>
 #include <linux/videodev2_exynos_media.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/io.h>
-#include <linux/pm_qos.h>
 #include <linux/dma-buf.h>
+#include <linux/version.h>
 #include <media/videobuf2-core.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/v4l2-ctrls.h>
-#if defined(CONFIG_VIDEOBUF2_DMA_SG)
+#if IS_ENABLED(CONFIG_VIDEOBUF2_DMA_SG)
 #include <media/videobuf2-dma-sg.h>
 #endif
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+#include <soc/samsung/exynos_pm_qos.h>
+#else
+#include <linux/pm_qos.h>
+#endif
+
 #include "camerapp-video.h"
 
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+#define gdc_pm_qos_request			exynos_pm_qos_request
+#define gdc_pm_qos_add_request		exynos_pm_qos_add_request
+#define gdc_pm_qos_update_request	exynos_pm_qos_update_request
+#define gdc_pm_qos_remove_request	exynos_pm_qos_remove_request
+#else
+#define gdc_pm_qos_request			pm_qos_request
+#define gdc_pm_qos_add_request		cpu_latency_qos_add_request
+#define gdc_pm_qos_update_request	cpu_latency_qos_update_request
+#define gdc_pm_qos_remove_request	cpu_latency_qos_remove_request
+#endif
 /* #define ENABLE_GDC_FRAMEWISE_DISTORTION_CORRECTION */
 
 extern int gdc_log_level;
@@ -41,7 +58,7 @@ extern int gdc_log_level;
 			fmt, __func__, __LINE__, ##args);		\
 	} while (0)
 
-#define MODULE_NAME		"camerapp-gdc"
+#define GDC_MODULE_NAME		"camerapp-gdc"
 #define GDC_TIMEOUT		(2 * HZ)	/* 2 seconds */
 #define GDC_WDT_CNT		3
 
@@ -285,7 +302,7 @@ struct gdc_dev {
 	spinlock_t			ctxlist_lock;
 	struct gdc_ctx			*current_ctx;
 	struct list_head		context_list; /* for gdc_ctx_abs.node */
-	struct pm_qos_request		qosreq_intcam;
+	struct gdc_pm_qos_request		qosreq_intcam;
 	s32				qosreq_intcam_level;
 	int				dev_id;
 	u32				version;
@@ -318,8 +335,23 @@ void camerapp_hw_gdc_status_read(void __iomem *base_addr);
 void camerapp_gdc_sfr_dump(void __iomem *base_addr);
 u32 camerapp_hw_gdc_get_intr_status_and_clear(void __iomem *base_addr);
 void camerapp_gdc_grid_setting(struct gdc_dev *gdc);
+void camerapp_hw_gdc_votf_enable(void __iomem *base_addr, u8 rw);
 
-#ifdef CONFIG_VIDEOBUF2_DMA_SG
+#if IS_ENABLED(CONFIG_VIDEOBUF2_DMA_SG)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+static inline dma_addr_t gdc_get_dma_address(struct vb2_buffer *vb2_buf, u32 plane)
+{
+	struct sg_table *sgt;
+	sgt = vb2_dma_sg_plane_desc(vb2_buf, plane);
+
+	return (dma_addr_t)sg_dma_address(sgt->sgl);
+}
+
+static inline void  *gdc_get_kvaddr(struct vb2_buffer *vb2_buf, u32 plane)
+{
+	return vb2_plane_vaddr(vb2_buf, plane);
+}
+#else
 static inline dma_addr_t gdc_get_dma_address(struct vb2_buffer *vb2_buf, u32 plane)
 {
 	return vb2_dma_sg_plane_dma_addr(vb2_buf, plane);
@@ -329,6 +361,7 @@ static inline void  *gdc_get_kvaddr(struct vb2_buffer *vb2_buf, u32 plane)
 {
 	return vb2_plane_vaddr(vb2_buf, plane);
 }
+#endif
 #else
 static inline dma_addr_t gdc_get_dma_address(void *cookie, dma_addr_t *addr)
 {

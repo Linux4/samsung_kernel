@@ -3,7 +3,8 @@
 #
 
 menuconfig EXYNOS_ACPM
-	bool "ACPM driver support"
+	tristate "ACPM driver support"
+	depends on ARCH_EXYNOS
 	default n
 	help
 	  Enable ACPM support

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016-2020 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2016-2022 Samsung Electronics Co. Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,7 +8,7 @@
  * (at your option) any later version.
  */
 
- /* usb notify layer v3.5 */
+ /* usb notify layer v3.7 */
 
 #define pr_fmt(fmt) "usb_notify: " fmt
 
@@ -54,6 +54,10 @@ static const char *cmd_string(unsigned long cmd)
 		return "host_mode_device_added";
 	case EXTERNAL_NOTIFY_HOSTBLOCK_EARLY:
 		return "host_block_pre_fast";
+	case EXTERNAL_NOTIFY_VBUS_RESET:
+		return "vbus_reset";
+	case EXTERNAL_NOTIFY_POSSIBLE_USB:
+		return "possible_usb";
 	default:
 		return "undefined";
 	}
@@ -68,6 +72,8 @@ static const char *listener_string(int  listener)
 		return "charger";
 	case EXTERNAL_NOTIFY_DEV_PDIC:
 		return "pdic";
+	case EXTERNAL_NOTIFY_DEV_MANAGER:
+		return "manager";
 	default:
 		return "undefined";
 	}

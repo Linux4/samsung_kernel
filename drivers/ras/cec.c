@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2017-2019 Borislav Petkov, SUSE Labs.
+ */
 #include <linux/mm.h>
 #include <linux/gfp.h>
+#include <linux/ras.h>
 #include <linux/kernel.h>
 #include <linux/workqueue.h>
 
@@ -37,9 +41,9 @@
  * thus emulate an an LRU-like behavior when deleting elements to free up space
  * in the page.
  *
- * When an element reaches it's max count of count_threshold, we try to poison
- * it by assuming that errors triggered count_threshold times in a single page
- * are excessive and that page shouldn't be used anymore. count_threshold is
+ * When an element reaches it's max count of action_threshold, we try to poison
+ * it by assuming that errors triggered action_threshold times in a single page
+ * are excessive and that page shouldn't be used anymore. action_threshold is
  * initialized to COUNT_MASK which is the maximum.
  *
  * That error event entry causes cec_add_elem() to return !0 value and thus
@@ -122,7 +126,7 @@ static DEFINE_MUTEX(ce_mutex);
 static u64 dfs_pfn;
 
 /* Amount of errors after which we offline */
-static unsigned int count_threshold = COUNT_MASK;
+static u64 action_threshold = COUNT_MASK;
 
 /* Each element "decays" each decay_interval which is 24hrs by default. */
 #define CEC_DECAY_DEFAULT_INTERVAL	24 * 60 * 60	/* 24 hrs */
@@ -276,12 +280,49 @@ static u64 __maybe_unused del_lru_elem(void)
 	return pfn;
 }
 
+static bool sanity_check(struct ce_array *ca)
+{
+	bool ret = false;
+	u64 prev = 0;
+	int i;
 
-int cec_add_elem(u64 pfn)
+	for (i = 0; i < ca->n; i++) {
+		u64 this = PFN(ca->array[i]);
+
+		if (WARN(prev > this, "prev: 0x%016llx <-> this: 0x%016llx\n", prev, this))
+			ret = true;
+
+		prev = this;
+	}
+
+	if (!ret)
+		return ret;
+
+	pr_info("Sanity check dump:\n{ n: %d\n", ca->n);
+	for (i = 0; i < ca->n; i++) {
+		u64 this = PFN(ca->array[i]);
+
+		pr_info(" %03d: [%016llx|%03llx]\n", i, this, FULL_COUNT(ca->array[i]));
+	}
+	pr_info("}\n");
+
+	return ret;
+}
+
+/**
+ * cec_add_elem - Add an element to the CEC array.
+ * @pfn:	page frame number to insert
+ *
+ * Return values:
+ * - <0:	on error
+ * -  0:	on success
+ * - >0:	when the inserted pfn was offlined
+ */
+static int cec_add_elem(u64 pfn)
 {
 	struct ce_array *ca = &ce_arr;
-	unsigned int to;
-	int count, ret = 0;
+	int count, err, ret = 0;
+	unsigned int to = 0;
 
 	/*
 	 * We can be called very early on the identify_cpu() path where we are
@@ -290,15 +331,16 @@ int cec_add_elem(u64 pfn)
 	if (!ce_arr.array || ce_arr.disabled)
 		return -ENODEV;
 
-	ca->ces_entered++;
-
 	mutex_lock(&ce_mutex);
 
+	ca->ces_entered++;
+
+	/* Array full, free the LRU slot. */
 	if (ca->n == MAX_ELEMS)
 		WARN_ON(!del_lru_elem_unlocked(ca));
 
-	ret = find_elem(ca, pfn, &to);
-	if (ret < 0) {
+	err = find_elem(ca, pfn, &to);
+	if (err < 0) {
 		/*
 		 * Shift range [to-end] to make room for one more element.
 		 */
@@ -306,24 +348,17 @@ int cec_add_elem(u64 pfn)
 			(void *)&ca->array[to],
 			(ca->n - to) * sizeof(u64));
 
-		ca->array[to] = (pfn << PAGE_SHIFT) |
-				(DECAY_MASK << COUNT_BITS) | 1;
-
+		ca->array[to] = pfn << PAGE_SHIFT;
 		ca->n++;
-
-		ret = 0;
-
-		goto decay;
 	}
 
+	/* Add/refresh element generation and increment count */
+	ca->array[to] |= DECAY_MASK << COUNT_BITS;
+	ca->array[to]++;
+
+	/* Check action threshold and soft-offline, if reached. */
 	count = COUNT(ca->array[to]);
-
-	if (count < count_threshold) {
-		ca->array[to] |= (DECAY_MASK << COUNT_BITS);
-		ca->array[to]++;
-
-		ret = 0;
-	} else {
+	if (count >= action_threshold) {
 		u64 pfn = ca->array[to] >> PAGE_SHIFT;
 
 		if (!pfn_valid(pfn)) {
@@ -338,19 +373,20 @@ int cec_add_elem(u64 pfn)
 		del_elem(ca, to);
 
 		/*
-		 * Return a >0 value to denote that we've reached the offlining
-		 * threshold.
+		 * Return a >0 value to callers, to denote that we've reached
+		 * the offlining threshold.
 		 */
 		ret = 1;
 
 		goto unlock;
 	}
 
-decay:
 	ca->decay_count++;
 
 	if (ca->decay_count >= CLEAN_ELEMS)
 		do_spring_cleaning(ca);
+
+	WARN_ON_ONCE(sanity_check(ca));
 
 unlock:
 	mutex_unlock(&ce_mutex);
@@ -378,38 +414,39 @@ DEFINE_DEBUGFS_ATTRIBUTE(pfn_ops, u64_get, pfn_set, "0x%llx\n");
 
 static int decay_interval_set(void *data, u64 val)
 {
-	*(u64 *)data = val;
-
 	if (val < CEC_DECAY_MIN_INTERVAL)
 		return -EINVAL;
 
 	if (val > CEC_DECAY_MAX_INTERVAL)
 		return -EINVAL;
 
+	*(u64 *)data   = val;
 	decay_interval = val;
 
 	cec_mod_work(decay_interval);
+
 	return 0;
 }
 DEFINE_DEBUGFS_ATTRIBUTE(decay_interval_ops, u64_get, decay_interval_set, "%lld\n");
 
-static int count_threshold_set(void *data, u64 val)
+static int action_threshold_set(void *data, u64 val)
 {
 	*(u64 *)data = val;
 
 	if (val > COUNT_MASK)
 		val = COUNT_MASK;
 
-	count_threshold = val;
+	action_threshold = val;
 
 	return 0;
 }
-DEFINE_DEBUGFS_ATTRIBUTE(count_threshold_ops, u64_get, count_threshold_set, "%lld\n");
+DEFINE_DEBUGFS_ATTRIBUTE(action_threshold_ops, u64_get, action_threshold_set, "%lld\n");
 
-static int array_dump(struct seq_file *m, void *v)
+static const char * const bins[] = { "00", "01", "10", "11" };
+
+static int array_show(struct seq_file *m, void *v)
 {
 	struct ce_array *ca = &ce_arr;
-	u64 prev = 0;
 	int i;
 
 	mutex_lock(&ce_mutex);
@@ -418,11 +455,8 @@ static int array_dump(struct seq_file *m, void *v)
 	for (i = 0; i < ca->n; i++) {
 		u64 this = PFN(ca->array[i]);
 
-		seq_printf(m, " %03d: [%016llx|%03llx]\n", i, this, FULL_COUNT(ca->array[i]));
-
-		WARN_ON(prev > this);
-
-		prev = this;
+		seq_printf(m, " %3d: [%016llx|%s|%03llx]\n",
+			   i, this, bins[DECAY(ca->array[i])], COUNT(ca->array[i]));
 	}
 
 	seq_printf(m, "}\n");
@@ -435,25 +469,14 @@ static int array_dump(struct seq_file *m, void *v)
 	seq_printf(m, "Decay interval: %lld seconds\n", decay_interval);
 	seq_printf(m, "Decays: %lld\n", ca->decays_done);
 
-	seq_printf(m, "Action threshold: %d\n", count_threshold);
+	seq_printf(m, "Action threshold: %lld\n", action_threshold);
 
 	mutex_unlock(&ce_mutex);
 
 	return 0;
 }
 
-static int array_open(struct inode *inode, struct file *filp)
-{
-	return single_open(filp, array_dump, NULL);
-}
-
-static const struct file_operations array_ops = {
-	.owner	 = THIS_MODULE,
-	.open	 = array_open,
-	.read	 = seq_read,
-	.llseek	 = seq_lseek,
-	.release = single_release,
-};
+DEFINE_SHOW_ATTRIBUTE(array);
 
 static int __init create_debugfs_nodes(void)
 {
@@ -465,18 +488,6 @@ static int __init create_debugfs_nodes(void)
 		return -1;
 	}
 
-	pfn = debugfs_create_file("pfn", S_IRUSR | S_IWUSR, d, &dfs_pfn, &pfn_ops);
-	if (!pfn) {
-		pr_warn("Error creating pfn debugfs node!\n");
-		goto err;
-	}
-
-	array = debugfs_create_file("array", S_IRUSR, d, NULL, &array_ops);
-	if (!array) {
-		pr_warn("Error creating array debugfs node!\n");
-		goto err;
-	}
-
 	decay = debugfs_create_file("decay_interval", S_IRUSR | S_IWUSR, d,
 				    &decay_interval, &decay_interval_ops);
 	if (!decay) {
@@ -484,13 +495,27 @@ static int __init create_debugfs_nodes(void)
 		goto err;
 	}
 
-	count = debugfs_create_file("count_threshold", S_IRUSR | S_IWUSR, d,
-				    &count_threshold, &count_threshold_ops);
+	count = debugfs_create_file("action_threshold", S_IRUSR | S_IWUSR, d,
+				    &action_threshold, &action_threshold_ops);
 	if (!count) {
-		pr_warn("Error creating count_threshold debugfs node!\n");
+		pr_warn("Error creating action_threshold debugfs node!\n");
 		goto err;
 	}
 
+	if (!IS_ENABLED(CONFIG_RAS_CEC_DEBUG))
+		return 0;
+
+	pfn = debugfs_create_file("pfn", S_IRUSR | S_IWUSR, d, &dfs_pfn, &pfn_ops);
+	if (!pfn) {
+		pr_warn("Error creating pfn debugfs node!\n");
+		goto err;
+	}
+
+	array = debugfs_create_file("array", S_IRUSR, d, NULL, &array_fops);
+	if (!array) {
+		pr_warn("Error creating array debugfs node!\n");
+		goto err;
+	}
 
 	return 0;
 
@@ -500,25 +525,57 @@ err:
 	return 1;
 }
 
-void __init cec_init(void)
+static int cec_notifier(struct notifier_block *nb, unsigned long val,
+			void *data)
+{
+	struct mce *m = (struct mce *)data;
+
+	if (!m)
+		return NOTIFY_DONE;
+
+	/* We eat only correctable DRAM errors with usable addresses. */
+	if (mce_is_memory_error(m) &&
+	    mce_is_correctable(m)  &&
+	    mce_usable_address(m)) {
+		if (!cec_add_elem(m->addr >> PAGE_SHIFT)) {
+			m->kflags |= MCE_HANDLED_CEC;
+			return NOTIFY_OK;
+		}
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block cec_nb = {
+	.notifier_call	= cec_notifier,
+	.priority	= MCE_PRIO_CEC,
+};
+
+static int __init cec_init(void)
 {
 	if (ce_arr.disabled)
-		return;
+		return -ENODEV;
 
 	ce_arr.array = (void *)get_zeroed_page(GFP_KERNEL);
 	if (!ce_arr.array) {
 		pr_err("Error allocating CE array page!\n");
-		return;
+		return -ENOMEM;
 	}
 
-	if (create_debugfs_nodes())
-		return;
+	if (create_debugfs_nodes()) {
+		free_page((unsigned long)ce_arr.array);
+		return -ENOMEM;
+	}
 
 	INIT_DELAYED_WORK(&cec_work, cec_work_fn);
 	schedule_delayed_work(&cec_work, CEC_DECAY_DEFAULT_INTERVAL);
 
+	mce_register_decode_chain(&cec_nb);
+
 	pr_info("Correctable Errors collector initialized.\n");
+	return 0;
 }
+late_initcall(cec_init);
 
 int __init parse_cec_param(char *str)
 {

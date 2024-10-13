@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_dump.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Internal Buffer Dumping driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Internal Buffer Dumping driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
  *
@@ -14,6 +14,7 @@
 #include <linux/spinlock.h>
 #include <linux/vmalloc.h>
 #include <linux/pm_runtime.h>
+#include <linux/sched/clock.h>
 #include <sound/samsung/abox.h>
 
 #include "abox_util.h"
@@ -84,9 +85,10 @@ static void abox_dump_request_dump(int id)
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	ABOX_IPC_MSG msg;
 	struct IPC_SYSTEM_MSG *system = &msg.msg.system;
-	bool start = info->started || info->file_started || info->auto_started;
+	bool start = info->started || info->file_started ||
+			info->auto_started;
 
-	dev_dbg(info->dev, "%s(%d)\n", __func__, id);
+	abox_info(info->dev, "%s(%d)\n", __func__, id);
 
 	msg.ipcid = IPC_SYSTEM;
 	system->msgtype = ABOX_REQUEST_DUMP;
@@ -105,7 +107,7 @@ static ssize_t abox_dump_auto_read(struct file *file, char __user *data,
 	char *buffer, *p_buffer;
 	ssize_t ret;
 
-	dev_dbg(abox_dump_dev_abox, "%s(%zu, %lld, %d)\n", __func__, count,
+	abox_dbg(abox_dump_dev_abox, "%s(%zu, %lld, %d)\n", __func__, count,
 			*ppos, enable);
 
 	p_buffer = buffer = kmalloc(sz_buffer, GFP_KERNEL);
@@ -135,14 +137,14 @@ static ssize_t abox_dump_auto_write(struct file *file, const char __user *data,
 	char *buffer, *p_buffer, *token;
 	ssize_t ret;
 
-	dev_dbg(abox_dump_dev_abox, "%s(%zu, %lld, %d)\n", __func__, count,
+	abox_dbg(abox_dump_dev_abox, "%s(%zu, %lld, %d)\n", __func__, count,
 			*ppos, enable);
 
-	p_buffer = buffer = kmalloc(sz_buffer, GFP_KERNEL);
+	p_buffer = buffer = kzalloc(sz_buffer, GFP_KERNEL);
 	if (!buffer)
 		return -ENOMEM;
 
-	ret = simple_write_to_buffer(buffer, sz_buffer, ppos, data, count);
+	ret = simple_write_to_buffer(buffer, sz_buffer - 1, ppos, data, count);
 	if (ret < 0)
 		goto err;
 
@@ -158,7 +160,7 @@ static ssize_t abox_dump_auto_write(struct file *file, const char __user *data,
 			info = NULL;
 
 		if (IS_ERR_OR_NULL(info)) {
-			dev_err(abox_dump_dev_abox, "invalid argument\n");
+			abox_err(abox_dump_dev_abox, "invalid argument\n");
 			continue;
 		}
 
@@ -206,18 +208,19 @@ static ssize_t abox_dump_auto_stop_write(struct file *file,
 	return abox_dump_auto_write(file, data, count, ppos, false);
 }
 
-static const struct file_operations abox_dump_auto_start_fops = {
-	.read = abox_dump_auto_start_read,
-	.write = abox_dump_auto_start_write,
+static const struct proc_ops abox_dump_auto_start_fops = {
+	.proc_read = abox_dump_auto_start_read,
+	.proc_write = abox_dump_auto_start_write,
 };
 
-static const struct file_operations abox_dump_auto_stop_fops = {
-	.read = abox_dump_auto_stop_read,
-	.write = abox_dump_auto_stop_write,
+static const struct proc_ops abox_dump_auto_stop_fops = {
+	.proc_read = abox_dump_auto_stop_read,
+	.proc_write = abox_dump_auto_stop_write,
 };
 
 static void abox_dump_auto_dump_work_func(struct work_struct *work)
 {
+#if 0
 	struct abox_dump_info *info = container_of(work,
 			struct abox_dump_info, auto_work);
 	struct device *dev = info->dev;
@@ -250,6 +253,7 @@ static void abox_dump_auto_dump_work_func(struct work_struct *work)
 			dev_dbg(dev, "%pad, %pK, %zx, %zx)\n",
 					&info->buffer.addr, area, bytes,
 					info->auto_pointer);
+
 			if (pointer < info->auto_pointer) {
 				vfs_write(filp, area + info->auto_pointer,
 						bytes - info->auto_pointer,
@@ -276,6 +280,8 @@ static void abox_dump_auto_dump_work_func(struct work_struct *work)
 
 		set_fs(old_fs);
 	}
+#endif
+	return;
 }
 
 static ssize_t abox_dump_file_read(struct file *file, char __user *data,
@@ -287,14 +293,14 @@ static ssize_t abox_dump_file_read(struct file *file, char __user *data,
 	ssize_t size;
 	int ret;
 
-	dev_dbg(dev, "%s(%#zx)\n", __func__, count);
+	abox_dbg(dev, "%s(%#zx)\n", __func__, count);
 
 	do {
 		pointer = READ_ONCE(info->pointer);
 		end = (info->file_pointer <= pointer) ? pointer :
 				info->buffer.bytes;
 		size = min(end - info->file_pointer, count);
-		dev_dbg(dev, "pointer=%#zx file_pointer=%#zx size=%#zx\n",
+		abox_dbg(dev, "pointer=%#zx file_pointer=%#zx size=%#zx\n",
 				pointer, info->file_pointer, size);
 		if (!size) {
 			if (file->f_flags & O_NONBLOCK)
@@ -321,7 +327,10 @@ static int abox_dump_file_open(struct inode *i, struct file *f)
 	struct abox_dump_info *info = abox_dump_get_data(f);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
+
+	if (info->file_started)
+		return -EBUSY;
 
 	pm_runtime_get(dev);
 
@@ -338,7 +347,7 @@ static int abox_dump_file_release(struct inode *i, struct file *f)
 	struct abox_dump_info *info = f->private_data;
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	info->file_started = false;
 	abox_dump_request_dump(info->id);
@@ -352,19 +361,18 @@ static unsigned int abox_dump_file_poll(struct file *file, poll_table *wait)
 {
 	struct abox_dump_info *info = file->private_data;
 
-	dev_dbg(info->dev, "%s\n", __func__);
+	abox_dbg(info->dev, "%s\n", __func__);
 
 	poll_wait(file, &info->file_waitqueue, wait);
 	return POLLIN | POLLRDNORM;
 }
 
-static const struct file_operations abox_dump_fops = {
-	.llseek = generic_file_llseek,
-	.read = abox_dump_file_read,
-	.poll = abox_dump_file_poll,
-	.open = abox_dump_file_open,
-	.release = abox_dump_file_release,
-	.owner = THIS_MODULE,
+static const struct proc_ops abox_dump_fops = {
+	.proc_lseek = generic_file_llseek,
+	.proc_read = abox_dump_file_read,
+	.proc_poll = abox_dump_file_poll,
+	.proc_open = abox_dump_file_open,
+	.proc_release = abox_dump_file_release,
 };
 
 static struct snd_pcm_hardware abox_dump_hardware = {
@@ -387,23 +395,27 @@ void abox_dump_period_elapsed(int id, size_t pointer)
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s[%d](%zx)\n", __func__, id, pointer);
+	abox_dbg(dev, "%s[%d](%zx)\n", __func__, id, pointer);
 
 	info->pointer = pointer;
-	schedule_work(&info->auto_work);
-	wake_up_interruptible(&info->file_waitqueue);
-	snd_pcm_period_elapsed(info->substream);
+	if (info->auto_started)
+		schedule_work(&info->auto_work);
+	if (info->file_started)
+		wake_up_interruptible(&info->file_waitqueue);
+	if (info->started)
+		snd_pcm_period_elapsed(info->substream);
 }
 
-static int abox_dump_open(struct snd_pcm_substream *substream)
+static int abox_dump_open(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	int id = rtd->dai_link->id;
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 	struct snd_dma_buffer *dmab = &substream->dma_buffer;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	pm_runtime_get(dev);
 
@@ -420,14 +432,15 @@ static int abox_dump_open(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int abox_dump_close(struct snd_pcm_substream *substream)
+static int abox_dump_close(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	int id = rtd->dai_link->id;
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	info->substream = NULL;
 	pm_runtime_put(dev);
@@ -435,53 +448,57 @@ static int abox_dump_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int abox_dump_hw_params(struct snd_pcm_substream *substream,
+static int abox_dump_hw_params(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	int id = rtd->dai_link->id;
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	return snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
 }
 
-static int abox_dump_hw_free(struct snd_pcm_substream *substream)
+static int abox_dump_hw_free(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	int id = rtd->dai_link->id;
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	return snd_pcm_lib_free_pages(substream);
 }
 
-static int abox_dump_prepare(struct snd_pcm_substream *substream)
+static int abox_dump_prepare(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	int id = rtd->dai_link->id;
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	info->pointer = 0;
 
 	return 0;
 }
 
-static int abox_dump_trigger(struct snd_pcm_substream *substream, int cmd)
+static int abox_dump_trigger(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream, int cmd)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	int id = rtd->dai_link->id;
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s[%d](%d)\n", __func__, id, cmd);
+	abox_dbg(dev, "%s[%d](%d)\n", __func__, id, cmd);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -495,7 +512,7 @@ static int abox_dump_trigger(struct snd_pcm_substream *substream, int cmd)
 		info->started = false;
 		break;
 	default:
-		dev_err(dev, "invalid command: %d\n", cmd);
+		abox_err(dev, "invalid command: %d\n", cmd);
 		return -EINVAL;
 	}
 
@@ -510,7 +527,7 @@ void abox_dump_transfer(int id, const char *buf, size_t bytes)
 	struct device *dev = info->dev;
 	size_t size, pointer;
 
-	dev_dbg(dev, "%s[%d](%pK, %zx): %zx\n", __func__, id, buf, bytes,
+	abox_dbg(dev, "%s[%d](%pK, %zx): %zx\n", __func__, id, buf, bytes,
 			info->pointer);
 
 	size = min(bytes, info->buffer.bytes - info->pointer);
@@ -522,50 +539,42 @@ void abox_dump_transfer(int id, const char *buf, size_t bytes)
 	abox_dump_period_elapsed(id, pointer);
 }
 
-static snd_pcm_uframes_t abox_dump_pointer(struct snd_pcm_substream *substream)
+static snd_pcm_uframes_t abox_dump_pointer(struct snd_soc_component *component,
+		struct snd_pcm_substream *substream)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	int id = rtd->dai_link->id;
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	return bytes_to_frames(substream->runtime, info->pointer);
 }
-
-static struct snd_pcm_ops abox_dump_ops = {
-	.open		= abox_dump_open,
-	.close		= abox_dump_close,
-	.hw_params	= abox_dump_hw_params,
-	.hw_free	= abox_dump_hw_free,
-	.prepare	= abox_dump_prepare,
-	.trigger	= abox_dump_trigger,
-	.pointer	= abox_dump_pointer,
-};
 
 static int abox_dump_probe(struct snd_soc_component *component)
 {
 	struct device *dev = component->dev;
 	int id = to_platform_device(dev)->id;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	return 0;
 }
 
-static int abox_dump_pcm_new(struct snd_soc_pcm_runtime *runtime)
+static int abox_dump_pcm_new(struct snd_soc_component *component,
+			     struct snd_soc_pcm_runtime *rtd)
 {
 	const size_t default_size = SZ_128K;
-	int id = runtime->dai_link->id;
+	int id = rtd->dai_link->id;
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
-	struct snd_pcm *pcm = runtime->pcm;
+	struct snd_pcm *pcm = rtd->pcm;
 	struct snd_pcm_str *stream = &pcm->streams[SNDRV_PCM_STREAM_CAPTURE];
 	struct snd_pcm_substream *substream = stream->substream;
 	struct snd_dma_buffer *dmab = &substream->dma_buffer;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	if (info->buffer.area) {
 		dmab->dev.type = SNDRV_DMA_TYPE_DEV;
@@ -584,7 +593,8 @@ static int abox_dump_pcm_new(struct snd_soc_pcm_runtime *runtime)
 	return 0;
 }
 
-static void abox_dump_pcm_free(struct snd_pcm *pcm)
+static void abox_dump_pcm_free(struct snd_soc_component *component,
+			     struct snd_pcm *pcm)
 {
 	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
 	struct snd_pcm_str *stream = &pcm->streams[SNDRV_PCM_STREAM_CAPTURE];
@@ -593,17 +603,31 @@ static void abox_dump_pcm_free(struct snd_pcm *pcm)
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct device *dev = info->dev;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
-	if (substream->dma_buffer.dev.type == SNDRV_DMA_TYPE_CONTINUOUS)
+	switch (substream->dma_buffer.dev.type) {
+	case SNDRV_DMA_TYPE_DEV:
+		memset(&substream->dma_buffer, 0, sizeof(substream->dma_buffer));
+		break;
+	case SNDRV_DMA_TYPE_CONTINUOUS:
 		snd_pcm_lib_free_pages(substream);
+		break;
+	default:
+		break;
+	}
 }
 
 static const struct snd_soc_component_driver abox_dump_component = {
 	.probe		= abox_dump_probe,
-	.ops		= &abox_dump_ops,
-	.pcm_new	= abox_dump_pcm_new,
-	.pcm_free	= abox_dump_pcm_free,
+	.pcm_construct	= abox_dump_pcm_new,
+	.pcm_destruct	= abox_dump_pcm_free,
+	.open		= abox_dump_open,
+	.close		= abox_dump_close,
+	.hw_params	= abox_dump_hw_params,
+	.hw_free	= abox_dump_hw_free,
+	.prepare	= abox_dump_prepare,
+	.trigger	= abox_dump_trigger,
+	.pointer	= abox_dump_pointer,
 };
 
 static struct snd_soc_card abox_dump_card = {
@@ -613,7 +637,7 @@ static struct snd_soc_card abox_dump_card = {
 };
 
 struct proc_dir_entry *abox_dump_register_file(const char *name, void *data,
-		const struct file_operations *fops)
+		const struct proc_ops *fops)
 {
 	return abox_proc_create_file(name, 0664, dir_dump, fops, data, 0);
 }
@@ -633,7 +657,7 @@ static int abox_dump_register_work_single(void)
 	struct abox_dump_info *info, *_info;
 	unsigned long flags;
 
-	dev_dbg(abox_dump_dev_abox, "%s\n", __func__);
+	abox_dbg(abox_dump_dev_abox, "%s\n", __func__);
 
 	spin_lock_irqsave(&abox_dump_lock, flags);
 	list_for_each_entry_reverse(_info, &abox_dump_list_head, list) {
@@ -646,7 +670,7 @@ static int abox_dump_register_work_single(void)
 		return -EINVAL;
 
 	info = devm_kmemdup(_info->dev, _info, sizeof(*_info), GFP_KERNEL);
-	dev_info(info->dev, "%s(%d, %s, %#zx)\n", __func__, info->id,
+	abox_info(info->dev, "%s(%d, %s, %#zx)\n", __func__, info->id,
 			info->name, info->buffer.bytes);
 	info->file = abox_dump_register_file(info->name, info, &abox_dump_fops);
 	init_waitqueue_head(&info->file_waitqueue);
@@ -657,7 +681,7 @@ static int abox_dump_register_work_single(void)
 	list_replace(&_info->list, &info->list);
 	spin_unlock_irqrestore(&abox_dump_lock, flags);
 
-	platform_device_register_data(info->dev, "samsung-abox-dump",
+	platform_device_register_data(info->dev, "abox-dump",
 			info->id, NULL, 0);
 
 	kfree(_info);
@@ -666,7 +690,7 @@ static int abox_dump_register_work_single(void)
 
 static void abox_dump_register_work_func(struct work_struct *work)
 {
-	dev_dbg(abox_dump_dev_abox, "%s\n", __func__);
+	abox_dbg(abox_dump_dev_abox, "%s\n", __func__);
 
 	do {} while (abox_dump_register_work_single() >= 0);
 }
@@ -700,13 +724,13 @@ int abox_dump_register(struct abox_data *data, int gid, int id,
 	struct abox_dump_info *info;
 	unsigned long flags;
 
-	dev_dbg(dev, "%s[%d](%s, %#zx)\n", __func__, id, name, bytes);
+	abox_dbg(dev, "%s[%d](%s, %#zx)\n", __func__, id, name, bytes);
 
 	spin_lock_irqsave(&abox_dump_lock, flags);
 	info = abox_dump_get_info(id);
 	spin_unlock_irqrestore(&abox_dump_lock, flags);
 	if (info) {
-		dev_dbg(dev, "already registered dump: %d\n", id);
+		abox_dbg(dev, "already registered dump: %d\n", id);
 		return 0;
 	}
 
@@ -733,6 +757,8 @@ int abox_dump_register(struct abox_data *data, int gid, int id,
 	return 0;
 }
 
+SND_SOC_DAILINK_DEF(dailink_comp_dummy, DAILINK_COMP_ARRAY(COMP_DUMMY()));
+
 static void abox_dump_register_card_work_func(struct work_struct *work)
 {
 	int i;
@@ -747,10 +773,10 @@ static void abox_dump_register_card_work_func(struct work_struct *work)
 
 		link->name = link->stream_name =
 				kasprintf(GFP_KERNEL, "dummy%d", i);
-		link->cpu_name = "snd-soc-dummy";
-		link->cpu_dai_name = "snd-soc-dummy-dai";
-		link->codec_name = "snd-soc-dummy";
-		link->codec_dai_name = "snd-soc-dummy-dai";
+		link->cpus = dailink_comp_dummy;
+		link->num_cpus = ARRAY_SIZE(dailink_comp_dummy);
+		link->codecs = dailink_comp_dummy;
+		link->num_codecs = ARRAY_SIZE(dailink_comp_dummy);
 		link->no_pcm = 1;
 	}
 	abox_register_extra_sound_card(abox_dump_card.dev, &abox_dump_card, 2);
@@ -765,7 +791,7 @@ static int abox_dump_add_dai_link(struct device *dev)
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	struct snd_soc_dai_link *link;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	cancel_delayed_work_sync(&abox_dump_register_card_work);
 
@@ -783,11 +809,16 @@ static int abox_dump_add_dai_link(struct device *dev)
 	kfree(link->name);
 	link->name = link->stream_name = kstrdup(info->name, GFP_KERNEL);
 	link->id = id;
-	link->cpu_name = "snd-soc-dummy";
-	link->cpu_dai_name = "snd-soc-dummy-dai";
-	link->platform_name = dev_name(dev);
-	link->codec_name = "snd-soc-dummy";
-	link->codec_dai_name = "snd-soc-dummy-dai";
+	link->cpus = dailink_comp_dummy;
+	link->num_cpus = ARRAY_SIZE(dailink_comp_dummy);
+	link->platforms = devm_kcalloc(dev, 1, sizeof(*link->platforms),
+			GFP_KERNEL);
+	if (!link->platforms)
+		return -ENOMEM;
+	link->platforms->name = dev_name(dev);
+	link->num_platforms = 1;
+	link->codecs = dailink_comp_dummy;
+	link->num_codecs = ARRAY_SIZE(dailink_comp_dummy);
 	link->ignore_suspend = 1;
 	link->ignore_pmdown_time = 1;
 	link->no_pcm = 0;
@@ -808,7 +839,7 @@ static int samsung_abox_dump_probe(struct platform_device *pdev)
 	struct abox_dump_info *info = abox_dump_get_info(id);
 	int ret = 0;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	if (id < 0) {
 		abox_dump_card.dev = &pdev->dev;
@@ -821,11 +852,11 @@ static int samsung_abox_dump_probe(struct platform_device *pdev)
 		ret = devm_snd_soc_register_component(dev, &abox_dump_component,
 				NULL, 0);
 		if (ret < 0)
-			dev_err(dev, "register component failed: %d\n", ret);
+			abox_err(dev, "register component failed: %d\n", ret);
 
 		ret = abox_dump_add_dai_link(dev);
 		if (ret < 0)
-			dev_err(dev, "add dai link failed: %d\n", ret);
+			abox_err(dev, "add dai link failed: %d\n", ret);
 	}
 
 	return ret;
@@ -836,37 +867,44 @@ static int samsung_abox_dump_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	int id = to_platform_device(dev)->id;
 
-	dev_dbg(dev, "%s[%d]\n", __func__, id);
+	abox_dbg(dev, "%s[%d]\n", __func__, id);
 
 	return 0;
 }
 
+static void samsung_abox_dump_shutdown(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+
+	abox_dbg(dev, "%s\n", __func__);
+	pm_runtime_disable(dev);
+}
+
 static const struct platform_device_id samsung_abox_dump_driver_ids[] = {
 	{
-		.name = "samsung-abox-dump",
+		.name = "abox-dump",
 	},
 	{},
 };
 MODULE_DEVICE_TABLE(platform, samsung_abox_dump_driver_ids);
 
-static struct platform_driver samsung_abox_dump_driver = {
+struct platform_driver samsung_abox_dump_driver = {
 	.probe  = samsung_abox_dump_probe,
 	.remove = samsung_abox_dump_remove,
+	.shutdown = samsung_abox_dump_shutdown,
 	.driver = {
-		.name = "samsung-abox-dump",
+		.name = "abox-dump",
 		.owner = THIS_MODULE,
 	},
 	.id_table = samsung_abox_dump_driver_ids,
 };
-
-module_platform_driver(samsung_abox_dump_driver);
 
 void abox_dump_init(struct device *dev_abox)
 {
 	static struct platform_device *pdev;
 	static struct proc_dir_entry *auto_start, *auto_stop;
 
-	dev_info(dev_abox, "%s\n", __func__);
+	abox_info(dev_abox, "%s\n", __func__);
 
 	abox_dump_dev_abox = dev_abox;
 
@@ -883,11 +921,6 @@ void abox_dump_init(struct device *dev_abox)
 
 	if (IS_ERR_OR_NULL(pdev))
 		pdev = platform_device_register_data(dev_abox,
-				"samsung-abox-dump", -1, NULL, 0);
-}
+				"abox-dump", -1, NULL, 0);
 
-/* Module information */
-MODULE_AUTHOR("Gyeongtaek Lee, <gt82.lee@samsung.com>");
-MODULE_DESCRIPTION("Samsung ASoC A-Box Internal Buffer Dumping Driver");
-MODULE_ALIAS("platform:samsung-abox-dump");
-MODULE_LICENSE("GPL");
+}

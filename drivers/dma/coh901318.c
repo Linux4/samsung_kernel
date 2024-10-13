@@ -1,8 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * driver/dma/coh901318.c
  *
  * Copyright (C) 2007-2009 ST-Ericsson
- * License terms: GNU General Public License (GPL) version 2
  * DMA driver for COH 901 318
  * Author: Per Friden <per.friden@stericsson.com>
  */
@@ -1306,6 +1306,7 @@ struct coh901318_chan {
 	unsigned long nbr_active_done;
 	unsigned long busy;
 
+	struct dma_slave_config config;
 	u32 addr;
 	u32 ctrl;
 
@@ -1377,10 +1378,8 @@ static int __init init_coh901318_debugfs(void)
 
 	dma_dentry = debugfs_create_dir("dma", NULL);
 
-	(void) debugfs_create_file("status",
-				   S_IFREG | S_IRUGO,
-				   dma_dentry, NULL,
-				   &coh901318_debugfs_status_operations);
+	debugfs_create_file("status", S_IFREG | S_IRUGO, dma_dentry, NULL,
+			    &coh901318_debugfs_status_operations);
 	return 0;
 }
 
@@ -1401,6 +1400,10 @@ static inline struct coh901318_chan *to_coh901318_chan(struct dma_chan *chan)
 {
 	return container_of(chan, struct coh901318_chan, chan);
 }
+
+static int coh901318_dma_set_runtimeconfig(struct dma_chan *chan,
+					   struct dma_slave_config *config,
+					   enum dma_transfer_direction direction);
 
 static inline const struct coh901318_params *
 cohc_chan_param(struct coh901318_chan *cohc)
@@ -1865,9 +1868,9 @@ static struct coh901318_desc *coh901318_queue_start(struct coh901318_chan *cohc)
  * This tasklet is called from the interrupt handler to
  * handle each descriptor (DMA job) that is sent to a channel.
  */
-static void dma_tasklet(unsigned long data)
+static void dma_tasklet(struct tasklet_struct *t)
 {
-	struct coh901318_chan *cohc = (struct coh901318_chan *) data;
+	struct coh901318_chan *cohc = from_tasklet(cohc, t, tasklet);
 	struct coh901318_desc *cohd_fin;
 	unsigned long flags;
 	struct dmaengine_desc_callback cb;
@@ -2351,6 +2354,8 @@ coh901318_prep_slave_sg(struct dma_chan *chan, struct scatterlist *sgl,
 	if (lli == NULL)
 		goto err_dma_alloc;
 
+	coh901318_dma_set_runtimeconfig(chan, &cohc->config, direction);
+
 	/* initiate allocated lli list */
 	ret = coh901318_lli_fill_sg(&cohc->base->pool, lli, sgl, sg_len,
 				    cohc->addr,
@@ -2490,7 +2495,8 @@ static const struct burst_table burst_sizes[] = {
 };
 
 static int coh901318_dma_set_runtimeconfig(struct dma_chan *chan,
-					   struct dma_slave_config *config)
+					   struct dma_slave_config *config,
+					   enum dma_transfer_direction direction)
 {
 	struct coh901318_chan *cohc = to_coh901318_chan(chan);
 	dma_addr_t addr;
@@ -2500,11 +2506,11 @@ static int coh901318_dma_set_runtimeconfig(struct dma_chan *chan,
 	int i = 0;
 
 	/* We only support mem to per or per to mem transfers */
-	if (config->direction == DMA_DEV_TO_MEM) {
+	if (direction == DMA_DEV_TO_MEM) {
 		addr = config->src_addr;
 		addr_width = config->src_addr_width;
 		maxburst = config->src_maxburst;
-	} else if (config->direction == DMA_MEM_TO_DEV) {
+	} else if (direction == DMA_MEM_TO_DEV) {
 		addr = config->dst_addr;
 		addr_width = config->dst_addr_width;
 		maxburst = config->dst_maxburst;
@@ -2570,6 +2576,16 @@ static int coh901318_dma_set_runtimeconfig(struct dma_chan *chan,
 	return 0;
 }
 
+static int coh901318_dma_slave_config(struct dma_chan *chan,
+					   struct dma_slave_config *config)
+{
+	struct coh901318_chan *cohc = to_coh901318_chan(chan);
+
+	memcpy(&cohc->config, config, sizeof(*config));
+
+	return 0;
+}
+
 static void coh901318_base_init(struct dma_device *dma, const int *pick_chans,
 				struct coh901318_base *base)
 {
@@ -2599,8 +2615,7 @@ static void coh901318_base_init(struct dma_device *dma, const int *pick_chans,
 			INIT_LIST_HEAD(&cohc->active);
 			INIT_LIST_HEAD(&cohc->queue);
 
-			tasklet_init(&cohc->tasklet, dma_tasklet,
-				     (unsigned long) cohc);
+			tasklet_setup(&cohc->tasklet, dma_tasklet);
 
 			list_add_tail(&cohc->chan.device_node,
 				      &dma->channels);
@@ -2675,7 +2690,7 @@ static int __init coh901318_probe(struct platform_device *pdev)
 	base->dma_slave.device_prep_slave_sg = coh901318_prep_slave_sg;
 	base->dma_slave.device_tx_status = coh901318_tx_status;
 	base->dma_slave.device_issue_pending = coh901318_issue_pending;
-	base->dma_slave.device_config = coh901318_dma_set_runtimeconfig;
+	base->dma_slave.device_config = coh901318_dma_slave_config;
 	base->dma_slave.device_pause = coh901318_pause;
 	base->dma_slave.device_resume = coh901318_resume;
 	base->dma_slave.device_terminate_all = coh901318_terminate_all;
@@ -2698,7 +2713,7 @@ static int __init coh901318_probe(struct platform_device *pdev)
 	base->dma_memcpy.device_prep_dma_memcpy = coh901318_prep_memcpy;
 	base->dma_memcpy.device_tx_status = coh901318_tx_status;
 	base->dma_memcpy.device_issue_pending = coh901318_issue_pending;
-	base->dma_memcpy.device_config = coh901318_dma_set_runtimeconfig;
+	base->dma_memcpy.device_config = coh901318_dma_slave_config;
 	base->dma_memcpy.device_pause = coh901318_pause;
 	base->dma_memcpy.device_resume = coh901318_resume;
 	base->dma_memcpy.device_terminate_all = coh901318_terminate_all;

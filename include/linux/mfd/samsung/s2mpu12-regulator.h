@@ -1,7 +1,7 @@
 /*
  * s2mpu12-regulator.h - Voltage regulator driver for the s2mpu12
  *
- *  Copyright (C) 2019 Samsung Electrnoics
+ *  Copyright (C) 2022 Samsung Electrnoics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -453,7 +453,5 @@ extern int s2mpu12_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask);
 
 extern int s2mpu12_read_pwron_status(void);
 extern int exynos_power_key_pressed_chk(void);
-#if defined(CONFIG_SND_SOC_AUD3004X_5PIN) || defined(CONFIG_SND_SOC_AUD3004X_6PIN)
-extern void set_codec_notifier_flag(bool on);
-#endif
+
 #endif /* __LINUX_MFD_S2MPU12_PRIV_H */

@@ -11,7 +11,7 @@
 #include <linux/kernel.h>
 
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-interface-sensor.h"
 #include "is-control-sensor.h"

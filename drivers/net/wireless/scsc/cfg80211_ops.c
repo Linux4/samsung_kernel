@@ -793,7 +793,7 @@ int slsi_sched_scan_start(struct wiphy                       *wiphy,
 			strip_p2p = true;
 	}
 
-	if (strip_wsc || strip_p2p) {
+	if ((strip_wsc || strip_p2p) && request->ie) {
 		scan_ie = kmalloc(request->ie_len, GFP_KERNEL);
 		if (!scan_ie) {
 			SLSI_NET_INFO(dev, "Out of memory for scan IEs\n");
@@ -990,7 +990,14 @@ int slsi_set_roam_reassoc(struct net_device *dev, struct slsi_dev *sdev, struct 
 				SLSI_NET_ERR(dev, "Roaming has been rejected, as sme->channel is null\n");
 				return -EINVAL;
 			}
-			r = slsi_mlme_roam(sdev, dev, sme->bssid, sme->channel->center_freq);
+			if (sme->bssid) {
+				r = slsi_mlme_roam(sdev, dev, sme->bssid, sme->channel->center_freq);
+			} else if (sme->bssid_hint) {
+				r = slsi_mlme_roam(sdev, dev, sme->bssid_hint, sme->channel->center_freq);
+			} else  {
+				SLSI_NET_ERR(dev, "Roaming has been rejected, as bssid and bssid_hint are null\n");
+				return -EINVAL;
+			}
 			if (r) {
 				SLSI_NET_ERR(dev, "Failed to roam : %d\n", r);
 				return -EINVAL;
@@ -3233,12 +3240,17 @@ int slsi_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	}
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
-
+	SLSI_NET_INFO(dev, "fc:%d, len:%d\n", mgmt->frame_control, len);
 	if (!(ieee80211_is_auth(mgmt->frame_control))) {
 		SLSI_NET_DBG2(dev, SLSI_CFG80211, "Mgmt Frame Tx: iface_num = %d, channel = %d, wait = %d, noAck = %d,"
 			      "offchannel = %d, mgmt->frame_control = %d, vif_type = %d\n", ndev_vif->ifnum, chan->hw_value,
 			      wait, dont_wait_for_ack, offchan, mgmt->frame_control, ndev_vif->vif_type);
 	} else {
+		if (!ndev_vif->activated) {
+			SLSI_NET_ERR(dev, "Drop Auth Frame: VIF not activated\n");
+			r = -EINVAL;
+			goto exit;
+		}
 		SLSI_INFO(sdev, "Send Auth Frame\n");
 	}
 
@@ -3360,7 +3372,7 @@ int slsi_synchronised_response(struct wiphy *wiphy, struct net_device *dev,
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
-	if (ndev_vif->sta.wpa3_sae_reconnection && !SLSI_ETHER_EQUAL(params->bssid, ndev_vif->sta.bssid)) {
+	if (ndev_vif->sta.wpa3_sae_reconnection && SLSI_ETHER_EQUAL(params->bssid, ndev_vif->sta.bssid)) {
 		SLSI_NET_ERR(dev, "Droping synchronised_resp for bssid:%pM\n", params->bssid);
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		ndev_vif->sta.wpa3_sae_reconnection = false;
@@ -3628,7 +3640,9 @@ static struct cfg80211_ops slsi_ops = {
 	.sched_scan_start = slsi_sched_scan_start,
 	.sched_scan_stop = slsi_sched_scan_stop,
 
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 7, 0))
 	.mgmt_frame_register = slsi_mgmt_frame_register,
+#endif
 	.mgmt_tx = slsi_mgmt_tx,
 	.mgmt_tx_cancel_wait = slsi_mgmt_tx_cancel_wait,
 	.set_txq_params = slsi_set_txq_params,

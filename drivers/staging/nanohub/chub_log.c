@@ -1,10 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * CHUB IF Driver Log
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Authors:
+ *      Boojin Kim <boojin.kim@samsung.com>
+ *      Sukwon Ryu <sw.ryoo@samsung.com>
+ *
  */
 
 #include <linux/debugfs.h>
@@ -17,166 +19,47 @@
 #include <linux/poll.h>
 #include <linux/uaccess.h>
 #include <linux/delay.h>
+#include <linux/slab.h>
 
 #include "chub_log.h"
 #include "chub_dbg.h"
-#include "chub_ipc.h"
+#include "chub_exynos.h"
+#include "ipc_chub.h"
 
-#ifdef CONFIG_CONTEXTHUB_DEBUG
-#define SIZE_OF_BUFFER (SZ_128K + SZ_128K)
-#else
-#define SIZE_OF_BUFFER (SZ_128K)
-#endif
-
+/* cat /d/nanohub/log */
+#define NAME_PREFIX "nanohub-ipc"
+#define SIZE_OF_BUFFER (SZ_2M)
+#define LOGFILE_NUM_SIZE (26)
 #define S_IRWUG (0660)
 #define DEFAULT_FLUSH_MS (1000)
 
-static u32 log_auto_save;
 static struct dentry *dbg_root_dir __read_mostly;
 static LIST_HEAD(log_list_head);
 static struct log_buffer_info *print_info;
-u32 auto_log_flush_ms;
 
-static void log_memcpy(struct log_buffer_info *info,
-		       struct log_kernel_buffer *kernel_buffer,
-		       const char *src, size_t size)
+static int handle_log_kthread(void *arg)
 {
-	mm_segment_t old_fs;
+	struct contexthub_ipc_info *chub = (struct contexthub_ipc_info *)arg;
 
-	size_t left_size = SIZE_OF_BUFFER - kernel_buffer->index;
-
-	dev_dbg(info->dev, "%s(%zu)\n", __func__, size);
-	if (size > SIZE_OF_BUFFER) {
-		dev_warn(info->dev,
-			 "flush size (%zu, %zu) is bigger than kernel buffer size (%d)",
-			 size, left_size, SIZE_OF_BUFFER);
-		size = SIZE_OF_BUFFER;
-	}
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	if(log_auto_save) {
-		if (likely(info->file_created)) {
-		        info->filp = filp_open(info->save_file_name, O_RDWR | O_APPEND | O_CREAT, S_IRWUG);
-		        dev_info(info->dev, "appended to %s\n", info->save_file_name);
-		} else {
-		        info->filp = filp_open(info->save_file_name, O_RDWR | O_TRUNC | O_CREAT, S_IRWUG);
-		        info->file_created = true;
-		        dev_info(info->dev, "created %s\n", info->save_file_name);
+	while (!kthread_should_stop()) {
+		wait_event(chub->log.log_kthread_wait,
+			   !atomic_read(&chub->atomic.chub_sleep) &&
+			   atomic_read(&chub->atomic.chub_status) == CHUB_ST_RUN &&
+			   ipc_logbuf_filled());
+		if (contexthub_get_token(chub)) { // lock for chub reset
+			chub_wait_event(&chub->event.reset_lock, WAIT_TIMEOUT_MS * 2);
+			continue;
 		}
-
-		if (IS_ERR(info->filp)) {
-		        dev_warn(info->dev, "%s: saving log fail\n", __func__);
-		        goto out;
-		}
+		atomic_set(&chub->atomic.in_log, 1); // lock for AP suspend(power gating)
+		ipc_logbuf_flush_on(1); // lock for ipc (chub and AP)
+		if (ipc_logbuf_outprint(chub))
+			chub->misc.err_cnt[CHUB_ERR_NANOHUB_LOG]++;
+		ipc_logbuf_flush_on(0);
+		contexthub_put_token(chub);
+		atomic_set(&chub->atomic.in_log, 0);
+		chub_wake_event(&chub->event.log_lock);
 	}
-
-	if (left_size < size) {
-		if (info->sram_log_buffer)
-			memcpy_fromio(kernel_buffer->buffer + kernel_buffer->index, src, left_size);
-		else
-			memcpy(kernel_buffer->buffer + kernel_buffer->index, src, left_size);
-
-		if (log_auto_save) {
-			vfs_write(info->filp, kernel_buffer->buffer + kernel_buffer->index, left_size, &info->filp->f_pos);
-			vfs_fsync(info->filp, 0);
-		}
-		src += left_size;
-		size -= left_size;
-
-		kernel_buffer->index = 0;
-		kernel_buffer->wrap = true;
-	}
-
-	if (info->sram_log_buffer)
-		memcpy_fromio(kernel_buffer->buffer + kernel_buffer->index, src, size);
-	else
-		memcpy(kernel_buffer->buffer + kernel_buffer->index, src, size);
-
-	if (log_auto_save) {
-		vfs_write(info->filp,
-			  kernel_buffer->buffer + kernel_buffer->index, size, &info->filp->f_pos);
-		vfs_fsync(info->filp, 0);
-		filp_close(info->filp, NULL);
-	}
-
-	kernel_buffer->index += size;
-
-out:
-	set_fs(old_fs);
-}
-
-void log_flush(struct log_buffer_info *info)
-{
-	struct LOG_BUFFER *buffer = info->log_buffer;
-	struct log_kernel_buffer *kernel_buffer = &info->kernel_buffer;
-	unsigned int index_writer = buffer->index_writer;
-
-	/* check logbuf index dueto sram corruption */
-	if ((buffer->index_reader >= buffer->size)
-		|| (buffer->index_writer >= buffer->size)) {
-		dev_err(info->dev, "%s(%d): offset is corrupted. index_writer=%u, index_reader=%u, size=%u\n",
-			__func__, info->id, buffer->index_writer, buffer->index_reader, buffer->size);
-
-		return;
-	}
-
-	if (buffer->index_reader == index_writer)
-		return;
-
-	dev_dbg(info->dev,
-		"%s(%d): index_writer=%u, index_reader=%u, size=%u\n", __func__,
-		info->id, index_writer, buffer->index_reader, buffer->size);
-
-	mutex_lock(&info->lock);
-
-	if (buffer->index_reader > index_writer) {
-		log_memcpy(info, kernel_buffer,
-			   buffer->buffer + buffer->index_reader,
-			   buffer->size - buffer->index_reader);
-		buffer->index_reader = 0;
-	}
-	log_memcpy(info, kernel_buffer,
-		   buffer->buffer + buffer->index_reader,
-		   index_writer - buffer->index_reader);
-	buffer->index_reader = index_writer;
-
-	wmb();
-	mutex_unlock(&info->lock);
-
-	kernel_buffer->updated = true;
-	wake_up_interruptible(&kernel_buffer->wq);
-}
-
-static void log_flush_all_work_func(struct work_struct *work);
-static DECLARE_DEFERRABLE_WORK(log_flush_all_work, log_flush_all_work_func);
-
-void log_flush_all(void)
-{
-	struct log_buffer_info *info;
-
-	list_for_each_entry(info, &log_list_head, list) {
-		if (!info) {
-			pr_warn("%s: fails get info\n", __func__);
-			return;
-		}
-		log_flush(info);
-	}
-}
-
-static void log_flush_all_work_func(struct work_struct *work)
-{
-	log_flush_all();
-
-	if (auto_log_flush_ms)
-		schedule_delayed_work(&log_flush_all_work,
-				      msecs_to_jiffies(auto_log_flush_ms));
-}
-
-void log_schedule_flush_all(void)
-{
-	schedule_delayed_work(&log_flush_all_work, msecs_to_jiffies(3000));
+	return 0;
 }
 
 static int log_file_open(struct inode *inode, struct file *file)
@@ -195,7 +78,7 @@ static ssize_t log_file_read(struct file *file, char __user *buf, size_t count,
 			     loff_t *ppos)
 {
 	struct log_buffer_info *info = file->private_data;
-	struct log_kernel_buffer *kernel_buffer = &info->kernel_buffer;
+	struct runtimelog_buf *rt_buf = info->rt_log;
 	size_t end, size;
 	bool first = (info->log_file_index < 0);
 	int result;
@@ -203,16 +86,15 @@ static ssize_t log_file_read(struct file *file, char __user *buf, size_t count,
 	dev_dbg(info->dev, "%s(%zu, %lld)\n", __func__, count, *ppos);
 
 	mutex_lock(&info->lock);
-
 	if (info->log_file_index < 0) {
 		info->log_file_index =
-		    likely(kernel_buffer->wrap) ? kernel_buffer->index : 0;
+		    likely(rt_buf->wrap) ? rt_buf->write_index : 0;
 	}
 
 	do {
-		end = ((info->log_file_index < kernel_buffer->index) ||
-		       ((info->log_file_index == kernel_buffer->index) &&
-			!first)) ? kernel_buffer->index : SIZE_OF_BUFFER;
+		end = ((info->log_file_index < rt_buf->write_index) ||
+		       ((info->log_file_index == rt_buf->write_index) && !first)) ?
+			rt_buf->write_index : rt_buf->buffer_size;
 		size = min(end - info->log_file_index, count);
 		if (size == 0) {
 			mutex_unlock(&info->lock);
@@ -220,10 +102,9 @@ static ssize_t log_file_read(struct file *file, char __user *buf, size_t count,
 				dev_dbg(info->dev, "non block\n");
 				return -EAGAIN;
 			}
-			kernel_buffer->updated = false;
+			rt_buf->updated = false;
 
-			result = wait_event_interruptible(kernel_buffer->wq,
-				kernel_buffer->updated);
+			result = wait_event_interruptible(rt_buf->wq, rt_buf->updated);
 			if (result != 0) {
 				dev_dbg(info->dev, "interrupted\n");
 				return result;
@@ -235,7 +116,7 @@ static ssize_t log_file_read(struct file *file, char __user *buf, size_t count,
 	dev_dbg(info->dev, "start=%zd, end=%zd size=%zd\n",
 		info->log_file_index, end, size);
 	if (copy_to_user
-	    (buf, kernel_buffer->buffer + info->log_file_index, size)) {
+	    (buf, rt_buf->buffer + info->log_file_index, size)) {
 		mutex_unlock(&info->lock);
 		return -EFAULT;
 	}
@@ -245,7 +126,6 @@ static ssize_t log_file_read(struct file *file, char __user *buf, size_t count,
 		info->log_file_index = 0;
 
 	mutex_unlock(&info->lock);
-
 	dev_dbg(info->dev, "%s: size = %zd\n", __func__, size);
 
 	return size;
@@ -254,11 +134,10 @@ static ssize_t log_file_read(struct file *file, char __user *buf, size_t count,
 static unsigned int log_file_poll(struct file *file, poll_table *wait)
 {
 	struct log_buffer_info *info = file->private_data;
-	struct log_kernel_buffer *kernel_buffer = &info->kernel_buffer;
 
 	dev_dbg(info->dev, "%s\n", __func__);
 
-	poll_wait(file, &kernel_buffer->wq, wait);
+	poll_wait(file, &info->rt_log->wq, wait);
 	return POLLIN | POLLRDNORM;
 }
 
@@ -278,313 +157,179 @@ static struct dentry *chub_dbg_get_root_dir(void)
 	return dbg_root_dir;
 }
 
-static void chub_log_auto_save_open(struct log_buffer_info *info)
-{
-	mm_segment_t old_fs = get_fs();
-
-	set_fs(KERNEL_DS);
-
-	/* close previous */
-	if (info->filp && !IS_ERR(info->filp)) {
-		dev_info(info->dev, "%s closing previous file %p\n", __func__, info->filp);
-		filp_close(info->filp, current->files);
-		}
-
-	info->filp =
-	    filp_open(info->save_file_name, O_RDWR | O_TRUNC | O_CREAT,
-		      S_IRWUG);
-
-	dev_info(info->dev, "%s created\n", info->save_file_name);
-
-	if (IS_ERR(info->filp))
-		dev_warn(info->dev, "%s: saving log fail\n", __func__);
-
-	set_fs(old_fs);
-}
-
-static void chub_log_auto_save_ctrl(struct log_buffer_info *info, u32 event)
-{
-	if (event) {
-		/* set file name */
-		snprintf(info->save_file_name, sizeof(info->save_file_name),
-			 "%s/nano-%02d-00-%06u.log", CHUB_DBG_DIR, info->id,
-			 (u32)(sched_clock() / NSEC_PER_SEC));
-		chub_log_auto_save_open(info);
-		log_auto_save = 1;
-	} else {
-		log_auto_save = 0;
-		info->filp = NULL;
-	}
-
-	pr_info("%s: %s, %d, %p\n", __func__, info->save_file_name,
-		log_auto_save, info->filp);
-}
-
-static ssize_t chub_log_save_show(struct device *kobj,
-				  struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", log_auto_save);
-}
-
-static ssize_t chub_log_save_save(struct device *dev,
-				  struct device_attribute *attr,
-				  const char *buf, size_t count)
-{
-	long event;
-	int err;
-
-	/* auto log_save */
-	err = kstrtol(&buf[0], 10, &event);
-
-	if (!err) {
-		struct log_buffer_info *info;
-
-		list_for_each_entry(info, &log_list_head, list)
-			if (info->support_log_save) /* sram can support it */
-				chub_log_auto_save_ctrl(info, event);
-
-		/* set log_flush to save log */
-		if (!auto_log_flush_ms) {
-			log_schedule_flush_all();
-			auto_log_flush_ms = DEFAULT_FLUSH_MS;
-			dev_dbg(dev, "%s: set log_flush time(% dms) for log_save\n",
-				auto_log_flush_ms);
-		}
-		return count;
-	} else {
-		return 0;
-	}
-}
-
-#define TMP_BUFFER_SIZE (1000)
-
-#if defined(CONFIG_CONTEXTHUB_DEBUG)
-static void log_dump(struct log_buffer_info *info, int err)
-{
-	struct file *filp;
-	mm_segment_t old_fs;
-	char save_file_name[64];
-	struct LOG_BUFFER *buffer = info->log_buffer;
-	u32 wrap_index = buffer->index_writer;
-
-	/* check logbuf index dueto sram corruption */
-	if ((buffer->index_reader >= buffer->size)
-		|| (buffer->index_writer >= buffer->size)) {
-		dev_err(info->dev, "%s(%d): offset is corrupted. index_writer=%u, index_reader=%u, size=%u\n",
-			__func__, info->id, buffer->index_writer, buffer->index_reader, buffer->size);
-		return;
-	}
-
-	snprintf(save_file_name, sizeof(save_file_name),
-		 "%s/nano-%02d-%02d-%06u.log", CHUB_DBG_DIR,
-		 info->id, err, (u32)(sched_clock() / NSEC_PER_SEC));
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	filp = filp_open(save_file_name, O_RDWR | O_TRUNC | O_CREAT, S_IRWUG);
-	if (IS_ERR(filp)) {
-		dev_warn(info->dev, "%s: fails filp:%p\n", __func__, filp);
-		goto out;
-	}
-
-	if (info->sram_log_buffer) {
-		int i;
-		int size;
-		bool wrap = false;
-		char tmp_buffer[TMP_BUFFER_SIZE];
-		u32 start_index = wrap_index;
-		int bottom = 0;
-
-		/* dump sram-log buffer to fs (eq ~ eq + logbuf_size) */
-		dev_dbg(info->dev, "%s: logbuf:%p, eq:%d, dq:%d, size:%d, loop:%d\n", __func__,
-			(void *)buffer, wrap_index,	buffer->index_reader, buffer->size,
-			(buffer->size / TMP_BUFFER_SIZE) + 1);
-		for (i = 0; i < (buffer->size / TMP_BUFFER_SIZE) + 1;
-		     i++, start_index += TMP_BUFFER_SIZE) {
-			if (start_index + TMP_BUFFER_SIZE > buffer->size) {
-				size = buffer->size - start_index;
-				wrap = true;
-				bottom = 1;
-			} else if (bottom && (wrap_index - start_index < TMP_BUFFER_SIZE))	{
-				size = wrap_index - start_index;
-			} else {
-				size = TMP_BUFFER_SIZE;
-			}
-			memcpy_fromio(tmp_buffer, buffer->buffer + start_index, size);
-			vfs_write(filp, tmp_buffer, size, &filp->f_pos);
-			if (wrap) {
-				wrap = false;
-				start_index = 0;
-			}
-		}
-	} else {
-		vfs_write(filp, buffer->buffer + wrap_index, buffer->size - wrap_index,
-			  &filp->f_pos);
-		vfs_write(filp, buffer->buffer, wrap_index, &filp->f_pos);
-	}
-	dev_dbg(info->dev, "%s is created\n", save_file_name);
-
-	vfs_fsync(filp, 0);
-	filp_close(filp, NULL);
-
-out:
-	set_fs(old_fs);
-}
-
-void log_dump_all(int err)
+static struct log_buffer_info *log_register_buffer
+	(struct device *dev, int id, struct runtimelog_buf *rt_log, char *name, bool sram)
 {
 	struct log_buffer_info *info;
 
-	list_for_each_entry(info, &log_list_head, list)
-		log_dump(info, err);
-}
-#endif
-
-static ssize_t chub_log_flush_show(struct device *kobj,
-				   struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", auto_log_flush_ms);
-}
-
-static ssize_t chub_log_flush_save(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
-{
-	long event;
-	int err;
-
-	err = kstrtol(&buf[0], 10, &event);
-	if (!err) {
-		if (!event) {
-			log_flush_all();
-		} else {
-			/* update log_flush time */
-			auto_log_flush_ms = event;
-			pr_err("%s: set flush ms:%d\n", __func__, auto_log_flush_ms);
-			schedule_delayed_work(&log_flush_all_work, msecs_to_jiffies(auto_log_flush_ms));
-		}
-		return count;
-	} else {
-		pr_err("%s: fails event:%d, err:%d\n", __func__, event, err);
-		return 0;
-	}
-}
-
-static ssize_t chub_dump_log_save(struct device *dev,
-				  struct device_attribute *attr,
-				  const char *buf, size_t count)
-{
-	log_dump_all(0);
-	return count;
-}
-
-static struct device_attribute attributes[] = {
-	/* enable auto-save with flush_log */
-	__ATTR(save_log, 0664, chub_log_save_show, chub_log_save_save),
-	/* flush sram-logbuf to dram */
-	__ATTR(flush_log, 0664, chub_log_flush_show, chub_log_flush_save),
-	/* dump sram-logbuf to file */
-	__ATTR(dump_log, 0220, NULL, chub_dump_log_save)
-};
-
-struct log_buffer_info *log_register_buffer(struct device *dev, int id,
-					    struct LOG_BUFFER *buffer,
-					    char *name, bool sram)
-{
-	struct log_buffer_info *info = vmalloc(sizeof(*info));
-	int i;
-	int ret;
-
-	if (!info)
+	if (!rt_log) {
+		dev_warn(dev, "%s NULL rt_log", __func__);
 		return NULL;
+	}
+
+	info = vmalloc(sizeof(struct log_buffer_info));
+	if (!info) {
+		dev_warn(dev, "%s info malloc fail", __func__);
+		return NULL;
+	}
 
 	mutex_init(&info->lock);
 	info->id = id;
 	info->file_created = false;
-	info->kernel_buffer.buffer = vzalloc(SIZE_OF_BUFFER);
-	info->kernel_buffer.buffer_size = SIZE_OF_BUFFER;
-	info->kernel_buffer.index = 0;
-	info->kernel_buffer.index_reader = 0;
-	info->kernel_buffer.index_writer = 0;
-	info->kernel_buffer.wrap = false;
-	init_waitqueue_head(&info->kernel_buffer.wq);
+	init_waitqueue_head(&rt_log->wq);
 	info->dev = dev;
-	info->log_buffer = buffer;
+	info->rt_log = rt_log;
 
-	/* HACK: clang make error
-	buffer->index_reader = 0;
-	buffer->index_writer = 0;
-	*/
 	info->save_file_name[0] = '\0';
 	info->filp = NULL;
-
-	dev_info(dev, "%s with %p buffer size %d. %p kernel buffer size %d\n",
-		 __func__, buffer->buffer, buffer->size,
-		 info->kernel_buffer.buffer, SIZE_OF_BUFFER);
 
 	debugfs_create_file(name, S_IRWUG, chub_dbg_get_root_dir(), info,
 			    &log_fops);
 
 	list_add_tail(&info->list, &log_list_head);
 
-	if (sram) {
-		info->sram_log_buffer = true;
-		info->support_log_save = true;
-
-		/* add device files */
-		for (i = 0, ret = 0; i < ARRAY_SIZE(attributes); i++) {
-			ret = device_create_file(dev, &attributes[i]);
-			if (ret)
-				dev_warn(dev, "Failed to create file: %s\n",
-					 attributes[i].attr.name);
-		}
-	} else {
-		print_info = info;
-		info->sram_log_buffer = false;
-		info->support_log_save = false;
-	}
+	print_info = info;
+	info->sram_log_buffer = false;
+	info->support_log_save = false;
 
 	return info;
 }
 
-void log_printf(const char *format, ...)
+int logbuf_printf(void *chub_p, void *log_p, u32 len)
 {
-	struct LOG_BUFFER *buffer;
-	int size;
-	va_list args;
+	u32 lenout = 0;
+	struct contexthub_ipc_info *chub = chub_p;
+	struct logbuf_output *log = log_p;
+	struct runtimelog_buf *rt_buf;
+	int dst;
 
-	if (print_info) {
-		char tmp_buf[512];
-		char *buffer_index = tmp_buf;
+	if (!chub || !log)
+		return -EINVAL;
 
-		buffer = print_info->log_buffer;
+	rt_buf = &chub->log.chub_rt_log;
 
-		va_start(args, format);
-		size = vsprintf(tmp_buf, format, args);
-		va_end(args);
+	if (!rt_buf || !rt_buf->buffer)
+		return -EINVAL;
 
-		size++;
-		if (buffer->index_writer + size > buffer->size) {
-			int left_size = buffer->size - buffer->index_writer;
-
-			memcpy(&buffer->buffer[buffer->index_writer],
-			       buffer_index, left_size);
-			buffer->index_writer = 0;
-			buffer_index += left_size;
-		}
-		memcpy(&buffer->buffer[buffer->index_writer], buffer_index,
-		       size - (buffer_index - tmp_buf));
-		buffer->index_writer += size - (buffer_index - tmp_buf);
-
+	/* ensure last char is 0 */
+	if (rt_buf->write_index + len + LOGFILE_NUM_SIZE >= rt_buf->buffer_size - 1) {
+		rt_buf->wrap = true;
+		rt_buf->write_index = 0;
 	}
-}
+	dst = rt_buf->write_index; /* for race condition */
+	if (dst + len + LOGFILE_NUM_SIZE >= rt_buf->buffer_size) {
+		pr_info("%s index err!", __func__);
+		return -EINVAL;
+	}
 
-static int __init log_late_initcall(void)
-{
-	debugfs_create_u32("log_auto_save", S_IRWUG, chub_dbg_get_root_dir(),
-			   &log_auto_save);
+	lenout = snprintf(rt_buf->buffer + dst, LOGFILE_NUM_SIZE + len,
+			  "%6d:%c[%6llu.%06llu]%c %s",
+			  log->size, log->size ? 'F' : 'K', (log->timestamp) / 1000000,
+			  (log->timestamp) % 1000000, log->level, log->buf);
+
+	rt_buf->buffer[dst + lenout - 1] = '\n';
+
+	rt_buf->write_index += lenout;
+	if (lenout != (LOGFILE_NUM_SIZE + len))
+		pr_warn("%s: %s: size-n mismatch: %d -> %d\n",
+			NAME_PREFIX, __func__, LOGFILE_NUM_SIZE + len, lenout);
+	rt_buf->updated = true;
+	wake_up_interruptible(&rt_buf->wq);
 	return 0;
 }
 
-late_initcall(log_late_initcall);
+void chub_printf(struct device *dev, int level, int fw_idx, const char *fmt, ...)
+{
+	struct va_format vaf;
+	va_list args;
+	struct logbuf_output log;
+	int n;
+	struct contexthub_ipc_info *chub;
+	char buf[240];
+
+	va_start(args, fmt);
+	vaf.fmt = fmt;
+	vaf.va = &args;
+	switch (level) {
+	case 'W':
+		if (dev)
+			dev_warn(dev, "%pV", &vaf);
+		else
+			pr_warn("nanohub: %pV", &vaf);
+		break;
+	case 'E':
+		if (dev)
+			dev_err(dev, "%pV", &vaf);
+		else
+			pr_err("nanohub: %pV", &vaf);
+		break;
+	case 'D':
+		if (dev)
+			dev_dbg(dev, "%pV", &vaf);
+		else
+			pr_debug("nanohub: %pV", &vaf);
+		break;
+	default:
+		if (dev)
+			dev_info(dev, "%pV", &vaf);
+		else
+			pr_info("nanohub: %pV", &vaf);
+		break;
+	}
+	va_end(args);
+
+	if (print_info) {
+		chub = dev_get_drvdata(print_info->dev);
+		if (IS_ERR_OR_NULL(chub)) {
+			dev_err(print_info->dev, "%s: chub not available");
+			return;
+		}
+		memset(&log, 0, sizeof(struct logbuf_output));
+		log.timestamp = ktime_get_boottime_ns() / 1000;
+		log.level = level;
+		log.size = fw_idx;
+		log.buf = buf;
+
+#if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
+		if (chub->log.mlog.memlog_printf_chub) {
+			if (dev)
+				memlog_write_printf(chub->log.mlog.memlog_printf_chub,
+						    MEMLOG_LEVEL_ERR, "%s: %pV",
+						    dev_driver_string(dev), &vaf);
+			else
+				memlog_write_printf(chub->log.mlog.memlog_printf_chub,
+						    MEMLOG_LEVEL_ERR, "%pV", &vaf);
+		}
+#endif
+		if (dev)
+			n = snprintf(log.buf, 239, "%s: %pV", dev_driver_string(dev), &vaf);
+		else
+			n = snprintf(log.buf, 239, "%pV", &vaf);
+		logbuf_printf(chub, &log, n - 1);
+	}
+}
+
+int contexthub_log_init(void *chub_p)
+{
+	struct contexthub_ipc_info *chub = chub_p;
+	dev_info(chub->dev, "%s", __func__);
+
+	chub->log.log_info = log_register_buffer(chub->dev, 0,
+					     &chub->log.chub_rt_log,
+					     "log", 0);
+	chub->log.chub_rt_log.loglevel = 0;
+
+	/* init fw runtime log */
+	chub->log.chub_rt_log.buffer = devm_kzalloc(chub->dev, SIZE_OF_BUFFER, GFP_KERNEL);
+	if (!chub->log.chub_rt_log.buffer)
+		return -ENOMEM;
+
+	chub->log.chub_rt_log.buffer_size = SIZE_OF_BUFFER;
+	chub->log.chub_rt_log.write_index = 0;
+	chub->log.chub_rt_log.wrap = false;
+
+	init_waitqueue_head(&chub->log.log_kthread_wait);
+	chub->log.log_kthread = kthread_run(handle_log_kthread, chub, "chub_log_kthread");
+
+	return 0;
+}

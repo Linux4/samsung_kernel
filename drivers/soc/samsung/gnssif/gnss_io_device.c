@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010 Samsung Electronics.
  *
@@ -26,8 +27,12 @@
 #include <linux/module.h>
 #include <linux/skbuff.h>
 #include <linux/slab.h>
-#include <soc/samsung/exynos-debug.h>
-
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
+#include <soc/samsung/debug-snapshot.h>
+#endif
+#if IS_ENABLED(CONFIG_EXYNOS_S2MPU)
+#include <soc/samsung/exynos-s2mpu.h>
+#endif
 #include "gnss_prj.h"
 #include "gnss_utils.h"
 
@@ -35,9 +40,9 @@
 
 static inline void iodev_lock_wlock(struct io_device *iod)
 {
-	if (iod->waketime > 0 && !wake_lock_active(&iod->wakelock)) {
-		wake_unlock(&iod->wakelock);
-		wake_lock_timeout(&iod->wakelock, iod->waketime);
+	if (iod->waketime > 0 && !gnssif_wake_lock_active(iod->ws)) {
+		gnssif_wake_unlock(iod->ws);
+		gnssif_wake_lock_timeout(iod->ws, iod->waketime);
 	}
 }
 
@@ -45,19 +50,19 @@ static inline int queue_skb_to_iod(struct sk_buff *skb, struct io_device *iod)
 {
 	struct sk_buff_head *rxq = &iod->sk_rx_q;
 
-	skb_queue_tail(rxq, skb);
-
 	if (rxq->qlen > MAX_IOD_RXQ_LEN) {
-		gif_err("%s: %s application may be dead (rxq->qlen %d > %d)\n",
+		gif_err_limited("%s: %s application may be dead (rxq->qlen %d > %d)\n",
 			iod->name, iod->app ? iod->app : "corresponding",
 			rxq->qlen, MAX_IOD_RXQ_LEN);
-		skb_queue_purge(rxq);
+		dev_kfree_skb_any(skb);
 		return -ENOSPC;
-	} else {
-		gif_debug("%s: rxq->qlen = %d\n", iod->name, rxq->qlen);
-		wake_up(&iod->wq);
-		return 0;
 	}
+
+	skb_queue_tail(rxq, skb);
+	gif_debug("%s: rxq->qlen = %d\n", iod->name, rxq->qlen);
+	wake_up(&iod->wq);
+
+	return 0;
 }
 
 static inline int rx_frame_with_link_header(struct sk_buff *skb)
@@ -68,7 +73,7 @@ static inline int rx_frame_with_link_header(struct sk_buff *skb)
 	hdr = (struct exynos_link_header *)skb->data;
 	skb_pull(skb, EXYNOS_HEADER_SIZE);
 
-#ifdef DEBUG_GNSS_IPC_PKT
+#if defined(DEBUG_GNSS_IPC_PKT)
 	/* Print received data from GNSS */
 	gnss_log_ipc_pkt(skb, RX);
 #endif
@@ -122,10 +127,10 @@ static int recv_frame_from_skb(struct io_device *iod, struct link_device *ld,
 	int err = 0;
 
 	/*
-	** If there is only one EXYNOS frame in @skb, receive the EXYNOS frame and
-	** return immediately. In this case, the frame verification must already
-	** have been done at the link device.
-	*/
+	 * If there is only one EXYNOS frame in @skb, receive the EXYNOS frame and
+	 * return immediately. In this case, the frame verification must already
+	 * have been done at the link device.
+	 */
 	if (skbpriv(skb)->single_frame) {
 		err = rx_frame_done(iod, ld, skb);
 		if (err < 0)
@@ -134,9 +139,9 @@ static int recv_frame_from_skb(struct io_device *iod, struct link_device *ld,
 	}
 
 	/*
-	** The routine from here is used only if there may be multiple EXYNOS
-	** frames in @skb.
-	*/
+	 * The routine from here is used only if there may be multiple EXYNOS
+	 * frames in @skb.
+	 */
 
 	/* Check the config field of the first frame in @skb */
 	if (!exynos_start_valid(skb->data)) {
@@ -167,9 +172,7 @@ static int recv_frame_from_skb(struct io_device *iod, struct link_device *ld,
 		return 0;
 	}
 
-	/*
-	** This routine is used only if there are multiple EXYNOS frames in @skb.
-	*/
+	/* This routine is used only if there are multiple EXYNOS frames in @skb */
 	rcvd = 0;
 	while (rest > 0) {
 		clone = skb_clone(skb, GFP_ATOMIC);
@@ -285,13 +288,11 @@ static int misc_open(struct inode *inode, struct file *filp)
 static int misc_release(struct inode *inode, struct file *filp)
 {
 	struct io_device *iod = (struct io_device *)filp->private_data;
-	int ref_cnt;
 
-	skb_queue_purge(&iod->sk_rx_q);
+	if (atomic_dec_and_test(&iod->opened))
+		skb_queue_purge(&iod->sk_rx_q);
 
-	ref_cnt = atomic_dec_return(&iod->opened);
-
-	gif_info("%s (opened %d) by %s\n", iod->name, ref_cnt, current->comm);
+	gif_info("%s (opened %d) by %s\n", iod->name, atomic_read(&iod->opened), current->comm);
 
 	return 0;
 }
@@ -302,14 +303,14 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
 	struct gnss_ctl *gc = iod->gc;
 	poll_wait(filp, &iod->wq, wait);
 
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_MBIM)
 	if (gc->is_irq_received == true) {
 		gif_err("POLL wakeup for power on/off interrupt\n");
 		return POLLPRI;
 	}
 #endif
 
-	if (!skb_queue_empty(&iod->sk_rx_q) && gc->gnss_state != STATE_OFFLINE)
+	if (!skb_queue_empty(&iod->sk_rx_q) && gc->gnss_state == STATE_ONLINE)
 		return POLLIN | POLLRDNORM;
 
 	if (gc->gnss_state == STATE_OFFLINE || gc->gnss_state == STATE_FAULT) {
@@ -327,9 +328,17 @@ static int valid_cmd_arg(unsigned int cmd, unsigned long arg)
 	case GNSS_IOCTL_LOAD_FIRMWARE:
 	case GNSS_IOCTL_REQ_FAULT_INFO:
 	case GNSS_IOCTL_REQ_BCMD:
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+		return access_ok((const void *)arg, sizeof(arg));
+#else
 		return access_ok(VERIFY_READ, (const void *)arg, sizeof(arg));
+#endif
 	case GNSS_IOCTL_READ_FIRMWARE:
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+		return access_ok((const void *)arg, sizeof(arg));
+#else
 		return access_ok(VERIFY_WRITE, (const void *)arg, sizeof(arg));
+#endif
 	default:
 		return true;
 	}
@@ -364,6 +373,8 @@ static int send_bcmd(struct io_device *iod, unsigned long arg)
 				bcmd_args.param1, bcmd_args.param2);
 	if (err == -EIO) { /* BCMD timeout */
 		gif_err("BCMD timeout cmd_id : %d\n", bcmd_args.cmd_id);
+	} else if (err == -EPERM) {
+		gif_err("BCMD failed due to invalid state\n");
 	} else {
 		bcmd_args.ret_val = err;
 		err = copy_to_user((void __user *)arg,
@@ -382,33 +393,51 @@ static int gnss_load_firmware(struct io_device *iod,
 		struct kepler_firmware_args firmware_arg)
 {
 	struct link_device *ld = iod->ld;
-	int err = 0;
+#if IS_ENABLED(CONFIG_EXYNOS_S2MPU) && !IS_ENABLED(CONFIG_SOC_S5E8825)
+	struct gnss_pdata *pdata = iod->gc->pdata;
+	unsigned long ret;
+#endif
+	int err;
 
 	gif_info("Load Firmware - fw size : %d, fw_offset : %d\n",
 			firmware_arg.firmware_size, firmware_arg.offset);
 
 	if (!ld->copy_reserved_from_user) {
 		gif_err("No copy_reserved_from_user method\n");
-		err = -EFAULT;
-		goto load_firmware_exit;
+		return -EFAULT;
 	}
 
 	err = ld->copy_reserved_from_user(iod->ld, firmware_arg.offset,
 			firmware_arg.firmware_bin, firmware_arg.firmware_size);
 	if (err) {
 		gif_err("Unable to load firmware\n");
-		err = -EFAULT;
-		goto load_firmware_exit;
+		return -EFAULT;
 	}
 
-load_firmware_exit:
-	return err;
+#if IS_ENABLED(CONFIG_EXYNOS_S2MPU) && !IS_ENABLED(CONFIG_SOC_S5E8825)
+	ret = exynos_verify_subsystem_fw("GNSS", 0,
+					 pdata->shmem_base + pdata->code_offset,
+					 firmware_arg.firmware_size, pdata->code_allowed_size);
+	if (ret) {
+		gif_err("Failed FW verification ret:%lu\n", ret);
+		return -EIO;
+	}
+
+	ret = exynos_request_fw_stage2_ap("GNSS");
+	if (ret) {
+		gif_err("Failed stage 2 access permission ret:%lu\n", ret);
+		return -EACCES;
+	}
+#endif
+
+	return 0;
 }
 
 static int parsing_load_firmware(struct io_device *iod, unsigned long arg)
 {
 	struct kepler_firmware_args firmware_arg;
 	int err = 0;
+	struct gnss_pdata *pdata = iod->gc->pdata;
 
 	memset(&firmware_arg, 0, sizeof(struct kepler_firmware_args));
 	err = copy_from_user(&firmware_arg, (const void __user *)arg,
@@ -418,8 +447,78 @@ static int parsing_load_firmware(struct io_device *iod, unsigned long arg)
 		err = -EFAULT;
 		return err;
 	}
+	if (firmware_arg.offset < pdata->code_offset) {
+		gif_err("wrong offset to download firmware\n");
+		err = -EFAULT;
+		return err;
+	}
+	if ((firmware_arg.firmware_size+firmware_arg.offset) > (pdata->code_offset + pdata->code_allowed_size)) {
+		gif_err("size too big to download\n");
+		err = -EFAULT;
+		return err;
+	}
 
+	gif_info("FIRMWARE OFFSET: 0x%08x SIZE: 0x%08x\n", firmware_arg.offset,
+			firmware_arg.firmware_size);
 	return gnss_load_firmware(iod, firmware_arg);
+}
+
+static int gnss_load_data(struct io_device *iod,
+		struct kepler_data_args data_arg)
+{
+	struct link_device *ld = iod->ld;
+	int err = 0;
+
+	gif_info("Load Configuration Data - size : %d, offset : %d\n",
+			data_arg.size, data_arg.offset);
+
+	if (!ld->copy_reserved_from_user) {
+		gif_err("No copy_reserved_from_user method\n");
+		err = -EFAULT;
+		goto load_data_exit;
+	}
+
+	err = ld->copy_reserved_from_user(iod->ld, data_arg.offset,
+			data_arg.data, data_arg.size);
+	if (err) {
+		gif_err("Unable to load data\n");
+		err = -EFAULT;
+		goto load_data_exit;
+	}
+
+load_data_exit:
+	return err;
+}
+
+static int parsing_load_data(struct io_device *iod, unsigned long arg)
+{
+	struct kepler_data_args data_arg;
+	int err = 0;
+	struct gnss_pdata *pdata = iod->gc->pdata;
+
+	memset(&data_arg, 0, sizeof(struct kepler_data_args));
+	err = copy_from_user(&data_arg, (const void __user *)arg,
+			sizeof(struct kepler_data_args));
+	if (err) {
+		gif_err("copy_from_user fail(to get structure)\n");
+		err = -EFAULT;
+		return err;
+	}
+	if (data_arg.offset < pdata->code_offset) {
+		gif_err("wrong offset to download configuration data\n");
+		err = -EFAULT;
+		return err;
+	}
+	if ((data_arg.size+data_arg.offset) >
+			(pdata->code_offset + pdata->code_allowed_size)) {
+		gif_err("size too big to download\n");
+		err = -EFAULT;
+		return err;
+	}
+
+	gif_info("Configuration Data OFFSET: 0x%08x SIZE: 0x%08x\n",
+			data_arg.offset, data_arg.size);
+	return gnss_load_data(iod, data_arg);
 }
 
 static int gnss_read_firmware(struct io_device *iod,
@@ -480,7 +579,7 @@ static int change_tcxo_mode(struct gnss_ctl *gc, unsigned long arg)
 	}
 
 	if (!gc->pmu_ops->change_tcxo_mode) {
-		gif_err("!gc->pmu_ops->change_tcxo_mode\n");
+		gif_err("func is null\n");
 		ret = -EFAULT;
 		goto change_mode_exit;
 	}
@@ -505,7 +604,7 @@ static int set_sensor_power(struct gnss_ctl *gc, unsigned long arg)
 	}
 
 	if (!gc->ops.set_sensor_power) {
-		gif_err("!gc->ops.set_sensor_power\n");
+		gif_err("func is null\n");
 		ret = -EFAULT;
 		goto set_sensor_power_exit;
 	}
@@ -539,10 +638,8 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EINVAL;
 		}
 		ret = gc->ops.gnss_hold_reset(gc);
-		if (ret)/* fails to hold reset. APM pending */
-			return -EFAULT;
 		skb_queue_purge(&iod->sk_rx_q);
-		return 0;
+		return ret;
 
 	case GNSS_IOCTL_REQ_FAULT_INFO:
 		gif_info("%s: GNSS_IOCTL_REQ_FAULT_INFO\n", iod->name);
@@ -557,7 +654,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		if (size < 0) {
 			gif_err("Can't get fault info from Kepler\n");
-			return -EFAULT;
+			return ret;
 		}
 
 		if (size > 0) {
@@ -576,6 +673,10 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case GNSS_IOCTL_LOAD_FIRMWARE:
 		gif_info("%s: GNSS_IOCTL_LOAD_FIRMWARE\n", iod->name);
 		return parsing_load_firmware(iod, arg);
+
+	case GNSS_IOCTL_LOAD_DATA:
+		gif_info("%s: GNSS_IOCTL_LOAD_DATA\n", iod->name);
+		return parsing_load_data(iod, arg);
 
 	case GNSS_IOCTL_READ_FIRMWARE:
 		gif_debug("%s: GNSS_IOCTL_READ_FIRMWARE\n", iod->name);
@@ -600,7 +701,12 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case GNSS_IOCTL_SET_WATCHDOG_RESET:
 		gif_info("%s: GNSS_IOCTL_SET_WATCHDOG_RESET\n", iod->name);
-		return s3c2410wdt_set_emergency_reset(0,0);
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
+		return dbg_snapshot_expire_watchdog();
+#else
+		gif_err("debug snapshot is not enabled\n");
+		return -EINVAL;
+#endif
 
 	case GNSS_IOCTL_READ_SHMEM_SIZE:
 		gif_info("%s: GNSS_IOCTL_READ_SHMEM_SIZE\n", iod->name);
@@ -618,9 +724,9 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 		gc->pmu_ops->get_swreg(&swreg);
 		err = copy_to_user((void __user *)arg, &swreg, sizeof(struct gnss_swreg));
-		if (err) {
+		if (err)
 			gif_err("copy to user fail for swreg (0x%08x)\n", err);
-		}
+
 		return err;
 
 	case GNSS_IOCTL_GET_APREG:
@@ -631,10 +737,30 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 		gc->pmu_ops->get_apreg(&apreg);
 		err = copy_to_user((void __user *)arg, &apreg, sizeof(struct gnss_apreg));
-		if (err) {
+		if (err)
 			gif_err("copy to user fail for apreg (0x%08x)\n", err);
-		}
+
 		return err;
+
+	case GNSS_IOCTL_RELEASE_RESET:
+		gif_info("%s: GNSS_IOCTL_RELEASE_RESET\n", iod->name);
+
+		if (!gc->ops.gnss_release_reset) {
+			gif_err("%s: !gc->ops.gnss_release_reset\n", iod->name);
+			return -EINVAL;
+		}
+		ret = gc->ops.gnss_release_reset(gc);
+		return ret;
+
+	case GNSS_IOCTL_POWER_ON:
+		gif_info("%s: GNSS_IOCTL_POWER_ON\n", iod->name);
+
+		if (!gc->ops.gnss_power_on) {
+			gif_err("%s: !gc->ops.gnss_power_on\n", iod->name);
+			return -EINVAL;
+		}
+		ret = gc->ops.gnss_power_on(gc);
+		return ret;
 
 	default:
 		gif_err("%s: ERR! undefined cmd 0x%X\n", iod->name, cmd);
@@ -644,7 +770,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
-#ifdef CONFIG_COMPAT
+#if IS_ENABLED(CONFIG_COMPAT)
 static int parsing_load_firmware32(struct io_device *iod, unsigned long arg)
 {
 	struct kepler_firmware_args firmware_arg;
@@ -745,6 +871,12 @@ static ssize_t misc_write(struct file *filp, const char __user *data,
 	size_t tailroom;
 	size_t tx_bytes;
 	u16 fr_cfg;
+	struct gnss_ctl *gc = iod->gc;
+
+	if (gc->gnss_state != STATE_ONLINE) {
+		gif_err_limited("%s: ERR! gnss is not online\n", iod->name);
+		return SIGHUP;
+	}
 
 	fr_cfg = EXYNOS_SINGLE_MASK << 8;
 	headroom = EXYNOS_HEADER_SIZE;
@@ -813,10 +945,9 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 	struct sk_buff_head *rxq = &iod->sk_rx_q;
 	struct sk_buff *skb;
 	int copied = 0;
-
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
 	struct gnss_ctl *gc = iod->gc;
 
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_MBIM)
 	if (gc->is_irq_received == true) {
 		gc->is_irq_received = false;
 		if (copy_to_user(buf, &gc->gnss_pwr, sizeof(unsigned int))) {
@@ -826,6 +957,11 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 		return 0;
 	}
 #endif
+
+	if (gc->gnss_state != STATE_ONLINE) {
+		gif_err("%s: ERR! gnss is not online\n", iod->name);
+		return SIGHUP;
+	}
 
 	if (skb_queue_empty(rxq)) {
 		gif_debug("%s: ERR! no data in rxq\n", iod->name);
@@ -865,14 +1001,14 @@ static const struct file_operations misc_io_fops = {
 	.release = misc_release,
 	.poll = misc_poll,
 	.unlocked_ioctl = misc_ioctl,
-#ifdef CONFIG_COMPAT
+#if IS_ENABLED(CONFIG_COMPAT)
 	.compat_ioctl = misc_compat_ioctl,
 #endif
 	.write = misc_write,
 	.read = misc_read,
 };
 
-int exynos_init_gnss_io_device(struct io_device *iod)
+int exynos_init_gnss_io_device(struct io_device *iod, struct device *dev)
 {
 	int ret = 0;
 
@@ -892,7 +1028,11 @@ int exynos_init_gnss_io_device(struct io_device *iod)
 	iod->miscdev.name = iod->name;
 	iod->miscdev.fops = &misc_io_fops;
 	iod->waketime = WAKE_TIME;
-	wake_lock_init(&iod->wakelock, WAKE_LOCK_SUSPEND, iod->name);
+	iod->ws = gnssif_wake_lock_register(dev, iod->name);
+	if (iod->ws == NULL) {
+		gif_err("%s: wakeup_source_register fail\n", iod->name);
+		return -EINVAL;
+	}
 
 	ret = misc_register(&iod->miscdev);
 	if (ret)

@@ -1,9 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * drivers/media/radio/s610/fm_ctrl.h
  *
  * Speedy driver header for SAMSUNG S610 chip
  *
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -36,7 +37,9 @@ u32 fmspeedy_get_reg_field_work(u32 addr, u32 shift, u32 mask);
 int fmspeedy_set_reg_field(u32 addr, u32 shift, u32 mask, u32 data);
 int fmspeedy_set_reg_field_work(u32 addr, u32 shift, u32 mask, u32 data);
 void fm_audio_check(void);
+void fm_audio_check_work(void);
 void fm_audio_control(struct s610_radio *radio, bool audio_out, bool lr_switch,
 		u32 req_time, u32 audio_addr);
+void fm_set_audio_enable(bool enable);
 extern struct s610_radio *gradio;
 #endif	/* FM_CTRL_H */

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 /*
  * Based on:
  *
@@ -14,36 +15,27 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <unistd.h>
 #include <string.h>
 #include <bfd.h>
 #include <dis-asm.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <limits.h>
+#include <bpf/libbpf.h>
 
 #include "json_writer.h"
 #include "main.h"
 
 static void get_exec_path(char *tpath, size_t size)
 {
+	const char *path = "/proc/self/exe";
 	ssize_t len;
-	char *path;
-
-	snprintf(tpath, size, "/proc/%d/exe", (int) getpid());
-	tpath[size - 1] = 0;
-
-	path = strdup(tpath);
-	assert(path);
 
 	len = readlink(path, tpath, size - 1);
 	assert(len > 0);
 	tpath[len] = 0;
-
-	free(path);
 }
 
 static int oper_count;
@@ -51,11 +43,13 @@ static int fprintf_json(void *out, const char *fmt, ...)
 {
 	va_list ap;
 	char *s;
+	int err;
 
 	va_start(ap, fmt);
-	if (vasprintf(&s, fmt, ap) < 0)
-		return -1;
+	err = vasprintf(&s, fmt, ap);
 	va_end(ap);
+	if (err < 0)
+		return -1;
 
 	if (!oper_count) {
 		int i;
@@ -80,10 +74,16 @@ static int fprintf_json(void *out, const char *fmt, ...)
 }
 
 void disasm_print_insn(unsigned char *image, ssize_t len, int opcodes,
-		       const char *arch)
+		       const char *arch, const char *disassembler_options,
+		       const struct btf *btf,
+		       const struct bpf_prog_linfo *prog_linfo,
+		       __u64 func_ksym, unsigned int func_idx,
+		       bool linum)
 {
+	const struct bpf_line_info *linfo = NULL;
 	disassembler_ftype disassemble;
 	struct disassemble_info info;
+	unsigned int nr_skip = 0;
 	int count, i, pc = 0;
 	char tpath[PATH_MAX];
 	bfd *bfdf;
@@ -112,13 +112,15 @@ void disasm_print_insn(unsigned char *image, ssize_t len, int opcodes,
 		if (inf) {
 			bfdf->arch_info = inf;
 		} else {
-			p_err("No libfd support for %s", arch);
+			p_err("No libbfd support for %s", arch);
 			return;
 		}
 	}
 
 	info.arch = bfd_get_arch(bfdf);
 	info.mach = bfd_get_mach(bfdf);
+	if (disassembler_options)
+		info.disassembler_options = disassembler_options;
 	info.buffer = image;
 	info.buffer_length = len;
 
@@ -137,12 +139,26 @@ void disasm_print_insn(unsigned char *image, ssize_t len, int opcodes,
 	if (json_output)
 		jsonw_start_array(json_wtr);
 	do {
+		if (prog_linfo) {
+			linfo = bpf_prog_linfo__lfind_addr_func(prog_linfo,
+								func_ksym + pc,
+								func_idx,
+								nr_skip);
+			if (linfo)
+				nr_skip++;
+		}
+
 		if (json_output) {
 			jsonw_start_object(json_wtr);
 			oper_count = 0;
+			if (linfo)
+				btf_dump_linfo_json(btf, linfo, linum);
 			jsonw_name(json_wtr, "pc");
 			jsonw_printf(json_wtr, "\"0x%x\"", pc);
 		} else {
+			if (linfo)
+				btf_dump_linfo_plain(btf, linfo, "; ",
+						     linum);
 			printf("%4x:\t", pc);
 		}
 
@@ -183,4 +199,10 @@ void disasm_print_insn(unsigned char *image, ssize_t len, int opcodes,
 		jsonw_end_array(json_wtr);
 
 	bfd_close(bfdf);
+}
+
+int disasm_init(void)
+{
+	bfd_init();
+	return 0;
 }

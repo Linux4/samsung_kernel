@@ -20,15 +20,21 @@
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
+#if IS_ENABLED(CONFIG_EXYNOS_THERMAL) || IS_ENABLED(CONFIG_EXYNOS_THERMAL_V2)
 #include <soc/samsung/tmu.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <soc/samsung/isp_cooling.h>
+#else
 #include <linux/isp_cooling.h>
+#endif
+#endif
 #include <linux/cpuidle.h>
 #include <linux/soc/samsung/exynos-soc.h>
 #include <soc/samsung/bts.h>
@@ -36,20 +42,18 @@
 #include <soc/samsung/cmu_ewf.h>
 #endif
 #if defined(CONFIG_SECURE_CAMERA_USE)
-#include <linux/smc.h>
+#include <soc/samsung/exynos-smc.h>
 #endif
 
 #include <linux/of_fdt.h>
 #include <linux/of_reserved_mem.h>
 
-#ifdef CONFIG_EXYNOS_ITMON
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 #include <soc/samsung/exynos-itmon.h>
 #endif
 
-#if IS_ENABLED(CONFIG_EXYNOS_SNAPSHOT)
-#include <linux/exynos-ss.h>
-#elif IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
-#include <linux/debug-snapshot.h>
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
+#include <soc/samsung/debug-snapshot.h>
 #endif
 #include <soc/samsung/exynos-bcm_dbg.h>
 
@@ -80,9 +84,6 @@ struct gb_qos_request gb_req = {
 };
 #endif
 #endif
-#if defined(ENABLE_CLOG_RESERVED_MEM)
-#include <linux/debug-snapshot.h>
-#endif
 
 #define CLUSTER_MIN_MASK			0x0000FFFF
 #define CLUSTER_MIN_SHIFT			0
@@ -90,55 +91,254 @@ struct gb_qos_request gb_req = {
 #define CLUSTER_MAX_SHIFT			16
 
 #if defined(QOS_INTCAM)
-struct pm_qos_request exynos_isp_qos_int_cam;
+struct is_pm_qos_request exynos_isp_qos_int_cam;
 #endif
 #if defined(QOS_TNR)
-struct pm_qos_request exynos_isp_qos_tnr;
+struct is_pm_qos_request exynos_isp_qos_tnr;
 #endif
-struct pm_qos_request exynos_isp_qos_int;
-struct pm_qos_request exynos_isp_qos_mem;
-struct pm_qos_request exynos_isp_qos_cam;
-struct pm_qos_request exynos_isp_qos_disp;
-struct pm_qos_request exynos_isp_qos_hpg;
-struct pm_qos_request exynos_isp_qos_cluster0_min;
-struct pm_qos_request exynos_isp_qos_cluster0_max;
-struct pm_qos_request exynos_isp_qos_cluster1_min;
-struct pm_qos_request exynos_isp_qos_cluster1_max;
-struct pm_qos_request exynos_isp_qos_cluster2_min;
-struct pm_qos_request exynos_isp_qos_cluster2_max;
-struct pm_qos_request exynos_isp_qos_cpu_online_min;
+#if defined(QOS_CSIS)
+struct is_pm_qos_request exynos_isp_qos_csis;
+#endif
+#if defined(QOS_ISP)
+struct is_pm_qos_request exynos_isp_qos_isp;
+#endif
+struct is_pm_qos_request exynos_isp_qos_int;
+struct is_pm_qos_request exynos_isp_qos_mem;
+struct is_pm_qos_request exynos_isp_qos_cam;
+struct is_pm_qos_request exynos_isp_qos_disp;
+struct is_pm_qos_request exynos_isp_qos_hpg;
+struct is_pm_qos_request exynos_isp_qos_cluster0_min;
+struct is_pm_qos_request exynos_isp_qos_cluster0_max;
+struct is_pm_qos_request exynos_isp_qos_cluster1_min;
+struct is_pm_qos_request exynos_isp_qos_cluster1_max;
+struct is_pm_qos_request exynos_isp_qos_cluster2_min;
+struct is_pm_qos_request exynos_isp_qos_cluster2_max;
+struct is_pm_qos_request exynos_isp_qos_cpu_online_min;
 #ifdef CONFIG_CMU_EWF
 unsigned int idx_ewf;
 #endif
 
-#define C0MIN_QOS_ADD(freq) pm_qos_add_request(&exynos_isp_qos_cluster0_min, PM_QOS_CLUSTER0_FREQ_MIN, freq * 1000)
-#define C0MIN_QOS_DEL() pm_qos_remove_request(&exynos_isp_qos_cluster0_min)
-#define C0MIN_QOS_UPDATE(freq) pm_qos_update_request(&exynos_isp_qos_cluster0_min, freq * 1000)
-#define C0MAX_QOS_ADD(freq) pm_qos_add_request(&exynos_isp_qos_cluster0_max, PM_QOS_CLUSTER0_FREQ_MAX, freq * 1000)
-#define C0MAX_QOS_DEL() pm_qos_remove_request(&exynos_isp_qos_cluster0_max)
-#define C0MAX_QOS_UPDATE(freq) pm_qos_update_request(&exynos_isp_qos_cluster0_max, freq * 1000)
-#define C1MIN_QOS_ADD(freq) pm_qos_add_request(&exynos_isp_qos_cluster1_min, PM_QOS_CLUSTER1_FREQ_MIN, freq * 1000)
-#define C1MIN_QOS_DEL() pm_qos_remove_request(&exynos_isp_qos_cluster1_min)
-#define C1MIN_QOS_UPDATE(freq) pm_qos_update_request(&exynos_isp_qos_cluster1_min, freq * 1000)
-#define C1MAX_QOS_ADD(freq) pm_qos_add_request(&exynos_isp_qos_cluster1_max, PM_QOS_CLUSTER1_FREQ_MAX, freq * 1000)
-#define C1MAX_QOS_DEL() pm_qos_remove_request(&exynos_isp_qos_cluster1_max)
-#define C1MAX_QOS_UPDATE(freq) pm_qos_update_request(&exynos_isp_qos_cluster1_max, freq * 1000)
-#define C2MIN_QOS_ADD(freq) pm_qos_add_request(&exynos_isp_qos_cluster2_min, PM_QOS_CLUSTER2_FREQ_MIN, freq * 1000)
-#define C2MIN_QOS_DEL() pm_qos_remove_request(&exynos_isp_qos_cluster2_min)
-#define C2MIN_QOS_UPDATE(freq) pm_qos_update_request(&exynos_isp_qos_cluster2_min, freq * 1000)
-#define C2MAX_QOS_ADD(freq) pm_qos_add_request(&exynos_isp_qos_cluster2_max, PM_QOS_CLUSTER2_FREQ_MAX, freq * 1000)
-#define C2MAX_QOS_DEL() pm_qos_remove_request(&exynos_isp_qos_cluster2_max)
-#define C2MAX_QOS_UPDATE(freq) pm_qos_update_request(&exynos_isp_qos_cluster2_max, freq * 1000)
+#define C0MIN_QOS_ADD(freq) is_pm_qos_add_request(&exynos_isp_qos_cluster0_min, PM_QOS_CLUSTER0_FREQ_MIN, freq * 1000)
+#define C0MIN_QOS_DEL() is_pm_qos_remove_request(&exynos_isp_qos_cluster0_min)
+#define C0MIN_QOS_UPDATE(freq) is_pm_qos_update_request(&exynos_isp_qos_cluster0_min, freq * 1000)
+#define C0MAX_QOS_ADD(freq) is_pm_qos_add_request(&exynos_isp_qos_cluster0_max, PM_QOS_CLUSTER0_FREQ_MAX, freq * 1000)
+#define C0MAX_QOS_DEL() is_pm_qos_remove_request(&exynos_isp_qos_cluster0_max)
+#define C0MAX_QOS_UPDATE(freq) is_pm_qos_update_request(&exynos_isp_qos_cluster0_max, freq * 1000)
+#define C1MIN_QOS_ADD(freq) is_pm_qos_add_request(&exynos_isp_qos_cluster1_min, PM_QOS_CLUSTER1_FREQ_MIN, freq * 1000)
+#define C1MIN_QOS_DEL() is_pm_qos_remove_request(&exynos_isp_qos_cluster1_min)
+#define C1MIN_QOS_UPDATE(freq) is_pm_qos_update_request(&exynos_isp_qos_cluster1_min, freq * 1000)
+#define C1MAX_QOS_ADD(freq) is_pm_qos_add_request(&exynos_isp_qos_cluster1_max, PM_QOS_CLUSTER1_FREQ_MAX, freq * 1000)
+#define C1MAX_QOS_DEL() is_pm_qos_remove_request(&exynos_isp_qos_cluster1_max)
+#define C1MAX_QOS_UPDATE(freq) is_pm_qos_update_request(&exynos_isp_qos_cluster1_max, freq * 1000)
+#define C2MIN_QOS_ADD(freq) is_pm_qos_add_request(&exynos_isp_qos_cluster2_min, PM_QOS_CLUSTER2_FREQ_MIN, freq * 1000)
+#define C2MIN_QOS_DEL() is_pm_qos_remove_request(&exynos_isp_qos_cluster2_min)
+#define C2MIN_QOS_UPDATE(freq) is_pm_qos_update_request(&exynos_isp_qos_cluster2_min, freq * 1000)
+#define C2MAX_QOS_ADD(freq) is_pm_qos_add_request(&exynos_isp_qos_cluster2_max, PM_QOS_CLUSTER2_FREQ_MAX, freq * 1000)
+#define C2MAX_QOS_DEL() is_pm_qos_remove_request(&exynos_isp_qos_cluster2_max)
+#define C2MAX_QOS_UPDATE(freq) is_pm_qos_update_request(&exynos_isp_qos_cluster2_max, freq * 1000)
 
 extern struct is_sysfs_debug sysfs_debug;
 extern int is_sensor_runtime_suspend(struct device *dev);
 extern int is_sensor_runtime_resume(struct device *dev);
 
-static int is_resourcemgr_allocmem(struct is_resourcemgr *resourcemgr)
+static unsigned long pablo_vmap(unsigned long addr, unsigned int size)
+{
+	int i;
+	unsigned int npages = size >> PAGE_SHIFT;
+	pgprot_t prot = pgprot_writecombine(PAGE_KERNEL);
+	struct page **pages;
+	void *vaddr;
+
+	pages = kmalloc_array(npages, sizeof(struct page *), GFP_ATOMIC);
+	if (!pages)
+		return -ENOMEM;
+
+	for (i = 0; i < npages; i++) {
+		pages[i] = phys_to_page(addr);
+		addr += PAGE_SIZE;
+	}
+
+	vaddr = vmap(pages, npages, VM_MAP, prot);
+	kfree(pages);
+
+	return (unsigned long)vaddr;
+}
+
+static int pablo_rscmgr_init_log_rmem(struct is_resourcemgr *rscmgr, struct reserved_mem *rmem)
+{
+	rscmgr->minfo.phaddr_debug = rmem->base;
+	rscmgr->minfo.kvaddr_debug = pablo_vmap(rmem->base, rmem->size);
+	if (!rscmgr->minfo.kvaddr_debug) {
+		probe_err("failed to map [%s]", rmem->name);
+		return -EINVAL;
+	}
+
+	memset((void *)rscmgr->minfo.kvaddr_debug, 0x0, rmem->size - 1);
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
+	dbg_snapshot_add_bl_item_info("log_camera", rmem->base, rmem->size);
+#endif
+
+	probe_info("[RSC]log rmem(V/P/S): 0x%pK/%pap/%pap\n",
+					rscmgr->minfo.kvaddr_debug,
+					&rmem->base, &rmem->size);
+
+	return 0;
+}
+
+static struct vm_struct pablo_bin_vm;
+static int pablo_rscmgr_init_bin_rmem(struct is_resourcemgr *rscmgr, struct reserved_mem *rmem)
+{
+	struct vm_struct *vm;
+	unsigned int npages;
+	int i;
+	struct page *page;
+	struct page **pages;
+	pgprot_t prot = PAGE_KERNEL_EXEC;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	vm = __get_vm_area_caller(PAGE_ALIGN(rmem->size), 0, LIB_START,
+					VMALLOC_END, __builtin_return_address(0));
+#else
+	vm = __get_vm_area(PAGE_ALIGN(rmem->size), 0, LIB_START, VMALLOC_END);
+#endif
+
+	if (vm->size < LIB_SIZE) {
+		probe_err("insufficient bin rmem (0x%lx < 0x%lx)", vm->size, LIB_SIZE);
+		return -ENOMEM;
+	}
+
+	pablo_bin_vm.phys_addr = rmem->base;
+	pablo_bin_vm.addr = vm->addr;
+	pablo_bin_vm.size = vm->size;
+
+	npages = pablo_bin_vm.size >> PAGE_SHIFT;
+	page = phys_to_page(pablo_bin_vm.phys_addr);
+	pages = kmalloc_array(npages, sizeof(struct page *), GFP_KERNEL);
+	if (!pages) {
+		probe_err("failed to alloc pages: %d", npages);
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < npages; i++)
+		pages[i] = page++;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	if (map_kernel_range((unsigned long)pablo_bin_vm.addr,
+				get_vm_area_size(&pablo_bin_vm), prot, pages) < 0) {
+#else
+	if (map_vm_area(&pablo_bin_vm, prot, pages)) {
+#endif
+		probe_err("failed to map rmem for binary");
+		kfree(pages);
+		return -ENOMEM;
+	}
+
+	probe_info("[RSC]bin rmem(V/P/S): 0x%pK/%pap/%pap\n",
+					pablo_bin_vm.addr,
+					&rmem->base, &rmem->size);
+
+	kfree(pages);
+
+	return 0;
+}
+
+static int pablo_rscmgr_init_rmem(struct is_resourcemgr *rscmgr, struct device_node *np)
+{
+	struct of_phandle_iterator i;
+	struct reserved_mem *rmem;
+
+	if (of_phandle_iterator_init(&i, np, "memory-region", NULL, 0)) {
+		probe_warn("no memory-region for reserved memory");
+		return 0;
+	}
+
+	while (!of_phandle_iterator_next(&i)) {
+		if (!i.node) {
+			probe_warn("invalid memory-region phandle");
+			continue;
+		}
+
+		rmem = of_reserved_mem_lookup(i.node);
+		if (!rmem) {
+			probe_err("failed to get [%s] reserved memory", i.node->name);
+			return -EINVAL;
+		}
+
+		if (!strcmp(i.node->name, "camera_rmem"))
+			pablo_rscmgr_init_log_rmem(rscmgr, rmem);
+		else if (!strcmp(i.node->name, "camera_ddk") ||
+				!strcmp(i.node->name, "camera-bin"))
+			pablo_rscmgr_init_bin_rmem(rscmgr, rmem);
+		else
+			probe_warn("callback not found for [%s], skipping", i.node->name);
+	}
+
+	return 0;
+}
+
+static int pablo_alloc_n_map(struct is_mem *mem, struct vm_struct *vm, pgprot_t prot)
+{
+	int npages = PAGE_ALIGN(vm->size) / PAGE_SIZE;
+	struct is_priv_buf *pb;
+	struct scatterlist *sg;
+	int i, j;
+	struct page **pages;
+	struct page **tpages;
+
+	pages = vmalloc(sizeof(struct page *) * npages);
+	if (!pages) {
+		probe_err("failed to alloc pages: %d", npages);
+		return -ENOMEM;
+	}
+
+	tpages = pages;
+
+	pb = CALL_PTR_MEMOP(mem, alloc, mem->priv, vm->size, NULL, 0);
+	if (IS_ERR_OR_NULL(pb)) {
+		probe_err("failed to alloc buffer - addr: 0x%pK, size: 0x%lx",
+							vm->addr, vm->size);
+		vfree(pages);
+		return -ENOMEM;
+	}
+
+	for_each_sg(pb->sgt->sgl, sg, pb->sgt->orig_nents, i) {
+		int npages_this_entry = PAGE_ALIGN(sg->length) / PAGE_SIZE;
+		struct page *page = sg_page(sg);
+
+		if (i >= npages) {
+			probe_err("failed to setup pages: %d", npages);
+			CALL_VOID_BUFOP(pb, free, pb);
+			vfree(pages);
+			return -EINVAL;
+		}
+
+		for (j = 0; j < npages_this_entry; j++)
+			*(tpages++) = page++;
+	}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	if (map_kernel_range((unsigned long)vm->addr,
+				get_vm_area_size(vm), prot, pages) < 0) {
+#else
+	if (map_vm_area(vm, prot, pages)) {
+#endif
+		probe_err("failed to map buffer - addr: 0x%pK, size: 0x%lx",
+							vm->addr, vm->size);
+		CALL_VOID_BUFOP(pb, free, pb);
+		vfree(pages);
+		return -ENOMEM;
+	}
+	probe_info("[RSC]alloc & map(V/S): 0x%pK(0x%08lx)/0x%lx\n", vm->addr, vm->addr, vm->size);
+
+	vfree(pages);
+
+	return 0;
+}
+
+static int is_resourcemgr_alloc_mem(struct is_resourcemgr *resourcemgr)
 {
 	struct is_mem *mem = &resourcemgr->mem;
 	struct is_minfo *minfo = &resourcemgr->minfo;
-	size_t tpu_size = 0;
 #if !defined(ENABLE_DYNAMIC_MEM) && defined(ENABLE_TNR)
 	size_t tnr_size = TNR_DMA_SIZE;
 #endif
@@ -146,144 +346,125 @@ static int is_resourcemgr_allocmem(struct is_resourcemgr *resourcemgr)
 
 	minfo->total_size = 0;
 	/* setfile */
-	minfo->pb_setfile = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, SETFILE_SIZE, NULL, 0);
+	minfo->pb_setfile = CALL_PTR_MEMOP(mem, alloc, mem->priv, SETFILE_SIZE, NULL, 0);
 	if (IS_ERR_OR_NULL(minfo->pb_setfile)) {
 		err("failed to allocate buffer for SETFILE");
 		return -ENOMEM;
 	}
 	minfo->total_size += minfo->pb_setfile->size;
 
-	/* calibration data for each sensor postion */
 	for (i = 0; i < SENSOR_POSITION_MAX; i++) {
-		minfo->pb_cal[i] = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, TOTAL_CAL_DATA_SIZE, NULL, 0);
+		/* calibration data for each sensor postion */
+		minfo->pb_cal[i] = CALL_PTR_MEMOP(mem, alloc, mem->priv, TOTAL_CAL_DATA_SIZE, NULL, 0);
 		if (IS_ERR_OR_NULL(minfo->pb_cal[i])) {
 			err("failed to allocate buffer for TOTAL_CAL_DATA");
 			return -ENOMEM;
 		}
 		minfo->total_size += minfo->pb_cal[i]->size;
+		info("[RSC]memory_alloc(TOTAL_CAL_DATA_SIZE[%d]): 0x%08lx\n",
+			i, minfo->pb_cal[i]->size);
 	}
 
 	/* library logging */
-#if !defined(ENABLE_CLOG_RESERVED_MEM)
-	minfo->pb_debug = mem->kmalloc(DEBUG_REGION_SIZE + 0x10, 16);
-	if (IS_ERR_OR_NULL(minfo->pb_debug)) {
-		/* retry by ION */
-		minfo->pb_debug = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, DEBUG_REGION_SIZE + 0x10, NULL, 0);
+	if (!IS_ENABLED(CLOG_RESERVED_MEM)) {
+		minfo->pb_debug = mem->contig_alloc(DEBUG_REGION_SIZE + 0x10);
 		if (IS_ERR_OR_NULL(minfo->pb_debug)) {
-			err("failed to allocate buffer for DEBUG_REGION");
-			return -ENOMEM;
+			/* retry by ION */
+			minfo->pb_debug = CALL_PTR_MEMOP(mem, alloc,
+						mem->priv,
+						DEBUG_REGION_SIZE + 0x10,
+						NULL, 0);
+			if (IS_ERR_OR_NULL(minfo->pb_debug)) {
+				err("failed to allocate buffer for DEBUG_REGION");
+				return -ENOMEM;
+			}
 		}
+		minfo->total_size += minfo->pb_debug->size;
+		info("[RSC]memory_alloc(DEBUG_REGION_SIZE): 0x%08lx\n",
+				minfo->pb_debug->size);
 	}
-	minfo->total_size += minfo->pb_debug->size;
-#endif
+
 	/* library event logging */
-	minfo->pb_event = mem->kmalloc(EVENT_REGION_SIZE + 0x10, 16);
+	minfo->pb_event = mem->contig_alloc(EVENT_REGION_SIZE + 0x10);
 	if (IS_ERR_OR_NULL(minfo->pb_event)) {
 		/* retry by ION */
-		minfo->pb_event = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, EVENT_REGION_SIZE + 0x10, NULL, 0);
+		minfo->pb_event = CALL_PTR_MEMOP(mem, alloc, mem->priv, EVENT_REGION_SIZE + 0x10, NULL, 0);
 		if (IS_ERR_OR_NULL(minfo->pb_event)) {
 			err("failed to allocate buffer for EVENT_REGION");
 			return -ENOMEM;
 		}
 	}
 	minfo->total_size += minfo->pb_event->size;
-
-	/* data region */
-	minfo->pb_dregion = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, DATA_REGION_SIZE, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_dregion)) {
-		err("failed to allocate buffer for DATA_REGION");
-		return -ENOMEM;
-	}
-	minfo->total_size += minfo->pb_dregion->size;
+	info("[RSC]memory_alloc(EVENT_REGION_SIZE): 0x%08lx\n", minfo->pb_event->size);
 
 	/* parameter region */
-	minfo->pb_pregion = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
+	minfo->pb_pregion = CALL_PTR_MEMOP(mem, alloc, mem->priv,
 						(IS_STREAM_COUNT * PARAM_REGION_SIZE), NULL, 0);
 	if (IS_ERR_OR_NULL(minfo->pb_pregion)) {
 		err("failed to allocate buffer for PARAM_REGION");
 		return -ENOMEM;
 	}
 	minfo->total_size += minfo->pb_pregion->size;
-
-	/* fshared data region */
-	minfo->pb_fshared = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, FSHARED_REGION_SIZE, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_fshared)) {
-		err("failed to allocate buffer for FSHARED_REGION");
-		return -ENOMEM;
-	}
-	minfo->total_size += minfo->pb_fshared->size;
+	info("[RSC]memory_alloc(PARAM_REGION_SIZE x %d): 0x%08lx\n",
+		IS_STREAM_COUNT, minfo->pb_pregion->size);
 
 #if !defined(ENABLE_DYNAMIC_MEM)
 	/* 3aa/isp internal DMA buffer */
-	minfo->pb_taaisp = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
+	minfo->pb_taaisp = CALL_PTR_MEMOP(mem, alloc, mem->priv,
 				TAAISP_DMA_SIZE, NULL, 0);
 	if (IS_ERR_OR_NULL(minfo->pb_taaisp)) {
 		err("failed to allocate buffer for TAAISP_DMA");
 		return -ENOMEM;
 	}
 	minfo->total_size += minfo->pb_taaisp->size;
-
-	info("[RSC] TAAISP_DMA memory size (aligned) : %08lx\n", TAAISP_DMA_SIZE);
+	info("[RSC]memory_alloc(TAAISP_DMA_SIZE): 0x%08lx\n", minfo->pb_taaisp->size);
 
 	/* ME/DRC buffer */
 #if (MEDRC_DMA_SIZE > 0)
-	minfo->pb_medrc = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
+	minfo->pb_medrc = CALL_PTR_MEMOP(mem, alloc, mem->priv,
 				MEDRC_DMA_SIZE, NULL, 0);
 	if (IS_ERR_OR_NULL(minfo->pb_medrc)) {
 		err("failed to allocate buffer for ME_DRC");
 		return -ENOMEM;
 	}
-
-	info("[RSC] ME_DRC memory size (aligned) : %08lx\n", MEDRC_DMA_SIZE);
-
 	minfo->total_size += minfo->pb_medrc->size;
+	info("[RSC] ME_DRC memory size (aligned) : %08lx\n", minfo->pb_medrc->size);
 #endif
 
 #if defined(ENABLE_TNR)
 	/* TNR internal DMA buffer */
-	minfo->pb_tnr = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, tnr_size, NULL, 0);
+	minfo->pb_tnr = CALL_PTR_MEMOP(mem, alloc, mem->priv, tnr_size, NULL, 0);
 	if (IS_ERR_OR_NULL(minfo->pb_tnr)) {
 		err("failed to allocate buffer for TNR DMA");
 		return -ENOMEM;
 	}
 	minfo->total_size += minfo->pb_tnr->size;
-
-	info("[RSC] TNR_DMA memory size: %08lx\n", tnr_size);
+	info("[RSC]memory_alloc(TNR_DMA_SIZE): 0x%08lx\n", minfo->pb_tnr->size);
 #endif
 #if (ORBMCH_DMA_SIZE > 0)
 	/* ORBMCH internal DMA buffer */
-	minfo->pb_orbmch = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, ORBMCH_DMA_SIZE, NULL, 0);
+	minfo->pb_orbmch = CALL_PTR_MEMOP(mem, alloc, mem->priv, ORBMCH_DMA_SIZE, NULL, 0);
 	if (IS_ERR_OR_NULL(minfo->pb_orbmch)) {
 		err("failed to allocate buffer for ORBMCH DMA");
 		return -ENOMEM;
 	}
 	minfo->total_size += minfo->pb_orbmch->size;
-
-	info("[RSC] ORBMCH_DMA memory size: %08lx\n", ORBMCH_DMA_SIZE);
-#endif
-#if (CLAHE_DMA_SIZE > 0)
-	/* CLAHE internal DMA buffer */
-	minfo->pb_clahe = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, CLAHE_DMA_SIZE, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_clahe)) {
-		err("failed to allocate buffer for CLAHE DMA");
-		return -ENOMEM;
-	}
-	minfo->total_size += minfo->pb_clahe->size;
-
-	info("[RSC] CLAHE_DMA memory size: %08lx\n", CLAHE_DMA_SIZE);
+	info("[RSC]memory_alloc(ORBMCH_DMA_SIZE): 0x%08lx\n", minfo->pb_orbmch->size);
 #endif
 #endif
 
 #if defined (ENABLE_VRA)
-	minfo->pb_vra = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, VRA_DMA_SIZE, NULL, 0);
+	minfo->pb_vra = CALL_PTR_MEMOP(mem, alloc, mem->priv, VRA_DMA_SIZE, NULL, 0);
 	if (IS_ERR_OR_NULL(minfo->pb_vra)) {
 		err("failed to allocate buffer for VRA");
 		return -ENOMEM;
 	}
 	minfo->total_size += minfo->pb_vra->size;
+	
+	info("[RSC] VRA_DMA memory size: %08lx\n", VRA_DMA_SIZE);
 #endif
 #if defined (ENABLE_VRA_NETARRAY)
-	minfo->pb_vra_netarray = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, VRA_NET_SIZE, NULL, 0);
+	minfo->pb_vra_netarray = CALL_PTR_MEMOP(mem, alloc, mem->priv, VRA_NET_SIZE, NULL, 0);
 	if (IS_ERR_OR_NULL(minfo->pb_vra_netarray)) {
 		err("failed to allocate buffer for VRA network array");
 		return -ENOMEM;
@@ -291,100 +472,31 @@ static int is_resourcemgr_allocmem(struct is_resourcemgr *resourcemgr)
 	minfo->total_size += minfo->pb_vra_netarray->size;
 #endif
 
-#if defined (ENABLE_DNR_IN_MCSC)
-	minfo->pb_mcsc_dnr = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, MCSC_DNR_DMA_SIZE, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_mcsc_dnr)) {
-		err("failed to allocate buffer for MCSC DNR");
-		return -ENOMEM;
-	}
-	minfo->total_size += minfo->pb_mcsc_dnr->size;
-#endif
-
-#if defined (ENABLE_ODC)
-	tpu_size += (SIZE_ODC_INTERNAL_BUF * NUM_ODC_INTERNAL_BUF);
-#endif
-#if defined (ENABLE_VDIS)
-	tpu_size += (SIZE_DIS_INTERNAL_BUF * NUM_DIS_INTERNAL_BUF);
-#endif
-#if defined (ENABLE_DNR_IN_TPU)
-	tpu_size += (SIZE_DNR_INTERNAL_BUF * NUM_DNR_INTERNAL_BUF);
-#endif
-	if (tpu_size > 0) {
-		minfo->pb_tpu = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, tpu_size, NULL, 0);
-		if (IS_ERR_OR_NULL(minfo->pb_tpu)) {
-			err("failed to allocate buffer for TPU");
-			return -ENOMEM;
-		}
-		minfo->total_size += minfo->pb_tpu->size;
-	}
-
 	if (DUMMY_DMA_SIZE) {
-		minfo->pb_dummy = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, DUMMY_DMA_SIZE,
+		minfo->pb_dummy = CALL_PTR_MEMOP(mem, alloc, mem->priv, DUMMY_DMA_SIZE,
 			"camera_heap", 0);
 		if (IS_ERR_OR_NULL(minfo->pb_dummy)) {
 			err("failed to allocate buffer for dummy");
 			return -ENOMEM;
 		}
 		minfo->total_size += minfo->pb_dummy->size;
+		info("[RSC]memory_alloc(DUMMY_DMA_SIZE): 0x%08lx\n", minfo->pb_dummy->size);
 	}
 
-	probe_info("[RSC] Internal memory size (aligned) : %08lx\n", minfo->total_size);
+	probe_info("[RSC]memory_alloc(Internal total): 0x%08lx\n", minfo->total_size);
 
 	return 0;
 }
 
-#if defined(ENABLE_CLOG_RESERVED_MEM)
-static struct is_resource_rmem crmem;
-
-static int __init is_reserved_mem_setup(struct reserved_mem *remem)
-{
-	crmem.phys_addr = remem->base;
-	crmem.size = remem->size;
-
-	info("%s: cam reserved mem: paddr=0x%x, size=0x%x\n", __func__,
-		(unsigned int)remem->base, (unsigned int)remem->size);
-
-	return 0;
-}
-RESERVEDMEM_OF_DECLARE(camera_rmem, "exynos,camera_rmem",
-			is_reserved_mem_setup);
-
-static unsigned long is_request_region(unsigned long addr, unsigned int size)
-{
-	int i;
-	unsigned int num_pages = (size >> PAGE_SHIFT);
-	pgprot_t prot = pgprot_writecombine(PAGE_KERNEL);
-	struct page **pages = NULL;
-	void *v_addr = NULL;
-
-	if (!addr)
-		return 0;
-
-	pages = kmalloc_array(num_pages, sizeof(struct page *), GFP_ATOMIC);
-	if (!pages)
-		return 0;
-
-	for (i = 0; i < num_pages; i++) {
-		pages[i] = phys_to_page(addr);
-		addr += PAGE_SIZE;
-	}
-
-	v_addr = vmap(pages, num_pages, VM_MAP, prot);
-	kfree(pages);
-
-	return (unsigned long)v_addr;
-}
-#endif	/* CONFIG_OF_RESERVED_MEM */
-
-static int is_resourcemgr_initmem(struct is_resourcemgr *resourcemgr)
+static int is_resourcemgr_init_mem(struct is_resourcemgr *resourcemgr)
 {
 	struct is_minfo *minfo = NULL;
 	int ret = 0;
 	int i;
 
-	probe_info("is_init_mem - ION\n");
+	probe_info("%s\n", __func__);
 
-	ret = is_resourcemgr_allocmem(resourcemgr);
+	ret = is_resourcemgr_alloc_mem(resourcemgr);
 	if (ret) {
 		err("Couldn't alloc for FIMC-IS\n");
 		ret = -ENOMEM;
@@ -393,40 +505,17 @@ static int is_resourcemgr_initmem(struct is_resourcemgr *resourcemgr)
 
 	minfo = &resourcemgr->minfo;
 	/* set information */
-	resourcemgr->minfo.dvaddr = 0;
-	resourcemgr->minfo.kvaddr = 0;
-#if defined(ENABLE_CLOG_RESERVED_MEM)
-	resourcemgr->minfo.dvaddr_debug = 0x0;
-	resourcemgr->minfo.phaddr_debug = crmem.phys_addr;
-	resourcemgr->minfo.kvaddr_debug = is_request_region(crmem.phys_addr,
-					crmem.size);
-	dbg_snapshot_add_bl_item_info(CLOG_DSS_NAME,
-					crmem.phys_addr, crmem.size);
-	probe_info("[RSC] CLOG RMEM INFO(%d): 0x%lx / 0x%08x (0x%08x)\n",
-		ret, resourcemgr->minfo.kvaddr_debug,
-		(unsigned int)resourcemgr->minfo.phaddr_debug,
-		(unsigned int)crmem.size);
-	memset((void *)resourcemgr->minfo.kvaddr_debug, 0x0, crmem.size - 1);
-#else
-	resourcemgr->minfo.dvaddr_debug = CALL_BUFOP(minfo->pb_debug, dvaddr,
-						minfo->pb_debug);
-	resourcemgr->minfo.kvaddr_debug = CALL_BUFOP(minfo->pb_debug, kvaddr,
-						minfo->pb_debug);
-	resourcemgr->minfo.phaddr_debug = CALL_BUFOP(minfo->pb_debug, phaddr,
-						minfo->pb_debug);
-#endif
-	resourcemgr->minfo.dvaddr_event = CALL_BUFOP(minfo->pb_event, dvaddr, minfo->pb_event);
+	if (!resourcemgr->minfo.kvaddr_debug) {
+		resourcemgr->minfo.kvaddr_debug =
+			CALL_BUFOP(minfo->pb_debug, kvaddr, minfo->pb_debug);
+		resourcemgr->minfo.phaddr_debug =
+			CALL_BUFOP(minfo->pb_debug, phaddr, minfo->pb_debug);
+	}
+
 	resourcemgr->minfo.kvaddr_event = CALL_BUFOP(minfo->pb_event, kvaddr, minfo->pb_event);
 	resourcemgr->minfo.phaddr_event = CALL_BUFOP(minfo->pb_event, phaddr, minfo->pb_event);
 
-	resourcemgr->minfo.dvaddr_fshared = CALL_BUFOP(minfo->pb_fshared, dvaddr, minfo->pb_fshared);
-	resourcemgr->minfo.kvaddr_fshared = CALL_BUFOP(minfo->pb_fshared, kvaddr, minfo->pb_fshared);
-
-	resourcemgr->minfo.dvaddr_region = CALL_BUFOP(minfo->pb_pregion, dvaddr, minfo->pb_pregion);
 	resourcemgr->minfo.kvaddr_region = CALL_BUFOP(minfo->pb_pregion, kvaddr, minfo->pb_pregion);
-
-	resourcemgr->minfo.dvaddr_lhfd = 0;
-	resourcemgr->minfo.kvaddr_lhfd = 0;
 
 #if defined(ENABLE_VRA)
 	resourcemgr->minfo.dvaddr_vra = CALL_BUFOP(minfo->pb_vra, dvaddr, minfo->pb_vra);
@@ -435,29 +524,12 @@ static int is_resourcemgr_initmem(struct is_resourcemgr *resourcemgr)
 	resourcemgr->minfo.dvaddr_vra = 0;
 	resourcemgr->minfo.kvaddr_vra = 0;
 #endif
-
 #if defined(ENABLE_VRA_NETARRAY)
 	resourcemgr->minfo.dvaddr_vra_netarray = CALL_BUFOP(minfo->pb_vra_netarray, dvaddr, minfo->pb_vra_netarray);
 	resourcemgr->minfo.kvaddr_vra_netarray = CALL_BUFOP(minfo->pb_vra_netarray, kvaddr, minfo->pb_vra_netarray);
 #else
 	resourcemgr->minfo.dvaddr_vra_netarray = 0;
 	resourcemgr->minfo.kvaddr_vra_netarray = 0;
-#endif
-
-#if defined(ENABLE_DNR_IN_MCSC)
-	resourcemgr->minfo.dvaddr_mcsc_dnr = CALL_BUFOP(minfo->pb_mcsc_dnr, dvaddr, minfo->pb_mcsc_dnr);
-	resourcemgr->minfo.kvaddr_mcsc_dnr = CALL_BUFOP(minfo->pb_mcsc_dnr, kvaddr, minfo->pb_mcsc_dnr);
-#else
-	resourcemgr->minfo.dvaddr_mcsc_dnr = 0;
-	resourcemgr->minfo.kvaddr_mcsc_dnr = 0;
-#endif
-
-#if defined(ENABLE_ODC) || defined(ENABLE_VDIS) || defined(ENABLE_DNR_IN_TPU)
-	resourcemgr->minfo.dvaddr_tpu = CALL_BUFOP(minfo->pb_tpu, dvaddr, minfo->pb_tpu);
-	resourcemgr->minfo.kvaddr_tpu = CALL_BUFOP(minfo->pb_tpu, kvaddr, minfo->pb_tpu);
-#else
-	resourcemgr->minfo.dvaddr_tpu = 0;
-	resourcemgr->minfo.kvaddr_tpu = 0;
 #endif
 	resourcemgr->minfo.kvaddr_debug_cnt =  resourcemgr->minfo.kvaddr_debug
 						+ DEBUG_REGION_SIZE;
@@ -477,14 +549,13 @@ static int is_resourcemgr_initmem(struct is_resourcemgr *resourcemgr)
 		resourcemgr->minfo.phaddr_dummy =
 			CALL_BUFOP(minfo->pb_dummy, phaddr, minfo->pb_dummy);
 
-		probe_info("[RSC] Dummy buffer: dva(0x%pad) kva(0x%lx) pha(0x%pad)\n",
+		probe_info("[RSC] Dummy buffer: dva(0x%pad) kva(0x%pK) pha(0x%pad)\n",
 			&resourcemgr->minfo.dvaddr_dummy,
 			resourcemgr->minfo.kvaddr_dummy,
 			&resourcemgr->minfo.phaddr_dummy);
 	}
 
-	probe_info("[RSC] Kernel virtual for library: %08lx\n", resourcemgr->minfo.kvaddr);
-	probe_info("[RSC] Kernel virtual for debug: %08lx\n", resourcemgr->minfo.kvaddr_debug);
+	probe_info("[RSC] Kernel virtual for debug: 0x%pK\n", resourcemgr->minfo.kvaddr_debug);
 	probe_info("[RSC] is_init_mem done\n");
 p_err:
 	return ret;
@@ -495,90 +566,78 @@ static int is_resourcemgr_alloc_dynamic_mem(struct is_resourcemgr *resourcemgr)
 {
 	struct is_mem *mem = &resourcemgr->mem;
 	struct is_minfo *minfo = &resourcemgr->minfo;
-#if defined (ENABLE_TNR)
-	size_t tnr_size = TNR_DMA_SIZE;
-#endif
+	int ret;
 
-	/* 3aa/isp internal DMA buffer */
-	minfo->pb_taaisp = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
-				TAAISP_DMA_SIZE, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_taaisp)) {
-		err("failed to allocate buffer for TAAISP_DMA memory");
-		return -ENOMEM;
+	if (TAAISP_DMA_SIZE > 0) {
+		/* 3aa/isp internal DMA buffer */
+		minfo->pb_taaisp = CALL_PTR_MEMOP(mem, alloc, mem->priv,
+					TAAISP_DMA_SIZE, NULL, 0);
+		if (IS_ERR_OR_NULL(minfo->pb_taaisp)) {
+			err("failed to allocate buffer for TAAISP_DMA memory");
+			ret = -ENOMEM;
+			goto err_alloc_taaisp;
+		}
+
+		info("[RSC]memory_alloc(TAAISP_DMA_SIZE): 0x%08lx\n", minfo->pb_taaisp->size);
+	} else {
+		minfo->pb_taaisp = NULL;
 	}
-
-	info("[RSC] TAAISP_DMA memory size (aligned) : %08lx\n", (unsigned long)TAAISP_DMA_SIZE);
-
+	
 	/* ME/DRC buffer */
-#if (MEDRC_DMA_SIZE > 0)
-	minfo->pb_medrc = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
-				MEDRC_DMA_SIZE, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_medrc)) {
-		CALL_VOID_BUFOP(minfo->pb_taaisp, free, minfo->pb_taaisp);
-		err("failed to allocate buffer for ME_DRC");
-		return -ENOMEM;
+	if (MEDRC_DMA_SIZE > 0) {
+		minfo->pb_medrc = CALL_PTR_MEMOP(mem, alloc, mem->priv,
+					MEDRC_DMA_SIZE, NULL, 0);
+		if (IS_ERR_OR_NULL(minfo->pb_medrc)) {
+			CALL_VOID_BUFOP(minfo->pb_taaisp, free, minfo->pb_taaisp);
+			err("failed to allocate buffer for ME_DRC");
+			return -ENOMEM;
+		}
+		info("[RSC]memory_alloc(MEDRC_DMA_SIZE): 0x%08lx\n", minfo->pb_medrc->size);
+	} else {
+		minfo->pb_medrc = NULL;
 	}
 
-	info("[RSC] ME_DRC memory size (aligned) : %08lx\n", (unsigned long)MEDRC_DMA_SIZE);
-#endif
+	if (TNR_DMA_SIZE > 0) {
+		/* TNR internal DMA buffer */
+		minfo->pb_tnr = CALL_PTR_MEMOP(mem, alloc, mem->priv, TNR_DMA_SIZE, NULL, 0);
+		if (IS_ERR_OR_NULL(minfo->pb_tnr)) {
+			err("failed to allocate buffer for TNR DMA");
+			ret = -ENOMEM;
+			goto err_alloc_tnr;
+		}
 
-#if defined(ENABLE_TNR)
-	/* TNR internal DMA buffer */
-	minfo->pb_tnr = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, tnr_size, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_tnr)) {
-		CALL_VOID_BUFOP(minfo->pb_taaisp, free, minfo->pb_taaisp);
-#if (MEDRC_DMA_SIZE > 0)
-			CALL_VOID_BUFOP(minfo->pb_medrc, free, minfo->pb_medrc);
-#endif
-		err("failed to allocate buffer for TNR DMA");
-		return -ENOMEM;
+		info("[RSC]memory_alloc(TNR_DMA_SIZE): 0x%08lx\n", minfo->pb_tnr->size);
+	} else {
+		minfo->pb_tnr = NULL;
 	}
 
-	info("[RSC] TNR_DMA memory size: %08lx\n", tnr_size);
-#endif
+	if (ORBMCH_DMA_SIZE > 0) {
+		/* ORBMCH internal DMA buffer */
+		minfo->pb_orbmch = CALL_PTR_MEMOP(mem, alloc, mem->priv,
+				ORBMCH_DMA_SIZE, NULL, 0);
+		if (IS_ERR_OR_NULL(minfo->pb_orbmch)) {
+			err("failed to allocate buffer for ORBMCH DMA");
+			ret = -ENOMEM;
+			goto err_alloc_orbmch;
+		}
 
-#if (ORBMCH_DMA_SIZE > 0)
-	/* ORBMCH internal DMA buffer */
-	minfo->pb_orbmch = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
-			ORBMCH_DMA_SIZE, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_orbmch)) {
-		CALL_VOID_BUFOP(minfo->pb_taaisp, free, minfo->pb_taaisp);
-#if (MEDRC_DMA_SIZE > 0)
-		CALL_VOID_BUFOP(minfo->pb_medrc, free, minfo->pb_medrc);
-#endif
-#if defined(ENABLE_TNR)
-		CALL_VOID_BUFOP(minfo->pb_tnr, free, minfo->pb_tnr);
-#endif
-		err("failed to allocate buffer for ORBMCH DMA");
-		return -ENOMEM;
+		info("[RSC]memory_alloc(ORBMCH_DMA_SIZE): 0x%08lx\n", minfo->pb_orbmch->size);
+	} else {
+		minfo->pb_orbmch = NULL;
 	}
-
-	info("[RSC] ORBMCH_DMA memory size: %08lx\n", (unsigned long)ORBMCH_DMA_SIZE);
-#endif
-
-#if (CLAHE_DMA_SIZE > 0)
-	/* CLAHE internal DMA buffer */
-	minfo->pb_clahe = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
-			CLAHE_DMA_SIZE, NULL, 0);
-	if (IS_ERR_OR_NULL(minfo->pb_clahe)) {
-		CALL_VOID_BUFOP(minfo->pb_taaisp, free, minfo->pb_taaisp);
-#if (MEDRC_DMA_SIZE > 0)
-		CALL_VOID_BUFOP(minfo->pb_medrc, free, minfo->pb_medrc);
-#endif
-#if defined(ENABLE_TNR)
-		CALL_VOID_BUFOP(minfo->pb_tnr, free, minfo->pb_tnr);
-#endif
-#if (ORBMCH_DMA_SIZE > 0)
-		CALL_VOID_BUFOP(minfo->pb_orbmch, free, minfo->pb_orbmch);
-#endif
-		err("failed to allocate buffer for CLAHE DMA");
-		return -ENOMEM;
-	}
-
-	info("[RSC] CLAHE_DMA memory size: %08lx\n", (unsigned long)CLAHE_DMA_SIZE);
-#endif
 
 	return 0;
+
+err_alloc_orbmch:
+	if (minfo->pb_tnr)
+		CALL_VOID_BUFOP(minfo->pb_tnr, free, minfo->pb_tnr);
+err_alloc_tnr:
+err_alloc_taaisp:
+	minfo->pb_orbmch = NULL;
+	minfo->pb_tnr = NULL;
+	minfo->pb_taaisp = NULL;
+
+	return ret;
 }
 
 static int is_resourcemgr_init_dynamic_mem(struct is_resourcemgr *resourcemgr)
@@ -597,33 +656,29 @@ static int is_resourcemgr_init_dynamic_mem(struct is_resourcemgr *resourcemgr)
 		goto p_err;
 	}
 
-	kva = CALL_BUFOP(minfo->pb_taaisp, kvaddr, minfo->pb_taaisp);
-	dva = CALL_BUFOP(minfo->pb_taaisp, dvaddr, minfo->pb_taaisp);
-	info("[RSC] TAAISP_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	if (minfo->pb_taaisp) {
+		kva = CALL_BUFOP(minfo->pb_taaisp, kvaddr, minfo->pb_taaisp);
+		dva = CALL_BUFOP(minfo->pb_taaisp, dvaddr, minfo->pb_taaisp);
+		info("[RSC] TAAISP_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	}
 
-#if (MEDRC_DMA_SIZE > 0)
-	kva = CALL_BUFOP(minfo->pb_medrc, kvaddr, minfo->pb_medrc);
-	dva = CALL_BUFOP(minfo->pb_medrc, dvaddr, minfo->pb_medrc);
-	info("[RSC] ME_DRC memory kva:0x%lx, dva: %pad\n", kva, &dva);
-#endif
+	if (minfo->pb_medrc) {
+		kva = CALL_BUFOP(minfo->pb_medrc, kvaddr, minfo->pb_medrc);
+		dva = CALL_BUFOP(minfo->pb_medrc, dvaddr, minfo->pb_medrc);
+		info("[RSC] ME_DRC memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	}
 
-#if defined(ENABLE_TNR)
-	kva = CALL_BUFOP(minfo->pb_tnr, kvaddr, minfo->pb_tnr);
-	dva = CALL_BUFOP(minfo->pb_tnr, dvaddr, minfo->pb_tnr);
-	info("[RSC] TNR_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
-#endif
+	if (minfo->pb_tnr) {
+		kva = CALL_BUFOP(minfo->pb_tnr, kvaddr, minfo->pb_tnr);
+		dva = CALL_BUFOP(minfo->pb_tnr, dvaddr, minfo->pb_tnr);
+		info("[RSC] TNR_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	}
 
-#if (ORBMCH_DMA_SIZE > 0)
-	kva = CALL_BUFOP(minfo->pb_orbmch, kvaddr, minfo->pb_orbmch);
-	dva = CALL_BUFOP(minfo->pb_orbmch, dvaddr, minfo->pb_orbmch);
-	info("[RSC] ORBMCH_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
-#endif
-
-#if (CLAHE_DMA_SIZE > 0)
-	kva = CALL_BUFOP(minfo->pb_clahe, kvaddr, minfo->pb_clahe);
-	dva = CALL_BUFOP(minfo->pb_clahe, dvaddr, minfo->pb_clahe);
-	info("[RSC] CLAHE_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
-#endif
+	if (minfo->pb_orbmch) {
+		kva = CALL_BUFOP(minfo->pb_orbmch, kvaddr, minfo->pb_orbmch);
+		dva = CALL_BUFOP(minfo->pb_orbmch, dvaddr, minfo->pb_orbmch);
+		info("[RSC] ORBMCH_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	}
 
 	info("[RSC] %s done\n", __func__);
 
@@ -635,23 +690,38 @@ static int is_resourcemgr_deinit_dynamic_mem(struct is_resourcemgr *resourcemgr)
 {
 	struct is_minfo *minfo = &resourcemgr->minfo;
 
-#if (CLAHE_DMA_SIZE > 0)
-	CALL_VOID_BUFOP(minfo->pb_clahe, free, minfo->pb_clahe);
-#endif
-#if (ORBMCH_DMA_SIZE > 0)
-	CALL_VOID_BUFOP(minfo->pb_orbmch, free, minfo->pb_orbmch);
-#endif
-#if defined(ENABLE_TNR)
-	CALL_VOID_BUFOP(minfo->pb_tnr, free, minfo->pb_tnr);
-#endif
-#if (MEDRC_DMA_SIZE > 0)
-		CALL_VOID_BUFOP(minfo->pb_medrc, free, minfo->pb_medrc);
-#endif
-	CALL_VOID_BUFOP(minfo->pb_taaisp, free, minfo->pb_taaisp);
+	if (minfo->pb_orbmch)
+		CALL_VOID_BUFOP(minfo->pb_orbmch, free, minfo->pb_orbmch);
 
+	if (minfo->pb_tnr)
+		CALL_VOID_BUFOP(minfo->pb_tnr, free, minfo->pb_tnr);
+
+	if (minfo->pb_taaisp)
+		CALL_VOID_BUFOP(minfo->pb_taaisp, free, minfo->pb_taaisp);
+
+	if (minfo->pb_medrc)
+		CALL_VOID_BUFOP(minfo->pb_medrc, free, minfo->pb_medrc);
+
+	minfo->pb_orbmch = NULL;
+	minfo->pb_tnr = NULL;
+	minfo->pb_taaisp = NULL;
+	minfo->pb_medrc = NULL;
+	
 	return 0;
 }
 #endif /* #ifdef ENABLE_DYNAMIC_MEM */
+
+#if IS_ENABLED(CONFIG_PABLO_KUNIT_TEST)
+int pablo_kunit_resourcemgr_init_dynamic_mem(struct is_resourcemgr *resourcemgr) {
+	return is_resourcemgr_init_dynamic_mem(resourcemgr);
+}
+KUNIT_EXPORT_SYMBOL(pablo_kunit_resourcemgr_init_dynamic_mem);
+
+int pablo_kunit_resourcemgr_deinit_dynamic_mem(struct is_resourcemgr *resourcemgr) {
+	return is_resourcemgr_deinit_dynamic_mem(resourcemgr);
+}
+KUNIT_EXPORT_SYMBOL(pablo_kunit_resourcemgr_deinit_dynamic_mem);
+#endif
 
 #if defined(SECURE_CAMERA_MEM_SHARE)
 static int is_resourcemgr_alloc_secure_mem(struct is_resourcemgr *resourcemgr)
@@ -660,9 +730,8 @@ static int is_resourcemgr_alloc_secure_mem(struct is_resourcemgr *resourcemgr)
 	struct is_minfo *minfo = &resourcemgr->minfo;
 
 	/* 3aa/isp internal DMA buffer */
-	minfo->pb_taaisp_s = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
-				TAAISP_DMA_SIZE, "camera_heap",
-				ION_FLAG_CACHED | ION_FLAG_PROTECTED);
+	minfo->pb_taaisp_s = CALL_PTR_MEMOP(mem, alloc, mem->priv,
+				TAAISP_DMA_SIZE, "camera_heap-secure", 0);
 	if (IS_ERR_OR_NULL(minfo->pb_taaisp_s)) {
 		err("failed to allocate buffer for TAAISP_DMA_S");
 		return -ENOMEM;
@@ -673,13 +742,11 @@ static int is_resourcemgr_alloc_secure_mem(struct is_resourcemgr *resourcemgr)
 	/* ME/DRC buffer */
 #if (MEDRC_DMA_SIZE > 0)
 #if defined(SECURE_CAMERA_USE_EXT_HEAP)
-	minfo->pb_medrc_s = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
-			MEDRC_DMA_SIZE, "secure_camera_heap_drc",
-			ION_FLAG_CACHED | ION_FLAG_PROTECTED);
+	minfo->pb_medrc_s = CALL_PTR_MEMOP(mem, alloc, mem->priv,
+			MEDRC_DMA_SIZE, "secure_camera_heap_drc-secure", 0);
 #else
-	minfo->pb_medrc_s = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx,
-				MEDRC_DMA_SIZE, "secure_camera_heap",
-				ION_FLAG_CACHED | ION_FLAG_PROTECTED);
+	minfo->pb_medrc_s = CALL_PTR_MEMOP(mem, alloc, mem->priv,
+				MEDRC_DMA_SIZE, "secure_camera-secure", 0);
 #endif
 	if (IS_ERR_OR_NULL(minfo->pb_medrc_s)) {
 		CALL_VOID_BUFOP(minfo->pb_taaisp_s, free, minfo->pb_taaisp_s);
@@ -731,9 +798,12 @@ static int is_resourcemgr_deinit_secure_mem(struct is_resourcemgr *resourcemgr)
 		CALL_VOID_BUFOP(minfo->pb_taaisp_s, free, minfo->pb_taaisp_s);
 	if (minfo->pb_medrc_s)
 		CALL_VOID_BUFOP(minfo->pb_medrc_s, free, minfo->pb_medrc_s);
+	if (minfo->pb_tnr_s)
+		CALL_VOID_BUFOP(minfo->pb_tnr_s, free, minfo->pb_tnr_s);
 
 	minfo->pb_taaisp_s = NULL;
 	minfo->pb_medrc_s = NULL;
+	minfo->pb_tnr_s = NULL;
 
 	info("[RSC] %s done\n", __func__);
 
@@ -741,244 +811,79 @@ static int is_resourcemgr_deinit_secure_mem(struct is_resourcemgr *resourcemgr)
 }
 #endif
 
-static struct vm_struct is_lib_vm;
-static struct vm_struct is_heap_vm;
-static struct vm_struct is_heap_rta_vm;
-#ifdef CONFIG_RKP
-static struct vm_struct is_lib_vm_for_rkp;
-#endif
-#if defined(RESERVED_MEM_IN_DT)
-static int is_rmem_device_init(struct reserved_mem *rmem,
-				    struct device *dev)
-{
-	WARN(1, "%s() should never be called!", __func__);
-	return 0;
-}
-
-static void is_rmem_device_release(struct reserved_mem *rmem,
-					struct device *dev)
-{
-}
-
-static const struct reserved_mem_ops is_rmem_ops = {
-	.device_init	= is_rmem_device_init,
-	.device_release	= is_rmem_device_release,
-};
-
-static int __init is_reserved_mem_setup(struct reserved_mem *rmem)
-{
-	const __be32 *prop;
-	u64 kbase;
-	int len;
-#ifdef CONFIG_RKP
-	rkp_dynamic_load_t rkp_dyn;
-	int ret;
-#endif
-
-	prop = of_get_flat_dt_prop(rmem->fdt_node, "kernel_virt", &len);
-	if (!prop) {
-		pr_err("kernel_virt is not found in '%s' node\n", rmem->name);
-		return -EINVAL;
-	}
-
-	if (len != dt_root_addr_cells * sizeof(__be32)) {
-		pr_err("invalid kernel_virt property in '%s' node.\n",
-			rmem->name);
-		return -EINVAL;
-	}
-
-	kbase = dt_mem_next_cell(dt_root_addr_cells, &prop);
-
-	is_lib_vm.phys_addr = rmem->base;
-	is_lib_vm.addr = (void *)kbase;
-	is_lib_vm.size = LIB_SIZE + PAGE_SIZE;
-
-	BUG_ON(rmem->size < LIB_SIZE);
-
-#ifdef CONFIG_RKP
-	memcpy(&is_lib_vm_for_rkp, &is_lib_vm, sizeof(struct vm_struct));
-
-	is_lib_vm_for_rkp.addr = (void *)rounddown((u64)is_lib_vm_for_rkp.addr, SECTION_SIZE);
-	is_lib_vm_for_rkp.size = (u64)roundup(is_lib_vm_for_rkp.size, SECTION_SIZE);
-
-	rkp_dyn.binary_base = is_lib_vm.phys_addr;
-	rkp_dyn.binary_size = LIB_SIZE;
-	rkp_dyn.type = RKP_DYN_COMMAND_BREAKDOWN_BEFORE_INIT;
-	ret = uh_call(UH_APP_RKP, RKP_DYNAMIC_LOAD, RKP_DYN_COMMAND_BREAKDOWN_BEFORE_INIT,(u64)&rkp_dyn, 0, 0);
-	if (ret) {
-		err_lib("fail to break-before-init FIMC in EL2");
-	}
-	vm_area_add_early(&is_lib_vm_for_rkp);
-#else
-	vm_area_add_early(&is_lib_vm);
-#endif
-
-	probe_info("is library memory: 0x%llx\n", kbase);
-
-	is_heap_vm.addr = (void *)HEAP_START;
-	is_heap_vm.size = HEAP_SIZE + PAGE_SIZE;
-
-	vm_area_add_early(&is_heap_vm);
-
-	probe_info("is heap memory: 0x%lx\n", HEAP_START);
-
-	rmem->ops = &is_rmem_ops;
-
-	return 0;
-}
-RESERVEDMEM_OF_DECLARE(is_lib, "exynos,is_lib", is_reserved_mem_setup);
-#else
-static int __init is_lib_mem_alloc(char *str)
-{
-	ulong addr = 0;
-#ifdef CONFIG_RKP
-	rkp_dynamic_load_t rkp_dyn;
-	int ret;
-#endif
-
-	if (kstrtoul(str, 0, (ulong *)&addr) || !addr) {
-		probe_warn("invalid is library memory address, use default");
-		addr = __LIB_START;
-	}
-
-	if (addr != __LIB_START)
-		probe_warn("use different address [reserve-fimc=0x%lx default:0x%lx]",
-				addr, __LIB_START);
-
-	is_lib_vm.phys_addr = memblock_alloc(LIB_SIZE, SZ_2M);
-	is_lib_vm.addr = (void *)addr;
-	is_lib_vm.size = LIB_SIZE + PAGE_SIZE;
-#ifdef CONFIG_RKP
-	memcpy(&is_lib_vm_for_rkp, &is_lib_vm, sizeof(struct vm_struct));
-
-	is_lib_vm_for_rkp.addr = (void *)rounddown((u64)is_lib_vm_for_rkp.addr, SECTION_SIZE);
-	is_lib_vm_for_rkp.size = (u64)roundup(is_lib_vm_for_rkp.size, SECTION_SIZE);
-
-	rkp_dyn.binary_base = is_lib_vm.phys_addr;
-	rkp_dyn.binary_size = LIB_SIZE;
-	rkp_dyn.type = RKP_DYN_COMMAND_BREAKDOWN_BEFORE_INIT;
-	ret = uh_call(UH_APP_RKP, RKP_DYNAMIC_LOAD, RKP_DYN_COMMAND_BREAKDOWN_BEFORE_INIT, (u64)&rkp_dyn, 0, 0);
-	if (ret) {
-		err_lib("fail to break-before-init FIMC in EL2");
-	}
-	vm_area_add_early(&is_lib_vm_for_rkp);
-	// vm_area_add_early(&is_lib_vm);
-#else
-	vm_area_add_early(&is_lib_vm);
-#endif
-
-	probe_info("is library memory: 0x%lx\n", addr);
-
-	is_heap_vm.addr = (void *)HEAP_START;
-	is_heap_vm.size = HEAP_SIZE + PAGE_SIZE;
-
-	vm_area_add_early(&is_heap_vm);
-
-	probe_info("is heap DDK memory: 0x%lx\n", HEAP_START);
-
-	is_heap_rta_vm.addr = (void *)HEAP_RTA_START;
-	is_heap_rta_vm.size = HEAP_RTA_SIZE + PAGE_SIZE;
-
-	vm_area_add_early(&is_heap_rta_vm);
-
-	probe_info("is heap RTA memory: 0x%lx\n", HEAP_RTA_START);
-
-	return 0;
-}
-__setup("reserve-fimc=", is_lib_mem_alloc);
-#endif
-
-static int is_lib_mem_map(void)
-{
-	int page_size, i;
-	struct page *page;
-	struct page **pages;
-	pgprot_t prot;
-
-#ifdef CONFIG_RKP
-	prot = PAGE_KERNEL_RKP_RO;
-#else
-	prot = PAGE_KERNEL;
-#endif
-
-	if (!is_lib_vm.phys_addr) {
-		probe_err("There is no reserve-fimc= at bootargs.");
-		return -ENOMEM;
-	}
-
-	page_size = is_lib_vm.size / PAGE_SIZE;
-	pages = kzalloc(sizeof(struct page*) * page_size, GFP_KERNEL);
-	page = phys_to_page(is_lib_vm.phys_addr);
-
-	for (i = 0; i < page_size; i++)
-		pages[i] = page++;
-
-	if (map_vm_area(&is_lib_vm, prot, pages)) {
-		probe_err("failed to mapping between virt and phys for binary");
-		vunmap(is_lib_vm.addr);
-		kfree(pages);
-		return -ENOMEM;
-	}
-
-	kfree(pages);
-
-	return 0;
-}
-
-static int is_heap_mem_map(struct is_resourcemgr *resourcemgr,
-	struct vm_struct *vm, int heap_size)
+int is_heap_mem_alloc_dynamic(struct is_resourcemgr *resourcemgr,
+	int type, int heap_size)
 {
 	struct is_mem *mem = &resourcemgr->mem;
-	struct is_priv_buf *pb;
-	struct scatterlist *sg;
-	struct sg_table *table;
-	int i, j;
-	int npages = vm->size / PAGE_SIZE;
-	struct page **pages = vmalloc(sizeof(struct page *) * npages);
-	struct page **tmp = pages;
+	struct is_minfo *minfo = &resourcemgr->minfo;
 
 	if (heap_size == 0) {
 		warn("heap size is zero");
-		vfree(pages);
 		return 0;
 	}
 
-	pb = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, heap_size, NULL, 0);
-	if (IS_ERR_OR_NULL(pb)) {
-		err("failed to allocate buffer for HEAP");
-		vfree(pages);
-		return -ENOMEM;
+	if (type == IS_BIN_LIB_HINT_DDK) {
+		if (minfo->kvaddr_heap_ddk) {
+			info_lib("DDK heap is already allocated(addr:0x%pK), use it", minfo->kvaddr_heap_ddk);
+			return 0;
+		}
+
+		minfo->pb_heap_ddk = CALL_PTR_MEMOP(mem, alloc, mem->priv, heap_size, NULL, 0);
+		if (IS_ERR_OR_NULL(minfo->pb_heap_ddk)) {
+			err("failed to allocate buffer for DDK HEAP");
+			return -ENOMEM;
+		}
+
+		minfo->kvaddr_heap_ddk = CALL_BUFOP(minfo->pb_heap_ddk, kvaddr, minfo->pb_heap_ddk);
+
+		info_lib("memory_alloc(DDK heap)(V/S): 0x%pK/0x%x", minfo->kvaddr_heap_ddk, heap_size);
+	} else if (type == IS_BIN_LIB_HINT_RTA) {
+		if (minfo->kvaddr_heap_rta) {
+			info_lib("RTA heap is already allocated(addr:0x%pK), use it", minfo->kvaddr_heap_rta);
+			return 0;
+		}
+
+		minfo->pb_heap_rta = CALL_PTR_MEMOP(mem, alloc, mem->priv, heap_size, NULL, 0);
+		if (IS_ERR_OR_NULL(minfo->pb_heap_rta)) {
+			err("failed to allocate buffer for RTA HEAP");
+			return -ENOMEM;
+		}
+
+		minfo->kvaddr_heap_rta = CALL_BUFOP(minfo->pb_heap_rta, kvaddr, minfo->pb_heap_rta);
+
+		info_lib("memory_alloc(RTA heap)(V/S): 0x%pK/0x%x", minfo->kvaddr_heap_rta, heap_size);
 	}
-
-	table = pb->sgt;
-
-	for_each_sg(table->sgl, sg, table->nents, i) {
-		int npages_this_entry = PAGE_ALIGN(sg->length) / PAGE_SIZE;
-		struct page *page = sg_page(sg);
-
-		BUG_ON(i >= npages);
-
-		for (j = 0; j < npages_this_entry; j++)
-			*(tmp++) = page++;
-	}
-
-	if (map_vm_area(vm, PAGE_KERNEL, pages)) {
-		probe_err("failed to mapping between virt and phys for binary");
-		vunmap(vm->addr);
-		vfree(pages);
-		CALL_VOID_BUFOP(pb, free, pb);
-		return -ENOMEM;
-	}
-
-	vfree(pages);
 
 	return 0;
 }
 
-static void is_bts_scen(struct is_resourcemgr *resourcemgr,
+int is_heap_mem_free(struct is_resourcemgr *resourcemgr)
+{
+	struct is_minfo *minfo = &resourcemgr->minfo;
+	int ret = 0;
+
+	if (IS_ENABLED(DISABLE_DDK_HEAP_FREE))
+		return 0;
+
+	if (minfo->pb_heap_ddk)
+		CALL_VOID_BUFOP(minfo->pb_heap_ddk, free, minfo->pb_heap_ddk);
+	if (minfo->pb_heap_rta)
+		CALL_VOID_BUFOP(minfo->pb_heap_rta, free, minfo->pb_heap_rta);
+
+	minfo->pb_taaisp_s = NULL;
+	minfo->pb_medrc_s = NULL;
+	minfo->kvaddr_heap_ddk = 0;
+	minfo->kvaddr_heap_rta = 0;
+
+	info("[RSC] %s done\n", __func__);
+
+	return ret;
+}
+
+void is_bts_scen(struct is_resourcemgr *resourcemgr,
 	unsigned int index, bool enable)
 {
-#ifdef CONFIG_EXYNOS_BTS
+#if IS_ENABLED(CONFIG_EXYNOS_BTS)
 	int ret = 0;
 	unsigned int scen_idx;
 	const char *name = resourcemgr->bts_scen[index].name;
@@ -1001,10 +906,10 @@ static void is_bts_scen(struct is_resourcemgr *resourcemgr,
 #endif
 }
 
+#if IS_ENABLED(CONFIG_EXYNOS_THERMAL) || IS_ENABLED(CONFIG_EXYNOS_THERMAL_V2)
 static int is_tmu_notifier(struct notifier_block *nb,
 	unsigned long state, void *data)
 {
-#if defined(CONFIG_EXYNOS_THERMAL) || defined(CONFIG_EXYNOS_THERMAL_V2)
 	int ret = 0, fps = 0;
 #if defined(THROTTLING_MIF_LEVEl)
 	int mif_qos = 0;
@@ -1036,7 +941,7 @@ static int is_tmu_notifier(struct notifier_block *nb,
 			warn("[RSC] THROTTLING : Unlimited FPS");
 #if defined(THROTTLING_MIF_LEVEl)
 			mif_qos = dvfs_ctrl->cur_mif_qos;
-			pm_qos_update_request(&exynos_isp_qos_mem, mif_qos);
+			is_pm_qos_update_request(&exynos_isp_qos_mem, mif_qos);
 			warn("[RSC] THROTTLING : Release min MIF level: %d", mif_qos);
 #endif
 		} else {
@@ -1044,7 +949,7 @@ static int is_tmu_notifier(struct notifier_block *nb,
 			warn("[RSC] THROTTLING : Limited %d FPS", fps);
 #if defined(THROTTLING_MIF_LEVEl)
 			mif_qos = THROTTLING_MIF_LEVEl;
-			pm_qos_update_request(&exynos_isp_qos_mem, mif_qos);
+			is_pm_qos_update_request(&exynos_isp_qos_mem, mif_qos);
 			warn("[RSC] THROTTLING : Reduce min MIF level: %d", mif_qos);
 #endif
 		}
@@ -1066,13 +971,10 @@ static int is_tmu_notifier(struct notifier_block *nb,
 #endif
 
 	return ret;
-#else
-
-	return 0;
-#endif
 }
+#endif
 
-#ifdef CONFIG_EXYNOS_ITMON
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 static int due_to_is(const char *desc)
 {
 	if (desc && (strstr((char *)desc, "CAM")
@@ -1284,7 +1186,8 @@ int is_resource_cdump(void)
 			continue;
 
 		/* clock & gpio dump */
-		exynos_is_dump_clk(&core->pdev->dev);
+		if (!in_interrupt())
+			exynos_is_dump_clk(&core->pdev->dev);
 		cinfo("### 2. SFR DUMP ###\n");
 		cinfo("Base: 0x%lx\n", core->resourcemgr.minfo.kvaddr_debug);
 		core->resourcemgr.sfrdump_ptr =
@@ -1561,7 +1464,7 @@ static void is_resourcemgr_c2_disable_work(struct work_struct *data)
 {
 	/* CPU idle on/off */
 	info("%s: call cpuidle_pause()\n", __func__);
-	cpuidle_pause();
+	cpuidle_pause_and_lock();
 }
 #endif
 
@@ -1605,63 +1508,58 @@ int is_resourcemgr_probe(struct is_resourcemgr *resourcemgr,
 	mutex_init(&resourcemgr->sysreg_lock);
 	mutex_init(&resourcemgr->qos_lock);
 
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
+	/* bus monitor unit */
+	resourcemgr->itmon_notifier.notifier_call = is_itmon_notifier;
+	resourcemgr->itmon_notifier.priority = 0;
+	itmon_notifier_chain_register(&resourcemgr->itmon_notifier);
+#endif
+
+#if IS_ENABLED(CONFIG_EXYNOS_THERMAL) || IS_ENABLED(CONFIG_EXYNOS_THERMAL_V2)
 	/* temperature monitor unit */
 	resourcemgr->tmu_notifier.notifier_call = is_tmu_notifier;
 	resourcemgr->tmu_notifier.priority = 0;
 	resourcemgr->tmu_state = ISP_NORMAL;
 	resourcemgr->limited_fps = 0;
-
 	resourcemgr->streaming_cnt = 0;
-
-	/* bus monitor unit */
-
-#ifdef CONFIG_EXYNOS_ITMON
-	resourcemgr->itmon_notifier.notifier_call = is_itmon_notifier;
-	resourcemgr->itmon_notifier.priority = 0;
-
-	itmon_notifier_chain_register(&resourcemgr->itmon_notifier);
-#endif
 
 	ret = exynos_tmu_isp_add_notifier(&resourcemgr->tmu_notifier);
 	if (ret) {
 		probe_err("exynos_tmu_isp_add_notifier is fail(%d)", ret);
 		goto p_err;
 	}
-
-#ifdef ENABLE_RESERVED_MEM
-	ret = is_resourcemgr_initmem(resourcemgr);
-	if (ret) {
-		probe_err("is_resourcemgr_initmem is fail(%d)", ret);
-		goto p_err;
-	}
 #endif
 
-	ret = is_lib_mem_map();
+	ret = pablo_rscmgr_init_rmem(resourcemgr, np);
 	if (ret) {
-		probe_err("is_lib_mem_map is fail(%d)", ret);
+		probe_err("failed to init reserved memory(%d)", ret);
 		goto p_err;
 	}
 
-	ret = is_heap_mem_map(resourcemgr, &is_heap_vm, HEAP_SIZE);
+	ret = is_resourcemgr_init_mem(resourcemgr);
 	if (ret) {
-		probe_err("is_heap_mem_map for HEAP_DDK is fail(%d)", ret);
+		probe_err("is_resourcemgr_init_mem is fail(%d)", ret);
 		goto p_err;
 	}
 
-	ret = is_heap_mem_map(resourcemgr, &is_heap_rta_vm, HEAP_RTA_SIZE);
-	if (ret) {
-		probe_err("is_heap_mem_map for HEAP_RTA is fail(%d)", ret);
-		goto p_err;
+	if (!pablo_bin_vm.phys_addr) {
+		pablo_bin_vm.addr = (void *)LIB_START;
+		/* LIB_SIZE is total size of ddk, vra, rta, frees and heaps */
+		pablo_bin_vm.size = LIB_SIZE;
+		ret = pablo_alloc_n_map(&resourcemgr->mem, &pablo_bin_vm,
+							PAGE_KERNEL_EXEC);
+		if (ret) {
+			probe_err("failed to alloc and map for binary(%d)", ret);
+			goto p_err;
+		}
 	}
 
-#ifdef ENABLE_DVFS
 	/* dvfs controller init */
 	ret = is_dvfs_init(resourcemgr);
 	if (ret) {
 		probe_err("%s: is_dvfs_init failed!\n", __func__);
 		goto p_err;
 	}
-#endif
 
 #ifdef ENABLE_PANIC_HANDLER
 	atomic_notifier_chain_register(&panic_notifier_list, &notify_panic_block);
@@ -1697,6 +1595,8 @@ int is_resourcemgr_probe(struct is_resourcemgr *resourcemgr,
 #if defined(DISABLE_CORE_IDLE_STATE)
 	INIT_WORK(&resourcemgr->c2_disable_work, is_resourcemgr_c2_disable_work);
 #endif
+
+	INIT_LIST_HEAD(&resourcemgr->regulator_list);
 
 p_err:
 	probe_info("[RSC] %s(%d)\n", __func__, ret);
@@ -1908,8 +1808,8 @@ int is_resource_get(struct is_resourcemgr *resourcemgr, u32 rsc_type)
 			goto p_err;
 		}
 #endif
-#if defined(CONFIG_EXYNOS_BCM_DBG_AUTO) || defined(CONFIG_EXYNOS_BCM_DBG_GNR)
-		exynos_bcm_dbg_start();
+#if IS_ENABLED(CONFIG_EXYNOS_BCM_DBG_AUTO) || IS_ENABLED(CONFIG_EXYNOS_BCM_DBG_GNR)
+		//exynos_bcm_dbg_start();
 #endif
 #ifdef DISABLE_BTS_CALC
 		bts_calc_disable(1);
@@ -1983,6 +1883,7 @@ int is_resource_get(struct is_resourcemgr *resourcemgr, u32 rsc_type)
 #endif
 
 			is_bts_scen(resourcemgr, 0, true);
+			resourcemgr->cur_bts_scen_idx = 0;
 
 			is_hw_ischain_qe_cfg();
 
@@ -2123,10 +2024,13 @@ int is_resource_put(struct is_resourcemgr *resourcemgr, u32 rsc_type)
 			/* CPU idle on/off */
 			info("%s: call cpuidle_resume()\n", __func__);
 			flush_work(&resourcemgr->c2_disable_work);
-
-			cpuidle_resume();
+			cpuidle_resume_and_unlock();
 #endif
 
+			if (resourcemgr->cur_bts_scen_idx) {
+				is_bts_scen(resourcemgr, resourcemgr->cur_bts_scen_idx, false);
+				resourcemgr->cur_bts_scen_idx = 0;
+			}
 			is_bts_scen(resourcemgr, 0, false);
 
 			break;
@@ -2139,8 +2043,8 @@ int is_resource_put(struct is_resourcemgr *resourcemgr, u32 rsc_type)
 	if (atomic_read(&core->rsccount) == 1) {
 		u32 current_min, current_max;
 
-#if defined(CONFIG_EXYNOS_BCM_DBG_AUTO) || defined(CONFIG_EXYNOS_BCM_DBG_GNR)
-		exynos_bcm_dbg_stop(CAMERA_DRIVER);
+#if IS_ENABLED(CONFIG_EXYNOS_BCM_DBG_AUTO) || IS_ENABLED(CONFIG_EXYNOS_BCM_DBG_GNR)
+		//exynos_bcm_dbg_stop(CAMERA_DRIVER);
 #endif
 #ifdef DISABLE_BTS_CALC
 		bts_calc_disable(0);
@@ -2303,7 +2207,7 @@ int is_resource_ioctl(struct is_resourcemgr *resourcemgr, struct v4l2_control *c
 	/* ATLAS CPU6~7 */
 	case V4L2_CID_IS_DVFS_CLUSTER2:
 		{
-#if defined(PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE)
+#if defined(PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE) && defined(PM_QOS_CLUSTER2_FREQ_MAX)
 			u32 current_min, current_max;
 			u32 request_min, request_max;
 
@@ -2357,6 +2261,8 @@ void is_resource_set_global_param(struct is_resourcemgr *resourcemgr, void *devi
 		global_param->video_mode = video_mode;
 		ischain->hardware->video_mode = video_mode;
 		minfo("video mode %d\n", ischain, video_mode);
+
+		is_hw_configure_llc(true, resourcemgr->dvfs_ctrl.static_ctrl->cur_scenario_id);
 	}
 
 	set_bit(ischain->instance, &global_param->state);
@@ -2376,6 +2282,8 @@ void is_resource_clear_global_param(struct is_resourcemgr *resourcemgr, void *de
 	if (!global_param->state) {
 		global_param->video_mode = false;
 		ischain->hardware->video_mode = false;
+
+		is_hw_configure_llc(false, 0);
 	}
 
 	mutex_unlock(&global_param->lock);

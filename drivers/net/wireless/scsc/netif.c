@@ -330,7 +330,7 @@ static int slsi_net_open(struct net_device *dev)
 	slsi_wake_lock(&sdev->wlan_wl_init);
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
-	if (!sdev->netdev_up_count ) {
+	if (!sdev->netdev_up_count) {
 		slsi_purge_blacklist(ndev_vif);
 		memset(&sdev->wake_reason_stats, 0, sizeof(struct slsi_wlan_driver_wake_reason_cnt));
 	} else if (sdev->netdev_up_count == 1) {
@@ -1348,7 +1348,7 @@ static void slsi_if_setup(struct net_device *dev)
 }
 
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI
-#if defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS3830) || defined(CONFIG_SOC_S5E3830)
 #define SCSC_NETIF_NAPI_CPU_BIG                   7
 #define SCSC_NETIF_RPS_CPUS_MASK                  "fe"
 #define SCSC_NETIF_RPS_CPUS_BIG_MASK              "70"
@@ -1370,7 +1370,7 @@ static void slsi_if_setup(struct net_device *dev)
 #define SCSC_NETIF_RPS_CPUS_BIG_MASK              "0"
 #endif
 #else
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_EXYNOS3830) || defined(CONFIG_SOC_S5E3830)
 #define SCSC_NETIF_RPS_CPUS_MASK                  "fe"
 #else
 #define SCSC_NETIF_RPS_CPUS_MASK                  "0"
@@ -2025,6 +2025,13 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev)
 			kfree(ssid_info);
 		}
 #endif
+
+		kfree(ndev_vif->acl_data_supplicant);
+		ndev_vif->acl_data_supplicant = NULL;
+
+		kfree(ndev_vif->acl_data_hal);
+		ndev_vif->acl_data_hal = NULL;
+
 		list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
 			struct slsi_bssid_blacklist_info *blacklist_info = list_entry(blacklist_pos,
 				struct slsi_bssid_blacklist_info, list);

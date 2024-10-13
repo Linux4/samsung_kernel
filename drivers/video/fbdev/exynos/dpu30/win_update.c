@@ -143,6 +143,7 @@ static void win_update_check_limitation(struct decon_device *decon,
 				goto change_full;
 		}
 
+                memset(&ch_res, 0, sizeof(struct dpp_ch_restriction));
 		sd = decon->dpp_sd[0];
 		v4l2_subdev_call(sd, core, ioctl, DPP_GET_RESTRICTION, &ch_res);
 		res = &ch_res.restriction;

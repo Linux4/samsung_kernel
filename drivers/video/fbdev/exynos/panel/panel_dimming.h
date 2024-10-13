@@ -30,6 +30,8 @@ struct panel_dimming_info {
 	bool dim_flash_on;
 	s32 *dim_flash_gamma_offset;
 	struct panel_irc_info *irc_info;
+	unsigned int *brightness_code;
+	unsigned int (*brightness_func[2])(unsigned int n1, unsigned int n2);
 };
 
 enum {

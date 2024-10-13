@@ -12,6 +12,8 @@
 #ifndef __SND_SOC_ABOX_SOC_23_H
 #define __SND_SOC_ABOX_SOC_23_H
 
+#include "abox_soc.h"
+
 /* System */
 #define ABOX_IP_INDEX			0x0000
 #define ABOX_VERSION			0x0004
@@ -437,8 +439,10 @@
 /* RDMA */
 #define ABOX_RDMA_BASE			0x1000
 #define ABOX_RDMA_ITV			0x0100
-#define ABOX_RDMA_CTRL0(x)		ABOX_SFR(RDMA, 0x00, x)
-#define ABOX_RDMA_CTRL1(x)		ABOX_SFR(RDMA, 0x04, x)
+#define ABOX_RDMA_CTRL(x)               ABOX_SFR(RDMA, 0x00, x)
+#define ABOX_RDMA_BUF_CTRL(x)           ABOX_SFR(RDMA, 0x04, x)
+#define ABOX_RDMA_CTRL0(x)              ABOX_RDMA_CTRL(x)
+#define ABOX_RDMA_CTRL1(x)              ABOX_RDMA_BUF_CTRL(x)
 #define ABOX_RDMA_BUF_STR(x)		ABOX_SFR(RDMA, 0x08, x)
 #define ABOX_RDMA_BUF_END(x)		ABOX_SFR(RDMA, 0x0C, x)
 #define ABOX_RDMA_BUF_OFFSET(x)		ABOX_SFR(RDMA, 0x10, x)
@@ -487,7 +491,10 @@
 /* WDMA */
 #define ABOX_WDMA_BASE			0x3000
 #define ABOX_WDMA_ITV			0x0100
-#define ABOX_WDMA_CTRL(x)		ABOX_SFR(WDMA, 0x00, x)
+#define ABOX_WDMA_CTRL(x)               ABOX_SFR(WDMA, 0x00, x)
+#define ABOX_WDMA_BUF_CTRL(x)           ABOX_SFR(WDMA, 0x04, x)
+#define ABOX_WDMA_CTRL0(x)              ABOX_WDMA_CTRL(x)
+#define ABOX_WDMA_CTRL1(x)              ABOX_WDMA_BUF_CTRL(x)
 #define ABOX_WDMA_BUF_STR(x)		ABOX_SFR(WDMA, 0x08, x)
 #define ABOX_WDMA_BUF_END(x)		ABOX_SFR(WDMA, 0x0C, x)
 #define ABOX_WDMA_BUF_OFFSET(x)		ABOX_SFR(WDMA, 0x10, x)
@@ -954,7 +961,29 @@
 
 #define ABOX_MAX_REGISTERS		ABOX_SIDETONE_HIGHSH_COEF4
 
-#if IS_ENABLED(CONFIG_SOC_EXYNOS3830)
+#define AUD_PLL_RATE_HZ_FOR_48000       (1032192118)
+#define AUD_PLL_RATE_HZ_FOR_44100       (1083801600)
+
+#define TIMER_RATE 26000000ULL
+#define TIMER_MOD 2000000
+/* Predefined rate of MUX_CLK_AUD_UAIF for slave mode */
+#define UAIF_RATE_MUX_SLAVE 100000000
+
+#define COUNT_SIFS 6
+#define COUNT_SPUS 12
+#define COUNT_SIFM 5
+#define COUNT_SPUM 5
+
+enum abox_gic_target {
+	ABOX_GIC_CORE0,
+	ABOX_GIC_CP,
+	ABOX_GIC_AP,
+	ABOX_GIC_CORE1,
+	ABOX_GIC_CORE2,
+	ABOX_GIC_CORE3,
+};
+
+#if IS_ENABLED(CONFIG_SOC_S5E3830)
 enum abox_irq {
 	SGI_IPC_RECEIVED	= 0x0,
 	SGI_IPC_SYSTEM		= 0x1,

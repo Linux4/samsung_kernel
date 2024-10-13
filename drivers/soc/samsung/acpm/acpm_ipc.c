@@ -9,6 +9,7 @@
 
 #include <linux/io.h>
 #include <linux/kernel.h>
+#include <linux/notifier.h>
 #include <linux/init.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -19,8 +20,11 @@
 #include <linux/list.h>
 #include <linux/wait.h>
 #include <linux/slab.h>
-#include <linux/debug-snapshot.h>
+#include <soc/samsung/debug-snapshot.h>
 #include <linux/sched/clock.h>
+#include <linux/module.h>
+#include <linux/workqueue.h>
+#include <linux/kdebug.h>
 
 #include "acpm.h"
 #include "acpm_ipc.h"
@@ -174,6 +178,7 @@ void acpm_stop_log(void)
 	acpm_stop_log_req = true;
 	acpm_log_print();
 }
+EXPORT_SYMBOL_GPL(acpm_stop_log);
 
 static void acpm_update_log(struct work_struct *work)
 {
@@ -185,7 +190,7 @@ static void acpm_debug_logging(struct work_struct *work)
 	acpm_log_print();
 	timestamp_write();
 
-	queue_delayed_work(update_log_wq, &acpm_debug->periodic_work,
+	queue_delayed_work_on(0, update_log_wq, &acpm_debug->periodic_work,
 			msecs_to_jiffies(acpm_debug->period));
 }
 
@@ -219,6 +224,7 @@ int acpm_ipc_set_ch_mode(struct device_node *np, bool polling)
 
 	return -ENODEV;
 }
+EXPORT_SYMBOL_GPL(acpm_ipc_set_ch_mode);
 
 unsigned int acpm_ipc_request_channel(struct device_node *np, ipc_callback handler,
 		unsigned int *id, unsigned int *size)
@@ -259,6 +265,7 @@ unsigned int acpm_ipc_request_channel(struct device_node *np, ipc_callback handl
 
 	return -ENODEV;
 }
+EXPORT_SYMBOL_GPL(acpm_ipc_request_channel);
 
 unsigned int acpm_ipc_release_channel(struct device_node *np, unsigned int channel_id)
 {
@@ -278,6 +285,7 @@ unsigned int acpm_ipc_release_channel(struct device_node *np, unsigned int chann
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(acpm_ipc_release_channel);
 
 static bool check_response(struct acpm_ipc_ch *channel, struct ipc_config *cfg)
 {
@@ -500,6 +508,7 @@ int acpm_ipc_send_data_sync(unsigned int channel_id, struct ipc_config *cfg)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(acpm_ipc_send_data_sync);
 
 int __acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg, bool w_mode)
 {
@@ -634,6 +643,7 @@ int acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(acpm_ipc_send_data);
 
 int acpm_ipc_send_data_lazy(unsigned int channel_id, struct ipc_config *cfg)
 {
@@ -646,6 +656,7 @@ int acpm_ipc_send_data_lazy(unsigned int channel_id, struct ipc_config *cfg)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(acpm_ipc_send_data_lazy);
 
 static void log_buffer_init(struct device *dev, struct device_node *node)
 {
@@ -653,6 +664,7 @@ static void log_buffer_init(struct device *dev, struct device_node *node)
 	unsigned int num_timestamps = 0;
 	unsigned int len = 0;
 	unsigned int dump_base = 0;
+	unsigned int dram_dump_base = 0;
 	unsigned int dump_size = 0;
 
 	prop = of_get_property(node, "num-timestamps", &len);
@@ -694,11 +706,17 @@ static void log_buffer_init(struct device *dev, struct device_node *node)
 	if (prop)
 		acpm_debug->period = be32_to_cpup(prop);
 
-#ifdef CONFIG_DEBUG_SNAPSHOT
 	acpm_debug->dump_dram_base = kzalloc(acpm_debug->dump_size, GFP_KERNEL);
 	dbg_snapshot_printk("[ACPM] acpm framework SRAM dump to dram base: 0x%x\n",
 			virt_to_phys(acpm_debug->dump_dram_base));
-#endif
+
+	dbg_snapshot_add_bl_item_info("acpm_dram", virt_to_phys(acpm_debug->dump_dram_base),
+						acpm_debug->dump_size);
+	prop = of_get_property(node, "dram-dump-base", &len);
+	if (prop) {
+		dram_dump_base = be32_to_cpup(prop);
+		dbg_snapshot_add_bl_item_info("acpm_sram", dram_dump_base, acpm_debug->dump_size);
+	}
 	pr_info("[ACPM] acpm framework SRAM dump to dram base: 0x%llx\n",
 			virt_to_phys(acpm_debug->dump_dram_base));
 
@@ -753,11 +771,28 @@ static int channel_init(void)
 	return 0;
 }
 
-static int acpm_ipc_probe(struct platform_device *pdev)
+static int acpm_ipc_die_handler(struct notifier_block *nb,
+		unsigned long l, void *buf)
+{
+	if (!acpm_stop_log_req)
+		acpm_stop_log();
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block nb_die_block = {
+	.notifier_call = acpm_ipc_die_handler,
+};
+
+static struct notifier_block nb_panic_block = {
+	.notifier_call = acpm_ipc_die_handler,
+	.priority = INT_MAX,
+};
+
+int acpm_ipc_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct resource *res;
-	struct workqueue_attrs attr;
+//	struct workqueue_attrs attr;
 	int ret = 0, len;
 	const __be32 *prop;
 
@@ -777,10 +812,6 @@ static int acpm_ipc_probe(struct platform_device *pdev)
 
 	acpm_ipc->irq = irq_of_parse_and_map(node, 0);
 
-	ret = devm_request_threaded_irq(&pdev->dev, acpm_ipc->irq, acpm_ipc_irq_handler,
-			acpm_ipc_irq_handler_thread,
-			IRQF_ONESHOT,
-			dev_name(&pdev->dev), acpm_ipc);
 
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register acpm_ipc interrupt:%d\n", ret);
@@ -814,53 +845,30 @@ static int acpm_ipc_probe(struct platform_device *pdev)
 
 	channel_init();
 
-	attr.nice = 0;
-	attr.no_numa = true;
-	cpumask_copy(attr.cpumask, cpu_coregroup_mask(0));
-
 	update_log_wq = alloc_workqueue("%s", __WQ_LEGACY | WQ_MEM_RECLAIM | WQ_UNBOUND,
 			1, "acpm_update_log");
-	apply_workqueue_attrs(update_log_wq, &attr);
 	INIT_WORK(&acpm_debug->update_log_work, acpm_update_log);
 
 	if (acpm_debug->period) {
 		INIT_DELAYED_WORK(&acpm_debug->periodic_work, acpm_debug_logging);
 
-		queue_delayed_work(update_log_wq, &acpm_debug->periodic_work,
+		queue_delayed_work_on(0, update_log_wq, &acpm_debug->periodic_work,
 				msecs_to_jiffies(acpm_debug->period));
 	}
 
+//	register_die_notifier(&nb_die_block);
+	atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);
+
+	ret = devm_request_threaded_irq(&pdev->dev, acpm_ipc->irq, acpm_ipc_irq_handler,
+			acpm_ipc_irq_handler_thread,
+			IRQF_ONESHOT,
+			dev_name(&pdev->dev), acpm_ipc);
+
+	dev_info(&pdev->dev, "acpm_ipc probe done.\n");
 	return ret;
 }
 
-static int acpm_ipc_remove(struct platform_device *pdev)
+int acpm_ipc_remove(struct platform_device *pdev)
 {
 	return 0;
 }
-
-static void acpm_ipc_shutdown(struct platform_device *pdev)
-{
-	acpm_stop_log();
-}
-
-static const struct of_device_id acpm_ipc_match[] = {
-	{ .compatible = "samsung,exynos-acpm-ipc" },
-	{},
-};
-
-static struct platform_driver samsung_acpm_ipc_driver = {
-	.probe	= acpm_ipc_probe,
-	.remove	= acpm_ipc_remove,
-	.shutdown = acpm_ipc_shutdown,
-	.driver	= {
-		.name = "exynos-acpm-ipc",
-		.owner	= THIS_MODULE,
-		.of_match_table	= acpm_ipc_match,
-	},
-};
-
-static int __init exynos_acpm_ipc_init(void)
-{
-	return platform_driver_register(&samsung_acpm_ipc_driver);
-}
-arch_initcall(exynos_acpm_ipc_init);

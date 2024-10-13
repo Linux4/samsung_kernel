@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
  *              http://www.samsung.com
  *
  * Author: Sung-Hyun Na <sunghyun.na@samsung.com>
@@ -482,7 +483,8 @@ void phy_exynos_usb_v3p1_enable(struct exynos_usbphy_info *info)
 
 	/* Follow setting sequence for USB Link */
 	/* 1. Set VBUS Valid and DP-Pull up control
-	 * by VBUS pad usage */
+	 * by VBUS pad usage
+	 */
 	link_vbus_filter_en(info, false);
 	reg = readl(regs_base + EXYNOS_USBCON_UTMI);
 	reg_hsp = readl(regs_base + EXYNOS_USBCON_HSP);
@@ -1025,11 +1027,12 @@ void phy_exynos_usb_v3p1_late_enable(struct exynos_usbphy_info *info)
 
 		tune_val = exynos_usb3p1_get_tune_param(info, "cr_lvl_ctrl_en");
 		if (tune_val != -1) {
-			/* Enable override los_bias, los_level and
-			 * tx_vboost_lvl, Set los_bias to 0x5 and
-			 * los_level to 0x9 */
-			phy_exynos_usb_v3p1_cal_cr_write(info, 0x15, 0xA409);
-			/* Set TX_VBOOST_LEVLE to tune->tx_boost_level */
+				/* Enable override los_bias, los_level and
+				 * tx_vboost_lvl, Set los_bias to 0x5 and
+				 * los_level to 0x9
+				 */
+				phy_exynos_usb_v3p1_cal_cr_write(info, 0x15, 0xA409);
+				/* Set TX_VBOOST_LEVLE to tune->tx_boost_level */
 			tune_val = exynos_usb3p1_get_tune_param(info, "tx_vboost_lvl");
 			if (tune_val != -1) {
 				cr_reg = phy_exynos_usb_v3p1_cal_cr_read(info, 0x12);
@@ -1051,19 +1054,19 @@ void phy_exynos_usb_v3p1_late_enable(struct exynos_usbphy_info *info)
 				cr_reg = 0;
 			if (cr_reg)
 				phy_exynos_usb_v3p1_cal_cr_write(info, 0x1002, cr_reg);
-		}
-		/* to set the charge pump proportional current */
+			}
+			/* to set the charge pump proportional current */
 		tune_val = exynos_usb3p1_get_tune_param(info, "mpll_charge_pump");
 		if (tune_val != -1)
-			phy_exynos_usb_v3p1_cal_cr_write(info, 0x30, 0xC0);
+				phy_exynos_usb_v3p1_cal_cr_write(info, 0x30, 0xC0);
 
 		tune_val = exynos_usb3p1_get_tune_param(info, "rx_eq_fix_val");
 		if (tune_val != -1)
-			phy_exynos_usb_v3p1_cal_usb3phy_tune_fix_rxeq(info);
+				phy_exynos_usb_v3p1_cal_usb3phy_tune_fix_rxeq(info);
 
 		tune_val = exynos_usb3p1_get_tune_param(info, "decrese_ss_tx_imp");
 		if (tune_val != -1)
-			set_ss_tx_impedance(info);
+				set_ss_tx_impedance(info);
 	}
 
 	if (ss_cap) { // KITT Gen2 PHY CR Control
@@ -1241,7 +1244,6 @@ void phy_exynos_usb_v3p1_tune(struct exynos_usbphy_info *info)
 
 	if (!info->tune_param)
 		return;
-
 	if (!ss_only_cap) {
 		/* hsphy tuning */
 		void __iomem *regs_base = info->regs_base;
@@ -1748,7 +1750,11 @@ int phy_exynos_usb3p1_rewa_req_sys_valid(struct exynos_usbphy_info *info)
 		if (reg & HSREWA_CTRL_HS_EVT_DISCON)
 			return HS_REWA_EN_STS_DISCONNECT;
 		/* Success ReWA Enable */
+#if defined(CONFIG_OTG_CDP_SUPPORT)
+		if (reg & HSREWA_CTRL_HS_EVT_RET_DIS)
+#else
 		if (reg & HSREWA_CTRL_HS_EVT_RET_EN)
+#endif
 			break;
 		udelay(30);
 	}
@@ -1804,7 +1810,7 @@ int phy_exynos_usb3p1_rewa_disable(struct exynos_usbphy_info *info)
 
 int phy_exynos_usb3p1_rewa_cancel(struct exynos_usbphy_info *info)
 {
-	int ret;
+	int ret = 0;
 	u32 reg;
 	void __iomem *regs_base = info->regs_base;
 
@@ -1815,7 +1821,9 @@ int phy_exynos_usb3p1_rewa_cancel(struct exynos_usbphy_info *info)
 	if (!(reg & REWA_ENABLE_HS_REWA_EN))
 		return 0;
 
+#if !defined(CONFIG_OTG_CDP_SUPPORT)
 	ret = phy_exynos_usb3p1_rewa_req_sys_valid(info);
+#endif
 
 	/*  Disable ReWA */
 	reg = readl(regs_base + EXYNOS_USBCON_REWA_ENABLE);
@@ -2106,3 +2114,98 @@ enum exynos_usb_bc phy_exynos_usb3p1_bc_battery_charger_detection(struct exynos_
 
 	return chg_port;
 }
+
+#if defined(CONFIG_OTG_CDP_SUPPORT)
+u8 phy_exynos_usb3p1_bc_operate_cdp(struct exynos_usbphy_info *usbphy_info)
+{
+	void __iomem *regs_base = usbphy_info->regs_base;
+	u32 utmi_ctrl, hsp_ctrl;
+	u32 chgdet, fsvplus, fsvminus;
+	u8 bc_support = false;
+	u8 timeout = false;
+	u32 cnt = 0;
+
+	// set UTMI_CTRL
+	utmi_ctrl = readl(regs_base + EXYNOS_USBCON_UTMI);
+	utmi_ctrl |= UTMI_OPMODE_CTRL_EN;
+	utmi_ctrl &= ~UTMI_FORCE_OPMODE_MASK;
+	utmi_ctrl |= UTMI_FORCE_OPMODE_SET(1);
+	utmi_ctrl |= UTMI_DP_PULLDOWN;
+	utmi_ctrl |= UTMI_DM_PULLDOWN;
+	utmi_ctrl |= UTMI_FORCE_SUSPEND;
+	writel(utmi_ctrl, regs_base + EXYNOS_USBCON_UTMI);
+
+	/* Step 1.1. Primary Detection voltage sensing on the D+ line */
+	hsp_ctrl = readl(regs_base + EXYNOS_USBCON_HSP);
+	hsp_ctrl |= HSP_CHRGSEL;
+	hsp_ctrl &= ~HSP_VDATSRCENB;
+	hsp_ctrl |= HSP_VDATDETENB;
+	hsp_ctrl &= ~HSP_DCDENB;
+	writel(hsp_ctrl, regs_base + EXYNOS_USBCON_HSP);
+
+	while (1) {
+		hsp_ctrl = readl(regs_base + EXYNOS_USBCON_HSP);
+		chgdet = HSP_CHGDET_GET(hsp_ctrl);
+		fsvplus = HSP_FSVPLUS_GET(hsp_ctrl);
+		fsvminus = HSP_FSVMINUS_GET(hsp_ctrl);
+
+		mdelay(1);
+		cnt++;
+
+		if (cnt >= 1000)	// TSVLD_CON_PWD, max 1s
+			timeout = true;
+
+		if (chgdet || fsvplus || fsvminus || timeout)
+			break;
+	}
+	pr_info("chgdet = %d, fsvplus = %d, fsvminus = %d\n", chgdet, fsvplus, fsvminus);
+	pr_info("timeout = %d\n", timeout);
+	pr_info("cnt = %d, Primary DP on\n", cnt);
+
+	if (chgdet && !fsvplus && !fsvminus && !timeout) {
+		/* Step 1.2. Primary Detection, voltage sourcing on the D- line */
+		hsp_ctrl = readl(regs_base + EXYNOS_USBCON_HSP);
+		hsp_ctrl |= HSP_VDATSRCENB;
+		writel(hsp_ctrl, regs_base + EXYNOS_USBCON_HSP);
+
+		cnt = 0;
+		while (1) {
+			mdelay(1);
+			cnt++;
+
+			hsp_ctrl = readl(regs_base + EXYNOS_USBCON_HSP);
+			chgdet = HSP_CHGDET_GET(hsp_ctrl);
+
+			if (!chgdet)
+				break;
+		}
+		pr_info("cnt = %d, Primary DP off\n", cnt);
+
+		/* Step 1.3. Primary Detection, turn off D- line */
+		hsp_ctrl = readl(regs_base + EXYNOS_USBCON_HSP);
+		hsp_ctrl &= ~HSP_VDATSRCENB;
+		writel(hsp_ctrl, regs_base + EXYNOS_USBCON_HSP);
+
+		if (cnt > 36)	// TVDPSRC_ON, min 40ms
+			bc_support = 1;
+	}
+
+	// restore HSP_CTRL
+	hsp_ctrl = readl(regs_base + EXYNOS_USBCON_HSP);
+	hsp_ctrl &= ~HSP_CHRGSEL;
+	hsp_ctrl &= ~HSP_VDATSRCENB;
+	hsp_ctrl &= ~HSP_VDATDETENB;
+	writel(hsp_ctrl, regs_base + EXYNOS_USBCON_HSP);
+
+	// restore UTMI_CTRL
+	utmi_ctrl = readl(regs_base + EXYNOS_USBCON_UTMI);
+	utmi_ctrl &= ~UTMI_OPMODE_CTRL_EN;
+	utmi_ctrl &= ~UTMI_FORCE_OPMODE_MASK;
+	utmi_ctrl &= ~UTMI_FORCE_SUSPEND;
+	writel(utmi_ctrl, regs_base + EXYNOS_USBCON_UTMI);
+
+	pr_info("bc_support = %d\n", bc_support);
+
+	return bc_support;
+}
+#endif

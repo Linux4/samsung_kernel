@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2012 Samsung Electronics Co., Ltd.
  *	      http://www.samsung.com/
  *
  * EXYNOS - Security Dump Manager support

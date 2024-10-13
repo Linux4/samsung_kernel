@@ -22,5 +22,6 @@
 int initialize_indio_dev(struct device *dev);
 void remove_indio_dev(void);
 void shub_report_sensordata(int type, u64 timestamp, char *data, int data_len);
+void remove_empty_dev(void);
 
 #endif /* __SHUB_IIO_H_ */

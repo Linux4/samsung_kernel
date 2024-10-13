@@ -22,7 +22,11 @@
 #include <linux/io.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/consumer.h>
+#if IS_ENABLED(CONFIG_EXYNOS_PMU_IF)
+#include <soc/samsung/exynos-pmu-if.h>
+#else
 #include <soc/samsung/exynos-pmu.h>
+#endif
 
 /* the maximum number of PHY for each module */
 #define EXYNOS_MIPI_PHYS_NUM	4
@@ -155,7 +159,7 @@ static int __set_phy_init(struct exynos_mipi_phy *state,
 	}
 
 	/* Add INIT_DONE flag when ISO is already bypass(LCD_ON_UBOOT) */
-	if (cfg && EXYNOS_MIPI_PHY_ISO_BYPASS)
+	if (cfg & EXYNOS_MIPI_PHY_ISO_BYPASS)
 		phy_desc->data->flags |= MIPI_PHY_MxSx_INIT_DONE;
 
 phy_exit:
@@ -799,17 +803,17 @@ static int __set_phy_cfg_0503_0004_dcphy(void __iomem *regs, int option, u32 *cf
 
 		for (i = 0; i <= cfg[LANES]; i++) {
 			writel(0x00001450, regs + 0x0104 + (i * 0x100)); /* SD_GNR_CON1 */
-			writel(0x00000004, regs + 0x0108 + (i * 0x100)); /* SD_ANA_CON0 */
+			writel(0x00000005, regs + 0x0108 + (i * 0x100)); /* SD_ANA_CON0 */
 			writel(0x00008b48, regs + 0x010c + (i * 0x100)); /* SD_ANA_CON1 */
 			writel(0x00000005, regs + 0x0110 + (i * 0x100)); /* SD_ANA_CON2 */
-			writel(0x00000600, regs + 0x0114 + (i * 0x100)); /* SD_ANA_CON3 */
-			writel(0x00000608, regs + 0x0120 + (i * 0x100)); /* SD_ANA_CON6 */
+			writel(0x00008600, regs + 0x0114 + (i * 0x100)); /* SD_ANA_CON3 */
+			writel(0x00000660, regs + 0x0120 + (i * 0x100)); /* SD_ANA_CON6 */
 			writel(0x00000040, regs + 0x0124 + (i * 0x100)); /* SD_ANA_CON7 */
 			update_bits(regs + 0x0130 + (i * 0x100), 0, 8, cfg[SETTLE]);    /* SD_TIME_CON0 */
 			update_bits(regs + 0x0130 + (i * 0x100), 8, 1, settle_clk_sel); /* SD_TIME_CON0 */
 			writel(0x00000032, regs + 0x0134 + (i * 0x100)); /* SD_TIME_CON1 */
-			writel(0x00001500, regs + 0x0164 + (i * 0x100)); /* SD_CRC_CON1 */
-			writel(0x00000030, regs + 0x0168 + (i * 0x100)); /* SD_CRC_CON2 */
+			writel(0x00001583, regs + 0x0164 + (i * 0x100)); /* SD_CRC_CON1 */
+			writel(0x00000010, regs + 0x0168 + (i * 0x100)); /* SD_CRC_CON2 */
 			/* Enable should be set at last. */
 			writel(0x00000001, regs + 0x0100 + (i * 0x100)); /* SD_GNR_CON0 , Phy data enable */
 		}
@@ -860,7 +864,6 @@ static int __set_phy_cfg_0503_0005_dphy(void __iomem *regs, int option, u32 *cfg
 	if (cfg[SPEED] >= PHY_REF_SPEED) {
 		settle_clk_sel = 0;
 		skew_cal_en = 1;
-
 		if (cfg[SPEED] >= 4000 && cfg[SPEED] <= 6500)
 			skew_delay_sel = 0;
 		else if (cfg[SPEED] >= 3000 && cfg[SPEED] < 4000)
@@ -874,6 +877,7 @@ static int __set_phy_cfg_0503_0005_dphy(void __iomem *regs, int option, u32 *cfg
 	}
 
 	/* clock */
+	writel(0x00000001, regs + 0x0000); /* SC_GNR_CON0, Phy clock enable */
 	writel(0x00001450, regs + 0x0004); /* SC_GNR_CON1 */
 	if (cfg[SPEED] > 4500)
 		writel(0x00000000, regs + 0x0008); /* SC_ANA_CON0 */
@@ -894,6 +898,7 @@ static int __set_phy_cfg_0503_0005_dphy(void __iomem *regs, int option, u32 *cfg
 	lane_regs = ioremap(0x150D2E00, 0x200);
 
 	for (i = 0; i <= cfg[LANES]; i++) {
+		writel(0x00000001, lane_regs + 0x0000 + (i * 0x100)); /* SD_GNR_CON0 , Phy data enable */
 		writel(0x00001450, lane_regs + 0x0004 + (i * 0x100)); /* SD_GNR_CON1 */
 		if (cfg[SPEED] > 4500) {
 			writel(0x00000000, lane_regs + 0x0008 + (i * 0x100)); /* SD_ANA_CON0 */
@@ -953,6 +958,114 @@ static int __set_phy_cfg_0503_0008_dphy(void __iomem *regs, int option, u32 *cfg
 
 		update_bits(regs + 0x14AC + (i * 0x400), 2, 1, hs_mode_sel); /* DPHY_DCTRL_SD_05 */
 		update_bits(regs + 0x14B0 + (i * 0x400), 0, 8, cfg[SETTLE]); /* DPHY_DCTRL_SD_06 */
+	}
+
+	return 0;
+}
+
+static int __set_phy_cfg_0504_0000_dcphy(void __iomem *regs, int option, u32 *cfg)
+{
+	int i;
+	u32 type = cfg[TYPE] & 0xffff;
+	u32 mode = cfg[TYPE] >> 16;
+	u32 settle_clk_sel = 1;
+	u32 skew_delay_sel = 0;
+	u32 skew_cal_en = 0;
+
+	void __iomem *bias;
+
+	bias = ioremap(0x170A1000, 0x1000);
+
+	/* BIAS_SET */
+	writel(0x00000010, bias + 0x0000); /* M_BIAS_CON0 */
+	writel(0x00000110, bias + 0x0004); /* M_BIAS_CON1 */
+	writel(0x00003223, bias + 0x0008); /* M_BIAS_CON2 */
+
+	if (mode == 0x000C)
+		writel(0x00000040, bias + 0x0010); /* M1_BIAS_CON4 */
+
+	iounmap(bias);
+
+	/* clock */
+	writel(0x00000001, regs + 0x0000); /* SC_GNR_CON0, Phy clock enable */
+
+	/* Dphy */
+	if (mode == 0x000D) {
+		skew_cal_en = 1; /* In DPHY, skew cal enable regardless of mipi speed */
+		if (cfg[SPEED] >= PHY_REF_SPEED) {
+			settle_clk_sel = 0;
+
+			if (cfg[SPEED] >= 4000 && cfg[SPEED] <= 6500)
+				skew_delay_sel = 0;
+			else if (cfg[SPEED] >= 3000 && cfg[SPEED] < 4000)
+				skew_delay_sel = 1;
+			else if (cfg[SPEED] >= 2000 && cfg[SPEED] < 3000)
+				skew_delay_sel = 2;
+			else if (cfg[SPEED] >= 1500 && cfg[SPEED] < 2000)
+				skew_delay_sel = 3;
+			else
+				skew_delay_sel = 0;
+		}
+
+		/* clock */
+		writel(0x00001450, regs + 0x0004); /* SC_GNR_CON1 */
+		writel(0x00000001, regs + 0x0008); /* SC_ANA_CON0 */
+		writel(0x0000EA40, regs + 0x000C); /* SC_ANA_CON1 */
+		writel(0x00000002, regs + 0x0010); /* SC_ANA_CON2 */
+		writel(0x00008600, regs + 0x0014); /* SC_ANA_CON3 */
+		writel(0x00004000, regs + 0x0018); /* SC_ANA_CON4 */
+		writel(0x00000301, regs + 0x0030); /* SC_TIME_CON0 */
+
+		for (i = 0; i <= cfg[LANES]; i++) {
+			writel(0x00000001, regs + 0x0100 + (i * 0x100)); /* SD_GNR_CON0 , Phy data enable */
+			writel(0x00001450, regs + 0x0104 + (i * 0x100)); /* SD_GNR_CON1 */
+			writel(0x00000001, regs + 0x0108 + (i * 0x100)); /* SD_ANA_CON0 */
+			writel(0x0000EA40, regs + 0x010C + (i * 0x100)); /* SD_ANA_CON1 */
+
+			writel(0x00000004, regs + 0x0110 + (i * 0x100)); /* SD_ANA_CON2 */
+			update_bits(regs + 0x0110 + (i * 0x100), 8, 2, skew_delay_sel); /* SD_ANA_CON2 */
+
+			writel(0x00008600, regs + 0x0114 + (i * 0x100)); /* SD_ANA_CON3 */
+			writel(0x00004000, regs + 0x0118 + (i * 0x100)); /* SD_ANA_CON4 */
+
+			if ((type == 0xDC) && (i < 3))
+				writel(0x00000040, regs + 0x0124 + (i * 0x100)); /* SD_ANA_CON7 */
+
+			update_bits(regs + 0x0130 + (i * 0x100), 0, 8, cfg[SETTLE]);    /* SD_TIME_CON0 */
+			update_bits(regs + 0x0130 + (i * 0x100), 8, 1, settle_clk_sel); /* SD_TIME_CON0 */
+
+			writel(0x00000003, regs + 0x0134 + (i * 0x100)); /* SD_TIME_CON1 */
+
+			update_bits(regs + 0x0140 + (i * 0x100), 0, 1, skew_cal_en); /* SD_DESKEW_CON0 */
+
+			writel(0x0000081A, regs + 0x0150 + (i * 0x100)); /* SD_DESKEW_CON4 */
+		}
+	} else { /* Cphy */
+		if (cfg[SPEED] >= CPHY_REF_SPEED)
+			settle_clk_sel = 0;
+
+		for (i = 0; i <= cfg[LANES]; i++) {
+			writel(0x00000001, regs + 0x0100 + (i * 0x100)); /* SD_GNR_CON0 , Phy data enable */
+			writel(0x00001450, regs + 0x0104 + (i * 0x100)); /* SD_GNR_CON1 */
+			writel(0x000000FB, regs + 0x0108 + (i * 0x100)); /* SD_ANA_CON0 */
+			writel(0x0000B7F9, regs + 0x010C + (i * 0x100)); /* SD_ANA_CON1 */
+			writel(0x00000005, regs + 0x0110 + (i * 0x100)); /* SD_ANA_CON2 */
+			writel(0x00008600, regs + 0x0114 + (i * 0x100)); /* SD_ANA_CON3 */
+			writel(0x00004000, regs + 0x0118 + (i * 0x100)); /* SD_ANA_CON4 */
+			writel(0x00000200, regs + 0x011c + (i * 0x100)); /* SD_ANA_CON5 */
+			writel(0x00000608, regs + 0x0120 + (i * 0x100)); /* SD_ANA_CON6 */
+			writel(0x00000040, regs + 0x0124 + (i * 0x100)); /* SD_ANA_CON7 */
+
+			update_bits(regs + 0x0130 + (i * 0x100), 0, 8, cfg[SETTLE]);    /* SD_TIME_CON0 */
+			update_bits(regs + 0x0130 + (i * 0x100), 8, 1, settle_clk_sel); /* SD_TIME_CON0 */
+
+			writel(0x00000034, regs + 0x0134 + (i * 0x100)); /* SD_TIME_CON1 */
+
+			update_bits(regs + 0x0140 + (i * 0x100), 0, 1, skew_cal_en); /* SD_DESKEW_CON0 */
+
+			writel(0x00001501, regs + 0x0164 + (i * 0x100)); /* SD_CRC_CON1 */
+			writel(0x00000032, regs + 0x0168 + (i * 0x100)); /* SD_CRC_CON2 */
+		}
 	}
 
 	return 0;
@@ -1026,6 +1139,20 @@ static const struct exynos_mipi_phy_cfg phy_cfg_table[] = {
 		.minor = 0x0008,
 		.mode = 0xD,
 		.set = __set_phy_cfg_0503_0008_dphy,
+	},
+	{
+		/* type : Combo(DCphy) or Dphy, mode : Dphy */
+		.major = 0x0504,
+		.minor = 0x0000,
+		.mode = 0xD,
+		.set = __set_phy_cfg_0504_0000_dcphy,
+	},
+	{
+		/* type : Combo(DCphy), mode : Cphy */
+		.major = 0x0504,
+		.minor = 0x0000,
+		.mode = 0xC,
+		.set = __set_phy_cfg_0504_0000_dcphy,
 	},
 	{ },
 };
@@ -1108,10 +1235,10 @@ static struct exynos_mipi_phy_data mipi_phy_m0s4s4s4s4s4s2 = {
 	.slock = __SPIN_LOCK_UNLOCKED(mipi_phy_m0s4s4s4s4s4s2.slock),
 };
 
-static struct exynos_mipi_phy_data mipi_phy_m0s4s4s4s4 = {
+static struct exynos_mipi_phy_data mipi_phy_m0s4s4s4s4s2 = {
 	.flags = MIPI_PHY_MxSx_SHARED,
 	.active_count = 0,
-	.slock = __SPIN_LOCK_UNLOCKED(mipi_phy_m0s4s4s4s4.slock),
+	.slock = __SPIN_LOCK_UNLOCKED(mipi_phy_m0s4s4s4s4s2.slock),
 };
 
 static struct exynos_mipi_phy_data mipi_phy_m0s4s4s2 = {
@@ -1154,8 +1281,8 @@ static const struct of_device_id exynos_mipi_phy_of_table[] = {
 		.data = &mipi_phy_m0s4s4s4s4s4s2,
 	},
 	{
-		.compatible = "samsung,mipi-phy-m0s4s4s4s4",
-		.data = &mipi_phy_m0s4s4s4s4,
+		.compatible = "samsung,mipi-phy-m0s4s4s4s4s2",
+		.data = &mipi_phy_m0s4s4s4s4s2,
 	},
 	{
 		.compatible = "samsung,mipi-phy-m0s4s4s2",
@@ -1198,6 +1325,22 @@ static int exynos_mipi_phy_power_off(struct phy *phy)
 	return ret;
 }
 
+//#if defined(MODULE)
+static int exynos_mipi_phy_configure(struct phy *phy, union phy_configure_opts *opts)
+{
+	struct mipi_phy_desc *phy_desc = phy_get_drvdata(phy);
+	struct exynos_mipi_phy *state = to_mipi_video_phy(phy_desc);
+	u32 cfg[5];
+
+	cfg[VERSION] = opts->mipi_dphy.clk_miss;
+	cfg[TYPE] = opts->mipi_dphy.clk_post;
+	cfg[LANES] = opts->mipi_dphy.lanes;
+	cfg[SPEED] = opts->mipi_dphy.hs_clk_rate;
+	cfg[SETTLE] = opts->mipi_dphy.hs_settle;
+
+	return __set_phy_cfg(state, phy_desc, 0, cfg);
+}
+/*#else
 static int exynos_mipi_phy_set(struct phy *phy, int option, void *info)
 {
 	struct mipi_phy_desc *phy_desc = phy_get_drvdata(phy);
@@ -1205,6 +1348,7 @@ static int exynos_mipi_phy_set(struct phy *phy, int option, void *info)
 
 	return __set_phy_cfg(state, phy_desc, option, info);
 }
+#endif*/
 
 static struct phy *exynos_mipi_phy_of_xlate(struct device *dev,
 					struct of_phandle_args *args)
@@ -1221,7 +1365,11 @@ static struct phy_ops exynos_mipi_phy_ops = {
 	.init		= exynos_mipi_phy_init,
 	.power_on	= exynos_mipi_phy_power_on,
 	.power_off	= exynos_mipi_phy_power_off,
-	.set		= exynos_mipi_phy_set,
+//#if defined(MODULE)
+	.configure	= exynos_mipi_phy_configure,
+//#else
+//	.set		= exynos_mipi_phy_set,
+//#endif
 	.owner		= THIS_MODULE,
 };
 

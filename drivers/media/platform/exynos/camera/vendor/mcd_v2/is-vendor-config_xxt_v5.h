@@ -37,11 +37,13 @@
 #define USE_DEBUG_LIBRARY_VER
 
 //#define USE_FACE_UNLOCK_AE_AWB_INIT                         /* for Face Unlock */
-
+#define CAMERA_STANDARD_CAL_ISP_VERSION 'E'
 
 /***** HW DEFENDANT DEFINE *****/
 #define USE_CAMERA_ACT_DRIVER_SOFT_LANDING                    /* Using NRC based softlanding for FP5529 */
 #define USE_COMMON_CAM_IO_PWR                                 /* CAM_VDDIO_1P8 Power is used commonly for all camera and EEPROM */
+#define CAMERA_EEPROM_SUPPORT_FRONT
+#define CONFIG_SEC_CAL_ENABLE
 #define USE_STANDARD_CAL_OEM_BASE
 
 #ifdef USE_STANDARD_CAL_OEM_BASE

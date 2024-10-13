@@ -19,7 +19,7 @@
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
@@ -56,6 +56,7 @@ u32 sensor_cis_do_div64(u64 num, u32 den) {
 
 	return (u32)res;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_do_div64);
 
 int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const u32 size)
 {
@@ -83,7 +84,7 @@ int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const 
 	}
 
 	/* Need to delay for sensor setting */
-	usleep_range(3000, 3000);
+	usleep_range(3000, 3010);
 
 	cis->stream_state = CIS_STREAM_INIT;
 
@@ -109,7 +110,7 @@ int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const 
 			burst_num = 1;
 			break;
 		case I2C_MODE_DELAY:
-			usleep_range(regs[i + I2C_DATA], regs[i + I2C_DATA]);
+			usleep_range(regs[i + I2C_DATA], regs[i + I2C_DATA] + 10);
 			break;
 		default:
 			if (regs[i + I2C_BYTE] == 0x1) {
@@ -138,12 +139,14 @@ int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const 
 
 p_err:
 	if (ret) {
-		cis->stream_state = CIS_STREAM_SET_ERR;
+		if (cis)
+			cis->stream_state = CIS_STREAM_SET_ERR;
 		err("[%s] global/mode setting fail(%d)", __func__, ret);
 	}
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_set_registers);
 
 int sensor_cis_set_registers_addr8(struct v4l2_subdev *subdev, const u32 *regs, const u32 size)
 {
@@ -172,7 +175,7 @@ int sensor_cis_set_registers_addr8(struct v4l2_subdev *subdev, const u32 *regs, 
 		goto p_err;
 	}
 
-	msleep(3);
+	usleep_range(3000, 3010);
 
 	for (i = 0; i < size; i += I2C_NEXT) {
 		switch (regs[i + I2C_ADDR]) {
@@ -195,7 +198,7 @@ int sensor_cis_set_registers_addr8(struct v4l2_subdev *subdev, const u32 *regs, 
 			burst_num = 1;
 			break;
 		case I2C_MODE_DELAY:
-			usleep_range(regs[i + I2C_DATA], regs[i + I2C_DATA]);
+			usleep_range(regs[i + I2C_DATA], regs[i + I2C_DATA] + 10);
 			break;
 		default:
 			if (regs[i + I2C_BYTE] == 0x1) {
@@ -223,6 +226,7 @@ int sensor_cis_set_registers_addr8(struct v4l2_subdev *subdev, const u32 *regs, 
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_set_registers_addr8);
 
 int sensor_cis_check_rev_on_init(struct v4l2_subdev *subdev)
 {
@@ -249,6 +253,7 @@ int sensor_cis_check_rev_on_init(struct v4l2_subdev *subdev)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_check_rev_on_init);
 
 int sensor_cis_check_rev(struct is_cis *cis)
 {
@@ -289,24 +294,25 @@ int sensor_cis_check_rev(struct is_cis *cis)
 	if (cis->rev_valid_count) {
 		for (i = 0; i < cis->rev_valid_count; i++) {
 			if (cis->cis_data->cis_rev == cis->rev_valid_values[i]) {
-				pr_info("%s : Sensor version. Rev. 0x%X\n", __func__, cis->cis_data->cis_rev);
+				pr_info("%s : [%d][%d] Sensor version. Rev. 0x%X\n", __func__, cis->device, cis->id, cis->cis_data->cis_rev);
 				break;
 			}
 		}
 
 		if (i == cis->rev_valid_count) {
-			pr_info("%s : Wrong sensor version. Rev. 0x%X\n", __func__, cis->cis_data->cis_rev);
+			pr_info("%s : [%d][%d] Wrong sensor version. Rev. 0x%X\n", __func__, cis->device, cis->id, cis->cis_data->cis_rev);
 #if defined(USE_CAMERA_CHECK_SENSOR_REV)
 			ret = -EINVAL;
 #endif
 		}
 	} else {
-		pr_info("%s : Skip rev checking. Rev. 0x%X\n", __func__, cis->cis_data->cis_rev);
+		pr_info("%s : [%d][%d] Skip rev checking. Rev. 0x%X\n", __func__, cis->device, cis->id, cis->cis_data->cis_rev);
 	}
 
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_check_rev);
 
 int sensor_cis_check_model_id(struct v4l2_subdev *subdev)
 {
@@ -342,16 +348,19 @@ int sensor_cis_check_model_id(struct v4l2_subdev *subdev)
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_check_model_id);
 
 u32 sensor_cis_calc_again_code(u32 permile)
 {
 	return (permile * 32 + 500) / 1000;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_calc_again_code);
 
 u32 sensor_cis_calc_again_permile(u32 code)
 {
 	return (code * 1000 + 16) / 32;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_calc_again_permile);
 
 u32 sensor_cis_calc_dgain_code(u32 permile)
 {
@@ -361,11 +370,13 @@ u32 sensor_cis_calc_dgain_code(u32 permile)
 
 	return (buf[0] << 8 | buf[1]);
 }
+EXPORT_SYMBOL_GPL(sensor_cis_calc_dgain_code);
 
 u32 sensor_cis_calc_dgain_permile(u32 code)
 {
 	return (((code & 0xFF00) >> 8) * 1000) + ((code & 0xFF) * 1000 / 256);
 }
+EXPORT_SYMBOL_GPL(sensor_cis_calc_dgain_permile);
 
 int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 expo, u32 *again, u32 *dgain)
 {
@@ -425,6 +436,7 @@ int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_compensate_gain_for_extremely_br);
 
 int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const u32 size)
 {
@@ -455,6 +467,10 @@ int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const
 	for (i = 0; i < size; i += I2C_NEXT) {
 		if (regs[i + I2C_BYTE] == 0x2 && regs[i + I2C_ADDR] == 0x6028) {
 			ret = is_sensor_write16(client, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
+			if (ret < 0) {
+				err("is_sensor_write16 fail, ret(%d), addr(%#x)",
+						ret, regs[i + I2C_ADDR]);
+			}
 		}
 
 		if (regs[i + I2C_BYTE] == 0x1) {
@@ -477,6 +493,7 @@ int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_dump_registers);
 
 int sensor_cis_parse_dt(struct device *dev, struct v4l2_subdev *subdev)
 {
@@ -525,6 +542,7 @@ int sensor_cis_parse_dt(struct device *dev, struct v4l2_subdev *subdev)
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_parse_dt);
 
 #if defined(USE_RECOVER_I2C_TRANS)
 void sensor_cis_recover_i2c_fail(struct v4l2_subdev *subdev_cis)
@@ -627,6 +645,7 @@ int sensor_cis_wait_streamoff(struct v4l2_subdev *subdev)
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_wait_streamoff);
 
 int sensor_cis_wait_streamoff_mipi_end(struct v4l2_subdev *subdev)
 {
@@ -675,6 +694,7 @@ int sensor_cis_wait_streamoff_mipi_end(struct v4l2_subdev *subdev)
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_wait_streamoff_mipi_end);
 
 int sensor_cis_wait_streamon(struct v4l2_subdev *subdev)
 {
@@ -715,14 +735,17 @@ int sensor_cis_wait_streamon(struct v4l2_subdev *subdev)
 		goto p_err;
 	}
 
+	if (cis_data->dual_slave == true) {
+		time_out_cnt = time_out_cnt * 6;
+	} else if (cis_data->cur_frame_us_time > 300000 && cis_data->cur_frame_us_time < 2000000) {
+		time_out_cnt = (cis_data->cur_frame_us_time / CIS_STREAM_ON_WAIT_TIME) + 100; // for Hyperlapse night mode
+	}
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read8(client, 0x0005, &sensor_fcount);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0)
 	    err("i2c transfer fail addr(%x), val(%x), ret = %d\n", 0x0005, sensor_fcount, ret);
-
-	if (cis_data->dual_slave == true)
-		time_out_cnt = time_out_cnt * 2;
 
 	/*
 	 * Read sensor frame counter (sensor_fcount address = 0x0005)
@@ -778,6 +801,7 @@ p_err:
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_wait_streamon);
 
 int sensor_cis_set_initial_exposure(struct v4l2_subdev *subdev)
 {
@@ -800,6 +824,7 @@ int sensor_cis_set_initial_exposure(struct v4l2_subdev *subdev)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_set_initial_exposure);
 
 int sensor_cis_active_test(struct v4l2_subdev *subdev)
 {
@@ -857,3 +882,4 @@ int sensor_cis_active_test(struct v4l2_subdev *subdev)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(sensor_cis_active_test);

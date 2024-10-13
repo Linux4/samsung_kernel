@@ -669,7 +669,7 @@ int vclk_register_ops(unsigned int id, struct vclk_trans_ops *ops)
 	return -EVCLKNOENT;
 }
 
-int __init vclk_initialize(void)
+int vclk_initialize(void)
 {
 	pr_info("vclk initialize for cmucal\n");
 

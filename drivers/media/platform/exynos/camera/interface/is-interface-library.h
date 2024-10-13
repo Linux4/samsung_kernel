@@ -97,7 +97,11 @@ enum BinLoadType{
 
 typedef u32 (*task_func)(void *params);
 
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+typedef u32 (*start_up_func_t)(void **func, void *args);
+#else
 typedef u32 (*start_up_func_t)(void **func);
+#endif
 typedef u32 (*rta_start_up_func_t)(void *bootargs, void **func);
 typedef void(*os_system_func_t)(void);
 
@@ -105,6 +109,11 @@ typedef void(*os_system_func_t)(void);
 typedef int (*ddk_shut_down_func_t)(void *data);
 #define RTA_SHUT_DOWN_FUNC_ADDR	(RTA_LIB_ADDR + 0x100)
 typedef int (*rta_shut_down_func_t)(void *data);
+
+#define DDK_GET_ENV_ADDR	(DDK_LIB_ADDR + 0x140)
+typedef int (*ddk_get_env_func_t)(void *args);
+#define RTA_GET_ENV_ADDR	(RTA_LIB_ADDR + 0x140)
+typedef int (*rta_get_env_func_t)(void *args);
 
 struct is_task_work {
 	struct kthread_work		work;

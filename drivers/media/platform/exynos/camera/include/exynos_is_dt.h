@@ -19,6 +19,7 @@
 #define F1_8	180
 #define F1_9	190
 #define F2_0	200
+#define F2_1	210
 #define F2_2	220
 #define F2_4	240
 #define F2_45	245
@@ -67,6 +68,7 @@
 #define PIN_REGULATOR	5
 #define PIN_I2C		6
 #define PIN_MCLK	7
+#define PIN_REGULATOR_OPTION	8
 
 #define MATCH_ENTRY_MAX	3
 #define MATCH_GROUP_MAX	5
@@ -82,7 +84,11 @@
 #define SHARED_PIN8	8
 #define SHARED_PIN9	9
 #define SHARED_PIN10	10
-#define MAX_SENSOR_SHARED_RSC	11
+#define SHARED_PIN11	11
+#define SHARED_PIN12	12
+#define SHARED_PIN13	13
+#define SHARED_PIN14	14
+#define MAX_SENSOR_SHARED_RSC	15
 
 #define SRT_ACQUIRE	1
 #define SRT_RELEASE	2
@@ -114,6 +120,7 @@
 #define VC_EMBEDDED		3
 #define VC_PRIVATE		4
 #define VC_EMBEDDED2		5
+#define VC_FRO			6
 
 #define SP_REAR		0
 #define SP_FRONT	1
@@ -133,6 +140,7 @@
 #define CSI_DATA_LANES_2	1
 #define CSI_DATA_LANES_3	2
 #define CSI_DATA_LANES_4	3
+#define CSI_DATA_LANES_MAX	4
 
 /* CSIS Interleave Mode */
 #define CSI_MODE_CH0_ONLY	0
@@ -141,8 +149,12 @@
 #define CSI_MODE_VC_DT		3
 
 /* CSIS Data Type */
+#define POTF_EN_BIT		(9)
+#define POTF_EN(x)		((x) | 1 << POTF_EN_BIT)
+#define CHECK_POTF_EN(x)	(((x) >> POTF_EN_BIT) & 1)
 #define SDC_EN_BIT		(8)
 #define SDC_EN(x)		((x) | 1 << SDC_EN_BIT)
+#define CHECK_SDC_EN(x)		(((x) >> SDC_EN_BIT) & 1)
 #define DECOMP_PREDICT_BIT	(7)
 #define DECOMP_EN_BIT		(6)
 #define DECOMP_SIMPLE(x)	((x) | 1 << DECOMP_EN_BIT | 0 << DECOMP_PREDICT_BIT)
@@ -160,19 +172,34 @@
 #define HW_FORMAT_RAW7		0x29
 #define HW_FORMAT_RAW7_DS	DECOMP_SIMPLE(HW_FORMAT_RAW7) /* 7 -> 10 */
 #define HW_FORMAT_RAW8		0x2A
+#define HW_FORMAT_RAW8_SDC	SDC_EN(HW_FORMAT_RAW8)
 #define HW_FORMAT_RAW8_DS	DECOMP_SIMPLE(HW_FORMAT_RAW8) /* 8 -> 10 */
+#define HW_FORMAT_RAW8_POTF	POTF_EN(HW_FORMAT_RAW8)
 #define HW_FORMAT_RAW10		0x2B
 #define HW_FORMAT_RAW10_DA	DECOMP_ADVANC(HW_FORMAT_RAW10) /* 10 -> 14 */
 #define HW_FORMAT_RAW10_SDC	SDC_EN(HW_FORMAT_RAW10) /* = SBI */
+#define HW_FORMAT_RAW10_POTF	POTF_EN(HW_FORMAT_RAW10)
 #define HW_FORMAT_RAW12		0x2C
+#define HW_FORMAT_RAW12_POTF	POTF_EN(HW_FORMAT_RAW12)
 #define HW_FORMAT_RAW14		0x2D
+#define HW_FORMAT_RAW14_POTF	POTF_EN(HW_FORMAT_RAW14)
 #define HW_FORMAT_USER		0x30
 #define HW_FORMAT_USER1		0x31
 #define HW_FORMAT_USER2		0x32
+#define HW_FORMAT_AND10		0x3A /* Android 10 format */
 #define HW_FORMAT_UNKNOWN	0x0
 
 #define HW_FORMAT_MASK		0x3F
-#define HW_EXT_FORMAT_MASK	0x1FF
+#define HW_EXT_FORMAT_MASK	0x3FF
+
+/* PHY setting param */
+#define IDX_FIX_VAL	0
+#define IDX_STL_VAL	1 /* settle_val */
+#define IDX_STL_CLK	2 /* settle_clk_sel */
+#define IDX_SKW_CAL	3 /* skew_cal_en */
+#define IDX_SKW_DLY	4 /* skew_delay_sel */
+#define IDX_BIA_VAL	5 /* bias */
+#define IDX_MAX_VAL	6
 
 /* PD MODE */
 #define PD_MSPD			0
@@ -195,7 +222,12 @@
 #define	EX_SEAMLESS_TETRA	9
 #define	EX_CROP_ZOOM		10
 #define	EX_REMOSAIC_CAL		11
-#define	EX_LOW_RES_TETRA	12		/* For EXTEND_SENSOR_MODE_CROPPED_REMOSAIC */
+#define	EX_LOW_RES_TETRA	12
+#define	EX_NIGHT		13
+#define	EX_12BIT		14
+
+/* EX_OPTION 32 = 0x20 */
+#define EX_OPTION_VIDEO		32
 
 /* LRTE */
 #define LRTE_DISABLE		0
@@ -207,7 +239,7 @@
 #define SENSOR_RETENTION_ACTIVATED	2
 
 /* sensor_module_tyoe */
-#define SENSOR_TYPE_RGB			0
+#define SENSOR_TYPE_RGB		0
 #define SENSOR_TYPE_MONO		1
 
 /* Sensor ID */
@@ -280,6 +312,9 @@
 #define SENSOR_NAME_S5K3M5_FOLD		66
 #define SENSOR_NAME_S5KGD1_TELE		67
 #define SENSOR_NAME_S5KGW1_CPD1914_2	68
+#define SENSOR_NAME_S5KHM3		69
+#define SENSOR_NAME_S5K3K1		70
+#define SENSOR_NAME_S5KGN3		71
 
 /* 101~200: SONY sensors */
 #define SENSOR_NAME_IMX135		101
@@ -306,6 +341,10 @@
 #define SENSOR_NAME_IMX518		122
 #define SENSOR_NAME_IMX686		123
 #define SENSOR_NAME_IMX682		124
+#define SENSOR_NAME_IMX563		125
+#define SENSOR_NAME_IMX374		126
+#define SENSOR_NAME_IMX754		127
+
 /* 201~255: Other vendor sensors */
 #define SENSOR_NAME_SR261		201
 #define SENSOR_NAME_OV5693		202
@@ -324,6 +363,7 @@
 #define SENSOR_NAME_HI846		215
 #define SENSOR_NAME_OV02A10		216
 #define SENSOR_NAME_HI847		217
+#define SENSOR_NAME_OV32A1Q     218
 
 /* 256~: currently not used */
 #define SENSOR_NAME_CUSTOM		301
@@ -346,13 +386,20 @@
 #define MODULE_SEL_CIS		1
 #define MODULE_SEL_EEPROM	2
 
-/* define for Power Name */
-#define MCLK_GPIO		"MCLK"			/* MCLK_GPIO  */
-#define MCLK_FUNC		"pin"				/* MCLK_PIN_FUNCTION  */
-#define SEN_RST_LOW		"sen_rst low"		/* SENSOR_RST LOW  */
-#define SEN_RST_HIGH		"sen_rst high"		/* SENSOR_RST HIGH */
-#define I2C_ON			"on_i2c"			/* I2C_ON  */
-#define I2C_OFF			"off_i2c"			/* I2C_OFF  */
-#define DELAY			"delay"			/* delay  */
+/* specail sensor mode */
+#define IS_SPECIAL_MODE_FASTAE		1
+#define IS_SPECIAL_MODE_REMOSAIC	2
 
+/* DVFS TYPE */
+#define IS_DVFS_CSIS		0
+#define IS_DVFS_CAM		1
+#define IS_DVFS_ISP		2
+#define IS_DVFS_INT_CAM		3
+#define IS_DVFS_TNR		4
+#define IS_DVFS_MIF		5
+#define IS_DVFS_INT		6
+#define IS_DVFS_HPG		7
+#define IS_DVFS_I2C   8
+#define IS_DVFS_DISP   9
+#define IS_DVFS_END		10
 #endif

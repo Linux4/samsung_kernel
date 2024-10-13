@@ -300,6 +300,45 @@ static int is_ischain_mxp_adjust_crop(struct is_device_ischain *device,
 	return changed;
 }
 
+static int is_ischain_mxp_compare_size_stripe(struct is_device_ischain *device,
+	struct mcs_param *mcs_param,
+	struct is_crop *incrop)
+{
+	int changed = 0;
+
+	if (mcs_param->input.otf_cmd == OTF_INPUT_COMMAND_ENABLE) {
+		if (incrop->x + incrop->w > mcs_param->input.width) {
+			mwarn("Out of crop width region(%d < %d)",
+				device, mcs_param->input.width, incrop->x + incrop->w);
+			incrop->w = mcs_param->input.width - incrop->x;
+			changed |= 0x01;
+		}
+
+		if (incrop->y + incrop->h > mcs_param->input.height) {
+			mwarn("Out of crop height region(%d < %d)",
+				device, mcs_param->input.height, incrop->y + incrop->h);
+			incrop->h = mcs_param->input.height - incrop->y;
+			changed |= 0x02;
+		}
+	} else {
+		if (incrop->x + incrop->w > mcs_param->input.dma_crop_width) {
+			mwarn("Out of crop width region(%d < %d)",
+				device, mcs_param->input.dma_crop_width, incrop->x + incrop->w);
+			incrop->w = mcs_param->input.dma_crop_width - incrop->x;
+			changed |= 0x01;
+		}
+
+		if (incrop->y + incrop->h > mcs_param->input.dma_crop_height) {
+			mwarn("Out of crop height region(%d < %d)",
+				device, mcs_param->input.dma_crop_height, incrop->y + incrop->h);
+			incrop->h = mcs_param->input.dma_crop_height - incrop->y;
+			changed |= 0x02;
+		}
+	}
+
+	return changed;
+}
+
 static int is_ischain_mxp_compare_size(struct is_device_ischain *device,
 	struct mcs_param *mcs_param,
 	struct is_crop *incrop)
@@ -410,7 +449,7 @@ static int is_ischain_mxp_start(struct is_device_ischain *device,
 			mdbg_pframe("CRange:N\n", device, subdev, frame);
 	}
 
-	if ((index >= PARAM_MCS_OUTPUT0 && index < PARAM_MCS_OUTPUT5) &&
+	if (index - PARAM_MCS_OUTPUT0 < MCSC_PORT_MAX &&
 		frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip) {
 		mdbg_pframe("flip is changed(%d->%d)\n",
 			device, subdev, frame,
@@ -430,8 +469,12 @@ static int is_ischain_mxp_start(struct is_device_ischain *device,
 	/* if output DS, skip check a incrop & input mcs param
 	 * because, DS input size set to preview port output size
 	 */
-	if ((index - PARAM_MCS_OUTPUT0) != MCSC_OUTPUT_DS)
-		is_ischain_mxp_compare_size(device, mcs_param, &incrop_cfg);
+	if ((index - PARAM_MCS_OUTPUT0) != MCSC_OUTPUT_DS) {
+		if (frame->stripe_info.region_num)
+			is_ischain_mxp_compare_size_stripe(device, mcs_param, &incrop_cfg);
+		else
+			is_ischain_mxp_compare_size(device, mcs_param, &incrop_cfg);
+	}
 
 	is_ischain_mxp_adjust_crop(device, incrop_cfg.w, incrop_cfg.h, &otcrop_cfg.w, &otcrop_cfg.h);
 
@@ -675,7 +718,7 @@ static int is_ischain_mxp_tag(struct is_subdev *subdev,
 			pixelformat = node->pixelformat;
 		}
 
-		if ((index >= PARAM_MCS_OUTPUT0 && index < PARAM_MCS_OUTPUT5) &&
+		if (index - PARAM_MCS_OUTPUT0 < MCSC_PORT_MAX &&
 			ldr_frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip)
 			change_flip = true;
 

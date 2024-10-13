@@ -1,5 +1,4 @@
 config EXYNOS_DECON_LCD
-	depends on EXYNOS_DPU30
 	bool "Select LCD panel driver"
 
 config EXYNOS_DECON_MDNIE
@@ -117,59 +116,15 @@ config SUPPORT_ERRFG_RECOVERY_BY_FB_BLANK
 	depends on SUPPORT_ERRFG_RECOVERY
 	tristate "Support ERRFG recovery by fb blank"
 	default n
+	
+config SMCDSD_LCD_DEBUG
+	bool "Support LCD_DEBUG"
+	default n
 
-config EXYNOS_DECON_LCD_EA8076_A21S
-	depends on EXYNOS_DECON_LCD
-	tristate "EA8076_A21S LCD driver"
-
-config EXYNOS_DECON_LCD_ILI9882N_M12S
-	depends on EXYNOS_DECON_LCD
-	tristate "ILI9882N_M12S LCD driver"
+config SUPPORT_VCOM_TRIM_TEST
+	bool "Support VCOM TRIM test"
+	default n
 
 config EXYNOS_DECON_LCD_NT36525_XCOVER5
 	depends on EXYNOS_DECON_LCD
 	tristate "NT36525_XCOVER5 LCD driver"
-
-config EXYNOS_DECON_LCD_NT36675_M12
-	depends on EXYNOS_DECON_LCD
-	tristate "NT36675_M12 LCD driver"
-
-config EXYNOS_DECON_LCD_ILI7806S_M12
-	depends on EXYNOS_DECON_LCD
-	tristate "ILI7806S_M12 LCD driver"
-
-config EXYNOS_DECON_LCD_NT36525B_CTC_A12S
-	depends on EXYNOS_DECON_LCD
-	tristate "NT36525B_CTC_A12S LCD driver"
-
-config EXYNOS_DECON_LCD_ILI9882Q_BOE_A12S
-	depends on EXYNOS_DECON_LCD
-	tristate "ILI9882Q_A12S LCD driver"
-
-config EXYNOS_DECON_LCD_NT36525B_SHARP_A12S
-	depends on EXYNOS_DECON_LCD
-	tristate "NT36525B_SHARP_A12S LCD driver"
-
-config EXYNOS_DECON_LCD_NT36525B_DTC_A12S
-	depends on EXYNOS_DECON_LCD
-	tristate "NT36525B_DTC_A12S LCD driver"
-
-config EXYNOS_DECON_LCD_TD4150_BOE_A12S
-	depends on EXYNOS_DECON_LCD
-	tristate "TD4150_BOE_A12S LCD driver"
-	
-config EXYNOS_DECON_LCD_TD4375_BOE_A12S
-	depends on EXYNOS_DECON_LCD
-	tristate "TD4375_BOE_A12S LCD driver"
-
-config EXYNOS_DECON_LCD_ILI7807S_A12S
-	depends on EXYNOS_DECON_LCD
-	tristate "ILI7807S_A12S LCD driver"
-
-config EXYNOS_DECON_LCD_TD4160_BOE_A12S
-	depends on EXYNOS_DECON_LCD
-	tristate "TD4160_BOE_A12S LCD driver"
-
-config EXYNOS_DECON_LCD_A12S_BLIC_DUAL
-	depends on EXYNOS_DECON_LCD
-	tristate "A12S BLIC DUAL"

@@ -11,71 +11,6 @@
 #include <asm/nmi.h>
 #endif
 
-#ifdef CONFIG_SEC_DEBUG_LOCKUP_INFO
-#define TASK_COMM_LEN 16
-#define SOFTIRQ_TYPE_LEN 16
-
-enum hardlockup_type {
-	HL_TASK_STUCK = 1,
-	HL_IRQ_STUCK,
-	HL_IDLE_STUCK,
-	HL_SMC_CALL_STUCK,
-	HL_IRQ_STORM,
-	HL_HRTIMER_ERROR,
-	HL_UNKNOWN_STUCK
-};
-
-struct task_info {
-	char task_comm[TASK_COMM_LEN];
-};
-
-struct cpuidle_info {
-	char *mode;
-};
-
-struct smc_info {
-	int cmd;
-};
-
-struct irq_info {
-	int irq;
-	void *fn;
-	unsigned long long avg_period;
-};
-
-struct hardlockup_info {
-	enum hardlockup_type hl_type;
-	unsigned long long delay_time;
-	union {
-		struct task_info task_info;
-		struct cpuidle_info cpuidle_info;
-		struct smc_info smc_info;
-		struct irq_info irq_info;
-	};
-};
-
-struct softirq_info {
-	ktime_t last_arrival;
-	char softirq_type[SOFTIRQ_TYPE_LEN];
-	void *fn;
-};
-
-enum softlockup_type {
-	SL_SOFTIRQ_STUCK = 1,
-	SL_TASK_STUCK,
-	SL_UNKNOWN_STUCK
-};
-
-struct softlockup_info {
-	enum softlockup_type sl_type;
-	unsigned long long delay_time;
-	int preempt_count;
-	union {
-		struct softirq_info softirq_info;
-		struct task_info task_info;
-	};
-};
-#endif
 #ifdef CONFIG_LOCKUP_DETECTOR
 void lockup_detector_init(void);
 void lockup_detector_soft_poweroff(void);
@@ -123,15 +58,6 @@ static inline void touch_all_softlockup_watchdogs(void) { }
 #define lockup_detector_offline_cpu	NULL
 #endif /* CONFIG_SOFTLOCKUP_DETECTOR */
 
-#if defined(CONFIG_SEC_DEBUG_LOCKUP_INFO) && defined(CONFIG_SOFTLOCKUP_DETECTOR)
-extern void sl_softirq_entry(const char *softirq_type, void *fn);
-extern void sl_softirq_exit(void);
-unsigned long long get_dss_softlockup_thresh(void);
-#else
-static inline void sl_softirq_entry(const char *softirq_type, void *fn) { }
-static inline void sl_softirq_exit(void) { }
-#endif
-
 #ifdef CONFIG_DETECT_HUNG_TASK
 void reset_hung_task_detector(void);
 #else
@@ -155,7 +81,7 @@ static inline void reset_hung_task_detector(void) { }
 #define NMI_WATCHDOG_ENABLED      (1 << NMI_WATCHDOG_ENABLED_BIT)
 #define SOFT_WATCHDOG_ENABLED     (1 << SOFT_WATCHDOG_ENABLED_BIT)
 
-#if defined(CONFIG_HARDLOCKUP_DETECTOR) || defined(CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU)
+#if defined(CONFIG_HARDLOCKUP_DETECTOR)
 extern void hardlockup_detector_disable(void);
 extern unsigned int hardlockup_panic;
 #else
@@ -196,6 +122,8 @@ int watchdog_nmi_probe(void);
 int watchdog_nmi_enable(unsigned int cpu);
 void watchdog_nmi_disable(unsigned int cpu);
 
+void lockup_detector_reconfigure(void);
+
 /**
  * touch_nmi_watchdog - restart NMI watchdog timeout.
  *
@@ -203,21 +131,12 @@ void watchdog_nmi_disable(unsigned int cpu);
  * may be used to reset the timeout - for code which intentionally
  * disables interrupts for a long time. This call is stateless.
  */
-#if defined(CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU)
-extern void touch_nmi_watchdog(void);
-
-#if defined(CONFIG_SEC_DEBUG_LOCKUP_INFO)
-extern void update_hardlockup_type(unsigned int cpu);
-unsigned long long get_hardlockup_thresh(void);
-#endif
-
-#else
 static inline void touch_nmi_watchdog(void)
 {
 	arch_touch_nmi_watchdog();
 	touch_softlockup_watchdog();
 }
-#endif
+
 /*
  * Create trigger_all_cpu_backtrace() out of the arch-provided
  * base function. Return whether such support was available,
@@ -278,23 +197,18 @@ u64 hw_nmi_get_sample_period(int watchdog_thresh);
 #endif
 
 #if defined(CONFIG_HARDLOCKUP_CHECK_TIMESTAMP) && \
-    defined(CONFIG_HARDLOCKUP_DETECTOR)
+    defined(CONFIG_HARDLOCKUP_DETECTOR_PERF)
 void watchdog_update_hrtimer_threshold(u64 period);
 #else
 static inline void watchdog_update_hrtimer_threshold(u64 period) { }
 #endif
 
 struct ctl_table;
-extern int proc_watchdog(struct ctl_table *, int ,
-			 void __user *, size_t *, loff_t *);
-extern int proc_nmi_watchdog(struct ctl_table *, int ,
-			     void __user *, size_t *, loff_t *);
-extern int proc_soft_watchdog(struct ctl_table *, int ,
-			      void __user *, size_t *, loff_t *);
-extern int proc_watchdog_thresh(struct ctl_table *, int ,
-				void __user *, size_t *, loff_t *);
-extern int proc_watchdog_cpumask(struct ctl_table *, int,
-				 void __user *, size_t *, loff_t *);
+int proc_watchdog(struct ctl_table *, int, void *, size_t *, loff_t *);
+int proc_nmi_watchdog(struct ctl_table *, int , void *, size_t *, loff_t *);
+int proc_soft_watchdog(struct ctl_table *, int , void *, size_t *, loff_t *);
+int proc_watchdog_thresh(struct ctl_table *, int , void *, size_t *, loff_t *);
+int proc_watchdog_cpumask(struct ctl_table *, int, void *, size_t *, loff_t *);
 
 #ifdef CONFIG_HAVE_ACPI_APEI_NMI
 #include <asm/nmi.h>

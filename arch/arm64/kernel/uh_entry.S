@@ -17,7 +17,7 @@
 #define ESS_FLAG_IN	(1)
 #define ESS_FLAG_OUT	(3)
 
-ENTRY(uh_call)
+SYM_CODE_START(uh_call)
 #ifdef CONFIG_EXYNOS_SNAPSHOT_LOGGING_HVC_CALL
 	stp	x29, x30, [sp, #-64]!
 	mov	x29, sp
@@ -43,4 +43,4 @@ ENTRY(uh_call)
 	ldp	x29, x30, [sp], #64
 #endif
 	ret
-ENDPROC(uh_call)
+SYM_CODE_END(uh_call)

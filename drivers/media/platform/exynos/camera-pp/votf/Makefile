@@ -10,5 +10,5 @@ votf-objs += camerapp-hw-api-votf.o
 
 obj-$(CONFIG_VIDEO_EXYNOS_CAMERA_POSTPROCESS_VOTF)	+= votf.o
 
-ccflags-y += -Idrivers/media/platform/exynos/camera-pp/
-ccflags-y += -Idrivers/media/platform/exynos/camera/include
+ccflags-y += -I$(srctree)/drivers/media/platform/exynos/camera-pp/
+ccflags-y += -I$(srctree)/drivers/media/platform/exynos/camera/include

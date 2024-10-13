@@ -17,6 +17,9 @@
 #include "is-groupmgr.h"
 #include "is-interface.h"
 
+#include <soc/samsung/exynos_pm_qos.h>
+
+
 #define RESOURCE_TYPE_SENSOR0	0
 #define RESOURCE_TYPE_SENSOR1	1
 #define RESOURCE_TYPE_SENSOR2	2
@@ -38,6 +41,27 @@
 #endif
 #define IS_TIMER_FUNC(__FUNC_NAME)	\
 	static void __FUNC_NAME(IS_TIMER_PARAM_TYPE data)
+
+/* Configuration of memblock_alloc function type by kernel version */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0))
+#define is_memblock_alloc		memblock_alloc
+#else
+#define is_memblock_alloc		memblock_phys_alloc
+#endif
+
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || defined(CONFIG_EXYNOS_PM_QOS_MODULE)
+#define is_pm_qos_request		exynos_pm_qos_request
+#define is_pm_qos_add_request		exynos_pm_qos_add_request
+#define is_pm_qos_update_request	exynos_pm_qos_update_request
+#define is_pm_qos_remove_request	exynos_pm_qos_remove_request
+#define is_pm_qos_request_active	exynos_pm_qos_request_active
+#else
+#define is_pm_qos_request		pm_qos_request
+#define is_pm_qos_add_request		cpu_latency_qos_add_request
+#define is_pm_qos_update_request	cpu_latency_qos_update_request
+#define is_pm_qos_remove_request	cpu_latency_qos_remove_request
+#define is_pm_qos_request_active	cpu_latency_qos_request_active
+#endif
 
 enum is_resourcemgr_state {
 	IS_RM_COM_POWER_ON,
@@ -76,6 +100,12 @@ struct is_dvfs_ctrl {
 #if defined(QOS_TNR)
 	int cur_tnr_qos;
 #endif
+#if defined(QOS_CSIS)
+	int cur_csis_qos;
+#endif
+#if defined(QOS_ISP)
+	int cur_isp_qos;
+#endif
 	int cur_int_qos;
 	int cur_mif_qos;
 	int cur_cam_qos;
@@ -86,6 +116,7 @@ struct is_dvfs_ctrl {
 	u32 dvfs_table_idx;
 	u32 dvfs_table_max;
 	ulong state;
+	const char *cur_cpus;
 
 	struct is_dvfs_scenario_ctrl *static_ctrl;
 	struct is_dvfs_scenario_ctrl *dynamic_ctrl;
@@ -195,6 +226,8 @@ struct is_resourcemgr {
 
 	/* BTS */
 	struct is_bts_scen			*bts_scen;
+	u32					num_bts_scen;
+	int					cur_bts_scen_idx;
 
 	u32					shot_timeout;
 	int					shot_timeout_tick;
@@ -203,6 +236,8 @@ struct is_resourcemgr {
 	struct work_struct                      c2_disable_work;
 #endif
 	u32					streaming_cnt;
+
+	struct list_head			regulator_list;
 };
 
 int is_resourcemgr_probe(struct is_resourcemgr *resourcemgr, void *private_data, struct platform_device *pdev);
@@ -219,7 +254,12 @@ int is_kernel_log_dump(bool overwrite);
 #ifdef ENABLE_HWACG_CONTROL
 extern void is_hw_csi_qchannel_enable_all(bool enable);
 #endif
+void is_bts_scen(struct is_resourcemgr *resourcemgr,
+	unsigned int index, bool enable);
 
+int is_heap_mem_alloc_dynamic(struct is_resourcemgr *resourcemgr,
+	int type, int heap_size);
+int is_heap_mem_free(struct is_resourcemgr *resourcemgr);
 
 #if defined(ENABLE_CLOG_RESERVED_MEM)
 int is_resource_cdump(void);

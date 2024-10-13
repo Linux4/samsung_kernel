@@ -232,7 +232,6 @@ static u32 isl29501_register_write(struct isl29501_private *isl29501,
 				   u32 value)
 {
 	const struct isl29501_register_desc *reg = &isl29501_registers[name];
-	u8 msb, lsb;
 	int ret;
 
 	if (!reg->msb && value > U8_MAX)
@@ -241,22 +240,15 @@ static u32 isl29501_register_write(struct isl29501_private *isl29501,
 	if (value > U16_MAX)
 		return -ERANGE;
 
-	if (!reg->msb) {
-		lsb = value & 0xFF;
-	} else {
-		msb = (value >> 8) & 0xFF;
-		lsb = value & 0xFF;
-	}
-
 	mutex_lock(&isl29501->lock);
 	if (reg->msb) {
 		ret = i2c_smbus_write_byte_data(isl29501->client,
-						reg->msb, msb);
+						reg->msb, value >> 8);
 		if (ret < 0)
 			goto err;
 	}
 
-	ret = i2c_smbus_write_byte_data(isl29501->client, reg->lsb, lsb);
+	ret = i2c_smbus_write_byte_data(isl29501->client, reg->lsb, value);
 
 err:
 	mutex_unlock(&isl29501->lock);
@@ -946,7 +938,7 @@ static irqreturn_t isl29501_trigger_handler(int irq, void *p)
 	struct iio_dev *indio_dev = pf->indio_dev;
 	struct isl29501_private *isl29501 = iio_priv(indio_dev);
 	const unsigned long *active_mask = indio_dev->active_scan_mask;
-	u32 buffer[4] = {}; /* 1x16-bit + ts */
+	u32 buffer[4] __aligned(8) = {}; /* 1x16-bit + naturally aligned ts */
 
 	if (test_bit(ISL29501_DISTANCE_SCAN_INDEX, active_mask))
 		isl29501_register_read(isl29501, REG_DISTANCE, buffer);
@@ -980,7 +972,6 @@ static int isl29501_probe(struct i2c_client *client,
 		return ret;
 
 	indio_dev->modes = INDIO_DIRECT_MODE;
-	indio_dev->dev.parent = &client->dev;
 	indio_dev->channels = isl29501_channels;
 	indio_dev->num_channels = ARRAY_SIZE(isl29501_channels);
 	indio_dev->name = client->name;

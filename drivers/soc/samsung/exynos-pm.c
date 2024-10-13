@@ -20,9 +20,6 @@
 #include <linux/slab.h>
 #include <linux/psci.h>
 #include <linux/debugfs.h>
-#if defined(CONFIG_SEC_FACTORY)
-#include <linux/sec_class.h>
-#endif
 #include <asm/cpuidle.h>
 #include <asm/smp_plat.h>
 
@@ -41,16 +38,8 @@
 #define EXYNOS_PMU_EINT_WAKEUP_MASK2	0x061C
 
 extern u32 exynos_eint_to_pin_num(int eint);
+extern u32 exynos_eint_wake_mask_array[3];
 #define EXYNOS_EINT_PEND(b, x)      ((b) + 0xA00 + (((x) >> 3) * 4))
-
-#ifdef CONFIG_PM_WAKELOCKS
-extern int pm_wake_lock(const char *buf);
-#else
-inline int pm_wake_lock(const char *buf)
-{
-	return 0;
-}
-#endif
 
 #define WAKEUP_STAT_SYSINT_MASK		~ (1 << 12)
 
@@ -82,6 +71,18 @@ struct exynos_pm_info {
 	u32 *dbg_subsystem_offset;
 	void __iomem *i3c_base;
 	u32 vgpio_tx_monitor;
+	struct wakeup_source *ws;
+	bool is_stay_awake;
+
+	unsigned int	num_wakeup_mask;
+	unsigned int	*wakeup_mask_offset;
+	unsigned int	*wakeup_stat_offset;
+	unsigned int	*wakeup_mask[NUM_SYS_POWERDOWN];
+	bool vgpio_used;
+	void __iomem *vgpio2pmu_base;			/* SYSREG_VGPIO2PMU base */
+	unsigned int	vgpio_inten_offset;
+	unsigned int	vgpio_wakeup_inten[NUM_SYS_POWERDOWN];
+	unsigned int	*usbl2_wakeup_int_en;
 };
 static struct exynos_pm_info *pm_info;
 
@@ -96,6 +97,25 @@ struct exynos_pm_dbg {
 	unsigned int mif_req;
 };
 static struct exynos_pm_dbg *pm_dbg;
+
+static void exynos_print_wakeup_sources(int irq, const char *name)
+{
+	struct irq_desc *desc;
+
+	if (irq < 0) {
+		if (name)
+			pr_info("PM: Resume caused by SYSINT: %s\n", name);
+
+		return;
+	}
+
+	desc = irq_to_desc(irq);
+	if (desc && desc->action && desc->action->name)
+		pr_info("PM: Resume caused by IRQ %d, %s\n", irq,
+				desc->action->name);
+	else
+		pr_info("PM: Resume caused by IRQ %d\n", irq);
+}
 
 static void exynos_show_wakeup_reason_eint(void)
 {
@@ -125,10 +145,7 @@ static void exynos_show_wakeup_reason_eint(void)
 			gpio = exynos_eint_to_pin_num(i + bit);
 			irq = gpio_to_irq(gpio);
 
-#ifdef CONFIG_SUSPEND
-			log_wakeup_reason(irq);
-		//	update_wakeup_reason_stats(irq, i + bit);
-#endif
+			exynos_print_wakeup_sources(irq, NULL);
 			found = 1;
 		}
 	}
@@ -164,9 +181,8 @@ static void exynos_show_wakeup_reason_sysint(unsigned int stat,
 
 		if (!name)
 			continue;
-#ifdef CONFIG_SUSPEND
-		log_wakeup_reason_name(name);
-#endif
+
+		exynos_print_wakeup_sources(-1, name);
 	}
 }
 
@@ -233,63 +249,56 @@ static void exynos_show_wakeup_reason(bool sleep_abort)
 	}
 }
 
-#ifdef CONFIG_CPU_IDLE
-static DEFINE_RWLOCK(exynos_pm_notifier_lock);
-static RAW_NOTIFIER_HEAD(exynos_pm_notifier_chain);
-
-int exynos_pm_register_notifier(struct notifier_block *nb)
+#define PMU_EINT_WAKEUP_MASK	0x60C
+#define PMU_EINT_WAKEUP_MASK2	0x61C
+static void exynos_set_wakeupmask(enum sys_powerdown mode)
 {
-	unsigned long flags;
-	int ret;
+	int i;
+	u32 wakeup_int_en = 0;
 
-	write_lock_irqsave(&exynos_pm_notifier_lock, flags);
-	ret = raw_notifier_chain_register(&exynos_pm_notifier_chain, nb);
-	write_unlock_irqrestore(&exynos_pm_notifier_lock, flags);
+	/* Set external interrupt mask */
+	exynos_pmu_write(PMU_EINT_WAKEUP_MASK, exynos_eint_wake_mask_array[0]);
+	exynos_pmu_write(PMU_EINT_WAKEUP_MASK2, exynos_eint_wake_mask_array[1]);
 
-	return ret;
+	for (i = 0; i < pm_info->num_wakeup_mask; i++) {
+		exynos_pmu_write(pm_info->wakeup_stat_offset[i], 0);
+		wakeup_int_en = pm_info->wakeup_mask[mode][i];
+
+		if (otg_is_connect() == 2)
+			wakeup_int_en &= ~pm_info->usbl2_wakeup_int_en[i];
+
+		exynos_pmu_write(pm_info->wakeup_mask_offset[i], wakeup_int_en);
+	}
+
+	if (pm_info->vgpio_used)
+		__raw_writel(pm_info->vgpio_wakeup_inten[mode],
+				pm_info->vgpio2pmu_base + pm_info->vgpio_inten_offset);
 }
-EXPORT_SYMBOL_GPL(exynos_pm_register_notifier);
 
-int exynos_pm_unregister_notifier(struct notifier_block *nb)
-{
-	unsigned long flags;
-	int ret;
-
-	write_lock_irqsave(&exynos_pm_notifier_lock, flags);
-	ret = raw_notifier_chain_unregister(&exynos_pm_notifier_chain, nb);
-	write_unlock_irqrestore(&exynos_pm_notifier_lock, flags);
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(exynos_pm_unregister_notifier);
-
-static int __exynos_pm_notify(enum exynos_pm_event event, int nr_to_call, int *nr_calls)
+int exynos_prepare_sys_powerdown(enum sys_powerdown mode)
 {
 	int ret;
 
-	ret = __raw_notifier_call_chain(&exynos_pm_notifier_chain, event, NULL,
-		nr_to_call, nr_calls);
+	exynos_set_wakeupmask(mode);
 
-	return notifier_to_errno(ret);
-}
-
-int exynos_pm_notify(enum exynos_pm_event event)
-{
-	int nr_calls;
-	int ret = 0;
-
-	read_lock(&exynos_pm_notifier_lock);
-	ret = __exynos_pm_notify(event, -1, &nr_calls);
-	read_unlock(&exynos_pm_notifier_lock);
+	ret = cal_pm_enter(mode);
+	if (ret)
+		pr_err("CAL Fail to set powermode\n");
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(exynos_pm_notify);
-#endif /* CONFIG_CPU_IDLE */
 
-#ifdef CONFIG_SEC_GPIO_DVS
-extern void gpio_dvs_check_sleepgpio(void);
-#endif
+void exynos_wakeup_sys_powerdown(enum sys_powerdown mode, bool early_wakeup)
+{
+	if (early_wakeup)
+		cal_pm_earlywakeup(mode);
+	else
+		cal_pm_exit(mode);
+
+	if (pm_info->vgpio_used)
+		__raw_writel(0,	pm_info->vgpio2pmu_base + pm_info->vgpio_inten_offset);
+
+}
 
 static void print_dbg_subsystem(void)
 {
@@ -313,6 +322,10 @@ static void print_dbg_subsystem(void)
 	}
 }
 
+#if IS_ENABLED(CONFIG_PINCTRL_SEC_GPIO_DVS)
+extern void gpio_dvs_check_sleepgpio(void);
+#endif /* CONFIG_PINCTRL_SEC_GPIO_DVS */
+
 static int exynos_pm_syscore_suspend(void)
 {
 	if (!exynos_check_cp_status()) {
@@ -320,6 +333,14 @@ static int exynos_pm_syscore_suspend(void)
 					EXYNOS_PM_PREFIX, __func__);
 		return -EINVAL;
 	}
+#if IS_ENABLED(CONFIG_PINCTRL_SEC_GPIO_DVS)
+	/************************ Caution !!! ****************************/
+	/* This function must be located in appropriate SLEEP position
+	 * in accordance with the specification of each BB vendor.
+	 */
+	/************************ Caution !!! ****************************/
+	gpio_dvs_check_sleepgpio();
+#endif /* CONFIG_PINCTRL_SEC_GPIO_DVS */
 
 	pm_info->is_usbl2_suspend = false;
 	if (pm_info->usbl2_suspend_available) {
@@ -336,15 +357,6 @@ static int exynos_pm_syscore_suspend(void)
 		pr_info("%s %s: Enter Suspend scenario. suspend_mode_idx = %d)\n",
 				EXYNOS_PM_PREFIX,__func__, pm_info->suspend_mode_idx);
 	}
-	
-#ifdef CONFIG_SEC_GPIO_DVS
-	/************************ Caution !!! ****************************/
-	/* This function must be located in appropriate SLEEP position
-	 * in accordance with the specification of each BB vendor.
-	 */
-	/************************ Caution !!! ****************************/
-	gpio_dvs_check_sleepgpio();
-#endif /* CONFIG_SEC_GPIO_DVS */
 
 #define CODEC_IRQ_INT_EN	(1 << 1)
 #define PMIC_IRQ_INT_EN		(1 << 2)
@@ -356,8 +368,8 @@ static int exynos_pm_syscore_suspend(void)
 	}
 
 	/* Send an IPI if test_early_wakeup flag is set */
-	if (pm_dbg->test_early_wakeup)
-		arch_send_call_function_single_ipi(0);
+//	if (pm_dbg->test_early_wakeup)
+//		arch_send_call_function_single_ipi(0);
 
 	pm_dbg->mifdn_cnt_prev = acpm_get_mifdn_count();
 	pm_info->apdn_cnt_prev = acpm_get_apsocdn_count();
@@ -449,9 +461,12 @@ bool is_test_usbl2_suspend_set(void)
 EXPORT_SYMBOL_GPL(is_test_usbl2_suspend_set);
 
 #ifdef CONFIG_DEBUG_FS
-static void __init exynos_pm_debugfs_init(void)
+static void exynos_pm_debugfs_init(void)
 {
-	struct dentry *root, *d;
+	struct dentry *root;
+#if 0
+	struct dentry *d;
+#endif
 
 	root = debugfs_create_dir("exynos-pm", NULL);
 	if (!root) {
@@ -459,6 +474,7 @@ static void __init exynos_pm_debugfs_init(void)
 		return;
 	}
 
+#if 0
 	d = debugfs_create_u32("test_early_wakeup", 0644, root, &pm_dbg->test_early_wakeup);
 	if (!d) {
 		pr_err("%s %s: could't create debugfs test_early_wakeup\n",
@@ -472,6 +488,7 @@ static void __init exynos_pm_debugfs_init(void)
 					EXYNOS_PM_PREFIX, __func__);
 		return;
 	}
+#endif
 }
 #endif
 
@@ -571,33 +588,116 @@ free_name:
 	return;
 }
 
-#if defined(CONFIG_SEC_FACTORY)
-static ssize_t asv_info_show(struct device *dev,
-		struct device_attribute *attr,
-		char *buf)
+#define for_each_syspwr_mode(mode)                              \
+       for ((mode) = 0; (mode) < NUM_SYS_POWERDOWN; (mode)++)
+
+static int alloc_wakeup_mask(int num_wakeup_mask)
 {
-	int count = 0;
+	unsigned int mode;
 
-	/* Set asv group info to buf */
-	count += sprintf(&buf[count], "%d ", asv_ids_information(tg));
-	count += sprintf(&buf[count], "%03x ", asv_ids_information(bg));
-	count += sprintf(&buf[count], "%03x ", asv_ids_information(g3dg));
-	count += sprintf(&buf[count], "%u ", asv_ids_information(bids));
-	count += sprintf(&buf[count], "%u ", asv_ids_information(gids));
-	count += sprintf(&buf[count], "\n");
+	pm_info->wakeup_mask_offset = kzalloc(sizeof(unsigned int)
+				* num_wakeup_mask, GFP_KERNEL);
+	if (!pm_info->wakeup_mask_offset)
+		return -ENOMEM;
 
-	return count;
+	pm_info->wakeup_stat_offset = kzalloc(sizeof(unsigned int)
+				* num_wakeup_mask, GFP_KERNEL);
+	if (!pm_info->wakeup_stat_offset)
+		return -ENOMEM;
+
+	for_each_syspwr_mode(mode) {
+		pm_info->wakeup_mask[mode] = kzalloc(sizeof(unsigned int)
+				* num_wakeup_mask, GFP_KERNEL);
+
+		if (!pm_info->wakeup_mask[mode])
+			goto free_reg_offset;
+	}
+
+	pm_info->usbl2_wakeup_int_en = kzalloc(sizeof(unsigned int)
+				* num_wakeup_mask, GFP_KERNEL);
+	if (!pm_info->usbl2_wakeup_int_en)
+		return -ENOMEM;
+
+	return 0;
+
+free_reg_offset:
+	for_each_syspwr_mode(mode)
+		if (pm_info->wakeup_mask[mode])
+			kfree(pm_info->wakeup_mask[mode]);
+
+	kfree(pm_info->wakeup_mask_offset);
+	kfree(pm_info->wakeup_stat_offset);
+
+	return -ENOMEM;
 }
 
-static DEVICE_ATTR_RO(asv_info);
-#endif /* CONFIG_SEC_FACTORY */
-
-static __init int exynos_pm_drvinit(void)
+static int parsing_dt_wakeup_mask(struct device_node *np)
 {
 	int ret;
-#if defined(CONFIG_SEC_FACTORY)
-	struct device *dev;
-#endif
+	struct device_node *root, *child;
+	unsigned int mode, mask_index = 0;
+	struct property *prop;
+	const __be32 *cur;
+	u32 val;
+
+	root = of_find_node_by_name(np, "wakeup-masks");
+	pm_info->num_wakeup_mask = of_get_child_count(root);
+
+	ret = alloc_wakeup_mask(pm_info->num_wakeup_mask);
+	if (ret)
+		return ret;
+
+	for_each_child_of_node(root, child) {
+		for_each_syspwr_mode(mode) {
+			ret = of_property_read_u32_index(child, "mask",
+				mode, &pm_info->wakeup_mask[mode][mask_index]);
+			if (ret)
+				return ret;
+		}
+
+		ret = of_property_read_u32(child, "mask-offset",
+				&pm_info->wakeup_mask_offset[mask_index]);
+		if (ret)
+			return ret;
+
+		ret = of_property_read_u32(child, "stat-offset",
+				&pm_info->wakeup_stat_offset[mask_index]);
+		if (ret)
+			return ret;
+
+		of_property_for_each_u32(child, "usbl2_wakeup_int_en", prop, cur, val) {
+			pm_info->usbl2_wakeup_int_en[mask_index] |= (unsigned int)BIT(val);
+		}
+
+		mask_index++;
+	}
+
+	root = of_find_node_by_name(np, "vgpio-wakeup-inten");
+
+	if (root) {
+		pm_info->vgpio_used = true;
+		pm_info->vgpio2pmu_base = of_iomap(np, 0);
+		for_each_syspwr_mode(mode) {
+			ret = of_property_read_u32_index(root, "mask",
+					mode, &pm_info->vgpio_wakeup_inten[mode]);
+			if (ret)
+				return ret;
+		}
+
+		ret = of_property_read_u32(root, "inten-offset",
+				&pm_info->vgpio_inten_offset);
+		if (ret)
+			return ret;
+	} else {
+		pm_info->vgpio_used = false;
+		pr_info("%s: VGPIO WAKEKUP INTEN will not be used\n", __func__);
+	}
+	return 0;
+}
+
+static int exynos_pm_drvinit(void)
+{
+	int ret;
 
 	pm_info = kzalloc(sizeof(struct exynos_pm_info), GFP_KERNEL);
 	if (pm_info == NULL) {
@@ -690,12 +790,20 @@ static __init int exynos_pm_drvinit(void)
 		}
 
 		ret = of_property_read_u32(np, "wake_lock", &wake_lock);
-		if (ret)
+		if (ret) {
 			pr_info("%s %s: unabled to get wake_lock from DT\n",
 					EXYNOS_PM_PREFIX, __func__);
+		} else {
+			pm_info->ws = wakeup_source_register(NULL, "exynos-pm");
+			if (!pm_info->ws)
+				BUG();
 
-		if (wake_lock)
-			pm_wake_lock("exynos-pm_wake_lock");
+			pm_info->is_stay_awake = (bool)wake_lock;
+
+			if (pm_info->is_stay_awake)
+				__pm_stay_awake(pm_info->ws);
+		}
+
 		parse_dt_wakeup_stat_names(np);
 
 		parse_dt_debug_subsystem(np);
@@ -712,6 +820,8 @@ static __init int exynos_pm_drvinit(void)
 			goto err_vgpio_tx_monitor;
 		}
 
+		parsing_dt_wakeup_mask(np);
+
 	} else {
 		pr_err("%s %s: failed to have populated device tree\n",
 					EXYNOS_PM_PREFIX, __func__);
@@ -723,18 +833,6 @@ static __init int exynos_pm_drvinit(void)
 	exynos_pm_debugfs_init();
 #endif
 
-#if defined(CONFIG_SEC_FACTORY)
-	dev = sec_device_create(NULL, "asv");
-	BUG_ON(!dev);
-	if (IS_ERR(dev))
-		pr_err("%s %s: failed to create sec device\n",
-				EXYNOS_PM_PREFIX, __func__);
-
-	if (device_create_file(dev, &dev_attr_asv_info) < 0)
-		pr_err("%s %s: failed to create sysfs file\n",
-				EXYNOS_PM_PREFIX, __func__);
-#endif
-
 	return 0;
 
 err_vgpio_tx_monitor:
@@ -743,3 +841,5 @@ err_vgpio_tx_monitor:
 	return 0;
 }
 arch_initcall(exynos_pm_drvinit);
+
+MODULE_LICENSE("GPL");

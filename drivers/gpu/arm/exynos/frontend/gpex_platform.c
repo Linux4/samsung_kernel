@@ -44,6 +44,7 @@
 #include <gpexbe_smc.h>
 #include <gpex_gts.h>
 #include <gpexwa_interactive_boost.h>
+#include <gpexwa_ehmp.h>
 
 #include <runtime_test_runner.h>
 
@@ -85,6 +86,7 @@ int gpex_platform_init(struct device **dev)
 	gpexbe_mem_usage_init();
 
 	gpexwa_interactive_boost_init();
+	gpexwa_ehmp_init();
 
 	runtime_test_runner_init();
 
@@ -100,6 +102,7 @@ void gpex_platform_term()
 
 	gpexbe_mem_usage_term();
 
+	gpexwa_ehmp_term();
 	gpexwa_interactive_boost_term();
 
 	gpex_tsg_term();

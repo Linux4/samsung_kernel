@@ -155,6 +155,7 @@ struct is_group_task {
 	atomic_t			preview_cnt[IS_STREAM_COUNT];
 	struct list_head		preview_list[IS_STREAM_COUNT];
 #endif
+	spinlock_t			gtask_slock;
 };
 
 struct is_groupmgr {
@@ -162,6 +163,11 @@ struct is_groupmgr {
 	struct is_group		*leader[IS_STREAM_COUNT];
 	struct is_group		*group[IS_STREAM_COUNT][GROUP_SLOT_MAX];
 	struct is_group_task	gtask[GROUP_ID_MAX];
+#ifdef ENABLE_SYNC_REPROCESSING
+	struct timer_list		trigger_timer;
+	u32				trigger_instance;
+	spinlock_t				trigger_slock;
+#endif
 };
 
 int is_groupmgr_probe(struct platform_device *pdev,

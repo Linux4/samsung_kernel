@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_proc.h
- *
- * ALSA SoC Audio Layer - Samsung Abox Proc FS driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox Proc FS driver
  *
  * Copyright (c) 2020 Samsung Electronics Co. Ltd.
  *
@@ -52,7 +52,7 @@ extern void abox_proc_remove_file(struct proc_dir_entry *pde);
  */
 extern struct proc_dir_entry *abox_proc_create_file(const char *name,
 		umode_t mode, struct proc_dir_entry *parent,
-		const struct file_operations *fops, void *data, size_t size);
+		const struct proc_ops *fops, void *data, size_t size);
 
 /**
  * Create a binary file
@@ -111,11 +111,11 @@ extern int abox_proc_symlink_attr(struct device *dev, const char *name,
 
 /**
  * Create a symbolic link to a sysfs
+ * @param[in]	dev	pointer to the device
  * @param[in]	name	name of the attribute
- * @param[in]	kobj	kobject to the sysfs
  * @return	error code or 0
  */
-extern int abox_proc_symlink_kobj(const char *name, struct kobject *kobj);
+extern int abox_proc_symlink_dev(struct device *dev, const char *name);
 
 /**
  * Initialize abox_proc

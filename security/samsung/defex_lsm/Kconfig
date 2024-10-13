@@ -21,3 +21,11 @@ config DEFEX_KERNEL_ONLY
 	  This lets defex know whether kernel-only build or not.
 	  Default value will be set to "y" if the build is kernel-only.
 	  And it will be changed to "n" by build.py at platform-build.
+
+config SECURITY_DEFEX_USER
+	bool "Defex USER build"
+	depends on SECURITY_DEFEX
+	default n
+	help
+	  This lets defex to know whether USER build performed or not
+	  in case of TARGET_BUILD_VARIANT variable is empty.

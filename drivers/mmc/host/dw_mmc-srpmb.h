@@ -56,8 +56,7 @@ struct _mmc_rpmb_ctx {
 	dma_addr_t wsm_phyaddr;
 	struct workqueue_struct *srpmb_queue;
 	struct work_struct work;
-	struct block_device *bdev;
-	struct wake_lock wakelock;
+	struct wakeup_source wakesrc;
 	spinlock_t lock;
 	struct notifier_block pm_notifier;
 };
@@ -73,24 +72,67 @@ struct _mmc_rpmb_req {
 };
 
 struct rpmb_packet {
-       u16     request;
-       u16     result;
-       u16     count;
-       u16     address;
-       u32     write_counter;
-       u8      nonce[16];
-       u8      data[256];
-       u8      Key_MAC[32];
-       u8      stuff[196];
+	u16	request;
+	u16	result;
+	u16	count;
+	u16	address;
+	u32	write_counter;
+	u8	nonce[16];
+	u8	data[256];
+	u8	Key_MAC[32];
+	u8	stuff[196];
 };
 
 struct mmc_rpmb_data {
-        struct device dev;
-        struct cdev chrdev;
-        int id;
-        unsigned int part_index;
-        struct mmc_blk_data *md;
-        struct list_head node;
+	struct device dev;
+	struct cdev chrdev;
+	int id;
+	unsigned int part_index;
+	struct mmc_blk_data *md;
+	struct list_head node;
+};
+
+struct mmc_blk_data {
+	struct device *parent;
+	struct gendisk *disk;
+	struct mmc_queue queue;
+	struct list_head part;
+	struct list_head rpmbs;
+
+	unsigned int flags;
+#define MMC_BLK_CMD23   	(1 << 0)	/* Can do SET_BLOCK_COUNT for multiblock */
+#define MMC_BLK_REL_WR  	(1 << 1)	/* MMC Reliable write support */
+
+	unsigned int usage;
+	unsigned int read_only;
+	unsigned int part_type;
+	unsigned int reset_done;
+#define MMC_BLK_READ		BIT(0)
+#define MMC_BLK_WRITE		BIT(1)
+#define MMC_BLK_DISCARD		BIT(2)
+#define MMC_BLK_SECDISCARD      BIT(3)
+#define MMC_BLK_CQE_RECOVERY    BIT(4)
+
+	/*
+	 * Only set in main mmc_blk_data associated
+	 * with mmc_card with dev_set_drvdata, and keeps
+	 * track of the current selected device partition.
+	 */
+	unsigned int part_curr;
+	struct device_attribute force_ro;
+	struct device_attribute power_ro_lock;
+	int area_type;
+
+	/* debugfs files (only in main mmc_blk_data) */
+	struct dentry *status_dentry;
+	struct dentry *ext_csd_dentry;
+};
+
+struct mmc_blk_ioc_data {
+	struct mmc_ioc_cmd ic;
+	unsigned char *buf;
+	u64 buf_bytes;
+	struct mmc_rpmb_data *rpmb;
 };
 
 #endif

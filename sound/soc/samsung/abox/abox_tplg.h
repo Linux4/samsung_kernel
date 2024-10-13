@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_tplg.h
- *
- * ALSA SoC Audio Layer - Samsung Abox Topology driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox Topology driver
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
  *
@@ -30,7 +30,10 @@ enum abox_tplg_tkn {
 	ABOX_TKN_MIN,
 	ABOX_TKN_COUNT,
 	ABOX_TKN_ADDRESS,
+	ABOX_TKN_WEAK,
 	ABOX_TKN_SYNCHRONOUS,
+	ABOX_TKN_FORCE_RESTORE,
+	ABOX_TKN_PIPELINE = 100,
 	ABOX_BIN_IDX = 0x100,
 	ABOX_BIN_NAME = 0x101,
 	ABOX_BIN_AREA = 0x102,

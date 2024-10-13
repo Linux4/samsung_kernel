@@ -19,14 +19,16 @@
 #define USE_TZ_CONTROLLED_MEM_ATTRIBUTE
 #endif
 
-#if defined(CONFIG_CAMERA_PST_V01)
-#include "is-vendor-config_pst_v01.h"
-#elif defined(CONFIG_CAMERA_PST_V02)
-#include "is-vendor-config_pst_v02.h"
-#elif defined(CONFIG_CAMERA_PST_V03)
-#include "is-vendor-config_pst_v03.h"
+#if defined(CONFIG_CAMERA_HST_V01)
+#include "is-vendor-config_hst_v01.h"
+#elif defined(CONFIG_CAMERA_HST_V02)
+#include "is-vendor-config_hst_v02.h"
+#elif defined(CONFIG_CAMERA_HST_V03)
+#include "is-vendor-config_hst_v03.h"
+#elif defined(CONFIG_CAMERA_CNT_V02)
+#include "is-vendor-config_cnt_v02.h"
 #else
-#include "is-vendor-config_pst_v02.h" /* Default */
+#include "is-vendor-config_hst_v02.h" /* Default */
 #endif
 
 #endif

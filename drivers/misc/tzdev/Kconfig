@@ -1,5 +1,5 @@
 menuconfig TZDEV
-	bool "Samsung TZ Based Secure OS Support"
+	tristate "Samsung TZ Based Secure OS Support"
 	default n
 	depends on ARM || ARM64
 	help
@@ -78,7 +78,7 @@ config TZDEV_SK_MULTICORE
 	  Define if secure kernel can work in multicore mode.
 
 config ION_FD2PHYS
-	tristate "ION FD to physical address converter"
+	bool "ION FD to physical address converter"
 	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853)
 	default y
 	help

@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_ion.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox ION buffer module
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
@@ -43,12 +43,12 @@ extern int abox_ion_get_mmap_fd(struct device *dev,
 
 /**
  * add hardware dependent layer for the ion buffer
- * @param[in]	runtime	ASoC PCM runtime
+ * @param[in]	rtd	ASoC PCM runtime
  * @param[in]	buf	ion buffer
  * @param[out]	hwdep	pointer to new snd_hwdep
  * @return		0 or error code
  */
-extern int abox_ion_new_hwdep(struct snd_soc_pcm_runtime *runtime,
+extern int abox_ion_new_hwdep(struct snd_soc_pcm_runtime *rtd,
 		struct abox_ion_buf *buf, struct snd_hwdep **hwdep);
 
 /**

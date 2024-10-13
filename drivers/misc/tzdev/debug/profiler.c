@@ -31,6 +31,7 @@
 #include "core/iwio.h"
 #include "core/log.h"
 #include "core/notifier.h"
+#include "core/subsystem.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Eugene Mandrenko <i.mandrenko@samsung.com>");
@@ -580,7 +581,7 @@ static struct notifier_block tzprofiler_fini_notifier = {
 	.notifier_call = tzprofiler_fini_call,
 };
 
-static int __init tzprofiler_init(void)
+int tzprofiler_init(void)
 {
 	int rc;
 
@@ -598,4 +599,4 @@ static int __init tzprofiler_init(void)
 	return 0;
 }
 
-early_initcall(tzprofiler_init);
+tzdev_early_initcall(tzprofiler_init);

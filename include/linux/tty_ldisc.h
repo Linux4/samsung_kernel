@@ -54,10 +54,16 @@
  *	low-level driver can "grab" an ioctl request before the line
  *	discpline has a chance to see it.
  *
- * long	(*compat_ioctl)(struct tty_struct * tty, struct file * file,
+ * int	(*compat_ioctl)(struct tty_struct * tty, struct file * file,
  *		        unsigned int cmd, unsigned long arg);
  *
  *	Process ioctl calls from 32-bit process on 64-bit system
+ *
+ *	NOTE: only ioctls that are neither "pointer to compatible
+ *	structure" nor tty-generic.  Something private that takes
+ *	an integer or a pointer to wordsize-sensitive structure
+ *	belongs here, but most of ldiscs will happily leave
+ *	it NULL.
  *
  * void	(*set_termios)(struct tty_struct *tty, struct ktermios * old);
  *
@@ -120,6 +126,7 @@
 #include <linux/fs.h>
 #include <linux/wait.h>
 #include <linux/atomic.h>
+#include <linux/android_kabi.h>
 
 /*
  * the semaphore definition
@@ -179,12 +186,13 @@ struct tty_ldisc_ops {
 	void	(*close)(struct tty_struct *);
 	void	(*flush_buffer)(struct tty_struct *tty);
 	ssize_t	(*read)(struct tty_struct *tty, struct file *file,
-			unsigned char __user *buf, size_t nr);
+			unsigned char *buf, size_t nr,
+			void **cookie, unsigned long offset);
 	ssize_t	(*write)(struct tty_struct *tty, struct file *file,
 			 const unsigned char *buf, size_t nr);
 	int	(*ioctl)(struct tty_struct *tty, struct file *file,
 			 unsigned int cmd, unsigned long arg);
-	long	(*compat_ioctl)(struct tty_struct *tty, struct file *file,
+	int	(*compat_ioctl)(struct tty_struct *tty, struct file *file,
 				unsigned int cmd, unsigned long arg);
 	void	(*set_termios)(struct tty_struct *tty, struct ktermios *old);
 	__poll_t (*poll)(struct tty_struct *, struct file *,
@@ -204,6 +212,9 @@ struct tty_ldisc_ops {
 	struct  module *owner;
 
 	int refcount;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 struct tty_ldisc {

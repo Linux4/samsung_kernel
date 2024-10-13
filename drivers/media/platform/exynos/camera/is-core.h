@@ -39,7 +39,7 @@
 #include "interface/is-interface-ischain.h"
 #include "is-spi.h"
 #include "is-video.h"
-#include "is-mem.h"
+#include "pablo-mem.h"
 #include "is-vender.h"
 #include "exynos-is-module.h"
 
@@ -218,6 +218,17 @@ enum is_hal_debug_mode {
 	IS_HAL_DEBUG_NDONE_REPROCESSING,
 };
 
+struct is_cdr {
+	int err_type;
+	u64 time;
+	u64 stream_on_time;
+};
+
+enum {
+	CDR_ERR_TYPE_CSIS = 0,
+	CDR_ERR_TYPE_I2C,
+};
+
 struct is_sysfs_debug {
 	unsigned int en_dvfs;
 	unsigned int pattern_en;
@@ -294,16 +305,32 @@ struct is_core {
 	struct is_video			video_30p;
 	struct is_video			video_30f;
 	struct is_video			video_30g;
+	struct is_video			video_30o;
+	struct is_video			video_30l;
 	struct is_video			video_31s;
 	struct is_video			video_31c;
 	struct is_video			video_31p;
 	struct is_video			video_31f;
 	struct is_video			video_31g;
+	struct is_video			video_31o;
+	struct is_video			video_31l;
 	struct is_video			video_32s;
 	struct is_video			video_32c;
 	struct is_video			video_32p;
 	struct is_video			video_32f;
 	struct is_video			video_32g;
+	struct is_video			video_32o;
+	struct is_video			video_32l;
+	struct is_video			video_33s;
+	struct is_video			video_33c;
+	struct is_video			video_33p;
+	struct is_video			video_33f;
+	struct is_video			video_33g;
+	struct is_video			video_33o;
+	struct is_video			video_33l;
+	struct is_video			video_lme;
+	struct is_video			video_lmes;
+	struct is_video			video_lmec;
 	struct is_video			video_i0s;
 	struct is_video			video_i0c;
 	struct is_video			video_i0p;
@@ -318,19 +345,6 @@ struct is_core {
 	struct is_video			video_me1c;
 	struct is_video			video_orb0c;
 	struct is_video			video_orb1c;
-	struct is_video			video_scc;
-	struct is_video			video_scp;
-	struct is_video			video_d0s;
-	struct is_video			video_d0c;
-	struct is_video			video_d1s;
-	struct is_video			video_d1c;
-	struct is_video			video_dcp0s;
-	struct is_video			video_dcp1s;
-	struct is_video			video_dcp0c;
-	struct is_video			video_dcp1c;
-	struct is_video			video_dcp2c;
-	struct is_video			video_dcp3c;
-	struct is_video			video_dcp4c;
 	struct is_video			video_m0s;
 	struct is_video			video_m1s;
 	struct is_video			video_m0p;
@@ -343,8 +357,10 @@ struct is_core {
 	struct is_video			video_paf0s;
 	struct is_video			video_paf1s;
 	struct is_video			video_paf2s;
+	struct is_video			video_paf3s;
 	struct is_video			video_cl0s;
 	struct is_video			video_cl0c;
+	struct is_video			video_ypp;
 
 	/* spi */
 	struct is_spi			spi0;
@@ -371,12 +387,15 @@ struct is_core {
 	struct ois_mcu_dev			*mcu;
 };
 
+struct device *is_get_is_dev(void);
+struct is_core *is_get_is_core(void);
 int is_secure_func(struct is_core *core,
 	struct is_device_sensor *device, u32 type, u32 scenario, ulong smc_cmd);
 struct is_device_sensor *is_get_sensor_device(struct is_core *core);
 int is_put_sensor_device(struct is_core *core);
 void is_print_frame_dva(struct is_subdev *subdev);
 void is_cleanup(struct is_core *core);
+void is_register_iommu_fault_handler(struct device *dev);
 
 #define CALL_POPS(s, op, args...) (((s) && (s)->pdata && (s)->pdata->op) ? ((s)->pdata->op(&(s)->pdev->dev)) : -EPERM)
 

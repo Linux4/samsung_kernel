@@ -15,6 +15,7 @@
 #include <linux/buffer_head.h>
 #include <linux/completion.h>
 #include <linux/cpu.h>
+#include <linux/export.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/interrupt.h>
@@ -39,9 +40,6 @@
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
 
-#include <asm/segment.h>
-#include <asm/uaccess.h>
-
 #include "tzdev_internal.h"
 #include "core/cdev.h"
 #include "core/deploy_tzar.h"
@@ -54,6 +52,7 @@
 #include "core/mem.h"
 #include "core/notifier.h"
 #include "core/platform.h"
+#include "core/subsystem.h"
 #include "core/sysdep.h"
 #include "debug/iw_boot_log.h"
 #include "debug/panic_dump.h"
@@ -371,10 +370,17 @@ static int __init tzdev_init(void)
 {
 	int rc;
 
+	rc = tzdev_call_init_array();
+	if (rc) {
+		log_error(tzdev, "tzdev_platform_init() failed to init submodules error=%d\n", rc);
+		goto err;
+	}
+
 	rc = tzdev_platform_register();
 	if (rc)
 		log_error(tzdev, "tzdev_platform_init() failed with error=%d\n", rc);
 
+err:
 	return rc;
 }
 
@@ -389,6 +395,7 @@ unsigned int tzdev_is_up(void)
 {
 	return atomic_read(&tzdev_swd_state) == TZDEV_SWD_UP;
 }
+EXPORT_SYMBOL(tzdev_is_up);
 
 int tzdev_smc(struct tzdev_smc_data *data)
 {

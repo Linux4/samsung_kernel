@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_soc_2.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox SoC layer for version 1 and 2
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
@@ -672,6 +672,26 @@
 #define ABOX_SYSREG_L2_CACHE_CON	(0x0328)
 #define ABOX_SYSREG_MISC_CON		(0x032C)
 #endif
+
+#define AUD_PLL_RATE_HZ_FOR_48000	(1179648000)
+#define AUD_PLL_RATE_HZ_FOR_44100	(1083801600)
+
+#define TIMER_RATE 26000000ULL
+#define TIMER_MOD 2000000
+/* Predefined rate of MUX_CLK_AUD_UAIF for slave mode */
+#define UAIF_RATE_MUX_SLAVE 100000000
+
+#define COUNT_SIFS 5
+#define COUNT_SPUS 12
+#define COUNT_SIFM 8
+#define COUNT_SPUM 8
+
+enum abox_gic_target {
+	ABOX_GIC_CORE0,
+	ABOX_GIC_CP,
+	ABOX_GIC_AP,
+	ABOX_GIC_CORE1,
+};
 
 #if IS_ENABLED(CONFIG_SOC_EXYNOS9820)
 enum abox_irq {

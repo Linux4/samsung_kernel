@@ -34,7 +34,7 @@ struct rational {
 #define CAMERA2_MAX_AVAILABLE_MODE		21
 #define CAMERA2_MAX_FACES			16
 #define CAMERA2_MAX_VENDER_LENGTH		400
-#define CAMERA2_MAX_IPC_VENDER_LENGTH		2962
+#define CAMERA2_MAX_IPC_VENDER_LENGTH		3172
 #define CAMERA2_MAX_PDAF_MULTIROI_COLUMN	13
 #define CAMERA2_MAX_PDAF_MULTIROI_ROW		9
 #define CAMERA2_MAX_UCTL_VENDER_LENGTH		32
@@ -44,8 +44,9 @@ struct rational {
 
 #define CAMERA2_MAX_STRIPE_REGION_NUM		5
 
-#define OPEN_MAGIC_NUMBER		0x20192007
-#define SHOT_MAGIC_NUMBER		0x34567892
+#define OPEN_MAGIC_NUMBER        0x20192012
+#define SHOT_MAGIC_NUMBER        0x92345678
+
 
 enum is_subscenario_id {
 	ISS_SUB_SCENARIO_STILL_PREVIEW = 0,	/* 0: still preview */
@@ -113,9 +114,6 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_FRONT_VT1_STILL_CAPTURE = 39,		/* 39: front camera VT1 still capture */
 	ISS_SUB_SCENARIO_FRONT_STILL_PREVIEW_BINNING = 40,	/* 40: front camera binning mode for low power */
 	ISS_SUB_SCENARIO_FRONT_COLOR_IRIS_PREVIEW = 43,		/* 43: front camera Color Iris preview */
-
-	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO = 90,		/* 90: Video SW VDIS (HDR Auto/Off) */
-	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON = 91,		/* 91: Video SW VDIS (HDR On) */
 	ISS_SUB_END,
 };
 
@@ -143,6 +141,10 @@ enum is_scenario_is {
 	IS_SCENARIO_SECURE = 6,
 	IS_SCENAIRO_REMOSAIC = 7,
 };
+#define IS_DVFS_SCENARIO_COMMON_MODE_SHIFT 0
+#define IS_DVFS_SCENARIO_COMMON_MODE_MASK 0x3
+#define IS_DVFS_SCENARIO_VENDOR_SHIFT 16
+#define IS_DVFS_SCENARIO_VENDOR_MASK 0xffff
 
 /*
  *controls/dynamic metadata
@@ -751,12 +753,31 @@ enum stats_wdrAutoState {
 	STATE_WDR_AUTO_REQUIRED = 2,
 };
 
+struct PersonMeta_t {
+	unsigned int face_Yover200;
+	unsigned int face_Yover230;
+	unsigned int face_Yavg;
+	unsigned int face_pixelRatio[3];
+	unsigned int hAvg;
+	unsigned int sAvg;
+	unsigned int vAvg;
+	unsigned int faceIdx;
+	unsigned int faceRegion[4];
+};
+
+struct PersonWholeMeta_t {
+	unsigned int numStat;
+	unsigned int humanRatio;
+	struct PersonMeta_t humanStat[5];
+};
+
 struct camera2_stats_ctl {
 	enum facedetect_mode	faceDetectMode;
 	enum stats_mode		histogramMode;
 	enum stats_mode		sharpnessMapMode;
 	enum stats_mode		hotPixelMapMode;
 	enum stats_mode		lensShadingMapMode;
+	struct PersonWholeMeta_t metaForPerson;
 };
 
 struct camera2_stats_dm {
@@ -783,6 +804,22 @@ struct camera2_stats_dm {
 	uint32_t			vendor_lls_brightness_index;
 	enum stats_wdrAutoState		vendor_wdrAutoState;
 	uint32_t			vendor_rgbAvgSamples[2][4];
+};
+
+enum aa_night_timelaps_mode
+{
+	AA_NIGHT_TIMELAPS_MODE_OFF = 0,
+	AA_NIGHT_NIGHT_TIMELAPS_MODE_ON,
+};
+
+enum aa_capture_hint
+{
+	AA_CAPTURE_HINT_NONE = 0,
+	AA_CAPTURE_HINT_BURST,
+	AA_CAPTURE_HINT_AGIF,
+	AA_CAPTURE_HINT_SINGLE_TAKE,
+	AA_CAPTURE_HINT_FACTORY_MAIN = 100,
+	AA_CAPTURE_HINT_FACTORY_SECONDARY = 101,
 };
 
 struct camera2_stats_sm {
@@ -909,6 +946,9 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_FAST_AE,
 	AA_SCENE_MODE_ILLUMINANCE,
 	AA_SCENE_MODE_SUPER_NIGHT,
+	AA_SCENE_MODE_BOKEH_VIDEO,
+	AA_SCENE_MODE_SINGLE_TAKE,
+	AA_SCENE_MODE_DIRECTORS_VIEW,
 };
 
 enum aa_effect_mode {
@@ -958,6 +998,7 @@ enum aa_aemode {
 	AA_AEMODE_AVERAGE_TOUCH,
 	AA_AEMODE_MATRIX_TOUCH,
 	AA_AEMODE_SPOT_TOUCH,
+	AA_AEMODE_EMUL,
 	UNKNOWN_AA_AE_MODE
 };
 
@@ -1014,6 +1055,7 @@ enum aa_ae_precapture_trigger {
 };
 
 enum aa_afmode {
+	AA_AFMODE_INVALID = 0,
 	AA_AFMODE_OFF = 1,
 	AA_AFMODE_AUTO,
 	AA_AFMODE_MACRO,
@@ -1177,10 +1219,15 @@ enum aa_aemode_state {
 
 struct camera2_video_output_size
 {
-    uint16_t width;
-    uint16_t height;
+	uint16_t width;
+	uint16_t height;
 };
 
+struct tof_info
+{
+	uint16_t fps;
+	uint16_t exposureTime;
+};
 struct camera2_aa_ctl {
 	enum aa_ae_antibanding_mode	aeAntibandingMode;
 	int32_t				aeExpCompensation;
@@ -1223,10 +1270,18 @@ struct camera2_aa_ctl {
 	int32_t				vendor_enableDynamicShotDm;
 	float				vendor_expBracketing[15];
 	float				vendor_expBracketingCapture;
-	enum aa_supernightmode		vendor_superNightShotMode;
-	float				vendor_artificialLightSource[3];
-	int32_t				vendor_flickerDetect;
-	uint32_t			vendor_reserved[40];
+	enum aa_supernightmode vendor_enableSuperNight;
+	int16_t vendor_artificialLightSource;
+	int16_t vendor_flickerDetect;
+
+	struct camera2_video_output_size vendor_videoOutputSize;
+	enum aa_night_timelaps_mode vendor_nightTimelapsMode;
+	uint32_t vendor_personalPresetIndex;
+	struct tof_info vendor_TOFInfo;
+	uint32_t vendor_captureHint;
+	int32_t vendor_captureEV;
+	uint32_t vendor_ssrmHint;
+	uint32_t vendor_reserved[34];
 };
 
 struct aa_apexInfo {
@@ -1321,8 +1376,10 @@ struct camera2_aa_dm {
 	uint32_t			vendor_previewSkipFrame;
 	uint32_t			vendor_aeDrcGain;
 	int32_t				vendor_aeStats4VO[8];
-	int32_t				vendor_colorTempEstimated;
-	uint32_t			vendor_reserved[50];
+	int32_t vendor_dynamicShotCaptureDuration;
+	int32_t vendor_aeBracketingFpsHint;
+
+	uint32_t vendor_reserved[49];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -1418,6 +1475,15 @@ struct camera2_reprocess_sm {
 	uint32_t	maxCaptureStall;
 };
 
+struct camera2_faceBeauty_ctl
+{
+	int32_t strength;
+};
+
+struct camera2_faceBeauty_dm
+{
+	int32_t strength;
+};
 
 /* android.depth */
 
@@ -1609,7 +1675,7 @@ struct camera2_gyro_sensor_history_info {
 	bool valid;
 
 	struct camera2_gyro_sensor_info gyroData[20];
-	uint64_t lastGyroTimeStamp;
+	uint64_t gyroTimeStamp[20];
 };
 
 struct camera2_accelerometer_sensor_info {
@@ -1648,7 +1714,7 @@ struct camera2_aa_uctl {
 	struct camera2_accelerometer_sensor_info accInfo;
 	struct camera2_proximity_sensor_info		proximityInfo;
 	struct camera2_temperature_info		temperatureInfo;
-	struct camera2_color_sensor_info            colorInfo;
+
 };
 
 struct camera2_aa_udm {
@@ -1720,10 +1786,8 @@ struct camera2_af_udm {
 	/** vendor specific2 length */
 	uint32_t	vs2Length;
 	/** vendor specific2 data array */
-	uint32_t	vendorSpecific2[CAMERA2_MAX_UDM_VENDOR2_LENGTH - 1];
+	uint32_t	vendorSpecific2[CAMERA2_MAX_UDM_VENDOR2_LENGTH];
 
-	/* Contrast Factor for MF capture best frame selection */
-	uint32_t	contrastFactor;
 };
 
 struct camera2_as_udm {
@@ -1884,12 +1948,14 @@ enum camera_op_mode {
 	CAMERA_OP_MODE_HAL3_TW,
 	CAMERA_OP_MODE_FAC,
 	CAMERA_OP_MODE_HAL3_FAC,
-	CAMERA_OP_MODE_HAL3_SDK,  // UNIHAL default
+	CAMERA_OP_MODE_HAL3_SDK,
 	CAMERA_OP_MODE_HAL3_CAMERAX,
-	CAMERA_OP_MODE_HAL3_UNIHAL_VIP,
+	CAMERA_OP_MODE_HAL3_AVSP,
 	CAMERA_OP_MODE_HAL3_SDK_VIP,
-	CAMERA_OP_MODE_HAL3_ATTACH,
-	CAMERA_OP_MODE_HAL3_UNIHAL_VIDEO,
+
+	CAMERA_OP_MODE_NOT_USED = 90000,
+	CAMERA_OP_MODE_HAL3_FAC_LED,
+	CAMERA_OP_MODE_HAL3_VC
 };
 
 enum camera2_sensor_hdr_mode {
@@ -1900,6 +1966,7 @@ enum camera2_sensor_hdr_mode {
 };
 
 struct camera2_is_mode_uctl {
+	enum camera2_sensor_hdr_mode	sensor_hdr_mode;
 	enum camera2_wdr_mode		wdr_mode;
 	enum camera2_paf_mode		paf_mode;
 	enum camera2_disparity_mode	disparity_mode;
@@ -1924,6 +1991,7 @@ struct camera2_pdaf_udm {
 	uint16_t				numRow;
 	struct camera2_pdaf_multi_result	multiResult[CAMERA2_MAX_PDAF_MULTIROI_ROW][CAMERA2_MAX_PDAF_MULTIROI_COLUMN];
 	struct camera2_pdaf_single_result	singleResult;
+	float singleResultPhaseDifference;
 	uint16_t				lensPosResolution;
 };
 
@@ -2019,34 +2087,73 @@ struct camera2_dcp_uctl {
 	struct camera2_dcp_rgb_gamma_lut tele_gamma_LUT;
 };
 
-enum camera2_scene_index {
-	CENE_INDEX_NONE2 = -2,
-	SCENE_INDEX_NONE1 = -1,
-	SCENE_INDEX_PERSON = 0,
-	SCENE_INDEX_BLUE_SKY = 1,
-	SCENE_INDEX_BEACH = 2,
-	SCENE_INDEX_SNOW = 3,
-	SCENE_INDEX_FOOD = 4,
-	SCENE_INDEX_FLOWER = 5,
-	SCENE_INDEX_BUILDING = 6,
-	SCENE_INDEX_DOG = 7,
-	SCENE_INDEX_CAT = 8,
-	SCENE_INDEX_NIGHT = 9,
-	SCENE_INDEX_SUNRISE_SUNSET = 10,
-	SCENE_INDEX_STREET = 11,
-	SCENE_INDEX_DOCUMENT = 12,
-	SCENE_INDEX_STAGE = 13,
-	SCENE_INDEX_STORE = 14,
-	SCENE_INDEX_FIREWORKS = 15,
-	SCENE_INDEX_GRASSLAND = 16,
-	SCENE_INDEX_SUCCULENT = 17,
-	SCENE_INDEX_MARKET = 18,
-	SCENE_INDEX_CHILDREN = 19,
-	SCENE_INDEX_CAR = 20,
-	SCENE_INDEX_BAR = 21,
-	SCENE_INDEX_SKY = 22,
-	SCENE_INDEX_CLOUDY = 23,
+enum camera2_tnr_gdc_mode
+{
+        TNR_GDC_MODE_NONE = 0,
+        TNR_GDC_MODE_HW,
+        TNR_GDC_MODE_SW,
+        TNR_GDC_MODE_MAX
 };
+
+struct camera2_grid_info
+{
+	int32_t grid_x[7][9];
+	int32_t grid_y[7][9];
+};
+
+struct camera2_tnr_uctl
+{
+	enum camera2_tnr_gdc_mode tnrGdcMode;
+	struct camera2_grid_info gdc_grid;
+	uint32_t gmeConfidence;
+};
+
+enum camera2_scene_index
+{
+	SCENE_INDEX_INVALID = 0,
+	SCENE_INDEX_FOOD = 1,
+	SCENE_INDEX_TEXT = 2,
+	SCENE_INDEX_PERSON = 3,
+	SCENE_INDEX_FLOWER = 4,
+	SCENE_INDEX_TREE = 5,
+	SCENE_INDEX_MOUNTAIN = 6,
+	SCENE_INDEX_MOUNTAIN_GREEN = 7,
+	SCENE_INDEX_MOUNTAIN_FALL = 8,
+	SCENE_INDEX_ANIMAL = 9,
+	SCENE_INDEX_SUNSET_SUNRISE = 10,
+	SCENE_INDEX_BEACH = 11,
+	SCENE_INDEX_SKY = 12,
+	SCENE_INDEX_SNOW = 13,
+	SCENE_INDEX_NIGHTVIEW = 14,
+	SCENE_INDEX_WATERFALL = 15,
+	SCENE_INDEX_BIRD = 16,
+	SCENE_INDEX_CITYSTREET = 17,
+	SCENE_INDEX_HOMEINDOOR = 18,
+	SCENE_INDEX_WATERSIDE = 19,
+	SCENE_INDEX_SCENERY = 20,
+	SCENE_INDEX_GREENERY = 21,
+	SCENE_INDEX_BABY = 22,
+	SCENE_INDEX_CAT = 23,
+	SCENE_INDEX_DOG = 24,
+	SCENE_INDEX_CLOTHING = 25,
+	SCENE_INDEX_DRINK = 26,
+	SCENE_INDEX_PEOPLE = 27,
+	SCENE_INDEX_RESTAURANT_INDOOR = 28,
+	SCENE_INDEX_STAGE = 29,
+	SCENE_INDEX_VEHICLE = 30,
+	SCENE_INDEX_TREE_GREEN = 31,
+	SCENE_INDEX_SKY_BLUE = 32,
+	SCENE_INDEX_SKY_GREY = 33,
+	SCENE_INDEX_SKYSCRAPER = 34,
+	SCENE_INDEX_CITY = 35,
+	SCENE_INDEX_SHOE_DISP = 36,
+	SCENE_INDEX_SHOE_ON = 37,
+	SCENE_INDEX_FACE = 38,
+	SCENE_INDEX_DAY_HDR = 10000,
+	SCENE_INDEX_NIGHT_HDR = 10001,
+	SCENE_INDEX_MOTION_BLUR_REMOVAL = 10002
+};
+
 
 struct camera2_scene_detect_uctl {
 	uint64_t			timeStamp;
@@ -2055,6 +2162,21 @@ struct camera2_scene_detect_uctl {
 	uint32_t			object_roi[4];  /* left, top, width, height */
 };
 
+struct score_info
+{
+	uint32_t frameCount;
+	uint32_t score;
+	uint32_t motionIndex;
+	uint32_t localMotionIndex;
+	uint32_t gmeConfidence;
+};
+
+struct camera2_mfstill_uctl
+{
+	struct score_info sinfo[15];
+	uint32_t ref_frameCount;
+	uint32_t rej_frameCount[15];
+};
 enum camera_vt_mode {
 	VT_MODE_OFF = 0,
 	VT_MODE_1,   /* qcif ~ qvga */
@@ -2150,7 +2272,7 @@ struct camera2_uctl {
 	struct camera2_drc_uctl		drcUd;
 
 	/** ispfw specific control(user-defined) of dcp. */
-	struct camera2_dcp_uctl		dcpUd;
+	struct camera2_tnr_uctl tnrUd;
 	struct camera2_scene_detect_uctl sceneDetectInfoUd;
 	enum camera_vt_mode		vtMode;
 	float				zoomRatio;
@@ -2167,6 +2289,7 @@ struct camera2_uctl {
 	uint32_t			cameraClientIndex;
 	uint32_t			remosaicHighResolutionMode;
 	uint8_t				frame_id[32];
+	struct camera2_mfstill_uctl mfInfoUd;
 	uint32_t			reserved[5];
 };
 
@@ -2202,7 +2325,9 @@ struct camera2_udm {
 	enum camera2_scene_index	scene_index;
 	uint32_t			flicker_detect;
 	struct camera2_tnr_udm		tnr;
-	uint32_t			reserved[8];
+	uint32_t motionIndex;
+	uint32_t localMotionIndex;
+	uint32_t reserved[6];
 };
 
 struct camera2_shot {
@@ -2212,7 +2337,7 @@ struct camera2_shot {
 	/*user defined area*/
 	struct camera2_uctl	uctl;
 	struct camera2_udm	udm;
-	/*magic : 23456789*/
+	/*magic : 0x92345678*/
 	uint32_t		magicNumber;
 };
 
@@ -2320,11 +2445,35 @@ enum camera_crc_index {
 	CAMERA_CRC_INDEX_MAX,
 };
 
+
+struct ddk_setfile_ver
+{
+        uint32_t        header1; // 0xF85A20B4
+        uint32_t        header2; // 0xCA539ADF
+        char            ddk_version[128];
+        char            setfile_version[128];
+};
 enum sensor_gyro_info_state {
 	SENSOR_GYRO_INFO_STATE_BASE = 0,
 	SENSOR_GYRO_INFO_STATE_SUCCESS,
 	SENSOR_GYRO_INFO_STATE_FAIL,
 	SENSOR_GYRO_INFO_STATE_MAX,
+};
+
+struct sensor_gyro_info {
+        int32_t x;
+        int32_t y;
+        int32_t z;
+        enum sensor_gyro_info_state state;
+};
+
+struct camera2_shot_ext_user {
+    int32_t crc_result[CAMERA_CRC_INDEX_MAX];
+    int32_t focus_actual_pos;
+    int32_t focus_target_pos;
+
+    struct ddk_setfile_ver ddk_version;
+    struct sensor_gyro_info gyro_info;
 };
 
 struct facial_score {
@@ -2357,30 +2506,7 @@ struct vra_ext_meta {
 	uint32_t                reserved[7];
 };
 
-struct ddk_setfile_ver
-{
-        uint32_t        header1; // 0xF85A20B4
-        uint32_t        header2; // 0xCA539ADF
-        char            ddk_version[128];
-        char            setfile_version[128];
-};
 
-struct sensor_gyro_info {
-        int32_t x;
-        int32_t y;
-        int32_t z;
-        enum sensor_gyro_info_state state;
-};
-
-struct camera2_shot_ext_user {
-        int             crc_result[CAMERA_CRC_INDEX_MAX];
-        int             focus_actual_pos;
-        int             focus_target_pos;
-
-        struct ddk_setfile_ver  ddk_version;
-
-        struct sensor_gyro_info gyro_info;
-};
 
 /** \brief
   stream structure for scaler.
@@ -2544,7 +2670,7 @@ struct camera2_shot_ext {
 	/**	\brief
 	  processing time debugging
 	  \remarks
-	  taken time(unit : struct timeval)
+	  taken time(unit : struct timespec64)
 	  [0][x] CSIS start
 	  [1][x] CSIS end
 	  [2][x] DRV Shot

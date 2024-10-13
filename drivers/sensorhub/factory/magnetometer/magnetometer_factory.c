@@ -26,6 +26,15 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
@@ -133,9 +142,14 @@ static ssize_t logging_data_show(struct device *dev, struct device_attribute *at
 
 static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct mag_power_event *sensor_value =
-	    (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
+	struct mag_power_event *sensor_value;
 
+	if (!get_sensor_probe_state(SENSOR_TYPE_GEOMAGNETIC_POWER)) {
+		shub_errf("sensor is not probed!");
+		return 0;
+	}
+
+	sensor_value = (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
 	shub_info("%d,%d,%d\n", sensor_value->x, sensor_value->y, sensor_value->z);
 
 	if (!get_sensor_enabled(SENSOR_TYPE_GEOMAGNETIC_POWER)) {
@@ -183,9 +197,9 @@ static ssize_t raw_data_store(struct device *dev, struct device_attribute *attr,
 		} while (--retries);
 
 		if (retries > 0)
-			shub_infof("success, %d\n", __func__, retries);
+			shub_infof("success, %d\n", retries);
 		else
-			shub_errf("wait timeout, %d\n", __func__, retries);
+			shub_errf("wait timeout, %d\n", retries);
 
 	} else {
 		disable_sensor(SENSOR_TYPE_GEOMAGNETIC_POWER, NULL, 0);
@@ -240,7 +254,7 @@ static DEVICE_ATTR_RO(dac);
 static DEVICE_ATTR_RO(status);
 static DEVICE_ATTR_RO(logging_data);
 
-static struct device_attribute *mag_attrs[] = {
+__visible_for_testing struct device_attribute *mag_attrs[] = {
 	&dev_attr_adc,
 	&dev_attr_dac,
 	&dev_attr_raw_data,
@@ -281,7 +295,7 @@ void initialize_magnetometer_sysfs(void)
 			ret = add_sensor_device_attr(mag_sysfs_device, chipset_attrs);
 			chipset_index = i;
 			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
 				return;
 			}
 			break;

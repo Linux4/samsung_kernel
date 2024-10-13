@@ -2,6 +2,8 @@
 # Makefile for BTS device driver
 #
 
-obj-$(CONFIG_EXYNOS_BTS)	+= exynos-bts.o
-obj-$(CONFIG_EXYNOS9630_BTS)	+= exynos-btsops9630.o
-obj-$(CONFIG_EXYNOS3830_BTS)	+= exynos-btsops3830.o
+obj-$(CONFIG_EXYNOS_BTS)        += exynos-bts.o
+
+ifdef CONFIG_SOC_S5E3830
+obj-$(CONFIG_EXYNOS_BTS)        += exynos-btsops3830.o
+endif

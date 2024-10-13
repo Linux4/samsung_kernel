@@ -11,7 +11,7 @@
 #include <linux/kernel.h>
 
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-device-ischain.h"
 #include "is-control-sensor.h"
@@ -932,10 +932,6 @@ int request_sensitivity(struct is_sensor_interface *itf,
 	camera2_sensor_uctl_t *sensor_uctl = NULL;
 	u32 i = 0;
 	u32 num_of_frame = 1;
-	u32 index = 0;
-	struct is_device_sensor_peri *sensor_peri = NULL;
-	struct is_sensor_ctl *module_ctl = NULL;
-	struct camera2_sensor_ctl *sensor_ctl = NULL;
 
 	FIMC_BUG(!itf);
 	FIMC_BUG(itf->magic != SENSOR_INTERFACE_MAGIC);
@@ -953,6 +949,25 @@ int request_sensitivity(struct is_sensor_interface *itf,
 			sensor_uctl->sensitivity = sensitivity;
 		}
 	}
+
+	dbg_sensor(1, "[%s] frame_count(%d), sensitivity(%d)\n", __func__, frame_count, sensitivity);
+
+	return ret;
+}
+
+int set_previous_dm(struct is_sensor_interface *itf)
+{
+	int ret = 0;
+	u32 frame_count = 0;
+	u32 index = 0;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	struct is_sensor_ctl *module_ctl = NULL;
+	struct camera2_sensor_ctl *sensor_ctl = NULL;
+
+	FIMC_BUG(!itf);
+	FIMC_BUG(itf->magic != SENSOR_INTERFACE_MAGIC);
+
+	frame_count = get_frame_count(itf);
 
 	/* set previous values */
 	index = (frame_count - 1) % CAM2P0_UCTL_LIST_SIZE;
@@ -972,10 +987,6 @@ int request_sensitivity(struct is_sensor_interface *itf,
 			sensor_peri->cis.expecting_sensor_dm[index].exposureTime = sensor_ctl->exposureTime;
 		}
 	}
-
-	if (!IS_ERR_OR_NULL(sensor_uctl))
-		dbg_sensor(1, "[%s]: #=%d, sensitivity=%d, preCtrl=%d\n",
-				__func__, frame_count, sensor_uctl->sensitivity, sensor_ctl->sensitivity);
 
 	return ret;
 }
@@ -1367,7 +1378,7 @@ bool is_flash_available(struct is_sensor_interface *itf)
 	return test_bit(IS_SENSOR_FLASH_AVAILABLE, &sensor_peri->peri_state);
 }
 
-int get_sensor_mode(struct is_sensor_interface *itf)
+int get_sensor_type(struct is_sensor_interface *itf)
 {
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct is_module_enum *module = NULL;
@@ -1853,6 +1864,7 @@ int request_reset_expo_gain(struct is_sensor_interface *itf,
 	u32 end_index = 0;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	ae_setting *auto_exposure;
+	enum exynos_sensor_position module_position;
 
 	FIMC_BUG(!itf);
 	FIMC_BUG(itf->magic != SENSOR_INTERFACE_MAGIC);
@@ -1860,6 +1872,13 @@ int request_reset_expo_gain(struct is_sensor_interface *itf,
 	FIMC_BUG(!tgain);
 	FIMC_BUG(!again);
 	FIMC_BUG(!dgain);
+
+	itf->cis_itf_ops.get_module_position(itf, &module_position);
+
+	if (module_position == SENSOR_POSITION_REAR_TOF) {
+		info("%s : reset_expo skip for ToF", __func__);
+		return ret;
+	}
 
 	dbg_sensor(1, "[%s] cnt(%d): exposure(L(%d), S(%d), M(%d))\n", __func__, num_data,
 		expo[EXPOSURE_GAIN_LONG], expo[EXPOSURE_GAIN_SHORT], expo[EXPOSURE_GAIN_MIDDLE]);
@@ -1892,7 +1911,9 @@ int request_reset_expo_gain(struct is_sensor_interface *itf,
 	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
 	FIMC_BUG(!sensor_peri);
 
-	is_sensor_set_cis_uctrl_list(sensor_peri, num_data, expo, tgain, again, dgain);
+	if(sensor_peri->use_sensor_work == false) {
+		is_sensor_set_cis_uctrl_list(sensor_peri, num_data, expo, tgain, again, dgain);
+	}
 
 	auto_exposure = sensor_peri->cis.cis_data->auto_exposure;
 	memset(auto_exposure, 0, sizeof(sensor_peri->cis.cis_data->auto_exposure));
@@ -2100,19 +2121,18 @@ int copy_sensor_ctl(struct is_sensor_interface *itf,
 		}
 #endif
 		cis_data->video_mode = shot->ctl.aa.vendor_videoMode;
-
-#ifdef USE_SENSOR_WDR
+#ifdef CONFIG_VENDER_MCD_V2
+		itf->cis_mode = ITF_CIS_SMIA;
+		if (cis_data->is_data.wdr_enable)
+			itf->cis_mode = ITF_CIS_SMIA_WDR;
+#else
 		if (shot->uctl.isModeUd.wdr_mode == CAMERA_WDR_ON ||
 				shot->uctl.isModeUd.wdr_mode == CAMERA_WDR_AUTO ||
 				shot->uctl.isModeUd.wdr_mode == CAMERA_WDR_AUTO_LIKE)
 			itf->cis_mode = ITF_CIS_SMIA_WDR;
 		else
-#endif
 			itf->cis_mode = ITF_CIS_SMIA;
-
-		if (cis_data->is_data.wdr_enable)
-			itf->cis_mode = ITF_CIS_SMIA_WDR;
-
+#endif
 		/* set frame rate : Limit of max frame duration
 		 * Frame duration is set by
 		 * 1. Manual sensor control
@@ -2332,7 +2352,7 @@ u32 request_frame_length_line(struct is_sensor_interface *itf, u32 framelengthli
 	cis_data = sensor_peri->cis.cis_data;
 	FIMC_BUG(!cis_data);
 	frameDuration = is_sensor_convert_ns_to_us(sensor_peri->cis.cur_sensor_uctrl.frameDuration);
-#ifdef REAR_SUB_CAMERA
+#ifdef CAMERA_REAR2
 	cis_data->min_frame_us_time = MAX(frameDuration, cis_data->min_sync_frame_us_time + framelengthline);
 #endif
 
@@ -2688,6 +2708,74 @@ int request_flash(struct is_sensor_interface *itf,
 p_err:
 	return ret;
 }
+
+int request_direct_flash(struct is_sensor_interface *itf,
+				u32 mode,
+				bool on,
+				u32 intensity,
+				u32 time)
+{
+	int ret = 0;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	u32 vsync_cnt = 0;
+
+	FIMC_BUG(!itf);
+	FIMC_BUG(itf->magic != SENSOR_INTERFACE_MAGIC);
+
+	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
+	FIMC_BUG(!sensor_peri);
+
+	vsync_cnt = get_vsync_count(itf);
+
+	dbg_flash("[%s] mode(%d), on(%d), intensity(%d), time(%d)\n", __func__, mode, on, intensity, time);
+
+	if (mode == CAM2_FLASH_MODE_SINGLE && on == true)
+	{
+		sensor_peri->flash->flash_data.mode = mode;
+		sensor_peri->flash->flash_data.intensity = intensity;
+		sensor_peri->flash->flash_data.firing_time_us = time;
+		sensor_peri->flash->flash_data.high_resolution_flash = true;
+#ifndef USE_HIGH_RES_FLASH_FIRE_BEFORE_STREAM_ON
+		ret = is_sensor_flash_fire(sensor_peri, sensor_peri->flash->flash_data.intensity);
+		if (ret) {
+			err("failed to turn off flash at flash expired handler\n");
+		}
+#endif
+		set_flash(itf, vsync_cnt + 2, CAM2_FLASH_MODE_OFF, 0, time);
+		if (ret < 0) {
+			pr_err("[%s] set_flash fail(%d)\n", __func__, ret);
+		}
+	}
+	else if (mode == CAM2_FLASH_MODE_TORCH && on == true)
+	{
+		sensor_peri->flash->flash_data.mode = mode;
+		sensor_peri->flash->flash_data.intensity = intensity;
+		sensor_peri->flash->flash_data.firing_time_us = time;
+		sensor_peri->flash->flash_data.high_resolution_flash = false;
+
+		ret = is_sensor_flash_fire(sensor_peri, sensor_peri->flash->flash_data.intensity);
+		if (ret) {
+			err("failed to turn off flash at flash expired handler\n");
+		}
+	}
+	else
+	{
+		sensor_peri->flash->flash_data.mode = mode;
+		sensor_peri->flash->flash_data.intensity = 0;
+		sensor_peri->flash->flash_data.firing_time_us = time;
+		sensor_peri->flash->flash_data.high_resolution_flash = false;
+
+		ret = is_sensor_flash_fire(sensor_peri, sensor_peri->flash->flash_data.intensity);
+		if (ret) {
+			err("failed to turn off flash at flash expired handler\n");
+		}
+	}
+
+	info("[%s] high_resolution_flash(%d)", __func__, sensor_peri->flash->flash_data.high_resolution_flash);
+
+	return ret;
+}
+
 
 int request_flash_expo_gain(struct is_sensor_interface *itf,
 			struct is_flash_expo_gain *flash_ae)
@@ -3219,22 +3307,36 @@ int set_long_term_expo_mode(struct is_sensor_interface *itf,
 		sensor_peri->cis.lte_work_enable = false;
 	}
 
-	dbg_sensor(1, "[%s]: expo[0](%d), expo[1](%d), "
-		KERN_CONT "again[0](%d), again[1](%d), "
-		KERN_CONT "dgain[0](%d), again[1](%d)\n", __func__,
+	dbg_sensor(1, "[%s]: expo[0](%d), expo[1](%d), again[0](%d), again[1](%d), "
+		KERN_CONT "dgain[0](%d), again[1](%d), interval(%d), lte_work_enable(%d)\n", __func__,
 		long_term_expo_mode->expo[0], long_term_expo_mode->expo[1],
 		long_term_expo_mode->again[0], long_term_expo_mode->again[1],
-		long_term_expo_mode->dgain[0], long_term_expo_mode->dgain[1]);
-
-	dbg_sensor(1, "[%s]: strm_off_on[0](%d), strm_off_on[1](%d)\n", __func__,
-		long_term_expo_mode->frm_num_strm_off_on[0],
-		long_term_expo_mode->frm_num_strm_off_on[1]);
-
-	dbg_sensor(1, "[%s]: interval(%d), lte_work_enable(%d)\n", __func__,
+		long_term_expo_mode->dgain[0], long_term_expo_mode->dgain[1],
 		long_term_expo_mode->frm_num_strm_off_on_interval,
 		sensor_peri->cis.lte_work_enable);
 
 	return ret;
+}
+
+int set_lte_multi_capture_mode(struct is_sensor_interface *itf, bool lte_multi_capture_mode)
+{
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	cis_shared_data *cis_data = NULL;
+
+	WARN_ON(!itf);
+	WARN_ON(itf->magic != SENSOR_INTERFACE_MAGIC);
+
+	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
+	WARN_ON(!sensor_peri);
+
+	cis_data = sensor_peri->cis.cis_data;
+	WARN_ON(!cis_data);
+
+	cis_data->lte_multi_capture_mode = lte_multi_capture_mode;
+
+	info("[%s] lte_multi_capture_mode(%d)\n", __func__, lte_multi_capture_mode);
+
+	return 0;
 }
 
 int set_low_noise_mode(struct is_sensor_interface *itf, u32 mode)
@@ -3268,7 +3370,6 @@ int get_sensor_max_dynamic_fps(struct is_sensor_interface *itf,
 	int ret = 0;
 	struct is_device_sensor *sensor = NULL;
 	u32 ex_mode;
-	struct is_device_csi *csi;
 
 	FIMC_BUG(!itf);
 	FIMC_BUG(!max_dynamic_fps);
@@ -3279,20 +3380,13 @@ int get_sensor_max_dynamic_fps(struct is_sensor_interface *itf,
 		return -ENODEV;
 	}
 
-	csi = get_subdev_csi(itf);
-	FIMC_BUG(!csi);
-
 	ex_mode = is_sensor_g_ex_mode(sensor);
-	if (ex_mode == EX_DUALFPS_960) {
-		if (csi->dma_batch_num < 16)
-			*max_dynamic_fps = 480;
-		else
-			*max_dynamic_fps = 960;
-	} else if (ex_mode == EX_DUALFPS_480) {
+	if (ex_mode == EX_DUALFPS_960)
+		*max_dynamic_fps = 960;
+	else if (ex_mode == EX_DUALFPS_480)
 		*max_dynamic_fps = 480;
-	} else {
+	else
 		*max_dynamic_fps = 0;
-	}
 
 	return ret;
 }
@@ -3320,14 +3414,14 @@ int get_static_mem(int ctrl_id, void **mem, int *size) {
 }
 
 int get_open_close_hint(int* opening, int* closing) {
-#if defined(CONFIG_VENDER_MCD) || defined(CONFIG_VENDER_MCD_V2)
+#ifdef CONFIG_VENDER_MCD
 	struct is_core *core = (struct is_core *)dev_get_drvdata(is_dev);
 #endif
 
 	*opening = IS_OPENING_HINT_NONE;
 	*closing = IS_CLOSING_HINT_NONE;
 
-#if defined(CONFIG_VENDER_MCD) || defined(CONFIG_VENDER_MCD_V2)
+#ifdef CONFIG_VENDER_MCD
 	if (core) {
 		*opening = core->vender.opening_hint;
 		*closing = core->vender.closing_hint;
@@ -3368,38 +3462,6 @@ int set_mainflash_duration(struct is_sensor_interface *itf, u32 mainflash_durati
 	sensor_peri->flash->flash_ae.frm_num_main_fls[1] = vsync_cnt + mainflash_duration + 1;
 
 	dbg_flash("[%s] duration(%d)\n", __func__, mainflash_duration);
-
-p_err:
-	return ret;
-}
-
-int get_delayed_preflash_time(struct is_sensor_interface *itf, u32 *delayedTime)
-{
-	int ret = 0;
-	struct is_device_sensor_peri *sensor_peri = NULL;
-	struct v4l2_subdev *subdev_flash;
-	struct v4l2_control ctrl;
-
-	WARN_ON(!itf);
-	WARN_ON(itf->magic != SENSOR_INTERFACE_MAGIC);
-
-	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
-	WARN_ON(!sensor_peri);
-
-	subdev_flash = sensor_peri->subdev_flash;
-
-	ctrl.id = V4L2_CID_FLASH_GET_DELAYED_PREFLASH_TIME;
-	ctrl.value = 0;
-	ret = v4l2_subdev_call(subdev_flash, core, g_ctrl, &ctrl);
-	if (ret) {
-		dbg_flash("[%s] get fail (%d)\n", __func__, ret);
-		ret = -1;
-		goto p_err;
-	} else {
-		*delayedTime = (u32)ctrl.value;
-	}
-
-	dbg_flash("[%s] delayedTime(%d)\n", __func__, ctrl.value);
 
 p_err:
 	return ret;
@@ -3573,9 +3635,9 @@ int get_paf_ready(struct is_sensor_interface *itf, u32 *ready)
 	return ret;
 }
 
-int register_paf_notifier(struct is_sensor_interface *itf,
+int register_vc_dma_notifier(struct is_sensor_interface *itf,
 			enum itf_vc_stat_type type,
-			paf_notifier_t notifier, void *data)
+			vc_dma_notifier_t notifier, void *data)
 {
 	struct is_device_sensor_peri *sensor_peri;
 	int ret;
@@ -3622,9 +3684,9 @@ int register_paf_notifier(struct is_sensor_interface *itf,
 	return ret;
 }
 
-int unregister_paf_notifier(struct is_sensor_interface *itf,
+int unregister_vc_dma_notifier(struct is_sensor_interface *itf,
 			enum itf_vc_stat_type type,
-			paf_notifier_t notifier)
+			vc_dma_notifier_t notifier)
 {
 	struct is_device_sensor_peri *sensor_peri;
 	int ret;
@@ -3713,7 +3775,7 @@ int get_distance(struct is_sensor_interface *itf, u32 *distance_mm, u32 *confide
 #endif
 
 #ifdef USE_TOF_AF
-int get_tof_af_data(struct is_sensor_interface *itf, struct tof_data_t **data)
+int get_tof_af_data(struct is_sensor_interface *itf, struct tof_data_t *data)
 {
 	int ret=1;
 	struct is_core *core;
@@ -3722,7 +3784,11 @@ int get_tof_af_data(struct is_sensor_interface *itf, struct tof_data_t **data)
 	core = (struct is_core *)dev_get_drvdata(is_dev);
 	specific = core->vender.private_data;
 
-	*data = &specific->tof_af_data;
+	mutex_lock(&specific->tof_af_lock);
+
+	memcpy(data, &specific->tof_af_data, sizeof(struct tof_data_t));
+
+	mutex_unlock(&specific->tof_af_lock);
 	return ret;
 }
 #endif
@@ -3780,7 +3846,7 @@ int request_wb_gain(struct is_sensor_interface *itf,
 
 int set_sensor_info_mfhdr_mode_change(struct is_sensor_interface *itf,
 		u32 count, u32 *long_expo, u32 *long_again, u32 *long_dgain,
-		u32 *expo, u32 *again, u32 *dgain)
+		u32 *expo, u32 *again, u32 *dgain, u32 *sensitivity)
 {
 	struct is_device_sensor_peri *sensor_peri;
 	struct is_device_sensor *sensor;
@@ -3835,7 +3901,7 @@ int set_sensor_info_mfhdr_mode_change(struct is_sensor_interface *itf,
 		sensor_uctl->longExposureTime = is_sensor_convert_us_to_ns(long_expo[idx]);
 		sensor_uctl->shortExposureTime = is_sensor_convert_us_to_ns(expo[idx]);
 
-		sensor_uctl->sensitivity = DIV_ROUND_UP((long_again[idx] + long_dgain[idx]), 10);
+		sensor_uctl->sensitivity = sensitivity[idx];//DIV_ROUND_UP((long_again[idx] + long_dgain[idx]), 10);
 		sensor_uctl->analogGain = again[idx];
 		sensor_uctl->digitalGain = dgain[idx];
 		sensor_uctl->longAnalogGain = long_again[idx];
@@ -3846,14 +3912,49 @@ int set_sensor_info_mfhdr_mode_change(struct is_sensor_interface *itf,
 		set_sensor_uctl_valid(itf, idx);
 
 		dbg_sensor(1, "[%s][%d]: exp(%d), again(%d), dgain(%d), "
-			KERN_CONT "long_exp(%d), long_again(%d), long_dgain(%d)\n",
+			KERN_CONT "long_exp(%d), long_again(%d), long_dgain(%d), sensitivity(%d)\n",
 			__func__, idx,
 			expo[idx], again[idx], dgain[idx],
-			long_expo[idx], long_again[idx], long_dgain[idx]);
+			long_expo[idx], long_again[idx], long_dgain[idx], sensitivity[idx]);
 	}
 
 	return 0;
 }
+
+int get_delayed_preflash_time(struct is_sensor_interface *itf, u32 *delayedTime)
+{
+	int ret = 0;
+#ifdef CONFIG_LEDS_S2MU106_FLASH
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	struct v4l2_subdev *subdev_flash;
+	struct v4l2_control ctrl;
+
+	WARN_ON(!itf);
+	WARN_ON(itf->magic != SENSOR_INTERFACE_MAGIC);
+
+	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
+	WARN_ON(!sensor_peri);
+
+	subdev_flash = sensor_peri->subdev_flash;
+
+	ctrl.id = V4L2_CID_FLASH_GET_DELAYED_PREFLASH_TIME;
+	ctrl.value = 0;
+	ret = v4l2_subdev_call(subdev_flash, core, ioctl, SENSOR_IOCTL_FLS_G_CTRL, &ctrl);
+	if (ret) {
+		dbg_flash("[%s] get fail (%d)\n", __func__, ret);
+		ret = -1;
+		goto p_err;
+	} else {
+		*delayedTime = (u32)ctrl.value;
+	}
+
+	dbg_flash("[%s] delayedTime(%d)\n", __func__, ctrl.value);
+
+p_err:
+#endif
+	return ret;
+}
+
 
 int init_sensor_interface(struct is_sensor_interface *itf)
 {
@@ -3902,7 +4003,7 @@ int init_sensor_interface(struct is_sensor_interface *itf)
 
 	itf->cis_itf_ops.is_actuator_available = is_actuator_available;
 	itf->cis_itf_ops.is_flash_available = is_flash_available;
-	itf->cis_itf_ops.get_sensor_mode = get_sensor_mode;
+	itf->cis_itf_ops.get_sensor_type = get_sensor_type;
 	itf->cis_itf_ops.is_ois_available = is_ois_available;
 	itf->cis_itf_ops.is_aperture_available = is_aperture_available;
 #if !defined(DISABLE_LASER_AF)
@@ -3979,12 +4080,10 @@ int init_sensor_interface(struct is_sensor_interface *itf)
 
 	itf->paf_itf_ops.set_paf_param = set_paf_param;
 	itf->paf_itf_ops.get_paf_ready = get_paf_ready;
-	itf->paf_itf_ops.register_paf_notifier = register_paf_notifier;
-	itf->paf_itf_ops.unregister_paf_notifier = unregister_paf_notifier;
 	itf->paf_itf_ops.reserved[0] = paf_reserved;
 	itf->paf_itf_ops.reserved[1] = paf_reserved;
 	itf->paf_itf_ops.reserved[2] = paf_reserved;
-	itf->paf_itf_ops.reserved[0] = paf_reserved;
+	itf->paf_itf_ops.reserved[3] = paf_reserved;
 
 #if !defined(DISABLE_LASER_AF)
 	itf->laser_af_itf_ops.get_distance = get_distance;
@@ -4000,23 +4099,26 @@ int init_sensor_interface(struct is_sensor_interface *itf)
 	itf->csi_itf_ops.get_vc_dma_buf_max_size = get_vc_dma_buf_max_size;
 #ifdef CAMERA_REAR2_SENSOR_SHIFT_CROP
 	itf->csi_itf_ops.get_sensor_shifted_num = get_sensor_shifted_num;
-#endif
 	itf->csi_itf_ops.reserved[0] = csi_reserved;
 	itf->csi_itf_ops.reserved[1] = csi_reserved;
 	itf->csi_itf_ops.reserved[2] = csi_reserved;
-#ifndef CAMERA_REAR2_SENSOR_SHIFT_CROP
-	itf->csi_itf_ops.reserved[3] = csi_reserved;
+#else
+	itf->csi_itf_ops.register_vc_dma_notifier = register_vc_dma_notifier;
+	itf->csi_itf_ops.unregister_vc_dma_notifier = unregister_vc_dma_notifier;
+	itf->csi_itf_ops.reserved[0] = csi_reserved;
+	itf->csi_itf_ops.reserved[1] = csi_reserved;
 #endif
 
 	/* CIS ext2 interface */
 	/* Long Term Exposure mode(LTE mode) interface */
 	itf->cis_ext2_itf_ops.set_long_term_expo_mode = set_long_term_expo_mode;
+	itf->cis_ext2_itf_ops.set_lte_multi_capture_mode = set_lte_multi_capture_mode;
+	itf->cis_ext2_itf_ops.get_delayed_preflash_time = get_delayed_preflash_time;
 	itf->cis_ext2_itf_ops.set_low_noise_mode = set_low_noise_mode;
 	itf->cis_ext2_itf_ops.get_sensor_max_dynamic_fps = get_sensor_max_dynamic_fps;
 	itf->cis_ext2_itf_ops.get_static_mem = get_static_mem;
 	itf->cis_ext2_itf_ops.get_open_close_hint = get_open_close_hint;
 	itf->cis_ext2_itf_ops.set_mainflash_duration = set_mainflash_duration;
-	itf->cis_ext2_itf_ops.get_delayed_preflash_time = get_delayed_preflash_time;
 	itf->cis_ext_itf_ops.set_adjust_sync = set_adjust_sync;
 	itf->cis_ext_itf_ops.request_frame_length_line = request_frame_length_line;
 	itf->cis_ext_itf_ops.request_sensitivity = request_sensitivity;
@@ -4039,6 +4141,7 @@ int init_sensor_interface(struct is_sensor_interface *itf)
 
 	itf->cis_ext2_itf_ops.request_wb_gain = request_wb_gain;
 	itf->cis_ext2_itf_ops.set_sensor_info_mfhdr_mode_change = set_sensor_info_mfhdr_mode_change;
+	itf->cis_ext2_itf_ops.request_direct_flash = request_direct_flash;
 
 	return ret;
 }

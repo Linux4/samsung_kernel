@@ -21,10 +21,10 @@
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <linux/semaphore.h>
-#include <linux/wakelock.h>
+#include <linux/pm_wakeup.h>
+#include <linux/kthread.h>
 
 #include "comms.h"
-#include "bl.h"
 #include "chub.h"
 
 #define NANOHUB_NAME "nanohub"
@@ -44,10 +44,10 @@ struct nanohub_io {
 	struct list_head buf_list;
 };
 
-struct saved_setting {
+struct sensor_map_pack {
 	char magic[15];
-	char num_os;
-	char readbuf[SENSOR_TYPE_MAX];
+	uint8_t num_os;
+	struct sensor_map sensormap;
 };
 
 static inline struct nanohub_data *dev_get_nanohub_data(struct device *dev)
@@ -55,37 +55,71 @@ static inline struct nanohub_data *dev_get_nanohub_data(struct device *dev)
 	struct nanohub_io *io = dev_get_drvdata(dev);
 
 	if(io == NULL) {
-		pr_info("%s io not available!\n", __func__);
+		nanohub_err("%s io not available!\n", __func__);
 		return NULL;
 	}
 
 	return io->data;
 }
 
-struct nanohub_data {
-	/* indices for io[] array */
-	#define ID_NANOHUB_SENSOR 0
-	#define ID_NANOHUB_COMMS 1
-	#define ID_NANOHUB_MAX 2
+#define CHUB_USER_DEBUG
+#ifdef CHUB_USER_DEBUG
+enum chub_user_err_id {
+	chub_user_err_missmatch,
+	chub_user_err_timeout,
+	chub_user_err_wakeaq,
+	chub_user_err_max,
+};
 
+#define CHUB_USER_DEBUG_NUM (20)
+#define CHUB_USER_DEBUG_ERR_NUM (10)
+
+#define CHUB_COMMS_SIZE (16)
+
+struct chub_user {
+	u64 pid;
+	u64 lastTime;
+	char name[CHUB_COMMS_SIZE];
+	u32 lock_mode;
+	long ret;
+};
+
+struct chub_user_debug {
+	/* dump for last acquire lock */
+	struct chub_user user_acq;
+	/* dump for current */
+	struct chub_user user_cur;
+	/* dump for always */
+	struct chub_user user[CHUB_USER_DEBUG_NUM];
+	struct chub_user user_out[CHUB_USER_DEBUG_NUM];
+	/* dump for error */
+	struct chub_user user_err[chub_user_err_max][CHUB_USER_DEBUG_ERR_NUM];
+	struct chub_user user_err_out[CHUB_USER_DEBUG_ERR_NUM];
+	u32 index;
+	u32 index_err[chub_user_err_max];
+	u32 err_cnt[chub_user_err_max];
+};
+
+void print_chub_user(struct nanohub_data *data);
+#else
+#define print_chub_user(a) ((void)0)
+#endif
+
+struct nanohub_data {
 	struct iio_dev *iio_dev;
-	struct nanohub_io io[ID_NANOHUB_MAX];
+	struct nanohub_io io;
 
 	struct nanohub_comms comms;
-#ifdef CONFIG_NANOHUB_MAILBOX
 	struct nanohub_platform_data *pdata;
-#else
-	struct nanohub_bl bl;
-	const struct nanohub_platform_data *pdata;
-#endif
-	int irq1;
-	int irq2;
+	u64 wakelock_req_time;
+	int irq;
 
 	atomic_t kthread_run;
 	atomic_t thread_state;
+	atomic_t in_reset;
 	wait_queue_head_t kthread_wait;
 
-	struct wake_lock wakelock_read;
+	struct wakeup_source *ws;
 
 	struct nanohub_io free_pool;
 
@@ -100,12 +134,17 @@ struct nanohub_data {
 
 	ktime_t wakeup_err_ktime;
 	int wakeup_err_cnt;
+	int wakeup_cnt_acq_err;
 
 	ktime_t kthread_err_ktime;
 	int kthread_err_cnt;
 
 	void *vbuf;
 	struct task_struct *thread;
+
+#ifdef CHUB_USER_DEBUG
+	struct chub_user_debug chub_user;
+#endif
 };
 
 enum {
@@ -117,97 +156,30 @@ enum {
 enum {
 	LOCK_MODE_NONE,
 	LOCK_MODE_NORMAL,
-	LOCK_MODE_IO,
-	LOCK_MODE_IO_BL,
 	LOCK_MODE_RESET,
 	LOCK_MODE_SUSPEND_RESUME,
 };
 
-#ifndef CONFIG_NANOHUB_MAILBOX
-#define wait_event_interruptible_timeout_locked(q, cond, tmo)		\
-({									\
-	long __ret = (tmo);						\
-	DEFINE_WAIT(__wait);						\
-	if (!(cond)) {							\
-		for (;;) {						\
-			__wait.flags &= ~WQ_FLAG_EXCLUSIVE;		\
-			if (list_empty(&__wait.entry))			\
-				__add_wait_queue_entry_tail(&(q), &__wait);	\
-			set_current_state(TASK_INTERRUPTIBLE);		\
-			if ((cond))					\
-				break;					\
-			if (signal_pending(current)) {			\
-				__ret = -ERESTARTSYS;			\
-				break;					\
-			}						\
-			spin_unlock(&(q).lock);				\
-			__ret = schedule_timeout(__ret);		\
-			spin_lock(&(q).lock);				\
-			if (!__ret) {					\
-				if ((cond))				\
-					__ret = 1;			\
-				break;					\
-			}						\
-		}							\
-		__set_current_state(TASK_RUNNING);			\
-		if (!list_empty(&__wait.entry))				\
-			list_del_init(&__wait.entry);			\
-		else if (__ret == -ERESTARTSYS &&			\
-			 /*reimplementation of wait_abort_exclusive() */\
-			 waitqueue_active(&(q)))			\
-			__wake_up_locked_key(&(q), TASK_INTERRUPTIBLE,	\
-			NULL);						\
-	} else {							\
-		__ret = 1;						\
-	}								\
-	__ret;								\
-})
-#endif
-
 int request_wakeup_ex(struct nanohub_data *data, long timeout,
 		      int key, int lock_mode);
 void release_wakeup_ex(struct nanohub_data *data, int key, int lock_mode);
-int nanohub_wait_for_interrupt(struct nanohub_data *data);
 int nanohub_wakeup_eom(struct nanohub_data *data, bool repeat);
 struct iio_dev *nanohub_probe(struct device *dev, struct iio_dev *iio_dev);
-int nanohub_reset(struct nanohub_data *data);
 int nanohub_remove(struct iio_dev *iio_dev);
-int nanohub_suspend(struct iio_dev *iio_dev);
-int nanohub_resume(struct iio_dev *iio_dev);
-void nanohub_handle_irq1(struct nanohub_data *data);
 
-#ifdef CONFIG_EXT_CHUB
-static inline int nanohub_irq1_fired(struct nanohub_data *data)
+int nanohub_init(void);
+void nanohub_cleanup(void);
+
+void nanohub_handle_irq(struct nanohub_data *data);
+
+static inline int nanohub_irq_fired(struct nanohub_data *data)
 {
-	const struct nanohub_platform_data *pdata = data->pdata;
+	struct contexthub_ipc_info *chub = data->pdata->mailbox_client;
 
-	return !gpio_get_value(pdata->irq1_gpio);
+	return !atomic_read(&chub->atomic.irq_apInt);
 }
 
-static inline int nanohub_irq2_fired(struct nanohub_data *data)
-{
-	const struct nanohub_platform_data *pdata = data->pdata;
-
-	return data->irq2 && !gpio_get_value(pdata->irq2_gpio);
-}
-#else
-static inline int nanohub_irq1_fired(struct nanohub_data *data)
-{
-	struct contexthub_ipc_info *ipc = data->pdata->mailbox_client;
-
-	return !atomic_read(&ipc->irq1_apInt);
-}
-
-static inline int nanohub_irq2_fired(struct nanohub_data *data)
-{
-	return 0;
-}
-#endif
-
-#ifdef CONFIG_NANOHUB_MAILBOX
-void nanohub_reset_status(struct nanohub_data *data);
 void nanohub_add_dump_request(struct nanohub_data *data);
-#endif
 
 int nanohub_hw_reset(struct nanohub_data *data);
 
@@ -226,5 +198,4 @@ static inline void release_wakeup(struct nanohub_data *data)
 {
 	release_wakeup_ex(data, KEY_WAKEUP, LOCK_MODE_NORMAL);
 }
-
 #endif

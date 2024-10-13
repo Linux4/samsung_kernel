@@ -1,9 +1,8 @@
 config EXYNOS_DPU30
-	bool "Samsung Exynos Display Sub-system (DPP, DECON, MIPI, DISPLAYPORT)"
+	tristate "Samsung Exynos Display Sub-system (DPP, DECON, MIPI, DISPLAYPORT)"
 	select EXYNOS_IOMMU
 	select MEDIA_CAMERA_SUPPORT
 	select PHY_EXYNOS_MIPI_DSIM
-	default n
 	depends on FB
 
 if EXYNOS_DPU30

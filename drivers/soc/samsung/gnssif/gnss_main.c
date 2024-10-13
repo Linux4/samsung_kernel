@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /* linux/drivers/misc/gnss/gnss_main.c
  *
  * Copyright (C) 2010 Google, Inc.
@@ -20,7 +21,6 @@
 #include <linux/platform_device.h>
 #include <linux/miscdevice.h>
 #include <linux/if_arp.h>
-
 #include <linux/uaccess.h>
 #include <linux/fs.h>
 #include <linux/io.h>
@@ -31,10 +31,9 @@
 #include <linux/irq.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
-#include <linux/wakelock.h>
 #include <linux/mfd/syscon.h>
 #include <linux/clk.h>
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
@@ -116,7 +115,7 @@ static struct io_device *create_io_device(struct platform_device *pdev,
 	ld->iod = iod;
 
 	/* register misc device */
-	ret = exynos_init_gnss_io_device(iod);
+	ret = exynos_init_gnss_io_device(iod, dev);
 	if (ret) {
 		devm_kfree(dev, iod);
 		gif_err("exynos_init_gnss_io_device fail (%d)\n", ret);
@@ -127,14 +126,40 @@ static struct io_device *create_io_device(struct platform_device *pdev,
 	return iod;
 }
 
-#ifdef CONFIG_OF_RESERVED_MEM
+#if IS_ENABLED(CONFIG_OF_RESERVED_MEM)
+
+#if defined(MODULE)
+static int gnss_rmem_setup_latecall(struct platform_device *pdev)
+{
+	struct device_node *np;
+	struct reserved_mem *rmem;
+	struct gnss_pdata *pdata = (struct gnss_pdata *)pdev->dev.platform_data;
+
+	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	if (!np)
+		return -EINVAL;
+
+	rmem = of_reserved_mem_lookup(np);
+	if (!rmem) {
+		gif_err("of_reserved_mem_lookup() failed\n");
+		return -EINVAL;
+	}
+
+	pdata->shmem_base = rmem->base;
+	pdata->shmem_size = rmem->size;
+
+	gif_info("rmem 0x%llX 0x%08X\n", pdata->shmem_base, pdata->shmem_size);
+
+	return 0;
+}
+#else
 static int gnss_dma_device_init(struct reserved_mem *rmem, struct device *dev)
 {
 	struct gnss_pdata *pdata;
 	if (!dev && !dev->platform_data)
 		return -ENODEV;
 
-	// Save reserved memory information.
+	/* Save reserved memory information. */
 	pdata = (struct gnss_pdata *)dev->platform_data;
 	pdata->shmem_base = rmem->base;
 	pdata->shmem_size = rmem->size;
@@ -152,7 +177,7 @@ static const struct reserved_mem_ops gnss_dma_ops = {
 	.device_release	= gnss_dma_device_release,
 };
 
-static int __init gnss_if_reserved_mem_setup(struct reserved_mem *remem)
+static int gnss_if_reserved_mem_setup(struct reserved_mem *remem)
 {
 	gif_info("%s: memory reserved: paddr=%#lx, t_size=%zd\n",
 		__func__, (unsigned long)remem->base, (size_t)remem->size);
@@ -163,15 +188,29 @@ static int __init gnss_if_reserved_mem_setup(struct reserved_mem *remem)
 RESERVEDMEM_OF_DECLARE(gnss_rmem, "samsung,exynos-gnss", gnss_if_reserved_mem_setup);
 #endif
 
-#ifdef CONFIG_OF
+#endif
+
+#if IS_ENABLED(CONFIG_OF)
 static int parse_dt_common_pdata(struct device_node *np,
 					struct gnss_pdata *pdata)
 {
 	gif_dt_read_string(np, "shmem,name", pdata->name);
 	gif_dt_read_string(np, "device_node_name", pdata->device_node_name);
-	gif_dt_read_u32(np, "shmem,ipc_offset", pdata->ipcmem_offset);
+	gif_dt_read_u32(np, "shmem,code_offset", pdata->code_offset);
+	gif_dt_read_u32(np, "shmem,code_allowed_size", pdata->code_allowed_size);
+	gif_dt_read_u32(np, "shmem,ipc_offset", pdata->ipc_offset);
 	gif_dt_read_u32(np, "shmem,ipc_size", pdata->ipc_size);
-	gif_dt_read_u32(np, "shmem,ipc_reg_cnt", pdata->ipc_reg_cnt);
+	gif_dt_read_u32(np, "shmem,ipc_rx_offset", pdata->ipc_rx_offset);
+	gif_dt_read_u32(np, "shmem,ipc_rx_size", pdata->ipc_rx_size);
+	gif_dt_read_u32(np, "shmem,ipc_tx_offset", pdata->ipc_tx_offset);
+	gif_dt_read_u32(np, "shmem,ipc_tx_size", pdata->ipc_tx_size);
+	gif_dt_read_u32(np, "shmem,ipc_reg_offset", pdata->ipc_reg_offset);
+	gif_dt_read_u32(np, "shmem,ipc_reg_size", pdata->ipc_reg_size);
+
+#if IS_ENABLED(CONFIG_SOC_S5E9925)
+	gif_dt_read_u32(np, "shmem,base_addr", pdata->base_addr);
+	gif_dt_read_u32(np, "shmem,base_addr_2nd", pdata->base_addr_2nd);
+#endif
 
 	return 0;
 }
@@ -303,13 +342,13 @@ static struct gnss_pdata *gnss_if_parse_dt_pdata(struct device *dev)
 		return ERR_PTR(-ENOMEM);
 	}
 	dev->platform_data = pdata;
-
+#if !defined(MODULE)
 	ret = of_reserved_mem_device_init(dev);
 	if (ret != 0) {
 		gif_err("Failed to parse reserved memory\n");
 		goto parse_dt_pdata_err;
 	}
-
+#endif
 	ret = parse_dt_common_pdata(dev->of_node, pdata);
 	if (ret != 0) {
 		gif_err("Failed to parse common pdata.\n");
@@ -396,7 +435,8 @@ static int gnss_probe(struct platform_device *pdev)
 	struct gnss_ctl *ctl;
 	struct io_device *iod;
 	struct link_device *ld;
-	unsigned size;
+	unsigned int size;
+	int ret = 0;
 
 	gif_info("Exynos GNSS interface driver %s\n", get_gnssif_driver_version());
 
@@ -412,6 +452,14 @@ static int gnss_probe(struct platform_device *pdev)
 		gif_err("DT parse error!\n");
 		return PTR_ERR(pdata);
 	}
+
+#if defined(MODULE)
+	ret = gnss_rmem_setup_latecall(pdev);
+	if (ret != 0) {
+		gif_err("gnss_rmem_setup_latecall() error:%d\n", ret);
+		return ret;
+	}
+#endif
 
 	/* allocate iodev */
 	size = sizeof(struct gnss_io_t);
@@ -484,7 +532,7 @@ static void gnss_shutdown(struct platform_device *pdev)
 	gc->gnss_state = STATE_OFFLINE;
 }
 
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 static int gnss_suspend(struct device *pdev)
 {
 	struct gnss_ctl *gc = dev_get_drvdata(pdev);
@@ -525,7 +573,7 @@ static struct platform_driver gnss_driver = {
 		.name = "gnss_interface",
 		.owner = THIS_MODULE,
 		.pm = &gnss_pm_ops,
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 		.of_match_table = of_match_ptr(gnss_dt_match),
 #endif
 	},

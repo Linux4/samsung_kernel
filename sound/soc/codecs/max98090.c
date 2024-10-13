@@ -1,11 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * max98090.c -- MAX98090 ALSA SoC Audio driver
  *
  * Copyright 2011-2012 Maxim Integrated Products
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/delay.h>
@@ -314,9 +311,6 @@ static const DECLARE_TLV_DB_SCALE(max98090_av_tlv, -1200, 100, 0);
 static const DECLARE_TLV_DB_SCALE(max98090_dvg_tlv, 0, 600, 0);
 static const DECLARE_TLV_DB_SCALE(max98090_dv_tlv, -1500, 100, 0);
 
-static const DECLARE_TLV_DB_SCALE(max98090_sidetone_tlv, -6050, 200, 0);
-
-static const DECLARE_TLV_DB_SCALE(max98090_alc_tlv, -1500, 100, 0);
 static const DECLARE_TLV_DB_SCALE(max98090_alcmakeup_tlv, 0, 100, 0);
 static const DECLARE_TLV_DB_SCALE(max98090_alccomp_tlv, -3100, 100, 0);
 static const DECLARE_TLV_DB_SCALE(max98090_drcexp_tlv, -6600, 100, 0);
@@ -359,7 +353,7 @@ static int max98090_get_enab_tlv(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int mask = (1 << fls(mc->max)) - 1;
-	unsigned int val = snd_soc_component_read32(component, mc->reg);
+	unsigned int val = snd_soc_component_read(component, mc->reg);
 	unsigned int *select;
 
 	switch (mc->reg) {
@@ -399,8 +393,9 @@ static int max98090_put_enab_tlv(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int mask = (1 << fls(mc->max)) - 1;
-	unsigned int sel = ucontrol->value.integer.value[0];
-	unsigned int val = snd_soc_component_read32(component, mc->reg);
+	int sel_unchecked = ucontrol->value.integer.value[0];
+	unsigned int sel;
+	unsigned int val = snd_soc_component_read(component, mc->reg);
 	unsigned int *select;
 
 	switch (mc->reg) {
@@ -419,6 +414,10 @@ static int max98090_put_enab_tlv(struct snd_kcontrol *kcontrol,
 
 	val = (val >> mc->shift) & mask;
 
+	if (sel_unchecked < 0 || sel_unchecked > mc->max)
+		return -EINVAL;
+	sel = sel_unchecked;
+
 	*select = sel;
 
 	/* Setting a volume is only valid if it is already On */
@@ -433,7 +432,7 @@ static int max98090_put_enab_tlv(struct snd_kcontrol *kcontrol,
 		mask << mc->shift,
 		sel << mc->shift);
 
-	return 0;
+	return *select != val;
 }
 
 static const char *max98090_perf_pwr_text[] =
@@ -736,7 +735,7 @@ static int max98090_micinput_event(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
 	struct max98090_priv *max98090 = snd_soc_component_get_drvdata(component);
 
-	unsigned int val = snd_soc_component_read32(component, w->reg);
+	unsigned int val = snd_soc_component_read(component, w->reg);
 
 	if (w->reg == M98090_REG_MIC1_INPUT_LEVEL)
 		val = (val & M98090_MIC_PA1EN_MASK) >> M98090_MIC_PA1EN_SHIFT;
@@ -816,18 +815,6 @@ static SOC_ENUM_SINGLE_VIRT_DECL(dmic_mux_enum, dmic_mux_text);
 
 static const struct snd_kcontrol_new max98090_dmic_mux =
 	SOC_DAPM_ENUM("DMIC Mux", dmic_mux_enum);
-
-static const char *max98090_micpre_text[] = { "Off", "On" };
-
-static SOC_ENUM_SINGLE_DECL(max98090_pa1en_enum,
-			    M98090_REG_MIC1_INPUT_LEVEL,
-			    M98090_MIC_PA1EN_SHIFT,
-			    max98090_micpre_text);
-
-static SOC_ENUM_SINGLE_DECL(max98090_pa2en_enum,
-			    M98090_REG_MIC2_INPUT_LEVEL,
-			    M98090_MIC_PA2EN_SHIFT,
-			    max98090_micpre_text);
 
 /* LINEA mixer switch */
 static const struct snd_kcontrol_new max98090_linea_mixer_controls[] = {
@@ -1514,7 +1501,7 @@ static void max98090_configure_bclk(struct snd_soc_component *component)
 	}
 
 	/* Skip configuration when operating as slave */
-	if (!(snd_soc_component_read32(component, M98090_REG_MASTER_MODE) &
+	if (!(snd_soc_component_read(component, M98090_REG_MASTER_MODE) &
 		M98090_MAS_MASK)) {
 		return;
 	}
@@ -2035,7 +2022,8 @@ static int max98090_dai_set_sysclk(struct snd_soc_dai *dai,
 	return 0;
 }
 
-static int max98090_dai_digital_mute(struct snd_soc_dai *codec_dai, int mute)
+static int max98090_dai_mute(struct snd_soc_dai *codec_dai, int mute,
+			     int direction)
 {
 	struct snd_soc_component *component = codec_dai->component;
 	int regval;
@@ -2057,7 +2045,7 @@ static int max98090_dai_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		if (!max98090->master && dai->active == 1)
+		if (!max98090->master && snd_soc_dai_active(dai) == 1)
 			queue_delayed_work(system_power_efficient_wq,
 					   &max98090->pll_det_enable_work,
 					   msecs_to_jiffies(10));
@@ -2065,7 +2053,7 @@ static int max98090_dai_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		if (!max98090->master && dai->active == 1)
+		if (!max98090->master && snd_soc_dai_active(dai) == 1)
 			schedule_work(&max98090->pll_det_disable_work);
 		break;
 	default:
@@ -2124,21 +2112,37 @@ static void max98090_pll_det_disable_work(struct work_struct *work)
 static void max98090_pll_work(struct max98090_priv *max98090)
 {
 	struct snd_soc_component *component = max98090->component;
+	unsigned int pll;
+	int i;
 
-	if (!snd_soc_component_is_active(component))
+	if (!snd_soc_component_active(component))
 		return;
 
 	dev_info_ratelimited(component->dev, "PLL unlocked\n");
 
+	/*
+	 * As the datasheet suggested, the maximum PLL lock time should be
+	 * 7 msec.  The workaround resets the codec softly by toggling SHDN
+	 * off and on if PLL failed to lock for 10 msec.  Notably, there is
+	 * no suggested hold time for SHDN off.
+	 */
+
 	/* Toggle shutdown OFF then ON */
 	snd_soc_component_update_bits(component, M98090_REG_DEVICE_SHUTDOWN,
 			    M98090_SHDNN_MASK, 0);
-	msleep(10);
 	snd_soc_component_update_bits(component, M98090_REG_DEVICE_SHUTDOWN,
 			    M98090_SHDNN_MASK, M98090_SHDNN_MASK);
 
-	/* Give PLL time to lock */
-	msleep(10);
+	for (i = 0; i < 10; ++i) {
+		/* Give PLL time to lock */
+		usleep_range(1000, 1200);
+
+		/* Check lock status */
+		pll = snd_soc_component_read(
+				component, M98090_REG_DEVICE_STATUS);
+		if (!(pll & M98090_ULK_MASK))
+			break;
+	}
 }
 
 static void max98090_jack_work(struct work_struct *work)
@@ -2159,16 +2163,16 @@ static void max98090_jack_work(struct work_struct *work)
 
 		msleep(50);
 
-		reg = snd_soc_component_read32(component, M98090_REG_JACK_STATUS);
+		reg = snd_soc_component_read(component, M98090_REG_JACK_STATUS);
 
 		/* Weak pull up allows only insertion detection */
 		snd_soc_component_update_bits(component, M98090_REG_JACK_DETECT,
 			M98090_JDWK_MASK, M98090_JDWK_MASK);
 	} else {
-		reg = snd_soc_component_read32(component, M98090_REG_JACK_STATUS);
+		reg = snd_soc_component_read(component, M98090_REG_JACK_STATUS);
 	}
 
-	reg = snd_soc_component_read32(component, M98090_REG_JACK_STATUS);
+	reg = snd_soc_component_read(component, M98090_REG_JACK_STATUS);
 
 	switch (reg & (M98090_LSNS_MASK | M98090_JKSNS_MASK)) {
 		case M98090_LSNS_MASK | M98090_JKSNS_MASK:
@@ -2349,8 +2353,9 @@ static const struct snd_soc_dai_ops max98090_dai_ops = {
 	.set_fmt = max98090_dai_set_fmt,
 	.set_tdm_slot = max98090_set_tdm_slot,
 	.hw_params = max98090_dai_hw_params,
-	.digital_mute = max98090_dai_digital_mute,
+	.mute_stream = max98090_dai_mute,
 	.trigger = max98090_dai_trigger,
+	.no_capture_mute = 1,
 };
 
 static struct snd_soc_dai_driver max98090_dai[] = {
@@ -2408,7 +2413,7 @@ static int max98090_probe(struct snd_soc_component *component)
 	max98090->pa1en = 0;
 	max98090->pa2en = 0;
 
-	ret = snd_soc_component_read32(component, M98090_REG_REVISION_ID);
+	ret = snd_soc_component_read(component, M98090_REG_REVISION_ID);
 	if (ret < 0) {
 		dev_err(component->dev, "Failed to read device revision: %d\n",
 			ret);
@@ -2448,7 +2453,7 @@ static int max98090_probe(struct snd_soc_component *component)
 	 * An old interrupt ocurring prior to installing the ISR
 	 * can keep a new interrupt from generating a trigger.
 	 */
-	snd_soc_component_read32(component, M98090_REG_DEVICE_STATUS);
+	snd_soc_component_read(component, M98090_REG_DEVICE_STATUS);
 
 	/* High Performance is default */
 	snd_soc_component_update_bits(component, M98090_REG_DAC_CONTROL,
@@ -2653,17 +2658,12 @@ static int max98090_resume(struct device *dev)
 
 	return 0;
 }
-
-static int max98090_suspend(struct device *dev)
-{
-	return 0;
-}
 #endif
 
 static const struct dev_pm_ops max98090_pm = {
 	SET_RUNTIME_PM_OPS(max98090_runtime_suspend,
 		max98090_runtime_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(max98090_suspend, max98090_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(NULL, max98090_resume)
 };
 
 static const struct i2c_device_id max98090_i2c_id[] = {

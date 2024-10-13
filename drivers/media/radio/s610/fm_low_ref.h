@@ -1,9 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * drivers/media/radio/s610/fm_low_ref.h
  *
  * FM Radio Rx Low level driver header for SAMSUNG S610 chip
  *
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -42,6 +43,7 @@ void fm_rx_check_spur(struct s610_radio *radio);
 void fm_rx_check_spur_mono(struct s610_radio *radio);
 #endif
 void fm_set_freq(struct s610_radio *radio, u32 freq, bool mix_hi);
+void fm_set_volume_enable(bool enable);
 void fm_set_mute(bool mute);
 void fm_set_blend_mute(struct s610_radio *radio);
 static void fm_rds_flush_buffers(struct s610_radio *radio,
@@ -62,7 +64,9 @@ void fm_update_if_count_work(struct s610_radio *radio);
 void fm_update_rssi(struct s610_radio *radio);
 void fm_update_rssi_work(struct s610_radio *radio);
 void fm_update_snr(struct s610_radio *radio);
+void fm_update_snr_work(struct s610_radio *radio);
 void fm_update_sig_info(struct s610_radio *radio);
+void fm_update_sig_info_work(struct s610_radio *radio);
 void fm_update_rds_sync_status(struct s610_radio *radio,
 	bool synced);
 u16 fm_update_rx_status(struct s610_radio *radio, u16 d_status);
@@ -88,7 +92,6 @@ void fm_rx_ana_start(void);
 void fm_rx_ana_stop(void);
 void fm_setup_iq_imbalance(void);
 void fm_rx_init(void);
-
 void fm_lo_off(void);
 void fm_lo_prepare_setup(struct s610_radio *radio);
 void fm_lo_set(const struct fm_lo_setup lo_set);
@@ -170,9 +173,12 @@ extern u32 fmspeedy_get_reg(u32 addr);
 extern u32 fmspeedy_get_reg_work(u32 addr);
 extern u32 fmspeedy_get_reg_field(u32 addr, u32 shift, u32 mask);
 extern u32 fmspeedy_get_reg_field_work(u32 addr, u32 shift, u32 mask);
+extern void fm_audio_check(void);
+extern void fm_audio_check_work(void);
 extern void fm_audio_control(struct s610_radio *radio,
 	bool audio_out, bool lr_switch,
 	u32 req_time, u32 audio_addr);
+extern void fm_set_audio_enable(bool enable);
 extern int fm_read_rds_data(struct s610_radio *radio, u8 *buffer, int size,
 		u16 *blocks);
 extern void fm_process_rds_data(struct s610_radio *radio);

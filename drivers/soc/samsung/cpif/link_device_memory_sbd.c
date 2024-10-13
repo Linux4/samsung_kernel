@@ -1,54 +1,32 @@
-/**
-@file		link_device_memory_main.c
-@brief		common functions for all types of memory interface media
-@date		2014/02/05
-@author		Hankook Jang (hankook.jang@samsung.com)
-*/
+// SPDX-License-Identifier: GPL-2.0
+/* @file		link_device_memory_main.c
+ * @brief		common functions for all types of memory interface media
+ * @date		2014/02/05
+ * @author		Hankook Jang (hankook.jang@samsung.com)
+ */
 
 /*
  * Copyright (C) 2011 Samsung Electronics.
  *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  */
 
 #include <soc/samsung/exynos-modem-ctrl.h>
+#include <soc/samsung/shm_ipc.h>
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "link_device_memory.h"
 #include "include/sbd.h"
-#include <linux/shm_ipc.h>
-
-#ifdef GROUP_MEM_LINK_SBD
-/**
-@weakgroup group_mem_link_sbd
-@{
-*/
-
-#ifdef GROUP_MEM_LINK_SETUP
-/**
-@weakgroup group_mem_link_setup
-@{
-*/
 
 static void print_sbd_config(struct sbd_link_device *sl)
 {
-#ifdef DEBUG_MODEM_IF
 	int i, dir;
 	struct sbd_rb_channel *rb_ch;
 	struct sbd_rb_desc *rbd;
 
-	pr_err("mif: SBD_IPC {shmem_base:0x%pK shmem_size:%d}\n",
+	mif_info("SBD_IPC {shmem_base:0x%pK shmem_size:%d}\n",
 		sl->shmem, sl->shmem_size);
 
-	pr_err("mif: SBD_IPC {version:%d num_channels:%d rpwp_array_offset:%d}\n",
+	mif_info("SBD_IPC {version:%d num_channels:%d rpwp_array_offset:%d}\n",
 		sl->g_desc->version, sl->g_desc->num_channels,
 		sl->g_desc->rpwp_array_offset);
 
@@ -57,15 +35,112 @@ static void print_sbd_config(struct sbd_link_device *sl)
 			rb_ch = &sl->g_desc->rb_ch[i][dir];
 			rbd = &sl->g_desc->rb_desc[i][dir];
 
-			pr_err("mif: RB_DESC[%-2d][%s](offset:%d) = {id:%-2d ch:%-3d dir:%s} {buff_pos_array_offset:%-5d rb_len:%-3d} {buff_size:%-4d payload_offset:%d}\n",
+			mif_info("RB_DESC[%-2d][%s](offset:%d) = {id:%-2d ch:%-3d dir:%s} {buff_pos_array_offset:%-5d rb_len:%-3d} {buff_size:%-4d payload_offset:%d}\n",
 				i, udl_str(dir), rb_ch->rb_desc_offset,
 				rbd->id, rbd->ch, udl_str(rbd->direction),
 				rb_ch->buff_pos_array_offset, rbd->length,
 				rbd->buff_size, rbd->payload_offset);
 		}
 	}
-#endif
 }
+
+/* sysfs */
+static ssize_t region_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct modem_data *modem;
+	struct sbd_link_device *sl;
+	struct sbd_rb_channel *rb_ch;
+	struct sbd_rb_desc *rbd;
+	struct sbd_link_attr *link_attr;
+	struct sbd_ring_buffer *rb;
+	int i, dir;
+	ssize_t count = 0;
+
+	modem = (struct modem_data *)dev->platform_data;
+	sl = &modem->mld->sbd_link_dev;
+
+	count += scnprintf(&buf[count], PAGE_SIZE - count,
+		"version:%d num_channels:%d rpwp_array_offset:%d\n",
+		sl->g_desc->version, sl->g_desc->num_channels, sl->g_desc->rpwp_array_offset);
+
+	for (i = 0; i < sl->num_channels; i++) {
+		for (dir = 0; dir < ULDL; dir++) {
+			count += scnprintf(&buf[count], PAGE_SIZE - count, "\n");
+
+			rb = sbd_id2rb(sl, i, dir);
+			rb_ch = &sl->g_desc->rb_ch[i][dir];
+			rbd = &sl->g_desc->rb_desc[i][dir];
+			link_attr = &sl->link_attr[i];
+
+			count += scnprintf(&buf[count], PAGE_SIZE - count,
+				"ID:%d CH:%d direction:%s\n", rbd->id, rbd->ch, udl_str(dir));
+			count += scnprintf(&buf[count], PAGE_SIZE - count,
+				"DESC region offset:%d buff_pos:%d buff_size:%d len:%d\n",
+				rb_ch->rb_desc_offset, rb_ch->buff_pos_array_offset,
+				rbd->buff_size, rbd->length);
+			count += scnprintf(&buf[count], PAGE_SIZE - count,
+				"BUFF region offset:%d size:%u\n",
+				calc_offset(rb->buff_rgn, sl->shmem), (rb->len * rb->buff_size));
+		}
+	}
+
+	return count;
+}
+
+static ssize_t status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct modem_data *modem;
+	struct sbd_link_device *sl;
+	struct sbd_ring_buffer *rb_tx, *rb_rx;
+	int i;
+	ssize_t count = 0;
+
+	modem = (struct modem_data *)dev->platform_data;
+	sl = &modem->mld->sbd_link_dev;
+
+	count += scnprintf(&buf[count], PAGE_SIZE - count, "num_channels:%d\n", sl->num_channels);
+	for (i = 0; i < sl->num_channels; i++) {
+		rb_tx = sbd_id2rb(sl, i, TX);
+		rb_rx = sbd_id2rb(sl, i, RX);
+
+		count += scnprintf(&buf[count], PAGE_SIZE - count, "\n");
+		if (!rb_tx->len && !rb_rx->len) {
+			count += scnprintf(&buf[count], PAGE_SIZE - count,
+				"ID:%d TX(empty) RX(empty)\n", i);
+			continue;
+		}
+
+		count += scnprintf(&buf[count], PAGE_SIZE - count, "ID:%d name:%s\n",
+			i, rb_tx->iod->name);
+		count += scnprintf(&buf[count], PAGE_SIZE - count,
+			"TX ch:%d len:%d buff_size:%d rp:%d wp:%d space:%d usage:%d\n",
+			rb_tx->ch, rb_tx->len, rb_rx->buff_size,
+			*rb_tx->rp, *rb_tx->wp, rb_space(rb_tx) + 1, rb_usage(rb_tx));
+		count += scnprintf(&buf[count], PAGE_SIZE - count,
+			"RX ch:%d len:%d buff_size:%d rp:%d wp:%d, space:%d usage:%d\n",
+			rb_rx->ch, rb_rx->len, rb_rx->buff_size,
+			*rb_rx->rp, *rb_rx->wp,
+			rb_space(rb_rx) + 1, rb_usage(rb_rx));
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR_RO(region);
+static DEVICE_ATTR_RO(status);
+
+static struct attribute *sbd_attrs[] = {
+	&dev_attr_region.attr,
+	&dev_attr_status.attr,
+	NULL,
+};
+
+static const struct attribute_group sbd_group = {
+	.attrs = sbd_attrs,
+	.name = "sbd",
+};
 
 static void setup_link_attr(struct sbd_link_attr *link_attr, u16 id, u16 ch,
 			    struct modem_io_t *io_dev)
@@ -73,7 +148,7 @@ static void setup_link_attr(struct sbd_link_attr *link_attr, u16 id, u16 ch,
 	link_attr->id = id;
 	link_attr->ch = ch;
 
-	if (io_dev->attrs & IODEV_ATTR(ATTR_NO_LINK_HEADER))
+	if (io_dev->attrs & IO_ATTR_NO_LINK_HEADER)
 		link_attr->lnk_hdr = false;
 	else
 		link_attr->lnk_hdr = true;
@@ -83,47 +158,40 @@ static void setup_link_attr(struct sbd_link_attr *link_attr, u16 id, u16 ch,
 	link_attr->rb_len[DL] = io_dev->dl_num_buffers;
 	link_attr->buff_size[DL] = io_dev->dl_buffer_size;
 
-#if defined(CONFIG_CP_ZEROCOPY)
-	if (io_dev->attrs & IODEV_ATTR(ATTR_ZEROCOPY))
-		link_attr->zerocopy = true;
-	else
-		link_attr->zerocopy = false;
-#endif
-
 }
 
-/**
-@return		the number of actual link channels
-*/
-static unsigned int init_ctrl_tables(struct sbd_link_device *sl, int num_iodevs,
-				     struct modem_io_t iodevs[])
+/*
+ * @return		the number of actual link channels
+ */
+static unsigned int init_ctrl_tables(struct sbd_link_device *sl)
 {
-	int i, ch;
+	struct modem_io_t **iodevs = sl->ld->mdm_data->iodevs;
+	unsigned int i, ch;
 	int multi_raw_count = 0;
 	unsigned int id = 0;
 
 	/*
-	Fill ch2id array with MAX_SBD_LINK_IDS value to prevent sbd_ch2id()
-	from returning 0 for unused channels.
-	*/
+	 * Fill ch2id array with MAX_SBD_LINK_IDS value to prevent sbd_ch2id()
+	 * from returning 0 for unused channels.
+	 */
 	for (i = 0; i < MAX_SBD_SIPC_CHANNELS; i++)
 		sl->ch2id[i] = MAX_SBD_LINK_IDS;
 
-	for (i = 0; i < num_iodevs; i++) {
-		ch = iodevs[i].ch;
+	for (i = 0; i < sl->ld->mdm_data->num_iodevs; i++) {
+		ch = iodevs[i]->ch;
 
 		/* Skip non-IPC or PS ch but allow IPC_MULTI_RAW */
 		if ((!sipc5_ipc_ch(ch) || sipc_ps_ch(ch)) &&
-		    (iodevs[i].format != IPC_MULTI_RAW))
+		    (iodevs[i]->format != IPC_MULTI_RAW))
 			continue;
 
 		/* Skip making rb if mismatch region info */
-		if ((iodevs[i].attrs & IODEV_ATTR(ATTR_OPTION_REGION)) &&
-		    strcmp(iodevs[i].option_region, CONFIG_OPTION_REGION))
+		if ((iodevs[i]->attrs & IO_ATTR_OPTION_REGION) &&
+		    strcmp(iodevs[i]->option_region, CONFIG_OPTION_REGION))
 			continue;
 
 		/* Change channel to QoS priority */
-		if (iodevs[i].format == IPC_MULTI_RAW) {
+		if (iodevs[i]->format == IPC_MULTI_RAW) {
 			ch = QOS_HIPRIO + multi_raw_count;
 			multi_raw_count++;
 			if (ch >= QOS_MAX_PRIO) {
@@ -139,18 +207,10 @@ static unsigned int init_ctrl_tables(struct sbd_link_device *sl, int num_iodevs,
 		sl->ch2id[ch] = id;
 
 		/* Set up the attribute table entry of a LinkID. */
-		setup_link_attr(&sl->link_attr[id], id, ch, &iodevs[i]);
+		setup_link_attr(&sl->link_attr[id], id, ch, iodevs[i]);
 
 		id++;
 	}
-
-#ifndef CONFIG_MODEM_IF_QOS
-	for (i = 0; i < num_iodevs; i++) {
-		int ch = iodevs[i].ch;
-		if (sipc_ps_ch(ch))
-			sl->ch2id[ch] = sl->ch2id[QOS_HIPRIO];
-	}
-#endif
 
 	/* Finally, id has the number of actual link channels. */
 	return id;
@@ -182,8 +242,6 @@ int init_sbd_link(struct sbd_link_device *sl)
 
 		ipc_dev->id = link_attr->id;
 		ipc_dev->ch = link_attr->ch;
-		atomic_set(&ipc_dev->config_done, 0);
-		ipc_dev->zerocopy = link_attr->zerocopy;
 
 		for (dir = 0; dir < ULDL; dir++) {
 			/*
@@ -193,7 +251,6 @@ int init_sbd_link(struct sbd_link_device *sl)
 
 			rb->sl = sl;
 			rb->lnk_hdr = link_attr->lnk_hdr;
-			rb->zerocopy = link_attr->zerocopy;
 			rb->more = false;
 			rb->total = 0;
 			rb->rcvd = 0;
@@ -202,7 +259,11 @@ int init_sbd_link(struct sbd_link_device *sl)
 			 * Initialize an SBD RB instance in the kernel space.
 			 */
 			rb->id = link_attr->id;
+#if IS_ENABLED(CONFIG_CH_EXTENSION)
+			rb->ch = link_attr->ch ?: SIPC_CH_EX_ID_PDP_0;
+#else
 			rb->ch = link_attr->ch ?: SIPC_CH_ID_PDP_0;
+#endif
 			rb->dir = dir;
 			rb->len = link_attr->rb_len[dir];
 			rb->buff_size = link_attr->buff_size[dir];
@@ -233,17 +294,9 @@ int init_sbd_link(struct sbd_link_device *sl)
 			 * Setup RB_CH in the g_desc
 			 */
 			rb->rb_ch->rb_desc_offset = calc_offset(rb->rb_desc, sl->shmem);
-			rb->rb_ch->buff_pos_array_offset = calc_offset(rb->buff_pos_array, sl->shmem);
+			rb->rb_ch->buff_pos_array_offset =
+				calc_offset(rb->buff_pos_array, sl->shmem);
 		}
-
-#ifdef CONFIG_CP_ZEROCOPY
-		/*
-		 * Setup zerocopy_adaptor if zerocopy ipc_dev
-		 */
-		ret = setup_zerocopy_adaptor(ipc_dev);
-		if (ret < 0)
-			return ret;
-#endif
 	}
 
 	print_sbd_config(sl);
@@ -316,9 +369,17 @@ int create_sbd_mem_map(struct sbd_link_device *sl)
 			for (idx = 0; idx < rb_len; idx++)
 				rb->buff[idx] = rb->buff_rgn + (idx * rb_buff_size);
 
-			mif_err("RB[%d:%d][%s] buff_rgn {addr:0x%pK offset:%d size:%u}\n",
+			mif_info("RB[%d:%d][%s] buff_rgn {addr:0x%pK offset:%d size:%u}\n",
 				i, sbd_id2ch(sl, i), udl_str(dir), rb->buff_rgn,
 				calc_offset(rb->buff_rgn, sl->shmem), (rb_len * rb_buff_size));
+
+#if IS_ENABLED(CONFIG_SBD_BOOTLOG)
+			if (rb->buff_rgn + (rb_len * rb_buff_size) >=
+				sl->shmem + sl->shmem_size - SHMEM_BOOTSBDLOG_SIZE) {
+				mif_err("sbd buffer break boot log area\n");
+				return -ENOMEM;
+			}
+#endif
 
 			rb->rp = &sl->rp[dir][i];
 			rb->wp = &sl->wp[dir][i];
@@ -344,8 +405,6 @@ int create_sbd_link_device(struct link_device *ld, struct sbd_link_device *sl,
 			   u8 *shmem_base, unsigned int shmem_size)
 {
 	int ret;
-	int num_iodevs;
-	struct modem_io_t *iodevs;
 
 	if (!ld || !sl || !shmem_base)
 		return -EINVAL;
@@ -353,37 +412,15 @@ int create_sbd_link_device(struct link_device *ld, struct sbd_link_device *sl,
 	if (!ld->mdm_data)
 		return -EINVAL;
 
-	num_iodevs = ld->mdm_data->num_iodevs;
-	iodevs = ld->mdm_data->iodevs;
-
 	sl->ld = ld;
 
 	sl->version = 1;
 
 	sl->shmem = shmem_base;
 	sl->shmem_size = shmem_size;
-#if defined(CONFIG_CP_PKTPROC)
-#ifdef CONFIG_CP_LINEAR_WA
-	sl->zmb_offset = shmem_size + 0x4900000 + cp_shmem_get_size(sl->ld->mdm_data->cp_num, SHMEM_PKTPROC);
-#else
-	sl->zmb_offset = shmem_size + cp_shmem_get_size(sl->ld->mdm_data->cp_num, SHMEM_PKTPROC);
-#endif
-#else
-#ifdef CONFIG_CP_LINEAR_WA
-	/*
-	 * CP linear mode for Makalu (Exynos9820)
-	 * ZMB region for CP:0x5000_0000 AP:0xD000_0000
-	 * sl->shmem_size is used to calculate offset of ZMB
-	 * 0x5000_0000 = End of IPC region + 0x0490_0000
-	 */
-	sl->zmb_offset = shmem_size + 0x4900000;
-#else
 	sl->zmb_offset = shmem_size;
-#endif
-#endif
 
-	sl->num_channels = init_ctrl_tables(sl, num_iodevs, iodevs);
-	sl->reset_zerocopy_done = 1;
+	sl->num_channels = init_ctrl_tables(sl);
 
 	ret = create_sbd_mem_map(sl);
 	if (ret < 0) {
@@ -406,30 +443,18 @@ int create_sbd_link_device(struct link_device *ld, struct sbd_link_device *sl,
 		 calc_offset(sl->g_desc->rb_desc, sl->shmem),
 		 sl->g_desc->rb_desc);
 
+	/* sysfs */
+	ret = sysfs_create_group(&sl->ld->dev->kobj, &sbd_group);
+	if (ret != 0) {
+		mif_err("sysfs_create_group() sbd_group error %d\n", ret);
+		return ret;
+	}
+
 	mif_info("Complete!!\n");
 
 	return 0;
 }
 
-/**
-@}
-*/
-#endif
-
-#ifdef GROUP_MEM_IPC_TX
-/**
-@weakgroup group_mem_ipc_tx
-@{
-*/
-
-/**
-@brief		check the free space in a SBD RB
-
-@param rb	the pointer to an SBD RB instance
-
-@retval "> 0"	the size of free space in the @b @@dev TXQ
-@retval "< 0"	an error code
-*/
 static inline int check_rb_space(struct sbd_ring_buffer *rb, unsigned int qlen,
 				 unsigned int in, unsigned int out)
 {
@@ -480,7 +505,7 @@ int sbd_pio_tx(struct sbd_ring_buffer *rb, struct sk_buff *skb)
 	skb_copy_from_linear_data(skb, dst, count);
 
 	if (sipc_ps_ch(rb->ch)) {
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+#if IS_ENABLED(CONFIG_CPIF_MBIM)
 		unsigned int ch = skbpriv(skb)->sipc_ch;
 #else
 		struct io_device *iod = skbpriv(skb)->iod;
@@ -522,17 +547,6 @@ bool check_sbd_tx_pending(struct mem_link_device *mld)
 	return false;
 }
 
-/**
-@}
-*/
-#endif
-
-#ifdef GROUP_MEM_IPC_RX
-/**
-@weakgroup group_mem_ipc_rx
-@{
-*/
-
 static inline struct sk_buff *recv_data(struct sbd_ring_buffer *rb, u16 out)
 {
 	struct sk_buff *skb;
@@ -562,54 +576,47 @@ static inline struct sk_buff *recv_data(struct sbd_ring_buffer *rb, u16 out)
 
 static inline void set_skb_priv(struct sbd_ring_buffer *rb, struct sk_buff *skb)
 {
+	struct link_device *ld = rb->ld;
+	struct mem_link_device *mld = ld_to_mem_link_device(ld);
 	unsigned int out = *rb->rp;
 
 	/* Record the IO device, the link device, etc. into &skb->cb */
 	if (sipc_ps_ch(rb->ch)) {
 		unsigned int ch = (rb->buff_len_array[out] >> 16) & 0xff;
+
 		skbpriv(skb)->iod = link_get_iod_with_channel(rb->ld, ch);
 		skbpriv(skb)->ld = rb->ld;
 		skbpriv(skb)->sipc_ch = ch;
+		skbpriv(skb)->napi = &mld->mld_napi;
 	} else {
 		skbpriv(skb)->iod = rb->iod;
 		skbpriv(skb)->ld = rb->ld;
 		skbpriv(skb)->sipc_ch = rb->ch;
+		skbpriv(skb)->napi = NULL;
 	}
 }
 
-struct sk_buff *sbd_pio_rx(struct sbd_ring_buffer *rb)
+int sbd_pio_rx(struct sbd_ring_buffer *rb, struct sk_buff **skb)
 {
-	struct sk_buff *skb;
 	unsigned int qlen = rb->len;
 	unsigned int out = *rb->rp;
 
 	if (out >= qlen) {
 		mif_err("out value exceeds ring buffer size\n");
-		return NULL;
+		return -EFAULT;
 	}
 
-	skb = recv_data(rb, out);
-	if (unlikely(!skb))
-		return NULL;
+	*skb = recv_data(rb, out);
+	if (unlikely(!(*skb)))
+		return -ENOMEM;
 
-	set_lnk_hdr(rb, skb);
+	set_lnk_hdr(rb, *skb);
 
-	set_skb_priv(rb, skb);
+	set_skb_priv(rb, *skb);
 
-	check_more(rb, skb);
+	check_more(rb, *skb);
 
 	*rb->rp = circ_new_ptr(qlen, out, 1);
 
-	return skb;
+	return 0;
 }
-
-/**
-@}
-*/
-#endif
-
-/**
-// End of group_mem_link_sbd
-@}
-*/
-#endif

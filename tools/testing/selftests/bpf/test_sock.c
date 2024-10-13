@@ -13,7 +13,7 @@
 #include <bpf/bpf.h>
 
 #include "cgroup_helpers.h"
-#include "bpf_endian.h"
+#include <bpf/bpf_endian.h>
 #include "bpf_rlimit.h"
 #include "bpf_util.h"
 
@@ -21,6 +21,7 @@
 #define MAX_INSNS	512
 
 char bpf_log_buf[BPF_LOG_BUF_SIZE];
+static bool verbose = false;
 
 struct sock_test {
 	const char *descr;
@@ -328,6 +329,7 @@ static int load_sock_prog(const struct bpf_insn *prog,
 			  enum bpf_attach_type attach_type)
 {
 	struct bpf_load_program_attr attr;
+	int ret;
 
 	memset(&attr, 0, sizeof(struct bpf_load_program_attr));
 	attr.prog_type = BPF_PROG_TYPE_CGROUP_SOCK;
@@ -335,8 +337,13 @@ static int load_sock_prog(const struct bpf_insn *prog,
 	attr.insns = prog;
 	attr.insns_cnt = probe_prog_length(attr.insns);
 	attr.license = "GPL";
+	attr.log_level = 2;
 
-	return bpf_load_program_xattr(&attr, bpf_log_buf, BPF_LOG_BUF_SIZE);
+	ret = bpf_load_program_xattr(&attr, bpf_log_buf, BPF_LOG_BUF_SIZE);
+	if (verbose && ret < 0)
+		fprintf(stderr, "%s\n", bpf_log_buf);
+
+	return ret;
 }
 
 static int attach_sock_prog(int cgfd, int progfd,
@@ -457,14 +464,8 @@ int main(int argc, char **argv)
 	int cgfd = -1;
 	int err = 0;
 
-	if (setup_cgroup_environment())
-		goto err;
-
-	cgfd = create_and_get_cgroup(CG_PATH);
-	if (!cgfd)
-		goto err;
-
-	if (join_cgroup(CG_PATH))
+	cgfd = cgroup_setup_and_join(CG_PATH);
+	if (cgfd < 0)
 		goto err;
 
 	if (run_tests(cgfd))

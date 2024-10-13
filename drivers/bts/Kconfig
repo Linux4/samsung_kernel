@@ -3,8 +3,8 @@
 #
 
 menuconfig EXYNOS_BTS
-	bool "BTS device driver support"
-	default y
+	tristate "BTS device driver support"
+	default n
 	help
 	  Enables BTS(Bus Traffic Shaper) device driver support
 	  BTS device driver will set BTS and request DVFS for
@@ -13,15 +13,8 @@ menuconfig EXYNOS_BTS
 
 if EXYNOS_BTS
 
-config EXYNOS9630_BTS
-        bool "Bus traffic shaper support for exynos9630"
-        default y
-        depends on SOC_EXYNOS9630
-        help
-          Enable BTS (Bus traffic shaper) support for exynos9630
-
 config EXYNOS3830_BTS
-        bool "Bus traffic shaper support for exynos3830"
+        tristate "Bus traffic shaper support for exynos3830"
         default y
         depends on SOC_EXYNOS3830
         help

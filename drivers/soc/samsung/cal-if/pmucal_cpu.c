@@ -265,7 +265,7 @@ int pmucal_cpu_cluster_req_emulation(unsigned int cluster, bool en)
  *
  *  Returns 0 on success. Otherwise, negative error code.
  */
-int __init pmucal_cpu_init(void)
+int pmucal_cpu_init(void)
 {
 	int ret = 0, i;
 

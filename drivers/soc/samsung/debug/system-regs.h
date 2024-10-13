@@ -1,13 +1,7 @@
-/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
  */
 
 #ifndef _SYSTEM_REGS_H
@@ -67,7 +61,75 @@ ARMv8_A_SYSTEM_REGISTER(ERXMISC0_EL1);
 ARMv8_A_SYSTEM_REGISTER(ERXMISC1_EL1);
 ARMv8_A_SYSTEM_REGISTER(ERXADDR_EL1);
 
-#define MIDR_IMPLEMENTOR_ARMv8		(0x41)
-#define MIDR_IMPLEMENTOR_SARC		(0x53)
+static inline u64 read_ERRSELR_EL1(void)
+{
+	u64 reg;
 
+	asm volatile ("mrs %0, S3_0_c5_c3_1\n" : "=r" (reg));
+	return reg;
+}
+
+static inline void write_ERRSELR_EL1(u64 val)
+{
+	asm volatile ("msr S3_0_c5_c3_1, %0\n"
+			"isb\n" :: "r" ((__u64)val));
+}
+
+static inline u64 read_ERRIDR_EL1(void)
+{
+	u64 reg;
+
+	asm volatile ("mrs %0, S3_0_c5_c3_0\n" : "=r" (reg));
+	return reg;
+}
+
+static inline u64 read_ERXSTATUS_EL1(void)
+{
+	u64 reg;
+
+	asm volatile ("mrs %0, S3_0_c5_c4_2\n" : "=r" (reg));
+	return reg;
+}
+
+static inline void __attribute__((unused)) write_ERXSTATUS_EL1(u64 val)
+{
+	asm volatile ("msr S3_0_c5_c4_2, %0\n"
+			"isb\n" :: "r" ((__u64)val));
+}
+
+static inline u64 read_ERXMISC0_EL1(void)
+{
+	u64 reg;
+
+	asm volatile ("mrs %0, S3_0_c5_c5_0\n" : "=r" (reg));
+	return reg;
+}
+
+static inline void __attribute__((unused)) write_ERXMISC0_EL1(u64 val)
+{
+	asm volatile ("msr S3_0_c5_c5_0, %0\n"
+			"isb\n" :: "r" ((__u64)val));
+}
+
+static inline u64 read_ERXMISC1_EL1(void)
+{
+	u64 reg;
+
+	asm volatile ("mrs %0, S3_0_c5_c5_1\n" : "=r" (reg));
+	return reg;
+}
+
+static inline void __attribute__((unused)) write_ERXMISC1_EL1(u64 val)
+{
+	asm volatile ("msr S3_0_c5_c5_1, %0\n"
+			"isb\n" :: "r" ((__u64)val));
+}
+
+static inline u64 read_ERXADDR_EL1(void)
+{
+	u64 reg;
+
+	asm volatile ("mrs %0, S3_0_c5_c4_3\n" : "=r" (reg));
+	return reg;
+}
 #endif

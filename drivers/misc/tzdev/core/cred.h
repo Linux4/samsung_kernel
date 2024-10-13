@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017, Samsung Electronics Co., Ltd.
+ * Copyright (C) 2019 Samsung Electronics Co., Ltd All Rights Reserved
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -14,6 +14,7 @@
 #ifndef __TZ_CRED_H__
 #define __TZ_CRED_H__
 
+#include <linux/kconfig.h>
 #include <tz_common.h>
 
 #define UUID_SIZE		16

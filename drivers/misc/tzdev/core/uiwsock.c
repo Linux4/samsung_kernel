@@ -21,6 +21,7 @@
 #include "core/iwsock.h"
 #include "core/log.h"
 #include "core/notifier.h"
+#include "core/subsystem.h"
 
 #define IS_EINTR(x)				\
 	(((x) == -EINTR)			\
@@ -461,7 +462,7 @@ static struct notifier_block tz_uiwsock_fini_notifier = {
 	.notifier_call = tz_uiwsock_fini_call,
 };
 
-static int __init tz_uiwsock_init(void)
+int tz_uiwsock_init(void)
 {
 	int rc;
 
@@ -481,4 +482,4 @@ static int __init tz_uiwsock_init(void)
 	return 0;
 }
 
-early_initcall(tz_uiwsock_init);
+tzdev_early_initcall(tz_uiwsock_init);

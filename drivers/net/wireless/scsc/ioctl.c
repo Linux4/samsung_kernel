@@ -4851,7 +4851,7 @@ static int slsi_ioctl_driver_bug_dump(struct net_device *dev, char *command, int
 	int ret = 0;
 
 	slsi_dump_stats(dev);
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	scsc_log_collector_schedule_collection(SCSC_LOG_DUMPSTATE, SCSC_LOG_DUMPSTATE_REASON_DRIVERDEBUGDUMP);
 #else
 #ifndef SLSI_TEST_DEV
@@ -5396,15 +5396,22 @@ static const struct slsi_ioctl_fn slsi_ioctl_fn_table[] = {
 	{ CMD_ROAMING_BLACKLIST_REMOVE,     slsi_roaming_blacklist_remove }
 };
 
-static int slsi_ioctl_fn_lookup(char *command)
+static int slsi_ioctl_fn_lookup(char *command, int len)
 {
 	int i = 0;
 	const struct slsi_ioctl_fn *p = NULL;
 
 	for (i = 0; i < ARRAY_SIZE(slsi_ioctl_fn_table); i++) {
 		p = &slsi_ioctl_fn_table[i];
-		if (p->name && !strncasecmp(command, p->name, strlen(p->name)))
-			return i;
+		if (p->name) {
+			if (strlen(p->name) < len) {
+				if (!strncasecmp(command, p->name, len))
+					return i;
+			} else {
+				if (!strncasecmp(command, p->name, strlen(p->name)))
+					return i;
+			}
+		}
 	}
 	return -1;
 }
@@ -5412,7 +5419,20 @@ static int slsi_ioctl_fn_lookup(char *command)
 static int slsi_do_ioctl(struct net_device *dev, char *command, int cmd_len)
 {
 	int ret = 0;
-	int index = slsi_ioctl_fn_lookup(command);
+	int index;
+	int len = 0;
+	char *pos = command;
+
+	pos = strchr(pos, ' ');
+	if (!pos) {
+		pos = command;
+		pos = strchr(pos, '\0');
+		if (!pos)
+			return -ENOTSUPP;
+	}
+
+	len = pos - command;
+	index = slsi_ioctl_fn_lookup(command, len);
 
 	if (index < 0)
 		return -ENOTSUPP;

@@ -13,7 +13,7 @@
 
 #define MODULE_NAME "camerapp-votf"
 #define IP_MAX 16
-#define ID_MAX 14
+#define ID_MAX 16
 #define TWS_MAX 16
 #define TRS_MAX 16
 #define VOTF_INVALID 0xffff

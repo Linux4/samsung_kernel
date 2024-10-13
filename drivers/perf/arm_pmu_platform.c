@@ -6,6 +6,7 @@
  * Copyright (C) 2010 ARM Ltd., Will Deacon <will.deacon@arm.com>
  */
 #define pr_fmt(fmt) "hw perfevents: " fmt
+#define dev_fmt pr_fmt
 
 #include <linux/bug.h>
 #include <linux/cpumask.h>
@@ -77,14 +78,14 @@ static int pmu_parse_irq_affinity(struct device_node *node, int i)
 
 	dn = of_parse_phandle(node, "interrupt-affinity", i);
 	if (!dn) {
-		pr_warn("failed to parse interrupt-affinity[%d] for %s\n",
-			i, node->name);
+		pr_warn("failed to parse interrupt-affinity[%d] for %pOFn\n",
+			i, node);
 		return -EINVAL;
 	}
 
 	cpu = of_cpu_node_to_id(dn);
 	if (cpu < 0) {
-		pr_warn("failed to find logical CPU for %s\n", dn->name);
+		pr_warn("failed to find logical CPU for %pOFn\n", dn);
 		cpu = nr_cpu_ids;
 	}
 
@@ -100,10 +101,8 @@ static int pmu_parse_irqs(struct arm_pmu *pmu)
 	struct pmu_hw_events __percpu *hw_events = pmu->hw_events;
 
 	num_irqs = platform_irq_count(pdev);
-	if (num_irqs < 0) {
-		pr_err("unable to count PMU IRQs\n");
-		return num_irqs;
-	}
+	if (num_irqs < 0)
+		return dev_err_probe(&pdev->dev, num_irqs, "unable to count PMU IRQs\n");
 
 	/*
 	 * In this case we have no idea which CPUs are covered by the PMU.
@@ -118,7 +117,7 @@ static int pmu_parse_irqs(struct arm_pmu *pmu)
 
 	if (num_irqs == 1) {
 		int irq = platform_get_irq(pdev, 0);
-		if (irq && irq_is_percpu_devid(irq))
+		if ((irq > 0) && irq_is_percpu_devid(irq))
 			return pmu_parse_percpu_irq(pmu, irq);
 	}
 
@@ -236,7 +235,7 @@ int arm_pmu_device_probe(struct platform_device *pdev,
 
 	ret = armpmu_register(pmu);
 	if (ret)
-		goto out_free;
+		goto out_free_irqs;
 
 	return 0;
 

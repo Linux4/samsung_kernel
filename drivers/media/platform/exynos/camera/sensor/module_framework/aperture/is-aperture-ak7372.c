@@ -14,7 +14,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <dt-bindings/camera/exynos_is_dt.h>

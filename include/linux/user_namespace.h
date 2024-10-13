@@ -10,6 +10,7 @@
 #include <linux/rwsem.h>
 #include <linux/sysctl.h>
 #include <linux/err.h>
+#include <linux/android_kabi.h>
 
 #define UID_GID_MAP_MAX_BASE_EXTENTS 5
 #define UID_GID_MAP_MAX_EXTENTS 340
@@ -45,6 +46,7 @@ enum ucount_type {
 	UCOUNT_NET_NAMESPACES,
 	UCOUNT_MNT_NAMESPACES,
 	UCOUNT_CGROUP_NAMESPACES,
+	UCOUNT_TIME_NAMESPACES,
 #ifdef CONFIG_INOTIFY_USER
 	UCOUNT_INOTIFY_INSTANCES,
 	UCOUNT_INOTIFY_WATCHES,
@@ -63,11 +65,24 @@ struct user_namespace {
 	kgid_t			group;
 	struct ns_common	ns;
 	unsigned long		flags;
+	/* parent_could_setfcap: true if the creator if this ns had CAP_SETFCAP
+	 * in its effective capability set at the child ns creation time. */
+	bool			parent_could_setfcap;
+
+#ifdef CONFIG_KEYS
+	/* List of joinable keyrings in this namespace.  Modification access of
+	 * these pointers is controlled by keyring_sem.  Once
+	 * user_keyring_register is set, it won't be changed, so it can be
+	 * accessed directly with READ_ONCE().
+	 */
+	struct list_head	keyring_name_list;
+	struct key		*user_keyring_register;
+	struct rw_semaphore	keyring_sem;
+#endif
 
 	/* Register of per-UID persistent keyrings for this namespace */
 #ifdef CONFIG_PERSISTENT_KEYRINGS
 	struct key		*persistent_keyring_register;
-	struct rw_semaphore	persistent_keyring_register_sem;
 #endif
 	struct work_struct	work;
 #ifdef CONFIG_SYSCTL
@@ -76,6 +91,9 @@ struct user_namespace {
 #endif
 	struct ucounts		*ucounts;
 	int ucount_max[UCOUNT_COUNTS];
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 } __randomize_layout;
 
 struct ucounts {

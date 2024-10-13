@@ -704,8 +704,10 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 		eth_hdr = (struct ethhdr *)fapi_get_data(skb);
 #endif
 	/* Populate wake reason stats here */
-	if (unlikely(slsi_skb_cb_get(skb)->wakeup))
+	if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
+		skb->mark = SLSI_WAKEUP_PKT_MARK;
 		slsi_rx_update_wake_stats(sdev, eth_hdr, skb->len);
+	}
 	seq_num = fapi_get_u16(skb, u.ma_unitdata_ind.sequence_number);
 	SLSI_NET_DBG4(dev, SLSI_RX, "ma_unitdata_ind(vif:%d, dest:%pM, src:%pM, datatype:%d, priority:%d, s:%d, s-mapper:%d)\n",
 			  fapi_get_vif(skb),

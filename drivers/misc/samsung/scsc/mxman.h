@@ -37,7 +37,7 @@ void mxman_resume(struct mxman *mxman);
 void mxman_show_last_panic(struct mxman *mxman);
 void mxman_subserv_recovery(struct mxman *mxman, struct mx_syserr_decode *syserr_decode);
 
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 void mxman_fm_on_halt_ldos_on(void);
 void mxman_fm_on_halt_ldos_off(void);
 int mxman_fm_set_params(struct wlbt_fm_params *params);
@@ -104,7 +104,7 @@ struct mxman {
 	unsigned long		last_syserr_level7_recovery_time; /* In jiffies */
 	bool			notify;
 	bool			syserr_recovery_in_progress;
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 	u32			on_halt_ldos_on;
 #endif
 	char			failure_reason[SCSC_FAILURE_REASON_LEN]; /* previous failure reason */

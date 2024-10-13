@@ -93,6 +93,27 @@ struct is_subdev * video2subdev(enum is_subdev_device_type device_type,
 	case IS_VIDEO_32G_NUM:
 		subdev = &ischain->txg;
 		break;
+	case IS_VIDEO_30O_NUM:
+	case IS_VIDEO_31O_NUM:
+	case IS_VIDEO_32O_NUM:
+	case IS_VIDEO_33O_NUM:
+		subdev = &ischain->txo;
+		break;
+	case IS_VIDEO_30L_NUM:
+	case IS_VIDEO_31L_NUM:
+	case IS_VIDEO_32L_NUM:
+	case IS_VIDEO_33L_NUM:
+		subdev = &ischain->txl;
+		break;
+	case IS_VIDEO_LME_NUM:
+		subdev = &ischain->group_lme.leader;
+		break;
+	case IS_VIDEO_LME0S_NUM:
+		subdev = &ischain->lmes;
+		break;
+	case IS_VIDEO_LME0C_NUM:
+		subdev = &ischain->lmec;
+		break;
 	case IS_VIDEO_ORB0C_NUM:
 	case IS_VIDEO_ORB1C_NUM:
 		subdev = &ischain->orbxc;
@@ -124,35 +145,6 @@ struct is_subdev * video2subdev(enum is_subdev_device_type device_type,
 	case IS_VIDEO_ME0C_NUM:
 	case IS_VIDEO_ME1C_NUM:
 		subdev = &ischain->mexc;
-		break;
-	case IS_VIDEO_D0S_NUM:
-	case IS_VIDEO_D1S_NUM:
-		subdev = &ischain->group_dis.leader;
-		break;
-	case IS_VIDEO_D0C_NUM:
-	case IS_VIDEO_D1C_NUM:
-		subdev = &ischain->dxc;
-		break;
-	case IS_VIDEO_DCP0S_NUM:
-		subdev = &ischain->group_dcp.leader;
-		break;
-	case IS_VIDEO_DCP1S_NUM:
-		subdev = &ischain->dc1s;
-		break;
-	case IS_VIDEO_DCP0C_NUM:
-		subdev = &ischain->dc0c;
-		break;
-	case IS_VIDEO_DCP1C_NUM:
-		subdev = &ischain->dc1c;
-		break;
-	case IS_VIDEO_DCP2C_NUM:
-		subdev = &ischain->dc2c;
-		break;
-	case IS_VIDEO_DCP3C_NUM:
-		subdev = &ischain->dc3c;
-		break;
-	case IS_VIDEO_DCP4C_NUM:
-		subdev = &ischain->dc4c;
 		break;
 	case IS_VIDEO_M0S_NUM:
 	case IS_VIDEO_M1S_NUM:
@@ -204,6 +196,7 @@ int is_subdev_probe(struct is_subdev *subdev,
 	FIMC_BUG(!name);
 
 	subdev->id = id;
+	subdev->wq_id = is_subdev_wq_id[id];
 	subdev->instance = instance;
 	subdev->ops = sops;
 	memset(subdev->name, 0x0, sizeof(subdev->name));
@@ -215,7 +208,7 @@ int is_subdev_probe(struct is_subdev *subdev,
 
 	/* for internal use */
 	clear_bit(IS_SUBDEV_INTERNAL_S_FMT, &subdev->state);
-	frame_manager_probe(&subdev->internal_framemgr, BIT(subdev->id), name);
+	frame_manager_probe(&subdev->internal_framemgr, subdev->id, name);
 
 	return 0;
 }
@@ -1079,7 +1072,7 @@ static int is_subdev_internal_alloc_buffer(struct is_subdev *subdev,
 	total_size = buffer_size * batch_num;
 
 	for (i = 0; i < subdev->buffer_num; i++) {
-		subdev->pb_subdev[i] = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, total_size, NULL, 0);
+		subdev->pb_subdev[i] = CALL_PTR_MEMOP(mem, alloc, mem->priv, total_size, NULL, 0);
 		if (IS_ERR_OR_NULL(subdev->pb_subdev[i])) {
 			merr("failed to allocate buffer for internal subdev",
 							device);
@@ -1132,8 +1125,9 @@ static int is_subdev_internal_alloc_buffer(struct is_subdev *subdev,
 				header_size = byte_per_line * SDC_HEADER_LINE;
 
 				memcpy((void *)frame->kvaddr_buffer[0], header, header_size);
+#if !defined(MODULE)
 				__flush_dcache_area((void *)frame->kvaddr_buffer[0], header_size);
-
+#endif
 				msinfo("Write SDC header: width(%d) size(%d)\n",
 					subdev, subdev, width, header_size);
 			}

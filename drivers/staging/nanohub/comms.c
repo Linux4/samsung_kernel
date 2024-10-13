@@ -23,9 +23,7 @@
 #include "main.h"
 #include "comms.h"
 
-#if defined(CONFIG_NANOHUB_MAILBOX)
 #include "chub.h"
-#endif
 
 #define READ_ACK_TIMEOUT_MS	10
 #define READ_MSG_TIMEOUT_MS	70
@@ -174,9 +172,9 @@ static int packet_verify(struct nanohub_packet *packet)
 
 	if (cmp != 0) {
 		uint8_t *ptr = (uint8_t *)packet;
-		pr_debug("nanohub: gen crc: %08x, got crc: %08x\n", crc.crc,
+		nanohub_debug("nanohub: gen crc: %08x, got crc: %08x\n", crc.crc,
 			 *(uint32_t *)&packet->data[packet->len]);
-		pr_debug(
+		nanohub_debug(
 		    "nanohub: %02x [%02x %02x %02x %02x] [%02x %02x %02x %02x] [%02x] [%02x %02x %02x %02x\n",
 		    ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6],
 		    ptr[7], ptr[8], ptr[9], ptr[10], ptr[11], ptr[12],
@@ -206,28 +204,28 @@ static int read_ack(struct nanohub_data *data, struct nanohub_packet *response,
 		packet_disassemble(response, ret, ca_rx_ack);
 
 		if (ret == 0) {
-			pr_debug("nanohub: read_ack: %d: empty packet\n", i);
+			nanohub_debug("nanohub: read_ack: %d: empty packet\n", i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret < sizeof(struct nanohub_packet)) {
-			pr_debug("nanohub: read_ack: %d: too small\n", i);
+			nanohub_debug("nanohub: read_ack: %d: too small\n", i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret <
 			   sizeof(struct nanohub_packet) + response->len +
 			   sizeof(struct nanohub_packet_crc)) {
-			pr_debug("nanohub: read_ack: %d: too small length\n",
+			nanohub_debug("nanohub: read_ack: %d: too small length\n",
 				 i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret !=
 			   sizeof(struct nanohub_packet) + response->len +
 			   sizeof(struct nanohub_packet_crc)) {
-			pr_debug("nanohub: read_ack: %d: wrong length\n", i);
+			nanohub_debug("nanohub: read_ack: %d: wrong length\n", i);
 			ret = ERROR_NACK;
 			break;
 		} else if (packet_verify(response) != 0) {
-			pr_debug("nanohub: read_ack: %d: invalid crc\n", i);
+			nanohub_debug("nanohub: read_ack: %d: invalid crc\n", i);
 			ret = ERROR_NACK;
 			break;
 		} else {
@@ -253,28 +251,28 @@ static int read_msg(struct nanohub_data *data, struct nanohub_packet *response,
 		packet_disassemble(response, ret, ca_rx);
 
 		if (ret == 0) {
-			pr_debug("nanohub: read_msg: %d: empty packet\n", i);
+			nanohub_debug("nanohub: read_msg: %d: empty packet\n", i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret < sizeof(struct nanohub_packet)) {
-			pr_debug("nanohub: read_msg: %d: too small\n", i);
+			nanohub_debug("nanohub: read_msg: %d: too small\n", i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret <
 			   sizeof(struct nanohub_packet) + response->len +
 			   sizeof(struct nanohub_packet_crc)) {
-			pr_debug("nanohub: read_msg: %d: too small length\n",
+			nanohub_debug("nanohub: read_msg: %d: too small length\n",
 				 i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret !=
 			   sizeof(struct nanohub_packet) + response->len +
 			   sizeof(struct nanohub_packet_crc)) {
-			pr_debug("nanohub: read_msg: %d: wrong length\n", i);
+			nanohub_debug("nanohub: read_msg: %d: wrong length\n", i);
 			ret = ERROR_NACK;
 			break;
 		} else if (packet_verify(response) != 0) {
-			pr_debug("nanohub: read_msg: %d: invalid crc\n", i);
+			nanohub_debug("nanohub: read_msg: %d: invalid crc\n", i);
 			ret = ERROR_NACK;
 			break;
 		} else {
@@ -285,27 +283,23 @@ static int read_msg(struct nanohub_data *data, struct nanohub_packet *response,
 	return ret;
 }
 
-#ifdef CONFIG_NANOHUB_MAILBOX /* remove invalid error check */
 static inline void contexthub_update_result(struct nanohub_data *data, int err)
 {
-	struct contexthub_ipc_info *ipc = data->pdata->mailbox_client;
+	struct contexthub_ipc_info *chub = data->pdata->mailbox_client;
 
 	if (err >= 0)
-		ipc->err_cnt[CHUB_ERR_COMMS] = 0;
+		chub->misc.err_cnt[CHUB_ERR_COMMS] = 0;
 	else {
-		ipc->err_cnt[CHUB_ERR_COMMS]++;
+		chub->misc.err_cnt[CHUB_ERR_COMMS]++;
 
 		if (err == ERROR_NACK)
-			ipc->err_cnt[CHUB_ERR_COMMS_NACK]++;
+			chub->misc.err_cnt[CHUB_ERR_COMMS_NACK]++;
 		else if (err == ERROR_BUSY)
-			ipc->err_cnt[CHUB_ERR_COMMS_BUSY]++;
+			chub->misc.err_cnt[CHUB_ERR_COMMS_BUSY]++;
 		else
-			ipc->err_cnt[CHUB_ERR_COMMS_UNKNOWN]++;
+			chub->misc.err_cnt[CHUB_ERR_COMMS_UNKNOWN]++;
 	}
 }
-#else
-#define contexthub_update_err_cnt(a, b) do { } while (0)
-#endif
 
 static int get_reply(struct nanohub_data *data, struct nanohub_packet *response,
 		     uint32_t seq)
@@ -319,25 +313,18 @@ static int get_reply(struct nanohub_data *data, struct nanohub_packet *response,
 			if (response->len == sizeof(data->interrupts))
 				memcpy(data->interrupts, response->data,
 				       response->len);
-			ret =
-			    read_msg(data, response, data->comms.timeout_reply);
-#ifdef CONFIG_NANOHUB_MAILBOX /* remove invalid error check */
+			ret = read_msg(data, response, data->comms.timeout_reply);
 			if (ret < 0 || response->reason == CMD_COMMS_ACK)
 				ret = ERROR_NACK;
-#else
-			if (ret < 0)
-				ret = ERROR_NACK;
-#endif
 		} else {
 			int i;
 			uint8_t *b = (uint8_t *) response;
 
-#ifdef CONFIG_NANOHUB_MAILBOX /* remove invalid error check */
-			if ((response->reason == CMD_COMMS_READ) || (response->reason == CMD_COMMS_WRITE))
+			if ((response->reason == CMD_COMMS_READ) ||
+			    (response->reason == CMD_COMMS_WRITE))
 				return ret;
-#endif
 			for (i = 0; i < ret; i += 25)
-				pr_debug(
+				nanohub_debug(
 				    "nanohub: %d: %d: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
 				    ret, i, b[i], b[i + 1], b[i + 2], b[i + 3],
 				    b[i + 4], b[i + 5], b[i + 6], b[i + 7],
@@ -359,7 +346,7 @@ static int get_reply(struct nanohub_data *data, struct nanohub_packet *response,
 			int i;
 			uint8_t *b = (uint8_t *) response;
 			for (i = 0; i < ret; i += 25)
-				pr_debug(
+				nanohub_debug(
 				    "nanohub: %d: %d: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
 				    ret, i, b[i], b[i + 1], b[i + 2], b[i + 3],
 				    b[i + 4], b[i + 5], b[i + 6], b[i + 7],
@@ -409,59 +396,6 @@ static int nanohub_comms_tx_rx(struct nanohub_data *data,
 	return ret;
 }
 
-int nanohub_comms_rx_retrans_boottime(struct nanohub_data *data, uint32_t cmd,
-				      uint8_t *rx, size_t rx_len,
-				      int retrans_cnt, int retrans_delay)
-{
-	int packet_size = 0;
-	struct nanohub_packet_pad *pad = packet_alloc(GFP_KERNEL);
-	int delay = 0;
-	int ret;
-	uint32_t seq;
-	struct timespec ts;
-	s64 boottime;
-
-	if (pad == NULL)
-		return ERROR_NACK;
-
-	seq = data->comms.seq++;
-
-	do {
-		data->comms.open(data);
-		get_monotonic_boottime(&ts);
-		boottime = timespec_to_ns(&ts);
-		packet_size =
-		    packet_create(&pad->packet, seq, cmd, sizeof(boottime),
-				  (uint8_t *)&boottime, false);
-
-		ret =
-		    nanohub_comms_tx_rx(data, pad, packet_size, seq, rx,
-					rx_len);
-
-		if (nanohub_wakeup_eom(data,
-				       (ret == ERROR_BUSY) ||
-				       (ret == ERROR_NACK && retrans_cnt >= 0)))
-			ret = -EFAULT;
-
-		data->comms.close(data);
-
-		if (ret == ERROR_NACK) {
-			retrans_cnt--;
-			delay += retrans_delay;
-			if (retrans_cnt >= 0)
-				udelay(retrans_delay);
-		} else if (ret == ERROR_BUSY) {
-			usleep_range(RESEND_LONG_DELAY_US,
-				     RESEND_LONG_DELAY_US * 2);
-		}
-	} while ((ret == ERROR_BUSY)
-		 || (ret == ERROR_NACK && retrans_cnt >= 0));
-
-	packet_free(pad);
-
-	return ret;
-}
-
 int nanohub_comms_tx_rx_retrans(struct nanohub_data *data, uint32_t cmd,
 				const uint8_t *tx, uint8_t tx_len,
 				uint8_t *rx, size_t rx_len, bool user,
@@ -472,6 +406,7 @@ int nanohub_comms_tx_rx_retrans(struct nanohub_data *data, uint32_t cmd,
 	int delay = 0;
 	int ret;
 	uint32_t seq;
+	uint64_t boottime;
 
 	if (pad == NULL)
 		return ERROR_NACK;
@@ -479,13 +414,16 @@ int nanohub_comms_tx_rx_retrans(struct nanohub_data *data, uint32_t cmd,
 	seq = data->comms.seq++;
 
 	do {
-		packet_size =
-		    packet_create(&pad->packet, seq, cmd, tx_len, tx, user);
-
 		data->comms.open(data);
-		ret =
-		    nanohub_comms_tx_rx(data, pad, packet_size, seq, rx,
-					rx_len);
+		if (tx)
+			packet_size = packet_create(&pad->packet, seq, cmd, tx_len, tx, user);
+		else {
+			boottime = ktime_get_boottime_ns();
+			packet_size = packet_create(&pad->packet, seq, cmd, sizeof(boottime),
+						    (uint8_t *)&boottime, false);
+		}
+
+		ret = nanohub_comms_tx_rx(data, pad, packet_size, seq, rx, rx_len);
 
 		if (nanohub_wakeup_eom(data,
 				       (ret == ERROR_BUSY) ||
@@ -500,155 +438,11 @@ int nanohub_comms_tx_rx_retrans(struct nanohub_data *data, uint32_t cmd,
 			if (retrans_cnt >= 0)
 				udelay(retrans_delay);
 		} else if (ret == ERROR_BUSY) {
-			usleep_range(RESEND_LONG_DELAY_US,
-				     RESEND_LONG_DELAY_US * 2);
+			usleep_range(RESEND_LONG_DELAY_US, RESEND_LONG_DELAY_US * 2);
 		}
-	} while ((ret == ERROR_BUSY)
-		 || (ret == ERROR_NACK && retrans_cnt >= 0));
+	} while ((ret == ERROR_BUSY) || (ret == ERROR_NACK && retrans_cnt >= 0));
 
 	packet_free(pad);
 
 	return ret;
-}
-
-struct firmware_header {
-	uint32_t size;
-	uint32_t crc;
-	uint8_t type;
-} __packed;
-
-struct firmware_chunk {
-	uint32_t offset;
-	uint8_t data[128];
-}
-__packed;
-
-static int nanohub_comms_download(struct nanohub_data *data,
-				  const uint8_t *image, size_t length,
-				  uint8_t type)
-{
-	uint8_t accepted;
-	struct firmware_header header;
-	struct firmware_chunk chunk;
-	int max_chunk_size = sizeof(chunk.data);
-	int chunk_size;
-	uint32_t offset = 0;
-	int ret;
-	uint8_t chunk_reply, upload_reply = 0, last_reply = 0;
-	uint32_t clear_interrupts[8] = { 0x00000008 };
-	uint32_t delay;
-
-	header.type = type;
-	header.size = cpu_to_le32(length);
-	header.crc = cpu_to_le32(~crc32(image, length, ~0));
-
-	if (request_wakeup(data))
-		return -ERESTARTSYS;
-	ret = nanohub_comms_tx_rx_retrans(data, CMD_COMMS_START_KERNEL_UPLOAD,
-					  (const uint8_t *)&header,
-					  sizeof(header), &accepted,
-					  sizeof(accepted), false, 10, 10);
-	release_wakeup(data);
-
-	if (ret == 1 && accepted == 1) {
-		do {
-			if (request_wakeup(data))
-				continue;
-
-			delay = 0;
-			chunk.offset = cpu_to_le32(offset);
-			if (offset + max_chunk_size > length)
-				chunk_size = length - offset;
-			else
-				chunk_size = max_chunk_size;
-			memcpy(chunk.data, image + offset, chunk_size);
-
-			ret =
-			    nanohub_comms_tx_rx_retrans(data,
-							CMD_COMMS_KERNEL_CHUNK,
-							(const uint8_t *)&chunk,
-							sizeof(uint32_t) +
-							chunk_size,
-							&chunk_reply,
-							sizeof(chunk_reply),
-							false, 10, 10);
-
-			pr_debug("nanohub: ret=%d, chunk_reply=%d, offset=%d\n",
-				ret, chunk_reply, offset);
-			if (ret == sizeof(chunk_reply)) {
-				if (chunk_reply == CHUNK_REPLY_ACCEPTED) {
-					offset += chunk_size;
-				} else if (chunk_reply == CHUNK_REPLY_WAIT) {
-					ret = nanohub_wait_for_interrupt(data);
-					if (ret < 0) {
-						release_wakeup(data);
-						continue;
-					}
-					nanohub_comms_tx_rx_retrans(data,
-					    CMD_COMMS_CLR_GET_INTR,
-					    (uint8_t *)clear_interrupts,
-					    sizeof(clear_interrupts),
-					    (uint8_t *)data->interrupts,
-					    sizeof(data->interrupts),
-					    false, 10, 0);
-				} else if (chunk_reply == CHUNK_REPLY_RESEND) {
-					if (last_reply == CHUNK_REPLY_RESEND)
-						delay = RESEND_LONG_DELAY_US;
-					else
-						delay = RESEND_SHORT_DELAY_US;
-				} else if (chunk_reply == CHUNK_REPLY_RESTART)
-					offset = 0;
-				else if (chunk_reply == CHUNK_REPLY_CANCEL ||
-				    chunk_reply ==
-				    CHUNK_REPLY_CANCEL_NO_RETRY) {
-					release_wakeup(data);
-					break;
-				}
-				last_reply = chunk_reply;
-			} else if (ret <= 0) {
-				release_wakeup(data);
-				break;
-			}
-			release_wakeup(data);
-			if (delay > 0)
-				usleep_range(delay, delay * 2);
-		} while (offset < length);
-	}
-
-	do {
-		if (upload_reply == UPLOAD_REPLY_PROCESSING)
-			usleep_range(RESEND_LONG_DELAY_US,
-				     RESEND_LONG_DELAY_US * 2);
-
-		if (request_wakeup(data)) {
-			ret = sizeof(upload_reply);
-			upload_reply = UPLOAD_REPLY_PROCESSING;
-			continue;
-		}
-		ret = nanohub_comms_tx_rx_retrans(data,
-					CMD_COMMS_FINISH_KERNEL_UPLOAD,
-					NULL, 0,
-					&upload_reply, sizeof(upload_reply),
-					false, 10, 10);
-		release_wakeup(data);
-	} while (ret == sizeof(upload_reply) &&
-		 upload_reply == UPLOAD_REPLY_PROCESSING);
-
-	pr_info("nanohub: nanohub_comms_download: ret=%d, upload_reply=%d\n",
-		ret, upload_reply);
-
-	return 0;
-}
-
-int nanohub_comms_kernel_download(struct nanohub_data *data,
-				  const uint8_t *image, size_t length)
-{
-	return nanohub_comms_download(data, image, length,
-				      COMMS_FLASH_KERNEL_ID);
-}
-
-int nanohub_comms_app_download(struct nanohub_data *data, const uint8_t *image,
-			       size_t length)
-{
-	return nanohub_comms_download(data, image, length, COMMS_FLASH_APP_ID);
 }

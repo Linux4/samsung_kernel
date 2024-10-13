@@ -1,7 +1,7 @@
 /*
  * s2mpu12.h - Driver for the s2mpu12
  *
- *  Copyright (C) 2019 Samsung Electrnoics
+ *  Copyright (C) 2022 Samsung Electrnoics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

@@ -42,10 +42,15 @@ COND_SYSCALL(io_destroy);
 COND_SYSCALL(io_submit);
 COND_SYSCALL_COMPAT(io_submit);
 COND_SYSCALL(io_cancel);
+COND_SYSCALL(io_getevents_time32);
 COND_SYSCALL(io_getevents);
+COND_SYSCALL(io_pgetevents_time32);
 COND_SYSCALL(io_pgetevents);
-COND_SYSCALL_COMPAT(io_getevents);
+COND_SYSCALL_COMPAT(io_pgetevents_time32);
 COND_SYSCALL_COMPAT(io_pgetevents);
+COND_SYSCALL(io_uring_setup);
+COND_SYSCALL(io_uring_enter);
+COND_SYSCALL(io_uring_register);
 
 /* fs/xattr.c */
 
@@ -114,9 +119,9 @@ COND_SYSCALL_COMPAT(signalfd4);
 /* fs/timerfd.c */
 COND_SYSCALL(timerfd_create);
 COND_SYSCALL(timerfd_settime);
-COND_SYSCALL_COMPAT(timerfd_settime);
+COND_SYSCALL(timerfd_settime32);
 COND_SYSCALL(timerfd_gettime);
-COND_SYSCALL_COMPAT(timerfd_gettime);
+COND_SYSCALL(timerfd_gettime32);
 
 /* fs/utimes.c */
 
@@ -132,10 +137,12 @@ COND_SYSCALL(capset);
 /* kernel/exit.c */
 
 /* kernel/fork.c */
+/* __ARCH_WANT_SYS_CLONE3 */
+COND_SYSCALL(clone3);
 
 /* kernel/futex.c */
 COND_SYSCALL(futex);
-COND_SYSCALL_COMPAT(futex);
+COND_SYSCALL(futex_time32);
 COND_SYSCALL(set_robust_list);
 COND_SYSCALL_COMPAT(set_robust_list);
 COND_SYSCALL(get_robust_list);
@@ -185,9 +192,9 @@ COND_SYSCALL(mq_open);
 COND_SYSCALL_COMPAT(mq_open);
 COND_SYSCALL(mq_unlink);
 COND_SYSCALL(mq_timedsend);
-COND_SYSCALL_COMPAT(mq_timedsend);
+COND_SYSCALL(mq_timedsend_time32);
 COND_SYSCALL(mq_timedreceive);
-COND_SYSCALL_COMPAT(mq_timedreceive);
+COND_SYSCALL(mq_timedreceive_time32);
 COND_SYSCALL(mq_notify);
 COND_SYSCALL_COMPAT(mq_notify);
 COND_SYSCALL(mq_getsetattr);
@@ -195,8 +202,10 @@ COND_SYSCALL_COMPAT(mq_getsetattr);
 
 /* ipc/msg.c */
 COND_SYSCALL(msgget);
+COND_SYSCALL(old_msgctl);
 COND_SYSCALL(msgctl);
 COND_SYSCALL_COMPAT(msgctl);
+COND_SYSCALL_COMPAT(old_msgctl);
 COND_SYSCALL(msgrcv);
 COND_SYSCALL_COMPAT(msgrcv);
 COND_SYSCALL(msgsnd);
@@ -204,16 +213,20 @@ COND_SYSCALL_COMPAT(msgsnd);
 
 /* ipc/sem.c */
 COND_SYSCALL(semget);
+COND_SYSCALL(old_semctl);
 COND_SYSCALL(semctl);
 COND_SYSCALL_COMPAT(semctl);
+COND_SYSCALL_COMPAT(old_semctl);
 COND_SYSCALL(semtimedop);
-COND_SYSCALL_COMPAT(semtimedop);
+COND_SYSCALL(semtimedop_time32);
 COND_SYSCALL(semop);
 
 /* ipc/shm.c */
 COND_SYSCALL(shmget);
+COND_SYSCALL(old_shmctl);
 COND_SYSCALL(shmctl);
 COND_SYSCALL_COMPAT(shmctl);
+COND_SYSCALL_COMPAT(old_shmctl);
 COND_SYSCALL(shmat);
 COND_SYSCALL_COMPAT(shmat);
 COND_SYSCALL(shmdt);
@@ -255,6 +268,7 @@ COND_SYSCALL_COMPAT(keyctl);
 
 /* mm/fadvise.c */
 COND_SYSCALL(fadvise64_64);
+COND_SYSCALL_COMPAT(fadvise64_64);
 
 /* mm/, CONFIG_MMU only */
 COND_SYSCALL(swapon);
@@ -267,6 +281,8 @@ COND_SYSCALL(mlockall);
 COND_SYSCALL(munlockall);
 COND_SYSCALL(mincore);
 COND_SYSCALL(madvise);
+COND_SYSCALL(process_madvise);
+COND_SYSCALL(process_mrelease);
 COND_SYSCALL(remap_file_pages);
 COND_SYSCALL(mbind);
 COND_SYSCALL_COMPAT(mbind);
@@ -282,7 +298,9 @@ COND_SYSCALL_COMPAT(move_pages);
 COND_SYSCALL(perf_event_open);
 COND_SYSCALL(accept4);
 COND_SYSCALL(recvmmsg);
-COND_SYSCALL_COMPAT(recvmmsg);
+COND_SYSCALL(recvmmsg_time32);
+COND_SYSCALL_COMPAT(recvmmsg_time32);
+COND_SYSCALL_COMPAT(recvmmsg_time64);
 
 /*
  * Architecture specific syscalls: see further below
@@ -349,19 +367,18 @@ COND_SYSCALL(socketcall);
 COND_SYSCALL_COMPAT(socketcall);
 
 /* compat syscalls for arm64, x86, ... */
-COND_SYSCALL_COMPAT(sysctl);
 COND_SYSCALL_COMPAT(fanotify_mark);
 
 /* x86 */
 COND_SYSCALL(vm86old);
 COND_SYSCALL(modify_ldt);
-COND_SYSCALL_COMPAT(quotactl32);
 COND_SYSCALL(vm86);
 COND_SYSCALL(kexec_file_load);
 
 /* s390 */
 COND_SYSCALL(s390_pci_mmio_read);
 COND_SYSCALL(s390_pci_mmio_write);
+COND_SYSCALL(s390_ipc);
 COND_SYSCALL_COMPAT(s390_ipc);
 
 /* powerpc */
@@ -394,6 +411,29 @@ COND_SYSCALL(send);
 COND_SYSCALL(bdflush);
 COND_SYSCALL(uselib);
 
+/* optional: time32 */
+COND_SYSCALL(time32);
+COND_SYSCALL(stime32);
+COND_SYSCALL(utime32);
+COND_SYSCALL(adjtimex_time32);
+COND_SYSCALL(sched_rr_get_interval_time32);
+COND_SYSCALL(nanosleep_time32);
+COND_SYSCALL(rt_sigtimedwait_time32);
+COND_SYSCALL_COMPAT(rt_sigtimedwait_time32);
+COND_SYSCALL(timer_settime32);
+COND_SYSCALL(timer_gettime32);
+COND_SYSCALL(clock_settime32);
+COND_SYSCALL(clock_gettime32);
+COND_SYSCALL(clock_getres_time32);
+COND_SYSCALL(clock_nanosleep_time32);
+COND_SYSCALL(utimes_time32);
+COND_SYSCALL(futimesat_time32);
+COND_SYSCALL(pselect6_time32);
+COND_SYSCALL_COMPAT(pselect6_time32);
+COND_SYSCALL(ppoll_time32);
+COND_SYSCALL_COMPAT(ppoll_time32);
+COND_SYSCALL(utimensat_time32);
+COND_SYSCALL(clock_adjtime32);
 
 /*
  * The syscalls below are not found in include/uapi/asm-generic/unistd.h

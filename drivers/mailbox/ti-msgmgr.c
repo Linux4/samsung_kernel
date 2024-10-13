@@ -2,7 +2,7 @@
 /*
  * Texas Instruments' Message Manager Driver
  *
- * Copyright (C) 2015-2017 Texas Instruments Incorporated - http://www.ti.com/
+ * Copyright (C) 2015-2017 Texas Instruments Incorporated - https://www.ti.com/
  *	Nishanth Menon
  */
 
@@ -385,14 +385,20 @@ static int ti_msgmgr_send_data(struct mbox_chan *chan, void *data)
 		/* Ensure all unused data is 0 */
 		data_trail &= 0xFFFFFFFF >> (8 * (sizeof(u32) - trail_bytes));
 		writel(data_trail, data_reg);
-		data_reg++;
+		data_reg += sizeof(u32);
 	}
+
 	/*
 	 * 'data_reg' indicates next register to write. If we did not already
 	 * write on tx complete reg(last reg), we must do so for transmit
+	 * In addition, we also need to make sure all intermediate data
+	 * registers(if any required), are reset to 0 for TISCI backward
+	 * compatibility to be maintained.
 	 */
-	if (data_reg <= qinst->queue_buff_end)
-		writel(0, qinst->queue_buff_end);
+	while (data_reg <= qinst->queue_buff_end) {
+		writel(0, data_reg);
+		data_reg += sizeof(u32);
+	}
 
 	return 0;
 }
@@ -560,8 +566,8 @@ static struct mbox_chan *ti_msgmgr_of_xlate(struct mbox_controller *mbox,
 	}
 
 err:
-	dev_err(inst->dev, "Queue ID %d, Proxy ID %d is wrong on %s\n",
-		req_qid, req_pid, p->np->name);
+	dev_err(inst->dev, "Queue ID %d, Proxy ID %d is wrong on %pOFn\n",
+		req_qid, req_pid, p->np);
 	return ERR_PTR(-ENOENT);
 }
 
@@ -817,26 +823,15 @@ static int ti_msgmgr_probe(struct platform_device *pdev)
 	mbox->of_xlate = ti_msgmgr_of_xlate;
 
 	platform_set_drvdata(pdev, inst);
-	ret = mbox_controller_register(mbox);
+	ret = devm_mbox_controller_register(dev, mbox);
 	if (ret)
 		dev_err(dev, "Failed to register mbox_controller(%d)\n", ret);
 
 	return ret;
 }
 
-static int ti_msgmgr_remove(struct platform_device *pdev)
-{
-	struct ti_msgmgr_inst *inst;
-
-	inst = platform_get_drvdata(pdev);
-	mbox_controller_unregister(&inst->mbox);
-
-	return 0;
-}
-
 static struct platform_driver ti_msgmgr_driver = {
 	.probe = ti_msgmgr_probe,
-	.remove = ti_msgmgr_remove,
 	.driver = {
 		   .name = "ti-msgmgr",
 		   .of_match_table = of_match_ptr(ti_msgmgr_of_match),

@@ -33,13 +33,13 @@ struct exynos_cpu_power_ops {
 };
 extern struct exynos_cpu_power_ops exynos_cpu;
 
-#define phy_cluster(cpu)	MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 1)
-#define phy_cpu(cpu)		MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 0)
+//#define phy_cluster(cpu)	MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 1)
+//#define phy_cpu(cpu)		MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 0)
 
 /**
  * The APIs to control the PMU
  */
-#ifdef CONFIG_EXYNOS_PMU
+#if defined(CONFIG_EXYNOS_PMU) || defined(CONFIG_EXYNOS_PMU_MODULE)
 extern int exynos_pmu_read(unsigned int offset, unsigned int *val);
 extern int exynos_pmu_write(unsigned int offset, unsigned int val);
 extern int exynos_pmu_update(unsigned int offset, unsigned int mask, unsigned int val);

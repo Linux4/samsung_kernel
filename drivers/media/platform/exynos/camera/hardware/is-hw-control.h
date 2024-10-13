@@ -63,6 +63,23 @@
 /* sysfs variable for debug */
 extern struct is_sysfs_debug sysfs_debug;
 
+#define EXT1_CHAIN_OFFSET	(4)
+#define EXT2_CHAIN_OFFSET	(8)
+#define EXT3_CHAIN_OFFSET	(12)
+#define EXT4_CHAIN_OFFSET	(16)
+
+enum base_reg_index {
+	REG_SETA = 0,
+	REG_SETB = 1,
+	REG_SETC = 2,
+	REG_SETD = 3,
+	REG_EXT1 = 4,
+	REG_EXT2 = 5,
+	REG_EXT3 = 6,
+	REG_EXT4 = 7,
+	REG_SET_MAX
+};
+
 enum v_enum {
 	V_BLANK = 0,
 	V_VALID
@@ -73,6 +90,7 @@ enum is_hardware_id {
 	DEV_HW_3AA0	= 1,
 	DEV_HW_3AA1,
 	DEV_HW_3AA2,
+	DEV_HW_3AA3,
 	DEV_HW_ISP0,
 	DEV_HW_ISP1,
 	DEV_HW_MCSC0,
@@ -81,12 +99,15 @@ enum is_hardware_id {
 	DEV_HW_PAF0,	/* PAF RDMA */
 	DEV_HW_PAF1,
 	DEV_HW_PAF2,
+	DEV_HW_PAF3,
 	DEV_HW_CLH0,
+	DEV_HW_YPP, /* YUVPP */
+	DEV_HW_LME,
 	DEV_HW_END
 };
 
 #define DEV_HW_3AA_MASK		((1 << DEV_HW_3AA0) | (1 << DEV_HW_3AA1) | (1 << DEV_HW_3AA2))
-#define DEV_HW_PAF_MASK		((1 << DEV_HW_PAF0) | (1 << DEV_HW_PAF1) | (1 << DEV_HW_PAF2))
+#define DEV_HW_PAF_MASK		((1 << DEV_HW_PAF0) | (1 << DEV_HW_PAF1) | (1 << DEV_HW_PAF2) | (1 << DEV_HW_PAF3))
 
 /**
  * enum is_hw_state - the definition of HW state
@@ -166,11 +187,6 @@ enum lic_trigger_index {
 	LIC_TRIGGER_MAX,
 };
 
-enum is_hw_streaming_state {
-	HW_SENSOR_STREAMING = 0,
-	HW_ISCHAIN_STREAMING = 1,
-};
-
 enum lboffset_trigger {
 	LBOFFSET_NONE,
 	LBOFFSET_A_TO_B,
@@ -179,6 +195,11 @@ enum lboffset_trigger {
 	LBOFFSET_B_DIRECT,
 	LBOFFSET_READ,
 	LBOFFSET_MAX,
+};
+
+enum is_hw_streaming_state {
+	HW_SENSOR_STREAMING = 0,
+	HW_ISCHAIN_STREAMING = 1,
 };
 
 struct cal_info {
@@ -210,6 +231,7 @@ struct hw_ip_count{
 };
 
 struct hw_ip_status {
+	atomic_t		otf_start;
 	atomic_t		Vvalid;
 	wait_queue_head_t	wait_queue;
 };
@@ -344,6 +366,8 @@ struct is_hw_ip {
 	u32					clk_gate_idx;
 
 	struct timer_list			shot_timer;
+	struct timer_list			lme_frame_start_timer;
+	struct timer_list			lme_frame_end_timer;
 
 	/* multi-buffer */
 	struct is_frame			*mframe; /* CAUTION: read only */
@@ -401,11 +425,6 @@ struct is_hw_ip_ops {
  * @taa1: 3AA1 HW IP structure
  * @isp0: ISP0 HW IP structure
  * @isp1: ISP1 HW IP structure
- * @drc: DRC HW IP structure
- * @scc: CODEC SCALER HW IP structure
- * @dis: VDIS HW IP structure
- * @tdnr: 3DNR HW IP structure
- * @scp: PREVIEW SCALER HW IP structure
  * @fd: LHFD HW IP structure
  * @framemgr: frame manager structure. each group has its own frame manager
  */
@@ -413,6 +432,7 @@ struct is_hardware {
 	struct is_hw_ip		hw_ip[HW_SLOT_MAX];
 	struct is_framemgr		framemgr[GROUP_ID_MAX];
 	atomic_t			rsccount;
+	struct mutex            itf_lock;
 
 	/* keep last configuration */
 	ulong				logical_hw_map[IS_STREAM_COUNT]; /* logical */

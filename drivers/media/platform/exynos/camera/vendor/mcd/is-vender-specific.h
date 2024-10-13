@@ -72,6 +72,10 @@ struct is_vender_specific {
 	bool			zoom_running;
 	int32_t			rear_tof_mode_id;
 	int32_t			front_tof_mode_id;
+#ifdef USE_TOF_AF
+	struct tof_data_t	tof_af_data;
+	struct mutex		tof_af_lock;
+#endif
 
 #if defined(CONFIG_CAMERA_FROM)
 	FRomPowersource		f_rom_power;

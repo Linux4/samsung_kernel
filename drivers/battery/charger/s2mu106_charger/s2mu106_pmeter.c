@@ -1167,7 +1167,7 @@ static void s2mu106_pm_water_init(struct s2mu106_pmeter_data *pmeter)
 			wakeup_source_add(pmeter->water_work_ws);
 	}
 #else
-	pmeter->water_work_ws = wakeup_source_register(null, "water_work"); // 5.4 R
+	pmeter->water_work_ws = wakeup_source_register(NULL, "water_work"); // 5.4 R
 #endif
 
 #if defined(CONFIG_ARCH_QCOM)
@@ -1178,7 +1178,7 @@ static void s2mu106_pm_water_init(struct s2mu106_pmeter_data *pmeter)
 			wakeup_source_add(pmeter->gpadc_ws);
 	}
 #else
-	pmeter->gpadc_ws = wakeup_source_register(null, "gpadc_wake"); // 5.4 R
+	pmeter->gpadc_ws = wakeup_source_register(NULL, "gpadc_wake"); // 5.4 R
 #endif
 #endif
 

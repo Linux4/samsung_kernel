@@ -10,9 +10,9 @@
 
 #include "timenval.h"
 
-int timenval_update_snapshot(struct timenval *tnv, int cur_value, struct timespec cur_ts)
+int timenval_update_snapshot(struct timenval *tnv, int cur_value, struct timespec64 cur_ts)
 {
-	struct timespec delta_ts;
+	struct timespec64 delta_ts;
 	static u64 update_cnt;
 	s64 elapsed_msec;
 	int last_value;
@@ -26,8 +26,8 @@ int timenval_update_snapshot(struct timenval *tnv, int cur_value, struct timespe
 		return 0;
 	}
 
-	delta_ts = timespec_sub(cur_ts, tnv->last_ts);
-	elapsed_msec = timespec_to_ns(&delta_ts) / NSEC_PER_MSEC;
+	delta_ts = timespec64_sub(cur_ts, tnv->last_ts);
+	elapsed_msec = timespec64_to_ns(&delta_ts) / NSEC_PER_MSEC;
 	if (elapsed_msec == 0) {
 		pr_debug("%s elapsed_msec 0 msec\n", __func__);
 		elapsed_msec = 1;
@@ -54,9 +54,9 @@ int timenval_update_snapshot(struct timenval *tnv, int cur_value, struct timespe
 	return 0;
 }
 
-int timenval_update_average(struct timenval *tnv, int cur_value, struct timespec cur_ts)
+int timenval_update_average(struct timenval *tnv, int cur_value, struct timespec64 cur_ts)
 {
-	struct timespec delta_ts;
+	struct timespec64 delta_ts;
 	static u64 update_cnt;
 	s64 elapsed_msec;
 	int last_value;
@@ -70,8 +70,8 @@ int timenval_update_average(struct timenval *tnv, int cur_value, struct timespec
 		return 0;
 	}
 
-	delta_ts = timespec_sub(cur_ts, tnv->last_ts);
-	elapsed_msec = timespec_to_ns(&delta_ts) / NSEC_PER_MSEC;
+	delta_ts = timespec64_sub(cur_ts, tnv->last_ts);
+	elapsed_msec = timespec64_to_ns(&delta_ts) / NSEC_PER_MSEC;
 	if (elapsed_msec == 0) {
 		pr_debug("%s elapsed_msec 0 msec\n", __func__);
 		elapsed_msec = 1;
@@ -119,7 +119,7 @@ int timenval_init(struct timenval *tnv)
 	return 0;
 }
 
-int timenval_start(struct timenval *tnv, int value, struct timespec cur_ts)
+int timenval_start(struct timenval *tnv, int value, struct timespec64 cur_ts)
 {
 	tnv->last_ts = cur_ts;
 	tnv->last_value = value;

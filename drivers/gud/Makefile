@@ -1,4 +1,6 @@
-obj-$(CONFIG_SOC_EXYNOS9820) += gud-exynos9820/
-obj-$(CONFIG_SOC_EXYNOS9830) += gud-exynos9830/
-obj-$(CONFIG_SOC_EXYNOS9630) += gud-exynos9630/
-#obj-$(CONFIG_SOC_EXYNOS3830) += gud-exynos3830/
+ifneq ($(CONFIG_TRUSTONIC_TEE),)
+obj-$(CONFIG_SOC_S5E9935) += gud-s5e9935/
+obj-$(CONFIG_SOC_S5E8535) += gud-s5e8535/
+obj-$(CONFIG_SOC_S5E8835) += gud-s5e8835/
+obj-$(CONFIG_SOC_S5E3830) += gud-s5e3830/
+endif

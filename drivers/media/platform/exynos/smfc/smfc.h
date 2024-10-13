@@ -13,15 +13,17 @@
 #define _MEDIA_EXYNOS_SMFC_H_
 
 #include <linux/ktime.h>
-#include <linux/pm_qos.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/v4l2-ctrls.h>
+#include <soc/samsung/exynos_pm_qos.h>
 
 #include "smfc-regs.h"
 
 #define MODULE_NAME	"exynos-jpeg"
+
+#define SMFC_MAX_PLANES 6
 
 struct device;
 struct video_device;
@@ -108,7 +110,7 @@ struct smfc_dev {
 
 	struct clk *clk_gate;
 	struct clk *clk_gate2; /* available if clk_gate is valid */
-	struct pm_qos_request qosreq_int;
+	struct exynos_pm_qos_request qosreq_int;
 	s32 qosreq_int_level;
 
 };
@@ -161,6 +163,22 @@ struct smfc_crop {
 	u32 height;
 	u32 po[SMFC_MAX_NUM_COMP];
 	u32 so[SMFC_MAX_NUM_COMP];
+};
+
+struct smfc_map_info {
+	struct dma_buf_attachment *dba;
+	struct sg_table *sgt;
+};
+
+/*
+ * SMFC supports 6 planes for one buffer.
+ * It needs up to 6 planes, because three planes are required
+ * for main image and thumbnail image respectively.
+ */
+struct vb2_smfc_buffer {
+	struct v4l2_m2m_buffer mb;
+	struct smfc_map_info info[SMFC_MAX_PLANES];
+	unsigned int offset[SMFC_MAX_PLANES];
 };
 
 struct smfc_ctx {

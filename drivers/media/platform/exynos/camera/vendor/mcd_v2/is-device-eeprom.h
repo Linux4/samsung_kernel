@@ -1,7 +1,7 @@
 /*
- * Samsung Exynos5 SoC series IS EEPROM driver
+ * Samsung Exynos5 SoC series FIMC-IS EEPROM driver
  *
- * exynos5 is core functions
+ * exynos5 fimc-is core functions
  *
  * Copyright (c) 2011 Samsung Electronics Co., Ltd
  *
@@ -9,12 +9,6 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-
-struct is_eeprom_gpio {
-	char *sda;
-	char *scl;
-	char *pinname;
-};
 
 struct is_device_eeprom {
 	struct v4l2_device			v4l2_dev;

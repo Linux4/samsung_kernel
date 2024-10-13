@@ -18,22 +18,21 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <video/videonode.h>
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/videodev2_exynos_media.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/vmalloc.h>
 #include <linux/kthread.h>
-#include <linux/pm_qos.h>
 #include <linux/syscalls.h>
 #include <linux/bug.h>
 #include <linux/smc.h>
+#include <soc/samsung/exynos_pm_qos.h>
 #if defined(CONFIG_PCI_EXYNOS)
 #include <linux/exynos-pci-ctrl.h>
 #endif
@@ -66,11 +65,6 @@
 
 #include "is-vender-specific.h"
 
-#if defined(CONFIG_LEDS_SM5714)
-#include <linux/sm5714.h>
-bool fled_prepared = false;
-#endif
-
 /* Default setting values */
 #define DEFAULT_PREVIEW_STILL_WIDTH		(1280) /* sensor margin : 16 */
 #define DEFAULT_PREVIEW_STILL_HEIGHT		(720) /* sensor margin : 12 */
@@ -90,16 +84,22 @@ extern struct is_sysfs_debug sysfs_debug;
 extern int debug_clk;
 
 #if defined(QOS_INTCAM)
-extern struct pm_qos_request exynos_isp_qos_int_cam;
+extern struct is_pm_qos_request exynos_isp_qos_int_cam;
 #endif
 #if defined(QOS_TNR)
-extern struct pm_qos_request exynos_isp_qos_tnr;
+extern struct is_pm_qos_request exynos_isp_qos_tnr;
 #endif
-extern struct pm_qos_request exynos_isp_qos_int;
-extern struct pm_qos_request exynos_isp_qos_mem;
-extern struct pm_qos_request exynos_isp_qos_cam;
-extern struct pm_qos_request exynos_isp_qos_hpg;
-extern struct pm_qos_request exynos_isp_qos_cpu_online_min;
+#if defined(QOS_CSIS)
+extern struct is_pm_qos_request exynos_isp_qos_csis;
+#endif
+#if defined(QOS_ISP)
+extern struct is_pm_qos_request exynos_isp_qos_isp;
+#endif
+extern struct is_pm_qos_request exynos_isp_qos_int;
+extern struct is_pm_qos_request exynos_isp_qos_mem;
+extern struct is_pm_qos_request exynos_isp_qos_cam;
+extern struct is_pm_qos_request exynos_isp_qos_hpg;
+extern struct is_pm_qos_request exynos_isp_qos_cpu_online_min;
 
 #if defined(CONFIG_SCHED_EHMP) || defined(CONFIG_SCHED_EMS)
 #if defined(CONFIG_SCHED_EMS_TUNE)
@@ -126,13 +126,34 @@ extern const struct is_subdev_ops is_subdev_mexc_ops;
 extern const struct is_subdev_ops is_subdev_orbxc_ops;
 extern const struct is_subdev_ops is_subdev_mcs_ops;
 extern const struct is_subdev_ops is_subdev_mcsp_ops;
+#if defined(SOC_CLH)
 extern const struct is_subdev_ops is_subdev_clh_ops;
 extern const struct is_subdev_ops is_subdev_clxc_ops;
+#else
+const struct is_subdev_ops is_subdev_clh_ops;
+const struct is_subdev_ops is_subdev_clxc_ops;
+#endif
 extern const struct is_subdev_ops is_subdev_vra_ops;
+#if defined(SOC_YPP)
+extern const struct is_subdev_ops is_subdev_ypp_ops;
+#else
+const struct is_subdev_ops is_subdev_ypp_ops;
+#endif
+#if defined(SOC_LME)
+extern const struct is_subdev_ops is_subdev_lme_ops;
+extern const struct is_subdev_ops is_subdev_lmes_ops;
+extern const struct is_subdev_ops is_subdev_lmec_ops;
+#else
+const struct is_subdev_ops is_subdev_lme_ops;
+const struct is_subdev_ops is_subdev_lmes_ops;
+const struct is_subdev_ops is_subdev_lmec_ops;
+#endif
 
 static int is_ischain_paf_stop(void *qdevice,
 	struct is_queue *queue);
 static int is_ischain_3aa_stop(void *qdevice,
+	struct is_queue *queue);
+static int is_ischain_lme_stop(void *qdevice,
 	struct is_queue *queue);
 static int is_ischain_isp_stop(void *qdevice,
 	struct is_queue *queue);
@@ -142,10 +163,14 @@ static int is_ischain_vra_stop(void *qdevice,
 	struct is_queue *queue);
 static int is_ischain_clh_stop(void *qdevice,
 	struct is_queue *queue);
+static int is_ischain_ypp_stop(void *qdevice,
+	struct is_queue *queue);
 
 static int is_ischain_paf_shot(struct is_device_ischain *device,
 	struct is_frame *frame);
 static int is_ischain_3aa_shot(struct is_device_ischain *device,
+	struct is_frame *frame);
+static int is_ischain_lme_shot(struct is_device_ischain *device,
 	struct is_frame *frame);
 static int is_ischain_isp_shot(struct is_device_ischain *device,
 	struct is_frame *frame);
@@ -154,6 +179,8 @@ static int is_ischain_mcs_shot(struct is_device_ischain *device,
 static int is_ischain_vra_shot(struct is_device_ischain *device,
 	struct is_frame *frame);
 static int is_ischain_clh_shot(struct is_device_ischain *device,
+	struct is_frame *frame);
+static int is_ischain_ypp_shot(struct is_device_ischain *device,
 	struct is_frame *frame);
 
 static const struct sensor_param init_sensor_param = {
@@ -443,6 +470,7 @@ static const struct odc_param init_odc_param = {
 	},
 };
 
+#if defined(SOC_TPU)
 static const struct tpu_param init_tpu_param = {
 	.control = {
 		.cmd = CONTROL_COMMAND_STOP,
@@ -486,6 +514,7 @@ static const struct tpu_param init_tpu_param = {
 		.err = OTF_OUTPUT_ERROR_NO,
 	},
 };
+#endif
 
 static const struct tdnr_param init_tdnr_param = {
 	.control = {
@@ -695,6 +724,58 @@ static const struct clh_param init_clh_param = {
 		.order = DMA_OUTPUT_ORDER_CrCb,
 		.err = DMA_OUTPUT_ERROR_NO,
 	},
+};
+#endif
+
+#ifdef SOC_YPP
+static const struct ypp_param init_ypp_param = {
+	.control = {
+		.cmd = CONTROL_COMMAND_STOP,
+		.bypass = CONTROL_BYPASS_ENABLE,
+		.err = CONTROL_ERROR_NO,
+	},
+	.dma_input = {
+		.cmd = DMA_INPUT_COMMAND_DISABLE,
+		.width = DEFAULT_CAPTURE_VIDEO_WIDTH,
+		.height = DEFAULT_CAPTURE_VIDEO_HEIGHT,
+		.format = DMA_INPUT_FORMAT_YUV422,
+		.order = 0,
+		.err = DMA_INPUT_ERROR_NO,
+	},
+	.otf_output = {
+		.cmd = OTF_OUTPUT_COMMAND_ENABLE,
+		.width = DEFAULT_CAPTURE_STILL_WIDTH,
+		.height = DEFAULT_CAPTURE_STILL_HEIGHT,
+		.format = OTF_YUV_FORMAT,
+		.bitwidth = OTF_OUTPUT_BIT_WIDTH_12BIT,
+		.order = OTF_OUTPUT_ORDER_BAYER_GR_BG,
+		.err = OTF_OUTPUT_ERROR_NO,
+	},
+};
+#endif
+
+#ifdef SOC_LME
+static const struct lme_param init_lme_param = {
+	.control = {
+		.cmd = CONTROL_COMMAND_STOP,
+		.bypass = CONTROL_BYPASS_ENABLE,
+		.err = CONTROL_ERROR_NO,
+	},
+	.dma = {
+		.input_cmd = DMA_INPUT_COMMAND_DISABLE,
+		.prev_input_cmd = DMA_INPUT_COMMAND_DISABLE,
+		.output_cmd = DMA_INPUT_COMMAND_DISABLE,
+		.input_format = DMA_INPUT_FORMAT_Y,
+		.input_bitwidth = DMA_INPUT_BIT_WIDTH_8BIT,
+		.input_order = DMA_INPUT_ORDER_NO,
+		.input_plane = DMA_INPUT_PLANE_1,
+		.input_width = DEFAULT_CAPTURE_STILL_WIDTH / 8,
+		.input_height = DEFAULT_CAPTURE_STILL_HEIGHT / 8,
+		.input_msb = 7,
+		.prev_input_width = DEFAULT_CAPTURE_STILL_WIDTH / 8,
+		.prev_input_height = DEFAULT_CAPTURE_STILL_HEIGHT / 8,
+		.err = DMA_INPUT_ERROR_NO,
+	}
 };
 #endif
 
@@ -1022,8 +1103,10 @@ static void is_itf_param_init(struct is_region *region)
 	memcpy(&region->parameter.isp, &init_isp_param,
 		sizeof(struct isp_param));
 
+#ifdef SOC_TPU
 	memcpy(&region->parameter.tpu, &init_tpu_param,
 		sizeof(struct tpu_param));
+#endif
 
 #ifdef SOC_MCS
 	memcpy(&region->parameter.mcs, &init_mcs_param,
@@ -1034,8 +1117,19 @@ static void is_itf_param_init(struct is_region *region)
 		sizeof(struct clh_param));
 #endif
 
+#ifdef SOC_YPP
+	memcpy(&region->parameter.ypp, &init_ypp_param,
+		sizeof(struct ypp_param));
+#endif
+
+#ifdef SOC_LME
+	memcpy(&region->parameter.lme, &init_lme_param,
+		sizeof(struct lme_param));
+#endif
+
 	memcpy(&region->parameter.vra, &init_vra_param,
 		sizeof(struct vra_param));
+
 }
 
 static int is_itf_open(struct is_device_ischain *device,
@@ -1170,86 +1264,17 @@ p_err:
 int is_itf_stream_on(struct is_device_ischain *device)
 {
 	int ret = 0;
-	u32 retry = 30000;
-	struct is_device_sensor *sensor;
-	struct is_groupmgr *groupmgr;
-	struct is_group *group_leader;
-	struct is_framemgr *framemgr;
-	struct is_frame *frame;
-	unsigned long flags;
 	struct is_resourcemgr *resourcemgr;
-	struct is_group_task *gtask;
-	u32 scount, init_shots, qcount;
+	int scenario_id  = 0;
 
 	FIMC_BUG(!device);
-	FIMC_BUG(!device->groupmgr);
 	FIMC_BUG(!device->resourcemgr);
-	FIMC_BUG(!device->sensor);
 
-	sensor = device->sensor;
-	groupmgr = device->groupmgr;
 	resourcemgr = device->resourcemgr;
-	group_leader = groupmgr->leader[device->instance];
-	if (!group_leader) {
-		merr("stream leader is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	gtask = &groupmgr->gtask[group_leader->id];
-	init_shots = group_leader->init_shots;
-	scount = atomic_read(&group_leader->scount);
-
-	framemgr = GET_HEAD_GROUP_FRAMEMGR(group_leader);
-	if (!framemgr) {
-		merr("leader framemgr is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	qcount = framemgr->queued_count[FS_REQUEST] + framemgr->queued_count[FS_PROCESS];
-
-	if (init_shots) {
-		/* 3ax  group should be started */
-		if (!test_bit(IS_GROUP_START, &group_leader->state)) {
-			merr("stream leader is NOT started", device);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
-		while (--retry && (scount < init_shots)) {
-			udelay(100);
-			scount = atomic_read(&group_leader->scount);
-		}
-	}
-
-	/*
-	 * If batch(FRO) mode is used,
-	 * asyn shot count doesn't have to bigger than MIN_OF_ASYNC_SHOTS(=1),
-	 * because it will be operated like 60 fps.
-	 */
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	frame = peek_frame(framemgr, FS_PROCESS);
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	if (frame && frame->num_buffers <= 1) {
-		/* trigger one more asyn_shots */
-		if (is_sensor_g_fast_mode(sensor) == 1) {
-			group_leader->asyn_shots += 1;
-			group_leader->skip_shots = group_leader->asyn_shots;
-			atomic_inc(&group_leader->smp_shot_count);
-			up(&group_leader->smp_trigger);
-			up(&gtask->smp_resource);
-		}
-	}
-
-	minfo("[ISC:D] stream on %s ready(scnt: %d, qcnt: %d, init: %d, asyn: %d, skip: %d)\n",
-		device, retry ? "OK" : "NOT", scount, qcount, init_shots,
-		group_leader->asyn_shots, group_leader->skip_shots);
 
 #ifdef ENABLE_DVFS
-	if ((!pm_qos_request_active(&device->user_qos)) && (sysfs_debug.en_dvfs)) {
+	if ((!is_pm_qos_request_active(&device->user_qos)) && (sysfs_debug.en_dvfs)) {
 		struct is_dvfs_ctrl *dvfs_ctrl;
-		int scenario_id;
 
 		dvfs_ctrl = &resourcemgr->dvfs_ctrl;
 
@@ -1257,7 +1282,7 @@ int is_itf_stream_on(struct is_device_ischain *device)
 
 		/* try to find dynamic scenario to apply */
 		scenario_id = is_dvfs_sel_static(device);
-		if (scenario_id >= 0) {
+		if (scenario_id >= 0 && !is_dvfs_is_fast_ae(dvfs_ctrl)) {
 			struct is_dvfs_scenario_ctrl *static_ctrl = dvfs_ctrl->static_ctrl;
 			minfo("[ISC:D] tbl[%d] static scenario(%d)-[%s]\n", device,
 				dvfs_ctrl->dvfs_table_idx, scenario_id,
@@ -1269,6 +1294,9 @@ int is_itf_stream_on(struct is_device_ischain *device)
 	}
 #endif
 
+	/* set bts_scen by scenario */
+	is_hw_configure_bts_scen(resourcemgr, scenario_id);
+
 	is_resource_set_global_param(resourcemgr, device);
 	is_resource_update_lic_sram(resourcemgr, device, true);
 
@@ -1277,7 +1305,6 @@ int is_itf_stream_on(struct is_device_ischain *device)
 
 	ret = is_itf_stream_on_wrap(device);
 
-p_err:
 	return ret;
 }
 
@@ -1578,7 +1605,6 @@ int is_ischain_runtime_suspend(struct device *dev)
 	int ret = 0;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct is_core *core = (struct is_core *)dev_get_drvdata(dev);
-	struct is_mem *mem = &core->resourcemgr.mem;
 	struct exynos_platform_is *pdata;
 
 #if defined(CONFIG_PM_DEVFREQ)
@@ -1587,6 +1613,12 @@ int is_ischain_runtime_suspend(struct device *dev)
 #endif
 #if defined(QOS_TNR)
 	int tnr_qos;
+#endif
+#if defined(QOS_CSIS)
+	int csis_qos;
+#endif
+#if defined(QOS_ISP)
+	int isp_qos;
 #endif
 	int int_qos, mif_qos, cam_qos, hpg_qos;
 	int refcount;
@@ -1598,8 +1630,6 @@ int is_ischain_runtime_suspend(struct device *dev)
 
 	info("FIMC_IS runtime suspend in\n");
 
-	CALL_MEMOP(mem, suspend, mem->default_ctx);
-
 #if defined(CONFIG_PCI_EXYNOS)
 	exynos_pcie_l1ss_ctrl(1, PCIE_L1SS_CTRL_CAMERA);
 #endif
@@ -1607,9 +1637,6 @@ int is_ischain_runtime_suspend(struct device *dev)
 	ret = pdata->clk_off(&pdev->dev);
 	if (ret)
 		err("clk_off is fail(%d)", ret);
-
-	/* This is for just debugging */
-	pdata->print_clk(&pdev->dev);
 
 #if defined(CONFIG_PM_DEVFREQ)
 	refcount = atomic_dec_return(&core->resourcemgr.qos_refcount);
@@ -1622,6 +1649,12 @@ int is_ischain_runtime_suspend(struct device *dev)
 #if defined(QOS_TNR)
 		tnr_qos = is_get_qos(core, IS_DVFS_TNR, IS_SN_MAX);
 #endif
+#if defined(QOS_CSIS)
+		csis_qos = is_get_qos(core, IS_DVFS_CSIS, IS_SN_MAX);
+#endif
+#if defined(QOS_ISP)
+		isp_qos = is_get_qos(core, IS_DVFS_ISP, IS_SN_MAX);
+#endif
 		int_qos = is_get_qos(core, IS_DVFS_INT, IS_SN_MAX);
 		mif_qos = is_get_qos(core, IS_DVFS_MIF, IS_SN_MAX);
 		cam_qos = is_get_qos(core, IS_DVFS_CAM, START_DVFS_LEVEL);
@@ -1629,20 +1662,28 @@ int is_ischain_runtime_suspend(struct device *dev)
 
 #if defined(QOS_INTCAM)
 		if (int_cam_qos > 0)
-			pm_qos_remove_request(&exynos_isp_qos_int_cam);
+			is_pm_qos_remove_request(&exynos_isp_qos_int_cam);
 #endif
 #if defined(QOS_TNR)
 		if (tnr_qos > 0)
-			pm_qos_remove_request(&exynos_isp_qos_tnr);
+			is_pm_qos_remove_request(&exynos_isp_qos_tnr);
+#endif
+#if defined(QOS_CSIS)
+		if (csis_qos > 0)
+			is_pm_qos_remove_request(&exynos_isp_qos_csis);
+#endif
+#if defined(QOS_ISP)
+		if (isp_qos > 0)
+			is_pm_qos_remove_request(&exynos_isp_qos_isp);
 #endif
 		if (int_qos > 0)
-			pm_qos_remove_request(&exynos_isp_qos_int);
+			is_pm_qos_remove_request(&exynos_isp_qos_int);
 		if (mif_qos > 0)
-			pm_qos_remove_request(&exynos_isp_qos_mem);
+			is_pm_qos_remove_request(&exynos_isp_qos_mem);
 		if (cam_qos > 0)
-			pm_qos_remove_request(&exynos_isp_qos_cam);
+			is_pm_qos_remove_request(&exynos_isp_qos_cam);
 		if (hpg_qos > 0)
-			pm_qos_remove_request(&exynos_isp_qos_hpg);
+			is_pm_qos_remove_request(&exynos_isp_qos_hpg);
 #if defined(CONFIG_HMP_VARIABLE_SCALE)
 		if (core->resourcemgr.dvfs_ctrl.cur_hmp_bst)
 			set_hmp_boost(0);
@@ -1658,7 +1699,7 @@ int is_ischain_runtime_suspend(struct device *dev)
 	}
 #endif
 #if defined (CONFIG_HOTPLUG_CPU) && defined (IS_ONLINE_CPU_MIN)
-	pm_qos_remove_request(&exynos_isp_qos_cpu_online_min);
+	is_pm_qos_remove_request(&exynos_isp_qos_cpu_online_min);
 #endif
 	is_hardware_runtime_suspend(&core->hardware);
 #ifdef CAMERA_HW_BIG_DATA_FILE_IO
@@ -1674,7 +1715,6 @@ int is_ischain_runtime_resume(struct device *dev)
 	int ret = 0;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct is_core *core = (struct is_core *)dev_get_drvdata(dev);
-	struct is_mem *mem = &core->resourcemgr.mem;
 	struct exynos_platform_is *pdata;
 
 #if defined(CONFIG_PM_DEVFREQ)
@@ -1683,6 +1723,12 @@ int is_ischain_runtime_resume(struct device *dev)
 #endif
 #if defined(QOS_TNR)
 	int tnr_qos;
+#endif
+#if defined(QOS_CSIS)
+	int csis_qos;
+#endif
+#if defined(QOS_ISP)
+	int isp_qos;
 #endif
 	int int_qos, mif_qos, cam_qos, hpg_qos;
 	int refcount;
@@ -1720,6 +1766,12 @@ int is_ischain_runtime_resume(struct device *dev)
 #if defined(QOS_TNR)
 		tnr_qos = is_get_qos(core, IS_DVFS_TNR, START_DVFS_LEVEL);
 #endif
+#if defined(QOS_CSIS)
+		csis_qos = is_get_qos(core, IS_DVFS_CSIS, START_DVFS_LEVEL);
+#endif
+#if defined(QOS_ISP)
+		isp_qos = is_get_qos(core, IS_DVFS_ISP, START_DVFS_LEVEL);
+#endif
 		int_qos = is_get_qos(core, IS_DVFS_INT, START_DVFS_LEVEL);
 		mif_qos = is_get_qos(core, IS_DVFS_MIF, START_DVFS_LEVEL);
 		cam_qos = is_get_qos(core, IS_DVFS_CAM, START_DVFS_LEVEL);
@@ -1727,22 +1779,31 @@ int is_ischain_runtime_resume(struct device *dev)
 
 		/* DEVFREQ lock */
 #if defined(QOS_INTCAM)
-		if (int_cam_qos > 0 && !pm_qos_request_active(&exynos_isp_qos_int_cam))
-			pm_qos_add_request(&exynos_isp_qos_int_cam, PM_QOS_INTCAM_THROUGHPUT, int_cam_qos);
+		if (int_cam_qos > 0 && !is_pm_qos_request_active(&exynos_isp_qos_int_cam))
+			is_pm_qos_add_request(&exynos_isp_qos_int_cam, PM_QOS_INTCAM_THROUGHPUT, int_cam_qos);
 #endif
 #if defined(QOS_TNR)
-		if (tnr_qos > 0 && !pm_qos_request_active(&exynos_isp_qos_tnr))
-			pm_qos_add_request(&exynos_isp_qos_tnr, PM_QOS_TNR_THROUGHPUT, tnr_qos);
+		if (tnr_qos > 0 && !is_pm_qos_request_active(&exynos_isp_qos_tnr))
+			is_pm_qos_add_request(&exynos_isp_qos_tnr, PM_QOS_TNR_THROUGHPUT, tnr_qos);
 #endif
-		if (int_qos > 0 && !pm_qos_request_active(&exynos_isp_qos_int))
-			pm_qos_add_request(&exynos_isp_qos_int, PM_QOS_DEVICE_THROUGHPUT, int_qos);
-		if (mif_qos > 0 && !pm_qos_request_active(&exynos_isp_qos_mem))
-			pm_qos_add_request(&exynos_isp_qos_mem, PM_QOS_BUS_THROUGHPUT, mif_qos);
-		if (cam_qos > 0 && !pm_qos_request_active(&exynos_isp_qos_cam))
-			pm_qos_add_request(&exynos_isp_qos_cam, PM_QOS_CAM_THROUGHPUT, cam_qos);
-		if (hpg_qos > 0 && !pm_qos_request_active(&exynos_isp_qos_hpg))
-			pm_qos_add_request(&exynos_isp_qos_hpg, PM_QOS_CPU_ONLINE_MIN, hpg_qos);
-
+#if defined(QOS_CSIS)
+		if (csis_qos > 0 && !is_pm_qos_request_active(&exynos_isp_qos_csis))
+			is_pm_qos_add_request(&exynos_isp_qos_csis, PM_QOS_CSIS_THROUGHPUT, csis_qos);
+#endif
+#if defined(QOS_ISP)
+		if (isp_qos > 0 && !is_pm_qos_request_active(&exynos_isp_qos_isp))
+			is_pm_qos_add_request(&exynos_isp_qos_isp, PM_QOS_ISP_THROUGHPUT, isp_qos);
+#endif
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+		if (int_qos > 0 && !is_pm_qos_request_active(&exynos_isp_qos_int))
+			is_pm_qos_add_request(&exynos_isp_qos_int, PM_QOS_DEVICE_THROUGHPUT, int_qos);
+		if (mif_qos > 0 && !is_pm_qos_request_active(&exynos_isp_qos_mem))
+			is_pm_qos_add_request(&exynos_isp_qos_mem, PM_QOS_BUS_THROUGHPUT, mif_qos);
+		if (cam_qos > 0 && !is_pm_qos_request_active(&exynos_isp_qos_cam))
+			is_pm_qos_add_request(&exynos_isp_qos_cam, PM_QOS_CAM_THROUGHPUT, cam_qos);
+		if (hpg_qos > 0 && !is_pm_qos_request_active(&exynos_isp_qos_hpg))
+			is_pm_qos_add_request(&exynos_isp_qos_hpg, PM_QOS_CPU_ONLINE_MIN, hpg_qos);
+#endif
 		qos_info = __getname();
 		if (unlikely(!qos_info)) {
 			ret = -ENOMEM;
@@ -1757,13 +1818,21 @@ int is_ischain_runtime_resume(struct device *dev)
 		snprintf(qos_info + strlen(qos_info),
 			PATH_MAX, " [TNR(%d)]", tnr_qos);
 #endif
+#if defined(QOS_CSIS)
+		snprintf(qos_info + strlen(qos_info),
+			PATH_MAX, " [CSIS(%d)]", csis_qos);
+#endif
+#if defined(QOS_ISP)
+		snprintf(qos_info + strlen(qos_info),
+			PATH_MAX, " [ISP(%d)]", isp_qos);
+#endif
 		info("%s [INT(%d), MIF(%d), CAM(%d), HPG(%d)]\n",
 			qos_info, int_qos, mif_qos, cam_qos, hpg_qos);
 		__putname(qos_info);
 	}
 #endif
 #if defined (CONFIG_HOTPLUG_CPU) && defined (IS_ONLINE_CPU_MIN)
-	pm_qos_add_request(&exynos_isp_qos_cpu_online_min, PM_QOS_CPU_ONLINE_MIN,
+	is_pm_qos_add_request(&exynos_isp_qos_cpu_online_min, PM_QOS_CPU_ONLINE_MIN,
 		IS_ONLINE_CPU_MIN);
 #endif
 	/* Clock on */
@@ -1772,8 +1841,6 @@ int is_ischain_runtime_resume(struct device *dev)
 		err("clk_on is fail(%d)", ret);
 		goto p_err;
 	}
-
-	CALL_MEMOP(mem, resume, mem->default_ctx);
 
 #if defined(CONFIG_PCI_EXYNOS)
 	exynos_pcie_l1ss_ctrl(0, PCIE_L1SS_CTRL_CAMERA);
@@ -1831,16 +1898,6 @@ int is_ischain_power(struct is_device_ischain *device, int on)
 			merr("is_runtime_suspend_post is fail(%d)", device, ret);
 
 		set_bit(IS_ISCHAIN_LOADED, &device->state);
-
-#if defined(CONFIG_LEDS_SM5714)
-		if (core->current_position == SENSOR_POSITION_REAR
-			|| core->current_position == SENSOR_POSITION_REAR4) {
-			info("%s PREPARE_FLASH\n", __func__);
-			sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PREPARE_FLASH, 0);
-			fled_prepared = true;
-		}
-#endif
-
 		set_bit(IS_ISCHAIN_POWER_ON, &device->state);
 	} else {
 		/* FIMC-IS local power down */
@@ -1858,15 +1915,6 @@ int is_ischain_power(struct is_device_ischain *device, int on)
 			merr("is_runtime_suspend is fail(%d)", device, ret);
 #endif
 
-#if defined(CONFIG_LEDS_SM5714)
-		if (core->current_position == SENSOR_POSITION_REAR
-			|| core->current_position == SENSOR_POSITION_REAR4 || fled_prepared) {
-			info("%s CLOSE_FLASH\n", __func__);
-			sm5714_fled_mode_ctrl(SM5714_FLED_MODE_CLOSE_FLASH, 0);
-			fled_prepared = false;
-		}
-#endif
-
 		clear_bit(IS_ISCHAIN_POWER_ON, &device->state);
 	}
 
@@ -1876,7 +1924,7 @@ p_err:
 	return ret;
 }
 
-int is_ischain_s_sensor_size(struct is_device_ischain *device,
+static int is_ischain_s_sensor_size(struct is_device_ischain *device,
 	struct is_frame *frame,
 	u32 *lindex,
 	u32 *hindex,
@@ -1910,17 +1958,13 @@ int is_ischain_s_sensor_size(struct is_device_ischain *device,
 	minfo("[ISC:D] mono sensor(%d)\n", device, mono_mode);
 
 p_sensor_config:
-
+	binning = is_sensor_g_bratio(device->sensor);
 	sensor_width = is_sensor_g_width(device->sensor);
 	sensor_height = is_sensor_g_height(device->sensor);
 	bns_width = is_sensor_g_bns_width(device->sensor);
 	bns_height = is_sensor_g_bns_height(device->sensor);
 	framerate = is_sensor_g_framerate(device->sensor);
 	ex_mode = is_sensor_g_ex_mode(device->sensor);
-	if(ex_mode == EX_CROP_ZOOM)
-		binning = is_sensor_g_sensorcrop_bratio(device->sensor);
-	else
-		binning = is_sensor_g_bratio(device->sensor);
 
 	minfo("[ISC:D] binning(%d):%d\n", device, binning);
 
@@ -2101,17 +2145,16 @@ int is_ischain_buf_tag_input(struct is_device_ischain *device,
 		}
 
 		set_bit(subdev->id, &ldr_frame->out_flag);
+
+		/* for draw digit */
+		frame->width = width;
+		frame->height = height;
 	} else {
 		for (i = 0; i < IS_MAX_PLANES; i++)
 			target_addr[i] = 0;
 
 		ret = -EINVAL;
 	}
-
-#ifdef DBG_DRAW_DIGIT
-	frame->width = width;
-	frame->height = height;
-#endif
 
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 
@@ -2278,17 +2321,16 @@ int is_ischain_buf_tag(struct is_device_ischain *device,
 
 		set_bit(subdev->id, &ldr_frame->out_flag);
 		trans_frame(framemgr, frame, next_state);
+
+		/* for draw digit */
+		frame->width = width;
+		frame->height = height;
 	} else {
 		for (i = 0; i < IS_MAX_PLANES; i++)
 			target_addr[i] = 0;
 
 		ret = -EINVAL;
 	}
-
-#ifdef DBG_DRAW_DIGIT
-	frame->width = width;
-	frame->height = height;
-#endif
 
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 
@@ -2350,17 +2392,16 @@ int is_ischain_buf_tag_64bit(struct is_device_ischain *device,
 
 		set_bit(subdev->id, &ldr_frame->out_flag);
 		trans_frame(framemgr, frame, FS_PROCESS);
+
+		/* for draw digit */
+		frame->width = width;
+		frame->height = height;
 	} else {
 		for (i = 0; i < IS_MAX_PLANES; i++)
 			target_addr[i] = 0;
 
 		ret = -EINVAL;
 	}
-
-#ifdef DBG_DRAW_DIGIT
-	frame->width = width;
-	frame->height = height;
-#endif
 
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 
@@ -2570,13 +2611,14 @@ int is_ischain_probe(struct is_device_ischain *device,
 	is_group_probe(groupmgr, &device->group_clh, NULL, device,
 		is_ischain_clh_shot,
 		GROUP_SLOT_CLH, ENTRY_CLH, "CLXS", &is_subdev_clh_ops);
-
 	is_subdev_probe(&device->pdaf, instance, ENTRY_PDAF, "PDAF", NULL);
 	is_subdev_probe(&device->pdst, instance, ENTRY_PDST, "PDST", NULL);
 	is_subdev_probe(&device->txc, instance, ENTRY_3AC, "3XC", &is_subdev_3ac_ops);
 	is_subdev_probe(&device->txp, instance, ENTRY_3AP, "3XP", &is_subdev_3ap_ops);
 	is_subdev_probe(&device->txf, instance, ENTRY_3AF, "3XF", &is_subdev_3af_ops);
 	is_subdev_probe(&device->txg, instance, ENTRY_3AG, "3XG", &is_subdev_3ag_ops);
+	is_subdev_probe(&device->lmes, instance, ENTRY_LMES, "LMES", &is_subdev_lmes_ops);
+	is_subdev_probe(&device->lmec, instance, ENTRY_LMEC, "LMEC", &is_subdev_lmec_ops);
 #if defined(SOC_ORBMCH)
 	is_subdev_probe(&device->orbxc, instance, ENTRY_ORBXC, "MEX", &is_subdev_orbxc_ops);
 #endif
@@ -2606,18 +2648,16 @@ int is_ischain_probe(struct is_device_ischain *device,
 
 	/* clear group open state */
 	clear_bit(IS_GROUP_OPEN, &device->group_3aa.state);
+	clear_bit(IS_GROUP_OPEN, &device->group_lme.state);
 	clear_bit(IS_GROUP_OPEN, &device->group_isp.state);
-	clear_bit(IS_GROUP_OPEN, &device->group_dis.state);
-	clear_bit(IS_GROUP_OPEN, &device->group_dcp.state);
 	clear_bit(IS_GROUP_OPEN, &device->group_mcs.state);
 	clear_bit(IS_GROUP_OPEN, &device->group_vra.state);
 	clear_bit(IS_GROUP_OPEN, &device->group_clh.state);
 
 	/* clear subdevice state */
 	clear_bit(IS_SUBDEV_OPEN, &device->group_3aa.leader.state);
+	clear_bit(IS_SUBDEV_OPEN, &device->group_lme.leader.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->group_isp.leader.state);
-	clear_bit(IS_SUBDEV_OPEN, &device->group_dis.leader.state);
-	clear_bit(IS_SUBDEV_OPEN, &device->group_dcp.leader.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->group_mcs.leader.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->group_vra.leader.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->group_clh.leader.state);
@@ -2625,6 +2665,10 @@ int is_ischain_probe(struct is_device_ischain *device,
 	clear_bit(IS_SUBDEV_OPEN, &device->txp.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->txf.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->txg.state);
+	clear_bit(IS_SUBDEV_OPEN, &device->txo.state);
+	clear_bit(IS_SUBDEV_OPEN, &device->txl.state);
+	clear_bit(IS_SUBDEV_OPEN, &device->lmes.state);
+	clear_bit(IS_SUBDEV_OPEN, &device->lmec.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->orbxc.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->ixc.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->ixp.state);
@@ -2635,18 +2679,11 @@ int is_ischain_probe(struct is_device_ischain *device,
 	clear_bit(IS_SUBDEV_OPEN, &device->ixw.state);
 #endif
 	clear_bit(IS_SUBDEV_OPEN, &device->mexc.state);
-	clear_bit(IS_SUBDEV_OPEN, &device->dxc.state);
-	clear_bit(IS_SUBDEV_OPEN, &device->drc.state);
-	clear_bit(IS_SUBDEV_OPEN, &device->odc.state);
-	clear_bit(IS_SUBDEV_OPEN, &device->dnr.state);
-	clear_bit(IS_SUBDEV_OPEN, &device->scc.state);
-	clear_bit(IS_SUBDEV_OPEN, &device->scp.state);
 	clear_bit(IS_SUBDEV_OPEN, &device->clhc.state);
 
 	clear_bit(IS_SUBDEV_START, &device->group_3aa.leader.state);
+	clear_bit(IS_SUBDEV_START, &device->group_lme.leader.state);
 	clear_bit(IS_SUBDEV_START, &device->group_isp.leader.state);
-	clear_bit(IS_SUBDEV_START, &device->group_dis.leader.state);
-	clear_bit(IS_SUBDEV_START, &device->group_dcp.leader.state);
 	clear_bit(IS_SUBDEV_START, &device->group_mcs.leader.state);
 	clear_bit(IS_SUBDEV_START, &device->group_vra.leader.state);
 	clear_bit(IS_SUBDEV_START, &device->group_clh.leader.state);
@@ -2654,6 +2691,10 @@ int is_ischain_probe(struct is_device_ischain *device,
 	clear_bit(IS_SUBDEV_START, &device->txp.state);
 	clear_bit(IS_SUBDEV_START, &device->txf.state);
 	clear_bit(IS_SUBDEV_START, &device->txg.state);
+	clear_bit(IS_SUBDEV_START, &device->txo.state);
+	clear_bit(IS_SUBDEV_START, &device->txl.state);
+	clear_bit(IS_SUBDEV_START, &device->lmes.state);
+	clear_bit(IS_SUBDEV_START, &device->lmec.state);
 	clear_bit(IS_SUBDEV_START, &device->orbxc.state);
 	clear_bit(IS_SUBDEV_START, &device->ixc.state);
 	clear_bit(IS_SUBDEV_START, &device->ixp.state);
@@ -2664,12 +2705,6 @@ int is_ischain_probe(struct is_device_ischain *device,
 	clear_bit(IS_SUBDEV_START, &device->ixw.state);
 #endif
 	clear_bit(IS_SUBDEV_START, &device->mexc.state);
-	clear_bit(IS_SUBDEV_START, &device->dxc.state);
-	clear_bit(IS_SUBDEV_START, &device->drc.state);
-	clear_bit(IS_SUBDEV_START, &device->odc.state);
-	clear_bit(IS_SUBDEV_START, &device->dnr.state);
-	clear_bit(IS_SUBDEV_START, &device->scc.state);
-	clear_bit(IS_SUBDEV_START, &device->scp.state);
 	clear_bit(IS_SUBDEV_START, &device->clhc.state);
 
 	return ret;
@@ -3017,23 +3052,16 @@ static int is_ischain_init_wrap(struct is_device_ischain *device,
 			goto p_err;
 		}
 
+		if (test_bit(IS_GROUP_OPEN, &device->group_lme.state) &&
+			!test_bit(IS_GROUP_INIT, &device->group_lme.state)) {
+			merr("invalid lme group state", device);
+			ret = -EINVAL;
+			goto p_err;
+		}
+
 		if (test_bit(IS_GROUP_OPEN, &device->group_isp.state) &&
 			!test_bit(IS_GROUP_INIT, &device->group_isp.state)) {
 			merr("invalid isp group state", device);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
-		if (test_bit(IS_GROUP_OPEN, &device->group_dis.state) &&
-			!test_bit(IS_GROUP_INIT, &device->group_dis.state)) {
-			merr("invalid dis group state", device);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
-		if (test_bit(IS_GROUP_OPEN, &device->group_dcp.state) &&
-			!test_bit(IS_GROUP_INIT, &device->group_dcp.state)) {
-			merr("invalid dcp group state", device);
 			ret = -EINVAL;
 			goto p_err;
 		}
@@ -4206,6 +4234,284 @@ const struct is_queue_ops is_ischain_isp_ops = {
 	.request_bufs		= is_ischain_isp_reqbufs
 };
 
+int is_ischain_ypp_open(struct is_device_ischain *device,
+	struct is_video_ctx *vctx)
+{
+	int ret = 0;
+	int ret_err = 0;
+	u32 group_id;
+	struct is_groupmgr *groupmgr;
+	struct is_group *group;
+
+	FIMC_BUG(!device);
+	FIMC_BUG(!vctx);
+	FIMC_BUG(!GET_VIDEO(vctx));
+
+	groupmgr = device->groupmgr;
+	group = &device->group_ypp;
+	group_id = GROUP_ID_YPP;
+
+	ret = is_group_open(groupmgr,
+		group,
+		group_id,
+		vctx);
+	if (ret) {
+		merr("is_group_open is fail(%d)", device, ret);
+		goto err_group_open;
+	}
+
+	ret = is_ischain_open_wrap(device, false);
+	if (ret) {
+		merr("is_ischain_open_wrap is fail(%d)", device, ret);
+		goto err_ischain_open;
+	}
+
+	atomic_inc(&device->group_open_cnt);
+
+	return 0;
+
+err_ischain_open:
+	ret_err = is_group_close(groupmgr, group);
+	if (ret_err)
+		merr("is_group_close is fail(%d)", device, ret_err);
+err_group_open:
+	return ret;
+}
+
+int is_ischain_ypp_close(struct is_device_ischain *device,
+	struct is_video_ctx *vctx)
+{
+	int ret = 0;
+	struct is_groupmgr *groupmgr;
+	struct is_group *group;
+	struct is_queue *queue;
+
+	FIMC_BUG(!device);
+
+	groupmgr = device->groupmgr;
+	group = &device->group_ypp;
+	queue = GET_QUEUE(vctx);
+
+	/* for mediaserver dead */
+	if (test_bit(IS_GROUP_START, &group->state)) {
+		mgwarn("sudden group close", device, group);
+		if (!test_bit(IS_ISCHAIN_REPROCESSING, &device->state))
+			is_itf_sudden_stop_wrap(device, device->instance, group);
+		set_bit(IS_GROUP_REQUEST_FSTOP, &group->state);
+		if (test_bit(IS_HAL_DEBUG_SUDDEN_DEAD_DETECT, &sysfs_debug.hal_debug_mode)) {
+			msleep(sysfs_debug.hal_debug_delay);
+			panic("HAL sudden group close #1");
+		}
+	}
+
+	if (group->head && test_bit(IS_GROUP_START, &group->head->state)) {
+		mgwarn("sudden group close", device, group);
+		if (!test_bit(IS_ISCHAIN_REPROCESSING, &device->state))
+			is_itf_sudden_stop_wrap(device, device->instance, group);
+		set_bit(IS_GROUP_REQUEST_FSTOP, &group->state);
+		if (test_bit(IS_HAL_DEBUG_SUDDEN_DEAD_DETECT, &sysfs_debug.hal_debug_mode)) {
+			msleep(sysfs_debug.hal_debug_delay);
+			panic("HAL sudden group close #2");
+		}
+	}
+
+	ret = is_ischain_ypp_stop(device, queue);
+	if (ret)
+		merr("is_ischain_ypp_stop is fail", device);
+
+	ret = is_group_close(groupmgr, group);
+	if (ret)
+		merr("is_group_close is fail", device);
+
+	ret = is_ischain_close_wrap(device);
+	if (ret)
+		merr("is_ischain_close_wrap is fail(%d)", device, ret);
+
+	atomic_dec(&device->group_open_cnt);
+
+	return ret;
+}
+
+int is_ischain_ypp_s_input(struct is_device_ischain *device,
+	u32 stream_type,
+	u32 module_id,
+	u32 video_id,
+	u32 input_type,
+	u32 stream_leader)
+{
+	int ret = 0;
+	struct is_group *group;
+	struct is_groupmgr *groupmgr;
+
+	FIMC_BUG(!device);
+	FIMC_BUG(!device->groupmgr);
+
+	groupmgr = device->groupmgr;
+	group = &device->group_ypp;
+
+	mdbgd_ischain("%s()\n", device, __func__);
+
+	ret = is_group_init(groupmgr, group, input_type, video_id, stream_leader);
+	if (ret) {
+		merr("is_group_init is fail(%d)", device, ret);
+		goto p_err;
+	}
+
+	ret = is_ischain_init_wrap(device, stream_type, module_id);
+	if (ret) {
+		merr("is_ischain_init_wrap is fail(%d)", device, ret);
+		goto p_err;
+	}
+
+p_err:
+	return ret;
+}
+
+static int is_ischain_ypp_start(void *qdevice,
+	struct is_queue *queue)
+{
+	int ret = 0;
+	struct is_device_ischain *device = qdevice;
+	struct is_groupmgr *groupmgr;
+	struct is_group *group;
+
+	FIMC_BUG(!device);
+
+	groupmgr = device->groupmgr;
+	group = &device->group_ypp;
+
+	ret = is_group_start(groupmgr, group);
+	if (ret) {
+		merr("is_group_start is fail(%d)", device, ret);
+		goto p_err;
+	}
+
+	ret = is_ischain_start_wrap(device, group);
+	if (ret) {
+		merr("is_ischain_start_wrap is fail(%d)", device, ret);
+		goto p_err;
+	}
+
+p_err:
+	return ret;
+}
+
+static int is_ischain_ypp_stop(void *qdevice,
+	struct is_queue *queue)
+{
+	int ret = 0;
+	struct is_device_ischain *device = qdevice;
+	struct is_groupmgr *groupmgr;
+	struct is_group *group;
+
+	FIMC_BUG(!device);
+
+	groupmgr = device->groupmgr;
+	group = &device->group_ypp;
+
+	if (!test_bit(IS_GROUP_INIT, &group->state))
+		goto p_err;
+
+	ret = is_group_stop(groupmgr, group);
+	if (ret) {
+		if (ret == -EPERM)
+			ret = 0;
+		else
+			merr("is_group_stop is fail(%d)", device, ret);
+		goto p_err;
+	}
+
+	ret = is_ischain_stop_wrap(device, group);
+	if (ret) {
+		merr("is_ischain_stop_wrap is fail(%d)", device, ret);
+		goto p_err;
+	}
+
+p_err:
+	mginfo("%s(%d):%d\n", device, group,  __func__, atomic_read(&group->scount), ret);
+	return ret;
+}
+
+static int is_ischain_ypp_reqbufs(void *qdevice,
+	struct is_queue *queue, u32 count)
+{
+	return 0;
+}
+
+static int is_ischain_ypp_s_format(void *qdevice,
+	struct is_queue *queue)
+{
+	int ret = 0;
+	struct is_device_ischain *device = qdevice;
+	struct is_subdev *leader;
+
+	FIMC_BUG(!device);
+	FIMC_BUG(!queue);
+
+	leader = &device->group_ypp.leader;
+
+	leader->input.width = queue->framecfg.width;
+	leader->input.height = queue->framecfg.height;
+
+	leader->input.crop.x = 0;
+	leader->input.crop.y = 0;
+	leader->input.crop.w = leader->input.width;
+	leader->input.crop.h = leader->input.height;
+
+	return ret;
+}
+
+int is_ischain_ypp_buffer_queue(struct is_device_ischain *device,
+	struct is_queue *queue,
+	u32 index)
+{
+	int ret = 0;
+	struct is_groupmgr *groupmgr;
+	struct is_group *group;
+
+	FIMC_BUG(!device);
+	FIMC_BUG(!test_bit(IS_ISCHAIN_OPEN, &device->state));
+
+	mdbgs_ischain(4, "%s\n", device, __func__);
+
+	groupmgr = device->groupmgr;
+	group = &device->group_ypp;
+
+	ret = is_group_buffer_queue(groupmgr, group, queue, index);
+	if (ret)
+		merr("is_group_buffer_queue is fail(%d)", device, ret);
+
+	return ret;
+}
+
+int is_ischain_ypp_buffer_finish(struct is_device_ischain *device,
+	u32 index)
+{
+	int ret = 0;
+	struct is_groupmgr *groupmgr;
+	struct is_group *group;
+
+	FIMC_BUG(!device);
+
+	mdbgs_ischain(4, "%s\n", device, __func__);
+
+	groupmgr = device->groupmgr;
+	group = &device->group_ypp;
+
+	ret = is_group_buffer_finish(groupmgr, group, index);
+	if (ret)
+		merr("is_group_buffer_finish is fail(%d)", device, ret);
+
+	return ret;
+}
+
+const struct is_queue_ops is_ischain_ypp_ops = {
+	.start_streaming	= is_ischain_ypp_start,
+	.stop_streaming		= is_ischain_ypp_stop,
+	.s_format		= is_ischain_ypp_s_format,
+	.request_bufs		= is_ischain_ypp_reqbufs
+};
+
 int is_ischain_mcs_open(struct is_device_ischain *device,
 	struct is_video_ctx *vctx)
 {
@@ -5081,7 +5387,6 @@ static int is_ischain_3aa_group_tag(struct is_device_ischain *device,
 	for (capture_id = 0; capture_id < CAPTURE_NODE_MAX; ++capture_id) {
 		cap_node = &node_group->capture[capture_id];
 		subdev = NULL;
-
 		switch (cap_node->vid) {
 		case 0:
 			break;
@@ -5133,6 +5438,32 @@ static int is_ischain_3aa_group_tag(struct is_device_ischain *device,
 				}
 			}
 			break;
+		case IS_VIDEO_30O_NUM:
+		case IS_VIDEO_31O_NUM:
+		case IS_VIDEO_32O_NUM:
+		case IS_VIDEO_33O_NUM:
+			subdev = group->subdev[ENTRY_3AO];
+			if (subdev && test_bit(IS_SUBDEV_START, &subdev->state)) {
+				ret = CALL_SOPS(subdev, tag, device, frame, cap_node);
+				if (ret) {
+					merr("is_ischain_3ao_tag is fail(%d)", device, ret);
+					goto p_err;
+				}
+			}
+			break;
+		case IS_VIDEO_30L_NUM:
+		case IS_VIDEO_31L_NUM:
+		case IS_VIDEO_32L_NUM:
+		case IS_VIDEO_33L_NUM:
+			subdev = group->subdev[ENTRY_3AL];
+			if (subdev && test_bit(IS_SUBDEV_START, &subdev->state)) {
+				ret = CALL_SOPS(subdev, tag, device, frame, cap_node);
+				if (ret) {
+					merr("is_ischain_3al_tag is fail(%d)", device, ret);
+					goto p_err;
+				}
+			}
+			break;
 		case IS_VIDEO_ME0C_NUM:
 		case IS_VIDEO_ME1C_NUM:
 			subdev = group->subdev[ENTRY_MEXC];
@@ -5159,7 +5490,6 @@ static int is_ischain_3aa_group_tag(struct is_device_ischain *device,
 			break;
 		}
 	}
-
 p_err:
 	return ret;
 }
@@ -5290,6 +5620,25 @@ static int is_ischain_isp_group_tag(struct is_device_ischain *device,
 		default:
 			break;
 		}
+	}
+
+p_err:
+	return ret;
+}
+
+static int is_ischain_ypp_group_tag(struct is_device_ischain *device,
+	struct is_frame *frame,
+	struct camera2_node *ldr_node)
+{
+	int ret = 0;
+	struct is_group *group;
+
+	group = &device->group_ypp;
+
+	ret = CALL_SOPS(&group->leader, tag, device, frame, ldr_node);
+	if (ret) {
+		merr("is_ischain_ypp_tag is fail(%d)", device, ret);
+		goto p_err;
 	}
 
 p_err:
@@ -5531,6 +5880,61 @@ p_err:
 	return ret;
 }
 
+static int is_ischain_lme_group_tag(struct is_device_ischain *device,
+	struct is_frame *frame,
+	struct camera2_node *ldr_node)
+{
+	int ret = 0;
+	u32 capture_id;
+	struct is_group *group;
+	struct is_subdev *subdev;
+	struct camera2_node_group *node_group;
+	struct camera2_node *cap_node;
+
+	group = &device->group_lme;
+	node_group = &frame->shot_ext->node_group;
+
+	ret = CALL_SOPS(&group->leader, tag, device, frame, ldr_node);
+	if (ret) {
+		merr("is_ischain_isp_tag is fail(%d)", device, ret);
+		goto p_err;
+	}
+
+	for (capture_id = 0; capture_id < CAPTURE_NODE_MAX; ++capture_id) {
+		cap_node = &node_group->capture[capture_id];
+		subdev = NULL;
+		switch (cap_node->vid) {
+		case 0:
+			break;
+		case IS_VIDEO_LME0S_NUM:
+			subdev = group->subdev[ENTRY_LMES];
+			if (subdev && test_bit(IS_SUBDEV_START, &subdev->state)) {
+				ret = CALL_SOPS(subdev, tag, device, frame, cap_node);
+				if (ret) {
+					merr("is_ischain_lmes_tag is fail(%d)", device, ret);
+					goto p_err;
+				}
+			}
+			break;
+		case IS_VIDEO_LME0C_NUM:
+			subdev = group->subdev[ENTRY_LMEC];
+			if (subdev && test_bit(IS_SUBDEV_START, &subdev->state)) {
+				ret = CALL_SOPS(subdev, tag, device, frame, cap_node);
+				if (ret) {
+					merr("is_ischain_lmec_tag is fail(%d)", device, ret);
+					goto p_err;
+				}
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+p_err:
+	return ret;
+}
+
 static void is_ischain_update_shot(struct is_device_ischain *device,
 	struct is_frame *frame)
 {
@@ -5599,7 +6003,6 @@ static int is_ischain_paf_shot(struct is_device_ischain *device,
 	FIMC_BUG(!check_frame);
 
 	mdbgs_ischain(4, "%s()\n", device, __func__);
-
 	resourcemgr = device->resourcemgr;
 	group = &device->group_paf;
 	frame = NULL;
@@ -5665,20 +6068,16 @@ static int is_ischain_paf_shot(struct is_device_ischain *device,
 			frame->shot->ctl.aa.captureIntent = captureIntent;
 			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
 			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
-			frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
 			if (group->remainIntentCount > 0) {
 				group->remainIntentCount--;
 			} else {
 				group->intent_ctl.captureIntent = AA_CAPTURE_INTENT_CUSTOM;
 				group->intent_ctl.vendor_captureCount = 0;
 				group->intent_ctl.vendor_captureExposureTime = 0;
-				group->intent_ctl.vendor_captureEV = 0;
 			}
-			minfo("frame count(%d), intent(%d), count(%d), EV(%d), captureExposureTime(%d) remainIntentCount(%d)\n",
-				device, frame->fcount,
+			minfo("frame count(%d), intent(%d), count(%d) captureExposureTime(%d) remainIntentCount(%d)\n", device, frame->fcount,
 				frame->shot->ctl.aa.captureIntent, frame->shot->ctl.aa.vendor_captureCount,
-				frame->shot->ctl.aa.vendor_captureEV, frame->shot->ctl.aa.vendor_captureExposureTime,
-				group->remainIntentCount);
+				frame->shot->ctl.aa.vendor_captureExposureTime, group->remainIntentCount);
 		}
 
 		/*
@@ -5881,24 +6280,21 @@ static int is_ischain_3aa_shot(struct is_device_ischain *device,
 		enum aa_capture_intent captureIntent;
 		captureIntent = group->intent_ctl.captureIntent;
 
-		if (captureIntent != AA_CAPTURE_INTENT_CUSTOM) {
-			frame->shot->ctl.aa.captureIntent = captureIntent;
-			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
+                if (captureIntent != AA_CAPTURE_INTENT_CUSTOM) {
+                        frame->shot->ctl.aa.captureIntent = captureIntent;
+                        frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
 			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
-			frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
-			if (group->remainIntentCount > 0) {
-				group->remainIntentCount--;
-			} else {
-				group->intent_ctl.captureIntent = AA_CAPTURE_INTENT_CUSTOM;
-				group->intent_ctl.vendor_captureCount = 0;
+                        if (group->remainIntentCount > 0) {
+                                group->remainIntentCount--;
+                        } else {
+                                group->intent_ctl.captureIntent = AA_CAPTURE_INTENT_CUSTOM;
+                                group->intent_ctl.vendor_captureCount = 0;
 				group->intent_ctl.vendor_captureExposureTime = 0;
-				group->intent_ctl.vendor_captureEV = 0;
-			}
-			minfo("frame count(%d), intent(%d), count(%d), EV(%d), captureExposureTime(%d) remainIntentCount(%d)\n", device, frame->fcount,
-				frame->shot->ctl.aa.captureIntent, frame->shot->ctl.aa.vendor_captureCount,
-				frame->shot->ctl.aa.vendor_captureEV, frame->shot->ctl.aa.vendor_captureExposureTime,
-				group->remainIntentCount);
-		}
+                        }
+                        minfo("frame count(%d), intent(%d), count(%d) captureExposureTime(%d) remainIntentCount(%d)\n", device, frame->fcount,
+                                frame->shot->ctl.aa.captureIntent, frame->shot->ctl.aa.vendor_captureCount,
+                                frame->shot->ctl.aa.vendor_captureExposureTime, group->remainIntentCount);
+                }
 
 		if (group->lens_ctl.aperture != 0) {
 			frame->shot->ctl.lens.aperture = group->lens_ctl.aperture;
@@ -6022,6 +6418,164 @@ framemgr_err:
 	return ret;
 }
 
+static int is_ischain_lme_shot(struct is_device_ischain *device,
+	struct is_frame *check_frame)
+{
+	int ret = 0;
+	unsigned long flags;
+	struct is_group *group, *child, *vra;
+	struct is_framemgr *framemgr;
+	struct is_frame *frame;
+	struct camera2_node_group *node_group;
+	struct camera2_node ldr_node = {0, };
+	u32 setfile_save = 0;
+	enum is_frame_state next_state = FS_PROCESS;
+
+	FIMC_BUG(!device);
+	FIMC_BUG(!check_frame);
+	FIMC_BUG(device->sensor_id >= SENSOR_NAME_END);
+
+	mdbgs_ischain(4, "%s\n", device, __func__);
+
+	frame = NULL;
+	group = &device->group_lme;
+
+	framemgr = GET_HEAD_GROUP_FRAMEMGR(group);
+	if (!framemgr) {
+		merr("framemgr is NULL", device);
+		ret = -EINVAL;
+		goto framemgr_err;
+	}
+
+	frame = peek_frame(framemgr, check_frame->state);
+
+	if (unlikely(!frame)) {
+		merr("frame is NULL. check_state(%d)", device, check_frame->state);
+		ret = -EINVAL;
+		goto frame_err;
+	}
+
+	if (unlikely(frame != check_frame)) {
+		merr("frame checking is fail(%p != %p)", device, frame, check_frame);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	if (unlikely(!frame->shot)) {
+		merr("frame->shot is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	frame->shot->ctl.vendor_entry.lowIndexParam = 0;
+	frame->shot->ctl.vendor_entry.highIndexParam = 0;
+	frame->shot->dm.vendor_entry.lowIndexParam = 0;
+	frame->shot->dm.vendor_entry.highIndexParam = 0;
+	node_group = &frame->shot_ext->node_group;
+
+	PROGRAM_COUNT(8);
+
+	if ((frame->shot_ext->setfile != device->setfile) &&
+		(group->id == get_ischain_leader_group(device)->id)) {
+			setfile_save = device->setfile;
+			device->setfile = frame->shot_ext->setfile;
+
+		mgrinfo(" setfile change at shot(%d -> %d)\n", device, group, frame,
+			setfile_save, device->setfile & IS_SETFILE_MASK);
+
+		if (test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
+			ret = is_ischain_chg_setfile(device);
+			if (ret) {
+				merr("is_ischain_chg_setfile is fail", device);
+				device->setfile = setfile_save;
+				goto p_err;
+			}
+		}
+	}
+
+	PROGRAM_COUNT(9);
+
+	if (test_bit(IS_SUBDEV_PARAM_ERR, &group->leader.state))
+		set_bit(IS_SUBDEV_FORCE_SET, &group->leader.state);
+	else
+		clear_bit(IS_SUBDEV_FORCE_SET, &group->leader.state);
+
+	child = group;
+	while (child) {
+		switch (child->slot) {
+		case GROUP_SLOT_ISP:
+			TRANS_CROP(ldr_node.input.cropRegion,
+				node_group->leader.input.cropRegion);
+			TRANS_CROP(ldr_node.output.cropRegion,
+				ldr_node.input.cropRegion);
+
+			ldr_node.pixelformat = node_group->leader.pixelformat;
+			ret = is_ischain_isp_group_tag(device, frame, &ldr_node);
+			if (ret) {
+				merr("is_ischain_isp_group_tag is fail(%d)", device, ret);
+				goto p_err;
+			}
+			break;
+		case GROUP_SLOT_MCS:
+			TRANS_CROP(ldr_node.input.cropRegion,
+				ldr_node.output.cropRegion);
+			TRANS_CROP(ldr_node.output.cropRegion,
+				ldr_node.input.cropRegion);
+			ret = is_ischain_mcs_group_tag(device, frame, &ldr_node);
+			if (ret) {
+				merr("is_ischain_mcs_group_tag is fail(%d)", device, ret);
+				goto p_err;
+			}
+			break;
+		case GROUP_SLOT_VRA:
+			vra = &device->group_vra;
+			TRANS_CROP(ldr_node.input.cropRegion,
+				(u32 *)&vra->prev->junction->output.crop);
+			TRANS_CROP(ldr_node.output.cropRegion,
+				ldr_node.input.cropRegion);
+			ret = is_ischain_vra_group_tag(device, frame, &ldr_node);
+			if (ret) {
+				merr("is_ischain_vra_group_tag is fail(%d)", device, ret);
+				goto p_err;
+			}
+			break;
+		default:
+			merr("group slot is invalid(%d)", device, child->slot);
+			BUG();
+		}
+
+		child = child->child;
+	}
+
+#ifdef PRINT_PARAM
+	if (frame->fcount == 1) {
+		is_hw_memdump(device->interface,
+			(ulong) &device->is_region->parameter,
+			(ulong) &device->is_region->parameter + sizeof(device->is_region->parameter));
+	}
+#endif
+
+	PROGRAM_COUNT(10);
+
+p_err:
+	if (frame->stripe_info.region_num
+		&& frame->stripe_info.region_id < frame->stripe_info.region_num - 1)
+		next_state = FS_STRIPE_PROCESS;
+
+	if (ret) {
+		mgrerr(" SKIP(%d) : %d\n", device, group, check_frame, check_frame->index, ret);
+	} else {
+		set_bit(group->leader.id, &frame->out_flag);
+		framemgr_e_barrier_irqs(framemgr, FMGR_IDX_26, flags);
+		trans_frame(framemgr, frame, next_state);
+		framemgr_x_barrier_irqr(framemgr, FMGR_IDX_26, flags);
+	}
+
+frame_err:
+framemgr_err:
+	return ret;
+}
+
 static int is_ischain_isp_shot(struct is_device_ischain *device,
 	struct is_frame *check_frame)
 {
@@ -6114,7 +6668,6 @@ static int is_ischain_isp_shot(struct is_device_ischain *device,
 				ldr_node.input.cropRegion);
 
 			ldr_node.pixelformat = node_group->leader.pixelformat;
-			ldr_node.pixelsize = node_group->leader.pixelsize;
 			ret = is_ischain_isp_group_tag(device, frame, &ldr_node);
 			if (ret) {
 				merr("is_ischain_isp_group_tag is fail(%d)", device, ret);
@@ -6124,6 +6677,151 @@ static int is_ischain_isp_shot(struct is_device_ischain *device,
 		case GROUP_SLOT_MCS:
 			TRANS_CROP(ldr_node.input.cropRegion,
 				ldr_node.output.cropRegion);
+			TRANS_CROP(ldr_node.output.cropRegion,
+				ldr_node.input.cropRegion);
+			ret = is_ischain_mcs_group_tag(device, frame, &ldr_node);
+			if (ret) {
+				merr("is_ischain_mcs_group_tag is fail(%d)", device, ret);
+				goto p_err;
+			}
+			break;
+		case GROUP_SLOT_VRA:
+			vra = &device->group_vra;
+			TRANS_CROP(ldr_node.input.cropRegion,
+				(u32 *)&vra->prev->junction->output.crop);
+			TRANS_CROP(ldr_node.output.cropRegion,
+				ldr_node.input.cropRegion);
+			ret = is_ischain_vra_group_tag(device, frame, &ldr_node);
+			if (ret) {
+				merr("is_ischain_vra_group_tag is fail(%d)", device, ret);
+				goto p_err;
+			}
+			break;
+		default:
+			merr("group slot is invalid(%d)", device, child->slot);
+			BUG();
+		}
+
+		child = child->child;
+	}
+
+#ifdef PRINT_PARAM
+	if (frame->fcount == 1) {
+		is_hw_memdump(device->interface,
+			(ulong) &device->is_region->parameter,
+			(ulong) &device->is_region->parameter + sizeof(device->is_region->parameter));
+	}
+#endif
+
+	PROGRAM_COUNT(10);
+
+p_err:
+	if (frame->stripe_info.region_num
+		&& frame->stripe_info.region_id < frame->stripe_info.region_num - 1)
+		next_state = FS_STRIPE_PROCESS;
+
+	if (ret) {
+		mgrerr(" SKIP(%d) : %d\n", device, group, check_frame, check_frame->index, ret);
+	} else {
+		set_bit(group->leader.id, &frame->out_flag);
+		framemgr_e_barrier_irqs(framemgr, FMGR_IDX_26, flags);
+		trans_frame(framemgr, frame, next_state);
+		framemgr_x_barrier_irqr(framemgr, FMGR_IDX_26, flags);
+	}
+
+frame_err:
+framemgr_err:
+	return ret;
+}
+
+static int is_ischain_ypp_shot(struct is_device_ischain *device,
+	struct is_frame *check_frame)
+{
+	int ret = 0;
+	unsigned long flags;
+	struct is_group *group, *child, *vra;
+	struct is_framemgr *framemgr;
+	struct is_frame *frame;
+	struct camera2_node_group *node_group;
+	struct camera2_node ldr_node = {0, };
+	u32 setfile_save = 0;
+	enum is_frame_state next_state = FS_PROCESS;
+
+	FIMC_BUG(!device);
+	FIMC_BUG(!check_frame);
+	FIMC_BUG(device->sensor_id >= SENSOR_NAME_END);
+
+	mdbgs_ischain(4, "%s\n", device, __func__);
+
+	frame = NULL;
+	group = &device->group_ypp;
+
+	framemgr = GET_HEAD_GROUP_FRAMEMGR(group);
+	if (!framemgr) {
+		merr("framemgr is NULL", device);
+		ret = -EINVAL;
+		goto framemgr_err;
+	}
+
+	frame = peek_frame(framemgr, check_frame->state);
+
+	if (unlikely(!frame)) {
+		merr("frame is NULL. check_state(%d)", device, check_frame->state);
+		ret = -EINVAL;
+		goto frame_err;
+	}
+
+	if (unlikely(frame != check_frame)) {
+		merr("frame checking is fail(%p != %p)", device, frame, check_frame);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	if (unlikely(!frame->shot)) {
+		merr("frame->shot is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	frame->shot->ctl.vendor_entry.lowIndexParam = 0;
+	frame->shot->ctl.vendor_entry.highIndexParam = 0;
+	frame->shot->dm.vendor_entry.lowIndexParam = 0;
+	frame->shot->dm.vendor_entry.highIndexParam = 0;
+	node_group = &frame->shot_ext->node_group;
+
+	PROGRAM_COUNT(8);
+
+	if ((frame->shot_ext->setfile != device->setfile) &&
+		(group->id == get_ischain_leader_group(device)->id)) {
+			setfile_save = device->setfile;
+			device->setfile = frame->shot_ext->setfile;
+
+		mgrinfo(" setfile change at shot(%d -> %d)\n", device, group, frame,
+			setfile_save, device->setfile & IS_SETFILE_MASK);
+
+		if (test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
+			ret = is_ischain_chg_setfile(device);
+			if (ret) {
+				merr("is_ischain_chg_setfile is fail", device);
+				device->setfile = setfile_save;
+				goto p_err;
+			}
+		}
+	}
+
+	PROGRAM_COUNT(9);
+
+	if (test_bit(IS_SUBDEV_PARAM_ERR, &group->leader.state))
+		set_bit(IS_SUBDEV_FORCE_SET, &group->leader.state);
+	else
+		clear_bit(IS_SUBDEV_FORCE_SET, &group->leader.state);
+
+	child = group;
+	while (child) {
+		switch (child->slot) {
+		case GROUP_SLOT_MCS:
+			TRANS_CROP(ldr_node.input.cropRegion,
+				node_group->leader.input.cropRegion);
 			TRANS_CROP(ldr_node.output.cropRegion,
 				ldr_node.input.cropRegion);
 			ret = is_ischain_mcs_group_tag(device, frame, &ldr_node);

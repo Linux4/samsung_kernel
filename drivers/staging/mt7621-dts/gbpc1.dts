@@ -11,7 +11,8 @@
 
 	memory@0 {
 		device_type = "memory";
-		reg = <0x0 0x1c000000>, <0x20000000 0x4000000>;
+		reg = <0x00000000 0x1c000000>,
+		      <0x20000000 0x04000000>;
 	};
 
 	chosen {
@@ -37,24 +38,16 @@
 	gpio-leds {
 		compatible = "gpio-leds";
 
-		system {
-			label = "gb-pc1:green:system";
+		power {
+			label = "green:power";
 			gpios = <&gpio 6 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "default-on";
 		};
 
-		status {
-			label = "gb-pc1:green:status";
+		system {
+			label = "green:system";
 			gpios = <&gpio 8 GPIO_ACTIVE_LOW>;
-		};
-
-		lan1 {
-			label = "gb-pc1:green:lan1";
-			gpios = <&gpio 24 GPIO_ACTIVE_LOW>;
-		};
-
-		lan2 {
-			label = "gb-pc1:green:lan2";
-			gpios = <&gpio 25 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "disk-activity";
 		};
 	};
 };
@@ -72,6 +65,7 @@
 		compatible = "jedec,spi-nor";
 		reg = <0>;
 		spi-max-frequency = <50000000>;
+		broken-flash-reset;
 
 		partition@0 {
 			label = "u-boot";
@@ -93,9 +87,8 @@
 
 		partition@50000 {
 			label = "firmware";
-			reg = <0x50000 0x1FB0000>;
+			reg = <0x50000 0x1fb0000>;
 		};
-
 	};
 };
 
@@ -113,30 +106,35 @@
 &pcie {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie_pins>;
+
+	reset-gpios = <&gpio 19 GPIO_ACTIVE_LOW>,
+			<&gpio 8 GPIO_ACTIVE_LOW>,
+			<&gpio 7 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
 
-&ethernet {
-	//mtd-mac-address = <&factory 0xe000>;
-	gmac1: mac@0 {
-		compatible = "mediatek,eth-mac";
-		reg = <0>;
-		phy-handle = <&phy1>;
-	};
+&pinctrl {
+	pinctrl-names = "default";
+	pinctrl-0 = <&state_default>;
 
-	mdio-bus {
-		phy1: ethernet-phy@1 {
-			reg = <1>;
-			phy-mode = "rgmii";
+	state_default: state-default {
+		gpio-pinmux {
+			groups = "rgmii2", "uart3", "wdt";
+			function = "gpio";
 		};
 	};
 };
 
-&pinctrl {
-	state_default: pinctrl0 {
-		gpio {
-			ralink,group = "wdt", "rgmii2", "uart3";
-			ralink,function = "gpio";
+&switch0 {
+	ports {
+		port@0 {
+			status = "okay";
+			label = "ethblack";
+		};
+
+		port@4 {
+			status = "okay";
+			label = "ethblue";
 		};
 	};
 };

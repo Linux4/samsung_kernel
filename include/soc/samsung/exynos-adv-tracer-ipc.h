@@ -132,9 +132,11 @@ static inline int adv_tracer_ipc_init(struct platform_device *pdev)
 }
 static inline void *adv_tracer_memcpy_align_4(void *dest, const void *src, unsigned int n)
 {
+	return NULL;
 }
 static inline int adv_tracer_arraydump(void)
 {
+	return 0;
 }
 static inline int adv_tracer_ipc_request_channel(struct device_node *np,
 		ipc_callback handler, unsigned int *id, unsigned int *len)

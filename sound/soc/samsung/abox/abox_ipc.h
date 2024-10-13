@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_ipc.h
- *
- * ALSA SoC Audio Layer - Samsung Abox Inter-Processor Communication driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox Inter-Processor Communication driver
  *
  * Copyright (c) 2017 Samsung Electronics Co. Ltd.
  *
@@ -45,7 +45,7 @@ extern int abox_ipc_flush(struct device *dev);
  * @return	error code or 0
  */
 extern int abox_ipc_register_handler(struct device *dev, int ipc_id,
-		abox_irq_handler_t handler, void *data);
+		abox_ipc_handler_t handler, void *data);
 
 /**
  * Unregister ipc handler
@@ -55,7 +55,7 @@ extern int abox_ipc_register_handler(struct device *dev, int ipc_id,
  * @return	error code or 0
  */
 extern int abox_ipc_unregister_handler(struct device *dev, int ipc_id,
-		abox_irq_handler_t handler);
+		abox_ipc_handler_t handler);
 
 /**
  * Initialize IPC module

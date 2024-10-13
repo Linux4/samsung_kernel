@@ -14,6 +14,12 @@
 #ifndef __TZ_BOOST_H__
 #define __TZ_BOOST_H__
 
+#include <linux/kconfig.h>
+
+#if IS_MODULE(CONFIG_TZDEV)
+int tz_boost_init(void);
+#endif
+
 #ifdef CONFIG_TZDEV_BOOST
 void tz_boost_enable(void);
 void tz_boost_disable(void);

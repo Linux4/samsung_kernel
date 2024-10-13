@@ -15,7 +15,6 @@
 #include <linux/mutex.h>
 
 #include <media/v4l2-subdev.h>
-
 #include <soc/samsung/exynos-bcm_dbg.h>
 
 #include "votf/camerapp-votf.h"
@@ -133,41 +132,6 @@ static inline void wq_func_schedule(struct is_pdp *pdp, struct work_struct *work
 		schedule_work(work_wq);
 }
 
-static int is_hw_pdp_set_pdstat_reg(struct is_pdp *pdp)
-{
-	unsigned long flag;
-	struct pdp_stat_reg *regs;
-	u32 regs_size;
-	int i;
-	int ret = 0;
-
-	FIMC_BUG(!pdp);
-
-	spin_lock_irqsave(&pdp->slock_paf_s_param, flag);
-
-	if (pdp->stat_enable && test_bit(IS_PDP_SET_PARAM_COPY, &pdp->state)) {
-		pdp_hw_s_corex_type(pdp->base, COREX_IGNORE);
-
-		regs_size = pdp->regs_size;
-		regs = pdp->regs;
-		for (i = 0; i < regs_size; i++)
-			writel(regs[i].reg_data, pdp->base + regs[i].reg_addr + COREX_OFFSET);
-
-		clear_bit(IS_PDP_SET_PARAM_COPY, &pdp->state);
-
-		pdp_hw_s_wdma_init(pdp->base);
-		pdp_hw_s_line_row(pdp->base, pdp->stat_enable, pdp->vc_ext_sensor_mode);
-
-		pdp_hw_s_corex_type(pdp->base, COREX_COPY);
-
-		dbg_pdp(1, " load ofs done", pdp);
-	}
-
-	spin_unlock_irqrestore(&pdp->slock_paf_s_param, flag);
-
-	return ret;
-}
-
 #if defined(USE_SKIP_DUMP_LIC_OVERFLOW)
 static int crc_flag;
 static int get_crc_flag(u32 instance, struct is_hw_ip *hw_ip)
@@ -214,6 +178,41 @@ static int get_crc_flag(u32 instance, struct is_hw_ip *hw_ip)
 	return ret;
 }
 #endif
+
+static int is_hw_pdp_set_pdstat_reg(struct is_pdp *pdp)
+{
+	unsigned long flag;
+	struct pdp_stat_reg *regs;
+	u32 regs_size;
+	int i;
+	int ret = 0;
+
+	FIMC_BUG(!pdp);
+
+	spin_lock_irqsave(&pdp->slock_paf_s_param, flag);
+
+	if (pdp->stat_enable && test_bit(IS_PDP_SET_PARAM_COPY, &pdp->state)) {
+		pdp_hw_s_corex_type(pdp->base, COREX_IGNORE);
+
+		regs_size = pdp->regs_size;
+		regs = pdp->regs;
+		for (i = 0; i < regs_size; i++)
+			writel(regs[i].reg_data, pdp->base + regs[i].reg_addr + COREX_OFFSET);
+
+		clear_bit(IS_PDP_SET_PARAM_COPY, &pdp->state);
+
+		pdp_hw_s_wdma_init(pdp->base, pdp->id);
+		pdp_hw_s_line_row(pdp->base, pdp->stat_enable, pdp->vc_ext_sensor_mode, pdp->binning);
+
+		pdp_hw_s_corex_type(pdp->base, COREX_COPY);
+
+		dbg_pdp(1, " load ofs done", pdp);
+	}
+
+	spin_unlock_irqrestore(&pdp->slock_paf_s_param, flag);
+
+	return ret;
+}
 
 static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 {
@@ -301,7 +300,6 @@ static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 #if defined(VOTF_GLOBAL_ENABLE)
 		if (en_votf == OTF_INPUT_COMMAND_ENABLE) {
 			struct is_group *group = hw_ip->group[instance];
-
 			/*
 			 * Call interrupt handler function of rear IP connected by OTF.
 			 * This is only used with col_row interrupt when v-blank is "0".
@@ -369,8 +367,8 @@ static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 		is_hardware_sfr_dump(hw_ip->hardware, hw_ip->id, false);
 
 		if (pdp_hw_is_occured(state, PE_PAF_OVERFLOW)) {
-#ifdef CONFIG_EXYNOS_BCM_DBG_AUTO
-			exynos_bcm_dbg_stop(CAMERA_DRIVER);
+#if IS_ENABLED(CONFIG_EXYNOS_BCM_DBG_AUTO)
+			//exynos_bcm_dbg_stop(CAMERA_DRIVER);
 #endif
 			print_all_hw_frame_count(hw_ip->hardware);
 			is_hardware_sfr_dump(hw_ip->hardware, DEV_HW_END, false);
@@ -381,7 +379,6 @@ static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 				warn("skip to s2d dump");
 				pdp_hw_s_reset(pdp->cmn_base);
 			} else {
-				pdp_hw_dump(pdp->base);
 				is_debug_s2d(true, "LIC overflow");
 			}
 #else
@@ -415,6 +412,11 @@ static irqreturn_t is_isr_pdp_int2(int irq, void *data)
 		& pdp_hw_g_int2_mask(pdp->base);
 	dbg_pdp(1, "INT2: 0x%x\n", pdp, state);
 
+	if (pdp_hw_is_occured(state, PE_PAF_STAT0)) {
+		if (pdp->stat_enable)
+			wq_func_schedule(pdp, &pdp->work_stat[WORK_PDP_STAT0]);
+	}
+
 	err_state = (unsigned long)pdp_hw_is_occured(state, PE_ERR_INT2);
 	if (err_state) {
 		err = find_first_bit(&err_state, SZ_32);
@@ -434,6 +436,26 @@ static irqreturn_t is_isr_pdp_int2(int irq, void *data)
 		}
 
 		is_hardware_sfr_dump(hw_ip->hardware, hw_ip->id, false);
+
+		if (pdp_hw_is_occured(state, PE_PAF_OVERFLOW)) {
+#if IS_ENABLED(CONFIG_EXYNOS_BCM_DBG_AUTO)
+			//exynos_bcm_dbg_stop(CAMERA_DRIVER);
+#endif
+			print_all_hw_frame_count(hw_ip->hardware);
+			is_hardware_sfr_dump(hw_ip->hardware, DEV_HW_END, false);
+#if defined(USE_SKIP_DUMP_LIC_OVERFLOW)
+			if (!get_crc_flag(instance, hw_ip) && crc_flag) {
+				set_bit(IS_SENSOR_ESD_RECOVERY,
+					&hw_ip->group[instance]->device->sensor->state);
+				warn("skip to s2d dump");
+				pdp_hw_s_reset(pdp->cmn_base);
+			} else {
+				is_debug_s2d(true, "LIC overflow");
+			}
+#else
+			is_debug_s2d(true, "LIC overflow");
+#endif
+		}
 	}
 
 	return IRQ_HANDLED;
@@ -462,10 +484,12 @@ static void __nocfi pdp_worker_stat0(struct work_struct *data)
 			switch (pa->type) {
 			case VC_STAT_TYPE_PDP_1_0_PDAF_STAT0:
 			case VC_STAT_TYPE_PDP_1_1_PDAF_STAT0:
+			case VC_STAT_TYPE_PDP_3_0_PDAF_STAT0:
+			case VC_STAT_TYPE_PDP_3_1_PDAF_STAT0:
 #ifdef ENABLE_FPSIMD_FOR_USER
-				fpsimd_get();
+				is_fpsimd_get_func();
 				pa->notifier(pa->type, fcount, pa->data);
-				fpsimd_put();
+				is_fpsimd_put_func();
 #else
 				pa->notifier(pa->type, fcount, pa->data);
 #endif
@@ -509,10 +533,12 @@ static void __nocfi pdp_worker_stat1(struct work_struct *data)
 			switch (pa->type) {
 			case VC_STAT_TYPE_PDP_1_0_PDAF_STAT1:
 			case VC_STAT_TYPE_PDP_1_1_PDAF_STAT1:
+			case VC_STAT_TYPE_PDP_3_0_PDAF_STAT1:
+			case VC_STAT_TYPE_PDP_3_1_PDAF_STAT1:
 #ifdef ENABLE_FPSIMD_FOR_USER
-				fpsimd_get();
+				is_fpsimd_get_func();
 				pa->notifier(pa->type, fcount, pa->data);
-				fpsimd_put();
+				is_fpsimd_put_func();
 #else
 				pa->notifier(pa->type, fcount, pa->data);
 #endif
@@ -546,6 +572,14 @@ int pdp_set_param(struct v4l2_subdev *subdev, struct paf_setting_t *regs, u32 re
 		return -ENODEV;
 	}
 
+	/* EVT0 only, when use PDP CH2, always off pdstat_path_on to not map pdp core
+	 * It will removed at EVT1
+	 */
+	if (IS_ENABLED(CONFIG_PDP_V3_1) && pdp->id == 2) {
+		info("skip setting PDP2 set_param in EVT0");
+		return 0;
+	}
+
 	/* CAUTION: PD path must be on before algorithm block setting. */
 	pdp_hw_s_pdstat_path(pdp->base, true);
 
@@ -576,10 +610,10 @@ int pdp_set_param(struct v4l2_subdev *subdev, struct paf_setting_t *regs, u32 re
 		}
 
 		/* CAUTION: WDMA size must be set after PDSTAT_ROI block setting. */
-		pdp_hw_s_wdma_init(pdp->base);
+		pdp_hw_s_wdma_init(pdp->base, pdp->id);
 
 		if (pdp->stat_enable)
-			pdp_hw_s_line_row(pdp->base, pdp->stat_enable, pdp->vc_ext_sensor_mode);
+			pdp_hw_s_line_row(pdp->base, pdp->stat_enable, pdp->vc_ext_sensor_mode, pdp->binning);
 
 		set_bit(IS_PDP_SET_PARAM, &pdp->state);
 	}
@@ -608,7 +642,7 @@ int pdp_get_ready(struct v4l2_subdev *subdev, u32 *ready)
 }
 
 int pdp_register_notifier(struct v4l2_subdev *subdev, enum itf_vc_stat_type type,
-		paf_notifier_t notifier, void *data)
+		vc_dma_notifier_t notifier, void *data)
 {
 	struct is_pdp *pdp;
 	struct paf_action *pa;
@@ -625,6 +659,10 @@ int pdp_register_notifier(struct v4l2_subdev *subdev, enum itf_vc_stat_type type
 	case VC_STAT_TYPE_PDP_1_1_PDAF_STAT0:
 	case VC_STAT_TYPE_PDP_1_0_PDAF_STAT1:
 	case VC_STAT_TYPE_PDP_1_1_PDAF_STAT1:
+	case VC_STAT_TYPE_PDP_3_0_PDAF_STAT0:
+	case VC_STAT_TYPE_PDP_3_0_PDAF_STAT1:
+	case VC_STAT_TYPE_PDP_3_1_PDAF_STAT0:
+	case VC_STAT_TYPE_PDP_3_1_PDAF_STAT1:
 		pa = kzalloc(sizeof(struct paf_action), GFP_ATOMIC);
 		if (!pa) {
 			err_lib("failed to allocate a PAF action");
@@ -650,7 +688,7 @@ int pdp_register_notifier(struct v4l2_subdev *subdev, enum itf_vc_stat_type type
 }
 
 int pdp_unregister_notifier(struct v4l2_subdev *subdev, enum itf_vc_stat_type type,
-		paf_notifier_t notifier)
+		vc_dma_notifier_t notifier)
 {
 	struct is_pdp *pdp;
 	struct paf_action *pa, *temp;
@@ -667,6 +705,10 @@ int pdp_unregister_notifier(struct v4l2_subdev *subdev, enum itf_vc_stat_type ty
 	case VC_STAT_TYPE_PDP_1_1_PDAF_STAT0:
 	case VC_STAT_TYPE_PDP_1_0_PDAF_STAT1:
 	case VC_STAT_TYPE_PDP_1_1_PDAF_STAT1:
+	case VC_STAT_TYPE_PDP_3_0_PDAF_STAT0:
+	case VC_STAT_TYPE_PDP_3_0_PDAF_STAT1:
+	case VC_STAT_TYPE_PDP_3_1_PDAF_STAT0:
+	case VC_STAT_TYPE_PDP_3_1_PDAF_STAT1:
 		spin_lock_irqsave(&pdp->slock_paf_action, flag);
 		list_for_each_entry_safe(pa, temp,
 				&pdp->list_of_paf_action, list) {
@@ -707,10 +749,14 @@ void __nocfi pdp_notify(struct v4l2_subdev *subdev, unsigned int type, void *dat
 			switch (pa->type) {
 			case VC_STAT_TYPE_PDP_1_0_PDAF_STAT1:
 			case VC_STAT_TYPE_PDP_1_1_PDAF_STAT1:
+			case VC_STAT_TYPE_PDP_3_0_PDAF_STAT0:
+			case VC_STAT_TYPE_PDP_3_0_PDAF_STAT1:
+			case VC_STAT_TYPE_PDP_3_1_PDAF_STAT0:
+			case VC_STAT_TYPE_PDP_3_1_PDAF_STAT1:
 #ifdef ENABLE_FPSIMD_FOR_USER
-				fpsimd_get();
+				is_fpsimd_get_func();
 				pa->notifier(pa->type, *(unsigned int *)data, pa->data);
-				fpsimd_put();
+				is_fpsimd_put_func();
 #else
 				pa->notifier(pa->type, *(unsigned int *)data, pa->data);
 #endif
@@ -804,6 +850,7 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 		pd_mode = sensor_cfg->pd_mode;
 		pdp->vc_ext_sensor_mode =
 			module->vc_extra_info[VC_BUF_DATA_TYPE_GENERAL_STAT1].sensor_mode;
+		pdp->binning = sensor_cfg->binning;
 	}
 
 	enable = pdp_hw_to_sensor_type(pd_mode, &sensor_type);
@@ -863,8 +910,9 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 			return 0;
 
 		hw_ip->is_leader = true;
-		pdp->prev_instance = instance;
 	}
+
+	pdp->prev_instance = instance;
 
 	extformat = sensor_cfg->input[CSI_VIRTUAL_CH_0].extformat;
 	if (extformat == HW_FORMAT_RAW10_SDC)
@@ -957,7 +1005,7 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 	pdp_hw_s_core(pdp, enable, sensor_cfg, img_full_size, img_crop_size, img_comp_size,
 		img_hwformat, img_pixelsize,
 		pd_width, pd_height, pd_hwformat, sensor_type, path, pdp->vc_ext_sensor_mode,
-		fps, en_sdc, en_votf, frame->num_buffers, pdp->freq, position);
+		fps, en_sdc, en_votf, frame->num_buffers, pdp->freq, pdp->binning, position);
 
 	spin_lock_irqsave(&cmn_reg_slock, flags);
 	/* ch0 context */
@@ -969,7 +1017,7 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 		pdp_hw_s_config_default(pdp->base);
 
 		/* CAUTION: WDMA size must be set after PDSTAT_ROI block setting. */
-		pdp_hw_s_wdma_init(pdp->base);
+		pdp_hw_s_wdma_init(pdp->base, pdp->id);
 	}
 
 	/* PDP OTF input mux & CSIS OTF output enable */
@@ -1052,7 +1100,7 @@ static int is_hw_pdp_open(struct is_hw_ip *hw_ip, u32 instance,
 	if (test_bit(HW_OPEN, &hw_ip->state))
 		return 0;
 
-	frame_manager_probe(hw_ip->framemgr, BIT(hw_ip->id), "HWPDP");
+	frame_manager_probe(hw_ip->framemgr, hw_ip->id, "HWPDP");
 	frame_manager_open(hw_ip->framemgr, IS_MAX_HW_FRAME);
 
 	pdp = (struct is_pdp *)hw_ip->priv_info;
@@ -1113,7 +1161,29 @@ static int is_hw_pdp_init(struct is_hw_ip *hw_ip, u32 instance,
 				return ret;
 			}
 
-			pdp_hw_g_pdstat_size(&w, &h, &b);
+			if (IS_ENABLED(USE_DEBUG_PD_DUMP) && ((DEBUG_PD_DUMP_CH >> pdp->id) & 0x1)) {
+				struct is_sensor_cfg *sensor_cfg;
+
+				if (!device->sensor) {
+					mserr_hw("failed to get sensor", instance, hw_ip);
+					return -EINVAL;
+				}
+
+				sensor_cfg = device->sensor->cfg;
+				if (!sensor_cfg) {
+					mserr_hw("failed to get senso_cfg", instance, hw_ip);
+					return -EINVAL;
+				}
+
+				w = sensor_cfg->input[1].width;
+				h = sensor_cfg->input[1].height;
+				b = 2;
+
+				msinfo_hw("[DBG] set PDSTAT Dump mode", instance, hw_ip);
+			} else {
+				pdp_hw_g_pdstat_size(&w, &h, &b);
+			}
+
 			ret = is_subdev_internal_s_format(device, IS_DEVICE_ISCHAIN, subdev,
 						w, h, b, SUBDEV_INTERNAL_BUF_MAX, "PDSTAT");
 			if (ret) {
@@ -1425,6 +1495,7 @@ static int is_hw_pdp_enable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)
 				lic_lut->param0, lic_lut->param1, lic_lut->param2);
 		}
 
+		pdp_hw_g_ip_version(pdp->cmn_base);
 		pdp_hw_s_init(pdp->cmn_base);
 		pdp_hw_s_global(pdp->cmn_base, pdp->id, pdp->lic_mode_def, lic_lut);
 
@@ -1983,7 +2054,7 @@ static int pdp_get_resource_mem_byname(struct platform_device *pdev, char *name,
 		return -EINVAL;
 	}
 
-	*base = devm_ioremap_nocache(dev, res->start, resource_size(res));
+	*base = devm_ioremap(dev, res->start, resource_size(res));
 	if (!*base) {
 		dev_err(dev, "ioremap failed for %s_base\n", name);
 		return -ENOMEM;
@@ -2000,7 +2071,7 @@ static int pdp_get_resource_mem_byname(struct platform_device *pdev, char *name,
 	return 0;
 }
 
-static int __init pdp_probe(struct platform_device *pdev)
+static int pdp_probe(struct platform_device *pdev)
 {
 	int ret;
 	int id;
@@ -2016,6 +2087,15 @@ static int __init pdp_probe(struct platform_device *pdev)
 	struct device_node *lic_lut_np, *scen_np;
 	int i, work_id;
 	int reg_size;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)) && defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+	const char *buf = "0-3";
+	struct cpumask cpumask;
+#endif
+
+	if (is_dev == NULL) {
+		warn("is_dev is not yet probed(pdp)");
+		return -EPROBE_DEFER;
+	}
 
 	max_num_of_pdp = of_alias_get_highest_id("pdp");
 	if (max_num_of_pdp < 0) {
@@ -2044,6 +2124,11 @@ static int __init pdp_probe(struct platform_device *pdev)
 		hw_id = DEV_HW_PAF2;
 		if (leader)
 			is_paf2s_video_probe(core);
+		break;
+	case 3:
+		hw_id = DEV_HW_PAF3;
+		if (leader)
+			is_paf3s_video_probe(core);
 		break;
 	default:
 		dev_err(dev, "invalid id (out-of-range)\n");
@@ -2141,13 +2226,15 @@ static int __init pdp_probe(struct platform_device *pdev)
 	hw_ip->regs[REG_SETA] = pdp->base;
 
 	reg_size = (hw_ip->regs_end[REG_SETA] - hw_ip->regs_start[REG_SETA] + 1);
-	hw_ip->sfr_dump[REG_SETA] = (u8 *)devm_kmalloc(dev, reg_size, GFP_KERNEL);
-	if (IS_ERR_OR_NULL(hw_ip->sfr_dump[REG_SETA]))
+	hw_ip->sfr_dump[REG_SETA] = kzalloc(reg_size, GFP_KERNEL);
+	if (IS_ERR_OR_NULL(hw_ip->sfr_dump[REG_SETA])) {
 		serr_hw("sfr dump memory alloc fail", hw_ip);
-	else
+		goto err_sfr_dump_alloc;
+	} else {
 		sinfo_hw("sfr dump memory (V/P/S):(%lx/%lx/0x%X)[0x%llX~0x%llX]\n", hw_ip,
 			(ulong)hw_ip->sfr_dump[REG_SETA], (ulong)virt_to_phys(hw_ip->sfr_dump[REG_SETA]),
 			reg_size, hw_ip->regs_start[REG_SETA], hw_ip->regs_end[REG_SETA]);
+	}
 
 	/* Common Register */
 	ret = pdp_get_resource_mem_byname(pdev, "common", &pdp->cmn_base, NULL, NULL);
@@ -2191,6 +2278,14 @@ static int __init pdp_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to request INT1(%d): %d\n", pdp->irq[PDP_INT1], ret);
 		goto err_req_int1;
 	}
+#if defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	cpulist_parse(buf, &cpumask);
+	irq_set_affinity_hint(pdp->irq[PDP_INT1], &cpumask);
+#else
+	irq_force_affinity(pdp->irq[PDP_INT1], cpumask_of(0));
+#endif
+#endif
 
 	pdp->irq[PDP_INT2] = platform_get_irq(pdev, 1);
 	if (pdp->irq[PDP_INT2] < 0) {
@@ -2205,6 +2300,13 @@ static int __init pdp_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to request INT2(%d): %d\n", pdp->irq[PDP_INT2], ret);
 		goto err_req_int2;
 	}
+#if defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	irq_set_affinity_hint(pdp->irq[PDP_INT2], &cpumask);
+#else
+	irq_force_affinity(pdp->irq[PDP_INT2], cpumask_of(0));
+#endif
+#endif
 
 	pdp->subdev = devm_kzalloc(&pdev->dev, sizeof(struct v4l2_subdev), GFP_KERNEL);
 	if (!pdp->subdev) {
@@ -2240,6 +2342,7 @@ static int __init pdp_probe(struct platform_device *pdev)
 	atomic_set(&hw_ip->fcount, 0);
 	hw_ip->is_leader = leader;
 	atomic_set(&hw_ip->status.Vvalid, V_BLANK);
+	atomic_set(&hw_ip->status.otf_start, 0);
 	atomic_set(&hw_ip->rsccount, 0);
 	atomic_set(&hw_ip->run_rsccount, 0);
 	init_waitqueue_head(&hw_ip->status.wait_queue);
@@ -2265,9 +2368,19 @@ static int __init pdp_probe(struct platform_device *pdev)
 	return 0;
 
 err_alloc_subdev:
+#if defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	irq_set_affinity_hint(pdp->irq[PDP_INT2], NULL);
+#endif
+#endif
 	devm_free_irq(dev, pdp->irq[PDP_INT2], pdp);
 err_get_int2:
 err_req_int2:
+#if defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	irq_set_affinity_hint(pdp->irq[PDP_INT1], NULL);
+#endif
+#endif
 	devm_free_irq(dev, pdp->irq[PDP_INT1], pdp);
 err_get_int1:
 err_req_int1:
@@ -2277,6 +2390,8 @@ err_get_en_base:
 err_get_mux_base:
 	devm_iounmap(dev, pdp->cmn_base);
 err_get_cmn_base:
+	kfree(hw_ip->sfr_dump[REG_SETA]);
+err_sfr_dump_alloc:
 	devm_iounmap(dev, pdp->base);
 err_ioremap:
 	devm_release_mem_region(dev, res->start, resource_size(res));
@@ -2292,7 +2407,8 @@ static const struct of_device_id sensor_paf_pdp_match[] = {
 };
 MODULE_DEVICE_TABLE(of, sensor_paf_pdp_match);
 
-static struct platform_driver sensor_paf_pdp_platform_driver = {
+struct platform_driver sensor_paf_pdp_platform_driver = {
+	.probe = pdp_probe,
 	.driver = {
 		.name   = "Sensor-PAF-PDP",
 		.owner  = THIS_MODULE,
@@ -2300,6 +2416,7 @@ static struct platform_driver sensor_paf_pdp_platform_driver = {
 	}
 };
 
+#ifndef MODULE
 static int __init sensor_paf_pdp_init(void)
 {
 	int ret;
@@ -2312,3 +2429,4 @@ static int __init sensor_paf_pdp_init(void)
 	return ret;
 }
 late_initcall_sync(sensor_paf_pdp_init);
+#endif

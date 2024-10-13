@@ -752,6 +752,9 @@ static int panel_dsi_write_data(struct panel_device *panel,
 	if (block)
 		option |= DSIM_OPTION_WAIT_TX_DONE;
 
+	if (panel->panel_data.ddi_props.wait_tx_done)
+		option |= DSIM_OPTION_WAIT_TX_DONE;
+
 	return panel->mipi_drv.write(panel->dsi_id, cmd_id, buf, ofs, size, option);
 }
 
@@ -1028,7 +1031,7 @@ static int panel_do_tx_packet(struct panel_device *panel, struct pktinfo *info, 
 		return -EINVAL;
 	}
 
-	if (panel->panel_data.ddi_props.delay_cmd && (panel->panel_data.ddi_props.delay_cmd == info->data[0])) {
+	 if (panel->panel_data.ddi_props.delay_cmd && (panel->panel_data.ddi_props.delay_cmd == info->data[0])) {
 #ifdef DEBUG_PANEL
 		panel_dbg("delay_cmd %x %x\n",
 			panel->panel_data.ddi_props.delay_cmd,
@@ -1372,7 +1375,7 @@ int excute_seqtbl_nolock(struct panel_device *panel, struct seqinfo *seqtbl, int
 	int ret;
 	struct seqinfo *tbl;
 	struct panel_info *panel_data;
-	struct timespec cur_ts, last_ts, delta_ts;
+	struct timespec64 cur_ts, last_ts, delta_ts;
 	s64 elapsed_usec;
 
 	if (panel == NULL) {
@@ -1394,7 +1397,7 @@ int excute_seqtbl_nolock(struct panel_device *panel, struct seqinfo *seqtbl, int
 skip_check_panel_active:
 	panel_data = &panel->panel_data;
 	tbl = seqtbl;
-	ktime_get_ts(&cur_ts);
+	ktime_get_ts64(&cur_ts);
 
 	if (panel_data->props.key[CMD_LEVEL_1] != 0 ||
 			panel_data->props.key[CMD_LEVEL_2] != 0 ||
@@ -1437,9 +1440,9 @@ do_exit:
 		panel_data->props.key[CMD_LEVEL_3] = 0;
 	}
 
-	ktime_get_ts(&last_ts);
-	delta_ts = timespec_sub(last_ts, cur_ts);
-	elapsed_usec = timespec_to_ns(&delta_ts) / 1000;
+	ktime_get_ts64(&last_ts);
+	delta_ts = timespec64_sub(last_ts, cur_ts);
+	elapsed_usec = timespec64_to_ns(&delta_ts) / 1000;
 	pr_debug("seq:%s done (elapsed %2lld.%03lld msec)\n",
 			tbl[index].name, elapsed_usec / 1000, elapsed_usec % 1000);
 
@@ -2046,3 +2049,4 @@ int check_panel_active(struct panel_device *panel, const char *caller)
 
 	return 1;
 }
+

@@ -10,25 +10,24 @@
  */
 
 #include <linux/input.h>
-#include <linux/wakelock.h>
 #include <sound/soc.h>
 #include <sound/samsung/sec_audio_sysfs.h>
 
 #include "exynos3830_aud3004x_sysfs_cb.h"
 #include "../codecs/aud3004x.h"
 
-#ifdef CONFIG_SND_SOC_SAMSUNG_SYSFS_EARJACK
-#ifdef CONFIG_SND_SOC_AUD3004X_5PIN
+
+#if IS_ENABLED(CONFIG_SND_SOC_AUD3004X_5PIN)
 #include "../codecs/aud3004x-5pin.h"
 #endif /* CONFIG_SND_SOC_AUD3004X_5PIN */
-#ifdef CONFIG_SND_SOC_AUD3004X_6PIN
+#if IS_ENABLED(CONFIG_SND_SOC_AUD3004X_6PIN)
 #include "../codecs/aud3004x-6pin.h"
 #endif /* CONFIG_SND_SOC_AUD3004X_6PIN */
-#endif /* CONFIG_SND_SOC_SAMSUNG_SYSFS_EARJACK */
+
 
 static struct snd_soc_component *aud3004x_component;
 
-#ifdef CONFIG_SND_SOC_SAMSUNG_SYSFS_EARJACK
+
 static int get_jack_status(void)
 {
 	struct snd_soc_component *component = aud3004x_component;
@@ -75,16 +74,14 @@ static int get_mic_adc(void)
 
 	return report;
 }
-#endif /* CONFIG_SND_SOC_SAMSUNG_SYSFS_EARJACK */
 
 void register_exynos3830_aud3004x_sysfs_cb(struct snd_soc_component *component)
 {
 	aud3004x_component = component;
 
-#ifdef CONFIG_SND_SOC_SAMSUNG_SYSFS_EARJACK
 	audio_register_jack_state_cb(get_jack_status);
 	audio_register_key_state_cb(get_key_status);
 	audio_register_mic_adc_cb(get_mic_adc);
-#endif /* CONFIG_SND_SOC_SAMSUNG_SYSFS_EARJACK */
+
 }
 EXPORT_SYMBOL_GPL(register_exynos3830_aud3004x_sysfs_cb);

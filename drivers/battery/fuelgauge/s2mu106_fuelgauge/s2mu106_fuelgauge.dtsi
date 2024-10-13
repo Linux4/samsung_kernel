@@ -1,7 +1,7 @@
 
 &pinctrl_0 {
 	fg_alert_default: fg_alert_default {
-		GPIO_CONFIG_PUD(AP,gpa3,0, FUNC_INPUT_WAKEUP, PULL_NONE);
+		GPIO_CONFIG_PUD(AP,gpa3,gpa3,0, FUNC_INPUT_WAKEUP, PULL_NONE);
 	};
 };
 
@@ -13,7 +13,7 @@
 		reg = <0x3B>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&fg_alert_default>;
-		fuelgauge,fuel_int = <SEC_GPIO_REF(AP,gpa3,0) 0>;
+		fuelgauge,fuel_int = <SEC_GPIO_REF(AP,gpa3,gpa3,0) 0>;
 		fuelgauge,fuel_alert_soc = <1>;
 		fuelgauge,fuel_alert_vol = <3300>;
 		fuelgauge,low_temp_limit = <100>;
@@ -312,7 +312,7 @@
 		};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/s2mu106_fuelgauge/s2mu106_fuelgauge.xcover5.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/stable/xcover5/fuelgauge/s2mu106_fuelgauge/s2mu106_fuelgauge.xcover5.dtsi */
 
 &s2mu106_fuelgauge {
 		fuelgauge,low_voltage_limit_lowtemp = <3100>;

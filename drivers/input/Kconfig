@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Input device configuration
 #
@@ -187,6 +188,8 @@ config INPUT_APMPOWER
 config SEC_DEBUG_TSP_LOG
 	tristate "Support for tsp_msg"
 	default n
+	help
+	  Say Y here if you enable tsp log msg.
 
 comment "Input Device Drivers"
 

@@ -12,9 +12,7 @@
 #ifndef IS_DEVICE_ISCHAIN_H
 #define IS_DEVICE_ISCHAIN_H
 
-#include <linux/pm_qos.h>
-
-#include "is-mem.h"
+#include "pablo-mem.h"
 #include "is-subdev-ctrl.h"
 #include "hardware/is-hw-control.h"
 #include "is-groupmgr.h"
@@ -132,6 +130,7 @@ struct is_device_ischain {
 	atomic_t				init_cnt;
 
 	u32					setfile;
+	u32					dvfs_scenario;
 
 #if !defined(FAST_FDAE)
 	struct camera2_fd_uctl			fdUd;
@@ -161,7 +160,13 @@ struct is_device_ischain {
 	struct is_subdev			txp;
 	struct is_subdev			txf;
 	struct is_subdev			txg;
+	struct is_subdev			txo;
+	struct is_subdev			txl;
 	struct is_subdev			orbxc;		/* for key points/descriptor */
+
+	struct is_group				group_lme;	/* LME RDMA */
+	struct is_subdev			lmes;		/* LME MVF WDMA */
+	struct is_subdev			lmec;		/* LME COST WDMA */
 
 	struct is_group				group_isp;
 	struct is_subdev			ixc;
@@ -172,22 +177,7 @@ struct is_device_ischain {
 	struct is_subdev			ixw;
 	struct is_subdev			mexc;	/* for ME */
 
-	struct is_subdev			drc;
-	struct is_subdev			scc;
-
-	struct is_group				group_dis;
-	struct is_subdev			dxc;		/* for capture video node of TPU */
-	struct is_subdev			odc;
-	struct is_subdev			dnr;
-	struct is_subdev			scp;
-
-	struct is_group				group_dcp;
-	struct is_subdev			dc1s;
-	struct is_subdev			dc0c;
-	struct is_subdev			dc1c;
-	struct is_subdev			dc2c;
-	struct is_subdev			dc3c;
-	struct is_subdev			dc4c;
+	struct is_group				group_ypp;
 
 	struct is_group				group_mcs;
 	struct is_subdev			m0p;
@@ -199,12 +189,12 @@ struct is_device_ischain {
 
 	struct is_group				group_vra;
 
-	struct is_group			group_clh;	/* CLAHE RDMA */
+	struct is_group				group_clh;	/* CLAHE RDMA */
 	struct is_subdev			clhc;	/* CLAHE WDMA */
 
 	u32					private_data;
 	struct is_device_sensor			*sensor;
-	struct pm_qos_request			user_qos;
+	struct is_pm_qos_request		user_qos;
 
 	/* Async metadata control to reduce frame delay */
 	struct fast_control_mgr			fastctlmgr;
@@ -270,6 +260,24 @@ int is_ischain_3aa_buffer_queue(struct is_device_ischain *device,
 int is_ischain_3aa_buffer_finish(struct is_device_ischain *device,
 	u32 index);
 
+/* LME subdev */
+int is_ischain_lme_open(struct is_device_ischain *device,
+	struct is_video_ctx *vctx);
+int is_ischain_lme_close(struct is_device_ischain *device,
+	struct is_video_ctx *vctx);
+int is_ischain_lme_s_input(struct is_device_ischain *device,
+	u32 stream_type,
+	u32 module_id,
+	u32 video_id,
+	u32 input_type,
+	u32 stream_leader);
+int is_ischain_lme_buffer_queue(struct is_device_ischain *device,
+	struct is_queue *queue,
+	u32 index);
+int is_ischain_lme_buffer_finish(struct is_device_ischain *this,
+	u32 index);
+
+
 /* isp subdev */
 int is_ischain_isp_open(struct is_device_ischain *device,
 	struct is_video_ctx *vctx);
@@ -285,6 +293,23 @@ int is_ischain_isp_buffer_queue(struct is_device_ischain *device,
 	struct is_queue *queue,
 	u32 index);
 int is_ischain_isp_buffer_finish(struct is_device_ischain *this,
+	u32 index);
+
+/* YPP subdev */
+int is_ischain_ypp_open(struct is_device_ischain *device,
+	struct is_video_ctx *vctx);
+int is_ischain_ypp_close(struct is_device_ischain *device,
+	struct is_video_ctx *vctx);
+int is_ischain_ypp_s_input(struct is_device_ischain *device,
+	u32 stream_type,
+	u32 module_id,
+	u32 video_id,
+	u32 input_type,
+	u32 stream_leader);
+int is_ischain_ypp_buffer_queue(struct is_device_ischain *device,
+	struct is_queue *queue,
+	u32 index);
+int is_ischain_ypp_buffer_finish(struct is_device_ischain *this,
 	u32 index);
 
 /* MCSC subdev */
@@ -388,22 +413,18 @@ int is_ischain_buf_tag_64bit(struct is_device_ischain *device,
 
 extern const struct is_queue_ops is_ischain_paf_ops;
 extern const struct is_queue_ops is_ischain_3aa_ops;
+extern const struct is_queue_ops is_ischain_lme_ops;
 extern const struct is_queue_ops is_ischain_isp_ops;
 extern const struct is_queue_ops is_ischain_dis_ops;
 extern const struct is_queue_ops is_ischain_dcp_ops;
 extern const struct is_queue_ops is_ischain_mcs_ops;
 extern const struct is_queue_ops is_ischain_vra_ops;
 extern const struct is_queue_ops is_ischain_clh_ops;
+extern const struct is_queue_ops is_ischain_ypp_ops;
 extern const struct is_queue_ops is_ischain_subdev_ops;
 
 int is_itf_power_down(struct is_interface *interface);
 int is_ischain_power(struct is_device_ischain *this, int on);
-
-int is_ischain_s_sensor_size(struct is_device_ischain *device,
-	struct is_frame *frame,
-	u32 *lindex,
-	u32 *hindex,
-	u32 *indexes);
 
 #define IS_EQUAL_COORD(i, o)				\
 	(((i)[0] != (o)[0]) || ((i)[1] != (o)[1]) ||	\

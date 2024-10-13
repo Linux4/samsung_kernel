@@ -21,7 +21,7 @@
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 
@@ -149,7 +149,7 @@ static int is_mcs_video_open(struct file *file)
 	minfo("[M%dS:V] %s\n", device, GET_MXS_ID(video), __func__);
 
 	snprintf(name, sizeof(name), "M%dS", GET_MXS_ID(video));
-	ret = open_vctx(file, video, &vctx, device->instance, BIT(ENTRY_MCS), name);
+	ret = open_vctx(file, video, &vctx, device->instance, ENTRY_MCS, name);
 	if (ret) {
 		merr("open_vctx is fail(%d)", device, ret);
 		goto err_vctx_open;
@@ -301,13 +301,6 @@ static int is_mcs_video_querycap(struct file *file, void *fh,
 	return 0;
 }
 
-static int is_mcs_video_enum_fmt_mplane(struct file *file, void *priv,
-	struct v4l2_fmtdesc *f)
-{
-	/* Todo : add to enumerate format code */
-	return 0;
-}
-
 static int is_mcs_video_get_format_mplane(struct file *file, void *fh,
 	struct v4l2_format *format)
 {
@@ -340,27 +333,6 @@ static int is_mcs_video_set_format_mplane(struct file *file, void *fh,
 
 p_err:
 	return ret;
-}
-
-static int is_mcs_video_cropcap(struct file *file, void *fh,
-	struct v4l2_cropcap *cropcap)
-{
-	/* Todo : add to crop capability code */
-	return 0;
-}
-
-static int is_mcs_video_get_crop(struct file *file, void *fh,
-	struct v4l2_crop *crop)
-{
-	/* Todo : add to get crop control code */
-	return 0;
-}
-
-static int is_mcs_video_set_crop(struct file *file, void *fh,
-	const struct v4l2_crop *crop)
-{
-	/* Todo : add to set crop control code */
-	return 0;
 }
 
 static int is_mcs_video_reqbufs(struct file *file, void *priv,
@@ -656,9 +628,6 @@ static int is_mcs_video_g_ext_ctrl(struct file *file, void *priv,
 const struct v4l2_ioctl_ops is_mcs_video_ioctl_ops = {
 	.vidioc_querycap		= is_mcs_video_querycap,
 
-	.vidioc_enum_fmt_vid_out_mplane	= is_mcs_video_enum_fmt_mplane,
-	.vidioc_enum_fmt_vid_cap_mplane	= is_mcs_video_enum_fmt_mplane,
-
 	.vidioc_g_fmt_vid_out_mplane	= is_mcs_video_get_format_mplane,
 	.vidioc_g_fmt_vid_cap_mplane	= is_mcs_video_get_format_mplane,
 
@@ -682,10 +651,6 @@ const struct v4l2_ioctl_ops is_mcs_video_ioctl_ops = {
 	.vidioc_s_ctrl			= is_mcs_video_s_ctrl,
 	.vidioc_g_ctrl			= is_mcs_video_g_ctrl,
 	.vidioc_g_ext_ctrls		= is_mcs_video_g_ext_ctrl,
-
-	.vidioc_cropcap			= is_mcs_video_cropcap,
-	.vidioc_g_crop			= is_mcs_video_get_crop,
-	.vidioc_s_crop			= is_mcs_video_set_crop,
 };
 
 static int is_mcs_queue_setup(struct vb2_queue *vbq,
@@ -816,7 +781,7 @@ static void is_mcs_buffer_queue(struct vb2_buffer *vb)
 
 static void is_mcs_buffer_finish(struct vb2_buffer *vb)
 {
-	int ret = 0;
+	int ret;
 	struct is_video_ctx *vctx;
 	struct is_device_ischain *device;
 
@@ -829,13 +794,11 @@ static void is_mcs_buffer_finish(struct vb2_buffer *vb)
 
 	mvdbgs(3, "%s(%d)\n", vctx, &vctx->queue, __func__, vb->index);
 
-	is_queue_buffer_finish(vb);
-
 	ret = is_ischain_mcs_buffer_finish(device, vb->index);
-	if (ret) {
+	if (ret)
 		merr("is_ischain_mcs_buffer_finish is fail(%d)", device, ret);
-		return;
-	}
+
+	is_queue_buffer_finish(vb);
 }
 
 const struct vb2_ops is_mcs_qops = {

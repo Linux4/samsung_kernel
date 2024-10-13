@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2004 IBM Corporation
  * Authors:
@@ -10,12 +11,6 @@
  * Jason Gunthorpe <jgunthorpe@obsidianresearch.com>
  *
  * sysfs filesystem inspection interface to the TPM
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation, version 2 of the
- * License.
- *
  */
 #include <linux/device.h>
 #include "tpm.h"
@@ -54,39 +49,27 @@ static ssize_t pubek_show(struct device *dev, struct device_attribute *attr,
 
 	tpm_buf_append(&tpm_buf, anti_replay, sizeof(anti_replay));
 
-	if (tpm_transmit_cmd(chip, NULL, tpm_buf.data, PAGE_SIZE,
-			      READ_PUBEK_RESULT_MIN_BODY_SIZE, 0,
-			      "attempting to read the PUBEK"))
+	if (tpm_transmit_cmd(chip, &tpm_buf, READ_PUBEK_RESULT_MIN_BODY_SIZE,
+			     "attempting to read the PUBEK"))
 		goto out_buf;
 
 	out = (struct tpm_readpubek_out *)&tpm_buf.data[10];
 	str +=
 	    sprintf(str,
-		    "Algorithm: %02X %02X %02X %02X\n"
-		    "Encscheme: %02X %02X\n"
-		    "Sigscheme: %02X %02X\n"
-		    "Parameters: %02X %02X %02X %02X "
-		    "%02X %02X %02X %02X "
-		    "%02X %02X %02X %02X\n"
+		    "Algorithm: %4ph\n"
+		    "Encscheme: %2ph\n"
+		    "Sigscheme: %2ph\n"
+		    "Parameters: %12ph\n"
 		    "Modulus length: %d\n"
 		    "Modulus:\n",
-		    out->algorithm[0], out->algorithm[1], out->algorithm[2],
-		    out->algorithm[3],
-		    out->encscheme[0], out->encscheme[1],
-		    out->sigscheme[0], out->sigscheme[1],
-		    out->parameters[0], out->parameters[1],
-		    out->parameters[2], out->parameters[3],
-		    out->parameters[4], out->parameters[5],
-		    out->parameters[6], out->parameters[7],
-		    out->parameters[8], out->parameters[9],
-		    out->parameters[10], out->parameters[11],
+		    out->algorithm,
+		    out->encscheme,
+		    out->sigscheme,
+		    out->parameters,
 		    be32_to_cpu(out->keysize));
 
-	for (i = 0; i < 256; i++) {
-		str += sprintf(str, "%02X ", out->modulus[i]);
-		if ((i + 1) % 16 == 0)
-			str += sprintf(str, "\n");
-	}
+	for (i = 0; i < 256; i += 16)
+		str += sprintf(str, "%16ph\n", &out->modulus[i]);
 
 out_buf:
 	tpm_buf_destroy(&tpm_buf);
@@ -101,26 +84,26 @@ static ssize_t pcrs_show(struct device *dev, struct device_attribute *attr,
 {
 	cap_t cap;
 	u8 digest[TPM_DIGEST_SIZE];
-	ssize_t rc;
-	int i, j, num_pcrs;
+	u32 i, j, num_pcrs;
 	char *str = buf;
 	struct tpm_chip *chip = to_tpm_chip(dev);
 
 	if (tpm_try_get_ops(chip))
 		return 0;
 
-	if (tpm_getcap(chip, TPM_CAP_PROP_PCR, &cap,
-		       "attempting to determine the number of PCRS",
-		       sizeof(cap.num_pcrs))) {
+	if (tpm1_getcap(chip, TPM_CAP_PROP_PCR, &cap,
+			"attempting to determine the number of PCRS",
+			sizeof(cap.num_pcrs))) {
 		tpm_put_ops(chip);
 		return 0;
 	}
 
 	num_pcrs = be32_to_cpu(cap.num_pcrs);
 	for (i = 0; i < num_pcrs; i++) {
-		rc = tpm_pcr_read_dev(chip, i, digest);
-		if (rc)
+		if (tpm1_pcr_read(chip, i, digest)) {
+			str = buf;
 			break;
+		}
 		str += sprintf(str, "PCR-%02d: ", i);
 		for (j = 0; j < TPM_DIGEST_SIZE; j++)
 			str += sprintf(str, "%02X ", digest[j]);
@@ -141,9 +124,9 @@ static ssize_t enabled_show(struct device *dev, struct device_attribute *attr,
 	if (tpm_try_get_ops(chip))
 		return 0;
 
-	if (tpm_getcap(chip, TPM_CAP_FLAG_PERM, &cap,
-		       "attempting to determine the permanent enabled state",
-		       sizeof(cap.perm_flags)))
+	if (tpm1_getcap(chip, TPM_CAP_FLAG_PERM, &cap,
+			"attempting to determine the permanent enabled state",
+			sizeof(cap.perm_flags)))
 		goto out_ops;
 
 	rc = sprintf(buf, "%d\n", !cap.perm_flags.disable);
@@ -163,9 +146,9 @@ static ssize_t active_show(struct device *dev, struct device_attribute *attr,
 	if (tpm_try_get_ops(chip))
 		return 0;
 
-	if (tpm_getcap(chip, TPM_CAP_FLAG_PERM, &cap,
-		       "attempting to determine the permanent active state",
-		       sizeof(cap.perm_flags)))
+	if (tpm1_getcap(chip, TPM_CAP_FLAG_PERM, &cap,
+			"attempting to determine the permanent active state",
+			sizeof(cap.perm_flags)))
 		goto out_ops;
 
 	rc = sprintf(buf, "%d\n", !cap.perm_flags.deactivated);
@@ -185,9 +168,9 @@ static ssize_t owned_show(struct device *dev, struct device_attribute *attr,
 	if (tpm_try_get_ops(chip))
 		return 0;
 
-	if (tpm_getcap(to_tpm_chip(dev), TPM_CAP_PROP_OWNER, &cap,
-		       "attempting to determine the owner state",
-		       sizeof(cap.owned)))
+	if (tpm1_getcap(to_tpm_chip(dev), TPM_CAP_PROP_OWNER, &cap,
+			"attempting to determine the owner state",
+			sizeof(cap.owned)))
 		goto out_ops;
 
 	rc = sprintf(buf, "%d\n", cap.owned);
@@ -207,9 +190,9 @@ static ssize_t temp_deactivated_show(struct device *dev,
 	if (tpm_try_get_ops(chip))
 		return 0;
 
-	if (tpm_getcap(to_tpm_chip(dev), TPM_CAP_FLAG_VOL, &cap,
-		       "attempting to determine the temporary state",
-		       sizeof(cap.stclear_flags)))
+	if (tpm1_getcap(to_tpm_chip(dev), TPM_CAP_FLAG_VOL, &cap,
+			"attempting to determine the temporary state",
+			sizeof(cap.stclear_flags)))
 		goto out_ops;
 
 	rc = sprintf(buf, "%d\n", cap.stclear_flags.deactivated);
@@ -223,6 +206,7 @@ static ssize_t caps_show(struct device *dev, struct device_attribute *attr,
 			 char *buf)
 {
 	struct tpm_chip *chip = to_tpm_chip(dev);
+	struct tpm1_version *version;
 	ssize_t rc = 0;
 	char *str = buf;
 	cap_t cap;
@@ -230,40 +214,39 @@ static ssize_t caps_show(struct device *dev, struct device_attribute *attr,
 	if (tpm_try_get_ops(chip))
 		return 0;
 
-	if (tpm_getcap(chip, TPM_CAP_PROP_MANUFACTURER, &cap,
-		       "attempting to determine the manufacturer",
-		       sizeof(cap.manufacturer_id)))
+	if (tpm1_getcap(chip, TPM_CAP_PROP_MANUFACTURER, &cap,
+			"attempting to determine the manufacturer",
+			sizeof(cap.manufacturer_id)))
 		goto out_ops;
 
 	str += sprintf(str, "Manufacturer: 0x%x\n",
 		       be32_to_cpu(cap.manufacturer_id));
 
-	/* Try to get a TPM version 1.2 TPM_CAP_VERSION_INFO */
-	rc = tpm_getcap(chip, TPM_CAP_VERSION_1_2, &cap,
-			"attempting to determine the 1.2 version",
-			sizeof(cap.tpm_version_1_2));
-	if (!rc) {
-		str += sprintf(str,
-			       "TCG version: %d.%d\nFirmware version: %d.%d\n",
-			       cap.tpm_version_1_2.Major,
-			       cap.tpm_version_1_2.Minor,
-			       cap.tpm_version_1_2.revMajor,
-			       cap.tpm_version_1_2.revMinor);
-	} else {
-		/* Otherwise just use TPM_STRUCT_VER */
-		if (tpm_getcap(chip, TPM_CAP_VERSION_1_1, &cap,
-			       "attempting to determine the 1.1 version",
-			       sizeof(cap.tpm_version)))
-			goto out_ops;
+	/* TPM 1.2 */
+	if (!tpm1_getcap(chip, TPM_CAP_VERSION_1_2, &cap,
+			 "attempting to determine the 1.2 version",
+			 sizeof(cap.version2))) {
+		version = &cap.version2.version;
+		goto out_print;
+	}
 
-		str += sprintf(str,
-			       "TCG version: %d.%d\nFirmware version: %d.%d\n",
-			       cap.tpm_version.Major,
-			       cap.tpm_version.Minor,
-			       cap.tpm_version.revMajor,
-			       cap.tpm_version.revMinor);
-}
+	/* TPM 1.1 */
+	if (tpm1_getcap(chip, TPM_CAP_VERSION_1_1, &cap,
+			"attempting to determine the 1.1 version",
+			sizeof(cap.version1))) {
+		goto out_ops;
+	}
+
+	version = &cap.version1;
+
+out_print:
+	str += sprintf(str,
+		       "TCG version: %d.%d\nFirmware version: %d.%d\n",
+		       version->major, version->minor,
+		       version->rev_major, version->rev_minor);
+
 	rc = str - buf;
+
 out_ops:
 	tpm_put_ops(chip);
 	return rc;
@@ -316,7 +299,17 @@ static ssize_t timeouts_show(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_RO(timeouts);
 
-static struct attribute *tpm_dev_attrs[] = {
+static ssize_t tpm_version_major_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct tpm_chip *chip = to_tpm_chip(dev);
+
+	return sprintf(buf, "%s\n", chip->flags & TPM_CHIP_FLAG_TPM2
+		       ? "2" : "1");
+}
+static DEVICE_ATTR_RO(tpm_version_major);
+
+static struct attribute *tpm1_dev_attrs[] = {
 	&dev_attr_pubek.attr,
 	&dev_attr_pcrs.attr,
 	&dev_attr_enabled.attr,
@@ -327,25 +320,28 @@ static struct attribute *tpm_dev_attrs[] = {
 	&dev_attr_cancel.attr,
 	&dev_attr_durations.attr,
 	&dev_attr_timeouts.attr,
+	&dev_attr_tpm_version_major.attr,
 	NULL,
 };
 
-static const struct attribute_group tpm_dev_group = {
-	.attrs = tpm_dev_attrs,
+static struct attribute *tpm2_dev_attrs[] = {
+	&dev_attr_tpm_version_major.attr,
+	NULL
+};
+
+static const struct attribute_group tpm1_dev_group = {
+	.attrs = tpm1_dev_attrs,
+};
+
+static const struct attribute_group tpm2_dev_group = {
+	.attrs = tpm2_dev_attrs,
 };
 
 void tpm_sysfs_add_device(struct tpm_chip *chip)
 {
-	/* XXX: If you wish to remove this restriction, you must first update
-	 * tpm_sysfs to explicitly lock chip->ops.
-	 */
-	if (chip->flags & TPM_CHIP_FLAG_TPM2)
-		return;
-
-	/* The sysfs routines rely on an implicit tpm_try_get_ops, device_del
-	 * is called before ops is null'd and the sysfs core synchronizes this
-	 * removal so that no callbacks are running or can run again
-	 */
 	WARN_ON(chip->groups_cnt != 0);
-	chip->groups[chip->groups_cnt++] = &tpm_dev_group;
+	if (chip->flags & TPM_CHIP_FLAG_TPM2)
+		chip->groups[chip->groups_cnt++] = &tpm2_dev_group;
+	else
+		chip->groups[chip->groups_cnt++] = &tpm1_dev_group;
 }

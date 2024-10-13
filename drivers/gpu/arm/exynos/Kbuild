@@ -128,7 +128,7 @@ ifeq ($(CONFIG_MALI_EXYNOS_QOS), y)
 	mali_kbase-$(CONFIG_SOC_EXYNOS9820) += $(BACKEND_DIR)/gpexbe_qos_v2.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS9830) += $(BACKEND_DIR)/gpexbe_qos_v2.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS9630) += $(BACKEND_DIR)/gpexbe_qos_v2.o
-	mali_kbase-$(CONFIG_SOC_EXYNOS3830) += $(BACKEND_DIR)/gpexbe_qos_v2.o
+	mali_kbase-$(CONFIG_SOC_S5E3830) += $(BACKEND_DIR)/gpexbe_qos_v3.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS2100) += $(BACKEND_DIR)/gpexbe_qos_v3.o
 	mali_kbase-$(CONFIG_SOC_S5E8825) += $(BACKEND_DIR)/gpexbe_qos_v3_8825.o
 else
@@ -142,7 +142,7 @@ ifeq ($(CONFIG_MALI_EXYNOS_BTS_MO), y)
 	mali_kbase-$(CONFIG_SOC_EXYNOS9610) += $(BACKEND_DIR)/gpexbe_bts_v1.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS9830) += $(BACKEND_DIR)/gpexbe_bts_v2.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS9630) += $(BACKEND_DIR)/gpexbe_bts_v2.o
-	mali_kbase-$(CONFIG_SOC_EXYNOS3830) += $(BACKEND_DIR)/gpexbe_bts_v2.o
+	mali_kbase-$(CONFIG_SOC_S5E3830) += $(BACKEND_DIR)/gpexbe_bts_v2.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS2100) += $(BACKEND_DIR)/gpexbe_bts_v2.o
 	mali_kbase-$(CONFIG_SOC_S5E8825) += $(BACKEND_DIR)/gpexbe_bts_v2.o
 else
@@ -155,7 +155,7 @@ ifeq ($(CONFIG_MALI_EXYNOS_DEBUG), y)
 	mali_kbase-$(CONFIG_SOC_EXYNOS9830) += $(BACKEND_DIR)/gpexbe_debug_v2.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS9610) += $(BACKEND_DIR)/gpexbe_debug_v2_9611.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS9630) += $(BACKEND_DIR)/gpexbe_debug_v2.o
-	mali_kbase-$(CONFIG_SOC_EXYNOS3830) += $(BACKEND_DIR)/gpexbe_debug_v2.o
+	mali_kbase-$(CONFIG_SOC_S5E3830) += $(BACKEND_DIR)/gpexbe_debug_v3.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS2100) += $(BACKEND_DIR)/gpexbe_debug_v3.o
 	mali_kbase-$(CONFIG_SOC_S5E8825) += $(BACKEND_DIR)/gpexbe_debug_v3.o
 else
@@ -167,7 +167,7 @@ mali_kbase-$(CONFIG_SOC_EXYNOS9820) += $(BACKEND_DIR)/gpexbe_dmabuf_v2.o
 mali_kbase-$(CONFIG_SOC_EXYNOS9830) += $(BACKEND_DIR)/gpexbe_dmabuf_v2.o
 mali_kbase-$(CONFIG_SOC_EXYNOS9610) += $(BACKEND_DIR)/gpexbe_dmabuf_v2.o
 mali_kbase-$(CONFIG_SOC_EXYNOS9630) += $(BACKEND_DIR)/gpexbe_dmabuf_v2.o
-mali_kbase-$(CONFIG_SOC_EXYNOS3830) += $(BACKEND_DIR)/gpexbe_dmabuf_v2.o
+mali_kbase-$(CONFIG_SOC_S5E3830) += $(BACKEND_DIR)/dummy/gpexbe_dmabuf_dummy.o
 mali_kbase-$(CONFIG_SOC_EXYNOS2100) += $(BACKEND_DIR)/dummy/gpexbe_dmabuf_dummy.o
 mali_kbase-$(CONFIG_SOC_S5E8825) += $(BACKEND_DIR)/dummy/gpexbe_dmabuf_dummy.o
 
@@ -199,7 +199,7 @@ else
 	mali_kbase-$(CONFIG_SOC_EXYNOS9820) += $(BACKEND_DIR)/gpexbe_notifier_v2.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS9830) += $(BACKEND_DIR)/gpexbe_notifier_v2.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS9630) += $(BACKEND_DIR)/gpexbe_notifier_v2.o
-	mali_kbase-$(CONFIG_SOC_EXYNOS3830) += $(BACKEND_DIR)/gpexbe_notifier_v2.o
+	mali_kbase-$(CONFIG_SOC_S5E3830) += $(BACKEND_DIR)/dummy/gpexbe_notifier_dummy.o
 	mali_kbase-$(CONFIG_SOC_EXYNOS2100) += $(BACKEND_DIR)/gpexbe_notifier_v3.o
 	mali_kbase-$(CONFIG_SOC_S5E8825) += $(BACKEND_DIR)/gpexbe_notifier_v3.o
 endif
@@ -246,6 +246,7 @@ mali_kbase-y += $(FRONTEND_DIR)/gpex_cmar_boost.o
 
 mali_kbase-$(CONFIG_MALI_SEC_G3D_PEAK_NOTI) += $(WA_DIR)/gpexwa_peak_notify.o
 mali_kbase-$(CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST) += $(WA_DIR)/gpexwa_interactive_boost.o
+mali_kbase-$(CONFIG_MALI_EXYNOS_EHMP) += $(WA_DIR)/gpexwa_ehmp.o
 
 ifeq ($(CONFIG_MALI_EXYNOS_DEBUG_FAULT_DUMP), y)
 	mali_kbase-y += $(COMMON_DIR)/gpex_debug.o

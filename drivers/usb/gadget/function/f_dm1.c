@@ -289,6 +289,11 @@ dm1_bind(struct usb_configuration *c, struct usb_function *f)
 		f->ss_descriptors = usb_copy_descriptors(dm1_ss_function);
 		if (!f->ss_descriptors)
 			goto fail;
+
+		/* copy descriptors, and track endpoint copies for SSP */
+		f->ssp_descriptors = usb_copy_descriptors(dm1_ss_function);
+		if (!f->ssp_descriptors)
+			goto fail;
 	}
 
 	printk("usb: [%s] generic ttyGS%d: %s speed IN/%s OUT/%s\n",

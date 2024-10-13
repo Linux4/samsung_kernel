@@ -121,7 +121,7 @@ static void hyp_check_l23pgt_rw(u64 *pg_l, unsigned int level, struct test_data_
 	unsigned int i;
 
 	// Level is 0 1 2
-	if (level >= 3) 
+	if (level >= 3)
 		return;
 
 	for (i = 0; i < 512; i++) {
@@ -147,15 +147,15 @@ static pmd_t * get_addr_pmd(struct mm_struct *mm, unsigned long addr)
 	if (pgd_none(*pgd))
 		return NULL;
 
-	pud = pud_offset(pgd, addr);
+	pud = pud_offset((p4d_t *)pgd, addr);
 	if (pud_none(*pud))
 		return NULL;
 
 	pmd = pmd_offset(pud, addr);
 	if (pmd_none(*pmd))
 		return NULL;
-	
-	return pmd; 
+
+	return pmd;
 }
 
 static int test_case_user_pgtable_ro(void)
@@ -254,7 +254,7 @@ static void page_pxn_set(struct mm_struct *mm, unsigned long addr, u64 *xn, u64 
 	if (pgd_none(*pgd))
 		return;
 
-	pud = pud_offset(pgd, addr);
+	pud = pud_offset((p4d_t *)pgd, addr);
 	if (pud_none(*pud))
 		return;
 
@@ -265,7 +265,7 @@ static void page_pxn_set(struct mm_struct *mm, unsigned long addr, u64 *xn, u64 
 	if (pmd_sect(*pmd)) {
 		if ((pmd_val(*pmd) & L012_BLOCK_PXN) > 0)
 			*xn +=1;
-		else 
+		else
 			*x +=1;
 		return;
 	} else {
@@ -280,7 +280,7 @@ static void page_pxn_set(struct mm_struct *mm, unsigned long addr, u64 *xn, u64 
 	if (!pte_none(*pte)) {
 		if ((pte_val(*pte) & L3_PAGE_PXN) > 0)
 			*xn +=1;
-		else 
+		else
 			*x +=1;
 	}
 
@@ -289,11 +289,11 @@ static void page_pxn_set(struct mm_struct *mm, unsigned long addr, u64 *xn, u64 
 
 static void count_pxn(unsigned long pxn, int level, struct test_data_struct *test)
 {
-	test[level].iter ++;	
+	test[level].iter ++;
 	if (pxn)
-		test[level].pxn ++;	
+		test[level].pxn ++;
 	else
-		test[level].no_pxn ++;	
+		test[level].no_pxn ++;
 }
 
 static void walk_pte(pmd_t *pmd, int level, struct test_data_struct *test)
@@ -340,7 +340,7 @@ static void walk_pmd(pud_t *pud, int level, struct test_data_struct *test)
 
 static void walk_pud(pgd_t *pgd, int level, struct test_data_struct *test)
 {
-	pud_t *pud = pud_offset(pgd, 0UL);
+	pud_t *pud = pud_offset((p4d_t *)pgd, 0UL);
 	unsigned i;
 
 	for (i = 0; i < PTRS_PER_PUD; i++, pud++) {
@@ -483,7 +483,7 @@ static int test_case_kernel_range_rwx(void)
 			ret++;
 		}
 
-		ro = 0; rw = 0;	
+		ro = 0; rw = 0;
 		xn = 0; x = 0;
 	}
 
@@ -518,7 +518,7 @@ ssize_t	rkp_read(struct file *filep, char __user *buffer, size_t count, loff_t *
 		temp_ret = test_cases[i].fn();
 
 		if (temp_ret) {
-			buf_print("RKP_TEST_CASE %d ===========> %s FAILED WITH %d ERRORS\n", 
+			buf_print("RKP_TEST_CASE %d ===========> %s FAILED WITH %d ERRORS\n",
 				i, test_cases[i].describe, temp_ret);
 		} else {
 			buf_print("RKP_TEST_CASE %d ===========> %s PASSED\n", i, test_cases[i].describe);
@@ -536,8 +536,8 @@ error:
 	return simple_read_from_buffer(buffer, count, ppos, rkp_test_buf, rkp_test_len);
 }
 
-static const struct file_operations rkp_proc_fops = {
-	.read		= rkp_read,
+static const struct proc_ops rkp_proc_fops = {
+	.proc_read	= rkp_read,
 };
 
 static int __init rkp_test_init(void)

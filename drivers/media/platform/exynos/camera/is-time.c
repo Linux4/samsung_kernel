@@ -20,7 +20,7 @@
 #include "is-device-sensor.h"
 #include "is-device-ischain.h"
 
-static struct timeval itime[10];
+static ktime_t itime[10];
 
 #define JITTER_CNT 50
 static u64 jitter_array[JITTER_CNT];
@@ -29,19 +29,12 @@ static u64 jitter_cnt = 0;
 
 void TIME_STR(unsigned int index)
 {
-	do_gettimeofday(&itime[index]);
+	itime[index] = ktime_get();
 }
 
 void TIME_END(unsigned int index, const char *name)
 {
-	long time;
-	struct timeval temp;
-
-	do_gettimeofday(&temp);
-	time = (temp.tv_sec - itime[index].tv_sec)*1000000 +
-		(temp.tv_usec - itime[index].tv_usec);
-
-	info("TIME(%s) : %ld us\n", name, time);
+	info("TIME(%s) : %ld us\n", name, PABLO_KTIME_US_DELTA_NOW(itime[index]));
 }
 
 void is_jitter(u64 timestamp)
@@ -72,29 +65,6 @@ void is_jitter(u64 timestamp)
 	} else {
 		jitter_cnt++;
 	}
-}
-
-u64 is_get_timestamp(void)
-{
-	struct timespec curtime;
-
-	ktime_get_ts(&curtime);
-
-	return (u64)curtime.tv_sec*1000000000 + curtime.tv_nsec;
-}
-
-u64 is_get_timestamp_boot(void)
-{
-	struct timespec curtime;
-
-	curtime = ktime_to_timespec(ktime_get_boottime());
-
-	return (u64)curtime.tv_sec*1000000000 + curtime.tv_nsec;
-}
-
-static inline u32 is_get_time(struct timeval *str, struct timeval *end)
-{
-	return (end->tv_sec - str->tv_sec)*1000000 + (end->tv_usec - str->tv_usec);
 }
 
 #ifdef MEASURE_TIME
@@ -253,15 +223,10 @@ void measure_init(struct is_interface_time *time, u32 cmd)
 	time->time_cnt = 0;
 }
 
-void measure_time(struct is_interface_time *time,
-	u32 instance,
-	u32 group,
-	struct timeval *start,
-	struct timeval *end)
+void measure_time(struct is_interface_time *time, u32 instance,
+			u32 group, ktime_t start, ktime_t end)
 {
-	u32 temp;
-
-	temp = (end->tv_sec - start->tv_sec)*1000000 + (end->tv_usec - start->tv_usec);
+	u32 temp = (u32)ktime_us_delta(end, start);
 
 	if (time->time_cnt) {
 		time->time_max = temp;
@@ -277,8 +242,9 @@ void measure_time(struct is_interface_time *time,
 	time->time_tot += temp;
 	time->time_cnt++;
 
-	pr_info("cmd[%d][%d](%d) : curr(%d), max(%d), avg(%d)\n",
-		instance, group, time->cmd, temp, time->time_max, time->time_tot / time->time_cnt);
+	is_info("cmd[%d][%d](%d) : curr(%d), max(%d), avg(%d)\n",
+		instance, group, time->cmd, temp, time->time_max,
+		time->time_tot / time->time_cnt);
 }
 #endif
 #endif

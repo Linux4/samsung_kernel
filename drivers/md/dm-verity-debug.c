@@ -87,11 +87,11 @@ struct blks_info * get_b_info(char* dev_name){
 
     if(empty_b_info()) {
         b_info = create_b_info();
-        add_dmv_ctr_entry(dev_name);
+        //add_dmv_ctr_entry(dev_name);
     }
     else{
         pr_info("dm-verity-debug : b_info already exists\n");
-        add_dmv_ctr_entry(dev_name);
+        //add_dmv_ctr_entry(dev_name);
         return b_info;
     }
 
@@ -139,6 +139,7 @@ void add_fc_blks_entry(sector_t cur_blk, char* dev_name){
     b_info->list_idx = (b_info->list_idx + 1) % MAX_FC_BLKS_LIST;
 }
 void add_fec_off_cnt(char* dev_name){
+/*
     if(!empty_b_info()){
         int idx = get_fec_off_cnt();
 
@@ -147,21 +148,15 @@ void add_fec_off_cnt(char* dev_name){
             atomic_inc(&b_info->fec_off_cnt);
         }
     }
+*/
 }
 
 void print_blks_cnt(char* dev_name){
-    int i,foc = get_fec_off_cnt();
     if(empty_b_info()){
         return;
     }
 
     pr_err("dev_name = %s,total_blks = %llu,skipped_blks = %llu,corrupted_blks = %llu,fec_correct_blks = %llu",dev_name,get_total_blks(),get_skipped_blks(),get_corrupted_blks(),get_fec_correct_blks());
-
-    if(foc > 0){
-        pr_err("fec_off_cnt = %d",foc);
-        for(i = 0 ; i < foc; i++)
-            pr_err("fec_off_dev = %s ",b_info->fec_off_list[i]);
-    }
 }
 
 void print_fc_blks_list(void){
@@ -264,11 +259,17 @@ int verity_handle_err_hex_debug(struct dm_verity *v, enum verity_block_type type
     /* Corruption should be visible in device status in all modes */
     v->hash_failed = 1;
 
+/* ignore_fs_panic is not ported.
+   we may not need to ignore_fs_panic.
+   verity_is_system_shutting_down is added.
+ */
+#if 0
     if (ignore_fs_panic) {
         DMERR("%s: Don't trigger a panic during cleanup for shutdown. Skipping %s",
                 v->data_dev->name, __func__);
         return 0;
     }
+#endif
 
     if (v->corrupted_errs >= DM_VERITY_MAX_CORRUPTED_ERRS)
         goto out;

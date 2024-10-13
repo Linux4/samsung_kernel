@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_effect.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Effect driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Effect driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
  *
@@ -24,6 +24,7 @@
 #include "abox.h"
 #include "abox_util.h"
 #include "abox_effect.h"
+#include "abox_memlog.h"
 
 struct abox_ctl_eq_switch {
 	unsigned int base;
@@ -39,7 +40,7 @@ static int abox_ctl_info(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	struct abox_ctl_eq_switch *params = (void *)kcontrol->private_value;
 
-	dev_dbg(dev, "%s: %s\n", __func__, kcontrol->id.name);
+	abox_dbg(dev, "%s: %s\n", __func__, kcontrol->id.name);
 
 	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 	uinfo->count = params->count;
@@ -55,9 +56,8 @@ static int abox_ctl_get(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	struct abox_ctl_eq_switch *params = (void *)kcontrol->private_value;
 	int i;
-	int ret = 0;
 
-	dev_dbg(dev, "%s: %s\n", __func__, kcontrol->id.name);
+	abox_dbg(dev, "%s: %s\n", __func__, kcontrol->id.name);
 
 	pm_runtime_get_sync(dev);
 	for (i = 0; i < params->count; i++) {
@@ -65,18 +65,14 @@ static int abox_ctl_get(struct snd_kcontrol *kcontrol,
 
 		reg = (unsigned int)(params->base + PARAM_OFFSET +
 				(i * sizeof(u32)));
-		ret = snd_soc_component_read(cmpnt, reg, &val);
-		if (ret < 0) {
-			dev_err(dev, "reading fail at 0x%08X\n", reg);
-			break;
-		}
+		val = snd_soc_component_read(cmpnt, reg);
 		ucontrol->value.integer.value[i] = val;
-		dev_dbg(dev, "%s[%d] = %u\n", kcontrol->id.name, i, val);
+		abox_dbg(dev, "%s[%d] = %u\n", kcontrol->id.name, i, val);
 	}
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
 
-	return ret;
+	return 0;
 }
 
 static int abox_ctl_put(struct snd_kcontrol *kcontrol,
@@ -87,7 +83,7 @@ static int abox_ctl_put(struct snd_kcontrol *kcontrol,
 	struct abox_ctl_eq_switch *params = (void *)kcontrol->private_value;
 	int i;
 
-	dev_dbg(dev, "%s: %s\n", __func__, kcontrol->id.name);
+	abox_dbg(dev, "%s: %s\n", __func__, kcontrol->id.name);
 
 	pm_runtime_get_sync(dev);
 	for (i = 0; i < params->count; i++) {
@@ -97,7 +93,7 @@ static int abox_ctl_put(struct snd_kcontrol *kcontrol,
 				(i * sizeof(u32)));
 		val = (unsigned int)ucontrol->value.integer.value[i];
 		snd_soc_component_write(cmpnt, reg, val);
-		dev_dbg(dev, "%s[%d] <= %u\n", kcontrol->id.name, i, val);
+		abox_dbg(dev, "%s[%d] <= %u\n", kcontrol->id.name, i, val);
 	}
 	snd_soc_component_write(cmpnt, params->base, CHANGE_BIT);
 	pm_runtime_mark_last_busy(dev);
@@ -210,7 +206,7 @@ static int abox_effect_runtime_suspend(struct device *dev)
 {
 	struct abox_effect_data *data = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	regcache_cache_only(data->regmap, true);
 	regcache_mark_dirty(data->regmap);
@@ -222,7 +218,7 @@ static int abox_effect_runtime_resume(struct device *dev)
 {
 	struct abox_effect_data *data = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	regcache_cache_only(data->regmap, false);
 	regcache_sync(data->regmap);
@@ -240,7 +236,7 @@ static int samsung_abox_effect_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct abox_effect_data *data;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
 	if (data == NULL)
@@ -251,7 +247,7 @@ static int samsung_abox_effect_probe(struct platform_device *pdev)
 
 	data->base = devm_get_ioremap(pdev, "reg", NULL, NULL);
 	if (IS_ERR(data->base)) {
-		dev_err(dev, "base address request failed: %ld\n",
+		abox_err(dev, "base address request failed: %ld\n",
 				PTR_ERR(data->base));
 		return PTR_ERR(data->base);
 	}
@@ -259,7 +255,7 @@ static int samsung_abox_effect_probe(struct platform_device *pdev)
 	data->regmap = devm_regmap_init_mmio(dev, data->base,
 			&abox_effect_regmap_config);
 	if (IS_ERR(data->regmap)) {
-		dev_err(dev, "regmap init failed: %ld\n",
+		abox_err(dev, "regmap init failed: %ld\n",
 				PTR_ERR(data->regmap));
 		return PTR_ERR(data->regmap);
 	}
@@ -276,11 +272,19 @@ static int samsung_abox_effect_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	pm_runtime_disable(dev);
 
 	return 0;
+}
+
+static void samsung_abox_effect_shutdown(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+
+	abox_dbg(dev, "%s\n", __func__);
+	pm_runtime_disable(dev);
 }
 
 static const struct of_device_id samsung_abox_effect_match[] = {
@@ -291,20 +295,14 @@ static const struct of_device_id samsung_abox_effect_match[] = {
 };
 MODULE_DEVICE_TABLE(of, samsung_abox_effect_match);
 
-static struct platform_driver samsung_abox_effect_driver = {
+struct platform_driver samsung_abox_effect_driver = {
 	.probe  = samsung_abox_effect_probe,
 	.remove = samsung_abox_effect_remove,
+	.shutdown = samsung_abox_effect_shutdown,
 	.driver = {
-		.name = "samsung-abox-effect",
+		.name = "abox-effect",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(samsung_abox_effect_match),
 		.pm = &samsung_abox_effect_pm,
 	},
 };
-
-module_platform_driver(samsung_abox_effect_driver);
-
-MODULE_AUTHOR("Gyeongtaek Lee, <gt82.lee@samsung.com>");
-MODULE_DESCRIPTION("Samsung ASoC A-Box Effect Driver");
-MODULE_ALIAS("platform:samsung-abox-effect");
-MODULE_LICENSE("GPL");

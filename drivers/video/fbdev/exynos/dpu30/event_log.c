@@ -353,7 +353,7 @@ void DPU_EVENT_LOG_WINCON(struct v4l2_subdev *sd, struct decon_reg_data *regs)
 	}
 }
 
-extern void *return_address(int);
+//extern void *return_address(int);
 
 /* Common API to log a event related with DSIM COMMAND */
 void DPU_EVENT_LOG_CMD(struct v4l2_subdev *sd, u32 cmd_id, unsigned long data, u32 size)
@@ -541,7 +541,7 @@ void DPU_EVENT_SHOW(struct seq_file *s, struct decon_device *decon)
 	int idx = atomic_read(&decon->d.event_log_idx) % DPU_EVENT_LOG_MAX;
 	struct dpu_log *log;
 	int latest = idx;
-	struct timeval tv;
+	struct timespec64 tv;
 	ktime_t prev_ktime;
 	struct dsim_device *dsim;
 
@@ -581,8 +581,8 @@ void DPU_EVENT_SHOW(struct seq_file *s, struct decon_device *decon)
 		log = &decon->d.event_log[idx];
 
 		/* TIME */
-		tv = ktime_to_timeval(log->time);
-		seq_printf(s, "[%6ld.%06ld] ", tv.tv_sec, tv.tv_usec);
+		tv = ktime_to_timespec64(log->time);
+		seq_printf(s, "[%6ld.%06ld] ", tv.tv_sec, tv.tv_nsec);
 
 		/* If there is no timestamp, then exit directly */
 		if (!tv.tv_sec)
@@ -609,8 +609,8 @@ void DPU_EVENT_SHOW(struct seq_file *s, struct decon_device *decon)
 			prev_ktime = ktime_sub(log->time, prev_ktime);
 			seq_printf(s, "%20s  ", "TE_INTERRUPT");
 			seq_printf(s, "time_diff=[%ld.%04lds]\n",
-					ktime_to_timeval(prev_ktime).tv_sec,
-					ktime_to_timeval(prev_ktime).tv_usec/100);
+					ktime_to_timespec64(prev_ktime).tv_sec,
+					ktime_to_timespec64(prev_ktime).tv_nsec/1000000);
 			/* Update for latest DPU_EVT_TE time */
 			prev_ktime = log->time;
 			break;
@@ -694,17 +694,17 @@ void DPU_EVENT_SHOW(struct seq_file *s, struct decon_device *decon)
 			break;
 		case DPU_EVT_ENTER_HIBER:
 			seq_printf(s, "%20s  ", "ENTER_HIBER");
-			tv = ktime_to_timeval(log->data.pm.elapsed);
+			tv = ktime_to_timespec64(log->data.pm.elapsed);
 			seq_printf(s, "pm=%s, elapsed=[%ld.%03lds]\n",
 					log->data.pm.pm_status ? "active " : "suspend",
-					tv.tv_sec, tv.tv_usec/1000);
+					tv.tv_sec, tv.tv_nsec/1000000);
 			break;
 		case DPU_EVT_EXIT_HIBER:
 			seq_printf(s, "%20s  ", "EXIT_HIBER");
-			tv = ktime_to_timeval(log->data.pm.elapsed);
+			tv = ktime_to_timespec64(log->data.pm.elapsed);
 			seq_printf(s, "pm=%s, elapsed=[%ld.%03lds]\n",
 					log->data.pm.pm_status ? "active " : "suspend",
-					tv.tv_sec, tv.tv_usec/1000);
+					tv.tv_sec, tv.tv_nsec/1000000);
 			break;
 		case DPU_EVT_DSIM_SUSPEND:
 			seq_printf(s, "%20s  %20s", "DSIM_SUSPEND", "-\n");
@@ -714,17 +714,17 @@ void DPU_EVENT_SHOW(struct seq_file *s, struct decon_device *decon)
 			break;
 		case DPU_EVT_ENTER_ULPS:
 			seq_printf(s, "%20s  ", "ENTER_ULPS");
-			tv = ktime_to_timeval(log->data.pm.elapsed);
+			tv = ktime_to_timespec64(log->data.pm.elapsed);
 			seq_printf(s, "pm=%s, elapsed=[%ld.%03lds]\n",
 					log->data.pm.pm_status ? "active " : "suspend",
-					tv.tv_sec, tv.tv_usec/1000);
+					tv.tv_sec, tv.tv_nsec/1000000);
 			break;
 		case DPU_EVT_EXIT_ULPS:
 			seq_printf(s, "%20s  ", "EXIT_ULPS");
-			tv = ktime_to_timeval(log->data.pm.elapsed);
+			tv = ktime_to_timespec64(log->data.pm.elapsed);
 			seq_printf(s, "pm=%s, elapsed=[%ld.%03lds]\n",
 					log->data.pm.pm_status ? "active " : "suspend",
-					tv.tv_sec, tv.tv_usec/1000);
+					tv.tv_sec, tv.tv_nsec/1000000);
 			break;
 		case DPU_EVT_DMA_FRAMEDONE:
 			seq_printf(s, "%20s  ", "DPP_FRAMEDONE");

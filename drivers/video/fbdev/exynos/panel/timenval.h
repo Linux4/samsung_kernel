@@ -16,7 +16,7 @@
 #include <linux/wait.h>
 
 struct timenval {
-	struct timespec last_ts;
+	struct timespec64 last_ts;
 	int last_value;
 
 	u64 sum;
@@ -29,8 +29,8 @@ struct timenval {
 };
 
 int timenval_init(struct timenval *tnv);
-int timenval_start(struct timenval *tnv, int value, struct timespec cur_ts);
-int timenval_update_snapshot(struct timenval *tnv, int cur_value, struct timespec cur_ts);
-int timenval_update_average(struct timenval *tnv, int cur_value, struct timespec cur_ts);
+int timenval_start(struct timenval *tnv, int value, struct timespec64 cur_ts);
+int timenval_update_snapshot(struct timenval *tnv, int cur_value, struct timespec64 cur_ts);
+int timenval_update_average(struct timenval *tnv, int cur_value, struct timespec64 cur_ts);
 int timenval_clear_average(struct timenval *tnv);
 #endif

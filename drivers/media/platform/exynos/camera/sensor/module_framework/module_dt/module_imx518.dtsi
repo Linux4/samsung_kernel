@@ -15,7 +15,7 @@
 	fragment@camera {
 		target-path = "/";
 		__overlay__ {
-			is_sensor_imx518: is_sensor_imx518@10 {
+			is_sensor_imx518: is_sensor_imx518@1A {
 				compatible = "samsung,sensor-module";
 
 				/* common */
@@ -52,64 +52,63 @@
 						vc0 = </* in */ 0 HW_FORMAT_RAW12 1280 3840	/* out */ HW_FORMAT_RAW12 VC_NOTHING 1280 3840>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 0 HW_FORMAT_EMBEDDED_8BIT 192 24	/* out */ HW_FORMAT_EMBEDDED_8BIT VC_EMBEDDED 192 24>;
+						vc3 = </* in */ 0 HW_FORMAT_EMBEDDED_8BIT 192 24	/* out */ HW_FORMAT_EMBEDDED_8BIT VC_NOTHING 192 24>;
 					};
 					mode1 {
-						common = <640 1290 30 0 0 CSI_DATA_LANES_2 1440 CSI_MODE_DT_ONLY LRTE_DISABLE PD_NONE>;
-						vc0 = </* in */ 0 HW_FORMAT_RAW12 640 1290	/* out */ HW_FORMAT_RAW12 VC_NOTHING 640 1290>;
+						common = <640 1920 30 0 1 CSI_DATA_LANES_2 1440 CSI_MODE_DT_ONLY LRTE_DISABLE PD_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW12 640 1920	/* out */ HW_FORMAT_RAW12 VC_NOTHING 640 1920>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						vc3 = </* in */ 0 HW_FORMAT_EMBEDDED_8BIT 192 24	/* out */ HW_FORMAT_EMBEDDED_8BIT VC_EMBEDDED 192 24>;
+						vc3 = </* in */ 0 HW_FORMAT_EMBEDDED_8BIT 192 24	/* out */ HW_FORMAT_EMBEDDED_8BIT VC_NOTHING 192 24>;
+					};
+					mode2 {
+						common = <320 480 30 0 2 CSI_DATA_LANES_2 1440 CSI_MODE_DT_ONLY LRTE_DISABLE PD_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW12 320 480	/* out */ HW_FORMAT_RAW12 VC_NOTHING 320 480>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 0 HW_FORMAT_EMBEDDED_8BIT 192 12	/* out */ HW_FORMAT_EMBEDDED_8BIT VC_NOTHING 192 12>;
 					};
 				};
 
 				power_seq {
 					use = <1>;
+
 					scenario_normal_on {
-						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						sensor_scenario = <SENSOR_SCENARIO_VISION>;
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
-						10 { pname = "VDDA_2.7V_TOF"; pin = <PIN_REGULATOR 1 0>; };
-						20 { pname = "VDDIO_1.8V_TOF"; pin = <PIN_REGULATOR 1 0>; };
-						30 { pname = "VDDD_1.2V_TOF"; pin = <PIN_REGULATOR 1 0>; };
-						40 { pname = "VDDD_3.3V_TOF"; pin = <PIN_REGULATOR 1 0>; };
-						50 { pname = "tx_int"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpa3 3 0x1>; };
-						60 { pname = "on_i2c"; pin = <PIN_I2C 1 10>; };
-						70 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
-						80 { pname = "MCLK"; pin = <PIN_MCLK 1 100>; };
-						90 { pname = "rst_high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpp4 2 0x1>; };
+						10 { pname = "rst_high"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpp5 2 0x1>; };
+						20 { pname = "tx_int"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa3 3 0x1>; };
+						30 { pname = "VDDA_2.7V_TOF"; pin = <PIN_REGULATOR 1 0>; };
+						40 { pname = "VDDIO_1.8V_TOF"; pin = <PIN_REGULATOR 1 0>; };
+						50 { pname = "VDDD_1.2V_TOF"; pin = <PIN_REGULATOR 1 0>; };
+						60 { pname = "VDDD_3.3V_TOF"; pin = <PIN_REGULATOR 1 0>; };
+						70 { pname = "tx_int"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpa3 3 0x1>; };
+						80 { pname = "on_i2c"; pin = <PIN_I2C 1 10>; };
+						90 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
+						100 { pname = "MCLK"; pin = <PIN_MCLK 1 100>; };
+						110 { pname = "rst_high"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpp5 2 0x1>; };
+						120 { pname = "ldo_on"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpc0 5 0x1>; };
 					};
 
 					scenario_normal_off {
-						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						sensor_scenario = <SENSOR_SCENARIO_VISION>;
 						gpio_scenario = <GPIO_SCENARIO_OFF>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
 						20 { pname = "MCLK"; pin = <PIN_MCLK 0 1>; };
-						30 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						40 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
-						50 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						60 { pname = "rst_low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpp4 2 0x1>; };
-						70 { pname = "ldo_off"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpc0 1 0x1>; };
-						80 { pname = "tx_int"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa3 3 0x1>; };
-						90 { pname = "VDDD_1.2V_TOF"; pin = <PIN_REGULATOR 0 0>; };
-						100 { pname = "VDDIO_1.8V_TOF"; pin = <PIN_REGULATOR 0 0>; };
-						110 { pname = "VDDA_2.7V_TOF"; pin = <PIN_REGULATOR 0 0>; };
-						120 { pname = "VDDD_3.3V_TOF"; pin = <PIN_REGULATOR 0 0>; };
-					};
-
-					scenario_vision_on {
-						sensor_scenario = <SENSOR_SCENARIO_VISION>;
-						gpio_scenario = <GPIO_SCENARIO_ON>;
-					};
-
-					scenario_vision_off {
-						sensor_scenario = <SENSOR_SCENARIO_VISION>;
-						gpio_scenario = <GPIO_SCENARIO_OFF>;
+						30 { pname = "pin"; pin = <PIN_OUTPUT 0 0>; };
+						40 { pname = "rst_low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpp5 2 0x1>; };
+						50 { pname = "ldo_off"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpc0 5 0x1>; };
+						60 { pname = "tx_int"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa3 3 0x1>; };
+						70 { pname = "VDDD_1.2V_TOF"; pin = <PIN_REGULATOR 0 0>; };
+						80 { pname = "VDDIO_1.8V_TOF"; pin = <PIN_REGULATOR 0 0>; };
+						90 { pname = "VDDA_2.7V_TOF"; pin = <PIN_REGULATOR 0 0>; };
+						100 { pname = "VDDD_3.3V_TOF"; pin = <PIN_REGULATOR 0 0>; };
 					};
 
 					scenario_read_rom_on {
@@ -138,7 +137,7 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
-						10 { pname = "ldo_on"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpc0 1 0x1>; };
+						10 { pname = "ldo_on"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpc0 5 0x1>; };
 					};
 				};
 			};

@@ -22,7 +22,7 @@
 
 #include "./panels/exynos_panel.h"
 
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_S5E3830)
 #include "./cal_3830/regs-dsim.h"
 #include "./cal_3830/dsim_cal.h"
 #endif
@@ -74,6 +74,15 @@ extern int dsim_log_level;
 	} while (0)
 
 extern struct dsim_device *dsim_drvdata[MAX_DSIM_CNT];
+
+/*
+ * for GKI
+ * This is for building for kernel module
+ */
+enum {
+	MIPI_DSI_DSC_PRA    = 0x07,
+	MIPI_DSI_DSC_PPS    = 0x0a,
+};
 
 /* define video timer interrupt */
 enum {
@@ -205,6 +214,7 @@ struct dsim_fb_handover {
 	bool reserved;
 	phys_addr_t phys_addr;
 	size_t phys_size;
+	struct reserved_mem *rmem;
 };
 
 struct exynos_dsim_cmd {
@@ -233,6 +243,7 @@ struct dsim_device {
 	struct exynos_panel_device *panel;
 
 	struct v4l2_subdev sd;
+	bool subdev_initialized;
 	struct dsim_clks clks;
 	struct timer_list cmd_timer;
 
@@ -260,7 +271,10 @@ struct dsim_device {
 
 	int continuous_underrun_max;
 	int continuous_underrun_cnt;
+	int iommu_fault_retry_cnt;
 	bool hold_rpm_on_boot;
+
+	bool wait_lp11;
 };
 
 int dsim_call_panel_ops(struct dsim_device *dsim, u32 cmd, void *arg);
@@ -270,7 +284,6 @@ int dsim_wait_for_cmd_done(struct dsim_device *dsim);
 
 int dsim_reset_panel(struct dsim_device *dsim);
 int dsim_set_panel_power(struct dsim_device *dsim, bool on);
-int dsim_check_panel_connect(struct dsim_device *dsim);
 
 void dsim_to_regs_param(struct dsim_device *dsim, struct dsim_regs *regs);
 
@@ -278,6 +291,7 @@ void dsim_reg_recovery_process(struct dsim_device *dsim);
 
 int dsim_write_cmd_set(struct dsim_device *dsim, struct exynos_dsim_cmd cmd_list[],
 		int cmd_cnt, bool wait_vsync);
+int dsim_set_wait_lp11_after_cmds(struct dsim_device *dsim, bool en);
 
 static inline struct dsim_device *get_dsim_drvdata(u32 id)
 {

@@ -36,18 +36,13 @@
 #include <linux/sched/signal.h>
 #include <linux/time.h>
 #include <linux/platform_data/nanohub.h>
+#include <linux/i2c.h>
+#include <linux/spi/spi.h>
 #include <uapi/linux/sched/types.h>
-
 #include "main.h"
 #include "comms.h"
-#include "bl.h"
-
-#if defined(CONFIG_NANOHUB_MAILBOX)
 #include "chub.h"
 #include "chub_dbg.h"
-#elif defined(CONFIG_SPI_MAILBOX)
-#include "spi.h"
-#endif
 
 #define READ_QUEUE_DEPTH	10
 #define APP_FROM_HOST_EVENTID	0x000000F8
@@ -59,52 +54,17 @@
 #define WAKEUP_TIMEOUT_MS	1000
 #define SUSPEND_TIMEOUT_MS	100
 #define KTHREAD_ERR_TIME_NS	(60LL * NSEC_PER_SEC)
-#ifdef CONFIG_NANOHUB_MAILBOX
 #define KTHREAD_ERR_CNT		20
-#else
-#define KTHREAD_ERR_CNT		70
-#endif
 #define KTHREAD_WARN_CNT	10
 #define WAKEUP_ERR_TIME_NS	(60LL * NSEC_PER_SEC)
 #define WAKEUP_ERR_CNT		4
-
-#ifdef CONFIG_EXT_CHUB
-/**
- * struct gpio_config - this is a binding between platform data and driver data
- * @label:     for diagnostics
- * @flags:     to pass to gpio_request_one()
- * @options:   one or more of GPIO_OPT_* flags, below
- * @pdata_off: offset of u32 field in platform data with gpio #
- * @data_off:  offset of int field in driver data with irq # (optional)
- */
-struct gpio_config {
-	const char *label;
-	u16 flags;
-	u16 options;
-	u16 pdata_off;
-	u16 data_off;
-};
-
-#define GPIO_OPT_HAS_IRQ	0x0001
-#define GPIO_OPT_OPTIONAL	0x8000
-
-#define PLAT_GPIO_DEF(name, _flags) \
-	.pdata_off = offsetof(struct nanohub_platform_data, name ## _gpio), \
-	.label = "nanohub_" #name, \
-	.flags = _flags \
-
-#define PLAT_GPIO_DEF_IRQ(name, _flags, _opts) \
-	PLAT_GPIO_DEF(name, _flags), \
-	.data_off = offsetof(struct nanohub_data, name), \
-	.options = GPIO_OPT_HAS_IRQ | (_opts) \
-
-#endif
 
 static int nanohub_open(struct inode *, struct file *);
 static ssize_t nanohub_read(struct file *, char *, size_t, loff_t *);
 static ssize_t nanohub_write(struct file *, const char *, size_t, loff_t *);
 static unsigned int nanohub_poll(struct file *, poll_table *);
 static int nanohub_release(struct inode *, struct file *);
+static int nanohub_kthread(void *arg);
 
 static int chub_dev_open(struct inode *, struct file *);
 static ssize_t chub_dev_read(struct file *, char *, size_t, loff_t *);
@@ -112,19 +72,10 @@ static ssize_t chub_dev_write(struct file *, const char *, size_t, loff_t *);
 
 static struct class *sensor_class;
 static int major, chub_dev_major;
+static struct device *nanohub_dev;
 
 extern const char *os_image[SENSOR_VARIATION];
-
-#ifdef CONFIG_EXT_CHUB
-static const struct gpio_config gconf[] = {
-	{ PLAT_GPIO_DEF(nreset, GPIOF_OUT_INIT_HIGH) },
-	{ PLAT_GPIO_DEF(wakeup, GPIOF_OUT_INIT_HIGH) },
-	{ PLAT_GPIO_DEF(boot0, GPIOF_OUT_INIT_LOW) },
-	{ PLAT_GPIO_DEF_IRQ(irq1, GPIOF_DIR_IN, 0) },
-	{ PLAT_GPIO_DEF_IRQ(irq2, GPIOF_DIR_IN, GPIO_OPT_OPTIONAL) },
-};
-#endif
-
+extern struct memlog_obj *memlog_printf_file_chub;
 static const struct iio_info nanohub_iio_info;
 
 static const struct file_operations nanohub_fileops = {
@@ -136,11 +87,44 @@ static const struct file_operations nanohub_fileops = {
 	.release = nanohub_release,
 };
 
+#define CHUB_DEV_IOCTL_SET_DFS		_IOWR('c', 201, __u32)
+
+static long chub_dev_compat_ioctl(struct file *file, unsigned int cmd,
+				unsigned long arg_)
+{
+	struct contexthub_ipc_info *chub = file->private_data;
+
+	if (!chub) {
+		nanohub_dev_err(NULL, "%s: dev_nanohub not available\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!chub->misc.chub_dfs_gov) {
+		nanohub_dev_info(chub->dev, "%s: chub dfs is disabled\n", __func__);
+		return 0;
+	}
+
+	switch (cmd) {
+		case CHUB_DEV_IOCTL_SET_DFS:
+			chub->misc.chub_dfs_gov = DFS_GVERNOR_MAX;
+			break;
+		default:
+			nanohub_dev_warn(chub->dev, "%s: invalid cmd:%x\n", __func__, cmd);
+			break;
+	}
+	nanohub_dev_info(chub->dev, "%s: cmd:%x gov:%d\n", __func__, cmd, chub->misc.chub_dfs_gov);
+	return 0;
+}
+
 static const struct file_operations chub_dev_fileops = {
 	.owner = THIS_MODULE,
 	.open = chub_dev_open,
 	.read = chub_dev_read,
 	.write = chub_dev_write,
+	.unlocked_ioctl = chub_dev_compat_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= chub_dev_compat_ioctl,
+#endif
 };
 
 enum {
@@ -148,18 +132,6 @@ enum {
 	ST_ERROR,
 	ST_RUNNING
 };
-
-#ifdef CONFIG_EXT_CHUB
-static inline bool gpio_is_optional(const struct gpio_config *_cfg)
-{
-	return _cfg->options & GPIO_OPT_OPTIONAL;
-}
-
-static inline bool gpio_has_irq(const struct gpio_config *_cfg)
-{
-	return _cfg->options & GPIO_OPT_HAS_IRQ;
-}
-#endif
 
 static inline bool nanohub_has_priority_lock_locked(struct nanohub_data *data)
 {
@@ -182,6 +154,7 @@ static inline void nanohub_io_init(struct nanohub_io *io,
 	INIT_LIST_HEAD(&io->buf_list);
 	io->data = data;
 	io->dev = dev;
+	nanohub_dev = dev;
 }
 
 static inline bool nanohub_io_has_buf(struct nanohub_io *io)
@@ -189,8 +162,8 @@ static inline bool nanohub_io_has_buf(struct nanohub_io *io)
 	return !list_empty(&io->buf_list);
 }
 
-#ifdef CONFIG_NANOHUB_MAILBOX
 #define EVT_DEBUG_DUMP                   0x00007F02  /* defined on sensorhal */
+#define EVT_DFS_DUMP                     0x00007F03
 
 int nanohub_is_reset_notify_io(struct nanohub_buf *buf)
 {
@@ -201,7 +174,6 @@ int nanohub_is_reset_notify_io(struct nanohub_buf *buf)
 	}
 	return false;
 }
-#endif
 
 static struct nanohub_buf *nanohub_io_get_buf(struct nanohub_io *io,
 					      bool wait)
@@ -246,87 +218,50 @@ static void nanohub_io_put_buf(struct nanohub_io *io,
 	}
 }
 
-#ifdef CONFIG_EXT_CHUB
-static inline int plat_gpio_get(struct nanohub_data *data,
-				const struct gpio_config *_cfg)
+static inline void mcu_wakeup_mailbox_set_value(struct nanohub_data *data, int val)
 {
-	const struct nanohub_platform_data *pdata = data->pdata;
-
-	return *(u32 *)(((char *)pdata) + (_cfg)->pdata_off);
+	contexthub_ipc_write_event(data->pdata->mailbox_client,
+				   val ? MAILBOX_EVT_WAKEUP_CLR : MAILBOX_EVT_WAKEUP);
 }
 
-static inline void nanohub_set_irq_data(struct nanohub_data *data,
-					const struct gpio_config *_cfg, int val)
-{
-	int *data_addr = ((int *)(((char *)data) + _cfg->data_off));
-
-	if ((void *)data_addr > (void *)data &&
-	    (void *)data_addr < (void *)(data + 1))
-		*data_addr = val;
-	else
-		WARN(1, "No data binding defined for %s", _cfg->label);
-}
-#endif
-
-static inline void mcu_wakeup_gpio_set_value(struct nanohub_data *data,
-					     int val)
-{
-#ifdef CONFIG_EXT_CHUB
-	const struct nanohub_platform_data *pdata = data->pdata;
-
-	gpio_set_value(pdata->wakeup_gpio, val);
-#else
-	if (val)
-		contexthub_ipc_write_event(data->pdata->mailbox_client, MAILBOX_EVT_WAKEUP_CLR);
-	else
-		contexthub_ipc_write_event(data->pdata->mailbox_client, MAILBOX_EVT_WAKEUP);
-#endif
-}
-
-static inline void mcu_wakeup_gpio_get_locked(struct nanohub_data *data,
-					      int priority_lock)
+static inline void mcu_wakeup_mailbox_get_locked(struct nanohub_data *data, int priority_lock)
 {
 	atomic_inc(&data->wakeup_lock_cnt);
 	if (!priority_lock && atomic_inc_return(&data->wakeup_cnt) == 1 &&
 	    !nanohub_has_priority_lock_locked(data))
-		mcu_wakeup_gpio_set_value(data, 0);
+			mcu_wakeup_mailbox_set_value(data, 0);
 }
 
-static inline bool mcu_wakeup_gpio_put_locked(struct nanohub_data *data,
+static inline bool mcu_wakeup_mailbox_put_locked(struct nanohub_data *data,
 					      int priority_lock)
 {
-	bool gpio_done = priority_lock ?
+	bool mailbox_done = priority_lock ?
 			 atomic_read(&data->wakeup_cnt) == 0 :
 			 atomic_dec_and_test(&data->wakeup_cnt);
 	bool done = atomic_dec_and_test(&data->wakeup_lock_cnt);
 
 	if (!nanohub_has_priority_lock_locked(data))
-		mcu_wakeup_gpio_set_value(data, gpio_done ? 1 : 0);
+		mcu_wakeup_mailbox_set_value(data, mailbox_done ? 1 : 0);
 
 	return done;
 }
 
-static inline bool mcu_wakeup_gpio_is_locked(struct nanohub_data *data)
+static inline bool mcu_wakeup_mailbox_is_locked(struct nanohub_data *data)
 {
 	return atomic_read(&data->wakeup_lock_cnt) != 0;
 }
 
-inline void nanohub_handle_irq1(struct nanohub_data *data)
+inline void nanohub_handle_irq(struct nanohub_data *data)
 {
 	bool locked;
 
 	spin_lock(&data->wakeup_wait.lock);
-	locked = mcu_wakeup_gpio_is_locked(data);
+	locked = mcu_wakeup_mailbox_is_locked(data);
 	spin_unlock(&data->wakeup_wait.lock);
 	if (!locked)
 		nanohub_notify_thread(data);
 	else
 		wake_up_interruptible_sync(&data->wakeup_wait);
-}
-
-static inline void nanohub_handle_irq2(struct nanohub_data *data)
-{
-	nanohub_notify_thread(data);
 }
 
 static inline bool mcu_wakeup_try_lock(struct nanohub_data *data, int key)
@@ -335,11 +270,148 @@ static inline bool mcu_wakeup_try_lock(struct nanohub_data *data, int key)
 	return atomic_cmpxchg(&data->wakeup_acquired, 0, key) == 0;
 }
 
+#ifdef CHUB_USER_DEBUG
+static void set_chub_error_user(struct nanohub_data *data, enum chub_user_err_id err)
+{
+	int index = data->chub_user.index_err[err] = (data->chub_user.index_err[err] + 1) % CHUB_USER_DEBUG_ERR_NUM;
+	struct chub_user *user_err = &data->chub_user.user_err[err][index];
+	struct chub_user *user_lock = &data->chub_user.user[data->chub_user.index];
+
+	memcpy(user_err, user_lock, sizeof(struct chub_user));
+
+	if (err == chub_user_err_missmatch) /* only backup to user_unlock */ {
+		memcpy(&data->chub_user.user_err_out[index],
+			&data->chub_user.user_out[data->chub_user.index],
+			sizeof(struct chub_user));
+		data->chub_user.user_err_out[index].ret = err;
+	}
+}
+
+static void set_chub_user_info(struct chub_user *user, long ret, u32 lock)
+{
+	if (!user) {
+		nanohub_warn("%s: user not available", __func__);
+		return;
+	}
+	user->pid = current->pid;
+	snprintf(user->name, CHUB_COMMS_SIZE, current->comm);
+	user->lastTime = ktime_get_boottime_ns();
+	user->ret = ret;
+	user->lock_mode = lock;
+}
+
+static void set_chub_user(struct nanohub_data *data, bool in, long time, u32 lock)
+{
+	struct chub_user *user;
+	u32 err = chub_user_err_max;
+
+	if (in) {
+		data->chub_user.index = (data->chub_user.index + 1) % CHUB_USER_DEBUG_NUM;
+
+		/* set current user */
+		user = &data->chub_user.user_cur;
+		user->pid = current->pid;
+		user->lastTime = ktime_get_boottime_ns();
+		user->lock_mode = lock;
+
+		/* put user into lock-queue */
+		user = &data->chub_user.user[data->chub_user.index];
+		set_chub_user_info(user, time, lock);
+
+		/* timeout err */
+		if (time <= 0) {
+			err = chub_user_err_timeout;
+			data->chub_user.err_cnt[err]++;
+			if (atomic_read(&data->wakeup_acquired))
+				err = chub_user_err_wakeaq;
+		}
+	} else {
+		/* put user into unlock-queue */
+		user = &data->chub_user.user_out[data->chub_user.index];
+		set_chub_user_info(user, time, lock);
+
+		/* lock/unlock missmatch err */
+		if (user->pid != data->chub_user.user[data->chub_user.index].pid)
+			err = chub_user_err_missmatch;
+	}
+	if (err != chub_user_err_max) {
+		data->chub_user.err_cnt[err]++;
+		set_chub_error_user(data, err);
+	}
+}
+
+static void printout_chub_user_info(struct device *dev, int i, struct chub_user *user_lock, struct chub_user *user_unlock)
+{
+	if (!user_lock || !user_unlock)
+		return;
+
+	if (user_lock && user_unlock)
+		nanohub_dev_info(dev,
+			"user: i:%d IN(pid:%d, comm:%s, time:%lld, ret:%lld, lock:%d) / OUT(pid:%d, comm:%s, time:%lld, ret:%lld, lock:%d) during %lld\n",
+			i,
+			user_lock->pid, user_lock->name, user_lock->lastTime, user_lock->ret, user_lock->lock_mode,
+			user_unlock->pid, user_unlock->name, user_unlock->lastTime, user_unlock->ret, user_unlock->lock_mode,
+			user_unlock->lastTime - user_lock->lastTime);
+	else
+		nanohub_dev_info(dev,
+			"user: i:%d IN(pid:%d, comm:%s, time:%lld, ret:%lld, lock:%d)\n",
+			i,
+			user_lock->pid, user_lock->name, user_lock->lastTime, user_lock->ret, user_lock->lock_mode);
+}
+
+void print_chub_user(struct nanohub_data *data)
+{
+	int i, j;
+	struct device *dev = data->io.dev;
+
+	nanohub_dev_info(dev, "%s: cur_user: name:%s, id:%d, time:%lld, err:%d, %d, %d\n",
+		__func__, data->chub_user.user_acq.name,
+		data->chub_user.user_cur.pid, data->chub_user.user_cur.lastTime,
+		data->chub_user.err_cnt[chub_user_err_missmatch],
+		data->chub_user.err_cnt[chub_user_err_timeout],
+		data->chub_user.err_cnt[chub_user_err_wakeaq]);
+
+	nanohub_dev_info(dev, "%s: Last_acq: name:%s, id:%d, time:%lld\n",
+		__func__, data->chub_user.user_acq.name,
+		data->chub_user.user_acq.pid, data->chub_user.user_acq.lastTime);
+
+	for (j = 0; j < chub_user_err_max; j++) {
+		if (data->chub_user.index_err[j]) {
+			nanohub_dev_info(dev, "%s: cur_err:%d: cnt:%d\n", __func__, j, data->chub_user.index_err[j]);
+			for (i = 0; i < CHUB_USER_DEBUG_ERR_NUM; i++)
+				printout_chub_user_info(dev, i,
+					&data->chub_user.user_err[j][i],
+					(j == chub_user_err_missmatch) ? &data->chub_user.user_err_out[i] : NULL);
+		}
+	}
+
+	nanohub_dev_info(dev, "%s: dump user of wakeup lock and unlock\n", __func__);
+	for (i = data->chub_user.index + 1; i < CHUB_USER_DEBUG_NUM; i++)
+		printout_chub_user_info(dev, i, &data->chub_user.user[i], &data->chub_user.user_out[i]);
+
+	for (i = 0; i < data->chub_user.index + 1; i++)
+		printout_chub_user_info(dev, i, &data->chub_user.user[i], &data->chub_user.user_out[i]);
+}
+#else
+#define set_chub_user(a, b, c, d) ((void)0)
+#define set_chub_user_info(a, b, c) ((void)0)
+#endif
+
 static inline void mcu_wakeup_unlock(struct nanohub_data *data, int key)
 {
+#ifdef CHUB_USER_DEBUG
+	bool unlocked = atomic_cmpxchg(&data->wakeup_acquired, key, 0) != key;
+
+	if (unlocked) {
+		print_chub_user(data);
+		WARN(unlocked, "%s: failed to unlock with key %d; current state: %d",
+			__func__, key, atomic_read(&data->wakeup_acquired));
+	}
+#else
 	WARN(atomic_cmpxchg(&data->wakeup_acquired, key, 0) != key,
 	     "%s: failed to unlock with key %d; current state: %d",
 	     __func__, key, atomic_read(&data->wakeup_acquired));
+#endif
 }
 
 static inline void nanohub_set_state(struct nanohub_data *data, int state)
@@ -364,18 +436,14 @@ int request_wakeup_ex(struct nanohub_data *data, long timeout_ms,
 {
 	long timeout;
 	bool priority_lock = lock_mode > LOCK_MODE_NORMAL;
-	struct device *sensor_dev = data->io[ID_NANOHUB_SENSOR].dev;
-	int ret;
 	ktime_t ktime_delta;
 	ktime_t wakeup_ktime;
-#ifdef CONFIG_NANOHUB_MAILBOX
 	unsigned long flag;
+	int wakeup_acquired_org;
 
 	spin_lock_irqsave(&data->wakeup_wait.lock, flag);
-#else
-	spin_lock(&data->wakeup_wait.lock);
-#endif
-	mcu_wakeup_gpio_get_locked(data, priority_lock);
+	wakeup_acquired_org = atomic_read(&data->wakeup_acquired);
+	mcu_wakeup_mailbox_get_locked(data, priority_lock);
 	timeout = (timeout_ms != MAX_SCHEDULE_TIMEOUT) ?
 		   msecs_to_jiffies(timeout_ms) :
 		   MAX_SCHEDULE_TIMEOUT;
@@ -384,25 +452,33 @@ int request_wakeup_ex(struct nanohub_data *data, long timeout_ms,
 		wakeup_ktime = ktime_get_boottime();
 	timeout = wait_event_interruptible_timeout_locked(
 			data->wakeup_wait,
-			((priority_lock || nanohub_irq1_fired(data)) &&
+			((priority_lock || nanohub_irq_fired(data)) &&
 			 mcu_wakeup_try_lock(data, key)),
 			timeout
 		  );
 
+	set_chub_user(data, true, timeout, lock_mode);
 	if (timeout <= 0) {
+		nanohub_info("%s: wakeup_acquire: %d->%d, timeout:%d/%d, \
+			err_cnt:%d, priority:%d, key:%d, err_cnt:%d\n",
+			current->comm,
+			wakeup_acquired_org, atomic_read(&data->wakeup_acquired),
+			timeout, timeout_ms, data->wakeup_err_cnt, priority_lock, key,
+			data->wakeup_cnt_acq_err);
 		if (!timeout && !priority_lock) {
-#ifdef CONFIG_NANOHUB_MAILBOX
 			const struct nanohub_platform_data *pdata = data->pdata;
-			struct contexthub_ipc_info *ipc = pdata->mailbox_client;
+			struct contexthub_ipc_info *chub = pdata->mailbox_client;
 
-			dev_info(sensor_dev,
-				"wakeup: timeout:%d/%d, err_cnt:%d, priority:%d, ap_int:%d, cur->status:%d, lock:%d, reset:%d, w:%d, w_lock:%d, w_acq:%d(key:%d)\n",
+			nanohub_info("wakeup: timeout:%d/%d, err_cnt:%d, \
+				priority:%d, ap_int:%d, cur->status:%d, \
+				lock:%d, reset:%d, w:%d, w_lock:%d, w_acq:%d(key:%d)\n",
 				timeout, timeout_ms, data->wakeup_err_cnt, priority_lock,
-				nanohub_irq1_fired(data), current->state,
-				lock_mode, atomic_read(&ipc->in_reset),
-				atomic_read(&data->wakeup_cnt),	atomic_read(&data->wakeup_lock_cnt),
+				//nanohub_irq_fired(data), current->__state,
+				nanohub_irq_fired(data), current->state,
+				lock_mode, atomic_read(&chub->atomic.in_reset),
+				atomic_read(&data->wakeup_cnt), atomic_read(&data->wakeup_lock_cnt),
 				atomic_read(&data->wakeup_acquired), key);
-#endif
+			print_chub_user(data);
 			if (!data->wakeup_err_cnt)
 				data->wakeup_err_ktime = wakeup_ktime;
 			ktime_delta = ktime_sub(ktime_get_boottime(),
@@ -410,25 +486,24 @@ int request_wakeup_ex(struct nanohub_data *data, long timeout_ms,
 			data->wakeup_err_cnt++;
 			if (ktime_to_ns(ktime_delta) > WAKEUP_ERR_TIME_NS
 				&& data->wakeup_err_cnt > WAKEUP_ERR_CNT) {
-				mcu_wakeup_gpio_put_locked(data, priority_lock);
-#ifdef CONFIG_NANOHUB_MAILBOX
+					mcu_wakeup_mailbox_put_locked(data, priority_lock);
 				spin_unlock_irqrestore(&data->wakeup_wait.lock, flag);
-#else
-				spin_unlock(&data->wakeup_wait.lock);
-#endif
-				dev_info(sensor_dev,
-					"wakeup: hard reset due to consistent error:timeout:%d/%d, err_cnt:%d\n",
+				nanohub_info("wakeup: hard reset due to consistent error:timeout:%d/%d, err_cnt:%d\n",
 					timeout, timeout_ms, data->wakeup_err_cnt);
-				ret = nanohub_hw_reset(data);
-				if (ret) {
-					dev_info(sensor_dev,
-						"%s: failed to reset nanohub: ret=%d\n",
-						__func__, ret);
-				}
 				return -ETIME;
 			}
 		}
-		mcu_wakeup_gpio_put_locked(data, priority_lock);
+		/* request_wakeup_ex() is called without release_wakeup_ex().
+		   request_wakeup_ex() reduces the following counts. but, it isn't called */
+		mcu_wakeup_mailbox_put_locked(data, priority_lock);
+		if (atomic_read(&data->wakeup_acquired)) {
+			data->wakeup_cnt_acq_err++;
+			nanohub_err("wakeup: critical err: w:%d, w_lock:%d, w_acq:%d\n",
+				atomic_read(&data->wakeup_cnt),
+				atomic_read(&data->wakeup_lock_cnt),
+				atomic_read(&data->wakeup_acquired));
+		} else
+			data->wakeup_cnt_acq_err = 0;
 
 		if (timeout == 0)
 			timeout = -ETIME;
@@ -436,12 +511,8 @@ int request_wakeup_ex(struct nanohub_data *data, long timeout_ms,
 		data->wakeup_err_cnt = 0;
 		timeout = 0;
 	}
-
-#ifdef CONFIG_NANOHUB_MAILBOX
+	set_chub_user_info(&data->chub_user.user_acq, 0, lock_mode);
 	spin_unlock_irqrestore(&data->wakeup_wait.lock, flag);
-#else
-	spin_unlock(&data->wakeup_wait.lock);
-#endif
 
 	return timeout;
 }
@@ -450,57 +521,20 @@ void release_wakeup_ex(struct nanohub_data *data, int key, int lock_mode)
 {
 	bool done;
 	bool priority_lock = lock_mode > LOCK_MODE_NORMAL;
-#ifdef CONFIG_NANOHUB_MAILBOX
 	unsigned long flag;
 
 	spin_lock_irqsave(&data->wakeup_wait.lock, flag);
-#else
-	spin_lock(&data->wakeup_wait.lock);
-#endif
 
-	done = mcu_wakeup_gpio_put_locked(data, priority_lock);
+	set_chub_user(data, false, 0, lock_mode);
+	done = mcu_wakeup_mailbox_put_locked(data, priority_lock);
 	mcu_wakeup_unlock(data, key);
 
-#ifdef CONFIG_NANOHUB_MAILBOX
 	spin_unlock_irqrestore(&data->wakeup_wait.lock, flag);
-#else
-	spin_unlock(&data->wakeup_wait.lock);
-#endif
 
 	if (!done)
 		wake_up_interruptible_sync(&data->wakeup_wait);
-	else if (nanohub_irq1_fired(data) || nanohub_irq2_fired(data))
+	else if (nanohub_irq_fired(data))
 		nanohub_notify_thread(data);
-}
-
-int nanohub_wait_for_interrupt(struct nanohub_data *data)
-{
-	int ret = -EFAULT;
-
-	/* release the wakeup line, and wait for nanohub to send
-	 * us an interrupt indicating the transaction completed.
-	 */
-
-#ifdef CONFIG_NANOHUB_MAILBOX
-	unsigned long flag;
-	spin_lock_irqsave(&data->wakeup_wait.lock, flag);
-#else
-	spin_lock(&data->wakeup_wait.lock);
-#endif
-
-	if (mcu_wakeup_gpio_is_locked(data)) {
-		mcu_wakeup_gpio_set_value(data, 1);
-		ret = wait_event_interruptible_locked(data->wakeup_wait,
-						      nanohub_irq1_fired(data));
-		mcu_wakeup_gpio_set_value(data, 0);
-	}
-#ifdef CONFIG_NANOHUB_MAILBOX
-	spin_unlock_irqrestore(&data->wakeup_wait.lock, flag);
-#else
-	spin_unlock(&data->wakeup_wait.lock);
-#endif
-
-	return ret;
 }
 
 int nanohub_wakeup_eom(struct nanohub_data *data, bool repeat)
@@ -509,208 +543,38 @@ int nanohub_wakeup_eom(struct nanohub_data *data, bool repeat)
 #ifdef LOWLEVEL_DEBUG
 	int wakeup_flag = 0;
 #endif
-
-#ifdef CONFIG_NANOHUB_MAILBOX
 	unsigned long flag;
-	spin_lock_irqsave(&data->wakeup_wait.lock, flag);
-#else
-	spin_lock(&data->wakeup_wait.lock);
-#endif
 
-	if (mcu_wakeup_gpio_is_locked(data)) {
-		mcu_wakeup_gpio_set_value(data, 1);
+	spin_lock_irqsave(&data->wakeup_wait.lock, flag);
+	if (mcu_wakeup_mailbox_is_locked(data)) {
+		mcu_wakeup_mailbox_set_value(data, 1);
 		if (repeat)
-			mcu_wakeup_gpio_set_value(data, 0);
+			mcu_wakeup_mailbox_set_value(data, 0);
 		ret = 0;
+	}
+
 #ifdef LOWLEVEL_DEBUG
 		wakeup_flag = 1;
 #endif
-	}
 
-#ifdef CONFIG_NANOHUB_MAILBOX
 	spin_unlock_irqrestore(&data->wakeup_wait.lock, flag);
-#else
-	spin_unlock(&data->wakeup_wait.lock);
-#endif
 
 	return ret;
-}
-
-#ifdef CONFIG_EXT_CHUB
-static void __nanohub_interrupt_cfg(struct nanohub_data *data,
-				    u8 interrupt, bool mask)
-{
-	int ret;
-	uint8_t mask_ret;
-	int cnt = 10;
-	struct device *dev = data->io[ID_NANOHUB_SENSOR].dev;
-	int cmd = mask ? CMD_COMMS_MASK_INTR : CMD_COMMS_UNMASK_INTR;
-
-	do {
-		ret = request_wakeup_timeout(data, WAKEUP_TIMEOUT_MS);
-		if (ret) {
-			dev_err(dev,
-				"%s: interrupt %d %smask failed: ret=%d\n",
-				__func__, interrupt, mask ? "" : "un", ret);
-			return;
-		}
-
-		ret =
-		    nanohub_comms_tx_rx_retrans(data, cmd,
-						&interrupt, sizeof(interrupt),
-						&mask_ret, sizeof(mask_ret),
-						false, 10, 0);
-		release_wakeup(data);
-		dev_dbg(dev,
-			"%smasking interrupt %d, ret=%d, mask_ret=%d\n",
-			mask ? "" : "un",
-			interrupt, ret, mask_ret);
-	} while ((ret != 1 || mask_ret != 1) && --cnt > 0);
-}
-#endif
-static inline void nanohub_mask_interrupt(struct nanohub_data *data,
-					  u8 interrupt)
-{
-#ifdef CONFIG_EXT_CHUB
-	__nanohub_interrupt_cfg(data, interrupt, true);
-#endif
-}
-
-static inline void nanohub_unmask_interrupt(struct nanohub_data *data,
-					    u8 interrupt)
-{
-#ifdef CONFIG_EXT_CHUB
-	__nanohub_interrupt_cfg(data, interrupt, false);
-#endif
-}
-
-static ssize_t nanohub_wakeup_query(struct device *dev,
-				    struct device_attribute *attr, char *buf)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	const struct nanohub_platform_data *pdata = data->pdata;
-#ifdef CONFIG_NANOHUB_MAILBOX
-	struct contexthub_ipc_info *ipc;
-#endif
-
-	nanohub_clear_err_cnt(data);
-	if (nanohub_irq1_fired(data) || nanohub_irq2_fired(data))
-		wake_up_interruptible(&data->wakeup_wait);
-
-#ifdef CONFIG_NANOHUB_MAILBOX
-	ipc = pdata->mailbox_client;
-	return scnprintf(buf, PAGE_SIZE, "WAKEUP: %d INT1: %d INT2: %d\n",
-			atomic_read(&ipc->wakeup_chub),
-			atomic_read(&ipc->irq1_apInt), -1);
-#else
-	return scnprintf(buf, PAGE_SIZE, "WAKEUP: %d INT1: %d INT2: %d\n",
-			 gpio_get_value(pdata->wakeup_gpio),
-			 gpio_get_value(pdata->irq1_gpio),
-			 data->irq2 ? gpio_get_value(pdata->irq2_gpio) : -1);
-#endif
-}
-
-static ssize_t nanohub_app_info(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	struct {
-		uint64_t appId;
-		uint32_t appVer;
-		uint32_t appSize;
-	} __packed buffer;
-	uint32_t i = 0;
-	int ret;
-	ssize_t len = 0;
-
-	do {
-		if (request_wakeup(data))
-			return -ERESTARTSYS;
-
-		if (nanohub_comms_tx_rx_retrans
-		    (data, CMD_COMMS_QUERY_APP_INFO, (uint8_t *)&i,
-		     sizeof(i), (u8 *)&buffer, sizeof(buffer),
-		     false, 10, 10) == sizeof(buffer)) {
-			ret =
-			    scnprintf(buf + len, PAGE_SIZE - len,
-				      "app: %d id: %016llx ver: %08x size: %08x\n",
-				      i, buffer.appId, buffer.appVer,
-				      buffer.appSize);
-			if (ret > 0) {
-				len += ret;
-				i++;
-			}
-		} else {
-			ret = -1;
-		}
-
-		release_wakeup(data);
-	} while (ret > 0);
-
-	return len;
-}
-
-static ssize_t nanohub_firmware_query(struct device *dev,
-				      struct device_attribute *attr, char *buf)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	uint16_t buffer[6];
-
-	if (request_wakeup(data))
-		return -ERESTARTSYS;
-
-	if (nanohub_comms_tx_rx_retrans
-	    (data, CMD_COMMS_GET_OS_HW_VERSIONS, NULL, 0, (uint8_t *)&buffer,
-	     sizeof(buffer), false, 10, 10) == sizeof(buffer)) {
-		release_wakeup(data);
-		return scnprintf(buf, PAGE_SIZE,
-				 "hw type: %04x hw ver: %04x bl ver: %04x os ver: %04x variant ver: %08x\n",
-				 buffer[0], buffer[1], buffer[2], buffer[3],
-				 buffer[5] << 16 | buffer[4]);
-	} else {
-		release_wakeup(data);
-		return 0;
-	}
 }
 
 static inline int nanohub_wakeup_lock(struct nanohub_data *data, int mode)
 {
 	int ret;
 
-#ifdef CONFIG_EXT_CHUB
-	if (data->irq2)
-		disable_irq(data->irq2);
-	else
-		nanohub_mask_interrupt(data, 2);
-#endif
-
 	ret = request_wakeup_ex(data,
 				mode == LOCK_MODE_SUSPEND_RESUME ?
 				SUSPEND_TIMEOUT_MS : WAKEUP_TIMEOUT_MS,
 				KEY_WAKEUP_LOCK, mode);
-	if (ret < 0) {
-#ifdef CONFIG_EXT_CHUB
-		if (data->irq2)
-			enable_irq(data->irq2);
-		else
-			nanohub_unmask_interrupt(data, 2);
-#endif
+	if (ret < 0)
 		return ret;
-	}
-
-#ifdef CONFIG_EXT_CHUB
-	if (mode == LOCK_MODE_IO || mode == LOCK_MODE_IO_BL)
-		ret = nanohub_bl_open(data);
-	if (ret < 0) {
-		release_wakeup_ex(data, KEY_WAKEUP_LOCK, mode);
-		return ret;
-	}
-	if (mode != LOCK_MODE_SUSPEND_RESUME)
-		disable_irq(data->irq1);
-#endif
 
 	atomic_set(&data->lock_mode, mode);
-	mcu_wakeup_gpio_set_value(data, mode != LOCK_MODE_IO_BL);
+	mcu_wakeup_mailbox_set_value(data, true);
 
 	return 0;
 }
@@ -721,21 +585,7 @@ static inline int nanohub_wakeup_unlock(struct nanohub_data *data)
 	int mode = atomic_read(&data->lock_mode);
 
 	atomic_set(&data->lock_mode, LOCK_MODE_NONE);
-#ifdef CONFIG_EXT_CHUB
-	if (mode != LOCK_MODE_SUSPEND_RESUME)
-		enable_irq(data->irq1);
-	if (mode == LOCK_MODE_IO || mode == LOCK_MODE_IO_BL)
-		nanohub_bl_close(data);
-	if (data->irq2)
-		enable_irq(data->irq2);
-#endif
 	release_wakeup_ex(data, KEY_WAKEUP_LOCK, mode);
-
-#ifdef CONFIG_EXT_CHUB
-	if (!data->irq2)
-		nanohub_unmask_interrupt(data, 2);
-#endif
-
 	nanohub_notify_thread(data);
 
 	return mode;
@@ -743,30 +593,46 @@ static inline int nanohub_wakeup_unlock(struct nanohub_data *data)
 
 static void __nanohub_hw_reset(struct nanohub_data *data, int boot0)
 {
-#if defined(CONFIG_EXT_CHUB)
-	const struct nanohub_platform_data *pdata = data->pdata;
-
-	gpio_set_value(pdata->nreset_gpio, 0);
-	gpio_set_value(pdata->boot0_gpio, boot0 > 0);
-	usleep_range(30, 40);
-	gpio_set_value(pdata->nreset_gpio, 1);
-	if (boot0 > 0)
-		usleep_range(70000, 75000);
-	else if (!boot0)
-		usleep_range(750000, 800000);
-#elif defined(CONFIG_NANOHUB_MAILBOX)
 	contexthub_reset(data->pdata->mailbox_client, 1, CHUB_ERR_NONE);
-#endif
+}
+
+static void nanohub_reset_status(struct nanohub_data *data);
+static inline void nanohub_print_status(struct nanohub_data *data, const char *caller)
+{
+	nanohub_info("%s by %s: nano(%d,%d), wl(%d,%d,%d), lock:%d,in-reset:%d, time(%llu,%d,%llu,%d,%d)\n",
+		__func__, caller,
+		nanohub_get_state(data),
+		atomic_read(&data->kthread_run),
+		atomic_read(&data->wakeup_lock_cnt),
+		atomic_read(&data->wakeup_cnt),
+		atomic_read(&data->wakeup_acquired),
+		atomic_read(&data->lock_mode),
+		atomic_read(&data->in_reset),
+		data->wakeup_err_ktime,
+		data->wakeup_err_cnt,
+		data->kthread_err_ktime,
+		data->kthread_err_cnt,
+		data->wakeup_cnt_acq_err);
 }
 
 int nanohub_hw_reset(struct nanohub_data *data)
 {
-	int ret = nanohub_wakeup_lock(data, LOCK_MODE_RESET);
+	int ret;
+	const struct nanohub_platform_data *pdata = data->pdata;
+	struct contexthub_ipc_info *chub = pdata->mailbox_client;
 
+	nanohub_dev_info(data->io.dev, "%s enter!\n", __func__);
+	atomic_set(&data->in_reset, 1);
+	ret = nanohub_wakeup_lock(data, LOCK_MODE_RESET);
 	if (!ret) {
 		__nanohub_hw_reset(data, 0);
+		nanohub_reset_status(data);
 		nanohub_wakeup_unlock(data);
 	}
+	atomic_set(&data->in_reset, 0);
+	nanohub_print_status(data, __func__);
+	nanohub_dev_info(data->io.dev, "%s finish: chub_status:%d, ret:%d\n",
+			 __func__, chub->atomic.chub_status, ret);
 	return ret;
 }
 
@@ -782,352 +648,25 @@ static ssize_t nanohub_try_hw_reset(struct device *dev,
 	return ret < 0 ? ret : count;
 }
 
-static ssize_t nanohub_erase_shared(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
+static ssize_t chub_chipid_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-
-#if defined(CONFIG_EXT_CHUB)
-	uint8_t status = CMD_ACK;
-	int ret;
-
-	ret = nanohub_wakeup_lock(data, LOCK_MODE_IO);
-	if (ret < 0)
-		return ret;
-
-	data->err_cnt = 0;
-	__nanohub_hw_reset(data, 1);
-
-	status = nanohub_bl_erase_shared(data);
-	dev_info(dev, "nanohub_bl_erase_shared: status=%02x\n",
-		 status);
-
-	__nanohub_hw_reset(data, 0);
-	nanohub_wakeup_unlock(data);
-
-	return ret < 0 ? ret : count;
-#elif defined(CONFIG_NANOHUB_MAILBOX)
-	__nanohub_hw_reset(data, 1);
-
-	contexthub_ipc_write_event(data->pdata->mailbox_client, MAILBOX_EVT_ERASE_SHARED);
-
-	__nanohub_hw_reset(data, 0);
-	return count;
-#endif
-
-}
-
-#ifdef CONFIG_EXT_CHUB
-static ssize_t nanohub_erase_shared_bl(struct device *dev,
-				       struct device_attribute *attr,
-				       const char *buf, size_t count)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	uint8_t status = CMD_ACK;
-	int ret;
-
-	ret = nanohub_wakeup_lock(data, LOCK_MODE_IO_BL);
-	if (ret < 0)
-		return ret;
-
-	__nanohub_hw_reset(data, -1);
-
-	status = nanohub_bl_erase_shared_bl(data);
-	dev_info(dev, "%s: status=%02x\n", __func__, status);
-
-	__nanohub_hw_reset(data, 0);
-	nanohub_wakeup_unlock(data);
-
-	return ret < 0 ? ret : count;
-}
-#endif
-static ssize_t nanohub_download_bl(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	int ret;
-#ifdef CONFIG_EXT_CHUB
-	const struct nanohub_platform_data *pdata = data->pdata;
-	const struct firmware *fw_entry;
-
-	uint8_t status = CMD_ACK;
-	uint32_t *buf;
-
-	ret = nanohub_wakeup_lock(data, LOCK_MODE_IO);
-	if (ret < 0)
-		return ret;
-
-	data->err_cnt = 0;
-	__nanohub_hw_reset(data, 1);
-
-	ret = request_firmware(&fw_entry, "nanohub.full.bin", dev);
-	if (ret) {
-		dev_err(dev, "%s: err=%d\n", __func__, ret);
-	} else {
-		status = nanohub_bl_download(data, pdata->bl_addr,
-					     fw_entry->data, fw_entry->size);
-		dev_info(dev, "%s: status=%02x\n", __func__, status);
-		release_firmware(fw_entry);
-	}
-
-	__nanohub_hw_reset(data, 0);
-	nanohub_wakeup_unlock(data);
-
-	return ret < 0 ? ret : count;
-#elif defined(CONFIG_NANOHUB_MAILBOX)
-	ret = contexthub_reset(data->pdata->mailbox_client, 1, CHUB_ERR_NONE);
-
-	return ret < 0 ? ret : count;
-#endif
-}
-
-static ssize_t nanohub_download_kernel(struct device *dev,
-				       struct device_attribute *attr,
-				       const char *buf, size_t count)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-
-#ifdef CONFIG_NANOHUB_MAILBOX
-	int ret = contexthub_download_image(data->pdata->mailbox_client, IPC_REG_OS);
-
-	return ret < 0 ? ret : count;
-#else
-	const struct firmware *fw_entry;
-	int ret;
-
-	ret = request_firmware(&fw_entry, "nanohub.update.bin", dev);
-	if (ret) {
-		dev_err(dev, "nanohub_download_kernel: err=%d\n", ret);
-		return -EIO;
-	} else {
-		ret =
-		    nanohub_comms_kernel_download(data, fw_entry->data,
-						  fw_entry->size);
-
-		release_firmware(fw_entry);
-
-		return count;
-	}
-#endif
-}
-
-#ifdef CONFIG_EXT_CHUB
-static ssize_t nanohub_download_kernel_bl(struct device *dev,
-					  struct device_attribute *attr,
-					  const char *buf, size_t count)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	const struct firmware *fw_entry;
-	int ret;
-	uint8_t status = CMD_ACK;
-
-	ret = request_firmware(&fw_entry, "nanohub.kernel.signed", dev);
-	if (ret) {
-		dev_err(dev, "%s: err=%d\n", __func__, ret);
-	} else {
-		ret = nanohub_wakeup_lock(data, LOCK_MODE_IO_BL);
-		if (ret < 0)
-			return ret;
-
-		__nanohub_hw_reset(data, -1);
-
-		status = nanohub_bl_erase_shared_bl(data);
-		dev_info(dev, "%s: (erase) status=%02x\n", __func__, status);
-		if (status == CMD_ACK) {
-			status = nanohub_bl_write_memory(data, 0x50000000,
-							 fw_entry->size,
-							 fw_entry->data);
-			mcu_wakeup_gpio_set_value(data, 1);
-			dev_info(dev, "%s: (write) status=%02x\n", __func__, status);
-			if (status == CMD_ACK) {
-				status = nanohub_bl_update_finished(data);
-				dev_info(dev, "%s: (finish) status=%02x\n", __func__, status);
-			}
-		} else {
-			mcu_wakeup_gpio_set_value(data, 1);
-		}
-
-		__nanohub_hw_reset(data, 0);
-		nanohub_wakeup_unlock(data);
-
-		release_firmware(fw_entry);
-	}
-
-	return ret < 0 ? ret : count;
-}
-#endif
-
-static ssize_t nanohub_download_app(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	const struct firmware *fw_entry;
-	char buffer[70];
-	int i, ret, ret1, ret2, file_len = 0, appid_len = 0, ver_len = 0;
-	const char *appid = NULL, *ver = NULL;
-	unsigned long version;
-	uint64_t id;
-	uint32_t cur_version;
-	bool update = true;
-
-	for (i = 0; i < count; i++) {
-		if (buf[i] == ' ') {
-			if (i + 1 == count) {
-				break;
-			} else {
-				if (appid == NULL)
-					appid = buf + i + 1;
-				else if (ver == NULL)
-					ver = buf + i + 1;
-				else
-					break;
-			}
-		} else if (buf[i] == '\n' || buf[i] == '\r') {
-			break;
-		} else {
-			if (ver)
-				ver_len++;
-			else if (appid)
-				appid_len++;
-			else
-				file_len++;
-		}
-	}
-
-	if (file_len > 64 || appid_len > 16 || ver_len > 8 || file_len < 1)
-		return -EIO;
-
-	memcpy(buffer, buf, file_len);
-	memcpy(buffer + file_len, ".napp", 5);
-	buffer[file_len + 5] = '\0';
-
-	ret = request_firmware(&fw_entry, buffer, dev);
-	if (ret) {
-		dev_err(dev, "nanohub_download_app(%s): err=%d\n",
-			buffer, ret);
-		release_firmware(fw_entry);
-		return -EIO;
-	}
-	if (appid_len > 0 && ver_len > 0) {
-		memcpy(buffer, appid, appid_len);
-		buffer[appid_len] = '\0';
-
-		ret1 = kstrtoull(buffer, 16, &id);
-
-		memcpy(buffer, ver, ver_len);
-		buffer[ver_len] = '\0';
-
-		ret2 = kstrtoul(buffer, 16, &version);
-
-		if (ret1 == 0 && ret2 == 0) {
-			if (request_wakeup(data))
-				return -ERESTARTSYS;
-			if (nanohub_comms_tx_rx_retrans
-			    (data, CMD_COMMS_GET_APP_VERSIONS,
-			     (uint8_t *)&id, sizeof(id),
-			     (uint8_t *)&cur_version,
-			     sizeof(cur_version), false, 10,
-			     10) == sizeof(cur_version)) {
-				if (cur_version == version)
-					update = false;
-			}
-			release_wakeup(data);
-		}
-	}
-
-	if (update)
-		ret =
-		    nanohub_comms_app_download(data, fw_entry->data,
-					       fw_entry->size);
-
-	release_firmware(fw_entry);
-
-	return count;
-}
-#ifdef CONFIG_EXT_CHUB
-static ssize_t nanohub_lock_bl(struct device *dev,
-			       struct device_attribute *attr,
-			       const char *buf, size_t count)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	int ret;
-	uint8_t status = CMD_ACK;
-
-	ret = nanohub_wakeup_lock(data, LOCK_MODE_IO);
-	if (ret < 0)
-		return ret;
-
-	__nanohub_hw_reset(data, 1);
-
-	gpio_set_value(data->pdata->boot0_gpio, 0);
-	/* this command reboots itself */
-	status = nanohub_bl_lock(data);
-	dev_info(dev, "%s: status=%02x\n", __func__, status);
-	msleep(350);
-
-	nanohub_wakeup_unlock(data);
-
-	return ret < 0 ? ret : count;
-}
-
-static ssize_t nanohub_unlock_bl(struct device *dev,
-				 struct device_attribute *attr,
-				 const char *buf, size_t count)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	int ret;
-	uint8_t status = CMD_ACK;
-
-	ret = nanohub_wakeup_lock(data, LOCK_MODE_IO);
-	if (ret < 0)
-		return ret;
-
-	__nanohub_hw_reset(data, 1);
-
-	gpio_set_value(data->pdata->boot0_gpio, 0);
-	/* this command reboots itself (erasing the flash) */
-	status = nanohub_bl_unlock(data);
-	dev_info(dev, "%s: status=%02x\n", __func__, status);
-	msleep(20);
-
-	nanohub_wakeup_unlock(data);
-
-	return ret < 0 ? ret : count;
-}
-#endif
-
-#ifdef CONFIG_NANOHUB_MAILBOX
-static int chub_get_chipid(struct contexthub_ipc_info *ipc)
-
-{
-	int trycnt = 0;
+	u8 senstype = (u8)ipc_read_value(IPC_VAL_A2C_CHIPID);
 	u32 id = 0;
+	int trycnt = 0;
 
-	ipc_write_debug_val(IPC_DATA_C2A, 0); /* clear */
-	contexthub_ipc_write_event(ipc, (u32)IPC_DEBUG_UTC_SENSOR_CHIPID);
-
+	nanohub_dev_info(dev, "%s: senstype:%d\n", __func__, senstype);
 	do {
-		msleep(WAIT_CHUB_MS);
-		id = ipc_read_debug_val(IPC_DATA_C2A);
-		if (++trycnt > WAIT_TRY_CNT) {
-			pr_warn("%s: can't get result\n", __func__);
+		id = (u32)ipc_get_sensor_info(senstype);
+		if (!id && (++trycnt > WAIT_TRY_CNT)) {
+			nanohub_warn("%s: can't get result: senstype:%d, id:%d, trycnt:%d\n",
+					__func__, senstype, id);
+			msleep(WAIT_CHUB_MS);
 			break;
 		}
 	} while (!id);
 
-	return id;
-}
-
-static ssize_t chub_chipid_show(struct device *dev,
-			     struct device_attribute *attr, char *buf)
-{
-	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	u32 id = chub_get_chipid(data->pdata->mailbox_client);
-
-	dev_info(dev, "%s: %d\n", __func__, id);
+	nanohub_dev_info(dev, "%s: senstype:%d, id:%d\n", __func__, senstype, id);
 	if (id)
 		return sprintf(buf, "0x%x\n", id);
 	else
@@ -1141,9 +680,9 @@ static ssize_t chub_chipid_store(struct device *dev,
 	long id;
 	int err = kstrtol(&buf[0], 10, &id);
 
-	dev_info(dev, "%s: id: %d\n", __func__, id);
+	nanohub_dev_info(dev, "%s: id: %d\n", __func__, id);
 	if (!err) {
-		ipc_write_debug_val(IPC_DATA_A2C, (u32)id);
+		ipc_write_value(IPC_VAL_A2C_CHIPID, (u32)id);
 		return count;
 	} else {
 		return 0;
@@ -1167,17 +706,18 @@ static ssize_t chub_sensortype_show(struct device *dev,
 
 void nanohub_add_dump_request(struct nanohub_data *data)
 {
-	struct nanohub_io *io = &data->io[ID_NANOHUB_SENSOR];
+	struct nanohub_io *io = &data->io;
 	struct nanohub_buf *buf = nanohub_io_get_buf(&data->free_pool, false);
 	uint32_t *buffer;
 
 	if (buf) {
 		buffer = (uint32_t *)buf->buffer;
 		*buffer = EVT_DEBUG_DUMP;
+		buf->length = sizeof(EVT_DEBUG_DUMP);
 		nanohub_io_put_buf(io, buf);
-		wake_lock_timeout(&data->wakelock_read, msecs_to_jiffies(250));
+		chub_wake_lock_timeout(data->ws, msecs_to_jiffies(250));
 	} else {
-		pr_err("%s: cann't get io buf\n", __func__);
+		nanohub_err("%s: can't get io buf\n", __func__);
 	}
 }
 
@@ -1185,62 +725,46 @@ static ssize_t chub_dumpio_show(struct device *dev,
 			     struct device_attribute *attr, char *buf)
 {
 	struct nanohub_data *data = dev_get_nanohub_data(dev);
-	struct nanohub_io *io;
 	struct nanohub_buf *desc = NULL;
-	int buf_io_cnt[ID_NANOHUB_MAX] = {0, 0};
+	int buf_io_cnt = 0;
 	int free_io_cnt = 0;
-	int i;
-	int io_num;
 
-	for (i = 0; i < ID_NANOHUB_MAX; i++) {
-		io_num = i;
-		io = &data->io[i];
-		list_for_each_entry(desc, &io->buf_list, list)
-			buf_io_cnt[i]++;
-	}
+	list_for_each_entry(desc, &data->io.buf_list, list)
+		buf_io_cnt++;
 	list_for_each_entry(desc, &data->free_pool.buf_list, list)
 		free_io_cnt++;
 
-	return sprintf(buf, "%s: sensor:%d, comms:%d, free:%d \n", __func__,
-		buf_io_cnt[ID_NANOHUB_SENSOR], buf_io_cnt[ID_NANOHUB_COMMS], free_io_cnt);
+	return sprintf(buf, "%s: sensor:%d free:%d \n", __func__, buf_io_cnt, free_io_cnt);
 }
-#endif
+
+static ssize_t nanohub_sync_memlogger(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct nanohub_data *data = dev_get_nanohub_data(dev);
+
+	contexthub_sync_memlogger(data->pdata->mailbox_client);
+
+	return count;
+}
 
 static struct device_attribute attributes[] = {
-	__ATTR(wakeup, 0440, nanohub_wakeup_query, NULL),
-	__ATTR(app_info, 0440, nanohub_app_info, NULL),
-	__ATTR(firmware_version, 0440, nanohub_firmware_query, NULL),
-	__ATTR(download_bl, 0220, NULL, nanohub_download_bl),
-	__ATTR(download_kernel, 0220, NULL, nanohub_download_kernel),
-#ifdef CONFIG_EXT_CHUB
-	__ATTR(download_kernel_bl, 0220, NULL, nanohub_download_kernel_bl),
-#endif
-	__ATTR(download_app, 0220, NULL, nanohub_download_app),
-	__ATTR(erase_shared, 0220, NULL, nanohub_erase_shared),
-#ifdef CONFIG_EXT_CHUB
-	__ATTR(erase_shared_bl, 0220, NULL, nanohub_erase_shared_bl),
-#endif
 	__ATTR(reset, 0220, NULL, nanohub_try_hw_reset),
-#ifdef CONFIG_EXT_CHUB
-	__ATTR(lock, 0220, NULL, nanohub_lock_bl),
-	__ATTR(unlock, 0220, NULL, nanohub_unlock_bl),
-#endif
-#ifdef CONFIG_NANOHUB_MAILBOX
 	__ATTR(chipid, 0664, chub_chipid_show, chub_chipid_store),
 	__ATTR(sensortype, 0775, chub_sensortype_show, chub_sensortype_store),
 	__ATTR(dumpio, 0440, chub_dumpio_show, NULL),
-#endif
+	__ATTR(sync_memlogger, 0220, NULL, nanohub_sync_memlogger),
 };
 
 static inline int nanohub_create_sensor(struct nanohub_data *data)
 {
 	int i, ret;
-	struct device *sensor_dev = data->io[ID_NANOHUB_SENSOR].dev;
+	struct device *sensor_dev = data->io.dev;
 
 	for (i = 0, ret = 0; i < ARRAY_SIZE(attributes); i++) {
 		ret = device_create_file(sensor_dev, &attributes[i]);
 		if (ret) {
-			dev_err(sensor_dev,
+			nanohub_dev_err(sensor_dev,
 				"create sysfs attr %d [%s] failed; err=%d\n",
 				i, attributes[i].attr.name, ret);
 			goto fail_attr;
@@ -1250,7 +774,7 @@ static inline int nanohub_create_sensor(struct nanohub_data *data)
 	ret = sysfs_create_link(&sensor_dev->kobj,
 				&data->iio_dev->dev.kobj, "iio");
 	if (ret) {
-		dev_err(sensor_dev,
+		nanohub_dev_err(sensor_dev,
 			"sysfs_create_link failed; err=%d\n", ret);
 		goto fail_attr;
 	}
@@ -1265,89 +789,54 @@ done:
 
 static int nanohub_create_devices(struct nanohub_data *data)
 {
-	int i, ret;
+	int ret;
 	struct device *chub_dev;
-	static const char *names[ID_NANOHUB_MAX] = {
-			"nanohub", "nanohub_comms"
-	};
+	struct nanohub_io *io = &data->io;
 
-	for (i = 0; i < ID_NANOHUB_MAX; ++i) {
-		struct nanohub_io *io = &data->io[i];
-
-		nanohub_io_init(io, data, device_create(sensor_class, NULL,
-							MKDEV(major, i),
-							io, names[i]));
-		if (IS_ERR(io->dev)) {
-			ret = PTR_ERR(io->dev);
-			pr_err("nanohub: device_create failed for %s; err=%d\n",
-			       names[i], ret);
-			goto fail_dev;
-		}
+	nanohub_io_init(io, data, device_create(sensor_class, NULL,
+						MKDEV(major, 0), io, "nanohub"));
+	if (IS_ERR(io->dev)) {
+		ret = PTR_ERR(io->dev);
+		nanohub_err("nanohub: device_create failed for nanohub; err=%d\n", ret);
+		goto fail_dev;
 	}
 	chub_dev = device_create(sensor_class, NULL, MKDEV(chub_dev_major, 0), NULL, "chub_dev");
 	if(chub_dev == NULL)
-		pr_info("nanohub: device_create failed for chub_dev!\n");
+		nanohub_info("nanohub: device_create failed for chub_dev!\n");
 	ret = nanohub_create_sensor(data);
 	if (!ret)
 		goto done;
 
 fail_dev:
-	for (--i; i >= 0; --i)
-		device_destroy(sensor_class, MKDEV(major, i));
+	device_destroy(sensor_class, MKDEV(major, 0));
 	device_destroy(sensor_class, MKDEV(chub_dev_major, 0));
 done:
 	return ret;
 }
-
+/*
 static int nanohub_match_devt(struct device *dev, const void *data)
 {
 	const dev_t *devt = data;
 
 	return dev->devt == *devt;
 }
-
-int nanohub_reset(struct nanohub_data *data)
-{
-#ifdef CONFIG_NANOHUB_MAILBOX
-	return contexthub_poweron(data->pdata->mailbox_client);
-#else
-	const struct nanohub_platform_data *pdata = data->pdata;
-
-	gpio_set_value(pdata->nreset_gpio, 1);
-	usleep_range(650000, 700000);
-
-#ifdef CONFIG_EXT_CHUB
-	enable_irq(data->irq1);
-	if (data->irq2)
-		enable_irq(data->irq2);
-	else
-		nanohub_unmask_interrupt(data, 2);
-#else
-	contexthub_ipc_write_event(data->pdata->mailbox_client, (u32)MAILBOX_EVT_ENABLE_IRQ);
-#endif
-
-	return 0;
-#endif
-}
-
-static int nanohub_kthread(void *arga);
+*/
 static int nanohub_open(struct inode *inode, struct file *file)
 {
 	dev_t devt = inode->i_rdev;
 	struct device *dev;
-#ifdef CONFIG_NANOHUB_MAILBOX
 	struct nanohub_io *io;
-#endif
-	dev = class_find_device(sensor_class, NULL, &devt, nanohub_match_devt);
+
+	dev = nanohub_dev;
 	if (dev) {
 		file->private_data = dev_get_drvdata(dev);
 		nonseekable_open(inode, file);
-#ifdef CONFIG_NANOHUB_MAILBOX
 		io = file->private_data;
-		if (!nanohub_reset(io->data))
+		if (!contexthub_poweron(io->data->pdata->mailbox_client)) {
 			io->data->thread = kthread_run(nanohub_kthread, io->data, "nanohub");
-		udelay(30);
-#endif
+			usleep_range(30, 100);
+		}
+
 		return 0;
 	}
 
@@ -1375,7 +864,6 @@ static ssize_t nanohub_read(struct file *file, char *buffer, size_t length,
 	else
 		ret = buf->length;
 
-#ifdef CONFIG_NANOHUB_MAILBOX
 	if (nanohub_is_reset_notify_io(buf)) {
 		io = &io->data->free_pool;
 		spin_lock(&io->buf_wait.lock);
@@ -1383,45 +871,29 @@ static ssize_t nanohub_read(struct file *file, char *buffer, size_t length,
 		spin_unlock(&io->buf_wait.lock);
 	} else
 		nanohub_io_put_buf(&data->free_pool, buf);
-#else
-	nanohub_io_put_buf(&data->free_pool, buf);
-#endif
 
 	return ret;
 }
 
-#ifdef CONFIG_NANOHUB_MAILBOX
 #define CHUB_RESET_THOLD (3)
 #define CHUB_RESET_THOLD_MINOR (5)
 
 static void nanohub_status_dump(struct nanohub_data *data, const char *caller)
 {
 	const struct nanohub_platform_data *pdata = data->pdata;
-	struct contexthub_ipc_info *ipc = pdata->mailbox_client;
+	struct contexthub_ipc_info *chub = pdata->mailbox_client;
 	int i = 0;
 
-	pr_info("%s by %s: :%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
-		__func__, caller,
-		nanohub_get_state(data),
-		atomic_read(&data->wakeup_lock_cnt),
-		atomic_read(&data->wakeup_cnt),
-		atomic_read(&data->kthread_run),
-		atomic_read(&data->lock_mode),
-		data->wakeup_err_ktime,
-		data->wakeup_err_cnt,
-		data->kthread_err_ktime,
-		data->kthread_err_cnt);
-
+	nanohub_print_status(data, caller);
+	print_chub_user(data);
 	for (i = 0; i < CHUB_ERR_MAX; i++)
-		if (ipc->err_cnt[i])
-			pr_info("%s: ipc dump:%d\n", ipc->err_cnt[i]);
+		if (chub->misc.err_cnt[i])
+			nanohub_info("%s: ipc err%d:%d\n", __func__, i, chub->misc.err_cnt[i]);
 }
 
-void nanohub_reset_status(struct nanohub_data *data)
+static void nanohub_reset_status(struct nanohub_data *data)
 {
-	struct contexthub_ipc_info *ipc = data->pdata->mailbox_client;
-
-	dev_info(ipc->dev, "%s\n", __func__);
+	nanohub_info("%s\n", __func__);
 	msleep_interruptible(WAKEUP_TIMEOUT_MS);
 	nanohub_set_state(data, ST_RUNNING);
 	nanohub_clear_err_cnt(data);
@@ -1430,50 +902,93 @@ void nanohub_reset_status(struct nanohub_data *data)
 
 static void chub_error_check(struct nanohub_data *data)
 {
-	struct contexthub_ipc_info *ipc = data->pdata->mailbox_client;
+	struct contexthub_ipc_info *chub = data->pdata->mailbox_client;
 	int i;
 	int thold;
 
 	for (i = 0; i < CHUB_ERR_NEED_RESET; i++) {
-		if (ipc->err_cnt[i]) {
+		if (chub->misc.err_cnt[i]) {
 			thold = (i < CHUB_ERR_CRITICAL) ? 1 :
 				((i < CHUB_ERR_MAJER) ? CHUB_RESET_THOLD : CHUB_RESET_THOLD_MINOR);
 
-			if (ipc->err_cnt[i] >= thold)
+			if (chub->misc.err_cnt[i] >= thold)
 				contexthub_handle_debug(data->pdata->mailbox_client, i);
 		}
 	}
 }
-#endif
+
+static DEFINE_MUTEX(chub_dfs_mutex);
+
+static void contexthub_wait_dfs_scan(struct contexthub_ipc_info *chub)
+{
+	u32 trycnt = 0;
+
+	mutex_lock(&chub_dfs_mutex);
+	if (chub->misc.chub_dfs_gov == DFS_GVERNOR_MAX) {
+		if (contexthub_get_token(chub)) {
+			nanohub_warn("%s: chub is not running, exit scan", __func__);
+			mutex_unlock(&chub_dfs_mutex);
+			return;
+		}
+		nanohub_dev_info(chub->dev, "%s wait for dfs scanning. dfs table:%d\n",
+				 __func__, ipc_get_dfs_numSensor());
+
+		while ((ipc_get_dfs_gov() == DFS_GVERNOR_MAX) &&
+			(trycnt++ < (WAIT_CHUB_DFS_SCAN_MS_MAX / WAIT_CHUB_DFS_SCAN_MS))) {
+			nanohub_dev_info(chub->dev, "%s dfs scanning(%d). dfs gov:%d, table:%d\n",
+					 __func__, trycnt, ipc_get_dfs_gov(),
+					 ipc_get_dfs_numSensor());
+			contexthub_put_token(chub);
+			msleep(WAIT_CHUB_DFS_SCAN_MS);
+			if (contexthub_get_token(chub)) {
+				nanohub_warn("%s: chub is not running, exit scan", __func__);
+				mutex_unlock(&chub_dfs_mutex);
+				return;
+			}
+		}
+
+		chub->misc.chub_dfs_gov = ipc_get_dfs_gov();
+		nanohub_dev_info(chub->dev, "%s dfs scanning (%d) done. dfs:%d table:%d\n",
+				 __func__, trycnt, chub->misc.chub_dfs_gov, ipc_get_dfs_numSensor());
+		if (chub->misc.chub_dfs_gov == DFS_GVERNOR_MAX) {
+			nanohub_dev_err(chub->dev, "%s fails to get dfs scanning\n", __func__);
+			/* set chub_dfs_gov to 0 not to call this function again */
+			chub->misc.chub_dfs_gov = 0;
+		}
+		contexthub_put_token(chub);
+	}
+	mutex_unlock(&chub_dfs_mutex);
+}
 
 static ssize_t nanohub_write(struct file *file, const char *buffer,
 			     size_t length, loff_t *offset)
 {
 	struct nanohub_io *io = file->private_data;
 	struct nanohub_data *data = io->data;
+	struct contexthub_ipc_info *chub = data->pdata->mailbox_client;
 	int ret;
-#ifdef CONFIG_NANOHUB_MAILBOX
-	struct contexthub_ipc_info *ipc = data->pdata->mailbox_client;
 
-	if (atomic_read(&ipc->chub_status) != CHUB_ST_RUN) {
-		dev_warn(data->io[ID_NANOHUB_SENSOR].dev,
-			"%s fails. nanohub isn't running\n", __func__);
+	/* check nanohub is in reset */
+	if ((atomic_read(&chub->atomic.chub_status) != CHUB_ST_RUN) || atomic_read(&data->in_reset)) {
+		nanohub_dev_warn(data->io.dev,
+			"%s fails. nanohub isn't running: %d, %d\n", __func__,
+			atomic_read(&chub->atomic.chub_status), atomic_read(&data->in_reset));
 		return -EINVAL;
 	}
+
+	if (chub->misc.chub_dfs_gov == DFS_GVERNOR_MAX)
+		contexthub_wait_dfs_scan(chub);
 
 	/* wakeup timeout should be bigger than timeout_write (544) to support both usecase */
 	ret = request_wakeup_timeout(data, 644);
 	if (ret) {
-		dev_warn(data->io[ID_NANOHUB_SENSOR].dev,
+		nanohub_dev_warn(data->io.dev,
 			"%s fails to wakeup. ret:%d\n", __func__, ret);
-		contexthub_handle_debug(ipc, CHUB_ERR_COMMS_WAKE_ERR);
+		contexthub_handle_debug(chub, CHUB_ERR_COMMS_WAKE_ERR);
 	} else {
-		if (ipc->err_cnt[CHUB_ERR_COMMS_WAKE_ERR])
-			ipc->err_cnt[CHUB_ERR_COMMS_WAKE_ERR] = 0;
+		if (chub->misc.err_cnt[CHUB_ERR_COMMS_WAKE_ERR])
+			chub->misc.err_cnt[CHUB_ERR_COMMS_WAKE_ERR] = 0;
 	}
-#else
-	ret = request_wakeup_timeout(data, 500);
-#endif
 
 	if (ret)
 		return ret;
@@ -1505,67 +1020,76 @@ static int nanohub_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int chub_dev_open(struct inode *inode, struct file *file)
-{
-	pr_info("%s\n", __func__);
-	return 0;
-}
-
-static ssize_t chub_dev_read(struct file *file, char *buffer,
-								size_t length, loff_t *offset)
-{
-	return 0;
-}
-
 static int nanohub_match_name(struct device *dev, const void *data)
 {
 	const char *name = data;
 
 	if(dev->kobj.name == NULL) {
-		pr_info("nanohub device name invalid\n");
+		nanohub_info("nanohub device name invalid\n");
 		return 0;
 	}
 
-	pr_info("nanohub device name = %s\n", dev->kobj.name);
+	nanohub_info("nanohub device name = %s\n", dev->kobj.name);
 	return !strcmp(dev->kobj.name, name);
+}
+
+static int chub_dev_open(struct inode *inode, struct file *file)
+{
+	struct device *dev_nanohub;
+	struct nanohub_data *data;
+	struct contexthub_ipc_info *chub;
+
+	nanohub_info("%s\n", __func__);
+	dev_nanohub = nanohub_dev;
+	if (!dev_nanohub) {
+		nanohub_err("%s: dev_nanohub not available\n", __func__);
+		return -ENODEV;
+	}
+
+	data = dev_get_nanohub_data(dev_nanohub);
+	if (!data) {
+		nanohub_err("%s nanohub_data not available\n", __func__);
+		return -ENODEV;
+	}
+
+	chub = data->pdata->mailbox_client;
+	if (!chub) {
+		nanohub_err("%s ipc not available\n", __func__);
+		return -ENODEV;
+	}
+	file->private_data = chub;
+
+	nanohub_info("%s open chub dev\n", __func__);
+	return 0;
+}
+
+static ssize_t chub_dev_read(struct file *file, char *buffer,
+			     size_t length, loff_t *offset)
+{
+	return 0;
 }
 
 static ssize_t chub_dev_write(struct file *file, const char *buffer,
 			     size_t length, loff_t *offset)
 {
-	struct device *dev_nanohub;
-	struct nanohub_data *data;
-	struct contexthub_ipc_info *ipc;
+	struct contexthub_ipc_info *chub = file->private_data;
 	int8_t num_os;
 	int ret;
 
-	dev_nanohub = class_find_device(sensor_class, NULL, "nanohub", nanohub_match_name);
-	if(dev_nanohub == NULL) {
-		pr_err("%s: dev_nanohub not available\n", __func__);
+	if (!chub) {
+		nanohub_err("%s: dev_nanohub not available\n", __func__);
 		return -EINVAL;
 	}
 
-	data = dev_get_nanohub_data(dev_nanohub);
-	if(data == NULL) {
-		pr_err("%s nanohub_data not available\n", __func__);
-		return -EINVAL;
-	}
-
-	ipc = data->pdata->mailbox_client;
-	if(ipc == NULL) {
-		pr_err("%s ipc not available\n", __func__);
-		return -EINVAL;
-	}
-
-	//read int8_t num_os
+	/* read int8_t num_os */
 	ret = copy_from_user(&num_os, buffer, sizeof(num_os));
 
 	if(num_os > 0 && num_os < SENSOR_VARIATION) {
-		ipc->sel_os = true;
-		strncpy(ipc->os_name, os_image[num_os], sizeof(ipc->os_name) - 1);
-		pr_info("%s saved os name: %s\n", __func__, os_image[num_os]);
+		chub->misc.multi_os = false;
+		chub->misc.num_os = num_os;
+		nanohub_info("%s saved os name: %s\n", __func__, os_image[num_os]);
 	} else {
-		pr_warn("%s num_os is invalid %d\n", __func__, num_os);
+		nanohub_warn("%s num_os is invalid %d\n", __func__, num_os);
 	}
 
 	return 0;
@@ -1574,67 +1098,13 @@ static ssize_t chub_dev_write(struct file *file, const char *buffer,
 static void nanohub_destroy_devices(struct nanohub_data *data)
 {
 	int i;
-	struct device *sensor_dev = data->io[ID_NANOHUB_SENSOR].dev;
+	struct device *sensor_dev = data->io.dev;
 
 	sysfs_remove_link(&sensor_dev->kobj, "iio");
 	for (i = 0; i < ARRAY_SIZE(attributes); i++)
 		device_remove_file(sensor_dev, &attributes[i]);
-	for (i = 0; i < ID_NANOHUB_MAX; ++i)
-		device_destroy(sensor_class, MKDEV(major, i));
+	device_destroy(sensor_class, MKDEV(major, 0));
 	device_destroy(sensor_class, MKDEV(chub_dev_major, 0));
-}
-
-#ifdef CONFIG_EXT_CHUB
-static irqreturn_t nanohub_irq1(int irq, void *dev_id)
-{
-	struct nanohub_data *data = (struct nanohub_data *)dev_id;
-
-	nanohub_handle_irq1(data);
-
-	return IRQ_HANDLED;
-}
-
-static irqreturn_t nanohub_irq2(int irq, void *dev_id)
-{
-	struct nanohub_data *data = (struct nanohub_data *)dev_id;
-
-	nanohub_handle_irq2(data);
-
-	return IRQ_HANDLED;
-}
-#endif
-
-static bool nanohub_os_log(char *buffer, int len)
-{
-	if (le32_to_cpu((((uint32_t *)buffer)[0]) & 0x7FFFFFFF) ==
-	    OS_LOG_EVENTID) {
-		char *mtype, *mdata = &buffer[5];
-
-		buffer[len] = 0x00;
-
-		switch (buffer[4]) {
-		case 'E':
-			mtype = KERN_ERR;
-			break;
-		case 'W':
-			mtype = KERN_WARNING;
-			break;
-		case 'I':
-			mtype = KERN_INFO;
-			break;
-		case 'D':
-			mtype = KERN_DEBUG;
-			break;
-		default:
-			mtype = KERN_DEFAULT;
-			mdata--;
-			break;
-		}
-		printk("%snanohub: %s", mtype, mdata);
-		return true;
-	} else {
-		return false;
-	}
 }
 
 static void nanohub_process_buffer(struct nanohub_data *data,
@@ -1644,10 +1114,10 @@ static void nanohub_process_buffer(struct nanohub_data *data,
 	uint32_t event_id;
 	uint8_t interrupt;
 	bool wakeup = false;
-	struct nanohub_io *io = &data->io[ID_NANOHUB_SENSOR];
+	struct nanohub_io *io = &data->io;
 
 	data->kthread_err_cnt = 0;
-	if (ret < 4 || nanohub_os_log((*buf)->buffer, ret)) {
+	if (ret < 4) {
 		release_wakeup(data);
 		return;
 	}
@@ -1663,19 +1133,22 @@ static void nanohub_process_buffer(struct nanohub_data *data,
 		if (interrupt == WAKEUP_INTERRUPT)
 			wakeup = true;
 	}
-	if (event_id == APP_TO_HOST_EVENTID) {
-		wakeup = true;
-		/* chub doesn't enable nanohal. use sensorhal io */
-		io = &data->io[ID_NANOHUB_COMMS];
-	}
 
 	nanohub_io_put_buf(io, *buf);
 
 	*buf = NULL;
 	/* (for wakeup interrupts): hold a wake lock for 250ms so the sensor hal
 	 * has time to grab its own wake lock */
-	if (wakeup)
-		wake_lock_timeout(&data->wakelock_read, msecs_to_jiffies(250));
+	if (wakeup) {
+		u64 diff_time = ktime_get_boottime_ns() - data->wakelock_req_time;
+
+		if ((diff_time / 1000000) > 1) {
+			nanohub_dev_info(io->dev, "%s: prev:%lld, diff:%lld\n", __func__, data->wakelock_req_time, diff_time);
+			data->wakelock_req_time = ktime_get_boottime_ns();
+			chub_wake_lock_timeout(data->ws, msecs_to_jiffies(250));
+		} else
+			nanohub_dev_warn(io->dev, "%s: skip wakelock: prev:%lld, diff:%lld\n", __func__, data->wakelock_req_time, diff_time);
+	}
 	release_wakeup(data);
 }
 
@@ -1686,9 +1159,8 @@ static int nanohub_kthread(void *arg)
 	int ret;
 	ktime_t ktime_delta;
 	uint32_t clear_interrupts[8] = { 0x00000006 };
-	struct device *sensor_dev = data->io[ID_NANOHUB_SENSOR].dev;
 	static const struct sched_param param = {
-		.sched_priority = (MAX_USER_RT_PRIO/2)-1,
+		.sched_priority = (MAX_RT_PRIO/2)-1,
 	};
 
 	data->kthread_err_cnt = 0;
@@ -1696,9 +1168,7 @@ static int nanohub_kthread(void *arg)
 	nanohub_set_state(data, ST_IDLE);
 
 	while (!kthread_should_stop()) {
-#ifdef CONFIG_NANOHUB_MAILBOX
 		chub_error_check(data);
-#endif
 		switch (nanohub_get_state(data)) {
 		case ST_IDLE:
 			wait_event_interruptible(data->kthread_wait,
@@ -1711,12 +1181,10 @@ static int nanohub_kthread(void *arg)
 						data->kthread_err_ktime);
 			if (ktime_to_ns(ktime_delta) > KTHREAD_ERR_TIME_NS
 				&& data->kthread_err_cnt > KTHREAD_ERR_CNT) {
-				dev_info(sensor_dev,
-					"kthread: hard reset due to consistent error\n");
+				nanohub_info("kthread: hard reset due to consistent error\n");
 				ret = nanohub_hw_reset(data);
 				if (ret) {
-					dev_info(sensor_dev,
-						"%s: failed to reset nanohub: ret=%d\n",
+					nanohub_info("%s: failed to reset nanohub: ret=%d\n",
 						__func__, ret);
 				}
 			}
@@ -1733,20 +1201,18 @@ static int nanohub_kthread(void *arg)
 		if (buf) {
 			ret = request_wakeup_timeout(data, 600);
 			if (ret) {
-				dev_info(sensor_dev,
-					 "%s: request_wakeup_timeout: ret=%d, err_cnt:%d\n",
+				nanohub_info("%s: request_wakeup_timeout: ret=%d, err_cnt:%d\n",
 					 __func__, ret, data->kthread_err_cnt);
 				continue;
 			}
 
-			ret = nanohub_comms_rx_retrans_boottime(
-			    data, CMD_COMMS_READ, buf->buffer,
-			    sizeof(buf->buffer), 10, 0);
+			ret = nanohub_comms_tx_rx_retrans(
+			    data, CMD_COMMS_READ, 0, 0, buf->buffer,
+			    sizeof(buf->buffer), false, 10, 0);
 
 			if (ret > 0) {
 				nanohub_process_buffer(data, &buf, ret);
-				if (!nanohub_irq1_fired(data) &&
-				    !nanohub_irq2_fired(data)) {
+				if (!nanohub_irq_fired(data)) {
 					nanohub_set_state(data, ST_IDLE);
 					continue;
 				}
@@ -1758,6 +1224,12 @@ static int nanohub_kthread(void *arg)
 				nanohub_set_state(data, ST_IDLE);
 				continue;
 			} else {
+#ifdef CHUB_USER_DEBUG
+				nanohub_err("%s#1: kthread_err_cnt=%d\n",
+					__func__,
+					data->kthread_err_cnt);
+				nanohub_status_dump(data, __func__);
+#endif
 				release_wakeup(data);
 				if (data->kthread_err_cnt == 0)
 					data->kthread_err_ktime =
@@ -1765,8 +1237,7 @@ static int nanohub_kthread(void *arg)
 
 				data->kthread_err_cnt++;
 				if (data->kthread_err_cnt >= KTHREAD_WARN_CNT) {
-					dev_err(sensor_dev,
-						"%s: kthread_err_cnt=%d\n",
+					nanohub_err("%s: kthread_err_cnt=%d\n",
 						__func__,
 						data->kthread_err_cnt);
 					nanohub_set_state(data, ST_ERROR);
@@ -1774,8 +1245,7 @@ static int nanohub_kthread(void *arg)
 				}
 			}
 		} else {
-			if (!nanohub_irq1_fired(data) &&
-			    !nanohub_irq2_fired(data)) {
+			if (!nanohub_irq_fired(data)) {
 				nanohub_set_state(data, ST_IDLE);
 				continue;
 			}
@@ -1800,275 +1270,28 @@ static int nanohub_kthread(void *arg)
 	return 0;
 }
 
-#ifndef CONFIG_NANOHUB_MAILBOX
-#ifdef CONFIG_OF
-static struct nanohub_platform_data *nanohub_parse_dt(struct device *dev)
-{
-	struct nanohub_platform_data *pdata;
-	struct device_node *dt = dev->of_node;
-	const uint32_t *tmp;
-	struct property *prop;
-	uint32_t u, i;
-	int ret;
-
-	if (!dt)
-		return ERR_PTR(-ENODEV);
-
-	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
-	if (!pdata)
-		return ERR_PTR(-ENOMEM);
-
-	ret = pdata->irq1_gpio =
-	    of_get_named_gpio(dt, "sensorhub,irq1-gpio", 0);
-	if (ret < 0) {
-		pr_err("nanohub: missing sensorhub,irq1-gpio in device tree\n");
-		goto free_pdata;
-	}
-
-	/* optional (strongly recommended) */
-	pdata->irq2_gpio = of_get_named_gpio(dt, "sensorhub,irq2-gpio", 0);
-
-	ret = pdata->wakeup_gpio =
-	    of_get_named_gpio(dt, "sensorhub,wakeup-gpio", 0);
-	if (ret < 0) {
-		pr_err
-		    ("nanohub: missing sensorhub,wakeup-gpio in device tree\n");
-		goto free_pdata;
-	}
-
-	ret = pdata->nreset_gpio =
-	    of_get_named_gpio(dt, "sensorhub,nreset-gpio", 0);
-	if (ret < 0) {
-		pr_err
-		    ("nanohub: missing sensorhub,nreset-gpio in device tree\n");
-		goto free_pdata;
-	}
-
-	/* optional (stm32f bootloader) */
-	pdata->boot0_gpio = of_get_named_gpio(dt, "sensorhub,boot0-gpio", 0);
-
-	/* optional (spi) */
-	pdata->spi_cs_gpio = of_get_named_gpio(dt, "sensorhub,spi-cs-gpio", 0);
-
-	/* optional (stm32f bootloader) */
-	of_property_read_u32(dt, "sensorhub,bl-addr", &pdata->bl_addr);
-
-	/* optional (stm32f bootloader) */
-	tmp = of_get_property(dt, "sensorhub,num-flash-banks", NULL);
-	if (tmp) {
-		pdata->num_flash_banks = be32_to_cpup(tmp);
-		pdata->flash_banks =
-		    devm_kzalloc(dev,
-				 sizeof(struct nanohub_flash_bank) *
-				 pdata->num_flash_banks, GFP_KERNEL);
-		if (!pdata->flash_banks)
-			goto no_mem;
-
-		/* TODO: investigate replacing with of_property_read_u32_array
-		 */
-		i = 0;
-		of_property_for_each_u32(dt, "sensorhub,flash-banks", prop, tmp,
-					 u) {
-			if (i / 3 >= pdata->num_flash_banks)
-				break;
-			switch (i % 3) {
-			case 0:
-				pdata->flash_banks[i / 3].bank = u;
-				break;
-			case 1:
-				pdata->flash_banks[i / 3].address = u;
-				break;
-			case 2:
-				pdata->flash_banks[i / 3].length = u;
-				break;
-			}
-			i++;
-		}
-	}
-
-	/* optional (stm32f bootloader) */
-	tmp = of_get_property(dt, "sensorhub,num-shared-flash-banks", NULL);
-	if (tmp) {
-		pdata->num_shared_flash_banks = be32_to_cpup(tmp);
-		pdata->shared_flash_banks =
-		    devm_kzalloc(dev,
-				 sizeof(struct nanohub_flash_bank) *
-				 pdata->num_shared_flash_banks, GFP_KERNEL);
-		if (!pdata->shared_flash_banks)
-			goto no_mem_shared;
-
-		/* TODO: investigate replacing with of_property_read_u32_array
-		 */
-		i = 0;
-		of_property_for_each_u32(dt, "sensorhub,shared-flash-banks",
-					 prop, tmp, u) {
-			if (i / 3 >= pdata->num_shared_flash_banks)
-				break;
-			switch (i % 3) {
-			case 0:
-				pdata->shared_flash_banks[i / 3].bank = u;
-				break;
-			case 1:
-				pdata->shared_flash_banks[i / 3].address = u;
-				break;
-			case 2:
-				pdata->shared_flash_banks[i / 3].length = u;
-				break;
-			}
-			i++;
-		}
-	}
-
-	return pdata;
-
-no_mem_shared:
-	devm_kfree(dev, pdata->flash_banks);
-no_mem:
-	ret = -ENOMEM;
-free_pdata:
-	devm_kfree(dev, pdata);
-	return ERR_PTR(ret);
-}
-#else
-static struct nanohub_platform_data *nanohub_parse_dt(struct device *dev)
-{
-	struct nanohub_platform_data *pdata;
-
-	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
-	if (!pdata)
-		return ERR_PTR(-ENOMEM);
-
-	return pdata;
-}
-#endif
-
-static int nanohub_request_irqs(struct nanohub_data *data)
-{
-	int ret;
-
-	ret = request_threaded_irq(data->irq1, NULL, nanohub_irq1,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-				   "nanohub-irq1", data);
-	if (ret < 0)
-		data->irq1 = 0;
-	else
-		disable_irq(data->irq1);
-	if (data->irq2 <= 0 || ret < 0) {
-		data->irq2 = 0;
-		return ret;
-	}
-
-	ret = request_threaded_irq(data->irq2, NULL, nanohub_irq2,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-				   "nanohub-irq2", data);
-	if (ret < 0) {
-		data->irq2 = 0;
-		WARN(1, "failed to request optional IRQ %d; err=%d",
-		     data->irq2, ret);
-	} else {
-		disable_irq(data->irq2);
-	}
-
-	/* if 2d request fails, hide this; it is optional IRQ,
-	 * and failure should not interrupt driver init sequence.
-	 */
-	return 0;
-}
-
-static int nanohub_request_gpios(struct nanohub_data *data)
-{
-	int i, ret = 0;
-
-	for (i = 0; i < ARRAY_SIZE(gconf); ++i) {
-		const struct gpio_config *cfg = &gconf[i];
-		unsigned int gpio = plat_gpio_get(data, cfg);
-		const char *label;
-		bool optional = gpio_is_optional(cfg);
-
-		ret = 0; /* clear errors on optional pins, if any */
-
-		if (!gpio_is_valid(gpio) && optional)
-			continue;
-
-		label = cfg->label;
-		ret = gpio_request_one(gpio, cfg->flags, label);
-		if (ret && !optional) {
-			pr_err("nanohub: gpio %d[%s] request failed;err=%d\n",
-			       gpio, label, ret);
-			break;
-		}
-		if (gpio_has_irq(cfg)) {
-			int irq = gpio_to_irq(gpio);
-			if (irq > 0) {
-				nanohub_set_irq_data(data, cfg, irq);
-			} else if (!optional) {
-				ret = -EINVAL;
-				pr_err("nanohub: no irq; gpio %d[%s];err=%d\n",
-				       gpio, label, irq);
-				break;
-			}
-		}
-	}
-	if (i < ARRAY_SIZE(gconf)) {
-		for (--i; i >= 0; --i)
-			gpio_free(plat_gpio_get(data, &gconf[i]));
-	}
-
-	return ret;
-}
-
-static void nanohub_release_gpios_irqs(struct nanohub_data *data)
-{
-	const struct nanohub_platform_data *pdata = data->pdata;
-
-	if (data->irq2)
-		free_irq(data->irq2, data);
-	if (data->irq1)
-		free_irq(data->irq1, data);
-	if (gpio_is_valid(pdata->irq2_gpio))
-		gpio_free(pdata->irq2_gpio);
-	gpio_free(pdata->irq1_gpio);
-	gpio_set_value(pdata->nreset_gpio, 0);
-	gpio_free(pdata->nreset_gpio);
-	mcu_wakeup_gpio_set_value(data, 1);
-	gpio_free(pdata->wakeup_gpio);
-	gpio_set_value(pdata->boot0_gpio, 0);
-	gpio_free(pdata->boot0_gpio);
-}
-#endif
-
 struct iio_dev *nanohub_probe(struct device *dev, struct iio_dev *iio_dev)
 {
 	int ret, i;
-#ifdef CONFIG_NANOHUB_MAILBOX
 	struct nanohub_platform_data *pdata;
-#else
-	const struct nanohub_platform_data *pdata;
-#endif
 	struct nanohub_data *data;
 	struct nanohub_buf *buf;
 	bool own_iio_dev = !iio_dev;
-	pdata = dev_get_platdata(dev);
-	if (!pdata) {
-#ifdef CONFIG_NANOHUB_MAILBOX
-		pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
-#else
-		pdata = nanohub_parse_dt(dev);
-#endif
-		if (IS_ERR(pdata))
-			return ERR_PTR(PTR_ERR(pdata));
-	}
+
+	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return ERR_PTR(-ENOMEM);
 
 	if (own_iio_dev) {
-		iio_dev = iio_device_alloc(sizeof(struct nanohub_data));
+		iio_dev = iio_device_alloc(dev, sizeof(struct nanohub_data));
 		if (!iio_dev)
 			return ERR_PTR(-ENOMEM);
 	}
 
 	iio_dev->name = "nanohub";
+	//iio_dev->driver_module = THIS_MODULE;
 	iio_dev->dev.parent = dev;
 	iio_dev->info = &nanohub_iio_info;
-	iio_dev->driver_module = THIS_MODULE;
 	iio_dev->channels = NULL;
 	iio_dev->num_channels = 0;
 
@@ -2090,51 +1313,32 @@ struct iio_dev *nanohub_probe(struct device *dev, struct iio_dev *iio_dev)
 	for (i = 0; i < READ_QUEUE_DEPTH; i++)
 		nanohub_io_put_buf(&data->free_pool, &buf[i]);
 	atomic_set(&data->kthread_run, 0);
-	wake_lock_init(&data->wakelock_read, WAKE_LOCK_SUSPEND,
-		       "nanohub_wakelock_read");
+	data->ws = chub_wake_lock_init(dev, "nanohub_wakelock_read");
 
 	atomic_set(&data->lock_mode, LOCK_MODE_NONE);
 	atomic_set(&data->wakeup_cnt, 0);
 	atomic_set(&data->wakeup_lock_cnt, 0);
 	atomic_set(&data->wakeup_acquired, 0);
+	atomic_set(&data->in_reset, 0);
 	init_waitqueue_head(&data->wakeup_wait);
-
-#ifdef CONFIG_EXT_CHUB
-	ret = nanohub_request_gpios(data);
-	if (ret)
-		goto fail_gpio;
-
-	ret = nanohub_request_irqs(data);
-	if (ret)
-		goto fail_irq;
-#endif
 
 	ret = iio_device_register(iio_dev);
 	if (ret) {
-		pr_err("nanohub: iio_device_register failed\n");
+		nanohub_err("nanohub: iio_device_register failed\n");
 		goto fail_irq;
 	}
 
 	ret = nanohub_create_devices(data);
 	if (ret)
 		goto fail_dev;
-
-#ifdef CONFIG_EXT_CHUB
-	data->thread = kthread_run(nanohub_kthread, data, "nanohub");
-#endif
-	udelay(30);
+	usleep_range(30, 100);
 
 	return iio_dev;
 
 fail_dev:
 	iio_device_unregister(iio_dev);
 fail_irq:
-#ifdef CONFIG_EXT_CHUB
-	nanohub_release_gpios_irqs(data);
-fail_gpio:
-	free_irq(data->irq, data);
-#endif
-	wake_lock_destroy(&data->wakelock_read);
+	chub_wake_lock_destroy(data->ws);
 	vfree(buf);
 fail_vma:
 	if (own_iio_dev)
@@ -2152,70 +1356,14 @@ int nanohub_remove(struct iio_dev *iio_dev)
 
 	nanohub_destroy_devices(data);
 	iio_device_unregister(iio_dev);
-#ifdef CONFIG_EXT_CHUB
-	nanohub_release_gpios_irqs(data);
-#endif
-	wake_lock_destroy(&data->wakelock_read);
+	chub_wake_lock_destroy(data->ws);
 	vfree(data->vbuf);
 	iio_device_free(iio_dev);
 
 	return 0;
 }
 
-int nanohub_suspend(struct iio_dev *iio_dev)
-{
-#if defined(CONFIG_EXT_CHUB)
-	struct nanohub_data *data = iio_priv(iio_dev);
-	int ret;
-
-	ret = nanohub_wakeup_lock(data, LOCK_MODE_SUSPEND_RESUME);
-	if (!ret) {
-		int cnt;
-		const int max_cnt = 10;
-
-		for (cnt = 0; cnt < max_cnt; ++cnt) {
-			if (!nanohub_irq1_fired(data))
-				break;
-			usleep_range(10, 15);
-		}
-		if (cnt < max_cnt) {
-			dev_dbg(&iio_dev->dev, "%s: cnt=%d\n", __func__, cnt);
-			enable_irq_wake(data->irq1);
-			return 0;
-		}
-		ret = -EBUSY;
-		dev_info(&iio_dev->dev,
-			 "%s: failed to suspend: IRQ1=%d, state=%d\n",
-			 __func__, nanohub_irq1_fired(data),
-			 nanohub_get_state(data));
-		nanohub_wakeup_unlock(data);
-	} else {
-		dev_info(&iio_dev->dev, "%s: could not take wakeup lock\n",
-			 __func__);
-	}
-
-	return ret;
-#elif defined(CONFIG_NANOHUB_MAILBOX)
-	(void)iio_dev;
-
-	return 0;
-#endif
-}
-
-int nanohub_resume(struct iio_dev *iio_dev)
-{
-	struct nanohub_data *data = iio_priv(iio_dev);
-
-#if defined(CONFIG_EXT_CHUB)
-	disable_irq_wake(data->irq1);
-	nanohub_wakeup_unlock(data);
-#elif defined(CONFIG_NANOHUB_MAILBOX)
-	nanohub_notify_thread(data);
-#endif
-	return 0;
-}
-
-static int __init nanohub_init(void)
+int nanohub_init(void)
 {
 	int ret = 0;
 
@@ -2226,8 +1374,7 @@ static int __init nanohub_init(void)
 	}
 
 	if (!ret)
-		major = __register_chrdev(0, 0, ID_NANOHUB_MAX, "nanohub",
-					  &nanohub_fileops);
+		major = __register_chrdev(0, 0, 1, "nanohub", &nanohub_fileops);
 
 	chub_dev_major = __register_chrdev(0, 0, 1, "chub_dev", &chub_dev_fileops);
 	if(chub_dev_major < 0) {
@@ -2244,35 +1391,18 @@ static int __init nanohub_init(void)
 	} else
 		pr_info("nanohub : registered major; %d\n", major);
 
-#ifdef CONFIG_NANOHUB_I2C
-	if (ret == 0)
-		ret = nanohub_i2c_init();
-#endif
-#ifdef CONFIG_NANOHUB_SPI
-	if (ret == 0)
-		ret = nanohub_spi_init();
-#endif
 	pr_info("nanohub: loaded; ret=%d\n", ret);
 	return ret;
 }
 
-static void __exit nanohub_cleanup(void)
+void nanohub_cleanup(void)
 {
-#ifdef CONFIG_NANOHUB_I2C
-	nanohub_i2c_cleanup();
-#endif
-#ifdef CONFIG_NANOHUB_SPI
-	nanohub_spi_cleanup();
-#endif
-	__unregister_chrdev(major, 0, ID_NANOHUB_MAX, "nanohub");
+	__unregister_chrdev(major, 0, 1, "nanohub");
 	__unregister_chrdev(chub_dev_major, 0, 1, "chub_dev");
 	class_destroy(sensor_class);
 	major = 0;
 	sensor_class = 0;
 }
-
-module_init(nanohub_init);
-module_exit(nanohub_cleanup);
 
 MODULE_AUTHOR("Ben Fennema");
 MODULE_LICENSE("GPL");

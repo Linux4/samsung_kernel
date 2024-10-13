@@ -1,9 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2012 Avionic Design GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/bcd.h>
@@ -37,10 +34,6 @@
 
 #define REG_OFFSET   0x0e
 #define REG_OFFSET_MODE BIT(7)
-
-struct pcf8523 {
-	struct rtc_device *rtc;
-};
 
 static int pcf8523_read(struct i2c_client *client, u8 reg, u8 *valuep)
 {
@@ -115,7 +108,7 @@ static int pcf8523_load_capacitance(struct i2c_client *client)
 	default:
 		dev_warn(&client->dev, "Unknown quartz-load-femtofarads value: %d. Assuming 12500",
 			 load);
-		/* fall through */
+		fallthrough;
 	case 12500:
 		value |= REG_CONTROL1_CAP_SEL;
 		break;
@@ -289,11 +282,11 @@ static int pcf8523_rtc_ioctl(struct device *dev, unsigned int cmd,
 		ret = pcf8523_voltage_low(client);
 		if (ret < 0)
 			return ret;
+		if (ret)
+			ret = RTC_VL_BACKUP_LOW;
 
-		if (copy_to_user((void __user *)arg, &ret, sizeof(int)))
-			return -EFAULT;
+		return put_user(ret, (unsigned int __user *)arg);
 
-		return 0;
 	default:
 		return -ENOIOCTLCMD;
 	}
@@ -348,15 +341,11 @@ static const struct rtc_class_ops pcf8523_rtc_ops = {
 static int pcf8523_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
-	struct pcf8523 *pcf;
+	struct rtc_device *rtc;
 	int err;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
 		return -ENODEV;
-
-	pcf = devm_kzalloc(&client->dev, sizeof(*pcf), GFP_KERNEL);
-	if (!pcf)
-		return -ENOMEM;
 
 	err = pcf8523_load_capacitance(client);
 	if (err < 0)
@@ -367,12 +356,10 @@ static int pcf8523_probe(struct i2c_client *client,
 	if (err < 0)
 		return err;
 
-	pcf->rtc = devm_rtc_device_register(&client->dev, DRIVER_NAME,
+	rtc = devm_rtc_device_register(&client->dev, DRIVER_NAME,
 				       &pcf8523_rtc_ops, THIS_MODULE);
-	if (IS_ERR(pcf->rtc))
-		return PTR_ERR(pcf->rtc);
-
-	i2c_set_clientdata(client, pcf);
+	if (IS_ERR(rtc))
+		return PTR_ERR(rtc);
 
 	return 0;
 }
@@ -386,6 +373,7 @@ MODULE_DEVICE_TABLE(i2c, pcf8523_id);
 #ifdef CONFIG_OF
 static const struct of_device_id pcf8523_of_match[] = {
 	{ .compatible = "nxp,pcf8523" },
+	{ .compatible = "microcrystal,rv8523" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, pcf8523_of_match);

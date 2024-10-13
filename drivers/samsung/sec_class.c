@@ -1,22 +1,23 @@
 #include <linux/device.h>
 #include <linux/err.h>
+#include <linux/module.h>
 
 /* CAUTION : Do not be declared as external sec_class  */
 static struct class *sec_class;
 static atomic_t sec_dev;
 
-static int match_name(struct device *dev, const void *data)
+static int sec_class_match_device_by_name(struct device *dev, const void *data)
 {
 	const char *name = data;
 
 	return sysfs_streq(name, dev_name(dev));
 }
-struct device *sec_device_find(const char *name)
+struct device *sec_dev_get_by_name(const char *name)
 {
 	return class_find_device(sec_class, NULL,
-		(void *)name, match_name);
+		(void *)name, sec_class_match_device_by_name);
 }
-EXPORT_SYMBOL(sec_device_find);
+EXPORT_SYMBOL(sec_dev_get_by_name);
 
 struct device *sec_device_create(void *drvdata, const char *fmt)
 {
@@ -33,7 +34,7 @@ struct device *sec_device_create(void *drvdata, const char *fmt)
 	}
 
 	dev = device_create(sec_class, NULL, atomic_inc_return(&sec_dev),
-			drvdata, "%s", fmt);
+			drvdata, fmt);
 	if (IS_ERR(dev))
 		pr_err("Failed to create device %s %ld\n", fmt, PTR_ERR(dev));
 	else
@@ -62,4 +63,7 @@ static int __init sec_class_create(void)
 	return 0;
 }
 
-postcore_initcall_sync(sec_class_create);
+postcore_initcall(sec_class_create);
+
+MODULE_DESCRIPTION("sec-class");
+MODULE_LICENSE("GPL v2");

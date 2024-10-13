@@ -24,9 +24,17 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/cpumask.h>
+#include <linux/cpufreq.h>
 #include <linux/interrupt.h>
 #include <linux/sec_argos.h>
+#include <soc/samsung/exynos_pm_qos.h>
 //#include <linux/ologk.h>
+
+#ifdef CONFIG_ARGOS_THROUGHPUT
+#include <linux/miscdevice.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+#endif
 
 #if defined(CONFIG_SCHED_EMS)
 #include <linux/ems.h>
@@ -42,6 +50,8 @@ static struct gb_qos_request gb_req = {
 #define ARGOS_NAME "argos"
 #define TYPE_SHIFT 4
 #define TYPE_MASK_BIT ((1 << TYPE_SHIFT) - 1)
+
+#define IS_FREQ_QOS_ACTIVE(x) ((x) && ((unsigned long)(void *)(x) < (unsigned long)(-4095)))
 
 static DEFINE_SPINLOCK(argos_irq_lock);
 static DEFINE_SPINLOCK(argos_task_lock);
@@ -86,18 +96,18 @@ struct argos_irq_affinity {
 
 struct argos_pm_qos {
 #if (CONFIG_ARGOS_CLUSTER_NUM > 1)
-	struct pm_qos_request big_min_qos_req;
-	struct pm_qos_request big_max_qos_req;
+	struct freq_qos_request big_min_qos_req;
+	struct freq_qos_request big_max_qos_req;
 #endif
 #if (CONFIG_ARGOS_CLUSTER_NUM > 2)
-	struct pm_qos_request mid_min_qos_req;
-	struct pm_qos_request mid_max_qos_req;
+	struct freq_qos_request mid_min_qos_req;
+	struct freq_qos_request mid_max_qos_req;
 #endif
-	struct pm_qos_request lit_min_qos_req;
-	struct pm_qos_request lit_max_qos_req;
-	struct pm_qos_request mif_qos_req;
-	struct pm_qos_request int_qos_req;
-	struct pm_qos_request hotplug_min_qos_req;
+	struct freq_qos_request lit_min_qos_req;
+	struct freq_qos_request lit_max_qos_req;
+	struct exynos_pm_qos_request mif_qos_req;
+	struct exynos_pm_qos_request int_qos_req;
+	struct exynos_pm_qos_request hotplug_min_qos_req;
 };
 
 struct argos {
@@ -119,28 +129,83 @@ struct argos {
 	struct mutex level_mutex;
 };
 
+#ifdef CONFIG_ARGOS_THROUGHPUT
+#define TPUT_MAX 16
+char argos_throughput[TPUT_MAX];
+#endif
+
 struct argos_platform_data {
 	struct argos *devices;
 	int ndevice;
+#ifndef CONFIG_ARGOS_THROUGHPUT
 	struct notifier_block pm_qos_nfb;
+#endif
 };
 
 static struct argos_platform_data *argos_pdata;
 
-static inline void UPDATE_PM_QOS(struct pm_qos_request *req, int class_id, int arg)
+static inline void UPDATE_PM_QOS(struct exynos_pm_qos_request *req, int class_id, int arg)
 {
 	if (arg) {
-		if (pm_qos_request_active(req))
-			pm_qos_update_request(req, arg);
+		if (exynos_pm_qos_request_active(req))
+			exynos_pm_qos_update_request(req, arg);
 		else
-			pm_qos_add_request(req, class_id, arg);
+			exynos_pm_qos_add_request(req, class_id, arg);
 	}
 }
 
-static inline void REMOVE_PM_QOS(struct pm_qos_request *req)
+static inline void REMOVE_PM_QOS(struct exynos_pm_qos_request *req)
 {
-	if (pm_qos_request_active(req))
-		pm_qos_remove_request(req);
+	if (exynos_pm_qos_request_active(req))
+		exynos_pm_qos_remove_request(req);
+}
+
+static inline void UPDATE_FREQ_PM_QOS(struct freq_qos_request *req, int class_id, int arg)
+{
+	if (arg) {
+		if (IS_FREQ_QOS_ACTIVE(req->qos))
+			freq_qos_update_request(req, arg);
+		else {
+			struct cpufreq_policy* policy;
+			int type, cpu;
+
+			/* TODO: this is a temporary solution(hard coding). */
+			switch (class_id) {
+			case PM_QOS_CLUSTER0_FREQ_MIN:
+				cpu = 0;
+				type = FREQ_QOS_MIN;
+				break;
+			case PM_QOS_CLUSTER0_FREQ_MAX:
+				cpu = 0;
+				type = FREQ_QOS_MAX;
+				break;
+			case PM_QOS_CLUSTER1_FREQ_MIN:
+				cpu = 4;
+				type = FREQ_QOS_MIN;
+				break;
+			case PM_QOS_CLUSTER1_FREQ_MAX:
+				cpu = 4;
+				type = FREQ_QOS_MAX;
+				break;
+			default:
+				pr_err("%s class id %d is invalid.\n", __func__, class_id);
+				return;
+			}
+
+			policy = cpufreq_cpu_get(cpu);
+
+			if (policy)
+				freq_qos_add_request(&policy->constraints, req, type, arg);
+			else
+				pr_err("%s cpu%d policy is invalid\n", __func__, cpu);
+		}
+	}
+}
+
+static inline void REMOVE_FREQ_PM_QOS(struct freq_qos_request *req)
+{
+	if (IS_FREQ_QOS_ACTIVE(req->qos))
+		freq_qos_remove_request(req);
 }
 
 static int argos_find_index(const char *label)
@@ -310,7 +375,7 @@ int argos_task_affinity_apply(int dev_num, bool enable)
 	int result = 0;
 	struct cpumask *mask;
 	bool *hotplug_disable;
-	struct pm_qos_request *hotplug_min_qos_req;
+	struct exynos_pm_qos_request *hotplug_min_qos_req;
 
 	head = &argos_pdata->devices[dev_num].task_affinity_list;
 	hotplug_disable = &argos_pdata->devices[dev_num].task_hotplug_disable;
@@ -356,7 +421,7 @@ int argos_irq_affinity_apply(int dev_num, bool enable)
 	int result = 0;
 	struct cpumask *mask;
 	bool *hotplug_disable;
-	struct pm_qos_request *hotplug_min_qos_req;
+	struct exynos_pm_qos_request *hotplug_min_qos_req;
 
 	head = &argos_pdata->devices[dev_num].irq_affinity_list;
 	hotplug_disable = &argos_pdata->devices[dev_num].irq_hotplug_disable;
@@ -384,7 +449,7 @@ int argos_irq_affinity_apply(int dev_num, bool enable)
 			mask = this->default_cpu_mask;
 		}
 
-		result = irq_set_affinity(this->irq, mask);
+		result = irq_set_affinity_hint(this->irq, mask);
 
 		pr_info("%s: irq%d affinity %s to cpu_mask:0x%X\n",
 			__func__, this->irq, (enable ? "enable" : "disable"),
@@ -441,15 +506,15 @@ static void argos_freq_unlock(int type)
 	cname = argos_pdata->devices[type].desc;
 
 #if (CONFIG_ARGOS_CLUSTER_NUM > 1)
-	REMOVE_PM_QOS(&qos->big_min_qos_req);
-	REMOVE_PM_QOS(&qos->big_max_qos_req);
+	REMOVE_FREQ_PM_QOS(&qos->big_min_qos_req);
+	REMOVE_FREQ_PM_QOS(&qos->big_max_qos_req);
 #endif
 #if (CONFIG_ARGOS_CLUSTER_NUM > 2)
-	REMOVE_PM_QOS(&qos->mid_min_qos_req);
-	REMOVE_PM_QOS(&qos->mid_max_qos_req);
+	REMOVE_FREQ_PM_QOS(&qos->mid_min_qos_req);
+	REMOVE_FREQ_PM_QOS(&qos->mid_max_qos_req);
 #endif
-	REMOVE_PM_QOS(&qos->lit_min_qos_req);
-	REMOVE_PM_QOS(&qos->lit_max_qos_req);
+	REMOVE_FREQ_PM_QOS(&qos->lit_min_qos_req);
+	REMOVE_FREQ_PM_QOS(&qos->lit_max_qos_req);
 	REMOVE_PM_QOS(&qos->mif_qos_req);
 	REMOVE_PM_QOS(&qos->int_qos_req);
 
@@ -485,56 +550,31 @@ static void argos_freq_lock(int type, int level)
 	mif_freq = t->items[MIF_FREQ];
 	int_freq = t->items[INT_FREQ];
 
-#if (CONFIG_ARGOS_CLUSTER_NUM == 3)
+#if (CONFIG_ARGOS_CLUSTER_NUM == 2)
 	if (big_min_freq)
-		UPDATE_PM_QOS(&qos->big_min_qos_req,
-			      PM_QOS_CLUSTER2_FREQ_MIN, big_min_freq);
-	else
-		REMOVE_PM_QOS(&qos->big_min_qos_req);
-
-	if (big_max_freq)
-		UPDATE_PM_QOS(&qos->big_max_qos_req,
-			      PM_QOS_CLUSTER2_FREQ_MAX, big_max_freq);
-	else
-		REMOVE_PM_QOS(&qos->big_max_qos_req);
-
-	if (mid_min_freq)
-		UPDATE_PM_QOS(&qos->mid_min_qos_req,
-			      PM_QOS_CLUSTER1_FREQ_MIN, mid_min_freq);
-	else
-		REMOVE_PM_QOS(&qos->mid_min_qos_req);
-
-	if (mid_max_freq)
-		UPDATE_PM_QOS(&qos->mid_max_qos_req,
-			      PM_QOS_CLUSTER1_FREQ_MAX, mid_max_freq);
-	else
-		REMOVE_PM_QOS(&qos->mid_max_qos_req);
-
-#elif (CONFIG_ARGOS_CLUSTER_NUM == 2)
-	if (big_min_freq)
-		UPDATE_PM_QOS(&qos->big_min_qos_req,
+		UPDATE_FREQ_PM_QOS(&qos->big_min_qos_req,
 			      PM_QOS_CLUSTER1_FREQ_MIN, big_min_freq);
 	else
-		REMOVE_PM_QOS(&qos->big_min_qos_req);
+		REMOVE_FREQ_PM_QOS(&qos->big_min_qos_req);
 
 	if (big_max_freq)
-		UPDATE_PM_QOS(&qos->big_max_qos_req,
+		UPDATE_FREQ_PM_QOS(&qos->big_max_qos_req,
 			      PM_QOS_CLUSTER1_FREQ_MAX, big_max_freq);
 	else
-		REMOVE_PM_QOS(&qos->big_max_qos_req);
+		REMOVE_FREQ_PM_QOS(&qos->big_max_qos_req);
 #endif
 
 	if (lit_min_freq)
-		UPDATE_PM_QOS(&qos->lit_min_qos_req,
+		UPDATE_FREQ_PM_QOS(&qos->lit_min_qos_req,
 			      PM_QOS_CLUSTER0_FREQ_MIN, lit_min_freq);
 	else
-		REMOVE_PM_QOS(&qos->lit_min_qos_req);
+		REMOVE_FREQ_PM_QOS(&qos->lit_min_qos_req);
 
 	if (lit_max_freq)
-		UPDATE_PM_QOS(&qos->lit_max_qos_req,
+		UPDATE_FREQ_PM_QOS(&qos->lit_max_qos_req,
 			      PM_QOS_CLUSTER0_FREQ_MAX, lit_max_freq);
 	else
-		REMOVE_PM_QOS(&qos->lit_max_qos_req);
+		REMOVE_FREQ_PM_QOS(&qos->lit_max_qos_req);
 
 	if (mif_freq)
 		UPDATE_PM_QOS(&qos->mif_qos_req,
@@ -596,6 +636,7 @@ void argos_block_enable(char *req_name, bool set)
 		__func__, req_name, cnode->argos_block);
 }
 
+#ifndef CONFIG_ARGOS_THROUGHPUT
 static int argos_cpuidle_reboot_notifier(struct notifier_block *this,
 					 unsigned long event, void *_cmd)
 {
@@ -603,7 +644,7 @@ static int argos_cpuidle_reboot_notifier(struct notifier_block *this,
 	case SYSTEM_POWER_OFF:
 	case SYS_RESTART:
 		pr_info("%s called\n", __func__);
-		pm_qos_remove_notifier(PM_QOS_NETWORK_THROUGHPUT,
+		exynos_pm_qos_remove_notifier(PM_QOS_NETWORK_THROUGHPUT,
 				       &argos_pdata->pm_qos_nfb);
 		break;
 	}
@@ -614,10 +655,14 @@ static int argos_cpuidle_reboot_notifier(struct notifier_block *this,
 static struct notifier_block argos_cpuidle_reboot_nb = {
 	.notifier_call = argos_cpuidle_reboot_notifier,
 };
+#endif
 
+#if defined (CONFIG_ARGOS_THROUGHPUT)
+static int argos_pm_qos_notify(unsigned long speedtype)
+#else
 static int argos_pm_qos_notify(struct notifier_block *nfb,
 			       unsigned long speedtype, void *arg)
-
+#endif
 {
 	int type, level, prev_level, change_level;
 	unsigned long speed;
@@ -635,13 +680,12 @@ static int argos_pm_qos_notify(struct notifier_block *nfb,
 	cnode = &argos_pdata->devices[type];
 
 	prev_level = cnode->prev_level;
-
+#if 0
 	pr_debug("%s name:%s, speed:%ldMbps\n", __func__, cnode->desc, speed);
-/*
-	if(speed >= 300) {
+	if (speed >= 300)
 		perflog(PERFLOG_ARGOS, "name:%s, speed:%ldMbps", cnode->desc, speed);
-	}
-*/
+#endif
+
 	argos_blocked = cnode->argos_block;
 
 	/* Find proper level */
@@ -899,7 +943,10 @@ static int argos_parse_dt(struct device *dev)
 	int ret = 0;
 
 	root_np = dev->of_node;
-	pdata->ndevice = of_get_child_count(root_np);
+	for_each_child_of_node(root_np, device_np)
+		if (!strncmp(device_np->name, "boot_device", 11))
+			pdata->ndevice++;
+
 	if (!pdata->ndevice) {
 		dev_err(dev, "Failed to get child count\n");
 		return -ENODEV;
@@ -967,9 +1014,11 @@ static int argos_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
+#ifndef CONFIG_ARGOS_THROUGHPUT
 	pdata->pm_qos_nfb.notifier_call = argos_pm_qos_notify;
-	pm_qos_add_notifier(PM_QOS_NETWORK_THROUGHPUT, &pdata->pm_qos_nfb);
+	exynos_pm_qos_add_notifier(PM_QOS_NETWORK_THROUGHPUT, &pdata->pm_qos_nfb);
 	register_reboot_notifier(&argos_cpuidle_reboot_nb);
+#endif
 	argos_pdata = pdata;
 	platform_set_drvdata(pdev, pdata);
 
@@ -990,8 +1039,10 @@ static int argos_remove(struct platform_device *pdev)
 
 	if (!pdata || !argos_pdata)
 		return 0;
-	pm_qos_remove_notifier(PM_QOS_NETWORK_THROUGHPUT, &pdata->pm_qos_nfb);
+#ifndef CONFIG_ARGOS_THROUGHPUT
+	exynos_pm_qos_remove_notifier(PM_QOS_NETWORK_THROUGHPUT, &pdata->pm_qos_nfb);
 	unregister_reboot_notifier(&argos_cpuidle_reboot_nb);
+#endif
 
 	return 0;
 }
@@ -1015,19 +1066,88 @@ static struct platform_driver argos_driver = {
 	.remove = argos_remove
 };
 
+#ifdef CONFIG_ARGOS_THROUGHPUT
+static ssize_t argos_tput_read(struct file *filep, char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	int ret;
+
+	//pr_info("argos_throughput %s\n", argos_throughput);
+	ret = copy_to_user(buf, (void *)argos_throughput, TPUT_MAX);
+	if (ret < 0) {
+		pr_err("fail to copy argos throughput value.\n");
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+static ssize_t argos_tput_write(struct file *filep, const char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	int ret;
+	unsigned long val;
+
+	ret = copy_from_user(argos_throughput, buf, TPUT_MAX);
+	if (ret < 0) {
+		pr_err("fail to get argos throughput value.\n");
+		return -EINVAL;
+	}
+
+	ret = kstrtoul(argos_throughput, 16, &val);
+	if (ret < 0) {
+		pr_err("fail to convertet throughput unsigned long.\n");
+		return -EINVAL;
+	}
+	
+	argos_pm_qos_notify(val);
+
+	//pr_info("tput : %s\n", argos_throughput);
+	
+	return count;
+}
+static const struct file_operations argos_tput_fops = {
+	.owner			= THIS_MODULE,
+	.open			= NULL,
+	.read			= argos_tput_read,
+	.write			= argos_tput_write,
+	.llseek			= NULL,
+};
+static struct miscdevice argos_tput_miscdev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "network_throughput",
+	.fops = &argos_tput_fops,
+};
+#endif
+
 static int __init argos_init(void)
 {
-	return platform_driver_register(&argos_driver);
+	int ret;
+#ifdef CONFIG_ARGOS_THROUGHPUT
+	ret = misc_register(&argos_tput_miscdev);
+	if (ret) {
+		pr_err("Failed to register miscdevice");
+		goto err;
+	}
+#endif
+	ret = platform_driver_register(&argos_driver);
+	if (ret) {
+		pr_err("Failed to register platform driver");
+		goto err;
+	}
+	
+err:
+	return ret;
 }
 
 static void __exit argos_exit(void)
 {
 	return platform_driver_unregister(&argos_driver);
 }
-
-subsys_initcall(argos_init);
+late_initcall(argos_init);
 module_exit(argos_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("SAMSUNG Electronics");
 MODULE_DESCRIPTION("ARGOS DEVICE");
+

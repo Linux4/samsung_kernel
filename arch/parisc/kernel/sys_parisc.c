@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 /*
  *    PARISC specific syscalls
@@ -5,22 +6,7 @@
  *    Copyright (C) 1999-2003 Matthew Wilcox <willy at parisc-linux.org>
  *    Copyright (C) 2000-2003 Paul Bame <bame at parisc-linux.org>
  *    Copyright (C) 2001 Thomas Bogendoerfer <tsbogend at parisc-linux.org>
- *    Copyright (C) 1999-2014 Helge Deller <deller@gmx.de>
- *
- *
- *    This program is free software; you can redistribute it and/or modify
- *    it under the terms of the GNU General Public License as published by
- *    the Free Software Foundation; either version 2 of the License, or
- *    (at your option) any later version.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    GNU General Public License for more details.
- *
- *    You should have received a copy of the GNU General Public License
- *    along with this program; if not, write to the Free Software
- *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *    Copyright (C) 1999-2020 Helge Deller <deller@gmx.de>
  */
 
 #include <linux/uaccess.h>
@@ -37,6 +23,7 @@
 #include <linux/utsname.h>
 #include <linux/personality.h>
 #include <linux/random.h>
+#include <linux/compat.h>
 
 /* we construct an artificial offset for the mapping based on the physical
  * address of the kernel mapping variable */
@@ -86,7 +73,8 @@ static unsigned long mmap_upper_limit(struct rlimit *rlim_stack)
 		stack_base = STACK_SIZE_MAX;
 
 	/* Add space for stack randomization. */
-	stack_base += (STACK_RND_MASK << PAGE_SHIFT);
+	if (current->flags & PF_RANDOMIZE)
+		stack_base += (STACK_RND_MASK << PAGE_SHIFT);
 
 	return PAGE_ALIGN(STACK_TOP - stack_base);
 }
@@ -385,4 +373,101 @@ long parisc_personality(unsigned long personality)
 		err = (err & ~PER_MASK) | PER_LINUX;
 
 	return err;
+}
+
+/*
+ * Up to kernel v5.9 we defined O_NONBLOCK as 000200004,
+ * since then O_NONBLOCK is defined as 000200000.
+ *
+ * The following wrapper functions mask out the old
+ * O_NDELAY bit from calls which use O_NONBLOCK.
+ *
+ * XXX: Remove those in year 2022 (or later)?
+ */
+
+#define O_NONBLOCK_OLD		000200004
+#define O_NONBLOCK_MASK_OUT	(O_NONBLOCK_OLD & ~O_NONBLOCK)
+
+static int FIX_O_NONBLOCK(int flags)
+{
+	if (flags & O_NONBLOCK_MASK_OUT) {
+		struct task_struct *tsk = current;
+		pr_warn_once("%s(%d) uses a deprecated O_NONBLOCK value.\n",
+			tsk->comm, tsk->pid);
+	}
+	return flags & ~O_NONBLOCK_MASK_OUT;
+}
+
+asmlinkage long parisc_timerfd_create(int clockid, int flags)
+{
+	flags = FIX_O_NONBLOCK(flags);
+	return sys_timerfd_create(clockid, flags);
+}
+
+asmlinkage long parisc_signalfd4(int ufd, sigset_t __user *user_mask,
+	size_t sizemask, int flags)
+{
+	flags = FIX_O_NONBLOCK(flags);
+	return sys_signalfd4(ufd, user_mask, sizemask, flags);
+}
+
+#ifdef CONFIG_COMPAT
+asmlinkage long parisc_compat_signalfd4(int ufd,
+	compat_sigset_t __user *user_mask,
+	compat_size_t sizemask, int flags)
+{
+	flags = FIX_O_NONBLOCK(flags);
+	return compat_sys_signalfd4(ufd, user_mask, sizemask, flags);
+}
+#endif
+
+asmlinkage long parisc_eventfd2(unsigned int count, int flags)
+{
+	flags = FIX_O_NONBLOCK(flags);
+	return sys_eventfd2(count, flags);
+}
+
+asmlinkage long parisc_userfaultfd(int flags)
+{
+	flags = FIX_O_NONBLOCK(flags);
+	return sys_userfaultfd(flags);
+}
+
+asmlinkage long parisc_pipe2(int __user *fildes, int flags)
+{
+	flags = FIX_O_NONBLOCK(flags);
+	return sys_pipe2(fildes, flags);
+}
+
+asmlinkage long parisc_inotify_init1(int flags)
+{
+	flags = FIX_O_NONBLOCK(flags);
+	return sys_inotify_init1(flags);
+}
+
+/*
+ * madvise() wrapper
+ *
+ * Up to kernel v6.1 parisc has different values than all other
+ * platforms for the MADV_xxx flags listed below.
+ * To keep binary compatibility with existing userspace programs
+ * translate the former values to the new values.
+ *
+ * XXX: Remove this wrapper in year 2025 (or later)
+ */
+
+asmlinkage notrace long parisc_madvise(unsigned long start, size_t len_in, int behavior)
+{
+	switch (behavior) {
+	case 65: behavior = MADV_MERGEABLE;	break;
+	case 66: behavior = MADV_UNMERGEABLE;	break;
+	case 67: behavior = MADV_HUGEPAGE;	break;
+	case 68: behavior = MADV_NOHUGEPAGE;	break;
+	case 69: behavior = MADV_DONTDUMP;	break;
+	case 70: behavior = MADV_DODUMP;	break;
+	case 71: behavior = MADV_WIPEONFORK;	break;
+	case 72: behavior = MADV_KEEPONFORK;	break;
+	}
+
+	return sys_madvise(start, len_in, behavior);
 }

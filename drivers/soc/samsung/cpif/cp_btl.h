@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2019, Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -35,17 +27,21 @@ struct cp_btl {
 	bool enabled;
 	atomic_t active;
 
-	u32 link_type; /* enum modem_link */
+	u32 link_type;
 	struct cp_btl_mem_region mem;
-#ifdef CONFIG_LINK_DEVICE_PCIE
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE)
 	int last_pcie_atu_grp;
 #endif
 
 	struct mem_link_device *mld;
 	struct miscdevice miscdev;
+
+	bool support_extension;
+	u32 extension_dram_size;
+	bool extension_enabled;
 };
 
-#if defined(CONFIG_CP_BTL)
+#if IS_ENABLED(CONFIG_CP_BTL)
 extern int cp_btl_create(struct cp_btl *btl, struct device *dev);
 extern int cp_btl_destroy(struct cp_btl *btl);
 #else

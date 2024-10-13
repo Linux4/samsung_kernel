@@ -2,26 +2,67 @@
 /*
  * Copyright 2018 Google LLC
  */
-#include <stdio.h>
-#include <fcntl.h>
 #include <dirent.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+
 #include <sys/ioctl.h>
 #include <sys/mount.h>
-#include <errno.h>
-#include <string.h>
-#include <poll.h>
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/pem.h>
-#include <openssl/pkcs7.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <openssl/sha.h>
 #include <openssl/md5.h>
 
 #include "utils.h"
+
+#ifndef __S_IFREG
+#define __S_IFREG S_IFREG
+#endif
+
+unsigned int rnd(unsigned int max, unsigned int *seed)
+{
+	return rand_r(seed) * ((uint64_t)max + 1) / RAND_MAX;
+}
+
+int remove_dir(const char *dir)
+{
+	int err = rmdir(dir);
+
+	if (err && errno == ENOTEMPTY) {
+		err = delete_dir_tree(dir);
+		if (err)
+			return err;
+		return 0;
+	}
+
+	if (err && errno != ENOENT)
+		return -errno;
+
+	return 0;
+}
+
+int drop_caches(void)
+{
+	int drop_caches =
+		open("/proc/sys/vm/drop_caches", O_WRONLY | O_CLOEXEC);
+	int i;
+
+	if (drop_caches == -1)
+		return -errno;
+	i = write(drop_caches, "3", 1);
+	close(drop_caches);
+
+	if (i != 1)
+		return -errno;
+
+	return 0;
+}
 
 int mount_fs(const char *mount_dir, const char *backing_dir,
 	     int read_timeout_ms)
@@ -37,6 +78,16 @@ int mount_fs(const char *mount_dir, const char *backing_dir,
 	result = mount(backing_dir, mount_dir, fs_name, 0, mount_options);
 	if (result != 0)
 		perror("Error mounting fs.");
+	return result;
+}
+
+int umount_fs(const char *mount_dir)
+{
+	int result;
+
+	result = umount(mount_dir);
+	if (result != 0)
+		perror("Error unmounting fs.");
 	return result;
 }
 
@@ -75,6 +126,9 @@ size_t format_signature(void **buf, const char *root_hash, const char *add_data)
 	size_t size = sizeof(struct signature_blob) + strlen(add_data) + 1;
 	struct signature_blob *sb = malloc(size);
 
+	if (!sb)
+		return 0;
+
 	*sb = (struct signature_blob){
 		.version = INCFS_SIGNATURE_VERSION,
 		.hash_section_size = sizeof(struct hash_section),
@@ -85,7 +139,7 @@ size_t format_signature(void **buf, const char *root_hash, const char *add_data)
 				.salt_size = 0,
 				.hash_size = SHA256_DIGEST_SIZE,
 			},
-		.signing_section_size = sizeof(uint32_t) + strlen(add_data) + 1,
+		.signing_section_size = strlen(add_data) + 1,
 	};
 
 	memcpy(sb->hash_section.hash, root_hash, SHA256_DIGEST_SIZE);
@@ -184,7 +238,7 @@ int open_commands_file(const char *mount_dir)
 
 	snprintf(cmd_file, ARRAY_SIZE(cmd_file),
 			"%s/%s", mount_dir, INCFS_PENDING_READS_FILENAME);
-	cmd_fd = open(cmd_file, O_RDONLY);
+	cmd_fd = open(cmd_file, O_RDONLY | O_CLOEXEC);
 
 	if (cmd_fd < 0)
 		perror("Can't open commands file");
@@ -193,14 +247,28 @@ int open_commands_file(const char *mount_dir)
 
 int open_log_file(const char *mount_dir)
 {
-	char cmd_file[255];
-	int cmd_fd;
+	char file[255];
+	int fd;
 
-	snprintf(cmd_file, ARRAY_SIZE(cmd_file), "%s/.log", mount_dir);
-	cmd_fd = open(cmd_file, O_RDWR);
-	if (cmd_fd < 0)
+	snprintf(file, ARRAY_SIZE(file), "%s/.log", mount_dir);
+	fd = open(file, O_RDWR | O_CLOEXEC);
+	if (fd < 0)
 		perror("Can't open log file");
-	return cmd_fd;
+	return fd;
+}
+
+int open_blocks_written_file(const char *mount_dir)
+{
+	char file[255];
+	int fd;
+
+	snprintf(file, ARRAY_SIZE(file),
+			"%s/%s", mount_dir, INCFS_BLOCKS_WRITTEN_FILENAME);
+	fd = open(file, O_RDONLY | O_CLOEXEC);
+
+	if (fd < 0)
+		perror("Can't open blocks_written file");
+	return fd;
 }
 
 int wait_for_pending_reads(int fd, int timeout_ms,
@@ -231,7 +299,35 @@ int wait_for_pending_reads(int fd, int timeout_ms,
 	return read_res / sizeof(*prs);
 }
 
-char *concat_file_name(const char *dir, char *file)
+int wait_for_pending_reads2(int fd, int timeout_ms,
+	struct incfs_pending_read_info2 *prs, int prs_count)
+{
+	ssize_t read_res = 0;
+
+	if (timeout_ms > 0) {
+		int poll_res = 0;
+		struct pollfd pollfd = {
+			.fd = fd,
+			.events = POLLIN
+		};
+
+		poll_res = poll(&pollfd, 1, timeout_ms);
+		if (poll_res < 0)
+			return -errno;
+		if (poll_res == 0)
+			return 0;
+		if (!(pollfd.revents | POLLIN))
+			return 0;
+	}
+
+	read_res = read(fd, prs, prs_count * sizeof(*prs));
+	if (read_res < 0)
+		return -errno;
+
+	return read_res / sizeof(*prs);
+}
+
+char *concat_file_name(const char *dir, const char *file)
 {
 	char full_name[FILENAME_MAX] = "";
 

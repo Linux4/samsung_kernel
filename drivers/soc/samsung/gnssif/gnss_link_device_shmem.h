@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2010 Samsung Electronics.
  *
@@ -39,7 +40,7 @@ struct shmem_ipc_map {
 
 struct shmem_region {
 	u8 __iomem *vaddr; /* ioremap base address */
-	u32         paddr; /* physical base address */
+	u64         paddr; /* physical base address */
 	u32         size;  /* region size */
 };
 
@@ -57,8 +58,9 @@ struct shmem_link_device {
 
 	/* SHMEM (SHARED MEMORY) address, size, IRQ# */
 	struct shmem_region ipc_mem;
-
-	u32 ipc_reg_cnt;
+	struct shmem_region ipc_rx_mem;
+	struct shmem_region ipc_tx_mem;
+	struct shmem_region ipc_reg_mem;
 
 	/* IPC device map */
 	struct shmem_ipc_map ipc_map;
@@ -75,7 +77,6 @@ struct shmem_link_device {
 
 	/* for retransmission under SHMEM flow control after TXQ full state */
 	atomic_t res_required;
-	//struct completion req_ack_cmpl;
 
 	/* for efficient RX process */
 	struct tasklet_struct rx_tsk;
@@ -91,17 +92,15 @@ struct shmem_link_device {
 	unsigned int rx_int_count;
 
 	/* to hold/release "cp_wakeup" for PM (power-management) */
-	//struct delayed_work cp_sleep_dwork;
 	atomic_t ref_cnt;
-	//spinlock_t pm_lock;
 };
 
 /* converts from struct link_device* to struct xxx_link_device* */
 #define to_shmem_link_device(linkdev) \
 		container_of(linkdev, struct shmem_link_device, ld)
 
-void gnss_write_reg(struct shmem_link_device *, enum gnss_reg_type, u32);
-u32 gnss_read_reg(struct shmem_link_device *, enum gnss_reg_type);
+void gnss_write_reg(struct shmem_link_device *shmd, enum gnss_reg_type reg, u32 value);
+u32 gnss_read_reg(struct shmem_link_device *shmd, enum gnss_reg_type reg);
 
 /**
  * get_txq_head
@@ -247,7 +246,7 @@ static inline void set_rxq_tail(struct shmem_link_device *shmd, u32 out)
  */
 static inline u16 read_int2gnss(struct shmem_link_device *shmd)
 {
-	return gnss_mbox_get_value(shmd->mbx->id, shmd->int_ipc_msg);
+	return gnss_mbox_get_sr(shmd->mbx->id, shmd->int_ipc_msg);
 }
 
 /**
@@ -264,7 +263,7 @@ static inline void reset_txq_circ(struct shmem_link_device *shmd)
 	u32 head = get_txq_head(shmd);
 	u32 tail = get_txq_tail(shmd);
 
-	gif_err("%s: %s_TXQ: HEAD[%u] <== TAIL[%u]\n",
+	gif_info("%s: %s_TXQ: HEAD[%u] <== TAIL[%u]\n",
 		ld->name, "FMT", head, tail);
 
 	set_txq_head(shmd, tail);
@@ -284,7 +283,7 @@ static inline void reset_rxq_circ(struct shmem_link_device *shmd)
 	u32 head = get_rxq_head(shmd);
 	u32 tail = get_rxq_tail(shmd);
 
-	gif_err("%s: %s_RXQ: TAIL[%u] <== HEAD[%u]\n",
+	gif_info("%s: %s_RXQ: TAIL[%u] <== HEAD[%u]\n",
 		ld->name, "FMT", tail, head);
 
 	set_rxq_tail(shmd, head);
@@ -317,12 +316,13 @@ static inline int get_rxq_rcvd(struct shmem_link_device *shmd,
 			ld->name, "FMT", circ->qsize, circ->in,
 			circ->out, circ->size);
 		return 0;
-	} else {
-		gif_err("%s: ERR! %s_RXQ invalid (qsize[%d] in[%d] out[%d])\n",
-			ld->name, "FMT", circ->qsize, circ->in,
-			circ->out);
-		return -EIO;
 	}
+
+	gif_err("%s: ERR! %s_RXQ invalid (qsize[%d] in[%d] out[%d])\n",
+		ld->name, "FMT", circ->qsize, circ->in,
+		circ->out);
+
+	return -EIO;
 }
 
 /*

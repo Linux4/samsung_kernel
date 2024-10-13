@@ -20,13 +20,6 @@
 #define SENSOR_TYPE_MOD3		(3)
 #define SENSOR_TYPE_MSPD_TAIL		(4)
 
-#define COREX_IGNORE			(0)
-#define COREX_COPY			(1)
-#define COREX_SWAP			(2)
-
-#define HW_TRIGGER			(0)
-#define SW_TRIGGER			(1)
-
 #define START_ASAP			(0)
 #define START_VVALID_RISE		(1)
 
@@ -1006,6 +999,8 @@ enum is_hw_pdp_reg_name {
 	PDP_R_PDSTAT_ROI_SUB_MWS_NO_Y,
 	PDP_R_PDSTAT_H_WDR_SPLIT_ON,
 	PDP_R_PDSTAT_V_ON,
+	PDP_R_PDSTAT_DUMP_ON,
+	PDP_R_PDSTAT_DUMP_LR_SUM_ON,
 	PDP_R_PDSTAT_CRC,
 	PDP_R_DMA_AUTO_FLUSH_MODE,
 	PDP_R_DMA_AUTO_FLUSH_STATUS,
@@ -2224,6 +2219,8 @@ const struct is_reg pdp_regs[] = {
 	{0x1f50, "PDSTAT_ROI_SUB_MWS_NO_Y"}, /* corex */
 	{0x1f54, "PDSTAT_H_WDR_SPLIT_ON"}, /* corex */
 	{0x1f58, "PDSTAT_V_ON"}, /* corex */
+	{0x1f60, "PDSTAT_DUMP_ON"}, /* corex */
+	{0x1f64, "PDSTAT_DUMP_LR_SUM_ON"}, /* corex */
 	{0x1ffc, "PDSTAT_CRC"},
 	{0xa000, "DMA_AUTO_FLUSH_MODE"}, /* corex */
 	{0x2004, "DMA_AUTO_FLUSH_STATUS"},
@@ -3441,6 +3438,8 @@ const struct is_reg pdp_regs_corex[] = {
 	{0x9f50, "PDSTAT_ROI_SUB_MWS_NO_Y"}, /* corex */
 	{0x9f54, "PDSTAT_H_WDR_SPLIT_ON"}, /* corex */
 	{0x9f58, "PDSTAT_V_ON"}, /* corex */
+	{0x9f60, "PDSTAT_DUMP_ON"}, /* corex */
+	{0x9f64, "PDSTAT_DUMP_LR_SUM_ON"}, /* corex */
 	{0x1ffc, "PDSTAT_CRC"},
 	{0xa000, "DMA_AUTO_FLUSH_MODE"}, /* corex */
 	{0x2004, "DMA_AUTO_FLUSH_STATUS"},

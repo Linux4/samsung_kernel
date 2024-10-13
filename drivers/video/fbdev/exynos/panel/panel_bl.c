@@ -508,13 +508,13 @@ int panel_bl_set_subdev(struct panel_bl_device *panel_bl, int id)
 
 int panel_bl_update_average(struct panel_bl_device *panel_bl, size_t index)
 {
-	struct timespec cur_ts;
+	struct timespec64 cur_ts;
 	int cur_brt;
 
 	if (index >= ARRAY_SIZE(panel_bl->tnv))
 		return -EINVAL;
 
-	ktime_get_ts(&cur_ts);
+	ktime_get_ts64(&cur_ts);
 	cur_brt = panel_bl->props.actual_brightness_intrp / 100;
 	timenval_update_snapshot(&panel_bl->tnv[index], cur_brt, cur_ts);
 
@@ -558,10 +558,10 @@ int aor_interpolation(unsigned int *brt_tbl, unsigned int *lum_tbl,
 	int upper_idx, lower_idx;
 	u64 upper_lum, lower_lum;
 	u64 upper_brt, lower_brt;
-	u64 upper_aor, lower_aor, aor;
+	u64 upper_aor, lower_aor, aor = 0;
 	u64 upper_aor_ratio, lower_aor_ratio, aor_ratio = 0;
 	u64 intrp_brt = 0, vbase_lum = 0;
-	enum DIMTYPE dimtype;
+	enum DIMTYPE dimtype = 0;
 
 	upper_idx = search_tbl(brt_tbl, size, SEARCH_TYPE_UPPER, brightness);
 	lower_idx = max(0, (upper_idx - 1));

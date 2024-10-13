@@ -1,13 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Regulators driver for Marvell 88PM800
  *
  * Copyright (C) 2012 Marvell International Ltd.
  * Joseph(Yossi) Hanin <yhanin@marvell.com>
  * Yi Zhang <yizhang@marvell.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -77,11 +74,6 @@ struct pm800_regulator_info {
 	int max_ua;
 };
 
-struct pm800_regulators {
-	struct pm80x_chip *chip;
-	struct regmap *map;
-};
-
 /*
  * vreg - the buck regs string.
  * ereg - the string for the enable register.
@@ -142,13 +134,13 @@ struct pm800_regulators {
 }
 
 /* Ranges are sorted in ascending order. */
-static const struct regulator_linear_range buck1_volt_range[] = {
+static const struct linear_range buck1_volt_range[] = {
 	REGULATOR_LINEAR_RANGE(600000, 0, 0x4f, 12500),
 	REGULATOR_LINEAR_RANGE(1600000, 0x50, 0x54, 50000),
 };
 
 /* BUCK 2~5 have same ranges. */
-static const struct regulator_linear_range buck2_5_volt_range[] = {
+static const struct linear_range buck2_5_volt_range[] = {
 	REGULATOR_LINEAR_RANGE(600000, 0, 0x4f, 12500),
 	REGULATOR_LINEAR_RANGE(1600000, 0x50, 0x72, 50000),
 };
@@ -235,7 +227,6 @@ static int pm800_regulator_probe(struct platform_device *pdev)
 {
 	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct pm80x_platform_data *pdata = dev_get_platdata(pdev->dev.parent);
-	struct pm800_regulators *pm800_data;
 	struct regulator_config config = { };
 	struct regulator_init_data *init_data;
 	int i, ret;
@@ -252,18 +243,8 @@ static int pm800_regulator_probe(struct platform_device *pdev)
 			return -EINVAL;
 	}
 
-	pm800_data = devm_kzalloc(&pdev->dev, sizeof(*pm800_data),
-					GFP_KERNEL);
-	if (!pm800_data)
-		return -ENOMEM;
-
-	pm800_data->map = chip->subchip->regmap_power;
-	pm800_data->chip = chip;
-
-	platform_set_drvdata(pdev, pm800_data);
-
 	config.dev = chip->dev;
-	config.regmap = pm800_data->map;
+	config.regmap = chip->subchip->regmap_power;
 	for (i = 0; i < PM800_ID_RG_MAX; i++) {
 		struct regulator_dev *regulator;
 

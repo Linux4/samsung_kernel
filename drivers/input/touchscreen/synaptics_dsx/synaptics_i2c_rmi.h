@@ -62,6 +62,8 @@
 /**************************************/
 /**************************************/
 
+#define I2C_WRITE_BUFFER_SIZE         (256 - 1)//10
+
 #ifdef CONFIG_SEC_DEBUG_TSP_LOG
 #define tsp_debug_dbg(mode, dev, fmt, ...)	\
 ({								\

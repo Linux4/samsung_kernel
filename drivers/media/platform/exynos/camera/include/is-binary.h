@@ -24,19 +24,19 @@
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 #define IS_ISP_LIB_SDCARD_PATH		NULL
 #else
-#define IS_ISP_LIB_SDCARD_PATH		"/data/vendor/camera/"
+#define IS_ISP_LIB_SDCARD_PATH		NULL
 #endif
 #define IS_REAR_CAL_SDCARD_PATH		"/data/vendor/camera/"
 #define IS_FRONT_CAL_SDCARD_PATH		"/data/media/0/"
 #else
 #define IS_FW_PATH 			"/system/vendor/firmware/"
 #define IS_FW_DUMP_PATH			"/data/"
-#define IS_SETFILE_SDCARD_PATH		"/data/"
+#define IS_SETFILE_SDCARD_PATH		"/data/vendor/camera/"
 #define IS_FW_SDCARD			"/data/is_fw2.bin"
 #define IS_FW				"is_fw2.bin"
-#define IS_ISP_LIB_SDCARD_PATH		"/data/"
-#define IS_REAR_CAL_SDCARD_PATH		"/data/"
-#define IS_FRONT_CAL_SDCARD_PATH		"/data/"
+#define IS_ISP_LIB_SDCARD_PATH		NULL
+#define IS_REAR_CAL_SDCARD_PATH		"/data/vendor/camera/"
+#define IS_FRONT_CAL_SDCARD_PATH		"/data/vendor/camera/"
 #endif
 
 #ifdef USE_ONE_BINARY
@@ -57,12 +57,25 @@
 /* static reserved memory for libraries */
 #define CDH_SIZE		SZ_128K		/* CDH : Camera Debug Helper */
 
+#if defined(BPF_JIT_REGION_SIZE)
+#define BPF_OFS		0
+#else
+#define BPF_OFS		SZ_128M
+#endif /* BPF_JIT_REGION_SIZE */
+
+/*
 #ifdef CONFIG_KASAN
 #define LIB_OFFSET		(VMALLOC_START + 0xF6000000 - 0x8000000)
 #else
 #define LIB_OFFSET		(VMALLOC_START + 0x1000000000UL + 0xF6000000 - 0x8000000)
 #endif
-
+*/
+ 
+#ifdef CONFIG_KASAN
+#define LIB_OFFSET		(VMALLOC_START + BPF_OFS + 0xF6000000 - 0x8000000)
+#else
+#define LIB_OFFSET		(VMALLOC_START + BPF_OFS + 0x1000000000UL + 0xF6000000 - 0x8000000)
+#endif
 #define __LIB_START		(LIB_OFFSET + 0x04000000 - CDH_SIZE)
 #define LIB_START		(__LIB_START)
 
@@ -70,19 +83,28 @@
 #define VRA_LIB_SIZE		(SZ_512K + SZ_256K)
 
 #define DDK_LIB_ADDR		(LIB_START + VRA_LIB_SIZE + CDH_SIZE)
-#define DDK_LIB_SIZE		((SZ_2M + SZ_1M + SZ_256K) + SZ_1M)
+#define DDK_LIB_SIZE		((SZ_2M + SZ_2M + SZ_256K) + SZ_1M)
 
-#define RTA_LIB_ADDR		(LIB_START + VRA_LIB_SIZE + DDK_LIB_SIZE + CDH_SIZE)
+#define RTA_LIB_ADDR		(LIB_START + CDH_SIZE + VRA_LIB_SIZE + DDK_LIB_SIZE)
 #define RTA_LIB_SIZE		(SZ_2M + SZ_2M)
 
-#ifdef USE_RTA_BINARY
-#define LIB_SIZE		(VRA_LIB_SIZE + DDK_LIB_SIZE +  RTA_LIB_SIZE + CDH_SIZE)
-#else
-#define LIB_SIZE		(VRA_LIB_SIZE + DDK_LIB_SIZE + CDH_SIZE)
-#endif
-
-#define HEAP_START		(LIB_START + SZ_16M)
+/* Free region after RTA memory : 6 MB */
+#define HEAP_START		(RTA_LIB_ADDR + RTA_LIB_SIZE + (SZ_4M + SZ_2M))
 #define HEAP_SIZE		(IS_HEAP_SIZE)
+
+/* Free region after DDK Heap : 19 MB */
+#define HEAP_RTA_START		(HEAP_START + HEAP_SIZE + (SZ_16M + SZ_2M + SZ_1M))
+#define HEAP_RTA_SIZE		SZ_1M
+
+
+#ifdef USE_RTA_BINARY
+/* 81.125 MB */
+#define LIB_SIZE		(CDH_SIZE + VRA_LIB_SIZE +  DDK_LIB_SIZE + RTA_LIB_SIZE + (SZ_4M + SZ_2M) \
+							+ HEAP_SIZE + (SZ_16M + SZ_2M + SZ_1M) + HEAP_RTA_SIZE + RTA_LIB_SIZE)
+#else
+#define LIB_SIZE		(CDH_SIZE + VRA_LIB_SIZE +  DDK_LIB_SIZE + (SZ_4M + SZ_2M) \
+							+ HEAP_SIZE + (SZ_16M + SZ_2M + SZ_1M))
+#endif
 
 /* reserved memory for FIMC-IS */
 #define SETFILE_SIZE		(IS_SETFILE_SIZE)
@@ -95,8 +117,6 @@
 #define DATA_REGION_SIZE	(0x00010000)
 #define PARAM_REGION_SIZE	(0x00005000)	/* 20KB * instance(4) */
 
-#define HEAP_RTA_START		(HEAP_START + SZ_64M + SZ_32M)		/* HEAP_SIZE(for DDK) should be smaller than 96MB */
-#define HEAP_RTA_SIZE		(IS_RESERVE_LIB_SIZE)	/* 6MB ~ */
 #define TAAISP_DMA_SIZE		(IS_TAAISP_SIZE)	/* 512KB */
 #define MEDRC_DMA_SIZE		(TAAISP_MEDRC_SIZE)
 #define ORBMCH_DMA_SIZE		(TAAISP_ORBMCH_SIZE)

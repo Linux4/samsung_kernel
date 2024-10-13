@@ -10,7 +10,6 @@
  */
 
 #include <linux/module.h>
-
 #include <linux/init.h>
 #include <linux/fs.h>
 #include <linux/interrupt.h>
@@ -33,39 +32,17 @@
 #include <linux/sysfs.h>
 #include <linux/mfd/samsung/s2mpu12.h>
 #include <linux/mfd/samsung/s2mpu12-regulator.h>
-#include <linux/wakelock.h>
-#include <linux/notifier.h>
-#if defined(CONFIG_DRV_SAMSUNG)
-#include <linux/sec_class.h>
-#else
-#include <linux/sec_sysfs.h>
-#endif
-#include <linux/debug-snapshot.h>
+//#include <linux/sec_sysfs.h>
+//#include <linux/debug-snapshot.h>
 
-#ifdef CONFIG_SLEEP_MONITOR
+#if IS_ENABLED(CONFIG_SLEEP_MONITOR)
 #include <linux/power/sleep_monitor.h>
 #endif
 
 #define WAKELOCK_TIME		HZ/10
 
-#ifdef CONFIG_SEC_DEBUG
-extern struct atomic_notifier_head gpio_keys_notifiers;
-#endif
-#ifdef CONFIG_SEC_PMIC_PWRKEY
-extern bool (*pmic_key_is_pwron)(void);
-#endif
-
-static struct platform_device *s2mpu12_key_pdev;
-
 int expander_power_keystate = 0;	/* key_pressed_show for 3x4 keypad */
 EXPORT_SYMBOL(expander_power_keystate);
-
-static int check_pkey_press;
-int get_pkey_press(void)
-{
-	return check_pkey_press;
-}
-EXPORT_SYMBOL(get_pkey_press);
 
 static int force_key_irq_en = 0;
 static int power_key_last_state = 0;
@@ -97,17 +74,14 @@ struct power_keys_drvdata {
 	const struct power_keys_platform_data *pdata;
 	struct input_dev *input;
 	struct mutex	disable_lock;
-	struct wake_lock         key_wake_lock;
 
 	struct i2c_client *pmm_i2c;
 	int		irq_pwronr;
 	int		irq_pwronf;
-#ifdef CONFIG_SLEEP_MONITOR
+#if IS_ENABLED(CONFIG_SLEEP_MONITOR)
 	u32 press_cnt;
 	bool resume_state;
 #endif
-	bool irq_pwronr_disabled;
-	bool irq_pwronf_disabled;
 	struct power_button_data button_data[0];
 };
 
@@ -144,21 +118,6 @@ struct power_keys_drvdata {
  *
  * We can disable only those keys which don't allow sharing the irq.
  */
-
-bool s2mpu12_is_pwron(void)
-{
-	struct power_keys_drvdata *ddata = platform_get_drvdata(s2mpu12_key_pdev);
-	int i;
-	int keystate = 0;
-
-	for (i = 0; i < ddata->pdata->nbuttons; i++) {
-		struct power_button_data *bdata = &ddata->button_data[i];
-		if (bdata->button->code == KEY_POWER)
-			keystate = bdata->key_state;
-	}
-	return keystate;
-}
-EXPORT_SYMBOL_GPL(s2mpu12_is_pwron);
 
 /**
  * get_n_events_by_type() - returns maximum number of events per @type
@@ -400,7 +359,7 @@ static struct attribute_group power_keys_attr_group = {
 	.attrs = power_keys_attrs,
 };
 
-#ifdef CONFIG_DRV_SAMSUNG
+#if IS_ENABLED(CONFIG_SEC_SYSFS)
 static ssize_t key_pressed_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -494,7 +453,7 @@ static struct attribute_group sec_power_key_attr_group = {
 };
 #endif
 
-#ifdef CONFIG_SLEEP_MONITOR
+#if IS_ENABLED(CONFIG_SLEEP_MONITOR)
 #define	PRETTY_MAX	14
 #define	STATE_BIT	24
 #define	CNT_MARK	0xffff
@@ -537,6 +496,22 @@ static int power_keys_get_sleep_monitor_cb(void* priv, unsigned int *raw_val, in
 }
 #endif
 
+static int s2mpu12_keys_wake_lock_timeout(struct device *dev, long timeout)
+{
+	struct wakeup_source *ws = NULL;
+
+	if (!dev->power.wakeup) {
+		pr_err("%s: Not register wakeup source\n", __func__);
+		goto err;
+	}
+
+	ws = dev->power.wakeup;
+	__pm_wakeup_event(ws, jiffies_to_msecs(timeout));
+
+	return 0;
+err:
+	return -1;
+}
 
 static void power_keys_power_report_event(struct power_button_data *bdata)
 {
@@ -546,19 +521,15 @@ static void power_keys_power_report_event(struct power_button_data *bdata)
 	unsigned int type = button->type ?: EV_KEY;
 	int state = bdata->key_pressed;
 
-	wake_lock_timeout(&ddata->key_wake_lock, WAKELOCK_TIME);
-
-	if (button->code == KEY_POWER) {
-		bdata->isr_status = false;
-		if(state == 1)
-			check_pkey_press = 1;
-		else
-			check_pkey_press = 0;
+	if (s2mpu12_keys_wake_lock_timeout(ddata->dev, WAKELOCK_TIME) < 0) {
+		pr_err("%s: s2mpu12_keys_wake_lock_timeout fail\n", __func__);
+		return;
 	}
 
-#ifndef CONFIG_SEC_DEBUG
-	dbg_snapshot_check_crash_key(button->code, state);
-#endif
+	if (button->code == KEY_POWER)
+		bdata->isr_status = false;
+
+	//dbg_snapshot_check_crash_key(button->code, state);
 
 	if (type == EV_ABS) {
 		if (state)
@@ -568,7 +539,7 @@ static void power_keys_power_report_event(struct power_button_data *bdata)
 		input_event(input, type, button->code, !!state);
 	}
 	input_sync(input);
-#ifdef CONFIG_SLEEP_MONITOR
+#if IS_ENABLED(CONFIG_SLEEP_MONITOR)
 	if ((ddata->press_cnt < CNT_MARK) && (bdata->isr_status) && (!!state))
 		ddata->press_cnt++;
 #endif
@@ -591,19 +562,10 @@ static irqreturn_t power_keys_rising_irq_handler(int irq, void *dev_id)
 	struct power_keys_drvdata *ddata = dev_id;
 	/* TO DO: consider the flexibiliy */
 	struct power_button_data *bdata = &ddata->button_data[0];
-#ifdef CONFIG_SEC_DEBUG
-	int state;
-
-	state = true;
-#endif
 
 	bdata->key_pressed = true;
 	bdata->isr_status = true;
 	power_key_last_state = 1;
-
-#ifdef CONFIG_SEC_DEBUG
-	atomic_notifier_call_chain(&gpio_keys_notifiers, bdata->button->code, &state);
-#endif
 
 	if (bdata->button->wakeup) {
 		const struct power_keys_button *button = bdata->button;
@@ -630,19 +592,10 @@ static irqreturn_t power_keys_falling_irq_handler(int irq, void *dev_id)
 	struct power_keys_drvdata *ddata = dev_id;
 	/* TO DO: consider the flexibiliy */
 	struct power_button_data *bdata = &ddata->button_data[0];
-#ifdef CONFIG_SEC_DEBUG
-	int state;
-
-	state = false;
-#endif
 
 	bdata->key_pressed = false;
 	bdata->isr_status = true;
 	power_key_last_state = 0;
-
-#ifdef CONFIG_SEC_DEBUG
-	atomic_notifier_call_chain(&gpio_keys_notifiers, bdata->button->code, &state);
-#endif
 
 	queue_delayed_work(bdata->irq_wqueue, &bdata->key_work, 0);
 
@@ -691,7 +644,7 @@ EXPORT_SYMBOL(exynos_power_key_pressed_chk);
  * Handlers for alternative sources of platform_data
  */
 
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 /*
  * Translate OpenFirmware node properties into platform_data
  */
@@ -823,7 +776,7 @@ static int power_keys_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto fail1;
 	}
-	input->name	= "sec-pmic-key";//pdata->name ? : pdev->name;
+	input->name	= pdata->name ? : pdev->name;
 	input->phys	= "s2mpu12-keys/input0";
 	input->dev.parent = dev;
 	input->open	= power_keys_open;
@@ -849,9 +802,6 @@ static int power_keys_probe(struct platform_device *pdev)
 	ddata->pmm_i2c	= s2mpu12->pmic;
 
 	mutex_init(&ddata->disable_lock);
-
-	wake_lock_init(&ddata->key_wake_lock,
-			WAKE_LOCK_SUSPEND, "power keys wake lock");
 
 	platform_set_drvdata(pdev, ddata);
 	input_set_drvdata(input, ddata);
@@ -889,8 +839,7 @@ static int power_keys_probe(struct platform_device *pdev)
 		dev_err(dev, "%s() fail to request pwron-r in IRQ: %d: %d\n",
 				__func__, ddata->irq_pwronr, ret);
 		goto fail1;
-	} else
-		ddata->irq_pwronr_disabled = false;
+	}
 
 	ret = devm_request_threaded_irq(&pdev->dev, ddata->irq_pwronf, NULL,
 			power_keys_falling_irq_handler, 0, "pwronf-irq", ddata);
@@ -898,8 +847,7 @@ static int power_keys_probe(struct platform_device *pdev)
 		dev_err(dev, "%s() fail to request pwron-f in IRQ: %d: %d\n",
 				__func__, ddata->irq_pwronf, ret);
 		goto fail1;
-	} else
-		ddata->irq_pwronf_disabled = false;
+	}
 
 	ret = sysfs_create_group(&dev->kobj, &power_keys_attr_group);
 	if (ret) {
@@ -908,7 +856,7 @@ static int power_keys_probe(struct platform_device *pdev)
 		goto fail2;
 	}
 
-#ifdef CONFIG_DRV_SAMSUNG
+#if IS_ENABLED(CONFIG_SEC_SYSFS)
 	sec_power_key = sec_device_create(ddata, "sec_power_key");
 	if (IS_ERR(sec_power_key))
 		dev_err(dev, "%s failed to create sec_power_key\n", __func__);
@@ -930,18 +878,11 @@ static int power_keys_probe(struct platform_device *pdev)
 
 	device_init_wakeup(dev, wakeup);
 
-#ifdef CONFIG_SLEEP_MONITOR
+#if IS_ENABLED(CONFIG_SLEEP_MONITOR)
 	ddata->resume_state = true;
 	sleep_monitor_register_ops(ddata, &power_keys_sleep_monitor_ops,
 			SLEEP_MONITOR_KEY);
 #endif
-
-#ifdef CONFIG_SEC_PMIC_PWRKEY
-	pmic_key_is_pwron = s2mpu12_is_pwron;
-#endif
-
-	s2mpu12_key_pdev = pdev;
-
 	if (force_key_irq_en) {
 		enable_irq(ddata->irq_pwronf);
 		enable_irq(ddata->irq_pwronr);
@@ -963,7 +904,6 @@ static int power_keys_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, NULL);
  fail1:
-	wake_lock_destroy(&ddata->key_wake_lock);
 	input_free_device(input);
 	kfree(ddata);
 	/* If we have no platform data, we allocated pdata dynamically. */
@@ -979,13 +919,12 @@ static int power_keys_remove(struct platform_device *pdev)
 	struct input_dev *input = ddata->input;
 	int i;
 
-#ifdef CONFIG_SLEEP_MONITOR
+#if IS_ENABLED(CONFIG_SLEEP_MONITOR)
 	sleep_monitor_unregister_ops(SLEEP_MONITOR_KEY);
 #endif
 	sysfs_remove_group(&pdev->dev.kobj, &power_keys_attr_group);
 
 	device_init_wakeup(&pdev->dev, 0);
-	wake_lock_destroy(&ddata->key_wake_lock);
 
 	for (i = 0; i < ddata->pdata->nbuttons; i++) {
 		struct power_button_data *bdata = &ddata->button_data[i];
@@ -1007,7 +946,7 @@ static int power_keys_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_SLEEP
+#if IS_ENABLED(CONFIG_PM_SLEEP)
 static int power_keys_suspend(struct device *dev)
 {
 	struct power_keys_drvdata *ddata = dev_get_drvdata(dev);
@@ -1028,7 +967,7 @@ static int power_keys_suspend(struct device *dev)
 		mutex_unlock(&input->mutex);
 	}
 
-#ifdef CONFIG_SLEEP_MONITOR
+#if IS_ENABLED(CONFIG_SLEEP_MONITOR)
 	ddata->resume_state = false;
 #endif
 
@@ -1042,7 +981,7 @@ static int power_keys_resume(struct device *dev)
 	int error = 0;
 	int i;
 
-#ifdef CONFIG_SLEEP_MONITOR
+#if IS_ENABLED(CONFIG_SLEEP_MONITOR)
 	ddata->resume_state = true;
 #endif
 

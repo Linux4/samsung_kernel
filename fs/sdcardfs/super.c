@@ -19,6 +19,7 @@
  */
 
 #include "sdcardfs.h"
+#include <uapi/linux/mount.h>
 
 /*
  * The inode cache is used with alloc_inode for both our inode info and the
@@ -78,13 +79,8 @@ static int sdcardfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	err = vfs_statfs(&lower_path, buf);
 	sdcardfs_put_lower_path(dentry, &lower_path);
 
-	if (uid_eq(GLOBAL_ROOT_UID, current_fsuid()) ||
-			capable(CAP_SYS_RESOURCE) ||
-			in_group_p(AID_USE_ROOT_RESERVED))
-		goto out;
-
 	if (sbi->options.reserved_mb) {
-		/* Invalid statfs informations. */
+		/* Invalid statfs information. */
 		if (buf->f_bsize == 0) {
 			pr_err("Returned block size is zero.\n");
 			return -EINVAL;
@@ -101,81 +97,11 @@ static int sdcardfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 		/* Make reserved blocks invisiable to media storage */
 		buf->f_bfree = buf->f_bavail;
 	}
-out:
+
 	/* set return buf to our f/s to avoid confusing user-level utils */
 	buf->f_type = SDCARDFS_SUPER_MAGIC;
 
 	return err;
-}
-
-/*
- * @flags: numeric mount options
- * @options: mount options string
- */
-static int sdcardfs_remount_fs(struct super_block *sb, int *flags, char *options)
-{
-	int err = 0;
-
-	/*
-	 * The VFS will take care of "ro" and "rw" flags among others.  We
-	 * can safely accept a few flags (RDONLY, MANDLOCK), and honor
-	 * SILENT, but anything else left over is an error.
-	 */
-	if ((*flags & ~(MS_RDONLY | MS_MANDLOCK | MS_SILENT)) != 0) {
-		pr_err("sdcardfs: remount flags 0x%x unsupported\n", *flags);
-		err = -EINVAL;
-	}
-
-	return err;
-}
-
-/*
- * @mnt: mount point we are remounting
- * @sb: superblock we are remounting
- * @flags: numeric mount options
- * @options: mount options string
- */
-static int sdcardfs_remount_fs2(struct vfsmount *mnt, struct super_block *sb,
-						int *flags, char *options)
-{
-	int err = 0;
-
-	/*
-	 * The VFS will take care of "ro" and "rw" flags among others.  We
-	 * can safely accept a few flags (RDONLY, MANDLOCK), and honor
-	 * SILENT, but anything else left over is an error.
-	 */
-	if ((*flags & ~(MS_RDONLY | MS_MANDLOCK | MS_SILENT | MS_REMOUNT)) != 0) {
-		pr_err("sdcardfs: remount flags 0x%x unsupported\n", *flags);
-		err = -EINVAL;
-	}
-	/* @fs.sec -- 4DC77922893C8B8AE33DD84EE050EBBF -- */
-	pr_info("Remount options were %s\n", options);
-	err = parse_options_remount(sb, options, *flags & ~MS_SILENT, mnt->data);
-
-
-	return err;
-}
-
-static void *sdcardfs_clone_mnt_data(void *data)
-{
-	struct sdcardfs_vfsmount_options *opt = kmalloc(sizeof(struct sdcardfs_vfsmount_options), GFP_KERNEL);
-	struct sdcardfs_vfsmount_options *old = data;
-
-	if (!opt)
-		return NULL;
-	opt->gid = old->gid;
-	opt->mask = old->mask;
-	return opt;
-}
-
-static void sdcardfs_copy_mnt_data(void *data, void *newdata)
-{
-	struct sdcardfs_vfsmount_options *old = data;
-	struct sdcardfs_vfsmount_options *new = newdata;
-
-	old->gid = new->gid;
-	old->mask = new->mask;
 }
 
 /*
@@ -345,10 +271,6 @@ int sdcardfs_on_fscrypt_key_removed(struct notifier_block *nb,
 const struct super_operations sdcardfs_sops = {
 	.put_super	= sdcardfs_put_super,
 	.statfs		= sdcardfs_statfs,
-	.remount_fs	= sdcardfs_remount_fs,
-	.remount_fs2	= sdcardfs_remount_fs2,
-	.clone_mnt_data	= sdcardfs_clone_mnt_data,
-	.copy_mnt_data	= sdcardfs_copy_mnt_data,
 	.evict_inode	= sdcardfs_evict_inode,
 	.umount_begin	= sdcardfs_umount_begin,
 	.show_options2	= sdcardfs_show_options,

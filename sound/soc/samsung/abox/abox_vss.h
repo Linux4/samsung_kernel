@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_vss.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox VSS
  *
  * Copyright (c) 2017 Samsung Electronics Co. Ltd.
@@ -29,5 +29,11 @@ extern int abox_vss_notify_call(struct device *dev, struct abox_data *data,
  * @return	none
  */
 extern void abox_call_notify_event(enum abox_call_event evt, void *data);
+
+/**
+ * Notify VSS start or stop
+ * @param[in]	start		true for start, false for stop
+ */
+extern void abox_vss_notify_status(bool start);
 
 #endif /* __SND_SOC_ABOX_VSS_H */

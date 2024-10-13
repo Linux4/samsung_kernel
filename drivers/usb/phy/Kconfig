@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 #
 # Physical Layer USB driver configuration
 #
@@ -74,14 +75,6 @@ config AM335X_PHY_USB
 	help
 	  This driver provides PHY support for that phy which part for the
 	  AM335x SoC.
-
-config DUAL_ROLE_USB_INTF
-	bool "Generic DUAL ROLE sysfs interface"
-	help
-	 A generic sysfs interface to track and change the state of
-	 dual role usb phys. The usb phy drivers can register to
-	 this interface to expose it capabilities to the userspace
-  	 and thereby allowing userspace to change the port mode.
 
 config TWL6030_USB
 	tristate "TWL6030 USB Transceiver Driver"
@@ -169,7 +162,7 @@ config USB_MXS_PHY
 
 config USB_TEGRA_PHY
 	tristate "NVIDIA Tegra USB PHY Driver"
-	depends on ARCH_TEGRA
+	depends on ARCH_TEGRA || COMPILE_TEST
 	select USB_COMMON
 	select USB_PHY
 	select USB_ULPI
@@ -179,7 +172,7 @@ config USB_TEGRA_PHY
 
 config USB_ULPI
 	bool "Generic ULPI Transceiver Driver"
-	depends on ARM || ARM64
+	depends on ARM || ARM64 || COMPILE_TEST
 	select USB_ULPI_VIEWPORT
 	help
 	  Enable this to support ULPI connected USB OTG transceivers which
@@ -190,5 +183,13 @@ config USB_ULPI_VIEWPORT
 	help
 	  Provides read/write operations to the ULPI phy register set for
 	  controllers with a viewport register (e.g. Chipidea/ARC controllers).
+
+config JZ4770_PHY
+	tristate "Ingenic SoCs Transceiver Driver"
+	depends on MIPS || COMPILE_TEST
+	select USB_PHY
+	help
+	  This driver provides PHY support for the USB controller found
+	  on the JZ-series and X-series SoCs from Ingenic.
 
 endmenu

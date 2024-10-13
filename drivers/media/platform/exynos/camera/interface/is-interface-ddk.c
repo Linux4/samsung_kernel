@@ -25,17 +25,8 @@ bool check_dma_done(struct is_hw_ip *hw_ip, u32 instance_id, u32 fcount)
 	bool ret = false;
 	struct is_frame *frame;
 	struct is_framemgr *framemgr;
-	int wq_id0 = WORK_MAX_MAP, wq_id1 = WORK_MAX_MAP;
-	int wq_id2 = WORK_MAX_MAP, wq_id3 = WORK_MAX_MAP;
-	int wq_id4 = WORK_MAX_MAP, wq_id5 = WORK_MAX_MAP;
-	int output_id0 = ENTRY_END, output_id1 = ENTRY_END;
-	int output_id2 = ENTRY_END, output_id3 = ENTRY_END;
-	int output_id4 = ENTRY_END, output_id5 = ENTRY_END;
-#if defined(SOC_TNR_MERGER)
-	int wq_id6 = WORK_MAX_MAP, output_id6 = ENTRY_END;
-#endif
+	int output_id = 0;
 	u32 hw_fcount;
-	bool flag_get_meta = true;
 	ulong flags = 0;
 
 	FIMC_BUG(!hw_ip);
@@ -85,144 +76,12 @@ flush_config_frame:
 			fcount, hw_fcount,
 			frame->fcount, frame->cur_buf_index, frame->num_buffers);
 
-	switch (hw_ip->id) {
-	case DEV_HW_3AA0:
-		wq_id0 = WORK_30P_FDONE; /* after BDS */
-		output_id0 = ENTRY_3AP;
-		wq_id1 = WORK_30C_FDONE; /* before BDS */
-		output_id1 = ENTRY_3AC;
-		wq_id2 = WORK_30F_FDONE; /* efd output */
-		output_id2 = ENTRY_3AF;
-		wq_id3 = WORK_30G_FDONE; /* mrg output */
-		output_id3 = ENTRY_3AG;
-		wq_id4 = WORK_ME0C_FDONE; /* me output */
-		output_id4 = ENTRY_MEXC;
-		wq_id5 = WORK_ORB0C_FDONE; /* orb output */
-		output_id5 = ENTRY_ORBXC;
-		break;
-	case DEV_HW_3AA1:
-		wq_id0 = WORK_31P_FDONE;
-		output_id0 = ENTRY_3AP;
-		wq_id1 = WORK_31C_FDONE;
-		output_id1 = ENTRY_3AC;
-		wq_id2 = WORK_31F_FDONE; /* efd output */
-		output_id2 = ENTRY_3AF;
-		wq_id3 = WORK_31G_FDONE; /* mrg output */
-		output_id3 = ENTRY_3AG;
-		wq_id4 = WORK_ME1C_FDONE; /* me output */
-		output_id4 = ENTRY_MEXC;
-		wq_id5 = WORK_ORB1C_FDONE; /* orb output */
-		output_id5 = ENTRY_ORBXC;
-		break;
-	case DEV_HW_3AA2:
-		wq_id0 = WORK_32P_FDONE;
-		output_id0 = ENTRY_3AP;
-		wq_id1 = WORK_32C_FDONE;
-		output_id1 = ENTRY_3AC;
-		wq_id2 = WORK_32F_FDONE; /* efd output */
-		output_id2 = ENTRY_3AF;
-		wq_id3 = WORK_32G_FDONE; /* mrg output */
-		output_id3 = ENTRY_3AG;
-		break;
-	case DEV_HW_ISP0:
-		wq_id0 = WORK_I0P_FDONE; /* chunk output */
-		output_id0 = ENTRY_IXP;
-		wq_id1 = WORK_I0C_FDONE; /* yuv output */
-		output_id1 = ENTRY_IXC;
-		wq_id2 = WORK_ME0C_FDONE; /* me output */
-		output_id2 = ENTRY_MEXC;
-#if defined(SOC_TNR_MERGER)
-		wq_id3 = WORK_I0T_FDONE; /* TNR prev img in */
-		output_id3 = ENTRY_IXT;
-		wq_id4 = WORK_I0G_FDONE; /* TNR prev wgt in */
-		output_id4 = ENTRY_IXG;
-		wq_id5 = WORK_I0V_FDONE; /* TNR prev img out */
-		output_id5 = ENTRY_IXV;
-		wq_id6 = WORK_I0W_FDONE; /* TNR prev wgt out */
-		output_id6 = ENTRY_IXW;
-#endif
-		break;
-	case DEV_HW_ISP1:
-		wq_id0 = WORK_I1P_FDONE;
-		output_id0 = ENTRY_IXP;
-		wq_id1 = WORK_I1C_FDONE;
-		output_id1 = ENTRY_IXC;
-		wq_id2 = WORK_ME1C_FDONE; /* me output */
-		output_id2 = ENTRY_MEXC;
-		break;
-	case DEV_HW_CLH0:
-		wq_id0 = WORK_CL0C_FDONE;
-		output_id0 = ENTRY_CLHC;
-		break;
-	default:
-		mserr_hw("[F:%d] invalid hw ID(%d)!!", instance_id, hw_ip, fcount, hw_ip->id);
-		return ret;
-	}
+	if (test_bit(hw_ip->id, &frame->core_flag))
+		output_id = IS_HW_CORE_END;
 
-	if (test_bit(output_id0, &frame->out_flag)) {
-		msdbg_hw(1, "[F:%d]output_id[0x%x],wq_id[0x%x]\n",
-			instance_id, hw_ip, frame->fcount, output_id0, wq_id0);
-		is_hardware_frame_done(hw_ip, NULL, wq_id0, output_id0,
-			IS_SHOT_SUCCESS, flag_get_meta);
-		ret = true;
-		flag_get_meta = false;
-	}
+	is_hardware_frame_done(hw_ip, NULL, -1, output_id,
+			IS_SHOT_SUCCESS, true);
 
-	if (test_bit(output_id1, &frame->out_flag)) {
-		msdbg_hw(1, "[F:%d]output_id[0x%x],wq_id[0x%x]\n",
-			instance_id, hw_ip, frame->fcount, output_id1, wq_id1);
-		is_hardware_frame_done(hw_ip, NULL, wq_id1, output_id1,
-			IS_SHOT_SUCCESS, flag_get_meta);
-		ret = true;
-		flag_get_meta = false;
-	}
-
-	if (test_bit(output_id2, &frame->out_flag)) {
-		msdbg_hw(1, "[F:%d]output_id[0x%x],wq_id[0x%x]\n",
-			instance_id, hw_ip, frame->fcount, output_id2, wq_id2);
-		is_hardware_frame_done(hw_ip, NULL, wq_id2, output_id2,
-			IS_SHOT_SUCCESS, flag_get_meta);
-		ret = true;
-		flag_get_meta = false;
-	}
-
-	if (test_bit(output_id3, &frame->out_flag)) {
-		msdbg_hw(1, "[F:%d]output_id[0x%x],wq_id[0x%x]\n",
-			instance_id, hw_ip, frame->fcount, output_id3, wq_id3);
-		is_hardware_frame_done(hw_ip, NULL, wq_id3, output_id3,
-			IS_SHOT_SUCCESS, flag_get_meta);
-		ret = true;
-		flag_get_meta = false;
-	}
-
-	if (test_bit(output_id4, &frame->out_flag)) {
-		msdbg_hw(1, "[F:%d]output_id[0x%x],wq_id[0x%x]\n",
-			instance_id, hw_ip, frame->fcount, output_id4, wq_id4);
-		is_hardware_frame_done(hw_ip, NULL, wq_id4, output_id4,
-			IS_SHOT_SUCCESS, flag_get_meta);
-		ret = true;
-		flag_get_meta = false;
-	}
-
-	if (test_bit(output_id5, &frame->out_flag)) {
-		msdbg_hw(1, "[F:%d]output_id[0x%x],wq_id[0x%x]\n",
-			instance_id, hw_ip, frame->fcount, output_id5, wq_id5);
-		is_hardware_frame_done(hw_ip, NULL, wq_id5, output_id5,
-			IS_SHOT_SUCCESS, flag_get_meta);
-		ret = true;
-		flag_get_meta = false;
-	}
-
-#if defined(SOC_TNR_MERGER)
-	if (test_bit(output_id6, &frame->out_flag)) {
-		msdbg_hw(1, "[F:%d]output_id[0x%x],wq_id[0x%x]\n",
-			instance_id, hw_ip, frame->fcount, output_id6, wq_id6);
-		is_hardware_frame_done(hw_ip, NULL, wq_id6, output_id6,
-			IS_SHOT_SUCCESS, flag_get_meta);
-		ret = true;
-		flag_get_meta = false;
-	}
-#endif
 	return ret;
 }
 
@@ -231,8 +90,7 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 {
 	struct is_hardware *hardware;
 	struct is_hw_ip *hw_ip;
-	int wq_id = WORK_MAX_MAP;
-	int output_id = ENTRY_END;
+	int output_id = 0;
 	u32 hw_fcount;
 #if defined(ENABLE_FULLCHAIN_OVERFLOW_RECOVERY)
 	int ret = 0;
@@ -255,24 +113,13 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 
 		switch (hw_ip->id) {
 		case DEV_HW_3AA0: /* after BDS */
-			wq_id = WORK_30P_FDONE;
-			output_id = ENTRY_3AP;
-			break;
 		case DEV_HW_3AA1:
-			wq_id = WORK_31P_FDONE;
-			output_id = ENTRY_3AP;
-			break;
 		case DEV_HW_3AA2:
-			wq_id = WORK_32P_FDONE;
-			output_id = ENTRY_3AP;
-			break;
+		case DEV_HW_3AA3:
 		case DEV_HW_ISP0: /* chunk output */
-			wq_id = WORK_I0P_FDONE;
-			output_id = ENTRY_IXP;
-			break;
 		case DEV_HW_ISP1:
-			wq_id = WORK_I1P_FDONE;
-			output_id = ENTRY_IXP;
+			is_hardware_frame_done(hw_ip, NULL, -1,
+					output_id, IS_SHOT_SUCCESS, true);
 			break;
 		case DEV_HW_CLH0:
 			err_hw("[%d] Need to check CLH0 DMA A done(%d)!!", instance_id, hw_ip->id);
@@ -282,9 +129,6 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 			goto p_err;
 		}
 
-		if (wq_id != WORK_MAX_MAP)
-			is_hardware_frame_done(hw_ip, NULL, wq_id,
-					output_id, IS_SHOT_SUCCESS, true);
 		break;
 	case LIB_EVENT_DMA_B_OUT_DONE:
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance_id]]))
@@ -293,41 +137,24 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_DMA_END);
 		switch (hw_ip->id) {
 		case DEV_HW_3AA0: /* before BDS */
-			wq_id = WORK_30C_FDONE;
-			output_id = ENTRY_3AC;
-			break;
 		case DEV_HW_3AA1:
-			wq_id = WORK_31C_FDONE;
-			output_id = ENTRY_3AC;
-			break;
 		case DEV_HW_3AA2:
-			wq_id = WORK_32C_FDONE;
-			output_id = ENTRY_3AC;
-			break;
+		case DEV_HW_3AA3:
 		case DEV_HW_ISP0: /* yuv output */
-			wq_id = WORK_I0C_FDONE;
-			output_id = ENTRY_IXC;
-			break;
 		case DEV_HW_ISP1:
-			wq_id = WORK_I1C_FDONE;
-			output_id = ENTRY_IXC;
-			break;
 		case DEV_HW_CLH0:
-			wq_id = WORK_CL0C_FDONE;
-			output_id = ENTRY_CLHC;
+			is_hardware_frame_done(hw_ip, NULL, -1,
+					output_id, IS_SHOT_SUCCESS, true);
 			break;
 		default:
 			err_hw("[%d] invalid hw ID(%d)!!", instance_id, hw_ip->id);
 			goto p_err;
 		}
 
-		if (wq_id != WORK_MAX_MAP)
-			is_hardware_frame_done(hw_ip, NULL, wq_id,
-					output_id, IS_SHOT_SUCCESS, true);
 		break;
 	case LIB_EVENT_ERROR_CIN_OVERFLOW:
 		is_debug_event_count(IS_EVENT_OVERFLOW_3AA);
-		exynos_bcm_dbg_stop(CAMERA_DRIVER);
+		//exynos_bcm_dbg_stop(CAMERA_DRIVER);
 		msinfo_hw("LIB_EVENT_ERROR_CIN_OVERFLOW\n", instance_id, hw_ip);
 		is_hardware_flush_frame(hw_ip, FS_HW_CONFIGURE, IS_SHOT_OVERFLOW);
 
@@ -355,7 +182,6 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 	struct is_hw_ip *hw_ip;
 	ulong fcount;
 	u32 hw_fcount, index;
-	bool ret = false;
 	bool frame_done = false;
 	struct is_framemgr *framemgr;
 	struct is_frame *frame;
@@ -463,15 +289,15 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 		}
 
 		is_hw_g_ctrl(hw_ip, hw_ip->id, HW_G_CTRL_FRM_DONE_WITH_DMA, (void *)&frame_done);
-		if (frame_done)
-			ret = check_dma_done(hw_ip, instance_id, (u32)fcount);
-		else
+		if (frame_done) {
+			check_dma_done(hw_ip, instance_id, (u32)fcount);
+		} else {
 			msdbg_hw(1, "dma done interupt separate\n", instance_id, hw_ip);
 
-		if (!ret) {
 			is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
 				IS_SHOT_SUCCESS, true);
 		}
+
 		atomic_set(&hw_ip->status.Vvalid, V_BLANK);
 		wake_up(&hw_ip->status.wait_queue);
 		break;
@@ -511,8 +337,6 @@ struct lib_callback_func is_lib_cb_func = {
 	.io_callback		= is_lib_io_callback,
 };
 
-#if defined(SOC_ME0S) || defined(SOC_ZSL_STRIP_DMA0) || defined(SOC_DNS0S) || \
-	defined(SOC_ME1S) || defined(SOC_ZSL_STRIP_DMA1) || defined(SOC_ZSL_STRIP_DMA2)
 static int __nocfi __is_extra_chain_create(struct is_lib_isp *this, u32 chain_id, ulong base_addr)
 {
 	int ret = 0;
@@ -526,7 +350,6 @@ static int __nocfi __is_extra_chain_create(struct is_lib_isp *this, u32 chain_id
 
 	return ret;
 }
-#endif
 
 int __nocfi is_lib_isp_chain_create(struct is_hw_ip *hw_ip,
 	struct is_lib_isp *this, u32 instance_id)
@@ -542,112 +365,70 @@ int __nocfi is_lib_isp_chain_create(struct is_hw_ip *hw_ip,
 
 	switch (hw_ip->id) {
 	case DEV_HW_3AA0:
+	case DEV_HW_LME:
+	case DEV_HW_ISP0:
+	case DEV_HW_CLH0:
+	case DEV_HW_YPP:
 		chain_id = 0;
-		/* create additional IP chain */
-#if defined(SOC_ME0S)
-		base_addr    = (ulong)hw_ip->regs[REG_EXT1];
-		ret = __is_extra_chain_create(this, (chain_id + EXT1_CHAIN_OFFSET), base_addr);
-		if (ret) {
-			err_lib("ext1 chain_create fail (%d)", hw_ip->id);
-			return -EINVAL;
-		}
-		msinfo_lib("ext1 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
-							instance_id, hw_ip, base_addr, 0x0);
-#endif
-#if defined(SOC_ZSL_STRIP_DMA0)
-		base_addr    = (ulong)hw_ip->regs[REG_EXT2];
-		ret = __is_extra_chain_create(this, (chain_id + EXT2_CHAIN_OFFSET), base_addr);
-		if (ret) {
-			err_lib("ext2 chain_create fail (%d)", hw_ip->id);
-			return -EINVAL;
-		}
-		msinfo_lib("ext2 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
-							instance_id, hw_ip, base_addr, 0x0);
-#endif
 		break;
 	case DEV_HW_3AA1:
-		chain_id = 1;
-		/* create additional IP chain */
-#if defined(SOC_ME1S)
-		base_addr    = (ulong)hw_ip->regs[REG_EXT1];
-		ret = __is_extra_chain_create(this, (chain_id + EXT1_CHAIN_OFFSET), base_addr);
-		if (ret) {
-			err_lib("ext1 chain_create fail (%d)", hw_ip->id);
-			return -EINVAL;
-		}
-		msinfo_lib("ext1 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
-							instance_id, hw_ip, base_addr, 0x0);
-#endif
-#if defined(SOC_ZSL_STRIP_DMA1)
-		base_addr    = (ulong)hw_ip->regs[REG_EXT2];
-		ret = __is_extra_chain_create(this, (chain_id + EXT2_CHAIN_OFFSET), base_addr);
-		if (ret) {
-			err_lib("ext2 chain_create fail (%d)", hw_ip->id);
-			return -EINVAL;
-		}
-		msinfo_lib("ext2 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
-							instance_id, hw_ip, base_addr, 0x0);
-#endif
-		break;
-	case DEV_HW_3AA2:
-		chain_id = 2;
-		/* create additional IP chain */
-#if defined(SOC_ME2S)
-		base_addr    = (ulong)hw_ip->regs[REG_EXT1];
-		ret = __is_extra_chain_create(this, (chain_id + EXT1_CHAIN_OFFSET), base_addr);
-		if (ret) {
-			err_lib("ext1 chain_create fail (%d)", hw_ip->id);
-			return -EINVAL;
-		}
-		msinfo_lib("ext1 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
-							instance_id, hw_ip, base_addr, 0x0);
-#endif
-#if defined(SOC_ZSL_STRIP_DMA2)
-		base_addr    = (ulong)hw_ip->regs[REG_EXT2];
-		ret = __is_extra_chain_create(this, (chain_id + EXT2_CHAIN_OFFSET), base_addr);
-		if (ret) {
-			err_lib("ext2 chain_create fail (%d)", hw_ip->id);
-			return -EINVAL;
-		}
-		msinfo_lib("ext2 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
-							instance_id, hw_ip, base_addr, 0x0);
-#endif
-		break;
-	case DEV_HW_ISP0:
-		chain_id = 0;
-#if defined(SOC_TNR)
-		/* create additional IP chain */
-		/* TNR */
-		base_addr    = (ulong)hw_ip->regs[REG_EXT1];
-		ret = __is_extra_chain_create(this, (chain_id + EXT1_CHAIN_OFFSET), base_addr);
-		if (ret) {
-			err_lib("ext1 chain_create fail (%d)", hw_ip->id);
-			return -EINVAL;
-		}
-		msinfo_lib("ext1 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
-							instance_id, hw_ip, base_addr, 0x0);
-#endif
-#if defined(SOC_DNS0S)
-		/* DNS */
-		base_addr    = (ulong)hw_ip->regs[REG_EXT2];
-		ret = __is_extra_chain_create(this, (chain_id + EXT2_CHAIN_OFFSET), base_addr);
-		if (ret) {
-			err_lib("ext2 chain_create fail (%d)", hw_ip->id);
-			return -EINVAL;
-		}
-		msinfo_lib("ext 2 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
-							instance_id, hw_ip, base_addr, 0x0);
-#endif
-		break;
 	case DEV_HW_ISP1:
 		chain_id = 1;
 		break;
-	case DEV_HW_CLH0:
-		chain_id = 0;
+	case DEV_HW_3AA2:
+		chain_id = 2;
+		break;
+	case DEV_HW_3AA3:
+		chain_id = 3;
 		break;
 	default:
 		err_lib("invalid hw (%d)", hw_ip->id);
 		return -EINVAL;
+	}
+
+	/* create additional IP chain */
+	if (hw_ip->regs[REG_EXT1]) {
+		base_addr    = (ulong)hw_ip->regs[REG_EXT1];
+		ret = __is_extra_chain_create(this, (chain_id + EXT1_CHAIN_OFFSET), base_addr);
+		if (ret) {
+			err_lib("ext1 chain_create fail (%d)", hw_ip->id);
+			return -EINVAL;
+		}
+		msinfo_lib("ext1 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
+				instance_id, hw_ip, base_addr, 0x0);
+	}
+
+	if (hw_ip->regs[REG_EXT2]) {
+		base_addr    = (ulong)hw_ip->regs[REG_EXT2];
+		ret = __is_extra_chain_create(this, (chain_id + EXT2_CHAIN_OFFSET), base_addr);
+		if (ret) {
+			err_lib("ext2 chain_create fail (%d)", hw_ip->id);
+			return -EINVAL;
+		}
+		msinfo_lib("ext2 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
+				instance_id, hw_ip, base_addr, 0x0);
+	}
+
+	if (hw_ip->regs[REG_EXT3]) {
+		base_addr    = (ulong)hw_ip->regs[REG_EXT3];
+		ret = __is_extra_chain_create(this, (chain_id + EXT3_CHAIN_OFFSET), base_addr);
+		if (ret) {
+			err_lib("ext3 chain_create fail (%d)", hw_ip->id);
+			return -EINVAL;
+		}
+		msinfo_lib("ext3 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
+				instance_id, hw_ip, base_addr, 0x0);
+	}
+
+	if (hw_ip->regs[REG_EXT4]) {
+		base_addr    = (ulong)hw_ip->regs[REG_EXT4];
+		ret = __is_extra_chain_create(this, (chain_id + EXT4_CHAIN_OFFSET), base_addr);
+		if (ret) {
+			err_lib("ext4 chain_create fail (%d)", hw_ip->id);
+			return -EINVAL;
+		}
+		msinfo_lib("ext4 chain_create done [reg_base:0x%lx][b_offset:0x%x]\n",
+				instance_id, hw_ip, base_addr, 0x0);
 	}
 
 	base_addr    = (ulong)hw_ip->regs[REG_SETA];
@@ -690,8 +471,10 @@ int __nocfi is_lib_isp_object_create(struct is_hw_ip *hw_ip,
 
 	switch (hw_ip->id) {
 	case DEV_HW_3AA0:
+	case DEV_HW_LME:
 	case DEV_HW_ISP0:
 	case DEV_HW_CLH0:
+	case DEV_HW_YPP:
 		chain_id = 0;
 		break;
 	case DEV_HW_3AA1:
@@ -700,6 +483,9 @@ int __nocfi is_lib_isp_object_create(struct is_hw_ip *hw_ip,
 		break;
 	case DEV_HW_3AA2:
 		chain_id = 2;
+		break;
+	case DEV_HW_3AA3:
+		chain_id = 3;
 		break;
 	default:
 		err_lib("invalid hw (%d)", hw_ip->id);
@@ -744,103 +530,66 @@ void __nocfi is_lib_isp_chain_destroy(struct is_hw_ip *hw_ip,
 
 	switch (hw_ip->id) {
 	case DEV_HW_3AA0:
+	case DEV_HW_LME:
+	case DEV_HW_ISP0:
+	case DEV_HW_CLH0:
+	case DEV_HW_YPP:
 		chain_id = 0;
-#if defined(EXT_CHAIN_DESTROY)
-		/* destroy additional IP chain */
-#if defined(SOC_ME0S)
-		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT1_CHAIN_OFFSET));
-		if (ret) {
-			err_lib("ext1 chain_destroy fail (%d)", hw_ip->id);
-			return;
-		}
-		msinfo_lib("ext1 chain_destroy done\n", instance_id, hw_ip);
-#endif
-#if defined(SOC_ZSL_STRIP_DMA0)
-		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT2_CHAIN_OFFSET));
-		if (ret) {
-			err_lib("ext2 chain_destroy fail (%d)", hw_ip->id);
-			return;
-		}
-		msinfo_lib("ext2 chain_destroy done\n", instance_id, hw_ip);
-#endif
-#endif
 		break;
 	case DEV_HW_3AA1:
-		chain_id = 1;
-#if defined(EXT_CHAIN_DESTROY)
-		/* destroy additional IP chain */
-#if defined(SOC_ME1S)
-		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT1_CHAIN_OFFSET));
-		if (ret) {
-			err_lib("ext1 chain_destroy fail (%d)", hw_ip->id);
-			return;
-		}
-		msinfo_lib("ext1 chain_destroy done\n", instance_id, hw_ip);
-#endif
-#if defined(SOC_ZSL_STRIP_DMA1)
-		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT2_CHAIN_OFFSET));
-		if (ret) {
-			err_lib("ext2 chain_destroy fail (%d)", hw_ip->id);
-			return;
-		}
-		msinfo_lib("ext2 chain_destroy done\n", instance_id, hw_ip);
-#endif
-#endif
-		break;
-	case DEV_HW_3AA2:
-		chain_id = 2;
-#if defined(EXT_CHAIN_DESTROY)
-		/* destroy additional IP chain */
-#if defined(SOC_ME2S)
-		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT1_CHAIN_OFFSET));
-		if (ret) {
-			err_lib("ext1 chain_destroy fail (%d)", hw_ip->id);
-			return;
-		}
-		msinfo_lib("ext1 chain_destroy done\n", instance_id, hw_ip);
-#endif
-#if defined(SOC_ZSL_STRIP_DMA2)
-		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT2_CHAIN_OFFSET));
-		if (ret) {
-			err_lib("ext2 chain_destroy fail (%d)", hw_ip->id);
-			return;
-		}
-		msinfo_lib("ext2 chain_destroy done\n", instance_id, hw_ip);
-#endif
-#endif
-		break;
-	case DEV_HW_ISP0:
-		chain_id = 0;
-#if defined(EXT_CHAIN_DESTROY)
-		/* destroy additional IP chain */
-#if defined(SOC_TNR)
-		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT1_CHAIN_OFFSET));
-		if (ret) {
-			err_lib("ext1 chain_destroy fail (%d)", hw_ip->id);
-			return;
-		}
-		msinfo_lib("ext1 chain_destroy done\n", instance_id, hw_ip);
-#endif
-#if defined(SOC_DNS0S)
-		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT2_CHAIN_OFFSET));
-		if (ret) {
-			err_lib("ext2 chain_destroy fail (%d)", hw_ip->id);
-			return;
-		}
-		msinfo_lib("ext2 chain_destroy done\n", instance_id, hw_ip);
-#endif
-#endif
-		break;
 	case DEV_HW_ISP1:
 		chain_id = 1;
 		break;
-	case DEV_HW_CLH0:
-		chain_id = 0;
+	case DEV_HW_3AA2:
+		chain_id = 2;
+		break;
+	case DEV_HW_3AA3:
+		chain_id = 3;
 		break;
 	default:
 		err_lib("invalid hw (%d)", hw_ip->id);
 		return;
 	}
+
+
+#if defined(EXT_CHAIN_DESTROY)
+	/* destroy additional IP chain */
+	if (hw_ip->regs[REG_EXT1]) {
+		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT1_CHAIN_OFFSET));
+		if (ret) {
+			err_lib("ext1 chain_destroy fail (%d)", hw_ip->id);
+			return;
+		}
+		msinfo_lib("ext1 chain_destroy done\n", instance_id, hw_ip);
+	}
+
+	if (hw_ip->regs[REG_EXT2]) {
+		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT2_CHAIN_OFFSET));
+		if (ret) {
+			err_lib("ext2 chain_destroy fail (%d)", hw_ip->id);
+			return;
+		}
+		msinfo_lib("ext2 chain_destroy done\n", instance_id, hw_ip);
+	}
+
+	if (hw_ip->regs[REG_EXT3]) {
+		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT3_CHAIN_OFFSET));
+		if (ret) {
+			err_lib("ext3 chain_destroy fail (%d)", hw_ip->id);
+			return;
+		}
+		msinfo_lib("ext3 chain_destroy done\n", instance_id, hw_ip);
+	}
+
+	if (hw_ip->regs[REG_EXT4]) {
+		ret = CALL_LIBOP(this, chain_destroy, (chain_id + EXT4_CHAIN_OFFSET));
+		if (ret) {
+			err_lib("ext4 chain_destroy fail (%d)", hw_ip->id);
+			return;
+		}
+		msinfo_lib("ext4 chain_destroy done\n", instance_id, hw_ip);
+	}
+#endif
 
 	ret = CALL_LIBOP(this, chain_destroy, chain_id);
 	if (ret) {
@@ -932,6 +681,7 @@ int __nocfi is_lib_isp_shot(struct is_hw_ip *hw_ip,
 	case DEV_HW_3AA0:
 	case DEV_HW_3AA1:
 	case DEV_HW_3AA2:
+	case DEV_HW_3AA3:
 		ret = CALL_LIBOP(this, shot, this->object,
 					(struct taa_param_set *)param_set,
 					shot, hw_ip->num_buffers);
@@ -953,6 +703,13 @@ int __nocfi is_lib_isp_shot(struct is_hw_ip *hw_ip,
 					shot, hw_ip->num_buffers);
 		if (ret)
 			err_lib("clh shot fail (%d)", hw_ip->id);
+		break;
+	case DEV_HW_YPP:
+		ret = CALL_LIBOP(this, shot, this->object,
+					(struct ypp_param_set *)param_set,
+					shot, hw_ip->num_buffers);
+		if (ret)
+			err_lib("ypp shot fail (%d)", hw_ip->id);
 		break;
 	default:
 		err_lib("invalid hw (%d)", hw_ip->id);

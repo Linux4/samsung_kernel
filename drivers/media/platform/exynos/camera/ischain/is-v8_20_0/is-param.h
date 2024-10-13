@@ -1262,6 +1262,34 @@ struct clh_param {
 	struct param_dma_output			dma_output;
 };
 
+struct param_lme_dma {
+	u32	input_cmd;
+	u32	prev_input_cmd;
+	u32	output_cmd;
+	u32	input_format;
+	u32	input_bitwidth;
+	u32	input_order;
+	u32	input_plane;
+	u32	input_width;
+	u32	input_height;
+	u32	input_msb; /* last bit of data in memory size */
+	u32	prev_input_width;
+	u32	prev_input_height;
+	u32	output_format;
+	u32	output_bitwidth;
+	u32	output_order;
+	u32	output_plane;
+	u32	output_width;
+	u32	output_height;
+	u32	output_msb;
+	u32	scene_mode; /* for AE envelop */
+	u32	input_v_otf_enable;
+
+	u32	reserved[PARAMETER_MAX_MEMBER-22];
+	u32	err;
+};
+
+
 struct is_param_region {
 	struct global_param		global;
 	struct sensor_param		sensor;
@@ -1372,6 +1400,13 @@ struct is_frame_header {
 	struct exif_attribute	exif;
 };
 
+struct seamless_mode_change_info {
+	int	width;
+	int	height;
+	int	fps;
+	int	ex_mode;
+};
+
 struct is_fd_rect {
 	u32 offset_x;
 	u32 offset_y;
@@ -1450,13 +1485,6 @@ struct nfd_info {
 	u32		crop_y;			/* crop image offset y */
 	u32		crop_w;			/* crop width size */
 	u32		crop_h;			/* crop height size */
-};
-
-struct seamless_mode_change_info {
-	int	width;
-	int	height;
-	int	fps;
-	int	ex_mode;
 };
 
 struct is_region {

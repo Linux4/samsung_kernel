@@ -569,8 +569,7 @@ static int ctcm_transmit_skb(struct channel *ch, struct sk_buff *skb)
 	fsm_addtimer(&ch->timer, CTCM_TIME_5_SEC, CTC_EVENT_TIMER, ch);
 	spin_lock_irqsave(get_ccwdev_lock(ch->cdev), saveflags);
 	ch->prof.send_stamp = jiffies;
-	rc = ccw_device_start(ch->cdev, &ch->ccw[ccw_idx],
-					(unsigned long)ch, 0xff, 0);
+	rc = ccw_device_start(ch->cdev, &ch->ccw[ccw_idx], 0, 0xff, 0);
 	spin_unlock_irqrestore(get_ccwdev_lock(ch->cdev), saveflags);
 	if (ccw_idx == 3)
 		ch->prof.doios_single++;
@@ -833,8 +832,7 @@ static int ctcmpc_transmit_skb(struct channel *ch, struct sk_buff *skb)
 
 	spin_lock_irqsave(get_ccwdev_lock(ch->cdev), saveflags);
 	ch->prof.send_stamp = jiffies;
-	rc = ccw_device_start(ch->cdev, &ch->ccw[ccw_idx],
-					(unsigned long)ch, 0xff, 0);
+	rc = ccw_device_start(ch->cdev, &ch->ccw[ccw_idx], 0, 0xff, 0);
 	spin_unlock_irqrestore(get_ccwdev_lock(ch->cdev), saveflags);
 	if (ccw_idx == 3)
 		ch->prof.doios_single++;
@@ -867,16 +865,9 @@ done:
 /**
  * Start transmission of a packet.
  * Called from generic network device layer.
- *
- *  skb		Pointer to buffer containing the packet.
- *  dev		Pointer to interface struct.
- *
- * returns 0 if packet consumed, !0 if packet rejected.
- *         Note: If we return !0, then the packet is free'd by
- *               the generic network layer.
  */
 /* first merge version - leaving both functions separated */
-static int ctcm_tx(struct sk_buff *skb, struct net_device *dev)
+static netdev_tx_t ctcm_tx(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ctcm_priv *priv = dev->ml_priv;
 
@@ -919,7 +910,7 @@ static int ctcm_tx(struct sk_buff *skb, struct net_device *dev)
 }
 
 /* unmerged MPC variant of ctcm_tx */
-static int ctcmpc_tx(struct sk_buff *skb, struct net_device *dev)
+static netdev_tx_t ctcmpc_tx(struct sk_buff *skb, struct net_device *dev)
 {
 	int len = 0;
 	struct ctcm_priv *priv = dev->ml_priv;
@@ -1074,10 +1065,8 @@ static void ctcm_free_netdevice(struct net_device *dev)
 		if (grp) {
 			if (grp->fsm)
 				kfree_fsm(grp->fsm);
-			if (grp->xid_skb)
-				dev_kfree_skb(grp->xid_skb);
-			if (grp->rcvd_xid_skb)
-				dev_kfree_skb(grp->rcvd_xid_skb);
+			dev_kfree_skb(grp->xid_skb);
+			dev_kfree_skb(grp->rcvd_xid_skb);
 			tasklet_kill(&grp->mpc_tasklet2);
 			kfree(grp);
 			priv->mpcg = NULL;
@@ -1702,43 +1691,6 @@ static void ctcm_remove_device(struct ccwgroup_device *cgdev)
 	put_device(&cgdev->dev);
 }
 
-static int ctcm_pm_suspend(struct ccwgroup_device *gdev)
-{
-	struct ctcm_priv *priv = dev_get_drvdata(&gdev->dev);
-
-	if (gdev->state == CCWGROUP_OFFLINE)
-		return 0;
-	netif_device_detach(priv->channel[CTCM_READ]->netdev);
-	ctcm_close(priv->channel[CTCM_READ]->netdev);
-	if (!wait_event_timeout(priv->fsm->wait_q,
-	    fsm_getstate(priv->fsm) == DEV_STATE_STOPPED, CTCM_TIME_5_SEC)) {
-		netif_device_attach(priv->channel[CTCM_READ]->netdev);
-		return -EBUSY;
-	}
-	ccw_device_set_offline(gdev->cdev[1]);
-	ccw_device_set_offline(gdev->cdev[0]);
-	return 0;
-}
-
-static int ctcm_pm_resume(struct ccwgroup_device *gdev)
-{
-	struct ctcm_priv *priv = dev_get_drvdata(&gdev->dev);
-	int rc;
-
-	if (gdev->state == CCWGROUP_OFFLINE)
-		return 0;
-	rc = ccw_device_set_online(gdev->cdev[1]);
-	if (rc)
-		goto err_out;
-	rc = ccw_device_set_online(gdev->cdev[0]);
-	if (rc)
-		goto err_out;
-	ctcm_open(priv->channel[CTCM_READ]->netdev);
-err_out:
-	netif_device_attach(priv->channel[CTCM_READ]->netdev);
-	return rc;
-}
-
 static struct ccw_device_id ctcm_ids[] = {
 	{CCW_DEVICE(0x3088, 0x08), .driver_info = ctcm_channel_type_parallel},
 	{CCW_DEVICE(0x3088, 0x1e), .driver_info = ctcm_channel_type_ficon},
@@ -1768,9 +1720,6 @@ static struct ccwgroup_driver ctcm_group_driver = {
 	.remove      = ctcm_remove_device,
 	.set_online  = ctcm_new_device,
 	.set_offline = ctcm_shutdown_device,
-	.freeze	     = ctcm_pm_suspend,
-	.thaw	     = ctcm_pm_resume,
-	.restore     = ctcm_pm_resume,
 };
 
 static ssize_t group_store(struct device_driver *ddrv, const char *buf,

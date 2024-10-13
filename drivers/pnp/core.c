@@ -51,7 +51,7 @@ static void pnp_remove_protocol(struct pnp_protocol *protocol)
 }
 
 /**
- * pnp_protocol_register - adds a pnp protocol to the pnp layer
+ * pnp_register_protocol - adds a pnp protocol to the pnp layer
  * @protocol: pointer to the corresponding pnp_protocol structure
  *
  *  Ex protocols: ISAPNP, PNPBIOS, etc
@@ -91,7 +91,7 @@ int pnp_register_protocol(struct pnp_protocol *protocol)
 }
 
 /**
- * pnp_protocol_unregister - removes a pnp protocol from the pnp layer
+ * pnp_unregister_protocol - removes a pnp protocol from the pnp layer
  * @protocol: pointer to the corresponding pnp_protocol structure
  */
 void pnp_unregister_protocol(struct pnp_protocol *protocol)
@@ -160,13 +160,13 @@ struct pnp_dev *pnp_alloc_dev(struct pnp_protocol *protocol, int id,
 	dev->dev.coherent_dma_mask = dev->dma_mask;
 	dev->dev.release = &pnp_release_device;
 
-	dev_set_name(&dev->dev, "%02x:%02x", dev->protocol->number, dev->number);
-
 	dev_id = pnp_add_id(dev, pnpid);
 	if (!dev_id) {
 		kfree(dev);
 		return NULL;
 	}
+
+	dev_set_name(&dev->dev, "%02x:%02x", dev->protocol->number, dev->number);
 
 	return dev;
 }

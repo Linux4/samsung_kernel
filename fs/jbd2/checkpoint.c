@@ -106,14 +106,16 @@ static int __try_to_free_cp_buf(struct journal_head *jh)
  * for a checkpoint to free up some space in the log.
  */
 void __jbd2_log_wait_for_space(journal_t *journal)
+__acquires(&journal->j_state_lock)
+__releases(&journal->j_state_lock)
 {
 	int nblocks, space_left;
 	/* assert_spin_locked(&journal->j_state_lock); */
 
-	nblocks = jbd2_space_needed(journal);
+	nblocks = journal->j_max_transaction_buffers;
 	while (jbd2_log_space_left(journal) < nblocks) {
 		write_unlock(&journal->j_state_lock);
-		mutex_lock(&journal->j_checkpoint_mutex);
+		mutex_lock_io(&journal->j_checkpoint_mutex);
 
 		/*
 		 * Test again, another process may have checkpointed while we
@@ -132,7 +134,6 @@ void __jbd2_log_wait_for_space(journal_t *journal)
 			return;
 		}
 		spin_lock(&journal->j_list_lock);
-		nblocks = jbd2_space_needed(journal);
 		space_left = jbd2_log_space_left(journal);
 		if (space_left < nblocks) {
 			int chkpt = journal->j_checkpoint_transactions != NULL;
@@ -276,9 +277,22 @@ restart:
 		"JBD2: %s: Waiting for Godot: block %llu\n",
 		journal->j_devname, (unsigned long long) bh->b_blocknr);
 
+			if (batch_count)
+				__flush_batch(journal, &batch_count);
 			jbd2_log_start_commit(journal, tid);
+			/*
+			 * jbd2_journal_commit_transaction() may want
+			 * to take the checkpoint_mutex if JBD2_FLUSHED
+			 * is set, jbd2_update_log_tail() called by
+			 * jbd2_journal_commit_transaction() may also take
+			 * checkpoint_mutex.  So we need to temporarily
+			 * drop it.
+			 */
+			mutex_unlock(&journal->j_checkpoint_mutex);
 			jbd2_log_wait_commit(journal, tid);
-			goto retry;
+			mutex_lock_io(&journal->j_checkpoint_mutex);
+			spin_lock(&journal->j_list_lock);
+			goto restart;
 		}
 		if (!buffer_dirty(bh)) {
 			if (unlikely(buffer_write_io_error(bh)) && !result)
@@ -402,7 +416,7 @@ int jbd2_cleanup_journal_tail(journal_t *journal)
 	 * jbd2_cleanup_journal_tail() doesn't get called all that often.
 	 */
 	if (journal->j_flags & JBD2_BARRIER)
-		blkdev_issue_flush(journal->j_fs_dev, GFP_NOFS, NULL);
+		blkdev_issue_flush(journal->j_fs_dev, GFP_NOFS);
 
 	return __jbd2_update_log_tail(journal, first_tid, blocknr);
 }

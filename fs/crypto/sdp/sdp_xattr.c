@@ -82,8 +82,8 @@ int fscrypt_sdp_set_context_nolock(struct inode *inode, void *ctx, size_t len, v
 
 static int __fscrypt_knox_set_context(struct inode *inode, void *ctx, size_t len)
 {
-	if (inode->i_sb->s_cop->set_knox_context) {
-		return inode->i_sb->s_cop->set_knox_context(inode, NULL, ctx, len, NULL);
+	if (inode->i_sb->s_cop->android_oem_data1[1]) {
+		return ((int (*)(struct inode*, const char*, const void*, size_t, void *))(inode->i_sb->s_cop->android_oem_data1[1]))(inode, NULL, ctx, len, NULL);
 	} else {
 		return -EOPNOTSUPP;
 	}

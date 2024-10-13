@@ -320,10 +320,15 @@ static int ra_set_pll(struct cmucal_clk *clk, unsigned int rate,
 			else
 				fin = FIN_HZ_26M;
 
-			ret = pll_find_table(pll, &table, fin, rate, rate_hz);
-			if (ret) {
-				pr_err("failed %s table %u\n", clk->name, rate);
-				return ret;
+                        if (fin != 0) {
+				ret = pll_find_table(pll, &table, fin, rate, rate_hz);
+				if (ret) {
+					pr_err("failed %s table %u\n", clk->name, rate);
+					return ret;
+				}
+			} else {
+				pr_err("ra_get_value failed %s table %u\n", clk->name, rate);
+				return -EVCLKINVAL;
 			}
 			rate_table = &table;
 		}
@@ -735,7 +740,7 @@ unsigned long ra_get_value(unsigned int id)
 	return val;
 }
 
-static unsigned int __init ra_get_sfr_address(unsigned short idx,
+static unsigned int ra_get_sfr_address(unsigned short idx,
 			       void __iomem **addr,
 			       unsigned char *shift,
 			       unsigned char *width)
@@ -1168,7 +1173,7 @@ unsigned long ra_recalc_rate(unsigned int id)
 }
 EXPORT_SYMBOL_GPL(ra_recalc_rate);
 
-int __init ra_init(void)
+int ra_init(void)
 {
 	struct cmucal_clk *clk;
 	struct sfr_block *block;

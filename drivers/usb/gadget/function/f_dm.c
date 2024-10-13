@@ -49,6 +49,30 @@ struct f_dm {
 	struct dm_descs			hs;
 };
 
+struct dm_direct {
+	/* To access EP */
+	struct f_dm			*dm;
+	/* Queued size for debugging */
+	atomic_t			queued_size;
+	/* Size of req_pool */
+	int				req_pool_size;
+	/* Request pool for DM direct path */
+	struct list_head		req_pool;
+	/* Function pointer to notify request completion */
+	void (*check_status)(void *buf, int length, void *context);
+	/* Function pointer to notify dm function bind */
+	void (*active_noti)(void *context);
+	/* Function pointer to notify dm function disable */
+	void (*disable_noti)(void *context);
+	/* CPIF context */
+	void				*context;
+};
+
+static struct dm_direct dm_direct_path;
+static struct usb_request *g_dm_req;
+static int alloc_dm_direct_path(struct f_dm *dm);
+static void free_dm_direct_path(void);
+
 static inline struct f_dm *func_to_dm(struct usb_function *f)
 {
 	return container_of(f, struct f_dm, port.func);
@@ -206,6 +230,10 @@ static int dm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 		return status;
 	}
 
+	/* dm function active notification */
+	if (dm_direct_path.active_noti != NULL)
+		dm_direct_path.active_noti(dm_direct_path.context);
+
 	return 0;
 }
 
@@ -215,6 +243,14 @@ static void dm_disable(struct usb_function *f)
 
 	printk(KERN_DEBUG "usb: %s generic ttyGS%d deactivated\n", __func__,
 			dm->port_num);
+
+	/* dm function disable notification */
+	if (dm_direct_path.disable_noti != NULL)
+		dm_direct_path.disable_noti(dm_direct_path.context);
+
+	/* Free for DM direct path */
+	free_dm_direct_path();
+
 	gserial_disconnect(&dm->port);
 }
 
@@ -258,7 +294,7 @@ dm_bind(struct usb_configuration *c, struct usb_function *f)
 		goto fail;
 	dm->port.out = ep;
 	ep->driver_data = cdev;	/* claim */
-	printk(KERN_INFO "[%s]   in =0x%pK , out =0x%pK\n", __func__,
+	printk(KERN_INFO "[%s]   in =0x%p , out =0x%p\n", __func__,
 				dm->port.in, dm->port.out);
 
 	/* copy descriptors, and track endpoint copies */
@@ -303,6 +339,10 @@ dm_bind(struct usb_configuration *c, struct usb_function *f)
 			gadget_is_superspeed(c->cdev->gadget) ? "super" :
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 			dm->port.in->name, dm->port.out->name);
+
+	/* Allocation request for DM direct path */
+	alloc_dm_direct_path(dm);
+
 	return 0;
 
 fail:
@@ -322,6 +362,7 @@ dm_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	if (gadget_is_dualspeed(c->cdev->gadget))
 		usb_free_descriptors(f->hs_descriptors);
+
 	usb_free_descriptors(f->fs_descriptors);
 	printk(KERN_DEBUG "usb: %s\n", __func__);
 }
@@ -359,6 +400,9 @@ int dm_bind_config(struct usb_configuration *c, u8 port_num)
 	dm = kzalloc(sizeof *dm, GFP_KERNEL);
 	if (!dm)
 		return -ENOMEM;
+
+	/* Set global dm struct */
+	dm_direct_path.dm = dm;
 
 	dm->port_num = DM_PORT_NUM;
 
@@ -462,7 +506,166 @@ static void dm_free(struct usb_function *f)
 {
 	struct f_dm	*dm = func_to_dm(f);
 
+	gserial_disconnect(&dm->port);
+
 	kfree(dm);
+}
+
+/* ==== DM function direct path for performance  ==== */
+#define DM_ERR_LENGTH -1
+
+static void dm_req_complete(struct usb_ep *ep, struct usb_request *req)
+{
+	struct list_head *pool = &dm_direct_path.req_pool;
+	int status = req->status;
+
+	list_add_tail(&req->list, pool);
+	atomic_dec(&dm_direct_path.queued_size);
+
+	switch (status) {
+	case 0: /* Request complete */
+		if (dm_direct_path.check_status != NULL) {
+			dm_direct_path.check_status(req->buf, req->length,
+							req->context);
+		}
+		break;
+	default: /* Error Cases */
+		pr_err("[DM Direct Path] completion fail!(%d)\n", status);
+		if (dm_direct_path.check_status != NULL) {
+			dm_direct_path.check_status(req->buf, DM_ERR_LENGTH,
+							req->context);
+		}
+	}
+}
+
+int usb_dm_request(void *buf, unsigned  int length)
+{
+	struct f_dm *dm = dm_direct_path.dm;
+	struct list_head *pool = &dm_direct_path.req_pool;
+	struct usb_request *req;
+	int ret, q_size;
+
+	if (dm == NULL || list_empty(&dm_direct_path.req_pool)) {
+		q_size = atomic_read(&dm_direct_path.queued_size);
+		pr_err_ratelimited("[DM Direct Path] req_pool[%d] is full queued_size: %d\n",
+				dm_direct_path.req_pool_size, q_size);
+		pr_err_ratelimited("[DM Direct Path] Request pool is full or not initialized\n");
+		if (dm == NULL)
+			pr_err_ratelimited("[DM Direct Path] dm is NULL!!\n");
+		if (list_empty(&dm_direct_path.req_pool))
+			pr_err_ratelimited("[DM Direct Path] req_pool's list_empty!!\n");
+
+		return -EBUSY;
+	}
+
+	if (buf == NULL || length <= 0) {
+		pr_err("[DM Direct Path] Empty buffer!\n");
+		return -EINVAL;
+	}
+
+	q_size = atomic_read(&dm_direct_path.queued_size);
+	if ((dm_direct_path.req_pool_size - 1) == q_size) {
+		pr_err("[DM Direct Path] req_pool is full queued_size: %d\n",
+				q_size);
+		return -EBUSY;
+	}
+
+	req = list_first_entry(pool, struct usb_request, list);
+	g_dm_req = req;
+
+	req->buf = buf;
+	req->length = length;
+	if ((length % dm->port.in->maxpacket) == 0)
+		req->zero = 1;
+	else
+		req->zero = 0;
+	list_del(&req->list);
+
+	ret = usb_ep_queue(dm->port.in, req, GFP_ATOMIC);
+	if (ret < 0) {
+		pr_err_ratelimited("[DM Direct Path] usb_ep_queue fail!(%d)\n", ret);
+		list_add(&req->list, pool);
+		return -EIO;
+	}
+
+	/* Set queued size for debugging */
+	atomic_inc(&dm_direct_path.queued_size);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(usb_dm_request);
+
+int init_dm_direct_path(int req_num,
+			void (*check_status)(void *, int length, void *),
+			void (*active_noti)(void *),
+			void (*disable_noti)(void *),
+			void *context)
+{
+	dm_direct_path.req_pool_size = req_num;
+	dm_direct_path.check_status = check_status;
+	dm_direct_path.active_noti = active_noti;
+	dm_direct_path.disable_noti = disable_noti;
+	dm_direct_path.context = context;
+
+	return 0;
+
+}
+EXPORT_SYMBOL_GPL(init_dm_direct_path);
+
+static int alloc_dm_direct_path(struct f_dm *dm)
+{
+	struct usb_request *req;
+	int i, ret = 0;
+
+	if (dm_direct_path.req_pool_size == 0) {
+		pr_err("[DM Direct Path] dm_direct_path is not initialized!\n");
+		return -EPERM;
+	}
+
+	pr_info("[DM Direct Path] Allocation req for DM Direct Path size %d\n",
+			dm_direct_path.req_pool_size);
+
+	dm_direct_path.dm = dm;
+	INIT_LIST_HEAD(&dm_direct_path.req_pool);
+	atomic_set(&dm_direct_path.queued_size, 0);
+
+	for (i = 0; i < dm_direct_path.req_pool_size; i++) {
+		req = usb_ep_alloc_request(dm->port.in, GFP_KERNEL);
+		if (!req) {
+			pr_err("can't alloc request for dm direct path!\n");
+			return -ENOMEM;
+		}
+
+		req->complete = dm_req_complete;
+		req->context = dm_direct_path.context;
+
+		list_add_tail(&req->list, &dm_direct_path.req_pool);
+	}
+
+	return ret;
+
+}
+
+static void free_dm_direct_path(void)
+{
+	struct f_dm *dm = dm_direct_path.dm;
+	struct usb_request *req;
+	struct list_head *req_pool;
+
+	if (dm_direct_path.dm == NULL) {
+		pr_err("[DM Direct Path] dm_direct_path is not allocated!\n");
+		return;
+	}
+	pr_info("[DM Direct Path] Free req for DM Direct Path.\n");
+
+	req_pool = &dm_direct_path.req_pool;
+	dm_direct_path.dm = NULL;
+
+	while (!list_empty(&dm_direct_path.req_pool)) {
+		req = list_entry(req_pool->next, struct usb_request, list);
+		list_del(&req->list);
+		usb_ep_free_request(dm->port.in, req);
+	}
 }
 
 struct usb_function *function_alloc_dm(struct usb_function_instance *fi, bool dm_config)
@@ -479,7 +682,6 @@ struct usb_function *function_alloc_dm(struct usb_function_instance *fi, bool dm
 	dm = kzalloc(sizeof *dm, GFP_KERNEL);
 	if (!dm)
 		return ERR_PTR(-ENOMEM);
-
 
 	dm->port_num = fi_dm->port_num;
 

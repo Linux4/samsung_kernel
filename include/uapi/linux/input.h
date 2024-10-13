@@ -40,7 +40,7 @@
 #define SECLOG			"[sec_input]"
 #define INPUT_LOG_BUF_SIZE	512
 
-#ifdef CONFIG_SEC_DEBUG_TSP_LOG
+#if 1
 #include <linux/input/sec_tsp_log.h>
 
 
@@ -126,6 +126,7 @@
 #define input_log_fix() {}
 #define input_raw_data_clear() sec_tsp_raw_data_clear()
 #endif
+
 
 /*
  * The event structure itself
@@ -383,6 +384,9 @@ struct input_mask {
 #define BUS_GSC			0x1A
 #define BUS_ATARI		0x1B
 #define BUS_SPI			0x1C
+#define BUS_RMI			0x1D
+#define BUS_CEC			0x1E
+#define BUS_INTEL_ISHTP		0x1F
 
 /*
  * MT_TOOL types

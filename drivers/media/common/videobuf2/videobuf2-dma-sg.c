@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2010 Samsung Electronics
  *
- * Author: Andrzej Pietrasiewicz <andrzej.p@samsung.com>
+ * Author: Andrzej Pietrasiewicz <andrzejtp2010@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,10 +17,6 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
-
-#include <linux/exynos_iovmm.h>
-#include <linux/ion_exynos.h>
-#include <linux/dma-buf-container.h>
 
 #include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-memops.h>
@@ -55,12 +51,6 @@ struct vb2_dma_sg_buf {
 	struct vb2_vmarea_handler	handler;
 
 	struct dma_buf_attachment	*db_attach;
-	/*
-	 * Our IO address space is not managed by dma-mapping. Therefore
-	 * scatterlist.dma_address should not be corrupted by the IO address
-	 * returned by iovmm_map() because it is used by cache maintenance.
-	 */
-	dma_addr_t			iova;
 };
 
 static void vb2_dma_sg_put(void *buf_priv);
@@ -77,7 +67,7 @@ static int vb2_dma_sg_alloc_compacted(struct vb2_dma_sg_buf *buf,
 		int i;
 
 		order = get_order(size);
-		/* Dont over allocate*/
+		/* Don't over allocate*/
 		if ((PAGE_SIZE << order) > size)
 			order--;
 
@@ -108,13 +98,12 @@ static int vb2_dma_sg_alloc_compacted(struct vb2_dma_sg_buf *buf,
 
 static void *vb2_dma_sg_alloc(struct device *dev, unsigned long dma_attrs,
 			      unsigned long size, enum dma_data_direction dma_dir,
-			      gfp_t gfp_flags, int memflags)
+			      gfp_t gfp_flags)
 {
 	struct vb2_dma_sg_buf *buf;
 	struct sg_table *sgt;
 	int ret;
 	int num_pages;
-	int ioprot = IOMMU_READ	| IOMMU_WRITE;
 
 	if (WARN_ON(!dev))
 		return ERR_PTR(-EINVAL);
@@ -131,6 +120,11 @@ static void *vb2_dma_sg_alloc(struct device *dev, unsigned long dma_attrs,
 	buf->num_pages = size >> PAGE_SHIFT;
 	buf->dma_sgt = &buf->sg_table;
 
+	/*
+	 * NOTE: dma-sg allocates memory using the page allocator directly, so
+	 * there is no memory consistency guarantee, hence dma-sg ignores DMA
+	 * attributes passed from the upper layer.
+	 */
 	buf->pages = kvmalloc_array(buf->num_pages, sizeof(struct page *),
 				    GFP_KERNEL | __GFP_ZERO);
 	if (!buf->pages)
@@ -149,14 +143,12 @@ static void *vb2_dma_sg_alloc(struct device *dev, unsigned long dma_attrs,
 	buf->dev = get_device(dev);
 
 	sgt = &buf->sg_table;
-
-	if (!(memflags & VB2_DMA_SG_MEMFLAG_IOMMU_UNCACHED) &&
-	    (device_get_dma_attr(dev) == DEV_DMA_COHERENT))
-		ioprot |= IOMMU_CACHE;
-
-	buf->iova = iovmm_map(buf->dev, sgt->sgl, 0, size,
-			      DMA_BIDIRECTIONAL, ioprot);
-	if (IS_ERR_VALUE(buf->iova))
+	/*
+	 * No need to sync to the device, this will happen later when the
+	 * prepare() memop is called.
+	 */
+	if (dma_map_sgtable(buf->dev, sgt, buf->dma_dir,
+			    DMA_ATTR_SKIP_CPU_SYNC))
 		goto fail_map;
 
 	buf->handler.refcount = &buf->refcount;
@@ -186,12 +178,14 @@ fail_pages_array_alloc:
 static void vb2_dma_sg_put(void *buf_priv)
 {
 	struct vb2_dma_sg_buf *buf = buf_priv;
+	struct sg_table *sgt = &buf->sg_table;
 	int i = buf->num_pages;
 
 	if (refcount_dec_and_test(&buf->refcount)) {
 		dprintk(1, "%s: Freeing buffer of %d pages\n", __func__,
 			buf->num_pages);
-		iovmm_unmap(buf->dev, buf->iova);
+		dma_unmap_sgtable(buf->dev, sgt, buf->dma_dir,
+				  DMA_ATTR_SKIP_CPU_SYNC);
 		if (buf->vaddr)
 			vm_unmap_ram(buf->vaddr, buf->num_pages);
 		sg_free_table(buf->dma_sgt);
@@ -203,71 +197,29 @@ static void vb2_dma_sg_put(void *buf_priv)
 	}
 }
 
-static void vb2_dma_sg_prepare(void *buf_priv, size_t size, int memflags)
+static void vb2_dma_sg_prepare(void *buf_priv)
 {
 	struct vb2_dma_sg_buf *buf = buf_priv;
 	struct sg_table *sgt = buf->dma_sgt;
-	struct scatterlist *sg;
-	int i;
 
-	/* DMABUF exporter will flush the cache for us */
-	if (buf->db_attach)
-		return;
-
-	if (size == 0)
-		size = buf->size;
-
-	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
-		size_t sg_len = min_t(size_t, size, sg->length);
-
-		dma_sync_single_for_device(buf->dev, sg->dma_address,
-					   sg_len, buf->dma_dir);
-
-		size -= sg_len;
-
-		if (!size)
-			break;
-	}
+	dma_sync_sgtable_for_device(buf->dev, sgt, buf->dma_dir);
 }
 
-static void vb2_dma_sg_finish(void *buf_priv, size_t size, int memflags)
+static void vb2_dma_sg_finish(void *buf_priv)
 {
 	struct vb2_dma_sg_buf *buf = buf_priv;
 	struct sg_table *sgt = buf->dma_sgt;
-	struct scatterlist *sg;
-	int i;
 
-	/* DMABUF exporter will flush the cache for us */
-	if (buf->db_attach)
-		return;
-
-	if (size == 0)
-		size = buf->size;
-
-	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
-		size_t sg_len = min_t(size_t, size, sg->length);
-
-		dma_sync_single_for_cpu(buf->dev, sg->dma_address,
-					sg_len, buf->dma_dir);
-
-		size -= sg_len;
-
-		if (!size)
-			break;
-	}
+	dma_sync_sgtable_for_cpu(buf->dev, sgt, buf->dma_dir);
 }
 
 static void *vb2_dma_sg_get_userptr(struct device *dev, unsigned long vaddr,
 				    unsigned long size,
-				    enum dma_data_direction dma_dir,
-				    int memflags)
+				    enum dma_data_direction dma_dir)
 {
 	struct vb2_dma_sg_buf *buf;
 	struct sg_table *sgt;
 	struct frame_vector *vec;
-	struct scatterlist *s;
-	int i;
-	int ioprot = IOMMU_READ	| IOMMU_WRITE;
 
 	if (WARN_ON(!dev))
 		return ERR_PTR(-EINVAL);
@@ -282,8 +234,7 @@ static void *vb2_dma_sg_get_userptr(struct device *dev, unsigned long vaddr,
 	buf->offset = vaddr & ~PAGE_MASK;
 	buf->size = size;
 	buf->dma_sgt = &buf->sg_table;
-	vec = vb2_create_framevec(vaddr, size, dma_dir == DMA_FROM_DEVICE ||
-					       dma_dir == DMA_BIDIRECTIONAL);
+	vec = vb2_create_framevec(vaddr, size);
 	if (IS_ERR(vec))
 		goto userptr_fail_pfnvec;
 	buf->vec = vec;
@@ -298,19 +249,12 @@ static void *vb2_dma_sg_get_userptr(struct device *dev, unsigned long vaddr,
 		goto userptr_fail_sgtable;
 
 	sgt = &buf->sg_table;
-
-	/* Just fixup of scatter-gather list not initialized by dma-mapping. */
-	sgt->nents = sgt->orig_nents;
-	for_each_sg(sgt->sgl, s, sgt->orig_nents, i)
-		s->dma_address = sg_phys(s);
-
-	if (!(memflags & VB2_DMA_SG_MEMFLAG_IOMMU_UNCACHED) &&
-	    (device_get_dma_attr(dev) == DEV_DMA_COHERENT))
-		ioprot |= IOMMU_CACHE;
-
-	buf->iova = iovmm_map(buf->dev, sgt->sgl, 0, size,
-			      DMA_BIDIRECTIONAL, ioprot);
-	if (IS_ERR_VALUE(buf->iova))
+	/*
+	 * No need to sync to the device, this will happen later when the
+	 * prepare() memop is called.
+	 */
+	if (dma_map_sgtable(buf->dev, sgt, buf->dma_dir,
+			    DMA_ATTR_SKIP_CPU_SYNC))
 		goto userptr_fail_map;
 
 	return buf;
@@ -331,11 +275,12 @@ userptr_fail_pfnvec:
 static void vb2_dma_sg_put_userptr(void *buf_priv)
 {
 	struct vb2_dma_sg_buf *buf = buf_priv;
+	struct sg_table *sgt = &buf->sg_table;
 	int i = buf->num_pages;
 
 	dprintk(1, "%s: Releasing userspace buffer of %d pages\n",
 	       __func__, buf->num_pages);
-	iovmm_unmap(buf->dev, buf->iova);
+	dma_unmap_sgtable(buf->dev, sgt, buf->dma_dir, DMA_ATTR_SKIP_CPU_SYNC);
 	if (buf->vaddr)
 		vm_unmap_ram(buf->vaddr, buf->num_pages);
 	sg_free_table(buf->dma_sgt);
@@ -357,8 +302,7 @@ static void *vb2_dma_sg_vaddr(void *buf_priv)
 		if (buf->db_attach)
 			buf->vaddr = dma_buf_vmap(buf->db_attach->dmabuf);
 		else
-			buf->vaddr = vm_map_ram(buf->pages,
-					buf->num_pages, -1, PAGE_KERNEL);
+			buf->vaddr = vm_map_ram(buf->pages, buf->num_pages, -1);
 	}
 
 	/* add offset in case userptr is not page-aligned */
@@ -375,28 +319,18 @@ static unsigned int vb2_dma_sg_num_users(void *buf_priv)
 static int vb2_dma_sg_mmap(void *buf_priv, struct vm_area_struct *vma)
 {
 	struct vb2_dma_sg_buf *buf = buf_priv;
-	unsigned long uaddr = vma->vm_start;
-	unsigned long usize = vma->vm_end - vma->vm_start;
-	int i = 0;
+	int err;
 
 	if (!buf) {
 		printk(KERN_ERR "No memory to map\n");
 		return -EINVAL;
 	}
 
-	do {
-		int ret;
-
-		ret = vm_insert_page(vma, uaddr, buf->pages[i++]);
-		if (ret) {
-			printk(KERN_ERR "Remapping memory, error: %d\n", ret);
-			return ret;
-		}
-
-		uaddr += PAGE_SIZE;
-		usize -= PAGE_SIZE;
-	} while (usize > 0);
-
+	err = vm_map_pages(vma, buf->pages, buf->num_pages);
+	if (err) {
+		printk(KERN_ERR "Remapping memory, error: %d\n", err);
+		return err;
+	}
 
 	/*
 	 * Use common vm_area operations to track buffer refcount.
@@ -469,8 +403,7 @@ static void vb2_dma_sg_dmabuf_ops_detach(struct dma_buf *dbuf,
 
 	/* release the scatterlist cache */
 	if (attach->dma_dir != DMA_NONE)
-		dma_unmap_sg(db_attach->dev, sgt->sgl, sgt->orig_nents,
-			attach->dma_dir);
+		dma_unmap_sgtable(db_attach->dev, sgt, attach->dma_dir, 0);
 	sg_free_table(sgt);
 	kfree(attach);
 	db_attach->priv = NULL;
@@ -495,15 +428,12 @@ static struct sg_table *vb2_dma_sg_dmabuf_ops_map(
 
 	/* release any previous cache */
 	if (attach->dma_dir != DMA_NONE) {
-		dma_unmap_sg(db_attach->dev, sgt->sgl, sgt->orig_nents,
-			attach->dma_dir);
+		dma_unmap_sgtable(db_attach->dev, sgt, attach->dma_dir, 0);
 		attach->dma_dir = DMA_NONE;
 	}
 
 	/* mapping to the client with new direction */
-	sgt->nents = dma_map_sg(db_attach->dev, sgt->sgl, sgt->orig_nents,
-				dma_dir);
-	if (!sgt->nents) {
+	if (dma_map_sgtable(db_attach->dev, sgt, dma_dir, 0)) {
 		pr_err("failed to map scatterlist\n");
 		mutex_unlock(lock);
 		return ERR_PTR(-EIO);
@@ -528,11 +458,26 @@ static void vb2_dma_sg_dmabuf_ops_release(struct dma_buf *dbuf)
 	vb2_dma_sg_put(dbuf->priv);
 }
 
-static void *vb2_dma_sg_dmabuf_ops_kmap(struct dma_buf *dbuf, unsigned long pgnum)
+static int
+vb2_dma_sg_dmabuf_ops_begin_cpu_access(struct dma_buf *dbuf,
+				       enum dma_data_direction direction)
 {
 	struct vb2_dma_sg_buf *buf = dbuf->priv;
+	struct sg_table *sgt = buf->dma_sgt;
 
-	return buf->vaddr ? buf->vaddr + pgnum * PAGE_SIZE : NULL;
+	dma_sync_sg_for_cpu(buf->dev, sgt->sgl, sgt->nents, buf->dma_dir);
+	return 0;
+}
+
+static int
+vb2_dma_sg_dmabuf_ops_end_cpu_access(struct dma_buf *dbuf,
+				     enum dma_data_direction direction)
+{
+	struct vb2_dma_sg_buf *buf = dbuf->priv;
+	struct sg_table *sgt = buf->dma_sgt;
+
+	dma_sync_sg_for_device(buf->dev, sgt->sgl, sgt->nents, buf->dma_dir);
+	return 0;
 }
 
 static void *vb2_dma_sg_dmabuf_ops_vmap(struct dma_buf *dbuf)
@@ -553,7 +498,8 @@ static const struct dma_buf_ops vb2_dma_sg_dmabuf_ops = {
 	.detach = vb2_dma_sg_dmabuf_ops_detach,
 	.map_dma_buf = vb2_dma_sg_dmabuf_ops_map,
 	.unmap_dma_buf = vb2_dma_sg_dmabuf_ops_unmap,
-	.map = vb2_dma_sg_dmabuf_ops_kmap,
+	.begin_cpu_access = vb2_dma_sg_dmabuf_ops_begin_cpu_access,
+	.end_cpu_access = vb2_dma_sg_dmabuf_ops_end_cpu_access,
 	.vmap = vb2_dma_sg_dmabuf_ops_vmap,
 	.mmap = vb2_dma_sg_dmabuf_ops_mmap,
 	.release = vb2_dma_sg_dmabuf_ops_release,
@@ -587,11 +533,10 @@ static struct dma_buf *vb2_dma_sg_get_dmabuf(void *buf_priv, unsigned long flags
 /*       callbacks for DMABUF buffers        */
 /*********************************************/
 
-static int vb2_dma_sg_map_dmabuf(void *mem_priv, size_t size, int memflags)
+static int vb2_dma_sg_map_dmabuf(void *mem_priv)
 {
 	struct vb2_dma_sg_buf *buf = mem_priv;
 	struct sg_table *sgt;
-	int ioprot = IOMMU_READ	| IOMMU_WRITE;
 
 	if (WARN_ON(!buf->db_attach)) {
 		pr_err("trying to pin a non attached buffer\n");
@@ -604,35 +549,10 @@ static int vb2_dma_sg_map_dmabuf(void *mem_priv, size_t size, int memflags)
 	}
 
 	/* get the associated scatterlist for this buffer */
-	sgt = (size == 0) ?
-		dma_buf_map_attachment(buf->db_attach, buf->dma_dir) :
-		dma_buf_map_attachment_area(buf->db_attach,
-					    buf->dma_dir, size);
-
+	sgt = dma_buf_map_attachment(buf->db_attach, buf->dma_dir);
 	if (IS_ERR(sgt)) {
 		pr_err("Error getting dmabuf scatterlist\n");
 		return -EINVAL;
-	}
-
-	/*
-	 * A dmabuf container itself is also a dmabuf. It is capable of attach
-	 * and map but the buffer in it is not accessible because it just has
-	 * metadata of dma-buf array.
-	 */
-	if ((dmabuf_container_get_count(buf->db_attach->dmabuf) < 0) &&
-	    ((buf->iova == 0) || IS_ERR_VALUE(buf->iova))) {
-		if (!(memflags & VB2_DMA_SG_MEMFLAG_IOMMU_UNCACHED) &&
-		    (device_get_dma_attr(buf->dev) == DEV_DMA_COHERENT))
-			ioprot |= IOMMU_CACHE;
-
-		buf->iova = ion_iovmm_map(buf->db_attach, 0, buf->size,
-				      DMA_BIDIRECTIONAL, ioprot);
-		if (IS_ERR_VALUE(buf->iova)) {
-			dma_buf_unmap_attachment(buf->db_attach,
-						 sgt, buf->dma_dir);
-			pr_err("Error from ion_iovmm_map()=%pad\n", &buf->iova);
-			return (int)buf->iova;
-		}
 	}
 
 	buf->dma_sgt = sgt;
@@ -641,7 +561,7 @@ static int vb2_dma_sg_map_dmabuf(void *mem_priv, size_t size, int memflags)
 	return 0;
 }
 
-static void vb2_dma_sg_unmap_dmabuf(void *mem_priv, size_t size)
+static void vb2_dma_sg_unmap_dmabuf(void *mem_priv)
 {
 	struct vb2_dma_sg_buf *buf = mem_priv;
 	struct sg_table *sgt = buf->dma_sgt;
@@ -660,12 +580,7 @@ static void vb2_dma_sg_unmap_dmabuf(void *mem_priv, size_t size)
 		dma_buf_vunmap(buf->db_attach->dmabuf, buf->vaddr);
 		buf->vaddr = NULL;
 	}
-
-	if (size == 0)
-		dma_buf_unmap_attachment(buf->db_attach, sgt, buf->dma_dir);
-	else
-		dma_buf_unmap_attachment_area(buf->db_attach, sgt,
-					      buf->dma_dir, size);
+	dma_buf_unmap_attachment(buf->db_attach, sgt, buf->dma_dir);
 
 	buf->dma_sgt = NULL;
 }
@@ -676,10 +591,7 @@ static void vb2_dma_sg_detach_dmabuf(void *mem_priv)
 
 	/* if vb2 works correctly you should never detach mapped buffer */
 	if (WARN_ON(buf->dma_sgt))
-		vb2_dma_sg_unmap_dmabuf(buf, 0);
-
-	if (dmabuf_container_get_count(buf->db_attach->dmabuf) < 0)
-		ion_iovmm_unmap(buf->db_attach, buf->iova);
+		vb2_dma_sg_unmap_dmabuf(buf);
 
 	/* detach this attachment */
 	dma_buf_detach(buf->db_attach->dmabuf, buf->db_attach);
@@ -711,7 +623,6 @@ static void *vb2_dma_sg_attach_dmabuf(struct device *dev, struct dma_buf *dbuf,
 		return dba;
 	}
 
-	buf->iova = 0;
 	buf->dma_dir = dma_dir;
 	buf->size = size;
 	buf->db_attach = dba;
@@ -724,14 +635,6 @@ static void *vb2_dma_sg_cookie(void *buf_priv)
 	struct vb2_dma_sg_buf *buf = buf_priv;
 
 	return buf->dma_sgt;
-}
-
-dma_addr_t vb2_dma_sg_plane_dma_addr(struct vb2_buffer *vb,
-				     unsigned int plane_no)
-{
-	struct vb2_dma_sg_buf *buf = vb->planes[plane_no].mem_priv;
-
-	return buf->iova + vb->planes[plane_no].data_offset;
 }
 
 const struct vb2_mem_ops vb2_dma_sg_memops = {

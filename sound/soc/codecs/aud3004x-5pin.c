@@ -3,7 +3,7 @@
  *
  * ALSA SoC Audio Layer - Samsung Codec Driver
  *
- * Copyright (C) 2019 Samsung Electronics
+ * Copyright (C) 2022 Samsung Electronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -18,17 +18,16 @@
 #include <sound/soc.h>
 #include <linux/input.h>
 #include <linux/of_gpio.h>
-#include <linux/wakelock.h>
-#include <linux/mfd/samsung/s2mpu12-regulator.h>
+#include <linux/pm_wakeup.h>
 #include <sound/aud3004x.h>
 #include <uapi/linux/input-event-codes.h>
 
 #include "aud3004x.h"
 #include "aud3004x-5pin.h"
 
-#define AUD3004X_JACK_VER 20017
+#define AUD3004X_JACK_VER 2001
 
-#define ADC_SAMPLE_SIZE 5
+#define ADC_SAMPLE_SIZE		5
 #define ADC_TRACE_NUM		5
 #define ADC_TRACE_SET		2
 #define ADC_READY_DELAY_MS	10
@@ -40,8 +39,8 @@
 #define JACK_DEFAULT_USEC		100
 #define JACK_ANT_USEC			10000
 
-#define AUD3004X_LDET_DELAY					20
-#define AUD3004X_MDET_DELAY					300
+#define AUD3004X_LDET_DELAY				20
+#define AUD3004X_MDET_DELAY				300
 #define AUD3004X_ANT_LDET_DELAY				250
 #define AUD3004X_MIC_ADC_DEFAULT			800
 #define AUD3004X_MIC_OPEN_DEFAULT			3400
@@ -63,12 +62,8 @@
 #define AUD3004X_ANT_LDETIN_DBNC_DEFAULT		0xC0
 #define AUD3004X_ANT_LDETOUT_DBNC_DEFAULT		0x00
 
-#ifdef CONFIG_SND_SOC_SAMSUNG_VERBOSE_DEBUG
-#ifdef dev_dbg
-#undef dev_dbg
-#endif
-#define dev_dbg dev_err
-#endif
+struct wakeup_source ws;
+bool notifier_flag;
 
 static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet);
 static void aud3004x_jackstate_set(struct aud3004x_jack *jackdet, u16 change_state);
@@ -160,21 +155,21 @@ static void mute_mic(struct aud3004x_priv *aud3004x, bool on)
 {
 	struct snd_soc_component *codec = aud3004x->codec;
 
-	dev_dbg(aud3004x->dev, "%s called, %s\n", __func__, on ? "Mute" : "Unmute");
+	dev_info(aud3004x->dev, "%s called, %s\n", __func__, on ? "Mute" : "Unmute");
 
-	regcache_cache_switch(aud3004x, false);
+	aud3004x_regcache_switch(aud3004x, false);
 	if (on)
 		aud3004x_adc_digital_mute(codec, ADC_MUTE_ALL, true);
 	else
 		aud3004x_adc_digital_mute(codec, ADC_MUTE_ALL, false);
-	regcache_cache_switch(aud3004x, true);
+	aud3004x_regcache_switch(aud3004x, true);
 }
 
 static void mute_mic_jackout(struct aud3004x_priv *aud3004x, bool on)
 {
 	struct snd_soc_component *codec = aud3004x->codec;
 
-	dev_dbg(aud3004x->dev, "%s called, %s\n", __func__, on ? "Mute" : "Unmute");
+	dev_info(aud3004x->dev, "%s called, %s\n", __func__, on ? "Mute" : "Unmute");
 
 	if (on)
 		aud3004x_adc_digital_mute(codec, ADC_MUTE_ALL, true);
@@ -213,7 +208,7 @@ static int button_adc_cal(struct aud3004x_jack *jackdet)
 		/* Check avg/devi value */
 		avg = get_avg(adc_values, ADC_TRACE_NUM);
 		devi = get_devi(avg, adc_values, ADC_TRACE_NUM);
-		dev_dbg(dev, "%s: button adc avg: %d, devi: %d\n", __func__, avg, devi);
+		dev_info(dev, "%s: button adc avg: %d, devi: %d\n", __func__, avg, devi);
 
 		/* Retry if devi exceeds the threshold */
 		if (devi > ADC_DEVI_THRESHOLD) {
@@ -252,7 +247,7 @@ static void process_button_ev(struct aud3004x_jack *jackdet, bool on)
 	struct earjack_state *jackstate = &jackdet->jack_state;
 	struct aud3004x_priv *aud3004x = jackdet->p_aud3004x;
 
-	dev_dbg(aud3004x->dev, "%s: key %d is %s, adc: %d\n",
+	dev_info(aud3004x->dev, "%s: key %d is %s, adc: %d\n",
 			__func__, jackstate->button_code,
 			on ? "pressed" : "released", jackstate->btn_adc);
 
@@ -343,20 +338,20 @@ static void reset_mic3_boost(struct aud3004x_jack *jackdet)
 {
 	struct aud3004x_priv *aud3004x = jackdet->p_aud3004x;
 
-	regcache_cache_switch(aud3004x, false);
+	aud3004x_regcache_switch(aud3004x, false);
 
 	/* Ear-mic BST3 Reset */
-	aud3004x_update_bits(aud3004x, AUD3004X_B6_ODSEL1,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_B6_ODSEL1,
 			T_RESETB_BST3_MASK, T_RESETB_BST3_MASK);
-	aud3004x_update_bits(aud3004x, AUD3004X_113_PD_AD3,
+	aud3004x_update_bits(aud3004x, AUD3004X_ANALOG_ADDR, AUD3004X_113_PD_AD3,
 			RESETB_BST3_MASK, 0);
 	msleep(MIC_BOOST_MSEC);
-	aud3004x_update_bits(aud3004x, AUD3004X_B6_ODSEL1,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_B6_ODSEL1,
 			T_RESETB_BST3_MASK, 0);
-	aud3004x_update_bits(aud3004x, AUD3004X_113_PD_AD3,
+	aud3004x_update_bits(aud3004x, AUD3004X_ANALOG_ADDR, AUD3004X_113_PD_AD3,
 			RESETB_BST3_MASK, RESETB_BST3_MASK);
 
-	regcache_cache_switch(aud3004x, true);
+	aud3004x_regcache_switch(aud3004x, true);
 }
 
 /*
@@ -385,12 +380,12 @@ static void aud3004x_buttons_work(struct work_struct *work)
 
 	/* Check error status */
 	if (!before_button_error_chk(jackdet)) {
-		wake_unlock(&jackdet->jack_wake_lock);
+		__pm_relax(jackdet->jack_wake_lock);
 		return;
 	}
 
 	/* Check button press/release */
-	dev_dbg(dev, "Button %s! adc: %d, btn_release_value: %d\n",
+	dev_info(dev, "Button %s! adc: %d, btn_release_value: %d\n",
 			jackstate->btn_adc > jackdet->btn_release_value ? "Released" : "Pressed",
 			jackstate->btn_adc,	jackdet->btn_release_value);
 	jackstate->cur_btn_state =
@@ -398,7 +393,7 @@ static void aud3004x_buttons_work(struct work_struct *work)
 
 	/* Check error status */
 	if (!after_button_error_chk(jackdet)) {
-		wake_unlock(&jackdet->jack_wake_lock);
+		__pm_relax(jackdet->jack_wake_lock);
 		return;
 	}
 
@@ -424,7 +419,7 @@ static void aud3004x_buttons_work(struct work_struct *work)
 		/* Button released */
 		process_button_ev(jackdet, BUTTON_RELEASE);
 	}
-	wake_unlock(&jackdet->jack_wake_lock);
+	__pm_relax(jackdet->jack_wake_lock);
 }
 
 /*
@@ -440,14 +435,14 @@ static bool fake_jack_check(struct aud3004x_jack *jackdet)
 	struct aud3004x_priv *aud3004x = jackdet->p_aud3004x;
 	unsigned int jack_status_bit = 0;
 
-	regcache_cache_switch(aud3004x, false);
+	aud3004x_regcache_switch(aud3004x, false);
 	regcache_cache_bypass(aud3004x->regmap[AUD3004D], true);
 
 	/* Check jack det status */
-	jack_status_bit = aud3004x_read(aud3004x, AUD3004X_F0_STATUS1);
+	aud3004x_read(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_F0_STATUS1, &jack_status_bit);
 
 	regcache_cache_bypass(aud3004x->regmap[AUD3004D], false);
-	regcache_cache_switch(aud3004x, true);
+	aud3004x_regcache_switch(aud3004x, true);
 
 	jack_status_bit = jack_status_bit & JACK_DET_MASK;
 
@@ -464,13 +459,13 @@ static void aud3004x_jackstate_reset(struct aud3004x_jack *jackdet)
 	struct aud3004x_priv *aud3004x = jackdet->p_aud3004x;
 	struct device *dev = jackdet->p_aud3004x->dev;
 
-	regcache_cache_switch(aud3004x, false);
-	aud3004x_write(aud3004x, AUD3004X_E4_DCTR_FSM3, 0x10);
+	aud3004x_regcache_switch(aud3004x, false);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3, 0x10);
 	aud3004x_usleep(JACK_DEFAULT_USEC);
-	aud3004x_write(aud3004x, AUD3004X_E4_DCTR_FSM3, 0x00);
-	regcache_cache_switch(aud3004x, true);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3, 0x00);
+	aud3004x_regcache_switch(aud3004x, true);
 
-	dev_dbg(dev, "%s called, Jack State Reset.\n", __func__);
+	dev_info(dev, "%s called, Jack State Reset.\n", __func__);
 }
 
 /*
@@ -491,54 +486,55 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	cur_jack = jackstate->cur_jack_state;
 	prv_jack = jackstate->prv_jack_state;
 
-	regcache_cache_switch(aud3004x, false);
+	aud3004x_regcache_switch(aud3004x, false);
 
 	switch (cur_jack) {
 	case JACK_OUT:
-		mic3_on = aud3004x_read(aud3004x, AUD3004X_1F_CHOP2) & MIC3_ON_MASK;
+		aud3004x_read(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_1F_CHOP2, &mic3_on);
+		mic3_on &= MIC3_ON_MASK;
 
 		if (mic3_on)
 			mute_mic_jackout(aud3004x, true);
 
 		if (prv_jack & (JACK_IN | JACK_POLE_DEC | JACK_AUX | JACK_SURGE_OUT)) {
 			if (prv_jack & JACK_3POLE)
-				dev_dbg(dev, "Priv: JACK_3POLE -> Cur: JACK_OUT\n");
+				dev_info(dev, "Priv: JACK_3POLE -> Cur: JACK_OUT\n");
 			if (prv_jack & JACK_4POLE)
-				dev_dbg(dev, "Priv: JACK_4POLE -> Cur: JACK_OUT\n");
+				dev_info(dev, "Priv: JACK_4POLE -> Cur: JACK_OUT\n");
 			if (prv_jack & JACK_POLE_DEC)
-				dev_dbg(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_OUT\n");
+				dev_info(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_OUT\n");
 			if (prv_jack & JACK_AUX)
-				dev_dbg(dev, "Priv: JACK_AUX -> Cur: JACK_OUT\n");
+				dev_info(dev, "Priv: JACK_AUX -> Cur: JACK_OUT\n");
 			if (prv_jack & JACK_SURGE_OUT)
-				dev_dbg(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_OUT\n");
+				dev_info(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_OUT\n");
 
-			aud3004x_write(aud3004x, AUD3004X_E4_DCTR_FSM3, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3, 0x00);
 			/* Pole Value Reset */
-			aud3004x_write(aud3004x, AUD3004X_E3_DCTR_FSM2, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E3_DCTR_FSM2, 0x00);
 			/* HQ Mode Reset */
-			aud3004x_write(aud3004x, AUD3004X_E5_DCTR_FSM4, 0x02);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E5_DCTR_FSM4, 0x02);
 
 			/* IRQ Masking OFF */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 
 			/* ANT MDET Masking */
-			aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D2_DCTR_TEST2,
 					T_PDB_ANT_MDET_MASK, T_PDB_ANT_MDET_MASK);
 			jackdet->is_aux_inserted = false;
 		} else if (prv_jack & JACK_APCHK) {
-			dev_dbg(dev, "Priv: JACK_APCHK -> Cur: JACK_OUT\n");
+			dev_info(dev, "Priv: JACK_APCHK -> Cur: JACK_OUT\n");
 
-			aud3004x_write(aud3004x, AUD3004X_E4_DCTR_FSM3, 0x10);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3, 0x10);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
-			aud3004x_write(aud3004x, AUD3004X_E4_DCTR_FSM3, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3, 0x00);
 
 			/* IRQ Masking OFF */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 
 			/* ANT MDET Masking */
-			aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D2_DCTR_TEST2,
 					T_PDB_ANT_MDET_MASK, T_PDB_ANT_MDET_MASK);
 		} else {
 			goto err;
@@ -546,23 +542,23 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 		break;
 	case JACK_APCHK:
 		if (prv_jack & JACK_OUT)
-			dev_dbg(dev, "Priv: JACK_OUT -> Cur: JACK_APCHK\n");
+			dev_info(dev, "Priv: JACK_OUT -> Cur: JACK_APCHK\n");
 		else
 			goto err;
 		break;
 	case JACK_WATER:
 		if (prv_jack & (JACK_APCHK | JACK_SURGE_OUT)) {
 			if (prv_jack & JACK_APCHK)
-				dev_dbg(dev, "Priv: JACK_APCHK -> Cur: JACK_WATER\n");
+				dev_info(dev, "Priv: JACK_APCHK -> Cur: JACK_WATER\n");
 			if (prv_jack & JACK_SURGE_OUT)
-				dev_dbg(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_WATER\n");
+				dev_info(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_WATER\n");
 
 			/* IRQ Masking ON */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x01);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x01);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x01);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x01);
 
 			/* AP Polling START */
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_POLLING_MASK, AP_POLLING_MASK);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 		} else {
@@ -571,14 +567,14 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 		break;
 	case JACK_WATER_OUT:
 		if (prv_jack & JACK_WATER) {
-			dev_dbg(dev, "Priv: JACK_WATER -> Cur: JACK_WATER_OUT\n");
+			dev_info(dev, "Priv: JACK_WATER -> Cur: JACK_WATER_OUT\n");
 
 			/* IRQ Masking OFF */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 
 			/* AP Polling STOP */
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_POLLING_MASK, 0);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 		} else {
@@ -588,12 +584,12 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	case JACK_SURGE_IN:
 		if (prv_jack & JACK_IN) {
 			if (prv_jack & JACK_3POLE)
-				dev_dbg(dev, "Priv: JACK_3POLE -> Cur: JACK_SURGE_IN\n");
+				dev_info(dev, "Priv: JACK_3POLE -> Cur: JACK_SURGE_IN\n");
 			if (prv_jack & JACK_4POLE)
-				dev_dbg(dev, "Priv: JACK_4POLE -> Cur: JACK_SURGE_IN\n");
+				dev_info(dev, "Priv: JACK_4POLE -> Cur: JACK_SURGE_IN\n");
 
 			/* AP ANT Masking */
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_ANT_RJIN_MASK, AP_ANT_RJIN_MASK);
 		} else {
 			goto err;
@@ -602,31 +598,31 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	case JACK_SURGE_OUT:
 		if (prv_jack & (JACK_IN | JACK_POLE_DEC | JACK_SURGE_IN | JACK_OUT)) {
 			if (prv_jack & JACK_3POLE)
-				dev_dbg(dev, "Priv: JACK_3POLE -> Cur: JACK_SURGE_OUT\n");
+				dev_info(dev, "Priv: JACK_3POLE -> Cur: JACK_SURGE_OUT\n");
 			if (prv_jack & JACK_4POLE)
-				dev_dbg(dev, "Priv: JACK_4POLE -> Cur: JACK_SURGE_OUT\n");
+				dev_info(dev, "Priv: JACK_4POLE -> Cur: JACK_SURGE_OUT\n");
 			if (prv_jack & JACK_POLE_DEC)
-				dev_dbg(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_SURGE_OUT\n");
+				dev_info(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_SURGE_OUT\n");
 			if (prv_jack & JACK_SURGE_IN)
-				dev_dbg(dev, "Priv: JACK_SURGE_IN -> Cur: JACK_SURGE_OUT\n");
+				dev_info(dev, "Priv: JACK_SURGE_IN -> Cur: JACK_SURGE_OUT\n");
 			if (prv_jack & JACK_OUT)
-				dev_dbg(dev, "Priv: JACK_OUT -> Cur: JACK_SURGE_OUT\n");
+				dev_info(dev, "Priv: JACK_OUT -> Cur: JACK_SURGE_OUT\n");
 
 			/* Need to ST_POLE_R */
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, AP_JACK_IN_MASK);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, 0);
 
 			/* IRQ Masking OFF */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 
 			/* AP ANT Unmasking */
 			aud3004x_usleep(JACK_ANT_USEC);
 			if (!jackdet->is_aux_inserted)
-				aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+				aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 						AP_ANT_RJIN_MASK, 0);
 
 			queue_delayed_work(jackdet->surge_out_wq, &jackdet->surge_out_work,
@@ -638,14 +634,14 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	case JACK_FAKE:
 		if (prv_jack & JACK_IN) {
 			if (prv_jack & JACK_3POLE)
-				dev_dbg(dev, "Priv: JACK_3POLE -> Cur: JACK_FAKE\n");
+				dev_info(dev, "Priv: JACK_3POLE -> Cur: JACK_FAKE\n");
 			if (prv_jack & JACK_4POLE)
-				dev_dbg(dev, "Priv: JACK_4POLE -> Cur: JACK_FAKE\n");
+				dev_info(dev, "Priv: JACK_4POLE -> Cur: JACK_FAKE\n");
 
-			aud3004x_update_bits(aud3004x, AUD3004X_E5_DCTR_FSM4,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E5_DCTR_FSM4,
 					RST_POLE_MASK, RST_POLE_MASK);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
-			aud3004x_update_bits(aud3004x, AUD3004X_E5_DCTR_FSM4,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E5_DCTR_FSM4,
 					RST_POLE_MASK, 0);
 		} else {
 			goto err;
@@ -654,15 +650,15 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	case JACK_ANT:
 		if (prv_jack & (JACK_FAKE | JACK_POLE_DEC | JACK_IN)) {
 			if (prv_jack & JACK_FAKE)
-				dev_dbg(dev, "Priv: JACK_FAKE -> Cur: JACK_ANT\n");
+				dev_info(dev, "Priv: JACK_FAKE -> Cur: JACK_ANT\n");
 			if (prv_jack & JACK_POLE_DEC)
-				dev_dbg(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_ANT\n");
+				dev_info(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_ANT\n");
 			if (prv_jack & JACK_3POLE)
-				dev_dbg(dev, "Priv: JACK_3POLE -> Cur: JACK_ANT\n");
+				dev_info(dev, "Priv: JACK_3POLE -> Cur: JACK_ANT\n");
 			if (prv_jack & JACK_4POLE)
-				dev_dbg(dev, "Priv: JACK_4POLE -> Cur: JACK_ANT\n");
+				dev_info(dev, "Priv: JACK_4POLE -> Cur: JACK_ANT\n");
 
-			aud3004x_write(aud3004x, AUD3004X_E3_DCTR_FSM2, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E3_DCTR_FSM2, 0x00);
 		} else {
 			goto err;
 		}
@@ -670,33 +666,33 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	case JACK_AUX:
 		if (prv_jack & (JACK_APCHK | JACK_OUT | JACK_SURGE_OUT)) {
 			if (prv_jack & JACK_APCHK)
-				dev_dbg(dev, "Priv: JACK_APCHK -> Cur: JACK_AUX\n");
+				dev_info(dev, "Priv: JACK_APCHK -> Cur: JACK_AUX\n");
 			if (prv_jack & JACK_OUT)
-				dev_dbg(dev, "Priv: JACK_OUT -> Cur: JACK_AUX\n");
+				dev_info(dev, "Priv: JACK_OUT -> Cur: JACK_AUX\n");
 			if (prv_jack & JACK_SURGE_OUT)
-				dev_dbg(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_AUX\n");
+				dev_info(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_AUX\n");
 
 			jackdet->is_aux_inserted = true;
 			/* ANT MDET Masking */
-			aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D2_DCTR_TEST2,
 					T_PDB_ANT_MDET_MASK, T_PDB_ANT_MDET_MASK);
 			/* AP ANT Masking */
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_ANT_RJIN_MASK, AP_ANT_RJIN_MASK);
 
 			/* Need to ANT Comp. Delay in AUX */
 			msleep(jackdet->ant_ldet_delay);
 
 			/* Need to ST_POLE_R */
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, AP_JACK_IN_MASK);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, 0);
 
 			/* IRQ Masking OFF */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 		} else {
 			goto err;
 		}
@@ -704,28 +700,28 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	case JACK_POLE_DEC:
 		if (prv_jack & (JACK_APCHK | JACK_OUT | JACK_IN | JACK_ANT | JACK_SURGE_OUT)) {
 			if (prv_jack & JACK_APCHK)
-				dev_dbg(dev, "Priv: JACK_APCHK -> Cur: JACK_POLE_DEC\n");
+				dev_info(dev, "Priv: JACK_APCHK -> Cur: JACK_POLE_DEC\n");
 			if (prv_jack & JACK_ANT)
-				dev_dbg(dev, "Priv: JACK_ANT -> Cur: JACK_POLE_DEC\n");
+				dev_info(dev, "Priv: JACK_ANT -> Cur: JACK_POLE_DEC\n");
 			if (prv_jack & JACK_OUT)
-				dev_dbg(dev, "Priv: JACK_OUT -> Cur: JACK_POLE_DEC\n");
+				dev_info(dev, "Priv: JACK_OUT -> Cur: JACK_POLE_DEC\n");
 			if (prv_jack & JACK_SURGE_OUT)
-				dev_dbg(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_POLE_DEC\n");
+				dev_info(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_POLE_DEC\n");
 			if (prv_jack & JACK_3POLE)
-				dev_dbg(dev, "Priv: JACK_3POLE -> Cur: JACK_POLE_DEC\n");
+				dev_info(dev, "Priv: JACK_3POLE -> Cur: JACK_POLE_DEC\n");
 			if (prv_jack & JACK_4POLE)
-				dev_dbg(dev, "Priv: JACK_4POLE -> Cur: JACK_POLE_DEC\n");
+				dev_info(dev, "Priv: JACK_4POLE -> Cur: JACK_POLE_DEC\n");
 
 			/* Need to ST_POLE_R */
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, AP_JACK_IN_MASK);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
-			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
+			aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, 0);
 
 			/* IRQ Masking OFF */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 		} else {
 			goto err;
 		}
@@ -733,19 +729,19 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	case JACK_3POLE:
 		if (prv_jack & (JACK_POLE_DEC | JACK_AUX | JACK_SURGE_OUT)) {
 			if (prv_jack & JACK_POLE_DEC)
-				dev_dbg(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_3POLE\n");
+				dev_info(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_3POLE\n");
 			if (prv_jack & JACK_AUX)
-				dev_dbg(dev, "Priv: JACK_AUX -> Cur: JACK_3POLE\n");
+				dev_info(dev, "Priv: JACK_AUX -> Cur: JACK_3POLE\n");
 			if (prv_jack & JACK_SURGE_OUT)
-				dev_dbg(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_3POLE\n");
+				dev_info(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_3POLE\n");
 
 			/* 3 POLE */
-			aud3004x_write(aud3004x, AUD3004X_E3_DCTR_FSM2, 0x20);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E3_DCTR_FSM2, 0x20);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 
 			/* IRQ Masking OFF */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 		} else {
 			goto err;
 		}
@@ -753,31 +749,31 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	case JACK_4POLE:
 		if (prv_jack & (JACK_POLE_DEC | JACK_AUX | JACK_SURGE_OUT)) {
 			if (prv_jack & JACK_POLE_DEC)
-				dev_dbg(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_4POLE\n");
+				dev_info(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_4POLE\n");
 			if (prv_jack & JACK_AUX)
-				dev_dbg(dev, "Priv: JACK_AUX -> Cur: JACK_4POLE\n");
+				dev_info(dev, "Priv: JACK_AUX -> Cur: JACK_4POLE\n");
 			if (prv_jack & JACK_SURGE_OUT)
-				dev_dbg(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_4POLE\n");
+				dev_info(dev, "Priv: JACK_SURGE_OUT -> Cur: JACK_4POLE\n");
 
 			/* 4 POLE */
-			aud3004x_write(aud3004x, AUD3004X_E3_DCTR_FSM2, 0x30);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_E3_DCTR_FSM2, 0x30);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 
 			/* IRQ Masking OFF */
-			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 
 			if (prv_jack & (JACK_POLE_DEC | JACK_SURGE_OUT)) {
 				if (!jackdet->ant_mode_bypass) {
 					if (jackstate->mdet_adc < jackdet->mic_open_value) {
-						dev_dbg(dev, "Cur: JACK_4POLE, Enable Ant mdet\n");
+						dev_info(dev, "Cur: JACK_4POLE, Enable Ant mdet\n");
 						/* ANT MDET Un-Masking */
-						aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
+						aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D2_DCTR_TEST2,
 								T_PDB_ANT_MDET_MASK, 0);
 					} else {
-						dev_dbg(dev, "Cur: JACK_4POLE, But mic is open.\n");
+						dev_info(dev, "Cur: JACK_4POLE, But mic is open.\n");
 						/* ANT MDET Masking */
-						aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
+						aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D2_DCTR_TEST2,
 								T_PDB_ANT_MDET_MASK, T_PDB_ANT_MDET_MASK);
 					}
 				}
@@ -789,15 +785,15 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	default:
 		goto err;
 	}
-	regcache_cache_switch(aud3004x, true);
+	aud3004x_regcache_switch(aud3004x, true);
 	return true;
 
 err:
 	/* IRQ Masking OFF */
-	aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-	aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
 
-	regcache_cache_switch(aud3004x, true);
+	aud3004x_regcache_switch(aud3004x, true);
 	dev_err(dev, "%s Jack state machine error! prv: 0x%03x, cur: 0x%03x\n",
 			__func__, jackstate->prv_jack_state, jackstate->cur_jack_state);
 	return false;
@@ -826,15 +822,15 @@ static void aud3004x_jackstate_set(struct aud3004x_jack *jackdet,
 	jackstate->cur_jack_state = change_state;
 
 	if (jackstate->prv_jack_state != jackstate->cur_jack_state) {
-		dev_dbg(dev, "%s called, Prv: 0x%03x, Cur: 0x%03x\n",  __func__,
+		dev_info(dev, "%s called, Prv: 0x%03x, Cur: 0x%03x\n",  __func__,
 				jackstate->prv_jack_state, jackstate->cur_jack_state);
 
 		/* Set jack register */
 		ret = aud3004x_jackstate_register(jackdet);
-		dev_dbg(dev, "Jack register write %s.\n",
+		dev_info(dev, "Jack register write %s.\n",
 				ret ? "complete" : "incomplete");
 	} else {
-		dev_dbg(dev, "Prv_jack_state and Cur_jack_state are same.\n");
+		dev_info(dev, "Prv_jack_state and Cur_jack_state are same.\n");
 	}
 }
 
@@ -855,7 +851,7 @@ static void aud3004x_jack_det_work(struct work_struct *work)
 	struct device *dev = jackdet->p_aud3004x->dev;
 
 	mutex_lock(&jackdet->mdet_lock);
-	dev_dbg(dev, "%s called, cur_jack_state: 0x%03x.\n",
+	dev_info(dev, "%s called, cur_jack_state: 0x%03x.\n",
 			__func__, jackstate->cur_jack_state);
 
 	/* Pole value decision */
@@ -865,7 +861,7 @@ static void aud3004x_jack_det_work(struct work_struct *work)
 			queue_delayed_work(jackdet->ldet_adc_wq, &jackdet->ldet_adc_work,
 					msecs_to_jiffies(100));
 			mutex_unlock(&jackdet->mdet_lock);
-			wake_unlock(&jackdet->jack_wake_lock);
+			__pm_relax(jackdet->jack_wake_lock);
 			return;
 		}
 
@@ -888,14 +884,14 @@ static void aud3004x_jack_det_work(struct work_struct *work)
 		}
 		input_sync(jackdet->input);
 
-		dev_dbg(dev, "%s mic adc: %d, jack type: %s\n", __func__,
+		dev_info(dev, "%s mic adc: %d, jack type: %s\n", __func__,
 				jackstate->mdet_adc,
 				(jackstate->cur_jack_state & JACK_4POLE) ? "4POLE" : "3POLE");
 	} else if (jackstate->cur_jack_state & JACK_IN) {
 		/*
 		 * Already Jack-in, Re-Check the Pole
 		 */
-		dev_dbg(dev, "%s called, Re-check the Pole\n", __func__);
+		dev_info(dev, "%s called, Re-check the Pole\n", __func__);
 //		aud3004x_jackstate_set(jackdet, JACK_FAKE);
 		input_sync(jackdet->input);
 	} else {
@@ -909,12 +905,12 @@ static void aud3004x_jack_det_work(struct work_struct *work)
 	/* Copy mdet_adc to btn_adc due to Factory Test */
 	jackstate->btn_adc = jackstate->mdet_adc;
 
-	dev_dbg(dev, "%s called, Jack %s, Mic %s\n", __func__,
+	dev_info(dev, "%s called, Jack %s, Mic %s\n", __func__,
 			(jackstate->cur_jack_state & JACK_IN) ?	"inserted" : "removed",
 			(jackstate->cur_jack_state & JACK_4POLE) ? "inserted" : "removed");
 
 	mutex_unlock(&jackdet->mdet_lock);
-	wake_unlock(&jackdet->jack_wake_lock);
+	__pm_relax(jackdet->jack_wake_lock);
 }
 
 static int return_ldet_adc_thd(struct aud3004x_jack *jackdet)
@@ -952,36 +948,36 @@ static void read_ldet_adc(struct aud3004x_jack *jackdet)
 	struct earjack_state *jackstate = &jackdet->jack_state;
 
 	if (jackdet->ldet_pop == LDET_POP_2000K) {
-		regcache_cache_switch(aud3004x, false);
+		aud3004x_regcache_switch(aud3004x, false);
 
 		/* LDET Pull-up registance 500k */
-		aud3004x_write(aud3004x, AUD3004X_D1_DCTR_TEST1, 0x10);
-		aud3004x_update_bits(aud3004x, AUD3004X_C1_ACTR_JD2,
+		aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D1_DCTR_TEST1, 0x10);
+		aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_C1_ACTR_JD2,
 				CTRV_LDET_POP_MASK, LDET_POP_500K);
 
 		jackstate->ldet_adc = adc_get_value(jackdet, 0);
 
 		/* LDET Pull-up registance 2M */
-		aud3004x_update_bits(aud3004x, AUD3004X_C1_ACTR_JD2,
+		aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_C1_ACTR_JD2,
 				CTRV_LDET_POP_MASK, LDET_POP_2000K);
-		aud3004x_write(aud3004x, AUD3004X_D1_DCTR_TEST1, 0x00);
+		aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D1_DCTR_TEST1, 0x00);
 
-		regcache_cache_switch(aud3004x, true);
+		aud3004x_regcache_switch(aud3004x, true);
 	} else {
 		/*
 		 * If tuning the LDET Pull-up registance,
 		 * It is not necessory the change 0x7D1 to 0x00.
 		 */
-		regcache_cache_switch(aud3004x, false);
+		aud3004x_regcache_switch(aud3004x, false);
 
-		aud3004x_write(aud3004x, AUD3004X_D1_DCTR_TEST1, 0x10);
-		aud3004x_update_bits(aud3004x, AUD3004X_C1_ACTR_JD2,
+		aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D1_DCTR_TEST1, 0x10);
+		aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_C1_ACTR_JD2,
 				CTRV_LDET_POP_MASK, LDET_POP_500K << CTRV_LDET_POP_SHIFT);
 		jackstate->ldet_adc = adc_get_value(jackdet, 0);
-		aud3004x_update_bits(aud3004x, AUD3004X_C1_ACTR_JD2,
+		aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_C1_ACTR_JD2,
 				CTRV_LDET_POP_MASK, jackdet->ldet_pop << CTRV_LDET_POP_SHIFT);
 
-		regcache_cache_switch(aud3004x, true);
+		aud3004x_regcache_switch(aud3004x, true);
 	}
 }
 
@@ -1006,7 +1002,7 @@ static void aud3004x_ldet_adc_work(struct work_struct *work)
 	/* read ldet adc value */
 	read_ldet_adc(jackdet);
 
-	dev_dbg(dev, "%s called, ldet adc: %d\n", __func__, jackstate->ldet_adc);
+	dev_info(dev, "%s called, ldet adc: %d\n", __func__, jackstate->ldet_adc);
 
 	switch (return_ldet_adc_thd(jackdet)) {
 	case JACK_RET_JACK:
@@ -1018,7 +1014,7 @@ static void aud3004x_ldet_adc_work(struct work_struct *work)
 				msecs_to_jiffies(100));
 		break;
 	case JACK_RET_AUX:
-#ifdef CONFIG_SND_SOC_AUD3004X_EXT_ANT
+#if IS_ENABLED(CONFIG_SND_SOC_AUD3004X_EXT_ANT)
 		/* Jack state: Ext Ant */
 		aud3004x_jackstate_set(jackdet, JACK_POLE_DEC);
 #else
@@ -1055,12 +1051,12 @@ void aud3004x_configure_mic_bias(struct aud3004x_jack *jackdet)
 	struct aud3004x_priv *aud3004x = jackdet->p_aud3004x;
 
 	/* Configure Mic1 Bias Voltage */
-	aud3004x_update_bits(aud3004x, AUD3004X_117_CTRL_REF,
+	aud3004x_update_bits(aud3004x, AUD3004X_ANALOG_ADDR, AUD3004X_117_CTRL_REF,
 			CTRV_MCB1_MASK,
 			(jackdet->mic_bias1_voltage << CTRV_MCB1_SHIFT));
 
 	/* Configure Mic2 Bias Voltage */
-	aud3004x_update_bits(aud3004x, AUD3004X_C6_ACTR_MCB4,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_C6_ACTR_MCB4,
 			CTRV_MCB2_MASK,
 			(jackdet->mic_bias2_voltage << CTRV_MCB2_SHIFT));
 }
@@ -1092,6 +1088,7 @@ static int aud3004x_register_inputdev(struct aud3004x_jack *jackdet)
 	if (ret != 0) {
 		jackdet->input = NULL;
 		dev_err(dev, "Failed to register switch input device\n");
+		return ret;
 	}
 
 	/*
@@ -1158,7 +1155,7 @@ static void aud3004x_jack_parse_dt(struct aud3004x_priv *aud3004x)
 				ret ? "not found, default set 2.8V" : "used invalid value");
 	}
 
-	dev_dbg(dev, "Bias voltage values: bias1=%d, bias2=%d\n",
+	dev_info(dev, "Bias voltage values: bias1=%d, bias2=%d\n",
 			jackdet->mic_bias1_voltage,
 			jackdet->mic_bias2_voltage);
 
@@ -1197,7 +1194,7 @@ static void aud3004x_jack_parse_dt(struct aud3004x_priv *aud3004x)
 	else
 		jackdet->ant_ldet_delay = AUD3004X_ANT_LDET_DELAY;
 
-	dev_dbg(dev, "LDET delay: %d, MDET delay: %d, ANT LDET delay: %d, Mic adc range: %d,"
+	dev_info(dev, "LDET delay: %d, MDET delay: %d, ANT LDET delay: %d, Mic adc range: %d,"
 			" Mic open value: %d\n", jackdet->ldet_delay, jackdet->mdet_delay,
 			jackdet->ant_ldet_delay, jackdet->mic_adc_range, jackdet->mic_open_value);
 
@@ -1233,7 +1230,7 @@ static void aud3004x_jack_parse_dt(struct aud3004x_priv *aud3004x)
 	else
 		jackdet->ant_ldetout_dbnc_time = AUD3004X_ANT_LDETOUT_DBNC_DEFAULT;
 
-	dev_dbg(dev, "Jack Debounce time: 0x%02x, ANT LDET Debounce time: 0x%02x\n",
+	dev_info(dev, "Jack Debounce time: 0x%02x, ANT LDET Debounce time: 0x%02x\n",
 			jackdet->jackin_dbnc_time | jackdet->jackout_dbnc_time,
 			jackdet->ant_ldetin_dbnc_time | jackdet->ant_ldetout_dbnc_time);
 
@@ -1264,14 +1261,14 @@ static void aud3004x_jack_parse_dt(struct aud3004x_priv *aud3004x)
 	else
 		jackdet->btn_release_value = AUD3004X_BTN_REL_DEFAULT;
 
-	dev_dbg(dev, "Button adc check delay: %d\n",
+	dev_info(dev, "Button adc check delay: %d\n",
 			jackdet->btn_adc_delay);
 	for (i = 0; i < 4; i++)
-		dev_dbg(dev, "Button Press: code(%d), low(%d), high(%d)\n",
+		dev_info(dev, "Button Press: code(%d), low(%d), high(%d)\n",
 				jackdet->jack_buttons_zones[i].code,
 				jackdet->jack_buttons_zones[i].adc_low,
 				jackdet->jack_buttons_zones[i].adc_high);
-	dev_dbg(dev, "Button Release: %d\n", jackdet->btn_release_value);
+	dev_info(dev, "Button Release: %d\n", jackdet->btn_release_value);
 
 	/* Set ldet adc threshold value */
 	ret = of_property_read_u32(dev->of_node, "adc-thd-fake-jack", &thd_adc);
@@ -1298,7 +1295,7 @@ static void aud3004x_jack_parse_dt(struct aud3004x_priv *aud3004x)
 	else
 		jackdet->adc_thd_water_out = AUD3004X_ADC_THD_WATER_OUT;
 
-	dev_dbg(dev, "LDET adc threshold value: %d %d %d %d\n",
+	dev_info(dev, "LDET adc threshold value: %d %d %d %d\n",
 			jackdet->adc_thd_fake_jack,
 			jackdet->adc_thd_auxcable,
 			jackdet->adc_thd_water_in,
@@ -1317,7 +1314,7 @@ static void aud3004x_jack_parse_dt(struct aud3004x_priv *aud3004x)
 	else
 		jackdet->ldet_pop = AUD3004X_LDET_POP_DEFAULT;
 
-	dev_dbg(dev, "LDET VTH: %d, LDET POP: %d\n",
+	dev_info(dev, "LDET VTH: %d, LDET POP: %d\n",
 			jackdet->ldet_vth, jackdet->ldet_pop);
 
 	if (of_find_property(dev->of_node, "use-ant-bypass", NULL) != NULL)
@@ -1325,7 +1322,7 @@ static void aud3004x_jack_parse_dt(struct aud3004x_priv *aud3004x)
 	else
 		jackdet->ant_mode_bypass = false;
 
-	dev_dbg(dev, "ANT Mode: %s\n", jackdet->ant_mode_bypass ? "Off" : "On");
+	dev_info(dev, "ANT Mode: %s\n", jackdet->ant_mode_bypass ? "Off" : "On");
 }
 
 static void aud3004x_jack_register_initialize(struct snd_soc_component *codec)
@@ -1333,62 +1330,62 @@ static void aud3004x_jack_register_initialize(struct snd_soc_component *codec)
 	struct aud3004x_priv *aud3004x = snd_soc_component_get_drvdata(codec);
 	struct aud3004x_jack *jackdet = aud3004x->p_jackdet;
 
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 	pm_runtime_get_sync(codec->dev);
 #else
 	aud3004x_enable(codec->dev);
 #endif
 
-	dev_dbg(codec->dev, "%s called, setting defaults\n", __func__);
+	dev_info(codec->dev, "%s called, setting defaults\n", __func__);
 
 	/* Jack ANT LDET Debounce */
-	aud3004x_write(aud3004x, AUD3004X_DA_DCTR_DBNC3,
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_DA_DCTR_DBNC3,
 			jackdet->ant_ldetin_dbnc_time | jackdet->ant_ldetout_dbnc_time);
 
 	/* Jack HMU Basic */
-	aud3004x_update_bits(aud3004x, AUD3004X_C0_ACTR_JD1,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_C0_ACTR_JD1,
 			PDB_JD_MASK, PDB_JD_MASK);
 
 	/* LDET VTH Setting */
-	aud3004x_update_bits(aud3004x, AUD3004X_C1_ACTR_JD2,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_C1_ACTR_JD2,
 			CTRV_LDET_VTH_MASK, jackdet->ldet_vth << CTRV_LDET_VTH_SHIFT);
 
 	/* LDET POP Unlock */
-	aud3004x_write(aud3004x, AUD3004X_D1_DCTR_TEST1, 0x10);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D1_DCTR_TEST1, 0x10);
 	/* LDET POP Setting */
-	aud3004x_update_bits(aud3004x, AUD3004X_C1_ACTR_JD2,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_C1_ACTR_JD2,
 			CTRV_LDET_POP_MASK, jackdet->ldet_pop << CTRV_LDET_POP_SHIFT);
 
 	/* IRQ Un-Masking */
-	aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
-	aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
-	aud3004x_write(aud3004x, AUD3004X_0A_IRQ3M, 0xDE);
-	aud3004x_write(aud3004x, AUD3004X_0B_IRQ4M, 0xDE);
-	aud3004x_write(aud3004x, AUD3004X_0C_IRQ5M, 0xDF);
-	aud3004x_write(aud3004x, AUD3004X_0D_IRQ6M, 0xDF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0x00);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0x00);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_0A_IRQ3M, 0xDE);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_0B_IRQ4M, 0xDE);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_0C_IRQ5M, 0xDF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_0D_IRQ6M, 0xDF);
 
-	aud3004x_write(aud3004x, AUD3004X_8B_OVP_INTR_POS, 0xCF);
-	aud3004x_write(aud3004x, AUD3004X_8C_OVP_INTR_NEG, 0xCF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_8B_OVP_INTR_POS, 0xCF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_8C_OVP_INTR_NEG, 0xCF);
 
 	/* ANT MDET Masking */
-	aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D2_DCTR_TEST2,
 			T_PDB_ANT_MDET_MASK, T_PDB_ANT_MDET_MASK);
 
 	/* 5 Pin Mode */
-	aud3004x_update_bits(aud3004x, AUD3004X_D0_DCTR_CM,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D0_DCTR_CM,
 			EN_FIVE_MASK, EN_FIVE_MASK);
-#ifdef CONFIG_SND_SOC_AUD3004X_EXT_ANT
+#if IS_ENABLED(CONFIG_SND_SOC_AUD3004X_EXT_ANT)
 	/* Antenna */
-	aud3004x_update_bits(aud3004x, AUD3004X_D0_DCTR_CM,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D0_DCTR_CM,
 			EN_ANT_MASK, EN_ANT_MASK);
 #endif
 
 	/* Jack in/out debounce time */
-	aud3004x_write(aud3004x, AUD3004X_D8_DCTR_DBNC1,
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_D8_DCTR_DBNC1,
 			jackdet->jackin_dbnc_time | jackdet->jackout_dbnc_time);
 
 	/* All boot time hardware access is done. Put the device to sleep. */
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 	pm_runtime_put_sync(codec->dev);
 #else
 	aud3004x_disable(codec->dev);
@@ -1399,23 +1396,23 @@ static void aud3004x_jack_register_exit(struct snd_soc_component *codec)
 {
 	struct aud3004x_priv *aud3004x = snd_soc_component_get_drvdata(codec);
 
-	regcache_cache_switch(aud3004x, false);
+	aud3004x_regcache_switch(aud3004x, false);
 
 	/* Slave PMIC CODEC IRQ Masking */
 	aud3004x_acpm_update_reg(AUD3004X_COMMON_ADDR,
 			AUD3004X_007_IRQM, CDC_IRQM_MASK, CDC_IRQM_MASK);
 
 	/* IRQ Masking */
-	aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0xFF);
-	aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0xFF);
-	aud3004x_write(aud3004x, AUD3004X_0A_IRQ3M, 0xFF);
-	aud3004x_write(aud3004x, AUD3004X_0B_IRQ4M, 0xFF);
-	aud3004x_write(aud3004x, AUD3004X_0C_IRQ5M, 0xFF);
-	aud3004x_write(aud3004x, AUD3004X_0D_IRQ6M, 0xFF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_08_IRQ1M, 0xFF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_09_IRQ2M, 0xFF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_0A_IRQ3M, 0xFF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_0B_IRQ4M, 0xFF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_0C_IRQ5M, 0xFF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_0D_IRQ6M, 0xFF);
 
-	aud3004x_write(aud3004x, AUD3004X_8B_OVP_INTR_POS, 0xFF);
-	aud3004x_write(aud3004x, AUD3004X_8C_OVP_INTR_NEG, 0xFF);
-	regcache_cache_switch(aud3004x, true);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_8B_OVP_INTR_POS, 0xFF);
+	aud3004x_write(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_8C_OVP_INTR_NEG, 0xFF);
+	aud3004x_regcache_switch(aud3004x, true);
 }
 
 static void aud3004x_surge_out_work(struct work_struct *work)
@@ -1430,12 +1427,12 @@ static void aud3004x_surge_out_work(struct work_struct *work)
 
 	read_ldet_adc(jackdet);
 
-	dev_dbg(dev, "%s called, ldet adc: %d\n", __func__, jackstate->ldet_adc);
+	dev_info(dev, "%s called, ldet adc: %d\n", __func__, jackstate->ldet_adc);
 
 	switch (return_ldet_adc_thd(jackdet)) {
 	case JACK_RET_JACK:
 		/* Do not read mic adc, cause 3/4 Pole check issue occured. */
-		dev_dbg(dev, "%s mic adc: %d, line %d\n", __func__,
+		dev_info(dev, "%s mic adc: %d, line %d\n", __func__,
 				jackstate->mdet_adc, __LINE__);
 
 		if (jackstate->mdet_adc > jackdet->mic_adc_range)
@@ -1453,7 +1450,7 @@ static void aud3004x_surge_out_work(struct work_struct *work)
 				msecs_to_jiffies(100));
 		break;
 	case JACK_RET_AUX:
-#ifdef CONFIG_SND_SOC_AUD3004X_EXT_ANT
+#if IS_ENABLED(CONFIG_SND_SOC_AUD3004X_EXT_ANT)
 		/* Jack state: Ext Ant */
 		aud3004x_jackstate_set(jackdet, JACK_POLE_DEC);
 #else
@@ -1491,7 +1488,7 @@ static void aud3004x_ovp_det_work(struct work_struct *work)
 
 	/* Surge OUT IRQ masking */
 	jackstate->irq_masking = false;
-	dev_dbg(dev, "%s OVP is Done, line %d\n", __func__, __LINE__);
+	dev_info(dev, "%s OVP is Done, line %d\n", __func__, __LINE__);
 
 	aud3004x_jackstate_set(jackdet, JACK_SURGE_OUT);
 }
@@ -1568,11 +1565,11 @@ static int aud3004x_notifier_handler(struct notifier_block *nb,
 
 	switch (return_irq_type(jackdet)) {
 	case IRQ_ST_MASKING:
-		dev_dbg(dev, "[IRQ] %s IRQ masking due to OVP, line %d\n",
+		dev_info(dev, "[IRQ] %s IRQ masking due to OVP, line %d\n",
 				__func__, __LINE__);
 		break;
 	case IRQ_ST_OVP_IN:
-		dev_dbg(dev, "[IRQ] %s OVP in, line %d\n", __func__, __LINE__);
+		dev_info(dev, "[IRQ] %s OVP in, line %d\n", __func__, __LINE__);
 		jackstate->irq_masking = true;
 
 		aud3004x_jackstate_set(jackdet, JACK_SURGE_IN);
@@ -1582,10 +1579,10 @@ static int aud3004x_notifier_handler(struct notifier_block *nb,
 				msecs_to_jiffies(aud3004x->ovp_det_delay));
 		break;
 	case IRQ_ST_OVP_OUT:
-		dev_dbg(dev, "[IRQ] %s OVP out, line %d\n", __func__, __LINE__);
+		dev_info(dev, "[IRQ] %s OVP out, line %d\n", __func__, __LINE__);
 		break;
 	case IRQ_ST_APCHECK:
-		dev_dbg(dev, "[IRQ] %s AP Check state, line: %d\n",
+		dev_info(dev, "[IRQ] %s AP Check state, line: %d\n",
 				__func__, __LINE__);
 
 		aud3004x_jackstate_set(jackdet, JACK_APCHK);
@@ -1594,24 +1591,24 @@ static int aud3004x_notifier_handler(struct notifier_block *nb,
 				msecs_to_jiffies(jackdet->ldet_delay));
 		break;
 	case IRQ_ST_JACKDET:
-		dev_dbg(dev, "[IRQ] %s Jack detected, read mic adc, line: %d\n",
+		dev_info(dev, "[IRQ] %s Jack detected, read mic adc, line: %d\n",
 				__func__, __LINE__);
 
 		/* Wake lock for jack and button irq */
-		wake_lock(&jackdet->jack_wake_lock);
+		__pm_stay_awake(jackdet->jack_wake_lock);
 
 		queue_delayed_work(jackdet->jack_det_wq, &jackdet->jack_det_work,
 				msecs_to_jiffies(jackdet->mdet_delay));
 		break;
 	case IRQ_ST_ANT_JACKOUT:
-		dev_dbg(dev, "[IRQ] %s Ant Jack out interrupt, line: %d\n",
+		dev_info(dev, "[IRQ] %s Ant Jack out interrupt, line: %d\n",
 				__func__, __LINE__);
 
 		aud3004x_jackstate_set(jackdet, JACK_ANT);
 		aud3004x_jackstate_set(jackdet, JACK_POLE_DEC);
 		break;
 	case IRQ_ST_JACKOUT:
-		dev_dbg(dev, "[IRQ] %s Jack out interrupt, line: %d\n",
+		dev_info(dev, "[IRQ] %s Jack out interrupt, line: %d\n",
 				__func__, __LINE__);
 
 		aud3004x_jackstate_set(jackdet, JACK_OUT);
@@ -1623,7 +1620,7 @@ static int aud3004x_notifier_handler(struct notifier_block *nb,
 				msecs_to_jiffies(jackdet->btn_adc_delay));
 		break;
 	case IRQ_ST_DET_JACKOUT:
-		dev_dbg(dev, "[IRQ] %s Jack out(F) interrupt, line: %d\n",
+		dev_info(dev, "[IRQ] %s Jack out(F) interrupt, line: %d\n",
 				__func__, __LINE__);
 
 		aud3004x_jackstate_reset(jackdet);
@@ -1637,23 +1634,23 @@ static int aud3004x_notifier_handler(struct notifier_block *nb,
 				msecs_to_jiffies(jackdet->btn_adc_delay));
 		break;
 	case IRQ_ST_WTJACK_IRQ:
-		dev_dbg(dev, "[IRQ] %s Jack interrupt in water, line: %d\n",
+		dev_info(dev, "[IRQ] %s Jack interrupt in water, line: %d\n",
 				__func__, __LINE__);
 
 		aud3004x_jackstate_set(jackdet, JACK_WATER_OUT);
 		break;
 	case IRQ_ST_BTN_DET:
-		dev_dbg(dev, "[IRQ] %s Button interrupt, line: %d\n",
+		dev_info(dev, "[IRQ] %s Button interrupt, line: %d\n",
 				__func__, __LINE__);
 
 		/* Wake lock for jack and button irq */
-		wake_lock(&jackdet->jack_wake_lock);
+		__pm_stay_awake(jackdet->jack_wake_lock);
 
 		queue_delayed_work(jackdet->buttons_wq, &jackdet->buttons_work,
 				msecs_to_jiffies(jackdet->btn_adc_delay));
 		break;
 	default:
-		dev_dbg(dev, "[IRQ] %s IRQ return type skip, line %d\n",
+		dev_info(dev, "[IRQ] %s IRQ return type skip, line %d\n",
 				__func__, __LINE__);
 		break;
 	}
@@ -1691,7 +1688,7 @@ void aud3004x_call_notifier(u8 irq_codec[], int count)
 	for (i = 0; i < count; i++)
 		jackdet->irq_val[i] = irq_codec[i];
 
-	dev_dbg(aud3004x->dev,
+	dev_info(aud3004x->dev,
 			"[IRQ] %s(%d) 0x1:%02x 0x2:%02x 0x3:%02x 0x4:%02x 0x5:%02x 0x6:%02x st1:%02x st2:%02x st3:%02x\n",
 			__func__, __LINE__, jackdet->irq_val[0], jackdet->irq_val[1],
 			jackdet->irq_val[2], jackdet->irq_val[3], jackdet->irq_val[4],
@@ -1699,8 +1696,14 @@ void aud3004x_call_notifier(u8 irq_codec[], int count)
 
 	blocking_notifier_call_chain(&aud3004x_notifier, 0, &codec_notifier_t);
 }
-EXPORT_SYMBOL(aud3004x_call_notifier);
+EXPORT_SYMBOL_GPL(aud3004x_call_notifier);
 struct notifier_block codec_notifier;
+
+bool aud3004x_notifier_flag(void)
+{
+	return notifier_flag;
+}
+EXPORT_SYMBOL_GPL(aud3004x_notifier_flag);
 
 /*
  * aud3004x_jack_probe() - Initialize variable related jack
@@ -1717,7 +1720,7 @@ int aud3004x_jack_probe(struct snd_soc_component *codec)
 	struct aud3004x_jack *jackdet;
 	struct earjack_state *jackstate;
 
-	dev_dbg(codec->dev, "Codec Jack Probe: (%s)\n", __func__);
+	dev_info(codec->dev, "Codec Jack Probe: (%s)\n", __func__);
 
 	jackdet = kzalloc(sizeof(struct aud3004x_jack), GFP_KERNEL);
 	if (jackdet == NULL)
@@ -1783,7 +1786,8 @@ int aud3004x_jack_probe(struct snd_soc_component *codec)
 	}
 
 	/* Initialize wake lock */
-	wake_lock_init(&jackdet->jack_wake_lock, WAKE_LOCK_SUSPEND, "jack_wl");
+	jackdet->jack_wake_lock = wakeup_source_create("jack_wl");
+	wakeup_source_add(jackdet->jack_wake_lock);
 
 	/* Initialize mutex lock */
 	mutex_init(&jackdet->key_lock);
@@ -1800,7 +1804,7 @@ int aud3004x_jack_probe(struct snd_soc_component *codec)
 	 */
 	codec_notifier.notifier_call = aud3004x_notifier_handler,
 		aud3004x_register_notifier(&codec_notifier, aud3004x);
-	set_codec_notifier_flag(true);
+	notifier_flag = true;
 
 	/* Device Tree for jack */
 	aud3004x_jack_parse_dt(aud3004x);
@@ -1816,14 +1820,15 @@ int aud3004x_jack_probe(struct snd_soc_component *codec)
 			AUD3004X_007_IRQM, 0, CDC_IRQM_MASK);
 
 	/* Reset SYSTEM */
-	aud3004x_update_bits(aud3004x, AUD3004X_14_RESETB0,
+	aud3004x_update_bits(aud3004x, AUD3004X_DIGITAL_ADDR, AUD3004X_14_RESETB0,
 			SYSTEM_RESET_MASK, SYSTEM_RESET_MASK);
 
-	dev_dbg(codec->dev, "Jack probe done. Jack Ver: %d, Model: %s\n",
+	dev_info(codec->dev, "Jack probe done. Jack Ver: %d, Model: %s\n",
 			jackdet->jack_ver, aud3004x->is_ext_ant ? "ANT" : "Non-ANT");
 
 	return true;
 }
+EXPORT_SYMBOL_GPL(aud3004x_jack_probe);
 
 /*
  * aud3004x_jack_remove() - Remove variable related jack
@@ -1839,9 +1844,10 @@ int aud3004x_jack_remove(struct snd_soc_component *codec)
 	struct aud3004x_priv *aud3004x = snd_soc_component_get_drvdata(codec);
 	struct aud3004x_jack *jackdet = aud3004x->p_jackdet;
 
-	dev_dbg(codec->dev, "(*) %s called\n", __func__);
+	dev_info(codec->dev, "(*) %s called\n", __func__);
 
-	wake_lock_destroy(&jackdet->jack_wake_lock);
+	wakeup_source_remove(jackdet->jack_wake_lock);
+	wakeup_source_destroy(jackdet->jack_wake_lock);
 
 	destroy_workqueue(jackdet->buttons_wq);
 	destroy_workqueue(jackdet->jack_det_wq);
@@ -1849,7 +1855,7 @@ int aud3004x_jack_remove(struct snd_soc_component *codec)
 	destroy_workqueue(jackdet->ovp_det_wq);
 	destroy_workqueue(jackdet->surge_out_wq);
 
-	set_codec_notifier_flag(false);
+	notifier_flag = false;
 	aud3004x_jack_register_exit(codec);
 
 	/* Unregister ADC pin */
@@ -1858,4 +1864,4 @@ int aud3004x_jack_remove(struct snd_soc_component *codec)
 
 	return true;
 }
-
+EXPORT_SYMBOL_GPL(aud3004x_jack_remove);

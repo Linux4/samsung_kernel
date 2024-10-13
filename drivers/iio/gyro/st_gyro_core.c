@@ -1,11 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * STMicroelectronics gyroscopes driver
  *
  * Copyright 2012-2013 STMicroelectronics Inc.
  *
  * Denis Ciocca <denis.ciocca@st.com>
- *
- * Licensed under the GPL-2.
  */
 
 #include <linux/kernel.h>
@@ -13,10 +12,8 @@
 #include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/types.h>
-#include <linux/mutex.h>
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
-#include <linux/gpio.h>
 #include <linux/irq.h>
 #include <linux/delay.h>
 #include <linux/iio/iio.h>
@@ -442,45 +439,55 @@ static const struct iio_trigger_ops st_gyro_trigger_ops = {
 #define ST_GYRO_TRIGGER_OPS NULL
 #endif
 
+/*
+ * st_gyro_get_settings() - get sensor settings from device name
+ * @name: device name buffer reference.
+ *
+ * Return: valid reference on success, NULL otherwise.
+ */
+const struct st_sensor_settings *st_gyro_get_settings(const char *name)
+{
+	int index = st_sensors_get_settings_index(name,
+					st_gyro_sensors_settings,
+					ARRAY_SIZE(st_gyro_sensors_settings));
+	if (index < 0)
+		return NULL;
+
+	return &st_gyro_sensors_settings[index];
+}
+EXPORT_SYMBOL(st_gyro_get_settings);
+
 int st_gyro_common_probe(struct iio_dev *indio_dev)
 {
 	struct st_sensor_data *gdata = iio_priv(indio_dev);
-	int irq = gdata->get_irq_data_ready(indio_dev);
+	struct st_sensors_platform_data *pdata;
 	int err;
 
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->info = &gyro_info;
-	mutex_init(&gdata->tb.buf_lock);
 
-	err = st_sensors_power_enable(indio_dev);
-	if (err)
+	err = st_sensors_verify_id(indio_dev);
+	if (err < 0)
 		return err;
 
-	err = st_sensors_check_device_support(indio_dev,
-					ARRAY_SIZE(st_gyro_sensors_settings),
-					st_gyro_sensors_settings);
-	if (err < 0)
-		goto st_gyro_power_off;
-
 	gdata->num_data_channels = ST_GYRO_NUMBER_DATA_CHANNELS;
-	gdata->multiread_bit = gdata->sensor_settings->multi_read_bit;
 	indio_dev->channels = gdata->sensor_settings->ch;
 	indio_dev->num_channels = ST_SENSORS_NUMBER_ALL_CHANNELS;
 
-	gdata->current_fullscale = (struct st_sensor_fullscale_avl *)
-					&gdata->sensor_settings->fs.fs_avl[0];
+	gdata->current_fullscale = &gdata->sensor_settings->fs.fs_avl[0];
 	gdata->odr = gdata->sensor_settings->odr.odr_avl[0].hz;
 
-	err = st_sensors_init_sensor(indio_dev,
-				(struct st_sensors_platform_data *)&gyro_pdata);
+	pdata = (struct st_sensors_platform_data *)&gyro_pdata;
+
+	err = st_sensors_init_sensor(indio_dev, pdata);
 	if (err < 0)
-		goto st_gyro_power_off;
+		return err;
 
 	err = st_gyro_allocate_ring(indio_dev);
 	if (err < 0)
-		goto st_gyro_power_off;
+		return err;
 
-	if (irq > 0) {
+	if (gdata->irq > 0) {
 		err = st_sensors_allocate_trigger(indio_dev,
 						  ST_GYRO_TRIGGER_OPS);
 		if (err < 0)
@@ -497,13 +504,10 @@ int st_gyro_common_probe(struct iio_dev *indio_dev)
 	return 0;
 
 st_gyro_device_register_error:
-	if (irq > 0)
+	if (gdata->irq > 0)
 		st_sensors_deallocate_trigger(indio_dev);
 st_gyro_probe_trigger_error:
 	st_gyro_deallocate_ring(indio_dev);
-st_gyro_power_off:
-	st_sensors_power_disable(indio_dev);
-
 	return err;
 }
 EXPORT_SYMBOL(st_gyro_common_probe);
@@ -512,10 +516,8 @@ void st_gyro_common_remove(struct iio_dev *indio_dev)
 {
 	struct st_sensor_data *gdata = iio_priv(indio_dev);
 
-	st_sensors_power_disable(indio_dev);
-
 	iio_device_unregister(indio_dev);
-	if (gdata->get_irq_data_ready(indio_dev) > 0)
+	if (gdata->irq > 0)
 		st_sensors_deallocate_trigger(indio_dev);
 
 	st_gyro_deallocate_ring(indio_dev);

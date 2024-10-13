@@ -11,12 +11,6 @@
 
 #include <dt-bindings/camera/exynos_is_dt.h>
 
-#ifndef USE_VENDOR_PWR_PIN_NAME
-#define HI1336B_IOVDD	<>
-#define HI1336B_AVDD	<>
-#define HI1336B_DVDD	<>
-#endif
-
 / {
 	fragment@camera {
 		target-path = "/";
@@ -26,8 +20,8 @@
 
 				/* common */
 				sensor_id = <SENSOR_NAME_HI1336>;
-				active_width = <4208>;
-				active_height = <3120>;
+				active_width = <4128>;
+				active_height = <3096>;
 				margin_left = <0>;
 				margin_right = <0>;
 				margin_top = <0>;
@@ -39,10 +33,6 @@
 				sensor_name = "HI1336";
 				setfile_name = "setfile_hi1336.bin";
 
-				hi1336b_iovdd-supply = HI1336B_IOVDD;
-				hi1336b_avdd-supply = HI1336B_AVDD;
-				hi1336b_dvdd-supply = HI1336B_DVDD;
-				
 				status = "okay";
 
 				vc_extra {
@@ -56,30 +46,25 @@
 				/*
 				 * [Mode Information]
 				 *
-				 * Reference File : Hi-1336_setting_v4.0.3_SEC20_20200413.xlsx
-				 * Update Data    : 2020-04-14
-				 * Author         : Camera Systems
-				 *
 				 *  - Global setting
 				 *
-				 *  - Mode setting
+				 *
 				 *  - Default Mode setting For HI1336B
-				 *  [ 0 ] 4128 x 3096(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 *  [ 1 ] 4128 x 2324(16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 *  [ 2 ] 4128 x 1908(19.5:9)   @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 *  [ 3 ] 3088 x 3088(1:1)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 *  [ 4 ] 2064 x 1548(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 *  [ 5 ] 2064 x 1160(16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 
-				 *  - Sensor Crop Mode (68') setting For HI1336B
-				 *  [ 6 ] 3408 x 2556(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 *  [ 7 ] 3408 x 1916(16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 *  [ 8 ] 3408 x 1576(19.5:9)   @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1248, Mclk(Mhz): 26
-				 *  [ 9 ] 1696 x 1272(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  624, Mclk(Mhz): 26
-				 *  [ 10 ] 1696 x 952 (16:9)    @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  624, Mclk(Mhz): 26
-
-				 *  - FAST AE (4 binning) setting For HI1336B
-				 *  [ 11 ] 1024 x 768(4:3)      @120, MIPI lane: 4, MIPI data rate(Mbps/lane):   312, Mclk(Mhz): 26
+				 *  [ 0 ] 4128 x 3096(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 1 ] 4128 x 2324(16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 2 ] 4128 x 1908(19.5:9)   @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 3 ] 3088 x 3088(1:1)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *      - Sensor Crop Mode (68') setting For HI1336B
+				 *  [ 4 ] 3408 x 2556(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 5 ] 3408 x 1916(16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 6 ] 3408 x 1576(19.5:9)   @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 7 ] 2064 x 1548(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 8 ] 2064 x 1160(16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 9 ] 1696 x 1272(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  747.5, Mclk(Mhz): 26
+				 *  [ 10 ] 1696 x 952 (16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  747.5, Mclk(Mhz): 26
+				 *       - FAST AE (4 binning) setting For HI1336B
+				 *  [ 11 ] 1024 x 768(4:3)       @120, MIPI lane: 4, MIPI data rate(Mbps/lane):   364, Mclk(Mhz): 26
+				 *
 				 *
 				 *  - Fsync setting
 				 *  [ 0 ] Normal
@@ -96,7 +81,7 @@
 						/* vcX = <map, hwformat, width, height, hwformat, type, width, height> */
 					/* Full Crop(4128x3096) 4:3 */
 					mode0 {
-						common = <4128 3096 30 0 0 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <4128 3096 30 0 0 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4128 3096	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -105,7 +90,7 @@
 
 					/* Full Crop(4128x2324) 16:9 */
 					mode1 {
-						common = <4128 2324 30 0 1 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <4128 2324 30 0 1 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 4128 2324	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -114,7 +99,7 @@
 
 					/* Full Crop(4128x1908) 19.5:9 */
 					mode2 {
-						common = <4128 1908 30 0 2 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <4128 1908 30 0 2 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 4128 1908	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -123,7 +108,7 @@
 
 					/* Full Crop(3088x3088) 1:1 */
 					mode3 {
-						common = <3088 3088 30 0 3 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <3088 3088 30 0 3 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 3088 3088	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -132,7 +117,7 @@
 
 					/* Full Crop(3408x2556) 4:3 */
 					mode4 {
-						common = <3408 2556 30 0 4 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <3408 2556 30 0 4 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 3408 2556	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -141,7 +126,7 @@
 
 					/* Full Crop(3408x1916) 16:9 */
 					mode5 {
-						common = <3408 1916 30 0 5 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <3408 1916 30 0 5 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 3408 1916	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -150,7 +135,7 @@
 
 					/* Full Crop(3408x1576) 19.5:9 */
 					mode6 {
-						common = <3408 1576 30 0 6 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <3408 1576 30 0 6 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 3408 1576	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -159,7 +144,7 @@
 
 					/* Full Crop(2064x1548) 4:3 */
 					mode7 {
-						common = <2064 1548 30 0 7 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2064 1548 30 0 7 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 2064 1548	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -168,7 +153,7 @@
 
 					/* Full Crop(2064x1160) 16:9 */
 					mode8 {
-						common = <2064 1160 30 0 8 CSI_DATA_LANES_4 1248 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2064 1160 30 0 8 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 2064 1160	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -177,7 +162,7 @@
 
 					/* Full Crop(1696x1272) 19.5:9 */
 					mode9 {
-						common = <1696 1272 30 0 9 CSI_DATA_LANES_4 624 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <1696 1272 30 0 9 CSI_DATA_LANES_4 748 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 1696 1272	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -186,7 +171,7 @@
 
 					/* Full Crop(1696x952) 1:1 */
 					mode10 {
-						common = <1696 952 30 0 10 CSI_DATA_LANES_4 624 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <1696 952 30 0 10 CSI_DATA_LANES_4 748 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 1696 952	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -195,7 +180,7 @@
 
 					/* 4-binning FastAE */
 					mode11 {
-						common = <1024 768 120 0 11 CSI_DATA_LANES_4 312 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <1024 768 120 0 11 CSI_DATA_LANES_4 364 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = <0 HW_FORMAT_RAW10 1024 768	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = <1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = <2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -205,12 +190,23 @@
 
 				power_seq {
 					use = <1>;
+					gpio_mclk = <&gpc0 1 0x1>;
+
 					scenario_normal_on {
 						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa2 4 0x1>; };
+						20 { pname = "S2MPB03_VLDO7"; pin = <PIN_REGULATOR 1 0>; };
+						30 { pname = "S2MPB03_VLDO3"; pin = <PIN_REGULATOR 1 0>; };
+						40 { pname = "S2MPB03_VLDO2"; pin = <PIN_REGULATOR 1 0>; };
+						50 { pname = "none"; pin = <PIN_NONE 0 1000>; };
+						60 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
+						70 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
+						80 { pname = "MCLK"; pin = <PIN_MCLK 1 0>; };
+						90 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpa2 4 0x1>; };
 					};
 
 					scenario_normal_off {
@@ -219,6 +215,16 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "sen_rst"; pin = <PIN_RESET 0 10>; gpio = <&gpa2 4 0x1>; };
+						20 { pname = "sen_rst input"; pin = <PIN_INPUT 0 0>; gpio = <&gpa2 4 0x1>; };
+						30 { pname = "S2MPB03_VLDO2"; pin = <PIN_REGULATOR 0 0>; };
+						40 { pname = "S2MPB03_VLDO3"; pin = <PIN_REGULATOR 0 0>; };
+						50 { pname = "S2MPB03_VLDO7"; pin = <PIN_REGULATOR 0 0>; };
+						60 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
+						70 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						80 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						90 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						100 { pname = "MCLK"; pin = <PIN_MCLK 0 0>; };
 					};
 
 					scenario_vision_on {
@@ -227,6 +233,15 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpa2 4 0x1>; };
+						20 { pname = "S2MPB03_VLDO7"; pin = <PIN_REGULATOR 1 0>; };
+						30 { pname = "S2MPB03_VLDO3"; pin = <PIN_REGULATOR 1 0>; };
+						40 { pname = "S2MPB03_VLDO2"; pin = <PIN_REGULATOR 1 0>; };
+						50 { pname = "none"; pin = <PIN_NONE 0 1000>; };
+						60 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
+						70 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
+						80 { pname = "MCLK"; pin = <PIN_MCLK 1 0>; };
+						90 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpa2 4 0x1>; };
 					};
 
 					scenario_vision_off {
@@ -235,16 +250,16 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
-					};
-
-					scenario_read_rom_on {
-						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
-						gpio_scenario = <GPIO_SCENARIO_ON>;
-					};
-
-					scenario_read_rom_off {
-						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
-						gpio_scenario = <GPIO_SCENARIO_OFF>;
+						10 { pname = "sen_rst"; pin = <PIN_RESET 0 10>; gpio = <&gpa2 4 0x1>; };
+						20 { pname = "sen_rst input"; pin = <PIN_INPUT 0 0>; gpio = <&gpa2 4 0x1>; };
+						30 { pname = "S2MPB03_VLDO2"; pin = <PIN_REGULATOR 0 0>; };
+						40 { pname = "S2MPB03_VLDO3"; pin = <PIN_REGULATOR 0 0>; };
+						50 { pname = "S2MPB03_VLDO7"; pin = <PIN_REGULATOR 0 0>; };
+						60 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
+						70 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						80 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						90 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						100 { pname = "MCLK"; pin = <PIN_MCLK 0 0>; };
 					};
 				};
 			};

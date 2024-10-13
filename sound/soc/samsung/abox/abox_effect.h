@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_effect.h
- *
- * ALSA SoC Audio Layer - Samsung Abox Effect driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox Effect driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
  *

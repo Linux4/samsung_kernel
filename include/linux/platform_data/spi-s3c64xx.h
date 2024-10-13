@@ -88,6 +88,7 @@ struct s3c64xx_spi_info {
 
 struct s3c64xx_spi_dma_data {
 	struct dma_chan *ch;
+	dma_cookie_t cookie;
 	enum dma_transfer_direction direction;
 	unsigned long dmach;
 };

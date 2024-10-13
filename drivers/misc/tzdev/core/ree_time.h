@@ -14,6 +14,13 @@
 #ifndef __TZ_REE_TIME_H__
 #define __TZ_REE_TIME_H__
 
+#include <linux/kconfig.h>
+
+#if IS_MODULE(CONFIG_TZDEV)
+int tz_ree_time_init(void);
+void tz_ree_time_fini(void);
+#endif
+
 struct tz_ree_time {
 	uint32_t sec;
 	uint32_t nsec;

@@ -1,20 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2014-2019, Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (C) 2014-2020, Samsung Electronics.
  *
  */
 
 #include <linux/interrupt.h>
 #include <linux/io.h>
-#include <linux/miscdevice.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -23,62 +14,53 @@
 #include <linux/delay.h>
 #include <linux/bitops.h>
 
-#include <linux/mcu_ipc.h>
+#include <soc/samsung/mcu_ipc.h>
 #include "mcu_ipc_priv.h"
 #include "modem_utils.h"
 
-#define	USE_FIXED_AFFINITY
-
-void mcu_ipc_reg_dump(enum mcu_ipc_region id)
-{
-	unsigned long flags;
-	u32 i, value;
-
-	if (id >= MCU_MAX)
-		return;
-
-	spin_lock_irqsave(&mcu_dat[id].reg_lock, flags);
-
-	for (i = 0; i < 4; i++) {
-		value = mcu_ipc_readl(id, EXYNOS_MCU_IPC_ISSR0 + (4 * i));
-		mif_info("mbox dump: 0x%02x: 0x%04x\n", i, value);
-	}
-
-	spin_unlock_irqrestore(&mcu_dat[id].reg_lock, flags);
-}
-EXPORT_SYMBOL(mcu_ipc_reg_dump);
-
+/* IRQ handler */
 static irqreturn_t cp_mbox_irq_handler(int irq, void *data)
 {
-	u32 irq_stat, i;
-	u32 id;
+	struct cp_mbox_irq_data *irq_data = NULL;
+	u32 irq_stat;
+	int i;
 
-	id = ((struct mcu_ipc_drv_data *)data)->id;
+	irq_data = (struct cp_mbox_irq_data *)data;
+	if (!irq_data) {
+		mif_err_limited("irq_data is null\n");
+		return IRQ_HANDLED;
+	}
 
-	spin_lock(&mcu_dat[id].reg_lock);
+	if (!irq_data->enable) {
+		mif_err_limited("irq_data %d is disabled\n", irq_data->idx);
+		return IRQ_HANDLED;
+	}
 
-	/* Check raised interrupts */
-	irq_stat = mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTSR0) & 0xFFFF0000;
+	/*
+	 * Check raised interrupts
+	 * Only clear and handle unmasked interrupts
+	 */
+	spin_lock(&mbox_data.reg_lock);
 
-	/* Only clear and handle unmasked interrupts */
-	irq_stat &= ~(mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTMR0)) & 0xFFFF0000;
+	irq_stat = mcu_ipc_read(irq_data->sfr_rx.sr) & irq_data->sfr_rx.mask;
+	irq_stat &= ~(mcu_ipc_read(irq_data->sfr_rx.mr)) & irq_data->sfr_rx.mask;
+	mcu_ipc_write(irq_stat, irq_data->sfr_rx.cr);
 
-	/* Interrupt Clear */
-	mcu_ipc_writel(id, irq_stat, EXYNOS_MCU_IPC_INTCR0);
-	spin_unlock(&mcu_dat[id].reg_lock);
+	spin_unlock(&mbox_data.reg_lock);
 
-	for (i = 0; i < 16; i++) {
-		if (irq_stat & (1 << (i + 16))) {
-			if ((1 << (i + 16)) & mcu_dat[id].registered_irq) {
-				mcu_dat[id].hd[i].handler(i, mcu_dat[id].hd[i].data);
+	/* Call handlers */
+	for (i = 0; i < MAX_CP_MBOX_HANDLER; i++) {
+		if (irq_stat & (1 << (i + irq_data->sfr_rx.shift))) {
+			if ((1 << (i + irq_data->sfr_rx.shift)) & irq_data->registered_irq) {
+				irq_data->hd[i].handler(i, irq_data->hd[i].data);
 			} else {
-				mif_err_limited("mcu_ipc unregistered:%d %d 0x%08x 0x%08lx 0x%08x\n",
-							id, i, irq_stat,
-							mcu_dat[id].unmasked_irq << 16,
-							mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTMR0));
+				mif_err_limited("unregistered:%d %d 0x%08x 0x%08lx 0x%08x\n",
+						irq_data->idx, i, irq_stat,
+						irq_data->unmasked_irq << irq_data->sfr_rx.shift,
+						mcu_ipc_read(irq_data->sfr_rx.mr));
 			}
 
-			irq_stat &= ~(1 << (i + 16));
+			irq_stat &= ~(1 << (i + irq_data->sfr_rx.shift));
 		}
 
 		if (!irq_stat)
@@ -88,406 +70,519 @@ static irqreturn_t cp_mbox_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-int mbox_request_irq(enum mcu_ipc_region id, u32 int_num, irq_handler_t handler, void *data)
+/* Register / Unregister */
+int cp_mbox_register_handler(u32 idx, u32 int_num, irq_handler_t handler, void *data)
 {
+	struct cp_mbox_irq_data *irq_data = &mbox_data.irq_data[idx];
 	unsigned long flags;
 
-	if ((!handler) || (int_num > 15))
+	if (!handler) {
+		mif_err_limited("handler is null\n");
 		return -EINVAL;
+	}
+	if (int_num >= MAX_CP_MBOX_HANDLER) {
+		mif_err_limited("int_num error:%d\n", int_num);
+		return -EINVAL;
+	}
+	if (!irq_data->enable) {
+		mif_err_limited("irq_data %d is disabled\n", irq_data->idx);
+		return -EACCES;
+	}
 
-	spin_lock_irqsave(&mcu_dat[id].reg_lock, flags);
+	spin_lock_irqsave(&mbox_data.reg_lock, flags);
 
-	mcu_dat[id].hd[int_num].data = data;
-	mcu_dat[id].hd[int_num].handler = handler;
-	mcu_dat[id].registered_irq |= 1 << (int_num + 16);
-	set_bit(int_num, &mcu_dat[id].unmasked_irq);
+	irq_data->hd[int_num].data = data;
+	irq_data->hd[int_num].handler = handler;
+	irq_data->registered_irq |= 1 << (int_num + irq_data->sfr_rx.shift);
+	set_bit(int_num, &irq_data->unmasked_irq);
 
-	spin_unlock_irqrestore(&mcu_dat[id].reg_lock, flags);
+	spin_unlock_irqrestore(&mbox_data.reg_lock, flags);
 
-	mbox_enable_irq(id, int_num);
-	mif_info("id:%d num:%d intmr0:0x%08x\n", id, int_num, mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTMR0));
+	cp_mbox_enable_handler(irq_data->idx, int_num);
+	mif_info("idx:%d num:%d intmr0:0x%08x\n",
+		irq_data->idx, int_num, mcu_ipc_read(irq_data->sfr_rx.mr));
 
 	return 0;
 }
-EXPORT_SYMBOL(mbox_request_irq);
+EXPORT_SYMBOL(cp_mbox_register_handler);
 
-int mbox_unregister_irq(enum mcu_ipc_region id, u32 int_num, irq_handler_t handler)
+int cp_mbox_unregister_handler(u32 idx, u32 int_num, irq_handler_t handler)
 {
+	struct cp_mbox_irq_data *irq_data = &mbox_data.irq_data[idx];
 	unsigned long flags;
 
-	if (!handler || (mcu_dat[id].hd[int_num].handler != handler))
+	if (!handler) {
+		mif_err_limited("handler is null\n");
 		return -EINVAL;
+	}
+	if (irq_data->hd[int_num].handler != handler) {
+		mif_err_limited("int_num error:%d\n", int_num);
+		return -EINVAL;
+	}
+	if (!irq_data->enable) {
+		mif_err_limited("irq_data %d is disabled\n", irq_data->idx);
+		return -EACCES;
+	}
 
-	mbox_disable_irq(id, int_num);
-	mif_info("id:%d num:%d intmr0:0x%08x\n", id, int_num, mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTMR0));
+	cp_mbox_disable_handler(irq_data->idx, int_num);
+	mif_info("idx:%d num:%d intmr0:0x%08x\n",
+		irq_data->idx, int_num, mcu_ipc_read(irq_data->sfr_rx.mr));
 
-	spin_lock_irqsave(&mcu_dat[id].reg_lock, flags);
+	spin_lock_irqsave(&mbox_data.reg_lock, flags);
 
-	mcu_dat[id].hd[int_num].data = NULL;
-	mcu_dat[id].hd[int_num].handler = NULL;
-	mcu_dat[id].registered_irq &= ~(1 << (int_num + 16));
-	clear_bit(int_num, &mcu_dat[id].unmasked_irq);
+	irq_data->hd[int_num].data = NULL;
+	irq_data->hd[int_num].handler = NULL;
+	irq_data->registered_irq &= ~(1 << (int_num + irq_data->sfr_rx.shift));
+	clear_bit(int_num, &irq_data->unmasked_irq);
 
-	spin_unlock_irqrestore(&mcu_dat[id].reg_lock, flags);
+	spin_unlock_irqrestore(&mbox_data.reg_lock, flags);
 
 	return 0;
 }
-EXPORT_SYMBOL(mbox_unregister_irq);
+EXPORT_SYMBOL(cp_mbox_unregister_handler);
 
-/*
- * mbox_enable_irq
- *
- * This function unmasks a single mailbox interrupt.
- */
-int mbox_enable_irq(enum mcu_ipc_region id, u32 int_num)
+/* Handler : Enable / Disable */
+int cp_mbox_enable_handler(u32 idx, u32 int_num)
 {
+	struct cp_mbox_irq_data *irq_data = &mbox_data.irq_data[idx];
 	unsigned long flags;
 	unsigned long tmp;
 
 	/* The irq should have been registered. */
-	if (!(mcu_dat[id].registered_irq & BIT(int_num + 16)))
+	if (!(irq_data->registered_irq & BIT(int_num + irq_data->sfr_rx.shift))) {
+		mif_err_limited("int_num is not registered 0x%x %d\n",
+				irq_data->registered_irq, int_num);
 		return -EINVAL;
+	}
+	if (!irq_data->enable) {
+		mif_err_limited("irq_data %d is disabled\n", irq_data->idx);
+		return -EACCES;
+	}
 
-	spin_lock_irqsave(&mcu_dat[id].reg_lock, flags);
+	spin_lock_irqsave(&mbox_data.reg_lock, flags);
 
-	tmp = mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTMR0);
+	tmp = mcu_ipc_read(irq_data->sfr_rx.mr);
 
 	/* Clear the mask if it was set. */
-	if (test_and_clear_bit(int_num + 16, &tmp))
-		mcu_ipc_writel(id, tmp, EXYNOS_MCU_IPC_INTMR0);
+	if (test_and_clear_bit(int_num + irq_data->sfr_rx.shift, &tmp))
+		mcu_ipc_write(tmp, irq_data->sfr_rx.mr);
 
 	/* Mark the irq as unmasked */
-	set_bit(int_num, &mcu_dat[id].unmasked_irq);
+	set_bit(int_num, &irq_data->unmasked_irq);
 
-	spin_unlock_irqrestore(&mcu_dat[id].reg_lock, flags);
+	spin_unlock_irqrestore(&mbox_data.reg_lock, flags);
 
 	return 0;
 }
-EXPORT_SYMBOL(mbox_enable_irq);
+EXPORT_SYMBOL(cp_mbox_enable_handler);
+
+int cp_mbox_disable_handler(u32 idx, u32 int_num)
+{
+	struct cp_mbox_irq_data *irq_data = &mbox_data.irq_data[idx];
+	unsigned long flags;
+	unsigned long irq_mask;
+
+	/* The interrupt must have been registered. */
+	if (!(irq_data->registered_irq & BIT(int_num + irq_data->sfr_rx.shift))) {
+		mif_err_limited("int_num is not registered 0x%x %d\n",
+				irq_data->registered_irq, int_num);
+		return -EINVAL;
+	}
+	if (!irq_data->enable) {
+		mif_err_limited("irq_data %d is disabled\n", irq_data->idx);
+		return -EACCES;
+	}
+
+	/* Set the mask */
+	spin_lock_irqsave(&mbox_data.reg_lock, flags);
+
+	irq_mask = mcu_ipc_read(irq_data->sfr_rx.mr);
+
+	/* Set the mask if it was not already set */
+	if (!test_and_set_bit(int_num + irq_data->sfr_rx.shift, &irq_mask)) {
+		mcu_ipc_write(irq_mask, irq_data->sfr_rx.mr);
+		udelay(5);
+
+		/* Reset the status bit to signal interrupt needs handling */
+		mcu_ipc_write(BIT(int_num + irq_data->sfr_rx.shift), irq_data->sfr_rx.gr);
+		udelay(5);
+	}
+
+	/* Remove the irq from the umasked irqs */
+	clear_bit(int_num, &irq_data->unmasked_irq);
+
+	spin_unlock_irqrestore(&mbox_data.reg_lock, flags);
+
+	return 0;
+}
+EXPORT_SYMBOL(cp_mbox_disable_handler);
 
 /*
- * mbox_check_irq
- *
  * This function is used to check the state of the mailbox interrupt
  * when the interrupt after the interrupt has been masked. This can be
  * used to check if a new interrupt has been set after being masked. A
  * masked interrupt will have its status set but will not generate a hard
  * interrupt. This function will check and clear the status.
  */
-int mbox_check_irq(enum mcu_ipc_region id, u32 int_num)
+int cp_mbox_check_handler(u32 idx, u32 int_num)
 {
+	struct cp_mbox_irq_data *irq_data = &mbox_data.irq_data[idx];
 	unsigned long flags;
 	u32 irq_stat;
 
 	/* Interrupt must have been registered. */
-	if (!(mcu_dat[id].registered_irq & BIT(int_num + 16)))
+	if (!(irq_data->registered_irq & BIT(int_num + irq_data->sfr_rx.shift))) {
+		mif_err_limited("int_num is not registered 0x%x %d\n",
+				irq_data->registered_irq, int_num);
 		return -EINVAL;
+	}
+	if (!irq_data->enable) {
+		mif_err_limited("irq_data %d is disabled\n", irq_data->idx);
+		return -EACCES;
+	}
 
-	spin_lock_irqsave(&mcu_dat[id].reg_lock, flags);
+	spin_lock_irqsave(&mbox_data.reg_lock, flags);
 
 	/* Interrupt must have been masked. */
-	if (test_bit(int_num, &mcu_dat[id].unmasked_irq)) {
-		spin_unlock_irqrestore(&mcu_dat[id].reg_lock, flags);
-		mif_err_limited("Mailbox interrupt (id: %d, num: %d) is unmasked!\n", id, int_num);
+	if (test_bit(int_num, &irq_data->unmasked_irq)) {
+		spin_unlock_irqrestore(&mbox_data.reg_lock, flags);
+		mif_err_limited("Mailbox interrupt (idx: %d, num: %d) is unmasked!\n",
+				irq_data->idx, int_num);
 		return -EINVAL;
 	}
 
 	/* Check and clear the interrupt status bit. */
-	irq_stat = mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTSR0) & BIT(int_num + 16);
+	irq_stat = mcu_ipc_read(irq_data->sfr_rx.sr) & BIT(int_num + irq_data->sfr_rx.shift);
 	if (irq_stat)
-		mcu_ipc_writel(id, irq_stat, EXYNOS_MCU_IPC_INTCR0);
+		mcu_ipc_write(irq_stat, irq_data->sfr_rx.cr);
 
-	spin_unlock_irqrestore(&mcu_dat[id].reg_lock, flags);
+	spin_unlock_irqrestore(&mbox_data.reg_lock, flags);
 
 	return irq_stat != 0;
 }
-EXPORT_SYMBOL(mbox_check_irq);
+EXPORT_SYMBOL(cp_mbox_check_handler);
 
-/*
- * mbox_disable_irq
- *
- * This function masks and single mailbox interrupt.
- */
-int mbox_disable_irq(enum mcu_ipc_region id, u32 int_num)
+/* Set AP2CP interrupt */
+void cp_mbox_set_interrupt(u32 idx, u32 int_num)
 {
-	unsigned long flags;
-	unsigned long irq_mask;
+	struct cp_mbox_irq_data *irq_data = &mbox_data.irq_data[idx];
 
-	/* The interrupt must have been registered. */
-	if (!(mcu_dat[id].registered_irq & BIT(int_num + 16)))
-		return -EINVAL;
+	mcu_ipc_write((0x1 << int_num) << irq_data->sfr_tx.shift, irq_data->sfr_tx.gr);
+}
+EXPORT_SYMBOL(cp_mbox_set_interrupt);
 
-	/* Set the mask */
-	spin_lock_irqsave(&mcu_dat[id].reg_lock, flags);
-
-	irq_mask = mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTMR0);
-
-	/* Set the mask if it was not already set */
-	if (!test_and_set_bit(int_num + 16, &irq_mask)) {
-		mcu_ipc_writel(id, irq_mask, EXYNOS_MCU_IPC_INTMR0);
-
-		udelay(5);
-
-		/* Reset the status bit to signal interrupt needs handling */
-		mcu_ipc_writel(id, BIT(int_num + 16), EXYNOS_MCU_IPC_INTGR0);
-
-		udelay(5);
+/* Shared register : Get / Set / Extract / Update / Dump */
+static bool is_valid_sr(u32 sr_num)
+{
+	if (!mbox_data.num_shared_reg) {
+		mif_err("num_shared_reg is 0\n");
+		return false;
 	}
 
-	/* Remove the irq from the umasked irqs */
-	clear_bit(int_num, &mcu_dat[id].unmasked_irq);
+	if (sr_num > mbox_data.num_shared_reg) {
+		mif_err("num_shared_reg is %d:%d\n",
+			sr_num, mbox_data.num_shared_reg);
+		return false;
+	}
 
-	spin_unlock_irqrestore(&mcu_dat[id].reg_lock, flags);
-
-	return 0;
+	return true;
 }
-EXPORT_SYMBOL(mbox_disable_irq);
 
-void mbox_set_interrupt(enum mcu_ipc_region id, u32 int_num)
+u32 cp_mbox_get_sr(u32 sr_num)
 {
-	/* Generate interrupt */
-	if (int_num < 16)
-		mcu_ipc_writel(id, 0x1 << int_num, EXYNOS_MCU_IPC_INTGR1);
-}
-EXPORT_SYMBOL(mbox_set_interrupt);
-
-void mcu_ipc_send_command(enum mcu_ipc_region id, u32 int_num, u16 cmd)
-{
-	/* Write command */
-	if (int_num < 16)
-		mcu_ipc_writel(id, cmd, EXYNOS_MCU_IPC_ISSR0 + (8 * int_num));
-
-	/* Generate interrupt */
-	mbox_set_interrupt(id, int_num);
-}
-EXPORT_SYMBOL(mcu_ipc_send_command);
-
-u32 mbox_get_value(enum mcu_ipc_region id, u32 mbx_num)
-{
-	if (mbx_num < 64)
-		return mcu_ipc_readl(id, EXYNOS_MCU_IPC_ISSR0 + (4 * mbx_num));
-	else
+	if (!is_valid_sr(sr_num))
 		return 0;
-}
-EXPORT_SYMBOL(mbox_get_value);
 
-void mbox_set_value(enum mcu_ipc_region id, u32 mbx_num, u32 msg)
-{
-	if (mbx_num < 64)
-		mcu_ipc_writel(id, msg, EXYNOS_MCU_IPC_ISSR0 + (4 * mbx_num));
+	return mcu_ipc_read(mbox_data.shared_reg_offset + (4 * sr_num));
 }
-EXPORT_SYMBOL(mbox_set_value);
+EXPORT_SYMBOL(cp_mbox_get_sr);
 
-u32 mbox_extract_value(enum mcu_ipc_region id, u32 mbx_num, u32 mask, u32 pos)
+u32 cp_mbox_extract_sr(u32 sr_num, u32 mask, u32 pos)
 {
-	if (mbx_num < 64)
-		return (mbox_get_value(id, mbx_num) >> pos) & mask;
-	else
+	if (!is_valid_sr(sr_num))
 		return 0;
-}
-EXPORT_SYMBOL(mbox_extract_value);
 
-void mbox_update_value(enum mcu_ipc_region id, u32 mbx_num, u32 msg, u32 mask, u32 pos)
+	return (cp_mbox_get_sr(sr_num) >> pos) & mask;
+}
+EXPORT_SYMBOL(cp_mbox_extract_sr);
+
+void cp_mbox_set_sr(u32 sr_num, u32 msg)
+{
+	if (!is_valid_sr(sr_num))
+		return;
+
+	mcu_ipc_write(msg, mbox_data.shared_reg_offset + (4 * sr_num));
+}
+EXPORT_SYMBOL(cp_mbox_set_sr);
+
+void cp_mbox_update_sr(u32 sr_num, u32 msg, u32 mask, u32 pos)
 {
 	u32 val;
 	unsigned long flags;
 
-	spin_lock_irqsave(&mcu_dat[id].lock, flags);
+	if (!is_valid_sr(sr_num))
+		return;
 
-	if (mbx_num < 64) {
-		val = mbox_get_value(id, mbx_num);
-		val &= ~(mask << pos);
-		val |= (msg & mask) << pos;
-		mbox_set_value(id, mbx_num, val);
+	spin_lock_irqsave(&mbox_data.reg_lock, flags);
+
+	val = cp_mbox_get_sr(sr_num);
+	val &= ~(mask << pos);
+	val |= (msg & mask) << pos;
+	cp_mbox_set_sr(sr_num, val);
+
+	spin_unlock_irqrestore(&mbox_data.reg_lock, flags);
+}
+EXPORT_SYMBOL(cp_mbox_update_sr);
+
+void cp_mbox_dump_sr(void)
+{
+	unsigned long flags;
+	u32 i, value;
+
+	spin_lock_irqsave(&mbox_data.reg_lock, flags);
+
+	for (i = 0; i < mbox_data.num_shared_reg; i++) {
+		value = mcu_ipc_read(mbox_data.shared_reg_offset + (4 * i));
+		mif_info("mbox dump: 0x%02x: 0x%04x\n", i, value);
 	}
 
-	spin_unlock_irqrestore(&mcu_dat[id].lock, flags);
+	spin_unlock_irqrestore(&mbox_data.reg_lock, flags);
 }
-EXPORT_SYMBOL(mbox_update_value);
+EXPORT_SYMBOL(cp_mbox_dump_sr);
 
-void mbox_sw_reset(enum mcu_ipc_region id)
+/* Reset */
+void cp_mbox_reset(void)
 {
 	u32 reg_val;
+	int i;
 
 	mif_info("Reset mailbox registers\n");
 
-	reg_val = mcu_ipc_readl(id, EXYNOS_MCU_IPC_MCUCTLR);
-	reg_val |= (0x1 << MCU_IPC_MCUCTLR_MSWRST);
+	if (mbox_data.use_sw_reset_reg) {
+		reg_val = mcu_ipc_read(EXYNOS_MCU_IPC_MCUCTLR);
+		reg_val |= (0x1 << MCU_IPC_MCUCTLR_MSWRST);
 
-	mcu_ipc_writel(id, reg_val, EXYNOS_MCU_IPC_MCUCTLR);
-
-	udelay(5);
-
-	mcu_ipc_writel(id, ~(mcu_dat[id].unmasked_irq) << 16, EXYNOS_MCU_IPC_INTMR0);
-	mif_info("id:%d intmr0:0x%08x\n", id, mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTMR0));
-}
-EXPORT_SYMBOL(mbox_sw_reset);
-
-static void cp_mbox_clear_all_interrupt(enum mcu_ipc_region id)
-{
-	mcu_ipc_writel(id, 0xFFFF, EXYNOS_MCU_IPC_INTCR1);
-}
-
-#ifdef CONFIG_ARGOS
-static int set_irq_affinity(struct device *dev)
-{
-	struct mcu_argos_info *argos_info = dev->driver_data;
-
-	if (argos_info != NULL) {
-		mif_debug("set default irq affinity (0x%x)\n", argos_info->affinity);
-		return irq_set_affinity(argos_info->irq, cpumask_of(argos_info->affinity));
+		mcu_ipc_write(reg_val, EXYNOS_MCU_IPC_MCUCTLR);
+		udelay(5);
 	}
 
-	return 0;
+	for (i = 0; i < MAX_CP_MBOX_IRQ_IDX; i++) {
+		struct cp_mbox_irq_data *irq_data = NULL;
+
+		irq_data = &mbox_data.irq_data[i];
+		if (!irq_data || !irq_data->name)
+			break;
+
+		mcu_ipc_write(~(irq_data->unmasked_irq) << irq_data->sfr_rx.shift,
+				irq_data->sfr_rx.mr);
+		mif_info("idx:%d intmr0:0x%08x\n", irq_data->idx,
+				mcu_ipc_read(irq_data->sfr_rx.mr));
+
+		mcu_ipc_write(irq_data->sfr_rx.mask, irq_data->sfr_rx.cr);
+	}
 }
+EXPORT_SYMBOL(cp_mbox_reset);
 
-#ifdef USE_FIXED_AFFINITY
-static int set_fixed_affinity(struct device *dev, int irq, u32 mask)
+/* IRQ affinity */
+int cp_mbox_get_affinity(u32 idx)
 {
-	struct mcu_argos_info *argos_info;
+	struct cp_mbox_irq_data *irq_data = &mbox_data.irq_data[idx];
 
-	argos_info = devm_kzalloc(dev, sizeof(struct mcu_argos_info), GFP_KERNEL);
-	if (!argos_info) {
-		mif_err("Failed to alloc argos info sturct\n");
-		return -ENOMEM;
+	if (!irq_data) {
+		mif_err("irq_data %d is null\n", idx);
+		return -EINVAL;
 	}
 
-	argos_info->irq = irq;
-	argos_info->affinity = mask;
-	dev_set_drvdata(dev, argos_info);
+	if (!irq_data->enable) {
+		mif_err_limited("irq_data %d is disabled\n", irq_data->idx);
+		return -EACCES;
+	}
 
-	return set_irq_affinity(dev);
+	return irq_data->affinity;
 }
+EXPORT_SYMBOL(cp_mbox_get_affinity);
+
+int cp_mbox_set_affinity(u32 idx, int affinity)
+{
+	struct cp_mbox_irq_data *irq_data = &mbox_data.irq_data[idx];
+	int num_cpu;
+
+	if (!irq_data) {
+		mif_err("irq_data %d is null\n", idx);
+		return -EINVAL;
+	}
+
+	if (!irq_data->enable) {
+		mif_err_limited("irq_data %d is disabled\n", irq_data->idx);
+		return -EACCES;
+	}
+
+#if defined(CONFIG_VENDOR_NR_CPUS)
+	num_cpu = CONFIG_VENDOR_NR_CPUS;
 #else
-static int set_runtime_affinity(enum mcu_ipc_region id, int irq, u32 mask)
-{
-	if (!zalloc_cpumask_var(&mcu_dat[id].dmask, GFP_KERNEL))
-		return -ENOMEM;
-	if (!zalloc_cpumask_var(&mcu_dat[id].imask, GFP_KERNEL))
-		return -ENOMEM;
-
-	cpumask_or(mcu_dat[id].imask, mcu_dat[id].imask, cpumask_of(mask));
-	cpumask_copy(mcu_dat[id].dmask, get_default_cpu_mask());
-
-	return argos_irq_affinity_setup_label(irq, "IPC", mcu_dat[id].imask, mcu_dat[id].dmask);
-}
+	num_cpu = 8;
 #endif
-
-static int cp_mbox_set_affinity(enum mcu_ipc_region id, struct device *dev, int irq)
-{
-	struct device_node *np = dev->of_node;
-	u32 irq_affinity_mask = 0;
-
-	if (!np) {
-		mif_err("of_node is null\n");
-		return -ENODEV;
+	if (affinity >= num_cpu) {
+		mif_err("idx:%d affinity:%d error. cpu max:%d\n",
+			idx, affinity, num_cpu);
+		return -EINVAL;
 	}
 
-	mif_dt_read_u32(np, "mcu,irq_affinity_mask", irq_affinity_mask);
-	mif_info("irq_affinity_mask = 0x%x\n", irq_affinity_mask);
+	mif_debug("idx:%d affinity:0x%x\n", idx, affinity);
+	irq_data->affinity = affinity;
 
-#ifdef USE_FIXED_AFFINITY
-	return set_fixed_affinity(dev, irq, irq_affinity_mask);
-#else
-	return set_runtime_affinity(id, irq, irq_affinity_mask);
-#endif
+	return irq_set_affinity_hint(irq_data->irq, cpumask_of(affinity));
 }
-#else /* CONFIG_ARGOS */
-static int cp_mbox_set_affinity(enum mcu_ipc_region id, struct device *dev, int irq)
-{
-	u32 affinity = 0;
+EXPORT_SYMBOL(cp_mbox_set_affinity);
 
-	if (!dev->of_node) {
-		mif_err("of_node is null\n");
-		return -ENODEV;
-	}
-
-	mif_dt_read_u32(dev->of_node, "mcu,irq_affinity_mask", affinity);
-	mif_info("irq_affinity_mask = 0x%x\n", affinity);
-
-	return irq_set_affinity(irq, cpumask_of(affinity));
-}
-
-int mcu_ipc_set_affinity(enum mcu_ipc_region id, int affinity)
-{
-	if (id >= MCU_MAX) {
-		mif_err("id error:%d\n", id);
-		return -1;
-	}
-
-	irq_set_affinity(mcu_dat[id].irq, cpumask_of(affinity));
-
-	return 0;
-}
-EXPORT_SYMBOL(mcu_ipc_set_affinity);
-#endif /* CONFIG_ARGOS */
-
+/* Probe */
 static int cp_mbox_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct resource *res = NULL;
+	struct device_node *irq_np = NULL;
+	struct device_node *irq_child_np = NULL;
+	u32 count = 0;
 	int irq;
 	int err = 0;
-	u32 id = 0;
+	u32 idx = 0;
+	u32 offset[4] = {};
 
 	mif_info("+++\n");
 
 	if (!dev->of_node) {
-		mif_err("of_node is null\n");
-		return -ENODEV;
+		mif_err("dev->of_node is null\n");
+		err = -ENODEV;
+		goto fail;
 	}
 
-	mif_dt_read_u32(dev->of_node, "mcu,id", id);
-	if (id >= MCU_MAX) {
-		mif_err("MCU IPC Invalid ID [%d]\n", id);
-		return -EINVAL;
-	}
-	mcu_dat[id].id = id;
-	mcu_dat[id].mcu_ipc_dev = &pdev->dev;
-
-	mif_dt_read_string(dev->of_node, "mcu,name", mcu_dat[id].name);
-
+	/* DMA mask */
 	if (!pdev->dev.dma_mask)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 	if (!pdev->dev.coherent_dma_mask)
 		pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 
-	/* SFR region */
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	mcu_dat[id].ioaddr = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(mcu_dat[id].ioaddr)) {
-		mif_err("failded to request memory resource\n");
-		return PTR_ERR(mcu_dat[id].ioaddr);
+	/* Region */
+	mbox_data.ioaddr = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(mbox_data.ioaddr)) {
+		mif_err("failed to request memory resource\n");
+		err = PTR_ERR(mbox_data.ioaddr);
+		goto fail;
 	}
 
-	/* Request IRQ */
-	irq = platform_get_irq(pdev, 0);
-	err = devm_request_irq(&pdev->dev, irq, cp_mbox_irq_handler, IRQF_ONESHOT, pdev->name, &mcu_dat[id]);
-	if (err) {
-		mif_err("Can't request MCU_IPC IRQ\n");
-		return err;
+	mbox_data.dev = &pdev->dev;
+	spin_lock_init(&mbox_data.reg_lock);
+
+	/* Shared register */
+	mif_dt_read_u32(dev->of_node, "num_shared_reg", mbox_data.num_shared_reg);
+	mif_dt_read_u32(dev->of_node, "shared_reg_offset", mbox_data.shared_reg_offset);
+	mif_info("num_shared_reg:%d shared_reg_offset:0x%x\n",
+		mbox_data.num_shared_reg, mbox_data.shared_reg_offset);
+
+	/* SW reset reg */
+	mif_dt_read_bool(dev->of_node, "use_sw_reset_reg", mbox_data.use_sw_reset_reg);
+	mif_info("use_sw_reset_reg:%d\n", mbox_data.use_sw_reset_reg);
+
+	/* Interrupt */
+	irq_np = of_get_child_by_name(dev->of_node, "cp_mailbox_irqs");
+	if (!irq_np) {
+		mif_err("of_get_child_by_name() error:irq_np\n");
+		err = -EINVAL;
+		goto fail;
 	}
-	mcu_dat[id].irq = irq;
+	for_each_child_of_node(irq_np, irq_child_np) {
+		struct cp_mbox_irq_data *irq_data = NULL;
 
-	cp_mbox_clear_all_interrupt(id);
+		if (count >= MAX_CP_MBOX_IRQ_IDX) {
+			mif_err("count is full:%d\n", count);
+			err = -ENOMEM;
+			goto fail;
+		}
 
-	/* Set argos irq affinity */
-	err = cp_mbox_set_affinity(id, dev, irq);
-	if (err)
-		mif_err("Can't set IRQ affinity with(%d)\n", err);
+		/* IRQ index */
+		mif_dt_read_u32(irq_child_np, "cp_irq,idx", idx);
+		irq_data = &mbox_data.irq_data[idx];
+		if (!irq_data) {
+			mif_err("irq_data %d is null\n", idx);
+			err = -EINVAL;
+			goto fail;
+		}
+		irq_data->idx = idx;
 
-	spin_lock_init(&mcu_dat[id].lock);
-	spin_lock_init(&mcu_dat[id].reg_lock);
+		/* Enable */
+		mif_dt_read_bool(irq_child_np, "cp_irq,enable", irq_data->enable);
+		if (!irq_data->enable) {
+			mif_err("irq_data %d is disabled\n", idx);
+			count++;
+			continue;
+		}
 
-	mcu_ipc_writel(id, 0xFFFF0000, EXYNOS_MCU_IPC_INTMR0);
-	mif_info("id:%d intmr0:0x%08x\n", id, mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTMR0));
+		/* Name */
+		mif_dt_read_string(irq_child_np, "cp_irq,name", irq_data->name);
 
-	mif_err("---\n");
+		/* SFR */
+		of_property_read_u32_array(irq_child_np, "cp_irq,sfr", offset, 4);
+		irq_data->sfr_rx.gr = EXYNOS_MCU_IPC_INTGR0 + offset[0];
+		irq_data->sfr_rx.cr = EXYNOS_MCU_IPC_INTCR0 + offset[0];
+		irq_data->sfr_rx.mr = EXYNOS_MCU_IPC_INTMR0 + offset[0];
+		irq_data->sfr_rx.sr = EXYNOS_MCU_IPC_INTSR0 + offset[0];
+		irq_data->sfr_rx.msr = EXYNOS_MCU_IPC_INTMSR0 + offset[0];
+		irq_data->sfr_rx.shift = offset[1];
+		irq_data->sfr_rx.mask = 0xFFFF << offset[1];
+
+		irq_data->sfr_tx.gr = EXYNOS_MCU_IPC_INTGR0 + offset[2];
+		irq_data->sfr_tx.cr = EXYNOS_MCU_IPC_INTCR0 + offset[2];
+		irq_data->sfr_tx.mr = EXYNOS_MCU_IPC_INTMR0 + offset[2];
+		irq_data->sfr_tx.sr = EXYNOS_MCU_IPC_INTSR0 + offset[2];
+		irq_data->sfr_tx.msr = EXYNOS_MCU_IPC_INTMSR0 + offset[2];
+		irq_data->sfr_tx.shift = offset[3];
+		irq_data->sfr_tx.mask = 0xFFFF << offset[3];
+
+		/* Request IRQ */
+		irq = platform_get_irq(pdev, irq_data->idx);
+		err = devm_request_irq(&pdev->dev, irq, cp_mbox_irq_handler,
+					IRQF_ONESHOT, irq_data->name, irq_data);
+		if (err) {
+			mif_err("devm_request_irq() error:%d\n", err);
+			goto fail;
+		}
+		err = enable_irq_wake(irq);
+		if (err) {
+			mif_err("enable_irq_wake() error:%d\n", err);
+			goto fail;
+		}
+		irq_data->irq = irq;
+
+		/* IRQ affinity */
+		mif_dt_read_u32(irq_child_np, "cp_irq,affinity", irq_data->affinity);
+		err = cp_mbox_set_affinity(irq_data->idx, irq_data->affinity);
+		if (err)
+			mif_err("cp_mbox_set_affinity() error:%d\n", err);
+
+		/* Init CP2AP interrupt */
+		mcu_ipc_write(irq_data->sfr_rx.mask, irq_data->sfr_rx.mr);
+		mcu_ipc_write(irq_data->sfr_rx.mask, irq_data->sfr_rx.cr);
+
+		mif_info("count:%d idx:%d name:%s rx.gr:0x%02x rx.shift:%d tx.gr:0x%02x tx.shift:%d affinity:%d mr:0x%08x\n",
+			count, irq_data->idx, irq_data->name,
+			irq_data->sfr_rx.gr, irq_data->sfr_rx.shift,
+			irq_data->sfr_tx.gr, irq_data->sfr_tx.shift,
+			irq_data->affinity, mcu_ipc_read(irq_data->sfr_rx.mr));
+
+		count++;
+	}
+
+	dev_set_drvdata(dev, &mbox_data);
+
+	mif_info("---\n");
 
 	return 0;
+
+fail:
+	panic("CP mbox probe failed\n");
+	return err;
 }
 
-static int __exit cp_mbox_remove(struct platform_device *pdev)
+static int cp_mbox_remove(struct platform_device *pdev)
 {
 	return 0;
 }
@@ -499,9 +594,29 @@ static int cp_mbox_suspend(struct device *dev)
 
 static int cp_mbox_resume(struct device *dev)
 {
-#ifdef CONFIG_ARGOS
-	set_irq_affinity(dev);
-#endif
+	struct cp_mbox_drv_data *data = dev->driver_data;
+	int i;
+
+	if (!data) {
+		mif_err_limited("data is null\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < MAX_CP_MBOX_IRQ_IDX; i++) {
+		struct cp_mbox_irq_data *irq_data = NULL;
+
+		irq_data = &data->irq_data[i];
+		if (!irq_data) {
+			mif_err_limited("irq_data %d is null\n", i);
+			return -EINVAL;
+		}
+
+		if (!irq_data->enable)
+			continue;
+
+		cp_mbox_set_affinity(irq_data->idx, irq_data->affinity);
+	}
+
 	return 0;
 }
 

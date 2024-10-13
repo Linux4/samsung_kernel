@@ -136,7 +136,7 @@ static struct usb_interface_descriptor conn_gadget_interface_desc = {
 	.bNumEndpoints          = 2,
 	.bInterfaceClass        = 0xFF,
 	.bInterfaceSubClass     = 0x40,
-	.bInterfaceProtocol     = 3,
+	.bInterfaceProtocol     = 2,
 };
 
 static struct usb_endpoint_descriptor conn_gadget_superspeed_in_desc = {
@@ -868,15 +868,6 @@ I think, memorized and online vairiable should be atomic variable. talk to choi 
 	return err;
 }
 
-#ifdef CONFIG_COMPAT
-static long conn_gadget_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	int ret;
-	ret = conn_gadget_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
-	return ret;
-}
-#endif
-
 /* file operations for conn_gadget device /dev/android_ssusbcon */
 static const struct file_operations conn_gadget_fops = {
 	.owner = THIS_MODULE,
@@ -885,7 +876,7 @@ static const struct file_operations conn_gadget_fops = {
 	.poll = conn_gadget_poll,
 	.unlocked_ioctl = conn_gadget_ioctl,
 #ifdef CONFIG_COMPAT
-	.compat_ioctl = conn_gadget_compat_ioctl,
+	.compat_ioctl = conn_gadget_ioctl,
 #endif
 	.open = conn_gadget_open,
 	.release = conn_gadget_release,
@@ -1306,7 +1297,7 @@ static int conn_gadget_setup(struct conn_gadget_instance *fi_conn_gadget)
 	return 0;
 err_:
 
-	if (dev->rd_queue_buf)
+    if (dev->rd_queue_buf)
 		vfree(dev->rd_queue_buf);
 
 	_conn_gadget_dev = NULL;
@@ -1326,7 +1317,7 @@ static void conn_gadget_cleanup(struct kref *kref)
 
 	misc_deregister(&conn_gadget_device);
 
-	if (_conn_gadget_dev->rd_queue_buf)
+    if (_conn_gadget_dev->rd_queue_buf)
 		vfree(_conn_gadget_dev->rd_queue_buf);
 
 	kfree(_conn_gadget_dev);

@@ -14,8 +14,14 @@
 #ifndef __TZ_KTHREAD_POOL_H__
 #define __TZ_KTHREAD_POOL_H__
 
+#include <linux/kconfig.h>
+
 void tz_kthread_pool_fini(void);
 void tz_kthread_pool_enter_swd(void);
 void tz_kthread_pool_cmd_send(void);
+
+#if IS_MODULE(CONFIG_TZDEV)
+int tz_kthread_pool_init(void);
+#endif
 
 #endif /* __TZ_KTHREAD_POOL_H__ */

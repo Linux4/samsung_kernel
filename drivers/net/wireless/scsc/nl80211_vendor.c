@@ -181,6 +181,8 @@ char *slsi_print_event_name(int event_id)
 		return "SLSI_NAN_EVENT_NDP_CFM";
 	case SLSI_NAN_EVENT_NDP_END:
 		return "SLSI_NAN_EVENT_NDP_END";
+	case SLSI_NL80211_SUBSYSTEM_RESTART_EVENT:
+		return "SLSI_NL80211_SUBSYSTEM_RESTART_EVENT";
 	default:
 		return "UNKNOWN_EVENT";
 	}
@@ -479,7 +481,11 @@ struct slsi_gscan_result *slsi_prepare_scan_result(struct sk_buff *skb, u16 anqp
 {
 	struct ieee80211_mgmt    *mgmt = fapi_get_mgmt(skb);
 	struct slsi_gscan_result *scan_res;
-        struct timespec		 ts;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	struct timespec64		 ts;
+#else
+	struct timespec		     ts;
+#endif
 	const u8                 *ssid_ie;
 	int                      mem_reqd;
 	int                      ie_len;
@@ -501,7 +507,9 @@ struct slsi_gscan_result *slsi_prepare_scan_result(struct sk_buff *skb, u16 anqp
 	/* Exclude 1 byte for ie_data[1] */
 	scan_res->scan_res_len = (sizeof(struct slsi_nl_scan_result_param) - 1) + ie_len;
 	scan_res->anqp_length = 0;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	ts = ktime_to_timespec64(ktime_get_boottime());
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	ts = ktime_to_timespec(ktime_get_boottime());
 #else
 	get_monotonic_boottime(&ts);
@@ -1400,6 +1408,7 @@ static int slsi_set_vendor_ie(struct wiphy *wiphy,
 		{
 			if (!nla_len(attr))
 				break;
+			kfree(ie_list);
 			ie_list =  kmalloc(nla_len(attr), GFP_KERNEL);
 			if (!ie_list) {
 				SLSI_ERR(sdev, "No memory for ie_list!");
@@ -1555,10 +1564,12 @@ static int slsi_set_bssid_blacklist(struct wiphy *wiphy, struct wireless_dev *wd
 			ndev_vif->acl_data_hal = acl_data;
 		}
 		ret = slsi_set_acl(sdev, net_dev);
+		acl_data = NULL;
 	}
 
 exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+	kfree(acl_data);
 	return ret;
 }
 
@@ -2869,6 +2880,7 @@ static int slsi_get_feature_set(struct wiphy *wiphy,
 #ifdef CONFIG_SCSC_WLAN_ENABLE_MAC_RANDOMISATION
 	feature_set |= SLSI_WIFI_HAL_FEATURE_SCAN_RAND;
 #endif
+        feature_set |= SLSI_WIFI_HAL_FEATURE_DYNAMIC_SET_MAC;
 	feature_set |= SLSI_WIFI_HAL_FEATURE_LOW_LATENCY;
 	feature_set |= SLSI_WIFI_HAL_FEATURE_P2P_RAND_MAC;
 
@@ -3365,7 +3377,11 @@ void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_
 	struct sk_buff *nl_skb;
 	int res = 0;
 	struct nlattr *nlattr_nested;
-	struct timespec		ts;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	struct timespec64 ts;
+#else
+	struct timespec ts;
+#endif
 	u64 tkernel;
 	u8 rep_cnt = 0;
 	__le16 *le16_ptr = NULL;
@@ -3457,7 +3473,9 @@ void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_
 		res |= nla_put_u16(nl_skb, SLSI_RTT_EVENT_ATTR_RTT_SPREAD, value);
 		ip_ptr += 2;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+		ts = ktime_to_timespec64(ktime_get_boottime());
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 		ts = ktime_to_timespec(ktime_get_boottime());
 #else
 		get_monotonic_boottime(&ts);
@@ -4173,7 +4191,7 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 	u32 operating_class = 0, measure_mode = 0, measure_duration = 0, ap_count = 0, candidate_count = 0;
 	u32 message_type = 0, expired_timer_value = 0;
 	short roam_rssi_val = 0;
-	u8 mac_addr[6];
+	u8 mac_addr[6] = {0};
 	int tlv_buffer__len = fapi_get_datalen(skb), i = 0, channel_val = 0, iter = 0, channel_count = 0, lim = 0;
 	int channel_list[MAX_CHANNEL_COUNT] = {0};
 	char ssid[MAX_SSID_LEN];
@@ -4318,6 +4336,10 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 			lim = iter + tlv_data[iter + 1] + 2;
 			iter += 7; /* 1byte (id) + 1byte(length) + 3byte (oui) + 2byte */
 			while (iter < lim && lim <= i + tag_len) {
+				if (channel_count >= MAX_CHANNEL_COUNT) {
+					SLSI_ERR(sdev, "ERR: Channel list received >= %d\n", MAX_CHANNEL_COUNT);
+					break;
+				}
 				channel_val = le16_to_cpu(*((__le16 *)&tlv_data[iter]));
 				channel_list[channel_count] = ieee80211_frequency_to_channel(channel_val / 2);
 				if (channel_list[channel_count] < 1 || channel_list[channel_count] > 196) {
@@ -4328,10 +4350,6 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 				}
 				iter += 3;
 				channel_count += 1;
-				if (channel_count == MAX_CHANNEL_COUNT) {
-					SLSI_ERR(sdev, "ERR: Channel list received >= %d\n", MAX_CHANNEL_COUNT);
-					break;
-				}
 			}
 			break;
 		case SLSI_WIFI_TAG_SSID:
@@ -5505,8 +5523,10 @@ static int slsi_acs_init(struct wiphy *wiphy,
 				SLSI_INFO(sdev, "Skip invalid channel:%d for ACS\n", channels[num_channels]->hw_value);
 			} else {
 				idx = slsi_find_chan_idx(channels[num_channels]->hw_value, request->hw_mode);
-				ch_info[idx].chan = channels[num_channels]->hw_value;
-				num_channels++;
+				if (idx >= 0 && idx < MAX_CHAN_VALUE_ACS) {
+					ch_info[idx].chan = channels[num_channels]->hw_value;
+					num_channels++;
+				}
 			}
 		}
 
@@ -5594,6 +5614,68 @@ static int slsi_configure_latency_mode(struct wiphy *wiphy, struct wireless_dev 
 	if (ret)
 		SLSI_ERR(sdev, "Error in setting low latency mode ret:%d\n", ret);
 exit:
+	return ret;
+}
+
+/*TODO: define will be removed when autogen to be done*/
+#define SLSI_PSID_UNIFI_DTIM_MULTIPLIER 3002 /* unifiDTIMMultiplier */
+
+static int slsi_set_dtim_config(struct wiphy *wiphy, struct wireless_dev *wdev, const void *data, int len)
+{
+	struct slsi_dev		*sdev = SDEV_FROM_WIPHY(wiphy);
+	struct net_device	*dev = wdev->netdev;
+	struct netdev_vif	*ndev_vif;
+	const struct nlattr	*attr;
+	int			ret = 0;
+	int			temp = 0;
+	int			type = 0;
+	int			multiplier = 0;
+	u32			val = 0;
+
+	if (!dev) {
+		SLSI_ERR(sdev, "dev is NULL!!\n");
+		return -EINVAL;
+	}
+	ndev_vif = netdev_priv(dev);
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	if (ndev_vif->vif_type != FAPI_VIFTYPE_STATION) {
+		SLSI_WARN(sdev, "Not a STA VIF\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+	if (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED) {
+		SLSI_WARN(sdev, "VIF is not connected\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+	nla_for_each_attr(attr, data, len, temp) {
+		type = nla_type(attr);
+		switch (type) {
+		case SLSI_VENDOR_ATTR_DTIM_MULTIPLIER:
+			if (slsi_util_nla_get_u32(attr, &val)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			if (val < 1 || val > 9) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			multiplier = (int)val;
+			break;
+		default:
+			SLSI_ERR_NODEV("Unknown attribute: %d\n", type);
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+	SLSI_INFO(sdev, "multiplier %d\n", multiplier);
+	if (slsi_set_uint_mib(sdev, NULL, SLSI_PSID_UNIFI_DTIM_MULTIPLIER, multiplier)) {
+		SLSI_ERR(sdev, "Set MIB DTIM_MULTIPLIER failed\n");
+		ret = -EIO;
+		goto exit;
+	}
+exit:
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	return ret;
 }
 
@@ -5701,7 +5783,9 @@ static const struct  nl80211_vendor_cmd_info slsi_vendor_events[] = {
 	{ OUI_GOOGLE,  SLSI_NAN_EVENT_NDP_CFM},
 	{ OUI_GOOGLE,  SLSI_NAN_EVENT_NDP_END},
 	{ OUI_SAMSUNG, SLSI_NL80211_VENDOR_RCL_CHANNEL_LIST_EVENT},
-	{ OUI_SAMSUNG, SLSI_NL80211_VENDOR_POWER_MEASUREMENT_EVENT}
+	{ OUI_SAMSUNG, SLSI_NL80211_VENDOR_POWER_MEASUREMENT_EVENT},
+	{ OUI_SAMSUNG, SLSI_NL80211_VENDOR_CONNECTIVITY_LOG_EVENT},
+	{ OUI_GOOGLE,  SLSI_NL80211_SUBSYSTEM_RESTART_EVENT}
 };
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
@@ -5749,6 +5833,11 @@ slsi_wlan_vendor_low_latency_policy[SLSI_NL_ATTRIBUTE_LATENCY_MAX + 1] = {
 	[SLSI_NL_ATTRIBUTE_LATENCY_MODE] = {.type = NLA_U8},
 };
 
+static const struct nla_policy
+slsi_wlan_vendor_dtim_policy[SLSI_VENDOR_ATTR_DTIM_MAX + 1] = {
+	[SLSI_VENDOR_ATTR_DTIM_MULTIPLIER] = {.type = NLA_U32},
+};
+
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 static const struct nla_policy
 slsi_wlan_vendor_tx_power_scenario_policy[SLSI_NL_ATTRIBUTE_TX_POWER_SCENARIO_MAX + 1] = {
@@ -5779,7 +5868,11 @@ slsi_wlan_vendor_rtt_policy[SLSI_RTT_ATTRIBUTE_MAX + 1] = {
 	[SLSI_RTT_ATTRIBUTE_TARGET_ID] = {.type = NLA_U16},
 	[SLSI_RTT_ATTRIBUTE_TARGET_INFO] = {.type = NLA_NESTED_ARRAY,
 					    .len = SLSI_RTT_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					    .validation_data = slsi_wlan_vendor_rtt_policy},
+#else
+						},
+#endif
 	[SLSI_RTT_ATTRIBUTE_TARGET_MAC] = {.type = NLA_BINARY},
 	[SLSI_RTT_ATTRIBUTE_TARGET_TYPE] = {.type = NLA_U8},
 	[SLSI_RTT_ATTRIBUTE_TARGET_PEER] = {.type = NLA_U8},
@@ -5821,28 +5914,60 @@ slsi_wlan_vendor_gscan_policy[GSCAN_ATTRIBUTE_MAX] = {
 	[GSCAN_ATTRIBUTE_BUCKET_MAX_PERIOD] = {.type = NLA_U32},
 	[GSCAN_ATTRIBUTE_CH_BUCKET_1] = {.type = NLA_NESTED,
 					 .len = GSCAN_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					 .validation_data = slsi_wlan_vendor_gscan_policy},
+#else
+					 },
+#endif
 	[GSCAN_ATTRIBUTE_CH_BUCKET_2] = {.type = NLA_NESTED,
 					 .len = GSCAN_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					 .validation_data = slsi_wlan_vendor_gscan_policy},
+#else
+					 },
+#endif
 	[GSCAN_ATTRIBUTE_CH_BUCKET_3] = {.type = NLA_NESTED,
 					 .len = GSCAN_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					 .validation_data = slsi_wlan_vendor_gscan_policy},
+#else
+					 },
+#endif
 	[GSCAN_ATTRIBUTE_CH_BUCKET_4] = {.type = NLA_NESTED,
 					 .len = GSCAN_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					 .validation_data = slsi_wlan_vendor_gscan_policy},
+#else
+					 },
+#endif
 	[GSCAN_ATTRIBUTE_CH_BUCKET_5] = {.type = NLA_NESTED,
 					 .len = GSCAN_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					 .validation_data = slsi_wlan_vendor_gscan_policy},
+#else
+					 },
+#endif
 	[GSCAN_ATTRIBUTE_CH_BUCKET_6] = {.type = NLA_NESTED,
 					 .len = GSCAN_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					 .validation_data = slsi_wlan_vendor_gscan_policy},
+#else
+					 },
+#endif
 	[GSCAN_ATTRIBUTE_CH_BUCKET_7] = {.type = NLA_NESTED,
 					 .len = GSCAN_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					 .validation_data = slsi_wlan_vendor_gscan_policy},
+#else
+					 },
+#endif
 	[GSCAN_ATTRIBUTE_CH_BUCKET_8] = {.type = NLA_NESTED,
 					 .len = GSCAN_ATTRIBUTE_MAX,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
 					 .validation_data = slsi_wlan_vendor_gscan_policy},
+#else
+					 },
+#endif
 	[GSCAN_ATTRIBUTE_NUM_OF_RESULTS] = {.type = NLA_U32},
 	[GSCAN_ATTRIBUTE_NUM_BSSID] = {.type = NLA_U32},
 	[GSCAN_ATTRIBUTE_BLACKLIST_BSSID] = {.type = NLA_BINARY},
@@ -5872,7 +5997,11 @@ static const struct nla_policy
 slsi_wlan_vendor_epno_hs_policy[SLSI_ATTRIBUTE_EPNO_HS_MAX] = {
 	[SLSI_ATTRIBUTE_EPNO_HS_PARAM_LIST] = {.type = NLA_NESTED_ARRAY,
 					       .len = SLSI_ATTRIBUTE_EPNO_HS_MAX,
-					       .validation_data = slsi_wlan_vendor_epno_hs_policy},
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
+						   .validation_data = slsi_wlan_vendor_epno_hs_policy},
+#else
+						   },
+#endif
 	[SLSI_ATTRIBUTE_EPNO_HS_NUM] = {.type = NLA_U8},
 	[SLSI_ATTRIBUTE_EPNO_HS_ID] = {.type = NLA_U32},
 	[SLSI_ATTRIBUTE_EPNO_HS_REALM] = {.type = NLA_BINARY},
@@ -5950,7 +6079,11 @@ slsi_wlan_vendor_nan_policy[NAN_REQ_ATTR_MAX + 1] = {
 	[NAN_REQ_ATTR_DISCOVERY_ATTR_NUM_ENTRIES] = {.type = NLA_U8},
 	[NAN_REQ_ATTR_DISCOVERY_ATTR_VAL] = {.type = NLA_NESTED,
 					     .len = NAN_REQ_ATTR_MAX,
-					     .validation_data = slsi_wlan_vendor_nan_policy},
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
+						 .validation_data = slsi_wlan_vendor_nan_policy},
+#else
+						 },
+#endif
 	[NAN_REQ_ATTR_CONN_TYPE] = {.type = NLA_U8},
 	[NAN_REQ_ATTR_NAN_ROLE] = {.type = NLA_U8},
 	[NAN_REQ_ATTR_TRANSMIT_FREQ] = {.type = NLA_U8},
@@ -5963,7 +6096,11 @@ slsi_wlan_vendor_nan_policy[NAN_REQ_ATTR_MAX + 1] = {
 	[NAN_REQ_ATTR_FURTHER_AVAIL_NUM_ENTRIES] = {.type = NLA_U8},
 	[NAN_REQ_ATTR_FURTHER_AVAIL_VAL] = {.type = NLA_NESTED,
 					    .len = NAN_REQ_ATTR_MAX,
-					    .validation_data = slsi_wlan_vendor_nan_policy},
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 8, 0))
+						.validation_data = slsi_wlan_vendor_nan_policy},
+#else
+						},
+#endif
 	[NAN_REQ_ATTR_FURTHER_AVAIL_ENTRY_CTRL] = {.type = NLA_U8},
 	[NAN_REQ_ATTR_FURTHER_AVAIL_CHAN_CLASS] = {.type = NLA_U8},
 	[NAN_REQ_ATTR_FURTHER_AVAIL_CHAN] = {.type = NLA_U8},
@@ -6561,6 +6698,15 @@ static struct wiphy_vendor_command slsi_vendor_cmd[] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = slsi_configure_latency_mode
 	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG
+		},
+		.flags =  WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = slsi_set_dtim_config
+	},
+
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 	{
 		{
@@ -6756,6 +6902,10 @@ static void slsi_nll80211_vendor_init_policy(struct wiphy_vendor_command *slsi_v
 		case SLSI_NL80211_VENDOR_SUBCMD_SET_LATENCY_MODE:
 			vcmd->policy = slsi_wlan_vendor_low_latency_policy;
 			vcmd->maxattr = SLSI_NL_ATTRIBUTE_LATENCY_MAX;
+			break;
+		case SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG:
+			vcmd->policy = slsi_wlan_vendor_dtim_policy;
+			vcmd->maxattr = SLSI_VENDOR_ATTR_DTIM_MAX;
 			break;
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 		case SLSI_NL80211_VENDOR_SUBCMD_SELECT_TX_POWER_SCENARIO:

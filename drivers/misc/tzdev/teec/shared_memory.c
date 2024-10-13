@@ -11,6 +11,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/export.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <asm/page.h>
@@ -261,6 +262,7 @@ out:
 
 	return result;
 }
+EXPORT_SYMBOL(TEEC_RegisterSharedMemory);
 
 TEEC_Result TEEC_AllocateSharedMemory(TEEC_Context *context, TEEC_SharedMemory *sharedMem)
 {
@@ -326,6 +328,7 @@ out:
 
 	return result;
 }
+EXPORT_SYMBOL(TEEC_AllocateSharedMemory);
 
 void TEEC_ReleaseSharedMemory(TEEC_SharedMemory *sharedMem)
 {
@@ -363,3 +366,4 @@ out:
 	log_debug(tzdev_teec, "Exit, sharedMem = %pK result = %x origin = %u\n",
 			sharedMem, result, origin);
 }
+EXPORT_SYMBOL(TEEC_ReleaseSharedMemory);

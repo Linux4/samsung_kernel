@@ -1,7 +1,7 @@
 #ifndef __PWRCAL_INCLUDE_H__
 #define __PWRCAL_INCLUDE_H__
 
-#ifdef CONFIG_CAL_IF
+#ifdef CONFIG_SOC_SAMSUNG
 
 #define PWRCAL_TARGET_LINUX
 

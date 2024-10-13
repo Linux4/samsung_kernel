@@ -1,14 +1,3 @@
-/*
- * Samsung Exynos5 SoC series IS driver
- *
- * exynos5 is core functions
- *
- * Copyright (c) 2011 Samsung Electronics Co., Ltd
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- */
 
 #include <linux/i2c.h>
 #include <linux/slab.h>
@@ -20,7 +9,7 @@
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
@@ -42,47 +31,33 @@
 #define DRIVER_NAME_REAR3 "rear3-eeprom-i2c"
 #define DRIVER_NAME_REAR4 "rear4-eeprom-i2c"
 
-extern const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX];
+/*
+ * Samsung Exynos5 SoC series FIMC-IS driver
+ *
+ * exynos5 fimc-is core functions
+ *
+ * Copyright (c) 2011 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 
-int is_eeprom_parse_dt(struct device_node *dnode, int rom_id)
-{
-	int ret = 0;
-	int share_rom_position;
-	
-	struct is_core *core;
-	struct is_vender_specific *specific;
-
-	if (!is_dev)
-		return -ENODEV;
-
-	core = (struct is_core *)dev_get_drvdata(is_dev);
-	if (!core)
-		return -ENODEV;
-
-	specific = core->vender.private_data;
-
-	ret = of_property_read_u32(dnode, "use_common_rom_position", &share_rom_position);
-	if(!ret) {
-		probe_info("use_common_rom_position %d\n", share_rom_position);
-		specific->rom_share[share_rom_position].check_rom_share = true;
-		specific->rom_share[share_rom_position].share_position = rom_id;
-	}
-
-	return 0;
-}
-
-int sensor_eeprom_probe(struct i2c_client *client,
+static int sensor_eeprom_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
 	struct is_core *core;
 	static bool probe_retried = false;
-	struct is_device_eeprom *device;
+	struct is_device_eeprom *eeprom;
 	struct is_vender_specific *specific;
+	struct device *is_dev;
+
+	is_dev = is_get_is_dev();
 
 	if (!is_dev)
 		goto probe_defer;
 
-	core = (struct is_core *)dev_get_drvdata(is_dev);
+	core = is_get_is_core();
 	if (!core)
 		goto probe_defer;
 
@@ -93,33 +68,30 @@ int sensor_eeprom_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
-	if (id->driver_data < SENSOR_POSITION_MAX) {
+	if (id->driver_data >= ROM_ID_REAR && id->driver_data < ROM_ID_MAX) {
 		specific->rom_client[id->driver_data] = client;
-		specific->rom_data[id->driver_data].rom_type = ROM_TYPE_EEPROM;
-		specific->rom_data[id->driver_data].rom_valid = true;
-
-		specific->rom_cal_map_addr[id->driver_data] = vender_rom_addr[id->driver_data];
+		specific->rom_valid[id->driver_data] = true;
 	} else {
-		probe_err("eeprom device is failed! id=%ld\n", id->driver_data);
+		probe_err("rear eeprom device is failed!");
 		return -ENODEV;
 	}
 
-	device = kzalloc(sizeof(struct is_device_eeprom), GFP_KERNEL);
-	if (!device) {
+	eeprom = kzalloc(sizeof(struct is_device_eeprom), GFP_KERNEL);
+	if (!eeprom) {
 		probe_err("is_device_eeprom is NULL");
 		return -ENOMEM;
 	}
 
-	device->client = client;
-	device->core = core;
-	device->driver_data = id->driver_data;
+	eeprom->client = client;
+	eeprom->core = core;
+	eeprom->driver_data = id->driver_data;
 
-	i2c_set_clientdata(client, device);
+	i2c_set_clientdata(client, eeprom);
 
 	if (client->dev.of_node) {
-		if(is_eeprom_parse_dt(client->dev.of_node, device->driver_data)) {
+		if(is_vendor_rom_parse_dt(client->dev.of_node, eeprom->driver_data)) {
 			probe_err("parsing device tree is fail");
-			kfree(device);
+			kfree(eeprom);
 			return -ENODEV;
 		}
 	}
@@ -143,32 +115,37 @@ probe_defer:
 static int sensor_eeprom_remove(struct i2c_client *client)
 {
 	int ret = 0;
+
 	return ret;
 }
 
 #ifdef CONFIG_OF
 static const struct of_device_id exynos_is_sensor_eeprom_match[] = {
 	{
-		.compatible = "samsung,rear-eeprom-i2c", .data = (void *)SENSOR_POSITION_REAR
+		.compatible = "samsung,rear-eeprom-i2c", .data = (void *)ROM_ID_REAR
 	},
 	{
-		.compatible = "samsung,front-eeprom-i2c", .data = (void *)SENSOR_POSITION_FRONT
+		.compatible = "samsung,front-eeprom-i2c", .data = (void *)ROM_ID_FRONT
 	},
 	{
-		.compatible = "samsung,rear3-eeprom-i2c",
+		.compatible = "samsung,rear2-eeprom-i2c", .data = (void *)ROM_ID_REAR2
 	},
 	{
-		.compatible = "samsung,rear4-eeprom-i2c",
+		.compatible = "samsung,rear3-eeprom-i2c", .data = (void *)ROM_ID_REAR3
+	},
+	{
+		.compatible = "samsung,rear4-eeprom-i2c", .data = (void *)ROM_ID_REAR4
 	},
 	{},
 };
 #endif
 
 static const struct i2c_device_id sensor_eeprom_idt[] = {
-	{ DRIVER_NAME_REAR, SENSOR_POSITION_REAR },
-	{ DRIVER_NAME_FRONT, SENSOR_POSITION_FRONT },
-	{ DRIVER_NAME_REAR3, SENSOR_POSITION_REAR3 },
-	{ DRIVER_NAME_REAR4, SENSOR_POSITION_REAR4 },
+	{ DRIVER_NAME_REAR, ROM_ID_REAR },
+	{ DRIVER_NAME_FRONT, ROM_ID_FRONT },
+	{ DRIVER_NAME_REAR2, ROM_ID_REAR2 },
+	{ DRIVER_NAME_REAR3, ROM_ID_REAR3 },
+	{ DRIVER_NAME_REAR4, ROM_ID_REAR4 },
 	{},
 };
 
@@ -185,19 +162,22 @@ static struct i2c_driver sensor_eeprom_driver = {
 	.id_table = sensor_eeprom_idt
 };
 
-static int __init sensor_eeprom_load(void)
+#ifdef MODULE
+builtin_i2c_driver(sensor_eeprom_driver);
+#else
+static int __init sensor_eeprom_init(void)
 {
-        return i2c_add_driver(&sensor_eeprom_driver);
+	int ret;
+
+	ret = i2c_add_driver(&sensor_eeprom_driver);
+	if (ret)
+		err("failed to add %s driver: %d\n",
+			sensor_eeprom_driver.driver.name, ret);
+
+	return ret;
 }
+late_initcall_sync(sensor_eeprom_init);
+#endif
 
-static void __exit sensor_eeprom_unload(void)
-{
-        i2c_del_driver(&sensor_eeprom_driver);
-}
-
-module_init(sensor_eeprom_load);
-module_exit(sensor_eeprom_unload);
-
-MODULE_AUTHOR("Kyoungho Yun");
-MODULE_DESCRIPTION("Camera eeprom driver");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");
+MODULE_SOFTDEP("pre: fimc-is");

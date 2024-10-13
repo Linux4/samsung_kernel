@@ -487,9 +487,6 @@ static ssize_t exynos_flexpmu_dbg_read(struct file *file, char __user *user_buf,
 
 	ret = flexpmu_debugfs_read_fptr[d2f->fid](d2f->fid, buf);
 
-	if (ret > sizeof(buf))
-		return ret;
-
 	return simple_read_from_buffer(user_buf, count, ppos, buf, ret);
 }
 
@@ -598,11 +595,13 @@ void exynos_flexpmu_dbg_suspend_mif_req(void)
 		}
 	}
 }
+EXPORT_SYMBOL_GPL(exynos_flexpmu_dbg_suspend_mif_req);
 
 void exynos_flexpmu_dbg_resume_mif_req(void)
 {
 	unsigned long long int curr_tick = 0;
-	struct flexpmu_apm_req_info apm_req_resume[MIF_MASTER_MAX];
+	struct flexpmu_apm_req_info apm_req_resume[MIF_MASTER_MAX] =
+						{{0, 0, 0, 0, 0, 0, 0, 0}, };
 	int i = 0;
 	bool print_info = false;
 
@@ -660,6 +659,7 @@ void exynos_flexpmu_dbg_resume_mif_req(void)
 		}
 	}
 }
+EXPORT_SYMBOL_GPL(exynos_flexpmu_dbg_resume_mif_req);
 
 static int exynos_flexpmu_dbg_probe(struct platform_device *pdev)
 {
@@ -767,3 +767,4 @@ static int __init exynos_flexpmu_dbg_init(void)
 	return platform_driver_register(&exynos_flexpmu_dbg_drv);
 }
 late_initcall(exynos_flexpmu_dbg_init);
+MODULE_LICENSE("GPL");

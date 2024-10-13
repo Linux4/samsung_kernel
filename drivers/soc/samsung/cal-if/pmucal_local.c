@@ -1,6 +1,7 @@
 #include "pmucal_local.h"
 #include "pmucal_rae.h"
-#include <soc/samsung/exynos-debug.h>
+#include <soc/samsung/debug-snapshot.h>
+#include <linux/sec_debug.h>
 
 #ifndef PWRCAL_TARGET_LINUX
 struct pmucal_pd *pmucal_blkpwr_list[PMUCAL_NUM_PDS];
@@ -67,8 +68,9 @@ int pmucal_local_enable(unsigned int pd_id)
 	return 0;
 
 err_out:
+	pr_auto(ASL1, "%s occur error at power off!\n", pmucal_pd_list[pd_id].name);
 	dump_stack();
-	s3c2410wdt_set_emergency_reset(0, 0);
+	dbg_snapshot_expire_watchdog();
 
 	return ret;
 }
@@ -137,8 +139,13 @@ int pmucal_local_disable(unsigned int pd_id)
 	return 0;
 
 err_out:
+	if (pd_id < pmucal_pd_list_size) {
+		pr_auto(ASL1, "%s occur error at power off!\n", pmucal_pd_list[pd_id].name);
+		secdbg_exin_set_epd(pmucal_pd_list[pd_id].name);
+	}
+	
 	dump_stack();
-	s3c2410wdt_set_emergency_reset(0, 0);
+	dbg_snapshot_expire_watchdog();
 
 	return ret;
 }
@@ -202,7 +209,7 @@ void pmucal_local_set_smc_id(unsigned int pd_id, unsigned int need_smc)
  *
  *  Returns 0 on success. Otherwise, negative error code.
  */
-int __init pmucal_local_init(void)
+int pmucal_local_init(void)
 {
 	int ret = 0, i;
 

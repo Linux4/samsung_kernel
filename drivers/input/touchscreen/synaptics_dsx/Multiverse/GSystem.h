@@ -303,7 +303,7 @@ typedef enum// : sint32
 	EG_STATE_RUNNING,
 	EG_STATE_RUNNING_FAST_FORWARD,
 	EG_STATE_RUNNING_FAST_BACKWARD,
-	
+
 	EG_STATE_CHECKING,
 	EG_STATE_EDITING,
 #if 0//New Siso
@@ -437,7 +437,7 @@ typedef enum : uint64
 	EG_EIGHTCC_NONE = 0x4E4F4E4500000000LL,
 	EG_EIGHTCC_UNKNOWN = 0x554E4B4E4F574E00LL,
 
-	// 
+	//
 	EG_EIGHTCC_SINT8 = 0x53494E5438000000LL,
 	EG_EIGHTCC_UINT8 = 0x55494E5438000000LL,
 	EG_EIGHTCC_SINT16 = 0x53494E5431360000LL,
@@ -980,12 +980,12 @@ typedef struct SGPeak
 	union{ sint8 s8GradRightTop2; sint16 s16GradRightTop2; sint32 s32GradRightTop2; sint64 s64GradRightTop2; float32 f32GradRightTop2; float64 f64GradRightTop2; };
 	union{ sint8 s8GradRightBottom2; sint16 s16GradRightBottom2; sint32 s32GradRightBottom2; sint64 s64GradRightBottom2; float32 f32GradRightBottom2; float64 f64GradRightBottom2; };
 	union{ sint8 s8GradLeftBottom2; sint16 s16GradLeftBottom2; sint32 s32GradLeftBottom2; sint64 s64GradLeftBottom2; float32 f32GradLeftBottom2; float64 f64GradLeftBottom2; };
-	
+
 	union{ sint8 s8RadiusLeft; sint16 s16RadiusLeft; sint32 s32RadiusLeft; sint64 s64RadiusLeft; float32 f32RadiusLeft; float64 f64RadiusLeft; };
 	union{ sint8 s8RadiusRight; sint16 s16RadiusRight; sint32 s32RadiusRight; sint64 s64RadiusRight; float32 f32RadiusRight; float64 f64RadiusRight; };
 
 	EG_HILL eHillType;
-	
+
 	union{ sint8 s8Id; sint16 s16Id; sint32 s32Id; sint64 s64Id; };
 	union{ uint32 u32TimeStamp; uint64 u64TimeStamp; };
 	union{ sint32 s32Age; sint64 s64Age; };

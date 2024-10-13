@@ -1,5 +1,5 @@
 /*
- * driver for IS FROM SPI
+ * driver for FIMC-IS FROM SPI
  *
  * Copyright (c) 2011, Samsung Electronics. All rights reserved
  *
@@ -18,7 +18,6 @@
 #include <linux/spi/spi.h>
 
 #include "is-core.h"
-#include "is-regs.h"
 
 int is_spi_write(struct is_spi *spi, u32 addr, u8 *data, size_t size)
 {
@@ -179,5 +178,5 @@ int is_spi_read_module_id(struct is_spi *spi, void *buf, u16 addr, size_t size)
 	}
 }
 
-MODULE_DESCRIPTION("IS FROM SPI driver");
+MODULE_DESCRIPTION("FIMC-IS FROM SPI driver");
 MODULE_LICENSE("GPL");

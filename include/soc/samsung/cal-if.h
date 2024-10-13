@@ -18,6 +18,7 @@ static inline int cal_if_init(void)
 
 #define BLKPWR_MAGIC	0xB1380000
 
+extern int (*exynos_cal_pd_bcm_sync)(unsigned int id, bool on);
 extern unsigned int cal_clk_get(char *name);
 extern unsigned int cal_clk_is_enabled(unsigned int vclkid);
 extern int cal_clk_setrate(unsigned int vclkid, unsigned long rate);
@@ -53,6 +54,7 @@ extern unsigned long cal_dfs_cached_get_rate(unsigned int id);
 extern unsigned long cal_dfs_get_rate(unsigned int id);
 extern int cal_dfs_get_rate_table(unsigned int id, unsigned long *table);
 extern int cal_dfs_get_asv_table(unsigned int id, unsigned int *table);
+extern int cal_dfs_get_freq_volt_table(unsigned int id, void *table, int size);
 extern int cal_dfs_get_bigturbo_max_freq(unsigned int *table);
 extern unsigned int cal_dfs_get_boot_freq(unsigned int id);
 extern unsigned int cal_dfs_get_resume_freq(unsigned int id);
@@ -110,6 +112,10 @@ extern void cal_gnss_reset_assert(void);
 extern void cal_gnss_reset_release(void);
 extern void cal_gnss_reset_req_clear(void);
 extern void cal_gnss_active_clear(void);
+
+extern int cal_chub_reset_assert(void);
+extern int cal_chub_reset_release(void);
+extern int cal_chub_reset_release_config(void);
 
 extern int cal_init(void);
 extern int cal_if_init(void *);

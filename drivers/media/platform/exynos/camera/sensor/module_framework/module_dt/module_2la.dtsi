@@ -82,6 +82,27 @@
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
+					mode5 {
+						common = <4032 3024 60 0 5 CSI_DATA_LANES_3 1501 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4032 3024	/* out */ HW_FORMAT_RAW10 VC_NOTHING 4032 3024>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					mode6 {
+						common = <4032 3024 30 0 0 CSI_DATA_LANES_3 1501 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_LIVEFOCUS>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4032 3024	/* out */ HW_FORMAT_RAW10 VC_NOTHING 4032 3024>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					mode7 {
+						common = <4032 2268 30 0 2 CSI_DATA_LANES_3 1501 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_LIVEFOCUS>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4032 2268	/* out */ HW_FORMAT_RAW10 VC_NOTHING 4032 2268>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
 				};
 
 				power_seq {
@@ -114,9 +135,7 @@
 						40 { pname = "VDDD_1.05V_WIDESUB"; pin = <PIN_REGULATOR 0 0>; };
 						50 { pname = "VDDA_2.8V_WIDESUB"; pin = <PIN_REGULATOR 0 0>; };
 						60 { pname = "MCLK"; pin = <PIN_MCLK 0 0>; };
-						70 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						80 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
-						90 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						70 { pname = "pin"; pin = <PIN_OUTPUT 0 0>; };
 					};
 
 					scenario_vision_on {
@@ -147,9 +166,7 @@
 						40 { pname = "VDDD_1.05V_WIDESUB"; pin = <PIN_REGULATOR 0 0>; };
 						50 { pname = "VDDA_2.8V_WIDESUB"; pin = <PIN_REGULATOR 0 0>; };
 						60 { pname = "MCLK"; pin = <PIN_MCLK 0 0>; };
-						70 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						80 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
-						90 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						70 { pname = "pin"; pin = <PIN_OUTPUT 0 0>; };
 					};
 
 					scenario_read_rom_on {

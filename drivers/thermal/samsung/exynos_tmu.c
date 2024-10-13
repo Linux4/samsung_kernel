@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * exynos_tmu.c - Samsung EXYNOS TMU (Thermal Management Unit)
+ * exynos_tmu.c - Samsung Exynos TMU (Thermal Management Unit)
  *
  *  Copyright (C) 2014 Samsung Electronics
  *  Bartlomiej Zolnierkiewicz <b.zolnierkie@samsung.com>
@@ -8,21 +9,6 @@
  *  Copyright (C) 2011 Samsung Electronics
  *  Donggeun Kim <dg77.kim@samsung.com>
  *  Amit Daniel Kachhap <amit.kachhap@linaro.org>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
  */
 
 #include <linux/clk.h>
@@ -34,7 +20,7 @@
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
-#include <linux/debug-snapshot.h>
+
 #include <dt-bindings/thermal/thermal_exynos.h>
 
 #include "../thermal_core.h"
@@ -152,7 +138,7 @@ enum soc_type {
 
 /**
  * struct exynos_tmu_data : A structure to hold the private data of the TMU
-	driver
+ *			    driver
  * @id: identifier of the one instance of the TMU controller.
  * @base: base address of the single instance of the TMU controller.
  * @base_second: base address of the common registers of the TMU controller.
@@ -176,8 +162,11 @@ enum soc_type {
  *	0 < reference_voltage <= 31
  * @regulator: pointer to the TMU regulator structure.
  * @reg_conf: pointer to structure to register with core thermal.
+ * @tzd: pointer to thermal_zone_device structure
  * @ntrip: number of supported trip points.
  * @enabled: current status of TMU device
+ * @tmu_set_trip_temp: SoC specific method to set trip (rising threshold)
+ * @tmu_set_trip_hyst: SoC specific to set hysteresis (falling threshold)
  * @tmu_initialize: SoC specific TMU initialization method
  * @tmu_control: SoC specific TMU control method
  * @tmu_read: SoC specific TMU temperature read method
@@ -690,36 +679,6 @@ static int exynos_get_temp(void *p, int *temp)
 	return ret;
 }
 
-#ifdef CONFIG_SEC_BOOTSTAT
-void sec_bootstat_get_thermal(int *temp)
-{
-	struct exynos_tmu_data *data;
-
-	list_for_each_entry(data, &dtm_dev_list, node) {
-		if (!strncasecmp(data->tmu_name, "BIG", THERMAL_NAME_LENGTH)) {
-			exynos_get_temp(data, &temp[0]);
-			temp[0] /= 1000;
-		} else if (!strncasecmp(data->tmu_name, "LITTLE", THERMAL_NAME_LENGTH)) {
-			exynos_get_temp(data, &temp[1]);
-			temp[1] /= 1000;
-		} else if (!strncasecmp(data->tmu_name, "G3D", THERMAL_NAME_LENGTH)) {
-			exynos_get_temp(data, &temp[2]);
-			temp[2] /= 1000;
-		} else if (!strncasecmp(data->tmu_name, "NPU", THERMAL_NAME_LENGTH)) {
-			exynos_get_temp(data, &temp[3]);
-			temp[3] /= 1000;
-		} else if (!strncasecmp(data->tmu_name, "CP", THERMAL_NAME_LENGTH)) {
-			exynos_get_temp(data, &temp[4]);
-			temp[4] /= 1000;
-		} else if (!strncasecmp(data->tmu_name, "ISP", THERMAL_NAME_LENGTH)) {
-			exynos_get_temp(data, &temp[5]);
-			temp[5] /= 1000;
-		} else
-			continue;
-	}
-}
-#endif
-
 #ifdef CONFIG_THERMAL_EMULATION
 static u32 get_emul_con_reg(struct exynos_tmu_data *data, unsigned int val,
 			    int temp)
@@ -1114,6 +1073,7 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 		data->sclk = devm_clk_get(&pdev->dev, "tmu_sclk");
 		if (IS_ERR(data->sclk)) {
 			dev_err(&pdev->dev, "Failed to get sclk\n");
+			ret = PTR_ERR(data->sclk);
 			goto err_clk;
 		} else {
 			ret = clk_prepare_enable(data->sclk);
@@ -1135,7 +1095,9 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 						    &exynos_sensor_ops);
 	if (IS_ERR(data->tzd)) {
 		ret = PTR_ERR(data->tzd);
-		dev_err(&pdev->dev, "Failed to register sensor: %d\n", ret);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "Failed to register sensor: %d\n",
+				ret);
 		goto err_sclk;
 	}
 
@@ -1153,10 +1115,6 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 	}
 
 	exynos_tmu_control(pdev, true);
-
-	if (!IS_ERR(data->tzd))
-		data->tzd->ops->set_mode(data->tzd, THERMAL_DEVICE_ENABLED);
-
 	return 0;
 
 err_thermal:
@@ -1231,7 +1189,7 @@ static struct platform_driver exynos_tmu_driver = {
 
 module_platform_driver(exynos_tmu_driver);
 
-MODULE_DESCRIPTION("EXYNOS TMU Driver");
+MODULE_DESCRIPTION("Exynos TMU Driver");
 MODULE_AUTHOR("Donggeun Kim <dg77.kim@samsung.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:exynos-tmu");

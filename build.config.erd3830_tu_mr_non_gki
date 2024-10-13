@@ -1,0 +1,27 @@
+ARCH=arm64
+LLVM_IAS=1
+KERNEL_NON_GKI=true
+CROSS_COMPILE=aarch64-linux-gnu-
+CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+LINUX_GCC_CROSS_COMPILE_PREBUILTS_BIN=prebuilts/gas/linux-x86
+LINUX_GCC_CROSS_COMPILE_COMPAT_PREBUILTS_BIN=prebuilts/gas/linux-x86
+POST_DEFCONFIG_CMDS='check_defconfig'
+
+BRANCH=android13-5.10
+CLANG_VERSION=clang-r450784e
+DEFCONFIG=erd3830_tu_mr_non_gki_defconfig
+FRAGMENT_CONFIG=erd3830_gki_defconfig
+MALI_CONFIG=erd3830_tu_mr_non_gki_mali.cfg
+GKI_DEFCONFIG=gki_defconfig
+TARGET_SOC=s5e3830
+TARGET_DTBO_CFG=board/erd/s5e3830_dtboimg.cfg
+SEPERATE_KERNEL_OBJ=true
+
+FILES="
+ arch/arm64/boot/Image:kernel
+ arch/arm64/boot/dts/exynos/s5e3830.dtb:dtb.img
+ dtbo.img:dtbo.img
+ vmlinux:vmlinux
+ System.map:System.map
+ "
+USE_MERGE_CONFIG=1

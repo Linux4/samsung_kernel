@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_dump.h
- *
- * ALSA SoC Audio Layer - Samsung Abox Internal Buffer Dumping driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox Internal Buffer Dumping driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
  *
@@ -13,6 +13,7 @@
 #define __SND_SOC_ABOX_DUMP_H
 
 #include <linux/device.h>
+#include <linux/proc_fs.h>
 #include <sound/samsung/abox.h>
 
 /**
@@ -38,7 +39,7 @@ extern void abox_dump_transfer(int id, const char *buf, size_t bytes);
  * @return	file entry pointer
  */
 extern struct proc_dir_entry *abox_dump_register_file(const char *name,
-		void *data, const struct file_operations *fops);
+		void *data, const struct proc_ops *fops);
 
 /**
  * Destroy registered dump file
@@ -88,4 +89,5 @@ static inline int abox_dump_register_legacy(struct abox_data *data, int id,
  * @param[in]	dev		pointer to abox device
  */
 extern void abox_dump_init(struct device *dev_abox);
+
 #endif /* __SND_SOC_ABOX_DUMP_H */

@@ -126,7 +126,7 @@ static int __init exynos_acpm_mfd_bus_init(void)
 {
 	return platform_driver_register(&exynos_acpm_mfd_bus_driver);
 }
-subsys_initcall(exynos_acpm_mfd_bus_init);
+fs_initcall(exynos_acpm_mfd_bus_init);
 
 static void __exit exynos_acpm_mfd_bus_exit(void)
 {

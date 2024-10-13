@@ -19,12 +19,14 @@
 #include <linux/sched/clock.h>
 #include <linux/notifier.h>
 #include <linux/kallsyms.h>
-#include <linux/debug-snapshot.h>
 #include <linux/smpboot.h>
-#include <asm/core_regs.h>
+#include <linux/module.h>
+#include <linux/platform_device.h>
 #include <asm/io.h>
 #include <soc/samsung/exynos-pmu.h>
 #include <soc/samsung/exynos-ehld.h>
+#include <soc/samsung/debug-snapshot.h>
+#include "coresight_regs.h"
 
 //#define DEBUG
 #define EHLD_TASK_SUPPORT
@@ -232,7 +234,7 @@ void exynos_ehld_event_raw_dump_allcpu(void)
 			symname[KSYM_NAME_LEN - 1] = '\0';
 			i++;
 
-			if (lookup_symbol_name(data->pmpcsr[count], symname) < 0)
+			if (sprint_symbol(symname, data->pmpcsr[count]) < 0)
 				symname[0] = '\0';
 
 			ehld_printk(1, "      %03d    %03d     %015llu      0x%015llx      0x%016llx(%s)\n",
@@ -397,8 +399,8 @@ void exynos_ehld_shutdown(void)
 }
 #endif
 
-#ifdef CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU
 #define NUM_TRACE_HARDLOCKUP	(NUM_TRACE / 3)
+#ifdef CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU
 extern struct atomic_notifier_head hardlockup_notifier_list;
 
 static int exynos_ehld_hardlockup_handler(struct notifier_block *nb,
@@ -541,29 +543,10 @@ static int exynos_ehld_init_dt_parse(struct device_node *np)
 	return ret;
 }
 
-static const struct of_device_id ehld_of_match[] __initconst = {
-	{ .compatible	= "exynos-ehld",
-	  .data		= exynos_ehld_init_dt_parse},
+static const struct of_device_id ehld_of_match[] = {
+	{ .compatible	= "exynos-ehld" },
 	{},
 };
-
-typedef int (*ehld_initcall_t)(const struct device_node *);
-static int __init exynos_ehld_init_dt(void)
-{
-	struct device_node *np;
-	const struct of_device_id *matched_np;
-	ehld_initcall_t init_fn;
-
-	np = of_find_matching_node_and_match(NULL, ehld_of_match, &matched_np);
-
-	if (!np) {
-		ehld_printk(1, "exynos-ehld: couldn't find device tree file\n");
-		return -ENODEV;
-	}
-
-	init_fn = (ehld_initcall_t)matched_np->data;
-	return init_fn(np);
-}
 
 static int exynos_ehld_setup(void)
 {
@@ -593,11 +576,11 @@ static int exynos_ehld_setup(void)
 #endif
 }
 
-int __init exynos_ehld_init(void)
+static int ehld_probe(struct platform_device *pdev)
 {
 	int err = 0;
 
-	err = exynos_ehld_init_dt();
+	err = exynos_ehld_init_dt_parse(pdev->dev.of_node);
 	if (err) {
 		ehld_printk(1, "exynos-ehld: fail to process device tree for ehld:%d\n", err);
 		return err;
@@ -613,4 +596,23 @@ int __init exynos_ehld_init(void)
 
 	return 0;
 }
-device_initcall_sync(exynos_ehld_init);
+
+static int ehld_remove(struct platform_device *pdev)
+{
+	return 0;
+}
+
+static struct platform_driver exynos_ehld_driver = {
+	.probe = ehld_probe,
+	.remove = ehld_remove,
+	.driver = {
+		.name = "ehld",
+		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(ehld_of_match),
+	},
+};
+module_platform_driver(exynos_ehld_driver);
+
+MODULE_DESCRIPTION("Samsung Exynos EHLD COMMON DRIVER");
+MODULE_LICENSE("GPL v2");
+MODULE_ALIAS("platform:exynos-ehld");

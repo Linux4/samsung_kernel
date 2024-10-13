@@ -17,7 +17,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-#include <linux/mfd/slsi/s2mu106/s2mu106.h>
+#include <linux/mfd/samsung/s2mu106.h>
 #include <linux/power/s2mu106_pmeter.h>
 #include <linux/version.h>
 #include <linux/module.h>
@@ -28,14 +28,14 @@
 #define VOLTAGE_5V	6000
 
 static enum power_supply_property s2mu106_pmeter_props[] = {
+	POWER_SUPPLY_PROP_ONLINE,
 };
 
-static const unsigned char enable_bit_data[PM_TYPE_MAX] =
-{0x80, 0x40, 0x20, 0x01, 0x08, 0x04, 0x02, 0x80,
-0x40, 0x01, 0x10, 0x80};
+static const unsigned char enable_bit_data[PM_TYPE_MAX] = {
+	0x80, 0x40, 0x20, 0x01, 0x08, 0x04, 0x02, 0x80, 0x40, 0x01, 0x10, 0x80
+};
 
-static int s2mu106_pm_enable(struct s2mu106_pmeter_data *pmeter,
-					int mode, enum pm_type type)
+static int s2mu106_pm_enable(struct s2mu106_pmeter_data *pmeter, int mode, enum pm_type type)
 {
 	u8 addr1 = S2MU106_PM_REQ_BOX_CO1;
 	u8 addr2 = S2MU106_PM_REQ_BOX_CO2;
@@ -43,7 +43,7 @@ static int s2mu106_pm_enable(struct s2mu106_pmeter_data *pmeter,
 
 	/* Default PM mode = continuous */
 	if (mode == REQUEST_RESPONSE_MODE) {
-		pr_info ("%s PM mode : Request Response mode (RR)\n", __func__);
+		pr_info("%s PM mode : Request Response mode (RR)\n", __func__);
 		addr1 = S2MU106_PM_REQ_BOX_RR1;
 		addr2 = S2MU106_PM_REQ_BOX_RR2;
 	}
@@ -69,7 +69,7 @@ static int s2mu106_pm_enable(struct s2mu106_pmeter_data *pmeter,
 	s2mu106_write_reg(pmeter->i2c, addr1, data1);
 	s2mu106_write_reg(pmeter->i2c, addr2, data2);
 
-	pr_info ("%s data1 : 0x%2x, data2 0x%2x\n", __func__, data1, data2);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x\n", __func__, data1, data2);
 	return 0;
 }
 
@@ -82,8 +82,7 @@ static int s2mu106_pm_get_vchgin(struct s2mu106_pmeter_data *pmeter)
 	s2mu106_read_reg(pmeter->i2c, S2MU106_PM_VAL2_VCHGIN, &data2);
 
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 5;
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
-			__func__, data1, data2, charge_voltage);
+	//pr_info("%s: data1: 0x%2x, data2: 0x%2x, voltage: %d\n", __func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }
 
@@ -96,8 +95,7 @@ static int s2mu106_pm_get_vwcin(struct s2mu106_pmeter_data *pmeter)
 	s2mu106_read_reg(pmeter->i2c, S2MU106_PM_VAL2_VWCIN, &data2);
 
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 5;
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
-			__func__, data1, data2, charge_voltage);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, voltage: %d\n", __func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }
 
@@ -110,8 +108,7 @@ static int s2mu106_pm_get_vbyp(struct s2mu106_pmeter_data *pmeter)
 	s2mu106_read_reg(pmeter->i2c, S2MU106_PM_VAL2_VBYP, &data2);
 
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 5;
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
-			__func__, data1, data2, charge_voltage);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, voltage: %d\n", __func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }
 
@@ -126,8 +123,7 @@ static int s2mu106_pm_get_vsysa(struct s2mu106_pmeter_data *pmeter)
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 25;
 	charge_voltage = charge_voltage / 10;
 
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
-			__func__, data1, data2, charge_voltage);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, voltage: %d\n", __func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }
 
@@ -142,8 +138,7 @@ static int s2mu106_pm_get_vbata(struct s2mu106_pmeter_data *pmeter)
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 25;
 	charge_voltage = charge_voltage / 10;
 
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
-			__func__, data1, data2, charge_voltage);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, voltage: %d\n", __func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }
 
@@ -158,8 +153,7 @@ static int s2mu106_pm_get_vgpadc(struct s2mu106_pmeter_data *pmeter)
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 25;
 	charge_voltage = charge_voltage / 10;
 
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
-			__func__, data1, data2, charge_voltage);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, voltage: %d\n", __func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }
 
@@ -174,8 +168,7 @@ static int s2mu106_pm_get_vcc1(struct s2mu106_pmeter_data *pmeter)
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 625;
 	charge_voltage = charge_voltage / 1000;
 
-	pr_info ("%s2, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
-			__func__, data1, data2, charge_voltage);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, voltage: %d\n", __func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }
 
@@ -190,8 +183,7 @@ static int s2mu106_pm_get_vcc2(struct s2mu106_pmeter_data *pmeter)
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 625;
 	charge_voltage = charge_voltage / 1000;
 
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
-			__func__, data1, data2, charge_voltage);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, voltage: %d\n", __func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }
 
@@ -205,10 +197,7 @@ static int s2mu106_pm_get_ichgin(struct s2mu106_pmeter_data *pmeter)
 
 	charge_current = (int)((data1 << 4) | (data2 >> 4));
 
-#if 0
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, current = %d\n",
-			__func__, data1, data2, charge_current);
-#endif
+	//pr_info("%s: data1: 0x%2x, data2: 0x%2x, current: %d\n", __func__, data1, data2, charge_current);
 	return charge_current;
 }
 
@@ -222,8 +211,7 @@ static int s2mu106_pm_get_iwcin(struct s2mu106_pmeter_data *pmeter)
 
 	charge_current = (int)((data1 << 4) | (data2 >> 4));
 
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, current = %d\n",
-			__func__, data1, data2, charge_current);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, current: %d\n", __func__, data1, data2, charge_current);
 	return charge_current;
 }
 
@@ -237,8 +225,7 @@ static int s2mu106_pm_get_iotg(struct s2mu106_pmeter_data *pmeter)
 
 	charge_current = (int)((data1 << 4) | (data2 >> 4));
 
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, current = %d\n",
-			__func__, data1, data2, charge_current);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, current: %d\n", __func__, data1, data2, charge_current);
 	return charge_current;
 }
 
@@ -252,54 +239,63 @@ static int s2mu106_pm_get_itx(struct s2mu106_pmeter_data *pmeter)
 
 	charge_current = (int)((data1 << 4) | (data2 >> 4));
 
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, current = %d\n",
-			__func__, data1, data2, charge_current);
+	pr_info("%s: data1: 0x%2x, data2: 0x%2x, current: %d\n", __func__, data1, data2, charge_current);
 	return charge_current;
 }
 
 static int s2mu106_pm_get_property(struct power_supply *psy,
-		enum power_supply_property psp,
-		union power_supply_propval *val)
+				enum power_supply_property psp,
+				union power_supply_propval *val)
 {
 	struct s2mu106_pmeter_data *pmeter = power_supply_get_drvdata(psy);
+	enum s2m_power_supply_property s2m_psp = (enum s2m_power_supply_property) psp;
 
-	switch (psp) {
-	case POWER_SUPPLY_PROP_VCHGIN:
-		val->intval = s2mu106_pm_get_vchgin(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_VWCIN:
-		val->intval = s2mu106_pm_get_vwcin(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_VBYP:
-		val->intval = s2mu106_pm_get_vbyp(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_VSYS:
-		val->intval = s2mu106_pm_get_vsysa(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_VBAT:
-		val->intval = s2mu106_pm_get_vbata(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_VGPADC:
-		val->intval = s2mu106_pm_get_vgpadc(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_VCC1:
-		val->intval = s2mu106_pm_get_vcc1(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_VCC2:
-		val->intval = s2mu106_pm_get_vcc2(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_ICHGIN:
-		val->intval = s2mu106_pm_get_ichgin(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_IWCIN:
-		val->intval = s2mu106_pm_get_iwcin(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_IOTG:
-		val->intval = s2mu106_pm_get_iotg(pmeter);
-		break;
-	case POWER_SUPPLY_PROP_ITX:
-		val->intval = s2mu106_pm_get_itx(pmeter);
-		break;
+	switch ((int)psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		pr_info("[DEBUG]%s: POWER_SUPPLY_PROP_ONLINE\n", __func__);
+		return 1;
+	case POWER_SUPPLY_S2M_PROP_MIN ... POWER_SUPPLY_S2M_PROP_MAX:
+		switch (s2m_psp) {
+		case POWER_SUPPLY_S2M_PROP_VCHGIN:
+			val->intval = s2mu106_pm_get_vchgin(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_VWCIN:
+			val->intval = s2mu106_pm_get_vwcin(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_VBYP:
+			val->intval = s2mu106_pm_get_vbyp(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_VSYS:
+			val->intval = s2mu106_pm_get_vsysa(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_VBAT:
+			val->intval = s2mu106_pm_get_vbata(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_VGPADC:
+			val->intval = s2mu106_pm_get_vgpadc(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_VCC1:
+			val->intval = s2mu106_pm_get_vcc1(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_VCC2:
+			val->intval = s2mu106_pm_get_vcc2(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_ICHGIN:
+			val->intval = s2mu106_pm_get_ichgin(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_IWCIN:
+			val->intval = s2mu106_pm_get_iwcin(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_IOTG:
+			val->intval = s2mu106_pm_get_iotg(pmeter);
+			break;
+		case POWER_SUPPLY_S2M_PROP_ITX:
+			val->intval = s2mu106_pm_get_itx(pmeter);
+			break;
+		default:
+			return -EINVAL;
+		}
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -307,24 +303,34 @@ static int s2mu106_pm_get_property(struct power_supply *psy,
 }
 
 static int s2mu106_pm_set_property(struct power_supply *psy,
-		enum power_supply_property psp,
-		const union power_supply_propval *val)
+				enum power_supply_property psp,
+				const union power_supply_propval *val)
 {
 	struct s2mu106_pmeter_data *pmeter = power_supply_get_drvdata(psy);
+	enum s2m_power_supply_property s2m_psp = (enum s2m_power_supply_property) psp;
 
-	switch (psp) {
-	case POWER_SUPPLY_PROP_CO_ENABLE:
-		s2mu106_pm_enable(pmeter, CONTINUOUS_MODE, val->intval);
-		break;
-	case POWER_SUPPLY_PROP_RR_ENABLE:
-		s2mu106_pm_enable(pmeter, REQUEST_RESPONSE_MODE, val->intval);
-		break;
+	switch ((int)psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		pr_info("[DEBUG]%s: POWER_SUPPLY_PROP_ONLINE\n", __func__);
+		return 1;
+	case POWER_SUPPLY_S2M_PROP_MIN ... POWER_SUPPLY_S2M_PROP_MAX:
+		switch (s2m_psp) {
+		case POWER_SUPPLY_S2M_PROP_CO_ENABLE:
+			s2mu106_pm_enable(pmeter, CONTINUOUS_MODE, val->intval);
+			break;
+		case POWER_SUPPLY_S2M_PROP_RR_ENABLE:
+			s2mu106_pm_enable(pmeter, REQUEST_RESPONSE_MODE, val->intval);
+			break;
+		default:
+			return -EINVAL;
+		}
+		return 0;
 	default:
 		return -EINVAL;
 	}
 	return 0;
 }
-#if EN_IRQ
+#if IS_ENABLED(EN_IRQ)
 static irqreturn_t s2mu106_vchgin_isr(int irq, void *data)
 {
 	struct s2mu106_pmeter_data *pmeter = data;
@@ -365,7 +371,7 @@ static int s2mu106_pmeter_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, pmeter);
 
-	pmeter->psy_pm_desc.name           = "s2mu106_pmeter"; //pmeter->pdata->powermeter_name;
+	pmeter->psy_pm_desc.name           = "s2mu106-pmeter"; //pmeter->pdata->powermeter_name;
 	pmeter->psy_pm_desc.type           = POWER_SUPPLY_TYPE_UNKNOWN;
 	pmeter->psy_pm_desc.get_property   = s2mu106_pm_get_property;
 	pmeter->psy_pm_desc.set_property   = s2mu106_pm_set_property;
@@ -381,14 +387,11 @@ static int s2mu106_pmeter_probe(struct platform_device *pdev)
 		goto err_power_supply_register;
 	}
 
-#if EN_IRQ
+#if IS_ENABLED(EN_IRQ)
 	pmeter->irq_vchgin = s2mu106->pdata->irq_base + S2MU106_PM_IRQ1_VCHGINUP;
-	ret = request_threaded_irq(pmeter->irq_vchgin, NULL,
-			s2mu106_vchgin_isr, 0, "vchgin-irq", pmeter);
-	if (ret < 0) {
-		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n",
-				__func__, pmeter->irq_vchgin, ret);
-	}
+	ret = request_threaded_irq(pmeter->irq_vchgin, NULL, s2mu106_vchgin_isr, 0, "vchgin-irq", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_vchgin, ret);
 #endif
 	s2mu106_powermeter_initial(pmeter);
 
@@ -412,7 +415,7 @@ static int s2mu106_pmeter_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#if defined CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 static int s2mu106_pmeter_suspend(struct device *dev)
 {
 	return 0;
@@ -444,12 +447,13 @@ static struct platform_driver s2mu106_pmeter_driver = {
 		.shutdown   =   s2mu106_pmeter_shutdown,
 	},
 	.probe          = s2mu106_pmeter_probe,
-	.remove     = s2mu106_pmeter_remove,
+	.remove		= s2mu106_pmeter_remove,
 };
 
 static int __init s2mu106_pmeter_init(void)
 {
 	int ret = 0;
+
 	pr_info("%s\n", __func__);
 	ret = platform_driver_register(&s2mu106_pmeter_driver);
 
@@ -466,3 +470,4 @@ module_exit(s2mu106_pmeter_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_DESCRIPTION("PowerMeter driver for S2MU106");
+MODULE_SOFTDEP("post: s2m_muic_module");

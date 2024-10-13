@@ -131,7 +131,7 @@ struct is_device_csi {
 	struct v4l2_subdev		**subdev;
 	struct phy			*phy;
 
-	u32 error_id[CSI_VIRTUAL_CH_MAX];
+	ulong error_id[CSI_VIRTUAL_CH_MAX];
 	u32 error_id_last[CSI_VIRTUAL_CH_MAX];
 	u32 error_count;
 
@@ -148,7 +148,7 @@ struct is_device_csi {
 	spinlock_t			dma_seq_slock;
 
 	wait_queue_head_t		dma_flush_wait_q;
-	bool                            crc_flag;
+	bool				crc_flag;
 };
 
 struct is_device_csi_dma {

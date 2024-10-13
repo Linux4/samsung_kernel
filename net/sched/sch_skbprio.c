@@ -1,10 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * net/sched/sch_skbprio.c  SKB Priority Queue.
- *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
  *
  * Authors:	Nishanth Devarajan, <ndev2021@gmail.com>
  *		Cody Doucette, <doucette@bu.edu>
@@ -173,6 +169,9 @@ static int skbprio_change(struct Qdisc *sch, struct nlattr *opt,
 {
 	struct tc_skbprio_qopt *ctl = nla_data(opt);
 
+	if (opt->nla_len != nla_attr_size(sizeof(*ctl)))
+		return -EINVAL;
+
 	sch->limit = ctl->limit;
 	return 0;
 }
@@ -213,9 +212,6 @@ static void skbprio_reset(struct Qdisc *sch)
 {
 	struct skbprio_sched_data *q = qdisc_priv(sch);
 	int prio;
-
-	sch->qstats.backlog = 0;
-	sch->q.qlen = 0;
 
 	for (prio = 0; prio < SKBPRIO_MAX_PRIORITY; prio++)
 		__skb_queue_purge(&q->qdiscs[prio]);

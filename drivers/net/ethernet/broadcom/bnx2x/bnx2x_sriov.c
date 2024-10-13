@@ -100,13 +100,11 @@ static void bnx2x_vf_igu_ack_sb(struct bnx2x *bp, struct bnx2x_virtf *vf,
 	DP(NETIF_MSG_HW, "write 0x%08x to IGU(via GRC) addr 0x%x\n",
 	   cmd_data.sb_id_and_flags, igu_addr_data);
 	REG_WR(bp, igu_addr_data, cmd_data.sb_id_and_flags);
-	mmiowb();
 	barrier();
 
 	DP(NETIF_MSG_HW, "write 0x%08x to IGU(via GRC) addr 0x%x\n",
 	   ctl, igu_addr_ctl);
 	REG_WR(bp, igu_addr_ctl, ctl);
-	mmiowb();
 	barrier();
 }
 
@@ -209,7 +207,10 @@ void bnx2x_vfop_qctor_prep(struct bnx2x *bp,
 	 */
 	__set_bit(BNX2X_Q_FLG_TX_SWITCH, &setup_p->flags);
 	__set_bit(BNX2X_Q_FLG_TX_SEC, &setup_p->flags);
-	__set_bit(BNX2X_Q_FLG_ANTI_SPOOF, &setup_p->flags);
+	if (vf->spoofchk)
+		__set_bit(BNX2X_Q_FLG_ANTI_SPOOF, &setup_p->flags);
+	else
+		__clear_bit(BNX2X_Q_FLG_ANTI_SPOOF, &setup_p->flags);
 
 	/* Setup-op rx parameters */
 	if (test_bit(BNX2X_Q_TYPE_HAS_RX, &q_type)) {
@@ -328,27 +329,6 @@ bnx2x_vf_set_igu_info(struct bnx2x *bp, u8 igu_sb_id, u8 abs_vfid)
 		++vf->sb_count;
 	}
 	BP_VFDB(bp)->vf_sbs_pool++;
-}
-
-static inline void bnx2x_vf_vlan_credit(struct bnx2x *bp,
-					struct bnx2x_vlan_mac_obj *obj,
-					atomic_t *counter)
-{
-	struct list_head *pos;
-	int read_lock;
-	int cnt = 0;
-
-	read_lock = bnx2x_vlan_mac_h_read_lock(bp, obj);
-	if (read_lock)
-		DP(BNX2X_MSG_SP, "Failed to take vlan mac read head; continuing anyway\n");
-
-	list_for_each(pos, &obj->head)
-		cnt++;
-
-	if (!read_lock)
-		bnx2x_vlan_mac_h_read_unlock(bp, obj);
-
-	atomic_set(counter, cnt);
 }
 
 static int bnx2x_vf_vlan_mac_clear(struct bnx2x *bp, struct bnx2x_virtf *vf,
@@ -778,9 +758,18 @@ static void bnx2x_vf_igu_reset(struct bnx2x *bp, struct bnx2x_virtf *vf)
 
 void bnx2x_vf_enable_access(struct bnx2x *bp, u8 abs_vfid)
 {
+	u16 abs_fid;
+
+	abs_fid = FW_VF_HANDLE(abs_vfid);
+
 	/* set the VF-PF association in the FW */
-	storm_memset_vf_to_pf(bp, FW_VF_HANDLE(abs_vfid), BP_FUNC(bp));
-	storm_memset_func_en(bp, FW_VF_HANDLE(abs_vfid), 1);
+	storm_memset_vf_to_pf(bp, abs_fid, BP_FUNC(bp));
+	storm_memset_func_en(bp, abs_fid, 1);
+
+	/* Invalidate fp_hsi version for vfs */
+	if (bp->fw_cap & FW_CAP_INVALIDATE_VF_FP_HSI)
+		REG_WR8(bp, BAR_XSTRORM_INTMEM +
+			    XSTORM_ETH_FUNCTION_INFO_FP_HSI_VALID_E2_OFFSET(abs_fid), 0);
 
 	/* clear vf errors*/
 	bnx2x_vf_semi_clear_err(bp, abs_vfid);
@@ -806,16 +795,20 @@ static void bnx2x_vf_enable_traffic(struct bnx2x *bp, struct bnx2x_virtf *vf)
 
 static u8 bnx2x_vf_is_pcie_pending(struct bnx2x *bp, u8 abs_vfid)
 {
-	struct pci_dev *dev;
 	struct bnx2x_virtf *vf = bnx2x_vf_by_abs_fid(bp, abs_vfid);
+	struct pci_dev *dev;
+	bool pending;
 
 	if (!vf)
 		return false;
 
 	dev = pci_get_domain_bus_and_slot(vf->domain, vf->bus, vf->devfn);
-	if (dev)
-		return bnx2x_is_pcie_pending(dev);
-	return false;
+	if (!dev)
+		return false;
+	pending = bnx2x_is_pcie_pending(dev);
+	pci_dev_put(dev);
+
+	return pending;
 }
 
 int bnx2x_vf_flr_clnup_epilog(struct bnx2x *bp, u8 abs_vfid)
@@ -1244,8 +1237,10 @@ int bnx2x_iov_init_one(struct bnx2x *bp, int int_mode_param,
 		goto failed;
 
 	/* SR-IOV capability was enabled but there are no VFs*/
-	if (iov->total == 0)
+	if (iov->total == 0) {
+		err = 0;
 		goto failed;
+	}
 
 	iov->nr_virtfn = min_t(u16, iov->total, num_vfs_param);
 
@@ -1269,6 +1264,8 @@ int bnx2x_iov_init_one(struct bnx2x *bp, int int_mode_param,
 		bnx2x_vf(bp, i, state) = VF_FREE;
 		mutex_init(&bnx2x_vf(bp, i, op_mutex));
 		bnx2x_vf(bp, i, op_current) = CHANNEL_TLV_NONE;
+		/* enable spoofchk by default */
+		bnx2x_vf(bp, i, spoofchk) = 1;
 	}
 
 	/* re-read the IGU CAM for VFs - index and abs_vfid must be set */
@@ -1827,7 +1824,7 @@ get_vf:
 		DP(BNX2X_MSG_IOV, "got VF [%d:%d] RSS update ramrod\n",
 		   vf->abs_vfid, qidx);
 		bnx2x_vf_handle_rss_update_eqe(bp, vf);
-		/* fall through */
+		fallthrough;
 	case EVENT_RING_OPCODE_VF_FLR:
 		/* Do nothing for now */
 		return 0;
@@ -2225,7 +2222,7 @@ int bnx2x_vf_free(struct bnx2x *bp, struct bnx2x_virtf *vf)
 		rc = bnx2x_vf_close(bp, vf);
 		if (rc)
 			goto op_err;
-		/* Fallthrough to release resources */
+		fallthrough;	/* to release resources */
 	case VF_ACQUIRED:
 		DP(BNX2X_MSG_IOV, "about to free resources\n");
 		bnx2x_vf_free_resc(bp, vf);
@@ -2638,7 +2635,8 @@ int bnx2x_get_vf_config(struct net_device *dev, int vfidx,
 	ivi->qos = 0;
 	ivi->max_tx_rate = 10000; /* always 10G. TBA take from link struct */
 	ivi->min_tx_rate = 0;
-	ivi->spoofchk = 1; /*always enabled */
+	ivi->spoofchk = vf->spoofchk ? 1 : 0;
+	ivi->linkstate = vf->link_cfg;
 	if (vf->state == VF_ENABLED) {
 		/* mac and vlan are in vlan_mac objects */
 		if (bnx2x_validate_vf_sp_objs(bp, vf, false)) {
@@ -2952,6 +2950,77 @@ out:
 		DP(BNX2X_MSG_IOV,
 		   "updated VF[%d] vlan configuration (vlan = %d)\n",
 		   vfidx, vlan);
+
+	return rc;
+}
+
+int bnx2x_set_vf_spoofchk(struct net_device *dev, int idx, bool val)
+{
+	struct bnx2x *bp = netdev_priv(dev);
+	struct bnx2x_virtf *vf;
+	int i, rc = 0;
+
+	vf = BP_VF(bp, idx);
+	if (!vf)
+		return -EINVAL;
+
+	/* nothing to do */
+	if (vf->spoofchk == val)
+		return 0;
+
+	vf->spoofchk = val ? 1 : 0;
+
+	DP(BNX2X_MSG_IOV, "%s spoofchk for VF %d\n",
+	   val ? "enabling" : "disabling", idx);
+
+	/* is vf initialized and queue set up? */
+	if (vf->state != VF_ENABLED ||
+	    bnx2x_get_q_logical_state(bp, &bnx2x_leading_vfq(vf, sp_obj)) !=
+	    BNX2X_Q_LOGICAL_STATE_ACTIVE)
+		return rc;
+
+	/* User should be able to see error in system logs */
+	if (!bnx2x_validate_vf_sp_objs(bp, vf, true))
+		return -EINVAL;
+
+	/* send queue update ramrods to configure spoofchk */
+	for_each_vfq(vf, i) {
+		struct bnx2x_queue_state_params q_params = {NULL};
+		struct bnx2x_queue_update_params *update_params;
+
+		q_params.q_obj = &bnx2x_vfq(vf, i, sp_obj);
+
+		/* validate the Q is UP */
+		if (bnx2x_get_q_logical_state(bp, q_params.q_obj) !=
+		    BNX2X_Q_LOGICAL_STATE_ACTIVE)
+			continue;
+
+		__set_bit(RAMROD_COMP_WAIT, &q_params.ramrod_flags);
+		q_params.cmd = BNX2X_Q_CMD_UPDATE;
+		update_params = &q_params.params.update;
+		__set_bit(BNX2X_Q_UPDATE_ANTI_SPOOF_CHNG,
+			  &update_params->update_flags);
+		if (val) {
+			__set_bit(BNX2X_Q_UPDATE_ANTI_SPOOF,
+				  &update_params->update_flags);
+		} else {
+			__clear_bit(BNX2X_Q_UPDATE_ANTI_SPOOF,
+				    &update_params->update_flags);
+		}
+
+		/* Update the Queue state */
+		rc = bnx2x_queue_state_change(bp, &q_params);
+		if (rc) {
+			BNX2X_ERR("Failed to %s spoofchk on VF %d - vfq %d\n",
+				  val ? "enable" : "disable", idx, i);
+			goto out;
+		}
+	}
+out:
+	if (!rc)
+		DP(BNX2X_MSG_IOV,
+		   "%s spoofchk for VF[%d]\n", val ? "Enabled" : "Disabled",
+		   idx);
 
 	return rc;
 }

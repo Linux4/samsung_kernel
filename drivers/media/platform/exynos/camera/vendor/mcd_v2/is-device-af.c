@@ -35,32 +35,49 @@
 #include "is-dt.h"
 #include "is-device-af.h"
 #include "is-vender-specific.h"
+#include "is-i2c-config.h"
+#include "is-device-sensor-peri.h"
 
 #define IS_AF_DEV_NAME "exynos-is-af"
+#define AK737X_MAX_PRODUCT_LIST		10
 
-static void is_af_i2c_config(struct i2c_client *client, bool onoff)
+bool check_af_init_rear = false;
+int is_af_i2c_read_8(struct i2c_client *client,
+	u8 addr, u8 *val)
 {
-	struct device *i2c_dev = client->dev.parent->parent;
-	struct pinctrl *pinctrl_i2c = NULL;
+	int ret = 0;
+	struct i2c_msg msg[2];
+	u8 wbuf[1];
 
-	info("(%s):onoff(%d)\n", __func__, onoff);
-	if (onoff) {
-		/* ON */
-		pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "on_i2c");
-		if (IS_ERR_OR_NULL(pinctrl_i2c)) {
-			printk(KERN_ERR "%s: Failed to configure i2c pin\n", __func__);
-		} else {
-			devm_pinctrl_put(pinctrl_i2c);
-		}
-	} else {
-		/* OFF */
-		pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "off_i2c");
-		if (IS_ERR_OR_NULL(pinctrl_i2c)) {
-			printk(KERN_ERR "%s: Failed to configure i2c pin\n", __func__);
-		} else {
-			devm_pinctrl_put(pinctrl_i2c);
-		}
+	if (!client->adapter) {
+		pr_err("Could not find adapter!\n");
+		ret = -ENODEV;
+		goto p_err;
 	}
+
+	/* 1. I2C operation for writing. */
+	msg[0].addr = client->addr;
+	msg[0].flags = 0; /* write : 0, read : 1 */
+	msg[0].len = 1;
+	msg[0].buf = wbuf;
+	wbuf[0] = addr;
+
+	/* 2. I2C operation for reading data. */
+	msg[1].addr = client->addr;
+	msg[1].flags = I2C_M_RD;
+	msg[1].len = 1;
+	msg[1].buf = val;
+
+	ret = is_i2c_transfer(client->adapter, msg, 2);
+	if (ret < 0) {
+		pr_err("i2c transfer fail(%d)", ret);
+		goto p_err;
+	}
+
+	i2c_info("I2CR08(%d) [0x%04X] : 0x%04X\n", client->addr, addr, *val);
+	return 0;
+p_err:
+	return ret;
 }
 
 int is_af_i2c_read(struct i2c_client *client, u16 addr, u16 *data)
@@ -134,245 +151,230 @@ int is_af_i2c_write(struct i2c_client *client ,u8 addr, u8 data)
         return 0;
 }
 
-int is_af_ldo_enable(char *name, bool on)
-{
-	struct is_core *core = (struct is_core *)dev_get_drvdata(is_dev);
-	struct regulator *regulator = NULL;
-	struct platform_device *pdev = NULL;
-	int ret = 0;
-
-	BUG_ON(!core);
-	BUG_ON(!core->pdev);
-
-	pdev = core->pdev;
-
-	regulator = regulator_get_optional(&pdev->dev, name);
-	if (IS_ERR_OR_NULL(regulator)) {
-		err("%s : regulator_get(%s) fail\n", __func__, name);
-		regulator_put(regulator);
-		return -EINVAL;
-	}
-
-	if (on) {
-		if (regulator_is_enabled(regulator)) {
-			pr_info("%s: regulator is already enabled\n", name);
-			goto exit;
-		}
-
-		ret = regulator_enable(regulator);
-		if (ret) {
-			err("%s : regulator_enable(%s) fail\n", __func__, name);
-			goto exit;
-		}
-	} else {
-		if (!regulator_is_enabled(regulator)) {
-			pr_info("%s: regulator is already disabled\n", name);
-			goto exit;
-		}
-
-		ret = regulator_disable(regulator);
-		if (ret) {
-			err("%s : regulator_disable(%s) fail\n", __func__, name);
-			goto exit;
-		}
-	}
-exit:
-	regulator_put(regulator);
-
-	return ret;
-}
-
-int is_af_power(struct is_device_af *af_device, bool onoff)
+int is_af_init(struct is_actuator *actuator, struct i2c_client *client, int val)
 {
 	int ret = 0;
+	int i = 0;
+	u32 product_id_list[AK737X_MAX_PRODUCT_LIST] = {0, };
+	u32 product_id_len = 0;
+	u8 product_id = 0;
+	const u32 *product_id_spec;
 
-	/*VDDAF_2.8V_CAM*/
-	ret = is_af_ldo_enable("VDDAF_2.8V_CAM", onoff);
-	if (ret) {
-		err("failed to power control VDDAF_2.8V_CAM, onoff = %d", onoff);
-		return -EINVAL;
+	struct device *dev;
+	struct device_node *dnode;
+
+	WARN_ON(!actuator);
+
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
 	}
 
-#ifdef CONFIG_OIS_USE
-	/* OIS_VDD_2.8V */
-	ret = is_af_ldo_enable("OIS_VDD_2.8V", onoff);
-	if (ret) {
-		err("failed to power control OIS_VDD_2.8V, onoff = %d", onoff);
-		return -EINVAL;
+	dev = &client->dev;
+	dnode = dev->of_node;
+
+	product_id_spec = of_get_property(dnode, "vendor_product_id", &product_id_len);
+	if (!product_id_spec)
+		err("vendor_product_id num read is fail(%d)", ret);
+
+	product_id_len /= (unsigned int)sizeof(*product_id_spec);
+
+	ret = of_property_read_u32_array(dnode, "vendor_product_id", product_id_list, product_id_len);
+	if (ret)
+		err("vendor_product_id read is fail(%d)", ret);
+
+	if (product_id_len < 2 || (product_id_len % 2) != 0
+		|| product_id_len > AK737X_MAX_PRODUCT_LIST) {
+		err("[%s] Invalid product_id in dts\n", __func__);
+		ret = -EINVAL;
+		goto p_err;
 	}
 
-	/* OIS_VM_2.8V */
-	ret = is_af_ldo_enable("OIS_VM_2.8V", onoff);
-	if (ret) {
-		err("failed to power control OIS_VM_2.8V, onoff = %d", onoff);
-		return -EINVAL;
-	}
-#ifdef CAMERA_USE_OIS_VDD_1_8V
-	/* OIS_VDD_1.8V */
-	ret = is_af_ldo_enable("OIS_VDD_1.8V", onoff);
-	if (ret) {
-		err("failed to power control OIS_VDD_1.8V, onoff = %d", onoff);
-		return -EINVAL;
-	}
-#endif /* CAMERA_USE_OIS_VDD_1_8V */
-#endif
-
-	/*VDDIO_1.8V_CAM*/
-	ret = is_af_ldo_enable("VDDIO_1.8V_CAM", onoff);
-	if (ret) {
-		err("failed to power control VDDIO_1.8V_CAM, onoff = %d", onoff);
-		return -EINVAL;
-	}
-
-	usleep_range(5000,5000);
-	return ret;
-}
-
-bool is_check_regulator_status(char *name)
-{
-	struct is_core *core = (struct is_core *)dev_get_drvdata(is_dev);
-	struct regulator *regulator = NULL;
-	struct platform_device *pdev = NULL;
-	int ret = 0;
-
-	BUG_ON(!core);
-	BUG_ON(!core->pdev);
-
-	pdev = core->pdev;
-
-	regulator = regulator_get_optional(&pdev->dev, name);
-	if (IS_ERR_OR_NULL(regulator)) {
-		err("%s : regulator_get(%s) fail\n", __func__, name);
-		regulator_put(regulator);
-		return false;
-	}
-	if (regulator_is_enabled(regulator)) {
-		ret = true;
-	} else {
-		ret = false;
-	}
-
-	regulator_put(regulator);
-	return ret;
-}
-
-int16_t is_af_enable(void *device, bool onoff)
-{
-	int ret = 0;
-	struct is_device_af *af_device = (struct is_device_af *)device;
-	struct is_core *core;
-	bool af_regulator = false, io_regulator = false;
-	struct is_vender_specific *specific;
-
-	core = (struct is_core *)dev_get_drvdata(is_dev);
-	if (!core) {
-		err("core is NULL");
-		return -ENODEV;
-	}
-
-	specific = core->vender.private_data;
-
-	pr_info("af_noise : running_rear_camera = %d, onoff = %d\n", specific->running_rear_camera, onoff);
-	if (!specific->running_rear_camera) {
-		if (specific->use_ois_hsi2c) {
-			is_af_i2c_config(af_device->client, true);
-		}
-
-		if (onoff) {
-			is_af_power(af_device, true);
-			ret = is_af_i2c_write(af_device->client, 0x02, 0x00);
-			if (ret) {
-				err("i2c write fail\n");
-				goto power_off;
-			}
-
-			ret = is_af_i2c_write(af_device->client, 0x00, 0x00);
-			if (ret) {
-				err("i2c write fail\n");
-				goto power_off;
-			}
-
-			ret = is_af_i2c_write(af_device->client, 0x01, 0x00);
-			if (ret) {
-				err("i2c write fail\n");
-				goto power_off;
-			}
-			af_device->af_noise_count++;
-			pr_info("af_noise : count = %d\n", af_device->af_noise_count);
+	if (actuator->vendor_use_standby_mode) {
+		/* Go standby mode */
+		ret = is_af_i2c_write(client, 0x02, 0x40);
+		if (ret < 0)
+			goto p_err;
+		if (actuator->vendor_sleep_to_standby_delay) {
+			usleep_range(actuator->vendor_sleep_to_standby_delay, actuator->vendor_sleep_to_standby_delay + 10);
 		} else {
-			/* Check the Power Pins */
-			af_regulator = is_check_regulator_status("VDDAF_2.8V_CAM");
-			io_regulator = is_check_regulator_status("VDDIO_1.8V_CAM");
-
-			if (af_regulator && io_regulator) {
-				ret = is_af_i2c_write(af_device->client, 0x02, 0x40);
-				if (ret) {
-					err("i2c write fail\n");
-				}
-				is_af_power(af_device, false);
-			} else {
-				pr_info("already power off.(%d)\n", __LINE__);
-			}
-		}
-
-		if (specific->use_ois_hsi2c) {
-			is_af_i2c_config(af_device->client, false);
+			usleep_range(2200, 2210);
 		}
 	}
 
-	return ret;
-
-power_off:
-	if (!specific->running_rear_camera) {
-		if (specific->use_ois_hsi2c) {
-			is_af_i2c_config(af_device->client, false);
+	for (i = 0; i < product_id_len; i += 2) {
+		ret = is_af_i2c_read_8(client, product_id_list[i], &product_id);
+		if (ret < 0) {
+			goto p_err;
 		}
 
-		af_regulator = is_check_regulator_status("VDDAF_2.8V_CAM");
-		io_regulator = is_check_regulator_status("VDDIO_1.8V_CAM");
-		if (af_regulator && io_regulator) {
-			is_af_power(af_device, false);
-		} else {
-			pr_info("already power off.(%d)\n", __LINE__);
+		info("[%s][%d] dt[addr=0x%X,id=0x%X], product_id=0x%X\n",
+				__func__, actuator->device, product_id_list[i], product_id_list[i+1], product_id);
+
+		if (product_id_list[i+1] == product_id) {
+			actuator->vendor_product_id = product_id_list[i+1];
+			break;
 		}
 	}
+
+	if (i == product_id_len) {
+		err("[%s] Invalid product_id in module\n", __func__);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	/* Go sleep mode */
+	ret = is_af_i2c_write(client, 0x02, 0x20);
+	if (ret < 0)
+		goto p_err;
+
+p_err:
 	return ret;
 }
 
-int16_t is_af_move_lens(struct is_core *core)
+int is_af_check_init_state(struct is_actuator *actuator, struct i2c_client *client,  int position)
 {
 	int ret = 0;
-	struct i2c_client *client = core->client2;
-	struct is_vender_specific *specific = core->vender.private_data;
 
-	pr_info("is_af_move_lens : running_rear_camera = %d\n", specific->running_rear_camera);
-	if (!specific->running_rear_camera) {
-		if (specific->use_ois_hsi2c) {
-			is_af_i2c_config(client, true);
+	if (position == SENSOR_POSITION_REAR) {
+		if (!check_af_init_rear) {
+			ret = is_af_init(actuator, client, 0);
+			if (ret) {
+				err("v4l2_actuator_call(init) is fail(%d)", ret);
+				return ret;
+			}
+			check_af_init_rear = true;
 		}
+	}
+	return ret;
+}
 
-		ret = is_af_i2c_write(client, 0x00, 0x80);
+int16_t is_af_move_lens(struct is_core *core, int position)
+{
+	int ret = 0;
+	struct is_actuator *actuator = NULL;
+	struct i2c_client *client = NULL;
+	struct is_device_sensor *device;
+	struct is_module_enum *module;
+	int sensor_id = 0;
+
+	is_vendor_get_module_from_position(position, &module);
+	if (!module) {
+		err("%s, module is NULL", __func__);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	sensor_id = module->pdata->id;
+
+	info("[%s] is_af_move_lens : sensor_id = %d\n", __func__, sensor_id);
+
+	device = &core->sensor[sensor_id];
+	actuator = device->actuator[sensor_id];
+	client = actuator->client;
+
+	if (actuator->vendor_use_standby_mode) {
+		is_af_check_init_state(actuator, client, position);
+
+		/* Go standby mode */
+		ret = is_af_i2c_write(client, 0x02, 0x40);
 		if (ret) {
 			err("i2c write fail\n");
 		}
 
-		ret = is_af_i2c_write(client, 0x01, 0x00);
-		if (ret) {
-			err("i2c write fail\n");
+		if (actuator->vendor_sleep_to_standby_delay) {
+			usleep_range(actuator->vendor_sleep_to_standby_delay, actuator->vendor_sleep_to_standby_delay + 10);
+		} else {
+			usleep_range(2200, 2210);
 		}
 
-		ret = is_af_i2c_write(client, 0x02, 0x00);
-		if (ret) {
-			err("i2c write fail\n");
-		}
+		info("[%s] Set standy mode\n", __func__);
+	}
 
-		if (specific->use_ois_hsi2c) {
-			is_af_i2c_config(client, false);
-		}
+	ret = is_af_i2c_write(client, 0x00, 0x80);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = is_af_i2c_write(client, 0x01, 0x00);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = is_af_i2c_write(client, 0x02, 0x00);
+	if (ret) {
+		err("i2c write fail\n");
 	}
 
 	return ret;
 }
+int16_t is_af_move_lens_pos(struct is_core *core, int position, u32 val)
+{
+	int ret = 0;
+	struct is_actuator *actuator = NULL;
+	struct i2c_client *client = NULL;
+	struct is_device_sensor *device;
+	struct is_module_enum *module;
+	int sensor_id = 0;
+	u8 val_high = 0, val_low = 0;
+
+	is_vendor_get_module_from_position(position, &module);
+	if (!module) {
+		err("%s, module is NULL", __func__);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	sensor_id = module->pdata->id;
+
+	info("[%s] is_af_move_lens : sensor_id = %d\n", __func__, sensor_id);
+
+	device = &core->sensor[sensor_id];
+	actuator = device->actuator[sensor_id];
+	client = actuator->client;
+
+	if (actuator->vendor_use_standby_mode) {
+		is_af_check_init_state(actuator, client, position);
+
+		/* Go standby mode */
+		ret = is_af_i2c_write(client, 0x02, 0x40);
+		if (ret) {
+			err("i2c write fail\n");
+		}
+
+		if (actuator->vendor_sleep_to_standby_delay) {
+			usleep_range(actuator->vendor_sleep_to_standby_delay, actuator->vendor_sleep_to_standby_delay + 10);
+		} else {
+			usleep_range(2200, 2210);
+		}
+
+		info("[%s] Set standy mode\n", __func__);
+	}
+
+	val_high = (val & 0x0FFF) >> 4;
+	val_low = (val & 0x000F) << 4;
+
+	ret = is_af_i2c_write(client, 0x00, val_high);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = is_af_i2c_write(client, 0x01, val_low);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	/* Go active mode */
+	ret = is_af_i2c_write(client, 0x02, 0x00);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	return ret;
+}
+
+EXPORT_SYMBOL_GPL(is_af_move_lens);
 
 MODULE_DESCRIPTION("AF driver for remove noise");
 MODULE_AUTHOR("kyoungho yun <kyoungho.yun@samsung.com>");

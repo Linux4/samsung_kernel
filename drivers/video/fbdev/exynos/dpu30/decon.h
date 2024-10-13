@@ -14,31 +14,36 @@
 
 #include <linux/fb.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/clk.h>
 #include <linux/spinlock.h>
 #include <linux/interrupt.h>
 #include <linux/wait.h>
 #include <linux/kthread.h>
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#include <soc/samsung/exynos_pm_qos.h>
+#else
 #include <linux/pm_qos.h>
+#endif
 #include <linux/delay.h>
 #include <linux/seq_file.h>
 #include <linux/platform_device.h>
 #include <media/v4l2-device.h>
 #include <media/videobuf2-core.h>
-#if defined(CONFIG_EXYNOS_BTS)
+#if IS_ENABLED(CONFIG_EXYNOS_BTS) || IS_ENABLED(CONFIG_EXYNOS_BTS_MODULE)
 #include <soc/samsung/bts.h>
 #endif
-#if defined(CONFIG_EXYNOS_ITMON)
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 #include <soc/samsung/exynos-itmon.h>
 #endif
-#if defined(CONFIG_EXYNOS_PD)
+#if IS_ENABLED(CONFIG_EXYNOS_PD)
 #include <soc/samsung/exynos-pd.h>
 #endif
-#include <linux/exynos_iovmm.h>
+#include <linux/iommu.h>
 #include <linux/sync_file.h>
 
 /* TODO: SoC dependency will be removed */
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_S5E3830)
 #include "./cal_3830/regs-decon.h"
 #include "./cal_3830/decon_cal.h"
 #endif
@@ -56,7 +61,7 @@
 
 #define MAX_DECON_CNT		3
 
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_S5E3830)
 #define MAX_DECON_WIN		4
 #define MAX_DPP_SUBDEV		5
 #endif
@@ -836,6 +841,7 @@ struct decon_dt_info {
 	int dsim_cnt;
 	int decon_cnt;
 	int chip_ver;
+	u32 mif_freq;
 };
 
 struct decon_win {
@@ -1043,10 +1049,11 @@ struct decon_bts {
 	u32 prev_total_bw;
 	u32 max_disp_freq;
 	u32 prev_max_disp_freq;
+	u32 prev_minlock_stage;
 	u64 ppc;
 	u32 line_mem_cnt;
 	u32 cycle_per_line;
-#if defined(CONFIG_EXYNOS_BTS)
+#if IS_ENABLED(CONFIG_EXYNOS_BTS) || IS_ENABLED(CONFIG_EXYNOS_BTS_MODULE)
 	struct decon_bts_bw bw[BTS_DPP_MAX];
 
 	/* each decon must know other decon's BW to get overall BW */
@@ -1056,9 +1063,15 @@ struct decon_bts {
 	struct bts_decon_info bts_info;
 #endif
 	struct decon_bts_ops *ops;
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+	struct exynos_pm_qos_request mif_qos;
+	struct exynos_pm_qos_request int_qos;
+	struct exynos_pm_qos_request disp_qos;
+#else
 	struct pm_qos_request mif_qos;
 	struct pm_qos_request int_qos;
 	struct pm_qos_request disp_qos;
+#endif
 	u32 scen_updated;
 };
 
@@ -1163,11 +1176,11 @@ struct decon_device {
 	atomic_t is_shutdown;
 	bool up_list_saved;
 
-#if defined(CONFIG_EXYNOS_ITMON)
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 	struct notifier_block itmon_nb;
 	bool notified;
 #endif
-#if defined(CONFIG_EXYNOS_PD)
+#if IS_ENABLED(CONFIG_EXYNOS_PD)
 	struct exynos_pm_domain *pm_domain;
 #endif
 	unsigned long prev_hdr_bits;
@@ -1596,7 +1609,9 @@ static inline bool IS_DECON_HIBER_STATE(struct decon_device *decon)
 int decon_tui_protection(bool tui_en);
 
 /* helper functions */
-int dpu_get_sd_by_drvname(struct decon_device *decon, char *drvname);
+void* request_dpp_subdev(int id);
+void* request_dsim_subdev(int id);
+void* request_displayport_subdev(void);
 void dpu_unify_rect(struct decon_rect *r1, struct decon_rect *r2,
 		struct decon_rect *dst);
 void dpu_save_fence_info(int fd, struct dma_fence *fence,
@@ -1622,7 +1637,7 @@ bool is_scaling(struct decon_win_config *config);
 bool is_full(struct decon_rect *r, struct exynos_panel_info *lcd);
 void __iomem *dpu_get_sysreg_addr(void);
 void dpu_dump_afbc_info(void);
-#if defined(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
+#if IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
 void decon_set_protected_content(struct decon_device *decon,
 		struct decon_reg_data *regs);
 #endif
@@ -1639,12 +1654,15 @@ void dpu_cursor_win_update_config(struct decon_device *decon,
 		struct decon_reg_data *regs);
 int decon_set_cursor_win_config(struct decon_device *decon, int x, int y);
 void dpu_init_cursor_mode(struct decon_device *decon);
+int dpu_sysmmu_fault_handler_dsim(struct iommu_fault *fault, void *data);
 
-int dpu_sysmmu_fault_handler(struct iommu_domain *domain,
-	struct device *dev, unsigned long iova, int flags, void *token);
-#if defined(CONFIG_EXYNOS_PD)
+#if IS_ENABLED(CONFIG_EXYNOS_PD)
 int dpu_pm_domain_check_status(struct exynos_pm_domain *pm_domain);
+extern int exynos_pd_booton_rel(const char *pd_name);
+#else
+static int exynos_pd_booton_rel(const char *pd_name) { return 0; }
 #endif
+
 int decon_set_out_sd_state(struct decon_device *decon, enum decon_state state);
 int decon_update_last_regs(struct decon_device *decon,
 		struct decon_reg_data *regs);

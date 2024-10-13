@@ -92,8 +92,4 @@ int is_devicemgr_shot_callback(struct is_group *group,
 int is_devicemgr_shot_done(struct is_group *group,
 		struct is_frame *ldr_frame,
 		u32 status);
-#ifdef SUPPORT_REMOSAIC_CROP_ZOOM
-void is_devicemgr_sensor_mode_change(struct is_group *group,
-		struct is_frame *frame);
-#endif
 #endif

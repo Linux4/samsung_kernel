@@ -26,6 +26,7 @@ static char *s2mu106_supplied_to[] = {
 };
 
 static enum power_supply_property s2mu106_charger_props[] = {
+	POWER_SUPPLY_PROP_ONLINE,
 };
 
 static enum power_supply_property s2mu106_otg_props[] = {
@@ -42,7 +43,6 @@ static void s2mu106_test_read(struct i2c_client *i2c)
 
 	for (i = 0x08; i <= 0x24; i++) {
 		s2mu106_read_reg(i2c, i, &data);
-
 		sprintf(str+strlen(str), "0x%02x:0x%02x, ", i, data);
 	}
 	s2mu106_read_reg(i2c, 0x2F, &data);
@@ -68,18 +68,16 @@ static void s2mu106_test_read(struct i2c_client *i2c)
 
 }
 
-static int s2mu106_charger_otg_control(
-		struct s2mu106_charger_data *charger, bool enable)
+static int s2mu106_charger_otg_control(struct s2mu106_charger_data *charger, bool enable)
 {
 	u8 chg_sts2, chg_ctrl0;
-	pr_info("%s: called charger otg control : %s\n", __func__,
-			enable ? "ON" : "OFF");
+
+	pr_info("%s: called charger otg control : %s\n", __func__, enable ? "ON" : "OFF");
 
 	mutex_lock(&charger->charger_mutex);
 	if (charger->is_charging) {
 		pr_info("%s: Charger is enabled and OTG noti received!!!\n", __func__);
-		pr_info("%s: is_charging: %d, otg_on: %d",
-				__func__, charger->is_charging, charger->otg_on);
+		pr_info("%s: is_charging: %d, otg_on: %d", __func__, charger->is_charging, charger->otg_on);
 		s2mu106_test_read(charger->i2c);
 		goto out;
 	}
@@ -87,16 +85,12 @@ static int s2mu106_charger_otg_control(
 	if (charger->otg_on == enable)
 		goto out;
 
-	if (!enable) {
+	if (!enable)
+		s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL0, CHG_MODE, REG_MODE_MASK);
+	else {
 		s2mu106_update_reg(charger->i2c,
-				S2MU106_CHG_CTRL0, CHG_MODE, REG_MODE_MASK);
-	} else {
-		s2mu106_update_reg(charger->i2c,
-				S2MU106_CHG_CTRL3,
-				S2MU106_SET_OTG_OCP_1500mA << SET_OTG_OCP_SHIFT,
-				SET_OTG_OCP_MASK);
-		s2mu106_update_reg(charger->i2c,
-				S2MU106_CHG_CTRL0, OTG_BST_MODE, REG_MODE_MASK);
+				S2MU106_CHG_CTRL3, S2MU106_SET_OTG_OCP_1500mA << SET_OTG_OCP_SHIFT, SET_OTG_OCP_MASK);
+		s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL0, OTG_BST_MODE, REG_MODE_MASK);
 		charger->cable_type = POWER_SUPPLY_TYPE_OTG;
 	}
 	charger->otg_on = enable;
@@ -113,10 +107,8 @@ out:
 	return enable;
 }
 
-static void s2mu106_enable_charger_switch(
-	struct s2mu106_charger_data *charger, int onoff)
+static void s2mu106_enable_charger_switch(struct s2mu106_charger_data *charger, int onoff)
 {
-
 	mutex_lock(&charger->charger_mutex);
 	if (charger->otg_on) {
 		pr_info("[DEBUG] %s: skipped set(%d) : OTG is on\n", __func__, onoff);
@@ -124,39 +116,41 @@ static void s2mu106_enable_charger_switch(
 		goto out;
 	}
 
+#if IS_ENABLED(CONFIG_ERD_BLOCK_CHG_SMDK_S2MU106)
+	pr_info("[DEBUG][SMDK]%s: turn off charger\n", __func__);
+	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL0, BUCK_MODE, REG_MODE_MASK);
+#else
 	if (onoff > 0) {
 		pr_info("[DEBUG]%s: turn on charger\n", __func__);
 		s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL0, CHG_MODE, REG_MODE_MASK);
 
 		/* timer fault set 16hr(max) */
 		s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL13,
-				S2MU106_FC_CHG_TIMER_16hr << SET_TIME_FC_CHG_SHIFT,
-				SET_TIME_FC_CHG_MASK);
+				S2MU106_FC_CHG_TIMER_16hr << SET_TIME_FC_CHG_SHIFT, SET_TIME_FC_CHG_MASK);
 
 	} else {
-		pr_info("[DEBUG] %s: turn off charger\n", __func__);
+		pr_info("[DEBUG]%s: turn off charger\n", __func__);
 
 		s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL0, BUCK_MODE, REG_MODE_MASK);
 	}
+#endif
 out:
 	mutex_unlock(&charger->charger_mutex);
 }
 
-static void s2mu106_set_buck(
-	struct s2mu106_charger_data *charger, int enable) {
+static void s2mu106_set_buck(struct s2mu106_charger_data *charger, int enable)
+{
 
 	if (enable) {
 		pr_info("[DEBUG]%s: set buck on\n", __func__);
 		s2mu106_enable_charger_switch(charger, charger->is_charging);
 	} else {
 		pr_info("[DEBUG]%s: set buck off (charger off mode)\n", __func__);
-
 		s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL0, CHARGER_OFF_MODE, REG_MODE_MASK);
 	}
 }
 
-static void s2mu106_set_regulation_voltage(
-		struct s2mu106_charger_data *charger, int float_voltage)
+static void s2mu106_set_regulation_voltage(struct s2mu106_charger_data *charger, int float_voltage)
 {
 	u8 data;
 
@@ -168,8 +162,7 @@ static void s2mu106_set_regulation_voltage(
 	else
 		data = 0x7f;
 
-	s2mu106_update_reg(charger->i2c,
-			S2MU106_CHG_CTRL5, data << SET_VF_VBAT_SHIFT, SET_VF_VBAT_MASK);
+	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL5, data << SET_VF_VBAT_SHIFT, SET_VF_VBAT_MASK);
 }
 
 static int s2mu106_get_regulation_voltage(struct s2mu106_charger_data *charger)
@@ -180,14 +173,13 @@ static int s2mu106_get_regulation_voltage(struct s2mu106_charger_data *charger)
 	s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL5, &reg_data);
 	reg_data &= 0x7F;
 	float_voltage = reg_data * 5 + 3900;
-	pr_debug("%s: battery cv reg : 0x%x, float voltage val : %d\n",
-			__func__, reg_data, float_voltage);
+
+	pr_debug("%s: battery cv reg : 0x%x, float voltage val : %d\n", __func__, reg_data, float_voltage);
 
 	return float_voltage;
 }
 
-static void s2mu106_set_input_current_limit(
-		struct s2mu106_charger_data *charger, int charging_current)
+static void s2mu106_set_input_current_limit(struct s2mu106_charger_data *charger, int charging_current)
 {
 	u8 data;
 
@@ -198,23 +190,22 @@ static void s2mu106_set_input_current_limit(
 	else
 		data = 0x62;
 
-	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL1,
-			data << INPUT_CURRENT_LIMIT_SHIFT, INPUT_CURRENT_LIMIT_MASK);
+	s2mu106_update_reg(charger->i2c,
+			   S2MU106_CHG_CTRL1, data << INPUT_CURRENT_LIMIT_SHIFT, INPUT_CURRENT_LIMIT_MASK);
 
 	pr_info("[DEBUG]%s: current  %d, 0x%x\n", __func__, charging_current, data);
 
-#if 0
-	s2mu106_test_read(charger->i2c);
-#endif
+	//s2mu106_test_read(charger->i2c);
 }
 
 static int s2mu106_get_input_current_limit(struct s2mu106_charger_data *charger)
 {
+	int ret;
 	u8 data;
 
-	s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL1, &data);
-	if (data < 0)
-		return data;
+	ret = s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL1, &data);
+	if (ret < 0)
+		return ret;
 
 	data = data & INPUT_CURRENT_LIMIT_MASK;
 	if (data > 0x76) {
@@ -224,10 +215,8 @@ static int s2mu106_get_input_current_limit(struct s2mu106_charger_data *charger)
 	return  data * 25 + 50;
 }
 
-//TO DO need to set wcin current
-
-static void s2mu106_set_fast_charging_current(
-		struct s2mu106_charger_data *charger, int charging_current)
+//TODO: need to set wcin current
+static void s2mu106_set_fast_charging_current(struct s2mu106_charger_data *charger, int charging_current)
 {
 	u8 data;
 
@@ -239,23 +228,21 @@ static void s2mu106_set_fast_charging_current(
 		data = 0x3D;
 
 	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL7,
-			data << FAST_CHARGING_CURRENT_SHIFT, FAST_CHARGING_CURRENT_MASK);
+			   data << FAST_CHARGING_CURRENT_SHIFT, FAST_CHARGING_CURRENT_MASK);
 
 	pr_info("[DEBUG]%s: current  %d, 0x%02x\n", __func__, charging_current, data);
 
-#if 0
-	s2mu106_test_read(charger->i2c);
-#endif
+	//s2mu106_test_read(charger->i2c);
 }
 
-static int s2mu106_get_fast_charging_current(
-		struct s2mu106_charger_data *charger)
+static int s2mu106_get_fast_charging_current(struct s2mu106_charger_data *charger)
 {
+	int ret;
 	u8 data;
 
-	s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL7, &data);
-	if (data < 0)
-		return data;
+	ret = s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL7, &data);
+	if (ret < 0)
+		return ret;
 
 	data = data & FAST_CHARGING_CURRENT_MASK;
 
@@ -266,9 +253,7 @@ static int s2mu106_get_fast_charging_current(
 	return (data + 1) * 50;
 }
 
-static void s2mu106_set_topoff_current(
-		struct s2mu106_charger_data *charger,
-		int eoc_1st_2nd, int current_limit)
+static void s2mu106_set_topoff_current(struct s2mu106_charger_data *charger, int eoc_1st_2nd, int current_limit)
 {
 	int data;
 
@@ -294,14 +279,14 @@ static void s2mu106_set_topoff_current(
 	}
 }
 
-static int s2mu106_get_topoff_setting(
-		struct s2mu106_charger_data *charger)
+static int s2mu106_get_topoff_setting(struct s2mu106_charger_data *charger)
 {
+	int ret;
 	u8 data;
 
-	s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL10, &data);
-	if (data < 0)
-		return data;
+	ret = s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL10, &data);
+	if (ret < 0)
+		return ret;
 
 	data = data & FIRST_TOPOFF_CURRENT_MASK;
 
@@ -312,21 +297,27 @@ static int s2mu106_get_topoff_setting(
 
 static bool s2mu106_chg_init(struct s2mu106_charger_data *charger)
 {
-	/* Set default regulation voltage 4.35v
-	s2mu106_update_reg(charger->i2c,
-			S2MU106_CHG_CTRL5, 0x5A << SET_VF_VBAT_SHIFT, SET_VF_VBAT_MASK);
-	*/
+	/* Set default regulation voltage 4.35v */
+	//s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL5, 0x5A << SET_VF_VBAT_SHIFT, SET_VF_VBAT_MASK);
+
 	s2mu106_update_reg(charger->i2c, 0x8b, 0x00, 0x01 << 4);
 
 	/* Set battery OCP 7A */
-	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL9,
-			S2MU106_SET_BAT_OCP_7000mA, BAT_OCP_MASK);
+	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL9, S2MU106_SET_BAT_OCP_7000mA, BAT_OCP_MASK);
 
 	/* Type-C reset off */
 	s2mu106_update_reg(charger->i2c, 0xEC, 0x00, 0x80);
 
 	/* MRSTB 1s set */
 	s2mu106_write_reg(charger->i2c, 0xE5, 0x08);
+
+#if IS_ENABLED(CONFIG_ERD_BLOCK_CHG_SMDK_S2MU106)
+	/* QBAT_Diode_Fix_Mode=0 setting */
+	s2mu106_update_reg(charger->i2c, S2MU106_CHG_SC_OTP34, 0x00, 0x08);
+
+	s2mu106_enable_charger_switch(charger, 0);
+	pr_info("[DEBUG][SMDK]%s\n", __func__);
+#endif
 
 	return true;
 }
@@ -336,12 +327,11 @@ static int s2mu106_get_charging_status(
 {
 	int status = POWER_SUPPLY_STATUS_UNKNOWN;
 	int ret;
-	u8 chg_sts0, chg_sts1;
+	u8 chg_sts0;
 	union power_supply_propval value;
 	struct power_supply *psy;
 
 	ret = s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS0, &chg_sts0);
-	ret = s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS1, &chg_sts1);
 
 	psy = power_supply_get_by_name(charger->pdata->fuelgauge_name);
 	if (!psy)
@@ -353,21 +343,14 @@ static int s2mu106_get_charging_status(
 	if (ret < 0)
 		return status;
 
-	if (chg_sts1 & 0x80)
-		status = POWER_SUPPLY_STATUS_DISCHARGING;
-	else if (chg_sts1 & 0x02 || chg_sts1 & 0x01) {
-		pr_info("%s: full check curr_avg(%d), topoff_curr(%d)\n",
-				__func__, value.intval, charger->topoff_current);
-		if (value.intval < charger->topoff_current)
-			status = POWER_SUPPLY_STATUS_FULL;
-		else
-			status = POWER_SUPPLY_STATUS_CHARGING;
-	} else if ((chg_sts0 & 0xE0) == 0xA0 || (chg_sts0 & 0xE0) == 0x60)
+	if (chg_sts0 & 0x03 || chg_sts0 & 0x05)
 		status = POWER_SUPPLY_STATUS_CHARGING;
-	else
+	else if (chg_sts0 & 0x02)
 		status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+	else
+		status = POWER_SUPPLY_STATUS_DISCHARGING;
 
-#if EN_TEST_READ
+#if IS_ENABLED(EN_TEST_READ)
 	s2mu106_test_read(charger->i2c);
 #endif
 	return status;
@@ -376,13 +359,14 @@ static int s2mu106_get_charging_status(
 static int s2mu106_get_charge_type(struct s2mu106_charger_data *charger)
 {
 	int status = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
-	u8 ret;
+	int ret;
+	u8 data;
 
-	s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS3, &ret);
+	ret = s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS3, &data);
 	if (ret < 0)
 		pr_err("%s fail\n", __func__);
 
-	switch ((ret & BAT_STATUS_MASK) >> BAT_STATUS_SHIFT) {
+	switch ((data & BAT_STATUS_MASK) >> BAT_STATUS_SHIFT) {
 	case 0x6:
 		status = POWER_SUPPLY_CHARGE_TYPE_FAST;
 		break;
@@ -397,19 +381,20 @@ static int s2mu106_get_charge_type(struct s2mu106_charger_data *charger)
 
 static bool s2mu106_get_batt_present(struct s2mu106_charger_data *charger)
 {
-	u8 ret;
+	int ret;
+	u8 data;
 
 	/* Enable charger CLK for BAT_ID check */
 	s2mu106_update_reg(charger->i2c, 0xF1, 0x01, 0x01);
 	msleep(30);
 
-	s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS3, &ret);
+	ret = s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS3, &data);
 	if (ret < 0)
 		return false;
 
 	s2mu106_update_reg(charger->i2c, 0xF1, 0x00, 0x01);
 
-	return (ret & DET_BAT_STATUS_MASK) ? true : false;
+	return (data & DET_BAT_STATUS_MASK) ? true : false;
 }
 
 static void s2mu106_wdt_clear(struct s2mu106_charger_data *charger)
@@ -423,10 +408,8 @@ static void s2mu106_wdt_clear(struct s2mu106_charger_data *charger)
 	s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS1, &reg_data);
 	chg_fault_status = (reg_data & CHG_FAULT_STATUS_MASK) >> CHG_FAULT_STATUS_SHIFT;
 
-	if ((chg_fault_status == CHG_STATUS_WD_SUSPEND) ||
-			(chg_fault_status == CHG_STATUS_WD_RST)) {
-		pr_info("%s: watchdog error status(0x%02x,%d)\n",
-				__func__, reg_data, chg_fault_status);
+	if ((chg_fault_status == CHG_STATUS_WD_SUSPEND) || (chg_fault_status == CHG_STATUS_WD_RST)) {
+		pr_info("%s: watchdog error status(0x%02x,%d)\n", __func__, reg_data, chg_fault_status);
 		if (charger->is_charging) {
 			pr_info("%s: toggle charger\n", __func__);
 			s2mu106_enable_charger_switch(charger, false);
@@ -437,22 +420,22 @@ static void s2mu106_wdt_clear(struct s2mu106_charger_data *charger)
 
 static int s2mu106_get_charging_health(struct s2mu106_charger_data *charger)
 {
-
-	u8 ret;
+	int ret;
+	u8 data;
 	union power_supply_propval value;
 	struct power_supply *psy;
 
 	if (charger->is_charging)
 		s2mu106_wdt_clear(charger);
 
-	s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS0, &ret);
-	pr_info("[DEBUG] %s: S2MU106_CHG_STATUS0 0x%x\n", __func__, ret);
+	ret = s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS0, &data);
 	if (ret < 0)
 		return POWER_SUPPLY_HEALTH_UNKNOWN;
+	pr_info("[DEBUG] %s: S2MU106_CHG_STATUS0 0x%x\n", __func__, data);
 
-	ret = (ret & (CHGIN_STATUS_MASK)) >> CHGIN_STATUS_SHIFT;
+	data = (data & (CHGIN_STATUS_MASK)) >> CHGIN_STATUS_SHIFT;
 
-	switch (ret) {
+	switch (data) {
 	case 0x03:
 	case 0x05:
 		charger->ovp = false;
@@ -479,24 +462,20 @@ static int s2mu106_get_charging_health(struct s2mu106_charger_data *charger)
 		pr_err("%s: Fail to execute property\n", __func__);
 
 	if (value.intval == POWER_SUPPLY_TYPE_USB_PD)
-		return POWER_SUPPLY_HEALTH_UNDERVOLTAGE;
+		return POWER_SUPPLY_S2M_HEALTH_UNDERVOLTAGE;
 	else
 		return POWER_SUPPLY_HEALTH_GOOD;
-
-#if EN_TEST_READ
-	s2mu106_test_read(charger->i2c);
-#endif
 }
 
 static int s2mu106_chg_get_property(struct power_supply *psy,
-		enum power_supply_property psp,
-		union power_supply_propval *val)
+				enum power_supply_property psp,
+				union power_supply_propval *val)
 {
 	int chg_curr, aicr;
-	struct s2mu106_charger_data *charger =
-		power_supply_get_drvdata(psy);
+	struct s2mu106_charger_data *charger = power_supply_get_drvdata(psy);
+	enum s2m_power_supply_property s2m_psp = (enum s2m_power_supply_property) psp;
 
-	switch (psp) {
+	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = charger->is_charging ? 1 : 0;
 		break;
@@ -521,9 +500,6 @@ static int s2mu106_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
 		val->intval = s2mu106_get_fast_charging_current(charger);
 		break;
-	case POWER_SUPPLY_PROP_CURRENT_FULL:
-		val->intval = s2mu106_get_topoff_setting(charger);
-		break;
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		val->intval = s2mu106_get_charge_type(charger);
 		break;
@@ -533,9 +509,18 @@ static int s2mu106_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = s2mu106_get_batt_present(charger);
 		break;
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		val->intval = charger->is_charging;
-		break;
+	case POWER_SUPPLY_S2M_PROP_MIN ... POWER_SUPPLY_S2M_PROP_MAX:
+		switch (s2m_psp) {
+		case POWER_SUPPLY_S2M_PROP_CHARGING_ENABLED:
+			val->intval = charger->is_charging;
+			break;
+		case POWER_SUPPLY_S2M_PROP_CURRENT_FULL:
+			val->intval = s2mu106_get_topoff_setting(charger);
+			break;
+		default:
+			return -EINVAL;
+		}
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -544,16 +529,18 @@ static int s2mu106_chg_get_property(struct power_supply *psy,
 }
 
 static int s2mu106_chg_set_property(struct power_supply *psy,
-		enum power_supply_property psp,
-		const union power_supply_propval *val)
+				enum power_supply_property psp,
+				const union power_supply_propval *val)
 {
 	struct s2mu106_charger_data *charger = power_supply_get_drvdata(psy);
+	enum s2m_power_supply_property s2m_psp = (enum s2m_power_supply_property) psp;
 	int buck_state = ENABLE;
 	union power_supply_propval value;
+	enum power_supply_property psp_t;
 	int ret;
 	u8 data = 0;
 
-	switch (psp) {
+	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		charger->status = val->intval;
 		break;
@@ -562,12 +549,11 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 		charger->cable_type = val->intval;
 		if (charger->cable_type != POWER_SUPPLY_TYPE_OTG) {
 			if (charger->cable_type == POWER_SUPPLY_TYPE_BATTERY ||
-			charger->cable_type == POWER_SUPPLY_TYPE_UNKNOWN) {
+			    charger->cable_type == POWER_SUPPLY_TYPE_UNKNOWN) {
 				pr_err("[DEBUG]%s:[BATT] Type Battery\n", __func__);
 				value.intval = 0;
-			} else {
+			} else
 				value.intval = 1;
-			}
 
 			psy = power_supply_get_by_name(charger->pdata->fuelgauge_name);
 			if (!psy)
@@ -595,88 +581,94 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
 		break;
-	case POWER_SUPPLY_PROP_CURRENT_FULL:
-		charger->topoff_current = val->intval;
-		s2mu106_set_topoff_current(charger, 1, val->intval);
-		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		pr_info("[DEBUG]%s: float voltage(%d)\n", __func__, val->intval);
 		charger->pdata->chg_float_voltage = val->intval;
-		s2mu106_set_regulation_voltage(charger,
-				charger->pdata->chg_float_voltage);
-		break;
-	case POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL:
-		s2mu106_charger_otg_control(charger, val->intval);
-		break;
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		charger->charge_mode = val->intval;
-
-		psy = power_supply_get_by_name("battery");
-		if (!psy)
-			return -EINVAL;
-		ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
-		if (ret < 0)
-			pr_err("%s: Fail to execute property\n", __func__);
-
-		if (value.intval != POWER_SUPPLY_TYPE_OTG) {
-			switch (charger->charge_mode) {
-			case S2MU00X_BAT_CHG_MODE_BUCK_OFF:
-				buck_state = DISABLE;
-			case S2MU00X_BAT_CHG_MODE_CHARGING_OFF:
-				charger->is_charging = false;
-				break;
-			case S2MU00X_BAT_CHG_MODE_CHARGING:
-				charger->is_charging = true;
-				break;
-			}
-
-			if (buck_state)
-				s2mu106_enable_charger_switch(charger, charger->is_charging);
-			else
-				s2mu106_set_buck(charger, buck_state);
-
-			value.intval = charger->is_charging;
-
-			psy = power_supply_get_by_name(charger->pdata->fuelgauge_name);
-			if (!psy)
-				return -EINVAL;
-			ret = power_supply_set_property(psy, POWER_SUPPLY_PROP_CHARGING_ENABLED, &value);
-			if (ret < 0)
-				pr_err("%s: Fail to execute property\n", __func__);
-
-		} else {
-			pr_info("[DEBUG]%s: SKIP CHARGING CONTROL while OTG(%d)\n",
-					__func__, value.intval);
-		}
+		s2mu106_set_regulation_voltage(charger, charger->pdata->chg_float_voltage);
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 		break;
 	case POWER_SUPPLY_PROP_CALIBRATE:
 		pr_info("%s: %s factory image support mode\n", __func__,
-				(val->intval == S2MU00X_BAT_FAC_MODE_VBUS) ? "VBUS": "VBat");
-		if (val->intval == S2MU00X_BAT_FAC_MODE_VBUS) {
+			(val->intval == S2M_BAT_FAC_MODE_VBUS) ? "VBUS" : "VBat");
+		if (val->intval == S2M_BAT_FAC_MODE_VBUS) {
 			s2mu106_enable_charger_switch(charger, false);
 			s2mu106_set_input_current_limit(charger, 2000);
 			s2mu106_set_fast_charging_current(charger, 2000);
-		} else {
+		} else
 			s2mu106_set_buck(charger, false);
+		break;
+	case POWER_SUPPLY_S2M_PROP_MIN ... POWER_SUPPLY_S2M_PROP_MAX:
+		switch (s2m_psp) {
+		case POWER_SUPPLY_S2M_PROP_CURRENT_FULL:
+			charger->topoff_current = val->intval;
+			s2mu106_set_topoff_current(charger, 1, val->intval);
+			break;
+		case POWER_SUPPLY_S2M_PROP_CHARGE_OTG_CONTROL:
+			s2mu106_charger_otg_control(charger, val->intval);
+			break;
+		case POWER_SUPPLY_S2M_PROP_FUELGAUGE_RESET:
+			s2mu106_read_reg(charger->i2c, 0xE3, &data);
+			data |= 0x03 << 6;
+			s2mu106_write_reg(charger->i2c, 0xE3, data);
+			msleep(1000);
+			data &= ~(0x03 << 6);
+			s2mu106_write_reg(charger->i2c, 0xE3, data);
+			msleep(50);
+			pr_info("%s: reset fuelgauge when surge occur!\n", __func__);
+			break;
+		case POWER_SUPPLY_S2M_PROP_CHARGING_ENABLED:
+			charger->charge_mode = val->intval;
+
+			psy = power_supply_get_by_name("battery");
+			if (!psy)
+				return -EINVAL;
+
+			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
+			if (ret < 0)
+				pr_err("%s: Fail to execute property\n", __func__);
+
+			if (value.intval != POWER_SUPPLY_TYPE_OTG) {
+				switch (charger->charge_mode) {
+				case S2M_BAT_CHG_MODE_BUCK_OFF:
+					buck_state = DISABLE;
+					charger->is_charging = false;
+					break;
+				case S2M_BAT_CHG_MODE_CHARGING_OFF:
+					charger->is_charging = false;
+					break;
+				case S2M_BAT_CHG_MODE_CHARGING:
+					charger->is_charging = true;
+					break;
+				}
+
+				if (buck_state)
+					s2mu106_enable_charger_switch(charger, charger->is_charging);
+				else
+					s2mu106_set_buck(charger, buck_state);
+
+				value.intval = charger->is_charging;
+
+				psy = power_supply_get_by_name(charger->pdata->fuelgauge_name);
+				if (!psy)
+					return -EINVAL;
+				psp_t = (enum power_supply_property) POWER_SUPPLY_S2M_PROP_CHARGING_ENABLED;
+				ret = power_supply_set_property(psy, psp_t, &value);
+				if (ret < 0)
+					pr_err("%s: Fail to execute property\n", __func__);
+
+			} else
+				pr_info("[DEBUG]%s: SKIP CHARGING CONTROL while OTG(%d)\n", __func__, value.intval);
+			break;
+		case POWER_SUPPLY_S2M_PROP_USBPD_TEST_READ:
+			s2mu106_test_read(charger->i2c);
+			s2mu106_read_reg(charger->i2c, 0xEC, &data);
+			pr_info("%s, charger 0xEC=(%x)\n", __func__, data);
+			break;
+		default:
+			return -EINVAL;
 		}
-		break;
-	case POWER_SUPPLY_PROP_FUELGAUGE_RESET:
-		s2mu106_read_reg(charger->i2c, 0xE3, &data);
-		data |= 0x03 << 6;
-		s2mu106_write_reg(charger->i2c, 0xE3, data);
-		msleep(1000);
-		data &= ~(0x03 << 6);
-		s2mu106_write_reg(charger->i2c, 0xE3, data);
-		msleep(50);
-		pr_info("%s: reset fuelgauge when surge occur!\n", __func__);
-		break;
-	case POWER_SUPPLY_PROP_USBPD_TEST_READ:
-		s2mu106_test_read(charger->i2c);
-		s2mu106_read_reg(charger->i2c, 0xEC, &data);
-		pr_info("%s, charger 0xEC=(%x)\n", __func__, data);
-		break;
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -685,26 +677,33 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 }
 
 static int s2mu106_otg_get_property(struct power_supply *psy,
-		enum power_supply_property psp,
-		union power_supply_propval *val)
+				enum power_supply_property psp,
+				union power_supply_propval *val)
 {
 	struct s2mu106_charger_data *charger = power_supply_get_drvdata(psy);
+	enum s2m_power_supply_property s2m_psp = (enum s2m_power_supply_property) psp;
 	u8 reg;
 
-	switch (psp) {
+	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = charger->otg_on;
 		break;
-	case POWER_SUPPLY_PROP_CHARGE_POWERED_OTG_CONTROL:
-		s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS2, &reg);
-		pr_info("%s: S2MU106_CHG_STATUS2 : 0x%X\n", __func__, reg);
-		if ((reg & 0xC0) == 0x80)
-			val->intval = 1;
-		else
-			val->intval = 0;
-		s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL0, &reg);
-		pr_info("%s: S2MU106_CHG_CTRL0 : 0x%X\n", __func__, reg);
-		break;
+	case POWER_SUPPLY_S2M_PROP_MIN ... POWER_SUPPLY_S2M_PROP_MAX:
+		switch (s2m_psp) {
+		case POWER_SUPPLY_S2M_PROP_CHARGE_POWERED_OTG_CONTROL:
+			s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS2, &reg);
+			pr_info("%s: S2MU106_CHG_STATUS2 : 0x%X\n", __func__, reg);
+			if ((reg & 0xC0) == 0x80)
+				val->intval = 1;
+			else
+				val->intval = 0;
+			s2mu106_read_reg(charger->i2c, S2MU106_CHG_CTRL0, &reg);
+			pr_info("%s: S2MU106_CHG_CTRL0 : 0x%X\n", __func__, reg);
+			break;
+		default:
+			return -EINVAL;
+		}
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -712,14 +711,15 @@ static int s2mu106_otg_get_property(struct power_supply *psy,
 }
 
 static int s2mu106_otg_set_property(struct power_supply *psy,
-		enum power_supply_property psp,
-		const union power_supply_propval *val)
+				enum power_supply_property psp,
+				const union power_supply_propval *val)
 {
-	struct s2mu106_charger_data *charger =  power_supply_get_drvdata(psy);
+	struct s2mu106_charger_data *charger = power_supply_get_drvdata(psy);
 	union power_supply_propval value;
+	enum power_supply_property psp_t;
 	int ret;
 
-	switch (psp) {
+	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		value.intval = val->intval;
 		pr_info("%s: OTG %s\n", __func__, value.intval > 0 ? "ON" : "OFF");
@@ -727,7 +727,9 @@ static int s2mu106_otg_set_property(struct power_supply *psy,
 		psy = power_supply_get_by_name(charger->pdata->charger_name);
 		if (!psy)
 			return -EINVAL;
-		ret = power_supply_set_property(psy, POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL, &value);
+
+		psp_t = (enum power_supply_property)POWER_SUPPLY_S2M_PROP_CHARGE_OTG_CONTROL;
+		ret = power_supply_set_property(psy, psp_t, &value);
 		if (ret < 0)
 			pr_err("%s: Fail to execute property\n", __func__);
 
@@ -741,14 +743,12 @@ static int s2mu106_otg_set_property(struct power_supply *psy,
 
 static void s2mu106_charger_otg_vbus_work(struct work_struct *work)
 {
-	struct s2mu106_charger_data *charger = container_of(work,
-			struct s2mu106_charger_data,
-			otg_vbus_work.work);
+	struct s2mu106_charger_data *charger = container_of(work, struct s2mu106_charger_data, otg_vbus_work.work);
 
 	s2mu106_write_reg(charger->i2c, S2MU106_CHG_CTRL11, 0x16);
 }
 
-#if EN_BAT_DET_IRQ
+#if IS_ENABLED(EN_BAT_DET_IRQ)
 /* s2mu106 interrupt service routine */
 static irqreturn_t s2mu106_det_bat_isr(int irq, void *data)
 {
@@ -795,6 +795,7 @@ static irqreturn_t s2mu106_event_isr(int irq, void *data)
 {
 	struct s2mu106_charger_data *charger = data;
 	union power_supply_propval value;
+	enum power_supply_property psp_t;
 	struct power_supply *psy;
 	u8 val;
 	u8 fault;
@@ -808,7 +809,7 @@ static irqreturn_t s2mu106_event_isr(int irq, void *data)
 	s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS5, &sts5);
 
 	pr_info("[IRQ] %s, STATUS0:0x%02x, STATUS1:0x%02x, STATUS2:0x%02x, STATUS3:0x%02x, STATUS5:0x%02x\n",
-			__func__, sts0, sts1, sts2, sts3, sts5);
+		__func__, sts0, sts1, sts2, sts3, sts5);
 
 	s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS1, &val);
 	pr_info("%s , %02x\n", __func__, val);
@@ -823,7 +824,8 @@ static irqreturn_t s2mu106_event_isr(int irq, void *data)
 		if (!psy)
 			return -EINVAL;
 
-		ret = power_supply_set_property(psy, POWER_SUPPLY_PROP_USBPD_RESET, &value);
+		psp_t = (enum power_supply_property)POWER_SUPPLY_S2M_PROP_USBPD_RESET;
+		ret = power_supply_set_property(psy, psp_t, &value);
 		if (ret < 0)
 			pr_err("%s: Fail to execute property\n", __func__);
 	}
@@ -844,11 +846,11 @@ static irqreturn_t s2mu106_ivr_isr(int irq, void *data)
 
 	pr_info("%s: IVR interrupt! STATUS5:0x%02x\n", __func__, sts);
 
-	psy = power_supply_get_by_name("s2mu106_pmeter");
+	psy = power_supply_get_by_name("s2mu106-pmeter");
 	if (!psy)
 		return -EINVAL;
 
-	ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ICHGIN, &value);
+	ret = power_supply_get_property(psy, (enum power_supply_property)POWER_SUPPLY_S2M_PROP_ICHGIN, &value);
 	if (ret < 0) {
 		pr_err("%s: Fail to execute property\n", __func__);
 		return IRQ_HANDLED;
@@ -859,8 +861,7 @@ static irqreturn_t s2mu106_ivr_isr(int irq, void *data)
 			__func__, input_curr, charger->cable_type);
 
 	/* cable_type / status check */
-	if (charger->cable_type == POWER_SUPPLY_TYPE_HV_MAINS &&
-			(sts & IVR_STATUS_MASK)) {
+	if (charger->cable_type == POWER_SUPPLY_TYPE_HV_MAINS && (sts & IVR_STATUS_MASK)) {
 		input_curr = input_curr - (input_curr % 100);
 		input_curr -= HV_MAINS_IVR_STEP;
 
@@ -884,17 +885,16 @@ static irqreturn_t s2mu106_ovp_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int s2mu106_charger_parse_dt(struct device *dev,
-		struct s2mu106_charger_platform_data *pdata)
+static int s2mu106_charger_parse_dt(struct device *dev, struct s2mu106_charger_platform_data *pdata)
 {
 	struct device_node *np = of_find_node_by_name(NULL, "s2mu106-charger");
-	int ret = 0;
+	size_t size;
+	int ret = 0, len;
 
-	if (!np) {
+	if (!np)
 		pr_err("%s np NULL(s2mu106-charger)\n", __func__);
-	} else {
-		ret = of_property_read_u32(np, "battery,chg_switching_freq",
-				&pdata->chg_switching_freq);
+	else {
+		ret = of_property_read_u32(np, "battery,chg_switching_freq", &pdata->chg_switching_freq);
 		if (ret < 0)
 			pr_info("%s: Charger switching FRQ is Empty\n", __func__);
 	}
@@ -903,59 +903,48 @@ static int s2mu106_charger_parse_dt(struct device *dev,
 	if (!np) {
 		pr_err("%s np NULL\n", __func__);
 	} else {
-		int len;
 		unsigned int i;
 		const u32 *p;
 
-		ret = of_property_read_string(np,
-				"battery,fuelgauge_name",
-				(char const **)&pdata->fuelgauge_name);
+		ret = of_property_read_string(np, "battery,fuelgauge_name", (char const **)&pdata->fuelgauge_name);
 		if (ret < 0)
 			pr_info("%s: Fuel-gauge name is Empty\n", __func__);
 
-		ret = of_property_read_u32(np, "battery,chg_float_voltage",
-				&pdata->chg_float_voltage);
+		ret = of_property_read_u32(np, "battery,chg_float_voltage", &pdata->chg_float_voltage);
 		if (ret) {
 			pr_info("%s: battery,chg_float_voltage is Empty\n", __func__);
 			pdata->chg_float_voltage = 4200;
 		}
-		pr_info("%s: battery,chg_float_voltage is %d\n",
-				__func__, pdata->chg_float_voltage);
+		pr_info("%s: battery,chg_float_voltage is %d\n", __func__, pdata->chg_float_voltage);
 
-		pdata->chg_eoc_dualpath = of_property_read_bool(np,
-				"battery,chg_eoc_dualpath");
+		pdata->chg_eoc_dualpath = of_property_read_bool(np, "battery,chg_eoc_dualpath");
 
 		p = of_get_property(np, "battery,input_current_limit", &len);
-		if (!p)
+		if (!p) {
+			pr_err("%s: battery,input_current_limit parsing fail\n", __func__);
 			return 1;
+		}
 
 		len = len / sizeof(u32);
 
-		pdata->charging_current =
-			kzalloc(sizeof(s2mu00x_charging_current_t) * len,
-					GFP_KERNEL);
+		size = sizeof(s2m_charging_current_t) * len;
+		pdata->charging_current = kzalloc(size, GFP_KERNEL);
 
 		for (i = 0; i < len; i++) {
-			ret = of_property_read_u32_index(np,
-					"battery,input_current_limit", i,
-					&pdata->charging_current[i].input_current_limit);
+			ret = of_property_read_u32_index(np, "battery,input_current_limit", i,
+							&pdata->charging_current[i].input_current_limit);
 			if (ret)
-				pr_info("%s : Input_current_limit is Empty\n",
-						__func__);
+				pr_info("%s: Input_current_limit is Empty\n", __func__);
 
-			ret = of_property_read_u32_index(np,
-					"battery,fast_charging_current", i,
-					&pdata->charging_current[i].fast_charging_current);
+			ret = of_property_read_u32_index(np, "battery,fast_charging_current", i,
+							&pdata->charging_current[i].fast_charging_current);
 			if (ret)
-				pr_info("%s : Fast charging current is Empty\n",
-						__func__);
+				pr_info("%s: Fast charging current is Empty\n", __func__);
 
-			ret = of_property_read_u32_index(np,
-					"battery,full_check_current", i,
-					&pdata->charging_current[i].full_check_current);
+			ret = of_property_read_u32_index(np, "battery,full_check_current", i,
+							&pdata->charging_current[i].full_check_current);
 			if (ret)
-				pr_info("%s : Full check current is Empty\n",
-						__func__);
+				pr_info("%s: Full check current is Empty\n", __func__);
 		}
 	}
 
@@ -988,15 +977,16 @@ static int s2mu106_charger_probe(struct platform_device *pdev)
 	charger->dev = &pdev->dev;
 	charger->i2c = s2mu106->i2c;
 
-	charger->pdata = devm_kzalloc(&pdev->dev, sizeof(*(charger->pdata)),
-			GFP_KERNEL);
+	charger->pdata = devm_kzalloc(&pdev->dev, sizeof(*(charger->pdata)), GFP_KERNEL);
 	if (!charger->pdata) {
 		ret = -ENOMEM;
 		goto err_parse_dt_nomem;
 	}
 	ret = s2mu106_charger_parse_dt(&pdev->dev, charger->pdata);
-	if (ret < 0)
+	if (ret < 0) {
+		pr_err("%s: s2mu106_charger_parse_dt fail\n", __func__);
 		goto err_parse_dt;
+	}
 
 	platform_set_drvdata(pdev, charger);
 
@@ -1053,87 +1043,72 @@ static int s2mu106_charger_probe(struct platform_device *pdev)
 	 * if you need to add irq , please refer below code.
 	 */
 	charger->irq_sys = pdata->irq_base + S2MU106_CHG1_IRQ_SYS;
-	ret = request_threaded_irq(charger->irq_sys, NULL,
-			s2mu106_ovp_isr, 0, "sys-irq", charger);
+	ret = request_threaded_irq(charger->irq_sys, NULL, s2mu106_ovp_isr, 0, "sys-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request SYS in IRQ: %d: %d\n",
-				__func__, charger->irq_sys, ret);
+		dev_err(s2mu106->dev, "%s: Fail to request SYS in IRQ: %d: %d\n", __func__, charger->irq_sys, ret);
 		goto err_reg_irq;
 	}
 
 	charger->irq_bat = pdata->irq_base + S2MU106_CHG2_IRQ_BAT;
-	ret = request_threaded_irq(charger->irq_bat, NULL,
-			s2mu106_event_isr, 0, "bat-irq", charger);
+	ret = request_threaded_irq(charger->irq_bat, NULL, s2mu106_event_isr, 0, "bat-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request BAT in IRQ: %d: %d\n",
-				__func__, charger->irq_bat, ret);
+		dev_err(s2mu106->dev, "%s: Fail to request BAT in IRQ: %d: %d\n", __func__, charger->irq_bat, ret);
 		goto err_reg_irq;
 	}
 
 	charger->irq_micd = pdata->irq_base + S2MU106_CHG2_IRQ_AICL;
-	ret = request_threaded_irq(charger->irq_micd, NULL,
-			s2mu106_event_isr, 0, "micd-irq", charger);
+	ret = request_threaded_irq(charger->irq_micd, NULL, s2mu106_event_isr, 0, "micd-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request MICD in IRQ: %d: %d\n",
-				__func__, charger->irq_micd, ret);
+		dev_err(s2mu106->dev, "%s: Fail to request MICD in IRQ: %d: %d\n", __func__, charger->irq_micd, ret);
 		goto err_reg_irq;
 	}
 
 	charger->irq_ivr = pdata->irq_base + S2MU106_CHG2_IRQ_IVR;
-	ret = request_threaded_irq(charger->irq_ivr, NULL,
-			s2mu106_ivr_isr, 0, "ivr-irq", charger);
+	ret = request_threaded_irq(charger->irq_ivr, NULL, s2mu106_ivr_isr, 0, "ivr-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request IVR in IRQ: %d: %d\n",
-				__func__, charger->irq_ivr, ret);
+		dev_err(s2mu106->dev, "%s: Fail to request IVR in IRQ: %d: %d\n", __func__, charger->irq_ivr, ret);
 		goto err_reg_irq;
 	}
 
-#if EN_BAT_DET_IRQ
+#if IS_ENABLED(EN_BAT_DET_IRQ)
 	charger->irq_det_bat = pdata->irq_base + S2MU106_CHG2_IRQ_DET_BAT;
-	ret = request_threaded_irq(charger->irq_det_bat, NULL,
-			s2mu106_det_bat_isr, 0, "det_bat-irq", charger);
+	ret = request_threaded_irq(charger->irq_det_bat, NULL, s2mu106_det_bat_isr, 0, "det_bat-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request DET_BAT in IRQ: %d: %d\n",
-				__func__, charger->irq_det_bat, ret);
+		dev_err(s2mu106->dev,
+			"%s: Fail to request DET_BAT in IRQ: %d: %d\n", __func__, charger->irq_det_bat, ret);
 		goto err_reg_irq;
 	}
 #endif
 
-#if EN_CHG1_IRQ_CHGIN
+#if IS_ENABLED(EN_CHG1_IRQ_CHGIN)
 	charger->irq_chgin = pdata->irq_base + S2MU106_CHG1_IRQ_CHGIN;
-	ret = request_threaded_irq(charger->irq_chgin, NULL,
-			s2mu106_chg_isr, 0, "chgin-irq", charger);
+	ret = request_threaded_irq(charger->irq_chgin, NULL, s2mu106_chg_isr, 0, "chgin-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request CHGIN in IRQ: %d: %d\n",
-				__func__, charger->irq_chgin, ret);
+		dev_err(s2mu106->dev, "%s: Fail to request CHGIN in IRQ: %d: %d\n", __func__, charger->irq_chgin, ret);
 		goto err_reg_irq;
 	}
 #endif
 
 	charger->irq_rst = pdata->irq_base + S2MU106_CHG1_IRQ_CHG_RSTART;
-	ret = request_threaded_irq(charger->irq_rst, NULL,
-			s2mu106_chg_isr, 0, "restart-irq", charger);
+	ret = request_threaded_irq(charger->irq_rst, NULL, s2mu106_chg_isr, 0, "restart-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request CHG_Restart in IRQ: %d: %d\n",
-				__func__, charger->irq_rst, ret);
+		dev_err(s2mu106->dev,
+			"%s: Fail to request CHG_Restart in IRQ: %d: %d\n", __func__, charger->irq_rst, ret);
 		goto err_reg_irq;
 	}
 
 	charger->irq_done = pdata->irq_base + S2MU106_CHG1_IRQ_DONE;
-	ret = request_threaded_irq(charger->irq_done, NULL,
-			s2mu106_done_isr, 0, "done-irq", charger);
+	ret = request_threaded_irq(charger->irq_done, NULL, s2mu106_done_isr, 0, "done-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request DONE in IRQ: %d: %d\n",
-				__func__, charger->irq_done, ret);
+		dev_err(s2mu106->dev, "%s: Fail to request DONE in IRQ: %d: %d\n", __func__, charger->irq_done, ret);
 		goto err_reg_irq;
 	}
 
 	charger->irq_chg_fault = pdata->irq_base + S2MU106_CHG1_IRQ_CHG_Fault;
-	ret = request_threaded_irq(charger->irq_chg_fault, NULL,
-			s2mu106_event_isr, 0, "chg_fault-irq", charger);
+	ret = request_threaded_irq(charger->irq_chg_fault, NULL, s2mu106_event_isr, 0, "chg_fault-irq", charger);
 	if (ret < 0) {
-		dev_err(s2mu106->dev, "%s: Fail to request CHG_Fault in IRQ: %d: %d\n",
-				__func__, charger->irq_chg_fault, ret);
+		dev_err(s2mu106->dev,
+			"%s: Fail to request CHG_Fault in IRQ: %d: %d\n", __func__, charger->irq_chg_fault, ret);
 		goto err_reg_irq;
 	}
 
@@ -1141,7 +1116,7 @@ static int s2mu106_charger_probe(struct platform_device *pdev)
 
 	/* Do max charging by freq. change, when duty is max */
 	s2mu106_update_reg(charger->i2c, 0x7A, 0x1 << 4, 0x1 << 4);
-#if EN_TEST_READ
+#if IS_ENABLED(EN_TEST_READ)
 	s2mu106_test_read(charger->i2c);
 #endif
 	pr_info("%s:[BATT] S2MU106 charger driver loaded OK\n", __func__);
@@ -1164,8 +1139,7 @@ err_parse_dt_nomem:
 
 static int s2mu106_charger_remove(struct platform_device *pdev)
 {
-	struct s2mu106_charger_data *charger =
-		platform_get_drvdata(pdev);
+	struct s2mu106_charger_data *charger = platform_get_drvdata(pdev);
 
 	power_supply_unregister(charger->psy_chg);
 	mutex_destroy(&charger->charger_mutex);
@@ -1173,7 +1147,7 @@ static int s2mu106_charger_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#if defined CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 static int s2mu106_charger_suspend(struct device *dev)
 {
 	return 0;
@@ -1193,28 +1167,24 @@ static void s2mu106_charger_shutdown(struct device *dev)
 	pr_info("%s: S2MU106 Charger driver shutdown\n", __func__);
 }
 
-static SIMPLE_DEV_PM_OPS(s2mu106_charger_pm_ops, s2mu106_charger_suspend,
-		s2mu106_charger_resume);
+static SIMPLE_DEV_PM_OPS(s2mu106_charger_pm_ops, s2mu106_charger_suspend, s2mu106_charger_resume);
 
 static struct platform_driver s2mu106_charger_driver = {
 	.driver         = {
-		.name   = "s2mu106-charger",
-		.owner  = THIS_MODULE,
+		.name		= "s2mu106-charger",
+		.owner		= THIS_MODULE,
 		.of_match_table = s2mu106_charger_match_table,
-		.pm     = &s2mu106_charger_pm_ops,
-		.shutdown   =   s2mu106_charger_shutdown,
+		.pm		= &s2mu106_charger_pm_ops,
+		.shutdown	= s2mu106_charger_shutdown,
 	},
-	.probe          = s2mu106_charger_probe,
-	.remove     = s2mu106_charger_remove,
+	.probe		= s2mu106_charger_probe,
+	.remove		= s2mu106_charger_remove,
 };
 
 static int __init s2mu106_charger_init(void)
 {
-	int ret = 0;
-
-	ret = platform_driver_register(&s2mu106_charger_driver);
-
-	return ret;
+	pr_info("%s\n", __func__);
+	return platform_driver_register(&s2mu106_charger_driver);
 }
 module_init(s2mu106_charger_init);
 
@@ -1227,3 +1197,4 @@ module_exit(s2mu106_charger_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_DESCRIPTION("Charger driver for S2MU106");
+MODULE_SOFTDEP("post: s2m_pdic_module");

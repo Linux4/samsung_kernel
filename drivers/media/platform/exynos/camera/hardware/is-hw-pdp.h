@@ -34,6 +34,7 @@ struct pdp_lic_lut {
 	u32				param0;
 	u32				param1;
 	u32				param2;
+	u32				param3;
 };
 
 enum pdp_irq_src {
@@ -108,10 +109,13 @@ struct is_pdp {
 	u32				err_cnt_oneshot;
 
 	u32				rmo; /* Backup RDMA MO */
+	int				rmo_tick; /* keep count */
 
 	/* debug */
 	unsigned long long		time_rta_cfg;
 	unsigned long long		time_err;
+
+	u32				binning;
 };
 
 

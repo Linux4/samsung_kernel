@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_gic.c
- *
- * ALSA SoC Audio Layer - Samsung ABOX GIC driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung ABOX GIC driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
  *
@@ -19,6 +19,8 @@
 #include <linux/smc.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/delay.h>
+
+#include <soc/samsung/exynos-smc.h>
 
 #include "abox_util.h"
 #include "abox_gic.h"
@@ -127,15 +129,21 @@ static u32 gicc_xreadl(struct abox_gic_data *data, unsigned int offset)
 	return value;
 }
 
-void abox_gicd_dump(struct device *dev, char *dump, size_t off, size_t size)
+int abox_gicd_dump(struct device *dev, char *dump, size_t off, size_t size)
 {
 	struct abox_gic_data *data = dev_get_drvdata(dev);
 	size_t limit = min(off + size, data->gicd_size);
 	u32 *buf = (u32 *)dump;
 
-	for (; off < limit; off += 4)
+	if (off % 4 || size % 4)
+		return -EINVAL;
+
+	for (; off + 3 < limit; off += 4)
 		*buf++ = gicd_xreadl(data, off);
+
+	return 0;
 }
+EXPORT_SYMBOL(abox_gicd_dump);
 
 void abox_gic_enable(struct device *dev, unsigned int irq, bool en)
 {
@@ -151,6 +159,7 @@ void abox_gic_enable(struct device *dev, unsigned int irq, bool en)
 	gicd_xwritel(data, mask, offset);
 	spin_unlock_irqrestore(&lock, flags);
 }
+EXPORT_SYMBOL(abox_gic_enable);
 
 void abox_gic_target(struct device *dev, unsigned int irq,
 		enum abox_gic_target target)
@@ -172,6 +181,7 @@ void abox_gic_target(struct device *dev, unsigned int irq,
 	gicd_xwritel(data, val, offset);
 	spin_unlock_irqrestore(&lock, flags);
 }
+EXPORT_SYMBOL(abox_gic_target);
 
 void abox_gic_generate_interrupt(struct device *dev, unsigned int irq)
 {
@@ -179,7 +189,7 @@ void abox_gic_generate_interrupt(struct device *dev, unsigned int irq)
 
 	dev_dbg(dev, "%s(%d)\n", __func__, irq);
 
-	writel((0x1 << 16) | (irq & 0xf), data->gicd_base + GIC_DIST_SOFTINT);
+	gicd_xwritel(data, (0x1 << 16) | (irq & 0xf), GIC_DIST_SOFTINT);
 }
 EXPORT_SYMBOL(abox_gic_generate_interrupt);
 
@@ -263,6 +273,12 @@ static irqreturn_t abox_gic_irq_handler(int irq, void *dev_id)
 		break;
 	} while (1);
 
+	if (ret == IRQ_NONE) {
+		if (irqnr < 1021)
+			dev_warn(dev, "unhandled irq: %u\n", irqnr);
+		ret = IRQ_HANDLED;
+	}
+
 	return ret;
 }
 
@@ -299,6 +315,7 @@ int abox_gic_enable_irq(struct device *dev)
 	}
 	return 0;
 }
+EXPORT_SYMBOL(abox_gic_enable_irq);
 
 int abox_gic_disable_irq(struct device *dev)
 {
@@ -313,11 +330,13 @@ int abox_gic_disable_irq(struct device *dev)
 
 	return 0;
 }
+EXPORT_SYMBOL(abox_gic_disable_irq);
 
 static int samsung_abox_gic_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct abox_gic_data *data;
+	unsigned long irqflags = IRQF_TRIGGER_RISING;
 	int ret;
 
 	dev_dbg(dev, "%s\n", __func__);
@@ -346,8 +365,7 @@ static int samsung_abox_gic_probe(struct platform_device *pdev)
 	}
 
 	ret = devm_request_irq(dev, data->irq, abox_gic_irq_handler,
-			IRQF_TRIGGER_RISING | IRQF_GIC_MULTI_TARGET,
-			pdev->name, dev);
+			irqflags, pdev->name, dev);
 	if (ret < 0) {
 		dev_err(dev, "Failed to request irq\n");
 		return ret;
@@ -384,7 +402,7 @@ static struct platform_driver samsung_abox_gic_driver = {
 	.probe  = samsung_abox_gic_probe,
 	.remove = samsung_abox_gic_remove,
 	.driver = {
-		.name = "samsung-abox-gic",
+		.name = "abox-gic",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(samsung_abox_gic_of_match),
 	},
@@ -395,5 +413,5 @@ module_platform_driver(samsung_abox_gic_driver);
 /* Module information */
 MODULE_AUTHOR("Gyeongtaek Lee, <gt82.lee@samsung.com>");
 MODULE_DESCRIPTION("Samsung ASoC A-Box GIC Driver");
-MODULE_ALIAS("platform:samsung-abox-gic");
+MODULE_ALIAS("platform:abox-gic");
 MODULE_LICENSE("GPL");

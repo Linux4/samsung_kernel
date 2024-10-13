@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2010 Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -97,11 +89,11 @@ static inline unsigned int sipc5_calc_padding_size(unsigned int len)
 	return residue ? (BITS_PER_LONG / 8 - residue) : 0;
 }
 
-/**
-@brief		get the length of the header of an SIPC5 link frame
-@param frm	the pointer to an SIPC5 link frame
-@return		the size of the header of an SIPC5 link frame
-*/
+/*
+ * @brief	get the length of the header of an SIPC5 link frame
+ * @param frm	the pointer to an SIPC5 link frame
+ * @return	the size of the header of an SIPC5 link frame
+ */
 static inline unsigned int sipc5_get_hdr_len(u8 *frm)
 {
 	if (unlikely(frm[0] & SIPC5_EXT_FIELD_EXIST)) {
@@ -114,11 +106,11 @@ static inline unsigned int sipc5_get_hdr_len(u8 *frm)
 	}
 }
 
-/**
-@brief		get the real length of an SIPC5 link frame WITHOUT padding
-@param frm	the pointer to an SIPC5 link frame
-@return		the real length of an SIPC5 link frame WITHOUT padding
-*/
+/*
+ * @brief	get the real length of an SIPC5 link frame WITHOUT padding
+ * @param frm	the pointer to an SIPC5 link frame
+ * @return	the real length of an SIPC5 link frame WITHOUT padding
+ */
 static inline unsigned int sipc5_get_frame_len(u8 *frm)
 {
 	u16 *sz16 = (u16 *)(frm + SIPC5_LEN_OFFSET);
@@ -134,11 +126,11 @@ static inline unsigned int sipc5_get_frame_len(u8 *frm)
 	}
 }
 
-/**
-@brief		get the total length of an SIPC5 link frame with padding
-@param frm	the pointer to an SIPC5 link frame
-@return		the total length of an SIPC5 link frame with padding
-*/
+/*
+ * @brief	get the total length of an SIPC5 link frame with padding
+ * @param frm	the pointer to an SIPC5 link frame
+ * @return	the total length of an SIPC5 link frame with padding
+ */
 static inline unsigned int sipc5_get_total_len(u8 *frm)
 {
 	unsigned int len;
@@ -149,60 +141,60 @@ static inline unsigned int sipc5_get_total_len(u8 *frm)
 	return len + pad;
 }
 
-/**
-@param ch	the channel ID
-@return		true if the channel ID is for FMT channel
-*/
+/*
+ * @param ch	the channel ID
+ * @return	true if the channel ID is for FMT channel
+ */
 static inline bool sipc5_fmt_ch(u8 ch)
 {
 	return (ch >= SIPC5_CH_ID_FMT_0 && ch <= SIPC5_CH_ID_FMT_9) ?
 		true : false;
 }
 
-/**
-@param ch	the channel ID
-@return		true if the channel ID is for RFS channel
-*/
+/*
+ * @param ch	the channel ID
+ * @return	true if the channel ID is for RFS channel
+ */
 static inline bool sipc5_rfs_ch(u8 ch)
 {
 	return (ch >= SIPC5_CH_ID_RFS_0 && ch <= SIPC5_CH_ID_RFS_9) ?
 		true : false;
 }
 
-/**
-@param ch	the channel ID
-@return		true if the channel ID is for BOOT channel
-*/
+/*
+ * @param ch	the channel ID
+ * @return	true if the channel ID is for BOOT channel
+ */
 static inline bool sipc5_boot_ch(u8 ch)
 {
 	return (ch >= SIPC5_CH_ID_BOOT_0 && ch <= SIPC5_CH_ID_BOOT_9) ?
 		true : false;
 }
 
-/**
-@param ch	the channel ID
-@return		true if the channel ID is for DUMP channel
-*/
+/*
+ * @param ch	the channel ID
+ * @return	true if the channel ID is for DUMP channel
+ */
 static inline bool sipc5_dump_ch(u8 ch)
 {
 	return (ch >= SIPC5_CH_ID_DUMP_0 && ch <= SIPC5_CH_ID_DUMP_9) ?
 		true : false;
 }
 
-/**
-@param ch	the channel ID
-@return		true if the channel ID is for BOOT/DUMP channel
-*/
+/*
+ * @param ch	the channel ID
+ * @return	true if the channel ID is for BOOT/DUMP channel
+ */
 static inline bool sipc5_bootdump_ch(u8 ch)
 {
 	return (ch >= SIPC5_CH_ID_BOOT_0 && ch <= SIPC5_CH_ID_DUMP_9) ?
 		true : false;
 }
 
-/**
-@param ch	the channel ID
-@return		true if the channel ID is for IPC channel
-*/
+/*
+ * @param ch	the channel ID
+ * @return	true if the channel ID is for IPC channel
+ */
 static inline bool sipc5_ipc_ch(u8 ch)
 {
 	return (ch > 0 && (ch < SIPC5_CH_ID_BOOT_0 || ch > SIPC5_CH_ID_DUMP_9))
@@ -211,7 +203,11 @@ static inline bool sipc5_ipc_ch(u8 ch)
 
 static inline bool sipc_ps_ch(u8 ch)
 {
+#if IS_ENABLED(CONFIG_CH_EXTENSION)
+	return (ch >= SIPC_CH_EX_ID_PDP_0 && ch <= SIPC_CH_EX_ID_PDP_MAX) ?
+#else
 	return (ch >= SIPC_CH_ID_PDP_0 && ch <= SIPC_CH_ID_PDP_14) ?
+#endif
 		true : false;
 }
 
@@ -233,83 +229,13 @@ static inline bool sipc_router_ch(u8 ch)
 		true : false;
 }
 
-/**
-@param ch	the channel ID
-@return		true if the channel ID is for MISC channel want to logging
-*/
-static inline bool sipc5_misc_ch(u8 ch)
+static inline bool sipc_misc_ch(u8 ch)
 {
 	return (ch == SIPC_CH_ID_CASS) ?
 		true : false;
 }
 
-struct sipc5_frame_data {
-	/* Frame length calculated from the length fields */
-	unsigned int len;
-
-	/* The length of link layer header */
-	unsigned int hdr_len;
-
-	/* The length of received header */
-	unsigned int hdr_rcvd;
-
-	/* The length of link layer payload */
-	unsigned int pay_len;
-
-	/* The length of received data */
-	unsigned int pay_rcvd;
-
-	/* The length of link layer padding */
-	unsigned int pad_len;
-
-	/* The length of received padding */
-	unsigned int pad_rcvd;
-
-	/* Header buffer */
-	u8 hdr[SIPC5_MAX_HEADER_SIZE];
-};
-
-#if 1
-#endif
-
-#define STD_UDL_STEP_MASK	0x0000000F
-#define STD_UDL_SEND		0x1
-#define STD_UDL_CRC		0xC
-
-struct std_dload_info {
-	u32 size;
-	u32 mtu;
-	u32 num_frames;
-} __packed;
-
-
-/**
-@brief		get BOOT/DUMP command
-
-@param frm	the pointer to an SIPC5 link frame
-
-@return		the standard BOOT/DUMP command in an SIPC5 BOOT/DUMP frame
-*/
-static inline u32 std_bootdump_get_cmd(u8 *frm)
-{
-	u8 *cmd = frm + sipc5_get_hdr_len(frm);
-	return *((u32 *)cmd);
-}
-
-/**
-@brief		check whether or not a command came with a payload
-
-@param cmd	the standard BOOT/DUMP command
-
-@retval "true"	if the STD_UDL command has a payload
-@retval "false"	otherwise
-*/
-static inline bool std_bootdump_with_payload(u32 cmd)
-{
-	u32 mask = cmd & STD_UDL_STEP_MASK;
-	return (mask && mask < STD_UDL_CRC) ? true : false;
-}
-
+#if IS_ENABLED(CONFIG_CPIF_MBIM)
 static inline u8 sipc_get_rmnet_type(u8 ch)
 {
 	return ch - 10;
@@ -319,5 +245,6 @@ static inline u8 sipc_get_ch_from_cid(u8 cid)
 {
 	return cid + 9;
 }
+#endif
 
 #endif

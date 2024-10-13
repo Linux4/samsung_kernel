@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// KNOX NPA - START
-
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #ifndef NCM_COMMON_H__
 #define NCM_COMMON_H__
 
@@ -158,5 +157,4 @@ extern unsigned int get_intermediate_timeout(void);
 #define NCM_MATCH_VERSION        _IO(__NCMIOC, 64)
 
 #endif
-
-// KNOX NPA - END
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }

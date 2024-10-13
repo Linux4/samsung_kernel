@@ -121,9 +121,24 @@ struct zfcp_fc_rspn_req {
 /**
  * struct zfcp_fc_req - Container for FC ELS and CT requests sent from zfcp
  * @ct_els: data required for issuing fsf command
- * @sg_req: scatterlist entry for request data
- * @sg_rsp: scatterlist entry for response data
- * @u: request specific data
+ * @sg_req: scatterlist entry for request data, refers to embedded @u submember
+ * @sg_rsp: scatterlist entry for response data, refers to embedded @u submember
+ * @u: request and response specific data
+ * @u.adisc: ADISC specific data
+ * @u.adisc.req: ADISC request
+ * @u.adisc.rsp: ADISC response
+ * @u.gid_pn: GID_PN specific data
+ * @u.gid_pn.req: GID_PN request
+ * @u.gid_pn.rsp: GID_PN response
+ * @u.gpn_ft: GPN_FT specific data
+ * @u.gpn_ft.sg_rsp2: GPN_FT response, not embedded here, allocated elsewhere
+ * @u.gpn_ft.req: GPN_FT request
+ * @u.gspn: GSPN specific data
+ * @u.gspn.req: GSPN request
+ * @u.gspn.rsp: GSPN response
+ * @u.rspn: RSPN specific data
+ * @u.rspn.req: RSPN request
+ * @u.rspn.rsp: RSPN response
  */
 struct zfcp_fc_req {
 	struct zfcp_fsf_ct_els				ct_els;
@@ -170,7 +185,8 @@ enum zfcp_fc_wka_status {
 /**
  * struct zfcp_fc_wka_port - representation of well-known-address (WKA) FC port
  * @adapter: Pointer to adapter structure this WKA port belongs to
- * @completion_wq: Wait for completion of open/close command
+ * @opened: Wait for completion of open command
+ * @closed: Wait for completion of close command
  * @status: Current status of WKA port
  * @refcount: Reference count to keep port open as long as it is in use
  * @d_id: FC destination id or well-known-address
@@ -180,7 +196,8 @@ enum zfcp_fc_wka_status {
  */
 struct zfcp_fc_wka_port {
 	struct zfcp_adapter	*adapter;
-	wait_queue_head_t	completion_wq;
+	wait_queue_head_t	opened;
+	wait_queue_head_t	closed;
 	enum zfcp_fc_wka_status	status;
 	atomic_t		refcount;
 	u32			d_id;

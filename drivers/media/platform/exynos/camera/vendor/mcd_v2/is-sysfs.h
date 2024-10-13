@@ -86,6 +86,7 @@ enum is_cam_info_index {
 };
 
 struct is_cam_info {
+	unsigned int internal_id;
 	unsigned int isp;
 	unsigned int cal_memory;
 	unsigned int read_version;
@@ -104,28 +105,9 @@ struct is_common_cam_info {
 	unsigned int max_supported_camera;
 };
 
-#ifdef USE_SSRM_CAMERA_INFO
-struct ssrm_camera_data {
-	int operation;
-	int cameraID;
-	int previewSizeWidth;
-	int previewSizeHeight;
-	int previewMinFPS;
-	int previewMaxFPS;
-	int sensorOn;
-};
-
-enum ssrm_camerainfo_operation {
-	SSRM_CAMERA_INFO_CLEAR,
-	SSRM_CAMERA_INFO_SET,
-	SSRM_CAMERA_INFO_UPDATE,
-};
-#endif
-
-
-/***** Declare Function *****/
 int is_get_cam_info(struct is_cam_info **caminfo);
 void is_get_common_cam_info(struct is_common_cam_info **caminfo);
-
+int read_from_firmware_version(int rom_id);
+struct class *is_get_camera_class(void);
 
 #endif /* _IS_SYSFS_H_ */

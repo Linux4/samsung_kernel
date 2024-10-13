@@ -1,9 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
 menuconfig SND_SOC_SAMSUNG
 	tristate "ASoC support for Samsung"
-	depends on PLAT_SAMSUNG || ARCH_EXYNOS || COMPILE_TEST
+	depends on PLAT_SAMSUNG || ARCH_S5PV210 || ARCH_EXYNOS || COMPILE_TEST
 	depends on COMMON_CLK
 	select SND_SOC_GENERIC_DMAENGINE_PCM
-	---help---
+	help
 	  Say Y or M if you want to add support for codecs attached to
 	  the Samsung SoCs' Audio interfaces. You will also need to
 	  select the audio interfaces to support below.
@@ -29,9 +30,6 @@ config SND_SAMSUNG_SPDIF
 
 config SND_SAMSUNG_I2S
 	tristate "Samsung I2S interface support"
-
-config SND_SOC_SAMSUNG_DISPLAYPORT
-	tristate "Samsung display port audio interface support"
 
 config SND_SOC_SAMSUNG_NEO1973_WM8753
 	tristate "Audio support for Openmoko Neo1973 Smartphones (GTA02)"
@@ -79,7 +77,7 @@ config SND_SOC_SAMSUNG_S3C24XX_UDA134X
 config SND_SOC_SAMSUNG_SIMTEC
 	tristate
 	help
-	  Internal node for common S3C24XX/Simtec suppor
+	  Internal node for common S3C24XX/Simtec support.
 
 config SND_SOC_SAMSUNG_SIMTEC_TLV320AIC23
 	tristate "SoC I2S Audio support for TLV320AIC23 on Simtec boards"
@@ -153,7 +151,7 @@ config SND_SOC_TOBERMORY
 
 config SND_SOC_BELLS
 	tristate "Audio support for Wolfson Bells"
-	depends on MFD_ARIZONA && I2C && SPI_MASTER
+	depends on MFD_ARIZONA && MFD_WM5102 && MFD_WM5110 && I2C && SPI_MASTER
 	depends on MACH_WLF_CRAGG_6410 || COMPILE_TEST
 	select SND_SAMSUNG_I2S
 	select SND_SOC_WM5102
@@ -196,106 +194,21 @@ config SND_SOC_ODROID
 	help
 	  Say Y here to enable audio support for the Odroid XU3/XU4.
 
-config SND_SOC_SAMSUNG_EXYNOS9820
-	tristate "Audio support on exynos9820"
-	select SND_SOC_SAMSUNG_ABOX
-	#select SND_SOC_SAMSUNG_VTS
-	#select SND_SOC_SAMSUNG_MAILBOX
-	#select SND_SOC_SAMSUNG_DISPLAYPORT
-	help
-		Say Y if you want to add support for audio on the Exynos9820.
-
-config SND_SOC_SAMSUNG_EXYNOS9820_MADERA
-	tristate "Madera audio codec support on exynos9820"
-	select SND_SOC_CS47L92
-	select MFD_MADERA
-	select MFD_MADERA_SPI
-	select MFD_CS47L92
-	select MFD_ARIZONA
-	select REGULATOR_ARIZONA_LDO1
-	select REGULATOR_ARIZONA_MICSUPP
-	select EXTCON_MADERA
-	select EXTCON_MADERA_INPUT_EVENT
-	select GPIO_MADERA
-
-config SND_SOC_SAMSUNG_EXYNOS9820_MAX98512
-	tristate "MAX98512 amp support on exynos9820"
-	select SND_SOC_MAX98512
-
-config SND_SOC_SAMSUNG_EXYNOS9820_MAX98506
-	tristate "MAX98506 amp support on exynos9820"
-	select SND_SOC_MAX98506
-
-config SND_SOC_SAMSUNG_EXYNOS9820_CS35L41_I2C
-	tristate "CS35L41 amp support on exynos9820 with i2c bus"
-	select SND_SOC_CS35L41
-	select MFD_CS35L41_I2C
-
-config SND_SOC_SAMSUNG_EXYNOS9820_CS35L41_SPI
-	tristate "CS35L41 amp support on exynos9820 with spi bus"
-	select SND_SOC_CS35L41
-	select MFD_CS35L41_SPI
-
-config SND_SOC_SAMSUNG_EXYNOS9830
-	tristate "Audio support on exynos9830"
-	select SND_SOC_SAMSUNG_ABOX
-	select SND_SOC_SAMSUNG_VTS
-	select SND_SOC_SAMSUNG_MAILBOX
-	select SND_SOC_SAMSUNG_VTS_S_LIF
-	select SND_SOC_SAMSUNG_DISPLAYPORT
-	help
-		Say Y if you want to add support for audio on the Exynos9830.
-
-config SND_SOC_SAMSUNG_EXYNOS9830_TFA9874
-	tristate "TFA9874 amp support on exynos9830"
-	select SND_SOC_TFA9874
-	select FW_LOADER_USER_HELPER
-	select FW_LOADER_USER_HELPER_FALLBACK
-
-config SND_SOC_SAMSUNG_EXYNOS9830_CS35L41_I2C
-	tristate "CS35L41 amp support on exynos9830 with i2c bus"
-	select SND_SOC_CS35L41
-	select MFD_CS35L41_I2C
-
-config SND_SOC_SAMSUNG_EXYNOS9830_CS47L92_SPI
-	tristate "CS35L41 amp support on exynos9830 with spi bus"
-	select SND_SOC_CS47L92
-	select MFD_MADERA
-	select MFD_MADERA_SPI
-	select MFD_CS47L92
-	select MFD_ARIZONA
-	select REGULATOR_ARIZONA_LDO1
-	select REGULATOR_ARIZONA_MICSUPP
-	select EXTCON_MADERA
-	select EXTCON_MADERA_INPUT_EVENT
-	select GPIO_MADERA
-
-config SND_SOC_SAMSUNG_EXYNOS9830_MADERA
-	tristate "Madera audio codec support on exynos9830"
-	select SND_SOC_SAMSUNG_EXYNOS9830
-
-config SND_SOC_SAMSUNG_EXYNOS9630_SOUND
-	tristate "Madera audio codec support on exynos9630"
-	depends on SND_SOC_SAMSUNG
-	select SND_SOC_AUD3003X_5PIN
-
-config SND_SOC_SAMSUNG_EXYNOS3830_AUD3004X
-	tristate "Aud3004x audio codec support on exynos3830"
-	depends on SND_SOC_SAMSUNG
-
 config SND_SOC_SAMSUNG_EXYNOS3830_SOUND
-	tristate "Madera audio codec support on exynos3830"
-	depends on SND_SOC_SAMSUNG
+	tristate "Sound card support on exynos3830"
+	select SND_SOC_SAMSUNG_ABOX
 
-config SND_SOC_ARNDALE_RT5631_ALC5631
-        tristate "Audio support for RT5631(ALC5631) on Arndale Board"
-        depends on I2C
-        select SND_SAMSUNG_I2S
-        select SND_SOC_RT5631
+config SND_SOC_ARNDALE
+	tristate "Audio support for Arndale Board"
+	depends on I2C
+	select SND_SAMSUNG_I2S
+	select SND_SOC_RT5631
+	select MFD_WM8994
+	select SND_SOC_WM8994
 
 config SND_SOC_SAMSUNG_TM2_WM5110
 	tristate "SoC I2S Audio support for WM5110 on TM2 board"
-	depends on SND_SOC_SAMSUNG && MFD_ARIZONA && I2C && SPI_MASTER
+	depends on SND_SOC_SAMSUNG && MFD_ARIZONA && MFD_WM5110 && I2C && SPI_MASTER
 	depends on GPIOLIB || COMPILE_TEST
 	select SND_SOC_MAX98504
 	select SND_SOC_WM5110
@@ -303,6 +216,27 @@ config SND_SOC_SAMSUNG_TM2_WM5110
 	help
 	  Say Y if you want to add support for SoC audio on the TM2 board.
 
+config SND_SOC_SAMSUNG_ARIES_WM8994
+	tristate "SoC I2S Audio support for WM8994 on Aries"
+	depends on SND_SOC_SAMSUNG && MFD_WM8994 && IIO && EXTCON
+	select SND_SOC_BT_SCO
+	select SND_SOC_WM8994
+	select SND_SAMSUNG_I2S
+	help
+	  Say Y if you want to add support for SoC audio on Aries boards,
+	  which has a WM8994 codec connected to a BT codec, a cellular
+	  modem, and the Samsung I2S controller.  Jack detection is done
+	  via ADC, GPIOs, and an extcon device.  Switching between the Mic
+	  and TV-Out path is also handled.
+
+config SND_SOC_SAMSUNG_MIDAS_WM1811
+	tristate "SoC I2S Audio support for Midas boards"
+	depends on SND_SOC_SAMSUNG
+	select SND_SAMSUNG_I2S
+	select SND_SOC_WM8994
+	help
+	  Say Y if you want to add support for SoC audio on the Midas boards.
+	  
 config SND_SOC_SAMSUNG_AUDIO
 	tristate "Audio support for Samsung Projects"
 	help
@@ -314,6 +248,5 @@ config SND_SOC_SAMSUNG_SYSFS_EARJACK
 	  Say Y here to enable audio support for earjack sysfs node
 
 source "sound/soc/samsung/abox/Kconfig"
-source "sound/soc/samsung/vts/Kconfig"
 
 endif #SND_SOC_SAMSUNG

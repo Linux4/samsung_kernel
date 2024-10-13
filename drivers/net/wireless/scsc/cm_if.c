@@ -118,16 +118,10 @@ static void slsi_append_log_to_system_buffer(struct slsi_dev *sdev)
 	int    pos = 0;
 	int    buf_size = 128;
 	int    i = 0;
-	char   *log_to_sys_error_buffer = NULL;
+	char   log_to_sys_error_buffer[128] = { 0 };
 	struct netdev_vif   *ndev_vif;
 
-	log_to_sys_error_buffer = kzalloc(128, GFP_KERNEL);
-	if (!log_to_sys_error_buffer) {
-		SLSI_ERR_NODEV("Failed to allocate memory\n");
-		return;
-	}
-
-	scnprintf(log_to_sys_error_buffer + pos, buf_size - pos, "netdev_up_count=%d ", sdev->netdev_up_count);
+	pos = scnprintf(log_to_sys_error_buffer, buf_size, "netdev_up_count=%d ", sdev->netdev_up_count);
 
 	for (i = 1; i <= CONFIG_SCSC_WLAN_MAX_INTERFACES; i++) {
 		if (sdev->netdev[i]) {
@@ -187,15 +181,16 @@ static void wlan_failure_reset_v2(struct scsc_service_client *client, u8 level, 
 
 static  bool wlan_stop_on_failure_v2(struct scsc_service_client *client, struct mx_syserr_decode *err)
 {
-	int state;
-	u8 system_error_level;
-	struct slsi_dev *sdev = container_of(client, struct slsi_dev, mx_wlan_client);
+	int               state;
+	u8                system_error_level;
+	struct slsi_dev   *sdev = container_of(client, struct slsi_dev, mx_wlan_client);
+	char              *error = "Subsystem Restart";
 #ifndef SCSC_SEP_VERSION
 	struct netdev_vif *wlan_dev_vif;
 #endif
 #ifdef CONFIG_SCSC_WLAN_AP_AUTO_RECOVERY
 	struct netdev_vif *ndev_vif;
-	int i;
+	int               i;
 #endif
 
 	SLSI_INFO_NODEV("state:%d, err_level:%d\n", sdev->cm_if.cm_if_state, err->level);
@@ -268,6 +263,8 @@ static  bool wlan_stop_on_failure_v2(struct scsc_service_client *client, struct 
 		SLSI_INFO_NODEV("Wi-Fi service driver not started\n");
 	}
 
+	SLSI_INFO_NODEV("Sending SLSI_NL80211_SUBSYSTEM_RESTART_EVENT\n");
+	slsi_vendor_event(sdev, SLSI_NL80211_SUBSYSTEM_RESTART_EVENT, error, strlen(error));
 	mutex_unlock(&slsi_start_mutex);
 	SLSI_INFO_NODEV("Done!\n");
 	return true;

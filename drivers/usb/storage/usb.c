@@ -121,12 +121,12 @@ MODULE_PARM_DESC(quirks, "supplemental list of device IDs and their quirks");
 	.initFunction = init_function,	\
 }
 
-static struct us_unusual_dev us_unusual_dev_list[] = {
+static const struct us_unusual_dev us_unusual_dev_list[] = {
 #	include "unusual_devs.h"
 	{ }		/* Terminating entry */
 };
 
-static struct us_unusual_dev for_dynamic_ids =
+static const struct us_unusual_dev for_dynamic_ids =
 		USUAL_DEV(USB_SC_SCSI, USB_PR_BULK);
 
 #undef UNUSUAL_DEV
@@ -224,16 +224,113 @@ EXPORT_SYMBOL_GPL(usb_stor_reset_resume);
 
 int usb_stor_pre_reset(struct usb_interface *iface)
 {
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	struct us_data *us;
+	unsigned long jiffies_expire = jiffies + HZ;
+	int mu_lock = 1;
+
+	pr_info("%s +\n", __func__);
+
+	us = usb_get_intfdata(iface);
+
+	/* Make sure no command runs during the reset */
+	while (!mutex_trylock(&us->dev_mutex)) {
+
+		/* If we can't acquire the lock after waiting one second,
+		 * we're probably deadlocked */
+		if (time_after(jiffies, jiffies_expire))
+			goto busy;
+
+		msleep(15);
+		if (us->pusb_dev->state == USB_STATE_NOTATTACHED) {
+			mu_lock = 0;
+			goto skip;
+		}
+		if (us->pusb_dev->state == USB_STATE_SUSPENDED) {
+			mu_lock = 0;
+			goto skip;
+		}
+		if (iface->condition == USB_INTERFACE_UNBINDING ||
+				iface->condition == USB_INTERFACE_UNBOUND) {
+			mu_lock = 0;
+			goto skip;
+		}
+	}
+	
+	goto skip;
+	
+busy:
+	pr_info("%s busy\n", __func__);
+	set_bit(US_FLIDX_ABORTING, &us->dflags);
+	usb_stor_stop_transport(us);
+	/* wait 6 seconds. usb unlink may be spend 5 sec. */
+	jiffies_expire = jiffies + 6*HZ;
+	pr_info("%s try lock again\n", __func__);
+	while (!mutex_trylock(&us->dev_mutex)) {
+
+		/* If we can't acquire the lock after waiting one second,
+		 * we're probably deadlocked */
+		if (time_after(jiffies, jiffies_expire)) {
+			mu_lock = 0;
+			goto skip;
+		}
+
+		msleep(15);
+		if (us->pusb_dev->state == USB_STATE_NOTATTACHED) {
+			mu_lock = 0;
+			goto skip;
+		}
+		if (us->pusb_dev->state == USB_STATE_SUSPENDED) {
+			mu_lock = 0;
+			goto skip;
+		}
+		if (iface->condition == USB_INTERFACE_UNBINDING ||
+				iface->condition == USB_INTERFACE_UNBOUND) {
+			mu_lock = 0;
+			goto skip;
+		}
+	}
+skip:
+	set_bit(US_FLIDX_RESETTING, &us->dflags);
+	if (mu_lock)
+		set_bit(US_FLIDX_MUTEX_LOCK, &us->dflags);
+	
+	pr_info("%s -\n", __func__);
+	return 0;
+#else
 	struct us_data *us = usb_get_intfdata(iface);
 
 	/* Make sure no command runs during the reset */
 	mutex_lock(&us->dev_mutex);
 	return 0;
+#endif
 }
 EXPORT_SYMBOL_GPL(usb_stor_pre_reset);
 
 int usb_stor_post_reset(struct usb_interface *iface)
 {
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	struct us_data *us = usb_get_intfdata(iface);
+
+	pr_info("%s +\n", __func__);
+	/* Report the reset to the SCSI core */
+	usb_stor_report_bus_reset(us);
+
+	/*
+	 * If any of the subdrivers implemented a reinitialization scheme,
+	 * this is where the callback would be invoked.
+	 */
+
+	clear_bit(US_FLIDX_RESETTING, &us->dflags);
+	clear_bit(US_FLIDX_ABORTING, &us->dflags);
+	if (test_bit(US_FLIDX_MUTEX_LOCK, &us->dflags)) {
+		mutex_unlock(&us->dev_mutex);
+		clear_bit(US_FLIDX_MUTEX_LOCK, &us->dflags);
+		pr_info("%s mutex_unlock\n", __func__);
+	}
+	pr_info("%s -\n", __func__);
+	return 0;
+#else
 	struct us_data *us = usb_get_intfdata(iface);
 
 	/* Report the reset to the SCSI core */
@@ -246,6 +343,7 @@ int usb_stor_post_reset(struct usb_interface *iface)
 
 	mutex_unlock(&us->dev_mutex);
 	return 0;
+#endif
 }
 EXPORT_SYMBOL_GPL(usb_stor_post_reset);
 
@@ -404,6 +502,10 @@ SkipForAbort:
 			/* Allow USB transfers to resume */
 			clear_bit(US_FLIDX_ABORTING, &us->dflags);
 			clear_bit(US_FLIDX_TIMED_OUT, &us->dflags);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+			printk(KERN_ERR "usb_storage: %s clear TIMED_OUT\n",
+				__func__);
+#endif
 		}
 
 		/* finished working on this command */
@@ -541,6 +643,9 @@ void usb_stor_adjust_quirks(struct usb_device *udev, unsigned long *fflags)
 		case 'j':
 			f |= US_FL_NO_REPORT_LUNS;
 			break;
+		case 'k':
+			f |= US_FL_NO_SAME;
+			break;
 		case 'l':
 			f |= US_FL_NOT_LOCKABLE;
 			break;
@@ -583,7 +688,7 @@ EXPORT_SYMBOL_GPL(usb_stor_adjust_quirks);
 
 /* Get the unusual_devs entries and the string descriptors */
 static int get_device_info(struct us_data *us, const struct usb_device_id *id,
-		struct us_unusual_dev *unusual_dev)
+		const struct us_unusual_dev *unusual_dev)
 {
 	struct usb_device *dev = us->pusb_dev;
 	struct usb_interface_descriptor *idesc =
@@ -933,7 +1038,7 @@ static unsigned int usb_stor_sg_tablesize(struct usb_interface *intf)
 int usb_stor_probe1(struct us_data **pus,
 		struct usb_interface *intf,
 		const struct usb_device_id *id,
-		struct us_unusual_dev *unusual_dev,
+		const struct us_unusual_dev *unusual_dev,
 		struct scsi_host_template *sht)
 {
 	struct Scsi_Host *host;
@@ -1081,8 +1186,17 @@ void usb_stor_disconnect(struct usb_interface *intf)
 {
 	struct us_data *us = usb_get_intfdata(intf);
 
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	pr_info("%s enter\n", __func__);
+#endif
 	quiesce_and_remove_host(us);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	pr_info("%s doing\n", __func__);
+#endif
 	release_everything(us);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	pr_info("%s exit\n", __func__);
+#endif
 }
 EXPORT_SYMBOL_GPL(usb_stor_disconnect);
 
@@ -1092,7 +1206,7 @@ static struct scsi_host_template usb_stor_host_template;
 static int storage_probe(struct usb_interface *intf,
 			 const struct usb_device_id *id)
 {
-	struct us_unusual_dev *unusual_dev;
+	const struct us_unusual_dev *unusual_dev;
 	struct us_data *us;
 	int result;
 	int size;

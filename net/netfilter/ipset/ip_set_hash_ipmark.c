@@ -1,10 +1,5 @@
-/* Copyright (C) 2003-2013 Jozsef Kadlecsik <kadlec@blackhole.kfki.hu>
- * Copyright (C) 2013 Smoothwall Ltd. <vytas.dauksa@smoothwall.net>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- */
+// SPDX-License-Identifier: GPL-2.0-only
+/* Copyright (C) 2003-2013 Jozsef Kadlecsik <kadlec@netfilter.org> */
 
 /* Kernel module implementing an IP set type: the hash:ip,mark type */
 
@@ -47,7 +42,7 @@ struct hash_ipmark4_elem {
 
 /* Common functions */
 
-static inline bool
+static bool
 hash_ipmark4_data_equal(const struct hash_ipmark4_elem *ip1,
 			const struct hash_ipmark4_elem *ip2,
 			u32 *multi)
@@ -69,7 +64,7 @@ nla_put_failure:
 	return true;
 }
 
-static inline void
+static void
 hash_ipmark4_data_next(struct hash_ipmark4_elem *next,
 		       const struct hash_ipmark4_elem *d)
 {
@@ -101,11 +96,11 @@ static int
 hash_ipmark4_uadt(struct ip_set *set, struct nlattr *tb[],
 		  enum ipset_adt adt, u32 *lineno, u32 flags, bool retried)
 {
-	const struct hash_ipmark4 *h = set->data;
+	struct hash_ipmark4 *h = set->data;
 	ipset_adtfn adtfn = set->variant->adt[adt];
 	struct hash_ipmark4_elem e = { };
 	struct ip_set_ext ext = IP_SET_INIT_UEXT(set);
-	u32 ip, ip_to = 0;
+	u32 ip, ip_to = 0, i = 0;
 	int ret;
 
 	if (tb[IPSET_ATTR_LINENO])
@@ -125,6 +120,8 @@ hash_ipmark4_uadt(struct ip_set *set, struct nlattr *tb[],
 
 	e.mark = ntohl(nla_get_be32(tb[IPSET_ATTR_MARK]));
 	e.mark &= h->markmask;
+	if (e.mark == 0 && e.ip == 0)
+		return -IPSET_ERR_HASH_ELEM;
 
 	if (adt == IPSET_TEST ||
 	    !(tb[IPSET_ATTR_IP_TO] || tb[IPSET_ATTR_CIDR])) {
@@ -137,8 +134,11 @@ hash_ipmark4_uadt(struct ip_set *set, struct nlattr *tb[],
 		ret = ip_set_get_hostipaddr4(tb[IPSET_ATTR_IP_TO], &ip_to);
 		if (ret)
 			return ret;
-		if (ip > ip_to)
+		if (ip > ip_to) {
+			if (e.mark == 0 && ip_to == 0)
+				return -IPSET_ERR_HASH_ELEM;
 			swap(ip, ip_to);
+		}
 	} else if (tb[IPSET_ATTR_CIDR]) {
 		u8 cidr = nla_get_u8(tb[IPSET_ATTR_CIDR]);
 
@@ -149,8 +149,12 @@ hash_ipmark4_uadt(struct ip_set *set, struct nlattr *tb[],
 
 	if (retried)
 		ip = ntohl(h->next.ip);
-	for (; ip <= ip_to; ip++) {
+	for (; ip <= ip_to; ip++, i++) {
 		e.ip = htonl(ip);
+		if (i > IPSET_MAX_RANGE) {
+			hash_ipmark4_data_next(&h->next, &e);
+			return -ERANGE;
+		}
 		ret = adtfn(set, &e, &ext, &ext, flags);
 
 		if (ret && !ip_set_eexist(ret, flags))
@@ -170,7 +174,7 @@ struct hash_ipmark6_elem {
 
 /* Common functions */
 
-static inline bool
+static bool
 hash_ipmark6_data_equal(const struct hash_ipmark6_elem *ip1,
 			const struct hash_ipmark6_elem *ip2,
 			u32 *multi)
@@ -192,7 +196,7 @@ nla_put_failure:
 	return true;
 }
 
-static inline void
+static void
 hash_ipmark6_data_next(struct hash_ipmark6_elem *next,
 		       const struct hash_ipmark6_elem *d)
 {

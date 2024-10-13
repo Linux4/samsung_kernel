@@ -8,13 +8,30 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
+#include <asm/unaligned.h>
+#include <crypto/aes.h>
+#include <crypto/algapi.h>
+#include <soc/samsung/exynos-smc.h>
+#include <linux/of.h>
 
 #include <linux/keyslot-manager.h>
-#include <crypto/fmp.h>
 #include <linux/mmc/core.h>
 #include "../core/queue.h"
+#include "dw_mmc-exynos-fmp.h"
 
-#ifdef CONFIG_MMC_DW_EXYNOS_FMP
+#define WORD_SIZE 4
+#define FMP_IV_SIZE_16	16
+#define FMP_IV_MAX_IDX (FMP_IV_SIZE_16 / WORD_SIZE)
+
+#define byte2word(b0, b1, b2, b3)       \
+			(((unsigned int)(b0) << 24) | \
+			((unsigned int)(b1) << 16) | \
+			((unsigned int)(b2) << 8) | (b3))
+#define get_word(x, c)  byte2word(((unsigned char *)(x) + 4 * (c))[0], \
+				((unsigned char *)(x) + 4 * (c))[1], \
+				((unsigned char *)(x) + 4 * (c))[2], \
+				((unsigned char *)(x) + 4 * (c))[3])
+
 int fmp_mmc_crypt_cfg(struct bio *bio, void *desc,
 					struct mmc_data *data, int page_index,
 					bool cmdq_enabled)
@@ -23,54 +40,48 @@ int fmp_mmc_crypt_cfg(struct bio *bio, void *desc,
 	struct mmc_queue_req *mq_rq = container_of(brq, struct mmc_queue_req, brq);
 	struct request *rq = mmc_queue_req_to_req(mq_rq);
 	struct request_queue *q = rq->q;
-	struct fmp_crypto_info fmp_info;
-	struct fmp_request req;
-	int ret = 0;
-	u64 iv = 0;
+	struct fmp_table_setting *table = desc;
+	char *key ;
+	int idx, max;
+	u8 iv[FMP_IV_SIZE_16];
+	u64 dun = 0;
 
 	if (!bio || !q)
 		return 0;
 
-	if (!q->ksm || !bio_crypt_should_process(rq)) {
-		req.table = desc;
-		req.prdt_cnt = 1;
-		req.prdt_off = 0;
-		ret = exynos_fmp_bypass(&req, bio);
-		if (ret) {
-			pr_debug("%s: find fips\n", __func__);
-			req.fips = true;
-			goto encrypt;
-		}
+	if (!q->ksm || !bio_has_crypt_ctx(bio))
 		return 0;
-	}
-	fmp_info.enc_mode = EXYNOS_FMP_FILE_ENC;
-	fmp_info.algo_mode = EXYNOS_FMP_ALGO_MODE_AES_XTS;
 
-	ret = exynos_fmp_setkey(&fmp_info,
-		(u8 *)bio->bi_crypt_context->bc_key->raw,
-		bio->bi_crypt_context->bc_key->size, 0);
-	if (ret) {
-		pr_err("%s: fails to set fmp key. ret:%d\n", __func__, ret);
-		print_hex_dump(KERN_CONT, "fmp:", DUMP_PREFIX_OFFSET,
-					16, 1, req.table, 64, false);
-		return ret;
+	/* Configure FMP on each segment of the request. */
+	/* Set the algorithm and key length. */
+	if (cmdq_enabled) {
+		SET_CMDQ_FAS(table, EXYNOS_FMP_ALGO_MODE_AES_XTS);
+		SET_CMDQ_KEYLEN(table, FKL_CMDQ);
+	}
+	else {
+		SET_FAS(table, EXYNOS_FMP_ALGO_MODE_AES_XTS);
+		SET_KEYLEN(table, FKL);
 	}
 
-	req.iv =  &iv;
-	req.ivsize = sizeof(iv);
-	req.fips = false;
-encrypt:
-	req.cmdq_enabled = cmdq_enabled;
-	if (!req.fips)
-		iv = bio->bi_crypt_context->bc_dun[0] + page_index;
-	req.table = desc;
-	ret = exynos_fmp_crypt(&fmp_info, &req);
-	if (ret) {
-		pr_err("%s: fails to crypt fmp key. ret:%d\n", __func__, ret);
-		print_hex_dump(KERN_CONT, "fmp:", DUMP_PREFIX_OFFSET,
-					16, 1, req.table, 64, false);
-		return ret;
-	}
+	/* Set the key. */
+	key = (u8 *)bio->bi_crypt_context->bc_key->raw;
+	max = bio->bi_crypt_context->bc_key->size / WORD_SIZE;
+	for (idx = 0; idx < (max / 2); idx++)
+		*(&table->file_enckey0 + idx) =
+			get_word(key, (max / 2) - (idx + 1));
+	for (idx = 0; idx < (max / 2); idx++)
+		*(&table->file_twkey0 + idx) =
+			get_word(key, max - (idx + 1));
+
+	/* Set the IV. */
+	dun = bio->bi_crypt_context->bc_dun[0] + page_index;
+	memset(iv, 0, FMP_IV_SIZE_16);
+	memcpy(iv, &dun, sizeof(dun));
+
+	for (idx = 0; idx < FMP_IV_MAX_IDX; idx++)
+		*(&table->file_iv0 + idx) =
+			get_word(iv, FMP_IV_MAX_IDX - (idx + 1));
+
 	return 0;
 }
 EXPORT_SYMBOL(fmp_mmc_crypt_cfg);
@@ -82,48 +93,60 @@ int fmp_mmc_crypt_clear(struct bio *bio, void *desc,
 	struct mmc_queue_req *mq_rq = container_of(brq, struct mmc_queue_req, brq);
 	struct request *rq = mmc_queue_req_to_req(mq_rq);
 	struct request_queue *q = rq->q;
-	struct fmp_crypto_info fmp_info;
-	struct fmp_request req;
-	int ret = 0;
+	struct fmp_table_setting *table = desc;
 
 	if (!bio || !q)
 		return 0;
 
-	if (!q->ksm || !bio_crypt_should_process(rq)) {
-		ret = exynos_fmp_fips(bio);
-		if (ret) {
-			pr_debug("%s: find fips\n", __func__);
-			req.fips = true;
-		} else {
-			return 0;
-		}
-	}
+	if (!q->ksm || !bio_has_crypt_ctx(bio))
+		return 0;
 
-	req.table = desc;
-	ret = exynos_fmp_clear(&fmp_info, &req);
-	if (ret) {
-		pr_warn("%s: fails to clear fips\n", __func__);
-	}
+	memset(&table->file_iv0, 0, sizeof(__le32) * 24);
+
 	return 0;
 }
 EXPORT_SYMBOL(fmp_mmc_crypt_clear);
 
-static const struct keyslot_mgmt_ll_ops fmp_ksm_ops = {
-};
-
 int fmp_mmc_init_crypt(struct mmc_host *mmc)
 {
-	unsigned int crypto_modes_supported[BLK_ENCRYPTION_MODE_MAX] = {
-		[BLK_ENCRYPTION_MODE_AES_256_XTS] = 4096,
-	};
+	struct device *dev = mmc_dev(mmc);
 
-	mmc->ksm = keyslot_manager_create_passthrough(NULL, &fmp_ksm_ops,
-					crypto_modes_supported, NULL);
-	if(!mmc->ksm) {
-		pr_info("%s fails to get keyslot manager\n", __func__);
-		return -EINVAL;
-	}
+	pr_info("%s Exynos FMP Version: %s\n", __func__, FMP_DRV_VERSION);
+
+	/* Advertise crypto capabilities to the block layer. */
+	blk_ksm_init_passthrough(&mmc->ksm);
+	mmc->ksm.max_dun_bytes_supported = AES_BLOCK_SIZE;
+	mmc->ksm.features = BLK_CRYPTO_FEATURE_STANDARD_KEYS;
+	mmc->ksm.dev = dev; // NULL?
+	mmc->ksm.crypto_modes_supported[BLK_ENCRYPTION_MODE_AES_256_XTS] =
+		FMP_DATA_UNIT_SIZE;
 	return 0;
 }
 EXPORT_SYMBOL(fmp_mmc_init_crypt);
-#endif
+
+int fmp_mmc_sec_cfg(bool init)
+{
+	u64 ret = 0;
+	pr_info("%s init = %d\n", __func__, init);
+
+	/* configure fmp */
+	ret = exynos_smc(SMC_CMD_FMP_SECURITY, 0, FMP_EMBEDDED, CFG_DESCTYPE_3);
+	if (ret)
+		pr_err("%s: Fail smc call for FMP_SECURITY. ret(%d)\n",
+				__func__, ret);
+
+	/* configure smu */
+	if (init)
+		ret = exynos_smc(SMC_CMD_SMU, SMU_INIT, FMP_EMBEDDED, 0);
+	else
+		ret = exynos_smc(SMC_CMD_FMP_SMU_RESUME, 0, FMP_EMBEDDED, 0);
+
+	if (ret)
+		pr_err("%s: Fail smc call for SMU_INIT/RESUME. ret(%d)\n",
+				__func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL(fmp_mmc_sec_cfg);
+
+MODULE_LICENSE("GPL v2");
+MODULE_ALIAS("platform:dwmmc_exynos_fmp");

@@ -16,6 +16,7 @@
 #include <linux/firmware.h>
 
 #include "is-binary.h"
+#include "is-device-ischain.h"
 #include "exynos-is-sensor.h"
 
 /* the version storage of each library binary */
@@ -77,13 +78,17 @@ static const struct is_bin_ver_info bin_ver_info[] = {
 	{},
 };
 
-static noinline_for_stack long get_file_size(struct file *file)
+#ifdef USE_KERNEL_VFS_READ_WRITE
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+static noinline_for_stack long _get_file_size(struct file *file)
 {
 	struct kstat st;
 	u32 request_mask = (STATX_MODE | STATX_SIZE);
 
-	if (vfs_getattr(&file->f_path, &st, request_mask, KSTAT_QUERY_FLAGS))
+#ifdef USE_KERNEL_VFS_READ_WRITE
+	if (vfs_getattr(&file->f_path, &st, request_mask, AT_STATX_SYNC_TYPE))
 		return -1;
+#endif
 	if (!S_ISREG(st.mode))
 		return -1;
 	if (st.size != (long)st.size)
@@ -91,7 +96,9 @@ static noinline_for_stack long get_file_size(struct file *file)
 
 	return st.size;
 }
+#endif
 
+#ifdef USE_KERNEL_VFS_READ_WRITE
 static int read_file_contents(struct file *fp, struct is_binary *bin)
 {
 	long size;
@@ -99,7 +106,7 @@ static int read_file_contents(struct file *fp, struct is_binary *bin)
 	int ret;
 	loff_t pos = 0;
 
-	size = get_file_size(fp);
+	size = _get_file_size(fp);
 	if (size <= 0)
 		return -EBADF;
 
@@ -134,7 +141,9 @@ static int read_file_contents(struct file *fp, struct is_binary *bin)
 
 	return 0;
 }
+#endif
 
+#ifdef USE_KERNEL_VFS_READ_WRITE
 static int write_file_contents(struct file *fp, struct is_binary *bin)
 {
 	ssize_t ret;
@@ -158,6 +167,7 @@ static int write_file_contents(struct file *fp, struct is_binary *bin)
 
 	return ret;
 }
+#endif
 
 /*
  * get_filesystem_binary: copy a binary in userland to a given buffer
@@ -166,8 +176,9 @@ static int write_file_contents(struct file *fp, struct is_binary *bin)
  */
 int get_filesystem_binary(const char *filename, struct is_binary *bin)
 {
-	struct file *fp;
 	int ret = 0;
+#ifdef USE_KERNEL_VFS_READ_WRITE
+	struct file *fp;
 
 	fp = filp_open(filename, O_RDONLY, 0);
 	if (!IS_ERR_OR_NULL(fp)) {
@@ -176,7 +187,10 @@ int get_filesystem_binary(const char *filename, struct is_binary *bin)
 	} else {
 		ret = PTR_ERR(fp);
 	}
-
+#else
+	err("not support %s API!", __func__);
+	ret = -EINVAL;
+#endif
 	return ret;
 }
 
@@ -187,8 +201,9 @@ int get_filesystem_binary(const char *filename, struct is_binary *bin)
  */
 int put_filesystem_binary(const char *filename, struct is_binary *bin, u32 flags)
 {
-	struct file *fp;
 	int ret = 0;
+#ifdef USE_KERNEL_VFS_READ_WRITE
+	struct file *fp;
 
 	fp = filp_open(filename, flags, 0666);
 	if (!IS_ERR_OR_NULL(fp)) {
@@ -197,7 +212,10 @@ int put_filesystem_binary(const char *filename, struct is_binary *bin, u32 flags
 	} else {
 		ret = PTR_ERR(fp);
 	}
-
+#else
+	err("not support %s API!", __func__);
+	ret = -EINVAL;
+#endif
 	return ret;
 }
 
@@ -267,8 +285,11 @@ int request_binary(struct is_binary *bin, const char *path,
 		ret = get_filesystem_binary(filename, bin);
 		__putname(filename);
 		/* read successfully or don't want to go further more */
-		if (!ret || !device)
+		if (!ret || !device) {
+			info("%s:%s%s done. ret %d\n", __func__,
+					path, name, ret);
 			return ret;
+		}
 	}
 
 	/* ask to 'request_firmware' */

@@ -1,12 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /* RxRPC virtual connection handler, common bits.
  *
  * Copyright (C) 2007, 2016 Red Hat, Inc. All Rights Reserved.
  * Written by David Howells (dhowells@redhat.com)
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -45,8 +41,6 @@ struct rxrpc_connection *rxrpc_alloc_connection(gfp_t gfp)
 	conn = kzalloc(sizeof(struct rxrpc_connection), gfp);
 	if (conn) {
 		INIT_LIST_HEAD(&conn->cache_link);
-		spin_lock_init(&conn->channel_lock);
-		INIT_LIST_HEAD(&conn->waiting_calls);
 		timer_setup(&conn->timer, &rxrpc_connection_timer, 0);
 		INIT_WORK(&conn->processor, &rxrpc_process_connection);
 		INIT_LIST_HEAD(&conn->proc_link);
@@ -86,11 +80,12 @@ struct rxrpc_connection *rxrpc_find_connection_rcu(struct rxrpc_local *local,
 
 	_enter(",%x", sp->hdr.cid & RXRPC_CIDMASK);
 
-	if (rxrpc_extract_addr_from_skb(local, &srx, skb) < 0)
+	if (rxrpc_extract_addr_from_skb(&srx, skb) < 0)
 		goto not_found;
 
-	/* We may have to handle mixing IPv4 and IPv6 */
-	if (srx.transport.family != local->srx.transport.family) {
+	if (srx.transport.family != local->srx.transport.family &&
+	    (srx.transport.family == AF_INET &&
+	     local->srx.transport.family != AF_INET6)) {
 		pr_warn_ratelimited("AF_RXRPC: Protocol mismatch %u not %u\n",
 				    srx.transport.family,
 				    local->srx.transport.family);
@@ -110,7 +105,7 @@ struct rxrpc_connection *rxrpc_find_connection_rcu(struct rxrpc_local *local,
 			goto not_found;
 		*_peer = peer;
 		conn = rxrpc_find_service_conn_rcu(peer, skb);
-		if (!conn || atomic_read(&conn->usage) == 0)
+		if (!conn || refcount_read(&conn->ref) == 0)
 			goto not_found;
 		_leave(" = %p", conn);
 		return conn;
@@ -120,7 +115,7 @@ struct rxrpc_connection *rxrpc_find_connection_rcu(struct rxrpc_local *local,
 		 */
 		conn = idr_find(&rxrpc_client_conn_ids,
 				sp->hdr.cid >> RXRPC_CIDSHIFT);
-		if (!conn || atomic_read(&conn->usage) == 0) {
+		if (!conn || refcount_read(&conn->ref) == 0) {
 			_debug("no conn");
 			goto not_found;
 		}
@@ -189,7 +184,7 @@ void __rxrpc_disconnect_call(struct rxrpc_connection *conn,
 			chan->last_type = RXRPC_PACKET_TYPE_ABORT;
 			break;
 		default:
-			chan->last_abort = RX_USER_ABORT;
+			chan->last_abort = RX_CALL_DEAD;
 			chan->last_type = RXRPC_PACKET_TYPE_ABORT;
 			break;
 		}
@@ -215,16 +210,18 @@ void rxrpc_disconnect_call(struct rxrpc_call *call)
 
 	call->peer->cong_cwnd = call->cong_cwnd;
 
-	spin_lock_bh(&conn->params.peer->lock);
-	hlist_del_rcu(&call->error_link);
-	spin_unlock_bh(&conn->params.peer->lock);
+	if (!hlist_unhashed(&call->error_link)) {
+		spin_lock_bh(&call->peer->lock);
+		hlist_del_rcu(&call->error_link);
+		spin_unlock_bh(&call->peer->lock);
+	}
 
 	if (rxrpc_is_client_call(call))
-		return rxrpc_disconnect_client_call(call);
+		return rxrpc_disconnect_client_call(conn->bundle, call);
 
-	spin_lock(&conn->channel_lock);
+	spin_lock(&conn->bundle->channel_lock);
 	__rxrpc_disconnect_call(conn, call);
-	spin_unlock(&conn->channel_lock);
+	spin_unlock(&conn->bundle->channel_lock);
 
 	set_bit(RXRPC_CALL_DISCONNECTED, &call->flags);
 	conn->idle_timestamp = jiffies;
@@ -267,11 +264,12 @@ void rxrpc_kill_connection(struct rxrpc_connection *conn)
 bool rxrpc_queue_conn(struct rxrpc_connection *conn)
 {
 	const void *here = __builtin_return_address(0);
-	int n = atomic_fetch_add_unless(&conn->usage, 1, 0);
-	if (n == 0)
+	int r;
+
+	if (!__refcount_inc_not_zero(&conn->ref, &r))
 		return false;
 	if (rxrpc_queue_work(&conn->processor))
-		trace_rxrpc_conn(conn->debug_id, rxrpc_conn_queued, n + 1, here);
+		trace_rxrpc_conn(conn->debug_id, rxrpc_conn_queued, r + 1, here);
 	else
 		rxrpc_put_connection(conn);
 	return true;
@@ -284,7 +282,7 @@ void rxrpc_see_connection(struct rxrpc_connection *conn)
 {
 	const void *here = __builtin_return_address(0);
 	if (conn) {
-		int n = atomic_read(&conn->usage);
+		int n = refcount_read(&conn->ref);
 
 		trace_rxrpc_conn(conn->debug_id, rxrpc_conn_seen, n, here);
 	}
@@ -293,12 +291,14 @@ void rxrpc_see_connection(struct rxrpc_connection *conn)
 /*
  * Get a ref on a connection.
  */
-void rxrpc_get_connection(struct rxrpc_connection *conn)
+struct rxrpc_connection *rxrpc_get_connection(struct rxrpc_connection *conn)
 {
 	const void *here = __builtin_return_address(0);
-	int n = atomic_inc_return(&conn->usage);
+	int r;
 
-	trace_rxrpc_conn(conn->debug_id, rxrpc_conn_got, n, here);
+	__refcount_inc(&conn->ref, &r);
+	trace_rxrpc_conn(conn->debug_id, rxrpc_conn_got, r, here);
+	return conn;
 }
 
 /*
@@ -308,11 +308,11 @@ struct rxrpc_connection *
 rxrpc_get_connection_maybe(struct rxrpc_connection *conn)
 {
 	const void *here = __builtin_return_address(0);
+	int r;
 
 	if (conn) {
-		int n = atomic_fetch_add_unless(&conn->usage, 1, 0);
-		if (n > 0)
-			trace_rxrpc_conn(conn->debug_id, rxrpc_conn_got, n + 1, here);
+		if (__refcount_inc_not_zero(&conn->ref, &r))
+			trace_rxrpc_conn(conn->debug_id, rxrpc_conn_got, r + 1, here);
 		else
 			conn = NULL;
 	}
@@ -336,12 +336,11 @@ void rxrpc_put_service_conn(struct rxrpc_connection *conn)
 {
 	const void *here = __builtin_return_address(0);
 	unsigned int debug_id = conn->debug_id;
-	int n;
+	int r;
 
-	n = atomic_dec_return(&conn->usage);
-	trace_rxrpc_conn(debug_id, rxrpc_conn_put_service, n, here);
-	ASSERTCMP(n, >=, 0);
-	if (n == 1)
+	__refcount_dec(&conn->ref, &r);
+	trace_rxrpc_conn(debug_id, rxrpc_conn_put_service, r - 1, here);
+	if (r - 1 == 1)
 		rxrpc_set_service_reap_timer(conn->params.local->rxnet,
 					     jiffies + rxrpc_connection_expiry);
 }
@@ -354,9 +353,9 @@ static void rxrpc_destroy_connection(struct rcu_head *rcu)
 	struct rxrpc_connection *conn =
 		container_of(rcu, struct rxrpc_connection, rcu);
 
-	_enter("{%d,u=%d}", conn->debug_id, atomic_read(&conn->usage));
+	_enter("{%d,u=%d}", conn->debug_id, refcount_read(&conn->ref));
 
-	ASSERTCMP(atomic_read(&conn->usage), ==, 0);
+	ASSERTCMP(refcount_read(&conn->ref), ==, 0);
 
 	_net("DESTROY CONN %d", conn->debug_id);
 
@@ -366,6 +365,7 @@ static void rxrpc_destroy_connection(struct rcu_head *rcu)
 	conn->security->clear(conn);
 	key_put(conn->params.key);
 	key_put(conn->server_key);
+	rxrpc_put_bundle(conn->bundle);
 	rxrpc_put_peer(conn->params.peer);
 
 	if (atomic_dec_and_test(&conn->params.local->rxnet->nr_conns))
@@ -395,8 +395,8 @@ void rxrpc_service_connection_reaper(struct work_struct *work)
 
 	write_lock(&rxnet->conn_lock);
 	list_for_each_entry_safe(conn, _p, &rxnet->service_conns, link) {
-		ASSERTCMP(atomic_read(&conn->usage), >, 0);
-		if (likely(atomic_read(&conn->usage) > 1))
+		ASSERTCMP(refcount_read(&conn->ref), >, 0);
+		if (likely(refcount_read(&conn->ref) > 1))
 			continue;
 		if (conn->state == RXRPC_CONN_SERVICE_PREALLOC)
 			continue;
@@ -408,7 +408,7 @@ void rxrpc_service_connection_reaper(struct work_struct *work)
 				expire_at = idle_timestamp + rxrpc_closed_conn_expiry * HZ;
 
 			_debug("reap CONN %d { u=%d,t=%ld }",
-			       conn->debug_id, atomic_read(&conn->usage),
+			       conn->debug_id, refcount_read(&conn->ref),
 			       (long)expire_at - (long)now);
 
 			if (time_before(now, expire_at)) {
@@ -421,7 +421,7 @@ void rxrpc_service_connection_reaper(struct work_struct *work)
 		/* The usage count sits at 1 whilst the object is unused on the
 		 * list; we reduce that to 0 to make the object unavailable.
 		 */
-		if (atomic_cmpxchg(&conn->usage, 1, 0) != 1)
+		if (!refcount_dec_if_one(&conn->ref))
 			continue;
 		trace_rxrpc_conn(conn->debug_id, rxrpc_conn_reap_service, 0, NULL);
 
@@ -445,7 +445,7 @@ void rxrpc_service_connection_reaper(struct work_struct *work)
 				  link);
 		list_del_init(&conn->link);
 
-		ASSERTCMP(atomic_read(&conn->usage), ==, 0);
+		ASSERTCMP(refcount_read(&conn->ref), ==, 0);
 		rxrpc_kill_connection(conn);
 	}
 
@@ -473,7 +473,7 @@ void rxrpc_destroy_all_connections(struct rxrpc_net *rxnet)
 	write_lock(&rxnet->conn_lock);
 	list_for_each_entry_safe(conn, _p, &rxnet->service_conns, link) {
 		pr_err("AF_RXRPC: Leaked conn %p {%d}\n",
-		       conn, atomic_read(&conn->usage));
+		       conn, refcount_read(&conn->ref));
 		leak = true;
 	}
 	write_unlock(&rxnet->conn_lock);

@@ -1,12 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * pm.c - Common OMAP2+ power management-related code
  *
  * Copyright (C) 2010 Texas Instruments, Inc.
  * Copyright (C) 2010 Nokia Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/kernel.h>
@@ -30,6 +27,8 @@
 #include "powerdomain.h"
 #include "clockdomain.h"
 #include "pm.h"
+
+u32 enable_off_mode;
 
 #ifdef CONFIG_SUSPEND
 /*
@@ -151,6 +150,7 @@ int __init omap2_common_pm_late_init(void)
 	/* Init the voltage layer */
 	omap3_twl_init();
 	omap4_twl_init();
+	omap4_cpcap_init();
 	omap_voltage_late_init();
 
 	/* Smartreflex device init */

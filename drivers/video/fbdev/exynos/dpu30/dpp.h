@@ -19,17 +19,22 @@
 #include <linux/videodev2.h>
 #include <linux/io.h>
 #include <linux/pm_runtime.h>
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#include <soc/samsung/exynos_pm_qos.h>
+#else
 #include <linux/pm_qos.h>
+#endif
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/ion_exynos.h>
-#if defined(CONFIG_EXYNOS_BTS)
+#include <linux/ion.h>
+#include <linux/dma-buf.h>
+#if IS_ENABLED(CONFIG_EXYNOS_BTS)
 #include <soc/samsung/bts.h>
 #endif
 
 #include "decon.h"
 /* TODO: SoC dependency will be removed */
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_S5E3830)
 #include "./cal_3830/regs-dpp.h"
 #include "./cal_3830/dpp_cal.h"
 #endif
@@ -39,7 +44,7 @@ extern int dpp_log_level;
 #define DPP_MODULE_NAME		"exynos-dpp"
 
 #define MAX_DPP_CNT		7 /* + ODMA case */
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_S5E3830)
 #define SOC_DPP_CNT		4 /* + ODMA case */
 #endif
 
@@ -234,6 +239,7 @@ struct dpp_device {
 	enum wbmux_state wb_state;	/* only for writeback */
 	struct device *dev;
 	struct v4l2_subdev sd;
+	bool subdev_initialized;
 	struct dpp_resources res;
 	struct dpp_debug d;
 	struct timer_list op_timer;

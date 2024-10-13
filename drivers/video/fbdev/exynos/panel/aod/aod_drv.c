@@ -25,7 +25,7 @@ int panel_do_aod_seqtbl_by_index_nolock(struct aod_dev_info *aod, int index)
 	struct seqinfo *tbl;
 	struct panel_info *panel_data;
 	struct panel_device *panel = to_panel_device(aod);
-	struct timespec cur_ts, last_ts, delta_ts;
+	struct timespec64 cur_ts, last_ts, delta_ts;
 	s64 elapsed_usec;
 
 	if (panel == NULL) {
@@ -38,9 +38,9 @@ int panel_do_aod_seqtbl_by_index_nolock(struct aod_dev_info *aod, int index)
 
 	panel_data = &panel->panel_data;
 	tbl = panel->aod.seqtbl;
-	ktime_get_ts(&cur_ts);
+	ktime_get_ts64(&cur_ts);
 
-	ktime_get_ts(&last_ts);
+	ktime_get_ts64(&last_ts);
 
 	if (unlikely(index < 0 || index >= MAX_AOD_SEQ)) {
 		panel_err("%s, invalid paramter (panel %p, index %d)\n",
@@ -49,8 +49,8 @@ int panel_do_aod_seqtbl_by_index_nolock(struct aod_dev_info *aod, int index)
 		goto do_exit;
 	}
 
-	delta_ts = timespec_sub(last_ts, cur_ts);
-	elapsed_usec = timespec_to_ns(&delta_ts) / 1000;
+	delta_ts = timespec64_sub(last_ts, cur_ts);
+	elapsed_usec = timespec64_to_ns(&delta_ts) / 1000;
 	if (elapsed_usec > 34000)
 		pr_debug("seq:%s warn:elapsed %lld.%03lld msec to acquire lock\n",
 				tbl[index].name, elapsed_usec / 1000, elapsed_usec % 1000);
@@ -97,9 +97,9 @@ do_exit:
 		panel_data->props.key[CMD_LEVEL_3] = 0;
 	}
 
-	ktime_get_ts(&last_ts);
-	delta_ts = timespec_sub(last_ts, cur_ts);
-	elapsed_usec = timespec_to_ns(&delta_ts) / 1000;
+	ktime_get_ts64(&last_ts);
+	delta_ts = timespec64_sub(last_ts, cur_ts);
+	elapsed_usec = timespec64_to_ns(&delta_ts) / 1000;
 	pr_debug("seq:%s done (elapsed %2lld.%03lld msec)\n",
 			tbl[index].name, elapsed_usec / 1000, elapsed_usec % 1000);
 

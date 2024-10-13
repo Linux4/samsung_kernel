@@ -11,7 +11,9 @@
 #ifndef CAMERAPP_VOTF_REG_H
 #define CAMERAPP_VOTF_REG_H
 
-#include "is-hw-api-common.h"
+#include <linux/io.h>
+
+#include "camerapp-sfr-api-common.h"
 
 enum votf_c2serv_m0s4_reg_name {
 	C2SERV_R_M0S4_C2COM_DEBUG,
@@ -631,7 +633,7 @@ enum votf_c2agent_m6s4_reg_name {
 	C2AGENT_M4S6_REG_CNT,
 };
 
-static const struct is_reg c2agent_m6s4_regs[C2AGENT_M4S6_REG_CNT] = {
+static const struct camerapp_sfr_reg c2agent_m6s4_regs[C2AGENT_M4S6_REG_CNT] = {
 	{0x0000, "C2AGENT_M6S4_C2COM_DEBUG"},
 	{0x0004, "C2AGENT_M6S4_C2COM_DEBUG_DOUT"},
 	{0x0008, "C2AGENT_M6S4_C2COM_RCV_VALID_STATUS"},
@@ -784,7 +786,7 @@ static const struct is_reg c2agent_m6s4_regs[C2AGENT_M4S6_REG_CNT] = {
 	{0x04f4, "CONTINT_C2AGENT_M6_S4_REG_INTERFACE_VER"},
 };
 
-static const struct is_reg c2serv_m0s4_regs[C2SERV_M0S4_REG_CNT] = {
+static const struct camerapp_sfr_reg c2serv_m0s4_regs[C2SERV_M0S4_REG_CNT] = {
 	{0x0000, "C2SERV_M16S16_C2COM_DEBUG"},
 	{0x0004, "C2SERV_M16S16_C2COM_DEBUG_DOUT"},
 	{0x0008, "C2SERV_M16S16_C2COM_RCV_VALID_STATUS"},
@@ -843,7 +845,7 @@ static const struct is_reg c2serv_m0s4_regs[C2SERV_M0S4_REG_CNT] = {
 	{0x01ac, "C2SERV_M16S16_TRS3_LOST_CONNECTION"},
 };
 
-static const struct is_reg c2serv_m2s2_regs[C2SERV_M2S2_REG_CNT] = {
+static const struct camerapp_sfr_reg c2serv_m2s2_regs[C2SERV_M2S2_REG_CNT] = {
 	{0x0000, "C2SERV_M2S2_C2COM_DEBUG"},
 	{0x0004, "C2SERV_M2S2_C2COM_DEBUG_DOUT"},
 	{0x0008, "C2SERV_M2S2_C2COM_RCV_VALID_STATUS"},
@@ -894,7 +896,7 @@ static const struct is_reg c2serv_m2s2_regs[C2SERV_M2S2_REG_CNT] = {
 	{0x0254, "C2SERV_M2S2_TRS1_LOST_CONNECTION"},
 };
 
-static const struct is_reg c2serv_m3s1_regs[C2SERV_M3S1_REG_CNT] = {
+static const struct camerapp_sfr_reg c2serv_m3s1_regs[C2SERV_M3S1_REG_CNT] = {
 	{0x0000, "C2SERV_M3S1_C2COM_DEBUG"},
 	{0x0004, "C2SERV_M3S1_C2COM_DEBUG_DOUT"},
 	{0x0008, "C2SERV_M3S1_C2COM_RCV_VALID_STATUS"},
@@ -941,7 +943,7 @@ static const struct is_reg c2serv_m3s1_regs[C2SERV_M3S1_REG_CNT] = {
 	{0x0228, "C2SERV_M3S1_TRS0_LOST_CONNECTION"},
 };
 
-static const struct is_reg c2serv_m16s16_regs[C2SERV_M16S16_REG_CNT] = {
+static const struct camerapp_sfr_reg c2serv_m16s16_regs[C2SERV_M16S16_REG_CNT] = {
 	{0x0000, "C2SERV_M16S16_C2COM_DEBUG"},
 	{0x0004, "C2SERV_M16S16_C2COM_DEBUG_DOUT"},
 	{0x0008, "C2SERV_M16S16_C2COM_RCV_VALID_STATUS"},
@@ -1335,7 +1337,7 @@ enum votf_c2agent_reg_name {
 	C2AGENT_REG_CNT,
 };
 
-static const struct is_reg c2serv_regs[C2SERV_REG_CNT] = {
+static const struct camerapp_sfr_reg c2serv_regs[C2SERV_REG_CNT] = {
 	{0x0000, "C2SERV_C2COM_DEBUG"},
 	{0x0004, "C2SERV_C2COM_DEBUG_DOUT"},
 	{0x0008, "C2SERV_C2COM_RCV_VALID_STATUS"},
@@ -1370,7 +1372,7 @@ static const struct is_reg c2serv_regs[C2SERV_REG_CNT] = {
 	{0x0028, "C2SERV_TRS_LOST_CONNECTION"},
 };
 
-static const struct is_reg c2agent_regs[C2AGENT_REG_CNT] = {
+static const struct camerapp_sfr_reg c2agent_regs[C2AGENT_REG_CNT] = {
 	{0x0000, "C2AGENT_C2COM_DEBUG"},
 	{0x0004, "C2AGENT_C2COM_DEBUG_DOUT"},
 	{0x0008, "C2AGENT_C2COM_RCV_VALID_STATUS"},
@@ -1511,7 +1513,7 @@ enum votf_c2agent_reg_field {
 	C2AGENT_REG_FIELD_CNT,
 };
 
-static const struct is_field votf_c2serv_fields[C2SERV_REG_FIELD_CNT] = {
+static const struct camerapp_sfr_field votf_c2serv_fields[C2SERV_REG_FIELD_CNT] = {
 	// 1. field name 2. bit start 3. bit width 4. access type 5. reset
 	{"C2COM_DEBUG_SEL", 1, 6, RW, 0x0},
 	{"C2COM_DEBUG_EN", 0, 1, RW, 0x0},
@@ -1550,7 +1552,7 @@ static const struct is_field votf_c2serv_fields[C2SERV_REG_FIELD_CNT] = {
 	{"TRS_LOST_CONNECTION", 0, 1, RWI, 0x0},
 };
 
-static const struct is_field votf_c2agent_fields[C2AGENT_REG_FIELD_CNT] = {
+static const struct camerapp_sfr_field votf_c2agent_fields[C2AGENT_REG_FIELD_CNT] = {
 	// 1. field name 2. bit start 3. bit width 4. access type 5. reset
 	{"C2COM_DEBUG_SEL", 1, 6, RW, 0x0},
 	{"C2COM_DEBUG_EN", 0, 1, RW, 0x0},

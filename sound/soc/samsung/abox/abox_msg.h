@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_msg.h
- *
- * ALSA SoC Audio Layer - Samsung Abox Message Queue driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox Message Queue driver
  *
  * Copyright (c) 2017 Samsung Electronics Co. Ltd.
  *
@@ -12,8 +12,10 @@
 #define __SND_SOC_ABOX_MSG_H
 
 #ifdef __KERNEL__
+#include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/string.h>
+#include <asm/barrier.h>
 #include <sound/samsung/abox_ipc.h>
 #else
 #include <stdint.h>
@@ -31,7 +33,10 @@
 #define	__packed	__attribute__((__packed__))
 #endif
 
+/* define for ABOX firmware */
 #define wmb()		__DMB()
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define min(a, b) (a < b ? a : b)
 #endif
 
 #define ABOX_MSG_LEN_CMD	128

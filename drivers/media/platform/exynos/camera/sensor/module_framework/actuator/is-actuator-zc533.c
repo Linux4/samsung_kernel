@@ -14,13 +14,13 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-actuator-zc533.h"
 #include "is-device-sensor.h"
 #include "is-device-sensor-peri.h"
 #include "is-core.h"
-#include "is-helper-actuator-i2c.h"
+#include "is-helper-i2c.h"
 
 #include "interface/is-interface-library.h"
 //#include "fimc-is-api-common.h"
@@ -248,8 +248,7 @@ int sensor_zc533_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	struct i2c_client *client = NULL;
 	long cal_addr;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	FIMC_BUG(!subdev);
@@ -284,8 +283,7 @@ int sensor_zc533_actuator_init(struct v4l2_subdev *subdev, u32 val)
 		goto p_err;
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 p_err:
@@ -298,8 +296,7 @@ int sensor_zc533_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	struct is_actuator *actuator = NULL;
 	struct i2c_client *client = NULL;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	dbg_actuator("%s\n", __func__);
@@ -334,8 +331,7 @@ int sensor_zc533_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	*info = ACTUATOR_STATUS_NO_BUSY;
 #endif
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 p_err:
@@ -349,8 +345,7 @@ int sensor_zc533_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	struct i2c_client *client;
 	u32 position = 0;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	FIMC_BUG(!subdev);
@@ -383,8 +378,7 @@ int sensor_zc533_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	dbg_actuator("%s: position(%d)\n", __func__, position);
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 p_err:
 	return ret;
@@ -439,10 +433,39 @@ p_err:
 	return ret;
 }
 
+long sensor_zc533_actuator_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_ACT_S_CTRL:
+		ret = sensor_zc533_actuator_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_ACT_G_CTRL:
+		ret = sensor_zc533_actuator_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_g_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = sensor_zc533_actuator_init,
-	.g_ctrl = sensor_zc533_actuator_g_ctrl,
-	.s_ctrl = sensor_zc533_actuator_s_ctrl,
+	.ioctl = sensor_zc533_actuator_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
@@ -572,3 +595,5 @@ static int __init sensor_actuator_zc533_init(void)
 	return ret;
 }
 late_initcall_sync(sensor_actuator_zc533_init);
+
+MODULE_LICENSE("GPL");

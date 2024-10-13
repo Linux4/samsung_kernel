@@ -24,6 +24,7 @@
 #include "core/iwsock.h"
 #include "core/log.h"
 #include "core/mem.h"
+#include "core/subsystem.h"
 #include "teec/iw_messages.h"
 
 #define MAX_CONNECTION_ATTEMPTS 20
@@ -148,11 +149,11 @@ int tzdev_deploy_tzar(void)
 	return 0;
 }
 
-static int __init tz_deploy_tzar_init(void)
+int tz_deploy_tzar_init(void)
 {
 	tzdev_set_nwd_sysconf_flag(SYSCONF_NWD_TZDEV_DEPLOY_TZAR);
 
 	return 0;
 }
 
-early_initcall(tz_deploy_tzar_init);
+tzdev_early_initcall(tz_deploy_tzar_init);

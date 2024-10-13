@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2019 Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -35,7 +27,7 @@
 
 static int bootdump_open(struct inode *inode, struct file *filp)
 {
-	struct io_device *iod = to_io_device(filp->private_data);
+	struct io_device *iod = to_io_device(inode->i_cdev);
 	struct modem_shared *msd = iod->msd;
 	struct link_device *ld;
 	int ret;
@@ -56,7 +48,7 @@ static int bootdump_open(struct inode *inode, struct file *filp)
 		}
 	}
 
-	mif_err("%s (opened %d) by %s\n",
+	mif_info("%s (opened %d) by %s\n",
 		iod->name, atomic_read(&iod->opened), current->comm);
 
 	return 0;
@@ -83,7 +75,7 @@ static int bootdump_release(struct inode *inode, struct file *filp)
 			ld->terminate_comm(ld, iod);
 	}
 
-	mif_err("%s (opened %d) by %s\n",
+	mif_info("%s (opened %d) by %s\n",
 		iod->name, atomic_read(&iod->opened), current->comm);
 
 	return 0;
@@ -109,37 +101,35 @@ static unsigned int bootdump_poll(struct file *filp, struct poll_table_struct *w
 	switch (mc->phone_state) {
 	case STATE_BOOTING:
 	case STATE_ONLINE:
-		if (!mc->sim_state.changed) {
-			if (!skb_queue_empty(rxq))
-				return POLLIN | POLLRDNORM;
-			else /* wq is waken up without rx, return for wait */
-				return 0;
-		}
-		/* fall through, if sim_state has been changed */
+		if (!skb_queue_empty(rxq))
+			return POLLIN | POLLRDNORM;
+		else /* wq is waken up without rx, return for wait */
+			return 0;
 	case STATE_CRASH_EXIT:
 	case STATE_CRASH_RESET:
 	case STATE_NV_REBUILDING:
 	case STATE_CRASH_WATCHDOG:
 		/* report crash only if iod is fmt/boot device */
 		if (iod->format == IPC_FMT) {
-			mif_err("%s: %s.state == %s\n", iod->name, mc->name,
-				mc_state(mc));
+			mif_err_limited("FMT %s: %s.state == %s\n",
+				iod->name, mc->name, mc_state(mc));
 			return POLLHUP;
 		} else if (iod->format == IPC_BOOT || ld->is_boot_ch(iod->ch)) {
 			if (!skb_queue_empty(rxq))
 				return POLLIN | POLLRDNORM;
 
-			mif_err("%s: %s.state == %s\n", iod->name, mc->name,
-				mc_state(mc));
+			mif_err_limited("BOOT %s: %s.state == %s\n",
+				iod->name, mc->name, mc_state(mc));
 			return POLLHUP;
 		} else if (iod->format == IPC_DUMP || ld->is_dump_ch(iod->ch)) {
 			if (!skb_queue_empty(rxq))
 				return POLLIN | POLLRDNORM;
-			else
-				return 0;
+
+			mif_err_limited("DUMP %s: %s.state == %s\n",
+				iod->name, mc->name, mc_state(mc));
 		} else {
-			mif_err("%s: %s.state == %s\n", iod->name, mc->name,
-				mc_state(mc));
+			mif_err_limited("%s: %s.state == %s\n",
+				iod->name, mc->name, mc_state(mc));
 
 			/* give delay to prevent infinite sys_poll call from
 			 * select() in APP layer without 'sleep' user call takes
@@ -151,6 +141,8 @@ static unsigned int bootdump_poll(struct file *filp, struct poll_table_struct *w
 		break;
 
 	case STATE_OFFLINE:
+		if (ld->protocol == PROTOCOL_SIT)
+			return POLLHUP;
 		/* fall through */
 	default:
 		break;
@@ -197,6 +189,10 @@ static long bootdump_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 			return ret;
 		}
 
+#if IS_ENABLED(CONFIG_CPIF_TP_MONITOR)
+		tpmon_init();
+#endif
+
 		switch (mode.idx) {
 		case CP_BOOT_MODE_NORMAL:
 			mif_info("%s: normal boot mode\n", iod->name);
@@ -221,9 +217,6 @@ static long bootdump_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 			return -EINVAL;
 		}
 
-		if (ld->reset_zerocopy)
-			ld->reset_zerocopy(ld);
-
 		return ret;
 	}
 
@@ -239,14 +232,6 @@ static long bootdump_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 			mif_err("security_req() error:%d\n", ret);
 			return ret;
 		}
-
-#if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
-		if (ld->security_cp2cp_baaw_req) {
-			ret = ld->security_cp2cp_baaw_req(ld, iod, arg);
-			if (ret)
-				mif_err("ERR ld->security_cp2cp_baaw_req():%d\n", ret);
-		}
-#endif
 		return ret;
 
 	case IOCTL_LOAD_CP_IMAGE:
@@ -257,6 +242,24 @@ static long bootdump_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 
 		mif_debug("%s: IOCTL_LOAD_CP_IMAGE\n", iod->name);
 		return ld->load_cp_image(ld, iod, arg);
+
+	case IOCTL_LOAD_GNSS_IMAGE:
+		if (!ld->load_gnss_image) {
+			mif_err("%s: load_gnss_image is null\n", iod->name);
+			return -EINVAL;
+		}
+
+		mif_info("%s: IOCTL_LOAD_GNSS_IMAGE\n", iod->name);
+		return ld->load_gnss_image(ld, iod, arg);
+
+	case IOCTL_READ_GNSS_IMAGE:
+		if (!ld->read_gnss_image) {
+			mif_err("%s: read_gnss_image is null\n", iod->name);
+			return -EINVAL;
+		}
+
+		mif_info("%s: IOCTL_READ_GNSS_IMAGE\n", iod->name);
+		return ld->read_gnss_image(ld, iod, arg);
 
 	case IOCTL_START_CP_BOOTLOADER:
 	{
@@ -301,7 +304,7 @@ static long bootdump_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 			return -EINVAL;
 		}
 
-		mif_err("%s: IOCTL_COMPLETE_NORMAL_BOOTUP\n", iod->name);
+		mif_info("%s: IOCTL_COMPLETE_NORMAL_BOOTUP\n", iod->name);
 		return mc->ops.complete_normal_boot(mc);
 
 	case IOCTL_GET_CP_STATUS:
@@ -312,13 +315,6 @@ static long bootdump_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 		if (p_state != STATE_ONLINE) {
 			mif_debug("%s: IOCTL_GET_CP_STATUS (state %s)\n",
 				iod->name, cp_state_str(p_state));
-		}
-
-		if (mc->sim_state.changed) {
-			enum modem_state s_state = mc->sim_state.online ?
-					STATE_SIM_ATTACH : STATE_SIM_DETACH;
-			mc->sim_state.changed = false;
-			return s_state;
 		}
 
 		if (p_state == STATE_NV_REBUILDING)
@@ -379,18 +375,7 @@ static long bootdump_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 				CP_CRASH_INFO_SIZE - strlen(CP_CRASH_TAG)))
 				return -EFAULT;
 		mif_info("Crash Reason: %s\n", buff);
-
-#if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
-		if (check_cp_upload_cnt())
-			panic("%s", buff);
-		else {
-			mif_info("Wait another IOCTL_TRIGGER_KERNEL_PANIC\n");
-			while (1)
-				msleep(1000);
-		}
-#else
 		panic("%s", buff);
-#endif
 		return 0;
 	}
 
@@ -454,14 +439,10 @@ static ssize_t bootdump_write(struct file *filp, const char __user *data,
 	unsigned int alloc_size;
 	/* 64bit prevent */
 	unsigned int cnt = (unsigned int)count;
-#ifdef DEBUG_MODEM_IF
-	struct timespec ts;
-#endif
+	struct timespec64 ts;
 
-#ifdef DEBUG_MODEM_IF
 	/* Record the timestamp */
-	getnstimeofday(&ts);
-#endif
+	ktime_get_ts64(&ts);
 
 	if (iod->format <= IPC_RFS && iod->ch == 0)
 		return -EINVAL;
@@ -494,8 +475,13 @@ static ssize_t bootdump_write(struct file *filp, const char __user *data,
 
 	while (copied < cnt) {
 		remains = cnt - copied;
-		alloc_size = min_t(unsigned int, remains + headroom,
-			iod->max_tx_size ?: remains + headroom);
+
+		if (check_add_overflow(remains, headroom, &alloc_size))
+			alloc_size = SZ_2K;
+
+		if (iod->max_tx_size)
+			alloc_size = min_t(unsigned int, alloc_size,
+				iod->max_tx_size);
 
 		/* Calculate tailroom for padding size */
 		if (iod->link_header && ld->aligned)
@@ -538,10 +524,8 @@ static ssize_t bootdump_write(struct file *filp, const char __user *data,
 		skbpriv(skb)->lnk_hdr = iod->link_header;
 		skbpriv(skb)->sipc_ch = iod->ch;
 
-#ifdef DEBUG_MODEM_IF
 		/* Copy the timestamp to the skb */
-		memcpy(&skbpriv(skb)->ts, &ts, sizeof(struct timespec));
-#endif
+		skbpriv(skb)->ts = ts;
 #ifdef DEBUG_MODEM_IF_IODEV_TX
 		mif_pkt(iod->ch, "IOD-TX", skb);
 #endif
@@ -601,6 +585,7 @@ static ssize_t bootdump_read(struct file *filp, char *buf, size_t count,
 
 	if (skb_queue_empty(rxq)) {
 		long tmo = msecs_to_jiffies(100);
+
 		wait_event_timeout(iod->wq, !skb_queue_empty(rxq), tmo);
 	}
 
@@ -620,6 +605,7 @@ static ssize_t bootdump_read(struct file *filp, char *buf, size_t count,
 
 	if (iod->ch == SIPC_CH_ID_CPLOG1) {
 		struct net_device *ndev = iod->ndev;
+
 		if (!ndev) {
 			mif_err("%s: ERR! no iod->ndev\n", iod->name);
 		} else {
@@ -656,7 +642,7 @@ const struct file_operations bootdump_io_fops = {
 	.read = bootdump_read,
 };
 
-const struct file_operations *get_bootdump_io_fops()
+const struct file_operations *get_bootdump_io_fops(void)
 {
 	return &bootdump_io_fops;
 }

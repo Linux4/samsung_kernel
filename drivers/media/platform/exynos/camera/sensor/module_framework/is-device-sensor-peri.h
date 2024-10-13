@@ -19,7 +19,7 @@
 #endif
 
 #include <linux/interrupt.h>
-#include "is-mem.h"
+#include "pablo-mem.h"
 #include "is-param.h"
 #include "is-interface-sensor.h"
 #include "is-control-sensor.h"
@@ -32,12 +32,11 @@
 #define IS_CIS_REV_MAX_LIST		3
 #define VENDOR_SOFT_LANDING_STEP_MAX	2
 
-#ifdef USE_CAMERA_ACT_DRIVER_SOFT_LANDING
 enum HW_SOFTLANDING_STATE{
 	HW_SOFTLANDING_PASS = 0,
 	HW_SOFTLANDING_FAIL = -200,
 };
-#endif
+
 enum cis_dual_sync_mode {
 	DUAL_SYNC_NONE = 0,
 	DUAL_SYNC_MASTER,
@@ -65,6 +64,7 @@ struct is_cis {
 	enum otf_input_order		bayer_order;
 	u32				aperture_num;
 	bool				use_dgain;
+	bool				use_total_gain;
 	bool				hdr_ctrl_by_again;
 	bool				use_wb_gain;
 	bool				use_3hdr;
@@ -114,12 +114,15 @@ struct is_cis {
 
 	/* sensor control delay(N+1 or N+2) */
 	u32				ctrl_delay;
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+#ifdef USE_CAMERA_ADAPTIVE_MIPI
 #ifdef USE_CAMERA_MIPI_CLOCK_VARIATION_RUNTIME
 	struct work_struct				mipi_clock_change_work;
 #endif
 	int				mipi_clock_index_new;
 	int				mipi_clock_index_cur;
+	const struct cam_mipi_sensor_mode *mipi_sensor_mode;
+	u32				mipi_sensor_mode_size;
+	bool			vendor_use_adaptive_mipi;
 #endif
 	u32				ae_exposure;
 	u32				ae_deltaev;
@@ -175,10 +178,9 @@ struct is_actuator {
 	u32			max_position;
 
 	/* for M2M AF */
-	struct timeval		start_time;
-	struct timeval		end_time;
+	ktime_t			start_time;
 	u32			valid_flag;
-	ulong			valid_time;
+	ktime_t			valid_time;
 
 	/* softlanding */
 	bool			need_softlanding;
@@ -201,12 +203,15 @@ struct is_actuator {
 	struct is_device_sensor_peri	*sensor_peri;
 	struct is_actuator_ops		*actuator_ops;
 	struct mutex            *i2c_lock;
+	struct work_struct			actuator_active_on;
+	struct work_struct			actuator_active_off;
 
 	u32				vendor_product_id;
 	u32				vendor_first_pos;
 	u32				vendor_first_delay;
 	u32				vendor_soft_landing_list[VENDOR_SOFT_LANDING_STEP_MAX * 2];
 	u32				vendor_soft_landing_list_len;
+	u32				vendor_soft_landing_seqid;
 	bool				vendor_use_sleep_mode;
 	bool				vendor_use_standby_mode;
 
@@ -261,10 +266,13 @@ struct is_flash_data {
 	u32				intensity;
 	u32				firing_time_us;
 	bool				flash_fired;
+	bool				high_resolution_flash;
 	struct work_struct		flash_fire_work;
 	struct timer_list		flash_expire_timer;
 	struct work_struct		flash_expire_work;
+#ifdef CONFIG_LEDS_S2MU106_FLASH
 	struct work_struct		muic_ctrl_and_flash_fire_work;
+#endif
 
 	/* used for LED calibration */
 	u32				cal_input_curr[FLASH_LED_CH_MAX];
@@ -295,6 +303,8 @@ struct is_flash {
 
 	/* expecting dm */
 	camera2_flash_dm_t		expecting_flash_dm[EXPECT_DM_NUM];
+
+	struct mutex			control_lock;
 };
 
 struct is_ois {
@@ -317,7 +327,8 @@ struct is_ois {
 #ifdef CAMERA_2ND_OIS
 	int				ois_power_mode;
 #endif
-	struct work_struct		ois_set_init_work;
+	struct work_struct			ois_set_init_work;
+	struct work_struct			ois_set_deinit_work;
 	int				af_pos_wide;
 	int				af_pos_tele;
 #ifdef USE_OIS_INIT_WORK
@@ -370,7 +381,7 @@ struct is_laser_af {
 
 struct paf_action {
 	enum itf_vc_stat_type	type;
-	paf_notifier_t		notifier;
+	vc_dma_notifier_t		notifier;
 	void			*data;
 	unsigned int		flags;
 	const char		*name;
@@ -384,10 +395,10 @@ struct is_pdp_ops {
 	int (*get_ready)(struct v4l2_subdev *subdev, u32 *ready);
 	int (*register_notifier)(struct v4l2_subdev *subdev,
 			enum itf_vc_stat_type type,
-			paf_notifier_t notifier, void *data);
+			vc_dma_notifier_t notifier, void *data);
 	int (*unregister_notifier)(struct v4l2_subdev *subdev,
 			enum itf_vc_stat_type type,
-			paf_notifier_t notifier);
+			vc_dma_notifier_t notifier);
 	void (*notify)(struct v4l2_subdev *subdev,
 			unsigned int type,
 			void *data);
@@ -400,10 +411,10 @@ struct is_pafstat_ops {
 	int (*get_ready)(struct v4l2_subdev *subdev, u32 *ready);
 	int (*register_notifier)(struct v4l2_subdev *subdev,
 			enum itf_vc_stat_type type,
-			paf_notifier_t notifier, void *data);
+			vc_dma_notifier_t notifier, void *data);
 	int (*unregister_notifier)(struct v4l2_subdev *subdev,
 			enum itf_vc_stat_type type,
-			paf_notifier_t notifier);
+			vc_dma_notifier_t notifier);
 	void (*notify)(struct v4l2_subdev *subdev,
 			unsigned int type,
 			void *data);

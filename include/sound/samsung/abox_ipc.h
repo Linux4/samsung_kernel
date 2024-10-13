@@ -52,6 +52,7 @@ enum PCMMSG {
 	PCM_PLTDAI_ACK		= 22,
 	PCM_PLTDAI_CLOSED	= 23,
 	PCM_PLTDAI_REGISTER	= 50,
+	PCM_TX_BARGE_IN_DETECT  = 202,
 };
 
 struct PCMTASK_HW_PARAMS {
@@ -62,9 +63,10 @@ struct PCMTASK_HW_PARAMS {
 };
 
 struct PCMTASK_SET_BUFFER {
-	int phyaddr;
+	int addr;
 	int size;
 	int count;
+	unsigned long long phys;
 };
 
 struct PCMTASK_HARDWARE {

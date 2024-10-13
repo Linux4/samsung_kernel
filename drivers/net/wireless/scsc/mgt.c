@@ -45,6 +45,7 @@
 #include "cfg80211_ops.h"
 #include "nl80211_vendor.h"
 
+
 #ifdef CONFIG_SCSC_WLBTD
 #include "../../../misc/samsung/scsc/scsc_wlbtd.h"
 #endif
@@ -55,6 +56,8 @@
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 #include "scsc_wlan_mmap.h"
 #endif
+
+#include "qsfs.h"
 
 #define CSR_WIFI_SME_MIB2_HOST_PSID_MASK    0x8000
 #define MX_WLAN_FILE_PATH_LEN_MAX (128)
@@ -83,7 +86,7 @@ MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 #endif
 
 static char *mib_file_t = "wlan_t.hcf";
-module_param(mib_file_t, charp, S_IRUGO | S_IWUSR);
+	module_param(mib_file_t, charp, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mib_file_t, "mib data filename");
 
 static char *mib_file2_t = "wlan_t_sw.hcf";
@@ -140,8 +143,8 @@ static char sysfs_mac_override[] = "ff:ff:ff:ff:ff:ff";
 static u16 sysfs_antenna = SLSI_ANTENNA_NOT_SET;
 static struct kobj_attribute mac_attr = __ATTR(mac_addr, 0660, sysfs_show_macaddr, sysfs_store_macaddr);
 static struct kobj_attribute pm_attr = __ATTR(pm, 0660, sysfs_show_pm, sysfs_store_pm);
-static struct kobj_attribute ver_attr = __ATTR(wifiver, 0660, sysfs_show_version_info, NULL);
 static struct kobj_attribute ant_attr = __ATTR(ant, 0660, sysfs_show_ant, sysfs_store_ant);
+static struct kobj_attribute ver_attr = __ATTR(wifiver, 0660, sysfs_show_version_info, NULL);
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 static int dump_in_progress = 0;
 static struct kobj_attribute dump_attr = __ATTR(dump_in_progress, 0660, sysfs_show_debugdump, sysfs_store_debugdump);
@@ -560,20 +563,6 @@ static void write_wifi_version_info_file(struct slsi_dev *sdev)
 	char build_id_fw[128];
 	char build_id_drv[64];
 
-	/* For 5.4 kernel CONFIG_SCSC_WLBTD will be defined so filp_open will not be used */
-#ifndef CONFIG_SCSC_WLBTD
-	struct file *fp = NULL;
-
-	fp = filp_open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-
-	if (IS_ERR(fp)) {
-		SLSI_WARN(sdev, "version file wasn't found\n");
-		return;
-	} else if (!fp) {
-		SLSI_WARN(sdev, "%s doesn't exist.\n", filepath);
-		return;
-	}
-#endif
 #ifndef SLSI_TEST_DEV
 	mxman_get_fw_version(build_id_fw, 128);
 	mxman_get_driver_version(build_id_drv, 64);
@@ -615,10 +604,6 @@ static void write_wifi_version_info_file(struct slsi_dev *sdev)
 #ifdef SCSC_SEP_VERSION
 #ifdef CONFIG_SCSC_WLBTD
 	wlbtd_write_file(filepath, buf);
-#else
-	kernel_write(fp, buf, strlen(buf), 0);
-	if (fp)
-		filp_close(fp, NULL);
 #endif
 
 	SLSI_INFO(sdev, "Succeed to write firmware/host information to .wifiver.info\n");
@@ -897,6 +882,9 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	SLSI_INFO(sdev, "HW Version : 0x%.4X (%u)\n", sdev->chip_info_mib.chip_version, sdev->chip_info_mib.chip_version);
 	SLSI_INFO(sdev, "Platform : 0x%.4X (%u)\n", sdev->plat_info_mib.plat_build, sdev->plat_info_mib.plat_build);
 	slsi_cfg80211_update_wiphy(sdev);
+	/* Get feature set from FW if it is already not present */
+	if (sdev->qsf_feature_set_len <= (SLSI_QSF_FEATURE_VER_LEN + SLSI_QSF_SOLUTION_PROVIDER))
+		slsi_get_qsfs_feature_set(sdev);
 
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 
@@ -945,41 +933,27 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 
 #ifdef CONFIG_SCSC_WLAN_AP_INFO_FILE
 		/* writing .softap.info in /data/vendor/conn */
-		fp = filp_open(filepath, O_WRONLY | O_CREAT, 0644);
+		offset = snprintf(buf + offset, sizeof(buf), "#softap.info\n");
+		offset += snprintf(buf + offset, sizeof(buf), "DualBandConcurrency=%s\n", sdev->dualband_concurrency ? "yes" : "no");
+		offset += snprintf(buf + offset, sizeof(buf), "DualInterface=%s\n", "yes");
+		offset += snprintf(buf + offset, sizeof(buf), "5G=%s\n", sdev->band_5g_supported ? "yes" : "no");
+		offset += snprintf(buf + offset, sizeof(buf), "maxClient=%d\n", !sdev->softap_max_client ? SLSI_MIB_MAX_CLIENT : sdev->softap_max_client);
 
-		if (!fp)  {
-			SLSI_WARN(sdev, "%s doesn't exist\n", filepath);
-		} else if (IS_ERR(fp)) {
-			SLSI_WARN(sdev, "%s open returned error %d\n", filepath, IS_ERR(fp));
-		} else {
-			offset = snprintf(buf + offset, sizeof(buf), "#softap.info\n");
-			offset += snprintf(buf + offset, sizeof(buf), "DualBandConcurrency=%s\n", sdev->dualband_concurrency ? "yes" : "no");
-			offset += snprintf(buf + offset, sizeof(buf), "DualInterface=%s\n", "yes");
-			offset += snprintf(buf + offset, sizeof(buf), "5G=%s\n", sdev->band_5g_supported ? "yes" : "no");
-			offset += snprintf(buf + offset, sizeof(buf), "maxClient=%d\n", !sdev->softap_max_client ? SLSI_MIB_MAX_CLIENT : sdev->softap_max_client);
-
-			/* following are always supported */
-			offset += snprintf(buf + offset, sizeof(buf), "HalFn_setCountryCodeHal=yes\n");
-			offset += snprintf(buf + offset, sizeof(buf), "HalFn_getValidChannels=yes\n");
+		/* following are always supported */
+		offset += snprintf(buf + offset, sizeof(buf), "HalFn_setCountryCodeHal=yes\n");
+		offset += snprintf(buf + offset, sizeof(buf), "HalFn_getValidChannels=yes\n");
 /* If WLBTD is being used which we will be doing for 5.4 kernel project we will use daemon for writing file */
 #ifdef CONFIG_SCSC_WLBTD
-			wlbtd_write_file(filepath, buf);
-#else
-			/* Will only be used for old projects before WLBTD was introduced (Android O)*/
-			kernel_write(fp, buf, strlen(buf), 0);
+		wlbtd_write_file(filepath, buf);
 #endif
-			if (fp)
-				filp_close(fp, NULL);
-
-			SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Succeed to write softap information to .softap.info\n");
-		}
+		SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Succeed to write softap information to .softap.info\n");
 #endif
 	} else {
 		sdev->mac_changed = false;
 	}
 
 #ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
-	if (slsi_is_rf_test_mode_enabled()) {
+	if (slsi_is_rf_test_mode_enabled() && !slsi_is_test_mode_enabled()) {
 		if (sysfs_antenna == SLSI_ANTENNA_NOT_SET)
 			SLSI_INFO(sdev, "antenna not set. Set /sys/wifi/ant to modify antenna\n");
 		else
@@ -1641,7 +1615,7 @@ static int slsi_mib_open_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *m
 #if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	spin_lock(&sdev->collect_mib.in_collection);
 	memset(&sdev->collect_mib.file[index].file_name, 0, 32);
-	memcpy(&sdev->collect_mib.file[index].file_name, mib_file_name, 32);
+	snprintf(&sdev->collect_mib.file[index].file_name[0], 32, "%s", mib_file_name);
 	sdev->collect_mib.file[index].len = mib_info->mib_len;
 	data = kmalloc(mib_info->mib_len, GFP_ATOMIC);
 	if (!data) {
@@ -3451,17 +3425,17 @@ int slsi_retry_connection(struct slsi_dev *sdev, struct net_device *dev)
 		memcpy(probe_req_ies, ndev_vif->probe_req_ies, ndev_vif->probe_req_ie_len);
 	if (slsi_mlme_del_vif(sdev, dev) != 0) {
 		SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
-		return 0;
+		goto exit_with_probe_req_ies;
 	}
 	if (slsi_mlme_add_vif(sdev, dev, dev->dev_addr, device_address) != 0) {
 		SLSI_NET_ERR(dev, "slsi_mlme_add_vif failed\n");
-		return 0;
+		goto exit_with_probe_req_ies;
 	}
 	if (slsi_mlme_register_action_frame(sdev, dev, ndev_vif->sta.action_frame_bmap,
 					    ndev_vif->sta.action_frame_suspend_bmap) != 0) {
 		SLSI_NET_ERR(dev, "Action frame reg fail bitmap 0x%x 0x%x\n",
 			     ndev_vif->sta.action_frame_bmap, ndev_vif->sta.action_frame_bmap);
-		return 0;
+		goto exit_with_probe_req_ies;
 	}
 
 	r = slsi_set_boost(sdev, dev);
@@ -3477,18 +3451,23 @@ int slsi_retry_connection(struct slsi_dev *sdev, struct net_device *dev)
 	r = slsi_mlme_connect(sdev, dev, &ndev_vif->sta.sme, ndev_vif->sta.sme.channel, ndev_vif->sta.sme.bssid);
 	if (r != 0) {
 		SLSI_NET_ERR(dev, "Reconnect failed: %d\n", r);
-		return 0;
+		r = 0;
+		goto exit_with_probe_req_ies;
 	}
 	ndev_vif->sta.vif_status = SLSI_VIF_STATUS_CONNECTING;
 	peer = slsi_get_peer_from_qs(sdev, dev, SLSI_STA_PEER_QUEUESET);
 	if (!peer) {
 		SLSI_NET_ERR(dev, "peer not found!\n");
-		return 0;
+		r = 0;
+		goto exit_with_probe_req_ies;
 	}
 	ndev_vif->sta.vif_status = SLSI_VIF_STATUS_CONNECTING;
 	SLSI_ETHER_COPY(peer->address, ndev_vif->sta.sme.bssid);
 	ndev_vif->chan = ndev_vif->sta.sme.channel;
-	return 1;
+	r = 1;
+exit_with_probe_req_ies:
+	kfree(probe_req_ies);
+	return r;
 }
 
 void slsi_free_connection_params(struct slsi_dev *sdev, struct net_device *dev)
@@ -3965,7 +3944,7 @@ static void slsi_create_packet_filter_element(u8                               f
 					      u8                               num_pattern_desc,
 					      struct slsi_mlme_pattern_desc    *pattern_desc,
 					      struct slsi_mlme_pkt_filter_elem *pkt_filter_elem,
-					      u8                               *pkt_filters_len)
+					      int                              *pkt_filters_len)
 {
 	u8 pkt_filter_hdr[SLSI_PKT_FILTER_ELEM_HDR_LEN] = { 0xdd,             /* vendor ie*/
 							    0x00,             /*Length to be filled*/
@@ -3974,7 +3953,8 @@ static void slsi_create_packet_filter_element(u8                               f
 							    filterid,         /*filter id to be filled*/
 							    pkt_filter_mode   /* pkt filter mode to be filled */
 	};
-	u8 i, pattern_desc_len = 0;
+	u8 i;
+	int pattern_desc_len = 0;
 
 	WARN_ON(num_pattern_desc > SLSI_MAX_PATTERN_DESC);
 
@@ -4000,7 +3980,8 @@ static int slsi_set_common_packet_filters(struct slsi_dev *sdev, struct net_devi
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 
 	/*Opt out all broadcast and multicast packets (filter on I/G bit)*/
 	pattern_desc.offset = 0;
@@ -4019,7 +4000,8 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[2];
 	int ret;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -4028,7 +4010,7 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	if (slsi_is_proxy_arp_supported_on_ap(peer->assoc_resp_ie))
@@ -4163,7 +4145,7 @@ int slsi_set_enhanced_pkt_filter(struct net_device *dev, char *command, int buf_
 static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4186,7 +4168,7 @@ static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct 
 static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4219,7 +4201,7 @@ static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net
 static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4252,7 +4234,8 @@ static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net
 int  slsi_set_multicast_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[3];
-	u8 pkt_filters_len = 0, i, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 i, num_filters = 0;
 	u8 num_pattern_desc = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem = NULL;
@@ -4367,7 +4350,8 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_peer *peer = slsi_get_peer_from_qs(sdev, dev, SLSI_STA_PEER_QUEUESET);
 
-	u8 i, pkt_filters_len = 0;
+	u8 i;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem;
@@ -4378,7 +4362,7 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "Clear filters on Screen on");
@@ -4501,7 +4485,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[SLSI_ON_CONNECT_FILTERS_COUNT];
@@ -4515,10 +4499,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return;
 
-	if (WARN_ON(!peer))
-		return;
-
-	if (WARN_ON(!peer->assoc_resp_ie))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return;
 
 #if !(IS_ENABLED(CONFIG_IPV6))
@@ -4637,7 +4618,7 @@ int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be3
 		struct slsi_mlme_pattern_desc pattern_desc[1];
 		u8 num_patterns = 0;
 		struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-		u8 pkt_filters_len = 0;
+		int pkt_filters_len = 0;
 		u8 num_filters = 0;
 #endif
 

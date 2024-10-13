@@ -42,6 +42,7 @@
 
 #ifdef CONFIG_CPU_IDLE
 #include <soc/samsung/exynos-pm.h>
+#include <soc/samsung/exynos-cpupm.h>
 static LIST_HEAD(drvdata_list);
 #endif
 
@@ -629,7 +630,10 @@ static int i2c_s3c_irq_nextbyte(struct s3c24xx_i2c *i2c, unsigned long iicstat)
 					 * forces us to send a new START
 					 * when we change direction */
 
+					dev_dbg(i2c->dev,
+						"missing START before write->read\n");
 					s3c24xx_i2c_stop(i2c, -EINVAL);
+					break;
 				}
 
 				goto retry_write;
@@ -986,7 +990,7 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 	int retry;
 	int ret;
 
-#ifdef CONFIG_ARCH_EXYNOS_PM
+#ifdef CONFIG_EXYNOS_CPUPM
 	exynos_update_ip_idle_status(i2c->idle_ip_index, 0);
 #endif
 	ret = clk_enable(i2c->clk);
@@ -1003,7 +1007,7 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 
 		if (ret != -EAGAIN) {
 			clk_disable(i2c->clk);
-#ifdef CONFIG_ARCH_EXYNOS_PM
+#ifdef CONFIG_EXYNOS_CPUPM
 			exynos_update_ip_idle_status(i2c->idle_ip_index, 1);
 #endif
 			return ret;
@@ -1015,7 +1019,7 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 	}
 
 	clk_disable(i2c->clk);
-#ifdef CONFIG_ARCH_EXYNOS_PM
+#ifdef CONFIG_EXYNOS_CPUPM
 	exynos_update_ip_idle_status(i2c->idle_ip_index, 1);
 #endif
 	return -EREMOTEIO;
@@ -1275,27 +1279,6 @@ s3c24xx_i2c_parse_dt(struct device_node *np, struct s3c24xx_i2c *i2c)
 }
 #endif
 
-#ifdef CONFIG_CPU_IDLE
-static int s3c24xx_i2c_notifier(struct notifier_block *self,
-				unsigned long cmd, void *v)
-{
-	struct s3c24xx_i2c *i2c;
-
-	switch (cmd) {
-	case LPA_EXIT:
-		list_for_each_entry(i2c, &drvdata_list, node)
-			i2c->need_hw_init = S3C2410_NEED_REG_INIT;
-		break;
-	}
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block s3c24xx_i2c_notifier_block = {
-	.notifier_call = s3c24xx_i2c_notifier,
-};
-#endif /* CONFIG_CPU_IDLE */
-
 /* s3c24xx_i2c_probe
  *
  * called by the bus driver when a suitable device is found
@@ -1347,8 +1330,8 @@ static int s3c24xx_i2c_probe(struct platform_device *pdev)
 	i2c->adap.class = I2C_CLASS_DEPRECATED;
 	i2c->tx_setup = 50;
 
-#ifdef CONFIG_ARCH_EXYNOS_PM
-	i2c->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev));
+#ifdef CONFIG_EXYNOS_CPUPM
+	//i2c->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev));
 #endif
 
 	init_waitqueue_head(&i2c->wait);
@@ -1539,9 +1522,6 @@ static struct platform_driver s3c24xx_i2c_driver = {
 
 static int __init i2c_adap_s3c_init(void)
 {
-#ifdef CONFIG_CPU_IDLE
-	exynos_pm_register_notifier(&s3c24xx_i2c_notifier_block);
-#endif
 	return platform_driver_register(&s3c24xx_i2c_driver);
 }
 subsys_initcall(i2c_adap_s3c_init);

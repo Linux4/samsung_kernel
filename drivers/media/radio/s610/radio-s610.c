@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * drivers/media/radio/s610/radio-s610.c
  *
  * V4L2 driver for SAMSUNG S610 chip
  *
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *      http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -36,34 +37,25 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-event.h>
 #include <media/v4l2-device.h>
-#include <linux/wakelock.h>
+#include <linux/version.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/of_device.h>
-#include <soc/samsung/exynos-pmu.h>
-#include <linux/mcu_ipc.h>
+#include <linux/pinctrl/consumer.h>
 
-#if defined(CONFIG_RADIO_S621)
-#undef CONFIG_SCSC_FM
-#endif /* defined(CONFIG_RADIO_S621) */
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 #include <scsc/scsc_mx.h>
 #endif
 
-#if defined(CONFIG_RADIO_S610)
-#include "s61x_io_map.h"
-#elif defined(CONFIG_RADIO_S621)
-#include "s621_io_map.h"
-#endif /* defined(CONFIG_RADIO_S610) */
-
+#include "fm_wakelock.h"
 #include "fm_low_struc.h"
 #include "radio-s610.h"
 
-#if defined(CONFIG_SOC_EXYNOS7885)
-#define	ABOX_CPU_GEAR_MAX	(3)
-#define	ABOX_CPU_GEAR_MIN	(12)
-#endif /* defined(CONFIG_SOC_EXYNOS7885) */
-#include "../../../../sound/soc/samsung/abox/abox.h"
+#if defined(USE_AUDIO_PM)
+#define ABOX_CPU_GEAR_CALL_KERNEL	(0xCA12)
+#define FM_ABOX_CPU_GEAR_MAX		(1)
+#define FM_ABOX_CPU_GEAR_MIN		(100)
+#endif
 
 static int radio_region;
 module_param(radio_region, int, 0);
@@ -89,14 +81,25 @@ static void fm_clk_unprepare(struct s610_radio *radio);
 static void fm_clk_disable(struct s610_radio *radio);
 static void fm_clk_put(struct s610_radio *radio);
 
+#ifdef USE_PMIC_RW
+static struct device_node *exynos_pmic_parse_dt(struct s610_radio *radio);
+#if !IS_ENABLED(CONFIG_SCSC_FM)
+static int fm_ldo_enable(struct s610_radio *radio);
+static int fm_ldo_disable(struct s610_radio *radio);
+#endif /* CONFIG_SCSC_FM */
+#endif /* USE_PMIC_RW */
+
+#ifdef USE_FM_PIN_CONTROL
+static int fm_init_pinctrl_info(struct s610_radio *radio);
+#endif /* USE_FM_PIN_CONTROL */
+
 signed int shared_fm_open_cnt;
 
 u32 *fm_spur_init;
 u32 *fm_spur_trf_init;
 u32 *fm_dual_clk_init;
 u32 vol_level_init[FM_RX_VOLUME_GAIN_STEP] = {
-	0, 16, 23, 32, 45, 64, 90, 128,
-	181, 256, 362, 512, 724, 1024, 1447, 2047 };
+	0, 16, 23, 32, 45, 64, 90, 128, 181, 256, 362, 512, 724, 1024, 1447, 2047 };
 
 static const struct v4l2_ctrl_ops s610_ctrl_ops = {
 		.s_ctrl			= s610_radio_s_ctrl,
@@ -121,7 +124,8 @@ enum s610_ctrl_idx {
 	S610_IDX_KERNEL_VER	= 0x0E,
 	S610_IDX_SOFT_STEREO_BLEND_REF	= 0x0F,
 	S610_IDX_REG_RW_ADDR = 0x10,
-	S610_IDX_REG_RW = 0x11
+	S610_IDX_REG_RW = 0x11,
+
 };
 
 static struct v4l2_ctrl_config s610_ctrls[] = {
@@ -273,7 +277,7 @@ static struct v4l2_ctrl_config s610_ctrls[] = {
 				.type	= V4L2_CTRL_TYPE_INTEGER,
 				.name	= "REG_RW_ADDR",
 				.min	=	  0,
-				.max	= 0x7fffffff,
+				.max	= 0xffffff,
 				.step	= 1,
 		},
 		[S610_IDX_REG_RW] = { /*0x11*/
@@ -384,20 +388,12 @@ static int s610_radio_querycap(struct file *file, void *priv,
 	FUNC_ENTRY(radio);
 
 	s610_core_lock(radio->core);
-
-	strlcpy(capability->driver, radio->v4l2dev.name,
+	strscpy(capability->driver, radio->v4l2dev.name,
 			sizeof(capability->driver));
-	strlcpy(capability->card,   DRIVER_CARD, sizeof(capability->card));
+	strscpy(capability->card, DRIVER_CARD, sizeof(capability->card));
+
 	snprintf(capability->bus_info, sizeof(capability->bus_info),
 			"platform:%s", radio->v4l2dev.name);
-
-	capability->device_caps = V4L2_CAP_TUNER
-			| V4L2_CAP_RADIO | V4L2_CAP_RDS_CAPTURE
-			| V4L2_CAP_READWRITE | V4L2_CAP_HW_FREQ_SEEK;
-
-	capability->capabilities = capability->device_caps
-			| V4L2_CAP_DEVICE_CAPS;
-
 	s610_core_unlock(radio->core);
 
 	FUNC_EXIT(radio);
@@ -454,7 +450,7 @@ static int s610_radio_g_tuner(struct file *file, void *priv,
 			| V4L2_TUNER_CAP_HWSEEK_PROG_LIM;
 
 
-	strlcpy(tuner->name, "FM", sizeof(tuner->name));
+	strscpy(tuner->name, "FM", sizeof(tuner->name));
 
 	tuner->rxsubchans = V4L2_TUNER_SUB_RDS;
 	tuner->capability |= V4L2_TUNER_CAP_RDS
@@ -532,14 +528,10 @@ static int s610_radio_s_tuner(struct file *file, void *priv,
 static int s610_radio_pretune(struct s610_radio *radio)
 {
 	int ret = 0;
-	u16 payload;
+	u16 payload = 0;
 
 	FUNC_ENTRY(radio);
 
-	/*ret = low_get_flag(radio, &payload);*/
-	payload = fm_get_flags(radio);
-
-	payload = 0;
 	ret = low_set_mute_state(radio, payload);
 	if (ret != 0) {
 		dev_err(radio->v4l2dev.dev,
@@ -547,10 +539,6 @@ static int s610_radio_pretune(struct s610_radio *radio)
 		return -EIO;
 	}
 
-	payload = radio->low->fm_state.force_mono ?
-			0 : MODE_MASK_MONO_STEREO;
-
-	payload = 0;
 	ret = low_set_most_blend(radio, payload);
 	if (ret != 0) {
 		dev_err(radio->v4l2dev.dev,
@@ -558,10 +546,8 @@ static int s610_radio_pretune(struct s610_radio *radio)
 		return -EIO;
 	}
 
-	payload = 0;
 	fm_set_band(radio, payload);
 
-	payload = 0;
 	ret = low_set_demph_mode(radio, payload);
 	if (ret != 0) {
 		dev_err(radio->v4l2dev.dev,
@@ -569,12 +555,8 @@ static int s610_radio_pretune(struct s610_radio *radio)
 		return -EIO;
 	}
 
-	payload = 0;
-	radio->low->fm_state.use_rbds =
-		((payload & RDS_SYSTEM_MASK_RDS) != 0);
-	radio->low->fm_state.save_eblks =
-		((payload & RDS_SYSTEM_MASK_EBLK) == 0);
-
+	radio->low->fm_state.use_rbds = FALSE;
+	radio->low->fm_state.save_eblks = FALSE;
 	radio->low->fm_state.rds_mem_thresh = RDS_MEM_MAX_THRESH;
 
 	FUNC_EXIT(radio);
@@ -701,14 +683,15 @@ int fm_set_frequency(struct s610_radio *radio, u32 freq)
 	curr_frq_in_khz = curr_frq;
 	if (curr_frq_in_khz != freq) {
 		dev_err(radio->v4l2dev.dev,
-				"Set Freq (%d) but requested freq (%d)\n",
+				"%s(), Failed to set freq(%d). Requested freq(%d)\n",
+				__func__,
 				curr_frq_in_khz, freq);
 		ret = -ENODATA;
 		goto exit;
 	}
 
 	FDEBUG(radio,
-			"%s():--> Set frequency: %d Read frequency:%d\n",
+			"%s(), Set frequency:%d Read frequency:%d\n",
 			__func__,  freq, curr_frq_in_khz);
 
 	/* Update local cache  */
@@ -717,7 +700,7 @@ exit:
 	/* Re-enable default FM interrupts */
 	radio->irq_mask = intr_flag;
 
-	FDEBUG(radio, "wait_atomic: %d\n", radio->wait_atomic);
+	FDEBUG(radio, "%s(), error ret:%d\n", __func__, ret);
 
 	FUNC_EXIT(radio);
 
@@ -741,7 +724,7 @@ static int s610_radio_s_frequency(struct file *file, void *priv,
 		wake_lock(&radio->wakelock);
 
 	s610_core_lock(radio->core);
-	FDEBUG(radio, "%s():freq:%d, real-freq:%d\n",
+	FDEBUG(radio, "%s(), freq:%d, real-freq:%d\n",
 			__func__, f->frequency, f->frequency/FAC_VALUE);
 
 	freq /= FAC_VALUE;
@@ -766,7 +749,7 @@ unlock:
 	FUNC_EXIT(radio);
 
 	FDEBUG(radio,
-			"%s():v4l2_frequency.tuner:%d,type:%d,frequency:%d\n",
+			"%s(), v4l2_frequency.tuner:%d,type:%d,frequency:%d\n",
 			__func__, f->tuner, f->type, freq);
 
 	return ret;
@@ -802,7 +785,7 @@ int fm_rx_seek(struct s610_radio *radio, u32 seek_upward,
 	else
 		payload = 2; /*CHANNEL_SPACING_200KHZ;*/
 
-	FDEBUG(radio, "%s(): init: spacing: %d\n", __func__, payload);
+	FDEBUG(radio, "%s(): spacing: %d\n", __func__, payload);
 
 	radio->low->fm_tuner_state.freq_step =
 			radio->low->fm_freq_steps[payload];
@@ -822,10 +805,10 @@ int fm_rx_seek(struct s610_radio *radio, u32 seek_upward,
 	save_freq = freq_low;
 	radio->seek_freq = save_freq;
 
-	if ((((save_freq == region_configs[radio_region].bot_freq) &&
-		(upward == FM_SEARCH_DIRECTION_UP)) ||
-		((save_freq == region_configs[radio_region].top_freq) &&
-		(upward == FM_SEARCH_DIRECTION_DOWN))) &&
+	if ((((save_freq == region_configs[radio_region].bot_freq)
+		&& (upward == FM_SEARCH_DIRECTION_UP)) ||
+		((save_freq == region_configs[radio_region].top_freq)
+		&& (upward == FM_SEARCH_DIRECTION_DOWN))) &&
 		(pre_freq != save_freq) &&
 		!wrap_around) {
 		tune_mode = FM_TUNER_AUTONOMOUS_SEARCH_MODE;
@@ -929,7 +912,7 @@ again:
 
 	if ((save_freq == region_configs[radio_region].bot_freq)
 		|| (save_freq == region_configs[radio_region].top_freq))
-		bl_1st = 1;
+			bl_1st = 1;
 
 	if ((save_freq == region_configs[radio_region].bot_freq)
 		&& (upward == FM_SEARCH_DIRECTION_UP)) {
@@ -955,9 +938,7 @@ again:
 			radio->irq_mask = intr_flag;
 			radio->wrap_around = 1;
 			FDEBUG(radio, "> bl set %d, %d, save %d\n",
-				radio->seek_freq,
-				radio->wrap_around,
-				save_freq);
+				radio->seek_freq, radio->wrap_around, save_freq);
 
 			goto again;
 		} else
@@ -1016,7 +997,7 @@ static int s610_radio_s_hw_freq_seek(struct file *file, void *priv,
 	ret = fm_rx_seek(radio, seek->seek_upward, seek->wrap_around,
 			seek_spacing, seek_low, seek_hi);
 	if (ret < 0)
-		dev_err(radio->v4l2dev.dev, "RX seek failed - %d\n", ret);
+		dev_err(radio->v4l2dev.dev, "RX seek end - %d\n", ret);
 
 	if (wake_lock_active(&radio->wakelock))
 		wake_unlock(&radio->wakelock);
@@ -1059,7 +1040,7 @@ int fm_set_mute_mode(struct s610_radio *radio, u8 mute_mode_toset)
 /* Enable/Disable RDS */
 int fm_set_rds_mode(struct s610_radio *radio, u8 rds_en_dis)
 {
-	int ret;
+	int ret = 0;
 	u16 payload;
 	int ii;
 	u32 fifo_tmp;
@@ -1074,7 +1055,7 @@ int fm_set_rds_mode(struct s610_radio *radio, u8 rds_en_dis)
 	if (rds_en_dis == FM_RDS_ENABLE) {
 		if (!wake_lock_active(&radio->rdswakelock))
 			wake_lock(&radio->rdswakelock);
-		msleep(100);
+		msleep(10);
 		atomic_set(&radio->is_rds_new, 0);
 		radio->rds_cnt_mod = 0;
 		radio->rds_n_count = 0;
@@ -1115,11 +1096,9 @@ int fm_set_rds_mode(struct s610_radio *radio, u8 rds_en_dis)
 		/* Write register : set RDS memory depth */
 		/* Set RDS FIFO threshold value */
 		if (radio->rds_parser_enable)
-			radio->low->fm_state.rds_mem_thresh =
-				RDS_MEM_MAX_THRESH_PARSER;
+			radio->low->fm_state.rds_mem_thresh = RDS_MEM_MAX_THRESH_PARSER;
 		else
-			radio->low->fm_state.rds_mem_thresh =
-				RDS_MEM_MAX_THRESH;
+		radio->low->fm_state.rds_mem_thresh = RDS_MEM_MAX_THRESH;
 
 		/* Write register : set RDS interrupt enable */
 		/* Enable RDS interrupt */
@@ -1128,19 +1107,22 @@ int fm_set_rds_mode(struct s610_radio *radio, u8 rds_en_dis)
 		/* Update our local flag */
 		radio->rds_flag = FM_RDS_ENABLE;
 
+		spin_lock(&radio->rds_lock);
+
 		/* RDS parser reset */
 		if (radio->rds_parser_enable)
 			fm_rds_parser_reset(&(radio->pi));
 
 		/* FIFO clear */
 		for (ii = 0; ii < 32; ii++)
-			fifo_tmp = fmspeedy_get_reg_work(FM_RDS_DATA);
+			fifo_tmp = fmspeedy_get_reg_work(0xFFF3C0);
+
+		spin_unlock(&radio->rds_lock);
 
 #ifdef	RDS_POLLING_ENABLE
 		fm_rds_periodic_update((unsigned long) radio);
 #endif	/*RDS_POLLING_ENABLE*/
-	} else if (
-		rds_en_dis == FM_RDS_DISABLE) {
+	} else  {
 		payload = radio->core->power_mode;
 		payload &= ~S610_POWER_ON_RDS;
 		ret = s610_core_set_power_state(radio,
@@ -1236,13 +1218,12 @@ static int s610_radio_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_S610_RSSI_CURR:
 		fm_update_rssi(radio);
-		payload = radio->low->fm_state.rssi;
-		ctrl->val = (payload & 0x80) ? payload - 256 : payload;
+		ctrl->val  = radio->low->fm_state.rssi;
 		FDEBUG(radio, "%s(), RSSI_CURR val:%d, ret : %d\n",
 				__func__, ctrl->val, ret);
 		break;
 	case V4L2_CID_S610_SNR_CURR:
-		radio->low->fm_state.snr = fmspeedy_get_reg(FM_DEMOD_SIGNAL_QUALITY);
+		fm_update_snr(radio);
 		payload = radio->low->fm_state.snr;
 		FDEBUG(radio, "%s(), SNR_CURR val:%d, ret : %d\n",
 				__func__, payload, ret);
@@ -1261,12 +1242,12 @@ static int s610_radio_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 				__func__, ctrl->val,  ret);
 		break;
 	case V4L2_CID_S610_RDS_ON:
-		if (radio->low->fm_state.fm_pwr_on & S610_POWER_ON_RDS)
-			ctrl->val = FM_RDS_ENABLE;
-		else
-			ctrl->val = FM_RDS_DISABLE;
-		FDEBUG(radio, "%s(), RDS_ON:%d, ret: %d\n", __func__,
-				ctrl->val, ret);
+			if (radio->low->fm_state.fm_pwr_on & S610_POWER_ON_RDS)
+				ctrl->val = FM_RDS_ENABLE;
+			else
+				ctrl->val = FM_RDS_DISABLE;
+			FDEBUG(radio, "%s(), RDS_ON:%d, ret: %d\n",
+				__func__, ctrl->val, ret);
 		break;
 	case V4L2_CID_S610_IF_COUNT1:
 		payload = radio->low->fm_config.search_conf.weak_ifca_m;
@@ -1305,7 +1286,6 @@ static int s610_radio_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		FDEBUG(radio, "%s(), REG_RW val:0x%xh, ret : %d\n",
 			__func__, ctrl->val, ret);
 		break;
-
 	default:
 		ret = -EINVAL;
 		dev_err(radio->v4l2dev.dev,
@@ -1327,20 +1307,20 @@ static int s610_radio_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct s610_radio *radio = v4l2_ctrl_handler_to_radio(ctrl->handler);
 
 	FUNC_ENTRY(radio);
-
 	s610_core_lock(radio->core);
+
 	switch (ctrl->id) {
 	case V4L2_CID_AUDIO_MUTE:  /* set mute */
 		ret = fm_set_mute_mode(radio, (u8)ctrl->val);
-		FDEBUG(radio, "%s(), mute val:%d, ret : %d\n", __func__,
-				ctrl->val, ret);
+			FDEBUG(radio, "%s(), mute val:%d, ret : %d\n",
+				__func__, ctrl->val, ret);
 		if (ret != 0)
 			ret = -EIO;
 		break;
 	case V4L2_CID_AUDIO_VOLUME:  /* set volume gain */
 		fm_set_audio_gain(radio, (u8)ctrl->val);
-		FDEBUG(radio, "%s(), volume val:%d, ret : %d\n", __func__,
-				ctrl->val, ret);
+			FDEBUG(radio, "%s(), volume val:%d, ret : %d\n",
+				__func__, ctrl->val, ret);
 		break;
 	case V4L2_CID_TUNE_DEEMPHASIS:
 		if (ctrl->val == 0)
@@ -1349,9 +1329,8 @@ static int s610_radio_s_ctrl(struct v4l2_ctrl *ctrl)
 		if (ctrl->val > 0)
 			payload -= 1;
 		ret = fm_set_deemphasis(radio, payload);
-		FDEBUG(radio, "%s(), deemphasis val:%d, ret : %d, payload:%d\n",
-			__func__,
-			ctrl->val, ret, payload);
+			FDEBUG(radio, "%s(), deemphasis val:%d, ret : %d, payload:%d\n",
+				__func__, ctrl->val, ret, payload);
 		if (ret != 0)
 			ret = -EINVAL;
 		break;
@@ -1363,20 +1342,22 @@ static int s610_radio_s_ctrl(struct v4l2_ctrl *ctrl)
 			__func__, ctrl->val,  ret);
 		break;
 	case V4L2_CID_S610_CH_BAND:
-		FDEBUG(radio, "%s(), ctrl->val: 0x%08X, ret : %d\n", __func__, ctrl->val);
+			FDEBUG(radio, "%s(), ctrl->val: 0x%08X, ret : %d\n",
+				__func__, ctrl->val);
 		radio_region = (ctrl->val & 0xF);
 		radio->radio_region = (ctrl->val & 0xF);
-		if (radio_region == 2) {
-			payload = ((ctrl->val & 0xFFF0) >> 4) * 50;
-			if (s610_radio_freq_is_inside_of_the_band(payload, radio_region))
-				region_configs[radio_region].bot_freq = payload;
-			payload = ((ctrl->val & 0xFFF0000) >> 16) * 50;
-			if (s610_radio_freq_is_inside_of_the_band(payload, radio_region))
-				region_configs[radio_region].top_freq = payload;
+			if (radio->radio_region == 2) {
+				payload = ((ctrl->val & 0xFFF0) >> 4) * 50;
+				if (s610_radio_freq_is_inside_of_the_band(payload, radio->radio_region))
+					region_configs[radio->radio_region].bot_freq = payload;
+
+				payload = ((ctrl->val & 0xFFF0000) >> 16) * 50;
+				if (s610_radio_freq_is_inside_of_the_band(payload, radio->radio_region))
+					region_configs[radio->radio_region].top_freq = payload;
 		}
-		fm_set_band(radio, radio_region);
+		fm_set_band(radio, radio->radio_region);
 		FDEBUG(radio, "%s(), BAND val:%d, ret : %d\n",
-				__func__, radio_region,  ret);
+				__func__, radio->radio_region, ret);
 		break;
 	case V4L2_CID_S610_SOFT_STEREO_BLEND:
 		ret = low_set_most_blend(radio, ctrl->val);
@@ -1420,15 +1401,14 @@ static int s610_radio_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_S610_RDS_ON:
 		payload = (u16)ctrl->val;
-		if (payload & RDS_PARSER_ENABLE)
+			if (payload & RDS_PARSER_ENABLE)
 			radio->rds_parser_enable = TRUE;
-		else
+			else
 			radio->rds_parser_enable = FALSE;
 		payload &= FM_RDS_ENABLE;
 		ret = fm_set_rds_mode(radio, payload);
-		FDEBUG(radio, "%s(), RDS_RECEPTION:%d, ret:%d parser:%d\n",
-			__func__,
-			payload, ret, radio->rds_parser_enable);
+			FDEBUG(radio, "%s(), RDS_RECEPTION:%d, ret:%d parser:%d\n",
+				__func__, payload, ret, radio->rds_parser_enable);
 		if (ret != 0)
 			ret = -EINVAL;
 		break;
@@ -1471,14 +1451,9 @@ static int s610_radio_s_ctrl(struct v4l2_ctrl *ctrl)
 			__func__, ctrl->val,  ret);
 		break;
 	case V4L2_CID_S610_REG_RW:
-#if defined(CONFIG_RADIO_S610)
-		if ((radio->speedy_reg_addr >= FM_SPEEDY_ADDR_MIN)
-				&& (radio->speedy_reg_addr <= FM_SPEEDY_ADDR_MAX))
+		if ((radio->speedy_reg_addr >= 0xFFF210)
+				&& (radio->speedy_reg_addr <= 0xFFF3DF))
 			fmspeedy_set_reg(radio->speedy_reg_addr, (u32)ctrl->val);
-#elif defined(CONFIG_RADIO_S621)
-		if (radio->speedy_reg_addr < FM_SPEEDY_ADDR_MAX)
-			fmspeedy_set_reg(radio->speedy_reg_addr, (u32)ctrl->val);
-#endif /* defined(CONFIG_RADIO_S610) */
 		else
 			dev_err(radio->v4l2dev.dev,
 				"%s(), V4L2_CID_S610_REG_RW, skip addr:0x%xh\n",
@@ -1486,20 +1461,20 @@ static int s610_radio_s_ctrl(struct v4l2_ctrl *ctrl)
 		FDEBUG(radio, "%s(), REG_RW  val:0x%xh, ret : %d\n",
 			__func__, ctrl->val, ret);
 		break;
-
 	default:
 		ret = -EINVAL;
 		dev_err(radio->v4l2dev.dev, "s_ctrl Unknown IOCTL: 0x%x\n",
 				(int)ctrl->id);
 		break;
 	}
+
 	s610_core_unlock(radio->core);
 	FUNC_EXIT(radio);
 
 	return ret;
 }
 
-#ifdef	CONFIG_VIDEO_ADV_DEBUG
+#if IS_ENABLED(CONFIG_VIDEO_ADV_DEBUG)
 static int s610_radio_g_register(struct file *file, void *fh,
 		struct v4l2_dbg_register *reg)
 {
@@ -1614,7 +1589,7 @@ static int s610_radio_fops_open(struct file *file)
 		return ret;
 
 	if (v4l2_fh_is_singular_file(file)) {
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 		/* Start FM/WLBT LDO */
 		ret = mx250_fm_request();
 		if (ret < 0) {
@@ -1622,16 +1597,34 @@ static int s610_radio_fops_open(struct file *file)
 				"mx250_fm_request() failed with err %d\n", ret);
 			return ret;
 		}
+#else
+#ifdef USE_PMIC_RW
+		if (radio->ldo_onoff) {
+			if (radio->i2c_main) {
+				ret = fm_ldo_enable(radio);
+				if (ret < 0)
+					dev_err(radio->v4l2dev.dev,
+						"fm ldo enable failed with err %d\n", ret);
+			}
+		}
+#endif /* USE_PMIC_RW */
 #endif /* CONFIG_SCSC_FM */
+
+#ifdef USE_FM_PIN_CONTROL
+	ret = pinctrl_select_state(radio->pinctrl_fm, radio->pinctrl_state_active);
+	if (ret)
+		dev_err(radio->dev, "failed to active %s pinctrl state\n", __func__);
+	dev_info(radio->dev, "%s: select pinctrl state active\n", __func__);
+#endif /* USE_FM_PIN_CONTROL */
 
 #ifdef USE_FM_LNA_ENABLE
 		if ((radio->without_elna != 1) && (radio->elna_gpio != -EINVAL)) {
-			dev_info(radio->v4l2dev.dev,
-			"(%s):FM eLNA gpio: %d\n",
-			__func__, radio->elna_gpio);
+				dev_info(radio->v4l2dev.dev,
+				"%s(), FM eLNA gpio: %d\n",
+				__func__, radio->elna_gpio);
 			if (set_eLNA_gpio(radio, GPIO_HIGH))
 				dev_info(radio->v4l2dev.dev,
-				"failed to set gpio HIGH for FM eLNA\n");
+				"%s(), Failed to set gpio HIGH for FM eLNA\n");
 		}
 #endif /* USE_FM_LNA_ENABLE */
 
@@ -1639,30 +1632,17 @@ static int s610_radio_fops_open(struct file *file)
 		atomic_set(&radio->is_doing, 0);
 		atomic_set(&radio->is_rds_doing, 0);
 
-#if defined(CONFIG_SOC_EXYNOS7885)
-		exynos_pmu_shared_reg_enable();
-#endif /* defined(CONFIG_SOC_EXYNOS7885) */
-
 #ifdef USE_AUDIO_PM
 		if (radio->a_dev) {
 			ret = pm_runtime_get_sync(radio->a_dev);
 			if (ret < 0) {
 				dev_err(radio->v4l2dev.dev,
-					"audio get_sync not work: not suspend %d\n", ret);
+					"audio get_sync failed with error %d\n", ret);
 				goto err_open;
 			}
 
-#if defined(CONFIG_SOC_EXYNOS7885) || defined(CONFIG_SOC_EXYNOS9610)
-			abox_request_cpu_gear_sync(radio->a_dev,
-				dev_get_drvdata(radio->a_dev),
-				(unsigned int)radio->dev,
-				ABOX_CPU_GEAR_MAX);
-#elif defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830)
-			abox_request_cpu_gear_sync(radio->a_dev,
-				dev_get_drvdata(radio->a_dev),
-				(unsigned int)radio->dev,
-				ABOX_CPU_GEAR_MAX, "FM");
-#endif /* defined(CONFIG_SOC_EXYNOS7885) || defined(CONFIG_SOC_EXYNOS3830) */
+			abox_request_cpu_gear_ext(radio->a_dev,
+				ABOX_CPU_GEAR_CALL_KERNEL, FM_ABOX_CPU_GEAR_MAX, "FM");
 		}
 #endif /* USE_AUDIO_PM */
 
@@ -1680,7 +1660,7 @@ static int s610_radio_fops_open(struct file *file)
 		ret = init_low_struc(radio);
 		if (ret < 0) {
 			dev_err(radio->v4l2dev.dev,
-				"Failed to init reg for initial struc\n");
+				"Failed to set for initial low struc\n");
 			goto err_open;
 		}
 
@@ -1698,14 +1678,14 @@ static int s610_radio_fops_open(struct file *file)
 				S610_POWER_ON_FM);
 		if (ret < 0) {
 			dev_err(radio->v4l2dev.dev,
-				"Failed to write reg for power on\n");
+				"Failed to set for power state FM on\n");
 			goto err_open;
 		}
 
 		ret = s610_radio_pretune(radio);
 		if (ret < 0) {
 			dev_err(radio->v4l2dev.dev,
-				"Failed to write reg for preturn\n");
+				"Failed to set for preturn\n");
 			goto power_down;
 		}
 
@@ -1732,9 +1712,6 @@ power_down:
 			S610_POWER_DOWN);
 
 err_open:
-#if defined(CONFIG_SOC_EXYNOS7885)
-	exynos_pmu_shared_reg_disable();
-#endif /* defined(CONFIG_SOC_EXYNOS7885) */
 	s610_core_unlock(radio->core);
 	v4l2_fh_release(file);
 
@@ -1773,47 +1750,46 @@ static int s610_radio_fops_release(struct file *file)
 #ifdef	RDS_POLLING_ENABLE
 		fm_rds_periodic_cancel((unsigned long) radio);
 #endif	/*RDS_POLLING_ENABLE*/
-/*#ifdef	ENABLE_IF_WORK_QUEUE*/
-/*		cancel_work_sync(&radio->if_work);*/
-/*#endif*/	/*ENABLE_IF_WORK_QUEUE*/
+/*#ifdef	ENABLE_IF_WORK_QUEUE
+		cancel_work_sync(&radio->if_work);
+#endif*/	/*ENABLE_IF_WORK_QUEUE*/
 
 		pm_runtime_put_sync(radio->dev);
 #ifdef USE_AUDIO_PM
 		if (radio->a_dev) {
-#if defined(CONFIG_SOC_EXYNOS7885) || defined(CONFIG_SOC_EXYNOS9610)
-			abox_request_cpu_gear_sync(radio->a_dev,
-				dev_get_drvdata(radio->a_dev),
-				(unsigned int)radio->dev,
-				ABOX_CPU_GEAR_MIN);
-#elif defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830)
-			abox_request_cpu_gear_sync(radio->a_dev,
-				dev_get_drvdata(radio->a_dev),
-				(unsigned int)radio->dev,
-				ABOX_CPU_GEAR_MIN, "FM");
-#endif /* defined(CONFIG_SOC_EXYNOS7885) || defined(CONFIG_SOC_EXYNOS3830) */
+			abox_request_cpu_gear_ext(radio->a_dev,
+				ABOX_CPU_GEAR_CALL_KERNEL, FM_ABOX_CPU_GEAR_MIN, "FM");
+
 			pm_runtime_put_sync(radio->a_dev);
 		}
 #endif /* USE_AUDIO_PM */
-
-#if defined(CONFIG_SOC_EXYNOS7885)
-		exynos_pmu_shared_reg_disable();
-#endif /* defined(CONFIG_SOC_EXYNOS7885) */
 		s610_core_unlock(radio->core);
 
 #ifdef USE_FM_LNA_ENABLE
 		if ((radio->without_elna != 1) && (radio->elna_gpio != -EINVAL)) {
 			if (set_eLNA_gpio(radio, GPIO_LOW))
 				dev_info(radio->v4l2dev.dev,
-					"failed to set gpio LOW for FM eLNA\n");
+					"Failed to set gpio LOW for FM eLNA\n");
 		}
 #endif /* USE_FM_LNA_ENABLE */
 
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 		/* Stop FM/WLBT LDO */
 		ret = mx250_fm_release();
 		if (ret < 0)
 			dev_err(radio->v4l2dev.dev,
 				"mx250_fm_release() failed with err %d\n", ret);
+#else
+#ifdef USE_PMIC_RW
+		if (radio->ldo_onoff) {
+			if (radio->i2c_main) {
+				ret = fm_ldo_disable(radio);
+				if (ret < 0)
+					dev_err(radio->v4l2dev.dev,
+						"fm ldo disable failed with err %d\n", ret);
+			}
+		}
+#endif /* USE_PMIC_RW */
 #endif
 	}
 
@@ -1854,13 +1830,9 @@ static ssize_t s610_radio_fops_read(struct file *file, char __user *buf,
 		return -ERESTARTSYS;
 
 	if (radio->rds_parser_enable)
-#ifdef USE_RINGBUFF_API
 		rds_max_thresh = ringbuf_bytes_used(&radio->rds_rb);
-#else
-		rds_max_thresh = RDS_MEM_MAX_THRESH_PARSER;
-#endif /* USE_RINGBUFF_API */
 	else
-		rds_max_thresh = RDS_MEM_MAX_THRESH;
+	rds_max_thresh = RDS_MEM_MAX_THRESH;
 
 	/* Turn on RDS mode */
 	memset(radio->rds_buf, 0, 480);
@@ -1882,36 +1854,26 @@ static ssize_t s610_radio_fops_read(struct file *file, char __user *buf,
 		ret = -EFAULT;
 
 	if (radio->rds_parser_enable) {
-		RDSEBUG(radio,
-				"RDS RD done:%08d:%08d fifo err:%08d type(%02X) len(%02X)",
-				radio->rds_read_cnt,
-				radio->rds_n_count,
-				radio->rds_fifo_err_cnt,
-				radio->rds_buf[0],
-				radio->rds_buf[1]);
+		RDSEBUG(radio, "RDS RD done:%08d:%08d fifo err:%08d type(%02X) len(%02X)",
+			radio->rds_read_cnt, radio->rds_n_count, radio->rds_fifo_err_cnt,
+			radio->rds_buf[0], radio->rds_buf[1]);
 	} else {
-		if ((radio->rds_buf[2]&0x07) != RDS_BLKTYPE_A) {
-			radio->rds_reset_cnt++;
-			if (radio->rds_reset_cnt >
-				radio->low->fm_state.rds_unsync_blk_cnt) {
-				fm_set_rds_mode(radio, FM_RDS_DISABLE);
-				msleep(10);
-				fm_set_rds_mode(radio, FM_RDS_ENABLE);
-				radio->rds_reset_cnt = 0;
-				RDSEBUG(radio,
-						"RDS reset! cause of block type invalid");
-			}
-			RDSEBUG(radio, "RDS block type invalid! %02d, %08d",
-					(radio->rds_buf[2]&0x07), radio->rds_reset_cnt);
+	if ((radio->rds_buf[2]&0x07) != RDS_BLKTYPE_A) {
+		radio->rds_reset_cnt++;
+		if (radio->rds_reset_cnt > radio->low->fm_state.rds_unsync_blk_cnt) {
+			fm_set_rds_mode(radio, FM_RDS_DISABLE);
+			msleep(10);
+			fm_set_rds_mode(radio, FM_RDS_ENABLE);
+			radio->rds_reset_cnt = 0;
+			RDSEBUG(radio, "RDS reset! cause of block type invalid");
 		}
+		RDSEBUG(radio, "RDS block type invalid! %02d, %08d",
+			(radio->rds_buf[2]&0x07), radio->rds_reset_cnt);
+	}
 
-		RDSEBUG(radio,
-				"RDS RD done:%08d:%08d fifo err:%08d block type0:%02X,%02X",
-				radio->rds_read_cnt,
-				radio->rds_n_count,
-				radio->rds_fifo_err_cnt,
-				(radio->rds_buf[2]&0x11)>>3,
-				radio->rds_buf[2]&0x07);
+	RDSEBUG(radio, "RDS RD done:%08d:%08d fifo err:%08d block type0:%02X,%02X",
+		radio->rds_read_cnt, radio->rds_n_count, radio->rds_fifo_err_cnt,
+		(radio->rds_buf[2]&0x11)>>3, radio->rds_buf[2]&0x07);
 	}
 
 	radio->rds_read_cnt++;
@@ -1928,20 +1890,20 @@ read_unlock:
 	return ret;
 }
 
-static unsigned int s610_radio_fops_poll(struct file *file,
+static __poll_t s610_radio_fops_poll(struct file *file,
 		struct poll_table_struct *pts)
 {
 	struct s610_radio *radio = video_drvdata(file);
-	unsigned long req_events = poll_requested_events(pts);
-	unsigned int ret = v4l2_ctrl_poll(file, pts);
+	__poll_t req_events = poll_requested_events(pts);
+	__poll_t ret = v4l2_ctrl_poll(file, pts);
 
 	FUNC_ENTRY(radio);
 
-	if (req_events & (POLLIN | POLLRDNORM)) {
+	if (req_events & (EPOLLIN | EPOLLRDNORM)) {
 		poll_wait(file, &radio->core->rds_read_queue, pts);
 
 		if (atomic_read(&radio->is_rds_new))
-			ret = POLLIN | POLLRDNORM;
+			ret = EPOLLIN | EPOLLRDNORM;
 	}
 
 	FDEBUG(radio, "POLL RET: 0x%x pwmode: %d freq: %d",
@@ -1975,7 +1937,7 @@ static const struct v4l2_ioctl_ops S610_ioctl_ops = {
 		.vidioc_subscribe_event		= v4l2_ctrl_subscribe_event,
 		.vidioc_unsubscribe_event	= v4l2_event_unsubscribe,
 
-#ifdef CONFIG_VIDEO_ADV_DEBUG
+#if IS_ENABLED(CONFIG_VIDEO_ADV_DEBUG)
 		.vidioc_g_register		= s610_radio_g_register,
 		.vidioc_s_register		= s610_radio_s_register,
 #endif
@@ -2032,15 +1994,7 @@ static irqreturn_t s610_hw_irq_handle(int irq, void *devid)
 MODULE_ALIAS("platform:s610-radio");
 static const struct of_device_id exynos_fm_of_match[] = {
 		{
-#if defined(CONFIG_SOC_EXYNOS9610)
-				.compatible = "samsung,exynos9610-fm",
-#elif defined(CONFIG_SOC_EXYNOS9630)
-				.compatible = "samsung,exynos9630-fm",
-#elif defined(CONFIG_SOC_EXYNOS7885)
-				.compatible = "samsung,exynos7885-fm",
-#elif defined(CONFIG_SOC_EXYNOS3830)
 				.compatible = "samsung,exynos3830-fm",
-#endif /* defined(CONFIG_SOC_EXYNOS9610) */
 		},
 		{},
 };
@@ -2067,9 +2021,7 @@ static struct device_node *exynos_audio_parse_dt(struct s610_radio *radio)
 
 	pdev = of_find_device_by_node(np);
 	if (!pdev) {
-		dev_err(radio->dev,
-			"%s: failed to get audio platform_device\n",
-			__func__);
+		dev_err(radio->dev, "%s: failed to get audio platform_device\n", __func__);
 		return NULL;
 	}
 	radio->a_dev = &pdev->dev;
@@ -2077,6 +2029,199 @@ static struct device_node *exynos_audio_parse_dt(struct s610_radio *radio)
 	return np;
 }
 #endif /* USE_AUDIO_PM */
+
+#ifdef USE_PMIC_RW
+#define S2MPU12_PMIC_L14CTRL			0x38
+#define S2MPU12_PMIC_L18CTRL			0x3C
+#define S2MPU12_PMIC_L19CTRL			0x3D
+#define S2MPU12_PMIC_L20CTRL			0x3E
+
+enum s2mpu12_irq_source {
+	PMIC_INT1 = 0,
+	PMIC_INT2,
+	PMIC_INT3,
+	PMIC_INT4,
+	PMIC_INT5,
+	PMIC_INT6,
+
+	S2MPU12_IRQ_GROUP_NR,
+};
+
+struct s2mpu12_dev {
+	struct device *dev;
+	struct i2c_client *i2c;
+	struct i2c_client *pmic;
+	struct i2c_client *rtc;
+	struct i2c_client *close;
+	struct mutex i2c_lock;
+	struct apm_ops *ops;
+
+	int type;
+	int device_type;
+	int irq;
+	int irq_base;
+	bool wakeup;
+	struct mutex irqlock;
+	int irq_masks_cur[S2MPU12_IRQ_GROUP_NR];
+	int irq_masks_cache[S2MPU12_IRQ_GROUP_NR];
+
+	/* pmic REV register */
+	u8 pmic_rev;	/* pmic Rev */
+
+	struct s2mpu12_platform_data *pdata;
+
+	/* VGPIO_RX_MONITOR */
+	void __iomem *mem_base;
+
+	/* Work queue */
+	struct workqueue_struct *irq_wqueue;
+	struct delayed_work irq_work;
+};
+
+static struct device_node *exynos_pmic_parse_dt(struct s610_radio *radio)
+{
+	struct device_node *np = NULL;
+	struct i2c_client *client12;
+	struct s2mpu12_dev *s2mpu12;
+
+	np = of_find_compatible_node(NULL, NULL, "samsung,s2mpu12mfd");
+	if (!np) {
+		dev_err(radio->dev, "PMIC s2mpu12mfd device is not available\n");
+		return NULL;
+	}
+	client12 = of_find_i2c_device_by_node(np);
+	if (!client12) {
+		dev_err(radio->dev, "PMIC s2mpu12mfd i2s is not available\n");
+		return NULL;
+	}
+	s2mpu12 = i2c_get_clientdata(client12);
+	radio->i2c_main = s2mpu12->pmic;
+
+	return np;
+}
+
+void fm_ldo_read(struct s610_radio *radio)
+{
+	u8 reg14m, reg18m, reg19m, reg20m;
+
+	s2mpu12_read_reg(radio->i2c_main, S2MPU12_PMIC_L14CTRL, &reg14m);
+	dev_info(radio->dev, "%s: read S2MPU12_PM_LDO14_CTRL: %xh\n", __func__, reg14m);
+
+	s2mpu12_read_reg(radio->i2c_main, S2MPU12_PMIC_L18CTRL, &reg18m);
+	dev_info(radio->dev, "%s: read S2MPU12_PM_LDO18_CTRL: %xh\n", __func__, reg18m);
+
+	s2mpu12_read_reg(radio->i2c_main, S2MPU12_PMIC_L19CTRL, &reg19m);
+	dev_info(radio->dev, "%s: read S2MPU12_PM_LDO19_CTRL: %xh\n", __func__, reg19m);
+
+	s2mpu12_read_reg(radio->i2c_main, S2MPU12_PMIC_L20CTRL, &reg20m);
+	dev_info(radio->dev, "%s: read S2MPU12_PM_LDO20_CTRL: %xh\n", __func__, reg20m);
+}
+
+#if !IS_ENABLED(CONFIG_SCSC_FM)
+int fm_ldo_enable(struct s610_radio *radio)
+{
+	u8 reg14m, reg18m, reg19m, reg20m;
+	int ret;
+
+	fm_ldo_read(radio);
+	/* LDO14M 0xEC */
+	ret = s2mpu12_write_reg(radio->i2c_main, S2MPU12_PMIC_L14CTRL, 0xEC);
+	if (ret < 0) {
+		dev_err(radio->dev, "%s: failed to write PMIC main register\n", __func__);
+		return -1;
+	}
+	/* LDO18M 0xE0 */
+	ret = s2mpu12_write_reg(radio->i2c_main, S2MPU12_PMIC_L18CTRL, 0xE0);
+	if (ret < 0) {
+		dev_err(radio->dev, "%s: failed to write PMIC main register\n", __func__);
+		return -1;
+	}
+	/* LDO19M 0xE0 */
+	ret = s2mpu12_write_reg(radio->i2c_main, S2MPU12_PMIC_L19CTRL, 0xE0);
+	if (ret < 0) {
+		dev_err(radio->dev, "%s: failed to write PMIC main register\n", __func__);
+		return -1;
+	}
+	/* LDO20M 0xEC */
+	ret = s2mpu12_write_reg(radio->i2c_main, S2MPU12_PMIC_L20CTRL, 0xEC);
+	if (ret < 0) {
+		dev_err(radio->dev, "%s: failed to write PMIC main register\n", __func__);
+		return -1;
+	}
+	fm_ldo_read(radio);
+
+	return 0;
+}
+
+int fm_ldo_disable(struct s610_radio *radio)
+{
+	u8 reg14m, reg18m, reg19m, reg20m;
+	int ret;
+
+	fm_ldo_read(radio);
+	/* LDO14M 0x6C */
+	ret = s2mpu12_write_reg(radio->i2c_main, S2MPU12_PMIC_L14CTRL, 0x6C);
+	if (ret < 0) {
+		dev_err(radio->dev, "%s: failed to write PMIC main register\n", __func__);
+		return -1;
+	}
+	/* LDO18M 0x60 */
+	ret = s2mpu12_write_reg(radio->i2c_main, S2MPU12_PMIC_L18CTRL, 0x60);
+	if (ret < 0) {
+		dev_err(radio->dev, "%s: failed to write PMIC main register\n", __func__);
+		return -1;
+	}
+	/* LDO19M 0x60 */
+	ret = s2mpu12_write_reg(radio->i2c_main, S2MPU12_PMIC_L19CTRL, 0x60);
+	if (ret < 0) {
+		dev_err(radio->dev, "%s: failed to write PMIC main register\n", __func__);
+		return -1;
+	}
+	/* LDO20M 0x6C */
+	ret = s2mpu12_write_reg(radio->i2c_main, S2MPU12_PMIC_L20CTRL, 0x6C);
+	if (ret < 0) {
+		dev_err(radio->dev, "%s: failed to write PMIC main register\n", __func__);
+		return -1;
+	}
+	fm_ldo_read(radio);
+
+	return ret;
+}
+#endif /* CONFIG_SCSC_FM */
+#endif /* USE_PMIC_RW */
+
+#ifdef USE_FM_PIN_CONTROL
+static int fm_init_pinctrl_info(struct s610_radio *radio)
+{
+	int ret = 0;
+
+	radio->pinctrl_fm = devm_pinctrl_get(radio->dev);
+	if (IS_ERR(radio->pinctrl_fm)) {
+		dev_err(radio->dev, "No pinctrl info, err: %ld\n",
+			PTR_ERR(radio->pinctrl_fm));
+		return PTR_ERR(radio->pinctrl_fm);
+	}
+	dev_info(radio->dev, "%s: get pinctrl info\n", __func__);
+
+	radio->pinctrl_state_active =
+		pinctrl_lookup_state(radio->pinctrl_fm, "active");
+	if (IS_ERR(radio->pinctrl_state_active)) {
+		dev_err(radio->dev, "Missing active state, err: %ld\n",
+			 PTR_ERR(radio->pinctrl_state_active));
+		return PTR_ERR(radio->pinctrl_fm);
+	}
+	dev_info(radio->dev, "%s: get pinctrl state active\n", __func__);
+
+	ret = pinctrl_select_state(radio->pinctrl_fm, radio->pinctrl_state_active);
+	if (ret)
+		dev_err(radio->dev, "failed to init %s pinctrl state\n", __func__);
+	dev_info(radio->dev, "%s: select pinctrl state active\n", __func__);
+
+	radio->pin_control_available = true;
+
+	return ret;
+}
+#endif /* USE_FM_PIN_CONTROL */
 
 static int s610_radio_probe(struct platform_device *pdev)
 {
@@ -2140,6 +2285,7 @@ static int s610_radio_probe(struct platform_device *pdev)
 	init_completion(&radio->flags_seek_fr_comp);
 
 	v4l2_device_set_name(&radio->v4l2dev, DRIVER_NAME, &instance);
+	dev_info(&pdev->dev, "v4l2 device name:%s\n", radio->v4l2dev.name);
 
 	ret = v4l2_device_register(&pdev->dev, &radio->v4l2dev);
 	if (ret) {
@@ -2170,12 +2316,21 @@ static int s610_radio_probe(struct platform_device *pdev)
 	}
 #endif /* USE_AUDIO_PM */
 
+#ifdef USE_PMIC_RW
+	if (!exynos_pmic_parse_dt(radio)) {
+		dev_err(&pdev->dev,
+			"Failed to get pmic dt !!!!!\n");
+	}
+#endif /* USE_PMIC_RW */
+
 	memcpy(&radio->videodev, &s610_viddev_template,
 			sizeof(struct video_device));
 
 	radio->videodev.v4l2_dev  = &radio->v4l2dev;
 	radio->videodev.ioctl_ops = &S610_ioctl_ops;
-
+	radio->videodev.device_caps = V4L2_CAP_TUNER
+				| V4L2_CAP_RADIO | V4L2_CAP_RDS_CAPTURE
+				| V4L2_CAP_READWRITE | V4L2_CAP_HW_FREQ_SEEK;
 	video_set_drvdata(&radio->videodev, radio);
 	platform_set_drvdata(pdev, radio);
 
@@ -2315,17 +2470,7 @@ static int s610_radio_probe(struct platform_device *pdev)
 #endif	/*ENABLE_IF_WORK_QUEUE*/
 #endif	/* RDS_POLLING_ENABLE */
 
-#if defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630)
-	radio->rfchip_ver = S620_REV_0;
-#elif defined(CONFIG_SOC_EXYNOS7885) || defined(CONFIG_SOC_EXYNOS3830)
 	radio->rfchip_ver = S612_REV_1;
-#endif /* defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630) */
-#if defined(CONFIG_RADIO_S610)
-	dev_info(&pdev->dev, "Config RADIO_S610:[%08X] radio driver for RF Chips S61X,S620\n", radio->rfchip_ver);
-#elif defined(CONFIG_RADIO_S621)
-	radio->rfchip_ver = S621_REV_0;
-	dev_info(&pdev->dev, "Config RADIO_S621:[%08X] radio driver for RF Chip S621\n", radio->rfchip_ver);
-#endif /* defined(CONFIG_RADIO_S610) */
 
 	ret = of_property_read_u32(dnode, "fm_iclk_aux", &radio->iclkaux);
 	if (ret)
@@ -2338,20 +2483,16 @@ static int s610_radio_probe(struct platform_device *pdev)
 		goto skip_tc_off;
 	}
 
-	fm_spur_init = devm_kzalloc(&pdev->dev,
-		radio->tc_on * sizeof(*fm_spur_init),
+	fm_spur_init = devm_kzalloc(&pdev->dev, radio->tc_on * sizeof(*fm_spur_init),
 					GFP_KERNEL);
 	if (!fm_spur_init) {
-		FDEBUG(radio,
-			"Mem alloc failed for TC ON freq values, TC off\n");
+		dev_err(radio->dev, "Mem alloc failed for TC ON freq values, TC off\n");
 		radio->tc_on = 0;
 		goto skip_tc_off;
 	}
 
-	if (of_property_read_u32_array(dnode, "val-tcon-freq",
-		fm_spur_init,
-		radio->tc_on)) {
-		FDEBUG(radio, "Getting val-tcon-freq values failed, TC off\n");
+	if (of_property_read_u32_array(dnode, "val-tcon-freq", fm_spur_init, radio->tc_on)) {
+		dev_err(radio->dev, "Getting val-tcon-freq values faild, TC off\n");
 		radio->tc_on = 0;
 		goto skip_tc_off;
 	}
@@ -2364,20 +2505,16 @@ skip_tc_off:
 		goto skip_trf_off;
 	}
 
-	fm_spur_trf_init = devm_kzalloc(&pdev->dev,
-		radio->trf_on * sizeof(*fm_spur_trf_init),
+	fm_spur_trf_init = devm_kzalloc(&pdev->dev, radio->trf_on * sizeof(*fm_spur_trf_init),
 					GFP_KERNEL);
 	if (!fm_spur_trf_init) {
-		FDEBUG(radio,
-			"Mem alloc failed for TRF ON freq values, TRF off\n");
+		dev_err(radio->dev, "Mem alloc failed for TRF ON freq values, TRF off\n");
 		radio->trf_on = 0;
 		goto skip_trf_off;
 	}
 
-	if (of_property_read_u32_array(dnode, "val-trfon-freq",
-		fm_spur_trf_init,
-		radio->trf_on)) {
-		dev_err(radio->dev, "Getting val-trfon-freq values failed, TRF off\n");
+	if (of_property_read_u32_array(dnode, "val-trfon-freq", fm_spur_trf_init, radio->trf_on)) {
+		dev_err(radio->dev, "Getting val-trfon-freq values faild, TRF off\n");
 		radio->trf_on = 0;
 		goto skip_trf_off;
 	}
@@ -2389,33 +2526,26 @@ skip_tc_off:
 
 skip_trf_off:
 
-	ret = of_property_read_u32(dnode, "num-dual-clkon-freq",
-			&radio->dual_clk_on);
+	ret = of_property_read_u32(dnode, "num-dual-clkon-freq", &radio->dual_clk_on);
 	if (ret) {
 		radio->dual_clk_on = 0;
 		goto skip_dual_clk_off;
 	}
 
-	fm_dual_clk_init = devm_kzalloc(&pdev->dev,
-		radio->dual_clk_on * sizeof(*fm_dual_clk_init),
+	fm_dual_clk_init = devm_kzalloc(&pdev->dev, radio->dual_clk_on * sizeof(*fm_dual_clk_init),
 					GFP_KERNEL);
 	if (!fm_dual_clk_init) {
-		FDEBUG(radio,
-			"Mem alloc failed for DUAL CLK ON freq values, DUAL CLK off\n");
+		dev_err(radio->dev, "Mem alloc failed for DUAL CLK ON freq values, DUAL CLK off\n");
 		radio->dual_clk_on = 0;
 		goto skip_dual_clk_off;
 	}
 
-	if (of_property_read_u32_array(dnode, "val-dual-clkon-freq",
-		fm_dual_clk_init,
-		radio->dual_clk_on)) {
-		dev_err(radio->dev,
-			"Getting val-dual-clkon-freq values failed, DUAL CLK off\n");
+	if (of_property_read_u32_array(dnode, "val-dual-clkon-freq", fm_dual_clk_init, radio->dual_clk_on)) {
+		dev_err(radio->dev, "Getting val-dual-clkon-freq values faild, DUAL CLK off\n");
 		radio->dual_clk_on = 0;
 		goto skip_dual_clk_off;
 	}
-	dev_info(radio->dev, "number DUAL CLK On Freq: %d\n",
-		radio->dual_clk_on);
+	dev_info(radio->dev, "number DUAL CLK On Freq: %d\n", radio->dual_clk_on);
 skip_dual_clk_off:
 
 	radio->vol_num = FM_RX_VOLUME_GAIN_STEP;
@@ -2425,19 +2555,15 @@ skip_dual_clk_off:
 	if (ret)
 		goto skip_vol_sel;
 
-	radio->vol_level_tmp = devm_kzalloc(&pdev->dev,
-		radio->vol_num * sizeof(u32),
+	radio->vol_level_tmp = devm_kzalloc(&pdev->dev, radio->vol_num * sizeof(u32),
 					GFP_KERNEL);
 	if (!radio->vol_level_tmp) {
-		FDEBUG(radio,
-			"Mem alloc failed for Volume level num, Volume Level default setting\n");
+		dev_err(radio->dev, "Mem alloc failed for Volume level values, Volume Level default setting\n");
 		goto skip_vol_sel;
 	}
 
-	if (of_property_read_u32_array(dnode, "val-vol-level",
-		radio->vol_level_tmp, radio->vol_num)) {
-		dev_err(radio->dev,
-			"Getting val-vol-level values failed, Volume Level default stting\n");
+	if (of_property_read_u32_array(dnode, "val-vol-level", radio->vol_level_tmp, radio->vol_num)) {
+		dev_err(radio->dev, "Getting val-vol-level values faild, Volume Level default stting\n");
 		kfree(radio->vol_level_tmp);
 		radio->vol_num = FM_RX_VOLUME_GAIN_STEP;
 		goto skip_vol_sel;
@@ -2472,6 +2598,15 @@ skip_vol_sel:
 		radio->rssi_adjust = 0;
 	dev_info(radio->dev, "rssi adjust: %d\n", radio->rssi_adjust);
 
+	ret = of_property_read_u16(dnode, "ldo_onoff", &radio->ldo_onoff);
+	if (ret)
+		radio->ldo_onoff = 1;
+	dev_info(radio->dev, "ldo_onoff: %d\n", radio->ldo_onoff);
+
+#ifdef USE_FM_PIN_CONTROL
+	fm_init_pinctrl_info(radio);
+#endif /* USE_FM_PIN_CONTROL */
+
 #ifdef USE_FM_LNA_ENABLE
 		if (radio->without_elna != 1) {
 			radio->elna_gpio = of_get_named_gpio(dnode, "elna_gpio", 0);
@@ -2490,8 +2625,8 @@ skip_vol_sel:
 		}
 #endif /* USE_FM_LNA_ENABLE */
 
-	wake_lock_init(&radio->wakelock, WAKE_LOCK_SUSPEND, "fm_wake");
-	wake_lock_init(&radio->rdswakelock, WAKE_LOCK_SUSPEND, "fm_rdswake");
+	wake_lock_init(radio->dev, &radio->wakelock.ws, "fm_wake");
+	wake_lock_init(radio->dev, &radio->rdswakelock.ws, "fm_rdswake");
 
 	dev_info(&pdev->dev, ">>> end FM Radio probe.\n");
 	return 0;
@@ -2545,6 +2680,10 @@ static int s610_radio_remove(struct platform_device *pdev)
 	if (radio->elna_gpio != -EINVAL)
 		gpio_free(radio->elna_gpio);
 #endif /*USE_FM_LNA_ENABLE*/
+#ifdef USE_FM_PIN_CONTROL
+		devm_pinctrl_put(radio->pinctrl_fm);
+#endif /* USE_FM_PIN_CONTROL */
+
 		wake_lock_destroy(&radio->wakelock);
 		wake_lock_destroy(&radio->rdswakelock);
 
@@ -2570,7 +2709,7 @@ static int fm_clk_get(struct s610_radio *radio)
 		return -EINVAL;
 	}
 
-	radio->clk_ids = (const char **)devm_kmalloc(dev,
+	radio->clk_ids = devm_kmalloc(dev,
 				(clk_count + 1) * sizeof(const char *),
 				GFP_KERNEL);
 	if (!radio->clk_ids) {
@@ -2589,7 +2728,7 @@ static int fm_clk_get(struct s610_radio *radio)
 	}
 	radio->clk_ids[clk_count] = NULL;
 
-	radio->clocks = (struct clk **) devm_kmalloc(dev,
+	radio->clocks = devm_kmalloc(dev,
 			clk_count * sizeof(struct clk *), GFP_KERNEL);
 	if (!radio->clocks) {
 		dev_err(dev, "%s: couldn't alloc\n", __func__);
@@ -2640,11 +2779,11 @@ static int fm_clk_enable(struct s610_radio *radio)
 	int i;
 	int ret;
 
-#if defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830)
 	for (i = 0; radio->clocks[i] != NULL; i++) {
 		ret = clk_enable(radio->clocks[i]);
 		if (ret)
 			goto err;
+
 		dev_info(radio->dev, "clock %s: %lu\n", radio->clk_ids[i], clk_get_rate(radio->clocks[i]));
 
 		if (!strcmp(radio->clk_ids[i], "clk_aud_fm")) {
@@ -2652,25 +2791,12 @@ static int fm_clk_enable(struct s610_radio *radio)
 				ret = clk_set_rate(radio->clocks[i], 40000);
 				if (IS_ERR_VALUE((unsigned long)ret))
 					dev_info(radio->dev,
-							"setting clock clk_aud_fm to 40KHz is failed: %lu\n", ret);
+					"setting clock clk_aud_fm to 40KHz is failed: %lu\n", ret);
 				dev_info(radio->dev, "FM clock clk_aud_fm: %lu\n",
-						clk_get_rate(radio->clocks[i]));
+					clk_get_rate(radio->clocks[i]));
 			}
 		}
 	}
-#elif defined(CONFIG_SOC_EXYNOS7885)
-	for (i = 0; radio->clocks[i] != NULL; i++) {
-		if (!strcmp(radio->clk_ids[i], "pll"))
-			dev_info(radio->dev, "%s: skip clock enable for audio pll\n", __func__);
-		else {
-			dev_info(radio->dev, "%s, idx:%d, %s\n", __func__, i, radio->clk_ids[i]);
-			ret = clk_enable(radio->clocks[i]);
-			if (ret)
-				goto err;
-			dev_info(radio->dev, "clock %s enable\n", radio->clk_ids[i]);
-		}
-	}
-#endif /* defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830) */
 
 	return 0;
 
@@ -2696,17 +2822,8 @@ static void fm_clk_disable(struct s610_radio *radio)
 {
 	int i;
 
-#if defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830)
 	for (i = 0; radio->clocks[i] != NULL; i++)
 		clk_disable(radio->clocks[i]);
-#elif defined(CONFIG_SOC_EXYNOS7885)
-	for (i = 0; radio->clocks[i] != NULL; i++) {
-		if (!strcmp(radio->clk_ids[i], "pll"))
-			dev_info(radio->dev, "%s: skip clock disable for audio pll\n", __func__);
-		else
-			clk_disable(radio->clocks[i]);
-	}
-#endif /* defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830) */
 }
 
 static void fm_clk_put(struct s610_radio *radio)
@@ -2718,7 +2835,7 @@ static void fm_clk_put(struct s610_radio *radio)
 
 }
 
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 static int fm_radio_runtime_suspend(struct device *dev)
 {
 	struct s610_radio *radio = dev_get_drvdata(dev);
@@ -2726,6 +2843,8 @@ static int fm_radio_runtime_suspend(struct device *dev)
 	FUNC_ENTRY(radio);
 
 	fm_clk_disable(radio);
+
+	FUNC_EXIT(radio);
 
 	return 0;
 }
@@ -2738,11 +2857,13 @@ static int fm_radio_runtime_resume(struct device *dev)
 
 	fm_clk_enable(radio);
 
+	FUNC_EXIT(radio);
+
 	return 0;
 }
 #endif
 
-#ifdef CONFIG_PM_SLEEP
+#if IS_ENABLED(CONFIG_PM_SLEEP)
 static int fm_radio_suspend(struct device *dev)
 {
 	dev_err(dev, "%s: FM suspend ..\n", __func__);
@@ -2770,46 +2891,20 @@ static struct platform_driver s610_radio_driver = {
 		.driver		= {
 				.name	= DRIVER_NAME,
 				.owner	= THIS_MODULE,
-				.of_match_table = exynos_fm_of_match,
+				.of_match_table = of_match_ptr(exynos_fm_of_match),
 				.pm	= DEV_PM_OPS,
 		},
 		.probe		= s610_radio_probe,
 		.remove		= s610_radio_remove,
 };
-static int __init init_s610_radio(void)
+
+int __init s610_radio_init(void)
 {
-	platform_driver_register(&s610_radio_driver);
-
-	return 0;
+	return platform_driver_register(&s610_radio_driver);
 }
+fs_initcall(s610_radio_init);
 
-static void __exit exit_s610_radio(void)
-{
-	platform_driver_unregister(&s610_radio_driver);
-}
-
-late_initcall(init_s610_radio);
-module_exit(exit_s610_radio);
 MODULE_AUTHOR("Youngjoon Chung, <young11@samsung.com>");
-#if defined(CONFIG_RADIO_S610)
-#if defined(CONFIG_SOC_EXYNOS9610)
-MODULE_DESCRIPTION("Driver for S610 FM Radio in Exynos9610");
-#elif defined(CONFIG_SOC_EXYNOS9630)
-MODULE_DESCRIPTION("Driver for S610 FM Radio in Exynos9630");
-#elif defined(CONFIG_SOC_EXYNOS7885)
-MODULE_DESCRIPTION("Driver for S610 FM Radio in Exynos7885");
-#elif defined(CONFIG_SOC_EXYNOS3830)
 MODULE_DESCRIPTION("Driver for S610 FM Radio in Exynos3830");
-#endif /* defined(CONFIG_SOC_EXYNOS9610) */
-#elif defined(CONFIG_RADIO_S621)
-#if defined(CONFIG_SOC_EXYNOS9610)
-MODULE_DESCRIPTION("Driver for S621 FM Radio in Exynos9610");
-#elif defined(CONFIG_SOC_EXYNOS9630)
-MODULE_DESCRIPTION("Driver for S621 FM Radio in Exynos9630");
-#elif defined(CONFIG_SOC_EXYNOS7885)
-MODULE_DESCRIPTION("Driver for S621 FM Radio in Exynos7885");
-#elif defined(CONFIG_SOC_EXYNOS3830)
-MODULE_DESCRIPTION("Driver for S621 FM Radio in Exynos3830");
-#endif /* defined(CONFIG_SOC_EXYNOS9610) */
-#endif /* defined(CONFIG_RADIO_S610) */
 MODULE_LICENSE("GPL");
+MODULE_VERSION("0.0.1");

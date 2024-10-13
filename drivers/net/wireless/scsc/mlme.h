@@ -26,6 +26,9 @@ enum slsi_ac_index_wmm_pe {
 #define SLSI_WLAN_EID_INTERWORKING 107
 #define SLSI_WLAN_EID_EXTENSION 255
 
+/* Element ID Extension (EID 255) values */
+#define SLSI_WLAN_EID_EXT_OWE_DH_PARAM 32
+
 #define SLSI_WLAN_OUI_TYPE_WFA_HS20_IND 0x10
 #define SLSI_WLAN_OUI_TYPE_WFA_OSEN 0x12
 #define SLSI_WLAN_OUI_TYPE_WFA_MBO 0x16
@@ -136,6 +139,16 @@ struct slsi_mlme_pkt_filter_elem {
 	u8                            num_pattern_desc;
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 };
+
+#define SLSI_KEY_MGMT_PSK 0x000fac02
+#define SLSI_KEY_MGMT_PSK_SHA 0x000fac06
+#define SLSI_KEY_MGMT_FILS_SHA256 0x000fac0e
+#define SLSI_KEY_MGMT_FILS_SHA384 0x000fac0f
+#define SLSI_KEY_MGMT_FT_FILS_SHA256 0x000fac10
+#define SLSI_KEY_MGMT_FT_FILS_SHA384 0x000fac11
+#define SLSI_KEY_MGMT_OWE 0x000fac12
+#define SLSI_KEY_MGMT_802_1X_SUITE_B_192 0x000fac0c
+#define SLSI_KEY_MGMT_FT_802_1X_SHA384 0x000fac0d
 
 u16 slsi_get_chann_info(struct slsi_dev *sdev, struct cfg80211_chan_def *chandef);
 int slsi_check_channelization(struct slsi_dev *sdev, struct cfg80211_chan_def *chandef,

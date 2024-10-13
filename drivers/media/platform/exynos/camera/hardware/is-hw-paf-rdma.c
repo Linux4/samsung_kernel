@@ -82,7 +82,7 @@ static int is_hw_paf_open(struct is_hw_ip *hw_ip, u32 instance,
 	if (test_bit(HW_OPEN, &hw_ip->state))
 		return 0;
 
-	frame_manager_probe(hw_ip->framemgr, BIT(hw_ip->id), "HWPAF");
+	frame_manager_probe(hw_ip->framemgr, hw_ip->id, "HWPAF");
 	frame_manager_open(hw_ip->framemgr, IS_MAX_HW_FRAME);
 
 	hw_ip->priv_info = vzalloc(sizeof(struct is_hw_paf));
@@ -442,6 +442,7 @@ int is_hw_paf_probe(struct is_hw_ip *hw_ip, struct is_interface *itf,
 	atomic_set(&hw_ip->fcount, 0);
 	hw_ip->is_leader = true;
 	atomic_set(&hw_ip->status.Vvalid, V_BLANK);
+	atomic_set(&hw_ip->status.otf_start, 0);
 	atomic_set(&hw_ip->rsccount, 0);
 	init_waitqueue_head(&hw_ip->status.wait_queue);
 

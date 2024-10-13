@@ -16,7 +16,7 @@
 #ifndef EXYNOS_FLEXPMU_DEBUG_H
 #define EXYNOS_FLEXPMU_DEBUG_H
 
-#ifdef CONFIG_EXYNOS_FLEXPMU_DBG
+#if defined(CONFIG_EXYNOS_FLEXPMU_DBG) || defined(CONFIG_EXYNOS_FLEXPMU_DBG_MODULE)
 extern int exynos_acpm_pasr_mask_read(void);
 extern int exynos_acpm_pasr_size_read(void);
 extern int exynos_acpm_pasr_write(u32 mask, u32 size);

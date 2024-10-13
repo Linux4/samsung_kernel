@@ -32,7 +32,7 @@
  * Register definitions
  *
  * For register details see datasheet:
- * http://www.xilinx.com/support/documentation/ip_documentation/opb_uartlite.pdf
+ * https://www.xilinx.com/support/documentation/ip_documentation/opb_uartlite.pdf
  */
 
 #define ULITE_RX		0x00
@@ -54,6 +54,11 @@
 #define ULITE_CONTROL_RST_TX	0x01
 #define ULITE_CONTROL_RST_RX	0x02
 #define ULITE_CONTROL_IE	0x10
+
+/* Static pointer to console port */
+#ifdef CONFIG_SERIAL_UARTLITE_CONSOLE
+static struct uart_port *console_port;
+#endif
 
 struct uartlite_data {
 	const struct uartlite_reg_ops *reg_ops;
@@ -472,7 +477,7 @@ static void ulite_console_putchar(struct uart_port *port, int ch)
 static void ulite_console_write(struct console *co, const char *s,
 				unsigned int count)
 {
-	struct uart_port *port = &ulite_ports[co->index];
+	struct uart_port *port = console_port;
 	unsigned long flags;
 	unsigned int ier;
 	int locked = 1;
@@ -500,22 +505,22 @@ static void ulite_console_write(struct console *co, const char *s,
 
 static int ulite_console_setup(struct console *co, char *options)
 {
-	struct uart_port *port;
+	struct uart_port *port = NULL;
 	int baud = 9600;
 	int bits = 8;
 	int parity = 'n';
 	int flow = 'n';
 
-	if (co->index < 0 || co->index >= ULITE_NR_UARTS)
-		return -EINVAL;
-
-	port = &ulite_ports[co->index];
+	if (co->index >= 0 && co->index < ULITE_NR_UARTS)
+		port = ulite_ports + co->index;
 
 	/* Has the device been initialized yet? */
-	if (!port->mapbase) {
+	if (!port || !port->mapbase) {
 		pr_debug("console on ttyUL%i not present\n", co->index);
 		return -ENODEV;
 	}
+
+	console_port = port;
 
 	/* not initialized yet? */
 	if (!port->membase) {
@@ -540,14 +545,6 @@ static struct console ulite_console = {
 	.index	= -1, /* Specified on the cmdline (e.g. console=ttyUL0 ) */
 	.data	= &ulite_uart_driver,
 };
-
-static int __init ulite_console_init(void)
-{
-	register_console(&ulite_console);
-	return 0;
-}
-
-console_initcall(ulite_console_init);
 
 static void early_uartlite_putc(struct uart_port *port, int c)
 {
@@ -618,7 +615,7 @@ static struct uart_driver ulite_uart_driver = {
  *
  * Returns: 0 on success, <0 otherwise
  */
-static int ulite_assign(struct device *dev, int id, u32 base, int irq,
+static int ulite_assign(struct device *dev, int id, phys_addr_t base, int irq,
 			struct uartlite_data *pdata)
 {
 	struct uart_port *port;
@@ -776,13 +773,26 @@ static int ulite_probe(struct platform_device *pdev)
 		pdata->clk = NULL;
 	}
 
-	ret = clk_prepare(pdata->clk);
+	ret = clk_prepare_enable(pdata->clk);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to prepare clock\n");
 		return ret;
 	}
 
-	return ulite_assign(&pdev->dev, id, res->start, irq, pdata);
+	if (!ulite_uart_driver.state) {
+		dev_dbg(&pdev->dev, "uartlite: calling uart_register_driver()\n");
+		ret = uart_register_driver(&ulite_uart_driver);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "Failed to register driver\n");
+			return ret;
+		}
+	}
+
+	ret = ulite_assign(&pdev->dev, id, res->start, irq, pdata);
+
+	clk_disable(pdata->clk);
+
+	return ret;
 }
 
 static int ulite_remove(struct platform_device *pdev)
@@ -813,25 +823,9 @@ static struct platform_driver ulite_platform_driver = {
 
 static int __init ulite_init(void)
 {
-	int ret;
-
-	pr_debug("uartlite: calling uart_register_driver()\n");
-	ret = uart_register_driver(&ulite_uart_driver);
-	if (ret)
-		goto err_uart;
 
 	pr_debug("uartlite: calling platform_driver_register()\n");
-	ret = platform_driver_register(&ulite_platform_driver);
-	if (ret)
-		goto err_plat;
-
-	return 0;
-
-err_plat:
-	uart_unregister_driver(&ulite_uart_driver);
-err_uart:
-	pr_err("registering uartlite driver failed: err=%i\n", ret);
-	return ret;
+	return platform_driver_register(&ulite_platform_driver);
 }
 
 static void __exit ulite_exit(void)

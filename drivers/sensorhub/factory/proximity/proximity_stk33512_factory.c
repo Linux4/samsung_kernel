@@ -74,8 +74,6 @@ static ssize_t proximity_cal_store(struct device *dev, struct device_attribute *
 	int ret = 0;
 	struct proximity_data *data = (struct proximity_data *)get_sensor(SENSOR_TYPE_PROXIMITY)->data;
 
-	save_panel_lcd_type();
-
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROX_SUBCMD_CALIBRATION_START, NULL, 0);
 	if (ret < 0) {
 		shub_errf("shub_send_command_wait fail %d", ret);

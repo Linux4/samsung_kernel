@@ -231,9 +231,9 @@ static const struct of_device_id exynos_is_spi_match[] = {
 };
 MODULE_DEVICE_TABLE(of, exynos_is_spi_match);
 
-static struct spi_driver is_spi0_driver = {
+struct spi_driver is_spi_driver = {
 	.driver = {
-		.name = "is_spi0",
+		.name = "is_spi",
 		.bus = &spi_bus_type,
 		.owner = THIS_MODULE,
 		.of_match_table = exynos_is_spi_match,
@@ -241,21 +241,10 @@ static struct spi_driver is_spi0_driver = {
 	.probe	= is_spi_probe,
 	.remove	= is_spi_remove,
 };
+#ifndef MODULE
+module_spi_driver(is_spi_driver);
+#endif
 
-module_spi_driver(is_spi0_driver);
-
-static struct spi_driver is_spi1_driver = {
-	.driver = {
-		.name = "is_spi1",
-		.bus = &spi_bus_type,
-		.owner = THIS_MODULE,
-		.of_match_table = exynos_is_spi_match,
-	},
-	.probe	= is_spi_probe,
-	.remove = is_spi_remove,
-};
-
-module_spi_driver(is_spi1_driver);
 #endif
 MODULE_DESCRIPTION("FIMC-IS SPI driver");
 MODULE_LICENSE("GPL");

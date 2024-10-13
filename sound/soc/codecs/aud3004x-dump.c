@@ -3,7 +3,7 @@
  *
  * ALSA SoC Audio Layer - Samsung Codec Driver
  *
- * Copyright (C) 2019 Samsung Electronics
+ * Copyright (C) 2022 Samsung Electronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -22,7 +22,9 @@
 #include <linux/device.h>
 #include <linux/cdev.h>
 #include <linux/delay.h>
-#include <soc/samsung/acpm_mfd.h>
+#include <linux/slab.h>
+#include <linux/of.h>
+#include "aud3004x.h"
 
 #define SUCCESS 0
 #define OK 1
@@ -48,11 +50,11 @@ static dev_t codec_speedy_dev_t;
 static struct cdev c_dev;
 static struct class *class_codec_speedy;
 
-static int codec_read_reg(unsigned short addr, u8 reg, u8 *dest)
+static int codec_read_reg(unsigned short addr, u32 reg, u32 *dest)
 {
 	int ret;
 
-	ret = exynos_acpm_read_reg(0, addr, reg, dest);
+	ret = aud3004x_acpm_read_reg(addr, reg, dest);
 	if (ret) {
 		pr_err("[%s] acpm ipc fail!\n", __func__);
 		return ret;
@@ -61,11 +63,11 @@ static int codec_read_reg(unsigned short addr, u8 reg, u8 *dest)
 	return 0;
 }
 
-static int codec_write_reg(unsigned short addr, u8 reg, u8 value)
+static int codec_write_reg(unsigned short addr, u32 reg, u32 value)
 {
 	int ret;
 
-	ret = exynos_acpm_write_reg(0, addr, reg, value);
+	ret = aud3004x_acpm_write_reg(addr, reg, value);
 	if (ret) {
 		pr_err("[%s] acpm ipc fail!\n", __func__);
 		return ret;
@@ -373,7 +375,7 @@ static ssize_t codec_speedy_read(struct file *f,
 				strcat(reg_dump, ":");
 			}
 
-			codec_read_reg(g_arg1, i, (u8 *)&value);
+			codec_read_reg(g_arg1, i, &value);
 
 			strcat(reg_dump, " ");
 			value2hex(value, temp);
@@ -383,7 +385,7 @@ static ssize_t codec_speedy_read(struct file *f,
 				strcat(reg_dump, "\n");
 		}
 	} else if (g_command == COMMAND_READ) {
-		codec_read_reg(g_arg1, g_arg2, (u8 *)&value);
+		codec_read_reg(g_arg1, g_arg2, &value);
 		g_arg3 = (unsigned int)value & 0x00ff;
 	}
 	mutex_unlock(&reg_dump_read_lock);
@@ -439,6 +441,7 @@ static ssize_t codec_sysfs_store(struct class *cls,
 	}
 
 	memcpy(input, buf, strlen(buf));
+	input[strlen(buf)] = '\0';
 	ret = command_parsing(input);
 
 	if (g_command == COMMAND_WRITE)

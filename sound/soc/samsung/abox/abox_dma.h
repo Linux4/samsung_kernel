@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_dma.h
- *
- * ALSA SoC Audio Layer - Samsung Abox DMA driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox DMA driver
  *
  * Copyright (c) 2019 Samsung Electronics Co. Ltd.
  *
@@ -15,21 +15,29 @@
 #include <linux/completion.h>
 #include <sound/soc.h>
 #include "abox_ion.h"
+#include "abox_soc.h"
 #include "abox.h"
 
-#define DMA_REG_CTRL0		0x00
-#define DMA_REG_CTRL		DMA_REG_CTRL0
-#define DMA_REG_CTRL1		0x04
-#define DMA_REG_BUF_STR		0x08
-#define DMA_REG_BUF_END		0x0c
-#define DMA_REG_BUF_OFFSET	0x10
-#define DMA_REG_STR_POINT	0x14
-#define DMA_REG_VOL_FACTOR	0x18
-#define DMA_REG_VOL_CHANGE	0x1c
-#define DMA_REG_SBANK_LIMIT	0x20
-#define DMA_REG_BIT_CTRL0	0x24
-#define DMA_REG_BIT_CTRL1	0x28
+#define DMA_REG_CTRL0           0x00
+#define DMA_REG_CTRL            DMA_REG_CTRL0
+#define DMA_REG_CTRL1           0x04
+#define DMA_REG_BUF_STR         0x08
+#define DMA_REG_BUF_END         0x0c
+#define DMA_REG_BUF_OFFSET      0x10
+#define DMA_REG_STR_POINT       0x14
+#define DMA_REG_VOL_FACTOR      0x18
+#define DMA_REG_VOL_CHANGE      0x1c
+#define DMA_REG_SBANK_LIMIT     0x20
+#define DMA_REG_BIT_CTRL0       0x24
+#define DMA_REG_BIT_CTRL1       0x28
+#define DMA_REG_STATUS          0x30
 #define DMA_REG_STATUS		0x30
+#define DMA_REG_MAX		DMA_REG_STATUS
+
+/* mask for field which are controlled by kernel in shared sfr */
+#define REG_CTRL_KERNEL_MASK (ABOX_DMA_SYNC_MODE_MASK | \
+		ABOX_DMA_BURST_LEN_MASK | ABOX_DMA_FUNC_MASK | \
+		ABOX_DMA_AUTO_FADE_IN_MASK | ABOX_DMA_DUMMY_START_MASK)
 
 #define BUFFER_ION_BYTES_MAX		(SZ_512K)
 
@@ -53,6 +61,7 @@ enum abox_platform_type {
 enum abox_buffer_type {
 	BUFFER_TYPE_DMA,
 	BUFFER_TYPE_ION,
+	BUFFER_TYPE_RAM,
 };
 
 enum abox_rate {
@@ -97,6 +106,7 @@ struct abox_compr_data {
 
 	unsigned int handle_id;
 	unsigned int codec_id;
+	unsigned int stream_format;
 	unsigned int channels;
 	unsigned int sample_rate;
 
@@ -130,28 +140,36 @@ struct abox_dma_dump {
 	size_t bytes;
 	size_t pointer;
 	bool updated;
+	atomic_t open_state;
 };
 
 struct abox_dma_data {
 	struct device *dev;
 	void __iomem *sfr_base;
 	void __iomem *mailbox_base;
+	phys_addr_t sfr_phys;
 	unsigned int id;
 	unsigned int pointer;
 	int pm_qos_cl0[RATE_COUNT];
 	int pm_qos_cl1[RATE_COUNT];
-	int pm_qos_cl2[RATE_COUNT];
+	unsigned int sbank_size;
 	struct device *dev_abox;
 	struct abox_data *abox_data;
 	struct snd_pcm_substream *substream;
 	enum abox_platform_type type;
 	struct snd_dma_buffer dmab;
+	struct snd_dma_buffer ramb;
 	struct abox_ion_buf *ion_buf;
 	struct snd_hwdep *hwdep;
 	enum abox_buffer_type buf_type;
+	bool enabled;
 	bool ack_enabled;
 	bool backend;
+	bool closing;
+	bool auto_fade_in;
 	struct completion closed;
+	struct completion func_changed;
+	unsigned int c_reg_ctrl; /* cache for dma_ctrl */
 	struct abox_compr_data compr_data;
 	struct regmap *mailbox;
 	struct snd_soc_component *cmpnt;
@@ -170,10 +188,14 @@ struct abox_dma_of_data {
 	char *(*get_dai_name)(struct device *dev, enum abox_dma_dai dai,
 			int id);
 	char *(*get_str_name)(struct device *dev, int id, int stream);
+	enum abox_widget (*get_src_widget)(struct abox_dma_data *data);
 	const struct snd_soc_dai_driver *dai_drv;
 	unsigned int num_dai;
 	const struct snd_soc_component_driver *cmpnt_drv;
 };
+
+extern const struct snd_soc_component_driver abox_dma;
+extern const struct soc_enum abox_dma_func_enum;
 
 /**
  * Get sampling rate type
@@ -191,12 +213,61 @@ static inline enum abox_rate abox_get_rate_type(unsigned int rate)
 }
 
 /**
+ * Check whether a dma is in sync mode. Only valid with rdma and wdma.
+ * @param[in]	data		data of dma
+ * @return	true or false
+ */
+extern bool abox_dma_is_sync_mode(struct abox_dma_data *data);
+
+/**
+ * Get IO virtual address of a dma
+ * @param[in]	data		data of dma
+ * @return	IO virtual address
+ */
+extern unsigned int abox_dma_iova(struct abox_dma_data *data);
+
+/**
  * Get irq number of a dma irq
  * @param[in]	data		data of dma
  * @param[in]	irq		dma irq
  * @return	irq number
  */
 extern enum abox_irq abox_dma_get_irq(struct abox_dma_data *data,
+		enum abox_dma_irq irq);
+
+/**
+ * Enable DMA irq and set target to AP
+ * @param[in]	data		data of dma
+ * @param[in]	irq		dma irq
+ */
+extern void abox_dma_acquire_irq(struct abox_dma_data *data,
+		enum abox_dma_irq dma_irq);
+
+/**
+ * Disable DMA irq and return target to ABOX core0
+ * @param[in]	data		data of dma
+ * @param[in]	irq		dma irq
+ */
+extern void abox_dma_release_irq(struct abox_dma_data *data,
+		enum abox_dma_irq dma_irq);
+
+/**
+ * Register DMA irq handler
+ * @param[in]	data		data of dma
+ * @param[in]	irq		dma irq
+ * @param[in]	handler		irq handler
+ * @param[in]	dev_id		private data
+ * @return	0 or error code
+ */
+extern int abox_dma_register_irq(struct abox_dma_data *data,
+		enum abox_dma_irq irq, irq_handler_t handler, void *dev_id);
+
+/**
+ * Unregister DMA irq handler
+ * @param[in]	data		data of dma
+ * @param[in]	irq		dma irq
+ */
+extern void abox_dma_unregister_irq(struct abox_dma_data *data,
 		enum abox_dma_irq irq);
 
 /**
@@ -218,6 +289,16 @@ extern int abox_dma_mixer_control_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol);
 
 /**
+ * Wait for DMA stable
+ * @param[in]	dev		pointer to abox_dma device
+ * @param[in]	data		data of dma
+ * @param[in]	enable		enable or disable
+ * @return	0 or error code
+ */
+extern void abox_dma_barrier(struct device *dev, struct abox_dma_data *data,
+		int enable);
+
+/**
  * Set destination bit width of dma.
  * @param[in]	dev		pointer to abox_dma device
  * @param[in]	width		bit width
@@ -226,14 +307,26 @@ extern int abox_dma_mixer_control_put(struct snd_kcontrol *kcontrol,
 extern int abox_dma_set_dst_bit_width(struct device *dev, int width);
 
 /**
+ * Get destination bit width of dma.
+ * @param[in]	dev		pointer to abox_dma device
+ * @return	bit width
+ */
+extern int abox_dma_get_dst_bit_width(struct device *dev);
+
+/**
+ * Get count of channels of dma.
+ * @param[in]	dev		pointer to abox_dma device
+ * @return	count of channels
+ */
+extern int abox_dma_get_channels(struct device *dev);
+
+/**
  * fixup hardware parameter of the dma
  * @param[in]	dev		pointer to abox_dma device
- * @param[in]	substream	substream
  * @param[in]	params		hardware parameter
  * @return	0 or error code
  */
 extern int abox_dma_hw_params_fixup(struct device *dev,
-		struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params);
 
 /**
@@ -270,6 +363,33 @@ extern int abox_dma_hw_params_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol);
 
 /**
+ * Shared callback for auto fade in kcontrol get
+ * @param[in]	kcontrol	kcontrol
+ * @param[in]	ucontrol	ucontrol
+ * @return	0 or error code
+ */
+extern int abox_dma_auto_fade_in_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol);
+
+/**
+ * Shared callback for auto fade in kcontrol put
+ * @param[in]	kcontrol	kcontrol
+ * @param[in]	ucontrol	ucontrol
+ * @return	0 or error code
+ */
+extern int abox_dma_auto_fade_in_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol);
+
+/**
+ * Shared callback for func in kcontrol put
+ * @param[in]	kcontrol	kcontrol
+ * @param[in]	ucontrol	ucontrol
+ * @return	0 or error code
+ */
+extern int abox_dma_func_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol);
+
+/**
  * Get dai of the dma
  * @param[in]	dev		pointer to abox_dma device
  * @param[in]	type		type of the dai
@@ -277,5 +397,68 @@ extern int abox_dma_hw_params_put(struct snd_kcontrol *kcontrol,
  */
 extern struct snd_soc_dai *abox_dma_get_dai(struct device *dev,
 		enum abox_dma_dai type);
+
+/**
+ * Test dma can be closed
+ * @param[in]	rtd	asoc runtime
+ * @param[in]	stream	stream direction
+ * @return	true or false
+ */
+extern int abox_dma_can_close(struct snd_soc_pcm_runtime *rtd, int stream);
+
+/**
+ * Test dma can be freed
+ * @param[in]	rtd	asoc runtime
+ * @param[in]	stream	stream direction
+ * @return	true or false
+ */
+extern int abox_dma_can_free(struct snd_soc_pcm_runtime *rtd, int stream);
+
+/**
+ * Test dma can be stopped
+ * @param[in]	rtd	asoc runtime
+ * @param[in]	stream	stream direction
+ * @return	true or false
+ */
+extern int abox_dma_can_stop(struct snd_soc_pcm_runtime *rtd, int stream);
+
+/**
+ * Test dma can be started
+ * @param[in]	rtd	asoc runtime
+ * @param[in]	stream	stream direction
+ * @return	true or false
+ */
+extern int abox_dma_can_start(struct snd_soc_pcm_runtime *rtd, int stream);
+
+/**
+ * Test dma can be prepared
+ * @param[in]	rtd	asoc runtime
+ * @param[in]	stream	stream direction
+ * @return	true or false
+ */
+extern int abox_dma_can_prepare(struct snd_soc_pcm_runtime *rtd, int stream);
+
+/**
+ * Test dma can be configured
+ * @param[in]	rtd	asoc runtime
+ * @param[in]	stream	stream direction
+ * @return	true or false
+ */
+extern int abox_dma_can_params(struct snd_soc_pcm_runtime *rtd, int stream);
+
+/**
+ * Test dma can be opened
+ * @param[in]	rtd	asoc runtime
+ * @param[in]	stream	stream direction
+ * @return	true or false
+ */
+extern int abox_dma_can_open(struct snd_soc_pcm_runtime *rtd, int stream);
+
+/**
+ * Check whether dma is opened
+ * @param[in]	dev		pointer to abox_dma device
+ * @return	true or false
+ */
+extern bool abox_dma_is_opened(struct device *dev);
 
 #endif /* __SND_SOC_ABOX_DMA_H */

@@ -12,8 +12,6 @@
 #ifndef _DW_MMC_EXYNOS_H_
 #define _DW_MMC_EXYNOS_H_
 
-#include <crypto/fmp.h>
-
 #define NUM_PINS(x)			(x + 2)
 
 #define MAX_TUNING_RETRIES      7
@@ -56,6 +54,13 @@ struct exynos_mmc_pmu {
 	u32 val;
 };
 
+struct emmc_supply {
+       u32 mmc_pwr_ctrl;
+       u32 dis_charge;
+       struct regulator        *vemmc;
+       struct regulator        *vqemmc;
+};
+
 /* Exynos implementation specific driver private data */
 struct dw_mci_exynos_priv_data {
 	u8 ctrl_type;
@@ -66,6 +71,8 @@ struct dw_mci_exynos_priv_data {
 	u32 tuned_sample;
 	u32 cur_speed;
 	u32 dqs_delay;
+	u32 runtime_pm_flag;
+	struct exynos_mmc_pmu pmu;
 	u32 saved_dqs_en;
 	u32 saved_strobe_ctrl;
 	u32 hs200_timing;
@@ -75,6 +82,7 @@ struct dw_mci_exynos_priv_data {
 	u32 hs400_tx_t_initval;
 	u32 sdr104_timing;
 	u32 sdr50_timing;
+	u32 hs_timing;
 	u32 *ref_clk;
 	u32 delay_line;
 	u32 tx_delay_line;
@@ -85,20 +93,14 @@ struct dw_mci_exynos_priv_data {
 	struct pinctrl_state *clk_drive_str[6];
 	struct pinctrl_state *pins_config[2];
 	int cd_gpio;
-	int sec_sd_slot_type;
-#define SEC_NO_DET_SD_SLOT  0 /* No detect GPIO SD slot case */
-#define SEC_HOTPLUG_SD_SLOT 1 /* detect GPIO SD slot without Tray */
-#define SEC_HYBRID_SD_SLOT  2 /* detect GPIO SD slot with Tray */
 	u32 caps;
 	u32 ctrl_flag;
-	u32 runtime_pm_flag;
 	u32 ctrl_windows;
 	u32 ignore_phase;
 	u32 selclk_drv;
 	u32 voltage_int_extra;
-	enum smu_id	fmp;
-	enum smu_id	smu;
-	struct exynos_mmc_pmu pmu;
+        /* eMMC Power Control */
+        struct emmc_supply      emmc_pwr;
 
 #define DW_MMC_EXYNOS_BYPASS_FOR_ALL_PASS	BIT(0)
 #define DW_MMC_EXYNOS_ENABLE_SHIFT		BIT(1)
@@ -110,8 +112,13 @@ struct dw_mci_exynos_priv_data {
 #define phase6_en      BIT(6)
 #define phase7_en      BIT(7)
 
+enum mmc_type {
+	MMC_CARD,
+	SDIO,
+	SD_CARD,
+};
+
 extern int dw_mci_exynos_request_status(void);
-extern void dw_mci_reg_dump(struct dw_mci *host);
 
 /*****************/
 /* SFR addresses */
@@ -131,15 +138,9 @@ extern void dw_mci_reg_dump(struct dw_mci *host);
 #define SDMMC_BUFADDRL		(SDMMC_DSCADDRU + SFR_OFFSET)
 #define SDMMC_BUFADDRU		(SDMMC_BUFADDRL + SFR_OFFSET)
 
-#if defined(CONFIG_MMC_DW_64BIT_DESC)
 #define SDMMC_AXI_BURST_LEN	0x00b4
 #define SDMMC_SECTOR_NUM_INC	0x01F8
 #define SDMMC_CLKSEL		(SDMMC_BUFADDRU + SFR_OFFSET)	/* specific to Samsung Exynos */
-#else
-#define SDMMC_CLKSEL		(SDMMC_BUFADDR + SFR_OFFSET)	/* specific to Samsung Exynos */
-#define SDMMC_AXI_BURST_LEN	0xffff	/*not used */
-#define SDMMC_SECTOR_NUM_INC	0xffff	/*not used */
-#endif
 
 #define SDMMC_CDTHRCTL		0x100
 #define SDMMC_DATA(x)		(x)

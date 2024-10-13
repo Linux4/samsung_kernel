@@ -13,12 +13,17 @@
 
 #pragma once
 
+#include <linux/kconfig.h>
 #include <teec/pmf_defs.h>
+
+#if IS_MODULE(CONFIG_TZDEV)
+int tz_pmf_init(void);
+#endif
 
 #ifdef CONFIG_TZ_PMF
 void tzdev_pmf_stamp(enum pmf_id id);
 #else
-void tzdev_pmf_stamp(enum pmf_id id)
+static inline void tzdev_pmf_stamp(enum pmf_id id)
 {
 	(void) id;
 }

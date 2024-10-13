@@ -114,12 +114,12 @@ struct task_integrity {
 
 #ifdef CONFIG_FIVE_GKI_10
 #define TASK_INTEGRITY(task) \
-	((struct task_integrity *)((task)->android_vendor_data1[2]))
+	((struct task_integrity *)((task)->android_oem_data1[2]))
 
 static inline void task_integrity_assign(struct task_struct *task,
 					 struct task_integrity *tint)
 {
-	task->android_vendor_data1[2] = (u64)tint;
+	task->android_oem_data1[2] = (u64)tint;
 }
 #else
 #define TASK_INTEGRITY(task) ((task)->integrity)
@@ -232,7 +232,7 @@ static inline void task_integrity_reset_both(struct task_integrity *intg)
 
 extern int task_integrity_copy(struct task_integrity *from,
 				struct task_integrity *to);
-extern int five_bprm_check(struct linux_binprm *bprm);
+extern int five_bprm_check(struct linux_binprm *bprm, int depth);
 extern void five_file_free(struct file *file);
 extern int five_file_mmap(struct file *file, unsigned long prot);
 extern int five_file_open(struct file *file);
@@ -321,7 +321,7 @@ static inline void task_integrity_report_file(struct task_integrity *intg)
 {
 }
 
-static inline int five_bprm_check(struct linux_binprm *bprm)
+static inline int five_bprm_check(struct linux_binprm *bprm, int depth)
 {
 	return 0;
 }

@@ -244,14 +244,14 @@ static struct platform_driver regulator_void_driver = {
 	},
 };
 
-static int __init regulator_void_init(void)
+int __init regulator_void_init(void)
 {
 	return platform_driver_register(&regulator_void_driver);
 }
-subsys_initcall(regulator_void_init);
+//subsys_initcall(regulator_void_init);
 
-static void __exit regulator_void_exit(void)
+void __exit regulator_void_exit(void)
 {
 	platform_driver_unregister(&regulator_void_driver);
 }
-module_exit(regulator_void_exit);
+//module_exit(regulator_void_exit);

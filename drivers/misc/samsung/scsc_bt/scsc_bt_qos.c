@@ -20,11 +20,14 @@
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/version.h>
+
+#ifdef CONFIG_SCSC_QOS
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 #include <soc/samsung/exynos_pm_qos.h>
 #include <scsc/scsc_wakelock.h>
 #else
 #include <linux/wakelock.h>
+#endif
 #endif
 #include <scsc/scsc_mx.h>
 #include <scsc/scsc_mifram.h>

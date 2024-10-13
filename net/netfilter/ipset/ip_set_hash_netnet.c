@@ -1,9 +1,6 @@
-/* Copyright (C) 2003-2013 Jozsef Kadlecsik <kadlec@blackhole.kfki.hu>
+// SPDX-License-Identifier: GPL-2.0-only
+/* Copyright (C) 2003-2013 Jozsef Kadlecsik <kadlec@netfilter.org>
  * Copyright (C) 2013 Oliver Smith <oliver@8.c.9.b.0.7.4.0.1.0.0.2.ip6.arpa>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 /* Kernel module implementing an IP set type: the hash:net type */
@@ -55,7 +52,7 @@ struct hash_netnet4_elem {
 
 /* Common functions */
 
-static inline bool
+static bool
 hash_netnet4_data_equal(const struct hash_netnet4_elem *ip1,
 			const struct hash_netnet4_elem *ip2,
 			u32 *multi)
@@ -64,32 +61,32 @@ hash_netnet4_data_equal(const struct hash_netnet4_elem *ip1,
 	       ip1->ccmp == ip2->ccmp;
 }
 
-static inline int
+static int
 hash_netnet4_do_data_match(const struct hash_netnet4_elem *elem)
 {
 	return elem->nomatch ? -ENOTEMPTY : 1;
 }
 
-static inline void
+static void
 hash_netnet4_data_set_flags(struct hash_netnet4_elem *elem, u32 flags)
 {
 	elem->nomatch = (flags >> 16) & IPSET_FLAG_NOMATCH;
 }
 
-static inline void
+static void
 hash_netnet4_data_reset_flags(struct hash_netnet4_elem *elem, u8 *flags)
 {
 	swap(*flags, elem->nomatch);
 }
 
-static inline void
+static void
 hash_netnet4_data_reset_elem(struct hash_netnet4_elem *elem,
 			     struct hash_netnet4_elem *orig)
 {
 	elem->ip[1] = orig->ip[1];
 }
 
-static inline void
+static void
 hash_netnet4_data_netmask(struct hash_netnet4_elem *elem, u8 cidr, bool inner)
 {
 	if (inner) {
@@ -120,7 +117,7 @@ nla_put_failure:
 	return true;
 }
 
-static inline void
+static void
 hash_netnet4_data_next(struct hash_netnet4_elem *next,
 		       const struct hash_netnet4_elem *d)
 {
@@ -165,12 +162,12 @@ static int
 hash_netnet4_uadt(struct ip_set *set, struct nlattr *tb[],
 		  enum ipset_adt adt, u32 *lineno, u32 flags, bool retried)
 {
-	const struct hash_netnet4 *h = set->data;
+	struct hash_netnet4 *h = set->data;
 	ipset_adtfn adtfn = set->variant->adt[adt];
 	struct hash_netnet4_elem e = { };
 	struct ip_set_ext ext = IP_SET_INIT_UEXT(set);
 	u32 ip = 0, ip_to = 0;
-	u32 ip2 = 0, ip2_from = 0, ip2_to = 0;
+	u32 ip2 = 0, ip2_from = 0, ip2_to = 0, i = 0;
 	int ret;
 
 	if (tb[IPSET_ATTR_LINENO])
@@ -258,7 +255,12 @@ hash_netnet4_uadt(struct ip_set *set, struct nlattr *tb[],
 		e.ip[0] = htonl(ip);
 		ip = ip_set_range_to_cidr(ip, ip_to, &e.cidr[0]);
 		do {
+			i++;
 			e.ip[1] = htonl(ip2);
+			if (i > IPSET_MAX_RANGE) {
+				hash_netnet4_data_next(&h->next, &e);
+				return -ERANGE;
+			}
 			ip2 = ip_set_range_to_cidr(ip2, ip2_to, &e.cidr[1]);
 			ret = adtfn(set, &e, &ext, &ext, flags);
 			if (ret && !ip_set_eexist(ret, flags))
@@ -285,7 +287,7 @@ struct hash_netnet6_elem {
 
 /* Common functions */
 
-static inline bool
+static bool
 hash_netnet6_data_equal(const struct hash_netnet6_elem *ip1,
 			const struct hash_netnet6_elem *ip2,
 			u32 *multi)
@@ -295,32 +297,32 @@ hash_netnet6_data_equal(const struct hash_netnet6_elem *ip1,
 	       ip1->ccmp == ip2->ccmp;
 }
 
-static inline int
+static int
 hash_netnet6_do_data_match(const struct hash_netnet6_elem *elem)
 {
 	return elem->nomatch ? -ENOTEMPTY : 1;
 }
 
-static inline void
+static void
 hash_netnet6_data_set_flags(struct hash_netnet6_elem *elem, u32 flags)
 {
 	elem->nomatch = (flags >> 16) & IPSET_FLAG_NOMATCH;
 }
 
-static inline void
+static void
 hash_netnet6_data_reset_flags(struct hash_netnet6_elem *elem, u8 *flags)
 {
 	swap(*flags, elem->nomatch);
 }
 
-static inline void
+static void
 hash_netnet6_data_reset_elem(struct hash_netnet6_elem *elem,
 			     struct hash_netnet6_elem *orig)
 {
 	elem->ip[1] = orig->ip[1];
 }
 
-static inline void
+static void
 hash_netnet6_data_netmask(struct hash_netnet6_elem *elem, u8 cidr, bool inner)
 {
 	if (inner) {
@@ -351,7 +353,7 @@ nla_put_failure:
 	return true;
 }
 
-static inline void
+static void
 hash_netnet6_data_next(struct hash_netnet6_elem *next,
 		       const struct hash_netnet6_elem *d)
 {
@@ -479,6 +481,7 @@ static struct ip_set_type hash_netnet_type __read_mostly = {
 		[IPSET_ATTR_CIDR]	= { .type = NLA_U8 },
 		[IPSET_ATTR_CIDR2]	= { .type = NLA_U8 },
 		[IPSET_ATTR_TIMEOUT]	= { .type = NLA_U32 },
+		[IPSET_ATTR_LINENO]	= { .type = NLA_U32 },
 		[IPSET_ATTR_CADT_FLAGS]	= { .type = NLA_U32 },
 		[IPSET_ATTR_BYTES]	= { .type = NLA_U64 },
 		[IPSET_ATTR_PACKETS]	= { .type = NLA_U64 },

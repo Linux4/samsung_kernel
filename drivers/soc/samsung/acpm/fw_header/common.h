@@ -8,7 +8,7 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
-#ifndef CONFIG_EXYNOS_ACPM
+#if !(defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE))
 typedef unsigned int		u32;
 typedef unsigned short		u16;
 typedef unsigned char		u8;
@@ -120,7 +120,7 @@ struct timer_desc {
  */
 struct plugin {
 	u32 id;
-#ifndef CONFIG_EXYNOS_ACPM
+#if !(defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE))
 	void *base_addr;
 	struct acpm_ops *acpm_ops;
 	struct plugin_ops *plugin_ops;
@@ -135,7 +135,7 @@ struct plugin {
 	u8 is_attached;
 	u32 size;
 	u8 stay_attached;
-#ifndef CONFIG_EXYNOS_ACPM
+#if !(defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE))
 	const char *fw_name;
 #else
 	u32 fw_name;
@@ -149,7 +149,7 @@ enum ret_type {
 	RET_FAIL,
 };
 
-#ifndef CONFIG_EXYNOS_ACPM
+#if !(defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE))
 #define NULL	0
 #define FALSE ((bool) 0)
 #define TRUE  ((bool) 1)

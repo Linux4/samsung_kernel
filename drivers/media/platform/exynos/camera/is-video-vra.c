@@ -23,7 +23,7 @@
 #include <linux/scatterlist.h>
 #include <linux/videodev2.h>
 #include <linux/videodev2_exynos_media.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 
@@ -35,9 +35,7 @@
 #include "is-param.h"
 
 #if defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
-#include <linux/smc.h>
-#include "../../../../staging/android/ion/ion.h"
-#include "../../../../staging/android/ion/ion_exynos.h"
+#include <soc/samsung/exynos-smc.h>
 #endif
 
 const struct v4l2_file_operations is_vra_video_fops;
@@ -113,7 +111,7 @@ static int is_vra_video_open(struct file *file)
 	minfo("[VRA:V] %s\n", device, __func__);
 
 	snprintf(name, sizeof(name), "VRA");
-	ret = open_vctx(file, video, &vctx, device->instance, BIT(ENTRY_VRA), name);
+	ret = open_vctx(file, video, &vctx, device->instance, ENTRY_VRA, name);
 	if (ret) {
 		merr("open_vctx is fail(%d)", device, ret);
 		goto err_vctx_open;
@@ -256,13 +254,6 @@ static int is_vra_video_querycap(struct file *file, void *fh,
 				| V4L2_CAP_VIDEO_OUTPUT_MPLANE;
 	cap->device_caps |= cap->capabilities;
 
-	return 0;
-}
-
-static int is_vra_video_enum_fmt_mplane(struct file *file, void *priv,
-	struct v4l2_fmtdesc *f)
-{
-	/* Todo: add enum format control code */
 	return 0;
 }
 
@@ -582,19 +573,6 @@ static int is_vra_video_g_ctrl(struct file *file, void *priv,
 	return 0;
 }
 
-#if defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
-static struct ion_buffer *ion_buffer_get(struct dma_buf *dmabuf)
-{
-	if (!dmabuf)
-		return ERR_PTR(-EINVAL);
-
-	if (dmabuf->ops != &ion_dma_buf_ops)
-		return ERR_PTR(-EINVAL);
-
-	return (struct ion_buffer *)dmabuf->priv;
-}
-#endif
-
 static int is_vra_video_s_ext_ctrl(struct file *file, void *priv,
 	struct v4l2_ext_controls *ctrls)
 {
@@ -658,9 +636,8 @@ static int is_vra_video_s_ext_ctrl(struct file *file, void *priv,
 		{
 			struct secure_buffer_convert_info info;
 			struct dma_buf *s_dbuf, *n_dbuf;
-			struct ion_buffer *buffer;
-			struct sg_table *table;
-			struct page *page;
+			struct dma_buf_attachment *attachment;
+			struct sg_table *sgt;
 			phys_addr_t s_paddr, n_paddr;
 			unsigned long s_size, n_size;
 
@@ -673,81 +650,79 @@ static int is_vra_video_s_ext_ctrl(struct file *file, void *priv,
 
 			s_dbuf = dma_buf_get(info.secure_buffer_fd);
 			if (IS_ERR_OR_NULL(s_dbuf)) {
-				pr_err("failed to get dmabuf of fd: %d\n", info.secure_buffer_fd);
-				return -EINVAL;
-			}
-
-			buffer = ion_buffer_get(s_dbuf);
-			if (IS_ERR_OR_NULL(buffer)) {
-				pr_err("failed to get buffer of s_dbuf");
+				pr_err("failed to get dmabuf of fd: %d (%d)\n", info.secure_buffer_fd, __LINE__);
 				ret = -EINVAL;
-				goto free_s_dbuf;
+				goto p_err;
 			}
 
-			table = buffer->sg_table;
-			if (IS_ERR_OR_NULL(table)) {
-				pr_err("failed to get table of buffer");
+			attachment = dma_buf_attach(s_dbuf, &device->pdev->dev);
+			if (IS_ERR_OR_NULL(attachment)) {
+				pr_err("failed to attach dma_buf error(%d)\n", __LINE__);
+				dma_buf_put(s_dbuf);
 				ret = -EINVAL;
-				goto free_s_dbuf;
+				goto p_err;
 			}
 
-			page = sg_page(table->sgl);
-			if (IS_ERR_OR_NULL(page)) {
-				pr_err("failed to get page of sgl");
+			sgt = dma_buf_map_attachment(attachment, DMA_FROM_DEVICE);
+			if (IS_ERR_OR_NULL(sgt)) {
+				pr_err("failed to map dma_buf error(%d)\n", __LINE__);
+				dma_buf_detach(s_dbuf, attachment);
+				dma_buf_put(s_dbuf);
 				ret = -EINVAL;
-				goto free_s_dbuf;
+				goto p_err;
 			}
 
-			s_paddr = PFN_PHYS(page_to_pfn(page));
-			s_size = buffer->size;
+			s_paddr = sg_phys(sgt->sgl);
+			s_size = s_dbuf->size;
 
-			mdbgv_vra("s_ext_ctrl CONVERT BUFFER secure: 0x%08x, size: 0x%08x, size: 0x%08x",
-					vctx, s_paddr, s_size, info.secure_buffer_size);
+			mdbgv_vra("CONVERT_BUFFER secure(%s[%d]): 0x%08x, size: 0x%08x(0x%08x)",
+					vctx, s_dbuf->exp_name, info.secure_buffer_fd, s_paddr, s_size, info.secure_buffer_size);
+
+			dma_buf_unmap_attachment(attachment, sgt, DMA_FROM_DEVICE);
+			dma_buf_detach(s_dbuf, attachment);
+			dma_buf_put(s_dbuf);
 
 			n_dbuf = dma_buf_get(info.non_secure_buffer_fd);
 			if (IS_ERR_OR_NULL(n_dbuf)) {
-				pr_err("failed to get dmabuf of fd: %d\n", info.non_secure_buffer_fd);
+				pr_err("failed to get dmabuf of fd: %d (%d)\n", info.non_secure_buffer_fd, __LINE__);
 				ret = -EINVAL;
-				goto free_s_dbuf;
+				goto p_err;
 			}
 
-			buffer = ion_buffer_get(n_dbuf);
-			if (IS_ERR_OR_NULL(buffer)) {
-				pr_err("failed to get buffer of n_dbuf");
+			attachment = dma_buf_attach(n_dbuf, &device->pdev->dev);
+			if (IS_ERR_OR_NULL(attachment)) {
+				pr_err("failed to attach dma_buf error(%d)\n", __LINE__);
+				dma_buf_put(n_dbuf);
 				ret = -EINVAL;
-				goto free_n_dbuf;
+				goto p_err;
 			}
 
-			table = buffer->sg_table;
-			if (IS_ERR_OR_NULL(table)) {
-				pr_err("failed to get table of buffer");
+			sgt = dma_buf_map_attachment(attachment, DMA_FROM_DEVICE);
+			if (IS_ERR_OR_NULL(sgt)) {
+				pr_err("failed to map dma_buf error(%d)\n", __LINE__);
+				dma_buf_detach(n_dbuf, attachment);
+				dma_buf_put(n_dbuf);
 				ret = -EINVAL;
-				goto free_n_dbuf;
+				goto p_err;
 			}
 
-			page = sg_page(table->sgl);
-			if (IS_ERR_OR_NULL(page)) {
-				pr_err("failed to get page of sgl");
-				ret = -EINVAL;
-				goto free_n_dbuf;
-			}
+			n_paddr = sg_phys(sgt->sgl);
+			n_size = n_dbuf->size;
 
-			n_paddr = PFN_PHYS(page_to_pfn(page));
-			n_size = buffer->size;
+			dma_buf_unmap_attachment(attachment, sgt, DMA_FROM_DEVICE);
+			dma_buf_detach(n_dbuf, attachment);
+			dma_buf_put(n_dbuf);
 
-			mdbgv_vra("s_ext_ctrl CONVERT BUFFER non-secure: 0x%08x, size: 0x%08x, size: 0x%08x",
-					vctx, n_paddr, n_size, info.non_secure_buffer_size);
+			mdbgv_vra("CONVERT_BUFFER non-secure(%s[%d]): 0x%08x, size: 0x%08x(0x%08x)",
+					vctx, n_dbuf->exp_name, info.non_secure_buffer_fd, n_paddr, n_size, info.non_secure_buffer_size);
 
 			ret = exynos_smc(SMC_SECCAM_SUPPORT_VRA, n_paddr, s_paddr, n_size);
 			if (ret) {
 				dev_err(is_dev, "[SMC] SMC_SECCAM_SUPPORT_VRA fail(%d)", ret);
 				ret = -EINVAL;
+				goto p_err;
 			}
 
-free_n_dbuf:
-			dma_buf_put(n_dbuf);
-free_s_dbuf:
-			dma_buf_put(s_dbuf);
 			break;
 		}
 #endif
@@ -778,7 +753,6 @@ static int is_vra_video_g_ext_ctrl(struct file *file, void *priv,
 
 const struct v4l2_ioctl_ops is_vra_video_ioctl_ops = {
 	.vidioc_querycap		= is_vra_video_querycap,
-	.vidioc_enum_fmt_vid_out_mplane	= is_vra_video_enum_fmt_mplane,
 	.vidioc_g_fmt_vid_out_mplane	= is_vra_video_get_format_mplane,
 	.vidioc_s_fmt_vid_out_mplane	= is_vra_video_set_format_mplane,
 	.vidioc_reqbufs			= is_vra_video_reqbufs,
@@ -935,7 +909,7 @@ static void is_vra_buffer_queue(struct vb2_buffer *vb)
 
 static void is_vra_buffer_finish(struct vb2_buffer *vb)
 {
-	int ret = 0;
+	int ret;
 	struct is_video_ctx *vctx;
 	struct is_device_ischain *device;
 
@@ -948,13 +922,11 @@ static void is_vra_buffer_finish(struct vb2_buffer *vb)
 
 	mvdbgs(3, "%s(%d)\n", vctx, &vctx->queue, __func__, vb->index);
 
-	is_queue_buffer_finish(vb);
-
 	ret = is_ischain_vra_buffer_finish(device, vb->index);
-	if (ret) {
+	if (ret)
 		merr("is_ischain_vra_buffer_finish is fail(%d)", device, ret);
-		return;
-	}
+
+	is_queue_buffer_finish(vb);
 }
 
 const struct vb2_ops is_vra_qops = {

@@ -3,7 +3,7 @@
  *
  * ALSA SoC Audio Layer - Samsung Codec Driver
  *
- * Copyright (C) 2019 Samsung Electronics
+ * Copyright (C) 2022 Samsung Electronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -20,13 +20,13 @@
 #define CONFIG_SND_SOC_SAMSUNG_VERBOSE_DEBUG 1
 
 #define AUD3004X_COMMON_ADDR			0x00
-#define AUD3004X_PMIC_ADDR				0x01
-#define AUD3004X_OTP_ADDR				0x03
+#define AUD3004X_PMIC_ADDR			0x01
+#define AUD3004X_OTP_ADDR			0x03
 #define AUD3004X_DIGITAL_ADDR			0x07
 #define AUD3004X_ANALOG_ADDR			0X08
-#define AUD3004X_CLOSE_ADDR				0x0F
+#define AUD3004X_CLOSE_ADDR			0x0F
 
-#define AUD3004X_REGCACHE_SYNC_START	0x00
+#define AUD3004X_REGCACHE_SYNC_START		0x00
 #define AUD3004X_REGCACHE_SYNC_END		0xFF
 
 #define AUD3004X_SAMPLE_RATE_48KHZ		48000
@@ -67,13 +67,11 @@ struct aud3004x_priv {
 	/* regulator */
 	struct regulator *vdd;
 	struct regulator *vdd2;
-	int regulator_count;
 	/* codec mutex */
 	struct mutex adc_mute_lock;
 	struct mutex dacl_mute_lock;
 	struct mutex dacr_mute_lock;
 	struct mutex regcache_lock;
-	struct mutex regmap_lock;
 	/* codec workqueue */
 	struct delayed_work adc_mute_work;
 	struct workqueue_struct *adc_mute_wq;
@@ -87,35 +85,37 @@ struct aud3004x_priv {
 	unsigned int ovp_det_delay;
 	/* saved information */
 	int codec_ver;
-	bool is_ext_ant;
-	bool is_suspend;
-	bool pm_suspend;
-	bool is_probe_done;
-	bool playback_on;
-	bool capture_on;
+	int regulator_count;
 	unsigned int playback_aifrate;
 	unsigned int capture_aifrate;
 	unsigned int lvol;
 	unsigned int rvol;
 	unsigned int mic_status;
 	int dmic_bias_gpio;
+	bool regulator_flag;
+	bool is_ext_ant;
+	bool is_suspend;
+	bool pm_suspend;
+	bool is_probe_done;
+	bool playback_on;
+	bool capture_on;
 };
 
 /* Forward Declarations */
 /* Main Functions */
 int aud3004x_disable(struct device *dev);
 int aud3004x_enable(struct device *dev);
-void regcache_cache_switch(struct aud3004x_priv *aud3004x, bool on);
+void aud3004x_regcache_switch(struct aud3004x_priv *aud3004x, bool on);
 void aud3004x_adc_digital_mute(struct snd_soc_component *codec, unsigned int channel, bool on);
 void aud3004x_usleep(unsigned int u_sec);
 int aud3004x_acpm_read_reg(unsigned int slave, unsigned int reg, unsigned int *val);
 int aud3004x_acpm_write_reg(unsigned int slave, unsigned int reg, unsigned int val);
 int aud3004x_acpm_update_reg(unsigned int slave, unsigned int reg, unsigned int val, unsigned int mask);
-unsigned int aud3004x_read(struct aud3004x_priv *aud3004x, unsigned int reg);
-int aud3004x_write(struct aud3004x_priv *aud3004x, unsigned int reg, unsigned int val);
-int aud3004x_update_bits(struct aud3004x_priv *aud3004x, unsigned int reg, unsigned int mask, unsigned int value);
+int aud3004x_read(struct aud3004x_priv *aud3004x, unsigned int slave, unsigned int addr, unsigned int *value);
+int aud3004x_write(struct aud3004x_priv *aud3004x, unsigned int slave, unsigned int addr, unsigned int value);
+int aud3004x_update_bits(struct aud3004x_priv *aud3004x, unsigned int slave, unsigned int addr, unsigned int mask, unsigned int value);
 /* Jack Functions */
-bool aud3004x_notifier_check(void);
+bool aud3004x_notifier_flag(void);
 void aud3004x_call_notifier(u8 irq_codec[], int count);
 int aud3004x_jack_probe(struct snd_soc_component *codec);
 int aud3004x_jack_remove(struct snd_soc_component *codec);
@@ -256,58 +256,58 @@ int aud3004x_jack_remove(struct snd_soc_component *codec);
 #define AUD3004X_E3_DCTR_FSM2		0xE3
 #define AUD3004X_E4_DCTR_FSM3		0xE4
 #define AUD3004X_E5_DCTR_FSM4		0xE5
-#define AUD3004X_E6_DCTR_GP			0xE6
-#define AUD3004X_F0_STATUS1			0xF0
-#define AUD3004X_F1_STATUS2			0xF1
-#define AUD3004X_F5_STATUS6			0xF5
-#define AUD3004X_F7_STATUS8			0xF7
-#define AUD3004X_F8_STATUS9			0xF8
+#define AUD3004X_E6_DCTR_GP		0xE6
+#define AUD3004X_F0_STATUS1		0xF0
+#define AUD3004X_F1_STATUS2		0xF1
+#define AUD3004X_F5_STATUS6		0xF5
+#define AUD3004X_F7_STATUS8		0xF7
+#define AUD3004X_F8_STATUS9		0xF8
 
 /* Analog Recording Path Control */
-#define AUD3004X_102_CLK3_COD		0x102
-#define AUD3004X_106_DSM_AD			0x106
-#define AUD3004X_107_LPF_AD			0x107
-#define AUD3004X_110_PD_REF			0x110
-#define AUD3004X_111_PD_AD1			0x111
-#define AUD3004X_112_PD_AD2			0x112
-#define AUD3004X_113_PD_AD3			0x113
-#define AUD3004X_114_PD_DA1			0x114
-#define AUD3004X_115_PD_DA2			0x115
-#define AUD3004X_116_PD_DA3			0x116
-#define AUD3004X_117_CTRL_REF		0x117
-#define AUD3004X_11C_CTRL_LINE1		0x11C
-#define AUD3004X_11D_CTRL_LINE2		0x11D
-#define AUD3004X_11E_CTRL_LINE3		0x11E
-#define AUD3004X_11F_CTRL_LINE4		0x11F
+#define AUD3004X_102_CLK3_COD		0x02
+#define AUD3004X_106_DSM_AD		0x06
+#define AUD3004X_107_LPF_AD		0x07
+#define AUD3004X_110_PD_REF		0x10
+#define AUD3004X_111_PD_AD1		0x11
+#define AUD3004X_112_PD_AD2		0x12
+#define AUD3004X_113_PD_AD3		0x13
+#define AUD3004X_114_PD_DA1		0x14
+#define AUD3004X_115_PD_DA2		0x15
+#define AUD3004X_116_PD_DA3		0x16
+#define AUD3004X_117_CTRL_REF		0x17
+#define AUD3004X_11C_CTRL_LINE1		0x1C
+#define AUD3004X_11D_CTRL_LINE2		0x1D
+#define AUD3004X_11E_CTRL_LINE3		0x1E
+#define AUD3004X_11F_CTRL_LINE4		0x1F
 
 /* Analog Playback Path Control */
-#define AUD3004X_130_MIX_AD1		0x130
-#define AUD3004X_134_VOL_AD1		0x134
-#define AUD3004X_135_VOL_AD2		0x135
-#define AUD3004X_136_VOL_AD3		0x136
+#define AUD3004X_130_MIX_AD1		0x30
+#define AUD3004X_134_VOL_AD1		0x34
+#define AUD3004X_135_VOL_AD2		0x35
+#define AUD3004X_136_VOL_AD3		0x36
 
 /* Analog Clock Control */
-#define AUD3004X_150_CTRL_EP		0x150
-#define AUD3004X_153_CTRL_SPK1		0x153
-#define AUD3004X_156_CTRL_SPK4		0x156
-#define AUD3004X_157_CTRL_SPK5		0x157
-#define AUD3004X_158_MIX_DA1		0x158
-#define AUD3004X_159_MIX_DA2		0x159
-#define AUD3004X_15B_CTRL_DCTC		0x15B
-#define AUD3004X_15E_VOL_EP			0x15E
-#define AUD3004X_15F_OVP1			0x15F
-#define AUD3004X_160_OVP2			0x160
-#define AUD3004X_161_OVP3			0x161
+#define AUD3004X_150_CTRL_EP		0x50
+#define AUD3004X_153_CTRL_SPK1		0x53
+#define AUD3004X_156_CTRL_SPK4		0x56
+#define AUD3004X_157_CTRL_SPK5		0x57
+#define AUD3004X_158_MIX_DA1		0x58
+#define AUD3004X_159_MIX_DA2		0x59
+#define AUD3004X_15B_CTRL_DCTC		0x5B
+#define AUD3004X_15E_VOL_EP		0x5E
+#define AUD3004X_15F_OVP1		0x5F
+#define AUD3004X_160_OVP2		0x60
+#define AUD3004X_161_OVP3		0x61
 
 /* OTP Register for Analog */
-#define AUD3004X_28B_SPKOFF_S_0		0x28B
-#define AUD3004X_2A2_CTRL_IREF1		0x2A2
-#define AUD3004X_2A3_CTRL_IREF2		0x2A3
-#define AUD3004X_2A4_CTRL_IREF3		0X2A4
-#define AUD3004X_2A6_CTRL_IREF5		0x2A6
-#define AUD3004X_2A7_SPK_MODE		0x2A7
-#define AUD3004X_2A8_RCV_MODE		0x2A8
-#define AUD3004X_2B0_CTRL_HPS		0x2B0
+#define AUD3004X_28B_SPKOFF_S_0		0x8B
+#define AUD3004X_2A2_CTRL_IREF1		0xA2
+#define AUD3004X_2A3_CTRL_IREF2		0xA3
+#define AUD3004X_2A4_CTRL_IREF3		0XA4
+#define AUD3004X_2A6_CTRL_IREF5		0xA6
+#define AUD3004X_2A7_SPK_MODE		0xA7
+#define AUD3004X_2A8_RCV_MODE		0xA8
+#define AUD3004X_2B0_CTRL_HPS		0xB0
 
 /* COMMON Register */
 #define AUD3004X_007_IRQM				0x07
@@ -1206,6 +1206,10 @@ int aud3004x_jack_remove(struct snd_soc_component *codec);
 #define AVC_PO_GAIN_2				2
 #define AVC_PO_GAIN_1				1
 #define AVC_PO_GAIN_0				0
+
+/* AUD3004X_5C_AVC13 */
+#define AMUTE_MASKB_SHIFT			7
+#define AMUTE_MASKB_MASK			BIT(AMUTE_MASKB_SHIFT)
 
 /* AUD3004X_71_AVC34 */
 #define AVC_DELAY0_SHIFT			0

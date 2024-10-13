@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010 Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -28,52 +20,41 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/netdevice.h>
-
-#ifdef CONFIG_LINK_FORWARD
-#include <linux/linkforward.h>
-#endif
-
-#if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
-#include <linux/modem_notifier.h>
-#endif
-
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+#if IS_ENABLED(CONFIG_CPIF_MBIM)
 #include <linux/mbim_queue.h>
 #endif
+
+#include <soc/samsung/exynos-modem-ctrl.h>
 
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "modem_dump.h"
-#include "cpif_clat_info.h"
-#include "cpif_tethering_info.h"
+#include "modem_toe_device.h"
 
-static ssize_t show_waketime(struct device *dev,
+#ifdef CONFIG_MCPS_MODULE
+#include "../../../mcps/mcps.h"
+#endif
+
+static ssize_t waketime_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	unsigned int msec;
-	char *p = buf;
-	struct miscdevice *miscdev = dev_get_drvdata(dev);
-	struct io_device *iod = container_of(miscdev, struct io_device,
-			miscdev);
+	struct io_device *iod = dev_get_drvdata(dev);
 
 	msec = jiffies_to_msecs(iod->waketime);
 
-	p += sprintf(buf, "raw waketime : %ums\n", msec);
-
-	return p - buf;
+	return scnprintf(buf, PAGE_SIZE, "raw waketime : %ums\n", msec);
 }
 
-static ssize_t store_waketime(struct device *dev,
+static ssize_t waketime_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	unsigned long msec;
 	int ret;
-	struct miscdevice *miscdev = dev_get_drvdata(dev);
-	struct io_device *iod = container_of(miscdev, struct io_device,
-			miscdev);
+	struct io_device *iod = dev_get_drvdata(dev);
 
 	if (!iod) {
-		pr_err("mif: %s: INVALID IO device\n", miscdev->name);
+		mif_err("INVALID IO device\n");
 		return -EINVAL;
 	}
 
@@ -89,22 +70,22 @@ static ssize_t store_waketime(struct device *dev,
 	}
 
 	iod->waketime = msecs_to_jiffies(msec);
-#ifdef DEBUG_MODEM_IF
-	mif_err("%s: waketime = %lu ms\n", iod->name, msec);
-#endif
+	mif_info("%s: waketime = %lu ms\n", iod->name, msec);
 
 	if (iod->format == IPC_MULTI_RAW) {
 		struct modem_shared *msd = iod->msd;
 		unsigned int i;
 
+#if IS_ENABLED(CONFIG_CH_EXTENSION)
+		for (i = SIPC_CH_EX_ID_PDP_0; i <= SIPC_CH_EX_ID_PDP_MAX; i++) {
+#else
 		for (i = SIPC_CH_ID_PDP_0; i < SIPC_CH_ID_BT_DUN; i++) {
+#endif
 			iod = get_iod_with_channel(msd, i);
 			if (iod) {
 				iod->waketime = msecs_to_jiffies(msec);
-#ifdef DEBUG_MODEM_IF
 				mif_err("%s: waketime = %lu ms\n",
 					iod->name, msec);
-#endif
 			}
 		}
 	}
@@ -113,28 +94,23 @@ static ssize_t store_waketime(struct device *dev,
 }
 
 static struct device_attribute attr_waketime =
-	__ATTR(waketime, S_IRUGO | S_IWUSR, show_waketime, store_waketime);
+	__ATTR_RW(waketime);
 
-static ssize_t show_loopback(struct device *dev,
+static ssize_t loopback_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct miscdevice *miscdev = dev_get_drvdata(dev);
-	struct modem_shared *msd =
-		container_of(miscdev, struct io_device, miscdev)->msd;
+	struct io_device *iod = dev_get_drvdata(dev);
+	struct modem_shared *msd = iod->msd;
 	unsigned char *ip = (unsigned char *)&msd->loopback_ipaddr;
-	char *p = buf;
 
-	p += sprintf(buf, "%u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
-
-	return p - buf;
+	return scnprintf(buf, PAGE_SIZE, "%u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
 }
 
-static ssize_t store_loopback(struct device *dev,
+static ssize_t loopback_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct miscdevice *miscdev = dev_get_drvdata(dev);
-	struct modem_shared *msd =
-		container_of(miscdev, struct io_device, miscdev)->msd;
+	struct io_device *iod = dev_get_drvdata(dev);
+	struct modem_shared *msd = iod->msd;
 
 	msd->loopback_ipaddr = ipv4str_to_be32(buf, count);
 
@@ -142,23 +118,26 @@ static ssize_t store_loopback(struct device *dev,
 }
 
 static struct device_attribute attr_loopback =
-	__ATTR(loopback, S_IRUGO | S_IWUSR, show_loopback, store_loopback);
+	__ATTR_RW(loopback);
 
 static void iodev_showtxlink(struct io_device *iod, void *args)
 {
 	char **p = (char **)args;
 	struct link_device *ld = get_current_link(iod);
+	ssize_t count = 0;
 
 	if (iod->io_typ == IODEV_NET && IS_CONNECTED(iod, ld))
-		*p += sprintf(*p, "%s<->%s\n", iod->name, ld->name);
+		count += scnprintf(*p + count, PAGE_SIZE - count,
+				"%s<->%s\n", iod->name, ld->name);
+
+	*p += count;
 }
 
-static ssize_t show_txlink(struct device *dev,
+static ssize_t txlink_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct miscdevice *miscdev = dev_get_drvdata(dev);
-	struct modem_shared *msd =
-		container_of(miscdev, struct io_device, miscdev)->msd;
+	struct io_device *iod = dev_get_drvdata(dev);
+	struct modem_shared *msd = iod->msd;
 	char *p = buf;
 
 	iodevs_for_each(msd, iodev_showtxlink, &p);
@@ -166,7 +145,7 @@ static ssize_t show_txlink(struct device *dev,
 	return p - buf;
 }
 
-static ssize_t store_txlink(struct device *dev,
+static ssize_t txlink_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	/* don't change without gpio dynamic switching */
@@ -174,20 +153,49 @@ static ssize_t store_txlink(struct device *dev,
 }
 
 static struct device_attribute attr_txlink =
-	__ATTR(txlink, S_IRUGO | S_IWUSR, show_txlink, store_txlink);
+	__ATTR_RW(txlink);
 
-static inline void iodev_lock_wlock(struct io_device *iod)
+enum gro_opt {
+	GRO_TCP_UDP,
+	GRO_TCP_ONLY,
+	GRO_NONE,
+	MAX_GRO_OPTION
+};
+
+static enum gro_opt gro_support = GRO_TCP_UDP;
+
+static ssize_t gro_option_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
-	wake_lock_timeout(&iod->wakelock,
-		iod->waketime ?: msecs_to_jiffies(200));
+	return scnprintf(buf, PAGE_SIZE, "%u\n", gro_support);
 }
+
+static ssize_t gro_option_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	int input;
+
+	ret = kstrtouint(buf, 0, &input);
+	if (ret || input > MAX_GRO_OPTION) {
+		mif_err("Error(%u) invalid value: gro support: %u\n",
+				input, gro_support);
+		return -EINVAL;
+	}
+	gro_support = input;
+	ret = count;
+	return ret;
+}
+
+static struct device_attribute attr_gro_option =
+	__ATTR_RW(gro_option);
 
 static int queue_skb_to_iod(struct sk_buff *skb, struct io_device *iod)
 {
 	struct sk_buff_head *rxq = &iod->sk_rx_q;
 	int len = skb->len;
 
-	if (iod->attrs & IODEV_ATTR(ATTR_NO_CHECK_MAXQ))
+	if (iod->attrs & IO_ATTR_NO_CHECK_MAXQ)
 		goto enqueue;
 
 	if (rxq->qlen > MAX_IOD_RXQ_LEN) {
@@ -215,26 +223,25 @@ static int gather_multi_frame(struct sipc5_link_header *hdr,
 	struct sk_buff_head *multi_q = &iod->sk_multi_q[ctrl.id];
 	int len = skb->len;
 
-#ifdef DEBUG_MODEM_IF
 	/* If there has been no multiple frame with this ID, ... */
 	if (skb_queue_empty(multi_q)) {
 		struct sipc_fmt_hdr *fh = (struct sipc_fmt_hdr *)skb->data;
-		mif_err("%s<-%s: start of multi-frame (ID:%d len:%d)\n",
+
+		mif_info("%s<-%s: start of multi-frame (ID:%d len:%d)\n",
 			iod->name, mc->name, ctrl.id, fh->len);
 	}
-#endif
 	skb_queue_tail(multi_q, skb);
 
 	if (ctrl.more) {
 		/* The last frame has not arrived yet. */
-		mif_err("%s<-%s: recv multi-frame (ID:%d rcvd:%d)\n",
+		mif_info("%s<-%s: recv multi-frame (ID:%d rcvd:%d)\n",
 			iod->name, mc->name, ctrl.id, skb->len);
 	} else {
 		struct sk_buff_head *rxq = &iod->sk_rx_q;
 		unsigned long flags;
 
 		/* It is the last frame because the "more" bit is 0. */
-		mif_err("%s<-%s: end of multi-frame (ID:%d rcvd:%d)\n",
+		mif_info("%s<-%s: end of multi-frame (ID:%d rcvd:%d)\n",
 			iod->name, mc->name, ctrl.id, skb->len);
 
 		spin_lock_irqsave(&rxq->lock, flags);
@@ -253,63 +260,66 @@ static int gather_multi_frame_sit(struct exynos_link_header *hdr, struct sk_buff
 	struct io_device *iod = skbpriv(skb)->iod;
 	struct modem_ctl *mc = iod->mc;
 	struct sk_buff_head *multi_q = &iod->sk_multi_q[exynos_multi_packet_index(ctrl)];
-	int len = skb->len;
+	struct sk_buff_head *rxq = &iod->sk_rx_q;
+	struct sk_buff *skb_new, *skb_cur, *tmp;
+	int total_len = 0;
+	int ret = skb->len;
 
 #ifdef DEBUG_MODEM_IF_LINK_RX
 	/* If there has been no multiple frame with this ID, ... */
 	if (skb_queue_empty(multi_q)) {
-		mif_err("%s<-%s: start of multi-frame (pkt_index:%d fr_index:%d len:%d)\n",
+		mif_info("%s<-%s: start of multi-frame (pkt_index:%d fr_index:%d len:%d)\n",
 			iod->name, mc->name, exynos_multi_packet_index(ctrl),
 			exynos_multi_frame_index(ctrl), hdr->len);
 	}
 #endif
 	skb_queue_tail(multi_q, skb);
 
+	/* The last frame has not arrived yet. */
 	if (!exynos_multi_last(ctrl)) {
-		/* It is the last frame because the "more" bit is 0. */
-		mif_err("%s<-%s: recv of multi-frame (CH_ID:0x%02x rcvd:%d)\n",
-			iod->name, mc->name, hdr->ch_id, skb->len);
-	} else {
-		struct sk_buff_head *rxq = &iod->sk_rx_q;
-		struct sk_buff *skb_new;
-		struct sk_buff *skb_tmp;
-		int total_len = 0;
-
-		/* The last frame has not arrived yet. */
-		mif_err("%s<-%s: end multi-frame (CH_ID:0x%02x rcvd:%d)\n",
+		mif_info("%s<-%s: recv of multi-frame (CH_ID:0x%02x rcvd:%d)\n",
 			iod->name, mc->name, hdr->ch_id, skb->len);
 
-		/* check totoal multi packet size */
-		skb_tmp = skb_peek(multi_q);
+		return ret;
+	}
 
-		while (skb_tmp != NULL) {
-			total_len += skb_tmp->len;
-			skb_tmp = skb_peek_next(skb_tmp, multi_q);
-		}
-		mif_info("Total multi-frame packet size is %d\n", total_len);
+	/* It is the last frame because the "more" bit is 0. */
+	mif_info("%s<-%s: end multi-frame (CH_ID:0x%02x rcvd:%d)\n",
+		iod->name, mc->name, hdr->ch_id, skb->len);
 
-		skb_new = alloc_skb(total_len, GFP_ATOMIC);
-		if (unlikely(skb_new == NULL)) {
-			mif_err("ERR - alloc_skb fail\n");
-			skb_queue_purge(multi_q);
-			return -ENOMEM;
-		}
+	/* check totoal multi packet size */
+	skb_queue_walk(multi_q, skb_cur)
+		total_len += skb_cur->len;
 
-		while (!skb_queue_empty(multi_q)) {
-			skb_tmp = skb_dequeue(multi_q);
-			memcpy(skb_put(skb_new, skb_tmp->len), skb_tmp->data, skb_tmp->len);
-		}
+	mif_info("Total multi-frame packet size is %d\n", total_len);
 
+	skb_new = dev_alloc_skb(total_len);
+	if (unlikely(!skb_new)) {
+		mif_err("ERR - alloc_skb fail\n");
+		skb_dequeue_tail(multi_q);
+		ret = -ENOMEM;
+
+		goto out;
+	}
+
+	skb_queue_walk_safe(multi_q, skb_cur, tmp) {
+		__skb_unlink(skb_cur, multi_q);
+		memcpy(skb_put(skb_new, skb_cur->len), skb_cur->data, skb_cur->len);
+		dev_consume_skb_any(skb_cur);
+	}
+
+out:
+	skb_queue_purge(multi_q);
+	skb_queue_head_init(multi_q);
+
+	if (skb_new) {
 		skb_trim(skb_new, skb_new->len);
 		skb_queue_tail(rxq, skb_new);
-
-		skb_queue_purge(multi_q);
-		skb_queue_head_init(multi_q);
 
 		wake_up(&iod->wq);
 	}
 
-	return len;
+	return ret;
 }
 
 static inline int rx_frame_with_link_header(struct sk_buff *skb)
@@ -367,22 +377,71 @@ static int rx_raw_misc(struct sk_buff *skb)
 	return queue_skb_to_iod(skb, iod);
 }
 
-#ifdef CONFIG_MODEM_IF_NET_GRO
-static int check_gro_support(struct sk_buff *skb)
+static bool check_gro_support(struct sk_buff *skb)
 {
+	u8 proto;
+
+	if (gro_support == GRO_NONE)
+		return false;
+
 	switch (skb->data[0] & 0xF0) {
 	case 0x40:
-		return (ip_hdr(skb)->protocol == IPPROTO_TCP);
-
+		proto = ip_hdr(skb)->protocol;
+		break;
 	case 0x60:
-		return (ipv6_hdr(skb)->nexthdr == IPPROTO_TCP);
+		proto = ipv6_hdr(skb)->nexthdr;
+		break;
+	default:
+		return false;
 	}
-	return 0;
+
+	switch (gro_support) {
+	case GRO_TCP_UDP:
+		return proto == IPPROTO_TCP || proto == IPPROTO_UDP;
+	case GRO_TCP_ONLY:
+		return proto == IPPROTO_TCP;
+	default:
+		break;
+	}
+
+	return false;
 }
-#else
-static int check_gro_support(struct sk_buff *skb)
+
+#if IS_ENABLED(CONFIG_CPIF_MBIM)
+static bool check_pcket_filter(struct sk_buff *skb)
 {
-	return 0;
+	struct link_device *ld = skbpriv(skb)->ld;
+	u8 ch = skbpriv(skb)->sipc_ch;
+	u8 rmnet_type = ld->get_rmnet_type(ch);
+	int i, j;
+	u32 filters_count = 0;
+	u32 filter_size = 0;
+	u8 filter = 0;
+	u8 mask = 0;
+
+	filters_count = ld->packet_filter_table.rmnet[rmnet_type].filters_count;
+
+	if (filters_count == 0)
+		return false;
+
+	for (i = 0; i < filters_count; i++) {
+		filter_size = ld->packet_filter_table.rmnet[rmnet_type].single_filter[i].filter_size;
+		if (skb->data_len != filter_size)
+			continue;
+
+		for (j = 0; j < filter_size; j++) {
+			filter = ld->packet_filter_table.rmnet[rmnet_type].single_filter[i].filter[j];
+			mask = ld->packet_filter_table.rmnet[rmnet_type].single_filter[i].mask[j];
+
+			if (filter != (skb->data[j] & mask)) {
+				mif_info("The packet is not in this filter. (session_id %d, filters_count %d)\n", rmnet_type, i);
+				break;
+			}
+		}
+		if (j == filter_size)
+			return true;
+	}
+	return false;
 }
 #endif
 
@@ -390,23 +449,23 @@ static int rx_multi_pdp(struct sk_buff *skb)
 {
 	struct link_device *ld = skbpriv(skb)->ld;
 	struct io_device *iod = skbpriv(skb)->iod;
-	struct net_device *ndev;
 	struct iphdr *iphdr;
 	int len = skb->len;
 	int ret = 0;
-	int __maybe_unused l2forward = 0;
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	struct napi_struct *napi = NULL;
+
+#if IS_ENABLED(CONFIG_CPIF_MBIM)
 	u8 ch = skbpriv(skb)->sipc_ch;
 	u8 rmnet_type = ld->get_rmnet_type(ch);
 #endif
 
-	ndev = iod->ndev;
-	if (!ndev) {
-		mif_info("%s: ERR! no iod->ndev\n", iod->name);
+	skb->dev = (skbpriv(skb)->rx_clat ? iod->clat_ndev : iod->ndev);
+	if (!skb->dev || !iod->ndev) {
+		mif_err("%s: ERR! no iod->ndev\n", iod->name);
 		return -ENODEV;
 	}
 
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+#if IS_ENABLED(CONFIG_CPIF_MBIM)
 	if (mbim_read_opened() != 1) {
 		mif_err_limited("ERR! mbim_read is not opened\n");
 		return -ENODEV;
@@ -418,12 +477,8 @@ static int rx_multi_pdp(struct sk_buff *skb)
 		skb_pull(skb, skbpriv(skb)->ld->get_hdr_len(skb->data));
 	}
 
-	skb->dev = ndev;
-	ndev->stats.rx_packets++;
-	ndev->stats.rx_bytes += skb->len;
-#if defined(CONFIG_CPIF_TP_MONITOR)
-	tpmon_add_rx_bytes(skb->len);
-#endif
+	iod->ndev->stats.rx_packets++;
+	iod->ndev->stats.rx_bytes += skb->len;
 
 	/* check the version of IP */
 	iphdr = (struct iphdr *)skb->data;
@@ -443,9 +498,18 @@ static int rx_multi_pdp(struct sk_buff *skb)
 	skb_reset_network_header(skb);
 	skb_reset_mac_header(skb);
 
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+#if IS_ENABLED(CONFIG_CPIF_TP_MONITOR)
+	tpmon_add_rx_bytes(skb);
+#endif
+
+#if IS_ENABLED(CONFIG_CPIF_MBIM)
 	/* packet capture for MBIM device */
 	mif_queue_skb(skb, RX);
+
+	if (ld->is_modern_standby) {
+		if (!check_pcket_filter(skb))
+			return -ENODEV;
+	}
 
 	if (ld->pdn_table.pdn[rmnet_type].dl_dst == PC) {
 		ret = mbim_queue_head(skb);
@@ -453,29 +517,22 @@ static int rx_multi_pdp(struct sk_buff *skb)
 	}
 #endif
 
-#ifdef CONFIG_LINK_FORWARD
-	/* Link Forward */
-	l2forward = get_linkforward_mode() ?
-		linkforward_manip_skb(skb, LINK_FORWARD_DIR_REPLY) : 0;
+#ifdef CONFIG_MCPS_MODULE
+	if (!mcps_try_gro(skb))
+		return len;
 #endif
 
-#if defined(CONFIG_CP_GRO_EXCEPTION)
-	if (l2forward || !check_gro_support(skb) || (is_tethering_upstream_device(skb->dev->name) && is_heading_toward_clat(skb))) {
-#else
-	if (l2forward || !check_gro_support(skb)) {
-#endif
+	napi = skbpriv(skb)->napi;
+	if (!napi || !check_gro_support(skb)) {
 		ret = netif_receive_skb(skb);
 		if (ret != NET_RX_SUCCESS)
 			mif_err_limited("%s: %s<-%s: ERR! netif_receive_skb\n",
 					ld->name, iod->name, iod->mc->name);
 	} else {
-		ret = napi_gro_receive(napi_get_current(), skb);
+		ret = napi_gro_receive(napi, skb);
 		if (ret == GRO_DROP)
 			mif_err_limited("%s: %s<-%s: ERR! napi_gro_receive\n",
 					ld->name, iod->name, iod->mc->name);
-
-		if (ld->gro_flush)
-			ld->gro_flush(ld);
 	}
 	return len;
 }
@@ -493,7 +550,11 @@ static int rx_demux(struct link_device *ld, struct sk_buff *skb)
 
 	/* IP loopback */
 	if (ch == DATA_LOOPBACK_CHANNEL && ld->msd->loopback_ipaddr)
+#if IS_ENABLED(CONFIG_CH_EXTENSION)
+		ch = SIPC_CH_EX_ID_PDP_0;
+#else
 		ch = SIPC_CH_ID_PDP_0;
+#endif
 
 	iod = link_get_iod_with_channel(ld, ch);
 	if (unlikely(!iod)) {
@@ -509,10 +570,9 @@ static int rx_demux(struct link_device *ld, struct sk_buff *skb)
 
 	switch (skb_ld->protocol) {
 	case PROTOCOL_SIPC:
-		if (skb_ld->is_fmt_ch(ch)) {
-			iod->mc->receive_first_ipc = 1;
+		if (skb_ld->is_fmt_ch(ch))
 			return rx_fmt_ipc(skb);
-		} else if (skb_ld->is_ps_ch(ch))
+		else if (skb_ld->is_ps_ch(ch))
 			return rx_multi_pdp(skb);
 		else
 			return rx_raw_misc(skb);
@@ -537,7 +597,7 @@ static int io_dev_recv_skb_single_from_link_dev(struct io_device *iod,
 {
 	int err;
 
-	iodev_lock_wlock(iod);
+	cpif_wake_lock_timeout(iod->ws, iod->waketime ?: msecs_to_jiffies(200));
 
 	if (skbpriv(skb)->lnk_hdr && ld->aligned) {
 		/* Cut off the padding in the current SIPC5 frame */
@@ -561,46 +621,17 @@ static int io_dev_recv_net_skb_from_link_dev(struct io_device *iod,
 					     struct link_device *ld,
 					     struct sk_buff *skb)
 {
-#if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
-	if (iod->link_type == LINKDEV_PCIE) {
-		iod = get_static_rmnet_iod_with_channel(iod->ch);
-		skbpriv(skb)->iod = iod;
-	}
-#endif
 	if (unlikely(atomic_read(&iod->opened) <= 0)) {
 		struct modem_ctl *mc = iod->mc;
+
 		mif_err_limited("%s: %s<-%s: ERR! %s is not opened\n",
 				ld->name, iod->name, mc->name, iod->name);
 		return -ENODEV;
 	}
 
-	iodev_lock_wlock(iod);
+	cpif_wake_lock_timeout(iod->ws, iod->waketime ?: msecs_to_jiffies(200));
 
 	return rx_multi_pdp(skb);
-}
-
-static void io_dev_sim_state_changed(struct io_device *iod, bool sim_online)
-{
-	if (atomic_read(&iod->opened) == 0) {
-		mif_info("%s: ERR! not opened\n", iod->name);
-	} else if (iod->mc->sim_state.online == sim_online) {
-		mif_info("%s: SIM state not changed\n", iod->name);
-	} else {
-		iod->mc->sim_state.online = sim_online;
-		iod->mc->sim_state.changed = true;
-		mif_info("%s: SIM state changed {online %d, changed %d}\n",
-			iod->name, iod->mc->sim_state.online,
-			iod->mc->sim_state.changed);
-		wake_up(&iod->wq);
-	}
-}
-
-void iodev_dump_status(struct io_device *iod, void *args)
-{
-	if (iod->format == IPC_RAW && iod->io_typ == IODEV_NET) {
-		struct link_device *ld = get_current_link(iod);
-		mif_com_log(iod->mc->msd, "%s: %s\n", iod->name, ld->name);
-	}
 }
 
 u16 exynos_build_fr_config(struct io_device *iod, struct link_device *ld,
@@ -713,21 +744,47 @@ static const struct net_device_ops dummy_net_ops = {
 	.ndo_open = dummy_net_open,
 };
 
-int sipc5_init_io_device(struct io_device *iod)
+static int cpif_cdev_create_device(struct io_device *iod, const struct file_operations *fops)
+{
+	int ret = 0;
+	static u32 idx;
+
+	cdev_init(&iod->cdev, fops);
+	iod->cdev.owner = THIS_MODULE;
+
+	ret = cdev_add(&iod->cdev, iod->msd->cdev_major + idx, 1);
+	if (IS_ERR_VALUE((unsigned long)ret)) {
+		mif_err("cdev_add() for %s failed:%d\n", iod->name, ret);
+		return ret;
+	}
+	idx++;
+
+	iod->cdevice = device_create(iod->msd->cdev_class, NULL, iod->cdev.dev, iod,
+				     "%s", iod->name);
+	if (IS_ERR_OR_NULL(iod->cdevice)) {
+		mif_err("device_create() for %s failed\n", iod->name);
+		ret = -ENOMEM;
+		cdev_del(&iod->cdev);
+		return ret;
+	}
+
+	return ret;
+}
+
+int sipc5_init_io_device(struct io_device *iod, struct mem_link_device *mld)
 {
 	int ret = 0;
 	int i;
 	struct vnet *vnet;
+	unsigned int txqs = 1, rxqs = 1;
 
-	if (iod->attrs & IODEV_ATTR(ATTR_SBD_IPC))
+	if (iod->attrs & IO_ATTR_SBD_IPC)
 		iod->sbd_ipc = true;
 
-	if (iod->attrs & IODEV_ATTR(ATTR_NO_LINK_HEADER))
+	if (iod->attrs & IO_ATTR_NO_LINK_HEADER)
 		iod->link_header = false;
 	else
 		iod->link_header = true;
-
-	iod->sim_state_changed = io_dev_sim_state_changed;
 
 	/* Get data from link device */
 	iod->recv_skb_single = io_dev_recv_skb_single_from_link_dev;
@@ -739,29 +796,21 @@ int sipc5_init_io_device(struct io_device *iod)
 		init_waitqueue_head(&iod->wq);
 		skb_queue_head_init(&iod->sk_rx_q);
 
-		iod->miscdev.minor = MISC_DYNAMIC_MINOR;
-		iod->miscdev.name = iod->name;
-		iod->miscdev.fops = get_bootdump_io_fops();
-
-		ret = misc_register(&iod->miscdev);
+		ret = cpif_cdev_create_device(iod, get_bootdump_io_fops());
 		if (ret)
-			mif_info("%s: ERR! misc_register failed\n", iod->name);
+			mif_info("%s: ERR! cpif_cdev_create_device failed\n", iod->name);
 		break;
 
 	case IODEV_IPC:
 		init_waitqueue_head(&iod->wq);
 		skb_queue_head_init(&iod->sk_rx_q);
 
-		iod->miscdev.minor = MISC_DYNAMIC_MINOR;
-		iod->miscdev.name = iod->name;
-		iod->miscdev.fops = get_ipc_io_fops();
-
-		ret = misc_register(&iod->miscdev);
+		ret = cpif_cdev_create_device(iod, get_ipc_io_fops());
 		if (ret)
-			mif_info("%s: ERR! misc_register failed\n", iod->name);
+			mif_info("%s: ERR! cpif_cdev_create_device failed\n", iod->name);
 
 		if (iod->ch == SIPC_CH_ID_CPLOG1) {
-			iod->ndev = alloc_netdev(0, iod->name,
+			iod->ndev = alloc_netdev(sizeof(struct vnet), iod->name,
 					NET_NAME_UNKNOWN, vnet_setup);
 			if (!iod->ndev) {
 				mif_info("%s: ERR! alloc_netdev fail\n", iod->name);
@@ -777,44 +826,40 @@ int sipc5_init_io_device(struct io_device *iod)
 
 			vnet = netdev_priv(iod->ndev);
 			vnet->iod = iod;
-			mif_info("iod:%s, both registerd\n", iod->name);
+			mif_info("iod:%s, both registered\n", iod->name);
 		}
 		break;
 
 	case IODEV_NET:
+#if IS_ENABLED(CONFIG_MODEM_IF_QOS)
+		txqs = 2;
+#endif
+#if IS_ENABLED(CONFIG_CP_PKTPROC)
+		rxqs = mld->pktproc.num_queue;
+#endif
 		skb_queue_head_init(&iod->sk_rx_q);
 		INIT_LIST_HEAD(&iod->node_ndev);
 
 		iod->ndev = alloc_netdev_mqs(sizeof(struct vnet),
 					iod->name, NET_NAME_UNKNOWN, vnet_setup,
-					MAX_NDEV_TX_Q, MAX_NDEV_RX_Q);
+					txqs, rxqs);
 		if (!iod->ndev) {
 			mif_info("%s: ERR! alloc_netdev fail\n", iod->name);
 			return -ENOMEM;
 		}
 
-#if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
-		if (!strncmp(iod->name, "dummy", 5)) {
-			insert_rmnet_iod_with_channel(iod, RMNET_LINK_5G);
-			goto jump_reg;
-		} else
-			insert_rmnet_iod_with_channel(iod, RMNET_LINK_4G);
-#endif
 		ret = register_netdev(iod->ndev);
 		if (ret) {
 			mif_info("%s: ERR! register_netdev fail\n", iod->name);
 			free_netdev(iod->ndev);
 		}
 
-#if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
-jump_reg:
-#endif
 		mif_debug("iod 0x%pK\n", iod);
 		vnet = netdev_priv(iod->ndev);
 		mif_debug("vnet 0x%pK\n", vnet);
 		vnet->iod = iod;
 
-#if defined(CONFIG_CPIF_TP_MONITOR)
+#if IS_ENABLED(CONFIG_CPIF_TP_MONITOR)
 		INIT_LIST_HEAD(&iod->node_all_ndev);
 		tpmon_add_net_node(&iod->node_all_ndev);
 #endif
@@ -823,29 +868,28 @@ jump_reg:
 	case IODEV_DUMMY:
 		skb_queue_head_init(&iod->sk_rx_q);
 
-		iod->miscdev.minor = MISC_DYNAMIC_MINOR;
-		iod->miscdev.name = iod->name;
-
-		ret = misc_register(&iod->miscdev);
+		ret = cpif_cdev_create_device(iod, NULL);
 		if (ret)
-			mif_info("%s: ERR! misc_register fail\n", iod->name);
+			mif_info("%s: ERR! cpif_cdev_create_device fail\n", iod->name);
 
-		ret = device_create_file(iod->miscdev.this_device,
-					&attr_waketime);
+		ret = device_create_file(iod->cdevice, &attr_waketime);
 		if (ret)
 			mif_info("%s: ERR! device_create_file fail\n",
 				iod->name);
 
-		ret = device_create_file(iod->miscdev.this_device,
-				&attr_loopback);
+		ret = device_create_file(iod->cdevice, &attr_loopback);
 		if (ret)
 			mif_err("failed to create `loopback file' : %s\n",
 					iod->name);
 
-		ret = device_create_file(iod->miscdev.this_device,
-				&attr_txlink);
+		ret = device_create_file(iod->cdevice, &attr_txlink);
 		if (ret)
 			mif_err("failed to create `txlink file' : %s\n",
+					iod->name);
+
+		ret = device_create_file(iod->cdevice, &attr_gro_option);
+		if (ret)
+			mif_err("failed to create `gro_option file' : %s\n",
 					iod->name);
 		break;
 
@@ -864,12 +908,13 @@ void sipc5_deinit_io_device(struct io_device *iod)
 {
 	mif_err("%s: io_typ=%d\n", iod->name, iod->io_typ);
 
-	wake_lock_destroy(&iod->wakelock);
+	cpif_wake_lock_unregister(iod->ws);
 
-	/* De-register misc or net device */
+	/* De-register char or net device */
 	switch (iod->io_typ) {
 	case IODEV_BOOTDUMP:
-		misc_deregister(&iod->miscdev);
+		device_destroy(iod->msd->cdev_class, iod->cdev.dev);
+		cdev_del(&iod->cdev);
 		break;
 
 	case IODEV_IPC:
@@ -878,7 +923,8 @@ void sipc5_deinit_io_device(struct io_device *iod)
 			free_netdev(iod->ndev);
 		}
 
-		misc_deregister(&iod->miscdev);
+		device_destroy(iod->msd->cdev_class, iod->cdev.dev);
+		cdev_del(&iod->cdev);
 		break;
 
 	case IODEV_NET:
@@ -887,12 +933,13 @@ void sipc5_deinit_io_device(struct io_device *iod)
 		break;
 
 	case IODEV_DUMMY:
-		device_remove_file(iod->miscdev.this_device, &attr_waketime);
-		device_remove_file(iod->miscdev.this_device, &attr_loopback);
-		device_remove_file(iod->miscdev.this_device, &attr_txlink);
+		device_remove_file(iod->cdevice, &attr_waketime);
+		device_remove_file(iod->cdevice, &attr_loopback);
+		device_remove_file(iod->cdevice, &attr_txlink);
+		device_remove_file(iod->cdevice, &attr_gro_option);
 
-		misc_deregister(&iod->miscdev);
+		device_destroy(iod->msd->cdev_class, iod->cdev.dev);
+		cdev_del(&iod->cdev);
 		break;
 	}
 }
-

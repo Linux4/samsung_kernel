@@ -18,14 +18,13 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <video/videonode.h>
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 
@@ -178,10 +177,10 @@ void print_frame_queue(struct is_framemgr *this,
 {
 	struct is_frame *frame, *temp;
 
-	if (!((BIT(ENTRY_END) - 1) & this->id))
+	if (this->id >= ENTRY_END)
 			return;
 
-	pr_info("[FRM] %s(%s, %d) :", frame_state_name[state],
+	is_info("[FRM] %s(%s, %d) :", frame_state_name[state],
 					this->name, this->queued_count[state]);
 
 	list_for_each_entry_safe(frame, temp, &this->queued_list[state], list)
@@ -197,10 +196,10 @@ void print_frame_info_queue(struct is_framemgr *this,
 	unsigned long usec[MAX_FRAME_INFO];
 	struct is_frame *frame, *temp;
 
-	if (!((BIT(ENTRY_END) - 1) & this->id))
+	if (this->id >= ENTRY_END)
 			return;
 
-	pr_info("[FRM_INFO] %s(%s, %d) :", hw_frame_state_name[state],
+	is_info("[FRM_INFO] %s(%s, %d) :", hw_frame_state_name[state],
 					this->name, this->queued_count[state]);
 
 	list_for_each_entry_safe(frame, temp, &this->queued_list[state], list) {
@@ -341,7 +340,7 @@ int frame_manager_close(struct is_framemgr *this)
 	spin_lock_irqsave(&this->slock, flag);
 
 	if (this->frames) {
-		vfree_atomic(this->frames);
+		is_vfree_atomic(this->frames);
 		this->frames = NULL;
 	}
 
@@ -394,7 +393,7 @@ void dump_frame_queue(struct is_framemgr *this,
 {
 	struct is_frame *frame, *temp;
 
-	if (!((BIT(ENTRY_END) - 1) & this->id))
+	if (this->id >= ENTRY_END)
 		return;
 
 	cinfo("[FRM] %s(%s, %d) :", frame_state_name[state],

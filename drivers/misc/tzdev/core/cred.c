@@ -23,6 +23,7 @@
 #include "tzdev_internal.h"
 #include "core/cred.h"
 #include "core/log.h"
+#include "core/subsystem.h"
 #include "core/sysdep.h"
 
 static const uint8_t kernel_client_hash[CRED_HASH_SIZE] = {
@@ -45,9 +46,7 @@ static int tz_crypto_path_sha256(uint8_t hash[SHA256_DIGEST_SIZE], char *path, s
 
 	{
 		SHASH_DESC_ON_STACK(desc, tfm);
-
-		desc->tfm = tfm;
-		desc->flags = 0;
+		sysdep_shash_desc_init(desc, tfm);
 
 		ret = crypto_shash_init(desc);
 		if (ret < 0)

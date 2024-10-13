@@ -1,11 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * This file contains the generic code to perform a call to the
  * pSeries LPAR hypervisor.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
  */
 #include <linux/jump_label.h>
 #include <asm/hvcall.h>
@@ -105,6 +101,16 @@ END_FTR_SECTION(0, 1);						\
 #define HCALL_INST_POSTCALL(BUFREG)
 #define HCALL_BRANCH(LABEL)
 #endif
+
+_GLOBAL_TOC(plpar_hcall_norets_notrace)
+	HMT_MEDIUM
+
+	mfcr	r0
+	stw	r0,8(r1)
+	HVSC				/* invoke the hypervisor */
+	lwz	r0,8(r1)
+	mtcrf	0xff,r0
+	blr				/* return r3 = status */
 
 _GLOBAL_TOC(plpar_hcall_norets)
 	HMT_MEDIUM

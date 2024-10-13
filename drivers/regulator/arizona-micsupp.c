@@ -1,15 +1,10 @@
-/*
- * arizona-micsupp.c  --  Microphone supply for Arizona devices
- *
- * Copyright 2012 Wolfson Microelectronics PLC.
- *
- * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
- *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
- */
+// SPDX-License-Identifier: GPL-2.0+
+//
+// arizona-micsupp.c  --  Microphone supply for Arizona devices
+//
+// Copyright 2012 Wolfson Microelectronics PLC.
+//
+// Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
 
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -21,7 +16,6 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
-#include <linux/gpio.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <sound/soc.h>
@@ -131,7 +125,7 @@ static const struct regulator_ops arizona_micsupp_ops = {
 	.set_bypass = arizona_micsupp_set_bypass,
 };
 
-static const struct regulator_linear_range arizona_micsupp_ranges[] = {
+static const struct linear_range arizona_micsupp_ranges[] = {
 	REGULATOR_LINEAR_RANGE(1700000, 0,    0x1e, 50000),
 	REGULATOR_LINEAR_RANGE(3300000, 0x1f, 0x1f, 0),
 };
@@ -158,7 +152,7 @@ static const struct regulator_desc arizona_micsupp = {
 	.owner = THIS_MODULE,
 };
 
-static const struct regulator_linear_range arizona_micsupp_ext_ranges[] = {
+static const struct linear_range arizona_micsupp_ext_ranges[] = {
 	REGULATOR_LINEAR_RANGE(900000,  0,    0x14, 25000),
 	REGULATOR_LINEAR_RANGE(1500000, 0x15, 0x27, 100000),
 };

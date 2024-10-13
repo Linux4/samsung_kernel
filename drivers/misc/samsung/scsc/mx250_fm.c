@@ -14,11 +14,12 @@
 #include <scsc/scsc_logring.h>
 #include <scsc/scsc_mx.h>
 
-#include "mxman.h"	/* Special case service driver that looks inside mxman */
-
 #ifdef CONFIG_SCSC_FM_TEST
 #include "mx250_fm_test.h"
 #endif
+extern void mxman_fm_on_halt_ldos_on(void);
+extern void mxman_fm_on_halt_ldos_off(void);
+extern int mxman_fm_set_params(struct wlbt_fm_params *params);
 
 
 struct scsc_mx_fm_client {

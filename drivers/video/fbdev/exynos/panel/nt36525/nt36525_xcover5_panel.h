@@ -1714,11 +1714,11 @@ struct common_panel_info nt36525_xcover5_default_panel_info = {
 	.i2c_data = &nt36525_xcover5_i2c_data,
 };
 
-static int __init nt36525_xcover5_panel_init(void)
+int __init nt36525_xcover5_panel_init(void)
 {
 	register_common_panel(&nt36525_xcover5_default_panel_info);
 
 	return 0;
 }
-arch_initcall(nt36525_xcover5_panel_init)
+//arch_initcall(nt36525_xcover5_panel_init)
 #endif /* __NT36525_XCOVER5_PANEL_H__ */

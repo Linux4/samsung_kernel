@@ -22,13 +22,10 @@
 #include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
-#include <linux/exynos_iovmm.h>
 #include <linux/smc.h>
 #include <media/v4l2-ioctl.h>
-#include <video/videonode.h>
 
 #include "camerapp-hw-api-votf.h"
-#include "camerapp-votf-reg.h"
 #include "camerapp-votf-common-enum.h"
 
 #define VOTF_OPTION_BIT_CHANGE	(0)
@@ -36,7 +33,7 @@
 
 struct votf_info {
 	int service;
-	int ip;
+	u32 ip;
 	int id;
 };
 
@@ -73,7 +70,7 @@ struct votf_service_cfg {
 struct votf_table_info {
 	bool use;
 	u32 addr;
-	int ip;
+	u32 ip;
 	int id;
 	int service;			/* 0:Mater(TWS), 1:Slave(TRS) */
 	int module;			/* C2SERV, C2AGENT */
@@ -92,6 +89,7 @@ struct votf_dev {
 	struct votf_table_info		votf_table[SERVICE_CNT][IP_MAX][ID_MAX];
 };
 
+#if IS_ENABLED(CONFIG_VIDEO_EXYNOS_CAMERA_POSTPROCESS_VOTF)
 /* common function */
 int votfitf_create_ring(void);
 int votfitf_destroy_ring(void);
@@ -101,14 +99,14 @@ int votfitf_reset(struct votf_info *vinfo, int type);	/* type(0) : sw_core_reset
 int votfitf_set_flush(struct votf_info *vinfo);
 int votfitf_set_crop_start(struct votf_info *vinfo, bool start);
 int votfitf_get_crop_start(struct votf_info *vinfo);
-int voifitf_set_crop_enable(struct votf_info *vinfo, bool enable);
-int voifitf_get_crop_enable(struct votf_info *vinfo);
+int votfitf_set_crop_enable(struct votf_info *vinfo, bool enable);
+int votfitf_get_crop_enable(struct votf_info *vinfo);
 
 /* C2SERV function */
 int votfitf_set_trs_lost_cfg(struct votf_info *vinfo, struct votf_lost_cfg *cfg);
-int votfitf_set_first_token_size(struct votf_info *vinfo, u32 size);
-int votfitf_set_token_size(struct votf_info *vinfo, u32 size);
-int votfitf_set_frame_size(struct votf_info *vinfo, u32 size);
+int votfitf_set_lines_in_first_token(struct votf_info *vinfo, u32 lines);
+int votfitf_set_lines_in_token(struct votf_info *vinfo, u32 lines);
+int votfitf_set_lines_count(struct votf_info *vinfo, u32 cnt);
 
 /* C2AGENT function */
 int votfitf_set_start(struct votf_info *vinfo);
@@ -127,5 +125,42 @@ int votfitf_set_irq_clear(struct votf_info *vinfo, enum votf_irq type);
 void votf_init(void);
 u32 get_offset(struct votf_info *vinfo, int c2s_tws, int c2s_trs, int c2a_tws, int c2a_trs);
 void votf_sfr_dump(void);
+#else
+/* common function */
+static inline int votfitf_create_ring(void) {return 0;}
+static inline int votfitf_destroy_ring(void) {return 0;}
+static inline int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cfg) {return 0;}
+static inline int votfitf_reset(struct votf_info *vinfo, int type) {return 0;}
+
+static inline int votfitf_set_flush(struct votf_info *vinfo) {return 0;}
+static inline int votfitf_set_crop_start(struct votf_info *vinfo, bool start) {return 0;}
+static inline int votfitf_get_crop_start(struct votf_info *vinfo) {return 0;}
+static inline int votfitf_set_crop_enable(struct votf_info *vinfo, bool enable) {return 0;}
+static inline int votfitf_get_crop_enable(struct votf_info *vinfo) {return 0;}
+
+/* C2SERV function */
+static inline int votfitf_set_trs_lost_cfg(struct votf_info *vinfo, struct votf_lost_cfg *cfg) {return 0;}
+static inline int votfitf_set_first_token_size(struct votf_info *vinfo, u32 size) {return 0;}
+static inline int votfitf_set_token_size(struct votf_info *vinfo, u32 size) {return 0;}
+static inline int votfitf_set_frame_size(struct votf_info *vinfo, u32 size) {return 0;}
+
+/* C2AGENT function */
+static inline int votfitf_set_start(struct votf_info *vinfo) {return 0;}
+static inline int votfitf_set_finish(struct votf_info *vinfo) {return 0;}
+static inline int votfitf_set_threshold(struct votf_info *vinfo, bool high, u32 value) {return 0;}
+static inline u32 votfitf_get_threshold(struct votf_info *vinfo, bool high) {return 0;}
+static inline int votfitf_set_read_bytes(struct votf_info *vinfo, u32 bytes) {return 0;}
+static inline int votfitf_get_fullness(struct votf_info *vinfo) {return 0;}
+static inline u32 votfitf_get_busy(struct votf_info *vinfo) {return 0;}
+static inline int votfitf_set_irq_enable(struct votf_info *vinfo, enum votf_irq type) {return 0;}
+static inline int votfitf_set_irq_status(struct votf_info *vinfo, enum votf_irq type) {return 0;}
+static inline int votfitf_set_irq(struct votf_info *vinfo, enum votf_irq type) {return 0;}
+static inline int votfitf_set_irq_clear(struct votf_info *vinfo, enum votf_irq type) {return 0;}
+
+/* local function */
+static inline void votf_init(void) {return;}
+static inline u32 get_offset(struct votf_info *vinfo, int c2s_tws, int c2s_trs, int c2a_tws, int c2a_trs) {return 0;}
+static inline void votf_sfr_dump(void) {return;}
+#endif
 
 #endif /* CAMERAPP_VOTF__H */

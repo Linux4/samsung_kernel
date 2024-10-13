@@ -22,12 +22,12 @@
 #include <linux/workqueue.h>
 #include <linux/miscdevice.h>
 
-#if defined(CONFIG_EXYNOS_DPU30)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30)
 #include "../dpu30/disp_err.h"
 #include "../dpu30/dsim.h"
 #include "../dpu30/decon.h"
 #include "../dpu30/panels/exynos_panel.h"
-#elif defined(CONFIG_EXYNOS_DPU20)
+#elif IS_ENABLED(CONFIG_EXYNOS_DPU20)
 #include "../dpu20/disp_err.h"
 #include "../dpu20/dsim.h"
 #include "../dpu20/decon.h"
@@ -71,7 +71,11 @@
 #include "./df/dynamic_freq.h"
 #endif
 
-#if defined(CONFIG_EXYNOS_DPU30)
+#include "decon_assist.h"
+#include "decon_notify.h"
+#include "dd.h"
+
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30)
 typedef struct exynos_panel_info EXYNOS_PANEL_INFO;
 #else
 typedef struct decon_lcd EXYNOS_PANEL_INFO;
@@ -119,7 +123,6 @@ enum {
 	PANEL_REGULATOR_DDI_VDD3,
 	PANEL_REGULATOR_DDR_VDDR,
 	PANEL_REGULATOR_SSD,
-	PANEL_REGULATOR_BLIC,
 	PANEL_REGULATOR_MAX
 };
 
@@ -146,7 +149,6 @@ enum panel_gpio_lists {
 #define PANEL_REGULATOR_NAME_DDI_VDD3 ("ddi-vdd3")
 #define PANEL_REGULATOR_NAME_DDR_VDDR ("ddr-vddr")
 #define PANEL_REGULATOR_NAME_SSD ("short-detect")
-#define PANEL_REGULATOR_NAME_BLIC ("gpio_lcd_bl_en")
 
 struct panel_gpio {
 	const char *name;
@@ -180,6 +182,7 @@ struct mipi_drv_ops {
 	void (*parse_dt)(struct device_node *node, EXYNOS_PANEL_INFO *lcd_info);
 	EXYNOS_PANEL_INFO *(*get_lcd_info)(u32 id);
 	void (*set_lpdt)(u32 id, u32 lpdt_on);
+	void (*decon_disable)(u32 id);
 };
 
 #define PANEL_INIT_KERNEL		0
@@ -285,7 +288,7 @@ enum {
 	PRINT_NORMAL_PANEL_INFO,
 	CHECK_NORMAL_PANEL_INFO,
 	PRINT_DOZE_PANEL_INFO,
-	STATE_MAX
+	PANEL_INFO_STATE_MAX
 };
 
 #define STR_NO_CHECK			("no state")
@@ -297,7 +300,7 @@ struct panel_condition_check {
 	bool is_panel_check;
 	u32 frame_cnt;
 	u8 check_state;
-	char str_state[STATE_MAX][30];
+	char str_state[PANEL_INFO_STATE_MAX][30];
 };
 
 enum GAMMA_FLASH_RESULT {
@@ -362,9 +365,12 @@ struct panel_device {
 	struct mutex io_lock;
 
 	struct device *dev;
+
 	struct mdnie_info mdnie;
 
-	struct lcd_device *lcd;
+//	struct lcd_device *lcd;
+	struct device *lcd_dev;
+
 	struct panel_bl_device panel_bl;
 
 	unsigned char panel_id[3];
@@ -424,7 +430,6 @@ struct panel_device {
 #ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
 	struct profiler_device profiler;
 #endif
-	struct notifier_block blic_regulator_noti;
 };
 
 #ifdef CONFIG_SUPPORT_DIM_FLASH
@@ -493,7 +498,6 @@ int panel_set_vrr(struct panel_device *panel, int fps, int mode);
 bool panel_gpio_valid(struct panel_gpio *gpio);
 void panel_send_ubconn_uevent(struct panel_device *panel);
 int panel_set_gpio_irq(struct panel_gpio *gpio, bool enable);
-int get_blic_type(void);
 
 #define PANEL_DRV_NAME "panel-drv"
 
@@ -513,8 +517,8 @@ int get_blic_type(void);
 
 #define PANEL_IOC_PANEL_DUMP			_IO(PANEL_IOC_BASE, 10)
 
-#define PANEL_IOC_EVT_FRAME_DONE		_IOW(PANEL_IOC_BASE, 11, struct timespec *)
-#define PANEL_IOC_EVT_VSYNC				_IOW(PANEL_IOC_BASE, 12, struct timespec *)
+#define PANEL_IOC_EVT_FRAME_DONE		_IOW(PANEL_IOC_BASE, 11, struct timespec64 *)
+#define PANEL_IOC_EVT_VSYNC				_IOW(PANEL_IOC_BASE, 12, struct timespec64 *)
 
 #define PANEL_IOC_SET_RESET				_IO(PANEL_IOC_BASE, 13)
 

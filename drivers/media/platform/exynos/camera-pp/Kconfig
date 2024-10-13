@@ -2,7 +2,7 @@
 # Exynos Camera PostProcessing IP device drivers
 #
 config VIDEO_EXYNOS_CAMERA_POSTPROCESS
-		bool "Exynos Camera Post-Processing Devices"
+		tristate "Exynos Camera Post-Processing Devices"
 		depends on VIDEO_EXYNOS
 		select V4L2_MEM2MEM_DEV
 		select MEDIA_M2M1SHOT
@@ -14,3 +14,4 @@ config VIDEO_EXYNOS_CAMERA_POSTPROCESS
 source "drivers/media/platform/exynos/camera-pp/gdc/Kconfig"
 source "drivers/media/platform/exynos/camera-pp/str/Kconfig"
 source "drivers/media/platform/exynos/camera-pp/votf/Kconfig"
+source "drivers/media/platform/exynos/camera-pp/pd_mgr/Kconfig"

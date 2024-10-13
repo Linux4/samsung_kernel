@@ -13,6 +13,15 @@
 
 #include "is-hw-api-common.h"
 
+enum pablo_phy_info {
+  PPI_VERSION,
+  PPI_TYPE,
+  PPI_LANES,
+  PPI_SPEED,
+  PPI_SETTLE,
+  PPI_MAX,
+};
+
 #define CSIS_REG_DMA_1D_DMA			(1)
 #define CSIS_REG_DMA_2D_DMA			(0)
 #define CSIS_REG_DMA_PACK			(1)

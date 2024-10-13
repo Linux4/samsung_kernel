@@ -219,6 +219,14 @@ int mx140_file_request_conf(struct scsc_mx *mx,
 		SCSC_TAG_INFO(MX_FILE, "module param cfg_platform = %s\n", cfg_platform);
 		return __mx140_file_request_conf(mx, conf, cfg_platform, config_rel_path, filename, false);
 	}
+	/* This is done to update the fw_suffix_found index */
+	if (fw_suffix_found == -1) {
+		r = mx140_file_download_fw(mx, NULL, 0, NULL);
+		if (r) {
+			SCSC_TAG_ERR(MXMAN, "mx140_file_download_fw() failed (%d)\n", r);
+			return r;
+		}
+	}
 
 	if (force_flat) {
 		/* Only request "flat" conf, where all hcf files are in FW root dir
@@ -347,12 +355,14 @@ static int __mx140_file_download_fw(struct scsc_mx *mx, void *dest, size_t dest_
 	}
 	SCSC_TAG_DEBUG(MX_FILE, "FW Download, size %zu\n", firm->size);
 
-	if (firm->size > dest_size) {
-		SCSC_TAG_ERR(MX_FILE, "firmware image too big for buffer (%zu > %u)", dest_size, *fw_image_size);
-		r = -EINVAL;
-	} else {
-		memcpy(dest, firm->data, firm->size);
-		*fw_image_size = firm->size;
+	if (dest) {
+		if (firm->size > dest_size) {
+			SCSC_TAG_ERR(MX_FILE, "firmware image too big for buffer (%zu > %u)", dest_size, *fw_image_size);
+			r = -EINVAL;
+		} else {
+			memcpy(dest, firm->data, firm->size);
+			*fw_image_size = firm->size;
+		}
 	}
 	mx140_release_file(mx, firm);
 	return r;
@@ -647,8 +657,6 @@ EXPORT_SYMBOL(mx140_exe_path);
 /* Try to auto detect f/w directory */
 int mx140_basedir_file(struct scsc_mx *mx)
 {
-	struct kstat stat;
-	mm_segment_t fs;
 	int r = 0;
 
 	/* Already worked out base dir. This is
@@ -656,31 +664,6 @@ int mx140_basedir_file(struct scsc_mx *mx)
 	 */
 	if (base_dir[0] != '\0')
 		return 0;
-
-	/* Current segment. */
-	fs = get_fs();
-	/* Set to kernel segment. */
-	set_fs(KERNEL_DS);
-
-	/* If /system isn't present, assume platform isn't ready yet */
-	r = vfs_stat("/system", &stat);
-	if (r != 0) {
-		SCSC_TAG_ERR(MX_FILE, "/system not mounted yet\n");
-		r = -EAGAIN;
-		goto done;
-	}
-
-	/* If /vendor isn't present, assume platform isn't ready yet.
-	 * Android M and N still have /vendor, though we don't use it.
-	 */
-	r = vfs_stat("/vendor", &stat);
-	if (r != 0) {
-		SCSC_TAG_ERR(MX_FILE, "/vendor not mounted yet\n");
-		r = -EAGAIN;
-		goto done;
-	}
-
-	/* Now partitions are mounted, so let's see what's in them. */
 
 	/* Try /vendor partition  (post-Oreo) */
 	strlcpy(base_dir, MX140_FW_BASE_DIR_VENDOR_ETC_WIFI, sizeof(base_dir));
@@ -693,11 +676,8 @@ int mx140_basedir_file(struct scsc_mx *mx)
 	strlcpy(exe_dir, MX140_EXE_DIR_SYSTEM, sizeof(exe_dir));
 #endif
 
-done:
-	/* Restore segment */
-	set_fs(fs);
-	SCSC_TAG_INFO(MX_FILE, "WLBT fw base dir is %s\n", base_dir[0] ? base_dir : "not found");
-
+	SCSC_TAG_INFO(MX_FILE, "WLBT base_dir is %s\n", base_dir[0] ? base_dir : "not found");
+	SCSC_TAG_INFO(MX_FILE, "WLBT fw_base_dir is %s\n", fw_base_dir[0] ? fw_base_dir : "not found");
 	return r;
 }
 

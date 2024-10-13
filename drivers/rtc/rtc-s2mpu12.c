@@ -1,7 +1,7 @@
 /*
  * rtc-s2mpu12.c
  *
- * Copyright (c) 2019 Samsung Electronics Co., Ltd
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd
  *              http://www.samsung.com
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -24,7 +24,7 @@
 #include <linux/mfd/samsung/rtc-s2mp.h>
 #include <linux/mfd/samsung/s2mpu12.h>
 #include <linux/mfd/samsung/s2mpu12-regulator.h>
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 #include <linux/reboot.h>
 #include <linux/wakelock.h>
 #endif
@@ -40,7 +40,7 @@ struct s2m_rtc_info {
 	struct mutex		lock;
 	struct work_struct	irq_work;
 	int			irq;
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 	int			boot_alarm_irq;
 #endif
 	bool			use_irq;
@@ -75,22 +75,6 @@ static void s2m_data_to_tm(u8 *data, struct rtc_time *tm)
 	tm->tm_yday = 0;
 	tm->tm_isdst = 0;
 }
-
-#ifdef CONFIG_RTC_HIGH_RES
-static void s2m_data_to_hrtm(u8 *data, struct rtc_hrtime *tm)
-{
-	tm->tm_msec = (data[RTC_HR_MSEC] & 0x7f) * 10;
-	tm->tm_sec = data[RTC_HR_SEC] & 0x7f;
-	tm->tm_min = data[RTC_HR_MIN] & 0x7f;
-	tm->tm_hour = data[RTC_HR_HOUR] & 0x1f;
-	tm->tm_wday = __fls(data[RTC_HR_WEEKDAY] & 0x7f);
-	tm->tm_mday = data[RTC_HR_DATE] & 0x1f;
-	tm->tm_mon = (data[RTC_HR_MONTH] & 0x0f) - 1;
-	tm->tm_year = (data[RTC_HR_YEAR] & 0x7f) + 100;
-	tm->tm_yday = 0;
-	tm->tm_isdst = 0;
-}
-#endif /* CONFIG_RTC_HIGH_RES */
 
 static int s2m_tm_to_data(struct rtc_time *tm, u8 *data)
 {
@@ -185,43 +169,6 @@ out:
 	return ret;
 }
 
-#ifdef CONFIG_RTC_HIGH_RES
-static int s2m_rtc_read_hrtime(struct device *dev, struct rtc_hrtime *tm)
-{
-	struct s2m_rtc_info *info = dev_get_drvdata(dev);
-	u8 data[NR_RTC_HR_CNT_REGS];
-	int ret;
-
-	mutex_lock(&info->lock);
-	ret = s2m_rtc_update(info, S2M_RTC_READ);
-	if (ret < 0)
-		goto out;
-
-	ret = s2mpu12_bulk_read(info->i2c, S2MP_RTC_REG_MSEC,
-			NR_RTC_HR_CNT_REGS, data);
-	if (ret < 0) {
-		dev_err(info->dev, "%s: fail to read hrtime reg(%d)\n",
-				__func__, ret);
-		goto out;
-	}
-
-	pr_info("%s: RTC_MSEC: 0x%02X\n", __func__, data[RTC_HR_MSEC]);
-
-	dev_info(info->dev, "%s: %d-%02d-%02d %02d:%02d:%02d.%03d(0x%02x)%s\n",
-			__func__, data[RTC_HR_YEAR] + 2000, data[RTC_HR_MONTH],
-			data[RTC_HR_DATE], data[RTC_HR_HOUR] & 0x1f,
-			data[RTC_HR_MIN], data[RTC_HR_SEC],
-			(data[RTC_HR_MSEC] & 0x7f) * 10, data[RTC_HR_WEEKDAY],
-			data[RTC_HR_HOUR] & HOUR_PM_MASK ? "PM" : "AM");
-
-	s2m_data_to_hrtm(data, tm);
-	ret = rtc_valid_hrtm(tm);
-out:
-	mutex_unlock(&info->lock);
-	return ret;
-}
-#endif /* CONFIG_RTC_HIGH_RES */
-
 static int s2m_rtc_set_time(struct device *dev, struct rtc_time *tm)
 {
 	struct s2m_rtc_info *info = dev_get_drvdata(dev);
@@ -258,6 +205,7 @@ out:
  * cuase is that clear signal of RUDR & WUDR is 1 clock delay while it should be
  * 2 clock delay.
  */
+#if 0
 static int s2m_rtc_check_rtc_time(struct s2m_rtc_info *info)
 {
 	u8 data[NR_RTC_CNT_REGS];
@@ -319,7 +267,7 @@ static int s2m_rtc_check_rtc_time(struct s2m_rtc_info *info)
 out:
 	return ret;
 }
-
+#endif
 static int s2m_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 {
 	struct s2m_rtc_info *info = dev_get_drvdata(dev);
@@ -438,11 +386,11 @@ static int s2m_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	if (ret < 0)
 		goto out;
 
-	if (info->use_alarm_workaround) {
-		ret = s2m_rtc_check_rtc_time(info);
-		if (ret < 0)
-			goto out;
-	}
+	//if (info->use_alarm_workaround) {
+	//	ret = s2m_rtc_check_rtc_time(info);
+	//	if (ret < 0)
+	//		goto out;
+	//}
 
 	ret = s2m_rtc_set_alarm_enable(info, alrm->enabled);
 out:
@@ -476,7 +424,7 @@ static irqreturn_t s2m_rtc_alarm_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 static int s2m_rtc_stop_boot_alarm(struct s2m_rtc_info *info)
 {
 	u8 data[7];
@@ -662,14 +610,11 @@ static irqreturn_t s2m_rtc_boot_alarm_irq(int irq, void *data)
 
 static const struct rtc_class_ops s2m_rtc_ops = {
 	.read_time = s2m_rtc_read_time,
-#ifdef CONFIG_RTC_HIGH_RES
-	.read_hrtime = s2m_rtc_read_hrtime,
-#endif /* CONFIG_RTC_HIGH_RES */
 	.set_time = s2m_rtc_set_time,
 	.read_alarm = s2m_rtc_read_alarm,
 	.set_alarm = s2m_rtc_set_alarm,
 	.alarm_irq_enable = s2m_rtc_alarm_irq_enable,
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 	.read_boot_alarm = s2m_rtc_read_boot_alarm,
 	.set_boot_alarm = s2m_rtc_set_boot_alarm,
 #endif
@@ -795,7 +740,7 @@ static int s2m_rtc_init_reg(struct s2m_rtc_info *info,
 	u8 data, update_val, ctrl_val, capsel_val;
 	int ret;
 
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 	u8 data_alrm1[7];
 	struct rtc_time alrm;
 
@@ -913,7 +858,7 @@ static int s2m_rtc_probe(struct platform_device *pdev)
 	switch (info->iodev->device_type) {
 	case S2MPU12X:
 		info->irq = irq_base + S2MPU12_PMIC_IRQ_RTCA0_INT2;
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 		info->boot_alarm_irq = irq_base + S2MPU12_PMIC_IRQ_RTCA1_INT2;
 #endif
 		break;
@@ -949,7 +894,7 @@ static int s2m_rtc_probe(struct platform_device *pdev)
 	disable_irq(info->irq);
 	disable_irq(info->irq);
 
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 	ret = devm_request_threaded_irq(&pdev->dev, info->boot_alarm_irq, NULL,
 			s2m_rtc_boot_alarm_irq, 0, "rtc-alarm1", info);
 	if (ret < 0) {
@@ -973,7 +918,7 @@ static int s2m_rtc_probe(struct platform_device *pdev)
 
 err_rtc_dev_register:
 	devm_free_irq(&pdev->dev, info->irq, info);
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 	devm_free_irq(&pdev->dev, info->boot_alarm_irq, info);
 #endif
 	enable_irq(info->irq);
@@ -993,7 +938,7 @@ static int s2m_rtc_remove(struct platform_device *pdev)
 
 	if (!info->alarm_enabled)
 		enable_irq(info->irq);
-#ifdef CONFIG_RTC_BOOT_ALARM
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM)
 	devm_free_irq(&pdev->dev, info->boot_alarm_irq, info);
 #endif
 
@@ -1015,6 +960,7 @@ static void s2m_rtc_shutdown(struct platform_device *pdev)
 
 static const struct platform_device_id s2m_rtc_id[] = {
 	{ "s2mpu12-rtc", 0 },
+	{},
 };
 
 static struct platform_driver s2m_rtc_driver = {

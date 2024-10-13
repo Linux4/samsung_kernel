@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_core.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox Core driver
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
@@ -31,8 +31,9 @@ extern void abox_core_enable(int enable);
 
 /**
  * wait for standby
+ * @return		0 or error code
  */
-extern void abox_core_standby(void);
+extern int abox_core_standby(void);
 
 /**
  * print gpr values from gpr dump sfr to kernel log

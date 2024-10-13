@@ -31,7 +31,6 @@ struct sec_vote {
 	int force_set;
 	int force_val;
 	struct dentry * force_set_ent;
-	struct dentry * force_val_ent;
 };
 
 const char * none_str = "None";
@@ -429,12 +428,8 @@ struct sec_vote *sec_vote_init(const char *name, int type, int num, int init_val
 			pr_err("Couldn't create status dbg file for %s\n", name);
 		}
 
-		vote->force_val_ent = debugfs_create_u32("force_val",
-				S_IFREG | 0644,
-				vote->root, &(vote->force_val));
-		if (!vote->force_val_ent) {
-			pr_err("Couldn't create force_val dbg file for %s\n", name);
-		}
+		debugfs_create_u32("force_val", S_IFREG | 0644,
+						vote->root, &(vote->force_val));
 
 		vote->force_set_ent = debugfs_create_file("force_set",
 				S_IFREG | 0444,

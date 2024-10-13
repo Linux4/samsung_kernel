@@ -15,6 +15,7 @@
 #include "procfs.h"
 #include "ba.h"
 #include "nl80211_vendor.h"
+#include "qsfs.h"
 
 #include "sap_mlme.h"
 #include "sap_ma.h"
@@ -402,6 +403,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	sdev->sig_wait_cfm_timeout   = &sig_wait_cfm_timeout;
 	slsi_sig_send_init(&sdev->sig_wait);
 	slsi_sys_error_log_init(sdev);
+	slsi_qsf_init(sdev);
 
 	for (i = 0; i < SLSI_LLS_AC_MAX; i++)
 		atomic_set(&sdev->tx_host_tag[i], ((1 << 2) | i));
@@ -586,6 +588,7 @@ void slsi_dev_detach(struct slsi_dev *sdev)
 	SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "Remove Device\n");
 
 	slsi_stop(sdev);
+	slsi_qsf_deinit();
 
 #ifdef CONFIG_SCSC_WLAN_KIC_OPS
 	wifi_kic_unregister();
@@ -670,7 +673,7 @@ int __init slsi_dev_load(void)
 
 /* Always create devnode if TW Android P on */
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
-    slsi_create_sysfs_macaddr();
+	slsi_create_sysfs_macaddr();
 	slsi_create_sysfs_version_info();
 #endif
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
@@ -688,7 +691,7 @@ void __exit slsi_dev_unload(void)
 	SLSI_INFO_NODEV("Unloading Maxwell Wi-Fi driver\n");
 
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
-    slsi_destroy_sysfs_macaddr();
+	slsi_destroy_sysfs_macaddr();
 	slsi_destroy_sysfs_version_info();
 #endif
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12

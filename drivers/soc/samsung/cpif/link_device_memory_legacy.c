@@ -1,12 +1,99 @@
+// SPDX-License-Identifier: GPL-2.0
 #include "include/legacy.h"
 #include "modem_utils.h"
 #include "link_device.h"
+
+/* sysfs */
+static ssize_t region_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct modem_data *modem;
+	ssize_t count = 0;
+
+	modem = (struct modem_data *)dev->platform_data;
+
+	count += scnprintf(&buf[count], PAGE_SIZE - count, "FMT offset head:0x%08X buff:0x%08X\n",
+				modem->legacy_fmt_head_tail_offset,
+				modem->legacy_fmt_buffer_offset);
+	count += scnprintf(&buf[count], PAGE_SIZE - count, "FMT size txq:0x%08X rxq:0x%08X\n",
+				modem->legacy_fmt_txq_size,
+				modem->legacy_fmt_rxq_size);
+
+	count += scnprintf(&buf[count], PAGE_SIZE - count, "RAW offset head:0x%08X buff:0x%08X\n",
+				modem->legacy_raw_head_tail_offset,
+				modem->legacy_raw_buffer_offset);
+	count += scnprintf(&buf[count], PAGE_SIZE - count, "RAW size txq:0x%08X rxq:0x%08X\n",
+				modem->legacy_raw_txq_size,
+				modem->legacy_raw_rxq_size);
+
+#if IS_ENABLED(CONFIG_MODEM_IF_LEGACY_QOS)
+	count += scnprintf(&buf[count], PAGE_SIZE - count, "QoS offset head:0x%08X buff:0x%08X\n",
+				modem->legacy_raw_qos_head_tail_offset,
+				modem->legacy_raw_qos_buffer_offset);
+	count += scnprintf(&buf[count], PAGE_SIZE - count, "QoS size txq:0x%08X rxq:0x%08X\n",
+				modem->legacy_raw_qos_txq_size,
+				modem->legacy_raw_qos_rxq_size);
+#endif
+
+	return count;
+}
+
+static ssize_t status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct modem_data *modem;
+	struct legacy_link_device *bl;
+	struct legacy_ipc_device *ipc_dev;
+	ssize_t count = 0;
+	int i;
+
+	modem = (struct modem_data *)dev->platform_data;
+	bl = &modem->mld->legacy_link_dev;
+
+	count += scnprintf(&buf[count], PAGE_SIZE - count, "magic:0x%08X mem_access:0x%08X\n",
+				ioread32(bl->magic), ioread32(bl->mem_access));
+
+	for (i = 0; i < IPC_MAP_MAX; i++) {
+		ipc_dev = bl->dev[i];
+
+		count += scnprintf(&buf[count], PAGE_SIZE - count, "\n");
+		count += scnprintf(&buf[count], PAGE_SIZE - count, "ID:%d name:%s\n",
+			i, ipc_dev->name);
+		count += scnprintf(&buf[count], PAGE_SIZE - count, "TX busy:%d head:%d tail:%d\n",
+			atomic_read(&ipc_dev->txq.busy), get_txq_head(ipc_dev),
+			get_txq_tail(ipc_dev));
+		count += scnprintf(&buf[count], PAGE_SIZE - count, "RX busy:%d head:%d tail:%d\n",
+			atomic_read(&ipc_dev->rxq.busy), get_rxq_head(ipc_dev),
+			get_rxq_tail(ipc_dev));
+		count += scnprintf(&buf[count], PAGE_SIZE - count,
+			"req_ack_cnt[TX]:%d req_ack_cnt[RX]:%d\n",
+			ipc_dev->req_ack_cnt[TX], ipc_dev->req_ack_cnt[RX]);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR_RO(region);
+static DEVICE_ATTR_RO(status);
+
+static struct attribute *legacy_attrs[] = {
+	&dev_attr_region.attr,
+	&dev_attr_status.attr,
+	NULL,
+};
+
+static const struct attribute_group legacy_group = {
+	.attrs = legacy_attrs,
+	.name = "legacy",
+};
 
 int create_legacy_link_device(struct mem_link_device *mld)
 {
 	struct legacy_ipc_device *dev;
 	struct legacy_link_device *bl = &mld->legacy_link_dev;
 	struct modem_data *modem = mld->link_dev.mdm_data;
+	struct link_device *ld = &mld->link_dev;
+	int ret = 0;
 
 	bl->ld = &mld->link_dev;
 
@@ -32,7 +119,8 @@ int create_legacy_link_device(struct mem_link_device *mld)
 	atomic_set(&dev->rxq.busy, 0);
 	dev->rxq.head = (void __iomem *)(mld->base + modem->legacy_fmt_head_tail_offset + 8);
 	dev->rxq.tail = (void __iomem *)(mld->base + modem->legacy_fmt_head_tail_offset + 12);
-	dev->rxq.buff = (void __iomem *)(mld->base + modem->legacy_fmt_buffer_offset + modem->legacy_fmt_txq_size);
+	dev->rxq.buff = (void __iomem *)(mld->base + modem->legacy_fmt_buffer_offset +
+			modem->legacy_fmt_txq_size);
 	dev->rxq.size = modem->legacy_fmt_rxq_size;
 
 	dev->msg_mask = MASK_SEND_FMT;
@@ -49,7 +137,7 @@ int create_legacy_link_device(struct mem_link_device *mld)
 
 	spin_lock_init(&dev->tx_lock);
 
-#ifdef CONFIG_MODEM_IF_LEGACY_QOS
+#if IS_ENABLED(CONFIG_MODEM_IF_LEGACY_QOS)
 	/* IPC_MAP_HPRIO_RAW */
 	bl->dev[IPC_MAP_HPRIO_RAW] = kzalloc(sizeof(struct legacy_ipc_device), GFP_KERNEL);
 	dev = bl->dev[IPC_MAP_HPRIO_RAW];
@@ -104,11 +192,13 @@ int create_legacy_link_device(struct mem_link_device *mld)
 	atomic_set(&dev->rxq.busy, 0);
 	dev->rxq.head = (void __iomem *)(mld->base + modem->legacy_raw_head_tail_offset + 8);
 	dev->rxq.tail = (void __iomem *)(mld->base + modem->legacy_raw_head_tail_offset + 12);
-#ifdef CONFIG_CACHED_LEGACY_RAW_RX_BUFFER
-	dev->rxq.buff = phys_to_virt(cp_shmem_get_base(bl->ld->mdm_data->cp_num, SHMEM_IPC) + modem->legacy_raw_buffer_offset + modem->legacy_raw_txq_size);
-#else
-	dev->rxq.buff = (void __iomem *)(mld->base + modem->legacy_raw_buffer_offset + modem->legacy_raw_txq_size);
-#endif
+	if (modem->legacy_raw_rx_buffer_cached)
+		dev->rxq.buff =
+			phys_to_virt(cp_shmem_get_base(bl->ld->mdm_data->cp_num, SHMEM_IPC) +
+			modem->legacy_raw_buffer_offset + modem->legacy_raw_txq_size);
+	else
+		dev->rxq.buff = (void __iomem *)(mld->base + modem->legacy_raw_buffer_offset +
+			modem->legacy_raw_txq_size);
 	dev->rxq.size = modem->legacy_raw_rxq_size;
 
 	dev->msg_mask = MASK_SEND_RAW;
@@ -125,6 +215,13 @@ int create_legacy_link_device(struct mem_link_device *mld)
 
 	spin_lock_init(&dev->tx_lock);
 
+	/* sysfs */
+	ret = sysfs_create_group(&ld->dev->kobj, &legacy_group);
+	if (ret != 0) {
+		mif_err("sysfs_create_group() error %d\n", ret);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -132,12 +229,14 @@ int init_legacy_link(struct legacy_link_device *bl)
 {
 	unsigned int magic;
 	unsigned int mem_access;
+	struct modem_data *modem = bl->ld->mdm_data;
+
 	int i = 0;
 
 	iowrite32(0, bl->magic);
 	iowrite32(0, bl->mem_access);
 
-	for (i = 0; i < MAX_SIPC_MAP; i++) {
+	for (i = 0; i < IPC_MAP_MAX; i++) {
 		struct legacy_ipc_device *dev = bl->dev[i];
 		/* initialize circ_queues */
 		iowrite32(0, dev->txq.head);
@@ -153,10 +252,9 @@ int init_legacy_link(struct legacy_link_device *bl)
 		atomic_set(&dev->rxq.busy, 0);
 		dev->req_ack_cnt[RX] = 0;
 
-#ifdef CONFIG_CACHED_LEGACY_RAW_RX_BUFFER
-		if (i == IPC_MAP_NORM_RAW)
-			__inval_dcache_area((void *)dev->rxq.buff, dev->rxq.size);
-#endif
+		if (modem->legacy_raw_rx_buffer_cached && i == IPC_MAP_NORM_RAW)
+			dma_sync_single_for_device(bl->ld->dev, virt_to_phys(dev->rxq.buff),
+					dev->rxq.size, DMA_FROM_DEVICE);
 	}
 
 	iowrite32(bl->ld->magic_ipc, bl->magic);
@@ -170,7 +268,7 @@ int init_legacy_link(struct legacy_link_device *bl)
 	return 0;
 }
 
-int xmit_to_legacy_link(struct mem_link_device *mld, enum sipc_ch_id ch,
+int xmit_to_legacy_link(struct mem_link_device *mld, u8 ch,
 			struct sk_buff *skb, enum legacy_ipc_map legacy_buffer_index)
 {
 	struct legacy_ipc_device *dev = mld->legacy_link_dev.dev[legacy_buffer_index];
@@ -246,6 +344,7 @@ struct sk_buff *recv_from_legacy_link(struct mem_link_device *mld,
 	unsigned int rest = circ_get_usage(qsize, in, out);
 	unsigned int len;
 	char hdr[EXYNOS_HEADER_SIZE];
+	char pr_buff[BAD_MSG_BUFFER_SIZE];
 
 	/* Copy the header in a frame to the header buffer */
 	switch (ld->protocol) {
@@ -294,10 +393,8 @@ struct sk_buff *recv_from_legacy_link(struct mem_link_device *mld,
 	/* Finish reading data before incrementing tail */
 	smp_mb();
 
-#ifdef DEBUG_MODEM_IF
 	/* Record the time-stamp */
-	getnstimeofday(&skbpriv(skb)->ts);
-#endif
+	ktime_get_ts64(&skbpriv(skb)->ts);
 
 	return skb;
 
@@ -305,6 +402,11 @@ bad_msg:
 	mif_err("%s%s%s: ERR! BAD MSG: %02x %02x %02x %02x\n",
 		ld->name, arrow(RX), ld->mc->name,
 		hdr[0], hdr[1], hdr[2], hdr[3]);
+
+	circ_read(pr_buff, src, qsize, out, BAD_MSG_BUFFER_SIZE);
+	pr_buffer("BAD MSG", (char *)pr_buff, (size_t)BAD_MSG_BUFFER_SIZE,
+			(size_t)BAD_MSG_BUFFER_SIZE);
+
 	set_rxq_tail(dev, in);	/* Reset tail (out) pointer */
 	if (ld->link_trigger_cp_crash) {
 		ld->link_trigger_cp_crash(mld, CRASH_REASON_MIF_RX_BAD_DATA,
@@ -322,7 +424,7 @@ bool check_legacy_tx_pending(struct mem_link_device *mld)
 	unsigned int head, tail;
 	struct legacy_ipc_device *dev;
 
-	for (i = IPC_MAP_FMT ; i < MAX_SIPC_MAP ; i++) {
+	for (i = IPC_MAP_FMT ; i < IPC_MAP_MAX ; i++) {
 		dev = mld->legacy_link_dev.dev[i];
 		head = get_txq_head(dev);
 		tail = get_txq_tail(dev);

@@ -4,6 +4,7 @@
 
 #include <linux/libc-compat.h>
 #include <linux/types.h>
+#include <linux/stddef.h>
 #include <linux/in6.h>
 #include <asm/byteorder.h>
 
@@ -40,6 +41,7 @@ struct in6_ifreq {
 #define IPV6_SRCRT_STRICT	0x01	/* Deprecated; will be removed */
 #define IPV6_SRCRT_TYPE_0	0	/* Deprecated; will be removed */
 #define IPV6_SRCRT_TYPE_2	2	/* IPv6 type 2 Routing Header	*/
+#define IPV6_SRCRT_TYPE_3	3	/* RPL Segment Routing with IPv6 */
 #define IPV6_SRCRT_TYPE_4	4	/* Segment Routing with IPv6 */
 
 /*
@@ -129,8 +131,14 @@ struct ipv6hdr {
 	__u8			nexthdr;
 	__u8			hop_limit;
 
-	struct	in6_addr	saddr;
-	struct	in6_addr	daddr;
+#ifndef __GENKSYMS__
+	__struct_group(/* no tag */, addrs, /* no attrs */,
+#endif
+		struct	in6_addr	saddr;
+		struct	in6_addr	daddr;
+#ifndef __GENKSYMS__
+	);
+#endif
 };
 
 
@@ -187,6 +195,7 @@ enum {
 	DEVCONF_DISABLE_POLICY,
 	DEVCONF_ACCEPT_RA_RT_INFO_MIN_PLEN,
 	DEVCONF_NDISC_TCLASS,
+	DEVCONF_RPL_SEG_ENABLED,
 	DEVCONF_MAX
 };
 

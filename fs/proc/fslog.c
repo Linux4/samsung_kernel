@@ -157,12 +157,12 @@ static int fslog_open_##_name(struct inode *inode, struct file *file) \
 	return do_fslog(FSLOG_ACTION_OPEN, &fslog_data_##_name, NULL, 0); \
 } \
 \
-static const struct file_operations fslog_##_name##_operations = { \
-	.read           = fslog_read, \
-	.write          = fslog_write, \
-	.open           = fslog_open_##_name, \
-	.release        = fslog_release, \
-	.llseek         = fslog_llseek, \
+static const struct proc_ops fslog_##_name##_operations = { \
+	.proc_read           = fslog_read, \
+	.proc_write          = fslog_write, \
+	.proc_open           = fslog_open_##_name, \
+	.proc_release        = fslog_release, \
+	.proc_lseek         = fslog_llseek, \
 };
 
 DEFINE_FSLOG_VARIABLE(dlog_mm, FSLOG_BUFLEN_DLOG_MM);
@@ -190,11 +190,11 @@ static int fslog_version_open(struct inode *inode, struct file *file)
 	return single_open(file, fslog_version_show, NULL);
 }
 
-static const struct file_operations fslog_ver_operations = {
-	.open           = fslog_version_open,
-	.read           = seq_read,
-	.llseek         = seq_lseek,
-	.release        = single_release,
+static const struct proc_ops fslog_ver_operations = {
+	.proc_open           = fslog_version_open,
+	.proc_read           = seq_read,
+	.proc_lseek         = seq_lseek,
+	.proc_release        = single_release,
 };
 
 #define DEFINE_FSLOG_CREATE(_name, log_name, file_mode) \
@@ -503,7 +503,7 @@ static int do_fslog(int type, struct fslog_data *fl_data, char __user *buf, int 
 		error = 0;
 		if (!len)
 			goto out;
-		if (!access_ok(VERIFY_WRITE, buf, len)) {
+		if (!access_ok(buf, len)) {
 			error = -EFAULT;
 			goto out;
 		}

@@ -79,7 +79,7 @@ static inline sdp_fs_command_t *sdp_fs_command_alloc(int opcode, int pid,
 
 static inline void sdp_fs_command_free(sdp_fs_command_t *cmd)
 {
-    kzfree(cmd);
+    kfree_sensitive(cmd);
 }
 
 #endif /* FS_REQUEST_H_ */

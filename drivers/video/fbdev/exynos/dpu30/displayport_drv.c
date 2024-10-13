@@ -2516,6 +2516,7 @@ static void displayport_init_subdev(struct displayport_device *displayport)
 	sd->owner = THIS_MODULE;
 	snprintf(sd->name, sizeof(sd->name), "%s", "displayport-sd");
 	v4l2_set_subdevdata(sd, displayport);
+	displayport->subdev_initialized = true;
 }
 
 static int displayport_parse_dt(struct displayport_device *displayport, struct device *dev)

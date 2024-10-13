@@ -13,8 +13,11 @@
 #ifndef __MFC_DEC_V4L2_H
 #define __MFC_DEC_V4L2_H __FILE__
 
-#include "mfc_common.h"
+#include "base/mfc_common.h"
 
 const struct v4l2_ioctl_ops *mfc_get_dec_v4l2_ioctl_ops(void);
 
+void mfc_dec_defer_disable(struct mfc_ctx *ctx, int del_timer);
+void mfc_dec_defer_src_checker(struct timer_list *t);
+void mfc_dec_defer_dst_checker(struct timer_list *t);
 #endif /* __MFC_DEC_V4L2_H */

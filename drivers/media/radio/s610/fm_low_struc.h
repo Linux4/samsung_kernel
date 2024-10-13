@@ -1,9 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * drivers/media/radio/s610/fm_low_struc.h
  *
  * Property and FM data define for SAMSUNG S610 chip
  *
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,10 +26,8 @@
 #include <linux/slab.h>
 #include <linux/io.h>
 
-#define S612_REV_1	(0x0030100)
-#define S612_REV_X	(0x0030000)
-#define S620_REV_0	(0x0100000)
-#define S621_REV_0	(0x1000000)
+#define S612_REV_1	(0x030100)
+#define S620_REV_0	(0x100000)
 
 #define USE_SPUR_CANCEL
 #undef USE_SPUR_CANCEL
@@ -44,11 +43,8 @@
 #define USE_FILTER_SELECT_BY_FREQ
 #define MAX_FILTER_FREQ_NUM	6
 
-#define	USE_RDS_HW_DECODER
-#undef	USE_RDS_HW_DECODER
-
-#define USE_RINGBUFF_API
-/*#undef USE_RINGBUFF_API*/
+#define USE_IQ_IMBAL_SMOOTH
+#undef USE_IQ_IMBAL_SMOOTH
 
 #define FM_LOW_DRV_DELAY_MS  1
 #define AGGR_RSSI_OFFSET (-114)
@@ -70,6 +66,7 @@ typedef u32 TIME;
 #define	TUNE_TIME_FAST_MS	(30)
 #define	TUNE_TIME_SLOW_MS	(60)
 #define	SEARCH_DELAY_MS	(16)
+#define IF_COUNT_INT_TIME	(40)
 
 #define RSSI_REF_ENABLE 0x01
 #define FM_RDS_MEM_SIZE_PARSER	2000
@@ -93,7 +90,7 @@ typedef u32 TIME;
  *	DEFINITIONS AND MACROS
  ******************************************************************************/
 /* == FM SPEEDY registers == */
-#define FM_SPEEDY_MA_BASE	(0x14840000)
+#define FM_SPEEDY_MA_BASE	(0x14AC0000)
 #define FMSPDY_CTL	(0x00000000)
 #define FMSPDY_STAT	(0x00000004)
 #define FMSPDY_DISR	(0x00000008)
@@ -273,7 +270,7 @@ struct interf_snr_thres {
 	s16 hi;
 };
 
-struct interf_snr_thres {
+struct interf_rssi_thres {
 	u16 lo;
 	u16 hi;
 };
@@ -296,7 +293,7 @@ struct fm_conf_ini_values {
 	u16 rds_int_byte_count;
 	struct search_config search_conf;
 #ifdef MONO_SWITCH_INTERF
-	interf_rssi_thres interf_rssi;
+	struct interf_rssi_thres interf_rssi;
 	struct interf_snr_thres interf_snr;
 #endif
 	u16 rds_error_limit;
@@ -368,24 +365,6 @@ enum fm_rds_rm_align_enum {
 	RDS_RM_ALIGN_NONE = 4
 };
 
-#ifdef	USE_RDS_HW_DECODER
-enum fm_rds_block_type_enum {
-	RDS_BLKTYPE_A	= 0,
-	RDS_BLKTYPE_B	= 1,
-	RDS_BLKTYPE_C	= 2,
-	RDS_BLKTYPE_C2	= 3,
-	RDS_BLKTYPE_D	= 4,
-	RDS_BLKTYPE_E	= 5,
-	RDS_NUM_BLOCK_TYPES = 6
-};
-
-enum fm_rds_state_enum {
-	RDS_STATE_INIT,
-	RDS_STATE_HAVE_DATA,
-	RDS_STATE_PRE_SYNC,
-	RDS_STATE_FULL_SYNC
-};
-#else
 enum fm_rds_block_type_enum {
 	RDS_BLKTYPE_A   = 0,
 	RDS_BLKTYPE_B   = 1,
@@ -405,7 +384,6 @@ enum fm_rds_state_enum {
 	RDS_STATE_FULL_SYNC,
 	RDS_STATE_INIT,
 };
-#endif	/*USE_RDS_HW_DECODER*/
 
 struct fm_rds_state_s {
 	unsigned current_state :3;

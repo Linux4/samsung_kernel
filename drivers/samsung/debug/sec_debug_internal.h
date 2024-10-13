@@ -1,34 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * drivers/staging/samsung/sec_debug_internal.h
+ * drivers/debug/sec_debug_internal.h
  *
- * COPYRIGHT(C) 2019 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2020 Samsung Electronics Co., Ltd. All Right Reserved.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #ifndef __SEC_DEBUG_INTERNAL_H__
 #define __SEC_DEBUG_INTERNAL_H__
 
-/*
- * flush_cache_all
- */
-
-#include <linux/sizes.h>
-#include <linux/irq.h>
-#include <linux/irqdesc.h>
-#include <soc/samsung/exynos-pmu.h>
 #include <linux/sec_debug.h>
-
-/* Normally, 0x80000000++0x1000, it is reserved in dtsi */
-#define SEC_DEBUG_MAGIC_PA memblock_start_of_DRAM()
-#define SEC_DEBUG_MAGIC_VA phys_to_virt(SEC_DEBUG_MAGIC_PA)
+#include <linux/sizes.h>
+#include <linux/coredump.h>
 
 /* TODO: SoC dependent offset, get them from LSI code ? */
 #define EXYNOS_PMU_INFORM2 0x0808
@@ -38,8 +21,29 @@
 #define SEC_DEBUG_MAGIC_INFORM		(EXYNOS_PMU_INFORM2)
 #define SEC_DEBUG_PANIC_INFORM		(EXYNOS_PMU_INFORM3)
 
-/* sec_debug_next is a main data structure in sec debug module */
-/* ksyms for using kernel symbols in bootloader */
+/* RESET REASON */
+enum sec_debug_reset_reason_t {
+	RR_S = 1,
+	RR_W = 2,
+	RR_D = 3,
+	RR_K = 4,
+	RR_M = 5,
+	RR_P = 6,
+	RR_R = 7,
+	RR_B = 8,
+	RR_N = 9,
+	RR_T = 10,
+	RR_C = 11,
+};
+
+/* sec debug buffer format */
+struct outbuf {
+	char buf[SZ_1K];
+	int index;
+	int already;
+};
+
+/* for sub data-structure of SDN */
 struct sec_debug_ksyms {
 	uint32_t magic;
 	uint32_t kallsyms_all;
@@ -163,13 +167,6 @@ struct sec_debug_task {
 	struct irq_stack_info irq_stack;
 };
 
-/* spinlock debugging data */
-struct sec_debug_spinlock_info {
-	member_type_int owner_cpu;
-	member_type_ptr owner;
-	int debug_enabled;
-};
-
 #define SD_NR_ESSINFO_ITEMS	(16)
 /* Exynos Debug Snapshot offset data */
 struct sec_debug_ess_info {
@@ -253,14 +250,6 @@ struct sec_debug_buf {
 	unsigned long size;
 };
 
-struct outbuf {
-	char buf[SZ_1K];
-	int index;
-	int already;
-};
-
-void secdbg_base_write_buf(struct outbuf *obuf, int len, const char *fmt, ...);
-
 struct sec_debug_map {
 	struct sec_debug_buf buf[NR_SDN_MAP];
 };
@@ -285,20 +274,22 @@ struct sec_debug_memtab {
 #define SEC_DEBUG_MAGIC1	(0x12121313)
 
 /* TODO: sdn needs extra info data structure to define it normally, but ... */
-/* SEC DEBUG EXTRA INFO */
+/* ------------------------------------------------
+ * SEC DEBUG EXTRA INFO
+ * ------------------------------------------------ */
 enum shared_buffer_slot {
-		SLOT_32,
-		SLOT_64,
-		SLOT_256,
-		SLOT_1024,
-		SLOT_MAIN_END = SLOT_1024,
-		NR_MAIN_SLOT = 4,
-		SLOT_BK_32 = NR_MAIN_SLOT,
-		SLOT_BK_64,
-		SLOT_BK_256,
-		SLOT_BK_1024,
-		SLOT_END = SLOT_BK_1024,
-		NR_SLOT = 8,
+	SLOT_32,
+	SLOT_64,
+	SLOT_256,
+	SLOT_1024,
+	SLOT_MAIN_END = SLOT_1024,
+	NR_MAIN_SLOT = 4,
+	SLOT_BK_32 = NR_MAIN_SLOT,
+	SLOT_BK_64,
+	SLOT_BK_256,
+	SLOT_BK_1024,
+	SLOT_END = SLOT_BK_1024,
+	NR_SLOT = 8,
 };
 
 struct sec_debug_sb_index {
@@ -320,12 +311,9 @@ struct sec_debug_shared_buffer {
 };
 
 /* TODO: sdn needs auto comment data structure to define it normally, but ... */
-/* SEC DEBUG AUTO COMMENT */
-#define AC_SIZE 0xf3c
-#define AC_MAGIC 0xcafecafe
-#define AC_TAIL_MAGIC 0x00c0ffee
-#define AC_EDATA_MAGIC 0x43218765
-
+/* ------------------------------------------------
+ * SEC DEBUG AUTO COMMENT
+ * ------------------------------------------------ */
 #define SEC_DEBUG_AUTO_COMM_BUF_SIZE 10
 
 struct sec_debug_auto_comm_buf {
@@ -348,67 +336,226 @@ struct sec_debug_auto_comment {
 	int tail_magic;
 };
 
-/* increase if sec_debug_next is not changed and other feature is upgraded */
-#define SEC_DEBUG_KERNEL_UPPER_VERSION		(0x0001)
-/* increase if sec_debug_next is changed */
-#define SEC_DEBUG_KERNEL_LOWER_VERSION		(0x0002)
+/* ------------------------------------------------
+ * SEC DEBUG GEN3 (Compatible with SEC DEBUG NEXT)
+ * ------------------------------------------------ */
+#define SEC_DEBUG_GEN3_MAGIC0	(0xc3a50421)
+#define SEC_DEBUG_GEN3_MAGIC1	(0xe2b42021)
 
-/* SEC DEBUG NEXT DEFINITION */
-struct sec_debug_next {
+#define LEN_SECDBG_OFFSET_NAME		(64)
+
+struct sec_debug_version {
 	unsigned int magic[2];
 	unsigned int version[2];
-
-	struct sec_debug_map map;
-	struct sec_debug_memtab memtab;
-	struct sec_debug_ksyms ksyms;
-	struct sec_debug_kcnst kcnst;
-	struct sec_debug_task task;
-	struct sec_debug_ess_info ss_info;
-	struct sec_debug_spinlock_info rlock;
-	struct sec_debug_kernel_data kernd;
-
-	struct sec_debug_auto_comment auto_comment;
-	struct sec_debug_shared_buffer extra_info;
 };
 
+#define NR_GEN3_LOGBUF		32
+#define NR_GEN3_KEVENT		32
+
+/* LV1 */
+struct secdbg_extra_info {
+	struct sec_debug_shared_buffer data;
+
+	char name[LEN_SECDBG_OFFSET_NAME];
+};
+
+/* LV1 */
+struct secdbg_auto_comment {
+	struct sec_debug_auto_comment data;
+
+	char name[LEN_SECDBG_OFFSET_NAME];
+};
+
+/* LV1 */
+struct secdbg_kernel_data {
+	struct sec_debug_kernel_data data;
+
+	char name[LEN_SECDBG_OFFSET_NAME];
+};
+
+/* LV1 */
+struct secdbg_snapshot_offset {
+	struct ess_info_offset data[NR_GEN3_KEVENT];
+
+	char name[LEN_SECDBG_OFFSET_NAME];
+};
+
+/* LV1 */
+struct secdbg_task_struct {
+	struct sec_debug_task data;
+
+	char name[LEN_SECDBG_OFFSET_NAME];
+};
+
+/* LV1 */
+struct secdbg_kernel_constant {
+	struct sec_debug_kcnst data;
+
+	char name[LEN_SECDBG_OFFSET_NAME];
+};
+
+#define LEN_LOGBUF_NAME	(32)
+/* LV2 (under secdbg_logbuf_list) */
+struct secdbg_logbuf {
+	uint64_t base;
+	uint64_t size;
+	char name[LEN_LOGBUF_NAME];
+	uint32_t is_storage;
+	uint32_t offset;
+	uint32_t partition;
+};
+
+/* LV1 */
+struct secdbg_logbuf_list {
+	struct secdbg_logbuf data[NR_GEN3_LOGBUF];
+
+	char name[LEN_SECDBG_OFFSET_NAME];
+};
+
+/* LV1 */
+struct secdbg_memtab {
+	struct sec_debug_memtab data;
+
+	char name[LEN_SECDBG_OFFSET_NAME];
+};
+
+/* Offset for LV1 */
+struct secdbg_lv1_member {
+	char name[LEN_SECDBG_OFFSET_NAME];
+	uint64_t size;
+	uint64_t addr;
+};
+
+enum gen3_lv1_item {
+	SDN_LV1_LOGBUF_MAP,
+	SDN_LV1_MEMTAB,
+	SDN_LV1_KERNEL_SYMBOL,
+	SDN_LV1_KERNEL_CONSTANT,
+	SDN_LV1_TASK_STRUCT,
+	SDN_LV1_SNAPSHOT,
+	SDN_LV1_SPINLOCK,	/* reserved */
+	SDN_LV1_KERNEL_DATA,
+	SDN_LV1_AUTO_COMMENT,
+	SDN_LV1_EXTRA_INFO,
+};
+
+/* increase if sec_debug_next is not changed and other feature is upgraded */
+#define SEC_DEBUG_KERNEL_UPPER_VERSION		(0x1001)
+/* increase if sec_debug_next is changed */
+#define SEC_DEBUG_KERNEL_LOWER_VERSION		(0x1002)
+
+/* SEC DEBUG NEXT DEFINITION */
+struct sec_debug_gen3 {
+	unsigned int magic[2];
+	unsigned int version[2];
+	unsigned int used_offset;
+	unsigned int end_addr;
+	unsigned int reserved[4];
+
+	struct secdbg_lv1_member lv1_data[64];
+};
+
+struct sec_debug_base_param {
+	void *sdn_vaddr;
+	bool init_sdn_done;
+};
+
+/* SEC DEBUG HARDLOCUP INFO */
+enum ehld_types {
+	NO_INSTRET,
+	NO_INSTRUN,
+	MAX_ETYPES
+};
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_MEMTAB)
+extern struct secdbg_member_type __start__secdbg_member_table[];
+extern struct secdbg_member_type __stop__secdbg_member_table[];
+#endif
+
+/* function for external call */
+extern void *secdbg_base_get_debug_base(int type);
+extern unsigned long secdbg_base_get_buf_base(int type);
+extern unsigned long secdbg_base_get_buf_size(int type);
+extern void *secdbg_base_get_ncva(unsigned long pa);
+extern unsigned long secdbg_base_get_end_addr(void);
+extern void *secdbg_base_get_kcnst_base(void);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_LOCKUP_INFO)
+void secdbg_base_set_info_hard_lockup(unsigned int cpu, struct task_struct *task);
+#endif
+
+/* SEC DEBUG EXTAR INFO */
 #define MAX_ITEM_KEY_LEN		(16)
 #define MAX_ITEM_VAL_LEN		(1008)
 
-enum sec_debug_reset_reason_t {
-	RR_S = 1,
-	RR_W = 2,
-	RR_D = 3,
-	RR_K = 4,
-	RR_M = 5,
-	RR_P = 6,
-	RR_R = 7,
-	RR_B = 8,
-	RR_N = 9,
-	RR_T = 10,
-	RR_C = 11,
-};
-
-extern void *secdbg_base_get_debug_base(int type);
-extern void *secdbg_base_get_kcnst_base(void);
-extern unsigned long secdbg_base_get_buf_base(int type);
-extern unsigned long secdbg_base_get_buf_size(int type);
+#define SEC_DEBUG_SHARED_MAGIC0 0xFFFFFFFF
+#define SEC_DEBUG_SHARED_MAGIC1 0x95308180
+#define SEC_DEBUG_SHARED_MAGIC2 0x15001500
+#define SEC_DEBUG_SHARED_MAGIC3 0x00010001
 
 extern int id_get_asb_ver(void);
 extern int id_get_product_line(void);
 
-/* sec_debug_extra_info.c */
 extern char *get_bk_item_val(const char *key);
 extern void get_bk_item_val_as_string(const char *key, char *buf);
+
+extern void secdbg_exin_set_hwid(int asb_ver, int psite, const char *dramstr);
 extern void secdbg_exin_get_extra_info_A(char *ptr);
 extern void secdbg_exin_get_extra_info_B(char *ptr);
 extern void secdbg_exin_get_extra_info_C(char *ptr);
-extern void secdbg_exin_get_extra_info_M(char *ptr);
 extern void secdbg_exin_get_extra_info_F(char *ptr);
+extern void secdbg_exin_get_extra_info_M(char *ptr);
+extern void secdbg_exin_get_extra_info_T(char *ptr);
 
-/* sec_debug_ksym.c */
-extern void secdbg_base_set_kallsyms_info(struct sec_debug_ksyms *ksyms, int magic);
+int secdbg_atsl_init(void);
 
-/* sec_debug_memtab.c */
-extern void secdbg_base_set_memtab_info(struct sec_debug_memtab *ksyms);
+#ifndef MODULE
+extern void *secdbg_base_built_get_debug_base(int type);
+extern unsigned long secdbg_base_built_get_buf_base(int type);
+extern unsigned long secdbg_base_built_get_buf_size(int type);
+extern void *secdbg_base_built_get_ncva(unsigned long pa);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_AUTO_COMMENT)
+extern int secdbg_comm_auto_comment_init(void);
+#else
+static inline int secdbg_comm_auto_comment_init(void)
+{
+	return 0;
+}
+#endif /* CONFIG_SEC_DEBUG_AUTO_COMMENT */
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO_BUILT_IN)
+extern int secdbg_extra_info_built_init(void);
+#else
+static inline int secdbg_extra_info_built_init(void)
+{
+	return 0;
+}
+#endif /* CONFIG_SEC_DEBUG_EXTRA_INFO */
+
+#endif /* !MODULE */
+
+extern void secdbg_ksym_set_kallsyms_info(struct sec_debug_ksyms *ksyms);
+
+/* sec_debug_memtab_built.c */
+#if IS_ENABLED(CONFIG_SEC_DEBUG_MEMTAB)
+extern void secdbg_base_built_set_memtab_info(struct sec_debug_memtab *mtab);
+#else
+static inline void secdbg_base_built_set_memtab_info(struct sec_debug_memtab *mtab) { }
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_STACKTRACE)
+extern void secdbg_stra_show_callstack_auto(struct task_struct *tsk);
+#else
+static inline void secdbg_stra_show_callstack_auto(struct task_struct *tsk) {}
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_COREDUMP)
+extern void register_coredump_hook_notes_write(int (*func)(struct coredump_params *));
+extern void register_coredump_hook_notes_size(int (*func)(void));
+#else
+static inline void register_coredump_hook_notes_write(int (*func)(struct coredump_params *)) { }
+static inline void register_coredump_hook_notes_size(int (*func)(void)) { }
+#endif
 
 #endif /* __SEC_DEBUG_INTERNAL_H__ */

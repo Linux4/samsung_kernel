@@ -47,12 +47,16 @@ static inline bool uid_is_app(uid_t uid)
 
 void dek_add_to_log(int engine_id, char *buffer);
 
-static inline void secure_zeroout(const char *msg, unsigned char *raw, unsigned int size) {
+static inline void secure_zeroout(const char *msg, unsigned char *raw, unsigned int size)
+{
 	int i, verified = 1;
 	volatile unsigned char *p = (volatile unsigned char *) raw;
-	for (i = 0; i < size; i++) p[i] = 0;
+	for (i = 0; i < size; i++)
+		p[i] = 0;
 
-	for (i = 0; i < size; i++) if (p[i] != 0) verified = 0;
+	for (i = 0; i < size; i++)
+		if (p[i] != 0)
+			verified = 0;
 
 	if (!verified)
 		printk("secure_zeroout:%s verified:%d\n", msg, verified);

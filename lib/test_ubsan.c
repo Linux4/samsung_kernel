@@ -42,14 +42,6 @@ static void test_ubsan_divrem_overflow(void)
 	val /= val2;
 }
 
-static void test_ubsan_vla_bound_not_positive(void)
-{
-	volatile int size = -1;
-	char buf[size];
-
-	(void)buf;
-}
-
 static void test_ubsan_shift_out_of_bounds(void)
 {
 	volatile int val = -1;
@@ -61,7 +53,7 @@ static void test_ubsan_shift_out_of_bounds(void)
 static void test_ubsan_out_of_bounds(void)
 {
 	volatile int i = 4, j = 5;
-	volatile int arr[i];
+	volatile int arr[4];
 
 	arr[j] = i;
 }
@@ -97,29 +89,17 @@ static void test_ubsan_misaligned_access(void)
 	*ptr = val;
 }
 
-static void test_ubsan_object_size_mismatch(void)
-{
-	/* "((aligned(8)))" helps this not into be misaligned for ptr-access. */
-	volatile int val __aligned(8) = 4;
-	volatile long long *ptr, val2;
-
-	ptr = (long long *)&val;
-	val2 = *ptr;
-}
-
 static const test_ubsan_fp test_ubsan_array[] = {
 	test_ubsan_add_overflow,
 	test_ubsan_sub_overflow,
 	test_ubsan_mul_overflow,
 	test_ubsan_negate_overflow,
 	test_ubsan_divrem_overflow,
-	test_ubsan_vla_bound_not_positive,
 	test_ubsan_shift_out_of_bounds,
 	test_ubsan_out_of_bounds,
 	test_ubsan_load_invalid_value,
 	//test_ubsan_null_ptr_deref, /* exclude it because there is a crash */
 	test_ubsan_misaligned_access,
-	test_ubsan_object_size_mismatch,
 };
 
 static int __init test_ubsan_init(void)

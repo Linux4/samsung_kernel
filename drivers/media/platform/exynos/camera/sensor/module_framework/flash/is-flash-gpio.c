@@ -17,7 +17,7 @@
 #include <linux/of_gpio.h>
 
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-flash.h"
 #include "is-device-sensor.h"
@@ -136,9 +136,34 @@ p_err:
 	return ret;
 }
 
+long flash_gpio_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_FLS_S_CTRL:
+		ret = flash_gpio_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! flash_gpio_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_FLS_G_CTRL:
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = flash_gpio_init,
-	.s_ctrl = flash_gpio_s_ctrl,
+	.ioctl = flash_gpio_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {

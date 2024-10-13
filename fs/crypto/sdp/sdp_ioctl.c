@@ -3,12 +3,15 @@
  *
  */
 #include <linux/uaccess.h>
+#include <linux/fscrypto_sdp_ioctl.h>
 #include "../fscrypt_private.h"
+#include "sdp_crypto.h"
 
 int fscrypt_sdp_ioctl_get_sdp_info(struct inode *inode, unsigned long arg)
 {
 	struct dek_arg_sdp_info req;
 	struct fscrypt_info *ci;
+	struct ext_fscrypt_info *ext_ci;
 	int result = 0;
 
 	if (inode->i_crypt_info == NULL) {
@@ -22,18 +25,19 @@ int fscrypt_sdp_ioctl_get_sdp_info(struct inode *inode, unsigned long arg)
 	req.sdp_enabled = 1;
 
 	ci = inode->i_crypt_info;
-	if(!ci->ci_sdp_info) {
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info) {
 		DEK_LOGE("get_info: can't find sdp info\n");
 	} else {
 		DEK_LOGD("get_info: ci->i_crypt_info->sdp_flags: 0x%08x\n",
-				ci->ci_sdp_info->sdp_flags);
+				ext_ci->ci_sdp_info->sdp_flags);
 
-		if (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) {
+		if (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) {
 			req.is_sensitive = 1;
-			req.engine_id = ci->ci_sdp_info->engine_id;
-			req.type = ci->ci_sdp_info->sdp_dek.type;
+			req.engine_id = ext_ci->ci_sdp_info->engine_id;
+			req.type = ext_ci->ci_sdp_info->sdp_dek.type;
 		}
-		if (ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)
+		if (ext_ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)
 			req.is_chamber = 1;
 	}
 
@@ -85,9 +89,10 @@ int fscrypt_sdp_ioctl_set_sensitive(struct inode *inode, unsigned long arg)
 		result = -EOPNOTSUPP;
 	} else {
 		struct fscrypt_info *ci = inode->i_crypt_info;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 
-		if (ci->ci_sdp_info &&
-				(ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
+		if (ext_ci->ci_sdp_info &&
+				(ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
 			DEK_LOGE("already sensitive file\n");
 			return 0;
 		}
@@ -174,14 +179,15 @@ int fscrypt_sdp_ioctl_add_chamber_directory(struct inode *inode, unsigned long a
 	} else {
 		dek_arg_add_chamber_t req;
 		struct fscrypt_info *ci = inode->i_crypt_info;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 
 		if (!S_ISDIR(inode->i_mode)) {
 			DEK_LOGE("Not directory\n");
 			return -EOPNOTSUPP;
 		}
 
-		if (ci->ci_sdp_info &&
-				ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR) {
+		if (ext_ci->ci_sdp_info &&
+				ext_ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR) {
 			DEK_LOGE("Already chamber directory\n");
 			return 0;
 		}
@@ -220,9 +226,10 @@ int fscrypt_sdp_ioctl_remove_chamber_directory(struct inode *inode)
 	} else {
 		int rc;
 		struct fscrypt_info *ci = inode->i_crypt_info;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 
-		if (!ci->ci_sdp_info ||
-				!(ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)) {
+		if (!ext_ci->ci_sdp_info ||
+				!(ext_ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)) {
 			DEK_LOGE("Not chamber directory\n");
 			return 0;
 		}
@@ -239,9 +246,9 @@ int fscrypt_sdp_ioctl_remove_chamber_directory(struct inode *inode)
 	return result;
 }
 
+#ifdef CONFIG_SDP_KEY_DUMP
 int fscrypt_sdp_ioctl_dump_file_key(struct inode *inode)
 {
-#ifdef CONFIG_SDP_KEY_DUMP
 	int rc = 0;
 
 	DEK_LOGE("%s(ino:%ld)\n", __func__, inode->i_ino);
@@ -257,10 +264,26 @@ int fscrypt_sdp_ioctl_dump_file_key(struct inode *inode)
 		}
 	}
 	return rc;
-#else
-	return 0;
-#endif
 }
+
+int fscrypt_sdp_ioctl_trace_file(struct inode *inode)
+{
+	int rc = 0;
+
+	DEK_LOGI("%s(ino:%ld)\n", __func__, inode->i_ino);
+	if (inode->i_crypt_info == NULL) {
+		DEK_LOGE("no encryption context to the target..\n");
+		rc = -EOPNOTSUPP;
+	} else {
+		rc = fscrypt_sdp_trace_file(inode);
+		if (rc) {
+			DEK_LOGE("trace_file: operation failed (err:%d)\n", rc);
+			rc = -EFAULT;
+		}
+	}
+	return rc;
+}
+#endif // End of CONFIG_SDP_KEY_DUMP
 
 /*
  * -ENOTTY will be returned if this ioctl is not related to SDP
@@ -270,8 +293,10 @@ int fscrypt_sdp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct inode *inode = file_inode(filp);
 
 	if (!fscrypt_has_encryption_key(inode)) {
-		//Not allowed without i_crypt_info, go to the default ioctl
-		return -ENOTTY;
+		if (fscrypt_prepare_readdir(inode)) {
+			//Not allowed without i_crypt_info, go to the default ioctl
+			return -ENOTTY;
+		}
 	}
 
 	switch (cmd) {
@@ -287,8 +312,12 @@ int fscrypt_sdp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return fscrypt_sdp_ioctl_add_chamber_directory(inode, arg);
 	case FS_IOC_REMOVE_CHAMBER:
 		return fscrypt_sdp_ioctl_remove_chamber_directory(inode);
+#ifdef CONFIG_SDP_KEY_DUMP
 	case FS_IOC_DUMP_FILE_KEY:
 		return fscrypt_sdp_ioctl_dump_file_key(inode);
+	case FS_IOC_TRACE_FILE:
+		return fscrypt_sdp_ioctl_trace_file(inode);
+#endif
 	default:
 		return -ENOTTY;
 	}

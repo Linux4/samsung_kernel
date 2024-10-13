@@ -18,12 +18,16 @@
 #include <linux/of_gpio.h>
 
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-flash.h"
 #include "is-device-sensor.h"
 #include "is-device-sensor-peri.h"
 #include "is-core.h"
+
+#define S2MPB02_MAX_TORCH_INTENSITY	(255)
+
+static struct device *camera_flash_dev;
 
 #ifdef CONFIG_FLASH_CURRENT_CHANGE_SUPPORT
 extern int s2mpb02_set_flash_current(int intensive);
@@ -64,6 +68,8 @@ static int sensor_s2mpb02_flash_control(struct v4l2_subdev *subdev, enum flash_m
 
 	flash = (struct is_flash *)v4l2_get_subdevdata(subdev);
 	FIMC_BUG(!flash);
+
+	mutex_lock(&flash->control_lock);
 
 	info("%s : mode = %s, intensity = %d\n", __func__,
 		mode == CAM2_FLASH_MODE_OFF ? "OFF" :
@@ -106,6 +112,7 @@ static int sensor_s2mpb02_flash_control(struct v4l2_subdev *subdev, enum flash_m
 	}
 
 p_err:
+	mutex_unlock(&flash->control_lock);
 	return ret;
 }
 
@@ -156,16 +163,86 @@ p_err:
 	return ret;
 }
 
+long flash_s2mpb02_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_FLS_S_CTRL:
+		ret = flash_s2mpb02_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! flash_gpio_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_FLS_G_CTRL:
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = flash_s2mpb02_init,
-	.s_ctrl = flash_s2mpb02_s_ctrl,
+	.ioctl = flash_s2mpb02_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
 	.core = &core_ops,
 };
 
-static int __init flash_s2mpb02_probe(struct device *dev, struct i2c_client *client)
+
+static ssize_t rear_torch_flash_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+		return sprintf(buf, "max torch intensity: %d\n",
+				S2MPB02_MAX_TORCH_INTENSITY);
+}
+
+static ssize_t rear_torch_flash_store(struct device *dev,
+		struct device_attribute *attr, const char *buf,
+		size_t count)
+{
+	struct is_flash *flash;
+	struct v4l2_subdev *subdev_flash;
+	int value = 0;
+
+	if (!buf || kstrtouint(buf, 10, &value))
+		return -1;
+
+	flash = (struct is_flash *) dev_get_drvdata(dev);
+	if (!flash) {
+		dev_err(dev, "flash is NULL");
+		return -1;
+	}
+
+	subdev_flash = flash->subdev;
+	if (!subdev_flash) {
+		dev_err(dev, "subdev_flash is NULL");
+		return -1;
+	}
+
+	dev_info(dev, "flash_control: val(%d)\n", value);
+	if (value)
+		sensor_s2mpb02_flash_control(subdev_flash,
+				CAM2_FLASH_MODE_TORCH,
+				S2MPB02_MAX_TORCH_INTENSITY);
+	else
+		sensor_s2mpb02_flash_control(subdev_flash,
+				CAM2_FLASH_MODE_OFF, 0);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(rear_torch_flash);
+
+static int flash_s2mpb02_probe(struct device *dev, struct i2c_client *client)
 {
 	int ret = 0;
 	struct is_core *core;
@@ -257,7 +334,8 @@ static int __init flash_s2mpb02_probe(struct device *dev, struct i2c_client *cli
 		}
 
 		flash[i].flash_data.mode = CAM2_FLASH_MODE_OFF;
-		flash[i].flash_data.intensity = 255; /* TODO: Need to figure out min/max range */
+		/* TODO: Need to figure out min/max range */
+		flash[i].flash_data.intensity = S2MPB02_MAX_TORCH_INTENSITY;
 		flash[i].flash_data.firing_time_us = 1 * 1000 * 1000; /* Max firing time is 1sec */
 
 		device = &core->sensor[sensor_id[i]];
@@ -277,11 +355,26 @@ static int __init flash_s2mpb02_probe(struct device *dev, struct i2c_client *cli
 		probe_info("%s done\n", __func__);
 	}
 
+	camera_flash_dev = device_create(camera_class, NULL, 3, flash, "flash");
+	if (IS_ERR(camera_flash_dev)) {
+		dev_err(dev, "failed to create flash device\n");
+		goto p_err;
+	}
+
+	ret = device_create_file(camera_flash_dev, &dev_attr_rear_torch_flash);
+	if (ret)
+		dev_err(camera_flash_dev,
+			"failed to create device file %s\n",
+			dev_attr_rear_torch_flash.attr.name);
+
+	mutex_init(&flash->control_lock);
+
+
 p_err:
 	return ret;
 }
 
-static int __init flash_s2mpb02_platform_probe(struct platform_device *pdev)
+static int flash_s2mpb02_platform_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct device *dev;
@@ -312,6 +405,7 @@ MODULE_DEVICE_TABLE(of, exynos_is_sensor_flash_s2mpb02_match);
 
 /* register platform driver */
 static struct platform_driver sensor_flash_s2mpb02_platform_driver = {
+	.probe = flash_s2mpb02_platform_probe,
 	.driver = {
 		.name   = "FIMC-IS-SENSOR-FLASH-S2MPB02-PLATFORM",
 		.owner  = THIS_MODULE,
@@ -319,6 +413,27 @@ static struct platform_driver sensor_flash_s2mpb02_platform_driver = {
 	}
 };
 
+#ifdef MODULE
+static int flash_s2mpb02_module_init(void)
+{
+	int ret = 0;
+
+	ret = platform_driver_register(&sensor_flash_s2mpb02_platform_driver);
+	if (ret) {
+		err("flash_s2mpb02 driver register failed(%d)", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+static void flash_s2mpb02_module_exit(void)
+{
+	platform_driver_unregister(&sensor_flash_s2mpb02_platform_driver);
+}
+module_init(flash_s2mpb02_module_init);
+module_exit(flash_s2mpb02_module_exit);
+#else
 static int __init sensor_flash_s2mpb02_init(void)
 {
 	int ret;
@@ -332,3 +447,7 @@ static int __init sensor_flash_s2mpb02_init(void)
 	return ret;
 }
 late_initcall_sync(sensor_flash_s2mpb02_init);
+#endif
+
+MODULE_LICENSE("GPL");
+MODULE_SOFTDEP("pre: fimc-is");

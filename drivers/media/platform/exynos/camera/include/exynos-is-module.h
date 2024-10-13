@@ -80,6 +80,12 @@ struct exynos_sensor_module_match {
 		(d)->pin_ctrls[s][c][d->pinctrl_index[s][c] - 1].shared_rsc_active = active;	\
 	} while (0)
 
+struct is_module_regulator {
+	struct regulator *regulator;
+	char *name;
+	struct list_head list;
+};
+
 struct exynos_platform_is_module {
 	int (*gpio_cfg)(struct is_module_enum *module, u32 scenario, u32 gpio_scenario);
 	int (*gpio_dbg)(struct is_module_enum *module, u32 scenario, u32 gpio_scenario);
@@ -104,7 +110,7 @@ struct exynos_platform_is_module {
 	char *sensor_maker;
 	char *sensor_name;
 	char *setfile_name;
-	u32 sensor_module_type;
+	u32	sensor_module_type;
 	u32 cfgs;
 	struct is_sensor_cfg *cfg;
 	struct is_sensor_vc_extra_info vc_extra_info[VC_BUF_DATA_TYPE_MAX];

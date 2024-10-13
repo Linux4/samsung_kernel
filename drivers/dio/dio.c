@@ -89,8 +89,8 @@ static struct dioname names[] =
 #undef DIONAME
 #undef DIOFBNAME
 
-static const char *unknowndioname 
-        = "unknown DIO board -- please email <linux-m68k@lists.linux-m68k.org>!";
+static const char unknowndioname[]
+	= "unknown DIO board, please email linux-m68k@lists.linux-m68k.org";
 
 static const char *dio_getname(int id)
 {
@@ -109,6 +109,12 @@ static char dio_no_name[] = { 0 };
 #define dio_getname(_id)	(dio_no_name)
 
 #endif /* CONFIG_DIO_CONSTANTS */
+
+static void dio_dev_release(struct device *dev)
+{
+	struct dio_dev *ddev = container_of(dev, typeof(struct dio_dev), dev);
+	kfree(ddev);
+}
 
 int __init dio_find(int deviceid)
 {
@@ -135,7 +141,8 @@ int __init dio_find(int deviceid)
 		else
 			va = ioremap(pa, PAGE_SIZE);
 
-                if (probe_kernel_read(&i, (unsigned char *)va + DIO_IDOFF, 1)) {
+		if (copy_from_kernel_nofault(&i,
+				(unsigned char *)va + DIO_IDOFF, 1)) {
 			if (scode >= DIOII_SCBASE)
 				iounmap(va);
                         continue;             /* no board present at that select code */
@@ -208,7 +215,8 @@ static int __init dio_init(void)
 		else
 			va = ioremap(pa, PAGE_SIZE);
 
-                if (probe_kernel_read(&i, (unsigned char *)va + DIO_IDOFF, 1)) {
+		if (copy_from_kernel_nofault(&i,
+				(unsigned char *)va + DIO_IDOFF, 1)) {
 			if (scode >= DIOII_SCBASE)
 				iounmap(va);
                         continue;              /* no board present at that select code */
@@ -222,6 +230,7 @@ static int __init dio_init(void)
 		dev->bus = &dio_bus;
 		dev->dev.parent = &dio_bus.dev;
 		dev->dev.bus = &dio_bus_type;
+		dev->dev.release = dio_dev_release;
 		dev->scode = scode;
 		dev->resource.start = pa;
 		dev->resource.end = pa + DIO_SIZE(scode, va);
@@ -249,6 +258,7 @@ static int __init dio_init(void)
 		if (error) {
 			pr_err("DIO: Error registering device %s\n",
 			       dev->name);
+			put_device(&dev->dev);
 			continue;
 		}
 		error = dio_create_sysfs_dev_files(dev);

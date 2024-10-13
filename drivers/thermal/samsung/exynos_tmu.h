@@ -22,22 +22,35 @@
 
 #ifndef _EXYNOS_TMU_H
 #define _EXYNOS_TMU_H
-#include <linux/cpu_cooling.h>
-#include <linux/gpu_cooling.h>
-#include <linux/isp_cooling.h>
-#include <linux/pm_qos.h>
+#include <soc/samsung/cpu_cooling.h>
+#include <soc/samsung/gpu_cooling.h>
+#include <soc/samsung/isp_cooling.h>
+#include <soc/samsung/exynos_pm_qos.h>
+#include <soc/samsung/exynos-cpuhp.h>
+#include <linux/kthread.h>
 #include <dt-bindings/thermal/thermal_exynos.h>
 
 #define MCELSIUS        1000
 
 enum soc_type {
-	SOC_ARCH_EXYNOS8890 = 1,
-	SOC_ARCH_EXYNOS8895 = 2,
-	SOC_ARCH_EXYNOS7872,
-	SOC_ARCH_EXYNOS9810,
-	SOC_ARCH_EXYNOS9820,
-	SOC_ARCH_EXYNOS9630,
-	SOC_ARCH_EXYNOS3830,
+	SOC_ARCH_EXYNOS3830 = 1,
+};
+struct exynos_pi_param {
+	s64 err_integral;
+	int trip_switch_on;
+	int trip_control_temp;
+
+	u32 sustainable_power;
+	s32 k_po;
+	s32 k_pu;
+	s32 k_i;
+	s32 i_max;
+	s32 integral_cutoff;
+
+	int polling_delay_on;
+	int polling_delay_off;
+
+	bool switched_on;
 };
 
 /**
@@ -70,20 +83,6 @@ struct exynos_tmu_platform_data {
 	u32 cal_type;
 };
 
-enum sensing_type {
-	AVG = 0,
-	MAX,
-	MIN,
-	BALANCE,
-	END_OF_TYPE,
-};
-
-static const char * const sensing_method[] = {
-	[AVG] = "avg",
-	[MAX] = "max",
-	[MIN] = "min",
-	[BALANCE] = "balance",
-};
 
 struct sensor_info {
 	u16 sensor_num;
@@ -96,16 +95,11 @@ struct sensor_info {
  * struct exynos_tmu_data : A structure to hold the private data of the TMU
 	driver
  * @id: identifier of the one instance of the TMU controller.
- * @pdata: pointer to the tmu platform/configuration data
  * @base: base address of the single instance of the TMU controller.
- * @base_second: base address of the common registers of the TMU controller.
  * @irq: irq number of the TMU controller.
  * @soc: id of the SOC type.
  * @irq_work: pointer to the irq work structure.
  * @lock: lock to implement synchronization.
- * @temp_error1: fused value of the first point trim.
- * @temp_error2: fused value of the second point trim.
- * @num_probe: number of probe for TMU_CONTROL1 SFR setting.
  * @regulator: pointer to the TMU regulator structure.
  * @reg_conf: pointer to structure to register with core thermal.
  * @ntrip: number of supported trip points.
@@ -114,8 +108,6 @@ struct sensor_info {
  * @tmu_read: SoC specific TMU temperature read method
  * @tmu_set_emulation: SoC specific TMU emulation setting method
  * @tmu_clear_irqs: SoC specific TMU interrupts clearing method
- * @first_boot: Read OTP fused value only when boot time
- * @buf_vref, buf_slope, avg_mode: OTP value for read once and save
  */
 struct exynos_tmu_data {
 	int id;
@@ -128,7 +120,9 @@ struct exynos_tmu_data {
 	void __iomem *base;
 	int irq;
 	enum soc_type soc;
-	struct work_struct irq_work;
+	struct kthread_worker thermal_worker;
+	struct kthread_work irq_work;
+	struct kthread_work hotplug_work;
 	struct mutex lock;
 	u16 temp_error1, temp_error2;
 	struct thermal_zone_device *tzd;
@@ -140,10 +134,18 @@ struct exynos_tmu_data {
 	int num_probe;
 	int num_of_sensors;
 	struct sensor_info *sensor_info;
-	int sensing_mode;
 	char tmu_name[THERMAL_NAME_LENGTH + 1];
 	struct device_node *np;
-	int balance_offset;
+	struct cpumask cpu_domain;
+	bool is_cpu_hotplugged_out;
+	char cpuhp_name[THERMAL_NAME_LENGTH + 1];
+	int temperature;
+	bool use_pi_thermal;
+	struct kthread_delayed_work pi_work;
+	struct exynos_pi_param *pi_param;
+	struct notifier_block nb;
+	atomic_t in_suspend;
+
 	bool first_boot;
 	unsigned int buf_vref;
 	unsigned int buf_slope;
@@ -160,6 +162,31 @@ struct exynos_tmu_data {
 };
 
 extern int exynos_build_static_power_table(struct device_node *np, int **var_table,
-		unsigned int *var_volt_size, unsigned int *var_temp_size);
+		unsigned int *var_volt_size, unsigned int *var_temp_size, char *tz_name);
+
+#if IS_ENABLED(CONFIG_EXYNOS_ACPM_THERMAL)
+#if defined(CONFIG_SOC_EXYNOS991) || defined(CONFIG_SOC_EXYNOS2100)
+#define PMUREG_AUD_STATUS           0x1884
+#define PMUREG_AUD_STATUS_MASK          0x1
+#endif
+#endif
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX)
+extern bool abox_is_on(void);
+#else
+static inline bool abox_is_on(void)
+{
+	return 0;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_ISP_THERMAL)
+int exynos_isp_cooling_init(void);
+#else
+static inline int exynos_isp_cooling_init(void)
+{
+	return 0;
+}
+#endif
 
 #endif /* _EXYNOS_TMU_H */

@@ -19,7 +19,8 @@
 #define inet_protocol_names		\
 		EM(IPPROTO_TCP)			\
 		EM(IPPROTO_DCCP)		\
-		EMe(IPPROTO_SCTP)
+		EM(IPPROTO_SCTP)		\
+		EMe(IPPROTO_MPTCP)
 
 #define tcp_state_names			\
 		EM(TCP_ESTABLISHED)		\
@@ -82,7 +83,7 @@ TRACE_EVENT(sock_rcvqueue_full,
 	TP_fast_assign(
 		__entry->rmem_alloc = atomic_read(&sk->sk_rmem_alloc);
 		__entry->truesize   = skb->truesize;
-		__entry->sk_rcvbuf  = sk->sk_rcvbuf;
+		__entry->sk_rcvbuf  = READ_ONCE(sk->sk_rcvbuf);
 	),
 
 	TP_printk("rmem_alloc=%d truesize=%u sk_rcvbuf=%d",
@@ -97,7 +98,7 @@ TRACE_EVENT(sock_exceed_buf_limit,
 
 	TP_STRUCT__entry(
 		__array(char, name, 32)
-		__field(long *, sysctl_mem)
+		__array(long, sysctl_mem, 3)
 		__field(long, allocated)
 		__field(int, sysctl_rmem)
 		__field(int, rmem_alloc)
@@ -109,13 +110,15 @@ TRACE_EVENT(sock_exceed_buf_limit,
 
 	TP_fast_assign(
 		strncpy(__entry->name, prot->name, 32);
-		__entry->sysctl_mem = prot->sysctl_mem;
+		__entry->sysctl_mem[0] = READ_ONCE(prot->sysctl_mem[0]);
+		__entry->sysctl_mem[1] = READ_ONCE(prot->sysctl_mem[1]);
+		__entry->sysctl_mem[2] = READ_ONCE(prot->sysctl_mem[2]);
 		__entry->allocated = allocated;
 		__entry->sysctl_rmem = sk_get_rmem0(sk, prot);
 		__entry->rmem_alloc = atomic_read(&sk->sk_rmem_alloc);
 		__entry->sysctl_wmem = sk_get_wmem0(sk, prot);
 		__entry->wmem_alloc = refcount_read(&sk->sk_wmem_alloc);
-		__entry->wmem_queued = sk->sk_wmem_queued;
+		__entry->wmem_queued = READ_ONCE(sk->sk_wmem_queued);
 		__entry->kind = kind;
 	),
 
@@ -147,7 +150,7 @@ TRACE_EVENT(inet_sock_set_state,
 		__field(__u16, sport)
 		__field(__u16, dport)
 		__field(__u16, family)
-		__field(__u8, protocol)
+		__field(__u16, protocol)
 		__array(__u8, saddr, 4)
 		__array(__u8, daddr, 4)
 		__array(__u8, saddr_v6, 16)

@@ -36,6 +36,9 @@ static inline int is_warning_bug(const struct bug_entry *bug)
 	return bug->flags & BUGFLAG_WARNING;
 }
 
+void bug_get_file_line(struct bug_entry *bug, const char **file,
+		       unsigned int *line);
+
 struct bug_entry *find_bug(unsigned long bugaddr);
 
 enum bug_trap_type report_bug(unsigned long bug_addr, struct pt_regs *regs);
@@ -58,6 +61,13 @@ static inline enum bug_trap_type report_bug(unsigned long bug_addr,
 	return BUG_TRAP_TYPE_BUG;
 }
 
+struct bug_entry;
+static inline void bug_get_file_line(struct bug_entry *bug, const char **file,
+				     unsigned int *line)
+{
+	*file = NULL;
+	*line = 0;
+}
 
 static inline void generic_bug_clear_once(void) {}
 
@@ -73,7 +83,7 @@ static inline __must_check bool check_data_corruption(bool v) { return v; }
 		bool corruption = unlikely(condition);			 \
 		if (corruption) {					 \
 			if (IS_ENABLED(CONFIG_BUG_ON_DATA_CORRUPTION)) { \
-				pr_auto(ASL1, fmt, ##__VA_ARGS__);	 \
+				pr_auto(ASL1, fmt, ##__VA_ARGS__);		 \
 				BUG();					 \
 			} else						 \
 				WARN(1, fmt, ##__VA_ARGS__);		 \

@@ -60,4 +60,10 @@ int is_sensor_write16_burst(struct i2c_client *client,
 	u16 addr, u16 *val, u32 num);
 int is_sensor_write8_sequential(struct i2c_client *client,
 	u16 addr, u8 *val, u16 num);
+int is_sensor_data_read16(struct i2c_client *client,
+		u16 *val);
+int is_sensor_data_write16(struct i2c_client *client,
+		u8 val_high, u8 val_low);
+int is_sensor_addr_data_write16(struct i2c_client *client,
+	u8 addr, u8 val_high, u8 val_low);
 #endif

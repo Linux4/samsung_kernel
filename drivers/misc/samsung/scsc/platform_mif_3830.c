@@ -19,7 +19,11 @@
 #include <linux/iommu.h>
 #include <linux/slab.h>
 #include <linux/io.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
 #include <linux/smc.h>
+#else
+#include <soc/samsung/exynos-smc.h>
+#endif
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -34,7 +38,7 @@
 #if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
 #include <linux/soc/samsung/exynos-soc.h>
 #endif
-#ifdef CONFIG_SOC_EXYNOS3830
+#if defined (CONFIG_SOC_EXYNOS3830) || defined(CONFIG_SOC_S5E3830)
 #include <linux/mfd/samsung/s2mpu12-regulator.h>
 #endif
 
@@ -43,10 +47,15 @@
 #include "mif_reg_smapper.h"
 #endif
 #ifdef CONFIG_SCSC_QOS
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <soc/samsung/exynos_pm_qos.h>
+#include <soc/samsung/freq-qos-tracer.h>
+#else
 #include <linux/pm_qos.h>
 #endif
+#endif
 
-#if !defined(CONFIG_SOC_EXYNOS3830)
+#if !defined(CONFIG_SOC_EXYNOS3830) && !defined(CONFIG_SOC_S5E3830)
 #error Target processor CONFIG_SOC_EXYNOS3830 not selected
 #endif
 
@@ -115,7 +124,7 @@ struct platform_mif {
 
 	/* pmu syscon regmap */
 	struct regmap *pmureg;
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_EXYNOS3830) || defined(CONFIG_SOC_S5E3830)
 	struct regmap *i3c_apm_pmic;
 	struct regmap *dbus_baaw;
 	struct regmap *pbus_baaw;
@@ -168,6 +177,11 @@ struct platform_mif {
 	int (*suspend_handler)(struct scsc_mif_abs *abs, void *data);
 	void (*resume_handler)(struct scsc_mif_abs *abs, void *data);
 	void *suspendresume_data;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	/* Callback function to check recovery status */
+	bool (*recovery_disabled)(void);
+#endif
 };
 
 static void power_supplies_on(struct platform_mif *platform);
@@ -472,6 +486,7 @@ static int platform_mif_pm_qos_add_request(struct scsc_mif_abs *interface, struc
 {
 	struct platform_mif *platform = platform_mif_from_mif_abs(interface);
 	struct qos_table table;
+	int ret = 0;
 
 	if (!platform)
 		return -ENODEV;
@@ -486,10 +501,27 @@ static int platform_mif_pm_qos_add_request(struct scsc_mif_abs *interface, struc
 	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
 		"PM QoS add request: %u. MIF %u INT %u CL0 %u CL1 %u\n", config, table.freq_mif, table.freq_int, table.freq_cl0, table.freq_cl1);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	qos_req->cpu_cluster0_policy = cpufreq_cpu_get(0);
+	qos_req->cpu_cluster1_policy = cpufreq_cpu_get(4);
+
+	if ((!qos_req->cpu_cluster0_policy) || (!qos_req->cpu_cluster1_policy)) {
+		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "PM QoS add request error. CPU policy not loaded");
+		return -ENOENT;
+	}
+	exynos_pm_qos_add_request(&qos_req->pm_qos_req_mif, PM_QOS_BUS_THROUGHPUT, table.freq_mif);
+	exynos_pm_qos_add_request(&qos_req->pm_qos_req_int, PM_QOS_DEVICE_THROUGHPUT, table.freq_int);
+
+	ret = freq_qos_tracer_add_request(&qos_req->cpu_cluster0_policy->constraints, &qos_req->pm_qos_req_cl0, FREQ_QOS_MIN, 0);
+	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "PM QoS add request cl0. Setting freq_qos_add_request %d", ret);
+	ret = freq_qos_tracer_add_request(&qos_req->cpu_cluster1_policy->constraints, &qos_req->pm_qos_req_cl1, FREQ_QOS_MIN, 0);
+	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "PM QoS add request cl1. Setting freq_qos_add_request %d", ret);
+#else
 	pm_qos_add_request(&qos_req->pm_qos_req_mif, PM_QOS_BUS_THROUGHPUT, table.freq_mif);
 	pm_qos_add_request(&qos_req->pm_qos_req_int, PM_QOS_DEVICE_THROUGHPUT, table.freq_int);
 	pm_qos_add_request(&qos_req->pm_qos_req_cl0, PM_QOS_CLUSTER0_FREQ_MIN, table.freq_cl0);
 	pm_qos_add_request(&qos_req->pm_qos_req_cl1, PM_QOS_CLUSTER1_FREQ_MIN, table.freq_cl1);
+#endif
 
 	return 0;
 }
@@ -512,10 +544,17 @@ static int platform_mif_pm_qos_update_request(struct scsc_mif_abs *interface, st
 	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
 		"PM QoS update request: %u. MIF %u INT %u CL0 %u CL1 %u\n", config, table.freq_mif, table.freq_int, table.freq_cl0, table.freq_cl1);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	exynos_pm_qos_update_request(&qos_req->pm_qos_req_mif, table.freq_mif);
+	exynos_pm_qos_update_request(&qos_req->pm_qos_req_int, table.freq_int);
+	freq_qos_update_request(&qos_req->pm_qos_req_cl0, table.freq_cl0);
+	freq_qos_update_request(&qos_req->pm_qos_req_cl1, table.freq_cl1);
+#else
 	pm_qos_update_request(&qos_req->pm_qos_req_mif, table.freq_mif);
 	pm_qos_update_request(&qos_req->pm_qos_req_int, table.freq_int);
 	pm_qos_update_request(&qos_req->pm_qos_req_cl0, table.freq_cl0);
 	pm_qos_update_request(&qos_req->pm_qos_req_cl1, table.freq_cl1);
+#endif
 
 	return 0;
 }
@@ -534,12 +573,44 @@ static int platform_mif_pm_qos_remove_request(struct scsc_mif_abs *interface, st
 	}
 
 	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "PM QoS remove request\n");
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	exynos_pm_qos_remove_request(&qos_req->pm_qos_req_mif);
+	exynos_pm_qos_remove_request(&qos_req->pm_qos_req_int);
+	freq_qos_tracer_remove_request(&qos_req->pm_qos_req_cl0);
+	freq_qos_tracer_remove_request(&qos_req->pm_qos_req_cl1);
+#else
 	pm_qos_remove_request(&qos_req->pm_qos_req_mif);
 	pm_qos_remove_request(&qos_req->pm_qos_req_int);
 	pm_qos_remove_request(&qos_req->pm_qos_req_cl0);
 	pm_qos_remove_request(&qos_req->pm_qos_req_cl1);
+#endif
 
 	return 0;
+}
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+static void platform_recovery_disabled_reg(struct scsc_mif_abs *interface, bool (*handler)(void))
+{
+	struct platform_mif *platform = platform_mif_from_mif_abs(interface);
+	unsigned long       flags;
+
+	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Registering mif recovery %pS\n", handler);
+	spin_lock_irqsave(&platform->mif_spinlock, flags);
+	platform->recovery_disabled = handler;
+	spin_unlock_irqrestore(&platform->mif_spinlock, flags);
+}
+
+static void platform_recovery_disabled_unreg(struct scsc_mif_abs *interface)
+{
+	struct platform_mif *platform = platform_mif_from_mif_abs(interface);
+	unsigned long       flags;
+
+	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Unregistering mif recovery\n");
+	spin_lock_irqsave(&platform->mif_spinlock, flags);
+	platform->recovery_disabled = NULL;
+	spin_unlock_irqrestore(&platform->mif_spinlock, flags);
 }
 #endif
 
@@ -612,7 +683,11 @@ irqreturn_t platform_wdog_isr(int irq, void *data)
 	}
 
 	/* The wakeup source isn't cleared until WLBT is reset, so change the interrupt type to suppress this */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	if (platform->recovery_disabled && platform->recovery_disabled()) {
+#else
 	if (mxman_recovery_disabled()) {
+#endif
 		ret = regmap_update_bits(platform->pmureg, WAKEUP_INT_TYPE,
 				RESETREQ_WLBT, 0);
 		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Set RESETREQ_WLBT wakeup interrput type to EDGE.\n");
@@ -1890,6 +1965,10 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
 	platform_if->mif_pm_qos_update_request = platform_mif_pm_qos_update_request;
 	platform_if->mif_pm_qos_remove_request = platform_mif_pm_qos_remove_request;
 #endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	platform_if->recovery_disabled_reg = platform_recovery_disabled_reg;
+	platform_if->recovery_disabled_unreg = platform_recovery_disabled_unreg;
+#endif
 	/* Update state */
 	platform->pdev = pdev;
 	platform->dev = &pdev->dev;
@@ -1903,8 +1982,22 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
 	platform->suspendresume_data = NULL;
 
 #ifdef CONFIG_OF_RESERVED_MEM
-	platform->mem_start = sharedmem_base;
-	platform->mem_size = sharedmem_size;
+	if (!sharedmem_base) {
+		struct device_node *np;
+
+		np = of_parse_phandle(platform->dev->of_node, "memory-region", 0);
+		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
+				  "module build register sharedmem np %x\n", np);
+		if (np) {
+			platform->mem_start = of_reserved_mem_lookup(np)->base;
+			platform->mem_size = of_reserved_mem_lookup(np)->size;
+		}
+	} else {
+		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
+				  "built-in register sharedmem\n");
+		platform->mem_start = sharedmem_base;
+		platform->mem_size = sharedmem_size;
+	}
 #else
 	/* If CONFIG_OF_RESERVED_MEM is not defined, sharedmem values should be
 	 * parsed from the scsc_wifibt binding
@@ -1951,8 +2044,13 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
 	platform->reg_start = reg_res->start;
 	platform->reg_size = resource_size(reg_res);
 
-	platform->base =
-		devm_ioremap_nocache(platform->dev, reg_res->start, resource_size(reg_res));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+       platform->base =
+               devm_ioremap(platform->dev, reg_res->start, resource_size(reg_res));
+#else
+       platform->base =
+                devm_ioremap_nocache(platform->dev, reg_res->start, resource_size(reg_res));
+#endif
 
 	if (!platform->base) {
 		SCSC_TAG_ERR_DEV(PLAT_MIF, platform->dev,

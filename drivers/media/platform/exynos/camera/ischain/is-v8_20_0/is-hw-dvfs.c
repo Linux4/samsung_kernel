@@ -663,9 +663,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_DUAL_SYNC_FHD_CAMCORDING)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if (IS_REAR_DUAL(sensor_map) &&
 		setfile_flag &&
@@ -772,9 +770,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_DUAL_FHD_CAMCORDING)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if (IS_REAR_DUAL(sensor_map) &&
 		setfile_flag &&
@@ -946,9 +942,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR3_CAMCORDING_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if ((position == SENSOR_POSITION_REAR3) &&
 			(fps <= 30) &&
@@ -964,9 +958,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR2_CAMCORDING_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if (((position == SENSOR_POSITION_REAR2) || (position == SENSOR_POSITION_REAR4)) &&
 			(fps <= 30) &&
@@ -983,9 +975,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_CAMCORDING_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(fps <= 30) &&
@@ -1005,9 +995,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_CAMCORDING_WHD)
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if (IS_REAR_SENSOR(position) &&
 			(fps <= 30) &&
@@ -1086,9 +1074,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR3_PREVIEW_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if ((position == SENSOR_POSITION_REAR3) &&
 			(streaming_cnt == 1) &&
@@ -1106,9 +1092,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR2_PREVIEW_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if (((position == SENSOR_POSITION_REAR2) || (position == SENSOR_POSITION_REAR4)) &&
 			(streaming_cnt == 1) &&
@@ -1139,9 +1123,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(streaming_cnt == 1) &&
@@ -1163,9 +1145,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_WHD)
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if (IS_REAR_SENSOR(position) &&
 			(streaming_cnt == 1) &&
@@ -1234,8 +1214,11 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_REMOSAIC)
 DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VT1)
 {
 	if (IS_FRONT_SENSOR(position) &&
-			((device->setfile & IS_SETFILE_MASK) \
-			 == ISS_SUB_SCENARIO_VT))
+#if defined(CONFIG_VENDER_MCD) || defined(CONFIG_VENDER_MCD_V2)
+		((device->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VT))
+#else
+		((device->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_FRONT_VT1))
+#endif
 		return 1;
 	else
 		return 0;
@@ -1245,8 +1228,11 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VT1)
 DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VT2)
 {
 	if (IS_FRONT_SENSOR(position) &&
-			((device->setfile & IS_SETFILE_MASK) \
-			 == ISS_SUB_SCENARIO_VT))
+#if defined(CONFIG_VENDER_MCD) || defined(CONFIG_VENDER_MCD_V2)
+		((device->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VT))
+#else
+		((device->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_FRONT_VT2))
+#endif
 		return 1;
 	else
 		return 0;
@@ -1256,8 +1242,12 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VT2)
 DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VT4)
 {
 	if (IS_FRONT_SENSOR(position) &&
-			((device->setfile & IS_SETFILE_MASK) \
-			 == ISS_SUB_SCENARIO_VT))
+#if defined(CONFIG_VENDER_MCD) || defined(CONFIG_VENDER_MCD_V2)
+		((device->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VT))
+#else
+		((device->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_FRONT_VT4))
+#endif
+
 		return 1;
 	else
 		return 0;

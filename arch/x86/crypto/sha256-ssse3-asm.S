@@ -355,7 +355,7 @@ a = TMP_
 ## arg 3 : Num blocks
 ########################################################################
 .text
-ENTRY(sha256_transform_ssse3)
+SYM_FUNC_START(sha256_transform_ssse3)
 .align 32
 	pushq   %rbx
 	pushq   %r12
@@ -472,8 +472,8 @@ done_hash:
 	popq    %r12
 	popq    %rbx
 
-	ret
-ENDPROC(sha256_transform_ssse3)
+	RET
+SYM_FUNC_END(sha256_transform_ssse3)
 
 .section	.rodata.cst256.K256, "aM", @progbits, 256
 .align 64

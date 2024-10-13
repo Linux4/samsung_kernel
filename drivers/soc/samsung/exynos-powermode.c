@@ -13,6 +13,7 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/of_address.h>
+#include <linux/module.h>
 
 #include <soc/samsung/exynos-pm.h>
 #include <soc/samsung/exynos-pmu.h>
@@ -38,6 +39,7 @@ struct exynos_powermode_info {
 };
 
 static struct exynos_powermode_info *pm_info;
+extern u32 exynos_eint_wake_mask_array[3];
 
 /******************************************************************************
  *                              System power mode                             *
@@ -69,12 +71,11 @@ void exynos_system_idle_exit(int cancel)
 static void exynos_set_wakeupmask(enum sys_powerdown mode)
 {
 	int i;
-	u64 eintmask = exynos_get_eint_wake_mask();
 	u32 wakeup_int_en = 0;
 
 	/* Set external interrupt mask */
-	exynos_pmu_write(PMU_EINT_WAKEUP_MASK, (u32)eintmask);
-	exynos_pmu_write(PMU_EINT_WAKEUP_MASK2, (u32)(eintmask >> 32));
+	exynos_pmu_write(PMU_EINT_WAKEUP_MASK, exynos_eint_wake_mask_array[0]);
+	exynos_pmu_write(PMU_EINT_WAKEUP_MASK2, exynos_eint_wake_mask_array[1]);
 
 	for (i = 0; i < pm_info->num_wakeup_mask; i++) {
 		exynos_pmu_write(pm_info->wakeup_stat_offset[i], 0);
@@ -103,6 +104,7 @@ int exynos_prepare_sys_powerdown(enum sys_powerdown mode)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(exynos_prepare_sys_powerdown);
 
 void exynos_wakeup_sys_powerdown(enum sys_powerdown mode, bool early_wakeup)
 {
@@ -115,6 +117,7 @@ void exynos_wakeup_sys_powerdown(enum sys_powerdown mode, bool early_wakeup)
 		__raw_writel(0,	pm_info->vgpio2pmu_base + pm_info->vgpio_inten_offset);
 
 }
+EXPORT_SYMBOL_GPL(exynos_wakeup_sys_powerdown);
 
 /******************************************************************************
  *                            Driver initialization                           *
@@ -227,7 +230,7 @@ static int parsing_dt_wakeup_mask(struct device_node *np)
 	return 0;
 }
 
-static int __init exynos_powermode_init(void)
+static int exynos_powermode_init(void)
 {
 	struct device_node *np;
 	int ret;
@@ -246,3 +249,4 @@ static int __init exynos_powermode_init(void)
 	return 0;
 }
 arch_initcall(exynos_powermode_init);
+MODULE_LICENSE("GPL");

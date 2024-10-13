@@ -21,7 +21,7 @@
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 
@@ -133,6 +133,39 @@ p_err:
 	return ret;
 }
 
+int is_33f_video_probe(void *data)
+{
+	int ret = 0;
+	struct is_core *core;
+	struct is_video *video;
+
+	FIMC_BUG(!data);
+
+	core = (struct is_core *)data;
+	video = &core->video_33f;
+	video->resourcemgr = &core->resourcemgr;
+
+	if (!core->pdev) {
+		probe_err("pdev is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	ret = is_video_probe(video,
+		IS_VIDEO_3XF_NAME(3),
+		IS_VIDEO_33F_NUM,
+		VFL_DIR_RX,
+		&core->resourcemgr.mem,
+		&core->v4l2_dev,
+		&is_3xf_video_fops,
+		&is_3xf_video_ioctl_ops);
+	if (ret)
+		dev_err(&core->pdev->dev, "%s is fail(%d)\n", __func__, ret);
+
+p_err:
+	return ret;
+}
+
 /*
  * =============================================================================
  * Video File Opertation
@@ -176,7 +209,7 @@ static int is_3xf_video_open(struct file *file)
 	minfo("[3%dF:V] %s\n", device, GET_3XF_ID(video), __func__);
 
 	snprintf(name, sizeof(name), "3%dF", GET_3XF_ID(video));
-	ret = open_vctx(file, video, &vctx, device->instance, BIT(ENTRY_3AF), name);
+	ret = open_vctx(file, video, &vctx, device->instance, ENTRY_3AF, name);
 	if (ret) {
 		merr("open_vctx is fail(%d)", device, ret);
 		goto err_vctx_open;
@@ -326,13 +359,6 @@ static int is_3xf_video_querycap(struct file *file, void *fh,
 	return 0;
 }
 
-static int is_3xf_video_enum_fmt_mplane(struct file *file, void *priv,
-	struct v4l2_fmtdesc *f)
-{
-	dbg("%s\n", __func__);
-	return 0;
-}
-
 static int is_3xf_video_get_format_mplane(struct file *file, void *fh,
 	struct v4l2_format *format)
 {
@@ -368,27 +394,6 @@ p_err:
 
 static int is_3xf_video_try_format_mplane(struct file *file, void *fh,
 	struct v4l2_format *format)
-{
-	dbg("%s\n", __func__);
-	return 0;
-}
-
-static int is_3xf_video_cropcap(struct file *file, void *fh,
-	struct v4l2_cropcap *cropcap)
-{
-	dbg("%s\n", __func__);
-	return 0;
-}
-
-static int is_3xf_video_get_crop(struct file *file, void *fh,
-	struct v4l2_crop *crop)
-{
-	dbg("%s\n", __func__);
-	return 0;
-}
-
-static int is_3xf_video_set_crop(struct file *file, void *fh,
-	const struct v4l2_crop *crop)
 {
 	dbg("%s\n", __func__);
 	return 0;
@@ -694,13 +699,9 @@ p_err:
 
 const struct v4l2_ioctl_ops is_3xf_video_ioctl_ops = {
 	.vidioc_querycap		= is_3xf_video_querycap,
-	.vidioc_enum_fmt_vid_cap_mplane	= is_3xf_video_enum_fmt_mplane,
 	.vidioc_g_fmt_vid_cap_mplane	= is_3xf_video_get_format_mplane,
 	.vidioc_s_fmt_vid_cap_mplane	= is_3xf_video_set_format_mplane,
 	.vidioc_try_fmt_vid_cap_mplane	= is_3xf_video_try_format_mplane,
-	.vidioc_cropcap			= is_3xf_video_cropcap,
-	.vidioc_g_crop			= is_3xf_video_get_crop,
-	.vidioc_s_crop			= is_3xf_video_set_crop,
 	.vidioc_reqbufs			= is_3xf_video_reqbufs,
 	.vidioc_querybuf		= is_3xf_video_querybuf,
 	.vidioc_qbuf			= is_3xf_video_qbuf,
@@ -847,7 +848,7 @@ static void is_3xf_buffer_queue(struct vb2_buffer *vb)
 
 static void is_3xf_buffer_finish(struct vb2_buffer *vb)
 {
-	int ret = 0;
+	int ret;
 	struct is_video_ctx *vctx;
 	struct is_device_ischain *device;
 	struct is_subdev *subdev;
@@ -863,13 +864,11 @@ static void is_3xf_buffer_finish(struct vb2_buffer *vb)
 
 	subdev = &device->txf;
 
-	is_queue_buffer_finish(vb);
-
 	ret = is_subdev_buffer_finish(subdev, vb);
-	if (ret) {
+	if (ret)
 		merr("is_subdev_buffer_finish is fail(%d)", device, ret);
-		return;
-	}
+
+	is_queue_buffer_finish(vb);
 }
 
 const struct vb2_ops is_3xf_qops = {

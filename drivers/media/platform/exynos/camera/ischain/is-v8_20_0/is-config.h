@@ -78,7 +78,8 @@
 #define USE_RTA_BINARY
 #define USE_BINARY_PADDING_DATA_ADDED	/* for DDK signature */
 #define USE_DDK_SHUT_DOWN_FUNC
-#define ENABLE_IRQ_MULTI_TARGET
+/* IRQF_GIC_MULTI_TARGET is not added yet */
+/* #define ENABLE_IRQ_MULTI_TARGET */
 #define IS_ONLINE_CPU_MIN	4
 #define ENABLE_3AA_LIC_OFFSET	1
 #define PDP_RDMA_LINE_GAP		(0x64)
@@ -100,7 +101,6 @@
 	(slot_id >= 0 && slot_id < HW_SLOT_MAX)
 #define HW_NUM_LIB_OFFSET	(2)
 /* #define DISABLE_SETFILE */
-/* #define DISABLE_LIB */
 
 #define USE_SENSOR_IF_DPHY
 /* #define ENABLE_HMP_BOOST */
@@ -122,8 +122,6 @@
  * Each IP has 4 slot
  * 3AA: 0~3	ITP: 0~3
  */
-#define EXT1_CHAIN_OFFSET	(4)
-#define EXT2_CHAIN_OFFSET	(8)
 #define LIC_CHAIN_OFFSET	(0x10000)
 #define LIC_CHAIN_NUM		(2)
 #define LIC_CHAIN_OFFSET_NUM	(6)
@@ -194,7 +192,7 @@
 #define SECURE_CAMERA_MEM_ADDR          (0xE1900000)    /* secure_camera_heap */
 #define SECURE_CAMERA_MEM_SIZE          (0x01520000)
 #define NON_SECURE_CAMERA_MEM_ADDR      (0xDB900000)    /* camera_heap */
-#define NON_SECURE_CAMERA_MEM_SIZE      (0x00B00000)
+#define NON_SECURE_CAMERA_MEM_SIZE      (0x00400000)
 #define PROTECT_SYSREG_IS               /* If sysreg_is needs to be protected in secure scenario */
 
 #define SECURE_CAMERA_USE_EXT_HEAP
@@ -223,6 +221,8 @@
 /* #define ENABLE_DCF */
 
 /* #define ENABLE_PDP_STAT_DMA */
+#define USE_DEBUG_PD_DUMP	0
+#define DEBUG_PD_DUMP_CH	0  /* set a bit corresponding to each channel */
 
 #define FAST_FDAE
 #undef RESERVED_MEM_IN_DT
@@ -268,10 +268,8 @@
 
 #define META_ITF_VER_20192003
 
-#define SUPPORT_STRIPE_REGION_NUM
-
 #define ENABLE_STRIPE_SYNC_PROCESSING
-/* #define ENABLE_SYNC_REPROCESSING */
+/*#define ENABLE_SYNC_REPROCESSING*/
 
 #define CONFIG_SW_PDAF		1
 

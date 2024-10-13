@@ -21,7 +21,7 @@
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 
@@ -142,7 +142,7 @@ static int is_ixp_video_open(struct file *file)
 	minfo("[I%dP:V] %s\n", device, GET_IXP_ID(video), __func__);
 
 	snprintf(name, sizeof(name), "I%dP", GET_IXP_ID(video));
-	ret = open_vctx(file, video, &vctx, device->instance, BIT(ENTRY_IXP), name);
+	ret = open_vctx(file, video, &vctx, device->instance, ENTRY_IXP, name);
 	if (ret) {
 		merr("open_vctx is fail(%d)", device, ret);
 		goto err_vctx_open;
@@ -296,13 +296,6 @@ static int is_ixp_video_querycap(struct file *file, void *fh,
 	return 0;
 }
 
-static int is_ixp_video_enum_fmt_mplane(struct file *file, void *priv,
-	struct v4l2_fmtdesc *f)
-{
-	dbg("%s\n", __func__);
-	return 0;
-}
-
 static int is_ixp_video_get_format_mplane(struct file *file, void *fh,
 	struct v4l2_format *format)
 {
@@ -339,27 +332,6 @@ p_err:
 
 static int is_ixp_video_try_format_mplane(struct file *file, void *fh,
 	struct v4l2_format *format)
-{
-	dbg("%s\n", __func__);
-	return 0;
-}
-
-static int is_ixp_video_cropcap(struct file *file, void *fh,
-	struct v4l2_cropcap *cropcap)
-{
-	dbg("%s\n", __func__);
-	return 0;
-}
-
-static int is_ixp_video_get_crop(struct file *file, void *fh,
-	struct v4l2_crop *crop)
-{
-	dbg("%s\n", __func__);
-	return 0;
-}
-
-static int is_ixp_video_set_crop(struct file *file, void *fh,
-	const struct v4l2_crop *crop)
 {
 	dbg("%s\n", __func__);
 	return 0;
@@ -504,7 +476,7 @@ static int is_ixp_video_prepare(struct file *file, void *priv,
 	}
 
 p_err:
-	minfo("[I%dP:V] %s(%d):%d\n", device, 
+	minfo("[I%dP:V] %s(%d):%d\n", device,
 		GET_IXP_ID(GET_VIDEO(vctx)), __func__, buf->index, ret);
 	return ret;
 }
@@ -666,13 +638,9 @@ p_err:
 
 const struct v4l2_ioctl_ops is_ixp_video_ioctl_ops = {
 	.vidioc_querycap		= is_ixp_video_querycap,
-	.vidioc_enum_fmt_vid_cap_mplane	= is_ixp_video_enum_fmt_mplane,
 	.vidioc_g_fmt_vid_cap_mplane	= is_ixp_video_get_format_mplane,
 	.vidioc_s_fmt_vid_cap_mplane	= is_ixp_video_set_format_mplane,
 	.vidioc_try_fmt_vid_cap_mplane	= is_ixp_video_try_format_mplane,
-	.vidioc_cropcap			= is_ixp_video_cropcap,
-	.vidioc_g_crop			= is_ixp_video_get_crop,
-	.vidioc_s_crop			= is_ixp_video_set_crop,
 	.vidioc_reqbufs			= is_ixp_video_reqbufs,
 	.vidioc_querybuf		= is_ixp_video_querybuf,
 	.vidioc_qbuf			= is_ixp_video_qbuf,
@@ -819,7 +787,7 @@ static void is_ixp_buffer_queue(struct vb2_buffer *vb)
 
 static void is_ixp_buffer_finish(struct vb2_buffer *vb)
 {
-	int ret = 0;
+	int ret;
 	struct is_video_ctx *vctx;
 	struct is_device_ischain *device;
 	struct is_subdev *subdev;
@@ -835,13 +803,11 @@ static void is_ixp_buffer_finish(struct vb2_buffer *vb)
 
 	subdev = &device->ixp;
 
-	is_queue_buffer_finish(vb);
-
 	ret = is_subdev_buffer_finish(subdev, vb);
-	if (ret) {
+	if (ret)
 		merr("is_subdev_buffer_finish is fail(%d)", device, ret);
-		return;
-	}
+
+	is_queue_buffer_finish(vb);
 }
 
 const struct vb2_ops is_ixp_qops = {

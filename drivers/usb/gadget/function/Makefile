@@ -19,7 +19,7 @@ obj-$(CONFIG_USB_F_SERIAL)	+= usb_f_serial.o
 usb_f_obex-y			:= f_obex.o
 obj-$(CONFIG_USB_F_OBEX)	+= usb_f_obex.o
 obj-$(CONFIG_USB_U_ETHER)	+= u_ether.o
-usb_f_ncm-y			:= f_ncm.o u_ether_ncm.o
+usb_f_ncm-y			:= f_ncm.o
 obj-$(CONFIG_USB_F_NCM)		+= usb_f_ncm.o
 usb_f_ecm-y			:= f_ecm.o
 obj-$(CONFIG_USB_F_ECM)		+= usb_f_ecm.o
@@ -54,26 +54,12 @@ usb_f_dm-y			:= f_dm.o
 obj-$(CONFIG_USB_CONFIGFS_F_DM)	+= usb_f_dm.o
 usb_f_dm1-y			:= f_dm1.o
 obj-$(CONFIG_USB_CONFIGFS_F_DM)	+= usb_f_dm1.o
-usb_f_adb-y			:= f_adb.o
-obj-$(CONFIG_USB_CONFIGFS_F_ADB)+= usb_f_adb.o
 usb_f_tcm-y			:= f_tcm.o
 obj-$(CONFIG_USB_F_TCM)		+= usb_f_tcm.o
-ifeq ($(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE),y)
-usb_f_mtp_samsung-y     := f_mtp_samsung.o
-obj-$(CONFIG_USB_F_MTP) += usb_f_mtp_samsung.o
-else
-usb_f_mtp-y             := f_mtp.o
-obj-$(CONFIG_USB_F_MTP) += usb_f_mtp.o
-endif
-
-usb_f_ptp-y                     := f_ptp.o
-obj-$(CONFIG_USB_F_PTP)         += usb_f_ptp.o
-usb_f_audio_source-y            := f_audio_source.o
-obj-$(CONFIG_USB_F_AUDIO_SRC)   += usb_f_audio_source.o
-usb_f_accessory-y               := f_accessory.o
-obj-$(CONFIG_USB_F_ACC)         += usb_f_accessory.o
-usb_f_simmian-y                 := f_simmian.o
-obj-$(CONFIG_USB_F_SIMMIAN)     += usb_f_simmian.o
+usb_f_accessory-y		:= f_accessory.o
+obj-$(CONFIG_USB_F_ACC)		+= usb_f_accessory.o
+usb_f_audio_source-y		:= f_audio_source.o
+obj-$(CONFIG_USB_F_AUDIO_SRC)	+= usb_f_audio_source.o
 usb_f_conn_gadget-y             := f_conn_gadget.o
 obj-$(CONFIG_USB_F_CONN_GADGET) += usb_f_conn_gadget.o
 usb_f_ss_mon_gadget-y             := f_ss_mon_gadget.o

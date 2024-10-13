@@ -13,7 +13,7 @@
 #ifndef __MFC_HWFC_INTERNAL_H
 #define __MFC_HWFC_INTERNAL_H __FILE__
 
-#include "mfc_common.h"
+#include "base/mfc_common.h"
 
 /*
  * RGB encoding information to avoid confusion.
@@ -24,7 +24,15 @@
  * 2       4       6       8       0
  * |B......BG......GR......RA......A|
  */
-struct mfc_fmt enc_hwfc_formats[] = {
+static struct mfc_fmt enc_hwfc_formats[] = {
+	{
+		.name = "4:2:0 2 Planes",
+		.fourcc = V4L2_PIX_FMT_NV12M,
+		.codec_mode = MFC_FORMATS_NO_CODEC,
+		.type = MFC_FMT_FRAME,
+		.num_planes = 2,
+		.mem_planes = 2,
+	},
 	{
 		.name = "4:2:0 2 Planes Y/CbCr single",
 		.fourcc = V4L2_PIX_FMT_NV12N,
@@ -51,6 +59,6 @@ struct mfc_fmt enc_hwfc_formats[] = {
 	},
 };
 
-#define NUM_FORMATS ARRAY_SIZE(enc_hwfc_formats)
+#define HWFC_NUM_FORMATS ARRAY_SIZE(enc_hwfc_formats)
 
 #endif /* __MFC_HWFC_INTERNAL_H */

@@ -1,14 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  linux/drivers/net/wireless/libertas/if_sdio.c
  *
  *  Copyright 2007-2008 Pierre Ossman
  *
  * Inspired by if_cs.c, Copyright 2007 Holger Schurig
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or (at
- * your option) any later version.
  *
  * This hardware has more or less no CMD53 support, so all registers
  * must be accessed using sdio_readb()/sdio_writeb().
@@ -69,7 +65,7 @@ static const struct sdio_device_id if_sdio_ids[] = {
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_MARVELL,
 			SDIO_DEVICE_ID_MARVELL_LIBERTAS) },
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_MARVELL,
-			SDIO_DEVICE_ID_MARVELL_8688WLAN) },
+			SDIO_DEVICE_ID_MARVELL_8688_WLAN) },
 	{ /* end: all zeroes */				},
 };
 
@@ -107,7 +103,7 @@ MODULE_FIRMWARE("sd8688.bin");
 struct if_sdio_packet {
 	struct if_sdio_packet	*next;
 	u16			nb;
-	u8			buffer[0] __attribute__((aligned(4)));
+	u8			buffer[] __aligned(4);
 };
 
 struct if_sdio_card {
@@ -1210,8 +1206,8 @@ static int if_sdio_probe(struct sdio_func *func,
 
 
 	priv = lbs_add_card(card, &func->dev);
-	if (!priv) {
-		ret = -ENOMEM;
+	if (IS_ERR(priv)) {
+		ret = PTR_ERR(priv);
 		goto free;
 	}
 

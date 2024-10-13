@@ -17,13 +17,14 @@
 #include <linux/debugfs.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
-#include <linux/debug-snapshot.h>
+//#include <linux/debug-snapshot.h>
 #include <linux/soc/samsung/exynos-soc.h>
 #include <linux/sched/clock.h>
+#include <linux/module.h>
 
 #include "acpm.h"
 #include "acpm_ipc.h"
-#include "../cal-if/fvmap.h"
+#include <soc/samsung/fvmap.h>
 #include "fw_header/framework.h"
 
 static int ipc_done;
@@ -31,6 +32,7 @@ static unsigned long long ipc_time_start;
 #ifdef CONFIG_DEBUG_FS
 static unsigned long long ipc_time_end;
 #endif
+static void __iomem *fvmap_base_address;
 
 static struct acpm_info *exynos_acpm;
 
@@ -95,6 +97,12 @@ static int firmware_update(struct device *dev, void *fw_base, const char *fw_nam
 	return 0;
 }
 
+void *get_fvmap_base(void)
+{
+	return fvmap_base_address;
+}
+EXPORT_SYMBOL_GPL(get_fvmap_base);
+
 static int plugins_init(void)
 {
 	struct plugin *plugins;
@@ -102,11 +110,10 @@ static int plugins_init(void)
 	unsigned int plugin_id;
 	char name[50];
 	const char *fw_name = NULL;
-	void __iomem *fw_base_addr;
+	void __iomem *fw_base_addr = NULL;
 	struct device_node *node, *child;
 	const __be32 *prop;
 	unsigned int offset;
-
 	plugins = (struct plugin *)(acpm_srambase + acpm_initdata->plugins);
 
 	for (i = 0; i < acpm_initdata->num_plugins; i++) {
@@ -155,7 +162,7 @@ static int plugins_init(void)
 						plugins[i].stay_attached, plugins[i].id, ret);
 
 			if (fw_name && strstr(fw_name, "dvfs"))
-				fvmap_init(fw_base_addr + plugins[i].size);
+				fvmap_base_address = fw_base_addr + plugins[i].size;
 
 		} else if (plugins[i].is_attached == 1 && plugins[i].stay_attached == 1) {
 			fw_name = (const char *)(acpm_srambase + plugins[i].fw_name);
@@ -163,11 +170,18 @@ static int plugins_init(void)
 			if (plugins[i].fw_name && fw_name &&
 					(strstr(fw_name, "DVFS") || strstr(fw_name, "dvfs"))) {
 
-				fw_base_addr = acpm_srambase + (plugins[i].base_addr & ~0x1);
+				fvmap_base_address = acpm_srambase + (plugins[i].base_addr & ~0x1);
 				prop = of_get_property(exynos_acpm->dev->of_node, "fvmap_offset", &len);
 				if (prop) {
 					offset = be32_to_cpup(prop);
-					fvmap_init(fw_base_addr + offset);
+					fvmap_base_address += offset;
+
+					if (of_property_read_bool(exynos_acpm->dev->of_node, "use-plugin-library"))
+						fvmap_base_address = acpm_srambase + offset;
+
+					pr_err("acpm_sram_base: 0x%x\n", acpm_srambase);
+					pr_err("plugins[i].base_addr & ~0x1: 0x%x\n", (plugins[i].base_addr & ~0x1));
+					pr_err("fvmap_base_address: 0x%x\n", fvmap_base_address);
 				}
 			}
 		}
@@ -302,6 +316,7 @@ void exynos_acpm_reboot(void)
 
 	acpm_enter_wfi();
 }
+EXPORT_SYMBOL_GPL(exynos_acpm_reboot);
 
 void exynos_acpm_ps_hold_down(void)
 {
@@ -320,6 +335,7 @@ void exynos_acpm_ps_hold_down(void)
 
 	pr_err("PS HOLD down fail. (ret: %d)\n", ret);
 }
+EXPORT_SYMBOL_GPL(exynos_acpm_ps_hold_down);
 
 static int acpm_send_data(struct device_node *node, unsigned int check_id,
 		struct ipc_config *config)
@@ -375,8 +391,6 @@ static int acpm_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret = 0;
 
-	dev_info(&pdev->dev, "acpm probe\n");
-
 	if (!node) {
 		dev_err(&pdev->dev, "driver doesnt support"
 				"non-dt devices\n");
@@ -400,6 +414,8 @@ static int acpm_probe(struct platform_device *pdev)
 		if (of_property_read_u32(node, "peritimer-cnt", &acpm->timer_cnt))
 		pr_warn("No matching property: peritiemr_cnt\n");
 
+//	exynos_reboot_register_acpm_ops(exynos_acpm_reboot);
+
 	exynos_acpm = acpm;
 
 #ifdef CONFIG_DEBUG_FS
@@ -407,6 +423,12 @@ static int acpm_probe(struct platform_device *pdev)
 #endif
 
 	exynos_acpm_timer_clear();
+
+	acpm_ipc_set_waiting_mode(BUSY_WAIT);
+
+	plugins_init();
+
+	dev_info(&pdev->dev, "acpm probe done.\n");
 	return ret;
 }
 
@@ -415,10 +437,27 @@ static int acpm_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id acpm_ipc_match[] = {
+	{ .compatible = "samsung,exynos-acpm-ipc" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, acpm_ipc_match);
+
+static struct platform_driver samsung_acpm_ipc_driver = {
+	.probe	= acpm_ipc_probe,
+	.remove	= acpm_ipc_remove,
+	.driver	= {
+		.name = "exynos-acpm-ipc",
+		.owner	= THIS_MODULE,
+		.of_match_table	= acpm_ipc_match,
+	},
+};
+
 static const struct of_device_id acpm_match[] = {
 	{ .compatible = "samsung,exynos-acpm" },
 	{},
 };
+MODULE_DEVICE_TABLE(of, acpm_match);
 
 static struct platform_driver samsung_acpm_driver = {
 	.probe	= acpm_probe,
@@ -430,20 +469,31 @@ static struct platform_driver samsung_acpm_driver = {
 	},
 };
 
-static int __init exynos_acpm_init(void)
+static int exynos_acpm_init(void)
 {
-	return platform_driver_register(&samsung_acpm_driver);
+	platform_driver_register(&samsung_acpm_ipc_driver);
+	platform_driver_register(&samsung_acpm_driver);
+	return 0;
 }
-arch_initcall_sync(exynos_acpm_init);
+subsys_initcall_sync(exynos_acpm_init);
 
+static void exynos_acpm_exit(void)
+{
+	platform_driver_unregister(&samsung_acpm_ipc_driver);
+	platform_driver_unregister(&samsung_acpm_driver);
+}
+module_exit(exynos_acpm_exit);
+/* Commenting following code as default plugins_init works during acpm probe */
+#if 0
 static int __init exynos_acpm_binary_update(void)
 {
-	int ret;
+        int ret;
+        acpm_ipc_set_waiting_mode(BUSY_WAIT);
 
-	acpm_ipc_set_waiting_mode(BUSY_WAIT);
+        ret = plugins_init();
 
-	ret = plugins_init();
-
-	return ret;
+        return ret;
 }
-fs_initcall_sync(exynos_acpm_binary_update);
+subsys_initcall_sync(exynos_acpm_binary_update);
+#endif
+MODULE_LICENSE("GPL");

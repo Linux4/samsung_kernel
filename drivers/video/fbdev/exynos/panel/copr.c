@@ -562,7 +562,7 @@ get_copr_error:
 
 static int panel_get_copr(struct copr_info *copr)
 {
-	struct timespec cur_ts, last_ts, delta_ts;
+	struct timespec64 cur_ts, last_ts, delta_ts;
 	struct copr_properties *props = &copr->props;
 	s64 elapsed_usec;
 	int ret;
@@ -570,7 +570,7 @@ static int panel_get_copr(struct copr_info *copr)
 	if (unlikely(!props->support))
 		return -ENODEV;
 
-	ktime_get_ts(&cur_ts);
+	ktime_get_ts64(&cur_ts);
 	if (props->state != COPR_REG_ON) {
 		pr_debug("%s copr reg is not on state %d\n",
 				__func__, props->state);
@@ -590,16 +590,16 @@ static int panel_get_copr(struct copr_info *copr)
 	panel_read_copr_dsi(copr);
 #endif
 
-	ktime_get_ts(&last_ts);
+	ktime_get_ts64(&last_ts);
 
-	delta_ts = timespec_sub(last_ts, cur_ts);
-	elapsed_usec = timespec_to_ns(&delta_ts) / 1000;
+	delta_ts = timespec64_sub(last_ts, cur_ts);
+	elapsed_usec = timespec64_to_ns(&delta_ts) / 1000;
 	pr_debug("%s elapsed_usec %lld usec (%lld.%lld %lld.%lld)\n",
 			__func__, elapsed_usec,
-			timespec_to_ns(&cur_ts) / 1000000000,
-			(timespec_to_ns(&cur_ts) % 1000000000) / 1000,
-			timespec_to_ns(&last_ts) / 1000000000,
-			(timespec_to_ns(&last_ts) % 1000000000) / 1000);
+			timespec64_to_ns(&cur_ts) / 1000000000,
+			(timespec64_to_ns(&cur_ts) % 1000000000) / 1000,
+			timespec64_to_ns(&last_ts) / 1000000000,
+			(timespec64_to_ns(&last_ts) % 1000000000) / 1000);
 
 	return 0;
 
@@ -619,7 +619,7 @@ static int copr_res_init(struct copr_info *copr)
 	return 0;
 }
 
-static int copr_res_start(struct copr_info *copr, int value, struct timespec cur_ts)
+static int copr_res_start(struct copr_info *copr, int value, struct timespec64 cur_ts)
 {
 	timenval_start(&copr->res, value, cur_ts);
 
@@ -641,7 +641,7 @@ int copr_update_start(struct copr_info *copr, int count)
 int copr_update_average(struct copr_info *copr)
 {
 	struct copr_properties *props = &copr->props;
-	struct timespec cur_ts;
+	struct timespec64 cur_ts;
 	int ret;
 	int cur_copr;
 
@@ -653,7 +653,7 @@ int copr_update_average(struct copr_info *copr)
 		return -EIO;
 	}
 
-	ktime_get_ts(&cur_ts);
+	ktime_get_ts64(&cur_ts);
 	if (props->state == COPR_UNINITIALIZED) {
 		panel_set_copr(copr);
 		panel_info("%s copr register updated\n", __func__);
@@ -725,7 +725,7 @@ int copr_get_value(struct copr_info *copr)
 int copr_iter_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int size, u32 *out)
 {
 	struct copr_properties *props = &copr->props;
-	struct timespec cur_ts;
+	struct timespec64 cur_ts;
 	int ret;
 	int i, c, cur_copr;
 	struct copr_reg reg;
@@ -837,7 +837,7 @@ int copr_iter_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int si
 	 * exclude elapsed time of copr roi snapshot reading
 	 * in copr_sum_update. so update last_ts as cur_ts.
 	 */
-	ktime_get_ts(&cur_ts);
+	ktime_get_ts64(&cur_ts);
 	cur_copr = props->cur_copr;
 	copr_res_start(copr, cur_copr, cur_ts);
 	mutex_unlock(&copr->lock);
@@ -1221,7 +1221,7 @@ static int copr_register_fb(struct copr_info *copr)
 {
 	memset(&copr->fb_notif, 0, sizeof(copr->fb_notif));
 	copr->fb_notif.notifier_call = copr_fb_notifier_callback;
-	return fb_register_client(&copr->fb_notif);
+	return decon_register_notifier(&copr->fb_notif);
 }
 
 int copr_probe(struct panel_device *panel, struct panel_copr_data *copr_data)

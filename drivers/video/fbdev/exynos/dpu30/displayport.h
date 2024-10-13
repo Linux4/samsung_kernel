@@ -635,6 +635,7 @@ struct displayport_device {
 	struct exynos_panel_info lcd_info;
 
 	struct v4l2_subdev sd;
+	bool subdev_initialized;
 
 	struct workqueue_struct *dp_wq;
 	struct workqueue_struct *hdcp2_wq;

@@ -841,7 +841,7 @@ static int is_hw_mcsc_cfg_tdnr_tuning_param(struct is_hw_ip *hw_ip,
 	int ret = 0;
 	int ni_idx, arr_idx;
 	struct is_hw_mcsc *hw_mcsc = NULL;
-	struct tdnr_setfile_contents *tdnr_tuneset;
+	struct tdnr_setfile_contents *tdnr_tuneset = NULL;
 	struct tdnr_configs tdnr_cfgs;
 	u32 max_ref_ni = 0, min_ref_ni = 0;
 	u32 bottom_ni_index = 0, top_ni_index = 0;

@@ -1,6 +1,9 @@
-/*
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
- *              http://www.samsung.com
+/* SPDX-License-Identifier: GPL-2.0 */
+/**
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *        http://www.samsung.com
+ *
  *
  * Author: Sung-Hyun Na <sunghyun.na@samsung.com>
  *

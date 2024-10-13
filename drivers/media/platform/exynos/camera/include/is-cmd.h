@@ -21,9 +21,9 @@ enum is_msg_test_id {
 };
 
 #ifdef CONFIG_USE_SENSOR_GROUP
-#define MAX_ACTIVE_GROUP 8
+#define MAX_ACTIVE_GROUP 9
 #else
-#define MAX_ACTIVE_GROUP 6
+#define MAX_ACTIVE_GROUP 7
 #endif
 struct is_path_info {
 	u32 sensor_name;

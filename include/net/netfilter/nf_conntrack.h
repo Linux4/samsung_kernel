@@ -13,23 +13,30 @@
 #ifndef _NF_CONNTRACK_H
 #define _NF_CONNTRACK_H
 
-#include <linux/netfilter/nf_conntrack_common.h>
-
 #include <linux/bitops.h>
 #include <linux/compiler.h>
-#include <linux/atomic.h>
+#include <linux/android_vendor.h>
+#include <linux/android_kabi.h>
 
+#include <linux/netfilter/nf_conntrack_common.h>
 #include <linux/netfilter/nf_conntrack_tcp.h>
 #include <linux/netfilter/nf_conntrack_dccp.h>
 #include <linux/netfilter/nf_conntrack_sctp.h>
 #include <linux/netfilter/nf_conntrack_proto_gre.h>
-#include <net/netfilter/ipv6/nf_conntrack_icmpv6.h>
 
 #include <net/netfilter/nf_conntrack_tuple.h>
+
+
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
 #define PROCESS_NAME_LEN_NAP	128
-#define DOMAIN_NAME_LEN_NAP	255
+#define DOMAIN_NAME_LEN_NAP		255
+#endif
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
+struct nf_ct_udp {
+	unsigned long	stream_ts;
+};
 
 /* per conntrack: protocol private data */
 union nf_conntrack_proto {
@@ -37,6 +44,7 @@ union nf_conntrack_proto {
 	struct nf_ct_dccp dccp;
 	struct ip_ct_sctp sctp;
 	struct ip_ct_tcp tcp;
+	struct nf_ct_udp udp;
 	struct nf_ct_gre gre;
 	unsigned int tmpl_padto;
 };
@@ -48,6 +56,7 @@ union nf_conntrack_expect_proto {
 struct nf_conntrack_net {
 	unsigned int users4;
 	unsigned int users6;
+	unsigned int users_bridge;
 };
 
 #include <linux/types.h>
@@ -55,6 +64,29 @@ struct nf_conntrack_net {
 
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
+
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+struct nf_conn_npa_vendor_data {
+	__u64		knox_sent;
+	__u64		knox_recv;
+	uid_t		knox_uid;
+	pid_t		knox_pid;
+	uid_t		knox_puid;
+	__u64		open_time;
+	char		process_name[PROCESS_NAME_LEN_NAP];
+	char		parent_process_name[PROCESS_NAME_LEN_NAP];
+	char		domain_name[DOMAIN_NAME_LEN_NAP];
+	pid_t		knox_ppid;
+	char		interface_name[IFNAMSIZ];
+	atomic_t	startFlow;
+	u32			npa_timeout;
+	atomic_t	intermediateFlow;
+};
+
+#define NF_CONN_NPA_VENDOR_DATA_GET(nf_conn) ((struct nf_conn_npa_vendor_data*)((nf_conn)->android_oem_data1))
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 struct nf_conn {
 	/* Usage count in here is 1 for hash table, 1 per skb,
@@ -68,7 +100,8 @@ struct nf_conn {
 	struct nf_conntrack ct_general;
 
 	spinlock_t	lock;
-	u16		cpu;
+	/* jiffies32 when this ct is considered dead */
+	u32 timeout;
 
 #ifdef CONFIG_NF_CONNTRACK_ZONES
 	struct nf_conntrack_zone zone;
@@ -80,16 +113,14 @@ struct nf_conn {
 	/* Have we seen traffic both ways yet? (bitset) */
 	unsigned long status;
 
-	/* jiffies32 when this ct is considered dead */
-	u32 timeout;
-
+	u16		cpu;
 	possible_net_t ct_net;
 
 #if IS_ENABLED(CONFIG_NF_NAT)
 	struct hlist_node	nat_bysource;
 #endif
 	/* all members below initialized via memset */
-	u8 __nfct_init_offset[0];
+	struct { } __nfct_init_offset;
 
 	/* If we were expected by an expectation, this will be it */
 	struct nf_conn *master;
@@ -107,43 +138,11 @@ struct nf_conn {
 
 	/* Storage reserved for other modules, must be the last member */
 	union nf_conntrack_proto proto;
-	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
-	/* The number of application layer bytes sent by the socket */
-	__u64   knox_sent;
-	/* The number of application layer bytes recieved by the socket */
-	__u64   knox_recv;
-	/* The uid which created the socket */
-	uid_t   knox_uid;
-	/* The pid under which the socket was created */
-	pid_t   knox_pid;
-	/* The parent user id under which the socket was created */
-	uid_t   knox_puid;
-	/* The epoch time at which the socket was opened */
-	__u64   open_time;
-	/* The name of the process which created the socket */
-	char process_name[PROCESS_NAME_LEN_NAP];
-	/* The name of the parent process which created the socket */
-	char parent_process_name[PROCESS_NAME_LEN_NAP];
-	/*  The Domain name associated with the ip address of the socket. The size needs to be in sync with the userspace implementation */
-	char domain_name[DOMAIN_NAME_LEN_NAP];
-	/* The parent process id under which the socket was created */
-	pid_t   knox_ppid;
-	/* The interface used by the flow to transmit packet */
-	char interface_name[IFNAMSIZ];
-	/* Atomic variable indicating start of flow */
-	atomic_t startFlow;
-	/* The value at which this ct is considered timed-out for intermediate flows */
-	/* Use 'u32 npa_timeout' if struct nf_conn->timeout is of type u32;  Use 'struct timer_list npa_timeout' if struct nf_conn->timeout is of type struct timer_list;*/
-	u32 npa_timeout;
-	/* Atomic variable indicating end of intermediate flow */
-	atomic_t intermediateFlow;
-	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
-#ifdef CONFIG_HW_FORWARD
-	u32 packet_count;
-	bool forward_registered;
-	struct net_device *netdev;
-#endif
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+
+	ANDROID_OEM_DATA(1);
 };
 
 static inline struct nf_conn *
@@ -184,16 +183,14 @@ void nf_conntrack_alter_reply(struct nf_conn *ct,
 int nf_conntrack_tuple_taken(const struct nf_conntrack_tuple *tuple,
 			     const struct nf_conn *ignored_conntrack);
 
-#define NFCT_INFOMASK	7UL
-#define NFCT_PTRMASK	~(NFCT_INFOMASK)
-
 /* Return conntrack_info and tuple hash for given skb. */
 static inline struct nf_conn *
 nf_ct_get(const struct sk_buff *skb, enum ip_conntrack_info *ctinfo)
 {
-	*ctinfo = skb->_nfct & NFCT_INFOMASK;
+	unsigned long nfct = skb_get_nfct(skb);
 
-	return (struct nf_conn *)(skb->_nfct & NFCT_PTRMASK);
+	*ctinfo = nfct & NFCT_INFOMASK;
+	return (struct nf_conn *)(nfct & NFCT_PTRMASK);
 }
 
 /* decrement reference count on a conntrack */
@@ -223,28 +220,26 @@ bool nf_ct_delete(struct nf_conn *ct, u32 pid, int report);
 bool nf_ct_get_tuplepr(const struct sk_buff *skb, unsigned int nhoff,
 		       u_int16_t l3num, struct net *net,
 		       struct nf_conntrack_tuple *tuple);
-bool nf_ct_invert_tuplepr(struct nf_conntrack_tuple *inverse,
-			  const struct nf_conntrack_tuple *orig);
 
 void __nf_ct_refresh_acct(struct nf_conn *ct, enum ip_conntrack_info ctinfo,
 			  const struct sk_buff *skb,
-			  unsigned long extra_jiffies, int do_acct);
+			  u32 extra_jiffies, bool do_acct);
 
 /* Refresh conntrack for this many jiffies and do accounting */
 static inline void nf_ct_refresh_acct(struct nf_conn *ct,
 				      enum ip_conntrack_info ctinfo,
 				      const struct sk_buff *skb,
-				      unsigned long extra_jiffies)
+				      u32 extra_jiffies)
 {
-	__nf_ct_refresh_acct(ct, ctinfo, skb, extra_jiffies, 1);
+	__nf_ct_refresh_acct(ct, ctinfo, skb, extra_jiffies, true);
 }
 
 /* Refresh conntrack for this many jiffies */
 static inline void nf_ct_refresh(struct nf_conn *ct,
 				 const struct sk_buff *skb,
-				 unsigned long extra_jiffies)
+				 u32 extra_jiffies)
 {
-	__nf_ct_refresh_acct(ct, 0, skb, extra_jiffies, 0);
+	__nf_ct_refresh_acct(ct, 0, skb, extra_jiffies, false);
 }
 
 /* kill conntrack and do accounting */
@@ -305,14 +300,14 @@ static inline bool nf_is_loopback_packet(const struct sk_buff *skb)
 /* jiffies until ct expires, 0 if already expired */
 static inline unsigned long nf_ct_expires(const struct nf_conn *ct)
 {
-	s32 timeout = ct->timeout - nfct_time_stamp;
+	s32 timeout = READ_ONCE(ct->timeout) - nfct_time_stamp;
 
 	return timeout > 0 ? timeout : 0;
 }
 
 static inline bool nf_ct_is_expired(const struct nf_conn *ct)
 {
-	return (__s32)(ct->timeout - nfct_time_stamp) <= 0;
+	return (__s32)(READ_ONCE(ct->timeout) - nfct_time_stamp) <= 0;
 }
 
 /* use after obtaining a reference count */
@@ -322,6 +317,18 @@ static inline bool nf_ct_should_gc(const struct nf_conn *ct)
 	       !nf_ct_is_dying(ct);
 }
 
+#define	NF_CT_DAY	(86400 * HZ)
+
+/* Set an arbitrary timeout large enough not to ever expire, this save
+ * us a check for the IPS_OFFLOAD_BIT from the packet path via
+ * nf_ct_is_expired().
+ */
+static inline void nf_ct_offload_timeout(struct nf_conn *ct)
+{
+	if (nf_ct_expires(ct) < NF_CT_DAY / 2)
+		WRITE_ONCE(ct->timeout, nfct_time_stamp + NF_CT_DAY);
+}
+
 struct kernel_param;
 
 int nf_conntrack_set_hashsize(const char *val, const struct kernel_param *kp);
@@ -329,7 +336,7 @@ int nf_conntrack_hash_resize(unsigned int hashsize);
 
 extern struct hlist_nulls_head *nf_conntrack_hash;
 extern unsigned int nf_conntrack_htable_size;
-extern seqcount_t nf_conntrack_generation;
+extern seqcount_spinlock_t nf_conntrack_generation;
 extern unsigned int nf_conntrack_max;
 
 /* must be called with rcu read lock held */
@@ -359,7 +366,7 @@ u32 nf_ct_get_id(const struct nf_conn *ct);
 static inline void
 nf_ct_set(struct sk_buff *skb, struct nf_conn *ct, enum ip_conntrack_info info)
 {
-	skb->_nfct = (unsigned long)ct | info;
+	skb_set_nfct(skb, (unsigned long)ct | info);
 }
 
 #define NF_CT_STAT_INC(net, count)	  __this_cpu_inc((net)->ct.stat->count)

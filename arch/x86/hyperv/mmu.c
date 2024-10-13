@@ -66,10 +66,16 @@ static void hyperv_flush_tlb_others(const struct cpumask *cpus,
 	if (!hv_hypercall_pg)
 		goto do_native;
 
-	if (cpumask_empty(cpus))
-		return;
-
 	local_irq_save(flags);
+
+	/*
+	 * Only check the mask _after_ interrupt has been disabled to avoid the
+	 * mask changing under our feet.
+	 */
+	if (cpumask_empty(cpus)) {
+		local_irq_restore(flags);
+		return;
+	}
 
 	flush_pcpu = (struct hv_tlb_flush **)
 		     this_cpu_ptr(hyperv_pcpu_input_arg);
@@ -233,6 +239,6 @@ void hyperv_setup_mmu_ops(void)
 		return;
 
 	pr_info("Using hypercall for remote TLB flush\n");
-	pv_mmu_ops.flush_tlb_others = hyperv_flush_tlb_others;
-	pv_mmu_ops.tlb_remove_table = tlb_remove_table;
+	pv_ops.mmu.flush_tlb_others = hyperv_flush_tlb_others;
+	pv_ops.mmu.tlb_remove_table = tlb_remove_table;
 }

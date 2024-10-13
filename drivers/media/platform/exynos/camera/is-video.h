@@ -16,10 +16,13 @@
 #include <linux/version.h>
 #include <media/v4l2-ioctl.h>
 #include "is-type.h"
-#include "is-mem.h"
+#include "pablo-mem.h"
 #include "is-framemgr.h"
 #include "is-metadata.h"
 #include "is-config.h"
+
+#define NUM_OF_META_PLANE	1
+#define NUM_OF_EXT_PLANE	1
 
 /* configuration by linux kernel version */
 
@@ -80,6 +83,11 @@
 #define VIDEO_3XP_READY_BUFFERS			0
 #define VIDEO_3XF_READY_BUFFERS			0
 #define VIDEO_3XG_READY_BUFFERS			0
+#define VIDEO_3XO_READY_BUFFERS			0
+#define VIDEO_3XL_READY_BUFFERS			0
+#define VIDEO_LME_READY_BUFFERS			0
+#define VIDEO_LMEXS_READY_BUFFERS			0
+#define VIDEO_LMEXC_READY_BUFFERS			0
 #define VIDEO_IXS_READY_BUFFERS			0
 #define VIDEO_IXC_READY_BUFFERS			0
 #define VIDEO_IXP_READY_BUFFERS			0
@@ -89,12 +97,6 @@
 #define VIDEO_IXW_READY_BUFFERS			0
 #define VIDEO_MEXC_READY_BUFFERS			0
 #define VIDEO_ORBXC_READY_BUFFERS			0
-#define VIDEO_SCC_READY_BUFFERS			0
-#define VIDEO_SCP_READY_BUFFERS			0
-#define VIDEO_DXS_READY_BUFFERS			0
-#define VIDEO_DXC_READY_BUFFERS			0
-#define VIDEO_DCPXS_READY_BUFFERS			0
-#define VIDEO_DCPXC_READY_BUFFERS			0
 #define VIDEO_MXS_READY_BUFFERS			0
 #define VIDEO_MXP_READY_BUFFERS			0
 #define VIDEO_VRA_READY_BUFFERS			0
@@ -105,7 +107,9 @@
 #define VIDEO_PAFXS_READY_BUFFERS		0
 #define VIDEO_CLHXS_READY_BUFFERS		0
 #define VIDEO_CLHXC_READY_BUFFERS		0
+#define VIDEO_YPP_READY_BUFFERS			0
 
+#define EXYNOS_VIDEONODE_FIMC_IS	(100)
 #define IS_VIDEO_NAME(name)		("exynos-is-"name)
 #define IS_VIDEO_SSX_NAME			IS_VIDEO_NAME("ss")
 #define IS_VIDEO_PRE_NAME			IS_VIDEO_NAME("pre")
@@ -114,6 +118,8 @@
 #define IS_VIDEO_3XP_NAME(id)		IS_VIDEO_NAME("3"#id"p")
 #define IS_VIDEO_3XF_NAME(id)		IS_VIDEO_NAME("3"#id"f")
 #define IS_VIDEO_3XG_NAME(id)		IS_VIDEO_NAME("3"#id"g")
+#define IS_VIDEO_3XO_NAME(id)		IS_VIDEO_NAME("3"#id"o")
+#define IS_VIDEO_3XL_NAME(id)		IS_VIDEO_NAME("3"#id"l")
 #define IS_VIDEO_IXS_NAME(id)		IS_VIDEO_NAME("i"#id"s")
 #define IS_VIDEO_IXC_NAME(id)		IS_VIDEO_NAME("i"#id"c")
 #define IS_VIDEO_IXP_NAME(id)		IS_VIDEO_NAME("i"#id"p")
@@ -133,6 +139,24 @@
 #define IS_VIDEO_PAFXS_NAME(id)		IS_VIDEO_NAME("p"#id"s")
 #define IS_VIDEO_CLHXS_NAME(id)		IS_VIDEO_NAME("cl"#id"s")
 #define IS_VIDEO_CLHXC_NAME(id)		IS_VIDEO_NAME("cl"#id"c")
+#define IS_VIDEO_YPP_NAME			IS_VIDEO_NAME("ypp")
+#define IS_VIDEO_LME_NAME			IS_VIDEO_NAME("lme")
+#define IS_VIDEO_LMEXS_NAME			IS_VIDEO_NAME("lmes")
+#define IS_VIDEO_LMEXC_NAME			IS_VIDEO_NAME("lmec")
+
+/* from kernel 4.20 version, some vb2 API parameter has changed */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+#define is_vb2_qbuf(vbq, buf)			vb2_qbuf(vbq, NULL, buf)
+#define is_vb2_prepare_buf(vbq, buf)		vb2_prepare_buf(vbq, NULL, buf)
+#define is_fill_vb2_buffer(vb, buf, planes)	fill_vb2_buffer(vb, planes)
+#else
+#define is_vb2_qbuf(vbq, buf)			vb2_qbuf(vbq, buf)
+#define is_vb2_prepare_buf(vbq, buf)		vb2_prepare_buf(vbq, buf)
+#define is_fill_vb2_buffer(vb, buf, planes)	fill_vb2_buffer(vb, buf, planes)
+#endif
+
+#define VIDEO_OUTPUT_DEVICE_CAPS	(V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_VIDEO_OUTPUT_MPLANE)
+#define VIDEO_CAPTURE_DEVICE_CAPS	(V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_CAPTURE_MPLANE)
 
 struct is_device_ischain;
 struct is_subdev;
@@ -157,11 +181,15 @@ enum is_video_dev_num {
 	IS_VIDEO_30P_NUM,
 	IS_VIDEO_30F_NUM,
 	IS_VIDEO_30G_NUM,
+	IS_VIDEO_30O_NUM,
+	IS_VIDEO_30L_NUM,
 	IS_VIDEO_31S_NUM = 20,
 	IS_VIDEO_31C_NUM,
 	IS_VIDEO_31P_NUM,
 	IS_VIDEO_31F_NUM,
 	IS_VIDEO_31G_NUM,
+	IS_VIDEO_31O_NUM,
+	IS_VIDEO_31L_NUM,
 	IS_VIDEO_I0S_NUM = 30,
 	IS_VIDEO_I0C_NUM,
 	IS_VIDEO_I0P_NUM,
@@ -175,16 +203,6 @@ enum is_video_dev_num {
 	IS_VIDEO_I1T_NUM,
 	IS_VIDEO_ME0C_NUM = 48,
 	IS_VIDEO_ME1C_NUM = 49,
-	IS_VIDEO_DCP0S_NUM = 50,	/* Master */
-	IS_VIDEO_DCP0C_NUM,	/* Master Main Capture */
-	IS_VIDEO_DCP1S_NUM,	/* Slave */
-	IS_VIDEO_DCP1C_NUM,	/* Slave Main Capture */
-	IS_VIDEO_DCP2C_NUM,	/* Disparity + Confidence + Master */
-	/* CAMERAPP_VIDEONODE_GDC = 55, should be reserved */
-	IS_VIDEO_DCP3C_NUM = 56,	/* Master Sub Capture */
-	IS_VIDEO_DCP4C_NUM,	/* Slave Sub Capture */
-	IS_VIDEO_SCC_NUM,
-	IS_VIDEO_SCP_NUM,
 	IS_VIDEO_M0S_NUM = 60,
 	IS_VIDEO_M1S_NUM,
 	IS_VIDEO_M0P_NUM = 70,
@@ -194,10 +212,10 @@ enum is_video_dev_num {
 	IS_VIDEO_M4P_NUM,
 	IS_VIDEO_M5P_NUM,
 	IS_VIDEO_VRA_NUM = 80,
-	IS_VIDEO_D0S_NUM = 90,
-	IS_VIDEO_D0C_NUM,
-	IS_VIDEO_D1S_NUM,
-	IS_VIDEO_D1C_NUM,
+	IS_VIDEO_YPP_NUM = 81,
+	IS_VIDEO_LME_NUM = 85,
+	IS_VIDEO_LME0S_NUM,
+	IS_VIDEO_LME0C_NUM,
 	IS_VIDEO_CLH0S_NUM = 94,
 	IS_VIDEO_CLH0C_NUM,
 	IS_VIDEO_ORB0C_NUM,
@@ -213,7 +231,7 @@ enum is_video_dev_num {
 	IS_VIDEO_SS1VC3_NUM,
 	IS_VIDEO_SS2VC0_NUM,
 	IS_VIDEO_SS2VC1_NUM,
-	IS_VIDEO_SS2VC2_NUM,
+	IS_VIDEO_SS2VC2_NUM = 120,
 	IS_VIDEO_SS2VC3_NUM,
 	IS_VIDEO_SS3VC0_NUM,
 	IS_VIDEO_SS3VC1_NUM,
@@ -223,18 +241,28 @@ enum is_video_dev_num {
 	IS_VIDEO_SS4VC1_NUM,
 	IS_VIDEO_SS4VC2_NUM,
 	IS_VIDEO_SS4VC3_NUM,
-	IS_VIDEO_SS5VC0_NUM,
+	IS_VIDEO_SS5VC0_NUM = 130,
 	IS_VIDEO_SS5VC1_NUM,
 	IS_VIDEO_SS5VC2_NUM,
 	IS_VIDEO_SS5VC3_NUM,
-	IS_VIDEO_PAF0S_NUM = 140,
+	IS_VIDEO_PAF0S_NUM = 134,
 	IS_VIDEO_PAF1S_NUM,
 	IS_VIDEO_PAF2S_NUM,
-	IS_VIDEO_32S_NUM = 150,
+	IS_VIDEO_PAF3S_NUM,
+	IS_VIDEO_32S_NUM,
 	IS_VIDEO_32C_NUM,
-	IS_VIDEO_32P_NUM,
+	IS_VIDEO_32P_NUM = 140,
 	IS_VIDEO_32F_NUM,
 	IS_VIDEO_32G_NUM,
+	IS_VIDEO_32O_NUM,
+	IS_VIDEO_32L_NUM,
+	IS_VIDEO_33S_NUM,
+	IS_VIDEO_33C_NUM,
+	IS_VIDEO_33P_NUM,
+	IS_VIDEO_33F_NUM,
+	IS_VIDEO_33G_NUM,
+	IS_VIDEO_33O_NUM = 150,
+	IS_VIDEO_33L_NUM,
 	IS_VIDEO_MAX_NUM
 };
 
@@ -260,18 +288,6 @@ enum is_queue_state {
 	IS_QUEUE_NEED_TO_REMAP,	/* need remapped DVA with specific attribute */
 	IS_QUEUE_NEED_TO_KMAP,	/* need permanent KVA for image planes */
 	IS_QUEUE_NEED_TO_EXTMAP,	/* need ext plane for thumbnai, histgram */
-};
-
-struct is_frame_cfg {
-	struct is_fmt		*format;
-	enum v4l2_colorspace		colorspace;
-	enum v4l2_quantization		quantization;
-	ulong				flip;
-	u32				width;
-	u32				height;
-	u32				hw_pixeltype;
-	u32				size[IS_MAX_PLANES];
-	u32				bytesperline[IS_MAX_PLANES];
 };
 
 struct is_queue_ops {
@@ -355,6 +371,7 @@ struct is_video {
 	const struct vb2_mem_ops	*vb2_mem_ops;
 	const struct is_vb2_buf_ops *is_vb2_buf_ops;
 	void				*alloc_ctx;
+  struct device			*alloc_dev;
 
 	struct semaphore		smp_multi_input;
 	bool				try_smp;
@@ -365,7 +382,7 @@ int open_vctx(struct file *file,
 	struct is_video *video,
 	struct is_video_ctx **vctx,
 	u32 instance,
-	u32 id,
+	ulong id,
 	const char *name);
 int close_vctx(struct file *file,
 	struct is_video *video,
@@ -443,7 +460,7 @@ int is_video_s_ctrl(struct file *file,
 int is_video_buffer_done(struct is_video_ctx *vctx,
 	u32 index, u32 state);
 
-struct is_fmt *is_find_format(u32 pixelformat, u32 pixel_size);
+struct is_fmt *is_find_format(u32 pixelformat, u32 flags);
 
 extern int is_pre_video_probe(void *data);
 extern int is_ssx_video_probe(void *data);
@@ -452,16 +469,29 @@ extern int is_30c_video_probe(void *data);
 extern int is_30p_video_probe(void *data);
 extern int is_30f_video_probe(void *data);
 extern int is_30g_video_probe(void *data);
+extern int is_30o_video_probe(void *data);
+extern int is_30l_video_probe(void *data);
 extern int is_31s_video_probe(void *data);
 extern int is_31c_video_probe(void *data);
 extern int is_31p_video_probe(void *data);
 extern int is_31f_video_probe(void *data);
 extern int is_31g_video_probe(void *data);
+extern int is_31o_video_probe(void *data);
+extern int is_31l_video_probe(void *data);
 extern int is_32s_video_probe(void *data);
 extern int is_32c_video_probe(void *data);
 extern int is_32p_video_probe(void *data);
 extern int is_32f_video_probe(void *data);
 extern int is_32g_video_probe(void *data);
+extern int is_32o_video_probe(void *data);
+extern int is_32l_video_probe(void *data);
+extern int is_33s_video_probe(void *data);
+extern int is_33c_video_probe(void *data);
+extern int is_33p_video_probe(void *data);
+extern int is_33f_video_probe(void *data);
+extern int is_33g_video_probe(void *data);
+extern int is_33o_video_probe(void *data);
+extern int is_33l_video_probe(void *data);
 extern int is_i0s_video_probe(void *data);
 extern int is_i0c_video_probe(void *data);
 extern int is_i0p_video_probe(void *data);
@@ -476,19 +506,6 @@ extern int is_me0c_video_probe(void *data);
 extern int is_me1c_video_probe(void *data);
 extern int is_orb0c_video_probe(void *data);
 extern int is_orb1c_video_probe(void *data);
-extern int is_d0s_video_probe(void *data);
-extern int is_d0c_video_probe(void *data);
-extern int is_d1s_video_probe(void *data);
-extern int is_d1c_video_probe(void *data);
-extern int is_dcp0s_video_probe(void *data);
-extern int is_dcp0c_video_probe(void *data);
-extern int is_dcp1s_video_probe(void *data);
-extern int is_dcp1c_video_probe(void *data);
-extern int is_dcp2c_video_probe(void *data);
-extern int is_dcp3c_video_probe(void *data);
-extern int is_dcp4c_video_probe(void *data);
-extern int is_scc_video_probe(void *data);
-extern int is_scp_video_probe(void *data);
 extern int is_m0s_video_probe(void *data);
 extern int is_m1s_video_probe(void *data);
 extern int is_m0p_video_probe(void *data);
@@ -505,8 +522,13 @@ extern int is_ssxvc3_video_probe(void *data);
 extern int is_paf0s_video_probe(void *data);
 extern int is_paf1s_video_probe(void *data);
 extern int is_paf2s_video_probe(void *data);
+extern int is_paf3s_video_probe(void *data);
 extern int is_cl0s_video_probe(void *data);
 extern int is_cl0c_video_probe(void *data);
+extern int is_ypp_video_probe(void *data);
+extern int is_lme_video_probe(void *data);
+extern int is_lmes_video_probe(void *data);
+extern int is_lmec_video_probe(void *data);
 
 #define GET_VIDEO(vctx) 		(vctx ? (vctx)->video : NULL)
 #define GET_QUEUE(vctx) 		(vctx ? &(vctx)->queue : NULL)

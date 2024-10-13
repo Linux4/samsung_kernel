@@ -13,7 +13,7 @@
 #ifndef __MFC_ENC_V4L2_H
 #define __MFC_ENC_V4L2_H __FILE__
 
-#include "mfc_common.h"
+#include "base/mfc_common.h"
 
 const struct v4l2_ioctl_ops *mfc_get_enc_v4l2_ioctl_ops(void);
 

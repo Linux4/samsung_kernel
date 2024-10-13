@@ -12,13 +12,14 @@
 #define __EXYNOS_BCM_DBG_H_
 
 #include <dt-bindings/soc/samsung/exynos-bcm_dbg.h>
+#include <linux/version.h>
+#include <linux/firmware.h>
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
-#define BCM_BIN_SIZE				(SZ_128K)
-#ifdef CONFIG_RKP
-#define BCM_CODE_SIZE				(SZ_16K)
-#endif
-#define BCM_BIN_NAME				"/system/vendor/firmware/is_lib.bin"
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
+
+#define BCM_BIN_SIZE                           (SZ_128K)
+#define BCM_BIN_NAME				"is_lib.bin"
+#define BCM_START				0xFFFFFFC101FE0000
 #endif
 
 #define ERRCODE_ITMON_TIMEOUT			(6)
@@ -177,12 +178,19 @@ struct exynos_bcm_event {
 	unsigned int			event[BCM_EVT_EVENT_MAX];
 };
 
+struct bcm_bin {
+	void *data;
+	size_t size;
+	const struct firmware *fw;
+};
+
 struct exynos_bcm_dbg_data {
 	struct device			*dev;
 	spinlock_t			lock;
 
 	struct exynos_bcm_dump_addr	dump_addr;
 	bool				dump_klog;
+	bool				rmem_acquired;
 
 	struct device_node		*ipc_node;
 	unsigned int			ipc_ch_num;
@@ -208,17 +216,18 @@ struct exynos_bcm_dbg_data {
 
 	unsigned int			bcm_run_state;
 	bool				available_stop_owner[STOP_OWNER_MAX];
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	bool				bcm_load_bin;
 	struct hrtimer			bcm_hrtimer;
 	unsigned int			period;
 	unsigned int			bcm_mode;
+	struct bcm_bin			bcm_bin;
 #endif
 	unsigned int			bcm_cnt_nr;
 	struct notifier_block		itmon_notifier;
 };
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 struct cmd_data {
 	unsigned int raw_cmd;
 	unsigned int cmd[CMD_DATA_MAX];
@@ -238,7 +247,7 @@ struct os_system_func {
 };
 #endif
 
-#ifdef CONFIG_EXYNOS_BCM_DBG
+#if defined (CONFIG_EXYNOS_BCM_DBG) || (CONFIG_EXYNOS_BCM_DBG_MODULE)
 int exynos_bcm_dbg_ipc_send_data(enum exynos_bcm_dbg_ipc_type ipc_type,
 				struct exynos_bcm_dbg_data *data,
 				unsigned int *cmd);
@@ -252,7 +261,7 @@ void exynos_bcm_dbg_stop(unsigned int bcm_stop_owner);
 #define exynos_bcm_dbg_stop(a) do {} while (0)
 #endif
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 int __nocfi exynos_bcm_dbg_load_bin(void);
 #else
 #define exynos_bcm_dbg_load_bin(a) do {} while (0)

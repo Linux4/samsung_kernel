@@ -2,7 +2,7 @@
 #ifndef __ASM_ASM_UACCESS_H
 #define __ASM_ASM_UACCESS_H
 
-#include <asm/alternative.h>
+#include <asm/alternative-macros.h>
 #include <asm/kernel-pgtable.h>
 #include <asm/mmu.h>
 #include <asm/sysreg.h>
@@ -15,16 +15,16 @@
 	.macro	__uaccess_ttbr0_disable, tmp1
 	mrs	\tmp1, ttbr1_el1			// swapper_pg_dir
 	bic	\tmp1, \tmp1, #TTBR_ASID_MASK
-	sub	\tmp1, \tmp1, #RESERVED_TTBR0_SIZE	// reserved_ttbr0 just before swapper_pg_dir
+	sub	\tmp1, \tmp1, #PAGE_SIZE		// reserved_pg_dir just before swapper_pg_dir
 	msr	ttbr0_el1, \tmp1			// set reserved TTBR0_EL1
 	isb
-	add	\tmp1, \tmp1, #RESERVED_TTBR0_SIZE
+	add	\tmp1, \tmp1, #PAGE_SIZE
 	msr	ttbr1_el1, \tmp1		// set reserved ASID
 	isb
 	.endm
 
 	.macro	__uaccess_ttbr0_enable, tmp1, tmp2
-	get_thread_info \tmp1
+	get_current_task \tmp1
 	ldr	\tmp1, [\tmp1, #TSK_TI_TTBR0]	// load saved TTBR0_EL1
 	mrs	\tmp2, ttbr1_el1
 	extr    \tmp2, \tmp2, \tmp1, #48
@@ -59,28 +59,32 @@ alternative_else_nop_endif
 #endif
 
 /*
- * These macros are no-ops when UAO is present.
+ * Generate the assembly for LDTR/STTR with exception table entries.
+ * This is complicated as there is no post-increment or pair versions of the
+ * unprivileged instructions, and USER() only works for single instructions.
  */
-	.macro	uaccess_disable_not_uao, tmp1, tmp2
-	uaccess_ttbr0_disable \tmp1, \tmp2
-alternative_if ARM64_ALT_PAN_NOT_UAO
-	SET_PSTATE_PAN(1)
-alternative_else_nop_endif
+	.macro uao_ldp l, reg1, reg2, addr, post_inc
+8888:		ldtr	\reg1, [\addr];
+8889:		ldtr	\reg2, [\addr, #8];
+		add	\addr, \addr, \post_inc;
+
+		_asm_extable	8888b,\l;
+		_asm_extable	8889b,\l;
 	.endm
 
-	.macro	uaccess_enable_not_uao, tmp1, tmp2, tmp3
-	uaccess_ttbr0_enable \tmp1, \tmp2, \tmp3
-alternative_if ARM64_ALT_PAN_NOT_UAO
-	SET_PSTATE_PAN(0)
-alternative_else_nop_endif
+	.macro uao_stp l, reg1, reg2, addr, post_inc
+8888:		sttr	\reg1, [\addr];
+8889:		sttr	\reg2, [\addr, #8];
+		add	\addr, \addr, \post_inc;
+
+		_asm_extable	8888b,\l;
+		_asm_extable	8889b,\l;
 	.endm
 
-/*
- * Remove the address tag from a virtual address, if present.
- */
-	.macro	untagged_addr, dst, addr
-	sbfx	\dst, \addr, #0, #56
-	and	\dst, \dst, \addr
-	.endm
+	.macro uao_user_alternative l, inst, alt_inst, reg, addr, post_inc
+8888:		\alt_inst	\reg, [\addr];
+		add		\addr, \addr, \post_inc;
 
+		_asm_extable	8888b,\l;
+	.endm
 #endif

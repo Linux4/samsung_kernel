@@ -127,7 +127,7 @@ static void del_kek_item(kek_item_t *item) {
 
     if(item) {
         list_del(&item->list);
-        kzfree(item);
+        kfree_sensitive(item);
     } else {
         KEK_PACK_LOGD("given item is NULL\n");
     }
@@ -182,7 +182,7 @@ void del_kek_pack(int engine_id) {
 	spin_unlock(&pack->kek_list_lock);
 
 	list_del(&pack->list);
-	kzfree(pack);
+	kfree_sensitive(pack);
 	spin_unlock(&del_kek_pack_lock);
 }
 
@@ -201,7 +201,7 @@ int add_kek(int engine_id, kek_t *kek) {
 	pack = find_kek_pack(engine_id);
 	if (pack == NULL) {
 		spin_unlock(&del_kek_pack_lock);
-		kzfree(item);
+		kfree_sensitive(item);
 		return -ENOENT;
 	}
 
@@ -209,7 +209,7 @@ int add_kek(int engine_id, kek_t *kek) {
 	if (find_kek_item(pack, kek->type)) {
 		spin_unlock(&pack->kek_list_lock);
 		spin_unlock(&del_kek_pack_lock);
-		kzfree(item);
+		kfree_sensitive(item);
 		return -EEXIST;
 	}
 	rc = __add_kek(pack, kek, item);
@@ -218,7 +218,7 @@ int add_kek(int engine_id, kek_t *kek) {
 	spin_unlock(&del_kek_pack_lock);
 	if (rc) {
 		KEK_PACK_LOGE("%s failed. rc = %d", __func__, rc);
-		kzfree(item);
+		kfree_sensitive(item);
 	}
 
 	return rc;
@@ -297,7 +297,7 @@ kek_t *get_kek(int engine_id, int kek_type, int *rc) {
 		return kek;
 	} else {
 		spin_unlock(&pack->kek_list_lock);
-		kzfree(kek);
+		kfree_sensitive(kek);
 	}
 
     *rc = -ENOENT;
@@ -307,7 +307,7 @@ kek_t *get_kek(int engine_id, int kek_type, int *rc) {
 void put_kek(kek_t *kek) {
 	KEK_PACK_LOGD("entered\n");
 
-	if(kek) kzfree(kek);
+	if(kek) kfree_sensitive(kek);
 }
 
 int is_kek_pack(int engine_id) {

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2019 Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -35,7 +27,7 @@
 
 static int ipc_open(struct inode *inode, struct file *filp)
 {
-	struct io_device *iod = to_io_device(filp->private_data);
+	struct io_device *iod = to_io_device(inode->i_cdev);
 	struct modem_shared *msd = iod->msd;
 	struct link_device *ld;
 	int ret;
@@ -56,7 +48,7 @@ static int ipc_open(struct inode *inode, struct file *filp)
 		}
 	}
 
-	mif_err("%s (opened %d) by %s\n",
+	mif_info("%s (opened %d) by %s\n",
 		iod->name, atomic_read(&iod->opened), current->comm);
 
 	return 0;
@@ -82,7 +74,7 @@ static int ipc_release(struct inode *inode, struct file *filp)
 			ld->terminate_comm(ld, iod);
 	}
 
-	mif_err("%s (opened %d) by %s\n",
+	mif_info("%s (opened %d) by %s\n",
 		iod->name, atomic_read(&iod->opened), current->comm);
 
 	return 0;
@@ -108,21 +100,18 @@ static unsigned int ipc_poll(struct file *filp, struct poll_table_struct *wait)
 	switch (mc->phone_state) {
 	case STATE_BOOTING:
 	case STATE_ONLINE:
-		if (!mc->sim_state.changed) {
-			if (!skb_queue_empty(rxq))
-				return POLLIN | POLLRDNORM;
-			else /* wq is waken up without rx, return for wait */
-				return 0;
-		}
-		/* fall through, if sim_state has been changed */
+		if (!skb_queue_empty(rxq))
+			return POLLIN | POLLRDNORM;
+		else /* wq is waken up without rx, return for wait */
+			return 0;
 	case STATE_CRASH_EXIT:
 	case STATE_CRASH_RESET:
 	case STATE_NV_REBUILDING:
 	case STATE_CRASH_WATCHDOG:
-		mif_err("%s: %s.state == %s\n", iod->name, mc->name, mc_state(mc));
-		if (iod->format == IPC_FMT) {
+		mif_err_limited("%s: %s.state == %s\n", iod->name, mc->name, mc_state(mc));
+		if (iod->format == IPC_FMT)
 			return POLLHUP;
-		}
+
 		/* give delay to prevent infinite sys_poll call from
 		 * select() in APP layer without 'sleep' user call takes
 		 * almost 100% cpu usage when it is looked up by 'top'
@@ -132,8 +121,7 @@ static unsigned int ipc_poll(struct file *filp, struct poll_table_struct *wait)
 		break;
 
 	case STATE_OFFLINE:
-		if ((iod->ch == EXYNOS_CH_ID_CPLOG && ld->protocol == PROTOCOL_SIT)
-			|| iod->ch == SIPC_CH_ID_CASS)
+		if (iod->ch == EXYNOS_CH_ID_CPLOG && ld->protocol == PROTOCOL_SIT)
 			return POLLHUP;
 	default:
 		break;
@@ -158,13 +146,6 @@ static long ipc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (p_state != STATE_ONLINE) {
 			mif_debug("%s: IOCTL_GET_CP_STATUS (state %s)\n",
 				iod->name, cp_state_str(p_state));
-		}
-
-		if (mc->sim_state.changed) {
-			enum modem_state s_state = mc->sim_state.online ?
-					STATE_SIM_ATTACH : STATE_SIM_DETACH;
-			mc->sim_state.changed = false;
-			return s_state;
 		}
 
 		if (p_state == STATE_NV_REBUILDING)
@@ -211,6 +192,7 @@ static long ipc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return mc->ops.trigger_cp_crash(mc);
 	}
 
+#if IS_ENABLED(CONFIG_CPIF_MBIM)
 	case IOCTL_SET_INTERNET_PDN_CID:
 	{
 		if (arg)
@@ -252,6 +234,81 @@ static long ipc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 	}
 
+	case IOCTL_SET_IP_PACKET_FILTERS:
+	{
+		struct packet_filter *filter_arg;
+		u8 rmnet_type;
+
+		mif_info("IOCTL_SET_IP_PACKET_FILTERS\n");
+
+		filter_arg = kvzalloc(sizeof(struct packet_filter), GFP_KERNEL);
+		if (!filter_arg) {
+			mif_err("packet_filter kvzalloc fail\n");
+			return -EFAULT;
+		}
+
+		if (copy_from_user(filter_arg, (struct packet_filter __user *)arg, sizeof(struct packet_filter))) {
+			mif_err("copy_from_user fail - IOCTL_SET_IP_PACKET_FILTERS\n");
+			kvfree(filter_arg);
+			return -EFAULT;
+		}
+
+		rmnet_type = filter_arg->cid - 1;
+
+		if (rmnet_type < RMNET_COUNT) {
+			if (filter_arg->filters_count != 0) {
+				memcpy(&ld->packet_filter_table.rmnet[rmnet_type], filter_arg, sizeof(struct packet_filter));
+				ld->is_modern_standby = true;
+			} else {
+				memset(&ld->packet_filter_table.rmnet[rmnet_type], 0, sizeof(struct packet_filter));
+				ld->is_modern_standby = false;
+			}
+		} else {
+			mif_err("Unknow CID: %d\n", filter_arg->cid);
+			kvfree(filter_arg);
+			return -EFAULT;
+		}
+		kvfree(filter_arg);
+		break;
+	}
+
+	case IOCTL_GET_IP_PACKET_FILTERS:
+	{
+		struct packet_filter *filter_arg;
+		u8 rmnet_type;
+
+		mif_info("IOCTL_GET_IP_PACKET_FILTERS\n");
+
+		filter_arg = kvzalloc(sizeof(struct packet_filter), GFP_KERNEL);
+		if (!filter_arg) {
+			mif_err("packet_filter kvzalloc fail\n");
+			return -EFAULT;
+		}
+
+		if (copy_from_user(filter_arg, (struct packet_filter __user *)arg, sizeof(struct packet_filter))) {
+			mif_err("copy_from_user fail - IOCTL_GET_IP_PACKET_FILTERS\n");
+			kvfree(filter_arg);
+			return -EFAULT;
+		}
+
+		rmnet_type = filter_arg->cid - 1;
+
+		if (rmnet_type < RMNET_COUNT) {
+			if (copy_to_user((void __user *)arg, &ld->packet_filter_table.rmnet[rmnet_type], sizeof(struct packet_filter))) {
+				mif_err("copy_to_user fail - IOCTL_GET_IP_PACKET_FILTERS\n");
+				kvfree(filter_arg);
+				return -EFAULT;
+			}
+		} else {
+			mif_err("Unknow CID: %d\n", filter_arg->cid);
+			kvfree(filter_arg);
+			return -EFAULT;
+		}
+		kvfree(filter_arg);
+		break;
+	}
+#endif
+
 	default:
 		 /* If you need to handle the ioctl for specific link device,
 		  * then assign the link ioctl handler to ld->ioctl
@@ -282,16 +339,12 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 	unsigned int copied = 0, tot_frame = 0, copied_frm = 0;
 	/* 64bit prevent */
 	unsigned int cnt = (unsigned int)count;
+	struct timespec64 ts;
 	int curr_init_end_cnt;
 	int retry = 0;
-#ifdef DEBUG_MODEM_IF
-	struct timespec ts;
-#endif
 
-#ifdef DEBUG_MODEM_IF
 	/* Record the timestamp */
-	getnstimeofday(&ts);
-#endif
+	ktime_get_ts64(&ts);
 
 	if (iod->format <= IPC_RFS && iod->ch == 0)
 		return -EINVAL;
@@ -307,11 +360,11 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 		case PROTOCOL_SIPC:
 			cfg = sipc5_build_config(iod, ld, cnt);
 			headroom = sipc5_get_hdr_len(&cfg);
-		break;
+			break;
 		case PROTOCOL_SIT:
 			cfg_sit = exynos_build_fr_config(iod, ld, cnt);
 			headroom = EXYNOS_HEADER_SIZE;
-		break;
+			break;
 		default:
 			mif_err("protocol error %d\n", ld->protocol);
 			return -EINVAL;
@@ -321,7 +374,7 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 	/* Wait for a while if a new CMD_INIT_END is sent */
 	while ((curr_init_end_cnt = atomic_read(&mld->init_end_cnt)) != mld->last_init_end_cnt &&
 	       retry++ < 3) {
-		mif_err_limited("%s: wait for INIT_END done (%dms) cnt:%d last:%d cmd:0x%02X\n",
+		mif_info_limited("%s: wait for INIT_END done (%dms) cnt:%d last:%d cmd:0x%02X\n",
 				 iod->name, INIT_END_WAIT_MS,
 				 curr_init_end_cnt, mld->last_init_end_cnt,
 				 mld->read_ap2cp_irq(mld));
@@ -336,6 +389,11 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 		atomic_dec(&mld->init_end_busy);
 	}
 
+	if (unlikely(!mld->last_init_end_cnt)) {
+		mif_err_limited("%s: INIT_END is not done\n", iod->name);
+		return -EAGAIN;
+	}
+
 	while (copied < cnt) {
 		struct sk_buff *skb;
 		char *buff;
@@ -345,15 +403,18 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 		unsigned int alloc_size;
 		int ret;
 
+		if (check_add_overflow(remains, headroom, &alloc_size))
+			alloc_size = SZ_2K;
 
 		switch (ld->protocol) {
 		case PROTOCOL_SIPC:
-			alloc_size = min_t(unsigned int, remains + headroom,
-				iod->max_tx_size ?: remains + headroom);
-		break;
+			if (iod->max_tx_size)
+				alloc_size = min_t(unsigned int, alloc_size,
+					iod->max_tx_size);
+			break;
 		case PROTOCOL_SIT:
-			alloc_size = min_t(unsigned int, remains + headroom, SZ_2K);
-		break;
+			alloc_size = min_t(unsigned int, alloc_size, SZ_2K);
+			break;
 		default:
 			mif_err("protocol error %d\n", ld->protocol);
 			return -EINVAL;
@@ -362,8 +423,6 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 		/* Calculate tailroom for padding size */
 		if (iod->link_header && ld->aligned)
 			tailroom = ld->calc_padding_size(alloc_size);
-		else
-			tailroom = 0;
 
 		alloc_size += tailroom;
 
@@ -400,10 +459,8 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 		skbpriv(skb)->lnk_hdr = iod->link_header;
 		skbpriv(skb)->sipc_ch = iod->ch;
 
-#ifdef DEBUG_MODEM_IF
 		/* Copy the timestamp to the skb */
-		memcpy(&skbpriv(skb)->ts, &ts, sizeof(struct timespec));
-#endif
+		skbpriv(skb)->ts = ts;
 #ifdef DEBUG_MODEM_IF_IODEV_TX
 		mif_pkt(iod->ch, "IOD-TX", skb);
 #endif
@@ -416,14 +473,13 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 			case PROTOCOL_SIPC:
 				sipc5_build_header(iod, buff, cfg,
 					tx_bytes, cnt - copied);
-			break;
+				break;
 			case PROTOCOL_SIT:
 				exynos_build_header(iod, ld, buff, cfg_sit, 0, tx_bytes);
 				/* modify next link header for multiframe */
 				if (((cfg_sit >> 8) & EXYNOS_SINGLE_MASK) != EXYNOS_SINGLE_MASK)
 					cfg_sit = modify_next_frame(cfg_sit);
-
-			break;
+				break;
 			default:
 				mif_err("protocol error %d\n", ld->protocol);
 				return -EINVAL;
@@ -467,6 +523,7 @@ static ssize_t ipc_read(struct file *filp, char *buf, size_t count,
 
 	if (skb_queue_empty(rxq)) {
 		long tmo = msecs_to_jiffies(100);
+
 		wait_event_timeout(iod->wq, !skb_queue_empty(rxq), tmo);
 	}
 
@@ -486,6 +543,7 @@ static ssize_t ipc_read(struct file *filp, char *buf, size_t count,
 
 	if (iod->ch == SIPC_CH_ID_CPLOG1) {
 		struct net_device *ndev = iod->ndev;
+
 		if (!ndev) {
 			mif_err("%s: ERR! no iod->ndev\n", iod->name);
 		} else {
@@ -522,7 +580,7 @@ const struct file_operations ipc_io_fops = {
 	.read = ipc_read,
 };
 
-const struct file_operations *get_ipc_io_fops()
+const struct file_operations *get_ipc_io_fops(void)
 {
 	return &ipc_io_fops;
 }

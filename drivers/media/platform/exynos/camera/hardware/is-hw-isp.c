@@ -26,7 +26,7 @@ static int __nocfi is_hw_isp_open(struct is_hw_ip *hw_ip, u32 instance,
 	if (test_bit(HW_OPEN, &hw_ip->state))
 		return 0;
 
-	frame_manager_probe(hw_ip->framemgr, BIT(hw_ip->id), "HWISP");
+	frame_manager_probe(hw_ip->framemgr, hw_ip->id, "HWISP");
 	frame_manager_open(hw_ip->framemgr, IS_MAX_HW_FRAME);
 
 	hw_ip->priv_info = vzalloc(sizeof(struct is_hw_isp));
@@ -37,12 +37,14 @@ static int __nocfi is_hw_isp_open(struct is_hw_ip *hw_ip, u32 instance,
 	}
 
 	hw_isp = (struct is_hw_isp *)hw_ip->priv_info;
+#ifndef DISABLE_LIB
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
+	is_fpsimd_get_func();
 	ret = get_lib_func(LIB_FUNC_ISP, (void **)&hw_isp->lib_func);
-	fpsimd_put();
+	is_fpsimd_put_func();
 #else
 	ret = get_lib_func(LIB_FUNC_ISP, (void **)&hw_isp->lib_func);
+#endif
 #endif
 
 	if (hw_isp->lib_func == NULL) {
@@ -311,12 +313,49 @@ static void is_hw_isp_update_param(struct is_hw_ip *hw_ip, struct is_region *reg
 			sizeof(struct param_dma_input));
 	}
 
+#if defined(SOC_MCFP)
+	if (lindex & LOWBIT_OF(PARAM_ISP_MOTION_DMA_INPUT)) {
+		memcpy(&param_set->motion_dma_input, &param->motion_dma_input,
+			sizeof(struct param_dma_input));
+	}
+#endif
+
+#if defined(ENABLE_RGB_REPROCESSING)
+	if (lindex & LOWBIT_OF(PARAM_ISP_RGB_INPUT)) {
+		memcpy(&param_set->dma_input_rgb, &param->rgb_input,
+			sizeof(struct param_dma_input));
+	}
+
+	if (lindex & LOWBIT_OF(PARAM_ISP_NOISE_INPUT)) {
+		memcpy(&param_set->dma_input_noise, &param->noise_input,
+			sizeof(struct param_dma_input));
+	}
+#endif
+
+#if defined(ENABLE_SC_MAP)
+	if (lindex & LOWBIT_OF(PARAM_ISP_SCMAP_INPUT)) {
+		memcpy(&param_set->dma_input_scmap, &param->scmap_input,
+			sizeof(struct param_dma_input));
+	}
+#endif
+
 	/* check output*/
 	if (lindex & LOWBIT_OF(PARAM_ISP_OTF_OUTPUT)) {
 		memcpy(&param_set->otf_output, &param->otf_output,
 			sizeof(struct param_otf_output));
 	}
 
+#if defined(SOC_YPP)
+	if (lindex & LOWBIT_OF(PARAM_ISP_VDMA4_OUTPUT)) {
+		memcpy(&param_set->dma_output_yuv, &param->vdma4_output,
+			sizeof(struct param_dma_output));
+	}
+
+	if (lindex & LOWBIT_OF(PARAM_ISP_VDMA5_OUTPUT)) {
+		memcpy(&param_set->dma_output_rgb, &param->vdma5_output,
+			sizeof(struct param_dma_output));
+	}
+#else
 	if (lindex & LOWBIT_OF(PARAM_ISP_VDMA4_OUTPUT)) {
 		memcpy(&param_set->dma_output_chunk, &param->vdma4_output,
 			sizeof(struct param_dma_output));
@@ -326,6 +365,7 @@ static void is_hw_isp_update_param(struct is_hw_ip *hw_ip, struct is_region *reg
 		memcpy(&param_set->dma_output_yuv, &param->vdma5_output,
 			sizeof(struct param_dma_output));
 	}
+#endif
 
 #if defined(SOC_TNR_MERGER)
 	if (lindex & LOWBIT_OF(PARAM_ISP_VDMA6_OUTPUT)) {
@@ -339,8 +379,37 @@ static void is_hw_isp_update_param(struct is_hw_ip *hw_ip, struct is_region *reg
 	}
 #endif
 
+#if defined(SOC_YPP)
+	if (lindex & LOWBIT_OF(PARAM_ISP_NRDS_OUTPUT)) {
+		memcpy(&param_set->dma_output_nrds, &param->nrds_output,
+			sizeof(struct param_dma_output));
+	}
+
+	if (lindex & LOWBIT_OF(PARAM_ISP_NOISE_OUTPUT)) {
+		memcpy(&param_set->dma_output_noise, &param->noise_output,
+			sizeof(struct param_dma_output));
+	}
+
+	if (lindex & LOWBIT_OF(PARAM_ISP_DRC_OUTPUT)) {
+		memcpy(&param_set->dma_output_drc, &param->drc_output,
+			sizeof(struct param_dma_output));
+	}
+
+	if (lindex & LOWBIT_OF(PARAM_ISP_HIST_OUTPUT)) {
+		memcpy(&param_set->dma_output_hist, &param->hist_output,
+			sizeof(struct param_dma_output));
+	}
+#endif
+
+#if defined(ENABLE_RGB_REPROCESSING)
+	if (lindex & LOWBIT_OF(PARAM_ISP_NOISE_REP_OUTPUT)) {
+		memcpy(&param_set->dma_output_noise_rep, &param->noise_rep_output,
+			sizeof(struct param_dma_output));
+	}
+#endif
+
 #ifdef CHAIN_USE_STRIPE_PROCESSING
-	if (lindex & LOWBIT_OF(PARAM_ISP_STRIPE_INPUT)) {
+	if ((lindex & LOWBIT_OF(PARAM_ISP_STRIPE_INPUT)) || (hindex & HIGHBIT_OF(PARAM_ISP_STRIPE_INPUT))) {
 		memcpy(&param_set->stripe_input, &param->stripe_input,
 			sizeof(struct param_stripe_input));
 	}
@@ -359,7 +428,8 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	struct isp_param_set *param_set;
 	struct is_region *region;
 	struct isp_param *param;
-	u32 lindex, hindex, fcount, instance;
+	u32 lindex = 0;
+	u32 hindex, fcount, instance;
 	bool frame_done = false;
 
 	FIMC_BUG(!hw_ip);
@@ -378,7 +448,7 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 
 	is_hw_g_ctrl(hw_ip, hw_ip->id, HW_G_CTRL_FRM_DONE_WITH_DMA, (void *)&frame_done);
 	if ((!frame_done)
-		|| (!test_bit(ENTRY_IXC, &frame->out_flag) 
+		|| (!test_bit(ENTRY_IXC, &frame->out_flag)
 			&& !test_bit(ENTRY_IXP, &frame->out_flag)
 			&& !test_bit(ENTRY_IXT, &frame->out_flag)
 #if defined(SOC_TNR_MERGER)
@@ -404,8 +474,13 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		param_set->dma_input.cmd = DMA_INPUT_COMMAND_DISABLE;
 		param_set->prev_dma_input.cmd = DMA_INPUT_COMMAND_DISABLE;
 		param_set->input_dva[0] = 0x0;
+#if defined(SOC_YPP)
+		param_set->dma_output_rgb.cmd = DMA_OUTPUT_COMMAND_DISABLE;
+		param_set->output_dva_rgb[0] = 0x0;
+#else
 		param_set->dma_output_chunk.cmd = DMA_OUTPUT_COMMAND_DISABLE;
 		param_set->output_dva_chunk[0] = 0x0;
+#endif
 		param_set->dma_output_yuv.cmd  = DMA_OUTPUT_COMMAND_DISABLE;
 		param_set->output_dva_yuv[0] = 0x0;
 #if defined(SOC_TNR_MERGER)
@@ -430,8 +505,13 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 
 		if (hw_ip->internal_fcount[instance] != 0) {
 			hw_ip->internal_fcount[instance] = 0;
+#if defined(SOC_YPP)
+			param_set->dma_output_yuv.cmd = param->vdma4_output.cmd;
+			param_set->dma_output_rgb.cmd  = param->vdma5_output.cmd;
+#else
 			param_set->dma_output_chunk.cmd = param->vdma4_output.cmd;
 			param_set->dma_output_yuv.cmd  = param->vdma5_output.cmd;
+#endif
 		}
 
 		/*set TNR operation mode */
@@ -460,7 +540,6 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 					instance, hw_ip, frame->fcount, i);
 				FIMC_BUG(1);
 			}
-
 #if defined(SOC_TNR_MERGER)
 			if (frame->ext_planes) {
 				for (j = 0; j < frame->ext_planes; j++) {
@@ -516,8 +595,62 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		}
 	}
 #endif
-	if (param_set->dma_output_chunk.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+
+#if defined(SOC_MCFP)
+	if (param_set->motion_dma_input.cmd != DMA_INPUT_COMMAND_DISABLE) {
 		for (i = 0; i < frame->num_buffers; i++) {
+			/* TODO: set Motion DMA input address */
+		}
+	}
+#endif
+
+#if defined(ENABLE_RGB_REPROCESSING)
+	if (param_set->dma_input_rgb.cmd != DMA_INPUT_COMMAND_DISABLE) {
+		for (i = 0; i < frame->num_buffers; i++) {
+			/* TODO: RGB DMA input address */
+		}
+	}
+
+	if (param_set->dma_input_noise.cmd != DMA_INPUT_COMMAND_DISABLE) {
+		for (i = 0; i < frame->num_buffers; i++) {
+			/* TODO: Noise DMA input address */
+		}
+	}
+#endif
+
+#if defined(ENABLE_SC_MAP)
+	if (param_set->dma_input_scmap.cmd != DMA_INPUT_COMMAND_DISABLE) {
+		for (i = 0; i < frame->num_buffers; i++) {
+			/* TODO: SCMAP DMA input address */
+		}
+	}
+#endif
+
+#if defined(SOC_YPP)
+	if (param_set->dma_output_yuv.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+		for (i = 0; i < param_set->dma_output_yuv.plane; i++) {
+			param_set->output_dva_yuv[i] = frame->ixcTargetAddress[i + cur_idx];
+			if (param_set->output_dva_yuv[i] == 0) {
+				msinfo_hw("[F:%d]ixcTargetAddress[%d] is zero",
+					instance, hw_ip, frame->fcount, i);
+				param_set->dma_output_yuv.cmd = DMA_OUTPUT_COMMAND_DISABLE;
+			}
+		}
+	}
+
+	if (param_set->dma_output_rgb.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+		for (i = 0; i < param_set->dma_output_rgb.plane; i++) {
+			param_set->output_dva_rgb[i] = frame->ixpTargetAddress[i + cur_idx];
+			if (param_set->output_dva_rgb[i] == 0) {
+				msinfo_hw("[F:%d]ixpTargetAddress[%d] is zero",
+					instance, hw_ip, frame->fcount, i);
+				param_set->dma_output_rgb.cmd = DMA_OUTPUT_COMMAND_DISABLE;
+			}
+		}
+	}
+#else
+	if (param_set->dma_output_chunk.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+		for (i = 0; i < param_set->dma_output_chunk.plane; i++) {
 			param_set->output_dva_chunk[i] = frame->ixpTargetAddress[i + cur_idx];
 			if (param_set->output_dva_chunk[i] == 0) {
 				msinfo_hw("[F:%d]ixpTargetAddress[%d] is zero",
@@ -528,7 +661,7 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	}
 
 	if (param_set->dma_output_yuv.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
-		for (i = 0; i < frame->num_buffers; i++) {
+		for (i = 0; i < param_set->dma_output_yuv.plane; i++) {
 			param_set->output_dva_yuv[i] = frame->ixcTargetAddress[i + cur_idx];
 			if (param_set->output_dva_yuv[i] == 0) {
 				msinfo_hw("[F:%d]ixcTargetAddress[%d] is zero",
@@ -537,9 +670,11 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			}
 		}
 	}
+#endif
+
 #if defined(SOC_TNR_MERGER)
 	if (param_set->dma_output_tnr_prev.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
-		for (i = 0; i < frame->num_buffers; i++) {
+		for (i = 0; i < param_set->dma_output_tnr_prev.plane; i++) {
 			param_set->output_dva_tnr_prev[i] = frame->ixvTargetAddress[i + cur_idx];
 			if (param_set->output_dva_tnr_prev[i] == 0) {
 				msinfo_hw("[F:%d]ixvTargetAddress[%d] is zero",
@@ -550,7 +685,7 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	}
 
 	if (param_set->dma_output_tnr_wgt.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
-		for (i = 0; i < frame->num_buffers; i++) {
+		for (i = 0; i < param_set->dma_output_tnr_wgt.plane; i++) {
 			param_set->output_dva_tnr_wgt[i] = frame->ixwTargetAddress[i + cur_idx];
 			if (param_set->output_dva_tnr_wgt[i] == 0) {
 				msinfo_hw("[F:%d]ixwTargetAddress[%d] is zero",
@@ -559,7 +694,41 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			}
 		}
 	}
-#endif
+#endif
+
+#if defined(SOC_YPP)
+	if (param_set->dma_output_nrds.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+		for (i = 0; i < param_set->dma_output_nrds.plane; i++) {
+			/* TODO: nrds DMA output address */
+		}
+	}
+
+	if (param_set->dma_output_noise.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+		for (i = 0; i < param_set->dma_output_noise.plane; i++) {
+			/* TODO: noise DMA output address */
+		}
+	}
+
+	if (param_set->dma_output_drc.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+		for (i = 0; i < param_set->dma_output_drc.plane; i++) {
+			/* TODO: DRC DMA output address */
+		}
+	}
+
+	if (param_set->dma_output_hist.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+		for (i = 0; i < param_set->dma_output_hist.plane; i++) {
+			/* TODO: Hist DMA output address */
+		}
+	}
+#endif
+
+#if defined(ENABLE_RGB_REPROCESSING)
+	if (param_set->dma_output_noise_rep.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
+		for (i = 0; i < param_set->dma_output_drc.plane; i++) {
+			/* TODO: Noise Rep DMA output address */
+		}
+	}
+#endif
 
 config:
 	param_set->instance_id = instance;
@@ -598,6 +767,8 @@ config:
 			hw_id = DEV_HW_3AA1;
 		else if (test_bit(DEV_HW_3AA2, &hw_map))
 			hw_id = DEV_HW_3AA2;
+		else if (test_bit(DEV_HW_3AA3, &hw_map))
+			hw_id = DEV_HW_3AA3;
 
 		hw_slot = is_hw_slot_id(hw_id);
 		if (valid_hw_slot_id(hw_slot)) {
@@ -686,85 +857,17 @@ static int is_hw_isp_get_meta(struct is_hw_ip *hw_ip, struct is_frame *frame,
 static int is_hw_isp_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	u32 instance, enum ShotErrorType done_type)
 {
+	int output_id = 0;
 	int ret = 0;
-	int wq_id_ixc, wq_id_ixp, wq_id_mexc, output_id;
-#if defined(SOC_TNR_MERGER)
-	int wq_id_ixt, wq_id_ixg, wq_id_ixv, wq_id_ixw;
-#endif
+
 	FIMC_BUG(!hw_ip);
 	FIMC_BUG(!frame);
 
-	switch (hw_ip->id) {
-	case DEV_HW_ISP0:
-		wq_id_ixc = WORK_I0C_FDONE;
-		wq_id_ixp = WORK_I0P_FDONE;
-		wq_id_mexc = WORK_ME0C_FDONE;
-#if defined(SOC_TNR_MERGER)
-		wq_id_ixt = WORK_I0T_FDONE;
-		wq_id_ixg = WORK_I0G_FDONE;
-		wq_id_ixv = WORK_I0V_FDONE;
-		wq_id_ixw = WORK_I0W_FDONE;
-#endif
-		break;
-	case DEV_HW_ISP1:
-		wq_id_ixc = WORK_I1C_FDONE;
-		wq_id_ixp = WORK_I1P_FDONE;
-		wq_id_mexc = WORK_ME1C_FDONE;
-		break;
-	default:
-		mserr_hw("[F:%d]invalid hw(%d)", instance, hw_ip, frame->fcount, hw_ip->id);
-		return -EINVAL;
-	}
+	if (test_bit(hw_ip->id, &frame->core_flag))
+		output_id = IS_HW_CORE_END;
 
-	output_id = ENTRY_IXC;
-	if (test_bit(output_id, &frame->out_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, wq_id_ixc,
-				output_id, done_type, false);
-	}
-
-	output_id = ENTRY_IXP;
-	if (test_bit(output_id, &frame->out_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, wq_id_ixp,
-				output_id, done_type, false);
-	}
-
-#if defined(SOC_TNR_MERGER)
-	output_id = ENTRY_IXT;
-	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, wq_id_ixt,
-				output_id, done_type, false);
-	}
-
-	output_id = ENTRY_IXG;
-	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, wq_id_ixg,
-				output_id, done_type, false);
-	}
-
-	output_id = ENTRY_IXV;
-	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, wq_id_ixv,
-				output_id, done_type, false);
-	}
-
-	output_id = ENTRY_IXW;
-	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, wq_id_ixw,
-				output_id, done_type, false);
-	}
-#endif
-
-	output_id = ENTRY_MEXC;
-	if (test_bit(output_id, &frame->out_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, wq_id_mexc,
-				output_id, done_type, false);
-	}
-
-	output_id = IS_HW_CORE_END;
-	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, -1,
-				output_id, done_type, false);
-	}
+	ret = is_hardware_frame_done(hw_ip, frame, -1,
+			output_id, done_type, false);
 
 	return ret;
 }

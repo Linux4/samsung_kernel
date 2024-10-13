@@ -19,7 +19,7 @@
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
@@ -40,10 +40,8 @@
 #if defined(CONFIG_CAMERA_PAFSTAT)
 #include "pafstat/is-pafstat.h"
 #endif
+#ifdef CAMERA_MODULE_DUAL_CAL_AVAILABLE_VERSION
 #include "is-sec-define.h"
-#ifdef CONFIG_LEDS_S2MU106_FLASH
-#include <linux/muic/slsi/s2mu106/s2mu106-muic-hv.h>
-#include <linux/usb/typec/slsi/common/usbpd_ext.h>
 #endif
 
 static int get_sensor_by_model_id(struct v4l2_subdev *subdev_cis, int model_id)
@@ -233,12 +231,14 @@ int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 
 	if (test_bit(IS_SENSOR_ACTUATOR_AVAILABLE, &sensor_peri->peri_state) &&
 			pdata->af_product_name != ACTUATOR_NAME_NOTHING && sensor_peri->actuator != NULL) {
+
 		sensor_peri->actuator->actuator_data.actuator_init = true;
 		sensor_peri->actuator->actuator_index = -1;
 		sensor_peri->actuator->left_x = 0;
 		sensor_peri->actuator->left_y = 0;
 		sensor_peri->actuator->right_x = 0;
 		sensor_peri->actuator->right_y = 0;
+
 		sensor_peri->actuator->actuator_data.afwindow_timer.function = is_actuator_m2m_af_set;
 
 		subdev_actuator = sensor_peri->subdev_actuator;
@@ -345,11 +345,6 @@ int sensor_module_deinit(struct v4l2_subdev *subdev)
 			if (ret) {
 				err("failed to turn off flash at flash expired handler\n");
 			}
-#ifdef CONFIG_LEDS_S2MU106_FLASH
-			pdo_ctrl_by_flash(0);
-			muic_afc_set_voltage(9);
-			info("[%s](%d) MAIN Flash ERR: Power Down set Clear(5V -> 9V).\n" ,__func__,__LINE__);
-#endif
 		}
 	}
 
@@ -374,69 +369,6 @@ int sensor_module_deinit(struct v4l2_subdev *subdev)
 
 	pr_info("[MOD:%s] %s\n", module->sensor_name, __func__);
 
-	return ret;
-}
-
-long sensor_module_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
-{
-	int ret = 0;
-
-	FIMC_BUG(!subdev);
-
-	switch(cmd) {
-	case V4L2_CID_SENSOR_DEINIT:
-		ret = sensor_module_deinit(subdev);
-		if (ret) {
-			err("err!!! ret(%d), sensor module deinit fail", ret);
-			goto p_err;
-		}
-		break;
-	case V4L2_CID_SENSOR_NOTIFY_VSYNC:
-		ret = is_sensor_peri_notify_vsync(subdev, arg);
-		if (ret) {
-			err("err!!! ret(%d), sensor notify vsync fail", ret);
-			goto p_err;
-		}
-		break;
-	case V4L2_CID_SENSOR_NOTIFY_VBLANK:
-		ret = is_sensor_peri_notify_vblank(subdev, arg);
-		if (ret) {
-			err("err!!! ret(%d), sensor notify vblank fail", ret);
-			goto p_err;
-		}
-		break;
-	case V4L2_CID_SENSOR_NOTIFY_FLASH_FIRE:
-		/* Do not use */
-		break;
-	case V4L2_CID_SENSOR_NOTIFY_ACTUATOR:
-		ret = is_sensor_peri_notify_actuator(subdev, arg);
-		if (ret) {
-			err("err!!! ret(%d), sensor notify actuator fail", ret);
-			goto p_err;
-		}
-		break;
-	case V4L2_CID_SENSOR_NOTIFY_M2M_ACTUATOR:
-		ret = is_actuator_notify_m2m_actuator(subdev);
-		if (ret) {
-			err("err!!! ret(%d), sensor notify M2M actuator fail", ret);
-			goto p_err;
-		}
-		break;
-	case V4L2_CID_SENSOR_NOTIFY_ACTUATOR_INIT:
-		ret = is_sensor_peri_notify_actuator_init(subdev);
-		if (ret) {
-			err("err!!! ret(%d), actuator init fail\n", ret);
-			goto p_err;
-		}
-		break;
-
-	default:
-		err("err!!! Unknown CID(%#x)", cmd);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-p_err:
 	return ret;
 }
 
@@ -589,7 +521,7 @@ int sensor_module_g_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		}
 		break;
 	case V4L2_CID_ACTUATOR_GET_STATUS:
-		ret = v4l2_subdev_call(sensor_peri->subdev_actuator, core, g_ctrl, ctrl);
+		ret = v4l2_subdev_call(sensor_peri->subdev_actuator, core, ioctl, SENSOR_IOCTL_ACT_G_CTRL, ctrl);
 		if (ret) {
 			err("[MOD:%s] v4l2_subdev_call(g_ctrl, id:%d) is fail(%d)",
 					module->sensor_name, ctrl->id, ret);
@@ -634,6 +566,15 @@ int sensor_module_g_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		break;
 	case V4L2_CID_SENSOR_GET_SSM_MD_THRESHOLD:
 		ret = CALL_CISOPS(&sensor_peri->cis, cis_get_super_slow_motion_md_threshold,
+				sensor_peri->subdev_cis, &ctrl->value);
+		if (ret < 0) {
+			err("err!!! ret(%d)", ret);
+			ret = -EINVAL;
+			goto p_err;
+		}
+		break;
+	case V4L2_CID_SENSOR_GET_SSM_FLICKER:
+		ret = CALL_CISOPS(&sensor_peri->cis, cis_get_super_slow_motion_flicker,
 				sensor_peri->subdev_cis, &ctrl->value);
 		if (ret < 0) {
 			err("err!!! ret(%d)", ret);
@@ -754,7 +695,7 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 			}
 		}
 
-		ret = v4l2_subdev_call(sensor_peri->subdev_actuator, core, s_ctrl, ctrl);
+		ret = v4l2_subdev_call(sensor_peri->subdev_actuator, core, ioctl, SENSOR_IOCTL_ACT_S_CTRL, ctrl);
 		if (ret < 0) {
 			err("[MOD:%s] v4l2_subdev_call(s_ctrl, id:%d) is fail(%d)",
 					module->sensor_name, ctrl->id, ret);
@@ -766,7 +707,7 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 	case V4L2_CID_FLASH_SET_BY_CAL_CH1:
 	case V4L2_CID_FLASH_SET_INTENSITY:
 	case V4L2_CID_FLASH_SET_FIRING_TIME:
-		ret = v4l2_subdev_call(sensor_peri->subdev_flash, core, s_ctrl, ctrl);
+		ret = v4l2_subdev_call(sensor_peri->subdev_flash, core, ioctl, SENSOR_IOCTL_FLS_S_CTRL, ctrl);
 		if (ret) {
 			err("[MOD:%s] v4l2_subdev_call(s_ctrl, id:%d) is fail(%d)",
 					module->sensor_name, ctrl->id, ret);
@@ -882,6 +823,10 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		info("[MOD:%s] Dual sync mode set to %s", module->sensor_name,
 			sensor_peri->cis.dual_sync_mode == DUAL_SYNC_MASTER ? "Master" : "Slave");
 		break;
+	case V4L2_CID_IS_OBTE_CONFIG:
+		device->obte_config = ctrl->value;
+		info("[OBTE] obte_config is set by %d", ctrl->value);
+		break;
 	default:
 		err("err!!! Unknown CID(%#x)", ctrl->id);
 		ret = -EINVAL;
@@ -968,23 +913,65 @@ int sensor_module_s_ext_ctrls(struct v4l2_subdev *subdev, struct v4l2_ext_contro
 			}
 			break;
 
+		case V4L2_CID_SENSOR_SET_SSM_DEBUG_CONTROL:
+			ret = copy_from_user(&ssm_roi, ext_ctrl->ptr, sizeof(struct v4l2_rect));
+			if (ret) {
+				err("fail to copy_from_user, ret(%d)\n", ret);
+				goto p_err;
+			}
+
+			ret = CALL_CISOPS(&sensor_peri->cis, cis_set_super_slow_motion_setting,
+				sensor_peri->subdev_cis, &ssm_roi);
+			if (ret < 0) {
+				err("failed to set super slow motion setting, ret(%d)\n", ret);
+				goto p_err;
+			}
+			break;
+
 		case V4L2_CID_IS_GET_DUAL_CAL:
 		{
-#if defined(CONFIG_VENDER_MCD) || defined(CONFIG_VENDER_MCD_V2)
+#ifdef CONFIG_VENDER_MCD
 			char *dual_cal = NULL;
 			int cal_size = 0;
+			int rom_type;
+			int rom_dualcal_id;
+			int rom_dualcal_index;
+			struct is_rom_info *finfo = NULL;
 
-			ret = is_get_dual_cal_buf(device->position, &dual_cal, &cal_size);
-			if (ret == 0) {
-				info("dual cal[%d] : ver[%d]", device->position, *((s32 *)dual_cal));
-				ret = copy_to_user(ext_ctrl->ptr, dual_cal, cal_size);
-				if (ret) {
-					err("failed copying %d bytes of data\n", ret);
+			is_vendor_get_rom_dualcal_info_from_position(device->position, &rom_type, &rom_dualcal_id, &rom_dualcal_index);
+			if (rom_type == ROM_TYPE_NONE) {
+				err("[rom_dualcal_id:%d pos:%d] not support, no rom for camera", rom_dualcal_id, device->position);
+				return -EINVAL;
+			} else if (rom_dualcal_id == ROM_ID_NOTHING) {
+				err("[rom_dualcal_id:%d pos:%d] invalid ROM ID", rom_dualcal_id, device->position);
+				return -EINVAL;
+			}
+
+			is_sec_get_sysfs_finfo(&finfo, rom_dualcal_id);
+			if (test_bit(IS_CRC_ERROR_ALL_SECTION, &finfo->crc_error) ||
+				test_bit(IS_CRC_ERROR_DUAL_CAMERA, &finfo->crc_error)) {
+				err("[rom_dualcal_id:%d pos:%d] ROM Cal CRC is wrong. Cannot load dual cal.",
+					rom_dualcal_id, device->position);
+				return -EINVAL;
+			}
+
+			if (finfo->header_ver[FW_VERSION_INFO] >= 'B') {
+				ret = is_get_dual_cal_buf(device->position, &dual_cal, &cal_size);
+				if (ret == 0) {
+					info("dual cal[%d] : ver[%d]", device->position, *((s32 *)dual_cal));
+					ret = copy_to_user(ext_ctrl->ptr, dual_cal, cal_size);
+					if (ret) {
+						err("failed copying %d bytes of data\n", ret);
+						ret = -EINVAL;
+						goto p_err;
+					}
+				} else {
+					err("failed to is_get_dual_cal_buf : %d\n", ret);
 					ret = -EINVAL;
 					goto p_err;
 				}
 			} else {
-				err("failed to is_get_dual_cal_buf : %d\n", ret);
+				err("module version is %c.", finfo->header_ver[FW_VERSION_INFO]);
 				ret = -EINVAL;
 				goto p_err;
 			}
@@ -1001,32 +988,7 @@ int sensor_module_s_ext_ctrls(struct v4l2_subdev *subdev, struct v4l2_ext_contro
 #endif
 			break;
 		}
-		case V4L2_CID_IS_GET_REMOSAIC_CAL:
-		{
-#ifdef CONFIG_VENDER_MCD_V2
-		char *remosaic_cal = NULL;
-		int remosaic_cal_size = 0;
-		ret = is_get_remosaic_cal_buf(device->position, &remosaic_cal, &remosaic_cal_size);
-		if (ret == 0) {
-			info("remosaic cal[%d] : size(%d)", device->position, remosaic_cal_size);
-			ret = copy_to_user(ext_ctrl->ptr, remosaic_cal, remosaic_cal_size);
-			if (ret) {
-				err("failed copying %d bytes of data\n", ret);
-				ret = -EINVAL;
-				goto p_err;
-			}
-		} else {
-			err("failed to is_get_remosaic_cal_buf : %d\n", ret);
-			ret = -EINVAL;
-			goto p_err;
-		}
-#else
-		err("Available version is not defined. Not apply remosaic cal.");
-		ret = -EINVAL;
-		goto p_err;
-#endif
-			break;
-		}
+
 		default:
 			ctrl.id = ext_ctrl->id;
 			ctrl.value = ext_ctrl->value;
@@ -1038,6 +1000,102 @@ int sensor_module_s_ext_ctrls(struct v4l2_subdev *subdev, struct v4l2_ext_contro
 			}
 			break;
 		}
+	}
+
+p_err:
+	return ret;
+}
+
+long sensor_module_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+	struct v4l2_ext_controls *ext_ctrl;
+
+	FIMC_BUG(!subdev);
+
+	switch(cmd) {
+	case V4L2_CID_SENSOR_DEINIT:
+		ret = sensor_module_deinit(subdev);
+		if (ret) {
+			err("err!!! ret(%d), sensor module deinit fail", ret);
+			goto p_err;
+		}
+		break;
+	case V4L2_CID_SENSOR_NOTIFY_VSYNC:
+		ret = is_sensor_peri_notify_vsync(subdev, arg);
+		if (ret) {
+			err("err!!! ret(%d), sensor notify vsync fail", ret);
+			goto p_err;
+		}
+		break;
+	case V4L2_CID_SENSOR_NOTIFY_VBLANK:
+		ret = is_sensor_peri_notify_vblank(subdev, arg);
+		if (ret) {
+			err("err!!! ret(%d), sensor notify vblank fail", ret);
+			goto p_err;
+		}
+		break;
+	case V4L2_CID_SENSOR_NOTIFY_FLASH_FIRE:
+		/* Do not use */
+		break;
+	case V4L2_CID_SENSOR_NOTIFY_ACTUATOR:
+		ret = is_sensor_peri_notify_actuator(subdev, arg);
+		if (ret) {
+			err("err!!! ret(%d), sensor notify actuator fail", ret);
+			goto p_err;
+		}
+		break;
+	case V4L2_CID_SENSOR_NOTIFY_M2M_ACTUATOR:
+		ret = is_actuator_notify_m2m_actuator(subdev);
+		if (ret) {
+			err("err!!! ret(%d), sensor notify M2M actuator fail", ret);
+			goto p_err;
+		}
+		break;
+	case V4L2_CID_SENSOR_NOTIFY_ACTUATOR_INIT:
+		ret = is_sensor_peri_notify_actuator_init(subdev);
+		if (ret) {
+			err("err!!! ret(%d), actuator init fail\n", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_MOD_S_CTRL:
+		ctrl = (struct v4l2_control *)arg;
+		ret = sensor_module_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!! ret(%d), sensor_module_s_ctrl fail", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_MOD_G_CTRL:
+		ctrl = (struct v4l2_control *)arg;
+		ret = sensor_module_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!! ret(%d), sensor_module_g_ctrl fail", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_MOD_S_EXT_CTRL:
+		ext_ctrl = (struct v4l2_ext_controls *)arg;
+		ret = sensor_module_s_ext_ctrls(subdev, ext_ctrl);
+		if (ret) {
+			err("err!! ret(%d), sensor_module_s_ext_ctrl fail", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_MOD_G_EXT_CTRL:
+		ext_ctrl = (struct v4l2_ext_controls *)arg;
+		ret = sensor_module_g_ext_ctrls(subdev, ext_ctrl);
+		if (ret) {
+			err("err!! ret(%d), sensor_module_g_ext_ctrl fail", ret);
+			goto p_err;
+		}
+		break;
+	default:
+		err("err!!! Unknown CID(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
 	}
 
 p_err:
@@ -1153,11 +1211,13 @@ int sensor_module_s_format(struct v4l2_subdev *subdev,
 	BUG_ON(!core);
 
 	if (cis->cis_data->sens_config_index_cur != device->cfg->mode
+		|| cis->cis_data->sens_config_ex_mode_cur != device->cfg->ex_mode
 		|| sensor_peri->mode_change_first == true) {
 		dbg_sensor(1, "[%s] mode changed(%d->%d)\n", __func__,
 				cis->cis_data->sens_config_index_cur, device->cfg->mode);
 
 		cis->cis_data->sens_config_index_cur = device->cfg->mode;
+		cis->cis_data->sens_config_ex_mode_cur = device->cfg->ex_mode;
 		cis->cis_data->cur_width = fmt->format.width;
 		cis->cis_data->cur_height = fmt->format.height;
 
@@ -1280,10 +1340,6 @@ static int sensor_module_check_match_seq(struct is_device_sensor *device, struct
 
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = sensor_module_init,
-	.g_ctrl = sensor_module_g_ctrl,
-	.s_ctrl = sensor_module_s_ctrl,
-	.g_ext_ctrls = sensor_module_g_ext_ctrls,
-	.s_ext_ctrls = sensor_module_s_ext_ctrls,
 	.ioctl = sensor_module_ioctl,
 	.log_status = sensor_module_log_status,
 };
@@ -1303,9 +1359,7 @@ static const struct v4l2_subdev_ops subdev_ops = {
 	.pad = &pad_ops
 };
 
-int __init sensor_module_base_probe(struct platform_device *pdev,
-	is_moudle_callback module_callback,
-	struct is_module_enum **ret_module)
+static int sensor_module_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct is_core *core;
@@ -1318,12 +1372,14 @@ int __init sensor_module_base_probe(struct platform_device *pdev,
 	int t;
 	struct pinctrl_state *s;
 	u32 match_result = 0;
+	is_moudle_callback module_callback = NULL;
 
-	core = (struct is_core *)dev_get_drvdata(is_dev);
-	if (!core) {
-		probe_err("core device is not yet probed");
+	if (is_dev == NULL) {
+		warn("is_dev is not yet probed(sensor_module)");
 		return -EPROBE_DEFER;
 	}
+
+	core = (struct is_core *)dev_get_drvdata(is_dev);
 
 	dev = &pdev->dev;
 
@@ -1347,7 +1403,7 @@ int __init sensor_module_base_probe(struct platform_device *pdev,
 		goto p_err;
 	}
 
-	probe_info("[@]%s(%s) pdata->id(%d), module_count = %d\n", __func__,
+	probe_info("%s(%s) pdata->id(%d), module_count = %d\n", __func__,
 			pdata->sensor_name,
 			pdata->id,
 			atomic_read(&device->module_count));
@@ -1464,6 +1520,7 @@ int __init sensor_module_base_probe(struct platform_device *pdev,
 	v4l2_set_subdevdata(subdev_module, module);
 	v4l2_set_subdev_hostdata(subdev_module, device);
 	snprintf(subdev_module->name, V4L2_SUBDEV_NAME_SIZE, "sensor-subdev.%s", module->sensor_name);
+	probe_info("module->cfg=%p module->cfgs=%d\n", module->cfg, module->cfgs);
 
 	if (device->pdata->i2c_dummy_enable) {
 		probe_info("%s: try to use match seq", __func__);
@@ -1500,8 +1557,6 @@ int __init sensor_module_base_probe(struct platform_device *pdev,
 
 	if (pinctrl_select_state(pdata->pinctrl, s) < 0)
 		probe_err("pinctrl_select_state is fail\n");
-	else
-		*ret_module = module;
 
 	probe_info("%s(%d)\n", __func__, ret);
 
@@ -1514,21 +1569,6 @@ p_err:
 	return ret;
 }
 
-static int __init sensor_module_probe(struct platform_device *pdev)
-{
-	int ret = 0;
-	struct is_module_enum *module = NULL;
-
-	ret = sensor_module_base_probe(pdev, NULL, &module);
-	if (ret && (ret != -EPROBE_DEFER)) {
-		probe_err("sensor_module_probe is fail");
-		goto p_err;
-	}
-
-p_err:
-	return ret;
-}
-
 static const struct of_device_id exynos_is_sensor_module_match[] = {
 	{
 		.compatible = "samsung,sensor-module",
@@ -1538,7 +1578,8 @@ static const struct of_device_id exynos_is_sensor_module_match[] = {
 };
 MODULE_DEVICE_TABLE(of, exynos_is_sensor_module_match);
 
-static struct platform_driver sensor_module_driver = {
+struct platform_driver sensor_module_driver = {
+	.probe = sensor_module_probe,
 	.driver = {
 		.name   = "FIMC-IS-SENSOR-MODULE",
 		.owner  = THIS_MODULE,
@@ -1546,6 +1587,7 @@ static struct platform_driver sensor_module_driver = {
 	}
 };
 
+#ifndef MODULE
 static int __init is_sensor_module_init(void)
 {
 	int ret;
@@ -1559,3 +1601,4 @@ static int __init is_sensor_module_init(void)
 	return ret;
 }
 late_initcall(is_sensor_module_init);
+#endif

@@ -19,20 +19,26 @@
 #include "is-core.h"
 #include "is-dvfs.h"
 #include "is-hw-dvfs.h"
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #ifdef CONFIG_PM_DEVFREQ
 
 #if defined(QOS_INTCAM)
-extern struct pm_qos_request exynos_isp_qos_int_cam;
+extern struct is_pm_qos_request exynos_isp_qos_int_cam;
 #endif
 #if defined(QOS_TNR)
-extern struct pm_qos_request exynos_isp_qos_tnr;
+extern struct is_pm_qos_request exynos_isp_qos_tnr;
 #endif
-extern struct pm_qos_request exynos_isp_qos_int;
-extern struct pm_qos_request exynos_isp_qos_mem;
-extern struct pm_qos_request exynos_isp_qos_cam;
-extern struct pm_qos_request exynos_isp_qos_hpg;
+#if defined(QOS_CSIS)
+extern struct is_pm_qos_request exynos_isp_qos_csis;
+#endif
+#if defined(QOS_ISP)
+extern struct is_pm_qos_request exynos_isp_qos_isp;
+#endif
+extern struct is_pm_qos_request exynos_isp_qos_int;
+extern struct is_pm_qos_request exynos_isp_qos_mem;
+extern struct is_pm_qos_request exynos_isp_qos_cam;
+extern struct is_pm_qos_request exynos_isp_qos_hpg;
 
 #if defined(CONFIG_SCHED_EHMP) || defined(CONFIG_SCHED_EMS)
 #if defined(CONFIG_SCHED_EMS_TUNE)
@@ -94,6 +100,14 @@ static int is_get_target_resol(struct is_device_ischain *device)
 }
 #endif
 
+bool is_dvfs_is_fast_ae(struct is_dvfs_ctrl *dvfs_ctrl)
+{
+	return (dvfs_ctrl->static_ctrl->cur_scenario_id != IS_SN_PREVIEW_HIGH_SPEED_FPS
+			&& dvfs_ctrl->static_ctrl->cur_scenario_id != IS_SN_FRONT_PREVIEW_HIGH_SPEED_FPS
+			&& dvfs_ctrl->dynamic_ctrl->cur_scenario_id == IS_SN_PREVIEW_HIGH_SPEED_FPS
+			&& dvfs_ctrl->dynamic_ctrl->cur_frame_tick > 0);
+}
+
 int is_dvfs_init(struct is_resourcemgr *resourcemgr)
 {
 	int ret = 0;
@@ -109,6 +123,12 @@ int is_dvfs_init(struct is_resourcemgr *resourcemgr)
 #if defined(QOS_TNR)
 	dvfs_ctrl->cur_tnr_qos = 0;
 #endif
+#if defined(QOS_CSIS)
+	dvfs_ctrl->cur_csis_qos = 0;
+#endif
+#if defined(QOS_ISP)
+	dvfs_ctrl->cur_isp_qos = 0;
+#endif
 	dvfs_ctrl->cur_int_qos = 0;
 	dvfs_ctrl->cur_mif_qos = 0;
 	dvfs_ctrl->cur_cam_qos = 0;
@@ -116,6 +136,7 @@ int is_dvfs_init(struct is_resourcemgr *resourcemgr)
 	dvfs_ctrl->cur_disp_qos = 0;
 	dvfs_ctrl->cur_hpg_qos = 0;
 	dvfs_ctrl->cur_hmp_bst = 0;
+	dvfs_ctrl->cur_cpus = NULL;
 
 	/* init spin_lock for clock gating */
 	mutex_init(&dvfs_ctrl->lock);
@@ -196,7 +217,7 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 {
 	struct is_core *core;
 	struct is_dvfs_ctrl *dvfs_ctrl;
-	struct is_dvfs_scenario_ctrl *static_ctrl;
+	struct is_dvfs_scenario_ctrl *static_ctrl, *dynamic_ctrl;
 	struct is_dvfs_scenario *scenarios;
 	struct is_resourcemgr *resourcemgr;
 	struct is_dual_info *dual_info;
@@ -215,6 +236,7 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 	resourcemgr = device->resourcemgr;
 	dvfs_ctrl = &(resourcemgr->dvfs_ctrl);
 	static_ctrl = dvfs_ctrl->static_ctrl;
+	dynamic_ctrl = dvfs_ctrl->dynamic_ctrl;
 
 	if (!test_bit(IS_DVFS_SEL_TABLE, &dvfs_ctrl->state)) {
 		err("dvfs table is NOT selected");
@@ -258,8 +280,7 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 	resol = is_get_target_resol(device);
 #endif
 
-	dbg_dvfs(1, "pos(%d), res(%d), fps(%d), sc(%d, %d), map(%d), dual(%d, %d, %d, %d, %d)(%d), setfile(%d),\
- limited_fps(%d)\n",
+	dbg_dvfs(1, "pos(%d), res(%d), fps(%d), sc(%d, %d), map(%d), dual(%d, %d, %d, %d, %d)(%d), setfile(%d)\n",
 		device,	position, resol, fps, stream_cnt, streaming_cnt, sensor_map,
 		dual_info->max_fps[SENSOR_POSITION_REAR],
 		dual_info->max_fps[SENSOR_POSITION_REAR2],
@@ -267,8 +288,7 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 		dual_info->max_fps[SENSOR_POSITION_FRONT],
 		dual_info->max_fps[SENSOR_POSITION_REAR_TOF],
 		dual_info->mode,
-		(device->setfile & IS_SETFILE_MASK),
-		resourcemgr->limited_fps);
+		(device->setfile & IS_SETFILE_MASK));
 
 	for (i = 0; i < scenario_cnt; i++) {
 		if (!scenarios[i].check_func) {
@@ -288,6 +308,12 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 			static_ctrl->cur_scenario_id = scenario_id;
 			static_ctrl->cur_scenario_idx = i;
 			static_ctrl->cur_frame_tick = scenarios[i].keep_frame_tick;
+			/* use dynaimc control to improve launching time */
+			if (scenario_id == IS_SN_PREVIEW_HIGH_SPEED_FPS
+					|| scenario_id == IS_SN_FRONT_PREVIEW_HIGH_SPEED_FPS) {
+				dynamic_ctrl->cur_scenario_id = IS_SN_PREVIEW_HIGH_SPEED_FPS;
+				dynamic_ctrl->cur_frame_tick = scenarios[i].keep_frame_tick;
+			}
 			return scenario_id;
 		case DVFS_SKIP:
 			return -EAGAIN;
@@ -529,6 +555,25 @@ int is_get_qos(struct is_core *core, u32 type, u32 scenario_id)
 	return qos;
 }
 
+const char *is_get_cpus(struct is_core *core, u32 scenario_id)
+{
+	struct exynos_platform_is *pdata;
+	u32 dvfs_idx = core->resourcemgr.dvfs_ctrl.dvfs_table_idx;
+
+	pdata = core->pdata;
+	if (pdata == NULL) {
+		err("pdata is NULL\n");
+		return NULL;
+	}
+
+	if (dvfs_idx >= IS_DVFS_TABLE_IDX_MAX) {
+		err("invalid dvfs index(%d)", dvfs_idx);
+		dvfs_idx = 0;
+	}
+
+	return pdata->dvfs_cpu[dvfs_idx][scenario_id];
+}
+
 int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, u32 scenario_id)
 {
 	int ret = 0;
@@ -538,8 +583,15 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, u32 scen
 #if defined(QOS_TNR)
 	int tnr_qos;
 #endif
+#if defined(QOS_CSIS)
+	int csis_qos;
+#endif
+#if defined(QOS_ISP)
+	int isp_qos;
+#endif
 	int int_qos, mif_qos, i2c_qos, cam_qos, disp_qos, hpg_qos;
 	char *qos_info;
+	const char *cpus;
 	struct is_resourcemgr *resourcemgr;
 	struct is_dvfs_ctrl *dvfs_ctrl;
 
@@ -557,22 +609,41 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, u32 scen
 #if defined(QOS_TNR)
 	tnr_qos = is_get_qos(core, IS_DVFS_TNR, scenario_id);
 #endif
+#if defined(QOS_CSIS)
+	csis_qos = is_get_qos(core, IS_DVFS_CSIS, scenario_id);
+#endif
+#if defined(QOS_ISP)
+	isp_qos = is_get_qos(core, IS_DVFS_ISP, scenario_id);
+#endif
 	int_qos = is_get_qos(core, IS_DVFS_INT, scenario_id);
 	mif_qos = is_get_qos(core, IS_DVFS_MIF, scenario_id);
 	i2c_qos = is_get_qos(core, IS_DVFS_I2C, scenario_id);
 	cam_qos = is_get_qos(core, IS_DVFS_CAM, scenario_id);
 	disp_qos = is_get_qos(core, IS_DVFS_DISP, scenario_id);
 	hpg_qos = is_get_qos(core, IS_DVFS_HPG, scenario_id);
+	cpus = is_get_cpus(core, scenario_id);
 
 #if defined(QOS_INTCAM)
 	if (int_cam_qos < 0) {
-		err("getting qos value is failed!!\n");
+		err("getting int_cam_qos value is failed!!\n");
 		return -EINVAL;
 	}
 #endif
 #if defined(QOS_TNR)
 	if (tnr_qos < 0) {
-		err("getting qos value is failed!!\n");
+		err("getting tnr_qos value is failed!!\n");
+		return -EINVAL;
+	}
+#endif
+#if defined(QOS_CSIS)
+	if (csis_qos < 0) {
+		err("getting csis_qos value is failed!!\n");
+		return -EINVAL;
+	}
+#endif
+#if defined(QOS_ISP)
+	if (isp_qos < 0) {
+		err("getting isp_qos value is failed!!\n");
 		return -EINVAL;
 	}
 #endif
@@ -592,7 +663,7 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, u32 scen
 			}
 		}
 
-		pm_qos_update_request(&exynos_isp_qos_int, int_qos);
+		is_pm_qos_update_request(&exynos_isp_qos_int, int_qos);
 		dvfs_ctrl->cur_int_qos = int_qos;
 
 		if (i2c_qos && device) {
@@ -606,27 +677,40 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, u32 scen
 	}
 
 	if (cam_qos && dvfs_ctrl->cur_cam_qos != cam_qos) {
-		pm_qos_update_request(&exynos_isp_qos_cam, cam_qos);
+		is_pm_qos_update_request(&exynos_isp_qos_cam, cam_qos);
 		dvfs_ctrl->cur_cam_qos = cam_qos;
 	}
 
 #if defined(QOS_INTCAM)
 	/* check current qos */
 	if (int_cam_qos && dvfs_ctrl->cur_int_cam_qos != int_cam_qos) {
-		pm_qos_update_request(&exynos_isp_qos_int_cam, int_cam_qos);
+		is_pm_qos_update_request(&exynos_isp_qos_int_cam, int_cam_qos);
 		dvfs_ctrl->cur_int_cam_qos = int_cam_qos;
 	}
 #endif
 #if defined(QOS_TNR)
 	/* check current qos */
 	if (tnr_qos && dvfs_ctrl->cur_tnr_qos != tnr_qos) {
-		pm_qos_update_request(&exynos_isp_qos_tnr, tnr_qos);
+		is_pm_qos_update_request(&exynos_isp_qos_tnr, tnr_qos);
 		dvfs_ctrl->cur_tnr_qos = tnr_qos;
 	}
 #endif
-
+#if defined(QOS_CSIS)
+	/* check current qos */
+	if (csis_qos && dvfs_ctrl->cur_csis_qos != csis_qos) {
+		is_pm_qos_update_request(&exynos_isp_qos_csis, csis_qos);
+		dvfs_ctrl->cur_csis_qos = csis_qos;
+	}
+#endif
+#if defined(QOS_ISP)
+	/* check current qos */
+	if (isp_qos && dvfs_ctrl->cur_isp_qos != isp_qos) {
+		is_pm_qos_update_request(&exynos_isp_qos_isp, isp_qos);
+		dvfs_ctrl->cur_isp_qos = isp_qos;
+	}
+#endif
 	if (mif_qos && dvfs_ctrl->cur_mif_qos != mif_qos) {
-		pm_qos_update_request(&exynos_isp_qos_mem, mif_qos);
+		is_pm_qos_update_request(&exynos_isp_qos_mem, mif_qos);
 		dvfs_ctrl->cur_mif_qos = mif_qos;
 	}
 
@@ -634,7 +718,7 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, u32 scen
 	/* hpg_qos : number of minimum online CPU */
 	if (hpg_qos && device && (dvfs_ctrl->cur_hpg_qos != hpg_qos)
 		&& !test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
-		pm_qos_update_request(&exynos_isp_qos_hpg, hpg_qos);
+		is_pm_qos_update_request(&exynos_isp_qos_hpg, hpg_qos);
 		dvfs_ctrl->cur_hpg_qos = hpg_qos;
 
 #if defined(CONFIG_HMP_VARIABLE_SCALE)
@@ -675,6 +759,9 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, u32 scen
 	}
 #endif
 
+	if (cpus && (!dvfs_ctrl->cur_cpus || strcmp(dvfs_ctrl->cur_cpus, cpus)))
+		dvfs_ctrl->cur_cpus = cpus;
+
 	qos_info = __getname();
 	if (unlikely(!qos_info)) {
 		ret = -ENOMEM;
@@ -689,9 +776,18 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, u32 scen
 	snprintf(qos_info + strlen(qos_info),
 				PATH_MAX, " TNR(%d),", tnr_qos);
 #endif
-	info("%s INT(%d), MIF(%d), CAM(%d), DISP(%d), I2C(%d), HPG(%d, %d)]\n",
+#if defined(QOS_CSIS)
+	snprintf(qos_info + strlen(qos_info),
+				PATH_MAX, " CSIS(%d),", csis_qos);
+#endif
+#if defined(QOS_ISP)
+	snprintf(qos_info + strlen(qos_info),
+				PATH_MAX, " ISP(%d),", isp_qos);
+#endif
+	info("%s INT(%d), MIF(%d), CAM(%d), DISP(%d), I2C(%d), HPG(%d, %d), CPU(%s)]\n",
 			qos_info, int_qos, mif_qos, cam_qos, disp_qos,
-			i2c_qos, hpg_qos, dvfs_ctrl->cur_hmp_bst);
+			i2c_qos, hpg_qos, dvfs_ctrl->cur_hmp_bst,
+			cpus ? cpus : "");
 	__putname(qos_info);
 exit:
 	return ret;
@@ -713,16 +809,15 @@ void is_dual_mode_update(struct is_device_ischain *device,
 	/* Update max fps of dual sensor device with reference to shot meta. */
 	dual_info->max_fps[sensor->position] = frame->shot->ctl.aa.aeTargetFpsRange[1];
 
-	resourcemgr = sensor->resourcemgr;
 	/* Check the number of active sensors for all PIP sensor combinations */
 	for (i = 0; i < SENSOR_POSITION_REAR_TOF; i++) {
-		if (resourcemgr->limited_fps && dual_info->max_fps[i])
-			streaming_cnt++;
-		else if (dual_info->max_fps[i] >= 10)
+		if (dual_info->max_fps[i] >= 10)
 			streaming_cnt++;
 	}
 
+	resourcemgr = sensor->resourcemgr;
 	resourcemgr->streaming_cnt = streaming_cnt;
+	streaming_cnt = 0;
 
 	/* Continue if wide and tele/s-wide complete is_sensor_s_input(). */
 	if (!(test_bit(SENSOR_POSITION_REAR, &core->sensor_map) &&
@@ -736,6 +831,11 @@ void is_dual_mode_update(struct is_device_ischain *device,
 	 * switch - master_max_fps : 5ps, slave_max_fps : 30fps (post standby)
 	 * nothing - invalid mode
 	 */
+	for (i = 0; i < SENSOR_POSITION_REAR_TOF; i++) {
+		if (dual_info->max_fps[i] >= 10)
+			streaming_cnt++;
+	}
+
 	if (streaming_cnt == 1)
 		dual_info->mode = IS_DUAL_MODE_BYPASS;
 	else if (streaming_cnt >= 2)
@@ -814,7 +914,7 @@ void is_dual_dvfs_update(struct is_device_ischain *device,
 	if (dual_info->tick_count == 0) {
 		pre_scenario_id = static_ctrl->cur_scenario_id;
 		scenario_id = is_dvfs_sel_static(device);
-		if (scenario_id >= 0 && scenario_id != pre_scenario_id) {
+		if (scenario_id >= 0 && scenario_id != pre_scenario_id && !is_dvfs_is_fast_ae(&resourcemgr->dvfs_ctrl)) {
 			struct is_dvfs_scenario_ctrl *static_ctrl = resourcemgr->dvfs_ctrl.static_ctrl;
 
 			mgrinfo("tbl[%d] dual static scenario(%d)-[%s]\n", device, group, frame,

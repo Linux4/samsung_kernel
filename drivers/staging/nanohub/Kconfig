@@ -11,26 +11,6 @@ config NANOHUB
 
 if NANOHUB
 
-config NANOHUB_SPI
-	bool "Nanohub SPI"
-	default N
-	help
-	  Enable nanohub SPI support.
-
-	  Either this or NANOHUB_I2C should be selected.
-
-	  If in doubt, say Y here.
-
-config NANOHUB_I2C
-	bool "Nanohub I2C"
-	default N
-	help
-	  Enable nanohub I2C support.
-
-	  Either this or NANOHUB_SPI should be selected.
-
-	  If in doubt, say N here.
-
 config NANOHUB_MAILBOX
 	bool "Nanohub Mailbox"
 	default Y
@@ -41,22 +21,22 @@ config NANOHUB_MAILBOX
 
 	  If in doubt, say N here.
 
-config CHRE_SENSORHUB_HAL
-	bool "CHRE sensor Hal support"
-	default Y
+config SENSOR_DRV
+	bool "Sensor driver to support exynos sensor Hal"
+	default N
 	help
-	  Enable chre sensorhub hal support.
+	  Enable sensorhub hal support.
 
 config CONTEXTHUB_DEBUG
 	bool "Nanohub debug"
 	default N
 	help
-	  Eanble nanohub device debug message
+	  Enable nanohub device debug message
 
-config CONTEXTHUB_DEBUG_MODE
-	bool "Contexthub reset brings kernel panic"
+config CONTEXTHUB_SENSOR_DEBUG
+	bool "Nanohub sensor debug"
 	default N
 	help
-	  Eanble kernel panic with contexthub FW error
+	  Enable nanohub seneor alive check
 
 endif # NANOHUB

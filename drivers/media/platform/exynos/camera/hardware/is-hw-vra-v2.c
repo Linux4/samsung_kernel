@@ -12,6 +12,7 @@
 #include "is-hw-vra-v2.h"
 #include "../interface/is-interface-ischain.h"
 #include "is-err.h"
+#include <asm/fpsimd.h>
 
 void is_hw_vra_save_debug_info(struct is_hw_ip *hw_ip,
 	struct is_lib_vra *lib_vra, int debug_point)
@@ -156,7 +157,7 @@ static int __nocfi is_hw_vra_open(struct is_hw_ip *hw_ip, u32 instance,
 	if (test_bit(HW_OPEN, &hw_ip->state))
 		return 0;
 
-	frame_manager_probe(hw_ip->framemgr, BIT(hw_ip->id), "HWVRA");
+	frame_manager_probe(hw_ip->framemgr, hw_ip->id, "HWVRA");
 	frame_manager_open(hw_ip->framemgr, IS_MAX_HW_FRAME);
 
 	hw_ip->priv_info = vzalloc(sizeof(struct is_hw_vra));
@@ -171,9 +172,9 @@ static int __nocfi is_hw_vra_open(struct is_hw_ip *hw_ip, u32 instance,
 	is_hw_vra_reset(hw_ip);
 
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
+	is_fpsimd_get_func();
 	get_lib_vra_func((void *)&hw_vra->lib_vra.itf_func);
-	fpsimd_put();
+	is_fpsimd_put_func();
 #else
 	get_lib_vra_func((void *)&hw_vra->lib_vra.itf_func);
 #endif
@@ -697,7 +698,7 @@ int is_hw_vra_probe(struct is_hw_ip *hw_ip, struct is_interface *itf,
 	}
 
 	itfc->itf_ip[hw_slot].handler[INTR_HWIP1].handler = &is_hw_vra_handle_interrupt;
-	
+
 	clear_bit(HW_OPEN, &hw_ip->state);
 	clear_bit(HW_INIT, &hw_ip->state);
 	clear_bit(HW_CONFIG, &hw_ip->state);

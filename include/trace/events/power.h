@@ -40,50 +40,6 @@ DEFINE_EVENT(cpu, cpu_idle,
 	TP_ARGS(state, cpu_id)
 );
 
-TRACE_EVENT(exynos_slack_func,
-
-	TP_PROTO(int cpu),
-
-	TP_ARGS(cpu),
-
-	TP_STRUCT__entry(
-		__field(int, cpu)
-	),
-
-	TP_fast_assign(
-		__entry->cpu = cpu;
-	),
-
-	TP_printk("cpu=%d SLACK EXPIRED", __entry->cpu)
-);
-
-TRACE_EVENT(exynos_slack,
-
-	TP_PROTO(int cpu, unsigned long util,
-		unsigned long min, unsigned long action, int ret),
-
-	TP_ARGS(cpu, util, min, action, ret),
-
-	TP_STRUCT__entry(
-		__field(int, cpu)
-		__field(unsigned long, util)
-		__field(unsigned long, min)
-		__field(unsigned long, action)
-		__field(int, ret)
-	),
-
-	TP_fast_assign(
-		__entry->cpu = cpu;
-		__entry->util = util;
-		__entry->min = min;
-		__entry->action = action;
-		__entry->ret = ret;
-	),
-
-	TP_printk("cpu=%d util=%ld min=%ld action=%ld ret=%d", __entry->cpu,
-			__entry->util, __entry->min, __entry->action, __entry->ret)
-);
-
 TRACE_EVENT(powernv_throttle,
 
 	TP_PROTO(int chip_id, const char *reason, int pmax),
@@ -403,79 +359,50 @@ DEFINE_EVENT(power_domain, power_domain_target,
 );
 
 /*
- * The pm qos events are used for pm qos update
+ * CPU latency QoS events used for global CPU latency QoS list updates
  */
-DECLARE_EVENT_CLASS(pm_qos_request,
+DECLARE_EVENT_CLASS(cpu_latency_qos_request,
 
-	TP_PROTO(int pm_qos_class, s32 value),
+	TP_PROTO(s32 value),
 
-	TP_ARGS(pm_qos_class, value),
+	TP_ARGS(value),
 
 	TP_STRUCT__entry(
-		__field( int,                    pm_qos_class   )
 		__field( s32,                    value          )
 	),
 
 	TP_fast_assign(
-		__entry->pm_qos_class = pm_qos_class;
 		__entry->value = value;
 	),
 
-	TP_printk("pm_qos_class=%s value=%d",
-		  __print_symbolic(__entry->pm_qos_class,
-			{ PM_QOS_CPU_DMA_LATENCY,	"CPU_DMA_LATENCY" },
-			{ PM_QOS_NETWORK_LATENCY,	"NETWORK_LATENCY" },
-			{ PM_QOS_NETWORK_THROUGHPUT,	"NETWORK_THROUGHPUT" }),
+	TP_printk("CPU_DMA_LATENCY value=%d",
 		  __entry->value)
 );
 
-DEFINE_EVENT(pm_qos_request, pm_qos_add_request,
+DEFINE_EVENT(cpu_latency_qos_request, pm_qos_add_request,
 
-	TP_PROTO(int pm_qos_class, s32 value),
+	TP_PROTO(s32 value),
 
-	TP_ARGS(pm_qos_class, value)
+	TP_ARGS(value)
 );
 
-DEFINE_EVENT(pm_qos_request, pm_qos_update_request,
+DEFINE_EVENT(cpu_latency_qos_request, pm_qos_update_request,
 
-	TP_PROTO(int pm_qos_class, s32 value),
+	TP_PROTO(s32 value),
 
-	TP_ARGS(pm_qos_class, value)
+	TP_ARGS(value)
 );
 
-DEFINE_EVENT(pm_qos_request, pm_qos_remove_request,
+DEFINE_EVENT(cpu_latency_qos_request, pm_qos_remove_request,
 
-	TP_PROTO(int pm_qos_class, s32 value),
+	TP_PROTO(s32 value),
 
-	TP_ARGS(pm_qos_class, value)
+	TP_ARGS(value)
 );
 
-TRACE_EVENT(pm_qos_update_request_timeout,
-
-	TP_PROTO(int pm_qos_class, s32 value, unsigned long timeout_us),
-
-	TP_ARGS(pm_qos_class, value, timeout_us),
-
-	TP_STRUCT__entry(
-		__field( int,                    pm_qos_class   )
-		__field( s32,                    value          )
-		__field( unsigned long,          timeout_us     )
-	),
-
-	TP_fast_assign(
-		__entry->pm_qos_class = pm_qos_class;
-		__entry->value = value;
-		__entry->timeout_us = timeout_us;
-	),
-
-	TP_printk("pm_qos_class=%s value=%d, timeout_us=%ld",
-		  __print_symbolic(__entry->pm_qos_class,
-			{ PM_QOS_CPU_DMA_LATENCY,	"CPU_DMA_LATENCY" },
-			{ PM_QOS_NETWORK_LATENCY,	"NETWORK_LATENCY" },
-			{ PM_QOS_NETWORK_THROUGHPUT,	"NETWORK_THROUGHPUT" }),
-		  __entry->value, __entry->timeout_us)
-);
-
+/*
+ * General PM QoS events used for updates of PM QoS request lists
+ */
 DECLARE_EVENT_CLASS(pm_qos_update,
 
 	TP_PROTO(enum pm_qos_req_action action, int prev_value, int curr_value),
@@ -573,28 +500,6 @@ DEFINE_EVENT(dev_pm_qos_request, dev_pm_qos_remove_request,
 
 	TP_ARGS(name, type, new_value)
 );
-
-TRACE_EVENT(ocp_max_limit,
-
-	TP_PROTO(unsigned int clipped_freq, bool start),
-
-	TP_ARGS(clipped_freq, start),
-
-	TP_STRUCT__entry(
-		__field(        u32,            clipped_freq    )
-		__field(        bool,           start   )
-	),
-
-	TP_fast_assign(
-		__entry->clipped_freq = clipped_freq;
-		__entry->start = start;
-	),
-
-	TP_printk("clipped_freq=%lu %s",
-			(unsigned long)__entry->clipped_freq,
-			(__entry->start)?"begin":"end")
-);
-
 #endif /* _TRACE_POWER_H */
 
 /* This part must be outside protection */

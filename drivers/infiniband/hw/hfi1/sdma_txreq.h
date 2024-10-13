@@ -61,6 +61,9 @@
 struct sdma_desc {
 	/* private:  don't use directly */
 	u64 qw[2];
+	void *pinning_ctx;
+	/* Release reference to @pinning_ctx. May be called in interrupt context. Must not sleep. */
+	void (*ctx_put)(void *ctx);
 };
 
 /**
@@ -91,6 +94,7 @@ struct sdma_desc {
 #define SDMA_TXREQ_F_URGENT       0x0001
 #define SDMA_TXREQ_F_AHG_COPY     0x0002
 #define SDMA_TXREQ_F_USE_AHG      0x0004
+#define SDMA_TXREQ_F_VIP          0x0010
 
 struct sdma_txreq;
 typedef void (*callback_t)(struct sdma_txreq *, int);

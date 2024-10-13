@@ -15,6 +15,7 @@
 
 #include <linux/media-bus-format.h>
 #include <media/v4l2-device.h>
+#include "is-framemgr.h"
 
 enum is_device_type {
 	IS_DEVICE_SENSOR,
@@ -33,17 +34,30 @@ struct is_window {
 	u32 otf_height;
 };
 
+struct is_frame_cfg {
+	struct is_fmt		*format;
+	enum v4l2_colorspace	colorspace;
+	enum v4l2_quantization	quantization;
+	ulong			flip;
+	u32			width;
+	u32			height;
+	u32			hw_pixeltype;
+	u32			size[IS_MAX_PLANES];
+	u32			bytesperline[IS_MAX_PLANES];
+};
+
 struct is_fmt {
-	char				*name;
-	u32				mbus_code;
-	u32				pixelformat;
-	u32				field;
-	u32				num_planes;
-	u32				hw_format;
-	u32				hw_order;
-	u32				hw_bitwidth;
-	u32				hw_plane;
-	u8				bitsperpixel[VIDEO_MAX_PLANES];
+	char	*name;
+	u32	mbus_code;
+	u32	pixelformat;
+	u32	field;
+	u32	num_planes;
+	u32	hw_format;
+	u32	hw_order;
+	u32	hw_bitwidth;
+	u32	hw_plane;
+	u8	bitsperpixel[VIDEO_MAX_PLANES];
+	void	(*setup_plane_sz)(struct is_frame_cfg *fc, unsigned int sizes[]);
 };
 
 struct is_image {

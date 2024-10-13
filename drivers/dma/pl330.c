@@ -1,16 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) 2012 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * Copyright (C) 2010 Samsung Electronics Co. Ltd.
  *	Jaswinder Singh <jassi.brar@samsung.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
  */
 
+#include <linux/debugfs.h>
 #include <linux/kernel.h>
 #include <linux/io.h>
 #include <linux/init.h>
@@ -20,6 +17,7 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/dma-mapping.h>
+#include <linux/dma-map-ops.h>
 #include <linux/dmaengine.h>
 #include <linux/amba/bus.h>
 #include <linux/scatterlist.h>
@@ -28,19 +26,16 @@
 #include <linux/err.h>
 #include <linux/pm_runtime.h>
 #include <linux/bug.h>
-#include <linux/cpumask.h>
+#include <linux/reset.h>
 
 #include "dmaengine.h"
-#ifdef CONFIG_EXYNOS_PD
-#include <soc/samsung/exynos-pm.h>
-#endif
-
 #define PL330_MAX_CHAN		8
 #define PL330_MAX_IRQS		32
 #define PL330_MAX_PERI		32
 #define PL330_MAX_BURST         16
 
-#define PL330_QUIRK_BROKEN_NO_FLUSHP BIT(0)
+#define PL330_QUIRK_BROKEN_NO_FLUSHP	BIT(0)
+#define PL330_QUIRK_PERIPH_BURST	BIT(1)
 
 enum pl330_cachectrl {
 	CCTRL0,		/* Noncacheable and nonbufferable */
@@ -266,13 +261,13 @@ enum pl330_byteswap {
 					cpu_relax();						\
 				} while (time_before(jiffies, timeout));			\
 				if (timeout_flag) pr_err("%s Timeout error!!!!\n", __func__);	\
-			} while (0)
+			} while (0);
 
 #ifdef PL330_DEBUG_MCGEN
 static unsigned cmd_line;
 #define PL330_DBGCMD_DUMP(off, x...)	do { \
 						printk("%x:", cmd_line); \
-						printk(x); \
+						printk(KERN_CONT x); \
 						cmd_line += off; \
 					} while (0)
 #define PL330_DBGMC_START(addr)		(cmd_line = addr)
@@ -308,7 +303,7 @@ struct pl330_config {
 	u32		irq_ns;
 };
 
-/**
+/*
  * Request Configuration.
  * The PL330 core does not modify this and uses the last
  * working configuration if the request doesn't provide any.
@@ -472,6 +467,7 @@ struct dma_pl330_chan {
 	/* DMA-mapped view of the FIFO; may differ if an IOMMU is present */
 	dma_addr_t fifo_dma;
 	enum dma_data_direction dir;
+	struct dma_slave_config slave_config;
 
 	/* for cyclic capability */
 	bool cyclic;
@@ -498,8 +494,6 @@ struct pl330_dmac {
 	void __iomem	*base;
 	/* Used the DMA wrapper */
 	bool wrapper;
-	/* Notifier block for powermode */
-	struct notifier_block lpa_nb;
 	void __iomem *inst_wrapper;
 	int 			usage_count;
 	/* Populated by the PL330 core driver during pl330_add */
@@ -532,6 +526,9 @@ struct pl330_dmac {
 	int irqnum_having_multi[AMBA_NR_IRQS];
 
 	int quirks;
+
+	struct reset_control	*rstc;
+	struct reset_control	*rstc_ocp;
 };
 
 static struct pl330_of_quirks {
@@ -603,6 +600,170 @@ static inline u32 get_revision(u32 periph_id)
 	return (periph_id >> PERIPH_REV_SHIFT) & PERIPH_REV_MASK;
 }
 
+static void *arm_exynos_dma_mcode_alloc(struct device *dev, size_t size,
+	dma_addr_t *handle, gfp_t gfp, unsigned long attrs);
+static void arm_exynos_dma_mcode_free(struct device *dev, size_t size, void *cpu_addr,
+				  dma_addr_t handle, unsigned long attrs);
+
+struct dma_map_ops arm_exynos_dma_mcode_ops = {
+	.alloc			= arm_exynos_dma_mcode_alloc,
+	.free			= arm_exynos_dma_mcode_free,
+};
+EXPORT_SYMBOL(arm_exynos_dma_mcode_ops);
+
+static void *arm_exynos_dma_mcode_alloc(struct device *dev, size_t size,
+	dma_addr_t *handle, gfp_t gfp, unsigned long attrs)
+{
+	void *addr;
+
+	if (!*handle)
+		return NULL;
+
+	addr = ioremap(*handle, size);
+
+	return addr;
+}
+
+static void arm_exynos_dma_mcode_free(struct device *dev, size_t size, void *cpu_addr,
+				  dma_addr_t handle, unsigned long attrs)
+{
+	iounmap(cpu_addr);
+}
+
+/**
+ * of_dma_get_mcode_addr - Get the DMA micro code buffer address.
+ * @np:		device node of DMA controller
+ *
+ * Return the physical address.
+ */
+static unsigned int of_dma_get_mcode_addr(struct device_node *np)
+{
+	unsigned int addr = 0;
+	const __be32	*prop;
+
+	prop = of_get_property(np, "#dma-mcode-addr", NULL);
+	if (prop)
+		addr = be32_to_cpup(prop);
+
+	return addr;
+}
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER AR address
+ * @np:		device node of DMA controller
+ * @num:	DMA channel thread number
+ *
+ * Return the virtual address.
+ */
+static void __iomem *of_dma_get_arwrapper_address(struct device_node *np, unsigned int num)
+{
+	const __be32 *reg_list;
+	unsigned int length, count;
+
+	reg_list = of_get_property(np, "dma-arwrapper", &length);
+	count = (unsigned int)(length / sizeof(unsigned int));
+
+	if (!reg_list || num >= count)
+		return NULL;
+
+	return ioremap(be32_to_cpup(reg_list + num), SZ_32);
+}
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER AW address
+ * @np:		device node of DMA controller
+ * @num:	DMA channel thread number
+ *
+ * Return the virtual address.
+ */
+static void __iomem *of_dma_get_awwrapper_address(struct device_node *np, unsigned int num)
+{
+	const __be32 *reg_list;
+	unsigned int length, count;
+
+	reg_list = of_get_property(np, "dma-awwrapper", &length);
+	count = (unsigned int)(length / sizeof(unsigned int));
+
+	if (!reg_list || num >= count)
+		return NULL;
+
+	return ioremap(be32_to_cpup(reg_list + num), SZ_32);
+}
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER AR address of DMA instruction
+ * @np:		device node of DMA controller
+ *
+ * Return the virtual address.
+ */
+static void __iomem *of_dma_get_instwrapper_address(struct device_node *np)
+{
+	const __be32 *reg_list;
+	int ret = 0;
+
+	reg_list = of_get_property(np, "dma-instwrapper", NULL);
+
+	if (!reg_list)
+		return NULL;
+
+	ret = be32_to_cpup(reg_list);
+	if (!ret)
+		return NULL;
+
+	return ioremap(ret, SZ_32);
+}
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER availableilable
+ * @np:		device node of DMA controller
+ *
+ */
+static bool of_dma_get_wrapper_available(struct device_node *np)
+{
+	const __be32 *reg_list;
+	int ret = 0;
+
+	reg_list = of_get_property(np, "dma-instwrapper", NULL);
+
+	if (!reg_list)
+		return false;
+
+	ret = be32_to_cpup(reg_list);
+	if (ret)
+		return true;
+	else
+		return false;
+}
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER availableilable
+ * @np:		device node of DMA controller
+ *
+ */
+static u64 of_dma_get_mask(struct device_node *np, char *name)
+{
+	int bit_cnt = 0;
+
+	of_property_read_u32(np, name, &bit_cnt);
+
+	if (bit_cnt)
+		return ((u64)1 << bit_cnt) - 1;
+	else
+		return -1;
+}
+
+static bool of_dma_multi_irq(struct device_node *np)
+{
+	bool ret = 0;
+	const __be32	*prop;
+
+	prop = of_get_property(np, "#dma-multi-irq", NULL);
+	if (prop)
+		ret = be32_to_cpup(prop);
+
+	return ret;
+}
+
 static inline u32 _emit_END(unsigned dry_run, u8 buf[])
 {
 	if (dry_run)
@@ -615,7 +776,7 @@ static inline u32 _emit_END(unsigned dry_run, u8 buf[])
 	return SZ_DMAEND;
 }
 
-static inline int _emit_FLUSHP(unsigned dry_run, u8 buf[], u8 peri)
+static inline u32 _emit_FLUSHP(unsigned dry_run, u8 buf[], u8 peri)
 {
 	if (dry_run)
 		return SZ_DMAFLUSHP;
@@ -670,7 +831,7 @@ static inline u32 _emit_LDP(unsigned dry_run, u8 buf[],
 	return SZ_DMALDP;
 }
 
-static inline int _emit_LP(unsigned dry_run, u8 buf[],
+static inline u32 _emit_LP(unsigned dry_run, u8 buf[],
 		unsigned loop, u8 cnt)
 {
 	if (dry_run)
@@ -696,7 +857,7 @@ struct _arg_LPEND {
 	u8 bjump;
 };
 
-static inline int _emit_LPEND(unsigned dry_run, u8 buf[],
+static inline u32 _emit_LPEND(unsigned dry_run, u8 buf[],
 		const struct _arg_LPEND *arg)
 {
 	enum pl330_cond cond = arg->cond;
@@ -741,7 +902,7 @@ static inline u32 _emit_KILL(unsigned dry_run, u8 buf[])
 	return SZ_DMAKILL;
 }
 
-static inline int _emit_MOV(unsigned dry_run, u8 buf[],
+static inline u32 _emit_MOV(unsigned dry_run, u8 buf[],
 		enum dmamov_dst dst, u32 val)
 {
 	if (dry_run)
@@ -784,7 +945,7 @@ static inline u32 _emit_RMB(unsigned dry_run, u8 buf[])
 	return SZ_DMARMB;
 }
 
-static inline int _emit_SEV(unsigned dry_run, u8 buf[], u8 ev)
+static inline u32 _emit_SEV(unsigned dry_run, u8 buf[], u8 ev)
 {
 	if (dry_run)
 		return SZ_DMASEV;
@@ -1092,17 +1253,17 @@ static bool _start(struct pl330_thread *thrd)
 		UNTIL(thrd, PL330_STATE_FAULTING | PL330_STATE_KILLING);
 
 		if (_state(thrd) == PL330_STATE_KILLING)
-			UNTIL(thrd, PL330_STATE_STOPPED);
-		/* fall through */
+			UNTIL(thrd, PL330_STATE_STOPPED)
+		fallthrough;
 
 	case PL330_STATE_FAULTING:
 		_stop(thrd);
-		/* fall through */
+		fallthrough;
 
 	case PL330_STATE_KILLING:
 	case PL330_STATE_COMPLETING:
-		UNTIL(thrd, PL330_STATE_STOPPED);
-		/* fall through */
+		UNTIL(thrd, PL330_STATE_STOPPED)
+		fallthrough;
 
 	case PL330_STATE_STOPPED:
 		return _trigger(thrd);
@@ -1153,7 +1314,6 @@ static u32 _emit_load(unsigned int dry_run, u8 buf[],
 
 	switch (direction) {
 	case DMA_MEM_TO_MEM:
-		/* fall through */
 	case DMA_MEM_TO_DEV:
 		off += _emit_LD(dry_run, &buf[off], cond);
 		break;
@@ -1187,7 +1347,6 @@ static inline u32 _emit_store(unsigned int dry_run, u8 buf[],
 
 	switch (direction) {
 	case DMA_MEM_TO_MEM:
-		/* fall through */
 	case DMA_DEV_TO_MEM:
 		off += _emit_ST(dry_run, &buf[off], cond);
 		break;
@@ -1245,7 +1404,6 @@ static int _bursts(struct pl330_dmac *pl330, unsigned dry_run, u8 buf[],
 
 	switch (pxs->desc->rqtype) {
 	case DMA_MEM_TO_DEV:
-		/* fall through */
 	case DMA_DEV_TO_MEM:
 		off += _ldst_peripheral(pl330, dry_run, &buf[off], pxs, cyc,
 			cond);
@@ -1265,8 +1423,9 @@ static int _bursts(struct pl330_dmac *pl330, unsigned dry_run, u8 buf[],
 }
 
 /*
- * transfer dregs with single transfers to peripheral, or a reduced size burst
- * for mem-to-mem.
+ * only the unaligned burst transfers have the dregs.
+ * so, still transfer dregs with a reduced size burst
+ * for mem-to-mem, mem-to-dev or dev-to-mem.
  */
 static int _dregs(struct pl330_dmac *pl330, unsigned int dry_run, u8 buf[],
 		const struct _xfer_spec *pxs, int transfer_length)
@@ -1279,7 +1438,6 @@ static int _dregs(struct pl330_dmac *pl330, unsigned int dry_run, u8 buf[],
 
 	switch (pxs->desc->rqtype) {
 	case DMA_MEM_TO_DEV:
-		/* fall through */
 	case DMA_DEV_TO_MEM:
 		off += _ldst_peripheral(pl330, dry_run, &buf[off], pxs,
 			transfer_length, SINGLE);
@@ -1474,7 +1632,6 @@ static inline int _setup_xfer_infiniteloop(struct pl330_dmac *pl330,
 
 	return off;
 }
-
 
 static inline int _setup_loops(struct pl330_dmac *pl330,
 			       unsigned dry_run, u8 buf[],
@@ -2759,7 +2916,7 @@ static struct dma_pl330_desc *pl330_get_desc(struct dma_pl330_chan *pch)
 
 	/* If the DMAC pool is empty, alloc new */
 	if (!desc) {
-		DEFINE_SPINLOCK(lock);
+		static DEFINE_SPINLOCK(lock);
 		LIST_HEAD(pool);
 
 		if (!add_desc(&pool, &lock, GFP_ATOMIC, 1))
@@ -2836,7 +2993,7 @@ static inline int get_burst_len(struct dma_pl330_desc *desc, size_t len)
 	return burst_len;
 }
 
-static struct dma_async_tx_descriptor *pl330_prep_dma_cyclic(
+struct dma_async_tx_descriptor *__pl330_prep_dma_cyclic(
 		struct dma_chan *chan, dma_addr_t dma_addr, size_t len,
 		size_t period_len, enum dma_transfer_direction direction,
 		unsigned long flags, void *context)
@@ -2864,13 +3021,15 @@ static struct dma_async_tx_descriptor *pl330_prep_dma_cyclic(
 	for (i = 0; i < len / period_len; i++) {
 		desc = pl330_get_desc(pch);
 		if (!desc) {
+			unsigned long iflags;
+
 			dev_err(pch->dmac->ddma.dev, "%s:%d Unable to fetch desc\n",
 				__func__, __LINE__);
 
 			if (!first)
 				return NULL;
 
-			spin_lock_irqsave(&pl330->pool_lock, flags);
+			spin_lock_irqsave(&pl330->pool_lock, iflags);
 
 			while (!list_empty(&first->node)) {
 				desc = list_entry(first->node.next,
@@ -2880,7 +3039,7 @@ static struct dma_async_tx_descriptor *pl330_prep_dma_cyclic(
 
 			list_move_tail(&first->node, &pl330->desc_pool);
 
-			spin_unlock_irqrestore(&pl330->pool_lock, flags);
+			spin_unlock_irqrestore(&pl330->pool_lock, iflags);
 
 			return NULL;
 		}
@@ -2924,6 +3083,16 @@ static struct dma_async_tx_descriptor *pl330_prep_dma_cyclic(
 	desc->txd.flags = flags;
 
 	return &desc->txd;
+}
+EXPORT_SYMBOL(__pl330_prep_dma_cyclic);
+
+static struct dma_async_tx_descriptor *pl330_prep_dma_cyclic(
+		struct dma_chan *chan, dma_addr_t dma_addr, size_t len,
+		size_t period_len, enum dma_transfer_direction direction,
+		unsigned long flags)
+{
+	return __pl330_prep_dma_cyclic(chan, dma_addr, len, period_len,
+			direction, flags, NULL);
 }
 
 static struct dma_async_tx_descriptor *
@@ -3157,6 +3326,55 @@ EXPORT_SYMBOL(pl330_dma_getposition);
 	BIT(DMA_SLAVE_BUSWIDTH_4_BYTES) | \
 	BIT(DMA_SLAVE_BUSWIDTH_8_BYTES)
 
+#ifdef CONFIG_DEBUG_FS
+static int pl330_debugfs_show(struct seq_file *s, void *data)
+{
+	struct pl330_dmac *pl330 = s->private;
+	int chans, pchs, ch, pr;
+
+	chans = pl330->pcfg.num_chan;
+	pchs = pl330->num_peripherals;
+
+	seq_puts(s, "PL330 physical channels:\n");
+	seq_puts(s, "THREAD:\t\tCHANNEL:\n");
+	seq_puts(s, "--------\t-----\n");
+	for (ch = 0; ch < chans; ch++) {
+		struct pl330_thread *thrd = &pl330->channels[ch];
+		int found = -1;
+
+		for (pr = 0; pr < pchs; pr++) {
+			struct dma_pl330_chan *pch = &pl330->peripherals[pr];
+
+			if (!pch->thread || thrd->id != pch->thread->id)
+				continue;
+
+			found = pr;
+		}
+
+		seq_printf(s, "%d\t\t", thrd->id);
+		if (found == -1)
+			seq_puts(s, "--\n");
+		else
+			seq_printf(s, "%d\n", found);
+	}
+
+	return 0;
+}
+
+DEFINE_SHOW_ATTRIBUTE(pl330_debugfs);
+
+static inline void init_pl330_debugfs(struct pl330_dmac *pl330)
+{
+	debugfs_create_file(dev_name(pl330->ddma.dev),
+			    S_IFREG | 0444, NULL, pl330,
+			    &pl330_debugfs_fops);
+}
+#else
+static inline void init_pl330_debugfs(struct pl330_dmac *pl330)
+{
+}
+#endif
+
 /*
  * Runtime PM callbacks are provided by amba/bus.c driver.
  *
@@ -3178,30 +3396,21 @@ static int __maybe_unused pl330_suspend(struct device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_CPU_IDLE
-static int pl330_notifier(struct notifier_block *nb,
-			unsigned long event, void *data)
-{
-#ifdef CONFIG_EXYNOS_PD
-	struct pl330_dmac *pl330 =
-		container_of(nb, struct pl330_dmac, lpa_nb);
-
-	switch (event) {
-	case LPA_EXIT:
-		if (pl330->inst_wrapper)
-			__raw_writel((pl330->mcode_bus >> 32) & 0xf, pl330->inst_wrapper);
-		break;
-	}
-#endif
-	return NOTIFY_OK;
-}
-#endif /* CONFIG_CPU_IDLE */
-
 #ifdef CONFIG_PM
 static int pl330_resume(struct device *dev)
 {
+	struct amba_device *pcdev = to_amba_device(dev);
 	struct pl330_dmac *pl330;
-	int i;
+	int i, ret = 0;
+
+	ret = amba_pclk_prepare(pcdev);
+	if (ret)
+	       return ret;
+
+	if (!pm_runtime_status_suspended(dev))
+		ret = amba_pclk_enable(pcdev);
+
+	pm_runtime_enable(dev);
 
 	pl330 = (struct pl330_dmac *)dev_get_drvdata(dev);
 
@@ -3213,16 +3422,15 @@ static int pl330_resume(struct device *dev)
 			int irq = pl330->irqnum_having_multi[i];
 			if (irq)
 #if defined(CONFIG_SCHED_HMP)
-				irq_set_affinity(irq, &hmp_slow_cpu_mask);
+				irq_set_affinity_hint(irq, &hmp_slow_cpu_mask);
 #else
-				irq_set_affinity(irq, cpu_all_mask);
+				irq_set_affinity_hint(irq, cpu_all_mask);
 #endif
 			else
 				break;
 		}
 	}
-
-	return 0;
+	return ret;
 }
 
 static const struct dev_pm_ops pl330_pm_ops = {
@@ -3239,8 +3447,7 @@ static SIMPLE_DEV_PM_OPS(pl330_pm, pl330_suspend, pl330_resume);
 
 #endif /* !CONFIG_PM */
 
-static int
-pl330_probe(struct amba_device *adev, const struct amba_id *id)
+static int pl330_probe(struct amba_device *adev, const struct amba_id *id)
 {
 	struct pl330_config *pcfg;
 	struct pl330_dmac *pl330;
@@ -3282,10 +3489,35 @@ pl330_probe(struct amba_device *adev, const struct amba_id *id)
 
 	amba_set_drvdata(adev, pl330);
 
-	if (adev->dev.of_node){
+	if (adev->dev.of_node) {
 		pl330->multi_irq = of_dma_multi_irq(adev->dev.of_node);
+#ifdef MULTI_IRQ_SUPPORT_ITMON
 		if(pl330->multi_irq)
 			irq_flags = IRQF_GIC_MULTI_TARGET;
+#endif
+	}
+
+	pl330->rstc = devm_reset_control_get_optional(&adev->dev, "dma");
+	if (IS_ERR(pl330->rstc)) {
+		return dev_err_probe(&adev->dev, PTR_ERR(pl330->rstc), "Failed to get reset!\n");
+	} else {
+		ret = reset_control_deassert(pl330->rstc);
+		if (ret) {
+			dev_err(&adev->dev, "Couldn't deassert the device from reset!\n");
+			return ret;
+		}
+	}
+
+	pl330->rstc_ocp = devm_reset_control_get_optional(&adev->dev, "dma-ocp");
+	if (IS_ERR(pl330->rstc_ocp)) {
+		return dev_err_probe(&adev->dev, PTR_ERR(pl330->rstc_ocp),
+				     "Failed to get OCP reset!\n");
+	} else {
+		ret = reset_control_deassert(pl330->rstc_ocp);
+		if (ret) {
+			dev_err(&adev->dev, "Couldn't deassert the device from OCP reset!\n");
+			return ret;
+		}
 	}
 
 	for (i = 0; i < AMBA_NR_IRQS; i++) {
@@ -3296,12 +3528,11 @@ pl330_probe(struct amba_device *adev, const struct amba_id *id)
 					       dev_name(&adev->dev), pl330);
 			if (ret)
 				return ret;
-
 			if(pl330->multi_irq) {
 #if defined(CONFIG_SCHED_HMP)
-				irq_set_affinity(irq, &hmp_slow_cpu_mask);
+				irq_set_affinity_hint(irq, &hmp_slow_cpu_mask);
 #else
-				irq_set_affinity(irq, cpu_all_mask);
+				irq_set_affinity_hint(irq, cpu_all_mask);
 #endif
 				pl330->irqnum_having_multi[count_irq++] = irq;
 			}
@@ -3413,6 +3644,7 @@ pl330_probe(struct amba_device *adev, const struct amba_id *id)
 		dev_err(&adev->dev, "unable to set the seg size\n");
 
 
+	init_pl330_debugfs(pl330);
 	dev_info(&adev->dev,
 		"Loaded driver for PL330 DMAC-%x\n", adev->periphid);
 	dev_info(&adev->dev,
@@ -3425,20 +3657,6 @@ pl330_probe(struct amba_device *adev, const struct amba_id *id)
 	pm_runtime_set_autosuspend_delay(&adev->dev, PL330_AUTOSUSPEND_DELAY);
 	pm_runtime_mark_last_busy(&adev->dev);
 	pm_runtime_put_autosuspend(&adev->dev);
-
-#ifdef CONFIG_CPU_IDLE
-	pl330->lpa_nb.notifier_call = pl330_notifier;
-	pl330->lpa_nb.next = NULL;
-	pl330->lpa_nb.priority = 0;
-
-#if defined(CONFIG_EXYNOS_PD) && defined(CONFIG_EXYNOS_PM)
-	ret = exynos_pm_register_notifier(&pl330->lpa_nb);
-	if (ret) {
-		dev_err(&adev->dev, "failed to register pm notifier\n");
-		goto probe_err3;
-	}
-#endif
-#endif
 
 	return 0;
 probe_err3:
@@ -3458,10 +3676,15 @@ probe_err3:
 probe_err2:
 	pl330_del(pl330);
 
+	if (pl330->rstc_ocp)
+		reset_control_assert(pl330->rstc_ocp);
+
+	if (pl330->rstc)
+		reset_control_assert(pl330->rstc);
 	return ret;
 }
 
-static int pl330_remove(struct amba_device *adev)
+static void pl330_remove(struct amba_device *adev)
 {
 	struct pl330_dmac *pl330 = amba_get_drvdata(adev);
 	struct dma_pl330_chan *pch, *_p;
@@ -3496,7 +3719,11 @@ static int pl330_remove(struct amba_device *adev)
 
 	pl330_del(pl330);
 
-	return 0;
+	if (pl330->rstc_ocp)
+		reset_control_assert(pl330->rstc_ocp);
+
+	if (pl330->rstc)
+		reset_control_assert(pl330->rstc);
 }
 
 static const struct amba_id pl330_ids[] = {
@@ -3512,8 +3739,8 @@ MODULE_DEVICE_TABLE(amba, pl330_ids);
 static struct amba_driver pl330_driver = {
 	.drv = {
 		.owner = THIS_MODULE,
-		.pm = PL330_PM,
 		.name = "dma-pl330",
+		.pm = &pl330_pm,
 	},
 	.id_table = pl330_ids,
 	.probe = pl330_probe,

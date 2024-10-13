@@ -11,15 +11,11 @@
 #include "xfs_trans_resv.h"
 #include "xfs_sb.h"
 #include "xfs_mount.h"
-#include "xfs_defer.h"
 #include "xfs_trans.h"
 #include "xfs_error.h"
-#include "xfs_btree.h"
 #include "xfs_alloc.h"
 #include "xfs_fsops.h"
 #include "xfs_trans_space.h"
-#include "xfs_rtalloc.h"
-#include "xfs_trace.h"
 #include "xfs_log.h"
 #include "xfs_ag.h"
 #include "xfs_ag_resv.h"
@@ -40,7 +36,6 @@ xfs_growfs_data_private(
 	xfs_rfsblock_t		new;
 	xfs_agnumber_t		oagcount;
 	xfs_trans_t		*tp;
-	LIST_HEAD		(buffer_list);
 	struct aghdr_init_data	id = {};
 
 	nb = in->newblocks;
@@ -252,9 +247,9 @@ xfs_growfs_data(
 	if (mp->m_sb.sb_imax_pct) {
 		uint64_t icount = mp->m_sb.sb_dblocks * mp->m_sb.sb_imax_pct;
 		do_div(icount, 100);
-		mp->m_maxicount = icount << mp->m_sb.sb_inopblog;
+		M_IGEO(mp)->maxicount = XFS_FSB_TO_INO(mp, icount);
 	} else
-		mp->m_maxicount = 0;
+		M_IGEO(mp)->maxicount = 0;
 
 	/* Update secondary superblocks now the physical grow has completed */
 	error = xfs_update_secondary_sbs(mp);
@@ -290,7 +285,7 @@ xfs_growfs_log(
  * exported through ioctl XFS_IOC_FSCOUNTS
  */
 
-int
+void
 xfs_fs_counts(
 	xfs_mount_t		*mp,
 	xfs_fsop_counts_t	*cnt)
@@ -303,7 +298,6 @@ xfs_fs_counts(
 	spin_lock(&mp->m_sb_lock);
 	cnt->freertx = mp->m_sb.sb_frextents;
 	spin_unlock(&mp->m_sb_lock);
-	return 0;
 }
 
 /*
@@ -382,46 +376,36 @@ xfs_reserve_blocks(
 	 * If the request is larger than the current reservation, reserve the
 	 * blocks before we update the reserve counters. Sample m_fdblocks and
 	 * perform a partial reservation if the request exceeds free space.
+	 *
+	 * The code below estimates how many blocks it can request from
+	 * fdblocks to stash in the reserve pool.  This is a classic TOCTOU
+	 * race since fdblocks updates are not always coordinated via
+	 * m_sb_lock.  Set the reserve size even if there's not enough free
+	 * space to fill it because mod_fdblocks will refill an undersized
+	 * reserve when it can.
 	 */
-	error = -ENOSPC;
-	do {
-		free = percpu_counter_sum(&mp->m_fdblocks) -
-						mp->m_alloc_set_aside;
-		if (free <= 0)
-			break;
-
-		delta = request - mp->m_resblks;
-		lcounter = free - delta;
-		if (lcounter < 0)
-			/* We can't satisfy the request, just get what we can */
-			fdblks_delta = free;
-		else
-			fdblks_delta = delta;
-
+	free = percpu_counter_sum(&mp->m_fdblocks) -
+						xfs_fdblocks_unavailable(mp);
+	delta = request - mp->m_resblks;
+	mp->m_resblks = request;
+	if (delta > 0 && free > 0) {
 		/*
 		 * We'll either succeed in getting space from the free block
-		 * count or we'll get an ENOSPC. If we get a ENOSPC, it means
-		 * things changed while we were calculating fdblks_delta and so
-		 * we should try again to see if there is anything left to
-		 * reserve.
+		 * count or we'll get an ENOSPC.  Don't set the reserved flag
+		 * here - we don't want to reserve the extra reserve blocks
+		 * from the reserve.
 		 *
-		 * Don't set the reserved flag here - we don't want to reserve
-		 * the extra reserve blocks from the reserve.....
+		 * The desired reserve size can change after we drop the lock.
+		 * Use mod_fdblocks to put the space into the reserve or into
+		 * fdblocks as appropriate.
 		 */
+		fdblks_delta = min(free, delta);
 		spin_unlock(&mp->m_sb_lock);
 		error = xfs_mod_fdblocks(mp, -fdblks_delta, 0);
+		if (!error)
+			xfs_mod_fdblocks(mp, fdblks_delta, 0);
 		spin_lock(&mp->m_sb_lock);
-	} while (error == -ENOSPC);
-
-	/*
-	 * Update the reserve counters if blocks have been successfully
-	 * allocated.
-	 */
-	if (!error && fdblks_delta) {
-		mp->m_resblks += fdblks_delta;
-		mp->m_resblks_avail += fdblks_delta;
 	}
-
 out:
 	if (outval) {
 		outval->resblks = mp->m_resblks;
@@ -439,13 +423,10 @@ xfs_fs_goingdown(
 {
 	switch (inflags) {
 	case XFS_FSOP_GOING_FLAGS_DEFAULT: {
-		struct super_block *sb = freeze_bdev(mp->m_super->s_bdev);
-
-		if (sb && !IS_ERR(sb)) {
+		if (!freeze_bdev(mp->m_super->s_bdev)) {
 			xfs_force_shutdown(mp, SHUTDOWN_FORCE_UMOUNT);
-			thaw_bdev(sb->s_bdev, sb);
+			thaw_bdev(mp->m_super->s_bdev);
 		}
-
 		break;
 	}
 	case XFS_FSOP_GOING_FLAGS_LOGFLUSH:
@@ -470,20 +451,13 @@ xfs_fs_goingdown(
  */
 void
 xfs_do_force_shutdown(
-	xfs_mount_t	*mp,
+	struct xfs_mount *mp,
 	int		flags,
 	char		*fname,
 	int		lnnum)
 {
-	int		logerror;
+	bool		logerror = flags & SHUTDOWN_LOG_IO_ERROR;
 
-	logerror = flags & SHUTDOWN_LOG_IO_ERROR;
-
-	if (!(flags & SHUTDOWN_FORCE_UMOUNT)) {
-		xfs_notice(mp,
-	"%s(0x%x) called from line %d of file %s.  Return address = "PTR_FMT,
-			__func__, flags, lnnum, fname, __return_address);
-	}
 	/*
 	 * No need to duplicate efforts.
 	 */
@@ -499,27 +473,31 @@ xfs_do_force_shutdown(
 	if (xfs_log_force_umount(mp, logerror))
 		return;
 
+	if (flags & SHUTDOWN_FORCE_UMOUNT) {
+		xfs_alert(mp,
+"User initiated shutdown received. Shutting down filesystem");
+		return;
+	}
+
+	xfs_notice(mp,
+"%s(0x%x) called from line %d of file %s. Return address = "PTR_FMT,
+		__func__, flags, lnnum, fname, __return_address);
+
 	if (flags & SHUTDOWN_CORRUPT_INCORE) {
 		xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_CORRUPT,
-    "Corruption of in-memory data detected.  Shutting down filesystem");
+"Corruption of in-memory data detected.  Shutting down filesystem");
 		if (XFS_ERRLEVEL_HIGH <= xfs_error_level)
 			xfs_stack_trace();
-	} else if (!(flags & SHUTDOWN_FORCE_UMOUNT)) {
-		if (logerror) {
-			xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_LOGERROR,
-		"Log I/O Error Detected.  Shutting down filesystem");
-		} else if (flags & SHUTDOWN_DEVICE_REQ) {
-			xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_IOERROR,
-		"All device paths lost.  Shutting down filesystem");
-		} else if (!(flags & SHUTDOWN_REMOTE_REQ)) {
-			xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_IOERROR,
-		"I/O Error Detected. Shutting down filesystem");
-		}
+	} else if (logerror) {
+		xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_LOGERROR,
+			"Log I/O Error Detected. Shutting down filesystem");
+	} else {
+		xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_IOERROR,
+			"I/O Error Detected. Shutting down filesystem");
 	}
-	if (!(flags & SHUTDOWN_FORCE_UMOUNT)) {
-		xfs_alert(mp,
-	"Please umount the filesystem and rectify the problem(s)");
-	}
+
+	xfs_alert(mp,
+		"Please unmount the filesystem and rectify the problem(s)");
 }
 
 /*

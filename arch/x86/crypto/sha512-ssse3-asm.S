@@ -278,7 +278,7 @@ frame_size = frame_GPRSAVE + GPRSAVE_SIZE
 # of SHA512 message blocks.
 # "blocks" is the message length in SHA512 blocks.
 ########################################################################
-ENTRY(sha512_transform_ssse3)
+SYM_FUNC_START(sha512_transform_ssse3)
 
 	cmp $0, msglen
 	je nowork
@@ -366,8 +366,8 @@ updateblock:
 	mov	frame_RSPSAVE(%rsp), %rsp
 
 nowork:
-	ret
-ENDPROC(sha512_transform_ssse3)
+	RET
+SYM_FUNC_END(sha512_transform_ssse3)
 
 ########################################################################
 ### Binary Data

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010 Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -18,11 +10,11 @@
 /* modem device support */
 DECLARE_MODEM_INIT_DUMMY(dummy)
 
-#ifndef CONFIG_SEC_MODEM_S5000AP
+#if !IS_ENABLED(CONFIG_SEC_MODEM_S5000AP)
 DECLARE_MODEM_INIT_DUMMY(s5000ap)
 #endif
 
-#ifndef CONFIG_SEC_MODEM_S5100
+#if !IS_ENABLED(CONFIG_SEC_MODEM_S5100)
 DECLARE_MODEM_INIT_DUMMY(s5100)
 #endif
 
@@ -32,7 +24,7 @@ DECLARE_LINK_INIT_DUMMY()
 static modem_init_call modem_init_func[MAX_MODEM_TYPE] = {
 	[SEC_S5000AP] = MODEM_INIT_CALL(s5000ap),
 	[SEC_S5100] = MODEM_INIT_CALL(s5100),
-	[DUMMY] = MODEM_INIT_CALL(dummy),
+	[MODEM_TYPE_DUMMY] = MODEM_INIT_CALL(dummy),
 };
 
 static link_init_call link_init_func[LINKDEV_MAX] = {
@@ -50,7 +42,7 @@ int call_modem_init_func(struct modem_ctl *mc, struct modem_data *pdata)
 }
 
 struct link_device *call_link_init_func(struct platform_device *pdev,
-					enum modem_link link_type)
+					u32 link_type)
 {
 	if (link_init_func[link_type])
 		return link_init_func[link_type](pdev, link_type);

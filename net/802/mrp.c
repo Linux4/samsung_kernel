@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  *	IEEE 802.1Q Multiple Registration Protocol (MRP)
  *
@@ -5,10 +6,6 @@
  *
  *	Adapted from code in net/802/garp.c
  *	Copyright (c) 2008 Patrick McHardy <kaber@trash.net>
- *
- *	This program is free software; you can redistribute it and/or
- *	modify it under the terms of the GNU General Public License
- *	version 2 as published by the Free Software Foundation.
  */
 #include <linux/kernel.h>
 #include <linux/timer.h>
@@ -295,6 +292,19 @@ static void mrp_attr_destroy(struct mrp_applicant *app, struct mrp_attr *attr)
 	kfree(attr);
 }
 
+static void mrp_attr_destroy_all(struct mrp_applicant *app)
+{
+	struct rb_node *node, *next;
+	struct mrp_attr *attr;
+
+	for (node = rb_first(&app->mad);
+	     next = node ? rb_next(node) : NULL, node != NULL;
+	     node = next) {
+		attr = rb_entry(node, struct mrp_attr, node);
+		mrp_attr_destroy(app, attr);
+	}
+}
+
 static int mrp_pdu_init(struct mrp_applicant *app)
 {
 	struct sk_buff *skb;
@@ -526,7 +536,7 @@ int mrp_request_join(const struct net_device *dev,
 	struct mrp_attr *attr;
 
 	if (sizeof(struct mrp_skb_cb) + len >
-	    FIELD_SIZEOF(struct sk_buff, cb))
+	    sizeof_field(struct sk_buff, cb))
 		return -ENOMEM;
 
 	spin_lock_bh(&app->lock);
@@ -551,7 +561,7 @@ void mrp_request_leave(const struct net_device *dev,
 	struct mrp_attr *attr;
 
 	if (sizeof(struct mrp_skb_cb) + len >
-	    FIELD_SIZEOF(struct sk_buff, cb))
+	    sizeof_field(struct sk_buff, cb))
 		return;
 
 	spin_lock_bh(&app->lock);
@@ -596,7 +606,10 @@ static void mrp_join_timer(struct timer_list *t)
 	spin_unlock(&app->lock);
 
 	mrp_queue_xmit(app);
-	mrp_join_timer_arm(app);
+	spin_lock(&app->lock);
+	if (likely(app->active))
+		mrp_join_timer_arm(app);
+	spin_unlock(&app->lock);
 }
 
 static void mrp_periodic_timer_arm(struct mrp_applicant *app)
@@ -610,11 +623,12 @@ static void mrp_periodic_timer(struct timer_list *t)
 	struct mrp_applicant *app = from_timer(app, t, periodic_timer);
 
 	spin_lock(&app->lock);
-	mrp_mad_event(app, MRP_EVENT_PERIODIC);
-	mrp_pdu_queue(app);
+	if (likely(app->active)) {
+		mrp_mad_event(app, MRP_EVENT_PERIODIC);
+		mrp_pdu_queue(app);
+		mrp_periodic_timer_arm(app);
+	}
 	spin_unlock(&app->lock);
-
-	mrp_periodic_timer_arm(app);
 }
 
 static int mrp_pdu_parse_end_mark(struct sk_buff *skb, int *offset)
@@ -695,7 +709,7 @@ static int mrp_pdu_parse_vecattr(struct mrp_applicant *app,
 	 * advance to the next event in its Vector.
 	 */
 	if (sizeof(struct mrp_skb_cb) + mrp_cb(skb)->mh->attrlen >
-	    FIELD_SIZEOF(struct sk_buff, cb))
+	    sizeof_field(struct sk_buff, cb))
 		return -1;
 	if (skb_copy_bits(skb, *offset, mrp_cb(skb)->attrvalue,
 			  mrp_cb(skb)->mh->attrlen) < 0)
@@ -862,6 +876,7 @@ int mrp_init_applicant(struct net_device *dev, struct mrp_application *appl)
 	app->dev = dev;
 	app->app = appl;
 	app->mad = RB_ROOT;
+	app->active = true;
 	spin_lock_init(&app->lock);
 	skb_queue_head_init(&app->queue);
 	rcu_assign_pointer(dev->mrp_port->applicants[appl->type], app);
@@ -890,6 +905,9 @@ void mrp_uninit_applicant(struct net_device *dev, struct mrp_application *appl)
 
 	RCU_INIT_POINTER(port->applicants[appl->type], NULL);
 
+	spin_lock_bh(&app->lock);
+	app->active = false;
+	spin_unlock_bh(&app->lock);
 	/* Delete timer and generate a final TX event to flush out
 	 * all pending messages before the applicant is gone.
 	 */
@@ -898,6 +916,7 @@ void mrp_uninit_applicant(struct net_device *dev, struct mrp_application *appl)
 
 	spin_lock_bh(&app->lock);
 	mrp_mad_event(app, MRP_EVENT_TX);
+	mrp_attr_destroy_all(app);
 	mrp_pdu_queue(app);
 	spin_unlock_bh(&app->lock);
 

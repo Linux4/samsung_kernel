@@ -888,7 +888,7 @@ void hip4_sampler_create(struct slsi_dev *sdev, struct scsc_mx *mx)
 
 	/* Search for free minors */
 	minor = find_first_zero_bit(bitmap_hip4_sampler_minor, SCSC_HIP4_DEBUG_INTERFACES);
-	if (minor == SCSC_HIP4_DEBUG_INTERFACES) {
+	if (minor >= SCSC_HIP4_DEBUG_INTERFACES) {
 		SLSI_INFO_NODEV("minor %d > SCSC_TTY_MINORS\n", minor);
 		return;
 	}

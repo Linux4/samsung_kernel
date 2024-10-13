@@ -52,18 +52,18 @@ nvkm_device_tegra_power_up(struct nvkm_device_tegra *tdev)
 	clk_set_rate(tdev->clk_pwr, 204000000);
 	udelay(10);
 
-	reset_control_assert(tdev->rst);
-	udelay(10);
-
 	if (!tdev->pdev->dev.pm_domain) {
+		reset_control_assert(tdev->rst);
+		udelay(10);
+
 		ret = tegra_powergate_remove_clamping(TEGRA_POWERGATE_3D);
 		if (ret)
 			goto err_clamp;
 		udelay(10);
-	}
 
-	reset_control_deassert(tdev->rst);
-	udelay(10);
+		reset_control_deassert(tdev->rst);
+		udelay(10);
+	}
 
 	return 0;
 
@@ -123,7 +123,7 @@ nvkm_device_tegra_probe_iommu(struct nvkm_device_tegra *tdev)
 
 	mutex_init(&tdev->iommu.mutex);
 
-	if (iommu_present(&platform_bus_type)) {
+	if (device_iommu_mapped(dev)) {
 		tdev->iommu.domain = iommu_domain_alloc(&platform_bus_type);
 		if (!tdev->iommu.domain)
 			goto error;
@@ -279,6 +279,7 @@ nvkm_device_tegra_new(const struct nvkm_device_tegra_func *func,
 		      struct nvkm_device **pdevice)
 {
 	struct nvkm_device_tegra *tdev;
+	unsigned long rate;
 	int ret;
 
 	if (!(tdev = kzalloc(sizeof(*tdev), GFP_KERNEL)))
@@ -305,6 +306,17 @@ nvkm_device_tegra_new(const struct nvkm_device_tegra_func *func,
 	if (IS_ERR(tdev->clk)) {
 		ret = PTR_ERR(tdev->clk);
 		goto free;
+	}
+
+	rate = clk_get_rate(tdev->clk);
+	if (rate == 0) {
+		ret = clk_set_rate(tdev->clk, ULONG_MAX);
+		if (ret < 0)
+			goto free;
+
+		rate = clk_get_rate(tdev->clk);
+
+		dev_dbg(&pdev->dev, "GPU clock set to %lu\n", rate);
 	}
 
 	if (func->require_ref_clk)

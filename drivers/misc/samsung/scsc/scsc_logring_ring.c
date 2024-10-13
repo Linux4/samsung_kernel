@@ -208,10 +208,12 @@ static inline
 int build_header(char *buf, int blen, struct scsc_ring_record *r,
 		 const char *trail)
 {
-	int            written = 0;
-	struct timeval tval = {};
-
-	tval = ns_to_timeval(r->nsec);
+	int         written = 0;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+	struct  __kernel_old_timeval tval = ns_to_kernel_old_timeval(r->nsec);
+#else
+	struct timeval tval = ns_to_timeval(r->nsec);
+#endif
 	written = scnprintf(buf, blen,
 			    "<%d>[%6lu.%06ld] [c%d] [%c] [%s] :: %s",
 			    r->lev, tval.tv_sec, tval.tv_usec,
@@ -586,9 +588,11 @@ static inline size_t mark_out_of_sync(char *tbuf, size_t tsz,
 				      int resynced_bytes)
 {
 	size_t		written = 0;
-	struct timeval  tval = {};
-
-	tval = ns_to_timeval(local_clock());
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+	struct  __kernel_old_timeval tval = ns_to_kernel_old_timeval(local_clock());
+#else
+	struct timeval tval = ns_to_timeval(local_clock());
+#endif
 	/* We should write something even if truncated ... */
 	written = scnprintf(tbuf, tsz,
 			    "<7>[%6lu.%06ld] [c%d] [P] [OOS] :: [[[ OUT OF SYNC -- RESYNC'ED BYTES %d ]]]\n",

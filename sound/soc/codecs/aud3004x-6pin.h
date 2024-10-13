@@ -3,7 +3,7 @@
  *
  * ALSA SoC Audio Layer - Samsung Codec Driver
  *
- * Copyright (C) 2019 Samsung Electronics
+ * Copyright (C) 2022 Samsung Electronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -94,7 +94,7 @@ struct aud3004x_jack {
 	struct input_dev *input;
 	struct iio_channel *jack_adc_iio;
 	unsigned int irq_val[9];
-	struct wake_lock jack_wake_lock;
+	struct wakeup_source *jack_wake_lock;
 	struct mutex key_lock;
 	struct mutex gdet_lock;
 	struct mutex mdet_lock;

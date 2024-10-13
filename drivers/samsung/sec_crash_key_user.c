@@ -12,11 +12,8 @@
 #include <linux/kernel.h>
 #include <linux/input.h>
 #include <linux/sec_debug.h>
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-#include <linux/gpio_keys.h>
-#else
+#include <linux/module.h>
 #include "sec_key_notifier.h"
-#endif
 
 /* Input sequence 9530 */
 #define CRASH_COUNT_FIRST 9
@@ -56,14 +53,6 @@ struct upload_key_state upload_key_states[] = {
 	{KEY_VOLUMEUP, KEY_STATE_UP},
 	{KEY_POWER, KEY_STATE_UP},
 };
-
-#ifdef CONFIG_SEC_KEY_NOTIFIER
-static unsigned int user_crash_keys[] = {
-	KEY_POWER,
-	KEY_VOLUMEUP,
-	KEY_VOLUMEDOWN
-};
-#endif
 
 static unsigned int hold_key = KEY_VOLUMEDOWN;
 static unsigned int hold_key_hold = KEY_STATE_UP;
@@ -204,14 +193,9 @@ static void reset_count(void)
 static int check_crash_keys_in_user(struct notifier_block *nb,
 				unsigned long type, void *data)
 {
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-	unsigned int code = (unsigned int)type;
-	int state = *(int *)data;
-#else
 	struct sec_key_notifier_param *param = data;
 	unsigned int code = param->keycode;
 	int state = param->down;
-#endif
 
 	if (!is_crash_keys(code))
 		return NOTIFY_DONE;
@@ -230,7 +214,7 @@ static int check_crash_keys_in_user(struct notifier_block *nb,
 			if (is_key_matched_for_current_step(code)) {
 				increase_count();
 			} else {
-				pr_info("%s: crash key reset\n", "sec_upload");
+				pr_info("%s: crash key count reset\n", "sec_upload");
 				reset_count();
 				reset_step();
 			}
@@ -241,7 +225,7 @@ static int check_crash_keys_in_user(struct notifier_block *nb,
 	} else {
 		set_key_state_up(code);
 		if (is_hold_key(code)) {
-			pr_info("%s: crash key reset\n", "sec_upload");
+			pr_info("%s: crash key count reset\n", "sec_upload");
 			set_hold_key_hold(KEY_STATE_UP);
 			reset_step();
 			reset_count();
@@ -254,18 +238,24 @@ static struct notifier_block seccmn_user_crash_key_notifier = {
 	.notifier_call = check_crash_keys_in_user
 };
 
-int __init sec_upload_init(void)
+static int __init sec_crash_key_user_init(void)
 {
+	int ret = 0;
+
 	/* only work for debug level is low */
 	if (!secdbg_mode_enter_upload())
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-		register_gpio_keys_notifier(&seccmn_user_crash_key_notifier);
-#else
-		sec_kn_register_notifier(&seccmn_user_crash_key_notifier,
-				user_crash_keys, ARRAY_SIZE(user_crash_keys));
-#endif
+		ret = sec_kn_register_notifier(&seccmn_user_crash_key_notifier);
 
-	return 0;
+	return ret;
 }
 
-early_initcall(sec_upload_init);
+static void sec_crash_key_user_exit(void)
+{
+	sec_kn_unregister_notifier(&seccmn_user_crash_key_notifier);
+}
+
+module_init(sec_crash_key_user_init);
+module_exit(sec_crash_key_user_exit);
+
+MODULE_DESCRIPTION("Samsung Crash-key-user driver");
+MODULE_LICENSE("GPL v2");

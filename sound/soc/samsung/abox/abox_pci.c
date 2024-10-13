@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_pci.c
- *
- * ALSA SoC Audio Layer - Samsung Abox PCI driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox PCI driver
  *
  * Copyright (c) 2019 Samsung Electronics Co. Ltd.
  *
@@ -21,14 +21,26 @@
 #include <linux/mm_types.h>
 #include <asm/cacheflush.h>
 #include <linux/pinctrl/consumer.h>
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_S2MPU)
+#include <soc/samsung/exynos-s2mpu.h>
+#elif IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
+#include <soc/samsung/exynos-pcie-iommu-exp.h>
+#endif
+#include "abox_util.h"
 #include "abox_pci.h"
+
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
+#if IS_ENABLED(CONFIG_SOC_S5E9925)
+#define PCIE_IOMMU_CH_NUM 1
+#endif
+#endif
 
 static struct reserved_mem *abox_pci_rmem;
 static struct abox_pci_data *p_abox_pci_data;
 
 static int __init abox_pci_rmem_setup(struct reserved_mem *rmem)
 {
-	pr_info("%s: base=%pa, size=%pa\n", __func__, &rmem->base, &rmem->size);
+	pr_info("%s: size=%pa\n", __func__, &rmem->size);
 	abox_pci_rmem = rmem;
 	return 0;
 }
@@ -97,7 +109,7 @@ bool abox_pci_doorbell_paddr_set(phys_addr_t addr)
 
 	dev_info(data->dev, "%s\n", __func__);
 
-	data->pci_doorbell_base_phys = addr + ABOX_PCI_DOORBELL_OFFSET;
+	data->pci_doorbell_base_phys = addr + data->pci_doorbell_offset;
 	data->pci_dram_base = devm_ioremap(data->dev_abox,
 			data->pci_doorbell_base_phys, ABOX_PCI_DOORBELL_SIZE);
 	abox_iommu_map(data->dev_abox, IOVA_VSS_PCI_DOORBELL,
@@ -112,6 +124,7 @@ static int samsung_abox_pci_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct abox_pci_data *data;
+	struct device_node *np = dev->of_node;
 	int ret = 0;
 
 	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
@@ -129,13 +142,71 @@ static int samsung_abox_pci_probe(struct platform_device *pdev)
 	}
 	data->abox_data = dev_get_drvdata(data->dev_abox);
 
+	if (!abox_pci_rmem) {
+		struct device_node *np_tmp;
+
+		np_tmp = of_parse_phandle(dev->of_node, "memory-region", 0);
+		if (np_tmp)
+			abox_pci_rmem = of_reserved_mem_lookup(np_tmp);
+	}
 	if (abox_pci_rmem) {
 		data->pci_dram_base = abox_rmem_pci_vmap(abox_pci_rmem);
 		abox_iommu_map(data->dev_abox, IOVA_VSS_PCI,
 				abox_pci_rmem->base, abox_pci_rmem->size,
 				data->pci_dram_base);
 		memset(data->pci_dram_base, 0x0, abox_pci_rmem->size);
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_S2MPU)
+		ret = (int) exynos_set_dev_stage2_ap("hsi2", 0,
+				abox_pci_rmem->base, /* phys ?? */
+				abox_pci_rmem->size,
+				ATTR_RW);
+		if (ret < 0)
+			dev_err(dev, "Failed to exynos_set_dev_stage2_ap(%d): %d\n",
+				__LINE__, ret);
+#elif IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
+		ret = pcie_iommu_map(abox_pci_rmem->base, abox_pci_rmem->base,
+				abox_pci_rmem->size, 0, PCIE_IOMMU_CH_NUM);
+		if (ret < 0)
+			dev_err(dev, "Failed to pcie_iommu_map(%d): %d\n", __LINE__, ret);
+#endif
 	}
+
+	/* HACK: vts mailbox */
+	ret = of_samsung_property_read_u32(dev, np, "mailbox",
+			&data->abox_pci_mailbox_base);
+	if (ret) {
+		dev_err(dev, "can't get mailbox base for S2MPU\n");
+
+		return -EINVAL;
+	}
+
+	ret = of_samsung_property_read_u32(dev, np, "doorbell_offset",
+			&data->pci_doorbell_offset);
+	if (ret < 0) {
+		data->pci_doorbell_offset = ABOX_PCI_DOORBELL_OFFSET;
+		ret = 0;
+	}
+
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_S2MPU)
+	dev_info(dev, "S2MPU (%d)\n", data->abox_pci_mailbox_base);
+	ret = (int) exynos_set_dev_stage2_ap("hsi2", 0,
+			data->abox_pci_mailbox_base,
+			SZ_4K, ATTR_RW);
+	if (ret < 0) {
+		dev_err(dev, "Failed to exynos_set_dev_stage2_ap(%d): %d\n",
+			__LINE__, ret);
+
+		return -EINVAL;
+	}
+#elif IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
+	dev_info(dev, "SYSMMU (%d)\n", data->abox_pci_mailbox_base);
+	ret = pcie_iommu_map(data->abox_pci_mailbox_base, data->abox_pci_mailbox_base,
+			SZ_4K, 0, PCIE_IOMMU_CH_NUM);
+	if (ret < 0) {
+		dev_err(dev, "Failed to pcie_iommu_map(%d): %d\n", __LINE__, ret);
+		return -EINVAL;
+	}
+#endif
 
 	data->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(data->pinctrl)) {
@@ -172,19 +243,12 @@ static const struct of_device_id samsung_abox_pci_match[] = {
 };
 MODULE_DEVICE_TABLE(of, samsung_abox_pci_match);
 
-static struct platform_driver samsung_abox_pci_driver = {
+struct platform_driver samsung_abox_pci_driver = {
 	.probe  = samsung_abox_pci_probe,
 	.remove = samsung_abox_pci_remove,
 	.driver = {
-		.name = "samsung-abox-pci",
+		.name = "abox-pci",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(samsung_abox_pci_match),
 	},
 };
-
-module_platform_driver(samsung_abox_pci_driver);
-
-MODULE_AUTHOR("Pilsun Jang, <pilsun.jang@samsung.com>");
-MODULE_DESCRIPTION("Samsung ASoC A-Box PCI Driver");
-MODULE_ALIAS("platform:samsung-abox-pci");
-MODULE_LICENSE("GPL");

@@ -30,10 +30,10 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/workqueue.h>
+#include <linux/timer.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
-
 #include "synaptics_i2c_rmi.h"
 
 static int synaptics_rmi4_i2c_read(struct synaptics_rmi4_data *rmi4_data,
@@ -77,7 +77,7 @@ static int synaptics_rmi4_resume(struct device *dev);
 #endif /*CONFIG_PM*/
 
 #ifdef PROXIMITY_MODE
-static void synaptics_rmi4_f51_finger_timer(struct timer_list *data);
+static void synaptics_rmi4_f51_finger_timer(struct timer_list *t);
 
 static ssize_t synaptics_rmi4_f51_enables_show(struct device *dev,
 		struct device_attribute *attr, char *buf);
@@ -546,7 +546,7 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
 {
 	int retval;
 	unsigned char retry;
-	unsigned char buf[length + 1];
+	unsigned char buf[I2C_WRITE_BUFFER_SIZE+ 1];
 	struct i2c_msg msg[] = {
 		{
 			.addr = rmi4_data->i2c_client->addr,
@@ -1469,7 +1469,7 @@ static int synaptics_rmi4_f51_lookup_detection_flag(struct synaptics_rmi4_data *
 #endif
 		rmi4_data->f51_finger = true;
 		rmi4_data->fingers_on_2d = false;
-		synaptics_rmi4_f51_finger_timer((struct timer_list *)rmi4_data);
+		//synaptics_rmi4_f51_finger_timer((unsigned long)rmi4_data);
 	}
 
 	if (data->air_swipe_det)
@@ -1699,7 +1699,7 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 	int retval = 0;
 	unsigned char intr_status[MAX_INTR_REGISTERS];
 	const struct synaptics_rmi4_platform_data *pdata = rmi4_data->board;
-
+	
 	if (enable) {
 		if (rmi4_data->irq_enabled)
 			return retval;
@@ -3464,7 +3464,8 @@ static int synaptics_rmi4_set_input_device(struct synaptics_rmi4_data *rmi4_data
 			EDGE_SWIPE_PALM_MAX, 0, 0);
 #endif
 	timer_setup(&rmi4_data->f51_finger_timer,
-			synaptics_rmi4_f51_finger_timer, 0);
+			synaptics_rmi4_f51_finger_timer,
+		(unsigned long)0);
 #endif
 
 	retval = input_mt_init_slots(rmi4_data->input_dev,
@@ -3720,10 +3721,11 @@ static void synaptics_ta_cb(struct synaptics_rmi_callbacks *cb, int ta_status)
 #endif
 
 #ifdef PROXIMITY_MODE
-static void synaptics_rmi4_f51_finger_timer(struct timer_list *data)
+static void synaptics_rmi4_f51_finger_timer(struct timer_list *t)
 {
-	struct synaptics_rmi4_data *rmi4_data =
-		(struct synaptics_rmi4_data *)data;
+	//ruct synaptics_rmi4_data *rmi4_data =
+	//struct synaptics_rmi4_data *)data;
+	struct synaptics_rmi4_data *rmi4_data =(struct synaptics_rmi4_data *) from_timer(rmi4_data, t, f51_finger_timer);
 
 	if (rmi4_data->f51_finger) {
 		rmi4_data->f51_finger = false;
@@ -3938,8 +3940,10 @@ static int synaptics_power_ctrl(void *data, bool on)
 	} else {
 //		regulator_disable(pdata->regul_dvdd);
 
-		if (regulator_is_enabled(regulator_avdd))
+		if (regulator_is_enabled(regulator_avdd)) {
 			regulator_disable(regulator_avdd);
+			regulator_put(regulator_avdd);
+		}
 
 		pinctrl_irq = devm_pinctrl_get_select(dev, "off_state");
 		if (IS_ERR(pinctrl_irq))
@@ -3947,7 +3951,6 @@ static int synaptics_power_ctrl(void *data, bool on)
 	}
 
 	enabled = on;
-	regulator_put(regulator_avdd);
 
 	return retval;
 }
@@ -4147,6 +4150,7 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 	unsigned char attr_count;
 	struct synaptics_rmi4_data *rmi4_data = NULL;
 
+
 	/* Build up driver data */
 	retval = synaptics_rmi4_setup_drv_data(client);
 	if (retval < 0) {
@@ -4206,7 +4210,7 @@ err_tsp_reboot:
 	}
 
 	pr_info("%s schdule delayed work for irq at probe\n",__func__);
-//	schedule_delayed_work(&rmi4_data->work_init_irq, 1500);
+	//schedule_delayed_work(&rmi4_data->work_init_irq, 1500);
 #if 0
 	/* Enable attn pin */
 	retval = synaptics_rmi4_irq_enable(rmi4_data, true);
@@ -4259,8 +4263,6 @@ err_tsp_reboot:
 	/* it will be started by input reader */
 	//synaptics_rmi4_stop_device(rmi4_data);
 
-	synaptics_rmi4_reset_device(rmi4_data);
-
 	complete_all(&rmi4_data->init_done);
 
 	dev_info(&rmi4_data->i2c_client->dev, "%s: done\n", __func__);
@@ -4276,9 +4278,9 @@ err_sysfs:
 	}
 	synaptics_rmi4_irq_enable(rmi4_data, false);
 
-/*err_enable_irq:
-	synaptics_rmi4_remove_exp_fn(rmi4_data);
-*/
+//err_enable_irq:
+//	synaptics_rmi4_remove_exp_fn(rmi4_data);
+
 err_init_exp_fn:
 	input_unregister_device(rmi4_data->input_dev);
 	input_free_device(rmi4_data->input_dev);
@@ -4562,7 +4564,7 @@ static int synaptics_rmi4_input_open(struct input_dev *dev)
 	int retval;
 
 	retval = wait_for_completion_interruptible_timeout(&rmi4_data->init_done,
-			msecs_to_jiffies(90 * MSEC_PER_SEC));
+			msecs_to_jiffies(3 * MSEC_PER_SEC));
 
 	if (retval < 0) {
 		tsp_debug_err(true, &rmi4_data->i2c_client->dev,
@@ -4746,7 +4748,6 @@ static int synaptics_rmi4_resume(struct device *dev)
 	return 0;
 }
 #endif
-
 static const struct dev_pm_ops synaptics_rmi4_dev_pm_ops = {
 	.suspend = synaptics_rmi4_suspend,
 	.resume  = synaptics_rmi4_resume,

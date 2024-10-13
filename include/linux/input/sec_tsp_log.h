@@ -11,7 +11,7 @@
 #include <linux/module.h>
 #include <linux/memblock.h>
 #include <linux/sched/clock.h>
-
+#include <linux/input.h>
 #define SEC_TSP_LOG_BUF_SIZE		(256 * 1024)	/* 256 KB */
 #ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
 #define SEC_TSP_RAW_DATA_BUF_SIZE	(2 * 50 * 1024)	/* 100 KB */

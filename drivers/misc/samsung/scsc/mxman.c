@@ -85,7 +85,7 @@ static struct work_struct	wlbtd_work;
 #define MX_DRAM_SIZE (4 * 1024 * 1024)
 #define MX_DRAM_SIZE_SECTION_1 (8 * 1024 * 1024)
 
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_EXYNOS3830) || defined(CONFIG_SOC_S5E3830)
 #define MX_DRAM_SIZE_SECTION_2 (4 * 1024 * 1024)
 #else
 #define MX_DRAM_SIZE_SECTION_2 (8 * 1024 * 1024)
@@ -425,7 +425,7 @@ static u64 reset_failed_time;
 /* Status of FM driver request, which persists beyond the lifecyle
  * of the scsx_mx driver.
  */
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 static u32 is_fm_on;
 #endif
 
@@ -629,7 +629,7 @@ static bool send_syserr_cmd_to_active_mxman(u32 syserr_cmd)
 	return ret;
 }
 
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 static bool send_fm_params_to_active_mxman(struct wlbt_fm_params *params)
 {
 	bool ret = false;
@@ -762,7 +762,7 @@ static int coredump_helper(void)
 static int send_mm_msg_stop_blocking(struct mxman *mxman)
 {
 	int r;
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 	struct ma_msg_packet message = { .ma_msg = MM_HALT_REQ,
 			.arg = mxman->on_halt_ldos_on };
 #else
@@ -1094,7 +1094,7 @@ static int transports_init(struct mxman *mxman)
 	mxconf->version.minor = MXCONF_VERSION_MINOR;
 	/* Pass pre-existing FM status to FW */
 	mxconf->flags = 0;
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 	mxconf->flags |= is_fm_on ? MXCONF_FLAGS_FM_ON : 0;
 #endif
 	SCSC_TAG_INFO(MXMAN, "mxconf flags 0x%08x\n", mxconf->flags);
@@ -1381,7 +1381,7 @@ static void mxman_set_memlog_version(struct scsc_mif_abs *mif)
 		memlog_version_info = (struct scsc_memlog_version_info *)scsc_memlog_version_info_obj->vaddr;
 		mxman_get_fw_version(memlog_version_info->fw_version, SCSC_LOG_FW_VERSION_SIZE);
 		mxman_get_driver_version(memlog_version_info->host_version, SCSC_LOG_HOST_VERSION_SIZE);
-		memcpy(memlog_version_info->fapi_version, fapi_version, SCSC_LOG_FAPI_VERSION_SIZE);
+		snprintf(memlog_version_info->fapi_version, SCSC_LOG_FAPI_VERSION_SIZE, "%s", fapi_version);
 	}
 }
 #endif
@@ -1406,8 +1406,11 @@ static int mxman_start(struct mxman *mxman)
 
 	mif = scsc_mx_get_mif_abs(mxman->mx);
 	if (mxman_check_reset_failed(mif)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+		struct  __kernel_old_timeval tval = ns_to_kernel_old_timeval(reset_failed_time);
+#else
 		struct timeval tval = ns_to_timeval(reset_failed_time);
-
+#endif
 		SCSC_TAG_ERR(MXMAN, "previous reset failed at [%6lu.%06ld], ignoring\n", tval.tv_sec, tval.tv_usec);
 		return -EIO;
 	}
@@ -2056,7 +2059,7 @@ static void mxman_failure_work(struct work_struct *work)
 
 	if (mxman->last_syserr.level >= trigger_moredump_level) {
 		slsi_kic_system_event(slsi_kic_system_event_category_error,
-				slsi_kic_system_events_subsystem_crashed, GFP_KERNEL);
+			      slsi_kic_system_events_subsystem_crashed, GFP_KERNEL);
 
 		/* Mark as level 8 as services neeed to know this has happened */
 		if (mxman->last_syserr.level < MX_SYSERR_LEVEL_8) {
@@ -2585,7 +2588,7 @@ int mxman_open(struct mxman *mxman)
 			break; /* Running or given up */
 	}
 
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 	/* If we have stored FM radio parameters, deliver them to FW now */
 	if (r == 0 && mxman->fm_params_pending) {
 		SCSC_TAG_INFO(MXMAN, "Send pending FM params\n");
@@ -2606,8 +2609,11 @@ static void mxman_stop(struct mxman *mxman)
 	mif = scsc_mx_get_mif_abs(mxman->mx);
 	/* If reset is failed, prevent new resets */
 	if (mxman_check_reset_failed(mif)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+		struct  __kernel_old_timeval tval = ns_to_kernel_old_timeval(reset_failed_time);
+#else
 		struct timeval tval = ns_to_timeval(reset_failed_time);
-
+#endif
 		SCSC_TAG_ERR(MXMAN, "previous reset failed at [%6lu.%06ld], ignoring\n", tval.tv_sec, tval.tv_usec);
 		return;
 	}
@@ -2842,7 +2848,7 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 {
 	mxman->mx = mx;
 	mxman->suspended = 0;
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 	mxman->on_halt_ldos_on = 0;
 	mxman->fm_params_pending = 0;
 #endif
@@ -2970,7 +2976,14 @@ int mxman_suspend(struct mxman *mxman)
 	}
 
 	/* Call Service suspend callbacks */
-	ret = srvman_suspend_services(srvman);
+	if (srvman) {
+		ret = srvman_suspend_services(srvman);
+	} else {
+		mutex_unlock(&mxman->mxman_mutex);
+		SCSC_TAG_INFO(MXMAN, "srvman not found - ignore\n");
+		return 0;
+	}
+
 	if (ret) {
 		mutex_unlock(&mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Service Suspend canceled - ignore %d\n", ret);
@@ -2990,7 +3003,7 @@ int mxman_suspend(struct mxman *mxman)
 	return 0;
 }
 
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 void mxman_fm_on_halt_ldos_on(void)
 {
 	/* Should always be an active mxman unless module is unloaded */
@@ -3012,6 +3025,7 @@ void mxman_fm_on_halt_ldos_on(void)
 	 */
 	is_fm_on = 1;
 }
+EXPORT_SYMBOL(mxman_fm_on_halt_ldos_on);
 
 void mxman_fm_on_halt_ldos_off(void)
 {
@@ -3030,6 +3044,7 @@ void mxman_fm_on_halt_ldos_off(void)
 	active_mxman->on_halt_ldos_on = 0;
 	is_fm_on = 0;
 }
+EXPORT_SYMBOL(mxman_fm_on_halt_ldos_off);
 
 /* Update parameters passed to WLBT FM */
 int mxman_fm_set_params(struct wlbt_fm_params *params)
@@ -3061,6 +3076,7 @@ int mxman_fm_set_params(struct wlbt_fm_params *params)
 
 	return -EAGAIN;
 }
+EXPORT_SYMBOL(mxman_fm_set_params);
 #endif
 
 void mxman_resume(struct mxman *mxman)
@@ -3093,13 +3109,21 @@ void mxman_resume(struct mxman *mxman)
 	}
 
 	/* Call Service Resume callbacks */
-	ret = srvman_resume_services(srvman);
+	if (srvman) {
+		ret = srvman_resume_services(srvman);
+	} else {
+		SCSC_TAG_INFO(MXMAN, "srvman not found - ignore\n");
+		mutex_unlock(&mxman->mxman_mutex);
+		return;
+	}
+
 	if (ret)
 		SCSC_TAG_INFO(MXMAN, "Service Resume error %d\n", ret);
 
 	mutex_unlock(&mxman->mxman_mutex);
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 static void _mx_exec_cleanup(struct subprocess_info *sp_info)
 {
 	if (!sp_info) {
@@ -3115,7 +3139,6 @@ static void _mx_exec_cleanup(struct subprocess_info *sp_info)
 	argv_free(sp_info->argv);
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 /* prog - full path to programme
  * wait_exec - one of UMH_WAIT_EXEC, UMH_WAIT_PROC, UMH_KILLABLE, UMH_NO_WAIT
  */

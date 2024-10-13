@@ -5,186 +5,309 @@
  * Choonghoon Park <choong.park@samsung.com>
  */
 
-#include <dt-bindings/soc/samsung/exynos-ecs.h>
+#include "../sched.h"
+#include "ems.h"
 
 #include <trace/events/ems.h>
 #include <trace/events/ems_debug.h>
 
-#include "../sched.h"
-#include "ems.h"
+static struct {
+	unsigned long			update_period;
 
-struct ecs_governor {
-	struct list_head	*modes;
-	struct list_head	*domains;
+	const struct cpumask		*cpus;
 
-	unsigned int		enabled;
+	/* ecs governor */
+	struct list_head		domain_list;
+	struct cpumask			governor_cpus;
+	struct cpumask			out_of_governing_cpus;
+	struct system_profile_data	spd;
+	bool				skip_update;
+	bool				governor_enable;
+	unsigned int			default_gov;
 
-	struct ecs_mode		*cur_mode;
+	struct {
+		unsigned int		target_domain_id;
+		unsigned int		target_stage_id;
+	} ioctl_info;
+} ecs;
 
-	struct cpumask		heavy_cpus;
-	struct cpumask		busy_cpus;
-	struct cpumask		cpus;
+static struct kobject *stage_kobj;
 
-	/* members for sysfs */
-	struct kobject		kobj;
-	struct mutex		attrib_lock;
-} ecs_gov;
+static DEFINE_RAW_SPINLOCK(sparing_lock);
 
-static LIST_HEAD(default_mode_list);
-static LIST_HEAD(default_domain_list);
+#define MAX_ECS_DOMAIN	VENDOR_NR_CPUS
+#define MAX_ECS_STAGE	VENDOR_NR_CPUS
 
-static DEFINE_SPINLOCK(ecs_lock);
-static DEFINE_RAW_SPINLOCK(ecs_load_lock);
-/**********************************************************************************
- *				   External API					  *
- **********************************************************************************/
-static void __ecs_update_system_status(struct ecs_domain *domain)
+static struct {
+	unsigned int ratio;
+} ecs_tune[MAX_ECS_DOMAIN][MAX_ECS_STAGE];
+
+/******************************************************************************
+ *                             core sparing governor                          *
+ ******************************************************************************/
+static inline struct ecs_stage *first_stage(struct ecs_domain *domain)
 {
-	int cpu;
-	unsigned int util_sum = 0, util_avg, nr_running_sum = 0, num_of_cpus = 0;
+	return list_first_entry(&domain->stage_list, struct ecs_stage, node);
+}
 
-	for_each_cpu_and(cpu, &domain->cpus, cpu_online_mask) {
-		util_sum += ml_cpu_util(cpu);
-		num_of_cpus++;
-		nr_running_sum += cpu_rq(cpu)->nr_running;
+static inline struct ecs_stage *last_stage(struct ecs_domain *domain)
+{
+	return list_last_entry(&domain->stage_list, struct ecs_stage, node);
+}
+
+static struct ecs_stage *find_stage_by_id(struct ecs_domain *domain, unsigned int id)
+{
+	struct ecs_stage *stage;
+
+	list_for_each_entry(stage, &domain->stage_list, node) {
+		if (stage->id == id)
+			return stage;
 	}
 
-	if (!num_of_cpus)
-		return;
-
-	util_avg = util_sum / num_of_cpus;
-
-	if (util_avg >= domain->domain_util_avg_thr)
-		for_each_cpu_and(cpu, &domain->cpus, cpu_online_mask)
-			cpumask_set_cpu(cpu, &ecs_gov.busy_cpus);
-
-	if (nr_running_sum >= domain->domain_nr_running_thr)
-		for_each_cpu_and(cpu, &domain->cpus, cpu_online_mask)
-			cpumask_set_cpu(cpu, &ecs_gov.busy_cpus);
+	return NULL;
 }
 
-static bool ecs_update_system_status(void)
+static struct ecs_domain *find_domain_by_id(unsigned int id)
 {
 	struct ecs_domain *domain;
-	struct cpumask prev_heavy_cpus, prev_busy_cpus;
-	struct list_head *domlist = ecs_gov.domains;
 
-	cpumask_copy(&prev_heavy_cpus, &ecs_gov.heavy_cpus);
-	cpumask_copy(&prev_busy_cpus, &ecs_gov.busy_cpus);
+	list_for_each_entry(domain, &ecs.domain_list, node)
+		if (domain->id == id)
+			return domain;
 
-	cpumask_clear(&ecs_gov.heavy_cpus);
-	cpumask_clear(&ecs_gov.busy_cpus);
-
-	list_for_each_entry(domain, domlist, list)
-		__ecs_update_system_status(domain);
-
-	if (cpumask_equal(&prev_busy_cpus, &ecs_gov.busy_cpus) &&
-		cpumask_equal(&prev_heavy_cpus, &ecs_gov.heavy_cpus))
-		return 0;
-
-	return 1;
+	return NULL;
 }
 
-static struct ecs_mode* ecs_get_base_mode(void)
+#define ECS_FORWARD		(0)
+#define ECS_BACKWARD		(1)
+static inline int
+get_busy_threshold(struct ecs_domain *domain, struct ecs_stage *stage, int direction)
 {
-	return list_first_entry(ecs_gov.modes, struct ecs_mode, list);
-}
+	struct ecs_stage *threshold_stage = direction == ECS_FORWARD ?
+					    stage : list_prev_entry(stage, node);
+	int busy_threshold = threshold_stage->busy_threshold;
+	int busy_threshold_ratio;
 
-static struct ecs_mode* ecs_get_mode(void)
-{
-	struct ecs_mode *mode, *target_mode = NULL;
-	struct list_head *modlist = ecs_gov.modes;
-
-	/* Modes are in ascending order */
-	list_for_each_entry_reverse(mode, modlist, list) {
-		if (mode->mode & SAVING) {
-			if (cpumask_weight(&mode->cpus) <= cpumask_weight(&ecs_gov.busy_cpus))
-				continue;
-		}
-
-		target_mode = mode;
+	switch (direction) {
+	case ECS_FORWARD:
+		/* Nothing to do */
+		break;
+	case ECS_BACKWARD:
+		/* Half of current stage threshold */
+		busy_threshold >>= 1;
+		break;
+	default:
+		/* Stale direction... just use original threshold */
 		break;
 	}
 
-	if (!target_mode)
-		target_mode = ecs_get_base_mode();
+	busy_threshold_ratio = max(ecs_tune[domain->id][stage->id].ratio,
+				   domain->busy_threshold_ratio);
 
-	return target_mode;
+	return (busy_threshold * busy_threshold_ratio) / 100;
 }
 
-static int ecs_update_spared_cpus(struct ecs_mode *target_mode)
+static bool need_backward(struct ecs_domain *domain, int monitor_util_sum)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&ecs_lock, flags);
-
-	if (!ecs_gov.enabled)
-		goto unlock;
-
-	ecs_gov.cur_mode = target_mode;
-	cpumask_copy(&ecs_gov.cpus, &target_mode->cpus);
-
-unlock:
-	spin_unlock_irqrestore(&ecs_lock, flags);
-
-	return 0;
-}
-
-void ecs_update(void)
-{
-	unsigned long flags;
-	struct ecs_mode *target_mode;
-	bool updated;
-
-	if (!ecs_gov.enabled)
-		return;
-
-	if (!raw_spin_trylock_irqsave(&ecs_load_lock, flags))
-		return;
-
-	/* update cpumask to judge needs to spare cpus */
-	updated = ecs_update_system_status();
-	if (!updated)
-		goto unlock;
-
-	/* get mode */
-	target_mode = ecs_get_mode();
-
-	/* request mode */
-	if (ecs_gov.cur_mode != target_mode)
-		ecs_update_spared_cpus(target_mode);
-
-unlock:
-	trace_ecs_update(*(unsigned int *)&ecs_gov.heavy_cpus,
-			 *(unsigned int *)&ecs_gov.busy_cpus,
-			 *(unsigned int *)&ecs_gov.cpus);
-
-	raw_spin_unlock_irqrestore(&ecs_load_lock, flags);
-}
-
-int ecs_is_sparing_cpu(int cpu)
-{
-	if (!ecs_gov.enabled)
+	/* is current first stage? */
+	if (domain->cur_stage == first_stage(domain))
 		return false;
 
-	return !cpumask_test_cpu(cpu, &ecs_gov.cpus);
+	return monitor_util_sum <
+		get_busy_threshold(domain, domain->cur_stage, ECS_BACKWARD);
 }
 
-struct cpumask *ecs_cpus_allowed(void)
+static void prev_stage(struct ecs_domain *domain, int monitor_util_sum)
 {
-	return &ecs_gov.cpus;
+	int threshold;
+	struct cpumask prev_mask;
+
+	while (need_backward(domain, monitor_util_sum)) {
+		/* Data for tracing backward stage transition */
+		threshold = get_busy_threshold(domain, domain->cur_stage, ECS_BACKWARD);
+		cpumask_copy(&prev_mask, &domain->cur_stage->cpus);
+
+		/* Update current statge backward in this domain */
+		domain->cur_stage = list_prev_entry(domain->cur_stage, node);
+
+		trace_ecs_update_domain("backward", domain->id,
+					monitor_util_sum, threshold,
+					*(unsigned int *)cpumask_bits(&prev_mask),
+					*(unsigned int *)cpumask_bits(&domain->cur_stage->cpus));
+	}
 }
 
-/****************************************************************/
-/*		   emstune mode update notifier			*/
-/****************************************************************/
+static bool need_forward(struct ecs_domain *domain, int monitor_util_sum)
+{
+	/* is current last stage? */
+	if (domain->cur_stage == last_stage(domain))
+		return false;
+
+	return monitor_util_sum >
+		get_busy_threshold(domain, domain->cur_stage, ECS_FORWARD);
+}
+
+static void next_stage(struct ecs_domain *domain, int monitor_util_sum)
+{
+	int threshold;
+	struct cpumask prev_mask;
+
+	while (need_forward(domain, monitor_util_sum)) {
+		/* Data for tracing forward stage transition */
+		threshold = get_busy_threshold(domain, domain->cur_stage, ECS_FORWARD);
+		cpumask_copy(&prev_mask, &domain->cur_stage->cpus);
+
+		/* Update current statge forward in this domain */
+		domain->cur_stage = list_next_entry(domain->cur_stage, node);
+
+		trace_ecs_update_domain("forward", domain->id,
+					monitor_util_sum, threshold,
+					*(unsigned int *)cpumask_bits(&prev_mask),
+					*(unsigned int *)cpumask_bits(&domain->cur_stage->cpus));
+	}
+}
+
+static void __update_ecs_domain(struct ecs_domain *domain, int monitor_util_sum)
+{
+	next_stage(domain, monitor_util_sum);
+	prev_stage(domain, monitor_util_sum);
+}
+
+static void update_ecs_domain(struct ecs_domain *domain)
+{
+	int cpu;
+	int monitor_util_sum = 0;
+	struct cpumask mask;
+	struct system_profile_data *spd = &ecs.spd;
+
+	if (!domain->cur_stage)
+		return;
+
+	cpumask_and(&mask, ecs.cpus, cpu_online_mask);
+	cpumask_and(&mask, &mask, &domain->cpus);
+	if (cpumask_empty(&mask))
+		return;
+
+	for_each_cpu(cpu, &mask)
+		monitor_util_sum += spd->cp[cpu][CPU_UTIL].value;
+
+	__update_ecs_domain(domain, monitor_util_sum);
+}
+
+static void reflect_fastest_cpus(struct cpumask *governor_cpus)
+{
+	int cpu, misfit_task_count = ecs.spd.misfit_task_count;
+	struct cpumask prev_governor_cpus;
+
+	if (misfit_task_count <= 0)
+		return;
+
+	cpumask_copy(&prev_governor_cpus, governor_cpus);
+
+	for_each_cpu_and(cpu, cpu_fastest_mask(), cpu_active_mask) {
+		cpumask_set_cpu(cpu, governor_cpus);
+
+		if (--misfit_task_count <= 0)
+			break;
+	}
+
+	if (!cpumask_equal(&prev_governor_cpus, governor_cpus))
+		trace_ecs_reflect_fastest_cpus(ecs.spd.misfit_task_count,
+						*(unsigned int *)cpumask_bits(&prev_governor_cpus),
+						*(unsigned int *)cpumask_bits(governor_cpus));
+}
+
+static void update_ecs_governor_cpus(void)
+{
+	struct ecs_domain *domain;
+	struct cpumask governor_cpus;
+
+	get_system_sched_data(&ecs.spd);
+
+	cpumask_clear(&governor_cpus);
+
+	list_for_each_entry(domain, &ecs.domain_list, node) {
+		update_ecs_domain(domain);
+		cpumask_or(&governor_cpus,
+			   &governor_cpus, &domain->cur_stage->cpus);
+	}
+
+	cpumask_or(&governor_cpus, &governor_cpus, &ecs.out_of_governing_cpus);
+
+	reflect_fastest_cpus(&governor_cpus);
+
+	if (!cpumask_equal(&ecs.governor_cpus, &governor_cpus)) {
+		trace_ecs_update_governor_cpus("governor",
+				*(unsigned int *)cpumask_bits(&ecs.governor_cpus),
+				*(unsigned int *)cpumask_bits(&governor_cpus));
+
+		cpumask_copy(&ecs.governor_cpus, &governor_cpus);
+		update_ecs_cpus();
+	}
+}
+
+static void ecs_control_governor(bool enable)
+{
+	struct ecs_domain *domain;
+	struct cpumask governor_cpus;
+
+	/*
+	 * In case of enabling, nothing to do.
+	 * Governor will work at next scheduler tick.
+	 */
+	if (enable)
+		return;
+
+	cpumask_clear(&governor_cpus);
+
+	/* Update cur stage to last stage */
+	list_for_each_entry(domain, &ecs.domain_list, node) {
+		if (domain->cur_stage != last_stage(domain))
+			domain->cur_stage = last_stage(domain);
+
+		cpumask_or(&governor_cpus, &governor_cpus,
+					   &domain->cur_stage->cpus);
+	}
+
+	/* Include cpus which governor doesn't consider */
+	cpumask_or(&governor_cpus, &governor_cpus, &ecs.out_of_governing_cpus);
+
+	if (!cpumask_equal(&ecs.governor_cpus, &governor_cpus)) {
+		trace_ecs_update_governor_cpus("disabled",
+				*(unsigned int *)cpumask_bits(&ecs.governor_cpus),
+				*(unsigned int *)cpumask_bits(&governor_cpus));
+
+		cpumask_copy(&ecs.governor_cpus, &governor_cpus);
+		update_ecs_cpus();
+	}
+}
+
+/******************************************************************************
+ *                       emstune mode update notifier                         *
+ ******************************************************************************/
 static int ecs_mode_update_callback(struct notifier_block *nb,
 				unsigned long val, void *v)
 {
 	struct emstune_set *cur_set = (struct emstune_set *)v;
+	unsigned long flags;
+	struct ecs_domain *domain, *emstune_domain;
 
-	ecs_gov.modes = cur_set->ecs.p_mode_list;
-	ecs_gov.domains = cur_set->ecs.p_domain_list;
+	raw_spin_lock_irqsave(&sparing_lock, flags);
+	if (!list_empty(&cur_set->ecs.domain_list)) {
+		list_for_each_entry(emstune_domain, &cur_set->ecs.domain_list, node) {
+			domain = find_domain_by_id(emstune_domain->id);
+			if (!domain)
+				continue;
+			domain->busy_threshold_ratio = emstune_domain->busy_threshold_ratio;
+		}
+	} else {
+		list_for_each_entry(domain, &ecs.domain_list, node)
+			domain->busy_threshold_ratio = 0;
+	}
+
+	if (!ecs.skip_update && ecs.governor_enable)
+		update_ecs_governor_cpus();
+	raw_spin_unlock_irqrestore(&sparing_lock, flags);
 
 	return NOTIFY_OK;
 }
@@ -193,408 +316,514 @@ static struct notifier_block ecs_mode_update_notifier = {
 	.notifier_call = ecs_mode_update_callback,
 };
 
-/**********************************************************************************
- *					SYSFS					  *
- **********************************************************************************/
-#define to_ecs_gov(k) container_of(k, struct ecs_governor, kobj)
-#define to_domain(k) container_of(k, struct ecs_domain, kobj)
-#define to_mode(k) container_of(k, struct ecs_mode, kobj)
-
-#define ecs_show(file_name, object)					\
-static ssize_t show_##file_name						\
-(struct kobject *kobj, char *buf)					\
-{									\
-	struct ecs_governor *ecs = to_ecs_gov(kobj);			\
-									\
-	return sprintf(buf, "%u\n", ecs->object);			\
-}
-
-#define ecs_store(file_name, object)					\
-static ssize_t store_##file_name					\
-(struct kobject *kobj, const char *buf, size_t count)			\
-{									\
-	int ret;							\
-	unsigned int val;						\
-	struct ecs_governor *ecs = to_ecs_gov(kobj);			\
-									\
-	ret = kstrtoint(buf, 10, &val);					\
-	if (ret)							\
-		return -EINVAL;						\
-									\
-	ecs->object = val;						\
-									\
-	return ret ? ret : count;					\
-}
-
-#define ecs_domain_show(file_name, object)				\
-static ssize_t show_##file_name						\
-(struct kobject *kobj, char *buf)					\
-{									\
-	struct ecs_domain *domain = to_domain(kobj);			\
-									\
-	return sprintf(buf, "%u\n", domain->object);			\
-}
-
-#define ecs_domain_store(file_name, object)				\
-static ssize_t store_##file_name					\
-(struct kobject *kobj, const char *buf, size_t count)			\
-{									\
-	int ret;							\
-	unsigned int val;						\
-	struct ecs_domain *domain = to_domain(kobj);			\
-									\
-	ret = kstrtoint(buf, 10, &val);					\
-	if (ret)							\
-		return -EINVAL;						\
-									\
-	domain->object = val;						\
-									\
-	return ret ? ret : count;					\
-}
-
-#define ecs_mode_show(file_name, object)				\
-static ssize_t show_##file_name						\
-(struct kobject *kobj, char *buf)					\
-{									\
-	struct ecs_mode *mode = to_mode(kobj);				\
-									\
-	return sprintf(buf, "%u\n", mode->object);			\
-}
-
-#define ecs_mode_store(file_name, object)				\
-static ssize_t store_##file_name					\
-(struct kobject *kobj, const char *buf, size_t count)			\
-{									\
-	int ret;							\
-	unsigned int val;						\
-	struct ecs_mode *mode = to_mode(kobj);				\
-									\
-	ret = kstrtoint(buf, 10, &val);					\
-	if (ret)							\
-		return -EINVAL;						\
-									\
-	mode->object = val;						\
-									\
-	return ret ? ret : count;					\
-}
-
-ecs_show(enabled, enabled);
-
-ecs_domain_store(domain_util_avg_thr, domain_util_avg_thr);
-ecs_domain_store(domain_nr_running_thr, domain_nr_running_thr);
-ecs_domain_show(domain_util_avg_thr, domain_util_avg_thr);
-ecs_domain_show(domain_nr_running_thr, domain_nr_running_thr);
-
-static int ecs_set_enable(bool enable)
+/******************************************************************************
+ *                      sysbusy state change notifier                         *
+ ******************************************************************************/
+static int ecs_sysbusy_notifier_call(struct notifier_block *nb,
+					unsigned long val, void *v)
 {
-	struct ecs_mode *base_mode = ecs_get_base_mode();
+	enum sysbusy_state state = *(enum sysbusy_state *)v;
+	bool old_skip_update;
+
+	if (val != SYSBUSY_STATE_CHANGE)
+		return NOTIFY_OK;
+
+	raw_spin_lock(&sparing_lock);
+
+	old_skip_update = ecs.skip_update;
+	ecs.skip_update = (state > SYSBUSY_STATE0);
+
+	if ((old_skip_update != ecs.skip_update) && ecs.governor_enable)
+		ecs_control_governor(!ecs.skip_update);
+
+	raw_spin_unlock(&sparing_lock);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block ecs_sysbusy_notifier = {
+	.notifier_call = ecs_sysbusy_notifier_call,
+};
+
+/******************************************************************************
+ *                            ioctl event handler                             *
+ ******************************************************************************/
+int ecs_ioctl_get_domain_count(void)
+{
+	int count = 0;
+	struct list_head *cursor;
+
+	list_for_each(cursor, &ecs.domain_list)
+		count++;
+
+	return count;
+}
+
+static void ecs_ioctl_get_cd_ratio(int cpu, int *cd_dp_ratio, int *cd_cp_ratio)
+{
+	struct device_node *np, *child;
+
+	*cd_dp_ratio = 1000;
+	*cd_cp_ratio = 1000;
+
+	np = of_find_node_by_path("/power-data/cpu");
+	if (!np)
+		return;
+
+	for_each_child_of_node(np, child) {
+		const char *buf;
+		struct cpumask cpus;
+
+		if (of_property_read_string(child, "cpus", &buf))
+			continue;
+
+		cpulist_parse(buf, &cpus);
+		if (cpumask_test_cpu(cpu, &cpus)) {
+			of_property_read_u32(child,
+				"dhry-to-clang-dp-ratio", cd_dp_ratio);
+			of_property_read_u32(child,
+				"dhry-to-clang-cap-ratio", cd_cp_ratio);
+			break;
+		}
+	}
+
+	of_node_put(np);
+}
+
+static inline void
+fill_ecs_domain_info_state(int cpu, int state_index,
+			   struct energy_state *state,
+			   struct ems_ioctl_ecs_domain_info *info)
+{
+	info->states[cpu][state_index].frequency = state->frequency;
+	info->states[cpu][state_index].capacity = state->capacity;
+	info->states[cpu][state_index].v_square = state->voltage * state->voltage;
+	info->states[cpu][state_index].dynamic_power = state->dynamic_power;
+	info->states[cpu][state_index].static_power = state->static_power;
+}
+
+int ecs_ioctl_get_ecs_domain_info(struct ems_ioctl_ecs_domain_info *info)
+{
+	unsigned int domain_id = ecs.ioctl_info.target_domain_id;
+	struct ecs_domain *domain;
+	struct ecs_stage *stage;
+	int stage_index = 0;
+	int cpu;
+
+	domain = find_domain_by_id(domain_id);
+	if (!domain)
+		return -ENODEV;
+
+	info->cpus = *(unsigned long *)cpumask_bits(&domain->cpus);
+
+	info->num_of_state = INT_MAX;
+
+	for_each_cpu_and(cpu, &domain->cpus, cpu_online_mask) {
+		int energy_state_index;
+		struct cpufreq_policy *policy;
+		struct cpufreq_frequency_table *pos;
+		struct energy_state state;
+
+		ecs_ioctl_get_cd_ratio(cpu, &info->cd_dp_ratio[cpu],
+					    &info->cd_cp_ratio[cpu]);
+
+		policy = cpufreq_cpu_get(cpu);
+		if (!policy) {
+			pr_err("EMS: %s: No cpufreq policy for CPU%d\n", __func__, cpu);
+			continue;
+		}
+
+		energy_state_index = 0;
+		cpufreq_for_each_valid_entry(pos, policy->freq_table) {
+			et_get_orig_state(cpu, pos->frequency, &state);
+
+			fill_ecs_domain_info_state(cpu, energy_state_index, &state, info);
+
+			energy_state_index++;
+
+			if (energy_state_index >= NR_ECS_ENERGY_STATES)
+				break;
+		}
+
+		info->num_of_state = min(info->num_of_state, energy_state_index);
+
+		cpufreq_cpu_put(policy);
+	}
+
+	list_for_each_entry(stage, &domain->stage_list, node) {
+		info->cpus_each_stage[stage_index] = *(unsigned long *)cpumask_bits(&stage->cpus);
+		stage_index++;
+	}
+
+	info->num_of_stage = stage_index;
+
+	return 0;
+}
+
+void ecs_ioctl_set_target_domain(unsigned int domain_id)
+{
+	ecs.ioctl_info.target_domain_id = domain_id;
+}
+
+void ecs_ioctl_set_target_stage(unsigned int stage_id)
+{
+	ecs.ioctl_info.target_stage_id = stage_id;
+}
+
+void ecs_ioctl_set_stage_threshold(unsigned int threshold)
+{
+	unsigned int domain_id = ecs.ioctl_info.target_domain_id;
+	unsigned int stage_id = ecs.ioctl_info.target_stage_id;
+	struct ecs_domain *domain;
+	struct ecs_stage *stage;
+
+	domain = find_domain_by_id(domain_id);
+	if (!domain)
+		return;
+
+	stage = find_stage_by_id(domain, stage_id);
+	if (!stage)
+		return;
+
+	stage->busy_threshold = threshold;
+}
+
+/******************************************************************************
+ *                                    sysfs                                   *
+ ******************************************************************************/
+static ssize_t show_ecs_update_period(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%lu\n", ecs.update_period);
+}
+
+static ssize_t store_ecs_update_period(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long period;
+
+	if (!sscanf(buf, "%d", &period))
+		return -EINVAL;
+
+	ecs.update_period = period;
+
+	return count;
+}
+
+static struct kobj_attribute ecs_update_period_attr =
+__ATTR(update_period, 0644, show_ecs_update_period, store_ecs_update_period);
+
+static ssize_t show_ecs_domain(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	int ret = 0;
+	struct ecs_domain *domain;
+	struct ecs_stage *stage;
+
+	if (!list_empty(&ecs.domain_list)) {
+		list_for_each_entry(domain, &ecs.domain_list, node) {
+			ret += sprintf(buf + ret, "[domain%d]\n", domain->id);
+			ret += sprintf(buf + ret, " emstune threshold ratio : %u\n",
+					domain->busy_threshold_ratio);
+			ret += sprintf(buf + ret, " --------------------------------\n");
+			list_for_each_entry(stage, &domain->stage_list, node) {
+				ret += sprintf(buf + ret, "| stage%d\n",
+						stage->id);
+				ret += sprintf(buf + ret, "| ecs threshold ratio    : %u\n",
+						ecs_tune[domain->id][stage->id].ratio);
+				ret += sprintf(buf + ret, "| cpus                   : %*pbl\n",
+						cpumask_pr_args(&stage->cpus));
+
+				if (stage != first_stage(domain))
+					ret += sprintf(buf + ret, "| backward threshold     : %u\n",
+							get_busy_threshold(domain, stage, ECS_BACKWARD));
+
+				if (stage != last_stage(domain))
+					ret += sprintf(buf + ret, "| forward threshold      : %u\n",
+							get_busy_threshold(domain, stage, ECS_FORWARD));
+
+				ret += sprintf(buf + ret, " --------------------------------\n");
+			}
+		}
+	} else {
+		ret += sprintf(buf + ret, "domain list empty\n");
+	}
+
+	return ret;
+}
+
+static struct kobj_attribute ecs_domain_attr =
+__ATTR(domains, 0444, show_ecs_domain, NULL);
+
+static ssize_t show_ecs_governor_enable(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", ecs.governor_enable);
+}
+
+static ssize_t store_ecs_governor_enable(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int enable;
 	unsigned long flags;
 
-	spin_lock_irqsave(&ecs_lock, flags);
-
-	if (enable == ecs_gov.enabled)
-		goto unlock;
-
-	ecs_gov.enabled = enable;
-	ecs_gov.cur_mode = base_mode;
-	cpumask_copy(&ecs_gov.cpus, &base_mode->cpus);
-
-unlock:
-	spin_unlock_irqrestore(&ecs_lock, flags);
-
-	return 0;
-}
-
-static ssize_t store_enabled(struct kobject *kobj,
-			const char *buf, size_t count)
-{
-	int ret;
-	unsigned int val;
-
-	ret = kstrtoint(buf, 10, &val);
-	if (ret)
+	if (sscanf(buf, "%d", &enable) != 1)
 		return -EINVAL;
 
-	if (val > 0)
-		ret = ecs_set_enable(true);
-	else
-		ret = ecs_set_enable(false);
+	raw_spin_lock_irqsave(&sparing_lock, flags);
+	if (enable != ecs.governor_enable)
+		ecs_control_governor(enable);
 
-	return ret ? ret : count;
+	ecs.governor_enable = enable;
+	raw_spin_unlock_irqrestore(&sparing_lock, flags);
+
+	return count;
 }
 
-struct ecs_attr {
-	struct attribute attr;
-	ssize_t (*show)(struct kobject *, char *);
-	ssize_t (*store)(struct kobject *, const char *, size_t count);
-};
+static struct kobj_attribute ecs_governor_enable_attr =
+__ATTR(governor_enable, 0644, show_ecs_governor_enable, store_ecs_governor_enable);
 
-#define ecs_attr_ro(_name)						\
-static struct ecs_attr _name =						\
-__ATTR(_name, 0444, show_##_name, NULL)
-
-#define ecs_attr_rw(_name)						\
-static struct ecs_attr _name =						\
-__ATTR(_name, 0644, show_##_name, store_##_name)
-
-#define to_attr(a) container_of(a, struct ecs_attr, attr)
-
-static ssize_t show(struct kobject *kobj, struct attribute *attr, char *buf)
+static ssize_t show_ecs_ratio(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
-	struct ecs_attr *hattr = to_attr(attr);
-	ssize_t ret;
+	int ret = 0;
+	struct ecs_domain *domain;
+	struct ecs_stage *stage;
 
-	mutex_lock(&ecs_gov.attrib_lock);
-	ret = hattr->show(kobj, buf);
-	mutex_unlock(&ecs_gov.attrib_lock);
+	list_for_each_entry(domain, &ecs.domain_list, node) {
+		list_for_each_entry(stage, &domain->stage_list, node) {
+			ret += snprintf(buf + ret, PAGE_SIZE - ret,
+				"domain=%d stage=%d ecs-ratio=%d emstune-ratio=%d\n",
+				domain->id, stage->id,
+				ecs_tune[domain->id][stage->id].ratio,
+				domain->busy_threshold_ratio);
+		}
+	}
 
 	return ret;
 }
 
-static ssize_t store(struct kobject *kobj, struct attribute *attr,
-		     const char *buf, size_t count)
+static ssize_t store_ecs_ratio(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
-	struct ecs_attr *hattr = to_attr(attr);
-	ssize_t ret = -EINVAL;
+	int domain_id, stage_id, ratio;
 
-	mutex_lock(&ecs_gov.attrib_lock);
-	ret = hattr->store(kobj, buf, count);
-	mutex_unlock(&ecs_gov.attrib_lock);
+	if (sscanf(buf, "%d %d %d", &domain_id, &stage_id, &ratio) != 3)
+		return -EINVAL;
+
+	if (domain_id < 0 || domain_id >= MAX_ECS_STAGE ||
+	     stage_id < 0 || stage_id >= MAX_ECS_STAGE)
+		return -EINVAL;
+
+	ecs_tune[domain_id][stage_id].ratio = ratio;
+
+	return count;
+}
+
+static struct kobj_attribute ecs_ratio =
+__ATTR(ratio, 0644, show_ecs_ratio, store_ecs_ratio);
+
+static int ecs_sysfs_init(struct kobject *ecs_gov_kobj)
+{
+	int ret;
+
+	stage_kobj = kobject_create_and_add("stage", ecs_gov_kobj);
+	if (!stage_kobj) {
+		pr_info("%s: fail to create node\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = sysfs_create_file(stage_kobj, &ecs_update_period_attr.attr);
+	if (ret)
+		pr_warn("%s: failed to create ecs sysfs\n", __func__);
+	ret = sysfs_create_file(stage_kobj, &ecs_domain_attr.attr);
+	if (ret)
+		pr_warn("%s: failed to create ecs sysfs\n", __func__);
+	ret = sysfs_create_file(stage_kobj, &ecs_governor_enable_attr.attr);
+	if (ret)
+		pr_warn("%s: failed to create ecs sysfs\n", __func__);
+	ret = sysfs_create_file(stage_kobj, &ecs_ratio.attr);
+	if (ret)
+		pr_warn("%s: failed to create ecs sysfs\n", __func__);
 
 	return ret;
 }
 
-ecs_attr_rw(enabled);
-
-ecs_attr_rw(domain_util_avg_thr);
-ecs_attr_rw(domain_nr_running_thr);
-
-static struct attribute *ecs_attrs[] = {
-	&enabled.attr,
-	NULL
-};
-
-static struct attribute *ecs_domain_attrs[] = {
-	&domain_util_avg_thr.attr,
-	&domain_nr_running_thr.attr,
-	NULL
-};
-
-static struct attribute *ecs_mode_attrs[] = {
-	NULL
-};
-
-static const struct sysfs_ops ecs_sysfs_ops = {
-	.show	= show,
-	.store	= store,
-};
-
-static struct kobj_type ktype_domain = {
-	.sysfs_ops	= &ecs_sysfs_ops,
-	.default_attrs	= ecs_attrs,
-};
-
-static struct kobj_type ktype_ecs_domain = {
-	.sysfs_ops	= &ecs_sysfs_ops,
-	.default_attrs	= ecs_domain_attrs,
-};
-
-static struct kobj_type ktype_ecs_mode = {
-	.sysfs_ops	= &ecs_sysfs_ops,
-	.default_attrs	= ecs_mode_attrs,
-};
-/**********************************************************************************
- *				Initialization					  *
- **********************************************************************************/
-static int __init ecs_parse_mode(struct device_node *dn)
+/******************************************************************************
+ *                               initialization                               *
+ ******************************************************************************/
+static int
+init_ecs_stage(struct device_node *dn, struct ecs_domain *domain, int stage_id)
 {
-	struct ecs_mode *mode;
 	const char *buf;
+	struct ecs_stage *stage;
 
-	mode = kzalloc(sizeof(struct ecs_mode), GFP_KERNEL);
-	if (!mode)
-		return -ENOBUFS;
+	stage = kzalloc(sizeof(struct ecs_stage), GFP_KERNEL);
+	if (!stage) {
+		pr_err("%s: fail to alloc ecs stage\n", __func__);
+		return -ENOMEM;
+	}
 
-	if (of_property_read_string(dn, "cpus", &buf))
-		goto free;
-	if (cpulist_parse(buf, &mode->cpus))
-		goto free;
+	if (of_property_read_string(dn, "cpus", &buf)) {
+		pr_err("%s: cpus property is omitted\n", __func__);
+		return -EINVAL;
+	} else
+		cpulist_parse(buf, &stage->cpus);
 
-	if (of_property_read_u32(dn, "mode", &mode->mode))
-		goto free;
+	if (of_property_read_u32(dn, "busy-threshold", &stage->busy_threshold))
+		stage->busy_threshold = 0;
 
-	list_add_tail(&mode->list, ecs_gov.modes);
+	stage->id = stage_id;
+	list_add_tail(&stage->node, &domain->stage_list);
 
 	return 0;
-free:
-	pr_warn("ECS: failed to parse ecs mode\n");
-	kfree(mode);
-	return -EINVAL;
 }
 
-static int __init ecs_parse_domain(struct device_node *dn)
+static int
+init_ecs_domain(struct device_node *dn, struct list_head *domain_list, int domain_id)
 {
-	struct ecs_domain *domain;
+	int ret = 0, stage_id = 0;
 	const char *buf;
+	struct ecs_domain *domain;
+	struct device_node *stage_dn;
 
 	domain = kzalloc(sizeof(struct ecs_domain), GFP_KERNEL);
-	if (!domain)
-		return -ENOBUFS;
-
-	if (of_property_read_string(dn, "cpus", &buf))
-		goto free;
-	if (cpulist_parse(buf, &domain->cpus))
-		goto free;
-
-	if (of_property_read_u32(dn, "role", &domain->role))
-		goto free;
-
-	if (of_property_read_u32(dn, "domain-util-avg-thr", &domain->domain_util_avg_thr))
-		goto free;
-
-	if (of_property_read_u32(dn, "domain-nr-running-thr", &domain->domain_nr_running_thr))
-		domain->domain_nr_running_thr = UINT_MAX;
-
-	list_add_tail(&domain->list, ecs_gov.domains);
-
-	return 0;
-free:
-	pr_warn("ECS: failed to parse ecs domain\n");
-	kfree(domain);
-	return -EINVAL;
-}
-
-static int __init ecs_parse_dt(void)
-{
-	struct device_node *root, *dn, *child;
-	unsigned int temp;
-
-	root = of_find_node_by_path("/ems/ecs");
-	if (!root)
-		return -EINVAL;
-
-	if (of_property_read_u32(root, "enabled", &temp))
-		goto failure;
-	if (!temp)  {
-		pr_info("ECS: ECS disabled\n");
-		return -1;
+	if (!domain) {
+		pr_err("%s: fail to alloc ecs domain\n", __func__);
+		return -ENOMEM;
 	}
 
-	/* parse ecs modes */
-	dn = of_find_node_by_name(root, "modes");
-	if (!dn)
-		goto failure;
-	for_each_child_of_node(dn, child)
-		if (ecs_parse_mode(child))
-			goto failure;
-
-	/* parse ecs domains */
-	dn = of_find_node_by_name(root, "domains");
-	if (!dn)
-		goto failure;
-	for_each_child_of_node(dn, child)
-		if (ecs_parse_domain(child))
-			goto failure;
-
-	return 0;
-
-failure:
-	return -EINVAL;
-}
-
-static int __init __ecs_sysfs_init(void)
-{
-	int ret;
-
-	ret = kobject_init_and_add(&ecs_gov.kobj, &ktype_domain,
-				   ems_kobj, "ecs");
-	if (ret) {
-		pr_err("ECS: failed to init ecs.kobj: %d\n", ret);
+	if (of_property_read_string(dn, "cpus", &buf)) {
+		pr_err("%s: cpus property is omitted\n", __func__);
 		return -EINVAL;
+	} else
+		cpulist_parse(buf, &domain->cpus);
+
+	INIT_LIST_HEAD(&domain->stage_list);
+
+	cpumask_andnot(&ecs.out_of_governing_cpus, &ecs.out_of_governing_cpus,
+						   &domain->cpus);
+
+	for_each_child_of_node(dn, stage_dn) {
+		ret = init_ecs_stage(stage_dn, domain, stage_id);
+		if (ret)
+			goto finish;
+
+		stage_id++;
 	}
 
+	domain->id = domain_id;
+	domain->busy_threshold_ratio = 100;
+	domain->cur_stage = first_stage(domain);
+	list_add_tail(&domain->node, domain_list);
+
+finish:
 	return ret;
 }
 
-static int __init __ecs_domain_sysfs_init(struct ecs_domain *domain, int num)
+static int init_ecs_domain_list(void)
 {
-	int ret;
+	int ret = 0, domain_id = 0;
+	struct device_node *dn, *domain_dn;
 
-	ret = kobject_init_and_add(&domain->kobj, &ktype_ecs_domain,
-				   &ecs_gov.kobj, "domain%u", num);
-	if (ret) {
-		pr_err("ECS: failed to init domain->kobj: %d\n", ret);
+	dn = of_find_node_by_path("/ems/ecs");
+	if (!dn) {
+		pr_err("%s: fail to get ecs device node\n", __func__);
 		return -EINVAL;
 	}
 
-	return 0;
-}
+	INIT_LIST_HEAD(&ecs.domain_list);
 
-static int __init __ecs_mode_sysfs_init(struct ecs_mode *mode, int num)
-{
-	int ret;
+	cpumask_copy(&ecs.out_of_governing_cpus, cpu_possible_mask);
 
-	ret = kobject_init_and_add(&mode->kobj, &ktype_ecs_mode,
-				   &ecs_gov.kobj, "mode%u", num);
-	if (ret) {
-		pr_err("ECS: failed to init mode->kobj: %d\n", ret);
-		return -EINVAL;
+	for_each_child_of_node(dn, domain_dn) {
+		if (init_ecs_domain(domain_dn, &ecs.domain_list, domain_id)) {
+			ret = -EINVAL;
+			goto finish;
+		}
+
+		domain_id++;
 	}
 
-	return 0;
+	of_property_read_u32(dn, "default-gov", &ecs.default_gov);
+
+finish:
+	return ret;
 }
 
-static int __init ecs_sysfs_init(void)
+static void stage_start(const struct cpumask *cpus)
 {
-	struct ecs_domain *domain;
-	struct ecs_mode *mode;
-	int i = 0;
-
-	/* init attrb_lock */
-	mutex_init(&ecs_gov.attrib_lock);
-
-	/* init ecs sysfs */
-	if (__ecs_sysfs_init())
-		goto failure;
-
-	/* init ecs domain sysfs */
-	list_for_each_entry(domain, ecs_gov.domains, list)
-		if (__ecs_domain_sysfs_init(domain, i++))
-			goto failure;
-
-	/* init ecs mode sysfs */
-	i = 0;
-	list_for_each_entry(mode, ecs_gov.modes, list)
-		if (__ecs_mode_sysfs_init(mode, i++))
-			goto failure;
-	return 0;
-
-failure:
-	return -1;
+	ecs.cpus = cpus;
+	ecs.governor_enable = true;
 }
 
-static int __init init_core_sparing(void)
+static unsigned long last_update_jiffies;
+static void stage_update(void)
 {
-	/* Explicit assignment for ecs_gov */
-	ecs_gov.enabled = 0;
-	cpumask_copy(&ecs_gov.cpus, cpu_active_mask);
+	unsigned long now = jiffies;
 
-	ecs_gov.modes = &default_mode_list;
-	ecs_gov.domains = &default_domain_list;
+	if (!ecs.governor_enable)
+		return;
 
-	/* parse dt */
-	ecs_parse_dt();
+	if (!raw_spin_trylock(&sparing_lock))
+		return;
 
-	/* init sysfs */
-	if (ecs_sysfs_init())
-		goto failure;
+	if (list_empty(&ecs.domain_list))
+		goto out;
 
-	emstune_register_mode_update_notifier(&ecs_mode_update_notifier);
+	if (ecs.skip_update)
+		goto out;
 
-	ecs_gov.enabled = 1;
+	if (now < last_update_jiffies + msecs_to_jiffies(ecs.update_period))
+		goto out;
+
+	update_ecs_governor_cpus();
+
+	last_update_jiffies = now;
+
+out:
+	raw_spin_unlock(&sparing_lock);
+}
+
+static void stage_stop(void)
+{
+	ecs.governor_enable = false;
+	ecs.cpus = NULL;
+}
+
+static const struct cpumask *stage_get_target_cpus(void)
+{
+	return &ecs.governor_cpus;
+}
+
+static struct ecs_governor stage_gov = {
+	.name = "stage",
+	.update = stage_update,
+	.start = stage_start,
+	.stop = stage_stop,
+	.get_target_cpus = stage_get_target_cpus,
+};
+
+int ecs_gov_stage_init(struct kobject *ems_kobj)
+{
+	if (init_ecs_domain_list()) {
+		pr_info("ECS governor will not affect scheduler\n");
+
+		/* Reset domain list and ecs.out_of_governing_cpus */
+		INIT_LIST_HEAD(&ecs.domain_list);
+		cpumask_copy(&ecs.out_of_governing_cpus, cpu_possible_mask);
+	}
+
+	/* 16 msec in default */
+	ecs.update_period = 16;
+	cpumask_copy(&ecs.governor_cpus, cpu_possible_mask);
+
+	ecs_sysfs_init(ecs_get_governor_object());
+
+	emstune_register_notifier(&ecs_mode_update_notifier);
+	sysbusy_register_notifier(&ecs_sysbusy_notifier);
+
+	ecs_governor_register(&stage_gov, ecs.default_gov);
 
 	return 0;
-
-failure:
-	return 0;
-} late_initcall(init_core_sparing);
+}

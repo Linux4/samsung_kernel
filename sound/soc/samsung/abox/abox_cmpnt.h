@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_cmpnt.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox ASoC Component driver
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
@@ -36,6 +36,14 @@ extern void abox_cmpnt_unregister_event_notifier(struct abox_data *data,
 		enum abox_widget w);
 
 /**
+ * get id of sifs which is connected with the spus
+ * @param[in]	data	pointer to abox_data
+ * @param[in]	id	id of spus
+ * @return		id of sifs
+ */
+extern int abox_cmpnt_spus_get_sifs(struct abox_data *data, int id);
+
+/**
  * get desired format of the sifs or sifm
  * @param[in]	data	pointer to abox_data
  * @param[in]	stream	SNDRV_PCM_STREAM_PLAYBACK or SNDRV_PCM_STREAM_CAPTURE
@@ -43,6 +51,16 @@ extern void abox_cmpnt_unregister_event_notifier(struct abox_data *data,
  * @return		format for ABOX
  */
 extern unsigned int abox_cmpnt_sif_get_dst_format(struct abox_data *data,
+		int stream, int id);
+
+/**
+ * get desired sample rate of the sifs or sifm
+ * @param[in]	data	pointer to abox_data
+ * @param[in]	stream	SNDRV_PCM_STREAM_PLAYBACK or SNDRV_PCM_STREAM_CAPTURE
+ * @param[in]	id	id of sifs or sifm
+ * @return		sample rate
+ */
+extern unsigned int abox_cmpnt_sif_get_dst_rate(struct abox_data *data,
 		int stream, int id);
 
 /**
@@ -95,23 +113,23 @@ extern int abox_cmpnt_sifsm_prepare(struct device *dev, struct abox_data *data,
 
 /**
  * adjust sample bank size
- * @param[in]	data	pointer to abox_data
- * @param[in]	id	id of ABOX DAI
- * @param[in]	params	hardware paramter
- * @return		sample bank size or error code
+ * @param[in]	data		pointer to abox_data
+ * @param[in]	id		id of ABOX DAI
+ * @param[in]	params		hardware parameter
+ * @param[in]	sbank_size	preferred sample bank size
+ * @return			sample bank size or error code
  */
 extern int abox_cmpnt_adjust_sbank(struct abox_data *data,
-		enum abox_dai id, struct snd_pcm_hw_params *params);
+		enum abox_dai id, struct snd_pcm_hw_params *params,
+		unsigned int sbank_size);
 
 /**
  * reset count value of a sifs which is connected to given uaif or dsif
- * @param[in]	dev	pointer to calling device
- * @param[in]	cmpnt	component
+ * @param[in]	data	pointer to abox_data
  * @param[in]	id	id of ABOX DAI
  * @return		error code
  */
-extern int abox_cmpnt_reset_cnt_val(struct device *dev,
-		struct snd_soc_component *cmpnt, enum abox_dai id);
+extern int abox_cmpnt_reset_cnt_val(struct abox_data *data, enum abox_dai id);
 
 /**
  * update count value for sifs
@@ -124,11 +142,10 @@ extern int abox_cmpnt_update_cnt_val(struct device *adev);
  * hw params fixup helper
  * @param[in]	rtd	snd_soc_pcm_runtime
  * @param[out]	params	snd_pcm_hw_params
- * @param[in]	stream	SNDRV_PCM_STREAM_PLAYBACK or SNDRV_PCM_STREAM_CAPTURE
  * @return		0 or error code
  */
 extern int abox_cmpnt_hw_params_fixup_helper(struct snd_soc_pcm_runtime *rtd,
-		struct snd_pcm_hw_params *params, int stream);
+		struct snd_pcm_hw_params *params);
 
 /**
  * Register uaif or dsif to abox
@@ -164,6 +181,28 @@ extern int abox_cmpnt_register_rdma(struct device *dev_abox,
  * @return	error code if any
  */
 extern int abox_cmpnt_register_wdma(struct device *dev_abox,
+		struct device *dev, unsigned int id, const char *name);
+
+/**
+ * Register udma rd to abox
+ * @param[in]	dev_abox	pointer to abox device
+ * @param[in]	dev		pointer to abox udma rd device
+ * @param[in]	id		number
+ * @param[in]	name		name of the dai
+ * @return	error code if any
+ */
+extern int abox_cmpnt_register_udma_rd(struct device *dev_abox,
+		struct device *dev, unsigned int id, const char *name);
+
+/**
+ * Register udma wr to abox
+ * @param[in]	dev_abox	pointer to abox device
+ * @param[in]	dev		pointer to abox udma wr device
+ * @param[in]	id		number
+ * @param[in]	name		name of the dai
+ * @return	error code if any
+ */
+extern int abox_cmpnt_register_udma_wr(struct device *dev_abox,
 		struct device *dev, unsigned int id, const char *name);
 
 /**

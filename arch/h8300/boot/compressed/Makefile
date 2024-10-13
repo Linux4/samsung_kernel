@@ -18,7 +18,7 @@ CONFIG_MEMORY_START     ?= 0x00400000
 CONFIG_BOOT_LINK_OFFSET ?= 0x00280000
 IMAGE_OFFSET := $(shell printf "0x%08x" $$(($(CONFIG_MEMORY_START)+$(CONFIG_BOOT_LINK_OFFSET))))
 
-LIBGCC := $(shell $(CROSS-COMPILE)$(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name)
+LIBGCC := $(shell $(CROSS-COMPILE)$(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 LDFLAGS_vmlinux := -Ttext $(IMAGE_OFFSET) -estartup -T $(obj)/vmlinux.lds \
 	--defsym output=$(CONFIG_MEMORY_START)
 
@@ -30,9 +30,11 @@ $(obj)/vmlinux.bin: vmlinux FORCE
 
 suffix-$(CONFIG_KERNEL_GZIP)    := gzip
 suffix-$(CONFIG_KERNEL_LZO)     := lzo
+compress-$(CONFIG_KERNEL_GZIP)  := gzip
+compress-$(CONFIG_KERNEL_LZO)   := lzo_with_size
 
 $(obj)/vmlinux.bin.$(suffix-y): $(obj)/vmlinux.bin FORCE
-	$(call if_changed,$(suffix-y))
+	$(call if_changed,$(compress-y))
 
 LDFLAGS_piggy.o := -r --format binary --oformat elf32-h8300-linux -T
 OBJCOPYFLAGS := -O binary

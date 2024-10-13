@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_tplg.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Topology driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Topology driver
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
  *
@@ -19,27 +19,60 @@
 #include "abox_dma.h"
 #include "abox_vdma.h"
 #include "abox_tplg.h"
+#include "abox_memlog.h"
 
 #define ABOX_TPLG_DAPM_CTL_VOLSW		0x100
 #define ABOX_TPLG_DAPM_CTL_ENUM_DOUBLE		0x101
 #define ABOX_TPLG_DAPM_CTL_ENUM_VIRT		0x102
 #define ABOX_TPLG_DAPM_CTL_ENUM_VALUE		0x103
 #define ABOX_TPLG_DAPM_CTL_PIN			0x104
+#define ABOX_TPLG_CTL_VOLSW			0x110
+#define ABOX_TPLG_CTL_ENUM_DOUBLE		0x111
+#define ABOX_TPLG_CTL_ENUM_VALUE		0x112
+#define ABOX_TPLG_CTL_PIPELINE			0x113
+#define ABOX_TPLG_CTL_VOLSW_WRITE_ONLY		0x120
+
+#define UNKNOWN_VALUE -1
+
+static const int MIN_VIRTUAL_WIDGET_ID = 0x1000;
 
 static struct device *dev_abox;
-static const struct firmware *abox_tplg_fw;
 static LIST_HEAD(widget_list);
 static LIST_HEAD(kcontrol_list);
 static LIST_HEAD(dai_list);
+static DEFINE_MUTEX(kcontrol_mutex);
 
 struct abox_tplg_widget_data {
 	struct list_head list;
 	int gid;
 	int id;
 	unsigned int value;
+	bool weak;
 	struct snd_soc_component *cmpnt;
 	struct snd_soc_dapm_widget *w;
 	struct snd_soc_tplg_dapm_widget *tplg_w;
+};
+
+struct abox_tplg_pipeline_item {
+	struct abox_tplg_kcontrol_data *kdata;
+	int value;
+	char name[SNDRV_CTL_ELEM_ID_NAME_MAXLEN];
+	char text[SNDRV_CTL_ELEM_ID_NAME_MAXLEN];
+	struct snd_soc_tplg_vendor_string_elem *tplg_vse;
+	struct list_head work;
+};
+
+struct abox_tplg_pipeline {
+	unsigned int id;
+	unsigned int count;
+	const char *name;
+	struct snd_soc_tplg_vendor_array *tplg_va;
+	struct abox_tplg_pipeline_item *items;
+};
+
+struct abox_tplg_pipelines {
+	unsigned int count;
+	struct abox_tplg_pipeline *pl;
 };
 
 struct abox_tplg_kcontrol_data {
@@ -50,10 +83,14 @@ struct abox_tplg_kcontrol_data {
 	int count;
 	bool is_volatile;
 	bool synchronous;
+	bool force_restore;
 	unsigned int addr;
 	unsigned int *kaddr;
+	struct abox_tplg_pipelines pls;
 	struct snd_soc_component *cmpnt;
 	struct snd_kcontrol_new *kcontrol_new;
+	struct snd_soc_dobj *dobj;
+	struct snd_kcontrol *kcontrol; /* use abox_tplg_get_kcontrol() */
 	union {
 		struct snd_soc_tplg_ctl_hdr *hdr;
 		struct snd_soc_tplg_mixer_control *tplg_mc;
@@ -68,6 +105,81 @@ struct abox_tplg_dai_data {
 	struct device *dev_platform;
 };
 
+struct abox_tplg_firmware {
+	const char * const fw_name;
+	const struct firmware *fw;
+	bool optional;
+};
+
+static struct abox_tplg_firmware abox_tplg_fw[] = {
+	{
+		.fw_name = "abox_tplg.bin",
+	},
+	{
+		.fw_name = "sectiongraph_tplg.bin",
+		.optional = true,
+	},
+};
+
+static struct abox_tplg_kcontrol_data *abox_tplg_find_kcontrol_data(const char *name)
+{
+	struct abox_tplg_kcontrol_data *kdata;
+
+	list_for_each_entry(kdata, &kcontrol_list, list) {
+		if (!strcmp(kdata->hdr->name, name))
+			return kdata;
+	}
+
+	return NULL;
+}
+
+static struct snd_kcontrol *abox_tplg_get_kcontrol(struct abox_tplg_kcontrol_data *kdata)
+{
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+	struct snd_soc_dapm_context *dapm;
+	struct snd_soc_dapm_widget *w;
+	int i;
+
+	if (kdata->kcontrol)
+		return kdata->kcontrol;
+
+	switch (kdata->hdr->ops.info) {
+	case SND_SOC_TPLG_CTL_ENUM:
+	case SND_SOC_TPLG_CTL_ENUM_VALUE:
+	case SND_SOC_TPLG_CTL_VOLSW:
+	case SND_SOC_TPLG_CTL_VOLSW_SX:
+		kdata->kcontrol = kdata->dobj->control.kcontrol;
+		break;
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_DOUBLE:
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_VIRT:
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_VALUE:
+	case SND_SOC_TPLG_DAPM_CTL_VOLSW:
+	case SND_SOC_TPLG_DAPM_CTL_PIN:
+		dapm = snd_soc_component_get_dapm(cmpnt);
+		list_for_each_entry(w, &dapm->card->widgets, list) {
+			for (i = 0; i < w->num_kcontrols; i++) {
+				if (&w->kcontrol_news[i] == kdata->kcontrol_new) {
+					if (w->kcontrols) {
+						kdata->kcontrol = w->kcontrols[i];
+						break;
+					}
+				}
+			}
+		}
+		break;
+	default:
+		abox_warn(dev, "unsupported pipeline item type: %d\n",
+				kdata->hdr->name);
+		break;
+	}
+
+	if (!kdata->kcontrol)
+		abox_warn(dev, "can't find kcontrol: %s\n", kdata->hdr->name);
+
+	return kdata->kcontrol;
+}
+
 static int abox_tplg_register_dump(struct device *dev, int gid, int id,
 		const char *name)
 {
@@ -81,7 +193,8 @@ static int abox_tplg_request_ipc(ABOX_IPC_MSG *msg)
 	return abox_request_ipc(dev_abox, msg->ipcid, msg, sizeof(*msg), 0, 0);
 }
 
-static bool abox_tplg_get_bool_at(struct snd_soc_tplg_private *priv, int token, int idx)
+static bool abox_tplg_get_bool_at(struct snd_soc_tplg_private *priv, int token,
+		int idx)
 {
 	struct snd_soc_tplg_vendor_array *array;
 	struct snd_soc_tplg_vendor_value_elem *value;
@@ -205,6 +318,16 @@ static unsigned int abox_tplg_get_address(struct snd_soc_tplg_private *priv)
 	return (ret < 0 && ret > -MAX_ERRNO) ? 0 : ret;
 }
 
+static bool abox_tplg_is_weak(struct snd_soc_tplg_private *priv)
+{
+	return abox_tplg_get_bool(priv, ABOX_TKN_WEAK);
+}
+
+static bool abox_tplg_force_restore(struct snd_soc_tplg_private *priv)
+{
+	return abox_tplg_get_bool(priv, ABOX_TKN_FORCE_RESTORE);
+}
+
 static DECLARE_COMPLETION(report_control_completion);
 static DECLARE_COMPLETION(update_control_completion);
 
@@ -215,7 +338,9 @@ static int abox_tplg_ipc_get(struct device *dev, int gid, int id)
 	unsigned long timeout;
 	int ret;
 
-	dev_dbg(dev, "%s(%#x, %d)\n", __func__, gid, id);
+	abox_dbg(dev, "%s(%#x, %d)\n", __func__, gid, id);
+
+	reinit_completion(&report_control_completion);
 
 	msg.ipcid = IPC_SYSTEM;
 	system_msg->msgtype = ABOX_REQUEST_COMPONENT_CONTROL;
@@ -225,7 +350,6 @@ static int abox_tplg_ipc_get(struct device *dev, int gid, int id)
 	if (ret < 0)
 		return ret;
 
-	reinit_completion(&report_control_completion);
 	timeout = wait_for_completion_timeout(&report_control_completion,
 			abox_get_waiting_jiffies(true));
 	if (timeout <= 0)
@@ -244,7 +368,7 @@ static int abox_tplg_ipc_get_complete(int gid, int id, unsigned int *value)
 			struct device *dev = kdata->cmpnt->dev;
 
 			for (i = 0; i < kdata->count; i++) {
-				dev_dbg(dev, "%s: %#x, %#x, %d\n", __func__,
+				abox_dbg(dev, "%s: %#x, %#x, %d\n", __func__,
 						gid, id, value[i]);
 				kdata->value[i] = value[i];
 			}
@@ -256,6 +380,40 @@ static int abox_tplg_ipc_get_complete(int gid, int id, unsigned int *value)
 	return -EINVAL;
 }
 
+static int abox_tplg_ipc_put_bundle(struct device *dev, int gid, int id,
+		unsigned int value, const char *bundle, bool sync)
+{
+	ABOX_IPC_MSG msg;
+	struct IPC_SYSTEM_MSG *system_msg = &msg.msg.system;
+	unsigned long timeout;
+	int ret;
+
+	abox_dbg(dev, "%s(%#x, %d, %s, %d)\n", __func__, gid, id, bundle, sync);
+
+	if (sync)
+		reinit_completion(&update_control_completion);
+
+	msg.ipcid = IPC_SYSTEM;
+	system_msg->msgtype = ABOX_UPDATE_COMPONENT_CONTROL;
+	system_msg->param1 = gid;
+	system_msg->param2 = id;
+	system_msg->param3 = value;
+	strscpy(system_msg->bundle.param_bundle, bundle,
+			sizeof(system_msg->bundle.param_bundle));
+
+	ret = abox_tplg_request_ipc(&msg);
+
+	if (sync) {
+		timeout = wait_for_completion_timeout(
+				&update_control_completion,
+				abox_get_waiting_jiffies(true));
+		if (timeout <= 0)
+			return -ETIME;
+	}
+
+	return ret;
+}
+
 static int abox_tplg_ipc_put(struct device *dev, int gid, int id,
 		unsigned int *value, int count, bool sync)
 {
@@ -264,8 +422,11 @@ static int abox_tplg_ipc_put(struct device *dev, int gid, int id,
 	unsigned long timeout;
 	int i, ret;
 
-	dev_dbg(dev, "%s(%#x, %d, %u, %d, %d)\n", __func__, gid, id,
+	abox_dbg(dev, "%s(%#x, %d, %u, %d, %d)\n", __func__, gid, id,
 			value[0], count, sync);
+
+	if (sync)
+		reinit_completion(&update_control_completion);
 
 	msg.ipcid = IPC_SYSTEM;
 	system_msg->msgtype = ABOX_UPDATE_COMPONENT_CONTROL;
@@ -277,7 +438,6 @@ static int abox_tplg_ipc_put(struct device *dev, int gid, int id,
 	ret = abox_tplg_request_ipc(&msg);
 
 	if (sync) {
-		reinit_completion(&update_control_completion);
 		timeout = wait_for_completion_timeout(
 				&update_control_completion,
 				abox_get_waiting_jiffies(true));
@@ -298,7 +458,7 @@ static int abox_tplg_ipc_put_complete(int gid, int id, unsigned int *value)
 			struct device *dev = kdata->cmpnt->dev;
 
 			for (i = 0; i < kdata->count; i++) {
-				dev_dbg(dev, "%s: %#x, %#x, %d\n", __func__,
+				abox_dbg(dev, "%s: %#x, %#x, %d\n", __func__,
 						gid, id, value[i]);
 				kdata->value[i] = value[i];
 			}
@@ -315,11 +475,11 @@ static int abox_tplg_val_get(struct device *dev,
 {
 	int i;
 
-	dev_dbg(dev, "%s(%#x, %d)\n", __func__, kdata->gid, kdata->id);
+	abox_dbg(dev, "%s(%#x, %d)\n", __func__, kdata->gid, kdata->id);
 
 	for (i = 0; i < kdata->count; i++) {
 		kdata->value[i] = kdata->kaddr[i];
-		dev_dbg(dev, "%d\n", kdata->value[i]);
+		abox_dbg(dev, "%d\n", kdata->value[i]);
 	}
 
 	return 0;
@@ -330,7 +490,7 @@ static void abox_tplg_val_set(struct device *dev,
 {
 	int i;
 
-	dev_dbg(dev, "%s(%#x, %d, %u)\n", __func__, kdata->gid, kdata->id,
+	abox_dbg(dev, "%s(%#x, %d, %u)\n", __func__, kdata->gid, kdata->id,
 			kdata->value[0]);
 
 	for (i = 0; i < kdata->count; i++)
@@ -345,7 +505,7 @@ static int abox_tplg_val_put(struct device *dev,
 	unsigned long timeout;
 	int i, ret;
 
-	dev_dbg(dev, "%s(%#x, %d, %u)\n", __func__, kdata->gid, kdata->id,
+	abox_dbg(dev, "%s(%#x, %d, %u)\n", __func__, kdata->gid, kdata->id,
 			kdata->value[0]);
 
 	abox_tplg_val_set(dev, kdata);
@@ -370,9 +530,17 @@ static int abox_tplg_val_put(struct device *dev,
 	return ret;
 }
 
+static bool abox_tplg_is_virtual_control(struct abox_tplg_kcontrol_data *kdata)
+{
+	return (kdata->hdr->ops.put == ABOX_TPLG_DAPM_CTL_ENUM_VIRT);
+}
+
 static inline int abox_tplg_kcontrol_get(struct device *dev,
 		struct abox_tplg_kcontrol_data *kdata)
 {
+	if (abox_tplg_is_virtual_control(kdata))
+		return 0;
+
 	if (kdata->addr)
 		return abox_tplg_val_get(dev, kdata);
 	else
@@ -382,6 +550,9 @@ static inline int abox_tplg_kcontrol_get(struct device *dev,
 static inline int abox_tplg_kcontrol_put(struct device *dev,
 		struct abox_tplg_kcontrol_data *kdata)
 {
+	if (abox_tplg_is_virtual_control(kdata))
+		return 0;
+
 	if (kdata->addr)
 		return abox_tplg_val_put(dev, kdata);
 	else
@@ -389,13 +560,26 @@ static inline int abox_tplg_kcontrol_put(struct device *dev,
 				kdata->value, kdata->count, kdata->synchronous);
 }
 
+static inline int abox_tplg_pipeline_put(struct device *dev,
+		struct abox_tplg_kcontrol_data *kdata)
+{
+	return abox_tplg_ipc_put_bundle(dev, kdata->gid, kdata->id, kdata->value[0],
+			kdata->pls.pl[kdata->value[0]].name, kdata->synchronous);
+}
+
 static inline int abox_tplg_kcontrol_restore(struct device *dev,
 		struct abox_tplg_kcontrol_data *kdata)
 {
 	int ret = 0;
 
+	if (abox_tplg_is_virtual_control(kdata))
+		return 0;
+
 	if (kdata->addr)
 		abox_tplg_val_set(dev, kdata);
+	else if (kdata->pls.count)
+		ret = abox_tplg_ipc_put_bundle(dev, kdata->gid, kdata->id, kdata->value[0],
+				kdata->pls.pl[kdata->value[0]].name, kdata->synchronous);
 	else
 		ret = abox_tplg_ipc_put(dev, kdata->gid, kdata->id,
 				kdata->value, kdata->count, kdata->synchronous);
@@ -422,7 +606,7 @@ static int abox_tplg_mixer_event(struct snd_soc_dapm_widget *w,
 	struct device *dev = w->dapm->dev;
 	struct abox_tplg_widget_data *wdata = w->dobj.private;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, w->name, e);
+	abox_dbg(dev, "%s(%s, %d)\n", __func__, w->name, e);
 
 	switch (e) {
 	case SND_SOC_DAPM_PRE_PMU:
@@ -443,7 +627,7 @@ static int abox_tplg_mux_event(struct snd_soc_dapm_widget *w,
 {
 	struct device *dev = w->dapm->dev;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, w->name, e);
+	abox_dbg(dev, "%s(%s, %d)\n", __func__, w->name, e);
 
 	return 0;
 }
@@ -458,7 +642,7 @@ static int abox_tplg_widget_load(struct snd_soc_component *cmpnt, int index,
 		struct snd_soc_dapm_widget *w,
 		struct snd_soc_tplg_dapm_widget *tplg_w)
 {
-	dev_dbg(cmpnt->dev, "%s(%d, %d, %s)\n", __func__,
+	abox_dbg(cmpnt->dev, "%s(%d, %d, %s)\n", __func__,
 			tplg_w->size, tplg_w->id, tplg_w->name);
 
 	return snd_soc_tplg_widget_bind_event(w, abox_tplg_widget_ops,
@@ -474,20 +658,22 @@ static int abox_tplg_widget_ready(struct snd_soc_component *cmpnt, int index,
 	struct abox_tplg_widget_data *wdata;
 	struct snd_soc_dapm_route route;
 	int id, gid, ret = 0;
+	bool weak;
 
-	dev_dbg(dev, "%s(%d, %d, %s)\n", __func__,
+	abox_dbg(dev, "%s(%d, %d, %s)\n", __func__,
 			tplg_w->size, tplg_w->id, tplg_w->name);
 
 	id = abox_tplg_get_id(&tplg_w->priv);
 	if (id < 0) {
-		dev_err(dev, "%s: invalid widget id: %d\n", tplg_w->name, id);
+		abox_err(dev, "%s: invalid widget id: %d\n", tplg_w->name, id);
 		return id;
 	}
 	gid = abox_tplg_get_gid(&tplg_w->priv);
 	if (gid < 0) {
-		dev_err(dev, "%s: invalid widget gid: %d\n", tplg_w->name, gid);
+		abox_err(dev, "%s: invalid widget gid: %d\n", tplg_w->name, gid);
 		return gid;
 	}
+	weak = abox_tplg_is_weak(&tplg_w->priv);
 
 	wdata = kzalloc(sizeof(*wdata), GFP_KERNEL);
 	if (!wdata)
@@ -495,6 +681,7 @@ static int abox_tplg_widget_ready(struct snd_soc_component *cmpnt, int index,
 
 	wdata->id = id;
 	wdata->gid = gid;
+	wdata->weak = weak;
 	wdata->cmpnt = cmpnt;
 	wdata->w = w;
 	wdata->tplg_w = tplg_w;
@@ -511,7 +698,8 @@ static int abox_tplg_widget_ready(struct snd_soc_component *cmpnt, int index,
 		ret = snd_soc_dapm_add_routes(w->dapm, &route, 1);
 		break;
 	case SND_SOC_TPLG_DAPM_MIXER:
-		abox_tplg_register_dump(dev, gid, id, tplg_w->name);
+		if (id < MIN_VIRTUAL_WIDGET_ID)
+			abox_tplg_register_dump(dev, gid, id, tplg_w->name);
 		break;
 	}
 
@@ -528,6 +716,288 @@ static int abox_tplg_widget_unload(struct snd_soc_component *cmpnt,
 	return 0;
 }
 
+static int abox_tplg_get_mux(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	struct abox_tplg_kcontrol_data *kdata = e->dobj.private;
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+	int ret = 0;
+
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+
+	if (!pm_runtime_suspended(dev_abox) && kdata->is_volatile) {
+		ret = abox_tplg_kcontrol_get(dev, kdata);
+		if (ret < 0)
+			return ret;
+	}
+
+	ucontrol->value.enumerated.item[0] = kdata->value[0];
+
+	return ret;
+}
+
+static int abox_tplg_put_mux(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	struct abox_tplg_kcontrol_data *kdata = e->dobj.private;
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+	unsigned int value = ucontrol->value.enumerated.item[0];
+	int ret = 0;
+
+	if (value >= e->items) {
+		abox_err(dev, "%s: value=%d, items=%d\n",
+				kcontrol->id.name, value, e->items);
+		return -EINVAL;
+	}
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
+			e->texts[value]);
+
+	kdata->value[0] = value;
+	if (!pm_runtime_suspended(dev_abox)) {
+		ret = abox_tplg_kcontrol_put(dev, kdata);
+		if (ret < 0)
+			return ret;
+	}
+
+	return ret;
+}
+
+static int abox_tplg_get_pipeline(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	struct abox_tplg_kcontrol_data *kdata = e->dobj.private;
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+	int ret = 0;
+
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+
+	ucontrol->value.enumerated.item[0] = kdata->value[0];
+
+	return ret;
+}
+
+static unsigned int abox_tplg_pipeline_item_value(struct abox_tplg_pipeline_item *item)
+{
+	struct abox_tplg_kcontrol_data *kdata;
+	struct device *dev;
+	struct snd_kcontrol *kc;
+	struct soc_mixer_control *mc;
+	struct soc_enum *se;
+	int i;
+
+	if (item->value != UNKNOWN_VALUE)
+		return item->value;
+
+	kdata = item->kdata;
+	dev = kdata->cmpnt->dev;
+	kc = abox_tplg_get_kcontrol(kdata);
+	switch (kdata->hdr->ops.info) {
+	case SND_SOC_TPLG_CTL_ENUM:
+	case SND_SOC_TPLG_CTL_ENUM_VALUE:
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_DOUBLE:
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_VIRT:
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_VALUE:
+		se = (struct soc_enum *)kc->private_value;
+		for (i = 0; i < se->items; i++) {
+			if (!strcmp(se->texts[i], item->text)) {
+				item->value = snd_soc_enum_item_to_val(se, i);
+				break;
+			}
+		}
+		break;
+	case SND_SOC_TPLG_CTL_VOLSW:
+	case SND_SOC_TPLG_CTL_VOLSW_SX:
+	case SND_SOC_TPLG_DAPM_CTL_VOLSW:
+	case SND_SOC_TPLG_DAPM_CTL_PIN:
+		mc = (struct soc_mixer_control *)kc->private_value;
+		if (kstrtoint(item->text, 0, &i) < 0)
+			break;
+		if (i < mc->min || i > mc->max)
+			break;
+		item->value = i;
+		break;
+	default:
+		abox_warn(dev, "unsupported pipeline item type: %d\n",
+				kdata->hdr->ops.info);
+		break;
+	}
+
+	if (item->value == UNKNOWN_VALUE)
+		abox_err(dev, "%s: invalid pipeline item text: %s\n",
+				kdata->hdr->name, item->text);
+
+	return item->value;
+}
+
+static int abox_tplg_put_pipeline_item(struct abox_tplg_pipeline_item *item, bool reset)
+{
+	struct abox_tplg_kcontrol_data *kdata = item->kdata;
+	struct abox_data *data = dev_get_drvdata(dev_abox);
+	struct snd_soc_component *cmpnt;
+	struct device *dev;
+	struct snd_kcontrol *kc;
+	int ret = 0;
+	struct snd_ctl_elem_value ucontrol = { 0, };
+
+	if (!kdata)
+		kdata = item->kdata = abox_tplg_find_kcontrol_data(item->name);
+
+	if (!kdata)
+		return -EINVAL;
+
+	cmpnt = kdata->cmpnt;
+	dev = cmpnt->dev;
+	kdata->value[0] = reset ? 0 : abox_tplg_pipeline_item_value(item);
+
+	abox_dbg(dev, "%s(%s, %d): %u\n", __func__, item->name, reset, kdata->value[0]);
+
+	if (data->debug_mode)
+		abox_info(dev, "kcontrol %s : %s\n", item->name, reset ? "None" : item->text);
+
+	if (!pm_runtime_suspended(dev_abox)) {
+		ret = abox_tplg_kcontrol_put(dev, item->kdata);
+		if (ret < 0) {
+			abox_err(dev, "pipeline item put fail: %s\n", item->name);
+			return ret;
+		}
+	}
+
+	kc = abox_tplg_get_kcontrol(kdata);
+	switch (kdata->hdr->ops.info) {
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_DOUBLE:
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_VIRT:
+	case SND_SOC_TPLG_DAPM_CTL_ENUM_VALUE:
+		ucontrol.value.enumerated.item[0] = kdata->value[0];
+		ret = snd_soc_dapm_put_enum_double(kc, &ucontrol);
+		break;
+	case SND_SOC_TPLG_DAPM_CTL_VOLSW:
+	case SND_SOC_TPLG_DAPM_CTL_PIN:
+		ucontrol.value.integer.value[0] = kdata->value[0];
+		ret = snd_soc_dapm_put_volsw(kc, &ucontrol);
+		break;
+	case SND_SOC_TPLG_CTL_ENUM:
+	case SND_SOC_TPLG_CTL_ENUM_VALUE:
+	case SND_SOC_TPLG_CTL_VOLSW:
+	case SND_SOC_TPLG_CTL_VOLSW_SX:
+		/* nothing to do */
+		break;
+	default:
+		abox_warn(dev, "unknown pipeline item type: %s\b", item->name);
+		break;
+	}
+
+	return ret;
+}
+
+static int abox_tplg_put_pipeline(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	struct abox_tplg_kcontrol_data *kdata = e->dobj.private;
+	struct abox_tplg_pipeline *pl;
+	struct abox_tplg_pipeline_item *item;
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+	unsigned int value = ucontrol->value.enumerated.item[0];
+	LIST_HEAD(list_reset);
+	LIST_HEAD(list_apply);
+	int ret = 0;
+
+	if (value >= e->items) {
+		abox_err(dev, "%s: value=%d, items=%d\n",
+				kcontrol->id.name, value, e->items);
+		return -EINVAL;
+	}
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name, e->texts[value]);
+	abox_info(dev, "pipeline %s : %s\n", kcontrol->id.name, e->texts[value]);
+
+	/* create working list */
+	pl = &kdata->pls.pl[value];
+	for (item = pl->items; item - pl->items < pl->count; item++)
+		INIT_LIST_HEAD(&item->work);
+
+	pl = &kdata->pls.pl[kdata->value[0]];
+	for (item = pl->items; item - pl->items < pl->count; item++)
+		list_add(&item->work, &list_reset);
+
+	pl = &kdata->pls.pl[value];
+	for (item = pl->items; item - pl->items < pl->count; item++)
+		list_move_tail(&item->work, &list_apply);
+
+	/* reset previous */
+	list_for_each_entry(item, &list_reset, work) {
+		abox_dbg(dev, "pipeline item reset: %s\n", item->name);
+		ret = abox_tplg_put_pipeline_item(item, true);
+		if (ret < 0)
+			abox_err(dev, "pipeline item reset fail: %s %d\n",
+					item->name, ret);
+	}
+
+	/* apply current */
+	list_for_each_entry(item, &list_apply, work) {
+		abox_dbg(dev, "pipeline item apply: %s\n", item->name);
+		ret = abox_tplg_put_pipeline_item(item, false);
+		if (ret < 0)
+			abox_err(dev, "pipeline item apply fail: %s %d\n",
+					item->name, ret);
+	}
+
+	kdata->value[0] = value;
+
+	if (!pm_runtime_suspended(dev_abox)) {
+		ret = abox_tplg_pipeline_put(dev, kdata);
+		if (ret < 0)
+			dev_warn(dev, "%s: failed to report pipeline change: %d\n",
+					kcontrol->id.name, ret);
+	}
+
+	return ret;
+}
+
+static int abox_tplg_dapm_get_mux_virt(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	struct abox_tplg_kcontrol_data *kdata = e->dobj.private;
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+
+	return snd_soc_dapm_get_enum_double(kcontrol, ucontrol);
+}
+
+static int abox_tplg_dapm_put_mux_virt(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	struct abox_tplg_kcontrol_data *kdata = e->dobj.private;
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+	unsigned int value = ucontrol->value.enumerated.item[0];
+
+	if (value >= e->items) {
+		abox_err(dev, "%s: value=%d, items=%d\n",
+				kcontrol->id.name, value, e->items);
+		return -EINVAL;
+	}
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
+			e->texts[value]);
+
+	kdata->value[0] = value;
+
+	return snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
+}
+
 static int abox_tplg_dapm_get_mux(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
@@ -537,7 +1007,7 @@ static int abox_tplg_dapm_get_mux(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	int ret;
 
-	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
 
 	if (!pm_runtime_suspended(dev_abox) && kdata->is_volatile) {
 		ret = abox_tplg_kcontrol_get(dev, kdata);
@@ -564,7 +1034,13 @@ static int abox_tplg_dapm_put_mux(struct snd_kcontrol *kcontrol,
 	unsigned int value = ucontrol->value.enumerated.item[0];
 	int ret;
 
-	dev_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
+	if (value >= e->items) {
+		abox_err(dev, "%s: value=%d, items=%d\n",
+				kcontrol->id.name, value, e->items);
+		return -EINVAL;
+	}
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
 			e->texts[value]);
 
 	kdata->value[0] = value;
@@ -594,6 +1070,24 @@ static int abox_tplg_info_mixer(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int abox_tplg_get_mixer_write_only(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+			(struct soc_mixer_control *)kcontrol->private_value;
+	struct abox_tplg_kcontrol_data *kdata = mc->dobj.private;
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+	int i;
+
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+
+	for (i = 0; i < kdata->count; i++)
+		ucontrol->value.integer.value[i] = 0;
+
+	return 0;
+}
+
 static int abox_tplg_get_mixer(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
@@ -604,7 +1098,7 @@ static int abox_tplg_get_mixer(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	int i, ret;
 
-	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
 
 	if (!pm_runtime_suspended(dev_abox)) {
 		ret = abox_tplg_kcontrol_get(dev, kdata);
@@ -629,10 +1123,18 @@ static int abox_tplg_put_mixer(struct snd_kcontrol *kcontrol,
 	long *value = ucontrol->value.integer.value;
 	int i, ret;
 
-	dev_dbg(dev, "%s(%s, %ld)\n", __func__, kcontrol->id.name, value[0]);
+	abox_dbg(dev, "%s(%s, %ld)\n", __func__, kcontrol->id.name, value[0]);
 
-	for (i = 0; i < kdata->count; i++)
+	for (i = 0; i < kdata->count; i++) {
+		if (value[i] < mc->min || value[i] > mc->max) {
+			abox_err(dev, "%s: value[%d]=%d, min=%d, max=%d\n",
+					kcontrol->id.name, i, value[i], mc->min,
+					mc->max);
+			return -EINVAL;
+		}
+
 		kdata->value[i] = (unsigned int)value[i];
+	}
 
 	if (!pm_runtime_suspended(dev_abox)) {
 		ret = abox_tplg_kcontrol_put(dev, kdata);
@@ -653,7 +1155,7 @@ static int abox_tplg_dapm_get_mixer(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	int ret;
 
-	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
 
 	if (!pm_runtime_suspended(dev_abox) && kdata->is_volatile) {
 		ret = abox_tplg_kcontrol_get(dev, kdata);
@@ -681,7 +1183,13 @@ static int abox_tplg_dapm_put_mixer(struct snd_kcontrol *kcontrol,
 	unsigned int value = (unsigned int)ucontrol->value.integer.value[0];
 	int ret;
 
-	dev_dbg(dev, "%s(%s, %u)\n", __func__, kcontrol->id.name, value);
+	abox_dbg(dev, "%s(%s, %u)\n", __func__, kcontrol->id.name, value);
+
+	if (value < mc->min || value > mc->max) {
+		abox_err(dev, "%s: value=%d, min=%d, max=%d\n",
+				kcontrol->id.name, value, mc->min, mc->max);
+		return -EINVAL;
+	}
 
 	kdata->value[0] = value;
 	if (!pm_runtime_suspended(dev_abox)) {
@@ -702,10 +1210,10 @@ static int abox_tplg_dapm_get_pin(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *cmpnt = kdata->cmpnt;
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 	struct device *dev = cmpnt->dev;
-	const char *pin = kcontrol->id.name;
+	const char *pin = kdata->hdr->name;
 	int ret;
 
-	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
 
 	if (!pm_runtime_suspended(dev_abox) && kdata->is_volatile) {
 		ret = abox_tplg_kcontrol_get(dev, kdata);
@@ -735,13 +1243,19 @@ static int abox_tplg_dapm_put_pin(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *cmpnt = kdata->cmpnt;
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 	struct device *dev = cmpnt->dev;
-	const char *pin = kcontrol->id.name;
+	const char *pin = kdata->hdr->name;
 	unsigned int value = (unsigned int)ucontrol->value.integer.value[0];
 	int ret;
 
-	dev_dbg(dev, "%s(%s, %u)\n", __func__, kcontrol->id.name, value);
+	abox_dbg(dev, "%s(%s, %u)\n", __func__, kcontrol->id.name, value);
 
-	kdata->value[0] = value;
+	if (value < mc->min || value > mc->max) {
+		abox_err(dev, "%s: value=%d, min=%d, max=%d\n",
+				kcontrol->id.name, value, mc->min, mc->max);
+		return -EINVAL;
+	}
+
+	kdata->value[0] = !!value;
 	if (!pm_runtime_suspended(dev_abox)) {
 		ret = abox_tplg_kcontrol_put(dev, kdata);
 		if (ret < 0)
@@ -769,8 +1283,8 @@ static const struct snd_soc_tplg_kcontrol_ops abox_tplg_kcontrol_ops[] = {
 		snd_soc_info_enum_double,
 	}, {
 		ABOX_TPLG_DAPM_CTL_ENUM_VIRT,
-		abox_tplg_dapm_get_mux,
-		abox_tplg_dapm_put_mux,
+		abox_tplg_dapm_get_mux_virt,
+		abox_tplg_dapm_put_mux_virt,
 		snd_soc_info_enum_double,
 	}, {
 		ABOX_TPLG_DAPM_CTL_ENUM_VALUE,
@@ -783,11 +1297,36 @@ static const struct snd_soc_tplg_kcontrol_ops abox_tplg_kcontrol_ops[] = {
 		abox_tplg_dapm_put_pin,
 		snd_soc_dapm_info_pin_switch,
 	}, {
+		ABOX_TPLG_CTL_VOLSW,
+		abox_tplg_get_mixer,
+		abox_tplg_put_mixer,
+		abox_tplg_info_mixer,
+	}, {
+		ABOX_TPLG_CTL_VOLSW_WRITE_ONLY,
+		abox_tplg_get_mixer_write_only,
+		abox_tplg_put_mixer,
+		abox_tplg_info_mixer,
+	}, {
+		ABOX_TPLG_CTL_ENUM_DOUBLE,
+		abox_tplg_get_mux,
+		abox_tplg_put_mux,
+		snd_soc_info_enum_double,
+	}, {
+		ABOX_TPLG_CTL_ENUM_VALUE,
+		abox_tplg_get_mux,
+		abox_tplg_put_mux,
+		snd_soc_info_enum_double,
+	}, {
 		SND_SOC_TPLG_CTL_VOLSW_SX,
 		abox_tplg_get_mixer,
 		abox_tplg_put_mixer,
 		abox_tplg_info_mixer,
-	},
+	}, {
+		ABOX_TPLG_CTL_PIPELINE,
+		abox_tplg_get_pipeline,
+		abox_tplg_put_pipeline,
+		snd_soc_info_enum_double,
+	}
 };
 
 static int abox_tplg_control_copy_enum_values(
@@ -823,7 +1362,7 @@ static int abox_tplg_control_copy_enum_texts(
 				SNDRV_CTL_ELEM_ID_NAME_MAXLEN)
 			return -EINVAL;
 
-		control->dtexts[i] = string[i].string;
+		control->dtexts[i] = kstrdup(string[i].string, GFP_KERNEL);
 	}
 
 	return 0;
@@ -839,7 +1378,7 @@ static int abox_tplg_control_load_enum_items(struct snd_soc_component *cmpnt,
 	struct snd_soc_dobj_control *control = &se->dobj.control;
 	int i, sz, ret = -EINVAL;
 
-	dev_dbg(dev, "%s(%s, %d)\n", __func__, tplg_ec->hdr.name, priv->size);
+	abox_dbg(dev, "%s(%s, %d)\n", __func__, tplg_ec->hdr.name, priv->size);
 
 	for (sz = 0; sz < priv->size; sz += array->size) {
 		array = (struct snd_soc_tplg_vendor_array *)(priv->data + sz);
@@ -853,7 +1392,7 @@ static int abox_tplg_control_load_enum_items(struct snd_soc_component *cmpnt,
 			ret = abox_tplg_control_copy_enum_values(control,
 					array->string, array->num_elems);
 			if (ret < 0) {
-				dev_err(dev, "invalid enum values: %d\n", ret);
+				abox_err(dev, "invalid enum values: %d\n", ret);
 				break;
 			}
 			/* fall through to create texts */
@@ -863,7 +1402,7 @@ static int abox_tplg_control_load_enum_items(struct snd_soc_component *cmpnt,
 			ret = abox_tplg_control_copy_enum_texts(control,
 					array->string, array->num_elems);
 			if (ret < 0) {
-				dev_err(dev, "invalid enum texts: %d\n", ret);
+				abox_err(dev, "invalid enum texts: %d\n", ret);
 				break;
 			}
 			se->texts = (const char * const *)control->dtexts;
@@ -887,6 +1426,146 @@ static int abox_tplg_control_load_enum_items(struct snd_soc_component *cmpnt,
 	return ret;
 }
 
+static int abox_tplg_control_load_pipeline_item_id(struct device *dev,
+		struct soc_enum *se, struct snd_soc_tplg_vendor_array *array,
+		struct snd_soc_tplg_vendor_string_elem *elem,
+		struct abox_tplg_pipelines *pls, int pl_id)
+{
+	const char *enum_text;
+	struct abox_tplg_pipeline *pl;
+	int ret;
+
+	if (pl_id >= pls->count)
+		return -EINVAL;
+
+	enum_text = se->dobj.control.dtexts[pl_id];
+	ret = strncmp(enum_text, elem->string, sizeof(elem->string));
+	if (ret) {
+		abox_err(dev, "%s: unmatched enum text: %s != %s\n",
+				se->dobj.control.kcontrol->id.name,
+				enum_text, elem->string);
+		BUG();
+	}
+
+	pl = &pls->pl[pl_id];
+	pl->id = pl_id;
+	abox_dbg(dev, "pipeline id=%u\n", pl->id);
+	pl->tplg_va = array;
+	pl->count = 4;
+	pl->name = elem->string;
+	pl->items = devm_kcalloc(dev, pl->count, sizeof(*pl->items), GFP_KERNEL);
+	if (!pl->items)
+		return -ENOMEM;
+
+	return 0;
+}
+
+static int abox_tplg_control_load_pipeline_item_value(struct device *dev,
+		struct snd_soc_tplg_vendor_string_elem *elem,
+		struct abox_tplg_pipeline *pl, int pl_count)
+{
+	struct abox_tplg_pipeline_item *item;
+	char buf[sizeof(elem->string)];
+	char *name, *value;
+
+	if (elem->token <= ABOX_TKN_PIPELINE)
+		return -EINVAL;
+
+	while (pl->count <= pl_count) {
+		void *buf_new;
+
+		pl->count = pl_count + 4;
+		buf_new = devm_krealloc(dev, pl->items, sizeof(*pl->items) * pl->count, GFP_KERNEL | __GFP_ZERO);
+		if (IS_ERR_OR_NULL(buf_new))
+			return -ENOMEM;
+		pl->items = buf_new;
+	}
+
+	strscpy(buf, elem->string, sizeof(buf));
+	value = buf;
+	name = strsep(&value, ",");
+	if (!value || strlen(value) == 0)
+		return -EINVAL;
+	name = strim(name);
+	value = strim(value);
+	item = &pl->items[pl_count];
+	strscpy(item->name, name, sizeof(item->name));
+	strscpy(item->text, value, sizeof(item->text));
+	abox_dbg(dev, "pipeline name=%s value=%s\n", item->name, item->text);
+	item->value = UNKNOWN_VALUE;
+
+	return 0;
+}
+
+static int abox_tplg_control_load_pipeline_items(
+		struct snd_soc_component *cmpnt,
+		struct snd_soc_tplg_enum_control *tplg_ec,
+		struct soc_enum *se,
+		struct abox_tplg_kcontrol_data *kdata)
+{
+	struct device *dev = cmpnt->dev;
+	struct snd_soc_tplg_private *priv = &tplg_ec->priv;
+	struct snd_soc_tplg_vendor_array *array;
+	struct snd_soc_tplg_vendor_string_elem *elem;
+	struct abox_tplg_pipelines *pls = &kdata->pls;
+	struct abox_tplg_pipeline *pl;
+	int sz, pl_id, pl_count, ret = 0;
+
+	abox_dbg(dev, "%s(%s, %d)\n", __func__, tplg_ec->hdr.name, priv->size);
+
+	pls->count = se->items;
+	pls->pl = devm_kcalloc(dev, pls->count, sizeof(*pls->pl), GFP_KERNEL);
+	if (!pls->pl)
+		return -ENOMEM;
+
+	pl_id = -1;
+	pl_count = 0;
+	for (sz = 0; sz < priv->size; sz += array->size) {
+		array = (struct snd_soc_tplg_vendor_array *)(priv->data + sz);
+
+		if (array->type != SND_SOC_TPLG_TUPLE_TYPE_STRING)
+			continue;
+
+		if (array->num_elems < 1)
+			continue;
+
+		for (elem = array->string; elem - array->string < array->num_elems; elem++) {
+			if (elem->token < ABOX_TKN_PIPELINE)
+				continue;
+
+			switch (elem->token) {
+			case ABOX_TKN_PIPELINE:
+				ret = abox_tplg_control_load_pipeline_item_id(
+						dev, se, array, elem, pls, ++pl_id);
+				if (ret < 0)
+					break;
+
+				pl_count = 0;
+			default:
+				if (pl_id < 0)
+					break;
+
+				pl = &pls->pl[pl_id];
+				ret = abox_tplg_control_load_pipeline_item_value(
+						dev, elem, pl, pl_count);
+				if (ret < 0)
+					break;
+
+				pl_count++;
+			}
+		}
+
+		if (pl_id < 0)
+			continue;
+
+		pl = &pls->pl[pl_id];
+		pl->count = pl_count;
+		abox_dbg(dev, "pipeline %s count=%u\n", pl->name, pl->count);
+	}
+
+	return ret;
+}
+
 static int abox_tplg_control_load_enum(struct snd_soc_component *cmpnt,
 		struct snd_kcontrol_new *kctl,
 		struct snd_soc_tplg_ctl_hdr *hdr)
@@ -900,18 +1579,18 @@ static int abox_tplg_control_load_enum(struct snd_soc_component *cmpnt,
 	tplg_ec = container_of(hdr, struct snd_soc_tplg_enum_control, hdr);
 	id = abox_tplg_get_id(&tplg_ec->priv);
 	if (id < 0) {
-		dev_err(dev, "%s: invalid enum id: %d\n", hdr->name, id);
+		abox_err(dev, "%s: invalid enum id: %d\n", hdr->name, id);
 		return id;
 	}
 	gid = abox_tplg_get_gid(&tplg_ec->priv);
 	if (gid < 0) {
-		dev_err(dev, "%s: invalid enum gid: %d\n", hdr->name, gid);
+		abox_err(dev, "%s: invalid enum gid: %d\n", hdr->name, gid);
 		return gid;
 	}
 
 	ret = abox_tplg_control_load_enum_items(cmpnt, tplg_ec, se);
 	if (ret < 0) {
-		dev_err(dev, "%s: invalid enum items: %d\n", hdr->name, ret);
+		abox_err(dev, "%s: invalid enum items: %d\n", hdr->name, ret);
 		return ret;
 	}
 
@@ -930,11 +1609,15 @@ static int abox_tplg_control_load_enum(struct snd_soc_component *cmpnt,
 	kdata->count = abox_tplg_get_count(&tplg_ec->priv);
 	kdata->is_volatile = abox_tplg_is_volatile(&tplg_ec->priv);
 	kdata->synchronous = abox_tplg_synchronous(&tplg_ec->priv);
+	kdata->force_restore = abox_tplg_force_restore(&tplg_ec->priv);
 	kdata->cmpnt = cmpnt;
 	kdata->kcontrol_new = kctl;
 	kdata->tplg_ec = tplg_ec;
+	kdata->dobj = &se->dobj;
 	se->dobj.private = kdata;
+	mutex_lock(&kcontrol_mutex);
 	list_add_tail(&kdata->list, &kcontrol_list);
+	mutex_unlock(&kcontrol_mutex);
 
 	return 0;
 }
@@ -954,12 +1637,12 @@ static int abox_tplg_control_load_mixer(struct snd_soc_component *cmpnt,
 	tplg_mc = container_of(hdr, struct snd_soc_tplg_mixer_control, hdr);
 	id = abox_tplg_get_id(&tplg_mc->priv);
 	if (id < 0) {
-		dev_err(dev, "%s: invalid enum id: %d\n", hdr->name, id);
+		abox_err(dev, "%s: invalid enum id: %d\n", hdr->name, id);
 		return id;
 	}
 	gid = abox_tplg_get_gid(&tplg_mc->priv);
 	if (gid < 0) {
-		dev_err(dev, "%s: invalid enum gid: %d\n", hdr->name, gid);
+		abox_err(dev, "%s: invalid enum gid: %d\n", hdr->name, gid);
 		return gid;
 	}
 
@@ -977,14 +1660,18 @@ static int abox_tplg_control_load_mixer(struct snd_soc_component *cmpnt,
 	kdata->count = abox_tplg_get_count(&tplg_mc->priv);
 	kdata->is_volatile = abox_tplg_is_volatile(&tplg_mc->priv);
 	kdata->synchronous = abox_tplg_synchronous(&tplg_mc->priv);
+	kdata->force_restore = abox_tplg_force_restore(&tplg_mc->priv);
 	kdata->addr = abox_tplg_get_address(&tplg_mc->priv);
 	if (kdata->addr)
 		kdata->kaddr = abox_addr_to_kernel_addr(data, kdata->addr);
 	kdata->cmpnt = cmpnt;
 	kdata->kcontrol_new = kctl;
 	kdata->tplg_mc = tplg_mc;
+	kdata->dobj = &mc->dobj;
 	mc->dobj.private = kdata;
+	mutex_lock(&kcontrol_mutex);
 	list_add_tail(&kdata->list, &kcontrol_list);
+	mutex_unlock(&kcontrol_mutex);
 
 	return 0;
 }
@@ -1003,6 +1690,66 @@ static int abox_tplg_control_load_sx(struct snd_soc_component *cmpnt,
 	return abox_tplg_control_load_mixer(cmpnt, kctl, hdr);
 }
 
+static int abox_tplg_control_load_pipeline(struct snd_soc_component *cmpnt,
+		struct snd_kcontrol_new *kctl,
+		struct snd_soc_tplg_ctl_hdr *hdr)
+{
+	struct device *dev = cmpnt->dev;
+	struct abox_tplg_kcontrol_data *kdata;
+	struct snd_soc_tplg_enum_control *tplg_ec;
+	struct soc_enum *se = (struct soc_enum *)kctl->private_value;
+	int id, gid, ret;
+
+	tplg_ec = container_of(hdr, struct snd_soc_tplg_enum_control, hdr);
+	id = abox_tplg_get_id(&tplg_ec->priv);
+	if (id < 0) {
+		abox_err(dev, "%s: invalid enum id: %d\n", hdr->name, id);
+		return id;
+	}
+	gid = abox_tplg_get_gid(&tplg_ec->priv);
+	if (gid < 0) {
+		abox_err(dev, "%s: invalid enum gid: %d\n", hdr->name, gid);
+		return gid;
+	}
+
+	ret = abox_tplg_control_load_enum_items(cmpnt, tplg_ec, se);
+	if (ret < 0) {
+		abox_err(dev, "%s: invalid enum items: %d\n", hdr->name, ret);
+		return ret;
+	}
+
+	if (se->reg < SND_SOC_NOPM) {
+		se->reg = SND_SOC_NOPM;
+		se->shift_l = se->shift_r = 0;
+		se->mask = ~0U;
+	}
+
+	kdata = kzalloc(sizeof(*kdata), GFP_KERNEL);
+	if (!kdata)
+		return -ENOMEM;
+
+	kdata->gid = gid;
+	kdata->id = id;
+	kdata->count = abox_tplg_get_count(&tplg_ec->priv);
+	kdata->is_volatile = abox_tplg_is_volatile(&tplg_ec->priv);
+	kdata->synchronous = abox_tplg_synchronous(&tplg_ec->priv);
+	kdata->force_restore = abox_tplg_force_restore(&tplg_ec->priv);
+	kdata->cmpnt = cmpnt;
+	kdata->kcontrol_new = kctl;
+	kdata->tplg_ec = tplg_ec;
+	kdata->dobj = &se->dobj;
+	se->dobj.private = kdata;
+	ret = abox_tplg_control_load_pipeline_items(cmpnt, tplg_ec, se, kdata);
+	if (ret < 0) {
+		abox_err(dev, "%s: invalid piepline items: %d\n", hdr->name,
+				ret);
+		return ret;
+	}
+	list_add_tail(&kdata->list, &kcontrol_list);
+
+	return 0;
+}
+
 int abox_tplg_control_load(struct snd_soc_component *cmpnt, int index,
 		struct snd_kcontrol_new *kctl,
 		struct snd_soc_tplg_ctl_hdr *hdr)
@@ -1010,7 +1757,7 @@ int abox_tplg_control_load(struct snd_soc_component *cmpnt, int index,
 	struct device *dev = cmpnt->dev;
 	int ret = 0;
 
-	dev_dbg(cmpnt->dev, "%s(%d, %d, %s)\n", __func__,
+	abox_dbg(cmpnt->dev, "%s(%d, %d, %s)\n", __func__,
 			hdr->size, hdr->type, hdr->name);
 
 	switch (hdr->ops.info) {
@@ -1019,8 +1766,17 @@ int abox_tplg_control_load(struct snd_soc_component *cmpnt, int index,
 	case SND_SOC_TPLG_DAPM_CTL_ENUM_DOUBLE:
 	case SND_SOC_TPLG_DAPM_CTL_ENUM_VIRT:
 	case SND_SOC_TPLG_DAPM_CTL_ENUM_VALUE:
-		if (kctl->access & SNDRV_CTL_ELEM_ACCESS_READWRITE)
+		if (!(kctl->access & SNDRV_CTL_ELEM_ACCESS_READWRITE))
+			break;
+
+		switch (hdr->ops.get) {
+		case ABOX_TPLG_CTL_PIPELINE:
+			ret = abox_tplg_control_load_pipeline(cmpnt, kctl, hdr);
+			break;
+		default:
 			ret = abox_tplg_control_load_enum(cmpnt, kctl, hdr);
+			break;
+		}
 		break;
 	case SND_SOC_TPLG_CTL_VOLSW:
 	case SND_SOC_TPLG_DAPM_CTL_VOLSW:
@@ -1033,7 +1789,7 @@ int abox_tplg_control_load(struct snd_soc_component *cmpnt, int index,
 			ret = abox_tplg_control_load_sx(cmpnt, kctl, hdr);
 		break;
 	default:
-		dev_warn(dev, "unknown control %s:%d\n", hdr->name,
+		abox_warn(dev, "unknown control %s:%d\n", hdr->name,
 				hdr->ops.info);
 		break;
 	}
@@ -1061,7 +1817,7 @@ static int abox_tplg_dai_load(struct snd_soc_component *cmpnt, int index,
 	struct snd_pcm_hardware *hardware, playback = {0, }, capture = {0, };
 	struct snd_soc_tplg_stream_caps *caps;
 
-	dev_dbg(dev, "%s(%s)\n", __func__, dai_drv->name);
+	abox_dbg(dev, "%s(%s)\n", __func__, dai_drv->name);
 
 	if (pcm->playback) {
 		hardware = &playback;
@@ -1130,10 +1886,9 @@ static int abox_tplg_link_load(struct snd_soc_component *cmpnt, int index,
 	struct device *dev = cmpnt->dev;
 	struct snd_soc_dai *dai;
 
-	dev_dbg(dev, "%s(%s)\n", __func__, link->stream_name);
+	abox_dbg(dev, "%s(%s)\n", __func__, link->stream_name);
 
 	if (cfg) {
-		struct snd_soc_dai_link_component dlc;
 		struct snd_soc_tplg_private *priv = &cfg->priv;
 		unsigned int rate, width, channels, period_size, periods;
 		bool packed;
@@ -1145,25 +1900,22 @@ static int abox_tplg_link_load(struct snd_soc_component *cmpnt, int index,
 		periods = abox_tplg_get_int(priv, ABOX_TKN_PERIODS);
 		packed = abox_tplg_get_bool(priv, ABOX_TKN_PACKED);
 
-		dlc.name = link->cpu_name;
-		dlc.of_node = link->cpu_of_node;
-		dlc.dai_name = link->cpu_dai_name;
-		dai = snd_soc_find_dai(&dlc);
+		dai = snd_soc_find_dai(link->cpus);
 		if (dai)
 			abox_dma_hw_params_set(dai->dev, rate, width, channels,
 					period_size, periods, packed);
 		else
-			dev_err(dev, "%s: can't find dai\n", link->name);
+			abox_err(dev, "%s: can't find dai\n", link->name);
 	}
 
 	list_for_each_entry(dai, &cmpnt->dai_list, list) {
-		if (strcmp(dai->name, link->cpu_dai_name) == 0) {
+		if (strcmp(dai->name, link->cpus->dai_name) == 0) {
 			struct abox_tplg_dai_data *data;
 
 			data = dai->driver->dobj.private;
 			if (!data || !data->dev_platform)
 				continue;
-			link->platform_name = dev_name(data->dev_platform);
+			link->platforms->name = dev_name(data->dev_platform);
 			link->ignore_suspend = 1;
 			break;
 		}
@@ -1186,35 +1938,38 @@ static void abox_tplg_route_mux(struct snd_soc_component *cmpnt,
 	struct snd_soc_tplg_dapm_widget *tplg_w = wdata->tplg_w;
 	struct snd_soc_dapm_widget *w = wdata->w;
 	const struct snd_kcontrol_new *kcontrol_new = w->kcontrol_news;
+	struct abox_tplg_widget_data *wdata_src;
 	struct soc_enum *e;
 	struct snd_soc_dapm_route route = {0, };
 	int i;
 
-	dev_dbg(cmpnt->dev, "%s(%s)\n", __func__, tplg_w->name);
+	abox_dbg(cmpnt->dev, "%s(%s)\n", __func__, tplg_w->name);
 	e = (struct soc_enum *)kcontrol_new->private_value;
 
 	/* Auto-generating routes in driver is more brilliant
 	 * than typing all routes in the topology file.
 	 */
 	for (i = 0; i < e->items; i++) {
-		route.sink = tplg_w->name;
-		route.control = e->texts[i];
-		route.source = e->texts[i];
-		route.connected = NULL;
-		snd_soc_dapm_add_routes(dapm, &route, 1);
+		list_for_each_entry(wdata_src, &widget_list, list) {
+			if (strcmp(wdata_src->tplg_w->name, e->texts[i]))
+				continue;
+
+			route.sink = tplg_w->name;
+			route.control = e->texts[i];
+			route.source = e->texts[i];
+			snd_soc_dapm_add_routes(dapm, &route, 1);
+			if (wdata->weak) {
+				route.control = NULL;
+				snd_soc_dapm_weak_routes(dapm, &route, 1);
+			}
+			break;
+		}
 	}
 }
 
 static void abox_tplg_complete(struct snd_soc_component *cmpnt)
 {
-	struct abox_tplg_widget_data *wdata;
-
-	dev_dbg(cmpnt->dev, "%s\n", __func__);
-
-	list_for_each_entry(wdata, &widget_list, list) {
-		if (wdata->tplg_w->id == SND_SOC_TPLG_DAPM_MUX)
-			abox_tplg_route_mux(cmpnt, wdata);
-	}
+	abox_dbg(cmpnt->dev, "%s\n", __func__);
 }
 
 /* Dummy widget for connect to none. */
@@ -1248,10 +2003,7 @@ static int abox_tplg_bin_load(struct device *dev,
 		if (offset < 0)
 			break;
 
-		changeable = abox_tplg_get_bool_at(priv,
-				ABOX_BIN_CHANGEABLE, i);
-		if (changeable < 0)
-			break;
+		changeable = abox_tplg_get_bool_at(priv, ABOX_BIN_CHANGEABLE, i);
 
 		ret = abox_add_extra_firmware(dev, data, idx, name, area,
 				offset, changeable);
@@ -1263,14 +2015,9 @@ static int abox_tplg_bin_load(struct device *dev,
 static int abox_tplg_manifest(struct snd_soc_component *cmpnt, int index,
 		struct snd_soc_tplg_manifest *manifest)
 {
-	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
+	abox_dbg(cmpnt->dev, "%s\n", __func__);
 
-	dev_dbg(cmpnt->dev, "%s\n", __func__);
-
-	abox_tplg_bin_load(cmpnt->dev, &manifest->priv);
-
-	return snd_soc_dapm_new_controls(dapm, abox_tplg_widgets,
-			ARRAY_SIZE(abox_tplg_widgets));
+	return abox_tplg_bin_load(cmpnt->dev, &manifest->priv);
 }
 
 static struct snd_soc_tplg_ops abox_tplg_ops  = {
@@ -1293,19 +2040,20 @@ static irqreturn_t abox_tplg_ipc_handler(int ipc_id, void *dev_id,
 		ABOX_IPC_MSG *msg)
 {
 	struct IPC_SYSTEM_MSG *system = &msg->msg.system;
-	irqreturn_t ret = IRQ_HANDLED;
+	irqreturn_t ret = IRQ_NONE;
 
 	switch (system->msgtype) {
 	case ABOX_REPORT_COMPONENT_CONTROL:
 		if (abox_tplg_ipc_get_complete(system->param1, system->param2,
 				(unsigned int *)system->bundle.param_s32) >= 0)
+			ret = IRQ_HANDLED;
 		break;
 	case ABOX_UPDATED_COMPONENT_CONTROL:
 		if (abox_tplg_ipc_put_complete(system->param1, system->param2,
 				(unsigned int *)system->bundle.param_s32) >= 0)
+			ret = IRQ_HANDLED;
 		break;
 	default:
-		ret = IRQ_NONE;
 		break;
 	}
 
@@ -1317,8 +2065,9 @@ int abox_tplg_restore(struct device *dev)
 	struct abox_tplg_kcontrol_data *kdata;
 	int i;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
+	mutex_lock(&kcontrol_mutex);
 	list_for_each_entry(kdata, &kcontrol_list, list) {
 		switch (kdata->hdr->ops.info) {
 		case SND_SOC_TPLG_CTL_ENUM:
@@ -1333,55 +2082,72 @@ int abox_tplg_restore(struct device *dev)
 			 * value in firmware is already zero after reset.
 			 */
 			for (i = 0; i < kdata->count; i++) {
-				if (kdata->value[i]) {
+				if (kdata->value[i] || kdata->force_restore) {
 					abox_tplg_kcontrol_restore(dev, kdata);
 					break;
 				}
 			}
 			break;
 		default:
-			dev_warn(dev, "unknown control %s:%d\n",
+			abox_warn(dev, "unknown control %s:%d\n",
 				kdata->hdr->name, kdata->hdr->ops.info);
 			break;
 		}
 	}
+	mutex_unlock(&kcontrol_mutex);
 
 	return 0;
 }
 
 int abox_tplg_probe(struct snd_soc_component *cmpnt)
 {
-	static const char *fw_name = "abox_tplg.bin";
-	static const int retry = 100;
+	static const int retry = 80;
 	struct device *dev = cmpnt->dev;
+	struct abox_tplg_firmware *tplg_fw;
+	struct abox_tplg_widget_data *wdata;
 	int i, ret;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	if (abox_tplg_fw) {
-		release_firmware(abox_tplg_fw);
-		abox_tplg_fw = NULL;
-	}
-
-	ret = firmware_request_nowarn(&abox_tplg_fw, fw_name, dev);
-	for (i = retry; ret && i; i--) {
-		msleep(1000);
-		ret = firmware_request_nowarn(&abox_tplg_fw, fw_name, dev);
-	}
-	if (ret < 0) {
-		ret = -EPROBE_DEFER;
-		goto err_firmware;
-	}
-
-	dev_info(dev, "loaded %s\n", fw_name);
-
-	ret = snd_soc_tplg_component_load(cmpnt, &abox_tplg_ops, abox_tplg_fw,
-			0);
+	ret = snd_soc_dapm_new_controls(snd_soc_component_get_dapm(cmpnt),
+			abox_tplg_widgets, ARRAY_SIZE(abox_tplg_widgets));
 	if (ret < 0)
-		goto err_load;
+		goto err_firmware;
 
-	ret = abox_ipc_register_handler(dev, IPC_SYSTEM, abox_tplg_ipc_handler,
-			NULL);
+	for (tplg_fw = abox_tplg_fw; tplg_fw - abox_tplg_fw < ARRAY_SIZE(abox_tplg_fw); tplg_fw++) {
+		if (tplg_fw->fw) {
+			release_firmware(tplg_fw->fw);
+			tplg_fw->fw = NULL;
+		}
+
+		ret = firmware_request_nowarn(&tplg_fw->fw, tplg_fw->fw_name, dev);
+		if (ret < 0 && tplg_fw->optional) {
+			abox_info(dev, "not loaded %s\n", tplg_fw->fw_name);
+			continue;
+		}
+
+		for (i = retry; ret && i; i--) {
+			msleep(1000);
+			ret = firmware_request_nowarn(&tplg_fw->fw, tplg_fw->fw_name, dev);
+		}
+		if (ret < 0) {
+			ret = -ENODEV;
+			goto err_firmware;
+		}
+
+		abox_info(dev, "loaded %s\n", tplg_fw->fw_name);
+
+		ret = snd_soc_tplg_component_load(cmpnt, &abox_tplg_ops, tplg_fw->fw, 0);
+		if (ret < 0)
+			goto err_load;
+	}
+
+	list_for_each_entry(wdata, &widget_list, list) {
+		if (wdata->tplg_w->id == SND_SOC_TPLG_DAPM_MUX)
+			abox_tplg_route_mux(cmpnt, wdata);
+	}
+
+	ret = abox_ipc_register_handler(dev, IPC_SYSTEM, abox_tplg_ipc_handler, NULL);
 	if (ret < 0)
 		goto err_ipc;
 
@@ -1390,7 +2156,10 @@ int abox_tplg_probe(struct snd_soc_component *cmpnt)
 err_ipc:
 	snd_soc_tplg_component_remove(cmpnt, 0);
 err_load:
-	release_firmware(abox_tplg_fw);
+	for (tplg_fw = abox_tplg_fw; tplg_fw - abox_tplg_fw < ARRAY_SIZE(abox_tplg_fw); tplg_fw++) {
+		release_firmware(tplg_fw->fw);
+		tplg_fw->fw = NULL;
+	}
 err_firmware:
 	return ret;
 }
@@ -1399,10 +2168,7 @@ void abox_tplg_remove(struct snd_soc_component *cmpnt)
 {
 	struct device *dev = cmpnt->dev;
 
-	dev_dbg(dev, "%s\n", __func__);
-
-	snd_soc_tplg_component_remove(cmpnt, 0);
-	release_firmware(abox_tplg_fw);
+	abox_dbg(dev, "%s\n", __func__);
 }
 
 static const struct snd_soc_component_driver abox_tplg = {
@@ -1423,8 +2189,20 @@ static int samsung_abox_tplg_probe(struct platform_device *pdev)
 static int samsung_abox_tplg_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct snd_soc_component *cmpnt;
+	struct abox_tplg_firmware *tplg_fw;
 
+	cmpnt = snd_soc_lookup_component(dev, NULL);
+	if (cmpnt)
+		snd_soc_tplg_component_remove(cmpnt, 0);
 	snd_soc_unregister_component(dev);
+	for (tplg_fw = abox_tplg_fw; tplg_fw - abox_tplg_fw < ARRAY_SIZE(abox_tplg_fw); tplg_fw++) {
+		if (!tplg_fw->fw)
+			continue;
+
+		release_firmware(tplg_fw->fw);
+		tplg_fw->fw = NULL;
+	}
 	dev_abox = NULL;
 
 	return 0;
@@ -1438,20 +2216,12 @@ static const struct of_device_id samsung_abox_tplg_match[] = {
 };
 MODULE_DEVICE_TABLE(of, samsung_abox_tplg_match);
 
-static struct platform_driver samsung_abox_tplg_driver = {
+struct platform_driver samsung_abox_tplg_driver = {
 	.probe = samsung_abox_tplg_probe,
 	.remove = samsung_abox_tplg_remove,
 	.driver = {
-		.name = "samsung-abox-tplg",
+		.name = "abox-tplg",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(samsung_abox_tplg_match),
 	},
 };
-
-module_platform_driver(samsung_abox_tplg_driver);
-
-/* Module information */
-MODULE_AUTHOR("Gyeongtaek Lee, <gt82.lee@samsung.com>");
-MODULE_DESCRIPTION("Samsung ASoC A-Box Topology Driver");
-MODULE_ALIAS("platform:samsung-abox-tplg");
-MODULE_LICENSE("GPL");

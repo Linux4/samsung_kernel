@@ -1,9 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * drivers/media/radio/s610/radio-s610.h
  *
  * V4L2 driver header for SAMSUNG S610 chip
  *
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,13 +20,8 @@
 #ifndef RADIO_S610_H
 #define RADIO_S610_H
 
-#if defined(CONFIG_RADIO_S610)
 #define DRIVER_NAME "s610-radio"
 #define DRIVER_CARD "S610 FM Receiver"
-#elif defined(CONFIG_RADIO_S621)
-#define DRIVER_NAME "s621-radio"
-#define DRIVER_CARD "S621 FM Receiver"
-#endif /* defined(CONFIG_RADIO_S610) */
 
 #define	ENABLE_RDS_WORK_QUEUE
 #undef	ENABLE_RDS_WORK_QUEUE
@@ -42,6 +38,13 @@
 #undef IDLE_POLLING_ENABLE
 
 #define USE_AUDIO_PM
+/*#undef USE_AUDIO_PM*/
+
+#define USE_PMIC_RW
+/*#undef USE_PMIC_RW*/
+
+#define USE_FM_PIN_CONTROL
+#undef USE_FM_PIN_CONTROL
 
 /* DEBUG :: Print debug for debug *******/
 #define  SUPPORT_FM_DEBUG
@@ -112,14 +115,14 @@
 #include <linux/delay.h>
 #include <linux/of.h>
 #include <linux/spinlock.h>
-#include <linux/wakelock.h>
-
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-event.h>
-
+#include <linux/version.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/i2c.h>
+#include "fm_wakelock.h"
 #include "fm_low_struc.h"
 
 #define V4L2_CID_USER_S610_BASE		(0x00980900 + 0x1070)
@@ -422,8 +425,9 @@ struct s610_radio {
 	spinlock_t slock; /* To protect access to buffer */
 	spinlock_t rds_lock; /* To protect access to buffer */
 
-	struct wake_lock	wakelock;
-	struct wake_lock	rdswakelock;
+	struct fm_wake_lock wakelock;
+	struct fm_wake_lock rdswakelock;
+
 	atomic_t is_doing;
 	atomic_t is_rds_new;
 	atomic_t is_rds_doing;
@@ -473,7 +477,6 @@ struct s610_radio {
 	u32 wrap_around;
 	u32 iclkaux;
 	void __iomem *fmspeedy_base;
-	void __iomem *disaud_cmu_base;
 #ifdef USE_FM_LNA_ENABLE
 	int elna_gpio;
 #endif /* USE_FM_EXTERN_PLL */
@@ -497,9 +500,24 @@ struct s610_radio {
 	u32 rfchip_ver;
 	int without_elna;
 	u16 rssi_adjust;
+	u16 ldo_onoff;
 	bool rssi_ref_enable;
 	u32 agc_enable;
 	u32 speedy_reg_addr;
+#ifdef USE_PMIC_RW
+	int fm_pmic;
+	struct i2c_client *i2c_main;
+	struct i2c_client *i2c_sub;
+#endif /* USE_AUDIO_PM */
+
+#ifdef USE_FM_PIN_CONTROL
+/* Pin control */
+	struct pinctrl *pinctrl_fm;
+	struct pinctrl_state *pinctrl_state_active;
+	struct pinctrl_state *pinctrl_state_idle;
+	bool pin_control_available;
+#endif /* USE_FM_PIN_CONTROL */
+
 /*	debug print counter */
 	int idle_cnt_mod;
 	int rds_cnt_mod;
@@ -589,6 +607,13 @@ extern void fm_get_version_number(void);
 extern int ringbuf_bytes_used(const struct ringbuf_t *rb);
 extern void fm_rds_parser_reset(struct fm_rds_parser_info *pi);
 extern struct fm_conf_ini_values low_fm_conf_init;
-signed int exynos_get_fm_open_status(void);
+#if defined(USE_PMIC_RW)
+extern int s2mpu12_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest);
+extern int s2mpu12_write_reg(struct i2c_client *i2c, u8 reg, u8 value);
+#endif
+#if defined(USE_AUDIO_PM)
+extern int abox_request_cpu_gear_ext(struct device *dev,
+		unsigned int id, unsigned int level, const char *name);
+#endif
 #endif /* RADIO_S610_H */
 

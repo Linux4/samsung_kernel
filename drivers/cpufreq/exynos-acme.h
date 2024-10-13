@@ -8,36 +8,27 @@
  * Exynos ACME(A Cpufreq that Meets Every chipset) driver implementation
  */
 
-#include <linux/pm_qos.h>
 #include <soc/samsung/exynos-dm.h>
-#include <linux/timer.h>
-
-#define CPUFREQ_RESTART 0x1 << 0
-#define CPUFREQ_SUSPEND 0x1 << 1
-
-struct exynos_slack_timer {
-	/* for slack timer */
-	unsigned long min;
-	int enabled;
-	int expired_time;
-	struct timer_list timer;
-};
+#include <linux/fs.h>
+#include <linux/miscdevice.h>
+#include <linux/irq_work.h>
+#include <linux/kthread.h>
 
 struct exynos_cpufreq_dm {
 	struct list_head		list;
 	struct exynos_dm_constraint	c;
+	int				master_cal_id;
+	int				slave_cal_id;
+
+	int				cur_table_index;
 };
 
-typedef int (*target_fn)(struct cpufreq_policy *policy,
-			        unsigned int target_freq,
-			        unsigned int relation);
-
-struct exynos_cpufreq_ready_block {
-	struct list_head		list;
-
-	/* callback function to update policy-dependant data */
-	int (*update)(struct cpufreq_policy *policy);
-	int (*get_target)(struct cpufreq_policy *policy, target_fn target);
+struct exynos_cpufreq_file_operations {
+	struct file_operations		fops;
+	struct miscdevice		miscdev;
+	struct freq_constraints		*freq_constraints;
+	enum				freq_qos_req_type req_type;
+	unsigned int			default_value;
 };
 
 struct exynos_cpufreq_domain {
@@ -55,6 +46,7 @@ struct exynos_cpufreq_domain {
 	struct cpumask			cpus;
 	unsigned int			cal_id;
 	int				dm_type;
+	unsigned int			dss_type;
 
 	/* frequency scaling */
 	bool				enabled;
@@ -68,40 +60,28 @@ struct exynos_cpufreq_domain {
 	unsigned int			resume_freq;
 	unsigned int			old;
 
-	/* PM QoS class */
-	unsigned int			pm_qos_min_class;
-	unsigned int			pm_qos_max_class;
-	struct pm_qos_request		min_qos_req;
-	struct pm_qos_request		max_qos_req;
-	struct notifier_block		pm_qos_min_notifier;
-	struct notifier_block		pm_qos_max_notifier;
+	/* freq qos */
+	struct freq_qos_request		min_qos_req;
+	struct freq_qos_request		max_qos_req;
+	struct freq_qos_request		user_min_qos_req;
+	struct freq_qos_request		user_max_qos_req;
+	struct delayed_work		work;
 
-	struct pm_qos_request		user_qos_min_req;
-	struct pm_qos_request		user_qos_max_req;
+	/* fops node */
+	struct exynos_cpufreq_file_operations	min_qos_fops;
+	struct exynos_cpufreq_file_operations	max_qos_fops;
 
-	/* for sysfs */
-	unsigned int			user_boost;
-
-	/* freq boost */
-	bool				boost_supported;
-	unsigned int			*boost_max_freqs;
-	struct cpumask			online_cpus;
+	/* fast-switch */
+	bool				fast_switch;
+	raw_spinlock_t			fast_switch_lock;
+	bool                            need_awake;
 
 	/* list head of DVFS Manager constraints */
 	struct list_head		dm_list;
 
-	bool				need_awake;
-
-	struct thermal_cooling_device *cdev;
+	/* per-domain sysfs support */
+	struct kobject			kobj;
 };
-
-/*
- * list head of cpufreq domain
- */
-
-extern struct exynos_cpufreq_domain
-		*find_domain_cpumask(const struct cpumask *mask);
-extern struct list_head *get_domain_list(void);
 
 /*
  * the time it takes on this CPU to switch between
@@ -110,7 +90,7 @@ extern struct list_head *get_domain_list(void);
 #define TRANSITION_LATENCY	5000000
 
 /*
- * Exynos CPUFreq API
+ * if gap of both frequency is lower than threshold(khz),
+ * lower freq is merged to higher freq
  */
-extern void exynos_cpufreq_ready_list_add(struct exynos_cpufreq_ready_block *rb);
-extern unsigned int exynos_pstate_get_boost_freq(int cpu);
+#define FREQ_MERGE_THRESHOLD	48000

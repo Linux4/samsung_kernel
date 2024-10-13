@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * This contains encryption functions for per-file encryption.
  *
@@ -56,6 +57,7 @@ struct page *fscrypt_alloc_bounce_page(gfp_t gfp_flags)
 
 /**
  * fscrypt_free_bounce_page() - free a ciphertext bounce page
+ * @bounce_page: the bounce page to free, or NULL
  *
  * Free a bounce page that was allocated by fscrypt_encrypt_pagecache_blocks(),
  * or by fscrypt_alloc_bounce_page() directly.
@@ -74,7 +76,7 @@ EXPORT_SYMBOL(fscrypt_free_bounce_page);
  * Generate the IV for the given logical block number within the given file.
  * For filenames encryption, lblk_num == 0.
  *
- * Keep this in sync with fscrypt_limit_dio_pages().  fscrypt_limit_dio_pages()
+ * Keep this in sync with fscrypt_limit_io_blocks().  fscrypt_limit_io_blocks()
  * needs to know about any IV generation methods where the low bits of IV don't
  * simply contain the lblk_num (e.g., IV_INO_LBLK_32).
  */
@@ -93,7 +95,7 @@ void fscrypt_generate_iv(union fscrypt_iv *iv, u64 lblk_num,
 		WARN_ON_ONCE(lblk_num > U32_MAX);
 		lblk_num = (u32)(ci->ci_hashed_ino + lblk_num);
 	} else if (flags & FSCRYPT_POLICY_FLAG_DIRECT_KEY) {
-		memcpy(iv->nonce, ci->ci_nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+		memcpy(iv->nonce, ci->ci_nonce, FSCRYPT_FILE_NONCE_SIZE);
 	}
 	iv->lblk_num = cpu_to_le64(lblk_num);
 }
@@ -109,9 +111,10 @@ int fscrypt_crypt_block(const struct inode *inode, fscrypt_direction_t rw,
 	DECLARE_CRYPTO_WAIT(wait);
 	struct scatterlist dst, src;
 	struct fscrypt_info *ci = inode->i_crypt_info;
-	struct crypto_skcipher *tfm = ci->ci_key.tfm;
+	struct crypto_skcipher *tfm = ci->ci_enc_key.tfm;
 	int res = 0;
 #ifdef CONFIG_FSCRYPT_SDP
+	struct ext_fscrypt_info *ext_ci;
 	sdp_fs_command_t *cmd = NULL;
 #endif
 
@@ -144,16 +147,17 @@ int fscrypt_crypt_block(const struct inode *inode, fscrypt_direction_t rw,
 		fscrypt_err(inode, "%scryption failed for block %llu: %d",
 			    (rw == FS_DECRYPT ? "De" : "En"), lblk_num, res);
 #ifdef CONFIG_FSCRYPT_SDP
-		if (ci->ci_sdp_info) {
-			if (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) {
+		ext_ci = GET_EXT_CI(ci);
+		if (ext_ci->ci_sdp_info) {
+			if (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) {
 				printk("Record audit log in case of a failure during en/decryption of sensitive file\n");
 				if (rw == FS_DECRYPT) {
 					cmd = sdp_fs_command_alloc(FSOP_AUDIT_FAIL_DECRYPT,
-					current->tgid, ci->ci_sdp_info->engine_id, -1, inode->i_ino, res,
+					current->tgid, ext_ci->ci_sdp_info->engine_id, -1, inode->i_ino, res,
 							GFP_KERNEL);
 				} else {
 					cmd = sdp_fs_command_alloc(FSOP_AUDIT_FAIL_ENCRYPT,
-					current->tgid, ci->ci_sdp_info->engine_id, -1, inode->i_ino, res,
+					current->tgid, ext_ci->ci_sdp_info->engine_id, -1, inode->i_ino, res,
 							GFP_KERNEL);
 				}
 				if (cmd) {
@@ -169,7 +173,8 @@ int fscrypt_crypt_block(const struct inode *inode, fscrypt_direction_t rw,
 }
 
 /**
- * fscrypt_encrypt_pagecache_blocks() - Encrypt filesystem blocks from a pagecache page
+ * fscrypt_encrypt_pagecache_blocks() - Encrypt filesystem blocks from a
+ *					pagecache page
  * @page:      The locked pagecache page containing the block(s) to encrypt
  * @len:       Total size of the block(s) to encrypt.  Must be a nonzero
  *		multiple of the filesystem's block size.
@@ -259,7 +264,8 @@ int fscrypt_encrypt_block_inplace(const struct inode *inode, struct page *page,
 EXPORT_SYMBOL(fscrypt_encrypt_block_inplace);
 
 /**
- * fscrypt_decrypt_pagecache_blocks() - Decrypt filesystem blocks in a pagecache page
+ * fscrypt_decrypt_pagecache_blocks() - Decrypt filesystem blocks in a
+ *					pagecache page
  * @page:      The locked pagecache page containing the block(s) to decrypt
  * @len:       Total size of the block(s) to decrypt.  Must be a nonzero
  *		multiple of the filesystem's block size.
@@ -373,9 +379,11 @@ void fscrypt_msg(const struct inode *inode, const char *level,
 	va_start(args, fmt);
 	vaf.fmt = fmt;
 	vaf.va = &args;
-	if (inode)
+	if (inode && inode->i_ino)
 		printk("%sfscrypt (%s, inode %lu): %pV\n",
 		       level, inode->i_sb->s_id, inode->i_ino, &vaf);
+	else if (inode)
+		printk("%sfscrypt (%s): %pV\n", level, inode->i_sb->s_id, &vaf);
 	else
 		printk("%sfscrypt: %pV\n", level, &vaf);
 	va_end(args);
@@ -383,6 +391,8 @@ void fscrypt_msg(const struct inode *inode, const char *level,
 
 /**
  * fscrypt_init() - Set up for fs encryption.
+ *
+ * Return: 0 on success; -errno on failure
  */
 static int __init fscrypt_init(void)
 {
@@ -402,7 +412,11 @@ static int __init fscrypt_init(void)
 	if (!fscrypt_read_workqueue)
 		goto fail;
 
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+	fscrypt_info_cachep = KMEM_CACHE(ext_fscrypt_info, SLAB_RECLAIM_ACCOUNT);
+#else
 	fscrypt_info_cachep = KMEM_CACHE(fscrypt_info, SLAB_RECLAIM_ACCOUNT);
+#endif
 	if (!fscrypt_info_cachep)
 		goto fail_free_queue;
 

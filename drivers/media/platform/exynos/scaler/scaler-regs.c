@@ -607,6 +607,12 @@ void sc_hwset_blend(struct sc_dev *sc, enum sc_blend_op bl_op, bool pre_multi,
 	unsigned int cfg = readl(sc->regs + SCALER_CFG);
 	int idx = bl_op - 1;
 
+	if (!src_blend_cfg) {
+		cfg &= ~SCALER_CFG_BLEND_EN;
+		writel(cfg, sc->regs + SCALER_CFG);
+		return;
+	}
+
 	cfg |= SCALER_CFG_BLEND_EN;
 	writel(cfg, sc->regs + SCALER_CFG);
 
@@ -853,102 +859,32 @@ void sc_hwset_polyphase_vcoef(struct sc_dev *sc,
 	}
 }
 
-static inline int sc_get_sbwc_span_bytes(const struct sc_fmt *fmt,
-					int width, unsigned short ratio)
-{
-	/* Lossy case */
-	if (fmt->cfg_val & SCALER_CFG_SBWC_LOSSY)
-		return SBWCL_STRIDE(width, ratio);
-
-	/* Lossless case */
-	if ((fmt->cfg_val & SCALER_CFG_10BIT_MASK) == SCALER_CFG_10BIT_SBWC)
-		return width * 5;
-
-	return width * 4;
-}
-
 void sc_hwset_src_imgsize(struct sc_dev *sc, struct sc_frame *frame)
 {
-	unsigned long cfg = 0;
+	u32 yspan = frame->stride[SC_PLANE_Y];
+	u32 cspan = frame->stride[SC_PLANE_CB];
 
-	cfg &= ~(SCALER_SRC_CSPAN_MASK | SCALER_SRC_YSPAN_MASK);
-	cfg |= frame->width;
-
-	/*
-	 * TODO: C width should be half of Y width
-	 * but, how to get the diffferent c width from user
-	 * like AYV12 format
-	 */
-	if (frame->sc_fmt->num_comp == 2)
-		cfg |= (frame->width << frame->sc_fmt->cspan) << 16;
-	else if (frame->sc_fmt->num_comp == 3) {
-		if (frame->sc_fmt->is_alphablend_fmt)
-			cfg |= (frame->width << frame->sc_fmt->cspan) << 16;
-		else {
-			if (sc_fmt_is_ayv12(frame->sc_fmt->pixelformat))
-				cfg |= ALIGN(frame->width >> 1, 16) << 16;
-			else if (frame->sc_fmt->cspan) /* YUV444 */
-				cfg |= frame->width << 16;
-			else
-				cfg |= (frame->width >> 1) << 16;
-		}
+	if (sc->version < SCALER_VERSION(6, 0, 1)) {
+		writel(yspan | (cspan << 16), sc->regs + SCALER_SRC_SPAN);
+	} else {
+		writel(yspan, sc->regs + SCALER_SRC_YSPAN);
+		if (frame->sc_fmt->num_comp > 1)
+			writel(cspan, sc->regs + SCALER_SRC_CSPAN);
 	}
-
-	writel(cfg, sc->regs + SCALER_SRC_SPAN);
-}
-
-void sc_hwset_intsrc_imgsize(struct sc_dev *sc, int num_comp, __u32 width)
-{
-	unsigned long cfg = 0;
-
-	cfg &= ~(SCALER_SRC_CSPAN_MASK | SCALER_SRC_YSPAN_MASK);
-	cfg |= width;
-
-	/*
-	 * TODO: C width should be half of Y width
-	 * but, how to get the diffferent c width from user
-	 * like AYV12 format
-	 */
-	if (num_comp == 2)
-		cfg |= width << 16;
-	if (num_comp == 3)
-		cfg |= (width >> 1) << 16;
-
-	writel(cfg, sc->regs + SCALER_SRC_SPAN);
 }
 
 void sc_hwset_dst_imgsize(struct sc_dev *sc, struct sc_frame *frame)
 {
-	unsigned long cfg = 0;
+	u32 yspan = frame->stride[SC_PLANE_Y];
+	u32 cspan = frame->stride[SC_PLANE_CB];
 
-	cfg &= ~(SCALER_DST_CSPAN_MASK | SCALER_DST_YSPAN_MASK);
-
-	if (sc_fmt_is_sbwc(frame->sc_fmt->pixelformat)) {
-		int span = sc_get_sbwc_span_bytes(frame->sc_fmt,
-					frame->width, frame->byte32num);
-
-		cfg = span | (span << 16);
+	if (sc->version < SCALER_VERSION(6, 0, 1)) {
+		writel(yspan | (cspan << 16), sc->regs + SCALER_DST_SPAN);
 	} else {
-		cfg |= frame->width;
-
-		/*
-		 * TODO: C width should be half of Y width
-		 * but, how to get the diffferent c width from user
-		 * like AYV12 format
-		 */
-		if (frame->sc_fmt->num_comp == 2)
-			cfg |= (frame->width << frame->sc_fmt->cspan) << 16;
-		if (frame->sc_fmt->num_comp == 3) {
-			if (sc_fmt_is_ayv12(frame->sc_fmt->pixelformat))
-				cfg |= ALIGN(frame->width >> 1, 16) << 16;
-			else if (frame->sc_fmt->cspan) /* YUV444 */
-				cfg |= frame->width << 16;
-			else
-				cfg |= (frame->width >> 1) << 16;
-		}
+		writel(yspan, sc->regs + SCALER_DST_YSPAN);
+		if (frame->sc_fmt->num_comp > 1)
+			writel(cspan, sc->regs + SCALER_DST_CSPAN);
 	}
-
-	writel(cfg, sc->regs + SCALER_DST_SPAN);
 }
 
 int sc_calc_s10b_planesize(u32 pixelformat, u32 width, u32 height,
@@ -956,7 +892,7 @@ int sc_calc_s10b_planesize(u32 pixelformat, u32 width, u32 height,
 static void sc_hwset_src_2bit_addr(struct sc_dev *sc, struct sc_frame *frame)
 {
 	u32 yaddr_2bit, caddr_2bit;
-	unsigned long cfg = 0;
+	u32 yspan, cspan;
 
 	BUG_ON(frame->sc_fmt->num_comp != 2);
 
@@ -969,17 +905,19 @@ static void sc_hwset_src_2bit_addr(struct sc_dev *sc, struct sc_frame *frame)
 	writel(yaddr_2bit, sc->regs + SCALER_SRC_2BIT_Y_BASE);
 	writel(caddr_2bit, sc->regs + SCALER_SRC_2BIT_C_BASE);
 
-	cfg &= ~(SCALER_SRC_2BIT_CSPAN_MASK | SCALER_SRC_2BIT_YSPAN_MASK);
-
 	if (sc_fmt_is_sbwc(frame->sc_fmt->pixelformat)) {
-		cfg |= ALIGN(frame->width / 64, 16);
-		cfg |= ALIGN(frame->width / 64, 16) << 16;
+		yspan = cspan = SBWC_HEADER_STRIDE(frame->width);
 	} else {
-		cfg |= ALIGN(frame->width, 16);
-		cfg |= (ALIGN(frame->width, 16) << frame->sc_fmt->cspan) << 16;
+		yspan = ALIGN(frame->width, 16);
+		cspan = ALIGN(frame->width, 16) << frame->sc_fmt->cspan;
 	}
 
-	writel(cfg, sc->regs + SCALER_SRC_2BIT_SPAN);
+	if (sc->version < SCALER_VERSION(6, 0, 1)) {
+		writel(yspan | (cspan << 16), sc->regs + SCALER_SRC_2BIT_SPAN);
+	} else {
+		writel(yspan, sc->regs + SCALER_SRC_HEADER_YSPAN);
+		writel(cspan, sc->regs + SCALER_SRC_HEADER_CSPAN);
+	}
 }
 
 void sc_hwset_src_addr(struct sc_dev *sc, struct sc_frame *frame)
@@ -999,7 +937,7 @@ void sc_hwset_src_addr(struct sc_dev *sc, struct sc_frame *frame)
 static void sc_hwset_dst_2bit_addr(struct sc_dev *sc, struct sc_frame *frame)
 {
 	u32 yaddr_2bit, caddr_2bit;
-	unsigned long cfg = 0;
+	u32 yspan, cspan;
 
 	BUG_ON(frame->sc_fmt->num_comp != 2);
 
@@ -1012,17 +950,19 @@ static void sc_hwset_dst_2bit_addr(struct sc_dev *sc, struct sc_frame *frame)
 	writel(yaddr_2bit, sc->regs + SCALER_DST_2BIT_Y_BASE);
 	writel(caddr_2bit, sc->regs + SCALER_DST_2BIT_C_BASE);
 
-	cfg &= ~(SCALER_DST_2BIT_CSPAN_MASK | SCALER_DST_2BIT_YSPAN_MASK);
-
 	if (sc_fmt_is_sbwc(frame->sc_fmt->pixelformat)) {
-		cfg |= ALIGN(frame->width / 64, 16);
-		cfg |= ALIGN(frame->width / 64, 16) << 16;
+		yspan = cspan = SBWC_HEADER_STRIDE(frame->width);
 	} else {
-		cfg |= ALIGN(frame->width, 16);
-		cfg |= (ALIGN(frame->width, 16) << frame->sc_fmt->cspan) << 16;
+		yspan = ALIGN(frame->width, 16);
+		cspan = ALIGN(frame->width, 16) << frame->sc_fmt->cspan;
 	}
 
-	writel(cfg, sc->regs + SCALER_DST_2BIT_SPAN);
+	if (sc->version < SCALER_VERSION(6, 0, 1)) {
+		writel(yspan | (cspan << 16), sc->regs + SCALER_DST_2BIT_SPAN);
+	} else {
+		writel(yspan, sc->regs + SCALER_DST_HEADER_YSPAN);
+		writel(cspan, sc->regs + SCALER_DST_HEADER_CSPAN);
+	}
 }
 
 void sc_hwset_dst_addr(struct sc_dev *sc, struct sc_frame *frame)
@@ -1066,7 +1006,7 @@ void sc_hwregs_dump(struct sc_dev *sc)
 	dev_notice(sc->dev, "Dumping control registers...\n");
 	pr_notice("------------------------------------------------\n");
 
-	sc_print_hex_dump(sc, sc->regs + 0x000, 0x044 - 0x000 + 4);
+	sc_print_hex_dump(sc, sc->regs + 0x000, 0x04C - 0x000 + 4);
 	sc_print_hex_dump(sc, sc->regs + 0x050, 0x058 - 0x050 + 4);
 	sc_print_hex_dump(sc, sc->regs + 0x060, 0x134 - 0x060 + 4);
 	sc_print_hex_dump(sc, sc->regs + 0x140, 0x214 - 0x140 + 4);
@@ -1075,25 +1015,30 @@ void sc_hwregs_dump(struct sc_dev *sc)
 	sc_print_hex_dump(sc, sc->regs + 0x260, 4);
 	sc_print_hex_dump(sc, sc->regs + 0x278, 4);
 
-	if (sc->version <= SCALER_VERSION(2, 1, 1) ||
+	/* src SBWC HEADER registers */
+	if (sc->version >= SCALER_VERSION(5, 0, 0) ||
 			sc->version == SCALER_VERSION(4, 2, 0))
 		sc_print_hex_dump(sc, sc->regs + 0x280, 0x28C - 0x280 + 4);
-	if (sc->version >= SCALER_VERSION(5, 0, 0))
-		sc_print_hex_dump(sc, sc->regs + 0x280, 0x288 - 0x280 + 4);
 
+	/* color-fill, cr-plane base registers */
 	sc_print_hex_dump(sc, sc->regs + 0x290, 0x298 - 0x290 + 4);
 
-	if (sc->version <= SCALER_VERSION(2, 1, 1))
-		sc_print_hex_dump(sc, sc->regs + 0x2A8, 0x2A8 - 0x2A0 + 4);
+	/* dst SBWC HEADER registers */
 	if (sc->version >= SCALER_VERSION(5, 0, 0))
-		sc_print_hex_dump(sc, sc->regs + 0x2A0, 0x2A8 - 0x2A0 + 4);
+		sc_print_hex_dump(sc, sc->regs + 0x2A0, 0x2AC - 0x2A0 + 4);
 
+	/* CRC, MO, CLK REQ */
 	sc_print_hex_dump(sc, sc->regs + 0x2B0, 0x2CC - 0x2B0 + 4);
 
+	/* initial phase */
 	if (sc->version >= SCALER_VERSION(3, 0, 0))
 		sc_print_hex_dump(sc, sc->regs + 0x2D0, 0x2DC - 0x2D0 + 4);
+	/* debug registers */
 	if (sc->version >= SCALER_VERSION(5, 0, 0))
 		sc_print_hex_dump(sc, sc->regs + 0x2E0, 0x2E8 - 0x2E0 + 4);
+	/* vOTF registers */
+	if (sc->version >= SCALER_VERSION(6, 0, 1))
+		sc_print_hex_dump(sc, sc->regs + 0x310, 0x318 - 0x310 + 4);
 
 	if (sc->version >= SCALER_VERSION(5, 0, 0))
 		goto end;
@@ -1188,4 +1133,148 @@ u32 sc_hwget_and_clear_irq_status(struct sc_dev *sc)
 	sc_print_irq_err_status(sc, val);
 	__raw_writel(val, sc->regs + SCALER_INT_STATUS);
 	return val;
+}
+
+void sc_hwset_votf_ring_clk_en(struct sc_dev *sc)
+{
+	atomic_inc(&sc->votf_ref_count);
+	writel(MSCL_VOTF_EN_VAL, sc->votf_regs + MSCL_VOTF_RING_CLOCK_EN);
+}
+
+void sc_hwset_init_votf(struct sc_dev *sc)
+{
+	int tws_idx = sc->current_ctx->tws->idx;
+	unsigned int tws_offset = tws_idx * MSCL_VOTF_TWS_OFFSET;
+
+	writel_relaxed(MSCL_VOTF_EN_VAL, sc->votf_regs + MSCL_VOTF_RING_EN);
+	writel_relaxed((sc->votf_base_pa & 0xffff0000) >> 16,
+		       sc->votf_regs + MSCL_VOTF_LOCAL_IP);
+	writel_relaxed(MSCL_VOTF_EN_VAL,
+		       sc->votf_regs + MSCL_VOTF_IMMEDIATE_MODE);
+	writel_relaxed(MSCL_VOTF_EN_VAL, sc->votf_regs + MSCL_VOTF_SET_A);
+
+	/* tws setting */
+	writel_relaxed(MSCL_VOTF_EN_VAL, sc->votf_regs + tws_offset +
+					 MSCL_VOTF_TWS_ENABLE);
+	writel_relaxed(0xff, sc->votf_regs + tws_offset + MSCL_VOTF_TWS_LIMIT);
+	writel_relaxed(0x1, sc->votf_regs + tws_offset +
+			    MSCL_VOTF_TWS_LINES_IN_TOKEN);
+}
+
+void sc_hwset_votf_en(struct sc_dev *sc, bool enable)
+{
+	u32 cfg;
+
+	cfg = readl(sc->regs + SCALER_CFG);
+
+	if (enable)
+		cfg |= SCALER_CFG_VOTF_EN;
+	else
+		cfg &= ~SCALER_CFG_VOTF_EN;
+
+	writel(cfg, sc->regs + SCALER_CFG);
+}
+
+void sc_hwset_votf(struct sc_dev *sc, struct sc_tws *tws)
+{
+	unsigned int dpu_dma_idx = tws->sink.dpu_dma_idx;
+	u32 dpu_votf_base_pa = sc->votf_table[dpu_dma_idx].votf_base_pa;
+	unsigned int trs_idx = tws->sink.trs_idx % SC_VOTF_NUM_TRS_PER_DPU;
+	unsigned int buf_idx = tws->sink.buf_idx;
+	unsigned int tws_idx = tws->idx;
+	unsigned int tws_offset = tws_idx * MSCL_VOTF_TWS_OFFSET;
+	u32 value;
+	unsigned int offset;
+
+	writel_relaxed(tws_idx, sc->regs + SCALER_VOTF_MASTER_ID);
+
+	/* After v1.3 of vOTF, buf_idx need to be written to not DPU but TWS. */
+	if (sc->version >= SCALER_VERSION(7, 0, 1)) {
+		/* After v1.3 of vOTF, the range of trs_idx is changed to 8 ~ 15. */
+		trs_idx += SC_VOTF_NUM_TRS_PER_DPU;
+
+		value = (buf_idx << MSCL_VOTF_CONNECT_BUF_IDX_SHIFT) |
+			MSCL_VOTF_HALF_CONNECTION;
+		offset = MSCL_VOTF_CONNECTION_MODE + tws_idx * 4;
+	} else {
+		value = MSCL_VOTF_HALF_CONNECTION;
+		offset = MSCL_VOTF_CONNECTION_MODE;
+	}
+	writel_relaxed(value, sc->votf_regs + offset);
+
+	writel_relaxed((((dpu_votf_base_pa & 0xffff0000) >> 16) << 4) | trs_idx,
+		       sc->votf_regs + MSCL_VOTF_TWS_DEST_ID + tws_offset);
+
+	if (sc->version < SCALER_VERSION(7, 0, 1)) {
+		void __iomem *dpu_dma_base = sc->votf_table[dpu_dma_idx].regs;
+
+		writel_relaxed(buf_idx,
+			       dpu_dma_base + SC_DPU_BUF_WRITE_COUNTER +
+			       trs_idx * SC_DPU_LAYER_OFFSET);
+	}
+}
+
+static void sc_votf_read_reg_and_print(struct sc_dev *sc, u32 offset)
+{
+	dev_err(sc->dev, "[%x] : %x\n",
+		offset, readl_relaxed(sc->votf_regs + offset));
+}
+
+bool sc_hwset_clear_votf_clock_en(struct sc_tws *tws)
+{
+	struct sc_dev *sc = tws->sc_dev;
+	unsigned int tws_offset = tws->idx * MSCL_VOTF_TWS_OFFSET;
+	unsigned long timestamp;
+
+	if (!readl_relaxed(sc->votf_regs + tws_offset + MSCL_VOTF_TWS_BUSY)) {
+		if (!atomic_dec_return(&sc->votf_ref_count)) {
+			writel(0x0, sc->votf_regs + MSCL_VOTF_RING_CLOCK_EN);
+
+			/* for race condition of writel with sc_hwset_init_votf */
+			if (atomic_read(&sc->votf_ref_count))
+				writel(MSCL_VOTF_EN_VAL,
+				       sc->votf_regs + MSCL_VOTF_RING_CLOCK_EN);
+
+		}
+		return true;
+	}
+
+	timestamp = (unsigned long)ktime_to_ms(ktime_sub(ktime_get(), tws->ktime));
+	if (timestamp >= 33) {
+		unsigned int tws_idx = tws->idx;
+		unsigned int trs_idx = tws->sink.trs_idx;
+		unsigned int dpu_dma_idx = tws->sink.dpu_dma_idx;
+		unsigned int buf_idx = tws->sink.buf_idx;
+
+		dev_err(sc->dev, "TWS hasn't completed for %lu ms\n", timestamp);
+		dev_err(sc->dev,
+			"vOTF Idx : TWS(%d), TRS(%d), DPU(%d), BUF(%d)\n",
+			tws_idx, trs_idx, dpu_dma_idx, buf_idx);
+
+		dev_err(sc->dev, "vOTF dump\n");
+		sc_votf_read_reg_and_print(sc, MSCL_VOTF_RING_CLOCK_EN);
+		sc_votf_read_reg_and_print(sc, MSCL_VOTF_RING_EN);
+		sc_votf_read_reg_and_print(sc, MSCL_VOTF_LOCAL_IP);
+		sc_votf_read_reg_and_print(sc, MSCL_VOTF_IMMEDIATE_MODE);
+		sc_votf_read_reg_and_print(sc, MSCL_VOTF_SET_A);
+		sc_votf_read_reg_and_print(sc, tws_offset +
+					       MSCL_VOTF_TWS_ENABLE);
+		sc_votf_read_reg_and_print(sc, tws_offset +
+					       MSCL_VOTF_TWS_LIMIT);
+		sc_votf_read_reg_and_print(sc, tws_offset +
+					       MSCL_VOTF_TWS_DEST_ID);
+		sc_votf_read_reg_and_print(sc, tws_offset +
+					       MSCL_VOTF_TWS_LINES_IN_TOKEN);
+		sc_votf_read_reg_and_print(sc, tws_offset + MSCL_VOTF_TWS_BUSY);
+	}
+
+	return false;
+}
+
+void sc_hwset_tws_flush(struct sc_tws *tws)
+{
+	struct sc_dev *sc = tws->sc_dev;
+	unsigned int tws_offset = tws->idx * MSCL_VOTF_TWS_OFFSET;
+
+	writel(0x1, sc->votf_regs + tws_offset + MSCL_VOTF_TWS_FLUSH);
 }

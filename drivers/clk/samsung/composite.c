@@ -11,6 +11,7 @@
 #include <linux/syscore_ops.h>
 #include <linux/errno.h>
 #include <linux/log2.h>
+#include <linux/module.h>
 #include <linux/of.h>
 #include <linux/delay.h>
 #include <soc/samsung/cal-if.h>
@@ -66,7 +67,7 @@ struct samsung_clk_reg_dump *samsung_clk_alloc_reg_dump(
 #endif /* CONFIG_PM_SLEEP */
 
 /* setup the essentials required to support clock lookup using ccf */
-struct samsung_clk_provider *__init samsung_clk_init(struct device_node *np,
+struct samsung_clk_provider * samsung_clk_init(struct device_node *np,
 			void __iomem *base, unsigned long nr_clks)
 {
 	struct samsung_clk_provider *ctx = NULL;
@@ -95,7 +96,7 @@ struct samsung_clk_provider *__init samsung_clk_init(struct device_node *np,
 	return ctx;
 }
 
-void __init samsung_clk_of_add_provider(struct device_node *np,
+void samsung_clk_of_add_provider(struct device_node *np,
 				struct samsung_clk_provider *ctx)
 {
 	if (np) {
@@ -114,7 +115,7 @@ static void samsung_clk_add_lookup(struct samsung_clk_provider *ctx, struct clk 
 }
 
 /* register a list of fixed clocks */
-void __init samsung_register_fixed_rate(struct samsung_clk_provider *ctx,
+void samsung_register_fixed_rate(struct samsung_clk_provider *ctx,
 		struct samsung_fixed_rate *list, unsigned int nr_clk)
 {
 	struct clk *clk;
@@ -171,7 +172,7 @@ void __init samsung_register_fixed_factor(struct samsung_clk_provider *ctx,
  * obtain the clock speed of all external fixed clock sources from device
  * tree and register it
  */
-void __init samsung_register_of_fixed_ext(struct samsung_clk_provider *ctx,
+void samsung_register_of_fixed_ext(struct samsung_clk_provider *ctx,
 			struct samsung_fixed_rate *fixed_rate_clk,
 			unsigned int nr_fixed_rate_clk,
 			struct of_device_id *clk_matches)
@@ -1313,7 +1314,7 @@ static struct clk * __init _samsung_register_comp_usermux(struct samsung_usermux
 
 	init.name = list->name;
 	init.ops = &samsung_usermux_ops;
-	init.flags = list->flag | CLK_IS_BASIC;
+	init.flags = list->flag;// | CLK_IS_BASIC;
 	init.parent_names = (list->parent_name ? &list->parent_name : NULL);
 	init.num_parents = (list->parent_name ? 1 : 0);
 
@@ -1375,17 +1376,17 @@ int cal_vclk_enable(struct clk_hw *hw)
 	if (vclk->lock)
 		spin_lock_irqsave(vclk->lock, flags);
 
-	dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_IN);
+	//dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_IN);
 	/* Call cal api to enable virtual clock */
 	ret = cal_clk_enable(vclk->id);
 	if (ret) {
 		pr_err("[CAL]%s failed %d %d.\n", __func__, vclk->id, ret);
-		dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_ON);
+	//	dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_ON);
 		if (vclk->lock)
 			spin_unlock_irqrestore(vclk->lock, flags);
 		return -EAGAIN;
 	}
-	dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_OUT);
+	//dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_OUT);
 
 	if (vclk->lock)
 		spin_unlock_irqrestore(vclk->lock, flags);
@@ -1405,17 +1406,17 @@ void cal_vclk_disable(struct clk_hw *hw)
 	if (vclk->lock)
 		spin_lock_irqsave(vclk->lock, flags);
 
-	dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_IN);
+	//dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_IN);
 	/* Call cal api to disable virtual clock */
 	ret = cal_clk_disable(vclk->id);
 	if (ret) {
 		pr_err("[CAL]%s failed %d %d.\n", __func__, vclk->id, ret);
-		dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_ON);
+		//dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_ON);
 		if (vclk->lock)
 			spin_unlock_irqrestore(vclk->lock, flags);
 		return;
 	}
-	dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_OUT);
+	//dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_OUT);
 
 	if (vclk->lock)
 		spin_unlock_irqrestore(vclk->lock, flags);
@@ -1441,10 +1442,10 @@ unsigned long cal_vclk_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long ret = 0;
 
-	dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_IN);
+	//dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_IN);
 	/* Call cal api to recalculate rate */
 	ret = cal_clk_getrate(vclk->id);
-	dbg_snapshot_clk(hw, __func__, ret, DSS_FLAG_OUT);
+	//dbg_snapshot_clk(hw, __func__, ret, DSS_FLAG_OUT);
 
 	return ret;
 }
@@ -1455,14 +1456,14 @@ unsigned long cal_vclk_gate_recalc_rate(struct clk_hw *hw, unsigned long parent_
 	struct clk_hw *parent;
 	unsigned long ret = 0;
 
-	dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_IN);
+	//dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_IN);
 	parent = clk_hw_get_parent(hw);
 	if (parent) {
 		vclk = to_vclk(parent);
 		/* call cal api to recalculate rate */
 		ret = cal_clk_getrate(vclk->id);
 	}
-	dbg_snapshot_clk(hw, __func__, ret, DSS_FLAG_OUT);
+	//dbg_snapshot_clk(hw, __func__, ret, DSS_FLAG_OUT);
 
 	return ret;
 }
@@ -1483,18 +1484,18 @@ int cal_vclk_set_rate(struct clk_hw *hw, unsigned long rate, unsigned long prate
 	if (vclk->lock)
 		spin_lock_irqsave(vclk->lock, flags);
 
-	dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_IN);
+	//dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_IN);
 	/* Call cal api to set rate of clock */
 	ret = cal_clk_setrate(vclk->id, rate);
 	if (ret) {
 		pr_err("[CAL]%s failed %d %lu %d.\n", __func__,
 			vclk->id, rate, ret);
-		dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_ON);
+		//dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_ON);
 		if (vclk->lock)
 			spin_unlock_irqrestore(vclk->lock, flags);
 		return -EAGAIN;
 	}
-	dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_OUT);
+	//dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_OUT);
 
 	if (vclk->lock)
 		spin_unlock_irqrestore(vclk->lock, flags);
@@ -1532,18 +1533,18 @@ int cal_vclk_dfs_set_rate(struct clk_hw *hw, unsigned long rate, unsigned long p
 	if (vclk->lock)
 		spin_lock_irqsave(vclk->lock, flags);
 
-	dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_IN);
+	//dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_IN);
 	/* Call cal api to set rate of clock */
 	ret = cal_dfs_set_rate(vclk->id, rate);
 	if (ret) {
 		pr_err("[CAL]%s failed %d %lu %d.\n", __func__,
 			vclk->id, rate, ret);
-		dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_ON);
+		//dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_ON);
 		if (vclk->lock)
 			spin_unlock_irqrestore(vclk->lock, flags);
 		return -EAGAIN;
 	}
-	dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_OUT);
+	//dbg_snapshot_clk(hw, __func__, rate, DSS_FLAG_OUT);
 
 	if (vclk->lock)
 		spin_unlock_irqrestore(vclk->lock, flags);
@@ -1603,14 +1604,14 @@ int cal_vclk_qactive_enable(struct clk_hw *hw)
 	if (vclk->lock)
 		spin_lock_irqsave(vclk->lock, flags);
 
-	dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_IN);
+	//dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_IN);
 
 	reg = readl(vclk->addr);
 	reg &= ~(vclk->mask);
 	reg |= vclk->val;
 	writel(reg, vclk->addr);
 
-	dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_OUT);
+	//dbg_snapshot_clk(hw, __func__, 1, DSS_FLAG_OUT);
 
 	if (vclk->lock)
 		spin_unlock_irqrestore(vclk->lock, flags);
@@ -1633,13 +1634,13 @@ void cal_vclk_qactive_disable(struct clk_hw *hw)
 	if (vclk->lock)
 		spin_lock_irqsave(vclk->lock, flags);
 
-	dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_IN);
+	//dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_IN);
 
 	reg = readl(vclk->addr);
 	reg &= ~(vclk->mask);
 	writel(reg, vclk->addr);
 
-	dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_OUT);
+	//dbg_snapshot_clk(hw, __func__, 0, DSS_FLAG_OUT);
 
 	if (vclk->lock)
 		spin_unlock_irqrestore(vclk->lock, flags);
@@ -1678,7 +1679,7 @@ static const struct clk_ops samsung_vclk_qactive_ops = {
 	.disable = cal_vclk_qactive_disable,
 };
 
-static struct clk * __init _samsung_register_vclk(struct init_vclk *list)
+static struct clk * _samsung_register_vclk(struct init_vclk *list)
 {
 	struct samsung_vclk *vclk;
 	struct clk *clk;
@@ -1704,7 +1705,7 @@ static struct clk * __init _samsung_register_vclk(struct init_vclk *list)
 		vclk->val = list->val;
 	} else
 		init.ops = &samsung_vclk_ops;
-	init.flags = list->flags | (CLK_IS_BASIC | CLK_GET_RATE_NOCACHE | CLK_IGNORE_UNUSED);
+	init.flags = list->flags;// | (CLK_IS_BASIC | CLK_GET_RATE_NOCACHE | CLK_IGNORE_UNUSED);
 	init.parent_names = (list->parent ? &list->parent : NULL);
 	init.num_parents = (list->parent ? 1 : 0);
 	vclk->id = list->calid;
@@ -1720,7 +1721,7 @@ static struct clk * __init _samsung_register_vclk(struct init_vclk *list)
 	return clk;
 }
 
-void __init samsung_register_vclk(struct samsung_clk_provider *ctx,
+void samsung_register_vclk(struct samsung_clk_provider *ctx,
 			struct init_vclk *list, unsigned int nr_vclk)
 {
 	struct clk *clk;
@@ -1748,3 +1749,4 @@ void __init samsung_register_vclk(struct samsung_clk_provider *ctx,
 		cal_vclk_qch_init(__clk_get_hw(clk));
 	}
 }
+MODULE_LICENSE("GPL");

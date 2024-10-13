@@ -15,7 +15,7 @@ config SENSORS_FW_VENDOR
 	bool "Locate the Firmware on Vendor"
 	default n
 	help
-	  To use the module automatic system, 
+	  To use the module automatic system,
 	  locate the firmware on vendor side.
 
 config SENSORS_A96T3X6

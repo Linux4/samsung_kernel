@@ -44,80 +44,69 @@ struct rational {
 
 #define CAMERA2_MAX_STRIPE_REGION_NUM		5
 
-#define OPEN_MAGIC_NUMBER		0x20192007
-#define SHOT_MAGIC_NUMBER		0x34567892
+#define OPEN_MAGIC_NUMBER		0x20192012
+#define SHOT_MAGIC_NUMBER		0x92345678
 
 enum is_subscenario_id {
-	ISS_SUB_SCENARIO_STILL_PREVIEW = 0,	/* 0: still preview */
-	ISS_SUB_SCENARIO_VIDEO = 1,		/* 1: video */
-	ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON = 2,	/* 2: video UHD QHD 30fps (HDR ON) */
-	ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO = 3,/* 3: video UHD QHD 30fps (HDR AUTO) */
-	ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED = 4,	/* 4: video high speed */
-	ISS_SUB_SCENARIO_STILL_CAPTURE = 5,	/* 5: still capture */
-	ISS_SUB_SCENARIO_FHD_60FPS = 6,		/* 6: video FHD 60fps (HDR OFF)*/
-	ISS_SUB_SCENARIO_UHD_30FPS = 7,		/* 7: video UHD QHD 30fps (HDR OFF) */
-	ISS_SUB_SCENARIO_WVGA_300FPS = 8,	/* 8: video WVGA 300fps */
-	ISS_SUB_SCENARIO_STILL_PREVIEW_WDR_ON = 9,
-	ISS_SUB_SCENARIO_VIDEO_WDR_ON = 10,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_ON = 11,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_ZOOM = 13,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_ZOOM_INDOOR = 14,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_ZOOM_OUTDOOR = 15,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_ON_ZOOM = 16,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_DNG_REPROCESSING = 17,
-	ISS_SUB_SCENARIO_FHD_60FPS_WDR_ON = 18,		/* 18: video FHD 60fps (HDR ON) */
-	ISS_SUB_SCENARIO_STILL_CAPTURE_LLS = 19,
-	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_WDR_AUTO = ISS_SUB_SCENARIO_STILL_CAPTURE_LLS,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_ON_LLS = 20,
-	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_WDR_ON = ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_ON_LLS,
-	ISS_SUB_SCENARIO_UHD_60FPS_WDR_ON = 21,		/* 21: video UHD 60fps (HDR ON) */
-	ISS_SUB_SCENARIO_UHD_60FPS = 22,		/* 22: video UHD 60fps (HDR OFF) */
-	ISS_SUB_SCENARIO_UHD_60FPS_WDR_AUTO = 23,	/* 23: video UHD 60fps (HDR AUTO) */
-	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_AUTO = 24,
-	ISS_SUB_SCENARIO_VIDEO_WDR_AUTO = 25,
-	ISS_SUB_SCENARIO_STILL_PREVIEW_WDR_AUTO = 26,
-	ISS_SUB_SCENARIO_FHD_240FPS = 27,
-	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE = 28,
-	ISS_SUB_SCENARIO_FHD_60FPS_WDR_AUTO = 29,	/* 29: video FHD 60fps (HDR AUTO) */
-	ISS_SUB_SCENARIO_STILL_CAPTURE_LONG = 30,
-	ISS_SUB_SCENARIO_STILL_PREVIEW_BINNING = 40,	/* 40: binning mode for low power */
-	ISS_SUB_SCENARIO_STILL_CAPTURE_BDS = 41,	/* 41: still capture bds */
-	ISS_SUB_SCENARIO_STILL_PREVIEW_LLS = 42,	/* 42: still preview lls */
-	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW = 44,	/* 44 ~ 52: Bokeh (HDR off/auto/on) */
-	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE = 45,
-	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW_WDR_AUTO = 47,
-	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW_WDR_ON = 48,
-	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE_WDR_AUTO = 49,
-	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE_WDR_ON = 50,
-	ISS_SUB_SCENARIO_STILL_PREVIEW_3RD_PARTY_WDR_AUTO = 51,
-	ISS_SUB_SCENARIO_VIDEO_3RD_PARTY_WDR_AUTO = 52,
-	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_MFHDR = 53,
-	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_LLHDR = 54,
-	ISS_SUB_SCENARIO_SUPER_NIGHT_SHOT = 55,
-	ISS_SUB_SCENARIO_FHD_VIDEO_HDR10_WDR_ON = 56,
-	ISS_SUB_SCENARIO_UHD_VIDEO_HDR10_WDR_ON = 57,
-	ISS_SUB_SCENARIO_BINNING = 58,
-	ISS_SUB_SCENARIO_VIDEO_ISPLP_TNR = 59,
-	ISS_SUB_SCENARIO_STILL_NIGHT_HDR = 60,
-	ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY = 61,
-	ISS_SUB_SCENARIO_STILL_FLASH_LLS = 62,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_REMOSAIC = 63,
-	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_WDR_AUTO = 64,
+	ISS_SUB_SCENARIO_STILL_PREVIEW = 0,					/* 0: Single preview (HDR Auto/Off) */
+	ISS_SUB_SCENARIO_STILL_PREVIEW_WDR_ON = 1,			/* 1: Single preview (HDR On) */
+	ISS_SUB_SCENARIO_STILL_FULL_PREVIEW_WDR_AUTO = 2,	/* TODO: 2: Full resolution Preview (HDR Auto/Off) */
 
-	ISS_SUB_SCENARIO_FRONT_VT1 = 31,			/* 31: front camera VT1 */
-	ISS_SUB_SCENARIO_FRONT_VT2 = 32,			/* 32: front camera VT2 */
-	ISS_SUB_SCENARIO_FRONT_SMART_STAY = 33,			/* 33: front camera smart stay */
-	ISS_SUB_SCENARIO_FRONT_PANORAMA = 34,			/* 34: front camera front panorama */
-	ISS_SUB_SCENARIO_FRONT_C2_OFF_STILL_PREVIEW = 35,	/* 35: C2 off front still preview */
-	ISS_SUB_SCENARIO_FRONT_C2_OFF_STILL_CAPTURE = 36,	/* 36: C2 off front still capture */
-	ISS_SUB_SCENARIO_FRONT_C2_OFF_VIDEO = 37,		/* 37: C2 off front video */
-	ISS_SUB_SCENARIO_FRONT_VT4 = 38,			/* 38: front camera VT4 */
-	ISS_SUB_SCENARIO_FRONT_VT1_STILL_CAPTURE = 39,		/* 39: front camera VT1 still capture */
-	ISS_SUB_SCENARIO_FRONT_STILL_PREVIEW_BINNING = 40,	/* 40: front camera binning mode for low power */
-	ISS_SUB_SCENARIO_FRONT_COLOR_IRIS_PREVIEW = 43,		/* 43: front camera Color Iris preview */
+	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_AUTO = 10,			/* 10: Single/Burst/Snapshot capture (HDR Auto/Off) */
+	ISS_SUB_SCENARIO_STILL_CAPTURE = 11,					/* 11: Single capture (HDR Off) : Pro mode	 */
+	ISS_SUB_SCENARIO_STILL_CAPTURE_LONG = 12,				/* 12: Single long capture (HDR Off) : Pro mode	 */
+	ISS_SUB_SCENARIO_STILL_CAPTURE_DNG_REPROCESSING = 13,	/* TODO: 13: DNG capture (HDR Off) : Pro m */
+	ISS_SUB_SCENARIO_FULL_CAPTURE = 14,						/* TODO: 14: Full resolution Capture (HDR Auto/Off) */
+	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_MFNR = 15,		/* TODO: 15: MFNR capture (HDR Auto/Off) */
+	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_MFHDR = 16,		/* 16: MFHDR capture (HDR Auto/Off) */
+	ISS_SUB_SCENARIO_SUPER_NIGHT_SHOT = 17,					/* 17: Super night capture (HDR Auto) */
+	ISS_SUB_SCENARIO_STILL_CAPTURE_LLS = 18,				/* 18: Flash LLS capture (HDR Auto/Off) */
+	ISS_SUB_SCENARIO_STILL_FLASH_LLS = ISS_SUB_SCENARIO_STILL_CAPTURE_LLS,
+	ISS_SUB_SCENARIO_STILL_CAPTURE_ZOOM = 19,				/* 19: SR Zoom capture ( HDR Auto/Off ) */
+
+	ISS_SUB_SCENARIO_VIDEO = 30,						/* 30: FHD 30fps (HDR Off) */
+	ISS_SUB_SCENARIO_VIDEO_WDR_AUTO = 31,				/* 31: FHD 30fps (HDR Auto) */
+	ISS_SUB_SCENARIO_VIDEO_WDR_ON = 32,					/* 32: FHD 30fps (HDR On) */
+	ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY = 33,			/* 33: Super Steady : FHD 30fps ( HDR Off ) */
+	ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO = 34,	/* 34: Super Steady : FHD 30fps ( HDR Auto ) */
+	ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON = 35,	/* 35: Super Steady : FHD 30fps ( HDR On ) */
+	ISS_SUB_SCENARIO_FHD_60FPS = 36,					/* 36: FHD 60fps (HDR Off) */
+	ISS_SUB_SCENARIO_FHD_60FPS_WDR_AUTO = 37,			/* 37: FHD 60fps (HDR Auto) */
+	ISS_SUB_SCENARIO_FHD_60FPS_WDR_ON = 38,				/* 38: FHD 60fps (HDR On) */
+	ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED = 39,				/* 39: FHD 120fps, HD 240fps, HD 960fps (HDR Off) */
+	ISS_SUB_SCENARIO_UHD_30FPS = 40,					/* 40: UHD 30fps (HDR Off) */
+	ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO = 41,			/* 41: UHD 30fps (HDR Auto) */
+	ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON = 42,				/* 42: UHD 30fps (HDR On) */
+	ISS_SUB_SCENARIO_UHD_60FPS = 43,					/* 43: UHD 60fps (HDR Off) */
+	ISS_SUB_SCENARIO_UHD_60FPS_WDR_AUTO = 44,			/* 44: UHD 60fps (HDR Auto) */
+	ISS_SUB_SCENARIO_UHD_60FPS_WDR_ON = 45,				/* 45: UHD 60fps (HDR On)0:fps */
+	ISS_SUB_SCENARIO_FHD_VIDEO_HDR10_WDR_AUTO = 46,		/* 46: HDR10+ video (HDR Auto) : FHD 30fps	 */
+	ISS_SUB_SCENARIO_UHD_VIDEO_HDR10_WDR_AUTO = 47,		/* 47: HDR10+ video (HDR Auto) : UHD 30fps */
+	ISS_SUB_SCENARIO_8K_WDR_AUTO = 48,					/* TODO: 48: 8K Video 30fps (HDR Auto) */
+
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW = 60,			/* 60: Bokeh preview (HDR Off) */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW_WDR_AUTO = 61,	/* 61: Bokeh preview (HDR Auto) */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW_WDR_ON = 62,		/* 62: Bokeh preview (HDR On) */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE = 63,			/* 63: Bokeh capture (HDR Off) */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE_WDR_AUTO = 64,	/* 64: Bokeh capture (HDR Auto) */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE_WDR_ON = 65,		/* 65: Bokeh capture (HDR On) */
+	ISS_SUB_SCENARIO_VT = 66,								/* TODO: 66: VT call (HDR Off) */
+
+	ISS_SUB_SCENARIO_STILL_PREVIEW_3RD_PARTY_WDR_AUTO = 67,		/* 67: 3rd Party Preview (HDR Auto) */
+	ISS_SUB_SCENARIO_VIDEO_3RD_PARTY_WDR_AUTO = 68,				/* 68: 3rd Party Video (HDR Auto) */
+	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_WDR_AUTO = 69,		/* 69: 3rd Party Capture (HDR Auto) */
+	ISS_SUB_SCENARIO_FRONT_SMART_STAY = 70,										/* 70: Smart Stay */
 
 	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO = 90,		/* 90: Video SW VDIS (HDR Auto/Off) */
-	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON = 91,		/* 91: Video SW VDIS (HDR On) */
+	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON = 91,			/* 91: Video SW VDIS (HDR On) */
+	ISS_SUB_SCENARIO_PANORAMA = 92,						/* 92: Panaroma */
+	ISS_SUB_SCENARIO_SCANDIT_APP_SET_AF = 93,			/* 93: SCANDIT App */
+	ISS_SUB_SCENARIO_SUPER_NIGHT_SHOT_PREVIEW = 94,		/* 94: Super night preview */
+	ISS_SUB_SCENARIO_ILLUMINANCE = 95,					/* 95: sABC */
+	ISS_SUB_SCENARIO_3HDR_VIDEO_WDR_ON = 96,			/* 96: 3HDR Video (HDR On) */
+	ISS_SUB_SCENARIO_3HDR_CAPTURE_WDR_ON = 97,			/* 97: 3HDR Capture (HDR On) */
+
+	ISS_SUB_SCENARIO_VIDEO_ISPLP_TNR = 110,				/* TODO: 110: ISPLT_TNR */
 	ISS_SUB_END,
 };
 
@@ -132,9 +121,11 @@ enum is_subscenario_id {
 	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON)	\
 	|| ((setfile) == ISS_SUB_SCENARIO_UHD_60FPS)		\
 	|| ((setfile) == ISS_SUB_SCENARIO_UHD_60FPS_WDR_AUTO)	\
-	|| ((setfile) == ISS_SUB_SCENARIO_WVGA_300FPS)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_FRONT_C2_OFF_VIDEO)	\
-	|| ((setfile) == ISS_SUB_SCENARIO_FHD_240FPS))
+	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED))
+
+#define IS_VIDEO_HDR_SCENARIO(setfile)				\
+	(((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO)		\
+	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_ON))
 
 enum is_scenario_is {
 	IS_SCENARIO_SWVDIS = 1,
@@ -753,12 +744,31 @@ enum stats_wdrAutoState {
 	STATE_WDR_AUTO_REQUIRED = 2,
 };
 
+struct PersonMeta_t {
+  unsigned int face_Yover200;
+  unsigned int face_Yover230;
+  unsigned int face_Yavg;
+  unsigned int face_pixelRatio[3];
+  unsigned int hAvg;
+  unsigned int sAvg;
+  unsigned int vAvg;
+  unsigned int faceIdx;
+  unsigned int faceRegion[4];
+};
+
+struct PersonWholeMeta_t {
+  unsigned int numStat;
+  unsigned int humanRatio;
+  struct PersonMeta_t humanStat[5];
+};
+
 struct camera2_stats_ctl {
 	enum facedetect_mode	faceDetectMode;
 	enum stats_mode		histogramMode;
 	enum stats_mode		sharpnessMapMode;
 	enum stats_mode		hotPixelMapMode;
 	enum stats_mode		lensShadingMapMode;
+	struct PersonWholeMeta_t metaForPerson;
 };
 
 struct camera2_stats_dm {
@@ -911,6 +921,7 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_FAST_AE,
 	AA_SCENE_MODE_ILLUMINANCE,
 	AA_SCENE_MODE_SUPER_NIGHT,
+	AA_SCENE_MODE_BOKEH_VIDEO,
 };
 
 enum aa_effect_mode {
@@ -1043,7 +1054,6 @@ enum aa_afmode_ext {
 	AA_AFMODE_EXT_FOCUS_LOCATION = 3,
 	/* Set fixed face */
 	AA_AFMODE_EXT_FIXED_FACE = 4,
-	AA_AFMODE_EXT_FULL_SWEEP = 5,
 };
 
 enum aa_af_trigger {
@@ -1177,10 +1187,14 @@ enum aa_aemode_state {
 	AA_AE_TOUCH,
 };
 
-struct camera2_video_output_size
-{
-    uint16_t width;
-    uint16_t height;
+enum aa_night_timelaps_mode {
+	AA_NIGHT_TIMELAPS_MODE_OFF = 0,
+	AA_NIGHT_TIMELAPS_MODE_ON,
+};
+
+struct camera2_video_output_size {
+	uint16_t			width;
+	uint16_t			height;
 };
 
 struct camera2_aa_ctl {
@@ -1226,9 +1240,12 @@ struct camera2_aa_ctl {
 	float				vendor_expBracketing[15];
 	float				vendor_expBracketingCapture;
 	enum aa_supernightmode		vendor_superNightShotMode;
-	float				vendor_artificialLightSource[3];
-	int32_t				vendor_flickerDetect;
-	uint32_t			vendor_reserved[40];
+	int16_t				vendor_artificialLightSource;
+	int16_t				vendor_flickerDetect;
+	struct camera2_video_output_size vendor_videoOutputSize;
+	enum aa_night_timelaps_mode	vendor_nightTimelapsMode;
+	uint32_t			vendor_personalPresetIndex;
+	uint32_t			vendor_reserved[38];
 };
 
 struct aa_apexInfo {
@@ -1323,8 +1340,7 @@ struct camera2_aa_dm {
 	uint32_t			vendor_previewSkipFrame;
 	uint32_t			vendor_aeDrcGain;
 	int32_t				vendor_aeStats4VO[8];
-	int32_t				vendor_colorTempEstimated;
-	uint32_t			vendor_reserved[50];
+	uint32_t			vendor_reserved[51];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -1628,19 +1644,6 @@ struct camera2_temperature_info {
 	int32_t usb_thermal;
 };
 
-struct camera2_color_sensor_info
-{
-	bool  isvalid;
-	float red;
-	float green;
-	float blue;
-	float clear;
-	float wideBand;
-	float cct;
-	float flickerFreq;
-	float lux;
-};
-
 struct camera2_aa_uctl {
 	struct camera2_obj_af_info af_data;
 	struct camera2_hrm_sensor_info hrmInfo;
@@ -1650,7 +1653,6 @@ struct camera2_aa_uctl {
 	struct camera2_accelerometer_sensor_info accInfo;
 	struct camera2_proximity_sensor_info		proximityInfo;
 	struct camera2_temperature_info		temperatureInfo;
-	struct camera2_color_sensor_info            colorInfo;
 };
 
 struct camera2_aa_udm {
@@ -1886,12 +1888,7 @@ enum camera_op_mode {
 	CAMERA_OP_MODE_HAL3_TW,
 	CAMERA_OP_MODE_FAC,
 	CAMERA_OP_MODE_HAL3_FAC,
-	CAMERA_OP_MODE_HAL3_SDK,  // UNIHAL default
-	CAMERA_OP_MODE_HAL3_CAMERAX,
-	CAMERA_OP_MODE_HAL3_UNIHAL_VIP,
-	CAMERA_OP_MODE_HAL3_SDK_VIP,
-	CAMERA_OP_MODE_HAL3_ATTACH,
-	CAMERA_OP_MODE_HAL3_UNIHAL_VIDEO,
+	CAMERA_OP_MODE_HAL3_SDK,
 };
 
 enum camera2_sensor_hdr_mode {
@@ -1902,6 +1899,7 @@ enum camera2_sensor_hdr_mode {
 };
 
 struct camera2_is_mode_uctl {
+	enum camera2_sensor_hdr_mode	sensor_hdr_mode;
 	enum camera2_wdr_mode		wdr_mode;
 	enum camera2_paf_mode		paf_mode;
 	enum camera2_disparity_mode	disparity_mode;
@@ -1926,6 +1924,7 @@ struct camera2_pdaf_udm {
 	uint16_t				numRow;
 	struct camera2_pdaf_multi_result	multiResult[CAMERA2_MAX_PDAF_MULTIROI_ROW][CAMERA2_MAX_PDAF_MULTIROI_COLUMN];
 	struct camera2_pdaf_single_result	singleResult;
+	float					singleResultPhaseDifference;
 	uint16_t				lensPosResolution;
 };
 
@@ -1992,62 +1991,58 @@ enum camera2_dcp_process_mode {
 	DCP_PROCESS_ON,
 };
 
-struct camera2_area {
-	int32_t x;		/* !< x pos */
-	int32_t y;		/* !< y pos */
-	int32_t w;		/* !< width */
-	int32_t h;		/* !< height */
+struct camera2_grid_info {
+	int32_t grid_x[7][9];
+	int32_t grid_y[7][9];
 };
 
-struct camera2_dcp_homo_matrix {
-	int32_t dx[7][9];	/* 7 rows x 9 columns, range precision */
-	int32_t dy[7][9];
-};
-
-struct camera2_dcp_rgb_gamma_lut {
-	enum camera2_dcp_process_mode mode;
-	uint32_t x_LUT[32];
-	uint32_t r_LUT[32];
-	uint32_t g_LUT[32];
-	uint32_t b_LUT[32];
-};
-
-struct camera2_dcp_uctl {
-	struct camera2_dcp_homo_matrix wide_gdc_grid_value;
-	struct camera2_dcp_homo_matrix tele_gdc_grid_value;
-	struct camera2_area wide_gdc_upscale_size;
-	struct camera2_area tele_gdc_upscale_size;
-	struct camera2_dcp_rgb_gamma_lut wide_gamma_LUT;
-	struct camera2_dcp_rgb_gamma_lut tele_gamma_LUT;
+struct camera2_tnr_uctl {
+  struct camera2_grid_info gdc_grid;
 };
 
 enum camera2_scene_index {
-	CENE_INDEX_NONE2 = -2,
-	SCENE_INDEX_NONE1 = -1,
-	SCENE_INDEX_PERSON = 0,
-	SCENE_INDEX_BLUE_SKY = 1,
-	SCENE_INDEX_BEACH = 2,
-	SCENE_INDEX_SNOW = 3,
-	SCENE_INDEX_FOOD = 4,
-	SCENE_INDEX_FLOWER = 5,
-	SCENE_INDEX_BUILDING = 6,
-	SCENE_INDEX_DOG = 7,
-	SCENE_INDEX_CAT = 8,
-	SCENE_INDEX_NIGHT = 9,
-	SCENE_INDEX_SUNRISE_SUNSET = 10,
-	SCENE_INDEX_STREET = 11,
-	SCENE_INDEX_DOCUMENT = 12,
-	SCENE_INDEX_STAGE = 13,
-	SCENE_INDEX_STORE = 14,
-	SCENE_INDEX_FIREWORKS = 15,
-	SCENE_INDEX_GRASSLAND = 16,
-	SCENE_INDEX_SUCCULENT = 17,
-	SCENE_INDEX_MARKET = 18,
-	SCENE_INDEX_CHILDREN = 19,
-	SCENE_INDEX_CAR = 20,
-	SCENE_INDEX_BAR = 21,
-	SCENE_INDEX_SKY = 22,
-	SCENE_INDEX_CLOUDY = 23,
+	SCENE_INDEX_INVALID		= 0,
+	SCENE_INDEX_FOOD		= 1,
+	SCENE_INDEX_TEXT		= 2,
+	SCENE_INDEX_PERSON		= 3,
+	SCENE_INDEX_FLOWER		= 4,
+	SCENE_INDEX_TREE		= 5,
+	SCENE_INDEX_MOUNTAIN		= 6,
+	SCENE_INDEX_MOUNTAIN_GREEN	= 7,
+	SCENE_INDEX_MOUNTAIN_FALL	= 8,
+	SCENE_INDEX_ANIMAL		= 9,
+	SCENE_INDEX_SUNSET_SUNRISE	= 10,
+	SCENE_INDEX_BEACH		= 11,
+	SCENE_INDEX_SKY			= 12,
+	SCENE_INDEX_SNOW		= 13,
+	SCENE_INDEX_NIGHTVIEW		= 14,
+	SCENE_INDEX_WATERFALL		= 15,
+	SCENE_INDEX_BIRD		= 16,
+	SCENE_INDEX_CITYSTREET		= 17,
+	SCENE_INDEX_HOMEINDOOR		= 18,
+	SCENE_INDEX_WATERSIDE		= 19,
+	SCENE_INDEX_SCENERY		= 20,
+	SCENE_INDEX_GREENERY		= 21,
+	SCENE_INDEX_BABY		= 22,
+	SCENE_INDEX_CAT			= 23,
+	SCENE_INDEX_DOG			= 24,
+	SCENE_INDEX_CLOTHING		= 25,
+	SCENE_INDEX_DRINK		= 26,
+	SCENE_INDEX_PEOPLE		= 27,
+	SCENE_INDEX_RESTAURANT_INDOOR	= 28,
+	SCENE_INDEX_STAGE		= 29,
+	SCENE_INDEX_VEHICLE		= 30,
+	SCENE_INDEX_TREE_GREEN		= 31,
+	SCENE_INDEX_SKY_BLUE		= 32,
+	SCENE_INDEX_SKY_GREY		= 33,
+	SCENE_INDEX_SKYSCRAPER		= 34,
+	SCENE_INDEX_CITY		= 35,
+	SCENE_INDEX_SHOE_DISP		= 36,
+	SCENE_INDEX_SHOE_ON		= 37,
+	SCENE_INDEX_FACE		= 38,
+	SCENE_INDEX_DAY_HDR		= 10000,
+	SCENE_INDEX_NIGHT_HDR		= 10001,
+	SCENE_INDEX_MOTION_BLUR_REMOVAL	= 10002
 };
 
 struct camera2_scene_detect_uctl {
@@ -2099,6 +2094,15 @@ struct camera2_gmv_uctl {
 	int16_t gmY;
 };
 
+#ifdef SUPPORT_REMOSAIC_CROP_ZOOM
+struct crop_zoom_uctl {
+	int16_t width;
+	int16_t height;
+	int16_t fps;
+	int16_t ex_mode;
+};
+#endif
+
 enum camera_motion_state {
 	CAMERA_MOTION_UNKNOWN = 0,
 	CAMERA_MOTION_TRIPOD,
@@ -2115,6 +2119,12 @@ enum camera_client_index {
 	CAMERA_APP_CATEGORY_INSTAGRAM	= 5,
 	CAMERA_APP_CATEGORY_3P_VT	= 6,
 	CAMERA_APP_CATEGORY_MAX
+};
+
+enum remosaic_oper_mode {
+	REMOSAIC_OPER_MODE_NONE = 0,
+	REMOSAIC_OPER_MODE_SINGLE = 1,
+	REMOSAIC_OPER_MODE_MFHDR = 2,
 };
 
 /** \brief
@@ -2152,7 +2162,7 @@ struct camera2_uctl {
 	struct camera2_drc_uctl		drcUd;
 
 	/** ispfw specific control(user-defined) of dcp. */
-	struct camera2_dcp_uctl		dcpUd;
+	struct camera2_tnr_uctl   tnrUd;
 	struct camera2_scene_detect_uctl sceneDetectInfoUd;
 	enum camera_vt_mode		vtMode;
 	float				zoomRatio;
@@ -2169,7 +2179,12 @@ struct camera2_uctl {
 	uint32_t			cameraClientIndex;
 	uint32_t			remosaicHighResolutionMode;
 	uint8_t				frame_id[32];
+#ifdef SUPPORT_REMOSAIC_CROP_ZOOM
+	struct crop_zoom_uctl		cropzoomUd;
+	uint32_t			reserved[3];
+#else
 	uint32_t			reserved[5];
+#endif
 };
 
 struct camera2_udm {

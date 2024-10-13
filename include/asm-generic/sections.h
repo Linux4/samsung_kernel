@@ -53,12 +53,15 @@ extern char __ctors_start[], __ctors_end[];
 /* Start and end of .opd section - used for function descriptors. */
 extern char __start_opd[], __end_opd[];
 
+/* Start and end of instrumentation protected text section */
+extern char __noinstr_text_start[], __noinstr_text_end[];
+
 extern __visible const void __nosave_begin, __nosave_end;
 
 /* Function descriptor handling (if any).  Override in asm/sections.h */
 #ifndef dereference_function_descriptor
-#define dereference_function_descriptor(p) (p)
-#define dereference_kernel_function_descriptor(p) (p)
+#define dereference_function_descriptor(p) ((void *)(p))
+#define dereference_kernel_function_descriptor(p) ((void *)(p))
 #endif
 
 /* random extra sections (if any).  Override
@@ -72,6 +75,20 @@ static inline int arch_is_kernel_text(unsigned long addr)
 
 #ifndef arch_is_kernel_data
 static inline int arch_is_kernel_data(unsigned long addr)
+{
+	return 0;
+}
+#endif
+
+/*
+ * Check if an address is part of freed initmem. This is needed on architectures
+ * with virt == phys kernel mapping, for code that wants to check if an address
+ * is part of a static object within [_stext, _end]. After initmem is freed,
+ * memory can be allocated from it, and such allocations would then have
+ * addresses within the range [_stext, _end].
+ */
+#ifndef arch_is_kernel_initmem_freed
+static inline int arch_is_kernel_initmem_freed(unsigned long addr)
 {
 	return 0;
 }
@@ -97,7 +114,7 @@ static inline bool memory_contains(void *begin, void *end, void *virt,
 /**
  * memory_intersects - checks if the region occupied by an object intersects
  *                     with another memory region
- * @begin: virtual address of the beginning of the memory regien
+ * @begin: virtual address of the beginning of the memory region
  * @end: virtual address of the end of the memory region
  * @virt: virtual address of the memory object
  * @size: size of the memory object
@@ -110,7 +127,10 @@ static inline bool memory_intersects(void *begin, void *end, void *virt,
 {
 	void *vend = virt + size;
 
-	return (virt >= begin && virt < end) || (vend >= begin && vend < end);
+	if (virt < end && vend > begin)
+		return true;
+
+	return false;
 }
 
 /**
@@ -139,6 +159,20 @@ static inline bool init_section_contains(void *virt, size_t size)
 static inline bool init_section_intersects(void *virt, size_t size)
 {
 	return memory_intersects(__init_begin, __init_end, virt, size);
+}
+
+/**
+ * is_kernel_rodata - checks if the pointer address is located in the
+ *                    .rodata section
+ *
+ * @addr: address to check
+ *
+ * Returns: true if the address is located in .rodata, false otherwise.
+ */
+static inline bool is_kernel_rodata(unsigned long addr)
+{
+	return addr >= (unsigned long)__start_rodata &&
+	       addr < (unsigned long)__end_rodata;
 }
 
 #endif /* _ASM_GENERIC_SECTIONS_H_ */

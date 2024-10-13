@@ -17,6 +17,7 @@
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/sched/debug.h>
+#include <linux/sched/task.h>
 #include <linux/mm_types.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -110,12 +111,12 @@ void die(const char *str, struct pt_regs *fp, unsigned long err)
 	dump(fp);
 
 	spin_unlock_irq(&die_lock);
-	do_exit(SIGSEGV);
+	make_task_dead(SIGSEGV);
 }
 
 static int kstack_depth_to_print = 24;
 
-void show_stack(struct task_struct *task, unsigned long *esp)
+void show_stack(struct task_struct *task, unsigned long *esp, const char *loglvl)
 {
 	unsigned long *stack,  addr;
 	int i;
@@ -125,17 +126,17 @@ void show_stack(struct task_struct *task, unsigned long *esp)
 
 	stack = esp;
 
-	pr_info("Stack from %08lx:", (unsigned long)stack);
+	printk("%sStack from %08lx:", loglvl, (unsigned long)stack);
 	for (i = 0; i < kstack_depth_to_print; i++) {
 		if (((unsigned long)stack & (THREAD_SIZE - 1)) >=
 		    THREAD_SIZE-4)
 			break;
 		if (i % 8 == 0)
-			pr_info(" ");
+			printk("%s ", loglvl);
 		pr_cont(" %08lx", *stack++);
 	}
 
-	pr_info("\nCall Trace:\n");
+	printk("%s\nCall Trace:\n", loglvl);
 	i = 0;
 	stack = esp;
 	while (((unsigned long)stack & (THREAD_SIZE - 1)) < THREAD_SIZE-4) {
@@ -150,10 +151,10 @@ void show_stack(struct task_struct *task, unsigned long *esp)
 		 */
 		if (check_kernel_text(addr)) {
 			if (i % 4 == 0)
-				pr_info("       ");
+				printk("%s       ", loglvl);
 			pr_cont(" [<%08lx>]", addr);
 			i++;
 		}
 	}
-	pr_info("\n");
+	printk("%s\n", loglvl);
 }

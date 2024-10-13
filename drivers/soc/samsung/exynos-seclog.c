@@ -25,8 +25,8 @@
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
 #include <linux/debugfs.h>
-#include <linux/smc.h>
 
+#include <soc/samsung/exynos-smc.h>
 #include <soc/samsung/exynos-seclog.h>
 
 /*
@@ -39,7 +39,7 @@
 
 static struct seclog_data ldata;
 static struct seclog_ctx slog_ctx;
-static struct sec_log_info *sec_log[NR_CPUS];
+static struct sec_log_info *sec_log[SECLOG_NR_CPUS];
 
 
 static void exynos_ldfw_error(struct platform_device *pdev,
@@ -86,6 +86,7 @@ static void *exynos_seclog_request_region(unsigned long addr,
 	struct page **pages = NULL;
 	void *v_addr = NULL;
 
+
 	if (!addr)
 		return NULL;
 
@@ -111,10 +112,11 @@ static void exynos_seclog_worker(struct work_struct *work)
 	unsigned int cpu = 0;
 	unsigned int tmp_read_cnt = 0;
 	unsigned int tmp_write_cnt = 0;
+
 	pr_debug("%s: Start seclog_worker\n", __func__);
 
 	/* Print log message in a message buffer */
-	for (cpu = 0; cpu < NR_CPUS; cpu++) {
+	for (cpu = 0; cpu < SECLOG_NR_CPUS; cpu++) {
 		v_log_addr = SECLOG_PHYS_TO_VIRT(sec_log[cpu]->initial_log_addr);
 		v_log_arr = (struct log_header_info *)v_log_addr;
 		tmp_read_cnt = sec_log[cpu]->log_read_cnt;
@@ -170,7 +172,7 @@ static irqreturn_t exynos_seclog_irq_handler(int irq, void *dev_id)
 		schedule_work(&slog_ctx.work);
 	} else {
 		/* Skip all log messages */
-		for (cpu = 0; cpu < NR_CPUS; cpu++) {
+		for (cpu = 0; cpu < SECLOG_NR_CPUS; cpu++) {
 			sec_log[cpu]->log_read_cnt = sec_log[cpu]->log_write_cnt;
 		}
 	}
@@ -197,8 +199,20 @@ RESERVEDMEM_OF_DECLARE(seclog_mem, "exynos,seclog", exynos_seclog_reserved_mem_s
 static int exynos_seclog_probe(struct platform_device *pdev)
 {
 	struct irq_data *seclog_irqd = NULL;
+	struct reserved_mem *rmem;
+	struct device_node *rmem_np;
 	irq_hw_number_t hwirq = 0;
 	int err, i;
+
+	rmem_np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	rmem = of_reserved_mem_lookup(rmem_np);
+	if (!rmem) {
+		dev_err(&pdev->dev, "failed to acquire memory region\n");
+		return 0;
+	}
+
+	ldata.phys_addr = rmem->base;
+	ldata.size = rmem->size;
 
 	/* Translate PA to VA of message buffer */
 	ldata.virt_addr = exynos_seclog_request_region(ldata.phys_addr, ldata.size);
@@ -244,13 +258,11 @@ static int exynos_seclog_probe(struct platform_device *pdev)
 	INIT_WORK(&slog_ctx.work, exynos_seclog_worker);
 	slog_ctx.enabled = true;
 
-#ifdef CONFIG_DEBUG_FS
 	/* Create debugfs for Secure log */
 	slog_ctx.debug_dir = debugfs_create_dir("seclog", NULL);
 	debugfs_create_bool("seclog_debug", 0600, slog_ctx.debug_dir,
 			&slog_ctx.enabled);
 
-#endif
 	/* Send message buffer information to EL3 Monitor */
 	dev_dbg(&pdev->dev,
 		"SMC arguments(%#x, %#lx, %#lx, %ld)\n",
@@ -303,7 +315,7 @@ static int exynos_seclog_probe(struct platform_device *pdev)
 
 detect_ldfw_err:
 	/* Setup virtual address of message buffer of each core */
-	for (i = 0; i < NR_CPUS; i++) {
+	for (i = 0; i < SECLOG_NR_CPUS; i++) {
 		sec_log[i] = (struct sec_log_info *)((unsigned long)ldata.virt_addr
 								+ (SECLOG_LOG_BUF_SIZE * i));
 		dev_dbg(&pdev->dev,
@@ -323,6 +335,7 @@ static const struct of_device_id exynos_seclog_of_match_table[] = {
 	{ .compatible = "samsung,exynos-seclog", },
 	{ },
 };
+MODULE_DEVICE_TABLE(of, exynos_seclog_of_match_table);
 
 static struct platform_driver exynos_seclog_driver = {
 	.probe = exynos_seclog_probe,

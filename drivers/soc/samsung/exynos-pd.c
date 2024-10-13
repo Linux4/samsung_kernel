@@ -15,8 +15,9 @@
 #include <soc/samsung/exynos-pd.h>
 #include <soc/samsung/bts.h>
 #include <soc/samsung/cal-if.h>
-
+#include <linux/module.h>
 #include <linux/sec_debug.h>
+
 struct exynos_pm_domain *exynos_pd_lookup_name(const char *domain_name)
 {
 	struct exynos_pm_domain *exypd = NULL;
@@ -58,6 +59,26 @@ int exynos_pd_status(struct exynos_pm_domain *pd)
 	return status;
 }
 EXPORT_SYMBOL(exynos_pd_status);
+
+int exynos_pd_booton_rel(const char *pd_name)
+{
+        struct exynos_pm_domain *pd = NULL;
+        pd = exynos_pd_lookup_name(pd_name);
+
+        if (unlikely(!pd)) {
+                pr_info("%s     :%s not found\n",__func__, pd_name);
+                return -EINVAL;
+        }
+
+        if (of_property_read_bool(pd->of_node, "pd-boot-on")) {
+                pd->genpd.flags &= ~GENPD_FLAG_ALWAYS_ON;
+                pr_info(EXYNOS_PD_PREFIX "    %-9s flag set to %d\n",
+                                pd->genpd.name, pd->genpd.flags);
+        }
+        return 0;
+}
+EXPORT_SYMBOL(exynos_pd_booton_rel);
+
 /* Power domain on sequence.
  * on_pre, on_post functions are registered as notification handler at CAL code.
  */
@@ -178,12 +199,12 @@ static int exynos_pd_power_off(struct generic_pm_domain *genpd)
 			ret = pd->pd_control(pd->cal_pdid, 0);
 			if (unlikely(ret)) {
 				pr_auto(ASL1, EXYNOS_PD_PREFIX "%s occur error at power off!\n", genpd->name);
-				secdbg_exin_set_epd((char *)(genpd->name));
+				secdbg_exin_set_epd(genpd->name);
 				goto acc_unlock;
 			}
 		} else {
-			pr_auto(ASL1, EXYNOS_PD_PREFIX "%s occur error at power off!!\n", genpd->name);
-			secdbg_exin_set_epd((char *)(genpd->name));
+			pr_auto(ASL1, EXYNOS_PD_PREFIX "%s occur error at power off!\n", genpd->name);
+			secdbg_exin_set_epd(genpd->name);
 			goto acc_unlock;
 		}
 	}
@@ -219,12 +240,8 @@ static int of_get_devfreq_sync_volt_idx(const struct device_node *device)
 
 static bool exynos_pd_power_down_ok_aud(void)
 {
-#ifdef CONFIG_SND_SOC_SAMSUNG_ABOX
-#ifdef CONFIG_SOC_EMULATOR8895
-	return false;
-#else
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX)
 	return !abox_is_on();
-#endif
 #else
 	return true;
 #endif
@@ -232,7 +249,7 @@ static bool exynos_pd_power_down_ok_aud(void)
 
 static bool exynos_pd_power_down_ok_vts(void)
 {
-#ifdef CONFIG_SND_SOC_SAMSUNG_VTS
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_VTS)
 	return !vts_is_on();
 #else
 	return true;
@@ -319,175 +336,119 @@ static void exynos_pd_show_power_domain(void)
 	return;
 }
 
-static __init int exynos_pd_dt_parse(void)
+static int exynos_pd_probe(struct platform_device *pdev)
 {
-	struct platform_device *pdev = NULL;
-	struct device_node *np = NULL;
+	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
+	struct exynos_pm_domain *pd;
+
+	int initial_state;
 	int ret = 0;
+	unsigned int index = 0;
 
-	for_each_compatible_node(np, NULL, "samsung,exynos-pd") {
-		struct exynos_pm_domain *pd;
-		struct device_node *children;
-		int initial_state;
+	struct exynos_pm_domain *parent_pd;
+	struct device_node *parent;
+	struct platform_device *parent_pd_pdev;
 
-		/* skip unmanaged power domain */
-		if (!of_device_is_available(np))
-			continue;
+	if (!of_have_populated_dt()) {
+		dev_err(dev, EXYNOS_PD_PREFIX "PM Domain works along with Device Tree\n");
+		return -EPERM;
+	}
 
-		pdev = of_find_device_by_node(np);
+	/* skip unmanaged power domain */
+	if (!of_device_is_available(np))
+		return -EINVAL;
 
-		pd = kzalloc(sizeof(*pd), GFP_KERNEL);
-		if (!pd) {
-			pr_err(EXYNOS_PD_PREFIX "%s: failed to allocate memory for domain\n",
-					__func__);
-			return -ENOMEM;
-		}
+	pd = kzalloc(sizeof(*pd), GFP_KERNEL);
+	if (!pd) {
+		pr_err(EXYNOS_PD_PREFIX "%s: failed to allocate memory for domain\n",
+				__func__);
+		return -ENOMEM;
+	}
 
-		/* init exynos_pm_domain's members  */
-		pd->name = kstrdup(np->name, GFP_KERNEL);
-		ret = of_property_read_u32(np, "cal_id", (u32 *)&pd->cal_pdid);
-		if (ret) {
-			pr_err(EXYNOS_PD_PREFIX "%s: failed to get cal_pdid  from of %s\n",
-					__func__, pd->name);
-			return -ENODEV;
-		}
-		pd->of_node = np;
-		pd->pd_control = cal_pd_control;
-		pd->check_status = exynos_pd_status;
-		pd->devfreq_index = of_get_devfreq_sync_volt_idx(pd->of_node);
-		of_get_power_down_ok(pd);
-		pd->power_down_skipped = false;
+	/* init exynos_pm_domain's members  */
+	pd->name = kstrdup(np->name, GFP_KERNEL);
+	ret = of_property_read_u32(np, "cal_id", (u32 *)&pd->cal_pdid);
+	if (ret) {
+		pr_err(EXYNOS_PD_PREFIX "%s: failed to get cal_pdid  from of %s\n",
+				__func__, pd->name);
+		return -ENODEV;
+	}
+	pd->of_node = np;
+	pd->pd_control = cal_pd_control;
+	pd->check_status = exynos_pd_status;
+	pd->devfreq_index = of_get_devfreq_sync_volt_idx(pd->of_node);
+	of_get_power_down_ok(pd);
+	pd->power_down_skipped = false;
 
-		ret = of_property_read_u32(np, "need_smc", (u32 *)&pd->need_smc);
-		if (ret) {
-			pd->need_smc = 0x0;
+	ret = of_property_read_u32(np, "need_smc", (u32 *)&pd->need_smc);
+	if (ret) {
+		pd->need_smc = 0x0;
+	} else {
+		cal_pd_set_smc_id(pd->cal_pdid, pd->need_smc);
+		pr_info(EXYNOS_PD_PREFIX "%s: %s read need_smc 0x%x successfully.!\n",
+				__func__, pd->name, pd->need_smc);
+	}
+	initial_state = cal_pd_status(pd->cal_pdid);
+	if (initial_state == -1) {
+		pr_err(EXYNOS_PD_PREFIX "%s: %s is in unknown state\n",
+				__func__, pd->name);
+		return -EINVAL;
+	}
+
+	if (of_property_read_bool(np, "skip-idle-ip"))
+		pd->skip_idle_ip = true;
+	else
+		pd->idle_ip_index = exynos_get_idle_ip_index(pd->name, 1);
+
+	mutex_init(&pd->access_lock);
+	platform_set_drvdata(pdev, pd);
+
+	ret = exynos_pd_genpd_init(pd, initial_state);
+	if (ret) {
+		pr_err(EXYNOS_PD_PREFIX "%s: exynos_pd_genpd_init fail: %s, ret:%d\n",
+				__func__, pd->name, ret);
+		return ret;
+	}
+
+	of_genpd_add_provider_simple(np, &pd->genpd);
+
+	if (of_property_read_bool(np, "pd-always-on") ||
+			(of_property_read_bool(np, "pd-boot-on"))) {
+		pd->genpd.flags |= GENPD_FLAG_ALWAYS_ON;
+		dev_info(dev, EXYNOS_PD_PREFIX "    %-9s - %s\n", pd->genpd.name,
+					"on,  always");
+	} else {
+		dev_info(dev, EXYNOS_PD_PREFIX "    %-9s - %-3s\n", pd->genpd.name,
+				cal_pd_status(pd->cal_pdid) ? "on" : "off");
+	}
+
+	parent = of_parse_phandle(np, "parent", index);
+	if (parent) {
+		parent_pd_pdev = of_find_device_by_node(parent);
+		if (!parent_pd_pdev) {
+			dev_info(dev, EXYNOS_PD_PREFIX "parent pd pdev not found");
 		} else {
-			cal_pd_set_smc_id(pd->cal_pdid, pd->need_smc);
-			pr_info(EXYNOS_PD_PREFIX "%s: %s read need_smc 0x%x successfully.!\n",
-					__func__, pd->name, pd->need_smc);
-		}
-		initial_state = cal_pd_status(pd->cal_pdid);
-		if (initial_state == -1) {
-			pr_err(EXYNOS_PD_PREFIX "%s: %s is in unknown state\n",
-					__func__, pd->name);
-			return -EINVAL;
-		}
-
-		if (of_property_read_bool(np, "skip-idle-ip"))
-			pd->skip_idle_ip = true;
-		else
-			pd->idle_ip_index = exynos_get_idle_ip_index(pd->name);
-
-		mutex_init(&pd->access_lock);
-		platform_set_drvdata(pdev, pd);
-
-		ret = exynos_pd_genpd_init(pd, initial_state);
-		if (ret) {
-			pr_err(EXYNOS_PD_PREFIX "%s: exynos_pd_genpd_init fail: %s, ret:%d\n",
-					__func__, pd->name, ret);
-			return ret;
-		}
-
-		of_genpd_add_provider_simple(np, &pd->genpd);
-
-		/* add LOGICAL sub-domain
-		 * It is not assumed that there is REAL sub-domain.
-		 * Power on/off functions are not defined here.
-		 */
-		for_each_child_of_node(np, children) {
-			struct exynos_pm_domain *sub_pd;
-			struct platform_device *sub_pdev;
-
-			sub_pd = kzalloc(sizeof(*sub_pd), GFP_KERNEL);
-			if (!sub_pd) {
-				pr_err("%s %s: failed to allocate memory for power domain\n",
-						EXYNOS_PD_PREFIX, __func__);
-				return -ENOMEM;
-			}
-
-			sub_pd->name = kstrdup(children->name, GFP_KERNEL);
-			sub_pd->of_node = children;
-
-			/* Logical sub-domain does not have to power on/off control*/
-			sub_pd->pd_control = NULL;
-
-			sub_pd->devfreq_index = of_get_devfreq_sync_volt_idx(sub_pd->of_node);
-
-			/* kernel does not create sub-domain pdev. */
-			sub_pdev = of_find_device_by_node(children);
-			if (!sub_pdev)
-				sub_pdev = of_platform_device_create(children, NULL, &pdev->dev);
-			if (!sub_pdev) {
-				pr_err(EXYNOS_PD_PREFIX "sub domain allocation failed: %s\n", children->name);
-				continue;
-			}
-
-			mutex_init(&sub_pd->access_lock);
-			platform_set_drvdata(sub_pdev, sub_pd);
-
-			ret = exynos_pd_genpd_init(sub_pd, initial_state);
-			if (ret) {
-				pr_err(EXYNOS_PD_PREFIX "%s: exynos_pd_genpd_init fail: %s, ret:%d\n",
-						__func__, pd->name, ret);
-				return ret;
-			}
-
-			of_genpd_add_provider_simple(children, &sub_pd->genpd);
-
-			if (pm_genpd_add_subdomain(&pd->genpd, &sub_pd->genpd))
-				pr_err("%s %s can't add subdomain %s\n",
-					EXYNOS_PD_PREFIX, pd->genpd.name, sub_pd->genpd.name);
-			else
-				pr_info(EXYNOS_PD_PREFIX "%s has a new logical child %s.\n",
-						pd->genpd.name, sub_pd->genpd.name);
-		}
-	}
-
-	/* EXCEPTION: add physical sub-pd to master pd using device tree */
-	for_each_compatible_node(np, NULL, "samsung,exynos-pd") {
-		struct exynos_pm_domain *parent_pd, *child_pd;
-		struct device_node *parent;
-		struct platform_device *parent_pd_pdev, *child_pd_pdev;
-		int i;
-
-		/* skip unmanaged power domain */
-		if (!of_device_is_available(np))
-			continue;
-
-		/* child_pd_pdev should have value. */
-		child_pd_pdev = of_find_device_by_node(np);
-		child_pd = platform_get_drvdata(child_pd_pdev);
-
-		/* search parents in device tree */
-		for (i = 0; i < MAX_PARENT_POWER_DOMAIN; i++) {
-			/* find parent node if available */
-			parent = of_parse_phandle(np, "parent", i);
-			if (!parent)
-				break;
-
-			/* display error when parent is unmanaged. */
-			if (!of_device_is_available(parent)) {
-				pr_err(EXYNOS_PD_PREFIX "%s is not managed by runtime pm.\n", parent->name);
-				continue;
-			}
-
-			/* parent_pd_pdev should have value. */
-			parent_pd_pdev = of_find_device_by_node(parent);
 			parent_pd = platform_get_drvdata(parent_pd_pdev);
-
-			if (pm_genpd_add_subdomain(&parent_pd->genpd, &child_pd->genpd))
-				pr_err(EXYNOS_PD_PREFIX "%s cannot add subdomain %s\n",
-						parent_pd->name, child_pd->name);
-			else
-				pr_info(EXYNOS_PD_PREFIX "%s has a new child %s.\n",
-						parent_pd->name, child_pd->name);
+			if (!parent_pd) {
+				dev_info(dev, EXYNOS_PD_PREFIX "parent pd not found");
+			} else {
+				if (pm_genpd_add_subdomain(&parent_pd->genpd, &pd->genpd))
+					pr_err(EXYNOS_PD_PREFIX "%s cannot add subdomain %s\n",
+							parent_pd->name, pd->name);
+				else
+					pr_err(EXYNOS_PD_PREFIX "%s have new subdomain %s\n",
+							parent_pd->name, pd->name);
+			}
 		}
 	}
 
+	dev_info(dev, EXYNOS_PD_PREFIX "PM Domain Initialize\n");
 	return 0;
 }
 #endif /* CONFIG_OF */
 
+#if 0
 static int __init exynos_pd_init(void)
 {
 	int ret;
@@ -508,4 +469,82 @@ static int __init exynos_pd_init(void)
 	pr_err(EXYNOS_PD_PREFIX "PM Domain works along with Device Tree\n");
 	return -EPERM;
 }
-subsys_initcall(exynos_pd_init);
+#endif
+
+static int exynos_pd_suspend_late(struct device *dev)
+{
+	struct platform_device *pdev = container_of(dev,
+                                        struct platform_device, dev);
+        struct exynos_pm_domain *data = platform_get_drvdata(pdev);
+
+        dev->power.must_resume = true;
+
+        if (IS_ERR(&data->genpd))
+                return 0;
+        /* Suspend callback function might be registered if necessary */
+        if (of_property_read_bool(dev->of_node, "pd-always-on")) {
+                data->genpd.flags = 0;
+                dev_info(dev, EXYNOS_PD_PREFIX "    %-9s flag set to 0\n", data->genpd.name);
+        }
+
+	return 0;
+}
+
+static int exynos_pd_resume_early(struct device *dev)
+{
+        struct platform_device *pdev = container_of(dev,
+                                        struct platform_device, dev);
+        struct exynos_pm_domain *data = (struct exynos_pm_domain *)platform_get_drvdata(pdev);
+
+        if (IS_ERR(&data->genpd))
+                return 0;
+        /* Resume callback function might be registered if necessary */
+        if (of_property_read_bool(dev->of_node, "pd-always-on")) {
+                data->genpd.flags |= GENPD_FLAG_ALWAYS_ON;
+                dev_info(dev, EXYNOS_PD_PREFIX "    %-9s - %s\n", data->genpd.name,
+                                "on,  always");
+        }
+
+	return 0;
+}
+
+static const struct of_device_id of_exynos_pd_match[] = {
+        { .compatible = "samsung,exynos-pd", },
+        { },
+};
+MODULE_DEVICE_TABLE(of, of_exynos_pd_match);
+
+static const struct dev_pm_ops exynos_pd_pm_ops = {
+        .suspend_late   = exynos_pd_suspend_late,
+        .resume_early           = exynos_pd_resume_early,
+};
+
+static const struct platform_device_id exynos_pd_ids[] = {
+        { "exynos-pd", },
+        { }
+};
+
+static struct platform_driver exynos_pd_driver = {
+        .driver = {
+                .name = "exynos-pd",
+                .of_match_table = of_exynos_pd_match,
+                .pm = &exynos_pd_pm_ops
+        },
+        .probe          = exynos_pd_probe,
+        .id_table       = exynos_pd_ids,
+};
+
+static int exynos_pd_init(void)
+{
+        return platform_driver_register(&exynos_pd_driver);
+}
+fs_initcall(exynos_pd_init);
+
+static void exynos_pd_exit(void)
+{
+        return platform_driver_unregister(&exynos_pd_driver);
+}
+module_exit(exynos_pd_exit);
+
+MODULE_SOFTDEP("pre: clk_exynos");
+MODULE_LICENSE("GPL");

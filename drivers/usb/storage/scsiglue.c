@@ -28,6 +28,8 @@
  * status of a command.
  */
 
+#include <linux/blkdev.h>
+#include <linux/dma-mapping.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 
@@ -38,6 +40,7 @@
 #include <scsi/scsi_eh.h>
 
 #include "usb.h"
+#include <linux/usb/hcd.h>
 #include "scsiglue.h"
 #include "debug.h"
 #include "transport.h"
@@ -89,6 +92,7 @@ static int slave_alloc (struct scsi_device *sdev)
 static int slave_configure(struct scsi_device *sdev)
 {
 	struct us_data *us = host_to_us(sdev->host);
+	struct device *dev = us->pusb_dev->bus->sysdev;
 
 	/*
 	 * Many devices have trouble transferring more than 32KB at a time,
@@ -119,12 +123,20 @@ static int slave_configure(struct scsi_device *sdev)
 	}
 
 	/*
+	 * The max_hw_sectors should be up to maximum size of a mapping for
+	 * the device. Otherwise, a DMA API might fail on swiotlb environment.
+	 */
+	blk_queue_max_hw_sectors(sdev->request_queue,
+		min_t(size_t, queue_max_hw_sectors(sdev->request_queue),
+		      dma_max_mapping_size(dev) >> SECTOR_SHIFT));
+
+	/*
 	 * Some USB host controllers can't do DMA; they have to use PIO.
-	 * They indicate this by setting their dma_mask to NULL.  For
-	 * such controllers we need to make sure the block layer sets
+	 * For such controllers we need to make sure the block layer sets
 	 * up bounce buffers in addressable memory.
 	 */
-	if (!us->pusb_dev->bus->controller->dma_mask)
+	if (!hcd_uses_dma(bus_to_hcd(us->pusb_dev->bus)) ||
+			(bus_to_hcd(us->pusb_dev->bus)->localmem_pool != NULL))
 		blk_queue_bounce_limit(sdev->request_queue, BLK_BOUNCE_HIGH);
 
 	/*
@@ -185,8 +197,11 @@ static int slave_configure(struct scsi_device *sdev)
 		 */
 		sdev->skip_ms_page_8 = 1;
 
-		/* Some devices don't handle VPD pages correctly */
-		sdev->skip_vpd_pages = 1;
+		/*
+		 * Some devices don't handle VPD pages correctly, so skip vpd
+		 * pages if not forced by SCSI layer.
+		 */
+		sdev->skip_vpd_pages = !sdev->try_vpd_pages;
 
 		/* Do not attempt to use REPORT SUPPORTED OPERATION CODES */
 		sdev->no_report_opcodes = 1;
@@ -283,7 +298,7 @@ static int slave_configure(struct scsi_device *sdev)
 	} else {
 
 		/*
-		 * Non-disk-type devices don't need to blacklist any pages
+		 * Non-disk-type devices don't need to ignore any pages
 		 * or to force 192-byte transfer lengths for MODE SENSE.
 		 * But they do need to use MODE SENSE(10).
 		 */
@@ -353,20 +368,46 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 {
 	struct us_data *us = host_to_us(srb->device->host);
 
+#ifdef CONFIG_SEC_FACTORY
+	if (srb && srb->device &&
+		srb->device->removable && srb->cmnd &&
+			srb->cmnd[0] == TEST_UNIT_READY) {
+		pr_info("usb-storage: %s TEST_UNIT_READY +\n",
+			__func__);
+	}
+#endif
+
 	/* check for state-transition errors */
 	if (us->srb != NULL) {
-		printk(KERN_ERR USB_STORAGE "Error in %s: us->srb = %p\n",
-			__func__, us->srb);
+		dev_err(&us->pusb_intf->dev,
+			"Error in %s: us->srb = %p\n", __func__, us->srb);
 		return SCSI_MLQUEUE_HOST_BUSY;
 	}
 
 	/* fail the command if we are disconnecting */
 	if (test_bit(US_FLIDX_DISCONNECTING, &us->dflags)) {
 		usb_stor_dbg(us, "Fail command during disconnect\n");
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		pr_err("usb-storage: %s, Fail command during disconnect\n",
+				__func__);
+#endif
 		srb->result = DID_NO_CONNECT << 16;
 		done(srb);
 		return 0;
 	}
+
+#ifdef CONFIG_SEC_FACTORY
+	if (test_bit(US_FLIDX_ABORTING, &us->dflags)) {
+		usb_stor_dbg(us, "Fail command during abort\n");
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		pr_err("usb-storage: %s, Fail command during abort\n",
+				__func__);
+#endif
+		srb->result = DID_NO_CONNECT << 16;
+		done(srb);
+		return 0;
+	}
+#endif
 
 	if ((us->fflags & US_FL_NO_ATA_1X) &&
 			(srb->cmnd[0] == ATA_12 || srb->cmnd[0] == ATA_16)) {
@@ -374,6 +415,10 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 		       sizeof(usb_stor_sense_invalidCDB));
 		srb->result = SAM_STAT_CHECK_CONDITION;
 		done(srb);
+#ifdef CONFIG_SEC_FACTORY
+		pr_info("usb-storage: %s, SAM_STAT_CHECK_CONDITION\n",
+				__func__);
+#endif
 		return 0;
 	}
 
@@ -381,6 +426,14 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 	srb->scsi_done = done;
 	us->srb = srb;
 	complete(&us->cmnd_ready);
+#ifdef CONFIG_SEC_FACTORY
+	if (srb && srb->device &&
+		srb->device->removable && srb->cmnd &&
+			srb->cmnd[0] == TEST_UNIT_READY) {
+		pr_info("usb-storage: %s TEST_UNIT_READY -\n",
+			__func__);
+	}
+#endif
 
 	return 0;
 }
@@ -392,22 +445,25 @@ static DEF_SCSI_QCMD(queuecommand)
  ***********************************************************************/
 
 /* Command timeout and abort */
-static int command_abort(struct scsi_cmnd *srb)
+static int command_abort_matching(struct us_data *us, struct scsi_cmnd *srb_match)
 {
-	struct us_data *us = host_to_us(srb->device->host);
-
-	usb_stor_dbg(us, "%s called\n", __func__);
-
 	/*
 	 * us->srb together with the TIMED_OUT, RESETTING, and ABORTING
 	 * bits are protected by the host lock.
 	 */
 	scsi_lock(us_to_host(us));
 
-	/* Is this command still active? */
-	if (us->srb != srb) {
+	/* is there any active pending command to abort ? */
+	if (!us->srb) {
 		scsi_unlock(us_to_host(us));
 		usb_stor_dbg(us, "-- nothing to abort\n");
+		return SUCCESS;
+	}
+
+	/* Does the command match the passed srb if any ? */
+	if (srb_match && us->srb != srb_match) {
+		scsi_unlock(us_to_host(us));
+		usb_stor_dbg(us, "-- pending command mismatch\n");
 		return FAILED;
 	}
 
@@ -424,10 +480,24 @@ static int command_abort(struct scsi_cmnd *srb)
 		usb_stor_stop_transport(us);
 	}
 	scsi_unlock(us_to_host(us));
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	printk(KERN_ERR "usb-storage: %s scsi_unlock\n", __func__);
+#endif
 
 	/* Wait for the aborted command to finish */
 	wait_for_completion(&us->notify);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	printk(KERN_ERR "usb-storage: %s -\n", __func__);
+#endif
 	return SUCCESS;
+}
+
+static int command_abort(struct scsi_cmnd *srb)
+{
+	struct us_data *us = host_to_us(srb->device->host);
+
+	usb_stor_dbg(us, "%s called\n", __func__);
+	return command_abort_matching(us, srb);
 }
 
 /*
@@ -440,6 +510,9 @@ static int device_reset(struct scsi_cmnd *srb)
 	int result;
 
 	usb_stor_dbg(us, "%s called\n", __func__);
+
+	/* abort any pending command before reset */
+	command_abort_matching(us, NULL);
 
 	/* lock the device pointers and do the reset */
 	mutex_lock(&(us->dev_mutex));
@@ -487,9 +560,15 @@ void usb_stor_report_bus_reset(struct us_data *us)
 {
 	struct Scsi_Host *host = us_to_host(us);
 
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	printk(KERN_ERR "usb-storage: %s scsi_lock\n", __func__);
+#endif
 	scsi_lock(host);
 	scsi_report_bus_reset(host, 0);
 	scsi_unlock(host);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	printk(KERN_ERR "usb-storage: %s scsi_unlock\n", __func__);
+#endif
 }
 
 /***********************************************************************
@@ -630,13 +709,6 @@ static const struct scsi_host_template usb_stor_host_template = {
 	 * and 2048 for USB3 devices.
 	 */
 	.max_sectors =                  240,
-
-	/*
-	 * merge commands... this seems to help performance, but
-	 * periodically someone should test to see which setting is more
-	 * optimal.
-	 */
-	.use_clustering =		1,
 
 	/* emulated HBA */
 	.emulated =			1,

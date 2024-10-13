@@ -21,30 +21,26 @@
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/pinconf.h>
 #include <linux/smc.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 #include <linux/delay.h>
 #include <soc/samsung/exynos-pmu.h>
-#include <linux/sec_class.h>
 
 #include "dw_mmc.h"
 #include "dw_mmc-pltfm.h"
 #include "dw_mmc-exynos.h"
-#include "../core/queue.h"
-#include "../core/host.h"
+#ifdef CONFIG_MMC_DW_EXYNOS_FMP
 #include "dw_mmc-exynos-fmp.h"
+#include "../core/queue.h"
+#endif
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
+#include "mmc-sec-feature.h"
+#endif
 
-#define UNSTUFF_BITS(resp,start,size)					\
-	({								\
-		const int __size = size;				\
-		const u32 __mask = (__size < 32 ? 1 << __size : 0) - 1;	\
-		const int __off = 3 - ((start) / 32);			\
-		const int __shft = (start) & 31;			\
-		u32 __res;						\
-									\
-		__res = resp[__off] >> __shft;				\
-		if (__size + __shft > 32)				\
-			__res |= resp[__off-1] << ((32 - __shft) % 32);	\
-		__res & __mask;						\
-	})
+/* Since MRR is a 6-bit value, it must have a value of 0~63. */
+#define SSC_MRR_LIMIT	63
+/* Since MFR is a 8-bit value, it must have a value of 0~255. */
+#define SSC_MFR_LIMIT	255
 
 extern int cal_pll_mmc_set_ssc(unsigned int mfr, unsigned int mrr, unsigned int ssc_on);
 extern int cal_pll_mmc_check(void);
@@ -71,7 +67,7 @@ static void dw_mci_exynos_register_dump(struct dw_mci *host)
 		host->sfr_dump->hs400_dline_ctrl = mci_readl(host, HS400_DLINE_CTRL));
 }
 
-void dw_mci_reg_dump(struct dw_mci *host)
+static void dw_mci_reg_dump(struct dw_mci *host)
 {
 	struct dw_mci_exynos_priv_data *priv = host->priv;
 	u32 reg;
@@ -236,6 +232,58 @@ static inline u8 dw_mci_exynos_get_ciu_div(struct dw_mci *host)
 	return SDMMC_CLKSEL_GET_DIV(mci_readl(host, CLKSEL)) + 1;
 }
 
+static int exynos_mmc_iocc_parse_dt(struct dw_mci *host)
+{
+	struct device_node *np;
+	struct exynos_access_cxt *cxt = &host->cxt_coherency;
+	int ret;
+	const char *const name = {
+		"mmc-io-coherency",
+	};
+
+	np = of_get_child_by_name(host->dev->of_node, name);
+	if (!np) {
+		dev_err(host->dev, "failed to get node(%s)\n", name);
+		return 1;
+	}
+	ret = of_property_read_u32(np, "offset", &cxt->offset);
+	if (IS_ERR(&cxt->offset)) {
+		dev_err(host->dev, "failed to set cxt(%s) offset\n", name);
+		return cxt->offset;
+	}
+	ret = of_property_read_u32(np, "mask", &cxt->mask);
+	if (IS_ERR(&cxt->mask)) {
+		dev_err(host->dev, "failed to set cxt(%s) mask\n", name);
+		return cxt->mask;
+	}
+	ret = of_property_read_u32(np, "val", &cxt->val);
+	if (IS_ERR(&cxt->val)) {
+		dev_err(host->dev, "failed to set cxt(%s) val\n", name);
+		return cxt->val;
+	}
+	return 0;
+
+}
+
+static int exynos_mmc_iocc_enable(struct dw_mci *host)
+{
+	struct device *dev = host->dev;
+	int ret = 0;
+	bool is_io_coherency;
+	bool is_dma_coherent;
+
+	is_io_coherency = !IS_ERR(host->sysreg);
+	is_dma_coherent = !!of_find_property(dev->of_node, "dma-coherent", NULL);
+
+	if (!is_io_coherency) {
+		dev_err(dev, "Not configured to use IO coherency\n");
+	} else {
+		ret = regmap_update_bits(host->sysreg, host->cxt_coherency.offset,
+				host->cxt_coherency.mask, host->cxt_coherency.val);
+	}
+	return ret;
+}
+
 static void dw_mci_exynos_runtime_pm_control(struct dw_mci *host, int enable)
 {
 	struct dw_mci_exynos_priv_data *priv = host->priv;
@@ -253,6 +301,7 @@ static int dw_mci_exynos_priv_init(struct dw_mci *host)
 {
 	struct dw_mci_exynos_priv_data *priv = host->priv;
 	u32 temp;
+	int ret = 0;
 
 	if (priv->pinctrl && priv->clk_drive_base)
 		pinctrl_select_state(priv->pinctrl, priv->clk_drive_base);
@@ -269,7 +318,6 @@ static int dw_mci_exynos_priv_init(struct dw_mci *host)
 	mci_writel(host, HS400_DQS_EN, priv->saved_dqs_en);
 	if (!priv->dqs_delay)
 		priv->dqs_delay = DQS_CTRL_GET_RD_DELAY(priv->saved_strobe_ctrl);
-#if defined(CONFIG_MMC_DW_64BIT_DESC)
 	if (priv->voltage_int_extra != 0) {
 		u32 reg = 0;
 		reg = mci_readl(host, AXI_BURST_LEN);
@@ -277,7 +325,6 @@ static int dw_mci_exynos_priv_init(struct dw_mci *host)
 		reg |= (priv->voltage_int_extra << 24);
 		mci_writel(host, AXI_BURST_LEN, reg);
 	}
-#endif
 	temp = mci_readl(host, BLOCK_DMA_FOR_CI);
 	temp &= ~(0x1 << 29);
 
@@ -288,7 +335,12 @@ static int dw_mci_exynos_priv_init(struct dw_mci *host)
 
 	mci_writel(host, BLOCK_DMA_FOR_CI, temp);
 
-	return 0;
+	if (exynos_mmc_iocc_parse_dt(host)) {
+		dev_err(host->dev, "mmc iocc not enable\n");
+	} else
+		ret = exynos_mmc_iocc_enable(host);
+
+	return ret;
 }
 
 static void dw_mci_exynos_ssclk_control(struct dw_mci *host, int enable)
@@ -302,12 +354,13 @@ static void dw_mci_exynos_ssclk_control(struct dw_mci *host, int enable)
 		if (cal_pll_mmc_check() == true)
 			goto out;
 
-		if (host->pdata->ssc_rate > 8) {
+		if (host->pdata->ssc_rate_mrr > SSC_MRR_LIMIT ||
+			host->pdata->ssc_rate_mfr > SSC_MFR_LIMIT) {
 			dev_info(host->dev, "unvalid SSC rate value\n");
 			goto out;
 		}
 
-		err = cal_pll_mmc_set_ssc(12, host->pdata->ssc_rate, 1);
+		err = cal_pll_mmc_set_ssc(host->pdata->ssc_rate_mfr, host->pdata->ssc_rate_mrr, 1);
 		if (err)
 			dev_info(host->dev, "SSC set fail.\n");
 		else
@@ -326,21 +379,6 @@ out:
 	return;
 }
 
-static void dw_mci_exynos_cqe_swreset(struct dw_mci *host)
-{
-	u32 reg;
-
-	reg = mci_readl(host, AXI_BURST_LEN);
-	reg |= (1 << 22);
-	mci_writel(host, AXI_BURST_LEN, reg);
-
-	udelay(1);
-
-	reg = mci_readl(host, AXI_BURST_LEN);
-	reg |= (1 << 22);
-	mci_writel(host, AXI_BURST_LEN, reg);
-}
-
 static void dw_mci_exynos_set_clksel_timing(struct dw_mci *host, u32 timing)
 {
 	u32 clksel;
@@ -348,8 +386,7 @@ static void dw_mci_exynos_set_clksel_timing(struct dw_mci *host, u32 timing)
 	clksel = mci_readl(host, CLKSEL);
 	clksel = (clksel & ~SDMMC_CLKSEL_TIMING_MASK) | timing;
 
-	if (!((host->pdata->io_mode == MMC_TIMING_MMC_HS400) ||
-	      (host->pdata->io_mode == MMC_TIMING_MMC_HS400_ES)))
+	if (!(host->pdata->io_mode == MMC_TIMING_MMC_HS400))
 		clksel &= ~(BIT(30) | BIT(19));
 
 	mci_writel(host, CLKSEL, clksel);
@@ -360,6 +397,9 @@ static int dw_mci_exynos_runtime_resume(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
 	struct dw_mci_exynos_priv_data *priv = host->priv;
+
+	if(exynos_mmc_iocc_enable(host))
+		dev_err(host->dev,"mmc io coherency enable fail!\n");
 
 	if (priv->pinctrl && priv->clk_drive_base)
 		pinctrl_select_state(priv->pinctrl, priv->clk_drive_base);
@@ -428,6 +468,7 @@ static void dw_mci_card_int_hwacg_ctrl(struct dw_mci *host, u32 flag)
 static void dw_mci_exynos_config_hs400(struct dw_mci *host, u32 timing)
 {
 	struct dw_mci_exynos_priv_data *priv = host->priv;
+	struct mmc_host *mmc = host->slot->mmc;
 	u32 dqs, strobe;
 
 	/*
@@ -438,7 +479,7 @@ static void dw_mci_exynos_config_hs400(struct dw_mci *host, u32 timing)
 	dqs = priv->saved_dqs_en;
 	strobe = priv->saved_strobe_ctrl;
 
-	if (timing == MMC_TIMING_MMC_HS400 || timing == MMC_TIMING_MMC_HS400_ES) {
+	if (timing == MMC_TIMING_MMC_HS400) {
 		dqs &= ~(DWMCI_TXDT_CRC_TIMER_SET(0xFF, 0xFF));
 		if (host->pdata->quirks & DW_MCI_QUIRK_ENABLE_ULP) {
 			if (priv->delay_line || priv->tx_delay_line)
@@ -449,7 +490,7 @@ static void dw_mci_exynos_config_hs400(struct dw_mci *host, u32 timing)
 				strobe = DWMCI_FIFO_CLK_DELAY_CTRL(0x2) |
 				    DWMCI_RD_DQS_DELAY_CTRL(90);
 			dqs |= (DWMCI_TXDT_CRC_TIMER_SET(0x32,
-							 0x38) | DWMCI_RDDQS_EN |
+						 0x38) | DWMCI_RDDQS_EN |
 				DWMCI_AXI_NON_BLOCKING_WRITE);
 			strobe |= DWMCI_WD_DQS_DELAY_CTRL(0x40);
 		} else {
@@ -460,11 +501,11 @@ static void dw_mci_exynos_config_hs400(struct dw_mci *host, u32 timing)
 				strobe = DWMCI_FIFO_CLK_DELAY_CTRL(0x2) |
 				    DWMCI_RD_DQS_DELAY_CTRL(90);
 			dqs |= (DWMCI_TXDT_CRC_TIMER_SET(priv->hs400_tx_t_fastlimit,
-							 priv->hs400_tx_t_initval) | DWMCI_RDDQS_EN |
-				DWMCI_AXI_NON_BLOCKING_WRITE);
+						priv->hs400_tx_t_initval) | DWMCI_RDDQS_EN |
+						DWMCI_AXI_NON_BLOCKING_WRITE);
 		}
 		dqs |= (DATA_STROBE_EN | DWMCI_AXI_NON_BLOCKING_WRITE);
-		if (timing == MMC_TIMING_MMC_HS400_ES)
+		if (mmc->ios.enhanced_strobe)
 			dqs |= DWMCI_RESP_RCLK_MODE;
 	} else {
 		dqs &= ~DATA_STROBE_EN;
@@ -513,11 +554,14 @@ static void dw_mci_exynos_adjust_clock(struct dw_mci *host, unsigned int wanted)
 #ifndef MHZ
 #define MHZ (1000 * 1000)
 #endif
+#ifndef KHZ
 #define KHZ (1000)
+#endif
 
 static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 {
 	struct dw_mci_exynos_priv_data *priv = host->priv;
+	struct mmc_host *mmc = host->slot->mmc;
 	unsigned int wanted = ios->clock;
 	u32 *clk_tbl = priv->ref_clk;
 	u32 timing = ios->timing, clksel;
@@ -530,9 +574,8 @@ static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 
 	switch (timing) {
 	case MMC_TIMING_MMC_HS400:
-	case MMC_TIMING_MMC_HS400_ES:
 		if (host->pdata->quirks & DW_MCI_QUIRK_ENABLE_ULP) {
-			if (timing == MMC_TIMING_MMC_HS400_ES)
+			if (mmc->ios.enhanced_strobe)
 				clksel = priv->hs400_ulp_timing;
 			else
 				clksel = SDMMC_CLKSEL_UP_SAMPLE(priv->hs400_ulp_timing, priv->tuned_sample);
@@ -569,6 +612,14 @@ static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		else {
 			dev_info(host->dev, "Setting of SDR50 timing is not been!!\n");
 			clksel = SDMMC_CLKSEL_UP_SAMPLE(priv->sdr_timing, priv->tuned_sample);
+		}
+		break;
+	case MMC_TIMING_SD_HS:
+		if (priv->hs_timing)
+			clksel = priv->hs_timing;
+		else {
+			dev_info(host->dev, "No HS CLKSEL value in dt. replace with default value\n");
+			clksel = priv->sdr_timing;
 		}
 		break;
 	default:
@@ -617,8 +668,6 @@ static int dw_mci_exynos_parse_dt(struct dw_mci *host)
 		dev_err(host->dev, "mem alloc failed for private data\n");
 		return -ENOMEM;
 	}
-
-	id = of_alias_get_id(host->dev->of_node, "mshc");
 
 	for (idx = 0; idx < ARRAY_SIZE(exynos_compat); idx++) {
 		if (of_device_is_compatible(np, exynos_compat[idx].compatible))
@@ -670,45 +719,37 @@ static int dw_mci_exynos_parse_dt(struct dw_mci *host)
 
 	/* Swapping clock drive strength */
 	of_property_read_u32(np, "clk-drive-number", &priv->clk_drive_number);
-	if (of_get_property(np, "sec-sd-slot-type", NULL))
-		of_property_read_u32(np,
-				"sec-sd-slot-type", &priv->sec_sd_slot_type);
-	else {
-		if (priv->cd_gpio != -1) /* treat default SD slot if cd_gpio is defined */
-			priv->sec_sd_slot_type = SEC_HOTPLUG_SD_SLOT;
-		else
-			priv->sec_sd_slot_type = -1;
-	}
 
+	id = of_alias_get_id(host->dev->of_node, "mshc");
 	priv->pinctrl = devm_pinctrl_get(host->dev);
 
-	if (IS_ERR(priv->pinctrl)) {
-		priv->pinctrl = NULL;
-	} else {
-		if (id == 0)
-			priv->clk_drive_base = pinctrl_lookup_state(priv->pinctrl, "default");
-		else
-			priv->clk_drive_base = pinctrl_lookup_state(priv->pinctrl, "init");
-		priv->clk_drive_str[0] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-1x");
-		priv->clk_drive_str[1] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-2x");
-		priv->clk_drive_str[2] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-3x");
-		priv->clk_drive_str[3] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-4x");
-		priv->clk_drive_str[4] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-5x");
-		priv->clk_drive_str[5] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-6x");
+        if (IS_ERR(priv->pinctrl)) {
+                priv->pinctrl = NULL;
+        } else {
+                if (id == 0)
+                        priv->clk_drive_base = pinctrl_lookup_state(priv->pinctrl, "default");
+                else
+                        priv->clk_drive_base = pinctrl_lookup_state(priv->pinctrl, "init");
+                priv->clk_drive_str[0] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-1x");
+                priv->clk_drive_str[1] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-2x");
+                priv->clk_drive_str[2] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-3x");
+                priv->clk_drive_str[3] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-4x");
+                priv->clk_drive_str[4] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-5x");
+                priv->clk_drive_str[5] = pinctrl_lookup_state(priv->pinctrl, "fast-slew-rate-6x");
 
-		for (i = 0; i < 6; i++) {
-			if (IS_ERR(priv->clk_drive_str[i]))
-				priv->clk_drive_str[i] = NULL;
-		}
+                for (i = 0; i < 6; i++) {
+                        if (IS_ERR(priv->clk_drive_str[i]))
+                                priv->clk_drive_str[i] = NULL;
+               }
 
-		priv->pins_config[0] = pinctrl_lookup_state(priv->pinctrl, "pins-as-pdn");
-		priv->pins_config[1] = pinctrl_lookup_state(priv->pinctrl, "pins-as-func");
+                priv->pins_config[0] = pinctrl_lookup_state(priv->pinctrl, "pins-as-pdn");
+                priv->pins_config[1] = pinctrl_lookup_state(priv->pinctrl, "pins-as-func");
 
-		for (i = 0; i < 2; i++) {
-			if (IS_ERR(priv->pins_config[i]))
-				priv->pins_config[i] = NULL;
-		}
-	}
+                for (i = 0; i < 2; i++) {
+                        if (IS_ERR(priv->pins_config[i]))
+                                priv->pins_config[i] = NULL;
+                }
+        }
 
 	of_property_read_u32(np, "samsung,dw-mshc-ciu-div", &div);
 	priv->ciu_div = div;
@@ -741,7 +782,18 @@ static int dw_mci_exynos_parse_dt(struct dw_mci *host)
 	else
 		host->extended_tmout = false;
 
+	host->sysreg = syscon_regmap_lookup_by_phandle(np, "samsung,sysreg-phandle");
 
+	if (IS_ERR(host->sysreg)) {
+		/*
+		 * Currently, ufs driver gets sysreg for io coherency.
+		 * Some architecture might not support this feature.
+		 * So the device node might not exist.
+		 */
+		dev_err(host->dev, "sysreg regmap lookup failed.\n");
+	}
+
+	id = of_alias_get_id(host->dev->of_node, "mshc");
 	switch (id) {
 		/* dwmmc0 : eMMC    */
 	case 0:
@@ -759,10 +811,9 @@ static int dw_mci_exynos_parse_dt(struct dw_mci *host)
 		    SDMMC_CLKSEL_TIMING(timing[0], timing[1], timing[2], timing[3]);
 
 		ret = of_property_read_u32_array(np, "samsung,dw-mshc-hs400-ulp-timing", timing, 4);
-		if (!ret) {
+		if (!ret)
 			priv->hs400_ulp_timing =
 			    SDMMC_CLKSEL_TIMING(timing[0], timing[1], timing[2], timing[3]);
-		}
 		else
 			ret = 0;
 
@@ -787,6 +838,15 @@ static int dw_mci_exynos_parse_dt(struct dw_mci *host)
 	case 1:
 		/* dwmmc2 : SD Card */
 	case 2:
+		ret = of_property_read_u32_array(np, "samsung,dw-mshc-hs-timing", timing, 4);	/* HS 50Mhz */
+		if (!ret)
+			priv->hs_timing =
+				SDMMC_CLKSEL_TIMING(timing[0], timing[1], timing[2], timing[3]);
+		else {
+			priv->hs_timing = priv->sdr_timing;
+			ret = 0;
+		}
+
 		ret = of_property_read_u32_array(np, "samsung,dw-mshc-sdr50-timing", timing, 4);	/* SDR50 100Mhz */
 		if (!ret)
 			priv->sdr50_timing =
@@ -1300,516 +1360,9 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 	return ret;
 }
 
-static struct device *mmc_card_dev;
-static ssize_t mmc_gen_unique_number_show(struct device *dev,
-			      struct device_attribute *attr,
-			      char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *card = host->slot->mmc->card;
-	char gen_pnm[3];
-	int i;
-
-	if (!card) {
-		dev_info(host->dev, "%s : card is not exist!\n", __func__);
-		return -EINVAL;
-	}
-
-	switch (card->cid.manfid) {
-		case 0x02:	/* Sandisk	-> [3][4] */
-		case 0x45:
-			sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 3);
-			break;
-		case 0x11:	/* Toshiba	-> [1][2] */
-		case 0x90:	/* Hynix */
-			sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 1);
-			break;
-		case 0x13:
-		case 0xFE:	/* Micron 	-> [4][5] */
-			sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 4);
-			break;
-		case 0x15:	/* Samsung 	-> [0][1] */
-		default:
-			sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 0);
-			break;
-	}
-
-	/* Convert to Captal */
-	for (i = 0 ; i < 2 ; i++)
-	{
-		if (gen_pnm[i] >= 'a' && gen_pnm[i] <= 'z')
-			gen_pnm[i] -= ('a' - 'A');
-	}
-
-	return sprintf(buf, "C%s%02X%08X%02X\n",
-			gen_pnm, card->cid.prv, card->cid.serial, UNSTUFF_BITS(card->raw_cid, 8, 8));
-}
-
-static DEVICE_ATTR(un, (S_IRUSR|S_IRGRP), mmc_gen_unique_number_show, NULL);
-
-static struct device *sd_detection_cmd_dev;
-static ssize_t sd_detection_cmd_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct dw_mci_exynos_priv_data *priv = host->priv;
-
-	if (priv->sec_sd_slot_type > 0 && !gpio_is_valid(priv->cd_gpio))
-		goto gpio_error;
-
-	if (gpio_get_value(priv->cd_gpio) ^ (host->pdata->use_gpio_invert)
-			&& (priv->sec_sd_slot_type == SEC_HYBRID_SD_SLOT)) {
-		dev_info(host->dev, "SD slot tray Removed.\n");
-		return sprintf(buf, "Notray\n");
-	}
-
-	if (host->slot && host->slot->mmc && host->slot->mmc->card) {
-		dev_info(host->dev, "SD card inserted.\n");
-		return sprintf(buf, "Insert\n");
-	}
-	dev_info(host->dev, "SD card removed.\n");
-	return sprintf(buf, "Remove\n");
-
-gpio_error:
-	dev_info(host->dev, "%s : External SD detect pin Error\n", __func__);
-	return  sprintf(buf, "Error\n");
-}
-
-static ssize_t sd_detection_cnt_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-
-	dev_info(host->dev, "%s : CD count is = %u\n", __func__, host->card_detect_cnt);
-	return  sprintf(buf, "%u", host->card_detect_cnt);
-}
-
-static ssize_t sd_detection_maxmode_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	const char *uhs_bus_speed_mode = "";
-	struct device_node *np = host->dev->of_node;
-
-	if (of_find_property(np, "sd-uhs-sdr104", NULL))
-		uhs_bus_speed_mode = "SDR104";
-	else if (of_find_property(np, "sd-uhs-ddr50", NULL))
-		uhs_bus_speed_mode = "DDR50";
-	else if (of_find_property(np, "sd-uhs-sdr50", NULL))
-		uhs_bus_speed_mode = "SDR50";
-	else if (of_find_property(np, "sd-uhs-sdr25", NULL))
-		uhs_bus_speed_mode = "SDR25";
-	else if (of_find_property(np, "sd-uhs-sdr12", NULL))
-		uhs_bus_speed_mode = "SDR12";
-	else
-		uhs_bus_speed_mode = "HS";
-
-	dev_info(host->dev, "%s : Max supported Host Speed Mode = %s\n", __func__, uhs_bus_speed_mode);
-	return  sprintf(buf, "%s\n", uhs_bus_speed_mode);
-}
-static ssize_t sd_detection_curmode_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-
-	const char *uhs_bus_speed_mode = "";
-	static const char *const uhs_speeds[] = {
-		[UHS_SDR12_BUS_SPEED] = "SDR12",
-		[UHS_SDR25_BUS_SPEED] = "SDR25",
-		[UHS_SDR50_BUS_SPEED] = "SDR50",
-		[UHS_SDR104_BUS_SPEED] = "SDR104",
-		[UHS_DDR50_BUS_SPEED] = "DDR50",
-	};
-
-	if (host->slot && host->slot->mmc && host->slot->mmc->card) {
-		if (mmc_card_uhs(host->slot->mmc->card))
-			uhs_bus_speed_mode = uhs_speeds[host->slot->mmc->card->sd_bus_speed];
-		else
-			uhs_bus_speed_mode = "HS";
-	} else
-		uhs_bus_speed_mode = "No Card";
-
-	dev_info(host->dev, "%s : Current SD Card Speed = %s\n", __func__, uhs_bus_speed_mode);
-	return  sprintf(buf, "%s\n", uhs_bus_speed_mode);
-}
-
-static ssize_t sdcard_summary_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *card;
-	const char *uhs_bus_speed_mode = "";
-	static const char *const uhs_speeds[] = {
-		[UHS_SDR12_BUS_SPEED] = "SDR12",
-		[UHS_SDR25_BUS_SPEED] = "SDR25",
-		[UHS_SDR50_BUS_SPEED] = "SDR50",
-		[UHS_SDR104_BUS_SPEED] = "SDR104",
-		[UHS_DDR50_BUS_SPEED] = "DDR50",
-	};
-	static const char *const unit[] = {"KB", "MB", "GB", "TB"};
-	unsigned int size, serial;
-	int	digit = 1;
-	char ret_size[6];
-
-	if (host->slot && host->slot->mmc && host->slot->mmc->card) {
-		card = host->slot->mmc->card;
-
-		/* MANID */
-		/* SERIAL */
-		serial = card->cid.serial & (0x0000FFFF);
-
-		/*SIZE*/
-		if (card->csd.read_blkbits == 9)			/* 1 Sector = 512 Bytes */
-			size = (card->csd.capacity) >> 1;
-		else if (card->csd.read_blkbits == 11)	/* 1 Sector = 2048 Bytes */
-			size = (card->csd.capacity) << 1;
-		else								/* 1 Sector = 1024 Bytes */
-			size = card->csd.capacity;
-
-		if (size >= 380000000 && size <= 410000000) {	/* QUIRK 400GB SD Card */ 
-			sprintf(ret_size, "400GB"); 
-		} else if(size >= 190000000 && size <= 210000000) {	/* QUIRK 200GB SD Card */
-			sprintf(ret_size, "200GB");
-		} else {
-			while ((size >> 1) > 0) {
-				size = size >> 1;
-				digit++;
-			}
-			sprintf(ret_size, "%d%s", 1 << (digit%10), unit[digit/10]);
-		}
-
-		/* SPEEDMODE */
-		if (mmc_card_uhs(card))
-			uhs_bus_speed_mode = uhs_speeds[card->sd_bus_speed];
-		else if (mmc_card_hs(card))
-			uhs_bus_speed_mode = "HS";
-		else
-			uhs_bus_speed_mode = "DS";
-
-		/* SUMMARY */
-		dev_info(host->dev, "MANID : 0x%02X, SERIAL : %04X, SIZE : %s, SPEEDMODE : %s\n",
-				card->cid.manfid, serial, ret_size, uhs_bus_speed_mode);
-		return sprintf(buf, "\"MANID\":\"0x%02X\",\"SERIAL\":\"%04X\""\
-				",\"SIZE\":\"%s\",\"SPEEDMODE\":\"%s\",\"NOTI\":\"%d\"\n",
-				card->cid.manfid, serial, ret_size, uhs_bus_speed_mode,
-				card->err_log[0].noti_cnt);
-	} else {
-		/* SUMMARY : No SD Card Case */
-		dev_info(host->dev, "%s : No SD Card\n", __func__);
-		return sprintf(buf, "\"MANID\":\"NoCard\",\"SERIAL\":\"NoCard\""\
-			",\"SIZE\":\"NoCard\",\"SPEEDMODE\":\"NoCard\",\"NOTI\":\"NoCard\"\n");
-	}
-}
-
-static struct device *sd_info_cmd_dev;
-static ssize_t sd_count_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *cur_card = NULL;
-	struct mmc_card_error_log *err_log;
-	u64 total_cnt = 0;
-	int len = 0;
-	int i = 0;
-
-	if (host->slot && host->slot->mmc && host->slot->mmc->card)
-		cur_card = host->slot->mmc->card;
-	else {
-		len = snprintf(buf, PAGE_SIZE, "no card\n");
-		goto out;
-	}
-
-	err_log = cur_card->err_log;
-
-	for (i = 0; i < 6; i++) {
-		if (total_cnt < MAX_CNT_U64)
-			total_cnt += err_log[i].count;
-	}
-	len = snprintf(buf, PAGE_SIZE, "%lld\n", total_cnt);
-
-out:
-	return len;
-}
-
-static struct device *sd_data_cmd_dev;
-static ssize_t sd_data_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *cur_card = NULL;
-	struct mmc_card_error_log *err_log;
-	u64 total_c_cnt = 0;
-	u64 total_t_cnt = 0;
-	int len = 0;
-	int i = 0;
-
-	if (host->slot && host->slot->mmc && host->slot->mmc->card)
-		cur_card = host->slot->mmc->card;
-	else {
-		len = snprintf(buf, PAGE_SIZE,
-			"\"GE\":\"0\",\"CC\":\"0\",\"ECC\":\"0\",\"WP\":\"0\"\
-,\"OOR\":\"0\",\"CRC\":\"0\",\"TMO\":\"0\"\n");
-		goto out;
-	}
-
-	err_log = cur_card->err_log;
-
-	for (i = 0; i < 6; i++) {
-		if (err_log[i].err_type == -EILSEQ && total_c_cnt < MAX_CNT_U64)
-			total_c_cnt += err_log[i].count;
-		if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
-			total_t_cnt += err_log[i].count;
-	}
-
-	len = snprintf(buf, PAGE_SIZE,
-		"\"GE\":\"%d\",\"CC\":\"%d\",\"ECC\":\"%d\",\"WP\":\"%d\"\
-,\"OOR\":\"%d\",\"CRC\":\"%lld\",\"TMO\":\"%lld\"\n",
-		err_log[0].ge_cnt, err_log[0].cc_cnt, err_log[0].ecc_cnt, err_log[0].wp_cnt,
-		err_log[0].oor_cnt, total_c_cnt, total_t_cnt);
-out:
-	return len;
-}
-
-static ssize_t sd_cid_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *cur_card = NULL;
-	int len = 0;
-
-	if (host->slot && host->slot->mmc && host->slot->mmc->card)
-		cur_card = host->slot->mmc->card;
-	else {
-		len = snprintf(buf, PAGE_SIZE, "No Card\n");
-		goto out;
-	}
-
-	len = snprintf(buf, PAGE_SIZE,
-			"%08x%08x%08x%08x\n",
-			cur_card->raw_cid[0], cur_card->raw_cid[1],
-			cur_card->raw_cid[2], cur_card->raw_cid[3]);
-out:
-	return len;
-}
-
-static ssize_t sd_health_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *cur_card = NULL;
-	struct mmc_card_error_log *err_log;
-	u64 total_c_cnt = 0;
-	u64 total_t_cnt = 0;
-	int len = 0;
-	int i = 0;
-
-	if (host->slot && host->slot->mmc && host->slot->mmc->card)
-		cur_card = host->slot->mmc->card;
-
-	if (!cur_card) {
-		//There should be no spaces in 'No Card'(Vold Team).
-		len = snprintf(buf, PAGE_SIZE, "NOCARD\n");
-		goto out;
-	}
-
-	err_log = cur_card->err_log;
-
-	for (i = 0; i < 6; i++) {
-		if (err_log[i].err_type == -EILSEQ && total_c_cnt < MAX_CNT_U64)
-			total_c_cnt += err_log[i].count;
-		if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
-			total_t_cnt += err_log[i].count;
-	}
-
-	if(err_log[0].ge_cnt > 100 || err_log[0].ecc_cnt > 0 || err_log[0].wp_cnt > 0 ||
-	   err_log[0].oor_cnt > 10 || total_t_cnt > 100 || total_c_cnt > 100)
-		len = snprintf(buf, PAGE_SIZE, "BAD\n");
-	else
-		len = snprintf(buf, PAGE_SIZE, "GOOD\n");
-
-out:
-	return len;
-}
-
-static ssize_t mmc_data_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *card = host->slot->mmc->card;
-	struct mmc_card_error_log *err_log;
-	u64 total_c_cnt = 0;
-	u64 total_t_cnt = 0;
-	int len = 0;
-	int i = 0;
-
-	if (!card) {
-		len = snprintf(buf, PAGE_SIZE,
-			"\"GE\":\"0\",\"CC\":\"0\",\"ECC\":\"0\",\"WP\":\"0\","\
-			"\"OOR\":\"0\",\"CRC\":\"0\",\"TMO\":\"0\","\
-			"\"HALT\":\"0\",\"CQED\":\"0\",\"RPMB\":\"0\"\n");
-		goto out;
-	}
-
-	err_log = card->err_log;
-
-	for (i = 0; i < 6; i++) {
-		if (err_log[i].err_type == -EILSEQ && total_c_cnt < MAX_CNT_U64)
-			total_c_cnt += err_log[i].count;
-		if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
-			total_t_cnt += err_log[i].count;
-	}
-
-	len = snprintf(buf, PAGE_SIZE,
-		"\"GE\":\"%d\",\"CC\":\"%d\",\"ECC\":\"%d\",\"WP\":\"%d\","\
-		"\"OOR\":\"%d\",\"CRC\":\"%lld\",\"TMO\":\"%lld\","\
-		"\"HALT\":\"%d\",\"CQED\":\"%d\",\"RPMB\":\"%d\"\n",
-		err_log[0].ge_cnt, err_log[0].cc_cnt, err_log[0].ecc_cnt,
-		err_log[0].wp_cnt, err_log[0].oor_cnt, total_c_cnt, total_t_cnt,
-		err_log[0].halt_cnt, err_log[0].cq_cnt, err_log[0].rpmb_cnt);
-out:
-	return len;
-}
-
-static ssize_t mmc_summary_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *card = host->slot->mmc->card;
-	char *bus_speed_mode = "";
-	static const char *const unit[] = {"B", "KB", "MB", "GB", "TB"};
-	uint64_t size;
-	int digit = 0, pre_size = 1;
-	char ret_size[6];
-
-	if (card) {
-		/* SIZE */
-		size = (uint64_t)card->ext_csd.sectors * card->ext_csd.data_sector_size;
-
-		/* SIZE - unit */
-		while(size > 1024)
-		{
-			size /= 1024;
-			digit++;
-			if(digit == 4)
-				break;
-		}
-
-		/* SIZE - capacity */
-		while(size > pre_size)
-		{
-			if(pre_size > 1024)
-				break;
-			pre_size = pre_size << 1;
-		}
-
-		sprintf(ret_size, "%d%s", pre_size, unit[digit]);
-
-		/* SPEED MODE */
-		if(mmc_card_hs400(card) || mmc_card_hs400es(card))
-			bus_speed_mode = "HS400";
-		else if(mmc_card_hs200(card))
-			bus_speed_mode = "HS200";
-		else if(mmc_card_ddr52(card))
-			bus_speed_mode = "DDR50";
-		else if(mmc_card_hs(card))
-			bus_speed_mode = "HS";
-		else
-			bus_speed_mode = "LEGACY";
-
-		/* SUMMARY */
-		sprintf(buf, "\"MANID\":\"0x%02X\",\"PNM\":\"%s\","\
-			"\"REV\":\"%#x%x%x%x\",\"CQ\":\"%d\","\
-			"\"SIZE\":\"%s\",\"SPEEDMODE\":\"%s\","\
-			"\"LIFE\":\"%u\"\n",
-			card->cid.manfid, card->cid.prod_name,
-			(char)card->ext_csd.fwrev[4],
-			(char)card->ext_csd.fwrev[5],
-			(char)card->ext_csd.fwrev[6],
-			(char)card->ext_csd.fwrev[7],
-			((card->host->cqe_on) ? true : false),
-			ret_size, bus_speed_mode,
-			(card->ext_csd.device_life_time_est_typ_a >
-			 card->ext_csd.device_life_time_est_typ_b ?
-			 card->ext_csd.device_life_time_est_typ_a :
-			 card->ext_csd.device_life_time_est_typ_b)
-			);
-		dev_info(dev, "%s", buf);
-		return sprintf(buf, "%s", buf);
-	} else {
-		/* SUMMARY : No MMC Case */
-		dev_info(dev, "%s : No eMMC Card\n", __func__);
-		return sprintf(buf, "\"MANID\":\"NoCard\",\"PNM\":\"NoCard\",\"REV\":\"NoCard\""\
-				",\"CQ\":\"NoCard\",\"SIZE\":\"NoCard\",\"SPEEDMODE\":\"NoCard\""\
-				"\"LIFE\":\"NoCard\"\n");
-	}
-}
-
-#ifdef CONFIG_SEC_FACTORY
-static ssize_t mmc_hwrst_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *card = host->slot->mmc->card;
-
-	if (card)
-		return sprintf(buf, "%d\n", card->ext_csd.rst_n_function);
-	else
-		return sprintf(buf, "no card\n");
-
-}
-static DEVICE_ATTR(hwrst, 0444, mmc_hwrst_show, NULL);
-#endif
-
-static DEVICE_ATTR(status, 0444, sd_detection_cmd_show, NULL);
-static DEVICE_ATTR(cd_cnt, 0444, sd_detection_cnt_show, NULL);
-static DEVICE_ATTR(max_mode, 0444, sd_detection_maxmode_show, NULL);
-static DEVICE_ATTR(current_mode, 0444, sd_detection_curmode_show, NULL);
-static DEVICE_ATTR(sdcard_summary, 0444, sdcard_summary_show, NULL);
-static DEVICE_ATTR(mmc_data, S_IRUGO, mmc_data_show, NULL);
-static DEVICE_ATTR(mmc_summary, S_IRUGO, mmc_summary_show, NULL);
-static DEVICE_ATTR(sd_count, 0444, sd_count_show, NULL);
-static DEVICE_ATTR(sd_data, 0444, sd_data_show, NULL);
-static DEVICE_ATTR(data, 0444, sd_cid_show, NULL);
-static DEVICE_ATTR(fc, 0444, sd_health_show, NULL);
-
-/* Callback function for SD Card IO Error */
-static int sdcard_uevent(struct mmc_card *card)
-{
-	pr_info("%s: Send Notification about SD Card IO Error\n", mmc_hostname(card->host));
-	return kobject_uevent(&sd_detection_cmd_dev->kobj, KOBJ_CHANGE);
-}
-
-static int dw_mci_sdcard_uevent(struct device *dev, struct kobj_uevent_env *env)
-{
-	struct dw_mci *host = dev_get_drvdata(dev);
-	struct mmc_card *card;
-	int retval;
-	bool card_exist;
-
-	add_uevent_var(env, "DEVNAME=%s", dev->kobj.name);
-
-	if (host->slot && host->slot->mmc && host->slot->mmc->card) {
-		card_exist = true;
-		card = host->slot->mmc->card;
-	} else
-		card_exist = false;
-
-	retval = add_uevent_var(env, "IOERROR=%s", card_exist ? (
-				((card->err_log[0].ge_cnt && !(card->err_log[0].ge_cnt % 1000)) ||
-				 (card->err_log[0].ecc_cnt && !(card->err_log[0].ecc_cnt % 1000)) ||
-				 (card->err_log[0].wp_cnt && !(card->err_log[0].wp_cnt % 100)) ||
-				 (card->err_log[0].oor_cnt && !(card->err_log[0].oor_cnt % 100)))
-				? "YES" : "NO")	: "NoCard");
-
-	return retval;
-}
-
-static struct device_type sdcard_type = {
-	.uevent = dw_mci_sdcard_uevent,
-};
-
 static int dw_mci_exynos_request_ext_irq(struct dw_mci *host, irq_handler_t func)
 {
+#if !defined(CONFIG_MMC_DW_SD_BROKEN_DETECT)
 	struct dw_mci_exynos_priv_data *priv = host->priv;
 	int ext_cd_irq = 0;
 
@@ -1820,12 +1373,12 @@ static int dw_mci_exynos_request_ext_irq(struct dw_mci *host, irq_handler_t func
 				     IRQF_TRIGGER_RISING |
 				     IRQF_TRIGGER_FALLING |
 				     IRQF_ONESHOT, "tflash_det", host) == 0) {
-			dev_info(host->dev, "success to request irq for card detect.\n");
+			dev_info(host->dev, "success to request irq for card detect. IRQ NUmber is : %d\n", ext_cd_irq);
 			enable_irq_wake(ext_cd_irq);
 		} else
 			dev_info(host->dev, "cannot request irq for card detect.\n");
 	}
-
+#endif
 	return 0;
 }
 
@@ -1841,96 +1394,6 @@ static int dw_mci_exynos_check_cd(struct dw_mci *host)
 			ret = gpio_get_value(priv->cd_gpio) ? 0 : 1;
 	}
 	return ret;
-}
-
-static void dw_mci_exynos_add_sysfs(struct dw_mci *host)
-{
-	struct dw_mci_exynos_priv_data *priv = host->priv;
-
-	if ((priv->sec_sd_slot_type) >= 0) {
-		if (!sd_detection_cmd_dev) {
-			sd_detection_cmd_dev = sec_device_create(host, "sdcard");
-			if (IS_ERR(sd_detection_cmd_dev))
-				pr_err("Fail to create sysfs dev\n");
-
-			sd_detection_cmd_dev->type = &sdcard_type;
-			host->slot->mmc->sdcard_uevent = sdcard_uevent;
-
-			if (device_create_file(sd_detection_cmd_dev,
-						&dev_attr_status) < 0)
-				pr_err("Fail to create status sysfs file\n");
-
-			if (device_create_file(sd_detection_cmd_dev,
-						&dev_attr_cd_cnt) < 0)
-				pr_err("Fail to create cd_cnt sysfs file\n");
-
-			if (device_create_file(sd_detection_cmd_dev,
-						&dev_attr_max_mode) < 0)
-				pr_err("Fail to create max_mode sysfs file\n");
-
-			if (device_create_file(sd_detection_cmd_dev,
-						&dev_attr_current_mode) < 0)
-				pr_err("Fail to create current_mode sysfs file\n");
-
-			if (device_create_file(sd_detection_cmd_dev,
-						&dev_attr_sdcard_summary) < 0)
-				pr_err("Fail to create sdcard_summary sysfs file\n");
-		}
-
-		if (!sd_info_cmd_dev) {
-			sd_info_cmd_dev = sec_device_create(host, "sdinfo");
-			if (IS_ERR(sd_info_cmd_dev))
-				pr_err("Fail to create sysfs dev\n");
-			if (device_create_file(sd_info_cmd_dev,
-						&dev_attr_sd_count) < 0)
-				pr_err("Fail to create status sysfs file\n");
-			if (device_create_file(sd_info_cmd_dev,
-						&dev_attr_data) < 0)
-				pr_err("Fail to create status sysfs file\n");
-
-			if (device_create_file(sd_info_cmd_dev,
-						&dev_attr_fc) < 0)
-				pr_err("Fail to create status sysfs file\n");
-		}
-
-		if (!sd_data_cmd_dev) {
-			sd_data_cmd_dev = sec_device_create(host, "sddata");
-			if (IS_ERR(sd_data_cmd_dev))
-				pr_err("Fail to create sysfs dev\n");
-			if (device_create_file(sd_data_cmd_dev,
-						&dev_attr_sd_data) < 0)
-				pr_err("Fail to create status sysfs file\n");
-		}
-	}
-
-	/* For eMMC(dwmmc0) Case */
-	if (of_alias_get_id(host->dev->of_node, "mshc") == 0) {
-		if (!mmc_card_dev) {
-			mmc_card_dev = sec_device_create(host, "mmc");
-			if (IS_ERR(mmc_card_dev))
-				pr_err("Fail to create sysfs dev\n");
-
-			if (device_create_file(mmc_card_dev,
-					&dev_attr_un) < 0)
-				pr_err("%s : Failed to create device file(%s)!\n",
-					__func__, dev_attr_un.attr.name);
-
-			if (device_create_file(mmc_card_dev,
-					&dev_attr_mmc_data) < 0)
-				pr_err("%s : Failed to create device file(%s)!\n",
-					__func__, dev_attr_mmc_data.attr.name);
-
-			if (device_create_file(mmc_card_dev,
-					&dev_attr_mmc_summary) < 0)
-				pr_err("%s : Failed to create device file(%s)!\n",
-					__func__, dev_attr_mmc_summary.attr.name);
-#ifdef CONFIG_SEC_FACTORY
-			if (device_create_file(mmc_card_dev,
-						&dev_attr_hwrst) < 0)
-				pr_err("Fail to create status sysfs file\n");
-#endif
-		}
-	}
 }
 
 /* Common capabilities of Exynos4/Exynos5 SoC */
@@ -1949,16 +1412,12 @@ static int dw_mci_exynos_misc_control(struct dw_mci *host,
 	switch (control) {
 	case CTRL_RESTORE_CLKSEL:
 		dw_mci_exynos_set_sample(host, host->pdata->clk_smpl, false);
-		dw_mci_set_fine_tuning_bit(host, host->pdata->is_fine_tuned);
 		break;
 	case CTRL_REQUEST_EXT_IRQ:
 		ret = dw_mci_exynos_request_ext_irq(host, (irq_handler_t) priv);
 		break;
 	case CTRL_CHECK_CD:
 		ret = dw_mci_exynos_check_cd(host);
-		break;
-	case CTRL_ADD_SYSFS:
-		dw_mci_exynos_add_sysfs(host);
 		break;
 	default:
 		dev_err(host->dev, "dw_mmc exynos: wrong case\n");
@@ -1967,11 +1426,36 @@ static int dw_mci_exynos_misc_control(struct dw_mci *host,
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
+static void dw_mci_exynos_detect_interrupt(struct dw_mci *host)
+{
+	int det_status;
+
+	det_status = dw_mci_exynos_check_cd(host);
+	sd_sec_set_cd_gpio(det_status);
+
+	if (host->slot && host->slot->mmc)
+		sd_sec_detect_interrupt(host->slot->mmc);
+}
+
+static void dw_mci_exynos_check_req_err(struct dw_mci *host,
+		struct mmc_request *mrq)
+{
+	if (host->ch_id == MMC_CARD || host->ch_id == SD_CARD)
+		if (host->slot && host->slot->mmc)
+			mmc_sd_sec_check_req_err(host->slot->mmc, mrq);
+}
+
+static void dw_mci_exynos_cq_err_check(u32 cmd_error, u32 data_error, u32 status)
+{
+	mmc_sec_log_cq_err(cmd_error, data_error, status);
+}
+#endif
+
 #ifdef CONFIG_MMC_DW_EXYNOS_FMP
 static struct bio *get_bio(struct dw_mci *host, struct mmc_data *data)
 {
 	struct bio *bio = NULL;
-	struct dw_mci_exynos_priv_data *priv;
 	struct mmc_queue_req *mq_rq;
 	struct request *req;
 	struct mmc_blk_request *brq;
@@ -1980,10 +1464,6 @@ static struct bio *get_bio(struct dw_mci *host, struct mmc_data *data)
 		pr_err("%s: Invalid MMC:%p data:%p\n", __func__, host, data);
 		return NULL;
 	}
-
-	priv = host->priv;
-	if (priv->fmp == SMU_ID_MAX)
-		return NULL;
 
 	brq = container_of(data, struct mmc_blk_request, data);
 	mq_rq = container_of(brq, struct mmc_queue_req, brq);
@@ -2004,8 +1484,7 @@ static struct bio *get_bio(struct dw_mci *host, struct mmc_data *data)
 
 static int dw_mci_exynos_crypto_engine_cfg(struct dw_mci *host,
 					void *desc, struct mmc_data *data,
-					struct page *page, int page_index,
-					int sector_offset, bool cmdq_enabled)
+					int page_index, bool cmdq_enabled)
 {
 	struct bio *bio = get_bio(host, data);
 
@@ -2023,30 +1502,29 @@ static int dw_mci_exynos_crypto_engine_clear(struct dw_mci *host,
 
 	if (!bio)
 		return 0;
-
 	return fmp_mmc_crypt_clear(bio, desc, data, cmdq_enabled);
 }
 
-static int dw_mci_exynos_crypto_sec_cfg(struct dw_mci *host, bool init)
+static int dw_mci_exynos_crypto_sec_cfg(bool init)
 {
-	struct dw_mci_exynos_priv_data *priv = host->priv;
-
-	if (!priv)
-		return -EINVAL;
-
-	return exynos_fmp_sec_cfg(priv->fmp, priv->smu, init);
-}
-
-static int dw_mci_exynos_access_control_abort(struct dw_mci *host)
-{
-	struct dw_mci_exynos_priv_data *priv = host->priv;
-
-	if (!priv)
-		return -EINVAL;
-
-	return exynos_fmp_smu_abort(priv->smu);
+	return fmp_mmc_sec_cfg(init);
 }
 #endif
+
+static void dw_mci_exynos_cqe_swreset(struct dw_mci *host)
+{
+	u32 reg;
+
+	reg = mci_readl(host, AXI_BURST_LEN);
+	reg |= (1 << 22);
+	mci_writel(host, AXI_BURST_LEN, reg);
+
+	udelay(1);
+
+	reg = mci_readl(host, AXI_BURST_LEN);
+	reg |= (1 << 22);
+	mci_writel(host, AXI_BURST_LEN, reg);
+}
 
 static const struct dw_mci_drv_data exynos_drv_data = {
 	.caps = exynos_dwmmc_caps,
@@ -2060,12 +1538,17 @@ static const struct dw_mci_drv_data exynos_drv_data = {
 #ifdef CONFIG_MMC_DW_EXYNOS_FMP
 	.crypto_engine_cfg = dw_mci_exynos_crypto_engine_cfg,
 	.crypto_engine_clear = dw_mci_exynos_crypto_engine_clear,
-	.access_control_abort = dw_mci_exynos_access_control_abort,
 	.crypto_sec_cfg = dw_mci_exynos_crypto_sec_cfg,
 #endif
 	.ssclk_control = dw_mci_exynos_ssclk_control,
-	.cqe_swreset = dw_mci_exynos_cqe_swreset,
+	.dump_reg = dw_mci_reg_dump,
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
+	.detect_interrupt = dw_mci_exynos_detect_interrupt,
+	.check_request_error = dw_mci_exynos_check_req_err,
+	.cq_err_check = dw_mci_exynos_cq_err_check,
+#endif
 	.runtime_pm_control = dw_mci_exynos_runtime_pm_control,
+	.cqe_swreset = dw_mci_exynos_cqe_swreset,
 };
 
 static const struct of_device_id dw_mci_exynos_match[] = {
@@ -2080,6 +1563,10 @@ static int dw_mci_exynos_probe(struct platform_device *pdev)
 {
 	const struct dw_mci_drv_data *drv_data;
 	const struct of_device_id *match;
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
+	struct dw_mci *host;
+	int det_status;
+#endif
 	int ret;
 
 	match = of_match_node(dw_mci_exynos_match, pdev->dev.of_node);
@@ -2097,6 +1584,19 @@ static int dw_mci_exynos_probe(struct platform_device *pdev)
 
 		return ret;
 	}
+
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
+	host = dev_get_drvdata(&pdev->dev);
+	det_status = dw_mci_exynos_check_cd(host);
+	if (host->slot && host->slot->mmc) {
+		if (host->ch_id == MMC_CARD)
+			mmc_sec_set_features(host->slot->mmc);
+		else if (host->ch_id == SD_CARD) {
+			sd_sec_set_cd_gpio(det_status);
+			sd_sec_set_features(host->slot->mmc, pdev);
+		}
+	}
+#endif
 
 	return 0;
 }

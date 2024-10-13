@@ -17,7 +17,7 @@
 #include <linux/of_gpio.h>
 
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include <linux/leds-s2mu106.h>
 
@@ -32,12 +32,16 @@
 #include "is-core.h"
 
 extern int muic_afc_get_voltage(void);
-extern int s2mu106_led_mode_ctrl(int state);
+
+#define CAPTURE_MAX_TOTAL_CURRENT	(1500)
+#define TORCH_MAX_TOTAL_CURRENT		(150)
+#define MAX_FLASH_INTENSITY		(256)
 
 static int flash_s2mu106_init(struct v4l2_subdev *subdev, u32 val)
 {
 	int ret = 0;
 	struct is_flash *flash;
+	int i;
 
 	FIMC_BUG(!subdev);
 
@@ -50,16 +54,121 @@ static int flash_s2mu106_init(struct v4l2_subdev *subdev, u32 val)
 	flash->flash_data.intensity = 100; /* TODO: Need to figure out min/max range */
 	flash->flash_data.firing_time_us = 1 * 1000 * 1000; /* Max firing time is 1sec */
 	flash->flash_data.flash_fired = false;
+	flash->flash_data.led_cal_en = false;
+
+	for (i = 0; i < FLASH_LED_CH_MAX; i++) {
+		if (flash->led_ch[i] >= 0)
+			s2mu106_fled_set_mode_ctrl(flash->led_ch[i], CAM_FLASH_MODE_OFF);
+	}
 
 	s2mu106_led_mode_ctrl(0);
-
 	return ret;
+}
+
+static int sensor_s2mu106_flash_adj_current(struct is_flash *flash, enum flash_mode mode, u32 intensity)
+{
+	int adj_current = 0;
+	int max_current = 0;
+	int led_num = 0;
+	int i;
+
+	for (i = 0; i < FLASH_LED_CH_MAX; i++) {
+		if (flash->led_ch[i] != -1)
+			led_num++;
+	}
+
+	if (led_num == 0) {
+		err("wrong flash led number, set to 0");
+		return 0;
+	}
+
+	if (mode == CAM2_FLASH_MODE_SINGLE)
+		max_current = CAPTURE_MAX_TOTAL_CURRENT;
+	else if (mode == CAM2_FLASH_MODE_TORCH)
+		max_current = TORCH_MAX_TOTAL_CURRENT;
+	else
+		return 0;
+
+#ifdef FLASH_CAL_DATA_ENABLE
+	if (led_num > 2)
+		warn("Num of LED is over 2: %d\n", led_num);
+
+	led_num = 0;
+
+	if (flash->flash_data.led_cal_en == false) {
+	/* flash or torch set by ddk */
+		adj_current = ((max_current * intensity) / MAX_FLASH_INTENSITY);
+
+		if (adj_current > max_current) {
+			warn("flash intensity(%d) > max(%d), set to max forcely",
+					adj_current, max_current);
+			adj_current = max_current;
+		}
+
+		for (i = 0; i < FLASH_LED_CH_MAX; i++) {
+			if (flash->led_ch[i] == -1)
+				continue;
+
+			led_num++;
+			if (led_num == 1) {
+				flash->flash_data.cal_input_curr[i] = adj_current;
+				dbg_flash("[CH: %d] Flash set with adj_current: %d\n",
+						flash->led_ch[i], flash->flash_data.cal_input_curr[i]);
+			} else if (led_num == 2) {
+				flash->flash_data.cal_input_curr[i] = max_current - adj_current;
+				dbg_flash("[CH: %d] Flash set with adj_current: %d\n",
+						flash->led_ch[i], flash->flash_data.cal_input_curr[i]);
+			} else {
+				warn("skip set current value\n");
+			}
+		}
+	} else {
+	/* flash or torch set by hal */
+		for (i = 0; i < FLASH_LED_CH_MAX; i++) {
+			if (flash->led_ch[i] != -1) {
+				led_num++;
+				adj_current = flash->flash_data.cal_input_curr[i];
+				if (adj_current > max_current) {
+					warn("flash intensity(%d) > max(%d), set to max forcely",
+							adj_current, max_current);
+					flash->flash_data.cal_input_curr[i] = max_current;
+				}
+				dbg_flash("[CH: %d] Flash set with adj_current: %d\n",
+						flash->led_ch[i], flash->flash_data.cal_input_curr[i]);
+			}
+		}
+	}
+
+	dbg_flash("%s: mode: %s, led_numt: %d\n", __func__,
+		mode == CAM2_FLASH_MODE_OFF ? "OFF" :
+		mode == CAM2_FLASH_MODE_SINGLE ? "FLASH" : "TORCH",
+		led_num);
+
+	return 0;
+#else
+	if (intensity > MAX_FLASH_INTENSITY) {
+		warn("flash intensity(%d) > max(%d), set to max forcely",
+				intensity, MAX_FLASH_INTENSITY);
+		intensity = MAX_FLASH_INTENSITY;
+	}
+
+	adj_current = ((max_current * intensity) / MAX_FLASH_INTENSITY) / led_num;
+
+	dbg_flash("%s: mode: %s, adj_current: %d\n", __func__,
+		mode == CAM2_FLASH_MODE_OFF ? "OFF" :
+		mode == CAM2_FLASH_MODE_SINGLE ? "FLASH" : "TORCH",
+		adj_current);
+
+	return adj_current;
+#endif
 }
 
 static int sensor_s2mu106_flash_control(struct v4l2_subdev *subdev, enum flash_mode mode, u32 intensity)
 {
 	int ret = 0;
 	struct is_flash *flash = NULL;
+	int i;
+	int adj_current = 0;
 
 	FIMC_BUG(!subdev);
 
@@ -104,6 +213,33 @@ int flash_s2mu106_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 	FIMC_BUG(!flash);
 
 	switch (ctrl->id) {
+#ifdef FLASH_CAL_DATA_ENABLE
+	case V4L2_CID_FLASH_SET_CAL_EN:
+		if (ctrl->value < 0) {
+			err("failed to flash set cal_en: %d\n", ctrl->value);
+			ret = -EINVAL;
+			goto p_err;
+		}
+		flash->flash_data.led_cal_en = ctrl->value;
+		dbg_flash("led_cal_en ctrl set: %s\n", (flash->flash_data.led_cal_en ? "enable" : "disable"));
+		break;
+	case V4L2_CID_FLASH_SET_BY_CAL_CH0:
+		if (ctrl->value < 0) {
+			err("[ch0] failed to flash set current val by cal: %d\n", ctrl->value);
+			ret = -EINVAL;
+			goto p_err;
+		}
+		flash->flash_data.cal_input_curr[0] = ctrl->value;
+		break;
+	case V4L2_CID_FLASH_SET_BY_CAL_CH1:
+		if (ctrl->value < 0) {
+			err("[ch1] failed to flash set current val by cal: %d\n", ctrl->value);
+			ret = -EINVAL;
+			goto p_err;
+		}
+		flash->flash_data.cal_input_curr[1] = ctrl->value;
+		break;
+#else
 	case V4L2_CID_FLASH_SET_INTENSITY:
 		/* TODO : Check min/max intensity */
 		if (ctrl->value < 0) {
@@ -113,6 +249,7 @@ int flash_s2mu106_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		}
 		flash->flash_data.intensity = ctrl->value;
 		break;
+#endif
 	case V4L2_CID_FLASH_SET_FIRING_TIME:
 		/* TODO : Check min/max firing time */
 		if (ctrl->value < 0) {
@@ -170,10 +307,39 @@ p_err:
 	return ret;
 }
 
+long flash_s2mu106_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_FLS_S_CTRL:
+		ret = flash_s2mu106_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! flash_gpio_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_FLS_G_CTRL:
+		ret = flash_s2mu106_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! flash_gpio_g_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = flash_s2mu106_init,
-	.g_ctrl = flash_s2mu106_g_ctrl,
-	.s_ctrl = flash_s2mu106_s_ctrl,
+	.ioctl = flash_s2mu106_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
@@ -191,7 +357,7 @@ static int __init flash_s2mu106_probe(struct device *dev, struct i2c_client *cli
 	const u32 *sensor_id_spec;
 	u32 sensor_id_len;
 	u32 sensor_id[IS_SENSOR_COUNT];
-	int i;
+	int i, elements, led_ch_num;
 
 	FIMC_BUG(!is_dev);
 	FIMC_BUG(!dev);
@@ -264,10 +430,10 @@ static int __init flash_s2mu106_probe(struct device *dev, struct i2c_client *cli
 		}
 
 		flash[i].torch_gpio = of_get_named_gpio(dnode, "flash-set-gpio", 0);
-		
-		if(!gpio_is_valid(flash[i].torch_gpio))
+
+		if (!gpio_is_valid(flash[i].torch_gpio))
 			flash[i].torch_gpio = of_get_named_gpio(dnode, "torch-gpio", 0);
-		
+
 		if (!gpio_is_valid(flash[i].torch_gpio)) {
 			dev_err(dev, "failed to get PIN_RESET\n");
 			kfree(flash);
@@ -281,6 +447,27 @@ static int __init flash_s2mu106_probe(struct device *dev, struct i2c_client *cli
 		flash[i].flash_data.mode = CAM2_FLASH_MODE_OFF;
 		flash[i].flash_data.intensity = 255; /* TODO: Need to figure out min/max range */
 		flash[i].flash_data.firing_time_us = 1 * 1000 * 1000; /* Max firing time is 1sec */
+
+		/* get flash_led ch by dt */
+		for (led_ch_num = 0; led_ch_num < FLASH_LED_CH_MAX; led_ch_num++)
+			flash[i].led_ch[led_ch_num] = -1;
+
+		elements = of_property_count_u32_elems(dnode, "led_ch");
+		if (elements < 0 || elements > FLASH_LED_CH_MAX) {
+			warn("flash led elements is too much or wrong(%d), set to max(%d)\n",
+				elements, FLASH_LED_CH_MAX);
+			elements = FLASH_LED_CH_MAX;
+		}
+
+		if (elements) {
+			if (of_property_read_u32_array(dnode, "led_ch", flash[i].led_ch, elements)) {
+				err("cannot get flash led_ch, set only ch1\n");
+				flash[i].led_ch[0] = 1;
+			}
+		} else {
+			probe_info("set flash_ch as default(only ch1)\n");
+			flash[i].led_ch[0] = 1;
+		}
 
 		device = &core->sensor[sensor_id[i]];
 		device->subdev_flash = &subdev_flash[i];
@@ -337,11 +524,13 @@ static const struct of_device_id exynos_is_sensor_flash_s2mu106_match[] = {
 	{
 		.compatible = "samsung,sensor-flash-s2mu106",
 	},
+	{},
 };
 MODULE_DEVICE_TABLE(of, exynos_is_sensor_flash_s2mu106_match);
 
 /* register platform driver */
 static struct platform_driver sensor_flash_s2mu106_platform_driver = {
+	.probe = flash_s2mu106_platform_probe,
 	.driver = {
 		.name   = "IS-SENSOR-FLASH-S2MU106-PLATFORM",
 		.owner  = THIS_MODULE,
@@ -349,6 +538,27 @@ static struct platform_driver sensor_flash_s2mu106_platform_driver = {
 	}
 };
 
+#ifdef MODULE
+static int flash_s2mu106_module_init(void)
+{
+	int ret = 0;
+
+	ret = platform_driver_register(&sensor_flash_s2mu106_platform_driver);
+	if (ret) {
+		err("flash_s2mu106 driver register failed(%d)", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+static void flash_s2mu106_module_exit(void)
+{
+	platform_driver_unregister(&sensor_flash_s2mu106_platform_driver);
+}
+module_init(flash_s2mu106_module_init);
+module_exit(flash_s2mu106_module_exit);
+#else
 static int __init is_sensor_flash_s2mu106_init(void)
 {
 	int ret;
@@ -362,3 +572,7 @@ static int __init is_sensor_flash_s2mu106_init(void)
 	return ret;
 }
 late_initcall_sync(is_sensor_flash_s2mu106_init);
+#endif
+
+MODULE_LICENSE("GPL");
+MODULE_SOFTDEP("pre: fimc-is");

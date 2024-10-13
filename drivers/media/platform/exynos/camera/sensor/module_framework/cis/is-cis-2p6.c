@@ -19,7 +19,7 @@
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
@@ -1938,10 +1938,24 @@ static struct i2c_driver cis_2p6_driver = {
 	.driver = {
 		.name	= SENSOR_NAME,
 		.owner	= THIS_MODULE,
-		.of_match_table = exynos_is_cis_2p6_match
+		.of_match_table = exynos_is_cis_2p6_match,
+		.suppress_bind_attrs = true,
 	},
 	.probe	= cis_2p6_probe,
 	.remove	= cis_2p6_remove,
 	.id_table = cis_2p6_idt
 };
-module_i2c_driver(cis_2p6_driver);
+
+static int __init sensor_cis_2p6_init(void)
+{
+	int ret;
+
+	ret = i2c_add_driver(&cis_2p6_driver);
+	if (ret)
+		err("failed to add %s driver: %d\n",
+			cis_2p6_driver.driver.name, ret);
+
+	return ret;
+}
+late_initcall_sync(sensor_cis_2p6_init);
+MODULE_LICENSE("GPL");

@@ -21,7 +21,7 @@
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 
@@ -77,7 +77,7 @@ int is_ssx_video_probe(void *data)
 #else
 		VFL_DIR_RX,
 #endif
-		&device->mem,
+    &device->resourcemgr->mem,
 		&device->v4l2_dev,
 		&is_ssx_video_fops,
 		&is_ssx_video_ioctl_ops);
@@ -129,7 +129,7 @@ static int is_ssx_video_open(struct file *file)
 	}
 
 	snprintf(name, sizeof(name), "SS%d", device->device_id);
-	ret = open_vctx(file, video, &vctx, device->device_id, BIT(ENTRY_SENSOR), name);
+	ret = open_vctx(file, video, &vctx, device->device_id, ENTRY_SENSOR, name);
 	if (ret) {
 		err("[SS%d:V] open_vctx is fail(%d)", device->device_id, ret);
 		goto err_vctx_open;
@@ -278,13 +278,6 @@ static int is_ssx_video_querycap(struct file *file, void *fh,
 	return 0;
 }
 
-static int is_ssx_video_enum_fmt_mplane(struct file *file, void *priv,
-				    struct v4l2_fmtdesc *f)
-{
-	/* Todo : add to enumerate format code */
-	return 0;
-}
-
 static int is_ssx_video_get_format_mplane(struct file *file, void *fh,
 						struct v4l2_format *format)
 {
@@ -317,27 +310,6 @@ static int is_ssx_video_set_format_mplane(struct file *file, void *fh,
 
 p_err:
 	return ret;
-}
-
-static int is_ssx_video_cropcap(struct file *file, void *fh,
-	struct v4l2_cropcap *cropcap)
-{
-	/* Todo : add to crop capability code */
-	return 0;
-}
-
-static int is_ssx_video_get_crop(struct file *file, void *fh,
-	struct v4l2_crop *crop)
-{
-	/* Todo : add to get crop control code */
-	return 0;
-}
-
-static int is_ssx_video_set_crop(struct file *file, void *fh,
-	const struct v4l2_crop *crop)
-{
-	/* Todo : add to set crop control code */
-	return 0;
 }
 
 static int is_ssx_video_reqbufs(struct file *file, void *priv,
@@ -771,6 +743,13 @@ static int is_ssx_video_s_ctrl(struct file *file, void *priv,
 			device->scene_mode = ctrl->value;
 		}
 		break;
+	case V4L2_CID_SENSOR_SET_FRAME_RATE:
+		if (is_sensor_s_frame_duration(device, ctrl->value)) {
+			err("failed to set frame duration : %d\n - %d",
+					ctrl->value, ret);
+			ret = -EINVAL;
+		}
+		break;
 	case V4L2_CID_SENSOR_SET_AE_TARGET:
 		if (is_sensor_s_exposure_time(device, ctrl->value)) {
 			err("failed to set exposure time : %d\n - %d",
@@ -833,6 +812,13 @@ static int is_ssx_video_s_ctrl(struct file *file, void *priv,
 	case V4L2_CID_SENSOR_SET_GAIN:
 		if (is_sensor_s_again(device, ctrl->value)) {
 			err("failed to set gain : %d\n - %d",
+				ctrl->value, ret);
+			ret = -EINVAL;
+		}
+		break;
+	case V4L2_CID_SENSOR_SET_SHUTTER:
+		if (is_sensor_s_shutterspeed(device, ctrl->value)) {
+			err("failed to set shutter speed : %d\n - %d",
 				ctrl->value, ret);
 			ret = -EINVAL;
 		}
@@ -935,10 +921,10 @@ static int is_ssx_video_g_ctrl(struct file *file, void *priv,
 	device = GET_DEVICE(vctx);
 
 	ret = is_vender_ssx_video_g_ctrl(ctrl, device);
-	if (ret) {
-		merr("is_vender_ssx_video_g_ctrl is fail(%d)", device, ret);
-		goto p_err;
-	}
+	if (!ret)
+		return 0;
+
+	ret = 0;
 
 	switch (ctrl->id) {
 	case V4L2_CID_IS_G_STREAM:
@@ -1057,15 +1043,10 @@ p_err:
 
 const struct v4l2_ioctl_ops is_ssx_video_ioctl_ops = {
 	.vidioc_querycap		= is_ssx_video_querycap,
-	.vidioc_enum_fmt_vid_out_mplane	= is_ssx_video_enum_fmt_mplane,
-	.vidioc_enum_fmt_vid_cap_mplane	= is_ssx_video_enum_fmt_mplane,
 	.vidioc_g_fmt_vid_out_mplane	= is_ssx_video_get_format_mplane,
 	.vidioc_g_fmt_vid_cap_mplane	= is_ssx_video_get_format_mplane,
 	.vidioc_s_fmt_vid_out_mplane	= is_ssx_video_set_format_mplane,
 	.vidioc_s_fmt_vid_cap_mplane	= is_ssx_video_set_format_mplane,
-	.vidioc_cropcap			= is_ssx_video_cropcap,
-	.vidioc_g_crop			= is_ssx_video_get_crop,
-	.vidioc_s_crop			= is_ssx_video_set_crop,
 	.vidioc_reqbufs			= is_ssx_video_reqbufs,
 	.vidioc_querybuf		= is_ssx_video_querybuf,
 	.vidioc_qbuf			= is_ssx_video_qbuf,
@@ -1211,7 +1192,7 @@ static void is_ssx_buffer_queue(struct vb2_buffer *vb)
 
 static void is_ssx_buffer_finish(struct vb2_buffer *vb)
 {
-	int ret = 0;
+	int ret;
 	struct is_video_ctx *vctx;
 	struct is_device_sensor *device;
 
@@ -1224,13 +1205,11 @@ static void is_ssx_buffer_finish(struct vb2_buffer *vb)
 
 	mvdbgs(3, "%s(%d)\n", vctx, &vctx->queue, __func__, vb->index);
 
-	is_queue_buffer_finish(vb);
-
 	ret = is_sensor_buffer_finish(device, vb->index);
-	if (ret) {
+	if (ret)
 		merr("is_sensor_buffer_finish is fail(%d)", device, ret);
-		return;
-	}
+
+	is_queue_buffer_finish(vb);
 }
 
 const struct vb2_ops is_ssx_qops = {

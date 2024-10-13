@@ -33,6 +33,7 @@ enum __RKP_CMD_ID{
 	RKP_DYNAMIC_LOAD = 0x20,
 	RKP_MODULE_LOAD = 0x21,
 	RKP_BPF_LOAD = 0x22,
+	RKP_KPROBE_PAGE = 0x23,
 #ifdef CONFIG_RKP_TEST
 	CMD_ID_TEST_GET_PAR = 0x81,
 	CMD_ID_TEST_GET_RO = 0x83,
@@ -60,6 +61,9 @@ enum __RKP_CMD_ID{
 #define RKP_DYN_FIMC				0x02
 #define RKP_DYN_FIMC_COMBINED		0x03
 #define RKP_DYN_MODULE				0x04
+
+#define RKP_MODULE_PXN_CLEAR    0x1
+#define RKP_MODULE_PXN_SET              0x2
 
 struct rkp_init { //copy from uh (app/rkp/rkp.h)
 	u32 magic;
@@ -102,6 +106,16 @@ typedef struct dynamic_load_struct {
 	u64 code_size2;
 } rkp_dynamic_load_t;
 
+struct module_info {
+        u64 base_va;
+        u64 vm_size;
+        u64 core_base_va;
+        u64 core_text_size;
+        u64 core_ro_size;
+        u64 init_base_va;
+        u64 init_text_size;
+};
+
 extern sparse_bitmap_for_kernel_t* rkp_s_bitmap_ro;
 extern sparse_bitmap_for_kernel_t* rkp_s_bitmap_dbl;
 extern sparse_bitmap_for_kernel_t* rkp_s_bitmap_buffer;
@@ -120,23 +134,27 @@ static inline u64 uh_call_static(u64 app_id, u64 cmd_id, u64 arg1)
 	register u64 arg __asm__("x2") = arg1;
 
 	__asm__ volatile (
-		"hvc	0\n"
-		: "+r"(ret), "+r"(cmd), "+r"(arg)
-	);
+			"hvc	0\n"
+			: "+r"(ret), "+r"(cmd), "+r"(arg)
+			);
 
 	return ret;
 }
 
 static inline void *rkp_ro_alloc(void)
 {
-	u64 addr = (u64)uh_call_static(UH_APP_RKP, RKP_ROBUFFER_ALLOC, 0);
+	u64 addr;
+	addr = (u64)uh_call_static(UH_APP_RKP, RKP_ROBUFFER_ALLOC, 0);
 	if (!addr)
 		return 0;
+//	pr_err("%s:%d :%llx to %llx, %pS\n", __func__, __LINE__, (u64)addr,
+//	       (u64)__phys_to_virt(addr), __builtin_return_address(0));
 	return (void *)__phys_to_virt(addr);
 }
 
 static inline void rkp_ro_free(void *free_addr)
 {
+//	pr_err("%s:%d :%llx\n", __func__, __LINE__, (u64)free_addr);
 	uh_call_static(UH_APP_RKP, RKP_ROBUFFER_FREE, (u64)free_addr);
 }
 
@@ -149,11 +167,12 @@ static inline u8 rkp_check_bitmap(u64 pa, sparse_bitmap_for_kernel_t *kernel_bit
 	if (!kernel_bitmap || !kernel_bitmap->map)
 		return 0;
 
+//	pr_err("%s:%d\n", __func__, __LINE__);
 	offset = pa - kernel_bitmap->start_addr;
 	map_loc = ((offset % SPARSE_UNIT_SIZE) / PAGE_SIZE) >> 3;
 	bit_offset = ((offset % SPARSE_UNIT_SIZE) / PAGE_SIZE) % 8;
 
-	if (kernel_bitmap->maxn <= (offset >> SPARSE_UNIT_BIT)) 
+	if (kernel_bitmap->maxn <= (offset >> SPARSE_UNIT_BIT))
 		return 0;
 
 	map = kernel_bitmap->map[(offset >> SPARSE_UNIT_BIT)];
@@ -180,12 +199,14 @@ static inline u8 rkp_is_pg_dbl_mapped(u64 pa)
 }
 
 /* allocation */
-static inline phys_addr_t rkp_ro_alloc_phys(void)
+static inline phys_addr_t rkp_ro_alloc_phys(int shift)
 {
 	phys_addr_t ret = 0;
 
 	uh_call(UH_APP_RKP, RKP_ROBUFFER_ALLOC, (u64)&ret, 0, 0, 0);
 
+//	pr_err("%s:%d :%llx to %llx, %pS\n", __func__, __LINE__, (u64)ret,
+//	       (u64)__phys_to_virt(ret), __builtin_return_address(0));
 	return ret;
 }
 

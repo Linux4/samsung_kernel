@@ -13,14 +13,14 @@
 #include <linux/of.h>
 #include <linux/clk-provider.h>
 #include <linux/pm_runtime.h>
-#include <linux/exynos_iovmm.h>
-#include <linux/sched/types.h>
+#include <linux/iommu.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/of_address.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/irq.h>
 #include <drm/drm_edid.h>
 #include <media/v4l2-subdev.h>
-#if defined(CONFIG_EXYNOS_ALT_DVFS)
+#if IS_ENABLED(CONFIG_EXYNOS_ALT_DVFS)
 #include <soc/samsung/exynos-alt.h>
 #endif
 
@@ -31,8 +31,9 @@
 //#include "../../../../soc/samsung/pwrcal/pwrcal.h"
 //#include "../../../../soc/samsung/pwrcal/S5E8890/S5E8890-vclk.h"
 #include "../../../../../kernel/irq/internals.h"
-#ifdef CONFIG_EXYNOS_ALT_DVFS
-struct task_struct *devfreq_change_task;
+#include "./panels/exynos_panel_drv.h"
+#if IS_ENABLED(CONFIG_EXYNOS_ALT_DVFS)
+struct task_struct *devfreq_change_task
 #endif
 
 /* DECON irq handler for DSI interface */
@@ -96,7 +97,7 @@ irq_end:
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_EXYNOS_ALT_DVFS
+#if IS_ENABLED(CONFIG_EXYNOS_ALT_DVFS)
 static int decon_devfreq_change_task(void *data)
 {
 	while (!kthread_should_stop()) {
@@ -314,7 +315,7 @@ static irqreturn_t decon_ext_irq_handler(int irq, void *dev_id)
 	wake_up_interruptible_all(&decon->vsync.wait);
 
 	spin_unlock(&decon->slock);
-#ifdef CONFIG_EXYNOS_ALT_DVFS
+#if IS_ENABLED(CONFIG_EXYNOS_ALT_DVFS)
 	if (devfreq_change_task)
 		wake_up_process(devfreq_change_task);
 #endif
@@ -355,7 +356,7 @@ int decon_register_ext_irq(struct decon_device *decon)
 
 	decon->eint_status = 1;
 
-#ifdef CONFIG_EXYNOS_ALT_DVFS
+#if IS_ENABLED(CONFIG_EXYNOS_ALT_DVFS)
 	devfreq_change_task =
 		kthread_create(decon_devfreq_change_task, NULL,
 				"devfreq_change");
@@ -383,6 +384,7 @@ static int decon_vsync_thread(void *data)
 	int num_dsi = (decon->dt.dsi_mode == DSI_MODE_DUAL_DSI) ? 2 : 1;
 	int i;
 #endif
+	struct timespec64 tv;
 
 	while (!kthread_should_stop()) {
 		ktime_t timestamp = decon->vsync.timestamp;
@@ -396,7 +398,13 @@ static int decon_vsync_thread(void *data)
 		if (!ret) {
 #if defined(CONFIG_EXYNOS_COMMON_PANEL)
 			if (decon->vsync.panel_notify) {
-				ev.timestamp = ktime_to_timespec(decon->vsync.timestamp);
+#if 0
+				ev.timestamp = ktime_to_timespec64(decon->vsync.timestamp);
+#else
+				tv = ktime_to_timespec64(decon->fsync.timestamp);
+				ev.timestamp.tv_sec =  tv.tv_sec;
+				ev.timestamp.tv_nsec =	tv.tv_nsec;
+#endif
 				ev.type = V4L2_EVENT_DECON_VSYNC;
 				for (i = 0; i < num_dsi; i++) {
 					v4l2_subdev_call(decon->out_sd[i], core, ioctl,
@@ -482,6 +490,7 @@ static int decon_fsync_thread(void *data)
 	ktime_t timestamp;
 	int num_dsi = (decon->dt.dsi_mode == DSI_MODE_DUAL_DSI) ? 2 : 1;
 	int i, ret;
+	struct timespec64 tv;
 
 	while (!kthread_should_stop()) {
 		timestamp = decon->fsync.timestamp;
@@ -489,7 +498,13 @@ static int decon_fsync_thread(void *data)
 				(timestamp != decon->fsync.timestamp) &&
 				decon->fsync.active);
 		if (!ret) {
-			ev.timestamp = ktime_to_timespec(decon->fsync.timestamp);
+#if 0
+			ev.timestamp = ktime_to_timespec64(decon->fsync.timestamp);
+#else
+			tv = ktime_to_timespec64(decon->fsync.timestamp);
+			ev.timestamp.tv_sec =  tv.tv_sec;
+			ev.timestamp.tv_nsec =  tv.tv_nsec;
+#endif
 			ev.type = V4L2_EVENT_DECON_FRAME_DONE;
 			for (i = 0; i < num_dsi; i++) {
 				v4l2_subdev_call(decon->out_sd[i], core, ioctl,
@@ -673,8 +688,7 @@ int decon_error_cb_by_fb_blank(struct decon_device *decon,
 	decon_info("%s +\n", __func__);
 
 	/* FB LOCK */
-	if (!lock_fb_info(fb_info))
-		goto exit;
+	lock_fb_info(fb_info);
 
 	if (decon->state == DECON_STATE_OFF) {
 		unlock_fb_info(fb_info);
@@ -682,10 +696,12 @@ int decon_error_cb_by_fb_blank(struct decon_device *decon,
 		goto exit;
 	}
 
-	fb_info->flags |= FBINFO_MISC_USEREVENT;
+	/* FBINFO_MISC_USEREVENT deprecated */
+	/* fbmem: pull fbcon_update_vcs() out of fb_set_var() */
+//	fb_info->flags |= FBINFO_MISC_USEREVENT;
 	fb_blank(fb_info, FB_BLANK_POWERDOWN);
 	fb_blank(fb_info, FB_BLANK_UNBLANK);
-	fb_info->flags &= ~FBINFO_MISC_USEREVENT;
+//	fb_info->flags &= ~FBINFO_MISC_USEREVENT;
 
 	DPU_FULL_RECT(&decon->last_regs.up_region, decon->lcd_info);
 	decon->last_regs.need_update = true;
@@ -1223,6 +1239,10 @@ int decon_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	if (decon_check_limitation(decon, decon->dt.dft_win, &config) < 0)
 		return -EINVAL;
 
+	#if defined(CONFIG_EXYNOS_BTS)
+	    decon->bts.ops->bts_acquire_bw(decon);
+	#endif
+
 	decon_hiber_block_exit(decon);
 
 	decon_to_psr_info(decon, &psr);
@@ -1401,14 +1421,14 @@ int decon_enter_hiber(struct decon_device *decon)
 
 	/* DMA protection disable must be happen on dpp domain is alive */
 	if (decon->dt.out_type != DECON_OUT_WB) {
-#if defined(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
+#if IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
 		decon_set_protected_content(decon, NULL);
 #endif
 		decon->cur_using_dpp = 0;
 		decon_dpp_stop(decon, false);
 	}
 
-#if defined(CONFIG_EXYNOS_BTS)
+#if IS_ENABLED(CONFIG_EXYNOS_BTS)
 	decon->bts.ops->bts_release_bw(decon);
 #endif
 

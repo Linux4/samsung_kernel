@@ -37,7 +37,7 @@ int panel_i2c_tx(struct panel_i2c_dev *i2c_dev, u8 *arr, u32 arr_len)
 	};
 
 	if (unlikely(!i2c_dev->client)) {
-		pr_err("%s: failed, i2c Client is NULL.\n");
+		pr_err("%s: failed, i2c Client is NULL.\n",__func__);
 		ret = -EINVAL;
 		return ret;
 	}
@@ -99,7 +99,7 @@ int panel_i2c_rx(struct panel_i2c_dev *i2c_dev, u8 *arr, u32 arr_len)
 	};
 
 	if (unlikely(!i2c_dev->client)) {
-		pr_err("%s: failed, i2c Client is NULL.\n");
+		pr_err("%s: failed, i2c Client is NULL.\n",__func__);
 		ret = -EINVAL;
 		return ret;
 	}
@@ -177,12 +177,12 @@ static int panel_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
-MODULE_DEVICE_TABLE(i2c, panel_i2c_id);
-
 static struct i2c_device_id panel_i2c_id[] = {
 	{"panel_i2c", 0},
 	{},
 };
+
+MODULE_DEVICE_TABLE(i2c, panel_i2c_id);
 
 static const struct of_device_id panel_i2c_dt_ids[] = {
 	{ .compatible = "panel_i2c" },

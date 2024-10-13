@@ -14,14 +14,13 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-actuator-dw9808.h"
 #include "is-device-sensor.h"
 #include "is-device-sensor-peri.h"
 #include "is-core.h"
-#include "is-helper-actuator-i2c.h"
-#include "is-sec-define.h"
+#include "is-helper-i2c.h"
 
 #include "interface/is-interface-library.h"
 
@@ -55,13 +54,6 @@ int sensor_dw9808_init(struct i2c_client *client, struct is_caldata_list_dw9808 
 	int ret = 0;
 	u8 i2c_data[2];
 	u32 control_mode, pre_scale, sac_time;
-#ifdef CONFIG_VENDER_MCD_V2
-	struct is_rom_info *sysfs_finfo;
-#else
-	struct is_from_info *sysfs_finfo;
-#endif
-
-	is_sec_get_sysfs_finfo(&sysfs_finfo);
 
 	probe_info("%s start\n", __func__);
 
@@ -111,14 +103,6 @@ int sensor_dw9808_init(struct i2c_client *client, struct is_caldata_list_dw9808 
 		ret = is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);
 		if (ret < 0)
 			goto p_err;
-		if(sysfs_finfo->af_cal_pan)
-		{
-			i2c_data[0] = REG_PRESET;
-			i2c_data[1] = (sysfs_finfo->af_cal_pan / 2 < DEF_DW9808_PRESET_MAX) ? sysfs_finfo->af_cal_pan / 2 : DEF_DW9808_PRESET_MAX;
-			ret = is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);
-			if (ret < 0)
-				goto p_err;
-		}
 	} else {
 		/* PD(Power Down) mode enable */
 		i2c_data[0] = REG_CONTROL;
@@ -304,8 +288,7 @@ int sensor_dw9808_actuator_init(struct v4l2_subdev *subdev, u32 val)
 #endif
 
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	BUG_ON(!subdev);
@@ -347,8 +330,7 @@ int sensor_dw9808_actuator_init(struct v4l2_subdev *subdev, u32 val)
 		goto p_err;
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 p_err:
@@ -362,8 +344,7 @@ int sensor_dw9808_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	struct is_actuator *actuator = NULL;
 	struct i2c_client *client = NULL;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	dbg_actuator("%s\n", __func__);
@@ -398,8 +379,7 @@ int sensor_dw9808_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	*info = ((val & 0x3) == 0) ? ACTUATOR_STATUS_NO_BUSY : ACTUATOR_STATUS_BUSY;
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 p_err:
@@ -433,8 +413,7 @@ int sensor_dw9808_actuator_soft_landing(struct v4l2_subdev *subdev)
 	u16 position;
 
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	BUG_ON(!subdev);
@@ -513,8 +492,7 @@ int sensor_dw9808_actuator_soft_landing(struct v4l2_subdev *subdev)
 	sensor_dw9808_actuator_wait_busy(subdev);
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 	/*Get current position of the lens, to check if NRC works! */
@@ -547,8 +525,7 @@ int sensor_dw9808_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	struct i2c_client *client;
 	u32 position = 0;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	BUG_ON(!subdev);
@@ -585,8 +562,7 @@ int sensor_dw9808_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	dbg_actuator("%s: position(%d)\n", __func__, position);
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 p_err:
 	return ret;
@@ -655,10 +631,39 @@ p_err:
 	return ret;
 }
 
+long sensor_dw9808_actuator_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_ACT_S_CTRL:
+		ret = sensor_dw9808_actuator_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_ACT_G_CTRL:
+		ret = sensor_dw9808_actuator_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_g_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = sensor_dw9808_actuator_init,
-	.g_ctrl = sensor_dw9808_actuator_g_ctrl,
-	.s_ctrl = sensor_dw9808_actuator_s_ctrl,
+	.ioctl = sensor_dw9808_actuator_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
@@ -753,13 +758,8 @@ int sensor_dw9808_actuator_probe(struct i2c_client *client,
 
 	snprintf(subdev_actuator->name, V4L2_SUBDEV_NAME_SIZE, "actuator-subdev.%d", actuator->id);
 	}
-
-	probe_info("%s done\n", __func__);
-	return ret;
 p_err:
-	if (subdev_actuator)
-		kzfree(subdev_actuator);
-
+	probe_info("%s done\n", __func__);
 	return ret;
 }
 
@@ -794,3 +794,5 @@ static struct i2c_driver actuator_dw9808_driver = {
 	.id_table = actuator_dw9808_idt
 };
 module_i2c_driver(actuator_dw9808_driver);
+
+MODULE_LICENSE("GPL");

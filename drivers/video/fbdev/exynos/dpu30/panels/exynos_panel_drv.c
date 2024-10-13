@@ -205,6 +205,7 @@ static int exynos_panel_set_power(struct exynos_panel_device *panel, bool on)
 			}
 		}
 
+#if 0 // NOT REQUIRED FOR ERD3830
 		panel_i2c_write(0x0c, 0x28);
 		panel_i2c_write(0x0d, 0x26);
 		panel_i2c_write(0x0e, 0x26);
@@ -216,9 +217,11 @@ static int exynos_panel_set_power(struct exynos_panel_device *panel, bool on)
 		panel_i2c_write(0x05, 0xee);
 		panel_i2c_write(0x10, 0x07);
 		panel_i2c_write(0x08, 0x13);
-
+#endif
 	} else {
+#if 0 // NOT REQUIRED FOR ERD3830
 		panel_i2c_write(0x09, 0x98);
+#endif
 
 		ret = gpio_request_one(res->lcd_reset, GPIOF_OUT_INIT_LOW,
 				"lcd_reset");
@@ -489,81 +492,6 @@ static void exynos_panel_get_hdr_info(struct exynos_panel_info *info,
 	}
 }
 
-#define DISPLAY_MODE_ITEM_CNT   8
-
-static void exynos_panel_get_display_modes(struct exynos_panel_info *info,
-		struct device_node *np)
-{
-	int size;
-	u32 len;
-	int i;
-	const unsigned int *addr;
-	unsigned int *mode_item;
-	u32 disp_group = 0;
-
-	DPU_INFO_PANEL("%s +\n", __func__);
-
-	of_property_read_u32(np, "default_mode", &info->cur_mode_idx);
-	DPU_INFO_PANEL("default display mode index(%d)\n", info->cur_mode_idx);
-
-	size = of_property_count_u32_elems(np, "display_mode");
-	if (size < 0) {
-		DPU_INFO_PANEL("This panel doesn't support display mode\n");
-		return;
-	}
-
-	info->display_mode_count = size / DISPLAY_MODE_ITEM_CNT;
-	DPU_INFO_PANEL("supported display mode count(%d)\n", info->display_mode_count);
-
-	addr = of_get_property(np, "display_mode", &len);
-
-	for (i = 0; i < info->display_mode_count; ++i) {
-		mode_item = (unsigned int *)&addr[i * DISPLAY_MODE_ITEM_CNT];
-		info->display_mode[i].mode.index = i;
-		info->display_mode[i].mode.width = be32_to_cpu(mode_item[0]);
-		info->display_mode[i].mode.height = be32_to_cpu(mode_item[1]);
-		info->display_mode[i].mode.fps = be32_to_cpu(mode_item[2]);
-		info->display_mode[i].mode.mm_width = info->width;
-		info->display_mode[i].mode.mm_height = info->height;
-		info->display_mode[i].cmd_lp_ref = be32_to_cpu(mode_item[3]);
-		info->display_mode[i].dsc_en = be32_to_cpu(mode_item[4]);
-		if (info->display_mode[i].dsc_en) {
-			info->display_mode[i].dsc_width = be32_to_cpu(mode_item[5]);
-			info->display_mode[i].dsc_height = be32_to_cpu(mode_item[6]);
-			info->display_mode[i].dsc_enc_sw =
-				exynos_panel_calc_slice_width(info->dsc.cnt,
-						info->dsc.slice_num,
-						info->display_mode[i].mode.width);
-			info->display_mode[i].dsc_dec_sw =
-				info->display_mode[i].mode.width / info->dsc.slice_num;
-		}
-		if ((i > 0) &&
-			((info->display_mode[i].mode.width != info->display_mode[i - 1].mode.width) ||
-			 (info->display_mode[i].mode.height != info->display_mode[i - 1].mode.height)))
-			disp_group++;
-		info->display_mode[i].mode.group = disp_group;
-		info->display_mode[i].vfp = be32_to_cpu(mode_item[7]);
-
-		DPU_INFO_PANEL("display mode[%d] : %dx%d@%d, %dmm x %dmm, lp_ref(%d), vfp(%d)\n",
-				info->display_mode[i].mode.index,
-				info->display_mode[i].mode.width,
-				info->display_mode[i].mode.height,
-				info->display_mode[i].mode.fps,
-				info->display_mode[i].mode.mm_width,
-				info->display_mode[i].mode.mm_height,
-				info->display_mode[i].cmd_lp_ref,
-				info->display_mode[i].vfp);
-		DPU_INFO_PANEL("\t\tdsc %s, dsc size(%dx%d), dsc enc/dec sw(%d/%d)\n",
-				info->display_mode[i].dsc_en ? "enabled" : "disabled",
-				info->display_mode[i].dsc_width,
-				info->display_mode[i].dsc_height,
-				info->display_mode[i].dsc_enc_sw,
-				info->display_mode[i].dsc_dec_sw);
-	}
-
-	DPU_INFO_PANEL("%s -\n", __func__);
-}
-
 static void exynos_panel_parse_lcd_info(struct exynos_panel_device *panel,
 		struct device_node *np)
 {
@@ -571,6 +499,7 @@ static void exynos_panel_parse_lcd_info(struct exynos_panel_device *panel,
 	struct exynos_panel_info *lcd_info = &panel->lcd_info;
 	u32 max_br, dft_br, eotp_disabled;
 	u32 underrun_max_num = 0;
+	u32 wait_lp11 = 0;
 
 	of_property_read_u32(np, "mode", &lcd_info->mode);
 	of_property_read_u32_array(np, "resolution", res, 2);
@@ -609,7 +538,6 @@ static void exynos_panel_parse_lcd_info(struct exynos_panel_device *panel,
 	exynos_panel_get_dsc_info(lcd_info, np);
 	exynos_panel_get_mres_info(lcd_info, np);
 	exynos_panel_get_hdr_info(lcd_info, np);
-	exynos_panel_get_display_modes(lcd_info, np);
 
 	if (!of_property_read_u32(np, "underrun_max_num", &underrun_max_num)) {
 		lcd_info->continuous_underrun_max = underrun_max_num;
@@ -618,15 +546,19 @@ static void exynos_panel_parse_lcd_info(struct exynos_panel_device *panel,
 		lcd_info->continuous_underrun_max = 0;
 		DPU_INFO_PANEL("underrun_max_num not founded\n");
 	}
+
+	if (!of_property_read_u32(np, "wait_lp11", &wait_lp11))
+		lcd_info->wait_lp11 = wait_lp11;
+	else
+		lcd_info->wait_lp11 = 0;
+	DPU_INFO_PANEL("wait_lp11(%d)\n", lcd_info->wait_lp11);
+
 }
 
 static void exynos_panel_list_up(void)
 {
-	panel_list[0] = &panel_s6e3ha8_ops;
-	panel_list[1] = &panel_s6e3ha9_ops;
-	panel_list[2] = &panel_s6e3fa0_ops;
-	panel_list[3] = &panel_ea8076_ops;
-	panel_list[4] = &panel_td4150_ops;
+	panel_list[0] = &panel_s6e3fa0_ops;
+	panel_list[1] = &panel_td4150_ops;
 }
 
 static int exynos_panel_register_ops(struct exynos_panel_device *panel)
@@ -931,7 +863,7 @@ static void exynos_panel_shutdown(struct platform_device *pdev)
 	backlight_device_unregister(panel->bl);
 }
 
-static struct platform_driver exynos_panel_driver = {
+struct platform_driver exynos_panel_driver = {
 	.probe		= exynos_panel_probe,
 	.shutdown	= exynos_panel_shutdown,
 	.driver		= {
@@ -940,22 +872,6 @@ static struct platform_driver exynos_panel_driver = {
 		.suppress_bind_attrs = true,
 	},
 };
-
-static int __init exynos_panel_init(void)
-{
-	int ret = platform_driver_register(&exynos_panel_driver);
-	if (ret)
-		pr_err("exynos_panel_driver register failed\n");
-
-	return ret;
-}
-device_initcall(exynos_panel_init);
-
-static void __exit exynos_panel_exit(void)
-{
-	platform_driver_unregister(&exynos_panel_driver);
-}
-module_exit(exynos_panel_exit);
 
 MODULE_DESCRIPTION("Exynos Common Panel Driver");
 MODULE_LICENSE("GPL");

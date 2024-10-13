@@ -12,6 +12,7 @@
 
 #include <linux/phy/phy.h>
 #include <linux/usb/phy.h>
+#include <linux/android_kabi.h>
 
 struct usb_otg {
 	u8			default_a;
@@ -40,6 +41,7 @@ struct usb_otg {
 	/* start or continue HNP role switch */
 	int	(*start_hnp)(struct usb_otg *otg);
 
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -118,7 +120,6 @@ enum usb_dr_mode {
 	USB_DR_MODE_HOST,
 	USB_DR_MODE_PERIPHERAL,
 	USB_DR_MODE_OTG,
-	USB_DR_MODE_DRD,
 };
 
 /**

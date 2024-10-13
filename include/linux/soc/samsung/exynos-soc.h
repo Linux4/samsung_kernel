@@ -13,7 +13,6 @@
 #define __EXYNOS_SOC_H
 
 #define EXYNOS3250_SOC_ID	0xE3472000
-#define EXYNOS3830_SOC_ID	0xE3830000
 #define EXYNOS4210_SOC_ID	0x43210000
 #define EXYNOS4212_SOC_ID	0x43220000
 #define EXYNOS4412_SOC_ID	0xE4412000
@@ -30,7 +29,10 @@
 #define EXYNOS9810_SOC_ID	0xE9810000
 #define EXYNOS9820_SOC_ID	0xE9820000
 #define EXYNOS9830_SOC_ID	0xE9830000
-#define EXYNOS9630_SOC_ID	0xE9630000
+#define EXYNOS2100_SOC_ID      0xE9840000
+#define S5E9925_SOC_ID		0xE9925000
+#define S5E8825_SOC_ID		0x0E150000
+#define S5E3830_SOC_ID          0xE3830000
 
 #define EXYNOS_SOC_MASK		0xFFFFF000
 #define EXYNOS_SOC_MASK_V2	0x00FFFFFF
@@ -64,16 +66,19 @@ struct exynos_chipid_info {
 	u32 sub_rev;
 	u32 lot_id;
 	u64 unique_id;
-	u64 memsize;
 	struct exynos_chipid_variant *drv_data;
 	struct platform_device *pdev;
+	u8 additional_info;
+	char gub_info;
+	u8 l_info;
+	u8 m_info;
+	u8 b_info;
+	u8 md_info;
+	u8 i_info;
+	u8 g_info;
+	u8 mt_info;
 };
 
 extern struct exynos_chipid_info exynos_soc_info;
-
-/* Since we need chipid to be initialized as early as possible
- * during secondary core bootup adding early initialization function
- */
-extern void exynos_chipid_early_init(void);
 
 #endif /* __EXYNOS_SOC_H */

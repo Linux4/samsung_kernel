@@ -38,7 +38,7 @@
  ******************************************************/
 #define AW8896_I2C_NAME "aw889x_smartpa"
 
-#define AW8896_VERSION "v1.0.8_19_1"
+#define AW8896_VERSION "v1.0.8_19_2"
 
 #define AW8896_RATES SNDRV_PCM_RATE_8000_48000
 #define AW8896_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | \
@@ -1242,15 +1242,15 @@ static int aw8896_codec_write(struct snd_soc_component *component,
 
 
 static const struct snd_soc_dapm_widget aw8896_dapm_widgets[] = {
-	SND_SOC_DAPM_DAC_E("DAC", "Speaker_Playback", SND_SOC_NOPM, 0, 0, NULL,
+	SND_SOC_DAPM_DAC_E("AW_DAC", "Speaker_Playback", SND_SOC_NOPM, 0, 0, NULL,
 				SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
 				SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD),
-	SND_SOC_DAPM_OUTPUT("SPK"),
+	SND_SOC_DAPM_OUTPUT("AW_SPK"),
 };
 
 static const struct snd_soc_dapm_route aw8896_audio_map[] = {
 	/* sink, control, source */
-	{"SPK", NULL, "DAC"},
+	{"AW_SPK", NULL, "AW_DAC"},
 };
 
 

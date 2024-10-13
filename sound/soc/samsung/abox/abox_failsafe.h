@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_failsafe.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox Fail-safe driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
@@ -18,8 +18,9 @@
 /**
  * Report failure to user space
  * @param[in]	dev		pointer to abox device
+ * @param[in]	error		true if the failsafe is request by abox error
  */
-extern void abox_failsafe_report(struct device *dev);
+extern void abox_failsafe_report(struct device *dev, bool error);
 
 /**
  * Report reset

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015 Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -17,24 +9,49 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/notifier.h>
-#include <linux/modem_notifier.h>
 
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX)
+#include <sound/samsung/abox.h>
+#endif
 #include "modem_prj.h"
 #include "modem_utils.h"
+#include "modem_notifier.h"
 
-static struct raw_notifier_head modem_event_notifier;
-
-int register_modem_event_notifier(struct notifier_block *nb)
+void modem_notify_event(enum modem_event evt, struct modem_ctl *mc)
 {
-	if (!nb)
-		return -ENOENT;
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX)
+	static enum abox_modem_event abox_evt[] = {
+		[MODEM_EVENT_RESET] = ABOX_MODEM_EVENT_RESET,
+		[MODEM_EVENT_EXIT] = ABOX_MODEM_EVENT_EXIT,
+		[MODEM_EVENT_ONLINE] = ABOX_MODEM_EVENT_ONLINE,
+		[MODEM_EVENT_OFFLINE] = ABOX_MODEM_EVENT_OFFLINE,
+		[MODEM_EVENT_WATCHDOG] = ABOX_MODEM_EVENT_WATCHDOG,
+	};
+#endif
 
-	return raw_notifier_chain_register(&modem_event_notifier, nb);
+#if IS_ENABLED(CONFIG_REINIT_VSS)
+	switch (evt) {
+	case MODEM_EVENT_RESET:
+	case MODEM_EVENT_EXIT:
+	case MODEM_EVENT_WATCHDOG:
+		reinit_completion(&mc->vss_stop);
+		break;
+	default:
+		break;
+	}
+#endif
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX)
+	mif_info("event notify cp_evt:%d abox_evt:%d\n", evt, abox_evt[evt]);
+	abox_notify_modem_event(abox_evt[evt]);
+#endif
 }
+EXPORT_SYMBOL(modem_notify_event);
 
-void modem_notify_event(enum modem_event evt, void *mc)
+#if IS_ENABLED(CONFIG_SUSPEND_DURING_VOICE_CALL)
+void modem_voice_call_notify_event(enum modem_voice_call_event evt)
 {
-	mif_err("event notify (%d) ++\n", evt);
-	raw_notifier_call_chain(&modem_event_notifier, evt, mc);
-	mif_err("event notify (%d) --\n", evt);
+	/* ToDo */
 }
+EXPORT_SYMBOL(modem_voice_call_notify_event);
+#endif

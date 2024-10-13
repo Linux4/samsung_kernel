@@ -10,6 +10,7 @@
 #include <net/flow.h>
 #include <net/rtnetlink.h>
 #include <net/fib_notifier.h>
+#include <linux/indirect_call_wrapper.h>
 
 struct fib_kuid_range {
 	kuid_t start;
@@ -68,7 +69,7 @@ struct fib_rules_ops {
 	int			(*action)(struct fib_rule *,
 					  struct flowi *, int,
 					  struct fib_lookup_arg *);
-	bool			(*suppress)(struct fib_rule *,
+	bool			(*suppress)(struct fib_rule *, int,
 					    struct fib_lookup_arg *);
 	int			(*match)(struct fib_rule *,
 					 struct flowi *, int);
@@ -103,6 +104,7 @@ struct fib_rule_notifier_info {
 };
 
 #define FRA_GENERIC_POLICY \
+	[FRA_UNSPEC]	= { .strict_start_type = FRA_DPORT_RANGE + 1 }, \
 	[FRA_IIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
 	[FRA_OIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
 	[FRA_PRIORITY]	= { .type = NLA_U32 }, \
@@ -180,9 +182,9 @@ static inline bool fib_rule_port_range_compare(struct fib_rule_port_range *a,
 
 static inline bool fib_rule_requires_fldissect(struct fib_rule *rule)
 {
-	return rule->ip_proto ||
+	return rule->iifindex != LOOPBACK_IFINDEX && (rule->ip_proto ||
 		fib_rule_port_range_set(&rule->sport_range) ||
-		fib_rule_port_range_set(&rule->dport_range);
+		fib_rule_port_range_set(&rule->dport_range));
 }
 
 struct fib_rules_ops *fib_rules_register(const struct fib_rules_ops *,
@@ -194,11 +196,31 @@ int fib_rules_lookup(struct fib_rules_ops *, struct flowi *, int flags,
 int fib_default_rule_add(struct fib_rules_ops *, u32 pref, u32 table,
 			 u32 flags);
 bool fib_rule_matchall(const struct fib_rule *rule);
-int fib_rules_dump(struct net *net, struct notifier_block *nb, int family);
+int fib_rules_dump(struct net *net, struct notifier_block *nb, int family,
+		   struct netlink_ext_ack *extack);
 unsigned int fib_rules_seq_read(struct net *net, int family);
 
 int fib_nl_newrule(struct sk_buff *skb, struct nlmsghdr *nlh,
 		   struct netlink_ext_ack *extack);
 int fib_nl_delrule(struct sk_buff *skb, struct nlmsghdr *nlh,
 		   struct netlink_ext_ack *extack);
+
+INDIRECT_CALLABLE_DECLARE(int fib6_rule_match(struct fib_rule *rule,
+					    struct flowi *fl, int flags));
+INDIRECT_CALLABLE_DECLARE(int fib4_rule_match(struct fib_rule *rule,
+					    struct flowi *fl, int flags));
+
+INDIRECT_CALLABLE_DECLARE(int fib6_rule_action(struct fib_rule *rule,
+			    struct flowi *flp, int flags,
+			    struct fib_lookup_arg *arg));
+INDIRECT_CALLABLE_DECLARE(int fib4_rule_action(struct fib_rule *rule,
+			    struct flowi *flp, int flags,
+			    struct fib_lookup_arg *arg));
+
+INDIRECT_CALLABLE_DECLARE(bool fib6_rule_suppress(struct fib_rule *rule,
+						int flags,
+						struct fib_lookup_arg *arg));
+INDIRECT_CALLABLE_DECLARE(bool fib4_rule_suppress(struct fib_rule *rule,
+						int flags,
+						struct fib_lookup_arg *arg));
 #endif

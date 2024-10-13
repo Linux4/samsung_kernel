@@ -460,7 +460,7 @@ static void zip_unregister_compression_device(void)
 #include <linux/debugfs.h>
 
 /* Displays ZIP device statistics */
-static int zip_show_stats(struct seq_file *s, void *unused)
+static int zip_stats_show(struct seq_file *s, void *unused)
 {
 	u64 val = 0ull;
 	u64 avg_chunk = 0ull, avg_cr = 0ull;
@@ -523,7 +523,7 @@ static int zip_show_stats(struct seq_file *s, void *unused)
 }
 
 /* Clears stats data */
-static int zip_clear_stats(struct seq_file *s, void *unused)
+static int zip_clear_show(struct seq_file *s, void *unused)
 {
 	int index = 0;
 
@@ -558,7 +558,7 @@ static struct zip_registers zipregs[64] = {
 };
 
 /* Prints registers' contents */
-static int zip_print_regs(struct seq_file *s, void *unused)
+static int zip_regs_show(struct seq_file *s, void *unused)
 {
 	u64 val = 0;
 	int i = 0, index = 0;
@@ -584,80 +584,30 @@ static int zip_print_regs(struct seq_file *s, void *unused)
 	return 0;
 }
 
-static int zip_stats_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, zip_show_stats, NULL);
-}
-
-static const struct file_operations zip_stats_fops = {
-	.owner = THIS_MODULE,
-	.open  = zip_stats_open,
-	.read  = seq_read,
-	.release = single_release,
-};
-
-static int zip_clear_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, zip_clear_stats, NULL);
-}
-
-static const struct file_operations zip_clear_fops = {
-	.owner = THIS_MODULE,
-	.open  = zip_clear_open,
-	.read  = seq_read,
-	.release = single_release,
-};
-
-static int zip_regs_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, zip_print_regs, NULL);
-}
-
-static const struct file_operations zip_regs_fops = {
-	.owner = THIS_MODULE,
-	.open  = zip_regs_open,
-	.read  = seq_read,
-	.release = single_release,
-};
+DEFINE_SHOW_ATTRIBUTE(zip_stats);
+DEFINE_SHOW_ATTRIBUTE(zip_clear);
+DEFINE_SHOW_ATTRIBUTE(zip_regs);
 
 /* Root directory for thunderx_zip debugfs entry */
 static struct dentry *zip_debugfs_root;
 
-static int __init zip_debugfs_init(void)
+static void __init zip_debugfs_init(void)
 {
-	struct dentry *zip_stats, *zip_clear, *zip_regs;
-
 	if (!debugfs_initialized())
-		return -ENODEV;
+		return;
 
 	zip_debugfs_root = debugfs_create_dir("thunderx_zip", NULL);
-	if (!zip_debugfs_root)
-		return -ENOMEM;
 
 	/* Creating files for entries inside thunderx_zip directory */
-	zip_stats = debugfs_create_file("zip_stats", 0444,
-					zip_debugfs_root,
-					NULL, &zip_stats_fops);
-	if (!zip_stats)
-		goto failed_to_create;
+	debugfs_create_file("zip_stats", 0444, zip_debugfs_root, NULL,
+			    &zip_stats_fops);
 
-	zip_clear = debugfs_create_file("zip_clear", 0444,
-					zip_debugfs_root,
-					NULL, &zip_clear_fops);
-	if (!zip_clear)
-		goto failed_to_create;
+	debugfs_create_file("zip_clear", 0444, zip_debugfs_root, NULL,
+			    &zip_clear_fops);
 
-	zip_regs = debugfs_create_file("zip_regs", 0444,
-				       zip_debugfs_root,
-				       NULL, &zip_regs_fops);
-	if (!zip_regs)
-		goto failed_to_create;
+	debugfs_create_file("zip_regs", 0444, zip_debugfs_root, NULL,
+			    &zip_regs_fops);
 
-	return 0;
-
-failed_to_create:
-	debugfs_remove_recursive(zip_debugfs_root);
-	return -ENOENT;
 }
 
 static void __exit zip_debugfs_exit(void)
@@ -666,13 +616,8 @@ static void __exit zip_debugfs_exit(void)
 }
 
 #else
-static int __init zip_debugfs_init(void)
-{
-	return 0;
-}
-
+static void __init zip_debugfs_init(void) { }
 static void __exit zip_debugfs_exit(void) { }
-
 #endif
 /* debugfs - end */
 
@@ -696,16 +641,9 @@ static int __init zip_init_module(void)
 	}
 
 	/* comp-decomp statistics are handled with debugfs interface */
-	ret = zip_debugfs_init();
-	if (ret < 0) {
-		zip_err("ZIP: debugfs initialization failed\n");
-		goto err_crypto_unregister;
-	}
+	zip_debugfs_init();
 
 	return ret;
-
-err_crypto_unregister:
-	zip_unregister_compression_device();
 
 err_pci_unregister:
 	pci_unregister_driver(&zip_driver);

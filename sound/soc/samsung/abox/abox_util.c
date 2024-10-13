@@ -1,10 +1,39 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox utility
+ *
+ * Copyright (c) 2016 Samsung Electronics Co. Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/of.h>
+#include <linux/slab.h>
 #include <sound/pcm.h>
 
 #include "abox_util.h"
+
+int get_resource_mem(struct platform_device *pdev, const char *name,
+		phys_addr_t *phys_addr, size_t *size)
+{
+	struct resource *res;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, name);
+	if (IS_ERR_OR_NULL(res))
+		return -EINVAL;
+
+	if (phys_addr)
+		*phys_addr = res->start;
+	if (size)
+		*size = resource_size(res);
+
+	return 0;
+}
 
 void __iomem *devm_get_ioremap(struct platform_device *pdev,
 		const char *name, phys_addr_t *phys_addr, size_t *size)
@@ -72,7 +101,7 @@ struct clk *devm_clk_get_and_prepare(struct platform_device *pdev,
 
 	clk = devm_clk_get(dev, name);
 	if (IS_ERR(clk)) {
-		dev_warn(dev, "Failed to get clock or not defined %s\n", name);
+		dev_err(dev, "Failed to get clock %s\n", name);
 		goto error;
 	}
 
@@ -222,6 +251,21 @@ int of_samsung_property_read_u32_array(struct device *dev,
 
 	snprintf(name, sizeof(name), "samsung,%s", propname);
 	ret = of_property_read_u32_array(np, name, out_values, sz);
+	if (ret < 0)
+		dev_dbg(dev, "Failed to read %s: %d\n", name, ret);
+
+	return ret;
+}
+
+int of_samsung_property_read_variable_u32_array(struct device *dev,
+		const struct device_node *np, const char *propname,
+		u32 *out_values, size_t sz_min, size_t sz_max)
+{
+	char name[SZ_64];
+	int ret;
+
+	snprintf(name, sizeof(name), "samsung,%s", propname);
+	ret = of_property_read_variable_u32_array(np, name, out_values, sz_min, sz_max);
 	if (ret < 0)
 		dev_dbg(dev, "Failed to read %s: %d\n", name, ret);
 

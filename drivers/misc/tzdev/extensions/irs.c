@@ -11,19 +11,21 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/export.h>
+#include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/ioctl.h>
+#include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
-#include <linux/printk.h>
-#include <linux/fs.h>
-#include <linux/miscdevice.h>
-#include <linux/uaccess.h>
 #include <linux/mutex.h>
+#include <linux/printk.h>
+#include <linux/uaccess.h>
 
 #include "tzdev_internal.h"
 #include "core/cdev.h"
 #include "core/platform.h"
+#include "core/subsystem.h"
 #include "extensions/irs.h"
 
 #if defined(CONFIG_ARCH_MSM) && defined(CONFIG_MSM_SCM)
@@ -119,6 +121,7 @@ long tzirs_smc(unsigned long *p1, unsigned long *p2, unsigned long *p3)
 	return __tzirs_smc_cmd(SMC_IRS_CMD, p1, p2, p3);
 #endif
 }
+EXPORT_SYMBOL(tzirs_smc);
 
 static int tzirs_open(struct inode *n, struct file *f)
 {
@@ -221,7 +224,7 @@ static struct tz_cdev tzirs_cdev = {
 	.owner = THIS_MODULE,
 };
 
-static int __init tzirs_init(void)
+int tzirs_init(void)
 {
 	int rc;
 
@@ -235,11 +238,11 @@ static int __init tzirs_init(void)
 	return 0;
 }
 
-static void __exit tzirs_exit(void)
+void tzirs_exit(void)
 {
 	tz_cdev_unregister(&tzirs_cdev);
 	DBG("REMOVED\n");
 }
 
-module_init(tzirs_init);
-module_exit(tzirs_exit);
+tzdev_initcall(tzirs_init);
+tzdev_exitcall(tzirs_exit);

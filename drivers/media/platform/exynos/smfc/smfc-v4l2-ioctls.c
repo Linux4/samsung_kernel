@@ -434,17 +434,13 @@ static int smfc_v4l2_querycap(struct file *filp, void *fh,
 	cap->card[sizeof(cap->card) - 1] = '\0';
 	cap->bus_info[sizeof(cap->bus_info) - 1] = '\0';
 
-	cap->capabilities = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_M2M_MPLANE
-				| V4L2_CAP_VIDEO_M2M;
-	cap->capabilities |= V4L2_CAP_DEVICE_CAPS;
-
 	cap->device_caps = smfc->devdata->device_caps;
 	cap->device_caps |= V4L2_CAP_EXYNOS_JPEG_DMABUF_OFFSET;
 
 	return 0;
 }
 
-static int smfc_v4l2_enum_fmt_mplane(struct file *filp, void *fh,
+static int smfc_v4l2_enum_fmt(struct file *filp, void *fh,
 				     struct v4l2_fmtdesc *f)
 {
 	const struct smfc_image_format *fmt;
@@ -460,17 +456,6 @@ static int smfc_v4l2_enum_fmt_mplane(struct file *filp, void *fh,
 		f->flags = V4L2_FMT_FLAG_COMPRESSED;
 
 	return 0;
-}
-
-static int smfc_v4l2_enum_fmt(struct file *filp, void *fh,
-			      struct v4l2_fmtdesc *f)
-{
-	int ret = smfc_v4l2_enum_fmt_mplane(filp, fh, f);
-
-	if (ret < 0)
-		return ret;
-
-	return smfc_image_formats[f->index].num_buffers > 1 ? -EINVAL : 0;
 }
 
 static int smfc_v4l2_g_fmt_mplane(struct file *filp, void *fh,
@@ -605,12 +590,12 @@ static bool smfc_check_capable_of_decompression(const struct smfc_dev *smfc,
 	return false;
 }
 
-static int smfc_calc_crop(struct smfc_ctx *ctx, const struct v4l2_crop *cr)
+static int smfc_calc_crop(struct smfc_ctx *ctx, struct v4l2_selection *s)
 {
-	u32 left = cr->c.left;
-	u32 top = cr->c.top;
+	u32 left = s->r.left;
+	u32 top = s->r.top;
 	u32 frame_width = ctx->width;
-	u32 crop_width = cr->c.width;
+	u32 crop_width = s->r.width;
 	unsigned char bpp_pix = ctx->img_fmt->bpp_pix[0]/8;
 	unsigned char chroma_hfactor = ctx->img_fmt->chroma_hfactor;
 	unsigned char chroma_vfactor = ctx->img_fmt->chroma_vfactor;
@@ -619,13 +604,13 @@ static int smfc_calc_crop(struct smfc_ctx *ctx, const struct v4l2_crop *cr)
 	ctx->crop.po[0] = (frame_width * top + left) * bpp_pix;
 	ctx->crop.so[0] = (frame_width - crop_width) * bpp_pix;
 
-	for(i = 1; i < ctx->img_fmt->num_planes; i++) {
-		ctx->crop.po[i] = (frame_width * top / chroma_vfactor + left )
+	for (i = 1; i < ctx->img_fmt->num_planes; i++) {
+		ctx->crop.po[i] = (frame_width * top / chroma_vfactor + left)
 			* bpp_pix * 2 / chroma_hfactor / i;
 		ctx->crop.so[i] = (frame_width - crop_width) * bpp_pix
 			* 2 / chroma_hfactor / i;
 
-		if(i == 2) {
+		if (i == 2) {
 			ctx->crop.po[i-1] = ctx->crop.po[i];
 			ctx->crop.so[i-1] = ctx->crop.so[i];
 		}
@@ -750,7 +735,7 @@ static int smfc_v4l2_s_fmt_mplane(struct file *filp, void *fh,
 	if (!smfc_v4l2_init_fmt_mplane(ctx, smfc_fmt, f->type, &f->fmt.pix_mp))
 		return -EINVAL;
 
-	if(!is_jpeg(smfc_fmt)) {
+	if (!is_jpeg(smfc_fmt)) {
 		ctx->width = SMFC_FMT_MAIN_SIZE(f->fmt.pix_mp.width);
 		ctx->height = SMFC_FMT_MAIN_SIZE(f->fmt.pix_mp.height);
 		ctx->thumb_width = SMFC_FMT_SEC_SIZE(f->fmt.pix_mp.width);
@@ -842,7 +827,7 @@ static int smfc_v4l2_s_fmt(struct file *filp, void *fh, struct v4l2_format *f)
 	if (!smfc_v4l2_init_fmt(ctx, smfc_fmt, f->type, &f->fmt.pix))
 		return -EINVAL;
 
-	if(!is_jpeg(smfc_fmt)) {
+	if (!is_jpeg(smfc_fmt)) {
 		ctx->width = SMFC_FMT_MAIN_SIZE(f->fmt.pix.width);
 		ctx->height = SMFC_FMT_MAIN_SIZE(f->fmt.pix.height);
 		/* back-to-back compression is not supported with single plane */
@@ -861,69 +846,89 @@ static int smfc_v4l2_s_fmt(struct file *filp, void *fh, struct v4l2_format *f)
 	return 0;
 }
 
-static int smfc_v4l2_cropcap(struct file *file, void *fh,
-                            struct v4l2_cropcap *cr)
+static int smfc_v4l2_s_selection(struct file *file, void *fh,
+		struct v4l2_selection *s)
 {
-        cr->bounds.left         = 0;
-        cr->bounds.top          = 0;
-        cr->bounds.width        = SMFC_MAX_WIDTH;
-        cr->bounds.height       = SMFC_MAX_HEIGHT;
-        cr->defrect             = cr->bounds;
+	struct smfc_ctx *ctx = v4l2_fh_to_smfc_ctx(fh);
+	unsigned int i;
+	int ret = 0;
 
-        return 0;
-}
-
-static int smfc_v4l2_s_crop(struct file *file, void *fh,
-                const struct v4l2_crop *cr)
-{
-        struct smfc_ctx *ctx = v4l2_fh_to_smfc_ctx(fh);
-        unsigned int i;
-        int ret = 0;
-
-        if ((cr->c.left < 0) || (cr->c.top < 0) ||
-				(cr->c.width < 16) || (cr->c.height < 16)) {
+	if ((s->r.left < 0) || (s->r.top < 0) ||
+			(s->r.width < 16) || (s->r.height < 16)) {
 		v4l2_err(&ctx->smfc->v4l2_dev,
-				"Invalid crop region (%d,%d):%dx%d\n",
-				cr->c.left, cr->c.top, cr->c.width, cr->c.height);
+			"Invalid crop region (%d,%d):%dx%d\n",
+			s->r.left, s->r.top, s->r.width, s->r.height);
+		return -EINVAL;
+	}
 
-                return -EINVAL;
-        }
-
-        if (((cr->c.left + cr->c.width) > ctx->width) ||
-				((cr->c.top + cr->c.height) > ctx->height)) {
+	if (((s->r.left + s->r.width) > ctx->width) ||
+			((s->r.top + s->r.height) > ctx->height)) {
 		v4l2_err(&ctx->smfc->v4l2_dev,
 			"Crop (%d,%d):%dx%d overflows the image %dx%d\n",
-			cr->c.left, cr->c.top, cr->c.width, cr->c.height,
+			s->r.left, s->r.top, s->r.width, s->r.height,
 			ctx->width, ctx->height);
-                return -EINVAL;
-        }
+		return -EINVAL;
+	}
 
-	if(!V4L2_TYPE_IS_OUTPUT(cr->type)) {
+	if (!V4L2_TYPE_IS_OUTPUT(s->type)) {
 		v4l2_err(&ctx->smfc->v4l2_dev,
 			"Cropping on the capture buffer is not supported\n");
 		return -EINVAL;
 	}
 
-        ctx->crop.width = cr->c.width;
-        ctx->crop.height = cr->c.height;
+	ctx->crop.width = s->r.width;
+	ctx->crop.height = s->r.height;
 
-        for (i = 0 ; i < SMFC_MAX_NUM_COMP; i++) {
-                ctx->crop.po[i] = 0;
-                ctx->crop.so[i] = 0;
-        }
+	for (i = 0 ; i < SMFC_MAX_NUM_COMP; i++) {
+		ctx->crop.po[i] = 0;
+		ctx->crop.so[i] = 0;
+	}
 
-        if (!!smfc_calc_crop(ctx, cr))
-                return -EINVAL;
+	if (!!smfc_calc_crop(ctx, s))
+		return -EINVAL;
 
-        return ret;
+	return ret;
+}
+
+static int v4l2_smfc_qbuf(struct file *file, void *priv,
+		struct v4l2_buffer *buf)
+{
+	struct smfc_ctx *ctx = v4l2_fh_to_smfc_ctx(file->private_data);
+	struct vb2_queue *vq =
+		v4l2_m2m_get_vq(ctx->fh.m2m_ctx, buf->type);
+
+	if (!vq)
+		return -EINVAL;
+
+	if (buf->index >= vq->num_buffers) {
+		v4l2_err(&ctx->smfc->v4l2_dev,
+			"buf->index should be less than vq->num_buffers.\n");
+		return -EINVAL;
+	}
+
+	if ((!V4L2_TYPE_IS_OUTPUT(buf->type)) &&
+			V4L2_TYPE_IS_MULTIPLANAR(buf->type)) {
+		struct vb2_v4l2_buffer *vbuf =
+			to_vb2_v4l2_buffer(vq->bufs[buf->index]);
+		struct v4l2_m2m_buffer *mbuf =
+			container_of(vbuf, typeof(*mbuf), vb);
+		struct vb2_smfc_buffer *sbuf =
+			container_of(mbuf, typeof(*sbuf), mb);
+		unsigned int index;
+
+		for (index = 0; index < buf->length; index++) {
+			sbuf->offset[index] =
+				buf->m.planes[index].data_offset;
+		}
+	}
+
+	return v4l2_m2m_qbuf(file, ctx->fh.m2m_ctx, buf);
 }
 
 const struct v4l2_ioctl_ops smfc_v4l2_ioctl_ops = {
 	.vidioc_querycap		= smfc_v4l2_querycap,
 	.vidioc_enum_fmt_vid_cap	= smfc_v4l2_enum_fmt,
 	.vidioc_enum_fmt_vid_out	= smfc_v4l2_enum_fmt,
-	.vidioc_enum_fmt_vid_cap_mplane	= smfc_v4l2_enum_fmt_mplane,
-	.vidioc_enum_fmt_vid_out_mplane	= smfc_v4l2_enum_fmt_mplane,
 	.vidioc_g_fmt_vid_cap		= smfc_v4l2_g_fmt,
 	.vidioc_g_fmt_vid_out		= smfc_v4l2_g_fmt,
 	.vidioc_g_fmt_vid_cap_mplane	= smfc_v4l2_g_fmt_mplane,
@@ -936,12 +941,11 @@ const struct v4l2_ioctl_ops smfc_v4l2_ioctl_ops = {
 	.vidioc_s_fmt_vid_out		= smfc_v4l2_s_fmt,
 	.vidioc_s_fmt_vid_cap_mplane	= smfc_v4l2_s_fmt_mplane,
 	.vidioc_s_fmt_vid_out_mplane	= smfc_v4l2_s_fmt_mplane,
-	.vidioc_cropcap			= smfc_v4l2_cropcap,
-	.vidioc_s_crop			= smfc_v4l2_s_crop,
+	.vidioc_s_selection		= smfc_v4l2_s_selection,
 
 	.vidioc_reqbufs			= v4l2_m2m_ioctl_reqbufs,
 	.vidioc_querybuf		= v4l2_m2m_ioctl_querybuf,
-	.vidioc_qbuf			= v4l2_m2m_ioctl_qbuf,
+	.vidioc_qbuf			= v4l2_smfc_qbuf,
 	.vidioc_dqbuf			= v4l2_m2m_ioctl_dqbuf,
 
 	.vidioc_streamon		= v4l2_m2m_ioctl_streamon,

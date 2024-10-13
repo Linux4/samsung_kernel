@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * u_ether_configfs.h
  *
@@ -7,7 +7,7 @@
  * Copyright (c) 2013 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
- * Author: Andrzej Pietrasiewicz <andrzej.p@samsung.com>
+ * Author: Andrzej Pietrasiewicz <andrzejtp2010@gmail.com>
  */
 
 #ifndef __U_ETHER_CONFIGFS_H
@@ -33,11 +33,6 @@
 		int result;						\
 									\
 		mutex_lock(&opts->lock);				\
-		if (!opts->net) {					\
-			mutex_unlock(&opts->lock);			\
-			return -ENODEV;					\
-		}							\
-									\
 		result = gether_get_dev_addr(opts->net, page, PAGE_SIZE); \
 		mutex_unlock(&opts->lock);				\
 									\
@@ -73,11 +68,6 @@
 		int result;						\
 									\
 		mutex_lock(&opts->lock);				\
-		if (!opts->net) {					\
-			mutex_unlock(&opts->lock);			\
-			return -ENODEV;					\
-		}							\
-									\
 		result = gether_get_host_addr(opts->net, page, PAGE_SIZE); \
 		mutex_unlock(&opts->lock);				\
 									\
@@ -113,11 +103,6 @@
 		unsigned qmult;						\
 									\
 		mutex_lock(&opts->lock);				\
-		if (!opts->net) {					\
-			mutex_unlock(&opts->lock);			\
-			return -ENODEV;					\
-		}							\
-									\
 		qmult = gether_get_qmult(opts->net);			\
 		mutex_unlock(&opts->lock);				\
 		return sprintf(page, "%d\n", qmult);			\
@@ -157,18 +142,26 @@ out:									\
 		int ret;						\
 									\
 		mutex_lock(&opts->lock);				\
-		if (!opts->net) {					\
-			mutex_unlock(&opts->lock);			\
-			return -ENODEV;					\
-		}							\
-									\
 		ret = gether_get_ifname(opts->net, page, PAGE_SIZE);	\
 		mutex_unlock(&opts->lock);				\
 									\
 		return ret;						\
 	}								\
 									\
-	CONFIGFS_ATTR_RO(_f_##_opts_, ifname)
+	static ssize_t _f_##_opts_ifname_store(struct config_item *item, \
+					       const char *page, size_t len)\
+	{								\
+		struct f_##_f_##_opts *opts = to_f_##_f_##_opts(item);	\
+		int ret = -EBUSY;					\
+									\
+		mutex_lock(&opts->lock);				\
+		if (!opts->refcnt)					\
+			ret = gether_set_ifname(opts->net, page, len);	\
+		mutex_unlock(&opts->lock);				\
+		return ret ?: len;					\
+	}								\
+									\
+	CONFIGFS_ATTR(_f_##_opts_, ifname)
 
 #define USB_ETHER_CONFIGFS_ITEM_ATTR_U8_RW(_f_, _n_)			\
 	static ssize_t _f_##_opts_##_n_##_show(struct config_item *item,\
@@ -189,12 +182,11 @@ out:									\
 						size_t len)		\
 	{								\
 		struct f_##_f_##_opts *opts = to_f_##_f_##_opts(item);	\
-		int ret;						\
+		int ret = -EINVAL;					\
 		u8 val;							\
 									\
 		mutex_lock(&opts->lock);				\
-		ret = sscanf(page, "%02hhx", &val);			\
-		if (ret > 0) {						\
+		if (sscanf(page, "%02hhx", &val) > 0) {			\
 			opts->_n_ = val;				\
 			ret = len;					\
 		}							\

@@ -538,7 +538,7 @@ static int pmucal_dbg_blk_init(struct device_node *node, u32 block_id,
 	return 0;
 }
 
-int __init pmucal_dbg_init(void)
+int pmucal_dbg_init(void)
 {
 	struct device_node *node = NULL;
 	int ret;

@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_core.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Core driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Core driver
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
  *
@@ -16,11 +16,15 @@
 #include <linux/sched/clock.h>
 #include <linux/pm_runtime.h>
 #include <soc/samsung/exynos-pmu.h>
+#include <soc/samsung/imgloader.h>
+#include <soc/samsung/exynos-s2mpu.h>
 #include "abox_util.h"
 #include "abox_gic.h"
 #include "abox.h"
 #include "abox_dbg.h"
 #include "abox_core.h"
+#include "abox_memlog.h"
+#include "abox_failsafe.h"
 
 #define FIRMWARE_MAX SZ_4
 
@@ -33,6 +37,10 @@ struct abox_core_firmware {
 	const char *name;
 	enum abox_core_area area;
 	unsigned int offset;
+	/* Exynos Image Loader */
+	bool code_signed;
+	struct imgloader_desc   *fw_imgloader_desc;
+	unsigned int fw_id;
 };
 
 struct abox_core {
@@ -46,6 +54,7 @@ struct abox_core {
 	unsigned int pmu_power[OFFSET_MASK];
 	unsigned int pmu_enable[OFFSET_MASK];
 	unsigned int pmu_standby[OFFSET_MASK];
+	unsigned int sys_standby[OFFSET_MASK];
 	struct abox_core_firmware fw[FIRMWARE_MAX];
 };
 
@@ -87,7 +96,7 @@ void abox_core_flush(void)
 	struct abox_data *data = get_abox_data();
 	struct device *dev_gic = data->dev_gic;
 
-	dev_info(dev_gic, "%s\n", __func__);
+	abox_info(data->dev, "%s\n", __func__);
 
 	abox_gic_generate_interrupt(dev_gic, SGI_FLUSH);
 	usleep_range(300, 1000);
@@ -99,14 +108,16 @@ void abox_core_power(int on)
 	struct device *dev = data->dev;
 	struct abox_core *core;
 
-	dev_info(dev, "%s(%d)\n", __func__, on);
+	abox_info(dev, "%s(%d)\n", __func__, on);
 
 	list_for_each_entry(core, &cores, list) {
-		unsigned int offset = core->pmu_power[OFFSET];
-		unsigned int mask = core->pmu_power[MASK];
+		unsigned int offset, mask;
 
-		dev_dbg(dev, "core: %d\n", core->id);
-		exynos_pmu_update(offset, mask, on ? mask : 0);
+		abox_dbg(dev, "core: %d\n", core->id);
+		offset = core->pmu_power[OFFSET];
+		mask = core->pmu_power[MASK];
+		if (mask)
+			exynos_pmu_update(offset, mask, on ? mask : 0);
 	}
 }
 
@@ -116,37 +127,62 @@ void abox_core_enable(int enable)
 	struct device *dev = data->dev;
 	struct abox_core *core;
 
-	dev_info(dev, "%s(%d)\n", __func__, enable);
+	abox_info(dev, "%s(%d)\n", __func__, enable);
 
 	list_for_each_entry(core, &cores, list) {
-		unsigned int offset = core->pmu_enable[OFFSET];
-		unsigned int mask = core->pmu_enable[MASK];
+		unsigned int offset, mask;
 
-		dev_dbg(dev, "core: %d\n", core->id);
-		exynos_pmu_update(offset, mask, enable ? mask : 0);
+		offset = core->pmu_enable[OFFSET];
+		mask = core->pmu_enable[MASK];
+		if (mask) {
+			abox_info(dev, "core: %d / %x\n", core->id, mask);
+			exynos_pmu_update(offset, mask, enable ? mask : 0);
+		}
 	}
 }
 
-void abox_core_standby(void)
+static int abox_core_read_standby(struct abox_core *core, unsigned int *value)
+{
+	struct abox_data *data = get_abox_data();
+	int ret = 0;
+
+	if (core->pmu_standby[MASK]) {
+		ret = exynos_pmu_read(core->pmu_standby[OFFSET], value);
+	} else if (core->sys_standby[MASK])
+		*value = readl(data->sysreg_base + core->sys_standby[OFFSET]);
+	else
+		abox_err(core->dev, "empty standby sfr\n");
+
+	return ret;
+}
+
+int abox_core_standby(void)
 {
 	struct abox_data *data = get_abox_data();
 	struct device *dev = data->dev;
 	struct abox_core *core;
 	u64 limit;
+	int ret = 0;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	limit = local_clock() + abox_get_waiting_ns(false);
 	list_for_each_entry(core, &cores, list) {
-		unsigned int offset = core->pmu_standby[OFFSET];
-		unsigned int mask = core->pmu_standby[MASK];
-		unsigned int value = 0;
-		int ret;
+		unsigned int mask, value = 0;
 
-		dev_dbg(dev, "core: %d\n", core->id);
+		abox_dbg(dev, "core: %d\n", core->id);
+
+		if (core->pmu_standby[MASK]) {
+			mask = core->pmu_standby[MASK];
+		} else if (core->sys_standby[MASK]) {
+			mask = core->sys_standby[MASK];
+		} else {
+			abox_err(dev, "empty standby sfr\n");
+			continue;
+		}
 
 		do {
-			ret = exynos_pmu_read(offset, &value);
+			ret = abox_core_read_standby(core, &value);
 			if (ret < 0)
 				dev_err_ratelimited(dev, "standby read error(%d): %d\n",
 						core->id, ret);
@@ -160,14 +196,18 @@ void abox_core_standby(void)
 				reason = kasprintf(GFP_KERNEL,
 						"standby timeout(%d)",
 						core->id);
-				dev_err(dev, "%s\n", reason);
+				abox_err(dev, "%s\n", reason);
 				abox_dbg_dump_gpr_mem(dev, data,
 						ABOX_DBG_DUMP_FIRMWARE, reason);
 				kfree(reason);
+
+				ret = -EBUSY;
 				break;
 			}
 		} while (1);
 	}
+
+	return ret;
 }
 
 void abox_core_print_gpr(void)
@@ -184,23 +224,23 @@ void abox_core_print_gpr(void)
 
 	ver = (char *)(&data->calliope_version);
 
-	dev_info(dev, "========================================\n");
-	dev_info(dev, "A-Box core register dump (%c%c%c%c)\n",
+	abox_info(dev, "========================================\n");
+	abox_info(dev, "A-Box core register dump (%c%c%c%c)\n",
 			ver[3], ver[2], ver[1], ver[0]);
-	dev_info(dev, "----------------------------------------\n");
+	abox_info(dev, "----------------------------------------\n");
 	list_for_each_entry(core, &cores, list) {
-		dev_info(dev, "CORE: %d\n", core->id);
+		abox_info(dev, "CORE: %d\n", core->id);
 		gpr = core->gpr;
 		for (i = 0; i < core->gpr_count - 2; i += 2) {
-			dev_info(dev, "r%02d: %08x r%02d: %08x\n",
-					i, readl(gpr++), i + 1, readl(gpr++));
+			abox_info(dev, "r%02d: %08x r%02d: %08x\n",
+					i, readl(gpr + i), i + 1, readl(gpr + i + 1));
 		}
-		dev_info(dev, "r%02d: %08x pc : %08x\n",
-				i, readl(gpr++), readl(gpr++));
+		abox_info(dev, "r%02d: %08x pc : %08x\n",
+				i, readl(gpr + i), readl(gpr + i + 1));
 		if (core->status)
-			dev_info(dev, "status : %08x\n", readl(core->status));
+			abox_info(dev, "status : %08x\n", readl(core->status));
 	}
-	dev_info(dev, "========================================\n");
+	abox_info(dev, "========================================\n");
 }
 
 void abox_core_print_gpr_dump(unsigned int *dump)
@@ -217,25 +257,25 @@ void abox_core_print_gpr_dump(unsigned int *dump)
 
 	ver = (char *)(&data->calliope_version);
 
-	dev_info(dev, "========================================\n");
-	dev_info(dev, "A-Box core register dump (%c%c%c%c)\n",
+	abox_info(dev, "========================================\n");
+	abox_info(dev, "A-Box core register dump (%c%c%c%c)\n",
 			ver[3], ver[2], ver[1], ver[0]);
-	dev_info(dev, "----------------------------------------\n");
+	abox_info(dev, "----------------------------------------\n");
 	list_for_each_entry(core, &cores, list) {
-		dev_info(dev, "CORE: %d\n", core->id);
+		abox_info(dev, "CORE: %d\n", core->id);
 		for (i = 0; i < core->gpr_count - 2; i += 2) {
 			a = *gpr++;
 			b = *gpr++;
-			dev_info(dev, "r%02d: %08x r%02d: %08x\n",
+			abox_info(dev, "r%02d: %08x r%02d: %08x\n",
 					i, a, i + 1, b);
 		}
 		a = *gpr++;
 		b = *gpr++;
-		dev_info(dev, "r%02d: %08x pc : %08x\n", i, a, b);
+		abox_info(dev, "r%02d: %08x pc : %08x\n", i, a, b);
 		if (core->status)
-			dev_info(dev, "status : %08x\n", *gpr);
+			abox_info(dev, "status : %08x\n", *gpr);
 	}
-	dev_info(dev, "========================================\n");
+	abox_info(dev, "========================================\n");
 }
 
 void abox_core_dump_gpr(unsigned int *tgt)
@@ -296,10 +336,10 @@ int abox_core_show_gpr(char *buf)
 		gpr = core->gpr;
 		for (i = 0; i < core->gpr_count - 2; i += 2) {
 			pbuf += sprintf(pbuf, "r%02d: %08x r%02d: %08x\n",
-					i, readl(gpr++), i + 1, readl(gpr++));
+					i, readl(gpr + i), i + 1, readl(gpr + i + 1));
 		}
 		pbuf += sprintf(pbuf, "r%02d: %08x pc : %08x\n",
-				i, readl(gpr++), readl(gpr++));
+				i, readl(gpr + i), readl(gpr + i + 1));
 		if (core->status)
 			pbuf += sprintf(pbuf, "status : %08x\n",
 					readl(core->status));
@@ -326,7 +366,7 @@ int abox_core_show_gpr_min(char *buf, int len)
 			/* print x0~x14, pc(=x31) */
 			for (i = 0; i < core->gpr_count && i < 15; i++)
 				total += scnprintf(buf + total, len - total,
-						"%08x", readl_relaxed(gpr++));
+						"%08x", readl_relaxed(gpr + i));
 			total += scnprintf(buf + total, len - total,
 					"%08x", readl_relaxed(core->gpr + 31));
 		}
@@ -372,10 +412,101 @@ u32 abox_core_read_gpr_dump(int core_id, int gpr_id, unsigned int *dump)
 		dump += core->gpr_count;
 	}
 
-	dev_err(dev, "%s(%d, %d, %p): invalid argument\n", __func__,
-			core_id, gpr_id, dump);
+	abox_err(dev, "%s(%d, %d): invalid argument\n", __func__, core_id, gpr_id);
 
 	return 0;
+}
+
+int abox_imgloader_mem_setup(struct imgloader_desc *desc, const u8 *metadata, size_t size,
+		phys_addr_t *fw_phys_base, size_t *fw_bin_size, size_t *fw_mem_size)
+{
+	struct abox_data *data = get_abox_data();
+	struct abox_core_firmware *fw = (struct abox_core_firmware *)desc->data;
+
+	if (!fw)
+		return -EINVAL;
+
+	switch (fw->area) {
+	default:
+		abox_err(desc->dev, "%s: unknown area(%d)\n", __func__,
+				fw->area);
+		/* fall through */
+	case SRAM:
+		memcpy_toio(data->sram_base + fw->offset,
+				fw->firmware->data,
+				fw->firmware->size);
+		break;
+	case DRAM:
+		memcpy(data->dram_base + fw->offset,
+				fw->firmware->data,
+				fw->firmware->size);
+		break;
+	}
+
+	if (fw) {
+		*fw_phys_base = data->sram_phys + fw->offset;
+		*fw_bin_size = fw->firmware->size;
+		*fw_mem_size = fw->firmware->size;
+		abox_info(desc->dev, "Loaded ABOX Signed Firmware : %s\n", fw->name);
+	}
+
+	return 0;
+}
+
+int abox_imgloader_verify_fw(struct imgloader_desc *desc, phys_addr_t fw_phys_base,
+		size_t fw_bin_size, size_t fw_mem_size)
+{
+	uint64_t ret64 = 0;
+
+	if (!IS_ENABLED(CONFIG_EXYNOS_S2MPU)) {
+		abox_warn(desc->dev, "H-Arx is not enabled\n");
+		return 0;
+	}
+
+	ret64 = exynos_verify_subsystem_fw(desc->name, desc->fw_id,
+			fw_phys_base, fw_bin_size,
+			ALIGN(fw_mem_size, SZ_4K));
+	if (ret64) {
+		abox_warn(desc->dev, "Failed F/W verification, ret=%llu\n", ret64);
+		return -EIO;
+	}
+
+	ret64 = exynos_request_fw_stage2_ap(desc->name);
+	if (ret64) {
+		abox_warn(desc->dev, "Failed F/W verification to S2MPU, ret=%llu\n", ret64);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+struct imgloader_ops abox_imgloader_ops = {
+	.mem_setup = abox_imgloader_mem_setup,
+	.verify_fw = abox_imgloader_verify_fw,
+};
+
+static int abox_core_imgloader_desc_init(struct abox_core *core, struct abox_core_firmware *fw)
+{
+	struct imgloader_desc *desc;
+
+	desc = devm_kzalloc(core->dev, sizeof(*desc), GFP_KERNEL);
+	if (!desc)
+		return -ENOMEM;
+
+	abox_info(core->dev, "%s : use imgloader for %s\n", __func__, fw->name);
+
+	desc->dev = core->dev;
+	desc->owner = THIS_MODULE;
+	desc->ops = &abox_imgloader_ops;
+	desc->fw_name = fw->name;
+	desc->name = "ABOX";
+	desc->data = (void *)fw;
+	desc->s2mpu_support = false;
+	desc->skip_request_firmware = true;
+	desc->fw_id = fw->fw_id;
+	fw->fw_imgloader_desc = desc;
+
+	return imgloader_desc_init(desc);
 }
 
 static int abox_core_load_firmware(struct abox_core *core,
@@ -392,7 +523,7 @@ static int abox_core_load_firmware(struct abox_core *core,
 			fw->name, dev, GFP_KERNEL, &fw->firmware,
 			cache_firmware_simple);
 
-	dev_info(dev, "%s isn't loaded yet\n", fw->name);
+	abox_info(dev, "%s isn't loaded yet\n", fw->name);
 	return -EAGAIN;
 }
 
@@ -403,27 +534,43 @@ int abox_core_download_firmware(void)
 	struct abox_core *core;
 	struct abox_core_firmware *fw;
 	size_t left;
+	int ret = 0;
 
 	if (!data)
 		return -EAGAIN;
 
-	dev_info(dev, "%s\n", __func__);
+	abox_info(dev, "%s\n", __func__);
 
 	memset(data->dram_base, 0, DRAM_FIRMWARE_SIZE);
-	memset_io(data->sram_base, 0, data->sram_size);
+	memset_io(data->sram_base, 0, SRAM_FIRMWARE_SIZE);
 
 	list_for_each_entry(core, &cores, list) {
 		size_t len = ARRAY_SIZE(core->fw);
 
 		for (fw = core->fw; (fw - core->fw < len) && fw->name; fw++) {
-			if (!fw->firmware && abox_core_load_firmware(core, fw))
-				return -EAGAIN;
+			if (!fw->name)
+				continue;
 
-			dev_dbg(dev, "%s: download %s\n", __func__, fw->name);
+			if (!fw->firmware) {
+				ret |= abox_core_load_firmware(core, fw);
+				if (ret < 0)
+					continue;
+			}
+			if (IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)) {
+				if (fw->code_signed && fw->fw_imgloader_desc) {
+					ret |= imgloader_boot(fw->fw_imgloader_desc);
+					if (ret < 0) {
+						abox_dbg_dump_mem(dev, data, ABOX_DBG_DUMP_FIRMWARE, "verification fail");
+						abox_failsafe_report(dev, true);
+					}
+					continue;
+				}
+			}
+			abox_info(dev, "%s: download %s\n", __func__, fw->name);
 			left = fw->offset + fw->firmware->size;
 			switch (fw->area) {
 			default:
-				dev_err(dev, "%s: unknown area(%d)\n", __func__,
+				abox_err(dev, "%s: unknown area(%d)\n", __func__,
 						fw->area);
 				/* fall through */
 			case SRAM:
@@ -440,7 +587,7 @@ int abox_core_download_firmware(void)
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 static void abox_core_check_firmware(const struct firmware *fw, void *context)
@@ -448,9 +595,10 @@ static void abox_core_check_firmware(const struct firmware *fw, void *context)
 	struct abox_data *data = get_abox_data();
 	struct device *dev = data->dev;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	pm_runtime_resume(dev);
+	if (data->cmpnt)
+		pm_runtime_resume(dev);
 }
 
 static int abox_core_wait_for_firmware(void *context,
@@ -459,17 +607,24 @@ static int abox_core_wait_for_firmware(void *context,
 	struct abox_data *data = get_abox_data();
 	struct device *dev = data ? data->dev : NULL;
 	struct abox_core *core = context;
+	struct abox_core_firmware *fw;
+	int ret = 0;
 
 	if (!data)
 		return -EAGAIN;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
-	if (!core || !core->fw[0].name)
-		return -EAGAIN;
+	for (fw = core->fw; fw - core->fw < ARRAY_SIZE(core->fw); fw++) {
+		if (!fw->name)
+			break;
+		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+				fw->name, dev, GFP_KERNEL, context, cont);
+		if (ret < 0)
+			break;
+	}
 
-	return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
-			core->fw[0].name, dev, GFP_KERNEL, context, cont);
+	return ret;
 }
 
 static const struct of_device_id samsung_abox_core_match[] = {
@@ -478,7 +633,7 @@ static const struct of_device_id samsung_abox_core_match[] = {
 	},
 	{},
 };
-MODULE_DEVICE_TABLE(of, samsung_abox_debug_match);
+MODULE_DEVICE_TABLE(of, samsung_abox_core_match);
 
 static int abox_core_of_parse_firmware(struct device_node *np,
 		struct abox_core_firmware *fw)
@@ -497,6 +652,16 @@ static int abox_core_of_parse_firmware(struct device_node *np,
 	if (ret < 0)
 		return ret;
 
+	if (IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)) {
+		fw->code_signed = of_property_read_bool(np, "samsung,fw-signed");
+		if (fw->code_signed) {
+			ret = of_property_read_u32(np, "samsung,fw-id",
+					&fw->fw_id);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
 	return 0;
 }
 
@@ -509,7 +674,7 @@ static int abox_core_of_parse(struct platform_device *pdev,
 	struct device_node *child;
 	const char *type;
 	size_t gpr_count;
-	int ret;
+	int ret, _ret;
 
 	core = devm_kzalloc(dev, sizeof(*core), GFP_KERNEL);
 	if (!core)
@@ -542,12 +707,12 @@ static int abox_core_of_parse(struct platform_device *pdev,
 
 	ret = of_property_read_u32_array(np, "samsung,pmu_enable",
 			core->pmu_enable, ARRAY_SIZE(core->pmu_enable));
-	if (ret < 0)
-		return ret;
 
-	ret = of_property_read_u32_array(np, "samsung,pmu_standby",
+	_ret = of_property_read_u32_array(np, "samsung,pmu_standby",
 			core->pmu_standby, ARRAY_SIZE(core->pmu_standby));
-	if (ret < 0)
+	ret = of_property_read_u32_array(np, "samsung,sys_standby",
+			core->sys_standby, ARRAY_SIZE(core->sys_standby));
+	if (_ret < 0 && ret < 0)
 		return ret;
 
 	fw = core->fw;
@@ -555,7 +720,13 @@ static int abox_core_of_parse(struct platform_device *pdev,
 		ret = abox_core_of_parse_firmware(child, fw);
 		if (ret < 0)
 			continue;
-
+		if (IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)) {
+			if (fw->code_signed) {
+				ret = abox_core_imgloader_desc_init(core, fw);
+				if (ret < 0)
+					return ret;
+			}
+		}
 		fw++;
 	}
 
@@ -572,11 +743,11 @@ static int samsung_abox_core_probe(struct platform_device *pdev)
 	struct device_node *np = dev->of_node;
 	int ret = 0;
 
-	dev_info(dev, "%s\n", __func__);
+	abox_info(dev, "%s\n", __func__);
 
 	ret = abox_core_of_parse(pdev, np);
 	if (ret < 0)
-		dev_err(dev, "%s: parsing failed\n", __func__);
+		abox_err(dev, "%s: parsing failed\n", __func__);
 
 	return ret;
 }
@@ -586,25 +757,18 @@ static int samsung_abox_core_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct abox_core *core = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 	list_del(&core->list);
 
 	return 0;
 }
 
-static struct platform_driver samsung_abox_core_driver = {
+struct platform_driver samsung_abox_core_driver = {
 	.probe  = samsung_abox_core_probe,
 	.remove = samsung_abox_core_remove,
 	.driver = {
-		.name = "samsung-abox-core",
+		.name = "abox-core",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(samsung_abox_core_match),
 	},
 };
-
-module_platform_driver(samsung_abox_core_driver);
-
-MODULE_AUTHOR("Gyeongtaek Lee, <gt82.lee@samsung.com>");
-MODULE_DESCRIPTION("Samsung ASoC A-Box Core Driver");
-MODULE_ALIAS("platform:samsung-abox-core");
-MODULE_LICENSE("GPL");

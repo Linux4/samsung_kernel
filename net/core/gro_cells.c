@@ -26,7 +26,7 @@ int gro_cells_receive(struct gro_cells *gcells, struct sk_buff *skb)
 
 	cell = this_cpu_ptr(gcells->cells);
 
-	if (skb_queue_len(&cell->napi_skbs) > netdev_max_backlog) {
+	if (skb_queue_len(&cell->napi_skbs) > READ_ONCE(netdev_max_backlog)) {
 drop:
 		atomic_long_inc(&dev->rx_dropped);
 		kfree_skb(skb);
@@ -99,9 +99,14 @@ void gro_cells_destroy(struct gro_cells *gcells)
 		struct gro_cell *cell = per_cpu_ptr(gcells->cells, i);
 
 		napi_disable(&cell->napi);
-		netif_napi_del(&cell->napi);
+		__netif_napi_del(&cell->napi);
 		__skb_queue_purge(&cell->napi_skbs);
 	}
+	/* This barrier is needed because netpoll could access dev->napi_list
+	 * under rcu protection.
+	 */
+	synchronize_net();
+
 	free_percpu(gcells->cells);
 	gcells->cells = NULL;
 }

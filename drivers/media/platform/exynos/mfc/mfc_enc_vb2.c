@@ -10,19 +10,18 @@
  * (at your option) any later version.
  */
 
-#include "mfc_common.h"
+#include "base/mfc_common.h"
 
-#include "mfc_hwlock.h"
-#include "mfc_nal_q.h"
-#include "mfc_run.h"
+#include "mfc_rm.h"
+
 #include "mfc_sync.h"
-#include "mfc_meminfo.h"
 
-#include "mfc_qos.h"
-#include "mfc_queue.h"
-#include "mfc_utils.h"
-#include "mfc_buf.h"
-#include "mfc_mem.h"
+#include "base/mfc_qos.h"
+#include "base/mfc_meminfo.h"
+#include "base/mfc_queue.h"
+#include "base/mfc_utils.h"
+#include "base/mfc_buf.h"
+#include "base/mfc_mem.h"
 
 static int mfc_enc_queue_setup(struct vb2_queue *vq,
 				unsigned int *buf_count, unsigned int *plane_count,
@@ -31,19 +30,25 @@ static int mfc_enc_queue_setup(struct vb2_queue *vq,
 	struct mfc_ctx *ctx = vq->drv_priv;
 	struct mfc_dev *dev = ctx->dev;
 	struct mfc_enc *enc = ctx->enc_priv;
+	struct mfc_core *core;
+	struct mfc_core_ctx *core_ctx;
 	struct mfc_raw_info *raw;
 	int i;
 
 	mfc_debug_enter();
 
-	if (ctx->state != MFCINST_GOT_INST &&
+	/* Encoder works only single core */
+	core = mfc_get_main_core_lock(dev, ctx);
+	core_ctx = core->core_ctx[ctx->num];
+
+	if (core_ctx->state != MFCINST_GOT_INST &&
 	    vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		mfc_err_ctx("invalid state: %d\n", ctx->state);
+		mfc_ctx_err("invalid state: %d\n", core_ctx->state);
 		return -EINVAL;
 	}
-	if (ctx->state >= MFCINST_FINISHING &&
+	if (core_ctx->state >= MFCINST_FINISHING &&
 	    vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		mfc_err_ctx("invalid state: %d\n", ctx->state);
+		mfc_ctx_err("invalid state: %d\n", core_ctx->state);
 		return -EINVAL;
 	}
 
@@ -75,17 +80,18 @@ static int mfc_enc_queue_setup(struct vb2_queue *vq,
 		if (*buf_count > MFC_MAX_BUFFERS)
 			*buf_count = MFC_MAX_BUFFERS;
 
+		/* need to use minimum size to prevent qbuf fail */
 		if (*plane_count == 1) {
-			psize[0] = raw->total_plane_size;
+			psize[0] = 1;
 			alloc_devs[0] = dev->device;
 		} else {
 			for (i = 0; i < *plane_count; i++) {
-				psize[i] = raw->plane_size[i];
+				psize[i] = 1;
 				alloc_devs[i] = dev->device;
 			}
 		}
 	} else {
-		mfc_err_ctx("invalid queue type: %d\n", vq->type);
+		mfc_ctx_err("invalid queue type: %d\n", vq->type);
 		return -EINVAL;
 	}
 
@@ -130,7 +136,7 @@ static int mfc_enc_buf_init(struct vb2_buffer *vb)
 
 		if (call_cop(ctx, init_buf_ctrls, ctx, MFC_CTRL_TYPE_DST,
 					vb->index) < 0)
-			mfc_err_ctx("failed in init_buf_ctrls\n");
+			mfc_ctx_err("failed in init_buf_ctrls\n");
 
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		ret = mfc_check_vb_with_fmt(ctx->src_fmt, vb);
@@ -139,9 +145,9 @@ static int mfc_enc_buf_init(struct vb2_buffer *vb)
 
 		if (call_cop(ctx, init_buf_ctrls, ctx, MFC_CTRL_TYPE_SRC,
 					vb->index) < 0)
-			mfc_err_ctx("failed in init_buf_ctrls\n");
+			mfc_ctx_err("failed in init_buf_ctrls\n");
 	} else {
-		mfc_err_ctx("inavlid queue type: %d\n", vq->type);
+		mfc_ctx_err("inavlid queue type: %d\n", vq->type);
 		return -EINVAL;
 	}
 
@@ -170,12 +176,17 @@ static int mfc_enc_buf_prepare(struct vb2_buffer *vb)
 			buf_size, enc->dst_buf_size);
 
 		if (buf_size < enc->dst_buf_size) {
-			mfc_err_ctx("[STREAM] size(%lu) is smaller than (%d)\n",
+			mfc_ctx_err("[STREAM] size(%lu) is smaller than (%d)\n",
 					buf_size, enc->dst_buf_size);
 			return -EINVAL;
 		}
 
 		buf->addr[0][0] = mfc_mem_get_daddr_vb(vb, 0);
+
+		/* Copy dst buffer flag to buf_ctrl */
+		buf->flag = call_cop(ctx, get_buf_ctrl_val, ctx,
+				&ctx->dst_ctrls[index],
+				V4L2_CID_MPEG_VIDEO_DST_BUF_FLAG);
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		raw = &ctx->raw_buf;
 		if (ctx->src_fmt->mem_planes == 1) {
@@ -183,7 +194,7 @@ static int mfc_enc_buf_prepare(struct vb2_buffer *vb)
 			mfc_debug(2, "[FRAME] single plane vb size: %lu, calc size: %d\n",
 					buf_size, raw->total_plane_size);
 			if (buf_size < raw->total_plane_size) {
-				mfc_err_ctx("[FRAME] single plane size(%lu) is smaller than (%d)\n",
+				mfc_ctx_err("[FRAME] single plane size(%lu) is smaller than (%d)\n",
 						buf_size, raw->total_plane_size);
 				return -EINVAL;
 			}
@@ -193,7 +204,7 @@ static int mfc_enc_buf_prepare(struct vb2_buffer *vb)
 				mfc_debug(2, "[FRAME] plane[%d] vb size: %lu, calc size: %d\n",
 						i, buf_size, raw->plane_size[i]);
 				if (buf_size < raw->plane_size[i]) {
-					mfc_err_ctx("[FRAME] plane[%d] size(%lu) is smaller than (%d)\n",
+					mfc_ctx_err("[FRAME] plane[%d] size(%lu) is smaller than (%d)\n",
 							i, buf_size, raw->plane_size[i]);
 					return -EINVAL;
 				}
@@ -203,7 +214,7 @@ static int mfc_enc_buf_prepare(struct vb2_buffer *vb)
 		for (i = 0; i < ctx->src_fmt->mem_planes; i++) {
 			bufcon_dmabuf[i] = dma_buf_get(vb->planes[i].m.fd);
 			if (IS_ERR(bufcon_dmabuf[i])) {
-				mfc_err_ctx("failed to get bufcon dmabuf\n");
+				mfc_ctx_err("failed to get bufcon dmabuf\n");
 				goto err_mem_put;
 			}
 
@@ -211,7 +222,7 @@ static int mfc_enc_buf_prepare(struct vb2_buffer *vb)
 			buf->num_bufs_in_batch = mfc_bufcon_get_buf_count(bufcon_dmabuf[i]);
 			mfc_debug(3, "[BUFCON] num bufs in batch: %d\n", buf->num_bufs_in_batch);
 			if (buf->num_bufs_in_batch == 0) {
-				mfc_err_ctx("[BUFCON] bufs count couldn't be zero\n");
+				mfc_ctx_err("[BUFCON] bufs count couldn't be zero\n");
 				goto err_mem_put;
 			}
 
@@ -225,7 +236,7 @@ static int mfc_enc_buf_prepare(struct vb2_buffer *vb)
 
 			if (buf->num_bufs_in_batch > 0) {
 				if (mfc_bufcon_get_daddr(ctx, buf, bufcon_dmabuf[i], i)) {
-					mfc_err_ctx("[BUFCON] failed to get daddr[%d] in buffer container\n", i);
+					mfc_ctx_err("[BUFCON] failed to get daddr[%d] in buffer container\n", i);
 					goto err_mem_put;
 				}
 
@@ -239,12 +250,18 @@ static int mfc_enc_buf_prepare(struct vb2_buffer *vb)
 			}
 		}
 
-		if (call_cop(ctx, to_buf_ctrls, ctx, &ctx->src_ctrls[index]) < 0)
-			mfc_err_ctx("failed in to_buf_ctrls\n");
+		call_cop(ctx, to_buf_ctrls, ctx, &ctx->src_ctrls[index]);
+
+		/* Copy src buffer flag to buf_ctrl */
+		buf->flag = call_cop(ctx, get_buf_ctrl_val, ctx,
+				&ctx->src_ctrls[index],
+				V4L2_CID_MPEG_VIDEO_SRC_BUF_FLAG);
 	} else {
-		mfc_err_ctx("inavlid queue type: %d\n", vq->type);
+		mfc_ctx_err("inavlid queue type: %d\n", vq->type);
 		return -EINVAL;
 	}
+
+	mfc_mem_buf_prepare(vb, 0);
 
 	mfc_debug_leave();
 	return 0;
@@ -258,17 +275,47 @@ err_mem_put:
 
 static void mfc_enc_buf_finish(struct vb2_buffer *vb)
 {
+	struct mfc_buf *buf = vb_to_mfc_buf(vb);
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct mfc_ctx *ctx = vq->drv_priv;
 	unsigned int index = vb->index;
-
+#if IS_ENABLED(CONFIG_MFC_USE_DMA_SKIP_LAZY_UNMAP)
+	struct mfc_dev *dev = ctx->dev;
+	int i;
+#endif
 
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		if (call_cop(ctx, to_ctx_ctrls, ctx, &ctx->dst_ctrls[index]) < 0)
-			mfc_err_ctx("failed in to_ctx_ctrls\n");
+		/* Copy to dst buffer flag */
+		call_cop(ctx, update_buf_val, ctx, &ctx->dst_ctrls[index],
+				V4L2_CID_MPEG_VIDEO_DST_BUF_FLAG, buf->flag);
+		mfc_debug(4, "[FLAG] dst update buf[%d] flag = %#lx\n",
+				index, buf->flag);
+
+		call_cop(ctx, to_ctx_ctrls, ctx, &ctx->dst_ctrls[index]);
+
+		mfc_mem_buf_finish(vb, 1);
+#if IS_ENABLED(CONFIG_MFC_USE_DMA_SKIP_LAZY_UNMAP)
+		vb2_dma_sg_set_map_attr(vb->planes[0].mem_priv, DMA_ATTR_SKIP_LAZY_UNMAP);
+		mfc_debug(4, "[LAZY_UNMAP] skip for dst\n");
+#endif
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		if (call_cop(ctx, to_ctx_ctrls, ctx, &ctx->src_ctrls[index]) < 0)
-			mfc_err_ctx("failed in to_ctx_ctrls\n");
+		/* Copy to src buffer flag */
+		call_cop(ctx, update_buf_val, ctx, &ctx->src_ctrls[index],
+				V4L2_CID_MPEG_VIDEO_SRC_BUF_FLAG, buf->flag);
+		mfc_debug(4, "[FLAG] src update buf[%d] flag = %#lx\n",
+				index, buf->flag);
+
+		call_cop(ctx, to_ctx_ctrls, ctx, &ctx->src_ctrls[index]);
+
+#if IS_ENABLED(CONFIG_MFC_USE_DMA_SKIP_LAZY_UNMAP)
+		if (dev->skip_lazy_unmap || ctx->skip_lazy_unmap) {
+			for (i = 0; i < ctx->src_fmt->mem_planes; i++) {
+				vb2_dma_sg_set_map_attr(vb->planes[i].mem_priv,
+							DMA_ATTR_SKIP_LAZY_UNMAP);
+				mfc_debug(4, "[LAZY_UNMAP] skip for src plane[%d]\n", i);
+			}
+		}
+#endif
 	}
 }
 
@@ -283,13 +330,13 @@ static void mfc_enc_buf_cleanup(struct vb2_buffer *vb)
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		if (call_cop(ctx, cleanup_buf_ctrls, ctx,
 					MFC_CTRL_TYPE_DST, index) < 0)
-			mfc_err_ctx("failed in cleanup_buf_ctrls\n");
+			mfc_ctx_err("failed in cleanup_buf_ctrls\n");
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		if (call_cop(ctx, cleanup_buf_ctrls, ctx,
 					MFC_CTRL_TYPE_SRC, index) < 0)
-			mfc_err_ctx("failed in cleanup_buf_ctrls\n");
+			mfc_ctx_err("failed in cleanup_buf_ctrls\n");
 	} else {
-		mfc_err_ctx("mfc_enc_buf_cleanup: unknown queue type\n");
+		mfc_ctx_err("mfc_enc_buf_cleanup: unknown queue type\n");
 	}
 
 	mfc_debug_leave();
@@ -299,17 +346,24 @@ static int mfc_enc_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct mfc_ctx *ctx = q->drv_priv;
 	struct mfc_dev *dev = ctx->dev;
+	struct mfc_core *core;
+	struct mfc_core_ctx *core_ctx;
+
+	/* Encoder works only single core */
+	core = mfc_get_main_core_lock(dev, ctx);
+	core_ctx = core->core_ctx[ctx->num];
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
-				ctx->state == MFCINST_FINISHED) {
-		mfc_change_state(ctx, MFCINST_GOT_INST);
-		mfc_info_ctx("enc start_streaming changes state %d\n", ctx->state);
-		MFC_TRACE_CTX("** ENC streamon, state: %d\n", ctx->state);
+			core_ctx->state == MFCINST_FINISHED) {
+		mfc_change_state(core_ctx, MFCINST_GOT_INST);
+		mfc_ctx_info("enc start_streaming changes state %d\n",
+				core_ctx->state);
+		MFC_TRACE_CTX("** ENC streamon, state: %d\n",
+				core_ctx->state);
 	}
 
-	/* If context is ready then dev = work->data;schedule it to run */
-	mfc_ctx_ready_set_bit(ctx, &dev->work_bits);
-	mfc_try_run(dev);
+	mfc_rm_update_real_time(ctx);
+	mfc_rm_request_work(dev, MFC_WORK_TRY, ctx);
 
 	return 0;
 }
@@ -318,81 +372,11 @@ static void mfc_enc_stop_streaming(struct vb2_queue *q)
 {
 	struct mfc_ctx *ctx = q->drv_priv;
 	struct mfc_dev *dev = ctx->dev;
-	int index = 0;
-	int ret = 0;
 
-	mfc_info_ctx("enc stop_streaming is called, hwlock : %d, type : %d\n",
-				test_bit(ctx->num, &dev->hwlock.bits), q->type);
+	mfc_ctx_info("enc stop_streaming is called, type : %d\n", q->type);
 	MFC_TRACE_CTX("** ENC streamoff(type:%d)\n", q->type);
 
-	/* If a H/W operation is in progress, wait for it complete */
-	if (need_to_wait_nal_abort(ctx)) {
-		if (mfc_wait_for_done_ctx(ctx, MFC_REG_R2H_CMD_NAL_ABORT_RET)) {
-			mfc_err_ctx("time out during nal abort\n");
-			mfc_cleanup_work_bit_and_try_run(ctx);
-		}
-	}
-
-	ret = mfc_get_hwlock_ctx(ctx);
-	if (ret < 0) {
-		mfc_err_ctx("Failed to get hwlock\n");
-		return;
-	}
-
-	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		mfc_cleanup_enc_dst_queue(ctx);
-		if (meminfo_enable == 1)
-			mfc_meminfo_cleanup_outbuf_q(ctx);
-
-		while (index < MFC_MAX_BUFFERS) {
-			index = find_next_bit(&ctx->dst_ctrls_avail,
-					MFC_MAX_BUFFERS, index);
-			if (index < MFC_MAX_BUFFERS)
-				call_cop(ctx, reset_buf_ctrls, &ctx->dst_ctrls[index]);
-			index++;
-		}
-	} else if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		if (ctx->state == MFCINST_RUNNING || ctx->state == MFCINST_FINISHING) {
-			mfc_change_state(ctx, MFCINST_FINISHING);
-			mfc_set_bit(ctx->num, &dev->work_bits);
-
-			while (ctx->state != MFCINST_FINISHED) {
-				ret = mfc_just_run(dev, ctx->num);
-				if (ret) {
-					mfc_err_ctx("Failed to run MFC\n");
-					break;
-				}
-				if (mfc_wait_for_done_ctx(ctx, MFC_REG_R2H_CMD_FRAME_DONE_RET)) {
-					mfc_err_ctx("Waiting for LAST_SEQ timed out\n");
-					break;
-				}
-			}
-		}
-
-		mfc_move_all_bufs(ctx, &ctx->src_buf_queue, &ctx->ref_buf_queue, MFC_QUEUE_ADD_BOTTOM);
-		mfc_cleanup_enc_src_queue(ctx);
-		if (meminfo_enable == 1)
-			mfc_meminfo_cleanup_inbuf_q(ctx);
-
-		while (index < MFC_MAX_BUFFERS) {
-			index = find_next_bit(&ctx->src_ctrls_avail,
-					MFC_MAX_BUFFERS, index);
-			if (index < MFC_MAX_BUFFERS)
-				call_cop(ctx, reset_buf_ctrls, &ctx->src_ctrls[index]);
-			index++;
-		}
-	}
-
-	if (ctx->state == MFCINST_FINISHING)
-		mfc_change_state(ctx, MFCINST_FINISHED);
-
-	mfc_debug(2, "buffer cleanup is done in stop_streaming, type : %d\n", q->type);
-
-	mfc_clear_bit(ctx->num, &dev->work_bits);
-	mfc_release_hwlock_ctx(ctx);
-
-	if (mfc_is_work_to_do(dev))
-		queue_work(dev->butler_wq, &dev->butler_work);
+	mfc_rm_instance_enc_stop(dev, ctx, q->type);
 }
 
 static void mfc_enc_buf_queue(struct vb2_buffer *vb)
@@ -401,6 +385,7 @@ static void mfc_enc_buf_queue(struct vb2_buffer *vb)
 	struct mfc_ctx *ctx = vq->drv_priv;
 	struct mfc_dev *dev = ctx->dev;
 	struct mfc_buf *buf = vb_to_mfc_buf(vb);
+	struct dma_buf *dbuf;
 	int i;
 
 	mfc_debug_enter();
@@ -414,34 +399,45 @@ static void mfc_enc_buf_queue(struct vb2_buffer *vb)
 
 		/* Mark destination as available for use by MFC */
 		mfc_add_tail_buf(ctx, &ctx->dst_buf_queue, buf);
-		mfc_qos_update_framerate(ctx, 0, 1);
-		if (meminfo_enable == 1)
+		if (dev->debugfs.meminfo_enable == 1)
 			mfc_meminfo_add_outbuf(ctx,vb);
+		mfc_rm_qos_control(ctx, MFC_QOS_TRIGGER);
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		if (ctx->gdc_votf) {
+			dbuf = dma_buf_get(vb->planes[0].m.fd);
+			if (IS_ERR(dbuf)) {
+				mfc_ctx_err("failed to get dmabuf for vOTF\n");
+			} else {
+				buf->i_ino = file_inode(dbuf->file)->i_ino;
+				dma_buf_put(dbuf);
+			}
+			mfc_debug(2, "[vOTF] enc src qbuf index %d fd %d inode %ld paddr: %#llx\n",
+					vb->index, vb->planes[0].m.fd, buf->i_ino,
+					mfc_mem_get_paddr_vb(vb));
+		}
 		for (i = 0; i < ctx->src_fmt->mem_planes; i++)
 			mfc_debug(2, "[BUFINFO] ctx[%d] add src index: %d, addr[%d]: 0x%08llx\n",
 					ctx->num, vb->index, i, buf->addr[0][i]);
-		mfc_add_tail_buf(ctx, &ctx->src_buf_queue, buf);
+		mfc_add_tail_buf(ctx, &ctx->src_buf_ready_queue, buf);
 
-		if (debug_ts == 1)
-			mfc_info_ctx("[TS] framerate: %ld, timestamp: %lld\n",
+		if (dev->debugfs.debug_ts == 1)
+			mfc_ctx_info("[TS] framerate: %ld, timestamp: %lld\n",
 					ctx->framerate, buf->vb.vb2_buf.timestamp);
-		if (meminfo_enable == 1)
+		if (dev->debugfs.meminfo_enable == 1)
 			mfc_meminfo_add_inbuf(ctx, vb);
 
 		mfc_qos_update_last_framerate(ctx, buf->vb.vb2_buf.timestamp);
-		mfc_qos_update_framerate(ctx, 0, 0);
+		mfc_rm_qos_control(ctx, MFC_QOS_TRIGGER);
 	} else {
-		mfc_err_ctx("unsupported buffer type (%d)\n", vq->type);
+		mfc_ctx_err("unsupported buffer type (%d)\n", vq->type);
 	}
 
-	mfc_ctx_ready_set_bit(ctx, &dev->work_bits);
-	mfc_try_run(dev);
+	mfc_rm_request_work(dev, MFC_WORK_TRY, ctx);
 
 	mfc_debug_leave();
 }
 
-struct vb2_ops mfc_enc_qops = {
+const struct vb2_ops mfc_enc_qops = {
 	.queue_setup		= mfc_enc_queue_setup,
 	.wait_prepare		= mfc_enc_unlock,
 	.wait_finish		= mfc_enc_lock,

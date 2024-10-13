@@ -1079,7 +1079,7 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 		}
 		tempEnc_dek = kmalloc(sizeof(dek_t), GFP_NOFS);
 		if (tempEnc_dek == NULL) {
-			kzfree(tempPlain_dek);
+			kfree_sensitive(tempPlain_dek);
 			return -ENOMEM;
 		}
 
@@ -1095,8 +1095,8 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 		if (ret < 0) {
 			DEK_LOGE("DEK_ENCRYPT_DEK: failed to encrypt dek! (err:%d)\n", ret);
 			zero_out((char *)&req, sizeof(dek_arg_encrypt_dek));
-			kzfree(tempPlain_dek);
-			kzfree(tempEnc_dek);
+			kfree_sensitive(tempPlain_dek);
+			kfree_sensitive(tempEnc_dek);
 			goto err;
 		}
 
@@ -1108,14 +1108,14 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 			DEK_LOGE("can't copy to user req\n");
 			zero_out((char *)&req, sizeof(dek_arg_encrypt_dek));
 			ret = -EFAULT;
-			kzfree(tempPlain_dek);
-			kzfree(tempEnc_dek);
+			kfree_sensitive(tempPlain_dek);
+			kfree_sensitive(tempEnc_dek);
 			goto err;
 		}
 		zero_out((char *)&req, sizeof(dek_arg_encrypt_dek));
 
-		kzfree(tempPlain_dek);
-		kzfree(tempEnc_dek);
+		kfree_sensitive(tempPlain_dek);
+		kfree_sensitive(tempEnc_dek);
 
 		break;
 	}
@@ -1151,7 +1151,7 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 		}
 		tempEnc_dek = kmalloc(sizeof(dek_t), GFP_NOFS);
 		if (tempEnc_dek == NULL) {
-			kzfree(tempPlain_dek);
+			kfree_sensitive(tempPlain_dek);
 			return -ENOMEM;
 		}		
 		tempEnc_dek->type = req.enc_dek.type;
@@ -1164,8 +1164,8 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 		if (ret < 0) {
 			DEK_LOGE("DEK_DECRYPT_DEK: failed to decrypt dek! (err:%d)\n", ret);
 			zero_out((char *)&req, sizeof(dek_arg_decrypt_dek));
-			kzfree(tempPlain_dek);
-			kzfree(tempEnc_dek);
+			kfree_sensitive(tempPlain_dek);
+			kfree_sensitive(tempEnc_dek);
 			goto err;
 		}
 
@@ -1178,14 +1178,14 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 			DEK_LOGE("can't copy to user req\n");
 			zero_out((char *)&req, sizeof(dek_arg_decrypt_dek));
 			ret = -EFAULT;
-			kzfree(tempPlain_dek);
-			kzfree(tempEnc_dek);
+			kfree_sensitive(tempPlain_dek);
+			kfree_sensitive(tempEnc_dek);
 			goto err;
 		}
 		zero_out((char *)&req, sizeof(dek_arg_decrypt_dek));
 
-		kzfree(tempPlain_dek);
-		kzfree(tempEnc_dek);
+		kfree_sensitive(tempPlain_dek);
+		kfree_sensitive(tempEnc_dek);
 		break;
 	}
 
@@ -1313,13 +1313,13 @@ void queue_log_work(struct work_struct *log_work)
 	log_entry_t *logStruct = container_of(log_work, log_entry_t, work);
 	int engine_id = logStruct->engineId;
 	char *buffer = logStruct->buffer;
-	struct timespec ts;
+	struct timespec64 ts;
 	struct log_struct *tmp = (struct log_struct *)kmalloc(sizeof(struct log_struct), GFP_KERNEL);
 
 	if (tmp) {
 		INIT_LIST_HEAD(&tmp->list);
 
-		getnstimeofday(&ts);
+		ktime_get_real_ts64(&ts);
 		tmp->len = sprintf(tmp->buf, "%ld.%.3ld|%d|%s|%d|%s\n",
 				(long)ts.tv_sec,
 				(long)ts.tv_nsec / 1000000,

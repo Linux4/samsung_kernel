@@ -75,7 +75,6 @@
 
 #define AID_PACKAGE_INFO  1027
 
-#define AID_USE_ROOT_RESERVED	KGIDT_INIT(5678)
 
 /*
  * Permissions are handled by our permission function.
@@ -229,6 +228,7 @@ struct sdcardfs_sb_info {
 	void *pkgl_id;
 	struct list_head list;
 	struct notifier_block fscrypt_nb;
+	struct sdcardfs_vfsmount_options vfsmnt_opt;
 };
 
 /*
@@ -512,14 +512,10 @@ struct limit_search {
 extern void setup_derived_state(struct inode *inode, perm_t perm,
 			userid_t userid, uid_t uid);
 extern void get_derived_permission(struct dentry *parent, struct dentry *dentry);
-extern void get_derived_permission_new(struct dentry *parent,
-		struct dentry *dentry, const struct qstr *name);
-extern void get_derived_permission_inode_new(struct dentry *parent,
-		struct inode *inode, const struct qstr *name);
+extern void get_derived_permission_new(struct dentry *parent, struct dentry *dentry, const struct qstr *name);
 extern void fixup_perms_recursive(struct dentry *dentry, struct limit_search *limit);
 
-extern void update_derived_permission_lock(struct dentry *dentry,
-		struct inode *inode);
+extern void update_derived_permission_lock(struct dentry *dentry);
 void fixup_lower_ownership(struct dentry *dentry, const char *name);
 extern int need_graft_path(struct dentry *dentry);
 extern int is_base_obbpath(struct dentry *dentry);
@@ -592,11 +588,6 @@ static inline int check_min_free_space(struct dentry *dentry, size_t size, int d
 	u64 avail;
 	struct sdcardfs_sb_info *sbi = SDCARDFS_SB(dentry->d_sb);
 
-	if (uid_eq(GLOBAL_ROOT_UID, current_fsuid()) ||
-			capable(CAP_SYS_RESOURCE) ||
-			in_group_p(AID_USE_ROOT_RESERVED))
-		return 1;
-
 	if (sbi->options.reserved_mb) {
 		/* Get fs stat of lower filesystem. */
 		sdcardfs_get_lower_path(dentry->d_sb->s_root, &lower_path);
@@ -606,7 +597,7 @@ static inline int check_min_free_space(struct dentry *dentry, size_t size, int d
 		if (unlikely(err))
 			goto out_invalid;
 
-		/* Invalid statfs informations. */
+		/* Invalid statfs information. */
 		if (unlikely(statfs.f_bsize == 0))
 			goto out_invalid;
 
@@ -684,5 +675,11 @@ static inline bool qstr_case_eq(const struct qstr *q1, const struct qstr *q2)
 }
 
 #define QSTR_LITERAL(string) QSTR_INIT(string, sizeof(string)-1)
+
+struct sdcardfs_fs_context {
+	struct sdcardfs_mount_options opts;
+	struct sdcardfs_vfsmount_options vfsmnt_opts;
+	struct path *path;
+};
 
 #endif	/* not _SDCARDFS_H_ */

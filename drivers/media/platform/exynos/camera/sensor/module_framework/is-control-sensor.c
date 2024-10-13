@@ -11,7 +11,7 @@
 #include <linux/kernel.h>
 
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-control-sensor.h"
 #include "is-device-sensor.h"
@@ -630,15 +630,14 @@ static int is_sensor_ctl_set_totalgain(struct is_device_sensor *device,
 	FIMC_BUG(!device);
 
 	if (expo.val == 0 || adj_again.val == 0 || adj_dgain.val == 0) {
-		dbg_sensor(1, "[%s] Skip set Total gain (%d)\n",
+		dbg_sensor(1, "[%s] skip set_totalgain (%d, %d, %d)\n",
 				__func__, expo, adj_again.val, adj_dgain.val);
 		return ret;
 	}
 
-	/* Set Totalgain */
 	ret = is_sensor_peri_s_totalgain(device, expo, adj_again, adj_dgain);
 	if (ret < 0)
-		err("[%s] SET Totalgain fail\n", __func__);
+		err("[%s] s_totalgain fail\n", __func__);
 
 	return ret;
 }
@@ -656,7 +655,6 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 	struct is_module_enum *module = NULL;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct is_sensor_ctl *module_ctl = NULL;
-	struct is_cis_ops *cis_ops = NULL;
 	cis_shared_data *cis_data = NULL;
 
 	camera2_sensor_ctl_t *sensor_ctrl = NULL;
@@ -750,10 +748,26 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 			err("[%s] frame number(%d) set frame duration fail\n", __func__, applied_frame_number);
 		}
 
-		cis_ops = (struct is_cis_ops *)sensor_peri->cis.cis_ops;
-		if(cis_ops->cis_set_exposure_time
-			&& cis_ops->cis_set_analog_gain
-			&& cis_ops->cis_set_digital_gain) {
+		if (sensor_peri->cis.use_total_gain) {
+			/* 4. set total gain */
+			ret = is_sensor_ctl_adjust_gains(device, &applied_ae_setting, &adj_again, &adj_dgain);
+			if (ret < 0) {
+				err("[%s] frame number(%d) adjust gains fail\n", __func__, applied_frame_number);
+				goto p_err;
+			}
+			ret = is_sensor_ctl_set_totalgain(device, expo, adj_again, adj_dgain);
+			if (ret < 0)
+				err("[%s] frame number(%d) set Total gain fail\n", __func__, applied_frame_number);
+
+			/* 5. update total gain */
+			ret = is_sensor_ctl_update_exposure(device, dm_index, expo);
+			if (ret < 0)
+				err("[%s] frame number(%d) update exposure fail\n", __func__, applied_frame_number);
+
+			ret = is_sensor_ctl_update_gains(device, module_ctl, dm_index, adj_again, adj_dgain);
+			if (ret < 0)
+				err("[%s] frame number(%d) update gains fail\n", __func__, applied_frame_number);
+		} else {
 
 			/* 4. update exposureTime */
 			ret = is_sensor_ctl_set_exposure(device, expo);
@@ -777,25 +791,6 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 			ret = is_sensor_ctl_update_gains(device, module_ctl, dm_index, adj_again, adj_dgain);
 			if (ret < 0)
 				err("[%s] frame number(%d) update gains fail\n", __func__, applied_frame_number);
-		}else {
-			/* 4. Set Total Gain : ExposureTime, Analog & Digital gain */
-			ret = is_sensor_ctl_adjust_gains(device, &applied_ae_setting, &adj_again, &adj_dgain);
-			if (ret < 0) {
-				err("[%s] frame number(%d) adjust gains fail\n", __func__, applied_frame_number);
-				goto p_err;
-			}
-			ret =  is_sensor_ctl_set_totalgain(device, expo, adj_again, adj_dgain);
-			if (ret < 0)
-				err("[%s] frame number(%d) set Total gain fail\n", __func__, applied_frame_number);
-
-			/* 5. Update Total Gain : ExposureTime, Analog & Digital gain */
-			ret = is_sensor_ctl_update_exposure(device, dm_index, expo);
-			if (ret < 0)
-				err("[%s] frame number(%d) update exposure fail\n", __func__, applied_frame_number);
-
-			ret = is_sensor_ctl_update_gains(device, module_ctl, dm_index, adj_again, adj_dgain);
-			if (ret < 0)
-				err("[%s] frame number(%d) update gains fail\n", __func__, applied_frame_number);
 		}
 
 		if (module_ctl->update_wb_gains) {
@@ -806,8 +801,8 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 			module_ctl->update_wb_gains = false;
 		}
 
-		if (module_ctl->update_3hdr_stat || module_ctl->update_roi
-			|| module_ctl->update_tone || module_ctl->update_ev) {
+		if (module_ctl->update_3hdr_stat || module_ctl->update_roi ||
+			module_ctl->update_tone || module_ctl->update_ev) {
 			ret = is_sensor_peri_s_sensor_stats(device, true, module_ctl, NULL);
 			if (ret < 0)
 				err("[%s] frame number(%d) set exposure fail\n", __func__, applied_frame_number);

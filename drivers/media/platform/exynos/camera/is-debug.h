@@ -17,33 +17,6 @@
 #define DEBUG_SENTENCE_MAX		300
 #define LOG_INTERVAL_OF_WARN		30
 
-#ifdef DBG_DRAW_DIGIT
-#define DBG_DIGIT_CNT		20	/* Max count of total digit */
-#define DBG_DIGIT_W		16
-#define DBG_DIGIT_H		32
-#define DBG_DIGIT_MARGIN_W_INIT	128
-#define DBG_DIGIT_MARGIN_H_INIT	64
-#define DBG_DIGIT_MARGIN_W	8
-#define DBG_DIGIT_MARGIN_H	2
-#define DBG_DIGIT_TAG(row, col, queue, frame, digit, increase_unit)	\
-	do {			\
-		int i, j;   \
-		for (i = 0, j = digit; i < frame->num_buffers; i++, j += increase_unit) {   \
-			ulong addr;	\
-			u32 width, height, pixelformat, bitwidth;		\
-			addr = queue->buf_kva[frame->index][i];			\
-			width = (frame->width) ? frame->width : queue->framecfg.width;	\
-			height = (frame->height) ? frame->height : queue->framecfg.height;	\
-			pixelformat = queue->framecfg.format->pixelformat;	\
-			bitwidth = queue->framecfg.format->hw_bitwidth;		\
-			is_draw_digit(addr, width, height, pixelformat, bitwidth,	\
-					row, col, j);			\
-		}   \
-	} while(0)
-#else
-#define DBG_DIGIT_TAG(row, col, queue, frame, digit, increase_unit)
-#endif
-
 enum is_debug_state {
 	IS_DEBUG_OPEN
 };
@@ -81,12 +54,10 @@ void is_dmsg_init(void);
 void is_dmsg_concate(const char *fmt, ...);
 char *is_dmsg_print(void);
 void is_print_buffer(char *buffer, size_t len);
-int is_debug_dma_dump(struct is_queue *queue, u32 index, u32 vid, u32 type);
-int is_debug_dma_dump_by_frame(struct is_frame *queue, u32 vid, u32 type);
-#ifdef DBG_DRAW_DIGIT
-void is_draw_digit(ulong addr, int width, int height, u32 pixelformat,
-		u32 bitwidth, int row_index, int col_index, u64 digit);
-#endif
+int is_dbg_dma_dump(struct is_queue *queue, u32 instance, u32 index, u32 vid, u32 type);
+int is_dbg_dma_dump_by_frame(struct is_frame *queue, u32 vid, u32 type);
+void is_dbg_draw_digit(struct is_queue *queue, struct is_frame *frame,
+		u64 digit, int unit);
 
 int imgdump_request(ulong cookie, ulong kvaddr, size_t size);
 

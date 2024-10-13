@@ -58,6 +58,7 @@ scsc_wlan-$(CONFIG_SCSC_WLAN) += ioctl.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += traffic_monitor.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += reg_info.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += scsc_wlan_mmap.o
+scsc_wlan-$(CONFIG_SCSC_WLAN) += qsfs.o
 
 # ----------------------------------------------------------------------------
 # Wifi Logger Files

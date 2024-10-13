@@ -172,30 +172,6 @@ enum clk_pll_type {
 	PLL_1031X = 10310,
 };
 
-enum margin_id {
-	MARGIN_MIF,
-	MARGIN_INT,
-	MARGIN_BIG,
-	MARGIN_LIT,
-	MARGIN_G3D,
-	MARGIN_INTCAM,
-	MARGIN_CAM,
-	MARGIN_DISP,
-	MARGIN_G3DM,
-	MARGIN_CP,
-	MARGIN_FSYS0,
-	MARGIN_AUD,
-	MARGIN_IVA,
-	MARGIN_SCORE,
-	MARGIN_MFC,
-	MARGIN_NPU,
-	MARGIN_MID,
-	MARGIN_DSP,
-	MARGIN_TNR,
-	MARGIN_DNC,
-	MAX_MARGIN_ID,
-};
-
 #define IS_FIXED_RATE(_id)	((_id & MASK_OF_TYPE) == FIXED_RATE_TYPE)
 #define IS_FIXED_FACTOR(_id)	((_id & MASK_OF_TYPE) == FIXED_FACTOR_TYPE)
 #define IS_PLL(_id)		((_id & MASK_OF_TYPE) == PLL_TYPE)
@@ -419,8 +395,8 @@ struct cmucal_clkout {
 	.lut		= _lut,						\
 	.list		= _list,					\
 	.seq		= _seq,						\
-	.num_rates	= (sizeof(_lut) / sizeof((_lut)[0])),		\
-	.num_list	= (sizeof(_list) / sizeof((_list)[0])),		\
+	.num_rates	= (sizeof(_lut) / sizeof(struct vclk_lut)),		\
+	.num_list	= (sizeof(_list) / sizeof(enum clk_id)),		\
 	.switch_info	= _switch,					\
 	.ops		= NULL,						\
 }
@@ -432,8 +408,8 @@ struct cmucal_clkout {
 	.lut		= _lut,						\
 	.list		= _list,					\
 	.seq		= _seq,						\
-	.num_rates	= (sizeof(_lut) / sizeof((_lut)[0])),		\
-	.num_list	= (sizeof(_list) / sizeof((_list)[0])),		\
+	.num_rates	= (sizeof(_lut) / sizeof(struct vclk_lut)),		\
+	.num_list	= (sizeof(_list) / sizeof(enum clk_id)),		\
 	.switch_info	= _switch,					\
 	.ops		= NULL,						\
 	.margin_id	= _margin_id,					\
@@ -491,7 +467,7 @@ struct cmucal_clkout {
 	.clk.status_idx	= _so,				\
 	.clk.enable_idx	= _eo,				\
 	.pid		= _pids,			\
-	.num_parents	= (sizeof(_pids) / sizeof((_pids)[0])), \
+	.num_parents	= (sizeof(_pids) / sizeof(enum clk_id)), \
 }
 
 #define CLK_DIV(_id, _pid, _o, _so, _eo)		\
@@ -513,7 +489,9 @@ struct cmucal_clkout {
 	.clk.status_idx	= _so,				\
 	.clk.enable_idx	= _eo,				\
 }
-#ifdef CONFIG_CMUCAL_QCH_IGNORE_SUPPORT
+//#ifdef CONFIG_CMUCAL_QCH_IGNORE_SUPPORT
+#if defined(CONFIG_CMUCAL_QCH_IGNORE_SUPPORT) || defined(CONFIG_CMUCAL_QCH_IGNORE_SUPPORT_MODULE)
+#if defined(CONFIG_SOC_S5E3830)
 #define CLK_QCH(_id, _o, _so, _eo, _ig)			\
 [_id & MASK_OF_ID] = {	\
 	.clk.id		= _id,				\
@@ -534,6 +512,7 @@ struct cmucal_clkout {
 	.clk.status_idx	= _so,				\
 	.clk.enable_idx	= _eo,				\
 }
+#endif
 #endif
 #define CLK_OPTION(_id, _o, _eo)			\
 [_id & MASK_OF_ID] = {	\
@@ -610,7 +589,7 @@ extern unsigned int cmucal_get_id_by_addr(unsigned int addr);
 extern void (*cal_data_init)(void);
 extern int (*cal_check_hiu_dvfs_id)(u32 id);
 extern void (*cal_set_cmu_smpl_warn)(void);
-#ifdef CONFIG_CMUCAL_DEBUG
+#if defined(CONFIG_CMUCAL_DEBUG) || defined(CONFIG_CMUCAL_DEBUG_MODULE)
 extern void cmucal_dbg_set_cmu_top_base(u32 base_addr);
 #else
 static inline void cmucal_dbg_set_cmu_top_base(u32 base_addr)

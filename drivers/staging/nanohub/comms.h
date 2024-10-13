@@ -58,14 +58,7 @@ struct nanohub_comms {
 };
 
 #define NANOHUB_PACKET_SIZE(len) (sizeof(struct nanohub_packet) + (len) + sizeof(struct nanohub_packet_crc))
-#define NANOHUB_PACKET_PAYLOAD_MAX 255
-#define NANOHUB_PACKET_SIZE_MAX NANOHUB_PACKET_SIZE(NANOHUB_PACKET_PAYLOAD_MAX)
 
-int nanohub_comms_kernel_download(struct nanohub_data *, const uint8_t *,
-				  size_t);
-int nanohub_comms_app_download(struct nanohub_data *, const uint8_t *, size_t);
-int nanohub_comms_rx_retrans_boottime(struct nanohub_data *, uint32_t,
-				      uint8_t *, size_t, int, int);
 int nanohub_comms_tx_rx_retrans(struct nanohub_data *, uint32_t,
 				const uint8_t *, uint8_t, uint8_t *, size_t,
 				bool, int, int);

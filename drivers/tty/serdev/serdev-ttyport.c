@@ -239,7 +239,7 @@ static int ttyport_get_tiocm(struct serdev_controller *ctrl)
 	if (!tty->ops->tiocmget)
 		return -ENOTSUPP;
 
-	return tty->driver->ops->tiocmget(tty);
+	return tty->ops->tiocmget(tty);
 }
 
 static int ttyport_set_tiocm(struct serdev_controller *ctrl, unsigned int set, unsigned int clear)
@@ -250,7 +250,7 @@ static int ttyport_set_tiocm(struct serdev_controller *ctrl, unsigned int set, u
 	if (!tty->ops->tiocmset)
 		return -ENOTSUPP;
 
-	return tty->driver->ops->tiocmset(tty, set, clear);
+	return tty->ops->tiocmset(tty, set, clear);
 }
 
 static const struct serdev_controller_ops ctrl_ops = {
@@ -301,12 +301,16 @@ struct device *serdev_tty_port_register(struct tty_port *port,
 	 * be ignored.
 	 */
 	if (parent->bus == &platform_bus_type) {
-		char tty_port_name[7];
+		if (pdev_tty_port) {
+			unsigned long pdev_idx;
+			int tty_len = strlen(drv->name);
 
-		sprintf(tty_port_name, "%s%d", drv->name, idx);
-		if (pdev_tty_port &&
-		    !strcmp(pdev_tty_port, tty_port_name)) {
-			platform = true;
+			if (!strncmp(pdev_tty_port, drv->name, tty_len)) {
+				if (!kstrtoul(pdev_tty_port + tty_len, 10,
+					     &pdev_idx) && pdev_idx == idx) {
+					platform = true;
+				}
+			}
 		}
 	}
 

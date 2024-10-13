@@ -16,55 +16,12 @@
 #include <linux/kernel.h>
 #include <linux/notifier.h>
 
-/*
- * Event codes for PM states
- */
-enum exynos_pm_event {
-	/* CPU is entering the LPA state */
-	LPA_ENTER,
-
-	/* CPU failed to enter the LPA state */
-	LPA_ENTER_FAIL,
-
-	/* CPU is exiting the LPA state */
-	LPA_EXIT,
-
-	/* CPU is entering the SICD/SICD_AUD state */
-	SICD_ENTER,
-	SICD_AUD_ENTER,
-
-	/* CPU is exiting the SICD/SICD_AUD state */
-	SICD_EXIT,
-	SICD_AUD_EXIT,
-};
-
 #define EXYNOS_PM_PREFIX	"EXYNOS-PM:"
 
 int register_usb_is_connect(u32 (*func)(void));
 int register_pcie_is_connect(u32 (*func)(void));
 
-#ifdef CONFIG_CPU_IDLE
-int exynos_pm_register_notifier(struct notifier_block *nb);
-int exynos_pm_unregister_notifier(struct notifier_block *nb);
-int exynos_pm_notify(enum exynos_pm_event event);
-#else
-static inline int exynos_pm_register_notifier(struct notifier_block *nb)
-{
-	return 0;
-}
-
-static inline int exynos_pm_unregister_notifier(struct notifier_block *nb)
-{
-	return 0;
-}
-
-static inline int exynos_pm_notify(enum exynos_pm_event event)
-{
-	return 0;
-}
-#endif
-
-#ifdef CONFIG_EXYNOS_FLEXPMU_DBG
+#if defined(CONFIG_EXYNOS_FLEXPMU_DBG) || defined(CONFIG_EXYNOS_FLEXPMU_DBG_MODULE)
 extern u32 acpm_get_mifdn_count(void);
 extern u32 acpm_get_apsocdn_count(void);
 extern u32 acpm_get_early_wakeup_count(void);
@@ -88,7 +45,7 @@ static inline u32 acpm_get_early_wakeup_count(void)
 }
 #endif
 
-#ifdef CONFIG_USB_DWC3_EXYNOS
+#if defined(CONFIG_USB_DWC3_EXYNOS) || defined(CONFIG_USB_DWC3_EXYNOS_MODULE)
 extern u32 otg_is_connect(void);
 #else
 static inline u32 otg_is_connect(void)
@@ -96,20 +53,4 @@ static inline u32 otg_is_connect(void)
 	return 0;
 }
 #endif
-
-#if defined(CONFIG_SEC_DEBUG)
-enum ids_info {
-	tg,
-	lg,
-	bg,
-	g3dg,
-	mifg,
-	lids,
-	bids,
-	gids,
-};
-
-extern int asv_ids_information(enum ids_info id);
-#endif
-
 #endif /* __EXYNOS_PM_H */

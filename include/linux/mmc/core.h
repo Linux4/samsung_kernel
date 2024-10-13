@@ -1,9 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  *  linux/include/linux/mmc/core.h
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 #ifndef LINUX_MMC_CORE_H
 #define LINUX_MMC_CORE_H
@@ -110,9 +107,6 @@ struct mmc_command {
  */
 
 	unsigned int		busy_timeout;	/* busy detect timeout in ms */
-	/* Set this flag only for blocking sanitize request */
-	bool			sanitize_busy;
-
 	struct mmc_data		*data;		/* data segment associated with cmd */
 	struct mmc_request	*mrq;		/* associated request */
 };
@@ -168,24 +162,12 @@ struct mmc_request {
 	bool			cap_cmd_during_tfr;
 
 	int			tag;
-#ifdef CONFIG_MMC_CRYPTO
-	int crypto_key_slot;
-	u64 data_unit_num;
-	const struct blk_crypto_key *crypto_key;
-#endif
-};
 
 #ifdef CONFIG_MMC_CRYPTO
-static inline bool mmc_request_crypto_enabled(const struct mmc_request *mrq)
-{
-	return mrq->crypto_key != NULL;
-}
-#else
-static inline bool mmc_request_crypto_enabled(const struct mmc_request *mrq)
-{
-	return false;
-}
+	const struct bio_crypt_ctx *crypto_ctx;
+	int			crypto_key_slot;
 #endif
+};
 
 struct mmc_card;
 

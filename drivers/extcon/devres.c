@@ -1,17 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * drivers/extcon/devres.c - EXTCON device's resource management
  *
  * Copyright (C) 2016 Samsung Electronics
  * Author: Chanwoo Choi <cw00.choi@samsung.com>
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #include "extcon.h"
@@ -145,29 +137,6 @@ int devm_extcon_dev_register(struct device *dev, struct extcon_dev *edev)
 }
 EXPORT_SYMBOL_GPL(devm_extcon_dev_register);
 
-int devm_extcon_dev_register_by_name(struct device *dev, struct extcon_dev *edev,
-				const char *name)
-{
-	struct extcon_dev **ptr;
-	int ret;
-
-	ptr = devres_alloc(devm_extcon_dev_unreg, sizeof(*ptr), GFP_KERNEL);
-	if (!ptr)
-		return -ENOMEM;
-
-	ret = extcon_dev_register_by_name(edev, name);
-	if (ret) {
-		devres_free(ptr);
-		return ret;
-	}
-
-	*ptr = edev;
-	devres_add(dev, ptr);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(devm_extcon_dev_register_by_name);
-
 /**
  * devm_extcon_dev_unregister() - Resource-managed extcon_dev_unregister()
  * @dev:	the device owning the extcon device being created
@@ -228,7 +197,7 @@ EXPORT_SYMBOL(devm_extcon_register_notifier);
 
 /**
  * devm_extcon_unregister_notifier()
-			- Resource-managed extcon_unregister_notifier()
+ *			- Resource-managed extcon_unregister_notifier()
  * @dev:	the device owning the extcon device being created
  * @edev:	the extcon device
  * @id:		the unique id among the extcon enumeration

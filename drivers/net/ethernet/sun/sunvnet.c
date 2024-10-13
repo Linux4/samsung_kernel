@@ -234,8 +234,7 @@ static struct vnet_port *vnet_tx_port_find(struct sk_buff *skb,
 }
 
 static u16 vnet_select_queue(struct net_device *dev, struct sk_buff *skb,
-			     struct net_device *sb_dev,
-			     select_queue_fallback_t fallback)
+			     struct net_device *sb_dev)
 {
 	struct vnet *vp = netdev_priv(dev);
 	struct vnet_port *port = __tx_port_find(vp, skb);
@@ -431,6 +430,9 @@ static int vnet_port_probe(struct vio_dev *vdev, const struct vio_device_id *id)
 	int len, i, err, switch_port;
 
 	hp = mdesc_grab();
+
+	if (!hp)
+		return -ENODEV;
 
 	vp = vnet_find_parent(hp, vdev->mp, vdev);
 	if (IS_ERR(vp)) {

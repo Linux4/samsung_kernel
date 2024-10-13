@@ -26,10 +26,9 @@
 #include <linux/clocksource.h>
 #include <linux/sched_clock.h>
 #include <linux/notifier.h>
-
-#ifdef CONFIG_SEC_EXT
-#include <linux/sec_ext.h>
-#endif
+#include <linux/module.h>
+#include <linux/platform_device.h>
+#include <linux/sched/clock.h>
 
 #define EXYNOS4_MCTREG(x)		(x)
 #define EXYNOS4_MCT_G_CNT_L		EXYNOS4_MCTREG(0x100)
@@ -88,6 +87,7 @@ static unsigned long clk_rate;
 static unsigned int mct_int_type;
 static int mct_irqs[MCT_NR_IRQS];
 extern struct atomic_notifier_head hardlockup_notifier_list;
+static u64 exynos_mct_start;
 
 struct mct_clock_event_device {
 	struct clock_event_device evt;
@@ -95,13 +95,19 @@ struct mct_clock_event_device {
 	char name[10];
 };
 
+u64 exynos_get_mct_start(void)
+{
+	return exynos_mct_start;
+}
+EXPORT_SYMBOL_GPL(exynos_get_mct_start);
+
 static void exynos4_mct_write(unsigned int value, unsigned long offset)
 {
 	unsigned long stat_addr;
 	u32 mask;
 	u32 i;
 
-	writel_relaxed_no_log(value, reg_base + offset);
+	writel_relaxed(value, reg_base + offset);
 
 	if (likely(offset >= EXYNOS4_MCT_L_BASE(0))) {
 		stat_addr = (offset & EXYNOS4_MCT_L_MASK) + MCT_L_WSTAT_OFFSET;
@@ -151,8 +157,8 @@ static void exynos4_mct_write(unsigned int value, unsigned long offset)
 
 	/* Wait maximum 1 ms until written values are applied */
 	for (i = 0; i < loops_per_jiffy / 1000 * HZ; i++)
-		if (readl_relaxed_no_log(reg_base + stat_addr) & mask) {
-			writel_relaxed_no_log(mask, reg_base + stat_addr);
+		if (readl_relaxed(reg_base + stat_addr) & mask) {
+			writel_relaxed(mask, reg_base + stat_addr);
 			return;
 		}
 
@@ -164,7 +170,7 @@ static void exynos4_mct_frc_start(void)
 {
 	u32 reg;
 
-	reg = readl_relaxed_no_log(reg_base + EXYNOS4_MCT_G_TCON);
+	reg = readl_relaxed(reg_base + EXYNOS4_MCT_G_TCON);
 	reg |= MCT_G_TCON_START;
 	exynos4_mct_write(reg, EXYNOS4_MCT_G_TCON);
 }
@@ -182,12 +188,12 @@ static void exynos4_mct_frc_start(void)
 static u64 exynos4_read_count_64(void)
 {
 	unsigned int lo, hi;
-	u32 hi2 = readl_relaxed_no_log(reg_base + EXYNOS4_MCT_G_CNT_U);
+	u32 hi2 = readl_relaxed(reg_base + EXYNOS4_MCT_G_CNT_U);
 
 	do {
 		hi = hi2;
-		lo = readl_relaxed_no_log(reg_base + EXYNOS4_MCT_G_CNT_L);
-		hi2 = readl_relaxed_no_log(reg_base + EXYNOS4_MCT_G_CNT_U);
+		lo = readl_relaxed(reg_base + EXYNOS4_MCT_G_CNT_L);
+		hi2 = readl_relaxed(reg_base + EXYNOS4_MCT_G_CNT_U);
 	} while (hi != hi2);
 
 	return ((u64)hi << 32) | lo;
@@ -205,7 +211,7 @@ static u64 exynos4_read_count_64(void)
 #if !IS_ENABLED(CONFIG_ARM_ARCH_TIMER)
 static u32 notrace exynos4_read_count_32(void)
 {
-	return readl_relaxed_no_log(reg_base + EXYNOS4_MCT_G_CNT_L);
+	return readl_relaxed(reg_base + EXYNOS4_MCT_G_CNT_L);
 }
 
 static u64 exynos4_frc_read(struct clocksource *cs)
@@ -244,7 +250,7 @@ static cycles_t exynos4_read_current_timer(void)
 }
 #endif
 
-static int __init exynos4_clocksource_init(void)
+static int exynos4_clocksource_init(void)
 {
 	exynos4_mct_frc_start();
 
@@ -266,7 +272,7 @@ static void exynos4_mct_comp0_stop(void)
 {
 	unsigned int tcon;
 
-	tcon = readl_relaxed_no_log(reg_base + EXYNOS4_MCT_G_TCON);
+	tcon = readl_relaxed(reg_base + EXYNOS4_MCT_G_TCON);
 	tcon &= ~(MCT_G_TCON_COMP0_ENABLE | MCT_G_TCON_COMP0_AUTO_INC);
 
 	exynos4_mct_write(tcon, EXYNOS4_MCT_G_TCON);
@@ -278,7 +284,7 @@ static void exynos4_mct_comp0_start(bool periodic, unsigned long cycles)
 	unsigned int tcon;
 	u64 comp_cycle;
 
-	tcon = readl_relaxed_no_log(reg_base + EXYNOS4_MCT_G_TCON);
+	tcon = readl_relaxed(reg_base + EXYNOS4_MCT_G_TCON);
 
 	if (periodic) {
 		tcon |= MCT_G_TCON_COMP0_AUTO_INC;
@@ -344,19 +350,15 @@ static irqreturn_t exynos4_mct_comp_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static struct irqaction mct_comp_event_irq = {
-	.name		= "mct_comp_irq",
-	.flags		= IRQF_TIMER | IRQF_IRQPOLL,
-	.handler	= exynos4_mct_comp_isr,
-	.dev_id		= &mct_comp_device,
-};
-
 static int exynos4_clockevent_init(void)
 {
 	mct_comp_device.cpumask = cpumask_of(0);
 	clockevents_config_and_register(&mct_comp_device, clk_rate,
 					0xf, 0xffffffff);
-	setup_irq(mct_irqs[MCT_G0_IRQ], &mct_comp_event_irq);
+	if (request_irq(mct_irqs[MCT_G0_IRQ], exynos4_mct_comp_isr,
+			IRQF_TIMER | IRQF_IRQPOLL, "mct_comp_irq",
+			&mct_comp_device))
+		pr_err("%s: request_irq() failed\n", "mct_comp_irq");
 
 	return 0;
 }
@@ -372,7 +374,7 @@ static void exynos4_mct_tick_stop(struct mct_clock_event_device *mevt, int force
 	exynos4_mct_write(0x1, mevt->base + MCT_L_INT_CSTAT_OFFSET);
 
 	if (force || !clockevent_state_periodic(&mevt->evt)) {
-		tmp = readl_relaxed_no_log(reg_base + mevt->base + MCT_L_TCON_OFFSET);
+		tmp = readl_relaxed(reg_base + mevt->base + MCT_L_TCON_OFFSET);
 		tmp &= ~(MCT_L_TCON_INT_START | MCT_L_TCON_TIMER_START | MCT_L_TCON_INTERVAL_MODE);
 		exynos4_mct_write(tmp, mevt->base + MCT_L_TCON_OFFSET);
 	}
@@ -513,8 +515,11 @@ static int exynos4_mct_starting_cpu(unsigned int cpu)
 
 		if (evt->irq == -1)
 			return -EIO;
-
+#ifdef MODULE
+		irq_set_affinity_hint(evt->irq, cpumask_of(cpu));
+#else
 		irq_force_affinity(evt->irq, cpumask_of(cpu));
+#endif
 		enable_irq(evt->irq);
 	} else {
 		enable_percpu_irq(mct_irqs[MCT_L0_IRQ], 0);
@@ -546,7 +551,7 @@ static struct notifier_block nb_hardlockup_block = {
 	.notifier_call = exynos4_mct_hardlockup_handler,
 };
 
-static int __init exynos4_timer_resources(struct device_node *np, void __iomem *base)
+static int exynos4_timer_resources(struct device_node *np, void __iomem *base)
 {
 	int err, cpu;
 	struct clk *mct_clk, *tick_clk;
@@ -585,7 +590,7 @@ static int __init exynos4_timer_resources(struct device_node *np, void __iomem *
 			if (request_irq(mct_irq,
 					exynos4_mct_tick_isr,
 					IRQF_TIMER | IRQF_NOBALANCING | IRQF_PERCPU,
-					pcpu_mevt->name, pcpu_mevt)) {
+					"exynos-mct", pcpu_mevt)) {
 				pr_err("exynos-mct: cannot register IRQ (cpu%d)\n",
 									cpu);
 
@@ -622,9 +627,10 @@ out_irq:
 	return err;
 }
 
-static int __init mct_init_dt(struct device_node *np, unsigned int int_type)
+static int mct_init_dt(struct device_node *np, unsigned int int_type)
 {
-	u32 nr_irqs, i;
+	u32 nr_irqs = 0, i;
+	struct of_phandle_args irq;
 	int ret;
 
 	mct_int_type = int_type;
@@ -639,11 +645,9 @@ static int __init mct_init_dt(struct device_node *np, unsigned int int_type)
 	 * timer irqs are specified after the four global timer
 	 * irqs are specified.
 	 */
-#ifdef CONFIG_OF
-	nr_irqs = of_irq_count(np);
-#else
-	nr_irqs = 0;
-#endif
+	while (of_irq_parse_one(np, nr_irqs, &irq) == 0)
+	nr_irqs++;
+
 	for (i = MCT_L0_IRQ; i < nr_irqs; i++)
 		mct_irqs[i] = irq_of_parse_and_map(np, i);
 
@@ -655,22 +659,79 @@ static int __init mct_init_dt(struct device_node *np, unsigned int int_type)
 	if (ret)
 		return ret;
 
-#ifdef CONFIG_SEC_BOOTSTAT
-	sec_bootstat_mct_start(exynos4_read_count_64());
-#endif
+	if (IS_ENABLED(CONFIG_SEC_BOOTSTAT)) {
+		unsigned long __clk_rate;
+		u64 ts_msec;
+
+		exynos_mct_start = exynos4_read_count_64();
+		__clk_rate = clk_rate / 1000;
+		if (__clk_rate)
+			exynos_mct_start /= __clk_rate;
+
+		ts_msec = local_clock();
+		do_div(ts_msec, 1000000);
+
+		exynos_mct_start -= ts_msec;
+	}
 
 	return exynos4_clockevent_init();
 }
 
 
-static int __init mct_init_spi(struct device_node *np)
+static int mct_init_spi(struct device_node *np)
 {
 	return mct_init_dt(np, MCT_INT_SPI);
 }
 
-static int __init mct_init_ppi(struct device_node *np)
+static int mct_init_ppi(struct device_node *np)
 {
 	return mct_init_dt(np, MCT_INT_PPI);
 }
-TIMER_OF_DECLARE(exynos4210, "samsung,exynos4210-mct", mct_init_spi);
-TIMER_OF_DECLARE(exynos4412, "samsung,exynos4412-mct", mct_init_ppi);
+
+//#ifdef MODULE
+static int exynos4_mct_probe(struct platform_device *pdev)
+{
+	struct device_node *np = pdev->dev.of_node;
+
+	if (of_machine_is_compatible("samsung,exynos4412-mct"))
+		return mct_init_ppi(np);
+
+	return mct_init_spi(np);
+}
+
+static const struct of_device_id exynos4_mct_match_table[] = {
+	{ .compatible = "samsung,exynos4210-mct" },
+	{ .compatible = "samsung,exynos4412-mct" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, exynos4_mct_match_table);
+
+static struct platform_driver exynos4_mct_driver = {
+	.probe          = exynos4_mct_probe,
+	.driver         = {
+		.name   = "exynos-mct",
+		.of_match_table = exynos4_mct_match_table,
+	},
+};
+
+static int exynos_mct_if_init(void)
+{
+        int ret;
+
+        ret = platform_driver_register(&exynos4_mct_driver);
+        if (ret) {
+                pr_err("samsung_mct_if_driver probe file\n");
+                goto err_out;
+        }
+err_out:
+        return ret;
+}
+rootfs_initcall(exynos_mct_if_init);
+
+
+//#else
+//TIMER_OF_DECLARE(exynos4210, "samsung,exynos4210-mct", mct_init_spi);
+//TIMER_OF_DECLARE(exynos4412, "samsung,exynos4412-mct", mct_init_ppi);
+//#endif
+
+MODULE_LICENSE("GPL v2");

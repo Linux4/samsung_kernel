@@ -1,7 +1,7 @@
 /*
  * s2mpu12-irq.c - Interrupt controller support for S2MPU12
  *
- * Copyright (C) 2019 Samsung Electronics Co.Ltd
+ * Copyright (C) 2022 Samsung Electronics Co.Ltd
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,21 +29,19 @@
 #include <linux/sizes.h>
 #include <linux/io.h>
 #include <linux/workqueue.h>
-
+#if IS_ENABLED(CONFIG_EXYNOS_ACPM)
 #include <soc/samsung/acpm_mfd.h>
-
-#if defined(CONFIG_SND_SOC_AUD3004X_5PIN) || defined(CONFIG_SND_SOC_AUD3004X_6PIN)
-#include <sound/aud3004x.h>
-#define CODEC_IRQ_CNT		9
-#define CODEC_IRQ_CNT_M		6
-
-u8 irq_codec[CODEC_IRQ_CNT];
-u8 irq_codec_m[CODEC_IRQ_CNT_M];
-bool codec_irq_flag = false;
 #endif
-
+#if IS_ENABLED(CONFIG_SND_SOC_AUD3004X_5PIN) || IS_ENABLED(CONFIG_SND_SOC_AUD3004X_6PIN)
+#include <sound/aud3004x.h>
+#endif
 #define S2MPU12_IBI_CNT		4
+#define CODEC_IRQ_CNT	8
+
 u8 irq_reg[S2MPU12_IRQ_GROUP_NR] = {0};
+u8 irq_codec[CODEC_IRQ_CNT];
+u8 irq_codec_m[CODEC_IRQ_CNT-2];
+bool codec_irq_flag = false;
 
 static const u8 s2mpu12_mask_reg[] = {
 	[PMIC_INT1] = S2MPU12_PMIC_INT1M,
@@ -196,7 +194,7 @@ static int s2mpu12_power_key_detection(struct s2mpu12_dev *s2mpu12)
 
 	/* Determine falling/rising edge for PWR_ON key */
 	if ((irq_reg[PMIC_INT1] & 0x3) == 0x3) {
-		ret = s2mpu12_read_reg(s2mpu12->i2c,
+		ret = s2mpu12_read_reg(s2mpu12->pmic,
 				       S2MPU12_PMIC_STATUS1, &val);
 		if (ret) {
 			pr_err("%s: fail to read register\n", __func__);
@@ -230,19 +228,6 @@ power_key_err:
 	return 1;
 }
 
-#if defined(CONFIG_SND_SOC_AUD3004X_5PIN) || defined(CONFIG_SND_SOC_AUD3004X_6PIN)
-int codec_notifier_flag = 0;
-
-void set_codec_notifier_flag(bool on)
-{
-	if (on)
-		codec_notifier_flag = true;
-	else
-		codec_notifier_flag = false;
-
-}
-#endif
-
 static void s2mpu12_irq_work_func(struct work_struct *work)
 {
 	pr_info("%s: master pmic interrupt"
@@ -273,11 +258,9 @@ static int s2mpu12_pmic_notifier(struct s2mpu12_dev *s2mpu12)
 
 static int s2mpu12_ibi_notifier(struct s2mpu12_dev *s2mpu12, u8 *ibi_src)
 {
-	int ret = 0;
-	size_t i = 0;
+	int ret = 0, i;
 	u8 state = ibi_src[0];
 
-#if defined(CONFIG_SND_SOC_AUD3004X_5PIN) || defined(CONFIG_SND_SOC_AUD3004X_6PIN)
 	if (state & S2MPU12_IBI0_CODEC || state & S2MPU12_IBI0_PMIC_M) {
 		for (i = PMIC_INT1; i <= PMIC_INT6; i++) {
 			if (irq_reg[i]) {
@@ -285,8 +268,8 @@ static int s2mpu12_ibi_notifier(struct s2mpu12_dev *s2mpu12, u8 *ibi_src)
 				break;
 			}
 		}
-
-		if (codec_irq_flag & codec_notifier_flag) {
+#if IS_ENABLED(CONFIG_SND_SOC_AUD3004X_5PIN) || IS_ENABLED(CONFIG_SND_SOC_AUD3004X_6PIN)
+		if (codec_irq_flag & aud3004x_notifier_flag()) {
 			aud3004x_call_notifier(irq_codec, CODEC_IRQ_CNT);
 			codec_irq_flag = false;
 		}
@@ -294,44 +277,32 @@ static int s2mpu12_ibi_notifier(struct s2mpu12_dev *s2mpu12, u8 *ibi_src)
 			if (codec_irq_flag)
 				pr_err("%s: codec handler not registered!\n", __func__);
 		}
-
-		if (ret)
-			return 1;
-	}
-#else
-	if (state & S2MPU12_IBI0_PMIC_M) {
-		for (i = PMIC_INT1; i <= PMIC_INT6; i++) {
-			if (irq_reg[i]) {
-				ret = s2mpu12_pmic_notifier(s2mpu12);
-				break;
-			}
-		}
-
-		if (ret)
-			return 1;
-	}
 #endif
+		if (ret)
+			return 1;
+	}
 	return 0;
 }
 
 static int s2mpu12_check_ibi_source(struct s2mpu12_dev *s2mpu12, u8 *ibi_src)
 {
-	int ret = 0;
+	int ret, i = 0;
+	int check = 0;
 	u8 state = ibi_src[0];
 
-#if defined(CONFIG_SND_SOC_AUD3004X_5PIN) || defined(CONFIG_SND_SOC_AUD3004X_6PIN)
-	size_t i = 0;
 	if (state & S2MPU12_IBI0_CODEC || state & S2MPU12_IBI0_PMIC_M) {
 		ret = s2mpu12_bulk_read(s2mpu12->pmic, S2MPU12_PMIC_INT1,
 					S2MPU12_NUM_IRQ_PMIC_REGS,
 					&irq_reg[PMIC_INT1]);
-
-		exynos_acpm_bulk_read(0, 0x07, 0x08, CODEC_IRQ_CNT_M, &irq_codec_m[0]);
-		exynos_acpm_bulk_read(0, 0x07, 0x01, CODEC_IRQ_CNT_M, &irq_codec[0]);
-		exynos_acpm_bulk_read(0, 0x07, 0xF0,
-				CODEC_IRQ_CNT-CODEC_IRQ_CNT_M, &irq_codec[6]);
-
-		for (i = 0; i < CODEC_IRQ_CNT_M; i++) {
+#if IS_ENABLED(CONFIG_EXYNOS_ACPM) && \
+(IS_ENABLED(CONFIG_SND_SOC_AUD3004X_5PIN) || IS_ENABLED(CONFIG_SND_SOC_AUD3004X_6PIN))
+		check = exynos_acpm_bulk_read(s2mpu12->dev->of_node, 0, 0x07,
+					      0x08, 6, &irq_codec_m[0]);
+		check = exynos_acpm_bulk_read(s2mpu12->dev->of_node, 0, 0x07,
+					      0x01, 6, &irq_codec[0]);
+		check = exynos_acpm_bulk_read(s2mpu12->dev->of_node, 0, 0x07,
+					      0xF0, 2, &irq_codec[6]);
+		for (i = 0; i < 6; i++) {
 			irq_codec[i] = irq_codec[i] & (~irq_codec_m[i]);
 		}
 
@@ -339,26 +310,14 @@ static int s2mpu12_check_ibi_source(struct s2mpu12_dev *s2mpu12, u8 *ibi_src)
 				irq_codec[3] | irq_codec[4] | irq_codec[5]) {
 			codec_irq_flag = true;
 		}
-
-		if (ret) {
-			pr_err("%s:%s Failed to read pmic interrupt: %d\n",
-				MFD_DEV_NAME, __func__, ret);
-			return 1;
-		}
-	}
-#else
-	if (state & S2MPU12_IBI0_PMIC_M) {
-		ret = s2mpu12_bulk_read(s2mpu12->pmic, S2MPU12_PMIC_INT1,
-					S2MPU12_NUM_IRQ_PMIC_REGS,
-					&irq_reg[PMIC_INT1]);
-
-		if (ret) {
-			pr_err("%s:%s Failed to read pmic interrupt: %d\n",
-				MFD_DEV_NAME, __func__, ret);
-			return 1;
-		}
-	}
 #endif
+		if (ret) {
+			pr_err("%s:%s Failed to read pmic interrupt: %d\n",
+				MFD_DEV_NAME, __func__, ret);
+			return 1;
+		}
+	}
+
 	return 0;
 }
 
@@ -459,7 +418,7 @@ int s2mpu12_irq_init(struct s2mpu12_dev *s2mpu12)
 		irq_set_chip_and_handler(cur_irq, &s2mpu12_irq_chip,
 					 handle_level_irq);
 		irq_set_nested_thread(cur_irq, 1);
-#ifdef CONFIG_ARM
+#if IS_ENABLED(CONFIG_ARM)
 		set_irq_flags(cur_irq, IRQF_VALID);
 #else
 		irq_set_noprobe(cur_irq);

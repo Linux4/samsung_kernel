@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2019 Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -32,16 +24,12 @@ int mbim_xmit(struct sk_buff *skb)
 	int count = 0;
 	int i = current_index;
 	bool find_flag = false;
-#ifdef DEBUG_MODEM_IF
 	struct timespec ts;
-#endif
 
-#ifdef DEBUG_MODEM_IF
 	/* Record the timestamp */
 	getnstimeofday(&ts);
-#endif
 
-#ifdef CONFIG_NET_SUPPORT_DROPDUMP
+#if IS_ENABLED(CONFIG_NET_SUPPORT_DROPDUMP)
 	skb->dropmask = PACKET_OUT;
 #endif
 
@@ -96,10 +84,8 @@ int mbim_xmit(struct sk_buff *skb)
 
 	skbpriv(skb_new)->sipc_ch = iod->ch;
 
-#ifdef DEBUG_MODEM_IF
 	/* Copy the timestamp to the skb */
 	memcpy(&skbpriv(skb_new)->ts, &ts, sizeof(struct timespec));
-#endif
 #if defined(DEBUG_MODEM_IF_IODEV_TX) && defined(DEBUG_MODEM_IF_PS_DATA)
 	mif_pkt(iod->ch, "IOD-TX", skb_new);
 #endif

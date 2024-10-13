@@ -1334,7 +1334,7 @@ static int mdnie_register_fb(struct mdnie_info *mdnie)
 {
 	memset(&mdnie->fb_notif, 0, sizeof(mdnie->fb_notif));
 	mdnie->fb_notif.notifier_call = fb_notifier_callback;
-	return fb_register_client(&mdnie->fb_notif);
+	return decon_register_notifier(&mdnie->fb_notif);
 }
 
 #ifdef CONFIG_DISPLAY_USE_INFO

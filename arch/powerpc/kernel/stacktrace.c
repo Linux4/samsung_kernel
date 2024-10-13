@@ -8,6 +8,7 @@
  * Copyright 2018 Nick Piggin, Michael Ellerman, IBM Corp.
  */
 
+#include <linux/delay.h>
 #include <linux/export.h>
 #include <linux/kallsyms.h>
 #include <linux/module.h>
@@ -19,6 +20,7 @@
 #include <asm/ptrace.h>
 #include <asm/processor.h>
 #include <linux/ftrace.h>
+#include <linux/delay.h>
 #include <asm/kprobes.h>
 
 #include <asm/paca.h>
@@ -57,7 +59,7 @@ void save_stack_trace(struct stack_trace *trace)
 {
 	unsigned long sp;
 
-	sp = current_stack_pointer();
+	sp = current_stack_frame();
 
 	save_context_stack(trace, sp, current, 1);
 }
@@ -67,12 +69,17 @@ void save_stack_trace_tsk(struct task_struct *tsk, struct stack_trace *trace)
 {
 	unsigned long sp;
 
+	if (!try_get_task_stack(tsk))
+		return;
+
 	if (tsk == current)
-		sp = current_stack_pointer();
+		sp = current_stack_frame();
 	else
 		sp = tsk->thread.ksp;
 
 	save_context_stack(trace, sp, tsk, 0);
+
+	put_task_stack(tsk);
 }
 EXPORT_SYMBOL_GPL(save_stack_trace_tsk);
 
@@ -84,25 +91,21 @@ save_stack_trace_regs(struct pt_regs *regs, struct stack_trace *trace)
 EXPORT_SYMBOL_GPL(save_stack_trace_regs);
 
 #ifdef CONFIG_HAVE_RELIABLE_STACKTRACE
-int
-save_stack_trace_tsk_reliable(struct task_struct *tsk,
-				struct stack_trace *trace)
+/*
+ * This function returns an error if it detects any unreliable features of the
+ * stack.  Otherwise it guarantees that the stack trace is reliable.
+ *
+ * If the task is not 'current', the caller *must* ensure the task is inactive.
+ */
+static int __save_stack_trace_tsk_reliable(struct task_struct *tsk,
+					   struct stack_trace *trace)
 {
 	unsigned long sp;
+	unsigned long newsp;
 	unsigned long stack_page = (unsigned long)task_stack_page(tsk);
 	unsigned long stack_end;
 	int graph_idx = 0;
-
-	/*
-	 * The last frame (unwinding first) may not yet have saved
-	 * its LR onto the stack.
-	 */
-	int firstframe = 1;
-
-	if (tsk == current)
-		sp = current_stack_pointer();
-	else
-		sp = tsk->thread.ksp;
+	bool firstframe;
 
 	stack_end = stack_page + THREAD_SIZE;
 	if (!is_idle_task(tsk)) {
@@ -129,71 +132,96 @@ save_stack_trace_tsk_reliable(struct task_struct *tsk,
 		stack_end -= STACK_FRAME_OVERHEAD;
 	}
 
+	if (tsk == current)
+		sp = current_stack_frame();
+	else
+		sp = tsk->thread.ksp;
+
 	if (sp < stack_page + sizeof(struct thread_struct) ||
 	    sp > stack_end - STACK_FRAME_MIN_SIZE) {
-		return 1;
+		return -EINVAL;
 	}
 
-	for (;;) {
+	for (firstframe = true; sp != stack_end;
+	     firstframe = false, sp = newsp) {
 		unsigned long *stack = (unsigned long *) sp;
-		unsigned long newsp, ip;
+		unsigned long ip;
 
 		/* sanity check: ABI requires SP to be aligned 16 bytes. */
 		if (sp & 0xF)
-			return 1;
-
-		/* Mark stacktraces with exception frames as unreliable. */
-		if (sp <= stack_end - STACK_INT_FRAME_SIZE &&
-		    stack[STACK_FRAME_MARKER] == STACK_FRAME_REGS_MARKER) {
-			return 1;
-		}
+			return -EINVAL;
 
 		newsp = stack[0];
 		/* Stack grows downwards; unwinder may only go up. */
 		if (newsp <= sp)
-			return 1;
+			return -EINVAL;
 
 		if (newsp != stack_end &&
 		    newsp > stack_end - STACK_FRAME_MIN_SIZE) {
-			return 1; /* invalid backlink, too far up. */
+			return -EINVAL; /* invalid backlink, too far up. */
+		}
+
+		/*
+		 * We can only trust the bottom frame's backlink, the
+		 * rest of the frame may be uninitialized, continue to
+		 * the next.
+		 */
+		if (firstframe)
+			continue;
+
+		/* Mark stacktraces with exception frames as unreliable. */
+		if (sp <= stack_end - STACK_INT_FRAME_SIZE &&
+		    stack[STACK_FRAME_MARKER] == STACK_FRAME_REGS_MARKER) {
+			return -EINVAL;
 		}
 
 		/* Examine the saved LR: it must point into kernel code. */
 		ip = stack[STACK_FRAME_LR_SAVE];
-		if (!firstframe && !__kernel_text_address(ip))
-			return 1;
-		firstframe = 0;
+		if (!__kernel_text_address(ip))
+			return -EINVAL;
 
 		/*
 		 * FIXME: IMHO these tests do not belong in
 		 * arch-dependent code, they are generic.
 		 */
-		ip = ftrace_graph_ret_addr(tsk, &graph_idx, ip, NULL);
+		ip = ftrace_graph_ret_addr(tsk, &graph_idx, ip, stack);
 #ifdef CONFIG_KPROBES
 		/*
 		 * Mark stacktraces with kretprobed functions on them
 		 * as unreliable.
 		 */
 		if (ip == (unsigned long)kretprobe_trampoline)
-			return 1;
+			return -EINVAL;
 #endif
 
+		if (trace->nr_entries >= trace->max_entries)
+			return -E2BIG;
 		if (!trace->skip)
 			trace->entries[trace->nr_entries++] = ip;
 		else
 			trace->skip--;
-
-		if (newsp == stack_end)
-			break;
-
-		if (trace->nr_entries >= trace->max_entries)
-			return -E2BIG;
-
-		sp = newsp;
 	}
 	return 0;
 }
-EXPORT_SYMBOL_GPL(save_stack_trace_tsk_reliable);
+
+int save_stack_trace_tsk_reliable(struct task_struct *tsk,
+				  struct stack_trace *trace)
+{
+	int ret;
+
+	/*
+	 * If the task doesn't have a stack (e.g., a zombie), the stack is
+	 * "reliably" empty.
+	 */
+	if (!try_get_task_stack(tsk))
+		return 0;
+
+	ret = __save_stack_trace_tsk_reliable(tsk, trace);
+
+	put_task_stack(tsk);
+
+	return ret;
+}
 #endif /* CONFIG_HAVE_RELIABLE_STACKTRACE */
 
 #if defined(CONFIG_PPC_BOOK3S_64) && defined(CONFIG_NMI_IPI)
@@ -204,17 +232,31 @@ static void handle_backtrace_ipi(struct pt_regs *regs)
 
 static void raise_backtrace_ipi(cpumask_t *mask)
 {
+	struct paca_struct *p;
 	unsigned int cpu;
+	u64 delay_us;
 
 	for_each_cpu(cpu, mask) {
-		if (cpu == smp_processor_id())
+		if (cpu == smp_processor_id()) {
 			handle_backtrace_ipi(NULL);
-		else
-			smp_send_safe_nmi_ipi(cpu, handle_backtrace_ipi, 5 * USEC_PER_SEC);
-	}
+			continue;
+		}
 
-	for_each_cpu(cpu, mask) {
-		struct paca_struct *p = paca_ptrs[cpu];
+		delay_us = 5 * USEC_PER_SEC;
+
+		if (smp_send_safe_nmi_ipi(cpu, handle_backtrace_ipi, delay_us)) {
+			// Now wait up to 5s for the other CPU to do its backtrace
+			while (cpumask_test_cpu(cpu, mask) && delay_us) {
+				udelay(1);
+				delay_us--;
+			}
+
+			// Other CPU cleared itself from the mask
+			if (delay_us)
+				continue;
+		}
+
+		p = paca_ptrs[cpu];
 
 		cpumask_clear_cpu(cpu, mask);
 
@@ -234,7 +276,7 @@ static void raise_backtrace_ipi(cpumask_t *mask)
 			pr_cont(" current pointer corrupt? (%px)\n", p->__current);
 
 		pr_warn("Back trace of paca->saved_r1 (0x%016llx) (possibly stale):\n", p->saved_r1);
-		show_stack(p->__current, (unsigned long *)p->saved_r1);
+		show_stack(p->__current, (unsigned long *)p->saved_r1, KERN_WARNING);
 	}
 }
 

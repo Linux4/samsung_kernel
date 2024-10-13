@@ -21,21 +21,19 @@
 #ifndef __S2MU106_FUELGAUGE_H
 #define __S2MU106_FUELGAUGE_H __FILE__
 
-#if defined(ANDROID_ALARM_ACTIVATED)
+#if IS_ENABLED(ANDROID_ALARM_ACTIVATED)
 #include <linux/android_alarm.h>
 #endif
-
-#include <linux/wakelock.h>
-#include <linux/power/s2mu00x_battery.h>
+#include <linux/power/s2m_chg_manager.h>
 
 /* Slave address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
  */
 
-#define USE_EXTERNAL_TEMP	1
+#define USE_EXTERNAL_TEMP		0
 
-#define TEMP_COMPEN		1
-#define BATCAP_LEARN	1
+#define TEMP_COMPEN			1
+#define BATCAP_LEARN			1
 
 #define S2MU106_REG_STATUS		0x00
 #define S2MU106_REG_IRQ			0x02
@@ -71,7 +69,7 @@ enum {
 	END_MODE,
 };
 
-static char* mode_to_str[] = {
+static char *mode_to_str[] = {
 	"CC_MODE",
 	"VOLTAGE_MODE",	// not used
 	"VOLTAGE_MODE",
@@ -126,7 +124,7 @@ struct s2mu106_fuelgauge_data {
 	struct fg_info      info;
 
 	bool is_fuel_alerted;
-	struct wake_lock fuel_alert_wake_lock;
+	struct wakeup_source *fuel_alert_ws;
 
 	unsigned int ui_soc;
 
@@ -144,14 +142,14 @@ struct s2mu106_fuelgauge_data {
 
 	int fg_irq;
 	bool probe_done;
-#if (TEMP_COMPEN) || (BATCAP_LEARN)
+#if IS_ENABLED(TEMP_COMPEN) || IS_ENABLED(BATCAP_LEARN)
 	bool bat_charging; /* battery is charging */
 #endif
-#if (TEMP_COMPEN) && (BATCAP_LEARN)
+#if IS_ENABLED(TEMP_COMPEN) && IS_ENABLED(BATCAP_LEARN)
 	int fcc;
 	int rmc;
 #endif
-#if (TEMP_COMPEN)
+#if IS_ENABLED(TEMP_COMPEN)
 	bool vm_status; /* Now voltage mode or not */
 	bool pre_vm_status;
 	bool pre_is_charging;
@@ -165,7 +163,7 @@ struct s2mu106_fuelgauge_data {
 	int soc_r;
 	int avg_curr;
 #endif
-#if (BATCAP_LEARN)
+#if IS_ENABLED(BATCAP_LEARN)
 	bool learn_start;
 	bool cond1_ok;
 	int c1_count;
@@ -178,7 +176,7 @@ struct s2mu106_fuelgauge_data {
 #endif
 };
 
-#if (BATCAP_LEARN)
+#if IS_ENABLED(BATCAP_LEARN)
 /* cycle, rLOW_EN, rC1_num, rC2_num, rC1_CURR, rWide_lrn_EN, Fast_lrn_EN, Auto_lrn_EN */
 int BAT_L_CON[8] = {2, 0, 10, 10, 500, 0, 0, 1};
 #endif

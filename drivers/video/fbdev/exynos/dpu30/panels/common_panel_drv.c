@@ -390,7 +390,7 @@ static int exynos_panel_register(struct exynos_panel_device *panel, u32 id)
 	return 0;
 }
 
-static int __match_panel_v4l2_subdev(struct device *dev, void *data)
+static int __match_panel_v4l2_subdev(struct device *dev, const void *data)
 {
 	struct panel_device *panel_drv;
 	struct exynos_panel_device *panel;
@@ -612,7 +612,7 @@ static void exynos_panel_shutdown(struct platform_device *pdev)
 {
 }
 
-static struct platform_driver exynos_panel_driver = {
+struct platform_driver exynos_panel_driver = {
 	.probe		= exynos_panel_probe,
 	.shutdown	= exynos_panel_shutdown,
 	.driver		= {
@@ -621,22 +621,6 @@ static struct platform_driver exynos_panel_driver = {
 		.suppress_bind_attrs = true,
 	},
 };
-
-static int __init exynos_panel_init(void)
-{
-	int ret = platform_driver_register(&exynos_panel_driver);
-	if (ret)
-		pr_err("exynos_panel_driver register failed\n");
-
-	return ret;
-}
-device_initcall(exynos_panel_init);
-
-static void __exit exynos_panel_exit(void)
-{
-	platform_driver_unregister(&exynos_panel_driver);
-}
-module_exit(exynos_panel_exit);
 
 MODULE_DESCRIPTION("Common Panel Driver");
 MODULE_LICENSE("GPL");

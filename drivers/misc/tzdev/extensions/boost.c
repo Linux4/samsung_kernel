@@ -21,6 +21,7 @@
 #include "core/cdev.h"
 #include "core/log.h"
 #include "core/notifier.h"
+#include "core/subsystem.h"
 #include "extensions/hotplug.h"
 
 #if defined(TZDEV_BOOST_CLUSTER_1)
@@ -69,7 +70,7 @@ static struct notifier_block tz_boost_init_notifier = {
 	.notifier_call = tz_boost_init_call,
 };
 
-static int __init tz_boost_init(void)
+int tz_boost_init(void)
 {
 	int rc;
 
@@ -83,7 +84,7 @@ static int __init tz_boost_init(void)
 	return 0;
 }
 
-early_initcall(tz_boost_init);
+tzdev_early_initcall(tz_boost_init);
 
 void tz_boost_enable(void)
 {

@@ -43,6 +43,7 @@ enum pdp_input_path_type {
 };
 
 /* status */
+void pdp_hw_g_ip_version(void __iomem *base);
 unsigned int pdp_hw_g_idle_state(void __iomem *base);
 void pdp_hw_get_line(void __iomem *base);
 
@@ -65,13 +66,13 @@ void pdp_hw_s_core(struct is_pdp *pdp, bool pd_enable, struct is_sensor_cfg *sen
 	u32 img_hwformat, u32 img_pixelsize,
 	u32 pd_width, u32 pd_height, u32 pd_hwformat,
 	u32 sensor_type, u32 path, int sensor_mode, u32 fps, u32 en_sdc, u32 en_votf,
-	u32 num_buffers, ulong freq, u32 position);
+	u32 num_buffers, ulong freq, u32 binning, u32 position);
 void pdp_hw_s_init(void __iomem *base);
 void pdp_hw_s_reset(void __iomem *base);
 void pdp_hw_s_global(void __iomem *base, u32 ch, u32 lic_mode, void *data);
 void pdp_hw_s_context(void __iomem *base, u32 curr_ch, u32 curr_path);
 void pdp_hw_s_path(void __iomem *base, u32 path);
-void pdp_hw_s_wdma_init(void __iomem *base);
+void pdp_hw_s_wdma_init(void __iomem *base, u32 ch);
 void pdp_hw_s_wdma_enable(void __iomem *base, dma_addr_t address);
 void pdp_hw_s_wdma_disable(void __iomem *base);
 void pdp_hw_s_rdma_addr(void __iomem *base, dma_addr_t *address, u32 num_buffers);
@@ -84,7 +85,7 @@ int pdp_hw_wait_idle(void __iomem *base, unsigned long state);
 int pdp_hw_g_stat0(void __iomem *base, void *buf, size_t len);
 void pdp_hw_g_pdstat_size(u32 *width, u32 *height, u32 *bytes_per_pixel);
 void pdp_hw_s_pdstat_path(void __iomem *base, bool enable);
-void pdp_hw_s_line_row(void __iomem *base, bool pd_enable, int sensor_mode);
+void pdp_hw_s_line_row(void __iomem *base, bool pd_enable, int sensor_mode, u32 binning);
 
 /* sensor mode */
 void pdp_hw_s_sensor_type(void __iomem *base, u32 sensor_type);

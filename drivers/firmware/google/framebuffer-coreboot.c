@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * framebuffer-coreboot.c
  *
@@ -6,15 +7,6 @@
  * Copyright 2012-2013 David Herrmann <dh.herrmann@gmail.com>
  * Copyright 2017 Google Inc.
  * Copyright 2017 Samuel Holland <samuel@sholland.org>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License v2.0 as published by
- * the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #include <linux/device.h>
@@ -51,9 +43,7 @@ static int framebuffer_probe(struct coreboot_device *dev)
 		    fb->green_mask_pos     == formats[i].green.offset &&
 		    fb->green_mask_size    == formats[i].green.length &&
 		    fb->blue_mask_pos      == formats[i].blue.offset &&
-		    fb->blue_mask_size     == formats[i].blue.length &&
-		    fb->reserved_mask_pos  == formats[i].transp.offset &&
-		    fb->reserved_mask_size == formats[i].transp.length)
+		    fb->blue_mask_size     == formats[i].blue.length)
 			pdata.format = formats[i].name;
 	}
 	if (!pdata.format)
@@ -97,19 +87,7 @@ static struct coreboot_driver framebuffer_driver = {
 	},
 	.tag = CB_TAG_FRAMEBUFFER,
 };
-
-static int __init coreboot_framebuffer_init(void)
-{
-	return coreboot_driver_register(&framebuffer_driver);
-}
-
-static void coreboot_framebuffer_exit(void)
-{
-	coreboot_driver_unregister(&framebuffer_driver);
-}
-
-module_init(coreboot_framebuffer_init);
-module_exit(coreboot_framebuffer_exit);
+module_coreboot_driver(framebuffer_driver);
 
 MODULE_AUTHOR("Samuel Holland <samuel@sholland.org>");
 MODULE_LICENSE("GPL");

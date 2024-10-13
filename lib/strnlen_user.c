@@ -3,15 +3,9 @@
 #include <linux/export.h>
 #include <linux/uaccess.h>
 #include <linux/mm.h>
+#include <linux/bitops.h>
 
 #include <asm/word-at-a-time.h>
-
-/* Set bits in the first 'n' bytes when loaded from memory */
-#ifdef __LITTLE_ENDIAN
-#  define aligned_byte_mask(n) ((1ul << 8*(n))-1)
-#else
-#  define aligned_byte_mask(n) (~0xfful << (BITS_PER_LONG - 8 - 8*(n)))
-#endif
 
 /*
  * Do a strnlen, return length of string *with* final '\0'.
@@ -31,13 +25,6 @@ static inline long do_strnlen_user(const char __user *src, unsigned long count, 
 	const struct word_at_a_time constants = WORD_AT_A_TIME_CONSTANTS;
 	unsigned long align, res = 0;
 	unsigned long c;
-
-	/*
-	 * Truncate 'max' to the user-specified limit, so that
-	 * we only have one limit we need to check in the loop
-	 */
-	if (max > count)
-		max = count;
 
 	/*
 	 * Do everything aligned. But that means that we
@@ -115,9 +102,16 @@ long strnlen_user(const char __user *str, long count)
 		unsigned long max = max_addr - src_addr;
 		long retval;
 
-		if (user_access_begin(VERIFY_READ, str, max)) {
+		/*
+		 * Truncate 'max' to the user-specified limit, so that
+		 * we only have one limit we need to check in the loop
+		 */
+		if (max > count)
+			max = count;
+
+		if (user_read_access_begin(str, max)) {
 			retval = do_strnlen_user(str, count, max);
-			user_access_end();
+			user_read_access_end();
 			return retval;
 		}
 	}

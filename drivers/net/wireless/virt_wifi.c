@@ -12,11 +12,7 @@
 #include <net/cfg80211.h>
 #include <net/rtnetlink.h>
 #include <linux/etherdevice.h>
-#include <linux/module.h>
-
-#include <net/cfg80211.h>
-#include <net/rtnetlink.h>
-#include <linux/etherdevice.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <net/virt_wifi.h>
 
@@ -142,6 +138,29 @@ static struct ieee80211_supported_band band_5ghz = {
 /* Assigned at module init. Guaranteed locally-administered and unicast. */
 static u8 fake_router_bssid[ETH_ALEN] __ro_after_init = {};
 
+static void virt_wifi_inform_bss(struct wiphy *wiphy)
+{
+	u64 tsf = div_u64(ktime_get_boottime_ns(), 1000);
+	struct cfg80211_bss *informed_bss;
+	static const struct {
+		u8 tag;
+		u8 len;
+		u8 ssid[8];
+	} __packed ssid = {
+		.tag = WLAN_EID_SSID,
+		.len = 8,
+		.ssid = "VirtWifi",
+	};
+
+	informed_bss = cfg80211_inform_bss(wiphy, &channel_5ghz,
+					   CFG80211_BSS_FTYPE_PRESP,
+					   fake_router_bssid, tsf,
+					   WLAN_CAPABILITY_ESS, 0,
+					   (void *)&ssid, sizeof(ssid),
+					   DBM_TO_MBM(-50), GFP_KERNEL);
+	cfg80211_put_bss(wiphy, informed_bss);
+}
+
 /* Called with the rtnl lock held. */
 static int virt_wifi_scan(struct wiphy *wiphy,
 			  struct cfg80211_scan_request *request)
@@ -165,28 +184,13 @@ static int virt_wifi_scan(struct wiphy *wiphy,
 /* Acquires and releases the rdev BSS lock. */
 static void virt_wifi_scan_result(struct work_struct *work)
 {
-	struct {
-		u8 tag;
-		u8 len;
-		u8 ssid[8];
-	} __packed ssid = {
-		.tag = WLAN_EID_SSID, .len = 8, .ssid = "VirtWifi",
-	};
-	struct cfg80211_bss *informed_bss;
 	struct virt_wifi_wiphy_priv *priv =
 		container_of(work, struct virt_wifi_wiphy_priv,
 			     scan_result.work);
 	struct wiphy *wiphy = priv_to_wiphy(priv);
 	struct cfg80211_scan_info scan_info = { .aborted = false };
 
-	informed_bss = cfg80211_inform_bss(wiphy, &channel_5ghz,
-					   CFG80211_BSS_FTYPE_PRESP,
-					   fake_router_bssid,
-					   ktime_get_boot_ns(),
-					   WLAN_CAPABILITY_ESS, 0,
-					   (void *)&ssid, sizeof(ssid),
-					   DBM_TO_MBM(-50), GFP_KERNEL);
-	cfg80211_put_bss(wiphy, informed_bss);
+	virt_wifi_inform_bss(wiphy);
 
 	if(priv->network_simulation &&
 	   priv->network_simulation->generate_virt_scan_result) {
@@ -240,10 +244,12 @@ static int virt_wifi_connect(struct wiphy *wiphy, struct net_device *netdev,
 	if (!could_schedule)
 		return -EBUSY;
 
-	if (sme->bssid)
+	if (sme->bssid) {
 		ether_addr_copy(priv->connect_requested_bss, sme->bssid);
-	else
+	} else {
+		virt_wifi_inform_bss(wiphy);
 		eth_zero_addr(priv->connect_requested_bss);
+	}
 
 	wiphy_debug(wiphy, "connect\n");
 
@@ -256,11 +262,13 @@ static void virt_wifi_connect_complete(struct work_struct *work)
 	struct virt_wifi_netdev_priv *priv =
 		container_of(work, struct virt_wifi_netdev_priv, connect.work);
 	u8 *requested_bss = priv->connect_requested_bss;
-	bool has_addr = !is_zero_ether_addr(requested_bss);
 	bool right_addr = ether_addr_equal(requested_bss, fake_router_bssid);
 	u16 status = WLAN_STATUS_SUCCESS;
 
-	if (!priv->is_up || (has_addr && !right_addr))
+	if (is_zero_ether_addr(requested_bss))
+		requested_bss = NULL;
+
+	if (!priv->is_up || (requested_bss && !right_addr))
 		status = WLAN_STATUS_UNSPECIFIED_FAILURE;
 	else
 		priv->is_connected = true;
@@ -464,10 +472,18 @@ static int virt_wifi_net_device_stop(struct net_device *dev)
 	return 0;
 }
 
+static int virt_wifi_net_device_get_iflink(const struct net_device *dev)
+{
+	struct virt_wifi_netdev_priv *priv = netdev_priv(dev);
+
+	return priv->lowerdev->ifindex;
+}
+
 static const struct net_device_ops virt_wifi_ops = {
 	.ndo_start_xmit = virt_wifi_start_xmit,
-	.ndo_open = virt_wifi_net_device_open,
-	.ndo_stop = virt_wifi_net_device_stop,
+	.ndo_open	= virt_wifi_net_device_open,
+	.ndo_stop	= virt_wifi_net_device_stop,
+	.ndo_get_iflink = virt_wifi_net_device_get_iflink,
 };
 
 /* Invoked as part of rtnl lock release. */
@@ -478,7 +494,6 @@ static void virt_wifi_net_device_destructor(struct net_device *dev)
 	 */
 	kfree(dev->ieee80211_ptr);
 	dev->ieee80211_ptr = NULL;
-	free_netdev(dev);
 }
 
 /* No lock interaction. */
@@ -486,7 +501,7 @@ static void virt_wifi_setup(struct net_device *dev)
 {
 	ether_setup(dev);
 	dev->netdev_ops = &virt_wifi_ops;
-	dev->priv_destructor = virt_wifi_net_device_destructor;
+	dev->needs_free_netdev  = true;
 }
 
 /* Called in a RCU read critical section from netif_receive_skb */
@@ -572,10 +587,12 @@ static int virt_wifi_newlink(struct net *src_net, struct net_device *dev,
 		goto unregister_netdev;
 	}
 
+	dev->priv_destructor = virt_wifi_net_device_destructor;
 	priv->being_deleted = false;
 	priv->is_connected = false;
 	priv->is_up = false;
 	INIT_DELAYED_WORK(&priv->connect, virt_wifi_connect_complete);
+	__module_get(THIS_MODULE);
 
 	return 0;
 unregister_netdev:
@@ -606,6 +623,7 @@ static void virt_wifi_dellink(struct net_device *dev,
 	netdev_upper_dev_unlink(priv->lowerdev, dev);
 
 	unregister_netdevice_queue(dev, head);
+	module_put(THIS_MODULE);
 
 	/* Deleting the wiphy is handled in the module destructor. */
 }
@@ -618,6 +636,42 @@ static struct rtnl_link_ops virt_wifi_link_ops = {
 	.priv_size	= sizeof(struct virt_wifi_netdev_priv),
 };
 
+static bool netif_is_virt_wifi_dev(const struct net_device *dev)
+{
+	return rcu_access_pointer(dev->rx_handler) == virt_wifi_rx_handler;
+}
+
+static int virt_wifi_event(struct notifier_block *this, unsigned long event,
+			   void *ptr)
+{
+	struct net_device *lower_dev = netdev_notifier_info_to_dev(ptr);
+	struct virt_wifi_netdev_priv *priv;
+	struct net_device *upper_dev;
+	LIST_HEAD(list_kill);
+
+	if (!netif_is_virt_wifi_dev(lower_dev))
+		return NOTIFY_DONE;
+
+	switch (event) {
+	case NETDEV_UNREGISTER:
+		priv = rtnl_dereference(lower_dev->rx_handler_data);
+		if (!priv)
+			return NOTIFY_DONE;
+
+		upper_dev = priv->upperdev;
+
+		upper_dev->rtnl_link_ops->dellink(upper_dev, &list_kill);
+		unregister_netdevice_many(&list_kill);
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block virt_wifi_notifier = {
+	.notifier_call = virt_wifi_event,
+};
+
 /* Acquires and releases the rtnl lock. */
 static int __init virt_wifi_init_module(void)
 {
@@ -626,14 +680,25 @@ static int __init virt_wifi_init_module(void)
 	/* Guaranteed to be locallly-administered and not multicast. */
 	eth_random_addr(fake_router_bssid);
 
+	err = register_netdevice_notifier(&virt_wifi_notifier);
+	if (err)
+		return err;
+
+	err = -ENOMEM;
 	common_wiphy = virt_wifi_make_wiphy();
 	if (!common_wiphy)
-		return -ENOMEM;
+		goto notifier;
 
 	err = rtnl_link_register(&virt_wifi_link_ops);
 	if (err)
-		virt_wifi_destroy_wiphy(common_wiphy);
+		goto destroy_wiphy;
 
+	return 0;
+
+destroy_wiphy:
+	virt_wifi_destroy_wiphy(common_wiphy);
+notifier:
+	unregister_netdevice_notifier(&virt_wifi_notifier);
 	return err;
 }
 
@@ -643,6 +708,7 @@ static void __exit virt_wifi_cleanup_module(void)
 	/* Will delete any devices that depend on the wiphy. */
 	rtnl_link_unregister(&virt_wifi_link_ops);
 	virt_wifi_destroy_wiphy(common_wiphy);
+	unregister_netdevice_notifier(&virt_wifi_notifier);
 }
 
 int virt_wifi_register_network_simulation
@@ -654,7 +720,7 @@ int virt_wifi_register_network_simulation
 	priv->network_simulation = ops;
 	return 0;
 }
-EXPORT_SYMBOL(virt_wifi_register_network_simulation);
+EXPORT_SYMBOL_GPL(virt_wifi_register_network_simulation);
 
 int virt_wifi_unregister_network_simulation(void)
 {
@@ -664,7 +730,7 @@ int virt_wifi_unregister_network_simulation(void)
 	priv->network_simulation = NULL;
 	return 0;
 }
-EXPORT_SYMBOL(virt_wifi_unregister_network_simulation);
+EXPORT_SYMBOL_GPL(virt_wifi_unregister_network_simulation);
 
 module_init(virt_wifi_init_module);
 module_exit(virt_wifi_cleanup_module);

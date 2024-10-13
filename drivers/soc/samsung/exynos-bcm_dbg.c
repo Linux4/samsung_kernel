@@ -17,45 +17,38 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/of_reserved_mem.h>
-#include <linux/debug-snapshot.h>
+#include <soc/samsung/debug-snapshot.h>
 #include <linux/sched/clock.h>
 
-#include <asm/map.h>
 #include <asm/tlbflush.h>
 #include <asm/cacheflush.h>
 
-#ifdef	CONFIG_EXYNOS_ADV_TRACER
+#if defined (CONFIG_EXYNOS_ADV_TRACER) || defined (CONFIG_EXYNOS_ADV_TRACER_MODULE)
 #include <soc/samsung/exynos-adv-tracer-ipc.h>
 #endif
 #include <soc/samsung/exynos-bcm_dbg.h>
 #include <soc/samsung/exynos-bcm_dbg-dt.h>
 #include <soc/samsung/exynos-bcm_dbg-dump.h>
-#ifdef CONFIG_EXYNOS_PD
+#if defined (CONFIG_EXYNOS_PD) || defined(CONFIG_EXYNOS_PD_MODULE)
 #include <soc/samsung/exynos-pd.h>
 #endif
 #include <soc/samsung/cal-if.h>
-#ifdef	CONFIG_EXYNOS_ITMON
+#if defined (CONFIG_EXYNOS_ITMON) || defined(CONFIG_EXYNOS_ITMON_MODULE)
 #include <soc/samsung/exynos-itmon.h>
 #endif
 
-#ifdef CONFIG_RKP
-#include <linux/rkp.h>
-
-struct exynos_bcm_dbg_data *bcm_dbg_data;
-EXPORT_SYMBOL(bcm_dbg_data);
-#else
+struct mm_struct *bcm_mm;
+static struct exynos_bcm_dump_addr bcm_reserved;
 static struct exynos_bcm_dbg_data *bcm_dbg_data = NULL;
-#endif
-
 static bool pd_sync_init = false;
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 static void *bcm_addr;
 static struct bin_system_func *bin_func;
 static struct os_system_func os_func;
 typedef struct bin_system_func*(*start_up_func_t)(void **func);
 #endif
 
-#if defined(CONFIG_EXYNOS_ADV_TRACER) || defined(CONFIG_EXYNOS_BCM_DBG_GNR)
+#if defined(CONFIG_EXYNOS_ADV_TRACER) || defined (CONFIG_EXYNOS_ADV_TRACER_MODULE) || defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 static enum exynos_bcm_err_code exynos_bcm_dbg_ipc_err_handle(unsigned int cmd)
 {
 	enum exynos_bcm_err_code err_code;
@@ -102,10 +95,10 @@ static int __nocfi __exynos_bcm_dbg_ipc_send_data(enum exynos_bcm_dbg_ipc_type i
 		struct exynos_bcm_dbg_data *data, unsigned int *cmd)
 {
 	int ret = 0;
-#if defined(CONFIG_EXYNOS_ADV_TRACER)
+#if defined(CONFIG_EXYNOS_ADV_TRACER) || defined(CONFIG_EXYNOS_ADV_TRACER_MODUEL)
 	int i = 0;
 	struct adv_tracer_ipc_cmd config;
-#elif defined(CONFIG_EXYNOS_BCM_DBG_GNR)
+#elif defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	int i = 0;
 	struct cmd_data config;
 #endif
@@ -120,11 +113,11 @@ static int __nocfi __exynos_bcm_dbg_ipc_send_data(enum exynos_bcm_dbg_ipc_type i
 	}
 
 	bcm_cmd = cmd;
-#if defined(CONFIG_EXYNOS_ADV_TRACER)
+#if defined(CONFIG_EXYNOS_ADV_TRACER) || defined(CONFIG_EXYNOS_ADV_TRACER_MODUEL)
 	config.cmd_raw.cmd = BCM_CMD_SET(ipc_type, BCM_CMD_ID_MASK, BCM_CMD_ID_SHIFT);
 	memcpy(&config.buffer[1], bcm_cmd, sizeof(unsigned int) * CMD_DATA_MAX);
 	ret = adv_tracer_ipc_send_data_polling(data->ipc_ch_num, &config);
-#elif defined(CONFIG_EXYNOS_BCM_DBG_GNR)
+#elif defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	config.raw_cmd = BCM_CMD_SET(ipc_type, BCM_CMD_ID_MASK, BCM_CMD_ID_SHIFT);
 	memcpy(config.cmd, bcm_cmd, sizeof(unsigned int) * CMD_DATA_MAX);
 	ret = bin_func->send_data(&config);
@@ -135,7 +128,7 @@ static int __nocfi __exynos_bcm_dbg_ipc_send_data(enum exynos_bcm_dbg_ipc_type i
 		return ret;
 	}
 
-#if defined(CONFIG_EXYNOS_ADV_TRACER)
+#if defined(CONFIG_EXYNOS_ADV_TRACER) || defined(CONFIG_EXYNOS_ADV_TRACER_MODUEL)
 	for (i = 0; i < data->ipc_size; i++)
 		BCM_DBG("%s: received data[%d]: 0x%08x\n",
 				__func__, i, config.buffer[i]);
@@ -143,7 +136,7 @@ static int __nocfi __exynos_bcm_dbg_ipc_send_data(enum exynos_bcm_dbg_ipc_type i
 	memcpy(bcm_cmd, &config.buffer[1], sizeof(unsigned int) * CMD_DATA_MAX);
 
 	ipc_err = exynos_bcm_dbg_ipc_err_handle(config.cmd_raw.cmd);
-#elif defined(CONFIG_EXYNOS_BCM_DBG_GNR)
+#elif defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	BCM_DBG("%s: received data raw: 0x%08x\n", __func__, config.raw_cmd);
 	for (i = 0; i < CMD_DATA_MAX; i++)
 		BCM_DBG("%s: received data[%d]: 0x%08x\n",
@@ -180,7 +173,7 @@ int exynos_bcm_dbg_ipc_send_data(enum exynos_bcm_dbg_ipc_type ipc_type,
 }
 EXPORT_SYMBOL(exynos_bcm_dbg_ipc_send_data);
 
-#ifdef CONFIG_EXYNOS_ADV_TRACER
+#if defined(CONFIG_EXYNOS_ADV_TRACER) || defined(CONFIG_EXYNOS_ADV_TRACER_MODULE)
 static int adv_tracer_bcm_dbg_handler(struct adv_tracer_ipc_cmd *cmd, unsigned int len)
 {
 	return 0;
@@ -221,7 +214,7 @@ void exynos_bcm_dbg_ipc_channel_release(struct exynos_bcm_dbg_data *data)
 }
 #endif
 
-#ifdef CONFIG_EXYNOS_PD
+#if defined (CONFIG_EXYNOS_PD) || defined(CONFIG_EXYNOS_PD_MODULE)
 static int exynos_bcm_dbg_early_pd_sync(unsigned int cal_pdid, bool on)
 {
 	unsigned int cmd[4] = {0, };
@@ -327,7 +320,7 @@ EXPORT_SYMBOL(exynos_bcm_dbg_pd_sync);
 static int exynos_bcm_dbg_pd_sync_init(struct exynos_bcm_dbg_data *data)
 {
 	int ret = 0;
-#ifdef CONFIG_EXYNOS_PD
+#if defined (CONFIG_EXYNOS_PD) || defined(CONFIG_EXYNOS_PD_MODULE)
 	struct exynos_pm_domain *exynos_pd;
 	unsigned int pd_index, pd_size;
 
@@ -361,6 +354,7 @@ static int exynos_bcm_dbg_pd_sync_init(struct exynos_bcm_dbg_data *data)
 		}
 	}
 
+	exynos_cal_pd_bcm_sync = exynos_bcm_dbg_pd_sync;
 	pd_sync_init = true;
 #endif
 
@@ -370,7 +364,7 @@ static int exynos_bcm_dbg_pd_sync_init(struct exynos_bcm_dbg_data *data)
 static int exynos_bcm_dbg_pd_sync_exit(struct exynos_bcm_dbg_data *data)
 {
 	int ret = 0;
-#ifdef CONFIG_EXYNOS_PD
+#if defined (CONFIG_EXYNOS_PD) || defined(CONFIG_EXYNOS_PD_MODULE)
 	struct exynos_pm_domain *exynos_pd;
 	unsigned int pd_index, pd_size;
 
@@ -776,7 +770,7 @@ static int exynos_bcm_dbg_run_ctrl(struct exynos_bcm_ipc_base_info *ipc_base_inf
 			cmd[1] = low_ktime;
 			cmd[2] = high_ktime;
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 			if (data->bcm_mode != BCM_MODE_USERCTRL)
 				hrtimer_try_to_cancel(&data->bcm_hrtimer);
 #endif
@@ -796,7 +790,7 @@ static int exynos_bcm_dbg_run_ctrl(struct exynos_bcm_ipc_base_info *ipc_base_inf
 		*bcm_run = run;
 	} else if (ipc_base_info->direction == BCM_EVT_SET) {
 		data->bcm_run_state = run;
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 		if (run == BCM_RUN && data->bcm_mode != BCM_MODE_USERCTRL)
 			hrtimer_start(&data->bcm_hrtimer,
 				ms_to_ktime(data->period), HRTIMER_MODE_REL);
@@ -882,7 +876,7 @@ static int exynos_bcm_dbg_period_ctrl(struct exynos_bcm_ipc_base_info *ipc_base_
 		*bcm_period = period;
 	}
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	data->period = period;
 #endif
 out:
@@ -952,7 +946,7 @@ static int exynos_bcm_dbg_mode_ctrl(struct exynos_bcm_ipc_base_info *ipc_base_in
 		*bcm_mode = mode;
 	}
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	data->bcm_mode = mode;
 #endif
 
@@ -993,7 +987,7 @@ static int exynos_bcm_dbg_str_ctrl(struct exynos_bcm_ipc_base_info *ipc_base_inf
 		cmd[0] |= BCM_CMD_SET(suspend, BCM_ONE_BIT_MASK,
 					BCM_EVT_STR_STATE_SHIFT);
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 		if (suspend && data->bcm_mode != BCM_MODE_USERCTRL)
 			hrtimer_try_to_cancel(&data->bcm_hrtimer);
 #endif
@@ -1011,7 +1005,7 @@ static int exynos_bcm_dbg_str_ctrl(struct exynos_bcm_ipc_base_info *ipc_base_inf
 					BCM_EVT_STR_STATE_SHIFT);
 		*ap_suspend = suspend;
 	}
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	if (ipc_base_info->direction == BCM_EVT_SET) {
 		if (!suspend && data->bcm_mode != BCM_MODE_USERCTRL)
 			hrtimer_start(&data->bcm_hrtimer,
@@ -1088,7 +1082,7 @@ out:
 	return ret;
 }
 
-#ifdef CONFIG_DEBUG_SNAPSHOT
+#if defined (CONFIG_DEBUG_SNAPSHOT) || defined(CONFIG_DEBUG_SNAPSHOT_MODULE)
 static int exynos_bcm_dbg_dump_addr_ctrl(struct exynos_bcm_ipc_base_info *ipc_base_info,
 					struct exynos_bcm_dump_addr *dump_addr,
 					struct exynos_bcm_dbg_data *data)
@@ -1096,7 +1090,7 @@ static int exynos_bcm_dbg_dump_addr_ctrl(struct exynos_bcm_ipc_base_info *ipc_ba
 	unsigned int cmd[4] = {0, 0, 0, 0};
 	int ret = 0;
 	unsigned long flags;
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	u64 v_addr;
 #endif
 
@@ -1126,7 +1120,7 @@ static int exynos_bcm_dbg_dump_addr_ctrl(struct exynos_bcm_ipc_base_info *ipc_ba
 		if (ret)
 			goto out;
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 		v_addr = (u64)dump_addr->v_addr;
 		if (!v_addr || !dump_addr->buff_size) {
 			BCM_ERR("%s: No dump address info: v_addr(%llu), buff_size(0x%08x)\n",
@@ -1381,7 +1375,7 @@ void exynos_bcm_dbg_start(void)
 		return;
 	}
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	if (!bcm_dbg_data->bcm_load_bin) {
 		ret = exynos_bcm_dbg_load_bin();
 		if (ret) {
@@ -1410,7 +1404,7 @@ void exynos_bcm_dbg_stop(unsigned int bcm_stop_owner)
 		return;
 	}
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	if (!bcm_dbg_data->bcm_load_bin) {
 		BCM_INFO("BCM bin has not been loaded yet!!\n");
 		return;
@@ -3067,7 +3061,7 @@ static ssize_t store_ip_ctrl(struct file *fp, struct kobject *kobj,
 	return size;
 }
 
-#ifdef CONFIG_DEBUG_SNAPSHOT
+#if defined (CONFIG_DEBUG_SNAPSHOT) || defined(CONFIG_DEBUG_SNAPSHOT_MODULE)
 static int exynos_bcm_dbg_set_dump_info(struct exynos_bcm_dbg_data *data)
 {
 	struct exynos_bcm_ipc_base_info ipc_base_info;
@@ -3077,10 +3071,13 @@ static int exynos_bcm_dbg_set_dump_info(struct exynos_bcm_dbg_data *data)
 		data->dump_addr.buff_size > data->dump_addr.p_size)
 		data->dump_addr.buff_size = data->dump_addr.p_size;
 
-	BCM_INFO("%s: virtual address for reserved memory: v_addr = 0x%p\n",
-			__func__, data->dump_addr.v_addr);
-	BCM_INFO("%s: buffer size for reserved memory: buff_size = 0x%x\n",
-			__func__, data->dump_addr.buff_size);
+	BCM_INFO("%s: buffer size for reserved memory: p_addr:0x%x: buff_size = 0x%x\n",
+			__func__, data->dump_addr.p_addr, data->dump_addr.buff_size);
+
+	if (!data->rmem_acquired) {
+		BCM_INFO("%s: BCM will not save dump data\n", __func__);
+		return 0;
+	}
 
 	/* send physical address info to BCM plugin */
 	exynos_bcm_dbg_set_base_info(&ipc_base_info, BCM_EVT_DUMP_ADDR,
@@ -3244,7 +3241,7 @@ static ssize_t store_enable_stop_owner(struct file *fp, struct kobject *kobj,
 	return size;
 }
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 static ssize_t show_bcm_dbg_load_bin(struct file *fp, struct kobject *kobj,
 		struct bin_attribute *battr, char *buf, loff_t off, size_t size)
 {
@@ -3338,12 +3335,12 @@ static BIN_ATTR(str_ctrl, 0640, NULL, store_str_ctrl, 0);
 static BIN_ATTR(get_ip, 0440, show_get_ip, NULL, 0);
 static BIN_ATTR(ip_ctrl_help, 0440, show_ip_ctrl_help, NULL, 0);
 static BIN_ATTR(ip_ctrl, 0640, NULL, store_ip_ctrl, 0);
-#ifdef CONFIG_DEBUG_SNAPSHOT
+#if defined (CONFIG_DEBUG_SNAPSHOT) || defined(CONFIG_DEBUG_SNAPSHOT_MODULE)
 static BIN_ATTR(dump_addr_info, 0640, show_dump_addr_info, store_dump_addr_info, 0);
 #endif
 static BIN_ATTR(enable_dump_klog, 0640, show_enable_dump_klog, store_enable_dump_klog, 0);
 static BIN_ATTR(enable_stop_owner, 0640, show_enable_stop_owner, store_enable_stop_owner, 0);
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 static BIN_ATTR(bcm_dbg_load_bin, 0640, show_bcm_dbg_load_bin, store_bcm_dbg_load_bin, 0);
 #endif
 
@@ -3386,12 +3383,12 @@ static struct bin_attribute *exynos_bcm_dbg_sysfs_entries[] = {
 	&bin_attr_get_ip,
 	&bin_attr_ip_ctrl_help,
 	&bin_attr_ip_ctrl,
-#ifdef CONFIG_DEBUG_SNAPSHOT
+#if defined (CONFIG_DEBUG_SNAPSHOT) || defined(CONFIG_DEBUG_SNAPSHOT_MODULE)
 	&bin_attr_dump_addr_info,
 #endif
 	&bin_attr_enable_dump_klog,
 	&bin_attr_enable_stop_owner,
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	&bin_attr_bcm_dbg_load_bin,
 #endif
 	NULL,
@@ -3402,19 +3399,57 @@ static struct attribute_group exynos_bcm_dbg_attr_group = {
 	.bin_attrs	= exynos_bcm_dbg_sysfs_entries,
 };
 
-#ifdef CONFIG_DEBUG_SNAPSHOT
+#if defined (CONFIG_DEBUG_SNAPSHOT) || defined(CONFIG_DEBUG_SNAPSHOT_MODULE)
+static void __iomem *exynos_bcmdbg_remap(unsigned long addr, unsigned int size)
+{
+	int i;
+	unsigned int num_pages = (size >> PAGE_SHIFT);
+	pgprot_t prot = pgprot_writecombine(PAGE_KERNEL);
+	struct page **pages = NULL;
+	void __iomem *v_addr = NULL;
+
+	if (!addr)
+		return 0;
+
+	pages = kmalloc_array(num_pages, sizeof(struct page *), GFP_ATOMIC);
+	if (!pages)
+		return 0;
+
+	for (i = 0; i < num_pages; i++) {
+		pages[i] = phys_to_page(addr);
+		addr += PAGE_SIZE;
+	}
+
+	v_addr = vmap(pages, num_pages, VM_MAP, prot);
+	kfree(pages);
+
+	return v_addr;
+}
+
 static int exynos_bcm_dbg_dump_config(struct exynos_bcm_dbg_data *data)
 {
 	int ret;
 
-	data->dump_addr.p_addr = dbg_snapshot_get_item_paddr(BCM_DSS_NAME);
-	data->dump_addr.p_size = dbg_snapshot_get_item_size(BCM_DSS_NAME);
-	data->dump_addr.v_addr =
-		(void __iomem *)dbg_snapshot_get_item_vaddr(BCM_DSS_NAME);
+	if (!data->rmem_acquired) {
+		data->dump_addr.p_addr = bcm_reserved.p_addr;
+		data->dump_addr.p_size = bcm_reserved.p_size;
+		data->dump_addr.v_addr = 0;
+	} else {
+		data->dump_addr.p_addr = bcm_reserved.p_addr;
+		data->dump_addr.p_size = bcm_reserved.p_size;
+		data->dump_addr.v_addr = exynos_bcmdbg_remap(data->dump_addr.p_addr,
+				data->dump_addr.p_size);
+		dbg_snapshot_add_bl_item_info(BCM_DSS_NAME,
+				data->dump_addr.p_addr, data->dump_addr.p_size);
 
-	if (!data->dump_addr.p_addr) {
-		BCM_ERR("%s: failed get dump address\n", __func__);
-		return -ENOMEM;
+		if (!data->dump_addr.p_addr) {
+			BCM_ERR("%s: failed get dump address\n", __func__);
+			return -ENOMEM;
+		}
+		if (!data->dump_addr.v_addr) {
+			BCM_ERR("%s: failed get virtual address\n", __func__);
+			return -ENOMEM;
+		}
 	}
 
 	ret = exynos_bcm_dbg_set_dump_info(data);
@@ -3427,7 +3462,7 @@ static int exynos_bcm_dbg_dump_config(struct exynos_bcm_dbg_data *data)
 }
 #endif
 
-#ifdef CONFIG_EXYNOS_ITMON
+#if defined (CONFIG_EXYNOS_ITMON) || defined(CONFIG_EXYNOS_ITMON_MODULE)
 static int exynos_bcm_dbg_itmon_notifier(struct notifier_block *nb,
 					unsigned long val, void *v)
 {
@@ -3449,8 +3484,7 @@ static int exynos_bcm_dbg_itmon_notifier(struct notifier_block *nb,
 static int exynos_bcm_dbg_init(struct exynos_bcm_dbg_data *data)
 {
 	int ret = 0;
-
-#ifdef CONFIG_EXYNOS_PD
+#if defined (CONFIG_EXYNOS_PD) || defined(CONFIG_EXYNOS_PD_MODULE)
 	int pd_index;
 	struct exynos_pm_domain *exynos_pd;
 #endif
@@ -3469,7 +3503,7 @@ static int exynos_bcm_dbg_init(struct exynos_bcm_dbg_data *data)
 		goto err_ipc_channel;
 	}
 
-#ifdef CONFIG_DEBUG_SNAPSHOT
+#if defined (CONFIG_DEBUG_SNAPSHOT) || defined(CONFIG_DEBUG_SNAPSHOT_MODULE)
 	ret = exynos_bcm_dbg_dump_config(data);
 	if (ret) {
 		BCM_ERR("%s: failed to dump config\n", __func__);
@@ -3492,7 +3526,7 @@ static int exynos_bcm_dbg_init(struct exynos_bcm_dbg_data *data)
 		goto err_pd_sync_init;
 	}
 
-#ifdef CONFIG_EXYNOS_PD
+#if defined (CONFIG_EXYNOS_PD) || defined(CONFIG_EXYNOS_PD_MODULE)
 	for (pd_index = 0; pd_index < data->pd_size; pd_index++) {
 		exynos_pd = exynos_pd_lookup_name(data->pd_info[pd_index]->pd_name);
 		if (exynos_pd) {
@@ -3518,7 +3552,7 @@ static int exynos_bcm_dbg_init(struct exynos_bcm_dbg_data *data)
 err_initial_run:
 err_pd_sync_init:
 err_early_init:
-#ifdef CONFIG_DEBUG_SNAPSHOT
+#if defined (CONFIG_DEBUG_SNAPSHOT) || defined(CONFIG_DEBUG_SNAPSHOT_MODULE)
 err_dump_config:
 #endif
 	exynos_bcm_dbg_ipc_channel_release(data);
@@ -3527,7 +3561,7 @@ err_parse_dt:
 	return ret;
 }
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined (CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 static enum hrtimer_restart __nocfi bcm_monitor(struct hrtimer *hrtimer)
 {
 	unsigned long flags;
@@ -3560,77 +3594,24 @@ static void __iomem *bcm_ioremap(phys_addr_t phys_addr, size_t size)
 	return ret;
 }
 
-#ifndef CONFIG_RKP
-struct page_change_data {
-	pgprot_t set_mask;
-	pgprot_t clear_mask;
-};
-
-static int bcm_change_page_range(pte_t *ptep, pgtable_t token, unsigned long addr,
-			void *data)
-{
-	struct page_change_data *cdata = data;
-	pte_t pte = *ptep;
-
-	pte = clear_pte_bit(pte, cdata->clear_mask);
-	pte = set_pte_bit(pte, cdata->set_mask);
-
-	set_pte(ptep, pte);
-	return 0;
-}
-
-static int bcm_change_memory_common(unsigned long addr, int numpages,
-				pgprot_t set_mask, pgprot_t clear_mask)
-{
-	unsigned long start = addr;
-	unsigned long size = PAGE_SIZE * numpages;
-	unsigned long end = start + size;
-	int ret;
-	struct page_change_data data;
-
-	if (!PAGE_ALIGNED(addr)) {
-		start &= PAGE_MASK;
-		end = start + size;
-		WARN_ON_ONCE(1);
-	}
-
-	if (!numpages)
-		return 0;
-
-	data.set_mask = set_mask;
-	data.clear_mask = clear_mask;
-
-	ret = apply_to_page_range(&init_mm, start, size, bcm_change_page_range,
-					&data);
-
-	flush_tlb_kernel_range(start, end);
-	return ret;
-}
-#endif
-
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 int __nocfi exynos_bcm_dbg_load_bin(void)
 {
 	int ret = 0;
+	long fsize;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	struct file *fp = NULL;
-	long fsize, nread;
+	long nread;
 	u8 *buf = NULL;
-	char *lib_bcm = NULL;
 	mm_segment_t old_fs;
-#ifdef CONFIG_RKP
-	rkp_dynamic_load_t rkp_dyn;
 #endif
+	char *lib_bcm = NULL;
 
 	if (bcm_dbg_data->bcm_load_bin)
 		return 0;
 
-#ifndef CONFIG_RKP
-	ret = bcm_change_memory_common((unsigned long)bcm_addr,
-				BCM_BIN_SIZE, __pgprot(0), __pgprot(PTE_PXN));
-	if (ret) {
-		BCM_ERR("%s: failed to change memory common\n", __func__);
-		goto err_out;
-	}
-#endif
+	bcm_addr = (void *)BCM_START;
+	BCM_INFO("%s: addr: 0x%lx\n", __func__, bcm_addr);
 
 	os_func.print = printk;
 	os_func.snprint = snprintf;
@@ -3638,6 +3619,11 @@ int __nocfi exynos_bcm_dbg_load_bin(void)
 	os_func.iounmap = iounmap;
 	os_func.sched_clock = sched_clock;
 
+	fsize = BCM_BIN_SIZE;
+	BCM_INFO("%s: start, file path %s, size %ld Bytes\n",
+			__func__, BCM_BIN_NAME, fsize);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 	fp = filp_open(BCM_BIN_NAME, O_RDONLY, 0);
@@ -3647,9 +3633,6 @@ int __nocfi exynos_bcm_dbg_load_bin(void)
 		goto err_fopen;
 	}
 
-	fsize = BCM_BIN_SIZE;
-	BCM_INFO("%s: start, file path %s, size %ld Bytes\n",
-			__func__, BCM_BIN_NAME, fsize);
 	buf = vmalloc(fsize);
 	if (!buf) {
 		BCM_ERR("%s: failed to allocate memory\n", __func__);
@@ -3657,37 +3640,34 @@ int __nocfi exynos_bcm_dbg_load_bin(void)
 		goto err_alloc;
 	}
 
-	nread = vfs_read(fp, (char __user *)buf, fsize, &fp->f_pos);
+	nread = kernel_read(fp, (char __user *)buf, fsize, &fp->f_pos);
 	if (nread != fsize) {
 		BCM_ERR("%s: failed to read firmware file, %ld Bytes\n",
 				__func__, nread);
 		ret = -EIO;
 		goto err_vfs_read;
 	}
+#else
+	ret = request_firmware(&bcm_dbg_data->bcm_bin.fw, BCM_BIN_NAME, bcm_dbg_data->dev);
+	if (!ret && bcm_dbg_data->bcm_bin.fw) {
+		bcm_dbg_data->bcm_bin.data = (void *)bcm_dbg_data->bcm_bin.fw->data;
+		bcm_dbg_data->bcm_bin.size = BCM_BIN_SIZE;
+		BCM_INFO("%s: bin_size: 0x%lx, bin_data: 0x%lx\n",
+			__func__, bcm_dbg_data->bcm_bin.size, &bcm_dbg_data->bcm_bin.data);
+	}
+#endif
 
 	lib_bcm = (char *)bcm_addr;
 	memset((char *)bcm_addr, 0x0, fsize);
 
 	flush_icache_range((unsigned long)lib_bcm,
 			   (unsigned long)lib_bcm + BCM_BIN_SIZE);
-	memcpy((void *)lib_bcm, (void *)buf, fsize);
+
+	memcpy((void *)lib_bcm, (void *)bcm_dbg_data->bcm_bin.data, bcm_dbg_data->bcm_bin.size);
 	flush_cache_all();
 
-#ifdef CONFIG_RKP
-	memset(&rkp_dyn, 0, sizeof(rkp_dyn));
-	rkp_dyn.binary_base = (unsigned long)bcm_addr;
-	rkp_dyn.binary_size = fsize;
-	rkp_dyn.code_base1 = (unsigned long)bcm_addr;
-	rkp_dyn.code_size1 = BCM_CODE_SIZE;
-	rkp_dyn.type = RKP_DYN_FIMC;
-	ret = uh_call(UH_APP_RKP, RKP_DYNAMIC_LOAD, RKP_DYN_COMMAND_INS, (u64)&rkp_dyn, 0, 0);
-	if (ret) {
-		BCM_ERR("fail to load verify FIMC in EL2");
-		goto err_out;
-	}
-#endif
-
 	bin_func = ((start_up_func_t)lib_bcm)((void **)&os_func);
+	release_firmware(bcm_dbg_data->bcm_bin.fw);
 
 	bcm_dbg_data->bcm_load_bin = true;
 
@@ -3701,13 +3681,14 @@ int __nocfi exynos_bcm_dbg_load_bin(void)
 	}
 
 err_init:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 err_vfs_read:
 	vfree((void *)buf);
 err_alloc:
 	filp_close(fp, NULL);
 err_fopen:
 	set_fs(old_fs);
-err_out:
+#endif
 	return ret;
 }
 EXPORT_SYMBOL(exynos_bcm_dbg_load_bin);
@@ -3717,7 +3698,7 @@ static int exynos_bcm_dbg_pm_suspend(struct device *dev)
 {
 	unsigned int suspend = true;
 	int ret;
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	if (!bcm_dbg_data->bcm_load_bin)
 		return 0;
 #endif
@@ -3738,7 +3719,7 @@ static int exynos_bcm_dbg_pm_resume(struct device *dev)
 {
 	unsigned int suspend = false;
 	int ret;
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
 	if (!bcm_dbg_data->bcm_load_bin)
 		return 0;
 #endif
@@ -3763,6 +3744,9 @@ static struct dev_pm_ops exynos_bcm_dbg_pm_ops = {
 static int __init exynos_bcm_dbg_probe(struct platform_device *pdev)
 {
 	int ret = 0;
+	struct reserved_mem *rmem;
+	struct device_node *rmem_np;
+
 	struct exynos_bcm_dbg_data *data;
 
 	data = kzalloc(sizeof(struct exynos_bcm_dbg_data), GFP_KERNEL);
@@ -3777,7 +3761,20 @@ static int __init exynos_bcm_dbg_probe(struct platform_device *pdev)
 
 	spin_lock_init(&data->lock);
 
-#ifndef CONFIG_EXYNOS_BCM_DBG_GNR
+	rmem_np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	rmem = of_reserved_mem_lookup(rmem_np);
+	if (rmem != NULL) {
+		data->rmem_acquired = true;
+		bcm_reserved.p_addr = rmem->base;
+		bcm_reserved.p_size = rmem->size;
+	} else {
+		data->rmem_acquired = false;
+		bcm_reserved.p_addr = 0;
+		bcm_reserved.p_size = 0;
+		BCM_INFO("%s: failed to acquire memory region\n", __func__);
+	}
+
+#if !defined(CONFIG_EXYNOS_BCM_DBG_GNR)
 	ret = exynos_bcm_dbg_init(data);
 	if (ret) {
 		BCM_ERR("%s: failed to bcm init\n", __func__);
@@ -3791,7 +3788,7 @@ static int __init exynos_bcm_dbg_probe(struct platform_device *pdev)
 	if (ret)
 		BCM_ERR("%s: failed creat sysfs for Exynos BCM DBG\n", __func__);
 
-#ifdef CONFIG_EXYNOS_ITMON
+#if defined (CONFIG_EXYNOS_ITMON) || defined(CONFIG_EXYNOS_ITMON_MODULE)
 	data->itmon_notifier.notifier_call = exynos_bcm_dbg_itmon_notifier;
 	itmon_notifier_chain_register(&data->itmon_notifier);
 #endif
@@ -3800,7 +3797,7 @@ static int __init exynos_bcm_dbg_probe(struct platform_device *pdev)
 
 	return 0;
 
-#ifndef CONFIG_EXYNOS_BCM_DBG_GNR
+#if !defined(CONFIG_EXYNOS_BCM_DBG_GNR)
 err_init:
 	kfree(data);
 	data = NULL;
@@ -3833,17 +3830,21 @@ static int exynos_bcm_dbg_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_EXYNOS_BCM_DBG_GNR
+#if defined(CONFIG_EXYNOS_BCM_DBG_GNR) || defined(CONFIG_EXYNOS_BCM_DBG_GNR_MODULE)
+#if !defined(MODULE)
 static int __init bcm_setup(char *str)
 {
 	if (kstrtoul(str, 0, (unsigned long *)&bcm_addr))
 		goto out;
+
+	BCM_INFO("%s: get bcm_addr!!\n", __func__);
 
 	return 0;
 out:
 	return -EINVAL;
 }
 __setup("reserve-fimc=", bcm_setup);
+#endif
 #endif
 
 static struct platform_device_id exynos_bcm_dbg_driver_ids[] = {

@@ -17,7 +17,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/io.h>
 #include <linux/phy/phy.h>
 #include <linux/fs.h>
@@ -29,6 +29,9 @@
 #include "is-device-csi.h"
 #include "is-device-sensor.h"
 #include "is-votfmgr.h"
+
+struct is_cdr g_cdr = {-1, 0, 0};
+EXPORT_SYMBOL_GPL(g_cdr);
 
 static void csi_free_irq(struct is_device_csi *csi);
 
@@ -88,9 +91,11 @@ inline void csi_frame_start_inline(struct is_device_csi *csi)
 	hashkey_1 = (fcount + 1) % IS_TIMESTAMP_HASH_KEY;
 	hashkey_2 = (fcount + 2) % IS_TIMESTAMP_HASH_KEY;
 
-	timestamp = is_get_timestamp();
-	timestampboot = is_get_timestamp_boot();
-	sensor->timestamp[hashkey] = timestamp;
+	//timestamp = is_get_timestamp();
+	//timestampboot = is_get_timestamp_boot();
+  timestamp = ktime_get_ns();
+  timestampboot = ktime_get_boottime_ns();
+  sensor->timestamp[hashkey] = timestamp;
 	sensor->timestamp[hashkey_1] = timestamp;
 	sensor->timestamp[hashkey_2] = timestamp;
 	sensor->timestampboot[hashkey] = timestampboot;
@@ -252,6 +257,7 @@ static inline void csi_s_config_dma(struct is_device_csi *csi, struct is_vci_con
 				fmt.pixelformat = V4L2_PIX_FMT_PRIV_MAGIC;
 			framecfg.format = &fmt;
 			framecfg.width = dma_subdev->output.width;
+			framecfg.height = dma_subdev->output.height;
 		} else {
 			/* cpy format from vc video context */
 			queue = GET_SUBDEV_QUEUE(dma_subdev);
@@ -263,8 +269,10 @@ static inline void csi_s_config_dma(struct is_device_csi *csi, struct is_vci_con
 			}
 		}
 
-		if (vci_config[vc].width)
+		if (vci_config[vc].width) {
 			framecfg.width = vci_config[vc].width;
+			framecfg.height = vci_config[vc].height;
+		}
 
 		if (test_bit(IS_SUBDEV_VOTF_USE, &dma_subdev->state)) {
 			struct is_device_csi_dma *csi_dma = csi->csi_dma;
@@ -274,13 +282,32 @@ static inline void csi_s_config_dma(struct is_device_csi *csi, struct is_vci_con
 				dma_subdev->dma_ch[csi->scm],
 				dma_subdev->vc_ch[csi->scm]);
 
-			minfo("[CSI%d][VC%d] VOTF config (width: %d)\n", csi, csi->ch, vc,
-				framecfg.width);
+			minfo("[CSI%d][VC%d] VOTF config (size: %d, %d)\n", csi, csi->ch, vc,
+				framecfg.width, framecfg.height);
 		}
 
 		csi_hw_s_config_dma(csi->vc_reg[csi->scm][vc], vc, &framecfg, vci_config[vc].extformat,
 					csi->sensor_cfg->dummy_pixel[vc]);
 
+		minfo("[CSI%d][VC%d] DMA format(%x) (size: %d, %d)\n", csi, csi->ch, vc, vci_config[vc].extformat,
+				framecfg.width, framecfg.height);
+#if defined(CSIWDMA_VC1_FORMAT_WA)
+		if (vc == CSI_VIRTUAL_CH_0) {
+			/* vc1 is needed dma data format setting such as vc0 */
+			csi_hw_s_config_dma(csi->vc_reg[csi->scm][CSI_VIRTUAL_CH_1],
+						CSI_VIRTUAL_CH_1, &framecfg,
+						vci_config[vc].extformat,
+						csi->sensor_cfg->dummy_pixel[vc]);
+			minfo("[CSI%d][VC1] DMA format(%x) (size: %d, %d)\n", csi, csi->ch,
+					vci_config[vc].extformat,
+					framecfg.width, framecfg.height);
+		} else if ((vc == CSI_VIRTUAL_CH_1) &&
+				(vci_config[vc].extformat != vci_config[CSI_VIRTUAL_CH_0].extformat)) {
+			err("vc[%d] DMA format should be the same as VC0 (%x, %x)", vc,
+				vci_config[CSI_VIRTUAL_CH_0].extformat,
+				vci_config[CSI_VIRTUAL_CH_1].extformat);
+		}
+#endif
 		/* vc: determine for vc0 img format for otf path
 		 * dma_subdev->vc_ch[csi->scm]: actual channel at each vc used,
 		 *                              it need to csis_wdma input path select(ch0 or ch1)
@@ -563,7 +590,7 @@ void tasklet_csis_str_otf(unsigned long data)
 	ischain = device->ischain;
 
 #ifdef TASKLET_MSG
-	pr_info("S%d\n", fcount);
+	is_info("S%d\n", fcount);
 #endif
 
 	groupmgr = ischain->groupmgr;
@@ -659,7 +686,7 @@ void tasklet_csis_str_m2m(unsigned long data)
 	fcount = atomic_read(&csi->fcount);
 
 #ifdef TASKLET_MSG
-	pr_info("S%d\n", fcount);
+	is_info("S%d\n", fcount);
 #endif
 	/* check all virtual channel's dma */
 	csis_check_vc_dma_buf(csi);
@@ -712,8 +739,8 @@ static void csi_dma_tag(struct v4l2_subdev *subdev,
 			clear_bit(f_subdev->id, &ldr_frame->out_flag);
 
 			/* for debug */
-			DBG_DIGIT_TAG(GROUP_SLOT_MAX, 0, GET_QUEUE(vctx), frame,
-					frame->fcount, 1);
+			is_dbg_draw_digit(GET_QUEUE(vctx), frame,
+					frame->fcount, 0);
 
 			done_state = (frame->result) ? VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE;
 			if (frame->result)
@@ -731,8 +758,8 @@ static void csi_dma_tag(struct v4l2_subdev *subdev,
 		data_type = CSIS_NOTIFY_DMA_END;
 	} else {
 		/* get internal VC buffer for embedded data */
-		if ((csi->sensor_cfg->output[vc].type == VC_EMBEDDED)
-			|| (csi->sensor_cfg->output[vc].type == VC_EMBEDDED2)) {
+		if ((csi->sensor_cfg->output[vc].type == VC_EMBEDDED) ||
+			(csi->sensor_cfg->output[vc].type == VC_EMBEDDED2)) {
 			u32 frameptr = csi_hw_g_frameptr(csi->vc_reg[csi->scm][vc], vc);
 
 			if (frameptr < framemgr->num_frames) {
@@ -783,7 +810,6 @@ static void csi_err_check(struct is_device_csi *csi, u32 *err_id, enum csis_hw_t
 	unsigned long prev_err_flag = 0;
 	struct is_subdev *dma_subdev;
 	struct is_device_sensor *sensor;
-	unsigned long vc0_err_id = 0;
 
 	/* 1. Check error */
 	for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++) {
@@ -802,8 +828,7 @@ static void csi_err_check(struct is_device_csi *csi, u32 *err_id, enum csis_hw_t
 		csi->error_id[vc] |= err_id[vc];
 
 	/* 4. VC ch0 only exception case */
-	vc0_err_id = (unsigned long)err_id[CSI_VIRTUAL_CH_0];
-	err = find_first_bit(&vc0_err_id, CSIS_ERR_END);
+	err = find_first_bit((unsigned long *)&err_id[CSI_VIRTUAL_CH_0], CSIS_ERR_END);
 	while (err < CSIS_ERR_END) {
 		switch (err) {
 		case CSIS_ERR_LOST_FE_VC:
@@ -841,7 +866,7 @@ static void csi_err_check(struct is_device_csi *csi, u32 *err_id, enum csis_hw_t
 		}
 
 		/* Check next bit */
-		err = find_next_bit(&vc0_err_id, CSIS_ERR_END, err + 1);
+		err = find_next_bit((unsigned long *)&err_id[CSI_VIRTUAL_CH_0], CSIS_ERR_END, err + 1);
 	}
 }
 
@@ -849,7 +874,6 @@ static void csi_err_print(struct is_device_csi *csi)
 {
 	const char *err_str = NULL;
 	int vc, err;
-	unsigned long err_id = 0;
 #ifdef USE_CAMERA_HW_BIG_DATA
 	bool err_report = false;
 #endif
@@ -859,9 +883,14 @@ static void csi_err_print(struct is_device_csi *csi)
 		if (!csi->error_id[vc])
 			continue;
 
-		err_id = (unsigned long)csi->error_id[vc];
-		err = find_first_bit(&err_id, CSIS_ERR_END);
+		err = find_first_bit((unsigned long *)&csi->error_id[vc], CSIS_ERR_END);
 		while (err < CSIS_ERR_END) {
+			/* Both error occurs during normal camera open. So, do exceptional handling */
+			if (err != CSIS_ERR_SOT_VC && err != CSIS_ERR_DMA_ABORT_DONE) {
+				g_cdr.time = ktime_get_boottime_ns();
+				g_cdr.err_type = CDR_ERR_TYPE_CSIS;
+			}
+
 			switch (err) {
 			case CSIS_ERR_ID:
 				err_str = GET_STR(CSIS_ERR_ID);
@@ -904,7 +933,7 @@ static void csi_err_print(struct is_device_csi *csi)
 				is_sec_copy_err_cnt_to_file();
 #endif
 #endif
-				exynos_bcm_dbg_stop(CAMERA_DRIVER);
+				//exynos_bcm_dbg_stop(CAMERA_DRIVER);
 
 				is_debug_s2d(false, "[DMA%d][VC P%d, L%d] CSIS error!! %s",
 					csi->dma_subdev[vc]->dma_ch[csi->scm],
@@ -977,7 +1006,7 @@ static void csi_err_print(struct is_device_csi *csi)
 #endif
 
 			/* Check next bit */
-			err = find_next_bit(&err_id, CSIS_ERR_END, err + 1);
+			err = find_next_bit((unsigned long *)&csi->error_id[vc], CSIS_ERR_END, err + 1);
 		}
 	}
 
@@ -1025,10 +1054,7 @@ static void csi_err_handle(struct is_device_csi *csi)
 
 		/* Disable CSIS */
 		csi_hw_disable(csi->base_reg);
-
-		for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++)
-			csi_hw_s_dma_irq_msk(csi->cmn_reg[csi->scm][vc], false);
-		csi_hw_s_irq_msk(csi->base_reg, false, csi->f_id_dec);
+		csi_free_irq(csi);
 
 		/* CSIS register dump */
 		if ((csi->error_count == CSI_ERR_COUNT) || (csi->error_count % 20 == 0)) {
@@ -1172,7 +1198,7 @@ static void tasklet_csis_end(unsigned long data)
 	}
 
 #ifdef TASKLET_MSG
-	pr_info("E%d\n", atomic_read(&csi->fcount));
+	is_info("E%d\n", atomic_read(&csi->fcount));
 #endif
 
 	for (ch = CSI_VIRTUAL_CH_0; ch < CSI_VIRTUAL_CH_MAX; ch++)
@@ -1207,7 +1233,7 @@ static void tasklet_csis_line(unsigned long data)
 	}
 
 #ifdef TASKLET_MSG
-	pr_info("L%d\n", atomic_read(&csi->fcount));
+	is_info("L%d\n", atomic_read(&csi->fcount));
 #endif
 	v4l2_subdev_notify(subdev, CSIS_NOTIFY_LINE, NULL);
 }
@@ -1352,6 +1378,7 @@ static irqreturn_t is_isr_csi_dma(int irq, void *data)
 	int dma_frame_str = 0;
 	int dma_frame_end = 0;
 	int dma_abort_done = 0;
+	bool dma_qreqn = false;
 	int dma_err_flag = 0;
 	u32 dma_err_id[CSI_VIRTUAL_CH_MAX];
 	struct csis_irq_src irq_src;
@@ -1374,6 +1401,7 @@ static irqreturn_t is_isr_csi_dma(int irq, void *data)
 		irq_src.dma_end = 0;
 		irq_src.line_end = 0;
 		irq_src.dma_abort = 0;
+		irq_src.dma_qreqn = 0;
 		irq_src.err_flag = 0;
 		vc_phys = csi->dma_subdev[vc]->vc_ch[csi->scm];
 		if (vc_phys < 0) {
@@ -1393,6 +1421,9 @@ static irqreturn_t is_isr_csi_dma(int irq, void *data)
 
 		if (irq_src.dma_abort)
 			dma_abort_done |= 1 << vc;
+
+		if (irq_src.dma_qreqn)
+			dma_qreqn = true;
 	}
 
 	if (dma_frame_str)
@@ -1406,6 +1437,9 @@ static irqreturn_t is_isr_csi_dma(int irq, void *data)
 		clear_bit(CSIS_DMA_FLUSH_WAIT, &csi->state);
 		wake_up(&csi->dma_flush_wait_q);
 	}
+
+	if (dma_qreqn)
+		warn("[CSI%d] DMA QREQn is received", csi->ch);
 
 	device = container_of(csi->subdev, struct is_device_sensor, subdev_csi);
 	group = &device->group_sensor;
@@ -1641,6 +1675,35 @@ static int csi_s_power(struct v4l2_subdev *subdev,
 	return ret;
 }
 
+static int csi_g_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
+{
+	struct is_device_csi *csi;
+	int ret = 0;
+	int vc = 0;
+
+	FIMC_BUG(!subdev);
+
+	csi = (struct is_device_csi *)v4l2_get_subdevdata(subdev);
+	if (!csi) {
+		err("csi is NULL");
+		return -EINVAL;
+	}
+
+	switch (ctrl->id) {
+	case V4L2_CID_IS_G_VC1_FRAMEPTR:
+	case V4L2_CID_IS_G_VC2_FRAMEPTR:
+	case V4L2_CID_IS_G_VC3_FRAMEPTR:
+		vc = CSI_VIRTUAL_CH_1 + (ctrl->id - V4L2_CID_IS_G_VC1_FRAMEPTR);
+		ctrl->value = csi_hw_g_frameptr(csi->vc_reg[csi->scm][vc], vc);
+
+		break;
+	default:
+		break;
+	}
+
+	return ret;
+}
+
 static long csi_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
 {
 	int ret = 0;
@@ -1785,6 +1848,14 @@ static long csi_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
 			*hw_fcount = csi_hw_g_fcount(csi->base_reg, CSI_VIRTUAL_CH_0);
 		}
 		break;
+	case SENSOR_IOCTL_CSI_G_CTRL:
+		ctrl = (struct v4l2_control *)arg;
+		ret = csi_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("[CSI%d] csi_g_ctrl failed", csi->ch);
+			goto p_err;
+		}
+		break;
 	default:
 		break;
 	}
@@ -1793,40 +1864,10 @@ p_err:
 	return ret;
 }
 
-static int csi_g_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
-{
-	struct is_device_csi *csi;
-	int ret = 0;
-	int vc = 0;
-
-	FIMC_BUG(!subdev);
-
-	csi = (struct is_device_csi *)v4l2_get_subdevdata(subdev);
-	if (!csi) {
-		err("csi is NULL");
-		return -EINVAL;
-	}
-
-	switch (ctrl->id) {
-	case V4L2_CID_IS_G_VC1_FRAMEPTR:
-	case V4L2_CID_IS_G_VC2_FRAMEPTR:
-	case V4L2_CID_IS_G_VC3_FRAMEPTR:
-		vc = CSI_VIRTUAL_CH_1 + (ctrl->id - V4L2_CID_IS_G_VC1_FRAMEPTR);
-		ctrl->value = csi_hw_g_frameptr(csi->vc_reg[csi->scm][vc], vc);
-
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = csi_init,
 	.s_power = csi_s_power,
 	.ioctl = csi_ioctl,
-	.g_ctrl = csi_g_ctrl
 };
 
 static int csi_s_fro(struct is_device_csi *csi, struct is_sensor_cfg *sensor_cfg)
@@ -1878,10 +1919,20 @@ static void csi_free_irq(struct is_device_csi *csi)
 
 		clear_bit(csi->vc_irq[csi->scm][vc] % BITS_PER_LONG, &csi->vc_irq_state);
 		csi_hw_s_dma_irq_msk(csi->cmn_reg[csi->scm][vc], false);
+#if defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+		irq_set_affinity_hint(csi->vc_irq[csi->scm][vc], NULL);
+#endif
+#endif
 		free_irq(csi->vc_irq[csi->scm][vc], csi);
 	}
 
 	csi_hw_s_irq_msk(csi->base_reg, false, csi->f_id_dec);
+#if defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	irq_set_affinity_hint(csi->irq, NULL);
+#endif
+#endif
 	free_irq(csi->irq, csi);
 
 	return;
@@ -1893,6 +1944,10 @@ static int csi_request_irq(struct is_device_csi *csi)
 	int vc;
 	struct is_subdev *dma_subdev;
 	struct is_sensor_cfg *sensor_cfg;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)) && defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+	const char *buf = "0-3";
+	struct cpumask cpumask;
+#endif
 
 	sensor_cfg = csi->sensor_cfg;
 	if (!sensor_cfg) {
@@ -1908,6 +1963,14 @@ static int csi_request_irq(struct is_device_csi *csi)
 		merr("failed to request IRQ for CSI(%d): %d", csi, csi->irq, ret);
 		goto err_req_csi_irq;
 	}
+#if defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	cpulist_parse(buf, &cpumask);
+	irq_set_affinity_hint(csi->irq, &cpumask);
+#else
+	irq_force_affinity(csi->irq, cpumask_of(0));
+#endif
+#endif
 	csi_hw_s_irq_msk(csi->base_reg, true, csi->f_id_dec);
 
 	/* Registeration of CSIS WDMA IRQ */
@@ -1930,6 +1993,13 @@ static int csi_request_irq(struct is_device_csi *csi)
 				csi, csi->vc_irq[csi->scm][vc], vc, csi->scm, ret);
 			goto err_req_dma_irq;
 		}
+#if defined(ENABLE_IRQ_MULTI_TARGET_CL0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+		irq_set_affinity_hint(csi->vc_irq[csi->scm][vc], &cpumask);
+#else
+		irq_force_affinity(csi->vc_irq[csi->scm][vc], cpumask_of(0));
+#endif
+#endif
 		csi_hw_s_dma_irq_msk(csi->cmn_reg[csi->scm][vc], true);
 		set_bit(csi->vc_irq[csi->scm][vc] % BITS_PER_LONG, &csi->vc_irq_state);
 	}
@@ -2601,7 +2671,7 @@ int is_csi_probe(void *parent, u32 device_id, u32 ch)
 
 	csi->regs_start = res->start;
 	csi->regs_end = res->end;
-	csi->base_reg = devm_ioremap_nocache(dev, res->start, resource_size(res));
+	csi->base_reg = devm_ioremap(dev, res->start, resource_size(res));
 	if (!csi->base_reg) {
 		probe_err("can't ioremap for CSI");
 		ret = -ENOMEM;
@@ -2622,8 +2692,7 @@ int is_csi_probe(void *parent, u32 device_id, u32 ch)
 		ret = -ENODEV;
 		goto err_get_phy_res;
 	}
-
-	csi->phy_reg = devm_ioremap_nocache(dev, res->start, resource_size(res));
+	csi->phy_reg = devm_ioremap(dev, res->start, resource_size(res));
 	if (!csi->phy_reg) {
 		probe_err("can't ioremap for PHY");
 		ret = -ENOMEM;
@@ -2667,7 +2736,7 @@ int is_csi_probe(void *parent, u32 device_id, u32 ch)
 		}
 
 		for (vc = 0; vc < CSI_VIRTUAL_CH_MAX; vc++) {
-			csi->vc_reg[cnt_of_ch_mode][vc] = devm_ioremap_nocache(dev,
+			csi->vc_reg[cnt_of_ch_mode][vc] = devm_ioremap(dev,
 					dma_res[(vc * NUM_VC_DMA_RES) + VC_DMA_START],
 					dma_res[(vc * NUM_VC_DMA_RES) + VC_DMA_SIZE]);
 			if (!csi->vc_reg[cnt_of_ch_mode][vc]) {
@@ -2676,8 +2745,7 @@ int is_csi_probe(void *parent, u32 device_id, u32 ch)
 				ret = -ENOMEM;
 				goto err_ioremap_vc_dma_mem;
 			}
-
-			csi->cmn_reg[cnt_of_ch_mode][vc] = devm_ioremap_nocache(dev,
+			csi->cmn_reg[cnt_of_ch_mode][vc] = devm_ioremap(dev,
 					dma_res[(vc * NUM_VC_DMA_RES) + CMN_DMA_START],
 					dma_res[(vc * NUM_VC_DMA_RES) + CMN_DMA_SIZE]);
 			if (!csi->cmn_reg[cnt_of_ch_mode][vc]) {
@@ -2702,8 +2770,8 @@ int is_csi_probe(void *parent, u32 device_id, u32 ch)
 		if (ret) {
 			probe_warn("failed to get DMA MUX memory resources");
 		} else {
-			csi->mux_reg[cnt_of_ch_mode] = devm_ioremap_nocache(dev,
-					mux_res[RES_START], mux_res[RES_SIZE]);
+			csi->mux_reg[cnt_of_ch_mode] = devm_ioremap(dev,
+				mux_res[RES_START], mux_res[RES_SIZE]);
 			if (!csi->mux_reg[cnt_of_ch_mode]) {
 				probe_err("failed to ioremap DMA MUX memory for mode: %d",
 						cnt_of_ch_mode);
@@ -2836,7 +2904,8 @@ int is_csi_dma_probe(struct is_device_csi_dma *csi_dma, struct platform_device *
 
 	csi_dma->regs_start = res->start;
 	csi_dma->regs_end = res->end;
-	csi_dma->base_reg =  devm_ioremap_nocache(&pdev->dev, res->start, resource_size(res));
+	
+	csi_dma->base_reg =  devm_ioremap(&pdev->dev, res->start, resource_size(res));
 	if (!csi_dma->base_reg) {
 		probe_err("Failed to remap CSIS_DMA io region(%p)", csi_dma->base_reg);
 		ret = -ENOMEM;
@@ -2853,7 +2922,8 @@ int is_csi_dma_probe(struct is_device_csi_dma *csi_dma, struct platform_device *
 
 	csi_dma->regs_start = res->start;
 	csi_dma->regs_end = res->end;
-	csi_dma->base_reg_stat =  devm_ioremap_nocache(&pdev->dev, res->start, resource_size(res));
+	
+	csi_dma->base_reg_stat = devm_ioremap(&pdev->dev, res->start, resource_size(res));
 	if (!csi_dma->base_reg_stat) {
 		probe_err("Failed to remap STAT_DMA io region(%p)", csi_dma->base_reg_stat);
 		ret = -ENOMEM;

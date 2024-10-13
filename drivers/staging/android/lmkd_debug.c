@@ -61,9 +61,12 @@ static ssize_t psi_lmkd_count_write(struct file *file, const char __user *user_b
 	}
 
 	buffer[count] = '\0';
+
 	err = kstrtoint(strstrip(buffer), 0, &lmkd_count);
 	if (err)
 		return err;
+	if (lmkd_count < 0)
+		return -EINVAL;
 
 	return count;
 }
@@ -84,23 +87,26 @@ static ssize_t psi_lmkd_cricount_write(struct file *file, const char __user *use
 	}
 
 	buffer[count] = '\0';
+
 	err = kstrtoint(strstrip(buffer), 0, &lmkd_cricount);
 	if (err)
 		return err;
+	if (lmkd_cricount < 0)
+		return -EINVAL;
 
 	return count;
 }
 
-static const struct file_operations psi_lmkd_count_fops = {
-	.read           = psi_lmkd_count_read,
-	.write          = psi_lmkd_count_write,
-	.llseek         = default_llseek,
+static const struct proc_ops psi_lmkd_count_proc_ops = {
+	.proc_read           = psi_lmkd_count_read,
+	.proc_write          = psi_lmkd_count_write,
+	.proc_lseek          = generic_file_llseek,
 };
 
-static const struct file_operations psi_lmkd_cricount_fops = {
-	.read           = psi_lmkd_cricount_read,
-	.write          = psi_lmkd_cricount_write,
-	.llseek         = default_llseek,
+static const struct proc_ops psi_lmkd_cricount_proc_ops = {
+	.proc_read           = psi_lmkd_cricount_read,
+	.proc_write          = psi_lmkd_cricount_write,
+	.proc_lseek          = generic_file_llseek,
 };
 
 static int __init klmkd_debug_init(void)
@@ -112,13 +118,13 @@ static int __init klmkd_debug_init(void)
 	if (!lmkd_debug_rootdir)
 		pr_err("create /proc/lmkd_debug failed\n");
 	else {
-		lmkd_count_entry = proc_create("lmkd_count", 0644, lmkd_debug_rootdir, &psi_lmkd_count_fops);
+		lmkd_count_entry = proc_create("lmkd_count", 0644, lmkd_debug_rootdir, &psi_lmkd_count_proc_ops);
 		if (!lmkd_count_entry) {
 			pr_err("create /proc/lmkd_debug/lmkd_count failed, remove /proc/lmkd_debug dir\n");
 			remove_proc_entry("lmkd_debug", NULL);
 			lmkd_debug_rootdir = NULL;
 		} else {
-			lmkd_cricount_entry = proc_create("lmkd_cricount", 0644, lmkd_debug_rootdir, &psi_lmkd_cricount_fops);
+			lmkd_cricount_entry = proc_create("lmkd_cricount", 0644, lmkd_debug_rootdir, &psi_lmkd_cricount_proc_ops);
 			if (!lmkd_cricount_entry) {
 				pr_err("create /proc/lmkd_debug/lmkd_cricount failed, remove /proc/lmkd_debug	dir\n");
 				remove_proc_entry("lmkd_debug/lmkd_count", NULL);

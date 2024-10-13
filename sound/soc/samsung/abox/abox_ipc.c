@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_ipc.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Inter-Processor Communication driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Inter-Processor Communication driver
  *
  * Copyright (c) 2017 Samsung Electronics Co. Ltd.
  *
@@ -17,6 +17,7 @@
 #include "abox_gic.h"
 #include "abox_msg.h"
 #include "abox_ipc.h"
+#include "abox_memlog.h"
 
 #define ABOX_IPC_IRQ	15
 #define ABOX_IPC_SIZE	SZ_64K
@@ -28,6 +29,7 @@ static char ipc_buf[ABOX_IPC_SIZE];
 static DEFINE_SPINLOCK(lock_tx);
 static DEFINE_SPINLOCK(lock_rx);
 
+static DEFINE_SPINLOCK(lock_ipc_actions);
 static LIST_HEAD(ipc_actions);
 
 static void abox_ipc_print_log(const char *fmt, ...)
@@ -38,7 +40,7 @@ static void abox_ipc_print_log(const char *fmt, ...)
 	va_start(ap, fmt);
 
 	log = kvasprintf(GFP_ATOMIC, fmt, ap);
-	dev_info(dev_abox, "%s", log);
+	abox_info(dev_abox, "%s", log);
 	kfree(log);
 
 	va_end(ap);
@@ -69,6 +71,46 @@ static uint64_t abox_ipc_get_time(void)
 	return sched_clock();
 }
 
+static size_t abox_ipc_fix_size(const ABOX_IPC_MSG *ipc, size_t size)
+{
+	const size_t offset_msg = offsetof(ABOX_IPC_MSG, msg);
+	size_t size_msg = 0;
+
+
+	switch (ipc->ipcid) {
+	case IPC_RECEIVED:
+		size_msg = 0;
+		break;
+	case IPC_SYSTEM:
+		size_msg = sizeof(ipc->msg.system);
+		break;
+	case IPC_PCMPLAYBACK:
+	case IPC_PCMCAPTURE:
+		size_msg = sizeof(ipc->msg.pcmtask);
+		break;
+	case IPC_OFFLOAD:
+		size_msg = sizeof(ipc->msg.offload);
+		break;
+	case IPC_ERAP:
+		size_msg = sizeof(ipc->msg.erap);
+		break;
+	case IPC_ASB_TEST:
+		size_msg = sizeof(ipc->msg.asb);
+		break;
+	default:
+		return size;
+	}
+
+	if (size > offset_msg + size_msg) {
+		pr_debug("abox: %s(%d, %d, %d): %zu > %zu + %zu\n", __func__,
+				ipc->ipcid, ipc->task_id, ipc->msg.system.msgtype,
+				size, offset_msg, size_msg);
+		size = offset_msg + size_msg;
+	}
+
+	return size;
+}
+
 int abox_ipc_send(struct device *dev, const ABOX_IPC_MSG *ipc, size_t size,
 		const void *bundle, size_t bundle_size)
 {
@@ -77,12 +119,12 @@ int abox_ipc_send(struct device *dev, const ABOX_IPC_MSG *ipc, size_t size,
 	int ret = 0;
 	int count = 1;
 
-	dev_dbg(dev, "%s(%d, %d, %d, %zu, %zu)\n", __func__,
+	abox_dbg(dev, "%s(%d, %d, %d, %zu, %zu)\n", __func__,
 			ipc->ipcid, ipc->task_id, ipc->msg.system.msgtype,
 			size, bundle_size);
 
 	data[0].data = ipc;
-	data[0].size = size;
+	data[0].size = abox_ipc_fix_size(ipc, size);
 	data[1].data = bundle;
 	data[1].size = bundle_size;
 
@@ -182,7 +224,7 @@ void abox_ipc_retry(void)
 
 int abox_ipc_flush(struct device *dev)
 {
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	return abox_msg_flush();
 }
@@ -191,26 +233,32 @@ int abox_ipc_register_handler(struct device *dev, int ipc_id,
 		abox_ipc_handler_t handler, void *data)
 {
 	struct abox_ipc_action *action;
+	unsigned long flags;
 
-	dev_dbg(dev, "%s(%d, %ps)\n", __func__, ipc_id, handler);
+	abox_dbg(dev, "%s(%d, %ps)\n", __func__, ipc_id, handler);
 
+	spin_lock_irqsave(&lock_ipc_actions, flags);
 	list_for_each_entry(action, &ipc_actions, list) {
 		if (action->handler != handler || action->ipc_id != ipc_id ||
 				action->dev != dev)
 			continue;
 
 		action->data = data;
-		dev_info(dev, "%s(%d, %ps) updating data\n",
+		spin_unlock_irqrestore(&lock_ipc_actions, flags);
+		abox_info(dev, "%s(%d, %ps) updating data\n",
 				__func__, ipc_id, handler);
 		return 0;
 	}
+	spin_unlock_irqrestore(&lock_ipc_actions, flags);
 
 	action = devm_kmalloc(dev_abox, sizeof(*action), GFP_KERNEL);
 	action->dev = dev;
 	action->ipc_id = ipc_id;
 	action->handler = handler;
 	action->data = data;
+	spin_lock_irqsave(&lock_ipc_actions, flags);
 	list_add_tail(&action->list, &ipc_actions);
+	spin_unlock_irqrestore(&lock_ipc_actions, flags);
 
 	return 0;
 }
@@ -219,20 +267,24 @@ int abox_ipc_unregister_handler(struct device *dev, int ipc_id,
 		abox_ipc_handler_t handler)
 {
 	struct abox_ipc_action *action;
+	unsigned long flags;
 
-	dev_dbg(dev, "%s(%d, %ps)\n", __func__, ipc_id, handler);
+	abox_dbg(dev, "%s(%d, %ps)\n", __func__, ipc_id, handler);
 
+	spin_lock_irqsave(&lock_ipc_actions, flags);
 	list_for_each_entry(action, &ipc_actions, list) {
 		if (action->handler != handler || action->ipc_id != ipc_id ||
 				action->dev != dev)
 			continue;
 
 		list_del(&action->list);
+		spin_unlock_irqrestore(&lock_ipc_actions, flags);
 		devm_kfree(dev_abox, action);
 		return 0;
 	}
+	spin_unlock_irqrestore(&lock_ipc_actions, flags);
 
-	dev_err(dev, "%s(%d, %ps) handler not exist\n",
+	abox_err(dev, "%s(%d, %ps) handler not exist\n",
 			__func__, ipc_id, handler);
 	return -EINVAL;
 }
@@ -242,19 +294,27 @@ static irqreturn_t abox_ipc_irq_handler(int irq, void *dev_id)
 	struct device *dev = dev_id;
 	irqreturn_t ret = IRQ_NONE;
 
-	dev_dbg(dev, "%s\n", __func__);
+	abox_dbg(dev, "%s\n", __func__);
 
 	while (abox_msg_recv(NULL, ipc_buf, sizeof(ipc_buf)) >= 0) {
 		ABOX_IPC_MSG *ipc = (ABOX_IPC_MSG *)ipc_buf;
 		enum IPC_ID ipc_id = ipc->ipcid;
 		struct abox_ipc_action *action;
+		unsigned long flags;
 
+		spin_lock_irqsave(&lock_ipc_actions, flags);
 		list_for_each_entry(action, &ipc_actions, list) {
 			if (action->ipc_id != ipc_id)
 				continue;
 
 			ret |= action->handler(ipc_id, action->data, ipc);
 		}
+		spin_unlock_irqrestore(&lock_ipc_actions, flags);
+		if (ret == IRQ_NONE)
+			abox_warn(dev, "unknown ipc: %d(%d, %d, %d)\n", ipc_id,
+					ipc->msg.system.param1,
+					ipc->msg.system.param2,
+					ipc->msg.system.param3);
 	}
 
 	return ret;
@@ -267,7 +327,7 @@ int abox_ipc_init(struct device *dev, void *tx, size_t tx_size,
 	struct abox_msg_cfg cfg;
 	int ret;
 
-	dev_dbg(dev, "%s(%pK, %zu, %pK, %zu)\n", __func__,
+	abox_dbg(dev, "%s(%pK, %zu, %pK, %zu)\n", __func__,
 			tx, tx_size, rx, rx_size);
 
 	dev_abox = dev;

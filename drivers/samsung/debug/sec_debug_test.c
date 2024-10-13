@@ -1,14 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * sec_debug_test.c
  *
  * Copyright (c) 2019 Samsung Electronics Co., Ltd
  *              http://www.samsung.com
- *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
- *
  */
 
 #include <linux/kernel.h>
@@ -18,10 +13,8 @@
 #include <linux/cpu.h>
 #include <linux/io.h>
 #include <linux/slab.h>
-//#include <linux/exynos-ss.h>
 #include <asm-generic/io.h>
 #include <linux/ctype.h>
-#include <linux/pm_qos.h>
 #include <linux/sec_debug.h>
 #include <linux/kthread.h>
 #include <linux/interrupt.h>
@@ -29,22 +22,22 @@
 #include <linux/preempt.h>
 #include <linux/rwsem.h>
 #include <linux/moduleparam.h>
+#include <linux/cpumask.h>
+#include <linux/reboot.h>
+#include <linux/platform_device.h>
+#include <linux/of.h>
+#include <asm/stackprotector.h>
 
+#include <soc/samsung/debug-snapshot.h>
+#if IS_ENABLED(CONFIG_SOC_S5E3830)
 #include <soc/samsung/exynos-pmu.h>
-#include <soc/samsung/exynos-debug.h>
+#else
+#include <soc/samsung/exynos-pmu-if.h>
+#endif
+#include <soc/samsung/exynos_pm_qos.h>
 #include <uapi/linux/sched/types.h>
 
-/* spin_bug somtimes disrupt getting the result really wanted */
-#ifdef CONFIG_SEC_DEBUG_SPINBUG_PANIC
-extern void spin_debug_skip_panic(void);
-#else
-static inline void spin_debug_skip_panic(void)
-{
-}
-#endif
-
-#undef MODULE_PARAM_PREFIX
-#define MODULE_PARAM_PREFIX "sec_debug."
+#include "sec_debug_internal.h"
 
 typedef void (*force_error_func)(char **argv, int argc);
 
@@ -91,7 +84,6 @@ static void simulate_CORRUPT_MAGIC(char **argv, int argc);
 static void simulate_IRQ_STORM(char **argv, int argc);
 static void simulate_SYNC_IRQ_LOCKUP(char **argv, int argc);
 static void simulate_DISK_SLEEP(char **argv, int argc);
-static void simulate_CORRUPT_DELAYED_WORK(char **argv, int argc);
 static void simulate_MUTEX_AA(char **argv, int argc);
 static void simulate_MUTEX_ABBA(char **argv, int argc);
 static void simulate_LIST_BUG(char **argv, int argc);
@@ -104,6 +96,23 @@ static void simulate_PRINTK_FAULT(char **argv, int argc);
 static void simulate_EXIN_UNFZ(char **arg, int argc);
 static void simulate_WQLOCK_BUSY_WORKER(char **argv, int argc);
 static void simulate_WQLOCK_BUSY_TASK(char **argv, int argc);
+static void simulate_STACK_CORRUPTION(char **argv, int argc);
+static void simulate_POWER_OFF(char **argv, int argc);
+static void simulate_EMERGENT_REBOOT(char **argv, int argc);
+static void simulate_SHUTDOWN_LOCKUP(char **argv, int argc);
+static void simulate_SUSPEND_LOCKUP(char **argv, int argc);
+static void simulate_FLUSH_WQ(char **argv, int argc);
+static void simulate_FLUSH_WORK(char **argv, int argc);
+static void simulate_PAC_TEST(char **argv, int argc);
+static void simulate_PTRAUTH_FAULT(char **argv, int argc);
+static void simulate_FREE_DEBUG_OBJECTS(char **argv, int argc);
+static void simulate_TIMER_REACTIVATE(char **argv, int argc);
+static void simulate_TIMER_ACTIVATE2INIT(char **argv, int argc);
+static void simulate_HRTIMER_REACTIVATE(char **argv, int argc);
+static void simulate_HRTIMER_ACTIVATE2INIT(char **argv, int argc);
+static void simulate_WORK_ACTIVATE2INIT(char **argv, int argc);
+static void simulate_UBSAN_OOB(char **argv, int argc);
+static void simulate_UBSAN_OOB_PTR(char **argv, int argc);
 
 enum {
 	FORCE_KERNEL_PANIC = 0,		/* KP */
@@ -149,7 +158,6 @@ enum {
 	FORCE_IRQ_STORM,		/* IRQ STORM */
 	FORCE_SYNC_IRQ_LOCKUP,		/* SYNCIRQ LOCKUP */
 	FORCE_DISK_SLEEP,		/* DISK SLEEP */
-	FORCE_CORRUPT_DELAYED_WORK,	/* CORRUPT DELAYED WORK */
 	FORCE_MUTEX_AA,			/* MUTEX AA */
 	FORCE_MUTEX_ABBA,		/* MUTEX ABBA */
 	FORCE_LIST_BUG,			/* LIST BUG */
@@ -160,8 +168,25 @@ enum {
 	FORCE_RWSEM_W,			/* RWSEM WRITER */
 	FORCE_PRINTK_FAULT,		/* PRINTK FAULT */
 	FORCE_EXIN_UNFZ,		/* EXTRA INFO UN FREEZE TASK */
-	FORCE_WQLOCK_BUSY_WORKER,		/* WORKQUEUE LOCKUP BUSY WORKER */
-	FORCE_WQLOCK_BUSY_TASK,				/* WORKQUEUE LOCKUP BUSY TASK */
+	FORCE_WQLOCK_BUSY_WORKER,	/* WORKQUEUE LOCKUP BUSY WORKER */
+	FORCE_WQLOCK_BUSY_TASK,		/* WORKQUEUE LOCKUP BUSY TASK */
+	FORCE_STACK_CORRUPTION,		/* STACK CORRUPTION */
+	FORCE_POWER_OFF,		/* POWER OFF PRE-NOTIFIER */
+	FORCE_EMERGENCY_RESTART,	/* EMERGENCY RESTART */
+	FORCE_SHUTDOWN_LOCKUP,		/* SHUTDOWN LOCKUP */
+	FORCE_SUSPEND_LOCKUP,		/* SUSPEND LOCKUP */
+	FORCE_FLUSH_WQ,			/* FLUSH WQ */
+	FORCE_FLUSH_WORK,		/* FLUSH WORK */
+	FORCE_PAC_TEST,			/* PAC TEST */
+	FORCE_PTRAUTH_FAULT,		/* PTR AUTH FAULT */
+	FORCE_FREE_DEBUG_OBJECTS,	/* Free activate DEBUG OBJECTs */
+	FORCE_TIMER_REACTIVATE,		/* TIMER ACTIVATE->ACTIVATE */
+	FORCE_TIMER_ACTIVATE2INIT,	/* TIMER ACTIVATE->INIT */
+	FORCE_HRTIMER_REACTIVATE,	/* HRTIMER ACTIVATE->ACTIVATE */
+	FORCE_HRTIMER_ACTIVATE2INIT,	/* HRTIMER ACTIVATE->INIT */
+	FORCE_WORK_ACTIVATE2INIT,	/* WORK ACTIVATE->INIT */
+	FORCE_UBSAN_OOB,		/* UBSAN OUT-OF-BOUND */
+	FORCE_UBSAN_OOB_PTR,		/* UBSAN OUT-OF-BOUND PTR */
 	NR_FORCE_ERROR,
 };
 
@@ -219,7 +244,6 @@ struct force_error force_error_vector = {
 		{"irqstorm",	&simulate_IRQ_STORM},
 		{"syncirqlockup",	&simulate_SYNC_IRQ_LOCKUP},
 		{"disksleep",	&simulate_DISK_SLEEP},
-		{"CDW",		&simulate_CORRUPT_DELAYED_WORK},
 		{"mutexaa",	&simulate_MUTEX_AA},
 		{"mutexabba",	&simulate_MUTEX_ABBA},
 		{"listbug",	&simulate_LIST_BUG},
@@ -232,13 +256,33 @@ struct force_error force_error_vector = {
 		{"exinunfz",	&simulate_EXIN_UNFZ},
 		{"wqlockup-busyworker",	&simulate_WQLOCK_BUSY_WORKER},
 		{"wqlockup-busytask",	&simulate_WQLOCK_BUSY_TASK},
+		{"stackcorrupt",	&simulate_STACK_CORRUPTION},
+		{"poweroff",	&simulate_POWER_OFF},
+		{"erst",	&simulate_EMERGENT_REBOOT},
+		{"shutdownlockup",	&simulate_SHUTDOWN_LOCKUP},
+		{"suspendlockup",	&simulate_SUSPEND_LOCKUP},
+		{"flushwq",	&simulate_FLUSH_WQ},
+		{"flushwork",	&simulate_FLUSH_WORK},
+		{"pactest",	&simulate_PAC_TEST},
+		{"ptrauthfault",	&simulate_PTRAUTH_FAULT},
+		{"free-debugobjects",	&simulate_FREE_DEBUG_OBJECTS},
+		{"timer-reactivate",	&simulate_TIMER_REACTIVATE},
+		{"timer-activate2init",	&simulate_TIMER_ACTIVATE2INIT},
+		{"hrtimer-reactivate",	&simulate_HRTIMER_REACTIVATE},
+		{"hrtimer-activate2init", &simulate_HRTIMER_ACTIVATE2INIT},
+		{"work-activate2init",	&simulate_WORK_ACTIVATE2INIT},
+		{"ubsan-oob",	&simulate_UBSAN_OOB},
+		{"ubsan-oobptr",	&simulate_UBSAN_OOB_PTR},
 	}
 };
 
-struct debug_delayed_work_info {
+struct sec_debug_objects_info {
 	int start;
 	u32 work_magic;
-	struct delayed_work read_info_work;
+	struct delayed_work dwork;
+	struct timer_list timer;
+	struct hrtimer debug_hrtimer;
+	struct work_struct work;
 };
 
 static struct work_struct lockup_work;
@@ -268,7 +312,7 @@ static int str_to_num(char *s)
 }
 
 /* timeout for dog bark/bite */
-#define DELAY_TIME 30000
+#define DELAY_TIME 60000
 
 #define EXYNOS_PS_HOLD_CONTROL 0x030c
 
@@ -278,7 +322,7 @@ static void pull_down_other_cpus(void)
 	int cpu, ret;
 
 	for (cpu = num_possible_cpus() - 1; cpu > 0 ; cpu--) {
-		ret = cpu_down(cpu);
+		ret = remove_cpu(cpu);
 		if (ret)
 			pr_crit("%s: CORE%d ret: %x\n", __func__, cpu, ret);
 	}
@@ -296,7 +340,7 @@ static void simulate_DP(char **argv, int argc)
 
 	pr_crit("%s() start to hanging\n", __func__);
 	local_irq_disable();
-	dev_mdelay(DELAY_TIME);
+	mdelay(DELAY_TIME);
 	local_irq_enable();
 
 	/* should not reach here */
@@ -304,9 +348,8 @@ static void simulate_DP(char **argv, int argc)
 
 static void simulate_QDP(char **argv, int argc)
 {
-	s3c2410wdt_set_emergency_reset(10, 0);
-
-	dev_mdelay(DELAY_TIME);
+	dbg_snapshot_expire_watchdog();
+	mdelay(DELAY_TIME);
 
 	/* should not reach here */
 }
@@ -372,7 +415,10 @@ static void simulate_TP(char **argv, int argc)
 
 static void simulate_PANIC(char **argv, int argc)
 {
-	panic("simulate_panic");
+	if (argv[0] == NULL)
+		panic("simulate_panic");
+	else
+		panic("%s", argv[0]);
 }
 
 static void simulate_BUG(char **argv, int argc)
@@ -387,9 +433,7 @@ static void simulate_WARN(char **argv, int argc)
 
 static void simulate_DABRT(char **argv, int argc)
 {
-#if 0
-	*((int *)0) = 0; /* SVACE: intended */
-#endif
+	*((volatile int *)0) = 0; /* SVACE: intended */
 }
 
 static void simulate_PABRT(char **argv, int argc)
@@ -499,7 +543,7 @@ static void simulate_SOFTIRQ_LOCKUP(char **argv, int argc)
 static void softirq_storm_tasklet(unsigned long data)
 {
 	preempt_disable();
-	dev_mdelay(500);
+	mdelay(500);
 	pr_crit("%s\n", __func__);
 	preempt_enable();
 }
@@ -586,7 +630,7 @@ static int task_hard_latency(void *info)
 	while (!kthread_should_stop()) {
 		local_irq_disable();
 		pr_crit("%s [latency:%lu]\n", __func__, sec_latency);
-		dev_mdelay(sec_latency);
+		mdelay(sec_latency);
 		local_irq_enable();
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
@@ -606,9 +650,9 @@ static void create_and_wakeup_thread(int cpu)
 		if (IS_ERR(tsk)) {
 			pr_warn("Failed to create thread hl_test\n");
 			return;
-		} else {
-			per_cpu(sec_tsk, cpu) = tsk;
 		}
+
+		per_cpu(sec_tsk, cpu) = tsk;
 	}
 	set_cpus_allowed_ptr(tsk, cpumask_of(cpu));
 	wake_up_process(tsk);
@@ -624,7 +668,7 @@ static void simulate_TASK_HARD_LATENCY(char **argv, int argc)
 			kstrtoul(argv[1], 10, &sec_latency);
 	}
 
-	if (!argc || cpu < 0 || cpu >= NR_CPUS) {
+	if (!argc || cpu < 0 || cpu >= num_possible_cpus()) {
 		pr_crit("%s() generate task to all cores [latency:%lu]\n", __func__, sec_latency);
 		for_each_online_cpu(cpu) {
 			create_and_wakeup_thread(cpu);
@@ -638,7 +682,7 @@ static void simulate_TASK_HARD_LATENCY(char **argv, int argc)
 static void simulate_IRQ_HARD_LATENCY_handler(void *info)
 {
 	pr_crit("%s latency : %lu\n", __func__, sec_latency);
-	dev_mdelay(sec_latency);
+	mdelay(sec_latency);
 }
 
 static void simulate_IRQ_HARD_LATENCY(char **argv, int argc)
@@ -651,7 +695,7 @@ static void simulate_IRQ_HARD_LATENCY(char **argv, int argc)
 			kstrtoul(argv[1], 10, &sec_latency);
 	}
 
-	if (!argc || cpu < 0 || cpu >= NR_CPUS) {
+	if (!argc || cpu < 0 || cpu >= num_possible_cpus()) {
 		pr_crit("%s() generate irq to all cores[latency:%lu]\n", __func__, sec_latency);
 		for_each_online_cpu(cpu) {
 			smp_call_function_single(cpu,
@@ -664,7 +708,7 @@ static void simulate_IRQ_HARD_LATENCY(char **argv, int argc)
 	}
 }
 
-static struct pm_qos_request sec_min_pm_qos;
+static struct exynos_pm_qos_request sec_min_pm_qos;
 
 static void simulate_ALLSPIN_LOCKUP_handler(void *info)
 {
@@ -681,12 +725,12 @@ static void make_all_cpu_online(void)
 {
 	pr_crit("%s()\n", __func__);
 
-	pm_qos_add_request(&sec_min_pm_qos, PM_QOS_CPU_ONLINE_MIN,
+	exynos_pm_qos_add_request(&sec_min_pm_qos, PM_QOS_CPU_ONLINE_MIN,
 			   PM_QOS_CPU_ONLINE_MIN_DEFAULT_VALUE);
-	pm_qos_update_request(&sec_min_pm_qos,
-			      PM_QOS_CPU_ONLINE_MAX_DEFAULT_VALUE);
+	exynos_pm_qos_update_request(&sec_min_pm_qos,
+			      num_possible_cpus());
 	while (true) {
-		if (num_online_cpus() == PM_QOS_CPU_ONLINE_MAX_DEFAULT_VALUE)
+		if (num_online_cpus() == num_possible_cpus())
 			break;
 	}
 }
@@ -722,7 +766,8 @@ static void simulate_SPINLOCK_HARDLOCKUP(char **argv, int argc)
 
 static void simulate_SAFEFAULT(char **argv, int argc)
 {
-	spin_debug_skip_panic();
+	/* TODO : spinlock is in built-in */
+	/* spin_debug_skip_panic(); */
 
 	make_all_cpu_online();
 	preempt_disable();
@@ -805,11 +850,20 @@ static void simulate_UNALIGNED(char **argv, int argc)
 	static u8 data[5] __aligned(4) = {1, 2, 3, 4, 5};
 	u32 *p;
 	u32 val = 0x12345678;
+	u32 written;
 
 	p = (u32 *)(data + 1);
+	pr_info("%s: p->0x%px\n", __func__, p);
+
 	if (*p == 0)
 		val = 0x87654321;
 	*p = val;
+
+	written = *(u32 *)&data[0];
+	pr_info("%s: data[0]: 0x%08x\n", __func__, written);
+
+	if (written == (u32)((val << 8) | data[0]))
+		pr_info("This system may allow unaligned access\n");
 }
 
 static void simulate_WRITE_RO(char **argv, int argc)
@@ -818,7 +872,8 @@ static void simulate_WRITE_RO(char **argv, int argc)
 
 // Write to function addr will triger a warning by JOPP compiler
 #ifdef CONFIG_RKP_CFP_JOPP
-	ptr = (unsigned long *)__start_rodata;
+	/* TODO: __start_rodata is not EXPORTed */
+	/* ptr = (unsigned long *)__start_rodata; */
 #else
 	ptr = (unsigned long *)simulate_WRITE_RO;
 #endif
@@ -850,7 +905,7 @@ static void simulate_OVERFLOW(char **argv, int argc)
 
 static void simulate_BAD_SCHED_handler(void *info)
 {
-	if (idle_cpu(smp_processor_id())) {
+	if (is_idle_task(current)) {
 		*(int *)info = 1;
 		msleep(1000);
 	}
@@ -866,13 +921,12 @@ static void simulate_BAD_SCHED(char **argv, int argc)
 		tries++;
 		pr_crit("%dth try.\n", tries);
 		for_each_online_cpu(cpu) {
-			if (idle_cpu(cpu))
-				smp_call_function_single(cpu,
-					simulate_BAD_SCHED_handler, &ret, 1);
+			smp_call_function_single(cpu,
+				simulate_BAD_SCHED_handler, &ret, 1);
 			if (ret)
 				return;	/* success */
 		}
-		dev_mdelay(100);
+		mdelay(100);
 	}
 }
 
@@ -908,14 +962,14 @@ static void simulate_IRQ_STORM(char **argv, int argc)
 			struct irq_desc *desc = irq_to_desc(i);
 
 			if (desc && desc->action && desc->action->name)
-				if (!strcmp(desc->action->name, "gpio-keys: KEY_VOLUMEDOWN")) {
+				if (!strcmp(desc->action->name, "gpio-keys: KEY_VOLUMEUP")) {
 					irq_set_irq_type(i,
 						IRQF_TRIGGER_HIGH | IRQF_SHARED);
 					break;
 				}
 		}
 		if (i == nr_irqs)
-			pr_crit("%s : irq (gpio-keys: KEY_VOLUMEDOWN) not found\n", __func__);
+			pr_crit("%s : irq (gpio-keys: KEY_VOLUMEUP) not found\n", __func__);
 
 	}
 }
@@ -940,7 +994,7 @@ static void simulate_SYNC_IRQ_LOCKUP(char **argv, int argc)
 
 	if (argc) {
 		if (!kstrtol(argv[0], 10, &irq)) {
-			struct irq_desc *desc = irq_to_desc(i);
+			struct irq_desc *desc = irq_to_desc(irq);
 
 			if (desc && desc->action && desc->action->thread_fn)
 				desc->action->thread_fn = dummy_wait_for_completion_irq_handler;
@@ -968,33 +1022,6 @@ static void simulate_SYNC_IRQ_LOCKUP(char **argv, int argc)
 static void simulate_DISK_SLEEP(char **argv, int argc)
 {
 	dummy_wait_for_completion();
-}
-
-static void secdbg_delay_work(struct work_struct *work)
-{
-	struct debug_delayed_work_info *info = container_of(work, struct debug_delayed_work_info,
-							    read_info_work.work);
-
-	pr_crit("%s info->work_magic : %d\n", __func__, info->work_magic);
-}
-
-static void simulate_CORRUPT_DELAYED_WORK(char **argv, int argc)
-{
-	struct debug_delayed_work_info *info;
-
-	info = kzalloc(sizeof(struct debug_delayed_work_info), GFP_KERNEL);
-
-	pr_crit("%s(): address of info is 0x%p\n", __func__, info);
-
-	if (!info)
-		return;
-
-	info->start = true;
-	info->work_magic = 0xE055E055;
-
-	INIT_DELAYED_WORK(&info->read_info_work, secdbg_delay_work);
-	schedule_delayed_work(&info->read_info_work, msecs_to_jiffies(5000));
-	kfree(info);
 }
 
 DEFINE_MUTEX(sec_debug_test_mutex_0);
@@ -1243,6 +1270,7 @@ static void simulate_EXIN_UNFZ(char **argv, int argc)
 
 	secdbg_exin_set_unfz(tsk->comm, tsk->pid);
 	secdbg_exin_set_unfz(tsk->parent->comm, tsk->parent->pid);
+
 	pr_crit("exin unfz tasks: %s\n", secdbg_exin_get_unfz());
 }
 
@@ -1275,7 +1303,7 @@ static void simulate_WQLOCK_BUSY_WORKER(char **argv, int argc)
 		if (ret)
 			goto wakeup;
 
-		cpu = (cpu < 0 || cpu >= NR_CPUS) ? 0 : cpu;
+		cpu = (cpu < 0 || cpu >= num_possible_cpus()) ? 0 : cpu;
 	}
 
 wakeup:
@@ -1326,7 +1354,7 @@ static void simulate_WQLOCK_BUSY_TASK(char **argv, int argc)
 		if (ret)
 			goto wakeup;
 
-		cpu = (cpu < 0 || cpu >= NR_CPUS) ? 0 : cpu;
+		cpu = (cpu < 0 || cpu >= num_possible_cpus()) ? 0 : cpu;
 
 		if (++idx == argc)
 			goto wakeup;
@@ -1369,6 +1397,649 @@ wakeup:
 	}
 }
 
+/* base register for accessing canary in stack */
+#define SZ_STACK_FP	SZ_128
+#define SZ_STACK_SP	SZ_4
+
+static void secdbg_test_stack_corruption_type0(unsigned long cdata)
+{
+	volatile unsigned long data_array[SZ_STACK_FP];
+	volatile unsigned long *ptarget = (unsigned long *)data_array + SZ_STACK_FP;
+
+	pr_info("%s: cdata: %016lx\n", __func__, cdata);
+	if (IS_ENABLED(CONFIG_STACKPROTECTOR_PER_TASK))
+		pr_info("%s: current->stack_canary: %016lx\n", __func__, current->stack_canary);
+	else
+		pr_info("%s: __stack_chk_guard: %016lx\n", __func__, __stack_chk_guard);
+	pr_info("%s: original: [<0x%px>]: %016lx\n", __func__, ptarget, *ptarget);
+
+	*ptarget = cdata;
+
+	pr_info("%s: corrupted: [<0x%px>]: %016lx\n", __func__, ptarget, *ptarget);
+}
+
+static void secdbg_test_stack_corruption_type1(unsigned long cdata)
+{
+	volatile unsigned long data_array[SZ_STACK_SP];
+	volatile unsigned long *ptarget = (unsigned long *)data_array + SZ_STACK_SP;
+
+	pr_info("%s: cdata: %016lx\n", __func__, cdata);
+	if (IS_ENABLED(CONFIG_STACKPROTECTOR_PER_TASK))
+		pr_info("%s: current->stack_canary: %016lx\n", __func__, current->stack_canary);
+	else
+		pr_info("%s: __stack_chk_guard: %016lx\n", __func__, __stack_chk_guard);
+	pr_info("%s: original: [<0x%px>]: %016lx\n", __func__, ptarget, *ptarget);
+
+	*ptarget = cdata;
+
+	pr_info("%s: corrupted: [<0x%px>]: %016lx\n", __func__, ptarget, *ptarget);
+}
+
+/*
+ * 1st arg
+ *   0: use fp (default)
+ *   1: use sp
+ * 2nd arg is data pattern for corruption (default value can be used)
+ */
+static void simulate_STACK_CORRUPTION(char **argv, int argc)
+{
+	int ret;
+	unsigned int type = 0;
+	unsigned long cdata = 0xBEEFCAFE01234567;
+
+	if (argc > 0) {
+		ret = kstrtouint(argv[0], 0, &type);
+		if (ret)
+			pr_err("%s: Failed to get first argument\n", __func__);
+	}
+
+	if (argc > 1) {
+		ret = kstrtoul(argv[1], 0, &cdata);
+		if (ret)
+			pr_err("%s: Failed to get second argument\n", __func__);
+	}
+
+	if (type == 0) {
+		pr_info("%s: call x29 fn: %pS\n", __func__, secdbg_test_stack_corruption_type0);
+		secdbg_test_stack_corruption_type0(cdata);
+	} else {
+		pr_info("%s: call sp fn: %pS\n", __func__, secdbg_test_stack_corruption_type1);
+		secdbg_test_stack_corruption_type1(cdata);
+	}
+}
+
+/* for debugging power off */
+static int off_nc_registered;
+
+/* {INFORM}   {VALUE}
+ * 0x00000000 00000000
+ */
+static unsigned long off_debug_config_value;
+
+extern void exynos_mach_restart(const char *cmd);
+
+static int sec_debug_pre_power_off_func(struct notifier_block *nb,
+					  unsigned long l, void *buf)
+{
+	int inf_index, inf_value;
+	unsigned int inf_type[4] = {0, 0, EXYNOS_PMU_INFORM2, EXYNOS_PMU_INFORM3};
+
+	inf_index = (off_debug_config_value >> 32) & 0xF;
+	inf_value = (off_debug_config_value) & 0xFFFFFFFF;
+
+	if ((inf_index < 2) || (3 < inf_index)) {
+		pr_crit("%s: not allowed, inform, %lx\n", __func__,
+			off_debug_config_value);
+	} else {
+		pr_crit("%s: set inform%d as %x\n", __func__,
+			inf_index, inf_value);
+
+		exynos_pmu_write(inf_type[inf_index], inf_value);
+	}
+
+	pr_crit("%s: called, do soft reset\n", __func__);
+
+	exynos_mach_restart("sw reset");
+
+	return 0;
+}
+
+static struct notifier_block nb_pre_power_off_block = {
+	.notifier_call = sec_debug_pre_power_off_func,
+	.priority = INT_MAX,
+};
+
+static void simulate_POWER_OFF(char **argv, int argc)
+{
+	int enable = 0;
+
+	if (argc) {
+		enable = str_to_num(argv[0]);
+		if (argc == 2)
+			kstrtoul(argv[1], 16, &off_debug_config_value);
+	}
+
+	if (enable == 1) {
+		if (off_nc_registered == 0) {
+			pr_crit("%s: off nc is registered\n", __func__);
+			atomic_notifier_chain_register(&sec_power_off_notifier_list, &nb_pre_power_off_block);
+			off_nc_registered = 1;
+		} else {
+			pr_crit("%s: off nc is already registered\n", __func__);
+		}
+	} else {
+		if (off_nc_registered) {
+			pr_crit("%s: off nc is un-registered\n", __func__);
+			atomic_notifier_chain_unregister(&sec_power_off_notifier_list, &nb_pre_power_off_block);
+			off_nc_registered = 0;
+		} else {
+			pr_crit("%s: off nc is NOT registered\n", __func__);
+		}
+	}
+}
+/* for debugging power off */
+
+static void simulate_EMERGENT_REBOOT(char **argv, int argc)
+{
+	pr_crit("%s: restart\n", __func__);
+
+	emergency_restart();
+}
+
+static bool is_shutdown_test;
+static bool is_shutdown_busyloop;
+
+static void do_test_lockup_func(bool busyloop)
+{
+	if (busyloop)
+		cpu_park_loop();
+	else
+		dummy_wait_for_completion();
+}
+
+static void do_shutdown_test(void)
+{
+	if (!is_shutdown_test)
+		return;
+
+	pr_info("%s: lockup test\n", __func__);
+	do_test_lockup_func(is_shutdown_busyloop);
+}
+
+static void simulate_SHUTDOWN_LOCKUP(char **argv, int argc)
+{
+	int ret;
+	bool is_busyloop = false;
+	unsigned int type = 1;
+
+	if (argc > 0) {
+		ret = strncmp(argv[0], "busyloop", 6);
+		if (!ret)
+			is_busyloop = true;
+
+		ret = kstrtouint(argv[0], 0, &type);
+		if (ret)
+			pr_err("%s: Failed to get first argument\n", __func__);
+	}
+
+	if (!type) {
+		is_shutdown_test = false;
+		is_shutdown_busyloop = false;
+	} else if (is_busyloop) {
+		is_shutdown_busyloop = true;
+	} else {
+		is_shutdown_test = true;
+	}
+	pr_info("%s: test %sabled%s\n", __func__,
+			is_shutdown_test ? "en" : "dis",
+			is_shutdown_busyloop ? " (busyloop)" : "");
+}
+
+static bool is_suspend_test;
+static bool is_resume_test;
+static bool is_busyloop_method;
+
+static void do_suspend_test(void)
+{
+	if (!is_suspend_test)
+		return;
+
+	pr_info("%s: lockup test\n", __func__);
+	do_test_lockup_func(is_busyloop_method);
+}
+
+static void do_resume_test(void)
+{
+	if (!is_resume_test)
+		return;
+
+	pr_info("%s: lockup test\n", __func__);
+	do_test_lockup_func(is_busyloop_method);
+}
+
+static void simulate_SUSPEND_LOCKUP(char **argv, int argc)
+{
+	int ret;
+	bool is_resume = false;
+	bool is_busyloop = false;
+	unsigned int type = 1;
+
+	if (argc > 0) {
+		ret = strncmp(argv[0], "resume", 6);
+		if (!ret)
+			is_resume = true;
+
+		ret = strncmp(argv[0], "busyloop", 6);
+		if (!ret)
+			is_busyloop = true;
+
+		ret = kstrtouint(argv[0], 0, &type);
+		if (ret)
+			pr_err("%s: Failed to get first argument\n", __func__);
+	}
+
+	if (!type) {
+		is_suspend_test = false;
+		is_resume_test = false;
+		is_busyloop_method = false;
+	} else if (is_busyloop) {
+		is_busyloop_method = true;
+	} else if (is_resume) {
+		is_resume_test = true;
+	} else {
+		is_suspend_test = true;
+	}
+	pr_info("%s: suspend test %sabled%s\n", __func__,
+			is_suspend_test ? "en" : "dis",
+			is_busyloop_method ? " (busyloop)" : "");
+	pr_info("%s: resume test %sabled%s\n", __func__,
+			is_resume_test ? "en" : "dis",
+			is_busyloop_method ? " (busyloop)" : "");
+}
+
+static void sec_debug_wq_sleep_func(struct work_struct *work)
+{
+	pr_crit("%s\n", __func__);
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	schedule();
+	pr_crit("end %s\n", __func__);
+}
+
+static void sec_debug_wq_busy_func(struct work_struct *work)
+{
+	pr_crit("%s\n", __func__);
+	cpu_park_loop();
+	pr_crit("end %s\n", __func__);
+}
+
+static void simulate_FLUSH_WQ(char **argv, int argc)
+{
+	static DECLARE_WORK(secdbg_wq_sleep_work1, sec_debug_wq_sleep_func);
+	static DECLARE_WORK(secdbg_wq_sleep_work2, sec_debug_wq_sleep_func);
+	static DECLARE_WORK(secdbg_wq_sleep_work3, sec_debug_wq_sleep_func);
+
+	schedule_work(&secdbg_wq_sleep_work1);
+	schedule_work(&secdbg_wq_sleep_work2);
+	schedule_work(&secdbg_wq_sleep_work3);
+
+	flush_scheduled_work();
+}
+
+/*
+ * @count : busy work before the target work
+ *    ex) 0 : might make the target In-flight
+ *       10 : might make the target Pending
+ *       20 : might make the target Inactive
+ */
+static void simulate_FLUSH_WORK(char **argv, int argc)
+{
+	int i;
+	int count = 0;
+	int ret;
+	struct workqueue_struct *wq;
+
+	DECLARE_WORK(secdbg_wq_sleep_work1, sec_debug_wq_sleep_func);
+	DECLARE_WORK(secdbg_wq_sleep_work2, sec_debug_wq_sleep_func);
+	DECLARE_WORK(secdbg_wq_sleep_work3, sec_debug_wq_sleep_func);
+
+	if (argc > 0) {
+		ret = kstrtoint(argv[0], 0, &count);
+		if (ret)
+			pr_err("%s: Failed 1st arg: %s\n", __func__, argv[0]);
+	}
+
+	if (count < 0)
+		count = 0;
+	if (count > 100)
+		count = 100;
+
+	pr_info("%s: try to schedule %d works\n", __func__, count);
+
+	wq = alloc_workqueue("sec_test_wq", 0, 10);
+
+	for (i = 0; i < count; i++) {
+		struct work_struct *work;
+
+		work = kzalloc(sizeof(*work), GFP_KERNEL);
+		INIT_WORK(work, sec_debug_wq_busy_func);
+		queue_work(wq, work);
+	}
+
+	pr_info("%s: %d works are scheduled\n", __func__, i);
+
+	queue_work(wq, &secdbg_wq_sleep_work1);
+	queue_work(wq, &secdbg_wq_sleep_work2);
+	queue_work(wq, &secdbg_wq_sleep_work3);
+
+	msleep(100);
+
+	flush_work(&secdbg_wq_sleep_work1);
+	flush_work(&secdbg_wq_sleep_work2);
+	flush_work(&secdbg_wq_sleep_work3);
+}
+
+static void _read_reg_apiakey(u64 *keyh, u64 *keyl)
+{
+	*keyl = read_sysreg_s(SYS_APIAKEYLO_EL1);
+	*keyh = read_sysreg_s(SYS_APIAKEYHI_EL1);
+}
+
+static void _write_reg_apiakey(u64 keyh, u64 keyl)
+{
+	write_sysreg_s(keyl, SYS_APIAKEYLO_EL1);
+	write_sysreg_s(keyh, SYS_APIAKEYHI_EL1);
+	isb();
+}
+
+static u64 _do_pac(u64 ptr, u64 ctx)
+{
+	u64 ptr_pac = ptr;
+	u64 tmp;
+
+	asm volatile(
+	"	mov %1, sp	\n"
+	"	mov lr, %0	\n"
+	"	mov sp, %2	\n"
+	"	paciasp		\n"
+	"	mov sp, %1	\n"
+	"	mov %0, lr	\n"
+	: "+r" (ptr_pac), "=&r" (tmp)
+	: "r" (ctx)
+	: "x30");
+
+	return ptr_pac;
+}
+
+/*
+ * 1st arg is pointer (LR)
+ * 2nd arg is context (SP)
+ * 3rd arg is Key high 64bits
+ * 4th arg is Key low 64bits
+ */
+static void simulate_PAC_TEST(char **argv, int argc)
+{
+	int ret;
+	unsigned long flags;
+	u64 pointer, context, keyhigh, keylow;
+	u64 keyhigh_backup, keylow_backup;
+	u64 keyhigh_used, keylow_used;
+	u64 pac_result;
+
+	if (argc < 4) {
+		pr_err("%s: need all args\n", __func__);
+		return;
+	}
+
+	ret = kstrtou64(argv[0], 16, &pointer);
+	if (ret)
+		pr_err("%s: Failed 1st arg: %s\n", __func__, argv[0]);
+
+	ret = kstrtou64(argv[1], 16, &context);
+	if (ret)
+		pr_err("%s: Failed 2nd arg: %s\n", __func__, argv[1]);
+
+	ret = kstrtou64(argv[2], 16, &keyhigh);
+	if (ret)
+		pr_err("%s: Failed 3rd arg: %s\n", __func__, argv[2]);
+
+	ret = kstrtou64(argv[3], 16, &keylow);
+	if (ret)
+		pr_err("%s: Failed 4th arg: %s\n", __func__, argv[3]);
+
+	pr_info("%s: args 0x%016llx,0x%016llx,0x%016llx,0x%016llx\n",
+		__func__, pointer, context, keyhigh, keylow);
+
+	local_irq_save(flags);
+
+	_read_reg_apiakey(&keyhigh_backup, &keylow_backup);
+	_write_reg_apiakey(keyhigh, keylow);
+
+	pac_result = _do_pac(pointer, context);
+
+	_read_reg_apiakey(&keyhigh_used, &keylow_used);
+	_write_reg_apiakey(keyhigh_backup, keylow_backup);
+
+	pr_info("%s: 0x%016llx <- 0x%016llx + 0x%016llx + 0x%016llx:0x%016llx\n",
+		__func__, pac_result, pointer,
+		context, keyhigh_used, keylow_used);
+
+	local_irq_restore(flags);
+
+	pr_info("%s: 0x%016llx\n", __func__, pac_result);
+}
+
+static void simulate_PTRAUTH_FAULT(char **argv, int argc)
+{
+	unsigned long flags;
+	u64 keyhigh_used, keylow_used;
+	const u64 testkey_high = 0x1234567812345678;
+	const u64 testkey_low = 0x8765432187654321;
+
+	local_irq_save(flags);
+
+	_write_reg_apiakey(testkey_high, testkey_low);
+	_read_reg_apiakey(&keyhigh_used, &keylow_used);
+
+	local_irq_restore(flags);
+
+	pr_info("%s: tried   0x%016llx:0x%016llx\n", __func__, testkey_high, testkey_low);
+	pr_info("%s: written 0x%016llx:0x%016llx\n", __func__, keyhigh_used, keylow_used);
+}
+
+static void dummy_sec_debug_func(struct timer_list *t)
+{
+	pr_crit("%s()\n", __func__);
+}
+
+static void dummy_sec_debug_work_func(struct work_struct *work)
+{
+	struct sec_debug_objects_info *info = container_of(work, struct sec_debug_objects_info,
+								dwork.work);
+
+	pr_crit("%s info->work_magic : %d\n", __func__, info->work_magic);
+}
+
+static enum hrtimer_restart dummy_sec_debug_hrtimer_func(struct hrtimer *hrtimer)
+{
+	pr_crit("%s()\n", __func__);
+	return HRTIMER_NORESTART;
+}
+
+static void simulate_FREE_DEBUG_OBJECTS(char **argv, int argc)
+{
+	struct sec_debug_objects_info *info;
+
+	pr_crit("%s()\n", __func__);
+
+	info = kzalloc(sizeof(struct sec_debug_objects_info), GFP_KERNEL);
+	if (!info) {
+		pr_crit("%s alloc fail\n", __func__);
+		return;
+	}
+
+	info->start = true;
+	info->work_magic = 0xE055E055;
+	/* delayed work */
+	INIT_DELAYED_WORK(&info->dwork, dummy_sec_debug_work_func);
+	schedule_delayed_work(&info->dwork, msecs_to_jiffies(5000));
+	/* timer */
+	timer_setup(&info->timer, dummy_sec_debug_func, 0);
+	info->timer.expires = jiffies + msecs_to_jiffies(5000);
+	add_timer(&info->timer);
+	/* hrtimer */
+	hrtimer_init(&info->debug_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	info->debug_hrtimer.function = dummy_sec_debug_hrtimer_func;
+	hrtimer_start(&info->debug_hrtimer, ns_to_ktime(1000000),
+					HRTIMER_MODE_REL_PINNED);
+	/* work */
+	INIT_WORK(&info->work, dummy_sec_debug_work_func);
+	queue_work_on(0, system_wq, &info->work);
+
+	kfree(info);
+}
+
+static void corrupt_timer(int state)
+{
+	struct sec_debug_objects_info *info;
+
+	info = kzalloc(sizeof(struct sec_debug_objects_info), GFP_KERNEL);
+	if (!info) {
+		pr_crit("%s alloc fail\n", __func__);
+		return;
+	}
+
+	timer_setup(&info->timer, dummy_sec_debug_func, 0);
+	info->timer.expires = jiffies + msecs_to_jiffies(5000);
+	add_timer(&info->timer);
+
+	/* case 1 : activate -> activate */
+	if (state == 0) {
+		info->timer.expires = jiffies + msecs_to_jiffies(2000);
+		add_timer(&info->timer);
+	}
+	/* case 2 : activate -> init */
+	else {
+		timer_setup(&info->timer, dummy_sec_debug_func, 0);
+	}
+}
+
+static void simulate_TIMER_REACTIVATE(char **argv, int argc)
+{
+	pr_crit("%s()\n", __func__);
+	corrupt_timer(0);
+}
+
+static void simulate_TIMER_ACTIVATE2INIT(char **argv, int argc)
+{
+	pr_crit("%s()\n", __func__);
+	corrupt_timer(1);
+}
+
+static void corrupt_hrtimer(int state)
+{
+	struct sec_debug_objects_info *info;
+
+	info = kzalloc(sizeof(struct sec_debug_objects_info), GFP_KERNEL);
+	if (!info) {
+		pr_crit("%s alloc fail\n", __func__);
+		return;
+	}
+
+	hrtimer_init(&info->debug_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	info->debug_hrtimer.function = dummy_sec_debug_hrtimer_func;
+	hrtimer_start(&info->debug_hrtimer, ns_to_ktime(1000000),
+					HRTIMER_MODE_REL_PINNED);
+
+	/* case 1 : activate -> activate */
+	if (state == 0) {
+		info->debug_hrtimer.function = dummy_sec_debug_hrtimer_func;
+		hrtimer_start(&info->debug_hrtimer, ns_to_ktime(500000),
+			  HRTIMER_MODE_REL_PINNED);
+	}
+	/* case 2 : activate -> init */
+	else
+		hrtimer_init(&info->debug_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+}
+
+static void simulate_HRTIMER_REACTIVATE(char **argv, int argc)
+{
+	pr_crit("%s()\n", __func__);
+	corrupt_hrtimer(0);
+}
+
+static void simulate_HRTIMER_ACTIVATE2INIT(char **argv, int argc)
+{
+	pr_crit("%s()\n", __func__);
+	corrupt_hrtimer(1);
+}
+
+static void simulate_WORK_ACTIVATE2INIT(char **argv, int argc)
+{
+	struct sec_debug_objects_info *info;
+
+	pr_crit("%s()\n", __func__);
+
+	info = kzalloc(sizeof(struct sec_debug_objects_info), GFP_KERNEL);
+	if (!info) {
+		pr_crit("%s alloc fail\n", __func__);
+		return;
+	}
+
+	/* case : activate -> init */
+	INIT_WORK(&info->work, dummy_sec_debug_work_func);
+	queue_work_on(0, system_wq, &info->work);
+	INIT_WORK(&info->work, dummy_sec_debug_work_func);
+}
+
+#define TEST_OOB_ARRAY_SIZE	6
+
+/*
+ * Leave it as an extern to avoid optimization.
+ * If CONFIG_UBSAN_BOUNDS is enabled, we expect the compiler
+ * inserts "brk #0x5512" into this function.
+ */
+void do_test_out_of_bound_index(int index)
+{
+	volatile int tmp_array[TEST_OOB_ARRAY_SIZE];
+
+	tmp_array[index] = 0;
+}
+
+static void simulate_UBSAN_OOB(char **argv, int argc)
+{
+	pr_crit("%s()\n", __func__);
+
+	do_test_out_of_bound_index(TEST_OOB_ARRAY_SIZE + 1);
+}
+
+struct oob_struct {
+	int a;
+	int b;
+	char c;
+};
+
+/*
+ * Leave it as an extern to avoid optimization.
+ * If CONFIG_UBSAN_LCOAL_BOUNDS is enabled, we expect the compiler
+ * inserts "brk #0x1" into this function.
+ */
+void do_test_out_of_bound_pointer(int size)
+{
+	struct oob_struct tmp_array[TEST_OOB_ARRAY_SIZE];
+	struct oob_struct *ptr = tmp_array;
+	int i;
+
+	for (i = 0; i < size; i++, ptr++)
+		pr_info("%d\n", ptr->c);
+}
+
+static void simulate_UBSAN_OOB_PTR(char **argv, int argc)
+{
+	pr_crit("%s()\n", __func__);
+
+	do_test_out_of_bound_pointer(TEST_OOB_ARRAY_SIZE + 1);
+}
+
 static int sec_debug_get_force_error(char *buffer, const struct kernel_param *kp)
 {
 	int i;
@@ -1392,7 +2063,7 @@ static int sec_debug_set_force_error(const char *val, const struct kernel_param 
 	for (i = 0; i < NR_FORCE_ERROR; i++) {
 		if (!strcmp(argv[0], force_error_vector.item[i].errname)) {
 			pr_crit("%s() arg : %s\n", __func__, val);
-			pr_crit("%pf start\n", force_error_vector.item[i].errfunc);
+			pr_crit("%ps start\n", force_error_vector.item[i].errfunc);
 			force_error_vector.item[i].errfunc(&argv[1], argc - 1);
 			break;
 		}
@@ -1404,8 +2075,82 @@ static int sec_debug_set_force_error(const char *val, const struct kernel_param 
 }
 
 static const struct kernel_param_ops sec_debug_force_error_ops = {
-		.set	= sec_debug_set_force_error,
-		.get	= sec_debug_get_force_error,
+	.set	= sec_debug_set_force_error,
+	.get	= sec_debug_get_force_error,
 };
 
 module_param_cb(force_error, &sec_debug_force_error_ops, NULL, 0600);
+
+static int secdbg_test_probe(struct platform_device *pdev)
+{
+	pr_info("%s\n", __func__);
+
+	return 0;
+}
+
+static int __maybe_unused secdbg_test_suspend(struct device *dev)
+{
+	if (!is_suspend_test)
+		return 0;
+
+	dev_err(dev, "%s\n", __func__);
+	do_suspend_test();
+	dev_err(dev, "%s done\n", __func__);
+
+	return 0;
+}
+
+static int __maybe_unused secdbg_test_resume(struct device *dev)
+{
+	if (!is_resume_test)
+		return 0;
+
+	dev_err(dev, "%s\n", __func__);
+	do_resume_test();
+	dev_err(dev, "%s done\n", __func__);
+
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(secdbg_test_pm_ops, secdbg_test_suspend, secdbg_test_resume);
+
+static void secdbg_test_shutdown(struct platform_device *pdev)
+{
+	if (!is_shutdown_test)
+		return;
+
+	dev_err(&pdev->dev, "%s\n", __func__);
+	do_shutdown_test();
+	dev_err(&pdev->dev, "%s done\n", __func__);
+}
+
+static const struct of_device_id secdbg_test_of_match[] = {
+	{ .compatible	= "samsung,sec_debug_test" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, secdbg_test_of_match);
+
+static struct platform_driver secdbg_test_driver = {
+	.probe = secdbg_test_probe,
+	.shutdown = secdbg_test_shutdown,
+	.driver  = {
+		.name  = "sec_debug_test",
+		.pm	= &secdbg_test_pm_ops,
+		.of_match_table = of_match_ptr(secdbg_test_of_match),
+	},
+};
+
+static int __init_or_module secdbg_test_init(void)
+{
+	return platform_driver_register(&secdbg_test_driver);
+}
+module_init(secdbg_test_init);
+
+static void __exit secdbg_test_exit(void)
+{
+	platform_driver_unregister(&secdbg_test_driver);
+}
+module_exit(secdbg_test_exit);
+
+MODULE_DESCRIPTION("Samsung Debug Test driver");
+MODULE_LICENSE("GPL v2");

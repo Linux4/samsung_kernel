@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2010 Samsung Electronics.
  *
@@ -69,7 +70,7 @@ static inline u32 circ_new_pointer(u32 qsize, u32 p, u32 len)
  */
 static inline void circ_read(void *dst, void *src, u32 qsize, u32 out, u32 len)
 {
-	unsigned len1;
+	unsigned int len1;
 
 	if ((out + len) <= qsize) {
 		/* ----- (out)         (in) ----- */
@@ -149,20 +150,12 @@ static const inline char *circ_ptr(enum circ_ptr_type ptr)
 		return "tail";
 }
 
-void gnss_memcpy16_from_io(const void *to, const void __iomem *from, u32 count);
-void gnss_memcpy16_to_io(const void __iomem *to, const void *from, u32 count);
-int gnss_memcmp16_to_io(const void __iomem *to, const void *from, u32 count);
-void gnss_circ_read16_from_io(void *dst, void *src, u32 qsize, u32 out, u32 len);
-void gnss_circ_write16_to_io(void *dst, void *src, u32 qsize, u32 in, u32 len);
-int gnss_copy_circ_to_user(void __user *dst, void *src, u32 qsize, u32 out, u32 len);
-int gnss_copy_user_to_circ(void *dst, void __user *src, u32 qsize, u32 in, u32 len);
-
 #define MAX_MEM_LOG_CNT	8192
 #define MAX_TRACE_SIZE	1024
 
 struct mem_status {
 	/* Timestamp */
-	struct timespec ts;
+	struct timespec64 ts;
 
 	/* Direction (TX or RX) */
 	enum direction dir;
@@ -191,7 +184,7 @@ struct circ_status {
 };
 
 struct trace_data {
-	struct timespec ts;
+	struct timespec64 ts;
 	struct circ_status circ_stat;
 	u8 *data;
 	u32 size;
@@ -207,9 +200,5 @@ struct trace_data_queue {
 void gnss_msq_reset(struct mem_status_queue *msq);
 struct mem_status *gnss_msq_get_free_slot(struct mem_status_queue *msq);
 struct mem_status *gnss_msq_get_data_slot(struct mem_status_queue *msq);
-
-u8 *gnss_capture_mem_dump(struct link_device *ld, u8 *base, u32 size);
-struct trace_data *gnss_trq_get_free_slot(struct trace_data_queue *trq);
-struct trace_data *gnss_trq_get_data_slot(struct trace_data_queue *trq);
 
 #endif

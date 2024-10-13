@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2011 Samsung Electronics.
  *
@@ -36,12 +37,12 @@
 #include <linux/irq.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
-#include <linux/wakelock.h>
 
 #include "gnss_prj.h"
 #include "gnss_utils.h"
 #include "gnssif_version.h"
 
+#if defined(DEBUG_GNSS_IPC_PKT)
 static const char *hex = "0123456789abcdef";
 
 /* dump2hex
@@ -93,11 +94,6 @@ void gnss_log_ipc_pkt(struct sk_buff *skb, enum direction dir)
 	u8 *hdr;
 	u8 ch;
 
-	/*
-	if (!log_info.debug_log)
-		return;
-	*/
-
 	iod = skbpriv(skb)->iod;
 	ld = skbpriv(skb)->ld;
 	ch = skbpriv(skb)->exynos_ch;
@@ -118,14 +114,13 @@ void gnss_log_ipc_pkt(struct sk_buff *skb, enum direction dir)
 		strncat(prefix, separation, strlen(separation));
 	}
 
-	/**
-	* Print an IPC message with the prefix
-	*/
+	/* Print an IPC message with the prefix */
 	msg = skb->data + hdr_len;
 	msg_len = (skb->len - hdr_len);
 
 	pr_ipc_msg(log_info.fmt_msg, ch, prefix, msg, msg_len);
 }
+#endif
 
 const char *get_gnssif_driver_version(void)
 {
@@ -133,14 +128,13 @@ const char *get_gnssif_driver_version(void)
 }
 
 void gif_init_irq(struct gnss_irq *irq, unsigned int num, const char *name,
-                  unsigned long flags)
+	unsigned long flags)
 {
-        spin_lock_init(&irq->lock);
-        irq->num = num;
-        strncpy(irq->name, name, sizeof(irq->name) - 1);
-        irq->flags = flags;
-        gif_info("name:%s num:%d flags:0x%08lX\n", name, num, flags);
-
+	spin_lock_init(&irq->lock);
+	irq->num = num;
+	strncpy(irq->name, name, sizeof(irq->name) - 1);
+	irq->flags = flags;
+	gif_info("name:%s num:%d flags:0x%08lX\n", name, num, flags);
 }
 
 int gif_request_irq(struct gnss_irq *irq, irq_handler_t isr, void *data)
@@ -170,7 +164,7 @@ void gif_enable_irq(struct gnss_irq *irq)
 	spin_lock_irqsave(&irq->lock, flags);
 
 	if (irq->active) {
-		gif_err("%s(#%d) is already active <%pf>\n",
+		gif_err("%s(#%d) is already active <%ps>\n",
 			irq->name, irq->num, CALLER);
 		goto exit;
 	}
@@ -180,13 +174,12 @@ void gif_enable_irq(struct gnss_irq *irq)
 
 	irq->active = true;
 
-	gif_info("%s(#%d) is enabled <%pf>\n",
+	gif_info("%s(#%d) is enabled <%ps>\n",
 		irq->name, irq->num, CALLER);
 
 exit:
 	spin_unlock_irqrestore(&irq->lock, flags);
 }
-
 
 void gif_disable_irq_nosync(struct gnss_irq *irq)
 {
@@ -198,7 +191,7 @@ void gif_disable_irq_nosync(struct gnss_irq *irq)
 	spin_lock_irqsave(&irq->lock, flags);
 
 	if (!irq->active) {
-		gif_err("%s(#%d) is not active <%pf>\n",
+		gif_err("%s(#%d) is not active <%ps>\n",
 			irq->name, irq->num, CALLER);
 		goto exit;
 	}
@@ -208,7 +201,7 @@ void gif_disable_irq_nosync(struct gnss_irq *irq)
 
 	irq->active = false;
 
-	gif_info("%s(#%d) is disabled <%pf>\n",
+	gif_info("%s(#%d) is disabled <%ps>\n",
 			irq->name, irq->num, CALLER);
 
 exit:
@@ -224,7 +217,7 @@ void gif_disable_irq_sync(struct gnss_irq *irq)
 
 	if (!irq->active) {
 		spin_unlock(&irq->lock);
-		gif_err("%s(#%d) is not active <%pf>\n",
+		gif_err("%s(#%d) is not active <%ps>\n",
 				irq->name, irq->num, CALLER);
 		return;
 	}
@@ -238,16 +231,13 @@ void gif_disable_irq_sync(struct gnss_irq *irq)
 	irq->active = false;
 	spin_unlock(&irq->lock);
 
-	gif_info("%s(#%d) is disabled <%pf>\n",
+	gif_info("%s(#%d) is disabled <%ps>\n",
 			irq->name, irq->num, CALLER);
 }
 
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
 int gif_gpio_get_value(unsigned int gpio, bool log_print)
 {
 	int value;
-	char *name = NULL;
-	struct gpio_desc *desc = NULL;
 
 	if (!gpio_is_valid(gpio)) {
 		gif_err("GET GPIO %d is failed\n", gpio);
@@ -256,14 +246,8 @@ int gif_gpio_get_value(unsigned int gpio, bool log_print)
 
 	value = gpio_get_value(gpio);
 
-	if (log_print) {
-		desc = gpio_to_desc(gpio);
-		if (desc != NULL && gpiod_get_consumer_name(desc, &name) == 0)
-			gif_info("GET GPIO %s = %d\n", name, value);
-		else
-			gif_info("GET GPIO %d = %d\n", gpio, value);
-	}
+	if (log_print)
+		gif_info("GET GPIO %d = %d\n", gpio, value);
 
 	return value;
 }
-#endif

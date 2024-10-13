@@ -18,6 +18,14 @@
 #include "decon.h"
 #include "displayport.h"
 
+void *request_displayport_subdev(void)
+{
+#if defined(CONFIG_EXYNOS_DISPLAYPORT)
+	struct displayport_device *dp = get_displayport_drvdata();
+	return ((dp && dp->subdev_initialized) ? (void *)(&dp->sd) : NULL);
+#endif
+}
+
 void decon_displayport_set_cur_sst_id(u32 decon_id)
 {
 	struct displayport_device *displayport = get_displayport_drvdata();

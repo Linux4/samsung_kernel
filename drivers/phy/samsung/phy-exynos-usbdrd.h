@@ -1,9 +1,16 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *        http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #ifndef __PHY_EXYNOS_USBDRD_H__
@@ -12,7 +19,7 @@
 #include "phy-samsung-usb-cal.h"
 #include "phy-exynos-usb3p1.h"
 #include "phy-exynos-usbdp-gen2.h"
-#include "phy-exynos-usbdp-gen2-v3.h"
+#include "phy-exynos-usbdp-gen2-v4.h"
 
 #define EXYNOS_USBPHY_VER_02_0_0	0x0200	/* Lhotse - USBDP Combo PHY */
 
@@ -28,7 +35,7 @@
 #define EXYNOS_FSEL_9MHZ6		0x0
 #define EXYNOS_FSEL_10MHZ		0x1
 #define EXYNOS_FSEL_12MHZ		0x2
-#define EXYNOS_FSEL_19MHZ2		0x3
+#define EXYNOS_FSEL_19MHZ2		0x1
 #define EXYNOS_FSEL_20MHZ		0x4
 #define EXYNOS_FSEL_24MHZ		0x5
 #define EXYNOS_FSEL_26MHZ		0x82
@@ -103,7 +110,6 @@
 #define MHZ	(KHZ * KHZ)
 
 #define EXYNOS_DRD_MAX_TUNEPARAM_NUM		32
-#define EXYNOS_DRD_TUNEPARAM_LEN		30
 
 enum exynos_usbdrd_phy_id {
 	EXYNOS_DRDPHY_UTMI,
@@ -151,6 +157,10 @@ struct exynos_usbdrd_phy {
 	void __iomem *reg_phy2;
 	void __iomem *reg_phy3;
 	void __iomem *reg_link;
+	void __iomem *reg_eusb_ctrl;
+	void __iomem *reg_eusb_phy;
+	void __iomem *reg_dpphy_ctrl;
+	void __iomem *reg_dpphy_tca;
 	struct clk **clocks;
 	struct clk **phy_clocks;
 	const struct exynos_usbdrd_phy_drvdata *drv_data;
@@ -169,11 +179,13 @@ struct exynos_usbdrd_phy {
 	bool use_phy_umux;
 	struct clk *ref_clk;
 	struct regulator *vbus;
-	struct regulator	*vdd085_usb;
+	struct regulator	*vdd075_usb;
+	struct regulator	*vdd12_usb;
 	struct regulator	*vdd18_usb;
 	struct regulator	*vdd33_usb;
 	struct exynos_usbphy_info usbphy_info;
 	struct exynos_usbphy_info usbphy_sub_info;
+	struct exynos_usbphy_info usbphy_blkcon_info;
 	struct exynos_usbphy_ss_tune ss_value[2];
 	struct exynos_usbphy_hs_tune hs_value[2];
 	int hs_tune_param_value[EXYNOS_DRD_MAX_TUNEPARAM_NUM][2];
@@ -193,12 +205,48 @@ struct exynos_usbdrd_phy {
 	int irq_conn;
 	int is_conn;
 	int is_irq_enabled;
+	int idle_ip_idx;
 	u32 phy_port;
 	u32 reverse_phy_port;
 	spinlock_t lock;
 	u32 use_default_tune_val;
+	int in_shutdown;
+	int is_ldo_on;
+	int phy_port_test_en;
+#if defined(CONFIG_OTG_CDP_SUPPORT)
+	int cdp_check;
+#endif
 };
 
 void __iomem *phy_exynos_usbdp_get_address(void);
+
+enum samsung_cpu_type {
+	TYPE_S3C64XX,
+	TYPE_EXYNOS4210,
+	TYPE_EXYNOS5250,
+	TYPE_EXYNOS5430,
+	TYPE_EXYNOS7420,
+	TYPE_EXYNOS7580,
+	TYPE_EXYNOS8890,
+	TYPE_EXYNOS8895,
+};
+
+enum samsung_usb_ip_type {
+	TYPE_USB3DRD = 0,
+	TYPE_USB3HOST,
+	TYPE_USB2DRD,
+	TYPE_USB2HOST,
+};
+
+enum samsung_phy_set_option {
+	SET_DPPULLUP_ENABLE,
+	SET_DPPULLUP_DISABLE,
+	SET_DPDM_PULLDOWN,
+};
+
+#if IS_ENABLED(CONFIG_PHY_EXYNOS_EUSB_REPEATER)
+extern int tusb2e11_power_on(void);
+extern int tusb2e11_power_off(void);
+#endif
 
 #endif	/* __PHY_EXYNOS_USBDRD_H__ */

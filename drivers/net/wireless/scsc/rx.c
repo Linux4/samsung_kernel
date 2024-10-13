@@ -121,9 +121,15 @@ struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, s
 	s32                      signal = fapi_get_s16(skb, u.mlme_scan_ind.rssi) * 100;
 	u16                      freq = SLSI_FREQ_FW_TO_HOST(fapi_get_u16(skb, u.mlme_scan_ind.channel_frequency));
 	struct ieee80211_channel *channel = slsi_find_scan_channel(sdev, mgmt, mgmt_len, freq);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	struct timespec64 uptime;
+#else
 	struct timespec uptime;
+#endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	uptime = ktime_to_timespec64(ktime_get_boottime());
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	uptime = ktime_to_timespec(ktime_get_boottime());
 #else
 	get_monotonic_boottime(&uptime);
@@ -888,12 +894,18 @@ void slsi_handle_wips_beacon(struct slsi_dev *sdev, struct net_device *dev, stru
 	u16 beacon_int = 0;
 	u64 timestamp = 0;
 	int ssid_len = 0;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	struct timespec64 sys_time;
+#else
 	struct timespec sys_time;
+#endif
 	int ret = 0;
 
 	u8 channel = (u8)(ndev_vif->chan->hw_value);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	sys_time = ktime_to_timespec64(ktime_get_boottime());
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	sys_time = ktime_to_timespec(ktime_get_boottime());
 #else
 	get_monotonic_boottime(&sys_time);
@@ -1717,7 +1729,7 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	int width;
 	int primary_chan_pos;
 	u16 temp_chan_info;
-	struct cfg80211_chan_def chandef;
+	struct cfg80211_chan_def chandef = {};
 	u16 cf1 = 0;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 
@@ -1754,6 +1766,11 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 		width =  NL80211_CHAN_WIDTH_160;
 
 	chandef.chan = ieee80211_get_channel(sdev->wiphy, freq);
+	if (!chandef.chan) {
+		SLSI_NET_WARN(dev, "invalid freq received (cf1=%d, temp_chan_info=%d, freq=%d)\n",
+			      (int)cf1, (int)temp_chan_info, (int)freq);
+		goto exit;
+	}
 	chandef.width = width;
 	chandef.center_freq1 = cf1;
 	chandef.center_freq2 = 0;
@@ -1761,7 +1778,11 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	ndev_vif->ap.channel_freq = freq; /* updated for GETSTAINFO */
 	ndev_vif->chan = chandef.chan;
 	ndev_vif->chandef_saved = chandef;
+	SLSI_NET_INFO(dev, "width:%d, center_freq1:%dMHz, primary:%dMHz\n",
+		      (int)chandef.width, (int)chandef.center_freq1, freq);
 	cfg80211_ch_switch_notify(dev, &chandef);
+
+exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	kfree_skb(skb);
 }
@@ -2955,7 +2976,10 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 		}
 		if (fw_result_code <= FAPI_RESULTCODE_ASSOC_FAILED_CODE)
 			slsi_connect_result_code(ndev_vif, fw_result_code, &status, &timeout_reason);
-
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
+		/* Trigger log collection if fw result code is not success */
+		scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_CONNECT_ERR);
+#endif
 #if (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
 #ifdef CONFIG_SCSC_WLAN_SAE_CONFIG
 		if (ndev_vif->sta.crypto.wpa_versions == 3) {
@@ -3210,8 +3234,12 @@ void slsi_rx_disconnect_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 		      fapi_get_vif(skb),
 		      fapi_get_buff(skb, u.mlme_disconnect_ind.peer_sta_address));
 
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
+	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_DISCONNECT_IND);
+#else
 #ifndef SLSI_TEST_DEV
 	mx140_log_dump();
+#endif
 #endif
 
 	SLSI_INFO(sdev, "Received DEAUTH, reason = 0\n");
@@ -3246,10 +3274,13 @@ void slsi_rx_disconnected_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		      fapi_get_u16(skb, u.mlme_disconnected_ind.reason_code),
 		      fapi_get_buff(skb, u.mlme_disconnected_ind.peer_sta_address));
 
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
+	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_DISCONNECTED_IND);
+#else
 #ifndef SLSI_TEST_DEV
 	mx140_log_dump();
 #endif
-
+#endif
 	if (reason <= 0xFF) {
 		SLSI_INFO(sdev, "Received DEAUTH, reason = %d\n", reason);
 	} else if (reason >= 0x8100 && reason <= 0x81FF) {
@@ -3262,7 +3293,7 @@ void slsi_rx_disconnected_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		SLSI_INFO(sdev, "Received DEAUTH, reason = Local Disconnect <%d>\n", reason);
 	}
 
-	if (fapi_get_datalen(skb)) {
+	if (fapi_get_datalen(skb) >= offsetof(struct ieee80211_mgmt, u.deauth.reason_code) + 2) {
 		struct ieee80211_mgmt *mgmt = fapi_get_mgmt(skb);
 
 		if (ieee80211_is_deauth(mgmt->frame_control)) {
@@ -3919,8 +3950,10 @@ void slsi_rx_received_frame_ind(struct slsi_dev *sdev, struct net_device *dev, s
 		struct ethhdr *ehdr = (struct ethhdr *)fapi_get_data(skb);
 
 		/* Populate wake reason stats here */
-		if (unlikely(slsi_skb_cb_get(skb)->wakeup))
+		if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
+			skb->mark = SLSI_WAKEUP_PKT_MARK;
 			slsi_rx_update_wake_stats(sdev, ehdr, skb->len - fapi_get_siglen(skb));
+		}
 
 		peer = slsi_get_peer_from_mac(sdev, dev, ehdr->h_source);
 		if (!peer) {
@@ -4130,7 +4163,7 @@ int slsi_rx_blocking_signals(struct slsi_dev *sdev, struct sk_buff *skb)
 		 * over MLME. For these frames driver does not block on confirms.
 		 * So there can be unexpected confirms here for such data frames.
 		 * These confirms are treated as normal.
-		 * Incase of ARP, for ARP flow control this needs to be sent to mlme.
+		 * Incase of ARP, for ARP flow control this needs to be sent to mlme
 		 */
 		if (id != MLME_SEND_FRAME_CFM)
 			SLSI_DBG1(sdev, SLSI_MLME, "Unexpected cfm(0x%.4x, pid:0x%.4x, vif:%d)\n", id, pid, vif);

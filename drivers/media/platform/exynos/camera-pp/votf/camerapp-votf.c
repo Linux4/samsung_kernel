@@ -10,9 +10,30 @@
  */
 
 #include <linux/delay.h>
+#ifdef CONFIG_EXYNOS_IOVMM
+#include <linux/exynos_iovmm.h>
+#endif
 #include "camerapp-votf.h"
+#include "camerapp-votf-reg.h"
 
 static struct votf_dev *votfdev;
+
+static inline int search_ip_idx(struct votf_info *vinfo)
+{
+	int svc, ip, id;
+
+	svc = vinfo->service;
+	id = vinfo->id;
+
+	for (ip = 0; ip < IP_MAX; ip++) {
+		if (vinfo->ip == votfdev->votf_table[svc][ip][id].ip)
+			return ip;
+	}
+
+	pr_err("%s: do not find ip index(0x%x)\n", __func__, vinfo->ip);
+
+	return IP_MAX;
+}
 
 static bool check_vinfo(struct votf_info *vinfo)
 {
@@ -20,7 +41,8 @@ static bool check_vinfo(struct votf_info *vinfo)
 		pr_err("%s: votf info is null\n", __func__);
 		return false;
 	}
-	if (vinfo->service >= SERVICE_CNT || vinfo->ip >= IP_MAX || vinfo->id >= ID_MAX) {
+	if (vinfo->service >= SERVICE_CNT || vinfo->id >= ID_MAX ||
+			search_ip_idx(vinfo) >= IP_MAX) {
 		pr_err("%s: invalid votf input(svc:%d, ip:%d, id:%d)\n", __func__,
 			vinfo->service, vinfo->ip, vinfo->id);
 		return false;
@@ -42,7 +64,7 @@ u32 get_offset(struct votf_info *vinfo, int c2s_tws, int c2s_trs, int c2a_tws, i
 		return VOTF_INVALID;
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	module = votfdev->votf_table[service][ip][id].module;
@@ -130,36 +152,13 @@ void votf_sfr_dump(void)
 
 				module = votfdev->votf_table[svc][ip][id].module;
 				module_type = votfdev->votf_table[svc][ip][id].module_type;
-				if (module == C2SERV) {
-					switch (module_type) {
-					case M0S4:
-						is_hw_dump_regs(votfdev->votf_addr[ip], c2serv_m0s4_regs,
-							C2SERV_M0S4_REG_CNT);
-						break;
-					case M2S2:
-						is_hw_dump_regs(votfdev->votf_addr[ip], c2serv_m2s2_regs,
-							C2SERV_M2S2_REG_CNT);
-						break;
-					case M3S1:
-						is_hw_dump_regs(votfdev->votf_addr[ip], c2serv_m3s1_regs,
-							C2SERV_M3S1_REG_CNT);
-						break;
-					case M16S16:
-						is_hw_dump_regs(votfdev->votf_addr[ip], c2serv_m16s16_regs,
-							C2SERV_M16S16_REG_CNT);
-						break;
-					default:
-						pr_info("%s: not supported module type\n", __func__);
-						break;
-					}
-				} else
-					is_hw_dump_regs(votfdev->votf_addr[ip], c2agent_m6s4_regs,
-						C2AGENT_M4S6_REG_CNT);
-				break;
+
+				camerapp_hw_votf_sfr_dump(votfdev->votf_addr[ip], module, module_type);
 			}
 		}
 	}
 }
+EXPORT_SYMBOL_GPL(votf_sfr_dump);
 
 int votfitf_create_ring(void)
 {
@@ -167,6 +166,7 @@ int votfitf_create_ring(void)
 	bool check_ring = false;
 	int svc, ip, id;
 	int module;
+	u32 local_ip;
 
 	if (!votfdev) {
 		pr_err("%s: votf devices is null\n", __func__);
@@ -183,6 +183,7 @@ int votfitf_create_ring(void)
 			for (id = 0; id < ID_MAX && !check_ring; id++) {
 				if (!votfdev->votf_table[svc][ip][id].use)
 					continue;
+
 				module = votfdev->votf_table[svc][ip][id].module;
 				if (camerapp_check_votf_ring(votfdev->votf_addr[ip], module))
 					check_ring = true;
@@ -208,7 +209,8 @@ int votfitf_create_ring(void)
 				if (!votfdev->votf_table[svc][ip][id].use)
 					continue;
 				module = votfdev->votf_table[svc][ip][id].module;
-				camerapp_hw_votf_create_ring(votfdev->votf_addr[ip], ip, module);
+				local_ip = votfdev->votf_table[svc][ip][id].ip;
+				camerapp_hw_votf_create_ring(votfdev->votf_addr[ip], local_ip, module);
 				do_create = true;
 
 				/* support only setA register and immediately set mode */
@@ -225,12 +227,14 @@ int votfitf_create_ring(void)
 	mutex_unlock(&votfdev->votf_lock);
 	return 1;
 }
+EXPORT_SYMBOL_GPL(votfitf_create_ring);
 
 int votfitf_destroy_ring(void)
 {
 	bool do_destroy = false;
 	int svc, ip, id;
 	int module;
+	u32 local_ip;
 
 	if (!votfdev) {
 		pr_err("%s: votf devices is null\n", __func__);
@@ -258,7 +262,8 @@ int votfitf_destroy_ring(void)
 				if (!votfdev->votf_table[svc][ip][id].use)
 					continue;
 				module = votfdev->votf_table[svc][ip][id].module;
-				camerapp_hw_votf_destroy_ring(votfdev->votf_addr[ip], ip, module);
+				local_ip = votfdev->votf_table[svc][ip][id].ip;
+				camerapp_hw_votf_destroy_ring(votfdev->votf_addr[ip], local_ip, module);
 				do_destroy = true;
 				break;
 			}
@@ -275,6 +280,7 @@ int votfitf_destroy_ring(void)
 	mutex_unlock(&votfdev->votf_lock);
 	return 1;
 }
+EXPORT_SYMBOL_GPL(votfitf_destroy_ring);
 
 int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cfg)
 {
@@ -296,7 +302,7 @@ int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cf
 		return 0;
 	}
 
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 	service = vinfo->service;
 
@@ -309,11 +315,6 @@ int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cf
 	change = cfg->option & VOTF_OPTION_MSK_CHANGE;
 
 	mutex_lock(&votfdev->votf_lock);
-	if (!votfdev->votf_table[service][ip][id].use) {
-		pr_err("%s: uninitialized table(%d, %d, %d)\n",	__func__, service, ip, id);
-		return 0;
-	}
-
 	if (!change && votfdev->ring_pair[service][ip][id] == VS_CONNECTED) {
 		pr_err("%s: invalid request for already connected service(%d, %d, %d)\n", __func__, service, ip, id);
 		mutex_unlock(&votfdev->votf_lock);
@@ -382,21 +383,22 @@ int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cf
 	}
 
 	token_size = cfg->token_size;
-	frame_size = cfg->height;
-	if (module == C2AGENT) {
-		token_size = cfg->bitwidth * cfg->width * cfg->token_size / 8;
-		frame_size = cfg->bitwidth * cfg->width * cfg->height / 8;
-	}
-	/* set frame size internally */
+	if (module == C2AGENT)
+		token_size = 8 * cfg->token_size * cfg->width * cfg->bitwidth;
+
+	/* set the number of lines in frame internally */
 	if (service == TRS)
-		votfitf_set_frame_size(vinfo, frame_size);
+		votfitf_set_lines_count(vinfo, cfg->height / token_size);
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_LINES_IN_TOKEN, C2SERV_R_TRS_LINES_IN_TOKEN, C2AGENT_R_TWS_TOKEN_SIZE,
 			C2AGENT_R_TRS_TOKEN_SIZE);
 	if (offset != VOTF_INVALID) {
-		votfitf_set_token_size(vinfo, token_size);
-		if (service == TRS)
-			votfitf_set_first_token_size(vinfo, token_size);
+		camerapp_hw_votf_set_token_size(votfdev->votf_addr[ip], offset, token_size);
+		if (service == TRS) {
+			offset = get_offset(vinfo, -1, C2SERV_R_TRS_LINES_IN_FIRST_TOKEN, -1, -1);
+			if (offset != VOTF_INVALID)
+				camerapp_hw_votf_set_first_token_size(votfdev->votf_addr[ip], offset, token_size);
+		}
 		/* save token_size in line unit(not calculated token size) */
 		votfdev->votf_cfg[service][ip][id].token_size = cfg->token_size;
 	}
@@ -404,8 +406,9 @@ int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cf
 	mutex_unlock(&votfdev->votf_lock);
 	return 1;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_service_cfg);
 
-int votfitf_set_first_token_size(struct votf_info *vinfo, u32 size)
+int votfitf_set_lines_in_first_token(struct votf_info *vinfo, u32 lines)
 {
 	u32 offset;
 	int ret = 0;
@@ -432,17 +435,17 @@ int votfitf_set_first_token_size(struct votf_info *vinfo, u32 size)
 	if (service != TRS)
 		return ret;
 
-	offset = get_offset(vinfo, -1, C2SERV_R_TRS_LINES_IN_FIRST_TOKEN, -1, C2AGENT_TRS_CROP_FIRST_TOKEN_SIZE);
+	offset = get_offset(vinfo, -1, C2SERV_R_TRS_LINES_IN_FIRST_TOKEN, -1, -1);
 	if (offset != VOTF_INVALID) {
-		camerapp_hw_votf_set_first_token_size(votfdev->votf_addr[ip], offset, size);
+		camerapp_hw_votf_set_lines_in_first_token(votfdev->votf_addr[ip], offset, lines);
 		ret = 1;
 	}
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_lines_in_first_token);
 
-/* set token size */
-int votfitf_set_token_size(struct votf_info *vinfo, u32 size)
+int votfitf_set_lines_in_token(struct votf_info *vinfo, u32 lines)
 {
 	u32 offset;
 	int ret = 0;
@@ -470,14 +473,14 @@ int votfitf_set_token_size(struct votf_info *vinfo, u32 size)
 			C2AGENT_R_TRS_TOKEN_SIZE);
 
 	if (offset != VOTF_INVALID) {
-		camerapp_hw_votf_set_token_size(votfdev->votf_addr[ip], offset, size);
+		camerapp_hw_votf_set_token_size(votfdev->votf_addr[ip], offset, lines);
 		ret = 1;
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_lines_in_token);
 
-/* set frame size */
-int votfitf_set_frame_size(struct votf_info *vinfo, u32 size)
+int votfitf_set_lines_count(struct votf_info *vinfo, u32 cnt)
 {
 	u32 offset;
 	int ret = 0;
@@ -504,14 +507,15 @@ int votfitf_set_frame_size(struct votf_info *vinfo, u32 size)
 	if (service != TRS)
 		return ret;
 
-	offset = get_offset(vinfo, -1, C2SERV_R_TRS_LINES_COUNT, -1, C2AGENT_TRS_FRAME_SIZE);
+	offset = get_offset(vinfo, -1, C2SERV_R_TRS_LINES_COUNT, -1, -1);
 	if (offset != VOTF_INVALID) {
-		camerapp_hw_votf_set_frame_size(votfdev->votf_addr[ip], offset, size);
+		camerapp_hw_votf_set_lines_count(votfdev->votf_addr[ip], offset, cnt);
 		ret = 1;
 	}
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_lines_count);
 
 int votfitf_set_flush(struct votf_info *vinfo)
 {
@@ -531,7 +535,7 @@ int votfitf_set_flush(struct votf_info *vinfo)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -566,6 +570,7 @@ int votfitf_set_flush(struct votf_info *vinfo)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_flush);
 
 int votfitf_set_crop_start(struct votf_info *vinfo, bool start)
 {
@@ -583,7 +588,7 @@ int votfitf_set_crop_start(struct votf_info *vinfo, bool start)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -598,6 +603,7 @@ int votfitf_set_crop_start(struct votf_info *vinfo, bool start)
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_crop_start);
 
 int votfitf_get_crop_start(struct votf_info *vinfo)
 {
@@ -615,7 +621,7 @@ int votfitf_get_crop_start(struct votf_info *vinfo)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -629,8 +635,9 @@ int votfitf_get_crop_start(struct votf_info *vinfo)
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_get_crop_start);
 
-int voifitf_set_crop_enable(struct votf_info *vinfo, bool enable)
+int votfitf_set_crop_enable(struct votf_info *vinfo, bool enable)
 {
 	u32 offset;
 	int ret = 0;
@@ -646,7 +653,7 @@ int voifitf_set_crop_enable(struct votf_info *vinfo, bool enable)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -661,8 +668,9 @@ int voifitf_set_crop_enable(struct votf_info *vinfo, bool enable)
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_crop_enable);
 
-int voifitf_get_crop_enable(struct votf_info *vinfo)
+int votfitf_get_crop_enable(struct votf_info *vinfo)
 {
 	u32 offset;
 	int ret = 0;
@@ -678,7 +686,7 @@ int voifitf_get_crop_enable(struct votf_info *vinfo)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -692,6 +700,7 @@ int voifitf_get_crop_enable(struct votf_info *vinfo)
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_get_crop_enable);
 
 int votfitf_set_trs_lost_cfg(struct votf_info *vinfo, struct votf_lost_cfg *cfg)
 {
@@ -710,7 +719,7 @@ int votfitf_set_trs_lost_cfg(struct votf_info *vinfo, struct votf_lost_cfg *cfg)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!cfg || !votfdev->votf_table[service][ip][id].use) {
@@ -732,6 +741,7 @@ int votfitf_set_trs_lost_cfg(struct votf_info *vinfo, struct votf_lost_cfg *cfg)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_trs_lost_cfg);
 
 int votfitf_reset(struct votf_info *vinfo, int type)
 {
@@ -750,7 +760,7 @@ int votfitf_reset(struct votf_info *vinfo, int type)
 		return ret;
 	}
 
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 	service = vinfo->service;
 
@@ -787,6 +797,7 @@ int votfitf_reset(struct votf_info *vinfo, int type)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_reset);
 
 int votfitf_set_start(struct votf_info *vinfo)
 {
@@ -804,7 +815,7 @@ int votfitf_set_start(struct votf_info *vinfo)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -820,6 +831,7 @@ int votfitf_set_start(struct votf_info *vinfo)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_start);
 
 int votfitf_set_finish(struct votf_info *vinfo)
 {
@@ -837,7 +849,7 @@ int votfitf_set_finish(struct votf_info *vinfo)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -853,6 +865,7 @@ int votfitf_set_finish(struct votf_info *vinfo)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_finish);
 
 int votfitf_set_threshold(struct votf_info *vinfo, bool high, u32 value)
 {
@@ -871,7 +884,7 @@ int votfitf_set_threshold(struct votf_info *vinfo, bool high, u32 value)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -895,6 +908,7 @@ int votfitf_set_threshold(struct votf_info *vinfo, bool high, u32 value)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_threshold);
 
 u32 votfitf_get_threshold(struct votf_info *vinfo, bool high)
 {
@@ -913,7 +927,7 @@ u32 votfitf_get_threshold(struct votf_info *vinfo, bool high)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -935,6 +949,7 @@ u32 votfitf_get_threshold(struct votf_info *vinfo, bool high)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_get_threshold);
 
 int votfitf_set_read_bytes(struct votf_info *vinfo, u32 bytes)
 {
@@ -952,7 +967,7 @@ int votfitf_set_read_bytes(struct votf_info *vinfo, u32 bytes)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -968,6 +983,7 @@ int votfitf_set_read_bytes(struct votf_info *vinfo, u32 bytes)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_read_bytes);
 
 int votfitf_get_fullness(struct votf_info *vinfo)
 {
@@ -985,7 +1001,7 @@ int votfitf_get_fullness(struct votf_info *vinfo)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -999,6 +1015,7 @@ int votfitf_get_fullness(struct votf_info *vinfo)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_get_fullness);
 
 u32 votfitf_get_busy(struct votf_info *vinfo)
 {
@@ -1016,7 +1033,7 @@ u32 votfitf_get_busy(struct votf_info *vinfo)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -1030,6 +1047,7 @@ u32 votfitf_get_busy(struct votf_info *vinfo)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_get_busy);
 
 int votfitf_set_irq_enable(struct votf_info *vinfo, u32 irq)
 {
@@ -1047,7 +1065,7 @@ int votfitf_set_irq_enable(struct votf_info *vinfo, u32 irq)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -1063,6 +1081,7 @@ int votfitf_set_irq_enable(struct votf_info *vinfo, u32 irq)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_irq_enable);
 
 int votfitf_set_irq_status(struct votf_info *vinfo, u32 irq)
 {
@@ -1080,7 +1099,7 @@ int votfitf_set_irq_status(struct votf_info *vinfo, u32 irq)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -1097,6 +1116,7 @@ int votfitf_set_irq_status(struct votf_info *vinfo, u32 irq)
 	return ret;
 
 }
+EXPORT_SYMBOL_GPL(votfitf_set_irq_status);
 
 int votfitf_set_irq(struct votf_info *vinfo, u32 irq)
 {
@@ -1114,7 +1134,7 @@ int votfitf_set_irq(struct votf_info *vinfo, u32 irq)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -1131,6 +1151,7 @@ int votfitf_set_irq(struct votf_info *vinfo, u32 irq)
 	return ret;
 
 }
+EXPORT_SYMBOL_GPL(votfitf_set_irq);
 
 int votfitf_set_irq_clear(struct votf_info *vinfo, u32 irq)
 {
@@ -1148,7 +1169,7 @@ int votfitf_set_irq_clear(struct votf_info *vinfo, u32 irq)
 	}
 
 	service = vinfo->service;
-	ip = vinfo->ip;
+	ip = search_ip_idx(vinfo);
 	id = vinfo->id;
 
 	if (!votfdev->votf_table[service][ip][id].use) {
@@ -1164,6 +1185,7 @@ int votfitf_set_irq_clear(struct votf_info *vinfo, u32 irq)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(votfitf_set_irq_clear);
 
 int votf_runtime_resume(struct device *dev)
 {
@@ -1180,7 +1202,8 @@ int votf_runtime_suspend(struct device *dev)
 int parse_votf_table(struct device_node *np)
 {
 	int ret = 0;
-	int ip_num, id_num;
+	int id_num, ip_num = 0;
+	u32 local_ip;
 	int id_cnt;
 	int idx = 0;
 	int service;
@@ -1189,7 +1212,7 @@ int parse_votf_table(struct device_node *np)
 
 	for_each_child_of_node(np, table_np) {
 		of_property_read_u32_index(table_np, "info", idx++, &temp.addr);
-		of_property_read_u32_index(table_np, "info", idx++, &ip_num);
+		of_property_read_u32_index(table_np, "info", idx++, &local_ip);
 		of_property_read_u32_index(table_np, "info", idx++, &id_cnt);
 		of_property_read_u32_index(table_np, "info", idx++, &temp.module);
 		of_property_read_u32_index(table_np, "info", idx++, &temp.service);
@@ -1199,13 +1222,14 @@ int parse_votf_table(struct device_node *np)
 			service = temp.service;
 			votfdev->votf_table[service][ip_num][id_num].use = true;
 			votfdev->votf_table[service][ip_num][id_num].addr = temp.addr;
-			votfdev->votf_table[service][ip_num][id_num].ip = ip_num;
+			votfdev->votf_table[service][ip_num][id_num].ip = local_ip;
 			votfdev->votf_table[service][ip_num][id_num].id = id_num;
 			votfdev->votf_table[service][ip_num][id_num].service = temp.service;
 			votfdev->votf_table[service][ip_num][id_num].module = temp.module;
 			votfdev->votf_table[service][ip_num][id_num].module_type = temp.module_type;
 		}
 		idx = 0;
+		ip_num++;
 	}
 	return ret;
 }
@@ -1283,7 +1307,10 @@ int votf_probe(struct platform_device *pdev)
 				addr = votfdev->votf_table[TRS][ip][0].addr;
 			else
 				pr_err("%s: Invalid votf address\n", __func__);
-			votfdev->votf_addr[ip] = ioremap(addr, 0x1000);
+#ifdef CONFIG_EXYNOS_IOVMM
+			iovmm_map_oto(dev, addr, 0x10000);
+#endif
+			votfdev->votf_addr[ip] = ioremap(addr, 0x10000);
 		}
 	}
 
@@ -1314,6 +1341,9 @@ int votf_remove(struct platform_device *pdev)
 			pr_err("%s: Invalid votf address\n", __func__);
 
 		iounmap(votfdev->votf_addr[ip]);
+#ifdef CONFIG_EXYNOS_IOVMM
+		iovmm_unmap_oto(&pdev->dev, addr);
+#endif
 	}
 
 	devm_kfree(&pdev->dev, votfdev);

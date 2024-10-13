@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2015-2019, Samsung Electronics.
  *
@@ -20,34 +21,18 @@
 #define MODEM_CTRL_UART_AP 0
 #define MODEM_CTRL_UART_CP 1
 
-#if defined(CONFIG_EXYNOS_MODEM_IF)
+struct vnet {
+	void *iod;
+	bool hiprio_ack_only;
+};
+
+#if IS_ENABLED(CONFIG_EXYNOS_MODEM_IF)
 extern int modem_force_crash_exit_ext(void);
-extern int modem_send_panic_noti_ext(void);
 #else
 static inline int modem_force_crash_exit_ext(void) { return 0; }
-static inline int modem_send_panic_noti_ext(void) { return 0; }
 #endif
 
-#if defined(CONFIG_CP_ZEROCOPY) || defined(CONFIG_CP_PKTPROC_V2)
-extern bool __skb_free_head_cp_zerocopy(struct sk_buff *skb);
-
-/**
- @brief		skb_free_head_cp_zerocopy
- @param skb	the pointer to skbuff
- @return bool	return true if skb->data in zerocopy buffer,
-		not to do a rest of skb_free_head process.
-*/
-static inline bool skb_free_head_cp_zerocopy(struct sk_buff *skb)
-{
-	return __skb_free_head_cp_zerocopy(skb);
-}
-#else
-static inline bool skb_free_head_cp_zerocopy(struct sk_buff *skb) {
-	return false;
-}
-#endif
-
-#if defined(CONFIG_CP_UART_NOTI)
+#if IS_ENABLED(CONFIG_CP_UART_NOTI)
 extern void send_uart_noti_to_modem(int val);
 #else
 static inline void send_uart_noti_to_modem(int val) { return; }

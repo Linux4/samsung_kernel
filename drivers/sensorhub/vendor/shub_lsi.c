@@ -31,7 +31,12 @@ int sensorhub_reset(void)
 	int ret;
 	struct contexthub_ipc_info *ipc = chub_data;
 
-	if (atomic_read(&ipc->chub_status) == CHUB_ST_NO_POWER) { /* chub is no power status*/
+#ifndef CONTEXTHUB_IPC_INFO_LEGACY
+	if (atomic_read(&ipc->atomic.chub_status) == CHUB_ST_NO_POWER)
+#else
+	if (atomic_read(&ipc->chub_status) == CHUB_ST_NO_POWER)
+#endif
+	{
 		ret = contexthub_poweron(ipc);
 		if (ret < 0)
 			shub_errf("contexthub power on failed");
@@ -60,7 +65,11 @@ bool sensorhub_is_working(void)
 {
 	struct contexthub_ipc_info *ipc = chub_data;
 
+#ifndef CONTEXTHUB_IPC_INFO_LEGACY
+	if (atomic_read(&ipc->atomic.chub_status) == CHUB_ST_RUN && atomic_read(&ipc->atomic.in_reset) == 0)
+#else
 	if (atomic_read(&ipc->chub_status) == CHUB_ST_RUN && atomic_read(&ipc->in_reset) == 0)
+#endif
 		return true;
 	else
 		return false;

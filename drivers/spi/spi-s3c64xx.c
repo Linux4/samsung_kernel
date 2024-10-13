@@ -170,47 +170,6 @@ struct s3c64xx_spi_port_config {
 	bool	clk_from_cmu;
 };
 
-#ifdef CONFIG_SAMSUNG_TUI
-int stui_spi_lock(struct spi_master *spi)
-{
-	int ret = 0;
-#ifdef CONFIG_PM
-	struct s3c64xx_spi_driver_data *sdd = spi_master_get_devdata(spi);
-#endif
-	(void)ret;
-
-	spi_bus_lock(spi);
-
-#ifdef CONFIG_PM
-	ret = pm_runtime_get_sync(&sdd->pdev->dev);
-#endif
-	if (ret < 0)
-		spi_bus_unlock(spi);
-
-	return ret;
-}
-
-int stui_spi_unlock(struct spi_master *spi)
-{
-#ifdef CONFIG_PM
-	struct s3c64xx_spi_driver_data *sdd = spi_master_get_devdata(spi);
-	int ret;
-#endif
-	spi_bus_unlock(spi);
-
-#ifdef CONFIG_PM
-	pm_runtime_mark_last_busy(&sdd->pdev->dev);
-	ret = pm_runtime_put_autosuspend(&sdd->pdev->dev);
-	if (ret < 0) {
-		dev_err(&sdd->pdev->dev, "pm_runtime_put_autosuspend fails. ret: %d", ret);
-		return ret;
-	}
-#endif
-
-	return 0;
-}
-#endif
-
 static ssize_t
 spi_dbg_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -429,10 +388,10 @@ static void prepare_dma(struct s3c64xx_spi_dma_data *dma,
 	info.buf = buf;
 
 #ifdef CONFIG_ARM64
-	sdd->ops->prepare((unsigned long)dma->ch, &info);
+	sdd->ops->prepare((unsigned long)dma->ch, &info,&dma->cookie);
 	sdd->ops->trigger((unsigned long)dma->ch);
 #else
-	sdd->ops->prepare((enum dma_ch)dma->ch, &info);
+	sdd->ops->prepare((enum dma_ch)dma->ch, &info,&dma->cookie);
 	sdd->ops->trigger((enum dma_ch)dma->ch);
 #endif
 
@@ -634,8 +593,10 @@ static void enable_datapath(struct s3c64xx_spi_driver_data *sdd,
 		}
 	}
 
+
 	writel(modecfg, regs + S3C64XX_SPI_MODE_CFG);
 	writel(chcfg, regs + S3C64XX_SPI_CH_CFG);
+
 }
 
 static inline void enable_cs(struct s3c64xx_spi_driver_data *sdd,
@@ -775,8 +736,8 @@ static void s3c64xx_spi_config(struct s3c64xx_spi_driver_data *sdd)
 {
 	struct s3c64xx_spi_info *sci = sdd->cntrlr_info;
 	void __iomem *regs = sdd->regs;
-	u32 val;
 	int ret;
+	u32 val;
 
 	/* Disable Clock */
 	if (!sdd->port_conf->clk_from_cmu) {
@@ -1073,6 +1034,7 @@ try_transfer:
 			/* Slave Select */
 			enable_cs(sdd, spi);
 		}
+
 
 		spin_unlock_irqrestore(&sdd->lock, flags);
 
@@ -1562,7 +1524,7 @@ static inline struct s3c64xx_spi_port_config *s3c64xx_spi_get_port_config(
 			 platform_get_device_id(pdev)->driver_data;
 }
 
-#if defined(CONFIG_CPU_IDLE)
+/*#if defined(CONFIG_CPU_IDLE)
 static int s3c64xx_spi_notifier(struct notifier_block *self,
 				unsigned long cmd, void *v)
 {
@@ -1581,7 +1543,7 @@ static int s3c64xx_spi_notifier(struct notifier_block *self,
 static struct notifier_block s3c64xx_spi_notifier_block = {
 	.notifier_call = s3c64xx_spi_notifier,
 };
-#endif /* CONFIG_CPU_IDLE */
+#endif *//* CONFIG_CPU_IDLE */
 
 static int s3c64xx_spi_probe(struct platform_device *pdev)
 {
@@ -1645,7 +1607,7 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 	sdd->ops = NULL;
 
 #ifdef CONFIG_EXYNOS_CPUPM
-	sdd->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev));
+	//sdd->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev));
 #endif
 
 	if (pdev->dev.of_node) {
@@ -1938,9 +1900,9 @@ static int s3c64xx_spi_runtime_suspend(struct device *dev)
 	struct s3c64xx_spi_driver_data *sdd = spi_master_get_devdata(master);
 	struct s3c64xx_spi_info *sci = sdd->cntrlr_info;
 
-	if (__clk_get_enable_count(sdd->clk))
+	//if (__clk_get_enable_count(sdd->clk))
 		clk_disable_unprepare(sdd->clk);
-	if (__clk_get_enable_count(sdd->src_clk))
+	//if (__clk_get_enable_count(sdd->src_clk))
 		clk_disable_unprepare(sdd->src_clk);
 
 #ifdef CONFIG_EXYNOS_CPUPM
@@ -2298,26 +2260,14 @@ static struct platform_driver s3c64xx_spi_driver = {
 		.pm = &s3c64xx_spi_pm,
 		.of_match_table = of_match_ptr(s3c64xx_spi_dt_match),
 	},
+	.probe = s3c64xx_spi_probe,
 	.remove = s3c64xx_spi_remove,
 	.id_table = s3c64xx_spi_driver_ids,
 };
+
+module_platform_driver(s3c64xx_spi_driver);
+
 MODULE_ALIAS("platform:s3c64xx-spi");
-
-static int __init s3c64xx_spi_init(void)
-{
-#if defined(CONFIG_CPU_IDLE)
-	exynos_pm_register_notifier(&s3c64xx_spi_notifier_block);
-#endif
-	return platform_driver_probe(&s3c64xx_spi_driver, s3c64xx_spi_probe);
-}
-subsys_initcall(s3c64xx_spi_init);
-
-static void __exit s3c64xx_spi_exit(void)
-{
-	platform_driver_unregister(&s3c64xx_spi_driver);
-}
-module_exit(s3c64xx_spi_exit);
-
 MODULE_AUTHOR("Jaswinder Singh <jassi.brar@samsung.com>");
 MODULE_DESCRIPTION("S3C64XX SPI Controller Driver");
 MODULE_LICENSE("GPL");

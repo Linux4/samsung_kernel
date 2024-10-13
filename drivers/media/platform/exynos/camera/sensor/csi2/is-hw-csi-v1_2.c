@@ -1137,12 +1137,29 @@ int csi_hw_s_phy_set(struct phy *phy, u32 lanes, u32 mipi_speed,
 	phy_cfg[3] = mipi_speed;
 	phy_cfg[4] = settle;
 
+#if 1
+	{
+		union phy_configure_opts opts;
+
+		/* HACK: use phy_configure API instead of phy_set */
+		opts.mipi_dphy.clk_miss = phy_cfg[0]; /* Version */
+		opts.mipi_dphy.clk_post = phy_cfg[1]; /* Type */
+		opts.mipi_dphy.lanes = phy_cfg[2]; /* Lanes */
+		opts.mipi_dphy.hs_clk_rate = phy_cfg[3]; /* Mipispeed */
+		opts.mipi_dphy.hs_settle = phy_cfg[4];  /* Settle */
+
+		ret = phy_configure(phy, &opts);
+		if (ret) {
+			err("failed to set PHY");
+			return ret;
+		}
+	}
+#else
 	ret = phy_set(phy, 0, (void *)phy_cfg);
 	if (ret) {
 		err("failed to set PHY");
 		return ret;
 	}
-
+#endif
 	return ret;
 }
-

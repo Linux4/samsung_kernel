@@ -402,7 +402,7 @@ int copr_get_average_and_clear(struct copr_info *copr);
 int copr_roi_set_value(struct copr_info *copr, struct copr_roi *roi, int size);
 int copr_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int size, u32 *out);
 int copr_probe(struct panel_device *panel, struct panel_copr_data *copr_data);
-int copr_res_update(struct copr_info *copr, int index, int cur_value, struct timespec cur_ts);
+int copr_res_update(struct copr_info *copr, int index, int cur_value, struct timespec64 cur_ts);
 int get_copr_reg_size(int version);
 const char *get_copr_reg_name(int version, int index);
 int get_copr_reg_offset(int version, int index);
@@ -421,7 +421,7 @@ static inline int copr_get_average_and_clear(struct copr_info *copr) { return 0;
 static inline int copr_roi_set_value(struct copr_info *copr, struct copr_roi *roi, int size) { return 0; }
 static inline int copr_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int size, u32 *out) { return 0; }
 static inline int copr_probe(struct panel_device *panel, struct panel_copr_data *copr_data) { return 0; }
-static inline int copr_res_update(struct copr_info *copr, int index, int cur_value, struct timespec cur_ts) { return 0; }
+static inline int copr_res_update(struct copr_info *copr, int index, int cur_value, struct timespec64 cur_ts) { return 0; }
 static inline int get_copr_reg_size(int version) { return 0; }
 static inline const char *get_copr_reg_name(int version, int index) { return NULL; }
 static inline int get_copr_reg_offset(int version, int index) { return 0; }

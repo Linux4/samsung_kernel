@@ -28,7 +28,7 @@ struct bts_bw {
 	unsigned int		write;
 };
 
-#if defined(CONFIG_EXYNOS_BTS)
+#if IS_ENABLED(CONFIG_EXYNOS_BTS)
 int bts_get_bwindex(const char *name);
 int bts_update_bw(unsigned int index, struct bts_bw bw);
 unsigned int bts_get_scenindex(const char *name);
@@ -36,6 +36,7 @@ int bts_add_scenario(unsigned int index);
 int bts_del_scenario(unsigned int index);
 
 void bts_pd_sync(unsigned int cal_id, int on);
+int bts_change_drex_config(int on);
 
 #else /* CONFIG_EXYNOS_BTS */
 
@@ -45,6 +46,7 @@ void bts_pd_sync(unsigned int cal_id, int on);
 #define bts_add_scenario(a) do {} while (0)
 #define bts_del_scenario(a) do {} while (0)
 #define bts_pd_sync(a, b) do {} while (0)
+#define bts_change_drex_config(a) do {} while (0)
 
 #endif /* CONFIG_EXYNOS_BTS */
 

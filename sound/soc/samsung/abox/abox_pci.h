@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_pci.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox PCI driver
  *
  * Copyright (c) 2019 Samsung Electronics Co. Ltd.
@@ -21,8 +21,10 @@ struct abox_pci_data {
 	void *pci_dram_base;
 	void *pci_doorbell_base;
 	phys_addr_t pci_doorbell_base_phys;
+	unsigned int pci_doorbell_offset;
 	struct pinctrl *pinctrl;
 	struct abox_data *abox_data;
+	u32 abox_pci_mailbox_base;
 };
 
 #endif /* __SND_SOC_ABOX_PCI_H */

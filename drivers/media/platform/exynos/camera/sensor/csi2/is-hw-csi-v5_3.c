@@ -325,6 +325,9 @@ int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 vc, struct is_frame_cfg *cfg,
 	case HW_FORMAT_RAW7:
 		dma_format = CSIS_DMA_FMT_U8BIT_PACK;
 		break;
+	case HW_FORMAT_AND10:
+		dma_format = CSIS_DMA_FMT_ANDROID10;
+		break;
 	default:
 		warn("[VC%d] invalid data format (%02X)", vc, hwformat);
 		ret = -EINVAL;
@@ -1112,6 +1115,7 @@ int csi_hw_s_config_dma_cmn(u32 __iomem *base_reg, u32 vc, u32 actual_vc, u32 hw
 	if (vc == CSI_VIRTUAL_CH_0) {
 		switch (hwformat) {
 		case HW_FORMAT_RAW10:
+		case HW_FORMAT_AND10:
 			otf_format = 0;
 			break;
 		case HW_FORMAT_RAW12:
@@ -1174,7 +1178,7 @@ int csi_hw_s_phy_set(struct phy *phy, u32 lanes, u32 mipi_speed,
 	phy_cfg[0] = 0x0503 << 16;
 	phy_cfg[1] = 0x000D << 16;
 
-#if defined(CONFIG_PABLO_V8_0_0) || defined(CONFIG_PABLO_V8_1_0)
+#if defined(CONFIG_PABLO_V8_1_0)
 	phy_cfg[0] |= 0x0000;
 	switch (instance) {
 	case CSI_ID_A:

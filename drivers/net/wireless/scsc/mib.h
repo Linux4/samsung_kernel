@@ -11290,6 +11290,11 @@ void slsi_mib_buf_append(struct slsi_mib_data *dst, size_t bufferLength, u8 *buf
  *******************************************************************************/
 #define SLSI_PSID_UNIFI_READ_REG 0x1F73
 
+/* TODO: Autogen for new MIBs*/
+#define SLSI_PSID_UNIFI_MISC_FEATURES_ACTIVATED 2880
+#define SLSI_PSID_UNIFI_QSFS_VERION             2391
+#define SLSI_PSID_UNIFI_APPENDIX_VERSIONS       2881
+
 #ifdef __cplusplus
 }
 #endif

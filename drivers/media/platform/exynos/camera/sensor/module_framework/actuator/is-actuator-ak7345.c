@@ -14,7 +14,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-actuator-ak7345.h"
 #include "is-device-sensor.h"
@@ -72,8 +72,7 @@ int sensor_ak7345_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	struct is_actuator *actuator;
 	struct i2c_client *client = NULL;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	long cal_addr;
@@ -137,8 +136,7 @@ int sensor_ak7345_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	mdelay(DEF_AK7345_FIRST_DELAY);
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 p_err_mutex:
@@ -155,8 +153,7 @@ int sensor_ak7345_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	struct i2c_client *client = NULL;
 	enum is_actuator_status status = ACTUATOR_STATUS_NO_BUSY;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	dbg_actuator("%s\n", __func__);
@@ -182,8 +179,7 @@ int sensor_ak7345_actuator_get_status(struct v4l2_subdev *subdev, u32 *info)
 	*info = status;
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 
 p_err:
@@ -197,8 +193,7 @@ int sensor_ak7345_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	struct i2c_client *client;
 	u32 position = 0;
 #ifdef DEBUG_ACTUATOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
+	ktime_t st = ktime_get();
 #endif
 
 	FIMC_BUG(!subdev);
@@ -236,8 +231,7 @@ int sensor_ak7345_actuator_set_position(struct v4l2_subdev *subdev, u32 *info)
 	dbg_actuator("%s: position(%d)\n", __func__, position);
 
 #ifdef DEBUG_ACTUATOR_TIME
-	do_gettimeofday(&end);
-	pr_info("[%s] time %lu us", __func__, (end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
+	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
 p_err:
 	I2C_MUTEX_UNLOCK(actuator->i2c_lock);
@@ -293,10 +287,39 @@ p_err:
 	return ret;
 }
 
+long sensor_ak7345_actuator_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_ACT_S_CTRL:
+		ret = sensor_ak7345_actuator_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_ACT_G_CTRL:
+		ret = sensor_ak7345_actuator_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_g_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = sensor_ak7345_actuator_init,
-	.g_ctrl = sensor_ak7345_actuator_g_ctrl,
-	.s_ctrl = sensor_ak7345_actuator_s_ctrl,
+	.ioctl = sensor_ak7345_actuator_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
@@ -434,3 +457,5 @@ static int __init sensor_actuator_ak7345_init(void)
 	return ret;
 }
 late_initcall_sync(sensor_actuator_ak7345_init);
+
+MODULE_LICENSE("GPL");

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2014-2019, Samsung Electronics.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
 
@@ -34,13 +26,13 @@ int cpboot_spi_load_cp_image(struct link_device *ld, struct io_device *iod, unsi
 {
 	int ret = 0;
 	struct mem_link_device *mld = ld_to_mem_link_device(ld);
-	struct cpboot_spi *cpboot = mld->boot_spi;
+	struct cpboot_spi *cpboot = cpboot_spi_get_device(mld->spi_bus_num);
 	struct cp_image img;
 	char *buff = NULL;
 	struct spi_message msg;
 	struct spi_transfer xfer;
 
-	if (!cpboot->spi) {
+	if (!cpboot || !cpboot->spi) {
 		mif_err("spi is null\n");
 		return -EPERM;
 	}
@@ -60,9 +52,12 @@ int cpboot_spi_load_cp_image(struct link_device *ld, struct io_device *iod, unsi
 		goto exit;
 	}
 
-	buff = kzalloc(img.size, GFP_KERNEL);
+	/* MUST not enable dma-mode on SPI
+	 * dma-mode does not support non-contiguous buffer
+	 */
+	buff = vzalloc(img.size);
 	if (!buff) {
-		mif_err("kzalloc(%u) error\n", img.size);
+		mif_err("vzalloc(%u) error\n", img.size);
 		ret = -ENOMEM;
 		goto exit;
 	}
@@ -85,7 +80,8 @@ int cpboot_spi_load_cp_image(struct link_device *ld, struct io_device *iod, unsi
 	}
 
 exit:
-	kfree(buff);
+	if (buff)
+		vfree(buff);
 	mutex_unlock(&cpboot->lock);
 
 	return ret;
@@ -122,7 +118,8 @@ static int cpboot_spi_probe(struct spi_device *spi)
 
 	if (_count >= MAX_SPI_DEVICE) {
 		mif_err("_count is over %d\n", MAX_SPI_DEVICE);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err;
 	}
 
 	mutex_init(&_cpboot[_count].lock);
@@ -142,6 +139,8 @@ static int cpboot_spi_probe(struct spi_device *spi)
 err_setup:
 	mutex_destroy(&_cpboot[_count].lock);
 
+err:
+	panic("CP SPI driver probe failed\n");
 	return ret;
 }
 
@@ -156,40 +155,21 @@ static int cpboot_spi_remove(struct spi_device *spi)
 
 static const struct of_device_id cpboot_spi_dt_match[] = {
 	{ .compatible = "samsung,exynos-cp-spi" },
-	{ }
+	{},
 };
 MODULE_DEVICE_TABLE(of, cpboot_spi_dt_match);
 
 static struct spi_driver cpboot_spi_driver = {
+	.probe = cpboot_spi_probe,
+	.remove = cpboot_spi_remove,
 	.driver = {
 		.name = "cpboot_spi",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(cpboot_spi_dt_match),
+		.suppress_bind_attrs = true,
 	},
-	.probe = cpboot_spi_probe,
-	.remove = cpboot_spi_remove,
 };
-
-static int __init cpboot_spi_init(void)
-{
-	int ret = 0;
-
-	ret = spi_register_driver(&cpboot_spi_driver);
-	if (ret) {
-		mif_err("spi_register_driver() error:%d\n", ret);
-		return ret;
-	}
-
-	return 0;
-}
-
-static void __exit cpboot_spi_exit(void)
-{
-	spi_unregister_driver(&cpboot_spi_driver);
-}
-
-module_init(cpboot_spi_init);
-module_exit(cpboot_spi_exit);
+module_spi_driver(cpboot_spi_driver);
 
 MODULE_DESCRIPTION("Exynos SPI driver to load CP bootloader");
 MODULE_LICENSE("GPL");

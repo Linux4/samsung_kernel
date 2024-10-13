@@ -6,8 +6,10 @@
 #include <linux/uaccess.h>
 #include <linux/kobject.h>
 #include <soc/samsung/cal-if.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <soc/samsung/fvmap.h>
 
-#include "fvmap.h"
 #include "cmucal.h"
 #include "vclk.h"
 #include "ra.h"
@@ -19,239 +21,44 @@ void __iomem *fvmap_base;
 void __iomem *sram_fvmap_base;
 
 static int init_margin_table[MAX_MARGIN_ID];
-static int volt_offset_percent = 0;
 static int percent_margin_table[MAX_MARGIN_ID];
 
-static int __init get_mif_volt(char *str)
+static int margin_mif;
+static int margin_int;
+static int margin_cpucl0;
+static int margin_cpucl1;
+static int margin_g3d;
+static int margin_cam;
+static int margin_disp;
+static int margin_aud;
+static int margin_cp;
+
+static int volt_offset_percent;
+
+module_param(margin_mif, int, 0);
+module_param(margin_int, int, 0);
+module_param(margin_cpucl0, int, 0);
+module_param(margin_cpucl1, int, 0);
+module_param(margin_g3d, int, 0);
+module_param(margin_cam, int, 0);
+module_param(margin_disp, int, 0);
+module_param(margin_aud, int, 0);
+module_param(margin_cp, int, 0);
+
+module_param(volt_offset_percent, int, 0);
+
+void margin_table_init(void)
 {
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_MIF] = volt;
-
-	return 0;
+	init_margin_table[MARGIN_MIF] = margin_mif;
+	init_margin_table[MARGIN_INT] = margin_int;
+	init_margin_table[MARGIN_CPUCL0] = margin_cpucl0;
+	init_margin_table[MARGIN_CPUCL1] = margin_cpucl1;
+	init_margin_table[MARGIN_G3D] = margin_g3d;
+	init_margin_table[MARGIN_CAM] = margin_cam;
+	init_margin_table[MARGIN_DISP] = margin_disp;
+	init_margin_table[MARGIN_AUD] = margin_aud;
+	init_margin_table[MARGIN_CP] = margin_cp;
 }
-early_param("mif", get_mif_volt);
-
-static int __init get_int_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_INT] = volt;
-
-	return 0;
-}
-early_param("int", get_int_volt);
-
-static int __init get_big_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_BIG] = volt;
-
-	return 0;
-}
-early_param("big", get_big_volt);
-
-static int __init get_mid_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_MID] = volt;
-
-	return 0;
-}
-early_param("mid", get_mid_volt);
-
-static int __init get_lit_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_LIT] = volt;
-
-	return 0;
-}
-early_param("lit", get_lit_volt);
-
-static int __init get_g3d_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_G3D] = volt;
-
-	return 0;
-}
-early_param("g3d", get_g3d_volt);
-
-static int __init get_intcam_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_INTCAM] = volt;
-
-	return 0;
-}
-early_param("intcam", get_intcam_volt);
-
-static int __init get_cam_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_CAM] = volt;
-
-	return 0;
-}
-early_param("cam", get_cam_volt);
-
-static int __init get_disp_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_DISP] = volt;
-
-	return 0;
-}
-early_param("disp", get_disp_volt);
-
-static int __init get_g3dm_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_G3DM] = volt;
-
-	return 0;
-}
-early_param("g3dm", get_g3dm_volt);
-
-static int __init get_cp_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_CP] = volt;
-
-	return 0;
-}
-early_param("cp", get_cp_volt);
-
-static int __init get_fsys0_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_FSYS0] = volt;
-
-	return 0;
-}
-early_param("fsys0", get_fsys0_volt);
-
-static int __init get_aud_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_AUD] = volt;
-
-	return 0;
-}
-early_param("aud", get_aud_volt);
-
-static int __init get_iva_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_IVA] = volt;
-
-	return 0;
-}
-early_param("iva", get_iva_volt);
-
-static int __init get_score_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_SCORE] = volt;
-
-	return 0;
-}
-early_param("score", get_score_volt);
-
-static int __init get_npu_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_NPU] = volt;
-
-	return 0;
-}
-early_param("npu", get_npu_volt);
-
-static int __init get_mfc_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_MFC] = volt;
-
-	return 0;
-}
-early_param("mfc", get_mfc_volt);
-
-static int __init get_dsp_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_DSP] = volt;
-
-	return 0;
-}
-early_param("dsp", get_dsp_volt);
-
-static int __init get_dnc_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_DNC] = volt;
-
-	return 0;
-}
-early_param("dnc", get_dnc_volt);
-
-static int __init get_tnr_volt(char *str)
-{
-	int volt;
-
-	get_option(&str, &volt);
-	init_margin_table[MARGIN_TNR] = volt;
-
-	return 0;
-}
-early_param("tnr", get_tnr_volt);
-
-static int __init get_percent_margin_volt(char *str)
-{
-	int percent;
-
-	get_option(&str, &percent);
-	volt_offset_percent = percent;
-
-	return 0;
-}
-early_param("volt_offset_percent", get_percent_margin_volt);
 
 int fvmap_set_raw_voltage_table(unsigned int id, int uV)
 {
@@ -270,68 +77,6 @@ int fvmap_set_raw_voltage_table(unsigned int id, int uV)
 		fv_table->table[i].volt += uV;
 
 	return 0;
-}
-
-int fvmap_get_voltage_table(unsigned int id, unsigned int *table)
-{
-	struct fvmap_header *fvmap_header = fvmap_base;
-	struct rate_volt_header *fv_table;
-	int idx, i;
-	int num_of_lv;
-
-	if (!IS_ACPM_VCLK(id))
-		return 0;
-
-	idx = GET_IDX(id);
-
-	fvmap_header = fvmap_base;
-	fv_table = fvmap_base + fvmap_header[idx].o_ratevolt;
-	num_of_lv = fvmap_header[idx].num_of_lv;
-
-	for (i = 0; i < num_of_lv; i++)
-		table[i] = fv_table->table[i].volt;
-
-	return num_of_lv;
-
-}
-
-int fvmap_get_raw_voltage_table(unsigned int id)
-{
-	struct fvmap_header *fvmap_header;
-	struct rate_volt_header *fv_table;
-	int idx, i;
-	int num_of_lv;
-	unsigned int table[20];
-
-	idx = GET_IDX(id);
-
-	fvmap_header = sram_fvmap_base;
-	fv_table = sram_fvmap_base + fvmap_header[idx].o_ratevolt;
-	num_of_lv = fvmap_header[idx].num_of_lv;
-
-	for (i = 0; i < num_of_lv; i++)
-		table[i] = fv_table->table[i].volt;
-
-	for (i = 0; i < num_of_lv; i++)
-		printk("dvfs id : %d  %d Khz : %d uv\n", ACPM_VCLK_TYPE | id, fv_table->table[i].rate, table[i]);
-
-	return 0;
-}
-
-static void check_percent_margin(struct rate_volt_header *head, unsigned int num_of_lv)
-{
-	int org_volt;
-	int percent_volt;
-	int i;
-
-	if (!volt_offset_percent)
-		return;
-
-	for (i = 0; i < num_of_lv; i++) {
-		org_volt = head->table[i].volt;
-		percent_volt = org_volt * volt_offset_percent / 100;
-		head->table[i].volt = org_volt + rounddown(percent_volt, STEP_UV);
-	}
 }
 
 static int get_vclk_id_from_margin_id(int margin_id)
@@ -383,44 +128,117 @@ __ATTR(type##_percent, 0600,									\
 
 attr_percent(MARGIN_MIF, mif_margin);
 attr_percent(MARGIN_INT, int_margin);
-attr_percent(MARGIN_BIG, big_margin);
-attr_percent(MARGIN_MID, mid_margin);
-attr_percent(MARGIN_LIT, lit_margin);
+attr_percent(MARGIN_CPUCL0, cpucl0_margin);
+attr_percent(MARGIN_CPUCL1, cpucl1_margin);
 attr_percent(MARGIN_G3D, g3d_margin);
-attr_percent(MARGIN_INTCAM, intcam_margin);
 attr_percent(MARGIN_CAM, cam_margin);
 attr_percent(MARGIN_DISP, disp_margin);
-attr_percent(MARGIN_CP, cp_margin);
-attr_percent(MARGIN_FSYS0, fsys0_margin);
 attr_percent(MARGIN_AUD, aud_margin);
-attr_percent(MARGIN_IVA, iva_margin);
-attr_percent(MARGIN_SCORE, score_margin);
-attr_percent(MARGIN_NPU, npu_margin);
-attr_percent(MARGIN_MFC, mfc_margin);
+attr_percent(MARGIN_CP, cp_margin);
 
 static struct attribute *percent_margin_attrs[] = {
 	&mif_margin_percent.attr,
 	&int_margin_percent.attr,
-	&big_margin_percent.attr,
-	&mid_margin_percent.attr,
-	&lit_margin_percent.attr,
+	&cpucl0_margin_percent.attr,
+	&cpucl1_margin_percent.attr,
 	&g3d_margin_percent.attr,
-	&intcam_margin_percent.attr,
 	&cam_margin_percent.attr,
 	&disp_margin_percent.attr,
-	&cp_margin_percent.attr,
-	&fsys0_margin_percent.attr,
 	&aud_margin_percent.attr,
-	&iva_margin_percent.attr,
-	&score_margin_percent.attr,
-	&npu_margin_percent.attr,
-	&mfc_margin_percent.attr,
+	&cp_margin_percent.attr,
 	NULL,
 };
 
 static const struct attribute_group percent_margin_group = {
 	.attrs = percent_margin_attrs,
 };
+
+int fvmap_get_freq_volt_table(unsigned int id, void *freq_volt_table, unsigned int table_size)
+{
+	struct fvmap_header *fvmap_header = fvmap_base;
+	struct rate_volt_header *fv_table;
+	int idx, i, j;
+	int num_of_lv;
+	struct freq_volt *table = (struct freq_volt *)freq_volt_table;
+
+	if (!IS_ACPM_VCLK(id))
+		return -EINVAL;
+
+	if (!table)
+		return -ENOMEM;
+
+	idx = GET_IDX(id);
+
+	fvmap_header = fvmap_base;
+	fv_table = fvmap_base + fvmap_header[idx].o_ratevolt;
+	num_of_lv = fvmap_header[idx].num_of_lv;
+
+	for (i = 0; i < table_size; i++) {
+		for (j = 0; j < num_of_lv; j++) {
+			if (fv_table->table[j].rate == table[i].rate)
+				table[i].volt = fv_table->table[j].volt;
+		}
+
+		if (table[i].volt == 0) {
+			if (table[i].rate > fv_table->table[0].rate)
+				table[i].volt = fv_table->table[0].volt;
+			else if (table[i].rate < fv_table->table[num_of_lv - 1].rate)
+				table[i].volt = fv_table->table[num_of_lv - 1].volt;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(fvmap_get_freq_volt_table);
+
+#if 0
+int fvmap_get_raw_voltage_table(unsigned int id)
+{
+	struct fvmap_header *fvmap_header;
+	struct rate_volt_header *fv_table;
+	int idx, i;
+	int num_of_lv;
+	unsigned int table[20];
+
+	idx = GET_IDX(id);
+
+	fvmap_header = sram_fvmap_base;
+	fv_table = sram_fvmap_base + fvmap_header[idx].o_ratevolt;
+	num_of_lv = fvmap_header[idx].num_of_lv;
+
+	for (i = 0; i < num_of_lv; i++)
+		table[i] = fv_table->table[i].volt * STEP_UV;
+
+	for (i = 0; i < num_of_lv; i++)
+		printk("dvfs id : %d  %d Khz : %d uv\n", ACPM_VCLK_TYPE | id, fv_table->table[i].rate, table[i]);
+
+	return 0;
+}
+#endif
+
+int fvmap_get_voltage_table(unsigned int id, unsigned int *table)
+{
+	struct fvmap_header *fvmap_header = fvmap_base;
+	struct rate_volt_header *fv_table;
+	int idx, i;
+	int num_of_lv;
+
+	if (!IS_ACPM_VCLK(id))
+		return 0;
+
+	idx = GET_IDX(id);
+
+	fvmap_header = fvmap_base;
+	fv_table = fvmap_base + fvmap_header[idx].o_ratevolt;
+	num_of_lv = fvmap_header[idx].num_of_lv;
+
+	for (i = 0; i < num_of_lv; i++)
+		table[i] = fv_table->table[i].volt;
+
+	return num_of_lv;
+
+}
+EXPORT_SYMBOL_GPL(fvmap_get_voltage_table);
 
 static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base)
 {
@@ -433,9 +251,12 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 	unsigned int blk_idx;
 	int size, margin;
 	int i, j;
+	void __iomem *header_base;
 
 	fvmap_header = map_base;
-	header = sram_base;
+	header = vmalloc(FVMAP_SIZE);
+	memcpy(header, sram_base, FVMAP_SIZE);
+	header_base = (void __iomem *)header;
 
 	size = cmucal_get_list_size(ACPM_VCLK_TYPE);
 
@@ -467,29 +288,37 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
 		pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
 
-		old = sram_base + fvmap_header[i].o_ratevolt;
+		old = header_base + fvmap_header[i].o_ratevolt;
 		new = map_base + fvmap_header[i].o_ratevolt;
-
-		check_percent_margin(old, fvmap_header[i].num_of_lv);
 
 		margin = init_margin_table[vclk->margin_id];
 		if (margin)
 			cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
 
+		if (volt_offset_percent) {
+			if ((volt_offset_percent < 100) && (volt_offset_percent > -100)) {
+				if (i < MAX_MARGIN_ID) {
+					percent_margin_table[i] = volt_offset_percent;
+					cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, volt_offset_percent);
+				}
+			}
+		}
+
 		for (j = 0; j < fvmap_header[i].num_of_members; j++) {
-			clks = sram_base + fvmap_header[i].o_members;
+			if (i == 8)	break;
+			clks = header_base + fvmap_header[i].o_members;
 
 			if (j < fvmap_header[i].num_of_pll) {
-				plls = sram_base + clks->addr[j];
+				plls = header_base + clks->addr[j];
 				member_addr = plls->addr - 0x90000000;
 			} else {
 
 				member_addr = (clks->addr[j] & ~0x3) & 0xffff;
 				blk_idx = clks->addr[j] & 0x3;
 
+
 				member_addr |= ((fvmap_header[i].block_addr[blk_idx]) << 16) - 0x90000000;
 			}
-
 
 			vclk->list[j] = cmucal_get_id_by_addr(member_addr);
 
@@ -507,6 +336,8 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 				volt_offset_percent);
 		}
 	}
+
+	vfree((void *)header);
 }
 
 int fvmap_init(void __iomem *sram_base)
@@ -519,10 +350,11 @@ int fvmap_init(void __iomem *sram_base)
 	fvmap_base = map_base;
 	sram_fvmap_base = sram_base;
 	pr_info("%s:fvmap initialize %p\n", __func__, sram_base);
+	margin_table_init();
 	fvmap_copy_from_sram(map_base, sram_base);
 
 	/* percent margin for each doamin at runtime */
-	kobj = kobject_create_and_add("percent_margin", power_kobj);
+	kobj = kobject_create_and_add("percent_margin", kernel_kobj);
 	if (!kobj)
 		pr_err("Fail to create percent_margin kboject\n");
 
@@ -531,3 +363,6 @@ int fvmap_init(void __iomem *sram_base)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(fvmap_init);
+
+MODULE_LICENSE("GPL");

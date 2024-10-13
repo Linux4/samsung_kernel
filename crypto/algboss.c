@@ -1,13 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Create default crypto algorithm instances.
  *
  * Copyright (c) 2006 Herbert Xu <herbert@gondor.apana.org.au>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- *
  */
 
 #include <crypto/internal/aead.h>
@@ -63,7 +58,6 @@ static int cryptomgr_probe(void *data)
 {
 	struct cryptomgr_param *param = data;
 	struct crypto_template *tmpl;
-	struct crypto_instance *inst;
 	int err;
 
 	tmpl = crypto_lookup_template(param->template);
@@ -71,16 +65,7 @@ static int cryptomgr_probe(void *data)
 		goto out;
 
 	do {
-		if (tmpl->create) {
-			err = tmpl->create(tmpl, param->tb);
-			continue;
-		}
-
-		inst = tmpl->alloc(param->tb);
-		if (IS_ERR(inst))
-			err = PTR_ERR(inst);
-		else if ((err = crypto_register_instance(tmpl, inst)))
-			tmpl->free(inst);
+		err = tmpl->create(tmpl, param->tb);
 	} while (err == -EAGAIN && !signal_pending(current));
 
 	crypto_tmpl_put(tmpl);
@@ -193,8 +178,6 @@ static int cryptomgr_schedule_probe(struct crypto_larval *larval)
 	if (IS_ERR(thread))
 		goto err_put_larval;
 
-	wait_for_completion_interruptible(&larval->completion);
-
 	return NOTIFY_STOP;
 
 err_put_larval:
@@ -211,18 +194,10 @@ static int cryptomgr_test(void *data)
 {
 	struct crypto_test_param *param = data;
 	u32 type = param->type;
-	int err = 0;
-
-#ifdef CONFIG_CRYPTO_MANAGER_DISABLE_TESTS
-	goto skiptest;
-#endif
-
-	if (type & CRYPTO_ALG_TESTED)
-		goto skiptest;
+	int err;
 
 	err = alg_test(param->driver, param->alg, type, CRYPTO_ALG_TESTED);
 
-skiptest:
 	crypto_alg_tested(param->driver, err);
 
 	kfree(param);
@@ -233,7 +208,9 @@ static int cryptomgr_schedule_test(struct crypto_alg *alg)
 {
 	struct task_struct *thread;
 	struct crypto_test_param *param;
-	u32 type;
+
+	if (IS_ENABLED(CONFIG_CRYPTO_MANAGER_DISABLE_TESTS))
+		return NOTIFY_DONE;
 
 	if (!try_module_get(THIS_MODULE))
 		goto err;
@@ -244,13 +221,7 @@ static int cryptomgr_schedule_test(struct crypto_alg *alg)
 
 	memcpy(param->driver, alg->cra_driver_name, sizeof(param->driver));
 	memcpy(param->alg, alg->cra_name, sizeof(param->alg));
-	type = alg->cra_flags;
-
-	/* Do not test internal algorithms. */
-	if (type & CRYPTO_ALG_INTERNAL)
-		type |= CRYPTO_ALG_TESTED;
-
-	param->type = type;
+	param->type = alg->cra_flags;
 
 	thread = kthread_run(cryptomgr_test, param, "cryptomgr_test");
 	if (IS_ERR(thread))
@@ -274,6 +245,8 @@ static int cryptomgr_notify(struct notifier_block *this, unsigned long msg,
 		return cryptomgr_schedule_probe(data);
 	case CRYPTO_MSG_ALG_REGISTER:
 		return cryptomgr_schedule_test(data);
+	case CRYPTO_MSG_ALG_LOADED:
+		break;
 	}
 
 	return NOTIFY_DONE;
@@ -294,7 +267,13 @@ static void __exit cryptomgr_exit(void)
 	BUG_ON(err);
 }
 
-subsys_initcall(cryptomgr_init);
+/*
+ * This is arch_initcall() so that the crypto self-tests are run on algorithms
+ * registered early by subsys_initcall().  subsys_initcall() is needed for
+ * generic implementations so that they're available for comparison tests when
+ * other implementations are registered later by module_init().
+ */
+arch_initcall(cryptomgr_init);
 module_exit(cryptomgr_exit);
 
 MODULE_LICENSE("GPL");

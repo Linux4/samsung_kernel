@@ -26,12 +26,17 @@ enum mcu_event_type {
 /*
  * Configuation functions
  */
+void __is_mcu_pmu_control(int on);
 int __is_mcu_hw_enable(void __iomem *base);
 int __is_mcu_hw_disable(void __iomem *base);
 int __is_mcu_core_control(void __iomem *base, int on);
 long __is_mcu_load_fw(void __iomem *base, struct device *dev);
 unsigned int __is_mcu_get_sram_size(void);
-
+int __is_mcu_hw_reset_peri(void __iomem *base, int onoff);
+int __is_mcu_hw_set_clock_peri(void __iomem *base);
+int __is_mcu_hw_set_init_peri(void __iomem *base);
+int __is_mcu_hw_set_clear_peri(void __iomem *base);
+int __is_mcu_hw_clear_peri(void __iomem *base);
 
 /*
  * interrupt functions
@@ -39,10 +44,10 @@ unsigned int __is_mcu_get_sram_size(void);
 unsigned int is_mcu_hw_g_irq_state(void __iomem *base, bool clear);
 void __is_mcu_hw_s_irq_enable(void __iomem *base, u32 intr_enable);
 unsigned int is_mcu_hw_g_irq_type(unsigned int state, enum mcu_event_type type);
+
 /*
  * debug functions
  */
-
 int __is_mcu_hw_sram_dump(void __iomem *base, unsigned int range);
 int __is_mcu_hw_cr_dump(void __iomem *base);
 int __is_mcu_hw_peri1_dump(void __iomem *base);

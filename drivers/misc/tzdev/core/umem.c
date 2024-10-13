@@ -25,6 +25,7 @@
 #include "core/log.h"
 #include "core/mem.h"
 #include "core/notifier.h"
+#include "core/subsystem.h"
 #include "debug/pmf.h"
 
 struct tzdev_mem_priv {
@@ -241,4 +242,4 @@ out_unregister:
 	return ret;
 }
 
-early_initcall(tzdev_mem_init_call);
+tzdev_early_initcall(tzdev_mem_init_call);

@@ -52,7 +52,10 @@
 #endif /* CONFIG_PM_DEVFREQ */
 
 /* Config related to control HW directly */
+#ifndef CONFIG_DISABLE_CAMERA_SIMD
 #define ENABLE_FPSIMD_FOR_USER
+#define LOCAL_FPSIMD_API
+#endif
 #define ENABLE_CSIISR /* this feature is only available at csi v1 */
 
 /* notifier for MIF throttling */
@@ -66,6 +69,9 @@
 /* BUG_ON | FIMC_BUG Macro control */
 #define USE_FIMC_BUG
 
+#if IS_ENABLED(CONFIG_DMA_BUF_CONTAINER) || IS_ENABLED(CONFIG_DMABUF_CONTAINER)
+#define DMABUF_CONTAINER	1
+#endif
 /*
  * =================================================================================================
  * CONFIG - DEBUG OPTIONS
@@ -78,10 +84,11 @@ extern int debug_hw;
 extern int debug_device;
 extern int debug_irq;
 extern int debug_sensor;
+extern int debug_mem;
 
-#define DEBUG_LOG_MEMORY
+/* #define DEBUG_LOG_MEMORY */
 /* #define DEBUG_HW_SIZE */
-#define DBG_STREAM_ID 0x3F
+#define DBG_STREAM_ID ((1 << IS_STREAM_COUNT) - 1)
 /* #define DBG_JITTER */
 #define FW_PANIC_ENABLE
 /* #define SENSOR_PANIC_ENABLE */
@@ -99,19 +106,8 @@ extern int debug_sensor;
 #define FIXED_DGAIN_VALUE (150 * 6)
 #define FIXED_TDNR_NOISE_INDEX_VALUE (0)
 /* #define DBG_CSIISR */
-/* #define DBG_DRAW_DIGIT */
-/* #define DBG_IMAGE_DUMP */
-/* #define DBG_META_DUMP */
 #define DBG_HAL_DEAD_PANIC_DELAY (500) /* ms */
-#define DBG_DMA_DUMP_PATH	"/data"
-#define DBG_DMA_DUMP_INTEVAL	33	/* unit : frame */
-#define DBG_DMA_DUMP_VID_COND(vid)	((vid == IS_VIDEO_SS0VC0_NUM) || \
-					(vid == IS_VIDEO_SS1VC0_NUM) || \
-					(vid == IS_VIDEO_SS2VC0_NUM) || \
-					(vid == IS_VIDEO_SS3VC0_NUM) || \
-					(vid == IS_VIDEO_SS4VC0_NUM) || \
-					(vid == IS_VIDEO_SS5VC0_NUM) || \
-					(vid == IS_VIDEO_M0P_NUM))
+#define DBG_DMA_DUMP_PATH	"/data/camera"
 /* #define DEBUG_HW_SFR */
 /* #define DBG_DUMPREG */
 /* #define USE_ADVANCED_DZOOM */
@@ -144,6 +140,10 @@ extern int debug_sensor;
 				: ((video->id < IS_VIDEO_32S_NUM) ? 1 : 2))
 #define GET_3XG_ID(video) ((video->id < IS_VIDEO_31S_NUM) ? 0 \
 				: ((video->id < IS_VIDEO_32S_NUM) ? 1 : 2))
+#define GET_3XO_ID(video) ((video->id < IS_VIDEO_31S_NUM) ? 0 \
+				: ((video->id < IS_VIDEO_32S_NUM) ? 1 : 2))
+#define GET_3XL_ID(video) ((video->id < IS_VIDEO_31S_NUM) ? 0 \
+				: ((video->id < IS_VIDEO_32S_NUM) ? 1 : 2))
 #define GET_IXS_ID(video) ((video->id < IS_VIDEO_I1S_NUM) ? 0 : 1)
 #define GET_IXC_ID(video) ((video->id < IS_VIDEO_I1S_NUM) ? 0 : 1)
 #define GET_IXP_ID(video) ((video->id < IS_VIDEO_I1S_NUM) ? 0 : 1)
@@ -153,11 +153,6 @@ extern int debug_sensor;
 #define GET_IXW_ID(video) ((video->id < IS_VIDEO_I1S_NUM) ? 0 : 1)
 #define GET_MEXC_ID(video) (video->id - IS_VIDEO_ME0C_NUM)
 #define GET_ORBXC_ID(video) (video->id - IS_VIDEO_ORB0C_NUM)
-#define GET_DXS_ID(video) ((video->id < IS_VIDEO_D1S_NUM) ? 0 : 1)
-#define GET_DXC_ID(video) ((video->id < IS_VIDEO_D1S_NUM) ? 0 : 1)
-#define GET_DCPXS_ID(video) ((video->id < IS_VIDEO_DCP1S_NUM) ? 0 : 1)
-#define GET_DCPXC_ID(video) ((video->id < IS_VIDEO_DCP1S_NUM) ? 0 \
-				: ((video->id < IS_VIDEO_DCP2C_NUM) ? 1 : 2))
 #define GET_MXS_ID(video) (video->id - IS_VIDEO_M0S_NUM)
 #define GET_MXP_ID(video) (video->id - IS_VIDEO_M0P_NUM)
 
@@ -335,6 +330,12 @@ extern int debug_sensor;
 #define mdbgv_3xg(fmt, this, args...) \
 	mdbg_common(debug_video, "[%d][3%dG:V]", fmt, ((struct is_device_ischain *)this->device)->instance, GET_3XG_ID(this->video), ##args)
 
+#define mdbgv_3xo(fmt, this, args...) \
+	mdbg_common(debug_video, "[%d][3%dO:V]", fmt, ((struct is_device_ischain *)this->device)->instance, GET_3XO_ID(this->video), ##args)
+
+#define mdbgv_3xl(fmt, this, args...) \
+	mdbg_common(debug_video, "[%d][3%dL:V]", fmt, ((struct is_device_ischain *)this->device)->instance, GET_3XL_ID(this->video), ##args)
+
 #define mdbgv_isp(fmt, this, args...) \
 	mdbg_common(debug_video, "[%d][I%dS:V]", fmt, ((struct is_device_ischain *)this->device)->instance, GET_IXS_ID(this->video), ##args)
 
@@ -394,6 +395,18 @@ extern int debug_sensor;
 #define mdbgv_clxc(fmt, this, args...) \
 	mdbg_common(debug_video, "[%d][CLxC:V]", fmt, ((struct is_device_ischain *)this->device)->instance, ##args)
 
+#define mdbgv_ypp(fmt, this, args...) \
+	mdbg_common(debug_video, "[%d][YPP:V]", fmt, ((struct is_device_ischain *)this->device)->instance, ##args)
+
+#define mdbgv_lme(fmt, this, args...) \
+	mdbg_common(debug_video, "[%d][LME:V]", fmt, ((struct is_device_ischain *)this->device)->instance, ##args)
+
+#define mdbgv_lmes(fmt, this, args...) \
+	mdbg_common(debug_video, "[%d][LMES:V]", fmt, ((struct is_device_ischain *)this->device)->instance, ##args)
+
+#define mdbgv_lmec(fmt, this, args...) \
+	mdbg_common(debug_video, "[%d][LMEC:V]", fmt, ((struct is_device_ischain *)this->device)->instance, ##args)
+
 /*
  * =================================================================================================
  * LOG - DEBUG_DEVICE
@@ -452,11 +465,11 @@ extern int debug_sensor;
  * =================================================================================================
  */
 #define probe_info(fmt, ...)		\
-	pr_info(fmt, ##__VA_ARGS__)
+	pr_info("[@]" fmt, ##__VA_ARGS__)
 #define probe_err(fmt, args...)		\
-	pr_err("[ERR]%s:%d:" fmt "\n", __func__, __LINE__, ##args)
+	pr_err("[@][ERR]%s:%d:" fmt "\n", __func__, __LINE__, ##args)
 #define probe_warn(fmt, args...)	\
-	pr_warning("[WRN]" fmt "\n", ##args)
+	pr_warn("[@][WRN]" fmt "\n", ##args)
 
 #if defined(DEBUG_LOG_MEMORY)
 #define is_err(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
@@ -466,7 +479,7 @@ extern int debug_sensor;
 #define is_cont(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
 #else
 #define is_err(fmt, ...)	pr_err(fmt, ##__VA_ARGS__)
-#define is_warn(fmt, ...)	pr_warning(fmt, ##__VA_ARGS__)
+#define is_warn(fmt, ...)	pr_warn(fmt, ##__VA_ARGS__)
 #define is_dbg(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
 #define is_info(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
 #define is_cont(fmt, ...)	pr_cont(fmt, ##__VA_ARGS__)
@@ -587,6 +600,9 @@ extern int debug_sensor;
 	info_common("[ITFC]", fmt, ##args)
 #define err_itfc(fmt, args...) \
 	err_common("[ITFC][ERR]%s:%d:", fmt "\n", __func__, __LINE__, ##args)
+
+#define dbg_mem(level, fmt, args...) \
+	dbg_common((debug_mem) >= (level), "[MEM]", fmt, ##args)
 
 #ifdef USE_FIMC_BUG
 #define FIMC_BUG(condition)									\

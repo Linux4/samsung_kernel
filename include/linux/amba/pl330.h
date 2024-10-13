@@ -31,6 +31,10 @@ struct dma_pl330_platdata {
 	unsigned mcbuf_sz;
 };
 
+extern struct dma_async_tx_descriptor *__pl330_prep_dma_cyclic(
+		struct dma_chan *chan, dma_addr_t dma_addr, size_t len,
+		size_t period_len, enum dma_transfer_direction direction,
+		unsigned long flags, void *context);
 extern bool pl330_filter(struct dma_chan *chan, void *param);
 extern int pl330_dma_getposition(struct dma_chan *chan,
 		dma_addr_t *src, dma_addr_t *dst);

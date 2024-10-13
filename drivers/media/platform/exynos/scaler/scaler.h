@@ -17,15 +17,25 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_media.h>
 #include <linux/io.h>
-#include <linux/pm_qos.h>
 #include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
 #include <media/videobuf2-core.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/v4l2-ctrls.h>
+
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 #include <soc/samsung/exynos-itmon.h>
+#endif
+
+#include <soc/samsung/exynos_pm_qos.h>
+
+#include "videodev2_exynos_media.h"
+
+#include "giant_mscl_uapi.h"
+
+struct sc_ext_dev;
 
 extern int sc_log_level;
 #define sc_dbg(fmt, args...)						\
@@ -94,7 +104,8 @@ extern int sc_log_level;
 		(x == V4L2_PIX_FMT_NV12N) || \
 		(x == V4L2_PIX_FMT_NV12N_RGB32) || \
 		(x == V4L2_PIX_FMT_NV12M_RGB32))
-#define sc_fmt_is_ayv12(x)	((x) == V4L2_PIX_FMT_YVU420)
+#define sc_fmt_is_ayv12(x)	(((x) == V4L2_PIX_FMT_YVU420) || \
+				 ((x) == V4L2_PIX_FMT_YVU420M))
 #define sc_fmt_is_s10bit_yuv(x)	((x == V4L2_PIX_FMT_NV12M_S10B) || \
 		(x == V4L2_PIX_FMT_NV12N_10B) || (x == V4L2_PIX_FMT_NV16M_S10B) || \
 		(x == V4L2_PIX_FMT_NV61M_S10B))
@@ -107,12 +118,20 @@ extern int sc_log_level;
 #define sc_dith_val(a, b, c)	((a << SCALER_DITH_R_SHIFT) |	\
 		(b << SCALER_DITH_G_SHIFT) | (c << SCALER_DITH_B_SHIFT))
 
+#define sc_cfg_is_rgb_10bit_format(fmt_cfg) \
+		((fmt_cfg) == SCALER_CFG_FMT_ARGB2101010 || \
+		(fmt_cfg) == SCALER_CFG_FMT_ABGR2101010 || \
+		(fmt_cfg) == SCALER_CFG_FMT_RGBA1010102 || \
+		(fmt_cfg) == SCALER_CFG_FMT_BGRA1010102)
+#define sc_cfg_is_10bit_format(cfg)	(!!((cfg) & SCALER_CFG_10BIT_MASK) || \
+		sc_cfg_is_rgb_10bit_format(cfg & SCALER_CFG_FMT_MASK))
+
 #define SCALER_VERSION(x, y, z) (((x) << 16) | ((y) << 8) | (z))
 
 /* SBWC lossy buffer size */
 #define SBWCL_BLOCK_COUNT(w, h)		(ALIGN(w, 32) * ALIGN(h, 4) / 128)
-#define SBWCL_Y_SIZE(w, h, r)		(SBWCL_BLOCK_COUNT(w, h) * 32 * (r))
-#define SBWCL_CBCR_SIZE(w, h, r)	(SBWCL_BLOCK_COUNT(w, h) * 16 * (r))
+#define SBWCL_Y_SIZE(w, h, r)		(SBWCL_STRIDE(w, r) * ((ALIGN(h, 16) + 3) / 4) + 64)
+#define SBWCL_CBCR_SIZE(w, h, r)	(SBWCL_STRIDE(w, r) * (((ALIGN(h, 16) / 2) + 3) / 4) + 64)
 #define SBWCL_STRIDE(w, r)		(ALIGN(w, 32) * (r))
 
 #define SC_FMT_PREMULTI_FLAG	10
@@ -156,7 +175,8 @@ extern int sc_log_level;
 
 /* for performance */
 #define SC_CID_FRAMERATE		(V4L2_CID_EXYNOS_BASE + 110)
-#define SC_FRAMERATE_MAX		(500)
+#define SC_CID_MAX_PERF			(V4L2_CID_EXYNOS_BASE + 111)
+#define SC_FRAMERATE_MAX		(2000)
 
 /* for denoising filter */
 #define SC_CID_DNOISE_FT		(V4L2_CID_EXYNOS_BASE + 150)
@@ -202,6 +222,8 @@ enum sc_dith {
  * The order is from Android PorterDuff.java
  */
 enum sc_blend_op {
+	/* not-blending */
+	BL_NO_OP = 0,
 	/* [0, 0] */
 	BL_OP_CLR = 1,
 	/* [Sa, Sc] */
@@ -348,6 +370,7 @@ struct sc_frame {
 	unsigned short		height;
 	__u32			pixelformat;
 	struct v4l2_rect	crop;
+	__u32			stride[SC_MAX_PLANES];
 
 	struct sc_addr			addr;
 	__u32			bytesused[SC_MAX_PLANES];
@@ -362,6 +385,7 @@ struct sc_int_frame {
 	struct sg_table			*sgt[3];
 	struct dma_buf			*dma_buf[3];
 	struct dma_buf_attachment	*attachment[3];
+	struct dma_heap 		*dma_heap;
 };
 
 /*
@@ -403,7 +427,6 @@ enum sc_ft {
 	SC_FT_240,
 	SC_FT_480,
 	SC_FT_720,
-	SC_FT_960,
 	SC_FT_1080,
 	SC_FT_MAX,
 };
@@ -430,15 +453,41 @@ struct sc_src_blend_cfg {
 struct sc_qos_table {
 	unsigned int freq_mif;
 	unsigned int freq_int;
-	union {
-		unsigned int data_size;
-		unsigned int freq_mscl;
-	};
+	unsigned int freq_mscl;
 };
 
 struct sc_ppc_table {
 	unsigned int bpp;
 	unsigned int ppc[2];
+};
+
+#define SC_NUM_TWS_IDX		2
+#define SC_NUM_TRS_IDX		16
+#define SC_NUM_BUF_IDX		16
+#define SC_VOTF_NUM_TRS_PER_DPU	8
+
+struct sc_tws {
+	struct list_head	node;
+	unsigned int		idx;
+	struct sc_dev		*sc_dev;
+	struct delayed_work	tws_work;
+	struct {
+		unsigned int	dpu_dma_idx;
+		unsigned int	trs_idx;
+		unsigned int	buf_idx;
+	} sink;
+	ktime_t			ktime;
+};
+
+struct sc_votf_target {
+	struct device	*dev;
+	void __iomem	*regs;
+	phys_addr_t	votf_base_pa;
+};
+
+struct sc_min_bus_int_table {
+	int bpp;
+	int min_bus_int;
 };
 
 struct sc_ctx;
@@ -469,7 +518,7 @@ struct sc_dev {
 	struct device			*dev;
 	const struct sc_variant		*variant;
 	struct sc_m2m_device		m2m;
-	struct m2m1shot_device		*m21dev;
+	struct sc_ext_dev		*xdev;
 	struct clk			*aclk;
 	struct clk			*pclk;
 	struct clk			*clk_chld;
@@ -486,8 +535,6 @@ struct sc_dev {
 	spinlock_t			ctxlist_lock;
 	struct sc_ctx			*current_ctx;
 	struct list_head		context_list; /* for sc_ctx_abs.node */
-	struct pm_qos_request		qosreq_int;
-	s32				qosreq_int_level;
 	int				dev_id;
 	u32				version;
 	bool				pb_disable;
@@ -496,17 +543,44 @@ struct sc_dev {
 	struct sc_ppc_table		*ppc_table;
 	int qos_table_cnt;
 	int ppc_table_cnt;
+	int				mif_ref;
+	int				bw_ref;
+	int				bts_id;
+	int				dvfs_class;
+	int				min_bus_int_table_cnt;
+	struct sc_min_bus_int_table	*min_bus_int_table;
+
+	u64				fence_context;
+	atomic_t			fence_timeline;
+	spinlock_t			fence_lock;
+
+	void __iomem			*votf_regs;
+	phys_addr_t			votf_base_pa;
+	struct sc_votf_target		*votf_table;
+	unsigned int			votf_table_count;
+	struct list_head		tws_avail_list;
+	spinlock_t			tws_lock;
+	atomic_t			votf_ref_count;
+
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 	struct notifier_block itmon_nb;
+#endif
 };
 
 enum SC_CONTEXT_TYPE {
 	SC_CTX_V4L2_TYPE,
-	SC_CTX_M2M1SHOT_TYPE
+	SC_CTX_M2M1SHOT_TYPE,
+	SC_CTX_EXT_TYPE
 };
 
 struct sc_qos_request {
-	struct pm_qos_request mif_req;
-	struct pm_qos_request int_req;
+	struct exynos_pm_qos_request mif_req;
+	/*
+	 * This is for performance of device.
+	 * The pm_qos_class of this can be changed by project
+	 */
+	struct exynos_pm_qos_request dev_req;
+	struct exynos_pm_qos_request bus_int_req;
 };
 
 /*
@@ -515,11 +589,9 @@ struct sc_qos_request {
  * @context_type	determines if the context is @m2m_ctx or @m21_ctx.
  * @sc_dev:		the Rotator device this context applies to
  * @m2m_ctx:		memory-to-memory device context
- * @m21_ctx:		m2m1shot context
  * @frame:		source frame properties
  * @ctrl_handler:	v4l2 controls handler
  * @fh:			v4l2 file handle
- * @ktime:		start time of a task of m2m1shot
  * @flip_rot_cfg:	rotation and flip configuration
  * @bl_op:		image blend mode
  * @dith:		image dithering mode
@@ -535,7 +607,6 @@ struct sc_ctx {
 	struct sc_dev			*sc_dev;
 	union {
 		struct v4l2_m2m_ctx	*m2m_ctx;
-		struct m2m1shot_context	*m21_ctx;
 	};
 	struct sc_frame			s_frame;
 	struct sc_frame			src_blend_frame;
@@ -544,7 +615,6 @@ struct sc_ctx {
 	struct v4l2_ctrl_handler	ctrl_handler;
 	union {
 		struct v4l2_fh		fh;
-		ktime_t			ktime_m2m1shot;
 	};
 	u32				flip_rot_cfg; /* SCALER_ROT_CFG */
 	enum sc_blend_op		bl_op;
@@ -566,7 +636,11 @@ struct sc_ctx {
 	struct sc_qos_request		pm_qos;
 	struct mutex			pm_qos_lock;
 	int				pm_qos_lv;
+	int				mif_freq_req;
 	int				framerate;
+	struct sc_tws			*tws;
+
+	int				pid;
 };
 
 static inline struct sc_frame *ctx_get_frame(struct sc_ctx *ctx,
@@ -574,14 +648,18 @@ static inline struct sc_frame *ctx_get_frame(struct sc_ctx *ctx,
 {
 	struct sc_frame *frame;
 
-	if (V4L2_TYPE_IS_MULTIPLANAR(type)) {
-		if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-			frame = &ctx->s_frame;
-		else
-			frame = &ctx->d_frame;
-	} else {
+	switch (type) {
+	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
+	case V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE:
+		frame = &ctx->s_frame;
+		break;
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+		frame = &ctx->d_frame;
+		break;
+	default:
 		dev_err(ctx->sc_dev->dev,
-				"Wrong V4L2 buffer type %d\n", type);
+			"Wrong V4L2 buffer type %d\n", type);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -611,5 +689,20 @@ void sc_hwset_vcoef(struct sc_dev *sc, unsigned int coef);
 
 void sc_hwregs_dump(struct sc_dev *sc);
 void sc_ctx_dump(struct sc_ctx *ctx);
+
+void sc_tracing_mark_write(struct sc_ctx *ctx, char trace_id, const char *str,
+			   int en);
+
+/* Added for scaler-ext */
+struct sc_ext_dev *create_scaler_ext_device(struct device *dev);
+void destroy_scaler_ext_device(struct sc_ext_dev *ext_dev);
+int sc_ext_device_run(struct sc_ctx *ctx);
+int sc_ext_run_job(struct sc_ctx *ctx);
+void sc_ext_current_task_finish(struct sc_ext_dev *ext_dev, bool success);
+bool sc_ext_job_finished(struct sc_ctx *ctx);
+
+#ifdef CONFIG_USE_DPU_ON_VOTF
+extern int exynos_dpuf_set_votf(u32 dpuf_idx, bool en);
+#endif
 
 #endif /* SCALER__H_ */

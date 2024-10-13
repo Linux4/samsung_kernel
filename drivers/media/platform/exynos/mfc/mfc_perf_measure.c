@@ -14,12 +14,12 @@
 
 #ifndef PERF_MEASURE
 
-void mfc_perf_register(struct mfc_dev *dev) {}
-void __mfc_measure_init(void) {}
-void __mfc_measure_on(struct mfc_dev *dev) {}
-void __mfc_measure_off(struct mfc_dev *dev) {}
-void __mfc_measure_store(struct mfc_dev *dev, int diff) {}
-void mfc_perf_print(void) {}
+void mfc_perf_register(struct mfc_core *core) {}
+void __mfc_measure_init(struct mfc_core *core) {}
+void __mfc_measure_on(struct mfc_core *core) {}
+void __mfc_measure_off(struct mfc_core *core) {}
+void __mfc_measure_store(struct mfc_core *core, int diff) {}
+void mfc_perf_print(struct mfc_core *core) {}
 
 #else
 

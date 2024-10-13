@@ -110,6 +110,52 @@ static ssize_t manufacture_code_show(struct device *dev,
 	return strlen(buf);
 }
 
+#if defined(CONFIG_SUPPORT_VCOM_TRIM_TEST)
+#define VCOM_TRIM_EXPECTED (0x00 << 16  | 0x11 << 8 | 0x01)
+static ssize_t vcom_trim_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_info *panel_data;
+	struct panel_device *panel = dev_get_drvdata(dev);
+	u8 read_vals[3] = {0, };
+	u32 read_val = 0;
+	int ret = 0;
+
+	if (panel == NULL) {
+		panel_err("PANEL:ERR:%s:panel is null\n", __func__);
+		return -EINVAL;
+	}
+	panel_data = &panel->panel_data;
+
+	if (!check_seqtbl_exist(panel_data, PANEL_VCOM_TRIM_TEST_SEQ)) {
+		panel_info("PANEL:INFO:PANEL_VCOM_TRIM_TEST_SEQ is not exist, (not supported) return 1.\n");
+		snprintf(buf, PAGE_SIZE, "1\n");
+		goto exit;
+	}
+
+	ret = panel_do_seqtbl_by_index(panel, PANEL_VCOM_TRIM_TEST_SEQ);
+	if (unlikely(ret < 0)) {
+		pr_err("%s, failed to do PANEL_VCOM_TRIM_TEST_SEQ seq\n", __func__);
+		return ret;
+	}
+
+	resource_copy_by_name(panel_data, &read_vals[0], "vcom_trim_1");
+	resource_copy_by_name(panel_data, &read_vals[1], "vcom_trim_2");
+	resource_copy_by_name(panel_data, &read_vals[2], "vcom_trim_3");
+
+	read_val = read_vals[0] << 16 | read_vals[1] << 8 | read_vals[2];
+
+	if (read_val == VCOM_TRIM_EXPECTED )
+		snprintf(buf, PAGE_SIZE, "1\n");
+	else
+		snprintf(buf, PAGE_SIZE, "0 %02X %02X %02X\n", read_vals[0], read_vals[1], read_vals[2]);
+
+	panel_info("PANEL:INFO:%s read_val:0x%08x expected: 0x%08x ret:%s\n", __func__, read_val, VCOM_TRIM_EXPECTED, buf);
+exit:
+	return strlen(buf);
+}
+#endif
+
 static ssize_t SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -772,9 +818,9 @@ static int read_mcd_resistance(struct panel_device *panel)
 		(1U << 2),
 	};
 	s64 elapsed_usec;
-	struct timespec cur_ts, last_ts, delta_ts;
+	struct timespec64 cur_ts, last_ts, delta_ts;
 
-	ktime_get_ts(&last_ts);
+	ktime_get_ts64(&last_ts);
 	panel_set_gpio_irq(&panel->gpio[PANEL_GPIO_DISP_DET], false);
 
 	ret = panel_do_seqtbl_by_index_nolock(panel, PANEL_MCD_RS_ON_SEQ);
@@ -825,9 +871,9 @@ static int read_mcd_resistance(struct panel_device *panel)
 out:
 	panel_set_gpio_irq(&panel->gpio[PANEL_GPIO_DISP_DET], true);
 
-	ktime_get_ts(&cur_ts);
-	delta_ts = timespec_sub(cur_ts, last_ts);
-	elapsed_usec = timespec_to_ns(&delta_ts) / 1000;
+	ktime_get_ts64(&cur_ts);
+	delta_ts = timespec64_sub(cur_ts, last_ts);
+	elapsed_usec = timespec64_to_ns(&delta_ts) / 1000;
 	pr_info("%s done (elapsed %2lld.%03lld msec)\n",
 			__func__, elapsed_usec / 1000, elapsed_usec % 1000);
 
@@ -2290,7 +2336,7 @@ char *line[4096];
 
 static int buffer_backup(u8 *buf, int size, char *name)
 {
-	struct file *fp;
+	struct file *fp = NULL;
 	mm_segment_t old_fs;
 
 	if (!name)
@@ -2300,13 +2346,13 @@ static int buffer_backup(u8 *buf, int size, char *name)
 	set_fs(KERNEL_DS);
 
 	pr_info("%s filename %s size %d\n", __func__, name, size);
-	fp = filp_open(name, O_CREAT | O_TRUNC | O_WRONLY | O_SYNC, 0660);
+//	fp = filp_open(name, O_CREAT | O_TRUNC | O_WRONLY | O_SYNC, 0660);
 	if (IS_ERR(fp)) {
 		pr_err("%s, fail to open %s file\n", __func__, name);
 		goto open_err;
 	}
 
-	vfs_write(fp, (u8 __user *)buf, size, &fp->f_pos);
+//	vfs_write(fp, (u8 __user *)buf, size, &fp->f_pos);
 	pr_info("%s filename %s write %d bytes done!!\n",
 			__func__, name, size);
 
@@ -2491,6 +2537,7 @@ static void show_brt_param(struct panel_info *panel_data, int id, int type)
 	}
 }
 
+#if 0
 #ifdef CONFIG_SUPPORT_DIM_FLASH
 static void show_aid_log(struct panel_info *panel_data, int id)
 {
@@ -2700,6 +2747,7 @@ static void show_aid_log(struct panel_info *panel_data, int id)
 	}
 }
 #endif /* CONFIG_SUPPORT_DIM_FLASH */
+#endif
 
 static ssize_t aid_log_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -2715,11 +2763,12 @@ static ssize_t aid_log_show(struct device *dev,
 
 	print_panel_resource(panel);
 
+#if 0
 	show_aid_log(panel_data, PANEL_BL_SUBDEV_TYPE_DISP);
 #ifdef CONFIG_SUPPORT_HMD
 	show_aid_log(panel_data, PANEL_BL_SUBDEV_TYPE_HMD);
 #endif
-
+#endif
 	return strlen(buf);
 }
 
@@ -3996,53 +4045,187 @@ struct device_attribute panel_attrs[] = {
 #endif
 	__PANEL_ATTR_RW(conn_det, 0664),
 	__PANEL_ATTR_RW(vrr, 0664),
+#if defined(CONFIG_SUPPORT_VCOM_TRIM_TEST)
+	__PANEL_ATTR_RO(vcom_trim, 0444),
+#endif
 };
 
-int panel_sysfs_probe(struct panel_device *panel)
+int panel_remove_svc_octa(struct panel_device *panel)
 {
-	struct lcd_device *lcd;
-	size_t i;
-	int ret;
-	struct kernfs_node *svc_sd;
-	struct kobject *svc;
+	struct device *lcd_dev;
+	struct kobject *top_kobj = NULL;
+	struct kernfs_node *kn = NULL;
+	struct kobject *svc_kobj = NULL;
+	int ret = 0;
 
-	lcd = panel->lcd;
-	if (unlikely(!lcd)) {
-		pr_err("%s, lcd device not exist\n", __func__);
+	if (!panel)
+		return -EINVAL;
+
+	lcd_dev = panel->lcd_dev;
+	if (unlikely(!lcd_dev)) {
+		panel_err("lcd device not exist\n");
+		return -ENODEV;
+	}
+
+	if (panel->panel_bl.bd) {
+		top_kobj = &panel->panel_bl.bd->dev.kobj.kset->kobj;
+		kn = kernfs_find_and_get(top_kobj->sd, "svc");
+	}
+
+	if (kn) {
+		svc_kobj = kn->priv;
+		if (!IS_ERR_OR_NULL(svc_kobj)) {
+			sysfs_remove_link(svc_kobj, "OCTA");
+			kobject_put(svc_kobj);
+		} else {
+			panel_err("fail to find svc\n");
+			ret = -ENODEV;
+			goto exit;
+		}
+		panel_info("succeed to remove svc/OCTA\n");
+	}
+
+exit:
+	if (kn)
+		kernfs_put(kn);
+
+	return ret;
+}
+
+int panel_create_svc_octa(struct panel_device *panel)
+{
+	struct device *lcd_dev;
+	struct kobject *top_kobj = NULL;
+	struct kernfs_node *kn = NULL;
+	struct kobject *svc_kobj = NULL;
+	int ret = 0;
+
+	if (!panel)
+		return -EINVAL;
+
+	lcd_dev = panel->lcd_dev;
+	if (unlikely(!lcd_dev)) {
+		panel_err("lcd device not exist\n");
+		return -ENODEV;
+	}
+
+	if (panel->panel_bl.bd) {
+		top_kobj = &panel->panel_bl.bd->dev.kobj.kset->kobj;
+		kn = kernfs_find_and_get(top_kobj->sd, "svc");
+	}
+
+	svc_kobj = kn ? kn->priv : kobject_create_and_add("svc", top_kobj);
+	if (!svc_kobj) {
+		panel_err("%s: fail to create svc\n", __func__);
+		ret = -ENODEV;
+		goto exit;
+	}
+
+	if (!IS_ERR_OR_NULL(svc_kobj)) {
+		ret = sysfs_create_link(svc_kobj, &lcd_dev->kobj, "OCTA");
+		if (ret)
+			panel_err("failed to create svc/OCTA/\n");
+		else
+			panel_info("succeeded to create svc/OCTA/\n");
+	} else {
+		panel_err("failed to find svc kobject\n");
+	}
+
+exit:
+	if (kn)
+		kernfs_put(kn);
+
+	return ret;
+}
+
+int panel_remove_sysfs(struct panel_device *panel)
+{
+	struct device *lcd_dev;
+	size_t i;
+
+	if (!panel)
+		return -EINVAL;
+
+	lcd_dev = panel->lcd_dev;
+	if (unlikely(!lcd_dev)) {
+		panel_err("lcd device not exist\n");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(panel_attrs); i++)
+		device_remove_file(panel->lcd_dev, &panel_attrs[i]);
+
+	panel_info("remove sysfs done\n");
+
+	return 0;
+}
+
+int panel_create_sysfs(struct panel_device *panel)
+{
+	struct device *lcd_dev;
+	size_t i;
+	int ret = 0;
+
+	if (!panel)
+		return -EINVAL;
+
+	lcd_dev = panel->lcd_dev;
+	if (unlikely(!lcd_dev)) {
+		panel_err("lcd device not exist\n");
 		return -ENODEV;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(panel_attrs); i++) {
-		ret = device_create_file(&lcd->dev, &panel_attrs[i]);
+		ret = device_create_file(panel->lcd_dev, &panel_attrs[i]);
 		if (ret < 0) {
-			dev_err(&lcd->dev, "%s, failed to add %s sysfs entries, %d\n",
-					__func__, panel_attrs[i].attr.name, ret);
-			return -ENODEV;
+			panel_err("failed to add sysfs(%s) entries, %d\n",
+					panel_attrs[i].attr.name, ret);
+			goto err;
 		}
 	}
 
-	/* to /sys/devices/svc/ */
-	svc_sd = sysfs_get_dirent(devices_kset->kobj.sd, "svc");
-	if (IS_ERR_OR_NULL(svc_sd)) {
-		svc = kobject_create_and_add("svc", &devices_kset->kobj);
-		if (IS_ERR_OR_NULL(svc))
-			pr_err("failed to create /sys/devices/svc already exist svc : 0x%pK\n", svc);
-		else
-			pr_err("success to create /sys/devices/svc svc : 0x%pK\n", svc);
-	} else {
-		svc = (struct kobject *)svc_sd->priv;
-		pr_info("success to find svc_sd : 0x%pK  svc : 0x%pK\n", svc_sd, svc);
-	}
+	return 0;
 
-	if (!IS_ERR_OR_NULL(svc)) {
-		ret = sysfs_create_link(svc, &lcd->dev.kobj, "OCTA");
-		if (ret)
-			pr_err("failed to create svc/OCTA/\n");
-		else
-			pr_info("success to create svc/OCTA/\n");
-	} else {
-		pr_err("failed to find svc kobject\n");
-	}
+err:
+	panel_remove_sysfs(panel);
+
+	return ret;
+}
+
+int panel_sysfs_probe(struct panel_device *panel)
+{
+	int ret;
+
+	if (!panel)
+		return -EINVAL;
+
+	ret = panel_create_svc_octa(panel);
+	if (ret < 0)
+		return ret;
+
+	ret = panel_create_sysfs(panel);
+	if (ret < 0)
+		goto err;
+
+	return 0;
+
+err:
+	panel_remove_svc_octa(panel);
+	return ret;
+}
+
+int panel_sysfs_remove(struct panel_device *panel)
+{
+	int ret = 0;
+
+	if (!panel)
+		return -EINVAL;
+
+	ret = panel_remove_sysfs(panel);
+	if (ret < 0)
+		return ret;
+
+	panel_remove_svc_octa(panel);
 
 	return 0;
 }

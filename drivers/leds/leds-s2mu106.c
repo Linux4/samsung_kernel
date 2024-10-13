@@ -17,11 +17,12 @@
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
-#include <linux/leds-s2m-common.h>
-#include <linux/platform_device.h>
-#include <linux/sec_batt.h>
-#include <linux/power_supply.h>
+#include <linux/mfd/samsung/s2mu106.h>
 #include <linux/leds-s2mu106.h>
+
+#include <linux/power_supply.h>
+#include <linux/platform_device.h>
+#include <linux/power_supply.h>
 #include <linux/mfd/slsi/s2mu106/s2mu106.h>
 /* MUIC header file */
 #include <linux/muic/common/muic.h>
@@ -32,9 +33,8 @@
 #define CONTROL_I2C	0
 #define CONTROL_GPIO	1
 
-extern int factory_mode;
-
-static struct s2mu106_fled_data *g_fled_data;
+struct s2mu106_fled_data *g_fled_data;
+extern struct class *camera_class; /*sys/class/camera*/
 
 static char *s2mu106_fled_mode_string[] = {
 	"OFF",
@@ -49,27 +49,28 @@ static char *s2mu106_fled_operating_mode_string[] = {
 	"SYS",
 };
 
-/*Channel values range fron 1 to 3 so 0 value is never obtained check function s2mu106_fled_set_torch_curr*/
+/* IC current limit */
 static int s2mu106_fled_torch_curr_max[] = {
-	-1, 320, 320, 320
+	0, 320, 320, 320
 };
 
-/*Channel values range fron 1 to 3 so 0 value is never obtained check function s2mu106_fled_set_flash_curr*/
+/* IC current limit */
 static int s2mu106_fled_flash_curr_max[] = {
-	-1, 1600, 1600, 500
+	0, 1600, 1600, 500
 };
 
+#if IS_ENABLED(DEBUG_TEST_READ)
 static void s2mu106_fled_test_read(struct s2mu106_fled_data *fled)
 {
-    u8 data;
-    char str[1016] = {0,};
-    int i;
+	u8 data;
+	char str[1016] = {0,};
+	int i;
 	struct i2c_client *i2c = fled->i2c;
 
-    for (i = 0x0B; i <= 0x0C; i++) {
-        s2mu106_read_reg(i2c, i, &data);
-        sprintf(str+strlen(str), "0x%02x:0x%02x, ", i, data);
-    }
+	for (i = 0x0B; i <= 0x0C; i++) {
+		s2mu106_read_reg(i2c, i, &data);
+		sprintf(str+strlen(str), "0x%02x:0x%02x, ", i, data);
+	}
 	for (i = 0x14; i <= 0x15; i++) {
 		s2mu106_read_reg(i2c, i, &data);
 		sprintf(str+strlen(str), "0x%02x:0x%02x, ", i, data);
@@ -83,7 +84,7 @@ static void s2mu106_fled_test_read(struct s2mu106_fled_data *fled)
 	s2mu106_read_reg(i2c, 0x5B, &data);
 	pr_err("%s: %s0x5B:0x%02x\n", __func__, str, data);
 
-	memset(str,0,strlen(str));
+	memset(str, 0, strlen(str));
 
 	for (i = 0x5C; i <= 0x62; i++) {
 		s2mu106_read_reg(i2c, i, &data);
@@ -91,15 +92,9 @@ static void s2mu106_fled_test_read(struct s2mu106_fled_data *fled)
 	}
 
 	s2mu106_read_reg(i2c, 0x63, &data);
-	sprintf(str+strlen(str), "0x63:0x%02x, ", data);
-
-	s2mu106_read_reg(i2c, 0x66, &data);
-	sprintf(str+strlen(str), "0x66:0x%02x, ", data);
-
-	s2mu106_read_reg(i2c, 0x67, &data);
-	pr_err("%s: %s0x67:0x%02x\n", __func__, str, data);
-
+	pr_err("%s: %s0x63:0x%02x\n", __func__, str, data);
 }
+#endif
 
 static int s2mu106_fled_get_flash_curr(struct s2mu106_fled_data *fled, int chan)
 {
@@ -112,19 +107,16 @@ static int s2mu106_fled_get_flash_curr(struct s2mu106_fled_data *fled, int chan)
 		return -1;
 	}
 
-	switch(chan) {
-		case 1:
-			dest = S2MU106_FLED_CH1_CTRL0;
-			break;
-		case 2:
-			dest = S2MU106_FLED_CH2_CTRL0;
-			break;
-		case 3:
-			dest = S2MU106_FLED_CH3_CTRL0;
-			break;
-		default:
-			return curr;
-			break;
+	switch (chan) {
+	case 1:
+		dest = S2MU106_FLED_CH1_CTRL0;
+		break;
+	case 2:
+		dest = S2MU106_FLED_CH2_CTRL0;
+		break;
+	case 3:
+		dest = S2MU106_FLED_CH3_CTRL0;
+		break;
 	}
 
 	s2mu106_read_reg(fled->i2c, dest, &data);
@@ -132,14 +124,12 @@ static int s2mu106_fled_get_flash_curr(struct s2mu106_fled_data *fled, int chan)
 	data = data & S2MU106_CHX_FLASH_IOUT;
 	curr = (data * 50) + 50;
 
-	pr_info("%s: CH%02d flash curr. = %dmA\n", __func__,
-		chan, curr);
+	pr_info("%s: CH%02d flash curr. = %dmA\n", __func__, chan, curr);
 
 	return curr;
 }
 
-static int s2mu106_fled_set_flash_curr(struct s2mu106_fled_data *fled,
-	int chan, int curr)
+static int s2mu106_fled_set_flash_curr(struct s2mu106_fled_data *fled, int chan, int curr)
 {
 	int ret = -1;
 	u8 data;
@@ -151,19 +141,16 @@ static int s2mu106_fled_set_flash_curr(struct s2mu106_fled_data *fled,
 		return -1;
 	}
 
-	switch(chan) {
-		case 1:
-			dest = S2MU106_FLED_CH1_CTRL0;
-			break;
-		case 2:
-			dest = S2MU106_FLED_CH2_CTRL0;
-			break;
-		case 3:
-			dest = S2MU106_FLED_CH3_CTRL0;
-			break;
-		default:
-			return ret;
-			break;
+	switch (chan) {
+	case 1:
+		dest = S2MU106_FLED_CH1_CTRL0;
+		break;
+	case 2:
+		dest = S2MU106_FLED_CH2_CTRL0;
+		break;
+	case 3:
+		dest = S2MU106_FLED_CH3_CTRL0;
+		break;
 	}
 
 	if (curr < 50)
@@ -177,14 +164,12 @@ static int s2mu106_fled_set_flash_curr(struct s2mu106_fled_data *fled,
 
 	curr_set = s2mu106_fled_get_flash_curr(fled, chan);
 
-	pr_info("%s: curr: %d, curr_set: %d\n", __func__,
-		curr, curr_set);
+	pr_info("%s: curr: %d, curr_set: %d\n", __func__, curr, curr_set);
 
 	return ret;
 }
 
-static int s2mu106_fled_get_torch_curr(struct s2mu106_fled_data *fled,
-	int chan)
+static int s2mu106_fled_get_torch_curr(struct s2mu106_fled_data *fled, int chan)
 {
 	int curr = -1;
 	u8 data;
@@ -195,19 +180,16 @@ static int s2mu106_fled_get_torch_curr(struct s2mu106_fled_data *fled,
 		return -1;
 	}
 
-	switch(chan) {
-		case 1:
-			dest = S2MU106_FLED_CH1_CTRL1;
-			break;
-		case 2:
-			dest = S2MU106_FLED_CH2_CTRL1;
-			break;
-		case 3:
-			dest = S2MU106_FLED_CH3_CTRL1;
-			break;
-		default:
-			return curr;
-			break;
+	switch (chan) {
+	case 1:
+		dest = S2MU106_FLED_CH1_CTRL1;
+		break;
+	case 2:
+		dest = S2MU106_FLED_CH2_CTRL1;
+		break;
+	case 3:
+		dest = S2MU106_FLED_CH3_CTRL1;
+		break;
 	}
 
 	s2mu106_read_reg(fled->i2c, dest, &data);
@@ -215,14 +197,12 @@ static int s2mu106_fled_get_torch_curr(struct s2mu106_fled_data *fled,
 	data = data & S2MU106_CHX_TORCH_IOUT;
 	curr = data * 10 + 10;
 
-	pr_info("%s: CH%02d torch curr. = %dmA\n", __func__,
-		chan, curr);
+	pr_info("%s: CH%02d torch curr. = %dmA\n", __func__, chan, curr);
 
 	return curr;
 }
 
-static int s2mu106_fled_set_torch_curr(struct s2mu106_fled_data *fled,
-	int chan, int curr)
+static int s2mu106_fled_set_torch_curr(struct s2mu106_fled_data *fled, int chan, int curr)
 {
 	int ret = -1;
 	u8 data;
@@ -234,19 +214,16 @@ static int s2mu106_fled_set_torch_curr(struct s2mu106_fled_data *fled,
 		return -1;
 	}
 
-	switch(chan) {
-		case 1:
-			dest = S2MU106_FLED_CH1_CTRL1;
-			break;
-		case 2:
-			dest = S2MU106_FLED_CH2_CTRL1;
-			break;
-		case 3:
-			dest = S2MU106_FLED_CH3_CTRL1;
-			break;
-		default:
-			return ret;
-			break;
+	switch (chan) {
+	case 1:
+		dest = S2MU106_FLED_CH1_CTRL1;
+		break;
+	case 2:
+		dest = S2MU106_FLED_CH2_CTRL1;
+		break;
+	case 3:
+		dest = S2MU106_FLED_CH3_CTRL1;
+		break;
 	}
 
 	if (curr < 10)
@@ -260,8 +237,7 @@ static int s2mu106_fled_set_torch_curr(struct s2mu106_fled_data *fled,
 
 	curr_set = s2mu106_fled_get_torch_curr(fled, chan);
 
-	pr_info("%s: curr: %d, curr_set: %d\n", __func__,
-		curr, curr_set);
+	pr_info("%s: curr: %d, curr_set: %d\n", __func__, curr, curr_set);
 
 	ret = 0;
 
@@ -301,11 +277,11 @@ static void s2mu106_fled_operating_mode(struct s2mu106_fled_data *fled, int mode
 	}
 
 	if (mode < 0 || mode > 3) {
-		pr_info ("%s, wrong mode\n", __func__);
+		pr_info("%s, wrong mode\n", __func__);
 		mode = AUTO_MODE;
 	}
 
-	pr_info ("%s = %s\n", __func__, s2mu106_fled_operating_mode_string[mode]);
+	pr_info("%s = %s\n", __func__, s2mu106_fled_operating_mode_string[mode]);
 
 	value = mode << 6;
 	s2mu106_update_reg(fled->i2c, S2MU106_FLED_CTRL0, value, 0xC0);
@@ -325,44 +301,36 @@ static int s2mu106_fled_get_mode(struct s2mu106_fled_data *fled, int chan)
 		return -1;
 	}
 
-	switch(chan) {
-		case 1:
-			if (status & S2MU106_CH1_FLASH_ON)
-				ret = S2MU106_FLED_MODE_FLASH;
-			else if (status & S2MU106_CH1_TORCH_ON)
-				ret = S2MU106_FLED_MODE_TORCH;
-			else
-				ret = S2MU106_FLED_MODE_OFF;
-			break;
-		case 2:
-			if (status & S2MU106_CH2_FLASH_ON)
-				ret = S2MU106_FLED_MODE_FLASH;
-			else if (status & S2MU106_CH2_TORCH_ON)
-				ret = S2MU106_FLED_MODE_TORCH;
-			else
-				ret = S2MU106_FLED_MODE_OFF;
-			break;
-		case 3:
-			if (status & S2MU106_CH3_FLASH_ON)
-				ret = S2MU106_FLED_MODE_FLASH;
-			else if (status & S2MU106_CH3_TORCH_ON)
-				ret = S2MU106_FLED_MODE_TORCH;
-			else
-				ret = S2MU106_FLED_MODE_OFF;
-			break;
-		default:
-			break;
+	switch (chan) {
+	case 1:
+		if (status & S2MU106_CH1_FLASH_ON)
+			ret = S2MU106_FLED_MODE_FLASH;
+		else if (status & S2MU106_CH1_TORCH_ON)
+			ret = S2MU106_FLED_MODE_TORCH;
+		else
+			ret = S2MU106_FLED_MODE_OFF;
+		break;
+	case 2:
+		if (status & S2MU106_CH2_FLASH_ON)
+			ret = S2MU106_FLED_MODE_FLASH;
+		else if (status & S2MU106_CH2_TORCH_ON)
+			ret = S2MU106_FLED_MODE_TORCH;
+		else
+			ret = S2MU106_FLED_MODE_OFF;
+		break;
+	case 3:
+		if (status & S2MU106_CH3_FLASH_ON)
+			ret = S2MU106_FLED_MODE_FLASH;
+		else if (status & S2MU106_CH3_TORCH_ON)
+			ret = S2MU106_FLED_MODE_TORCH;
+		else
+			ret = S2MU106_FLED_MODE_OFF;
+		break;
 	}
 	return ret;
 }
 
-/*
- * s2mu106_fled_set_mode associates a FGPIO pin (1 ~ 4) with a FLED channel 
- * in some mode (Torch or Flash) for GPIO control mode. Please check datasheet
- * for more information.
- */
-static int s2mu106_fled_set_mode(struct s2mu106_fled_data *fled,
-								int chan, int mode, int gpio)
+static int s2mu106_fled_set_mode(struct s2mu106_fled_data *fled, int chan, int mode, int gpio)
 {
 	u8 dest = 0, bit = 0, mask = 0, status = 0;
 
@@ -403,33 +371,27 @@ static int s2mu106_fled_set_mode(struct s2mu106_fled_data *fled,
 			break;
 	}
 
-	switch(chan) {
-		case 1:
-			dest = S2MU106_FLED_CTRL1;
-			break;
-		case 2:
-			dest = S2MU106_FLED_CTRL2;
-			break;
-		case 3:
-			dest = S2MU106_FLED_CTRL3;
-			break;
-		default:
-			return -EFAULT;
-			break;
+	switch (chan) {
+	case 1:
+		dest = S2MU106_FLED_CTRL1;
+		break;
+	case 2:
+		dest = S2MU106_FLED_CTRL2;
+		break;
+	case 3:
+		dest = S2MU106_FLED_CTRL3;
+		break;
 	}
 
 	/* Need to set EN_FLED_PRE bit before mode change */
 	if (mode != S2MU106_FLED_MODE_OFF)
-		s2mu106_update_reg(fled->i2c, S2MU106_FLED_CTRL0,
-			S2MU106_EN_FLED_PRE, S2MU106_EN_FLED_PRE);
+		s2mu106_update_reg(fled->i2c, S2MU106_FLED_CTRL0, S2MU106_EN_FLED_PRE, S2MU106_EN_FLED_PRE);
 	else {
 		/* If no LED is on, clear EN_FLED_PRE */
 		s2mu106_read_reg(fled->i2c, S2MU106_FLED_STATUS1, &status);
 		if (!(status & S2MU106_FLED_ON_CHECK))
-			s2mu106_update_reg(fled->i2c, S2MU106_FLED_CTRL0,
-					0, S2MU106_EN_FLED_PRE);
+			s2mu106_update_reg(fled->i2c, S2MU106_FLED_CTRL0, 0, S2MU106_EN_FLED_PRE);
 	}
-
 	s2mu106_update_reg(fled->i2c, dest, bit, mask);
 
 	if (mode == S2MU106_FLED_MODE_OFF)
@@ -546,19 +508,19 @@ int s2mu106_mode_change_cam_to_leds(enum cam_flash_mode cam_mode)
 {
 	int mode = -1;
 
-	switch(cam_mode) {
-		case CAM_FLASH_MODE_OFF:
-			mode = S2MU106_FLED_MODE_OFF;
-			break;
-		case CAM_FLASH_MODE_SINGLE:
-			mode = S2MU106_FLED_MODE_FLASH;
-			break;
-		case CAM_FLASH_MODE_TORCH:
-			mode = S2MU106_FLED_MODE_TORCH;
-			break;
-		default:
-			mode = S2MU106_FLED_MODE_OFF;
-			break;
+	switch (cam_mode) {
+	case CAM_FLASH_MODE_OFF:
+		mode = S2MU106_FLED_MODE_OFF;
+		break;
+	case CAM_FLASH_MODE_SINGLE:
+		mode = S2MU106_FLED_MODE_FLASH;
+		break;
+	case CAM_FLASH_MODE_TORCH:
+		mode = S2MU106_FLED_MODE_TORCH;
+		break;
+	default:
+		mode = S2MU106_FLED_MODE_OFF;
+		break;
 	}
 
 	return mode;
@@ -571,20 +533,22 @@ int s2mu106_fled_set_mode_ctrl(int chan, enum cam_flash_mode cam_mode)
 
 	mode = s2mu106_mode_change_cam_to_leds(cam_mode);
 
-	if ((chan <= 0) || (chan > S2MU106_CH_MAX) ||
-		(mode < 0) || (mode >= S2MU106_FLED_MODE_MAX)) {
-			pr_err("%s: channel: %d, mode: %d\n", __func__, chan, mode);
-			pr_err("%s: Wrong channel or mode.\n", __func__);
-			return -1;
+	if ((chan <= 0) || (chan > S2MU106_CH_MAX) || (mode < 0) || (mode >= S2MU106_FLED_MODE_MAX)) {
+		pr_err("%s: channel: %d, mode: %d\n", __func__, chan, mode);
+		pr_err("%s: Wrong channel or mode.\n", __func__);
+		return -1;
 	}
 
 	s2mu106_fled_set_mode(fled, chan, mode, S2MU106_FLED_GPIO_NONE);
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(fled);
+#endif
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(s2mu106_fled_set_mode_ctrl);
 
-int s2mu106_fled_set_curr(int chan, enum cam_flash_mode cam_mode, int curr)
+int s2mu106_fled_set_curr(int chan, enum cam_flash_mode cam_mode)
 {
 	struct s2mu106_fled_data *fled = g_fled_data;
 	int mode = -1;
@@ -593,27 +557,30 @@ int s2mu106_fled_set_curr(int chan, enum cam_flash_mode cam_mode, int curr)
 
 	/* Check channel */
 	if ((chan <= 0) || (chan > S2MU106_CH_MAX)) {
-			pr_err("%s: Wrong channel.\n", __func__);
-			return -EFAULT;
+		pr_err("%s: Wrong channel.\n", __func__);
+		return -EFAULT;
 	}
 
-	switch (mode){
-		case S2MU106_FLED_MODE_TORCH:
-			/* Set curr. */
-			s2mu106_fled_set_torch_curr(fled, chan, curr);
-			break;
-		case S2MU106_FLED_MODE_FLASH:
-			/* Set curr. */
-			s2mu106_fled_set_flash_curr(fled, chan, curr);
-			break;
-		default:
-			return -1;
+	switch (mode) {
+	case S2MU106_FLED_MODE_TORCH:
+		/* Set curr. */
+		s2mu106_fled_set_torch_curr(fled, chan, fled->preflash_current);
+		break;
+	case S2MU106_FLED_MODE_FLASH:
+		/* Set curr. */
+		s2mu106_fled_set_flash_curr(fled, chan, fled->flash_current);
+		break;
+	default:
+		return -1;
 	}
 	/* Test read */
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(fled);
+#endif
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(s2mu106_fled_set_curr);
 
 int s2mu106_fled_get_curr(int chan, enum cam_flash_mode cam_mode)
 {
@@ -625,36 +592,36 @@ int s2mu106_fled_get_curr(int chan, enum cam_flash_mode cam_mode)
 
 	/* Check channel */
 	if ((chan <= 0) || (chan > S2MU106_CH_MAX)) {
-			pr_err("%s: Wrong channel.\n", __func__);
-			return -EFAULT;
+		pr_err("%s: Wrong channel.\n", __func__);
+		return -EFAULT;
 	}
 
-	switch (mode){
-		case S2MU106_FLED_MODE_TORCH:
-			curr = s2mu106_fled_get_torch_curr(fled, chan);
-			break;
-		case S2MU106_FLED_MODE_FLASH:
-			curr = s2mu106_fled_get_flash_curr(fled, chan);
-			break;
-		default:
-			return -1;
+	switch (mode) {
+	case S2MU106_FLED_MODE_TORCH:
+		curr = s2mu106_fled_get_torch_curr(fled, chan);
+		break;
+	case S2MU106_FLED_MODE_FLASH:
+		curr = s2mu106_fled_get_flash_curr(fled, chan);
+		break;
+	default:
+		return -1;
 	}
 	/* Test read */
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(fled);
+#endif
 
 	return curr;
 }
 
-static ssize_t fled_flash_curr_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
+static ssize_t fled_flash_curr_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    struct led_classdev *led_cdev = dev_get_drvdata(dev);
-	struct s2mu106_fled_data *fled =
-		container_of(led_cdev, struct s2mu106_fled_data, cdev);
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct s2mu106_fled_data *fled = container_of(led_cdev, struct s2mu106_fled_data, cdev);
 	int cnt = 0;
 	int curr = 0;
 	int i;
-    char str[1016] = {0,};
+	char str[1016] = {0,};
 
 	/* Read curr. */
 	for (i = 1; i <= S2MU106_CH_MAX; i++) {
@@ -668,46 +635,47 @@ static ssize_t fled_flash_curr_show(struct device *dev,
 
 	strcpy(buf, str);
 
-    return cnt;
+	return cnt;
 }
 
-static ssize_t fled_flash_curr_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
+static ssize_t fled_flash_curr_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
-    struct led_classdev *led_cdev = dev_get_drvdata(dev);
-	struct s2mu106_fled_data *fled =
-		container_of(led_cdev, struct s2mu106_fled_data, cdev);
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct s2mu106_fled_data *fled = container_of(led_cdev, struct s2mu106_fled_data, cdev);
 	int chan = -1;
 	int curr = -1;
+	int ret = 0;
 
-	sscanf(buf, "%d %d", &chan, &curr);
+	ret = sscanf(buf, "%d %d", &chan, &curr);
+	if (ret != 2)
+		pr_err("%s: sscanf fail\n", __func__);
 
 	/* Check channel */
 	if ((chan <= 0) || (chan > S2MU106_CH_MAX)) {
-			pr_err("%s: Wrong channel.\n", __func__);
-			return -EFAULT;
+		pr_err("%s: Wrong channel.\n", __func__);
+		return -EFAULT;
 	}
 
 	/* Set curr. */
 	s2mu106_fled_set_flash_curr(fled, chan, curr);
 
 	/* Test read */
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(fled);
+#endif
 
 	return size;
 }
 
 
-static ssize_t fled_torch_curr_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
+static ssize_t fled_torch_curr_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    struct led_classdev *led_cdev = dev_get_drvdata(dev);
-	struct s2mu106_fled_data *fled =
-		container_of(led_cdev, struct s2mu106_fled_data, cdev);
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct s2mu106_fled_data *fled = container_of(led_cdev, struct s2mu106_fled_data, cdev);
 	int cnt = 0;
 	int curr = 0;
 	int i;
-    char str[1016] = {0,};
+	char str[1016] = {0,};
 
 	/* Read curr. */
 	for (i = 1; i <= S2MU106_CH_MAX; i++) {
@@ -721,78 +689,80 @@ static ssize_t fled_torch_curr_show(struct device *dev,
 
 	strcpy(buf, str);
 
-    return cnt;
+	return cnt;
 }
 
-static ssize_t fled_torch_curr_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
+static ssize_t fled_torch_curr_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
-    struct led_classdev *led_cdev = dev_get_drvdata(dev);
-	struct s2mu106_fled_data *fled =
-		container_of(led_cdev, struct s2mu106_fled_data, cdev);
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct s2mu106_fled_data *fled = container_of(led_cdev, struct s2mu106_fled_data, cdev);
 	int chan = -1;
 	int curr = -1;
+	int ret = 0;
 
-	sscanf(buf, "%d %d", &chan, &curr);
+	ret = sscanf(buf, "%d %d", &chan, &curr);
+	if (ret != 2)
+		pr_err("%s: sscanf fail\n", __func__);
 
 	/* Check channel */
 	if ((chan <= 0) || (chan > S2MU106_CH_MAX)) {
-			pr_err("%s: Wrong channel.\n", __func__);
-			return -EFAULT;
+		pr_err("%s: Wrong channel.\n", __func__);
+		return -EFAULT;
 	}
 
 	/* Set curr. */
 	s2mu106_fled_set_torch_curr(fled, chan, curr);
 
 	/* Test read */
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(fled);
+#endif
 
 	return size;
 }
 
-static ssize_t fled_mode_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
+static ssize_t fled_mode_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    struct led_classdev *led_cdev = dev_get_drvdata(dev);
-	struct s2mu106_fled_data *fled =
-		container_of(led_cdev, struct s2mu106_fled_data, cdev);
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct s2mu106_fled_data *fled = container_of(led_cdev, struct s2mu106_fled_data, cdev);
 	int cnt = 0;
 	int mode = 0;
 	int i;
-    char str[1016] = {0,};
+	char str[1016] = {0,};
 
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(fled);
+#endif
 
 	for (i = 1; i <= S2MU106_CH_MAX; i++) {
 		mode = s2mu106_fled_get_mode(fled, i);
 		if (mode >= 0)
-			cnt += sprintf(str+strlen(str), "CH%02d: %s, ", i,
-				s2mu106_fled_mode_string[mode]);
+			cnt += sprintf(str+strlen(str), "CH%02d: %s, ", i, s2mu106_fled_mode_string[mode]);
 	}
 
 	cnt += sprintf(str+strlen(str), "\n");
 
 	strcpy(buf, str);
 
-    return cnt;
+	return cnt;
 }
 
-static ssize_t fled_mode_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
+static ssize_t fled_mode_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
-    struct led_classdev *led_cdev = dev_get_drvdata(dev);
-	struct s2mu106_fled_data *fled =
-		container_of(led_cdev, struct s2mu106_fled_data, cdev);
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct s2mu106_fled_data *fled = container_of(led_cdev, struct s2mu106_fled_data, cdev);
 	int chan = -1;
 	int mode = -1;
+	int ret = 0;
 
-	sscanf(buf, "%d %d", &chan, &mode);
+	ret = sscanf(buf, "%d %d", &chan, &mode);
+	if (ret != 2)
+		pr_err("%s: sscanf fail\n", __func__);
 
-	if ((chan <= 0) || (chan > S2MU106_CH_MAX) ||
-		(mode < 0) || (mode >= S2MU106_FLED_MODE_MAX)) {
-			pr_err("%s: channel: %d, mode: %d\n", __func__, chan, mode);
-			pr_err("%s: Wrong channel or mode.\n", __func__);
-			return -EFAULT;
+	if ((chan <= 0) || (chan > S2MU106_CH_MAX) || (mode < 0) || (mode >= S2MU106_FLED_MODE_MAX)) {
+		pr_err("%s: channel: %d, mode: %d\n", __func__, chan, mode);
+		pr_err("%s: Wrong channel or mode.\n", __func__);
+		return -EFAULT;
 	}
 
 	if (fled->control_mode == CONTROL_I2C)
@@ -806,7 +776,9 @@ static ssize_t fled_mode_store(struct device *dev,
 			s2mu106_led_mode_ctrl(S2MU106_FLED_MODE_OFF);
 	}
 
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(fled);
+#endif
 
 	return size;
 }
@@ -819,32 +791,28 @@ static struct attribute *s2mu106_fled_attrs[] = {
 	&dev_attr_fled_mode.attr,
 	&dev_attr_fled_flash_curr.attr,
 	&dev_attr_fled_torch_curr.attr,
-    NULL
+	NULL
 };
 ATTRIBUTE_GROUPS(s2mu106_fled);
 
 void s2mu106_fled_set_operation_mode(int mode)
 {
-	if(!g_fled_data) {
-		pr_err("%s: g_fled_data is NULL, s2mu106 probe is not called.\n", __func__);
-		return;
-	}
-
-	if(mode) {
+	if (mode) {
 		s2mu106_fled_operating_mode(g_fled_data, TA_MODE);
 		g_fled_data->set_on_factory = 1;
 		pr_info("%s: TA only mode set\n", __func__);
-	}
-	else {
+	} else {
 		g_fled_data->set_on_factory = 0;
 		s2mu106_fled_operating_mode(g_fled_data, AUTO_MODE);
 		pr_info("%s: Auto control mode set\n", __func__);
 	}
 }
+EXPORT_SYMBOL_GPL(s2mu106_fled_set_operation_mode);
 
 static void s2mu106_fled_init(struct s2mu106_fled_data *fled)
 {
 	int i;
+	struct i2c_client *i2c = fled->i2c;
 
 	pr_info("%s: s2mu106_fled init start\n", __func__);
 
@@ -877,17 +845,10 @@ static void s2mu106_fled_init(struct s2mu106_fled_data *fled)
 		fled->control_mode = CONTROL_I2C;
 	}
 
-	/* FLED driver operating mode set, TA only mode*/
 	fled->set_on_factory = 0;
-#if !defined(CONFIG_SEC_FACTORY)
-	if(factory_mode) {
-		s2mu106_fled_operating_mode(fled, TA_MODE);
-		fled->set_on_factory = 1;
-	}
-#endif
 	/* for Flash Auto boost */
-	s2mu106_update_reg(fled->i2c, S2MU106_FLED_TEST3, 0x20, 0x20);
-	s2mu106_update_reg(fled->i2c, S2MU106_FLED_TEST4, 0x40, 0x40);
+	s2mu106_update_reg(i2c, S2MU106_FLED_TEST3, 0x20, 0x20);
+	s2mu106_update_reg(i2c, S2MU106_FLED_TEST4, 0x40, 0x40);
 
 	for (i = 1; i <= S2MU106_CH_MAX; i++) {
 		s2mu106_fled_set_flash_curr(fled, i, fled->default_current);
@@ -902,17 +863,18 @@ static void s2mu106_fled_init(struct s2mu106_fled_data *fled)
 	s2mu106_fled_set_torch_curr(fled, 2, fled->torch_current);
 
 	/* w/a: prevent SMPL event in case of flash operation */
-	s2mu106_update_reg(fled->i2c, 0x21, 0x4, 0x7);
-	s2mu106_update_reg(fled->i2c, 0x89, 0x0, 0x3);
+	s2mu106_update_reg(i2c, 0x21, 0x4, 0x7);
+	s2mu106_update_reg(i2c, 0x89, 0x0, 0x3);
 
 	fled->psy_chg = power_supply_get_by_name("s2mu106-charger");
 
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(fled);
+#endif
 }
 
-#if defined(CONFIG_OF)
-static int s2mu106_led_dt_parse_pdata(struct device *dev,
-				struct s2mu106_fled_platform_data *pdata)
+#if IS_ENABLED(CONFIG_OF)
+static int s2mu106_led_dt_parse_pdata(struct device *dev, struct s2mu106_fled_platform_data *pdata)
 {
 	struct device_node *led_np, *np, *c_np;
 	int ret;
@@ -932,18 +894,15 @@ static int s2mu106_led_dt_parse_pdata(struct device *dev,
 		return -EINVAL;
 	}
 
-	ret = of_property_read_u32(np, "default_current",
-			&pdata->default_current);
+	ret = of_property_read_u32(np, "default_current", &pdata->default_current);
 	if (ret < 0)
 		pr_err("%s : could not find default_current\n", __func__);
 
-	ret = of_property_read_u32(np, "max_current",
-			&pdata->max_current);
+	ret = of_property_read_u32(np, "max_current", &pdata->max_current);
 	if (ret < 0)
 		pr_err("%s : could not find max_current\n", __func__);
 
-	ret = of_property_read_u32(np, "default_timer",
-			&pdata->default_timer);
+	ret = of_property_read_u32(np, "default_timer", &pdata->default_timer);
 	if (ret < 0)
 		pr_err("%s : could not find default_timer\n", __func__);
 
@@ -1010,7 +969,7 @@ static int s2mu106_led_dt_parse_pdata(struct device *dev,
 	ret = of_property_read_u32(np, "preflash_current",
 			&pdata->preflash_current);
 	if (ret < 0)
-		pr_err("%s : could not find flash_current\n", __func__);
+		pr_err("%s : could not find preflash_current\n", __func__);
 
 	ret = of_property_read_u32(np, "torch_current",
 			&pdata->torch_current);
@@ -1050,8 +1009,7 @@ static int s2mu106_led_dt_parse_pdata(struct device *dev,
 	if (pdata->chan_num > S2MU106_CH_MAX)
 		pdata->chan_num = S2MU106_CH_MAX;
 
-	pdata->channel = devm_kzalloc(dev,
-		sizeof(struct s2mu106_fled_chan) * pdata->chan_num, GFP_KERNEL);
+	pdata->channel = devm_kzalloc(dev, sizeof(struct s2mu106_fled_chan) * pdata->chan_num, GFP_KERNEL);
 
 	for_each_child_of_node(np, c_np) {
 		ret = of_property_read_u32(c_np, "id", &temp);
@@ -1064,16 +1022,14 @@ static int s2mu106_led_dt_parse_pdata(struct device *dev,
 		if (index < S2MU106_CH_MAX) {
 			pdata->channel[index].id = index;
 
-			ret = of_property_read_u32_index(np, "current", index,
-					&pdata->channel[index].curr);
+			ret = of_property_read_u32_index(np, "current", index, &pdata->channel[index].curr);
 			if (ret < 0) {
 				pr_err("%s : could not find current for channel%d\n",
 					__func__, pdata->channel[index].id);
 				pdata->channel[index].curr = pdata->default_current;
 			}
 
-			ret = of_property_read_u32_index(np, "timer", index,
-					&pdata->channel[index].timer);
+			ret = of_property_read_u32_index(np, "timer", index, &pdata->channel[index].timer);
 			if (ret < 0) {
 				pr_err("%s : could not find timer for channel%d\n",
 					__func__, pdata->channel[index].id);
@@ -1081,9 +1037,7 @@ static int s2mu106_led_dt_parse_pdata(struct device *dev,
 			}
 		}
 	}
-	pr_info("%s: DT parsing finished successfully \n", __func__, ret);
 	return 0;
-
 dt_err:
 	pr_err("%s: DT parsing finish. ret = %d\n", __func__, ret);
 	return ret;
@@ -1114,13 +1068,12 @@ static ssize_t rear_flash_store(struct device *dev,
 		pr_err("%s : Wrong sysfs file \n",__func__);
 	}
 
-
 	if ((value < 0)) {
 		pr_err("%s: value: %d\n", __func__, value);
 		pr_err("%s: Wrong mode.\n", __func__);
 		return -EFAULT;
 	}
-	pr_info("%s: %d: rear_flash_store:\n", __func__,value );
+	pr_info("%s: %d: rear_flash_store:\n", __func__, value);
 	g_fled_data->sysfs_input_data = value;
 
 	flash_current = g_fled_data->flash_current;
@@ -1196,9 +1149,10 @@ static ssize_t rear_flash_store(struct device *dev,
 			s2mu106_led_mode_ctrl(S2MU106_FLED_MODE_OFF);
 		}
 	}
-
 	mutex_unlock(&g_fled_data->lock);
+#if IS_ENABLED(DEBUG_TEST_READ)
 	s2mu106_fled_test_read(g_fled_data);
+#endif
 	pr_info("%s: rear_flash_store END\n", __func__);
 	return size;
 }
@@ -1208,7 +1162,6 @@ static ssize_t rear_flash_show(struct device *dev,
 {
 	return sprintf(buf, "%d\n", g_fled_data->sysfs_input_data);
 }
-
 
 static DEVICE_ATTR(rear_flash, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 	rear_flash_show, rear_flash_store);
@@ -1250,26 +1203,22 @@ static int s2mu106_led_probe(struct platform_device *pdev)
 	int cnt = 0;
 	struct s2mu106_dev *s2mu106 = dev_get_drvdata(pdev->dev.parent);
 	struct s2mu106_fled_data *fled_data;
-	char name[20];
 
-	pr_info("%s: s2mu106_fled start\n", __func__);
+	pr_info("%s: start\n", __func__);
 
 	if (!s2mu106) {
 		dev_err(&pdev->dev, "drvdata->dev.parent not supplied\n");
 		return -ENODEV;
 	}
 
-	fled_data = devm_kzalloc(&pdev->dev,
-		sizeof(struct s2mu106_fled_data), GFP_KERNEL);
+	fled_data = devm_kzalloc(&pdev->dev, sizeof(struct s2mu106_fled_data), GFP_KERNEL);
 	if (!fled_data) {
 		pr_err("%s: failed to allocate driver data\n", __func__);
 		return -ENOMEM;
 	}
-
 	fled_data->dev = &pdev->dev;
 	fled_data->i2c = s2mu106->i2c;
-	fled_data->pdata = devm_kzalloc(&pdev->dev,
-		sizeof(*(fled_data->pdata)), GFP_KERNEL);
+	fled_data->pdata = devm_kzalloc(&pdev->dev, sizeof(*(fled_data->pdata)), GFP_KERNEL);
 	if (!fled_data->pdata) {
 		pr_err("%s: failed to allocate platform data\n", __func__);
 		return -ENOMEM;
@@ -1278,8 +1227,7 @@ static int s2mu106_led_probe(struct platform_device *pdev)
 	if (s2mu106->dev->of_node) {
 		ret = s2mu106_led_dt_parse_pdata(&pdev->dev, fled_data->pdata);
 		if (ret < 0) {
-			pr_err("%s: not found leds dt! ret=%d\n",
-				__func__, ret);
+			pr_err("%s: not found leds dt! ret=%d\n", __func__, ret);
 			return -1;
 		}
 	}
@@ -1288,9 +1236,7 @@ static int s2mu106_led_probe(struct platform_device *pdev)
 
 	/* Store fled_data for EXPORT_SYMBOL */
 	g_fled_data = fled_data;
-
-	snprintf(name, sizeof(name), "fled-s2mu106");
-	fled_data->cdev.name = name;
+	fled_data->cdev.name = "fled-s2mu106";
 	fled_data->cdev.groups = s2mu106_fled_groups;
 
 	ret = devm_led_classdev_register(&pdev->dev, &fled_data->cdev);
@@ -1325,37 +1271,9 @@ static int s2mu106_led_probe(struct platform_device *pdev)
 	//create sysfs for camera.
 	create_flash_sysfs(fled_data);
 
-	pr_info("%s: s2mu106_fled loaded\n", __func__);
+	pr_info("%s: end\n", __func__);
 	return 0;
 }
-
-static int s2mu106_led_suspend(struct device *dev)
-{
-
-	struct pinctrl *pinctrl_i2c = NULL;
-	pr_info("%s(%s)\n", __func__,dev_driver_string(dev));
-
-	pinctrl_i2c = devm_pinctrl_get_select(dev->parent, "flash_suspend");
-	if (IS_ERR_OR_NULL(pinctrl_i2c)) {
-		printk(KERN_ERR "%s: Failed to configure i2c pin\n", __func__);
-	} else {
-		devm_pinctrl_put(pinctrl_i2c);
-	}
-
-	return 0;
-}
-
-static int s2mu106_led_resume(struct device *dev)
-{
-	pr_info("%s\n", __func__);
-
-	return 0;
-}
-
-static const struct dev_pm_ops s2mu106_led_pm_ops = {
-	.suspend                = s2mu106_led_suspend,
-	.resume                 = s2mu106_led_resume,
-};
 
 static int s2mu106_led_remove(struct platform_device *pdev)
 {
@@ -1369,20 +1287,31 @@ static int s2mu106_led_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct platform_device_id s2mu106_leds_id[] = {
-	{"leds-s2mu106", 0},
-	{},
-};
+static void s2mu106_led_shutdown(struct platform_device *pdev)
+{
+	struct s2mu106_fled_data *fled_data =
+		platform_get_drvdata(pdev);
+	int chan;
+
+	if (!fled_data->i2c) {
+		pr_err("%s: no i2c client\n", __func__);
+		return;
+	}
+
+	/* Turn off all leds when power off */
+	pr_info("%s: turn off all leds\n", __func__);
+	for (chan = 1; chan <= S2MU106_CH_MAX; chan++)
+		s2mu106_fled_set_mode(fled_data, chan, S2MU106_FLED_MODE_OFF, S2MU106_FLED_GPIO_NONE);
+}
 
 static struct platform_driver s2mu106_led_driver = {
 	.driver = {
 		.name  = "leds-s2mu106",
 		.owner = THIS_MODULE,
-		.pm = &s2mu106_led_pm_ops,
 		},
 	.probe  = s2mu106_led_probe,
 	.remove = s2mu106_led_remove,
-	.id_table = s2mu106_leds_id,
+	.shutdown = s2mu106_led_shutdown,
 };
 
 static int __init s2mu106_led_driver_init(void)

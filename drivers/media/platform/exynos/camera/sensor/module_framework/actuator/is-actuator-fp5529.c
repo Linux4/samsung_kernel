@@ -14,7 +14,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-actuator-fp5529.h"
 #include "is-device-sensor.h"
@@ -33,11 +33,11 @@
 #define REG_VCM_LSB			0x04 // Default: 0x00, R/W, [7:0] = Pos[7:0]
 #define REG_STATUS			0x05 // Default: 0x00, R,   [1] = MBUSY(eFlash busy), [0] = VBUSY(VCM busy)
 #define REG_ACC_MODE		0x06 // Default: 0x01, R/W, [7:5] = Acceleration mode setting, [2:0] = Scale setting
-#define REG_ACC_TIME			0x07 // Default: 0x20, R/W, [5:0] = Acceleration Time setting
-#define REG_PRESET      		0x0A // Default: 0x00, R/W, [7:0] = Landing current setting
-#define REG_LAD_EN      		0x0B // Default: 0x00, W, [0] = Soft landing control
-#define REG_LAD_STEP    		0x0C // Default: 0x85, R/W, [7:0] = Lading step delay time
-#define REG_MPK         			0x10 // Default: 0x00, R/W, [0] = Memory Protection Key, 0:Read-only, 1:Write/read/erase(protection off)
+#define REG_ACC_TIME		0x07 // Default: 0x20, R/W, [5:0] = Acceleration Time setting
+#define REG_PRESET			0x0A // Default: 0x00, R/W, [7:0] = Landing current setting
+#define REG_LAD_EN			0x0B // Default: 0x00, W, [0] = Soft landing control
+#define REG_LAD_STEP		0x0C // Default: 0x85, R/W, [7:0] = Lading step delay time
+#define REG_MPK				0x10 // Default: 0x00, R/W, [0] = Memory Protection Key, 0:Read-only, 1:Write/read/erase(protection off)
 #define REG_DECAY_RATIO		0x11 // Default: 0x04, R/W, [3:0] = This function which the feature can restrain the vibration for different VCM using.
 
 
@@ -646,10 +646,39 @@ p_err:
 	return ret;
 }
 
+long sensor_fp5529_actuator_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
+{
+	int ret = 0;
+	struct v4l2_control *ctrl;
+
+	ctrl = (struct v4l2_control *)arg;
+	switch (cmd) {
+	case SENSOR_IOCTL_ACT_S_CTRL:
+		ret = sensor_fp5529_actuator_s_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_s_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	case SENSOR_IOCTL_ACT_G_CTRL:
+		ret = sensor_fp5529_actuator_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! actuator_g_ctrl failed(%d)", ret);
+			goto p_err;
+		}
+		break;
+	default:
+		err("err!!! Unknown command(%#x)", cmd);
+		ret = -EINVAL;
+		goto p_err;
+	}
+p_err:
+	return (long)ret;
+}
+
 static const struct v4l2_subdev_core_ops core_ops = {
 	.init = sensor_fp5529_actuator_init,
-	.g_ctrl = sensor_fp5529_actuator_g_ctrl,
-	.s_ctrl = sensor_fp5529_actuator_s_ctrl,
+	.ioctl = sensor_fp5529_actuator_ioctl,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
@@ -744,13 +773,8 @@ int sensor_fp5529_actuator_probe(struct i2c_client *client,
 
 		snprintf(subdev_actuator->name, V4L2_SUBDEV_NAME_SIZE, "actuator-subdev.%d", actuator->id);
 	}
-
-	probe_info("%s done\n", __func__);
-	return ret;
 p_err:
-	if (subdev_actuator)
-		kzfree(subdev_actuator);
-
+	probe_info("%s done\n", __func__);
 	return ret;
 }
 
@@ -785,3 +809,4 @@ static struct i2c_driver actuator_fp5529_driver = {
 	.id_table = actuator_fp5529_idt
 };
 module_i2c_driver(actuator_fp5529_driver);
+MODULE_LICENSE("GPL");

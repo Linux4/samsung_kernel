@@ -55,7 +55,7 @@ void exynos_acpm_tmu_log(bool mode)
 	do { \
 		if (acpm_tmu_log) { \
 			pr_info("[acpm_tmu] type 0x%02x latency %llu ns ret %d\n", \
-					message.req.type, latency, ret); \
+					message->req.type, latency, ret); \
 		} \
 	} while (0)
 
@@ -63,26 +63,18 @@ void exynos_acpm_tmu_log(bool mode)
 	do { \
 		if (ret < 0) { \
 			pr_warn("[acpm_tmu] IPC error! type 0x%02x latency %llu ns ret %d\n", \
-					message.req.type, latency, ret); \
-			return -1; \
+					message->req.type, latency, ret); \
 		} \
 	} while (0)
 
-/*
- * TMU_IPC_INIT
- */
-int exynos_acpm_tmu_set_init(struct acpm_tmu_cap *cap)
+static void exynos_acpm_tmu_ipc_send_data(union tmu_ipc_message *message)
 {
+
 	struct ipc_config config;
-	union tmu_ipc_message message;
 	int ret;
 	unsigned long long before, after, latency;
 
-	memset(&message, 0, sizeof(message));
-
-	message.req.type = TMU_IPC_INIT;
-
-	config.cmd = message.data;
+	config.cmd = message->data;
 	config.response = true;
 	config.indirection = false;
 
@@ -93,8 +85,20 @@ int exynos_acpm_tmu_set_init(struct acpm_tmu_cap *cap)
 
 	acpm_ipc_err_check();
 	acpm_ipc_latency_check();
+}
 
-	memcpy(message.data, config.cmd, sizeof(message.data));
+/*
+ * TMU_IPC_INIT
+ */
+int exynos_acpm_tmu_set_init(struct acpm_tmu_cap *cap)
+{
+	union tmu_ipc_message message;
+
+	memset(&message, 0, sizeof(message));
+
+	message.req.type = TMU_IPC_INIT;
+
+	exynos_acpm_tmu_ipc_send_data(&message);
 
 	if (message.resp.ret & CAP_APM_IRQ)
 		cap->acpm_irq = true;
@@ -110,12 +114,9 @@ int exynos_acpm_tmu_set_init(struct acpm_tmu_cap *cap)
  *
  * - tz: thermal zone index registered in device tree
  */
-int exynos_acpm_tmu_set_read_temp(int tz, int *temp, int *stat)
+int exynos_acpm_tmu_set_read_temp(int tz, int *temp, int *stat, int *data)
 {
-	struct ipc_config config;
 	union tmu_ipc_message message;
-	int ret;
-	unsigned long long before, after, latency;
 
 	if (acpm_tmu_test_mode)
 		return -1;
@@ -125,19 +126,7 @@ int exynos_acpm_tmu_set_read_temp(int tz, int *temp, int *stat)
 	message.req.type = TMU_IPC_READ_TEMP;
 	message.req.tzid = tz;
 
-	config.cmd = message.data;
-	config.response = true;
-	config.indirection = false;
-
-	before = sched_clock();
-	ret = acpm_ipc_send_data(acpm_tmu_ch_num, &config);
-	after = sched_clock();
-	latency = after - before;
-
-	acpm_ipc_err_check();
-	acpm_ipc_latency_check();
-
-	memcpy(message.data, config.cmd, sizeof(message.data));
+	exynos_acpm_tmu_ipc_send_data(&message);
 	if (acpm_tmu_log) {
 		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
 				message.data[0],
@@ -148,6 +137,13 @@ int exynos_acpm_tmu_set_read_temp(int tz, int *temp, int *stat)
 
 	*temp = message.resp.temp;
 	*stat = message.resp.stat;
+	if (data) {
+		data[0] = message.data[2];
+		data[1] = message.data[3];
+		data[0] &= ~(0xff);
+		data[0] |= *temp;
+	}
+
 
 	return 0;
 }
@@ -157,29 +153,14 @@ int exynos_acpm_tmu_set_read_temp(int tz, int *temp, int *stat)
  */
 int exynos_acpm_tmu_set_suspend(int flag)
 {
-	struct ipc_config config;
 	union tmu_ipc_message message;
-	int ret;
-	unsigned long long before, after, latency;
 
 	memset(&message, 0, sizeof(message));
 
 	message.req.type = TMU_IPC_AP_SUSPEND;
 	message.req.rsvd = flag;
 
-	config.cmd = message.data;
-	config.response = true;
-	config.indirection = false;
-
-	before = sched_clock();
-	ret = acpm_ipc_send_data(acpm_tmu_ch_num, &config);
-	after = sched_clock();
-	latency = after - before;
-
-	acpm_ipc_err_check();
-	acpm_ipc_latency_check();
-
-	memcpy(message.data, config.cmd, sizeof(message.data));
+	exynos_acpm_tmu_ipc_send_data(&message);
 	if (acpm_tmu_log) {
 		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
 				message.data[0],
@@ -196,28 +177,13 @@ int exynos_acpm_tmu_set_suspend(int flag)
  */
 int exynos_acpm_tmu_set_cp_call(void)
 {
-	struct ipc_config config;
 	union tmu_ipc_message message;
-	int ret;
-	unsigned long long before, after, latency;
 
 	memset(&message, 0, sizeof(message));
 
 	message.req.type = TMU_IPC_CP_CALL;
 
-	config.cmd = message.data;
-	config.response = true;
-	config.indirection = false;
-
-	before = sched_clock();
-	ret = acpm_ipc_send_data(acpm_tmu_ch_num, &config);
-	after = sched_clock();
-	latency = after - before;
-
-	acpm_ipc_err_check();
-	acpm_ipc_latency_check();
-
-	memcpy(&message.data, config.cmd, sizeof(message.data));
+	exynos_acpm_tmu_ipc_send_data(&message);
 	if (acpm_tmu_log) {
 		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
 				message.data[0],
@@ -234,28 +200,13 @@ int exynos_acpm_tmu_set_cp_call(void)
  */
 int exynos_acpm_tmu_set_resume(void)
 {
-	struct ipc_config config;
 	union tmu_ipc_message message;
-	unsigned long long before, after, latency;
-	int ret;
 
 	memset(&message, 0, sizeof(message));
 
 	message.req.type = TMU_IPC_AP_RESUME;
 
-	config.cmd = message.data;
-	config.response = true;
-	config.indirection = false;
-
-	before = sched_clock();
-	ret = acpm_ipc_send_data(acpm_tmu_ch_num, &config);
-	after = sched_clock();
-	latency = after - before;
-
-	acpm_ipc_err_check();
-	acpm_ipc_latency_check();
-
-	memcpy(&message.data, config.cmd, sizeof(message.data));
+	exynos_acpm_tmu_ipc_send_data(&message);
 	if (acpm_tmu_log) {
 		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
 				message.data[0],
@@ -272,29 +223,14 @@ int exynos_acpm_tmu_set_resume(void)
 
 int exynos_acpm_tmu_ipc_dump(int no, unsigned int dump[])
 {
-	struct ipc_config config;
 	union tmu_ipc_message message;
-	unsigned long long before, after, latency;
-	int ret;
 
 	memset(&message, 0, sizeof(message));
 
 	message.req.type = TMU_IPC_READ_TEMP;
 	message.req.tzid = no;
 
-	config.cmd = message.data;
-	config.response = true;
-	config.indirection = false;
-
-	before = sched_clock();
-	ret = acpm_ipc_send_data(acpm_tmu_ch_num, &config);
-	after = sched_clock();
-	latency = after - before;
-
-	acpm_ipc_err_check();
-	acpm_ipc_latency_check();
-
-	memcpy(message.data, config.cmd, sizeof(message.data));
+	exynos_acpm_tmu_ipc_send_data(&message);
 	if (acpm_tmu_log) {
 		pr_info("[acpm_tmu_dump] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
 				message.data[0],
@@ -303,13 +239,117 @@ int exynos_acpm_tmu_ipc_dump(int no, unsigned int dump[])
 				message.data[3]);
 	}
 
-	dump[0] = message.data[2];
-	dump[1] = message.data[3];
+	if (dump) {
+		dump[0] = message.data[2];
+		dump[1] = message.data[3];
+	}
 
 	return 0;
 }
 
-static int __init exynos_acpm_tmu_init(void)
+void exynos_acpm_tmu_set_threshold(int tz, unsigned char temp[])
+{
+	union tmu_ipc_message message;
+
+	memset(&message, 0, sizeof(message));
+
+	message.req.type = TMU_IPC_THRESHOLD;
+	message.req.tzid = tz;
+	message.req.req_rsvd0 = temp[0];
+	message.req.req_rsvd1 = temp[1];
+	message.req.req_rsvd2 = temp[2];
+	message.req.req_rsvd3 = temp[3];
+	message.req.req_rsvd4 = temp[4];
+	message.req.req_rsvd5 = temp[5];
+	message.req.req_rsvd6 = temp[6];
+	message.req.req_rsvd7 = temp[7];
+
+	exynos_acpm_tmu_ipc_send_data(&message);
+	if (acpm_tmu_log) {
+		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
+				message.data[0],
+				message.data[1],
+				message.data[2],
+				message.data[3]);
+	}
+}
+
+void exynos_acpm_tmu_set_interrupt_enable(int tz, unsigned char inten)
+{
+	union tmu_ipc_message message;
+
+	memset(&message, 0, sizeof(message));
+	message.req.type = TMU_IPC_INTEN;
+	message.req.tzid = tz;
+	message.req.req_rsvd0 = inten;
+
+	exynos_acpm_tmu_ipc_send_data(&message);
+	if (acpm_tmu_log) {
+		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
+				message.data[0],
+				message.data[1],
+				message.data[2],
+				message.data[3]);
+	}
+}
+
+void exynos_acpm_tmu_tz_control(int tz, bool enable)
+{
+	union tmu_ipc_message message;
+
+	memset(&message, 0, sizeof(message));
+	message.req.type = TMU_IPC_TMU_CONTROL;
+	message.req.tzid = tz;
+	message.req.req_rsvd0 = ((enable == true ) ? 1 : 0);
+
+	exynos_acpm_tmu_ipc_send_data(&message);
+	if (acpm_tmu_log) {
+		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
+				message.data[0],
+				message.data[1],
+				message.data[2],
+				message.data[3]);
+	}
+}
+
+void exynos_acpm_tmu_clear_tz_irq(int tz)
+{
+	union tmu_ipc_message message;
+
+	memset(&message, 0, sizeof(message));
+	message.req.type = TMU_IPC_IRQ_CLEAR;
+	message.req.tzid = tz;
+
+	exynos_acpm_tmu_ipc_send_data(&message);
+	if (acpm_tmu_log) {
+		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
+				message.data[0],
+				message.data[1],
+				message.data[2],
+				message.data[3]);
+	}
+}
+
+void exynos_acpm_tmu_set_emul_temp(int tz, unsigned char temp)
+{
+	union tmu_ipc_message message;
+
+	memset(&message, 0, sizeof(message));
+	message.req.type = TMU_IPC_EMUL_TEMP;
+	message.req.tzid = tz;
+	message.req.req_rsvd0 = temp;
+
+	exynos_acpm_tmu_ipc_send_data(&message);
+	if (acpm_tmu_log) {
+		pr_info("[acpm_tmu] data 0:0x%08x 1:0x%08x 2:0x%08x 3:0x%08x\n",
+				message.data[0],
+				message.data[1],
+				message.data[2],
+				message.data[3]);
+	}
+}
+
+int exynos_acpm_tmu_init(void)
 {
 	struct device_node *np;
 
@@ -319,4 +359,3 @@ static int __init exynos_acpm_tmu_init(void)
 
 	return acpm_ipc_request_channel(np, NULL, &acpm_tmu_ch_num, &acpm_tmu_size);
 }
-fs_initcall(exynos_acpm_tmu_init);

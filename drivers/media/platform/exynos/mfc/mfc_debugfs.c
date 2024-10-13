@@ -13,76 +13,91 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 
+#include "mfc_core_pm.h"
+
 #include "mfc_debugfs.h"
-#include "mfc_sync.h"
-#include "mfc_meminfo.h"
+#include "mfc_perf_measure.h"
 
-#include "mfc_pm.h"
-
-#include "mfc_queue.h"
-
-unsigned int debug_level;
-unsigned int debug_ts;
-unsigned int debug_mode_en;
-unsigned int dbg_enable;
-unsigned int nal_q_dump;
-unsigned int nal_q_disable;
-unsigned int nal_q_parallel_disable;
-unsigned int otf_dump;
-unsigned int perf_measure_option;
-unsigned int sfr_dump;
-unsigned int mmcache_dump;
-unsigned int mmcache_disable;
-unsigned int llc_disable;
-unsigned int perf_boost_mode;
-unsigned int drm_predict_disable;
-unsigned int reg_test;
-unsigned int meminfo_enable;
-unsigned int feature_option;
+#include "base/mfc_meminfo.h"
+#include "base/mfc_queue.h"
 
 static int __mfc_info_show(struct seq_file *s, void *unused)
 {
 	struct mfc_dev *dev = s->private;
+	struct mfc_core *core = NULL;
 	struct mfc_ctx *ctx = NULL;
-	int i;
+	struct mfc_core_ctx *core_ctx = NULL;
+	int i, j;
 	char *codec_name = NULL;
 
-	seq_puts(s, ">> MFC device information(common)\n");
-	seq_printf(s, "[VERSION] H/W: v%x, F/W: %06x(%c), DRV: %d\n",
-		 dev->pdata->ip_ver, dev->fw.date,
-		 dev->fw.fimv_info, MFC_DRIVER_INFO);
-	seq_printf(s, "[PM] power: %d, clock: %d\n",
-			mfc_pm_get_pwr_ref_cnt(dev), mfc_pm_get_clk_ref_cnt(dev));
-	seq_printf(s, "[CTX] num_inst: %d, num_drm_inst: %d, curr_ctx: %d(is_drm: %d)\n",
-			dev->num_inst, dev->num_drm_inst, dev->curr_ctx, dev->curr_ctx_is_drm);
-	seq_printf(s, "[HWLOCK] bits: %#lx, dev: %#lx, owned_by_irq = %d, wl_count = %d\n",
-			dev->hwlock.bits, dev->hwlock.dev,
-			dev->hwlock.owned_by_irq, dev->hwlock.wl_count);
-	seq_printf(s, "[DEBUG MODE] dt: %s sysfs: %s\n", dev->pdata->debug_mode ? "enabled" : "disabled",
-			debug_mode_en ? "enabled" : "disabled");
-	seq_printf(s, "[MMCACHE] %s(%s)\n",
-			dev->has_mmcache ? "supported" : "not supported",
-			dev->mmcache.is_on_status ? "enabled" : "disabled");
-	seq_printf(s, "[PERF BOOST] %s\n", perf_boost_mode ? "enabled" : "disabled");
-	seq_printf(s, "[FEATURES] nal_q: %d(0x%x), skype: %d(0x%x), black_bar: %d(0x%x)\n",
+	seq_puts(s, ">>> MFC common device information\n");
+	seq_printf(s, " [DEBUG MODE] dt: %s sysfs: %s\n",
+			dev->pdata->debug_mode ? "enabled" : "disabled",
+			dev->debugfs.debug_mode_en ? "enabled" : "disabled");
+	seq_printf(s, " [PERF BOOST] %s\n",
+			dev->debugfs.perf_boost_mode ? "enabled" : "disabled");
+	seq_printf(s, " [FEATURES] nal_q: %d(0x%x), skype: %d(0x%x), black_bar: %d(0x%x)\n",
 			dev->pdata->nal_q.support, dev->pdata->nal_q.version,
 			dev->pdata->skype.support, dev->pdata->skype.version,
-			dev->pdata->black_bar.support, dev->pdata->black_bar.version);
+			dev->pdata->black_bar.support,
+			dev->pdata->black_bar.version);
 	seq_printf(s, "           color_aspect_dec: %d(0x%x), enc: %d(0x%x)\n",
-			dev->pdata->color_aspect_dec.support, dev->pdata->color_aspect_dec.version,
-			dev->pdata->color_aspect_enc.support, dev->pdata->color_aspect_enc.version);
+			dev->pdata->color_aspect_dec.support,
+			dev->pdata->color_aspect_dec.version,
+			dev->pdata->color_aspect_enc.support,
+			dev->pdata->color_aspect_enc.version);
 	seq_printf(s, "           static_info_dec: %d(0x%x), enc: %d(0x%x)\n",
-			dev->pdata->static_info_dec.support, dev->pdata->static_info_dec.version,
-			dev->pdata->static_info_enc.support, dev->pdata->static_info_enc.version);
-	seq_printf(s, "[FORMATS] 10bit: %s, 422: %s, RGB: %s\n",
+			dev->pdata->static_info_dec.support,
+			dev->pdata->static_info_dec.version,
+			dev->pdata->static_info_enc.support,
+			dev->pdata->static_info_enc.version);
+	seq_printf(s, " [FORMATS] 10bit: %s, 422: %s, RGB: %s\n",
 			dev->pdata->support_10bit ? "supported" : "not supported",
 			dev->pdata->support_422 ? "supported" : "not supported",
 			dev->pdata->support_rgb ? "supported" : "not supported");
-	seq_printf(s, "[LOWMEM] is_low_mem: %d\n", IS_LOW_MEM);
-	if (dev->nal_q_handle)
-		seq_printf(s, "[NAL-Q] state: %d\n", dev->nal_q_handle->nal_q_state);
+	seq_printf(s, " [LOWMEM] is_low_mem: %d\n", IS_LOW_MEM);
 
-	seq_puts(s, ">> MFC device information(instance)\n");
+
+	for (j = 0; j < dev->num_core; j++) {
+		core = dev->core[j];
+		if (!core) {
+			mfc_dev_debug(2, "There is no core[%d]\n", j);
+			continue;
+		}
+		seq_printf(s, ">>> MFC core-%d device information\n", j);
+		seq_printf(s, " [VERSION] H/W: v%x, F/W: %06x(%c), DRV: %d\n",
+				core->core_pdata->ip_ver, core->fw.date,
+				core->fw.fimv_info, MFC_DRIVER_INFO);
+		seq_printf(s, " [PM] power: %d, clock: %d, clk_get %s, QoS level: %d\n",
+				mfc_core_pm_get_pwr_ref_cnt(core),
+				mfc_core_pm_get_clk_ref_cnt(core),
+				IS_ERR(core->pm.clock) ? "failed" : "succeeded",
+				atomic_read(&core->qos_req_cur) - 1);
+		seq_printf(s, " [CTX] num_inst: %d, num_drm_inst: %d, curr_ctx: %d(is_drm: %d)\n",
+				core->num_inst, core->num_drm_inst,
+				core->curr_core_ctx,
+				core->curr_core_ctx_is_drm);
+		seq_printf(s, " [HWLOCK] bits: %#lx, dev: %#lx, owned_by_irq = %d, wl_count = %d\n",
+				core->hwlock.bits, core->hwlock.dev,
+				core->hwlock.owned_by_irq,
+				core->hwlock.wl_count);
+		if (core->nal_q_handle)
+			seq_printf(s, " [NAL-Q] state: %d\n",
+					core->nal_q_handle->nal_q_state);
+		seq_printf(s, "  >>> MFC core-%d instance information\n", j);
+		for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
+			core_ctx = core->core_ctx[i];
+			if (core_ctx) {
+				seq_printf(s, "    [CORECTX:%d] state: %d, queue(src: %d, dst: %d)\n",
+					i, core_ctx->state,
+					mfc_get_queue_count(&core_ctx->buf_queue_lock,
+						&core_ctx->src_buf_queue),
+					mfc_get_queue_count(&core_ctx->buf_queue_lock,
+						&core_ctx->dst_buf_queue));
+			}
+		}
+	}
+	seq_puts(s, ">>> MFC instance information\n");
 	for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
 		ctx = dev->ctx[i];
 		if (ctx) {
@@ -91,20 +106,30 @@ static int __mfc_info_show(struct seq_file *s, void *unused)
 			else
 				codec_name = ctx->dst_fmt->name;
 
-			seq_printf(s, "[CTX:%d] %s %s, %s, %s, size: %dx%d, crop: %d %d %d %d, state: %d\n",
+			seq_printf(s, "  [CTX:%d] %s %s, %s, %s, size: %dx%d@%ldfps(tmu: %dfps, op: %ldfps), crop: %d %d %d %d\n",
 				ctx->num,
 				ctx->type == MFCINST_DECODER ? "DEC" : "ENC",
 				ctx->is_drm ? "Secure" : "Normal",
-				ctx->state > MFCINST_INIT ? ctx->src_fmt->name : "undefined src fmt",
-				ctx->state > MFCINST_INIT ? ctx->dst_fmt->name : "undefined dst fmt",
-				ctx->img_width, ctx->img_height, ctx->crop_width, ctx->crop_height,
-				ctx->crop_left, ctx->crop_top, ctx->state);
-			seq_printf(s, "        queue(src: %d, dst: %d, src_nal: %d, dst_nal: %d, ref: %d)\n",
-				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->src_buf_queue),
+				ctx->src_fmt->name, ctx->dst_fmt->name,
+				ctx->img_width, ctx->img_height,
+				ctx->last_framerate / 1000,
+				ctx->dev->tmu_fps,
+				ctx->operating_framerate,
+				ctx->crop_width, ctx->crop_height,
+				ctx->crop_left, ctx->crop_top);
+			seq_printf(s, "        main core: %d, op_mode: %d(stream: %d), idle_mode: %d, prio %d, rt %d, queue(src: %d, dst: %d, src_nal: %d, dst_nal: %d, ref: %d)\n",
+				ctx->op_core_num[MFC_CORE_MAIN],
+				ctx->op_mode, ctx->stream_op_mode, ctx->idle_mode,
+				ctx->prio, ctx->rt,
+				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->src_buf_ready_queue),
 				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->dst_buf_queue),
 				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->src_buf_nal_queue),
 				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->dst_buf_nal_queue),
 				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->ref_buf_queue));
+			if (ctx->type == MFCINST_DECODER && ctx->dec_priv)
+				seq_printf(s, "        deferred: %d\n", ctx->dec_priv->defer_dec);
+			else
+				seq_puts(s, "\n");
 		}
 	}
 
@@ -119,12 +144,19 @@ static int __mfc_debug_info_show(struct seq_file *s, void *unused)
 	seq_puts(s, "ex) echo 0xff > /d/mfc/sfr_dump (all dump mode)\n");
 	seq_puts(s, "1   (1 << 0): dec SEQ_START\n");
 	seq_puts(s, "2   (1 << 1): dec INIT_BUFS\n");
-	seq_puts(s, "4   (1 << 2): dec NAL_START\n");
+	seq_puts(s, "4   (1 << 2): dec first NAL_START\n");
 	seq_puts(s, "8   (1 << 3): enc SEQ_START\n");
 	seq_puts(s, "16  (1 << 4): enc INIT_BUFS\n");
-	seq_puts(s, "32  (1 << 5): enc NAL_START\n");
+	seq_puts(s, "32  (1 << 5): enc first NAL_START\n");
 	seq_puts(s, "64  (1 << 6): ERR interrupt\n");
 	seq_puts(s, "128 (1 << 7): WARN interrupt\n");
+	seq_puts(s, "256 (1 << 8): dec NAL_START\n");
+	seq_puts(s, "512 (1 << 9): dec FRAME_DONE\n");
+	seq_puts(s, "1024 (1 << 10): enc NAL_START\n");
+	seq_puts(s, "2048 (1 << 11): enc FRAME_DONE\n");
+	seq_puts(s, "4096 (1 << 12): MOVE_INSTANCE_RET\n");
+	seq_puts(s, "8192 (1 << 13): Unknown unterrupt\n");
+	seq_puts(s, "0x80000000 (1 << 31): Dump all info\n");
 
 	seq_puts(s, "-----Performance boost options (bit setting)\n");
 	seq_puts(s, "ex) echo 7 > /d/mfc/perf_boost_mode (max freq)\n");
@@ -135,6 +167,22 @@ static int __mfc_debug_info_show(struct seq_file *s, void *unused)
 	seq_puts(s, "-----Feature options (bit setting)\n");
 	seq_puts(s, "ex) echo 1 > /d/mfc/feture_option (recon sbwc off)\n");
 	seq_puts(s, "1   (1 << 0): recon SBWC disable\n");
+	seq_puts(s, "2   (1 << 1): decoding order\n");
+	seq_puts(s, "4   (1 << 2): meerkat disable\n");
+	seq_puts(s, "8   (1 << 3): OTF path test enable\n");
+	seq_puts(s, "16  (1 << 4): multi core disable\n");
+	seq_puts(s, "32  (1 << 5): force multi core enable\n");
+	seq_puts(s, "64  (1 << 6): black bar enable\n");
+	seq_puts(s, "128 (1 << 7): when dec and enc, SBWC enable\n");
+	seq_puts(s, "256 (1 << 8): sync minlock with clock disable\n");
+	seq_puts(s, "512 (1 << 9): dynamic weight disable (use fixed weight)\n");
+	seq_puts(s, "1024 (1 << 10): when high fps, SBWC enable\n");
+
+	seq_puts(s, "-----Logging options (bit setting)\n");
+	seq_puts(s, "ex) echo 7 > /d/mfc/logging_option (all logging option)\n");
+	seq_puts(s, "1   (1 << 0): kernel printk\n");
+	seq_puts(s, "2   (1 << 1): memlog printf\n");
+	seq_puts(s, "4   (1 << 2): memlog sfr dump\n");
 
 	return 0;
 }
@@ -147,7 +195,7 @@ static int __mfc_reg_info_show(struct seq_file *s, void *unused)
 
 	seq_puts(s, ">> MFC REG test(encoder)\n");
 
-	seq_printf(s, "-----Register test on/off: %s\n", reg_test ? "on" : "off");
+	seq_printf(s, "-----Register test on/off: %s\n", dev->debugfs.reg_test ? "on" : "off");
 	seq_printf(s, "-----Register number: %d\n", dev->reg_cnt);
 
 	if (dev->reg_val) {
@@ -174,12 +222,12 @@ static ssize_t __mfc_reg_info_write(struct file *file, const char __user *user_b
 
 	if (!dev->reg_buf) {
 		dev->reg_buf = kzalloc(SZ_1M, GFP_KERNEL);
-		mfc_info_dev("[REGTEST] alloc reg_buf\n");
+		mfc_dev_info("[REGTEST] alloc reg_buf\n");
 	}
 
 	if (!dev->reg_val) {
 		dev->reg_val = kzalloc(SZ_1M, GFP_KERNEL);
-		mfc_info_dev("[REGTEST] alloc reg_val\n");
+		mfc_dev_info("[REGTEST] alloc reg_val\n");
 	}
 
 	len = simple_write_to_buffer(dev->reg_buf, SZ_1M - 1,
@@ -187,7 +235,7 @@ static ssize_t __mfc_reg_info_write(struct file *file, const char __user *user_b
 	if (len <= 0)
 		return len;
 
-	mfc_info_dev("[REGTEST] len: %d, ppos: %llu\n", len, *ppos);
+	mfc_dev_info("[REGTEST] len: %d, ppos: %llu\n", len, *ppos);
 
 	dev->reg_buf[*ppos] = '\0';
 
@@ -255,7 +303,7 @@ static int __mfc_meminfo_show(struct seq_file *s, void *unused)
 	size_t total = 0, total_max = 0;
 	int i, num;
 
-	if (!meminfo_enable) {
+	if (!dev->debugfs.meminfo_enable) {
 		seq_puts(s, "meminfo_enable is not set. ""echo 1 > meminfo_enable""\n");
 		return 0;
 	}
@@ -283,7 +331,7 @@ static int __mfc_meminfo_show(struct seq_file *s, void *unused)
 				fmt_name = ctx->src_fmt->name;
 			}
 
-			num = mfc_meminfo_get_ctx(ctx);
+//			num = mfc_meminfo_get_ctx(ctx);
 			seq_puts(s, "\n-----------------------------------------\n");
 			seq_printf(s, ">> [CTX:%d] %s memory size: %zu kB (MAX: %zu kB)\n",
 				ctx->num,
@@ -326,6 +374,29 @@ static int __mfc_debug_info_open(struct inode *inode, struct file *file)
 	return single_open(file, __mfc_debug_info_show, inode->i_private);
 }
 
+static int __mfc_regression_result_show(struct seq_file *s, void *unused)
+{
+	struct mfc_dev *dev = g_mfc_dev;
+	int i;
+
+
+	if (dev->regression_val) {
+		for (i = 0; i < dev->regression_cnt; i++) {
+			if (dev->debugfs.regression_option & MFC_TEST_ENC_QP)
+				seq_printf(s, "%d ", dev->regression_val[i]);
+			else
+				seq_printf(s, "%08x ", dev->regression_val[i]);
+			if ((dev->regression_val[i] == 0xDEADC0DE) ||
+				(dev->debugfs.regression_option & MFC_TEST_ENC_QP))
+				seq_printf(s, "\n");
+		}
+	} else {
+		seq_puts(s, "-----There is no regression result\n");
+	}
+
+	return 0;
+}
+
 #ifdef CONFIG_MFC_REG_TEST
 static int __mfc_reg_info_open(struct inode *inode, struct file *file)
 {
@@ -337,6 +408,35 @@ static int __mfc_meminfo_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, __mfc_meminfo_show, inode->i_private);
 }
+
+static int __mfc_regression_result_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, __mfc_regression_result_show, inode->i_private);
+}
+
+#ifdef PERF_MEASURE
+static int __mfc_perf_result_mfc_show(struct seq_file *s, void *unused)
+{
+	mfc_perf_result(s, 0);
+	return 0;
+}
+
+static int __mfc_perf_result_mfc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, __mfc_perf_result_mfc_show, inode->i_private);
+}
+
+static int __mfc_perf_result_mfc1_show(struct seq_file *s, void *unused)
+{
+	mfc_perf_result(s, 1);
+	return 0;
+}
+
+static int __mfc_perf_result_mfc1_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, __mfc_perf_result_mfc1_show, inode->i_private);
+}
+#endif
 
 static const struct file_operations mfc_info_fops = {
 	.open = __mfc_info_open,
@@ -369,60 +469,88 @@ static const struct file_operations mfc_meminfo_fops = {
 	.release = single_release,
 };
 
+static const struct file_operations regression_result_fops = {
+	.open = __mfc_regression_result_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+#ifdef PERF_MEASURE
+static const struct file_operations perf_result_mfc_fops = {
+	.open = __mfc_perf_result_mfc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static const struct file_operations perf_result_mfc1_fops = {
+	.open = __mfc_perf_result_mfc1_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+
 void mfc_init_debugfs(struct mfc_dev *dev)
 {
 	struct mfc_debugfs *debugfs = &dev->debugfs;
 
 	debugfs->root = debugfs_create_dir("mfc", NULL);
 	if (!debugfs->root) {
-		mfc_err_dev("debugfs: failed to create root directory\n");
+		mfc_dev_err("debugfs: failed to create root directory\n");
 		return;
 	}
 
-	debugfs->mfc_info = debugfs_create_file("mfc_info",
-			0444, debugfs->root, dev, &mfc_info_fops);
-	debugfs->debug_info = debugfs_create_file("debug_info",
-			0444, debugfs->root, dev, &debug_info_fops);
+	dev->debugfs.memlog_level = MFC_DEFAULT_MEMLOG_LEVEL;
+	dev->debugfs.logging_option = MFC_DEFAULT_LOGGING_OPTION;
+
+	debugfs_create_file("mfc_info", 0444, debugfs->root, dev, &mfc_info_fops);
+	debugfs_create_file("debug_info", 0444, debugfs->root, dev, &debug_info_fops);
 #ifdef CONFIG_MFC_REG_TEST
-	debugfs->reg_info = debugfs_create_file("reg_info",
-			0644, debugfs->root, dev, &reg_info_fops);
-	debugfs->reg_test = debugfs_create_u32("reg_test",
-			0644, debugfs->root, &reg_test);
+	debugfs_create_file("reg_info", 0644, debugfs->root, dev, &reg_info_fops);
+	debugfs_create_u32("reg_test", 0644, debugfs->root, &dev->debugfs.reg_test);
 #endif
-	debugfs->debug_level = debugfs_create_u32("debug",
-			0644, debugfs->root, &debug_level);
-	debugfs->debug_ts = debugfs_create_u32("debug_ts",
-			0644, debugfs->root, &debug_ts);
-	debugfs->debug_mode_en = debugfs_create_u32("debug_mode_en",
-			0644, debugfs->root, &debug_mode_en);
-	debugfs->dbg_enable = debugfs_create_u32("dbg_enable",
-			0644, debugfs->root, &dbg_enable);
-	debugfs->nal_q_dump = debugfs_create_u32("nal_q_dump",
-			0644, debugfs->root, &nal_q_dump);
-	debugfs->nal_q_disable = debugfs_create_u32("nal_q_disable",
-			0644, debugfs->root, &nal_q_disable);
-	debugfs->nal_q_parallel_disable = debugfs_create_u32("nal_q_parallel_disable",
-			0644, debugfs->root, &nal_q_parallel_disable);
-	debugfs->otf_dump = debugfs_create_u32("otf_dump",
-			0644, debugfs->root, &otf_dump);
-	debugfs->perf_measure_option = debugfs_create_u32("perf_measure_option",
-			0644, debugfs->root, &perf_measure_option);
-	debugfs->sfr_dump = debugfs_create_u32("sfr_dump",
-			0644, debugfs->root, &sfr_dump);
-	debugfs->mmcache_dump = debugfs_create_u32("mmcache_dump",
-			0644, debugfs->root, &mmcache_dump);
-	debugfs->mmcache_disable = debugfs_create_u32("mmcache_disable",
-			0644, debugfs->root, &mmcache_disable);
-	debugfs->llc_disable = debugfs_create_u32("llc_disable",
-			0644, debugfs->root, &llc_disable);
-	debugfs->perf_boost_mode = debugfs_create_u32("perf_boost_mode",
-			0644, debugfs->root, &perf_boost_mode);
-	debugfs->drm_predict_disable = debugfs_create_u32("drm_predict_disable",
-			0644, debugfs->root, &drm_predict_disable);
-	debugfs->meminfo = debugfs_create_file("meminfo",
-			0444, debugfs->root, dev, &mfc_meminfo_fops);
-	debugfs->meminfo_enable = debugfs_create_u32("meminfo_enable",
-			0644, debugfs->root, &meminfo_enable);
-	debugfs->feature_option = debugfs_create_u32("feature_option",
-			0644, debugfs->root, &feature_option);
+	debugfs_create_u32("regression_option", 0644, debugfs->root,
+			&dev->debugfs.regression_option);
+	debugfs_create_file("regression_result", 0444, debugfs->root, dev, &regression_result_fops);
+	debugfs_create_u32("debug", 0644, debugfs->root, &dev->debugfs.debug_level);
+	debugfs_create_u32("debug_ts", 0644, debugfs->root, &dev->debugfs.debug_ts);
+	debugfs_create_u32("debug_mode_en", 0644, debugfs->root, &dev->debugfs.debug_mode_en);
+	debugfs_create_u32("dbg_enable", 0644, debugfs->root, &dev->debugfs.dbg_enable);
+	debugfs_create_u32("nal_q_dump", 0644, debugfs->root, &dev->debugfs.nal_q_dump);
+	debugfs_create_u32("nal_q_disable", 0644, debugfs->root, &dev->debugfs.nal_q_disable);
+	debugfs_create_u32("nal_q_parallel_disable", 0644, debugfs->root,
+			&dev->debugfs.nal_q_parallel_disable);
+	debugfs_create_u32("otf_dump", 0644, debugfs->root, &dev->debugfs.otf_dump);
+#ifdef PERF_MEASURE
+	debugfs_create_u32("perf_measure_option", 0644, debugfs->root,
+			&dev->debugfs.perf_measure_option);
+	debugfs_create_file("perf_result_mfc", 0644, debugfs->root, dev, &perf_result_mfc_fops);
+	debugfs_create_file("perf_result_mfc1", 0644, debugfs->root, dev, &perf_result_mfc1_fops);
+#endif
+	debugfs_create_u32("sfr_dump", 0644, debugfs->root, &dev->debugfs.sfr_dump);
+	debugfs_create_u32("llc_disable", 0644, debugfs->root, &dev->debugfs.llc_disable);
+	debugfs_create_u32("perf_boost_mode", 0644, debugfs->root, &dev->debugfs.perf_boost_mode);
+	debugfs_create_u32("drm_predict_disable", 0644, debugfs->root,
+			&dev->debugfs.drm_predict_disable);
+	debugfs_create_file("meminfo", 0444, debugfs->root, dev, &mfc_meminfo_fops);
+	debugfs_create_u32("meminfo_enable", 0644, debugfs->root, &dev->debugfs.meminfo_enable);
+	debugfs_create_u32("feature_option", 0644, debugfs->root, &dev->debugfs.feature_option);
+	debugfs_create_u32("core_balance", 0644, debugfs->root, &dev->debugfs.core_balance);
+	debugfs_create_u32("memlog_level", 0644, debugfs->root, &dev->debugfs.memlog_level);
+	debugfs_create_u32("logging_option", 0644, debugfs->root, &dev->debugfs.logging_option);
+	debugfs_create_u32("sbwc_disable", 0644, debugfs->root, &dev->debugfs.sbwc_disable);
+	debugfs_create_u32("hdr_dump", 0644, debugfs->root, &dev->debugfs.hdr_dump);
+	debugfs_create_u32("dbd_dec_disable", 0644, debugfs->root, &dev->debugfs.dbd_dec_dis);
+	debugfs_create_u32("boost_speed", 0644, debugfs->root, &dev->debugfs.boost_speed);
+	debugfs_create_u32("boost_time", 0644, debugfs->root, &dev->debugfs.boost_time);
+}
+
+void mfc_deinit_debugfs(struct mfc_dev *dev)
+{
+	struct mfc_debugfs *debugfs = &dev->debugfs;
+
+	if (debugfs->root)
+		debugfs_remove_recursive(debugfs->root);
 }

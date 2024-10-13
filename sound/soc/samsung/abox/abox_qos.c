@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_qos.c
- *
- * ALSA SoC Audio Layer - Samsung Abox QoS driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox QoS driver
  *
  * Copyright (c) 2018 Samsung Electronics Co. Ltd.
  *
@@ -22,36 +22,48 @@ static struct device *dev_abox;
 
 static struct abox_qos abox_qos_aud = {
 	.qos_class = ABOX_QOS_AUD,
+	.type = ABOX_PM_QOS_MAX,
 	.name = "AUD",
+	.requests = LIST_HEAD_INIT(abox_qos_aud.requests),
+};
+static struct abox_qos abox_qos_aud_max = {
+	.qos_class = ABOX_QOS_AUD_MAX,
+	.type = ABOX_PM_QOS_MIN,
+	.name = "AUD_MAX",
+	.requests = LIST_HEAD_INIT(abox_qos_aud_max.requests),
 };
 static struct abox_qos abox_qos_mif = {
 	.qos_class = ABOX_QOS_MIF,
+	.type = ABOX_PM_QOS_MAX,
 	.name = "MIF",
+	.requests = LIST_HEAD_INIT(abox_qos_mif.requests),
 };
 static struct abox_qos abox_qos_int = {
 	.qos_class = ABOX_QOS_INT,
+	.type = ABOX_PM_QOS_MAX,
 	.name = "INT",
+	.requests = LIST_HEAD_INIT(abox_qos_int.requests),
 };
 static struct abox_qos abox_qos_cl0 = {
 	.qos_class = ABOX_QOS_CL0,
+	.type = ABOX_PM_QOS_MAX,
 	.name = "CL0",
+	.requests = LIST_HEAD_INIT(abox_qos_cl0.requests),
 };
 static struct abox_qos abox_qos_cl1 = {
 	.qos_class = ABOX_QOS_CL1,
+	.type = ABOX_PM_QOS_MAX,
 	.name = "CL1",
-};
-static struct abox_qos abox_qos_cl2 = {
-	.qos_class = ABOX_QOS_CL2,
-	.name = "CL2",
+	.requests = LIST_HEAD_INIT(abox_qos_cl1.requests),
 };
 
 static struct abox_qos *abox_qos_array[] = {
 	&abox_qos_aud,
+	&abox_qos_aud_max,
 	&abox_qos_mif,
 	&abox_qos_int,
 	&abox_qos_cl0,
 	&abox_qos_cl1,
-	&abox_qos_cl2,
 };
 
 static struct abox_qos *abox_qos_get_qos(enum abox_qos_class qos_class)
@@ -59,12 +71,12 @@ static struct abox_qos *abox_qos_get_qos(enum abox_qos_class qos_class)
 	switch (qos_class) {
 	case ABOX_QOS_AUD:
 		return &abox_qos_aud;
+	case ABOX_QOS_AUD_MAX:
+		return &abox_qos_aud_max;
 	case ABOX_QOS_CL0:
 		return &abox_qos_cl0;
 	case ABOX_QOS_CL1:
 		return &abox_qos_cl1;
-	case ABOX_QOS_CL2:
-		return &abox_qos_cl2;
 	case ABOX_QOS_INT:
 		return &abox_qos_int;
 	case ABOX_QOS_MIF:
@@ -74,12 +86,14 @@ static struct abox_qos *abox_qos_get_qos(enum abox_qos_class qos_class)
 	}
 }
 
-static struct abox_qos_req *abox_qos_find(struct abox_qos *qos, unsigned int id)
+static struct abox_qos_req *abox_qos_find_unlocked(struct abox_qos *qos,
+		unsigned int id)
 {
-	struct abox_qos_req *req, *first;
-	size_t len = ARRAY_SIZE(qos->req_array);
+	struct abox_qos_req *req;
 
-	for (req = first = qos->req_array; req - first < len; req++) {
+	lockdep_assert_held(&abox_qos_lock);
+
+	list_for_each_entry(req, &qos->requests, list) {
 		if (req->id == id)
 			return req;
 	}
@@ -87,29 +101,103 @@ static struct abox_qos_req *abox_qos_find(struct abox_qos *qos, unsigned int id)
 	return NULL;
 }
 
-static unsigned int abox_qos_target(struct abox_qos *qos)
+static struct abox_qos_req *abox_qos_find(struct abox_qos *qos, unsigned int id)
 {
-	struct abox_qos_req *req, *first;
-	size_t len = ARRAY_SIZE(qos->req_array);
+	struct abox_qos_req *ret;
+	unsigned long flags;
+
+	spin_lock_irqsave(&abox_qos_lock, flags);
+	ret = abox_qos_find_unlocked(qos, id);
+	spin_unlock_irqrestore(&abox_qos_lock, flags);
+
+	return ret;
+}
+
+static unsigned int abox_qos_target_max(struct abox_qos *qos)
+{
+	struct abox_qos_req *req;
 	unsigned int target = 0;
+	unsigned long flags;
 
-	for (req = first = qos->req_array; req - first < len; req++) {
-		if (!req->id)
-			break;
-
-		if (target < req->val)
-			target = req->val;
-	}
+	spin_lock_irqsave(&abox_qos_lock, flags);
+	list_for_each_entry(req, &qos->requests, list)
+		target = (target < req->val) ? req->val : target;
+	spin_unlock_irqrestore(&abox_qos_lock, flags);
 
 	return target;
 }
 
+static unsigned int abox_qos_target_min(struct abox_qos *qos)
+{
+	struct abox_qos_req *req;
+	unsigned int target = UINT_MAX;
+	unsigned long flags;
+
+	spin_lock_irqsave(&abox_qos_lock, flags);
+	list_for_each_entry(req, &qos->requests, list)
+		target = (target > req->val) ? req->val : target;
+	spin_unlock_irqrestore(&abox_qos_lock, flags);
+
+	return target;
+}
+
+static unsigned int abox_qos_target(struct abox_qos *qos)
+{
+	switch (qos->type) {
+	case ABOX_PM_QOS_MAX:
+		return abox_qos_target_max(qos);
+	case ABOX_PM_QOS_MIN:
+		return abox_qos_target_min(qos);
+	}
+}
+
+void abox_qos_apply_base(enum abox_qos_class qos_class, unsigned int val)
+{
+	struct abox_qos *qos = abox_qos_get_qos(qos_class);
+
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+	if (!exynos_pm_qos_request_active(&qos->pm_qos_base))
+		exynos_pm_qos_add_request(&qos->pm_qos_base, qos_class, val);
+	exynos_pm_qos_update_request(&qos->pm_qos_base, val);
+	abox_dbg(dev_abox, "applying static qos(%d, %dkHz): %dkHz\n", qos_class,
+			val, exynos_pm_qos_request(qos_class));
+#else
+	abox_info(dev_abox, "pm_qos is disabled temporary(%d, %dkHz)\n",
+			qos_class, val);
+#endif
+}
+
+static void abox_qos_apply_new(struct abox_qos *qos)
+{
+	struct abox_qos_req *req, *n, *new_req;
+	unsigned long flags;
+
+	spin_lock_irqsave(&abox_qos_lock, flags);
+	list_for_each_entry_safe(new_req, n, &qos->requests, list) {
+		if (new_req->registered)
+			continue;
+
+		spin_unlock_irqrestore(&abox_qos_lock, flags);
+		req = devm_kmalloc(dev_abox, sizeof(*new_req), GFP_KERNEL);
+		spin_lock_irqsave(&abox_qos_lock, flags);
+		if (!req)
+			continue;
+
+		*req = *new_req;
+		req->registered = true;
+		list_replace(&new_req->list, &req->list);
+		kfree(new_req);
+	}
+	spin_unlock_irqrestore(&abox_qos_lock, flags);
+}
+
 static void abox_qos_apply(struct abox_qos *qos)
 {
-	struct pm_qos_request *pm_qos = &qos->pm_qos;
-	int val = abox_qos_target(qos);
 	enum abox_qos_class qos_class = qos->qos_class;
+	int val;
 
+	abox_qos_apply_new(qos);
+	val = abox_qos_target(qos);
 	if (qos->val != val) {
 		if (qos->qos_class == ABOX_QOS_AUD) {
 			if (!qos->val && val) {
@@ -120,11 +208,16 @@ static void abox_qos_apply(struct abox_qos *qos)
 			}
 		}
 		qos->val = val;
-		if (!pm_qos_request_active(pm_qos))
-			pm_qos_add_request(pm_qos, qos_class, val);
-		pm_qos_update_request(pm_qos, val);
-		dev_dbg(dev_abox, "applying qos(%d, %dkHz): %dkHz\n", qos_class,
-				val, pm_qos_request(qos_class));
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+		if (!exynos_pm_qos_request_active(&qos->pm_qos))
+			exynos_pm_qos_add_request(&qos->pm_qos, qos_class, val);
+		exynos_pm_qos_update_request(&qos->pm_qos, val);
+		abox_dbg(dev_abox, "applying qos(%d, %dkHz): %dkHz\n", qos_class,
+				val, exynos_pm_qos_request(qos_class));
+#else
+		abox_info(dev_abox, "pm_qos is disabled temporary(%d, %dkHz)\n",
+				qos_class, val);
+#endif
 	}
 }
 
@@ -143,24 +236,37 @@ static struct abox_qos_req *abox_qos_new(struct device *dev,
 		struct abox_qos *qos, unsigned int id, unsigned int val,
 		const char *name)
 {
-	struct abox_qos_req *req, *first;
-	size_t len = ARRAY_SIZE(qos->req_array);
+	struct abox_qos_req *req;
 
 	lockdep_assert_held(&abox_qos_lock);
 
-	for (req = first = qos->req_array; req - first < len; req++) {
-		if (req->id == 0) {
-			strlcpy(req->name, name, sizeof(req->name));
-			req->val = val;
-			req->updated = local_clock();
-			req->id = id;
-			return req;
-		}
+	req = kzalloc(sizeof(*req), GFP_ATOMIC);
+	if (!req)
+		return req;
+
+	strlcpy(req->name, name, sizeof(req->name));
+	req->val = val;
+	req->updated = local_clock();
+	req->id = id;
+	list_add_tail(&req->list, &qos->requests);
+
+	return req;
+}
+
+int abox_qos_get_request(struct device *dev, enum abox_qos_class qos_class)
+{
+	struct abox_qos *qos = abox_qos_get_qos(qos_class);
+	int ret;
+
+	if (!qos) {
+		abox_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
+		return -EINVAL;
 	}
 
-	dev_err(dev, "too many qos request: %d, %#x, %u, %s\n",
-			qos->qos_class, id, val, name);
-	return NULL;
+	ret = exynos_pm_qos_request(qos_class);
+	abox_dbg(dev, "%s(%d): %d\n", __func__, qos_class, ret);
+
+	return ret;
 }
 
 int abox_qos_get_target(struct device *dev, enum abox_qos_class qos_class)
@@ -169,12 +275,12 @@ int abox_qos_get_target(struct device *dev, enum abox_qos_class qos_class)
 	int ret;
 
 	if (!qos) {
-		dev_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
+		abox_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
 		return -EINVAL;
 	}
 
 	ret = abox_qos_target(qos);
-	dev_dbg(dev, "%s(%d): %d\n", __func__, qos_class, ret);
+	abox_dbg(dev, "%s(%d): %d\n", __func__, qos_class, ret);
 
 	return ret;
 }
@@ -187,14 +293,14 @@ unsigned int abox_qos_get_value(struct device *dev,
 	int ret;
 
 	if (!qos) {
-		dev_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
+		abox_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
 		return -EINVAL;
 	}
 
 	req = abox_qos_find(qos, id);
 	ret = req ? req->val : 0;
 
-	dev_dbg(dev, "%s(%d, %#x): %d\n", __func__, qos_class, id, ret);
+	abox_dbg(dev, "%s(%d, %#x): %d\n", __func__, qos_class, id, ret);
 
 	return ret;
 }
@@ -207,14 +313,14 @@ int abox_qos_is_active(struct device *dev, enum abox_qos_class qos_class,
 	int ret;
 
 	if (!qos) {
-		dev_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
+		abox_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
 		return -EINVAL;
 	}
 
 	req = abox_qos_find(qos, id);
 	ret = (req && req->val);
 
-	dev_dbg(dev, "%s(%d, %#x): %d\n", __func__, qos_class, id, ret);
+	abox_dbg(dev, "%s(%d, %#x): %d\n", __func__, qos_class, id, ret);
 
 	return ret;
 }
@@ -234,7 +340,7 @@ int abox_qos_request(struct device *dev, enum abox_qos_class qos_class,
 	int ret = 0;
 
 	if (!qos) {
-		dev_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
+		abox_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
 		return -EINVAL;
 	}
 
@@ -242,11 +348,14 @@ int abox_qos_request(struct device *dev, enum abox_qos_class qos_class,
 		id = DEFAULT_ID;
 
 	spin_lock_irqsave(&abox_qos_lock, flags);
-	req = abox_qos_find(qos, id);
+	req = abox_qos_find_unlocked(qos, id);
 	if (!req) {
 		req = abox_qos_new(dev, qos, id, val, name);
-		if (!req)
+		if (!req) {
+			abox_err(dev, "qos request failed: %d, %#x, %u, %s\n",
+					qos_class, id, val, name);
 			ret = -ENOMEM;
+		}
 	} else if (req->val != val) {
 		strlcpy(req->name, name, sizeof(req->name));
 		req->val = val;
@@ -265,23 +374,22 @@ int abox_qos_request(struct device *dev, enum abox_qos_class qos_class,
 void abox_qos_clear(struct device *dev, enum abox_qos_class qos_class)
 {
 	struct abox_qos *qos = abox_qos_get_qos(qos_class);
-	struct abox_qos_req *req, *first;
-	size_t len = ARRAY_SIZE(qos->req_array);
+	struct abox_qos_req *req;
 	unsigned long flags;
 	bool dirty = false;
 
 	if (!qos) {
-		dev_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
+		abox_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
 		return;
 	}
 
 	spin_lock_irqsave(&abox_qos_lock, flags);
-	for (req = first = qos->req_array; req - first < len; req++) {
+	list_for_each_entry(req, &qos->requests, list) {
 		if (req->val) {
 			req->val = 0;
 			strlcpy(req->name, "clear", sizeof(req->name));
 			req->updated = local_clock();
-			dev_info(dev, "clearing qos: %d, %#x\n",
+			abox_info(dev, "clearing qos: %d, %#x\n",
 					qos_class, req->id);
 			dirty = true;
 		}
@@ -295,48 +403,64 @@ void abox_qos_clear(struct device *dev, enum abox_qos_class qos_class)
 void abox_qos_print(struct device *dev, enum abox_qos_class qos_class)
 {
 	struct abox_qos *qos = abox_qos_get_qos(qos_class);
-	struct abox_qos_req *req, *first;
-	size_t len = ARRAY_SIZE(qos->req_array);
+	struct abox_qos_req *req;
 	unsigned long flags;
 
 	if (!qos) {
-		dev_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
+		abox_err(dev, "%s: invalid class: %d\n", __func__, qos_class);
 		return;
 	}
 
 	spin_lock_irqsave(&abox_qos_lock, flags);
-	for (req = first = qos->req_array; req - first < len; req++) {
+	list_for_each_entry(req, &qos->requests, list) {
 		if (req->val)
-			dev_warn(dev, "qos: %d, %#x\n", qos_class, req->id);
+			abox_warn(dev, "qos: %d, %#x\n", qos_class, req->id);
 	}
 	spin_unlock_irqrestore(&abox_qos_lock, flags);
 }
 
+int abox_qos_add_notifier(enum abox_qos_class qos_class,
+		struct notifier_block *notifier)
+{
+	int ret = 0;
+
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+	ret = exynos_pm_qos_add_notifier(qos_class, notifier);
+#endif
+	return ret;
+}
+
 static ssize_t abox_qos_read_qos(char *buf, size_t size, struct abox_qos *qos)
 {
-	struct abox_qos_req *req, *first;
-	size_t len = ARRAY_SIZE(qos->req_array);
+	struct abox_qos_req *req;
 	ssize_t offset = 0;
+	unsigned long flags;
 
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+	offset += snprintf(buf + offset, size - offset,
+			"name=%s, requested=%u, value=%u\n",
+			qos->name, qos->val,
+			exynos_pm_qos_request(qos->qos_class));
+#else
 	offset += snprintf(buf + offset, size - offset,
 			"name=%s, requested=%u, value=%u\n",
 			qos->name, qos->val, pm_qos_request(qos->qos_class));
+#endif
+	spin_lock_irqsave(&abox_qos_lock, flags);
+	list_for_each_entry(req, &qos->requests, list) {
+		unsigned long long time = req->updated;
+		unsigned long rem = do_div(time, NSEC_PER_SEC);
 
-	for (req = first = qos->req_array; req - first < len; req++) {
-		if (req->id) {
-			unsigned long long time = req->updated;
-			unsigned long rem = do_div(time, NSEC_PER_SEC);
-
-			offset += snprintf(buf + offset, size - offset,
-					"%#X\t%u\t%s updated at %llu.%09lus\n",
-					req->id, req->val, req->name,
-					time, rem);
-		}
+		offset += snprintf(buf + offset, size - offset,
+				"%#X\t%u\t%s updated at %llu.%09lus\n",
+				req->id, req->val, req->name, time, rem);
 	}
+	spin_unlock_irqrestore(&abox_qos_lock, flags);
 	offset += snprintf(buf + offset, size - offset, "\n");
 
 	return offset;
 }
+
 #ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
 ssize_t abox_qos_read_file(struct file *file, char __user *user_buf,
 				    size_t count, loff_t *ppos)
@@ -364,10 +488,10 @@ static ssize_t abox_qos_read_file(struct file *file, char __user *user_buf,
 	return ret;
 }
 
-static const struct file_operations abox_qos_fops = {
-	.open = simple_open,
-	.read = abox_qos_read_file,
-	.llseek = default_llseek,
+static const struct proc_ops abox_qos_fops = {
+	.proc_open = simple_open,
+	.proc_read = abox_qos_read_file,
+	.proc_lseek = default_llseek,
 };
 
 void abox_qos_init(struct device *adev)

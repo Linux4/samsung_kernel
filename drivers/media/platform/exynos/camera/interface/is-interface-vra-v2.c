@@ -179,10 +179,7 @@ void __nocfi is_lib_vra_task_work(struct kthread_work *work)
 int is_lib_vra_init_task(struct is_lib_vra *lib_vra)
 {
 	s32 ret = 0;
-	u32 j;
-#ifdef SET_CPU_AFFINITY
-	u32 cpu = 0;
-#endif
+	u32 j, cpu;
 	struct sched_param param = { .sched_priority = IS_MAX_PRIO - 3 };
 
 	if (unlikely(!lib_vra)) {
@@ -201,7 +198,7 @@ int is_lib_vra_init_task(struct is_lib_vra *lib_vra)
 		return PTR_ERR(lib_vra->task_vra.task);
 	}
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_set_task_using(lib_vra->task_vra.task);
+	is_fpsimd_set_task_using(lib_vra->task_vra.task);
 #endif
 	param.sched_priority = TASK_LIB_VRA_PRIO;
 	ret = sched_setscheduler_nocheck(lib_vra->task_vra.task,
@@ -219,11 +216,10 @@ int is_lib_vra_init_task(struct is_lib_vra *lib_vra)
 			is_lib_vra_task_work);
 	}
 
-#ifdef SET_CPU_AFFINITY
 	cpu = TASK_VRA_AFFINITY;
-	ret = set_cpus_allowed_ptr(lib_vra->task_vra.task, cpumask_of(cpu));
-	dbg_lib(3, "lib_vra_task_init: affinity cpu(%d) (%d)\n", cpu, ret);
-#endif
+	set_cpus_allowed_ptr(lib_vra->task_vra.task, cpumask_of(cpu));
+	dbg_lib(3, "is_lib_vra: affinity %d\n", cpu);
+
 	return 0;
 }
 
@@ -786,9 +782,9 @@ void __nocfi is_lib_vra_os_funcs(void)
 	funcs.lib_in_irq       = is_lib_in_irq;
 
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
-	((vra_set_os_funcs_t)VRA_LIB_ADDR)((void *)&funcs);
-	fpsimd_put();
+  is_fpsimd_get_func();
+  ((vra_set_os_funcs_t)VRA_LIB_ADDR)((void *)&funcs);
+  is_fpsimd_get_func();
 #else
 	((vra_set_os_funcs_t)VRA_LIB_ADDR)((void *)&funcs);
 #endif

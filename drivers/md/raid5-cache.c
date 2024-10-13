@@ -1,16 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2015 Shaohua Li <shli@fb.com>
  * Copyright (C) 2016 Song Liu <songliubraving@fb.com>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
  */
 #include <linux/kernel.h>
 #include <linux/wait.h>
@@ -204,9 +195,7 @@ struct r5l_log {
 static inline sector_t r5c_tree_index(struct r5conf *conf,
 				      sector_t sect)
 {
-	sector_t offset;
-
-	offset = sector_div(sect, conf->chunk_sectors);
+	sector_div(sect, conf->chunk_sectors);
 	return sect;
 }
 
@@ -307,8 +296,8 @@ r5c_return_dev_pending_writes(struct r5conf *conf, struct r5dev *dev)
 	wbi = dev->written;
 	dev->written = NULL;
 	while (wbi && wbi->bi_iter.bi_sector <
-	       dev->sector + STRIPE_SECTORS) {
-		wbi2 = r5_next_bio(wbi, dev->sector);
+	       dev->sector + RAID5_STRIPE_SECTORS(conf)) {
+		wbi2 = r5_next_bio(conf, wbi, dev->sector);
 		md_write_end(conf->mddev);
 		bio_endio(wbi);
 		wbi = wbi2;
@@ -325,7 +314,7 @@ void r5c_handle_cached_data_endio(struct r5conf *conf,
 			set_bit(R5_UPTODATE, &sh->dev[i].flags);
 			r5c_return_dev_pending_writes(conf, &sh->dev[i]);
 			md_bitmap_endwrite(conf->mddev->bitmap, sh->sector,
-					   STRIPE_SECTORS,
+					   RAID5_STRIPE_SECTORS(conf),
 					   !test_bit(STRIPE_DEGRADED, &sh->state),
 					   0);
 		}
@@ -373,7 +362,7 @@ void r5c_check_cached_full_stripe(struct r5conf *conf)
 	 */
 	if (atomic_read(&conf->r5c_cached_full_stripes) >=
 	    min(R5C_FULL_STRIPE_FLUSH_BATCH(conf),
-		conf->chunk_sectors >> STRIPE_SHIFT))
+		conf->chunk_sectors >> RAID5_STRIPE_SHIFT(conf)))
 		r5l_wake_reclaim(conf->log, 0);
 }
 
@@ -2439,10 +2428,15 @@ static void r5c_recovery_flush_data_only_stripes(struct r5l_log *log,
 	struct mddev *mddev = log->rdev->mddev;
 	struct r5conf *conf = mddev->private;
 	struct stripe_head *sh, *next;
+	bool cleared_pending = false;
 
 	if (ctx->data_only_stripes == 0)
 		return;
 
+	if (test_bit(MD_SB_CHANGE_PENDING, &mddev->sb_flags)) {
+		cleared_pending = true;
+		clear_bit(MD_SB_CHANGE_PENDING, &mddev->sb_flags);
+	}
 	log->r5c_journal_mode = R5C_JOURNAL_MODE_WRITE_BACK;
 
 	list_for_each_entry_safe(sh, next, &ctx->cached_list, lru) {
@@ -2457,6 +2451,8 @@ static void r5c_recovery_flush_data_only_stripes(struct r5l_log *log,
 		   atomic_read(&conf->active_stripes) == 0);
 
 	log->r5c_journal_mode = R5C_JOURNAL_MODE_WRITE_THROUGH;
+	if (cleared_pending)
+		set_bit(MD_SB_CHANGE_PENDING, &mddev->sb_flags);
 }
 
 static int r5l_recovery_log(struct r5l_log *log)
@@ -2541,13 +2537,10 @@ static ssize_t r5c_journal_mode_show(struct mddev *mddev, char *page)
 	struct r5conf *conf;
 	int ret;
 
-	ret = mddev_lock(mddev);
-	if (ret)
-		return ret;
-
+	spin_lock(&mddev->lock);
 	conf = mddev->private;
 	if (!conf || !conf->log) {
-		mddev_unlock(mddev);
+		spin_unlock(&mddev->lock);
 		return 0;
 	}
 
@@ -2567,7 +2560,7 @@ static ssize_t r5c_journal_mode_show(struct mddev *mddev, char *page)
 	default:
 		ret = 0;
 	}
-	mddev_unlock(mddev);
+	spin_unlock(&mddev->lock);
 	return ret;
 }
 
@@ -3162,8 +3155,6 @@ int r5l_init_log(struct r5conf *conf, struct md_rdev *rdev)
 	set_bit(MD_HAS_JOURNAL, &conf->mddev->flags);
 	return 0;
 
-	rcu_assign_pointer(conf->log, NULL);
-	md_unregister_thread(&log->reclaim_thread);
 reclaim_thread:
 	mempool_exit(&log->meta_pool);
 out_mempool:

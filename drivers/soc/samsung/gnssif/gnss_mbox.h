@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2014-2019, Samsung Electronics.
  *
@@ -29,10 +30,6 @@
 #define EXYNOS_MBOX_INTMR1	0x24
 #define EXYNOS_MBOX_INTSR1	0x28
 #define EXYNOS_MBOX_INTMSR1	0x2c
-#define EXYNOS_MBOX_ISSR0	0x80
-#define EXYNOS_MBOX_ISSR1	0x84
-#define EXYNOS_MBOX_ISSR2	0x88
-#define EXYNOS_MBOX_ISSR3	0x8c
 
 /* Bit definition */
 #define MBOX_MCUCTLR_MSWRST	(0)		/* MCUCTRL S/W Reset */
@@ -56,6 +53,10 @@ struct gnss_mbox_drv_data {
 
 	void __iomem *base;
 
+	u32 num_shared_reg;
+	u32 shared_reg_offset;
+	bool use_sw_reset_reg;
+
 	u32 registered_irq;
 	unsigned long unmasked_irq;
 
@@ -72,12 +73,12 @@ extern int gnss_mbox_enable_irq(enum gnss_mbox_region id, u32 int_num);
 extern int gnss_mbox_disable_irq(enum gnss_mbox_region id, u32 int_num);
 
 extern void gnss_mbox_set_interrupt(enum gnss_mbox_region id, u32 int_num);
-extern void gnss_mbox_send_command(enum gnss_mbox_region id, u32 int_num, u16 cmd);
 
-extern u32 gnss_mbox_get_value(enum gnss_mbox_region id, u32 mbx_num);
-extern void gnss_mbox_set_value(enum gnss_mbox_region id, u32 mbx_num, u32 msg);
-extern void gnss_mbox_update_value(enum gnss_mbox_region id, u32 mbx_num, u32 msg, u32 mask, u32 pos);
-extern u32 gnss_mbox_extract_value(enum gnss_mbox_region id, u32 mbx_num, u32 mask, u32 pos);
+extern u32 gnss_mbox_get_sr(enum gnss_mbox_region id, u32 sr_num);
+extern u32 gnss_mbox_extract_sr(enum gnss_mbox_region id, u32 sr_num, u32 mask, u32 pos);
+extern void gnss_mbox_set_sr(enum gnss_mbox_region id, u32 sr_num, u32 msg);
+extern void gnss_mbox_update_sr(enum gnss_mbox_region id, u32 sr_num, u32 msg, u32 mask, u32 pos);
+extern void gnss_mbox_dump_sr(enum gnss_mbox_region id);
 
 extern void gnss_mbox_sw_reset(enum gnss_mbox_region id);
 extern void gnss_mbox_clear_all_interrupt(enum gnss_mbox_region id);

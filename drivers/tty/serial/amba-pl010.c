@@ -15,10 +15,6 @@
  * and hooked into this driver.
  */
 
-#if defined(CONFIG_SERIAL_AMBA_PL010_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
-#define SUPPORT_SYSRQ
-#endif
-
 #include <linux/module.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
@@ -452,13 +448,10 @@ pl010_set_termios(struct uart_port *port, struct ktermios *termios,
 	if ((termios->c_cflag & CREAD) == 0)
 		uap->port.ignore_status_mask |= UART_DUMMY_RSR_RX;
 
-	/* first, disable everything */
 	old_cr = readb(uap->port.membase + UART010_CR) & ~UART010_CR_MSIE;
 
 	if (UART_ENABLE_MS(port, termios->c_cflag))
 		old_cr |= UART010_CR_MSIE;
-
-	writel(0, uap->port.membase + UART010_CR);
 
 	/* Set baud rate */
 	quot -= 1;
@@ -728,6 +721,7 @@ static int pl010_probe(struct amba_device *dev, const struct amba_id *id)
 	uap->port.iotype = UPIO_MEM;
 	uap->port.irq = dev->irq[0];
 	uap->port.fifosize = 16;
+	uap->port.has_sysrq = IS_ENABLED(CONFIG_SERIAL_AMBA_PL010_CONSOLE);
 	uap->port.ops = &amba_pl010_pops;
 	uap->port.flags = UPF_BOOT_AUTOCONF;
 	uap->port.line = i;
@@ -757,7 +751,7 @@ static int pl010_probe(struct amba_device *dev, const struct amba_id *id)
 	return ret;
 }
 
-static int pl010_remove(struct amba_device *dev)
+static void pl010_remove(struct amba_device *dev)
 {
 	struct uart_amba_port *uap = amba_get_drvdata(dev);
 	int i;
@@ -773,8 +767,6 @@ static int pl010_remove(struct amba_device *dev)
 
 	if (!busy)
 		uart_unregister_driver(&amba_reg);
-
-	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP

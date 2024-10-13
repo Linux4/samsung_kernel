@@ -3,7 +3,9 @@
  * Copyright (C) 2014-2018 Etnaviv Project
  */
 
+#include <drm/drm_prime.h>
 #include <linux/dma-buf.h>
+
 #include "etnaviv_drv.h"
 #include "etnaviv_gem.h"
 
@@ -17,7 +19,7 @@ struct sg_table *etnaviv_gem_prime_get_sg_table(struct drm_gem_object *obj)
 	if (WARN_ON(!etnaviv_obj->pages))  /* should have already pinned! */
 		return ERR_PTR(-EINVAL);
 
-	return drm_prime_pages_to_sg(etnaviv_obj->pages, npages);
+	return drm_prime_pages_to_sg(obj->dev, etnaviv_obj->pages, npages);
 }
 
 void *etnaviv_gem_prime_vmap(struct drm_gem_object *obj)
@@ -91,7 +93,15 @@ static void *etnaviv_gem_prime_vmap_impl(struct etnaviv_gem_object *etnaviv_obj)
 static int etnaviv_gem_prime_mmap_obj(struct etnaviv_gem_object *etnaviv_obj,
 		struct vm_area_struct *vma)
 {
-	return dma_buf_mmap(etnaviv_obj->base.dma_buf, vma, 0);
+	int ret;
+
+	ret = dma_buf_mmap(etnaviv_obj->base.dma_buf, vma, 0);
+	if (!ret) {
+		/* Drop the reference acquired by drm_gem_mmap_obj(). */
+		drm_gem_object_put(&etnaviv_obj->base);
+	}
+
+	return ret;
 }
 
 static const struct etnaviv_gem_ops etnaviv_gem_prime_ops = {
@@ -109,7 +119,6 @@ struct drm_gem_object *etnaviv_gem_prime_import_sg_table(struct drm_device *dev,
 	int ret, npages;
 
 	ret = etnaviv_gem_new_private(dev, size, ETNA_BO_WC,
-				      attach->dmabuf->resv,
 				      &etnaviv_gem_prime_ops, &etnaviv_obj);
 	if (ret < 0)
 		return ERR_PTR(ret);
@@ -135,14 +144,7 @@ struct drm_gem_object *etnaviv_gem_prime_import_sg_table(struct drm_device *dev,
 	return &etnaviv_obj->base;
 
 fail:
-	drm_gem_object_put_unlocked(&etnaviv_obj->base);
+	drm_gem_object_put(&etnaviv_obj->base);
 
 	return ERR_PTR(ret);
-}
-
-struct reservation_object *etnaviv_gem_prime_res_obj(struct drm_gem_object *obj)
-{
-	struct etnaviv_gem_object *etnaviv_obj = to_etnaviv_bo(obj);
-
-	return etnaviv_obj->resv;
 }

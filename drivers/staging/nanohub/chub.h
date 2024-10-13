@@ -1,37 +1,89 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
+ * CHUB IF Driver
+ *
  * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Authors:
+ *      Boojin Kim <boojin.kim@samsung.com>
+ *      Sukwon Ryu <sw.ryoo@samsung.com>
  *
- * Boojin Kim <boojin.kim@samsung.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
  */
 
 #ifndef __CONTEXTHUB_IPC_H_
 #define __CONTEXTHUB_IPC_H_
 
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/of_address.h>
+#include <linux/of_reserved_mem.h>
+#include <linux/debugfs.h>
+#include <linux/random.h>
+#include <linux/rtc.h>
+#include <linux/clk.h>
+#include <linux/clk-provider.h>
+#include <linux/timekeeping.h>
+#include <linux/of_gpio.h>
+#include <linux/fcntl.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
-#include <linux/wakelock.h>
+#include <linux/pm_wakeup.h>
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <linux/semaphore.h>
 #include <linux/platform_data/nanohub.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/signal.h>
-#include "chub_ipc.h"
+#include <linux/delay.h>
+#include <linux/kthread.h>
+#if IS_ENABLED(CONFIG_EXYNOS_S2MPU)
+#include <soc/samsung/exynos/exynos-s2mpu.h>
+#endif
+#if IS_ENABLED(CONFIG_EXYNOS_SYSTEM_EVENT)
+#include <soc/samsung/exynos/sysevent.h>
+#endif
+#if IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)
+#include <soc/samsung/exynos/imgloader.h>
+#include <linux/firmware.h>
+#endif
+#if IS_ENABLED(CONFIG_EXYNOS_PD_EL3)
+#include <soc/samsung/exynos-el3_mon.h>
+#endif
+#include "ipc_chub.h"
 #include "chub_log.h"
 
 #define WAIT_TRY_CNT (3)
 #define RESET_WAIT_TRY_CNT (10)
 #define WAIT_CHUB_MS (100)
+#define WAIT_CHUB_DFS_SCAN_MS_MAX (120000)
+#define WAIT_CHUB_DFS_SCAN_MS (2000)
+#define WAIT_TIMEOUT_MS (1000)
+#define MAX_USI_CNT (15)
+#define BAAW_MAX (4)
+#define BAAW_MAX_WINDOWS (0x10)
 
+enum { CHUB_ON, CHUB_OFF };
+enum { C2A_ON, C2A_OFF };
+
+#define EXYNOS_CHUB 2ull
+#ifndef EXYNOS_SET_CONN_TZPC
+#define EXYNOS_SET_CONN_TZPC (0)
+#endif
+
+#define OS_IMAGE_MULTIOS "os.checked_0.bin"
+#define OS_IMAGE_DEFAULT "os.checked.bin"
+
+#define SENSOR_VARIATION 10
+
+enum { OS_TYPE_DEFAULT, OS_TYPE_MULTIOS, OS_TYPE_ONEBINARY };
+
+extern const char *os_image[SENSOR_VARIATION];
+#define MAX_FIRMWARE_NUM 3
 /* utils for nanohub main */
 #define wait_event_interruptible_timeout_locked(q, cond, tmo)		\
 ({									\
@@ -75,18 +127,16 @@
 enum mailbox_event {
 	MAILBOX_EVT_UTC_MAX = IPC_DEBUG_UTC_MAX,
 	MAILBOX_EVT_DUMP_STATUS = IPC_DEBUG_DUMP_STATUS,
+	MAILBOX_EVT_DFS_GOVERNOR = IPC_DEBUG_DFS_GOVERNOR,
+	MAILBOX_EVT_CLK_DIV = IPC_DEBUG_CLK_DIV,
 	MAILBOX_EVT_WAKEUP,
 	MAILBOX_EVT_WAKEUP_CLR,
-	MAILBOX_EVT_ERASE_SHARED,
 	MAILBOX_EVT_ENABLE_IRQ,
 	MAILBOX_EVT_DISABLE_IRQ,
-	MAILBOX_EVT_RESET_EVT_START,
-	MAILBOX_EVT_INIT_IPC,
-	MAILBOX_EVT_POWER_ON,
 	MAILBOX_EVT_CHUB_ALIVE,
-	MAILBOX_EVT_SHUTDOWN,
-	MAILBOX_EVT_RESET,
 	MAILBOX_EVT_RT_LOGLEVEL,
+	MAILBOX_EVT_START_AON,
+	MAILBOX_EVT_STOP_AON,
 	MAILBOX_EVT_MAX,
 };
 
@@ -94,11 +144,11 @@ enum chub_status {
 	CHUB_ST_NO_POWER,
 	CHUB_ST_POWER_ON,
 	CHUB_ST_RUN,
-	CHUB_ST_SHUTDOWN,
 	CHUB_ST_NO_RESPONSE,
 	CHUB_ST_ERR,
 	CHUB_ST_HANG,
 	CHUB_ST_RESET_FAIL,
+	CHUB_ST_ITMON,
 };
 
 struct read_wait {
@@ -107,12 +157,7 @@ struct read_wait {
 	wait_queue_head_t event;
 };
 
-struct recv_ctrl {
-	unsigned long order;
-	volatile unsigned long container[IRQ_EVT_CH_MAX];
-};
-
-struct chub_alive {
+struct chub_evt {
 	atomic_t flag;
 	wait_queue_head_t event;
 };
@@ -129,213 +174,351 @@ struct chub_alive {
 enum chub_err_type {
 	CHUB_ERR_NONE,
 	CHUB_ERR_ITMON, /* ITMON by CHUB */
+	CHUB_ERR_S2MPU, /* S2MPU by CHUB */
 	CHUB_ERR_FW_FAULT, /* CSP_FAULT by CHUB */
 	CHUB_ERR_FW_WDT, /* watchdog by CHUB */
-	CHUB_ERR_FW_REBOOT,
-	CHUB_ERR_EVTQ_NO_HW_TRIGGER, /* 5 */
+	CHUB_ERR_FW_REBOOT, /* 5 */
+	CHUB_ERR_ISR,
 	CHUB_ERR_CHUB_NO_RESPONSE,
 	CHUB_ERR_CRITICAL, /* critical errors */
 	CHUB_ERR_EVTQ_ADD, /* write event error */
-	CHUB_ERR_EVTQ_EMTPY, /* isr empty event */
-	CHUB_ERR_EVTQ_WAKEUP, /* 10 */
+	CHUB_ERR_EVTQ_EMTPY, /* 10: isr empty event */
+	CHUB_ERR_EVTQ_WAKEUP,
 	CHUB_ERR_EVTQ_WAKEUP_CLR,
-	CHUB_ERR_READ_FAIL,
 	CHUB_ERR_WRITE_FAIL,
 	CHUB_ERR_MAJER,	/* majer errors */
-	CHUB_ERR_CHUB_ST_ERR,	/* 15: chub_status ST_ERR */
+	CHUB_ERR_READ_FAIL, /* 15 */
+	CHUB_ERR_CHUB_ST_ERR,	/* chub_status ST_ERR */
 	CHUB_ERR_COMMS_WAKE_ERR,
 	CHUB_ERR_FW_ERROR,
 	CHUB_ERR_NEED_RESET, /* reset errors */
-	CHUB_ERR_NANOHUB_LOG,
-	CHUB_ERR_COMMS_NACK, /* 20: ap comms error */
+	CHUB_ERR_NANOHUB_LOG, /* 20 */
+	CHUB_ERR_COMMS_NACK, /* ap comms error */
 	CHUB_ERR_COMMS_BUSY,
 	CHUB_ERR_COMMS_UNKNOWN,
 	CHUB_ERR_COMMS,
-	CHUB_ERR_RESET_CNT,
-	CHUB_ERR_NANOHUB, /* nanohub dbg error */
+	CHUB_ERR_RESET_CNT, /* 25 */
 	CHUB_ERR_KERNEL_PANIC,
 	CHUB_ERR_MAX,
 };
 
-struct contexthub_baaw_info {
-	unsigned int baaw_p_apm_chub_start;
-	unsigned int baaw_p_apm_chub_end;
-	unsigned int baaw_p_apm_chub_remap;
+struct contexthub_symbol_addr {
+	unsigned int base;
+	unsigned int size;
+	unsigned int offset;
+	unsigned int length;
 };
 
-#define CHUB_IRQ_PIN_MAX (5)
-struct contexthub_ipc_info {
-	u32 cur_err;
-	int err_cnt[CHUB_ERR_MAX];
-	struct device *dev;
-	struct nanohub_data *data;
-	struct nanohub_platform_data *pdata;
-	wait_queue_head_t wakeup_wait;
-	struct work_struct debug_work;
-	struct work_struct log_work;
-	int log_work_reqcnt;
-	spinlock_t logout_lock;
-	struct read_wait read_lock;
-	struct chub_alive chub_alive_lock;
-	struct chub_alive poweron_lock;
-	struct chub_alive reset_lock;
+struct contexthub_symbol_table {
+	unsigned int size;
+	unsigned int count;
+	unsigned int name_offset;
+	unsigned int reserved;
+	struct contexthub_symbol_addr symbol[0];
+};
+
+struct contexthub_notifi_info {
+	char name[IPC_NAME_MAX];
+	enum ipc_owner id;
+	struct contexthub_notifier_block *nb;
+};
+
+struct chub_baaw {
+	const char *name;
+	void __iomem *addr;
+	unsigned int size;
+	unsigned int values[BAAW_MAX_WINDOWS * 5];
+};
+
+struct chub_iomem {
 	void __iomem *sram;
-	u32 sram_size;
 	void __iomem *mailbox;
 	void __iomem *chub_dumpgpr;
-	void __iomem *chub_baaw;
-	void __iomem *vdd_sensor_en;
+	void __iomem *chub_dump_cmu;
+	void __iomem *chub_dump_sys;
+	void __iomem *chub_dump_wdt;
+	void __iomem *chub_dump_timer;
+	void __iomem *chub_dump_pwm;
+	void __iomem *chub_dump_rtc;
+	void __iomem *usi_array[MAX_USI_CNT];
+	void __iomem *chub_out;
+	void __iomem *upmu;
 	void __iomem *pmu_chub_reset;
 	void __iomem *pmu_chub_cpu;
-	void __iomem *cmu_chub_qch;
-	struct contexthub_baaw_info baaw_info;
-	struct ipc_map_area *ipc_map;
-	struct log_buffer_info *fw_log;
+
+	resource_size_t sram_size;
+	phys_addr_t sram_phys;
+	int usi_cnt;
+	struct chub_baaw chub_baaws[BAAW_MAX];
+};
+
+struct chub_event {
+	struct chub_evt chub_alive_lock;
+	struct chub_evt poweron_lock;
+	struct chub_evt reset_lock;
+	struct chub_evt log_lock;
+};
+
+struct chub_atomic {
+	atomic_t irq_apInt;
+	atomic_t wakeup_chub;
+	atomic_t in_use_ipc;
+	atomic_t chub_shutdown;
+	atomic_t chub_status;
+	atomic_t chub_sleep;
+	atomic_t in_reset;
+	atomic_t in_log;
+};
+
+struct chub_log {
+	struct log_buffer_info *log_info;
 	struct log_buffer_info *dd_log;
 	struct LOG_BUFFER *dd_log_buffer;
 	struct runtimelog_buf chub_rt_log;
-	unsigned long clkrate;
-	atomic_t log_work_active;
-	atomic_t irq1_apInt;
-	atomic_t wakeup_chub;
-	atomic_t in_use_ipc;
-	int irq_mailbox;
-	int irq_wdt;
-	bool irq_wdt_disabled;
-	int utc_run;
-	int powermode;
-	atomic_t chub_status;
-	atomic_t chub_shutdown;
-	atomic_t in_reset;
-	int block_reset;
-	bool sel_os;
-	bool os_load;
-	char os_name[MAX_FILE_LEN];
-	struct notifier_block itmon_nb;
-	u32 irq_pin_len;
-	u32 irq_pins[CHUB_IRQ_PIN_MAX];
-	struct wakeup_source ws_reset;
-#ifdef CONFIG_CONTEXTHUB_DEBUG
-	struct work_struct utc_work;
+	struct task_struct *log_kthread;
+	wait_queue_head_t log_kthread_wait;
+#if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
+	/* memlogger */
+	struct memlogs mlog;
 #endif
 };
 
-#define SENSOR_VARIATION 10
+#define CHUB_IRQ_PIN_MAX (5)
+struct chub_irq {
+	int irq_mailbox;
+	int irq_wdt;
+	bool irq_wdt_disabled;
+	u32 irq_pin_len;
+	u32 irq_pins[CHUB_IRQ_PIN_MAX];
+};
 
-/*	PMU CHUB_CPU registers */
-#if defined(CONFIG_SOC_EXYNOS9810)
-#define REG_CHUB_RESET_CHUB_CONFIGURATION	(0x0)
-#define REG_CHUB_CPU_STATUS			(0x0)
-#define REG_CHUB_CPU_OPTION			(0x4)
-#define ENABLE_SYSRESETREQ			BIT(4)
-#define CHUB_RESET_RELEASE_VALUE		(0x10000000)
+struct chub_misc {
+	u32 cur_err;
+	int err_cnt[CHUB_ERR_MAX];
+	unsigned long clkrate;
+	int utc_run;
+	int powermode;
+	bool chub_sleep_dumped;
+	u32 wakeup_by_chub_cnt;
+	bool os_load;
+	u8 num_os;
+	bool multi_os;
+	bool alive_mct;
+	u32 chub_dfs_gov;
+	bool itmon_dumped;
+};
 
-#elif defined(CONFIG_SOC_EXYNOS9610)
-#define REG_CHUB_CPU_CONFIGURATION		(0x0)
-#define REG_CHUB_CPU_STATUS			(0x4)
-#define REG_CHUB_CPU_OPTION			(0x8)
-#define ENABLE_SYSRESETREQ			BIT(9)
-#define CHUB_RESET_RELEASE_VALUE		(0x8000)
-#define REG_CHUB_CPU_STATUS_BIT_STANDBYWFI	(28)
-
-#elif defined(CONFIG_SOC_EXYNOS9630)
-/* for 9630, clk should be : 360000000, 180000000, 120000000 */
-#define CHUB_DLL_CLK				360000000
-#define REG_CHUB_CPU_CONFIGURATION		(0x0)
-#define REG_CHUB_CPU_STATUS			(0x4)
-#define REG_CHUB_CPU_OPTION			(0xc)
-#define ENABLE_SYSRESETREQ			BIT(9)
-#define CHUB_RESET_RELEASE_VALUE 		(0x1)
-
-#elif defined(CONFIG_SOC_EXYNOS3830)
-#define CHUB_DLL_CLK				360000000
-
-#else
-#define REG_CHUB_CPU_STATUS			(0x0)
-#define REG_CHUB_CPU_OPTION			(0x0)
-#define ENABLE_SYSRESETREQ			BIT(0)
-#define CHUB_RESET_RELEASE_VALUE		(0x0)
+struct chub_ext {
+	/* communicate with others */
+	/* chub notifiers */
+	struct contexthub_notifier_block chub_cipc_nb;
+	struct contexthub_notifi_info cipc_noti[IPC_OWN_MAX];
+	struct notifier_block itmon_nb;
+	struct notifier_block panic_nb;
+	struct delayed_work sensor_alive_work;
+	bool sensor_alive_work_run;
+#if IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)
+	/* image loader */
+	struct imgloader_desc chub_img_desc[3];
 #endif
-
-#define REG_CHUB_CPU_DURATION			(0x8)
-#define REG_CHUB_RESET_CHUB_OPTION		(0x4)
-#define REG_CHUB_CPU_STATUS_BIT_STANDBYWFI	(28)
-
-/*	CMU CHUB_QCH registers	*/
-#if defined(CONFIG_SOC_EXYNOS9610)
-#define REG_QCH_CON_CM4_SHUB_QCH (0x8)
-#define IGNORE_FORCE_PM_EN BIT(2)
-#define CLOCK_REQ BIT(1)
-#define ENABLE BIT(0)
-#elif defined(CONFIG_SOC_EXYNOS9630)
-#define REG_GPH2_CON				(0x0)
-#define REG_GPH2_DAT				(0x4)
+#if IS_ENABLED(CONFIG_EXYNOS_S2MPU)
+	struct s2mpu_notifier_block s2mpu_nb;
 #endif
+#if IS_ENABLED(CONFIG_EXYNOS_SYSTEM_EVENT)
+	/* sysevent */
+	struct sysevent_desc sysevent_desc;
+	struct sysevent_device *sysevent_dev;
+	void* sysevent_status;
+#endif
+#if IS_ENABLED(CONFIG_EXYNOS_AONCAM)
+	struct notifier_block aon_nb;
+	wait_queue_head_t aon_wait;
+	bool aon_flag;
+#endif
+};
 
-/*	CHUB dump gpr Registers */
-#define REG_CHUB_DUMPGPR_CTRL (0x0)
-#define REG_CHUB_DUMPGPR_PCR  (0x4)
-#define REG_CHUB_DUMPGPR_GP0R (0x10)
-#define REG_CHUB_DUMPGPR_GP1R (0x14)
-#define REG_CHUB_DUMPGPR_GP2R (0x18)
-#define REG_CHUB_DUMPGPR_GP3R (0x1c)
-#define REG_CHUB_DUMPGPR_GP4R (0x20)
-#define REG_CHUB_DUMPGPR_GP5R (0x24)
-#define REG_CHUB_DUMPGPR_GP6R (0x28)
-#define REG_CHUB_DUMPGPR_GP7R (0x2c)
-#define REG_CHUB_DUMPGPR_GP8R (0x30)
-#define REG_CHUB_DUMPGPR_GP9R (0x34)
-#define REG_CHUB_DUMPGPR_GPAR (0x38)
-#define REG_CHUB_DUMPGPR_GPBR (0x3c)
-#define REG_CHUB_DUMPGPR_GPCR (0x40)
-#define REG_CHUB_DUMPGPR_GPDR (0x44)
-#define REG_CHUB_DUMPGPR_GPER (0x48)
-#define REG_CHUB_DUMPGPR_GPFR (0x4c)
+struct contexthub_ipc_info {
+	struct device *dev;
+	struct nanohub_data *data;
+	struct nanohub_platform_data *pdata;
+	struct ipc_info *chub_ipc;
+
+	struct chub_iomem iomem;
+	struct chub_event event;
+	struct chub_atomic atomic;
+	struct chub_log log;
+	struct chub_irq irq;
+	struct chub_misc misc;
+	struct chub_ext ext;
+
+	struct work_struct debug_work;
+	wait_queue_head_t wakeup_wait;
+	spinlock_t logout_lock;
+	struct read_wait read_lock;
+	/* wakeup control */
+	struct wakeup_source *ws;
+	struct wakeup_source *ws_reset;
+	/* chub f/w callstack */
+	struct contexthub_symbol_table *symbol_table;
+};
 
 #define IPC_HW_WRITE_DUMPGPR_CTRL(base, val) \
 	__raw_writel((val), (base) + REG_CHUB_DUMPGPR_CTRL)
 #define IPC_HW_READ_DUMPGPR_PCR(base) \
 	__raw_readl((base) + REG_CHUB_DUMPGPR_PCR)
 
-/*	CHUB BAAW Registers : CHUB BASE + 0x100000 */
-#define REG_BAAW_D_CHUB0 (0x0)
-#define REG_BAAW_D_CHUB1 (0x4)
-#define REG_BAAW_D_CHUB2 (0x8)
-#define REG_BAAW_D_CHUB3 (0xc)
-#define BAAW_VAL_MAX (4)
-#define BAAW_RW_ACCESS_ENABLE 0x80000003
+#define READ_CHUB_USI_CONF(base) \
+	__raw_readl((base) + USI_REG_USI_CONFIG)
 
 #define IPC_MAX_TIMEOUT (0xffffff)
-#define INIT_CHUB_VAL (-1)
 
-#define IPC_HW_WRITE_BAAW_CHUB0(base, val) \
-	__raw_writel((val), (base) + REG_BAAW_D_CHUB0)
-#define IPC_HW_WRITE_BAAW_CHUB1(base, val) \
-	__raw_writel((val), (base) + REG_BAAW_D_CHUB1)
-#define IPC_HW_WRITE_BAAW_CHUB2(base, val) \
-	__raw_writel((val), (base) + REG_BAAW_D_CHUB2)
-#define IPC_HW_WRITE_BAAW_CHUB3(base, val) \
-	__raw_writel((val), (base) + REG_BAAW_D_CHUB3)
+static inline struct wakeup_source *chub_wake_lock_init(struct device *dev, const char *name)
+{
+	struct wakeup_source *ws = NULL;
 
-int contexthub_ipc_write_event(struct contexthub_ipc_info *data,
-				enum mailbox_event event);
-int contexthub_ipc_read(struct contexthub_ipc_info *ipc,
-				uint8_t *rx, int max_length, int timeout);
-int contexthub_ipc_write(struct contexthub_ipc_info *ipc,
-				uint8_t *tx, int length, int timeout);
-int contexthub_poweron(struct contexthub_ipc_info *data);
-int contexthub_download_image(struct contexthub_ipc_info *data, enum ipc_region reg);
-int contexthub_reset(struct contexthub_ipc_info *ipc, bool force_load, enum chub_err_type err);
-int contexthub_wakeup(struct contexthub_ipc_info *data, int evt);
-int contexthub_request(struct contexthub_ipc_info *ipc);
-void contexthub_release(struct contexthub_ipc_info *ipc);
-void chub_wake_event(struct chub_alive *event);
-int contexthub_get_sensortype(struct contexthub_ipc_info *ipc, char *buf);
-void contexthub_print_rtlog(struct contexthub_ipc_info *ipc, bool loop);
-void contexthub_handle_debug(struct contexthub_ipc_info *ipc, enum chub_err_type err);
+	ws = wakeup_source_register(dev, name);
+	if (ws == NULL) {
+		nanohub_err("%s: wakelock register fail\n", name);
+		return NULL;
+	}
 
-#if defined(CONFIG_SENSORS_SSP) || defined(CONFIG_SHUB)
-int contexthub_get_token(struct contexthub_ipc_info *ipc);
-void contexthub_put_token(struct contexthub_ipc_info *ipc);
-#endif
+	return ws;
+}
+
+static inline void chub_wake_lock_destroy(struct wakeup_source *ws)
+{
+	if (ws == NULL) {
+		nanohub_err("wakelock unregister fail\n");
+		return;
+	}
+
+	wakeup_source_unregister(ws);
+}
+
+static inline void chub_wake_lock(struct wakeup_source *ws)
+{
+	if (ws == NULL) {
+		nanohub_err("wakelock fail\n");
+		return;
+	}
+
+	__pm_stay_awake(ws);
+}
+
+static inline void chub_wake_lock_timeout(struct wakeup_source *ws, long timeout)
+{
+	if (ws == NULL) {
+		nanohub_err("wakelock timeout fail\n");
+		return;
+	}
+
+	__pm_wakeup_event(ws, jiffies_to_msecs(timeout));
+}
+
+static inline void chub_wake_unlock(struct wakeup_source *ws)
+{
+	if (ws == NULL) {
+		nanohub_err("wake unlock fail\n");
+		return;
+	}
+
+	__pm_relax(ws);
+}
+
+static inline int chub_wake_lock_active(struct wakeup_source *ws)
+{
+	if (ws == NULL) {
+		nanohub_err("wake unlock fail\n");
+		return 0;
+	}
+
+	return ws->active;
+}
+
+static inline int contexthub_read_in_reset(struct contexthub_ipc_info *chub)
+{
+	return atomic_read(&chub->atomic.in_reset);
+}
+
+static inline void chub_wake_event(struct chub_evt *event)
+{
+	atomic_set(&event->flag, 1);
+	wake_up_interruptible_sync(&event->event);
+}
+
+static inline int chub_wait_event(struct chub_evt *event, int timeout)
+{
+	atomic_set(&event->flag, 0);
+	return wait_event_timeout(event->event,
+						atomic_read(&event->flag),
+						msecs_to_jiffies(timeout));
+}
+
+static inline int contexthub_read_token(struct contexthub_ipc_info *chub)
+{
+	if (contexthub_read_in_reset(chub))
+		return -EINVAL;
+
+	return atomic_read(&chub->atomic.in_use_ipc);
+}
+
+static inline int contexthub_get_token(struct contexthub_ipc_info *chub)
+{
+	if (contexthub_read_in_reset(chub))
+		return -EINVAL;
+
+	atomic_inc(&chub->atomic.in_use_ipc);
+	return 0;
+}
+
+static inline void contexthub_put_token(struct contexthub_ipc_info *chub)
+{
+	atomic_dec(&chub->atomic.in_use_ipc);
+}
+
+static inline void contexthub_status_reset(struct contexthub_ipc_info *chub)
+{
+	/* clear ipc value */
+	atomic_set(&chub->atomic.wakeup_chub, CHUB_OFF);
+	atomic_set(&chub->atomic.irq_apInt, C2A_OFF);
+	atomic_set(&chub->read_lock.cnt, 0);
+	atomic_set(&chub->read_lock.flag, 0);
+
+	/* chub err init */
+	memset(chub->misc.err_cnt, 0, sizeof(int) * CHUB_ERR_COMMS);
+
+	ipc_write_hw_value(IPC_VAL_HW_BOOTMODE, chub->misc.os_load);
+	ipc_set_chub_clk((u32)chub->misc.clkrate);
+	chub->log.chub_rt_log.loglevel = CHUB_RT_LOG_DUMP_PRT;
+	ipc_set_chub_bootmode(BOOTMODE_COLD, chub->log.chub_rt_log.loglevel);
+}
+
+static inline void clear_err_cnt(struct contexthub_ipc_info *chub,
+				 enum chub_err_type err)
+{
+	if (chub->misc.err_cnt[err])
+		chub->misc.err_cnt[err] = 0;
+}
+
+/* CHUB Driver */
+void contexthub_check_time(void);
+int contexthub_notifier_call(struct contexthub_ipc_info *chub, enum CHUB_STATE state);
+
+/* IPC IFs */
+int contexthub_ipc_drv_init(struct contexthub_ipc_info *chub);
+int contexthub_get_sensortype(struct contexthub_ipc_info *chub, char *buf);
+int contexthub_ipc_if_init(struct contexthub_ipc_info *chub);
+int contexthub_chub_ipc_init(struct contexthub_ipc_info *chub);
+int contexthub_chub_ipc_reset(struct contexthub_ipc_info *chub);
+int contexthub_ipc_write_event(struct contexthub_ipc_info *chub, enum mailbox_event event);
+int contexthub_ipc_read(struct contexthub_ipc_info *chub, uint8_t *rx, int max_length, int timeout);
+int contexthub_ipc_write(struct contexthub_ipc_info *chub, uint8_t *tx, int length, int timeout);
+
+/* Bootup */
+void contexthub_handle_debug(struct contexthub_ipc_info *chub, enum chub_err_type err);
+int contexthub_verify_symtable(struct contexthub_ipc_info *chub, void *data, size_t size);
+int contexthub_bootup_init(struct contexthub_ipc_info *chub);
+int contexthub_poweron(struct contexthub_ipc_info *chub);
+int contexthub_shutdown(struct contexthub_ipc_info *chub);
+int contexthub_reset(struct contexthub_ipc_info *chub, bool force_load, enum chub_err_type err);
 #endif

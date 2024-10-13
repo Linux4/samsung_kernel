@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2014-2019, Samsung Electronics.
  *
@@ -153,59 +154,88 @@ void gnss_mbox_set_interrupt(enum gnss_mbox_region id, u32 int_num)
 }
 EXPORT_SYMBOL(gnss_mbox_set_interrupt);
 
-void gnss_mbox_send_command(enum gnss_mbox_region id, u32 int_num, u16 cmd)
+/* Shared register : Get / Set / Extract / Update / Dump */
+static bool is_valid_sr(enum gnss_mbox_region id, u32 sr_num)
 {
-	/* write command */
-	if (int_num < 16)
-		gnss_mbox_writel(id, cmd, EXYNOS_MBOX_ISSR0 + (8 * int_num));
+	if (!_gnss_mbox[id].num_shared_reg) {
+		gif_err("num_shared_reg is 0\n");
+		return false;
+	}
 
-	/* generate interrupt */
-	gnss_mbox_set_interrupt(id, int_num);
+	if (sr_num > _gnss_mbox[id].num_shared_reg) {
+		gif_err("num_shared_reg is %d:%d\n",
+			sr_num, _gnss_mbox[id].num_shared_reg);
+		return false;
+	}
+
+	return true;
 }
-EXPORT_SYMBOL(gnss_mbox_send_command);
 
-u32 gnss_mbox_get_value(enum gnss_mbox_region id, u32 mbx_num)
+u32 gnss_mbox_get_sr(enum gnss_mbox_region id, u32 sr_num)
 {
-	if (mbx_num < 64)
-		return gnss_mbox_readl(id, EXYNOS_MBOX_ISSR0 + (4 * mbx_num));
-	else
+	if (!is_valid_sr(id, sr_num))
 		return 0;
-}
-EXPORT_SYMBOL(gnss_mbox_get_value);
 
-void gnss_mbox_set_value(enum gnss_mbox_region id, u32 mbx_num, u32 msg)
-{
-	if (mbx_num < 64)
-		gnss_mbox_writel(id, msg, EXYNOS_MBOX_ISSR0 + (4 * mbx_num));
+	return gnss_mbox_readl(id,
+		_gnss_mbox[id].shared_reg_offset + (4 * sr_num));
 }
-EXPORT_SYMBOL(gnss_mbox_set_value);
+EXPORT_SYMBOL(gnss_mbox_get_sr);
 
-u32 gnss_mbox_extract_value(enum gnss_mbox_region id, u32 mbx_num, u32 mask, u32 pos)
+u32 gnss_mbox_extract_sr(enum gnss_mbox_region id,
+			u32 sr_num, u32 mask, u32 pos)
 {
-	if (mbx_num < 64)
-		return (gnss_mbox_get_value(id, mbx_num) >> pos) & mask;
-	else
+	if (!is_valid_sr(id, sr_num))
 		return 0;
-}
-EXPORT_SYMBOL(gnss_mbox_extract_value);
 
-void gnss_mbox_update_value(enum gnss_mbox_region id, u32 mbx_num, u32 msg, u32 mask, u32 pos)
+	return (gnss_mbox_get_sr(id, sr_num) >> pos) & mask;
+}
+EXPORT_SYMBOL(gnss_mbox_extract_sr);
+
+void gnss_mbox_set_sr(enum gnss_mbox_region id, u32 sr_num, u32 msg)
+{
+	if (!is_valid_sr(id, sr_num))
+		return;
+
+	gnss_mbox_writel(id, msg, _gnss_mbox[id].shared_reg_offset + (4 * sr_num));
+}
+EXPORT_SYMBOL(gnss_mbox_set_sr);
+
+void gnss_mbox_update_sr(enum gnss_mbox_region id,
+			u32 sr_num, u32 msg, u32 mask, u32 pos)
 {
 	u32 val;
 	unsigned long flags;
 
+	if (!is_valid_sr(id, sr_num))
+		return;
+
 	spin_lock_irqsave(&_gnss_mbox[id].lock, flags);
 
-	if (mbx_num < 64) {
-		val = gnss_mbox_get_value(id, mbx_num);
-		val &= ~(mask << pos);
-		val |= (msg & mask) << pos;
-		gnss_mbox_set_value(id, mbx_num, val);
+	val = gnss_mbox_get_sr(id, sr_num);
+	val &= ~(mask << pos);
+	val |= (msg & mask) << pos;
+	gnss_mbox_set_sr(id, sr_num, val);
+
+	spin_unlock_irqrestore(&_gnss_mbox[id].lock, flags);
+}
+EXPORT_SYMBOL(gnss_mbox_update_sr);
+
+void gnss_mbox_dump_sr(enum gnss_mbox_region id)
+{
+	unsigned long flags;
+	u32 i, value;
+
+	spin_lock_irqsave(&_gnss_mbox[id].lock, flags);
+
+	for (i = 0; i < _gnss_mbox[id].num_shared_reg; i++) {
+		value = gnss_mbox_readl(id,
+			_gnss_mbox[id].shared_reg_offset + (4 * i));
+		gif_info("mbox dump: 0x%02x: 0x%04x\n", i, value);
 	}
 
 	spin_unlock_irqrestore(&_gnss_mbox[id].lock, flags);
 }
-EXPORT_SYMBOL(gnss_mbox_update_value);
+EXPORT_SYMBOL(gnss_mbox_dump_sr);
 
 void gnss_mbox_sw_reset(enum gnss_mbox_region id)
 {
@@ -213,12 +243,13 @@ void gnss_mbox_sw_reset(enum gnss_mbox_region id)
 
 	gif_info("Reset GNSS mailbox\n");
 
-	reg_val = gnss_mbox_readl(id, EXYNOS_MBOX_MCUCTLR);
-	reg_val |= (0x1 << MBOX_MCUCTLR_MSWRST);
+	if (_gnss_mbox[id].use_sw_reset_reg) {
+		reg_val = gnss_mbox_readl(id, EXYNOS_MBOX_MCUCTLR);
+		reg_val |= (0x1 << MBOX_MCUCTLR_MSWRST);
 
-	gnss_mbox_writel(id, reg_val, EXYNOS_MBOX_MCUCTLR);
-
-	udelay(5);
+		gnss_mbox_writel(id, reg_val, EXYNOS_MBOX_MCUCTLR);
+		udelay(5);
+	}
 
 	gnss_mbox_writel(id, ~(_gnss_mbox[id].unmasked_irq) << 16, EXYNOS_MBOX_INTMR0);
 	gif_info("id:%d intmr0:0x%08x\n", id, gnss_mbox_readl(id, EXYNOS_MBOX_INTMR0));
@@ -303,13 +334,26 @@ static int gnss_mbox_probe(struct platform_device *pdev)
 		return PTR_ERR(_gnss_mbox[id].base);
 	}
 
+	/* Shared register */
+	gif_dt_read_u32(dev->of_node, "num_shared_reg",
+			_gnss_mbox[id].num_shared_reg);
+	gif_dt_read_u32(dev->of_node, "shared_reg_offset",
+			_gnss_mbox[id].shared_reg_offset);
+	gif_info("num_shared_reg:%d shared_reg_offset:0x%x\n",
+		_gnss_mbox[id].num_shared_reg, _gnss_mbox[id].shared_reg_offset);
+
+	/* SW reset reg */
+	gif_dt_read_bool(dev->of_node, "use_sw_reset_reg",
+		_gnss_mbox[id].use_sw_reset_reg);
+	gif_info("use_sw_reset_reg:%d\n", _gnss_mbox[id].use_sw_reset_reg);
+
 	irq = platform_get_irq(pdev, 0);
 
-	gif_init_irq(&_gnss_mbox[id].irq_gnss_mbox, irq, pdev->name, IRQF_ONESHOT);
-	ret = gif_request_irq(&_gnss_mbox[id].irq_gnss_mbox, gnss_mbox_handler, &_gnss_mbox[id]);
+	ret = devm_request_irq(dev, irq, gnss_mbox_handler,
+				IRQF_ONESHOT, pdev->name, &_gnss_mbox[id]);
 	if (ret) {
-		gif_err("gif_request_irq() error:%d\n", ret);
-		return ret;
+		gif_err("Can't request %s interrupt!!!\n", pdev->name);
+		return -EIO;
 	}
 
 	spin_lock_init(&_gnss_mbox[id].lock);
@@ -323,7 +367,7 @@ static int gnss_mbox_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int __exit gnss_mbox_remove(struct platform_device *pdev)
+static int gnss_mbox_remove(struct platform_device *pdev)
 {
 	return 0;
 }
@@ -332,6 +376,7 @@ static const struct of_device_id gnss_mbox_dt_match[] = {
 		{ .compatible = "samsung,exynos-gnss-mailbox", },
 		{},
 };
+
 MODULE_DEVICE_TABLE(of, gnss_mbox_dt_match);
 
 static struct platform_driver gnss_mbox_driver = {
@@ -348,3 +393,4 @@ module_platform_driver(gnss_mbox_driver);
 
 MODULE_DESCRIPTION("Exynos GNSS mailbox driver");
 MODULE_LICENSE("GPL");
+

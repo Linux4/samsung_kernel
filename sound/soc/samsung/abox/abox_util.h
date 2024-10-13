@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_util.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox utility
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
@@ -16,6 +16,17 @@
 #include <linux/firmware.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
+
+/**
+ * get resource
+ * @param[in]	pdev		pointer to platform device structure
+ * @param[in]	name		name of resource
+ * @param[out]	phys_addr	physical address of the resource
+ * @param[out]	size		size of the resource
+ * @return	0 or error code
+ */
+extern int get_resource_mem(struct platform_device *pdev,
+		const char *name, phys_addr_t *phys_addr, size_t *size);
 
 /**
  * ioremap to virtual address but not request
@@ -168,6 +179,20 @@ extern int of_samsung_property_read_u32(struct device *dev,
 extern int of_samsung_property_read_u32_array(struct device *dev,
 		const struct device_node *np,
 		const char *propname, u32 *out_values, size_t sz);
+
+/**
+ * Get property value with samsung, prefix
+ * @param[in]	dev		pointer to device invoking this API
+ * @param[in]	np		device node
+ * @param[in]	propname	name of the property
+ * @param[out]	out_values	pointer to return value
+ * @param[in]	sz_min		minimum number of array elements to read
+ * @param[in]	sz_max		maximum number of array elements to read
+ * @return	error code
+ */
+extern int of_samsung_property_read_variable_u32_array(struct device *dev,
+		const struct device_node *np, const char *propname,
+		u32 *out_values, size_t sz_min, size_t sz_max);
 
 /**
  * Get property value with samsung, prefix

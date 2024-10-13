@@ -72,7 +72,7 @@ endif
 ifeq ($(CONFIG_SOC_EXYNOS9630),y)
 	scsc_platform_mif-$(CONFIG_SCSC_PLATFORM) += platform_mif_9630.o
 endif
-ifeq ($(CONFIG_SOC_EXYNOS3830),y)
+ifeq (y, $(filter y, $(CONFIG_SOC_EXYNOS3830) $(CONFIG_SOC_S5E3830)))
 	scsc_platform_mif-$(CONFIG_SCSC_PLATFORM) += platform_mif_3830.o
 endif
 ifeq ($(CONFIG_SOC_EXYNOS7570),y)

@@ -101,14 +101,32 @@ struct taa_param_set {
 	struct param_dma_output		dma_output_after_bds;
 	struct param_dma_output		dma_output_mrg;
 	struct param_dma_output		dma_output_efd;
+#if defined(ENABLE_ORBDS)
+	struct param_dma_output		dma_output_orbds;
+#endif
+#if defined(ENABLE_LMEDS)
+	struct param_dma_output		dma_output_lmeds;
+#endif
 #if !defined(SOC_ORBMCH)
 	struct param_dma_output		ddma_output;	/* deprecated */
+#endif
+#if defined(ENABLE_HF)
+	struct param_dma_output		dma_output_hf;
 #endif
 	u32				input_dva[IS_MAX_PLANES];
 	u32				output_dva_before_bds[IS_MAX_PLANES];
 	u32				output_dva_after_bds[IS_MAX_PLANES];
 	u32				output_dva_mrg[IS_MAX_PLANES];
 	u32				output_dva_efd[IS_MAX_PLANES];
+#if defined(ENABLE_ORBDS)
+	u32				output_dva_orbds[IS_MAX_PLANES];
+#endif
+#if defined(ENABLE_LMEDS)
+	u32				output_dva_lmeds[IS_MAX_PLANES];
+#endif
+#if defined(ENABLE_HF)
+	u32				output_dva_hf[IS_MAX_PLANES];
+#endif
 	uint64_t			output_kva_me[IS_MAX_PLANES];	/* ME or MCH */
 #if defined(SOC_ORBMCH)
 	uint64_t			output_kva_orb[IS_MAX_PLANES];
@@ -125,22 +143,70 @@ struct taa_param_set {
 struct isp_param_set {
 	struct taa_param_set		*taa_param;
 	struct param_otf_input		otf_input;
-	struct param_dma_input		dma_input;
-	struct param_dma_input		prev_dma_input;	/* for TNR merger */
-	struct param_dma_input		prev_wgt_dma_input;	/* for TNR merger */
+	struct param_dma_input		dma_input; /* VDMA1 */
+	struct param_dma_input		prev_dma_input;	/* VDMA2, for TNR merger */
+	struct param_dma_input		prev_wgt_dma_input;	/* VDMA3, for TNR merger */
+#if defined(SOC_MCFP)
+	struct param_dma_input		motion_dma_input;
+#endif
+#if defined(ENABLE_RGB_REPROCESSING)
+	struct param_dma_input		dma_input_rgb;
+	struct param_dma_input		dma_input_noise;
+#endif
+#if defined(ENABLE_SC_MAP)
+	struct param_dma_input		dma_input_scmap;
+#endif
 	struct param_otf_output		otf_output;
+#if defined(SOC_YPP)
+	struct param_dma_output		dma_output_yuv; /* VDMA4 */
+	struct param_dma_output		dma_output_rgb; /* VDMA5 */
+#else
 	struct param_dma_output		dma_output_chunk;
 	struct param_dma_output		dma_output_yuv;
-	struct param_dma_output		dma_output_tnr_wgt;
-	struct param_dma_output		dma_output_tnr_prev;
+#endif
+	struct param_dma_output		dma_output_tnr_wgt; /* VDMA6 */
+	struct param_dma_output		dma_output_tnr_prev; /* VDMA7 */
+#if defined(SOC_YPP)
+	struct param_dma_output		dma_output_nrds;
+	struct param_dma_output		dma_output_noise;
+	struct param_dma_output		dma_output_drc;
+	struct param_dma_output		dma_output_hist;
+#endif
+#if defined(ENABLE_RGB_REPROCESSING)
+	struct param_dma_output		dma_output_noise_rep;
+#endif
 
 	u32				input_dva[IS_MAX_PLANES];
 	u32				input_dva_tnr_prev[IS_MAX_PLANES];
 	u32				input_dva_tnr_wgt[IS_MAX_PLANES];
+#if defined(SOC_MCFP)
+	u32				input_dva_motion[IS_MAX_PLANES];
+#endif
+#if defined(ENABLE_RGB_REPROCESSING)
+	u32				input_dva_rgb[IS_MAX_PLANES];
+	u32				input_dva_noise[IS_MAX_PLANES];
+#endif
+#if defined(ENABLE_SC_MAP)
+	u32				input_dva_scmap[IS_MAX_PLANES];
+#endif
+#if defined(SOC_YPP)
+	u32				output_dva_yuv[IS_MAX_PLANES];
+	u32				output_dva_rgb[IS_MAX_PLANES];
+#else
 	u32				output_dva_chunk[IS_MAX_PLANES];
 	u32				output_dva_yuv[IS_MAX_PLANES];
+#endif
 	u32				output_dva_tnr_wgt[IS_MAX_PLANES];
 	u32				output_dva_tnr_prev[IS_MAX_PLANES];
+#if defined(SOC_YPP)
+	u32				output_dva_nrds[IS_MAX_PLANES];
+	u32				output_dva_noise[IS_MAX_PLANES];
+	u32				output_dva_drc[IS_MAX_PLANES];
+	u32				output_dva_hist[IS_MAX_PLANES];
+#endif
+#if defined(ENABLE_RGB_REPROCESSING)
+	u32				output_dva_noise_rep[IS_MAX_PLANES];
+#endif
 	uint64_t			output_kva_ext[IS_MAX_PLANES];	/* use for EXT */
 
 	u32				instance_id;
@@ -229,6 +295,44 @@ struct clh_param_set {
 	u32				fcount;
 };
 
+struct ypp_param_set {
+	struct isp_param_set		*isp_param;
+	struct param_dma_input		dma_input;
+	struct param_dma_input		dma_input_lv2;
+	struct param_dma_input		dma_input_noise;
+	struct param_dma_input		dma_input_drc;
+	struct param_dma_input		dma_input_hist;
+	struct param_otf_output		otf_output;
+
+	u32				input_dva[IS_MAX_PLANES];
+	u32				input_dva_lv2[IS_MAX_PLANES];
+	u32				input_dva_noise[IS_MAX_PLANES];
+	u32				input_dva_drc[IS_MAX_PLANES];
+	u32				input_dva_hist[IS_MAX_PLANES];
+	u32				mode;
+	u32				reserved[5];
+	u32				instance_id;
+	u32				fcount;
+	bool				reprocessing;
+#ifdef CHAIN_USE_STRIPE_PROCESSING
+	struct param_stripe_input	stripe_input;
+#endif
+};
+
+struct lme_param_set {
+	struct param_lme_dma		dma;
+
+	u32				input_dva[IS_MAX_PLANES];
+	u32				prev_input_dva[IS_MAX_PLANES];
+	u32				output_dva[IS_MAX_PLANES];
+	u32 				instance_id;
+	u32				fcount;
+	bool				reprocessing;
+#ifdef CHAIN_USE_STRIPE_PROCESSING
+	struct param_stripe_input	stripe_input;
+#endif
+};
+
 struct lib_callback_result {
 	u32	fcount;
 	u32	stripe_region_id;
@@ -257,6 +361,8 @@ enum lib_func_type {
 	LIB_FUNC_VRA,
 	LIB_FUNC_DCP,
 	LIB_FUNC_CLAHE,
+	LIB_FUNC_YUVPP,
+	LIB_FUNC_LME,
 	LIB_FUNC_TYPE_END
 };
 
@@ -351,10 +457,10 @@ int is_lib_set_sram_offset(struct is_hw_ip *hw_ip,
 	({								\
 		int ret_call_libop;					\
 									\
-		fpsimd_get();						\
+		is_fpsimd_get_func();						\
 		ret_call_libop = ((lib)->func->op ?			\
 				(lib)->func->op(args) : -EINVAL);	\
-		fpsimd_put();						\
+		is_fpsimd_put_func();						\
 									\
 	ret_call_libop; })
 #else

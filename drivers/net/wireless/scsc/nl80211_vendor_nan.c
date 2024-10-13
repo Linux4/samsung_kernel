@@ -469,8 +469,10 @@ static int slsi_nan_get_security_info_nl(struct slsi_dev *sdev, struct slsi_nan_
 			return -EINVAL;
 		break;
 	case NAN_REQ_ATTR_SECURITY_PMK:
-		if (slsi_util_nla_get_data(iter, sec_info->key_info.body.pmk_info.pmk_len, sec_info->key_info.body.pmk_info.pmk))
+		if (sec_info->key_info.body.pmk_info.pmk_len > SLSI_NAN_PMK_INFO_LEN)
 			return -EINVAL;
+		slsi_util_nla_get_data(iter, sec_info->key_info.body.pmk_info.pmk_len,
+				       sec_info->key_info.body.pmk_info.pmk);
 		break;
 	case NAN_REQ_ATTR_SECURITY_PASSPHRASE_LEN:
 		if (slsi_util_nla_get_u32(iter, &sec_info->key_info.body.passphrase_info.passphrase_len))
@@ -997,10 +999,10 @@ static int slsi_nan_publish_get_nl_params(struct slsi_dev *sdev, struct slsi_hal
 			break;
 
 		case NAN_REQ_ATTR_PUBLISH_SERVICE_INFO:
-			if (slsi_util_nla_get_data(iter, hal_req->service_specific_info_len, hal_req->service_specific_info)) {
-				SLSI_ERR(sdev, "Returning EINVAL TYPE:%d\n", type);
+			if (hal_req->sdea_service_specific_info_len > SLSI_HAL_NAN_MAX_SDEA_SERVICE_SPEC_INFO_LEN)
 				return -EINVAL;
-			}
+			slsi_util_nla_get_data(iter, hal_req->service_specific_info_len,
+					       hal_req->service_specific_info);
 			break;
 
 		case NAN_REQ_ATTR_PUBLISH_RX_MATCH_FILTER_LEN:
@@ -1323,8 +1325,9 @@ static int slsi_nan_subscribe_get_nl_params(struct slsi_dev *sdev, struct slsi_h
 			break;
 
 		case NAN_REQ_ATTR_SUBSCRIBE_RX_MATCH_FILTER:
-			if (slsi_util_nla_get_data(iter, hal_req->rx_match_filter_len, hal_req->rx_match_filter))
+			if (hal_req->rx_match_filter_len > SLSI_HAL_NAN_MAX_MATCH_FILTER_LEN)
 				return -EINVAL;
+			slsi_util_nla_get_data(iter, hal_req->rx_match_filter_len, hal_req->rx_match_filter);
 			break;
 
 		case NAN_REQ_ATTR_SUBSCRIBE_TX_MATCH_FILTER_LEN:
@@ -1353,8 +1356,9 @@ static int slsi_nan_subscribe_get_nl_params(struct slsi_dev *sdev, struct slsi_h
 			break;
 
 		case NAN_REQ_ATTR_SUBSCRIBE_INTF_ADDR:
-			if (slsi_util_nla_get_data(iter, (hal_req->num_intf_addr_present * ETH_ALEN), hal_req->intf_addr))
+			if (hal_req->num_intf_addr_present > SLSI_HAL_NAN_MAX_SUBSCRIBE_MAX_ADDRESS)
 				return -EINVAL;
+			slsi_util_nla_get_data(iter, (hal_req->num_intf_addr_present * ETH_ALEN), hal_req->intf_addr);
 			break;
 
 		case NAN_REQ_ATTR_SUBSCRIBE_RECV_IND_CFG:
@@ -1579,8 +1583,10 @@ static int slsi_nan_followup_get_nl_params(struct slsi_dev *sdev, struct slsi_ha
 			break;
 
 		case NAN_REQ_ATTR_FOLLOWUP_SERVICE_NAME:
-			if (slsi_util_nla_get_data(iter, hal_req->service_specific_info_len, hal_req->service_specific_info))
+			if (hal_req->service_specific_info_len > SLSI_HAL_NAN_MAX_SDEA_SERVICE_SPEC_INFO_LEN)
 				return -EINVAL;
+			slsi_util_nla_get_data(iter, hal_req->service_specific_info_len,
+					       hal_req->service_specific_info);
 			break;
 
 		case NAN_REQ_ATTR_FOLLOWUP_RECV_IND_CFG:
@@ -1594,9 +1600,10 @@ static int slsi_nan_followup_get_nl_params(struct slsi_dev *sdev, struct slsi_ha
 			break;
 
 		case NAN_REQ_ATTR_PUBLISH_SDEA:
-			if (slsi_util_nla_get_data(iter, hal_req->sdea_service_specific_info_len,
-						   hal_req->sdea_service_specific_info))
+			if (hal_req->sdea_service_specific_info_len > SLSI_HAL_NAN_MAX_SDEA_SERVICE_SPEC_INFO_LEN)
 				return -EINVAL;
+			slsi_util_nla_get_data(iter, hal_req->sdea_service_specific_info_len,
+					       hal_req->sdea_service_specific_info);
 			break;
 
 		case NAN_REQ_ATTR_HAL_TRANSACTION_ID:
@@ -1803,6 +1810,8 @@ static int slsi_nan_config_get_nl_params(struct slsi_dev *sdev, struct slsi_hal_
 			break;
 
 		case NAN_REQ_ATTR_DISCOVERY_ATTR_VAL:
+			if (hal_req->num_config_discovery_attr > SLSI_HAL_NAN_MAX_POSTDISCOVERY_LEN)
+				return -EINVAL;
 			if (disc_attr_idx >= hal_req->num_config_discovery_attr) {
 				SLSI_ERR(sdev,
 					 "disc attr(%d) > num disc attr(%d)\n",
@@ -1850,8 +1859,9 @@ static int slsi_nan_config_get_nl_params(struct slsi_dev *sdev, struct slsi_hal_
 					break;
 
 				case NAN_REQ_ATTR_MESH_ID:
-					if (slsi_util_nla_get_data(iter1, disc_attr->mesh_id_len, disc_attr->mesh_id))
+					if (disc_attr->mesh_id_len > SLSI_HAL_NAN_MAX_MESH_DATA_LEN)
 						return -EINVAL;
+					slsi_util_nla_get_data(iter1, disc_attr->mesh_id_len, disc_attr->mesh_id);
 					break;
 
 				case NAN_REQ_ATTR_INFRASTRUCTURE_SSID_LEN:
@@ -1860,9 +1870,10 @@ static int slsi_nan_config_get_nl_params(struct slsi_dev *sdev, struct slsi_hal_
 					break;
 
 				case NAN_REQ_ATTR_INFRASTRUCTURE_SSID:
-					if (slsi_util_nla_get_data(iter1, disc_attr->infrastructure_ssid_len,
-								   disc_attr->infrastructure_ssid_val))
+					if (disc_attr->infrastructure_ssid_len > SLSI_HAL_NAN_MAX_INFRA_DATA_LEN)
 						return -EINVAL;
+					slsi_util_nla_get_data(iter1, disc_attr->infrastructure_ssid_len,
+							       disc_attr->infrastructure_ssid_val);
 					break;
 				}
 			}
@@ -1876,6 +1887,8 @@ static int slsi_nan_config_get_nl_params(struct slsi_dev *sdev, struct slsi_hal_
 
 		case NAN_REQ_ATTR_FURTHER_AVAIL_VAL:
 			hal_req->config_fam = 1;
+			if (hal_req->fam_val.numchans > SLSI_HAL_NAN_MAX_FAM_CHANNELS)
+				return -EINVAL;
 			if (famchan_idx >= hal_req->fam_val.numchans) {
 				SLSI_ERR(sdev,
 					 "famchan attr(%d) > numchans(%d)\n",
@@ -2337,8 +2350,10 @@ int slsi_nan_ndp_initiate_get_nl_params(struct slsi_dev *sdev, struct slsi_hal_n
 			break;
 
 		case NAN_REQ_ATTR_APP_INFO:
-			if (slsi_util_nla_get_data(iter, hal_req->app_info.ndp_app_info_len, hal_req->app_info.ndp_app_info))
+			if (hal_req->app_info.ndp_app_info_len > SLSI_HAL_NAN_DP_MAX_APP_INFO_LEN)
 				return -EINVAL;
+			slsi_util_nla_get_data(iter, hal_req->app_info.ndp_app_info_len,
+					       hal_req->app_info.ndp_app_info);
 			break;
 
 		case NAN_REQ_ATTR_SERVICE_NAME_LEN:
@@ -2480,8 +2495,10 @@ int slsi_nan_ndp_respond_get_nl_param(struct slsi_dev *sdev, struct slsi_hal_nan
 			break;
 
 		case NAN_REQ_ATTR_APP_INFO:
-			if (slsi_util_nla_get_data(iter, hal_req->app_info.ndp_app_info_len, hal_req->app_info.ndp_app_info))
+			if (hal_req->app_info.ndp_app_info_len > SLSI_HAL_NAN_DP_MAX_APP_INFO_LEN)
 				return -EINVAL;
+			slsi_util_nla_get_data(iter, hal_req->app_info.ndp_app_info_len,
+					       hal_req->app_info.ndp_app_info);
 			break;
 
 		case NAN_REQ_ATTR_NDP_RESPONSE_CODE:
@@ -2555,10 +2572,13 @@ int slsi_nan_ndp_respond(struct wiphy *wiphy, struct wireless_dev *wdev, const v
 		goto exit_with_lock;
 	}
 
-	if (hal_req->ndp_instance_id > 0 && hal_req->ndp_instance_id <= SLSI_NAN_MAX_NDP_INSTANCES)
+	if (hal_req->ndp_instance_id > 0 && hal_req->ndp_instance_id <= SLSI_NAN_MAX_NDP_INSTANCES) {
 		local_ndp_instance_id = ndev_vif->nan.ndp_local_ndp_instance_id[hal_req->ndp_instance_id - 1];
-	else
-		local_ndp_instance_id = 0;
+	} else {
+		reply_status = SLSI_HAL_NAN_STATUS_INTERNAL_FAILURE;
+		ret = WIFI_HAL_ERROR_UNKNOWN;
+		goto exit_with_lock;
+	}
 	ret = slsi_mlme_ndp_response(sdev, dev, hal_req, local_ndp_instance_id);
 	if (ret) {
 		reply_status = SLSI_HAL_NAN_STATUS_INTERNAL_FAILURE;
@@ -3637,7 +3657,11 @@ void slsi_rx_nan_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct
 	struct sk_buff *nl_skb;
 	int res = 0;
 	struct nlattr *nlattr_nested;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+	struct timespec64 ts;
+#else
 	struct timespec ts;
+#endif
 	u64 tkernel;
 	u16 value;
 	u32 temp_value;
@@ -3739,7 +3763,9 @@ void slsi_rx_nan_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct
 		res |= nla_put_u16(nl_skb, SLSI_RTT_EVENT_ATTR_RTT_SPREAD, value);
 		ip_ptr += 2;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+		ts = ktime_to_timespec64(ktime_get_boottime());
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 		ts = ktime_to_timespec(ktime_get_boottime());
 #else
 		get_monotonic_boottime(&ts);

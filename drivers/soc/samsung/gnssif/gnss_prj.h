@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2010 Samsung Electronics.
  *
@@ -20,11 +21,14 @@
 #include <linux/skbuff.h>
 #include <linux/interrupt.h>
 #include <linux/completion.h>
-#include <linux/wakelock.h>
 #include <linux/rbtree.h>
 #include <linux/spinlock.h>
 #include <linux/cdev.h>
 #include <linux/types.h>
+#include <linux/version.h>
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
+#include <soc/samsung/exynos-itmon.h>
+#endif
 #include "include/gnss.h"
 #include "include/exynos_ipc.h"
 #include "pmu-gnss.h"
@@ -36,11 +40,11 @@
 #define GNSS_IOC_MAGIC	('K')
 
 #define GNSS_IOCTL_RESET			_IO(GNSS_IOC_MAGIC, 0x00)
-#define GNSS_IOCTL_LOAD_FIRMWARE	_IO(GNSS_IOC_MAGIC, 0x01)
-#define GNSS_IOCTL_REQ_FAULT_INFO	_IO(GNSS_IOC_MAGIC, 0x02)
+#define GNSS_IOCTL_LOAD_FIRMWARE		_IO(GNSS_IOC_MAGIC, 0x01)
+#define GNSS_IOCTL_REQ_FAULT_INFO		_IO(GNSS_IOC_MAGIC, 0x02)
 #define GNSS_IOCTL_REQ_BCMD			_IO(GNSS_IOC_MAGIC, 0x03)
-#define GNSS_IOCTL_READ_FIRMWARE	_IO(GNSS_IOC_MAGIC, 0x04)
-#define GNSS_IOCTL_CHANGE_SENSOR_GPIO	_IO(GNSS_IOC_MAGIC, 0x05)
+#define GNSS_IOCTL_READ_FIRMWARE		_IO(GNSS_IOC_MAGIC, 0x04)
+#define GNSS_IOCTL_CHANGE_SENSOR_GPIO		_IO(GNSS_IOC_MAGIC, 0x05)
 #define GNSS_IOCTL_CHANGE_TCXO_MODE		_IO(GNSS_IOC_MAGIC, 0x06)
 #define GNSS_IOCTL_SET_SENSOR_POWER		_IO(GNSS_IOC_MAGIC, 0x07)
 #define GNSS_IOCTL_SET_WATCHDOG_RESET		_IO(GNSS_IOC_MAGIC, 0x10)
@@ -48,6 +52,9 @@
 #define GNSS_IOCTL_READ_RESET_COUNT		_IO(GNSS_IOC_MAGIC, 0x12)
 #define GNSS_IOCTL_GET_SWREG			_IOWR(GNSS_IOC_MAGIC, 0x20, char *)
 #define GNSS_IOCTL_GET_APREG			_IOWR(GNSS_IOC_MAGIC, 0x21, char *)
+#define GNSS_IOCTL_RELEASE_RESET		_IO(GNSS_IOC_MAGIC, 0x13)
+#define GNSS_IOCTL_POWER_ON			_IO(GNSS_IOC_MAGIC, 0x14)
+#define GNSS_IOCTL_LOAD_DATA			_IOWR(GNSS_IOC_MAGIC, 0x15, struct kepler_data_args)
 
 enum sensor_power {
 	SENSOR_OFF,
@@ -68,12 +75,18 @@ struct kepler_firmware_args {
 	char *firmware_bin;
 };
 
+struct kepler_data_args {
+	u32 size;
+	u32 offset;
+	char *data;
+};
+
 struct kepler_fault_args {
 	u32 dump_size;
 	char *dumped_data;
 };
 
-#ifdef CONFIG_COMPAT
+#if IS_ENABLED(CONFIG_COMPAT)
 struct kepler_firmware_args32 {
 	u32 firmware_size;
 	u32 offset;
@@ -105,13 +118,14 @@ enum gnss_state {
 	STATE_FAULT, /* ACTIVE/WDT */
 };
 
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_MBIM)
 enum gnss_pwr {
 	POWER_ON,
 	POWER_OFF,
 };
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 static const char * const gnss_state_str[] = {
 	[STATE_OFFLINE]			= "OFFLINE",
 	[STATE_FIRMWARE_DL]		= "FIRMWARE_DL",
@@ -119,6 +133,15 @@ static const char * const gnss_state_str[] = {
 	[STATE_HOLD_RESET]		= "HOLD_RESET",
 	[STATE_FAULT]			= "FAULT",
 };
+#else
+static const char * const gnss_state_str[] = {
+	[STATE_OFFLINE]			= "OFFLINE",
+	[STATE_FIRMWARE_DL]		= "FIRMWARE_DL",
+	[STATE_ONLINE]			= "ONLINE",
+	[STATE_HOLD_RESET]		= "HOLD_RESET",
+	[STATE_FAULT]			= "FAULT",
+};
+#endif
 
 enum direction {
 	TX = 0,
@@ -128,9 +151,9 @@ enum direction {
 	MAX_DIR = 2
 };
 
-/**
-  @brief      return the gnss_state string
-  @param state    the state of a GNSS
+/*
+ * @brief      return the gnss_state string
+ * @param state    the state of a GNSS
  */
 static const inline char *get_gnss_state_str(int state)
 {
@@ -155,7 +178,7 @@ struct fragmented_data {
 	struct header_data h_data;
 	struct exynos_frame_data f_data;
 	/* page alloc fail retry*/
-	unsigned realloc_offset;
+	unsigned int realloc_offset;
 };
 #define fragdata(iod, ld) (&(iod)->fragments)
 
@@ -168,7 +191,7 @@ struct skbuff_private {
 	struct io_device *real_iod; /* for rx multipdp */
 
 	/* for time-stamping */
-	struct timespec ts;
+	struct timespec64 ts;
 
 	u32 lnk_hdr:1,
 		reserved:15,
@@ -210,9 +233,9 @@ struct io_device {
 	struct sk_buff_head sk_rx_q;
 
 	/*
-	** work for each io device, when delayed work needed
-	** use this for private io device rx action
-	*/
+	 * work for each io device, when delayed work needed
+	 * use this for private io device rx action
+	 */
 	struct delayed_work rx_work;
 
 	struct fragmented_data fragments;
@@ -225,7 +248,7 @@ struct io_device {
 
 	struct gnss_ctl *gc;
 
-	struct wake_lock wakelock;
+	struct wakeup_source *ws;
 	long waketime;
 
 	struct exynos_seq_num seq_num;
@@ -290,13 +313,13 @@ struct link_device {
 	void (*reset_buffers)(struct link_device *ld);
 
 	/* Methods for copying to/from reserved memory */
-	int (*copy_reserved_from_user)(struct link_device *ld, u32 offset, \
+	int (*copy_reserved_from_user)(struct link_device *ld, u32 offset,
 					void __user *user_src, u32 size);
-	int (*copy_reserved_to_user)(struct link_device *ld, u32 offset, \
+	int (*copy_reserved_to_user)(struct link_device *ld, u32 offset,
 					void __user *user_dst, u32 size);
 
 	/* Method to dump fault info to user */
-	int (*dump_fault_to_user)(struct link_device *ld, \
+	int (*dump_fault_to_user)(struct link_device *ld,
 					void __user *user_dst, u32 size);
 };
 
@@ -326,15 +349,16 @@ enum gnss_int_clear;
 enum gnss_tcxo_mode;
 
 struct gnssctl_ops {
-	int (*gnss_hold_reset)(struct gnss_ctl *);
-	int (*gnss_release_reset)(struct gnss_ctl *);
-	int (*gnss_power_on)(struct gnss_ctl *);
-	int (*gnss_req_fault_info)(struct gnss_ctl *);
-	int (*suspend)(struct gnss_ctl *);
-	int (*resume)(struct gnss_ctl *);
-	int (*change_sensor_gpio)(struct gnss_ctl *);
-	int (*set_sensor_power)(struct gnss_ctl *, enum sensor_power);
-	int (*req_bcmd)(struct gnss_ctl *, u16, u16, u32, u32);
+	int (*gnss_hold_reset)(struct gnss_ctl *gc);
+	int (*gnss_release_reset)(struct gnss_ctl *gc);
+	int (*gnss_power_on)(struct gnss_ctl *gc);
+	int (*gnss_req_fault_info)(struct gnss_ctl *gc);
+	int (*suspend)(struct gnss_ctl *gc);
+	int (*resume)(struct gnss_ctl *gc);
+	int (*change_sensor_gpio)(struct gnss_ctl *gc);
+	int (*set_sensor_power)(struct gnss_ctl *gc, enum sensor_power arg);
+	int (*req_bcmd)(struct gnss_ctl *gc, u16 cmd_id, u16 flags,
+		u32 param1, u32 param2);
 };
 
 struct gnss_ctl {
@@ -353,7 +377,7 @@ struct gnss_ctl {
 	struct io_device *iod;
 
 	/* Wakelock for gnss_ctl */
-	struct wake_lock gc_fault_wake_lock;
+	struct wakeup_source *gc_fault_ws;
 
 	struct completion fault_cmpl;
 	struct completion bcmd_cmpl;
@@ -370,7 +394,9 @@ struct gnss_ctl {
 
 	u32 reset_count;
 
-#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	bool use_sw_init_intr;
+
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_MBIM)
 	struct irq_chip *apwake_irq_chip;
 
 	int m2_gpio_gnss_pwr;
@@ -378,9 +404,13 @@ struct gnss_ctl {
 	enum gnss_pwr gnss_pwr;
 	bool is_irq_received;
 #endif
+
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
+	struct notifier_block itmon_nb;
+#endif
 };
 
-extern int exynos_init_gnss_io_device(struct io_device *iod);
+extern int exynos_init_gnss_io_device(struct io_device *iod, struct device *dev);
 
 int init_gnssctl_device(struct gnss_ctl *mc, struct gnss_pdata *pdata);
 struct link_device *create_link_device_shmem(struct platform_device *pdev);

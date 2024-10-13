@@ -7,7 +7,7 @@
 #define APP_INIT	0
 #define APP_SAMPLE	1
 #define APP_RKP		2
-#define APP_KDP		2
+#define APP_KDP		3
 
 #define UH_PREFIX			UL(0xc300c000)
 #define UH_APPID(APP_ID)	((UL(APP_ID) & UL(0xFF)) | UH_PREFIX)

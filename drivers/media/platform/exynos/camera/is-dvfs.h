@@ -29,6 +29,7 @@
 #define	DVFS_SKIP		2 /* matched, but do not anything. skip changing dvfs */
 
 #define KEEP_FRAME_TICK_DEFAULT (5)
+#define KEEP_FRAME_TICK_FASTAE	(120)
 #define IS_DVFS_DUAL_TICK (4)
 #define IS_DVFS_SKIP_DYNAMIC (1)
 #define DVFS_SN_STR(__SCENARIO) #__SCENARIO
@@ -73,6 +74,7 @@ extern int debug_dvfs;
 struct is_dvfs_dt_t {
 	const char *parse_scenario_nm;	/* string for parsing from DTS */
 	u32 scenario_id;	/* scenario_id */
+	int keep_frame_tick;	/* keep qos lock during specific frames when dynamic scenario */
 };
 
 struct is_dvfs_scenario {
@@ -113,4 +115,5 @@ void is_dual_dvfs_update(struct is_device_ischain *device,
 	struct is_frame *frame);
 
 unsigned int is_get_bit_count(unsigned long bits);
+bool is_dvfs_is_fast_ae(struct is_dvfs_ctrl *dvfs_ctrl);
 #endif

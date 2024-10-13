@@ -1,7 +1,7 @@
 #include "pmucal_system.h"
 #include "pmucal_rae.h"
 #include "pmucal_powermode.h"
-#include <soc/samsung/exynos-debug.h>
+#include <soc/samsung/debug-snapshot.h>
 
 unsigned int pmucal_sys_powermode[NUM_SYS_POWERDOWN] = {0xffffffff, };
 
@@ -56,7 +56,7 @@ int pmucal_system_enter(int mode)
 
 err_out:
 	dump_stack();
-	s3c2410wdt_set_emergency_reset(0, 0);
+	dbg_snapshot_expire_watchdog();
 
 	return ret;
 }
@@ -115,7 +115,7 @@ int pmucal_system_exit(int mode)
 
 err_out:
 	dump_stack();
-	s3c2410wdt_set_emergency_reset(0, 0);
+	dbg_snapshot_expire_watchdog();
 
 	return ret;
 }
@@ -173,7 +173,7 @@ int pmucal_system_earlywakeup(int mode)
 
 err_out:
 	dump_stack();
-	s3c2410wdt_set_emergency_reset(0, 0);
+	dbg_snapshot_expire_watchdog();
 
 	return ret;
 }
@@ -184,7 +184,7 @@ err_out:
  *
  *  Returns 0 on success. Otherwise, negative error code.
  */
-int __init pmucal_system_init(void)
+int pmucal_system_init(void)
 {
 	int ret = 0, i;
 

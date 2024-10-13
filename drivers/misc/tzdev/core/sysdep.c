@@ -19,6 +19,7 @@
 #include <linux/gfp.h>
 #include <linux/kernel.h>
 #include <linux/spinlock.h>
+#include <linux/time.h>
 #include <crypto/sha.h>
 
 #include "core/sysdep.h"
@@ -76,7 +77,9 @@ long sysdep_get_user_pages(struct task_struct *task,
 		int write, int force, struct page **pages,
 		struct vm_area_struct **vmas)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+	return get_user_pages_remote(mm, start, nr_pages, gup_flags(write, force), pages, vmas, NULL);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	return get_user_pages_remote(task, mm, start, nr_pages, gup_flags(write, force), pages, vmas, NULL);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
 	return get_user_pages_remote(task, mm, start, nr_pages, gup_flags(write, force), pages, vmas);
@@ -113,18 +116,32 @@ void sysdep_unregister_cpu_notifier(struct notifier_block* notifier)
 #endif
 }
 
-int sysdep_vfs_getattr(struct file *filp, struct kstat *stat)
+void sysdep_get_ts(struct tz_ree_time *ree_ts)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0))
-	struct path p;
-
-	p.mnt = filp->f_path.mnt;
-	p.dentry = filp->f_path.dentry;
-
-	return vfs_getattr(&p, stat, STATX_SIZE, KSTAT_QUERY_FLAGS);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
-	return vfs_getattr(&filp->f_path, stat);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+	struct timespec64 ts;
+	ktime_get_ts64(&ts);
 #else
-	return vfs_getattr(filp->f_path.mnt, filp->f_path.dentry, stat);
+	struct timespec ts;
+	getnstimeofday(&ts);
+#endif
+	ree_ts->sec = ts.tv_sec;
+	ree_ts->nsec = ts.tv_nsec;
+}
+
+void sysdep_shash_desc_init(struct shash_desc *desc, struct crypto_shash *tfm)
+{
+		desc->tfm = tfm;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+		desc->flags = 0;
+#endif
+}
+
+int sysdep_pid_refcount_read(struct pid *pid)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0)
+	return atomic_read(&pid->count);
+#else
+	return refcount_read(&pid->count);
 #endif
 }

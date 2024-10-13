@@ -31,13 +31,13 @@
 #define S3C2410_UINTS	(0x34)
 #define S3C2410_UINTM	(0x38)
 
-#define USI_CON	  		(0xC4)
-#define USI_OPTION		(0xC8)
+#define USI_CON		  (0xC4)
+#define USI_OPTION	  (0xC8)
 
-#define USI_RESET			(0<<0)
-#define USI_SET_RESET			(1<<0)
-#define USI_HWACG_CLKREQ_ON		(1<<1)
-#define USI_HWACG_CLKSTOP_ON		(1<<2)
+#define USI_RESET		  (0<<0)
+#define USI_SET_RESET		  (1<<0)
+#define USI_HWACG_CLKREQ_ON	  (1<<1)
+#define USI_HWACG_CLKSTOP_ON	  (1<<2)
 
 #define S3C2410_LCON_CFGMASK	  ((0xF<<3)|(0x3))
 
@@ -232,6 +232,7 @@
 #define S5PV210_UFCON_RXTRIG64	(5<<4)
 #define S5PV210_UFCON_RXTRIG128	(6<<4)
 #define S5PV210_UFCON_RXTRIG256	(7<<4)
+#define S5PV210_UFCON_RXTRIG_SHIFT  (4)
 
 #define S5PV210_UMCON_RTSTRIG255	(0<<5)
 #define S5PV210_UMCON_RTSTRIG224	(1<<5)
@@ -294,8 +295,6 @@ struct s3c2410_uartcfg {
 	unsigned long	   ucon;	 /* value of ucon for port */
 	unsigned long	   ulcon;	 /* value of ulcon for port */
 	unsigned long	   ufcon;	 /* value of ufcon for port */
-
-	s3c_wake_peer_t wake_peer[CONFIG_SERIAL_SAMSUNG_UARTS];
 };
 
 #endif /* __ASSEMBLY__ */

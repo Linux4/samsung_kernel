@@ -112,7 +112,7 @@ ulong is_get_rate(struct device *dev,
 
 	frequency = clk_get_rate(clk);
 
-	pr_info("[@] %s : %ldMhz (enable_count : %d)\n", name, frequency/1000000, __clk_get_enable_count(clk));
+	pr_info("[@] %s : %ldMhz (enabled:%d)\n", name, frequency/1000000, __clk_is_enabled(clk));
 
 	return frequency;
 }
@@ -136,7 +136,7 @@ int  is_enable(struct device *dev,
 	}
 
 	if (debug_clk > 1)
-		pr_info("[@][ENABLE] %s : (enable_count : %d)\n", name, __clk_get_enable_count(clk));
+		pr_info("[@][ENABLE] %s : (is_enabled : %d)\n", name, __clk_is_enabled(clk));
 
 	ret = clk_prepare_enable(clk);
 	if (ret) {
@@ -167,7 +167,7 @@ int is_disable(struct device *dev,
 	clk_disable_unprepare(clk);
 
 	if (debug_clk > 1)
-		pr_info("[@][DISABLE] %s : (enable_count : %d)\n", name, __clk_get_enable_count(clk));
+		pr_info("[@][DISABLE] %s : (is_enabled : %d)\n", name, __clk_is_enabled(clk));
 
 	return 0;
 }

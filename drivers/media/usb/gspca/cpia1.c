@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * cpia CPiA (1) gspca driver
  *
@@ -9,17 +10,6 @@
  * (C) Copyright 1999-2000 Scott J. Bertin
  * (C) Copyright 1999-2000 Johannes Erdfelt <johannes@erdfelt.com>
  * (C) Copyright 2000 STMicroelectronics
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -547,10 +537,14 @@ static int do_command(struct gspca_dev *gspca_dev, u16 command,
 		}
 		if (sd->params.qx3.button) {
 			/* button pressed - unlock the latch */
-			do_command(gspca_dev, CPIA_COMMAND_WriteMCPort,
+			ret = do_command(gspca_dev, CPIA_COMMAND_WriteMCPort,
 				   3, 0xdf, 0xdf, 0);
-			do_command(gspca_dev, CPIA_COMMAND_WriteMCPort,
+			if (ret)
+				return ret;
+			ret = do_command(gspca_dev, CPIA_COMMAND_WriteMCPort,
 				   3, 0xff, 0xff, 0);
+			if (ret)
+				return ret;
 		}
 
 		/* test whether microscope is cradled */

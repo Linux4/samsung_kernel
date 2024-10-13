@@ -675,6 +675,11 @@ void camerapp_hw_gdc_status_read(void __iomem *base_addr)
 
 }
 
+void camerapp_hw_gdc_votf_enable(void __iomem *base_addr, u8 rw)
+{
+	return;
+}
+
 void camerapp_gdc_sfr_dump(void __iomem *base_addr)
 {
 	u32 i = 0;

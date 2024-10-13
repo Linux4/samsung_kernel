@@ -8,7 +8,7 @@
 #ifndef __FRAMEWORK_H_
 #define __FRAMEWORK_H_
 
-#ifdef CONFIG_EXYNOS_ACPM
+#if defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE)
 #include "common.h"
 #endif
 
@@ -35,13 +35,13 @@
  * @intr_flag_offset:	Field offset for Mailbox interrupt pending register.
  */
 struct acpm_framework {
-#ifndef CONFIG_EXYNOS_ACPM
+#if !(defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE))
 	struct plugin *plugins;
 #else
 	u32 plugins;
 #endif
 	u32 num_plugins;
-#ifndef CONFIG_EXYNOS_ACPM
+#if !(defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE))
 	struct ipc_channel *ipc_channels;
 #else
 	u32 ipc_channels;

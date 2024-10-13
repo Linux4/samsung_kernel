@@ -14,8 +14,8 @@
 #include <linux/pm_runtime.h>
 #include <asm/cacheflush.h>
 #include <asm/page.h>
-#if defined(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
-#include <linux/smc.h>
+#if IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
+#include <soc/samsung/exynos-smc.h>
 #endif
 
 #include "decon.h"
@@ -25,55 +25,6 @@
 #include "displayport.h"
 #endif
 #include <video/mipi_display.h>
-
-static int __dpu_match_dev(struct device *dev, void *data)
-{
-	struct dpp_device *dpp;
-	struct dsim_device *dsim;
-#if defined(CONFIG_EXYNOS_DISPLAYPORT)
-	struct displayport_device *displayport;
-#endif
-	struct decon_device *decon = (struct decon_device *)data;
-
-	decon_dbg("%s: drvname(%s)\n", __func__, dev->driver->name);
-
-	if (!strcmp(DPP_MODULE_NAME, dev->driver->name)) {
-		dpp = (struct dpp_device *)dev_get_drvdata(dev);
-		decon->dpp_sd[dpp->id] = &dpp->sd;
-		decon_dbg("dpp%d sd name(%s) attr(0x%lx)\n", dpp->id,
-				decon->dpp_sd[dpp->id]->name, dpp->attr);
-	} else if (!strcmp(DSIM_MODULE_NAME, dev->driver->name)) {
-		dsim = (struct dsim_device *)dev_get_drvdata(dev);
-		decon->dsim_sd[dsim->id] = &dsim->sd;
-		decon_dbg("dsim sd name(%s)\n", dsim->sd.name);
-#if defined(CONFIG_EXYNOS_DISPLAYPORT)
-	} else if (!strcmp(DISPLAYPORT_MODULE_NAME, dev->driver->name)) {
-		displayport = (struct displayport_device *)dev_get_drvdata(dev);
-		decon->displayport_sd = &displayport->sd;
-		decon_dbg("displayport sd name(%s)\n", displayport->sd.name);
-#endif
-	} else {
-		decon_err("failed to get driver name\n");
-	}
-
-	return 0;
-}
-
-int dpu_get_sd_by_drvname(struct decon_device *decon, char *drvname)
-{
-	struct device_driver *drv;
-	struct device *dev;
-
-	drv = driver_find(drvname, &platform_bus_type);
-	if (IS_ERR_OR_NULL(drv)) {
-		decon_err("failed to find driver\n");
-		return -ENODEV;
-	}
-
-	dev = driver_find_device(drv, NULL, decon, __dpu_match_dev);
-
-	return 0;
-}
 
 bool decon_intersect(struct decon_rect *r1, struct decon_rect *r2)
 {
@@ -189,7 +140,7 @@ void __iomem *dpu_get_sysreg_addr(void)
 	return regs;
 }
 
-#if defined(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
+#if IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
 static int decon_get_protect_id(int dma_id)
 {
 	int prot_id = 0;
@@ -382,6 +333,54 @@ static int dpu_dump_buffer_data(struct dpp_device *dpp)
 }
 #endif
 
+#define MAX_IOMMU_FAULT_RETRY_CNT	3
+
+int dpu_sysmmu_fault_handler_dsim(struct iommu_fault *fault, void *data)
+{
+	struct decon_device *decon = NULL;
+	struct dpp_device *dpp = NULL;
+	int i;
+	struct dsim_device *dsim = (struct dsim_device *)data;
+	struct device *dev = dsim->dev;
+	struct iommu_domain *domain = iommu_get_domain_for_dev(dev);
+
+	decon = get_decon_drvdata(0);
+
+	for (i = 0; i < decon->dt.dpp_cnt; i++) {
+		if (test_bit(i, &decon->prev_used_dpp)) {
+			dpp = get_dpp_drvdata(i);
+#if defined(DPU_DUMP_BUFFER_IRQ)
+			dpu_dump_buffer_data(dpp);
+#endif
+		}
+	}
+
+	decon_dump(decon, false);
+
+	if(dsim->iommu_fault_retry_cnt < MAX_IOMMU_FAULT_RETRY_CNT) {
+		if (fault->type == IOMMU_FAULT_DMA_UNRECOV) {
+			if (((void *)iommu_iova_to_phys(domain, fault->event.addr)) != NULL) {
+				decon_info("%s: Retry since IOVA is valid \n", __func__);
+				dsim->iommu_fault_retry_cnt++;
+				return -EAGAIN;
+			}
+		} else if (fault->type == IOMMU_FAULT_PAGE_REQ) {
+			if (((void *)iommu_iova_to_phys(domain, fault->prm.addr)) != NULL) {
+				decon_info("%s: Retry since IOVA is valid \n", __func__);
+				dsim->iommu_fault_retry_cnt++;
+				return -EAGAIN;
+			}
+		}
+	}
+
+	/* iommu_fault_retry_cnt will be reset, either on valid dsim interrupt
+	 * or when iommu_fault_retry_cnt reaches  MAX_IOMMU_FAULT_RETRY_CNT
+	 */
+	dsim->iommu_fault_retry_cnt = 0;
+
+	return 0;
+}
+
 int register_lcd_status_notifier(struct notifier_block *nb)
 {
 	return atomic_notifier_chain_register(&lcd_status_notifier_list, nb);
@@ -403,40 +402,7 @@ void lcd_status_notifier(u32 lcd_status)
 	atomic_notifier_call_chain(&lcd_status_notifier_list, lcd_status, NULL);
 }
 
-int dpu_sysmmu_fault_handler(struct iommu_domain *domain,
-	struct device *dev, unsigned long iova, int flags, void *token)
-{
-	struct decon_device *decon = NULL;
-	struct dpp_device *dpp = NULL;
-	int i;
-
-	if (!strcmp(DSIM_MODULE_NAME, dev->driver->name)) {
-		decon = get_decon_drvdata(0);
-#if defined(CONFIG_EXYNOS_DISPLAYPORT)
-	} else if (!strcmp(DISPLAYPORT_MODULE_NAME, dev->driver->name)) {
-		decon = get_decon_drvdata(2);
-#endif
-	} else {
-		decon_err("unknown driver for dpu sysmmu falut handler(%s)\n",
-				dev->driver->name);
-		return -EINVAL;
-	}
-
-	for (i = 0; i < decon->dt.dpp_cnt; i++) {
-		if (test_bit(i, &decon->prev_used_dpp)) {
-			dpp = get_dpp_drvdata(i);
-#if defined(DPU_DUMP_BUFFER_IRQ)
-			dpu_dump_buffer_data(dpp);
-#endif
-		}
-	}
-
-	decon_dump(decon, false);
-
-	return 0;
-}
-
-#if defined(CONFIG_EXYNOS_PD)
+#if IS_ENABLED(CONFIG_EXYNOS_PD)
 int dpu_pm_domain_check_status(struct exynos_pm_domain *pm_domain)
 {
 	if (!pm_domain || !pm_domain->check_status)

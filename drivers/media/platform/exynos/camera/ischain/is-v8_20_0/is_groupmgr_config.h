@@ -38,7 +38,10 @@
 #define GROUP_ID_SS3		15
 #define GROUP_ID_SS4		16
 #define GROUP_ID_SS5		17
-#define GROUP_ID_MAX		18
+#define GROUP_ID_3AA3		18	/* For Backward compatilility */
+#define GROUP_ID_PAF3		19
+#define GROUP_ID_YPP		20
+#define GROUP_ID_MAX		21
 #define GROUP_ID_PARM_MASK	((1 << (GROUP_ID_SS0)) - 1)
 #define GROUP_ID(id)		(1 << (id))
 
@@ -70,6 +73,9 @@ static const char * const group_id_name[GROUP_ID_MAX + 1] = {
 	[GROUP_ID_SS3] = "G:SS3",
 	[GROUP_ID_SS4] = "G:SS4",
 	[GROUP_ID_SS5] = "G:SS5",
+	[GROUP_ID_3AA3] = "G:ERR18",
+	[GROUP_ID_PAF3] = "G:ERR19",
+	[GROUP_ID_YPP] = "G:ERR20",
 	[GROUP_ID_MAX] = "G:MAX"
 };
 

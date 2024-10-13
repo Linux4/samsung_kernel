@@ -795,7 +795,7 @@ int is_i2c_read(struct i2c_client *client, void *buf, u32 addr, size_t size)
 		if (likely(addr_size == ret))
 			break;
 
-		info("%s: i2c_master_send failed(%d), try %d\n", __func__, ret, retries);
+		info("%s: i2c_master_send failed(%d), try %d, addr(%x)\n", __func__, ret, retries, client->addr);
 		usleep_range(1000, 1000);
 	}
 
@@ -997,22 +997,36 @@ int is_sec_parse_rom_info(struct is_rom_info *finfo, char *buf, int rom_id)
 	}
 
 #if defined(CONFIG_CAMERA_USE_MCU) || defined(CONFIG_CAMERA_USE_INTERNAL_MCU)
-	if (rom_id == ROM_ID_REAR && finfo->rom_ois_list_len == IS_ROM_OIS_MAX_LIST) {
+	if ((rom_id == ROM_ID_REAR
+#ifdef USE_REAR2_OIS_DATA_FROM_EEPROM
+		|| rom_id == ROM_ID_REAR4
+#endif
+		) && finfo->rom_ois_list_len == IS_ROM_OIS_MAX_LIST) {
 		is_sec_get_ois_pinfo(&ois_pinfo);
-		memcpy(ois_pinfo->wide_xgg, &buf[finfo->rom_ois_list[0]], IS_OIS_GYRO_DATA_SIZE);
-		memcpy(ois_pinfo->wide_ygg, &buf[finfo->rom_ois_list[1]], IS_OIS_GYRO_DATA_SIZE);
-		memcpy(ois_pinfo->wide_xcoef, &buf[finfo->rom_ois_list[2]], IS_OIS_COEF_DATA_SIZE);
-		memcpy(ois_pinfo->wide_ycoef, &buf[finfo->rom_ois_list[3]], IS_OIS_COEF_DATA_SIZE);
-		memcpy(ois_pinfo->wide_supperssion_xratio, &buf[finfo->rom_ois_list[4]], IS_OIS_SUPPERSSION_RATIO_DATA_SIZE);
-		memcpy(ois_pinfo->wide_supperssion_yratio, &buf[finfo->rom_ois_list[5]], IS_OIS_SUPPERSSION_RATIO_DATA_SIZE);
-		memcpy(ois_pinfo->wide_cal_mark, &buf[finfo->rom_ois_list[6]], IS_OIS_CAL_MARK_DATA_SIZE);
-		memcpy(ois_pinfo->tele_xgg, &buf[finfo->rom_ois_list[7]], IS_OIS_GYRO_DATA_SIZE);
-		memcpy(ois_pinfo->tele_ygg, &buf[finfo->rom_ois_list[8]], IS_OIS_GYRO_DATA_SIZE);
-		memcpy(ois_pinfo->tele_xcoef, &buf[finfo->rom_ois_list[9]], IS_OIS_COEF_DATA_SIZE);
-		memcpy(ois_pinfo->tele_ycoef, &buf[finfo->rom_ois_list[10]], IS_OIS_COEF_DATA_SIZE);
-		memcpy(ois_pinfo->tele_supperssion_xratio, &buf[finfo->rom_ois_list[11]], IS_OIS_SUPPERSSION_RATIO_DATA_SIZE);
-		memcpy(ois_pinfo->tele_supperssion_yratio, &buf[finfo->rom_ois_list[12]], IS_OIS_SUPPERSSION_RATIO_DATA_SIZE);
-		memcpy(ois_pinfo->tele_cal_mark, &buf[finfo->rom_ois_list[13]], IS_OIS_CAL_MARK_DATA_SIZE);
+#ifdef USE_REAR2_OIS_DATA_FROM_EEPROM
+		if (rom_id == ROM_ID_REAR)
+#endif
+		{
+			memcpy(ois_pinfo->wide_xgg, &buf[finfo->rom_ois_list[0]], IS_OIS_GYRO_DATA_SIZE);
+			memcpy(ois_pinfo->wide_ygg, &buf[finfo->rom_ois_list[1]], IS_OIS_GYRO_DATA_SIZE);
+			memcpy(ois_pinfo->wide_xcoef, &buf[finfo->rom_ois_list[2]], IS_OIS_COEF_DATA_SIZE);
+			memcpy(ois_pinfo->wide_ycoef, &buf[finfo->rom_ois_list[3]], IS_OIS_COEF_DATA_SIZE);
+			memcpy(ois_pinfo->wide_supperssion_xratio, &buf[finfo->rom_ois_list[4]], IS_OIS_SUPPERSSION_RATIO_DATA_SIZE);
+			memcpy(ois_pinfo->wide_supperssion_yratio, &buf[finfo->rom_ois_list[5]], IS_OIS_SUPPERSSION_RATIO_DATA_SIZE);
+			memcpy(ois_pinfo->wide_cal_mark, &buf[finfo->rom_ois_list[6]], IS_OIS_CAL_MARK_DATA_SIZE);
+		}
+#ifdef USE_REAR2_OIS_DATA_FROM_EEPROM
+		else if (rom_id == ROM_ID_REAR4)
+#endif
+		{
+			memcpy(ois_pinfo->tele_xgg, &buf[finfo->rom_ois_list[7]], IS_OIS_GYRO_DATA_SIZE);
+			memcpy(ois_pinfo->tele_ygg, &buf[finfo->rom_ois_list[8]], IS_OIS_GYRO_DATA_SIZE);
+			memcpy(ois_pinfo->tele_xcoef, &buf[finfo->rom_ois_list[9]], IS_OIS_COEF_DATA_SIZE);
+			memcpy(ois_pinfo->tele_ycoef, &buf[finfo->rom_ois_list[10]], IS_OIS_COEF_DATA_SIZE);
+			memcpy(ois_pinfo->tele_supperssion_xratio, &buf[finfo->rom_ois_list[11]], IS_OIS_SUPPERSSION_RATIO_DATA_SIZE);
+			memcpy(ois_pinfo->tele_supperssion_yratio, &buf[finfo->rom_ois_list[12]], IS_OIS_SUPPERSSION_RATIO_DATA_SIZE);
+			memcpy(ois_pinfo->tele_cal_mark, &buf[finfo->rom_ois_list[13]], IS_OIS_CAL_MARK_DATA_SIZE);
+		}		
 	}
 #endif
 
@@ -1588,7 +1602,7 @@ int is_sec_write_fw_to_from(struct is_core *core, char *name, bool first_section
 		finfo->bin_end_addr = end_addr;
 		checksum_addr = 0x3FFFFF;
 		finfo->fw_size = size;
-		strncpy(finfo->header_ver, &fw_buf[size - LIBRARY_VER_OFS], 9);
+		strncpy(finfo->header_ver, &fw_buf[size - IS_HEADER_VER_OFFSET], 9);
 	} else if (!strcmp(name, IS_SETFILE_FROM_SDCARD)) {
 		ret = is_sec_read_fw_from_sdcard(IS_SETFILE_FROM_SDCARD, &size);
 		start_addr = finfo->setfile_start_addr;
@@ -2676,7 +2690,7 @@ int is_sec_check_bin_files(struct is_core *core)
 	info("start, file path %s, size %ld Bytes\n",
 		dump_fw_path, fsize);
 
-	fp->f_pos = fsize - LIBRARY_VER_OFS;
+	fp->f_pos = fsize - IS_HEADER_VER_OFFSET;
 	fsize = IS_HEADER_VER_SIZE;
 	nread = vfs_read(fp, (char __user *)temp_buf, fsize, &fp->f_pos);
 	if (nread != fsize) {
@@ -2712,7 +2726,7 @@ read_phone_fw:
 	fsize = fp->f_path.dentry->d_inode->i_size;
 	info("start, file path %s, size %ld Bytes\n", fw_path, fsize);
 
-	fp->f_pos = fsize - LIBRARY_VER_OFS;
+	fp->f_pos = fsize - IS_HEADER_VER_OFFSET;
 	fsize = IS_HEADER_VER_SIZE;
 	nread = vfs_read(fp, (char __user *)temp_buf, fsize, &fp->f_pos);
 	if (nread != fsize) {
@@ -2910,6 +2924,8 @@ int is_sec_sensorid_find(struct is_core *core)
 
 	if (is_sec_fw_module_compare(finfo->header_ver, FW_2LD_L)) {
 		specific->rear_sensor_id = SENSOR_NAME_S5K2LD;
+	} else if (is_sec_fw_module_compare(finfo->header_ver, FW_HM1_L)) {
+		specific->rear_sensor_id = SENSOR_NAME_S5KHM1;
 	} else if (is_sec_fw_module_compare(finfo->header_ver, FW_2L4_L)) {
 		specific->rear_sensor_id = SENSOR_NAME_SAK2L4;
 	}
@@ -2943,7 +2959,7 @@ int is_sec_sensorid_find_rear_tof(struct is_core *core)
 	is_sec_get_sysfs_finfo(&finfo, REAR_TOF_ROM_ID);
 
 	if(finfo->header_ver[FW_PIXEL_SIZE+1] == REAR_TOF_CHECK_SENSOR_ID) {
-		specific->rear_tof_sensor_id = SENSOR_NAME_IMX316;
+		specific->rear_tof_sensor_id = SENSOR_NAME_IMX516;
 		info("current sensor is imx316");
 	}
 #endif
@@ -2997,14 +3013,17 @@ int is_sec_sensor_find_front_tof_mode_id(struct is_core *core, char *buf)
 int is_get_dual_cal_buf(int slave_position, char **buf, int *size)
 {
 	char *cal_buf;
-	u32 rom_dual_cal_start_addr;
-	u32 rom_dual_cal_size;
+	int rom_dual_cal_start_addr;
+	int rom_dual_cal_size;
 	u32 rom_dual_flag_dummy_addr = 0;
 	int rom_type;
 	int rom_dualcal_id;
 	int rom_dualcal_index;
 	struct is_core *core = dev_get_drvdata(is_dev);
 	struct is_rom_info *finfo = NULL;
+
+	*buf = NULL;
+	*size = 0;
 
 	is_vendor_get_rom_dualcal_info_from_position(slave_position, &rom_type, &rom_dualcal_id, &rom_dualcal_index);
 	if (rom_type == ROM_TYPE_NONE) {
@@ -3036,15 +3055,20 @@ int is_get_dual_cal_buf(int slave_position, char **buf, int *size)
 	} else if (rom_dualcal_index == ROM_DUALCAL_SLAVE1) {
 		rom_dual_cal_start_addr = finfo->rom_dualcal_slave1_start_addr;
 		rom_dual_cal_size = finfo->rom_dualcal_slave1_size;
-		rom_dual_flag_dummy_addr = ROM_REAR3_FLAG_DUMMY_ADDR;
+		rom_dual_flag_dummy_addr = finfo->rom_dualcal_slave1_dummy_flag_addr;
 	} else {
 		err("[index:%d] not supported index.", rom_dualcal_index);
 		return -EINVAL;
 	}
 
 	if (rom_dual_flag_dummy_addr != 0 && cal_buf[rom_dual_flag_dummy_addr] != 7) {
-		err("[rom_dualcal_id:%d pos:%d] invalid dummy_flag [%d]. Cannot load dual cal.",
-			rom_dualcal_id, slave_position, cal_buf[rom_dual_flag_dummy_addr]);
+		err("[rom_dualcal_id:%d pos:%d addr:%x] invalid dummy_flag [%d]. Cannot load dual cal.",
+			rom_dualcal_id, slave_position, rom_dual_flag_dummy_addr, cal_buf[rom_dual_flag_dummy_addr]);
+		return -EINVAL;
+	}
+
+	if (rom_dual_cal_start_addr <= 0) {
+		info("[%s] not available dual_cal\n", __func__);
 		return -EINVAL;
 	}
 
@@ -3262,8 +3286,8 @@ int is_sec_fw_sel_eeprom(int rom_id, bool headerOnly)
 		goto read_phone_fw_exit;
 	}
 
-	strncpy(phone_fw_version, temp_buf + nread - LIBRARY_VER_OFS, IS_HEADER_VER_SIZE);
-	strncpy(pinfo->header_ver, temp_buf + nread - LIBRARY_VER_OFS, IS_HEADER_VER_SIZE);
+	strncpy(phone_fw_version, temp_buf + nread - IS_HEADER_VER_OFFSET, IS_HEADER_VER_SIZE);
+	strncpy(pinfo->header_ver, temp_buf + nread - IS_HEADER_VER_OFFSET, IS_HEADER_VER_SIZE);
 	info("Camera: phone fw version: %s\n", phone_fw_version);
 
 read_phone_fw_exit:

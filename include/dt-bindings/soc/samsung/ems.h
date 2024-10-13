@@ -12,14 +12,14 @@
 #ifndef __EXYNOS_MOBILE_SCHEDULER
 #define __EXYNOS_MOBILE_SCHEDULER
 
-/* SCHED CLASS */
-#define EMS_SCHED_STOP		(1 << 0)
-#define EMS_SCHED_DL		(1 << 1)
-#define EMS_SCHED_RT		(1 << 2)
-#define EMS_SCHED_FAIR		(1 << 3)
-#define EMS_SCHED_IDLE		(1 << 4)
-#define NUM_OF_SCHED_CLASS	5
-
-#define EMS_SCHED_CLASS_MASK	(0x1F)
+/* SCHED POLICY */
+#define SCHED_POLICY_ENERGY		0	/* low energy */
+#define SCHED_POLICY_EFF		1	/* best efficiency */
+#define SCHED_POLICY_EFF_ENERGY		2	/* low energy in best efficienct domain */
+#define SCHED_POLICY_EFF_TINY		3	/* best efficiency except tiny task */
+#define SCHED_POLICY_SEMI_PERF		4	/* semi perf */
+#define SCHED_POLICY_PERF		5	/* best perf */
+#define SCHED_POLICY_EXPRESS		6	/* task express */
+#define NUM_OF_SCHED_POLICY		7
 
 #endif /* __EXYNOS_MOBILE_SCHEDULER__ */

@@ -134,12 +134,16 @@ int is_itf_open_wrap(struct is_device_ischain *device, u32 module_id,
 	 * And physical group is must be used at open commnad.
 	 */
 	path = (struct is_path_info *)&device->is_region->shared[offset_path];
+
+	mutex_lock(&hardware->itf_lock);
+
 	rsccount = atomic_read(&hardware->rsccount);
 
 	if (rsccount == 0) {
 		ret = is_init_ddk_thread();
 		if (ret) {
 			err("failed to create threads for DDK, ret %d", ret);
+			mutex_unlock(&hardware->itf_lock);
 			return ret;
 		}
 
@@ -180,6 +184,7 @@ int is_itf_open_wrap(struct is_device_ischain *device, u32 module_id,
 		group_id = path->group[group_slot];
 		dbg_hw(1, "itf_open_wrap: group[SLOT_%d]=[%s]\n",
 			group_slot, group_id_name[group_id]);
+
 		hw_maxnum = is_get_hw_list(group_id, hw_list);
 		for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
 			hw_id = hw_list[hw_index];
@@ -199,6 +204,8 @@ int is_itf_open_wrap(struct is_device_ischain *device, u32 module_id,
 		hardware->hw_map[instance], atomic_read(&hardware->rsccount),
 		hardware->sensor_position[instance]);
 
+	mutex_unlock(&hardware->itf_lock);
+
 	return ret;
 
 hardware_close:
@@ -216,6 +223,8 @@ hardware_close:
 				merr("is_hardware_close(%d) is fail", device, hw_id);
 		}
 	}
+
+	mutex_unlock(&hardware->itf_lock);
 
 	return ret;
 }
@@ -246,6 +255,9 @@ int is_itf_close_wrap(struct is_device_ischain *device)
 	 */
 	offset_path = (sizeof(struct sensor_open_extended) / 4) + 1;
 	path = (struct is_path_info *)&device->is_region->shared[offset_path];
+
+	mutex_lock(&hardware->itf_lock);
+
 	rsccount = atomic_read(&hardware->rsccount);
 
 	if (rsccount == 1)
@@ -256,7 +268,8 @@ int is_itf_close_wrap(struct is_device_ischain *device)
 			hardware->logical_hw_map[instance]);
 	if (ret) {
 		merr("is_hardware_delete_setfile is fail(%d)", device, ret);
-			return ret;
+		mutex_unlock(&hardware->itf_lock);
+		return ret;
 	}
 #endif
 
@@ -277,6 +290,8 @@ int is_itf_close_wrap(struct is_device_ischain *device)
 
 	info("%s: done: hw_map[0x%lx][RSC:%d]\n", __func__,
 		hardware->hw_map[instance], atomic_read(&hardware->rsccount));
+
+	mutex_unlock(&hardware->itf_lock);
 
 	return ret;
 }
@@ -514,12 +529,15 @@ int __nocfi is_itf_power_down_wrap(struct is_interface *interface, u32 instance)
 
 #ifdef USE_DDK_SHUT_DOWN_FUNC
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
+	is_fpsimd_get_func();
 	((ddk_shut_down_func_t)DDK_SHUT_DOWN_FUNC_ADDR)(data);
-	fpsimd_put();
+	is_fpsimd_put_func();
 #else
 	((ddk_shut_down_func_t)DDK_SHUT_DOWN_FUNC_ADDR)(data);
 #endif
+#endif
+#if defined(ENABLE_DYNAMIC_HEAP_FOR_DDK_RTA)
+	is_heap_mem_free(&core->resourcemgr);
 #endif
 
 	check_lib_memory_leak();
@@ -548,9 +566,9 @@ int is_itf_sensor_mode_wrap(struct is_device_ischain *device,
 	if (cfg && cfg->mode == SENSOR_MODE_DEINIT) {
 		info_hw("%s: call RTA_SHUT_DOWN\n", __func__);
 #ifdef ENABLE_FPSIMD_FOR_USER
-		fpsimd_get();
+		is_fpsimd_get_func();
 		((rta_shut_down_func_t)RTA_SHUT_DOWN_FUNC_ADDR)(data);
-		fpsimd_put();
+		is_fpsimd_put_func();
 #else
 		((rta_shut_down_func_t)RTA_SHUT_DOWN_FUNC_ADDR)(data);
 #endif

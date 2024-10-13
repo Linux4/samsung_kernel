@@ -19,7 +19,9 @@
 #include <linux/dmaengine.h>
 #include <linux/reset.h>
 #include <linux/interrupt.h>
-#include <linux/pm_qos.h>
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#include <soc/samsung/exynos_pm_qos.h>
+#endif
 
 enum dw_mci_state {
 	STATE_IDLE = 0,
@@ -56,6 +58,12 @@ enum {
 struct dw_mci_dma_slave {
 	struct dma_chan *ch;
 	enum dma_transfer_direction direction;
+};
+
+struct exynos_access_cxt {
+	u32 offset;
+	u32 mask;
+	u32 val;
 };
 
 /**
@@ -194,7 +202,7 @@ struct dw_mci {
 	resource_size_t		phy_regs;
 
 	unsigned int desc_sz;
-	struct pm_qos_request pm_qos_lock;
+	struct exynos_pm_qos_request pm_qos_lock;
 	struct delayed_work qos_work;
 	bool qos_cntrl;
 	u32			cmd_status;
@@ -204,7 +212,6 @@ struct dw_mci {
 	struct tasklet_struct	tasklet;
 	u32 tasklet_state;
 	struct work_struct card_work;
-	u32 card_detect_cnt;
 	struct work_struct card_det_work;
 	unsigned long		pending_events;
 	unsigned long		completed_events;
@@ -221,7 +228,7 @@ struct dw_mci {
 	struct device		*dev;
 	struct dw_mci_board	*pdata;
 	const struct dw_mci_drv_data	*drv_data;
-	void			*priv;
+	struct dw_mci_exynos_priv_data	*priv;
 	struct clk		*biu_clk;
 	struct clk		*ciu_clk;
 	struct clk		*ciu_gate;
@@ -288,9 +295,11 @@ struct dw_mci {
 	/* channel id */
 	u32 ch_id;
 
+	struct regmap *sysreg;
+	struct exynos_access_cxt cxt_coherency; /* io coherency */
+
 	bool has_cqe;
 	bool cqe_on;
-	struct cqhci_host *cq_host;
 };
 
 /* DMA ops for Internal/External DMAC interface */
@@ -326,8 +335,6 @@ struct dw_mci_dma_ops {
 #define DW_MCI_QUIRK_USE_SSC			BIT(8)
 /* Timer for broken data transfer over scheme */
 #define DW_MCI_QUIRK_BROKEN_DTO			BIT(9)
-/* card detect fast power off */
-#define DW_MCI_QUIRK_CD_PWR_OFF			BIT(10)
 
 /* Slot level quirks */
 /* This slot has no write protect */
@@ -368,11 +375,12 @@ struct dw_mci_board {
 	bool prev_all_pass;
 
 	/* INT QOS khz */
-	unsigned int qos_dvfs_level;
+	s32 qos_dvfs_level;
 	unsigned char io_mode;
 
 	/* SSC RATE */
-	unsigned int ssc_rate;
+	unsigned int ssc_rate_mrr;
+	unsigned int ssc_rate_mfr;
 
 	enum dw_mci_cd_types cd_type;
 	struct reset_control *rstc;
@@ -397,7 +405,6 @@ struct dw_mci_board {
 	unsigned int desc_sz;
 };
 
-#ifdef CONFIG_MMC_DW_IDMAC
 #define IDMAC_INT_CLR		(SDMMC_IDMAC_INT_AI | SDMMC_IDMAC_INT_NI | \
 				 SDMMC_IDMAC_INT_CES | SDMMC_IDMAC_INT_DU | \
 				 SDMMC_IDMAC_INT_FBE | SDMMC_IDMAC_INT_RI | \
@@ -449,40 +456,6 @@ struct idmac_desc_64addr {
 	u32 des29;		/* Disk IV 1 */
 	u32 des30;		/* Disk IV 2 */
 	u32 des31;		/* Disk IV 3 */
-#if defined(CONFIG_EXYNOS_FMP_DUAL_FILE_ENCRYPTION)
-	u32 des32;		/* File2 EncKey 0 */
-	u32 des33;		/* File2 EncKey 1 */
-	u32 des34;		/* File2 EncKey 2 */
-	u32 des35;		/* File2 EncKey 3 */
-	u32 des36;		/* File2 EncKey 4 */
-	u32 des37;		/* File2 EncKey 5 */
-	u32 des38;		/* File2 EncKey 6 */
-	u32 des39;		/* File2 EncKey 7 */
-	u32 des40;		/* File TwKey 0 */
-	u32 des41;		/* File TwKey 1 */
-	u32 des42;		/* File TwKey 2 */
-	u32 des43;		/* File TwKey 3 */
-	u32 des44;		/* File TwKey 4 */
-	u32 des45;		/* File TwKey 5 */
-	u32 des46;		/* File TwKey 6 */
-	u32 des47;		/* File TwKey 7 */
-	u32 des48;		/* Reserved */
-	u32 des49;		/* Reserved */
-	u32 des50;		/* Reserved */
-	u32 des51;		/* Reserved */
-	u32 des52;		/* Reserved */
-	u32 des53;		/* Reserved */
-	u32 des54;		/* Reserved */
-	u32 des55;		/* Reserved */
-	u32 des56;		/* Reserved */
-	u32 des57;		/* Reserved */
-	u32 des58;		/* Reserved */
-	u32 des59;		/* Reserved */
-	u32 des60;		/* Reserved */
-	u32 des61;		/* Reserved */
-	u32 des62;		/* Reserved */
-	u32 des63;		/* Reserved */
-#endif				/* CONFIG_EXYNOS_FMP_DUAL_FILE_ENCRYPTION */
 #define IDMAC_64ADDR_SET_DESC_CLEAR(d) \
 do {			\
 	(d)->des1 = 0;	\
@@ -550,7 +523,6 @@ do {	\
 	(d)->des3 = (u32)(a);	\
 } while(0)
 };
-#endif				/* CONFIG_MMC_DW_IDMAC */
 
 /* FMP bypass/encrypt mode */
 #define CLEAR		0
@@ -738,7 +710,6 @@ do {	\
  */
 #define mci_fifo_readw(__reg)	__raw_readw(__reg)
 #define mci_fifo_readl(__reg)	__raw_readl(__reg)
-#ifdef CONFIG_MMC_DW_FORCE_32BIT_SFR_RW
 #define mci_fifo_readq(__reg) ({\
 		u64 __ret = 0;\
 		u32* ptr = (u32*)&__ret;\
@@ -751,10 +722,6 @@ do {	\
 		__raw_writel(*ptr++, __reg);\
 		__raw_writel(*ptr, __reg + 0x4);\
 		})
-#else
-#define mci_fifo_readq(__reg)	__raw_readq(__reg)
-#define mci_fifo_writeq(__value, __reg)	__raw_writeq(__reg, __value)
-#endif				/* CONFIG_MMC_DW_FORCE_32BIT_SFR_RW */
 
 #define mci_fifo_writew(__value, __reg)	__raw_writew(__reg, __value)
 #define mci_fifo_writel(__value, __reg)	__raw_writel(__reg, __value)
@@ -776,25 +743,10 @@ do {	\
 
 /* 64-bit FIFO access macros */
 #ifdef readq
-#ifdef CONFIG_MMC_DW_FORCE_32BIT_SFR_RW
-#define mci_readq(dev, reg) ({\
-		u64 __ret = 0;\
-		u32* ptr = (u32*)&__ret;\
-		*ptr++ = __raw_readl((dev)->regs + SDMMC_##reg);\
-		*ptr = __raw_readl((dev)->regs + SDMMC_##reg + 0x4);\
-		__ret;\
-	})
-#define mci_writeq(dev, reg, value) ({\
-		u32 *ptr = (u32*)&(value);\
-		__raw_writel(*ptr++, (dev)->regs + SDMMC_##reg);\
-		__raw_writel(*ptr, (dev)->regs + SDMMC_##reg + 0x4);\
-	})
-#else
 #define mci_readq(dev, reg)			\
 	readq_relaxed((dev)->regs + SDMMC_##reg)
 #define mci_writeq(dev, reg, value)			\
 	writeq_relaxed((value), (dev)->regs + SDMMC_##reg)
-#endif				/* CONFIG_MMC_DW_FORCE_32BIT_SFR_RW */
 #else
 /*
  * Dummy readq implementation for architectures that don't define it.
@@ -829,7 +781,6 @@ enum dw_mci_misc_control {
 	CTRL_RESTORE_CLKSEL = 0,
 	CTRL_REQUEST_EXT_IRQ,
 	CTRL_CHECK_CD,
-	CTRL_ADD_SYSFS,
 };
 
 #define SDMMC_DATA_TMOUT_SHIFT			11
@@ -961,8 +912,8 @@ struct dw_mci_req_log {
 	u32 info1;
 	u32 info2;
 	u32 info3;
-	unsigned long pending_events;
-	unsigned long completed_events;
+	u32 pending_events;
+	u32 completed_events;
 	enum dw_mci_state state;
 	enum dw_mci_state state_cmd;
 	enum dw_mci_state state_dat;
@@ -1026,18 +977,18 @@ struct dw_mci_drv_data {
 	void (*hwacg_control) (struct dw_mci * host, u32 flag);
 	void (*pins_control) (struct dw_mci * host, int config);
 	int (*misc_control) (struct dw_mci * host, enum dw_mci_misc_control control, void *priv);
-	int (*crypto_engine_cfg) (struct dw_mci * host,
-				  void *desc,
-				  struct mmc_data * data,
-				  struct page * page, int page_index,
-				  int sector_offset, bool cmdq_enabled);
-	int (*crypto_engine_clear) (struct dw_mci * host, void *desc,
-				    struct mmc_data * data, bool cmdq_enabled);
-	int (*crypto_sec_cfg) (struct dw_mci * host, bool init);
-	int (*access_control_abort) (struct dw_mci * host);
+	int (*crypto_engine_cfg) (struct dw_mci * host, void *desc,
+				  struct mmc_data * data, int page_index, bool cmdq_enabled);
+	int (*crypto_engine_clear)(struct dw_mci * host, void *desc,
+					struct mmc_data *data, bool cmdq_enabled);
+	int (*crypto_sec_cfg) (bool init);
 	void (*ssclk_control) (struct dw_mci * host, int enable);
-	void (*cqe_swreset)(struct dw_mci *host);
+	void (*dump_reg) (struct dw_mci * host);
+	void (*detect_interrupt)(struct dw_mci *host);
+	void (*check_request_error)(struct dw_mci *host, struct mmc_request *mrq);
 	void (*runtime_pm_control)(struct dw_mci *host, int enable);
+	void (*cqe_swreset)(struct dw_mci *host);
+	void (*cq_err_check)(u32 cmd_error, u32 data_error, u32 status);
 };
 
 struct dw_mci_sfr_ram_dump {

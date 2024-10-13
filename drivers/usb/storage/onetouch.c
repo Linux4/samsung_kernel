@@ -25,6 +25,7 @@
 MODULE_DESCRIPTION("Maxtor USB OneTouch hard drive button driver");
 MODULE_AUTHOR("Nick Sillik <n.sillik@temple.edu>");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(USB_STORAGE);
 
 #define ONETOUCH_PKT_LEN        0x02
 #define ONETOUCH_BUTTON         KEY_PROG1
@@ -200,7 +201,7 @@ static int onetouch_connect_input(struct us_data *ss)
 	onetouch->dev = input_dev;
 
 	if (udev->manufacturer)
-		strlcpy(onetouch->name, udev->manufacturer,
+		strscpy(onetouch->name, udev->manufacturer,
 			sizeof(onetouch->name));
 	if (udev->product) {
 		if (udev->manufacturer)

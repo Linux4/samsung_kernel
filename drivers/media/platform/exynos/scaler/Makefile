@@ -5,5 +5,5 @@
 # Licensed under GPLv2
 #
 
-scaler-objs := scaler-core.o scaler-regs.o scaler-debug.o
+scaler-objs := scaler-core.o scaler-regs.o scaler-debug.o scaler-ext.o
 obj-$(CONFIG_VIDEO_EXYNOS_SCALER)	+= scaler.o

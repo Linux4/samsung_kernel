@@ -12,6 +12,7 @@
 
 #include <linux/kernel.h>
 #include <linux/errno.h>
+#include <linux/module.h>
 #include <linux/amba/pl330.h>
 #include <linux/scatterlist.h>
 #include <linux/export.h>
@@ -79,11 +80,12 @@ static int samsung_dmadev_config(unsigned long ch,
 }
 
 static int samsung_dmadev_prepare(unsigned long ch,
-			struct samsung_dma_prep *param)
+			struct samsung_dma_prep *param, dma_cookie_t *cookie)
 {
 	struct scatterlist sg;
 	struct dma_chan *chan = (struct dma_chan *)ch;
 	struct dma_async_tx_descriptor *desc;
+	dma_cookie_t cookie_temp;
 
 	switch (param->cap) {
 	case DMA_SLAVE:
@@ -97,7 +99,7 @@ static int samsung_dmadev_prepare(unsigned long ch,
 			&sg, 1, param->direction, DMA_PREP_INTERRUPT);
 		break;
 	case DMA_CYCLIC:
-		desc = chan->device->device_prep_dma_cyclic(chan,
+		desc = __pl330_prep_dma_cyclic(chan,
 				param->buf, param->len, param->period,
 				param->direction, true, &param->infiniteloop);
 		break;
@@ -114,7 +116,9 @@ static int samsung_dmadev_prepare(unsigned long ch,
 	desc->callback = param->fp;
 	desc->callback_param = param->fp_param;
 
-	dmaengine_submit((struct dma_async_tx_descriptor *)desc);
+	cookie_temp = dmaengine_submit((struct dma_async_tx_descriptor *)desc);
+	if (cookie)
+		*cookie = cookie_temp;
 
 	return 0;
 }
@@ -142,12 +146,18 @@ static inline int samsung_dmadev_debug(unsigned long ch)
 	return pl330_dma_debug((struct dma_chan *)ch);
 }
 
+static inline int samsung_dmadev_tx_status(unsigned long ch, dma_cookie_t cookie, struct dma_tx_state *txstate)
+{
+	return dmaengine_tx_status((struct dma_chan *)ch, cookie, txstate);
+}
+
 static struct samsung_dma_ops dmadev_ops = {
 	.request	= samsung_dmadev_request,
 	.release	= samsung_dmadev_release,
 	.config		= samsung_dmadev_config,
 	.prepare	= samsung_dmadev_prepare,
 	.trigger	= samsung_dmadev_trigger,
+	.tx_status	= samsung_dmadev_tx_status,
 	.started	= NULL,
 	.getposition	= samsung_dmadev_getposition,
 	.flush		= samsung_dmadev_flush,
@@ -160,3 +170,5 @@ void *samsung_dmadev_get_ops(void)
 	return &dmadev_ops;
 }
 EXPORT_SYMBOL(samsung_dmadev_get_ops);
+
+MODULE_LICENSE("GPL");

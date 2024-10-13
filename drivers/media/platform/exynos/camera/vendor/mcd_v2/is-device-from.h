@@ -1,5 +1,5 @@
 /*
- * Samsung Exynos5 SoC series IS-FROM driver
+ * Samsung Exynos5 SoC series FIMC-IS-FROM driver
  *
  *
  * Copyright (c) 2011 Samsung Electronics Co., Ltd

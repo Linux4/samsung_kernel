@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
  *              http://www.samsung.com
  *
  * Author: Sung-Hyun Na <sunghyun.na@samsung.com>
@@ -81,5 +82,7 @@ void phy_exynos_usb3p1_set_fsv_out_en(struct exynos_usbphy_info *usbphy_info, u3
 /* BC 1.2 */
 extern u8 phy_exynos_usb3p1_bc_data_contact_detect(struct exynos_usbphy_info *usbphy_info);
 extern enum exynos_usb_bc phy_exynos_usb3p1_bc_battery_charger_detection(struct exynos_usbphy_info *usbphy_info);
-
+#if defined(CONFIG_OTG_CDP_SUPPORT)
+extern u8 phy_exynos_usb3p1_bc_operate_cdp(struct exynos_usbphy_info *usbphy_info);
+#endif
 #endif /* DRIVER_USB_USBPHY_CAL_PHY_EXYNOS_USB3P1_H_ */

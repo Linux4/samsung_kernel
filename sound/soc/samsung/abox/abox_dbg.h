@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox_dbg.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox Debug driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
@@ -39,12 +39,13 @@ extern void abox_dbg_print_gpr(struct device *dev, struct abox_data *data);
 /**
  * dump gpr from memory
  * @param[in]	dev		pointer to device which invokes this API
+ * @param[in]	data		pointer to abox_data structure
  * @param[in]	addr		pointer to gpr dump
  * @param[in]	src		source of the dump request
  * @param[in]	reason		reason description
  */
-extern void abox_dbg_dump_gpr_from_addr(struct device *dev, unsigned int *addr,
-		enum abox_dbg_dump_src src, const char *reason);
+extern void abox_dbg_dump_gpr_from_addr(struct device *dev, struct abox_data *data,
+		unsigned int *addr, enum abox_dbg_dump_src src, const char *reason);
 
 /**
  * dump gpr
@@ -98,11 +99,5 @@ extern void abox_dbg_dump_suspend(struct device *dev, struct abox_data *data);
  * @param[in]	ok		true for okay, false on otherwise
  */
 extern void abox_dbg_report_status(struct device *dev, bool ok);
-
-/**
-  * Check whether slog memory need to be free or not
-  * @return  1 or 0
-  */
-extern int is_slog_memory_free(void);
 
 #endif /* __SND_SOC_ABOX_DEBUG_H */

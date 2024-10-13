@@ -29,7 +29,9 @@
 #include <linux/debugfs.h>
 
 #include <linux/mfd/samsung/core.h>
+#if defined(CONFIG_EXYNOS_BCM_DBG) || defined(CONFIG_EXYNOS_BCM_DBG_MODULE)
 #include <soc/samsung/exynos-bcm_dbg.h>
+#endif
 
 #include <soc/samsung/exynos-cpupm.h>
 #include <dt-bindings/power/exynos-power.h>
@@ -64,7 +66,7 @@ struct exynos_pm_domain {
 	int devfreq_index;
 	struct mutex access_lock;
 	int idle_ip_index;
-#if defined(CONFIG_EXYNOS_BCM_DBG)
+#if defined(CONFIG_EXYNOS_BCM_DBG) || defined(CONFIG_EXYNOS_BCM_DBG_MODULE)
 	struct exynos_bcm_pd_info *bcm;
 #endif
 	bool power_down_skipped;
@@ -80,7 +82,7 @@ struct exynos_pd_dbg_info {
 #endif
 };
 
-#ifdef CONFIG_EXYNOS_PD
+#if defined(CONFIG_EXYNOS_PD) || defined(CONFIG_EXYNOS_PD_MODULE)
 struct exynos_pm_domain *exynos_pd_lookup_name(const char *domain_name);
 int exynos_pd_status(struct exynos_pm_domain *pd);
 #else
@@ -94,10 +96,10 @@ static inline int exynos_pd_status(struct exynos_pm_domain *pd)
 }
 #endif
 
-#ifdef CONFIG_SND_SOC_SAMSUNG_VTS
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_VTS)
 extern bool vts_is_on(void);
 #endif
-#ifdef CONFIG_SND_SOC_SAMSUNG_ABOX
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX)
 extern bool abox_is_on(void);
 #endif
 #ifdef CONFIG_USB_DWC3_EXYNOS

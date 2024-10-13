@@ -186,7 +186,7 @@ static irqreturn_t das6402_interrupt(int irq, void *d)
 	if (status & DAS6402_STATUS_FFULL) {
 		async->events |= COMEDI_CB_OVERFLOW;
 	} else if (status & DAS6402_STATUS_FFNE) {
-		unsigned int val;
+		unsigned short val;
 
 		val = das6402_ai_read_sample(dev, s);
 		comedi_buf_write_samples(s, &val, 1);
@@ -279,7 +279,7 @@ static int das6402_ai_check_chanlist(struct comedi_device *dev,
 
 		if (aref0 == AREF_DIFF && chan > (s->n_chan / 2)) {
 			dev_dbg(dev->class_dev,
-				"chanlist differential channel to large\n");
+				"chanlist differential channel too large\n");
 			return -EINVAL;
 		}
 	}

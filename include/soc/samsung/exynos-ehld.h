@@ -21,7 +21,7 @@
 #define EHLD_STAT_LOCKUP_SW		(2)
 #define EHLD_STAT_LOCKUP_HW		(3)
 
-#ifdef CONFIG_EXYNOS_EHLD
+#if IS_ENABLED(CONFIG_EXYNOS_EHLD)
 extern void exynos_ehld_event_raw_update(int cpu);
 extern void exynos_ehld_event_raw_dump(int cpu);
 extern void exynos_ehld_event_raw_update_allcpu(void);

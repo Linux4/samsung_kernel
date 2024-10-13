@@ -54,7 +54,7 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_STILL_PREVIEW_PRO_MODE = 3,		/* 3: ProMode Preview (HDR Off) : just Innovative project */
 
 	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_AUTO = 10,			/* 10: Single/Burst/Snapshot capture (HDR Auto/Off) */
-	ISS_SUB_SCENARIO_STILL_CAPTURE = 11,					/* 11: Single capture (HDR Off) : Pro mode	 */
+	ISS_SUB_SCENARIO_STILL_CAPTURE = 11,					/* 11: Single captureÂ (HDR Off) : Pro mode	 */
 	ISS_SUB_SCENARIO_STILL_CAPTURE_LONG = 12,				/* 12: Single long capture (HDR Off) : Pro mode	 */
 	ISS_SUB_SCENARIO_STILL_CAPTURE_DNG_REPROCESSING = 13,	/* TODO: 13: DNG capture (HDR Off) : Pro m */
 	ISS_SUB_SCENARIO_FULL_CAPTURE = 14,						/* TODO: 14: Full resolution Capture (HDR Auto/Off) */
@@ -157,6 +157,11 @@ enum is_scenario_is {
 	IS_SCENAIRO_FACTORY_RAW = 8,
 };
 
+#define IS_DVFS_SCENARIO_COMMON_MODE_SHIFT 0
+#define IS_DVFS_SCENARIO_COMMON_MODE_MASK 0x3
+#define IS_DVFS_SCENARIO_VENDOR_SHIFT 16
+#define IS_DVFS_SCENARIO_VENDOR_MASK 0xffff
+
 /*
  *controls/dynamic metadata
  */
@@ -179,6 +184,7 @@ enum available_capabilities {
 	REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING,
 	REQUEST_AVAILABLE_CAPABILITIES_DEPTH_OUTPUT,
 	REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO,
+	REQUEST_AVAILABLE_CAPABILITIES_STREAM_USE_CASE,
 };
 
 struct camera2_request_ctl {
@@ -1974,12 +1980,10 @@ enum camera_op_mode {
 	CAMERA_OP_MODE_HAL3_TW,
 	CAMERA_OP_MODE_FAC,
 	CAMERA_OP_MODE_HAL3_FAC,
-	CAMERA_OP_MODE_HAL3_SDK,  // UniHAL default
+	CAMERA_OP_MODE_HAL3_SDK,
 	CAMERA_OP_MODE_HAL3_CAMERAX,
-	CAMERA_OP_MODE_HAL3_UNIHAL_VIP,
+	CAMERA_OP_MODE_HAL3_AVSP,
 	CAMERA_OP_MODE_HAL3_SDK_VIP,
-	CAMERA_OP_MODE_HAL3_ATTACH,
-	CAMERA_OP_MODE_HAL3_UNIHAL_VIDEO,
 };
 
 enum camera2_sensor_hdr_mode {
@@ -2606,17 +2610,11 @@ struct camera2_stream {
 	uint32_t		pixelformat;
 	uint32_t		pixelsize;
 
-#ifdef SUPPORT_STRIPE_REGION_NUM
 	/**
 	  stripe region horizontal pixel nums
 	  this value indicates each width pixel size of stripe region
 	 */
 	uint32_t		stripe_region_num;
-#endif
-	/**
-	  stripe region horizontal pixel nums
-	  this value indicates each width pixel size of stripe region
-	 */
 	uint32_t		stripe_h_pix_nums[CAMERA2_MAX_STRIPE_REGION_NUM];
 };
 

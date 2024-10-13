@@ -122,4 +122,6 @@ extern void acpm_ramdump(void);
 extern void acpm_fw_log_level(unsigned int on);
 extern void acpm_ipc_set_waiting_mode(bool mode);
 
+extern int acpm_ipc_remove(struct platform_device *pdev);
+extern int acpm_ipc_probe(struct platform_device *pdev);
 #endif

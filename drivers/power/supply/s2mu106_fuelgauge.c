@@ -32,6 +32,7 @@
 #include <linux/platform_data/ntc_thermistor.h>
 
 static enum power_supply_property s2mu106_fuelgauge_props[] = {
+	POWER_SUPPLY_PROP_ONLINE,
 };
 
 static int s2mu106_get_vbat(struct s2mu106_fuelgauge_data *fuelgauge);
@@ -39,7 +40,31 @@ static int s2mu106_get_ocv(struct s2mu106_fuelgauge_data *fuelgauge);
 static int s2mu106_get_current(struct s2mu106_fuelgauge_data *fuelgauge);
 static int s2mu106_get_avgcurrent(struct s2mu106_fuelgauge_data *fuelgauge);
 static int s2mu106_get_avgvbat(struct s2mu106_fuelgauge_data *fuelgauge);
-static bool batt_temp_flag = false;
+
+static void fg_wake_lock(struct wakeup_source *ws)
+{
+	__pm_stay_awake(ws);
+}
+
+static void fg_wake_unlock(struct wakeup_source *ws)
+{
+	__pm_relax(ws);
+}
+
+static int fg_set_wake_lock(struct s2mu106_fuelgauge_data *fuelgauge)
+{
+	struct wakeup_source *ws = NULL;
+
+	ws = wakeup_source_register(NULL, "fuel_alerted");
+	if (ws == NULL)
+		goto err;
+
+	fuelgauge->fuel_alert_ws = ws;
+
+	return 0;
+err:
+	return -1;
+}
 
 static int s2mu106_read_reg_byte(struct i2c_client *client, int reg, void *data)
 {
@@ -109,8 +134,9 @@ static int s2mu106_write_and_verify_reg_byte(struct i2c_client *client, int reg,
 
 static int s2mu106_write_reg(struct i2c_client *client, int reg, u8 *buf)
 {
-#if SINGLE_BYTE
+#if IS_ENABLED(SINGLE_BYTE)
 	int ret = 0;
+
 	s2mu106_write_and_verify_reg_byte(client, reg, buf[0]);
 	s2mu106_write_and_verify_reg_byte(client, reg+1, buf[1]);
 #else
@@ -134,9 +160,10 @@ static int s2mu106_write_reg(struct i2c_client *client, int reg, u8 *buf)
 static int s2mu106_read_reg(struct i2c_client *client, int reg, u8 *buf)
 {
 
-#if SINGLE_BYTE
+#if IS_ENABLED(SINGLE_BYTE)
 	int ret = 0;
 	u8 data1 = 0, data2 = 0;
+
 	s2mu106_read_reg_byte(client, reg, &data1);
 	s2mu106_read_reg_byte(client, reg+1, &data2);
 	buf[0] = data1;
@@ -292,6 +319,7 @@ static int s2mu106_fix_rawsoc_reset_fg(struct s2mu106_fuelgauge_data *fuelgauge)
 static void s2mu106_init_regs(struct s2mu106_fuelgauge_data *fuelgauge)
 {
 	u8 temp = 0;
+
 	pr_info("%s: s2mu106 fuelgauge initialize\n", __func__);
 
 	/* Save register values for surge check */
@@ -365,7 +393,7 @@ err:
 	return -ERANGE;
 }
 
-#if (TEMP_COMPEN)
+#if IS_ENABLED(TEMP_COMPEN)
 static bool s2mu106_get_vm_status(struct s2mu106_fuelgauge_data *fuelgauge)
 {
 	u8 data = 0;
@@ -434,11 +462,10 @@ static void s2mu106_temperature_compensation(struct s2mu106_fuelgauge_data *fuel
 {
 	bool flag_mapping = false;
 	int soc_map = 0;
-	s16 diff_soc = 0;
+	int ui_soc = 0;
 	u8 data[2];
 
-	fuelgauge->comp_socr =
-		s2mu106_get_comp_socr(fuelgauge->temperature, fuelgauge->avg_curr);
+	fuelgauge->comp_socr = s2mu106_get_comp_socr(fuelgauge->temperature, fuelgauge->avg_curr);
 
 	if (fuelgauge->init_start) {
 		flag_mapping = true;
@@ -454,40 +481,37 @@ static void s2mu106_temperature_compensation(struct s2mu106_fuelgauge_data *fuel
 
 	if (flag_mapping == true) {
 		if (fuelgauge->init_start) {
-			s2mu106_read_reg(fuelgauge->i2c, S2MU106_REG_RSOC_R, data);
+			if (fuelgauge->temperature < fuelgauge->low_temp_limit) {
+				s2mu106_read_reg(fuelgauge->i2c, S2MU106_REG_RSOC_R, data);
 
-			if (data[1] & 0x80) {
-				if (data[1] & 0x40)
-					data[1] = data[1] | 0x80;
-				else
-					data[1] = data[1] & 0x7F;
+				if (data[1] == 0) {
+					ui_soc = (data[1] << 8) | (data[0]);
 
-				diff_soc = (data[1] << 8) | data[0];
+					pr_info("%s: temperature is low. use saved UI SOC(%d)\n"
+							" for mapping, data[1] = 0x%02x, data[0] = 0x%02x\n",
+							__func__, ui_soc, data[1], data[0]);
 
-				pr_info("%s: init, use saved diff_soc(%d)"
-						" data[1] = 0x%02x, data[0] = 0x%02x\n",
-						__func__, diff_soc, data[1], data[0]);
+					fuelgauge->ui_soc = ui_soc;
 
-				fuelgauge->soc_r = fuelgauge->rsoc + diff_soc;
+					/* UI SOC unit is 1% */
+					ui_soc = ui_soc * 100;
 
-				if (fuelgauge->soc_r > 10000)
-					fuelgauge->soc_r = 10000;
-				else if (fuelgauge->soc_r < 0)
-					fuelgauge->soc_r = 0;
+					fuelgauge->socni = ui_soc;
+					fuelgauge->soc0i = fuelgauge->rsoc;
+				} else {
+					pr_info("%s: temperature is low. but UI SOC is not saved\n", __func__);
 
-				fuelgauge->socni = fuelgauge->soc_r;
-				fuelgauge->soc0i = fuelgauge->rsoc;
+					fuelgauge->socni = fuelgauge->rsoc;
+					fuelgauge->soc0i = fuelgauge->rsoc;
+				}
 			} else {
-				pr_info("%s: init, diff_soc is not saved\n",
-						__func__);
-
 				fuelgauge->socni = fuelgauge->rsoc;
 				fuelgauge->soc0i = fuelgauge->rsoc;
 			}
 		} else {
 			/* After mapping, SOC_R is maintained.
-			   If mapping occurs continuously, SOC is not changed.
-			   So SOC_R need to be updated before mapping.
+			 * If mapping occurs continuously, SOC is not changed.
+			 * So SOC_R need to be updated before mapping.
 			 */
 			fuelgauge->soc_r = s2mu106_get_soc_map(fuelgauge,
 					fuelgauge->pre_bat_charging, fuelgauge->pre_comp_socr);
@@ -500,31 +524,29 @@ static void s2mu106_temperature_compensation(struct s2mu106_fuelgauge_data *fuel
 	soc_map =  s2mu106_get_soc_map(fuelgauge,
 			fuelgauge->bat_charging, fuelgauge->comp_socr);
 
-#if !defined(INC_OK_EN)
+#if !IS_ENABLED(INC_OK_EN)
 	/* Use is_charging flag for prevent SOC increase when not charging */
 	if ((fuelgauge->is_charging == false) && (soc_map > fuelgauge->soc_r)) {
-		if(fuelgauge->init_start)
+		if (fuelgauge->init_start)
 			fuelgauge->soc_r = soc_map;
 		else
 			pr_info("%s: Not charging, do not reflect SOC increase. soc_map = %d, soc_r = %d\n",
-					__func__, soc_map, fuelgauge->soc_r);
-	}
-	else
+				__func__, soc_map, fuelgauge->soc_r);
+	} else
 		fuelgauge->soc_r = soc_map;
 #else
 	fuelgauge->soc_r = soc_map;
 #endif
 
 	if (fuelgauge->vm_status && (fuelgauge->soc_r > fuelgauge->rsoc) &&
-			(fuelgauge->temperature <= fuelgauge->low_temp_limit))
+	    (fuelgauge->temperature <= fuelgauge->low_temp_limit))
 		fuelgauge->soc_r = fuelgauge->rsoc;
 
-#if !(BATCAP_LEARN)
-	pr_info("%s: SOC_M = %d, Chg_stat = %d, VM = %d, flag_mapping = %d, avgCURR = %d, avgTEMP = %d, "
-			"SOCni = %d, SOC0i = %d, SOCr = %d, SOC_R = %d\n",
-			__func__, fuelgauge->rsoc, fuelgauge->bat_charging, fuelgauge->vm_status,
-			flag_mapping, fuelgauge->avg_curr, fuelgauge->temperature,
-			fuelgauge->socni, fuelgauge->soc0i, fuelgauge->comp_socr, fuelgauge->soc_r);
+#if !IS_ENABLED(BATCAP_LEARN)
+	pr_info("%s: SOC_M = %d, Chg_stat = %d, VM = %d, flag_mapping = %d, avgCURR = %d\n", __func__,
+		fuelgauge->rsoc, fuelgauge->bat_charging, fuelgauge->vm_status, flag_mapping, fuelgauge->avg_curr);
+	pr_info("%s: avgTEMP = %d, SOCni = %d, SOC0i = %d, SOCr = %d, SOC_R = %d\n", __func__,
+		fuelgauge->temperature, fuelgauge->socni, fuelgauge->soc0i, fuelgauge->comp_socr, fuelgauge->soc_r);
 #endif
 	fuelgauge->init_start = 0;
 	fuelgauge->pre_comp_socr = fuelgauge->comp_socr;
@@ -532,36 +554,20 @@ static void s2mu106_temperature_compensation(struct s2mu106_fuelgauge_data *fuel
 	fuelgauge->pre_is_charging = fuelgauge->is_charging;
 	fuelgauge->pre_bat_charging = fuelgauge->bat_charging;
 
-	/* Save diff_soc for maintain SOC, after reboot */
-	diff_soc = fuelgauge->soc_r - fuelgauge->rsoc;
-
-	if (diff_soc > 10000)
-		diff_soc = 10000;
-	else if (diff_soc < -10000)
-		diff_soc = -10000;
-
-	data[1] = ((diff_soc & 0xFF00) >> 8) & 0xFF;
-	data[1] = data[1] | 0x80;
-	data[0] = diff_soc & 0xFF;
-
+	/* Save UI SOC for maintain SOC, after low temperature reset */
+	data[0] = fuelgauge->ui_soc;
+	data[1] = 0;
 	s2mu106_write_reg(fuelgauge->i2c, S2MU106_REG_RSOC_R, data);
 
-	/* TODO: Print diff_soc & saved value for debugging */
+	/* TODO: Print UI SOC & saved value for debugging */
 	s2mu106_read_reg(fuelgauge->i2c, S2MU106_REG_RSOC_R, data);
-
-	if (data[1] & 0x40)
-		data[1] = data[1] | 0x80;
-	else
-		data[1] = data[1] & 0x7F;
-
-	diff_soc = (data[1] << 8) | data[0];
-
-	pr_info("%s: diff_soc = %d, data[1] = 0x%02x, data[0] = 0x%02x\n",
-			__func__, diff_soc, data[1], data[0]);
+	ui_soc = (data[1] << 8) | (data[0]);
+	pr_info("%s: saved UI SOC = %d, data[1] = 0x%02x, data[0] = 0x%02x\n",
+			__func__, ui_soc, data[1], data[0]);
 }
 #endif
 
-#if (BATCAP_LEARN)
+#if IS_ENABLED(BATCAP_LEARN)
 static int s2mu106_get_batcap_ocv(struct s2mu106_fuelgauge_data *fuelgauge)
 {
 	u8 data[2];
@@ -570,7 +576,7 @@ static int s2mu106_get_batcap_ocv(struct s2mu106_fuelgauge_data *fuelgauge)
 	if (s2mu106_read_reg(fuelgauge->i2c, S2MU106_REG_RBATCAP, data) < 0)
 		return -EINVAL;
 
-	dev_dbg(&fuelgauge->i2c->dev, "%s: data0 (%d) data1 (%d) \n", __func__, data[0], data[1]);
+	dev_dbg(&fuelgauge->i2c->dev, "%s: data0 (%d) data1 (%d)\n", __func__, data[0], data[1]);
 	batcap_ocv = (data[0] + (data[1] << 8)) >> 2;
 
 	return batcap_ocv;
@@ -636,7 +642,7 @@ void s2mu106_batcap_learning(struct s2mu106_fuelgauge_data *fuelgauge)
 	}
 
 	pr_info("%s: gap_cap = %d, capcc = %d, batcap_ocv = %d, bat_w = %d\n",
-			__func__, gap_cap, fuelgauge->capcc, fuelgauge->batcap_ocv, bat_w);
+		__func__, gap_cap, fuelgauge->capcc, fuelgauge->batcap_ocv, bat_w);
 }
 
 static int s2mu106_get_cap_cc(struct s2mu106_fuelgauge_data *fuelgauge)
@@ -651,8 +657,7 @@ static int s2mu106_get_cap_cc(struct s2mu106_fuelgauge_data *fuelgauge)
 		cap_cc = (~cap_cc) + 1;
 		cap_cc = cap_cc / 2;
 		cap_cc = cap_cc * (-1);
-	}
-	else
+	} else
 		cap_cc /= 2;
 
 	return cap_cc;
@@ -670,20 +675,18 @@ static int s2mu106_get_soh(struct s2mu106_fuelgauge_data *fuelgauge)
 
 	if (original != 0) {
 		ret = (batcap_ocv * 100) / original;
-
 		if (ret > 100)
 			ret = 100;
 	} else
 		ret = 100;
 
-	pr_info("%s: original batcap = %d, new_batcap = %d, soh = %d\n",
-			__func__, original, batcap_ocv, ret);
+	pr_info("%s: original batcap = %d, new_batcap = %d, soh = %d\n", __func__, original, batcap_ocv, ret);
 
 	return ret;
 }
 #endif
 
-#if (BATCAP_LEARN) || (TEMP_COMPEN)
+#if IS_ENABLED(BATCAP_LEARN) || IS_ENABLED(TEMP_COMPEN)
 static bool s2mu106_get_bat_charging(struct s2mu106_fuelgauge_data *fuelgauge)
 {
 	u8 data = 0;
@@ -694,7 +697,7 @@ static bool s2mu106_get_bat_charging(struct s2mu106_fuelgauge_data *fuelgauge)
 }
 #endif
 
-#if (BATCAP_LEARN) && (TEMP_COMPEN)
+#if IS_ENABLED(BATCAP_LEARN) && IS_ENABLED(TEMP_COMPEN)
 static int s2mu106_get_fullcharge_cap(struct s2mu106_fuelgauge_data *fuelgauge)
 {
 	int ret = -1;
@@ -725,7 +728,7 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 	u8 por_state = 0;
 	u8 reg_1E = 0;
 	u8 reg_OTP_52 = 0, reg_OTP_53 = 0;
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_ERD_CHARGER_S2MU106)
 	bool charging_enabled = false;
 #endif
 	int ret = 0;
@@ -734,9 +737,10 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 	int float_voltage = 0;
 	int avg_current = 0, avg_vbat = 0, vbat = 0, curr = 0;
 	u8 fg_mode_reg = 0;
-#if (BATCAP_LEARN)
+#if IS_ENABLED(BATCAP_LEARN)
 	int BATCAP_L_VBAT;
 #endif
+	enum power_supply_property psp;
 
 	psy = power_supply_get_by_name("battery");
 	if (!psy)
@@ -753,43 +757,48 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 	s2mu106_read_reg_byte(fuelgauge->i2c, 0x53, &reg_OTP_53);
 	s2mu106_read_reg_byte(fuelgauge->i2c, 0x52, &reg_OTP_52);
 	s2mu106_read_reg_byte(fuelgauge->i2c, 0x1E, &reg_1E);
-	dev_err(&fuelgauge->i2c->dev, "%s: OTP 52(%02x) 53(%02x), current 52(%02x) 53(%02x), "
-			"0x1F(%02x), 0x1E(%02x)\n", __func__, fuelgauge->reg_OTP_52, fuelgauge->reg_OTP_53,
-			reg_OTP_52, reg_OTP_53, por_state, reg_1E);
+	dev_err(&fuelgauge->i2c->dev,
+		"%s: OTP 52(%02x) 53(%02x), current 52(%02x) 53(%02x), 0x1F(%02x), 0x1E(%02x)\n",
+		__func__, fuelgauge->reg_OTP_52, fuelgauge->reg_OTP_53, reg_OTP_52, reg_OTP_53, por_state, reg_1E);
 
 	if (((por_state != 0x00) || (reg_1E != 0x03)) || (fuelgauge->probe_done == true &&
 		(fuelgauge->reg_OTP_52 != reg_OTP_52 || fuelgauge->reg_OTP_53 != reg_OTP_53))) {
 		/* check charging enable */
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_ERD_CHARGER_S2MU106)
 		psy = power_supply_get_by_name("s2mu106-charger");
 		if (!psy)
 			return -EINVAL;
-		ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_CHARGING_ENABLED, &value);
+
+		psp = (enum power_supply_property)POWER_SUPPLY_S2M_PROP_CHARGING_ENABLED;
+		ret = power_supply_get_property(psy, psp, &value);
 		if (ret < 0)
 			pr_err("%s: Fail to execute property\n", __func__);
 
 		charging_enabled = value.intval;
 
-		value.intval = S2MU00X_BAT_CHG_MODE_CHARGING_OFF;
+		value.intval = S2M_BAT_CHG_MODE_CHARGING_OFF;
 
 		psy = power_supply_get_by_name("s2mu106-charger");
 		if (!psy)
 			return -EINVAL;
-		ret = power_supply_set_property(psy, POWER_SUPPLY_PROP_CHARGING_ENABLED, &value);
+
+		psp = (enum power_supply_property)POWER_SUPPLY_S2M_PROP_CHARGING_ENABLED;
+		ret = power_supply_set_property(psy, psp, &value);
 		if (ret < 0)
 			pr_err("%s: Fail to execute property\n", __func__);
 #endif
 
 		if (fuelgauge->reg_OTP_52 != reg_OTP_52 || fuelgauge->reg_OTP_53 != reg_OTP_53) {
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_ERD_CHARGER_S2MU106)
 			psy = power_supply_get_by_name("s2mu106-charger");
 			if (!psy)
 				return -EINVAL;
-			ret = power_supply_set_property(psy, POWER_SUPPLY_PROP_FUELGAUGE_RESET, &value);
+
+			psp = (enum power_supply_property)POWER_SUPPLY_S2M_PROP_FUELGAUGE_RESET;
+			ret = power_supply_set_property(psy, psp, &value);
 			if (ret < 0)
 				pr_err("%s: Fail to execute property\n", __func__);
 #endif
-
 			s2mu106_write_and_verify_reg_byte(fuelgauge->i2c, 0x1F, 0x40);
 			msleep(50);
 			s2mu106_write_and_verify_reg_byte(fuelgauge->i2c, 0x1F, 0x01);
@@ -797,28 +806,30 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 			s2mu106_read_reg_byte(fuelgauge->i2c, 0x53, &reg_OTP_53);
 			s2mu106_read_reg_byte(fuelgauge->i2c, 0x52, &reg_OTP_52);
 
-			dev_err(&fuelgauge->i2c->dev, "1st reset after %s: OTP 52(%02x) 53(%02x) "
-					"current 52(%02x) 53(%02x)\n", __func__,
-					fuelgauge->reg_OTP_52, fuelgauge->reg_OTP_53, reg_OTP_52, reg_OTP_53);
+			dev_err(&fuelgauge->i2c->dev,
+				"1st reset after %s: OTP 52(%02x) 53(%02x) current 52(%02x) 53(%02x)\n", __func__,
+				fuelgauge->reg_OTP_52, fuelgauge->reg_OTP_53, reg_OTP_52, reg_OTP_53);
 
 			if (fuelgauge->reg_OTP_52 != reg_OTP_52 || fuelgauge->reg_OTP_53 != reg_OTP_53) {
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_ERD_CHARGER_S2MU106)
 				psy = power_supply_get_by_name("s2mu106-charger");
 				if (!psy)
 					return -EINVAL;
-				ret = power_supply_set_property(psy, POWER_SUPPLY_PROP_FUELGAUGE_RESET, &value);
+
+				psp = (enum power_supply_property)POWER_SUPPLY_S2M_PROP_FUELGAUGE_RESET;
+				ret = power_supply_set_property(psy, psp, &value);
 				if (ret < 0)
 					pr_err("%s: Fail to execute property\n", __func__);
 #endif
 				s2mu106_write_and_verify_reg_byte(fuelgauge->i2c, 0x1F, 0x40);
 				msleep(50);
 				s2mu106_write_and_verify_reg_byte(fuelgauge->i2c, 0x1F, 0x01);
-				dev_err(&fuelgauge->i2c->dev, "%s : 2nd reset\n", __func__);
+				dev_err(&fuelgauge->i2c->dev, "%s: 2nd reset\n", __func__);
 			}
 		}
 
 		dev_info(&fuelgauge->i2c->dev, "%s: FG reset\n", __func__);
-		if(fuelgauge->ui_soc == 0)
+		if (fuelgauge->ui_soc == 0)
 			s2mu106_reset_fg(fuelgauge);
 		else
 			s2mu106_fix_rawsoc_reset_fg(fuelgauge);
@@ -826,15 +837,17 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 		por_state = 0x00;
 		s2mu106_write_and_verify_reg_byte(fuelgauge->i2c, 0x1F, por_state);
 
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_ERD_CHARGER_S2MU106)
 		/* Recover charger status after f.g reset */
 		if (charging_enabled) {
-			value.intval = S2MU00X_BAT_CHG_MODE_CHARGING;
+			value.intval = S2M_BAT_CHG_MODE_CHARGING;
 
 			psy = power_supply_get_by_name("s2mu106-charger");
 			if (!psy)
 				return -EINVAL;
-			ret = power_supply_set_property(psy, POWER_SUPPLY_PROP_CHARGING_ENABLED, &value);
+
+			psp = (enum power_supply_property)POWER_SUPPLY_S2M_PROP_CHARGING_ENABLED;
+			ret = power_supply_set_property(psy, psp, &value);
 			if (ret < 0)
 				pr_err("%s: Fail to execute property\n", __func__);
 		}
@@ -865,7 +878,7 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 	vbat = s2mu106_get_vbat(fuelgauge);
 	curr = s2mu106_get_current(fuelgauge);
 
-#if defined(USE_EXTERNAL_TEMP)
+#if IS_ENABLED(USE_EXTERNAL_TEMP)
 	/* If you want to use temperature sensed by other IC,
 	 * change the battery driver so that F.G driver can
 	 * get the value.
@@ -883,29 +896,29 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 #endif
 
 
-#if (BATCAP_LEARN) || (TEMP_COMPEN)
+#if IS_ENABLED(BATCAP_LEARN) || IS_ENABLED(TEMP_COMPEN)
 	fuelgauge->bat_charging = s2mu106_get_bat_charging(fuelgauge);
 #endif
 
-#if (TEMP_COMPEN)
+#if IS_ENABLED(TEMP_COMPEN)
 	fuelgauge->vm_status = s2mu106_get_vm_status(fuelgauge);
 	fuelgauge->avg_curr = avg_current;
 	s2mu106_temperature_compensation(fuelgauge);
 
-	dev_info(&fuelgauge->i2c->dev, "%s: current_soc (%d), compen_soc (%d), "
-			"previous_soc (%d), FG_mode(%s)\n",
-			__func__, fuelgauge->rsoc, fuelgauge->soc_r,
-			fuelgauge->info.soc, mode_to_str[fuelgauge->mode]);
+	dev_info(&fuelgauge->i2c->dev,
+		"%s: current_soc (%d), compen_soc (%d), previous_soc (%d), FG_mode(%s)\n", __func__,
+		fuelgauge->rsoc, fuelgauge->soc_r, fuelgauge->info.soc, mode_to_str[fuelgauge->mode]);
 
 	fuelgauge->info.soc = fuelgauge->soc_r;
 #else
-	dev_info(&fuelgauge->i2c->dev, "%s: current_soc (%d), previous_soc (%d), FG_mode(%s)\n",
-		 __func__, fuelgauge->rsoc, fuelgauge->info.soc, mode_to_str[fuelgauge->mode]);
+	dev_info(&fuelgauge->i2c->dev,
+		"%s: current_soc (%d), previous_soc (%d), FG_mode(%s)\n", __func__,
+		fuelgauge->rsoc, fuelgauge->info.soc, mode_to_str[fuelgauge->mode]);
 
 	fuelgauge->info.soc = fuelgauge->rsoc;
 #endif
 
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_ERD_CHARGER_S2MU106)
 	psy = power_supply_get_by_name("s2mu106-charger");
 	if (!psy)
 		return -EINVAL;
@@ -921,13 +934,12 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 
 	s2mu106_read_reg_byte(fuelgauge->i2c, 0x4A, &fg_mode_reg);
 
-	dev_info(&fuelgauge->i2c->dev, "%s: UI SOC = %d, is_charging = %d, avg_vbat = %d, "
-		"float_voltage = %d, avg_current = %d, 0x4A = 0x%02x\n", __func__,
-		fuelgauge->ui_soc, fuelgauge->is_charging, avg_vbat,
-		float_voltage, avg_current, fg_mode_reg);
+	dev_info(&fuelgauge->i2c->dev,
+		"%s: UI SOC=%d, is_charging=%d, avg_vbat=%d, float_voltage=%d, avg_current=%d, 0x4A=0x%02x\n", __func__,
+		fuelgauge->ui_soc, fuelgauge->is_charging, avg_vbat, float_voltage, avg_current, fg_mode_reg);
 
 	if ((fuelgauge->is_charging == true) &&
-		((fuelgauge->ui_soc >= 98) || ((avg_vbat > float_voltage) && (avg_current < 500)))) {
+	    ((fuelgauge->ui_soc >= 98) || ((avg_vbat > float_voltage) && (avg_current < 500)))) {
 		if (fuelgauge->mode == CURRENT_MODE) { /* switch to VOLTAGE_MODE */
 			fuelgauge->mode = HIGH_SOC_VOLTAGE_MODE;
 
@@ -951,7 +963,7 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 		}
 	}
 
-#if (BATCAP_LEARN)
+#if IS_ENABLED(BATCAP_LEARN)
 	fuelgauge->capcc = s2mu106_get_cap_cc(fuelgauge);
 	fuelgauge->batcap_ocv = s2mu106_get_batcap_ocv(fuelgauge); // CC mode capacity
 	fuelgauge->cycle = s2mu106_get_cycle(fuelgauge);
@@ -970,12 +982,11 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 					fuelgauge->cond1_ok = true;
 					fuelgauge->c1_count = 0;
 				} else {
-					if ((vbat >= BATCAP_L_VBAT) && (avg_current < BAT_L_CON[4]) &&
-							(fuelgauge->rsoc >= 9700)) {
+					if ((vbat >= BATCAP_L_VBAT) &&
+					    (avg_current < BAT_L_CON[4]) && (fuelgauge->rsoc >= 9700)) {
 						fuelgauge->c1_count++;
-					} else {
+					} else
 						fuelgauge->c1_count = 0;
-					}
 				}
 			} else {
 				if (fuelgauge->c2_count >= BAT_L_CON[3]) {
@@ -983,14 +994,13 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge)
 					goto batcap_learn_init;
 				} else {
 					if ((vbat >= (BATCAP_L_VBAT - 100)) && (avg_current > -30) &&
-							(avg_current < 30) && (fuelgauge->rsoc >= 9800)) {
+					    (avg_current < 30) && (fuelgauge->rsoc >= 9800)) {
 						fuelgauge->c2_count++;
-					} else {
+					} else if (avg_current <= -30) {
 						fuelgauge->c2_count = 0;
-
-						if (avg_current <= -30)
-							goto batcap_learn_init;
-					}
+						goto batcap_learn_init;
+					} else
+						fuelgauge->c2_count = 0;
 				}
 			}
 		}
@@ -1003,21 +1013,20 @@ batcap_learn_init:
 	}
 #endif
 
-#if (TEMP_COMPEN) && (BATCAP_LEARN)
+#if IS_ENABLED(TEMP_COMPEN) && IS_ENABLED(BATCAP_LEARN)
 	fuelgauge->soh = s2mu106_get_soh(fuelgauge);
 	fuelgauge->capcc = s2mu106_get_cap_cc(fuelgauge);
 	fuelgauge->fcc = s2mu106_get_fullcharge_cap(fuelgauge);
 	fuelgauge->rmc = s2mu106_get_remaining_cap(fuelgauge);
 
-	pr_info("%s: SOC_M = %d, Chg_stat = %d, VM = %d, avbVBAT = %d, avgCURR = %d, avgTEMP = %d, "
-			"SOCni = %d, SOC0i = %d, SOCr = %d, SOC_R = %d, "
-			"Learning_start = %d, C1_count = %d/%d, C2_count = %d/%d, "
-			"BATCAP_OCV_new = %d, SOH = %d, CAP_CC = %d, FCC = %d, RM = %d\n",
-			__func__,
-			fuelgauge->rsoc, fuelgauge->bat_charging, fuelgauge->vm_status, avg_vbat, avg_current, fuelgauge->temperature,
-			fuelgauge->socni, fuelgauge->soc0i, fuelgauge->comp_socr, fuelgauge->soc_r,
-			fuelgauge->learn_start, fuelgauge->c1_count, BAT_L_CON[2], fuelgauge->c2_count, BAT_L_CON[3],
-			fuelgauge->batcap_ocv_fin, fuelgauge->soh, fuelgauge->capcc, fuelgauge->fcc, fuelgauge->rmc);
+	pr_info("%s: SOC_M = %d, Chg_stat = %d, VM = %d, avbVBAT = %d, avgCURR = %d\n", __func__,
+		fuelgauge->rsoc, fuelgauge->bat_charging, fuelgauge->vm_status, avg_vbat, avg_current);
+	pr_info("%s: avgTEMP = %d, SOCni = %d, SOC0i = %d, SOCr = %d, SOC_R = %d\n", __func__,
+		fuelgauge->temperature, fuelgauge->socni, fuelgauge->soc0i, fuelgauge->comp_socr, fuelgauge->soc_r);
+	pr_info("%s: Learning_start = %d, C1_count = %d/%d, C2_count = %d/%d\n", __func__,
+		fuelgauge->learn_start, fuelgauge->c1_count, BAT_L_CON[2], fuelgauge->c2_count, BAT_L_CON[3]);
+	pr_info("%s: BATCAP_OCV_new = %d, SOH = %d, CAP_CC = %d, FCC = %d, RM = %d\n", __func__,
+		fuelgauge->batcap_ocv_fin, fuelgauge->soh, fuelgauge->capcc, fuelgauge->fcc, fuelgauge->rmc);
 #endif
 
 	/* Low voltage W/A, make 0% */
@@ -1039,7 +1048,7 @@ batcap_learn_init:
 
 			/* Make report SOC 0% */
 			fuelgauge->info.soc = 0;
-#if (TEMP_COMPEN)
+#if IS_ENABLED(TEMP_COMPEN)
 			fuelgauge->soc_r = 0;
 #endif
 		} else {
@@ -1047,24 +1056,24 @@ batcap_learn_init:
 
 			/* Make report SOC 0% */
 			fuelgauge->info.soc = 0;
-#if (TEMP_COMPEN)
+#if IS_ENABLED(TEMP_COMPEN)
 			fuelgauge->soc_r = 0;
 #endif
 		}
 	}
 
-#if (TEMP_COMPEN)
+#if IS_ENABLED(TEMP_COMPEN)
 	/* Maintain UI SOC if battery is relaxing */
 	if (((fuelgauge->temperature < fuelgauge->low_temp_limit) &&
-				(fuelgauge->soc_r == 0) && (fuelgauge->rsoc > 500)) &&
-			(((avg_current > -60) && (avg_current < 50)) || ((curr > -100) && (curr < 50)))) {
+		(fuelgauge->soc_r == 0) && (fuelgauge->rsoc > 500)) &&
+		(((avg_current > -60) && (avg_current < 50)) || ((curr > -100) && (curr < 50)))) {
 		fuelgauge->soc_r = fuelgauge->ui_soc * 100;
 		fuelgauge->info.soc = fuelgauge->soc_r;
 		fuelgauge->init_start = 1;
 
 		dev_info(&fuelgauge->i2c->dev,
-				"%s:  Maintain UI SOC if battery is relaxing SOC_R = %d, info.soc = %d\n",
-				__func__, fuelgauge->soc_r, fuelgauge->info.soc);
+			"%s:  Maintain UI SOC if battery is relaxing SOC_R = %d, info.soc = %d\n",
+			__func__, fuelgauge->soc_r, fuelgauge->info.soc);
 	}
 #endif
 
@@ -1105,7 +1114,6 @@ static int s2mu106_get_current(struct s2mu106_fuelgauge_data *fuelgauge)
 static int s2mu106_get_ocv(struct s2mu106_fuelgauge_data *fuelgauge)
 {
 	/* 22 values of mapping table for EVT1*/
-
 	int *soc_arr;
 	int *ocv_arr;
 
@@ -1141,8 +1149,7 @@ static int s2mu106_get_ocv(struct s2mu106_fuelgauge_data *fuelgauge)
 		}
 	}
 
-	if ((high_index >= 0 && high_index < TABLE_SIZE) &&
-	    (low_index >= 0 && low_index < TABLE_SIZE)) {
+	if ((high_index >= 0 && high_index < TABLE_SIZE) && (low_index >= 0 && low_index < TABLE_SIZE)) {
 		ocv = ocv_arr[high_index];
 		ocv += ((ocv_arr[low_index] - ocv_arr[high_index]) *
 			(soc - soc_arr[high_index])) /
@@ -1255,20 +1262,19 @@ bool s2mu106_fuelgauge_fuelalert_init(struct i2c_client *client, int soc)
 
 	s2mu106_write_reg(client, S2MU106_REG_IRQ, data);
 
-	dev_dbg(&client->dev, "%s: irq_reg(%02x%02x) irq(%d)\n",
-			__func__, data[1], data[0], fuelgauge->pdata->fg_irq);
+	dev_dbg(&client->dev, "%s: irq_reg(%02x%02x) irq(%d)\n", __func__, data[1], data[0], fuelgauge->pdata->fg_irq);
 
 	return true;
 }
 
 static int s2mu106_fg_get_property(struct power_supply *psy,
-		enum power_supply_property psp,
-		union power_supply_propval *val)
+				enum power_supply_property psp,
+				union power_supply_propval *val)
 {
-	struct s2mu106_fuelgauge_data *fuelgauge =
-					power_supply_get_drvdata(psy);
+	struct s2mu106_fuelgauge_data *fuelgauge = power_supply_get_drvdata(psy);
+	enum s2m_power_supply_property s2m_psp = (enum s2m_power_supply_property) psp;
 
-	switch (psp) {
+	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		return -ENODATA;
 	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
@@ -1287,24 +1293,24 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 		/* Additional Voltage Information (mV) */
 	case POWER_SUPPLY_PROP_VOLTAGE_AVG:
 		switch (val->intval) {
-		case S2MU00X_BATTERY_VOLTAGE_AVERAGE:
+		case S2M_BATTERY_VOLTAGE_AVERAGE:
 			val->intval = s2mu106_get_avgvbat(fuelgauge);
 			break;
-		case S2MU00X_BATTERY_VOLTAGE_OCV:
+		case S2M_BATTERY_VOLTAGE_OCV:
 			val->intval = s2mu106_get_ocv(fuelgauge);
 			break;
 		}
 		break;
 		/* Current (mA) */
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		if (val->intval == S2MU00X_BATTERY_CURRENT_UA)
+		if (val->intval == S2M_BATTERY_CURRENT_UA)
 			val->intval = s2mu106_get_current(fuelgauge) * 1000;
 		else
 			val->intval = s2mu106_get_current(fuelgauge);
 		break;
 		/* Average Current (mA) */
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		if (val->intval == S2MU00X_BATTERY_CURRENT_UA)
+		if (val->intval == S2M_BATTERY_CURRENT_UA)
 			val->intval = s2mu106_get_avgcurrent(fuelgauge) * 1000;
 		else
 			val->intval = s2mu106_get_avgcurrent(fuelgauge);
@@ -1321,36 +1327,45 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 			val->intval = 0;
 
 		/* check whether doing the wake_unlock */
-		if (((val->intval / 10) > fuelgauge->pdata->fuel_alert_soc) &&
-				fuelgauge->is_fuel_alerted) {
-			wake_unlock(&fuelgauge->fuel_alert_wake_lock);
-			s2mu106_fuelgauge_fuelalert_init(fuelgauge->i2c,
-					fuelgauge->pdata->fuel_alert_soc);
+		if (((val->intval / 10) > fuelgauge->pdata->fuel_alert_soc) && fuelgauge->is_fuel_alerted) {
+			fg_wake_unlock(fuelgauge->fuel_alert_ws);
+			s2mu106_fuelgauge_fuelalert_init(fuelgauge->i2c, fuelgauge->pdata->fuel_alert_soc);
 		}
 		break;
 	/* Battery Temperature */
 	case POWER_SUPPLY_PROP_TEMP:
-	/* Target Temperature */
-	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
 		val->intval = s2mu106_get_temperature(fuelgauge);
 		break;
-	case POWER_SUPPLY_PROP_CHARGE_TEMP:
+	/* Target Temperature */
+	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
 		val->intval = s2mu106_get_temperature(fuelgauge);
 		break;
 	case POWER_SUPPLY_PROP_SCOPE:
 		val->intval = fuelgauge->mode;
 		break;
-	case POWER_SUPPLY_PROP_SOH:
-#if (BATCAP_LEARN)
-		fuelgauge->soh = s2mu106_get_soh(fuelgauge);
-		val->intval = fuelgauge->soh;
+	case POWER_SUPPLY_PROP_ONLINE:
+		pr_info("[DEBUG]%s: POWER_SUPPLY_PROP_ONLINE\n", __func__);
+		return 1;
+	case POWER_SUPPLY_S2M_PROP_MIN ... POWER_SUPPLY_S2M_PROP_MAX:
+		switch (s2m_psp) {
+		case POWER_SUPPLY_S2M_PROP_CHARGE_TEMP:
+			val->intval = s2mu106_get_temperature(fuelgauge);
+			break;
+		case POWER_SUPPLY_S2M_PROP_SOH:
+#if IS_ENABLED(BATCAP_LEARN)
+			fuelgauge->soh = s2mu106_get_soh(fuelgauge);
+			val->intval = fuelgauge->soh;
 #else
-		/* If battery capacity learning is not enabled,
-		 * return SOH is 100%
-		 */
-		val->intval = 100;
+			/* If battery capacity learning is not enabled,
+			 * return SOH is 100%
+			 */
+			val->intval = 100;
 #endif
-		break;
+			break;
+		default:
+			return -EINVAL;
+		}
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -1359,23 +1374,17 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 }
 
 static int s2mu106_fg_set_property(struct power_supply *psy,
-		enum power_supply_property psp,
-		const union power_supply_propval *val)
+				enum power_supply_property psp,
+				const union power_supply_propval *val)
 {
-	struct s2mu106_fuelgauge_data *fuelgauge =
-				power_supply_get_drvdata(psy);
+	struct s2mu106_fuelgauge_data *fuelgauge = power_supply_get_drvdata(psy);
+	enum s2m_power_supply_property s2m_psp = (enum s2m_power_supply_property) psp;
 
-	switch (psp) {
+	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
 		fuelgauge->cable_type = val->intval;
-		break;
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		if (val->intval)
-			fuelgauge->is_charging = true;
-		else
-			fuelgauge->is_charging = false;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		break;
@@ -1389,6 +1398,18 @@ static int s2mu106_fg_set_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_AVG:
 		break;
+	case POWER_SUPPLY_S2M_PROP_MIN ... POWER_SUPPLY_S2M_PROP_MAX:
+		switch (s2m_psp) {
+		case POWER_SUPPLY_S2M_PROP_CHARGING_ENABLED:
+			if (val->intval)
+				fuelgauge->is_charging = true;
+			else
+				fuelgauge->is_charging = false;
+			break;
+		default:
+			return -EINVAL;
+		}
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -1398,29 +1419,26 @@ static int s2mu106_fg_set_property(struct power_supply *psy,
 
 static void s2mu106_fg_isr_work(struct work_struct *work)
 {
-	struct s2mu106_fuelgauge_data *fuelgauge =
-		container_of(work, struct s2mu106_fuelgauge_data, isr_work.work);
+	struct s2mu106_fuelgauge_data *fuelgauge = container_of(work, struct s2mu106_fuelgauge_data, isr_work.work);
 	u8 fg_alert_status = 0;
 
 	s2mu106_read_reg_byte(fuelgauge->i2c, S2MU106_REG_STATUS, &fg_alert_status);
-	dev_info(&fuelgauge->i2c->dev, "%s : fg_alert_status(0x%x)\n",
-		__func__, fg_alert_status);
+	dev_info(&fuelgauge->i2c->dev, "%s: fg_alert_status(0x%x)\n", __func__, fg_alert_status);
 
 	fg_alert_status &= 0x03;
 	if (fg_alert_status & 0x01)
-		pr_info("%s : Battery Level(SOC) is very Low!\n", __func__);
+		pr_info("%s: Battery Level(SOC) is very Low!\n", __func__);
 
 	if (fg_alert_status & 0x02) {
 		int voltage = s2mu106_get_vbat(fuelgauge);
 
-		pr_info("%s : Battery Votage is very Low! (%dmV)\n",
-				__func__, voltage);
+		pr_info("%s: Battery Votage is very Low! (%dmV)\n", __func__, voltage);
 	}
 
 	if (!fg_alert_status) {
 		fuelgauge->is_fuel_alerted = false;
-		pr_info("%s : SOC or Voltage is Good!\n", __func__);
-		wake_unlock(&fuelgauge->fuel_alert_wake_lock);
+		pr_info("%s: SOC or Voltage is Good!\n", __func__);
+		fg_wake_unlock(fuelgauge->fuel_alert_ws);
 	}
 }
 
@@ -1430,21 +1448,19 @@ static irqreturn_t s2mu106_fg_irq_thread(int irq, void *irq_data)
 	u8 fg_irq = 0;
 
 	s2mu106_read_reg_byte(fuelgauge->i2c, S2MU106_REG_IRQ, &fg_irq);
-	dev_info(&fuelgauge->i2c->dev, "%s: fg_irq(0x%x)\n",
-		__func__, fg_irq);
+	dev_info(&fuelgauge->i2c->dev, "%s: fg_irq(0x%x)\n", __func__, fg_irq);
 
-	if (fuelgauge->is_fuel_alerted) {
+	if (fuelgauge->is_fuel_alerted)
 		return IRQ_HANDLED;
-	} else {
-		wake_lock(&fuelgauge->fuel_alert_wake_lock);
-		fuelgauge->is_fuel_alerted = true;
-		schedule_delayed_work(&fuelgauge->isr_work, 0);
-	}
+
+	fg_wake_lock(fuelgauge->fuel_alert_ws);
+	fuelgauge->is_fuel_alerted = true;
+	schedule_delayed_work(&fuelgauge->isr_work, 0);
 
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 {
 	struct device_node *np = of_find_node_by_name(NULL, "s2mu106-fuelgauge");
@@ -1452,29 +1468,24 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 
 	/* reset, irq gpio info */
 	if (np == NULL) {
-		pr_err("%s np NULL\n", __func__);
+		pr_err("%s: np NULL\n", __func__);
 	} else {
-		ret = of_property_read_u32(np, "fuelgauge,fuel_alert_vol",
-				&fuelgauge->pdata->fuel_alert_vol);
+		ret = of_property_read_u32(np, "fuelgauge,fuel_alert_vol", &fuelgauge->pdata->fuel_alert_vol);
 		if (ret < 0) {
 			fuelgauge->pdata->fuel_alert_vol = 3300;
-			pr_err("%s Default value of fuel_alert_vol : %d\n",
-					__func__, fuelgauge->pdata->fuel_alert_vol);
+			pr_err("%s: Default value of fuel_alert_vol: %d\n", __func__, fuelgauge->pdata->fuel_alert_vol);
 		}
 
-		ret = of_property_read_u32(np, "fuelgauge,fuel_alert_soc",
-				&fuelgauge->pdata->fuel_alert_soc);
+		ret = of_property_read_u32(np, "fuelgauge,fuel_alert_soc", &fuelgauge->pdata->fuel_alert_soc);
 		if (ret < 0)
-			pr_err("%s error reading pdata->fuel_alert_soc %d\n",
-					__func__, ret);
+			pr_err("%s: error reading pdata->fuel_alert_soc %d\n", __func__, ret);
 
 		np = of_find_node_by_name(NULL, "battery");
-		if (!np) {
-			pr_err("%s np NULL\n", __func__);
-		} else {
-			ret = of_property_read_string(np,
-					"battery,fuelgauge_name",
-					(char const **)&fuelgauge->pdata->fuelgauge_name);
+		if (!np)
+			pr_err("%s: np NULL\n", __func__);
+		else {
+			ret = of_property_read_string(np, "battery,fuelgauge_name",
+							(char const **)&fuelgauge->pdata->fuelgauge_name);
 			if (ret < 0)
 				pr_err("%s error reading battery,fuelgauge_name\n", __func__);
 		}
@@ -1482,52 +1493,50 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 		/* get battery node */
 		np = of_find_node_by_name(NULL, "battery");
 		if (!np) {
-			pr_err("%s battery node NULL\n", __func__);
+			pr_err("%s: battery node NULL\n", __func__);
 		} else {
 			/* get battery data */
 			ret = of_property_read_u32_array(np, "battery,battery_table3",
-							 fuelgauge->info.battery_table3, 88);
+							fuelgauge->info.battery_table3, 88);
 			if (ret < 0)
-				pr_err("%s error reading battery,battery_table3\n", __func__);
+				pr_err("%s: error reading battery,battery_table3\n", __func__);
 
 			ret = of_property_read_u32_array(np, "battery,battery_table4",
 							 fuelgauge->info.battery_table4, 22);
 			if (ret < 0)
-				pr_err("%s error reading battery,battery_table4\n", __func__);
+				pr_err("%s: error reading battery,battery_table4\n", __func__);
 
 			ret = of_property_read_u32_array(np, "battery,batcap",
 							 fuelgauge->info.batcap, 4);
 			if (ret < 0)
-				pr_err("%s error reading battery,batcap\n", __func__);
+				pr_err("%s: error reading battery,batcap\n", __func__);
 
 			ret = of_property_read_u32_array(np, "battery,soc_arr_val",
 							 fuelgauge->info.soc_arr_val, 22);
 			if (ret < 0)
-				pr_err("%s error reading battery,soc_arr_val\n", __func__);
+				pr_err("%s: error reading battery,soc_arr_val\n", __func__);
 
 			ret = of_property_read_u32_array(np, "battery,ocv_arr_val",
 							 fuelgauge->info.ocv_arr_val, 22);
 			if (ret < 0)
-				pr_err("%s error reading battery,ocv_arr_val\n", __func__);
+				pr_err("%s: error reading battery,ocv_arr_val\n", __func__);
 
 			ret = of_property_read_u32_array(np, "battery,accum",
 							 fuelgauge->info.accum, 2);
 			if (ret < 0) {
-				fuelgauge->info.accum[1]=0x00; // REG 0x44
-				fuelgauge->info.accum[0]=0x08; // REG 0x45
-				pr_err("%s There is no cell1 accumulative rate in DT. Use default value(0x800)\n", __func__);
+				fuelgauge->info.accum[1] = 0x00; // REG 0x44
+				fuelgauge->info.accum[0] = 0x08; // REG 0x45
+				pr_err("%s: There is no cell1 accumulative rate in DT. Use default value(0x800)\n",
+					__func__);
 			}
 
-			ret = of_property_read_u32(np, "battery,battery_param_ver",
-					&fuelgauge->info.battery_param_ver);
+			ret = of_property_read_u32(np, "battery,battery_param_ver", &fuelgauge->info.battery_param_ver);
 			if (ret < 0)
-				pr_err("%s There is no battery parameter version\n", __func__);
+				pr_err("%s: There is no battery parameter version\n", __func__);
 
-			ret = of_property_read_u32(np, "battery,low_temp_limit",
-					&fuelgauge->low_temp_limit);
+			ret = of_property_read_u32(np, "battery,low_temp_limit", &fuelgauge->low_temp_limit);
 			if (ret < 0) {
-				pr_err("%s There is no low temperature limit. Use default(100)\n",
-						__func__);
+				pr_err("%s: There is no low temperature limit. Use default(100)\n", __func__);
 				fuelgauge->low_temp_limit = 100;
 			}
 		}
@@ -1536,14 +1545,14 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 	return 0;
 }
 
-static struct of_device_id s2mu106_fuelgauge_match_table[] = {
+static const struct of_device_id s2mu106_fuelgauge_match_table[] = {
 	{ .compatible = "samsung,s2mu106-fuelgauge",},
 	{},
 };
 #else
 static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 {
-	return -ENOSYS;
+	return 0;
 }
 
 #define s2mu106_fuelgauge_match_table NULL
@@ -1558,8 +1567,7 @@ static const struct power_supply_desc s2mu106_fuelgauge_power_supply_desc = {
 	.set_property = s2mu106_fg_set_property,
 };
 
-static int s2mu106_fuelgauge_probe(struct i2c_client *client,
-				const struct i2c_device_id *id)
+static int s2mu106_fuelgauge_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct s2mu106_fuelgauge_data *fuelgauge;
@@ -1582,19 +1590,16 @@ static int s2mu106_fuelgauge_probe(struct i2c_client *client,
 	fuelgauge->i2c = client;
 
 	if (client->dev.of_node) {
-		fuelgauge->pdata = devm_kzalloc(&client->dev, sizeof(*(fuelgauge->pdata)),
-				GFP_KERNEL);
+		fuelgauge->pdata = devm_kzalloc(&client->dev, sizeof(*(fuelgauge->pdata)), GFP_KERNEL);
 		if (!fuelgauge->pdata) {
-			dev_err(&client->dev, "Failed to allocate memory\n");
 			ret = -ENOMEM;
 			goto err_parse_dt_nomem;
 		}
 		ret = s2mu106_fuelgauge_parse_dt(fuelgauge);
 		if (ret < 0)
 			goto err_parse_dt;
-	} else {
+	} else
 		fuelgauge->pdata = client->dev.platform_data;
-	}
 
 	i2c_set_clientdata(client, fuelgauge);
 
@@ -1607,8 +1612,7 @@ static int s2mu106_fuelgauge_probe(struct i2c_client *client,
 	s2mu106_read_reg_byte(fuelgauge->i2c, 0x48, &temp);
 	fuelgauge->revision = (temp & 0xF0) >> 4;
 
-	pr_info("%s: S2MU106 Fuelgauge revision: 0x%x, reg 0x48 = 0x%x\n",
-			__func__, fuelgauge->revision, temp);
+	pr_info("%s: S2MU106 Fuelgauge revision: 0x%x, reg 0x48 = 0x%x\n", __func__, fuelgauge->revision, temp);
 
 	fuelgauge->info.soc = 0;
 
@@ -1618,14 +1622,13 @@ static int s2mu106_fuelgauge_probe(struct i2c_client *client,
 	pr_info("%s: 0x4A = 0x%02x, rawsoc = %d\n", __func__, temp, raw_soc_val);
 	if (temp == 0x10)
 		fuelgauge->mode = CURRENT_MODE;
-	else if (temp == 0xFF) {
+	else if (temp == 0xFF)
 		fuelgauge->mode = HIGH_SOC_VOLTAGE_MODE;
-	}
 
-#if (TEMP_COMPEN)
+#if IS_ENABLED(TEMP_COMPEN)
 	fuelgauge->init_start = 1;
 #endif
-#if (BATCAP_LEARN)
+#if IS_ENABLED(BATCAP_LEARN)
 	fuelgauge->learn_start = false;
 	fuelgauge->cond1_ok = false;
 	fuelgauge->c1_count = 0;
@@ -1634,8 +1637,7 @@ static int s2mu106_fuelgauge_probe(struct i2c_client *client,
 
 	s2mu106_init_regs(fuelgauge);
 
-	fuelgauge->psy_fg = power_supply_register(
-		&client->dev, &s2mu106_fuelgauge_power_supply_desc, &fuelgauge_cfg);
+	fuelgauge->psy_fg = power_supply_register(&client->dev, &s2mu106_fuelgauge_power_supply_desc, &fuelgauge_cfg);
 	if (!fuelgauge->psy_fg) {
 		pr_err("%s: Failed to Register psy_fg\n", __func__);
 		ret = PTR_ERR(fuelgauge->psy_fg);
@@ -1644,57 +1646,56 @@ static int s2mu106_fuelgauge_probe(struct i2c_client *client,
 
 	fuelgauge->is_fuel_alerted = false;
 	if (fuelgauge->pdata->fuel_alert_soc >= 0) {
-		s2mu106_fuelgauge_fuelalert_init(fuelgauge->i2c,
-					fuelgauge->pdata->fuel_alert_soc);
-		wake_lock_init(&fuelgauge->fuel_alert_wake_lock,
-					WAKE_LOCK_SUSPEND, "fuel_alerted");
+		s2mu106_fuelgauge_fuelalert_init(fuelgauge->i2c, fuelgauge->pdata->fuel_alert_soc);
+
+		/* Set wake_lock */
+		if (fg_set_wake_lock(fuelgauge) < 0) {
+			pr_err("%s: fg_set_wake_lock fail\n", __func__);
+			goto err_wake_lock;
+		}
 
 		if (fuelgauge->pdata->fg_irq > 0) {
-			INIT_DELAYED_WORK(
-					&fuelgauge->isr_work, s2mu106_fg_isr_work);
+			INIT_DELAYED_WORK(&fuelgauge->isr_work, s2mu106_fg_isr_work);
 
 			fuelgauge->fg_irq = gpio_to_irq(fuelgauge->pdata->fg_irq);
-			dev_info(&client->dev,
-					"%s : fg_irq = %d\n", __func__, fuelgauge->fg_irq);
+			dev_info(&client->dev, "%s: fg_irq = %d\n", __func__, fuelgauge->fg_irq);
 			if (fuelgauge->fg_irq > 0) {
 				ret = request_threaded_irq(fuelgauge->fg_irq,
-						NULL, s2mu106_fg_irq_thread,
-						IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING
-						| IRQF_ONESHOT,
-						"fuelgauge-irq", fuelgauge);
+							NULL, s2mu106_fg_irq_thread,
+							IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+							"fuelgauge-irq", fuelgauge);
 				if (ret) {
-					dev_err(&client->dev,
-							"%s: Failed to Request IRQ\n", __func__);
+					dev_err(&client->dev, "%s: Failed to Request IRQ\n", __func__);
 					goto err_supply_unreg;
 				}
 
 				ret = enable_irq_wake(fuelgauge->fg_irq);
 				if (ret < 0)
 					dev_err(&client->dev,
-							"%s: Failed to Enable Wakeup Source(%d)\n",
-							__func__, ret);
+						"%s: Failed to Enable Wakeup Source(%d)\n", __func__, ret);
 			} else {
-				dev_err(&client->dev, "%s: Failed gpio_to_irq(%d)\n",
-						__func__, fuelgauge->fg_irq);
+				dev_err(&client->dev, "%s: Failed gpio_to_irq(%d)\n", __func__, fuelgauge->fg_irq);
 				goto err_supply_unreg;
 			}
 		}
 	}
 
-#if (TEMP_COMPEN) || (BATCAP_LEARN)
+#if IS_ENABLED(TEMP_COMPEN) || IS_ENABLED(BATCAP_LEARN)
 	fuelgauge->bat_charging = false;
 #endif
 	fuelgauge->probe_done = true;
 
 	s2mu106_read_reg_byte(fuelgauge->i2c, S2MU106_REG_FG_ID, &temp);
-	pr_info("%s: parameter ver. in IC: 0x%02x, in kernel: 0x%02x\n", __func__,
-			temp & 0x0F, fuelgauge->info.battery_param_ver);
+	pr_info("%s: parameter ver. in IC: 0x%02x, in kernel: 0x%02x\n",
+		__func__, temp & 0x0F, fuelgauge->info.battery_param_ver);
 
 	pr_info("%s: S2MU106 Fuelgauge Driver Loaded\n", __func__);
 	return 0;
 
 err_supply_unreg:
 	power_supply_unregister(fuelgauge->psy_fg);
+err_wake_lock:
+	wakeup_source_unregister(fuelgauge->fuel_alert_ws);
 err_data_free:
 	if (client->dev.of_node)
 		kfree(fuelgauge->pdata);
@@ -1722,12 +1723,12 @@ static int s2mu106_fuelgauge_remove(struct i2c_client *client)
 	struct s2mu106_fuelgauge_data *fuelgauge = i2c_get_clientdata(client);
 
 	if (fuelgauge->pdata->fuel_alert_soc >= 0)
-		wake_lock_destroy(&fuelgauge->fuel_alert_wake_lock);
+		device_init_wakeup(&fuelgauge->i2c->dev, false);
 
 	return 0;
 }
 
-#if defined CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 static int s2mu106_fuelgauge_suspend(struct device *dev)
 {
 	return 0;
@@ -1760,7 +1761,7 @@ static struct i2c_driver s2mu106_fuelgauge_driver = {
 
 static int __init s2mu106_fuelgauge_init(void)
 {
-	pr_info("%s: S2MU106 Fuelgauge Init\n", __func__);
+	pr_info("%s\n", __func__);
 	return i2c_add_driver(&s2mu106_fuelgauge_driver);
 }
 
@@ -1770,16 +1771,7 @@ static void __exit s2mu106_fuelgauge_exit(void)
 }
 module_init(s2mu106_fuelgauge_init);
 module_exit(s2mu106_fuelgauge_exit);
-static int __init batt_temp_set(char *str)
-{
-	if (strncmp("true", str, 4) == 0)
-		batt_temp_flag = true;
-	else {
-		batt_temp_flag = false;
-	}
-	return 0;
-} early_param("androidboot.batt_temp", batt_temp_set);
-
 MODULE_DESCRIPTION("Samsung S2MU106 Fuel Gauge Driver");
 MODULE_AUTHOR("Samsung Electronics");
+MODULE_SOFTDEP("post: s2mu106_charger s2m_chg_manager");
 MODULE_LICENSE("GPL");

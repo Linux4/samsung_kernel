@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/module.h>
 #include <linux/smp.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
@@ -121,7 +122,7 @@ static int pmu_cpu_offset(unsigned int cpu)
 	}
 	return offset;
 }
-
+#if 0
 static void pmu_cpu_ctrl(unsigned int cpu, int enable)
 {
 	unsigned int offset;
@@ -131,7 +132,7 @@ static void pmu_cpu_ctrl(unsigned int cpu, int enable)
 			CPU_LOCAL_PWR_CFG,
 			enable ? CPU_LOCAL_PWR_CFG : 0);
 }
-
+#endif
 static int pmu_cpu_state(unsigned int cpu)
 {
 	unsigned int offset, val = 0;
@@ -149,7 +150,7 @@ static int pmu_cpu_state(unsigned int cpu)
 #define MEMORY_CLUSTER_ADDR_OFFSET		0x21C
 #define NONCPU_LOCAL_PWR_CFG			0xF
 #define SHARED_CACHE_LOCAL_PWR_CFG		0x1
-
+#if 0
 static void pmu_cluster_ctrl(unsigned int cpu, int enable)
 {
 	unsigned int offset;
@@ -195,12 +196,14 @@ static void exynos_cpu_down(unsigned int cpu)
 {
 	pmu_cpu_ctrl(cpu, 0);
 }
+#endif
 
 static int exynos_cpu_state(unsigned int cpu)
 {
 	return pmu_cpu_state(cpu);
 }
 
+#if 0
 static void exynos_cluster_up(unsigned int cpu)
 {
 	pmu_cluster_ctrl(cpu, false);
@@ -216,15 +219,16 @@ static int exynos_cluster_state(unsigned int cpu)
 	return pmu_shared_cache_state(cpu) &&
 			pmu_noncpu_state(cpu);
 }
-
+#endif
 struct exynos_cpu_power_ops exynos_cpu = {
-	.power_up = exynos_cpu_up,
-	.power_down = exynos_cpu_down,
+//	.power_up = exynos_cpu_up,
+//	.power_down = exynos_cpu_down,
 	.power_state = exynos_cpu_state,
-	.cluster_up = exynos_cluster_up,
-	.cluster_down = exynos_cluster_down,
-	.cluster_state = exynos_cluster_state,
+//	.cluster_up = exynos_cluster_up,
+//	.cluster_down = exynos_cluster_down,
+//	.cluster_state = exynos_cluster_state,
 };
+EXPORT_SYMBOL(exynos_cpu);
 
 #ifdef CONFIG_CP_PMUCAL
 #define PMU_CP_STAT		0x0038
@@ -242,7 +246,6 @@ static int exynos_pmu_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct resource *res;
-
 	pmureg = syscon_regmap_lookup_by_phandle(dev->of_node,
 						"samsung,syscon-phandle");
 	if (IS_ERR(pmureg)) {
@@ -285,4 +288,5 @@ int __init exynos_pmu_init(void)
 {
 	return platform_driver_register(&exynos_pmu_driver);
 }
-subsys_initcall(exynos_pmu_init);
+postcore_initcall(exynos_pmu_init);
+MODULE_LICENSE("GPL");

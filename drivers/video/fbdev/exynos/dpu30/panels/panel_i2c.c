@@ -40,11 +40,12 @@ static int panel_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
-MODULE_DEVICE_TABLE(i2c, panel_i2c_id);
+
 static struct i2c_device_id panel_i2c_id[] = {
 	{"lm36274", 0},
 	{},
 };
+MODULE_DEVICE_TABLE(i2c, panel_i2c_id);
 
 static const struct of_device_id panel_i2c_dt_ids[] = {
 	{ .compatible = "i2c,lm36274" },
@@ -52,7 +53,7 @@ static const struct of_device_id panel_i2c_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, panel_i2c_dt_ids);
 
-static struct i2c_driver panel_i2c_driver = {
+struct i2c_driver panel_i2c_driver = {
 	.driver = {
 		.name   = "panel_i2c",
 		.owner  = THIS_MODULE,
@@ -62,18 +63,6 @@ static struct i2c_driver panel_i2c_driver = {
 	.probe		= panel_i2c_probe,
 	.remove		= panel_i2c_remove,
 };
-
-static int __init panel_i2c_init(void)
-{
-	return i2c_add_driver(&panel_i2c_driver);
-}
-module_init(panel_i2c_init);
-
-static void __exit panel_i2c_exit(void)
-{
-	i2c_del_driver(&panel_i2c_driver);
-}
-module_exit(panel_i2c_exit);
 
 MODULE_DESCRIPTION("simple panel i2c driver");
 MODULE_AUTHOR("Samsung Electronics");

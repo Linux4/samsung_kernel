@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_proc.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Proc FS driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Proc FS driver
  *
  * Copyright (c) 2020 Samsung Electronics Co. Ltd.
  *
@@ -14,6 +14,7 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 
+#include "abox.h"
 #include "abox_proc.h"
 
 #define ROOT_DIR_NAME "abox"
@@ -44,7 +45,7 @@ void abox_proc_remove_file(struct proc_dir_entry *pde)
 
 struct proc_dir_entry *abox_proc_create_file(const char *name, umode_t mode,
 		struct proc_dir_entry *parent,
-		const struct file_operations *fops, void *data, size_t size)
+		const struct proc_ops *fops, void *data, size_t size)
 {
 	struct proc_dir_entry *pde;
 
@@ -65,10 +66,10 @@ static ssize_t abox_proc_bin_read(struct file *file, char __user *buf,
 	return simple_read_from_buffer(buf, count, pos, bin->data, bin->size);
 }
 
-static const struct file_operations abox_proc_bin_fops = {
-	.read	= abox_proc_bin_read,
-	.open	= simple_open,
-	.llseek	= default_llseek,
+static const struct proc_ops abox_proc_bin_fops = {
+	.proc_read	= abox_proc_bin_read,
+	.proc_open	= simple_open,
+	.proc_lseek	= default_llseek,
 };
 
 struct proc_dir_entry *abox_proc_create_bin(const char *name, umode_t mode,
@@ -103,11 +104,11 @@ static ssize_t abox_proc_u64_write(struct file *file, const char __user *buf,
 	return count;
 }
 
-static const struct file_operations abox_proc_u64_fops = {
-	.read	= abox_proc_u64_read,
-	.write	= abox_proc_u64_write,
-	.open	= simple_open,
-	.llseek	= no_llseek,
+static const struct proc_ops abox_proc_u64_fops = {
+	.proc_read	= abox_proc_u64_read,
+	.proc_write	= abox_proc_u64_write,
+	.proc_open	= simple_open,
+	.proc_lseek	= no_llseek,
 };
 
 struct proc_dir_entry *abox_proc_create_u64(const char *name, umode_t mode,
@@ -142,11 +143,11 @@ static ssize_t abox_proc_u32_write(struct file *file, const char __user *buf,
 	return count;
 }
 
-static const struct file_operations abox_proc_u32_fops = {
-	.read	= abox_proc_u32_read,
-	.write	= abox_proc_u32_write,
-	.open	= simple_open,
-	.llseek	= no_llseek,
+static const struct proc_ops abox_proc_u32_fops = {
+	.proc_read	= abox_proc_u32_read,
+	.proc_write	= abox_proc_u32_write,
+	.proc_open	= simple_open,
+	.proc_lseek	= no_llseek,
 };
 
 struct proc_dir_entry *abox_proc_create_u32(const char *name, umode_t mode,
@@ -184,11 +185,11 @@ static ssize_t abox_proc_bool_write(struct file *file, const char __user *buf,
 	return count;
 }
 
-static const struct file_operations abox_proc_bool_fops = {
-	.read	= abox_proc_bool_read,
-	.write	= abox_proc_bool_write,
-	.open	= simple_open,
-	.llseek	= no_llseek,
+static const struct proc_ops abox_proc_bool_fops = {
+	.proc_read	= abox_proc_bool_read,
+	.proc_write	= abox_proc_bool_write,
+	.proc_open	= simple_open,
+	.proc_lseek	= no_llseek,
 };
 
 struct proc_dir_entry *abox_proc_create_bool(const char *name, umode_t mode,
@@ -201,31 +202,39 @@ struct proc_dir_entry *abox_proc_create_bool(const char *name, umode_t mode,
 int abox_proc_symlink_attr(struct device *dev, const char *name,
 		struct proc_dir_entry *parent)
 {
-	char *path, *attr_path;
+	char *attr_path;
 	struct proc_dir_entry *pde;
 
 	if (!parent)
 		parent = root;
 
-	path = kobject_get_path(&dev->kobj, GFP_KERNEL);
-	attr_path = kasprintf(GFP_KERNEL, "/sys%s/%s", path, name);
+	if (is_abox(dev))
+		attr_path = kasprintf(GFP_KERNEL,
+				"/sys/devices/platform/%s/%s",
+				dev_name(dev), name);
+	else
+		attr_path = kasprintf(GFP_KERNEL,
+				"/sys/devices/platform/%s/%s/%s",
+				dev_name(dev->parent), dev_name(dev), name);
 	pde = proc_symlink(name, parent, attr_path);
 	kfree(attr_path);
-	kfree(path);
 
 	return PTR_ERR_OR_ZERO(pde);
 }
 
-int abox_proc_symlink_kobj(const char *name, struct kobject *kobj)
+int abox_proc_symlink_dev(struct device *dev, const char *name)
 {
-	char *path, *sys_path;
+	char *sys_path;
 	struct proc_dir_entry *pde;
 
-	path = kobject_get_path(kobj, GFP_KERNEL);
-	sys_path = kasprintf(GFP_KERNEL, "/sys%s", path);
+	if (is_abox(dev))
+		sys_path = kasprintf(GFP_KERNEL, "/sys/devices/platform/%s",
+				dev_name(dev));
+	else
+		sys_path = kasprintf(GFP_KERNEL, "/sys/devices/platform/%s/%s",
+				dev_name(dev->parent), dev_name(dev));
 	pde = proc_symlink(name, root, sys_path);
 	kfree(sys_path);
-	kfree(path);
 
 	return PTR_ERR_OR_ZERO(pde);
 }

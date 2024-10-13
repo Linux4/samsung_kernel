@@ -362,9 +362,14 @@ ssize_t sysfs_event_store_attrs(
 	case BATT_EVENT_LCD:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 #if !defined(CONFIG_SEC_FACTORY)
-			struct timespec ts;
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+			struct timespec64 ts = {0, };
+			ts = ktime_to_timespec64(ktime_get_boottime());
+#else
+			struct timespec ts = {0, };
 			get_monotonic_boottime(&ts);
+#endif
+
 			if (x) {
 				battery->lcd_status = true;
 			} else {

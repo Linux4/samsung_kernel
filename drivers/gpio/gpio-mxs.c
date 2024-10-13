@@ -84,7 +84,7 @@ static int mxs_gpio_set_irq_type(struct irq_data *d, unsigned int type)
 	port->both_edges &= ~pin_mask;
 	switch (type) {
 	case IRQ_TYPE_EDGE_BOTH:
-		val = port->gc.get(&port->gc, d->hwirq);
+		val = readl(port->base + PINCTRL_DIN(port)) & pin_mask;
 		if (val)
 			edge = GPIO_INT_FALL_EDGE;
 		else
@@ -248,7 +248,10 @@ static int mxs_gpio_get_direction(struct gpio_chip *gc, unsigned offset)
 	u32 dir;
 
 	dir = readl(port->base + PINCTRL_DOE(port));
-	return !(dir & mask);
+	if (dir & mask)
+		return GPIO_LINE_DIRECTION_OUT;
+
+	return GPIO_LINE_DIRECTION_IN;
 }
 
 static const struct platform_device_id mxs_gpio_ids[] = {

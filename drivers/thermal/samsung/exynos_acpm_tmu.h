@@ -45,6 +45,12 @@
 #define	TMU_IPC_CP_CALL		0x08
 #define	TMU_IPC_AP_RESUME	0x10
 
+#define TMU_IPC_THRESHOLD	0x11
+#define TMU_IPC_INTEN		0x12
+#define TMU_IPC_TMU_CONTROL	0x13
+#define TMU_IPC_IRQ_CLEAR	0x14
+#define TMU_IPC_EMUL_TEMP	0x15
+
 /*
  * 16-byte TMU IPC message format (REQ)
  *  (MSB)    3          2          1          0
@@ -65,8 +71,14 @@ struct tmu_ipc_request {
 	u8 rsvd;
 	u8 tzid;
 	u8 rsvd2;
-	u32 reserved;
-	u32 reserved2;
+	u8 req_rsvd0;
+	u8 req_rsvd1;
+	u8 req_rsvd2;
+	u8 req_rsvd3;
+	u8 req_rsvd4;
+	u8 req_rsvd5;
+	u8 req_rsvd6;
+	u8 req_rsvd7;
 };
 
 /*
@@ -108,7 +120,7 @@ struct acpm_tmu_cap {
 };
 
 int exynos_acpm_tmu_set_init(struct acpm_tmu_cap *cap);
-int exynos_acpm_tmu_set_read_temp(int tz, int *temp, int *stat);
+int exynos_acpm_tmu_set_read_temp(int tz, int *temp, int *stat, int *data);
 int exynos_acpm_tmu_set_suspend(int flag);
 int exynos_acpm_tmu_set_cp_call(void);
 int exynos_acpm_tmu_set_resume(void);
@@ -116,5 +128,12 @@ int exynos_acpm_tmu_ipc_dump(int no, unsigned int dump[]);
 bool exynos_acpm_tmu_is_test_mode(void);
 void exynos_acpm_tmu_set_test_mode(bool mode);
 void exynos_acpm_tmu_log(bool mode);
+
+void exynos_acpm_tmu_set_threshold(int tz, unsigned char temp[]);
+void exynos_acpm_tmu_set_interrupt_enable(int tz, unsigned char inten);
+void exynos_acpm_tmu_tz_control(int tz, bool enable);
+void exynos_acpm_tmu_clear_tz_irq(int tz);
+void exynos_acpm_tmu_set_emul_temp(int tz, unsigned char temp);
+int exynos_acpm_tmu_init(void);
 
 #endif /* __EXYNOS_ACPM_TMU_H__ */

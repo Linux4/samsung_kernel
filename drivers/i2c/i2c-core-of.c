@@ -1,15 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Linux I2C core OF support code
  *
  * Copyright (C) 2008 Jochen Friedrich <jochen@scram.de>
  * based on a previous patch from Jon Smirl <jonsmirl@gmail.com>
  *
- * Copyright (C) 2013, 2018 Wolfram Sang <wsa@the-dreams.de>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
+ * Copyright (C) 2013, 2018 Wolfram Sang <wsa@kernel.org>
  */
 
 #include <dt-bindings/i2c/i2c.h>
@@ -19,6 +15,8 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/sysfs.h>
+#include <trace/hooks/i2c.h>
 
 #include "i2c-core.h"
 
@@ -35,6 +33,8 @@ int of_i2c_get_board_info(struct device *dev, struct device_node *node,
 		return -EINVAL;
 	}
 
+	trace_android_vh_of_i2c_get_board_info(node, &(info->dev_name));
+
 	ret = of_property_read_u32(node, "reg", &addr);
 	if (ret) {
 		dev_err(dev, "of_i2c: invalid reg on %pOF\n", node);
@@ -50,9 +50,6 @@ int of_i2c_get_board_info(struct device *dev, struct device_node *node,
 		addr &= ~I2C_OWN_SLAVE_ADDRESS;
 		info->flags |= I2C_CLIENT_SLAVE;
 	}
-
-	if (of_get_property(node, "i2c-speedy-address", NULL))
-		info->flags |= I2C_CLIENT_SPEEDY;
 
 	info->addr = addr;
 	info->of_node = node;
@@ -81,11 +78,10 @@ static struct i2c_client *of_i2c_register_device(struct i2c_adapter *adap,
 	if (ret)
 		return ERR_PTR(ret);
 
-	client = i2c_new_device(adap, &info);
-	if (!client) {
+	client = i2c_new_client_device(adap, &info);
+	if (IS_ERR(client))
 		dev_err(&adap->dev, "of_i2c: Failure registering %pOF\n", node);
-		return ERR_PTR(-EINVAL);
-	}
+
 	return client;
 }
 
@@ -120,12 +116,7 @@ void of_i2c_register_devices(struct i2c_adapter *adap)
 	of_node_put(bus);
 }
 
-static int of_dev_node_match(struct device *dev, void *data)
-{
-	return dev->of_node == data;
-}
-
-static int of_dev_or_parent_node_match(struct device *dev, void *data)
+static int of_dev_or_parent_node_match(struct device *dev, const void *data)
 {
 	if (dev->of_node == data)
 		return 1;
@@ -142,7 +133,7 @@ struct i2c_client *of_find_i2c_device_by_node(struct device_node *node)
 	struct device *dev;
 	struct i2c_client *client;
 
-	dev = bus_find_device(&i2c_bus_type, NULL, node, of_dev_node_match);
+	dev = bus_find_device_by_of_node(&i2c_bus_type, node);
 	if (!dev)
 		return NULL;
 

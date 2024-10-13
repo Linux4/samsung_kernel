@@ -12,7 +12,10 @@
 #ifndef __LINUX_SEC_PM_DEBUG_H
 #define __LINUX_SEC_PM_DEBUG_H __FILE__
 
-extern u8 pmic_onsrc;
-extern u8 pmic_offsrc;
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPU12)
+extern int main_pmic_init_debug_sysfs(struct device *sec_pm_dev);
+#else
+static inline int main_pmic_init_debug_sysfs(struct device *sec_pm_dev) { return 0; }
+#endif /* CONFIG_REGULATOR_S2MPU12 */
 
 #endif /* __LINUX_SEC_PM_DEBUG_H */

@@ -139,15 +139,14 @@ struct is_frame {
 
 #ifdef MEASURE_TIME
 	/* time measure externally */
-	struct timeval	*tzone;
+	struct timespec64	*tzone;
 	/* time measure internally */
 	struct is_monitor	mpoint[TMS_END];
 #endif
 
-#ifdef DBG_DRAW_DIGIT
+	/* for draw digit */
 	u32			width;
 	u32			height;
-#endif
 
 	struct fimc_is_stripe_info	stripe_info;
 };

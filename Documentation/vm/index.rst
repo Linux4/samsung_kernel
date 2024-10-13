@@ -2,7 +2,9 @@
 Linux Memory Management Documentation
 =====================================
 
-This is a collection of documents about Linux memory management (mm) subsystem.
+This is a collection of documents about the Linux memory management (mm)
+subsystem.  If you are looking for advice on simply allocating memory,
+see the :ref:`memory_allocation`.
 
 User guides for MM features
 ===========================
@@ -27,15 +29,19 @@ descriptions of data structures and algorithms.
    :maxdepth: 1
 
    active_mm
+   arch_pgtable_helpers
    balance
    cleancache
+   free_page_reporting
    frontswap
    highmem
    hmm
    hwpoison
    hugetlbfs_reserv
    ksm
+   memory-model
    mmu_notifier
+   multigen_lru
    numa
    overcommit-accounting
    page_migration

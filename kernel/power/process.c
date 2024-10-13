@@ -22,8 +22,9 @@
 #include <linux/kmod.h>
 #include <trace/events/power.h>
 #include <linux/cpuset.h>
-#include <linux/wakeup_reason.h>
 #include <linux/sec_debug.h>
+
+#include <trace/hooks/power.h>
 
 /*
  * Timeout for stopping processes
@@ -40,21 +41,7 @@ static int try_to_freeze_tasks(bool user_only)
 	unsigned int elapsed_msecs;
 	bool wakeup = false;
 	int sleep_usecs = USEC_PER_MSEC;
-#ifdef CONFIG_PM_SLEEP
-	char suspend_abort[MAX_SUSPEND_ABORT_LEN];
-#endif
-	/*
-	 * this constants have to be same as system_states in include/linux/kernel.h
-	 */
-	const char *sys_state[SYSTEM_END] = {
-		"BOOTING",
-		"SCHEDULING",
-		"RUNNING",
-		"HALT",
-		"POWER_OFF",
-		"RESTART",
-		"SUSPEND",
-	};
+	bool todo_logging_on = false;
 
 	start = ktime_get_boottime();
 
@@ -63,9 +50,8 @@ static int try_to_freeze_tasks(bool user_only)
 	if (!user_only)
 		freeze_workqueues_begin();
 
-	secdbg_base_set_unfrozen_task((uint64_t)NULL);
-	secdbg_base_set_unfrozen_task_count((uint64_t)0);
-
+	secdbg_base_built_set_unfrozen_task(NULL, 0);
+	
 	while (true) {
 		todo = 0;
 		read_lock(&tasklist_lock);
@@ -75,11 +61,9 @@ static int try_to_freeze_tasks(bool user_only)
 
 			if (!freezer_should_skip(p)) {
 				todo++;
-				secdbg_base_set_unfrozen_task((uint64_t)p);
+				secdbg_base_built_set_unfrozen_task(p, (uint64_t)todo);
 			}
 		}
-		secdbg_base_set_unfrozen_task_count((uint64_t)todo);
-
 		read_unlock(&tasklist_lock);
 
 		if (!user_only) {
@@ -91,11 +75,6 @@ static int try_to_freeze_tasks(bool user_only)
 			break;
 
 		if (pm_wakeup_pending()) {
-#ifdef CONFIG_PM_SLEEP
-			pm_get_active_wakeup_sources(suspend_abort,
-				MAX_SUSPEND_ABORT_LEN);
-			log_suspend_abort_reason(suspend_abort);
-#endif
 			wakeup = true;
 			break;
 		}
@@ -128,32 +107,31 @@ static int try_to_freeze_tasks(bool user_only)
 		if (wq_busy)
 			show_workqueue_state();
 
-		read_lock(&tasklist_lock);
-		for_each_process_thread(g, p) {
-			if (p != current && !freezer_should_skip(p)
-			    && freezing(p) && !frozen(p)) {
+		trace_android_vh_try_to_freeze_todo_logging(&todo_logging_on);
+		if (pm_debug_messages_on || todo_logging_on) {
+			read_lock(&tasklist_lock);
+			for_each_process_thread(g, p) {
+				if (p != current && !freezer_should_skip(p)
+				    && freezing(p) && !frozen(p)) {
 #ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-				sched_show_task_auto_comment(p);
+					sched_show_task_auto_comment(p);
 #else
-				sched_show_task(p);
+					sched_show_task(p);
 #endif
-				secdbg_exin_set_backtrace_task(p);
-				secdbg_exin_set_unfz(p->comm, p->pid);
+					trace_android_vh_try_to_freeze_todo_unfrozen(p);
+				}
 			}
+			read_unlock(&tasklist_lock);
 		}
-		read_unlock(&tasklist_lock);
 
-		secdbg_exin_set_unfz(sys_state[system_state], -1);
-		if (IS_ENABLED(CONFIG_SEC_DEBUG_FAIL_TO_FREEZE_PANIC))
-			panic("fail to freeze tasks: %s", secdbg_exin_get_unfz());
+		trace_android_vh_try_to_freeze_todo(todo, elapsed_msecs, wq_busy);
 	} else {
 		pr_cont("(elapsed %d.%03d seconds) ", elapsed_msecs / 1000,
 			elapsed_msecs % 1000);
 	}
 
-	secdbg_base_set_unfrozen_task((uint64_t)NULL);
-	secdbg_base_set_unfrozen_task_count((uint64_t)0);
-
+	secdbg_base_built_set_unfrozen_task(NULL, 0);
+	
 	return todo ? -EBUSY : 0;
 }
 
@@ -178,7 +156,7 @@ int freeze_processes(void)
 	if (!pm_freezing)
 		atomic_inc(&system_freezing_cnt);
 
-	pm_wakeup_clear(true);
+	pm_wakeup_clear(0);
 	pr_info("Freezing user space processes ... ");
 	pm_freezing = true;
 	error = try_to_freeze_tasks(true);
@@ -190,7 +168,7 @@ int freeze_processes(void)
 	BUG_ON(in_atomic());
 
 	/*
-	 * Now that the whole userspace is frozen we need to disbale
+	 * Now that the whole userspace is frozen we need to disable
 	 * the OOM killer to disallow any further interference with
 	 * killable tasks. There is no guarantee oom victims will
 	 * ever reach a point they go away we have to wait with a timeout.
@@ -236,7 +214,6 @@ void thaw_processes(void)
 	struct task_struct *curr = current;
 
 	trace_suspend_resume(TPS("thaw_processes"), 0, true);
-	dbg_snapshot_suspend("thaw_processes", thaw_processes, NULL, 0, DSS_FLAG_IN);
 	if (pm_freezing)
 		atomic_dec(&system_freezing_cnt);
 	pm_freezing = false;
@@ -266,7 +243,6 @@ void thaw_processes(void)
 
 	schedule();
 	pr_cont("done.\n");
-	dbg_snapshot_suspend("thaw_processes", thaw_processes, NULL, 0, DSS_FLAG_OUT);
 	trace_suspend_resume(TPS("thaw_processes"), 0, false);
 }
 

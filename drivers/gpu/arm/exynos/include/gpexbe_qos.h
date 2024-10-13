@@ -71,6 +71,7 @@ void gpexbe_qos_request_update(mali_pmqos_flags type, s32 clock);
  * gpexbe_qos_request_unset() - unset QOS to other IPs
  * @type: type of QOS request to unset
  */
+void gpexbe_qos_request_update_timeout(mali_pmqos_flags type, s32 clock, uint32_t timeout_us);
 void gpexbe_qos_request_unset(mali_pmqos_flags type);
 
 #endif /* _GPEXBE_QOS_H_ */

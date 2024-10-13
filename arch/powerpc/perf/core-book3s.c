@@ -1,15 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Performance event support - powerpc architecture code
  *
  * Copyright 2008-2009 Paul Mackerras, IBM Corporation.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
  */
 #include <linux/kernel.h>
 #include <linux/sched.h>
+#include <linux/sched/clock.h>
 #include <linux/perf_event.h>
 #include <linux/percpu.h>
 #include <linux/hardirq.h>
@@ -20,6 +17,10 @@
 #include <asm/firmware.h>
 #include <asm/ptrace.h>
 #include <asm/code-patching.h>
+
+#ifdef CONFIG_PPC64
+#include "internal.h"
+#endif
 
 #define BHRB_MAX_ENTRIES	32
 #define BHRB_TARGET		0x0000000000000002
@@ -36,12 +37,7 @@ struct cpu_hw_events {
 	struct perf_event *event[MAX_HWEVENTS];
 	u64 events[MAX_HWEVENTS];
 	unsigned int flags[MAX_HWEVENTS];
-	/*
-	 * The order of the MMCR array is:
-	 *  - 64-bit, MMCR0, MMCR1, MMCRA, MMCR2
-	 *  - 32-bit, MMCR0, MMCR1, MMCR2
-	 */
-	unsigned long mmcr[4];
+	struct mmcr_regs mmcr;
 	struct perf_event *limited_counter[MAX_LIMITED_HWCOUNTERS];
 	u8  limited_hwidx[MAX_LIMITED_HWCOUNTERS];
 	u64 alternatives[MAX_HWEVENTS][MAX_EVENT_ALTERNATIVES];
@@ -76,6 +72,11 @@ static unsigned int freeze_events_kernel = MMCR0_FCS;
 /*
  * 32-bit doesn't have MMCRA but does have an MMCR2,
  * and a few other names are different.
+ * Also 32-bit doesn't have MMCR3, SIER2 and SIER3.
+ * Define them as zero knowing that any code path accessing
+ * these registers (via mtspr/mfspr) are done under ppmu flag
+ * check for PPMU_ARCH_31 and we will not enter that code path
+ * for 32-bit.
  */
 #ifdef CONFIG_PPC32
 
@@ -89,7 +90,12 @@ static unsigned int freeze_events_kernel = MMCR0_FCS;
 #define MMCR0_PMCC_U6		0
 
 #define SPRN_MMCRA		SPRN_MMCR2
+#define SPRN_MMCR3		0
+#define SPRN_SIER2		0
+#define SPRN_SIER3		0
 #define MMCRA_SAMPLE_ENABLE	0
+#define MMCRA_BHRB_DISABLE     0
+#define MMCR0_PMCCEXT		0
 
 static inline unsigned long perf_ip_adjust(struct pt_regs *regs)
 {
@@ -104,10 +110,6 @@ static inline void perf_read_regs(struct pt_regs *regs)
 {
 	regs->result = 0;
 }
-static inline int perf_intr_is_nmi(struct pt_regs *regs)
-{
-	return 0;
-}
 
 static inline int siar_valid(struct pt_regs *regs)
 {
@@ -120,7 +122,7 @@ static void ebb_event_add(struct perf_event *event) { }
 static void ebb_switch_out(unsigned long mmcr0) { }
 static unsigned long ebb_switch_in(bool ebb, struct cpu_hw_events *cpuhw)
 {
-	return cpuhw->mmcr[0];
+	return cpuhw->mmcr.mmcr0;
 }
 
 static inline void power_pmu_bhrb_enable(struct perf_event *event) {}
@@ -129,6 +131,17 @@ static void power_pmu_sched_task(struct perf_event_context *ctx, bool sched_in) 
 static inline void power_pmu_bhrb_read(struct perf_event *event, struct cpu_hw_events *cpuhw) {}
 static void pmao_restore_workaround(bool ebb) { }
 #endif /* CONFIG_PPC32 */
+
+bool is_sier_available(void)
+{
+	if (!ppmu)
+		return false;
+
+	if (ppmu->flags & PPMU_HAS_SIER)
+		return true;
+
+	return false;
+}
 
 static bool regs_use_siar(struct pt_regs *regs)
 {
@@ -195,7 +208,7 @@ static inline void perf_get_data_addr(struct perf_event *event, struct pt_regs *
 	if (!(mmcra & MMCRA_SAMPLE_ENABLE) || sdar_valid)
 		*addrp = mfspr(SPRN_SDAR);
 
-	if (is_kernel_addr(mfspr(SPRN_SDAR)) && perf_allow_kernel(&event->attr) != 0)
+	if (is_kernel_addr(mfspr(SPRN_SDAR)) && event->attr.exclude_kernel)
 		*addrp = 0;
 }
 
@@ -316,15 +329,6 @@ static inline void perf_read_regs(struct pt_regs *regs)
 }
 
 /*
- * If interrupts were soft-disabled when a PMU interrupt occurs, treat
- * it as an NMI.
- */
-static inline int perf_intr_is_nmi(struct pt_regs *regs)
-{
-	return (regs->softe & IRQS_DISABLED);
-}
-
-/*
  * On processors like P7+ that have the SIAR-Valid bit, marked instructions
  * must be sampled only if the SIAR-valid bit is set.
  *
@@ -406,26 +410,22 @@ static void power_pmu_sched_task(struct perf_event_context *ctx, bool sched_in)
 static __u64 power_pmu_bhrb_to(u64 addr)
 {
 	unsigned int instr;
-	int ret;
 	__u64 target;
 
 	if (is_kernel_addr(addr)) {
-		if (probe_kernel_read(&instr, (void *)addr, sizeof(instr)))
+		if (copy_from_kernel_nofault(&instr, (void *)addr,
+				sizeof(instr)))
 			return 0;
 
-		return branch_target(&instr);
+		return branch_target((struct ppc_inst *)&instr);
 	}
 
 	/* Userspace: need copy instruction here then translate it */
-	pagefault_disable();
-	ret = __get_user_inatomic(instr, (unsigned int __user *)addr);
-	if (ret) {
-		pagefault_enable();
+	if (copy_from_user_nofault(&instr, (unsigned int __user *)addr,
+			sizeof(instr)))
 		return 0;
-	}
-	pagefault_enable();
 
-	target = branch_target(&instr);
+	target = branch_target((struct ppc_inst *)&instr);
 	if ((!target) || (instr & BRANCH_ABSOLUTE))
 		return target;
 
@@ -461,8 +461,11 @@ static void power_pmu_bhrb_read(struct perf_event *event, struct cpu_hw_events *
 			 * addresses at this point. Check the privileges before
 			 * exporting it to userspace (avoid exposure of regions
 			 * where we could have speculative execution)
+			 * Incase of ISA v3.1, BHRB will capture only user-space
+			 * addresses, hence include a check before filtering code
 			 */
-			if (is_kernel_addr(addr) && perf_allow_kernel(&event->attr) != 0)
+			if (!(ppmu->flags & PPMU_ARCH_31) &&
+			    is_kernel_addr(addr) && event->attr.exclude_kernel)
 				continue;
 
 			/* Branches are read most recent first (ie. mfbhrb 0 is
@@ -515,6 +518,7 @@ static void power_pmu_bhrb_read(struct perf_event *event, struct cpu_hw_events *
 		}
 	}
 	cpuhw->bhrb_stack.nr = u_index;
+	cpuhw->bhrb_stack.hw_idx = -1ULL;
 	return;
 }
 
@@ -580,11 +584,16 @@ static void ebb_switch_out(unsigned long mmcr0)
 	current->thread.sdar  = mfspr(SPRN_SDAR);
 	current->thread.mmcr0 = mmcr0 & MMCR0_USER_MASK;
 	current->thread.mmcr2 = mfspr(SPRN_MMCR2) & MMCR2_USER_MASK;
+	if (ppmu->flags & PPMU_ARCH_31) {
+		current->thread.mmcr3 = mfspr(SPRN_MMCR3);
+		current->thread.sier2 = mfspr(SPRN_SIER2);
+		current->thread.sier3 = mfspr(SPRN_SIER3);
+	}
 }
 
 static unsigned long ebb_switch_in(bool ebb, struct cpu_hw_events *cpuhw)
 {
-	unsigned long mmcr0 = cpuhw->mmcr[0];
+	unsigned long mmcr0 = cpuhw->mmcr.mmcr0;
 
 	if (!ebb)
 		goto out;
@@ -618,7 +627,13 @@ static unsigned long ebb_switch_in(bool ebb, struct cpu_hw_events *cpuhw)
 	 * unfreeze counters, it should not set exclude_xxx in its events and
 	 * instead manage the MMCR2 entirely by itself.
 	 */
-	mtspr(SPRN_MMCR2, cpuhw->mmcr[3] | current->thread.mmcr2);
+	mtspr(SPRN_MMCR2, cpuhw->mmcr.mmcr2 | current->thread.mmcr2);
+
+	if (ppmu->flags & PPMU_ARCH_31) {
+		mtspr(SPRN_MMCR3, current->thread.mmcr3);
+		mtspr(SPRN_SIER2, current->thread.sier2);
+		mtspr(SPRN_SIER3, current->thread.sier3);
+	}
 out:
 	return mmcr0;
 }
@@ -790,6 +805,19 @@ static void write_pmc(int idx, unsigned long val)
 	}
 }
 
+static int any_pmc_overflown(struct cpu_hw_events *cpuhw)
+{
+	int i, idx;
+
+	for (i = 0; i < cpuhw->n_events; i++) {
+		idx = cpuhw->event[i]->hw.idx;
+		if ((idx) && ((int)read_pmc(idx) < 0))
+			return idx;
+	}
+
+	return 0;
+}
+
 /* Called from sysrq_handle_showregs() */
 void perf_event_print_debug(void)
 {
@@ -839,6 +867,11 @@ void perf_event_print_debug(void)
 		pr_info("EBBRR: %016lx BESCR: %016lx\n",
 			mfspr(SPRN_EBBRR), mfspr(SPRN_BESCR));
 	}
+
+	if (ppmu->flags & PPMU_ARCH_31) {
+		pr_info("MMCR3: %016lx SIER2: %016lx SIER3: %016lx\n",
+			mfspr(SPRN_MMCR3), mfspr(SPRN_SIER2), mfspr(SPRN_SIER3));
+	}
 #endif
 	pr_info("SIAR:  %016lx SDAR:  %016lx SIER:  %016lx\n",
 		mfspr(SPRN_SIAR), sdar, sier);
@@ -862,6 +895,8 @@ static int power_check_constraints(struct cpu_hw_events *cpuhw,
 	int i, j;
 	unsigned long addf = ppmu->add_fields;
 	unsigned long tadd = ppmu->test_adder;
+	unsigned long grp_mask = ppmu->group_constraint_mask;
+	unsigned long grp_val = ppmu->group_constraint_val;
 
 	if (n_ev > ppmu->n_counter)
 		return -1;
@@ -882,15 +917,23 @@ static int power_check_constraints(struct cpu_hw_events *cpuhw,
 	for (i = 0; i < n_ev; ++i) {
 		nv = (value | cpuhw->avalues[i][0]) +
 			(value & cpuhw->avalues[i][0] & addf);
-		if ((((nv + tadd) ^ value) & mask) != 0 ||
-		    (((nv + tadd) ^ cpuhw->avalues[i][0]) &
-		     cpuhw->amasks[i][0]) != 0)
+
+		if (((((nv + tadd) ^ value) & mask) & (~grp_mask)) != 0)
 			break;
+
+		if (((((nv + tadd) ^ cpuhw->avalues[i][0]) & cpuhw->amasks[i][0])
+			& (~grp_mask)) != 0)
+			break;
+
 		value = nv;
 		mask |= cpuhw->amasks[i][0];
 	}
-	if (i == n_ev)
-		return 0;	/* all OK */
+	if (i == n_ev) {
+		if ((value & mask & grp_mask) != (mask & grp_val))
+			return -1;
+		else
+			return 0;	/* all OK */
+	}
 
 	/* doesn't work, gather alternatives... */
 	if (!ppmu->get_alternatives)
@@ -1180,7 +1223,7 @@ static void write_mmcr0(struct cpu_hw_events *cpuhw, unsigned long mmcr0)
 static void power_pmu_disable(struct pmu *pmu)
 {
 	struct cpu_hw_events *cpuhw;
-	unsigned long flags, mmcr0, val;
+	unsigned long flags, mmcr0, val, mmcra;
 
 	if (!ppmu)
 		return;
@@ -1198,11 +1241,16 @@ static void power_pmu_disable(struct pmu *pmu)
 
 		/*
 		 * Set the 'freeze counters' bit, clear EBE/BHRBA/PMCC/PMAO/FC56
+		 * Also clear PMXE to disable PMI's getting triggered in some
+		 * corner cases during PMU disable.
 		 */
 		val  = mmcr0 = mfspr(SPRN_MMCR0);
 		val |= MMCR0_FC;
 		val &= ~(MMCR0_EBE | MMCR0_BHRBA | MMCR0_PMCC | MMCR0_PMAO |
-			 MMCR0_FC56);
+			 MMCR0_PMXE | MMCR0_FC56);
+		/* Set mmcr0 PMCCEXT for p10 */
+		if (ppmu->flags & PPMU_ARCH_31)
+			val |= MMCR0_PMCCEXT;
 
 		/*
 		 * The barrier is to make sure the mtspr has been
@@ -1214,11 +1262,46 @@ static void power_pmu_disable(struct pmu *pmu)
 		isync();
 
 		/*
+		 * Some corner cases could clear the PMU counter overflow
+		 * while a masked PMI is pending. One such case is when
+		 * a PMI happens during interrupt replay and perf counter
+		 * values are cleared by PMU callbacks before replay.
+		 *
+		 * Disable the interrupt by clearing the paca bit for PMI
+		 * since we are disabling the PMU now. Otherwise provide a
+		 * warning if there is PMI pending, but no counter is found
+		 * overflown.
+		 *
+		 * Since power_pmu_disable runs under local_irq_save, it
+		 * could happen that code hits a PMC overflow without PMI
+		 * pending in paca. Hence only clear PMI pending if it was
+		 * set.
+		 *
+		 * If a PMI is pending, then MSR[EE] must be disabled (because
+		 * the masked PMI handler disabling EE). So it is safe to
+		 * call clear_pmi_irq_pending().
+		 */
+		if (pmi_irq_pending())
+			clear_pmi_irq_pending();
+
+		val = mmcra = cpuhw->mmcr.mmcra;
+
+		/*
 		 * Disable instruction sampling if it was enabled
 		 */
-		if (cpuhw->mmcr[2] & MMCRA_SAMPLE_ENABLE) {
-			mtspr(SPRN_MMCRA,
-			      cpuhw->mmcr[2] & ~MMCRA_SAMPLE_ENABLE);
+		if (cpuhw->mmcr.mmcra & MMCRA_SAMPLE_ENABLE)
+			val &= ~MMCRA_SAMPLE_ENABLE;
+
+		/* Disable BHRB via mmcra (BHRBRD) for p10 */
+		if (ppmu->flags & PPMU_ARCH_31)
+			val |= MMCRA_BHRB_DISABLE;
+
+		/*
+		 * Write SPRN_MMCRA if mmcra has either disabled
+		 * instruction sampling or BHRB.
+		 */
+		if (val != mmcra) {
+			mtspr(SPRN_MMCRA, mmcra);
 			mb();
 			isync();
 		}
@@ -1292,18 +1375,29 @@ static void power_pmu_enable(struct pmu *pmu)
 	 * (possibly updated for removal of events).
 	 */
 	if (!cpuhw->n_added) {
-		mtspr(SPRN_MMCRA, cpuhw->mmcr[2] & ~MMCRA_SAMPLE_ENABLE);
-		mtspr(SPRN_MMCR1, cpuhw->mmcr[1]);
+		/*
+		 * If there is any active event with an overflown PMC
+		 * value, set back PACA_IRQ_PMI which would have been
+		 * cleared in power_pmu_disable().
+		 */
+		hard_irq_disable();
+		if (any_pmc_overflown(cpuhw))
+			set_pmi_irq_pending();
+
+		mtspr(SPRN_MMCRA, cpuhw->mmcr.mmcra & ~MMCRA_SAMPLE_ENABLE);
+		mtspr(SPRN_MMCR1, cpuhw->mmcr.mmcr1);
+		if (ppmu->flags & PPMU_ARCH_31)
+			mtspr(SPRN_MMCR3, cpuhw->mmcr.mmcr3);
 		goto out_enable;
 	}
 
 	/*
 	 * Clear all MMCR settings and recompute them for the new set of events.
 	 */
-	memset(cpuhw->mmcr, 0, sizeof(cpuhw->mmcr));
+	memset(&cpuhw->mmcr, 0, sizeof(cpuhw->mmcr));
 
 	if (ppmu->compute_mmcr(cpuhw->events, cpuhw->n_events, hwc_index,
-			       cpuhw->mmcr, cpuhw->event)) {
+			       &cpuhw->mmcr, cpuhw->event)) {
 		/* shouldn't ever get here */
 		printk(KERN_ERR "oops compute_mmcr failed\n");
 		goto out;
@@ -1317,11 +1411,11 @@ static void power_pmu_enable(struct pmu *pmu)
 		 */
 		event = cpuhw->event[0];
 		if (event->attr.exclude_user)
-			cpuhw->mmcr[0] |= MMCR0_FCP;
+			cpuhw->mmcr.mmcr0 |= MMCR0_FCP;
 		if (event->attr.exclude_kernel)
-			cpuhw->mmcr[0] |= freeze_events_kernel;
+			cpuhw->mmcr.mmcr0 |= freeze_events_kernel;
 		if (event->attr.exclude_hv)
-			cpuhw->mmcr[0] |= MMCR0_FCHV;
+			cpuhw->mmcr.mmcr0 |= MMCR0_FCHV;
 	}
 
 	/*
@@ -1330,12 +1424,15 @@ static void power_pmu_enable(struct pmu *pmu)
 	 * Then unfreeze the events.
 	 */
 	ppc_set_pmu_inuse(1);
-	mtspr(SPRN_MMCRA, cpuhw->mmcr[2] & ~MMCRA_SAMPLE_ENABLE);
-	mtspr(SPRN_MMCR1, cpuhw->mmcr[1]);
-	mtspr(SPRN_MMCR0, (cpuhw->mmcr[0] & ~(MMCR0_PMC1CE | MMCR0_PMCjCE))
+	mtspr(SPRN_MMCRA, cpuhw->mmcr.mmcra & ~MMCRA_SAMPLE_ENABLE);
+	mtspr(SPRN_MMCR1, cpuhw->mmcr.mmcr1);
+	mtspr(SPRN_MMCR0, (cpuhw->mmcr.mmcr0 & ~(MMCR0_PMC1CE | MMCR0_PMCjCE))
 				| MMCR0_FC);
 	if (ppmu->flags & PPMU_ARCH_207S)
-		mtspr(SPRN_MMCR2, cpuhw->mmcr[3]);
+		mtspr(SPRN_MMCR2, cpuhw->mmcr.mmcr2);
+
+	if (ppmu->flags & PPMU_ARCH_31)
+		mtspr(SPRN_MMCR3, cpuhw->mmcr.mmcr3);
 
 	/*
 	 * Read off any pre-existing events that need to move
@@ -1386,7 +1483,7 @@ static void power_pmu_enable(struct pmu *pmu)
 		perf_event_update_userpage(event);
 	}
 	cpuhw->n_limited = n_lim;
-	cpuhw->mmcr[0] |= MMCR0_PMXE | MMCR0_FCECE;
+	cpuhw->mmcr.mmcr0 |= MMCR0_PMXE | MMCR0_FCECE;
 
  out_enable:
 	pmao_restore_workaround(ebb);
@@ -1402,9 +1499,9 @@ static void power_pmu_enable(struct pmu *pmu)
 	/*
 	 * Enable instruction sampling if necessary
 	 */
-	if (cpuhw->mmcr[2] & MMCRA_SAMPLE_ENABLE) {
+	if (cpuhw->mmcr.mmcra & MMCRA_SAMPLE_ENABLE) {
 		mb();
-		mtspr(SPRN_MMCRA, cpuhw->mmcr[2]);
+		mtspr(SPRN_MMCRA, cpuhw->mmcr.mmcra);
 	}
 
  out:
@@ -1501,9 +1598,16 @@ nocheck:
 	ret = 0;
  out:
 	if (has_branch_stack(event)) {
-		power_pmu_bhrb_enable(event);
-		cpuhw->bhrb_filter = ppmu->bhrb_filter_map(
-					event->attr.branch_sample_type);
+		u64 bhrb_filter = -1;
+
+		if (ppmu->bhrb_filter_map)
+			bhrb_filter = ppmu->bhrb_filter_map(
+				event->attr.branch_sample_type);
+
+		if (bhrb_filter != -1) {
+			cpuhw->bhrb_filter = bhrb_filter;
+			power_pmu_bhrb_enable(event);
+		}
 	}
 
 	perf_pmu_enable(event->pmu);
@@ -1534,7 +1638,7 @@ static void power_pmu_del(struct perf_event *event, int ef_flags)
 				cpuhw->flags[i-1] = cpuhw->flags[i];
 			}
 			--cpuhw->n_events;
-			ppmu->disable_pmc(event->hw.idx - 1, cpuhw->mmcr);
+			ppmu->disable_pmc(event->hw.idx - 1, &cpuhw->mmcr);
 			if (event->hw.idx) {
 				write_pmc(event->hw.idx, 0);
 				event->hw.idx = 0;
@@ -1555,7 +1659,7 @@ static void power_pmu_del(struct perf_event *event, int ef_flags)
 	}
 	if (cpuhw->n_events == 0) {
 		/* disable exceptions if no events are running */
-		cpuhw->mmcr[0] &= ~(MMCR0_PMXE | MMCR0_FCECE);
+		cpuhw->mmcr.mmcr0 &= ~(MMCR0_PMXE | MMCR0_FCECE);
 	}
 
 	if (has_branch_stack(event))
@@ -1779,7 +1883,7 @@ static void hw_perf_event_destroy(struct perf_event *event)
 static int hw_perf_cache_event(u64 config, u64 *eventp)
 {
 	unsigned long type, op, result;
-	int ev;
+	u64 ev;
 
 	if (!ppmu->cache_events)
 		return -EINVAL;
@@ -1818,14 +1922,13 @@ static bool is_event_blacklisted(u64 ev)
 static int power_pmu_event_init(struct perf_event *event)
 {
 	u64 ev;
-	unsigned long flags;
+	unsigned long flags, irq_flags;
 	struct perf_event *ctrs[MAX_HWEVENTS];
 	u64 events[MAX_HWEVENTS];
 	unsigned int cflags[MAX_HWEVENTS];
 	int n;
 	int err;
 	struct cpu_hw_events *cpuhw;
-	u64 bhrb_filter;
 
 	if (!ppmu)
 		return -ENOENT;
@@ -1927,21 +2030,26 @@ static int power_pmu_event_init(struct perf_event *event)
 	if (check_excludes(ctrs, cflags, n, 1))
 		return -EINVAL;
 
-	cpuhw = &get_cpu_var(cpu_hw_events);
+	local_irq_save(irq_flags);
+	cpuhw = this_cpu_ptr(&cpu_hw_events);
+
 	err = power_check_constraints(cpuhw, events, cflags, n + 1);
 
 	if (has_branch_stack(event)) {
-		bhrb_filter = ppmu->bhrb_filter_map(
+		u64 bhrb_filter = -1;
+
+		if (ppmu->bhrb_filter_map)
+			bhrb_filter = ppmu->bhrb_filter_map(
 					event->attr.branch_sample_type);
 
 		if (bhrb_filter == -1) {
-			put_cpu_var(cpu_hw_events);
+			local_irq_restore(irq_flags);
 			return -EOPNOTSUPP;
 		}
 		cpuhw->bhrb_filter = bhrb_filter;
 	}
 
-	put_cpu_var(cpu_hw_events);
+	local_irq_restore(irq_flags);
 	if (err)
 		return -EINVAL;
 
@@ -2044,7 +2152,17 @@ static void record_and_restart(struct perf_event *event, unsigned long val,
 			left += period;
 			if (left <= 0)
 				left = period;
-			record = siar_valid(regs);
+
+			/*
+			 * If address is not requested in the sample via
+			 * PERF_SAMPLE_IP, just record that sample irrespective
+			 * of SIAR valid check.
+			 */
+			if (event->attr.sample_type & PERF_SAMPLE_IP)
+				record = siar_valid(regs);
+			else
+				record = 1;
+
 			event->hw.last_period = event->hw.sample_period;
 		}
 		if (left < 0x80000000LL)
@@ -2055,6 +2173,17 @@ static void record_and_restart(struct perf_event *event, unsigned long val,
 	local64_set(&event->hw.prev_count, val);
 	local64_set(&event->hw.period_left, left);
 	perf_event_update_userpage(event);
+
+	/*
+	 * Due to hardware limitation, sometimes SIAR could sample a kernel
+	 * address even when freeze on supervisor state (kernel) is set in
+	 * MMCR2. Check attr.exclude_kernel and address to drop the sample in
+	 * these cases.
+	 */
+	if (event->attr.exclude_kernel &&
+	    (event->attr.sample_type & PERF_SAMPLE_IP) &&
+	    is_kernel_addr(mfspr(SPRN_SIAR)))
+		record = 0;
 
 	/*
 	 * Finally record data if requested.
@@ -2084,6 +2213,10 @@ static void record_and_restart(struct perf_event *event, unsigned long val,
 			ppmu->get_mem_weight(&data.weight);
 
 		if (perf_event_overflow(event, &data, regs))
+			power_pmu_stop(event, 0);
+	} else if (period) {
+		/* Account for interrupt in case of invalid SIAR */
+		if (perf_event_account_interrupt(event))
 			power_pmu_stop(event, 0);
 	}
 }
@@ -2148,26 +2281,19 @@ static bool pmc_overflow(unsigned long val)
 /*
  * Performance monitor interrupt stuff
  */
-static void perf_event_interrupt(struct pt_regs *regs)
+static void __perf_event_interrupt(struct pt_regs *regs)
 {
 	int i, j;
 	struct cpu_hw_events *cpuhw = this_cpu_ptr(&cpu_hw_events);
 	struct perf_event *event;
 	unsigned long val[8];
 	int found, active;
-	int nmi;
 
 	if (cpuhw->n_limited)
 		freeze_limited_counters(cpuhw, mfspr(SPRN_PMC5),
 					mfspr(SPRN_PMC6));
 
 	perf_read_regs(regs);
-
-	nmi = perf_intr_is_nmi(regs);
-	if (nmi)
-		nmi_enter();
-	else
-		irq_enter();
 
 	/* Read all the PMCs since we'll need them a bunch of times */
 	for (i = 0; i < ppmu->n_counter; ++i)
@@ -2195,6 +2321,14 @@ static void perf_event_interrupt(struct pt_regs *regs)
 				break;
 			}
 		}
+
+		/*
+		 * Clear PACA_IRQ_PMI in case it was set by
+		 * set_pmi_irq_pending() when PMU was enabled
+		 * after accounting for interrupts.
+		 */
+		clear_pmi_irq_pending();
+
 		if (!active)
 			/* reset non active counters that have overflowed */
 			write_pmc(i + 1, 0);
@@ -2214,8 +2348,15 @@ static void perf_event_interrupt(struct pt_regs *regs)
 			}
 		}
 	}
-	if (!found && !nmi && printk_ratelimit())
-		printk(KERN_WARNING "Can't find PMC that caused IRQ\n");
+
+	/*
+	 * During system wide profling or while specific CPU is monitored for an
+	 * event, some corner cases could cause PMC to overflow in idle path. This
+	 * will trigger a PMI after waking up from idle. Since counter values are _not_
+	 * saved/restored in idle path, can lead to below "Can't find PMC" message.
+	 */
+	if (unlikely(!found) && !arch_irq_disabled_regs(regs))
+		printk_ratelimited(KERN_WARNING "Can't find PMC that caused IRQ\n");
 
 	/*
 	 * Reset MMCR0 to its normal value.  This will set PMXE and
@@ -2224,12 +2365,15 @@ static void perf_event_interrupt(struct pt_regs *regs)
 	 * XXX might want to use MSR.PM to keep the events frozen until
 	 * we get back out of this interrupt.
 	 */
-	write_mmcr0(cpuhw, cpuhw->mmcr[0]);
+	write_mmcr0(cpuhw, cpuhw->mmcr.mmcr0);
+}
 
-	if (nmi)
-		nmi_exit();
-	else
-		irq_exit();
+static void perf_event_interrupt(struct pt_regs *regs)
+{
+	u64 start_clock = sched_clock();
+
+	__perf_event_interrupt(regs);
+	perf_sample_event_took(sched_clock() - start_clock);
 }
 
 static int power_pmu_prepare_cpu(unsigned int cpu)
@@ -2238,7 +2382,7 @@ static int power_pmu_prepare_cpu(unsigned int cpu)
 
 	if (ppmu) {
 		memset(cpuhw, 0, sizeof(*cpuhw));
-		cpuhw->mmcr[0] = MMCR0_FC;
+		cpuhw->mmcr.mmcr0 = MMCR0_FC;
 	}
 	return 0;
 }
@@ -2253,6 +2397,7 @@ int register_power_pmu(struct power_pmu *pmu)
 		pmu->name);
 
 	power_pmu.attr_groups = ppmu->attr_groups;
+	power_pmu.capabilities |= (ppmu->capabilities & PERF_PMU_CAP_EXTENDED_REGS);
 
 #ifdef MSR_HV
 	/*
@@ -2267,3 +2412,29 @@ int register_power_pmu(struct power_pmu *pmu)
 			  power_pmu_prepare_cpu, NULL);
 	return 0;
 }
+
+#ifdef CONFIG_PPC64
+static int __init init_ppc64_pmu(void)
+{
+	/* run through all the pmu drivers one at a time */
+	if (!init_power5_pmu())
+		return 0;
+	else if (!init_power5p_pmu())
+		return 0;
+	else if (!init_power6_pmu())
+		return 0;
+	else if (!init_power7_pmu())
+		return 0;
+	else if (!init_power8_pmu())
+		return 0;
+	else if (!init_power9_pmu())
+		return 0;
+	else if (!init_power10_pmu())
+		return 0;
+	else if (!init_ppc970_pmu())
+		return 0;
+	else
+		return init_generic_compat_pmu();
+}
+early_initcall(init_ppc64_pmu);
+#endif

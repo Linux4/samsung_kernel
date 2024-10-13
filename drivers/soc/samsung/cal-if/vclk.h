@@ -12,7 +12,7 @@ struct vclk_trans_ops {
 	unsigned int (*get_pll)(unsigned int id);
 };
 
-#ifdef CONFIG_CMUCAL
+#if defined(CONFIG_CMUCAL) || defined(CONFIG_CMUCAL_MODULE)
 #define get_vclk(_id)		cmucal_get_node(_id | VCLK_TYPE)
 #define get_clk_id(_name)	cmucal_get_id(_name)
 
@@ -124,11 +124,16 @@ static inline int vclk_get_bigturbo_table(unsigned int *table)
 }
 #endif
 
-#ifdef CONFIG_CMUCAL_DEBUG
+#if defined(CONFIG_CMUCAL_DEBUG) || defined(CONFIG_CMUCAL_DEBUG_MODULE)
 extern unsigned int vclk_debug_clk_get_rate(unsigned int id);
 extern int vclk_debug_clk_set_value(unsigned int id, unsigned int params);
 extern unsigned long vclk_debug_clk_get_value(unsigned int id);
+extern int vclk_debug_init(void);
 #else
+static inline int vclk_debug_init(void)
+{
+        return 0;
+}
 static inline unsigned int vclk_debug_clk_get_rate(unsigned int id)
 {
 	return 0;

@@ -1,19 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 1999-2002 Vojtech Pavlik
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 as published by
- * the Free Software Foundation.
  */
 #ifndef _INPUT_H
 #define _INPUT_H
 
 #include <linux/time.h>
 #include <linux/list.h>
+#include <linux/android_kabi.h>
 #include <uapi/linux/input.h>
 /* Implementation details, userspace should not care about these */
 #define ABS_MT_FIRST		ABS_MT_TOUCH_MAJOR
-#define ABS_MT_LAST		ABS_MT_GRIP
+#define ABS_MT_LAST		ABS_MT_TOOL_Y
 
 /*
  * In-kernel definitions.
@@ -23,6 +21,8 @@
 #include <linux/fs.h>
 #include <linux/timer.h>
 #include <linux/mod_devicetable.h>
+
+struct input_dev_poller;
 
 /**
  * struct input_value - input value representation
@@ -74,6 +74,8 @@ enum input_clock_type {
  *	not sleep
  * @ff: force feedback structure associated with the device if device
  *	supports force feedback effects
+ * @poller: poller structure associated with the device if device is
+ *	set up to use polling mode
  * @repeat_key: stores key code of the last key pressed; used to implement
  *	software autorepeat
  * @timer: timer for software autorepeat
@@ -159,6 +161,8 @@ struct input_dev {
 
 	struct ff_device *ff;
 
+	struct input_dev_poller *poller;
+
 	unsigned int repeat_key;
 	struct timer_list timer;
 
@@ -184,9 +188,7 @@ struct input_dev {
 	struct mutex mutex;
 
 	unsigned int users;
-	unsigned int users_private;
 	bool going_away;
-	bool disabled;
 
 	struct device dev;
 
@@ -200,6 +202,11 @@ struct input_dev {
 	bool devres_managed;
 
 	ktime_t timestamp[INPUT_CLK_MAX];
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 #define to_input_dev(d) container_of(d, struct input_dev, dev)
 
@@ -319,6 +326,8 @@ struct input_handler {
 
 	struct list_head	h_list;
 	struct list_head	node;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -345,6 +354,8 @@ struct input_handle {
 
 	struct list_head	d_node;
 	struct list_head	h_node;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct input_dev __must_check *input_allocate_device(void);
@@ -376,6 +387,13 @@ int __must_check input_register_device(struct input_dev *);
 void input_unregister_device(struct input_dev *);
 
 void input_reset_device(struct input_dev *);
+
+int input_setup_polling(struct input_dev *dev,
+			void (*poll_fn)(struct input_dev *dev));
+void input_set_poll_interval(struct input_dev *dev, unsigned int interval);
+void input_set_min_poll_interval(struct input_dev *dev, unsigned int interval);
+void input_set_max_poll_interval(struct input_dev *dev, unsigned int interval);
+int input_get_poll_interval(struct input_dev *dev);
 
 int __must_check input_register_handler(struct input_handler *);
 void input_unregister_handler(struct input_handler *);
@@ -542,6 +560,9 @@ struct ff_device {
 
 	int max_effects;
 	struct ff_effect *effects;
+
+	ANDROID_KABI_RESERVE(1);
+
 	struct file *effect_owners[];
 };
 

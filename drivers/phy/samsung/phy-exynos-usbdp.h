@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
  *              http://www.samsung.com
  *
  * Author: Sung-Hyun Na <sunghyun.na@samsung.com>
@@ -27,7 +28,5 @@ extern int phy_exynos_usbdp_check_pll_lock(struct exynos_usbphy_info *info);
 extern void phy_exynos_usbdp_disable(struct exynos_usbphy_info *);
 extern void phy_exynos_usbdp_tune_each(struct exynos_usbphy_info *, char *, int);
 extern void phy_exynos_usbdp_tune(struct exynos_usbphy_info *info);
-extern void exynos_usbdrd_request_phy_isol(void);
-extern int exynos_usbdrd_inform_dp_use(int use, int lane_cnt);
 
 #endif /* PHY_EXYNOS_USBDP_H_ */

@@ -10,11 +10,10 @@
 */
 
 #include <linux/module.h>
-#include <linux/version.h>
 #include <linux/clk-provider.h>
 #include <linux/clk.h>
 #include <linux/of.h>
-#include <linux/exynos_iovmm.h>
+#include <linux/iommu.h>
 #include <linux/videodev2_exynos_media.h>
 #include <linux/console.h>
 
@@ -43,30 +42,17 @@ void dpp_dump(struct dpp_device *dpp)
 		console_unlock();
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,19,0)
-void dpp_op_timer_handler(unsigned long arg)
+void *request_dpp_subdev(int id)
 {
-	struct dpp_device *dpp = from_timer(dpp, (struct timer_list *)arg, op_timer);
-	struct decon_device *decon = get_decon_drvdata(0);
-
-	if (!decon_is_bypass(decon))
-		dpp_dump(dpp);
-
-	if (dpp->dpp_config->config.compression)
-		dpp_info("Compression Source is %s of DPP[%d]\n",
-			dpp->dpp_config->config.dpp_parm.comp_src == DPP_COMP_SRC_G2D ?
-			"G2D" : "GPU", dpp->id);
-
-	dpp_info("DPP[%d] irq hasn't been occured", dpp->id);
+	struct dpp_device *dpp = dpp_drvdata[id];
+	return ((dpp && dpp->subdev_initialized) ? (void *)(&dpp->sd) : NULL);
 }
-#else
+
 void dpp_op_timer_handler(struct timer_list *arg)
 {
 	struct dpp_device *dpp = from_timer(dpp, arg, op_timer);
-	struct decon_device *decon = get_decon_drvdata(0);
 
-	if (!decon_is_bypass(decon))
-		dpp_dump(dpp);
+	dpp_dump(dpp);
 
 	if (dpp->dpp_config->config.compression)
 		dpp_info("Compression Source is %s of DPP[%d]\n",
@@ -75,7 +61,6 @@ void dpp_op_timer_handler(struct timer_list *arg)
 
 	dpp_info("DPP[%d] irq hasn't been occured", dpp->id);
 }
-#endif
 
 static int dpp_wb_wait_for_framedone(struct dpp_device *dpp)
 {
@@ -121,7 +106,12 @@ static void dpp_get_base_addr_params(struct dpp_params_info *p)
 	switch (p->format) {
 
 	case DECON_PIXEL_FORMAT_NV12N:
-		p->addr[1] = NV12N_CBCR_BASE(p->addr[0], p->src.f_w, p->src.f_h);
+		/* Removed usage of NV12N_CBCR_BASE() which uses 64 bytes alignment
+		 * for source width. But to be in line with MSC & HWC, the 16 bytes
+		 * alignement is considered
+		 */
+		p->addr[1] = p->addr[0] + __ALIGN_UP((p->src.f_w), 16) *
+						__ALIGN_UP((p->src.f_h), 16);
 		break;
 
 	case DECON_PIXEL_FORMAT_NV12_P010:
@@ -394,7 +384,7 @@ static int dpp_check_format(struct dpp_device *dpp, struct dpp_params_info *p)
 	}
 
 
-#if defined(CONFIG_SOC_EXYNOS3830)
+#if defined(CONFIG_SOC_S5E3830)
 	if (!test_bit(DPP_ATTR_HDR10P, &dpp->attr) && (p->hdr > DPP_HDR_OFF)) {
 		dpp_err("Not support HDR in DPP%d - No H/W!\n",
 				dpp->id);
@@ -630,6 +620,11 @@ static long dpp_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg
 
 	switch (cmd) {
 	case DPP_WIN_CONFIG:
+                if (arg == NULL) {
+                        dpp_err("failed to get DPP win config info\n");
+                        ret = -EINVAL;
+                        break;
+                }
 		dpp->dpp_config = (struct dpp_config *)arg;
 		ret = dpp_set_config(dpp);
 		if (ret)
@@ -722,6 +717,7 @@ static void dpp_init_subdev(struct dpp_device *dpp)
 	sd->grp_id = dpp->id;
 	snprintf(sd->name, sizeof(sd->name), "%s.%d", "dpp-sd", dpp->id);
 	v4l2_set_subdevdata(sd, dpp);
+	dpp->subdev_initialized = true;
 }
 
 static void dpp_parse_restriction(struct dpp_device *dpp, struct device_node *n)
@@ -1096,8 +1092,6 @@ static int dpp_init_resources(struct dpp_device *dpp, struct platform_device *pd
  */
 static int dpp_set_output_device(struct dpp_device *dpp)
 {
-	int ret;
-
 	if (!IS_WB(dpp->attr))
 		return 0;
 
@@ -1111,11 +1105,6 @@ static int dpp_set_output_device(struct dpp_device *dpp)
 	}
 
 	pm_runtime_enable(dpp->dev);
-	ret = iovmm_activate(dpp->dev);
-	if (ret) {
-		dpp_err("failed to activate iovmm\n");
-		return ret;
-	}
 
 	dpp->wb_state = WBMUX_STATE_OFF;
 	dpp_dbg("%s -\n", __func__);
@@ -1143,11 +1132,8 @@ static int dpp_probe(struct platform_device *pdev)
 	mutex_init(&dpp->lock);
 	init_waitqueue_head(&dpp->framedone_wq);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,19,0)
-	timer_setup(&dpp->op_timer, (void (*)(struct timer_list *))dpp_op_timer_handler, 0);
-#else
 	timer_setup(&dpp->op_timer, dpp_op_timer_handler, 0);
-#endif
+
 	ret = dpp_init_resources(dpp, pdev);
 	if (ret)
 		goto err_clk;
@@ -1210,7 +1196,7 @@ static const struct dev_pm_ops dpp_pm_ops = {
 	.runtime_resume		= dpp_runtime_resume,
 };
 
-static struct platform_driver dpp_driver __refdata = {
+struct platform_driver dpp_driver __refdata = {
 	.probe		= dpp_probe,
 	.remove		= dpp_remove,
 	.driver = {
@@ -1221,13 +1207,6 @@ static struct platform_driver dpp_driver __refdata = {
 		.suppress_bind_attrs = true,
 	}
 };
-
-static int dpp_register(void)
-{
-	return platform_driver_register(&dpp_driver);
-}
-
-device_initcall_sync(dpp_register);
 
 MODULE_AUTHOR("Jaehoe Yang <jaehoe.yang@samsung.com>");
 MODULE_AUTHOR("Minho Kim <m8891.kim@samsung.com>");

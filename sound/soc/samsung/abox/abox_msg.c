@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_msg.c
- *
- * ALSA SoC Audio Layer - Samsung Abox Message Queue driver
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * ALSA SoC - Samsung Abox Message Queue driver
  *
  * Copyright (c) 2017 Samsung Electronics Co. Ltd.
  *
@@ -11,9 +11,8 @@
 
 #include "abox_msg.h"
 
-#define TIMEOUT_NS 1000000
+#define TIMEOUT_NS 10000000
 #define FLUSH_TIMEOUT_NS (TIMEOUT_NS * 20)
-#define min(a, b) (a < b ? a : b)
 
 static struct abox_msg_queue *tx;
 static struct abox_msg_queue *rx;
@@ -38,8 +37,11 @@ static int is_avail(struct abox_msg_data_queue *q_data, int32_t size)
 	} else {
 		blank = q_data->len - q_data->idx_e;
 		if (blank < size) {
-			q_data->idx_e = 0;
-			blank = q_data->idx_s - q_data->idx_e;
+			/* reset end index only if there is a space */
+			if (q_data->idx_s >= size) {
+				q_data->idx_e = 0;
+				blank = q_data->idx_s - q_data->idx_e;
+			}
 		}
 	}
 
@@ -63,7 +65,7 @@ int32_t abox_msg_send(struct abox_msg_cmd *cmd,
 	for (i = 0; i < count; i++)
 		data_size += data[i].size;
 
-	cmd_len = sizeof(q_cmd->elem) / sizeof(q_cmd->elem[0]);
+	cmd_len = ARRAY_SIZE(q_cmd->elem);
 	cmd->time_put = get_time();
 	cmd->time_get = 0;
 
@@ -153,7 +155,7 @@ int32_t abox_msg_recv(struct abox_msg_cmd *cmd, void *data, int32_t size)
 	uint32_t cmd_len, data_len, data_size;
 	int32_t ret;
 
-	cmd_len = sizeof(q_cmd->elem) / sizeof(q_cmd->elem[0]);
+	cmd_len = ARRAY_SIZE(q_cmd->elem);
 	data_len = q_data->len;
 
 	rx_lock();

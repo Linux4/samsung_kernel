@@ -515,7 +515,7 @@ struct is_frame *is_votf_get_frame(struct is_group *group,  enum votf_service ty
 		return NULL;
 	}
 
-	frame = &framemgr->frames[fcount % framemgr->num_frames];
+	frame = &framemgr->frames[framemgr->num_frames ? (fcount % framemgr->num_frames) : 0];
 
 	return frame;
 }
@@ -535,12 +535,12 @@ int is_votf_register_framemgr(struct is_group *group, enum votf_service type,
 		framemgr->master.id = subdev_id;
 		framemgr->master.data = data;
 		framemgr->master.s_addr = fn;
-		mginfo("Registe VOTF master callback (subdev_id: %ld)\n", group, group, subdev_id);
+		mginfo("Register VOTF master callback (subdev_id: %ld)\n", group, group, subdev_id);
 	} else {
 		framemgr->slave.id = subdev_id;
 		framemgr->slave.data = data;
 		framemgr->slave.s_addr = fn;
-		mginfo("Registe VOTF slave callback (subdev_id: %ld)\n", group, group, subdev_id);
+		mginfo("Register VOTF slave callback (subdev_id: %ld)\n", group, group, subdev_id);
 	}
 
 	return 0;

@@ -308,7 +308,7 @@ static int __nocfi is_hw_vra_open(struct is_hw_ip *hw_ip, u32 instance,
 	if (test_bit(HW_OPEN, &hw_ip->state))
 		return 0;
 
-	frame_manager_probe(hw_ip->framemgr, BIT(hw_ip->id), "HWVRA");
+	frame_manager_probe(hw_ip->framemgr, hw_ip->id, "HWVRA");
 	frame_manager_open(hw_ip->framemgr, IS_MAX_HW_FRAME);
 
 	hw_ip->priv_info = vzalloc(sizeof(struct is_hw_vra));
@@ -329,9 +329,9 @@ static int __nocfi is_hw_vra_open(struct is_hw_ip *hw_ip, u32 instance,
 	is_hw_vra_reset(hw_ip);
 
 #ifdef ENABLE_FPSIMD_FOR_USER
-	fpsimd_get();
+	is_fpsimd_get_func();
 	get_lib_vra_func((void *)&hw_vra->lib_vra.itf_func);
-	fpsimd_put();
+	is_fpsimd_put_func();
 #else
 	get_lib_vra_func((void *)&hw_vra->lib_vra.itf_func);
 #endif

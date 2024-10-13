@@ -105,11 +105,8 @@ void monitor_init(struct is_time *time);
 #endif
 #ifdef INTERFACE_TIME
 void measure_init(struct is_interface_time *time, u32 cmd);
-void measure_time(struct is_interface_time *time,
-	u32 instance,
-	u32 group,
-	struct timeval *start,
-	struct timeval *end);
+void measure_time(struct is_interface_time *time, u32 instance,
+			u32 group, ktime_t start, ktime_t end);
 #endif
 #endif
 
@@ -135,5 +132,8 @@ void measure_time(struct is_interface_time *time,
 		if (debug_time_queue > 0)			\
 			monitor_time_queue(vctx, point);	\
 	} while (0)
+
+#define PABLO_KTIME_DELTA_NOW(s)	(ktime_sub(ktime_get(), s))
+#define PABLO_KTIME_US_DELTA_NOW(s)	(ktime_us_delta(ktime_get(), s))
 
 #endif

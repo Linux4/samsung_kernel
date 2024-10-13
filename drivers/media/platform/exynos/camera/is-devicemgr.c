@@ -18,14 +18,13 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <video/videonode.h>
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 
@@ -39,10 +38,6 @@
 #include "is-devicemgr.h"
 #include "is-device-ischain.h"
 #include "is-hw-control.h"
-#ifdef SUPPORT_REMOSAIC_CROP_ZOOM
-#include "is-param.h"
-#include "is-device-sensor-peri.h"
-#endif
 
 #ifdef CONFIG_USE_SENSOR_GROUP
 struct is_group *get_ischain_leader_group(struct is_device_ischain *device)
@@ -409,6 +404,9 @@ int is_devicemgr_shot_callback(struct is_group *group,
 	struct is_devicemgr *devicemgr;
 	struct devicemgr_sensor_tag_data *tag_data;
 	u32 stream;
+	int vc;
+	struct is_subdev *subdev;
+	struct is_device_sensor *sensor;
 
 	switch (type) {
 	case IS_DEVICE_SENSOR:
@@ -450,8 +448,20 @@ int is_devicemgr_shot_callback(struct is_group *group,
 		break;
 	case IS_DEVICE_ISCHAIN:
 		/* Only for sensor group with OTF */
-		if (group->head->device_type != IS_DEVICE_SENSOR ||
-			frame->type != SHOT_TYPE_EXTERNAL)
+		if (group->head->device_type != IS_DEVICE_SENSOR)
+			break;
+
+		sensor = group->head->sensor;
+		for (vc = ENTRY_SSVC0; vc <= ENTRY_SSVC3; vc++) {
+			subdev = group->head->subdev[vc];
+			if (subdev && test_bit(IS_SUBDEV_VOTF_USE, &subdev->state)) {
+				ret = is_sensor_votf_tag(sensor, subdev);
+				if (ret)
+					msrwarn("votf_frame is drop(%d)", sensor, subdev, frame, ret);
+			}
+		}
+
+		if (frame->type != SHOT_TYPE_EXTERNAL)
 			break;
 
 		devicemgr = group->device->devicemgr;
@@ -505,51 +515,6 @@ int is_devicemgr_shot_done(struct is_group *group,
 
 	return ret;
 }
-
-#ifdef SUPPORT_REMOSAIC_CROP_ZOOM
-void is_devicemgr_sensor_mode_change(struct is_group *group,
-		struct is_frame *frame)
-{
-	int ret = 0;
-	struct is_device_sensor *sensor;
-	struct crop_zoom_uctl *crop_zoom_ctrl;
-	struct seamless_mode_change_info mode_change;
-
-	if (!group || !frame) {
-		err("Invalid argument. group(%p) frame(%d)", group, frame);
-		return;
-	} else if (!frame->shot_ext) {
-		err("[F%d] shot_ext is NULL.", frame->fcount);
-		return;
-	}
-
-	sensor = group->device->sensor;
-	crop_zoom_ctrl = &frame->shot_ext->shot.uctl.cropzoomUd;
-
-	mgrdbgs(1, "sensor_mode_change. size(%dx%d) fps(%d) ex_mode(%d)\n",
-			group->device, group, frame,
-			crop_zoom_ctrl->width,
-			crop_zoom_ctrl->height,
-			crop_zoom_ctrl->fps,
-			crop_zoom_ctrl->ex_mode);
-
-	if (sensor->ex_mode == crop_zoom_ctrl->ex_mode)
-		return;
-
-	if (crop_zoom_ctrl->width == 0 || crop_zoom_ctrl->height == 0 ||
-		crop_zoom_ctrl->fps == 0)
-		return;
-
-	mode_change.width = crop_zoom_ctrl->width;
-	mode_change.height= crop_zoom_ctrl->height;
-	mode_change.fps= crop_zoom_ctrl->fps;
-	mode_change.ex_mode= crop_zoom_ctrl->ex_mode;
-
-	ret = is_sensor_peri_s_mode_change(sensor, &mode_change);
-	if (ret)
-		err("failed to set mode change(%d)", ret);
-}
-#endif//SUPPORT_REMOSAIC_CROP_ZOOM
 #else
 struct is_group *get_ischain_leader_group(struct is_device_ischain *device)
 {
@@ -607,11 +572,4 @@ int is_devicemgr_shot_done(struct is_group *group,
 {
 	return 0;
 }
-#ifdef SUPPORT_REMOSAIC_CROP_ZOOM
-void is_devicemgr_sensor_mode_change(struct is_group *group,
-		struct is_frame *frame)
-{
-	/* No ops */
-}
-#endif
 #endif

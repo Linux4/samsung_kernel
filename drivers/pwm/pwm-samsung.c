@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2007 Ben Dooks
  * Copyright (c) 2008 Simtec Electronics
@@ -6,10 +7,6 @@
  * Copyright (c) 2017 Samsung Electronics Co., Ltd.
  *
  * PWM driver for Samsung SoCs
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License.
  */
 
 #include <linux/bitops.h>
@@ -28,6 +25,10 @@
 
 /* For struct samsung_timer_variant and samsung_pwm_lock. */
 #include <clocksource/samsung_pwm.h>
+
+#ifdef CONFIG_CPU_IDLE
+#include <soc/samsung/exynos-cpupm.h>
+#endif
 
 #define REG_TCFG0			0x00
 #define REG_TCFG1			0x04
@@ -82,6 +83,14 @@ struct samsung_pwm_channel {
 	enum duty_cycle	duty_cycle;
 };
 
+struct samsung_pwm_save_regs {
+	unsigned int tcfg0;
+	unsigned int tcfg1;
+	unsigned int tcon;
+	unsigned int *tcntb;
+	unsigned int *tcmpb;
+};
+
 /**
  * struct samsung_pwm_chip - private data of PWM chip
  * @chip:		generic PWM chip
@@ -105,9 +114,9 @@ struct samsung_pwm_chip {
 	struct clk *tclk0;
 	struct clk *tclk1;
 	struct clk *pwm_sclk;
-	unsigned int reg_tcfg0;
 	int enable_cnt;
 	unsigned int idle_ip_index;
+	struct samsung_pwm_save_regs save_regs;
 };
 
 #ifndef CONFIG_CLKSRC_SAMSUNG_PWM
@@ -127,7 +136,7 @@ static DEFINE_SPINLOCK(samsung_pwm_lock);
 
 static void pwm_samsung_update_ip_idle_status(struct samsung_pwm_chip *chip, int idle)
 {
-#ifdef CONFIG_ARCH_EXYNOS_PM
+#ifdef CONFIG_CPU_IDLE
 	exynos_update_ip_idle_status(chip->idle_ip_index, idle);
 #endif
 }
@@ -283,6 +292,13 @@ static void pwm_samsung_init(struct samsung_pwm_chip *chip,
 
 	tcon &= ~TCON_MANUALUPDATE(tcon_chan);
 	__raw_writel(tcon, chip->base + REG_TCON);
+
+	/* pwm state update */
+	pwm->state.period = 0;
+	pwm->state.duty_cycle = 0;
+	pwm->state.polarity = PWM_POLARITY_INVERSED;
+	pwm->state.enabled = false;
+
 }
 
 static int pwm_samsung_request(struct pwm_chip *chip, struct pwm_device *pwm)
@@ -298,7 +314,7 @@ static int pwm_samsung_request(struct pwm_chip *chip, struct pwm_device *pwm)
 		return -EINVAL;
 	}
 
-	our_chan = devm_kzalloc(chip->dev, sizeof(*our_chan), GFP_KERNEL);
+	our_chan = kzalloc(sizeof(*our_chan), GFP_KERNEL);
 	if (!our_chan)
 		return -ENOMEM;
 
@@ -315,7 +331,7 @@ static int pwm_samsung_request(struct pwm_chip *chip, struct pwm_device *pwm)
 
 static void pwm_samsung_free(struct pwm_chip *chip, struct pwm_device *pwm)
 {
-	devm_kfree(chip->dev, pwm_get_chip_data(pwm));
+	kfree(pwm_get_chip_data(pwm));
 }
 
 static void pwm_samsung_manual_update(struct samsung_pwm_chip *chip,
@@ -574,7 +590,7 @@ static int pwm_samsung_capture(struct pwm_chip *chip, struct pwm_device *pwm,
 
 	tcon = readl(our_chip->base + REG_TCON);
 	polarity = tcon & TCON_INVERT(tcon_chan);
-	enabled = tcon & TCON_START(tcon_chan);
+	enabled = (tcon & TCON_START(tcon_chan)) && (tcon & TCON_AUTORELOAD(tcon_chan));
 
 	tcnt = readl(our_chip->base + REG_TCNTB(pwm->hwpwm));
 	tcmp = readl(our_chip->base + REG_TCMPB(pwm->hwpwm));
@@ -678,8 +694,6 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 	unsigned int chan, reg_tcfg0;
 	int ret;
 
-	dev_set_socdata(&pdev->dev, "Exynos", "PWM");
-
 	chip = devm_kzalloc(&pdev->dev, sizeof(*chip), GFP_KERNEL);
 	if (chip == NULL)
 		return -ENOMEM;
@@ -689,8 +703,8 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 	chip->chip.base = -1;
 	chip->chip.npwm = SAMSUNG_PWM_NUM;
 	chip->inverter_mask = BIT(SAMSUNG_PWM_NUM) - 1;
-#ifdef CONFIG_ARCH_EXYNOS_PM
-	chip->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev));
+#ifdef CONFIG_CPU_IDLE
+	chip->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev), 1);
 #endif
 	if (IS_ENABLED(CONFIG_OF) && pdev->dev.of_node) {
 		ret = pwm_samsung_parse_dt(chip);
@@ -746,6 +760,14 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 	/* Initialize Divider MUX */
 	writel(0, chip->base + REG_TCFG1);
 
+	/* Initialize save regs */
+	chip->save_regs.tcntb =
+			devm_kzalloc(&pdev->dev,
+			SAMSUNG_PWM_NUM * sizeof(*chip->save_regs.tcntb), GFP_KERNEL);
+	chip->save_regs.tcmpb =
+			devm_kzalloc(&pdev->dev,
+			SAMSUNG_PWM_NUM * sizeof(*chip->save_regs.tcmpb), GFP_KERNEL);
+
 	for (chan = 0; chan < SAMSUNG_PWM_NUM; ++chan)
 		if (chip->variant.output_mask & BIT(chan))
 			pwm_samsung_set_invert(chip, chan, true);
@@ -798,6 +820,55 @@ static int pwm_samsung_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM_SLEEP
+static void pwm_samsung_save_regs(struct samsung_pwm_chip *chip)
+{
+	int i;
+
+	if (!chip) {
+		pr_err("Failed to get pwm chip!\n");
+		return;
+	}
+
+	chip->save_regs.tcfg0 = readl(chip->base + REG_TCFG0);
+	chip->save_regs.tcfg1 = readl(chip->base + REG_TCFG1);
+	chip->save_regs.tcon = readl(chip->base + REG_TCON);
+
+	for (i = 0; i< SAMSUNG_PWM_NUM; i++) {
+		if (!pwm_get_chip_data(&chip->chip.pwms[i]))
+			continue;
+
+		chip->save_regs.tcntb[i] = readl(chip->base + REG_TCNTB(i));
+		chip->save_regs.tcmpb[i] = readl(chip->base + REG_TCMPB(i));
+	}
+
+	pr_info("%s: PWM chip data save done.\n", __func__);
+	return;
+}
+
+static void pwm_samsung_restore_regs(struct samsung_pwm_chip *chip)
+{
+	int i;
+
+	if (!chip) {
+		pr_err("Failed to get pwm chip!\n");
+		return;
+	}
+
+	writel(chip->save_regs.tcfg0, chip->base + REG_TCFG0);
+	writel(chip->save_regs.tcfg1, chip->base + REG_TCFG1);
+	writel(chip->save_regs.tcon, chip->base + REG_TCON);
+
+	for (i = 0; i< SAMSUNG_PWM_NUM; i++) {
+		if (!pwm_get_chip_data(&chip->chip.pwms[i]))
+			continue;
+
+		writel(chip->save_regs.tcntb[i], chip->base + REG_TCNTB(i));
+		writel(chip->save_regs.tcmpb[i], chip->base + REG_TCMPB(i));
+	}
+	pr_info("%s: PWM chip data resume done.\n", __func__);
+	return;
+}
+
 static int pwm_samsung_suspend(struct device *dev)
 {
 	struct samsung_pwm_chip *chip = dev_get_drvdata(dev);
@@ -830,8 +901,8 @@ static int pwm_samsung_suspend(struct device *dev)
 		chan->period_ns = -1;
 		chan->duty_ns = -1;
 	}
-	/* Save pwm registers*/
-	chip->reg_tcfg0 = __raw_readl(chip->base + REG_TCFG0);
+	/* Save pwm register setting */
+	pwm_samsung_save_regs(chip);
 
 	pwm_samsung_clk_disable(chip);
 
@@ -841,20 +912,11 @@ static int pwm_samsung_suspend(struct device *dev)
 static int pwm_samsung_resume(struct device *dev)
 {
 	struct samsung_pwm_chip *chip = dev_get_drvdata(dev);
-	unsigned int chan;
 
 	pwm_samsung_clk_enable(chip);
 
-	/* Restore pwm registers*/
-	__raw_writel(chip->reg_tcfg0, chip->base + REG_TCFG0);
-
-	for (chan = 0; chan < SAMSUNG_PWM_NUM; ++chan) {
-		if (chip->variant.output_mask & BIT(chan)) {
-			struct pwm_device *pwm = &chip->chip.pwms[chan];
-
-			pwm_samsung_init(chip, pwm);
-		}
-	}
+	/* Restore pwm register setting */
+	pwm_samsung_restore_regs(chip);
 
 	if (!chip->enable_cnt)
 		pwm_samsung_clk_disable(chip);

@@ -14,24 +14,21 @@
 #include <linux/delay.h>
 #include <linux/atomic.h>
 #include <linux/sec_hard_reset_hook.h>
+#include <linux/module.h>
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #endif
 #include <linux/moduleparam.h>
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-#include <linux/gpio_keys.h>
-#else
 #include "sec_key_notifier.h"
-#endif
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
 
-#ifdef CONFIG_SEC_PMIC_PWRKEY
-bool (*pmic_key_is_pwron)(void);
-EXPORT_SYMBOL_GPL(pmic_key_is_pwron);
+#if IS_ENABLED(CONFIG_SEC_PMIC_PWRKEY)
+int (*pmic_key_is_pwron)(void);
+EXPORT_SYMBOL(pmic_key_is_pwron);
 #endif
 
 typedef bool (*keystate_fn_t)(int gpio, bool active_low);
@@ -120,7 +117,7 @@ static bool is_pressed_gpio_key(int gpio, bool active_low)
 		return false;
 }
 
-#ifdef CONFIG_SEC_PMIC_PWRKEY
+#if IS_ENABLED(CONFIG_SEC_PMIC_PWRKEY)
 static bool is_pressed_pmic_key(int gpio, bool active_low)
 {
 	if (pmic_key_is_pwron())
@@ -158,7 +155,7 @@ static enum hrtimer_restart hard_reset_hook_callback(struct hrtimer *hrtimer)
 
 	pr_err("Hard Reset\n");
 	hard_reset_occurred = true;
-	BUG();
+	panic("Hard Reset Hook");
 	return HRTIMER_RESTART;
 }
 
@@ -197,7 +194,7 @@ static int load_gpio_key_info(void)
 	return 0;
 }
 
-#ifdef CONFIG_SEC_PMIC_PWRKEY
+#if IS_ENABLED(CONFIG_SEC_PMIC_PWRKEY)
 static int load_pmic_key_info(void)
 {
 #ifdef CONFIG_OF
@@ -212,8 +209,11 @@ static int load_pmic_key_info(void)
 	const char *dtname = "s2mpu12-keys";
 #endif
 	np = of_find_node_by_name(NULL, dtname);
-	if (!np)
+	if (!np) {
+		pr_err("could not find node by name(%s)\n", dtname);
 		return -1;
+	}
+
 	for_each_child_of_node(np, pp) {
 		uint keycode = 0;
 
@@ -247,14 +247,10 @@ static int load_keys_info(void)
 static int hard_reset_hook(struct notifier_block *nb,
 			   unsigned long type, void *data)
 {
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-	unsigned int code = (unsigned int)type;
-	int pressed = *(int *)data;
-#else
 	struct sec_key_notifier_param *param = data;
 	unsigned int code = param->keycode;
 	int pressed = param->down;
-#endif
+
 	if (unlikely(!hard_reset_hook_enable))
 		return NOTIFY_DONE;
 
@@ -268,7 +264,7 @@ static int hard_reset_hook(struct notifier_block *nb,
 
 	if (hard_reset_key_all_pressed()) {
 		hrtimer_start(&hard_reset_hook_timer,
-			      hold_time, HRTIMER_MODE_REL);
+			hold_time, HRTIMER_MODE_REL);
 		pr_info("%s : hrtimer_start\n", __func__);
 	}
 	else {
@@ -282,11 +278,6 @@ static struct notifier_block seccmn_hard_reset_notifier = {
 	.notifier_call = hard_reset_hook
 };
 
-bool is_hard_reset_occurred(void)
-{
-	return hard_reset_occurred;
-}
-
 void hard_reset_delay(void)
 {
 	/* HQE team request hard reset key should guarantee 7 seconds.
@@ -296,13 +287,15 @@ void hard_reset_delay(void)
 	 */
 	if (hard_reset_occurred) {
 		pr_err("wait until warm or manual reset is triggered\n");
-		dev_mdelay(2000);
+		mdelay(2000); // TODO: change to dev_mdelay
 	}
 }
+EXPORT_SYMBOL(hard_reset_delay);
 
-int __init hard_reset_hook_init(void)
+static int __init hard_reset_hook_init(void)
 {
 	size_t i;
+	int ret = 0;
 
 	hrtimer_init(&hard_reset_hook_timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
 	hard_reset_hook_timer.function = hard_reset_hook_callback;
@@ -311,14 +304,21 @@ int __init hard_reset_hook_init(void)
 	for (i = 0; i < ARRAY_SIZE(hard_reset_keys); i++)
 		all_pressed |= 0x1 << i;
 	load_keys_info();
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-	register_gpio_keys_notifier(&seccmn_hard_reset_notifier);
-#else
-	sec_kn_register_notifier(&seccmn_hard_reset_notifier,
-			hard_reset_keys, ARRAY_SIZE(hard_reset_keys));
-#endif
+	ret = sec_kn_register_notifier(&seccmn_hard_reset_notifier);
 
-	return 0;
+	return ret;
 }
 
-late_initcall(hard_reset_hook_init);
+static void hard_reset_hook_exit(void)
+{
+	sec_kn_unregister_notifier(&seccmn_hard_reset_notifier);
+}
+
+module_init(hard_reset_hook_init);
+module_exit(hard_reset_hook_exit);
+#if IS_ENABLED(CONFIG_PINCTRL_SAMSUNG)
+MODULE_SOFTDEP("pre: pinctrl-samsung-core");
+#endif
+
+MODULE_DESCRIPTION("Samsung Hard_reset_hook driver");
+MODULE_LICENSE("GPL v2");

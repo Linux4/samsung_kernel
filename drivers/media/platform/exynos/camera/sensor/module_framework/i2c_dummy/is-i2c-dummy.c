@@ -14,7 +14,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-device-sensor.h"
 #include "is-device-sensor-peri.h"
@@ -97,7 +97,7 @@ static const struct i2c_device_id sensor_i2c_dummy_idt[] = {
 	{},
 };
 
-static struct i2c_driver sensor_i2c_dummy_driver = {
+struct i2c_driver sensor_i2c_dummy_driver = {
 	.probe  = sensor_i2c_dummy_probe,
 	.driver = {
 		.name	= DUMMY_NAME,
@@ -108,6 +108,7 @@ static struct i2c_driver sensor_i2c_dummy_driver = {
 	.id_table = sensor_i2c_dummy_idt,
 };
 
+#ifndef MODULE
 static int __init sensor_i2c_dummy_init(void)
 {
 	int ret;
@@ -120,3 +121,4 @@ static int __init sensor_i2c_dummy_init(void)
 	return ret;
 }
 late_initcall(sensor_i2c_dummy_init);
+#endif

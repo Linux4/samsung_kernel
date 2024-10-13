@@ -63,7 +63,7 @@ struct samsung_fixed_rate {
 		.fixed_rate	= frate,		\
 	}
 
-extern void __init samsung_register_fixed_rate(
+extern void samsung_register_fixed_rate(
 		struct samsung_clk_provider *ctx,
 		struct samsung_fixed_rate *list,
 		unsigned int nr_clk);
@@ -506,17 +506,17 @@ struct samsung_vclk {
 		.val		= _val,		\
 	}
 
-extern void __init samsung_register_vclk(struct samsung_clk_provider *ctx,
+extern void samsung_register_vclk(struct samsung_clk_provider *ctx,
 		struct init_vclk *list, unsigned int nr_vclk);
 
-extern struct samsung_clk_provider *__init samsung_clk_init(
+extern struct samsung_clk_provider * samsung_clk_init(
 			struct device_node *np, void __iomem *base,
 			unsigned long nr_clks);
 
-extern void __init samsung_clk_of_add_provider(struct device_node *np,
+extern void samsung_clk_of_add_provider(struct device_node *np,
 		struct samsung_clk_provider *ctx);
 
-extern void __init samsung_register_of_fixed_ext(
+extern void samsung_register_of_fixed_ext(
 			struct samsung_clk_provider *ctx,
 			struct samsung_fixed_rate *fixed_rate_clk,
 			unsigned int nr_fixed_rate_clk,

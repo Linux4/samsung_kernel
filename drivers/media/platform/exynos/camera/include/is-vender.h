@@ -21,7 +21,7 @@
 #include "exynos-is-sensor.h"
 #include "is-device-csi.h"
 #include "is-device-sensor.h"
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+#ifdef USE_CAMERA_ADAPTIVE_MIPI
 #include "is-vendor-mipi.h"
 #endif
 
@@ -72,6 +72,7 @@ struct is_rom_data {
 	u32 rom_valid;
 	bool is_rom_read; 
 };
+
 enum is_rom_cal_index {
 	ROM_CAL_MASTER	= 0,
 	ROM_CAL_SLAVE0	= 1,
@@ -89,12 +90,16 @@ enum is_rom_dualcal_index {
 	ROM_DUALCAL_NOTHING	= 100
 };
 
+#define AF_CAL_MAX 8
 #define AF_CAL_D_MAX 8
+
+#define TOF_AF_SIZE 1200
+
 struct tof_data_t {
 	u64 timestamp;
-	u16 *data;
 	u32 width;
 	u32 height;
+	u16 data[TOF_AF_SIZE];
 };
 
 struct capture_intent_info_t {
@@ -105,6 +110,8 @@ struct capture_intent_info_t {
 
 #define TOF_CAL_SIZE_MAX 10
 #define TOF_CAL_VALID_MAX 10
+
+#define CROSSTALK_CAL_MAX (3 * 13)
 
 #ifdef USE_CAMERA_HW_BIG_DATA
 #define CAM_HW_ERR_CNT_FILE_PATH "/data/vendor/camera/camera_hw_err_cnt.dat"
@@ -123,6 +130,7 @@ struct cam_hw_param_collector {
 	struct cam_hw_param rear_hwparam;
 	struct cam_hw_param rear2_hwparam;
 	struct cam_hw_param rear3_hwparam;
+	struct cam_hw_param rear4_hwparam;
 	struct cam_hw_param front_hwparam;
 	struct cam_hw_param front2_hwparam;
 	struct cam_hw_param rear_tof_hwparam;
@@ -146,9 +154,13 @@ void is_vender_csi_err_handler(struct is_device_csi *csi);
 void is_vender_csi_err_print_debug_log(struct is_device_sensor *device);
 
 int is_vender_probe(struct is_vender *vender);
+#ifdef MODULE
+int is_vender_driver_init(void);
+int is_vender_driver_exit(void);
+#endif
 int is_vender_dt(struct device_node *np);
 int is_vendor_rom_parse_dt(struct device_node *dnode, int rom_id);
-int is_vender_fw_prepare(struct is_vender *vender);
+int is_vender_fw_prepare(struct is_vender *vender, u32 position);
 int is_vender_fw_filp_open(struct is_vender *vender, struct file **fp, int bin_type);
 int is_vender_preproc_fw_load(struct is_vender *vender);
 int is_vender_s_ctrl(struct is_vender *vender);
@@ -194,7 +206,17 @@ int is_vendor_get_rom_id_from_position(int position);
 void is_vendor_get_rom_info_from_position(int position, int *rom_type, int *rom_id, int *rom_cal_index);
 void is_vendor_get_rom_dualcal_info_from_position(int position, int *rom_type, int *rom_dualcal_id, int *rom_dualcal_index);
 bool is_vendor_check_camera_running(int position);
+int is_vender_get_dualized_sensorid(int position);
+
+int is_vendor_get_position_from_rom_id(int rom_id);
+int is_vendor_get_sensor_id_from_position(int position);
+
+int is_vendor_set_mipi_clock(struct is_device_sensor *device);
+int is_vendor_get_mipi_clock_string(struct is_device_sensor *device, char *cur_mipi_str);
+int is_vendor_update_mipi_info(struct is_device_sensor *device);
+
 #ifdef USE_TOF_AF
 void is_vender_store_af(struct is_vender *vender, struct tof_data_t *data);
 #endif
 #endif
+

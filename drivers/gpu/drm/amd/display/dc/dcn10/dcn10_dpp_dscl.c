@@ -218,6 +218,12 @@ static void dpp1_dscl_set_lb(
 			INTERLEAVE_EN, lb_params->interleave_en, /* Interleave source enable */
 			LB_DATA_FORMAT__ALPHA_EN, lb_params->alpha_en); /* Alpha enable */
 	}
+	else {
+		/* DSCL caps: pixel data processed in float format */
+		REG_SET_2(LB_DATA_FORMAT, 0,
+			INTERLEAVE_EN, lb_params->interleave_en, /* Interleave source enable */
+			LB_DATA_FORMAT__ALPHA_EN, lb_params->alpha_en); /* Alpha enable */
+	}
 
 	REG_SET_2(LB_MEMORY_CTRL, 0,
 		MEMORY_CONFIG, mem_size_config,
@@ -476,10 +482,13 @@ static enum lb_memory_config dpp1_dscl_find_lb_memory_config(struct dcn10_dpp *d
 	int vtaps_c = scl_data->taps.v_taps_c;
 	int ceil_vratio = dc_fixpt_ceil(scl_data->ratios.vert);
 	int ceil_vratio_c = dc_fixpt_ceil(scl_data->ratios.vert_c);
-	enum lb_memory_config mem_cfg = LB_MEMORY_CONFIG_0;
 
-	if (dpp->base.ctx->dc->debug.use_max_lb)
-		return mem_cfg;
+	if (dpp->base.ctx->dc->debug.use_max_lb) {
+		if (scl_data->format == PIXEL_FORMAT_420BPP8
+				|| scl_data->format == PIXEL_FORMAT_420BPP10)
+			return LB_MEMORY_CONFIG_3;
+		return LB_MEMORY_CONFIG_0;
+	}
 
 	dpp->base.caps->dscl_calc_lb_num_partitions(
 			scl_data, LB_MEMORY_CONFIG_1, &num_part_y, &num_part_c);
@@ -607,11 +616,13 @@ static void dpp1_dscl_set_manual_ratio_init(
 		SCL_V_INIT_FRAC, init_frac,
 		SCL_V_INIT_INT, init_int);
 
-	init_frac = dc_fixpt_u0d19(data->inits.v_bot) << 5;
-	init_int = dc_fixpt_floor(data->inits.v_bot);
-	REG_SET_2(SCL_VERT_FILTER_INIT_BOT, 0,
-		SCL_V_INIT_FRAC_BOT, init_frac,
-		SCL_V_INIT_INT_BOT, init_int);
+	if (REG(SCL_VERT_FILTER_INIT_BOT)) {
+		init_frac = dc_fixpt_u0d19(data->inits.v_bot) << 5;
+		init_int = dc_fixpt_floor(data->inits.v_bot);
+		REG_SET_2(SCL_VERT_FILTER_INIT_BOT, 0,
+			SCL_V_INIT_FRAC_BOT, init_frac,
+			SCL_V_INIT_INT_BOT, init_int);
+	}
 
 	init_frac = dc_fixpt_u0d19(data->inits.v_c) << 5;
 	init_int = dc_fixpt_floor(data->inits.v_c);
@@ -619,11 +630,13 @@ static void dpp1_dscl_set_manual_ratio_init(
 		SCL_V_INIT_FRAC_C, init_frac,
 		SCL_V_INIT_INT_C, init_int);
 
-	init_frac = dc_fixpt_u0d19(data->inits.v_c_bot) << 5;
-	init_int = dc_fixpt_floor(data->inits.v_c_bot);
-	REG_SET_2(SCL_VERT_FILTER_INIT_BOT_C, 0,
-		SCL_V_INIT_FRAC_BOT_C, init_frac,
-		SCL_V_INIT_INT_BOT_C, init_int);
+	if (REG(SCL_VERT_FILTER_INIT_BOT_C)) {
+		init_frac = dc_fixpt_u0d19(data->inits.v_c_bot) << 5;
+		init_int = dc_fixpt_floor(data->inits.v_c_bot);
+		REG_SET_2(SCL_VERT_FILTER_INIT_BOT_C, 0,
+			SCL_V_INIT_FRAC_BOT_C, init_frac,
+			SCL_V_INIT_INT_BOT_C, init_int);
+	}
 }
 
 
@@ -698,15 +711,17 @@ void dpp1_dscl_set_scaler_manual_scale(
 		return;
 
 	/* Black offsets */
-	if (ycbcr)
-		REG_SET_2(SCL_BLACK_OFFSET, 0,
-				SCL_BLACK_OFFSET_RGB_Y, BLACK_OFFSET_RGB_Y,
-				SCL_BLACK_OFFSET_CBCR, BLACK_OFFSET_CBCR);
-	else
+	if (REG(SCL_BLACK_OFFSET)) {
+		if (ycbcr)
+			REG_SET_2(SCL_BLACK_OFFSET, 0,
+					SCL_BLACK_OFFSET_RGB_Y, BLACK_OFFSET_RGB_Y,
+					SCL_BLACK_OFFSET_CBCR, BLACK_OFFSET_CBCR);
+		else
 
-		REG_SET_2(SCL_BLACK_OFFSET, 0,
-				SCL_BLACK_OFFSET_RGB_Y, BLACK_OFFSET_RGB_Y,
-				SCL_BLACK_OFFSET_CBCR, BLACK_OFFSET_RGB_Y);
+			REG_SET_2(SCL_BLACK_OFFSET, 0,
+					SCL_BLACK_OFFSET_RGB_Y, BLACK_OFFSET_RGB_Y,
+					SCL_BLACK_OFFSET_CBCR, BLACK_OFFSET_RGB_Y);
+	}
 
 	/* Manually calculate scale ratio and init values */
 	dpp1_dscl_set_manual_ratio_init(dpp, scl_data);

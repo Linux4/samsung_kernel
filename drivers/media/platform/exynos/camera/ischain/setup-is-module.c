@@ -26,6 +26,7 @@
 
 #include <exynos-is-module.h>
 #include "is-i2c-config.h"
+#include "is-vender.h"
 
 static int acquire_shared_rsc(struct exynos_sensor_pin *pin_ctrls)
 {
@@ -58,6 +59,7 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 	unsigned long flags;
 	struct v4l2_subdev *subdev_module;
 	struct is_device_sensor *sensor;
+	struct is_resourcemgr *resourcemgr;
 
 	if (pin_ctrls->shared_rsc_type) {
 		spin_lock_irqsave(pin_ctrls->shared_rsc_slock, flags);
@@ -80,6 +82,28 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 
 		if (active_count != pin_ctrls->shared_rsc_active)
 			return 0;
+	}
+
+	minfo("[%s] pin_ctrl(%s, val(%d), delay(%d), act(%d), pin(%ld))\n", module,
+		module->sensor_name, name, value, delay, act, (act == PIN_FUNCTION) ? 0 : pin);
+
+	subdev_module = module->subdev;
+	if (!subdev_module) {
+		merr("[M%d] module's subdev was not probed",
+			module, module->sensor_id);
+		return -ENODEV;
+	}
+
+	sensor = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev_module);
+	if (!sensor) {
+		merr("[M%d] failed to get sensor device\n", module, module->sensor_id);
+		return -EINVAL;
+	}
+
+	resourcemgr = sensor->resourcemgr;
+	if (!sensor) {
+		merr("[M%d] failed to get resourcemgr\n", module, module->sensor_id);
+		return -EINVAL;
 	}
 
 	switch (act) {
@@ -128,9 +152,90 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 		break;
 	case PIN_REGULATOR:
 		{
+			struct is_module_regulator *is_regulator = NULL;
+
+			list_for_each_entry(is_regulator, &resourcemgr->regulator_list, list) {
+				if (!strcmp(is_regulator->name, name))
+					break;
+			}
+
+			if (IS_ERR_OR_NULL(is_regulator)) {
+				merr("[M%d] failed to get is_module_regulator",
+					module, module->sensor_id);
+			}
+
+			if (value) {
+				is_regulator->regulator = regulator_get_optional(dev, name);
+				if (IS_ERR_OR_NULL(is_regulator->regulator)) {
+					merr("[M%d] regulator_get(%s) fail\n",
+						module, module->sensor_id, name);
+					return PTR_ERR(is_regulator->regulator);
+				}
+
+				if(voltage > 0) {
+					minfo("[M%d] regulator_set_voltage(%d)\n",
+						module, module->sensor_id, voltage);
+					ret = regulator_set_voltage(is_regulator->regulator, voltage, voltage);
+					if(ret) {
+						merr("[M%d] regulator_set_voltage(%d) fail\n",
+							module, module->sensor_id, ret);
+					}
+				}
+
+				if (regulator_is_enabled(is_regulator->regulator)) {
+					mwarn("[M%d] regulator(%s) is already enabled, forcely disable\n",
+						module, module->sensor_id, name);
+
+					ret = regulator_force_disable(is_regulator->regulator);
+					if (ret)
+						merr("[M%d] regulator_force_disable(%d) fail\n",
+							module, module->sensor_id, ret);
+				}
+
+				ret = regulator_enable(is_regulator->regulator);
+				if (ret) {
+					merr("[M%d] regulator_enable(%s) fail\n",
+						module, module->sensor_id, name);
+					regulator_put(is_regulator->regulator);
+					is_regulator->regulator = NULL;
+					return ret;
+				}
+			} else {
+				if (IS_ERR_OR_NULL(is_regulator->regulator)) {
+					merr("[M%d] regulator(%s) get failed\n",
+						module, module->sensor_id, name);
+					return PTR_ERR(is_regulator->regulator);
+				}
+
+				if (!regulator_is_enabled(is_regulator->regulator)) {
+					mwarn("[M%d] regulator(%s) is already disabled\n",
+						module, module->sensor_id, name);
+					regulator_put(is_regulator->regulator);
+					is_regulator->regulator = NULL;
+					return 0;
+				}
+
+				ret = regulator_disable(is_regulator->regulator);
+				if (ret) {
+					merr("[M%d] regulator_disable(%s) fail\n",
+					module, module->sensor_id, name);
+					regulator_put(is_regulator->regulator);
+					is_regulator->regulator = NULL;
+					return ret;
+				}
+
+				regulator_put(is_regulator->regulator);
+				is_regulator->regulator = NULL;
+			}
+
+			udelay(delay);
+		}
+		break;
+	case PIN_REGULATOR_OPTION:
+		{
 			struct regulator *regulator = NULL;
 
-			regulator = regulator_get_optional(dev, name);
+			regulator = devm_regulator_get(dev, name);
 			if (IS_ERR_OR_NULL(regulator)) {
 				merr("[M%d] regulator_get(%s) fail\n",
 					module, module->sensor_id, name);
@@ -138,39 +243,16 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 			}
 
 			if (value) {
-				if(voltage > 0) {
-					minfo("[M%d] regulator_set_voltage(%d)\n",
-						module, module->sensor_id, voltage);
-					ret = regulator_set_voltage(regulator, voltage, voltage);
-					if(ret) {
-						merr("[M%d] regulator_set_voltage(%d) fail\n",
-							module, module->sensor_id, ret);
-					}
-				}
-
-				if (regulator_is_enabled(regulator))
-					mwarn("[M%d] regulator(%s) is already enabled\n",
-						module, module->sensor_id, name);
-
-				ret = regulator_enable(regulator);
-				if (ret) {
-					merr("[M%d] regulator_enable(%s) fail\n",
-						module, module->sensor_id, name);
+				ret = regulator_set_mode(regulator, REGULATOR_MODE_FAST);
+				if(ret) {
+					dev_err(dev, "Failed to configure fPWM mode: %d\n", ret);
 					regulator_put(regulator);
 					return ret;
 				}
 			} else {
-				if (!regulator_is_enabled(regulator)) {
-					mwarn("[M%d] regulator(%s) is already disabled\n",
-						module, module->sensor_id, name);
-					regulator_put(regulator);
-					return 0;
-				}
-
-				ret = regulator_disable(regulator);
+				ret = regulator_set_mode(regulator, REGULATOR_MODE_NORMAL);
 				if (ret) {
-					merr("[M%d] regulator_disable(%s) fail\n",
-					module, module->sensor_id, name);
+					dev_err(dev, "Failed to configure auto mode: %d\n", ret);
 					regulator_put(regulator);
 					return ret;
 				}
@@ -182,21 +264,9 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 		break;
 	case PIN_I2C:
 		ret = is_i2c_pin_control(module, scenario, value);
+		udelay(delay);
 		break;
 	case PIN_MCLK:
-		subdev_module = module->subdev;
-		if (!subdev_module) {
-			merr("[M%d] module's subdev was not probed",
-				module, module->sensor_id);
-			return -ENODEV;
-		}
-
-		sensor = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev_module);
-		if (!sensor) {
-			merr("[M%d] failed to get sensor device\n", module, module->sensor_id);
-			return -EINVAL;
-		}
-
 		if (pin_ctrls->shared_rsc_type) {
 			if (!sensor->pdata) {
 				merr("[M%d] failed to get platform data (postion: %d)\n",
@@ -272,16 +342,6 @@ int exynos_is_module_pins_cfg(struct is_module_enum *module,
 		err("There is no such a scenario(scen:%d, on:%d)", scenario, gpio_scenario);
 		ret = -EINVAL;
 		goto p_err;
-	}
-
-	/* print configs */
-	for (idx = 0; idx < idx_max; ++idx) {
-		minfo("[M%d] pin_ctrl(act(%d), pin(%ld), val(%d), nm(%s)\n", module,
-			module->sensor_id,
-			pin_ctrls[scenario][gpio_scenario][idx].act,
-			(pin_ctrls[scenario][gpio_scenario][idx].act == PIN_FUNCTION) ? 0 : pin_ctrls[scenario][gpio_scenario][idx].pin,
-			pin_ctrls[scenario][gpio_scenario][idx].value,
-			pin_ctrls[scenario][gpio_scenario][idx].name);
 	}
 
 	minfo("[M%d][P%d:S%d:GS%d]: pin_ctrl start\n", module,

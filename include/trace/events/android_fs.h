@@ -4,6 +4,7 @@
 #if !defined(_TRACE_ANDROID_FS_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_ANDROID_FS_H
 
+#include <linux/fs.h>
 #include <linux/tracepoint.h>
 #include <trace/events/android_fs_template.h>
 
@@ -22,15 +23,6 @@ DEFINE_EVENT(android_fs_data_start_template, android_fs_datawrite_start,
 	TP_ARGS(inode, offset, bytes, pid, pathname, command));
 
 DEFINE_EVENT(android_fs_data_end_template, android_fs_datawrite_end,
-	TP_PROTO(struct inode *inode, loff_t offset, int bytes),
-	     TP_ARGS(inode, offset, bytes));
-
-DEFINE_EVENT(android_fs_fsync_start_template, android_fs_fsync_start,
-	TP_PROTO(struct inode *inode,
-		 pid_t pid, char *pathname, char *command),
-	TP_ARGS(inode, pid, pathname, command));
-
-DEFINE_EVENT(android_fs_data_end_template, android_fs_fsync_end,
 	TP_PROTO(struct inode *inode, loff_t offset, int bytes),
 	     TP_ARGS(inode, offset, bytes));
 

@@ -28,6 +28,24 @@
 #define AID_MXPROC 0
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+#define MX_PROCFS_RW_FILE_OPS(name)                                           \
+	static ssize_t mx_procfs_ ## name ## _write(struct file *file, const char __user *user_buf, size_t count, loff_t *ppos); \
+	static ssize_t                      mx_procfs_ ## name ## _read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos); \
+	static const struct proc_ops mx_procfs_ ## name ## _fops = { \
+		.proc_read = mx_procfs_ ## name ## _read,                        \
+		.proc_write = mx_procfs_ ## name ## _write,                      \
+		.proc_open = mx_procfs_generic_open,                     \
+		.proc_lseek = generic_file_llseek                                 \
+	}
+#define MX_PROCFS_RO_FILE_OPS(name)                                           \
+	static ssize_t                      mx_procfs_ ## name ## _read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos); \
+	static const struct proc_ops mx_procfs_ ## name ## _fops = { \
+		.proc_read = mx_procfs_ ## name ## _read,                        \
+		.proc_open = mx_procfs_generic_open,                                  \
+		.proc_lseek = generic_file_llseek                               \
+	}
+#else
 #define MX_PROCFS_RW_FILE_OPS(name)                                           \
 	static ssize_t mx_procfs_ ## name ## _write(struct file *file, const char __user *user_buf, size_t count, loff_t *ppos); \
 	static ssize_t                      mx_procfs_ ## name ## _read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos); \
@@ -44,7 +62,7 @@
 		.open = mx_procfs_generic_open,                                  \
 		.llseek = generic_file_llseek                               \
 	}
-
+#endif
 
 #define MX_PDE_DATA(inode) PDE_DATA(inode)
 

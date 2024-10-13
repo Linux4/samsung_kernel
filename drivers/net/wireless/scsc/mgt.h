@@ -36,6 +36,9 @@
 #define SLSI_EAPOL_KEY_INFO_ACK_BIT_IN_LOWER_BYTE           BIT(7)
 #define SLSI_EAPOL_KEY_INFO_MIC_BIT_IN_HIGHER_BYTE          BIT(0)
 #define SLSI_EAPOL_KEY_INFO_SECURE_BIT_IN_HIGHER_BYTE       BIT(1)
+#define SLSI_EAPOL_KEY_INFO_REQUEST_BIT_IN_HIGHER_BYTE      BIT(3)
+#define SLSI_EAPOL_KEY_INFO_ENCR_DATA_BIT_IN_HIGHER_BYTE    BIT(4)
+
 /* pkt_data would start from 802.1X Authentication field (pkt_data[0] = Version).
  * For M4 packet, it will be something as below... member(size, position)
  * Version (1, 0) + Type (1, 1) + Length (2, 2:3) + Descriptor Type (1, 4) + Key Information (2, 5:6) +
@@ -43,6 +46,7 @@
  *  key_rsc (8, 65:72) + key_id(16, 73:80) + key_mic (16, 81:96) + key_data_length(2, 97:98) +
  *  keydata(key_data_length, 99:99+key_data_length)
  */
+
 #define SLSI_EAPOL_IEEE8021X_TYPE_POS                       (1)
 #define SLSI_EAPOL_TYPE_POS                                 (4)
 #define SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS                 (5)
@@ -69,6 +73,25 @@
 #define SLSI_80211_AC_VI 1
 #define SLSI_80211_AC_BE 2
 #define SLSI_80211_AC_BK 3
+
+#define SLSI_AES_BLOCK_SIZE 16
+#define SLSI_WPA_REPLAY_COUNTER_LEN 8
+#define SLSI_WPA_NONCE_LEN 32
+#define SLSI_WPA_KEY_RSC_LEN 8
+
+struct slsi_wpa_eapol_key {
+	u8 version;
+	u8 type;
+	u16 length;
+	u8 key_desc_type;
+	u8 key_info[2];
+	u8 key_length[2];
+	u8 replay_counter[SLSI_WPA_REPLAY_COUNTER_LEN];
+	u8 key_nonce[SLSI_WPA_NONCE_LEN];
+	u8 key_iv[16];
+	u8 key_rsc[SLSI_WPA_KEY_RSC_LEN];
+	u8 key_id[8];
+} __packed;
 
 /* IF Number (Index) based checks */
 #ifdef CONFIG_SCSC_WLAN_DUAL_STATION

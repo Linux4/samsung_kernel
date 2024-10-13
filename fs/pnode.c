@@ -1,15 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/fs/pnode.c
  *
  * (C) Copyright IBM Corporation 2005.
- *	Released under GPL v2.
  *	Author : Ram Pai (linuxram@us.ibm.com)
- *
  */
 #include <linux/mnt_namespace.h>
 #include <linux/mount.h>
 #include <linux/fs.h>
 #include <linux/nsproxy.h>
+#include <uapi/linux/mount.h>
 #include "internal.h"
 #include "pnode.h"
 
@@ -42,11 +42,7 @@ static struct mount *get_peer_under_root(struct mount *mnt,
 
 	do {
 		/* Check the namespace first for optimization */
-#ifdef CONFIG_KDP_NS
-		if (m->mnt_ns == ns && is_path_reachable(m, m->mnt->mnt_root, root))
-#else
 		if (m->mnt_ns == ns && is_path_reachable(m, m->mnt.mnt_root, root))
-#endif
 			return m;
 
 		m = next_peer(m);
@@ -102,11 +98,7 @@ static int do_make_slave(struct mount *mnt)
 		 * slave it to anything that is available.
 		 */
 		for (m = master = next_peer(mnt); m != mnt; m = next_peer(m)) {
-#ifdef CONFIG_KDP_NS
-			if (m->mnt->mnt_root == mnt->mnt->mnt_root) {
-#else
 			if (m->mnt.mnt_root == mnt->mnt.mnt_root) {
-#endif
 				master = m;
 				break;
 			}
@@ -137,19 +129,10 @@ void change_mnt_propagation(struct mount *mnt, int type)
 	if (type != MS_SLAVE) {
 		list_del_init(&mnt->mnt_slave);
 		mnt->mnt_master = NULL;
-		if (type == MS_UNBINDABLE) {
-#ifdef CONFIG_KDP_NS
-			kdp_set_mnt_flags(mnt->mnt, MNT_UNBINDABLE);
-#else
+		if (type == MS_UNBINDABLE)
 			mnt->mnt.mnt_flags |= MNT_UNBINDABLE;
-#endif
-		} else {
-#ifdef CONFIG_KDP_NS
-			kdp_clear_mnt_flags(mnt->mnt, MNT_UNBINDABLE);
-#else
+		else
 			mnt->mnt.mnt_flags &= ~MNT_UNBINDABLE;
-#endif
-		}
 	}
 }
 
@@ -230,7 +213,6 @@ static struct mount *next_group(struct mount *m, struct mount *origin)
 }
 
 /* all accesses are serialized by namespace_sem */
-static struct user_namespace *user_ns;
 static struct mount *last_dest, *first_source, *last_source, *dest_master;
 static struct mountpoint *mp;
 static struct hlist_head *list;
@@ -248,11 +230,7 @@ static int propagate_one(struct mount *m)
 	if (IS_MNT_NEW(m))
 		return 0;
 	/* skip if mountpoint isn't covered by it */
-#ifdef CONFIG_KDP_NS
-	if (!is_subdir(mp->m_dentry, m->mnt->mnt_root))
-#else
 	if (!is_subdir(mp->m_dentry, m->mnt.mnt_root))
-#endif
 		return 0;
 	if (peers(m, last_dest)) {
 		type = CL_MAKE_SHARED;
@@ -266,7 +244,7 @@ static int propagate_one(struct mount *m)
 		}
 		do {
 			struct mount *parent = last_source->mnt_parent;
-			if (last_source == first_source)
+			if (peers(last_source, first_source))
 				break;
 			done = parent->mnt_master == p;
 			if (done && peers(n, parent))
@@ -280,29 +258,16 @@ static int propagate_one(struct mount *m)
 			type |= CL_MAKE_SHARED;
 	}
 		
-	/* Notice when we are propagating across user namespaces */
-	if (m->mnt_ns->user_ns != user_ns)
-		type |= CL_UNPRIVILEGED;
-#ifdef CONFIG_KDP_NS
-	child = copy_tree(last_source, last_source->mnt->mnt_root, type);
-#else
 	child = copy_tree(last_source, last_source->mnt.mnt_root, type);
-#endif
 	if (IS_ERR(child))
 		return PTR_ERR(child);
-#ifdef CONFIG_KDP_NS
-	kdp_clear_mnt_flags(child->mnt, MNT_LOCKED);
-#else
-	child->mnt.mnt_flags &= ~MNT_LOCKED;
-#endif
+	read_seqlock_excl(&mount_lock);
 	mnt_set_mountpoint(m, mp, child);
+	if (m->mnt_master != dest_master)
+		SET_MNT_MARK(m->mnt_master);
+	read_sequnlock_excl(&mount_lock);
 	last_dest = m;
 	last_source = child;
-	if (m->mnt_master != dest_master) {
-		read_seqlock_excl(&mount_lock);
-		SET_MNT_MARK(m->mnt_master);
-		read_sequnlock_excl(&mount_lock);
-	}
 	hlist_add_head(&child->mnt_hash, list);
 	return count_mounts(m->mnt_ns, child);
 }
@@ -331,7 +296,6 @@ int propagate_mnt(struct mount *dest_mnt, struct mountpoint *dest_mp,
 	 * propagate_one(); everything is serialized by namespace_sem,
 	 * so globals will do just fine.
 	 */
-	user_ns = current->nsproxy->mnt_ns->user_ns;
 	last_dest = dest_mnt;
 	first_source = source_mnt;
 	last_source = source_mnt;
@@ -378,11 +342,7 @@ static struct mount *find_topper(struct mount *mnt)
 		return NULL;
 
 	child = list_first_entry(&mnt->mnt_mounts, struct mount, mnt_child);
-#ifdef CONFIG_KDP_NS
-	if (child->mnt_mountpoint != mnt->mnt->mnt_root)
-#else
 	if (child->mnt_mountpoint != mnt->mnt.mnt_root)
-#endif
 		return NULL;
 
 	return child;
@@ -425,11 +385,7 @@ int propagate_mount_busy(struct mount *mnt, int refcnt)
 	for (m = propagation_next(parent, parent); m;
 	     		m = propagation_next(m, parent)) {
 		int count = 1;
-#ifdef CONFIG_KDP_NS
-		child = __lookup_mnt(m->mnt, mnt->mnt_mountpoint);
-#else
 		child = __lookup_mnt(&m->mnt, mnt->mnt_mountpoint);
-#endif
 		if (!child)
 			continue;
 
@@ -462,26 +418,16 @@ void propagate_mount_unlock(struct mount *mnt)
 
 	for (m = propagation_next(parent, parent); m;
 			m = propagation_next(m, parent)) {
-#ifdef CONFIG_KDP_NS
-		child = __lookup_mnt(m->mnt, mnt->mnt_mountpoint);
-		if (child)
-			kdp_clear_mnt_flags(child->mnt,MNT_LOCKED);
-#else
 		child = __lookup_mnt(&m->mnt, mnt->mnt_mountpoint);
 		if (child)
 			child->mnt.mnt_flags &= ~MNT_LOCKED;
-#endif
 	}
 }
 
 static void umount_one(struct mount *mnt, struct list_head *to_umount)
 {
 	CLEAR_MNT_MARK(mnt);
-#ifdef CONFIG_KDP_NS
-	kdp_set_mnt_flags(mnt->mnt, MNT_UMOUNT);
-#else
 	mnt->mnt.mnt_flags |= MNT_UMOUNT;
-#endif
 	list_del_init(&mnt->mnt_child);
 	list_del_init(&mnt->mnt_umounting);
 	list_move_tail(&mnt->mnt_list, to_umount);
@@ -502,23 +448,14 @@ static bool __propagate_umount(struct mount *mnt,
 	 * The state of the parent won't change if this mount is
 	 * already unmounted or marked as without children.
 	 */
-#ifdef CONFIG_KDP_NS
-	if (mnt->mnt->mnt_flags & (MNT_UMOUNT | MNT_MARKED))
-		goto out;
-#else
 	if (mnt->mnt.mnt_flags & (MNT_UMOUNT | MNT_MARKED))
 		goto out;
-#endif
 
 	/* Verify topper is the only grandchild that has not been
 	 * speculatively unmounted.
 	 */
 	list_for_each_entry(child, &mnt->mnt_mounts, mnt_child) {
-#ifdef CONFIG_KDP_NS
-		if (child->mnt_mountpoint == mnt->mnt->mnt_root)
-#else
 		if (child->mnt_mountpoint == mnt->mnt.mnt_root)
-#endif
 			continue;
 		if (!list_empty(&child->mnt_umounting) && IS_MNT_MARKED(child))
 			continue;
@@ -548,11 +485,7 @@ static void umount_list(struct list_head *to_umount,
 	list_for_each_entry(mnt, to_umount, mnt_list) {
 		list_for_each_entry_safe(child, tmp, &mnt->mnt_mounts, mnt_child) {
 			/* topper? */
-#ifdef CONFIG_KDP_NS
-			if (child->mnt_mountpoint == mnt->mnt->mnt_root)
-#else
 			if (child->mnt_mountpoint == mnt->mnt.mnt_root)
-#endif
 				list_move_tail(&child->mnt_umounting, to_restore);
 			else
 				umount_one(child, to_umount);
@@ -574,11 +507,7 @@ static void restore_mounts(struct list_head *to_restore)
 		/* Should this mount be reparented? */
 		mp = mnt->mnt_mp;
 		parent = mnt->mnt_parent;
-#ifdef CONFIG_KDP_NS
-		while (parent->mnt->mnt_flags & MNT_UMOUNT) {
-#else
 		while (parent->mnt.mnt_flags & MNT_UMOUNT) {
-#endif
 			mp = parent->mnt_mp;
 			parent = parent->mnt_parent;
 		}
@@ -627,11 +556,7 @@ int propagate_umount(struct list_head *list)
 		list_add_tail(&mnt->mnt_umounting, &visited);
 		for (m = propagation_next(parent, parent); m;
 		     m = propagation_next(m, parent)) {
-#ifdef CONFIG_KDP_NS
-			struct mount *child = __lookup_mnt(m->mnt,
-#else
 			struct mount *child = __lookup_mnt(&m->mnt,
-#endif
 							   mnt->mnt_mountpoint);
 			if (!child)
 				continue;
@@ -646,11 +571,7 @@ int propagate_umount(struct list_head *list)
 				 */
 				m = skip_propagation_subtree(m, parent);
 				continue;
-#ifdef CONFIG_KDP_NS
-			} else if (child->mnt->mnt_flags & MNT_UMOUNT) {
-#else
 			} else if (child->mnt.mnt_flags & MNT_UMOUNT) {
-#endif
 				/*
 				 * We have come accross an partially unmounted
 				 * mount in list that has not been visited yet.
@@ -680,28 +601,19 @@ int propagate_umount(struct list_head *list)
 	return 0;
 }
 
-void propagate_remount(struct mount *mnt)
+#ifdef CONFIG_VFSMOUNT_DATA_OPS
+void propagate_mnt_data_change(struct mount *mnt)
 {
 	struct mount *parent = mnt->mnt_parent;
 	struct mount *p = mnt, *m;
-#ifdef CONFIG_KDP_NS
-	struct super_block *sb = mnt->mnt->mnt_sb;
-#else
-	struct super_block *sb = mnt->mnt.mnt_sb;
-#endif
 
-	if (!sb->s_op->copy_mnt_data)
+	if (!mnt->mnt.ops || !mnt->mnt.ops->copy)
 		return;
 	for (p = propagation_next(parent, parent); p;
-				p = propagation_next(p, parent)) {
-#ifdef CONFIG_KDP_NS
-		m = __lookup_mnt(p->mnt, mnt->mnt_mountpoint);
-		if (m)
-			sb->s_op->copy_mnt_data(m->mnt->data, mnt->mnt->data);
-#else
+			p = propagation_next(p, parent)) {
 		m = __lookup_mnt(&p->mnt, mnt->mnt_mountpoint);
 		if (m)
-			sb->s_op->copy_mnt_data(m->mnt.data, mnt->mnt.data);
-#endif
+			mnt->mnt.ops->copy(m->mnt.data, mnt->mnt.data);
 	}
 }
+#endif

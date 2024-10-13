@@ -12,6 +12,7 @@
 #ifndef EXYNOS_IS_H_
 #define EXYNOS_IS_H_
 
+#include <dt-bindings/camera/exynos_is_dt.h>
 #include <linux/platform_device.h>
 #include <linux/clk-provider.h>
 #include "is-hw-dvfs.h"
@@ -23,20 +24,6 @@ extern int debug_clk;
 struct is_clk {
 	const char *name;
 	struct clk *clk;
-};
-
-enum IS_DVFS_QOS_TYPE {
-	IS_DVFS_CPU_MIN,
-	IS_DVFS_CPU_MAX,
-	IS_DVFS_INT_CAM,
-	IS_DVFS_INT,
-	IS_DVFS_MIF,
-	IS_DVFS_I2C,
-	IS_DVFS_CAM,
-	IS_DVFS_DISP,
-	IS_DVFS_HPG,
-	IS_DVFS_TNR,
-	IS_DVFS_END,
 };
 
 enum IS_CLK_GATE {
@@ -114,6 +101,8 @@ struct is_num_of_ip {
 	unsigned int mcsc;
 	unsigned int vra;
 	unsigned int clh;
+	unsigned int ypp;
+	unsigned int lme;
 };
 /**
 * struct exynos_platform_is - camera host interface platform data
@@ -132,6 +121,7 @@ struct exynos_platform_is {
 	struct pinctrl *pinctrl;
 	/* These fields are to return qos value for dvfs scenario */
 	u32 dvfs_data[IS_DVFS_TABLE_IDX_MAX][IS_SN_END][IS_DVFS_END];
+	const char *dvfs_cpu[IS_DVFS_TABLE_IDX_MAX][IS_SN_END];
 
 	/* For host clock gating */
 	struct exynos_is_clk_gate_info *gate_info;

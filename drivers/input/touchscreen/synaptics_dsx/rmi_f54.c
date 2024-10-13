@@ -109,7 +109,7 @@ static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
 		struct device_attribute *attr,\
 		char *buf);\
 \
-struct device_attribute dev_attr_##propname =\
+static struct device_attribute dev_attr_##propname =\
 		__ATTR(propname, S_IRUGO,\
 		concat(synaptics_rmi4_f54, _##propname##_show),\
 		synaptics_rmi4_store_error);
@@ -120,7 +120,7 @@ static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
 		struct device_attribute *attr,\
 		const char *buf, size_t count);\
 \
-struct device_attribute dev_attr_##propname =\
+static struct device_attribute dev_attr_##propname =\
 		__ATTR(propname, S_IWUSR | S_IWGRP,\
 		synaptics_rmi4_show_error,\
 		concat(synaptics_rmi4_f54, _##propname##_store));
@@ -136,7 +136,7 @@ static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
 		struct device_attribute *attr,\
 		const char *buf, size_t count);\
 \
-struct device_attribute dev_attr_##propname =\
+static struct device_attribute dev_attr_##propname =\
 		__ATTR(propname, (S_IRUGO | S_IWUSR | S_IWGRP),\
 		concat(synaptics_rmi4_f54, _##propname##_show),\
 		concat(synaptics_rmi4_f54, _##propname##_store));
@@ -1445,7 +1445,7 @@ static ssize_t synaptics_rmi4_f54_data_read(struct file *data_file,
 		char *buf, loff_t pos, size_t count);
 
 static struct attribute *attrs[] = {
-	attrify(status),
+	//attrify(status),
 	attrify(report_size),
 	attrify(no_auto_cal),
 	attrify(report_type),
@@ -2909,6 +2909,7 @@ done:
 
 static int synaptics_load_fw_from_ums(struct synaptics_rmi4_data *rmi4_data)
 {
+#if 0
 	struct file *fp;
 	mm_segment_t old_fs;
 	int fw_size, nread;
@@ -2930,7 +2931,8 @@ static int synaptics_load_fw_from_ums(struct synaptics_rmi4_data *rmi4_data)
 	if (0 < fw_size) {
 		unsigned char *fw_data;
 		fw_data = kzalloc(fw_size, GFP_KERNEL);
-		nread = vfs_read(fp, (char __user *)fw_data,
+		MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+		nread = kernel_read(fp, (char __user *)fw_data,
 			fw_size, &fp->f_pos);
 
 		tsp_debug_info(true, &rmi4_data->i2c_client->dev,
@@ -2958,6 +2960,8 @@ static int synaptics_load_fw_from_ums(struct synaptics_rmi4_data *rmi4_data)
  open_err:
 	set_fs(old_fs);
 	return error;
+#endif
+	return 0;
 }
 
 static int synaptics_rmi4_fw_update_on_hidden_menu(struct synaptics_rmi4_data *rmi4_data,

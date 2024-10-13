@@ -1,5 +1,5 @@
-/* sound/soc/samsung/abox/abox.h
- *
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
  * ALSA SoC - Samsung Abox driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
@@ -15,8 +15,9 @@
 #include <sound/samsung/abox.h>
 #include <linux/miscdevice.h>
 #include <linux/dma-direction.h>
+#include <soc/samsung/memlogger.h>
+#include <soc/samsung/sysevent.h>
 #include "abox_qos.h"
-#include "abox_soc.h"
 
 #define DEFAULT_CPU_GEAR_ID		(0xAB0CDEFA)
 #define TEST_CPU_GEAR_ID		(DEFAULT_CPU_GEAR_ID + 1)
@@ -32,20 +33,33 @@
 #define PERIOD_BYTES_MIN		(SZ_16)
 #define PERIOD_BYTES_MAX		(BUFFER_BYTES_MAX / 2)
 
+#define SRAM_FIRMWARE_SIZE		CONFIG_SND_SOC_SAMSUNG_ABOX_SRAM_SIZE
 #define DRAM_FIRMWARE_SIZE		CONFIG_SND_SOC_SAMSUNG_ABOX_DRAM_SIZE
 #define IOVA_DRAM_FIRMWARE		(0x80000000)
 #define IOVA_RDMA_BUFFER_BASE		(0x91000000)
-#define IOVA_RDMA_BUFFER(x)		(IOVA_RDMA_BUFFER_BASE + (SZ_1M * x))
+#define IOVA_RDMA_BUFFER(x)		(IOVA_RDMA_BUFFER_BASE + (SZ_1M * (x)))
 #define IOVA_WDMA_BUFFER_BASE		(0x92000000)
-#define IOVA_WDMA_BUFFER(x)		(IOVA_WDMA_BUFFER_BASE + (SZ_1M * x))
+#define IOVA_WDMA_BUFFER(x)		(IOVA_WDMA_BUFFER_BASE + (SZ_1M * (x)))
 #define IOVA_COMPR_BUFFER_BASE		(0x93000000)
-#define IOVA_COMPR_BUFFER(x)		(IOVA_COMPR_BUFFER_BASE + (SZ_1M * x))
+#define IOVA_COMPR_BUFFER(x)		(IOVA_COMPR_BUFFER_BASE + (SZ_1M * (x)))
 #define IOVA_VDMA_BUFFER_BASE		(0x94000000)
-#define IOVA_VDMA_BUFFER(x)		(IOVA_VDMA_BUFFER_BASE + (SZ_1M * x))
-#define IOVA_DUAL_BUFFER_BASE		(0x95000000)
-#define IOVA_DUAL_BUFFER(x)		(IOVA_DDMA_BUFFER_BASE + (SZ_1M * x))
-#define IOVA_DDMA_BUFFER_BASE		(0x96000000)
-#define IOVA_DDMA_BUFFER(x)		(IOVA_DDMA_BUFFER_BASE + (SZ_1M * x))
+#define IOVA_VDMA_BUFFER(x)		(IOVA_VDMA_BUFFER_BASE + (SZ_1M * (x)))
+#define IOVA_DUAL_BUFFER_BASE		(0x98000000)
+#define IOVA_DUAL_BUFFER(x)		(IOVA_DUAL_BUFFER_BASE + (SZ_1M * (x)))
+#define IOVA_DDMA_BUFFER_BASE		(0x99000000)
+#define IOVA_DDMA_BUFFER(x)		(IOVA_DDMA_BUFFER_BASE + (SZ_1M * (x)))
+#define IOVA_UDMA_RD_BUFFER_BASE	(0x9C000000)
+#define IOVA_UDMA_RD_BUFFER(x)		(IOVA_UDMA_RD_BUFFER_BASE + \
+	(SZ_1M * (x)))
+#define IOVA_UDMA_WR_BUFFER_BASE	(0x9C400000)
+#define IOVA_UDMA_WR_BUFFER(x)		(IOVA_UDMA_WR_BUFFER_BASE + \
+	(SZ_1M * (x)))
+#define IOVA_UDMA_WR_DUAL_BUFFER_BASE	(0x9C800000)
+#define IOVA_UDMA_WR_DUAL_BUFFER(x)	(IOVA_UDMA_WR_DUAL_BUFFER_BASE + \
+	(SZ_1M * (x)))
+#define IOVA_UDMA_WR_DBG_BUFFER_BASE	(0x9CC00000)
+#define IOVA_UDMA_WR_DBG_BUFFER(x)	(IOVA_UDMA_WR_DBG_BUFFER_BASE + \
+	(SZ_1M * (x)))
 #define IOVA_VSS_FIRMWARE		(0xA0000000)
 #define IOVA_VSS_PARAMETER		(0xA1000000)
 #define IOVA_VSS_PCI			(0xA2000000)
@@ -55,14 +69,12 @@
 #define PHSY_VSS_FIRMWARE		(0xFEE00000)
 #define PHSY_VSS_SIZE			(SZ_8M)
 
-#define ABOX_LOG_OFFSET			(0xb00000)
+#define ABOX_LOG_OFFSET			(0xa00000)
 #define ABOX_LOG_SIZE			(SZ_1M)
-#define ABOX_SLOG_OFFSET		(0x900000)
+#define ABOX_SLOG_OFFSET		(9 * SZ_1M)
+#define ABOX_SLOG_DATA_OFFSET		(ABOX_SLOG_OFFSET + 0x10)
 #define ABOX_PCI_DOORBELL_OFFSET	(0x10000)
 #define ABOX_PCI_DOORBELL_SIZE		(SZ_16K)
-
-#define AUD_PLL_RATE_HZ_FOR_48000	(1032192118)
-#define AUD_PLL_RATE_HZ_FOR_44100	(1083801600)
 
 #define LIMIT_IN_JIFFIES		(msecs_to_jiffies(1000))
 
@@ -72,7 +84,7 @@
 #define ABOX_CPU_GEAR_ABSOLUTE		(0xABC0ABC0)
 #define ABOX_CPU_GEAR_BOOT		(0xB00D)
 #define ABOX_CPU_GEAR_MAX		(1)
-#define ABOX_CPU_GEAR_MIN		(12)
+#define ABOX_CPU_GEAR_MIN		(100)
 #define ABOX_CPU_GEAR_DAI		0xDA100000
 
 #define ABOX_SAMPLING_RATES (SNDRV_PCM_RATE_KNOT)
@@ -92,8 +104,12 @@
 
 #define ABOX_QUIRK_BIT_ARAM_MODE	BIT(0)
 #define ABOX_QUIRK_STR_ARAM_MODE	"aram mode"
-#define ABOX_QUIRK_BIT_LSI_CODEC	BIT(1)
-#define ABOX_QUIRK_STR_LSI_CODEC	"use lsi codec"
+#define ABOX_QUIRK_BIT_INT_SKEW		BIT(1)
+#define ABOX_QUIRK_STR_INT_SKEW		"int skew"
+#define ABOX_QUIRK_BIT_SILENT_RESET	BIT(2)
+#define ABOX_QUIRK_STR_SILENT_RESET	"silent reset"
+#define ABOX_QUIRK_BIT_FORCE_32BIT	BIT(3)
+#define ABOX_QUIRK_STR_FORCE_32BIT	"force 32bit"
 
 enum abox_dai {
 	ABOX_NONE,
@@ -196,7 +212,8 @@ enum abox_dai {
 	ABOX_RX_PDI1
 };
 
-#define ABOX_DAI_COUNT (ABOX_RSRC0 - ABOX_UAIF0)
+/* SIFS should be treated as DAI to manage bclk usage and count value */
+#define ABOX_DAI_COUNT (ABOX_NSRC0 - ABOX_UAIF0 + 1)
 
 enum abox_widget {
 	ABOX_WIDGET_SPUS_IN0,
@@ -219,29 +236,34 @@ enum abox_widget {
 	ABOX_WIDGET_SPUS_ASRC5,
 	ABOX_WIDGET_SPUS_ASRC6,
 	ABOX_WIDGET_SPUS_ASRC7,
-	ABOX_WIDGET_SPUS_ASRC8,
-	ABOX_WIDGET_SPUS_ASRC9,
-	ABOX_WIDGET_SPUS_ASRC10,
-	ABOX_WIDGET_SPUS_ASRC11,
 	ABOX_WIDGET_SIFS0,
 	ABOX_WIDGET_SIFS1,
 	ABOX_WIDGET_SIFS2,
 	ABOX_WIDGET_SIFS3,
 	ABOX_WIDGET_SIFS4,
 	ABOX_WIDGET_SIFS5,
+	ABOX_WIDGET_SIFS6,
+	ABOX_WIDGET_SIFS7,
 	ABOX_WIDGET_NSRC0,
 	ABOX_WIDGET_NSRC1,
 	ABOX_WIDGET_NSRC2,
 	ABOX_WIDGET_NSRC3,
 	ABOX_WIDGET_NSRC4,
+	ABOX_WIDGET_NSRC5,
+	ABOX_WIDGET_NSRC6,
+	ABOX_WIDGET_NSRC7,
+	ABOX_WIDGET_NSRC8,
+	ABOX_WIDGET_NSRC9,
+	ABOX_WIDGET_NSRC10,
+	ABOX_WIDGET_NSRC11,
 	ABOX_WIDGET_SPUM_ASRC0,
 	ABOX_WIDGET_SPUM_ASRC1,
 	ABOX_WIDGET_SPUM_ASRC2,
 	ABOX_WIDGET_SPUM_ASRC3,
-	ABOX_WIDGET_SPUM_ASRC4,
-	ABOX_WIDGET_SPUM_ASRC5,
-	ABOX_WIDGET_SPUM_ASRC6,
-	ABOX_WIDGET_SPUM_ASRC7,
+	ABOX_WIDGET_UDMA_RD0,
+	ABOX_WIDGET_UDMA_RD1,
+	ABOX_WIDGET_UDMA_WR0,
+	ABOX_WIDGET_UDMA_WR1,
 	ABOX_WIDGET_COUNT,
 };
 
@@ -251,6 +273,21 @@ enum calliope_state {
 	CALLIOPE_ENABLING,
 	CALLIOPE_ENABLED,
 	CALLIOPE_STATE_COUNT,
+};
+
+enum system_state {
+	SYSTEM_CALL,
+	SYSTEM_OFFLOAD,
+	SYSTEM_IDLE,
+	SYSTEM_STATE_COUNT
+};
+
+enum llc_state {
+	LLC_CALL_BUSY,
+	LLC_CALL_IDLE,
+	LLC_OFFLOAD_BUSY,
+	LLC_OFFLOAD_IDLE,
+	LLC_STATE_COUNT,
 };
 
 enum audio_mode {
@@ -274,7 +311,7 @@ enum sound_type {
 };
 
 enum qchannel {
-	ABOX_CCLK_CA7,
+	ABOX_CCLK_CORE,
 	ABOX_ACLK,
 	ABOX_BCLK_UAIF0,
 	ABOX_BCLK_UAIF1,
@@ -283,8 +320,42 @@ enum qchannel {
 	ABOX_BCLK_UAIF4,
 	ABOX_BCLK_UAIF5,
 	ABOX_BCLK_UAIF6,
+	ABOX_BCLK_RESERVED,
 	ABOX_BCLK_DSIF,
-	ABOX_CCLK_ASB,
+	ABOX_CCLK_ASB = 16,
+	ABOX_PCMC_CLK,
+	ABOX_XCLK0,
+	ABOX_XCLK1,
+	ABOX_XCLK2,
+	ABOX_CCLK_ACP,
+};
+
+enum abox_region {
+	ABOX_REG_SFR,
+	ABOX_REG_SYSREG,
+	ABOX_REG_SRAM,
+	ABOX_REG_DEVICE_LAST,
+	ABOX_REG_GPR = ABOX_REG_DEVICE_LAST,
+	ABOX_REG_GICD,
+	ABOX_REG_INT_LAST,
+	ABOX_REG_DRAM = ABOX_REG_INT_LAST,
+	ABOX_REG_DUMP,
+	ABOX_REG_LOG,
+	ABOX_REG_SLOG,
+	ABOX_REG_COUNT,
+};
+
+enum mux_pcmc {
+	ABOX_PCMC_OSC,
+	ABOX_PCMC_CP,
+	ABOX_PCMC_AUD
+};
+
+enum debug_mode {
+	DEBUG_MODE_NONE,
+	DEBUG_MODE_DRAM,
+	DEBUG_MODE_FILE,
+	DEBUG_MODE_COUNT,
 };
 
 struct abox_ipc {
@@ -293,10 +364,7 @@ struct abox_ipc {
 	unsigned long long put_time;
 	unsigned long long get_time;
 	size_t size;
-	union {
-		char msg[SZ_4K];
-		ABOX_IPC_MSG ipc;
-	};
+	ABOX_IPC_MSG msg;
 };
 
 struct abox_ipc_action {
@@ -353,6 +421,24 @@ struct abox_component_kcontrol_value {
 	int cache[];
 };
 
+struct abox_sram_vts {
+	struct device *dev;
+	bool enable;
+	bool enabled;
+	struct work_struct request_work;
+};
+
+struct abox_pcmc {
+	struct clk *clk_cp_pcmc;
+	struct clk *clk_aud_pcmc;
+	enum mux_pcmc next;
+	enum mux_pcmc cur;
+	unsigned long rate_osc;
+	unsigned long rate_cp_pcmc;
+	unsigned long rate_aud_pcmc;
+	struct work_struct request_work;
+};
+
 struct abox_data {
 	struct device *dev;
 	struct snd_soc_component *cmpnt;
@@ -362,14 +448,18 @@ struct abox_data {
 	void __iomem *sysreg_base;
 	void __iomem *sram_base;
 	void __iomem *timer_base;
-	phys_addr_t sram_base_phys;
+	phys_addr_t sfr_phys;
+	size_t sfr_size;
+	phys_addr_t sysreg_phys;
+	size_t sysreg_size;
+	phys_addr_t sram_phys;
 	size_t sram_size;
 	void *dram_base;
-	dma_addr_t dram_base_phys;
+	dma_addr_t dram_phys;
 	void *dump_base;
-	phys_addr_t dump_base_phys;
+	phys_addr_t dump_phys;
 	void *slog_base;
-	phys_addr_t slog_base_phys;
+	phys_addr_t slog_phys;
 	size_t slog_size;
 	struct iommu_domain *iommu_domain;
 	void *ipc_tx_addr;
@@ -379,18 +469,23 @@ struct abox_data {
 	void *shm_addr;
 	size_t shm_size;
 	struct abox2host_hndshk_tag *hndshk_tag;
-	void *drv_args_addr;
-	size_t drv_args_size;
 	int clk_diff_ppb;
+	unsigned int bootargs_offset;
+	unsigned int slogargs_offset;
 	unsigned int if_count;
 	unsigned int rdma_count;
 	unsigned int wdma_count;
+	unsigned int udma_rd_count;
+	unsigned int udma_wr_count;
 	unsigned int calliope_version;
 	struct list_head firmware_extra;
+	const char *bootargs;
 	struct device *dev_gic;
-	struct device *dev_if[8];
+	struct device *dev_if[9];
 	struct device *dev_rdma[16];
 	struct device *dev_wdma[16];
+	struct device *dev_udma_rd[4];
+	struct device *dev_udma_wr[4];
 	struct workqueue_struct *ipc_workqueue;
 	struct work_struct ipc_work;
 	struct abox_ipc ipc_queue[ABOX_IPC_QUEUE_SIZE];
@@ -398,7 +493,9 @@ struct abox_data {
 	int ipc_queue_end;
 	spinlock_t ipc_queue_lock;
 	wait_queue_head_t ipc_wait_queue;
+	wait_queue_head_t boot_wait_queue;
 	wait_queue_head_t wait_queue;
+	wait_queue_head_t offline_poll_wait;
 	struct clk *clk_pll;
 	struct clk *clk_pll1;
 	struct clk *clk_audif;
@@ -406,10 +503,10 @@ struct abox_data {
 	struct clk *clk_dmic;
 	struct clk *clk_bus;
 	struct clk *clk_cnt;
+	struct clk *clk_sclk;
 	unsigned int uaif_max_div;
 	struct pinctrl *pinctrl;
 	unsigned long quirks;
-	unsigned int cpu_gear;
 	unsigned int cpu_gear_min;
 	struct abox_dram_request dram_requests[16];
 	unsigned long audif_rates[ABOX_DAI_COUNT];
@@ -426,25 +523,52 @@ struct abox_data {
 	bool enabled;
 	bool restored;
 	bool no_profiling;
+	enum debug_mode debug_mode;
+	bool vss_disabled;
+	bool system_state[SYSTEM_STATE_COUNT];
 	enum calliope_state calliope_state;
 	bool failsafe;
+	bool error;
+	struct work_struct notify_bargein_detect_work;
 	struct notifier_block qos_nb;
 	struct notifier_block pm_nb;
-	struct notifier_block modem_nb;
 	struct notifier_block itmon_nb;
 	int pm_qos_int[5];
-	int pm_qos_aud[5];
+	int pm_qos_aud[16];
+	unsigned int pm_qos_stable_min;
+	unsigned int sys_acp_con[2];
+	int llc_way[LLC_STATE_COUNT];
 	struct work_struct restore_data_work;
 	struct work_struct boot_done_work;
 	struct delayed_work boot_clear_work;
 	struct delayed_work wdt_work;
 	unsigned long long audio_mode_time;
 	enum audio_mode audio_mode;
-	enum abox_call_event call_event;
 	enum sound_type sound_type;
-	struct wakeup_source ws;
-	bool is_dbg_dram_alloc;
+	struct wakeup_source *ws;
+	struct memlog *drvlog_desc;
+	struct memlog_obj *drv_log_file_obj;
+	struct memlog_obj *drv_log_obj;
+	struct memlog *dump_desc;
+	struct sysevent_desc sysevent_desc;
+	struct sysevent_device *sysevent_dev;
+	struct abox_sram_vts sram_vts;
+	struct abox_pcmc pcmc;
 };
+
+/* sub-driver list */
+extern struct platform_driver samsung_abox_debug_driver;
+extern struct platform_driver samsung_abox_pci_driver;
+extern struct platform_driver samsung_abox_core_driver;
+extern struct platform_driver samsung_abox_dump_driver;
+extern struct platform_driver samsung_abox_dma_driver;
+extern struct platform_driver samsung_abox_vdma_driver;
+extern struct platform_driver samsung_abox_wdma_driver;
+extern struct platform_driver samsung_abox_rdma_driver;
+extern struct platform_driver samsung_abox_if_driver;
+extern struct platform_driver samsung_abox_vss_driver;
+extern struct platform_driver samsung_abox_effect_driver;
+extern struct platform_driver samsung_abox_tplg_driver;
 
 /**
  * Test quirk
@@ -465,23 +589,27 @@ static inline bool abox_test_quirk(struct abox_data *data, unsigned long quirk)
  */
 static inline u32 abox_get_format(u32 width, u32 channels)
 {
-	u32 ret = (channels - 1);
+	return ((((width / 8) - 1) << 3) | (channels - 1));
+}
 
-	switch (width) {
-	case 16:
-		ret |= 1 << 3;
-		break;
-	case 24:
-		ret |= 2 << 3;
-		break;
-	case 32:
-		ret |= 3 << 3;
-		break;
-	default:
-		break;
-	}
+/**
+ * Get channel from sample format
+ * @param[in]	format		SFR of sample format
+ * @return	count of channel
+ */
+static inline u32 abox_get_channels(u32 format)
+{
+	return ((format & 0x7) + 1);
+}
 
-	return ret;
+/**
+ * Get width from sample format
+ * @param[in]	format		SFR of sample format
+ * @return	count of bit in sample
+ */
+static inline u32 abox_get_width(u32 format)
+{
+	return (((format >> 3) + 1) * 8);
 }
 
 /**
@@ -515,6 +643,13 @@ static inline int abox_ipcid_to_stream(enum IPC_ID ipcid)
 }
 
 /**
+ * set magic value for the firmware
+ * @param[in]	data	pointer to abox_data structure
+ * @param[in]	val	magic value
+ */
+extern void abox_set_magic(struct abox_data *data, unsigned int val);
+
+/**
  * test given device is abox or not
  * @param[in]
  * @return	true or false
@@ -535,6 +670,15 @@ extern struct abox_data *abox_get_abox_data(void);
 extern struct abox_data *abox_get_data(struct device *dev);
 
 /**
+ * set system state
+ * @param[in]	data	pointer to abox_data structure
+ * @param[in]	state	state
+ * @param[in]	en	enable or disable
+ */
+extern int abox_set_system_state(struct abox_data *data,
+		enum system_state state, bool en);
+
+/**
  * get physical address from abox virtual address
  * @param[in]	data	pointer to abox_data structure
  * @param[in]	addr	abox virtual address
@@ -544,6 +688,17 @@ extern phys_addr_t abox_addr_to_phys_addr(struct abox_data *data,
 		unsigned int addr);
 
 /**
+ * get resource information
+ * @param[in]	data	 pointer to abox_data structure
+ * @param[in]	rid	 abox region index
+ * @param[in]	kaddr	 returning kernel virtual address is required
+ * @param[in]	buf_size Pointer to size_t value
+ * @return	resource base address
+ */
+extern void *abox_get_resource_info(struct abox_data *data, enum abox_region rid,
+				bool kaddr, size_t *buf_size);
+
+/**
  * get kernel address from abox virtual address
  * @param[in]	data	pointer to abox_data structure
  * @param[in]	addr	abox virtual address
@@ -551,6 +706,19 @@ extern phys_addr_t abox_addr_to_phys_addr(struct abox_data *data,
  */
 extern void *abox_addr_to_kernel_addr(struct abox_data *data,
 		unsigned int addr);
+
+/**
+ * parse address and size from the offset based description
+ * @param[in]	data	pointer to abox_data structure
+ * @param[in]	np	device node which contains the property
+ * @param[in]	name	name of the property
+ * @param[out]	addr	virtual address
+ * @param[out]	dma	dma address
+ * @param[out]	size	size
+ * @return	0 or error code
+ */
+extern int abox_of_get_addr(struct abox_data *data, struct device_node *np,
+		const char *name, void **addr, dma_addr_t *dma, size_t *size);
 
 /**
  * Check specific cpu gear request is idle
@@ -597,6 +765,12 @@ extern int abox_request_cpu_gear_sync(struct device *dev,
 extern void abox_clear_cpu_gear_requests(struct device *dev);
 
 /**
+ * Clear mif clock requests
+ * @param[in]	dev		pointer to struct dev which invokes this API
+ */
+extern void abox_clear_mif_requests(struct device *dev);
+
+/**
  * Request abox cpu clock level with dai
  * @param[in]	dev		pointer to struct dev which invokes this API
  * @param[in]	data		pointer to abox_data structure
@@ -641,21 +815,6 @@ static inline int abox_request_cl1_freq_dai(struct device *dev,
 	unsigned int id = ABOX_CPU_GEAR_DAI | dai->id;
 
 	return abox_qos_request_cl1(dev, id, freq, dai->name);
-}
-
-/**
- * Request cluster 2 clock level with DAI
- * @param[in]	dev		pointer to struct dev which invokes this API
- * @param[in]	dai		DAI which is used as unique handle
- * @param[in]	freq		frequency in kHz
- * @return	error code if any
- */
-static inline int abox_request_cl2_freq_dai(struct device *dev,
-		struct snd_soc_dai *dai, unsigned int freq)
-{
-	unsigned int id = ABOX_CPU_GEAR_DAI | dai->id;
-
-	return abox_qos_request_cl2(dev, id, freq, dai->name);
 }
 
 /**
@@ -713,24 +872,48 @@ extern void abox_wait_restored(struct abox_data *data);
  * @param[in]	dev		calling device
  * @param[in]	card		sound card to register
  * @param[in]	idx		order of the sound card
+ * @return	0 or error code
  */
 extern int abox_register_extra_sound_card(struct device *dev,
 		struct snd_soc_card *card, unsigned int idx);
 
 /**
-  * add or update extra firmware
-  * @param[in]	dev		calling device
-  * @param[in]	data		pointer to abox_data structure
-  * @param[in]	idx		index of firmware. It should be unique.
-  * @param[in]	name		name of firmware
-  * @param[in]	area		download area of firmware
-  * @param[in]	offset		offset of firmware
-  * @param[in]	changeable	changeable of firmware
-  */
+ * add controls for extra firmwares
+ * @param[in]	data		pointer to abox_data structure
+ * @return	0 or error code
+ */
+extern int abox_add_extra_firmware_controls(struct abox_data *data);
+
+/**
+ * add or update extra firmware
+ * @param[in]	dev		calling device
+ * @param[in]	data		pointer to abox_data structure
+ * @param[in]	idx		index of firmware. It should be unique.
+ * @param[in]	name		name of firmware
+ * @param[in]	area		download area of firmware
+ * @param[in]	offset		offset of firmware
+ * @param[in]	changeable	changeable of firmware
+ * @return	0 or error code
+ */
 extern int abox_add_extra_firmware(struct device *dev,
 		struct abox_data *data, int idx,
 		const char *name, unsigned int area,
 		unsigned int offset, bool changeable);
+/**
+ * abox silent reset for abox recovery
+ * @param[in]	data		pointer to abox_data structure
+ * @param[in]	reset		whether abox silent reset is required
+ */
+extern void abox_silent_reset(struct abox_data *data, bool reset);
+
+/**
+ * wait until abox is booted
+ * @param[in]	data		pointer to abox_data structure
+ * @param[in]	jiffies		timeout in jiffies
+ * @return	if the time is elapsed, 0 or 1. if not, remaining jiffies.
+ * 		refer to the wait_event_timeout().
+ */
+long abox_wait_for_boot(struct abox_data *data, unsigned long jiffies);
 
 /**
  * get waiting time in nano seconds

@@ -43,6 +43,9 @@
 #define FOUR_BYTES_SHIFT			(2)
 #define FOUR_BYTES_MASK				((1 << FOUR_BYTES_SHIFT) - 1)
 
+/* Core count */
+#define SECLOG_NR_CPUS				(8)
+
 /*
  * If input address is not aligned with 4 bytes,
  * it makes this address be aligned with next 4 bytes.

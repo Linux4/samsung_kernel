@@ -1,7 +1,7 @@
 /*
  * s2mpu12-core.c - mfd core driver for the s2mpu12
  *
- * Copyright (C) 2019 Samsung Electronics
+ * Copyright (C) 2022 Samsung Electronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,9 +32,11 @@
 #include <linux/mfd/samsung/s2mpu12-regulator.h>
 #include <linux/regulator/machine.h>
 #include <linux/rtc.h>
+#if IS_ENABLED(CONFIG_EXYNOS_ACPM)
 #include <soc/samsung/acpm_mfd.h>
+#endif
 
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #endif /* CONFIG_OF */
@@ -45,22 +47,24 @@
 #define I2C_ADDR_CLOSE	0x0F
 #define S2MPU12_CHANNEL	(0)
 
-extern struct device_node *acpm_mfd_node;
+#if IS_ENABLED(CONFIG_EXYNOS_ACPM)
+static struct device_node *acpm_mfd_node;
+#endif
 
 static struct mfd_cell s2mpu12_devs[] = {
 	{ .name = "s2mpu12-regulator", },
 	{ .name = "s2mpu12-rtc", },
-#ifdef	CONFIG_KEYBOARD_S2MPU12
+#if IS_ENABLED(CONFIG_KEYBOARD_S2MPU12)
 	{ .name = "s2mpu12-power-keys", },
 #endif
 };
 
-#if defined(CONFIG_EXYNOS_ACPM)
+#if IS_ENABLED(CONFIG_EXYNOS_ACPM)
 int s2mpu12_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 {
 	int ret;
 
-	ret = exynos_acpm_read_reg(S2MPU12_CHANNEL, i2c->addr, reg, dest);
+	ret = exynos_acpm_read_reg(acpm_mfd_node, S2MPU12_CHANNEL, i2c->addr, reg, dest);
 	if (ret) {
 		pr_err("[%s] acpm ipc fail!\n", __func__);
 		return ret;
@@ -73,7 +77,7 @@ int s2mpu12_bulk_read(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 {
 	int ret;
 
-	ret = exynos_acpm_bulk_read(S2MPU12_CHANNEL, i2c->addr, reg, count, buf);
+	ret = exynos_acpm_bulk_read(acpm_mfd_node, S2MPU12_CHANNEL, i2c->addr, reg, count, buf);
 	if (ret) {
 		pr_err("[%s] acpm ipc fail!\n", __func__);
 		return ret;
@@ -86,7 +90,7 @@ int s2mpu12_write_reg(struct i2c_client *i2c, u8 reg, u8 value)
 {
 	int ret;
 
-	ret = exynos_acpm_write_reg(S2MPU12_CHANNEL, i2c->addr, reg, value);
+	ret = exynos_acpm_write_reg(acpm_mfd_node, S2MPU12_CHANNEL, i2c->addr, reg, value);
 	if (ret) {
 		pr_err("[%s] acpm ipc fail!\n", __func__);
 		return ret;
@@ -99,7 +103,7 @@ int s2mpu12_bulk_write(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 {
 	int ret;
 
-	ret = exynos_acpm_bulk_write(S2MPU12_CHANNEL, i2c->addr, reg, count, buf);
+	ret = exynos_acpm_bulk_write(acpm_mfd_node, S2MPU12_CHANNEL, i2c->addr, reg, count, buf);
 	if (ret) {
 		pr_err("[%s] acpm ipc fail!\n", __func__);
 		return ret;
@@ -112,7 +116,7 @@ int s2mpu12_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask)
 {
 	int ret;
 
-	ret = exynos_acpm_update_reg(S2MPU12_CHANNEL, i2c->addr, reg, val, mask);
+	ret = exynos_acpm_update_reg(acpm_mfd_node, S2MPU12_CHANNEL, i2c->addr, reg, val, mask);
 	if (ret) {
 		pr_err("[%s] acpm ipc fail!\n", __func__);
 		return ret;
@@ -235,7 +239,7 @@ int s2mpu12_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask)
 EXPORT_SYMBOL_GPL(s2mpu12_update_reg);
 #endif
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 static int of_s2mpu12_dt(struct device *dev,
 			 struct s2mpu12_platform_data *pdata,
 			 struct s2mpu12_dev *s2mpu12)
@@ -248,8 +252,9 @@ static int of_s2mpu12_dt(struct device *dev,
 	if (!np)
 		return -EINVAL;
 
+#if IS_ENABLED(CONFIG_EXYNOS_ACPM)
 	acpm_mfd_node = np;
-
+#endif
 	status = of_get_property(np, "s2mpu12,wakeup", &strlen);
 	if (status == NULL)
 		return -EINVAL;
@@ -441,6 +446,21 @@ static int s2mpu12_i2c_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, s2mpu12);
 
+	s2mpu12->pmic = i2c_new_dummy_device(i2c->adapter, I2C_ADDR_PMIC);
+	s2mpu12->rtc = i2c_new_dummy_device(i2c->adapter, I2C_ADDR_RTC);
+	s2mpu12->close = i2c_new_dummy_device(i2c->adapter, I2C_ADDR_CLOSE);
+	i2c->addr = I2C_ADDR_TOP;	/* forced COMMON address */
+
+	//if (pdata->use_i2c_speedy) {
+	//	dev_err(s2mpu12->dev, "use_i2c_speedy was true\n");
+	//	s2mpu12->pmic->flags |= I2C_CLIENT_SPEEDY;
+	//	s2mpu12->rtc->flags |= I2C_CLIENT_SPEEDY;
+	//}
+
+	i2c_set_clientdata(s2mpu12->pmic, s2mpu12);
+	i2c_set_clientdata(s2mpu12->rtc, s2mpu12);
+	i2c_set_clientdata(s2mpu12->close, s2mpu12);
+
 	if (s2mpu12_read_reg(i2c, S2MPU12_PMIC_CHIPID, &reg_data) < 0) {
 		dev_err(s2mpu12->dev,
 			"device not found on this channel"
@@ -450,21 +470,6 @@ static int s2mpu12_i2c_probe(struct i2c_client *i2c,
 	} else
 		/* print rev */
 		s2mpu12->pmic_rev = reg_data;
-
-	s2mpu12->pmic = i2c_new_dummy(i2c->adapter, I2C_ADDR_PMIC);
-	s2mpu12->rtc = i2c_new_dummy(i2c->adapter, I2C_ADDR_RTC);
-	s2mpu12->close = i2c_new_dummy(i2c->adapter, I2C_ADDR_CLOSE);
-
-	if (pdata->use_i2c_speedy) {
-		dev_err(s2mpu12->dev, "use_i2c_speedy was true\n");
-		s2mpu12->pmic->flags |= I2C_CLIENT_SPEEDY;
-		s2mpu12->rtc->flags |= I2C_CLIENT_SPEEDY;
-		s2mpu12->close->flags |= I2C_CLIENT_SPEEDY;
-	}
-
-	i2c_set_clientdata(s2mpu12->pmic, s2mpu12);
-	i2c_set_clientdata(s2mpu12->rtc, s2mpu12);
-	i2c_set_clientdata(s2mpu12->close, s2mpu12);
 
 	pr_info("%s device found: rev.0x%2x\n", __func__, s2mpu12->pmic_rev);
 
@@ -509,18 +514,20 @@ static const struct i2c_device_id s2mpu12_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, s2mpu12_i2c_id);
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 static struct of_device_id s2mpu12_i2c_dt_ids[] = {
 	{ .compatible = "samsung,s2mpu12mfd" },
 	{ },
 };
 #endif /* CONFIG_OF */
 
-#if defined(CONFIG_PM)
+#if IS_ENABLED(CONFIG_PM)
 static int s2mpu12_suspend(struct device *dev)
 {
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct s2mpu12_dev *s2mpu12 = i2c_get_clientdata(i2c);
+
+	dev->power.must_resume = true;
 
 	if (device_may_wakeup(dev))
 		enable_irq_wake(s2mpu12->irq);
@@ -535,7 +542,7 @@ static int s2mpu12_resume(struct device *dev)
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct s2mpu12_dev *s2mpu12 = i2c_get_clientdata(i2c);
 
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
 #endif /* CONFIG_SAMSUNG_PRODUCT_SHIP */
 
@@ -560,10 +567,10 @@ static struct i2c_driver s2mpu12_i2c_driver = {
 	.driver		= {
 		.name	= MFD_DEV_NAME,
 		.owner	= THIS_MODULE,
-#if defined(CONFIG_PM)
+#if IS_ENABLED(CONFIG_PM)
 		.pm	= &s2mpu12_pm,
 #endif /* CONFIG_PM */
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 		.of_match_table	= s2mpu12_i2c_dt_ids,
 #endif /* CONFIG_OF */
 	},

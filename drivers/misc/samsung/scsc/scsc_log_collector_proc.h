@@ -20,6 +20,17 @@
 
 #define LOG_COLLECT_PDE_DATA(inode) PDE_DATA(inode)
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+#define LOG_COLLECT_PROCFS_RW_FILE_OPS(name)                                           \
+	static ssize_t log_collect_procfs_ ## name ## _write(struct file *file, const char __user *user_buf, size_t count, loff_t *ppos); \
+	static ssize_t                      log_collect_procfs_ ## name ## _read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos); \
+	static const struct proc_ops log_collect_procfs_ ## name ## _fops = { \
+		.proc_read = log_collect_procfs_ ## name ## _read,                        \
+		.proc_write = log_collect_procfs_ ## name ## _write,                      \
+		.proc_open = log_collect_procfs_open_file_generic,                     \
+		.proc_lseek = generic_file_llseek                                 \
+	}
+#else
 #define LOG_COLLECT_PROCFS_RW_FILE_OPS(name)                                           \
 	static ssize_t log_collect_procfs_ ## name ## _write(struct file *file, const char __user *user_buf, size_t count, loff_t *ppos); \
 	static ssize_t                      log_collect_procfs_ ## name ## _read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos); \
@@ -29,7 +40,7 @@
 		.open = log_collect_procfs_open_file_generic,                     \
 		.llseek = generic_file_llseek                                 \
 	}
-
+#endif
 
 #define LOG_COLLECT_PROCFS_SET_UID_GID(_entry) \
 	do { \

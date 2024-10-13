@@ -42,6 +42,7 @@ typedef struct wait_queue_entry wait_queue_t;
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/refcount.h>
 #include <linux/sched.h>
 #include <linux/sched/mm.h>
 #include <linux/sched/task.h>
@@ -76,6 +77,8 @@ static inline gid_t __kgid_val(kgid_t gid)
 	return gid;
 }
 #endif
+
+#include "core/ree_time.h"
 
 #if defined(CONFIG_ARM64)
 #define outer_inv_range(s, e)
@@ -223,11 +226,13 @@ long sysdep_get_user_pages(struct task_struct *task,
 		struct mm_struct *mm, unsigned long start, unsigned long nr_pages,
 		int write, int force, struct page **pages,
 		struct vm_area_struct **vmas);
+void sysdep_get_ts(struct tz_ree_time  *ree_ts);
 void sysdep_register_cpu_notifier(struct notifier_block* notifier,
 		int (*startup)(unsigned int cpu),
 		int (*teardown)(unsigned int cpu));
 void sysdep_unregister_cpu_notifier(struct notifier_block* notifier);
 int sysdep_crypto_file_sha1(uint8_t *hash, struct file *file);
-int sysdep_vfs_getattr(struct file *filp, struct kstat *stat);
+void sysdep_shash_desc_init(struct shash_desc *desc, struct crypto_shash *tfm);
+int sysdep_pid_refcount_read(struct pid *pid);
 
 #endif /* __SYSDEP_H__ */

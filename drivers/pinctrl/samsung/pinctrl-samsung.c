@@ -15,12 +15,13 @@
 // but provides extensions to which platform specific implementation of the gpio
 // and wakeup interrupts can be hooked to.
 
+#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/err.h>
-#include <linux/gpio.h>
+#include <linux/gpio/driver.h>
 #include <linux/irqdomain.h>
 #include <linux/of_device.h>
 #include <linux/spinlock.h>
@@ -30,9 +31,10 @@
 
 #include "../core.h"
 #include "pinctrl-samsung.h"
-#if defined(CONFIG_SEC_GPIO_DVS)
+
+#if IS_ENABLED(CONFIG_PINCTRL_SEC_GPIO_DVS)
 #include "secgpio_dvs.h"
-#endif
+#endif /* CONFIG_PINCTRL_SEC_GPIO_DVS */
 
 /* maximum number of the memory resources */
 #define	SAMSUNG_PINCTRL_NUM_RESOURCES	2
@@ -1106,6 +1108,12 @@ static int samsung_pinctrl_debug_set(struct samsung_pinctrl_drv_data *drvdata)
 	u32 data, width, mask, shift, cfg_reg;
 	int i;
 
+	/*
+	 * We assume temporarily that no resume drvdata is dynamic power-controlled block.
+	 */
+	if (!drvdata->resume && !drvdata->suspend)
+		return -ENOTSUPP;
+
 	for (i = 0; i < drvdata->pctl_dev->desc->npins; i++) {
 		pin_to_reg_bank(drvdata, i, &reg_base,
 				&pin_offset, &bank);
@@ -1155,6 +1163,16 @@ samsung_pinctrl_get_soc_data_for_of_alias(struct platform_device *pdev)
 	}
 
 	return &(of_data->ctrl[id]);
+}
+
+static void samsung_banks_of_node_put(struct samsung_pinctrl_drv_data *d)
+{
+	struct samsung_pin_bank *bank;
+	unsigned int i;
+
+	bank = d->pin_banks;
+	for (i = 0; i < d->nr_banks; ++i, ++bank)
+		of_node_put(bank->of_node);
 }
 
 /* retrieve the soc specific data */
@@ -1210,8 +1228,11 @@ samsung_pinctrl_get_soc_data(struct samsung_pinctrl_drv_data *d,
 		bank->eint_type = bdata->eint_type;
 		bank->eint_mask = bdata->eint_mask;
 		bank->eint_offset = bdata->eint_offset;
+		bank->eint_num = bdata->eint_num;
 		bank->fltcon_offset = bdata->fltcon_offset;
 		bank->name = bdata->name;
+		bank->sysreg_cmgp_offs = bdata->sysreg_cmgp_offs;
+		bank->sysreg_cmgp_bit = bdata->sysreg_cmgp_bit;
 
 		spin_lock_init(&bank->slock);
 		bank->drvdata = d;
@@ -1233,7 +1254,7 @@ samsung_pinctrl_get_soc_data(struct samsung_pinctrl_drv_data *d,
 			continue;
 		bank = d->pin_banks;
 		for (i = 0; i < d->nr_banks; ++i, ++bank) {
-			if (!strcmp(bank->name, np->name)) {
+			if (of_node_name_eq(np, bank->name)) {
 				bank->of_node = np;
 				break;
 			}
@@ -1245,6 +1266,10 @@ samsung_pinctrl_get_soc_data(struct samsung_pinctrl_drv_data *d,
 
 	return ctrl;
 }
+
+#if IS_ENABLED(CONFIG_PINCTRL_SEC_GPIO_DVS)
+static unsigned int sum_of_nr_pins;
+#endif
 
 static int samsung_pinctrl_probe(struct platform_device *pdev)
 {
@@ -1272,19 +1297,18 @@ static int samsung_pinctrl_probe(struct platform_device *pdev)
 	if (ctrl->retention_data) {
 		drvdata->retention_ctrl = ctrl->retention_data->init(drvdata,
 							  ctrl->retention_data);
-		if (IS_ERR(drvdata->retention_ctrl))
-			return PTR_ERR(drvdata->retention_ctrl);
+		if (IS_ERR(drvdata->retention_ctrl)) {
+			ret = PTR_ERR(drvdata->retention_ctrl);
+			goto err_put_banks;
+		}
 	}
-
 	ret = samsung_pinctrl_register(pdev, drvdata);
 	if (ret)
-		return ret;
+		goto err_put_banks;
 
 	ret = samsung_gpiolib_register(pdev, drvdata);
-	if (ret) {
-		samsung_pinctrl_unregister(pdev, drvdata);
-		return ret;
-	}
+	if (ret)
+		goto err_unregister;
 
 	if (ctrl->eint_gpio_init)
 		ctrl->eint_gpio_init(drvdata);
@@ -1297,7 +1321,16 @@ static int samsung_pinctrl_probe(struct platform_device *pdev)
 	list_add_tail(&drvdata->node, &drvdata_list);
 
 	samsung_pinctrl_debug_set(drvdata);
+#if IS_ENABLED(CONFIG_PINCTRL_SEC_GPIO_DVS)
+	sum_of_nr_pins += drvdata->nr_pins;
+#endif
 	return 0;
+
+err_unregister:
+	samsung_pinctrl_unregister(pdev, drvdata);
+err_put_banks:
+	samsung_banks_of_node_put(drvdata);
+	return ret;
 }
 
 #ifdef CONFIG_PM
@@ -1467,6 +1500,7 @@ u32 exynos_eint_to_pin_num(int eint)
 
 	return drvdata->pin_base + eint + offset;
 }
+EXPORT_SYMBOL(exynos_eint_to_pin_num);
 
 #else
 #define samsung_pinctrl_suspend		NULL
@@ -1502,10 +1536,18 @@ static const struct of_device_id samsung_pinctrl_dt_match[] = {
 		.data = &exynos5433_of_data },
 	{ .compatible = "samsung,exynos7-pinctrl",
 		.data = &exynos7_of_data },
-	{ .compatible = "samsung,exynos9630-pinctrl",
-		.data = &exynos9630_of_data },
-	{ .compatible = "samsung,exynos3830-pinctrl",
-		.data = &exynos3830_of_data },
+	{ .compatible = "samsung,exynos9820-pinctrl",
+		.data = &exynos9820_of_data },
+	{ .compatible = "samsung,exynos2100-pinctrl",
+		.data = &exynos2100_of_data },
+	{ .compatible = "samsung,s5e3830-pinctrl",
+		.data = &s5e3830_of_data },
+	{ .compatible = "samsung,s5e9925-pinctrl",
+		.data = &s5e9925_of_data },
+	{ .compatible = "samsung,s5e9925_evt0-pinctrl",
+		.data = &s5e9925_evt0_of_data },
+	{ .compatible = "samsung,s5e8825-pinctrl",
+		.data = &s5e8825_of_data },
 #endif
 #ifdef CONFIG_PINCTRL_S3C64XX
 	{ .compatible = "samsung,s3c64xx-pinctrl",
@@ -1523,6 +1565,7 @@ static const struct of_device_id samsung_pinctrl_dt_match[] = {
 #endif
 	{},
 };
+MODULE_DEVICE_TABLE(of, samsung_pinctrl_dt_match);
 
 static struct platform_driver samsung_pinctrl_driver = {
 	.probe		= samsung_pinctrl_probe,
@@ -1533,6 +1576,7 @@ static struct platform_driver samsung_pinctrl_driver = {
 	},
 };
 
+#if 1
 static int __init samsung_pinctrl_drv_register(void)
 {
 	/*
@@ -1545,10 +1589,16 @@ static int __init samsung_pinctrl_drv_register(void)
 
 	return platform_driver_register(&samsung_pinctrl_driver);
 }
+#endif
 postcore_initcall(samsung_pinctrl_drv_register);
 
+static void __exit samsung_pinctrl_drv_unregister(void)
+{
+	platform_driver_unregister(&samsung_pinctrl_driver);
+}
+module_exit(samsung_pinctrl_drv_unregister);
 
-#if defined(CONFIG_SEC_GPIO_DVS)
+#if IS_ENABLED(CONFIG_PINCTRL_SEC_GPIO_DVS)
 
 #define GET_RESULT_GPIO(a, b, c)	\
 	((a<<4 & 0xF0) | (b<<1 & 0xE) | (c & 0x1))
@@ -1583,6 +1633,7 @@ static u32 gpiodvs_get_by_type(struct samsung_pin_bank *bank,
 static u8 gpiodvs_combine_data(u32 *data, unsigned char phonestate)
 {
 	u8 temp_io, temp_pdpu, temp_lh;
+	u32 data_pdpu;
 
 	/* GPIO DVS
 	 * FUNC - input: 1, output: 2 eint:3 func: 0
@@ -1605,10 +1656,7 @@ static u8 gpiodvs_combine_data(u32 *data, unsigned char phonestate)
 			break;
 		}
 
-		if (data[PINCFG_TYPE_PUD] == 3)
-			data[PINCFG_TYPE_PUD] = 2;
-
-		temp_pdpu = data[PINCFG_TYPE_PUD];
+		data_pdpu = data[PINCFG_TYPE_PUD];
 		temp_lh = data[PINCFG_TYPE_DAT];
 	} else {
 		switch (data[PINCFG_TYPE_CON_PDN]) {
@@ -1636,10 +1684,23 @@ static u8 gpiodvs_combine_data(u32 *data, unsigned char phonestate)
 			break;
 		}
 
-		if (data[PINCFG_TYPE_PUD_PDN] == 3)
-			data[PINCFG_TYPE_PUD_PDN] = 2;
+		data_pdpu = data[PINCFG_TYPE_PUD_PDN];
+	}
 
-		temp_pdpu = data[PINCFG_TYPE_PUD_PDN];
+	switch (data_pdpu) {
+	case 0:
+	case 2:
+		temp_pdpu = 0;
+		break;
+	case 1:
+		temp_pdpu = 1;
+		break;
+	case 3:
+		temp_pdpu = 2;
+		break;
+	default:
+		temp_pdpu = 7;
+		break;
 	}
 
 	return GET_RESULT_GPIO(temp_io, temp_pdpu, temp_lh);
@@ -1661,117 +1722,6 @@ static bool should_skip_gpio_group(const char *bank_name, const char *skip_grps)
 	return false;
 }
 
-static void gpiodvs_print_pin_state(enum gdvs_phone_status status,
-		int alive, const char *bank_name, int pin_num, u32 *data)
-{
-	char buf[48];
-	int len = 0;
-	int pin_dat = 0;
-
-	if (status == PHONE_INIT || alive == 1) {
-		if (alive == 1)
-			len = sprintf(buf, "gpio sleep-state: %s-%d ", bank_name, pin_num);
-		else
-			len = sprintf(buf, "gpio initial-state: %s-%d ", bank_name, pin_num);
-
-		switch (data[PINCFG_TYPE_FUNC]) {
-		case 0x0:	/* input */
-			len += sprintf(&buf[len], "IN");
-			break;
-		case 0x1:	/* output */
-			len += sprintf(&buf[len], "OUT");
-			break;
-		case 0xf:	/* eint */
-			len += sprintf(&buf[len], "INT");
-			break;
-		default:	/* func */
-			len += sprintf(&buf[len], "FUNC");
-			break;
-		}
-
-		switch (data[PINCFG_TYPE_PUD]) {
-		case 0x0:
-			len += sprintf(&buf[len], "/NP");
-			break;
-		case 0x1:
-			len += sprintf(&buf[len], "/PD");
-			break;
-		case 0x2:
-			len += sprintf(&buf[len], "/PU");
-			break;
-		default:
-			len += sprintf(&buf[len], "/UN");	/* unknown */
-			break;
-		}
-
-		switch (data[PINCFG_TYPE_DAT]) {
-		case 0x0:
-			len += sprintf(&buf[len], "/L");
-			break;
-		case 0x1:
-			len += sprintf(&buf[len], "/H");
-			break;
-		default:
-			len += sprintf(&buf[len], "/U");	/* unknown */
-			break;
-		}
-	} else {
-		// PHONE_SLEEP
-		len = sprintf(buf, "gpio sleep-state: %s-%d ", bank_name, pin_num);
-
-		switch (data[PINCFG_TYPE_CON_PDN]) {
-		case 0x0:	/* output low */
-			len += sprintf(&buf[len], "OUT");
-			pin_dat = 0;
-			break;
-		case 0x1:	/* output high*/
-			len += sprintf(&buf[len], "OUT");
-			pin_dat = 1;
-			break;
-		case 0x2:	/* input */
-			len += sprintf(&buf[len], "IN");
-			pin_dat = data[PINCFG_TYPE_DAT];
-			break;
-		case 0x3:	/* previous state */
-			len += sprintf(&buf[len], "PREV");
-			pin_dat = data[PINCFG_TYPE_DAT];
-			break;
-		default:	/* func */
-			len += sprintf(&buf[len], "ERR");
-			break;
-		}
-
-		switch (data[PINCFG_TYPE_PUD_PDN]) {
-		case 0x0:
-			len += sprintf(&buf[len], "/NP");
-			break;
-		case 0x1:
-			len += sprintf(&buf[len], "/PD");
-			break;
-		case 0x2:
-			len += sprintf(&buf[len], "/PU");
-			break;
-		default:
-			len += sprintf(&buf[len], "/UN");	/* unknown */
-			break;
-		}
-
-		switch (pin_dat) {
-		case 0x0:
-			len += sprintf(&buf[len], "/L");
-			break;
-		case 0x1:
-			len += sprintf(&buf[len], "/H");
-			break;
-		default:
-			len += sprintf(&buf[len], "/U");	/* unknown */
-			break;
-		}
-	}
-
-	pr_info("%s\n", buf);
-}
-
 static void gpiodvs_check_init_gpio(struct samsung_pinctrl_drv_data *drvdata,
 					unsigned int pin, const char *skip_grps)
 {
@@ -1782,7 +1732,6 @@ static void gpiodvs_check_init_gpio(struct samsung_pinctrl_drv_data *drvdata,
 	unsigned long flags;
 	enum pincfg_type pt;
 	u32 data[PINCFG_TYPE_NUM];
-	static int pin_num = 0;
 
 	pin_to_reg_bank(drvdata, pin - drvdata->pin_base, &reg_base,
 					&pin_offset, &bank);
@@ -1802,14 +1751,7 @@ static void gpiodvs_check_init_gpio(struct samsung_pinctrl_drv_data *drvdata,
 
 	gpiomap_result.init[init_gpio_idx++] =
 		gpiodvs_combine_data(data, PHONE_INIT);
-
-	gpiodvs_print_pin_state(PHONE_INIT, 0, bank->name, pin_num, data);
-
 out:
-	pin_num++;
-	if (pin_num == bank->nr_pins)
-		pin_num = 0;
-
 	pr_debug("%s: init[%u]=0x%02x\n", __func__, init_gpio_idx - 1,
 			gpiomap_result.init[init_gpio_idx - 1]);
 }
@@ -1824,7 +1766,6 @@ static void gpiodvs_check_sleep_gpio(struct samsung_pinctrl_drv_data *drvdata,
 	unsigned long flags;
 	enum pincfg_type pt;
 	u32 data[PINCFG_TYPE_NUM];
-	static int pin_num = 0;
 	const u8 *widths;
 	const unsigned int sleep_type_mask = BIT(PINCFG_TYPE_DAT) |
 		BIT(PINCFG_TYPE_CON_PDN) | BIT(PINCFG_TYPE_PUD_PDN);
@@ -1864,15 +1805,7 @@ static void gpiodvs_check_sleep_gpio(struct samsung_pinctrl_drv_data *drvdata,
 		gpiomap_result.sleep[sleep_gpio_idx++] =
 			gpiodvs_combine_data(data, PHONE_INIT);
 	}
-
-	gpiodvs_print_pin_state(PHONE_SLEEP, (widths[PINCFG_TYPE_CON_PDN] ? 0 : 1),
-			bank->name, pin_num, data);
-
 out:
-	pin_num++;
-	if (pin_num == bank->nr_pins)
-		pin_num = 0;
-
 	pr_debug("%s: sleep[%u]=0x%02x\n", __func__, sleep_gpio_idx - 1,
 			gpiomap_result.sleep[sleep_gpio_idx - 1]);
 }
@@ -1905,29 +1838,24 @@ static void check_gpio_status(unsigned char phonestate, const char *skip_grps)
 	}
 }
 
-static int __init exynos850_secgpio_get_nr_gpio(void)
+static unsigned int samsung_pinctrl_get_nr_gpio(void)
 {
-	unsigned int i, j;
-	int nr_gpio = 0;
-	const struct samsung_pin_ctrl *pin_ctrl = exynos3830_of_data.ctrl;
-	unsigned int num_ctrl = exynos3830_of_data.num_ctrl;
-
-	for (i = 0; i < num_ctrl; i++) {
-		for (j = 0; j < pin_ctrl[i].nr_banks; j++)
-			nr_gpio += pin_ctrl[i].pin_banks[j].nr_pins;
-	}
-
-	return nr_gpio;
+	return sum_of_nr_pins;
 }
 
-static struct gpio_dvs_t exynos850_secgpio_dvs = {
+static struct gpio_dvs_t s5e3830_secgpio_dvs = {
 	.result = &gpiomap_result,
 	.check_gpio_status = check_gpio_status,
-    .skip_grps = "gpb gpf2", /* AUD, HSI */
+	.skip_grps = "gpb gpf2", /* AUD, HSI */
 };
 
-const struct secgpio_dvs_data exynos850_secgpio_dvs_data __initconst = {
-	.gpio_dvs = &exynos850_secgpio_dvs,
-	.get_nr_gpio = exynos850_secgpio_get_nr_gpio,
+const struct secgpio_dvs_data s5e3830_secgpio_dvs_data = {
+	.gpio_dvs = &s5e3830_secgpio_dvs,
+	.get_nr_gpio = samsung_pinctrl_get_nr_gpio,
 };
-#endif /* CONFIG_SEC_GPIO_DVS */
+EXPORT_SYMBOL_GPL(s5e3830_secgpio_dvs_data);
+#endif /* CONFIG_PINCTRL_SEC_GPIO_DVS */
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Hyunki Koo <hyunki00.koo@samsung.com>");
+MODULE_DESCRIPTION("Samsung Exynos GPIO driver");

@@ -1,18 +1,15 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * Userland implementation of gettimeofday() for 64 bits processes in a
  * ppc64 kernel for use in the vDSO
  *
  * Copyright (C) 2004 Benjamin Herrenschmuidt (benh@kernel.crashing.org),
  *                    IBM Corp.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
  */
 #include <asm/processor.h>
 #include <asm/ppc_asm.h>
 #include <asm/vdso.h>
+#include <asm/vdso_datapage.h>
 #include <asm/asm-offsets.h>
 #include <asm/unistd.h>
 
@@ -30,7 +27,7 @@ V_FUNCTION_BEGIN(__kernel_gettimeofday)
 
 	mr	r11,r3			/* r11 holds tv */
 	mr	r10,r4			/* r10 holds tz */
-	bl	V_LOCAL_FUNC(__get_datapage)	/* get data page */
+	get_datapage	r3, r0
 	cmpldi	r11,0			/* check if tv is NULL */
 	beq	2f
 	lis	r7,1000000@ha		/* load up USEC_PER_SEC */
@@ -75,7 +72,7 @@ V_FUNCTION_BEGIN(__kernel_clock_gettime)
 	mflr	r12			/* r12 saves lr */
   .cfi_register lr,r12
 	mr	r11,r4			/* r11 saves tp */
-	bl	V_LOCAL_FUNC(__get_datapage)	/* get data page */
+	get_datapage	r3, r0
 	lis	r7,NSEC_PER_SEC@h	/* want nanoseconds */
 	ori	r7,r7,NSEC_PER_SEC@l
 	beq	cr5,70f
@@ -120,8 +117,8 @@ V_FUNCTION_BEGIN(__kernel_clock_gettime)
 	 * CLOCK_REALTIME_COARSE, below values are needed for MONOTONIC_COARSE
 	 * too
 	 */
-	ld      r4,STAMP_XTIME+TSPC64_TV_SEC(r3)
-	ld      r5,STAMP_XTIME+TSPC64_TV_NSEC(r3)
+	ld      r4,STAMP_XTIME_SEC(r3)
+	ld      r5,STAMP_XTIME_NSEC(r3)
 	bne     cr6,75f
 
 	/* CLOCK_MONOTONIC_COARSE */
@@ -192,7 +189,7 @@ V_FUNCTION_BEGIN(__kernel_clock_getres)
 
 	mflr	r12
   .cfi_register lr,r12
-	bl	V_LOCAL_FUNC(__get_datapage)
+	get_datapage	r3, r0
 	lwz	r5, CLOCK_HRTIMER_RES(r3)
 	mtlr	r12
 	li	r3,0
@@ -225,9 +222,9 @@ V_FUNCTION_BEGIN(__kernel_time)
   .cfi_register lr,r12
 
 	mr	r11,r3			/* r11 holds t */
-	bl	V_LOCAL_FUNC(__get_datapage)
+	get_datapage	r3, r0
 
-	ld	r4,STAMP_XTIME+TSPC64_TV_SEC(r3)
+	ld	r4,STAMP_XTIME_SEC(r3)
 
 	cmpldi	r11,0			/* check if t is NULL */
 	beq	2f
@@ -272,7 +269,7 @@ V_FUNCTION_BEGIN(__do_get_tspec)
 	mulhdu	r6,r6,r5		/* in units of 2^-32 seconds */
 
 	/* Add stamp since epoch */
-	ld	r4,STAMP_XTIME+TSPC64_TV_SEC(r3)
+	ld	r4,STAMP_XTIME_SEC(r3)
 	lwz	r5,STAMP_SEC_FRAC(r3)
 	or	r0,r4,r5
 	or	r0,r0,r6

@@ -30,9 +30,10 @@ struct gpio_dvs_t {
 
 struct secgpio_dvs_data {
 	struct gpio_dvs_t *gpio_dvs;
-	int (*get_nr_gpio)(void);
+	unsigned int (*get_nr_gpio)(void);
 };
 
 /* list of all exported SoC specific data */
-extern const struct secgpio_dvs_data exynos850_secgpio_dvs_data;
+extern const struct secgpio_dvs_data s5e3830_secgpio_dvs_data;
+
 #endif /* __SECGPIO_DVS_H */

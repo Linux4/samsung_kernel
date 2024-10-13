@@ -12,10 +12,6 @@
 #ifndef CAMERAPP_HW_API_VOTF_H
 #define CAMERAPP_HW_API_VOTF_H
 
-#include <linux/exynos_iovmm.h>
-#include "camerapp-votf-reg.h"
-#include "camerapp-votf-common-enum.h"
-
 void camerapp_hw_votf_create_ring(void __iomem *base_addr, int ip, int module);
 void camerapp_hw_votf_destroy_ring(void __iomem *base_addr, int ip, int module);
 void camerapp_hw_votf_set_sel_reg(void __iomem *base_addr, u32 set, u32 mode);
@@ -30,14 +26,16 @@ void camerapp_hw_votf_set_crop_enable(void __iomem *votf_addr, u32 offset, bool 
 u32 camerapp_hw_votf_get_crop_enable(void __iomem *votf_addr, u32 offset);
 
 void camerapp_hw_votf_set_recover_enable(void __iomem *base_addr, u32 offset, u32 cfg);
-void camerapp_hw_votf_set_token_size(void __iomem *votf_addr, u32 offset, u32 token_size);
-void camerapp_hw_votf_set_first_token_size(void __iomem *votf_addr, u32 offset, u32 token_size);
-void camerapp_hw_votf_set_frame_size(void __iomem *votf_addr, u32 offset, u32 frame_size);
+void camerapp_hw_votf_set_lines_in_first_token(void __iomem *votf_addr, u32 offset, u32 lines);
+void camerapp_hw_votf_set_lines_count(void __iomem *votf_addr, u32 offset, u32 cnt);
 
 void camerapp_hw_votf_set_enable(void __iomem *votf_addr, u32 offset, bool enable);
 u32 camerapp_hw_votf_get_enable(void __iomem *votf_addr, u32 offset);
 void camerapp_hw_votf_set_limit(void __iomem *votf_addr, u32 offset, u32 limit);
 void camerapp_hw_votf_set_dest(void __iomem *votf_addr, u32 offset, u32 dest);
+void camerapp_hw_votf_set_token_size(void __iomem *votf_addr, u32 offset, u32 token_size);
+void camerapp_hw_votf_set_first_token_size(void __iomem *votf_addr, u32 offset, u32 token_size);
+void camerapp_hw_votf_set_lines_in_token(void __iomem *votf_addr, u32 offset, u32 lines);
 
 void camerapp_hw_votf_set_start(void __iomem *votf_addr, u32 offset, u32 start);
 void camerapp_hw_votf_set_finish(void __iomem *votf_addr, u32 offset, u32 finish);
@@ -52,4 +50,6 @@ void camerapp_hw_votf_set_irq(void __iomem *votf_addr, u32 offset, u32 irq);
 void camerapp_hw_votf_set_irq_clear(void __iomem *votf_addr, u32 offset, u32 irq);
 
 bool camerapp_check_votf_ring(void __iomem *base_addr, int module);
+
+void camerapp_hw_votf_sfr_dump(void __iomem *base_addr, int module, int module_type);
 #endif /* CAMERAPP_HW_API_VOTF_H */

@@ -8,7 +8,6 @@ snd-soc-s3c-i2s-v2-objs := s3c-i2s-v2.o
 snd-soc-samsung-spdif-objs := spdif.o
 snd-soc-pcm-objs := pcm.o
 snd-soc-i2s-objs := i2s.o
-snd-soc-dp_dma-objs := dp_dma.o dummy_cpu_dai.o
 
 obj-$(CONFIG_SND_SOC_SAMSUNG) += snd-soc-s3c-dma.o
 obj-$(CONFIG_SND_S3C24XX_I2S) += snd-soc-s3c24xx-i2s.o
@@ -18,9 +17,7 @@ obj-$(CONFIG_SND_SAMSUNG_SPDIF) += snd-soc-samsung-spdif.o
 obj-$(CONFIG_SND_SAMSUNG_PCM) += snd-soc-pcm.o
 obj-$(CONFIG_SND_SAMSUNG_I2S) += snd-soc-i2s.o
 obj-$(CONFIG_SND_SAMSUNG_I2S) += snd-soc-idma.o
-obj-$(CONFIG_SND_SOC_SAMSUNG_DISPLAYPORT) += snd-soc-dp_dma.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_ABOX) += abox/
-obj-$(CONFIG_SND_SOC_SAMSUNG_VTS) += vts/
 
 # S3C24XX Machine Support
 snd-soc-jive-wm8750-objs := jive_wm8750.o
@@ -43,9 +40,11 @@ snd-soc-lowland-objs := lowland.o
 snd-soc-littlemill-objs := littlemill.o
 snd-soc-bells-objs := bells.o
 snd-soc-odroid-objs := odroid.o
-snd-soc-arndale-rt5631-objs := arndale_rt5631.o
+snd-soc-arndale-objs := arndale.o
 snd-soc-tm2-wm5110-objs := tm2_wm5110.o
-snd-soc-exynos3830-aud3004x-objs := exynos3830_aud3004x.o exynos3830_aud3004x_sysfs_cb.o
+snd-soc-aries-wm8994-objs := aries_wm8994.o
+snd-soc-midas-wm1811-objs := midas_wm1811.o
+snd-soc-exynos3830-sound-objs := exynos3830_sound.o exynos3830_aud3004x_sysfs_cb.o
 
 obj-$(CONFIG_SND_SOC_SAMSUNG_JIVE_WM8750) += snd-soc-jive-wm8750.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_NEO1973_WM8753) += snd-soc-neo1973-wm8753.o
@@ -67,11 +66,9 @@ obj-$(CONFIG_SND_SOC_LOWLAND) += snd-soc-lowland.o
 obj-$(CONFIG_SND_SOC_LITTLEMILL) += snd-soc-littlemill.o
 obj-$(CONFIG_SND_SOC_BELLS) += snd-soc-bells.o
 obj-$(CONFIG_SND_SOC_ODROID) += snd-soc-odroid.o
-obj-$(CONFIG_SND_SOC_ARNDALE_RT5631_ALC5631) += snd-soc-arndale-rt5631.o
+obj-$(CONFIG_SND_SOC_ARNDALE) += snd-soc-arndale.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_TM2_WM5110) += snd-soc-tm2-wm5110.o
-obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS9820_MADERA) += exynos9820_madera.o
-obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS9830_MADERA) += exynos9830_madera.o
-obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS9630_SOUND) += exynos9630_sound.o
-obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS3830_SOUND) += exynos3830_sound.o
-obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS3830_AUD3004X) += snd-soc-exynos3830-aud3004x.o
+obj-$(CONFIG_SND_SOC_SAMSUNG_ARIES_WM8994) += snd-soc-aries-wm8994.o
+obj-$(CONFIG_SND_SOC_SAMSUNG_MIDAS_WM1811) += snd-soc-midas-wm1811.o
+obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS3830_SOUND) += snd-soc-exynos3830-sound.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_AUDIO) += sec_audio_sysfs.o sec_audio_debug.o

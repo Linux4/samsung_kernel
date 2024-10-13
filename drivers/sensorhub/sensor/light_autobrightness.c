@@ -168,7 +168,7 @@ static void report_event_light_autobrightness(void)
 static void print_light_autobrightness_debug(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS);
-	struct sensor_event *event = &(sensor->event_buffer);
+	struct sensor_event *event = &(sensor->last_event_buffer);
 	struct light_ab_event *sensor_value = (struct light_ab_event *)(event->value);
 
 	shub_info("%s(%u) : %u, %u, %u (%lld) (%ums, %dms)", sensor->name, SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS,
@@ -192,59 +192,36 @@ static int inject_light_ab_additional_data(char *buf, int count)
 	return 0;
 }
 
+
+static struct light_autobrightness_data light_autobrightness_data;
+static struct sensor_funcs light_autobrightness_sensor_funcs = {
+	.sync_status = sync_light_autobrightness_status,
+	.enable = enable_light_autobrightness,
+	.disable = disable_light_autobrightness,
+	.report_event = report_event_light_autobrightness,
+	.print_debug = print_light_autobrightness_debug,
+	.inject_additional_data = inject_light_ab_additional_data,
+	.init_variable = init_light_autobrightness_variable,
+	.parse_dt = parse_dt_light_autobrightness,
+
+};
+
 int init_light_autobrightness(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "auto_brightness");
-		sensor->receive_event_size = 9;
-		sensor->report_event_size = 5;
-		sensor->event_buffer.value = kzalloc(sizeof(struct light_ab_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "auto_brightness", 9, 5, sizeof(struct light_ab_event));
+		sensor->data = (void *)&light_autobrightness_data;
+		sensor->funcs = &light_autobrightness_sensor_funcs;
 
-		sensor->data = kzalloc(sizeof(struct light_autobrightness_data), GFP_KERNEL);
-		if (!sensor->data)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->sync_status = sync_light_autobrightness_status;
-		sensor->funcs->enable = enable_light_autobrightness;
-		sensor->funcs->disable = disable_light_autobrightness;
-		sensor->funcs->report_event = report_event_light_autobrightness;
-		sensor->funcs->print_debug = print_light_autobrightness_debug;
-		sensor->funcs->inject_additional_data = inject_light_ab_additional_data;
-		sensor->funcs->init_variable = init_light_autobrightness_variable;
-		sensor->funcs->parse_dt = parse_dt_light_autobrightness;
 	} else {
-		kfree(sensor->data);
-		sensor->data = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->data);
-	sensor->data = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

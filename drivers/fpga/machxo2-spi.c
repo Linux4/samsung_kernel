@@ -157,7 +157,8 @@ static int machxo2_cleanup(struct fpga_manager *mgr)
 	spi_message_init(&msg);
 	tx[1].tx_buf = &refresh;
 	tx[1].len = sizeof(refresh);
-	tx[1].delay_usecs = MACHXO2_REFRESH_USEC;
+	tx[1].delay.value = MACHXO2_REFRESH_USEC;
+	tx[1].delay.unit = SPI_DELAY_UNIT_USECS;
 	spi_message_add_tail(&tx[1], &msg);
 	ret = spi_sync(spi, &msg);
 	if (ret)
@@ -208,7 +209,8 @@ static int machxo2_write_init(struct fpga_manager *mgr,
 	spi_message_init(&msg);
 	tx[0].tx_buf = &enable;
 	tx[0].len = sizeof(enable);
-	tx[0].delay_usecs = MACHXO2_LOW_DELAY_USEC;
+	tx[0].delay.value = MACHXO2_LOW_DELAY_USEC;
+	tx[0].delay.unit = SPI_DELAY_UNIT_USECS;
 	spi_message_add_tail(&tx[0], &msg);
 
 	tx[1].tx_buf = &erase;
@@ -223,8 +225,10 @@ static int machxo2_write_init(struct fpga_manager *mgr,
 		goto fail;
 
 	get_status(spi, &status);
-	if (test_bit(FAIL, &status))
+	if (test_bit(FAIL, &status)) {
+		ret = -EINVAL;
 		goto fail;
+	}
 	dump_status_reg(&status);
 
 	spi_message_init(&msg);
@@ -269,7 +273,8 @@ static int machxo2_write(struct fpga_manager *mgr, const char *buf,
 		spi_message_init(&msg);
 		tx.tx_buf = payload;
 		tx.len = MACHXO2_BUF_SIZE;
-		tx.delay_usecs = MACHXO2_HIGH_DELAY_USEC;
+		tx.delay.value = MACHXO2_HIGH_DELAY_USEC;
+		tx.delay.unit = SPI_DELAY_UNIT_USECS;
 		spi_message_add_tail(&tx, &msg);
 		ret = spi_sync(spi, &msg);
 		if (ret) {
@@ -310,6 +315,7 @@ static int machxo2_write_complete(struct fpga_manager *mgr,
 	dump_status_reg(&status);
 	if (!test_bit(DONE, &status)) {
 		machxo2_cleanup(mgr);
+		ret = -EINVAL;
 		goto fail;
 	}
 
@@ -317,7 +323,8 @@ static int machxo2_write_complete(struct fpga_manager *mgr,
 		spi_message_init(&msg);
 		tx[1].tx_buf = &refresh;
 		tx[1].len = sizeof(refresh);
-		tx[1].delay_usecs = MACHXO2_REFRESH_USEC;
+		tx[1].delay.value = MACHXO2_REFRESH_USEC;
+		tx[1].delay.unit = SPI_DELAY_UNIT_USECS;
 		spi_message_add_tail(&tx[1], &msg);
 		ret = spi_sync(spi, &msg);
 		if (ret)
@@ -331,6 +338,7 @@ static int machxo2_write_complete(struct fpga_manager *mgr,
 			break;
 		if (++refreshloop == MACHXO2_MAX_REFRESH_LOOP) {
 			machxo2_cleanup(mgr);
+			ret = -EINVAL;
 			goto fail;
 		}
 	} while (1);
@@ -356,25 +364,20 @@ static int machxo2_spi_probe(struct spi_device *spi)
 {
 	struct device *dev = &spi->dev;
 	struct fpga_manager *mgr;
-	int ret;
 
 	if (spi->max_speed_hz > MACHXO2_MAX_SPEED) {
 		dev_err(dev, "Speed is too high\n");
 		return -EINVAL;
 	}
 
-	mgr = fpga_mgr_create(dev, "Lattice MachXO2 SPI FPGA Manager",
-			      &machxo2_ops, spi);
+	mgr = devm_fpga_mgr_create(dev, "Lattice MachXO2 SPI FPGA Manager",
+				   &machxo2_ops, spi);
 	if (!mgr)
 		return -ENOMEM;
 
 	spi_set_drvdata(spi, mgr);
 
-	ret = fpga_mgr_register(mgr);
-	if (ret)
-		fpga_mgr_free(mgr);
-
-	return ret;
+	return fpga_mgr_register(mgr);
 }
 
 static int machxo2_spi_remove(struct spi_device *spi)

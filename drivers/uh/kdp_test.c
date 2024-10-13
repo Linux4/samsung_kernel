@@ -42,6 +42,9 @@ enum __KDP_TEST {
 static char kdp_test_buf[KDP_BUF_SIZE];
 static unsigned long kdp_test_len;
 
+static DEFINE_RAW_SPINLOCK(par_lock);
+static u64 *ha1;
+
 static void kdp_print(const char *fmt, ...)
 {
 	va_list aptr;
@@ -62,11 +65,23 @@ static struct vfsmount *get_vfsmnt(struct task_struct *p)
 		!(p->nsproxy->mnt_ns->root))
 		return NULL;
 
-	return p->nsproxy->mnt_ns->root->mnt;
+	return ((struct kdp_mount *)p->nsproxy->mnt_ns->root)->mnt;
 }
-#endif /* CONFIG_KDP_NS */
+#endif
 
-extern bool hyp_check_page_ro(u64 va);
+static bool hyp_check_page_ro(u64 va)
+{
+	unsigned long flags;
+	u64 par = 0;
+
+	raw_spin_lock_irqsave(&par_lock, flags);
+	uh_call(UH_APP_KDP, TEST_GET_PAR, (unsigned long)va, KDP_PA_WRITE, 0, 0);
+	par = *ha1;
+	raw_spin_unlock_irqrestore(&par_lock, flags);
+
+	return (par & 0x1) ? true : false;
+}
+
 static int test_case_kdp_ro(int cmd_id)
 {
 	struct task_struct *p = NULL;
@@ -87,8 +102,9 @@ static int test_case_kdp_ro(int cmd_id)
 			/* Here dst points to process security context */
 			dst = (u64)get_vfsmnt(p);
 			break;
+#endif
 		}
-#endif /* CONFIG_KDP_NS */ 
+
 		if (!dst)
 			continue;
 
@@ -107,9 +123,9 @@ static int cred_match(struct task_struct *p, const struct cred *cred)
 	struct mm_struct *mm = p->mm;
 	pgd_t *tgt = NULL;
 
-	if (cred->bp_task != p) {
+	if (((struct cred_kdp *)cred)->bp_task != p) {
 		kdp_print("KDP_WARN task: #%s# cred: %p, task: %p bp_task: %p\n",
-					p->comm, cred, p, cred->bp_task);
+					p->comm, cred, p, ((struct cred_kdp *)cred)->bp_task);
 		return 0;
 	}
 
@@ -117,9 +133,9 @@ static int cred_match(struct task_struct *p, const struct cred *cred)
 		return 1;
 
 	tgt = mm ? mm->pgd : init_mm.pgd;
-	if (cred->bp_pgd != tgt) {
+	if (((struct cred_kdp *)cred)->bp_pgd != tgt) {
 		kdp_print("KDP_WARN task: #%s# cred: %p, mm: %p, init_mm: %p, pgd: %p, bp_pgd: %p\n",
-					p->comm, cred, mm, init_mm.pgd, tgt, cred->bp_pgd);
+					p->comm, cred, mm, init_mm.pgd, tgt, ((struct cred_kdp *)cred)->bp_pgd);
 		return 0;
 	}
 
@@ -188,7 +204,7 @@ static int test_case_ns_ro(void)
 	kdp_print("NAMESPACE PROTECTION ");
 	return test_case_kdp_ro(CMD_ID_NS);
 }
-#endif /* CONFIG_KDP_NS */
+#endif
 
 #ifdef CONFIG_KDP_SEC_TEST
 enum {
@@ -267,7 +283,7 @@ static void sec_test_cred_indirect_pe(int cmd_id)
 			current->cred->egid.val, (u64)rcred);
 }
 
-ssize_t kdp_write(struct file *filep, const char __user *buffer, size_t len, loff_t *offset)
+ssize_t kdp_test_write(struct file *filep, const char __user *buffer, size_t len, loff_t *offset)
 {
 	char procfs_buffer[PROCFS_MAX_SIZE];
 	int buff_size;
@@ -303,7 +319,7 @@ ssize_t kdp_write(struct file *filep, const char __user *buffer, size_t len, lof
 }
 #endif /* CONFIG_KDP_SEC_TEST*/
 
-ssize_t kdp_read(struct file *filep, char __user *buffer, size_t count, loff_t *ppos)
+ssize_t kdp_test_read(struct file *filep, char __user *buffer, size_t count, loff_t *ppos)
 {
 	int ret = 0, temp_ret = 0, i = 0;
 	struct test_case tc_funcs[] = {
@@ -313,7 +329,7 @@ ssize_t kdp_read(struct file *filep, char __user *buffer, size_t count, loff_t *
 		{test_case_sec_context_match_bp,	"TEST TASK_SEC_CONTEXT_BACKPOINTER"},
 #ifdef CONFIG_KDP_NS
 		{test_case_ns_ro,	"TEST NAMESPACE_RO"},
-#endif /* CONFIG_KDP_NS */
+#endif
 	};
 	int tc_num = sizeof(tc_funcs)/sizeof(struct test_case);
 
@@ -346,29 +362,42 @@ ssize_t kdp_read(struct file *filep, char __user *buffer, size_t count, loff_t *
 	return simple_read_from_buffer(buffer, count, ppos, kdp_test_buf, kdp_test_len);
 }
 
-static const struct file_operations kdp_proc_fops = {
-	.read		= kdp_read,
+static const struct proc_ops kdp_proc_ops = {
+	.proc_read		= kdp_test_read,
 #ifdef CONFIG_KDP_SEC_TEST
-	.write		= kdp_write,
+	.proc_write		= kdp_test_write,
 #endif
 };
 
 static int __init kdp_test_init(void)
 {
+	u64 va;
+
 #ifndef CONFIG_KDP_SEC_TEST
-	if (proc_create("kdp_test", 0444, NULL, &kdp_proc_fops) == NULL) {
+	if (proc_create("kdp_test", 0444, NULL, &kdp_proc_ops) == NULL) {
 #else
-	if (proc_create("kdp_test", 0777, NULL, &kdp_proc_fops) == NULL) {
+	if (proc_create("kdp_test", 0777, NULL, &kdp_proc_ops) == NULL) {
 #endif
-		printk(KERN_ERR "KDP_TEST: Error creating proc entry");
+		pr_err("KDP_TEST: Error creating proc entry");
 		return -1;
 	}
+
+	va = __get_free_page(GFP_KERNEL | __GFP_ZERO);
+	if (!va)
+		return -1;
+
+	uh_call(UH_APP_KDP, TEST_INIT, va, 0, 0, 1);
+
+	ha1 = (u64 *)va;
 
 	return 0;
 }
 
 static void __exit kdp_test_exit(void)
 {
+	uh_call(UH_APP_KDP, TEST_EXIT, (u64)ha1, 0, 0, 0);
+	free_page((unsigned long)ha1);
+
 	remove_proc_entry("kdp_test", NULL);
 }
 

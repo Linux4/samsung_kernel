@@ -11,7 +11,7 @@
 #include <linux/kernel.h>
 
 #include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
+#include <videodev2_exynos_camera.h>
 
 #include "is-control-sensor.h"
 #include "is-device-sensor.h"
@@ -150,11 +150,12 @@ int is_actuator_notify_m2m_actuator(struct v4l2_subdev *subdev)
 	int ret = 0;
 	struct is_module_enum *module;
 	struct is_device_sensor_peri *sensor_peri;
+	struct is_actuator *actuator;
 	u32 left_x, left_y, right_x, right_y;
 
 	u32 af_window_ratio = 0;
 	u32 virtual_image_size = 0;
-	ulong timer_setting = 0;
+	ktime_t timer_setting = 0;
 
 	FIMC_BUG(!subdev);
 
@@ -166,21 +167,22 @@ int is_actuator_notify_m2m_actuator(struct v4l2_subdev *subdev)
 
 	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
 	FIMC_BUG(!sensor_peri);
+	actuator = sensor_peri->actuator;
 
-	left_x = sensor_peri->actuator->left_x;
-	left_y = sensor_peri->actuator->left_y;
-	right_x = sensor_peri->actuator->right_x;
-	right_y = sensor_peri->actuator->right_y;
+	left_x = actuator->left_x;
+	left_y = actuator->left_y;
+	right_x = actuator->right_x;
+	right_y = actuator->right_y;
 
 	/*
-	 *  valid_time : usec
-	 *  timer_setting : usec
+	 *  valid_time : nsec
+	 *  timer_setting : nsec
 	 *  right_x,y : virtual coordinates
 	 *  VIRTUAL_COORDINATE : Virtual coordinate to image
 	 */
 	af_window_ratio = (right_y * VIRTUAL_COORDINATE_WIDTH) + right_x;
 	virtual_image_size = (VIRTUAL_COORDINATE_WIDTH * VIRTUAL_COORDINATE_HEIGHT) / 1000;
-	timer_setting = (sensor_peri->actuator->valid_time * (af_window_ratio / virtual_image_size)) / 1000;
+	timer_setting = (actuator->valid_time * (af_window_ratio / virtual_image_size));
 
 	/*
 	 * If not finish previous hrtimer work that's
@@ -193,7 +195,7 @@ int is_actuator_notify_m2m_actuator(struct v4l2_subdev *subdev)
 
 	/* timer msec setting */
 	hrtimer_start(&sensor_peri->actuator->actuator_data.afwindow_timer,
-			ktime_set(0, (timer_setting / 1000) * NSEC_PER_MSEC), HRTIMER_MODE_REL);
+					timer_setting, HRTIMER_MODE_REL);
 
 	return ret;
 }

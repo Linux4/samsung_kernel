@@ -16,7 +16,7 @@
 #include <linux/errno.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
-#include <soc/samsung/exynos-pmu.h>
+//#include <soc/samsung/exynos-pmu.h>
 
 #include "is-config.h"
 #include "is-type.h"

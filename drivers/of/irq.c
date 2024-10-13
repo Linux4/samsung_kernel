@@ -22,7 +22,6 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
-#include <linux/of_pci.h>
 #include <linux/string.h>
 #include <linux/slab.h>
 
@@ -274,136 +273,11 @@ int of_irq_parse_raw(const __be32 *addr, struct of_phandle_args *out_irq)
 }
 EXPORT_SYMBOL_GPL(of_irq_parse_raw);
 
-int of_irq_domain_map(const struct irq_fwspec *in, struct irq_fwspec *out)
-{
-	char *stem_name;
-	char *cells_name, *map_name = NULL, *mask_name = NULL;
-	char *pass_name = NULL;
-	struct device_node *cur, *new = NULL;
-	const __be32 *map, *mask, *pass;
-	static const __be32 dummy_mask[] = { [0 ... MAX_PHANDLE_ARGS] = ~0 };
-	static const __be32 dummy_pass[] = { [0 ... MAX_PHANDLE_ARGS] = 0 };
-	__be32 initial_match_array[MAX_PHANDLE_ARGS];
-	const __be32 *match_array = initial_match_array;
-	int i, ret, map_len, match;
-	u32 in_size, out_size;
-
-	stem_name = "";
-	cells_name = "#interrupt-cells";
-
-	ret = -ENOMEM;
-	map_name = kasprintf(GFP_KERNEL, "irqdomain%s-map", stem_name);
-	if (!map_name)
-		goto free;
-
-	mask_name = kasprintf(GFP_KERNEL, "irqdomain%s-map-mask", stem_name);
-	if (!mask_name)
-		goto free;
-
-	pass_name = kasprintf(GFP_KERNEL, "irqdomain%s-map-pass-thru", stem_name);
-	if (!pass_name)
-		goto free;
-
-	/* Get the #interrupt-cells property */
-	cur = to_of_node(in->fwnode);
-	ret = of_property_read_u32(cur, cells_name, &in_size);
-	if (ret < 0)
-		goto put;
-
-	/* Precalculate the match array - this simplifies match loop */
-	for (i = 0; i < in_size; i++)
-		initial_match_array[i] = cpu_to_be32(in->param[i]);
-
-	ret = -EINVAL;
-	/* Get the irqdomain-map property */
-	map = of_get_property(cur, map_name, &map_len);
-	if (!map) {
-		ret = 0;
-		goto free;
-	}
-	map_len /= sizeof(u32);
-
-	/* Get the irqdomain-map-mask property (optional) */
-	mask = of_get_property(cur, mask_name, NULL);
-	if (!mask)
-		mask = dummy_mask;
-	/* Iterate through irqdomain-map property */
-	match = 0;
-	while (map_len > (in_size + 1) && !match) {
-		/* Compare specifiers */
-		match = 1;
-		for (i = 0; i < in_size; i++, map_len--)
-			match &= !((match_array[i] ^ *map++) & mask[i]);
-
-		of_node_put(new);
-		new = of_find_node_by_phandle(be32_to_cpup(map));
-		map++;
-		map_len--;
-
-		/* Check if not found */
-		if (!new)
-			goto put;
-
-		if (!of_device_is_available(new))
-			match = 0;
-
-		ret = of_property_read_u32(new, cells_name, &out_size);
-		if (ret)
-			goto put;
-
-		/* Check for malformed properties */
-		if (WARN_ON(out_size > MAX_PHANDLE_ARGS))
-			goto put;
-		if (map_len < out_size)
-			goto put;
-
-		/* Move forward by new node's #interrupt-cells amount */
-		map += out_size;
-		map_len -= out_size;
-	}
-	if (match) {
-		/* Get the irqdomain-map-pass-thru property (optional) */
-		pass = of_get_property(cur, pass_name, NULL);
-		if (!pass)
-			pass = dummy_pass;
-
-		/*
-		 * Successfully parsed a irqdomain-map translation; copy new
-		 * specifier into the out structure, keeping the
-		 * bits specified in irqdomain-map-pass-thru.
-		 */
-		match_array = map - out_size;
-		for (i = 0; i < out_size; i++) {
-			__be32 val = *(map - out_size + i);
-
-			out->param[i] = in->param[i];
-			if (i < in_size) {
-				val &= ~pass[i];
-				val |= cpu_to_be32(out->param[i]) & pass[i];
-			}
-
-			out->param[i] = be32_to_cpu(val);
-		}
-		out->param_count = in_size = out_size;
-		out->fwnode = of_node_to_fwnode(new);
-	}
-put:
-	of_node_put(cur);
-	of_node_put(new);
-free:
-	kfree(mask_name);
-	kfree(map_name);
-	kfree(pass_name);
-
-	return ret;
-}
-EXPORT_SYMBOL(of_irq_domain_map);
-
 /**
  * of_irq_parse_one - Resolve an interrupt for a device
  * @device: the device whose interrupt is to be resolved
  * @index: index of the interrupt to resolve
- * @out_irq: structure of_irq filled by this function
+ * @out_irq: structure of_phandle_args filled by this function
  *
  * This function resolves an interrupt for a node by walking the interrupt tree,
  * finding which interrupt controller node it is attached to, and returning the
@@ -626,7 +500,7 @@ void __init of_irq_init(const struct of_device_id *matches)
 		 * pointer, interrupt-parent device_node etc.
 		 */
 		desc = kzalloc(sizeof(*desc), GFP_KERNEL);
-		if (WARN_ON(!desc)) {
+		if (!desc) {
 			of_node_put(np);
 			goto err;
 		}
@@ -702,55 +576,57 @@ err:
 	}
 }
 
-static u32 __of_msi_map_rid(struct device *dev, struct device_node **np,
-			    u32 rid_in)
+static u32 __of_msi_map_id(struct device *dev, struct device_node **np,
+			    u32 id_in)
 {
 	struct device *parent_dev;
-	u32 rid_out = rid_in;
+	u32 id_out = id_in;
 
 	/*
 	 * Walk up the device parent links looking for one with a
 	 * "msi-map" property.
 	 */
 	for (parent_dev = dev; parent_dev; parent_dev = parent_dev->parent)
-		if (!of_pci_map_rid(parent_dev->of_node, rid_in, "msi-map",
-				    "msi-map-mask", np, &rid_out))
+		if (!of_map_id(parent_dev->of_node, id_in, "msi-map",
+				"msi-map-mask", np, &id_out))
 			break;
-	return rid_out;
+	return id_out;
 }
 
 /**
- * of_msi_map_rid - Map a MSI requester ID for a device.
+ * of_msi_map_id - Map a MSI ID for a device.
  * @dev: device for which the mapping is to be done.
  * @msi_np: device node of the expected msi controller.
- * @rid_in: unmapped MSI requester ID for the device.
+ * @id_in: unmapped MSI ID for the device.
  *
  * Walk up the device hierarchy looking for devices with a "msi-map"
- * property.  If found, apply the mapping to @rid_in.
+ * property.  If found, apply the mapping to @id_in.
  *
- * Returns the mapped MSI requester ID.
+ * Returns the mapped MSI ID.
  */
-u32 of_msi_map_rid(struct device *dev, struct device_node *msi_np, u32 rid_in)
+u32 of_msi_map_id(struct device *dev, struct device_node *msi_np, u32 id_in)
 {
-	return __of_msi_map_rid(dev, &msi_np, rid_in);
+	return __of_msi_map_id(dev, &msi_np, id_in);
 }
 
 /**
  * of_msi_map_get_device_domain - Use msi-map to find the relevant MSI domain
  * @dev: device for which the mapping is to be done.
- * @rid: Requester ID for the device.
+ * @id: Device ID.
+ * @bus_token: Bus token
  *
  * Walk up the device hierarchy looking for devices with a "msi-map"
  * property.
  *
  * Returns: the MSI domain for this device (or NULL on failure)
  */
-struct irq_domain *of_msi_map_get_device_domain(struct device *dev, u32 rid)
+struct irq_domain *of_msi_map_get_device_domain(struct device *dev, u32 id,
+						u32 bus_token)
 {
 	struct device_node *np = NULL;
 
-	__of_msi_map_rid(dev, &np, rid);
-	return irq_find_matching_host(np, DOMAIN_BUS_PCI_MSI);
+	__of_msi_map_id(dev, &np, id);
+	return irq_find_matching_host(np, bus_token);
 }
 
 /**

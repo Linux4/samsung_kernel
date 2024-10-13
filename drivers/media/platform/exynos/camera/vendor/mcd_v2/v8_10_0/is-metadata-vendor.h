@@ -34,14 +34,14 @@ struct rational {
 #define CAMERA2_MAX_AVAILABLE_MODE		21
 #define CAMERA2_MAX_FACES			16
 #define CAMERA2_MAX_VENDER_LENGTH		400
-#define CAMERA2_MAX_IPC_VENDER_LENGTH		3172
-
+#define CAMERA2_MAX_IPC_VENDER_LENGTH		2962
 #define CAMERA2_MAX_PDAF_MULTIROI_COLUMN	13
 #define CAMERA2_MAX_PDAF_MULTIROI_ROW		9
 #define CAMERA2_MAX_UCTL_VENDER_LENGTH		32
 
 #define CAMERA2_MAX_UCTL_VENDOR2_LENGTH		400
 #define CAMERA2_MAX_UDM_VENDOR2_LENGTH		32
+
 #define CAMERA2_MAX_STRIPE_REGION_NUM		5
 
 #define OPEN_MAGIC_NUMBER		0x20192012
@@ -51,7 +51,6 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_STILL_PREVIEW = 0,					/* 0: Single preview (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_STILL_PREVIEW_WDR_ON = 1,			/* 1: Single preview (HDR On) */
 	ISS_SUB_SCENARIO_STILL_FULL_PREVIEW_WDR_AUTO = 2,	/* TODO: 2: Full resolution Preview (HDR Auto/Off) */
-	ISS_SUB_SCENARIO_STILL_PREVIEW_PRO_MODE = 3,		/* 3: ProMode Preview (HDR Off) : just Innovative project */
 
 	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_AUTO = 10,			/* 10: Single/Burst/Snapshot capture (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_STILL_CAPTURE = 11,					/* 11: Single capture (HDR Off) : Pro mode	 */
@@ -64,8 +63,7 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_STILL_CAPTURE_LLS = 18,				/* 18: Flash LLS capture (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_STILL_FLASH_LLS = ISS_SUB_SCENARIO_STILL_CAPTURE_LLS,
 	ISS_SUB_SCENARIO_STILL_CAPTURE_ZOOM = 19,				/* 19: SR Zoom capture ( HDR Auto/Off ) */
-	ISS_SUB_SCENARIO_FULL_RESOLUTION_LOW_LIGHT_CAPTURE = 20,		/* 20: Full resolution Low Light Capture  (HDR Auto/Off) */
-	ISS_SUB_SCENARIO_SUPER_NIGHT_CAPTURE_LONG_EXPOSURE = 21,		/* 21: Super night capture Long Exposure (HDR Auto) */
+
 	ISS_SUB_SCENARIO_VIDEO = 30,						/* 30: FHD 30fps (HDR Off) */
 	ISS_SUB_SCENARIO_VIDEO_WDR_AUTO = 31,				/* 31: FHD 30fps (HDR Auto) */
 	ISS_SUB_SCENARIO_VIDEO_WDR_ON = 32,					/* 32: FHD 30fps (HDR On) */
@@ -99,14 +97,6 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_WDR_AUTO = 69,		/* 69: 3rd Party Capture (HDR Auto) */
 	ISS_SUB_SCENARIO_FRONT_SMART_STAY = 70,										/* 70: Smart Stay */
 
-	ISS_SUB_SCENARIO_STILL_PREVIEW_3RD_PARTY_HIGH = 71,		/* 71: 3rd Party Preview/Video Height >= 940 */
-	ISS_SUB_SCENARIO_STILL_PREVIEW_3RD_PARTY_MID = 72,		/* 72: 3rd Party Preview/Video Height 940 ~ 720 */
-	ISS_SUB_SCENARIO_STILL_PREVIEW_3RD_PARTY_LOW = 73,		/* 73: 3rd Party Preview/Video Height < 720 */
-	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_HIGH = 74,		/* 74: 3rd Party Capture Height >= 1800 */
-	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_MID = 75,		/* 75: 3rd Party Capture Height 1800 ~ 1080 */
-	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_LOW = 76,		/* 76: 3rd Party Capture Height < 1080 */
-	ISS_SUB_SCENARIO_LIVE_HDR_MODE_AUTO_3P = 77,			/* 77: 3rd Party Video HDR */
-
 	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO = 90,		/* 90: Video SW VDIS (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON = 91,			/* 91: Video SW VDIS (HDR On) */
 	ISS_SUB_SCENARIO_PANORAMA = 92,						/* 92: Panaroma */
@@ -115,36 +105,27 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_ILLUMINANCE = 95,					/* 95: sABC */
 	ISS_SUB_SCENARIO_3HDR_VIDEO_WDR_ON = 96,			/* 96: 3HDR Video (HDR On) */
 	ISS_SUB_SCENARIO_3HDR_CAPTURE_WDR_ON = 97,			/* 97: 3HDR Capture (HDR On) */
-	ISS_SUB_SCENARIO_FACE_LOCK = 98,				/* 98: Face Unlock */
-	ISS_SUB_SCENARIO_BINNING_MODE = 99,				/* 99: Binning Mode (Rear VTcall) */
 
 	ISS_SUB_SCENARIO_VIDEO_ISPLP_TNR = 110,				/* TODO: 110: ISPLT_TNR */
 	ISS_SUB_END,
 };
 
-#define IS_VIDEO_SCENARIO(setfile)					\
-	(((setfile) == ISS_SUB_SCENARIO_VIDEO)				\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_ON)			\
-	|| ((setfile) == ISS_SUB_SCENARIO_FHD_60FPS)			\
-	|| ((setfile) == ISS_SUB_SCENARIO_FHD_60FPS_WDR_AUTO)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS)			\
-	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_UHD_60FPS)			\
-	|| ((setfile) == ISS_SUB_SCENARIO_UHD_60FPS_WDR_AUTO)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO)	\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON)	\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO)	\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_3HDR_VIDEO_WDR_ON))
+#define IS_VIDEO_SCENARIO(setfile)				\
+	(((setfile) == ISS_SUB_SCENARIO_VIDEO)			\
+	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO)	\
+	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_ON)		\
+	|| ((setfile) == ISS_SUB_SCENARIO_FHD_60FPS)		\
+	|| ((setfile) == ISS_SUB_SCENARIO_FHD_60FPS_WDR_AUTO)	\
+	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS)		\
+	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO)	\
+	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON)	\
+	|| ((setfile) == ISS_SUB_SCENARIO_UHD_60FPS)		\
+	|| ((setfile) == ISS_SUB_SCENARIO_UHD_60FPS_WDR_AUTO)	\
+	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED))
 
-#define IS_VIDEO_HDR_SCENARIO(setfile)					\
-	(((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO)			\
-	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_ON)			\
-	|| ((setfile) == ISS_SUB_SCENARIO_3HDR_VIDEO_WDR_ON))
+#define IS_VIDEO_HDR_SCENARIO(setfile)				\
+	(((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO)		\
+	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_WDR_ON))
 
 enum is_scenario_is {
 	IS_SCENARIO_SWVDIS = 1,
@@ -154,7 +135,6 @@ enum is_scenario_is {
 	IS_SCENARIO_HIGH_SPEED_DUALFPS = 5, /* FPS is changed from normal to high speed */
 	IS_SCENARIO_SECURE = 6,
 	IS_SCENAIRO_REMOSAIC = 7,
-	IS_SCENAIRO_FACTORY_RAW = 8,
 };
 
 /*
@@ -179,6 +159,7 @@ enum available_capabilities {
 	REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING,
 	REQUEST_AVAILABLE_CAPABILITIES_DEPTH_OUTPUT,
 	REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO,
+	REQUEST_AVAILABLE_CAPABILITIES_STREAM_USE_CASE,
 };
 
 struct camera2_request_ctl {
@@ -867,9 +848,6 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_TRIPOD_LE_FAST,   // 1st frame for JPEG+Thumbnail
 	AA_CAPTURE_INTENT_STILL_CAPTURE_CROPPED_REMOSAIC_DYNAMIC_SHOT,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_SINGLE_FLASH,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_CROPPED_REMOSAIC_SINGLE,
-
-	AA_CAPTURE_INTENT_NOT_USED = 90000,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL0,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL1,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL2,
@@ -950,8 +928,6 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_ILLUMINANCE,
 	AA_SCENE_MODE_SUPER_NIGHT,
 	AA_SCENE_MODE_BOKEH_VIDEO,
-	AA_SCENE_MODE_SINGLE_TAKE	= 140,
-	AA_SCENE_MODE_DIRECTORS_VIEW	= 141,
 };
 
 enum aa_effect_mode {
@@ -1217,57 +1193,14 @@ enum aa_aemode_state {
 	AA_AE_TOUCH,
 };
 
-enum aa_ae_extra_mode {
-	AA_AE_EXTRA_MODE_AUTO = 0,
-	AA_AE_EXTRA_MODE_SHUTTER_PRIORITY = 1,
-	AA_AE_EXTRA_MODE_ISO_PRIORITY = 2,
-};
-
-enum aa_dynamic_bds_mode {
-	AA_DYNAMIC_BDS_MODE_OFF = 0,
-	AA_DYNAMIC_BDS_MODE_LOW_LIGHT_ON = 1,	/* IQ controlled */
-	AA_DYNAMIC_BDS_MODE_SYSTEM_ON  = 2,		/* HAL controlled */
-};
-
-enum aa_enable_dynamicshot {
-	AA_DYNAMICSHOT_SIMPLE = 0,
-	AA_DYNAMICSHOT_FULL,
-	AA_DYNAMICSHOT_HDR_ONLY,
-	AA_DYNAMICSHOT_LLS_ONLY,
-	AA_DYNAMICSHOT_SINGLE_ONLY,
-};
-
 enum aa_night_timelaps_mode {
 	AA_NIGHT_TIMELAPS_MODE_OFF = 0,
 	AA_NIGHT_TIMELAPS_MODE_ON,
 };
 
-enum aa_capture_hint {
-	AA_CAPTURE_HINT_NONE = 0,
-	AA_CAPTURE_HINT_BURST,
-	AA_CAPTURE_HINT_AGIF,
-	AA_CAPTURE_HINT_SINGLE_TAKE,
-	AA_CAPTURE_HINT_FACTORY_MAIN = 100,
-	AA_CAPTURE_HINT_FACTORY_SECONDARY = 101,
-};
-
-enum aa_transient_capture_action {
-	AA_TRANSIENT_CAPTURE_ACTION_OFF = 0,
-	AA_TRANSIENT_CAPTURE_ACTION_FAST_CAPTURE = 1,
-};
-
 struct camera2_video_output_size {
 	uint16_t			width;
 	uint16_t			height;
-};
-
-struct tof_info {
-	uint16_t fps;
-	uint16_t exposureTime;
-};
-
-struct depth_info {
-	int32_t AIFCaptureNum;
 };
 
 struct camera2_aa_ctl {
@@ -1309,7 +1242,7 @@ struct camera2_aa_ctl {
 	uint32_t			vendor_captureExposureTime;
 	float				vendor_objectDistanceCm;
 	int32_t				vendor_colorTempKelvin;
-	enum aa_enable_dynamicshot vendor_enableDynamicShotDm;
+	int32_t				vendor_enableDynamicShotDm;
 	float				vendor_expBracketing[15];
 	float				vendor_expBracketingCapture;
 	enum aa_supernightmode		vendor_superNightShotMode;
@@ -1318,16 +1251,7 @@ struct camera2_aa_ctl {
 	struct camera2_video_output_size vendor_videoOutputSize;
 	enum aa_night_timelaps_mode	vendor_nightTimelapsMode;
 	uint32_t			vendor_personalPresetIndex;
-	struct tof_info		vendor_TOFInfo;
-	uint32_t			vendor_captureHint;
-	int32_t				vendor_captureEV;
-	uint32_t			vendor_ssrmHint;
-	int32_t				vendor_memTotal;
-	struct depth_info	vendor_depthInfo;
-	enum aa_ae_extra_mode	vendor_aeExtraMode;
-	enum aa_dynamic_bds_mode vendor_enableDynamicBds;
-	enum aa_transient_capture_action vendor_transientCaptureAction;
-	uint32_t			vendor_reserved[29];
+	uint32_t			vendor_reserved[38];
 };
 
 struct aa_apexInfo {
@@ -1422,10 +1346,7 @@ struct camera2_aa_dm {
 	uint32_t			vendor_previewSkipFrame;
 	uint32_t			vendor_aeDrcGain;
 	int32_t				vendor_aeStats4VO[8];
-	int32_t				vendor_dynamicShotCaptureDuration;
-	int32_t				vendor_aeBracketingFpsHint;
-	uint32_t			vendor_3hdrMode;
-	uint32_t			vendor_reserved[48];
+	uint32_t			vendor_reserved[51];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -1709,10 +1630,10 @@ struct camera2_gyro_sensor_info {
 };
 
 struct camera2_gyro_sensor_history_info {
-	bool	isValid;
+	bool valid;
 
-	struct	camera2_gyro_sensor_info gyroData[20];
-	uint64_t	gyroTimeStamp[20];
+	struct camera2_gyro_sensor_info gyroData[20];
+	uint64_t lastGyroTimeStamp;
 };
 
 struct camera2_accelerometer_sensor_info {
@@ -1942,7 +1863,6 @@ enum camera2_wdr_mode {
 	CAMERA_WDR_ON = 2,
 	CAMERA_WDR_AUTO = 3,
 	CAMERA_WDR_AUTO_LIKE = 4,
-	CAMERA_WDR_AUTO_3P = 5,
 	TOTALCOUNT_CAMERA_WDR,
 	CAMERA_WDR_UNKNOWN,
 };
@@ -1975,9 +1895,6 @@ enum camera_op_mode {
 	CAMERA_OP_MODE_FAC,
 	CAMERA_OP_MODE_HAL3_FAC,
 	CAMERA_OP_MODE_HAL3_SDK,
-	CAMERA_OP_MODE_HAL3_CAMERAX,
-	CAMERA_OP_MODE_HAL3_AVSP,
-	CAMERA_OP_MODE_HAL3_SDK_VIP,
 };
 
 enum camera2_sensor_hdr_mode {
@@ -2080,27 +1997,16 @@ enum camera2_dcp_process_mode {
 	DCP_PROCESS_ON,
 };
 
-enum camera2_tnr_gdc_mode {
-	TNR_GDC_MODE_NONE = 0,
-	TNR_GDC_MODE_HW,
-	TNR_GDC_MODE_SW,
-	TNR_GDC_MODE_MAX
-};
-
 struct camera2_grid_info {
 	int32_t grid_x[7][9];
 	int32_t grid_y[7][9];
 };
 
 struct camera2_tnr_uctl {
-	enum camera2_tnr_gdc_mode tnrGdcMode;
-	struct camera2_grid_info gdc_grid;
-	uint32_t gmeConfidence;
+  struct camera2_grid_info gdc_grid;
 };
 
 enum camera2_scene_index {
-	SCENE_INDEX_OFF			= -2,
-	SCENE_INDEX_SCANNING	= -1,
 	SCENE_INDEX_INVALID		= 0,
 	SCENE_INDEX_FOOD		= 1,
 	SCENE_INDEX_TEXT		= 2,
@@ -2145,35 +2051,11 @@ enum camera2_scene_index {
 	SCENE_INDEX_MOTION_BLUR_REMOVAL	= 10002
 };
 
-enum {
-	RECT_IDX_LEFT,
-	RECT_IDX_TOP,
-	RECT_IDX_RIGHT,
-	RECT_IDX_BOTTOM,
-	RECT_IDX_MAX,
-};
-
 struct camera2_scene_detect_uctl {
 	uint64_t			timeStamp;
 	enum camera2_scene_index	scene_index;
 	uint32_t			confidence_score;
-	uint32_t			object_roi[RECT_IDX_MAX];  /* left, top, width, height */
-};
-
-struct score_info
-{
-	uint32_t frameCount;
-	uint32_t score;
-	uint32_t motionIndex;
-	uint32_t localMotionIndex;
-	uint32_t gmeConfidence;
-};
-
-struct camera2_mfstill_uctl
-{
-	struct score_info sinfo[15];
-	uint32_t ref_frameCount;
-	uint32_t rej_frameCount[15];
+	uint32_t			object_roi[4];  /* left, top, width, height */
 };
 
 enum camera_vt_mode {
@@ -2235,27 +2117,13 @@ enum camera_motion_state {
 };
 
 enum camera_client_index {
-	CAMERA_APP_CATEGORY_NOT_READ			= -1,
-	CAMERA_APP_CATEGORY_NONE				= 0,
-	CAMERA_APP_CATEGORY_FACEBOOK			= 1,
-	CAMERA_APP_CATEGORY_WECHAT				= 2,
-	CAMERA_APP_CATEGORY_SNAPCHAT			= 3,
-	CAMERA_APP_CATEGORY_TWITTER				= 4,
-	CAMERA_APP_CATEGORY_INSTAGRAM			= 5,
-	CAMERA_APP_CATEGORY_3P_VT				= 6,
-	CAMERA_APP_CATEGORY_VAULT				= 7,
-	CAMERA_APP_CATEGORY_FACEBOOK_MASSENGER	= 8,
-	CAMERA_APP_CATEGORY_WHATSAPP			= 9,
-	CAMERA_APP_CATEGORY_ULIKE				= 10,
-	CAMERA_APP_CATEGORY_WEIBO				= 11,
-	CAMERA_APP_CATEGORY_MEITU				= 12,
-	CAMERA_APP_CATEGORY_KAKAOBANK			= 13,
-	CAMERA_APP_CATEGORY_CAMCARD				= 14,
-	CAMERA_APP_CATEGORY_CAMCARD_FREE		= 15,
-	CAMERA_APP_CATEGORY_SNOW				= 16,
-	CAMERA_APP_CATEGORY_B612				= 17,
-	CAMERA_APP_CATEGORY_SODA				= 18,
-	CAMERA_APP_CATEGORY_FOODIE				= 19,
+	CAMERA_APP_CATEGORY_NONE	= 0,
+	CAMERA_APP_CATEGORY_FACEBOOK	= 1,
+	CAMERA_APP_CATEGORY_WECHAT	= 2,
+	CAMERA_APP_CATEGORY_SNAPCHAT	= 3,
+	CAMERA_APP_CATEGORY_TWITTER	= 4,
+	CAMERA_APP_CATEGORY_INSTAGRAM	= 5,
+	CAMERA_APP_CATEGORY_3P_VT	= 6,
 	CAMERA_APP_CATEGORY_MAX
 };
 
@@ -2263,12 +2131,6 @@ enum remosaic_oper_mode {
 	REMOSAIC_OPER_MODE_NONE = 0,
 	REMOSAIC_OPER_MODE_SINGLE = 1,
 	REMOSAIC_OPER_MODE_MFHDR = 2,
-};
-
-struct camera2_object_detect_uctl {
-	uint16_t	detected;
-	uint16_t	confidence_score;
-	uint16_t	object_roi[RECT_IDX_MAX]; /* RECT_IDX_LEFT, RECT_IDX_TOP, RECT_IDX_WIDTH, RECT_IDX_HEIGHT */
 };
 
 /** \brief
@@ -2323,12 +2185,11 @@ struct camera2_uctl {
 	uint32_t			cameraClientIndex;
 	uint32_t			remosaicHighResolutionMode;
 	uint8_t				frame_id[32];
-	struct camera2_mfstill_uctl		mfInfoUd;
-	struct camera2_object_detect_uctl	moonDetectInfoUd;
 #ifdef SUPPORT_REMOSAIC_CROP_ZOOM
 	struct crop_zoom_uctl		cropzoomUd;
+	uint32_t			reserved[3];
 #else
-	uint32_t			reserved[2];
+	uint32_t			reserved[5];
 #endif
 };
 
@@ -2364,9 +2225,7 @@ struct camera2_udm {
 	enum camera2_scene_index	scene_index;
 	uint32_t			flicker_detect;
 	struct camera2_tnr_udm		tnr;
-	uint32_t				motionIndex;
-	uint32_t				localMotionIndex;
-	uint32_t				reserved[6];
+	uint32_t			reserved[8];
 };
 
 struct camera2_shot {
@@ -2505,20 +2364,10 @@ struct facial_angle {
 	uint32_t                roll;
 };
 
-struct vra_org_crop_info {
-	uint16_t                crop_offset_x;
-	uint16_t                crop_offset_y;
-	uint16_t                crop_width;
-	uint16_t                crop_height;
-	uint16_t                full_width;
-	uint16_t                full_height;
-};
-
 struct vra_ext_meta {
 	struct facial_score     facialScore[CAMERA2_MAX_FACES];
 	struct facial_angle     facialAngle[CAMERA2_MAX_FACES];
-	struct vra_org_crop_info        org_crop_info;
-	uint32_t                reserved[7];
+	uint32_t                reserved[10];
 };
 
 struct ddk_setfile_ver
@@ -2604,13 +2453,6 @@ struct camera2_stream {
 	uint32_t		pixelformat;
 	uint32_t		pixelsize;
 
-#ifdef SUPPORT_STRIPE_REGION_NUM
-	/**
-	  stripe region horizontal pixel nums
-	  this value indicates each width pixel size of stripe region
-	 */
-	uint32_t		stripe_region_num;
-#endif
 	/**
 	  stripe region horizontal pixel nums
 	  this value indicates each width pixel size of stripe region

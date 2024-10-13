@@ -1,11 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Driver for the Diolan DLN-2 USB-GPIO adapter
  *
  * Copyright (c) 2014 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation, version 2.
  */
 
 #include <linux/kernel.h>
@@ -49,6 +46,7 @@
 struct dln2_gpio {
 	struct platform_device *pdev;
 	struct gpio_chip gpio;
+	struct irq_chip irqchip;
 
 	/*
 	 * Cache pin direction to save us one transfer, since the hardware has
@@ -203,9 +201,9 @@ static int dln2_gpio_get_direction(struct gpio_chip *chip, unsigned offset)
 	struct dln2_gpio *dln2 = gpiochip_get_data(chip);
 
 	if (test_bit(offset, dln2->output_enabled))
-		return 0;
+		return GPIO_LINE_DIRECTION_OUT;
 
-	return 1;
+	return GPIO_LINE_DIRECTION_IN;
 }
 
 static int dln2_gpio_get(struct gpio_chip *chip, unsigned int offset)
@@ -217,7 +215,7 @@ static int dln2_gpio_get(struct gpio_chip *chip, unsigned int offset)
 	if (dir < 0)
 		return dir;
 
-	if (dir == 1)
+	if (dir == GPIO_LINE_DIRECTION_IN)
 		return dln2_gpio_pin_get_in_val(dln2, offset);
 
 	return dln2_gpio_pin_get_out_val(dln2, offset);
@@ -386,15 +384,6 @@ static void dln2_irq_bus_unlock(struct irq_data *irqd)
 	mutex_unlock(&dln2->irq_lock);
 }
 
-static struct irq_chip dln2_gpio_irqchip = {
-	.name = "dln2-irq",
-	.irq_mask = dln2_irq_mask,
-	.irq_unmask = dln2_irq_unmask,
-	.irq_set_type = dln2_irq_set_type,
-	.irq_bus_lock = dln2_irq_bus_lock,
-	.irq_bus_sync_unlock = dln2_irq_bus_unlock,
-};
-
 static void dln2_gpio_event(struct platform_device *pdev, u16 echo,
 			    const void *data, int len)
 {
@@ -443,6 +432,7 @@ static int dln2_gpio_probe(struct platform_device *pdev)
 {
 	struct dln2_gpio *dln2;
 	struct device *dev = &pdev->dev;
+	struct gpio_irq_chip *girq;
 	int pins;
 	int ret;
 
@@ -479,18 +469,27 @@ static int dln2_gpio_probe(struct platform_device *pdev)
 	dln2->gpio.direction_output = dln2_gpio_direction_output;
 	dln2->gpio.set_config = dln2_gpio_set_config;
 
+	dln2->irqchip.name = "dln2-irq",
+	dln2->irqchip.irq_mask = dln2_irq_mask,
+	dln2->irqchip.irq_unmask = dln2_irq_unmask,
+	dln2->irqchip.irq_set_type = dln2_irq_set_type,
+	dln2->irqchip.irq_bus_lock = dln2_irq_bus_lock,
+	dln2->irqchip.irq_bus_sync_unlock = dln2_irq_bus_unlock,
+
+	girq = &dln2->gpio.irq;
+	girq->chip = &dln2->irqchip;
+	/* The event comes from the outside so no parent handler */
+	girq->parent_handler = NULL;
+	girq->num_parents = 0;
+	girq->parents = NULL;
+	girq->default_type = IRQ_TYPE_NONE;
+	girq->handler = handle_simple_irq;
+
 	platform_set_drvdata(pdev, dln2);
 
 	ret = devm_gpiochip_add_data(dev, &dln2->gpio, dln2);
 	if (ret < 0) {
 		dev_err(dev, "failed to add gpio chip: %d\n", ret);
-		return ret;
-	}
-
-	ret = gpiochip_irqchip_add(&dln2->gpio, &dln2_gpio_irqchip, 0,
-				   handle_simple_irq, IRQ_TYPE_NONE);
-	if (ret < 0) {
-		dev_err(dev, "failed to add irq chip: %d\n", ret);
 		return ret;
 	}
 

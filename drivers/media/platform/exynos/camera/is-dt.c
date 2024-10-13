@@ -140,6 +140,7 @@ static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node 
 	int i;
 	u32 temp;
 	char *pprop;
+	const char *name;
 
 	pprop = __getname();
 	if (unlikely(!pprop))
@@ -149,6 +150,14 @@ static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node 
 #if defined(QOS_TNR)
 		snprintf(pprop, PATH_MAX, "%s%s", is_dvfs_dt_arr[i].parse_scenario_nm, "tnr");
 		DT_READ_U32(np, pprop, pdata->dvfs_data[index][is_dvfs_dt_arr[i].scenario_id][IS_DVFS_TNR]);
+#endif
+#if defined(QOS_CSIS)
+		snprintf(pprop, PATH_MAX, "%s%s", is_dvfs_dt_arr[i].parse_scenario_nm, "csis");
+		DT_READ_U32(np, pprop, pdata->dvfs_data[index][is_dvfs_dt_arr[i].scenario_id][IS_DVFS_CSIS]);
+#endif
+#if defined(QOS_ISP)
+		snprintf(pprop, PATH_MAX, "%s%s", is_dvfs_dt_arr[i].parse_scenario_nm, "isp");
+		DT_READ_U32(np, pprop, pdata->dvfs_data[index][is_dvfs_dt_arr[i].scenario_id][IS_DVFS_ISP]);
 #endif
 #if defined(QOS_INTCAM)
 		snprintf(pprop, PATH_MAX, "%s%s", is_dvfs_dt_arr[i].parse_scenario_nm, "int_cam");
@@ -168,6 +177,9 @@ static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node 
 
 		snprintf(pprop, PATH_MAX, "%s%s", is_dvfs_dt_arr[i].parse_scenario_nm, "hpg");
 		DT_READ_U32(np, pprop, pdata->dvfs_data[index][is_dvfs_dt_arr[i].scenario_id][IS_DVFS_HPG]);
+
+		snprintf(pprop, PATH_MAX, "%s%s", is_dvfs_dt_arr[i].parse_scenario_nm, "cpu");
+		DT_READ_STR(np, pprop, pdata->dvfs_cpu[index][is_dvfs_dt_arr[i].scenario_id]);
 	}
 	__putname(pprop);
 
@@ -177,6 +189,12 @@ static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node 
 #if defined(QOS_TNR)
 		probe_info("[%d][%d][TNR] = %d\n", index, i, pdata->dvfs_data[index][i][IS_DVFS_TNR]);
 #endif
+#if defined(QOS_CSIS)
+		probe_info("[%d][%d][CSIS] = %d\n", index, i, pdata->dvfs_data[index][i][IS_DVFS_CSIS]);
+#endif
+#if defined(QOS_ISP)
+		probe_info("[%d][%d][ISP] = %d\n", index, i, pdata->dvfs_data[index][i][IS_DVFS_ISP]);
+#endif
 #if defined(QOS_INTCAM)
 		probe_info("[%d][%d][INT_CAM] = %d\n", index, i, pdata->dvfs_data[index][i][IS_DVFS_INT_CAM]);
 #endif
@@ -185,6 +203,7 @@ static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node 
 		probe_info("[%d][%d][MIF] = %d\n", index, i, pdata->dvfs_data[index][i][IS_DVFS_MIF]);
 		probe_info("[%d][%d][I2C] = %d\n", index, i, pdata->dvfs_data[index][i][IS_DVFS_I2C]);
 		probe_info("[%d][%d][HPG] = %d\n", index, i, pdata->dvfs_data[index][i][IS_DVFS_HPG]);
+		probe_info("[%d][%d][CPU] = %s\n", index, i, pdata->dvfs_cpu[index][i]);
 	}
 #endif
 	return 0;
@@ -223,7 +242,7 @@ static int parse_dvfs_table(struct is_dvfs_ctrl *dvfs,
 	return ret;
 }
 
-static int bts_parse_data(struct device_node *np, struct is_bts_scen **data)
+static int bts_parse_data(struct device_node *np, struct is_bts_scen **data, int *num_bts_scen)
 {
 	int i;
 	int ret = 0;
@@ -254,6 +273,7 @@ static int bts_parse_data(struct device_node *np, struct is_bts_scen **data)
 		}
 
 		*data = bts_scen;
+		*num_bts_scen = num_scen;
 	} else {
 		probe_warn("Invalid device tree node!\n");
 	}
@@ -380,10 +400,12 @@ int is_parse_dt(struct platform_device *pdev)
 	pdata->print_clk = exynos_is_print_clk;
 
 	of_property_read_u32(np, "num_of_3aa", &pdata->num_of_ip.taa);
+	of_property_read_u32(np, "num_of_lme", &pdata->num_of_ip.lme);
 	of_property_read_u32(np, "num_of_isp", &pdata->num_of_ip.isp);
 	of_property_read_u32(np, "num_of_mcsc", &pdata->num_of_ip.mcsc);
 	of_property_read_u32(np, "num_of_vra", &pdata->num_of_ip.vra);
 	of_property_read_u32(np, "num_of_clh", &pdata->num_of_ip.clh);
+	of_property_read_u32(np, "num_of_ypp", &pdata->num_of_ip.ypp);
 
 	if (parse_gate_info(pdata, np) < 0)
 		probe_info("can't parse clock gate info node");
@@ -436,7 +458,7 @@ int is_parse_dt(struct platform_device *pdev)
 			probe_err("parse_dvfs_table is fail(%d)", ret);
 	}
 
-	bts_parse_data(np, bts_scen);
+	bts_parse_data(np, bts_scen, &core->resourcemgr.num_bts_scen);
 
 	lic_offset_np = of_get_child_by_name(np, "lic_offsets");
 	if (lic_offset_np) {
@@ -1006,6 +1028,30 @@ static int parse_power_seq_data(struct exynos_platform_is_module *pdata, struct 
 				pin->shared_rsc_active = 0;
 			}
 
+			if (pin->act == PIN_REGULATOR) {
+				bool reg_cap = true;
+				struct is_module_regulator *is_module_regulator;
+
+				list_for_each_entry(is_module_regulator, &core->resourcemgr.regulator_list, list) {
+					if (!strcmp(is_module_regulator->name, pin->name)) {
+						reg_cap = false;
+						break;
+					}
+				}
+
+				if (reg_cap) {
+					is_module_regulator = kzalloc(sizeof(struct is_module_regulator), GFP_KERNEL);
+					if (!is_module_regulator) {
+						err("%s: failed to alloc is_regulator", __func__);
+						return -ENOMEM;
+					}
+
+					is_module_regulator->name = pin->name;
+					list_add_tail(&is_module_regulator->list, &core->resourcemgr.regulator_list);
+					dbg("%s is registered in regulator_list", is_module_regulator->name);
+				}
+			}
+
 			dbg("%s: gpio=%d, name=%s, act=%d, val=%d, delay=%d, volt=%d, share=<%d %d %d>\n",
 				node_table[i]->name,
 				pin->pin,
@@ -1219,6 +1265,36 @@ int is_module_parse_dt(struct device *dev,
 	}
 
 	/* vendor data */
+	ret = of_property_read_u32(dnode, "rom_id", &pdata->rom_id);
+	if (ret) {
+		probe_info("rom_id dt parsing skipped\n");
+		pdata->rom_id = ROM_ID_NOTHING;
+	}
+
+	ret = of_property_read_u32(dnode, "rom_type", &pdata->rom_type);
+	if (ret) {
+		probe_info("rom_type dt parsing skipped\n");
+		pdata->rom_type = ROM_TYPE_NONE;
+	}
+
+	ret = of_property_read_u32(dnode, "rom_cal_index", &pdata->rom_cal_index);
+	if (ret) {
+		probe_info("rom_cal_index dt parsing skipped\n");
+		pdata->rom_cal_index = ROM_CAL_NOTHING;
+	}
+
+	ret = of_property_read_u32(dnode, "rom_dualcal_id", &pdata->rom_dualcal_id);
+	if (ret) {
+		probe_info("rom_dualcal_id dt parsing skipped\n");
+		pdata->rom_dualcal_id = ROM_ID_NOTHING;
+	}
+
+
+	ret = of_property_read_u32(dnode, "rom_dualcal_index", &pdata->rom_dualcal_index);
+	if (ret) {
+		probe_info("rom_dualcal_index dt parsing skipped\n");
+		pdata->rom_dualcal_index = ROM_DUALCAL_NOTHING;
+	}
 
 	/* peri */
 	af_np = of_get_child_by_name(dnode, "af");

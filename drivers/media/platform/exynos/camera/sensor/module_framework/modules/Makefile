@@ -1,5 +1,3 @@
-obj-$(CONFIG_VIDEO_EXYNOS_PABLO_ISP) += is-device-module-base.o
-
 obj-$(CONFIG_CAMERA_CIS_6B2_OBJ) += is-device-module-6b2.o
 obj-$(CONFIG_CAMERA_CIS_5E2_OBJ) += is-device-module-5e2.o
 obj-$(CONFIG_CAMERA_CIS_5E3_OBJ) += is-device-module-5e3.o
@@ -10,7 +8,6 @@ obj-$(CONFIG_CAMERA_CIS_2P8_OBJ) += is-device-module-2p8.o
 obj-$(CONFIG_CAMERA_CIS_2X5_OBJ) += is-device-module-2x5.o
 obj-$(CONFIG_CAMERA_CIS_3P3_OBJ) += is-device-module-3p3.o
 obj-$(CONFIG_CAMERA_CIS_3L2_OBJ) += is-device-module-3l2.o
-obj-$(CONFIG_CAMERA_CIS_3H1_OBJ) += is-device-module-3h1.o
 obj-$(CONFIG_CAMERA_CIS_3H1_C3_OBJ) += is-device-module-3h1-c3.o
 obj-$(CONFIG_CAMERA_CIS_4E6_OBJ) += is-device-module-4e6.o
 obj-$(CONFIG_CAMERA_CIS_4E6_C2_OBJ) += is-device-module-4e6-c2.o
@@ -36,12 +33,13 @@ obj-$(CONFIG_CAMERA_CIS_IMX258_OBJ) += is-device-module-imx258.o
 obj-$(CONFIG_CAMERA_CIS_SR259_OBJ) += is-device-module-sr259.o
 obj-$(CONFIG_CAMERA_CIS_IMX241_OBJ) += is-device-module-imx241.o
 obj-$(CONFIG_CAMERA_CIS_IMX576_OBJ) += is-device-module-imx576.o
+#obj-$(CONFIG_CAMERA_CIS_GC5035_OBJ) += is-device-module-gc5035.o
 obj-$(CONFIG_CAMERA_CIS_VIRTUAL_OBJ) += is-device-module-virtual.o
 obj-$(CONFIG_CAMERA_CIS_IMX316_OBJ) += is-device-module-imx316.o
 obj-$(CONFIG_CAMERA_CIS_IMX516_OBJ) += is-device-module-imx516.o
 
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera/include
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera/vendor
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera/sensor/module_framework
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera/sensor
+EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera
+EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera/include
+EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera/vendor
+EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera/sensor/module_framework
+EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera/sensor

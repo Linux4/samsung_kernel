@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+/* SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause) */
 /*
  * hcd.h - DesignWare HS OTG Controller host-mode declarations
  *
@@ -199,7 +199,7 @@ struct dwc2_hcd_urb {
 	u32 flags;
 	u16 interval;
 	struct dwc2_hcd_pipe_info pipe_info;
-	struct dwc2_hcd_iso_packet_desc iso_descs[0];
+	struct dwc2_hcd_iso_packet_desc iso_descs[];
 };
 
 /* Phases for control transfers */
@@ -582,7 +582,6 @@ static inline void dwc2_hcd_qtd_unlink_and_free(struct dwc2_hsotg *hsotg,
 {
 	list_del(&qtd->qtd_list_entry);
 	kfree(qtd);
-	qtd = NULL;
 }
 
 /* Descriptor DMA support functions */

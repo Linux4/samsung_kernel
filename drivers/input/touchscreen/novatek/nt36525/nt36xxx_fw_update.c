@@ -43,7 +43,7 @@
 #define FW_BIN_PANEL_ID		(FW_BIN_SEC_INFO + 4)
 #define FW_BIN_VERSION		(FW_BIN_SEC_INFO + 5)
 
-static struct timeval start, end;
+static struct timespec64 start, end;
 const struct firmware *fw_entry = NULL;
 static size_t fw_need_write_size = 0;
 static uint8_t *fwbuf = NULL;
@@ -904,7 +904,7 @@ static int32_t nvt_download_firmware_hw_crc(void)
 	uint8_t retry = 0;
 	int32_t ret = 0;
 
-	do_gettimeofday(&start);
+	ktime_get_real_ts64(&start);
 
 	while (1) {
 		/* bootloader reset to reset MCU */
@@ -953,7 +953,7 @@ fail:
 		}
 	}
 
-	do_gettimeofday(&end);
+	ktime_get_real_ts64(&end);
 
 	return ret;
 }
@@ -971,7 +971,7 @@ static int32_t nvt_download_firmware(void)
 	uint8_t retry = 0;
 	int32_t ret = 0;
 
-	do_gettimeofday(&start);
+	ktime_get_real_ts64(&start);
 
 	while (1) {
 		/*
@@ -1032,7 +1032,7 @@ fail:
 		}
 	}
 
-	do_gettimeofday(&end);
+	ktime_get_real_ts64(&end);
 
 	return ret;
 }
@@ -1078,8 +1078,8 @@ int32_t nvt_update_firmware(const char *firmware_name)
 		goto download_fail;
 	}
 
-	input_info(true, &ts->client->dev, "%s: Update firmware success! <%ld us>\n",
-			__func__, (end.tv_sec - start.tv_sec)*1000000L + (end.tv_usec - start.tv_usec));
+	input_info(true, &ts->client->dev, "%s : Update firmware success! <%lldms>\n", __func__,
+					((end.tv_sec - start.tv_sec) * 1000000000L + (end.tv_nsec - start.tv_nsec)) / 1000000L);
 
 	/* Get FW Info */
 	ret = nvt_get_fw_info();
@@ -1235,8 +1235,8 @@ int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path
 				goto download_fail;
 			}
 
-			input_info(true, &ts->client->dev,"Update firmware success! <%ld us>\n",
-					(end.tv_sec - start.tv_sec)*1000000L + (end.tv_usec - start.tv_usec));
+			input_info(true, &ts->client->dev, "%s : Update firmware success! <%lldms>\n", __func__,
+				((end.tv_sec - start.tv_sec) * 1000000000L + (end.tv_nsec - start.tv_nsec)) / 1000000L);
 
 			/* Get FW Info */
 			ret = nvt_get_fw_info();

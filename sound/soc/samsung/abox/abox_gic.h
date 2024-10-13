@@ -1,6 +1,6 @@
-/* sound/soc/samsung/abox/abox_gic.h
- *
- * ALSA SoC Audio Layer - Samsung Abox GIC driver
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * ALSA SoC - Samsung Abox GIC driver
  *
  * Copyright (c) 2016 Samsung Electronics Co. Ltd.
  *
@@ -33,23 +33,15 @@ struct abox_gic_data {
 	bool disabled;
 };
 
-enum abox_gic_target {
-	ABOX_GIC_CORE0,
-	ABOX_GIC_CP,
-	ABOX_GIC_AP,
-	ABOX_GIC_CORE1,
-	ABOX_GIC_CORE2,
-	ABOX_GIC_CORE3,
-};
-
 /**
  * Dump ABOX GIC Distributor SFR
  * @param[in]	dev	pointer to abox_gic device
  * @param[in]	dump	gpr dump
  * @param[in]	off	dump start offset
  * @param[in]	size	size of dump
+ * @return	error code or 0
  */
-extern void abox_gicd_dump(struct device *dev, char *dump,
+extern int abox_gicd_dump(struct device *dev, char *dump,
 		size_t off, size_t size);
 
 /**
