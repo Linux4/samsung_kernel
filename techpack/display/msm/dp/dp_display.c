@@ -4953,9 +4953,6 @@ static int dp_display_get_modes(struct dp_display *dp, void *panel,
 		dp_display->sec.max_mir_res_idx,
 		dp_display->sec.max_dex_res_idx,
 		dp_display->sec.ignore_ratio, ret);
-
-	if (dp_panel->connector->hdr_supported && !secdp_panel_hdr_supported())
-		dp_panel->connector->hdr_supported = false;
 #endif
 	return ret;
 }

@@ -366,8 +366,6 @@ void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
 
-bool secdp_panel_hdr_supported(void);
-
 #ifdef CONFIG_SEC_DISPLAYPORT_ENG
 enum secdp_hw_preshoot_t {
 	DP_HW_PRESHOOT_0,
