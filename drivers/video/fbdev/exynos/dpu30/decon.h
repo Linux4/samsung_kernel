@@ -518,7 +518,9 @@ struct decon_win_config_data_old {
 struct decon_win_config_data {
 	int	retire_fence;
 	int	fd_odma;
+	u32 fps;
 	struct decon_win_config config[MAX_DECON_WIN + 2];
+	struct decon_win_config_extra extra;
 };
 
 enum lcd_status {
@@ -1041,6 +1043,7 @@ struct decon_bts {
 	u32 total_bw;
 	u32 prev_total_bw;
 	u32 max_disp_freq;
+	u32 prev_minlock_stage;
 	u32 prev_max_disp_freq;
 	u64 ppc;
 	u32 line_mem_cnt;
@@ -1101,6 +1104,7 @@ struct decon_edid_data {
 struct vsync_applied_time_data {
 	u32 config;
 	u64 time;
+	u32 reserved[4];
 };
 
 struct decon_device {

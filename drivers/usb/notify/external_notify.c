@@ -72,6 +72,8 @@ static const char *listener_string(int  listener)
 		return "charger";
 	case EXTERNAL_NOTIFY_DEV_PDIC:
 		return "pdic";
+	case EXTERNAL_NOTIFY_DEV_MANAGER:
+		return "manager";
 	default:
 		return "undefined";
 	}

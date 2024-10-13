@@ -27,6 +27,7 @@
 
 static void *is_caminfo_search_rom_extend_data(const struct rom_extend_cal_addr *extend_data, char *name);
 static bool is_need_use_standard_cal(uint32_t camID);
+static bool is_need_use_ap2ap_standard_cal(uint32_t camID);
 
 static int is_vender_caminfo_open(struct inode *inode, struct file *file)
 {
@@ -81,7 +82,7 @@ static int is_vender_caminfo_cmd_get_factory_supported_id(void __user *user_data
 	return 0;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_cmd_get_factory_supported_id_compat(compat_uptr_t user_data)
 {
 	int i;
@@ -167,7 +168,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_get_module_info_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -277,7 +278,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_cmd_get_rom_data_by_position_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -413,7 +414,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_get_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -568,8 +569,8 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 				finfo->shading_section_crc_addr = standard_cal_data->rom_shading_sec2lsi_checksum_addr;
 				lsc_length = standard_cal_data->rom_shading_sec2lsi_checksum_len;
 			}
-			
-			//Header data changes
+
+			/* Header data changes */
 			if (rom_addr->rom_header_main_shading_end_addr > 0) {
 				buf_idx = rom_addr->rom_header_main_shading_end_addr;
 				tmp = finfo->shading_end_addr;
@@ -585,7 +586,7 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 					cal_buf[buf_idx + i] = tmp & 0xFF;
 					tmp = tmp >> 8;
 				}
-			}	
+			}
 		}
 
 		if (finfo->awb_start_addr > 0) {
@@ -617,7 +618,6 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 			err("%s CRC check post sec2lsi failed!", __func__);
 		else
 			is_sec_readcal_dump_post_sec2lsi(core, cal_buf, caminfo.camID);
-
 	} else {
 		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
 	}
@@ -626,7 +626,7 @@ EXIT:
 	return 0;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_set_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -693,7 +693,7 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff_compat(compat_uptr_t user_data
 				lsc_length = standard_cal_data->rom_shading_sec2lsi_checksum_len;
 			}
 
-			//Header data changes
+			/* Header data changes */
 			if (rom_addr->rom_header_main_shading_end_addr > 0) {
 				buf_idx = rom_addr->rom_header_main_shading_end_addr;
 				tmp = finfo->shading_end_addr;
@@ -755,6 +755,363 @@ EXIT:
 }
 #endif
 
+static int is_vender_caminfo_ap2ap_cmd_get_cal_size(void __user *user_data)
+{
+	int ret = 0;
+	struct is_core *core = dev_get_drvdata(is_dev);
+	struct is_vender_specific *specific = core->vender.private_data;
+	const struct is_vender_rom_addr *rom_addr = NULL;
+	struct rom_ap2ap_standard_cal_data *ap2ap_standard_cal_data;
+	caminfo_romdata_sec2lsi caminfo;
+
+	if (copy_from_user((void *)&caminfo, user_data, sizeof(caminfo_romdata_sec2lsi))) {
+		err("%s : failed to copy data from user", __func__);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	if (is_need_use_ap2ap_standard_cal(caminfo.camID) == false) {
+		info("%s : ROM[%d] does not use ap2ap standard cal", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+		rom_addr = specific->rom_cal_map_addr[caminfo.camID];
+		if (!rom_addr) {
+			err("%s: There is no cal map (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			ret = -EINVAL;
+			goto EXIT;
+		} else {
+			info("index :%d", rom_addr->rom_header_main_module_info_start_addr);
+		}
+
+		caminfo.cal_size = is_sec_get_max_cal_size(core, caminfo.camID);
+
+		if (rom_addr->extend_cal_addr) {
+			ap2ap_standard_cal_data = (struct rom_ap2ap_standard_cal_data *)is_caminfo_search_rom_extend_data(
+				rom_addr->extend_cal_addr, EXTEND_AP2AP_STANDARD_CAL);
+			if (ap2ap_standard_cal_data) {
+				if ((ap2ap_standard_cal_data->rom_orig_end_addr != -1) && (ap2ap_standard_cal_data->rom_orig_start_addr != -1)) {
+					caminfo.cal_size = ap2ap_standard_cal_data->rom_orig_end_addr - ap2ap_standard_cal_data->rom_orig_start_addr + 1;
+				}
+			}
+		}
+
+		caminfo.bank = specific->rom_bank[caminfo.camID];
+
+		info("%s : ROM[%d] Original cal size : %d (0x%04X), Bank : %d",
+				__func__, caminfo.camID, caminfo.cal_size, caminfo.cal_size, caminfo.bank);
+
+		if (copy_to_user(user_data, &caminfo, sizeof(caminfo_romdata_sec2lsi))) {
+			err("%s : failed to copy data to user", __func__);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+	} else {
+		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+	}
+
+EXIT:
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT_CAMERA
+static int is_vender_caminfo_ap2ap_cmd_get_cal_size_compat(compat_uptr_t user_data)
+{
+	int ret = 0;
+	struct is_core *core = dev_get_drvdata(is_dev);
+	struct is_vender_specific *specific = core->vender.private_data;
+	const struct is_vender_rom_addr *rom_addr = NULL;
+	struct rom_ap2ap_standard_cal_data *ap2ap_standard_cal_data;
+	caminfo_romdata_sec2lsi_compat caminfo;
+
+	if (copy_from_user((void *)&caminfo, (void __user *)compat_ptr(user_data), sizeof(caminfo_romdata_sec2lsi_compat))) {
+		err("%s : failed to copy data from user", __func__);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	if (is_need_use_ap2ap_standard_cal(caminfo.camID) == false) {
+		info("%s : ROM[%d] does not use ap2ap standard cal", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+		rom_addr = specific->rom_cal_map_addr[caminfo.camID];
+		if (!rom_addr) {
+			err("%s: There is no cal map (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			ret = -EINVAL;
+			goto EXIT;
+		} else {
+			info("index :%d", rom_addr->rom_header_main_module_info_start_addr);
+		}
+
+		caminfo.cal_size = is_sec_get_max_cal_size(core, caminfo.camID);
+
+		if (rom_addr->extend_cal_addr) {
+			ap2ap_standard_cal_data = (struct rom_ap2ap_standard_cal_data *)is_caminfo_search_rom_extend_data(
+				rom_addr->extend_cal_addr, EXTEND_AP2AP_STANDARD_CAL);
+			if (ap2ap_standard_cal_data) {
+				if ((ap2ap_standard_cal_data->rom_orig_end_addr != -1) && (ap2ap_standard_cal_data->rom_orig_start_addr != -1)) {
+					caminfo.cal_size = ap2ap_standard_cal_data->rom_orig_end_addr - ap2ap_standard_cal_data->rom_orig_start_addr + 1;
+				}
+			}
+		}
+
+		caminfo.bank = specific->rom_bank[caminfo.camID];
+
+		info("%s : ROM[%d] Original cal size : %d (0x%04X), Bank : %d",
+				__func__, caminfo.camID, caminfo.cal_size, caminfo.cal_size, caminfo.bank);
+
+		if (copy_to_user((void __user *)compat_ptr(user_data), (void *)&caminfo, sizeof(caminfo_romdata_sec2lsi_compat))) {
+			err("%s : failed to copy data to user", __func__);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+	} else {
+		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+	}
+
+EXIT:
+	return ret;
+}
+#endif
+static int is_vender_caminfo_ap2ap_cmd_get_buff(void __user *user_data)
+{
+	int ret = 0;
+	caminfo_romdata_sec2lsi caminfo;
+	char *cal_buf;
+
+	if (copy_from_user((void *)&caminfo, user_data, sizeof(caminfo_romdata_sec2lsi))) {
+		err("%s : failed to copy data from user", __func__);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	info("%s in for ROM[%d]", __func__, caminfo.camID);
+
+	if (is_need_use_ap2ap_standard_cal(caminfo.camID) == false) {
+		info("%s : ROM[%d] does not use ap2ap standard cal", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+		is_sec_get_cal_buf(caminfo.camID, &cal_buf);
+
+		if (!cal_buf) {
+			err("%s: There is no cal buffer allocated (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+
+		if (copy_to_user(caminfo.inCalBuf, &cal_buf[0], sizeof(uint8_t) * caminfo.cal_size)) {
+			err("%s : failed to copy data to user", __func__);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+
+		if (copy_to_user(user_data, &caminfo, sizeof(caminfo_romdata_sec2lsi))) {
+			err("%s : failed to copy data to user", __func__);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+		info("%s : cal size:%u", __func__, caminfo.cal_size);
+	} else {
+		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+	}
+
+EXIT:
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT_CAMERA
+static int is_vender_caminfo_ap2ap_cmd_get_buff_compat(compat_uptr_t user_data)
+{
+	int ret = 0;
+	caminfo_romdata_sec2lsi_compat caminfo;
+	char *cal_buf;
+
+	if (copy_from_user((void *)&caminfo, (void __user *)compat_ptr(user_data), sizeof(caminfo_romdata_sec2lsi_compat))) {
+		err("%s : failed to copy data from user", __func__);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	info("%s in for ROM[%d]", __func__, caminfo.camID);
+
+	if (is_need_use_ap2ap_standard_cal(caminfo.camID) == false) {
+		info("%s : ROM[%d] does not use ap2ap standard cal", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+		is_sec_get_cal_buf(caminfo.camID, &cal_buf);
+
+		if (!cal_buf) {
+			err("%s: There is no cal buffer allocated (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+
+		if (copy_to_user((void *)compat_ptr(caminfo.inCalBuf), (void *)&cal_buf[0], sizeof(uint8_t) * caminfo.cal_size)) {
+			err("%s : failed to copy data to user", __func__);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+
+		if (copy_to_user((void __user *)compat_ptr(user_data), (void *)&caminfo, sizeof(caminfo_romdata_sec2lsi_compat))) {
+			err("%s : failed to copy data to user", __func__);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+		info("%s : cal size:%u", __func__, caminfo.cal_size);
+	} else {
+		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+	}
+
+EXIT:
+	return ret;
+}
+#endif
+
+static int is_vender_caminfo_ap2ap_cmd_set_buff(void __user *user_data)
+{
+	int ret = 0;
+	struct is_core *core = dev_get_drvdata(is_dev);
+	caminfo_romdata_sec2lsi caminfo;
+
+	struct is_rom_info *finfo;
+	char *cal_buf;
+
+	if (copy_from_user((void *)&caminfo, user_data, sizeof(caminfo_romdata_sec2lsi))) {
+		err("%s : failed to copy data from user", __func__);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	info("%s in for ROM[%d]", __func__, caminfo.camID);
+
+	if (is_need_use_ap2ap_standard_cal(caminfo.camID) == false) {
+		info("%s : ROM[%d] does not use ap2ap standard cal", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+#ifdef USES_STANDARD_CAL_RELOAD
+		if (!is_sec_sec2lsi_check_cal_reload())
+#endif
+		{
+			sec2lsi_conversion_done[caminfo.camID] = true;
+		}
+		is_sec_get_cal_buf(caminfo.camID, &cal_buf);
+		is_sec_get_sysfs_finfo_by_position(caminfo.camID, &finfo);
+
+		if (!cal_buf) {
+			err("%s: There is no cal buffer allocated (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+
+		if (!finfo) {
+			err("%s: There is no cal map (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+
+		if (copy_from_user(&cal_buf[0], caminfo.outCalBuf,	sizeof(uint8_t) * (caminfo.cal_size))) {
+			err("%s : failed to copy data from user", __func__);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+		is_sec_readcal_dump_post_sec2lsi(core, cal_buf, caminfo.camID);
+#ifdef USES_STANDARD_CAL_RELOAD
+		is_sec_reload_cal(core, caminfo.camID);
+#endif
+#ifdef USE_AP2AP_CAL_CONVERSION
+		if (caminfo.camID == SENSOR_POSITION_FRONT)
+			is_sec_readcal_otprom_buffer(cal_buf, caminfo.camID);
+#endif
+	} else {
+		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+	}
+
+EXIT:
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT_CAMERA
+static int is_vender_caminfo_ap2ap_cmd_set_buff_compat(compat_uptr_t user_data)
+{
+	int ret = 0;
+	caminfo_romdata_sec2lsi_compat caminfo;
+	struct is_core *core = dev_get_drvdata(is_dev);
+
+	struct is_rom_info *finfo;
+	char *cal_buf;
+
+	if (copy_from_user((void *)&caminfo, (void __user *)compat_ptr(user_data), sizeof(caminfo_romdata_sec2lsi_compat))) {
+		err("%s : failed to copy data from user", __func__);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	info("%s in for ROM[%d]", __func__, caminfo.camID);
+
+	if (is_need_use_ap2ap_standard_cal(caminfo.camID) == false) {
+		info("%s : ROM[%d] does not use ap2ap standard cal", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
+
+	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+#ifdef USES_STANDARD_CAL_RELOAD
+		if (!is_sec_sec2lsi_check_cal_reload())
+#endif
+		{
+			sec2lsi_conversion_done[caminfo.camID] = true;
+		}
+		is_sec_get_cal_buf(caminfo.camID, &cal_buf);
+		is_sec_get_sysfs_finfo_by_position(caminfo.camID, &finfo);
+
+		if (!cal_buf) {
+			err("%s: There is no cal buffer allocated (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+
+		if (!finfo) {
+			err("%s: There is no cal map (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+
+		if (copy_from_user((void *)(&cal_buf[0]), (void *)compat_ptr((caminfo.outCalBuf)), sizeof(uint8_t) * (caminfo.cal_size))) {
+			err("%s : failed to copy data from user", __func__);
+			ret = -EINVAL;
+			goto EXIT;
+		}
+		is_sec_readcal_dump_post_sec2lsi(core, cal_buf, caminfo.camID);
+#ifdef USES_STANDARD_CAL_RELOAD
+		is_sec_reload_cal(core, caminfo.camID);
+#endif
+#ifdef USE_AP2AP_CAL_CONVERSION
+		if (caminfo.camID == SENSOR_POSITION_FRONT)
+			is_sec_readcal_otprom_buffer(cal_buf, caminfo.camID);
+#endif
+	} else {
+		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+	}
+
+EXIT:
+	return ret;
+}
+#endif
+
 static void *is_caminfo_search_rom_extend_data(const struct rom_extend_cal_addr *extend_data, char *name)
 {
 	void *ret = NULL;
@@ -803,6 +1160,31 @@ static bool is_need_use_standard_cal(uint32_t camID)
 	return false;
 }
 
+static bool is_need_use_ap2ap_standard_cal(uint32_t camID)
+{
+	struct is_core *core = dev_get_drvdata(is_dev);
+	struct is_vender_specific *specific = core->vender.private_data;
+	const struct is_vender_rom_addr *rom_addr = NULL;
+	struct rom_ap2ap_standard_cal_data *ap2ap_standard_cal_data = NULL;
+
+	rom_addr = specific->rom_cal_map_addr[camID];
+	if (!rom_addr) {
+		err("%s: There is no cal map (camID : %d)\n", __func__, camID);
+		return false;
+	} else {
+		info("index :%d", rom_addr->rom_header_main_module_info_start_addr);
+	}
+
+	if (rom_addr->extend_cal_addr) {
+		ap2ap_standard_cal_data = (struct rom_ap2ap_standard_cal_data *)is_caminfo_search_rom_extend_data(
+			rom_addr->extend_cal_addr, EXTEND_AP2AP_STANDARD_CAL);
+		if (ap2ap_standard_cal_data)
+			return true;
+	}
+
+	return false;
+}
+
 static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -829,25 +1211,34 @@ static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigne
 	info("%s : cmd number:%u, arg:%x", __func__, ioctl_cmd.cmd, arg);
 
 	switch (ioctl_cmd.cmd) {
-		case CAMINFO_CMD_ID_GET_SEC2LSI_BUFF:
-			ret = is_vender_caminfo_sec2lsi_cmd_get_buff(ioctl_cmd.data);
-			break;
-		case CAMINFO_CMD_ID_SET_SEC2LSI_BUFF:
-			ret = is_vender_caminfo_sec2lsi_cmd_set_buff(ioctl_cmd.data);
-			break;
-		case CAMINFO_CMD_ID_GET_FACTORY_SUPPORTED_ID:
-			ret = is_vender_caminfo_cmd_get_factory_supported_id(ioctl_cmd.data);
-			break;
-		case CAMINFO_CMD_ID_GET_MODULE_INFO:
-			ret = is_vender_caminfo_sec2lsi_cmd_get_module_info(ioctl_cmd.data);
-			break;
-		case CAMINFO_CMD_ID_GET_ROM_DATA_BY_POSITION:
-			ret = is_vender_caminfo_cmd_get_rom_data_by_position(ioctl_cmd.data);
-			break;
-		default:
-			err("%s : not support cmd number:%u, arg:%x", __func__, ioctl_cmd.cmd, arg);
-			ret = -EINVAL;
-			break;
+	case CAMINFO_CMD_ID_GET_SEC2LSI_BUFF:
+		ret = is_vender_caminfo_sec2lsi_cmd_get_buff(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_SET_SEC2LSI_BUFF:
+		ret = is_vender_caminfo_sec2lsi_cmd_set_buff(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_FACTORY_SUPPORTED_ID:
+		ret = is_vender_caminfo_cmd_get_factory_supported_id(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_MODULE_INFO:
+		ret = is_vender_caminfo_sec2lsi_cmd_get_module_info(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_ROM_DATA_BY_POSITION:
+		ret = is_vender_caminfo_cmd_get_rom_data_by_position(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_AP2AP_CAL_SIZE:
+		ret = is_vender_caminfo_ap2ap_cmd_get_cal_size(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_AP2AP_BUFF:
+		ret = is_vender_caminfo_ap2ap_cmd_get_buff(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_SET_AP2AP_BUFF:
+		ret = is_vender_caminfo_ap2ap_cmd_set_buff(ioctl_cmd.data);
+		break;
+	default:
+		err("%s : not support cmd number:%u, arg:%x", __func__, ioctl_cmd.cmd, arg);
+		ret = -EINVAL;
+		break;
 	}
 
 EXIT:
@@ -856,7 +1247,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static long is_vender_caminfo_ioctl_compat(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -883,25 +1274,34 @@ static long is_vender_caminfo_ioctl_compat(struct file *file, unsigned int cmd, 
 	info("%s : cmd number:%u, arg:%x", __func__, ioctl_cmd.cmd, arg);
 
 	switch (ioctl_cmd.cmd) {
-		case CAMINFO_CMD_ID_GET_SEC2LSI_BUFF:
-			ret = is_vender_caminfo_sec2lsi_cmd_get_buff_compat(ioctl_cmd.data);
-			break;
-		case CAMINFO_CMD_ID_SET_SEC2LSI_BUFF:
-			ret = is_vender_caminfo_sec2lsi_cmd_set_buff_compat(ioctl_cmd.data);
-			break;
-		case CAMINFO_CMD_ID_GET_FACTORY_SUPPORTED_ID:
-			ret = is_vender_caminfo_cmd_get_factory_supported_id_compat(ioctl_cmd.data);
-			break;
-		case CAMINFO_CMD_ID_GET_MODULE_INFO:
-			ret = is_vender_caminfo_sec2lsi_cmd_get_module_info_compat(ioctl_cmd.data);
-			break;
-		case CAMINFO_CMD_ID_GET_ROM_DATA_BY_POSITION:
-			ret = is_vender_caminfo_cmd_get_rom_data_by_position_compat(ioctl_cmd.data);
-			break;
-		default:
-			err("%s : not support cmd number:%u, arg:%x", __func__, ioctl_cmd.cmd, arg);
-			ret = -EINVAL;
-			break;
+	case CAMINFO_CMD_ID_GET_SEC2LSI_BUFF:
+		ret = is_vender_caminfo_sec2lsi_cmd_get_buff_compat(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_SET_SEC2LSI_BUFF:
+		ret = is_vender_caminfo_sec2lsi_cmd_set_buff_compat(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_FACTORY_SUPPORTED_ID:
+		ret = is_vender_caminfo_cmd_get_factory_supported_id_compat(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_MODULE_INFO:
+		ret = is_vender_caminfo_sec2lsi_cmd_get_module_info_compat(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_ROM_DATA_BY_POSITION:
+		ret = is_vender_caminfo_cmd_get_rom_data_by_position_compat(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_AP2AP_CAL_SIZE:
+		ret = is_vender_caminfo_ap2ap_cmd_get_cal_size_compat(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_AP2AP_BUFF:
+		ret = is_vender_caminfo_ap2ap_cmd_get_buff_compat(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_SET_AP2AP_BUFF:
+		ret = is_vender_caminfo_ap2ap_cmd_set_buff_compat(ioctl_cmd.data);
+		break;
+	default:
+		err("%s : not support cmd number:%u, arg:%x", __func__, ioctl_cmd.cmd, arg);
+		ret = -EINVAL;
+		break;
 	}
 
 EXIT:
@@ -917,7 +1317,7 @@ static struct file_operations is_vender_caminfo_fops =
 	.open = is_vender_caminfo_open,
 	.release = is_vender_caminfo_release,
 	.unlocked_ioctl = is_vender_caminfo_ioctl,
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 	.compat_ioctl = is_vender_caminfo_ioctl_compat,
 #endif
 };

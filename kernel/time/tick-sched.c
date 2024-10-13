@@ -1423,3 +1423,24 @@ ktime_t *get_next_event_cpu(unsigned int cpu)
 	return &(per_cpu(tick_cpu_device, cpu).evtdev->next_event);
 }
 EXPORT_SYMBOL_GPL(get_next_event_cpu);
+
+struct tick_sched saved_pcpu_ts[NR_CPUS];
+void save_pcpu_tick(int cpu)
+{
+	saved_pcpu_ts[cpu] = per_cpu(tick_cpu_sched, cpu);
+	kcpustat_cpu(cpu).cpustat[CPUTIME_IDLE] =
+		ktime_to_us(saved_pcpu_ts[cpu].idle_sleeptime) * NSEC_PER_USEC;
+	kcpustat_cpu(cpu).cpustat[CPUTIME_IOWAIT] =
+		ktime_to_us(saved_pcpu_ts[cpu].iowait_sleeptime) * NSEC_PER_USEC;
+}
+EXPORT_SYMBOL(save_pcpu_tick);
+
+void restore_pcpu_tick(int cpu)
+{
+	struct tick_sched *ts = &per_cpu(tick_cpu_sched, cpu);
+
+	ts->idle_sleeptime = saved_pcpu_ts[cpu].idle_sleeptime;
+	ts->iowait_sleeptime = saved_pcpu_ts[cpu].iowait_sleeptime;
+	ts->idle_calls = saved_pcpu_ts[cpu].idle_calls;
+}
+EXPORT_SYMBOL(restore_pcpu_tick);

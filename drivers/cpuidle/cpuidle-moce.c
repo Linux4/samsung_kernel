@@ -275,6 +275,7 @@ static ssize_t show_factor(struct device *dev,
 	return size;
 }
 
+static DEFINE_MUTEX(store_lock);
 static ssize_t store_factor(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
@@ -310,6 +311,7 @@ static ssize_t store_factor(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
+	mutex_lock(&store_lock);
 	old_ratio_table = factor->ratio_table;
 
 	/* change ratio table of sibling-cpus */
@@ -331,6 +333,7 @@ static ssize_t store_factor(struct device *dev, struct device_attribute *attr,
 	}
 
 	kfree(old_ratio_table);
+	mutex_unlock(&store_lock);
 
 	return size;
 }

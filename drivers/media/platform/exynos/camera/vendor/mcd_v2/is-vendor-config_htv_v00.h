@@ -61,6 +61,6 @@
 /* For the demands to modify DVFS CAM Level only in 16:9 ratio of rear recording.
  * This modification is only limited to A21s.
  */
-#define USE_SPECIFIC_MIPISPEED
+//#define USE_SPECIFIC_MIPISPEED
 
 #endif /* IS_VENDOR_CONFIG_XXT_V5_H */

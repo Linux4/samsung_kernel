@@ -124,6 +124,7 @@ get_chipset_dev_attrs get_gyro_chipset_dev_attrs[] = {
 	get_gyroscope_icm42605m_dev_attrs,
 	get_gyroscope_lsm6dsl_dev_attrs,
 	get_gyroscope_lsm6dsotr_dev_attrs,
+	get_gyroscope_lsm6dsvtr_dev_attrs,
 	get_gyroscope_icm42632m_dev_attrs,
 };
 
@@ -150,7 +151,7 @@ void initialize_gyroscope_sysfs(void)
 		if (chipset_attrs) {
 			ret = add_sensor_device_attr(gyro_sysfs_device, chipset_attrs);
 			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
 				return;
 			}
 			break;

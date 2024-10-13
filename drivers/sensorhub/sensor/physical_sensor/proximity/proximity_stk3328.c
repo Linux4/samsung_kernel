@@ -19,6 +19,7 @@
 #include "../../../sensormanager/shub_sensor.h"
 #include "../../../sensormanager/shub_sensor_manager.h"
 #include "../../../utility/shub_utility.h"
+#include "../../../utility/shub_file_manager.h"
 
 #include <linux/delay.h>
 #include <linux/of_gpio.h>
@@ -31,18 +32,71 @@ void parse_dt_proximity_stk3328(struct device *dev)
 {
 	struct device_node *np = dev->of_node;
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+	struct proximity_stk3328_data *thd_data = data->threshold_data;
+
 
 	if (of_property_read_u16_array(np, "prox-stk3328-thresh", data->prox_threshold, PROX_THRESH_SIZE))
 		shub_err("no prox-stk3328-thresh, set as 0");
 
 	shub_info("thresh %u, %u", data->prox_threshold[PROX_THRESH_HIGH], data->prox_threshold[PROX_THRESH_LOW]);
+
+	if (of_property_read_u16(np, "prox-stk3328-cal-add-value", &thd_data->prox_cal_add_value))
+		shub_err("no prox-stk3328-cal-add-value, set as 0");
+
+	shub_info("cal add value - %u", thd_data->prox_cal_add_value);
+
+	if (of_property_read_u16_array(np, "prox-stk3328-cal-thresh", thd_data->prox_cal_thresh, 2))
+		shub_err("no prox-stk3328-cal-thresh, set as 0");
+
+	shub_info("cal thresh - %u, %u", thd_data->prox_cal_thresh[0], thd_data->prox_cal_thresh[1]);
+
+	thd_data->prox_thresh_default[0] = data->prox_threshold[0];
+	thd_data->prox_thresh_default[1] = data->prox_threshold[1];
 }
 
-struct proximity_chipset_funcs prox_stk3328_ops = {
-	.parse_dt = parse_dt_proximity_stk3328,
+int proximity_open_calibration_stk3328(void)
+{
+	int ret = 0;
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
+	ret = shub_file_read(PROX_CALIBRATION_FILE_PATH,
+			     (char *)&data->prox_threshold, sizeof(data->prox_threshold), 0);
+	if (ret != sizeof(data->prox_threshold))
+		ret = -EIO;
+
+	shub_infof("thresh %d, %d", data->prox_threshold[0], data->prox_threshold[1]);
+
+	return ret;
+}
+
+int init_proximity_stk3328(void)
+{
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
+	if (data->threshold_data == NULL) {
+		data->threshold_data = kzalloc(sizeof(struct proximity_stk3328_data), GFP_KERNEL);
+		if (!data->threshold_data)
+			return -ENOMEM;
+	}
+	return 0;
+}
+
+struct proximity_chipset_funcs prox_stk3328_funcs = {
+	.open_calibration_file = proximity_open_calibration_stk3328,
 };
 
-struct proximity_chipset_funcs *get_proximity_stk3328_function_pointer(char *name)
+void *get_proximity_stk3328_chipset_funcs(void)
+{
+	return &prox_stk3328_funcs;
+}
+
+struct sensor_chipset_init_funcs prox_stk3328_ops = {
+	.init = init_proximity_stk3328,
+	.parse_dt = parse_dt_proximity_stk3328,
+	.get_chipset_funcs = get_proximity_stk3328_chipset_funcs,
+};
+
+struct sensor_chipset_init_funcs *get_proximity_stk3328_function_pointer(char *name)
 {
 	if (strcmp(name, STK3328_NAME) != 0)
 		return NULL;

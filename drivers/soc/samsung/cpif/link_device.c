@@ -44,6 +44,7 @@
 #include "link_device.h"
 #include "modem_dump.h"
 #include "link_ctrlmsg_iosm.h"
+#include "modem_ctrl.h"
 #ifdef CONFIG_LINK_DEVICE_PCIE
 #include "s51xx_pcie.h"
 #endif
@@ -231,19 +232,6 @@ static inline void purge_txq(struct mem_link_device *mld)
 
 #ifdef GROUP_MEM_CP_CRASH
 
-static void set_modem_state(struct mem_link_device *mld, enum modem_state state)
-{
-	struct link_device *ld = &mld->link_dev;
-	struct modem_ctl *mc = ld->mc;
-	unsigned long flags;
-	struct io_device *iod;
-
-	spin_lock_irqsave(&mc->lock, flags);
-	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
-		iod->modem_state_changed(iod, state);
-	spin_unlock_irqrestore(&mc->lock, flags);
-}
-
 static void shmem_handle_cp_crash(struct mem_link_device *mld,
 		enum modem_state state)
 {
@@ -279,7 +267,7 @@ static void shmem_handle_cp_crash(struct mem_link_device *mld,
 	}
 
 	if (cp_online(mc) || cp_booting(mc))
-		set_modem_state(mld, state);
+		change_modem_state(mc, state);
 
 	atomic_set(&mld->forced_cp_crash, 0);
 }
@@ -2266,6 +2254,10 @@ static int shmem_security_request(struct link_device *ld, struct io_device *iod,
 	u32 cp_num = ld->mdm_data->cp_num;
 	struct mem_link_device *mld = ld->mdm_data->mld;
 
+#if defined(CONFIG_SOC_EXYNOS3830)
+       pm_qos_update_request(&ld->pm_qos_mif, 1539000);
+#endif
+
 	err = copy_from_user(&msr, (const void __user *)arg, sizeof(msr));
 	if (err) {
 		mif_err("%s: ERR! copy_from_user fail\n", ld->name);
@@ -2315,6 +2307,10 @@ static int shmem_security_request(struct link_device *ld, struct io_device *iod,
 #endif
 
 exit:
+#if defined(CONFIG_SOC_EXYNOS3830)
+       pm_qos_update_request(&ld->pm_qos_mif, 421000);
+#endif
+
 	return err;
 }
 
@@ -2346,7 +2342,7 @@ static int shmem_security_cp2cp_baaw_request(struct link_device *ld,
 #endif
 
 #ifdef CONFIG_MODEM_IF_NET_GRO
-long gro_flush_time;
+long gro_flush_time = 200000;
 module_param(gro_flush_time, long, 0644);
 
 static void gro_flush_timer(struct link_device *ld)

@@ -22,16 +22,19 @@ fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102) += tsp_himax/hx83102e_gta4s_i
 fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_SPI) += tsp_novatek/nt36672_a13_csot.bin tsp_novatek/nt36672_a13_csot_mp.bin \
 								tsp_novatek/nt36672_a13_tianma.bin tsp_novatek/nt36672_a13_tianma_mp.bin \
 								tsp_novatek/nt36525c_a04s_csot.bin tsp_novatek/nt36525c_a04s_csot_mp.bin \
-								tsp_novatek/nt36525c_a04s_tianma.bin tsp_novatek/nt36525c_a04s_tianma_mp.bin
+								tsp_novatek/nt36525c_a04s_tianma.bin tsp_novatek/nt36525c_a04s_tianma_mp.bin \
+								tsp_novatek/nt36525c_a04s_dtc.bin tsp_novatek/nt36525c_a04s_dtc_mp.bin \
+								tsp_novatek/nt36672_a14_tianma.bin tsp_novatek/nt36672_a14_tianma_mp.bin
 fw-external-$(CONFIG_TOUCHSCREEN_OVT_TD4150_SPI) += tsp_ovt/td4375_a13_boe.bin tsp_ovt/td4162_a04s_boe.bin tsp_ovt/td4160_a13x_boe.bin
 fw-external-$(CONFIG_TOUCHSCREEN_ILITEK_ILI9881X_SPI) += tsp_ilitek/ili7807_m13_f13.hex
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_HX83XXX_SPI) += tsp_himax/hx83112f_boe_m13_f13.bin
 fw-external-$(CONFIG_SENSORS_A96T396_BENZ2) += abov/a96t396_benz2_main.bin
 fw-external-$(CONFIG_SENSORS_A96T396_A13) += abov/a96t396_a13_main.bin
+fw-external-$(CONFIG_SENSORS_A96T396_A13_KOR) += abov/a96t396_a13_kor_main.bin
 
 fw-external-$(CONFIG_KEYBOARD_A96T396) += tk_abov/a96t396_gshhwifi.bin
 
-fw-external-$(CONFIG_SHUB) += sensorhub/shub_nacho_bl.bin sensorhub/shub_nacho_a13.bin sensorhub/shub_nacho_gthhwifi.bin sensorhub/shub_nacho_m13.bin sensorhub/shub_nacho_a04s.bin
+fw-external-$(CONFIG_SHUB) += sensorhub/shub_nacho_bl.bin sensorhub/shub_nacho_a13.bin sensorhub/shub_nacho_gthhwifi.bin sensorhub/shub_nacho_m13.bin sensorhub/shub_nacho_a04s.bin sensorhub/shub_nacho_a14.bin
 
 quiet_cmd_fwbin = MK_FW   $@
       cmd_fwbin = FWNAME="$(patsubst firmware/%.gen.S,%,$@)";		     \

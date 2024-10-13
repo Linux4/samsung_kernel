@@ -15,6 +15,7 @@
 #define ET7303_REG_CLK_CTRL3				(0x88)
 
 #define ET7303_REG_BMC_CTRL				(0x90)
+#define ET7303_REG_VBUS_MES				(0x91)
 #define ET7303_REG_BMCIO_RXDZSEL			(0x93)
 #define ET7303_REG_VCONN_CLIMITEN			(0x95)
 
@@ -90,6 +91,16 @@
 #define ET7303_REG_BMCIO_OSC_EN				(1<<0)
 
 /*
+ * ET7303_REG_VBUS_MES					(0x91)
+ */
+
+#define ET7303_REG_VBUS_MES_EN				(1<<7)
+#define ET7303_REG_VBUS_MES_AUTO_MODE			(1<<6)
+#define ET7303_REG_VBUS_BAND_10_20V			(1<<5) /* 0 for 5v-10v */
+#define ET7303_REG_VBUS_COMP				(1<<4)
+#define ET7303_REG_VBUS_CON				(0xf<<0)
+
+/*
  * ET7303_REG_RT_STATUS					(0x97)
  */
 
@@ -101,6 +112,8 @@
  */
 
 #define ET7303_REG_INT_RA_DETACH			(1<<5)
+#define ET7303_REG_INT_VBUS_COMP_R			(1<<4)
+#define ET7303_REG_INT_VBUS_COMP_F			(1<<3)
 #define ET7303_REG_INT_WATCHDOG				(1<<2)
 #define ET7303_REG_INT_VBUS_80				(1<<1)
 #define ET7303_REG_INT_WAKEUP				(1<<0)
@@ -110,6 +123,8 @@
  */
 
 #define ET7303_REG_M_RA_DETACH				(1<<5)
+#define ET7303_REG_M_VBUS_COMP_R			(1<<4)
+#define ET7303_REG_M_VBUS_COMP_F			(1<<3)
 #define ET7303_REG_M_WATCHDOG				(1<<2)
 #define ET7303_REG_M_VBUS_80				(1<<1)
 #define ET7303_REG_M_WAKEUP				(1<<0)

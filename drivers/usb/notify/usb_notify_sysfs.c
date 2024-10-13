@@ -234,9 +234,11 @@ static ssize_t usb_data_enabled_show(
 {
 	struct usb_notify_dev *udev = (struct usb_notify_dev *)
 		dev_get_drvdata(dev);
+
 	pr_info("read usb_data_enabled %lu\n", udev->usb_data_enabled);
 	return sprintf(buf, "%lu\n", udev->usb_data_enabled);
 }
+
 static ssize_t usb_data_enabled_store(
 		struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
@@ -247,16 +249,20 @@ static ssize_t usb_data_enabled_store(
 	int sret = -EINVAL;
 	int param = 0;
 	char *usb_data_enabled;
+
 	if (size > PAGE_SIZE) {
 		pr_err("%s size(%zu) is too long.\n", __func__, size);
 		goto error;
 	}
+
 	usb_data_enabled = kzalloc(size+1, GFP_KERNEL);
 	if (!usb_data_enabled)
 		goto error;
+
 	sret = sscanf(buf, "%s", usb_data_enabled);
 	if (sret != 1)
 		goto error1;
+
 	if (udev->set_disable) {
 		if (strcmp(usb_data_enabled, "0") == 0) {
 			param = NOTIFY_BLOCK_TYPE_ALL;
@@ -737,6 +743,8 @@ int set_usb_whitelist_array(const char *buf, int *whitelist_array)
 
 	source = (char *)buf;
 	while ((ptr = strsep(&source, ":")) != NULL) {
+		if (strlen(ptr) < 3)
+			continue;
 		pr_info("%s token = %c%c%c!\n", __func__,
 			ptr[0], ptr[1], ptr[2]);
 		for (i = U_CLASS_PER_INTERFACE; i <= U_CLASS_VENDOR_SPEC; i++) {

@@ -74,22 +74,6 @@ enum FW_SIGN {
 	SIGNING = 1,
 };
 
-enum {
-	LCD_NONE = 0,
-	LCD_OFF,
-	LCD_ON,
-	LCD_DOZE1,
-	LCD_DOZE2,
-	LPM_OFF = 20,
-	FORCE_OFF,
-	FORCE_ON,
-};
-
-enum {
-	LCD_EARLY_EVENT = 0,
-	LCD_LATE_EVENT
-};
-
 typedef enum {
 	TEST_RESULT_PASS = 0x00,
 	TEST_RESULT_FAIL = 0x01,

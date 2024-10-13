@@ -752,6 +752,9 @@ static int panel_dsi_write_data(struct panel_device *panel,
 	if (block)
 		option |= DSIM_OPTION_WAIT_TX_DONE;
 
+	if (panel->panel_data.ddi_props.wait_tx_done)
+		option |= DSIM_OPTION_WAIT_TX_DONE;
+
 	return panel->mipi_drv.write(panel->dsi_id, cmd_id, buf, ofs, size, option);
 }
 
@@ -1028,7 +1031,7 @@ static int panel_do_tx_packet(struct panel_device *panel, struct pktinfo *info, 
 		return -EINVAL;
 	}
 
-	if (panel->panel_data.ddi_props.delay_duration) {
+	 if (panel->panel_data.ddi_props.delay_cmd && (panel->panel_data.ddi_props.delay_cmd == info->data[0])) {
 #ifdef DEBUG_PANEL
 		panel_dbg("delay_cmd %x %x\n",
 			panel->panel_data.ddi_props.delay_cmd,

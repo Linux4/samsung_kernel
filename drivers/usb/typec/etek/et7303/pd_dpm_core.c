@@ -324,6 +324,15 @@ static bool dpm_build_default_request_info(
 	req_info->vmax = 5000;
 	req_info->vmin = 5000;
 
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	if (req_info->type == DPM_PDO_TYPE_BAT) {
+		req_info->max_uw = (sink.uw > source.uw) ? source.uw : sink.uw;
+		req_info->oper_uw = req_info->max_uw;
+	} else {
+		req_info->max_ma = (sink.ma > source.ma) ? source.ma : sink.ma;
+		req_info->oper_ma = req_info->max_ma;
+	}
+#else
 	if (req_info->type == DPM_PDO_TYPE_BAT) {
 		req_info->max_uw = sink.uw;
 		req_info->oper_uw = source.uw;
@@ -332,6 +341,7 @@ static bool dpm_build_default_request_info(
 		req_info->max_ma = sink.ma;
 		req_info->oper_ma = source.ma;
 	}
+#endif
 
 	return true;
 }

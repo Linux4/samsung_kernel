@@ -132,7 +132,7 @@ static int is_get_sensor_data(char *maker, char *name, int position)
 		return -EINVAL;
 	}
 
-	for (i = 0; i < IS_VENDOR_SENSOR_COUNT; i++) {
+	for (i = 0; i < SENSOR_POSITION_MAX; i++) {
 		is_search_sensor_module_with_position(&core->sensor[i], position, &module);
 		if (module)
 			break;
@@ -2812,8 +2812,10 @@ static ssize_t camera_rear3_mtf_exif_show(struct device *dev,
 static ssize_t camera_rear3_dualcal_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+#ifdef READ_DUAL_CAL_FIRMWARE_DATA
 	int ret;
 	int copy_size = 0;
+#endif
 	int position = SENSOR_POSITION_REAR;
 	int32_t dual_cal_data2_addr, dual_cal_data2_size;
 	char *cal_buf;
@@ -4556,9 +4558,11 @@ void is_destroy_rear3_sysfs(void)
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_checkfw_factory);
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_sensorid_exif);
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_mtf_exif);
+#if defined(REAR_SUB_CAMERA)
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_dualcal);
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_dualcal_size);
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_tilt);
+#endif
 #ifdef USE_CAMERA_HW_BIG_DATA
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_hwparam);
 #endif

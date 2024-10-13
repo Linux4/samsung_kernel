@@ -419,7 +419,7 @@ static int tcpc_sysfs_get_prop(struct _pdic_data_t *ppdic_data,
 			pr_info("%s : cc1=%d, cc2=%d\n", __func__, cc1, cc2);
 			if (!(cc1 == TYPEC_CC_VOLT_OPEN || cc1 == TYPEC_CC_DRP_TOGGLING))
 				retval = sprintf(buf, "1\n"); //CC1_ACTIVE
-			else if (!(cc2 == TYPEC_CC_VOLT_OPEN || cc2 ==TYPEC_CC_DRP_TOGGLING))
+			else if (!(cc2 == TYPEC_CC_VOLT_OPEN || cc2 == TYPEC_CC_DRP_TOGGLING))
 				retval = sprintf(buf, "2\n"); //CC2_ACTVIE
 			else
 				retval = sprintf(buf, "0\n"); //NO_DETERMINATION

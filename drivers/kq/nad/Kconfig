@@ -93,14 +93,6 @@ config SEC_KQ_BPS_RESULT
 	  This feature works factory binary
 	  This feature depends on SEC_KQ_NAD
 
-config SEC_KQ_NAD_TEST
-	bool "KUnit test for NAD"
-	depends on SEC_KUNIT && SEC_KQ_NAD
-	help
-	  KQ NAD Unit Test for improve stability of code
-	  KQ NAD Unit Test under User Mode Linux
-	  Support 8 Test Cases
-
 config SEC_KQ_NAD_API
 	bool "Samsung NAD API"
 	depends on SEC_KQ_NAD

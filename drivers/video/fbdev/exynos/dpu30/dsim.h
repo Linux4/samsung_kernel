@@ -261,6 +261,8 @@ struct dsim_device {
 	int continuous_underrun_max;
 	int continuous_underrun_cnt;
 	bool hold_rpm_on_boot;
+
+	bool wait_lp11;
 };
 
 int dsim_call_panel_ops(struct dsim_device *dsim, u32 cmd, void *arg);
@@ -278,6 +280,7 @@ void dsim_reg_recovery_process(struct dsim_device *dsim);
 
 int dsim_write_cmd_set(struct dsim_device *dsim, struct exynos_dsim_cmd cmd_list[],
 		int cmd_cnt, bool wait_vsync);
+int dsim_set_wait_lp11_after_cmds(struct dsim_device *dsim, bool en);
 
 static inline struct dsim_device *get_dsim_drvdata(u32 id)
 {

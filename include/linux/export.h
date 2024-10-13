@@ -122,6 +122,11 @@ struct kernel_symbol {
 
 #define EXPORT_SYMBOL(sym)					\
 	__EXPORT_SYMBOL(sym, "")
+#if IS_ENABLED(CONFIG_SEC_KUNIT) && IS_ENABLED(CONFIG_KUNIT)
+#define EXPORT_SYMBOL_KUNIT(sym)	__EXPORT_SYMBOL(sym, "")
+#else
+#define EXPORT_SYMBOL_KUNIT(sym)	/* nothing */
+#endif
 
 #define EXPORT_SYMBOL_GPL(sym)					\
 	__EXPORT_SYMBOL(sym, "_gpl")

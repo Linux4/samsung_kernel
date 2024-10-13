@@ -47,6 +47,7 @@
 
 enum {
 	BRT_MAPTBL,
+	BLIC_MODE_MAPTBL,
 	MAX_MAPTBL,
 };
 
@@ -83,5 +84,6 @@ static struct resinfo ili7807_boe_restbl[] = {
 static int init_brightness_table(struct maptbl *tbl);
 static int getidx_brt_table(struct maptbl *);
 static void copy_common_maptbl(struct maptbl *, u8 *);
+static int init_common_table(struct maptbl *tbl);
 
 #endif /* __ILI7807_H__ */

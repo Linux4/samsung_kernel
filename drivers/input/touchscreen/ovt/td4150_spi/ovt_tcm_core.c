@@ -78,8 +78,210 @@
 
 #define RMI_UBL_FN_NUMBER 0x35
 
+static struct ovt_tcm_hcd *g_tcm_hcd;
+
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+static irqreturn_t ovt_tcm_isr(int irq, void *data);
+static irqreturn_t secure_filter_interrupt(struct ovt_tcm_hcd *tcm_hcd)
+{
+	mutex_lock(&tcm_hcd->secure_lock);
+	if (atomic_read(&tcm_hcd->secure_enabled) == SECURE_TOUCH_ENABLE) {
+		if (atomic_cmpxchg(&tcm_hcd->secure_pending_irqs, 0, 1) == 0) {
+			sysfs_notify(&tcm_hcd->input_dev->dev.kobj, NULL, "secure_touch");
+
+		} else {
+			input_info(true, tcm_hcd->pdev->dev.parent, "%s: pending irq:%d\n",
+					__func__, (int)atomic_read(&tcm_hcd->secure_pending_irqs));
+		}
+
+		mutex_unlock(&tcm_hcd->secure_lock);
+		return IRQ_HANDLED;
+	}
+
+	mutex_unlock(&tcm_hcd->secure_lock);
+	return IRQ_NONE;
+}
+
+/**
+ * Sysfs attr group for secure touch & interrupt handler for Secure world.
+ * @atomic : syncronization for secure_enabled
+ * @pm_runtime : set rpm_resume or rpm_ilde
+ */
+static ssize_t secure_touch_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+	return snprintf(buf, PAGE_SIZE, "%d", atomic_read(&tcm_hcd->secure_enabled));
+}
+
+static ssize_t secure_touch_enable_store(struct device *dev,
+		struct device_attribute *addr, const char *buf, size_t count)
+{
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
+	int ret;
+	unsigned long data;
+
+	if (count > 2) {
+		input_err(true, tcm_hcd->pdev->dev.parent,
+				"%s: cmd length is over (%s,%d)!!\n",
+				__func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
+	ret = kstrtoul(buf, 10, &data);
+	if (ret != 0) {
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: failed to read:%d\n",
+				__func__, ret);
+		return -EINVAL;
+	}
+
+	if (data == 1) {
+		/* Enable Secure World */
+		if (atomic_read(&tcm_hcd->secure_enabled) == SECURE_TOUCH_ENABLE) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: already enabled\n", __func__);
+			return -EBUSY;
+		}
+
+		sec_delay(200);
+		
+		/* syncronize_irq -> disable_irq + enable_irq
+		 * concern about timing issue.
+		 */
+		disable_irq(tcm_hcd->irq);
+
+		/* Release All Finger */
+
+		if (pm_runtime_get_sync(spi->controller->dev.parent) < 0) {
+			enable_irq(tcm_hcd->irq);
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: failed to get pm_runtime\n", __func__);
+			return -EIO;
+		}
+
+		reinit_completion(&tcm_hcd->secure_powerdown);
+		reinit_completion(&tcm_hcd->secure_interrupt);
+
+		atomic_set(&tcm_hcd->secure_enabled, 1);
+		atomic_set(&tcm_hcd->secure_pending_irqs, 0);
+
+		enable_irq(tcm_hcd->irq);
+
+		input_info(true, tcm_hcd->pdev->dev.parent, "%s: secure touch enable\n", __func__);
+
+	} else if (data == 0) {
+		/* Disable Secure World */
+		if (atomic_read(&tcm_hcd->secure_enabled) == SECURE_TOUCH_DISABLE) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: already disabled\n", __func__);
+			return count;
+		}
+
+		sec_delay(200);
+
+		pm_runtime_put_sync(spi->controller->dev.parent);
+		atomic_set(&tcm_hcd->secure_enabled, 0);
+
+		sysfs_notify(&tcm_hcd->input_dev->dev.kobj, NULL, "secure_touch");
+
+		sec_delay(10);
+
+//		ovt_tcm_isr(tcm_hcd->irq, tcm_hcd);
+		complete(&tcm_hcd->secure_interrupt);
+		complete_all(&tcm_hcd->secure_powerdown);
+
+		input_info(true, tcm_hcd->pdev->dev.parent, "%s: secure touch disable\n", __func__);
+
+		disable_irq(tcm_hcd->irq);
+		ovt_pinctrl_configure(tcm_hcd, false);
+		sec_delay(50);
+		ovt_pinctrl_configure(tcm_hcd, true);
+		enable_irq(tcm_hcd->irq);
+
+	} else {
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: unsupport value:%ld\n", __func__, data);
+		return -EINVAL;
+	}
+
+	return count;
+}
+
+static ssize_t secure_touch_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+	int val = 0;
+
+	mutex_lock(&tcm_hcd->secure_lock);
+	if (atomic_read(&tcm_hcd->secure_enabled) == SECURE_TOUCH_DISABLE) {
+		mutex_unlock(&tcm_hcd->secure_lock);
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: disabled\n", __func__);
+		return -EBADF;
+	}
+
+	if (atomic_cmpxchg(&tcm_hcd->secure_pending_irqs, -1, 0) == -1) {
+		mutex_unlock(&tcm_hcd->secure_lock);
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: pending irq -1\n", __func__);
+		return -EINVAL;
+	}
+
+	if (atomic_cmpxchg(&tcm_hcd->secure_pending_irqs, 1, 0) == 1) {
+		val = 1;
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: pending irq is %d\n",
+				__func__, atomic_read(&tcm_hcd->secure_pending_irqs));
+	}
+
+	mutex_unlock(&tcm_hcd->secure_lock);
+	complete(&tcm_hcd->secure_interrupt);
+
+	return snprintf(buf, PAGE_SIZE, "%u", val);
+}
+
+static ssize_t secure_ownership_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "1");
+}
+
+static int secure_touch_init(struct ovt_tcm_hcd *tcm_hcd)
+{
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s\n", __func__);
+
+	init_completion(&tcm_hcd->secure_interrupt);
+	init_completion(&tcm_hcd->secure_powerdown);
+
+	return 0;
+}
+
+static void secure_touch_stop(struct ovt_tcm_hcd *tcm_hcd, bool stop)
+{
+	if (atomic_read(&tcm_hcd->secure_enabled)) {
+		atomic_set(&tcm_hcd->secure_pending_irqs, -1);
+
+		sysfs_notify(&tcm_hcd->input_dev->dev.kobj, NULL, "secure_touch");
+
+		if (stop)
+			wait_for_completion_interruptible(&tcm_hcd->secure_powerdown);
+
+		input_info(true, tcm_hcd->pdev->dev.parent, "%s: %d\n", __func__, stop);
+	}
+}
+
+static DEVICE_ATTR(secure_touch_enable, (S_IRUGO | S_IWUSR | S_IWGRP),
+		secure_touch_enable_show, secure_touch_enable_store);
+static DEVICE_ATTR(secure_touch, S_IRUGO, secure_touch_show, NULL);
+static DEVICE_ATTR(secure_ownership, S_IRUGO, secure_ownership_show, NULL);
+static struct attribute *secure_attr[] = {
+	&dev_attr_secure_touch_enable.attr,
+	&dev_attr_secure_touch.attr,
+	&dev_attr_secure_ownership.attr,
+	NULL,
+};
+
+static struct attribute_group secure_attr_group = {
+	.attrs = secure_attr,
+};
+#endif
+
 static struct ovt_tcm_module_pool mod_pool;
-bool shutdown_is_on_going_tsp;
 
 DECLARE_COMPLETION(response_complete);
 
@@ -184,10 +386,14 @@ static void touch_print_info_work(struct work_struct *work)
 	struct ovt_tcm_hcd *tcm_hcd = container_of(work, struct ovt_tcm_hcd,
 			work_print_info.work);
 
+	if (atomic_read(&tcm_hcd->shutdown)) {
+		input_info(true, tcm_hcd->pdev->dev.parent,"%s: shutdown & not handled\n", __func__);
+		return;
+	}
+
 	sec_ts_print_info(tcm_hcd);
 
-	if (!shutdown_is_on_going_tsp)
-		schedule_delayed_work(&tcm_hcd->work_print_info, msecs_to_jiffies(TOUCH_PRINT_INFO_DWORK_TIME));
+	schedule_delayed_work(&tcm_hcd->work_print_info, msecs_to_jiffies(TOUCH_PRINT_INFO_DWORK_TIME));
 }
 
 static void sec_read_info_work(struct work_struct *work)
@@ -806,6 +1012,11 @@ static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int total_length;
 	struct ovt_tcm_message_header *header;
 
+	if (atomic_read(&tcm_hcd->shutdown)) {
+		input_info(true, tcm_hcd->pdev->dev.parent,"%s: now IC status is shutdown\n", __func__);
+		return -EIO;
+	}
+
 	if (tcm_hcd->lp_state == PWR_OFF) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "power off in suspend\n");
 		return -EIO;
@@ -992,6 +1203,11 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int command_status;
 	bool is_romboot_hdl = (command == CMD_ROMBOOT_DOWNLOAD) ? true : false;
 	bool is_hdl_reset = (command == CMD_RESET) && (tcm_hcd->in_hdl_mode);
+
+	if (atomic_read(&tcm_hcd->shutdown)) {
+		input_info(true, tcm_hcd->pdev->dev.parent,"%s: now IC status is shutdown\n", __func__);
+		return -EIO;
+	}
 
 	if (tcm_hcd->lp_state == PWR_OFF) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "power off in suspend\n");
@@ -1328,6 +1544,34 @@ static irqreturn_t ovt_tcm_isr(int irq, void *data)
 	struct ovt_tcm_hcd *tcm_hcd = data;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	if (secure_filter_interrupt(tcm_hcd) == IRQ_HANDLED) {
+		wait_for_completion_interruptible_timeout(&tcm_hcd->secure_interrupt,
+				msecs_to_jiffies(5 * MSEC_PER_SEC));
+
+		input_info(true, tcm_hcd->pdev->dev.parent,
+				"%s: secure interrupt handled\n", __func__);
+
+		return IRQ_HANDLED;
+	}
+#endif
+	if (tcm_hcd->lp_state == LP_MODE) {
+		pm_wakeup_event(tcm_hcd->pdev->dev.parent, 500);
+
+		/* waiting for blsp block resuming, if not occurs i2c error */
+		retval = wait_for_completion_interruptible_timeout(&tcm_hcd->resume_done, msecs_to_jiffies(500));
+		if (retval == 0) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: LPM: pm resume is not handled\n", __func__);
+			return IRQ_HANDLED;
+		} else if (retval < 0) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, retval);
+			return IRQ_HANDLED;
+		}
+
+		input_dbg(true, tcm_hcd->pdev->dev.parent, "%s: run LPM interrupt handler, %d\n", __func__, retval);
+		/* run lpm interrupt handler */
+	}
+
 	if (unlikely(gpio_get_value(bdata->irq_gpio) != bdata->irq_on_state))
 		goto exit;
 
@@ -1387,8 +1631,6 @@ queue_polling_work:
 			retval = 0;
 #endif
 		}
-		if (retval < 0)
-			goto exit;
 	} else {
 		if (!tcm_hcd->irq_enabled) {
 			input_dbg(true, tcm_hcd->pdev->dev.parent, "Interrupt already disabled\n");
@@ -1428,18 +1670,11 @@ exit:
 }
 
 static int ovt_tcm_set_gpio(struct ovt_tcm_hcd *tcm_hcd, int gpio,
-		bool config, int dir, int state)
+		bool config, int dir, int state, const char* label)
 {
 	int retval;
-	char label[16];
 
 	if (config) {
-		retval = snprintf(label, 16, "tcm_gpio_%d\n", gpio);
-		if (retval < 0) {
-			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to set GPIO label\n");
-			return retval;
-		}
-
 		retval = gpio_request(gpio, label);
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to request GPIO %d\n", gpio);
@@ -1468,7 +1703,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	if (bdata->irq_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, true, 0, 0);
+		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, true, 0, 0, "tcm_gpio_irq");
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to configure interrupt GPIO\n");
 			goto err_set_gpio_irq;
@@ -1476,7 +1711,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	if (bdata->cs_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, true, 1, 0);
+		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, true, 1, 0, "tcm_gpio_cs");
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to configure interrupt GPIO\n");
 			goto err_set_gpio_cs;
@@ -1484,7 +1719,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	if (bdata->power_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, true, 1, !bdata->power_on_state);
+		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, true, 1, !bdata->power_on_state, "tcm_gpio_power");
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to configure power GPIO\n");
 			goto err_set_gpio_power;
@@ -1492,7 +1727,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	if (bdata->reset_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, true, 1, !bdata->reset_on_state);
+		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, true, 1, !bdata->reset_on_state, "tcm_gpio_reset");
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to configure reset GPIO\n");
 			goto err_set_gpio_reset;
@@ -1515,13 +1750,13 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 
 err_set_gpio_reset:
 	if (bdata->power_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0, NULL);
 err_set_gpio_power:
 	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0, NULL);
 err_set_gpio_cs:
 	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0, NULL);
 err_set_gpio_irq:
 	return retval;
 }
@@ -2043,6 +2278,42 @@ exit:
 	return retval;
 }
 
+static int ovt_tcm_get_feature_list(struct ovt_tcm_hcd *tcm_hcd, unsigned short *value)
+{
+	int retval;
+
+	unsigned char *resp_buf;
+	unsigned int resp_buf_size;
+	unsigned int resp_length;
+
+	resp_buf = NULL;
+	resp_buf_size = 0;
+
+	retval = tcm_hcd->write_message(tcm_hcd, CMD_GET_SEC_FEATURES_LIST,
+				NULL, 0, &resp_buf,
+				&resp_buf_size, &resp_length, NULL, 0);
+	if (retval < 0) {
+		input_err(true, tcm_hcd->pdev->dev.parent,
+			"Failed to write command %s\n", STR(CMD_GET_SEC_FEATURES_LIST));
+		goto exit;
+	}
+	if (resp_length >= 2) {
+		input_info(true, tcm_hcd->pdev->dev.parent,
+			"response buf:%02x %02x\n", resp_buf[0], resp_buf[1]);
+		*value = (unsigned short)le2_to_uint(resp_buf);
+		retval = 0;
+	} else {
+		input_err(true, tcm_hcd->pdev->dev.parent,
+			"response length not valid\n");
+		retval = -1;
+	}
+
+exit:
+	kfree(resp_buf);
+
+	return retval;
+}
+
 static int ovt_tcm_get_dynamic_config(struct ovt_tcm_hcd *tcm_hcd,
 		enum dynamic_config_id id, unsigned short *value)
 {
@@ -2094,8 +2365,8 @@ static int ovt_tcm_set_dynamic_config(struct ovt_tcm_hcd *tcm_hcd,
 	resp_buf = NULL;
 	resp_buf_size = 0;
 
-	input_info(true, tcm_hcd->pdev->dev.parent,
-			"set dynamic cmd %s  id:%x,  value:%d\n", STR(CMD_SET_DYNAMIC_CONFIG), id, value);
+	input_info(true, tcm_hcd->pdev->dev.parent, "set dynamic cmd %s id:%x, value:%d\n",
+					STR(CMD_SET_DYNAMIC_CONFIG), id, value);
 
 	out_buf[0] = (unsigned char)id;
 	out_buf[1] = (unsigned char)value;
@@ -2468,6 +2739,7 @@ static void ovt_tcm_helper_work(struct work_struct *work)
 			break;
 		}
 
+		ovt_tcm_get_feature_list(tcm_hcd, (unsigned short *)&tcm_hcd->sec_features);
 		/* init the touch reporting here */
 		/* since the HDL is completed */
 		retval = touch_reinit(tcm_hcd);
@@ -2558,12 +2830,22 @@ int ovt_tcm_get_lcd_regulator(struct ovt_tcm_hcd *tcm_hcd, bool on)
 		}
 		input_err(true, tcm_hcd->pdev->dev.parent, "%s: %s regulator.\n",
 				 __func__, tcm_hcd->hw_if->bdata->regulator_lcd_vsn);
+
+		tcm_hcd->regulator_tsp_reset = regulator_get(NULL, tcm_hcd->hw_if->bdata->regulator_tsp_reset);
+		if (IS_ERR(tcm_hcd->regulator_tsp_reset)) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: Failed to get %s regulator.\n",
+				 __func__, tcm_hcd->hw_if->bdata->regulator_tsp_reset);
+			tcm_hcd->regulator_tsp_reset = NULL;
+		}
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: %s regulator.\n",
+				 __func__, tcm_hcd->hw_if->bdata->regulator_tsp_reset);
 	} else {
 		regulator_put(tcm_hcd->regulator_vdd);
 		regulator_put(tcm_hcd->regulator_lcd_reset);
 		regulator_put(tcm_hcd->regulator_lcd_bl_en);
 		regulator_put(tcm_hcd->regulator_lcd_vsp);
 		regulator_put(tcm_hcd->regulator_lcd_vsn);
+		regulator_put(tcm_hcd->regulator_tsp_reset);
 	}
 	return 0;
 }
@@ -2658,10 +2940,14 @@ int ovt_tcm_lcd_power_ctrl(struct ovt_tcm_hcd *tcm_hcd, bool on)
 
 	return 0;
 }
+
 int ovt_tcm_lcd_reset_ctrl(struct ovt_tcm_hcd *tcm_hcd, bool on)
 {
 	int retval;
 	static bool enabled;
+
+	if (tcm_hcd->regulator_lcd_reset == NULL)
+		return 0;
 
 	if (enabled == on) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "%s: skip: (%d/%d)\n", __func__, enabled, on);
@@ -2685,7 +2971,37 @@ int ovt_tcm_lcd_reset_ctrl(struct ovt_tcm_hcd *tcm_hcd, bool on)
 	return 0;
 }
 
-static int pinctrl_configure(struct ovt_tcm_hcd *tcm_hcd, bool enable)
+int ovt_tcm_tsp_reset_ctrl(struct ovt_tcm_hcd *tcm_hcd, bool on)
+{
+	int retval;
+	static bool enabled;
+
+	if (tcm_hcd->regulator_tsp_reset == NULL)
+		return 0;
+
+	if (enabled == on) {
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: skip: (%d/%d)\n", __func__, enabled, on);
+		return 0;
+	}
+
+	if (on) {
+		retval = regulator_enable(tcm_hcd->regulator_tsp_reset);
+		if (retval) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: Failed to enable regulator_tsp_reset: %d\n", __func__, retval);
+			return retval;
+		}
+	} else {
+		regulator_disable(tcm_hcd->regulator_tsp_reset);
+	}
+
+	enabled = on;
+
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s %d done\n", __func__, on);
+
+	return 0;
+}
+
+int ovt_pinctrl_configure(struct ovt_tcm_hcd *tcm_hcd, bool enable)
 {
 	struct pinctrl_state *state;
 
@@ -2820,7 +3136,7 @@ void ovt_tcm_debug_lpwg_doubletap(struct ovt_tcm_hcd *tcm_hcd)
 		goto exit;
 	}
 
-	resp_buf[1];
+	//resp_buf[1];
 	for (i = 0; i < read_lpdump_size ; i++) {
 //		input_info(true, tcm_hcd->pdev->dev.parent, "%d : 0x%02x,0x%02x,0x%02x,0x%02x,0x%02x",
 //			i, resp_buf[i * LPWG_DUMP_PACKET_SIZE + 1], resp_buf[i * LPWG_DUMP_PACKET_SIZE + 2],
@@ -2866,9 +3182,10 @@ int ovt_tcm_early_resume(struct device *dev)
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to disable interrupt before \n");
 		}
+		usleep_range(5000, 5000);
 
 		ovt_tcm_lcd_reset_ctrl(tcm_hcd, false);
-		msleep(10);
+		usleep_range(10000, 10000);
 	}
 	mutex_unlock(&tcm_hcd->mode_change_mutex);
 
@@ -2876,12 +3193,58 @@ int ovt_tcm_early_resume(struct device *dev)
 
 	return retval;
 }
+
+int ovt_set_config_mode(struct ovt_tcm_hcd *tcm_hcd, enum dynamic_config_id id,
+									char *config_name, unsigned short value)
+{
+	int retval;
+
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s : set %s (%d)\n", __func__, config_name, value);
+
+	retval = tcm_hcd->set_dynamic_config(tcm_hcd, id, value);
+	if (retval < 0)
+		input_err(true, tcm_hcd->pdev->dev.parent, "Failed to set %s\n", STR(id));
+
+	return retval;
+}
+void ovt_tcm_mode_restore(struct ovt_tcm_hcd *tcm_hcd)
+{
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s : start\n", __func__);
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	if (tcm_hcd->USB_detect_flag)
+		ovt_set_config_mode(tcm_hcd, DC_CHARGER_CONNECTED, "charger", tcm_hcd->USB_detect_flag);
+#endif
+
+	if (tcm_hcd->ear_detect_enable)
+		ovt_set_config_mode(tcm_hcd, DC_ENABLE_FACE_DETECT, "eardetect", tcm_hcd->ear_detect_enable);
+
+	if (tcm_hcd->glove_enabled)
+		ovt_set_config_mode(tcm_hcd, DC_ENABLE_SENSITIVITY, "sensitivity", tcm_hcd->glove_enabled);
+
+	if (tcm_hcd->ovt_tcm_gesture_type.doubletap || tcm_hcd->ovt_tcm_gesture_type.swipeup)
+		ovt_set_config_mode(tcm_hcd, DC_ENABLE_GESTURE_TYPE, "gesture",
+			((tcm_hcd->ovt_tcm_gesture_type.swipeup << 15) | tcm_hcd->ovt_tcm_gesture_type.doubletap));
+
+#ifdef CONFIG_SEC_FACTORY
+	{
+		int retval = ovt_set_config_mode(tcm_hcd, DC_ENABLE_EDGE_REJECT, "edge_reject", 1);
+		if (retval < 0)
+			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to enable edge reject\n");
+		else
+			input_info(true, tcm_hcd->pdev->dev.parent, "enable edge reject\n");
+	}
+#endif
+}
+
 int ovt_tcm_resume(struct device *dev)
 {
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
 
-	input_info(true, tcm_hcd->pdev->dev.parent, "%s start(%d) (%d)\n", __func__, tcm_hcd->lp_state, tcm_hcd->boot_resume);
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s start(%d) (%d) aot(%d) ed(%d) spay(%d)\n",
+		__func__, tcm_hcd->lp_state, tcm_hcd->boot_resume, tcm_hcd->ovt_tcm_gesture_type.doubletap,
+		tcm_hcd->ear_detect_enable, tcm_hcd->ovt_tcm_gesture_type.swipeup);
 
 	if (tcm_hcd->lp_state == PWR_ON && !tcm_hcd->boot_resume) {
 		input_info(true, tcm_hcd->pdev->dev.parent, "%s: abnormal call!\n", __func__);
@@ -2892,7 +3255,7 @@ int ovt_tcm_resume(struct device *dev)
 
 	mutex_lock(&tcm_hcd->mode_change_mutex);
 
-	pinctrl_configure(tcm_hcd, true);
+	ovt_pinctrl_configure(tcm_hcd, true);
 
 	if (tcm_hcd->lp_state == LP_MODE) {
 		msleep(20);
@@ -2911,7 +3274,7 @@ int ovt_tcm_resume(struct device *dev)
 				"Failed to wait for completion of host download\n");
 			goto exit;
 		}
-		goto mod_resume;
+		goto mode_restore;
 	} else {
 
 #ifdef RESET_ON_RESUME
@@ -2939,7 +3302,7 @@ int ovt_tcm_resume(struct device *dev)
 		goto exit;
 	}
 
-	goto mod_resume;
+	goto mode_restore;
 #endif
 
 do_reset:
@@ -2958,49 +3321,12 @@ do_reset:
 		goto exit;
 	}
 
-mod_resume:
-	input_info(true, tcm_hcd->pdev->dev.parent, "%s : mod_resume\n", __func__);
+mode_restore:
+	ovt_tcm_mode_restore(tcm_hcd);
 
-	if (tcm_hcd->ear_detect_enable) {
-		input_info(true, tcm_hcd->pdev->dev.parent, "%s : set ed(%d)\n",
-					__func__, tcm_hcd->ear_detect_enable);
-		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_ENABLE_FACE_DETECT, tcm_hcd->ear_detect_enable);
-		if (retval < 0)
-			input_err(true, tcm_hcd->pdev->dev.parent,
-				"Failed to enable ear_detect mode\n");
-	}
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-	if (tcm_hcd->USB_detect_flag) {
-		input_info(true, tcm_hcd->pdev->dev.parent, "%s : set USB_detect(%d)\n",
-					__func__, tcm_hcd->USB_detect_flag);
-		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_CHARGER_CONNECTED, tcm_hcd->USB_detect_flag);
-		if (retval < 0)
-			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to set USB_detect_flag\n");
-	}
-#endif
-
-	if (tcm_hcd->glove_enabled) {
-		input_info(true, tcm_hcd->pdev->dev.parent, "%s : set glove mode(%d)\n",
-					__func__, tcm_hcd->glove_enabled);
-		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_ENABLE_SENSITIVITY, SET_GLOVE_MODE);
-		if (retval < 0)
-			input_err(true, tcm_hcd->pdev->dev.parent,
-				"Failed to enable glove mode\n");
-	}
-
-#ifdef CONFIG_SEC_FACTORY
-	retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_ENABLE_EDGE_REJECT, 1);
-	if (retval < 0)
-		input_err(true, tcm_hcd->pdev->dev.parent, "Failed to enable edge reject\n");
-	else
-		input_info(true, tcm_hcd->pdev->dev.parent, "enable edge reject\n");
-#endif
-
-	if (tcm_hcd->wakeup_gesture_enabled || tcm_hcd->ear_detect_enable)
-		ovt_tcm_lcd_power_ctrl(tcm_hcd, false);
-	if(tcm_hcd->ear_detect_enable)
-		ovt_tcm_lcd_reset_ctrl(tcm_hcd, false);
-
+	ovt_tcm_lcd_power_ctrl(tcm_hcd, false);
+	ovt_tcm_tsp_reset_ctrl(tcm_hcd, false);
+	ovt_tcm_lcd_reset_ctrl(tcm_hcd, false);
 
 #ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, true);
@@ -3008,10 +3334,12 @@ mod_resume:
 	cancel_delayed_work(&tcm_hcd->work_print_info);
 	tcm_hcd->print_info_cnt_open = 0;
 	tcm_hcd->print_info_cnt_release = 0;
-	if (!shutdown_is_on_going_tsp)
+
+	if (atomic_read(&tcm_hcd->shutdown))
+		input_info(true, tcm_hcd->pdev->dev.parent,"%s: shutdown & not handled\n", __func__);
+	else
 		schedule_work(&tcm_hcd->work_print_info.work);
 
-	tcm_hcd->wakeup_gesture_enabled = tcm_hcd->aot_enable;
 	tcm_hcd->prox_power_off = 0;
 	retval = 0;
 
@@ -3029,31 +3357,44 @@ exit:
 int ovt_tcm_early_suspend(struct device *dev)
 {
 	int retval;
+	struct ovt_tcm_gesture_type lowpowermode;
 	struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
 
-	input_info(true, tcm_hcd->pdev->dev.parent, "%s start(%d)\n", __func__, tcm_hcd->lp_state);
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s start(%d), aot(%d) ed(%d) spay(%d)\n",
+			__func__, tcm_hcd->lp_state, tcm_hcd->ovt_tcm_gesture_type.doubletap,
+			tcm_hcd->ear_detect_enable, tcm_hcd->ovt_tcm_gesture_type.swipeup);
 
 	if (tcm_hcd->lp_state != PWR_ON) {
 		input_info(true, tcm_hcd->pdev->dev.parent, "%s: abnormal call!\n", __func__);
 		return 0;
 	}
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	secure_touch_stop(tcm_hcd, true);
+#endif
+
 	mutex_lock(&tcm_hcd->mode_change_mutex);
 
 #ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, false);
 #endif
-	if (tcm_hcd->aot_enable && tcm_hcd->prox_power_off)
-		tcm_hcd->wakeup_gesture_enabled = 0;
+	lowpowermode = tcm_hcd->ovt_tcm_gesture_type;
 
-	if (tcm_hcd->wakeup_gesture_enabled || tcm_hcd->lcdoff_test) {
-		input_info(true, tcm_hcd->pdev->dev.parent, "Enter lp mode(aot)\n");
+	if ((lowpowermode.doubletap || lowpowermode.swipeup) && tcm_hcd->prox_power_off) {
+		lowpowermode.doubletap = 0;
+		lowpowermode.swipeup = 0;
+	}
+
+	if (lowpowermode.doubletap || lowpowermode.swipeup || tcm_hcd->lcdoff_test) {
+		input_info(true, tcm_hcd->pdev->dev.parent, "Enter lp mode\n");
 		ovt_tcm_lcd_power_ctrl(tcm_hcd, true);
+		ovt_tcm_tsp_reset_ctrl(tcm_hcd, true);
 		ovt_tcm_lcd_reset_ctrl(tcm_hcd, true);
 
 	} else if (tcm_hcd->ear_detect_enable) {
 		input_info(true, tcm_hcd->pdev->dev.parent, "Enter lp mode(ed)\n");
 		ovt_tcm_lcd_power_ctrl(tcm_hcd, true);
+		ovt_tcm_tsp_reset_ctrl(tcm_hcd, true);
 		ovt_tcm_lcd_reset_ctrl(tcm_hcd, true);
 
 	} else {
@@ -3061,6 +3402,9 @@ int ovt_tcm_early_suspend(struct device *dev)
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to disable interrupt before \n");
 		}
+		input_info(true, tcm_hcd->pdev->dev.parent, "Enter power off\n");
+		tcm_hcd->lp_state = PWR_OFF;
+		ovt_pinctrl_configure(tcm_hcd, false);
 	}
 
 	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) || tcm_hcd->app_status != APP_STATUS_OK) {
@@ -3071,7 +3415,7 @@ int ovt_tcm_early_suspend(struct device *dev)
 	}
 
 #ifdef USE_FLASH
-	if (!tcm_hcd->wakeup_gesture_enabled || tcm_hcd->lcdoff_test) {
+	if (!(lowpowermode.doubletap || lowpowermode.swipeup) || tcm_hcd->lcdoff_test) {
 		retval = tcm_hcd->sleep(tcm_hcd, true);
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to enter deep sleep\n");
@@ -3097,10 +3441,11 @@ int ovt_tcm_suspend(struct device *dev)
 	struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
 	int retval;
 	u8 lpwg_dump[5] = {0x3, 0x0, 0x0, 0x0, 0x0};
+	struct ovt_tcm_gesture_type lowpowermode;
 
-	input_info(true, tcm_hcd->pdev->dev.parent, "%s start(%d) aot(%d/%d) ed(%d)\n",
-				__func__, tcm_hcd->lp_state, tcm_hcd->aot_enable, tcm_hcd->wakeup_gesture_enabled,
-				tcm_hcd->ear_detect_enable);
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s start: lp_state(%d) aot(%d) ed(%d) spay(%d)\n",
+				__func__, tcm_hcd->lp_state, tcm_hcd->ovt_tcm_gesture_type.doubletap,
+				tcm_hcd->ear_detect_enable, tcm_hcd->ovt_tcm_gesture_type.swipeup);
 
 	if (tcm_hcd->lp_state != PWR_ON) {
 		input_info(true, tcm_hcd->pdev->dev.parent, "%s: abnormal call!\n", __func__);
@@ -3109,8 +3454,15 @@ int ovt_tcm_suspend(struct device *dev)
 
 	mutex_lock(&tcm_hcd->mode_change_mutex);
 
-	if (tcm_hcd->wakeup_gesture_enabled || tcm_hcd->lcdoff_test) {
-		input_info(true, tcm_hcd->pdev->dev.parent, "Enter lp mode(aot)\n");
+	lowpowermode = tcm_hcd->ovt_tcm_gesture_type;
+
+	if ((lowpowermode.doubletap || lowpowermode.swipeup) && tcm_hcd->prox_power_off) {
+		lowpowermode.doubletap = 0;
+		lowpowermode.swipeup = 0;
+	}
+
+	if (lowpowermode.doubletap || lowpowermode.swipeup || tcm_hcd->lcdoff_test) {
+		input_info(true, tcm_hcd->pdev->dev.parent, "Enter lp mode\n");
 		tcm_hcd->lp_state = LP_MODE;
 
 		if (!tcm_hcd->irq_wake) {
@@ -3118,7 +3470,7 @@ int ovt_tcm_suspend(struct device *dev)
 			tcm_hcd->irq_wake = true;
 		}
 
-		if (tcm_hcd->ear_detect_enable) {
+		if (tcm_hcd->ear_detect_enable && !tcm_hcd->sec_features.facemode1support) {
 			input_info(true, tcm_hcd->pdev->dev.parent, "%s: ed off before aot set\n", __func__);
 			retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_ENABLE_FACE_DETECT, 0);
 			if (retval < 0) {
@@ -3135,7 +3487,6 @@ int ovt_tcm_suspend(struct device *dev)
 			mutex_unlock(&tcm_hcd->mode_change_mutex);
 			return retval;
 		}
-
 	} else if (tcm_hcd->ear_detect_enable) {
 		input_info(true, tcm_hcd->pdev->dev.parent, "Enter lp mode(ed)\n");
 		tcm_hcd->lp_state = LP_MODE;
@@ -3144,15 +3495,6 @@ int ovt_tcm_suspend(struct device *dev)
 			enable_irq_wake(tcm_hcd->irq);
 			tcm_hcd->irq_wake = true;
 		}
-
-	} else {
-		retval = tcm_hcd->enable_irq(tcm_hcd, false, false);
-		if (retval < 0) {
-			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to disable interrupt before \n");
-		}
-		input_info(true, tcm_hcd->pdev->dev.parent, "Enter power off\n");
-		tcm_hcd->lp_state = PWR_OFF;
-		pinctrl_configure(tcm_hcd, false);
 	}
 
 	touch_free_objects();
@@ -3319,6 +3661,52 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+struct ovt_tcm_hcd *stui_tcm_hcd;
+extern int stui_spi_lock(struct spi_master *spi);
+extern int stui_spi_unlock(struct spi_master *spi);
+
+static int ovt_stui_tsp_enter(void)
+{
+	int ret = 0;
+	struct spi_device *spi = to_spi_device(stui_tcm_hcd->pdev->dev.parent);
+
+	input_dbg(true, stui_tcm_hcd->pdev->dev.parent, ">> %s\n", __func__);
+
+	stui_tcm_hcd->enable_irq(stui_tcm_hcd, false, NULL);
+
+	ret = stui_spi_lock(spi->master);
+	if (ret < 0) {
+		pr_err("[STUI] stui_spi_lock failed : %d\n", ret);
+		stui_tcm_hcd->enable_irq(stui_tcm_hcd, true, NULL);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int ovt_stui_tsp_exit(void)
+{
+	int ret = 0;
+	struct spi_device *spi = to_spi_device(stui_tcm_hcd->pdev->dev.parent);
+
+	input_dbg(true, stui_tcm_hcd->pdev->dev.parent, ">> %s\n", __func__);
+
+	ret = stui_spi_unlock(spi->master);
+	if (ret < 0)
+		pr_err("[STUI] stui_spi_unlock failed : %d\n", ret);
+
+	stui_tcm_hcd->enable_irq(stui_tcm_hcd, true, NULL);
+
+	return ret;
+}
+
+static int ovt_stui_tsp_type(void)
+{
+	return STUI_TSP_TYPE_OVT;
+}
+#endif
+
 static int ovt_tcm_probe(struct platform_device *pdev)
 {
 	int retval;
@@ -3366,7 +3754,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	tcm_hcd->is_detected = false;
 	tcm_hcd->lp_state = PWR_ON;
 	tcm_hcd->boot_resume = true;
-/*	tcm_hcd->wakeup_gesture_enabled = WAKEUP_GESTURE; */
+	atomic_set(&tcm_hcd->shutdown, 0);
 
 #ifdef PREDICTIVE_READING
 	tcm_hcd->read_length = MIN_READ_LENGTH;
@@ -3392,6 +3780,9 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	mutex_init(&tcm_hcd->command_mutex);
 	mutex_init(&tcm_hcd->identify_mutex);
 	mutex_init(&tcm_hcd->mode_change_mutex);
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	mutex_init(&tcm_hcd->secure_lock);
+#endif
 
 	INIT_BUFFER(tcm_hcd->in, false);
 	INIT_BUFFER(tcm_hcd->out, false);
@@ -3415,7 +3806,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 
 	atomic_set(&tcm_hcd->helper.task, HELP_NONE);
 
-	device_init_wakeup(&pdev->dev, 1);
+	device_init_wakeup(tcm_hcd->pdev->dev.parent, 1);
 
 	init_waitqueue_head(&tcm_hcd->hdl_wq);
 
@@ -3428,6 +3819,11 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 		mod_pool.initialized = true;
 	}
 
+	zeroflash_module_init();
+
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	device_module_init();
+#endif
 	retval = ovt_tcm_get_regulator(tcm_hcd, true);
 	if (retval < 0) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "Failed to get regulators\n");
@@ -3452,7 +3848,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 		goto err_get_lcd_regulator;
 	}
 
-	pinctrl_configure(tcm_hcd, true);
+	ovt_pinctrl_configure(tcm_hcd, true);
 
 	/* detect the type of touch controller */
 	retval = ovt_tcm_sensor_detection(tcm_hcd);
@@ -3527,6 +3923,13 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 		goto err_touch_init;
 	}
 
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	stui_tcm_hcd = tcm_hcd;
+	ptsp = tcm_hcd->pdev->dev.parent;
+	stui_tsp_init(ovt_stui_tsp_enter, ovt_stui_tsp_exit, ovt_stui_tsp_type);
+	input_info(true, tcm_hcd->pdev->dev.parent, "secure touch support\n");
+#endif
+
 /*prepare_modules:*/
 	/* prepare to add other modules */
 	mod_pool.workqueue = create_singlethread_workqueue("ovt_tcm_module");
@@ -3536,13 +3939,26 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	queue_work(mod_pool.workqueue, &mod_pool.work);
 
 	INIT_DELAYED_WORK(&tcm_hcd->work_read_info, sec_read_info_work);
-	if (!shutdown_is_on_going_tsp)
+
+	if (atomic_read(&tcm_hcd->shutdown))
+		input_info(true, tcm_hcd->pdev->dev.parent,"%s: shutdown & not handled\n", __func__);
+	else
 		schedule_delayed_work(&tcm_hcd->work_read_info, msecs_to_jiffies(50));
 
 	ovt_lpwg_dump_buf_init(tcm_hcd);
 
 	init_completion(&tcm_hcd->resume_done);
 	complete_all(&tcm_hcd->resume_done);
+
+	g_tcm_hcd = tcm_hcd;
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	if (sysfs_create_group(&tcm_hcd->input_dev->dev.kobj, &secure_attr_group) < 0)
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: do not make secure group\n", __func__);
+	else
+		secure_touch_init(tcm_hcd);
+
+	sec_secure_touch_register(tcm_hcd, 1, &tcm_hcd->input_dev->dev.kobj);
+#endif
 
 	return 0;
 
@@ -3574,16 +3990,16 @@ err_create_run_kthread:
 #endif
 
 	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0, NULL);
 
 	if (bdata->cs_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0, NULL);
 
 	if (bdata->power_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0, NULL);
 
 	if (bdata->reset_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0, NULL);
 err_get_lcd_regulator:
 	ovt_tcm_get_lcd_regulator(tcm_hcd, false);
 
@@ -3594,7 +4010,7 @@ err_enable_regulator:
 	ovt_tcm_get_regulator(tcm_hcd, false);
 
 err_get_regulator:
-	device_init_wakeup(&pdev->dev, 0);
+	device_init_wakeup(tcm_hcd->pdev->dev.parent, 0);
 
 err_alloc_mem:
 	RELEASE_BUFFER(tcm_hcd->report.buffer);
@@ -3617,7 +4033,7 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	input_info(true, pdev->dev.parent, "%s\n", __func__);
-	shutdown_is_on_going_tsp = true;
+	atomic_set(&tcm_hcd->shutdown, 1);
 
 	if (tcm_hcd->irq_enabled && bdata->irq_gpio >= 0) {
 		disable_irq(tcm_hcd->irq);
@@ -3666,23 +4082,23 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 #endif
 
 	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0, NULL);
 
 	if (bdata->cs_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0, NULL);
 
 	if (bdata->power_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0, NULL);
 
 	if (bdata->reset_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0, NULL);
 
 	ovt_tcm_enable_regulator(tcm_hcd, false);
 
 	ovt_tcm_get_regulator(tcm_hcd, false);
 	ovt_tcm_get_lcd_regulator(tcm_hcd, false);
 
-	device_init_wakeup(&pdev->dev, 0);
+	device_init_wakeup(tcm_hcd->pdev->dev.parent, 0);
 
 	RELEASE_BUFFER(tcm_hcd->report.buffer);
 	RELEASE_BUFFER(tcm_hcd->config);
@@ -3732,16 +4148,18 @@ static int __init ovt_tcm_module_init(void)
 	retval = ovt_tcm_bus_init();
 	if (retval < 0)
 		return retval;
-
 	return platform_driver_register(&ovt_tcm_driver);
 }
 
 static void __exit ovt_tcm_module_exit(void)
 {
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	device_module_exit();
+#endif
+	zeroflash_module_exit();
 	platform_driver_unregister(&ovt_tcm_driver);
 
 	ovt_tcm_bus_exit();
-
 	return;
 }
 

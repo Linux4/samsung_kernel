@@ -52,9 +52,12 @@
 #include <kunit/mock.h>
 #include <kunit/test.h>
 
-kunit_notifier_chain_init(usb_typec_manager_notifier_test_module);
-extern void manager_event_save(struct typec_manager_event_work *event_work);
+int event_index;
+EXPORT_SYMBOL_KUNIT(event_index);
+MANAGER_NOTI_TYPEDEF_REF verify_event[5];
+EXPORT_SYMBOL_KUNIT(verify_event);
 int flag_kunit_test;
+EXPORT_SYMBOL_KUNIT(flag_kunit_test);
 
 #else
 #define __visible_for_testing static
@@ -65,6 +68,9 @@ static int confirm_manager_notifier_register = 0;
 
 static struct device *manager_device;
 __visible_for_testing manager_data_t typec_manager;
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_KUNIT(typec_manager);
+#endif
 static bool is_hiccup_event_saved = false;
 static bool manager_notify_pdic_battery_init = false;
 
@@ -96,6 +102,7 @@ static const char *manager_notify_string(int mns)
 	case MANAGER_NOTIFY_PDIC_BATTERY: return "pdic_battery";
 	case MANAGER_NOTIFY_PDIC_USB: return "pdic_usb";
 	case MANAGER_NOTIFY_PDIC_MUIC: return "pdic_muic";
+	case MANAGER_NOTIFY_PDIC_DELAY_DONE: return "pdic_delay_done";
 	default:
 		return "undefined";
 	}
@@ -143,6 +150,20 @@ void manager_dp_state_change(MANAGER_NOTI_TYPEDEF event)
 		break;
 	}
 }
+
+#if defined(CONFIG_SEC_KUNIT)
+__visible_for_testing void manager_event_save(struct typec_manager_event_work *event_work)
+{
+	verify_event[event_index].src = event_work->event.src;
+	verify_event[event_index].dest = event_work->event.dest;
+	verify_event[event_index].id = event_work->event.id;
+	verify_event[event_index].sub1 = event_work->event.sub1;
+	verify_event[event_index].sub2 = event_work->event.sub2;
+	verify_event[event_index].sub3 = event_work->event.sub3;
+	event_index++;
+}
+EXPORT_SYMBOL_KUNIT(manager_event_save);
+#endif
 
 static void manager_event_notify(struct work_struct *data)
 {
@@ -294,6 +315,7 @@ static void manager_usb_event_send(uint state)
 				__func__);
 			break;
 		}
+#if !IS_ENABLED(CONFIG_MTK_CHARGER)
 		if (typec_manager.classified_cable_type != MANAGER_NOTIFY_MUIC_USB
 				&& typec_manager.classified_cable_type != MANAGER_NOTIFY_MUIC_TIMEOUT_OPEN_DEVICE
 				&& typec_manager.classified_cable_type != MANAGER_NOTIFY_MUIC_OTG) {
@@ -305,6 +327,10 @@ static void manager_usb_event_send(uint state)
 			pr_err("%s: Cable type is set to NONE", __func__);
 			typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_NONE;
 		}
+#else
+		if (typec_manager.classified_cable_type == MANAGER_NOTIFY_MUIC_NONE)
+			typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_USB;
+#endif
 		break;
 	case USB_STATUS_NOTIFY_ATTACH_DFP:
 		typec_manager.usb.ufp_repeat_check = 0;
@@ -317,6 +343,10 @@ static void manager_usb_event_send(uint state)
 		set_usb_enumeration_state(0);
 		manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_BATT,
 					PDIC_NOTIFY_ID_USB, 0, 0, PD_NONE_TYPE);
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
+		if (!typec_manager.muic.attach_state)
+			typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_NONE;
+#endif
 		break;
 	default:
 		pr_info("%s(%s): Invalid event\n", __func__, pdic_usbstatus_string(state));
@@ -325,6 +355,20 @@ static void manager_usb_event_send(uint state)
 
 	pr_info("%s(%s)\n", __func__, pdic_usbstatus_string(state));
 	typec_manager.usb.dr = state;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	cancel_delayed_work(&typec_manager.usb_event_by_pogo.dwork);
+	if (typec_manager.is_muic_pogo && state != USB_STATUS_NOTIFY_ATTACH_DFP) {
+		pr_info("%s(%s) skip. muic pogo:%d\n", __func__, pdic_usbstatus_string(state), typec_manager.is_muic_pogo);
+		return;
+	}
+	else if (typec_manager.is_muic_pogo && state == USB_STATUS_NOTIFY_ATTACH_DFP) {
+		pr_info("%s(%s) restart DFP. muic pogo:%d\n", __func__, pdic_usbstatus_string(state), typec_manager.is_muic_pogo);
+		manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+						PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_DETACH, USB_STATUS_NOTIFY_DETACH, 0);
+		schedule_delayed_work(&typec_manager.usb_event_by_pogo.dwork, msecs_to_jiffies(600));
+		return;
+	}
+#endif /* CONFIG_MUIC_SM5504_POGO */
 	manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
 		PDIC_NOTIFY_ID_USB, !!state, state, 0);
 }
@@ -395,6 +439,9 @@ __visible_for_testing void manager_usb_enum_state_check(uint time_ms)
 			typec_manager.usb_enum_check.pending = false;
 	}
 }
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_KUNIT(manager_usb_enum_state_check);
+#endif
 
 bool get_usb_enumeration_state(void)
 {
@@ -555,7 +602,7 @@ static int manager_external_notifier_notification(struct notifier_block *nb,
 			pdic_usbstatus_string(typec_manager.usb.dr),
 			typec_manager.muic.attach_state);
 		if (enable &&
-#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER) && !IS_ENABLED(CONFIG_MTK_CHARGER)
 			typec_manager.muic.attach_state != MUIC_NOTIFY_CMD_DETACH &&
 #endif
 			typec_manager.usb.dr == USB_STATUS_NOTIFY_ATTACH_DFP) {
@@ -574,6 +621,24 @@ static int manager_external_notifier_notification(struct notifier_block *nb,
 	}
 	return ret;
 }
+
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+static void manager_event_processing_by_pogo_work(struct work_struct *work)
+{
+	pr_info("%s: dr=%s, muic pogo:%d\n", __func__,
+		pdic_usbstatus_string(typec_manager.usb.dr), typec_manager.is_muic_pogo);
+
+	if (typec_manager.is_muic_pogo || typec_manager.usb.dr == USB_STATUS_NOTIFY_ATTACH_DFP) {
+		manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+			PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_ATTACH, USB_STATUS_NOTIFY_ATTACH_DFP, 0);
+	} else if (typec_manager.usb.dr == USB_STATUS_NOTIFY_ATTACH_UFP) {
+		manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+			PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_ATTACH, USB_STATUS_NOTIFY_ATTACH_UFP, 0);
+	} else {
+		pr_info("%s: Not supported", __func__);
+	}
+}
+#endif /* CONFIG_MUIC_SM5504_POGO */
 
 static void manager_event_processing_by_vbus(bool run)
 {
@@ -605,12 +670,16 @@ static void manager_event_processing_by_vbus_work(struct work_struct *work)
 		|| typec_manager.vbus_state == STATUS_VBUS_HIGH) {
 		return;
 	} else if (typec_manager.muic.attach_state == MUIC_NOTIFY_CMD_DETACH) {
+		pr_info("%s: force usb detach", __func__);
 		manager_usb_event_send(USB_STATUS_NOTIFY_DETACH);
 		return;
 	}
 
-	manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_MUIC,
-		PDIC_NOTIFY_ID_ATTACH, PDIC_NOTIFY_DETACH, 0, typec_manager.muic.cable_type);
+	if (typec_manager.pdic_attach_state == PDIC_NOTIFY_DETACH) {
+		pr_info("%s: force pdic detach event", __func__);
+		manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_MUIC,
+			PDIC_NOTIFY_ID_ATTACH, PDIC_NOTIFY_DETACH, 0, typec_manager.muic.cable_type);
+	}
 }
 #endif
 
@@ -652,7 +721,9 @@ __visible_for_testing void manager_water_status_update(int status)
 					PDIC_NOTIFY_ID_WATER, status, 0, typec_manager.water.report_type);
 		}
 }
-
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_KUNIT(manager_water_status_update);
+#endif
 __visible_for_testing int manager_handle_pdic_notification(struct notifier_block *nb,
 				unsigned long action, void *data)
 {
@@ -761,7 +832,7 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 		break;
 	case PDIC_NOTIFY_ID_CLEAR_INFO:
 		if (p_noti.sub1 == PDIC_NOTIFY_ID_SVID_INFO)
-			typec_manager.svid_info = 0;
+			typec_manager.svid_info = -1;
 		break;
 	case PDIC_NOTIFY_ID_INITIAL:
 		return 0;
@@ -774,7 +845,11 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 
 	return ret;
 }
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_KUNIT(manager_handle_pdic_notification);
+#endif
 
+#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 static void manager_handle_dedicated_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 {
 #ifdef CONFIG_USE_DEDICATED_MUIC
@@ -837,7 +912,6 @@ static void manager_handle_second_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 		pr_info("%s: Not supported", __func__);
 #endif
 }
-
 
 static void manager_handle_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 {
@@ -976,8 +1050,50 @@ __visible_for_testing int manager_handle_muic_notification(struct notifier_block
 		manager_handle_muic(muic_event);
 		break;
 	}
+
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	if (muic_event.id == PDIC_NOTIFY_ID_POGO) {
+		switch (muic_event.cable_type) {
+		case ATTACHED_DEV_POGO_DOCK_34K_MUIC:
+		case ATTACHED_DEV_POGO_DOCK_49_9K_MUIC:
+			pr_info("%s: Pogo dock(%d) %s, dr_state: %s\n", __func__, muic_event.cable_type,
+					muic_event.attach ? "Attached" : "Detached", pdic_usbstatus_string(typec_manager.usb.dr));
+			cancel_delayed_work(&typec_manager.usb_event_by_pogo.dwork);
+			if (muic_event.attach) {
+				typec_manager.is_muic_pogo = 1;
+				if (typec_manager.usb.dr == USB_STATUS_NOTIFY_ATTACH_UFP) {
+					manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+						PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_DETACH, USB_STATUS_NOTIFY_DETACH, 0);
+					schedule_delayed_work(&typec_manager.usb_event_by_pogo.dwork, msecs_to_jiffies(600));
+				} else if (typec_manager.usb.dr == USB_STATUS_NOTIFY_DETACH) {
+					manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+						PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_ATTACH, USB_STATUS_NOTIFY_ATTACH_DFP, 0);
+				}
+			} else {
+				typec_manager.is_muic_pogo = 0;
+				if (typec_manager.usb.dr == USB_STATUS_NOTIFY_ATTACH_UFP) {
+					manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+						PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_DETACH, USB_STATUS_NOTIFY_DETACH, 0);
+					schedule_delayed_work(&typec_manager.usb_event_by_pogo.dwork, msecs_to_jiffies(600));
+				} else if (typec_manager.usb.dr == USB_STATUS_NOTIFY_DETACH) {
+					manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+						PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_DETACH, USB_STATUS_NOTIFY_DETACH, 0);
+				}
+			}
+			manager_event_work(PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_DEV_BATT,
+				muic_event.id, muic_event.attach, muic_event.rprd, muic_event.cable_type);
+			return 0;
+		default:
+			break;
+		}
+	}
+#endif /* CONFIG_MUIC_SM5504_POGO */
 	return 0;
 }
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_KUNIT(manager_handle_muic_notification);
+#endif
+#endif
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 __visible_for_testing int manager_handle_vbus_notification(struct notifier_block *nb,
@@ -997,6 +1113,7 @@ __visible_for_testing int manager_handle_vbus_notification(struct notifier_block
 		if (!manager_check_vbus_by_otg() && typec_manager.water.detected)
 			manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_BATT,
 				PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_ATTACH, 0, typec_manager.water.report_type);
+		manager_event_processing_by_vbus(false);
 		break;
 	case STATUS_VBUS_LOW:
 		typec_manager.vbus_by_otg_detection = 0;
@@ -1012,6 +1129,9 @@ __visible_for_testing int manager_handle_vbus_notification(struct notifier_block
 	mutex_unlock(&typec_manager.mo_lock);
 	return 0;
 }
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_KUNIT(manager_handle_vbus_notification);
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
@@ -1082,7 +1202,7 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 		return -1;
 	}
 
-	if (listener == MANAGER_NOTIFY_PDIC_MUIC) {
+	if (listener == MANAGER_NOTIFY_PDIC_MUIC || listener == MANAGER_NOTIFY_PDIC_SENSORHUB) {
 		SET_MANAGER_NOTIFIER_BLOCK(nb, notifier, listener);
 		ret = blocking_notifier_chain_register(&(typec_manager.manager_muic_notifier), nb);
 		if (ret < 0)
@@ -1098,7 +1218,7 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 
 	switch (listener) {
 	case MANAGER_NOTIFY_PDIC_BATTERY:
-#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER) && !IS_ENABLED(CONFIG_MTK_CHARGER)
 		m_noti.src = PDIC_NOTIFY_DEV_MANAGER;
 		m_noti.dest = PDIC_NOTIFY_DEV_BATT;
 		m_noti.pd = typec_manager.pd;
@@ -1136,11 +1256,14 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			pdic_event_id_string(m_noti.id),
 			m_noti.sub3, m_noti.sub1 ? "Attached" : "Detached");
 		nb->notifier_call(nb, m_noti.id, &(m_noti));
-		m_noti.id = PDIC_NOTIFY_ID_SVID_INFO;
-		m_noti.sub1 = typec_manager.svid_info;
-		m_noti.sub2 = 0;
-		m_noti.sub3 = 0;
-		nb->notifier_call(nb, m_noti.id, &(m_noti));
+		if (typec_manager.svid_info >= 0) {
+			m_noti.dest = PDIC_NOTIFY_DEV_ALL;
+			m_noti.id = PDIC_NOTIFY_ID_SVID_INFO;
+			m_noti.sub1 = typec_manager.svid_info;
+			m_noti.sub2 = 0;
+			m_noti.sub3 = 0;
+			nb->notifier_call(nb, m_noti.id, &(m_noti));
+		}
 #else
 		pr_info("%s: [BATTERY] Registration completed\n", __func__);
 #endif
@@ -1179,6 +1302,11 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			m_noti.sub1 = PDIC_NOTIFY_ATTACH;
 			typec_manager.usb.dr = USB_STATUS_NOTIFY_ATTACH_UFP;
 			m_noti.sub2 = USB_STATUS_NOTIFY_ATTACH_UFP;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+		} else if (typec_manager.is_muic_pogo) {
+			m_noti.sub1 = typec_manager.muic.attach_state;
+			m_noti.sub2 = USB_STATUS_NOTIFY_ATTACH_DFP;
+#endif /* CONFIG_MUIC_SM5504_POGO */
 		}
 		pr_info("%s: [USB] %s\n", __func__, pdic_usbstatus_string(m_noti.sub2));
 		nb->notifier_call(nb, m_noti.id, &(m_noti));
@@ -1224,7 +1352,8 @@ int manager_notifier_unregister(struct notifier_block *nb)
 
 	pr_info("%s: listener=%d unregister\n", __func__, nb->priority);
 
-	if (nb->priority == MANAGER_NOTIFY_PDIC_MUIC) {
+	if (nb->priority == MANAGER_NOTIFY_PDIC_MUIC ||
+		nb->priority == MANAGER_NOTIFY_PDIC_SENSORHUB) {
 		ret = blocking_notifier_chain_unregister(&(typec_manager.manager_muic_notifier), nb);
 		if (ret < 0)
 			pr_err("%s: muic blocking_notifier_chain_unregister error(%d)\n",
@@ -1412,6 +1541,7 @@ static int manager_notifier_init(void)
 	typec_manager.water.wVbus_det = 0;
 	typec_manager.water.detOnPowerOff = 0;
 	typec_manager.alt_is_support = 0;
+	typec_manager.svid_info = -1;
 	strncpy(typec_manager.fac_control,
 		"On_All", sizeof(typec_manager.fac_control)-1);
 	typec_manager.usb_factory = check_factory_mode_boot();
@@ -1452,6 +1582,11 @@ static int manager_notifier_init(void)
 	INIT_DELAYED_WORK(&typec_manager.usb_event_by_vbus.dwork,
 		manager_event_processing_by_vbus_work);
 #endif
+
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	INIT_DELAYED_WORK(&typec_manager.usb_event_by_pogo.dwork,
+		manager_event_processing_by_pogo_work);
+#endif /* CONFIG_MUIC_SM5504_POGO */
 
 	if (ppdic_data && ppdic_data->set_enable_alternate_mode)
 		ppdic_data->set_enable_alternate_mode(ALTERNATE_MODE_NOT_READY);
@@ -1495,10 +1630,6 @@ static int manager_notifier_init(void)
 	ret = sysfs_create_group(&manager_device->kobj, &typec_manager_sysfs_group);
 #endif
 
-#if defined(CONFIG_SEC_KUNIT)
-	kunit_notifier_chain_register(usb_typec_manager_notifier_test_module);
-#endif
-
 	pr_info("%s end\n", __func__);
 out:
 	return ret;
@@ -1518,9 +1649,6 @@ static void __exit manager_notifier_exit(void)
 	muic_notifier_unregister(&typec_manager.muic_nb);
 #endif
 	usb_external_notify_unregister(&typec_manager.manager_external_notifier_nb);
-#if defined(CONFIG_SEC_KUNIT)
-	kunit_notifier_chain_unregister(usb_typec_manager_notifier_test_module);
-#endif
 }
 
 device_initcall(manager_notifier_init);

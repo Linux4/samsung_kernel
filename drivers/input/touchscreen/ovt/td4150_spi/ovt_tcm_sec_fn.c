@@ -36,10 +36,6 @@
 
 #include "ovt_tcm_sec_fn.h"
 
-#define TSP_PATH_EXTERNAL_FW		"/sdcard/Firmware/TSP/tsp.bin"
-#define TSP_PATH_EXTERNAL_FW_SIGNED	"/sdcard/Firmware/TSP/tsp_signed.bin"
-#define TSP_PATH_SPU_FW_SIGNED		"/spu/TSP/ffu_tsp.bin"
-
 struct ovt_tcm_hcd *private_tcm_hcd;
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
@@ -91,37 +87,31 @@ extern int long spu_firmware_signature_verify(const char* fw_name, const u8* fw_
 
 static int sec_fn_load_fw(struct ovt_tcm_hcd *tcm_hcd,  bool signing, const char *file_path)
 {
-	struct file *fp;
-	mm_segment_t old_fs;
-	long fw_size, nread;
+	const struct firmware *fw_entry = NULL;
+	long fw_size;
 	int error = 0;
 	unsigned char *fw_data;
 	size_t spu_fw_size;
 	size_t spu_ret = 0;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	fp = filp_open(file_path, O_RDONLY, S_IRUSR);
-	if (IS_ERR(fp)) {
-		input_err(true, tcm_hcd->pdev->dev.parent,
-			"%s: failed to open %s\n", __func__,file_path);
-		set_fs(old_fs);
+	error = request_firmware(&fw_entry, file_path, tcm_hcd->pdev->dev.parent);
+	if (error) {
+		input_err(true, tcm_hcd->pdev->dev.parent, "firmware load failed, error=%d\n", error);
 		return error;
 	}
 
-	fw_size = fp->f_path.dentry->d_inode->i_size;
+	fw_size = fw_entry->size;
 
 	if (signing) {
 		/* name 3, digest 32, signature 512 */
-		spu_fw_size = fw_size;
+		spu_fw_size = fw_entry->size;
 #ifdef SUPPORT_FW_SIGNED
 		fw_size -= SPU_METADATA_SIZE(TSP);
 #endif
 	}
 
 	if (fw_size > 0) {
-		fw_data = vzalloc(fw_size);
+		fw_data = vzalloc(fw_entry->size);
 		if (!fw_data) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "%s: failed to alloc mem\n", __func__);
 			error = -ENOMEM;
@@ -137,21 +127,11 @@ static int sec_fn_load_fw(struct ovt_tcm_hcd *tcm_hcd,  bool signing, const char
 				error = -ENOMEM;
 				vfree(fw_data);
 				goto open_err;
-			}			
-			nread = vfs_read(fp, (char __user *)spu_fw_data, spu_fw_size, &fp->f_pos);
+			}
+			memcpy(spu_fw_data, fw_entry->data, spu_fw_size);
 
 			input_info(true, tcm_hcd->pdev->dev.parent,
 				"%s: start, file path %s, size %ld Bytes\n", __func__, file_path, spu_fw_size);
-
-			if (nread != spu_fw_size) {
-				input_err(true, tcm_hcd->pdev->dev.parent,
-					"%s: failed to read firmware file, nread %ld Bytes\n",
-					__func__, nread);
-				error = -EIO;
-				vfree(fw_data);
-				vfree(spu_fw_data);
-				goto open_err;
-			}
 #ifdef SUPPORT_FW_SIGNED
 			spu_ret = spu_firmware_signature_verify("TSP", spu_fw_data, spu_fw_size);
 #endif
@@ -167,20 +147,9 @@ static int sec_fn_load_fw(struct ovt_tcm_hcd *tcm_hcd,  bool signing, const char
 			memcpy(fw_data, spu_fw_data, fw_size);
 			vfree(spu_fw_data);
 		} else {
-			nread = vfs_read(fp, (char __user *)fw_data,
-				fw_size, &fp->f_pos);
-
+			memcpy(fw_data, fw_entry->data, fw_entry->size);
 			input_info(true, tcm_hcd->pdev->dev.parent,
 				"%s: start, file path %s, size %ld Bytes\n", __func__, file_path, fw_size);
-
-			if (nread != fw_size) {
-				input_err(true, tcm_hcd->pdev->dev.parent,
-					"%s: failed to read firmware file, nread %ld Bytes\n",
-					__func__, nread);
-				error = -EIO;
-				vfree(fw_data);
-				goto open_err;
-			}
 		}
 
 		if (tcm_hcd->image)
@@ -201,8 +170,7 @@ static int sec_fn_load_fw(struct ovt_tcm_hcd *tcm_hcd,  bool signing, const char
 	}
 
 open_err:
-	filp_close(fp, current->files);
-	set_fs(old_fs);
+	release_firmware(fw_entry);
 	return error;
 }
 
@@ -233,9 +201,9 @@ static void fw_update(void *device_data)
 	case UMS:
 		tcm_hcd->get_fw = UMS;
 #if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
-		retval = sec_fn_load_fw(tcm_hcd, SIGNING, TSP_PATH_EXTERNAL_FW_SIGNED);
+		retval = sec_fn_load_fw(tcm_hcd, SIGNING, TSP_EXTERNAL_FW_SIGNED);
 #else
-		retval = sec_fn_load_fw(tcm_hcd, NORMAL, TSP_PATH_EXTERNAL_FW);
+		retval = sec_fn_load_fw(tcm_hcd, NORMAL, TSP_EXTERNAL_FW);
 #endif
 		if (retval < 0) {
 			tcm_hcd->force_update = false;
@@ -501,7 +469,9 @@ static void factory_cmd_result_all(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct ovt_tcm_hcd *tcm_hcd = container_of(sec, struct ovt_tcm_hcd, sec);
-
+#ifdef CONFIG_SEC_FACTORY
+	int retval;
+#endif
 	sec->item_count = 0;
 	memset(sec->cmd_result_all, 0x00, SEC_CMD_RESULT_STR_LEN);
 
@@ -516,6 +486,16 @@ static void factory_cmd_result_all(void *device_data)
 	run_open_short_test_read(sec);
 	run_noise_test_read(sec);
 	run_sram_test(sec);
+
+#ifdef CONFIG_SEC_FACTORY
+	retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_ENABLE_EDGE_REJECT, 1);
+	if (retval < 0)
+		input_err(true, tcm_hcd->pdev->dev.parent, "Failed to enable edge reject\n");
+	else
+		input_info(true, tcm_hcd->pdev->dev.parent, "enable edge reject\n");
+
+	msleep(50);
+#endif
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -658,15 +638,20 @@ static void aot_enable(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+	if (!tcm_hcd->hw_if->bdata->enable_settings_aot) {
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: Not support AOT(%d)\n", __func__, sec->cmd_param[0]);
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		tcm_hcd->aot_enable = sec->cmd_param[0];
-		tcm_hcd->wakeup_gesture_enabled = tcm_hcd->aot_enable;
+		tcm_hcd->ovt_tcm_gesture_type.doubletap = sec->cmd_param[0];
+		ovt_set_config_mode(tcm_hcd, DC_ENABLE_GESTURE_TYPE, "gesture",
+			((tcm_hcd->ovt_tcm_gesture_type.swipeup << 15) | tcm_hcd->ovt_tcm_gesture_type.doubletap));
 
-		input_info(true, tcm_hcd->pdev->dev.parent,
-						"enable AOT %d\n", tcm_hcd->wakeup_gesture_enabled);
+		input_info(true, tcm_hcd->pdev->dev.parent, "%s: AOT %s(%d)\n",
+				__func__, sec->cmd_param[0] ? "on" : "off", tcm_hcd->ovt_tcm_gesture_type.doubletap);
 
 		snprintf(buff, sizeof(buff), "OK");
 		sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -675,6 +660,45 @@ static void aot_enable(void *device_data)
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec_cmd_set_cmd_exit(sec);
 }
+
+static void spay_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct ovt_tcm_hcd *tcm_hcd = container_of(sec, struct ovt_tcm_hcd, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (!tcm_hcd->hw_if->bdata->support_spay_gesture) {
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: Not support SPAY!\n", __func__);
+		goto out;
+	}
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: Not defined value.\n", __func__);
+		goto out;
+	} else {
+		tcm_hcd->ovt_tcm_gesture_type.swipeup = sec->cmd_param[0];
+		ovt_set_config_mode(tcm_hcd, DC_ENABLE_GESTURE_TYPE, "gesture",
+			((tcm_hcd->ovt_tcm_gesture_type.swipeup << 15) | tcm_hcd->ovt_tcm_gesture_type.doubletap));
+	}
+
+	snprintf(buff, sizeof(buff), "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s: spay(swipeup) %s(%d)\n",
+			__func__, sec->cmd_param[0] ? "on" : "off", tcm_hcd->ovt_tcm_gesture_type.swipeup);
+
+	return;
+out:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
 
 /*
  *	cmd_param
@@ -820,7 +844,11 @@ static void ear_detect_enable(void *device_data)
 
 	tcm_hcd->ear_detect_enable = sec->cmd_param[0];
 
-	if (tcm_hcd->lp_state != PWR_ON) {
+	if (tcm_hcd->sec_features.facemode1support && tcm_hcd->lp_state == PWR_OFF) {
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: face mode 1 support - %s skip!(%d)\n",
+					__func__, "Power off", tcm_hcd->lp_state);
+		goto out;
+	} else if (!tcm_hcd->sec_features.facemode1support && tcm_hcd->lp_state != PWR_ON) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "%s: %s skip!(%d)\n",
 					__func__, tcm_hcd->lp_state == PWR_OFF ? "Power off" : "LP mode", tcm_hcd->lp_state);
 		goto out;
@@ -1043,6 +1071,7 @@ static struct sec_cmd sec_cmds[] = {
 //	{SEC_CMD("get_crc_check", get_crc_check),},
 	{SEC_CMD("set_grip_data", set_grip_data),},
 	{SEC_CMD_H("aot_enable", aot_enable),},
+	{SEC_CMD_H("spay_enable", spay_enable),},
 	{SEC_CMD("set_sip_mode", set_sip_mode),},
 	{SEC_CMD("set_game_mode", set_game_mode),},
 	{SEC_CMD_H("ear_detect_enable", ear_detect_enable),},
@@ -1208,6 +1237,11 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 	int ret;
 	int retval = 0;
 
+	if (atomic_read(&tcm_hcd->shutdown)) {
+		input_info(true, tcm_hcd->pdev->dev.parent,"%s: shutdown & not handled\n", __func__);
+		return 0;
+	}
+
 	ret = sscanf(buf, "%d,%d", &buff[0], &buff[1]);
 	if (ret != 2) {
 		input_err(true, tcm_hcd->pdev->dev.parent,
@@ -1217,16 +1251,16 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 
 	input_info(true, tcm_hcd->pdev->dev.parent, "%s: %d %d\n", __func__, buff[0], buff[1]);
 
-	/* handle same sequence : buff[0] = LCD_ON, LCD_DOZE1, LCD_DOZE2*/
-	if (buff[0] == LCD_DOZE1 || buff[0] == LCD_DOZE2)
-		buff[0] = LCD_ON;
+	/* handle same sequence : buff[0] = DISPLAY_STATE_ON, DISPLAY_STATE_DOZE, DISPLAY_STATE_DOZE_SUSPEND */
+	if (buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND)
+		buff[0] = DISPLAY_STATE_ON;
 
-	if (buff[0] == LCD_ON) {
-		if (buff[1] == LCD_EARLY_EVENT)
+	if (buff[0] == DISPLAY_STATE_ON) {
+		if (buff[1] == DISPLAY_EVENT_EARLY)
 			ovt_tcm_early_resume(&tcm_hcd->pdev->dev);
-		else if (buff[1] == LCD_LATE_EVENT)
+		else if (buff[1] == DISPLAY_EVENT_LATE)
 			ovt_tcm_resume(&tcm_hcd->pdev->dev);
-	} else if (buff[0] == LCD_OFF) {
+	} else if (buff[0] == DISPLAY_STATE_OFF) {
 		if (atomic_read(&tcm_hcd->firmware_flashing)) {
 			retval = wait_event_interruptible_timeout(tcm_hcd->reflash_wq,
 						!atomic_read(&tcm_hcd->firmware_flashing),
@@ -1241,13 +1275,23 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 			}
 		}
 
-		if (buff[1] == LCD_EARLY_EVENT)
+		if (buff[1] == DISPLAY_EVENT_EARLY)
 			ovt_tcm_early_suspend(&tcm_hcd->pdev->dev);
-		else if (buff[1] == LCD_LATE_EVENT)
+		else if (buff[1] == DISPLAY_EVENT_LATE)
 			ovt_tcm_suspend(&tcm_hcd->pdev->dev);
-	} else if (buff[0] == LPM_OFF) {
-		input_info(true, tcm_hcd->pdev->dev.parent, "%s: lpm, disable interrupt and work++\n", __func__);
-		disable_irq(tcm_hcd->irq);
+	} else if (buff[0] == DISPLAY_STATE_LPM_OFF || buff[0] == DISPLAY_STATE_SERVICE_SHUTDOWN) {
+		if (buff[0] == DISPLAY_STATE_LPM_OFF) {
+			input_info(true, tcm_hcd->pdev->dev.parent, "%s: DISPLAY_STATE_LPM_OFF \n", __func__);
+		} else if (buff[0] == DISPLAY_STATE_SERVICE_SHUTDOWN) {
+			input_info(true, tcm_hcd->pdev->dev.parent, "%s: DISPLAY_STATE_SERVICE_SHUTDOWN", __func__);
+		}
+		atomic_set(&tcm_hcd->shutdown, 1);
+		tcm_hcd->lp_state = PWR_OFF;
+		retval = tcm_hcd->enable_irq(tcm_hcd, false, false);
+		if (retval < 0) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to disable interrupt before\n");
+		}
+		ovt_pinctrl_configure(tcm_hcd, false);
 		input_info(true, tcm_hcd->pdev->dev.parent, "%s: lpm, disable interrupt and work--\n", __func__);
 	}
 
@@ -1262,12 +1306,27 @@ ssize_t ovt_get_lp_dump(struct device *dev, struct device_attribute *attr, char 
 
 	return strlen(buf);
 }
+
+static ssize_t scrub_pos_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct ovt_tcm_hcd *tcm_hcd = container_of(sec, struct ovt_tcm_hcd, sec);
+	char buff[256] = { 0 };
+
+	snprintf(buff, sizeof(buff), "%d %d %d", tcm_hcd->hw_if->bdata->scrub_id, 0, 0);
+	input_info(true, tcm_hcd->pdev->dev.parent, "%s: scrub_id: %s\n", __func__, buff);
+
+	return snprintf(buf, PAGE_SIZE, "%s", buff);
+}
+
 static DEVICE_ATTR(sensitivity_mode, 0664, sensitivity_mode_show, sensitivity_mode_store);
 static DEVICE_ATTR(support_feature, 0444, read_support_feature, NULL);
 static DEVICE_ATTR(prox_power_off, 0664, prox_power_off_show, prox_power_off_store);
 static DEVICE_ATTR(virtual_prox, 0664, protos_event_show, protos_event_store);
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 static DEVICE_ATTR(get_lp_dump, 0444, ovt_get_lp_dump, NULL);
+static DEVICE_ATTR(scrub_pos, 0444, scrub_pos_show, NULL);
 
 static struct attribute *cmd_attributes[] = {
 	&dev_attr_sensitivity_mode.attr,
@@ -1276,6 +1335,7 @@ static struct attribute *cmd_attributes[] = {
 	&dev_attr_virtual_prox.attr,
 	&dev_attr_enabled.attr,
 	&dev_attr_get_lp_dump.attr,
+	&dev_attr_scrub_pos.attr,
 	NULL,
 };
 
@@ -1320,6 +1380,10 @@ static int ovt_vbus_notification(struct notifier_block *nb,
 #endif
 	input_info(true, private_tcm_hcd->pdev->dev.parent, "%s cmd=%lu, vbus_type=%d\n", __func__, cmd, vbus_type);
 
+	if (atomic_read(&private_tcm_hcd->shutdown)) {
+		input_info(true, private_tcm_hcd->pdev->dev.parent,"%s: shutdown & not handled\n", __func__);
+		return 0;
+	}
 
 	switch (vbus_type) {
 	case STATUS_VBUS_HIGH:/* vbus_type == 2 */
@@ -1340,14 +1404,28 @@ static int ovt_vbus_notification(struct notifier_block *nb,
 		break;
 	}
 
+	queue_work(private_tcm_hcd->usb_notifier_workqueue, &private_tcm_hcd->usb_notifier_work);
+
+	return 0;
+}
+static void ovt_vbus_notification_work(struct work_struct *work)
+{
+	int ret = 0;
+
+	input_info(true, private_tcm_hcd->pdev->dev.parent, "%s,USB_detect_flag:%d\n", __func__, private_tcm_hcd->USB_detect_flag);
+
+	if (atomic_read(&private_tcm_hcd->shutdown)) {
+		input_info(true, private_tcm_hcd->pdev->dev.parent,"%s: shutdown & not handled\n", __func__);
+		return;
+	}
+
 	ret = private_tcm_hcd->set_dynamic_config(private_tcm_hcd, DC_CHARGER_CONNECTED, private_tcm_hcd->USB_detect_flag);
 	if (ret < 0) {
 		input_info(true, private_tcm_hcd->pdev->dev.parent, "%s: Failed to set USB_detect_flag:%d\n",
 				__func__, private_tcm_hcd->USB_detect_flag);
-		return ret;
+		return;
 	}
-
-	return 0;
+	return;
 }
 #endif
 
@@ -1403,6 +1481,9 @@ int sec_fn_init(struct ovt_tcm_hcd *tcm_hcd)
 	manager_notifier_register(&private_tcm_hcd->ccic_nb, ovt_ccic_notification,
 			MANAGER_NOTIFY_PDIC_INITIAL);
 #endif
+	tcm_hcd->usb_notifier_workqueue = create_singlethread_workqueue("ovt_tcm_usb_noti");
+	INIT_WORK(&tcm_hcd->usb_notifier_work, ovt_vbus_notification_work);
+
 	vbus_notifier_register(&private_tcm_hcd->vbus_nb, ovt_vbus_notification,
 			VBUS_NOTIFY_DEV_CHARGER);
 #endif
@@ -1419,10 +1500,14 @@ void sec_fn_remove(struct ovt_tcm_hcd *tcm_hcd)
 {
 	input_info(true, tcm_hcd->pdev->dev.parent, "%s\n", __func__);
 
-#if IS_ENABLED(VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	manager_notifier_unregister(&private_tcm_hcd->ccic_nb);
 #endif
+	cancel_work_sync(&tcm_hcd->usb_notifier_work);
+	flush_workqueue(tcm_hcd->usb_notifier_workqueue);
+	destroy_workqueue(tcm_hcd->usb_notifier_workqueue);
+
 	vbus_notifier_unregister(&private_tcm_hcd->vbus_nb);
 #endif
 

@@ -76,6 +76,9 @@ static const u32 *sensor_sc501_fsync_slave;
 static u32 sensor_sc501_fsync_slave_size;
 static int check_uninit_value = 0;
 
+/* For checking frame count */
+static u32 sensor_SC501_fcount;
+
 static bool sensor_sc501_check_master_stream_off(struct is_core *core)
 {
 	if (test_bit(IS_SENSOR_OPEN, &(core->sensor[0].state)) &&	/* Dual mode and master stream off */
@@ -511,6 +514,7 @@ int sensor_sc501_cis_stream_on(struct v4l2_subdev *subdev)
 
 	msleep(10);
 	cis_data->stream_on = true;
+	sensor_SC501_fcount = 0;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
@@ -529,6 +533,8 @@ int sensor_sc501_cis_stream_off(struct v4l2_subdev *subdev)
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
+	u8 sensor_fcount_msb = 0, sensor_fcount_lsb = 0;
+	u16 cur_frame_count = 0;
 
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
@@ -554,6 +560,20 @@ int sensor_sc501_cis_stream_off(struct v4l2_subdev *subdev)
 	dbg_sensor(2, "[MOD:D:%d] %s\n", cis->id, __func__);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
+
+	ret = is_sensor_read8(client, 0x4868, &sensor_fcount_msb);
+	if (ret < 0) {
+		err("i2c transfer fail addr(%x), val(%x), ret = %d\n", 0x4868, sensor_fcount_msb, ret);
+		goto p_err;
+	}
+	ret = is_sensor_read8(client, 0x4869, &sensor_fcount_lsb);
+	if (ret < 0) {
+		err("i2c transfer fail addr(%x), val(%x), ret = %d\n", 0x4869, sensor_fcount_lsb, ret);
+		goto p_err;
+	}
+
+	cur_frame_count = (sensor_fcount_msb << 8) | sensor_fcount_lsb;
+	sensor_SC501_fcount = cur_frame_count;
 
 	info("%s\n", __func__);
 	ret = is_sensor_write8(client, 0x0100, 0x00);
@@ -1685,7 +1705,6 @@ int sensor_sc501_cis_wait_streamoff(struct v4l2_subdev *subdev)
 	cis_shared_data *cis_data;
 	u8 sensor_fcount_msb = 0, sensor_fcount_lsb = 0;
 	u16 cur_frame_value = 0;
-	u16 next_frame_value = 0;
 
 	FIMC_BUG(!subdev);
 
@@ -1724,11 +1743,23 @@ int sensor_sc501_cis_wait_streamoff(struct v4l2_subdev *subdev)
 			goto p_err;
 		}
 
-		next_frame_value = (sensor_fcount_msb << 8) | sensor_fcount_lsb;
-		if (next_frame_value == cur_frame_value)
+		cur_frame_value = (sensor_fcount_msb << 8) | sensor_fcount_lsb;
+		/*
+		* [ Problem ]
+		* If fcount is '0', it is hard to know what '0' exactly means.
+		* It might mean that streamoff is done or current frame count.
+		*
+		* [ Measure ]
+		* If fcount is '0xffff' or '0' in streamoff, delay by 33 ms.
+		*/
+		if ((sensor_SC501_fcount == 0 || sensor_SC501_fcount == 0xFFFF) && cur_frame_value == 0){
+			usleep_range(33000, 33000);
+			info("[%s] delay by 33 ms (stream_off fcount : %d, wait_stream_off fcount : %d",
+				__func__, sensor_SC501_fcount, cur_frame_value);
+			break;
+		} else if (cur_frame_value == 0)
 			break;
 
-		cur_frame_value = next_frame_value;
 		usleep_range(POLL_TIME_MS, POLL_TIME_MS);
 		poll_time_ms += POLL_TIME_MS;
 

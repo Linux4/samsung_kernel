@@ -24,7 +24,7 @@ const char *cisd_data_str[] = {
 	"CHG_BATT_THM_MAX", "CHG_BATT_THM_MIN", "CHG_CHG_THM_MAX", "CHG_CHG_THM_MIN", "CHG_WPC_THM_MAX",
 	"CHG_WPC_THM_MIN", "CHG_USB_THM_MAX", "CHG_USB_THM_MIN", "USB_OVERHEAT_CHARGING", "UNSAFETY_VOLT",
 	"UNSAFETY_TEMP", "SAFETY_TIMER", "VSYS_OVP", "VBAT_OVP", "USB_OVERHEAT_RAPID_CHANGE", "ASOC",
-	"USB_OVERHEAT_ALONE", "CAP_NOM"
+	"USB_OVERHEAT_ALONE", "CAP_NOM", "RC0"
 };
 EXPORT_SYMBOL(cisd_data_str);
 
@@ -37,21 +37,24 @@ const char *cisd_data_str_d[] = {
 	"CHG_CHG_THM_MAX_D", "CHG_CHG_THM_MIN_D", "CHG_USB_THM_MAX_D", "CHG_USB_THM_MIN_D",
 	"USB_OVERHEAT_CHARGING_D", "UNSAFETY_VOLT_D", "UNSAFETY_TEMP_D",
 	"SAFETY_TIMER_D", "VSYS_OVP_D", "VBAT_OVP_D", "USB_OVERHEAT_RAPID_CHANGE_D", "BUCK_OFF_D",
-	"USB_OVERHEAT_ALONE_D", "DROP_SENSOR_D"
+	"USB_OVERHEAT_ALONE_D", "DROP_SENSOR_D", "CHG_TIME_D", "TOTAL_CHG_TIME_D"
 };
 EXPORT_SYMBOL(cisd_data_str_d);
 
-const char *cisd_cable_data_str[] = {"TA", "AFC", "AFC_FAIL", "QC", "QC_FAIL", "PD", "PD_HIGH", "HV_WC_20"};
+const char *cisd_cable_data_str[] = {"TA", "AFC", "AFC_FAIL", "QC", "QC_FAIL", "PD", "PD_HIGH", "HV_WC_20", "FPDO_DC"};
 EXPORT_SYMBOL(cisd_cable_data_str);
 const char *cisd_tx_data_str[] = {"ON", "OTHER", "GEAR", "PHONE", "BUDS"};
 EXPORT_SYMBOL(cisd_tx_data_str);
-const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL"};
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL", "OTG", "D2D", "MAIN_BAT_ERR", "SUB_BAT_ERR", "WA_ERR"};
+#else
+const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL", "OTG", "D2D"};
+#endif
 EXPORT_SYMBOL(cisd_event_data_str);
 
 bool sec_bat_cisd_check(struct sec_battery_info *battery)
 {
-	union power_supply_propval capcurr_val = {0, };
-	union power_supply_propval vbat_val = {0, };
+	union power_supply_propval val = {0, };
 	struct cisd *pcisd = &battery->cisd;
 	bool ret = false;
 	int voltage = battery->voltage_now;
@@ -77,9 +80,9 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 			!(pcisd->state & CISD_STATE_OVER_VOLTAGE)) {
 			dev_info(battery->dev, "%s : [CISD] Battery Over Voltage Protection !! vbat(%d)mV\n",
 				__func__, voltage);
-			vbat_val.intval = true;
+			val.intval = true;
 			psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_VBAT_OVP,
-					vbat_val);
+					val);
 			pcisd->data[CISD_DATA_VBAT_OVP]++;
 			pcisd->data[CISD_DATA_VBAT_OVP_PER_DAY]++;
 			pcisd->state |= CISD_STATE_OVER_VOLTAGE;
@@ -159,33 +162,43 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 			}
 		}
 
-		capcurr_val.intval = SEC_BATTERY_CAPACITY_FULL;
+		val.intval = SEC_BATTERY_CAPACITY_FULL;
 		psy_do_property(battery->pdata->fuelgauge_name, get,
-			POWER_SUPPLY_PROP_ENERGY_NOW, capcurr_val);
-		if (capcurr_val.intval == -1) {
+			POWER_SUPPLY_PROP_ENERGY_NOW, val);
+		if (val.intval == -1) {
 			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
 			return ret;
 		}
 
-		if (capcurr_val.intval > pcisd->data[CISD_DATA_CAP_MAX])
-			pcisd->data[CISD_DATA_CAP_MAX] = capcurr_val.intval;
-		if (capcurr_val.intval < pcisd->data[CISD_DATA_CAP_MIN])
-			pcisd->data[CISD_DATA_CAP_MIN] = capcurr_val.intval;
+		if (val.intval > pcisd->data[CISD_DATA_CAP_MAX])
+			pcisd->data[CISD_DATA_CAP_MAX] = val.intval;
+		if (val.intval < pcisd->data[CISD_DATA_CAP_MIN])
+			pcisd->data[CISD_DATA_CAP_MIN] = val.intval;
 
-		if (capcurr_val.intval > pcisd->data[CISD_DATA_CAP_MAX_PER_DAY])
-			pcisd->data[CISD_DATA_CAP_MAX_PER_DAY] = capcurr_val.intval;
-		if (capcurr_val.intval < pcisd->data[CISD_DATA_CAP_MIN_PER_DAY])
-			pcisd->data[CISD_DATA_CAP_MIN_PER_DAY] = capcurr_val.intval;
+		if (val.intval > pcisd->data[CISD_DATA_CAP_MAX_PER_DAY])
+			pcisd->data[CISD_DATA_CAP_MAX_PER_DAY] = val.intval;
+		if (val.intval < pcisd->data[CISD_DATA_CAP_MIN_PER_DAY])
+			pcisd->data[CISD_DATA_CAP_MIN_PER_DAY] = val.intval;
 
-		capcurr_val.intval = SEC_BATTERY_CAPACITY_AGEDCELL;
+		val.intval = SEC_BATTERY_CAPACITY_AGEDCELL;
 		psy_do_property(battery->pdata->fuelgauge_name, get,
-			POWER_SUPPLY_PROP_ENERGY_NOW, capcurr_val);
-		if (capcurr_val.intval == -1) {
+			POWER_SUPPLY_PROP_ENERGY_NOW, val);
+		if (val.intval == -1) {
 			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
 			return ret;
 		}
-		pcisd->data[CISD_DATA_CAP_NOM] = capcurr_val.intval;
+		pcisd->data[CISD_DATA_CAP_NOM] = val.intval;
 		dev_info(battery->dev, "%s: [CISD] CAP_NOM %dmAh\n", __func__, pcisd->data[CISD_DATA_CAP_NOM]);
+
+		val.intval = SEC_BATTERY_CAPACITY_RC0;
+		psy_do_property(battery->pdata->fuelgauge_name, get,
+			POWER_SUPPLY_PROP_ENERGY_NOW, val);
+		if (val.intval == -1) {
+			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
+			return ret;
+		}
+		pcisd->data[CISD_DATA_RC0] = val.intval;
+		dev_info(battery->dev, "%s: [CISD] RC0 0x%x\n", __func__, pcisd->data[CISD_DATA_RC0]);
 	}
 
 	if (battery->temperature > pcisd->data[CISD_DATA_BATT_TEMP_MAX])
@@ -329,6 +342,7 @@ void sec_battery_cisd_init(struct sec_battery_info *battery)
 	battery->cisd.data[CISD_DATA_CHG_WPC_TEMP_MIN] = 1000;
 	battery->cisd.data[CISD_DATA_CHG_USB_TEMP_MIN] = 1000;
 	battery->cisd.data[CISD_DATA_CAP_MIN] = 0xFFFF;
+	battery->cisd.data[CISD_DATA_ASOC] = 100;
 
 	battery->cisd.data[CISD_DATA_FULL_COUNT_PER_DAY] = 1;
 	battery->cisd.data[CISD_DATA_BATT_TEMP_MAX_PER_DAY] = -300;
@@ -348,6 +362,8 @@ void sec_battery_cisd_init(struct sec_battery_info *battery)
 	battery->cisd.data[CISD_DATA_CHG_SUB_BATT_TEMP_MIN_PER_DAY] = 1000;
 	battery->cisd.data[CISD_DATA_CHG_CHG_TEMP_MIN_PER_DAY] = 1000;
 	battery->cisd.data[CISD_DATA_CHG_USB_TEMP_MIN_PER_DAY] = 1000;
+	battery->cisd.data[CISD_DATA_CHG_RETENTION_TIME_PER_DAY] = 0;
+	battery->cisd.data[CISD_DATA_TOTAL_CHG_RETENTION_TIME_PER_DAY] = 0;
 
 	battery->cisd.ab_vbat_max_count = 2; /* should be 2 */
 	battery->cisd.ab_vbat_check_count = 0;
@@ -467,43 +483,14 @@ void count_cisd_pad_data(struct cisd *cisd, unsigned int pad_id)
 	}
 
 	mutex_lock(&cisd->padlock);
-	if ((pad_data = find_pad_data_by_id(cisd, pad_id)) != NULL)
+	pad_data = find_pad_data_by_id(cisd, pad_id);
+	if (pad_data != NULL)
 		pad_data->count++;
 	else
 		add_pad_data(cisd, pad_id, 1);
 	mutex_unlock(&cisd->padlock);
 }
 EXPORT_SYMBOL(count_cisd_pad_data);
-
-static unsigned int convert_wc_index_to_pad_id(unsigned int wc_index)
-{
-	switch (wc_index) {
-	case WC_UNKNOWN:
-		return WC_PAD_ID_UNKNOWN;
-	case WC_SNGL_NOBLE:
-		return WC_PAD_ID_SNGL_NOBLE;
-	case WC_SNGL_VEHICLE:
-		return WC_PAD_ID_SNGL_VEHICLE;
-	case WC_SNGL_MINI:
-		return WC_PAD_ID_SNGL_MINI;
-	case WC_SNGL_ZERO:
-		return WC_PAD_ID_SNGL_ZERO;
-	case WC_SNGL_DREAM:
-		return WC_PAD_ID_SNGL_DREAM;
-	case WC_STAND_HERO:
-		return WC_PAD_ID_STAND_HERO;
-	case WC_STAND_DREAM:
-		return WC_PAD_ID_STAND_DREAM;
-	case WC_EXT_PACK:
-		return WC_PAD_ID_EXT_BATT_PACK;
-	case WC_EXT_PACK_TA:
-		return WC_PAD_ID_EXT_BATT_PACK_TA;
-	default:
-		break;
-	}
-
-	return 0;
-}
 
 void set_cisd_pad_data(struct sec_battery_info *battery, const char *buf)
 {
@@ -526,46 +513,22 @@ void set_cisd_pad_data(struct sec_battery_info *battery, const char *buf)
 		return;
 	}
 	buf += (size_t)x;
-	pr_info("%s: stored pad_total_count(%d)\n", __func__, pad_total_count);
-
-	if (!pad_total_count) {
-		for (i = WC_DATA_INDEX + 1; i < WC_DATA_MAX; i++) {
-			if (sscanf(buf, "%10u %n", &pad_count, &x) <= 0)
-				break;
-			buf += (size_t)x;
-
-			if (pad_count > 0) {
-				pad_id = convert_wc_index_to_pad_id(i);
-
-				mutex_lock(&pcisd->padlock);
-				if ((pad_data = find_pad_data_by_id(pcisd, pad_id)) != NULL)
-					pad_data->count = pad_count;
-				else
-					add_pad_data(pcisd, pad_id, pad_count);
-				mutex_unlock(&pcisd->padlock);
-			}
+	pr_info("%s: add pad data(count: %d)\n", __func__, pad_total_count);
+	for (i = 0; i < pad_total_count; i++) {
+		if (sscanf(buf, "0x%02x:%10u %n", &pad_id, &pad_count, &x) != 2) {
+			pr_info("%s: failed to read pad data(0x%x, %d, %d)!!!re-init pad data\n",
+				__func__, pad_id, pad_count, x);
+			init_cisd_pad_data(pcisd);
+			break;
 		}
-	} else {
-		if (pad_total_count >= MAX_PAD_ID)
-			return;
-
-		pr_info("%s: add pad data(count: %d)\n", __func__, pad_total_count);
-		for (i = 0; i < pad_total_count; i++) {
-			if (sscanf(buf, "0x%02x:%10u %n", &pad_id, &pad_count, &x) != 2) {
-				pr_info("%s: failed to read pad data(0x%x, %d, %d)!!!re-init pad data\n",
-					__func__, pad_id, pad_count, x);
-				init_cisd_pad_data(pcisd);
-				break;
-			}
-			buf += (size_t)x;
-
-			mutex_lock(&pcisd->padlock);
-			if ((pad_data = find_pad_data_by_id(pcisd, pad_id)) != NULL)
-				pad_data->count = pad_count;
-			else
-				add_pad_data(pcisd, pad_id, pad_count);
-			mutex_unlock(&pcisd->padlock);
-		}
+		buf += (size_t)x;
+		mutex_lock(&pcisd->padlock);
+		pad_data = find_pad_data_by_id(pcisd, pad_id);
+		if (pad_data != NULL)
+			pad_data->count = pad_count;
+		else
+			add_pad_data(pcisd, pad_id, pad_count);
+		mutex_unlock(&pcisd->padlock);
 	}
 }
 EXPORT_SYMBOL(set_cisd_pad_data);
@@ -683,7 +646,8 @@ void count_cisd_power_data(struct cisd *cisd, int power)
 	}
 
 	mutex_lock(&cisd->powerlock);
-	if ((power_data = find_data_by_power(cisd, power_index)) != NULL)
+	power_data = find_data_by_power(cisd, power_index);
+	if (power_data != NULL)
 		power_data->count++;
 	else
 		add_power_data(cisd, power_index, 1);
@@ -721,7 +685,8 @@ void set_cisd_power_data(struct sec_battery_info *battery, const char *buf)
 		}
 		buf += (size_t)x;
 		mutex_lock(&pcisd->powerlock);
-		if ((power_data = find_data_by_power(pcisd, power_id)) != NULL)
+		power_data = find_data_by_power(pcisd, power_id);
+		if (power_data != NULL)
 			power_data->count = power_count;
 		else
 			add_power_data(pcisd, power_id, power_count);

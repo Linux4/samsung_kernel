@@ -113,7 +113,8 @@ static struct ieee80211_mgmt *slsi_rx_scan_update_ssid(struct slsi_dev *sdev, st
 	return NULL;
 }
 
-struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev,
+							struct sk_buff *skb, bool release_skb)
 {
 	struct ieee80211_mgmt    *mgmt = fapi_get_mgmt(skb);
 	size_t                   mgmt_len = fapi_get_mgmtlen(skb);
@@ -149,7 +150,8 @@ struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, s
 		SLSI_NET_DBG1(dev, SLSI_MLME, "No Channel info found for freq:%d\n", freq);
 	}
 
-	kfree_skb(skb);
+	if (release_skb)
+		kfree_skb(skb);
 	return channel;
 }
 
@@ -277,6 +279,94 @@ static int slsi_mbssid_to_ssid_list(struct slsi_dev *sdev, struct netdev_vif *nd
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
+				const struct ieee80211_mgmt *mgmt,
+				struct sk_buff *skb, u8 akm_type)
+{
+	u8 *transmitter_bssid;
+	const u8 *probe_beacon;
+	const u8 *ie;
+	int ie_len;
+	int current_rssi;
+	u16 current_freq;
+	size_t mgmt_len;
+	const struct element *elem, *sub_elem;
+
+	mgmt_len = fapi_get_mgmtlen(skb);
+	current_rssi = fapi_get_s16(skb, u.mlme_scan_ind.rssi);
+	current_freq = fapi_get_s16(skb, u.mlme_scan_ind.channel_frequency);
+
+	transmitter_bssid = (u8 *)mgmt->bssid;
+	if (ieee80211_is_beacon(mgmt->frame_control)) {
+		probe_beacon = (u8 *)mgmt->u.beacon.variable;
+		ie_len = mgmt_len - (mgmt->u.beacon.variable - (u8 *)mgmt);
+	} else {
+		probe_beacon = (u8 *)mgmt->u.probe_resp.variable;
+		ie_len = mgmt_len - (mgmt->u.probe_resp.variable - (u8 *)mgmt);
+	}
+	ie = probe_beacon;
+
+	for_each_element_id(elem, WLAN_EID_MULTIPLE_BSSID, ie, ie_len) {
+		if ((elem->data - ie) + elem->datalen > ie_len) {
+			SLSI_WARN(sdev, "Invalid ie length found\n");
+			break;
+		}
+
+		if (elem->datalen < 4)
+			continue;
+
+		SLSI_DBG1_NODEV(SLSI_MLME, "MBSSID IE Found\n");
+		for_each_element(sub_elem, elem->data + 1, elem->datalen - 1) {
+			u8 new_bssid[ETH_ALEN];
+			const u8 *scan_ssid;
+			const u8 *index;
+			const u8 *ssid_ie;
+			int ssid_len = 0;
+
+			if ((sub_elem->data - (u8 *)elem) + sub_elem->datalen > elem->datalen) {
+				SLSI_WARN(sdev, "Invalid mbssid set length found\n");
+				break;
+			}
+
+
+			if (sub_elem->id != 0 || sub_elem->datalen < 4) {
+				/* not a valid BSS profile */
+				continue;
+			}
+
+			if (sub_elem->data[0] != WLAN_EID_NON_TX_BSSID_CAP ||
+				sub_elem->data[1] != 2) {
+				/* The first element of the
+				 * Nontransmitted BSSID Profile is not
+				 * the Nontransmitted BSSID Capability
+				 * element.
+				 */
+				continue;
+			}
+
+			/* found a Nontransmitted BSSID Profile */
+			index = cfg80211_find_ie(WLAN_EID_MULTI_BSSID_IDX,
+						 sub_elem->data, sub_elem->datalen);
+			if (!index || index[1] < 1 || index[2] == 0) {
+				/* Invalid MBSSID Index element */
+				continue;
+			}
+			ssid_ie = cfg80211_find_ie(WLAN_EID_SSID, sub_elem->data, sub_elem->datalen);
+			if (!ssid_ie || ssid_ie[1] >= IEEE80211_MAX_SSID_LEN)
+				continue;
+			ssid_len = ssid_ie[1];
+			scan_ssid = &ssid_ie[2];
+			slsi_gen_new_bssid(transmitter_bssid,
+					   elem->data[0], index[2], new_bssid);
+			slsi_mbssid_to_ssid_list(sdev, ndev_vif, (u8 *)scan_ssid, ssid_len, new_bssid, current_freq,
+						 current_rssi, akm_type);
+		}
+	}
+
+	return 0;
+}
+#else
 static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 				const struct ieee80211_mgmt *mgmt,
 				struct sk_buff *skb, u8 akm_type)
@@ -361,10 +451,11 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 			slsi_mbssid_to_ssid_list(sdev, ndev_vif, (u8 *)scan_ssid, ssid_len, new_bssid, current_freq,
 						 current_rssi, akm_type);
 		}
-		ie = ie + ie[1];
+		ie += ie[1] + 2;
 	}
 	return 0;
 }
+#endif
 
 static void slsi_remove_assoc_disallowed_bssid(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 					       struct slsi_scan_result *scan_result)
@@ -1055,7 +1146,7 @@ void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_
 	while (scan) {
 		scan_results_count++;
 		/* skb freed inside slsi_rx_scan_pass_to_cfg80211 */
-		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan);
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan, true);
 
 		if ((SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) && (*result_count >= max_count)) {
 			more_than_max_count = 1;
@@ -1626,7 +1717,7 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	int width;
 	int primary_chan_pos;
 	u16 temp_chan_info;
-	struct cfg80211_chan_def chandef;
+	struct cfg80211_chan_def chandef = {};
 	u16 cf1 = 0;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 
@@ -1663,6 +1754,11 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 		width =  NL80211_CHAN_WIDTH_160;
 
 	chandef.chan = ieee80211_get_channel(sdev->wiphy, freq);
+	if (!chandef.chan) {
+		SLSI_NET_WARN(dev, "invalid freq received (cf1=%d, temp_chan_info=%d, freq=%d)\n",
+			      (int)cf1, (int)temp_chan_info, (int)freq);
+		goto exit;
+	}
 	chandef.width = width;
 	chandef.center_freq1 = cf1;
 	chandef.center_freq2 = 0;
@@ -1670,7 +1766,11 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	ndev_vif->ap.channel_freq = freq; /* updated for GETSTAINFO */
 	ndev_vif->chan = chandef.chan;
 	ndev_vif->chandef_saved = chandef;
+	SLSI_NET_INFO(dev, "width:%dMHz, center_freq1:%dMHz, primary:%dMHz\n",
+		      (int)chandef.width, (int)chandef.center_freq1, freq);
 	cfg80211_ch_switch_notify(dev, &chandef);
+
+exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	kfree_skb(skb);
 }
@@ -1965,7 +2065,7 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 
 	if (ndev_vif->sta.mlme_scan_ind_skb) {
 		/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 		ndev_vif->sta.mlme_scan_ind_skb = NULL;
 	}
 
@@ -2362,6 +2462,7 @@ void slsi_rx_synchronised_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		return;
 	}
 
+	slsi_rx_scan_pass_to_cfg80211(sdev, dev, skb, false);
 	auth_request.action = NL80211_EXTERNAL_AUTH_START;
 	memcpy(auth_request.bssid, fapi_get_mgmt(skb)->bssid, ETH_ALEN);
 	memcpy(auth_request.ssid.ssid, ndev_vif->sta.ssid, ndev_vif->sta.ssid_len);
@@ -2864,10 +2965,6 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 		if (fw_result_code <= FAPI_RESULTCODE_ASSOC_FAILED_CODE)
 			slsi_connect_result_code(ndev_vif, fw_result_code, &status, &timeout_reason);
 
-#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
-		/* Trigger log collection if fw result code is not success */
-		scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_CONNECT_ERR);
-#endif
 #if (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
 #ifdef CONFIG_SCSC_WLAN_SAE_CONFIG
 		if (ndev_vif->sta.crypto.wpa_versions == 3) {
@@ -2943,7 +3040,7 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 #endif
 			SLSI_NET_DBG1(dev, SLSI_MLME, "Sending scan indication to cfg80211, bssid: %pM\n", fapi_get_mgmt(ndev_vif->sta.mlme_scan_ind_skb)->bssid);
 			/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 			ndev_vif->sta.mlme_scan_ind_skb = NULL;
 		}
 
@@ -3122,12 +3219,8 @@ void slsi_rx_disconnect_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 		      fapi_get_vif(skb),
 		      fapi_get_buff(skb, u.mlme_disconnect_ind.peer_sta_address));
 
-#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
-	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_DISCONNECT_IND);
-#else
 #ifndef SLSI_TEST_DEV
 	mx140_log_dump();
-#endif
 #endif
 
 	SLSI_INFO(sdev, "Received DEAUTH, reason = 0\n");
@@ -3162,13 +3255,10 @@ void slsi_rx_disconnected_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		      fapi_get_u16(skb, u.mlme_disconnected_ind.reason_code),
 		      fapi_get_buff(skb, u.mlme_disconnected_ind.peer_sta_address));
 
-#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
-	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_DISCONNECTED_IND);
-#else
 #ifndef SLSI_TEST_DEV
 	mx140_log_dump();
 #endif
-#endif
+
 	if (reason <= 0xFF) {
 		SLSI_INFO(sdev, "Received DEAUTH, reason = %d\n", reason);
 	} else if (reason >= 0x8100 && reason <= 0x81FF) {
@@ -3670,6 +3760,9 @@ bool slsi_rx_received_frame_logging(struct net_device *dev, struct sk_buff *skb,
 		case SLSI_DHCP_MESSAGE_TYPE_FORCERENEW:
 			snprintf(log_str_buffer, buffer_size, "DHCP [FORCERENEW]");
 			break;
+		case SLSI_DHCP_MESSAGE_TYPE_INVALID:
+			SLSI_DBG1_NODEV(SLSI_RX, "Received IP pkt but not DHCP\n");
+			break;
 		default:
 			snprintf(log_str_buffer, buffer_size, "DHCP [INVALID]");
 			break;
@@ -4103,3 +4196,4 @@ void slsi_rx_send_frame_cfm_async(struct slsi_dev *sdev, struct net_device *dev,
 	kfree(skb);
 }
 #endif
+

@@ -1675,7 +1675,7 @@ static void dsim_reg_set_config(u32 id, struct exynos_panel_info *lcd_info,
 		dsim_reg_set_cmd_ctrl(id, lcd_info, clks);
 	} else if (lcd_info->mode == DECON_VIDEO_MODE) {
 		dsim_reg_set_hperiod(id, lcd_info);
-		dsim_reg_set_vstatus_int(id, DSIM_VSYNC);
+		dsim_reg_set_vstatus_int(id, DSIM_VFP);
 	}
 
 	/* dsim_reg_enable_shadow_read(id, 1); */

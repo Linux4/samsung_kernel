@@ -74,6 +74,11 @@ void tcpci_vbus_level_init(struct tcpc_device *tcpc_dev, uint16_t power_status)
 			power_status & TCPC_REG_POWER_STATUS_VBUS_PRES ?
 			TCPC_VBUS_VALID : TCPC_VBUS_INVALID;
 
+	if (power_status & TCPC_REG_POWER_STATUS_EXT_VBUS_COMP_R) {
+		pr_info("%s: too low vbus, vbus invalid\n", __func__);
+		tcpc_dev->vbus_level = TCPC_VBUS_INVALID;
+	}
+
 #ifdef CONFIG_TCPC_VSAFE0V_DETECT_IC
 	if (power_status & TCPC_REG_POWER_STATUS_EXT_VSAFE0V) {
 		if (tcpc_dev->vbus_level == TCPC_VBUS_INVALID)
@@ -130,6 +135,9 @@ static int tcpci_alert_tx_success(struct tcpc_device *tcpc_dev)
 		.pd_msg = NULL,
 	};
 
+#ifdef CONFIG_USB_PD_SOFT_TRANSMIT_RETRY
+	tcpc_dev->pd_tx_retry = 0;
+#endif
 	mutex_lock(&tcpc_dev->access_lock);
 	tx_state = tcpc_dev->pd_transmit_state;
 	tcpc_dev->pd_transmit_state = PD_TX_STATE_GOOD_CRC;
@@ -147,6 +155,15 @@ static int tcpci_alert_tx_failed(struct tcpc_device *tcpc_dev)
 {
 	uint8_t tx_state;
 
+#ifdef CONFIG_USB_PD_SOFT_TRANSMIT_RETRY
+	tcpc_dev->pd_tx_retry++;
+	if (tcpc_dev->pd_tx_retry < 4) {
+		tcpci_retransmit(tcpc_dev);
+		return 0;
+	}
+
+	tcpc_dev->pd_tx_retry = 0;
+#endif
 	mutex_lock(&tcpc_dev->access_lock);
 	tx_state = tcpc_dev->pd_transmit_state;
 	tcpc_dev->pd_transmit_state = PD_TX_STATE_NO_GOOD_CRC;
@@ -361,7 +378,8 @@ static inline int __tcpci_alert(struct tcpc_device *tcpc_dev)
 	if (tcpc_dev->typec_role == TYPEC_ROLE_UNKNOWN)
 		return 0;
 
-	if (alert_status & TCPC_REG_ALERT_EXT_VBUS_80)
+	if (alert_status & (TCPC_REG_ALERT_EXT_VBUS_80 |
+			    TCPC_REG_ALERT_EXT_VBUS_COMP_R))
 		alert_status |= TCPC_REG_ALERT_POWER_STATUS;
 
 #ifdef CONFIG_USB_POWER_DELIVERY
@@ -496,10 +514,6 @@ static inline int tcpci_report_usb_port_detached(struct tcpc_device *tcpc)
 #ifdef CONFIG_USB_POWER_DELIVERY
 	pd_put_cc_detached_event(tcpc);
 #endif /* CONFIG_USB_POWER_DELIVERY */
-
-#if IS_ENABLED(CONFIG_PDIC_POLICY)
-	pdic_policy_send_msg(tcpc->pp_data, MSG_CCOFF, 0, 0);
-#endif /* CONFIG_PDIC_POLICY */
 
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	sec_dfp_accessory_detach_handler(&tcpc->pd_port);

@@ -39,6 +39,7 @@ check_adc_data_spec check_adc_data_spec_funcs[] = {
 	check_ak09918c_adc_data_spec,
 	check_mmc5633_adc_data_spec,
 	check_yas539_adc_data_spec,
+	check_mxg4300s_adc_data_spec,
 };
 
 void get_magnetometer_sensor_value_s32(struct mag_power_event *event, s32 *sensor_value)
@@ -132,9 +133,14 @@ static ssize_t logging_data_show(struct device *dev, struct device_attribute *at
 
 static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct mag_power_event *sensor_value =
-	    (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
+	struct mag_power_event *sensor_value;
 
+	if (!get_sensor_probe_state(SENSOR_TYPE_GEOMAGNETIC_POWER)) {
+		shub_errf("sensor is not probed!");
+		return 0;
+	}
+
+	sensor_value = (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
 	shub_info("%d,%d,%d\n", sensor_value->x, sensor_value->y, sensor_value->z);
 
 	if (!get_sensor_enabled(SENSOR_TYPE_GEOMAGNETIC_POWER)) {
@@ -182,9 +188,9 @@ static ssize_t raw_data_store(struct device *dev, struct device_attribute *attr,
 		} while (--retries);
 
 		if (retries > 0)
-			shub_infof("success, %d\n", __func__, retries);
+			shub_infof("success, %d\n", retries);
 		else
-			shub_errf("wait timeout, %d\n", __func__, retries);
+			shub_errf("wait timeout, %d\n", retries);
 
 	} else {
 		disable_sensor(SENSOR_TYPE_GEOMAGNETIC_POWER, NULL, 0);
@@ -253,6 +259,7 @@ get_chipset_dev_attrs get_mag_chipset_dev_attrs[] = {
 	get_magnetometer_ak09918c_dev_attrs,
 	get_magnetometer_mmc5633_dev_attrs,
 	get_magnetometer_yas539_dev_attrs,
+	get_magnetometer_mxg4300s_dev_attrs,
 };
 
 void initialize_magnetometer_sysfs(void)
@@ -279,7 +286,7 @@ void initialize_magnetometer_sysfs(void)
 			ret = add_sensor_device_attr(mag_sysfs_device, chipset_attrs);
 			chipset_index = i;
 			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
 				return;
 			}
 			break;

@@ -2239,6 +2239,9 @@ static ssize_t himax_debug_write(struct file *file, const char *buff,
 #endif
 		debug_level_cmd = buf[0];
 		g_core_fp.fp_read_FW_ver();
+#ifdef HX_TOUCH_PROXIMITY
+		g_core_fp._read_proxy_1b();
+#endif
 #ifdef HX_RST_PIN_FUNC
 		g_core_fp.fp_ic_reset(true, false);
 #else
@@ -2467,6 +2470,9 @@ static ssize_t himax_debug_write(struct file *file, const char *buff,
 firmware_upgrade_done:
 	g_core_fp.fp_reload_disable(0);
 	g_core_fp.fp_read_FW_ver();
+#ifdef HX_TOUCH_PROXIMITY
+	g_core_fp._read_proxy_1b();
+#endif
 	g_core_fp.fp_touch_information();
 #ifdef HX_RST_PIN_FUNC
 	g_core_fp.fp_ic_reset(true, false);

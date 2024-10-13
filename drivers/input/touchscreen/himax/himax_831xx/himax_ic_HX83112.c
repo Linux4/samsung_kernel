@@ -464,6 +464,16 @@ static void hx83112f_dd_en_read(int en)
 	}
 }
 
+void hx83112f_read_proxy1b(void)
+{
+	uint8_t tmp_addr[] = {0x18, 0x7F, 0x00, 0x10};
+	uint8_t tmp_data[4] = {0};
+
+	g_core_fp.fp_register_read(tmp_addr, 4, tmp_data, false);
+	(*kp_private_ts)->proxy_1b_en = tmp_data[2] & 0x02;
+	I("%s now proxy_1b_en= %d\n", __func__, (*kp_private_ts)->proxy_1b_en);
+}
+
 static void hx83112f_proximity_display_off(void)
 {
 	uint8_t addr_display_off[] = {0x00, 0x80, 0x02, 0x30};
@@ -520,7 +530,7 @@ static void hx83112f_proximity_sleep_in(void)
 	g_core_fp.fp_register_write(addr_sleep_in, DATA_LEN_4, enter_cmd, false);
 	g_core_fp._dd_en_read(0);
 
-	if ((*kp_private_ts)->SMWP_enable == 1) {
+	if ((*kp_private_ts)->SMWP_enable == 1 && (*kp_private_ts)->proxy_1b_en == 0) {
 		g_core_fp.fp_set_SMWP_enable(0, (*kp_private_ts)->suspended);
 	}
 	I("%s: Delay\n", __func__);
@@ -589,6 +599,7 @@ static void hx83112f_func_re_init(void)
 	g_core_fp.fp_sense_on = himax_hx83112f_sense_on;
 	g_core_fp.fp_0f_reload_to_active = himax_hx83112f_reload_to_active;
 #endif
+	g_core_fp._read_proxy_1b = hx83112f_read_proxy1b;
 }
 
 static void hx83112f_reg_re_init(void)

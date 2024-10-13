@@ -2795,6 +2795,33 @@ p_err:
 	return ret;
 }
 
+int is_sensor_peri_s_group_param_hold(struct is_device_sensor *device, bool hold)
+{
+	int ret = 0;
+	struct v4l2_subdev *subdev_module;
+
+	struct is_module_enum *module;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+
+	BUG_ON(!device);
+	BUG_ON(!device->subdev_module);
+
+	subdev_module = device->subdev_module;
+
+	module = v4l2_get_subdevdata(subdev_module);
+	if (!module) {
+		err("module is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+
+	ret = CALL_CISOPS(&sensor_peri->cis, cis_group_param_hold, sensor_peri->subdev_cis, hold);
+
+p_err:
+	return ret;
+}
+
 int is_sensor_peri_adj_ctrl(struct is_device_sensor *device,
 		u32 input,
 		struct v4l2_control *ctrl)

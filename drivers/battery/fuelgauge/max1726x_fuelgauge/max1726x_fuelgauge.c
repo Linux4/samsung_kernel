@@ -58,11 +58,9 @@
 /* FSTAT register bits */
 #define MAX1726X_FSTAT_DNR              (1)
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 /* FullSOCThr register bits */
 #define MAX1726X_FULLSOC_MASK           (0xFF << 8)
 #define MAX1726X_FULLSOC_SHIFT			8
-#endif
 
 /* STATUS interrupt status bits */
 #define MAX1726X_STATUS_ALRT_CLR_MASK   (0x88BB)
@@ -79,6 +77,8 @@
 
 #define MAX1726X_FACTORY_MODE_SOC	50 /* 0DECIMAL */
 #define MAX1726X_FACTORY_MODE_VOL	4321 /* mV */
+
+#define FG_BATT_DUMP_SIZE 128
 
 enum max1726x_vempty_mode {
 	VEMPTY_MODE_HW = 0,
@@ -125,9 +125,7 @@ struct max1726x_priv {
 	unsigned int vempty_mode;
 	bool vempty_init_flag;
 	unsigned long vempty_time;
-#if defined(CONFIG_BATTERY_CISD)
 	bool valert_count_flag;
-#endif
 
 	struct lost_soc_data lost_soc;
 
@@ -135,6 +133,9 @@ struct max1726x_priv {
 	unsigned int f_mode;
 #endif
 	bool vbat_open;
+	char d_buf[FG_BATT_DUMP_SIZE];
+	int bd_vfocv;
+	int bd_raw_soc;
 };
 
 static unsigned int __read_mostly lpcharge;
@@ -518,13 +519,11 @@ static int max1726x_read_vcell(struct max1726x_priv *priv, int unit)
 			(vcell >= priv->pdata->sw_vempty_recover_vol)) {
 			priv->vempty_mode = VEMPTY_MODE_SW_RECOVERY;
 			pr_info("%s: Recoverd from SW V EMPTY Activation\n", __func__);
-#if defined(CONFIG_BATTERY_CISD)
 			if (priv->valert_count_flag) {
 				pr_info("%s: Vcell(%d) release CISD VALERT COUNT check\n",
 						__func__, vcell);
 				priv->valert_count_flag = false;
 			}
-#endif
 		}
 	}
 
@@ -563,6 +562,7 @@ static int max1726x_read_ocv(struct max1726x_priv *priv, int unit)
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 	if (priv->f_mode == OB_MODE && priv->vbat_open) {
 		pr_debug("%s: %s with vbat_open.\n", __func__, BOOT_MODE_STRING[priv->f_mode]);
+		priv->bd_vfocv = MAX1726X_FACTORY_MODE_VOL;
 		return MAX1726X_FACTORY_MODE_VOL;
 	}
 #endif
@@ -576,6 +576,7 @@ static int max1726x_read_ocv(struct max1726x_priv *priv, int unit)
 	else
 		ocv = max1726x_lsb_to_mvolts(priv, val);
 
+	priv->bd_vfocv = ocv;
 	return ocv;
 }
 
@@ -641,11 +642,14 @@ static int max1726x_read_rawsoc(struct max1726x_priv *priv, int decimal)
 	if (priv->f_mode == OB_MODE && priv->vbat_open) {
 		pr_debug("%s: %s with vbat_open.\n", __func__, BOOT_MODE_STRING[priv->f_mode]);
 		if (decimal == MAX1726X_2DECIMAL)
-			return MAX1726X_FACTORY_MODE_SOC * 100;
+			ret = MAX1726X_FACTORY_MODE_SOC * 100;
 		else if (decimal == MAX1726X_1DECIMAL)
-			return MAX1726X_FACTORY_MODE_SOC * 10;
+			ret = MAX1726X_FACTORY_MODE_SOC * 10;
 		else
-			return MAX1726X_FACTORY_MODE_SOC;
+			ret = MAX1726X_FACTORY_MODE_SOC;
+
+		priv->bd_raw_soc = ret;
+		return ret;
 	}
 #endif
 
@@ -670,6 +674,7 @@ static int max1726x_read_rawsoc(struct max1726x_priv *priv, int decimal)
 	};
 	pr_debug("%s: rawsoc:%d (decimal:%d), val(0x%04x)\n", __func__, soc, decimal, val);
 
+	priv->bd_raw_soc = ret;
 	return ret;
 }
 
@@ -1291,6 +1296,17 @@ static int max1726x_get_asoc(struct max1726x_priv *priv)
 	return asoc;
 }
 
+static void max1726x_fg_bd_log(struct max1726x_priv *priv)
+{
+	memset(priv->d_buf, 0x0, sizeof(priv->d_buf));
+
+	snprintf(priv->d_buf + strlen(priv->d_buf), sizeof(priv->d_buf),
+		"%d,%d,%d",
+		priv->bd_vfocv,
+		priv->bd_raw_soc,
+		priv->capacity_max);
+}
+
 static int max1726x_get_property(struct power_supply *psy,
 			enum power_supply_property psp,
 			union power_supply_propval *val)
@@ -1467,10 +1483,8 @@ static int max1726x_get_property(struct power_supply *psy,
 			return -EINVAL;
 		}
 		break;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		return -ENODATA;
-#endif
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_EXT_PROP_MAX:
 		switch (ext_psp) {
 		case POWER_SUPPLY_EXT_PROP_MONITOR_WORK:
@@ -1482,8 +1496,12 @@ static int max1726x_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED:
 			val->intval = priv->is_charging;
 			break;
+		case POWER_SUPPLY_EXT_PROP_CHECK_INIT:
+			val->intval = priv->vbat_open ? 1 : 0;
+			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_DUMP:
-			val->strval = "FG LOG";
+			max1726x_fg_bd_log(priv);
+			val->strval = priv->d_buf;
 			break;
 		default:
 			return -EINVAL;
@@ -1549,7 +1567,6 @@ static int max1726x_set_property(struct power_supply *psy,
 		}
 		break;
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 	{
 		u32 reg_fullsocthr;
@@ -1573,7 +1590,6 @@ static int max1726x_set_property(struct power_supply *psy,
 		}
 	}
 		break;
-#endif
 
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_EXT_PROP_MAX:
 		switch (ext_psp) {
@@ -1615,18 +1631,14 @@ static void max1726x_volt_min_alrt(struct max1726x_priv *priv)
 
 	if (priv->vempty_mode != VEMPTY_MODE_HW)
 		priv->vempty_mode = VEMPTY_MODE_SW_VALERT;
-#if defined(CONFIG_BATTERY_CISD)
-	else {
-		if (!priv->valert_count_flag) {
-			union power_supply_propval value;
+	else if (!priv->valert_count_flag) {
+		union power_supply_propval value;
 
-			value.intval = priv->vempty_mode;
-			psy_do_property("battery", set,
-					POWER_SUPPLY_PROP_VOLTAGE_MIN, value);
-			priv->valert_count_flag = true;
-		}
+		value.intval = priv->vempty_mode;
+		psy_do_property("battery", set,
+				POWER_SUPPLY_PROP_VOLTAGE_MIN, value);
+		priv->valert_count_flag = true;
 	}
-#endif
 }
 
 static irqreturn_t max1726x_irq_handler(int id, void *dev)
@@ -1732,9 +1744,7 @@ static void max1726x_priv_init(struct max1726x_priv *priv)
 	priv->vempty_init_flag = false;	/* default value */
 	pr_info("%s: SW/HW V empty init\n", __func__);
 	max1726x_set_vempty(priv, VEMPTY_MODE_SW);
-#if defined(CONFIG_BATTERY_CISD)
 	priv->valert_count_flag = false;
-#endif
 	priv->initial_update_of_soc = true;
 }
 
@@ -1906,7 +1916,6 @@ static struct max1726x_platform_data *max1726x_parse_dt(struct device *dev)
 	if (ret)
 		pdata->vbat_open_adc = 0;
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	np = of_find_node_by_name(NULL, "battery");
 		ret = of_property_read_u32(np, "battery,full_condition_soc",
 					   &pdata->full_condition_soc);
@@ -1914,8 +1923,6 @@ static struct max1726x_platform_data *max1726x_parse_dt(struct device *dev)
 			pdata->full_condition_soc = 93;
 			pr_info("%s: Full condition soc is Empty\n", __func__);
 		}
-#endif
-
 	return pdata;
 }
 

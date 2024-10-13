@@ -80,9 +80,15 @@ static u8 m13_brt_table[ILI7807_TOTAL_NR_LUMINANCE][2] = {
 	{0x0D, 0xE0}, {0x0D, 0xF0}, {0x0E, 0x00}, {0x0E, 0x00}, {0x0E, 0x10}, {0x0E, 0x20},
 };
 
+/* S2DPS01 ONLY!!	Brightness Mode:	00: PWMI	01:I2C	*/
+static u8 m13_blic_mode_table[ILI7807_TOTAL_NR_LUMINANCE][1] = {
+	[0] = { 0x01 },
+	[1 ... ILI7807_TOTAL_NR_LUMINANCE - 1] = { 0x00 },
+};
 
 static struct maptbl m13_maptbl[MAX_MAPTBL] = {
 	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(m13_brt_table, init_brightness_table, getidx_brt_table, copy_common_maptbl),
+	[BLIC_MODE_MAPTBL] = DEFINE_2D_MAPTBL(m13_blic_mode_table, init_common_table, getidx_brt_table, copy_common_maptbl),
 };
 
 /* ===================================================================================== */
@@ -2208,6 +2214,11 @@ static DEFINE_PANEL_MDELAY(m13_wait_50msec, 50);
 static DEFINE_PANEL_MDELAY(m13_wait_60msec, 60);
 static DEFINE_PANEL_MDELAY(m13_wait_blic_off, 1);
 
+static u8 M13_I2C_BLIC_MODE[] = {
+	0x24, 0x00,	/* Brightness Mode	00: PWMI	01:I2C	*/
+};
+static DEFINE_PKTUI(m13_i2c_blic_mode, &m13_maptbl[BLIC_MODE_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m13_i2c_blic_mode, I2C_PKT_TYPE_WR, M13_I2C_BLIC_MODE, 0);
 
 static void *m13_init_cmdtbl[] = {
 	&ili7807_boe_restbl[RES_ID],
@@ -2566,7 +2577,8 @@ static void *m13_res_init_cmdtbl[] = {
 };
 
 static void *m13_set_bl_cmdtbl[] = {
-	&PKTINFO(m13_brightness), //51h
+	&PKTINFO(m13_brightness),
+	&PKTINFO(m13_i2c_blic_mode), /* I2C or PWMI */
 };
 
 static void *m13_display_on_cmdtbl[] = {

@@ -51,6 +51,8 @@ struct et7303_chip {
 	int chip_id;
 	u8 rxdzen_store;
 	u8 rxdzsel_store;
+
+	struct notifier_block nb;
 };
 
 #ifdef CONFIG_RT_REGMAP
@@ -367,7 +369,7 @@ static int et7303_regmap_init(struct et7303_chip *chip)
 
 	/* add_sec */
 	strlcpy((char *)props->name, name, len + 1);
-	strlcpy((char *)props->aliases, name, len +1);
+	strlcpy((char *)props->aliases, name, len + 1);
 	props->io_log_en = 0;
 
 	chip->m_dev = rt_regmap_device_register(props,
@@ -1421,6 +1423,53 @@ static inline int et7303_check_revision(struct i2c_client *client)
 	return did;
 }
 
+static int et7303_vbus_info(struct notifier_block *nb,
+			    unsigned long event, void *data)
+{
+	struct tcp_notify *tcp_noti = data;
+	struct et7303_chip *chip =
+		container_of(nb, struct et7303_chip, nb);
+
+	u16 protect;
+	u8 level;
+	int mask, reg = 0;
+
+	if (event == TCP_NOTIFY_SINK_VBUS) {
+		mask = et7303_reg_read(chip->client, ET7303_REG_RT_MASK);
+		if (tcp_noti->vbus_state.mv >= 6250) {
+			reg = ET7303_REG_VBUS_MES_EN;
+			protect = tcp_noti->vbus_state.mv * 4 / 5;
+			if (protect >= 13000) {
+				level = (protect - 13000) / 1000;
+				if (level > 0xf)
+					level = 0xf;
+
+				reg |= ET7303_REG_VBUS_BAND_10_20V | level;
+			} else {
+				level = (protect - 5000) / 500;
+				reg |= level;
+			}
+			et7303_reg_write(chip->client, ET7303_REG_RT_MASK,
+					 mask | ET7303_REG_M_VBUS_COMP_R);
+			/* pr_info("[DEBUG] VBUS_MES -> WRITE 0x%x 0x%x\n",
+					ET7303_REG_RT_MASK,
+					mask | ET7303_REG_M_VBUS_COMP_R); */
+		} else {
+			et7303_reg_write(chip->client, ET7303_REG_RT_MASK,
+					 mask & (~ET7303_REG_M_VBUS_COMP_R));
+			/* pr_info("[DEBUG] VBUS_MES -> WRITE 0x%x 0x%x\n",
+					ET7303_REG_RT_MASK,
+					mask | (~ET7303_REG_M_VBUS_COMP_R)); */
+		}
+		et7303_reg_write(chip->client, ET7303_REG_VBUS_MES, reg);
+		/* pr_info("[DEBUG] VBUS_MES -> WRITE 0x%x 0x%x\n",
+				ET7303_REG_VBUS_MES,
+				reg); */
+	}
+
+	return NOTIFY_OK;
+}
+
 static int et7303_i2c_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
@@ -1482,6 +1531,12 @@ static int et7303_i2c_probe(struct i2c_client *client,
 		pr_err("et7303 init alert fail\n");
 		goto err_irq_init;
 	}
+
+
+	chip->nb.notifier_call = et7303_vbus_info;
+	ret = register_tcp_dev_notifier(chip->tcpc, &chip->nb);
+	if (ret < 0)
+		dev_warn(&client->dev, "et7303 unabled to regster vbus info\n");
 
 	tcpc_schedule_init_work(chip->tcpc);
 	pr_info("%s probe OK!\n", __func__);

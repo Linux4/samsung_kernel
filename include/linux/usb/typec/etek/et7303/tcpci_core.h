@@ -122,10 +122,13 @@ struct tcpc_desc {
 
 /* TCPC Power Register Define */
 #define TCPC_REG_POWER_STATUS_EXT_VSAFE0V	(1<<15)	/* extend */
+#define TCPC_REG_POWER_STATUS_EXT_VBUS_COMP_R	(1<<14)	/* extend */
 #define TCPC_REG_POWER_STATUS_VBUS_PRES		(1<<2)
 
 /* TCPC Alert Register Define */
 #define TCPC_REG_ALERT_EXT_RA_DETACH		(1<<(16+5))
+#define TCPC_REG_ALERT_EXT_VBUS_COMP_R		(1<<(16+4))
+#define TCPC_REG_ALERT_EXT_VBUS_COMP_F		(1<<(16+3))
 #define TCPC_REG_ALERT_EXT_WATCHDOG		(1<<(16+2))
 #define TCPC_REG_ALERT_EXT_VBUS_80		(1<<(16+1))
 #define TCPC_REG_ALERT_EXT_WAKEUP		(1<<(16+0))
@@ -424,7 +427,9 @@ struct tcpc_device {
 	uint8_t pd_bist_mode;
 	uint8_t pd_transmit_state;
 	int pd_wait_vbus_once;
-
+#ifdef CONFIG_USB_PD_SOFT_TRANSMIT_RETRY
+	int pd_tx_retry;
+#endif
 #ifdef CONFIG_USB_PD_DIRECT_CHARGE
 	bool pd_during_direct_charge;
 #endif	/* CONFIG_USB_PD_DIRECT_CHARGE */

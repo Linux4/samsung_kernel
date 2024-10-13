@@ -571,6 +571,7 @@ static void exynos_panel_parse_lcd_info(struct exynos_panel_device *panel,
 	struct exynos_panel_info *lcd_info = &panel->lcd_info;
 	u32 max_br, dft_br, eotp_disabled;
 	u32 underrun_max_num = 0;
+	u32 wait_lp11 = 0;
 
 	of_property_read_u32(np, "mode", &lcd_info->mode);
 	of_property_read_u32_array(np, "resolution", res, 2);
@@ -618,6 +619,13 @@ static void exynos_panel_parse_lcd_info(struct exynos_panel_device *panel,
 		lcd_info->continuous_underrun_max = 0;
 		DPU_INFO_PANEL("underrun_max_num not founded\n");
 	}
+
+	if (!of_property_read_u32(np, "wait_lp11", &wait_lp11))
+		lcd_info->wait_lp11 = wait_lp11;
+	else
+		lcd_info->wait_lp11 = 0;
+	DPU_INFO_PANEL("wait_lp11(%d)\n", lcd_info->wait_lp11);
+
 }
 
 static void exynos_panel_list_up(void)

@@ -18,6 +18,8 @@
 
 #include <linux/device.h>
 
+#define MAG_EVENT_SIZE_4BYTE_VERSION 2
+
 struct mag_event {
 	s32 x;
 	s32 y;
@@ -41,8 +43,6 @@ struct mag_power_event {
 } __attribute__((__packed__));
 
 struct magnetometer_data {
-	struct magnetometer_chipset_funcs *chipset_funcs;
-
 	int position;
 	void *cal_data;
 	int cal_data_len;
@@ -50,18 +50,12 @@ struct magnetometer_data {
 	u8 *cover_matrix;
 	u8 *mag_matrix;
 	int mag_matrix_len;
-
-	int mag_event_size;
 };
 
-struct magnetometer_chipset_funcs {
-	void (*init)(void);
-	void (*parse_dt)(struct device *dev);
-};
-
-struct magnetometer_chipset_funcs *get_magnetic_ak09918c_function_pointer(char *name);
-struct magnetometer_chipset_funcs *get_magnetic_mmc5633_function_pointer(char *name);
-struct magnetometer_chipset_funcs *get_magnetic_yas539_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_magnetic_ak09918c_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_magnetic_mmc5633_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_magnetic_yas539_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_magnetic_mxg4300s_function_pointer(char *name);
 
 int set_mag_matrix(struct magnetometer_data *data);
 int set_mag_cover_matrix(struct magnetometer_data *data);
@@ -88,6 +82,14 @@ struct calibration_data_yas539 {
 	s16 offset_x;
 	s16 offset_y;
 	s16 offset_z;
+	u8 accuracy;
+} __attribute__((__packed__));
+
+struct calibration_data_mxg4300s {
+	s32 offset_x;
+	s32 offset_y;
+	s32 offset_z;
+	s32 radius;
 	u8 accuracy;
 } __attribute__((__packed__));
 

@@ -54,6 +54,7 @@ enum {
 	KQ_NAD_BLOCK_CP,
 	KQ_NAD_BLOCK_FUNC,	
 	KQ_NAD_BLOCK_DRAM,
+	KQ_NAD_BLOCK_BUS,
 
 	KQ_NAD_BLOCK_END,
 };
@@ -73,7 +74,7 @@ enum {
 
 static char kq_nad_block_name[KQ_NAD_BLOCK_END][KQ_NAD_MAX_BLOCK_NAME] = {
 	"BIG",	"MIDD",	"LITT",	"DSU",	"G3D",	"MIF",	"INT",	"INTCAM",	"MFC0",	"MFC1",	"CAM",
-	"ISP",	"CSIS",	"DISP",	"AUD",	"NPU",	"DSP",	"CP_CPU",	"CP",	"FUNC",	"DRAM"
+	"ISP",	"CSIS",	"DISP",	"AUD",	"NPU",	"DSP",	"CP_CPU",	"CP",	"FUNC",	"DRAM", "BUS"
 };
 
 enum {
@@ -122,22 +123,24 @@ static struct kq_nad_block kq_nad_block_data[] = {
 
 
 	/* DSU */
-	{"NONE",	"UNZIP",		"LZMA",			"TBD1",			"C2",
-	"TBD2",		"CACHE",		"TBD3",			"TBD4",			"DIJKSTRA",
-	"CRYPTO",	"TBD5",			"SHA",			"TBD6",			"FFT",
-	"TBD7",		"TBD8",			"AES",			"TBD9",			"MEMBAND",
-	"SGEMM",	"MEMTESTER",	"MEMTESTER_INT",	"MEMTESTER_PAC",	"MEMTESTER_QUAD",
-	"TT_PAC",	"TT_PACMAN",	"UNZIP_PWR",	"BM_TT_PACMAN",	"BM_DIJKSTRA" },
+	{ "NONE",		"UNZIP",	"C2",			"CACHE",		 "DIJKSTRA",
+	"CRYPTO",		"SHA",		"FFT",			"MEMTESTER",	 "MEMTESTER_PAC",
+	"TBD1",			"TBD2",		"TBD3",			"SGEMM_STG",	 "DIJKSTRA_STG",
+	"CRYPTO_STG",	"TBD5",		"TBD6",			"MEMTESTER_STG", "TT_PACMAN",
+	"TBD7",			"TBD8",		"TBD9",			"TBD10",		 "BM_DIJKSTRA",
+	"TBD11",		"TBD12",	"TBD13",		"TBD14",		 "BM_TT_PACMAN" },
 
 
 	/* G3D */
 	{ "NONE",	"MANHATTAN",	"AZTEC_NORMAL",	"3D_MARK",	"VGT_TMZ",
 	"MESH_HIGHOP",	"FLATLAND",	"SUBWAY_SUFFER",	"TEXTRI_HUGE",	"SPI_NGG",
-	"TESSELLATION",	"MHT_IFPO",	"SR_GFX",	"MHN_PWR",	"CP_RING" },
+	"TESSELLATION",	"MHT_IFPO",	"SR_GFX",	"MHN_PWR",	"CP_RING",
+	"GC_WALKING",	"SCN_S2MPU",	"SLOW_CAMERA", "CP_ADDRESS", "BOOT_ANIMATION",
+	"GLX_CUBEMAP",	"3D_MARK_IFPO", "GL2_COMPRESS", "XY_PIPE", "VRS_MSAA"},
 
 	/* MIF */
 	{"NONE",		"MEMTESTER",	"SED",			"VWM",			"RANDOM_DVFS",
-	"PPMPU"},
+	"PPMPU",		"AES"},
 
 	/* INT */
 	{"NONE",		"UFS",			"SSS",			"JPEG",			"SSP",
@@ -147,10 +150,10 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	{"NONE"},
 
 	/* MFC0 */
-	{"NONE",		"MFC0",			"MFC1"},
+	{"NONE",		"MFC0",			"MFC2"},
 
 	/* MFC1 */
-	{"NONE",		"MFC0",			"MFC1"},
+	{"NONE",		"MFC1"},
 
 	/* CAM */
 	{"NONE"},
@@ -162,13 +165,15 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	"NONE", "NONE", "NONE", "NONE", "NONE",
 	"NONE", "NONE", "NONE", "NONE", "NONE",
 	"NONE", "NONE", "NONE", "NONE", "NONE",
-	"NONE", "NONE", "NONE", "NONE", "VECTOR34"},
+	"NONE", "NONE", "NONE", "NONE", "VECTOR34",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"VECTOR40", "NONE", "VECTOR42", "VECTOR43"},
 
 	/* CSIS */
 	{"NONE"},
 
 	/* DISP */
-	{"NONE",		"DISP"},
+	{"NONE",		"DISP16"},
 
 	/* AUD */
 	{"NONE",		"ABOX"},
@@ -186,13 +191,28 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	{"NONE",		"MODEM_IF"},
 
 	/* FUNC */
-	{"NONE",	"OTP",	"PMU",	"GNSSIF",	"APM_SRAM",
-	"LLC_SICD",	"SRAM_ABOX" },
+	{ "NONE", "OTP", "PMU", "GNSSIF", "APM_SRAM", "LLC_SICD",
+	"SRAM_ABOX", "CURRENT", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "DL_UNLOAD"},
 
 	/* DRAM */
 	{"NONE",		"PATTERN",		"NONE",			"NONE",			"NONE",
 	"NONE",			"NONE",			"NONE",			"NONE",			"NONE",
 	"WRITE",		"READ"},
+
+	/* BUS */
+	{"NONE",	"MMS_ID",	"MMS_UDM",	"MMS_IDM",	"MMS_MDM",
+	"MMS_AD",	"MMS_AMM"},
 };
 
 #if IS_ENABLED(CONFIG_SEC_KQ_CORRELATION_RESULT)

@@ -394,12 +394,13 @@ int __set_panel_power(struct panel_device *panel, int power)
 	if (power == PANEL_POWER_ON) {
 		run_list(panel->dev, "panel_power_enable");
 
-		if (get_regulator_use_count(NULL, "lcd_bl_en") >= 2) {
+		if (get_regulator_use_count(NULL, "lcd_bl_en") >= 2)
 			panel_info("%s PANEL_I2C_INIT_SEQ SKIP\n", __func__);
-		} else {
+		else
 			panel_do_seqtbl_by_index_nolock(panel, PANEL_I2C_INIT_SEQ);
-			panel_do_seqtbl_by_index_nolock(panel, PANEL_I2C_DUMP_SEQ);
-		}
+
+		panel_do_seqtbl_by_index_nolock(panel, PANEL_I2C_DUMP_SEQ);
+
 		run_list(panel->dev, "panel_power_enable_2");
 
 	} else {
@@ -409,6 +410,8 @@ int __set_panel_power(struct panel_device *panel, int power)
 			panel_info("%s PANEL_I2C_EXIT_SEQ SKIP\n", __func__);
 		else
 			panel_do_seqtbl_by_index_nolock(panel, PANEL_I2C_EXIT_SEQ);
+
+		panel_do_seqtbl_by_index_nolock(panel, PANEL_I2C_DUMP_SEQ);
 
 		run_list(panel->dev, "panel_power_disable");
 	}
@@ -2785,6 +2788,11 @@ int panel_register_isr(struct panel_device *panel)
 
 		snprintf(name, 64, "panel%d:%s",
 				panel->id, panel_work_names[iw]);
+
+		/* W/A: clear pending irq before request_irq */
+		irq_set_irq_type(gpio[i].irq, gpio[i].irq_type);
+		clear_pending_bit(gpio[i].irq);
+
 		ret = devm_request_irq(panel->dev, gpio[i].irq, panel_work_isr,
 				gpio[i].irq_type, name, &panel->work[iw]);
 		if (ret < 0) {
@@ -3053,12 +3061,20 @@ void panel_send_ubconn_uevent(struct panel_device *panel)
 	panel_info("%s, %s, %s\n", __func__, uevent_conn_str[0], uevent_conn_str[1]);
 }
 
+#ifdef CONFIG_SEC_FACTORY
+#define CONN_DET_CHECK_MAX	(30)
+#define CONN_DET_CHECK_DELAY	(10)
+#endif
+
 void conn_det_handler(struct work_struct *data)
 {
 	struct panel_work *w = container_of(to_delayed_work(data),
 		struct panel_work, dwork);
 	struct panel_device *panel =
 		container_of(w, struct panel_device, work[PANEL_WORK_CONN_DET]);
+#ifdef CONFIG_SEC_FACTORY
+	int check_cnt = 0;
+#endif
 	panel_info("%s state:%d cnt:%d\n",
 		__func__, ub_con_disconnected(panel), panel->panel_data.props.ub_con_cnt);
 
@@ -3067,8 +3083,30 @@ void conn_det_handler(struct work_struct *data)
 		PANEL_EVENT_UB_CON_DISCONNECTED : PANEL_EVENT_UB_CON_CONNECTED));
 #endif
 
-	if (!ub_con_disconnected(panel))
+#ifdef CONFIG_SEC_FACTORY
+	/* TFM : check 30 times * 10ms */
+	while (check_cnt++ < CONN_DET_CHECK_MAX) {
+		mdelay(CONN_DET_CHECK_DELAY);
+
+		panel_info("%s state:%d cnt:%d check_cnt:%d\n",
+			__func__, ub_con_disconnected(panel), panel->panel_data.props.ub_con_cnt, check_cnt);
+
+		if (ub_con_disconnected(panel))
+			break;
+
+		if ( check_cnt == CONN_DET_CHECK_MAX) {
+			panel_info("%s cancel.\n", __func__);
+			return;
+		}
+	}
+#else
+	/* USER : once */
+	if (!ub_con_disconnected(panel)) {
+		panel_info("%s cancel.\n", __func__);
 		return;
+	}
+#endif
+
 	if (panel->panel_data.props.conn_det_enable)
 		panel_send_ubconn_uevent(panel);
 	panel->panel_data.props.ub_con_cnt++;

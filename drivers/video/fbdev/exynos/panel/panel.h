@@ -838,6 +838,7 @@ struct ddi_properties {
 	u32 init_seq_by_lpdt;
 	u8 delay_cmd;
 	u32 delay_duration;
+	bool wait_tx_done;
 };
 
 struct common_panel_info {

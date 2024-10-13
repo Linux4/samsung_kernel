@@ -251,7 +251,7 @@ void mdm_ready_handler(struct mem_link_device *mld, struct iosm_msg *msg)
 	atomic_set(&ld->netif_stopped, 0);
 	atomic_set(&mc->forced_cp_crash, 0);
 
-	mc->iod->modem_state_changed(mc->iod, STATE_ONLINE);
+	change_modem_state(mc, STATE_ONLINE);
 
 	tx_iosm_message(mld, IOSM_A2C_ACK, (u32 *)msg);
 

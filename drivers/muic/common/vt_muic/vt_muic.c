@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  *
- * Copyright (C) 2021 Samsung Electronics
+ * Copyright (C) 2022 Samsung Electronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,8 @@
 #include <linux/delay.h>
 #include <linux/muic/common/muic.h>
 #include <linux/muic/common/muic_notifier.h>
+#include <linux/muic/common/muic_sysfs.h>
+#include <linux/muic/common/vt_muic/vt_muic.h>
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && \
 	IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
@@ -41,9 +43,6 @@
 #include <dt-bindings/battery/sec-battery.h>
 #include <../../drivers/battery/common/sec_charging_common.h>
 #endif /* CONFIG_BATTERY_SAMSUNG */
-#if defined(CONFIG_AFC_CHARGER)
-#include <linux/gpio_afc_charger.h>
-#endif
 
 extern struct muic_platform_data muic_pdata;
 
@@ -66,6 +65,7 @@ struct vt_muic_struct {
 	struct device			*dev;
 	struct vt_muic_pdata		*pdata;
 	struct muic_platform_data	*muic_pdata;
+	struct vt_muic_ic_data		*ic_data;
 	struct power_supply		*ppsy;
 	struct work_struct		vt_muic_work;
 	struct notifier_block		psy_nb;
@@ -100,7 +100,8 @@ static void vt_muic_work_func(struct work_struct *work)
 #if IS_ENABLED(CONFIG_AFC_CHARGER)
 		if (!vt_muic.is_afc_started) {
 #if IS_ENABLED(CONFIG_CHARGER_SYV660)
-			afc_dpdm_ctrl(1);
+			if (vt_muic.ic_data && vt_muic.ic_data->m_ops.afc_dpdm_ctrl)
+				vt_muic.ic_data->m_ops.afc_dpdm_ctrl(1);
 #endif
 			if (vt_muic.id_ta)
 				muic_afc_set_voltage(0x9);
@@ -110,18 +111,20 @@ static void vt_muic_work_func(struct work_struct *work)
 #endif
 		break;
 	case SEC_BATTERY_CABLE_TIMEOUT:
+	case SEC_BATTERY_CABLE_UNKNOWN:
 		new_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
 		break;
-	case SEC_BATTERY_CABLE_UNKNOWN:
 	case SEC_BATTERY_CABLE_NONE:
 #if IS_ENABLED(CONFIG_AFC_CHARGER) && IS_ENABLED(CONFIG_CHARGER_SYV660)
-		afc_dpdm_ctrl(0);
+		if (vt_muic.ic_data && vt_muic.ic_data->m_ops.afc_dpdm_ctrl)
+			vt_muic.ic_data->m_ops.afc_dpdm_ctrl(0);
 		/* fallthrough */
 #endif
 	default:
 		new_dev = ATTACHED_DEV_NONE_MUIC;
 		vt_muic.afc_dev = ATTACHED_DEV_NONE_MUIC;
 		vt_muic.is_afc_started = 0;
+		muic_afc_request_cause_clear();
 		break;
 	}
 #endif
@@ -205,7 +208,8 @@ static int vt_muic_psy_nb_func(struct notifier_block *nb, unsigned long val,
 	if (vt_muic.buck_prev_status == SEC_BAT_CHG_MODE_BUCK_OFF &&
 			(buck_status == SEC_BAT_CHG_MODE_CHARGING ||
 			buck_status == SEC_BAT_CHG_MODE_CHARGING_OFF)) {
-		afc_dpdm_ctrl(0);
+		if (vt_muic.ic_data && vt_muic.ic_data->m_ops.afc_dpdm_ctrl)
+			vt_muic.ic_data->m_ops.afc_dpdm_ctrl(0);
 		vt_muic.is_afc_started = 0;
 		vt_muic.buck_prev_status = buck_status;
 		return NOTIFY_DONE;
@@ -294,6 +298,112 @@ int vt_muic_get_attached_dev(void)
 	return vt_muic.attached_dev;
 }
 EXPORT_SYMBOL(vt_muic_get_attached_dev);
+
+int vt_muic_get_afc_disable(void)
+{
+	int ret = 0;
+
+	if (vt_muic.muic_pdata)
+		ret = vt_muic.muic_pdata->afc_disable;
+	return ret;
+}
+EXPORT_SYMBOL(vt_muic_get_afc_disable);
+
+void vt_muic_register_ic_data(struct vt_muic_ic_data *ic_data)
+{
+	vt_muic.ic_data = ic_data;
+}
+EXPORT_SYMBOL(vt_muic_register_ic_data);
+
+static int vt_muic_afc_set_voltage(int voltage)
+{
+	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
+	int ret = 0;
+
+	if (ic_data && ic_data->m_ops.afc_set_voltage)
+		ret = ic_data->m_ops.afc_set_voltage(voltage);
+
+	return ret;
+}
+
+#ifdef CONFIG_MUIC_COMMON_SYSFS
+static int vt_muic_get_attached_dev_cb(void *data)
+{
+	return vt_muic.attached_dev;
+}
+
+static int vt_muic_get_adc_cb(void *data)
+{
+	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
+	int ret = 0;
+
+	if (ic_data && ic_data->m_ops.get_adc)
+		ret = ic_data->m_ops.get_adc(ic_data->mdata);
+
+	return ret;
+}
+
+static int vt_muic_get_vbus_value_cb(void *data)
+{
+	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
+	int ret = 0;
+
+	if (ic_data && ic_data->m_ops.get_vbus_value)
+		ret = ic_data->m_ops.get_vbus_value(ic_data->mdata);
+
+	return ret;
+}
+
+static void vt_muic_set_afc_disable_cb(void *data)
+{
+	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
+
+	if (ic_data && ic_data->m_ops.set_afc_disable)
+		ic_data->m_ops.set_afc_disable(ic_data->mdata);
+}
+
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+static int vt_muic_set_hiccup_cb(void *data, int en)
+{
+	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
+	int ret = 0;
+
+	if (ic_data && ic_data->m_ops.set_hiccup_mode)
+		ret = ic_data->m_ops.set_hiccup_mode(ic_data->mdata, en);
+
+	return ret;
+}
+
+static int vt_muic_set_hiccup_mode_cb(int en)
+{
+	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
+	int ret = 0;
+
+	if (ic_data && ic_data->m_ops.set_hiccup_mode)
+		ret = ic_data->m_ops.set_hiccup_mode(ic_data->mdata, en);
+
+	return ret;
+}
+#endif
+
+static void vt_muic_fill_muic_sysfs_cb(struct muic_platform_data *pdata)
+{
+	pdata->sysfs_cb.get_attached_dev = vt_muic_get_attached_dev_cb;
+	pdata->sysfs_cb.get_adc = vt_muic_get_adc_cb;
+	pdata->sysfs_cb.get_vbus_value = vt_muic_get_vbus_value_cb;
+	pdata->sysfs_cb.set_afc_disable = vt_muic_set_afc_disable_cb;
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+	pdata->sysfs_cb.set_hiccup = vt_muic_set_hiccup_cb;
+#endif
+}
+
+static void vt_muic_fill_muic_cb(struct muic_platform_data *pdata)
+{
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+	pdata->muic_set_hiccup_mode_cb = vt_muic_set_hiccup_mode_cb;
+#endif
+}
+#endif
 
 #if IS_ENABLED(CONFIG_OF)
 static struct vt_muic_pdata *vt_muic_get_dt(struct device *dev)
@@ -393,6 +503,17 @@ out:
 	return ret;
 }
 
+static void vt_muic_data_init(void)
+{
+	vt_muic.attached_dev = ATTACHED_DEV_NONE_MUIC;
+	vt_muic.batt_cable = -1;
+	vt_muic.rprd = 0;
+	vt_muic.afc_dev = ATTACHED_DEV_NONE_MUIC;
+	vt_muic.id_ta = 0;
+	vt_muic.buck_prev_status = -1;
+	vt_muic.is_afc_started = 0;
+}
+
 static int vt_muic_probe(struct platform_device *pdev)
 {
 	struct vt_muic_pdata *pdata = pdev->dev.platform_data;
@@ -415,26 +536,43 @@ static int vt_muic_probe(struct platform_device *pdev)
 	}
 	vt_muic.dev = &pdev->dev;
 	vt_muic.pdata = pdata;
+	vt_muic_data_init();
 	ret = vt_muic_irq_init();
 	if (ret)
 		goto out;
 
 	vt_muic.muic_pdata = &muic_pdata;
+	muic_pdata.drv_data = &vt_muic;
+
+	vt_muic.muic_pdata->muic_afc_set_voltage_cb
+			= vt_muic_afc_set_voltage;
+
+#ifdef CONFIG_MUIC_COMMON_SYSFS
+	vt_muic_fill_muic_sysfs_cb(vt_muic.muic_pdata);
+	vt_muic_fill_muic_cb(vt_muic.muic_pdata);
+	ret = muic_sysfs_init(vt_muic.muic_pdata);
+	if (ret) {
+		pr_err("%s: failed to create sysfs\n", __func__);
+		goto err_free_irq;
+	}
+#endif
+
+#if IS_MODULE(CONFIG_MUIC_NOTIFIER)
+	if (vt_muic.muic_pdata->init_gpio_cb)
+		ret = vt_muic.muic_pdata->init_gpio_cb(get_switch_sel());
+#else
+	if (vt_muic.muic_pdata->init_gpio_cb)
+		ret = vt_muic.muic_pdata->init_gpio_cb();
+#endif
 	if (vt_muic.muic_pdata && vt_muic.muic_pdata->init_switch_dev_cb)
 		vt_muic.muic_pdata->init_switch_dev_cb();
 
 	if (pdata->use_psy_nb || pdata->use_manager_nb) {
 		muic_notifier_detach_attached_dev(ATTACHED_DEV_UNKNOWN_MUIC);
-		vt_muic.attached_dev = ATTACHED_DEV_NONE_MUIC;
-		vt_muic.batt_cable = 0;
-		vt_muic.rprd = 0;
-		vt_muic.afc_dev = ATTACHED_DEV_NONE_MUIC;
-		vt_muic.id_ta = 0;
-		vt_muic.buck_prev_status = -1;
-		vt_muic.is_afc_started = 0;
 		INIT_WORK(&vt_muic.vt_muic_work, vt_muic_work_func);
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 		if (pdata->use_psy_nb) {
+			vt_muic.batt_cable = SEC_BATTERY_CABLE_NONE;
 			vt_muic.psy_nb.notifier_call = vt_muic_psy_nb_func;
 			vt_muic.psy_nb.priority = 0;
 			ret = power_supply_reg_notifier(&vt_muic.psy_nb);
@@ -458,25 +596,26 @@ static int vt_muic_probe(struct platform_device *pdev)
 
 	pr_info("%s: done\n", __func__);
 
+	return ret;
+#ifdef CONFIG_MUIC_COMMON_SYSFS
+err_free_irq:
+	if (vt_muic.irq) {
+		disable_irq_wake(vt_muic.irq);
+		free_irq(vt_muic.irq, &vt_muic);
+	}
+#endif
 out:
+	if (gpio_is_valid(pdata->usb_id_gpio))
+		gpio_free(pdata->usb_id_gpio);
+
 	return ret;
 }
 
 static int vt_muic_remove(struct platform_device *pdev)
 {
-	struct vt_muic_pdata *pdata = vt_muic.pdata;
-
-	if (vt_muic.muic_pdata && vt_muic.muic_pdata->cleanup_switch_dev_cb)
-		vt_muic.muic_pdata->cleanup_switch_dev_cb();
-
-	if (vt_muic.irq) {
-		disable_irq_wake(vt_muic.irq);
-		free_irq(vt_muic.irq, &vt_muic);
-	}
+	struct vt_muic_pdata *pdata = pdev->dev.platform_data;
 
 	if (pdata) {
-		if (gpio_is_valid(pdata->usb_id_gpio))
-			gpio_free(pdata->usb_id_gpio);
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && \
 		IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 		if (pdata->use_manager_nb)
@@ -486,7 +625,17 @@ static int vt_muic_remove(struct platform_device *pdev)
 		if (pdata->use_psy_nb)
 			power_supply_unreg_notifier(&vt_muic.psy_nb);
 #endif /* CONFIG_BATTERY_SAMSUNG */
-		devm_kfree(vt_muic.dev, pdata);
+
+		if (vt_muic.muic_pdata && vt_muic.muic_pdata->cleanup_switch_dev_cb)
+			vt_muic.muic_pdata->cleanup_switch_dev_cb();
+
+		if (vt_muic.irq) {
+			disable_irq_wake(vt_muic.irq);
+			free_irq(vt_muic.irq, &vt_muic);
+		}
+
+		if (gpio_is_valid(pdata->usb_id_gpio))
+			gpio_free(pdata->usb_id_gpio);
 	}
 
 	return 0;

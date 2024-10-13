@@ -154,3 +154,18 @@ static void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
 	print_data(dst, tbl->sz_copy);
 #endif
 }
+
+static int init_common_table(struct maptbl *tbl)
+{
+	if (tbl == NULL) {
+		panel_err("maptbl is null\n");
+		return -EINVAL;
+	}
+
+	if (tbl->pdata == NULL) {
+		panel_err("pdata is null\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}

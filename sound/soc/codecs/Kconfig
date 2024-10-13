@@ -1434,6 +1434,12 @@ config SND_SMARTPA_AW882XX
 	help
 	  This option enables support for aw882xx series Smart PA.
 
+config SND_SOC_FS18XX
+	tristate "FourSemi fs18xx Codec Driver"
+	depends on I2C
+	help
+	  for FourSemi True Smart Amplifier
+
 # DBMDx
 source "sound/soc/codecs/dbmdx/Kconfig"
 

@@ -568,6 +568,11 @@ READ_FAIL:
 	return false;
 }
 
+static void himax_mcu_read_proxy_1b(void)
+{
+	/*empty for non-support cases*/
+}
+
 static bool himax_mcu_ic_id_read(void)
 {
 	int i = 0;
@@ -3448,6 +3453,9 @@ void himax_mcu_0f_operation(struct work_struct *work)
 
 	g_core_fp.fp_reload_disable(0);
 	g_core_fp.fp_read_FW_ver();
+#ifdef HX_TOUCH_PROXIMITY
+	g_core_fp._read_proxy_1b();
+#endif
 	/*msleep (10);*/
 	g_core_fp.fp_touch_information();
 	/*msleep (10);*/
@@ -3754,6 +3762,7 @@ static void himax_mcu_fp_init(void)
 	g_core_fp.fp_ic_id_read = himax_mcu_ic_id_read;
 	g_core_fp.fp_dd_reg_write = himax_mcu_dd_reg_write;
 	g_core_fp.fp_dd_reg_read = himax_mcu_dd_reg_read;
+	g_core_fp._read_proxy_1b = himax_mcu_read_proxy_1b;
 #endif
 #ifdef CORE_FW
 	g_core_fp.fp_system_reset = himax_mcu_system_reset;

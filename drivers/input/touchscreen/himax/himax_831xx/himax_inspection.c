@@ -2784,6 +2784,9 @@ static int himax_fw_update_kernel(struct himax_ts_data *ts)
 
 	g_core_fp.fp_reload_disable(0);
 	g_core_fp.fp_read_FW_ver();
+#ifdef HX_TOUCH_PROXIMITY
+	g_core_fp._read_proxy_1b();
+#endif
 	g_core_fp.fp_touch_information();
 #ifdef HX_RST_PIN_FUNC
 	g_core_fp.fp_ic_reset(true, false);
@@ -2914,6 +2917,9 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 
 	g_core_fp.fp_reload_disable(0);
 	g_core_fp.fp_read_FW_ver();
+#ifdef HX_TOUCH_PROXIMITY
+	g_core_fp._read_proxy_1b();
+#endif
 	g_core_fp.fp_touch_information();
 	g_core_fp.fp_sense_on(0x00);
 
@@ -3137,6 +3143,9 @@ static void get_fw_ver_ic(void *dev_data)
 
 	g_core_fp.fp_sense_off(true);
 	g_core_fp.fp_read_FW_ver();
+#ifdef HX_TOUCH_PROXIMITY
+	g_core_fp._read_proxy_1b();
+#endif
 	g_core_fp.fp_sense_on(0);
 
 	I("Now project name = %s\n", private_ts->pdata->proj_name);
@@ -5062,7 +5071,6 @@ void psensor_enable(struct himax_ts_data *data, unsigned int mode)
 	switch (mode) {
 	case 0:
 		data->ear_detect_mode = 0;
-		data->ear_detect_val = -1;
 		tmp_addr[3] = 0x10;
 		tmp_addr[2] = 0x00;
 		tmp_addr[1] = 0x7f;
@@ -5072,6 +5080,7 @@ void psensor_enable(struct himax_ts_data *data, unsigned int mode)
 		tmp_data[1] = 0x00;
 		tmp_data[0] = 0x00;
 		g_core_fp.fp_register_write(tmp_addr, 4, tmp_data, 0);
+		data->ear_detect_val = -1;
 		break;
 	case 1:
 		input_info(true, data->dev, "%s,call mode %d\n", __func__, mode);
@@ -5245,6 +5254,11 @@ static void prox_lp_scan_mode(void *device_data)
 	if (atomic_read(&data->suspend_mode) != HIMAX_STATE_PROX_LPM) {
 		input_err(true, data->dev, "%s failed(not HIMAX_STATE_PROX_LPM mode):%d.\n", __func__, atomic_read(&data->suspend_mode));
 		ret = -1;
+		goto out;
+	}
+
+	if (data->ear_detect_mode == 1 && data->SMWP_enable && data->proxy_1b_en) {
+		I("%s: Call mode 1 + EN AOT! SKip it!\n", __func__);
 		goto out;
 	}
 

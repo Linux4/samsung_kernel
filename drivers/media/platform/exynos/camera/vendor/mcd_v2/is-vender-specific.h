@@ -13,6 +13,9 @@
 #ifndef IS_VENDER_SPECIFIC_H
 #define IS_VENDER_SPECIFIC_H
 
+#define JDM_MAX_GROUP		3
+#define JDM_MAX_SEG		10
+
 #include <linux/types.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>
@@ -44,9 +47,10 @@ struct rom_extend_cal_addr {
 };
 
 /***** Extend data define of Calibration map(ROM address)  *****/
-#define EXTEND_OEM_CHECKSUM      "oem_checksum_base_addr"
-#define EXTEND_AE_CAL            "ae_cal_data"
-#define EXTEND_STANDARD_CAL      "standard_cal_data"
+#define EXTEND_OEM_CHECKSUM       "oem_checksum_base_addr"
+#define EXTEND_AE_CAL             "ae_cal_data"
+#define EXTEND_STANDARD_CAL       "standard_cal_data"
+#define EXTEND_AP2AP_STANDARD_CAL "ap2ap_standard_cal_data"
 
 struct rom_ae_cal_data {
 	int32_t		rom_header_main_ae_start_addr;
@@ -78,6 +82,22 @@ struct rom_standard_cal_data{
 	int32_t		rom_shading_sec2lsi_end_addr;
 	int32_t		rom_shading_sec2lsi_checksum_addr;
 	int32_t		rom_shading_sec2lsi_checksum_len;
+};
+
+struct rom_ap2ap_standard_cal_data{
+	int32_t		rom_orig_start_addr;
+	int32_t		rom_orig_end_addr;
+	int32_t		rom_lsi_start_addr;
+	int32_t		rom_lsi_end_addr;
+
+	int32_t		rom_num_of_banks;
+	int32_t		rom_num_of_segments;
+
+	int32_t		rom_bank_start_addr[JDM_MAX_SEG][JDM_MAX_GROUP];
+	int32_t		rom_seg_checksum_addr[JDM_MAX_SEG];
+	int32_t		rom_seg_checksum_len[JDM_MAX_SEG];
+	int32_t		rom_total_checksum_addr[JDM_MAX_GROUP];
+	int32_t		rom_seg_size[JDM_MAX_SEG];
 };
 
 struct is_vender_rom_addr {
@@ -203,7 +223,7 @@ struct is_vender_specific {
 	struct is_rom_data				rom_data[SENSOR_POSITION_MAX];
 	struct is_rom_share				rom_share[SENSOR_POSITION_MAX];
 	const struct is_vender_rom_addr		*rom_cal_map_addr[SENSOR_POSITION_MAX];
-#ifdef USE_DUALIZED_OTPROM_SENSOR
+#if defined(USE_DUALIZED_OTPROM_SENSOR) || defined(SUPPORT_SENSOR_DUALIZATION)
 	struct i2c_client					*dualized_rom_client[SENSOR_POSITION_MAX];
 	const struct is_vender_rom_addr		*dualized_rom_cal_map_addr[SENSOR_POSITION_MAX];
 #endif
@@ -214,7 +234,7 @@ struct is_vender_specific {
 
 	/* dt */
 	u32			sensor_id[SENSOR_POSITION_MAX];
-#ifdef USE_DUALIZED_OTPROM_SENSOR
+#if defined(USE_DUALIZED_OTPROM_SENSOR) || defined(SUPPORT_SENSOR_DUALIZATION)
 	u32			dualized_sensor_id[SENSOR_POSITION_MAX];
 #endif
 #ifdef CONFIG_SECURE_CAMERA_USE
@@ -245,7 +265,7 @@ struct is_vender_specific {
 #ifdef CONFIG_SENSOR_RETENTION_USE
 	bool			need_retention_init;
 #endif
-
+	u32			rom_bank[SENSOR_POSITION_MAX];
 };
 
 #endif

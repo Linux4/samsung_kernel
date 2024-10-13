@@ -47,7 +47,7 @@
 				gc02m1_iovdd-supply = GC02M1_IOVDD;
 				gc02m1_avdd-supply = GC02M1_AVDD;
 				gc02m1_dvdd-supply = GC02M1_DVDD;
-				
+
 				status = "okay";
 
 				/* sensor modes */
@@ -127,6 +127,7 @@
 				};
 			};
 
+#ifndef GC02M1_MACRO_NOT_USED
 			is_sensor_gc02m1_macro: is_sensor_gc02m1_macro@A4 {
 				compatible = "samsung,sensor-module";
 
@@ -227,7 +228,7 @@
 					};
 				};
 			};
-
+#endif
 		}; /* end of __overlay__ */
 	}; /* end of fragment */
 }; /* end of root */

@@ -440,6 +440,24 @@ err_exit:
 
 }
 
+static bool __wait_send_cmds(struct dsim_device *dsim)
+{
+	bool empty;
+
+	empty = dsim_is_fifo_empty_status(dsim);
+
+	if (!empty)
+		return false;
+
+	if (dsim->wait_lp11) {
+		if (dsim_reg_get_datalane_status(dsim->id) !=
+				DSIM_DATALANE_STATUS_STOPDATA)
+			return true;
+	}
+
+	return false;
+}
+
 int dsim_write_data(struct dsim_device *dsim, u32 id, unsigned long d0, u32 d1, bool wait_empty)
 {
 	int ret = 0;
@@ -536,7 +554,7 @@ int dsim_write_data(struct dsim_device *dsim, u32 id, unsigned long d0, u32 d1, 
 
 	if (wait_empty) {
 		do {
-			if (dsim_is_fifo_empty_status(dsim))
+			if (!__wait_send_cmds(dsim))
 				break;
 			udelay(10);
 		} while (cnt--);
@@ -603,8 +621,12 @@ int dsim_read_data(struct dsim_device *dsim, u32 id, u32 addr, u32 cnt, u8 *buf)
 		if (ret == DSIM_DATALANE_STATUS_BTA) {
 			if (decon && decon_reg_get_run_status(decon->id))
 				dpu_hw_recovery_process(decon);
-			else
-				dsim_reg_recovery_process(dsim);
+			else {
+				if (decon && ktime_to_ms(decon->vsync.timestamp) != 0)
+					dsim_reg_recovery_process(dsim);
+				else
+					pr_warn("skip recovery, timestamp is 0\n");
+			}
 		} else {
 			dsim_err("datalane status is %d\n", ret);
 		}
@@ -810,6 +832,16 @@ exit:
 #endif
 #endif
 
+int dsim_set_wait_lp11_after_cmds(struct dsim_device *dsim, bool en)
+{
+	if (!dsim)
+		return -EINVAL;
+
+	dsim_info("DSIM wait LP11 after sending cmds(%d)\n", en);
+	dsim->wait_lp11 = en;
+	return 0;
+}
+
 #if defined(CONFIG_EXYNOS_BTS)
 static void dsim_bts_print_info(struct bts_decon_info *info)
 {
@@ -855,13 +887,14 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 		decon = get_decon_drvdata(i);
 
 		if (decon) {
-			dsim_info("\tDECON%d: bw(%u %u), disp(%u %u), p(%u)\n",
+			dsim_info("\tDECON%d: bw(%u %u), disp(%u %u), p(%u), L(%u)\n",
 					decon->id,
 					decon->bts.prev_total_bw,
 					decon->bts.total_bw,
 					decon->bts.prev_max_disp_freq,
 					decon->bts.max_disp_freq,
-					decon->bts.peak);
+					decon->bts.peak,
+					decon->bts.prev_minlock_stage);
 			dsim_bts_print_info(&decon->bts.bts_info);
 		}
 	}
@@ -2080,6 +2113,7 @@ static int dsim_register_panel(struct dsim_device *dsim)
 		dsim->clks.esc_clk = dsim->panel->lcd_info.esc_clk;
 		dsim->data_lane_cnt = dsim->panel->lcd_info.data_lane;
 		dsim->continuous_underrun_max = dsim->panel->lcd_info.continuous_underrun_max;
+		dsim->wait_lp11 = dsim->panel->lcd_info.wait_lp11;
 		dsim_info("panel is already found in panel driver\n");
 		return 0;
 	}

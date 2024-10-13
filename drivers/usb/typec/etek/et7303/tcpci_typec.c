@@ -609,6 +609,9 @@ static inline void typec_unattached_cc_entry(struct tcpc_device *tcpc_dev)
 		}
 		break;
 	}
+#if IS_ENABLED(CONFIG_PDIC_POLICY)
+	pdic_policy_send_msg(tcpc_dev->pp_data, MSG_CCOFF, 0, 0);
+#endif /* CONFIG_PDIC_POLICY */
 }
 
 static void typec_unattached_entry(struct tcpc_device *tcpc_dev)
@@ -2419,8 +2422,9 @@ static inline int typec_handle_vbus_absent(struct tcpc_device *tcpc_dev)
 	}
 #endif	/* CONFIG_USB_POWER_DELIVERY */
 
-	if (tcpc_dev->typec_state == typec_attached_snk)
+	if (tcpc_dev->typec_state == typec_attached_snk) {
 		typec_attached_snk_vbus_absent(tcpc_dev);
+	}
 
 #ifndef CONFIG_TCPC_VSAFE0V_DETECT
 	tcpc_typec_handle_vsafe0v(tcpc_dev);

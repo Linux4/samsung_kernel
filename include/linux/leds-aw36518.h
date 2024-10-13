@@ -17,7 +17,7 @@
 #endif
 #define AW36518_NAME "aw36518"
 
-#define AW36518_DRIVER_VERSION "v0.0.3"
+#define AW36518_DRIVER_VERSION "v0.0.6"
 
 #define AW36518_REG_BOOST_CONFIG	(0x07)
 #define AW36518_BIT_SOFT_RST_MASK	(~(1<<7))
@@ -59,7 +59,11 @@
 #define AW36518_BIT_IVFM_TRIP_FLAG        (1<<2)
 #define AW36518_BIT_OVP_FAULT             (1<<1)
 
+#define AW36518_REG_CHIP_VENDOR_ID        (0x25)
+#define AW36518_CHIP_VENDOR_ID            (0x04)
 
+#define AW36518_REG_CTRL1                 (0x31)
+#define AW36518_REG_CTRL2                 (0x69)
 #define AW36518_LED_STANDBY_MODE_MASK		(~(0X03<<2))
 #define AW36518_TORCH_LOWEST_CUR_REG_VAL	(0x00)
 #define AW36518_TORCH_HIGTEST_CUR_REG_VAL	(0xff)
@@ -71,7 +75,8 @@
 #define AW36518_MIN_FLASH_CUR	(0) //mA
 #define AW36518_MAX_FLASH_CUR	(1500) //mA
 #define AW36518_MIN_TORCH_CUR	(0) //mA
-#define AW36518_MAX_TORCH_CUR	(386) //mA
+#define AW36518_VENDOR_A_MAX_TORCH_CUR						(386) //mA
+#define AW36518_VENDOR_B_MAX_TORCH_CUR						(345) //mA
 
 /* define channel, level */
 #define AW36518_CHANNEL_NUM	1
@@ -83,6 +88,13 @@
 #define AW_I2C_RETRIES		5
 #define AW_I2C_RETRY_DELAY	2
 
+/* Product Version Information */
+enum aw36518_chip_version {
+	AW36518_CHIP_A = 1,  /* TSMC	*/
+	AW36518_CHIP_B,      /* HHGRACE */
+	AW36518_CHIP_ID_MAX,
+};
+
 /* aw36518 chip data */
 struct aw36518_chip_data {
 	struct i2c_client *client;
@@ -93,11 +105,13 @@ struct aw36518_chip_data {
 	uint32_t torch_level[5];
 	int fen_pin;
 	bool used_gpio_ctrl;
+	enum aw36518_chip_version chip_version;
 	int gpio_request;
 	uint32_t pre_flash_cur;
 	uint32_t main_flash_cur;
 	uint32_t video_torch_cur;
 	int flash_time_out_ms;
+	int max_torch_cur;  /* torch mode max current. unit: mA */
 	struct delayed_work delay_work;
 };
 

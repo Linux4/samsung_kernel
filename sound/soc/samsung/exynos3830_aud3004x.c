@@ -433,14 +433,15 @@ static const struct snd_soc_ops cs35l41_ops = {
 static const struct snd_soc_ops uaif_ops = {
 };
 
-static int nacho_dai_ops_prepare(struct snd_pcm_substream *substream)
+static int nacho_dai_ops_hw_params(struct snd_pcm_substream *substream,
+					struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_dai_link *dai_link = rtd->dai_link;
 	int ret = 0;
 
-	dev_info(card->dev, "%s-%d: 0x%x: prepare\n",
+	dev_info(card->dev, "%s-%d: 0x%x: hw_param\n",
 			rtd->dai_link->name, substream->stream, dai_link->id);
 
 	switch (dai_link->id) {
@@ -450,6 +451,19 @@ static int nacho_dai_ops_prepare(struct snd_pcm_substream *substream)
 	default:
 		break;
 	}
+
+	return ret;
+}
+
+static int nacho_dai_ops_prepare(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai_link *dai_link = rtd->dai_link;
+	int ret = 0;
+
+	dev_info(card->dev, "%s-%d: 0x%x: prepare\n",
+			rtd->dai_link->name, substream->stream, dai_link->id);
 
 	return ret;
 }
@@ -466,6 +480,18 @@ static void nacho_dai_ops_shutdown(struct snd_pcm_substream *substream)
 		rtd->dai_link->name, substream->stream, dai_link->id,
 		codec_dai->playback_active, codec_dai->capture_active);
 
+}
+
+static int nacho_dai_ops_free(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai_link *dai_link = rtd->dai_link;
+	int ret = 0;
+
+	dev_info(card->dev, "%s-%d: 0x%x: free\n",
+			rtd->dai_link->name, substream->stream, dai_link->id);
+
 	switch (dai_link->id) {
 	case AW88230_DAI_ID:
 		snd_soc_dai_set_tristate(rtd->cpu_dai, 1); /* disable bclk */
@@ -473,11 +499,15 @@ static void nacho_dai_ops_shutdown(struct snd_pcm_substream *substream)
 	default:
 		break;
 	}
+
+	return ret;
 }
 
 static const struct snd_soc_ops uaif1_ops = {
+	.hw_params = nacho_dai_ops_hw_params,
 	.prepare = nacho_dai_ops_prepare,
 	.shutdown = nacho_dai_ops_shutdown,
+	.hw_free = nacho_dai_ops_free,
 };
 
 static int exynos3830_uaif0_init(struct snd_soc_pcm_runtime *rtd)
@@ -2202,3 +2232,4 @@ MODULE_AUTHOR("Charles Keepax <ckeepax@opensource.wolfsonmicro.com>");
 MODULE_AUTHOR("Gyeongtaek Lee <gt82.lee@samsung.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:exynos3830-aud3004x");
+

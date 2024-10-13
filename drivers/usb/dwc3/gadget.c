@@ -1630,8 +1630,8 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 			 * Remove any started request if the transfer is
 			 * cancelled.
 			 */
-			 list_for_each_entry_safe(r, t, &dep->started_list, list)
-			 	dwc3_gadget_move_cancelled_request(r);
+			list_for_each_entry_safe(r, t, &dep->started_list, list)
+				dwc3_gadget_move_cancelled_request(r);
 
 			/* If ep cmd fails, then force to giveback cancelled requests here */
 			if (!(dep->flags & DWC3_EP_END_TRANSFER_PENDING)) {
@@ -2225,16 +2225,9 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *g, int is_active)
 	 */
 	if (dwc->gadget_driver) {
 		if (dwc->vbus_session) {
-			/*
-			 * Both vbus was activated by otg and pullup was
-			 * signaled by the gadget driver.
-			 * In this point, dwc->softconnect should be one
-			 * thus set dwc->softconnect even if setting it here
-			 * is conceptually wrong.
-			 */
-			dwc->softconnect = dwc->vbus_session;
 			dwc->max_cnt_link_info = DWC3_LINK_STATE_INFO_LIMIT;
-			ret = dwc3_gadget_run_stop_vbus(dwc, 1, false);
+			if (dwc->softconnect)
+				ret = dwc3_gadget_run_stop_vbus(dwc, 1, false);
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 			if (ret == 0)
 				store_usblog_notify(NOTIFY_USBSTATE,
@@ -2248,8 +2241,10 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *g, int is_active)
 			dwc->start_config_issued = false;
 			dwc->gadget.speed = USB_SPEED_UNKNOWN;
 			dwc->gadget.state = USB_STATE_NOTATTACHED;
-			dwc->vbus_current = 0;
 			dwc->setup_packet_pending = false;
+#endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+			dwc->vbus_current = 0;
 #endif
 			ret = dwc3_gadget_run_stop_vbus(dwc, 0, false);
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
@@ -3063,8 +3058,9 @@ static void dwc3_gadget_endpoint_transfer_not_ready(struct dwc3_ep *dep,
 	dwc3_gadget_endpoint_frame_from_event(dep, event);
 	__dwc3_gadget_start_isoc(dep);
 }
+
 static void dwc3_gadget_endpoint_command_complete(struct dwc3_ep *dep,
-	const struct dwc3_event_depevt *event)
+		const struct dwc3_event_depevt *event)
 {
 	u8 cmd = DEPEVT_PARAMETER_CMD(event->parameters);
 	struct dwc3 *dwc = dep->dwc;
@@ -3100,7 +3096,7 @@ static void dwc3_gadget_endpoint_command_complete(struct dwc3_ep *dep,
 		dep->flags &= ~DWC3_EP_PENDING_CLEAR_STALL;
 		if (dwc3_send_clear_stall_ep_cmd(dep)) {
 			struct usb_ep *ep0 = &dwc->eps[0]->endpoint;
-			
+
 			dev_err(dwc->dev, "failed to clear STALL on %s\n", dep->name);
 			if (dwc->delayed_status)
 				__dwc3_gadget_ep0_set_halt(ep0, 1);
@@ -3113,7 +3109,7 @@ static void dwc3_gadget_endpoint_command_complete(struct dwc3_ep *dep,
 	}
 
 	if ((dep->flags & DWC3_EP_DELAY_START) &&
-		!usb_endpoint_xfer_isoc(dep->endpoint.desc))
+			!usb_endpoint_xfer_isoc(dep->endpoint.desc))
 		__dwc3_gadget_kick_transfer(dep);
 
 	dep->flags &= ~DWC3_EP_DELAY_START;

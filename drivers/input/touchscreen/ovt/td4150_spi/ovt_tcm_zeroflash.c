@@ -1386,12 +1386,13 @@ static struct ovt_tcm_module_cb zeroflash_module = {
 	.early_suspend = NULL,
 };
 
-static int __init zeroflash_module_init(void)
+int zeroflash_module_init(void)
 {
 	return ovt_tcm_add_module(&zeroflash_module, true);
 }
+EXPORT_SYMBOL(zeroflash_module_init);
 
-static void __exit zeroflash_module_exit(void)
+void zeroflash_module_exit(void)
 {
 	ovt_tcm_add_module(&zeroflash_module, false);
 
@@ -1399,9 +1400,7 @@ static void __exit zeroflash_module_exit(void)
 
 	return;
 }
-
-module_init(zeroflash_module_init);
-module_exit(zeroflash_module_exit);
+EXPORT_SYMBOL(zeroflash_module_exit);
 
 MODULE_AUTHOR("Synaptics, Inc.");
 MODULE_DESCRIPTION("Synaptics TCM Zeroflash Module");

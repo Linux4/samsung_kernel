@@ -1000,6 +1000,9 @@ update_retry:
 
 	} else {
 		g_core_fp.fp_read_FW_ver();
+#ifdef HX_TOUCH_PROXIMITY
+		g_core_fp._read_proxy_1b();
+#endif
 		g_core_fp.fp_touch_information();
 		calculate_point_number();
 		calcDataSize();
@@ -3144,6 +3147,9 @@ int himax_chip_common_init(void)
 #endif
 	} else {
 		g_core_fp.fp_read_FW_ver();
+#ifdef HX_TOUCH_PROXIMITY
+		g_core_fp._read_proxy_1b();
+#endif
 	}
 #endif
 
@@ -3241,7 +3247,8 @@ int himax_chip_common_init(void)
 
 #if defined(HX_TOUCH_PROXIMITY)
 	ts->prox_power_off = 0;
-	ts->ear_detect_mode = -1;
+	ts->proxy_1b_en = 0;
+	ts->ear_detect_mode = 0;
 	ts->ear_detect_val = -1;
 	ts->prox_lp_scan_mode_enabled = false;
 #endif
@@ -3779,8 +3786,9 @@ int himax_chip_common_early_suspend(struct himax_ts_data *ts)
 	}
 	hx_ap_nodify_suspend(1);
 
-	if (ts->ear_detect_mode && ts->aot_enabled) {
-		ts->SMWP_enable = 0;
+	if (ts->proxy_1b_en == 0) {
+		if (ts->ear_detect_mode && ts->aot_enabled)
+			ts->SMWP_enable = 0;
 	}
 
 #if defined(HX_SMART_WAKEUP) || defined(HX_HIGH_SENSE) || defined(HX_USB_DETECT_GLOBAL)
@@ -4129,8 +4137,7 @@ int himax_chip_common_late_resume(struct himax_ts_data *ts)
 	ts->prox_power_off = 0;
 	ts->prox_lp_scan_mode_enabled = false;
 #ifdef HX_TOUCH_PROXIMITY
-	if (ts->ear_detect_mode)
-		psensor_enable(ts, ts->ear_detect_mode);
+	psensor_enable(ts, ts->ear_detect_mode);
 #endif
 
 #if defined(HX_SMART_WAKEUP) || defined(HX_HIGH_SENSE) || defined(HX_USB_DETECT_GLOBAL)

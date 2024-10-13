@@ -238,6 +238,8 @@ static int device_capture_touch_report_config(unsigned int count)
 	return 0;
 }
 
+
+#if !(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 #if IS_ENABLED(HAVE_UNLOCKED_IOCTL)
 static long device_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #else
@@ -290,6 +292,7 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 
 	return retval;
 }
+#endif
 
 static loff_t device_llseek(struct file *filp, loff_t off, int whence)
 {
@@ -522,6 +525,17 @@ static int device_create_class(void)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+static const struct file_operations device_fops = {
+	.owner = THIS_MODULE,
+	.llseek = device_llseek,
+	.read = device_read,
+	.write = device_write,
+	.open = device_open,
+	.release = device_release,
+};
+
+#else
 static const struct file_operations device_fops = {
 	.owner = THIS_MODULE,
 #if IS_ENABLED(HAVE_UNLOCKED_IOCTL)
@@ -538,6 +552,7 @@ static const struct file_operations device_fops = {
 	.open = device_open,
 	.release = device_release,
 };
+#endif
 
 static int device_init(struct ovt_tcm_hcd *tcm_hcd)
 {
@@ -699,12 +714,13 @@ static struct ovt_tcm_module_cb device_module = {
 	.early_suspend = NULL,
 };
 
-static int __init device_module_init(void)
+int device_module_init(void)
 {
 	return ovt_tcm_add_module(&device_module, true);
 }
+EXPORT_SYMBOL(device_module_init);
 
-static void __exit device_module_exit(void)
+void device_module_exit(void)
 {
 	ovt_tcm_add_module(&device_module, false);
 
@@ -712,9 +728,7 @@ static void __exit device_module_exit(void)
 
 	return;
 }
-
-module_init(device_module_init);
-module_exit(device_module_exit);
+EXPORT_SYMBOL(device_module_exit);
 
 MODULE_AUTHOR("Synaptics, Inc.");
 MODULE_DESCRIPTION("Synaptics TCM Device Module");

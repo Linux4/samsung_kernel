@@ -581,6 +581,8 @@ int is_sensor_peri_s_sensor_stats(struct is_device_sensor *device,
 				bool streaming,
 				struct is_sensor_ctl *module_ctl,
 				void *data);
+int is_sensor_peri_s_group_param_hold(struct is_device_sensor *device,
+				bool hold);
 int is_sensor_peri_adj_ctrl(struct is_device_sensor *device,
 				u32 input, struct v4l2_control *ctrl);
 

@@ -110,6 +110,15 @@ static void sy6970_test_read(struct sy6970_device *bq)
 #endif
 }
 
+static void sy6970_set_en_aicl(struct sy6970_device *bq, int enable)
+{
+	int ret;
+
+	ret = sy6970_field_write(bq, F_ICO_EN, enable);
+	if (ret < 0)
+		dev_err(bq->dev, "F_ICO_EN set fail! i2c fail!\n");
+}
+
 static void sy6970_charger_set_icl(struct sy6970_device *bq, unsigned int icl)
 {
 	u8 reg_data;
@@ -133,6 +142,13 @@ static void sy6970_charger_set_icl(struct sy6970_device *bq, unsigned int icl)
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 skip_set_icl:
 #endif
+
+	/* SW W/A for vdpm_ilim underflow issue */
+	if (icl == 100) /* minimum icl = 100mA */
+		sy6970_set_en_aicl(bq, 0);
+	else
+		sy6970_set_en_aicl(bq, 1);
+
 	reg_data = (icl - 100) / 50;
 
 	bq->icl = sy6970_find_val(reg_data, TBL_IILIM) / 1000;
@@ -195,6 +211,7 @@ static void sy6970_charger_set_fv(struct sy6970_device *bq, unsigned int fv)
 		pr_err("%s: F_VREG write fail\n", __func__);
 }
 
+/*
 static void sy6970_charger_set_eoc(struct sy6970_device *bq, unsigned int eoc)
 {
 	u8 reg_data;
@@ -208,6 +225,7 @@ static void sy6970_charger_set_eoc(struct sy6970_device *bq, unsigned int eoc)
 	if (ret < 0)
 		pr_err("%s: F_ITERM write fail\n", __func__);
 }
+*/
 
 #define SLOW_CHARGING_THRESHOLD	400
 static void sy6970_check_health(struct sy6970_device *bq)
@@ -269,7 +287,7 @@ static void sy6970_check_health(struct sy6970_device *bq)
 	}
 }
 
-#define SY6970_AICL_WORK_DELAY 2000
+#define SY6970_AICL_WORK_DELAY 3000
 static void sy6970_aicl_check_work(struct work_struct *work)
 {
 	struct sy6970_device *bq =
@@ -279,6 +297,25 @@ static void sy6970_aicl_check_work(struct work_struct *work)
 		return;
 
 	sy6970_check_health(bq);
+}
+
+static void sy6970_set_auto_dpdm(struct sy6970_device *bq, int enable)
+{
+	int ret;
+
+	ret = sy6970_field_write(bq, F_AUTO_DPDM_EN, enable);
+	if (ret < 0)
+		dev_err(bq->dev, "F_AUTO_DPDM_EN set fail! i2c fail!\n");
+}
+
+/* chg_enable == chg_en gpio set to CHG ON, !chg_enable == chg_en gpio set to CHG OFF */
+static void sy6970_chg_en_gpio_chg_on(struct sy6970_device *bq, bool chg_enable)
+{
+	pr_info("%s : flip chg_en %d\n", __func__, bq->flip_chg_en_gpio);
+	if (bq->flip_chg_en_gpio)
+		gpio_direction_output(bq->chg_en, chg_enable ? 0 : 1);
+	else
+		gpio_direction_output(bq->chg_en, chg_enable ? 1 : 0);
 }
 
 static void sy6970_charger_set_chg_mode(struct sy6970_device *bq, unsigned int chg_mode)
@@ -294,8 +331,7 @@ static void sy6970_charger_set_chg_mode(struct sy6970_device *bq, unsigned int c
 
 	switch (chg_mode) {
 	case SEC_BAT_CHG_MODE_CHARGING:
-		gpio_direction_output(bq->chg_en, 1);
-
+		sy6970_chg_en_gpio_chg_on(bq, true);
 		pr_info("%s: buck on, chg on\n", __func__);
 		ret = sy6970_field_write(bq, F_EN_HIZ, 0);
 		if (ret < 0)
@@ -305,7 +341,7 @@ static void sy6970_charger_set_chg_mode(struct sy6970_device *bq, unsigned int c
 			pr_err("%s: F_CHG_CFG write fail\n", __func__);
 		break;
 	case SEC_BAT_CHG_MODE_BUCK_OFF:
-		gpio_direction_output(bq->chg_en, 0);
+		sy6970_chg_en_gpio_chg_on(bq, false);
 		pr_info("%s: buck off, chg off\n", __func__);
 		ret = sy6970_field_write(bq, F_EN_HIZ, 1);
 		if (ret < 0)
@@ -315,7 +351,7 @@ static void sy6970_charger_set_chg_mode(struct sy6970_device *bq, unsigned int c
 			pr_err("%s: F_CHG_CFG write fail\n", __func__);
 		break;
 	case SEC_BAT_CHG_MODE_CHARGING_OFF:
-		gpio_direction_output(bq->chg_en, 0);
+		sy6970_chg_en_gpio_chg_on(bq, false);
 
 		pr_info("%s: buck on, chg off\n", __func__);
 		ret = sy6970_field_write(bq, F_EN_HIZ, 0);
@@ -417,7 +453,7 @@ static void sy6970_charger_ob_mode(struct sy6970_device *bq, bool enable)
 		pr_info("%s: Set OB Mode settings\n", __func__);
 		sy6970_set_en_term(bq, 1);
 		sy6970_charger_set_icl(bq, 3250);
-		gpio_direction_output(bq->chg_en, 0);
+		sy6970_chg_en_gpio_chg_on(bq, false);
 		pr_info("%s: buck on, chg off\n", __func__);
 		ret = sy6970_field_write(bq, F_EN_HIZ, 0);
 		if (ret < 0)
@@ -817,7 +853,9 @@ static int sy6970_power_supply_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
+		/* charger topoff is for prevent overcharging, use FG topoff
 		sy6970_charger_set_eoc(bq, val->intval);
+		*/
 		break;
 
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_EXT_PROP_MAX:
@@ -849,15 +887,6 @@ static int sy6970_power_supply_set_property(struct power_supply *psy,
 			pr_info("%s: ship mode(%d) is not supported\n", __func__, val->intval);
 			pr_info("%s: need to implement\n", __func__);
 #endif
-			break;
-		case POWER_SUPPLY_EXT_PROP_AUTO_SHIPMODE_CONTROL:
-			if (val->intval) {
-				pr_info("%s: auto ship mode is enabled\n", __func__);
-				pr_info("%s: need to implement\n", __func__);
-			} else {
-				pr_info("%s: auto ship mode is disabled\n", __func__);
-				pr_info("%s: need to implement\n", __func__);
-			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_FGSRC_SWITCHING:
 			break;
@@ -981,16 +1010,29 @@ static void sy6970_check_init(struct sy6970_device *bq)
 		return;
 	}
 
+	/* check FORCE DPDM was done */
+	ret = sy6970_field_read(bq, F_FORCE_DPM);
+	if (ret < 0) {
+		pr_err("%s: i2c fail (F_FORCE_DPM)\n", __func__);
+		return;
+	} else if (ret > 0) {
+		/* ignore cable type update */
+		pr_info("%s: FORCE DPDM is not finished yet(%d)\n", __func__, ret);
+		return;
+	}
+
 	switch (new_state.cable_type) {
 	case CABLE_TYPE_USB_SDP:
 		value.intval = SEC_BATTERY_CABLE_USB;
 		bq->cable_type = SEC_BATTERY_CABLE_USB;
 		sy6970_set_fcc_timer(bq, FCC_TIMER_ENABLE, FCC_TIMER_12H);
+		sy6970_set_auto_dpdm(bq, 0);
 		break;
 	case CABLE_TYPE_USB_CDP:
 		value.intval = SEC_BATTERY_CABLE_USB_CDP;
 		bq->cable_type = SEC_BATTERY_CABLE_USB_CDP;
 		sy6970_set_fcc_timer(bq, FCC_TIMER_ENABLE, FCC_TIMER_8H);
+		sy6970_set_auto_dpdm(bq, 0);
 		break;
 	case CABLE_TYPE_USB_DCP:
 		value.intval = SEC_BATTERY_CABLE_TA;
@@ -1076,23 +1118,24 @@ static irqreturn_t __sy6970_handle_irq(struct sy6970_device *bq)
 		sy6970_set_fcc_timer(bq, FCC_TIMER_ENABLE, FCC_TIMER_12H);
 		pr_info("%s: ct(%d) ICL overwrite: %dmA\n", __func__, value.intval, bq->icl);
 		sy6970_charger_set_icl(bq, bq->icl);
+		sy6970_set_auto_dpdm(bq, 0);
 		break;
 	case CABLE_TYPE_USB_CDP:
 		value.intval = SEC_BATTERY_CABLE_USB_CDP;
 		bq->cable_type = SEC_BATTERY_CABLE_USB_CDP;
 		sy6970_set_fcc_timer(bq, FCC_TIMER_ENABLE, FCC_TIMER_8H);
+		sy6970_set_auto_dpdm(bq, 0);
 		break;
 	case CABLE_TYPE_USB_DCP:
-		psy_do_property("battery", get, POWER_SUPPLY_PROP_ONLINE, value);
-		if (is_pd_wire_type(value.intval)) {
-			pr_info("%s: ct(%d) ICL overwrite: %dmA\n", __func__, value.intval, bq->icl);
-			sy6970_charger_set_icl(bq, bq->icl);
-		}
+		pr_info("%s: ct(%d) ICL overwrite: %dmA\n", __func__, value.intval, bq->icl);
+		sy6970_charger_set_icl(bq, bq->icl);
 		value.intval = SEC_BATTERY_CABLE_TA;
 		bq->cable_type = SEC_BATTERY_CABLE_TA;
 		sy6970_set_fcc_timer(bq, FCC_TIMER_ENABLE, FCC_TIMER_8H);
 		break;
 	case CABLE_TYPE_HVDCP:
+		pr_info("%s: ct(%d) ICL overwrite: %dmA\n", __func__, value.intval, bq->icl);
+		sy6970_charger_set_icl(bq, bq->icl);
 		value.intval = SEC_BATTERY_CABLE_PREPARE_TA;
 		bq->cable_type = SEC_BATTERY_CABLE_PREPARE_TA;
 		sy6970_set_fcc_timer(bq, FCC_TIMER_ENABLE, FCC_TIMER_8H);
@@ -1273,11 +1316,14 @@ static int sy6970_hw_init(struct sy6970_device *bq)
 		return ret;
 	}
 
-	/* FORCE DPDM */
-	ret = sy6970_field_write(bq, F_FORCE_DPM, 1);
-	if (ret < 0) {
-		dev_err(bq->dev, "Enable F_FORCE_DPM failed %d\n", ret);
-		return ret;
+	if (bq->f_mode != OB_MODE) {
+		pr_info("%s: FORCE DPDM! for AFC charger\n", __func__);
+		/* FORCE DPDM */
+		ret = sy6970_field_write(bq, F_FORCE_DPM, 1);
+		if (ret < 0) {
+			dev_err(bq->dev, "Enable F_FORCE_DPM failed %d\n", ret);
+			return ret;
+		}
 	}
 
 	/* initialize currents/voltages and other parameters */
@@ -1291,12 +1337,7 @@ static int sy6970_hw_init(struct sy6970_device *bq)
 	}
 
 	/* Configure ADC for continuous conversions when charging */
-	ret = sy6970_field_write(bq, F_CONV_RATE, 1);	/* always */
-	if (ret < 0) {
-		dev_err(bq->dev, "Config ADC failed %d\n", ret);
-		return ret;
-	}
-	ret = sy6970_field_write(bq, F_CONV_START, 1);	/* always */
+	ret = sy6970_field_write(bq, F_CONV_RATE, 1);
 	if (ret < 0) {
 		dev_err(bq->dev, "Config ADC failed %d\n", ret);
 		return ret;
@@ -1465,6 +1506,7 @@ static int vbus_handle_notification(struct notifier_block *nb,
 
 	if ((int)action == VBUS_OFF) {
 		pr_info("%s: vbus disappear\n", __func__);
+		sy6970_set_auto_dpdm(bq, 1);
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 		if (bq->f_mode == OB_MODE) {
 			pr_info("%s: Enable shipping mode\n", __func__);
@@ -1613,6 +1655,7 @@ static int sy6970_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
+	sy6970_parse_param_value(bq);
 	ret = sy6970_hw_init(bq);
 	if (ret < 0) {
 		dev_err(dev, "%s: Cannot initialize the chip.\n", __func__);
@@ -1659,10 +1702,14 @@ static int sy6970_probe(struct i2c_client *client,
 		bq->chg_en = 0;
 	}
 
+	bq->flip_chg_en_gpio = of_property_read_bool(np, "silergy,flip_chg_en");
+	pr_info("%s : flip chg_en %d\n", __func__, bq->flip_chg_en_gpio);
+	/* default CHG OFF, HW request for reduce leakage current */
+	sy6970_charger_set_chg_mode(bq, SEC_BAT_CHG_MODE_CHARGING_OFF);
+
 #if IS_MODULE(CONFIG_BATTERY_SAMSUNG)
 	sec_chg_set_dev_init(SC_DEV_MAIN_CHG);
 #endif
-	sy6970_parse_param_value(bq);
 
 #if defined(CONFIG_VBUS_NOTIFIER)
 	vbus_notifier_register(&bq->vbus_nb,
@@ -1709,6 +1756,9 @@ static void sy6970_shutdown(struct i2c_client *client)
 	if (client->irq)
 		free_irq(client->irq, bq);
 
+	/* enable auto dpdm */
+	sy6970_set_auto_dpdm(bq, 1);
+
 	/* disable fcc timer */
 	sy6970_set_fcc_timer(bq, FCC_TIMER_DISABLE, FCC_TIMER_20H);
 
@@ -1742,13 +1792,18 @@ static void sy6970_shutdown(struct i2c_client *client)
 #ifdef CONFIG_PM_SLEEP
 static int sy6970_suspend(struct device *dev)
 {
+	int ret;
 	struct sy6970_device *bq = dev_get_drvdata(dev);
 
+	ret = sy6970_field_write(bq, F_CONV_RATE, 0);
+	if (ret < 0)
+		dev_err(bq->dev, "F_CONV_RATE set fail! i2c fail!\n");
 	/*
 	 * If charger is removed, while in suspend, make sure ADC is diabled
 	 * since it consumes slightly more power.
 	 */
-	return sy6970_field_write(bq, F_CONV_RATE, 0);
+
+	return 0;
 }
 
 static int sy6970_resume(struct device *dev)
@@ -1759,16 +1814,14 @@ static int sy6970_resume(struct device *dev)
 	mutex_lock(&bq->lock);
 
 	ret = sy6970_get_chip_state(bq, &bq->state);
-	if (ret < 0)
+	if (ret < 0) {
+		pr_err("%s: chip_state read fail\n", __func__);
 		goto unlock;
+	}
 
-	/* Re-enable ADC */
 	ret = sy6970_field_write(bq, F_CONV_RATE, 1);
 	if (ret < 0)
-		goto unlock;
-
-	/* signal userspace, maybe state changed while suspended */
-	power_supply_changed(bq->charger);
+		pr_err("%s: F_CONV_RATE write fail\n", __func__);
 
 unlock:
 	mutex_unlock(&bq->lock);

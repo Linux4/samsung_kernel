@@ -126,6 +126,16 @@ static void aw36518_soft_reset(void)
 	msleep(5);
 }
 
+static void aw36518_pre_enable_cfg_by_vendor(void)
+{
+	struct aw36518_chip_data *pdata = aw36518_i2c_client->dev.driver_data;
+
+	if (pdata->chip_version == AW36518_CHIP_B) {
+		aw36518_i2c_write(aw36518_i2c_client, AW36518_REG_CTRL2, 0x02);
+		aw36518_i2c_write(aw36518_i2c_client, AW36518_REG_CTRL1, 0x0C);
+	}
+}
+
 /* set flash duration , unit  ms */
 static void aw36518_set_flash_time_out_duration(int duration)
 {
@@ -163,6 +173,7 @@ static void aw36518_enable_flash(bool is_enable, int duration)
 	struct aw36518_chip_data *pdata = aw36518_i2c_client->dev.driver_data;
 
 	reg = AW36518_REG_ENABLE;
+	aw36518_pre_enable_cfg_by_vendor();
 	if (is_enable) {
 		/* flash mode */
 		aw36518_set_flash_time_out_duration(duration);
@@ -197,7 +208,7 @@ static void aw36518_enable_torch(bool is_enable)
 	struct aw36518_chip_data *pdata = aw36518_i2c_client->dev.driver_data;
 
 	reg = AW36518_REG_ENABLE;
-
+	aw36518_pre_enable_cfg_by_vendor();
 	if (is_enable) {
 		/* torch mode */
 		if (pdata->gpio_request < 0) {
@@ -229,6 +240,7 @@ static void aw36518_disable_led(void)
 	struct aw36518_chip_data *pdata = aw36518_i2c_client->dev.driver_data;
 
 	pr_info("%s  start.\n", __func__);
+	aw36518_pre_enable_cfg_by_vendor();
 	if (pdata->used_gpio_ctrl == true) {
 		gpio_direction_output(pdata->fen_pin, 0);
 		gpio_set_value(pdata->fen_pin, 0);
@@ -240,13 +252,14 @@ static void aw36518_disable_led(void)
 	}
 }
 
-/* set torch bright cur , unit mA range 0 - 386*/
+/* set torch bright cur , unit mA range 0 - 386 */
 static void aw36518_set_torch_cur(int cur)
 {
 	unsigned char val;
+	struct aw36518_chip_data *pdata = aw36518_i2c_client->dev.driver_data;
 
 	pr_info("%s, set cur %d\n", __func__, cur);
-	if (cur < AW36518_MIN_TORCH_CUR || cur > AW36518_MAX_TORCH_CUR) {
+	if (cur < AW36518_MIN_TORCH_CUR || cur > pdata->max_torch_cur) {
 		pr_err("%s Parameter not available, cur = %d\n", __func__, cur);
 		cur = 0;
 	}
@@ -255,7 +268,12 @@ static void aw36518_set_torch_cur(int cur)
 	if (cur < 1 ) {
 		val = 0;
 	} else {
-		val =  ((cur * 100) - 75) / 151;
+		if (pdata->chip_version == AW36518_CHIP_B) {
+			pr_info("aw36518 chip vendor is B\n");
+			val =  ((cur * 200) - 135) / 270;
+		} else {
+			val =  ((cur * 100) - 75) / 151;
+		}
 	}
 	
 	pr_info("%s: cur = %dmA, reg_val = 0x%x\n", __func__, cur, val);
@@ -415,13 +433,26 @@ int aw36518_init(void)
 {
 	int ret;
 	unsigned char reg, val;
+	struct aw36518_chip_data *pdata = aw36518_i2c_client->dev.driver_data;
 
 	aw36518_soft_reset();
 	usleep_range(2000, 2500);
 
+	aw36518_i2c_read(aw36518_i2c_client, AW36518_REG_CHIP_VENDOR_ID, &val);
+	pr_info("aw36518 reg[0x25] = 0x%2x\n", val);
+	if ((val & 0x04) == AW36518_CHIP_VENDOR_ID) {
+		pr_info("aw36518 chip vendor is B\n");
+		pdata->chip_version = AW36518_CHIP_B;
+		pdata->max_torch_cur = AW36518_VENDOR_B_MAX_TORCH_CUR;
+	} else {
+		pdata->chip_version = AW36518_CHIP_A;
+		pdata->max_torch_cur = AW36518_VENDOR_A_MAX_TORCH_CUR;
+		pr_info("aw36518 chip vendor is A\n");
+	}
 	/* clear enable register */
 	reg = AW36518_REG_ENABLE;
 	val = AW36518_DISABLE;
+	aw36518_pre_enable_cfg_by_vendor();
 	ret = aw36518_i2c_write(aw36518_i2c_client, reg, val);
 
 	aw36518_reg_enable = val;
@@ -776,6 +807,7 @@ static void aw36518_i2c_shutdown(struct i2c_client *client)
 {
 	pr_info("aw36518 shutdown start.\n");
 
+	aw36518_pre_enable_cfg_by_vendor();
 	aw36518_i2c_write(aw36518_i2c_client, AW36518_REG_ENABLE,
 						AW36518_CHIP_STANDBY);
 

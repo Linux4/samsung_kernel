@@ -366,76 +366,6 @@ p_err:
 	return ret;
 }
 
-#if USE_GROUP_PARAM_HOLD
-static int sensor_gc08a3_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
-{
-	int ret = 0;
-	struct is_cis *cis = NULL;
-	struct i2c_client *client = NULL;
-
-	BUG_ON(!subdev);
-
-	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
-
-	BUG_ON(!cis);
-	BUG_ON(!cis->cis_data);
-
-	client = cis->client;
-	if (unlikely(!client)) {
-		err("client is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	if (hold == cis->cis_data->group_param_hold) {
-		pr_debug("already group_param_hold (%d)\n", cis->cis_data->group_param_hold);
-		goto p_err;
-	}
-
-	ret = is_sensor_write8(client, 0x0104, hold);
-	if (ret < 0)
-		goto p_err;
-
-	cis->cis_data->group_param_hold = hold;
-	ret = 1;
-p_err:
-	return ret;
-}
-#else
-static inline int sensor_gc08a3_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
-{ return 0; }
-#endif
-
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
-int sensor_gc08a3_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
-{
-	int ret = 0;
-	struct is_cis *cis = NULL;
-
-	BUG_ON(!subdev);
-
-	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
-
-	BUG_ON(!cis);
-	BUG_ON(!cis->cis_data);
-
-	I2C_MUTEX_LOCK(cis->i2c_lock);
-	ret = sensor_gc08a3_cis_group_param_hold_func(subdev, hold);
-	if (ret < 0)
-		goto p_err;
-
-p_err:
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
-	return ret;
-}
-
 int sensor_gc08a3_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -726,7 +656,6 @@ int sensor_gc08a3_cis_stream_on(struct v4l2_subdev *subdev)
 #ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
 	sensor_gc08a3_cis_set_mipi_clock(subdev);
 #endif
-	sensor_gc08a3_cis_group_param_hold_func(subdev, 0x00);
 
 #ifdef DEBUG_GC08A3_PLL
 	{
@@ -754,6 +683,8 @@ int sensor_gc08a3_cis_stream_on(struct v4l2_subdev *subdev)
 	dbg_sensor(1, "______ line_length_pck(%x)\n", pll);
 	}
 #endif
+
+	msleep(50); /* first frame should be delayed */
 
 	/* Sensor stream on */
 	I2C_MUTEX_LOCK(cis->i2c_lock);
@@ -805,7 +736,6 @@ int sensor_gc08a3_cis_stream_off(struct v4l2_subdev *subdev)
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	sensor_gc08a3_cis_group_param_hold_func(subdev, 0x00);
 
 	/* Sensor stream off */
 	is_sensor_write8(client, 0x0100, 0x00);
@@ -889,7 +819,6 @@ p_err:
 int sensor_gc08a3_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *target_exposure)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -964,20 +893,15 @@ int sensor_gc08a3_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	short_coarse_int = (short_coarse_int / 2)*2;
 	/* Short exposure */
 	ret = is_sensor_write8(client, 0x202, (short_coarse_int >> 8) & 0xff);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 	ret = is_sensor_write8(client, 0x203, (short_coarse_int & 0xff));
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), vt_pic_clk_freq_mhz (%d),"
 		KERN_CONT "line_length_pck(%d), fine_int (%d)\n", cis->id, __func__,
@@ -991,14 +915,10 @@ int sensor_gc08a3_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
@@ -1174,7 +1094,6 @@ int sensor_gc08a3_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_gc08a3_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1221,19 +1140,14 @@ int sensor_gc08a3_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 		cis->id, __func__, vt_pic_clk_freq_mhz, frame_duration, line_length_pck, frame_length_lines);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_write8(client, 0x0340, ((frame_length_lines>>8) & 0xFF));
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	ret = is_sensor_write8(client, 0x0341, (frame_length_lines & 0xFF));
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	cis_data->cur_frame_us_time = frame_duration;
 	cis_data->frame_length_lines = frame_length_lines;
@@ -1244,14 +1158,10 @@ int sensor_gc08a3_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
@@ -1379,7 +1289,6 @@ int sensor_gc08a3_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_a
 int sensor_gc08a3_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1418,40 +1327,30 @@ int sensor_gc08a3_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 		cis->id, __func__, cis->cis_data->sen_vsync_count, again->val, analog_gain);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_write8(client, 0x0204, ((analog_gain>>8) & 0xFF));
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	ret = is_sensor_write8(client, 0x0205, (analog_gain & 0xFF));
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
 int sensor_gc08a3_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1478,19 +1377,14 @@ int sensor_gc08a3_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_read8(client, 0x0205, &analog_gain_low);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	ret = is_sensor_read8(client, 0x0204, &analog_gain_high);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	analog_gain = (u16)analog_gain_high;
 	analog_gain = ((analog_gain<<8) | analog_gain_low);
@@ -1505,14 +1399,10 @@ int sensor_gc08a3_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
@@ -1610,7 +1500,6 @@ p_err:
 int sensor_gc08a3_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1662,43 +1551,33 @@ int sensor_gc08a3_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->long_val, dgain->short_val, long_gain, short_gain);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	dgains[0] = dgains[1] = short_gain;
 
 	/* Short digital gain */
 	ret = is_sensor_write8(client, 0x020E, (short_gain>>8) & 0x3F);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	ret = is_sensor_write8(client, 0x020F, short_gain & 0xFF);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
 int sensor_gc08a3_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1725,19 +1604,14 @@ int sensor_gc08a3_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_read8(client, 0x020E, &digital_gain_high);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	ret = is_sensor_read8(client, 0x020F, &digital_gain_low);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	digital_gain = (u16)digital_gain_high;
 	digital_gain = (digital_gain<<8 | digital_gain_low);
@@ -1752,14 +1626,10 @@ int sensor_gc08a3_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gc08a3_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
@@ -2052,7 +1922,6 @@ p_err:
 static struct is_cis_ops cis_ops = {
 	.cis_init = sensor_gc08a3_cis_init,
 	.cis_log_status = sensor_gc08a3_cis_log_status,
-	.cis_group_param_hold = sensor_gc08a3_cis_group_param_hold,
 	.cis_set_global_setting = sensor_gc08a3_cis_set_global_setting,
 	.cis_mode_change = sensor_gc08a3_cis_mode_change,
 	.cis_set_size = sensor_gc08a3_cis_set_size,

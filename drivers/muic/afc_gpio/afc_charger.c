@@ -1,6 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /* afc_charger.c
  *
- * Copyright (C) 2020 Samsung Electronics
+ * Copyright (C) 2022 Samsung Electronics
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -30,15 +31,13 @@
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/regmap.h>
-#if defined(CONFIG_DRV_SAMSUNG)
-#include <linux/sec_class.h>
-#endif
-#if defined(CONFIG_SEC_PARAM)
-#include <linux/sec_ext.h>
-#endif
 #include <linux/ktime.h>
 #include <linux/pinctrl/consumer.h>
-#include <linux/gpio_afc_charger.h>
+
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#include <linux/muic/common/vt_muic/vt_muic.h>
+#endif /* CONFIG_VIRTUAL_MUIC */
+#include <linux/muic/afc_gpio/gpio_afc_charger.h>
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #include <dt-bindings/battery/sec-battery.h>
@@ -56,33 +55,6 @@
 #endif
 
 struct gpio_afc_ddata *g_ddata;
-
-#if IS_ENABLED(CONFIG_SEC_HICCUP)
-static int gpio_hiccup;
-#endif
-
-/* afc_mode:
- *   0x31 : Disabled
- *   0x30 : Enabled
- */
-static int afc_mode = 0;
-
-static int __init set_charging_mode(char *str)
-{
-	int mode;
-
-	get_option(&str, &mode);
-	afc_mode = (mode & 0x0000FF00) >> 8;
-	pr_info("%s: afc_mode is 0x%02x\n", __func__, afc_mode);
-
-	return 0;
-}
-early_param("charging_mode", set_charging_mode);
-
-static int _get_afc_mode(void)
-{
-	return afc_mode;
-}
 
 #if 0
 static void afc_udelay(int delay)
@@ -121,9 +93,6 @@ static void gpio_afc_send_parity_bit(struct gpio_afc_ddata *ddata, int data)
 		gpio_set_value(gpio, 0);
 		afc_udelay(SYNC_PULSE);
 	}
-#if 0
-	afc_udelay(UI >> 2);
-#endif
 }
 
 static void gpio_afc_sync_pulse(int gpio)
@@ -134,9 +103,12 @@ static void gpio_afc_sync_pulse(int gpio)
 	afc_udelay(SYNC_PULSE);
 }
 
-static void gpio_afc_send_mping(struct gpio_afc_ddata *ddata)
+static int gpio_afc_send_mping(struct gpio_afc_ddata *ddata)
 {
 	int gpio = ddata->pdata->gpio_afc_data;
+	unsigned long flags;
+	int ret = 0;
+	s64 start = 0, end = 0;
 
 	if (ddata->gpio_input) {
 		ddata->gpio_input = false;
@@ -144,58 +116,69 @@ static void gpio_afc_send_mping(struct gpio_afc_ddata *ddata)
 	}
 
 	/* send mping */
+	spin_lock_irqsave(&ddata->spin_lock, flags);
 	gpio_set_value(gpio, 1);
 	afc_udelay(MPING);
 	gpio_set_value(gpio, 0);
+
+	start = ktime_to_us(ktime_get());
+	spin_unlock_irqrestore(&ddata->spin_lock, flags);
+	end = ktime_to_us(ktime_get());
+
+	ret = (int)end-start;
+	return ret;
 }
 
-static int gpio_afc_check_sping(struct gpio_afc_ddata *ddata)
+static int gpio_afc_check_sping(struct gpio_afc_ddata *ddata, int delay)
 {
 	int gpio = ddata->pdata->gpio_afc_data;
-	int ret = 0, i = 0;
-	s64 start = 0, duration = 0;
+	int ret = 0;
+	s64 start = 0, end = 0, duration = 0;
+	unsigned long flags;
+
+	if (delay > (MPING+3*UI)) {
+		ret = delay - (MPING+3*UI);
+		return ret;
+	}
 
 	if (!ddata->gpio_input) {
 		ddata->gpio_input = true;
 		gpio_direction_input(gpio);
 	}
 
-	for (i = 0; i < AFC_SPING_CNT; i++) {
-		udelay(UI);
-		if (!!gpio_get_value(gpio))
-			break;
-	}
+	spin_lock_irqsave(&ddata->spin_lock, flags);
+	if (delay < (MPING-3*UI))
+		afc_udelay(MPING-3*UI-delay);
 
-	if (i == AFC_SPING_CNT) {
+	if (!gpio_get_value(gpio)) {
 		ret = -EAGAIN;
 		goto out;
 	}
 
 	start = ktime_to_us(ktime_get());
-
-	for (i = 0; i < AFC_SPING_MAX; i++) {
-		udelay(UI);
-		if (!gpio_get_value(gpio))
+	while (gpio_get_value(gpio)) {
+		duration = ktime_to_us(ktime_get()) - start;
+		if (duration > DATA_DELAY)
 			break;
-	}
-
-	duration = ktime_to_us(ktime_get()) - start;
-
-	if (duration < (MPING - 500)) {
-		ret = -EAGAIN;
-	} else if (duration > (MPING + 500)) {
-		if (i == AFC_SPING_MAX)
-			ret = -EAGAIN;
+		afc_udelay(UI);
 	}
 out:
+	start = ktime_to_us(ktime_get());
+	spin_unlock_irqrestore(&ddata->spin_lock, flags);
+	end = ktime_to_us(ktime_get());
+
+	if (ret == 0)
+		ret = (int)end-start;
+
 	return ret;
 }
 
-static void gpio_afc_send_data(struct gpio_afc_ddata *ddata, int data)
+static int gpio_afc_send_data(struct gpio_afc_ddata *ddata, int data)
 {
+	int i = 0, ret = 0;
 	int gpio = ddata->pdata->gpio_afc_data;
-	int i = 0;
 	unsigned long flags;
+	s64 start = 0, end = 0;
 
 	if (ddata->gpio_input) {
 		ddata->gpio_input = false;
@@ -204,7 +187,7 @@ static void gpio_afc_send_data(struct gpio_afc_ddata *ddata, int data)
 
 	spin_lock_irqsave(&ddata->spin_lock, flags);
 
-	udelay(UI);
+	afc_udelay(UI);
 
 	/* start of transfer */
 	gpio_afc_sync_pulse(gpio);
@@ -221,90 +204,99 @@ static void gpio_afc_send_data(struct gpio_afc_ddata *ddata, int data)
 	gpio_afc_send_parity_bit(ddata, data);
 	gpio_afc_sync_pulse(gpio);
 
-	spin_unlock_irqrestore(&ddata->spin_lock, flags);
+	gpio_set_value(gpio, 1);
+	afc_udelay(MPING);
+	gpio_set_value(gpio, 0);
 
-	/* end of transfer */
-	gpio_afc_send_mping(ddata);
+	start = ktime_to_us(ktime_get());
+	spin_unlock_irqrestore(&ddata->spin_lock, flags);
+	end = ktime_to_us(ktime_get());
+
+	ret = (int)end-start;
+
+	return ret;
 }
 
-static int gpio_afc_recv_data(struct gpio_afc_ddata *ddata)
+static int gpio_afc_recv_data(struct gpio_afc_ddata *ddata, int delay)
 {
-#if 1
-	int ret = 0, retry = 0;
+	int gpio = ddata->pdata->gpio_afc_data;
+	int ret = 0, gpio_value = 0, reset = 1;
+	s64 limit_start = 0, start = 0, end = 0, duration = 0;
+	unsigned long flags;
 
-	/* wating for charger data */
-	udelay(DATA_DELAY);
-
-	for (retry = 0; retry < AFC_RETRY_CNT; retry++) {
-		if (gpio_afc_check_sping(ddata))
-			pr_err("%s cnt=%d\n", __func__, retry + 1);
-		else
-			break;
+	if (!ddata->gpio_input) {
+		ddata->gpio_input = true;
+		gpio_direction_input(gpio);
 	}
 
-	udelay(UI);
+	if (delay > DATA_DELAY+MPING) {
+		ret = -EAGAIN;
+	} else if (delay > DATA_DELAY && delay <= DATA_DELAY+MPING) {
+		gpio_afc_check_sping(ddata, delay-DATA_DELAY);
+	} else if (delay <= DATA_DELAY) {
+		spin_lock_irqsave(&ddata->spin_lock, flags);
+
+		afc_udelay(DATA_DELAY-delay);
+
+		limit_start = ktime_to_us(ktime_get());
+		while (duration < MPING-3*UI) {
+			if (reset) {
+				start = 0;
+				end = 0;
+				duration = 0;
+			}
+			gpio_value = gpio_get_value(gpio);
+			if (!gpio_value && !reset) {
+				end = ktime_to_us(ktime_get());
+				duration = end - start;
+				reset = 1;
+			} else if (gpio_value) {
+				if (reset) {
+					start = ktime_to_us(ktime_get());
+					reset = 0;
+				}
+			}
+			afc_udelay(UI);
+			if ((ktime_to_us(ktime_get()) - limit_start) > (MPING+DATA_DELAY*2)) {
+				ret = -EAGAIN;
+				break;
+			}
+		}
+
+		spin_unlock_irqrestore(&ddata->spin_lock, flags);
+	}
+
 	return ret;
-#else
-	 bool ack = false;
-	 int gpio = ddata->pdata->gpio_afc_data;
-	 int i = 0, retry = 0;
-
-	 while (retry++ < AFC_SPING_MAX && !ack) {
-		for (i = 0; i < 50; i++) {
-			udelay(UI);
-			if (!!gpio_get_value(gpio))
-				break;
-		}
-
-		if (i == 50) {
-			pr_err("%s timeout\n", __func__);
-			continue;
-		}
-
-		for (i = 0; i < AFC_SPING_MAX; i++) {
-			udelay(UI << 1);
-			if (!gpio_get_value(gpio))
-				break;
-		}
-
-		if (i >= AFC_SPING_MIN && i < AFC_SPING_MAX)
-			ack = true;
-		else
-			pr_err("%s cnt %d retry %d\n", __func__, i, retry);
-	}
-#endif
-
-	return 0;
 }
 
 static int gpio_afc_set_voltage(struct gpio_afc_ddata *ddata, u32 voltage)
 {
 	int ret = 0;
 
-	gpio_afc_send_mping(ddata);
-	ret = gpio_afc_check_sping(ddata);
+	ret = gpio_afc_send_mping(ddata);
+	ret = gpio_afc_check_sping(ddata, ret);
 	if (ret < 0) {
 		pr_err("Start Mping NACK\n");
 		goto out;
 	}
 
 	if (voltage == 0x9)
-		gpio_afc_send_data(ddata, 0x46);
+		ret = gpio_afc_send_data(ddata, 0x46);
 	else
-		gpio_afc_send_data(ddata, 0x08);
+		ret = gpio_afc_send_data(ddata, 0x08);
 
-	ret = gpio_afc_check_sping(ddata);
+	ret = gpio_afc_check_sping(ddata, ret);
 	if (ret < 0) {
 		pr_err("sping err2 %d\n", ret);
 		goto out;
 	}
 
-	ret = gpio_afc_recv_data(ddata);
+	ret = gpio_afc_recv_data(ddata, ret);
 	if (ret < 0)
 		pr_err("sping err3 %d\n", ret);
 
-	gpio_afc_send_mping(ddata);
-	ret = gpio_afc_check_sping(ddata);
+	ret = gpio_afc_send_mping(ddata);
+	ret = gpio_afc_check_sping(ddata, ret);
 	if (ret < 0)
 		pr_err("End Mping NACK\n");
 out:
@@ -322,7 +314,7 @@ static void gpio_afc_reset(struct gpio_afc_ddata *ddata)
 
 	/* send mping */
 	gpio_set_value(gpio, 1);
-	udelay(RESET_DELAY);
+	afc_udelay(RESET_DELAY);
 	gpio_set_value(gpio, 0);
 }
 
@@ -335,9 +327,10 @@ void set_afc_voltage_for_performance(bool enable)
 
 static int gpio_afc_get_vbus(void)
 {
+	int ret = 0;
+#if IS_ENABLED(CONFIG_CHARGER_SYV660)
 	union power_supply_propval value = {0, };
 	struct power_supply *psy;
-	int ret = 0;
 	psy = get_power_supply_by_name("bc12");
 
 	if (!psy)
@@ -348,14 +341,18 @@ static int gpio_afc_get_vbus(void)
 		ret = value.intval;
 		pr_info("gpio_afc_get_vbus: ret=%d\n", ret);
 	}
+#else
+	/* to do, need to make common function */
+	//ret = battery_get_vbus();
+#endif
 	return ret;
 }
 
 static int vbus_level_check(void)
 {
-	struct gpio_afc_ddata *ddata = g_ddata;
-
 	int vbus = 0;
+#if IS_ENABLED(CONFIG_CHARGER_SYV660)
+	struct gpio_afc_ddata *ddata = g_ddata;
 
 	if (ddata->rp_currentlvl == RP_CURRENT_LEVEL2
 			&& ddata->dpdm_ctrl_on) {
@@ -363,6 +360,7 @@ static int vbus_level_check(void)
 		vbus = 0x9;
 		return vbus;
 	}
+#endif
 
 	vbus = gpio_afc_get_vbus();
 
@@ -379,7 +377,7 @@ static int vbus_level_check(void)
 }
 
 #if IS_ENABLED(CONFIG_CHARGER_SYV660)
-void afc_dpdm_ctrl(bool onoff)
+static void afc_dpdm_ctrl(bool onoff)
 {
 	struct gpio_afc_ddata *ddata = g_ddata;
 	struct gpio_afc_pdata *pdata = ddata->pdata;
@@ -396,6 +394,21 @@ void afc_dpdm_ctrl(bool onoff)
 				__func__, onoff, pdata->gpio_afc_hvdcp, ret);
 }
 #endif
+
+static bool is_vbus_disconnected(struct gpio_afc_ddata *data)
+{
+	int ret = false;
+#if IS_ENABLED(CONFIG_CHARGER_SYV660)
+	struct gpio_afc_ddata *ddata = data;
+
+	if (!ddata->dpdm_ctrl_on)
+#else
+	if(!vbus_level_check())
+#endif
+		ret = true;
+
+	return ret;
+}
 
 static void gpio_afc_kwork(struct kthread_work *work)
 {
@@ -421,14 +434,14 @@ static void gpio_afc_kwork(struct kthread_work *work)
 		msleep(200);
 	}
 
-	if (!ddata->dpdm_ctrl_on) {
+	if (is_vbus_disconnected(ddata)) {
 		pr_err("%s disconnected\n", __func__);
 		return;
 	}
 
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
 	vt_muic_set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC);
-#endif /* CONFIG_MUIC_NOTIFIER */
+#endif /* CONFIG_VIRTUAL_MUIC */
 
 	mutex_lock(&ddata->mutex);
 	__pm_stay_awake(&ddata->ws);
@@ -460,7 +473,7 @@ static void gpio_afc_kwork(struct kthread_work *work)
 			} else
 				ret = -EAGAIN;
 
-			if (!ddata->dpdm_ctrl_on) {
+			if (is_vbus_disconnected(ddata)) {
 				pr_err("%s ta disconnected\n", __func__);
 				goto err;
 			}
@@ -481,7 +494,7 @@ static void gpio_afc_kwork(struct kthread_work *work)
 		} else 
 			ret = -EAGAIN;
 
-		if (!ddata->dpdm_ctrl_on) {
+		if (is_vbus_disconnected(ddata)) {
 			pr_err("%s retry ta disconnected\n", __func__);
 			goto err;
 		}
@@ -489,7 +502,7 @@ static void gpio_afc_kwork(struct kthread_work *work)
 		msleep(100);
 		pr_info("%s vbus recheck cnt=%d\n", __func__, j + 1);
 	}
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
 	if (set_vol == 0x9) {
 		if (!ret)
 			vt_muic_set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_9V_MUIC);
@@ -497,21 +510,48 @@ static void gpio_afc_kwork(struct kthread_work *work)
 			vt_muic_set_attached_afc_dev(ATTACHED_DEV_TA_MUIC);
 	} else if (set_vol == 0x5) {
 		if (!ret) {
-			if (ddata->afc_disable)
+			if (vt_muic_get_afc_disable())
 				vt_muic_set_attached_afc_dev(ATTACHED_DEV_TA_MUIC);
 			else
 				vt_muic_set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_5V_MUIC);
 		} else
 			vt_muic_set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_9V_DUPLI_MUIC);
 	}
-#endif /* CONFIG_MUIC_NOTIFIER */
+#endif /* CONFIG_VIRTUAL_MUIC */
 err:
 	gpio_set_value(ddata->pdata->gpio_afc_switch, 0);
 	__pm_relax(&ddata->ws);
 	mutex_unlock(&ddata->mutex);
 }
 
-int set_afc_voltage(int voltage)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER) && IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+static int gpio_afc_tcm_handle_notification(struct notifier_block *nb,
+		unsigned long action, void *data)
+{
+	struct gpio_afc_ddata *ddata =
+			container_of(nb, struct gpio_afc_ddata, typec_nb);
+
+	PD_NOTI_TYPEDEF *pdata = (PD_NOTI_TYPEDEF *)data;
+	struct pdic_notifier_struct *pd_noti = pdata->pd;
+
+	if (pdata->dest != PDIC_NOTIFY_DEV_BATT) {
+		return 0;
+	}
+
+	ddata->rp_currentlvl = RP_CURRENT_LEVEL_NONE;
+
+	if (!pd_noti) {
+		pr_info("%s: pd_noti(pdata->pd) is NULL\n", __func__);
+	} else {
+		ddata->rp_currentlvl = pd_noti->sink_status.rp_currentlvl;
+		pr_info("%s rplvl=%d\n", __func__, ddata->rp_currentlvl);
+	}
+
+	return 0;
+}
+#endif
+
+static int afc_charger_set_voltage(int voltage)
 {
 	struct gpio_afc_ddata *ddata = g_ddata;
 	int vbus = 0, cur = 0;
@@ -522,7 +562,7 @@ int set_afc_voltage(int voltage)
 	}
 
 #if defined(CONFIG_DRV_SAMSUNG)
-	if (voltage == 0x9 && ddata->afc_disable) {
+	if (voltage == 0x9 && vt_muic_get_afc_disable()) {
 		pr_err("AFC is disabled by USER\n");
 		return - EINVAL;
 	}
@@ -553,100 +593,59 @@ int set_afc_voltage(int voltage)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-static int gpio_afc_tcm_handle_notification(struct notifier_block *nb,
-		unsigned long action, void *data)
+static int afc_charger_get_adc(void *mdata)
 {
-	struct gpio_afc_ddata *ddata =
-			container_of(nb, struct gpio_afc_ddata, typec_nb);
+	int result = 0;
 
-	PD_NOTI_TYPEDEF *pdata = (PD_NOTI_TYPEDEF *)data;
-	struct pdic_notifier_struct *pd_noti = pdata->pd;
+#if IS_ENABLED(CONFIG_TCPC_MT6360)
+	result = mt6360_usbid_check();
+#endif
 
-	if (pdata->dest != PDIC_NOTIFY_DEV_BATT) {
-		return 0;
+	pr_info("%s %d\n", __func__, result);
+
+	return result;
+}
+
+static int afc_charger_get_vbus_value(void *mdata)
+{
+	struct gpio_afc_ddata *ddata = mdata;
+	int retval = -ENODEV;
+
+	if (!ddata) {
+		printk("%s : driver data is null\n", __func__);
+		return retval;
 	}
 
-	ddata->rp_currentlvl = RP_CURRENT_LEVEL_NONE;
-
-	if (!pd_noti) {
-		pr_info("%s: pd_noti(pdata->pd) is NULL\n", __func__);
-	} else {
-		ddata->rp_currentlvl = pd_noti->sink_status.rp_currentlvl;
-		pr_info("%s rplvl=%d\n", __func__, ddata->rp_currentlvl);
+	if (ddata->curr_voltage) {
+		pr_info("%s %dV\n", __func__, ddata->curr_voltage);
+		return ddata->curr_voltage;
 	}
 
+	pr_info("%s No value", __func__);
 	return 0;
 }
-#endif
 
-#if defined(CONFIG_DRV_SAMSUNG)
-static ssize_t afc_disable_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static void afc_charger_set_afc_disable(void *mdata)
 {
-	struct gpio_afc_ddata *ddata = dev_get_drvdata(dev);
-
-	if (ddata->afc_disable) {
-		pr_info("%s AFC DISABLE\n", __func__);
-		return sprintf(buf, "1\n");
-	}
-
-	pr_info("%s AFC ENABLE", __func__);
-	return sprintf(buf, "0\n");
-}
-
-static ssize_t afc_disable_store(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
-{
-	struct gpio_afc_ddata *ddata = dev_get_drvdata(dev);
-	int param_val;
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+	struct gpio_afc_ddata *ddata = mdata;
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
 	int attached_dev = vt_muic_get_attached_dev();
 	int vbus = 0, curr = 0;
-#endif /* CONFIG_MUIC_NOTIFIER */
-#if defined(CONFIG_SEC_PARAM)
-	int ret = 0;
-#endif
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-	union power_supply_propval psy_val;
-#endif
+#endif /* CONFIG_VIRTUAL_MUIC */
 
-	if (!strncasecmp(buf, "1", 1)) {
-		ddata->afc_disable = true;
-	} else if (!strncasecmp(buf, "0", 1)) {
-		ddata->afc_disable = false;
-	} else {
-		pr_warn("%s invalid value\n", __func__);
+	pr_info("%s afc_disable(%d)\n", __func__, vt_muic_get_afc_disable());
 
-		return count;
-	}
-
-	param_val = ddata->afc_disable ? '1' : '0';
-
-#if defined(CONFIG_SEC_PARAM)
-	ret = sec_set_param(CM_OFFSET + 1, ddata->afc_disable ? '1' : '0');
-	if (ret < 0)
-		pr_err("%s:sec_set_param failed\n", __func__);
-#endif
-
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-	psy_val.intval = param_val;
-	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
-#endif
-	pr_info("%s afc_disable(%d)\n", __func__, ddata->afc_disable);
-
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
 	switch (attached_dev) {
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC ... ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:
 		kthread_flush_work(&ddata->kwork);
 
 		curr = vbus_level_check();
-		vbus = ddata->afc_disable ? 5 : 9;
+		vbus = vt_muic_get_afc_disable() ? 5 : 9;
 
 		if (curr == vbus) {
-			if (ddata->afc_disable && attached_dev != ATTACHED_DEV_TA_MUIC)
+			if (vt_muic_get_afc_disable() && attached_dev != ATTACHED_DEV_TA_MUIC)
 				vt_muic_set_attached_afc_dev(ATTACHED_DEV_TA_MUIC);
 		} else {
 			ddata->curr_voltage = curr;
@@ -657,34 +656,14 @@ static ssize_t afc_disable_store(struct device *dev,
 	default:
 		break;
 	}
-#endif /* CONFIG_MUIC_NOTIFIER */
-
-	return count;
-}
-
-static ssize_t vbus_value_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct gpio_afc_ddata *ddata = dev_get_drvdata(dev);
-	int retval = -ENODEV;
-
-	if (!ddata) {
-		printk("%s : driver data is null\n", __func__);
-		return retval;
-	}
-
-	if (ddata->curr_voltage) {
-		pr_info("%s %dV\n", __func__, ddata->curr_voltage);
-		return sprintf(buf, "%d\n", ddata->curr_voltage);
-	}
-
-	pr_info("%s No value", __func__);
-	return sprintf(buf, "0\n");
+#endif /* CONFIG_VIRTUAL_MUIC */
 }
 
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
-void set_sec_hiccup(bool en)
+static void afc_charger_set_hiccup_mode(void *mdata, bool en)
 {
+	struct gpio_afc_ddata *ddata = mdata;
+	struct gpio_afc_pdata *pdata = ddata->pdata;
 	int ret = 0;
 
 	ret = get_boot_mode();
@@ -693,65 +672,13 @@ void set_sec_hiccup(bool en)
 		return;
 	}
 
-	gpio_set_value(gpio_hiccup, en);
+	gpio_set_value(pdata->gpio_hiccup, en);
 
-	ret = gpio_get_value(gpio_hiccup);
+	ret = gpio_get_value(pdata->gpio_hiccup);
 
 	pr_info("%s %d, %d\n", __func__, en, ret);
 }
-
-static ssize_t hiccup_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "ENABLE\n");
-}
-
-static ssize_t hiccup_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	if (!strncasecmp(buf, "DISABLE", 7))
-		set_sec_hiccup(false);
-	else
-		pr_warn("%s invalid com : %s\n", __func__, buf);
-
-	return count;
-}
 #endif /* CONFIG_SEC_HICCUP */
-
-static ssize_t adc_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	int result = 0;
-
-#if IS_ENABLED(CONFIG_TCPC_MT6360)
-	result = mt6360_usbid_check();
-#endif
-
-	pr_info("%s %d\n", __func__, result);
-
-	return sprintf(buf, "%d\n", !!result);
-}
-
-static DEVICE_ATTR_RO(adc);
-static DEVICE_ATTR_RW(afc_disable);
-static DEVICE_ATTR_RO(vbus_value);
-#if IS_ENABLED(CONFIG_SEC_HICCUP)
-static DEVICE_ATTR_RW(hiccup);
-#endif /* CONFIG_SEC_HICCUP */
-
-static struct attribute *gpio_afc_attributes[] = {
-	&dev_attr_adc.attr,
-	&dev_attr_afc_disable.attr,
-	&dev_attr_vbus_value.attr,
-#if IS_ENABLED(CONFIG_SEC_HICCUP)
-	&dev_attr_hiccup.attr,
-#endif /* CONFIG_SEC_HICCUP */
-	NULL
-};
-static const struct attribute_group gpio_afc_group = {
-	.attrs = gpio_afc_attributes,
-};
-#endif /* CONFIG_DRV_SAMSUNG */
 
 static struct gpio_afc_pdata *gpio_afc_get_dt(struct device *dev)
 {
@@ -773,8 +700,8 @@ static struct gpio_afc_pdata *gpio_afc_get_dt(struct device *dev)
 		pdata->gpio_afc_switch, pdata->gpio_afc_data, pdata->gpio_afc_hvdcp);
 
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
-	gpio_hiccup = of_get_named_gpio(np, "gpio_hiccup_en", 0);
-	pr_info("gpio_hiccup_en : %d\n", gpio_hiccup);
+	pdata->gpio_hiccup = of_get_named_gpio(np, "gpio_hiccup_en", 0);
+	pr_info("gpio_hiccup_en : %d\n", pdata->gpio_hiccup);
 #endif /* CONFIG_SEC_HICCUP */
 
 	return pdata;
@@ -784,14 +711,27 @@ static struct gpio_afc_pdata *gpio_afc_get_dt(struct device *dev)
 static void set_gpio_afc_disable_work(struct work_struct *work)
 {
 	union power_supply_propval psy_val;
-	struct gpio_afc_ddata *ddata = g_ddata;
 	int ret = 0;
 
-	psy_val.intval = ddata->afc_disable ? '1' : '0';
+	psy_val.intval = vt_muic_get_afc_disable() ? '1' : '0';
 	ret = psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
 	pr_info("set_gpio_afc_disable_work: ret=%d\n", ret);
 }
 #endif
+
+static void register_muic_ops(struct vt_muic_ic_data *ic_data)
+{
+#if IS_ENABLED(CONFIG_CHARGER_SYV660)
+	ic_data->m_ops.afc_dpdm_ctrl = afc_dpdm_ctrl;
+#endif
+	ic_data->m_ops.afc_set_voltage = afc_charger_set_voltage;
+	ic_data->m_ops.get_adc = afc_charger_get_adc;
+	ic_data->m_ops.get_vbus_value = afc_charger_get_vbus_value;
+	ic_data->m_ops.set_afc_disable = afc_charger_set_afc_disable;
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+	ic_data->m_ops.set_hiccup_mode = afc_charger_set_hiccup_mode;
+#endif
+}
 
 static int gpio_afc_probe(struct platform_device *pdev)
 {
@@ -857,6 +797,10 @@ static int gpio_afc_probe(struct platform_device *pdev)
 
 	g_ddata = ddata;
 
+	ddata->afc_ic_data.mdata = ddata;
+	register_muic_ops(&ddata->afc_ic_data);
+	vt_muic_register_ic_data(&ddata->afc_ic_data);
+
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	INIT_DELAYED_WORK(&ddata->set_gpio_afc_disable,
 			  set_gpio_afc_disable_work);
@@ -864,40 +808,18 @@ static int gpio_afc_probe(struct platform_device *pdev)
 		msecs_to_jiffies(1000));
 #endif
 
-#if defined(CONFIG_DRV_SAMSUNG)
-	ddata->afc_disable = (_get_afc_mode() == '1' ? 1 : 0);
-	ddata->dev = sec_device_find("switch");
-	if (IS_ERR_OR_NULL(ddata->dev)) {
-		pr_info("failed to find switch device\n");
-
-		ddata->dev = sec_device_create(ddata, "switch");
-		if (IS_ERR(ddata->dev)) {
-			pr_err("failed to create switch device\n");
-			return -ENODEV;
-		}
-	}
-	dev_set_drvdata(ddata->dev, ddata);
-	ret = sysfs_create_group(&ddata->dev->kobj, &gpio_afc_group);
-	if (ret) {
-		pr_err("failed to create afc_disable sysfs\n");
-		return ret;
-	}
-#endif
 	gpio_direction_output(ddata->pdata->gpio_afc_switch, 0);
 	gpio_direction_output(ddata->pdata->gpio_afc_data, 0);
 #if IS_ENABLED(CONFIG_CHARGER_SYV660)
 	gpio_direction_output(ddata->pdata->gpio_afc_hvdcp, 0);
 	afc_dpdm_ctrl(0);
 #endif
-#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER) && IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	ddata->rp_currentlvl = RP_CURRENT_LEVEL_NONE;
 	manager_notifier_register(&ddata->typec_nb,
 		gpio_afc_tcm_handle_notification, MANAGER_NOTIFY_PDIC_BATTERY);
 #endif
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-	ddata->muic_pdata = &muic_pdata;
-	ddata->muic_pdata->muic_afc_set_voltage_cb = set_afc_voltage;
-#endif
+
 	return 0;
 }
 

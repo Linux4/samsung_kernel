@@ -24,7 +24,7 @@
 #include <soc/samsung/bts.h>
 
 #define NUM_CHANNEL     2
-#define BUS_WIDTH       16
+#define BUS_WIDTH       8
 #define MIF_UTIL        65
 #define INT_UTIL        70
 #define VC_TIMER_TH_NR  8
@@ -47,6 +47,8 @@
 #define RREQ_THRT_CON_RESET    0x8000
 #define RREQ_THRT_MO_P2_RESET  0x0
 #define PF_QOS_TIMER_RESET     0x1FF
+#define PF_TOKEN_CON_RESET	0x0
+#define PF_TOKEN_TH_RESET	0x0
 
 struct bts_scen;
 struct bts_stat;
@@ -138,6 +140,10 @@ struct bts_ops {
 	int             (*set_pf_qos_timer)(void __iomem *va, struct bts_stat *stat,
 			unsigned int index);
 	int		(*get_pf_qos_timer)(void __iomem *va, struct bts_stat *stat);
+	int             (*set_pf_token_con)(void __iomem *va, struct bts_stat *stat);
+	int		(*get_pf_token_con)(void __iomem *va, struct bts_stat *stat);
+	int             (*set_pf_token_th)(void __iomem *va, struct bts_stat *stat);
+	int		(*get_pf_token_th)(void __iomem *va, struct bts_stat *stat);
 	int		(*set_qmax_threshold)(void __iomem *va, unsigned int r_thd, unsigned int w_thd);
 	int		(*get_qmax_threshold)(void __iomem *va, unsigned int *r_thd, unsigned int *w_thd);
 };
@@ -211,6 +217,8 @@ struct bts_stat {
 	unsigned int		pf_rreq_thrt_con;
 	unsigned int		allow_mo_for_region;
 	unsigned int		pf_qos_timer[PF_TIMER_NR];
+	unsigned int		pf_token_con;
+	unsigned int		pf_token_th;
 	int			qos_num;
 };
 

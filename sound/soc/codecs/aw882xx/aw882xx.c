@@ -35,7 +35,7 @@
 #include "aw_log.h"
 #include "aw_dsp.h"
 
-#define AW882XX_DRIVER_VERSION "v1.7.0.5"
+#define AW882XX_DRIVER_VERSION "v1.7.0.7"
 #define AW882XX_I2C_NAME "aw882xx_smartpa"
 
 #define AW_READ_CHIPID_RETRIES		5	/* 5 times */
@@ -392,7 +392,7 @@ static void aw882xx_start_pa(struct aw882xx *aw882xx)
 				if (i < (AW_START_RETRIES - 1))
 					aw_dev_info(aw882xx->dev, "wait for I2S clock, cnt:%d", i);
 				else
-					aw_dev_err(aw882xx->dev, "start failed, cnt:%d", i);
+					aw_dev_err(aw882xx->dev, "skip check I2S clock, cnt:%d", i);
 				continue;
 			} else {
 				if (aw882xx->dc_flag)

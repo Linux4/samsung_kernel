@@ -712,6 +712,8 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 					module_ctl->ctl_frame_number, module_ctl->sensor_frame_number);
 		}
 
+		is_sensor_peri_s_group_param_hold(device, true);
+
 		/* update cis_date */
 		is_sensor_ctl_update_cis_data(cis_data, sensor_uctrl);
 
@@ -805,6 +807,8 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 
 			module_ctl->update_wb_gains = false;
 		}
+
+		is_sensor_peri_s_group_param_hold(device, false);
 
 		if (module_ctl->update_3hdr_stat || module_ctl->update_roi
 			|| module_ctl->update_tone || module_ctl->update_ev) {

@@ -119,6 +119,7 @@ struct sy6970_device {
 	unsigned int fv;
 	unsigned int eoc;
 	int chg_en;
+	bool flip_chg_en_gpio;
 
 	bool otg_on;
 	bool slow_chg;

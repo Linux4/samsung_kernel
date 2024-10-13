@@ -21,6 +21,10 @@
 //#include <linux/sensor/sensors_core.h>
 #define VENDOR_NAME	"ABOV"
 
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
+#define NOTI_MODULE_NAME        "grip_notifier"
 /* ioctl */
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 struct a96t396_fw_data {
@@ -28,7 +32,6 @@ struct a96t396_fw_data {
 	int fw_size;
 	int pass;
 };
-
 #define SDCARD_FW_LOARDING 10
 #define A96T396_IOCTL_MAGIC 254
 #define A96T396_SET_FW_DATA \
@@ -36,34 +39,79 @@ struct a96t396_fw_data {
 #endif
 
 enum ic_num {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	MAIN_GRIP = 0,
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	SUB_GRIP,
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+	SUB2_GRIP,
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	WIFI_GRIP,
+#endif
 	GRIP_MAX_CNT
 };
 
 const char *grip_name[GRIP_MAX_CNT] = {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	"MAIN",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	"SUB",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+	"SUB2",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	"WIFI"
+#endif
 };
 
 const char *device_name[GRIP_MAX_CNT] = {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	"A96T3X6",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	"A96T3X6_SUB",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+	"A96T3X6_SUB2",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	"A96T3X6_WIFI"
+#endif
 };
 
 const char *module_name[GRIP_MAX_CNT] = {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	"grip_sensor",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	"grip_sensor_sub",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+	"grip_sensor_sub2",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	"grip_sensor_wifi"
+#endif
 };
 
 const char *sdcard_fw_path[GRIP_MAX_CNT] = {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	"/sdcard/Firmware/Grip/abov_fw.bin",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	"/sdcard/Firmware/GripSub/abov_fw.bin",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+	"/sdcard/Firmware/GripSub2/abov_fw.bin",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	"/sdcard/Firmware/GripWifi/abov_fw.bin"
+#endif
 };
 
 /* registers */
@@ -116,7 +164,7 @@ const char *sdcard_fw_path[GRIP_MAX_CNT] = {
 #define USER_CODE_ADDRESS	0x400
 #define I2C_M_WR 0		/* for i2c */
 #define GRIP_LOG_TIME	15 /* 30s */
-#define FIRMWARE_VENDOR_CALL_CNT 8
+#define FIRMWARE_VENDOR_CALL_CNT 3
 #define TEST_FIRMWARE_DETECT_VER 0xa0
 
 
@@ -125,16 +173,22 @@ enum {
 	SDCARD,
 };
 
+enum {
+	OFF = 0,
+	ON,
+};
+
 #define GRIP_ERR(fmt, ...) pr_err("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
 #define GRIP_INFO(fmt, ...) pr_info("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
 #define GRIP_WARN(fmt, ...) pr_warn("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
 
-
+#ifndef CONFIG_SENSORS_CORE_AP
 extern int sensors_create_symlink(struct input_dev *inputdev);
 extern void sensors_remove_symlink(struct input_dev *inputdev);
 extern int sensors_register(struct device *dev, void *drvdata,
-	struct device_attribute *attributes[], char *name);
+		struct device_attribute *attributes[], char *name);
 extern void sensors_unregister(struct device *dev,
-	struct device_attribute *attributes[]);
+		struct device_attribute *attributes[]);
+#endif
 
 #endif /* LINUX_A96T396_H */

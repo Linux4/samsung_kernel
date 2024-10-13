@@ -32,7 +32,7 @@
 #define USES_STANDARD_CAL_RELOAD
 
 #define READ_DUAL_CAL_FIRMWARE_DATA
-#define DUAL_CAL_DATA_PATH "/vendor/firmware/SetMultiCalInfo.bin"
+#define DUAL_CAL_DATA_PATH "/vendor/etc/SetMultiCalInfo.bin"
 #define DUAL_CAL_DATA_SIZE_DEFAULT (0x080C)
 
 #define USE_CAMERA_MIPI_CLOCK_VARIATION
@@ -77,7 +77,7 @@
 /* For the demands to modify DVFS CAM Level only in 16:9 ratio of rear recording.
  * This modification is only limited to A21s.
  */
-#define USE_SPECIFIC_MIPISPEED
+//#define USE_SPECIFIC_MIPISPEED
 
 #define JN1_MODIFY_REMOSAIC_CAL_ORDER
 

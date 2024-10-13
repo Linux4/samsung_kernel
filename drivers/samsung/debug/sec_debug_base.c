@@ -394,6 +394,16 @@ void *secdbg_base_get_debug_base(int type)
 	return NULL;
 }
 
+void *secdbg_base_get_kcnst_base(void)
+{
+	if (sdn)
+		return &(sdn->kcnst);
+
+	pr_crit("%s: return NULL\n", __func__);
+
+	return NULL;
+}
+
 unsigned long secdbg_base_get_buf_base(int type)
 {
 	if (sdn) {

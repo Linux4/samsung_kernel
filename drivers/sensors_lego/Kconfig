@@ -19,6 +19,24 @@ config SENSORS_A96T396_SUB
 	  This option enables grip sensors using
 	  Above A96T396_SUB device driver for grip.
 
+config SENSORS_A96T396_SUB2
+	depends on I2C
+	tristate "A96T396_SUB2 driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T396_SUB2 for grip.
+	  This option enables grip sensors using
+	  Above A96T396_SUB2 device driver for grip.
+
+config SENSORS_A96T396_WIFI
+	depends on I2C
+	tristate "A96T396_WIFI driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T396_WIFI for grip.
+	  This option enables grip sensors using
+	  Above A96T396_WIFI device driver for grip.
+
 config SENSORS_A96T396_LDO_SHARE
 	depends on I2C
 	tristate "SENSOR_A96T396_LDO_SHARE driver for grip"
@@ -48,6 +66,13 @@ config SENSORS_A96T396_A13X_EUR
 	help
 	  Say Y here if you use A13X_EUR model grip firmware.
 
+config SENSORS_A96T396_A13X_KOR
+	depends on I2C
+	tristate "SENSORS_A96T396_A13X_KOR driver for grip firmware"
+	default n
+	help
+	  Say Y here if you use A13X_KOR model grip firmware.
+
 config SENSORS_A96T396_BENZ2
 	depends on I2C
 	tristate "benz2 driver for grip firmware and 'sensor_core'"
@@ -62,6 +87,33 @@ config SENSORS_A96T396_A13
 	help
 	Say Y here if you use A13_LTE grip firmware.
 
+config SENSORS_A96T396_A13_KOR
+	depends on I2C
+	tristate "for grip sensor firmware of A13_LTE_KOR"
+	default n
+	help
+	Say Y here if you use A13_LTE grip firmware to separate for KOR.
+
+config SENSORS_A96T396_BIRDIE
+	depends on I2C
+	tristate "for grip sensor firmware of birdie"
+	default n
+	help
+	Say Y here if you use BIRDIE grip firmware.
+
+config SENSORS_FW_VENDOR
+	depends on I2C
+	tristate "for grip sensor firmware in vendor"
+	default n
+	help
+	Say Y here if you use firmware in vendor.
+
+config SENSORS_CORE_AP
+	tristate "Need to use Sensors core ap version"
+	default n
+	help
+	  Say Y here if you using sensors_core.c included under drivers/sensors etc.
+
 config SENSORS_A96T396_2CH
 	depends on I2C
 	tristate "SENSORS_A96T396_2CH driver for grip 2ch"
@@ -75,3 +127,25 @@ config SENSORS_A96T396_SUB_2CH
 	default n
 	help
 	Say Y here if you use model grip_sub 2ch.
+
+config SENSORS_DUMP_DATA
+	tristate "Grip sensor dump log"
+	default n
+	help
+	  Enable grip dump log data
+	  This option activates log output of grip error data using sensordump_notifier.
+
+config SENSORS_GRIP_FAILURE_DEBUG
+	bool "Grip failure debug"
+	help
+	  Say Y here, Enable Grip failure debug flag.
+
+config SENSORS_LOW_TEMP_COMP
+	bool "Grip condition for low temperature"
+	help
+	  Say Y here, if you need low temperature compensation.
+
+config SENSORS_SUPPORT_LOGIC_PARAMETER
+	bool "support grip logic fw"
+	help
+	  Say Y here, if the model support logic firmware.

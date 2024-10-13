@@ -74,6 +74,7 @@ struct ovt_tcm_board_data {
 	const char *regulator_lcd_bl;
 	const char *regulator_lcd_vsp;
 	const char *regulator_lcd_vsn;
+	const char *regulator_tsp_reset;
 	struct pinctrl *pinctrl;
 	u32	area_indicator;
 	u32	area_navigation;
@@ -82,6 +83,9 @@ struct ovt_tcm_board_data {
 	bool support_ear_detect;
 	bool prox_lp_scan_enabled;
 	bool enable_sysinput_enabled;
+	bool support_spay_gesture;
+	unsigned int scrub_id;
+	bool support_cs_gpio_control;
 #if IS_ENABLED(CONFIG_SPI_MT65XX)
 	struct mtk_chip_config spi_ctrl;
 #endif

@@ -49,9 +49,20 @@
 #else
 #include <linux/input/sec_cmd.h>
 #endif
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+#include <linux/input/stui_inf.h>
+#endif
 #include <linux/regulator/consumer.h>
 #include "ovt_tcm.h"
-#define INPUT_FEATURE_ENABLE_SETTINGS_AOT	(1 << 0) /* Double tap wakeup settings */
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+#include "../../../sec_input/sec_secure_touch.h"
+#include <linux/atomic.h>
+#include <linux/clk.h>
+#include <linux/pm_runtime.h>
+
+#define SECURE_TOUCH_ENABLE	1
+#define SECURE_TOUCH_DISABLE	0
+#endif
 
 #define TOUCH_PRINT_INFO_DWORK_TIME	30000	/* 30s */
 
@@ -246,6 +257,7 @@ enum dynamic_config_id {
 	DC_START_STOP_TOUCH_WORK = 0xD8,
 	DC_SIP_MODE = 0xD9,
 	DC_GAME_MODE = 0xDA,
+	DC_ENABLE_GESTURE_TYPE = 0xFE,
 };
 
 enum cmd {
@@ -294,6 +306,7 @@ enum cmd {
 	CMD_GET_LPWG_DOUBLE_TAP_INFO = 0xC4,	// 195
 	CMD_GET_SAVE_RAW_DATA = 0xce,
 	CMD_SET_SAVE_RAW_DATA = 0xcf,
+	CMD_GET_SEC_FEATURES_LIST = 0xd0,
 };
 
 enum status_code {
@@ -472,6 +485,19 @@ struct ovt_tcm_features {
 	unsigned char byte_2_reserved:7;
 } __packed;
 
+struct ovt_tcm_sec_features {
+	unsigned char facemode1support:1;
+	unsigned char byte_0_reserved:7;
+	unsigned char byte_1_reserved;
+} __packed;
+
+struct ovt_tcm_gesture_type {
+	unsigned char doubletap:1;
+	unsigned char byte_0_reserved:7;
+	unsigned char byte_1_reserved:7;
+	unsigned char swipeup:1;
+} __packed;
+
 struct ovt_tcm_hcd {
 	pid_t isr_pid;
 	atomic_t command_status;
@@ -483,11 +509,11 @@ struct ovt_tcm_hcd {
 	int irq_wake;
 	bool do_polling;
 //	bool in_suspend;
+	atomic_t shutdown;
 	bool irq_enabled;
 	bool in_hdl_mode;
 	bool is_detected;
 	bool boot_resume;
-	unsigned int wakeup_gesture_enabled;
 	unsigned int lp_state;
 	unsigned int early_resume_cnt;
 	unsigned int prox_lp_scan_cnt;
@@ -518,6 +544,7 @@ struct ovt_tcm_hcd {
 	struct regulator *regulator_lcd_bl_en;
 	struct regulator *regulator_lcd_vsp;
 	struct regulator *regulator_lcd_vsn;
+	struct regulator *regulator_tsp_reset;
 	struct platform_device *pdev;
 	struct pinctrl *pinctrl;
 	struct regulator *pwr_reg;
@@ -551,8 +578,11 @@ struct ovt_tcm_hcd {
 	struct ovt_tcm_helper helper;
 	struct ovt_tcm_watchdog watchdog;
 	struct ovt_tcm_features features;
+	struct ovt_tcm_sec_features sec_features;
+	struct ovt_tcm_gesture_type ovt_tcm_gesture_type;
 	struct sec_cmd_data sec;
 	struct completion resume_done;
+	struct input_dev *input_dev;
 	char *print_buf;
 	short *pFrame;
 	unsigned char *image;
@@ -566,7 +596,6 @@ struct ovt_tcm_hcd {
 	bool tsp_dump_lock;
 	long prox_power_off;
 	u8 hover_event;	//virtual_prox
-	bool aot_enable;
 	int sip_mode;
 	int game_mode;
 	uint8_t glove_enabled;
@@ -574,12 +603,20 @@ struct ovt_tcm_hcd {
 	const struct ovt_tcm_hw_interface *hw_if;
 	int USB_detect_flag;
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	struct work_struct usb_notifier_work;
+	struct workqueue_struct *usb_notifier_workqueue;
 	struct notifier_block vbus_nb;
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	struct notifier_block ccic_nb;
 #endif
 #endif
-
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	atomic_t secure_enabled;
+	atomic_t secure_pending_irqs;
+	struct completion secure_powerdown;
+	struct completion secure_interrupt;
+	struct mutex secure_lock;
+#endif
 	u8 *lpwg_dump_buf;
 	u16 lpwg_dump_buf_idx;
 	u16 lpwg_dump_buf_size;
@@ -660,6 +697,11 @@ struct ovt_tcm_hw_interface {
 	const struct ovt_tcm_bus_io *bus_io;
 };
 
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+extern struct device *ptsp;
+extern void stui_tsp_init(int (*stui_tsp_enter)(void), int (*stui_tsp_exit)(void), int (*stui_tsp_type)(void));
+#endif
+
 int ovt_tcm_bus_init(void);
 
 void ovt_tcm_bus_exit(void);
@@ -669,9 +711,6 @@ int ovt_tcm_add_module(struct ovt_tcm_module_cb *mod_cb, bool insert);
 int touch_init(struct ovt_tcm_hcd *tcm_hcd);
 int touch_remove(struct ovt_tcm_hcd *tcm_hcd);
 int touch_reinit(struct ovt_tcm_hcd *tcm_hcd);
-int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd);
-int touch_suspend(struct ovt_tcm_hcd *tcm_hcd);
-int touch_resume(struct ovt_tcm_hcd *tcm_hcd);
 int sec_fn_init(struct ovt_tcm_hcd *tcm_hcd);
 void sec_fn_remove(struct ovt_tcm_hcd *tcm_hcd);
 void sec_run_rawdata(struct ovt_tcm_hcd *tcm_hcd);
@@ -685,6 +724,10 @@ int ovt_tcm_suspend(struct device *dev);
 int ovt_tcm_early_suspend(struct device *dev);
 int ovt_tcm_resume(struct device *dev);
 int ovt_tcm_early_resume(struct device *dev);
+int ovt_pinctrl_configure(struct ovt_tcm_hcd *tcm_hcd, bool enable);
+int ovt_set_config_mode(struct ovt_tcm_hcd *tcm_hcd, enum dynamic_config_id id,
+									char *config_name, unsigned short value);
+
 
 static inline int ovt_tcm_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)
@@ -760,8 +803,7 @@ static inline int ovt_tcm_realloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 			dev_err(tcm_hcd->pdev->dev.parent,
 					"%s: Failed to allocate memory\n",
 					__func__);
-			kfree(temp);
-			buffer->buf_size = 0;
+			buffer->buf = temp;
 			return -ENOMEM;
 		}
 
@@ -838,8 +880,11 @@ int ovt_lpwg_dump_buf_read(struct ovt_tcm_hcd *tcm_hcd, u8 *buf);
 
 #if IS_ENABLED(CONFIG_EXYNOS_DPU30)
 int get_lcd_info(char *arg);
-#else
-extern unsigned int lcdtype;
 #endif
+
+int device_module_init(void);
+void device_module_exit(void);
+int zeroflash_module_init(void);
+void zeroflash_module_exit(void);
 
 #endif

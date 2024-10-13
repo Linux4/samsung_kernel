@@ -114,6 +114,8 @@
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER2_EXPIRY    8
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVE_TIMER_EXPIRY 9
 
+#define SLSI_PSID_UNIFI_AC_NO_ACKS 0x0918
+
 #define MAX_SSID_LEN 100
 #define SLSI_MAX_NUM_RING 10
 
@@ -2190,11 +2192,11 @@ void slsi_lls_debug_dump_stats(struct slsi_dev *sdev, struct slsi_lls_radio_stat
 	}
 	SLSI_DBG3(sdev, SLSI_GSCAN, "iface_stat====\n");
 	SLSI_DBG3(sdev, SLSI_GSCAN, "\tiface %p info : (mode : %d, mac_addr : %pM, state : %d, roaming : %d,"
-		  " capabilities : %d, ssid : %s, bssid : %pM, ap_country_str : [%d%d%d])\trssi_data : %d\n",
+		  " capabilities : %d, ssid : %s, bssid : %pM, ap_country_str : [%d%d%d])\trssi_data : %d, rssi_mgmt : %d\n",
 		  iface_stat->iface, iface_stat->info.mode, iface_stat->info.mac_addr, iface_stat->info.state,
 		  iface_stat->info.roaming, iface_stat->info.capabilities, iface_stat->info.ssid,
 		  iface_stat->info.bssid, iface_stat->info.ap_country_str[0], iface_stat->info.ap_country_str[1],
-		  iface_stat->info.ap_country_str[2], iface_stat->rssi_data);
+		  iface_stat->info.ap_country_str[2], iface_stat->rssi_data, iface_stat->rssi_mgmt);
 
 	SLSI_DBG3(sdev, SLSI_GSCAN, "\tnum_peers %d\n", iface_stat->num_peers);
 	for (i = 0; i < iface_stat->num_peers; i++) {
@@ -2488,7 +2490,11 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 						 { SLSI_PSID_UNIFI_AC_RETRIES, { SLSI_TRAFFIC_Q_VO + 1, 0 } },
 						 { SLSI_PSID_UNIFI_BEACON_RECEIVED, {0, 0} },
 						 { SLSI_PSID_UNIFI_PS_LEAKY_AP, {0, 0} },
-						 { SLSI_PSID_UNIFI_RSSI, {0, 0} } };
+						 { SLSI_PSID_UNIFI_RSSI, {0, 0} },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_BE + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_BK + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_VI + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_VO + 1, 0 } } };
 
 	iface_stat->iface = NULL;
 	iface_stat->info.mode = SLSI_LLS_INTERFACE_UNKNOWN;
@@ -2540,6 +2546,7 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 			iface_stat->ac[i].retries = values[i].u.uintValue;
 			iface_stat->ac[i].rx_mpdu = ndev_vif->rx_packets[i];
 			iface_stat->ac[i].tx_mpdu = ndev_vif->tx_packets[i];
+			ndev_vif->tx_no_ack[i] = values[i+7].u.uintValue;
 			iface_stat->ac[i].mpdu_lost = ndev_vif->tx_no_ack[i];
 		}
 	}
@@ -2552,8 +2559,10 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 		iface_stat->leaky_ap_guard_time = 5; /* 5 milli sec. As mentioned in lls document */
 	}
 
-	if (values[6].type == SLSI_MIB_TYPE_INT)
+	if (values[6].type == SLSI_MIB_TYPE_INT) {
 		iface_stat->rssi_data = values[6].u.intValue;
+		iface_stat->rssi_mgmt = values[6].u.intValue;
+	}
 
 exit:
 	kfree(values);
@@ -2883,6 +2892,9 @@ static int slsi_set_country_code(struct wiphy *wiphy, struct wireless_dev *wdev,
 		type = nla_type(attr);
 		switch (type) {
 		case SLSI_NL_ATTRIBUTE_COUNTRY_CODE:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0))
+		case SLSI_NL_ATTRIBUTE_COUNTRY_CODE_FALL_BACK:
+#endif
 		{
 			if (slsi_util_nla_get_data(attr, (SLSI_COUNTRY_CODE_LEN - 1), country_code)) {
 				ret = -EINVAL;
@@ -5568,6 +5580,9 @@ static int slsi_configure_latency_mode(struct wiphy *wiphy, struct wireless_dev 
 		type = nla_type(attr);
 		switch (type) {
 		case SLSI_NL_ATTRIBUTE_LATENCY_MODE:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0))
+		case SLSI_NL_ATTRIBUTE_LATENCY_MODE_FALL_BACK:
+#endif
 			if (slsi_util_nla_get_u8(attr, &val)) {
 				ret = -EINVAL;
 				goto exit;
@@ -5585,6 +5600,68 @@ static int slsi_configure_latency_mode(struct wiphy *wiphy, struct wireless_dev 
 	if (ret)
 		SLSI_ERR(sdev, "Error in setting low latency mode ret:%d\n", ret);
 exit:
+	return ret;
+}
+ 
+/*TODO: define will be removed when autogen to be done*/
+#define SLSI_PSID_UNIFI_DTIM_MULTIPLIER 3002 /* unifiDTIMMultiplier */
+
+static int slsi_set_dtim_config(struct wiphy *wiphy, struct wireless_dev *wdev, const void *data, int len)
+{
+	struct slsi_dev		*sdev = SDEV_FROM_WIPHY(wiphy);
+	struct net_device	*dev = wdev->netdev;
+	struct netdev_vif	*ndev_vif;
+	const struct nlattr	*attr;
+	int			ret = 0;
+	int			temp = 0;
+	int			type = 0;
+	int			multiplier = 0;
+	u32			val = 0;
+
+	if (!dev) {
+		SLSI_ERR(sdev, "dev is NULL!!\n");
+		return -EINVAL;
+	}
+	ndev_vif = netdev_priv(dev);
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	if (ndev_vif->vif_type != FAPI_VIFTYPE_STATION) {
+		SLSI_WARN(sdev, "Not a STA VIF\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+	if (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED) {
+		SLSI_WARN(sdev, "VIF is not connected\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+	nla_for_each_attr(attr, data, len, temp) {
+		type = nla_type(attr);
+		switch (type) {
+		case SLSI_VENDOR_ATTR_DTIM_MULTIPLIER:
+			if (slsi_util_nla_get_u32(attr, &val)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			if (val < 1 || val > 9) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			multiplier = (int)val;
+			break;
+		default:
+			SLSI_ERR_NODEV("Unknown attribute: %d\n", type);
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+	SLSI_INFO(sdev, "multiplier %d\n", multiplier);
+	if (slsi_set_uint_mib(sdev, NULL, SLSI_PSID_UNIFI_DTIM_MULTIPLIER, multiplier)) {
+		SLSI_ERR(sdev, "Set MIB DTIM_MULTIPLIER failed\n");
+		ret = -EIO;
+		goto exit;
+	}
+exit:
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	return ret;
 }
 
@@ -5609,6 +5686,9 @@ static int slsi_select_tx_power_scenario(struct wiphy *wiphy, struct wireless_de
 		type = nla_type(attr);
 		switch (type) {
 		case SLSI_NL_ATTRIBUTE_TX_POWER_SCENARIO:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0))
+		case SLSI_NL_ATTRIBUTE_TX_POWER_SCENARIO_FALL_BACK:
+#endif
 			if (slsi_util_nla_get_u8(attr, &val)) {
 				ret = -EINVAL;
 				goto exit;
@@ -5738,6 +5818,11 @@ slsi_wlan_vendor_start_keepalive_offload_policy[MKEEP_ALIVE_ATTRIBUTE_MAX + 1] =
 static const struct nla_policy
 slsi_wlan_vendor_low_latency_policy[SLSI_NL_ATTRIBUTE_LATENCY_MAX + 1] = {
 	[SLSI_NL_ATTRIBUTE_LATENCY_MODE] = {.type = NLA_U8},
+};
+
+static const struct nla_policy
+slsi_wlan_vendor_dtim_policy[SLSI_VENDOR_ATTR_DTIM_MAX + 1] = {
+	[SLSI_VENDOR_ATTR_DTIM_MULTIPLIER] = {.type = NLA_U32},
 };
 
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
@@ -6552,6 +6637,15 @@ static struct wiphy_vendor_command slsi_vendor_cmd[] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = slsi_configure_latency_mode
 	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG
+		},
+		.flags =  WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = slsi_set_dtim_config
+	},
+
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 	{
 		{
@@ -6747,6 +6841,10 @@ static void slsi_nll80211_vendor_init_policy(struct wiphy_vendor_command *slsi_v
 		case SLSI_NL80211_VENDOR_SUBCMD_SET_LATENCY_MODE:
 			vcmd->policy = slsi_wlan_vendor_low_latency_policy;
 			vcmd->maxattr = SLSI_NL_ATTRIBUTE_LATENCY_MAX;
+			break;
+		case SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG:
+			vcmd->policy = slsi_wlan_vendor_dtim_policy;
+			vcmd->maxattr = SLSI_VENDOR_ATTR_DTIM_MAX;
 			break;
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 		case SLSI_NL80211_VENDOR_SUBCMD_SELECT_TX_POWER_SCENARIO:

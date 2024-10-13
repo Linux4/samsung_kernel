@@ -277,6 +277,9 @@ static void exynos_panel_get_display_modes(struct exynos_panel_info *info,
 	of_property_read_u32(np, "underrun_max_num", &info->continuous_underrun_max);
 	DPU_INFO_PANEL("underrun_max_num(%d)\n", info->continuous_underrun_max);
 
+	of_property_read_u32(np, "wait_lp11", &info->wait_lp11);
+	DPU_INFO_PANEL("wait_lp11(%d)\n", info->wait_lp11);
+
 	size = of_property_count_u32_elems(np, "display_mode");
 	if (size < 0) {
 		DPU_INFO_PANEL("This panel doesn't support display mode\n");

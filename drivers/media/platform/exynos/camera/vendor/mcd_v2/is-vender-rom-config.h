@@ -17,8 +17,14 @@
 
 #if defined(CONFIG_CAMERA_AAV_V13)
 #include "is-vender-rom-config_aav_v13.h"
+#elif defined(CONFIG_CAMERA_MMV_V13)
+#include "is-vender-rom-config_mmv_v13.h"
 #elif defined(CONFIG_CAMERA_HTV_V00)
 #include "is-vender-rom-config_htv_v00.h"
+#elif defined(CONFIG_CAMERA_AAV_V04S)
+#include "is-vender-rom-config_aav_v04s.h"
+#elif defined(CONFIG_CAMERA_AAV_V14)
+#include "is-vender-rom-config_aav_v14.h"
 #else
 
 const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX] = {

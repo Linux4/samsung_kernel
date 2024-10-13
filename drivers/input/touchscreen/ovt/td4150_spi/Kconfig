@@ -10,7 +10,6 @@ config TOUCHSCREEN_OVT_TD4150_SPI
 config TOUCHSCREEN_OVT_TCM_CORE
 	tristate "Omnivision TCM core module"
 	depends on TOUCHSCREEN_OVT_TD4150_SPI
-	default y
 	help
 	  Say Y here to enable core functionality.
 	  If unsure, say N.
@@ -20,7 +19,6 @@ config TOUCHSCREEN_OVT_TCM_CORE
 config TOUCHSCREEN_OVT_TCM_DEVICE
 	tristate "Omnivision TCM device module"
 	depends on TOUCHSCREEN_OVT_TD4150_SPI
-	default y
 	help
 	  Say Y here to enable support for TCM device functionality.
 	  If unsure, say N.
@@ -30,7 +28,6 @@ config TOUCHSCREEN_OVT_TCM_DEVICE
 config TOUCHSCREEN_OVT_TCM_ZEROFLASH
 	tristate "Omnivision TCM zeroflash module"
 	depends on TOUCHSCREEN_OVT_TD4150_SPI
-	default y
 	help
 	  Say Y here to enable support for ZeroFlash functionality.
 	  If unsure, say N.
