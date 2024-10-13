@@ -524,6 +524,9 @@ static int cs40l2x_index_mapping(int sep_index)
 	case 119 ... 124:
 		cirrus_index = sep_index + 16;
 		break;
+	case 126 ... 127:
+		cirrus_index = sep_index + 15;
+		break;
 	default:
 		cirrus_index = sep_index + 9;
 		break;

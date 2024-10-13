@@ -2516,6 +2516,13 @@ int32_t npu_host_unload_network(struct npu_client *client,
 		return -EINVAL;
 	}
 
+	if (network->is_unloading) {
+		NPU_ERR("network is unloading\n");
+		network_put(network);
+		mutex_unlock(&host_ctx->lock);
+		return -EINVAL;
+	}
+
 	if (!network->is_active) {
 		NPU_ERR("network is not active\n");
 		network_put(network);
@@ -2527,6 +2534,8 @@ int32_t npu_host_unload_network(struct npu_client *client,
 		NPU_ERR("fw in error state, skip unload network in fw\n");
 		goto free_network;
 	}
+
+	network->is_unloading = true;
 
 	NPU_INFO("Unload network %lld\n", network->id);
 	/* prepare IPC packet for UNLOAD */
@@ -2660,6 +2669,12 @@ int32_t npu_host_exec_network_v2(struct npu_client *client,
 
 	if (atomic_inc_return(&host_ctx->network_execute_cnt) == 1)
 		npu_notify_cdsprm_cxlimit_activity(npu_dev, true);
+
+	if (network->is_unloading) {
+		NPU_ERR("network is unloading\n");
+		ret = -EINVAL;
+		goto exec_v2_done;
+	}
 
 	if (!network->is_active) {
 		NPU_ERR("network is not active\n");
