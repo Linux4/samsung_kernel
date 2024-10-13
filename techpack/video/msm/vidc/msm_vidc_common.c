@@ -5928,13 +5928,14 @@ int msm_comm_check_memory_supported(struct msm_vidc_inst *vidc_inst)
 	mutex_unlock(&core->lock);
 
 	memory_limit_mbytes = msm_comm_get_memory_limit(core);
+	s_vpr_h(vidc_inst->sid," LFM memory_limit_mbytes = %llu total_mem_size = %llu", memory_limit_mbytes,total_mem_size);
 
 	if ((total_mem_size >> 20) > memory_limit_mbytes) {
 		s_vpr_e(vidc_inst->sid,
 			"%s: video mem overshoot - reached %llu MB, max_limit %llu MB\n",
 			__func__, total_mem_size >> 20, memory_limit_mbytes);
 		msm_comm_print_mem_usage(core);
-		return -EBUSY;
+		return -ENOMEM;
 	}
 
 	if (!is_secure_session(vidc_inst)) {
@@ -5944,12 +5945,13 @@ int msm_comm_check_memory_supported(struct msm_vidc_inst *vidc_inst)
 				non_sec_cb_size = cb->addr_range.size;
 		mutex_unlock(&core->resources.cb_lock);
 
+		s_vpr_h(vidc_inst->sid," LFM non_sec_mem_size = %llu non_sec_cb_size = %llu", non_sec_mem_size,non_sec_cb_size);
 		if (non_sec_mem_size > non_sec_cb_size) {
 			s_vpr_e(vidc_inst->sid,
 				"%s: insufficient device addr space, required %llu, available %llu\n",
 				__func__, non_sec_mem_size, non_sec_cb_size);
 			msm_comm_print_mem_usage(core);
-			return -EINVAL;
+			return -ENOMEM;
 		}
 	}
 
@@ -7822,7 +7824,7 @@ u32 msm_comm_calc_framerate(struct msm_vidc_inst *inst,
 	capability = &inst->capability;
 
 	if (timestamp_us <= prev_ts) {
-		s_vpr_e(inst->sid, "%s: invalid ts %lld, prev ts %lld\n",
+		s_vpr_e(inst->sid, "%s: invalid ts %llu, prev ts %llu\n",
 			__func__, timestamp_us, prev_ts);
 		return framerate;
 	}
@@ -7853,7 +7855,7 @@ u32 msm_comm_get_max_framerate(struct msm_vidc_inst *inst)
 	}
 	avg_framerate = count ? (div_u64(avg_framerate, count)) : (1 << 16);
 
-	s_vpr_l(inst->sid, "%s: fps %u, list size %d\n", __func__, avg_framerate, count);
+	s_vpr_l(inst->sid, "%s: fps %u, list size %u\n", __func__, avg_framerate, count);
 	mutex_unlock(&inst->timestamps.lock);
 	return (u32)avg_framerate;
 }

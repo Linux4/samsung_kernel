@@ -218,11 +218,10 @@ static ssize_t dex_store(struct class *class,
 	}
 
 	get_options(buf, ARRAY_SIZE(val), val);
-	DP_INFO("%d(0x%02x)\n", val[1], val[1]);
 	setting_ui = (val[1] & 0xf0) >> 4;
 	run = (val[1] & 0x0f);
 
-	DP_INFO("setting_ui: %d, run: %d, cable: %d\n",
+	DP_INFO("0x%02x setting_ui:%d run:%d cable:%d\n", val[1],
 		setting_ui, run, sec->cable_connected);
 
 	dex->setting_ui = setting_ui;
@@ -232,17 +231,15 @@ static ssize_t dex_store(struct class *class,
 	if (!pdic_noti->registered) {
 		int rc;
 
-		DP_DEBUG("notifier get registered by dex\n");
-
 		/* cancel immediately */
 		rc = cancel_delayed_work(&pdic_noti->reg_work);
-		DP_DEBUG("cancel_work, rc(%d)\n", rc);
+		DP_DEBUG("notifier get registered by dex, cancel:%d\n", rc);
 		destroy_delayed_work_on_stack(&pdic_noti->reg_work);
 
 		/* register */
 		rc = secdp_pdic_noti_register_ex(sec, false);
 		if (rc)
-			DP_ERR("noti register fail, rc(%d)\n", rc);
+			DP_ERR("noti register fail, rc:%d\n", rc);
 
 		mutex_unlock(&sec->notifier_lock);
 		goto exit;
@@ -270,7 +267,7 @@ static ssize_t dex_store(struct class *class,
 	}
 
 	if (dex->curr != dex->setting_ui) {
-		DP_INFO("values of cur(%d) and setting_ui(%d) are difference\n",
+		DP_INFO("values of cur(%d) and setting_ui(%d) are different\n",
 			dex->curr, dex->setting_ui);
 		goto exit;
 	}
@@ -304,15 +301,14 @@ static ssize_t dex_ver_show(struct class *class,
 				struct class_attribute *attr, char *buf)
 {
 	struct secdp_sysfs_private *sysfs = g_secdp_sysfs;
-	struct secdp_misc *sec = sysfs->sec;
-	struct secdp_dex *dex = &sec->dex;
+	struct secdp_adapter *adapter = &sysfs->sec->adapter;
 	int rc;
 
 	DP_INFO("branch revision: HW(0x%X), SW(0x%X, 0x%X)\n",
-		dex->fw_ver[0], dex->fw_ver[1], dex->fw_ver[2]);
+		adapter->fw_ver[0], adapter->fw_ver[1], adapter->fw_ver[2]);
 
 	rc = scnprintf(buf, PAGE_SIZE, "%02X%02X\n",
-		dex->fw_ver[1], dex->fw_ver[2]);
+		adapter->fw_ver[1], adapter->fw_ver[2]);
 
 	return rc;
 }

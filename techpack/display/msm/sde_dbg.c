@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2009-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -1017,8 +1018,10 @@ static void _sde_dbg_dump_sde_dbg_bus(struct sde_dbg_sde_debug_bus *bus)
 		bus->cmn.content_size = list_size / sizeof(u32);
 	}
 
+#ifdef CONFIG_QCOM_VA_MINIDUMP
 	if (sde_mini_dump_add_region(bus->cmn.name, list_size, *dump_mem) < 0)
 		pr_err("minidump add %s failed\n", bus->cmn.name);
+#endif
 
 	dump_addr = *dump_mem;
 	SDE_DBG_LOG_DUMP_ADDR(bus->cmn.name, dump_addr, list_size, 0);
@@ -1065,8 +1068,10 @@ static void _sde_dbg_dump_dsi_dbg_bus(struct sde_dbg_sde_debug_bus *bus)
 		bus->cmn.content_size = list_size / sizeof(u32);
 	}
 
+#ifdef CONFIG_QCOM_VA_MINIDUMP
 	if (sde_mini_dump_add_region(bus->cmn.name, list_size, *dump_mem) < 0)
 		pr_err("minidump add %s failed\n", bus->cmn.name);
+#endif
 
 	dump_addr = *dump_mem;
 
@@ -1116,10 +1121,12 @@ static void _sde_dump_array(struct sde_dbg_reg_base *blk_arr[],
 		pr_err("Failed to allocate memory for reg_dump_addr size:%d\n",
 				reg_dump_size);
 
+#ifdef CONFIG_QCOM_VA_MINIDUMP
 	if (dbg_base->reg_dump_addr &&
 			sde_mini_dump_add_region("reg_dump",
 			reg_dump_size, dbg_base->reg_dump_addr) < 0)
 		pr_err("minidump add regdump failed\n");
+#endif
 
 	if (dump_all)
 		sde_evtlog_dump_all(sde_dbg_base.evtlog);

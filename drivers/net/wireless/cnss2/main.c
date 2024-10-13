@@ -1444,7 +1444,6 @@ void cnss_schedule_recovery(struct device *dev,
 {
 	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
 	struct cnss_recovery_data *data;
-	int gfp = GFP_KERNEL;
 
 	if (!test_bit(CNSS_DEV_ERR_NOTIFY, &plat_priv->driver_state))
 		cnss_bus_update_status(plat_priv, CNSS_FW_DOWN);
@@ -1455,10 +1454,11 @@ void cnss_schedule_recovery(struct device *dev,
 		return;
 	}
 
-	if (in_interrupt() || irqs_disabled())
-		gfp = GFP_ATOMIC;
-
-	data = kzalloc(sizeof(*data), gfp);
+	/* Allocating memory always with GFP_ATOMIC flag inside
+	 * cnss_schedule_recovery(). Because there is a chance for
+	 * this api to be invoked in atomic context on some platforms.
+	 */
+	data = kzalloc(sizeof(*data), GFP_ATOMIC);
 	if (!data)
 		return;
 
@@ -3383,6 +3383,27 @@ cnss_is_converged_dt(struct cnss_plat_data *plat_priv)
 	return of_property_read_bool(plat_priv->plat_dev->dev.of_node,
 				     "qcom,converged-dt");
 }
+
+int cnss_set_wfc_mode(struct device *dev, struct cnss_wfc_cfg cfg)
+{
+	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
+	int ret = 0;
+
+	if (!plat_priv)
+		return -ENODEV;
+
+	/* If IMS server is connected, return success without QMI send */
+	if (test_bit(CNSS_IMS_CONNECTED, &plat_priv->driver_state)) {
+		cnss_pr_dbg("Ignore host request as IMS server is connected");
+		return ret;
+	}
+
+	ret = cnss_wlfw_send_host_wfc_call_status(plat_priv, cfg);
+
+	return ret;
+}
+EXPORT_SYMBOL(cnss_set_wfc_mode);
+
 static int cnss_probe(struct platform_device *plat_dev)
 {
 	int ret = 0;

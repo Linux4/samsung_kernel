@@ -19,7 +19,11 @@
 #include <linux/syscalls.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 #include <stdarg.h>
+#else
+#include <linux/stdarg.h>
+#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
 #include <linux/time64.h>
@@ -53,6 +57,7 @@ struct batterylog_root_str {
 
 static struct batterylog_root_str batterylog_root;
 
+#if !defined(CONFIG_UML)
 static void logger_get_time_of_the_day_in_hr_min_sec(char *tbuf, int len)
 {
 	struct SEC_TIMESPEC tv;
@@ -70,6 +75,7 @@ static void logger_get_time_of_the_day_in_hr_min_sec(char *tbuf, int len)
 		  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 		  tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
+#endif
 
 static int batterylog_proc_show(struct seq_file *m, void *v)
 {
@@ -95,6 +101,9 @@ err:
 	return 0;
 }
 
+#if defined(CONFIG_UML)
+void store_battery_log(const char *fmt, ...) {}
+#else
 void store_battery_log(const char *fmt, ...)
 {
 	unsigned long long tnsec;
@@ -156,6 +165,7 @@ void store_battery_log(const char *fmt, ...)
 err:
 	mutex_unlock(&batterylog_root.battery_log_lock);
 }
+#endif
 EXPORT_SYMBOL(store_battery_log);
 
 static int batterylog_proc_open(struct inode *inode, struct file *file)
@@ -163,7 +173,7 @@ static int batterylog_proc_open(struct inode *inode, struct file *file)
 	return single_open(file, batterylog_proc_show, NULL);
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
 static const struct proc_ops batterylog_proc_fops = {
 	.proc_open	= batterylog_proc_open,
 	.proc_read	= seq_read,

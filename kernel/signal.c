@@ -1219,8 +1219,7 @@ static int send_signal(int sig, struct kernel_siginfo *info, struct task_struct 
 	/* [SystemF/W, si_code is 0 : from userspace, si_code is over 0 : from kernel */
 	if (!is_si_special(info)) {
 		if ((current->pid != 1) && ((sig == SIGKILL && !strncmp("main", t->group_leader->comm, 4))
-				|| ((sig == SIGKILL || sig == SIGSEGV)
-					&& !strncmp("system_server", t->group_leader->comm, 13)))) {
+				|| (sig == SIGKILL && !strncmp("system_server", t->group_leader->comm, 13)))) {
 			pr_info("Send signal %d from %s(%d) to %s(%d) : %d\n",
 						sig, current->comm, current->pid, t->comm, t->pid, info->si_code);
 		}
@@ -1306,8 +1305,10 @@ int do_send_sig_info(int sig, struct kernel_siginfo *info, struct task_struct *p
 	 * System will send SIGIO to the app that locked the file when other apps access the file.
 	 * Report SIGIO to prevent other apps from getting stuck
 	 */
-	if ((sig == SIGKILL || sig == SIGTERM || sig == SIGABRT || sig == SIGQUIT || sig == SIGIO))
-		sig_report(p);
+	 if ((sig == SIGKILL || sig == SIGTERM || sig == SIGABRT || sig == SIGQUIT || sig == SIGIO)) {
+ 		// Report pid if process is killed/stopped.
+ 		sig_report(p, sig != SIGIO);
+ 	}
 #endif
 
 	if (lock_task_sighand(p, &flags)) {
@@ -1946,12 +1947,12 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 	bool autoreap = false;
 	u64 utime, stime;
 
-	BUG_ON(sig == -1);
+	WARN_ON_ONCE(sig == -1);
 
- 	/* do_notify_parent_cldstop should have been called instead.  */
- 	BUG_ON(task_is_stopped_or_traced(tsk));
+	/* do_notify_parent_cldstop should have been called instead.  */
+	WARN_ON_ONCE(task_is_stopped_or_traced(tsk));
 
-	BUG_ON(!tsk->ptrace &&
+	WARN_ON_ONCE(!tsk->ptrace &&
 	       (tsk->group_leader != tsk || !thread_group_empty(tsk)));
 
 	/* Wake up all pidfd waiters */
@@ -2131,15 +2132,6 @@ static inline bool may_ptrace_stop(void)
 	return true;
 }
 
-/*
- * Return non-zero if there is a SIGKILL that should be waking us up.
- * Called with the siglock held.
- */
-static bool sigkill_pending(struct task_struct *tsk)
-{
-	return sigismember(&tsk->pending.signal, SIGKILL) ||
-	       sigismember(&tsk->signal->shared_pending.signal, SIGKILL);
-}
 
 /*
  * This must be called with current->sighand->siglock held.
@@ -2166,17 +2158,16 @@ static void ptrace_stop(int exit_code, int why, int clear_code, kernel_siginfo_t
 		 * calling arch_ptrace_stop, so we must release it now.
 		 * To preserve proper semantics, we must do this before
 		 * any signal bookkeeping like checking group_stop_count.
-		 * Meanwhile, a SIGKILL could come in before we retake the
-		 * siglock.  That must prevent us from sleeping in TASK_TRACED.
-		 * So after regaining the lock, we must check for SIGKILL.
 		 */
 		spin_unlock_irq(&current->sighand->siglock);
 		arch_ptrace_stop(exit_code, info);
 		spin_lock_irq(&current->sighand->siglock);
-		if (sigkill_pending(current))
-			return;
 	}
 
+	/*
+	 * schedule() will not sleep if there is a pending signal that
+	 * can awaken the task.
+	 */
 	set_special_state(TASK_TRACED);
 
 	/*

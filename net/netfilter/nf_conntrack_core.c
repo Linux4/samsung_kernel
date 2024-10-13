@@ -85,6 +85,11 @@ struct conntrack_gc_work {
 
 static __read_mostly struct kmem_cache *nf_conntrack_cachep;
 static DEFINE_SPINLOCK(nf_conntrack_locks_all_lock);
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+static DEFINE_SPINLOCK(knox_nf_conntrack);
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 static __read_mostly bool nf_conntrack_locks_all;
 
 #define GC_SCAN_INTERVAL	(120u * HZ)
@@ -626,10 +631,13 @@ destroy_conntrack(struct nf_conntrack *nfct)
     
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #ifdef CONFIG_KNOX_NCM
+	unsigned long flags;
+	spin_lock_irqsave(&knox_nf_conntrack,flags);
 	if (NF_CONN_NPA_VENDOR_DATA_GET(ct)) {
 		kfree(NF_CONN_NPA_VENDOR_DATA_GET(ct));
 		ct->android_vendor_data1 = (u64)NULL;
 	}
+	spin_unlock_irqrestore(&knox_nf_conntrack,flags);
 #endif
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
@@ -1494,6 +1502,11 @@ EXPORT_SYMBOL_GPL(nf_conntrack_alloc);
 
 void nf_conntrack_free(struct nf_conn *ct)
 {
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+	unsigned long flags;
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 	struct net *net = nf_ct_net(ct);
 
 	/* A freed object has refcnt == 0, that's
@@ -1507,10 +1520,12 @@ void nf_conntrack_free(struct nf_conn *ct)
 	smp_mb__before_atomic();
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #ifdef CONFIG_KNOX_NCM
+	spin_lock_irqsave(&knox_nf_conntrack,flags);
 	if (NF_CONN_NPA_VENDOR_DATA_GET(ct)) {
 		kfree(NF_CONN_NPA_VENDOR_DATA_GET(ct));
 		ct->android_vendor_data1 = (u64)NULL;
 	}
+	spin_unlock_irqrestore(&knox_nf_conntrack,flags);
 #endif
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 	trace_android_rvh_nf_conn_free(ct);
@@ -1831,15 +1846,17 @@ repeat:
 		pr_debug("nf_conntrack_in: Can't track with proto module\n");
 		nf_conntrack_put(&ct->ct_general);
 		skb->_nfct = 0;
-		NF_CT_STAT_INC_ATOMIC(state->net, invalid);
-		if (ret == -NF_DROP)
-			NF_CT_STAT_INC_ATOMIC(state->net, drop);
 		/* Special case: TCP tracker reports an attempt to reopen a
 		 * closed/aborted connection. We have to go back and create a
 		 * fresh conntrack.
 		 */
 		if (ret == -NF_REPEAT)
 			goto repeat;
+
+		NF_CT_STAT_INC_ATOMIC(state->net, invalid);
+		if (ret == -NF_DROP)
+			NF_CT_STAT_INC_ATOMIC(state->net, drop);
+
 		ret = -ret;
 		goto out;
 	}
@@ -2107,6 +2124,9 @@ static int nf_confirm_cthelper(struct sk_buff *skb, struct nf_conn *ct,
 		return 0;
 
 	helper = rcu_dereference(help->helper);
+	if (!helper)
+		return 0;
+
 	if (!(helper->flags & NF_CT_HELPER_F_USERSPACE))
 		return 0;
 

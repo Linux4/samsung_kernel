@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -1402,6 +1404,7 @@ static void apps_ipa_packet_receive_notify(void *priv,
 		skb->dev = IPA_NETDEV();
 		skb->protocol = htons(ETH_P_MAP);
 		skb_set_mac_header(skb, 0);
+		skb_reset_network_header(skb);
 
 		if (ipa3_rmnet_res.ipa_napi_enable) {
 			trace_rmnet_ipa_netif_rcv_skb3(skb, dev->stats.rx_packets);
@@ -2991,6 +2994,13 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 		break;
 #if IS_ENABLED(CONFIG_DEEPSLEEP)
 	case SUBSYS_AFTER_DS_ENTRY:
+		IPAWANINFO("IPA Received AFTER DEEPSLEEP ENTRY\n");
+		if (atomic_read(&rmnet_ipa3_ctx->is_ssr) &&
+				ipa3_ctx_get_type(IPA_HW_TYPE) < IPA_HW_v4_0)
+			ipa3_q6_post_shutdown_cleanup();
+
+		IPAWANINFO("AFTER DEEPSLEEP ENTRY handling is complete\n");
+		break;
 #endif
 	case SUBSYS_AFTER_SHUTDOWN:
 		IPAWANINFO("IPA Received MPSS AFTER_SHUTDOWN\n");
@@ -3005,6 +3015,17 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 		break;
 #if IS_ENABLED(CONFIG_DEEPSLEEP)
 	case SUBSYS_BEFORE_DS_EXIT:
+		IPAWANINFO("IPA received BEFORE DEEPSLEEP EXIT\n");
+		if (atomic_read(&rmnet_ipa3_ctx->is_ssr)) {
+			/* clean up cached QMI msg/handlers */
+			ipa3_qmi_service_exit();
+			ipa3_q6_pre_powerup_cleanup();
+		}
+		/* hold a proxy vote for the modem. */
+		ipa3_proxy_clk_vote(atomic_read(&rmnet_ipa3_ctx->is_ssr));
+		ipa3_reset_freeze_vote();
+		IPAWANINFO("BEFORE DEEPSLEEP EXIT handling is complete\n");
+		break;
 #endif
 	case SUBSYS_BEFORE_POWERUP:
 		IPAWANINFO("IPA received MPSS BEFORE_POWERUP\n");
@@ -3392,8 +3413,7 @@ int rmnet_ipa3_set_tether_client_pipe(
 		return -EFAULT;
 	}
 	/* error checking if dl_dst_pipe_len valid or not*/
-	if (data->dl_dst_pipe_len > QMI_IPA_MAX_PIPES_V01 ||
-		data->dl_dst_pipe_len < 0) {
+	if (data->dl_dst_pipe_len > QMI_IPA_MAX_PIPES_V01) {
 		IPAWANERR("DL dst pipes %d exceeding max %d\n",
 			data->dl_dst_pipe_len,
 			QMI_IPA_MAX_PIPES_V01);

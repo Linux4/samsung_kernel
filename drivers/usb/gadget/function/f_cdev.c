@@ -138,6 +138,7 @@ struct f_cdev {
 	unsigned long		nbytes_from_port_bridge;
 
 	struct dentry		*debugfs_root;
+	bool			setup_pending;
 
 	/* To test remote wakeup using debugfs */
 	u8 debugfs_rw_enable;
@@ -358,21 +359,28 @@ static inline struct f_cdev *cser_to_port(struct cserial *cser)
 	return container_of(cser, struct f_cdev, port_usb);
 }
 
-static unsigned int convert_uart_sigs_to_acm(unsigned int uart_sig)
+static unsigned int convert_uart_sigs_to_acm(struct cserial *cser, unsigned int uart_sig)
 {
-	unsigned int acm_sig = 0;
+	u16 state;
+
+	state = cser->serial_state;
+
+	/* Make sure that ACM bits from previous conversion are cleared */
+	state &= ~(ACM_CTRL_RI | ACM_CTRL_DCD | ACM_CTRL_DSR | ACM_CTRL_BRK);
 
 	/* should this needs to be in calling functions ??? */
-	uart_sig &= (TIOCM_RI | TIOCM_CD | TIOCM_DSR);
+	uart_sig &= (TIOCM_RI | TIOCM_CD | TIOCM_DSR | TIOCM_CTS);
 
 	if (uart_sig & TIOCM_RI)
-		acm_sig |= ACM_CTRL_RI;
+		state |= ACM_CTRL_RI;
 	if (uart_sig & TIOCM_CD)
-		acm_sig |= ACM_CTRL_DCD;
+		state |= ACM_CTRL_DCD;
 	if (uart_sig & TIOCM_DSR)
-		acm_sig |= ACM_CTRL_DSR;
+		state |= ACM_CTRL_DSR;
+	if (uart_sig & TIOCM_CTS)
+		state |= ACM_CTRL_BRK;
 
-	return acm_sig;
+	return state;
 }
 
 static unsigned int convert_acm_sigs_to_uart(unsigned int acm_sig)
@@ -541,6 +549,7 @@ static int usb_cser_set_alt(struct usb_function *f, unsigned int intf,
 }
 
 static int port_notify_serial_state(struct cserial *cser);
+static void usb_cser_start_rx(struct f_cdev *port);
 
 static void usb_cser_resume(struct usb_function *f)
 {
@@ -559,6 +568,15 @@ static void usb_cser_resume(struct usb_function *f)
 		port_notify_serial_state(&port->port_usb);
 
 	spin_lock_irqsave(&port->port_lock, flags);
+
+	/* process pending read request */
+	if (port->setup_pending) {
+		pr_info("%s: start_rx called due to rx_out error.\n", __func__);
+		port->setup_pending = false;
+		spin_unlock_irqrestore(&port->port_lock, flags);
+		usb_cser_start_rx(port);
+		spin_lock_irqsave(&port->port_lock, flags);
+	}
 	in = port->port_usb.in;
 	/* process any pending requests */
 	list_for_each_entry_safe(req, t, &port->write_pending, list) {
@@ -603,11 +621,11 @@ static int usb_cser_func_suspend(struct usb_function *f, u8 options)
 		if (!port->func_is_suspended) {
 			usb_cser_suspend(f);
 			port->func_is_suspended = true;
-		} else {
-			if (port->func_is_suspended) {
-				port->func_is_suspended = false;
-				usb_cser_resume(f);
-			}
+		}
+	} else {
+		if (port->func_is_suspended) {
+			port->func_is_suspended = false;
+			usb_cser_resume(f);
 		}
 	}
 	return 0;
@@ -1048,7 +1066,10 @@ static void usb_cser_start_rx(struct f_cdev *port)
 			pr_err("port(%d):%pK usb ep(%s) queue failed\n",
 					port->port_num, port, ep->name);
 			list_add(&req->list, pool);
+			port->setup_pending = true;
 			break;
+		} else {
+			port->setup_pending = false;
 		}
 	}
 
@@ -1596,6 +1617,7 @@ static long f_cdev_ioctl(struct file *fp, unsigned int cmd,
 	int i = 0;
 	uint32_t val;
 	struct f_cdev *port;
+	unsigned long flags;
 
 	port = fp->private_data;
 	if (!port) {
@@ -1620,7 +1642,9 @@ static long f_cdev_ioctl(struct file *fp, unsigned int cmd,
 		ret = f_cdev_tiocmget(port);
 		if (ret >= 0) {
 			ret = put_user(ret, (uint32_t *)arg);
+			spin_lock_irqsave(&port->port_lock, flags);
 			port->cbits_updated = false;
+			spin_unlock_irqrestore(&port->port_lock, flags);
 		}
 		break;
 	default:
@@ -1637,6 +1661,7 @@ static void usb_cser_notify_modem(void *fport, int ctrl_bits)
 	int temp;
 	struct f_cdev *port = fport;
 	struct cserial *cser;
+	unsigned long flags;
 
 	cser = &port->port_usb;
 	if (!port) {
@@ -1651,8 +1676,10 @@ static void usb_cser_notify_modem(void *fport, int ctrl_bits)
 	if (temp == port->cbits_to_modem)
 		return;
 
+	spin_lock_irqsave(&port->port_lock, flags);
 	port->cbits_to_modem = temp;
 	port->cbits_updated = true;
+	spin_unlock_irqrestore(&port->port_lock, flags);
 
 	 /* if DTR is high, update latest modem info to laptop */
 	if (port->cbits_to_modem & TIOCM_DTR) {
@@ -1660,7 +1687,7 @@ static void usb_cser_notify_modem(void *fport, int ctrl_bits)
 		unsigned int cbits_to_laptop;
 
 		result = f_cdev_tiocmget(port);
-		cbits_to_laptop = convert_uart_sigs_to_acm(result);
+		cbits_to_laptop = convert_uart_sigs_to_acm(cser, result);
 		if (cser->send_modem_ctrl_bits)
 			cser->send_modem_ctrl_bits(cser, cbits_to_laptop);
 	}

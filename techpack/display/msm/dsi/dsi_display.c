@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -937,16 +938,17 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 		panel->esd_config.esd_enabled = false;
 	}
 
-	if (rc <= 0 && te_check_override)
+	/*
+	 * TE check may fail even if status read is passing. In case of
+	 * te_check_override, check the status both from reg read and TE.
+	 */
+	if (rc > 0 && te_check_override)
 		rc = dsi_display_status_check_te(dsi_display, te_rechecks);
 	/* Unmask error interrupts if check passed*/
 	if (rc > 0) {
 		dsi_display_set_ctrl_esd_check_flag(dsi_display, false);
 		dsi_display_mask_ctrl_error_interrupts(dsi_display, mask,
 							false);
-		if (te_check_override && panel->esd_config.esd_enabled == false)
-			rc = dsi_display_status_check_te(dsi_display,
-					te_rechecks);
 	}
 
 	dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
@@ -2530,31 +2532,61 @@ void dsi_display_enable_event(struct drm_connector *connector,
 	}
 }
 
-#if 0//defined(CONFIG_DISPLAY_SAMSUNG) // ksj this came from sm8350.. check further..
-/**
- * dsi_config_host_engine_state_for_cont_splash()- update host engine state
- *                                                 during continuous splash.
- * @display: Handle to dsi display
- *
- */
-static void dsi_config_host_engine_state_for_cont_splash
-					(struct dsi_display *display, bool enable)
+int dsi_display_ctrl_vreg_on(struct dsi_display *display)
 {
+	int rc = 0;
 	int i;
 	struct dsi_display_ctrl *ctrl;
-	enum dsi_engine_state host_state = enable ? DSI_CTRL_ENGINE_ON : DSI_CTRL_ENGINE_OFF;
+	struct dsi_ctrl *dsi_ctrl;
 
-	/* Sequence does not matter for split dsi usecases */
 	display_for_each_ctrl(i, display) {
 		ctrl = &display->ctrl[i];
 		if (!ctrl->ctrl)
 			continue;
 
-		dsi_ctrl_update_host_engine_state_for_cont_splash(ctrl->ctrl,
-							host_state);
+		dsi_ctrl = ctrl->ctrl;
+		if (dsi_ctrl->current_state.host_initialized) {
+			rc = dsi_pwr_enable_regulator(
+					&dsi_ctrl->pwr_info.host_pwr, true);
+			if (rc) {
+				DSI_ERR("[%s] Failed to enable vreg, rc=%d\n",
+				       dsi_ctrl->name, rc);
+				goto error;
+			}
+			DSI_DEBUG("[%s] Enable ctrl vreg\n", dsi_ctrl->name);
+		}
 	}
+error:
+	return rc;
 }
-#endif
+
+int dsi_display_ctrl_vreg_off(struct dsi_display *display)
+{
+	int rc = 0;
+	int i;
+	struct dsi_display_ctrl *ctrl;
+	struct dsi_ctrl *dsi_ctrl;
+
+	display_for_each_ctrl(i, display) {
+		ctrl = &display->ctrl[i];
+		if (!ctrl->ctrl)
+			continue;
+
+		dsi_ctrl = ctrl->ctrl;
+		if (dsi_ctrl->current_state.host_initialized) {
+			rc = dsi_pwr_enable_regulator(
+				&dsi_ctrl->pwr_info.host_pwr, false);
+			if (rc) {
+				DSI_ERR("[%s] Failed to disable vreg, rc=%d\n",
+				       dsi_ctrl->name, rc);
+				goto error;
+			}
+			DSI_DEBUG("[%s] Disable ctrl vreg\n", dsi_ctrl->name);
+		}
+	}
+error:
+	return rc;
+}
 
 static int dsi_display_ctrl_power_on(struct dsi_display *display)
 {
@@ -2765,7 +2797,39 @@ error:
 	return rc;
 }
 
-static int dsi_display_set_clk_src(struct dsi_display *display)
+#ifdef CONFIG_DEEPSLEEP
+int dsi_display_unset_clk_src(struct dsi_display *display)
+{
+	int rc = 0;
+	int i;
+	struct dsi_display_ctrl *ctrl;
+
+	DSI_DEBUG("[%s] unset source clocks\n", display->name);
+
+	display_for_each_ctrl(i, display) {
+		ctrl = &display->ctrl[i];
+		if (!ctrl->ctrl)
+			continue;
+
+		/* set ctrl clocks to xo source */
+		rc = dsi_ctrl_set_clock_source(ctrl->ctrl,
+			   &display->clock_info.xo_clks);
+		if (rc) {
+			DSI_ERR("[%s] failed to set source clocks, rc=%d\n",
+				   display->name, rc);
+			return rc;
+		}
+	}
+	return 0;
+}
+#else
+inline int dsi_display_unset_clk_src(struct dsi_display *display)
+{
+	return 0;
+}
+#endif
+
+int dsi_display_set_clk_src(struct dsi_display *display)
 {
 	int rc = 0;
 	int i;
@@ -3454,7 +3518,7 @@ static ssize_t dsi_host_transfer(struct mipi_dsi_host *host,
 #else
 		rc = dsi_ctrl_cmd_transfer(display->ctrl[ctrl_idx].ctrl, msg,
 				&cmd_flags);
-		if (rc) {
+		if (rc < 0) {
 			DSI_ERR("[%s] cmd transfer failed, rc=%d\n",
 			       display->name, rc);
 			goto error_disable_cmd_engine;
@@ -3590,6 +3654,7 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 {
 	int i, rc = 0, num_clk = 0;
 	const char *clk_name;
+	const char *xo_byte = "xo_byte", *xo_pixel = "xo_pixel";
 	const char *src_byte = "src_byte", *src_pixel = "src_pixel";
 	const char *mux_byte = "mux_byte", *mux_pixel = "mux_pixel";
 	const char *cphy_byte = "cphy_byte", *cphy_pixel = "cphy_pixel";
@@ -3597,6 +3662,7 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 	const char *shadow_cphybyte = "shadow_cphybyte",
 		   *shadow_cphypixel = "shadow_cphypixel";
 	struct clk *dsi_clk;
+	struct dsi_clk_link_set *xo = &display->clock_info.xo_clks;
 	struct dsi_clk_link_set *src = &display->clock_info.src_clks;
 	struct dsi_clk_link_set *mux = &display->clock_info.mux_clks;
 	struct dsi_clk_link_set *cphy = &display->clock_info.cphy_clks;
@@ -3613,10 +3679,11 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 
 	num_clk = dsi_display_get_clocks_count(display, dsi_clock_name);
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	if (num_clk < 1)
-		DSI_ERR("[SDE] ^^^^^^^ No dsi clock, Check panel_common.MODEL.dtsi File and Build Model Name\n");
-#endif
+	if (num_clk <= 0) {
+		rc = num_clk;
+		DSI_WARN("failed to read %s, rc = %d\n", dsi_clock_name, num_clk);
+		goto error;
+	}
 
 	DSI_DEBUG("clk count=%d\n", num_clk);
 
@@ -3631,6 +3698,15 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 			rc = PTR_ERR(dsi_clk);
 
 			DSI_ERR("failed to get %s, rc=%d\n", clk_name, rc);
+
+			if (dsi_display_check_prefix(xo_byte, clk_name)) {
+				xo->byte_clk = NULL;
+				goto error;
+			}
+			if (dsi_display_check_prefix(xo_pixel, clk_name)) {
+				xo->pixel_clk = NULL;
+				goto error;
+			}
 
 			if (dsi_display_check_prefix(mux_byte, clk_name)) {
 				mux->byte_clk = NULL;
@@ -3675,6 +3751,16 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 
 				dyn_clk_caps->dyn_clk_support = false;
 			}
+		}
+
+		if (dsi_display_check_prefix(xo_byte, clk_name)) {
+			xo->byte_clk = dsi_clk;
+			continue;
+		}
+
+		if (dsi_display_check_prefix(xo_pixel, clk_name)) {
+			xo->pixel_clk = dsi_clk;
+			continue;
 		}
 
 		if (dsi_display_check_prefix(src_byte, clk_name)) {
@@ -4298,6 +4384,12 @@ static int dsi_display_parse_dt(struct dsi_display *display)
 
 	/* Parse TE data */
 	dsi_display_parse_te_data(display);
+
+	display->needs_clk_src_reset = of_property_read_bool(of_node,
+				"qcom,needs-clk-src-reset");
+
+	display->needs_ctrl_vreg_disable = of_property_read_bool(of_node,
+				"qcom,needs-ctrl-vreg-disable");
 
 	/* Parse all external bridges from port 0 */
 	display_for_each_ctrl(i, display) {
@@ -6466,6 +6558,12 @@ int dsi_display_drm_bridge_init(struct dsi_display *display,
 	display->bridge = bridge;
 	priv->bridges[priv->num_bridges++] = &bridge->base;
 
+	if (display->tx_cmd_buf == NULL) {
+		rc = dsi_host_alloc_cmd_tx_buffer(display);
+		if (rc)
+			DSI_ERR("failed to allocate cmd tx buffer memory\n");
+	}
+
 error:
 	mutex_unlock(&display->display_lock);
 	return rc;
@@ -7265,6 +7363,20 @@ int dsi_display_get_modes(struct dsi_display *display,
 			DSI_ERR("[%s] failed to get mode idx %d from panel\n",
 				   display->name, mode_idx);
 			goto error;
+		}
+
+		/*
+		 * Update the host_config.dst_format for compressed RGB101010
+		 * pixel format.
+		 */
+		if (display->panel->host_config.dst_format ==
+			DSI_PIXEL_FORMAT_RGB101010 &&
+			display_mode.timing.dsc_enabled) {
+			display->panel->host_config.dst_format =
+				DSI_PIXEL_FORMAT_RGB888;
+			DSI_DEBUG("updated dst_format from %d to %d\n",
+				DSI_PIXEL_FORMAT_RGB101010,
+				display->panel->host_config.dst_format);
 		}
 
 		is_cmd_mode = (display_mode.panel_mode == DSI_OP_CMD_MODE);
@@ -9174,6 +9286,12 @@ int dsi_display_unprepare(struct dsi_display *display)
 			DSI_LINK_CLK, DSI_CLK_OFF);
 	if (rc)
 		DSI_ERR("[%s] failed to disable Link clocks, rc=%d\n",
+		       display->name, rc);
+
+	/* set to dsi clocks to xo clocks */
+	rc = dsi_display_unset_clk_src(display);
+	if (rc)
+		DSI_ERR("[%s] failed to unset clocks, rc=%d\n",
 		       display->name, rc);
 
 	rc = dsi_display_ctrl_deinit(display);

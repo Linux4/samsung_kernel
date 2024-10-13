@@ -31,27 +31,14 @@ class IntegrityRoutine(ELF):
     @staticmethod
     def __remove_all_dublicates(lst):
         """
-        Removes all occurrences of tha same value. For instance: transforms [1, 2, 4, 3, 1] -> [2, 3, 4]
+        Removes all occurrences of the same value. For instance: transforms [1, 2, 4, 3, 1] -> [2, 3, 4]
         :param lst: input list
         :return: sorted lst w/o duplicates
         """
-        output_list = []
         if len(lst) < 2:
             return lst
         lst.sort()
-        i = 0
-        while i < (len(lst) - 1):
-            value = lst[i]
-            if value == lst[i + 1]:
-                i += 1
-                while value == lst[i] and i < (len(lst) - 1):
-                    i += 1
-            else:
-                output_list.append(value)
-                i += 1
-        if lst[i] != lst[i - 1]:
-            output_list.append(lst[i])
-        return output_list
+        return [k for k, v in groupby(lst) if len(list(v)) < 2]
 
     def get_reloc_gaps(self, relocs_list, start_addr, end_addr):
         """
@@ -61,10 +48,8 @@ class IntegrityRoutine(ELF):
         """
         relocs_gaps = list()
         all_relocs = self.get_relocs_for_symbol(relocs_list, start_addr, end_addr)
-        if len(all_relocs) != 0:
-            for addr in all_relocs:
-                for addr_one in range(addr, addr + 8):
-                    relocs_gaps.append(addr_one)
+        for addr in all_relocs:
+            relocs_gaps.extend(range(addr, addr + 8))
         return relocs_gaps
 
     def get_altinstruction_gaps(self, start_addr, end_addr, alt_instr_text):
@@ -74,6 +59,16 @@ class IntegrityRoutine(ELF):
         :returns list of exclude addr like [exclude_alt_addr1, exclude_alt_addr2, ...]
         """
         return self.get_altinstructions(alt_instr_text, start_addr, end_addr)
+
+    def get_jump_table_gaps(self, start_addr: int, end_addr: int, jump_table: list) -> list:
+        """
+        Return JT related gaps are in range of our module
+        :param start_addr: int
+        :param end_addr: int
+        :param jump_table: list   full list (over whole kernel) of JT items
+        :returns list of addrs to be excluded [exclude_addr1, exclude_addr2, ...]
+        """
+        return self.get_jump_table_module(start_addr, end_addr, jump_table)
 
     def get_gaps(self, exclude_addrs):
         gaps = list()
@@ -100,9 +95,8 @@ class IntegrityRoutine(ELF):
                 symbol_scope.append(addr_one)
         symbol_scope.sort()
         symbol_scope_final = [el for el, _ in groupby(symbol_scope)]
-        """
-        Exclude addresses from HMAC
-        """
+
+        """ Exclude addresses from HMAC """
         i_exclude = 0
         for sym_addr in symbol_scope_final:
             while i_exclude < len(exclude_addrs):
@@ -276,7 +270,7 @@ class IntegrityRoutine(ELF):
         """
         with open(self.get_elf_file(), "rb") as elf_fp:
             with open(out_file_bin, "wb") as out_fp:
-                with open(out_file_txt, "w") as out_ft:
+                with open(out_file_txt, mode="w", encoding='utf-8') as out_ft:
                     i = 0
                     for vaddr_start, vaddr_end, in vaddr_seq:
                         elf_fp.seek(self.vaddr_to_file_offset(vaddr_start))
@@ -286,7 +280,7 @@ class IntegrityRoutine(ELF):
                         out_ft.write("\nArea cover {} [{}, {}], size = {}:\n".format(i, hex(vaddr_start), hex(vaddr_end), hex(block_size)))
                         str_dump = ''
                         for l_count in range(0, block_size):
-                            str_dump = str_dump + self.utils.byte_int_to_hex_str(dump_mem[l_count]) + " "
+                            str_dump = str_dump + self.utils.byte_int_to_hex_str2(dump_mem[l_count]) + " "
                             if (l_count + 1) % 16 == 0:
                                 str_dump = str_dump + "\n"
                         str_dump = str_dump + "\n"
@@ -320,7 +314,6 @@ class IntegrityRoutine(ELF):
             for l_count in range(0, size):
                 str_dump = str_dump + self.utils.byte_int_to_hex_str(dump_mem[l_count]) + " "
                 if (l_count + 1) % base == 0:
-                    str_dump = str_dump + "\n"
                     str_dump = str_dump + "\n"
             print("From addr_start ", hex(addr_start), ":")
             print(str_dump)
@@ -409,6 +402,7 @@ class IntegrityRoutine(ELF):
         """
         relocs_text, relocs_rodata = self.get_relocs_text_rodata()
         alt_instr_text, alt_instr_rodata = self.get_text_rodata_altinstructions_lists()
+        jump_table = self.get_jump_table_list()
 
         if debug:
             print("\nSize relocations instruction in text sections:", len(relocs_text))
@@ -438,6 +432,10 @@ class IntegrityRoutine(ELF):
         if len(alt_instr_text) != 0:
             for symbol_text in sec_sym[0]:
                 exclude_addrs.extend(self.get_altinstruction_gaps(symbol_text.addr, symbol_text.addr + symbol_text.size, alt_instr_text))
+
+        if len(jump_table) != 0:
+            for symbol_text in sec_sym[0]:
+                exclude_addrs.extend(self.get_jump_table_gaps(symbol_text.addr, symbol_text.addr + symbol_text.size, jump_table))
 
         exclude_addrs.sort()
         exclude_addrs_no_matches = [ex for ex, _ in groupby(exclude_addrs)]

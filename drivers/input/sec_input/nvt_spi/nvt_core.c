@@ -1769,27 +1769,28 @@ static void nvt_ts_coordinate_event(struct nvt_ts_data *ts, u8 *point_data)
 			ts->plat_data->prev_coord[id] = ts->plat_data->coord[id];
 			if (ts->press[id] && !ts->p_press[id]) {
 				nvt_ts_coord_parsing(ts, p_event_coord, point_data, id, i, SEC_TS_COORDINATE_ACTION_PRESS);
-				sec_input_coord_event(&ts->client->dev, id);
+				sec_input_coord_event_fill_slot(&ts->client->dev, id);
 				ts->p_press[id] = ts->press[id];
 			} else if (ts->press[id] == ts->p_press[id]) {
 				nvt_ts_coord_parsing(ts, p_event_coord, point_data, id, i, SEC_TS_COORDINATE_ACTION_MOVE);
-				sec_input_coord_event(&ts->client->dev, id);
+				sec_input_coord_event_fill_slot(&ts->client->dev, id);
 			} else {
 				input_info(true, &ts->client->dev, "%s: id:%d, press:%d, p_press %d\n", __func__, id, ts->press[id], ts->p_press[id]);
 			}
 		}
 	}
+	sec_input_coord_event_sync_slot(&ts->client->dev);
 
 	for (i = 0; i < ts->nplat_data->max_touch_num; i++) {
 		if (!press_id[i] && ts->p_press[i]) {
 			ts->plat_data->prev_coord[i] = ts->plat_data->coord[i];
 			ts->press[i] = false;
 			nvt_ts_coord_parsing(ts, p_event_coord, point_data, i, i, SEC_TS_COORDINATE_ACTION_RELEASE);
-			sec_input_coord_event(&ts->client->dev, i);
+			sec_input_coord_event_fill_slot(&ts->client->dev, i);
 			ts->p_press[i] = false;
 		}
 	}
-
+	sec_input_coord_event_sync_slot(&ts->client->dev);
 }
 
 irqreturn_t nvt_ts_irq_thread(int irq, void *ptr)

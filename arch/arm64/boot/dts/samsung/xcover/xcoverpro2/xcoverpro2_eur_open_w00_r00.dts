@@ -86,6 +86,8 @@
 					battery,battery_check_type = <0x1>;
 					battery,ovp_uvlo_check_type = <0x3>;
 					battery,temp_check_count = <0x1>;
+					battery,usb_protection_temp = <0x262>;
+					battery,temp_gap_bat_usb = <0xc8>;
 					battery,overheatlimit_threshold = <0x2bc>;
 					battery,overheatlimit_recovery = <0x2a8>;
 					battery,wire_warm_overheat_thresh = <0x1f4>;
@@ -154,20 +156,16 @@
 					battery,mix_v2_dchg_cond = <0x0>;
 					battery,full_condition_type = <0x9>;
 					battery,full_condition_soc = <0x5d>;
-					battery,full_condition_vcell = <0x109a>;
 					battery,recharge_check_count = <0x1>;
 					battery,recharge_condition_type = <0x4>;
 					battery,recharge_condition_soc = <0x62>;
-					battery,recharge_condition_vcell = <0x10b8>;
 					battery,charging_reset_time = <0x0>;
 					battery,chg_float_voltage = <0x10fe>;
 					battery,pre_afc_work_delay = <0x7d0>;
 					battery,pre_wc_afc_work_delay = <0xfa0>;
 					battery,pre_afc_input_current = <0x1f4>;
 					battery,pre_wc_afc_input_current = <0x1f4>;
-					battery,prepare_ta_delay = <0x0>;
 					battery,swelling_high_rechg_voltage = <0xfa0>;
-					battery,swelling_low_rechg_voltage = <0x1068>;
 					battery,siop_icl = <0x4b0>;
 					battery,siop_fcc = <0x708>;
 					battery,siop_hv_icl = <0x2bc>;
@@ -193,7 +191,12 @@
 					battery,store_mode_charging_min = <0x3c>;
 					battery,wireless_cc_cv = <0x55>;
 					battery,wireless_otg_input_current = <0x384>;
+					battery,age_data_cycle = <0x0 0x12c 0x190 0x2bc 0x3e8>;
+					battery,age_data_full_condition_soc = <0x5d 0x5c 0x5b 0x5a 0x59>;
+					battery,age_data_common_offset = <0x0 0x14 0x28 0x6e>;
 					battery,age_data = <0x0 0x10fe 0x10b8 0x109a 0x5d 0x2b 0x10ea 0x10a4 0x1086 0x5c 0x3a 0x10d6 0x1090 0x1072 0x5b>;
+					battery,health_condition_cycle = <0x384 0x4b0 0x5dc>;
+					battery,health_condition_asoc = <0x0 0x0 0x0>;
 					battery,max_input_voltage = <0x2328>;
 					battery,max_input_current = <0xbb8>;
 					battery,cisd_alg_index = <0x8>;
@@ -215,12 +218,13 @@
 					battery,chg_temp_table_data = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x0 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
 					battery,check_adc_max = <0xf4240>;
 					battery,check_adc_min = <0x61a80>;
-					battery,usb_protection_temp = <0x262>;
-					battery,temp_gap_bat_usb = <0xc8>;
 					battery,high_temp_topoff = <0xc8>;
 					battery,low_temp_topoff = <0xc8>;
 					battery,high_temp_float = <0x1036>;
 					battery,low_temp_float = <0x10fe>;
+					battery,swelling_low_rechg_voltage = <0x1068>;
+					battery,full_condition_vcell = <0x109a>;
+					battery,recharge_condition_vcell = <0x10b8>;
 					battery,chg_ocp_current = <0x0>;
 					battery,siop_event_check_type = <0x1>;
 					battery,siop_call_cv_current = <0x14a>;
@@ -229,7 +233,6 @@
 					battery,max_charging_charge_power = <0x3a98>;
 					battery,factory_chg_limit_max = <0x46>;
 					battery,factory_chg_limit_min = <0x41>;
-					battery,health_condition = <0x384 0x0 0x4b0 0x0 0x5dc 0x0>;
 					battery,enable_sysovlo_irq;
 					battery,enable_noise_wa;
 					battery,standard_curr = <0x9c4>;
@@ -715,13 +718,13 @@
 				};
 
 				wireless-power-info {
-					count = <0x5>;
+					count = <0x9>;
 					phandle = <0xa1>;
 
 					current_group_0 {
 						wireless_power_class = <0x2>;
 						vout = <0x2328>;
-						input_current_limit = <0x339>;
+						input_current_limit = <0x33e>;
 						fast_charging_current = <0xc4e>;
 						ttf_charge_current = <0x5dc>;
 						rx_power = <0x1d4c>;
@@ -738,26 +741,62 @@
 
 					current_group_2 {
 						wireless_power_class = <0x2>;
+						vout = <0x2af8>;
+						input_current_limit = <0x2a8>;
+						fast_charging_current = <0xc4e>;
+						ttf_charge_current = <0x5dc>;
+						rx_power = <0x1d4c>;
+					};
+
+					current_group_3 {
+						wireless_power_class = <0x2>;
+						vout = <0x2ee0>;
+						input_current_limit = <0x271>;
+						fast_charging_current = <0xc4e>;
+						ttf_charge_current = <0x5dc>;
+						rx_power = <0x1d4c>;
+					};
+
+					current_group_4 {
+						wireless_power_class = <0x2>;
 						vout = <0x2328>;
-						input_current_limit = <0x4b0>;
+						input_current_limit = <0x532>;
 						fast_charging_current = <0xc4e>;
 						ttf_charge_current = <0x87f>;
 						rx_power = <0x2ee0>;
 					};
 
-					current_group_3 {
+					current_group_5 {
 						wireless_power_class = <0x2>;
 						vout = <0x2af8>;
-						input_current_limit = <0x44c>;
+						input_current_limit = <0x442>;
 						fast_charging_current = <0xc4e>;
 						ttf_charge_current = <0x834>;
 						rx_power = <0x2ee0>;
 					};
 
-					current_group_4 {
+					current_group_6 {
+						wireless_power_class = <0x2>;
+						vout = <0x2ee0>;
+						input_current_limit = <0x3e8>;
+						fast_charging_current = <0xc4e>;
+						ttf_charge_current = <0x834>;
+						rx_power = <0x2ee0>;
+					};
+
+					current_group_7 {
 						wireless_power_class = <0x2>;
 						vout = <0x2af8>;
-						input_current_limit = <0x514>;
+						input_current_limit = <0x550>;
+						fast_charging_current = <0xc4e>;
+						ttf_charge_current = <0x8fc>;
+						rx_power = <0x3a98>;
+					};
+
+					current_group_8 {
+						wireless_power_class = <0x2>;
+						vout = <0x2ee0>;
+						input_current_limit = <0x4e2>;
 						fast_charging_current = <0xc4e>;
 						ttf_charge_current = <0x8fc>;
 						rx_power = <0x3a98>;
@@ -4307,6 +4346,7 @@
 					compatible = "samsung,s2mpb03pmic";
 					reg = <0x56>;
 					s2mpb03,wakeup;
+					phandle = <0xf1>;
 
 					regulators {
 
@@ -4437,7 +4477,7 @@
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			status = "okay";
-			samsung,i2c-max-bus-freq = <0x61a80>;
+			qcom,clk-freq-out = <0x61a80>;
 
 			sm5714@49 {
 				status = "okay";
@@ -4459,7 +4499,7 @@
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			status = "okay";
-			samsung,i2c-max-bus-freq = <0x61a80>;
+			qcom,clk-freq-out = <0x61a80>;
 
 			usbpd-sm5714@33 {
 				status = "okay";
@@ -4609,7 +4649,7 @@
 				novatek,swrst-n8-addr = <0x3f0fe>;
 				novatek,spi-rd-fast-addr = <0x3f310>;
 				novatek,mp-support-dt;
-				phandle = <0xf1>;
+				phandle = <0xf2>;
 
 				novatek-mp-criteria-7248@0 {
 					#address-cells = <0x1>;
@@ -5406,6 +5446,7 @@
 				pn547,ap_vendor = "qct";
 				pn547,clk_req_wake;
 				nfc_pvdd-supply = <0x5a>;
+				pn547,disable_clk_irq_during_wakeup;
 				phandle = <0x67>;
 			};
 		};
@@ -5667,12 +5708,12 @@
 
 			qcom,dsi-display@1 {
 				label = "XCP2_NT36672C_PM6585JB2";
-				phandle = <0xf2>;
+				phandle = <0xf3>;
 			};
 
 			qcom,dsi-display@0 {
 				label = "ss_dsi_panel_PBA_BOOTING_FHD";
-				phandle = <0xf3>;
+				phandle = <0xf4>;
 			};
 		};
 	};
@@ -5937,7 +5978,7 @@
 				compatible = "samsung,usb-notifier";
 				qcom,disable_control_en = <0x1>;
 				qcom,unsupport_host_en = <0x0>;
-				phandle = <0xf4>;
+				phandle = <0xf5>;
 			};
 
 			qcom,glinkpkt {
@@ -5971,19 +6012,19 @@
 			samsung,security_mz1@146e9aa0 {
 				compatible = "samsung,security_mz1";
 				reg = <0x146aaaa0 0x4>;
-				phandle = <0xf5>;
+				phandle = <0xf6>;
 			};
 
 			samsung,security_mz2@146e9aa4 {
 				compatible = "samsung,security_mz2";
 				reg = <0x146aaaa4 0x4>;
-				phandle = <0xf6>;
+				phandle = <0xf7>;
 			};
 
 			samsung,security_mz3@146e9aa8 {
 				compatible = "samsung,security_mz3";
 				reg = <0x146aaaa8 0x4>;
-				phandle = <0xf7>;
+				phandle = <0xf8>;
 			};
 		};
 	};
@@ -6012,14 +6053,14 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xf0000000 0x0 0x900000>;
-				phandle = <0xf8>;
+				phandle = <0xf9>;
 			};
 
 			sec_debug_rdx_bootdev@0 {
 				alloc-ranges = <0x1 0x0 0x0 0xad00000>;
 				size = <0x0 0x0>;
 				non_gki_size = <0x0 0xad00000>;
-				phandle = <0xf9>;
+				phandle = <0xfa>;
 			};
 
 			ss_plog@1B0900000 {
@@ -6041,14 +6082,14 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xa0001000 0x0 0x1000>;
-				phandle = <0xfa>;
+				phandle = <0xfb>;
 			};
 
 			tima_region@B0100000 {
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xb0100000 0x0 0x100000>;
-				phandle = <0xfb>;
+				phandle = <0xfc>;
 			};
 
 			modem_shared_mem_region@d0000000 {
@@ -6069,7 +6110,7 @@
 			dummy_mem {
 				reg = <0x0 0x9c700000 0x0 0x100000>;
 				no-map;
-				phandle = <0xfc>;
+				phandle = <0xfd>;
 			};
 		};
 	};
@@ -6146,7 +6187,7 @@
 			sec,wb-up-threshold-rqs = <0x1e>;
 			sec,wb-down-threshold-block = <0x600>;
 			sec,wb-down-threshold-rqs = <0x19>;
-			sec,wb-disable-threshold-lt = <0x7>;
+			sec,wb-disable-threshold-lt = <0x9>;
 			sec,wb-on-delay-ms = <0x5c>;
 			sec,wb-off-delay-ms = <0x1194>;
 		};
@@ -6611,7 +6652,7 @@
 				size-cells = <0x0>;
 				pinctrl-names = "default";
 				pinctrl-0 = <0x78>;
-				phandle = <0xfd>;
+				phandle = <0xfe>;
 
 				sx9360-i2c@28 {
 					compatible = "sx9360";
@@ -6633,7 +6674,7 @@
 					sx9360,proxthresh_reg = <0x23>;
 					sx9360,hallic_detect = <0x1>;
 					sx9360,hallic_cert_detect = <0x1>;
-					phandle = <0xfe>;
+					phandle = <0xff>;
 				};
 			};
 		};
@@ -7107,7 +7148,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0xff>;
+				phandle = <0x100>;
 			};
 
 			qcom,cam-sensor1 {
@@ -7155,7 +7196,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x100>;
+				phandle = <0x101>;
 			};
 
 			qcom,cam-sensor13 {
@@ -7203,7 +7244,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x101>;
+				phandle = <0x102>;
 			};
 		};
 	};
@@ -7258,7 +7299,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x102>;
+				phandle = <0x103>;
 			};
 
 			qcom,actuator@0xC {
@@ -7556,6 +7597,7 @@
 		gpio_i2c_0_sda_default = "/fragment@48/__overlay__/gpio_i2c_0_sda/gpio_i2c_0_sda_default";
 		gpio_i2c_0_scl_default = "/fragment@49/__overlay__/gpio_i2c_0_scl/gpio_i2c_0_scl_default";
 		sw_i2c0 = "/fragment@model/__overlay__/i2c@30";
+		s2mpb03_pmic_0 = "/fragment@model/__overlay__/i2c@30/s2mpb03_pmic@56";
 		s2mpb03_0_l1 = "/fragment@model/__overlay__/i2c@30/s2mpb03_pmic@56/regulators/s2mpb03-ldo1";
 		s2mpb03_0_l2 = "/fragment@model/__overlay__/i2c@30/s2mpb03_pmic@56/regulators/s2mpb03-ldo2";
 		s2mpb03_0_l3 = "/fragment@model/__overlay__/i2c@30/s2mpb03_pmic@56/regulators/s2mpb03-ldo3";

@@ -123,7 +123,7 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 				cdm_cmd->cmd[i].len) {
 				CAM_ERR(CAM_CDM, "Not enough buffer");
 				rc = -EINVAL;
-				break;
+				goto end;
 			}
 			CAM_DBG(CAM_CDM,
 				"hdl=%x vaddr=%pK offset=%d cmdlen=%d:%zu",
@@ -141,7 +141,7 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 					"write failed for cnt=%d:%d len %u",
 					i, req->data->cmd_arrary_count,
 					cdm_cmd->cmd[i].len);
-				break;
+				goto end;
 			}
 		} else {
 			CAM_ERR(CAM_CDM,
@@ -152,7 +152,7 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 				"Sanity check failed for cmd_count=%d cnt=%d",
 				i, req->data->cmd_arrary_count);
 			rc = -EINVAL;
-			break;
+			goto end;
 		}
 		if (!rc) {
 			struct cam_cdm_work_payload *payload;
@@ -169,7 +169,7 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 					GFP_KERNEL);
 				if (!node) {
 					rc = -ENOMEM;
-					break;
+					goto end;
 				}
 				node->request_type = CAM_HW_CDM_BL_CB_CLIENT;
 				node->client_hdl = req->handle;
@@ -203,7 +203,15 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 			if (!rc && (core->bl_tag == 63))
 				core->bl_tag = 0;
 		}
+		if (req->data->type == CAM_CDM_BL_CMD_TYPE_MEM_HANDLE)
+			cam_mem_put_cpu_buf(cdm_cmd->cmd[i].bl_addr.mem_handle);
 	}
+	mutex_unlock(&client->lock);
+	return rc;
+end:
+	if (req->data->type == CAM_CDM_BL_CMD_TYPE_MEM_HANDLE)
+		cam_mem_put_cpu_buf(cdm_cmd->cmd[i].bl_addr.mem_handle);
+
 	mutex_unlock(&client->lock);
 	return rc;
 }

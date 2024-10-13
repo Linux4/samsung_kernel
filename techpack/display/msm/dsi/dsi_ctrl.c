@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_device.h>
@@ -9,6 +10,10 @@
 #include <linux/clk.h>
 #include <linux/of_irq.h>
 #include <video/mipi_display.h>
+
+#ifdef CONFIG_UIO
+#include <linux/uio_driver.h>
+#endif
 
 #include "msm_drv.h"
 #include "msm_kms.h"
@@ -1380,6 +1385,10 @@ static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
 		dsi_hw_ops.reset_trig_ctrl(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config);
 
+	if (dsi_hw_ops.init_cmddma_trig_ctrl)
+		dsi_hw_ops.init_cmddma_trig_ctrl(&dsi_ctrl->hw,
+				&dsi_ctrl->host_config.common_config);
+
 	/*
 	 * Always enable DMA scheduling for video mode panel.
 	 *
@@ -2177,6 +2186,58 @@ static int dsi_ctrl_dts_parse(struct dsi_ctrl *dsi_ctrl,
 	return 0;
 }
 
+#ifdef CONFIG_UIO
+static void uio_init(struct platform_device *pdev)
+{
+	struct uio_info *uio_reg_info = NULL;
+	struct resource *clnt_res = NULL;
+	int ret = 0;
+	u32 mem_size = 0;
+	phys_addr_t mem_pyhsical = 0;
+
+	clnt_res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "disp_conf");
+	if (!clnt_res) {
+		pr_debug("resource not found\n");
+		return;
+	}
+
+	mem_size = resource_size(clnt_res);
+	if (mem_size == 0) {
+		pr_debug("resource memory size is zero\n");
+		goto exit;
+	}
+
+	uio_reg_info = devm_kzalloc(&pdev->dev, sizeof(struct uio_info),
+			GFP_KERNEL);
+	if (!uio_reg_info)
+		goto exit;
+
+	mem_pyhsical = clnt_res->start;
+
+	/* Setup device */
+	uio_reg_info->name = clnt_res->name;
+	uio_reg_info->version = "1.0";
+	uio_reg_info->mem[0].addr = mem_pyhsical;
+	uio_reg_info->mem[0].size = mem_size;
+	uio_reg_info->mem[0].memtype = UIO_MEM_PHYS;
+
+	ret = uio_register_device(&pdev->dev, uio_reg_info);
+	if (ret) {
+		pr_debug("uio register failed. ret:%d\n", ret);
+		goto exit;
+	}
+
+	pr_debug("Device file created for dsi_ctrl config.\n");
+	return;
+exit:
+	pr_debug("Unable to get dsi_ctrl config.\n");
+}
+#else	/* CONFIG_UIO */
+static void uio_init(struct platform_device *pdev)
+{
+}
+#endif	/* CONFIG_UIO */
+
 static int dsi_ctrl_dev_probe(struct platform_device *pdev)
 {
 	struct dsi_ctrl *dsi_ctrl;
@@ -2259,6 +2320,9 @@ static int dsi_ctrl_dev_probe(struct platform_device *pdev)
 
 	dsi_ctrl->pdev = pdev;
 	platform_set_drvdata(pdev, dsi_ctrl);
+
+	uio_init(pdev);
+
 	DSI_CTRL_INFO(dsi_ctrl, "Probe successful\n");
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
@@ -3169,6 +3233,8 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 		return -EINVAL;
 	}
 
+	mutex_lock(&dsi_ctrl->ctrl_lock);
+
 	if (dsi_ctrl->hw.ops.host_setup)
 		dsi_ctrl->hw.ops.host_setup(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config);
@@ -3186,9 +3252,11 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 				0x0, NULL);
 	} else {
 		DSI_CTRL_ERR(dsi_ctrl, "invalid panel mode for resolution switch\n");
+		mutex_unlock(&dsi_ctrl->ctrl_lock);
 		return -EINVAL;
 	}
 
+	mutex_unlock(&dsi_ctrl->ctrl_lock);
 	return 0;
 }
 

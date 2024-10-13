@@ -13,7 +13,9 @@
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 #include <linux/displayport_bigdata.h>
 #endif
-#if IS_ENABLED(CONFIG_SWITCH)
+
+#include <linux/sec_displayport.h>
+#if defined(CONFIG_SECDP_SWITCH)
 #include <linux/switch.h>
 
 static struct switch_dev switch_secdp_audio = {
@@ -472,6 +474,13 @@ static int dp_audio_get_edid_blk(struct platform_device *pdev,
 
 	blk->audio_data_blk = edid->audio_data_block;
 	blk->audio_data_blk_size = edid->adb_size;
+#if defined(CONFIG_SEC_DISPLAYPORT)
+	print_hex_dump(KERN_DEBUG, "AUDIO_BLK: ",
+			DUMP_PREFIX_NONE, 16, 1, blk->audio_data_blk,
+			blk->audio_data_blk_size, false);
+	secdp_logger_hex_dump(blk->audio_data_blk, "AUDIO_BLK:",
+			blk->audio_data_blk_size);
+#endif
 
 	blk->spk_alloc_data_blk = edid->spkr_alloc_data_block;
 	blk->spk_alloc_data_blk_size = edid->sadb_size;
@@ -684,7 +693,7 @@ end:
 	return rc;
 }
 
-#if (defined(CONFIG_SEC_DISPLAYPORT) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 extern int secdp_get_audio_ch(void);
 #endif
 
@@ -706,7 +715,7 @@ static int dp_audio_notify(struct dp_audio_private *audio, u32 state)
 	if (rc)
 		goto end;
 
-#if (defined(CONFIG_SEC_DISPLAYPORT) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 {
 	int audio_ch = state ? secdp_get_audio_ch() : -1;
 
@@ -800,7 +809,7 @@ static int dp_audio_on(struct dp_audio *dp_audio)
 	if (rc)
 		goto end;
 
-	DP_INFO("success\n");
+	DP_INFO("[AUDIO_ON]success\n");
 end:
 	return rc;
 }
@@ -843,7 +852,7 @@ static int dp_audio_off(struct dp_audio *dp_audio)
 	if (rc)
 		goto end;
 
-	DP_INFO("success\n");
+	DP_INFO("[AUDIO_OFF]success\n");
 end:
 	dp_audio_config(audio, EXT_DISPLAY_CABLE_DISCONNECT);
 
@@ -875,7 +884,7 @@ static int dp_audio_create_notify_workqueue(struct dp_audio_private *audio)
 
 	INIT_DELAYED_WORK(&audio->notify_delayed_work, dp_audio_notify_work_fn);
 
-#if (defined(CONFIG_SEC_DISPLAYPORT) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 {
 	int rc = switch_dev_register(&switch_secdp_audio);
 
@@ -893,7 +902,7 @@ static void dp_audio_destroy_notify_workqueue(struct dp_audio_private *audio)
 	if (audio->notify_workqueue)
 		destroy_workqueue(audio->notify_workqueue);
 
-#if (defined(CONFIG_SEC_DISPLAYPORT) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 	switch_dev_unregister(&switch_secdp_audio);
 #endif
 }

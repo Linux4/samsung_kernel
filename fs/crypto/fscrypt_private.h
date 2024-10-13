@@ -28,9 +28,9 @@
 
 #define CONST_STRLEN(str)	(sizeof(str) - 1)
 
-#define FS_KEY_DERIVATION_NONCE_SIZE	16
+#define FSCRYPT_FILE_NONCE_SIZE	16
 
-#define FSCRYPT_MIN_KEY_SIZE		16
+#define FSCRYPT_MIN_KEY_SIZE	16
 #define FSCRYPT_MAX_HW_WRAPPED_KEY_SIZE	128
 
 #define FSCRYPT_CONTEXT_V1	1
@@ -45,7 +45,7 @@ struct fscrypt_context_v1 {
 	u8 filenames_encryption_mode;
 	u8 flags;
 	u8 master_key_descriptor[FSCRYPT_KEY_DESCRIPTOR_SIZE];
-	u8 nonce[FS_KEY_DERIVATION_NONCE_SIZE];
+	u8 nonce[FSCRYPT_FILE_NONCE_SIZE];
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
 	u32 knox_flags;
 #endif
@@ -58,7 +58,7 @@ struct fscrypt_context_v2 {
 	u8 flags;
 	u8 __reserved[4];
 	u8 master_key_identifier[FSCRYPT_KEY_IDENTIFIER_SIZE];
-	u8 nonce[FS_KEY_DERIVATION_NONCE_SIZE];
+	u8 nonce[FSCRYPT_FILE_NONCE_SIZE];
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
 	u32 knox_flags;
 #endif
@@ -272,7 +272,7 @@ struct fscrypt_info {
 	union fscrypt_policy ci_policy;
 
 	/* This inode's nonce, copied from the fscrypt_context */
-	u8 ci_nonce[FS_KEY_DERIVATION_NONCE_SIZE];
+	u8 ci_nonce[FSCRYPT_FILE_NONCE_SIZE];
 
 	/* Hashed inode number.  Only set for IV_INO_LBLK_32 */
 	u32 ci_hashed_ino;
@@ -315,7 +315,7 @@ union fscrypt_iv {
 		__le64 lblk_num;
 
 		/* per-file nonce; only set in DIRECT_KEY mode */
-		u8 nonce[FS_KEY_DERIVATION_NONCE_SIZE];
+		u8 nonce[FSCRYPT_FILE_NONCE_SIZE];
 	};
 	u8 raw[FSCRYPT_MAX_IV_SIZE];
 	__le64 dun[FSCRYPT_MAX_IV_SIZE / sizeof(__le64)];

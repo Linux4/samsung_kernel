@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA3_I_H_
@@ -506,6 +507,7 @@ enum ipa3_wdi_polling_mode {
  * @page: skb page
  * @dma_addr: DMA address of this Rx packet
  * @is_tmp_alloc: skb page from tmp_alloc or recycle_list
+ * @page_order: page order associated with the page.
  */
 struct ipa_rx_page_data {
 	struct page *page;
@@ -1446,8 +1448,9 @@ struct ipa3_stats {
 	u32 flow_disable;
 	u32 tx_non_linear;
 	u32 rx_page_drop_cnt;
-	u64 lower_order;
 	struct ipa3_page_recycle_stats page_recycle_stats[2];
+	u64 lower_order;
+	u32 pipe_setup_fail_cnt;
 };
 
 /* offset for each stats */
@@ -2127,6 +2130,8 @@ struct ipa3_context {
 	bool (*get_teth_port_state[IPA_MAX_CLNT])(void);
 
 	atomic_t is_ssr;
+	bool deepsleep;
+	void *subsystem_get_retval;
 	struct IpaHwOffloadStatsAllocCmdData_t
 		gsi_info[IPA_HW_PROTOCOL_MAX];
 	bool ipa_wan_skb_page;
@@ -2508,7 +2513,6 @@ int ipa3_start_stop_client_prod_gsi_chnl(enum ipa_client_type client,
 		bool start_chnl);
 void ipa3_client_prod_post_shutdown_cleanup(void);
 
-
 int ipa3_set_reset_client_cons_pipe_sus_holb(bool set_reset, u32 tmr_val,
 		enum ipa_client_type client);
 
@@ -2811,6 +2815,7 @@ bool ipa3_is_client_handle_valid(u32 clnt_hdl);
 
 enum ipa_client_type ipa3_get_client_mapping(int pipe_idx);
 enum ipa_client_type ipa3_get_client_by_pipe(int pipe_idx);
+u32 ipa3_get_qmap_id(int pipe_idx);
 
 void ipa_init_ep_flt_bitmap(void);
 
@@ -2976,6 +2981,7 @@ int ipa3_uc_send_cmd(u32 cmd, u32 opcode, u32 expected_status,
 void ipa3_uc_register_handlers(enum ipa3_hw_features feature,
 			      struct ipa3_uc_hdlrs *hdlrs);
 int ipa3_uc_notify_clk_state(bool enabled);
+void ipa3_uc_interface_destroy(void);
 int ipa3_dma_setup(void);
 void ipa3_dma_shutdown(void);
 void ipa3_dma_async_memcpy_notify_cb(void *priv,
@@ -3126,6 +3132,7 @@ int ipa3_get_ntn_stats(struct Ipa3HwStatsNTNInfoData_t *stats);
 struct dentry *ipa_debugfs_get_root(void);
 void ipa3_enable_dcd(void);
 void ipa3_disable_prefetch(enum ipa_client_type client);
+void ipa3_dealloc_common_event_ring(void);
 int ipa3_alloc_common_event_ring(void);
 int ipa3_allocate_dma_task_for_gsi(void);
 void ipa3_free_dma_task_for_gsi(void);

@@ -22,6 +22,7 @@
 #include <linux/reset.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/pinctrl/qcom-pinctrl.h>
+#include <linux/clk/qcom.h>
 
 #include "sdhci-pltfm.h"
 #include "cqhci.h"
@@ -3502,6 +3503,7 @@ static const struct sdhci_msm_variant_info sdm845_sdhci_var = {
 static const struct of_device_id sdhci_msm_dt_match[] = {
 	{.compatible = "qcom,sdhci-msm-v4", .data = &sdhci_msm_mci_var},
 	{.compatible = "qcom,sdhci-msm-v5", .data = &sdhci_msm_v5_var},
+	{.compatible = "qcom,sdm670-sdhci", .data = &sdm845_sdhci_var},
 	{.compatible = "qcom,sdm845-sdhci", .data = &sdm845_sdhci_var},
 	{},
 };
@@ -4643,10 +4645,10 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 
 	if (pdev->dev.of_node) {
 		ret = of_alias_get_id(pdev->dev.of_node, "sdhc");
-		if (ret <= 0)
+		if (ret < 0)
 			dev_err(&pdev->dev, "get slot index failed %d\n", ret);
-		else if (ret <= 2)
-			sdhci_slot[ret-1] = msm_host;
+		else if (ret <= 1)
+			sdhci_slot[ret] = msm_host;
 	}
 
 	/*
@@ -4734,7 +4736,16 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 				      msm_host->bulk_clks);
 	if (ret)
 		goto bus_clk_disable;
-
+	ret = qcom_clk_set_flags(msm_host->bulk_clks[0].clk,
+			CLKFLAG_NORETAIN_MEM);
+	if (ret)
+		dev_err(&pdev->dev, "Failed to set core clk NORETAIN_MEM: %d\n",
+				ret);
+	ret = qcom_clk_set_flags(msm_host->bulk_clks[2].clk,
+			CLKFLAG_RETAIN_MEM);
+	if (ret)
+		dev_err(&pdev->dev, "Failed to set ice clk RETAIN_MEM: %d\n",
+				ret);
 	/*
 	 * xo clock is needed for FLL feature of cm_dll.
 	 * In case if xo clock is not mentioned in DT, warn and proceed.
