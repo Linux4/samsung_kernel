@@ -1,0 +1,43 @@
+Samsung S2803X Audio Mixer
+
+Required properties:
+- compatible: "samsung,s2803x"
+- reg: Should contain Audio Mixer register location and length
+- clocks: Should provide the clock handles
+- clock-names: The nume of the clocks used in the driver. It must have
+  following clock-names:
+  "audmixer_sysclk", "audmixer_bclk0", "audmixer_bclk1", "audmixer_bclk2",
+  "audmixer_dout", and "audmixer_aclk"
+- samsung,lpass-subip: This binds the device with Samsung audio sub-system
+- pinctrl-names: Should be "default" and "idle".
+- pinctrl-0: Should be the phandle of active pinctrl node
+- pinctrl-1: Should be the phandle of idle pinctrl node
+
+Optional:
+- bck-mcko-mode: If defined, MCLK is provided in case of BCLK. Required if the
+  BCLK like is directly provided to the Codec COD3025X as MCLK.
+
+Example:
+
+s2803x: s2803x@148C0000 {
+	compatible = "samsung,s2803x";
+	reg = <0x148C0000 0x200>;
+	clocks = <&clock 80>,	/* sclk_audmixer */
+		 <&clock 81>,	/* sclk_audmixer_bclk0*/
+		 <&clock 83>,	/* sclk_audmixer_bclk1 */
+		 <&clock 82>,	/* sclk_audmixer_bclk2 */
+		 <&clock 68>,	/* dout_audmixer*/
+		 <&clock 70>;	/* aclk_aud */
+
+	clock-names = "audmixer_sysclk", "audmixer_bclk0",
+			"audmixer_bclk1", "audmixer_bclk2",
+			"audmixer_dout", "audmixer_aclk";
+
+	samsung,lpass-subip;
+
+	/* Board specific - may vary for different boards */
+	pinctrl-names = "default", "idle";
+	pinctrl-0 = <&i2s_pmic_bus>;
+	pinctrl-1 = <&i2s_pmic_bus_idle>;
+	bck-mcko-mode;
+};
