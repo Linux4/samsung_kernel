@@ -1,0 +1,16 @@
+config LIMITER_MAX77775
+	tristate "MAX77775 limiter support"
+	depends on I2C
+	help
+	  Say Y here to enable support for the MAX77775 limiter support.
+	  MAX77775 is a limiter IC.
+	  MAX77775 is dependent on I2C
+	  so it needs to be defined.
+
+config IFPMIC_LIMITER
+	bool "support for IFPMIC's limiter feature"
+	default n
+	depends on DUAL_BATTERY
+	help
+	  Say Y here to enable
+	  support for IFPMIC's limiter feature.

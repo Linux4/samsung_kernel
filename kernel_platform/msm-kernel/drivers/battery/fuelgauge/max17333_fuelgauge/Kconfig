@@ -1,0 +1,8 @@
+config FUELGAUGE_MAX17333
+	tristate "MAX17333 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for MAXIM MAX17333 fuel gauge driver.
+	 This fuel-gauge can be used in coulomb-counting mode.

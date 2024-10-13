@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# SYNAPTICS TOUCH driver configuration
+#
+
+config TOUCHSCREEN_SYNAPTICS_SPI_FOLDABLE
+    tristate "SYNAPTICS SPI Touchscreen for foldable"
+    depends on SPI
+    help
+      Say Y here if you want support for SYNAPTICS SPI touchscreen for foldable controllers.
+      If unsure, say N.
+
+config TOUCHSCREEN_SYNAPTICS_I2C_FOLDABLE
+    tristate "SYNAPTICS I2C Touchscreen for foldable"
+    depends on I2C
+    help
+      Say Y here if you want support for SYNAPTICS I2C touchscreen for foldable controllers.
+      If unsure, say N.
+
