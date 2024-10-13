@@ -40,14 +40,12 @@ struct diag_msg_mask_t {
 	uint32_t *ptr;
 };
 
-/*HS60 code for SR-ZQL1695-01-46(CR:2471766) by zhuxiaoming at 20190726 start*/
 struct diag_log_config_get_req_t {
 	uint8_t cmd_code;
 	uint8_t padding[3];
 	uint32_t sub_cmd;
 	uint32_t equip_id;
 } __packed;
-/*HS60 code for SR-ZQL1695-01-46(CR:2471766)1 by zhuxiaoming at 20190726 end*/
 
 struct diag_log_config_req_t {
 	uint8_t cmd_code;

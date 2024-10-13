@@ -194,6 +194,7 @@ struct fts_ts_data {
     int fw_loaded;
 #endif
 /* HS70 add for HS70-1007 by gaozhengwei at 2019/11/22 end */
+    bool tp_is_enabled;
     int irq;
     int log_level;
     int fw_is_running;      /* confirm fw is running when using spi:default 0 */

@@ -2193,6 +2193,171 @@ enum scan_balance {
 	SCAN_FILE,
 };
 
+/* mem_boost throttles only kswapd's behavior */
+enum mem_boost {
+	NO_BOOST,
+	BOOST_MID = 1,
+	BOOST_HIGH = 2,
+	BOOST_KILL = 3,
+};
+static int mem_boost_mode = NO_BOOST;
+static unsigned long last_mode_change;
+static bool am_app_launch = false;
+
+#define MEM_BOOST_MAX_TIME (5 * HZ) /* 5 sec */
+
+#ifdef CONFIG_SYSFS
+static ssize_t mem_boost_mode_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
+		mem_boost_mode = NO_BOOST;
+	return sprintf(buf, "%d\n", mem_boost_mode);
+}
+
+static ssize_t mem_boost_mode_store(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int mode;
+	int err;
+
+	err = kstrtoint(buf, 10, &mode);
+	if (err || mode > BOOST_KILL || mode < NO_BOOST)
+		return -EINVAL;
+
+	mem_boost_mode = mode;
+	last_mode_change = jiffies;
+#ifdef CONFIG_ION_RBIN_HEAP
+	if (mem_boost_mode >= BOOST_HIGH)
+		wake_ion_rbin_heap_prereclaim();
+#endif
+	return count;
+}
+
+ATOMIC_NOTIFIER_HEAD(am_app_launch_notifier);
+
+int am_app_launch_notifier_register(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&am_app_launch_notifier, nb);
+}
+
+int am_app_launch_notifier_unregister(struct notifier_block *nb)
+{
+	return  atomic_notifier_chain_unregister(&am_app_launch_notifier, nb);
+}
+
+static ssize_t am_app_launch_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	int ret;
+
+	ret = am_app_launch ? 1 : 0;
+	return sprintf(buf, "%d\n", ret);
+}
+
+static int notify_app_launch_started(void)
+{
+	trace_printk("%s\n", "am_app_launch started");
+	atomic_notifier_call_chain(&am_app_launch_notifier, 1, NULL);
+	return 0;
+}
+
+static int notify_app_launch_finished(void)
+{
+	trace_printk("%s\n", "am_app_launch finished");
+	atomic_notifier_call_chain(&am_app_launch_notifier, 0, NULL);
+	return 0;
+}
+
+static ssize_t am_app_launch_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int mode;
+	int err;
+	bool am_app_launch_new;
+
+	err = kstrtoint(buf, 10, &mode);
+	if (err || (mode != 0 && mode != 1))
+		return -EINVAL;
+
+	am_app_launch_new = mode ? true : false;
+	trace_printk("am_app_launch %d -> %d\n", am_app_launch,
+		     am_app_launch_new);
+	if (am_app_launch != am_app_launch_new) {
+		if (am_app_launch_new)
+			notify_app_launch_started();
+		else
+			notify_app_launch_finished();
+	}
+	am_app_launch = am_app_launch_new;
+
+	return count;
+}
+
+#define MEM_BOOST_ATTR(_name) \
+	static struct kobj_attribute _name##_attr = \
+		__ATTR(_name, 0644, _name##_show, _name##_store)
+MEM_BOOST_ATTR(mem_boost_mode);
+MEM_BOOST_ATTR(am_app_launch);
+
+static struct attribute *vmscan_attrs[] = {
+	&mem_boost_mode_attr.attr,
+	&am_app_launch_attr.attr,
+	NULL,
+};
+
+static struct attribute_group vmscan_attr_group = {
+	.attrs = vmscan_attrs,
+	.name = "vmscan",
+};
+#endif
+
+static inline bool mem_boost_pgdat_wmark(struct pglist_data *pgdat)
+{
+	int z;
+	struct zone *zone;
+	unsigned long mark;
+
+	for (z = 0; z < MAX_NR_ZONES; z++) {
+		zone = &pgdat->node_zones[z];
+		if (!managed_zone(zone))
+			continue;
+		mark = low_wmark_pages(zone); //TODO: low, high, or (low + high)/2
+		if (zone_watermark_ok_safe(zone, 0, mark, 0))
+			return true;
+	}
+	return false;
+}
+
+#define MEM_BOOST_THRESHOLD ((600 * 1024 * 1024) / (PAGE_SIZE))
+inline bool need_memory_boosting(struct pglist_data *pgdat)
+{
+	bool ret;
+	unsigned long pgdatfile = node_page_state(pgdat, NR_ACTIVE_FILE) +
+				node_page_state(pgdat, NR_INACTIVE_FILE);
+
+	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME) ||
+			pgdatfile < MEM_BOOST_THRESHOLD)
+		mem_boost_mode = NO_BOOST;
+
+	switch (mem_boost_mode) {
+	case BOOST_KILL:
+	case BOOST_HIGH:
+		ret = true;
+		break;
+	case BOOST_MID:
+		ret = mem_boost_pgdat_wmark(pgdat) ? false : true;
+		break;
+	case NO_BOOST:
+	default:
+		ret = false;
+		break;
+	}
+	return ret;
+}
+
 /*
  * Determine how aggressively the anon and file LRU lists should be
  * scanned.  The relative value of each set of LRU lists is determined
@@ -2276,6 +2441,11 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 			scan_balance = SCAN_ANON;
 			goto out;
 		}
+	}
+
+	if (current_is_kswapd() && need_memory_boosting(pgdat)) {
+		scan_balance = SCAN_FILE;
+		goto out;
 	}
 
 	/*
@@ -2501,6 +2671,9 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 	}
 	blk_finish_plug(&plug);
 	sc->nr_reclaimed += nr_reclaimed;
+
+	if (need_memory_boosting(NULL))
+		return;
 
 	/*
 	 * Even if we did not try to evict anon pages at all, we want to
@@ -3521,6 +3694,20 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 	finish_wait(&pgdat->kswapd_wait, &wait);
 }
 
+#if CONFIG_KSWAPD_CPU
+static struct cpumask kswapd_cpumask;
+static void init_kswapd_cpumask(void)
+{
+	int i;
+
+	cpumask_clear(&kswapd_cpumask);
+	for (i = 0; i < nr_cpu_ids; i++) {
+		if (CONFIG_KSWAPD_CPU & (1 << i))
+			cpumask_set_cpu(i, &kswapd_cpumask);
+	}
+}
+#endif
+
 /*
  * The background pageout daemon, started as a kernel thread
  * from the init process.
@@ -3544,7 +3731,11 @@ static int kswapd(void *p)
 	struct reclaim_state reclaim_state = {
 		.reclaimed_slab = 0,
 	};
+#if CONFIG_KSWAPD_CPU
+	const struct cpumask *cpumask = &kswapd_cpumask;
+#else
 	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
+#endif
 
 	lockdep_set_current_reclaim_state(GFP_KERNEL);
 
@@ -3703,7 +3894,11 @@ static int cpu_callback(struct notifier_block *nfb, unsigned long action,
 			pg_data_t *pgdat = NODE_DATA(nid);
 			const struct cpumask *mask;
 
+#if CONFIG_KSWAPD_CPU
+			mask = &kswapd_cpumask;
+#else
 			mask = cpumask_of_node(pgdat->node_id);
+#endif
 
 			if (cpumask_any_and(cpu_online_mask, mask) < nr_cpu_ids)
 				/* One of our CPUs online: restore mask */
@@ -3753,11 +3948,17 @@ void kswapd_stop(int nid)
 static int __init kswapd_init(void)
 {
 	int nid;
-
+#if CONFIG_KSWAPD_CPU
+	init_kswapd_cpumask();
+#endif
 	swap_setup();
 	for_each_node_state(nid, N_MEMORY)
  		kswapd_run(nid);
 	hotcpu_notifier(cpu_callback, 0);
+#ifdef CONFIG_SYSFS
+	if (sysfs_create_group(mm_kobj, &vmscan_attr_group))
+		pr_err("vmscan: register sysfs failed\n");
+#endif
 	return 0;
 }
 

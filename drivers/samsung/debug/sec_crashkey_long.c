@@ -75,7 +75,7 @@ static int sec_crashkey_long_notifier_call(struct notifier_block *this,
 		unsigned long type, void *data)
 {
 	struct sec_key_notifier_param *param = data;
-	int i;
+	size_t i;
 	bool matching;
 
 	if (param->down)

@@ -109,14 +109,8 @@ struct bio {
 #define bio_op(bio)	((bio)->bi_opf >> BIO_OP_SHIFT)
 
 #define bio_set_op_attrs(bio, op, op_flags) do {			\
-	if (__builtin_constant_p(op))					\
-		BUILD_BUG_ON((op) + 0U >= (1U << REQ_OP_BITS));		\
-	else								\
-		WARN_ON_ONCE((op) + 0U >= (1U << REQ_OP_BITS));		\
-	if (__builtin_constant_p(op_flags))				\
-		BUILD_BUG_ON((op_flags) + 0U >= (1U << BIO_OP_SHIFT));	\
-	else								\
-		WARN_ON_ONCE((op_flags) + 0U >= (1U << BIO_OP_SHIFT));	\
+	WARN_ON_ONCE((op) + 0U >= (1U << REQ_OP_BITS));			\
+	WARN_ON_ONCE((op_flags) + 0U >= (1U << BIO_OP_SHIFT));		\
 	(bio)->bi_opf = bio_flags(bio);					\
 	(bio)->bi_opf |= (((op) + 0U) << BIO_OP_SHIFT);			\
 	(bio)->bi_opf |= (op_flags);					\
@@ -132,9 +126,10 @@ struct bio {
 #define BIO_BOUNCED	3	/* bio is a bounce bio */
 #define BIO_USER_MAPPED 4	/* contains user pages */
 #define BIO_NULL_MAPPED 5	/* contains invalid user pages */
-#define BIO_QUIET	6	/* Make BIO Quiet */
-#define BIO_CHAIN	7	/* chained bio, ->bi_remaining in effect */
-#define BIO_REFFED	8	/* bio has elevated ->bi_cnt */
+#define BIO_WORKINGSET	6	/* contains userspace workingset pages */
+#define BIO_QUIET	7	/* Make BIO Quiet */
+#define BIO_CHAIN	8	/* chained bio, ->bi_remaining in effect */
+#define BIO_REFFED	9	/* bio has elevated ->bi_cnt */
 
 /*
  * Flags starting here get preserved by bio_reset() - this includes

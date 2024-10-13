@@ -43,6 +43,8 @@ typedef struct {
 } sec_smem_id_vendor0_v2_t;
 
 /* For SMEM_ID_VENDOR1 */
+#define SMEM_VEN1_MAGIC 0x314E4556314E4556
+
 typedef struct {
 	uint64_t hw_rev;
 } sec_smem_id_vendor1_v1_t;
@@ -154,21 +156,39 @@ typedef struct {
 	ddr_train_t ddr_training;
 } sec_smem_id_vendor1_v6_t;
 
-#define SMEM_VEN1_MAGIC 0x314E4556314E4556
+typedef struct {
+	uint8_t hw_rev[3]; /* 0 : main, 1 : sub, 2 : slave */
+	uint8_t reserved1[5];
+	uint8_t ap_suspended;
+	uint8_t reserved2[7];
+	uint8_t cover_n;
+	uint8_t reserved3[3];
+} sec_smem_id_vendor1_share_t; /* sharing with other subsystem */
+
+typedef struct {
+	sec_smem_header_t header;
+	sec_smem_id_vendor1_share_t share;
+	smem_ddr_stat_t ddr_stat;
+	void * ap_health __attribute__((aligned(8)));
+	smem_apps_stat_t apps_stat;
+	smem_vreg_stat_t vreg_stat;
+	ddr_train_t ddr_training;
+} sec_smem_id_vendor1_v7_t;
 
 #ifdef CONFIG_SEC_SMEM_VENDOR1_VERSION
 #define SMEM_VEN1_VER CONFIG_SEC_SMEM_VENDOR1_VERSION
-
-#if (CONFIG_SEC_SMEM_VENDOR1_VERSION >= 6)
-#define SEC_SMEM_ID_VEN1_TYPE sec_smem_id_vendor1_v6_t
+#if (CONFIG_SEC_SMEM_VENDOR1_VERSION >= 7)
+	#define SEC_SMEM_ID_VEN1_TYPE sec_smem_id_vendor1_v7_t
+#elif (CONFIG_SEC_SMEM_VENDOR1_VERSION == 6)
+	#define SEC_SMEM_ID_VEN1_TYPE sec_smem_id_vendor1_v6_t
 #else
-#define SEC_SMEM_ID_VEN1_TYPE sec_smem_id_vendor1_v5_t
-#endif /* CONFIG_SEC_SMEM_VENDOR1_VERSION is defined */
-#else
+	#define SEC_SMEM_ID_VEN1_TYPE sec_smem_id_vendor1_v5_t
+#endif
+#else /* CONFIG_SEC_SMEM_VENDOR1_VERSION */
 /* dummy fall-back to prevent build-errors */
 #define SMEM_VEN1_VER 5
 #define SEC_SMEM_ID_VEN1_TYPE sec_smem_id_vendor1_v5_t
-#endif
+#endif /* CONFIG_SEC_SMEM_VENDOR1_VERSION */
 
 #ifdef CONFIG_SEC_SMEM
 extern char* get_ddr_vendor_name(void);
@@ -212,18 +232,18 @@ static inline uint8_t ddr_get_dqs_dcc_adj(uint32_t ch, uint32_t dq) { return 0; 
 static inline uint16_t ddr_get_small_eye_detected(void) { return 0; }
 #endif
 
-#ifdef CONFIG_SEC_DEBUG_APPS_CLK_LOGGING
+#if IS_ENABLED(CONFIG_SEC_DEBUG_APPS_CLK_LOGGING)
 /* called @ drivers/clk/msm/clock-cpu-8939.c */
 extern void sec_smem_cpuclk_log_raw(size_t slot, unsigned long rate);
 
 /* called @ drivers/clk/qcom/clk-cpu-osm.c */
-extern void sec_smem_clk_osm_add_log_cpufreq(struct cpufreq_policy *policy, unsigned int index, const char *name);
+extern void sec_smem_clk_osm_add_log_cpufreq(unsigned int cpu, unsigned long rate, const char *name);
 
 /* called @ drivers/clk/qcom/clk-cpu-osm.c */
 extern void sec_smem_clk_osm_add_log_l3(unsigned long rate);
 #else
 static inline void sec_smem_cpuclk_log_raw(size_t slot, unsigned long rate) {}
-static inline void sec_smem_clk_osm_add_log_cpufreq(struct cpufreq_policy *policy, unsigned int index, const char *name) {}
+static inline void sec_smem_clk_osm_add_log_cpufreq(unsigned int cpu, unsigned long rate, const char *name) {}
 static inline void sec_smem_clk_osm_add_log_l3(unsigned long rate) {}
 #endif
 

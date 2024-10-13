@@ -120,6 +120,12 @@ enum {
 
 #define AICL_STATUS_REG				(DCDC_BASE + 0x0A)
 #define SOFT_ILIMIT_BIT				BIT(6)
+#if !defined(HQ_FACTORY_BUILD)	//ss version
+#if defined(CONFIG_AFC)
+#define USBIN_CH_COLLAPSE 			BIT(4)
+#define ICL_IMIN  					BIT(2)
+#endif
+#endif
 #define AICL_DONE_BIT				BIT(0)
 
 #define POWER_PATH_STATUS_REG			(DCDC_BASE + 0x0B)
@@ -172,6 +178,10 @@ enum {
 /********************************
  *  USBIN Peripheral Registers  *
  ********************************/
+/* HS60 add for HQ000001 While power on VBUS, start BC1.2 by gaochao at 2020/01/14 start */
+#define TYPE_C_CFG_REG 				(USBIN_BASE + 0x58)
+#define BC1P2_START_ON_CC_BIT 		BIT(7)
+/* HS60 add for HQ000001 While power on VBUS, start BC1.2 by gaochao at 2020/01/14 end */
 #define APSD_STATUS_REG				(USBIN_BASE + 0x07)
 #define APSD_STATUS_7_BIT			BIT(7)
 #define HVDCP_CHECK_TIMEOUT_BIT			BIT(6)

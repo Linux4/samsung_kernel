@@ -117,13 +117,17 @@ static void glove_mode(void *device_data)
 	} else {
 		if (sec->cmd_param[0] == 0) {
 			ipio_info("exit glove mode");
+			mutex_lock(&idev->touch_mutex);
 			ret = ilitek_tddi_ic_func_ctrl("glove", 0);
+			mutex_unlock(&idev->touch_mutex);
 			if (ret >= 0) {
 				idev->glove = 0;
 			}
 		} else {
 			ipio_info("enter glove mode");
+			mutex_lock(&idev->touch_mutex);
 			ret = ilitek_tddi_ic_func_ctrl("glove", 1);
+			mutex_unlock(&idev->touch_mutex);
 			if (ret >= 0) {
 				idev->glove = 1;
 			}

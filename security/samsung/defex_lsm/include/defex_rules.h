@@ -13,8 +13,8 @@
 #define INTEGRITY_LENGTH 		32
 #define FEATURE_NAME_MAX_STR 		32
 
-#define GET_ITEM_OFFSET(item_ptr)	(((char*)item_ptr) - ((char*)defex_packed_rules))
-#define GET_ITEM_PTR(offset)		((struct rule_item_struct *)(((char*)defex_packed_rules) + (offset)))
+#define GET_ITEM_OFFSET(item_ptr)	(((char *)item_ptr) - ((char *)defex_packed_rules))
+#define GET_ITEM_PTR(offset, base_ptr)		((struct rule_item_struct *)(((char *)base_ptr) + (offset)))
 
 enum feature_types {
 	feature_is_file = 1,
@@ -27,7 +27,8 @@ enum feature_types {
 	feature_immutable_path_open = 128,
 	feature_immutable_path_write = 256,
 	feature_immutable_src_exception = 512,
-	feature_immutable_status = 1024
+	feature_immutable_status = 1024,
+	feature_umhbin_path = 2048
 };
 
 struct feature_match_entry {
@@ -56,7 +57,6 @@ struct rule_item_struct {
 	char name[0];
 } __attribute__((packed));
 
-extern const struct static_rule defex_static_rules[];
-extern const int static_rule_count;
+int check_rules_ready(void);
 
 #endif /* __DEFEX_RULES_H */

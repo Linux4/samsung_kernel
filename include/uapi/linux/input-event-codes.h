@@ -645,6 +645,8 @@
  */
 #define KEY_DATA			0x277
 
+#define KEY_DEX_ON			0x2bd
+
 #define BTN_TRIGGER_HAPPY		0x2c0
 #define BTN_TRIGGER_HAPPY1		0x2c0
 #define BTN_TRIGGER_HAPPY2		0x2c1
@@ -687,6 +689,10 @@
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
 
+#define BTN_HOTKEY_APP1 		0x2f5
+#define BTN_HOTKEY_APP2 		0x2f6
+#define BTN_HOTKEY_APP3 		0x2f7
+
 /* Custom fingerprint gestures keys */
 #define KEY_FP_GESTURE_UP		0x2e8
 #define KEY_FP_GESTURE_DOWN		0x2e9
@@ -694,18 +700,33 @@
 #define KEY_FP_GESTURE_RIGHT		0x2eb
 #define KEY_FP_GESTURE_LONG_PRESS	0x2ec
 #define KEY_FP_GESTURE_TAP		0x2ed
+
 /*HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190712 start*/
 #define KEY_SWTP_IN     		0x2ee
 #define KEY_SWTP_OUT    		0x2ef
 /*HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190712 end*/
 
 /*HS60 code for AR-ZQL1695-01000000070 by zhuqiang at 2019/7/18 start*/
+
+/* HS50 code for HS50-4050 by xiongxiaoliang at 20201031 start */
+/*HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190712 start*/
+#define KEY_SAR_SLOW_IN         0x2ee
+#define KEY_SAR_SLOW_OUT        0x2ef
+/*HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190712 end*/
+/* HS50 code for HS50-4050 by xiongxiaoliang at 20201031 end */
+
+/*HS60 code for AR-ZQL1695-01000000070/HS50EU-1 by zhuqiang at 2020/08/28 start*/
+
 #ifdef HQ_FACTORY_BUILD
+/* for top sar */
 #define KEY_SAR_CLOSE           0x2f0
-#define KEY_SAR_BODY            0x2f1
 #define KEY_SAR_FAR             0x2f2
+
+/* for bottom sar */
+#define KEY_SAR2_CLOSE          0x2f1
+#define KEY_SAR2_FAR            0x2f3
 #endif
-/*HS60 code for AR-ZQL1695-01000000070 by zhuqiang at 2019/7/18 end*/
+/*HS60 code for AR-ZQL1695-01000000070/HS50EU-1 by zhuqiang at 2020/08/28 end*/
 
 /* We avoid low common keys in module aliases so they don't get huge. */
 #define KEY_MIN_INTERESTING	KEY_MUTE

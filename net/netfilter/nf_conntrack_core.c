@@ -25,6 +25,7 @@
 #include <linux/slab.h>
 #include <linux/random.h>
 #include <linux/jhash.h>
+#include <linux/siphash.h>
 #include <linux/err.h>
 #include <linux/percpu.h>
 #include <linux/moduleparam.h>
@@ -55,6 +56,11 @@
 #include <net/netfilter/nf_nat_core.h>
 #include <net/netfilter/nf_nat_helper.h>
 #include <net/netns/hash.h>
+
+
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#include <net/ncm.h>
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 #define NF_CONNTRACK_VERSION	"0.5.0"
 
@@ -312,6 +318,40 @@ nf_ct_invert_tuple(struct nf_conntrack_tuple *inverse,
 }
 EXPORT_SYMBOL_GPL(nf_ct_invert_tuple);
 
+/* Generate a almost-unique pseudo-id for a given conntrack.
+ *
+ * intentionally doesn't re-use any of the seeds used for hash
+ * table location, we assume id gets exposed to userspace.
+ *
+ * Following nf_conn items do not change throughout lifetime
+ * of the nf_conn:
+ *
+ * 1. nf_conn address
+ * 2. nf_conn->master address (normally NULL)
+ * 3. the associated net namespace
+ * 4. the original direction tuple
+ */
+u32 nf_ct_get_id(const struct nf_conn *ct)
+{
+	static __read_mostly siphash_key_t ct_id_seed;
+	unsigned long a, b, c, d;
+
+	net_get_random_once(&ct_id_seed, sizeof(ct_id_seed));
+
+	a = (unsigned long)ct;
+	b = (unsigned long)ct->master;
+	c = (unsigned long)nf_ct_net(ct);
+	d = (unsigned long)siphash(&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple,
+				   sizeof(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple),
+				   &ct_id_seed);
+#ifdef CONFIG_64BIT
+	return siphash_4u64((u64)a, (u64)b, (u64)c, (u64)d, &ct_id_seed);
+#else
+	return siphash_4u32((u32)a, (u32)b, (u32)c, (u32)d, &ct_id_seed);
+#endif
+}
+EXPORT_SYMBOL_GPL(nf_ct_get_id);
+
 static void
 clean_from_lists(struct nf_conn *ct)
 {
@@ -327,6 +367,13 @@ clean_from_lists(struct nf_conn *ct)
 static void nf_ct_add_to_dying_list(struct nf_conn *ct)
 {
 	struct ct_pcpu *pcpu;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+	/* Add 'del_timer(&ct->npa_timeout)' if struct nf_conn->timeout is of type struct timer_list; */
+	/* send dying conntrack entry to collect data */
+	if ( (check_ncm_flag()) && (ct != NULL) && (atomic_read(&ct->startFlow)) ) {
+		knox_collect_conntrack_data(ct, NCM_FLOW_TYPE_CLOSE, 10);
+	}
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 	/* add this conntrack to the (per cpu) dying list */
 	ct->cpu = smp_processor_id();
@@ -1035,7 +1082,15 @@ static void gc_worker(struct work_struct *work)
 				nf_ct_gc_expired(tmp);
 				expired_count++;
 				continue;
+			// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+			} else if ( (tmp != NULL) && (check_ncm_flag()) && (check_intermediate_flag()) && (atomic_read(&tmp->startFlow)) && (atomic_read(&tmp->intermediateFlow)) ) {
+				s32 npa_timeout = tmp->npa_timeout - ((u32)(jiffies));
+				if (npa_timeout <= 0) {
+					tmp->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
+					knox_collect_conntrack_data(tmp, NCM_FLOW_TYPE_INTERMEDIATE, 20);
+				}
 			}
+            // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 		}
 
 		/* could check get_nulls_value() here and restart if ct
@@ -1069,6 +1124,11 @@ static void gc_worker(struct work_struct *work)
 	ratio = scanned ? expired_count * 100 / scanned : 0;
 	if (ratio > GC_EVICT_RATIO) {
 		gc_work->next_gc_run = min_interval;
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+		if ( (check_ncm_flag()) && (check_intermediate_flag()) ) {
+			gc_work->next_gc_run = 0;
+		}
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 	} else {
 		unsigned int max = GC_MAX_SCAN_JIFFIES / GC_MAX_BUCKETS_DIV;
 
@@ -1077,6 +1137,11 @@ static void gc_worker(struct work_struct *work)
 		gc_work->next_gc_run += min_interval;
 		if (gc_work->next_gc_run > max)
 			gc_work->next_gc_run = max;
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+		if ( (check_ncm_flag()) && (check_intermediate_flag()) ) {
+			gc_work->next_gc_run = 0;
+		}
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 	}
 
 	next_run = gc_work->next_gc_run;
@@ -1099,6 +1164,9 @@ __nf_conntrack_alloc(struct net *net,
 		     gfp_t gfp, u32 hash)
 {
 	struct nf_conn *ct;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+	struct timespec open_timespec;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 	/* We don't want any race condition at early drop stage */
 	atomic_inc(&net->ct.count);
@@ -1121,6 +1189,28 @@ __nf_conntrack_alloc(struct net *net,
 		goto out;
 
 	spin_lock_init(&ct->lock);
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+	/* initialize the conntrack structure members when memory is allocated */
+	if (ct != NULL) {
+		open_timespec = current_kernel_time();
+		ct->open_time = open_timespec.tv_sec;
+		ct->knox_uid = 0;
+		ct->knox_pid = 0;
+		memset(ct->process_name,'\0',sizeof(ct->process_name));
+		memset(ct->domain_name,'\0',sizeof(ct->domain_name));
+		ct->knox_puid = 0;
+		ct->knox_ppid = 0;
+		memset(ct->parent_process_name,'\0',sizeof(ct->parent_process_name));
+		ct->knox_sent = 0;
+		ct->knox_recv = 0;
+		memset(ct->interface_name,'\0',sizeof(ct->interface_name));
+		atomic_set(&ct->startFlow, 0);
+		/* Use 'ct->npa_timeout = 0' if struct nf_conn->timeout is of type u32;
+		   Use 'setup_timer(&ct->npa_timeout, death_by_timeout_npa, (unsigned long)ct)' if struct nf_conn->timeout is of type struct timer_list; */
+		ct->npa_timeout = 0;
+		atomic_set(&ct->intermediateFlow, 0);
+	}
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 	ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple = *orig;
 	ct->tuplehash[IP_CT_DIR_ORIGINAL].hnnode.pprev = NULL;
 	ct->tuplehash[IP_CT_DIR_REPLY].tuple = *repl;
@@ -1128,9 +1218,9 @@ __nf_conntrack_alloc(struct net *net,
 	*(unsigned long *)(&ct->tuplehash[IP_CT_DIR_REPLY].hnnode.pprev) = hash;
 	ct->status = 0;
 	write_pnet(&ct->ct_net, net);
-	memset(&ct->__nfct_init_offset[0], 0,
+	memset(&ct->__nfct_init_offset, 0,
 	       offsetof(struct nf_conn, proto) -
-	       offsetof(struct nf_conn, __nfct_init_offset[0]));
+	       offsetof(struct nf_conn, __nfct_init_offset));
 
 	nf_ct_zone_add(ct, zone);
 

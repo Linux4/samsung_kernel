@@ -585,7 +585,7 @@ static void wcnss_vregs_off(struct vregs_info regulators[], uint size,
 				wcnss_log(ERR, "vreg %s disable failed (%d)\n",
 				       regulators[i].name, rc);
 		}
-		/* Free the regulator source */
+/* Free the regulator source */
 		if (regulators[i].state & VREG_GET_REGULATOR_MASK)
 		regulator_put(regulators[i].regulator);
 

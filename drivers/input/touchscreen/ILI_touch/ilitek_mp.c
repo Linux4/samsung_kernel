@@ -2274,31 +2274,31 @@ static int open_test_sp(int index)
 
 	parser_ini_nodetype(tItems[index].node_type, NODE_TYPE_KEY_NAME, core_mp.frame_len);
 	dump_node_type_buffer(tItems[index].node_type, "node type");
-
+	/*ritchie add*/
 	ret = parser_get_int_data(tItems[index].desp, "charge_aa", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		Charge_AA = katoi(str);
 
 	ret = parser_get_int_data(tItems[index].desp, "charge_border", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		Charge_Border = katoi(str);
 
 	ret = parser_get_int_data(tItems[index].desp, "charge_notch", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		Charge_Notch = katoi(str);
 
 	ret = parser_get_int_data(tItems[index].desp, "full open", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		full_open_rate = katoi(str);
 
 	ret = parser_get_int_data(tItems[index].desp, "tvch", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		open_spec.tvch = katoi(str);
 
 	ret = parser_get_int_data(tItems[index].desp, "tvcl", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		open_spec.tvcl = katoi(str);
-
+	/*ritchie add*/
 	if (ret < 0) {
 		ipio_err("Failed to get parameters from ini file\n");
 		ret = -EMP_PARSE;
@@ -2462,19 +2462,19 @@ static int open_test_cap(int index)
 							tItems[index].type_option, tItems[index].desp, core_mp.frame_len);
 		dump_benchmark_data(tItems[index].bench_mark_max, tItems[index].bench_mark_min);
 	}
-
+	/*ritchie add*/
 	ret = parser_get_int_data(tItems[index].desp, "gain", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		open_spec.gain = katoi(str);
 
 	ret = parser_get_int_data(tItems[index].desp, "tvch", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		open_spec.tvch = katoi(str);
 
 	ret = parser_get_int_data(tItems[index].desp, "tvcl", str, sizeof(str));
-	if (ret || ret == 0)
+	if (ret >= 0)
 		open_spec.tvcl = katoi(str);
-
+	/*ritchie add*/
 	if (ret < 0) {
 		ipio_err("Failed to get parameters from ini file\n");
 		ret = -EMP_PARSE;
@@ -2836,7 +2836,15 @@ static int mp_show_result(bool lcm_on)
 	struct file *f = NULL;
 	mm_segment_t fs;
 	loff_t pos;
-
+	//mfeng add start
+	char *ret_path_name = NULL;
+	if (lcm_on == true) {
+		ret_path_name = CSV_LCM_ON_PATH;
+	}
+	else {
+		ret_path_name = CSV_LCM_OFF_PATH;
+	}
+	//mfeng add end
 	csv = vmalloc(CSV_FILE_SIZE);
 	if (ERR_ALLOC_MEM(csv)) {
 		ipio_err("Failed to allocate CSV mem\n");
@@ -3011,10 +3019,8 @@ static int mp_show_result(bool lcm_on)
 		core_mp.final_result = MP_DATA_FAIL;
 		ret = MP_DATA_FAIL;
 	/* HS70 add for HS70-1717 by zhanghao at 20191129 start */
-		if (lcm_on)
-			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv", CSV_LCM_ON_PATH, idev->module_name, get_date_time_str(), ret_fail_name);
-		else
-			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv", CSV_LCM_OFF_PATH, idev->module_name, get_date_time_str(), ret_fail_name);
+	//mfeng add
+			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv", ret_path_name, idev->module_name, get_date_time_str(), ret_fail_name);
 	} else {
 		core_mp.final_result = MP_DATA_PASS;
 		ret = MP_DATA_PASS;
@@ -3024,11 +3030,8 @@ static int mp_show_result(bool lcm_on)
 			ret_pass_name = NORMAL_CSV_WARNING_NAME;
 			ipio_err("WARNING! Golden and SPEC in ini file aren't matched!!\n");
 		}
-
-		if (lcm_on)
-			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv", CSV_LCM_ON_PATH, idev->module_name, get_date_time_str(), ret_pass_name);
-		else
-			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv", CSV_LCM_OFF_PATH, idev->module_name, get_date_time_str(), ret_pass_name);
+		       //mfeng add
+			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv", ret_path_name, idev->module_name, get_date_time_str(), ret_pass_name);
 	}
 	/* HS70 add for HS70-1717 by zhanghao at 20191129 end */
 
@@ -3061,6 +3064,11 @@ static int mp_show_result(bool lcm_on)
 	ipio_info("Writing Data into CSV succeed\n");
 
 fail_open:
+	//mfeng add start
+	ret_path_name = NULL;
+	ret_pass_name = NULL;
+	ret_fail_name = NULL;
+	//mfeng add end
 	ipio_vfree((void **)&csv);
 	ipio_kfree((void **)&max_threshold);
 	ipio_kfree((void **)&min_threshold);

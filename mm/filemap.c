@@ -39,6 +39,10 @@
 #include <linux/psi.h>
 #include "internal.h"
 
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+#include <linux/io_record.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/filemap.h>
 
@@ -389,7 +393,8 @@ int __filemap_fdatawrite_range(struct address_space *mapping, loff_t start,
 		.range_end = end,
 	};
 
-	if (!mapping_cap_writeback_dirty(mapping))
+	if (!mapping_cap_writeback_dirty(mapping) ||
+	    !mapping_tagged(mapping, PAGECACHE_TAG_DIRTY))
 		return 0;
 
 	wbc_attach_fdatawrite_inode(&wbc, mapping->host);
@@ -1851,7 +1856,9 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 	prev_offset = ra->prev_pos & (PAGE_SIZE-1);
 	last_index = (*ppos + iter->count + PAGE_SIZE-1) >> PAGE_SHIFT;
 	offset = *ppos & ~PAGE_MASK;
-
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	record_io_info(filp, index, last_index - index);
+#endif
 	for (;;) {
 		struct page *page;
 		pgoff_t end_index;
@@ -2204,11 +2211,11 @@ static noinline void tracing_mark_write(bool start, struct file *file, pgoff_t o
 		path = dentry_path(file->f_path.dentry, buf, 256);
 
 		if (!IS_ERR(path))
-			trace_printk("B|%d|%d , %s , %lu , %d\n", current->pid, sync, path, offset, size);
+			trace_printk("B|%d|%d , %s , %lu , %d\n", current->tgid, sync, path, offset, size);
 		else
-			trace_printk("B|%d|%d , %s , %lu , %d\n", current->pid, sync, "dentry_path failed", offset, size);
+			trace_printk("B|%d|%d , %s , %lu , %d\n", current->tgid, sync, "dentry_path failed", offset, size);
 	} else {
-		trace_printk("E|%d\n", current->pid);
+		trace_printk("E|%d\n", current->tgid);
 	}
 }
 
@@ -2216,9 +2223,9 @@ static noinline void tracing_mark_write(bool start, struct file *file, pgoff_t o
 #define trace_fault_file_path_end(...) tracing_mark_write(0, ##__VA_ARGS__)
 
 #if CONFIG_MMAP_READAROUND_LIMIT == 0
-int mmap_readaround_limit = VM_MAX_READAHEAD;
+int mmap_readaround_limit = (VM_MAX_READAHEAD / 4); 		/* page */
 #else
-int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT;
+int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT;	/* page */
 #endif
 /*
  * Synchronous readahead happens when we don't even find a page in the page
@@ -2430,7 +2437,9 @@ page_not_uptodate:
 	 */
 	ClearPageError(page);
 	fpin = maybe_unlock_mmap_for_io(vma, vmf->flags, fpin);
+	trace_fault_file_path_start(file, offset, 1, 1);
 	error = mapping->a_ops->readpage(file, page);
+	trace_fault_file_path_end(file, offset, 1, 1);
 	if (!error) {
 		wait_on_page_locked(page);
 		if (!PageUptodate(page))
@@ -2550,6 +2559,11 @@ next:
 			break;
 	}
 	rcu_read_unlock();
+
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	/* end_pgoff is inclusive */
+	record_io_info(file, start_pgoff, last_pgoff - start_pgoff + 1);
+#endif
 }
 EXPORT_SYMBOL(filemap_map_pages);
 

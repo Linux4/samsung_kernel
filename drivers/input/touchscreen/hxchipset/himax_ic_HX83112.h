@@ -17,15 +17,13 @@
 #include "himax_common.h"
 #include "himax_ic_core.h"
 #include <linux/slab.h>
-#include "himax_config.h"
 
-#if defined(HX_AUTO_UPDATE_FW) || defined(HX_ZERO_FLASH)
-#ifdef HX_EN_DYNAMIC_NAME
-#define hx83112_ic_b9_en   0x300B9000
-#define hx83112_ic_eb_en   0x300EB000
-#define hx83112_ic_osc_en  0x900880A8
-#define hx83112_ic_osc_pw  0x900880E0
-#define hx83112_e8_ic_fw   0x300E8006
-#define hx83112_cb_ic_fw   0x300CB008
-#endif
-#endif
+#define hx83112a_data_adc_num 216
+#define hx83112b_data_adc_num 216
+#define hx83112d_data_adc_num 64
+#define hx83112e_data_adc_num 64
+#define hx83112f_data_adc_num 48
+#define hx83112_notouch_frame            0
+
+#define hx83112f_fw_addr_raw_out_sel     0x100072ec
+#define hx83112f_notouch_frame            0

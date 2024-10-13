@@ -64,10 +64,54 @@ u8 fw_file3[] = {
 #include FTS_UPGRADE_FW3_FILE
 };
 
+u8 fw_file4[] = {
+#include FTS_UPGRADE_FW4_FILE
+};
+
+u8 fw_file5[] = {
+#include FTS_UPGRADE_FW5_FILE
+};
+
+u8 fw_file6[] = {
+#include FTS_UPGRADE_FW6_FILE
+};
+
+u8 fw_file7[] = {
+#include FTS_UPGRADE_FW7_FILE
+};
+
+u8 fw_file8[] = {
+#include FTS_UPGRADE_FW8_FILE
+};
+
+u8 fw_file9[] = {
+#include FTS_UPGRADE_FW9_FILE
+};
+
+u8 fw_fileA[] = {
+#include FTS_UPGRADE_FWA_FILE
+};
+
+u8 fw_fileB[] = {
+#include FTS_UPGRADE_FWB_FILE
+};
+u8 fw_fileC[] = {
+#include FTS_UPGRADE_FWC_FILE
+};
+
 struct upgrade_module module_list[] = {
     {FTS_MODULE_ID, FTS_MODULE_NAME, fw_file, sizeof(fw_file)},
     {FTS_MODULE2_ID, FTS_MODULE2_NAME, fw_file2, sizeof(fw_file2)},
     {FTS_MODULE3_ID, FTS_MODULE3_NAME, fw_file3, sizeof(fw_file3)},
+    {FTS_MODULE4_ID, FTS_MODULE4_NAME, fw_file4, sizeof(fw_file4)},
+    {FTS_MODULE5_ID, FTS_MODULE5_NAME, fw_file5, sizeof(fw_file5)},
+    {FTS_MODULE6_ID, FTS_MODULE6_NAME, fw_file6, sizeof(fw_file6)},
+    {FTS_MODULE7_ID, FTS_MODULE7_NAME, fw_file7, sizeof(fw_file7)},
+    {FTS_MODULE8_ID, FTS_MODULE8_NAME, fw_file8, sizeof(fw_file8)},
+    {FTS_MODULE9_ID, FTS_MODULE9_NAME, fw_file9, sizeof(fw_file9)},
+    {FTS_MODULEA_ID, FTS_MODULEA_NAME, fw_fileA, sizeof(fw_fileA)},
+    {FTS_MODULEB_ID, FTS_MODULEB_NAME, fw_fileB, sizeof(fw_fileB)},
+    {FTS_MODULEC_ID, FTS_MODULEC_NAME, fw_fileC, sizeof(fw_fileC)},
 };
 
 struct upgrade_setting_nf upgrade_setting_list[] = {
@@ -988,6 +1032,58 @@ static int fts_fwupg_get_module_info(struct fts_upgrade *upg)
         upg->module_id = 0x40;
         strcpy(fts_data->pdata->module_name,"ft8615_inx");
         FTS_INFO("the specified display module is QC-INX\n");
+    }
+    /*HS70 code for HLT-CDH bringup by zhouzichun at 2020/3/20 start*/
+    else if(NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_hltcd_ft8165_720p_video")) {
+        upg->module_id = 0x80;
+        strcpy(fts_data->pdata->module_name,"ft8615_hlt_cd");
+        FTS_INFO("the specified display module is HLT-CD\n");
+    }
+    /*HS70 code for HLT-CDH bringup by zhouzichun at 2020/3/20 end*/
+    else if(NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_hlt_qm_ft8165_720p_video")) {
+        upg->module_id = 0x81;
+        strcpy(fts_data->pdata->module_name,"ft8615_hlt_qm");
+        FTS_INFO("the specified display module is HLT-QM\n");
+    }
+    else if (NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_hlt07_ft8165_720p_video")) {
+        upg->module_id = 0x82;
+        strcpy(fts_data->pdata->module_name,"ft8615_hlt_07");
+        FTS_INFO("the specified display module is %s \n",fts_data->pdata->module_name);
+    }
+    else if (NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_hlt08_ft8165_720p_video")) {
+        upg->module_id = 0x83;
+        strcpy(fts_data->pdata->module_name,"ft8615_hlt_08");
+        FTS_INFO("the specified display module is %s \n",fts_data->pdata->module_name);
+    }
+    else if (NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_hlt09_ft8165_720p_video")) {
+        upg->module_id = 0x84;
+        strcpy(fts_data->pdata->module_name,"ft8615_hlt_09");
+        FTS_INFO("the specified display module is %s \n",fts_data->pdata->module_name);
+    }
+    else if (NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_txd11_ft8165_720p_video")) {
+        upg->module_id = 0xF0;
+        strcpy(fts_data->pdata->module_name,"ft8615_txd_11");
+        FTS_INFO("the specified display module is %s \n",fts_data->pdata->module_name);
+    }
+    else if (NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_txd13_ft8165_720p_video")) {
+        upg->module_id = 0x86;
+        strcpy(fts_data->pdata->module_name,"ft8615_txd_13");
+        FTS_INFO("the specified display module is %s \n",fts_data->pdata->module_name);
+    }
+    else if (NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_hlt14_ft8165_720p_video")) {
+        upg->module_id = 0x85;
+        strcpy(fts_data->pdata->module_name,"ft8615_hlt_14");
+        FTS_INFO("the specified display module is %s \n",fts_data->pdata->module_name);
+    }
+    else if(NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_inx17_ft8165_hd_video")) {
+        upg->module_id = 0x88;
+        strcpy(fts_data->pdata->module_name,"ft8615_inx_17");
+        FTS_INFO("the specified display module is %s \n",fts_data->pdata->module_name);
+    }
+    else if (NULL != strstr(fts_data->pdata->panel_name, "mdss_dsi_dpt20_ft8165_720p_video")) {
+        upg->module_id = 0x90;
+        strcpy(fts_data->pdata->module_name,"ft8615_dpt_20");
+        FTS_INFO("the specified display module is %s \n",fts_data->pdata->module_name);
     }
     else {
         upg->module_id = 0x40;

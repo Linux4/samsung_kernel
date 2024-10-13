@@ -327,7 +327,7 @@ static int ilitek_tddi_fw_iram_upgrade(u8 *pfw)
 	size = ARRAY_SIZE(fbi);
 	for (i = 0; i < size; i++) {
 		if ((fbi[i].mode == mode) && (fbi[i].len != 0)) {
-			ipio_info("Download %s code from hex 0x%x to IRAM 0x%x, len = 0x%x\n",
+			ipio_debug("Download %s code from hex 0x%x to IRAM 0x%x, len = 0x%x\n",
 					fbi[i].name, fbi[i].start, fbi[i].mem_start, fbi[i].len);
 
 #if SPI_DMA_TRANSFER_SPLIT
@@ -341,7 +341,7 @@ static int ilitek_tddi_fw_iram_upgrade(u8 *pfw)
 			crc = CalculateCRC32(fbi[i].start, fbi[i].len - 4, fw_ptr);
 			dma = host_download_dma_check(fbi[i].mem_start, fbi[i].len - 4);
 
-			ipio_info("%s CRC is %s (%x) : (%x)\n",
+			ipio_debug("%s CRC is %s (%x) : (%x)\n",
 				fbi[i].name, (crc != dma ? "Invalid !" : "Correct !"), crc, dma);
 
 			if (crc != dma) {
@@ -803,7 +803,7 @@ int ilitek_tddi_fw_upgrade(int op)
 				ipio_err("TP reset failed while erasing data\n");
 		idev->xch_num = 0;
 		idev->ych_num = 0;
-		return ret;
+		//return ret;
 	}
 
 out:

@@ -175,9 +175,7 @@ struct fp_dev_touch_info {
 
 #define RESET_TIME            2	/* Default chip reset wait time(ms) */
 #define RESET_TIME_MULTIPLE   1 /* Multiple for reset time multiple*wait_time */
-/* HS70 code for HS70-26 by zhuqiang at 2019/10/12 start */
 #define SIFP_NETLINK_ROUTE    0
-/* HS70 code for HS70-26 by zhuqiang at 2019/10/12 end */
 #define NL_MSG_LEN            16
 
 //#define PROC_DIR		"fp"      /* if defined, create node under /proc/fp/xxx */

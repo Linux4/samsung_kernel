@@ -13,3 +13,4 @@ ccflags-y += -D__FF_EARLY_LOG_LEVEL=2
 obj-$(CONFIG_FOCALTECH_FINGERPRINT)  += ff_ctl.o plat-sdm450.o
 
 
+

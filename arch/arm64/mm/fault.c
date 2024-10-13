@@ -104,6 +104,7 @@ void show_pte(unsigned long addr)
 	} else {
 		pr_alert("[%016lx] address between user and kernel address ranges\n",
 			 addr);
+		sec_debug_store_pte((unsigned long)addr, 1);
 		return;
 	}
 
@@ -351,7 +352,7 @@ static int __kprobes do_page_fault(unsigned long addr, unsigned int esr,
 	struct task_struct *tsk;
 	struct mm_struct *mm;
 	int fault, sig, code;
-	unsigned long vm_flags = VM_READ | VM_WRITE;
+	unsigned long vm_flags = VM_READ | VM_WRITE | VM_EXEC;
 	unsigned int mm_flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
 	struct vm_area_struct *vma = NULL;
 

@@ -194,17 +194,17 @@ out:
 
 static int ilitek_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 {
-	struct touch_bus_info *info =
-		container_of(to_i2c_driver(i2c->dev.driver),
-			struct touch_bus_info, bus_driver);
+	struct touch_bus_info *info;//mfeng add
 
 	ipio_info("ilitek i2c probe\n");
 
-	if (!i2c) {
+	if (i2c == NULL) { /*ritchie add*/
 		ipio_err("i2c client is NULL\n");
 		return -ENODEV;
 	}
-
+	//mfeng add
+	info = container_of(to_i2c_driver(i2c->dev.driver),
+			struct touch_bus_info, bus_driver);
 	if (i2c->addr != TDDI_I2C_ADDR) {
 		i2c->addr = TDDI_I2C_ADDR;
 		ipio_info("i2c addr doesn't be set up, use default : 0x%x\n", i2c->addr);
@@ -302,6 +302,7 @@ int ilitek_tddi_interface_dev_init(struct ilitek_hwif_info *hwif)
 
 	if (hwif->bus_type != BUS_I2C) {
 		ipio_err("Not I2C dev\n");
+		kfree(info);//ritchie add
 		return -EINVAL;
 	}
 

@@ -242,7 +242,7 @@ void mdss_mdp_release_splash_pipe(struct msm_fb_data_type *mfd)
 void mdss_free_bootmem(u32 mem_addr, u32 size)
 {
 	unsigned long pfn_start, pfn_end, pfn_idx;
-
+	free_memsize_reserved(mem_addr, size);
 	pfn_start = mem_addr >> PAGE_SHIFT;
 	pfn_end = (mem_addr + size) >> PAGE_SHIFT;
 	for (pfn_idx = pfn_start; pfn_idx < pfn_end; pfn_idx++)

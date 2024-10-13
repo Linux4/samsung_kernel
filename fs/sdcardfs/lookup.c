@@ -194,6 +194,7 @@ static struct dentry *__sdcardfs_interpose(struct dentry *dentry,
 		ret_dentry = ERR_CAST(inode);
 		goto out;
 	}
+	/* @fs.sec -- CF593884E59B4620A14A470FFFCFF518 -- */
 	update_derived_permission_lock(dentry, inode);
 
 	ret_dentry = d_splice_alias(inode, dentry);

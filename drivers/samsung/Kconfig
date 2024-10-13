@@ -13,13 +13,23 @@ config SEC_BSP
 	  Samsung BSP Feature.
 
 config DRV_SAMSUNG
-	bool "Samsung sec class/sysfs Feature"
+	tristate "Samsung sec class/sysfs Feature"
 	default n
 	help
 	  Samsung sysfs name 'sec' directory create
 
+config SEC_DEBUG
+	tristate "Enable Samsung Debugging features"
+	default n
+
 config SEC_PARAM
 	bool "Enable Param modification"
+	default n
+	help
+	  Samsung TN Param Feature.
+
+config SEC_MPARAM
+	tristate "Enable Module Param modification"
 	default n
 	help
 	  Samsung TN Param Feature.
@@ -42,13 +52,26 @@ config SEC_SYSUP
 	help
 	  Samsung system update Feature.
 
+config SEC_FACTORY_INTERPOSER
+	bool "Samsung Factory interposer binary"
+	default n
+	help
+	  Samsung Factory interposer binary.
+
+config SEC_EXT
+	bool "Samsung TN extension Feature"
+	default y
+
 menu "Samsung Factory Feature"
 config SEC_FACTORY
 	bool "when it comes to sec factory mode"
 	default n
 	select SEC_DEBUG_FORCE_ERROR
 	select SEC_PANIC_PCIE_ERR
+	select SEC_PCIE_KEEP_LINKBW
 	select SEC_GPIO_DVS
+	select EDAC_KRYO_ARM64_PANIC_ON_CE
+	select CNSS2_DEBUG
 	help
 	  It will support a sec factory mode
 endmenu
@@ -56,3 +79,10 @@ endmenu
 source "drivers/samsung/debug/Kconfig"
 source "drivers/samsung/misc/Kconfig"
 source "drivers/samsung/quest/Kconfig"
+
+config SEC_CLASS_TEST
+	bool "KUnit test for sec_class_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+

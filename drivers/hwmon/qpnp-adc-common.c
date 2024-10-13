@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -403,6 +403,60 @@ static const struct qpnp_vadc_map_pt adcmap_qrd_skut1_btm_threshold[] = {
 	{1000,	477},
 };
 
+static const struct qpnp_vadc_map_pt adcmap_qrd_skue_btm_threshold[] = {
+	{-200,	1385},
+	{-180,	1353},
+	{-160,	1320},
+	{-140,	1287},
+	{-120,	1253},
+	{-100,	1218},
+	{-80,	1184},
+	{-60,	1149},
+	{-40,	1115},
+	{-20,	1080},
+	{0,	1046},
+	{20,	1013},
+	{40,	980},
+	{60,	948},
+	{80,	917},
+	{100,	887},
+	{120,	858},
+	{140,	830},
+	{160,	803},
+	{180,	777},
+	{200,	752},
+	{220,	729},
+	{240,	706},
+	{260,	685},
+	{280,	664},
+	{300,	645},
+	{320,	626},
+	{340,	609},
+	{360,	593},
+	{380,	577},
+	{400,	563},
+	{420,	549},
+	{440,	536},
+	{460,	524},
+	{480,	512},
+	{500,	501},
+	{520,	491},
+	{540,	481},
+	{560,	472},
+	{580,	464},
+	{600,	456},
+	{620,	448},
+	{640,	441},
+	{660,	435},
+	{680,	428},
+	{700,	423},
+	{720,	417},
+	{740,	412},
+	{760,	407},
+	{780,	402},
+	{800,	398},
+};
+
 /* Voltage to temperature */
 static const struct qpnp_vadc_map_pt adcmap_100k_104ef_104fb[] = {
 	{1758,	-40000},
@@ -526,6 +580,7 @@ static const struct qpnp_vadc_map_pt adcmap_batt_term_pu30_b3435[] = {
 };
 /* Huaqin add for HS60-37 Configure battery NTC for charging by gaochao at 2019/07/11 end */
 
+/* Voltage to temperature */
 static const struct qpnp_vadc_map_pt adcmap_150k_104ef_104fb[] = {
 	{1738,	-40000},
 	{1714,	-35000},
@@ -1676,6 +1731,25 @@ int32_t qpnp_adc_scale_qrd_skut1_batt_therm(struct qpnp_vadc_chip *chip,
 }
 EXPORT_SYMBOL(qpnp_adc_scale_qrd_skut1_batt_therm);
 
+int32_t qpnp_adc_scale_qrd_skue_batt_therm(struct qpnp_vadc_chip *chip,
+			int32_t adc_code,
+			const struct qpnp_adc_properties *adc_properties,
+			const struct qpnp_vadc_chan_properties *chan_properties,
+			struct qpnp_vadc_result *adc_chan_result)
+{
+	int64_t bat_voltage = 0;
+
+	qpnp_adc_scale_with_calib_param(adc_code,
+			adc_properties, chan_properties, &bat_voltage);
+
+	return qpnp_adc_map_temp_voltage(
+			adcmap_qrd_skue_btm_threshold,
+			ARRAY_SIZE(adcmap_qrd_skue_btm_threshold),
+			bat_voltage,
+			&adc_chan_result->physical);
+}
+EXPORT_SYMBOL(qpnp_adc_scale_qrd_skue_batt_therm);
+
 int32_t qpnp_adc_scale_smb_batt_therm(struct qpnp_vadc_chip *chip,
 		int32_t adc_code,
 		const struct qpnp_adc_properties *adc_properties,
@@ -1729,6 +1803,7 @@ int32_t qpnp_adc_batt_therm_B3435_pu30(struct qpnp_vadc_chip *chip,
 }
 EXPORT_SYMBOL(qpnp_adc_batt_therm_B3435_pu30);
 /* Huaqin add for HS60-37 Configure battery NTC for charging by gaochao at 2019/07/11 end */
+
 
 int32_t qpnp_adc_scale_therm_pu1(struct qpnp_vadc_chip *chip,
 		int32_t adc_code,

@@ -4,6 +4,14 @@ ifneq ($(filter y, $(CONFIG_KALLSYMS_ALL)),)
 	ccflags-y += -D__KERNEL_KALLSYMS_ALL_ENABLED__
 endif
 
+ifneq ($(filter y, $(CONFIG_FB)),)
+	ccflags-y += -DHX_CONFIG_FB
+endif
+
+ifneq ($(filter y, $(CONFIG_DRM)),)
+	ccflags-y += -DHX_CONFIG_DRM
+endif
+
 ifneq ($(filter y m, $(CONFIG_TOUCHSCREEN_HIMAX_DEBUG)),)
 	himax_mmi-objs += himax_debug.o
 endif
@@ -124,6 +132,7 @@ ifneq ($(filter m, $(CONFIG_TOUCHSCREEN_HIMAX_COMMON)),)
   ccflags-y += -D__HIMAX_MOD__
 	himax_mmi-objs += himax_common.o
 	himax_mmi-objs += himax_platform.o
+  himax_mmi-objs += himax_sec.o
 ifneq ($(filter y, $(CONFIG_TOUCHSCREEN_HIMAX_EMBEDDED_FIRMWARE)),)
 	himax_mmi-objs += Himax_firmware.o
 endif
@@ -132,6 +141,7 @@ endif
 ifneq ($(filter y, $(CONFIG_TOUCHSCREEN_HIMAX_COMMON)),)
 	himax_mmi-objs += himax_common.o
 	himax_mmi-objs += himax_platform.o
+  himax_mmi-objs += himax_sec.o
 ifneq ($(filter y, $(CONFIG_TOUCHSCREEN_HIMAX_EMBEDDED_FIRMWARE)),)
 	himax_mmi-objs += Himax_firmware.o
 endif

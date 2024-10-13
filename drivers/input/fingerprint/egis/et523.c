@@ -49,6 +49,7 @@
 #include <soc/qcom/scm.h>
 #include <linux/pm_wakeup.h>
 #include <linux/platform_data/spi-s3c64xx.h>
+#include <linux/fb.h>
 //#include <fp_vendor.h>
 
 //#include "../../../teei/V1.0/tz_vfs/fp_vendor.h"
@@ -70,17 +71,13 @@ struct wakeup_source wakeup_source_fp;
  */
 //spinlock_t interrupt_lock;
 struct interrupt_desc fps_ints = {0 , 0, "BUT0" , 0};
-/* HS70 code for HS70-859 by chenlei at 2019/11/14 start */
 extern int finger_sysfs;
-/* HS70 code for HS70-859 by chenlei at 2019/11/14 end */
 unsigned int bufsiz = 4096;
 
 int gpio_irq;
 int request_irq_done = 0;
 /* int t_mode = 255; */
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 start */
 int g_screen_onoff = 1;
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */
 
 struct ioctl_cmd {
 int int_mode;
@@ -225,7 +222,29 @@ void interrupt_timer_routine(unsigned long _data)
 	bdata->int_count = 0;
 	wake_up_interruptible(&interrupt_waitq);
 }
-
+void egis_irq_enable(bool irq_wake,bool enable)
+{
+	unsigned long nIrqFlag;
+	struct irq_desc *desc;
+	spin_lock_irqsave(&g_data->irq_lock, nIrqFlag);
+	if (1 == irq_wake) {
+		if (1 == enable && 0 == g_data->irq_enable_flag) {
+			enable_irq_wake(gpio_irq);
+			g_data->irq_enable_flag = 1;
+		}
+	} else {
+		if (1 == enable && 0 == g_data->irq_enable_flag) {
+			enable_irq(gpio_irq);
+			g_data->irq_enable_flag = 1;
+		} else if (0 == enable && 1 == g_data->irq_enable_flag) {
+			disable_irq_nosync(gpio_irq);
+			g_data->irq_enable_flag = 0;
+		}
+	}
+	desc = irq_to_desc(gpio_irq);
+	DEBUG_PRINT("irq_type = %d, g_data->irq_enable_flag = %d,desc->depth = %d\n",irq_wake,g_data->irq_enable_flag,desc->depth);
+	spin_unlock_irqrestore(&g_data->irq_lock, nIrqFlag);
+}
 static irqreturn_t fp_eint_func(int irq, void *dev_id)
 {
 	if (!fps_ints.int_count)
@@ -240,14 +259,8 @@ static irqreturn_t fp_eint_func_ll(int irq , void *dev_id)
 {
 	DEBUG_PRINT("[egis]fp_eint_func_nospinlock\n");
 	fps_ints.finger_on = 1;
-	/* fps_ints.int_count = 0; */
-	//spin_lock_irq(&interrupt_lock);
-	fps_ints.drdy_irq_flag = DRDY_IRQ_DISABLE;
-	disable_irq_nosync(gpio_irq);
-	//spin_unlock_irq(&interrupt_lock);
-	//fps_ints.drdy_irq_flag = DRDY_IRQ_DISABLE;
+	egis_irq_enable(0,0);
 	wake_up_interruptible(&interrupt_waitq);
-	/* DEBUG_PRINT_ratelimited(KERN_WARNING "-----------   zq fp fp_eint_func  ,fps_ints.int_count=%d",fps_ints.int_count);*/
 	__pm_wakeup_event(&wakeup_source_fp, msecs_to_jiffies(1500));
 	return IRQ_RETVAL(IRQ_HANDLED);
 }
@@ -336,22 +349,10 @@ int Interrupt_Init(struct etspi_data *etspi, int int_mode, int detect_period, in
 		}
 		DEBUG_PRINT("[Interrupt_Init]:gpio_to_irq return: %d\n", gpio_irq);
 		DEBUG_PRINT("[Interrupt_Init]:request_irq return: %d\n", err);
-		/* disable_irq_nosync(gpio_irq); */
-		//spin_lock_irq(&interrupt_lock);
-		fps_ints.drdy_irq_flag = DRDY_IRQ_ENABLE;
-		enable_irq_wake(gpio_irq);
-		enable_irq(gpio_irq);
-		//spin_unlock_irq(&interrupt_lock);
+		egis_irq_enable(1,1);
 		request_irq_done = 1;
 	}
-	//spin_lock_irq(&interrupt_lock);
-	if (fps_ints.drdy_irq_flag == DRDY_IRQ_DISABLE) {
-		DEBUG_PRINT("%s fps_ints.drdy_irq_flag == DRDY_IRQ_DISABLE\n", __func__);
-		fps_ints.drdy_irq_flag = DRDY_IRQ_ENABLE;
-		enable_irq_wake(gpio_irq);
-		enable_irq(gpio_irq);
-	}
-	//spin_unlock_irq(&interrupt_lock);	
+	egis_irq_enable(0,1);
 done:
 	
 	return 0;
@@ -372,17 +373,10 @@ int Interrupt_Free(struct etspi_data *etspi)
 {
 	DEBUG_PRINT("%s\n", __func__);
 	fps_ints.finger_on = 0;
-	
-	//spin_lock_irq(&interrupt_lock);
-	if (fps_ints.drdy_irq_flag == DRDY_IRQ_ENABLE) {
-		DEBUG_PRINT("%s (DISABLE IRQ)\n", __func__);
-		disable_irq_nosync(gpio_irq);
+	if (1 == g_data->irq_enable_flag) {
+		egis_irq_enable(0,0);
 		del_timer_sync(&fps_ints.timer);
-		 
-		//disable_irq_sync(gpio_irq);
-		fps_ints.drdy_irq_flag = DRDY_IRQ_DISABLE;
 	}
-	//spin_unlock_irq(&interrupt_lock);
 	return 0;
 }
 
@@ -595,59 +589,50 @@ static long etspi_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			retval = -EFAULT;
 			goto done;
 		}
-/* HS70 code for HS70-859 by chenlei at 2019/11/14 start */
 		finger_sysfs = 0x04;
-/* HS70 code for HS70-859 by chenlei at 2019/11/14 end */
 		DEBUG_PRINT("fp_ioctl >>> fp Trigger function init\n");
 		retval = Interrupt_Init(etspi, data.int_mode, data.detect_period, data.detect_threshold);
 		DEBUG_PRINT("fp_ioctl trigger init = %x\n", retval);
-	break;
-
+		break;
 	case FP_SENSOR_RESET:
-			DEBUG_PRINT("fp_ioctl ioc->opcode == FP_SENSOR_RESET --");
-			etspi_reset(etspi);
+		DEBUG_PRINT("fp_ioctl ioc->opcode == FP_SENSOR_RESET --");
+		etspi_reset(etspi);
 		goto done;
 	case INT_TRIGGER_CLOSE:
-			DEBUG_PRINT("fp_ioctl <<< fp Trigger function close\n");
-			retval = Interrupt_Free(etspi);
-			DEBUG_PRINT("fp_ioctl trigger close = %x\n", retval);
+		DEBUG_PRINT("fp_ioctl <<< fp Trigger function close\n");
+		retval = Interrupt_Free(etspi);
+		DEBUG_PRINT("fp_ioctl trigger close = %x\n", retval);
 		goto done;
 	case INT_TRIGGER_ABORT:
-			DEBUG_PRINT("fp_ioctl <<< fp Trigger function close\n");
-			fps_interrupt_abort();
+		DEBUG_PRINT("fp_ioctl <<< fp Trigger function close\n");
+		fps_interrupt_abort();
 		goto done;
 #ifdef	Support_for_Sumsung_N9_Dual_sensor
 	case FP_PIN_RESOURCE_REQUEST:
-			DEBUG_PRINT("fp_ioctl <<< FP_RESET_REQUEST\n");
-			retval = etspi_reset_request(etspi); 
+		DEBUG_PRINT("fp_ioctl <<< FP_RESET_REQUEST\n");
+		retval = etspi_reset_request(etspi); 
 		goto done;
 #endif
 /* HS70 code for HS70-861 by chenlei at 2019/11/20 start */
 	case GET_SCREEN_ONOFF:
-			DEBUG_PRINT("fp_ioctl <<< GET_SCREEN_ONOFF  \n");
-			data.int_mode = g_screen_onoff;
-			if (copy_to_user((int __user *)arg, &data, sizeof(data))) {
-				retval = -EFAULT;
-				goto done;
-			}
+		DEBUG_PRINT("fp_ioctl <<< GET_SCREEN_ONOFF  \n");
+		data.int_mode = g_screen_onoff;
+		if (copy_to_user((int __user *)arg, &data, sizeof(data))) {
+			retval = -EFAULT;
+		}
 		goto done;
 /* HS70 code for HS70-861 by chenlei at 2019/11/20 end */
-/*
-	case FP_SPICLK_ENABLE:
-			DEBUG_PRINT("fp_ioctl <<< fp spi enable\n");
-			retval = sec_spi_prepare(etspi->spi);
+	case FP_WAKELOCK_TIMEOUT_ENABLE: //0Xb1
+		DEBUG_PRINT("EGISTEC fp_ioctl <<< FP_WAKELOCK_TIMEOUT_ENABLE  \n");
+		__pm_stay_awake(&wakeup_source_fp);
 		goto done;
-	case FP_SPICLK_DISABLE:
-			DEBUG_PRINT("fp_ioctl <<< fp spi disable\n");
-			retval = sec_spi_unprepare(etspi->spi);
+	case FP_WAKELOCK_TIMEOUT_DISABLE: //0Xb2
+		DEBUG_PRINT("EGISTEC fp_ioctl <<< FP_WAKELOCK_TIMEOUT_DISABLE  \n");
+		__pm_relax(&wakeup_source_fp);
 		goto done;
-	case FP_FREE_GPIO:
-			DEBUG_PRINT("fp_ioctl <<< fp fpio free\n");
-		goto done;
-*/
 	default:
-	retval = -ENOTTY;
-	break;
+		retval = -ENOTTY;
+		break;
 	}
 done:
 	return retval;
@@ -981,14 +966,13 @@ static int etspi_probe(struct platform_device *pdev)
 		pr_err("%s - Failed to kzalloc\n", __func__);
 		return -ENOMEM;
 	}
-
 /* HS70 code for HS70-861 by chenlei at 2019/11/20 start */
 	etspi->notifier.notifier_call = egistec_fb_notifier_callback;
 	status = fb_register_client(&etspi->notifier);
 	if (status){
 		pr_err(" register fb failed, retval=%d\n", status);
 	}
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */
+/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */	
 	/* device tree call */
 	if (pdev->dev.of_node) {
 		status = etspi_parse_dt(&pdev->dev, etspi);
@@ -1032,8 +1016,9 @@ static int etspi_probe(struct platform_device *pdev)
 	/* Initialize the driver data */
 	etspi->spi = pdev;
 	g_data = etspi;
-
+	g_data->irq_enable_flag = 0;
 	spin_lock_init(&etspi->spi_lock);
+	spin_lock_init(&g_data->irq_lock);
 	//spin_lock_init(&interrupt_lock);
 	
 	mutex_init(&etspi->buf_lock);

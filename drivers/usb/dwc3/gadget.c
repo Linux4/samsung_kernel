@@ -31,11 +31,16 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/composite.h>
 #include <linux/usb/gadget.h>
+#include <linux/usb_notify.h>
+#include <linux/workqueue.h>
+#include <linux/ktime.h>
 
 #include "debug.h"
 #include "core.h"
 #include "gadget.h"
 #include "io.h"
+
+extern bool acc_dev_status;
 
 static void dwc3_gadget_wakeup_interrupt(struct dwc3 *dwc, bool remote_wakeup);
 static int dwc3_gadget_wakeup_int(struct dwc3 *dwc);
@@ -173,27 +178,28 @@ int dwc3_gadget_set_link_state(struct dwc3 *dwc, enum dwc3_link_state state)
 
 /**
  * dwc3_ep_inc_trb() - Increment a TRB index.
+ * @dep - DWC3 endpoint
  * @index - Pointer to the TRB index to increment.
  *
  * The index should never point to the link TRB. After incrementing,
  * if it is point to the link TRB, wrap around to the beginning. The
  * link TRB is always at the last TRB entry.
  */
-static void dwc3_ep_inc_trb(u8 *index)
+static void dwc3_ep_inc_trb(struct dwc3_ep *dep, u8 *index)
 {
 	(*index)++;
-	if (*index == (DWC3_TRB_NUM - 1))
+	if (*index == (dep->num_trbs - 1))
 		*index = 0;
 }
 
 void dwc3_ep_inc_enq(struct dwc3_ep *dep)
 {
-	dwc3_ep_inc_trb(&dep->trb_enqueue);
+	dwc3_ep_inc_trb(dep, &dep->trb_enqueue);
 }
 
 void dwc3_ep_inc_deq(struct dwc3_ep *dep)
 {
-	dwc3_ep_inc_trb(&dep->trb_dequeue);
+	dwc3_ep_inc_trb(dep, &dep->trb_dequeue);
 }
 
 /*
@@ -2257,6 +2263,15 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *_gadget, int is_active)
 	}
 
 	spin_unlock_irqrestore(&dwc->lock, flags);
+	
+	if (dwc->rst_err_noti) {
+		dwc->event_state = RELEASE;
+		dwc->rst_err_noti = false;
+		schedule_delayed_work(&dwc->usb_event_work, msecs_to_jiffies(0));
+	}
+	dwc->rst_err_cnt = 0;
+	acc_dev_status = 0;
+
 	return 0;
 }
 
@@ -2782,17 +2797,15 @@ static void dwc3_gsi_ep_transfer_complete(struct dwc3 *dwc, struct dwc3_ep *dep)
 	struct dwc3_trb *trb;
 	dma_addr_t offset;
 
+	/*
+	 * Doorbell needs to be rung with the next TRB that is going to be
+	 * processed by hardware.
+	 * So, if 'n'th TRB got completed then ring doorbell with (n+1) TRB.
+	 */
+	dwc3_ep_inc_trb(dep, &dep->trb_dequeue);
 	trb = &dep->trb_pool[dep->trb_dequeue];
-	while (trb->ctrl & DWC3_TRBCTL_LINK_TRB) {
-		dwc3_ep_inc_trb(&dep->trb_dequeue);
-		trb = &dep->trb_pool[dep->trb_dequeue];
-	}
-
-	if (!(trb->ctrl & DWC3_TRB_CTRL_HWO)) {
-		offset = dwc3_trb_dma_offset(dep, trb);
-		usb_gsi_ep_op(ep, (void *)&offset, GSI_EP_OP_UPDATE_DB);
-		dwc3_ep_inc_trb(&dep->trb_dequeue);
-	}
+	offset = dwc3_trb_dma_offset(dep, trb);
+	usb_gsi_ep_op(ep, (void *)&offset, GSI_EP_OP_UPDATE_DB);
 }
 
 static void dwc3_endpoint_transfer_complete(struct dwc3 *dwc,
@@ -3092,11 +3105,9 @@ static void dwc3_stop_active_transfers(struct dwc3 *dwc)
 		if (!(dep->flags & DWC3_EP_ENABLED))
 			continue;
 
-		if (dep->endpoint.ep_type == EP_TYPE_GSI && dep->direction)
-			dwc3_notify_event(dwc,
-					DWC3_CONTROLLER_NOTIFY_CLEAR_DB, 0);
 		dwc3_remove_requests(dwc, dep);
 	}
+	dwc3_notify_event(dwc, DWC3_CONTROLLER_NOTIFY_CLEAR_DB, 0);
 	dbg_log_string("DONE");
 }
 
@@ -3151,9 +3162,22 @@ static void dwc3_gadget_disconnect_interrupt(struct dwc3 *dwc)
 	wake_up_interruptible(&dwc->wait_linkstate);
 }
 
+static void dwc3_gadget_usb_event_work(struct work_struct *work)
+{
+	struct dwc3 *dwc = container_of(work, struct dwc3, usb_event_work.work);
+
+	pr_info("%s, event_state: %d\n", __func__, dwc->event_state);
+	
+	if (dwc->event_state)
+		send_usb_err_uevent(USB_ERR_ABNORMAL_RESET, NOTIFY);
+	else
+		send_usb_err_uevent(USB_ERR_ABNORMAL_RESET, RELEASE);
+}
+
 static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 {
 	u32			reg;
+	ktime_t	current_time;
 
 	dwc->connected = true;
 
@@ -3234,6 +3258,34 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 	dwc->gadget.speed = USB_SPEED_UNKNOWN;
 	dwc->link_state = DWC3_LINK_STATE_U0;
 	wake_up_interruptible(&dwc->wait_linkstate);
+	
+	if (acc_dev_status && (dwc->rst_err_noti == false)) {
+		current_time.tv64 = ktime_to_ms(ktime_get_boottime());
+
+		if ((dwc->rst_err_cnt == 0) && (dwc->gadget.state < USB_STATE_CONFIGURED)) {		
+			if ((current_time.tv64 - dwc->rst_time_before.tv64) < 1000) {
+				dwc->rst_err_cnt++;
+				dwc->rst_time_first.tv64 = dwc->rst_time_before.tv64;
+			}
+		} else {
+			if ((current_time.tv64 - dwc->rst_time_first.tv64) < 1000) {
+				dwc->rst_err_cnt++;
+			} else {
+				dwc->rst_err_cnt = 0;
+			}
+		}
+
+		if (dwc->rst_err_cnt > ERR_RESET_CNT) {
+			dwc->event_state = NOTIFY;
+			schedule_delayed_work(&dwc->usb_event_work, msecs_to_jiffies(0));
+			dwc->rst_err_noti = true;
+		}
+
+		pr_info("%s rst_err_cnt: %d, time_current: %lld, time_before: %lld\n",
+			__func__, dwc->rst_err_cnt, current_time.tv64, dwc->rst_time_before.tv64);
+
+		dwc->rst_time_before.tv64 = current_time.tv64;
+	}
 }
 
 static void dwc3_update_ram_clk_sel(struct dwc3 *dwc, u32 speed)
@@ -3937,6 +3989,7 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	dwc->irq_gadget = irq;
 
 	INIT_WORK(&dwc->wakeup_work, dwc3_gadget_wakeup_work);
+	INIT_DELAYED_WORK(&dwc->usb_event_work, dwc3_gadget_usb_event_work);
 
 	dwc->ctrl_req = dma_alloc_coherent(dwc->sysdev, sizeof(*dwc->ctrl_req),
 			&dwc->ctrl_req_addr, GFP_KERNEL);
@@ -3980,7 +4033,6 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	dwc->gadget.speed		= USB_SPEED_UNKNOWN;
 	dwc->gadget.sg_supported	= true;
 	dwc->gadget.name		= "dwc3-gadget";
-	dwc->gadget.is_otg		= dwc->dr_mode == USB_DR_MODE_OTG;
 	dwc->gadget.l1_supported	= !dwc->usb2_l1_disable;
 
 	/*

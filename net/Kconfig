@@ -246,6 +246,10 @@ source "net/qrtr/Kconfig"
 source "net/ncsi/Kconfig"
 source "net/rmnet_data/Kconfig"
 
+# SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+source "net/ncm/Kconfig"
+# SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 config RPS
 	bool
 	depends on SMP && SYSFS

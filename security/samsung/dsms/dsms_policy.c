@@ -7,7 +7,6 @@
  */
 
 #include <linux/dsms.h>
-
 #include "dsms_access_control.h"
 
 // Policy entries *MUST BE* ordered by function_name field, as the find
@@ -20,5 +19,5 @@ struct dsms_policy_entry dsms_policy[] = {
 
 size_t dsms_policy_size(void)
 {
-	return (sizeof dsms_policy)/(sizeof *dsms_policy);
+	return sizeof(dsms_policy)/sizeof(*dsms_policy);
 }

@@ -667,6 +667,44 @@ void input_close_device(struct input_handle *handle)
 }
 EXPORT_SYMBOL(input_close_device);
 
+static int input_enable_device(struct input_dev *dev)
+{
+	int retval;
+
+	retval = mutex_lock_interruptible(&dev->mutex);
+	if (retval)
+		return retval;
+	if (!dev->disabled)
+		goto out;
+	if (dev->open) {
+		retval = dev->open(dev);
+		if (retval)
+			goto out;
+	}
+	dev->disabled = false;
+
+out:
+	mutex_unlock(&dev->mutex);
+
+	return retval;
+}
+
+static int input_disable_device(struct input_dev *dev)
+{
+	int retval;
+
+	retval = mutex_lock_interruptible(&dev->mutex);
+	if (retval)
+		return retval;
+	if (!dev->disabled) {
+		dev->disabled = true;
+		if (dev->close)
+			dev->close(dev);
+	}
+	mutex_unlock(&dev->mutex);
+	return 0;
+}
+
 /*
  * Simulate keyup events for all keys that are marked as pressed.
  * The function must be called with dev->event_lock held.
@@ -850,16 +888,18 @@ static int input_default_setkeycode(struct input_dev *dev,
 		}
 	}
 
-	__clear_bit(*old_keycode, dev->keybit);
-	__set_bit(ke->keycode, dev->keybit);
-
-	for (i = 0; i < dev->keycodemax; i++) {
-		if (input_fetch_keycode(dev, i) == *old_keycode) {
-			__set_bit(*old_keycode, dev->keybit);
-			break; /* Setting the bit twice is useless, so break */
+	if (*old_keycode <= KEY_MAX) {
+		__clear_bit(*old_keycode, dev->keybit);
+		for (i = 0; i < dev->keycodemax; i++) {
+			if (input_fetch_keycode(dev, i) == *old_keycode) {
+				__set_bit(*old_keycode, dev->keybit);
+				/* Setting the bit twice is useless, so break */
+				break;
+			}
 		}
 	}
 
+	__set_bit(ke->keycode, dev->keybit);
 	return 0;
 }
 
@@ -915,9 +955,13 @@ int input_set_keycode(struct input_dev *dev,
 	 * Simulate keyup event if keycode is not present
 	 * in the keymap anymore
 	 */
-	if (test_bit(EV_KEY, dev->evbit) &&
-	    !is_event_supported(old_keycode, dev->keybit, KEY_MAX) &&
-	    __test_and_clear_bit(old_keycode, dev->key)) {
+	if (old_keycode > KEY_MAX) {
+		dev_warn(dev->dev.parent ?: &dev->dev,
+			 "%s: got too big old keycode %#x\n",
+			 __func__, old_keycode);
+	} else if (test_bit(EV_KEY, dev->evbit) &&
+		   !is_event_supported(old_keycode, dev->keybit, KEY_MAX) &&
+		   __test_and_clear_bit(old_keycode, dev->key)) {
 		struct input_value vals[] =  {
 			{ EV_KEY, old_keycode, 0 },
 			input_value_sync
@@ -1389,12 +1433,71 @@ static ssize_t input_dev_show_properties(struct device *dev,
 }
 static DEVICE_ATTR(properties, S_IRUGO, input_dev_show_properties, NULL);
 
+static ssize_t input_dev_show_enabled(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	struct input_dev *input_dev = to_input_dev(dev);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", !input_dev->disabled);
+}
+
+static void configure_pinctrl(struct device *dev, bool enable)
+{
+	struct pinctrl_state *state;
+	struct pinctrl *p;
+	int ret;
+
+	p = dev->pins->p;
+	if (enable)
+		state = pinctrl_lookup_state(p, PINCTRL_STATE_IDLE);
+	else
+		state = pinctrl_lookup_state(p, PINCTRL_STATE_SLEEP);
+
+	if (!IS_ERR(state)) {
+		ret = pinctrl_select_state(p, state);
+		if (ret)
+			dev_err(dev, "failed to activate pinctrl state\n");
+	}
+}
+
+static ssize_t input_dev_store_enabled(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	int ret;
+	bool enable;
+	struct input_dev *input_dev = to_input_dev(dev);
+	struct device *parent_dev = input_dev->dev.parent;
+
+	pr_info("mms input_dev_store_enabled\n");
+	ret = strtobool(buf, &enable);
+	if (ret)
+		return ret;
+
+	if (enable)
+		ret = input_enable_device(input_dev);
+	else
+		ret = input_disable_device(input_dev);
+
+	if (ret)
+		return ret;
+
+	if (parent_dev && parent_dev->pins && !input_dev->lowpower_mode)
+		configure_pinctrl(parent_dev, enable);
+
+	return size;
+}
+
+static DEVICE_ATTR(enabled, S_IRUGO | S_IWUSR,
+		   input_dev_show_enabled, input_dev_store_enabled);
+
 static struct attribute *input_dev_attrs[] = {
 	&dev_attr_name.attr,
 	&dev_attr_phys.attr,
 	&dev_attr_uniq.attr,
 	&dev_attr_modalias.attr,
 	&dev_attr_properties.attr,
+	&dev_attr_enabled.attr,
 	NULL
 };
 

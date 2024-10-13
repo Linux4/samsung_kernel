@@ -8,20 +8,22 @@
 
 #include "sec_debug_sched_log_type.h"
 
-#ifdef CONFIG_SEC_DEBUG_SCHED_LOG
+#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
 /* called @ drivers/soc/qcom/watchdog_v2.c */
 void sec_debug_save_last_pet(unsigned long long last_pet);
 
 /* called @ kernel/time/sched_clock.c */
-void sec_debug_save_last_ns(unsigned long long last_ns);
+void notrace sec_debug_save_last_ns(unsigned long long last_ns);
 
 /* called @ kernel/sched/core.c */
 extern void sec_debug_task_sched_log(int cpu, bool preempt, struct task_struct *task, struct task_struct *prev);
 
 /* called @ kernel/irq/chip.c */
 /* called @ kernel/irq/handle.c */
+extern void sec_debug_irq_sched_log(unsigned int irq, void *desc_or_fn, void *action_or_name, unsigned int en);
+
 /* called @ kernel/softirq.c */
-extern void sec_debug_irq_sched_log(unsigned int irq, void *fn, char *name, unsigned int en);
+extern void sec_debug_softirq_sched_log(unsigned int irq, void *fn, char *name, unsigned int en);
 
 /* called @ arch/arm64/kernel/traps.c */
 /* called @ drivers/cpuidle/lpm-levels.c */
@@ -44,12 +46,12 @@ static inline int sec_debug_sched_msg(char *fmt, ...) { return 0; }
 static inline void sec_debug_secure_log(u32 svc_id, u32 cmd_id) {}
 static inline void sec_debug_task_sched_log(int cpu, bool preempt, struct task_struct *task, struct task_struct *prev) {}
 static inline void sec_debug_timer_log(unsigned int type, int int_lock, void *fn) {}
-static inline void sec_debug_secure_log(u32 svc_id, u32 cmd_id) {}
-static inline void sec_debug_irq_sched_log(unsigned int irq, void *fn, char *name, unsigned int en) {}
+static inline void sec_debug_irq_sched_log(unsigned int irq, void *desc_or_fn, void *action_or_name, unsigned int en) {}
+static inline void sec_debug_softirq_sched_log(unsigned int irq, void *fn, char *name, unsigned int en) {}
 #endif /* CONFIG_SEC_DEBUG_SCHED_LOG */
 
 
-#ifdef CONFIG_SEC_DEBUG_MSG_LOG
+#if IS_ENABLED(CONFIG_SEC_DEBUG_MSG_LOG)
 /* TODO: do not call this function directly.
  * plz use sec_debug_msg_log macro instead.
  */
@@ -92,7 +94,7 @@ static inline void sec_debug_fuelgauge_log(unsigned int voltage, unsigned short 
 #endif /* CONFIG_SEC_DEBUG_FUELGAUGE_LOG */
 
 
-#ifdef CONFIG_SEC_DEBUG_POWER_LOG
+#if IS_ENABLED(CONFIG_SEC_DEBUG_POWER_LOG)
 /* called @ drivers/cpuidle/lpm-levels.c */
 extern void sec_debug_cpu_lpm_log(int cpu, unsigned int index, bool success, int entry_exit);
 

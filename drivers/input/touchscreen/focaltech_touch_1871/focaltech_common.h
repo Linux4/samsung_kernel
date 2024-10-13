@@ -143,11 +143,11 @@ struct ts_ic_info {
 *****************************************************************************/
 #if FTS_DEBUG_EN
 #define FTS_DEBUG(fmt, args...) do { \
-    printk("[FTS_TS]%s:"fmt"\n", __func__, ##args); \
+    printk("[FTS_TS](%s, %d):"fmt"\n", __func__, __LINE__, ##args); \
 } while (0)
 
 #define FTS_FUNC_ENTER() do { \
-    printk("[FTS_TS]%s: Enter\n", __func__); \
+    printk("[FTS_TS](%s, %d):: Enter\n", __func__, __LINE__); \
 } while (0)
 
 #define FTS_FUNC_EXIT() do { \
@@ -160,10 +160,10 @@ struct ts_ic_info {
 #endif
 
 #define FTS_INFO(fmt, args...) do { \
-    printk(KERN_INFO "[FTS_TS/I]%s:"fmt"\n", __func__, ##args); \
+    printk(KERN_INFO "[FTS_TS/I](%s, %d):"fmt"\n", __func__ , __LINE__,##args); \
 } while (0)
 
 #define FTS_ERROR(fmt, args...) do { \
-    printk(KERN_ERR "[FTS_TS/E]%s:"fmt"\n", __func__, ##args); \
+    printk(KERN_ERR "[FTS_TS/E](%s, %d):"fmt"\n", __func__, __LINE__,##args); \
 } while (0)
 #endif /* __LINUX_FOCALTECH_COMMON_H__ */

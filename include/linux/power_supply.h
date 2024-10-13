@@ -429,9 +429,24 @@ enum batt_misc_event_ss {
 	BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE = 0x00000001,					/* water detection - not support */
 	BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE = 0x00000004,						/* DCD timeout */
 	BATT_MISC_EVENT_HICCUP_TYPE = 0x00000020,						/* Do not use this for HS60, it happens when water is detected in a interface port */
+	BATT_MISC_EVENT_BATTERY_HEALTH = 0x000F0000,
 };
 #endif
 /* HS60 add for SR-ZQL1695-01000000460 Provide sysFS node named /sys/class/power_supply/battery/batt_misc_event by gaochao at 2019/08/11 end */
+
+#if !defined(HQ_FACTORY_BUILD)	//ss version
+#define BATTERY_HEALTH_SHIFT                16
+enum misc_battery_health {
+	BATTERY_HEALTH_UNKNOWN = 0,
+	BATTERY_HEALTH_GOOD,
+	BATTERY_HEALTH_NORMAL,
+	BATTERY_HEALTH_AGED,
+	BATTERY_HEALTH_MAX = BATTERY_HEALTH_AGED,
+
+	/* For event */
+	BATTERY_HEALTH_BAD = 0xF,
+};
+#endif
 
 /* Indicates USB Type-C CC connection status */
 enum power_supply_typec_mode {

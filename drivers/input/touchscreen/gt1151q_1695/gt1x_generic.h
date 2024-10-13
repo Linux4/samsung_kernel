@@ -64,6 +64,7 @@
 #define GTP_MAX_I2C_XFER_LEN		250
 #define SWITCH_OFF					0
 #define SWITCH_ON					1
+#define GTP_USE_ENABLE_NODE         1
 
 #define GTP_VENDOR_INFO                             "[Vendor]holitech(TP) + holitech(LCD), [TP-IC]GT1151Q, [FW]Ver"
 

@@ -1798,6 +1798,14 @@ static void mmc_card_debug_log_sysfs_init(struct mmc_card *card)
 	card->err_log[9].err_type = -ETIMEDOUT;
 }
 
+#define CMD_ERRORS							\
+	(R1_OUT_OF_RANGE |	/* Command argument out of range */	\
+	 R1_ADDRESS_ERROR |	/* Misaligned address */		\
+	 R1_BLOCK_LEN_ERROR |	/* Transferred block length incorrect */\
+	 R1_WP_VIOLATION |	/* Tried to write to protected block */	\
+	 R1_CC_ERROR |		/* Card controller error */		\
+	 R1_ERROR)		/* General/unknown error */
+
 static int card_busy_detect(struct mmc_card *card, unsigned int timeout_ms,
 		bool hw_busy_detect, struct request *req, int *gen_err)
 {
@@ -1832,6 +1840,9 @@ static int card_busy_detect(struct mmc_card *card, unsigned int timeout_ms,
 		if ((card->host->caps & MMC_CAP_WAIT_WHILE_BUSY) &&
 			hw_busy_detect)
 			break;
+
+		if (status & CMD_ERRORS)
+			mmc_card_error_logging(card, brq, status);
 
 		/*
 		 * Timeout if the device never becomes ready for data and never
@@ -2497,14 +2508,6 @@ static inline void mmc_apply_rel_rw(struct mmc_blk_request *brq,
 			brq->data.blocks = 1;
 	}
 }
-
-#define CMD_ERRORS							\
-	(R1_OUT_OF_RANGE |	/* Command argument out of range */	\
-	 R1_ADDRESS_ERROR |	/* Misaligned address */		\
-	 R1_BLOCK_LEN_ERROR |	/* Transferred block length incorrect */\
-	 R1_WP_VIOLATION |	/* Tried to write to protected block */	\
-	 R1_CC_ERROR |		/* Card controller error */		\
-	 R1_ERROR)		/* General/unknown error */
 
 static int mmc_blk_err_check(struct mmc_card *card,
 			     struct mmc_async_req *areq)

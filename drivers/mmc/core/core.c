@@ -4630,9 +4630,6 @@ void mmc_rescan(struct work_struct *work)
 #endif
 // HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190910 end
 
-#if !defined(CONFIG_SEC_HYBRID_TRAY)
-	ST_LOG("<%s> %s insertion detected",__func__,host->class_dev.kobj.name);
-#endif
 	mmc_rescan_try_freq(host, host->f_min);
 	host->err_stats[MMC_ERR_CMD_TIMEOUT] = 0;
 	mmc_release_host(host);

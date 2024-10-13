@@ -42,7 +42,7 @@
 /* Example: focaltech_ts_fw_tianma.bin */
 #define FTS_FW_NAME_PREX_WITH_REQUEST               "focaltech_ts_fw_"
 
-#define VENDOR_ID_IS_VALID(vendor_id)  ((vendor_id >= 0x75) && (vendor_id <= 0x84))
+#define VENDOR_ID_IS_VALID(vendor_id)  ((vendor_id >= 0x73) && (vendor_id <= 0x85))
 
 /*****************************************************************************
 * Global variable or extern global variabls/functions
@@ -86,6 +86,19 @@ u8 fw_file9[] = {
 u8 fw_fileA[] = {
 #include FTS_UPGRADE_FWA_FILE
 };
+
+u8 fw_fileB[] = {
+#include FTS_UPGRADE_FWB_FILE
+};
+
+u8 fw_fileC[] = {
+#include FTS_UPGRADE_FWC_FILE
+};
+
+u8 fw_fileD[] = {
+#include FTS_UPGRADE_FWD_FILE
+};
+
 struct upgrade_module module_list[] = {
     {FTS_MODULE_ID, FTS_MODULE_NAME, fw_file, sizeof(fw_file)},
     {FTS_MODULE2_ID, FTS_MODULE2_NAME, fw_file2, sizeof(fw_file2)},
@@ -97,6 +110,9 @@ struct upgrade_module module_list[] = {
     {FTS_MODULE8_ID, FTS_MODULE8_NAME, fw_file8, sizeof(fw_file8)},
     {FTS_MODULE9_ID, FTS_MODULE9_NAME, fw_file9, sizeof(fw_file9)},
     {FTS_MODULEA_ID, FTS_MODULEA_NAME, fw_fileA, sizeof(fw_fileA)},
+    {FTS_MODULEB_ID, FTS_MODULEB_NAME, fw_fileB, sizeof(fw_fileB)},
+    {FTS_MODULEC_ID, FTS_MODULEC_NAME, fw_fileC, sizeof(fw_fileC)},
+    {FTS_MODULED_ID, FTS_MODULED_NAME, fw_fileD, sizeof(fw_fileD)},
 };
 
 struct upgrade_func *upgrade_func_list[] = {

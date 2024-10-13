@@ -3204,12 +3204,17 @@ TEST_START:
 	GTP_ERROR("test type=0x%x\n", test_types);
 	if (test_types < 0) {
 		WARNING("get test params failed.");
+		if (sys.chip_type == _GT1143) {
+			reset_guitar();
+			usleep(2 * 1000);
+		}
+		enable_irq_esd();
 		free(largebuf);
 		return test_types;
 	}
 
 	//FORMAT_PATH(save_path, save_result_dir, "test_data");
-	snprintf(save_path, 50, "%s%s_%s.csv", save_result_dir, get_date_time_str(), "test_data");
+	snprintf(save_path, 50, "%s%s_%s_%d.csv", save_result_dir, get_date_time_str(), "test_data",gt1x_version.sensor_id);
 	GTP_ERROR("save path is %s", save_path);
 
 	memset(save_data_path, 0, sizeof(save_data_path));

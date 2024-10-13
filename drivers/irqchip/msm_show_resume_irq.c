@@ -14,8 +14,17 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+/*HS70 code for HS70-3706 by wuhongwen at 2020/01/09 start*/
+#include <kernel_project_defines.h>
+/*HS70 code for HS70-3706 by wuhongwen at 2020/01/09 end*/
 
-int msm_show_resume_irq_mask;
+/*HS70 code for HS70-3706 by wuhongwen at 2020/01/08 start*/
+#if defined CONFIG_IRQ_SHOW_RESUME_HS71 || defined CONFIG_IRQ_SHOW_RESUME_HS70
+int msm_show_resume_irq_mask = 1;
+#else
+int msm_show_resume_irq_mask = 0;
+#endif
+/*HS70 code for HS70-3706 by wuhongwen at 2020/01/08 end*/
 
 module_param_named(
 	debug_mask, msm_show_resume_irq_mask, int, S_IRUGO | S_IWUSR | S_IWGRP

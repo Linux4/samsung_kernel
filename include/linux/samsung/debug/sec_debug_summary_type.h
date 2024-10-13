@@ -75,6 +75,25 @@ struct sec_debug_summary_fb {
 	struct rgb_bit_info rgb_bitinfo;
 };
 
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_PER_CPU) 
+struct sec_debug_summary_sched_log {
+	uint64_t sched_idx_vaddr;
+	uint64_t sched_buf_vaddr;
+	unsigned int sched_struct_buf_sz;
+	unsigned int sched_struct_log_sz;
+	unsigned int sched_array_cnt;
+	uint64_t irq_idx_vaddr;
+	uint64_t irq_buf_vaddr;
+	unsigned int irq_struct_buf_sz;
+	unsigned int irq_struct_log_sz;
+	unsigned int irq_array_cnt;
+	uint64_t msglog_idx_vaddr;
+	uint64_t msglog_buf_vaddr;
+	unsigned int msglog_struct_buf_sz;
+	unsigned int msglog_struct_log_sz;
+	unsigned int msglog_array_cnt;
+};
+#else
 struct sec_debug_summary_sched_log {
 	uint64_t sched_idx_paddr;
 	uint64_t sched_buf_paddr;
@@ -102,6 +121,7 @@ struct sec_debug_summary_sched_log {
 	unsigned int msglog_struct_log_sz;
 	unsigned int msglog_array_cnt;
 };
+#endif
 
 struct __log_struct_info {
 	unsigned int buffer_offset;
@@ -130,6 +150,11 @@ struct sec_debug_summary_data {
 	struct sec_debug_summary_simple_var_mon var_mon;
 };
 
+struct sec_summary_data_modem_ext_log {
+	uint32_t idx;
+	uint8_t log[0];
+};
+
 struct sec_debug_summary_data_modem {
 	unsigned int magic;
 	char name[16];
@@ -138,6 +163,10 @@ struct sec_debug_summary_data_modem {
 	struct sec_debug_summary_excp excp;
 	struct sec_debug_summary_simple_var_mon var_mon;
 	unsigned int separate_debug;
+	union {
+		struct sec_summary_data_modem_ext_log ext_log;
+		uint8_t __reserved_0[1024];\
+	};
 };
 
 struct sec_debug_summary_avc_log {

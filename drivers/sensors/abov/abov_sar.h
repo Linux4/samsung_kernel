@@ -13,19 +13,19 @@
 /*
  *  I2C Registers
  */
-#define ABOV_IRQSTAT_REG			0x00
-#define ABOV_VERSION_REG		    0x01
-#define ABOV_MODELNO_REG		    0x02
-#define ABOV_VENDOR_ID_REG		    0x03
-#define ABOV_IRQSTAT_LEVEL_REG		0x04
-#define ABOV_SOFTRESET_REG  		0x06
-#define ABOV_CTRL_MODE_REG			0x07
-#define ABOV_CTRL_CHANNEL_REG		0x08
-#define ABOV_CH0_DIFF_MSB_REG		0x1C
-#define ABOV_CH0_DIFF_LSB_REG		0x1D
-#define ABOV_CH1_DIFF_MSB_REG		0x1E
-#define ABOV_CH1_DIFF_LSB_REG		0x1F
-#define ABOV_RECALI_REG				0xFB
+#define ABOV_IRQSTAT_REG            0x00
+#define ABOV_VERSION_REG            0x01
+#define ABOV_MODELNO_REG            0x02
+#define ABOV_VENDOR_ID_REG          0x03
+#define ABOV_IRQSTAT_LEVEL_REG      0x04
+#define ABOV_SOFTRESET_REG          0x06
+#define ABOV_CTRL_MODE_REG          0x07
+#define ABOV_CTRL_CHANNEL_REG       0x08
+#define ABOV_CH0_DIFF_MSB_REG       0x1C
+#define ABOV_CH0_DIFF_LSB_REG       0x1D
+#define ABOV_CH1_DIFF_MSB_REG       0x1E
+#define ABOV_CH1_DIFF_LSB_REG       0x1F
+#define ABOV_RECALI_REG             0xFB
 
 
 #define KEY_CAP_CH0    0x00
@@ -38,8 +38,8 @@
 *
 **************************************/
 struct smtc_reg_data {
-	unsigned char reg;
-	unsigned char val;
+    unsigned char reg;
+    unsigned char val;
 };
 
 typedef struct smtc_reg_data smtc_reg_data_t;
@@ -47,16 +47,16 @@ typedef struct smtc_reg_data *psmtc_reg_data_t;
 
 
 struct _buttonInfo {
-	/* The Key to send to the input */
-	int keycode;
-	/* Mask to look for on Touch Status */
-	int mask;
+    /* The Key to send to the input */
+    int keycode;
+    /* Mask to look for on Touch Status */
+    int mask;
 };
 
 struct _totalButtonInformation {
-	struct _buttonInfo *buttons;
-	int buttonSize;
-	struct input_dev *input_sar;
+    struct _buttonInfo *buttons;
+    int buttonSize;
+    struct input_dev *input_sar;
 };
 
 typedef struct _totalButtonInformation buttonInformation_t;
@@ -66,43 +66,45 @@ typedef struct _totalButtonInformation *pbuttonInformation_t;
  * default
  */
 static struct smtc_reg_data abov_i2c_reg_setup[] = {
-	{
-		.reg = ABOV_CTRL_MODE_REG,
-		.val = 0x00,
-	},
-	{
-		.reg = ABOV_CTRL_CHANNEL_REG,
-		.val = 0x05,
-	},
-	{
-		.reg = ABOV_RECALI_REG,
-		.val = 0x01,
-	},
+    {
+        .reg = ABOV_CTRL_MODE_REG,
+        .val = 0x00,
+    },
+    {
+        .reg = ABOV_CTRL_CHANNEL_REG,
+        .val = 0x05,
+    },
+    {
+        .reg = ABOV_RECALI_REG,
+        .val = 0x01,
+    },
 };
 
 
 
 static struct _buttonInfo psmtcButtons[] = {
-	{
-		.keycode = KEY_CAP_CH0,
-		.mask = ABOV_TCHCMPSTAT_TCHSTAT0_FLAG,
-	},
+    {
+        .keycode = KEY_CAP_CH0,
+        .mask = ABOV_TCHCMPSTAT_TCHSTAT0_FLAG,
+    },
 };
 
 struct abov_platform_data {
-	int i2c_reg_num;
-	struct smtc_reg_data *pi2c_reg;
-	struct regulator *vdd;
-	struct regulator *vddio;
-	unsigned irq_gpio;
-	/* used for custom setting for channel and scan period */
-	pbuttonInformation_t pbuttonInformation;
-	const char *fw_name;
+    int i2c_reg_num;
+    struct smtc_reg_data *pi2c_reg;
+    struct regulator *vdd;
+    struct regulator *vddio;
+    unsigned irq_gpio;
+    /* used for custom setting for channel and scan period */
+    pbuttonInformation_t pbuttonInformation;
+    const char *fw_name;
 
-	int (*get_is_nirq_low)(unsigned irq_gpio);
-	int (*init_platform_hw)(void);
-	void (*exit_platform_hw)(void);
-	struct device *factory_device;
+    int (*get_is_nirq_low)(unsigned irq_gpio);
+    int (*init_platform_hw)(void);
+    void (*exit_platform_hw)(void);
+#if defined(CONFIG_SENSORS)
+    struct device *factory_device;
+#endif
 };
 typedef struct abov_platform_data abov_platform_data_t;
 typedef struct abov_platform_data *pabov_platform_data_t;
@@ -135,36 +137,39 @@ typedef struct abov_platform_data *pabov_platform_data_t;
 
 typedef struct abovXX abovXX_t, *pabovXX_t;
 struct abovXX {
-	struct device *pdev;
-	struct delayed_work dworker;
-	struct abov_platform_data *board;
+    struct device *pdev;
+    struct delayed_work dworker;
+    struct abov_platform_data *board;
 #if defined(USE_THREADED_IRQ)
-	struct mutex mutex;
+    struct mutex mutex;
 #else
-	spinlock_t	lock;
+    spinlock_t    lock;
 #endif
-	void *bus;
-	void *pDevice;
-	int read_flag;
-	int irq;
-	int irqTimeout;
-	char irq_disabled;
-	/* whether irq should be ignored.. cases if enable/disable irq is not used
-	 * or does not work properly */
-	u8 useIrqTimer;
-	u8 read_reg;	
-	bool loading_fw;
-	struct work_struct fw_update_work;
+    void *bus;
+    void *pDevice;
+    int read_flag;
+    int irq;
+    int irqTimeout;
+    char irq_disabled;
+    /* whether irq should be ignored.. cases if enable/disable irq is not used
+     * or does not work properly */
+    u8 useIrqTimer;
+    u8 read_reg;
+    bool loading_fw;
+    struct work_struct fw_update_work;
 
-	/* Function Pointers */
-	int (*init)(pabovXX_t this);
-	/* since we are trying to avoid knowing registers, create a pointer to a
-	 * common read register which would be to read what the interrupt source
-	 * is from
-	 */
-	int (*refreshStatus)(pabovXX_t this);
-	int (*get_nirq_low)(unsigned irq_gpio);
-	void (*statusFunc[MAX_NUM_STATUS_BITS])(pabovXX_t this);
+    /* Function Pointers */
+    int (*init)(pabovXX_t this);
+    /* since we are trying to avoid knowing registers, create a pointer to a
+     * common read register which would be to read what the interrupt source
+     * is from
+     */
+    int (*refreshStatus)(pabovXX_t this);
+    int (*get_nirq_low)(unsigned irq_gpio);
+    void (*statusFunc[MAX_NUM_STATUS_BITS])(pabovXX_t this);
+#if defined(CONFIG_SENSORS)
+    bool skip_data;
+#endif
 };
 
 void abovXX_suspend(pabovXX_t this);

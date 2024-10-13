@@ -1185,6 +1185,8 @@ static s32 gt1x_wakeup_sleep(void)
 #ifdef CONFIG_GTP_INT_SEL_SYNC
 			// wake up through int port */
 			//GTP_GPIO_OUTPUT(GTP_INT_PORT, gt1x_wakeup_level);
+			gt1x_power_reset();
+			GTP_INFO("Wakeup by poweron");
 			gt1x_int_output(gt1x_wakeup_level);
 			msleep(5);
 
@@ -2514,7 +2516,7 @@ int gt1x_resume(void)
 	gt1x_esd_switch(SWITCH_ON);
 #endif
 
-	GTP_DEBUG("Resume end.");
+	GTP_INFO("Resume end.");
 	return 0;
 }
 

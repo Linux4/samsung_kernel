@@ -133,7 +133,7 @@
 #include <linux/delay.h>
 #include <asm/irq.h>
 #include <linux/math64.h>
-
+#include <linux/cpu.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
@@ -159,7 +159,7 @@
 
 #define SENSOR_NAME                 "smi130_acc"
 #define SMI130_ACC_USE_BASIC_I2C_FUNC        1
-
+#define SMI130_HRTIMER 1
 #define MSC_TIME                6
 #define ABSMIN                      -512
 #define ABSMAX                      512
@@ -1529,7 +1529,7 @@ struct bosch_sensor_data {
 };
 
 #ifdef CONFIG_ENABLE_SMI_ACC_GYRO_BUFFERING
-#define SMI_ACC_MAXSAMPLE        4000
+#define SMI_ACC_MAXSAMPLE        5000
 #define G_MAX                    23920640
 struct smi_acc_sample {
 	int xyz[3];
@@ -1573,7 +1573,6 @@ struct smi130_acc_data {
 	struct mutex enable_mutex;
 	struct mutex mode_mutex;
 	struct delayed_work work;
-	struct work_struct irq_work;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
 #endif
@@ -1610,8 +1609,58 @@ struct smi130_acc_data {
 	int max_buffer_time;
 	struct input_dev *accbuf_dev;
 	int report_evt_cnt;
+	struct mutex acc_sensor_buff;
+#endif
+#ifdef SMI130_HRTIMER
+	struct hrtimer smi130_hrtimer;
 #endif
 };
+
+#ifdef SMI130_HRTIMER
+static void smi130_set_cpu_idle_state(bool value)
+{
+	cpu_idle_poll_ctrl(value);
+}
+static enum hrtimer_restart smi130_timer_function(struct hrtimer *timer)
+{
+	smi130_set_cpu_idle_state(true);
+
+	return HRTIMER_NORESTART;
+}
+static void smi130_hrtimer_reset(struct smi130_acc_data *data)
+{
+	hrtimer_cancel(&data->smi130_hrtimer);
+	/*forward HRTIMER just before 1ms of irq arrival*/
+	hrtimer_forward(&data->smi130_hrtimer, ktime_get(),
+			ns_to_ktime(data->time_odr - 1000000));
+	hrtimer_restart(&data->smi130_hrtimer);
+}
+static void smi130_hrtimer_init(struct smi130_acc_data *data)
+{
+	hrtimer_init(&data->smi130_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	data->smi130_hrtimer.function = smi130_timer_function;
+}
+static void smi130_hrtimer_cleanup(struct smi130_acc_data *data)
+{
+	hrtimer_cancel(&data->smi130_hrtimer);
+}
+#else
+static void smi130_set_cpu_idle_state(bool value)
+{
+}
+static void smi130_hrtimer_reset(struct smi130_acc_data *data)
+{
+
+}
+static void smi130_hrtimer_init(struct smi130_acc_data *data)
+{
+
+}
+static void smi130_hrtimer_remove(struct smi130_acc_data *data)
+{
+
+}
+#endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void smi130_acc_early_suspend(struct early_suspend *h);
@@ -3871,7 +3920,7 @@ static int smi130_acc_read_accel_x(struct i2c_client *client,
 				signed char sensor_type, short *a_x)
 {
 	int comres = 0;
-	unsigned char data[2];
+	unsigned char data[2] = {0};
 
 	switch (sensor_type) {
 	case 0:
@@ -3940,7 +3989,7 @@ static int smi130_acc_read_accel_y(struct i2c_client *client,
 				signed char sensor_type, short *a_y)
 {
 	int comres = 0;
-	unsigned char data[2];
+	unsigned char data[2] = {0};
 
 	switch (sensor_type) {
 	case 0:
@@ -3998,7 +4047,7 @@ static int smi130_acc_read_accel_z(struct i2c_client *client,
 				signed char sensor_type, short *a_z)
 {
 	int comres = 0;
-	unsigned char data[2];
+	unsigned char data[2] = {0};
 
 	switch (sensor_type) {
 	case 0:
@@ -5087,7 +5136,7 @@ static int smi130_acc_read_accel_xyz(struct i2c_client *client,
 		signed char sensor_type, struct smi130_accacc *acc)
 {
 	int comres = 0;
-	unsigned char data[6];
+	unsigned char data[6] = {0};
 	struct smi130_acc_data *client_data = i2c_get_clientdata(client);
 #ifndef SMI_ACC2X2_SENSOR_IDENTIFICATION_ENABLE
 	int bitwidth;
@@ -5381,7 +5430,7 @@ static ssize_t smi130_acc_register_show(struct device *dev,
 	struct smi130_acc_data *smi130_acc = i2c_get_clientdata(client);
 
 	size_t count = 0;
-	u8 reg[0x40];
+	u8 reg[0x40] = {0};
 	int i;
 
 	for (i = 0; i < 0x40; i++) {
@@ -6505,8 +6554,9 @@ static int smi_acc_read_bootsampl(struct smi130_acc_data *client_data,
 {
 	int i = 0;
 
+	client_data->acc_buffer_smi130_samples = false;
+
 	if (enable_read) {
-		client_data->acc_buffer_smi130_samples = false;
 		for (i = 0; i < client_data->acc_bufsample_cnt; i++) {
 			if (client_data->debug_level & 0x08)
 				PINFO("acc=%d,x=%d,y=%d,z=%d,sec=%d,ns=%lld\n",
@@ -6573,7 +6623,9 @@ static ssize_t read_acc_boot_sample_store(struct device *dev,
 		PERR("Invalid value of input, input=%ld\n", enable);
 		return -EINVAL;
 	}
+	mutex_lock(&smi130_acc->acc_sensor_buff);
 	err = smi_acc_read_bootsampl(smi130_acc, enable);
+	mutex_unlock(&smi130_acc->acc_sensor_buff);
 	if (err)
 		return err;
 
@@ -6915,6 +6967,7 @@ static void store_acc_boot_sample(struct smi130_acc_data *client_data,
 {
 	if (false == client_data->acc_buffer_smi130_samples)
 		return;
+	mutex_lock(&client_data->acc_sensor_buff);
 	if (ts.tv_sec <  client_data->max_buffer_time) {
 		if (client_data->acc_bufsample_cnt < SMI_ACC_MAXSAMPLE) {
 			client_data->smi130_acc_samplist[client_data->
@@ -6937,6 +6990,7 @@ static void store_acc_boot_sample(struct smi130_acc_data *client_data,
 			smi130_acc_set_mode(client_data->smi130_acc_client,
 					SMI_ACC2X2_MODE_SUSPEND, 1);
 	}
+	mutex_unlock(&client_data->acc_sensor_buff);
 }
 #else
 static void store_acc_boot_sample(struct smi130_acc_data *client_data,
@@ -6962,7 +7016,7 @@ static int smi130_acc_early_buff_init(struct i2c_client *client,
 	if (!client_data->smi_acc_cachepool) {
 		PERR("smi_acc_cachepool cache create failed\n");
 		err = -ENOMEM;
-		goto clean_exit1;
+		return 0;
 	}
 	for (i = 0; i < SMI_ACC_MAXSAMPLE; i++) {
 		client_data->smi130_acc_samplist[i] =
@@ -6970,7 +7024,7 @@ static int smi130_acc_early_buff_init(struct i2c_client *client,
 					GFP_KERNEL);
 		if (!client_data->smi130_acc_samplist[i]) {
 			err = -ENOMEM;
-			goto clean_exit2;
+			goto clean_exit1;
 		}
 	}
 
@@ -6978,7 +7032,7 @@ static int smi130_acc_early_buff_init(struct i2c_client *client,
 	if (!client_data->accbuf_dev) {
 		err = -ENOMEM;
 		PERR("input device allocation failed\n");
-		goto clean_exit3;
+		goto clean_exit1;
 	}
 	client_data->accbuf_dev->name = "smi130_accbuf";
 	client_data->accbuf_dev->id.bustype = BUS_I2C;
@@ -6999,11 +7053,15 @@ static int smi130_acc_early_buff_init(struct i2c_client *client,
 	if (err) {
 		PERR("unable to register input device %s\n",
 				client_data->accbuf_dev->name);
-		goto clean_exit3;
+		goto clean_exit2;
 	}
 
 	client_data->acc_buffer_smi130_samples = true;
 	client_data->acc_enable = false;
+
+	smi130_set_cpu_idle_state(true);
+
+	mutex_init(&client_data->acc_sensor_buff);
 
 	smi130_acc_set_mode(client, SMI_ACC2X2_MODE_NORMAL, 1);
 	smi130_acc_set_bandwidth(client, SMI_ACC2X2_BW_62_50HZ);
@@ -7011,13 +7069,12 @@ static int smi130_acc_early_buff_init(struct i2c_client *client,
 
 	return 1;
 
-clean_exit3:
-	input_free_device(client_data->accbuf_dev);
 clean_exit2:
+	input_free_device(client_data->accbuf_dev);
+clean_exit1:
 	for (i = 0; i < SMI_ACC_MAXSAMPLE; i++)
 		kmem_cache_free(client_data->smi_acc_cachepool,
 				client_data->smi130_acc_samplist[i]);
-clean_exit1:
 	kmem_cache_destroy(client_data->smi_acc_cachepool);
 	return 0;
 }
@@ -7044,10 +7101,9 @@ static void smi130_acc_input_cleanup(struct smi130_acc_data *client_data)
 }
 #endif
 
-static void smi130_acc_irq_work_func(struct work_struct *work)
+static irqreturn_t smi130_acc_irq_work_func(int irq, void *handle)
 {
-	struct smi130_acc_data *smi130_acc = container_of((struct work_struct *)work,
-			struct smi130_acc_data, irq_work);
+	struct smi130_acc_data *smi130_acc = handle;
 #ifdef CONFIG_DOUBLE_TAP
 	struct i2c_client *client = smi130_acc->smi130_acc_client;
 #endif
@@ -7092,8 +7148,10 @@ static void smi130_acc_irq_work_func(struct work_struct *work)
 		mutex_unlock(&smi130_acc->value_mutex);
 	}
 	store_acc_boot_sample(smi130_acc, acc.x, acc.y, acc.z, ts);
-#endif
 
+	smi130_set_cpu_idle_state(false);
+	return IRQ_HANDLED;
+#endif
 	smi130_acc_get_interruptstatus1(smi130_acc->smi130_acc_client, &status);
 	PDEBUG("smi130_acc_irq_work_func, status = 0x%x\n", status);
 
@@ -7246,10 +7304,9 @@ static irqreturn_t smi130_acc_irq_handler(int irq, void *handle)
 	if (data->smi130_acc_client == NULL)
 		return IRQ_HANDLED;
 	data->timestamp = smi130_acc_get_alarm_timestamp();
+	smi130_hrtimer_reset(data);
 
-	schedule_work(&data->irq_work);
-
-	return IRQ_HANDLED;
+	return IRQ_WAKE_THREAD;
 }
 #endif /* defined(SMI_ACC2X2_ENABLE_INT1)||defined(SMI_ACC2X2_ENABLE_INT2) */
 
@@ -7363,7 +7420,6 @@ static int smi130_acc_probe(struct i2c_client *client,
 	if (err)
 		PERR("could not request irq\n");
 
-	INIT_WORK(&data->irq_work, smi130_acc_irq_work_func);
 #endif
 
 #ifndef CONFIG_SMI_ACC_ENABLE_NEWDATA_INT
@@ -7558,9 +7614,11 @@ static int smi130_acc_probe(struct i2c_client *client,
 		return -EINVAL;
 	data->IRQ = client->irq;
 	PDEBUG("data->IRQ = %d", data->IRQ);
-	err = request_irq(data->IRQ, smi130_acc_irq_handler, IRQF_TRIGGER_RISING,
+	err = request_threaded_irq(data->IRQ, smi130_acc_irq_handler,
+			smi130_acc_irq_work_func, IRQF_TRIGGER_RISING,
 			"smi130_acc", data);
 
+	smi130_hrtimer_init(data);
 	err = smi130_acc_early_buff_init(client, data);
 	if (!err)
 		goto exit;
@@ -7676,6 +7734,7 @@ static int smi130_acc_remove(struct i2c_client *client)
 	if (NULL == data)
 		return 0;
 
+	smi130_hrtimer_cleanup(data);
 	smi130_acc_input_cleanup(data);
 	smi130_acc_set_enable(&client->dev, 0);
 #ifdef CONFIG_HAS_EARLYSUSPEND

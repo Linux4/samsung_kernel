@@ -281,6 +281,9 @@ static DEFINE_MUTEX(reboot_mutex);
  *
  * reboot doesn't sync: do that yourself before calling this.
  */
+/*HS50 code for HS50EU-488 by gaozhengwei at 2020/12/08 start*/
+extern bool hs50_kernel_power_off;
+/*HS50 code for HS50EU-488 by gaozhengwei at 2020/12/08 end*/
 SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		void __user *, arg)
 {
@@ -335,11 +338,21 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		panic("cannot halt");
 
 	case LINUX_REBOOT_CMD_POWER_OFF:
+/*HS50 code for HS50EU-488 by gaozhengwei at 2020/12/08 start*/
+#if defined (HUAQIN_KERNEL_PROJECT_HS50)
+		hs50_kernel_power_off = true;
+#endif
+/*HS50 code for HS50EU-488 by gaozhengwei at 2020/12/08 end*/
 		kernel_power_off();
 		do_exit(0);
 		break;
 
 	case LINUX_REBOOT_CMD_RESTART2:
+/*HS50 code for HS50EU-488 by gaozhengwei at 2021/01/04 start*/
+#if defined (HUAQIN_KERNEL_PROJECT_HS50)
+		hs50_kernel_power_off = true;
+#endif
+/*HS50 code for HS50EU-488 by gaozhengwei at 2021/01/04 end*/
 		ret = strncpy_from_user(&buffer[0], arg, sizeof(buffer) - 1);
 		if (ret < 0) {
 			ret = -EFAULT;

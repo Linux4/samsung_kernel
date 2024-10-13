@@ -18,9 +18,7 @@
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM8917-QRD SKU5";
-/* huaqin added by lanshiming for H000001 at 20180718 start*/
 	qcom,board-id = <0xb 7>;
-/* huaqin added by lanshiming for H000001 at 20180718 end*/
 };
 
 &vendor{

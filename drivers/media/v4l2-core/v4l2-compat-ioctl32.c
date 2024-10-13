@@ -29,14 +29,13 @@
 									\
 	get_user(__assign_tmp, from) || put_user(__assign_tmp, to);	\
 })
-/*HS60 code for HS60-2141 by zhouyingchen at 2019-09-25 start*/
-#define convert_in_user(srcptr, dstptr)			\
-({							\
-	typeof(*srcptr) val;				\
-							\
-	get_user(val, srcptr) || put_user(val, dstptr);	\
+
+#define convert_in_user(srcptr, dstptr)					\
+({									\
+	typeof(*srcptr) val;						\
+									\
+	get_user(val, srcptr) || put_user(val, dstptr);			\
 })
-/*HS60 code for HS60-2141 by zhouyingchen at 2019-09-25 end*/
 
 static long native_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -520,15 +519,16 @@ static int get_v4l2_buffer32(struct v4l2_buffer __user *kp,
 		    assign_in_user(&kp->timestamp.tv_usec,
 				   &up->timestamp.tv_usec))
 			return -EFAULT;
-	/*HS60 code for HS60-2141 by zhouyingchen at 2019-09-25 start*/
+
 	if (type == V4L2_BUF_TYPE_PRIVATE) {
 		compat_long_t tmp;
+
 		if (get_user(tmp, &up->m.userptr) ||
 				put_user((unsigned long) compat_ptr(tmp),
 					&kp->m.userptr))
 			return -EFAULT;
 	}
-	/*HS60 code for HS60-2141 by zhouyingchen at 2019-09-25 end*/
+
 	if (V4L2_TYPE_IS_MULTIPLANAR(type)) {
 		u32 num_planes = length;
 
@@ -626,11 +626,11 @@ static int put_v4l2_buffer32(struct v4l2_buffer __user *kp,
 	    get_user(length, &kp->length) ||
 	    put_user(length, &up->length))
 		return -EFAULT;
-	/*HS60 code for HS60-2141 by zhouyingchen at 2019-09-25 start*/
-	if(type == V4L2_BUF_TYPE_PRIVATE)
+
+	if (type == V4L2_BUF_TYPE_PRIVATE)
 		if (convert_in_user(&kp->m.userptr, &up->m.userptr))
 			return -EFAULT;
-	/*HS60 code for HS60-2141 by zhouyingchen at 2019-09-25 end*/
+
 	if (V4L2_TYPE_IS_MULTIPLANAR(type)) {
 		u32 num_planes = length;
 

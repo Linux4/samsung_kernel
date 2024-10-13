@@ -2125,11 +2125,19 @@ static int qpnp_flash_led_parse_each_led_dt(struct qpnp_flash_led *led,
 	}
 	/* HS60 code for SR-ZQL1695-01-308 by chengzhi at 2019/11/17 start*/
     samsung_flash_led=led;
+	#ifdef CONFIG_MSM_CAMERA_HS70ADDNODE
+	if(!strncmp(fnode->cdev.name, "led:torch_1", strlen("led:torch_1")))
+	{
+		pr_err("testledtype add led:torch_1 is ok\n");
+		led_cdev_samsung_torch=&(fnode->cdev);
+	}
+	#else
 	if(!strncmp(fnode->cdev.name, "led:torch_0", strlen("led:torch_0")))
 	{
 		pr_err("testledtype add led:torch_0 is ok\n");
 		led_cdev_samsung_torch=&(fnode->cdev);
 	}
+	#endif
 	#if 0
 	if(!strncmp(fnode->cdev.name, "led:torch_1", strlen("led:torch_1")))
 	{
@@ -2234,13 +2242,20 @@ static int qpnp_flash_led_parse_and_register_switch(struct qpnp_flash_led *led,
 			return PTR_ERR(snode->gpio_state_suspend);
 		}
 	}
-
+	#ifdef CONFIG_MSM_CAMERA_HS70ADDNODE
+	if (!strncmp(snode->cdev.name, "led:switch_1", strlen("led:switch_1")))
+	{
+		pr_err("testledtype add led:switch_1 is ok\n");
+        led_cdev_samsung_switch=&(snode->cdev);
+    }
+	#else
 	/* HS60 code for SR-ZQL1695-01-308 by chengzhi at 2019/11/17 start*/
 	if (!strncmp(snode->cdev.name, "led:switch_0", strlen("led:switch_0")))
 	{
 		pr_err("testledtype add led:switch_0 is ok\n");
         led_cdev_samsung_switch=&(snode->cdev);
     }
+	#endif
 	#if 0
 	if (!strncmp(snode->cdev.name, "led:switch_1", strlen("led:switch_1")))
 	{
@@ -2308,7 +2323,11 @@ static ssize_t samsung_store1(struct device *dev,
 		*/
 		return len;
 	}
+	#ifdef CONFIG_MSM_CAMERA_HS70ADDNODE
+	qpnp_flash_led_read(samsung_flash_led,0xd344,&get_torch_strength);
+	#else
 	qpnp_flash_led_read(samsung_flash_led,0xd343,&get_torch_strength);
+	#endif
 	#if 0
 	qpnp_flash_led_read(samsung_flash_led,0xd344,&get_torch_strength);
 	#endif
@@ -2321,7 +2340,11 @@ static ssize_t samsung_store1(struct device *dev,
 		pr_err("testledtype add set the torch strength inital!:%d",100);
 	}
 	pr_err("testledtype add set torch value:%d",set_torch_strength);
+	#ifdef CONFIG_MSM_CAMERA_HS70ADDNODE
+	qpnp_flash_led_write(samsung_flash_led,0xd344,set_torch_strength);
+	#else
 	qpnp_flash_led_write(samsung_flash_led,0xd343,set_torch_strength);
+	#endif
 	#if 0
 	qpnp_flash_led_write(samsung_flash_led,0xd344,set_torch_strength);
 	#endif

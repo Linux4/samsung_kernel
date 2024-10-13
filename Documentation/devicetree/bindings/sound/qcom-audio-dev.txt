@@ -674,6 +674,9 @@ Example:
 		msm_audio_apr_dummy {
 			compatible = "qcom,msm-audio-apr-dummy";
 		};
+                q6core {
+                        compatible = "qcom,q6core-audio";
+		};
 
 		qcom,subsys-name = "apr_adsp";
 	};
@@ -2149,8 +2152,11 @@ Optional properties:
 		should comply with the wsa nodes configurations.
 - qcom,wsa-aux-dev-prefix: This property contains list of wsa codec prefixes.
 - qcom,tdm-i2s-switch-enable: For chipsets where tdm mics are controlled by
-			      switch, drive corresponding gpio to output high
-			      to enable switch.
+			  switch, drive corresponding gpio to output high
+			  to enable switch.
+- qcom,pdm-i2s-switch-enable: For chipsets where pdm mics are controlled by
+			  switch, drive corresponding gpio to output high
+			  to enable switch.
 
 Example:
 	sound {
@@ -2580,7 +2586,7 @@ Example:
 				<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>,
 				<&afe_proxy_tx>, <&incall_record_rx>,
 				<&incall_record_tx>, <&incall_music_rx>,
-				<&dai_sec_auxpcm>;
+				<&dai_sec_auxpcm>, <&incall_music_dl_rx>;
 		asoc-cpu-names = "msm-dai-q6-auxpcm.1",
 				"msm-dai-q6-mi2s.0", "msm-dai-q6-mi2s.1",
 				"msm-dai-stub-dev.4", "msm-dai-stub-dev.5",
@@ -2589,7 +2595,8 @@ Example:
 				"msm-dai-q6-dev.225", "msm-dai-q6-dev.241",
 				"msm-dai-q6-dev.240", "msm-dai-q6-dev.32771",
 				"msm-dai-q6-dev.32772", "msm-dai-q6-dev.32773",
-				"msm-dai-q6-auxpcm.2";
+				"msm-dai-q6-auxpcm.2", "msm-dai-q6-dev.32774";
+		qcom,msm_audio_ssr_devs = <&audio_apr>, <&q6core>;
 	};
 
 * SDX ASoC Auto Machine driver

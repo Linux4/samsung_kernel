@@ -6,7 +6,7 @@
 #ifndef __INDIRECT__SEC_SLUB_DEBUG_H__
 #define __INDIRECT__SEC_SLUB_DEBUG_H__
 
-#ifdef CONFIG_SEC_SLUB_DEBUG
+#if IS_ENABLED(CONFIG_SEC_SLUB_DEBUG)
 /* called @ mm/slub.c*/
 extern void sec_slub_debug_save_free_track(struct kmem_cache *s, void *x);
 

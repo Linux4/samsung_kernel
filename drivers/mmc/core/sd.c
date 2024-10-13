@@ -1374,6 +1374,9 @@ static int _mmc_sd_resume(struct mmc_host *host)
 		mmc_card_set_removed(host->card);
 		mmc_detect_change(host, msecs_to_jiffies(200));
 	} else if (err) {
+		/*huaiqn add for P200309-07335 by xudayi at 2020/04/29 start */
+		mmc_card_clr_suspended(host->card);
+		/*huaiqn add for P200309-07335 by xudayi at 2020/04/29 end */
 		goto out;
 	}
 	mmc_card_clr_suspended(host->card);
@@ -1488,18 +1491,17 @@ int mmc_attach_sd(struct mmc_host *host)
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
-// HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 start
-#ifdef HQ_FACTORY_BUILD
-	 pr_err("TQY: %s:%s, attach start \n", mmc_hostname(host),__func__);
-#endif
-// HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 end
 // HS60 code added by tangqingyong for HS60-401 at 20190830 start
 	mmc_power_off(host);
 	usleep_range(5000, 5500);
 	mmc_power_up(host, host->ocr_avail);
 	usleep_range(5000, 5500);
 // HS60 code added by tangqingyong for HS60-401 at 20190830 end
-
+// HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 start
+#ifdef HQ_FACTORY_BUILD
+	 pr_err("TQY: %s:%s, attach start \n", mmc_hostname(host),__func__);
+#endif
+// HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 end
 	err = mmc_send_app_op_cond(host, 0, &ocr);
 // HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 start
 #ifdef HQ_FACTORY_BUILD
@@ -1525,6 +1527,12 @@ int mmc_attach_sd(struct mmc_host *host)
 		if (err)
 			goto err;
 	}
+
+	/*
+	 * Some SD cards claims an out of spec VDD voltage range. Let's treat
+	 * these bits as being in-valid and especially also bit7.
+	 */
+	ocr &= ~0x7FFF;
 
 	rocr = mmc_select_voltage(host, ocr);
 

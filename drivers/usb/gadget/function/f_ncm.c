@@ -59,6 +59,7 @@ struct f_ncm {
 	struct usb_ep			*notify;
 	struct usb_request		*notify_req;
 	u8				notify_state;
+	atomic_t			notify_count;
 	bool				is_open;
 
 	const struct ndp_parser_opts	*parser_opts;
@@ -573,7 +574,7 @@ static void ncm_do_notify(struct f_ncm *ncm)
 	int				status;
 
 	/* notification already in flight? */
-	if (!req)
+	if (atomic_read(&ncm->notify_count))
 		return;
 
 	event = req->buf;
@@ -613,7 +614,8 @@ static void ncm_do_notify(struct f_ncm *ncm)
 	event->bmRequestType = 0xA1;
 	event->wIndex = cpu_to_le16(ncm->ctrl_id);
 
-	ncm->notify_req = NULL;
+	atomic_inc(&ncm->notify_count);
+
 	/*
 	 * In double buffering if there is a space in FIFO,
 	 * completion callback can be called right after the call,
@@ -623,7 +625,7 @@ static void ncm_do_notify(struct f_ncm *ncm)
 	status = usb_ep_queue(ncm->notify, req, GFP_ATOMIC);
 	spin_lock(&ncm->lock);
 	if (status < 0) {
-		ncm->notify_req = req;
+		atomic_dec(&ncm->notify_count);
 		DBG(cdev, "notify --> %d\n", status);
 	}
 }
@@ -658,17 +660,19 @@ static void ncm_notify_complete(struct usb_ep *ep, struct usb_request *req)
 	case 0:
 		VDBG(cdev, "Notification %02x sent\n",
 		     event->bNotificationType);
+		atomic_dec(&ncm->notify_count);
 		break;
 	case -ECONNRESET:
 	case -ESHUTDOWN:
+		atomic_set(&ncm->notify_count, 0);
 		ncm->notify_state = NCM_NOTIFY_NONE;
 		break;
 	default:
 		DBG(cdev, "event %02x --> %d\n",
 			event->bNotificationType, req->status);
+		atomic_dec(&ncm->notify_count);
 		break;
 	}
-	ncm->notify_req = req;
 	ncm_do_notify(ncm);
 	spin_unlock(&ncm->lock);
 }
@@ -1851,6 +1855,8 @@ static void ncm_free_inst(struct usb_function_instance *f)
 	opts = container_of(f, struct f_ncm_opts, func_inst);
 	if (opts->bound)
 		gether_cleanup(netdev_priv(opts->net));
+	else
+		free_netdev(opts->net);
 	kfree(opts);
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	ncm_function_cleanup();	
@@ -1866,6 +1872,14 @@ static struct usb_function_instance *ncm_alloc_inst(void)
 		return ERR_PTR(-ENOMEM);
 	mutex_init(&opts->lock);
 	opts->func_inst.free_func_inst = ncm_free_inst;
+	
+	opts->net = gether_setup_default();
+	if (IS_ERR(opts->net)) {
+		struct net_device *net = opts->net;
+
+		kfree(opts);
+		return ERR_CAST(net);
+	}
 
 	config_group_init_type_name(&opts->func_inst.group, "", &ncm_func_type);
 
@@ -1914,6 +1928,11 @@ static void ncm_unbind(struct usb_configuration *c, struct usb_function *f)
 	ncm_string_defs[0].id = 0;
 	usb_free_all_descriptors(f);
 
+	if (atomic_read(&ncm->notify_count)) {
+		usb_ep_dequeue(ncm->notify, ncm->notify_req);
+		atomic_set(&ncm->notify_count, 0);
+	}
+
 	kfree(ncm->notify_req->buf);
 	usb_ep_free_request(ncm->notify, ncm->notify_req);
 
@@ -1924,6 +1943,7 @@ static struct usb_function *ncm_alloc(struct usb_function_instance *fi)
 {
 	struct f_ncm		*ncm;
 	struct f_ncm_opts	*opts;
+	int status;
 
 	/* allocate and initialize one new instance */
 	ncm = kzalloc(sizeof(*ncm), GFP_KERNEL);
@@ -1933,9 +1953,20 @@ static struct usb_function *ncm_alloc(struct usb_function_instance *fi)
 	opts = container_of(fi, struct f_ncm_opts, func_inst);
 	mutex_lock(&opts->lock);
 	opts->refcnt++;
+
+	/* export host's Ethernet address in CDC format */
+	status = gether_get_host_addr_cdc(opts->net, ncm->ethaddr,
+				      sizeof(ncm->ethaddr));
+	if (status < 12) { /* strlen("01234567890a") */
+		kfree(ncm);
+		mutex_unlock(&opts->lock);
+		return ERR_PTR(-EINVAL);
+	}
 	ncm_string_defs[STRING_MAC_IDX].s = ncm->ethaddr;
+	
 	spin_lock_init(&ncm->lock);
 	ncm_reset_values(ncm);
+	ncm->port.ioport = netdev_priv(opts->net);
 	mutex_unlock(&opts->lock);
 	ncm->port.is_fixed = true;
 	ncm->port.supports_multi_frame = true;

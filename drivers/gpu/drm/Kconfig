@@ -35,6 +35,13 @@ config DRM_DP_AUX_CHARDEV
 	  read and write values to arbitrary DPCD registers on the DP aux
 	  channel.
 
+config DRM_CLIENT_BOOTSPLASH
+	bool "DRM Bootsplash"
+	help
+	  Choose this option to enable DRM bootsplash. This option needs to be
+	  selected only if UEFI bootsplash is disabled. Choosing this option
+	  will render splash logo in display panel during boot up.
+
 config DRM_KMS_HELPER
 	tristate
 	depends on DRM
@@ -82,6 +89,16 @@ config DRM_LOAD_EDID_FIRMWARE
 	  feature is provided as a workaround for broken hardware, the
 	  default case is N. Details and instructions how to build your own
 	  EDID data are given in Documentation/EDID/HOWTO.txt.
+
+config DRM_DP_CEC
+	bool "Enable DisplayPort CEC-Tunneling-over-AUX HDMI support"
+	select CEC_CORE
+	help
+	  Choose this option if you want to enable HDMI CEC support for
+	  DisplayPort/USB-C to HDMI adapters.
+
+	  Note: not all adapters support this feature, and even for those
+	  that do support this they often do not hook up the CEC pin.
 
 config DRM_TTM
 	tristate

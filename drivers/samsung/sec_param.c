@@ -15,6 +15,7 @@
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/slab.h>
@@ -29,6 +30,9 @@
 #include <linux/sec_debug.h>
 #ifdef CONFIG_SEC_QUEST
 #include <linux/sec_quest.h>
+#endif
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+#include <linux/sec_quest_bps_classifier.h>
 #endif
 
 #define PARAM_RD		0
@@ -79,7 +83,7 @@ static void param_sec_operation(struct work_struct *work)
 	}
 
 	fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	ret = vfs_llseek(filp, sched_param_data->offset, SEEK_SET);
 	if (unlikely(ret < 0)) {
@@ -211,13 +215,15 @@ bool sec_get_param(enum sec_param_index index, void *value)
 				value, &(param_data->afc_disable));
 		break;
 #endif
+#if defined(CONFIG_PD_CHARGER_HV_DISABLE)
+	case param_index_pd_hv_disable:
+		__memcpy_t(unsigned int,
+				value, &(param_data->pd_disable));
+		break;
+#endif
 	case param_index_cp_reserved_mem:
 		__memcpy_t(unsigned int,
 				value, &(param_data->cp_reserved_mem));
-		break;
-	case param_index_lcd_resolution:
-		memcpy(value, param_data->param_lcd_resolution,
-			sizeof(param_data->param_lcd_resolution));
 		break;
 	case param_index_reboot_recovery_cause:
 		memcpy(value, param_data->reboot_recovery_cause,
@@ -256,6 +262,20 @@ bool sec_get_param(enum sec_param_index index, void *value)
 		wait_for_completion(&sched_sec_param_data.work);
 		break;
 #endif
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+	case param_index_quest_bps_data:
+		sched_sec_param_data.value = value;
+		sched_sec_param_data.offset = SEC_PARAM_QUEST_BPS_DATA_OFFSET;
+		sched_sec_param_data.size = sizeof(struct bps_info);
+		sched_sec_param_data.direction = PARAM_RD;
+		schedule_work(&sched_sec_param_data.sec_param_work);
+		wait_for_completion(&sched_sec_param_data.work);
+		break;
+#endif
+	case param_index_VrrStatus:
+		memcpy(value, param_data->VrrStatus,
+			sizeof(param_data->VrrStatus));
+		break;
 	default:
 		ret = false;
 	}
@@ -327,16 +347,20 @@ bool sec_set_param(enum sec_param_index index, void *value)
 		}
 		break;
 #endif
+#if defined(CONFIG_PD_CHARGER_HV_DISABLE)
+	case param_index_pd_hv_disable:
+		if (*(char*)value == (char)'0' || *(char*)value == (char)'1') {
+			__memcpy_t(unsigned int,
+					&(param_data->pd_disable), value);
+		}
+		break;
+#endif
 	case param_index_cp_reserved_mem:
 		if ( *(unsigned int*)value == (unsigned int)CP_MEM_RESERVE_OFF || *(unsigned int*)value == (unsigned int)CP_MEM_RESERVE_ON_1 ||
 					 	*(unsigned int*)value == (unsigned int)CP_MEM_RESERVE_ON_2 ) {
 			__memcpy_t(unsigned int,
 					&(param_data->cp_reserved_mem), value);
 		}
-		break;
-	case param_index_lcd_resolution:
-		memcpy(&(param_data->param_lcd_resolution), value,
-				sizeof(param_data->param_lcd_resolution));
 		break;
 	case param_index_reboot_recovery_cause:
 		memcpy(param_data->reboot_recovery_cause, value,
@@ -388,6 +412,20 @@ bool sec_set_param(enum sec_param_index index, void *value)
 		wait_for_completion(&sched_sec_param_data.work);
 		break;
 #endif
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+	case param_index_quest_bps_data:
+		sched_sec_param_data.value = (struct bps_info *)value;
+		sched_sec_param_data.offset = SEC_PARAM_QUEST_BPS_DATA_OFFSET;
+		sched_sec_param_data.size = sizeof(struct bps_info);
+		sched_sec_param_data.direction = PARAM_WR;
+		schedule_work(&sched_sec_param_data.sec_param_work);
+		wait_for_completion(&sched_sec_param_data.work);
+		break;
+#endif
+	case param_index_VrrStatus:
+		memcpy(&(param_data->VrrStatus), value,
+				sizeof(param_data->VrrStatus));
+		break;
 	default:
 		ret = false;
 		goto out;

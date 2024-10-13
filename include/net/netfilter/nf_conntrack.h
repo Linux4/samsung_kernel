@@ -27,6 +27,10 @@
 #include <net/netfilter/ipv6/nf_conntrack_icmpv6.h>
 
 #include <net/netfilter/nf_conntrack_tuple.h>
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#define PROCESS_NAME_LEN_NAP	128
+#define DOMAIN_NAME_LEN_NAP	255
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 #define SIP_LIST_ELEMENTS	2
 
@@ -118,7 +122,7 @@ struct nf_conn {
 	struct hlist_node	nat_bysource;
 #endif
 	/* all members below initialized via memset */
-	u8 __nfct_init_offset[0];
+	struct { } __nfct_init_offset;
 
 	/* If we were expected by an expectation, this will be it */
 	struct nf_conn *master;
@@ -147,6 +151,37 @@ struct nf_conn {
 
 	/* Storage reserved for other modules, must be the last member */
 	union nf_conntrack_proto proto;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+	/* The number of application layer bytes sent by the socket */
+	__u64   knox_sent;
+	/* The number of application layer bytes recieved by the socket */
+	__u64   knox_recv;
+	/* The uid which created the socket */
+	uid_t   knox_uid;
+	/* The pid under which the socket was created */
+	pid_t   knox_pid;
+	/* The parent user id under which the socket was created */
+	uid_t   knox_puid;
+	/* The epoch time at which the socket was opened */
+	__u64   open_time;
+	/* The name of the process which created the socket */
+	char process_name[PROCESS_NAME_LEN_NAP];
+	/* The name of the parent process which created the socket */
+	char parent_process_name[PROCESS_NAME_LEN_NAP];
+	/*  The Domain name associated with the ip address of the socket. The size needs to be in sync with the userspace implementation */
+	char domain_name[DOMAIN_NAME_LEN_NAP];
+	/* The parent process id under which the socket was created */
+	pid_t   knox_ppid;
+	/* The interface used by the flow to transmit packet */
+	char interface_name[IFNAMSIZ];
+	/* Atomic variable indicating start of flow */
+	atomic_t startFlow;
+	/* The value at which this ct is considered timed-out for intermediate flows */
+	/* Use 'u32 npa_timeout' if struct nf_conn->timeout is of type u32;  Use 'struct timer_list npa_timeout' if struct nf_conn->timeout is of type struct timer_list;*/
+	u32 npa_timeout;
+	/* Atomic variable indicating end of intermediate flow */
+	atomic_t intermediateFlow;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 };
 
 static inline struct nf_conn *
@@ -362,6 +397,8 @@ struct nf_conn *nf_ct_tmpl_alloc(struct net *net,
 				 const struct nf_conntrack_zone *zone,
 				 gfp_t flags);
 void nf_ct_tmpl_free(struct nf_conn *tmpl);
+
+u32 nf_ct_get_id(const struct nf_conn *ct);
 
 #define NF_CT_STAT_INC(net, count)	  __this_cpu_inc((net)->ct.stat->count)
 #define NF_CT_STAT_INC_ATOMIC(net, count) this_cpu_inc((net)->ct.stat->count)

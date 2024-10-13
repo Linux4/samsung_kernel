@@ -200,10 +200,12 @@
  */
 #define FTS_AUTO_LIC_UPGRADE_EN                 0
 
+#define FTS_USE_ENABLE_NODE                     1
+
 /*
  * Numbers of modules support
  */
-#define FTS_GET_MODULE_NUM                      10
+#define FTS_GET_MODULE_NUM                      13
 
 /*
  * module_id: mean vendor_id generally, also maybe gpio or lcm_id...
@@ -222,6 +224,10 @@
 #define FTS_MODULE8_ID                         0x0083
 #define FTS_MODULE9_ID                         0x0075
 #define FTS_MODULEA_ID                         0x0084
+#define FTS_MODULEB_ID                         0x0085
+#define FTS_MODULEC_ID                         0x0074
+#define FTS_MODULED_ID                         0x0073
+
 /*
  * Need set the following when get firmware via firmware_request()
  * For example: if module'vendor is tianma,
@@ -240,12 +246,15 @@
 #define FTS_MODULE8_NAME                       "helitai_cd"
 #define FTS_MODULE9_NAME                       "guoxian_cd"
 #define FTS_MODULEA_NAME                       "helitai_mdt"
+#define FTS_MODULEB_NAME                       "helitai_hsd_1635"
+#define FTS_MODULEC_NAME                       "guoxian_cd_1635"
+#define FTS_MODULED_NAME                       "guoxian_jindongdi_hsd"
 /*
  * FW.i file for auto upgrade, you must replace it with your own
  * define your own fw_file, the sample one to be replaced is invalid
  * NOTE: if FTS_GET_MODULE_NUM > 1, it's the fw corresponding with FTS_VENDOR_ID
  */
-#define FTS_UPGRADE_FW_FILE                      "include/firmware/HQ_ZQL1695_FT5446Q03_HLT0x82_Ver0x14_20191115_app.i"
+#define FTS_UPGRADE_FW_FILE                      "include/firmware/HQ_ZQL1695_FT5446Q03_HLT0x82_Ver0x17_20200228_app.i"
 
 /*
  * if FTS_GET_MODULE_NUM >= 2, fw corrsponding with FTS_VENDOR_ID2
@@ -269,37 +278,55 @@
  * if FTS_GET_MODULE_NUM >= 5, fw corrsponding with FTS_VENDOR_ID3
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW5_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_New_Each0x78_TXD_Ver0x09_20191031_app.i"
+#define FTS_UPGRADE_FW5_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_New_Each0x78_TXD_Ver0x14_20200228_app.i"
 
 /*
  * if FTS_GET_MODULE_NUM >= 5, fw corrsponding with FTS_VENDOR_ID3
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW6_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_New_Each0x77_GX_Ver0x09_20191031_app.i"
+#define FTS_UPGRADE_FW6_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_New_Each0x77_GX_Ver0x14_20200228_app.i"
 
 /*
  * if FTS_GET_MODULE_NUM >= 5, fw corrsponding with FTS_VENDOR_ID3
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW7_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_New_Each0x76_GX_Ver0x09_20191031_app.i"
+#define FTS_UPGRADE_FW7_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_New_Each0x76_GX_Ver0x14_20200228_app.i"
 
 /*
  * if FTS_GET_MODULE_NUM >= 5, fw corrsponding with FTS_VENDOR_ID3
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW8_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_HLT0x83_Ver0x14_20191116_app.i"
+#define FTS_UPGRADE_FW8_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_HLT0x83_Ver0x17_20200228_app.i"
 
 /*
  * if FTS_GET_MODULE_NUM >= 9, fw corrsponding with FTS_VENDOR_ID9
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW9_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_New_Each0x75_GX_Ver0x10_20191104_app.i"
+#define FTS_UPGRADE_FW9_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_New_Each0x75_GX_Ver0x14_20200228_app.i"
 
 /*
  * if FTS_GET_MODULE_NUM >= 10, fw corrsponding with FTS_VENDOR_IDA
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FWA_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_HLT0x84_Ver0x14_20191116_app.i"
+#define FTS_UPGRADE_FWA_FILE                     "include/firmware/HQ_ZQL1695_FT5446Q03_HLT0x84_Ver0x17_20200228_app.i"
+
+/*
+ * if FTS_GET_MODULE_NUM >= 9, fw corrsponding with FTS_VENDOR_ID9
+ * define your own fw_file, the sample one is invalid
+ */
+#define FTS_UPGRADE_FWB_FILE                     "include/firmware/HQ_ZQL1635_FT5446Q03_HLT0x85_Ver0x17_20200228_app.i"
+
+/*
+ * if FTS_GET_MODULE_NUM >= 10, fw corrsponding with FTS_VENDOR_IDA
+ * define your own fw_file, the sample one is invalid
+ */
+#define FTS_UPGRADE_FWC_FILE                     "include/firmware/HQ_ZQL1635_FT5446Q03_New_Each0x74_GX_Ver0x15_20200330_app.i"
+
+/*
+ * if FTS_GET_MODULE_NUM >= 11, fw corrsponding with FTS_VENDOR_IDD
+ * define your own fw_file, the sample one is invalid
+ */
+#define FTS_UPGRADE_FWD_FILE                     "include/firmware/HQ_ZQL1665_FT5446Q03_New_Each0x73_JDD_Ver0x14_20200429_app.i"
 /*********************************************************/
 
 #endif /* _LINUX_FOCLATECH_CONFIG_H_ */

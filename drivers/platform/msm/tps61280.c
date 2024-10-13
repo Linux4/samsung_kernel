@@ -35,12 +35,12 @@
 #include <linux/sensors.h>
 #define TPS61280_NAME 			"tps61280"
 #define TPS61280_INPUT_DEV_NAME	"TPS61280"
-/*HS60 modify by limengxia for HQ000003 at 20190723 start*/
-#define TPS61280_REG_NUM		4
+/*HS70 modify by limengxia for modify 0xff to defult at 20200916 start*/
+#define TPS61280_REG_NUM		3
 
-static unsigned int  InitDataAddr[TPS61280_REG_NUM] = {0xff, 0x01, 0x02, 0x03};
-static unsigned int InitDataVal[TPS61280_REG_NUM]  = {0x80, 0x05, 0x0B, 0x1D};
-/*HS60 modify by limengxia for HQ000003 at 20190723 end*/
+static unsigned int  InitDataAddr[TPS61280_REG_NUM] = {0x01, 0x02, 0x03};
+static unsigned int InitDataVal[TPS61280_REG_NUM]  = {0x05, 0x0B, 0x1A};
+/*HS70 modify by limengxia for modify 0xff to defult at 20200916 end*/
 extern char *saved_command_line;
 
 struct tps61280_data {
@@ -81,14 +81,14 @@ static ssize_t tps61280_store_status(struct device *dev,
 	}
 	return count;
 }
-/*HS60 modify by limengxia for HQ000003 at 20190723 start*/
+/*HS60 modify by limengxia for modify 0xff to defult at 20200916 start*/
 #if 1
 static ssize_t tps61280_show_reg(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct tps61280_data *data = dev_get_drvdata(dev);
 	int loop,count=0,status;
-	unsigned int val[4]={0,0,0,0};
+	unsigned int val[3]={0,0,0};
 
 	for (loop = 0; loop < TPS61280_REG_NUM; loop++) {
 		val[loop]=i2c_smbus_read_byte_data(data->tps_client, InitDataAddr[loop]);
@@ -97,7 +97,7 @@ static ssize_t tps61280_show_reg(struct device *dev,
 
     status=i2c_smbus_read_byte_data(data->tps_client,0x05);
 	printk(" tps61280 ###### [0x05]=[0x%x]###\n",status);
-	count += snprintf(buf+count,PAGE_SIZE,"[ff]=0x%x,[01]=0x%x,[02]=0x%x,[03]=0x%x,[05]=0x%x\n",val[0],val[1],val[2],val[3],status);
+	count += snprintf(buf+count,PAGE_SIZE,"[01]=0x%x,[02]=0x%x,[03]=0x%x,[05]=0x%x\n",val[0],val[1],val[2],status);
 
 	return count;
 }
@@ -123,7 +123,7 @@ static struct attribute *tps61280_attributes[] = {
 	&dev_attr_tps61280_reg_ctrl.attr,
 	NULL,
 };
-/*HS60 modify by limengxia for HQ000003 at 20190723 end*/
+/*HS60 modify by limengxia for modify 0xff to defult at 20200916 end*/
 static struct attribute_group tps61280_attribute_group = {
 	.attrs = tps61280_attributes
 };

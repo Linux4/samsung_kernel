@@ -24,7 +24,8 @@
 static struct input_dev *input_dev;
 static spinlock_t irq_lock;
 static int irq_disabled;
-u8 goodix_flag;
+u8 goodix_flag = 0;
+static bool gtp_is_enabled = 0;
 #ifndef CONFIG_GTP_INT_SEL_SYNC
 #include <linux/pinctrl/consumer.h>
 static struct pinctrl *default_pctrl;
@@ -34,6 +35,11 @@ struct goodix_pinctrl gt_pinctrl;
 static struct regulator *vdd_ana;
 int gt1x_rst_gpio;
 int gt1x_int_gpio;
+#endif
+
+#if GTP_USE_ENABLE_NODE
+static int gtp_input_open(struct input_dev *dev);
+static void gtp_input_close(struct input_dev *dev);
 #endif
 
 #ifdef CONFIG_GTP_GLOVE_MODE
@@ -360,7 +366,7 @@ static irqreturn_t gt1x_ts_work_thread(int irq, void *data)
 
 #ifdef CONFIG_GTP_GESTURE_WAKEUP
 	ret = gesture_event_handler(input_dev);
-	if (ret >= 0)
+	if (ret >= 0 || !gtp_is_enabled)
 		goto exit_work_func;
 #endif
 
@@ -708,6 +714,10 @@ static s8 gt1x_request_input_dev(void)
 	input_dev->id.vendor = 0xDEAD;
 	input_dev->id.product = 0xBEEF;
 	input_dev->id.version = 10427;
+#if GTP_USE_ENABLE_NODE
+	input_dev->open = gtp_input_open;
+	input_dev->close = gtp_input_close;
+#endif
 
 	ret = input_register_device(input_dev);
 	if (ret) {
@@ -918,11 +928,11 @@ static ssize_t gtp_proc_getinfo_read(struct file *filp, char __user *buff, size_
 		goto err;
 	}
 
-	snprintf(buf, 150, "IC=GT1151Q module=LIANSI fw_ver= %06x cfg = %x\n",fw_ver_info.patch_id,cfg_ver_info);
+	snprintf(buf, 150, "IC=GT1151Q module=LIANSI_%d fw_ver= %06x cfg = %x\n",gt1x_version.sensor_id,fw_ver_info.patch_id,cfg_ver_info);
 	rc = simple_read_from_buffer(buff, size, pPos, buf, strlen(buf));
 	return rc;
 err:
-	snprintf(buf, 150, "IC=GT1151Q module=LIANSI fw_ver= null cfg = null \n");
+	snprintf(buf, 150, "IC=GT1151Q module=LIANSI_%d fw_ver= null cfg = null \n",gt1x_version.sensor_id);
 	rc = simple_read_from_buffer(buff, size, pPos, buf, strlen(buf));
 	return rc;
 
@@ -956,6 +966,19 @@ int32_t gtp_extra_proc_init(void)
 	return 0;
 }
 /* Huaqin add for AR-ZQL1695-01000000051 ito test by liufurong at 2019/07/17 end */
+
+#if GTP_USE_ENABLE_NODE
+static int gtp_input_open(struct input_dev *dev)
+{
+	gtp_is_enabled = 1;
+	return 0;
+}
+
+static void gtp_input_close(struct input_dev *dev)
+{
+	gtp_is_enabled = 0;
+}
+#endif
 
 //* gt1x_ts_probe -   I2c probe.
 //* @client: i2c device struct.
@@ -1128,6 +1151,12 @@ static int gt1x_ts_probe(struct i2c_client *client, const struct i2c_device_id *
 	if (ret < 0) {
 		GTP_ERROR("%s: Failed to sec_cmd_init\n", __func__);
 	}
+#if GTP_USE_ENABLE_NODE
+	ret = sysfs_create_link(&sec_info->sec.fac_dev->kobj,&input_dev->dev.kobj, "input");
+    if (ret < 0) {
+        GTP_ERROR("%s: Failed to sysfs_create_link\n", __func__);
+    }
+#endif
 /* HS60 add for SR-ZQL1695-01000000583 by liufurong at 20190724 end */
 	gtp_create_lockdown_proc(client);
 	gtp_create_file(client);
@@ -1329,9 +1358,9 @@ static struct i2c_driver gt1x_ts_driver = {
 #ifdef CONFIG_OF
 			.of_match_table = gt1x_match_table,
 #endif
-//#if !defined(CONFIG_FB) && defined(CONFIG_PM)
+#if !defined(CONFIG_FB) && defined(CONFIG_PM)
 			.pm = &gt1x_ts_pm_ops,
-//#endif
+#endif
 			},
 	.shutdown = gtp_shutdown,
 };

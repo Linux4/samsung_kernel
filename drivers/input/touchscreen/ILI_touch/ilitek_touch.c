@@ -583,7 +583,9 @@ int ilitek_tddi_touch_esd_gesture_iram(void)
 		ipio_err("Disable ice mode failed during gesture recovery\n");
 
 	idev->actual_tp_mode = P5_X_FW_GESTURE_MODE;
-	ilitek_set_tp_data_len(idev->gesture_mode);
+	idev->tp_data_len = P5_X_GESTURE_INFO_LENGTH;
+	idev->tp_data_format = idev->gesture_mode;
+	//ilitek_set_tp_data_len(idev->gesture_mode);
 	if (ilitek_tddi_fw_upgrade_handler(NULL) < 0)
 		ipio_err("FW upgrade failed during gesture recovery\n");
 
@@ -686,6 +688,8 @@ out:
 void ilitek_tddi_touch_press(u16 x, u16 y, u16 pressure, u16 id)
 {
 	ipio_debug("Touch Press: id = %d, x = %d, y = %d, p = %d\n", id, x, y, pressure);
+	if(pressure == 0)
+		pressure = 1;
 
 	if (MT_B_TYPE) {
 		input_mt_slot(idev->input, id);

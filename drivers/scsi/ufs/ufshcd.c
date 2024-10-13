@@ -1341,6 +1341,29 @@ static inline void ufshcd_hba_start(struct ufs_hba *hba)
 	ufshcd_writel(hba, val, REG_CONTROLLER_ENABLE);
 }
 
+#ifdef CUSTOMIZE_UPIU_FLAGS
+static void set_customized_upiu_flags(struct ufshcd_lrb *lrbp, u32 *upiu_flags)
+{
+	if (lrbp->command_type == UTP_CMD_TYPE_SCSI) {
+		switch (req_op(lrbp->cmd->request)) {
+		case REQ_OP_READ:
+			*upiu_flags |= UPIU_COMMAND_PRIORITY_HIGH;
+			break;
+		case REQ_OP_WRITE:
+			if (lrbp->cmd->request->cmd_flags & REQ_SYNC)
+				*upiu_flags |= UPIU_COMMAND_PRIORITY_HIGH;
+			break;
+		case REQ_OP_FLUSH:
+			*upiu_flags |= UPIU_TASK_ATTR_HEADQ;
+			break;
+		case REQ_OP_DISCARD:
+			*upiu_flags |= UPIU_TASK_ATTR_ORDERED;
+			break;
+		}
+	}
+}
+#endif
+
 /**
  * ufshcd_is_hba_active - Get controller state
  * @hba: per adapter instance
@@ -1570,6 +1593,11 @@ start:
 		 */
 		if (ufshcd_can_hibern8_during_gating(hba) &&
 		    ufshcd_is_link_hibern8(hba)) {
+			if (async) {
+				rc = -EAGAIN;
+				hba->clk_gating.active_reqs--;
+				break;
+			}
 			spin_unlock_irqrestore(hba->host->host_lock, flags);
 			flush_work(&hba->clk_gating.ungate_work);
 			spin_lock_irqsave(hba->host->host_lock, flags);
@@ -2808,6 +2836,8 @@ static int ufshcd_prepare_req_desc_hdr(struct ufs_hba *hba,
 		*upiu_flags = UPIU_CMD_FLAGS_NONE;
 	}
 
+	set_customized_upiu_flags(lrbp, upiu_flags);
+
 	dword_0 = data_direction | (lrbp->command_type
 				<< UPIU_COMMAND_TYPE_OFFSET);
 	if (lrbp->intr_cmd)
@@ -3792,10 +3822,10 @@ static int __ufshcd_query_descriptor(struct ufs_hba *hba,
 		goto out_unlock;
 	}
 
-	hba->dev_cmd.query.descriptor = NULL;
 	*buf_len = be16_to_cpu(response->upiu_res.length);
 
 out_unlock:
+	hba->dev_cmd.query.descriptor = NULL;
 	mutex_unlock(&hba->dev_cmd.lock);
 	if (has_read_lock)
 		up_read(&hba->lock);
@@ -6869,6 +6899,7 @@ static irqreturn_t ufshcd_intr(int irq, void *__hba)
 
 	spin_lock(hba->host->host_lock);
 	intr_status = ufshcd_readl(hba, REG_INTERRUPT_STATUS);
+
 	hba->ufs_stats.last_intr_status = intr_status;
 	hba->ufs_stats.last_intr_ts = ktime_get();
 	/*
@@ -8112,7 +8143,8 @@ static int ufshcd_probe_hba(struct ufs_hba *hba)
 			hba->dev_info.f_power_on_wp_en = flag;
 
 		/* Add required well known logical units to scsi mid layer */
-		if (ufshcd_scsi_add_wlus(hba))
+		ret = ufshcd_scsi_add_wlus(hba);
+		if (ret)
 			goto out;
 
 		/* Initialize devfreq after UFS device is detected */
@@ -9963,6 +9995,9 @@ static void ufshcd_shutdown_clkscaling(struct ufs_hba *hba)
 int ufshcd_shutdown(struct ufs_hba *hba)
 {
 	int ret = 0;
+
+	if (!hba->is_powered)
+		goto out;
 
 	if (ufshcd_is_ufs_dev_poweroff(hba) && ufshcd_is_link_off(hba))
 		goto out;

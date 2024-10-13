@@ -26,3 +26,5 @@ obj-$(CONFIG_SEC_USER_RESET_DEBUG)	+= sec_debug_user_reset.o
 obj-$(CONFIG_KERNEL_MODE_NEON_DEBUG)	+= sec_kernel_mode_neon_debug.o
 
 obj-$(CONFIG_SEC_SLUB_DEBUG)		+= sec_slub_debug.o
+
+GCOV_PROFILE_sec_debug.o		:=y

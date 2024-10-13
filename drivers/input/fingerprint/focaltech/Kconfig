@@ -7,3 +7,4 @@ config FOCALTECH_FINGERPRINT
 	select focaltech_fp
 	help
 	  This support focaltech fingerprint drivers.
+

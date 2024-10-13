@@ -746,11 +746,11 @@ void ilitek_tddi_report_handler(void)
 		return;
 	}
 
-	if (idev->irq_after_recovery) {
+	/*if (idev->irq_after_recovery) {
 		ipio_info("ignore int triggered by recovery\n");
 		idev->irq_after_recovery = false;
 		return;
-	}
+	}*/
 
 	ilitek_tddi_wq_ctrl(WQ_ESD, DISABLE);
 	ilitek_tddi_wq_ctrl(WQ_BAT, DISABLE);
@@ -758,8 +758,15 @@ void ilitek_tddi_report_handler(void)
 	if (idev->actual_tp_mode == P5_X_FW_GESTURE_MODE) {
 
 		__pm_stay_awake(idev->ws);
+		if (idev->dev_pm_suspend) {
+			ret = wait_for_completion_timeout(&idev->dev_pm_suspend_completion, msecs_to_jiffies(700));
+			if (!ret) {
+				ipio_err("system(spi) can't finished resuming procedure, skip it");
+				return;
+			}
+		}
 		/* Waiting for pm resume completed */
-		mdelay(40);
+		//mdelay(40);
 	}
 
 	rlen = idev->tp_data_len;
@@ -821,7 +828,8 @@ void ilitek_tddi_report_handler(void)
 
 	switch (pid) {
 	case P5_X_DEMO_PACKET_ID:
-		ilitek_tddi_report_ap_mode(idev->tr_buf, rlen);
+		if(idev->tp_is_enabled)
+			ilitek_tddi_report_ap_mode(idev->tr_buf, rlen);
 		break;
 	case P5_X_DEBUG_PACKET_ID:
 		ilitek_tddi_report_debug_mode(idev->tr_buf, rlen);
@@ -864,19 +872,19 @@ int ilitek_tddi_reset_ctrl(int mode)
 
 	switch (mode) {
 	case TP_IC_CODE_RST:
-		ipio_info("TP IC Code RST \n");
+		ipio_debug("TP IC Code RST \n");
 		ret = ilitek_tddi_ic_code_reset();
 		if (ret < 0)
 			ipio_err("IC Code reset failed\n");
 		break;
 	case TP_IC_WHOLE_RST:
-		ipio_info("TP IC whole RST\n");
+		ipio_debug("TP IC whole RST\n");
 		ret = ilitek_tddi_ic_whole_reset();
 		if (ret < 0)
 			ipio_err("IC whole reset failed\n");
 		break;
 	case TP_HW_RST_ONLY:
-		ipio_info("TP HW RST\n");
+		ipio_debug("TP HW RST\n");
 		ilitek_plat_tp_reset();
 		break;
 	default:

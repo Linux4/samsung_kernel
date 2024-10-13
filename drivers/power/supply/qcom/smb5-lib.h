@@ -122,7 +122,9 @@ enum print_reason {
 #define CDP_CURRENT_UA			1500000
 /* HS70 add for HS70-919 set DCP_ICL to 3000mA by qianyingdong at 2019/11/28 start */
 #if defined(CONFIG_AFC)
-#define DCP_CURRENT_UA			3000000
+/* HS70 add for P200417-04435  set DCP_ICL to 1800mA by wangzikang at 2020/04/23 start */
+#define DCP_CURRENT_UA			1800000
+/* HS70 add for P200417-04435  set DCP_ICL to 1800mA by wangzikang at 2020/04/23 end */
 #else
 #define DCP_CURRENT_UA			2000000
 #endif
@@ -134,7 +136,9 @@ enum print_reason {
 #endif
 #endif
 /*HS70 add for HS70-919 enable AFC function by qianyingdong at 2019/11/18 end*/
-#define HVDCP_CURRENT_UA		3000000
+/* HS70 add for P200417-04435 set QC2.0\3.0 to 9V1.67A by qianyingdong at 2020/04/24 start */
+#define HVDCP_CURRENT_UA		1650000
+/* HS70 add for P200417-04435 set QC2.0\3.0 to 9V1.67A by qianyingdong at 2020/04/24 end */
 #define TYPEC_DEFAULT_CURRENT_UA	900000
 #define TYPEC_MEDIUM_CURRENT_UA		1500000
 #define TYPEC_HIGH_CURRENT_UA		3000000
@@ -497,6 +501,7 @@ enum {
 enum {
 	DETECT_SDM439_PLATFORM,
 	DETECT_SDM450_PLATFORM,
+	DETECT_SDM450_HS50,
 };
 /* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/10 end */
 
@@ -529,6 +534,18 @@ static const unsigned int smblib_extcon_cable[] = {
 
 #endif
 /* HS60 add for SR-ZQL1695-01-315 Provide sysFS node named /sys/class/power_supply/battery/store_mode for retail APP by gaochao at 2019/08/18 end */
+
+/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 start */
+#if !defined(HQ_FACTORY_BUILD)	//ss version
+#define BOOT_TO_DETECT_FLOAT_CHARGER_START_DETECT_TIME		20000
+#define BOOT_TO_DETECT_INIT		0
+#define BOOT_TO_DETECT_START		1
+#define BOOT_TO_DETECT_SECOND		2
+#define BOOT_TO_DETECT_STEP		1
+#define BOOT_TO_DETECT_MAX		6
+#endif
+/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 end */
+
 /* HS60 add for HS60-811 Set float charger by gaochao at 2019/08/27 start */
 #define FLOAT_CHARGER_START_DETECT_TIME		6000
 /* HS60 add for HS60-811 Set float charger by gaochao at 2019/08/27 end */
@@ -700,6 +717,9 @@ struct smb_charger {
 	struct delayed_work	clear_hdc_work;
 	struct delayed_work	icl_change_work;
 	struct delayed_work	pl_enable_work;
+#ifdef CONFIG_USB_NOTIFY_LAYER
+	struct delayed_work	microb_otg_work;
+#endif
 	struct delayed_work	uusb_otg_work;
 	struct delayed_work	bb_removal_work;
 	struct delayed_work	usbov_dbc_work;
@@ -769,6 +789,7 @@ struct smb_charger {
 	#if !defined(HQ_FACTORY_BUILD)	//ss version
 	//+ SS_charging, add battery_cycle node
 	int			batt_cycle;
+	int			battery_health;
 	//- SS_charging, add battery_cycle node
 	#endif
 	/* HS60 add for SR-ZQL1695-01-405 by wangzikang at 2019/09/19 end */
@@ -785,6 +806,9 @@ struct smb_charger {
 	bool			suspend_input_on_debug_batt;
 	int			default_icl_ua;
 	int			otg_cl_ua;
+#ifdef CONFIG_USB_NOTIFY_LAYER
+	bool		otg_enable;
+#endif
 	bool			uusb_apsd_rerun_done;
 	int			fake_input_current_limited;
 	int			typec_mode;
@@ -816,10 +840,20 @@ struct smb_charger {
 	int			charge_full_cc;
 	int			cc_soc_ref;
 	int			last_cc_soc;
+	/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 start */
+	#if !defined(HQ_FACTORY_BUILD)	//ss version
+	int			boot_to_detect_charger;
+	#endif
+	/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 end */
 
 	/* workaround flag */
 	u32			wa_flags;
 	int			boost_current_ua;
+	/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
+	#if !defined(HQ_FACTORY_BUILD)	//ss version
+	int			slow_charging_count;
+	#endif
+	/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
 /*HS70 add for HS70-919 import Handle QC2.0 charger collapse patch by qianyingdong at 2019/11/18 start*/
 #ifdef CONFIG_ARCH_MSM8953
 	int			qc2_max_pulses;
@@ -865,6 +899,9 @@ struct smb_charger {
 	#endif
 	#endif
 	/*HS70 add for HS70-919 enable AFC function by qianyingdong at 2019/11/18 end*/
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 start */
+	bool			is_dcp;
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 end */
 #if defined(CONFIG_TYPEC)
 	struct typec_port 		*port;
 	struct typec_partner 	*partner;
@@ -1080,6 +1117,9 @@ int smblib_deinit(struct smb_charger *chg);
 #if !defined(HQ_FACTORY_BUILD)	//ss version
 #if defined(CONFIG_AFC)
 int is_afc_result(struct smb_charger *chg,int result);
+/* HS50 add for P201023-04559 re-connect vbus when shutdown with afc TA by wenyaqi at 2020/10/28 start */
+void ss_vbus_control_gpio_set(struct smb_charger *chg, int set_gpio_val);
+/* HS50 add for P201023-04559 re-connect vbus when shutdown with afc TA by wenyaqi at 2020/10/28 end */
 #endif
 #endif
 /*HS70 add for HS70-919 enable AFC function by qianyingdong at 2019/11/18 end*/

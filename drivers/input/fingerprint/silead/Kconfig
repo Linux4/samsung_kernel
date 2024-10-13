@@ -1,7 +1,7 @@
 #
 # Silead Fingerprint driver configuration
 #
-	  
+
 config SILEAD_FP_PLATFORM
 	tristate "Silead platformm Fingerprint driver support"
 	select silead_fp

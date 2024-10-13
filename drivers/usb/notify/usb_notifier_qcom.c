@@ -296,6 +296,9 @@ static int otg_accessory_power(bool enable)
 
 	pr_info("%s %d, enable=%d\n", __func__, __LINE__, on);
 
+#if defined(CONFIG_USB_DWC3_MSM)
+	return 0;
+#endif
 	msm_otg_vbus_power(on);
 
 	return 0;
@@ -305,6 +308,9 @@ static int qcom_set_peripheral(bool enable)
 {
 	int on = !!enable;
 
+#if defined(CONFIG_USB_DWC3_MSM)
+	return 0;
+#endif
 	msm_otg_vbus_event(on);
 	if(!enable)
 		set_ncm_ready(false);
@@ -320,6 +326,9 @@ static int qcom_set_host(bool enable)
 {
 	int on = !!enable;
 
+#if defined(CONFIG_USB_DWC3_MSM)
+	return 0;
+#endif
 	msm_otg_id_event(on);
 	return 0;
 }

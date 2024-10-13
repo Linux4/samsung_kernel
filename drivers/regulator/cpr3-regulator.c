@@ -2962,7 +2962,7 @@ static int cpr3_regulator_scale_vdd_voltage(struct cpr3_controller *ctrl,
  * When using HW closed-loop, the dynamic floor voltage is always returned
  * regardless of the current state of the power domains.
  *
- * Return: dynamic floor voltage in microvolts or 0 rc;dynamic floor is not
+ * Return: dynamic floor voltage in microvolts or 0 if dynamic floor is not
  *         currently required
  */
 static int cpr3_regulator_get_dynamic_floor_volt(struct cpr3_controller *ctrl,
@@ -3666,7 +3666,7 @@ static int cpr3_regulator_wait_for_idle(struct cpr3_controller *ctrl,
  * @a:			First int value
  * @b:			Second int value
  *
- * Return: >0 rc;a > b, 0 rc;a == b, <0 rc;a < b
+ * Return: >0 if a > b, 0 if a == b, <0 if a < b
  */
 static int cmp_int(const void *a, const void *b)
 {

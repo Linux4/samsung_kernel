@@ -548,17 +548,17 @@ static int core_spi_write(u8 *data, int len)
 {
 	int ret = 0, retry = 5;
 	int safe_size = len;
-	u8 wakeup[10] = {0x82, 0x25, 0xA3, 0xA3, 0xA3, 0xA3, 0xA3, 0xA3, 0xA3, 0xA3};
+//	u8 wakeup[10] = {0x82, 0x25, 0xA3, 0xA3, 0xA3, 0xA3, 0xA3, 0xA3, 0xA3, 0xA3};
 
 	/* if system is suspended, wake up our spi pll clock before communication. */
-	if (idev->tp_suspend) {
+/*	if (idev->tp_suspend) {
 		ipio_info("Write dummy cmd to wake up spi pll clock\n");
 		if (idev->spi_write_then_read(idev->spi, wakeup, sizeof(wakeup), NULL, 0) < 0) {
 			ipio_err("spi write wake up cmd failed\n");
 			return -EIO;
 		}
 	}
-
+*/
 	if (atomic_read(&idev->ice_stat) == DISABLE) {
 		do {
 			ret = core_spi_ice_mode_write(data, len);
@@ -680,17 +680,17 @@ static int core_spi_setup(u32 freq)
 
 static int ilitek_spi_probe(struct spi_device *spi)
 {
-	struct touch_bus_info *info =
-	container_of(to_spi_driver(spi->dev.driver),
-		struct touch_bus_info, bus_driver);
+	struct touch_bus_info *info;//mfeng add
 
 	ipio_info("ilitek spi probe\n");
 
-	if (!spi) {
+	if (spi == NULL) {/*ritchie add*/
 		ipio_err("spi device is NULL\n");
 		return -ENODEV;
 	}
-
+	//mfeng add
+	info = container_of(to_spi_driver(spi->dev.driver),
+		struct touch_bus_info, bus_driver);
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
 		ipio_err("Full duplex not supported by master\n");
 		return -EIO;
@@ -781,10 +781,29 @@ static int ilitek_spi_probe(struct spi_device *spi)
 	core_spi_setup(SPI_CLK);
 	return info->hwif->plat_probe();
 }
+static int ilitek_pm_suspend(struct device *dev)
+{
+	idev->dev_pm_suspend = true;
+	reinit_completion(&idev->dev_pm_suspend_completion);
+	return 0;
+}
+
+static int ilitek_pm_resume(struct device *dev)
+{
+	idev->dev_pm_suspend = false;
+	complete(&idev->dev_pm_suspend_completion);
+	return 0;
+}
+
+static const struct dev_pm_ops ilitek_dev_pm_ops = {
+	.suspend = ilitek_pm_suspend,
+	.resume = ilitek_pm_resume,
+};
 
 /* HS70 modify for SR-ZQL1871-01-94 by liufurong at 2019/10/26 start */
 static void ilitek_shutdown(struct spi_device *spi)
 {
+	idev->gesture = DISABLE;
 	if (ilitek_tddi_sleep_handler(TP_SUSPEND) < 0)
 				ipio_err("TP suspend failed\n");
 }
@@ -811,6 +830,7 @@ int ilitek_tddi_interface_dev_init(struct ilitek_hwif_info *hwif)
 
 	if (hwif->bus_type != BUS_SPI) {
 		ipio_err("Not SPI dev\n");
+		kfree(info);//ritchie add
 		return -EINVAL;
 	}
 
@@ -823,6 +843,7 @@ int ilitek_tddi_interface_dev_init(struct ilitek_hwif_info *hwif)
 	info->bus_driver.probe = ilitek_spi_probe;
 	info->bus_driver.remove = ilitek_spi_remove;
 	info->bus_driver.id_table = tp_spi_id;
+	info->bus_driver.driver.pm = &ilitek_dev_pm_ops;
 /* HS70 modify for SR-ZQL1871-01-94 by liufurong at 2019/10/26 start */
 	info->bus_driver.shutdown = ilitek_shutdown;
 /* HS70 modify for SR-ZQL1871-01-94 by liufurong at 2019/10/26 end */

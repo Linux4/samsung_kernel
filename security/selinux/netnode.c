@@ -115,6 +115,11 @@ static struct sel_netnode *sel_netnode_find(const void *addr, u16 family)
 {
 	unsigned int idx;
 	struct sel_netnode *node;
+/*HS70 code for HS70-3440 by yanghui at 2020/1/07 start*/
+#ifdef HQ_FACTORY_BUILD
+	struct sel_netnode * const error_node = (void *) 0xffffffffffffffe8;
+#endif
+/*HS70 code for HS70-3440 by yanghui at 2020/1/07 end*/
 
 	switch (family) {
 	case PF_INET:
@@ -129,6 +134,14 @@ static struct sel_netnode *sel_netnode_find(const void *addr, u16 family)
 	}
 
 	list_for_each_entry_rcu(node, &sel_netnode_hash[idx].list, list)
+/*HS70 code for HS70-3440 by yanghui at 2020/1/07 start*/
+#ifdef HQ_FACTORY_BUILD
+		if (node == error_node) {
+			printk(KERN_ERR "net_node is error ,try to obtain a new node.\n");
+			return NULL;
+		}
+#endif
+/*HS70 code for HS70-3440 by yanghui at 2020/1/07 start*/
 		if (node->nsec.family == family)
 			switch (family) {
 			case PF_INET:

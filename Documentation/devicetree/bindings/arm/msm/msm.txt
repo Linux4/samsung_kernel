@@ -110,6 +110,9 @@ SoCs:
 - QRD1130
   compatible = "qcom,sxr1130-qrd"
 
+- SMVWR1130
+  compatible = "qcom,sxr1130-smrtvwr"
+
 - MSM8952
   compatible = "qcom,msm8952"
 
@@ -148,6 +151,9 @@ SoCs:
 
 - SDM429W
   compatible = "qcom,sdm429w"
+
+- SDA429W
+  compatible = "qcom,sda429w"
 
 - QM215
   compatible = "qcom, qm215"
@@ -213,6 +219,9 @@ Generic board variants:
 
 - SVR device:
   compatible = "qcom,svr"
+
+- SMVWR device:
+  compatible = "qcom,xr-smrtvwr"
 
 - HDK device:
   compatible = "qcom,hdk"

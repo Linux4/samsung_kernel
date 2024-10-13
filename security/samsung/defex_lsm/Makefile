@@ -7,6 +7,8 @@ PED_ENABLE=true
 SAFEPLACE_ENABLE=true
 IMMUTABLE_ENABLE=true
 LP_ENABLE=true
+UMH_RESTRICTION_ENABLE=true
+TRUSTED_MAP_ENABLE=false
 
 ifneq ($(wildcard $(srctree)/include/crypto/internal/rsa.h),)
     $(warning [DEFEX] INTEGRITY_ENABLE)
@@ -25,14 +27,14 @@ RAMDISK_ENABLE=true
 # do signing for rules
 SIGN_ENABLE=true
 
-obj-y := defex_lsm.o
-obj-y += defex_catch_list.o
-obj-y += defex_ht.o
-obj-y += defex_config.o
-obj-y += defex_sysfs.o
-obj-y += defex_procs.o
-obj-y += defex_rules.o
-obj-$(CONFIG_COMPAT) += defex_catch_list_compat.o
+defex-y := core/defex_common.o
+defex-y += core/defex_lsm.o
+defex-y += core/defex_main.o
+defex-y += core/defex_get_mode.o
+defex-y += core/defex_rules_proc.o
+defex-y += catch_engine/defex_catch_list.o
+defex-y += catch_engine/defex_ht.o
+defex-$(CONFIG_COMPAT) += catch_engine/defex_catch_list_compat.o
 
 # Immutable Feature is applied with permissive mode first.
 DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
@@ -43,20 +45,27 @@ ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
         $(warning [DEFEX] Kernel_only & Ship)
     else
         $(warning [DEFEX] Kernel_only & Noship)
+        defex-y += debug/defex_debug.o
+        defex-y += core/defex_sysfs.o
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
+        DEFEX_DEFINES += -DDEFEX_PERMISSIVE_TM
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
         DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
     endif
 endif
 
+ifeq ($(CONFIG_SEC_FACTORY), y)
+    DEFEX_DEFINES += -DDEFEX_FACTORY_ENABLE
+endif
+
 ifeq ($(PED_ENABLE), true)
-    obj-y += defex_priv.o
+    defex-y += feature_privilege_escalation_detection/defex_priv.o
     DEFEX_DEFINES += -DDEFEX_PED_ENABLE
 endif
 
 ifeq ($(SAFEPLACE_ENABLE), true)
-    obj-y += defex_safeplace.o
+    defex-y += feature_safeplace/defex_safeplace.o
     DEFEX_DEFINES += -DDEFEX_SAFEPLACE_ENABLE
 endif
 
@@ -65,7 +74,7 @@ ifeq ($(INTEGRITY_ENABLE), true)
 endif
 
 ifeq ($(IMMUTABLE_ENABLE), true)
-    obj-y += defex_immutable.o
+    defex-y += feature_immutable/defex_immutable.o
     DEFEX_DEFINES += -DDEFEX_IMMUTABLE_ENABLE
 endif
 
@@ -73,8 +82,12 @@ ifeq ($(LP_ENABLE), true)
     DEFEX_DEFINES += -DDEFEX_LP_ENABLE
 endif
 
+ifeq ($(UMH_RESTRICTION_ENABLE), true)
+    DEFEX_DEFINES += -DDEFEX_UMH_RESTRICTION_ENABLE
+endif
+
 ifeq ($(CACHES_ENABLE), true)
-    obj-y += defex_caches.o
+    defex-y += catch_engine/defex_caches.o
     DEFEX_DEFINES += -DDEFEX_CACHES_ENABLE
 endif
 
@@ -85,49 +98,61 @@ endif
 ifeq ($(RAMDISK_ENABLE), true)
     DEFEX_DEFINES += -DDEFEX_RAMDISK_ENABLE
 ifeq ($(SIGN_ENABLE), true)
-    obj-y += cert/defex_cert.o
-    obj-y += defex_sign.o
+    defex-y += cert/defex_cert.o
+    defex-y += cert/defex_sign.o
     DEFEX_DEFINES += -DDEFEX_SIGN_ENABLE
 endif
 endif
 
+ifeq ($(TRUSTED_MAP_ENABLE), true)
+    DEFEX_DEFINES += -DDEFEX_TRUSTED_MAP_ENABLE
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_TM
+    #DEFEX_DEFINES += -DDEFEX_TM_DEFAULT_POLICY_ENABLE
+    ###defex-y += feature_trusted_map/defex_trusted_map.o
+    defex-y += feature_trusted_map/dtm.o
+    ###defex-y += feature_trusted_map/dtm_engine.o
+    ###defex-y += feature_trusted_map/dtm_log.o
+    ###defex-y += feature_trusted_map/dtm_utils.o
+    ###defex-y += feature_trusted_map/ptree.o
+endif
+
 ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
-    obj-y += defex_debug.o
+    defex-y += debug/defex_debug.o
+    defex-y += core/defex_sysfs.o
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_TM
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
     DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
-    DEFEX_DEFINES += -DDEFEX_SYSFS_ENABLE
 else
     ifeq ($(CONFIG_SECURITY_DSMS), y)
         DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
     endif
 endif
 
-ifeq ($(SEC_BUILD_OPTION_VTS), true)
-    $(warning [DEFEX] VTS true $(SEC_BUILD_OPTION_VTS))
-    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
-    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_PED
-    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
-    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
+# kunit tests options:
+ifeq ($(CONFIG_KUNIT), y)
+    GCOV_PROFILE := y
+    DEFEX_DEFINES += -DDEFEX_KUNIT_ENABLED
 else
-    $(warning [DEFEX] VTS false $(SEC_BUILD_OPTION_VTS))
+    DEFEX_DEFINES += -D__visible_for_testing=static
 endif
 
+ccflags-y := -Wformat
+
+EXTRA_CFLAGS += -I$(srctree)/$(src)
+EXTRA_AFLAGS += -Isecurity/samsung/defex_lsm
 EXTRA_CFLAGS += -I$(srctree)/$(src)/cert
 EXTRA_AFLAGS += -Isecurity/samsung/defex_lsm/cert
 
 ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
-    DEFEX_DEFINES += -DDEFEX_USE_PACKED_RULES
     EXTRA_CFLAGS += $(DEFEX_DEFINES)
     EXTRA_AFLAGS += $(DEFEX_DEFINES)
+    hostprogs := pack_rules
     hostprogs-y := pack_rules
     HOST_EXTRACFLAGS += $(DEFEX_DEFINES)
     clean-files := $(srctree)/$(src)/defex_packed_rules.inc
     DEPEND_LIST := $(obj)/pack_rules
-
-    quiet_cmd_copy = COPY    $(obj)/pack_rules
-          cmd_copy = cp -n $(obj)/pack_rules $(srctree)/$(src)/pack_rules 2>/dev/null || true
 
     quiet_cmd_pack = PACK    $<
           cmd_pack = $(obj)/pack_rules -p $< $@ $(srctree)/$(src)/defex_packed_rules.bin
@@ -135,7 +160,7 @@ ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
     quiet_cmd_mkey = MAKEKEY $<
           cmd_mkey = cp -n $< $@ 2>/dev/null || true
 
-    $(obj)/defex_sysfs.o: $(obj)/pack_rules $(srctree)/$(src)/defex_packed_rules.inc
+    $(obj)/core/defex_rules_proc.o: $(obj)/pack_rules $(srctree)/$(src)/defex_packed_rules.inc
 
     $(obj)/cert/defex_cert.o: $(obj)/cert/pubkey_eng.der $(obj)/cert/pubkey_user.der
 
@@ -162,10 +187,11 @@ ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
 
     $(srctree)/$(src)/defex_packed_rules.inc: $(SOURCE_RULES) $(DEPEND_LIST)
 	$(call cmd,pack)
-	$(call cmd,copy)
+	@cp -n $(obj)/pack_rules $(srctree)/$(src)/pack_rules 2>/dev/null || true
 
 else
     EXTRA_CFLAGS += $(DEFEX_DEFINES)
     EXTRA_AFLAGS += $(DEFEX_DEFINES)
 endif
 
+obj-$(CONFIG_SECURITY_DEFEX) := $(defex-y)

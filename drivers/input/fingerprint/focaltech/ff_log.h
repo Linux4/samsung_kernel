@@ -107,3 +107,4 @@ int ff_log_printf(ff_log_level_t level, const char *tag, const char *fmt, ...);
 #endif
 
 #endif /* __FF_LOGGING_H__ */
+

@@ -82,6 +82,11 @@ struct fts_ts_data *fts_data;
 static int fts_ts_suspend(struct device *dev);
 static int fts_ts_resume(struct device *dev);
 
+#if FTS_USE_ENABLE_NODE
+static int fts_input_open(struct input_dev *dev);
+static void fts_input_close(struct input_dev *dev);
+#endif
+
 /* Huaqin add for AR-ZQL1695-01000000051 ito test by liufurong at 2019/07/15 start */
 #define FTS_INFO_PROC_FILE "tp_info"
 static struct proc_dir_entry *fts_info_proc_entry;
@@ -763,8 +768,8 @@ static int fts_read_parse_touchdata(struct fts_ts_data *data)
     u8 *buf = data->point_buf;
 
     ret = fts_read_touchdata(data);
-    if (ret) {
-        return ret;
+    if (ret || !fts_data->tp_is_enabled) {
+        return -1;
     }
 
     data->point_num = buf[FTS_TOUCH_POINT_NUM] & 0x0F;
@@ -936,6 +941,10 @@ static int fts_input_init(struct fts_ts_data *ts_data)
     input_set_abs_params(input_dev, ABS_MT_CUSTOM, 0, 0x0F, 0, 0);
 #if FTS_REPORT_PRESSURE_EN
     input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, 0xFF, 0, 0);
+#endif
+#if FTS_USE_ENABLE_NODE
+	input_dev->open = fts_input_open;
+	input_dev->close = fts_input_close;
 #endif
 
     ret = input_register_device(input_dev);
@@ -1840,6 +1849,19 @@ static int fts_ts_resume(struct device *dev)
     return 0;
 }
 
+#if FTS_USE_ENABLE_NODE
+static int fts_input_open(struct input_dev *dev)
+{
+    fts_data->tp_is_enabled = 1;
+	return 0;
+}
+
+static void fts_input_close(struct input_dev *dev)
+{
+    fts_data->tp_is_enabled = 0;
+}
+#endif
+
 /*****************************************************************************
 * TP Driver
 *****************************************************************************/
@@ -1885,6 +1907,12 @@ static int fts_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
     if (ret < 0) {
         FTS_ERROR("%s: Failed to sec_cmd_init\n", __func__);
     }
+#if FTS_USE_ENABLE_NODE
+    ret = sysfs_create_link(&ts_data->sec.fac_dev->kobj,&ts_data->input_dev->dev.kobj, "input");
+    if (ret < 0) {
+        FTS_ERROR("%s: Failed to sysfs_create_link\n", __func__);
+    }
+#endif
 /* HS60 add for SR-ZQL1695-01000000583 by liufurong at 20190724 end */
 
     FTS_INFO("Touch Screen(I2C BUS) driver prboe successfully");

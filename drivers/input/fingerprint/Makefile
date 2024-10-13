@@ -5,3 +5,4 @@
 
 obj-$(CONFIG_SYSFS_ADM)	+= fingerprint_sysfs.o
 
+

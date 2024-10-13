@@ -53,6 +53,9 @@
     /* HS60 code for SR-ZQL1871-01-235 by lijingang at 2019/11/01 start */
     #define CONFIG_WCNSS_WLAN_NV_BIN_HS70 1
     /* HS60 code for SR-ZQL1871-01-235 by lijingang at 2019/11/01 end */
+    /*HS70 code for HS70-3706 by wuhongwen at 2020/01/08 start*/
+    #define CONFIG_IRQ_SHOW_RESUME_HS70
+    /*HS70 code for HS70-3706 by wuhongwen at 2020/01/08 end*/
 #elif defined (HUAQIN_KERNEL_PROJECT_HS71)
     /* Add kernel functional macro here for HS71 project
        example:
@@ -60,6 +63,19 @@
     /* HS60 code for SR-ZQL1871-01-235 by lijingang at 2019/11/01 start */
     #define CONFIG_WCNSS_WLAN_NV_BIN_HS71 1
     /* HS60 code for SR-ZQL1871-01-235 by lijingang at 2019/11/01 end */
+    /*HS70 code for HS70-3706 by wuhongwen at 2020/01/08 start*/
+    #define CONFIG_IRQ_SHOW_RESUME_HS71
+    /*HS70 code for HS70-3706 by wuhongwen at 2020/01/08 end*/
+#elif defined (HUAQIN_KERNEL_PROJECT_HS50)
+    /* Add kernel functional macro here for HS50 project
+       example:
+       #define CONFIG_ENABLE_FUNC 1 */
+    /* HS50 code for SR-QL3095-01-182 by weilong at 2020/08/05 start */
+    #define CONFIG_WCNSS_WLAN_NV_BIN_HS50 1
+    /* HS50 code for SR-QL3095-01-182 by weilong at 2020/08/05 end */
+    /*Huaqin add for HS50-SR-QL3095-01-24 add camera node by xuxianwei at 2020/08/13 start*/
+    #define CONFIG_MSM_CAMERA_HS50_ADDBOARD 1
+    /*Huaqin add for HS50-SR-QL3095-01-24 add camera node by xuxianwei at 2020/08/13 end*/
 #endif
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -188,37 +188,6 @@
 	qcom,bus-speed-mode = "SDR12", "SDR25", "SDR50", "DDR50", "SDR104";
 
 	status = "ok";
-};
-
-&firmware {
-	android {
-		compatible = "android,firmware";
-		vbmeta {
-			compatible = "android,vbmeta";
-			parts = "vbmeta,boot,system,vendor,dtbo,recovery";
-		};
-		fstab {
-			compatible = "android,fstab";
-			vendor {
-				compatible = "android,vendor";
-				dev =
-		"/dev/block/platform/soc/7824900.sdhci/by-name/vendor";
-				type = "ext4";
-				mnt_flags = "ro,barrier=1,discard";
-				fsmgr_flags = "wait";
-				status = "ok";
-			};
-			system {
-				compatible = "android,system";
-				dev =
-		"/dev/block/platform/soc/7824900.sdhci/by-name/system";
-				type = "ext4";
-				mnt_flags = "ro,barrier=1,discard";
-				fsmgr_flags = "wait";
-				status = "ok";
-			};
-		};
-	};
 };
 
 &soc {
@@ -517,6 +486,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 0>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -551,6 +521,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 1>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -585,6 +556,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 2>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -619,6 +591,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 3>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -653,6 +626,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 4>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -687,6 +661,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 5>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -721,6 +696,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 6>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -755,6 +731,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 7>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -789,6 +766,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 8>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -823,6 +801,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 9>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -857,6 +836,7 @@
 		polling-delay = <0>;
 		thermal-governor = "low_limits_floor";
 		thermal-sensors = <&tsens0 10>;
+		wake-capable-sensor;
 		tracks-low;
 
 		trips {
@@ -923,6 +903,7 @@
 		polling-delay = <0>;
 		thermal-sensors = <&pm660_adc_tm 0x51>;
 		thermal-governor = "step_wise";
+		wake-capable-sensor;
 
 		trips {
 			quiet_batt_439_trip1: quiet-batt-trip1 {
@@ -967,7 +948,7 @@
 				type = "passive";
 			};
 
-			quiet_439_batt_trip6_mdm_trip3: quiet-bt-trp6-mdm-trp3 {
+			quiet_modem_439_trip3: quiet-modem-trp3 {
 				temperature = <48000>;
 				hysteresis = <2000>;
 				type = "passive";
@@ -985,8 +966,8 @@
 				type = "passive";
 			};
 
-			quiet_batt_439_trip7: quiet-batt-trip7 {
-				temperature = <50000>;
+			quiet_batt_439_trip6: quiet-batt-trip6 {
+				temperature = <55000>;
 				hysteresis = <2000>;
 				type = "passive";
 			};
@@ -1047,7 +1028,7 @@
 			};
 
 			modem_lvl2 {
-				trip = <&quiet_439_batt_trip6_mdm_trip3>;
+				trip = <&quiet_modem_439_trip3>;
 				cooling-device = <&modem_pa 2 2>;
 			};
 
@@ -1082,14 +1063,10 @@
 			};
 
 			battery_lvl6 {
-				trip = <&quiet_439_batt_trip6_mdm_trip3>;
+				trip = <&quiet_batt_439_trip6>;
 				cooling-device = <&pm660_charger 6 6>;
 			};
 
-			battery_lvl7 {
-				trip = <&quiet_batt_439_trip7>;
-				cooling-device = <&pm660_charger 7 7>;
-			};
 		};
 	};
 };

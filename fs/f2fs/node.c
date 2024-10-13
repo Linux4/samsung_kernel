@@ -34,10 +34,9 @@ int f2fs_check_nid_range(struct f2fs_sb_info *sbi, nid_t nid)
 {
 	if (unlikely(nid < F2FS_ROOT_INO(sbi) || nid >= NM_I(sbi)->max_nid)) {
 		set_sbi_flag(sbi, SBI_NEED_FSCK);
-		f2fs_msg(sbi->sb, KERN_WARNING,
-				"%s: out-of-range nid=%x, run fsck to fix.",
-				__func__, nid);
-		return -EINVAL;
+		f2fs_warn(sbi, "%s: out-of-range nid=%x, run fsck to fix.",
+			  __func__, nid);
+		return -EFSCORRUPTED;
 	}
 	return 0;
 }
@@ -88,6 +87,7 @@ bool f2fs_available_free_memory(struct f2fs_sb_info *sbi, int type)
 				sizeof(struct extent_node)) >> PAGE_SHIFT;
 		res = mem_size < ((avail_ram * nm_i->ram_thresh / 100) >> 1);
 	} else if (type == INMEM_PAGES) {
+		/* @fs.sec -- a8f1fe6ef2c636b244d6b55a363ebe61 -- */
 		/* it allows 50% / total_ram for inmemory pages */
 		mem_size = get_pages(sbi, F2FS_INMEM_PAGES);
 		res = mem_size < (val.totalram / 2);
@@ -1194,10 +1194,8 @@ int f2fs_remove_inode_page(struct inode *inode)
 	}
 
 	if (unlikely(inode->i_blocks != 0 && inode->i_blocks != 8)) {
-		f2fs_msg(F2FS_I_SB(inode)->sb, KERN_WARNING,
-			"Inconsistent i_blocks, ino:%lu, iblocks:%llu",
-			inode->i_ino,
-			(unsigned long long)inode->i_blocks);
+		f2fs_warn(F2FS_I_SB(inode), "Inconsistent i_blocks, ino:%lu, iblocks:%llu",
+			  inode->i_ino, (unsigned long long)inode->i_blocks);
 		set_sbi_flag(F2FS_I_SB(inode), SBI_NEED_FSCK);
 	}
 
@@ -1296,7 +1294,7 @@ static int read_node_page(struct page *page, int op_flags)
 	if (PageUptodate(page)) {
 		if (!f2fs_inode_chksum_verify(sbi, page)) {
 			ClearPageUptodate(page);
-			return -EBADMSG;
+			return -EFSBADCRC;
 		}
 		return LOCKED_PAGE;
 	}
@@ -1382,16 +1380,15 @@ repeat:
 	}
 
 	if (!f2fs_inode_chksum_verify(sbi, page)) {
-		err = -EBADMSG;
+		err = -EFSBADCRC;
 		goto out_err;
 	}
 page_hit:
 	if(unlikely(nid != nid_of_node(page))) {
-		f2fs_msg(sbi->sb, KERN_WARNING, "inconsistent node block, "
-			"nid:%lu, node_footer[nid:%u,ino:%u,ofs:%u,cpver:%llu,blkaddr:%u]",
-			nid, nid_of_node(page), ino_of_node(page),
-			ofs_of_node(page), cpver_of_node(page),
-			next_blkaddr_of_node(page));
+		f2fs_warn(sbi, "inconsistent node block, nid:%lu, node_footer[nid:%u,ino:%u,ofs:%u,cpver:%llu,blkaddr:%u]",
+			  nid, nid_of_node(page), ino_of_node(page),
+			  ofs_of_node(page), cpver_of_node(page),
+			  next_blkaddr_of_node(page));
 		err = -EINVAL;
 out_err:
 		if (PageUptodate(page)) {
@@ -1541,7 +1538,8 @@ static int __write_node_page(struct page *page, bool atomic, bool *submitted,
 	if (unlikely(is_sbi_flag_set(sbi, SBI_POR_DOING)))
 		goto redirty_out;
 
-	if (wbc->sync_mode == WB_SYNC_NONE &&
+	if (!is_sbi_flag_set(sbi, SBI_CP_DISABLED) &&
+			wbc->sync_mode == WB_SYNC_NONE &&
 			IS_DNODE(page) && is_cold_node(page))
 		goto redirty_out;
 
@@ -1765,9 +1763,8 @@ continue_unlock:
 			break;
 	}
 	if (!ret && atomic && !marked) {
-		f2fs_msg(sbi->sb, KERN_DEBUG,
-			"Retry to write fsync mark: ino=%u, idx=%lx",
-					ino, last_page->index);
+		f2fs_debug(sbi, "Retry to write fsync mark: ino=%u, idx=%lx",
+			   ino, last_page->index);
 		lock_page(last_page);
 		f2fs_wait_on_page_writeback(last_page, NODE, true, true);
 		set_page_dirty(last_page);
@@ -1878,7 +1875,8 @@ continue_unlock:
 	}
 
 	if (step < 2) {
-		if (wbc->sync_mode == WB_SYNC_NONE && step == 1)
+		if (!is_sbi_flag_set(sbi, SBI_CP_DISABLED) &&
+				wbc->sync_mode == WB_SYNC_NONE && step == 1)
 			goto out;
 		step++;
 		goto next_step;
@@ -2326,8 +2324,7 @@ static int __f2fs_build_free_nids(struct f2fs_sb_info *sbi,
 			if (ret) {
 				up_read(&nm_i->nat_tree_lock);
 				f2fs_bug_on(sbi, !mount);
-				f2fs_msg(sbi->sb, KERN_ERR,
-					"NAT is corrupt, run fsck to fix it");
+				f2fs_err(sbi, "NAT is corrupt, run fsck to fix it");
 				return ret;
 			}
 		}
@@ -2772,7 +2769,7 @@ static void __update_nat_bits(struct f2fs_sb_info *sbi, nid_t start_nid,
 		i = 1;
 	}
 	for (; i < NAT_ENTRY_PER_BLOCK; i++) {
-		if (nat_blk->entries[i].block_addr != NULL_ADDR)
+		if (le32_to_cpu(nat_blk->entries[i].block_addr) != NULL_ADDR)
 			valid++;
 	}
 	if (valid == 0) {
@@ -2962,7 +2959,7 @@ static int __get_nat_bitmaps(struct f2fs_sb_info *sbi)
 	nm_i->full_nat_bits = nm_i->nat_bits + 8;
 	nm_i->empty_nat_bits = nm_i->full_nat_bits + nat_bits_bytes;
 
-	f2fs_msg(sbi->sb, KERN_NOTICE, "Found nat_bits in checkpoint");
+	f2fs_notice(sbi, "Found nat_bits in checkpoint");
 	return 0;
 }
 
