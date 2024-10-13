@@ -120,6 +120,12 @@ extern bool enable_pr_debug;
 
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 /* Too much log causes kunit test app crash */
+#define LCD_INFO_IF(V, X, ...) \
+	do { \
+		if (V->debug_data && V->debug_data->print_cmds) \
+			pr_debug("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__); \
+	} while (0)
+
 #define LCD_INFO(V, X, ...) pr_debug("[%d.%d][SDE_%d] %s : "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_INFO_ONCE(V, X, ...) pr_info_once("[%d.%d][SDE_%d] %s : "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_ERR(V, X, ...) pr_err("[%d.%d][SDE_%d] %s : error: "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
@@ -742,6 +748,7 @@ enum ss_dsi_cmd_set_type {
 	TX_TIMING_SWITCH_PRE,
 	TX_TIMING_SWITCH_POST,
 
+	TX_DDI_VCOM_MARK_PRE,
 	TX_CMD_END,
 
 	/* RX */
@@ -797,6 +804,8 @@ enum ss_dsi_cmd_set_type {
 	RX_VAINT_MTP,
 	RX_DDI_FW_ID,
 	RX_ALPM_SET_VALUE,
+
+	RX_DDI_VCOM_MARK,
 	RX_CMD_END,
 
 	SS_DSI_CMD_SET_MAX,

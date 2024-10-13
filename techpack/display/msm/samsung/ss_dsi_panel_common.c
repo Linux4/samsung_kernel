@@ -415,6 +415,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,timing_switch_pre_revA",
 	"samsung,timing_switch_post_revA",
 
+	"samsung,ddi_vcom_mark_pre_cmds_revA",
+
 	"TX_CMD_END not parsed from DTSI",
 
 	/* RX */
@@ -470,6 +472,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,vaint_mtp_rx_cmds_revA",
 	"samsung,ddi_fw_id_rx_cmds_revA",
 	"samsung,alpm_rx_cmds_revA",
+
+	"samsung,ddi_vcom_mark_rx_cmds_revA",
 	"RX_CMD_END not parsed from DTSI",
 };
 
@@ -1247,6 +1251,38 @@ done:
 				DIV_ROUND_UP(base_rr, min_div),
 				max_div, min_div);
 		max_div = min_div;
+	}
+
+	/* VRR 96HS, 48HS (base_rr = 96): Allowed LFD frequencies.
+	 * - min_div_lowest: 1hz (div=96)
+	 * - min_div_def: 1hz (div=96), 12hz (div=8) or 10.67hz (div=9), depends on panels.
+	 * - 48hz(div=2)
+	 * - max_div_def : 96hz(div=1) for VRR 96HS. 48hz(div=2) for VRR 48HS
+	 */
+	if (base_rr == 96) {
+		if (max_div > min_div_def && max_div < min_div_lowest) {
+			/* min_div_def(div=8, 12hz) < div < min_div_loewst(div=96, 1hz) */
+			/* min_div_def(div=96, 1hz) < div < min_div_loewst(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD max div: %d -> %d\n", max_div, min_div_def);
+			max_div = min_div_def; /* 12hz */
+		} else if (max_div > 2 && max_div < min_div_def) {
+			/* 2(48hz) < div < min_div_def(div=8, 12hz) */
+			/* 2(48hz) < div < min_div_def(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD max div: %d -> 2\n", max_div);
+			max_div = 2; /* 48hz */
+		}
+
+		if (min_div > min_div_def && min_div < min_div_lowest) {
+			/* min_div_def(div=8, 12hz) < div < min_div_loewst(div=96, 1hz) */
+			/* min_div_def(div=96, 1hz) < div < min_div_loewst(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD min div: %d -> %d\n", max_div, min_div_def);
+			min_div = min_div_def; /* 12hz */
+		} else if (min_div > 2 && min_div < min_div_def) {
+			/* 2(48hz) < div < min_div_def(div=8, 12hz) */
+			/* 2(48hz) < div < min_div_def(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD min div: %d -> 2\n", min_div);
+			min_div = 2; /* 48hz */
+		}
 	}
 
 	*out_min_div = min_div;
@@ -8018,8 +8054,9 @@ void ss_panel_init(struct dsi_panel *panel)
 	if (vdd->vrr.lfd.support_lfd) {
 		vdd->vrr.lfd.nb_lfd_touch.priority = 3;
 		vdd->vrr.lfd.nb_lfd_touch.notifier_call = ss_lfd_touch_notify_cb;
+#if !defined(CONFIG_PANEL_BUILTIN_BACKLIGHT) //TODO replace with !defined(CONFIG_QGKI)
 		sec_input_register_notify(&vdd->vrr.lfd.nb_lfd_touch, ss_lfd_touch_notify_cb, 3);
-
+#endif
 		vdd->vrr.lfd.lfd_touch_wq = create_singlethread_workqueue("lfd_touch_wq");
 		if (!vdd->vrr.lfd.lfd_touch_wq) {
 			LCD_ERR(vdd, "failed to create touch_lfd workqueue..\n");
@@ -8031,7 +8068,9 @@ void ss_panel_init(struct dsi_panel *panel)
 	if (vdd->esd_touch_notify) {
 		vdd->nb_esd_touch.priority = 3;
 		vdd->nb_esd_touch.notifier_call = ss_esd_touch_notifier_cb;
+#if !defined(CONFIG_PANEL_BUILTIN_BACKLIGHT) //TODO replace with !defined(CONFIG_QGKI)
 		sec_input_register_notify(&vdd->nb_esd_touch, ss_esd_touch_notifier_cb, 3);
+#endif
 	}
 #endif
 

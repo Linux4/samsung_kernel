@@ -694,6 +694,7 @@ static int cam_lrme_mgr_hw_dump(void *hw_mgr_priv, void *hw_dump_args)
 	CAM_DBG(CAM_LRME, "Offset before %zu after %zu",
 		dump_args->offset, lrme_dump_args.offset);
 	dump_args->offset = lrme_dump_args.offset;
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 

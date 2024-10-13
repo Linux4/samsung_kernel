@@ -52,11 +52,15 @@ extern unsigned int lpcharge;
 /*#define SECDP_EVENT_THREAD*/
 /*#define SECDP_TEST_HDCP2P2_REAUTH*/
 /*#define NOT_SUPPORT_DEX_RES_CHANGE*/
+#define REMOVE_YUV420_AT_PREFER
+
+#define DPCD_IEEE_OUI			0x500
+#define DPCD_DEVID_STR			0x503
 
 #define LEN_BRANCH_REV		3
-#define	DPCD_BRANCH_HW_REV		0x509
-#define	DPCD_BRANCH_SW_REV_MAJOR	0x50A
-#define	DPCD_BRANCH_SW_REV_MINOR	0x50B
+#define DPCD_BRANCH_HW_REV		0x509
+#define DPCD_BRANCH_SW_REV_MAJOR	0x50A
+#define DPCD_BRANCH_SW_REV_MINOR	0x50B
 
 #define MAX_CNT_LINK_STATUS_UPDATE	4
 #define MAX_CNT_HDCP_RETRY		10
@@ -347,6 +351,8 @@ struct secdp_attention_node {
 struct secdp_adapter {
 	uint ven_id;
 	uint prod_id;
+	char ieee_oui[4];  /* DPCD 500h ~ 502h */
+	char devid_str[7]; /* DPCD 503h ~ 508h */
 	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
 
 	bool ss_genuine;
@@ -502,6 +508,9 @@ struct secdp_misc {
 bool secdp_check_if_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
 bool secdp_get_clk_status(enum dp_pm_type type);
+
+bool secdp_adapter_check_parade(void);
+bool secdp_adapter_check_ps176(void);
 
 int  secdp_pdic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_phy_reset_check(void);

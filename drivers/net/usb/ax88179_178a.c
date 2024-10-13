@@ -1698,7 +1698,7 @@ static const struct driver_info ax88179_info = {
 	.link_reset = ax88179_link_reset,
 	.reset = ax88179_reset,
 	.stop = ax88179_stop,
-	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_SEND_ZLP | FLAG_THROTTLE_RX,
+	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_THROTTLE_RX,
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
@@ -1711,7 +1711,7 @@ static const struct driver_info ax88178a_info = {
 	.link_reset = ax88179_link_reset,
 	.reset = ax88179_reset,
 	.stop = ax88179_stop,
-	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_SEND_ZLP | FLAG_THROTTLE_RX,
+	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_THROTTLE_RX,
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
@@ -1724,7 +1724,7 @@ static const struct driver_info cypress_GX3_info = {
 	.link_reset = ax88179_link_reset,
 	.reset = ax88179_reset,
 	.stop = ax88179_stop,
-	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_SEND_ZLP | FLAG_THROTTLE_RX,
+	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_THROTTLE_RX,
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
@@ -1737,7 +1737,7 @@ static const struct driver_info dlink_dub1312_info = {
 	.link_reset = ax88179_link_reset,
 	.reset = ax88179_reset,
 	.stop = ax88179_stop,
-	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_SEND_ZLP | FLAG_THROTTLE_RX,
+	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_THROTTLE_RX,
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
@@ -1750,7 +1750,7 @@ static const struct driver_info sitecom_info = {
 	.link_reset = ax88179_link_reset,
 	.reset = ax88179_reset,
 	.stop = ax88179_stop,
-	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_SEND_ZLP | FLAG_THROTTLE_RX,
+	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_THROTTLE_RX,
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
@@ -1763,7 +1763,7 @@ static const struct driver_info samsung_info = {
 	.link_reset = ax88179_link_reset,
 	.reset = ax88179_reset,
 	.stop = ax88179_stop,
-	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_SEND_ZLP | FLAG_THROTTLE_RX,
+	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_THROTTLE_RX,
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
@@ -1776,7 +1776,7 @@ static const struct driver_info lenovo_info = {
 	.link_reset = ax88179_link_reset,
 	.reset = ax88179_reset,
 	.stop = ax88179_stop,
-	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_SEND_ZLP | FLAG_THROTTLE_RX,
+	.flags = FLAG_ETHER | FLAG_FRAMING_AX | FLAG_THROTTLE_RX,
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
@@ -1789,7 +1789,7 @@ static const struct driver_info belkin_info = {
 	.link_reset = ax88179_link_reset,
 	.reset	= ax88179_reset,
 	.stop	= ax88179_stop,
-	.flags	= FLAG_ETHER | FLAG_FRAMING_AX | FLAG_SEND_ZLP | FLAG_THROTTLE_RX,
+	.flags	= FLAG_ETHER | FLAG_FRAMING_AX | FLAG_THROTTLE_RX,
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
@@ -1797,7 +1797,11 @@ static const struct driver_info belkin_info = {
 static const struct usb_device_id products[] = {
 {
 	/* ASIX AX88179 10/100/1000 */
+#if IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	USB_DEVICE_INTERFACE_CLASS(0x0b95, 0x1790, 0xff),
+#else
 	USB_DEVICE(0x0b95, 0x1790),
+#endif /* CONFIG_USB_HOST_SAMSUNG_FEATURE */
 	.driver_info = (unsigned long)&ax88179_info,
 }, {
 	/* ASIX AX88178A 10/100/1000 */

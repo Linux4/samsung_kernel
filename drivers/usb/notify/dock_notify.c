@@ -271,12 +271,16 @@ static int call_device_notify(struct usb_device *dev, int connect)
 
 			if (!usb_check_whitelist_for_mdm(dev)) {
 				pr_info("This deice will be noattached state.\n");
+				usb_set_configuration(dev, -1);
 				usb_set_device_state(dev, USB_STATE_NOTATTACHED);
 			}
-		} else
+		} else {
+			send_otg_notify(o_notify,
+				NOTIFY_EVENT_DEVICE_CONNECT, 0);
 			store_usblog_notify(NOTIFY_PORT_DISCONNECT,
 				(void *)&dev->descriptor.idVendor,
 				(void *)&dev->descriptor.idProduct);
+		}
 	} else {
 		if (connect)
 			pr_info("%s root hub\n", __func__);
@@ -477,6 +481,8 @@ static int dev_notify(struct notifier_block *self,
 		set_hw_param(dev);
 #endif
 		check_unsupport_device(dev);
+		check_usbaudio(dev);
+		check_usbgroup(dev);
 		break;
 	case USB_DEVICE_REMOVE:
 		call_device_notify(dev, 0);

@@ -602,15 +602,10 @@ static void sm5714_notify_rp_current_level(void *_data)
 	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
 	struct i2c_client *i2c = pdic_data->i2c;
 	u8 cc_status = 0, rp_currentlvl = 0;
-	bool short_cable = false;
 #if defined(CONFIG_TYPEC)
 	enum typec_pwr_opmode mode = TYPEC_PWR_MODE_USB;
 #endif
 
-	sm5714_get_short_state(pd_data, &short_cable);
-
-	if (short_cable)
-		return;
 #if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
 	if (pdic_data->is_water_detect)
 		return;
@@ -676,6 +671,11 @@ static void sm5714_notify_rp_abnormal(void *_data)
 	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
 	struct i2c_client *i2c = pdic_data->i2c;
 	u8 cc_status = 0, rp_currentlvl = RP_CURRENT_ABNORMAL;
+
+#if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
+	if (pdic_data->is_water_detect)
+		return;
+#endif
 
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_CC_STATUS, &cc_status);
 
@@ -2290,6 +2290,18 @@ static bool sm5714_poll_status(void *_data, int irq)
 		sm5714_usbpd_check_normal_otg_device(pdic_data);
 	}
 #endif
+
+	if (pdic_data->is_cc_abnormal_state &&
+			!(status[4] & SM5714_REG_INT_STATUS5_CC_ABNORMAL)) {
+		pdic_data->is_cc_abnormal_state = false;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		if ((status[0] & SM5714_REG_INT_STATUS1_ATTACH) &&
+				!(intr[1] & SM5714_REG_INT_STATUS2_SRC_ADV_CHG) &&
+				pdic_data->is_attached)
+			pdic_data->is_noti_src_adv = true;
+#endif
+	}
+
 	if ((intr[4] & SM5714_REG_INT_STATUS5_CC_ABNORMAL) &&
 			(status[4] & SM5714_REG_INT_STATUS5_CC_ABNORMAL)) {
 		pdic_data->is_cc_abnormal_state = true;
@@ -2297,7 +2309,7 @@ static bool sm5714_poll_status(void *_data, int irq)
 		if ((status[0] & SM5714_REG_INT_STATUS1_ATTACH) &&
 				pdic_data->is_attached) {
 			/* rp abnormal */
-			sm5714_notify_rp_abnormal(_data);
+			pdic_data->is_noti_src_adv = true;
 		}
 #endif
 		pr_info("%s, CC-VBUS SHORT\n", __func__);
@@ -2321,7 +2333,7 @@ static bool sm5714_poll_status(void *_data, int irq)
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	if (intr[1] & SM5714_REG_INT_STATUS2_SRC_ADV_CHG)
-		sm5714_notify_rp_current_level(data);
+	pdic_data->is_noti_src_adv = true;
 #endif
 
 	if (intr[1] & SM5714_REG_INT_STATUS2_VBUS_0V) {
@@ -3035,9 +3047,6 @@ static int sm5714_usbpd_notify_attach(void *data)
 #if defined(CONFIG_USB_HOST_NOTIFY)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
-#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
-	bool short_cable = false;
-#endif
 	u8 reg_data;
 	int ret = 0;
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
@@ -3096,16 +3105,9 @@ static int sm5714_usbpd_notify_attach(void *data)
 #endif
 		sm5714_usbpd_policy_reset(pd_data, PLUG_EVENT);
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
-		sm5714_get_short_state(pd_data, &short_cable);
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-		/* muic, battery */
-		if (short_cable) {
-			/* rp abnormal */
-			sm5714_notify_rp_abnormal(pd_data);
-		} else {
-			/* rp current */
-			sm5714_notify_rp_current_level(pd_data);
-		}
+		if (!pdic_data->is_noti_src_adv)
+			pdic_data->is_noti_src_adv = true;
 #endif
 		if (!(pdic_data->rid == REG_RID_523K ||
 				pdic_data->rid == REG_RID_619K)) {
@@ -3287,6 +3289,7 @@ static void sm5714_usbpd_notify_detach(void *data)
 	pdic_data->is_sbu_abnormal_state = false;
 #endif
 	pdic_data->is_jig_case_on = false;
+	pdic_data->is_noti_src_adv = false;
 	pdic_data->reset_done = 0;
 	pdic_data->pd_support = 0;
 	pdic_data->rp_currentlvl = RP_CURRENT_LEVEL_NONE;
@@ -3402,6 +3405,9 @@ static irqreturn_t sm5714_pdic_irq_thread(int irq, void *data)
 	struct sm5714_usbpd_data *pd_data = dev_get_drvdata(dev);
 	int ret = 0;
 	unsigned int rid_status = 0;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	bool short_cable = false;
+#endif
 #if defined(CONFIG_SEC_FACTORY)
 	u8 rid;
 #endif /* CONFIG_SEC_FACTORY */
@@ -3499,6 +3505,17 @@ hard_reset:
 	mutex_unlock(&pdic_data->lpm_mutex);
 #endif
 out:
+
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	if (pdic_data->is_noti_src_adv) {
+		pdic_data->is_noti_src_adv = false;
+		sm5714_get_short_state(pd_data, &short_cable);
+		if (short_cable)
+			sm5714_notify_rp_abnormal(pd_data);
+		else
+			sm5714_notify_rp_current_level(pd_data);
+	}
+#endif
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	schedule_delayed_work(&pdic_data->vbus_noti_work, 0);
@@ -3893,6 +3910,7 @@ static int sm5714_usbpd_probe(struct i2c_client *i2c,
 	pdic_data->detach_valid = true;
 	pdic_data->is_otg_vboost = false;
 	pdic_data->is_jig_case_on = false;
+	pdic_data->is_noti_src_adv = false;
 	pdic_data->soft_reset = false;
 	pdic_data->is_timer_expired = false;
 	pdic_data->reset_done = 0;

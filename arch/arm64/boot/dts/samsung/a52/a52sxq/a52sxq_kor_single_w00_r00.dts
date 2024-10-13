@@ -7181,6 +7181,14 @@
 		};
 	};
 
+	fragment@131 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+			reg = <0x0 0xc0000000 0x0 0x6a00000>;
+		};
+	};
+
 	__symbols__ {
 		smd = "/fragment@smd/__overlay__/samsung_mobile_device";
 		sm5714_charger = "/fragment@smd/__overlay__/samsung_mobile_device/sm5714-charger";
@@ -7561,7 +7569,7 @@
 		reserved_memory = "/fragment@88:target:0", "/fragment@103:target:0", "/fragment@120:target:0";
 		secure_carveout_heap = "/fragment@89:target:0";
 		cdsp_secure_heap_mem = "/fragment@90:target:0";
-		removed_mem = "/fragment@91:target:0";
+		removed_mem = "/fragment@91:target:0", "/fragment@131:target:0";
 		pil_trustedvm_mem = "/fragment@92:target:0";
 		pil_adsp_mem = "/fragment@93:target:0";
 		msm_imem = "/fragment@94:target:0";
