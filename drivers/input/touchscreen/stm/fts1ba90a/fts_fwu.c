@@ -538,9 +538,10 @@ int fts_execute_autotune(struct fts_ts_info *info, bool IsSaving)
 		}
 	}
 
-	fts_set_factory_history_data(info, info->factory_position);
-	if (IsSaving == true)
+	if (IsSaving == true) {
+		fts_set_factory_history_data(info, info->factory_position);
 		fts_panel_ito_test(info, SAVE_MISCAL_REF_RAW);
+	}
 
 ERROR:
 
