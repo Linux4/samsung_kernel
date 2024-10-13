@@ -124,7 +124,9 @@ enum{
 
 #define HARDWARE_LCD_SERIALNUM_GET                _IOWR(HARDWARE_ID, 0x89, char[HARDWARE_MAX_ITEM_LONGTH]) //get lcm serialnum
 
-
+//liuling.wt, add, 2023/3/13, add for get hardwareinfo, start
+char* hardwareinfo_get_prop(int cmd);
+//liuling.wt, add, 2023/3/13, add for get hardwareinfo, end
 
 int hardwareinfo_set_prop(int cmd, const char *name);
 

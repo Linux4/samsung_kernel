@@ -293,7 +293,7 @@ static struct LCM_setting_table init_setting_cmd[] = {
 	{3,	  {0x51, 0x0F, 0xFF}},
 	{REGFLAG_DELAY, {50}}, /* Delay 50ms */
 
-//	{1,	  {0x29}}, /* Display On */
+	{1,	  {0x29}}, /* Display On */
 };
 
 static struct LCM_setting_table mode_switch_60_to_120_cmd[] = {
@@ -560,21 +560,6 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb,
 	return 0;
 }
 
-static int lcm_display_on_cmdq(void *dsi, dcs_write_gce cb,
-	void *handle)
-{
-	char disp_on[] = {0x29};
-
-	pr_info("[%s][sw83109]\n", __func__);
-
-	if (!cb)
-		return -1;
-
-	cb(dsi, handle, disp_on, ARRAY_SIZE(disp_on));
-
-	return 0;
-}
-
 static int lcm_get_virtual_heigh(void)
 {
 	return VAC;
@@ -766,7 +751,6 @@ static int mode_switch(struct drm_panel *panel, unsigned int cur_mode,
 static struct mtk_panel_funcs ext_funcs = {
 	.reset = panel_ext_reset,
 	.set_backlight_cmdq = lcm_setbacklight_cmdq,
-	.set_dispon_cmdq = lcm_display_on_cmdq,
 	.ata_check = panel_ata_check,
 	.ext_param_set = mtk_panel_ext_param_set,
 	.mode_switch = mode_switch,

@@ -4436,5 +4436,8 @@ int mt6359_mtkaif_calibration_enable(struct snd_soc_component *cmpnt);
 int mt6359_mtkaif_calibration_disable(struct snd_soc_component *cmpnt);
 int mt6359_set_mtkaif_calibration_phase(struct snd_soc_component *cmpnt,
 					int phase_1, int phase_2, int phase_3);
-
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+extern void exit_anfr_func(void);
+extern void exit_anfr_sx9375(void);
+#endif
 #endif/* end _MT6359_H_ */

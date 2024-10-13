@@ -903,9 +903,10 @@ int mmc_run_queue_thread(void *data)
 	u64 chk_time = 0;
 	u32 status = 0;
 
+#ifdef CONFIG_WT_PROJECT_S96516SA1
 	//up the emmc cmdq thread priority to 110 (nice=-10)
         set_user_nice(current, -10);
-
+#endif
 	pr_info("[CQ] start cmdq thread\n");
 	mt_bio_queue_alloc(current, NULL, false);
 

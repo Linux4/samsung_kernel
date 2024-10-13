@@ -57,6 +57,16 @@ int hardwareinfo_set_prop(int cmd, const char *name)
 	return 0;
 }
 
+//+ bug 828710, liuling 2023.03.13 add get hardwareinfo, start
+char* hardwareinfo_get_prop(int cmd)
+{
+    if(cmd < 0 || cmd >= HARDWARE_MAX_ITEM)
+        return NULL;
+
+    return hardwareinfo_name[cmd];
+}
+//- bug 828710, liuling 2023.03.13 add get hardwareinfo, end
+
 int __weak tid_hardware_info_get(char *buf, int size)
 {
 	snprintf(buf, size, "touch info interface is not ready\n");

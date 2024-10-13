@@ -33,6 +33,9 @@ enum typec_attach_type {
 
 /* CONFIG_TYPEC_CAP_NORP_SRC */
 	TYPEC_ATTACHED_NORP_SRC,		/* No Rp */
+
+/* CONFIG_WATER_DETECTION */
+	TYPEC_ATTACHED_WD_SNK,
 };
 
 enum pd_connect_result {

@@ -334,13 +334,8 @@ static int mtk_usb_extcon_set_vbus_v1(bool is_on) {
 	pr_info("%s: is_on=%d\n", __func__, is_on);
 	if (is_on) {
 		charger_dev_enable_otg(primary_charger, true);
-#if defined (CONFIG_N26_CHARGER_PRIVATE)  || defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
 		charger_dev_set_boost_current_limit(primary_charger,
-			1500000); 
-#else
-		charger_dev_set_boost_current_limit(primary_charger,
-			1100000);  //churui1.wt, decrease the OTG current limit
-#endif			
+			1500000);
 		#if 0
 		{// # workaround
 			charger_dev_kick_wdt(primary_charger);

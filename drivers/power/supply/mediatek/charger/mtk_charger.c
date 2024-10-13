@@ -1070,6 +1070,10 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 {
 	struct sw_jeita_data *sw_jeita;
 
+#if defined (CONFIG_W2_CHARGER_PRIVATE)
+	int cycle_fv;
+#endif
+
 	sw_jeita = &info->sw_jeita;
 	sw_jeita->pre_sm = sw_jeita->sm;
 	sw_jeita->charging = true;
@@ -1183,6 +1187,13 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 		sw_jeita->cv = info->data.battery_cv;
 		sw_jeita->cc = info->data.ac_charger_input_current;
 	}
+
+#if defined (CONFIG_W2_CHARGER_PRIVATE)
+	cycle_fv = wt_set_batt_cycle_fv(false);
+	if ((cycle_fv != 0) && (sw_jeita->cv > cycle_fv)) {
+		sw_jeita->cv = cycle_fv;
+	}
+#endif
 
 	chr_err("[SW_JEITA]preState:%d newState:%d tmp:%d cv:%d cc:%d\n",
 		sw_jeita->pre_sm, sw_jeita->sm, info->battery_temp,
@@ -2390,7 +2401,7 @@ static int charger_routine_thread(void *arg)
 #ifdef WT_COMPILE_FACTORY_VERSION
 //+Bug805518,churui1.wt, turn off charging limit during the battery test on ATO version
 		chr_err("ato_soc ctrl=%d\n",ato_soc);
-		if (is_charger_on && (ato_soc == 0)) {
+		if (is_charger_on && (ato_soc == 0) && (battery_capacity_limit == false)) {
 			charging_flag = 0;
 			ato_charger_limit_soc(info, 60, 80);
 			chr_err("ato_soc if limit ato_soc_user_control\n");
@@ -2582,7 +2593,11 @@ static int mtk_charger_parse_dt(struct charger_manager *info,
 	}
 
 	if (of_property_read_u32(np, "usb_charger_current", &val) >= 0) {
+#ifdef WT_COMPILE_FACTORY_VERSION //usb if
+		info->data.usb_charger_current = 500000;
+#else
 		info->data.usb_charger_current = val;
+#endif /* WT_COMPILE_FACTORY_VERSION */
 	} else {
 		chr_err("use default USB_CHARGER_CURRENT:%d\n",
 			USB_CHARGER_CURRENT);
@@ -4911,9 +4926,8 @@ static void mtk_charger_shutdown(struct platform_device *dev)
 	}
 	if (factory_shipmode == true){
 		printk("##shutdown with entering shipmode!\n");
+		charger_dev_set_shipmode_delay(info->chg1_dev,true); /* churui1.wt 2023.03.18 modify for enter shipmode delay*/
 		charger_dev_set_shipmode(info->chg1_dev,true);
-		charger_dev_set_shipmode_delay(info->chg1_dev,false);
-
 	}else
 		printk("##shutdown only!!\n");
 }

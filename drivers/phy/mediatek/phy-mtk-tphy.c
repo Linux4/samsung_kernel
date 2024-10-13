@@ -1854,7 +1854,7 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
         instance->eye_vrt = 0x7;
         instance->eye_term = 0x5;
         instance->eye_rev6 = 0x3;
-        instance->eye_disc = 0x7;
+        instance->eye_disc = 0xf;
 #elif defined(CONFIG_WT_PROJECT_S96516SA1)
         instance->eye_vrt = 0x6;
         instance->eye_term = 0x6;

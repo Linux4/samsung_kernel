@@ -893,6 +893,10 @@ struct mtk_battery {
 	int bat_cycle_thr;
 	int bat_cycle_car;
 	int bat_cycle_ncar;
+#if defined (CONFIG_W2_CHARGER_PRIVATE)
+	int *batt_cycle_fv_cfg;
+	int fv_levels;
+#endif
 
 /* cust req ocv data */
 	int algo_qmax;

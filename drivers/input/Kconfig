@@ -214,6 +214,14 @@ config INPUT_ABOV_TWO_CHANNEL
         Say Y to enable the SAR sub channel detection application, if N here not to use the
         this SAR sub channel sensor
 
+config SX9375_SAR
+    tristate "SX937X_SAR_sensor"
+    depends on I2C
+    default n
+    help
+        Say Y to enable the SAR detection application, if N here not to use the
+        this SAR sensor
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"

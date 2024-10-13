@@ -61,7 +61,9 @@
 #include "mtk_intf.h"
 
 #if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifndef WT_COMPILE_FACTORY_VERSION
 #define CONFIG_USBIF_COMPLIANCE 1
+#endif /* WT_COMPILE_FACTORY_VERSION */
 #endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 bool g_chg_done = false;
@@ -823,7 +825,7 @@ static int select_pdc_charging_current_limit(struct charger_manager *info)
 	pdata = &info->chg1_data;
 
 	//Extb+ P210310-04076,lvyuanchuan.wt,Modify,20210406,config input current for SDP
-	if(info->chr_type == STANDARD_HOST){
+	if((info->chr_type == STANDARD_HOST) || (info->chr_type == CHARGER_UNKNOWN)){
 		// lvyuanchuan.wt, USB Charging current
 		pdata->input_current_limit = 500000;
 		pdata->charging_current_limit = 500000;

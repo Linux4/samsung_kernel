@@ -2164,6 +2164,39 @@ static ssize_t power_enable_store(struct class *class, struct class_attribute *a
 }
 #endif
 
+static ssize_t user_test_show(struct class *class,
+                                 struct class_attribute *attr,
+                                 char *buf)
+{
+    pabovXX_t this = abov_sar_ptr;
+    return sprintf(buf, "%d\n", this->user_test);
+}
+static ssize_t user_test_store(struct class *class,
+                                  struct class_attribute *attr,
+                                  const char *buf, size_t count)
+{
+    int ret = -1;
+    pabovXX_t this = abov_sar_ptr;
+
+    ret = kstrtoint(buf, 10, &this->user_test);
+    if (0 != ret) {
+        LOG_ERR("kstrtoint failed\n");
+    }
+
+    printk("ABOV:this->user_test:%d", this->user_test);
+    if(this->user_test){
+        if(is_anfr_sar){
+	    this->abov_first_boot = false;
+            printk("ABOV: this->abov_first_boot = %d;", this->abov_first_boot);
+	    printk("ABOV:user_test mode, exit force near mode!!!");
+	}
+        printk("ABOV ch user_test mode cali ... \n");
+        write_register(this, ABOV_RECALI_REG, 0x01);
+        msleep(500);
+    }
+    return count;
+}
+
 
 static struct class_attribute class_attr_enable = __ATTR(enable, 0644, enable_show, enable_store);
 static struct class_attribute class_attr_reg = __ATTR(reg, 0644, reg_show, reg_store);                                               
@@ -2177,6 +2210,7 @@ static struct class_attribute class_attr_bl = __ATTR(bl, 0444, bl_show, NULL);
 #if POWER_ENABLE
 static struct class_attribute class_attr_power_enable = __ATTR(power_enable, 0664, power_enable_show, power_enable_store);
 #endif
+static struct class_attribute class_attr_user_test = __ATTR(user_test, 0664, user_test_show, user_test_store);
 
 static struct attribute *abov_capsense_attrs[] = {
 	&class_attr_enable.attr,
@@ -2191,6 +2225,7 @@ static struct attribute *abov_capsense_attrs[] = {
 #if POWER_ENABLE
     &class_attr_power_enable.attr,
 #endif
+    &class_attr_user_test.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(abov_capsense); 
@@ -2546,6 +2581,7 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		mEnabled = 0;
 
         this->abov_first_boot = true;
+        this->user_test = 0;
         if(!strncmp(sales_code_from_cmdline, "XAC",SALE_CODE_STR_LENGTH + 1)){
             is_anfr_sar = true;
         }

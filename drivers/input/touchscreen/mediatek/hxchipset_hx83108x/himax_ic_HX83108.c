@@ -53,8 +53,6 @@ static bool hx83108_sense_off(bool check_en)
 			g_core_fp.fp_register_write(pfw_op->addr_ctrl_fw_isr,
 				pfw_op->data_fw_stop, DATA_LEN_4);
 
-		/*msleep(20);*/
-		usleep_range(10000, 10001);
 		/* check fw status */
 		g_core_fp.fp_register_read(pic_op->addr_cs_central_state,
 			tmp_data, ADDR_LEN_4);
@@ -64,7 +62,8 @@ static bool hx83108_sense_off(bool check_en)
 					__func__, tmp_data[0]);
 			break;
 		}
-
+		/*msleep(20);*/
+		usleep_range(10000, 10001);
 		g_core_fp.fp_register_read(pfw_op->addr_ctrl_fw_isr, tmp_data,
 			4);
 		I("%s: cnt = %d, data[0] = 0x%02X!\n", __func__,

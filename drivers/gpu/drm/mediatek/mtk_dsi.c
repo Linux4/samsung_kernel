@@ -413,7 +413,6 @@ struct mtk_dsi {
 	unsigned int data_phy_cycle;
 	/* for Panel Master dcs read/write */
 	struct mipi_dsi_device *dev_for_PM;
-	atomic_t cmdq_option_enable;
 	bool using_hs_transfer;
 };
 #endif
@@ -1703,11 +1702,11 @@ static s32 mtk_dsi_poll_for_idle(struct mtk_dsi *dsi, struct cmdq_pkt *handle)
 	}
 
 	while (loop_cnt < 100 * 1000) {
+		udelay(1);
 		tmp = readl(dsi->regs + DSI_INTSTA);
 		if (!(tmp & DSI_BUSY))
 			return 1;
 		loop_cnt++;
-		udelay(1);
 	}
 	DDPPR_ERR("%s timeout\n", __func__);
 	return 0;
@@ -1874,6 +1873,7 @@ static irqreturn_t mtk_dsi_irq_status(int irq, void *dev_id)
 				priv = mtk_crtc->base.dev->dev_private;
 
 			DDPINFO("%s():dsi te_rdy irq", __func__);
+			mtk_drm_default_tag(&dsi->ddp_comp, "DISP_VSYNC", TRACE_MARK);
 			if (priv && mtk_drm_helper_get_opt(priv->helper_opt,
 							   MTK_DRM_OPT_HBM))
 				wakeup_dsi_wq(&dsi->te_rdy);
@@ -2980,7 +2980,7 @@ static void mtk_output_dsi_disable(struct mtk_dsi *dsi,
 	if (!dsi->output_en)
 		return;
 
-	atomic_set(&dsi->cmdq_option_enable, 1);
+	mtk_crtc->set_lcm_scn = SET_LCM_POWER_MODE_NEED_CMDQ;
 	mtk_drm_crtc_wait_blank(mtk_crtc);
 
 	/* 1. If not doze mode, turn off backlight */
@@ -2990,7 +2990,7 @@ static void mtk_output_dsi_disable(struct mtk_dsi *dsi,
 			return;
 		}
 	}
-	atomic_set(&dsi->cmdq_option_enable, 0);
+	mtk_crtc->set_lcm_scn = SET_LCM_NONE;
 	/* 2. If VDO mode, stop it and set to CMD mode */
 	if (!mtk_dsi_is_cmd_mode(&dsi->ddp_comp))
 		mtk_dsi_stop_vdo_mode(dsi, NULL);
@@ -5038,7 +5038,7 @@ static void _mtk_mipi_dsi_write_gce(struct mtk_dsi *dsi,
 	u32 reg_val, cmdq_mask, i;
 	unsigned long goto_addr;
 
-	DDPMSG("%s +\n", __func__);
+	//DDPMSG("%s +\n", __func__);
 
 	if (MTK_DSI_HOST_IS_READ(type))
 		config = BTA;
@@ -5089,7 +5089,7 @@ static void _mtk_mipi_dsi_write_gce(struct mtk_dsi *dsi,
 	DDPINFO("set cmdqaddr %u, val:%x, mask %x\n", DSI_CMDQ_SIZE, cmdq_size,
 			CMDQ_SIZE);
 
-	DDPMSG("%s -\n", __func__);
+	//DDPMSG("%s -\n", __func__);
 }
 
 int mtk_mipi_dsi_write_gce(struct mtk_dsi *dsi,
@@ -6039,7 +6039,7 @@ static void mtk_dsi_cmd_timing_change(struct mtk_dsi *dsi,
 
 	mtk_drm_trace_begin("%s\n", __func__);
 
-	atomic_set(&dsi->cmdq_option_enable, 1);
+	mtk_crtc->set_lcm_scn = SET_LCM_FPS_CHANGE;
 
 	/* 1. wait frame done & wait DSI not busy */
 	cmdq_pkt_wait_no_clear(cmdq_handle,
@@ -6128,7 +6128,7 @@ skip_change_mipi:
 
 	mtk_drm_trace_end();
 
-	atomic_set(&dsi->cmdq_option_enable, 0);
+	mtk_crtc->set_lcm_scn = SET_LCM_NONE;
 }
 
 static void mtk_dsi_dy_fps_cmdq_cb(struct cmdq_cb_data data)
@@ -6588,9 +6588,7 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 		panel_ext = mtk_dsi_get_panel_ext(comp);
 		if (panel_ext && panel_ext->funcs
 			&& panel_ext->funcs->set_dispon_cmdq)
-			panel_ext->funcs->set_dispon_cmdq(dsi,
-					mipi_dsi_dcs_write_gce,
-					handle);
+			panel_ext->funcs->set_dispon_cmdq(dsi->panel);
 	}
 		break;
 
@@ -6869,15 +6867,18 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 		}
 	}
 		break;
-	case READ_CMDQ_OPTION:
+
+	case DSI_HBM_SET_LCM:
 	{
-		int *cmdq_option = 0;
-		struct mtk_dsi *dsi =
-			container_of(comp, struct mtk_dsi, ddp_comp);
-		cmdq_option = (int *)params;
-		*cmdq_option = atomic_read(&dsi->cmdq_option_enable);
-	}
+		panel_ext = mtk_dsi_get_panel_ext(comp);
+		if (!(panel_ext && panel_ext->funcs &&
+		      panel_ext->funcs->hbm_set_lcm_cmdq))
+			break;
+
+		panel_ext->funcs->hbm_set_lcm_cmdq(dsi->panel, *(bool *)params);
 		break;
+	}
+
 	case DSI_GET_VIRTUAL_HEIGH:
 	{
 		struct mtk_drm_crtc *crtc = comp->mtk_crtc;

@@ -54,6 +54,9 @@ extern int __init nanohub_init(void);
 #define SYNC_TIME_CYCLC 10000
 #define SYNC_TIME_START_CYCLC 3000
 
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+#define HARDWARE_MAX_ITEM_LONGTH        64
+#endif
 enum {
 	CUST_CMD_CALI,
 	MAX_CUST_CMD,
@@ -94,7 +97,37 @@ struct mtk_nanohub_device {
 	int32_t sar_config_data[4];
 	int32_t ois_config_data[2];
 };
-
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+enum {
+    NT36672C_FHDP_WT_DSI_VDO_CPHY_90HZ_TIANMA = 0,
+    ILI7807_FHDP_WT_DSI_VDO_CPHY_90HZ_TXD,
+    FT8722_FHDP_WT_WT_DSI_VDO_CPHY_90HZ_TRULY,
+    HX83112F_FHDP_WT_DSI_VDO_CPHY_90HZ_TXD,
+    HX83112F_FHDP_WT_DSI_VDO_CPHY_90HZ_JDI,
+    FT8722_FHDP_WT_WT_DSI_VDO_CPHY_90HZ_TXD,
+    ILI7807S_FHDP_WT_DSI_VDO_CPHY_90HZ_TIANMA,
+    HX83112F_FHDP_WT_DSI_VDO_CPHY_90HZ_DSBJ,
+    HX83112F_FHDP_WT_DSI_VDO_CPHY_90HZ_DJN,
+    ILI7807S_FHDP_WT_DSI_VDO_CPHY_90HZ_CHANGWEI,
+    LCD_MAX_TYPES
+};
+struct LCDInfo {
+    char lcdName[HARDWARE_MAX_ITEM_LONGTH];
+    int32_t lcdType;
+};
+static const struct LCDInfo lcdInfo[LCD_MAX_TYPES] = {
+    {.lcdName = "nt36672c_fhdp_wt_dsi_vdo_cphy_90hz_tianma", .lcdType = NT36672C_FHDP_WT_DSI_VDO_CPHY_90HZ_TIANMA},
+    {.lcdName = "ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_txd", .lcdType = ILI7807_FHDP_WT_DSI_VDO_CPHY_90HZ_TXD},
+    {.lcdName = "ft8722_fhdp_wt_dsi_vdo_cphy_90hz_truly", .lcdType = FT8722_FHDP_WT_WT_DSI_VDO_CPHY_90HZ_TRULY},
+    {.lcdName = "hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_txd", .lcdType = HX83112F_FHDP_WT_DSI_VDO_CPHY_90HZ_TXD},
+    {.lcdName = "hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_jdi", .lcdType = HX83112F_FHDP_WT_DSI_VDO_CPHY_90HZ_JDI},
+    {.lcdName = "ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd", .lcdType = FT8722_FHDP_WT_WT_DSI_VDO_CPHY_90HZ_TXD},
+    {.lcdName = "ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_tianma", .lcdType = ILI7807S_FHDP_WT_DSI_VDO_CPHY_90HZ_TIANMA},
+    {.lcdName = "hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_dsbj", .lcdType = HX83112F_FHDP_WT_DSI_VDO_CPHY_90HZ_DSBJ},
+    {.lcdName = "hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_djn", .lcdType = HX83112F_FHDP_WT_DSI_VDO_CPHY_90HZ_DJN},
+    {.lcdName = "ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_chuangwei", .lcdType = ILI7807S_FHDP_WT_DSI_VDO_CPHY_90HZ_CHANGWEI}
+};
+#endif
 static uint8_t rtc_compensation_suspend;
 static struct SensorState sensor_state[SENSOR_TYPE_SENSOR_MAX];
 static int64_t raw_ts_reverse_debug[SENSOR_TYPE_SENSOR_MAX];
@@ -117,6 +150,22 @@ static int mtk_nanohub_send_timestamp_to_hub(void);
 static int mtk_nanohub_server_dispatch_data(uint32_t *currWp);
 static int mtk_nanohub_report_to_manager(struct data_unit_t *data);
 static int mtk_nanohub_create_manager(void);
+
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+extern char *saved_command_line;
+static int32_t sensor_match_lcm_name(void)
+{
+    int index = 0;
+    printk("saved_command_line is %s \t%s, %d\n", saved_command_line,__func__, __LINE__);
+    for (index = 0; index < LCD_MAX_TYPES; index++) {
+        if (strstr(saved_command_line, lcdInfo[index].lcdName)) {
+            printk("%s Found correct LCD %s\n", __func__, lcdInfo[index].lcdName);
+            return lcdInfo[index].lcdType;
+        }
+    }
+    return NT36672C_FHDP_WT_DSI_VDO_CPHY_90HZ_TIANMA;
+}
+#endif
 
 enum scp_ipi_status __attribute__((weak)) scp_ipi_registration(enum ipi_id id,
         void (*ipi_handler)(int id, void *data, unsigned int len),
@@ -608,7 +657,9 @@ static void mtk_nanohub_init_sensor_info(void)
 
 	p = &sensor_state[SENSOR_TYPE_WAKE_GESTURE];
 	p->sensorType = SENSOR_TYPE_WAKE_GESTURE;
-	p->rate = SENSOR_RATE_ONESHOT;
+// modify wake sensor report mode by wangjianlong at 20221029 start
+	p->rate = SENSOR_RATE_ONCHANGE;
+// modify wake sensor report mode by wangjianlong at 20221029 end
 	p->gain = 1;
 	strlcpy(p->name, "wake", sizeof(p->name));
 	strlcpy(p->vendor, "mtk", sizeof(p->vendor));
@@ -680,6 +731,15 @@ static void mtk_nanohub_init_sensor_info(void)
 	p->gain = 1000000;
 	strlcpy(p->name, "ois", sizeof(p->name));
 	strlcpy(p->vendor, "mtk", sizeof(p->vendor));
+
+// add smart alert sensor to project by wangjianlong at 20221029 start
+    p = &sensor_state[SENSOR_TYPE_SMART_ALERT];
+    p->sensorType = SENSOR_TYPE_SMART_ALERT;
+    p->rate = SENSOR_RATE_ONESHOT;
+    p->gain = 1;
+    strlcpy(p->name, "smart alert", sizeof(p->name));
+    strlcpy(p->vendor, "Samsung Electronics", sizeof(p->vendor));
+// add smart alert sensor to project by wangjianlong at 20221029 end
 
 }
 
@@ -1965,7 +2025,9 @@ static int mtk_nanohub_config(struct hf_device *hfdev,
 		int sensor_type, void *data, uint8_t length)
 {
 	struct mtk_nanohub_device *device = mtk_nanohub_dev;
-
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	 int32_t *value = data;
+#endif
 	if (sensor_type <= 0)
 		return 0;
 
@@ -1996,6 +2058,9 @@ static int mtk_nanohub_config(struct hf_device *hfdev,
 		if (sizeof(device->light_config_data) < length)
 			length = sizeof(device->light_config_data);
 		spin_lock(&config_data_lock);
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	     value[1] = sensor_match_lcm_name();
+#endif
 		memcpy(device->light_config_data, data, length);
 		spin_unlock(&config_data_lock);
 		//bug767771,huchangchang01.wt,modify,20220808,distinguish als-parameters according to lcd type
@@ -2273,6 +2338,9 @@ static int mtk_nanohub_report_to_manager(struct data_unit_t *data)
 		case ID_PICK_UP_GESTURE:
 		case ID_STATIONARY_DETECT:
 		case ID_WAKE_GESTURE:
+// add smart alert sensor to project by wangjianlong at 20221029 start
+        case ID_SMART_ALERT:
+// add smart alert sensor to project by wangjianlong at 20221029 start
 			event.timestamp = data->time_stamp;
 			event.sensor_type = id_to_type(data->sensor_type);
 			event.action = data->flush_action;

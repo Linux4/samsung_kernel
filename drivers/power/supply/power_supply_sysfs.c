@@ -490,6 +490,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(pd_flag),
 //Bug774038,churui1.wt,add batt_full_capacity node
 	POWER_SUPPLY_ATTR(batt_full_capacity),
+	POWER_SUPPLY_ATTR(batt_temp),
 #endif
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),

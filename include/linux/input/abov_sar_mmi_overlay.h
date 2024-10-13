@@ -316,6 +316,7 @@ struct abovXX {
 	u16 ch0_backgrand_cap;
 	u16 ch1_backgrand_cap;
 	u16 ch2_backgrand_cap;
+    int user_test;
 
 #if POWER_ENABLE
     int power_state;

@@ -29,6 +29,10 @@ static struct adsp_feature_tb feature_table[ADSP_NUM_FEATURE_ID] = {
 	[USB_DL_FEATURE_ID]           = {.name = "usbdl"},
 	[USB_UL_FEATURE_ID]           = {.name = "usbul"},
 	[A2DP_PLAYBACK_FEATURE_ID]    = {.name = "a2dp_playback"},
+	[BLEDL_FEATURE_ID]            = {.name = "bledl"},
+	[BLEUL_FEATURE_ID]            = {.name = "bleul"},
+	[BLEDEC_FEATURE_ID]           = {.name = "bledec"},
+	[BLEENC_FEATURE_ID]           = {.name = "bleenc"},
 	[AUDIO_DATAPROVIDER_FEATURE_ID] = {.name = "dataprovider"},
 	[SPK_PROTECT_FEATURE_ID]      = {.name = "spk_protect"},
 	[VOICE_CALL_FEATURE_ID]       = {.name = "voice_call"},
@@ -40,6 +44,8 @@ static struct adsp_feature_tb feature_table[ADSP_NUM_FEATURE_ID] = {
 	[CAPTURE_RAW_FEATURE_ID]      = {.name = "capture_raw"},
 	[FM_ADSP_FEATURE_ID]          = {.name = "fm_adsp"},
 	[VOICE_CALL_SUB_FEATURE_ID]   = {.name = "voice_call_sub"},
+	[BLE_CALL_DL_FEATURE_ID]      = {.name = "blecalldl"},
+	[BLE_CALL_UL_FEATURE_ID]      = {.name = "blecallul"},
 };
 
 int adsp_get_feature_index(const char *str)

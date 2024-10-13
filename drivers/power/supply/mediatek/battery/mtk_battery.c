@@ -106,7 +106,7 @@ static int usb_low_current = 0;
 //Bug773947,churui1.wt,set mode 2 for batt_slate_mode node
 int batt_slate_mode = 0;
 bool batt_store_mode = 0;
-bool battery_capacity_limit = true;
+bool battery_capacity_limit = false;
 bool batt_hv_disable = 0;
 //+bug672289,lvyuanchuan.wt,add,20210629,Increase file node control OTG
 struct battery_data battery_main;
@@ -160,7 +160,9 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_NEW_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_HV_DISABLE,
+	POWER_SUPPLY_PROP_BATTERY_CYCLE,
 	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY, //Bug774038,churui1.wt,add batt_full_capacity node
+	POWER_SUPPLY_PROP_BATT_TEMP,
 };
 
 static enum power_supply_property otg_props[] = {
@@ -778,6 +780,12 @@ static int battery_get_property(struct power_supply *psy,
 		val->intval = batt_full_capacity;
 		break;
 //-Bug774038,churui1.wt,add batt_full_capacity node
+	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
+		val->intval = gm.bat_cycle;
+		break;
+	case POWER_SUPPLY_PROP_BATT_TEMP:
+		val->intval = gm.tbat_precise;
+		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
 		val->intval = gm.dynamic_cv;
 		break;
@@ -4912,6 +4920,31 @@ static ssize_t store_ato_soc_user_control(struct device *dev,struct device_attri
 static DEVICE_ATTR(ato_soc_user_control, 0664, show_ato_soc_user_control, store_ato_soc_user_control);
 //-Bug805518,churui1.wt, turn off charging limit during the battery test on ATO version
 
+//+churui1.wt, battery UI add batt_type node
+char str_batt_type[64] = {0};
+static ssize_t show_batt_type(struct device *dev,struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n", str_batt_type);
+}
+static ssize_t store_batt_type(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
+{
+	int i = 0;
+	printk("[%s]\n", __func__);
+	if (buf != NULL && size != 0) {
+		bm_err("[%s] buf is %s\n", __func__, buf);
+		memset(str_batt_type, 0, 64);
+		for (i = 0; i < size; ++i) {
+			str_batt_type[i] = buf[i];
+		}
+		str_batt_type[i+1] = '\0';
+		bm_err("str_batt_type:%s\n", str_batt_type);
+	}
+	
+	return size;
+}
+static DEVICE_ATTR(batt_type, 0664, show_batt_type, store_batt_type);
+//-churui1.wt, battery UI add batt_type node
+
 //Bug774039,gudi.wt,add shipmode ctrl
 /* ship mode */
 static ssize_t shipmode_show(struct device *dev,
@@ -5094,6 +5127,7 @@ static int __init battery_probe(struct platform_device *dev)
 #endif
 		ret = device_create_file(&battery_main.psy->dev, &dev_attr_shipmode);
 		ret = device_create_file(&battery_main.psy->dev, &dev_attr_ato_soc_user_control);
+		ret = device_create_file(&battery_main.psy->dev, &dev_attr_batt_type);
 
 	otg_main.psy = power_supply_register(&(dev->dev), &otg_main.psd, NULL);
 	if (IS_ERR(otg_main.psy)) {

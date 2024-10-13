@@ -619,7 +619,7 @@ static void msdc_retry(struct msdc_host *host, int addr, int val, int retry, int
 			cnt--;
 		}
 		if (cnt <= 0) {
-			retry--; mdelay(100); cnt = backup;
+			retry--; mdelay(1); cnt = backup;
 		}
 	}
 	if (retry == 0) {
@@ -1233,7 +1233,7 @@ static inline bool msdc_cmd_is_ready(struct msdc_host *host,
 		struct mmc_request *mrq, struct mmc_command *cmd)
 {
 	/* The max busy time we can endure is 20ms */
-	unsigned long tmo = jiffies + msecs_to_jiffies(CMD_TIMEOUT);
+	unsigned long tmo = jiffies + msecs_to_jiffies(20);
 
 	if (cmd->opcode == MMC_SEND_STATUS) {
 		while ((readl(host->base + SDC_STS) & SDC_STS_CMDBUSY) &&
@@ -1859,8 +1859,12 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 				return;
 			}
 		}
-		pinctrl_select_state(host->pinctrl, host->pins_default);
-		mdelay(1);
+		if (host->pins_default) {
+			pinctrl_select_state(host->pinctrl, host->pins_default);
+			mdelay(1);
+		}
+		if (host->mclk != ios->clock || host->timing != ios->timing)
+			msdc_set_mclk(host, ios->timing, ios->clock);
 		break;
 	case MMC_POWER_ON:
 		if (!IS_ERR(mmc->supply.vqmmc) && !host->vqmmc_enabled) {
@@ -1870,8 +1874,12 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			else
 				host->vqmmc_enabled = true;
 		}
-		pinctrl_select_state(host->pinctrl, host->pins_default);
-		mdelay(1);
+		if (host->pins_default) {
+			pinctrl_select_state(host->pinctrl, host->pins_default);
+			mdelay(1);
+		}
+		if (host->mclk != ios->clock || host->timing != ios->timing)
+			msdc_set_mclk(host, ios->timing, ios->clock);
 		break;
 	case MMC_POWER_OFF:
 		if (!IS_ERR(mmc->supply.vmmc))
@@ -1881,8 +1889,9 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			regulator_disable(mmc->supply.vqmmc);
 			host->vqmmc_enabled = false;
 		}
+		if (host->mclk != ios->clock || host->timing != ios->timing)
+			msdc_set_mclk(host, ios->timing, ios->clock);
 		if (host->pins_pull_down) {
-			dev_info(host->dev, "%s pins_pull_down", __func__);
 			pinctrl_select_state(host->pinctrl, host->pins_pull_down);
 			mdelay(1);
 		}
@@ -1891,8 +1900,6 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		break;
 	}
 
-	if (host->mclk != ios->clock || host->timing != ios->timing)
-		msdc_set_mclk(host, ios->timing, ios->clock);
 }
 
 static u32 test_delay_bit(u32 delay, u32 bit)
@@ -2768,6 +2775,9 @@ static int msdc_drv_probe(struct platform_device *pdev)
 		mmc->host_function = -1;
 	}
 
+	if (mmc->host_function == MSDC_SD)
+		mmc->caps |= MMC_CAP_AGGRESSIVE_PM | MMC_CAP_CD_WAKE;
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	host->base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(host->base)) {
@@ -3137,6 +3147,17 @@ static int msdc_runtime_suspend(struct device *dev)
 	return 0;
 }
 
+static int msdc_suspend(struct device *dev)
+{
+	struct mmc_host *mmc = dev_get_drvdata(dev);
+	struct msdc_host *host = mmc_priv(mmc);
+
+	dev_dbg(host->dev,"%s, GPIO set cd wake enable",__func__);
+	mmc_gpio_set_cd_wake(mmc, true);
+
+	return pm_runtime_force_suspend(dev);
+}
+
 static int msdc_runtime_resume(struct device *dev)
 {
 	struct mmc_host *mmc = dev_get_drvdata(dev);
@@ -3160,11 +3181,21 @@ static int msdc_runtime_resume(struct device *dev)
 			1, 4, 1, 0, 0, 0, 0, &smccc_res);
 	return 0;
 }
+
+static int msdc_resume(struct device *dev)
+{
+	struct mmc_host *mmc = dev_get_drvdata(dev);
+	struct msdc_host *host = mmc_priv(mmc);
+
+	dev_dbg(host->dev,"%s, GPIO set cd wake disable",__func__);
+	mmc_gpio_set_cd_wake(mmc, false);
+
+	return pm_runtime_force_resume(dev);
+}
 #endif
 
 static const struct dev_pm_ops msdc_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-				pm_runtime_force_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(msdc_suspend, msdc_resume)
 	SET_RUNTIME_PM_OPS(msdc_runtime_suspend, msdc_runtime_resume, NULL)
 };
 
