@@ -173,6 +173,9 @@ int add_ion_mem(struct npu_session *session, struct npu_memory_buffer *mem_buf, 
 	case NCP_TYPE:
 		session->ncp_mem_buf = mem_buf;
 		break;
+	case NCP_HDR_TYPE:
+		session->ncp_hdr_buf = mem_buf;
+		break;
 	case IOFM_TYPE:
 		session->IOFM_mem_buf = mem_buf;
 		break;
@@ -206,6 +209,13 @@ void __release_graph_ion(struct npu_session *session)
 		kfree(ion_mem_buf);
 	}
 
+	ion_mem_buf = session->ncp_hdr_buf;
+	session->ncp_hdr_buf = NULL;
+	if (unlikely(ion_mem_buf)) {
+		npu_memory_free(memory, ion_mem_buf);
+		kfree(ion_mem_buf);
+	}
+
 	ion_mem_buf = session->IOFM_mem_buf;
 	session->IOFM_mem_buf = NULL;
 	if (unlikely(ion_mem_buf)) {
@@ -229,7 +239,7 @@ int npu_session_NW_CMD_UNLOAD(struct npu_session *session)
 	struct npu_device *device;
 	nw_cmd_e nw_cmd = NPU_NW_CMD_UNLOAD;
 
-	if (!session) {
+	if (unlikely(!session)) {
 		npu_err("invalid session\n");
 		return -EINVAL;
 	}
@@ -245,6 +255,12 @@ int npu_session_NW_CMD_UNLOAD(struct npu_session *session)
 	npu_udbg("sending UNLOAD command.\n", session);
 	session->nw_result.result_code = NPU_NW_JUST_STARTED;
 	npu_session_put_nw_req(session, nw_cmd);
+
+	if (session->ncp_payload) {
+		npu_memory_free(session->memory, session->ncp_payload);
+		kfree(session->ncp_payload);
+		session->ncp_payload = NULL;
+	}
 
 	return 0;
 }
@@ -403,6 +419,13 @@ graph_ion_unmap:
 		kfree(ion_mem_buf);
 	}
 
+	ion_mem_buf = session->ncp_hdr_buf;
+	session->ncp_hdr_buf = NULL;
+	if (likely(ion_mem_buf)) {
+		npu_memory_free(memory, ion_mem_buf);
+		kfree(ion_mem_buf);
+	}
+
 	return 0;
 }
 
@@ -540,18 +563,32 @@ int __update_ncp_info(struct npu_session *session, struct npu_memory_buffer *ncp
 	return 0;
 }
 
+static struct npu_memory_buffer *
+copy_ncp_header(struct npu_session *session, struct npu_memory_buffer *ncp_mem_buf)
+{
+	struct npu_memory_buffer *buffer;
+	struct ncp_header *src_hdr = ncp_mem_buf->vaddr;
+
+	buffer = npu_memory_copy(session->memory, ncp_mem_buf, 0, src_hdr->hdr_size);
+	if (IS_ERR_OR_NULL(buffer))
+		return buffer;
+
+	add_ion_mem(session, buffer, NCP_HDR_TYPE);
+
+	return buffer;
+}
+
 int __ncp_ion_map(struct npu_session *session, struct drv_usr_share *usr_data)
 {
 	int ret = 0;
 
-	struct npu_memory_buffer *ncp_mem_buf = NULL;
+	struct npu_memory_buffer *ncp_mem_buf = NULL, *ncp_hdr_buf = NULL;
 	mem_opt_e opt = NCP_TYPE;
 
 	ncp_mem_buf = kzalloc(sizeof(struct npu_memory_buffer), GFP_KERNEL);
 	if (ncp_mem_buf == NULL) {
 		npu_err("fail in npu_ion_map kzalloc\n");
-		ret = -ENOMEM;
-		goto p_err;
+		return -ENOMEM;
 	}
 	ncp_mem_buf->fd = usr_data->ncp_fd;
 	ncp_mem_buf->size = usr_data->ncp_size;
@@ -559,26 +596,33 @@ int __ncp_ion_map(struct npu_session *session, struct drv_usr_share *usr_data)
 	ret = npu_memory_map(session->memory, ncp_mem_buf, configs[NPU_PBHA_HINT_11]);
 	if (unlikely(ret)) {
 		npu_err("npu_memory_map is fail(%d).\n", ret);
-		if (ncp_mem_buf)
-			kfree(ncp_mem_buf);
-		goto p_err;
+		goto err_free;
 	}
 	npu_info("ncp_ion_map(0x%pad), vaddr(0x%pK)\n", &ncp_mem_buf->daddr, ncp_mem_buf->vaddr);
 	ret = __update_ncp_info(session, ncp_mem_buf);
 	if (ret) {
 		npu_err("__ncp_ion_map is fail(%d).\n", ret);
-		if (ncp_mem_buf)
-			kfree(ncp_mem_buf);
-		goto p_err;
+		goto err_unmap;
 	}
 	ret = add_ion_mem(session, ncp_mem_buf, opt);
 	if (ret) {
 		npu_err("__ncp_ion_map is fail(%d).\n", ret);
-		if (ncp_mem_buf)
-			kfree(ncp_mem_buf);
-		goto p_err;
+		goto err_unmap;
 	}
-p_err:
+
+	ncp_hdr_buf = copy_ncp_header(session, ncp_mem_buf);
+	if (IS_ERR_OR_NULL(ncp_hdr_buf))
+		return PTR_ERR(ncp_hdr_buf); /* free buffer from __release_graph_ion */
+
+	ret = npu_util_validate_user_ncp(session, ncp_hdr_buf->vaddr, ncp_mem_buf->size);
+	if (ret)
+		return ret; /* free buffer from __release_graph_ion */
+
+	return ret;
+err_unmap:
+	npu_memory_unmap(session->memory, ncp_mem_buf);
+err_free:
+	kfree(ncp_mem_buf);
 	return ret;
 }
 
@@ -626,7 +670,7 @@ int __pilot_parsing_ncp(struct npu_session *session, u32 *IFM_cnt, u32 *OFM_cnt,
 	struct memory_vector *mv;
 	struct ncp_header *ncp;
 
-	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+	ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
 	ncp = (struct ncp_header *)ncp_vaddr;
 	memory_vector_offset = ncp->memory_vector_offset;
 	if (unlikely(memory_vector_offset > session->ncp_mem_buf->size)) {
@@ -701,8 +745,7 @@ int __second_parsing_ncp(
 	char *ncp_vaddr;
 	dma_addr_t ncp_daddr;
 
-	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
-	ncp_daddr = session->ncp_mem_buf->daddr;
+	ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
 	ncp = (struct ncp_header *)ncp_vaddr;
 
 	address_vector_offset = ncp->address_vector_offset;
@@ -852,6 +895,9 @@ int __second_parsing_ncp(
 		case MEMORY_TYPE_WEIGHT:
 		case MEMORY_TYPE_WMASK:
 			{
+				ncp_daddr = session->ncp_mem_buf->daddr;
+				ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+
 				if (WGT_cnt >= session->WGT_cnt) {
 					npu_err("WGT_cnt(%d) should not exceed size of allocated array(%d)\n",
 							WGT_cnt, session->WGT_cnt);
@@ -1074,7 +1120,7 @@ int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av)
 	mem_opt_e opt = IMB_TYPE;
 	u32 addr_offset = 0;
 
-	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+	ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
 	address_vector_offset = session->address_vector_offset;
 
 	av = (struct address_vector *)(ncp_vaddr + address_vector_offset);
@@ -1465,7 +1511,6 @@ int npu_session_format(struct npu_queue *queue, struct vs4l_format_list *flist)
 	struct npu_session *session;
 	struct npu_vertex_ctx *vctx;
 
-	struct ncp_header *ncp;
 	struct address_vector *av;
 	struct memory_vector *mv;
 
@@ -1495,13 +1540,7 @@ int npu_session_format(struct npu_queue *queue, struct vs4l_format_list *flist)
 	BUG_ON(!vctx);
 	BUG_ON(!session);
 
-	if (session->ncp_mem_buf == NULL) {
-		ret = -EFAULT;
-		goto p_err;
-	}
-
-	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
-	ncp = (struct ncp_header *)ncp_vaddr;
+	ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
 
 	address_vector_offset = session->address_vector_offset;
 	address_vector_cnt = session->address_vector_cnt;
@@ -1558,18 +1597,53 @@ p_err:
 	return ret;
 }
 
+static struct npu_memory_buffer *alloc_npu_load_payload(struct npu_session *session)
+{
+	struct npu_memory_buffer *buffer;
+	int ret;
+
+	buffer = kzalloc(sizeof(struct npu_memory_buffer), GFP_KERNEL);
+	if (!buffer)
+		return ERR_PTR(-ENOMEM);
+
+	/* 2 payloads.
+	 * - User NCP
+	 * - Kernel copy and updated NCP header.
+	 */
+	buffer->size = sizeof(struct cmd_load_payload) * 2;
+
+	ret = npu_memory_alloc(session->memory, buffer, configs[NPU_PBHA_HINT_00]);
+	if (ret) {
+		npu_err("failed to allocate payload buffer(%d)\n", ret);
+		goto err_free_buffer;
+	}
+
+	return buffer;
+err_free_buffer:
+	kfree(buffer);
+	return ERR_PTR(ret);
+}
+
 int npu_session_NW_CMD_LOAD(struct npu_session *session)
 {
 	int ret = 0;
 	nw_cmd_e nw_cmd = NPU_NW_CMD_LOAD;
 
-	if (!session) {
+	if (unlikely(!session)) {
 		npu_err("invalid session\n");
 		ret = -EINVAL;
 		return ret;
 	}
 
 	profile_point1(PROBE_ID_DD_NW_RECEIVED, session->uid, 0, nw_cmd);
+
+	session->ncp_payload = alloc_npu_load_payload(session);
+	if (IS_ERR_OR_NULL(session->ncp_payload)) {
+		ret = PTR_ERR(session->ncp_payload);
+		session->ncp_payload = NULL;
+		return ret;
+	}
+
 	session->nw_result.result_code = NPU_NW_JUST_STARTED;
 	npu_session_put_nw_req(session, nw_cmd);
 	wait_event(session->wq, session->nw_result.result_code != NPU_NW_JUST_STARTED);
@@ -1653,6 +1727,7 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 
 	atomic_set(&otcl->containers[0].completed_count, 0);
 	buff_cnt = otcl->containers[0].count;
+
 	for (j = 0; j < buff_cnt; j++)	{
 		IFM_info = &session->IFM_info[incl->index][j];
 		IFM_addr = IFM_info->addr_info;

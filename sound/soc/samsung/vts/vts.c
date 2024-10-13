@@ -2422,21 +2422,11 @@ void vts_disable_sfr(struct device *dev)
 	writel(0x0, data->timer0_base);
 }
 
-static int vts_runtime_suspend(struct device *dev)
+static void vts_firmware_disable_log(struct device *dev)
 {
-	struct platform_device *pdev = to_platform_device(dev);
 	struct vts_data *data = dev_get_drvdata(dev);
-#if (defined(CONFIG_SOC_EXYNOS9810) || defined(CONFIG_SOC_EXYNOS8895))
-	int i = 1000;
-	unsigned int status = 0;
-#endif
 	u32 values[3] = {0, 0, 0};
 	int result = 0;
-	unsigned long flag;
-
-	vts_dev_info(dev, "%s\n", __func__);
-	if (data->sysevent_dev)
-		sysevent_put((void *)data->sysevent_dev);
 
 	if (data->running) {
 		vts_dev_info(dev, "RUNNING %s :%d\n", __func__, __LINE__);
@@ -2479,13 +2469,22 @@ static int vts_runtime_suspend(struct device *dev)
 			vts_register_log_buffer(dev, 0, 0);
 		}
 	}
+}
 
-	spin_lock_irqsave(&data->state_spinlock, flag);
-	data->vts_state = VTS_STATE_RUNTIME_SUSPENDING;
-	spin_unlock_irqrestore(&data->state_spinlock, flag);
+static int vts_firmware_shutdown(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct vts_data *data = dev_get_drvdata(dev);
 
-	vts_dev_info(dev, "%s save register :%d\n", __func__, __LINE__);
-	vts_save_register(data);
+#if (defined(CONFIG_SOC_EXYNOS9810) || defined(CONFIG_SOC_EXYNOS8895))
+	int i = 1000;
+	unsigned int status = 0;
+#endif
+	u32 values[3] = {0, 0, 0};
+	bool is_timeout = false;
+	unsigned long flag;
+	int result = 0;
+
 	if (data->running) {
 		values[0] = 0;
 		values[1] = 0;
@@ -2497,8 +2496,10 @@ static int vts_runtime_suspend(struct device *dev)
 
 			result = vts_start_ipc_transaction(dev,
 				data, VTS_IRQ_AP_POWER_DOWN, &values, 0, 1);
-			if (result < 0)
+			if (result < 0) {
 				vts_dev_warn(dev, "POWER_DOWN IPC transaction 2nd Failed\n");
+				is_timeout = true;
+			}
 		}
 
 		/* Dump VTS GPR register & Log messages */
@@ -2542,11 +2543,61 @@ static int vts_runtime_suspend(struct device *dev)
 #endif
 		vts_cpu_power(false);
 		data->running = false;
-	} else {
-		spin_lock_irqsave(&data->state_spinlock, flag);
-		data->vts_state = VTS_STATE_RUNTIME_SUSPENDED;
-		spin_unlock_irqrestore(&data->state_spinlock, flag);
 	}
+
+	if (is_timeout)
+		return -ETIME;
+
+	return 0;
+}
+
+#define VTS_FW_SHUDOWN_RETRY_CNT 5
+
+static int vts_runtime_suspend(struct device *dev)
+{
+	struct vts_data *data = dev_get_drvdata(dev);
+	int result = 0;
+	unsigned long flag;
+	int retry_cnt = 0;
+
+	vts_dev_info(dev, "%s\n", __func__);
+	if (data->sysevent_dev)
+		sysevent_put((void *)data->sysevent_dev);
+
+	while (1) {
+		vts_firmware_disable_log(dev);
+
+		spin_lock_irqsave(&data->state_spinlock, flag);
+		data->vts_state = VTS_STATE_RUNTIME_SUSPENDING;
+		spin_unlock_irqrestore(&data->state_spinlock, flag);
+
+		vts_dev_info(dev, "%s save register :%d\n", __func__, __LINE__);
+		vts_save_register(data);
+
+		result = vts_firmware_shutdown(dev);
+
+		if (retry_cnt >= VTS_FW_SHUDOWN_RETRY_CNT) {
+			vts_dev_warn(dev, "%s: firmware shudown retry_cnt has reached the limit\n",
+					__func__);
+
+			break;
+		}
+
+		if (result) {
+			retry_cnt++;
+			vts_dev_err(dev, "%s: firmware shutdown failed, retry_cnt: %d\n",
+					__func__, retry_cnt);
+			usleep_range(19990, 20000);
+			vts_start_runtime_resume(dev, 0);
+			usleep_range(19990, 20000);
+		} else {
+			break;
+		}
+	}
+
+	spin_lock_irqsave(&data->state_spinlock, flag);
+	data->vts_state = VTS_STATE_RUNTIME_SUSPENDED;
+	spin_unlock_irqrestore(&data->state_spinlock, flag);
 
 	mailbox_update_vts_is_on(false);
 	data->enabled = false;

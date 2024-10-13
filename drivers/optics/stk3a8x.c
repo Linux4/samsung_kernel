@@ -3010,7 +3010,7 @@ static int stk3a8x_set_input_devices(struct stk3a8x_data *alps_data)
 	}
 
 #endif
-	sensors_register(alps_data->dev, alps_data, stk_sensor_attrs, ALS_NAME);
+	sensors_register(&alps_data->sensor_dev, alps_data, stk_sensor_attrs, ALS_NAME);
 	info_flicker("done sensors_register");
 	return 0;
 #ifdef SUPPORT_SENSOR_CLASS
@@ -3167,7 +3167,7 @@ err_setup_init_reg:
 	if (alps_data->pins_sleep)
 		alps_data->pins_sleep = NULL;
 
-	sensors_unregister(alps_data->dev, stk_sensor_attrs);
+	sensors_unregister(alps_data->sensor_dev, stk_sensor_attrs);
 #ifdef SUPPORT_SENSOR_CLASS
 	sensors_classdev_unregister(&alps_data->als_cdev);
 #endif
@@ -3228,7 +3228,7 @@ int stk3a8x_remove(struct i2c_client *client)
 		cancel_work_sync(&alps_data->stk_fifo_release_work);
 		destroy_workqueue(alps_data->stk_fifo_release_wq);
 	}
-	sensors_unregister(alps_data->dev, stk_sensor_attrs);
+	sensors_unregister(alps_data->sensor_dev, stk_sensor_attrs);
 	sysfs_remove_group(&alps_data->als_input_dev->dev.kobj, &stk_als_attribute_group);
 	input_unregister_device(alps_data->als_input_dev);
 #ifdef SUPPORT_SENSOR_CLASS

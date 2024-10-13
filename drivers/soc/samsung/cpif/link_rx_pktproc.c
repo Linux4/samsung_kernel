@@ -834,9 +834,6 @@ static int pktproc_perftest_thread(void *arg)
 	struct pktproc_perftest *perf = &ppa->perftest;
 	int i, pkts;
 
-	if (perf->session > PKTPROC_MAX_QUEUE)
-		perf->session = PKTPROC_MAX_QUEUE;
-
 	/* max 1023 packets per 1ms for 12Gbps */
 	pkts = (perf->session > 0 ? (1023 / perf->session) : 0);
 	do {
@@ -881,6 +878,7 @@ static ssize_t perftest_store(struct device *dev,
 	struct mem_link_device *mld = to_mem_link_device(ld);
 	struct pktproc_adaptor *ppa = &mld->pktproc;
 	struct pktproc_perftest *perf = &ppa->perftest;
+	unsigned int mode = 0, session;
 
 	static struct task_struct *worker_task;
 	int ret;
@@ -894,13 +892,17 @@ static ssize_t perftest_store(struct device *dev,
 	}
 
 	ret = sscanf(buf, "%d %d %hu %d %d %hx:%hx:%hx:%hx:%hx:%hx:%hx:%hx %d %d %d %d",
-		&perf->mode, &perf->session, &perf->ch, &cpu, &perf->udelay,
+		&mode, &session, &perf->ch, &cpu, &perf->udelay,
 		&perf->clat_ipv6[0], &perf->clat_ipv6[1], &perf->clat_ipv6[2], &perf->clat_ipv6[3],
 		&perf->clat_ipv6[4], &perf->clat_ipv6[5], &perf->clat_ipv6[6], &perf->clat_ipv6[7],
 		&perf->ipi_cpu[0], &perf->ipi_cpu[1], &perf->ipi_cpu[2], &perf->ipi_cpu[3]);
 
-	if (ret < 1)
+	if (ret < 1 || mode > PERFTEST_MODE_MAX)
 		return -EINVAL;
+
+	perf->mode = mode;
+	perf->session = session > PKTPROC_MAX_QUEUE ? PKTPROC_MAX_QUEUE : session;
+	cpu = cpu > num_possible_cpus() ? num_possible_cpus() - 1 : cpu;
 
 	switch (perf->mode) {
 	case PERFTEST_MODE_STOP:

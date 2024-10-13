@@ -51,10 +51,23 @@
  *  *  +-----------------------------+  ----------- <- npu_mailbox->mbox_base by Eung ju kim
  *  */
 
+/* Increase sub-version to support new load interface. */
+#define COMMAND_SUB_VERSION		1
 #define COMMAND_VERSION			8
 #define MESSAGE_MAX_CNT			32
 #define MESSAGE_MAGIC			0xC0DECAFE
 #define MESSAGE_MARK			0xCAFEC0DE
+
+enum cmd_load_id {
+	COMMAND_LOAD_USER_NCP,
+	COMMAND_LOAD_HDR_COPY,
+};
+
+struct cmd_load_payload {
+	u32 addr; /* dma start addr */
+	u32 size;
+	u32 id; /* enum cmd_load_id */
+};
 
 /* payload size of load includes only ncp header */
 struct cmd_load {

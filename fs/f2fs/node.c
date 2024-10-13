@@ -2170,8 +2170,7 @@ static int f2fs_set_node_page_dirty(struct page *page)
 	if (IS_INODE(page))
 		f2fs_inode_chksum_set(F2FS_P_SB(page), page);
 #endif
-	if (!PageDirty(page)) {
-		__set_page_dirty_nobuffers(page);
+	if (__set_page_dirty_nobuffers(page)) {
 		inc_page_count(F2FS_P_SB(page), F2FS_DIRTY_NODES);
 		f2fs_set_page_private(page, 0);
 		f2fs_trace_pid(page);

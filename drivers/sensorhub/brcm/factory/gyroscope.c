@@ -318,7 +318,7 @@ void initialize_gyro_factorytest(struct ssp_data *data)
 #ifdef CONFIG_SENSORS_ICM42632M
     push_back(&gyro_manager, "ICM42632M", get_gyro_icm42632m());
 #endif
-	sensors_register(data->gyro_device, data, gyro_attrs, "gyro_sensor");
+	sensors_register(&data->gyro_device, data, gyro_attrs, "gyro_sensor");
 }
 
 void remove_gyro_factorytest(struct ssp_data *data)

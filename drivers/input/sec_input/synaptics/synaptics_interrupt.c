@@ -145,7 +145,7 @@ static void synaptics_ts_coordinate_event(struct synaptics_ts_data *ts, u8 *even
 				|| (ts->plat_data->coord[t_id].ttype == SYNAPTICS_TS_TOUCHTYPE_PALM)
 				|| (ts->plat_data->coord[t_id].ttype == SYNAPTICS_TS_TOUCHTYPE_WET)
 				|| (ts->plat_data->coord[t_id].ttype == SYNAPTICS_TS_TOUCHTYPE_GLOVE)) {
-			sec_input_coord_event(&ts->client->dev, t_id);
+			sec_input_coord_event_fill_slot(&ts->client->dev, t_id);
 		} else {
 			input_err(true, &ts->client->dev,
 					"%s: do not support coordinate type(%d)\n",
@@ -922,7 +922,7 @@ irqreturn_t synaptics_ts_irq_thread(int irq, void *ptr)
 	}
 
 	mutex_lock(&ts->eventlock);
-	
+
 	remain_event_count = ts->event_data.data_length/sizeof(struct sec_touch_event_data);
 	do {
 		event_buff = &ts->event_data.buf[curr_pos * sizeof(struct sec_touch_event_data)];
@@ -950,6 +950,8 @@ irqreturn_t synaptics_ts_irq_thread(int irq, void *ptr)
 		curr_pos++;
 		remain_event_count--;
 	} while (remain_event_count > 0);
+
+	sec_input_coord_event_sync_slot(&ts->client->dev);
 
 	synaptics_ts_external_func(ts);
 

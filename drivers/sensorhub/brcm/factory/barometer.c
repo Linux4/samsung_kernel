@@ -167,7 +167,7 @@ void initialize_pressure_factorytest(struct ssp_data *data)
 #ifdef CONFIG_SENSORS_LPS22H
 	push_back(&baro_manager, "LPS22HH", get_baro_lps22hhtr());
 #endif
-	sensors_register(data->prs_device, data, pressure_attrs, "barometer_sensor");
+	sensors_register(&data->prs_device, data, pressure_attrs, "barometer_sensor");
 }
 
 void remove_pressure_factorytest(struct ssp_data *data)

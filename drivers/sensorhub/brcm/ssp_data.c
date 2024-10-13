@@ -455,6 +455,13 @@ static void get_sar_backoff_motion_data(char *pchRcvDataFrame, int *iDataIdx,
 	*iDataIdx += 1;
 }
 
+static void get_seq_step_data(char *pchRcvDataFrame, int *iDataIdx,
+	struct sensor_value *sensorsdata)
+{
+	memcpy(sensorsdata, pchRcvDataFrame + *iDataIdx, 4);
+	*iDataIdx += 4;
+}
+
 #ifdef CONFIG_SENSORS_FLIP_COVER_DETECTOR
 static void get_flip_cover_detector_data(char *pchRcvDataFrame, int *iDataIdx,
 	struct sensor_value *sensorsdata)
@@ -1038,6 +1045,7 @@ void initialize_function_pointer(struct ssp_data *data)
 #endif
 	data->get_sensor_data[AUTO_ROTATION_SENSOR] = get_auto_rotation_data;
 	data->get_sensor_data[SAR_BACKOFF_MOTION] = get_sar_backoff_motion_data;
+	data->get_sensor_data[SEQUENTIAL_STEP] = get_seq_step_data;
 	data->get_sensor_data[BULK_SENSOR] = NULL;
 	data->get_sensor_data[GPS_SENSOR] = NULL;
 
@@ -1100,6 +1108,7 @@ void initialize_function_pointer(struct ssp_data *data)
 	data->report_sensor_data[FLIP_COVER_DETECTOR] = report_flip_cover_detector_data;
 #endif
 	data->report_sensor_data[SAR_BACKOFF_MOTION] = report_sar_backoff_motion_data;
+	data->report_sensor_data[SEQUENTIAL_STEP] = report_seq_step_data;
 	data->ssp_big_task[BIG_TYPE_DUMP] = ssp_dump_task;
 	data->ssp_big_task[BIG_TYPE_READ_LIB] = ssp_read_big_library_task;
 #ifdef CONFIG_SENSORS_SSP_HIFI_BATCHING // HIFI batch

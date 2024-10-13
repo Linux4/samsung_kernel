@@ -299,7 +299,7 @@ post_smc_notifier_fail:
 
 void tz_iwlog_fini(void)
 {
-	if (atomic_cmpxchg(&tz_iwlog_init_done, 1, 0))
+	if (!atomic_cmpxchg(&tz_iwlog_init_done, 1, 0))
 		return;
 
 	kthread_stop(tz_iwlog_kthread);

@@ -1611,7 +1611,7 @@ store_aio_tuner(struct kobject *k, struct kobj_attribute *attr,
 	_arg = arg0;
 	ptr = strsep(&_arg, ",");
 	i = 0;
-	while (ptr != NULL) {
+	while (ptr != NULL && (i < NUM_OF_KEY)) {
 		/* index of keys array should be under NUM_OF_KEY */
 		if (i == NUM_OF_KEY)
 			return -EINVAL;

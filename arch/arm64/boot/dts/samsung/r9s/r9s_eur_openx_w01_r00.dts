@@ -1794,7 +1794,7 @@
 				samsung,pin-function = <0x03>;
 				samsung,pin-pud = <0x00>;
 				samsung,pin-drv = <0x00>;
-				samsung,pin-con-pdn = <0x02>;
+				samsung,pin-con-pdn = <0x03>;
 				samsung,pin-pud-pdn = <0x00>;
 				phandle = <0x1e>;
 			};
@@ -1991,6 +1991,7 @@
 				sec,lcdid_mask = <0xfff0f0>;
 				sec,select_lcdid = <0x804540 0x804580>;
 				sec,firmware_name = "s3908_r9.bin\0s3908_r9_slsi.bin";
+				synaptics,edgehandler_direction_max = <0x05>;
 				phandle = <0xbd>;
 			};
 		};
@@ -5335,21 +5336,21 @@
 
 				kallsyms {
 					_stext = <0xffffffc0 0x10081000>;
-					_etext = <0xffffffc0 0x10f60000>;
-					kallsyms_offsets = <0xffffffc0 0x11353970>;
-					kallsyms_relative_base = <0xffffffc0 0x113d4240>;
-					kallsyms_num_syms = <0xffffffc0 0x113d4248>;
-					kallsyms_names = <0xffffffc0 0x113d4250>;
-					kallsyms_markers = <0xffffffc0 0x11691050>;
-					kallsyms_token_table = <0xffffffc0 0x11691860>;
-					kallsyms_token_index = <0xffffffc0 0x11691bb8>;
+					_etext = <0xffffffc0 0x10f50000>;
+					kallsyms_offsets = <0xffffffc0 0x11342860>;
+					kallsyms_relative_base = <0xffffffc0 0x113c33b8>;
+					kallsyms_num_syms = <0xffffffc0 0x113c33c0>;
+					kallsyms_names = <0xffffffc0 0x113c33c8>;
+					kallsyms_markers = <0xffffffc0 0x11681240>;
+					kallsyms_token_table = <0xffffffc0 0x11681a50>;
+					kallsyms_token_index = <0xffffffc0 0x11681da8>;
 					_sinittext = <0xffffffc0 0x11a20000>;
-					_einittext = <0xffffffc0 0x11a9daf4>;
+					_einittext = <0xffffffc0 0x11a9dcc0>;
 					_end = <0xffffffc0 0x120e8000>;
 				};
 
 				kconstants {
-					swapper_pg_dir = <0xffffffc0 0x11a1f000>;
+					swapper_pg_dir = <0xffffffc0 0x11a10000>;
 				};
 			};
 		};

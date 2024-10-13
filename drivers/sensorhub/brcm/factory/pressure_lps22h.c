@@ -243,7 +243,7 @@ static struct device_attribute *pressure_attrs[] = {
 
 void initialize_pressure_factorytest(struct ssp_data *data)
 {
-	sensors_register(data->prs_device, data, pressure_attrs, "barometer_sensor");
+	sensors_register(&data->prs_device, data, pressure_attrs, "barometer_sensor");
 }
 
 void remove_pressure_factorytest(struct ssp_data *data)

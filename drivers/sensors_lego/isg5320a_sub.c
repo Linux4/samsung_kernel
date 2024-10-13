@@ -2265,7 +2265,7 @@ static int isg5320a_probe(struct i2c_client *client,
 		goto err_sensor_register;
 	}
 #else
-	ret = sensors_register(data->dev, data, sensor_attrs, MODULE_NAME);
+	ret = sensors_register(&data->dev, data, sensor_attrs, MODULE_NAME);
 	if (ret) {
 		pr_err("%s could not register sensor(%d).\n", ISG5320A_TAG, ret);
 		goto err_sensor_register;

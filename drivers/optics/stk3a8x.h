@@ -405,6 +405,7 @@ typedef struct stk3a8x_data
 {
 	struct      i2c_client *client;
 	struct      device *dev;
+	struct      device *sensor_dev;
 	struct      stk3a8x_platform_data *pdata;
 	const struct stk3a8x_bus_ops *bops;
 #ifdef SUPPORT_SENSOR_CLASS
@@ -518,7 +519,7 @@ void stk3a8x_get_reg_default_setting(uint8_t reg, uint16_t* value);
 int32_t stk3a8x_update_registry(struct stk3a8x_data *alps_data);
 
 
-int sensors_register(struct device *dev, void *drvdata,
+int sensors_register(struct device **dev, void *drvdata,
 	struct device_attribute *attributes[], char *name);
 void sensors_unregister(struct device * const dev,
 	struct device_attribute *attributes[]);

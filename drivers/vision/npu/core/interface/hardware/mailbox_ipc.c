@@ -44,13 +44,6 @@ int mailbox_init(volatile struct mailbox_hdr *header)
 	volatile struct mailbox_ctrl ctrl[MAX_MAILBOX];
 
 	npu_info("mailbox initialize: start, header base at %pK\n", header);
-	npu_info("mailbox initialize: wait for firmware boot signature.\n");
-	ret = wait_for_mem_value(&(header->signature1), MAILBOX_SIGNATURE1, 3000);
-	if (ret) {
-		npu_err("init. error(%d) in firmware waiting\n", ret);
-		goto err_exit;
-	}
-	npu_info("header signature \t: %X\n", header->signature1);
 
 	cur_ofs = configs[NPU_MAILBOX_HDR_SECTION_LEN];  /* Start position of data_ofs */
 	for (i = 0; i < MAX_MAILBOX; i++) {
@@ -72,13 +65,21 @@ int mailbox_init(volatile struct mailbox_hdr *header)
 	header->max_slot = 0;//TODO : TBD in firmware policy.
 	header->debug_time = get_logging_time_ms();
 	/* half low 16 bits is mailbox ipc version, half high 16 bits is command version */
-	header->version = ((COMMAND_VERSION << 16) | MAILBOX_VERSION);
+	header->version = ((COMMAND_SUB_VERSION << 24) | (COMMAND_VERSION << 16) | MAILBOX_VERSION);
 	npu_info("header version \t: %08X\n", header->version);
 	header->log_level = 192;
 
 	/* Write Signature */
 	header->signature2 = MAILBOX_SIGNATURE2;
 	//dbg_print_hdr(header);
+
+	npu_info("mailbox initialize: wait for firmware boot signature.\n");
+	ret = wait_for_mem_value(&(header->signature1), MAILBOX_SIGNATURE1, 3000);
+	if (ret) {
+		npu_err("init. error(%d) in firmware waiting\n", ret);
+		goto err_exit;
+	}
+	npu_info("header signature \t: %X\n", header->signature1);
 
 	npu_info("init. success in NPU mailbox\n");
 	return ret;

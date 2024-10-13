@@ -531,7 +531,7 @@ void initialize_temphumidity_factorytest(struct ssp_data *data)
 		pr_err("%s, fail to register pam-temp-adc(%ld)\n",
 			__func__, IS_ERR(data->adc_client));
 #endif
-	sensors_register(data->temphumidity_device,
+	sensors_register(&data->temphumidity_device,
 		data, temphumidity_attrs, "temphumidity_sensor");
 
 	data->shtc1_device.minor = MISC_DYNAMIC_MINOR;

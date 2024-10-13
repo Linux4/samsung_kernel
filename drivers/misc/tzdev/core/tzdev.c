@@ -268,6 +268,8 @@ static unsigned int tzdev_virq_to_hwirq(unsigned int virq)
 	struct irq_desc *desc = irq_to_desc(virq);
 	struct irq_data *data = irq_desc_get_irq_data(desc);
 
+	data = data->parent_data ? : data;
+
 	return irqd_to_hwirq(data);
 }
 
@@ -357,6 +359,7 @@ static void dump_kernel_panic_bh(struct work_struct *work)
 {
 	tz_iw_boot_log_read();
 #if defined(CONFIG_TZDEV_SWD_PANIC_IS_CRITICAL)
+	tz_iwlog_fini();
 	panic("tzdev: IWI_PANIC raised\n");
 #else
 	tzdev_run_fini_sequence();

@@ -441,7 +441,7 @@ void initialize_light_factorytest(struct ssp_data *data)
 #ifdef CONFIG_SENSORS_TMD4912
     push_back(&light_manager, "TMD4912", get_light_tmd4912());
 #endif
-	sensors_register(data->light_device, data, light_attrs, "light_sensor");
+	sensors_register(&data->light_device, data, light_attrs, "light_sensor");
 }
 
 void remove_light_factorytest(struct ssp_data *data)

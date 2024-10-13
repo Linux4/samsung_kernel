@@ -324,7 +324,7 @@ static struct device_attribute *gyro_attrs[] = {
 
 void initialize_gyro_factorytest(struct ssp_data *data)
 {
-	sensors_register(data->gyro_device, data, gyro_attrs, "gyro_sensor");
+	sensors_register(&data->gyro_device, data, gyro_attrs, "gyro_sensor");
 }
 
 void remove_gyro_factorytest(struct ssp_data *data)

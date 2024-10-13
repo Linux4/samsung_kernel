@@ -1305,6 +1305,7 @@ page_fault_retry:
 		kbase_gpu_vm_unlock(kctx);
 	} else {
 		int ret = -ENOMEM;
+		const u8 group_id = region->gpu_alloc->group_id;
 
 		kbase_gpu_vm_unlock(kctx);
 
@@ -1316,8 +1317,7 @@ page_fault_retry:
 			if (grow_2mb_pool) {
 				/* Round page requirement up to nearest 2 MB */
 				struct kbase_mem_pool *const lp_mem_pool =
-					&kctx->mem_pools.large[
-					region->gpu_alloc->group_id];
+					&kctx->mem_pools.large[group_id];
 
 				pages_to_grow = (pages_to_grow +
 					((1 << lp_mem_pool->order) - 1))
@@ -1328,8 +1328,7 @@ page_fault_retry:
 			} else {
 #endif
 				struct kbase_mem_pool *const mem_pool =
-					&kctx->mem_pools.small[
-					region->gpu_alloc->group_id];
+					&kctx->mem_pools.small[group_id];
 
 				ret = kbase_mem_pool_grow(mem_pool,
 					pages_to_grow);
@@ -1889,7 +1888,15 @@ int kbase_mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mmu
 		if (count > remain)
 			count = remain;
 
-		if (!vindex && is_huge_head(*phys))
+		/* There are 3 conditions to satisfy in order to create a level 2 ATE:
+		 *
+		 * - The GPU VA is aligned to 2 MB.
+		 * - The physical address is tagged as the head of a 2 MB region,
+		 *   which guarantees a contiguous physical address range.
+		 * - There are actually 2 MB of virtual and physical pages to map,
+		 *   i.e. 512 entries for the MMU page table.
+		 */
+		if (!vindex && is_huge_head(*phys) && (count == KBASE_MMU_PAGE_ENTRIES))
 			cur_level = MIDGARD_MMU_LEVEL(2);
 		else
 			cur_level = MIDGARD_MMU_BOTTOMLEVEL;

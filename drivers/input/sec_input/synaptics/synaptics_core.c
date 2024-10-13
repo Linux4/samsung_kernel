@@ -685,6 +685,10 @@ void synaptics_ts_reinit(void *data)
 		input_err(true, &ts->client->dev, "%s: fail to detect protocol\n", __func__);
 */
 	/* synaptics_ts_set_up_app_fw(ts); */
+
+	if (ts->do_set_up_report)
+		synaptics_ts_set_up_report(ts);
+
 	synaptics_ts_rezero(ts);
 
 	input_info(true, &ts->client->dev,
@@ -1188,8 +1192,12 @@ static void synaptics_ts_parse_dt(struct device *dev, struct synaptics_ts_data *
 	}
 
 	ts->support_immediate_cmd = of_property_read_bool(np, "synaptics,support_immediate_cmd");
+	ts->do_set_up_report = of_property_read_bool(np, "synaptics,do_set_up_report");
+	if (of_property_read_u32(np, "synaptics,edgehandler_direction_max", &ts->edgehandler_direction_max))
+		ts->edgehandler_direction_max = 3;
 
-	input_info(true, dev, "%s: support_immediate_cmd:%d\n", __func__, ts->support_immediate_cmd);
+	input_info(true, dev, "%s: support_immediate_cmd:%d, do_set_up_report:%d, edgehandler_direction_max:%d\n",
+			__func__, ts->support_immediate_cmd, ts->do_set_up_report, ts->edgehandler_direction_max);
 }
 
 static int synaptics_ts_init(struct i2c_client *client)
