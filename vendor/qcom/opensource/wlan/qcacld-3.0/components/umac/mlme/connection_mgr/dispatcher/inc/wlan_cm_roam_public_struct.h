@@ -522,6 +522,9 @@ struct owe_transition_mode_info {
  * @lost_link_rssi: lost link RSSI
  * @roam_sync_frame_ind: roam sync frame ind
  * @roam_band_bitmask: This allows the driver to roam within this band
+ * @roam_invoke_source: roam invoke source
+ * @roam_invoke_bssid: mac address used for roam invoke
+ * @is_forced_roaming: bool value indicating if its forced roaming
  * @tried_candidate_freq_list: freq list on which connection tried
  */
 struct rso_config {
@@ -569,6 +572,9 @@ struct rso_config {
 	int32_t lost_link_rssi;
 	struct roam_synch_frame_ind roam_sync_frame_ind;
 	uint32_t roam_band_bitmask;
+	enum wlan_cm_source roam_invoke_source;
+	struct qdf_mac_addr roam_invoke_bssid;
+	bool is_forced_roaming;
 	struct wlan_chan_list tried_candidate_freq_list;
 };
 

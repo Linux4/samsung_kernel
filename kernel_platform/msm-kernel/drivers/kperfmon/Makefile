@@ -36,7 +36,7 @@ $(info kperfmon_DUMMY="$(shell cp -f $(srctree)/../../system/core/liblog/include
 $(info kperfmon_DUMMY="$(shell cp -f $(srctree)/../../system/logging/liblog/include/log/perflog.h  $(srctree)/include/linux/)")
 $(info kperfmon_DUMMY="$(shell cp -f $(srctree)/../system/core/liblog/include/log/perflog.h  $(srctree)/include/linux/)")
 
-ifneq ($(shell [ -e $(srctree)/include/linux/perflog.h ] && echo exist), exist)
+ifneq ($(shell [ -e $(srctree)/drivers/kperfmon/perflog.h ] && echo exist), exist)
 FLAG=0
 $(info kperfmon_DUMMY="perflog.h file is missing.")
 endif

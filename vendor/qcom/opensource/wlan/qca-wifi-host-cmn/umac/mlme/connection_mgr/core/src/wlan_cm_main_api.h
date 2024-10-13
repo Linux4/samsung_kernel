@@ -301,6 +301,18 @@ cm_send_connect_start_fail(struct cnx_mgr *cm_ctx,
 			   struct cm_connect_req *req,
 			   enum wlan_cm_connect_fail_reason reason);
 
+/**
+ * cm_find_bss_from_candidate_list() - get bss entry by bssid value
+ * @candidate_list: candidate list
+ * @bssid: bssid to find
+ * @entry_found: found bss entry
+ *
+ * Return: true if find bss entry with bssid
+ */
+bool cm_find_bss_from_candidate_list(qdf_list_t *candidate_list,
+				     struct qdf_mac_addr *bssid,
+				     struct scan_cache_node **entry_found);
+
 #ifdef WLAN_POLICY_MGR_ENABLE
 /**
  * cm_hw_mode_change_resp() - HW mode change response

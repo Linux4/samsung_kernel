@@ -19,38 +19,9 @@
 #include <linux/sec_debug.h>
 #include <linux/reboot.h>
 
-/**
- * UFS Error Information
- *
- * Format : U0I0H0L0X0Q0R0W0F0SM0SH0
- * U : UTP cmd error count
- * I : UIC error count
- * H : HWRESET count
- * L : Link startup failure count
- * X : Link Lost Error count
- * Q : UTMR QUERY_TASK error count
- * R : READ error count
- * W : WRITE error count
- * F : Device Fatal Error count
- * SM : Sense Medium error count
- * SH : Sense Hardware error count
- **/
-#define SEC_UFS_ERR_SUM(buf) \
-	sprintf(buf, "U%uI%uH%uL%uX%uQ%uR%uW%uF%uSM%uSH%u", \
-			get_min_errinfo(u32, 9, UTP_cnt, UTP_err), \
-			get_min_errinfo(u32, 9, UIC_err_cnt, UIC_err), \
-			get_min_errinfo(u32, 9, op_cnt, HW_RESET_cnt), \
-			get_min_errinfo(u32, 9, op_cnt, link_startup_cnt), \
-			get_min_errinfo(u8, 9, Fatal_err_cnt, LLE), \
-			get_min_errinfo(u8, 9, UTP_cnt, UTMR_query_task_cnt), \
-			get_min_errinfo(u8, 9, UTP_cnt, UTR_read_err), \
-			get_min_errinfo(u8, 9, UTP_cnt, UTR_write_err), \
-			get_min_errinfo(u8, 9, Fatal_err_cnt, DFE), \
-			get_min_errinfo(u32, 9, sense_cnt, scsi_medium_err), \
-			get_min_errinfo(u32, 9, sense_cnt, scsi_hw_err))
-
-#define ERR_SUM_SIZE 25
 #define NOTI_WORK_DELAY_MS 500
+
+void (*ufs_sec_wb_reset_notify)(void);
 
 struct ufs_sec_feature_info ufs_sec_features;
 
@@ -149,67 +120,87 @@ out:
 		kfree(desc_buf);
 }
 
-/* SEC next WB : begin */
-#define UFS_WB_DISABLE_THRESHOLD_LT 9
-static bool ufs_sec_is_wb_available(void)
-{
-	struct ufs_sec_wb_info *ufs_wb = ufs_sec_features.ufs_wb;
-	struct ufs_vendor_dev_info *ufs_vdi = ufs_sec_features.vdi;
-
-	if (!ufs_wb)
-		return false;
-
-	if (ufs_vdi->lt >= UFS_WB_DISABLE_THRESHOLD_LT)
-		ufs_wb->support = false;
-
-	return ufs_wb->support;
-}
-
-static inline bool is_valid_wb_lun(int lun)
-{
-	return (lun >= 0 && lun < UFS_UPIU_MAX_WB_LUN_ID) ? true : false;
-}
-
-bool ufs_sec_is_wb_supported(struct scsi_device *sdev)
-{
-	struct ufs_hba *hba = ufs_sec_features.vdi->hba;
-	unsigned int lun = sdev->lun;
-
-	if (!ufs_sec_is_wb_available())
-		return false;
-
-	if (!is_valid_wb_lun(lun))
-		return false;
-
-	if (hba->dev_info.wb_buffer_type == WB_BUF_MODE_SHARED)
-		return true;
-	else
-		return hba->dev_info.wb_dedicated_lu == lun ? true : false;
-}
-EXPORT_SYMBOL(ufs_sec_is_wb_supported);
-
 /*
  * get dExtendedUFSFeaturesSupport from device descriptor
  *
- * checking device desc size : instead of checking wspecversion
- *                             for UFS v2.1 + TW , v2.2 , v3.1
+ * checking device spec version for UFS v2.2 , v3.1 or later
  */
-static bool ufs_sec_wb_check_ext_feature(struct ufs_hba *hba,
-		u8 *desc_buf)
+static void ufs_sec_get_ext_feature(struct ufs_hba *hba, u8 *desc_buf)
 {
-	if (hba->desc_size[QUERY_DESC_IDN_DEVICE] <
-			DEVICE_DESC_PARAM_EXT_UFS_FEATURE_SUP + 4) {
+	struct ufs_dev_info *dev_info = &hba->dev_info;
+
+	if (!(dev_info->wspecversion >= 0x310 ||
+	      dev_info->wspecversion == 0x220 ||
+	     (hba->dev_quirks & UFS_DEVICE_QUIRK_SUPPORT_EXTENDED_FEATURES))) {
 		ufs_sec_features.ext_ufs_feature_sup = 0x0;
-		return false;
+		return;
 	}
 
 	ufs_sec_features.ext_ufs_feature_sup = get_unaligned_be32(desc_buf +
 				DEVICE_DESC_PARAM_EXT_UFS_FEATURE_SUP);
+}
 
-	if (ufs_sec_features.ext_ufs_feature_sup & UFS_DEV_WRITE_BOOSTER_SUP)
-		return true;
-	else
+/* SEC next WB : begin */
+#define UFS_WB_DISABLE_THRESHOLD_LT 9
+
+static void ufs_sec_wb_update_err(void)
+{
+	struct ufs_sec_wb_info *wb_info = ufs_sec_features.ufs_wb;
+
+	wb_info->err_cnt++;
+}
+
+static void ufs_sec_wb_update_info(struct ufs_hba *hba, int write_transfer_len)
+{
+	struct ufs_sec_wb_info *wb_info = ufs_sec_features.ufs_wb;
+	enum ufs_sec_wb_state wb_state = hba->dev_info.wb_enabled;
+
+	if (write_transfer_len) {
+		/*
+		 * write_transfer_len : Byte
+		 * wb_info->amount_kb : KB
+		 */
+		wb_info->amount_kb += (unsigned long)(write_transfer_len >> 10);
+		return;
+	}
+
+	switch (wb_state) {
+	case WB_OFF:
+		wb_info->enable_ms += jiffies_to_msecs(jiffies - wb_info->state_ts);
+		wb_info->state_ts = jiffies;
+		wb_info->disable_cnt++;
+		break;
+	case WB_ON:
+		wb_info->disable_ms += jiffies_to_msecs(jiffies - wb_info->state_ts);
+		wb_info->state_ts = jiffies;
+		wb_info->enable_cnt++;
+		break;
+	default:
+		break;
+	}
+}
+
+bool ufs_sec_is_wb_supported(void)
+{
+	struct ufs_sec_wb_info *ufs_wb = ufs_sec_features.ufs_wb;
+	struct ufs_vendor_dev_info *vdi = ufs_sec_features.vdi;
+
+	if (!ufs_wb)
 		return false;
+
+	if (vdi->lt >= UFS_WB_DISABLE_THRESHOLD_LT)
+		ufs_wb->support = false;
+
+	return ufs_wb->support;
+}
+EXPORT_SYMBOL(ufs_sec_is_wb_supported);
+
+static bool ufs_sec_check_ext_feature(u32 mask)
+{
+	if (ufs_sec_features.ext_ufs_feature_sup & mask)
+		return true;
+
+	return false;
 }
 
 static u32 ufs_sec_wb_buf_alloc(struct ufs_hba *hba,
@@ -250,7 +241,7 @@ static int __ufs_sec_wb_ctrl(bool enable)
 	int ret = 0;
 	u8 index;
 
-	if (!ufs_sec_is_wb_available())
+	if (!ufs_sec_is_wb_supported())
 		return -EOPNOTSUPP;
 
 	if (enable)
@@ -261,8 +252,11 @@ static int __ufs_sec_wb_ctrl(bool enable)
 	index = ufshcd_wb_get_query_index(hba);
 	ret = ufshcd_query_flag_retry(hba, opcode,
 			QUERY_FLAG_IDN_WB_EN, index, NULL);
-	if (!ret)
+	if (!ret) {
 		hba->dev_info.wb_enabled = enable;
+		ufs_sec_wb_update_info(hba, 0);
+	} else
+		ufs_sec_wb_update_err();
 
 	pr_info("%s(%s) is %s, ret=%d.\n", __func__,
 			enable ? "enable" : "disable",
@@ -271,27 +265,11 @@ static int __ufs_sec_wb_ctrl(bool enable)
 	return ret;
 }
 
-int ufs_sec_wb_ctrl(bool enable, struct scsi_device *sdev)
+int ufs_sec_wb_ctrl(bool enable)
 {
 	struct ufs_hba *hba = ufs_sec_features.vdi->hba;
-	struct ufs_sec_wb_info *ufs_wb = ufs_sec_features.ufs_wb;
 	int ret = 0;
 	unsigned long flags;
-	unsigned int lun = sdev->lun;
-
-	if (!is_valid_wb_lun(lun))
-		return -EOPNOTSUPP;
-
-	if (enable) {
-		set_bit(lun, &ufs_wb->wb_lu_state);
-	} else {
-		if (!test_and_clear_bit(lun, &ufs_wb->wb_lu_state)) {
-			pr_err("%s: lun%d turned off wb\n", __func__, lun);
-			WARN_ON(1);
-		}
-		if (ufs_wb->wb_lu_state)
-			return 0;
-	}
 
 	spin_lock_irqsave(hba->host->host_lock, flags);
 	if (hba->pm_op_in_progress || hba->is_sys_suspended) {
@@ -307,8 +285,8 @@ int ufs_sec_wb_ctrl(bool enable, struct scsi_device *sdev)
 	}
 
 	if (!(enable ^ hba->dev_info.wb_enabled)) {
-		//pr_info("%s: write booster is already %s\n",
-		//		__func__, enable ? "enabled" : "disabled");
+		pr_info("%s: write booster is already %s\n",
+				__func__, enable ? "enabled" : "disabled");
 		ret = 0;
 		goto out;
 	}
@@ -325,19 +303,13 @@ out:
 }
 EXPORT_SYMBOL(ufs_sec_wb_ctrl);
 
-void ufs_sec_wb_force_off(struct ufs_hba *hba)
-{
-	if (hba->dev_info.wb_enabled)
-		__ufs_sec_wb_ctrl(false);
-}
-
 static void ufs_sec_wb_toggle_flush_during_h8(struct ufs_hba *hba, bool set)
 {
 	enum query_opcode opcode;
 	u8 index;
 	int ret = 0;
 
-	if (!ufs_sec_is_wb_available())
+	if (!ufs_sec_is_wb_supported())
 		return;
 
 	if (set)
@@ -359,9 +331,10 @@ static void ufs_sec_wb_probe(struct ufs_hba *hba, u8 *desc_buf)
 {
 	struct ufs_dev_info *dev_info = &hba->dev_info;
 	struct ufs_sec_wb_info *ufs_wb = NULL;
+	struct ufs_sec_wb_info *ufs_wb_backup = NULL;
 	u32 wb_buf_alloc = 0;
 
-	if (!ufs_sec_wb_check_ext_feature(hba, desc_buf)) {
+	if (!ufs_sec_check_ext_feature(UFS_DEV_WRITE_BOOSTER_SUP)) {
 		dev_err(hba->dev, "%s: Failed check_ext_feature", __func__);
 		goto wb_disabled;
 	}
@@ -388,8 +361,20 @@ static void ufs_sec_wb_probe(struct ufs_hba *hba, u8 *desc_buf)
 		goto wb_disabled;
 	}
 
+	ufs_wb_backup = devm_kzalloc(hba->dev, sizeof(struct ufs_sec_wb_info),
+			GFP_KERNEL);
+	if (!ufs_wb_backup) {
+		dev_err(hba->dev, "%s: Failed allocating ufs_wb_backup(%lu)",
+				__func__, sizeof(struct ufs_sec_wb_info));
+		goto wb_disabled;
+	}
+
 	ufs_wb->support = true;
+	ufs_wb->state_ts = jiffies;
+	ufs_wb_backup->state_ts = jiffies;
+
 	ufs_sec_features.ufs_wb = ufs_wb;
+	ufs_sec_features.ufs_wb_backup = ufs_wb_backup;
 
 	hba->dev_info.wb_enabled = WB_OFF;
 
@@ -401,6 +386,32 @@ static void ufs_sec_wb_probe(struct ufs_hba *hba, u8 *desc_buf)
 			dev_info->wb_dedicated_lu : 0, wb_buf_alloc);
 wb_disabled:
 	return;
+}
+
+/* Called by blk-sec-wb */
+void ufs_sec_wb_register_reset_notify(void *func)
+{
+	ufs_sec_wb_reset_notify = func;
+}
+EXPORT_SYMBOL(ufs_sec_wb_register_reset_notify);
+
+void ufs_sec_wb_config(struct ufs_hba *hba)
+{
+	/*
+	 * 1. Default WB state is WB_OFF when UFS is initialized.
+	 * 2. If UFS error handling occurs in WB_ON state,
+	 *    It needs to be reset to WB_OFF state,
+	 *    due to UFS reset.
+	 */
+	if (hba->dev_info.wb_enabled == WB_ON) {
+		hba->dev_info.wb_enabled = WB_OFF;
+
+		/* Call ssg's reset_noti func. */
+		if (ufs_sec_wb_reset_notify != NULL)
+			(*ufs_sec_wb_reset_notify)();
+	}
+
+	ufs_sec_wb_toggle_flush_during_h8(hba, true);
 }
 /* SEC next WB : end */
 
@@ -932,21 +943,26 @@ static void ufs_sec_init_error_logging(struct device *dev)
 {
 	struct ufs_sec_err_info *ufs_err = NULL;
 	struct ufs_sec_err_info *ufs_err_backup = NULL;
+	struct ufs_sec_err_info *ufs_err_hist = NULL;
 
 	ufs_err = devm_kzalloc(dev, sizeof(struct ufs_sec_err_info),
 			GFP_KERNEL);
 	ufs_err_backup = devm_kzalloc(dev, sizeof(struct ufs_sec_err_info),
 			GFP_KERNEL);
-	if (!ufs_err || !ufs_err_backup) {
+	ufs_err_hist = devm_kzalloc(dev, sizeof(struct ufs_sec_err_info),
+			GFP_KERNEL);
+	if (!ufs_err || !ufs_err_backup || !ufs_err_hist) {
 		dev_err(dev, "%s: Failed allocating ufs_err(backup)(%lu)",
 				__func__, sizeof(struct ufs_sec_err_info));
 		devm_kfree(dev, ufs_err);
 		devm_kfree(dev, ufs_err_backup);
+		devm_kfree(dev, ufs_err_hist);
 		return;
 	}
 
 	ufs_sec_features.ufs_err = ufs_err;
 	ufs_sec_features.ufs_err_backup = ufs_err_backup;
+	ufs_sec_features.ufs_err_hist = ufs_err_hist;
 
 	ufs_sec_features.ucmd_complete = true;
 	ufs_sec_features.qcmd_complete = true;
@@ -1110,19 +1126,38 @@ static void ufs_sec_print_evt_hist(struct ufs_hba *hba)
 	ufs_sec_print_evt(hba, UFS_EVT_ABORT, "task_abort");
 }
 
+/*
+ * ufs_sec_check_and_is_err - Check and compare UFS Error counts
+ * @buf: has to be filled by using SEC_UFS_ERR_SUM() or SEC_UFS_ERR_HIST_SUM()
+ *
+ * Returns
+ *  0     - If the buf has no error counts
+ *  other - If the buf is invalid or has error count value
+ */
+static int ufs_sec_check_and_is_err(char *buf)
+{
+	const char *no_err = "U0I0H0L0X0Q0R0W0F0SM0SH0";
+
+	if (!buf || strlen(buf) < strlen(no_err))
+		return -EINVAL;
+
+	return strncmp(buf, no_err, strlen(no_err));
+}
+
 static int ufs_sec_panic_callback(struct notifier_block *nfb,
 		unsigned long event, void *panic_msg)
 {
 	struct ufs_vendor_dev_info *ufs_vdi = ufs_sec_features.vdi;
-	char buf[ERR_SUM_SIZE];
+	char err_buf[ERR_SUM_SIZE];
+	char hist_buf[ERR_HIST_SUM_SIZE];
 	char *str = (char *)panic_msg;
 	bool is_FSpanic = !strncmp(str, "F2FS", 4) || !strncmp(str, "EXT4", 4);
-	const char *no_err = "U0I0H0L0X0Q0R0W0F0SM0SH0";
 
-	SEC_UFS_ERR_SUM(buf);
-	pr_info("%s: UFS Info: %s\n", __func__, buf);
+	SEC_UFS_ERR_SUM(err_buf);
+	SEC_UFS_ERR_HIST_SUM(hist_buf);
+	pr_info("ufs: %s hist: %s", err_buf, hist_buf);
 
-	if (ufs_vdi && is_FSpanic && strncmp(buf, no_err, sizeof(buf)-1))
+	if (ufs_vdi && is_FSpanic && ufs_sec_check_and_is_err(err_buf))
 		ufs_sec_print_evt_hist(ufs_vdi->hba);
 
 	return NOTIFY_OK;
@@ -1138,17 +1173,28 @@ static struct notifier_block ufs_sec_panic_notifier = {
 static int ufs_sec_reboot_notify(struct notifier_block *notify_block,
 		unsigned long event, void *unused)
 {
-	char buf[ERR_SUM_SIZE];
+	char buf[ERR_HIST_SUM_SIZE];
 
-	SEC_UFS_ERR_SUM(buf);
+	SEC_UFS_ERR_HIST_SUM(buf);
 	pr_info("%s: UFS Info: %s\n", __func__, buf);
 
 	return NOTIFY_OK;
 }
 /* reboot notifier : end */
 
-#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 /* I/O error uevent : begin */
+void ufs_sec_print_err(void)
+{
+	char err_buf[ERR_SUM_SIZE];
+	char hist_buf[ERR_HIST_SUM_SIZE];
+
+	SEC_UFS_ERR_SUM(err_buf);
+	SEC_UFS_ERR_HIST_SUM(hist_buf);
+
+	if (ufs_sec_check_and_is_err(hist_buf))
+		pr_info("ufs: %s, hist : %s", err_buf, hist_buf);
+}
+
 static void ufs_sec_err_noti_work(struct work_struct *work)
 {
 	int ret;
@@ -1184,7 +1230,6 @@ static inline bool ufs_sec_is_uevent_condition(u32 hw_rst_cnt)
 
 static void ufs_sec_trigger_err_noti_uevent(struct ufs_hba *hba)
 {
-	const char *no_err = "U0I0H0L0X0Q0R0W0F0SM0SH0";
 	u32 hw_rst_cnt = SEC_UFS_ERR_INFO_GET_VALUE(op_cnt, HW_RESET_cnt);
 	char buf[ERR_SUM_SIZE];
 
@@ -1194,7 +1239,7 @@ static void ufs_sec_trigger_err_noti_uevent(struct ufs_hba *hba)
 
 	SEC_UFS_ERR_SUM(buf);
 
-	if (!strncmp(buf, no_err, sizeof(buf)-1))
+	if (!ufs_sec_check_and_is_err(buf))
 		return;
 
 	if (!ufs_sec_is_uevent_condition(hw_rst_cnt))
@@ -1205,17 +1250,11 @@ static void ufs_sec_trigger_err_noti_uevent(struct ufs_hba *hba)
 				msecs_to_jiffies(NOTI_WORK_DELAY_MS));
 }
 /* I/O error uevent : end */
-#endif
 
 void ufs_sec_config_features(struct ufs_hba *hba)
 {
-	/* force off in case of error handling */
-	if (hba->eh_flags)
-		ufs_sec_wb_force_off(hba);
-	ufs_sec_wb_toggle_flush_during_h8(hba, true);
-#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
+	ufs_sec_wb_config(hba);
 	ufs_sec_trigger_err_noti_uevent(hba);
-#endif
 }
 
 void ufs_sec_adjust_caps_quirks(struct ufs_hba *hba)
@@ -1270,6 +1309,7 @@ void ufs_sec_set_features(struct ufs_hba *hba)
 
 	ufs_sec_set_unique_number(hba, desc_buf);
 	ufs_sec_get_health_desc(hba);
+	ufs_sec_get_ext_feature(hba, desc_buf);
 
 	ufs_sec_wb_probe(hba, desc_buf);
 
@@ -1277,12 +1317,11 @@ void ufs_sec_set_features(struct ufs_hba *hba)
 
 	atomic_notifier_chain_register(&panic_notifier_list,
 			&ufs_sec_panic_notifier);
+
 	ufs_sec_features.reboot_notify.notifier_call = ufs_sec_reboot_notify;
 	register_reboot_notifier(&ufs_sec_features.reboot_notify);
-#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 	sec_ufs_cmd_dev->type = &ufs_type;
 	INIT_DELAYED_WORK(&ufs_sec_features.noti_work, ufs_sec_err_noti_work);
-#endif
 out:
 	if (desc_buf)
 		kfree(desc_buf);
@@ -1410,6 +1449,7 @@ static void sec_android_vh_ufs_compl_command(void *data,
 {
 	struct ufs_sec_cmd_info ufs_cmd = { 0, };
 	bool is_scsi_cmd = false;
+	int transfer_len = 0;
 
 	is_scsi_cmd = ufs_sec_get_scsi_cmd_info(lrbp, &ufs_cmd);
 
@@ -1428,6 +1468,12 @@ static void sec_android_vh_ufs_compl_command(void *data,
 		 */
 		if (hba->req_abort_count > 0 && ufs_sec_is_err_cnt_allowed())
 			ufs_sec_inc_utp_error(hba, lrbp->task_tag);
+
+		if (hba->dev_info.wb_enabled == WB_ON
+				&& ufs_cmd.opcode == WRITE_10) {
+			transfer_len = be32_to_cpu(lrbp->ucd_req_ptr->sc.exp_data_transfer_len);
+			ufs_sec_wb_update_info(hba, transfer_len);
+		}
 	} else {
 #if IS_ENABLED(CONFIG_SEC_UFS_CMD_LOGGING)
 		if (hba->dev_cmd.type == DEV_CMD_TYPE_NOP)

@@ -9,7 +9,8 @@ It is part of PMIC on Qualcomm Technologies Inc. reference platforms.
 Main node:
 
 Required properties:
-- compatible		: Should be "qcom,qpnp-flash-led-v2"
+- compatible		: one of "qcom,pm6150l-flash-led-v2"
+                             "qcom,pmi632-flash-led-v2"
 - reg			: Base address and size for flash LED modules
 - qcom,pmic-revid	: phandle of PMIC revid module. This is used to
 			  identify the PMIC subtype.

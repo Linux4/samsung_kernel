@@ -36,6 +36,7 @@
 	aliases: aliases {
 		serial0 = &qupv3_se7_2uart;
 		hsuart0 = &qupv3_se14_4uart;
+		hsuart1 = &qupv3_se4_4uart;
 		mmc1 = &sdhc_2; /* SD card slot */
 		ufshc1 = &ufshc_mem; /* Embedded UFS Slot */
 	};
@@ -362,6 +363,11 @@
 	aop_config_merged_mem: aop_config_merged_region@81c80000 {
 		no-map;
 		reg = <0x0 0x81c80000 0x0 0x74000>;
+	};
+
+	chipinfo_mem: chipinfo_region@81cf4000 {
+		no-map;
+		reg = <0x0 0x81cf4000 0x0 0x1000>;
 	};
 
 	/* secdata region can be reused by apps */
@@ -729,6 +735,12 @@
 			#power-domain-cells = <0>;
 			domain-idle-states = <&CLUSTER_PWR_DN &APSS_OFF>;
 		};
+	};
+
+	qcom,power-state {
+		compatible = "qcom,power-state";
+		qcom,subsys-name = "lpass", "cdsp", "mpss";
+		qcom,rproc-handle = <&adsp_pas>, <&cdsp_pas>, <&modem_pas>;
 	};
 
 	slimbam: bamdma@6C04000 {
@@ -1240,6 +1252,7 @@
 		qcom,hyplog-enabled;
 		hyplog-address-offset = <0x410>;
 		hyplog-size-offset = <0x414>;
+		tmecrashdump-address-offset = <0x81CA0000>;
 	};
 
 	qcom_cedev: qcedev@1de0000 {
@@ -1501,7 +1514,7 @@
 			label = "modem";
 		};
 
-		qcom,client_3 {
+		mem_client_3: qcom,client_3 {
 			compatible = "qcom,memshare-peripheral";
 			qcom,peripheral-size = <0x500000>;
 			qcom,client-id = <1>;
@@ -1509,7 +1522,7 @@
 			label = "modem";
 		};
 
-		qcom,client_4 {
+		mem_client_4: qcom,client_4 {
 			compatible = "qcom,memshare-peripheral";
 			qcom,peripheral-size = <0x1000000>;
 			qcom,client-id = <5>;
@@ -1519,7 +1532,7 @@
 			label = "modem";
 		};
 
-		qcom,client_5 {
+		mem_client_5: qcom,client_5 {
 			compatible = "qcom,memshare-peripheral";
 			qcom,peripheral-size = <0x400000>;
 			qcom,client-id = <6>;
@@ -2000,6 +2013,9 @@
 		qcom,iommu-dma = "fastmap";
 		dma-coherent;
 
+		/* skip pbl wa as we have got this fixed in pbl */
+		qcom,bypass-pbl-rst-wa;
+
 		shared-ice-cfg = <&ice_cfg>;
 		qcom,vccq-lpm-uV = <1180000>;
 
@@ -2349,10 +2365,14 @@
 	qcom,chd {
 		compatible = "qcom,core-hang-detect";
 		label = "core";
-		qcom,threshold-arr = <0x17800058 0x17810058 0x17820058 0x17830058
-			0x17840058 0x17850058 0x17860058 0x17870058>;
-		qcom,config-arr = <0x17800060 0x17810060 0x17820060 0x17830060
-			0x17840060 0x17850060 0x17860060 0x17870060>;
+		qcom,chd-percpu-info = <&CPU0 0x17800058 0x17800060>,
+					<&CPU1 0x17810058 0x17810060>,
+					<&CPU2 0x17820058 0x17820060>,
+					<&CPU3 0x17830058 0x17830060>,
+					<&CPU4 0x17840058 0x17840060>,
+					<&CPU5 0x17850058 0x17850060>,
+					<&CPU6 0x17860058 0x17860060>,
+					<&CPU7 0x17870058 0x17870060>;
 	};
 
 	eud: qcom,msm-eud@88e0000 {
@@ -3242,6 +3262,17 @@
 		};
 	};
 
+	qcom_llcc_l3_vote: qcom,llcc-l3-vote {
+		qcom,target-dev = <&qcom_l3_dcvs_hw>;
+		qcom,secondary-map =
+			<  300000  300000 >,
+			<  466000  499200 >,
+			<  600000  614400 >,
+			<  806000  729600 >,
+			<  933000  844800 >,
+			< 1066000  940800 >;
+	};
+
 	bwmon_llcc: qcom,bwmon-llcc@240B6300 {
 		compatible = "qcom,bwmon4";
 		reg = <0x240B6400 0x300>, <0x240B6300 0x200>;
@@ -3251,6 +3282,7 @@
 		qcom,hw-timer-hz = <19200000>;
 		qcom,count-unit = <0x10000>;
 		qcom,target-dev = <&qcom_llcc_dcvs_hw>;
+		qcom,second-vote = <&qcom_llcc_l3_vote>;
 	};
 
 	bwmon_ddr: qcom,bwmon-ddr@24091000 {
@@ -3536,6 +3568,7 @@
 #include "kalama-usb.dtsi"
 #include "kalama-eva.dtsi"
 #include "kalama-pcie.dtsi"
+#include "kalama-mhi.dtsi"
 #include "msm-rdbg.dtsi"
 #include "kalama-thermal.dtsi"
 #include "kalama-gdsc.dtsi"
@@ -3669,12 +3702,10 @@
 
 &gcc_usb30_prim_gdsc {
 	clocks = <&gcc 0>;
-	regulator-name = "gcc_usb30_prim_gdsc";
 	status = "ok";
 };
 
 &gcc_usb3_phy_gdsc {
-	regulator-name = "gcc_usb3_phy_gdsc";
 	clocks = <&gcc 0>;
 	parent-supply = <&VDD_MXA_LEVEL>;
 	status = "ok";

@@ -45,8 +45,12 @@
 #define HALL_DETACH		0
 #endif
 
-#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+#include "../input/sec_input/stm32/pogo_notifier_v3.h"
+#elif IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 #include <linux/input/pogo_i2c_notifier.h>
+#endif
 #endif
 
 #include "isg6320_reg.h"
@@ -139,7 +143,9 @@ struct isg6320_data {
 	struct notifier_block hall_nb;
 #endif
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	struct notifier_block pogo_nb;
+#endif
 #endif
 #if IS_ENABLED(CONFIG_FLIP_COVER_DETECTOR_NOTIFIER)
 	struct notifier_block fcd_nb;
@@ -2713,6 +2719,7 @@ static int isg6320_fcd_notifier(struct notifier_block *nb,
 #endif
 
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 static int isg6320_pogo_notifier(struct notifier_block *nb,
 		unsigned long action, void *pogo_data)
 {
@@ -2732,6 +2739,7 @@ static int isg6320_pogo_notifier(struct notifier_block *nb,
 
 	return 0;
 }
+#endif
 #endif
 
 static int isg6320_parse_dt(struct isg6320_data *data, struct device *dev)
@@ -3125,10 +3133,10 @@ static int isg6320_probe(struct i2c_client *client,
 		memcpy(grip_sensor_attrs + sensor_attrs_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
 
-	ret = sensors_register(data->dev, data, grip_sensor_attrs,
+	ret = sensors_register(&data->dev, data, grip_sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #else
-	ret = sensors_register(data->dev, data, sensor_attrs,
+	ret = sensors_register(&data->dev, data, sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #endif
 	if (ret) {
@@ -3185,7 +3193,9 @@ static int isg6320_probe(struct i2c_client *client,
 #endif
 
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	pogo_notifier_register(&data->pogo_nb, isg6320_pogo_notifier, POGO_NOTIFY_DEV_SENSOR);
+#endif
 #endif
 	pr_info("[GRIP_%d] # probe done #\n", data->ic_num);
 

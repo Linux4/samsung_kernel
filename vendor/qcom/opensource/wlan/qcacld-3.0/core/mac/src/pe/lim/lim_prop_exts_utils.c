@@ -131,6 +131,12 @@ static void lim_extract_he_op(struct pe_session *session,
 		session->he_op.oper_info_6g.info.center_freq_seg1;
 	session->ap_power_type =
 		session->he_op.oper_info_6g.info.reg_info;
+	if (session->ap_power_type < REG_INDOOR_AP ||
+	    session->ap_power_type > REG_MAX_SUPP_AP_TYPE) {
+		session->ap_power_type = REG_VERY_LOW_POWER_AP;
+		pe_debug("AP power type invalid, defaulting to VLP");
+	}
+
 	pe_debug("6G op info: ch_wd %d cntr_freq_seg0 %d cntr_freq_seg1 %d",
 		 session->ch_width, session->ch_center_freq_seg0,
 		 session->ch_center_freq_seg1);

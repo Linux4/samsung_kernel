@@ -24,15 +24,6 @@
 	#size-cells = <2>;
 	memory { device_type = "memory"; reg = <0 0 0 0>; };
 
-	mem-offline {
-		compatible = "qcom,mem-offline";
-		offline-sizes = <0x1 0x40000000 0x0 0x40000000>,
-				<0x1 0xc0000000 0x0 0x80000000>,
-				<0x2 0xc0000000 0x1 0x40000000>;
-		granule = <512>;
-		mboxes = <&qmp_aop 0>;
-	};
-
 	chosen {
 		bootargs = "console=ttyMSM0,115200n8 loglevel=6 kpti=0 log_buf_len=256K kernel.panic_on_rcu_stall=1 rcupdate.rcu_expedited=1 rcu_nocbs=0-7 ftrace_dump_on_oops fw_devlink.strict=1 cpufreq.default_governor=performance printk.console_no_auto_verbose=1 kasan=off pcie_ports=compat";
 	};
@@ -47,6 +38,8 @@
 		pci-domain1 = &pcie1; /* PCIe1 domain */
 		pci-domain2 = &pcie2; /* PCIe2 domain */
 		mmc1 = &sdhc_2; /* SDC2 SD card slot */
+		usb0 = &dwc0; /*usb0 child node*/
+		usb1 = &dwc1; /*usb1 child node*/
 	};
 
 	cpus {
@@ -422,6 +415,10 @@
 			compatible = "qcom,tee-shared-memory-bridge";
 		};
 
+		qcom_smcinvoke {
+			compatible = "qcom,smcinvoke";
+		};
+
 		android {
 			compatible = "android,firmware";
 			vbmeta {
@@ -564,12 +561,6 @@
 		size = <0x0 0x400000>;
 	};
 
-	cont_splash_memory: cont_splash_region@9c000000 {
-		reg = <0x0 0x9c000000 0x0 0x02300000>;
-		label = "cont_splash_region";
-	};
-
-
 	dfps_data_memory: dfps_data_region@9e300000 {
 		reg = <0x0 0x9e300000 0x0 0x0100000>;
 		label = "dfps_data_region";
@@ -662,11 +653,6 @@
 	#size-cells = <1>;
 	ranges = <0 0 0 0xffffffff>;
 	compatible = "simple-bus";
-
-	disp_rdump_memory: disp_rdump_region@9c000000 {
-		reg = <0x0 0x9c000000 0x0 0x00800000>;
-		label = "disp_rdump_region";
-	};
 
 	thermal_zones: thermal-zones {
 	};
@@ -786,6 +772,46 @@
 		};
 	};
 
+	qcom_cedev: qcedev@1de0000 {
+		compatible = "qcom,qcedev";
+		reg = <0x1de0000 0x20000>,
+			<0x1dc4000 0x24000>;
+		reg-names = "crypto-base","crypto-bam-base";
+		interrupts = <GIC_SPI 272 IRQ_TYPE_LEVEL_HIGH>;
+		qcom,bam-pipe-pair = <3>;
+		qcom,ce-hw-instance = <0>;
+		qcom,ce-device = <0>;
+		qcom,ce-hw-shared;
+		qcom,bam-ee = <0>;
+		qcom,smmu-s1-enable;
+		interconnect-names = "data_path";
+		interconnects = <&aggre2_noc MASTER_CRYPTO &mc_virt SLAVE_EBI1>;
+		qcom,no-clock-support;
+		iommus = <&apps_smmu 0x0586 0x0011>,
+			 <&apps_smmu 0x0596 0x0011>;
+		qcom,iommu-dma = "atomic";
+
+		qcom_cedev_ns_cb {
+			compatible = "qcom,qcedev,context-bank";
+			label = "ns_context";
+			iommus = <&apps_smmu 0x592 0>,
+				 <&apps_smmu 0x598 0>,
+				 <&apps_smmu 0x599 0>,
+				 <&apps_smmu 0x59F 0>;
+		};
+
+		qcom_cedev_s_cb {
+			compatible = "qcom,qcedev,context-bank";
+			label = "secure_context";
+			iommus = <&apps_smmu 0x593 0>,
+				 <&apps_smmu 0x59C 0>,
+				 <&apps_smmu 0x59D 0>,
+				 <&apps_smmu 0x59E 0>;
+			qcom,iommu-vmid = <0x9>; /* VMID_CP_BITSTREAM */
+			qcom,secure-context-bank;
+		};
+	};
+
 	qcom_qseecom: qseecom@82400000 {
 			compatible = "qcom,qseecom";
 			reg = <0x82400000 0x3A00000>;
@@ -812,6 +838,13 @@
 		qcom,hyplog-enabled;
 		hyplog-address-offset = <0x410>;
 		hyplog-size-offset = <0x414>;
+	};
+
+	qcom_rng: qrng@793000 {
+		compatible = "qcom,msm-rng";
+		reg = <0x793000 0x1000>;
+		qcom,no-qrng-config;
+		qcom,no-clock-support;
 	};
 
 	cpu_pmu: cpu-pmu {
@@ -1767,13 +1800,17 @@
 		qcom,target-dev = <&qcom_ddr_dcvs_hw>;
 	};
 
-	qcom,chd_silver {
+	qcom,chd {
 		compatible = "qcom,core-hang-detect";
-		label = "silver";
-		qcom,threshold-arr = <0x18000058 0x18010058
-		0x18020058 0x18030058>;
-		qcom,config-arr = <0x18000060 0x18010060
-		0x18020060 0x18030060>;
+		label = "core";
+		qcom,chd-percpu-info = <&CPU0 0x18000058 0x18000060>,
+					<&CPU1 0x18010058 0x18010060>,
+					<&CPU2 0x18020058 0x18020060>,
+					<&CPU3 0x18030058 0x18030060>,
+					<&CPU4 0x18040058 0x18040060>,
+					<&CPU5 0x18050058 0x18050060>,
+					<&CPU6 0x18060058 0x18060060>,
+					<&CPU7 0x18070058 0x18070060>;
 	};
 
 	dsu_pmu@0 {
@@ -1781,15 +1818,6 @@
 		interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 		cpus = <&CPU0>, <&CPU1>, <&CPU2>, <&CPU3>,
 			<&CPU4>, <&CPU5>, <&CPU6>, <&CPU7>;
-	};
-
-	qcom,chd_gold {
-		compatible = "qcom,core-hang-detect";
-		label = "gold";
-		qcom,threshold-arr = <0x18040058 0x18050058
-		0x18060058 0x18070058>;
-		qcom,config-arr = <0x18040060 0x18050060
-		0x18060060 0x18070060>;
 	};
 
 	ufsphy_mem: ufsphy_mem@1d87000 {
@@ -1806,6 +1834,22 @@
 
 		resets = <&ufshc_mem 0>;
 		status = "disabled";
+	};
+
+	ufs_ice: ufsice@1d90000 {
+		compatible = "qcom,ice";
+		reg = <0x1d90000 0x8000>;
+		qcom,enable-ice-clk;
+		clock-names = "ufs_core_clk", "bus_clk",
+				"iface_clk", "ice_core_clk";
+		clocks = <&gcc GCC_UFS_PHY_AXI_CLK>, <&gcc GCC_UFS_1X_CLKREF_EN>,
+			<&gcc GCC_UFS_PHY_AHB_CLK>, <&gcc GCC_UFS_PHY_ICE_CORE_CLK>;
+		qcom,op-freq-hz = <0>, <0>, <0>, <300000000>;
+		vdd-hba-supply = <&ufs_phy_gdsc>;
+		qcom,bus-vector-names = "MIN",
+					"MAX";
+		qcom,instance-type = "ufs";
+		qcom,num-fde-slots = <31>;
 	};
 
 	ufshc_mem: ufshc@1d84000 {
@@ -4065,8 +4109,15 @@
 	};
 
 	msm_gpu: qcom,kgsl-3d0@3d00000 { };
+
+	qcom,msm-rtb {
+		compatible = "qcom,msm-rtb";
+		qcom,rtb-size = <0x100000>;
+	};
+
 };
 
+#include "ipcc-test.dtsi"
 #include "kona-usb.dtsi"
 #include "kona-regulators.dtsi"
 #include "kona-pmic-overlay.dtsi"

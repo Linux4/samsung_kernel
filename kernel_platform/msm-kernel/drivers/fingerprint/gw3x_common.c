@@ -539,7 +539,7 @@ static void gw3x_work_func_debug(struct work_struct *work)
 
 	pr_info("ldo: %d, sleep: %d, irq: %d tz: %d type: %s\n",
 		gf_dev->ldo_onoff, rst_value, irq_value, gf_dev->tz_mode,
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype > 0 ? gf_dev->chipid : sensor_status[gf_dev->sensortype + 2]);
 }
 
 int gw3x_pin_control(struct gf_device *gf_dev, bool pin_set)
@@ -791,59 +791,48 @@ int gw3x_type_check(struct gf_device *gf_dev)
 	pr_info("Sensor read mcuid32 : 0x%08x\n", mcuid32);
 	pr_info("Sensor read mcuid24 : 0x%08x\n", mcuid24);
 	if (mcuid24 == GF_GW32J_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW32J\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW32J\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW32N_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW32N\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW32N\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36H_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36H\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36H\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36C_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36C\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36C\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T1_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T1\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T1\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T2_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T2\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T2\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T3_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T3\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T3\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T1_SHIFT_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T1 SHIFT\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T1 SHIFT\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T2_SHIFT_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T2 SHIFT\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T2 SHIFT\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T3_SHIFT_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T3 SHIFT\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T3 SHIFT\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid32 == GF_GW39B_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW39B\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW39B\n", gf_dev->chipid);
 		retval = 0;
 	} else {
 		gf_dev->sensortype = SENSOR_FAILED;

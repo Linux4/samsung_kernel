@@ -31,7 +31,7 @@
 #define REBOOT_PATH "/system/bin/reboot"
 #define dead_uid 0xDEADBEAF
 
-static int kunit_mock_thread_function()
+static int kunit_mock_thread_function(void *ptr)
 {
 	while (!kthread_should_stop()) {
 		msleep(100);

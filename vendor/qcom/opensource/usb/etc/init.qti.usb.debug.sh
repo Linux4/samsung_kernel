@@ -63,12 +63,12 @@
 #  IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-prop_enabled=`getprop persist.vendor.usb.enable_ftrace 0`
+#prop_enabled=`getprop persist.vendor.usb.enable_ftrace 0`
 
 # bail out if its perf config
-if [ "$prop_enabled" == "0" -a ! -d /sys/module/msm_rtb ]; then
-    return
-fi
+#if [ "$prop_enabled" == "0" -a ! -d /sys/module/msm_rtb ]; then
+#    return
+#fi
 
 # Enable various ftrace debugging events for USB
 tracefs=/sys/kernel/tracing

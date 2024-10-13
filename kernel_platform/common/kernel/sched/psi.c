@@ -150,7 +150,7 @@
 #include <linux/poll.h>
 #include <linux/psi.h>
 #include "sched.h"
-
+#include <trace/hooks/psi.h>
 #ifdef CONFIG_PROC_FSLOG
 #include <linux/fslog.h>
 #endif
@@ -599,6 +599,8 @@ static u64 update_triggers(struct psi_group *group, u64 now)
 		if (now < t->last_event_time + t->win.size)
 			continue;
 
+		trace_android_vh_psi_event(t);
+
 		if ((t->win.size >= MONITOR_WINDOW_MIN_NS) &&
 		    (t->threshold >= MONITOR_THRESHOLD_MIN_NS))
 			printk_deferred("psi: %s %lu %lu %d %lu %lu\n", __func__, now,
@@ -609,6 +611,8 @@ static u64 update_triggers(struct psi_group *group, u64 now)
 			wake_up_interruptible(&t->event_wait);
 		t->last_event_time = now;
 	}
+
+	trace_android_vh_psi_group(group);
 
 	if (new_stall)
 		memcpy(group->polling_total, total,

@@ -324,6 +324,10 @@ static u32 hdd_to_nl_sar_version(enum sar_version hdd_sar_version)
 		return QCA_WLAN_VENDOR_SAR_VERSION_2;
 	case (SAR_VERSION_3):
 		return QCA_WLAN_VENDOR_SAR_VERSION_3;
+	case (SAR_VERSION_4):
+	case (SAR_VERSION_5):
+	case (SAR_VERSION_6):
+		return QCA_WLAN_VENDOR_SAR_VERSION_1;
 	default:
 		hdd_err("Unexpected SAR version received :%u, sending default to userspace",
 			hdd_sar_version);
@@ -350,7 +354,8 @@ static int hdd_sar_fill_capability_response(struct sk_buff *skb,
 	attr = QCA_WLAN_VENDOR_ATTR_SAR_CAPABILITY_VERSION;
 	value = hdd_to_nl_sar_version(hdd_ctx->sar_version);
 
-	hdd_debug("Sending SAR Version = %u to userspace", value);
+	hdd_debug("Sending SAR Version = %u to userspace, fw_sar_version: %d",
+		  value, hdd_ctx->sar_version);
 
 	errno = nla_put_u32(skb, attr, value);
 

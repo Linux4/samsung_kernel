@@ -709,7 +709,9 @@ util_scan_get_phymode_5g(struct wlan_objmgr_pdev *pdev,
 	if (htcap)
 		ht_cap = le16toh(htcap->hc_cap);
 
-	if (ht_cap & WLAN_HTCAP_C_CHWIDTH40)
+	if ((ht_cap & WLAN_HTCAP_C_CHWIDTH40) &&
+	    (htinfo->hi_extchoff == WLAN_HTINFO_EXTOFFSET_ABOVE ||
+	     htinfo->hi_extchoff == WLAN_HTINFO_EXTOFFSET_BELOW))
 		phymode = WLAN_PHYMODE_11NA_HT40;
 	else
 		phymode = WLAN_PHYMODE_11NA_HT20;
@@ -721,7 +723,7 @@ util_scan_get_phymode_5g(struct wlan_objmgr_pdev *pdev,
 	if (util_scan_entry_vhtcap(scan_params) && vhtop) {
 		switch (vhtop->vht_op_chwidth) {
 		case WLAN_VHTOP_CHWIDTH_2040:
-			if (ht_cap & WLAN_HTCAP_C_CHWIDTH40)
+			if (phymode == WLAN_PHYMODE_11NA_HT40)
 				phymode = WLAN_PHYMODE_11AC_VHT40;
 			else
 				phymode = WLAN_PHYMODE_11AC_VHT20;

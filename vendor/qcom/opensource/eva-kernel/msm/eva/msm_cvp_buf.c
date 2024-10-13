@@ -34,7 +34,7 @@
 
 static void _wncc_print_cvpwnccbufs_table(struct msm_cvp_inst* inst);
 static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
-	unsigned int num_layers, struct eva_kmd_wncc_metadata** wncc_metadata);
+	struct eva_kmd_oob_wncc* wncc_oob, struct eva_kmd_wncc_metadata** wncc_metadata);
 
 void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log);
 
@@ -756,6 +756,13 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 		return -EINVAL;
 	}
 
+	if (!access_ok(&in_pkt->oob_buf->oob_type,
+			sizeof(in_pkt->oob_buf->oob_type))) {
+		dprintk(CVP_ERR,
+			"%s: bad OOB buf pointer, oob_type inaccessible",
+			__func__);
+		return -EINVAL;
+	}
 	rc = get_user(oob_type, &in_pkt->oob_buf->oob_type);
 	if (rc)
 		return rc;
@@ -768,6 +775,13 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 	wncc_oob_u = &in_pkt->oob_buf->wncc;
 	wncc_oob_k = wncc_oob;
 
+	if (!access_ok(&wncc_oob_u->num_layers,
+			sizeof(wncc_oob_u->num_layers))) {
+		dprintk(CVP_ERR,
+			"%s: bad OOB buf pointer, wncc.num_layers inaccessible",
+			__func__);
+		return -EINVAL;
+	}
 	rc = get_user(wncc_oob_k->num_layers, &wncc_oob_u->num_layers);
 	if (rc)
 		return rc;
@@ -778,7 +792,13 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 	}
 
 	for (i = 0; i < wncc_oob_k->num_layers; i++) {
-
+		if (!access_ok(&wncc_oob_u->layers[i].num_addrs,
+				sizeof(wncc_oob_u->layers[i].num_addrs))) {
+			dprintk(CVP_ERR,
+				"%s: bad OOB buf pointer, wncc.layers[%u].num_addrs inaccessible",
+				__func__, i);
+			return -EINVAL;
+		}
 		rc = get_user(wncc_oob_k->layers[i].num_addrs,
 			&wncc_oob_u->layers[i].num_addrs);
 		if (rc)
@@ -793,10 +813,18 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 			break;
 		}
 
+		if (!access_ok(wncc_oob_u->layers[i].addrs,
+				num_addrs * sizeof(struct eva_kmd_wncc_addr)) ||
+			!access_ok(&wncc_oob_u->layers[i].addrs[num_addrs - 1],
+				sizeof(struct eva_kmd_wncc_addr))) {
+			dprintk(CVP_ERR,
+				"%s: bad OOB buf pointer, wncc.layers[%u].addrs inaccessible",
+				__func__, i);
+			return -EINVAL;
+		}
 		rc = copy_from_user(wncc_oob_k->layers[i].addrs,
 			wncc_oob_u->layers[i].addrs,
-			wncc_oob_k->layers[i].num_addrs *
-			sizeof(struct eva_kmd_wncc_addr));
+			num_addrs * sizeof(struct eva_kmd_wncc_addr));
 		if (rc)
 			break;
 	}
@@ -808,16 +836,22 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 }
 
 static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
-	unsigned int num_layers, struct eva_kmd_wncc_metadata** wncc_metadata)
+	struct eva_kmd_oob_wncc* wncc_oob, struct eva_kmd_wncc_metadata** wncc_metadata)
 {
 	int rc = 0, i;
 	struct cvp_buf_type* wncc_metadata_bufs;
 	struct dma_buf* dmabuf;
 	struct dma_buf_map map;
+	__u32 num_layers;
 
-	if (!in_pkt || !wncc_metadata ||
-		num_layers < 1 || num_layers > EVA_KMD_WNCC_MAX_LAYERS) {
+	if (!in_pkt || !wncc_metadata || !wncc_oob) {
 		dprintk(CVP_ERR, "%s: invalid params", __func__);
+		return -EINVAL;
+	}
+
+	num_layers = wncc_oob->num_layers;
+	if (num_layers < 1 || num_layers > EVA_KMD_WNCC_MAX_LAYERS) {
+		dprintk(CVP_ERR, "%s: invalid wncc num layers", __func__);
 		return -EINVAL;
 	}
 
@@ -831,6 +865,16 @@ static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 				"%s: dma_buf_get() failed for "
 				"wncc_metadata_bufs[%d], rc %d",
 				__func__, i, rc);
+			break;
+		}
+
+		if (dmabuf->size < wncc_oob->layers[i].num_addrs *
+			sizeof(struct eva_kmd_wncc_metadata)) {
+			dprintk(CVP_ERR,
+				"%s: wncc_metadata_bufs[%d] size insufficient for num addrs in oob",
+				__func__, i);
+			dma_buf_put(dmabuf);
+			rc = -EINVAL;
 			break;
 		}
 
@@ -863,22 +907,28 @@ static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 	}
 
 	if (rc)
-		_wncc_unmap_metadata_bufs(in_pkt, i, wncc_metadata);
+		_wncc_unmap_metadata_bufs(in_pkt, wncc_oob, wncc_metadata);
 
 	return rc;
 }
 
 static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
-	unsigned int num_layers, struct eva_kmd_wncc_metadata** wncc_metadata)
+	struct eva_kmd_oob_wncc* wncc_oob, struct eva_kmd_wncc_metadata** wncc_metadata)
 {
 	int rc = 0, i;
 	struct cvp_buf_type* wncc_metadata_bufs;
 	struct dma_buf* dmabuf;
 	struct dma_buf_map map;
+	__u32 num_layers;
 
-	if (!in_pkt || !wncc_metadata ||
-		num_layers < 1 || num_layers > EVA_KMD_WNCC_MAX_LAYERS) {
+	if (!in_pkt || !wncc_metadata || !wncc_oob) {
 		dprintk(CVP_ERR, "%s: invalid params", __func__);
+		return -EINVAL;
+	}
+
+	num_layers = wncc_oob->num_layers;
+	if (num_layers < 1 || num_layers > EVA_KMD_WNCC_MAX_LAYERS) {
+		dprintk(CVP_ERR, "%s: invalid wncc num layers", __func__);
 		return -EINVAL;
 	}
 
@@ -886,8 +936,7 @@ static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 		&in_pkt->pkt_data[EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET];
 	for (i = 0; i < num_layers; i++) {
 		if (!wncc_metadata[i]) {
-			rc = -EINVAL;
-			break;
+			continue;
 		}
 
 		dmabuf = dma_buf_get(wncc_metadata_bufs[i].fd);
@@ -943,8 +992,8 @@ static int msm_cvp_proc_oob_wncc(struct msm_cvp_inst* inst,
 		goto exit;
 	}
 
-	rc = _wncc_map_metadata_bufs(in_pkt,
-		wncc_oob->num_layers, wncc_metadata);
+	memset(wncc_metadata, 0, sizeof(*wncc_metadata) * EVA_KMD_WNCC_MAX_LAYERS);
+	rc = _wncc_map_metadata_bufs(in_pkt, wncc_oob, wncc_metadata);
 	if (rc) {
 		dprintk(CVP_ERR, "%s: failed to map wncc metadata bufs",
 			__func__);
@@ -1012,8 +1061,7 @@ static int msm_cvp_proc_oob_wncc(struct msm_cvp_inst* inst,
 		_wncc_print_metadata_buf(wncc_oob->num_layers,
 			wncc_oob->layers[0].num_addrs, wncc_metadata);
 
-	if (_wncc_unmap_metadata_bufs(in_pkt,
-		wncc_oob->num_layers, wncc_metadata)) {
+	if (_wncc_unmap_metadata_bufs(in_pkt, wncc_oob, wncc_metadata)) {
 		dprintk(CVP_ERR, "%s: failed to unmap wncc metadata bufs",
 			__func__);
 	}

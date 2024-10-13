@@ -18,6 +18,11 @@ static long sec_input_rawdata_ioctl(struct file *file, unsigned int cmd,  void _
 	u8 *copier;
 	int total;
 
+	if (!raw_dev->rawdata_pool[0] || !raw_dev->rawdata_pool[1] || !raw_dev->rawdata_pool[2]) {
+		input_err(true, raw_dev->fac_dev, "%s: is not allocated\n", __func__);
+		return -ENOMEM;
+	}
+
 	mutex_lock(&raw_dev->lock);
 
 	if (cmd == IOCTL_TSP_MAP_READ) {
@@ -35,6 +40,9 @@ static long sec_input_rawdata_ioctl(struct file *file, unsigned int cmd,  void _
 			t.num = RAW_VEC_NUM - raw_dev->raw_read_index + raw_dev->raw_write_index;
 		}
 
+		/* rawdata_len is 4K size, and if num is over 1, u8 data[IOCTL_SIZE] is overflow
+		 * will be fixed to support numbers buffer.
+		 */
 		if (t.num > 1) {
 			t.num = 1;
 		}
@@ -171,11 +179,11 @@ int sec_input_rawdata_buffer_alloc(void)
 	return 0;
 
 alloc_out:
-	if (!raw_dev->rawdata_pool[0])
+	if (raw_dev->rawdata_pool[0])
 		vfree(raw_dev->rawdata_pool[0]);
-	if (!raw_dev->rawdata_pool[1])
+	if (raw_dev->rawdata_pool[1])
 		vfree(raw_dev->rawdata_pool[1]);
-	if (!raw_dev->rawdata_pool[2])
+	if (raw_dev->rawdata_pool[2])
 		vfree(raw_dev->rawdata_pool[2]);
 
 	raw_dev->rawdata_pool[0] = raw_dev->rawdata_pool[1] = raw_dev->rawdata_pool[2] = NULL;

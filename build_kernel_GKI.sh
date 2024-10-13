@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #1. target config
-BUILD_TARGET=q5q_chn_openx
+BUILD_TARGET=q5q_chn_hkx
 export MODEL=$(echo ${BUILD_TARGET} | cut -d'_' -f1)
 export PROJECT_NAME=${MODEL}
 export REGION=$(echo ${BUILD_TARGET} | cut -d'_' -f2)

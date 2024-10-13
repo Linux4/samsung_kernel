@@ -47,6 +47,12 @@
 			qcom,intents = <0x0C 1>;
 		};
 
+		qcom,glink-slatecom-qcli {
+			qcom,glink-channels = "slate-qcli";
+			qcom,intents = <0x0C 1>;
+			status = "ok";
+		};
+
 		qcom,glink-slate-rsb {
 			qcom,glink-channels = "slate-rsb-ctl";
 			qcom,intents = <0x0C 1>;
@@ -173,7 +179,7 @@
 
 		qcom,glink-ss-bt-ctrl {
 			qcom,glink-channels = "ss_bt_ctrl";
-			qcom,intents = <0x500 10>;
+			qcom,intents = <0x1000 10>;
 		};
 
 		qcom,glink-ss-bt-data {
@@ -181,6 +187,15 @@
 			qcom,intents = <0x1000 10>;
 		};
 
+		qcom,glink-ss-bt-le-data {
+			qcom,glink-channels = "ss_bt_le_data";
+			qcom,intents = <0x1000 10>;
+		};
+
+		qcom,glink-ss-bt-ssr-data {
+			qcom,glink-channels = "ss_bt_ssr_data";
+			qcom,intents = <0xf2f8 10>;
+		};
 	};
 
 	qcom,slatecom-rpmsg {

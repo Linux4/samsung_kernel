@@ -92,6 +92,7 @@ obj-$(CONFIG_MMC_SDHCI_OF_DWCMSHC)	+= sdhci-of-dwcmshc.o
 obj-$(CONFIG_MMC_SDHCI_OF_SPARX5)	+= sdhci-of-sparx5.o
 obj-$(CONFIG_MMC_SDHCI_BCM_KONA)	+= sdhci-bcm-kona.o
 obj-$(CONFIG_MMC_SDHCI_IPROC)		+= sdhci-iproc.o
+obj-$(CONFIG_MMC_SDHCI_MSM_SCALING)		+= sdhci-msm-scaling.o
 ifeq ($(CONFIG_SEC_MMC_FEATURE),y)
 obj-$(CONFIG_MMC_SDHCI_MSM)		+= sdhci-msm-sec.o
 sdhci-msm-sec-y				+= sdhci-msm.o mmc-sec-feature.o mmc-sec-sysfs.o

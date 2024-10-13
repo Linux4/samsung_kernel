@@ -2779,6 +2779,14 @@ enum nl80211_commands {
  *	When used with %NL80211_CMD_FRAME_TX_STATUS, indicates the ack RX
  *	timestamp. When used with %NL80211_CMD_FRAME RX notification, indicates
  *	the incoming frame RX timestamp.
+ * @NL80211_ATTR_TD_BITMAP: Transition Disable bitmap, for subsequent
+ *	(re)associations.
+ *
+ * @NL80211_ATTR_PUNCT_BITMAP: (u32) Preamble puncturing bitmap, lowest
+ *	bit corresponds to the lowest 20 MHz channel. Each bit set to 1
+ *	indicates that the sub-channel is punctured. Higher 16 bits are
+ *	reserved.
+ *
  * @NL80211_ATTR_MLO_TID_LINK_DEFAULT_MAP: flag attribute, indicating if the
  *	TID to link mapping is default or not.
  *	See P802.11be_D3.0 specifications 35.3.7.1.2 Default mapping mode
@@ -3316,9 +3324,9 @@ enum nl80211_attrs {
 
 	NL80211_ATTR_TX_HW_TIMESTAMP,
 	NL80211_ATTR_RX_HW_TIMESTAMP,
+	NL80211_ATTR_TD_BITMAP,
+	NL80211_ATTR_PUNCT_BITMAP,
 
-	NL80211_ATTR_RESERVED_DO_NOT_USE_10 = 321,
-	NL80211_ATTR_RESERVED_DO_NOT_USE_11 = 322,
 	NL80211_ATTR_RESERVED_DO_NOT_USE_12 = 323,
 	NL80211_ATTR_RESERVED_DO_NOT_USE_13 = 324,
 	NL80211_ATTR_RESERVED_DO_NOT_USE_14 = 325,
@@ -5961,6 +5969,7 @@ enum plink_actions {
 #define NL80211_KEK_LEN			16
 #define NL80211_KCK_EXT_LEN		24
 #define NL80211_KEK_EXT_LEN		32
+#define NL80211_KCK_EXT_LEN_32		32
 #define NL80211_REPLAY_CTR_LEN		8
 
 /**
@@ -6386,6 +6395,11 @@ enum nl80211_feature_flags {
  *	might apply, e.g. no scans in progress, no offchannel operations
  *	in progress, and no active connections.
  *
+ * @NL80211_EXT_FEATURE_PUNCT: Driver supports preamble puncturing in AP mode.
+ *
+ * @NL80211_EXT_FEATURE_SECURE_NAN: Device supports NAN Pairing which enables
+ *	authentication, data encryption and message integrity.
+ *
  * @NL80211_EXT_FEATURE_AUTH_TX_RANDOM_TA: Device supports randomized TA
  *	for authentication frames in @NL80211_CMD_FRAME.
  *
@@ -6457,6 +6471,8 @@ enum nl80211_ext_feature_index {
 	NL80211_EXT_FEATURE_FILS_CRYPTO_OFFLOAD,
 	NL80211_EXT_FEATURE_RADAR_BACKGROUND,
 	NL80211_EXT_FEATURE_POWERED_ADDR_CHANGE,
+	NL80211_EXT_FEATURE_PUNCT,
+	NL80211_EXT_FEATURE_SECURE_NAN,
 	NL80211_EXT_FEATURE_AUTH_TX_RANDOM_TA,
 	NL80211_EXT_FEATURE_RESERVED_DO_NOT_USE_2 = 63,
 	NL80211_EXT_FEATURE_RESERVED_DO_NOT_USE_3 = 64,

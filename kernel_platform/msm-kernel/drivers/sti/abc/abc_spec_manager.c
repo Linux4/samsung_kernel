@@ -22,6 +22,10 @@
 struct list_head abc_spec_list;
 EXPORT_SYMBOL_KUNIT(abc_spec_list);
 
+struct abc_event_group_struct abc_event_group_list[] = {
+	{ABC_GROUP_CAMERA_MIPI_ERROR_ALL, "camera", "mipi_error_all"},
+};
+
 #if IS_ENABLED(CONFIG_OF)
 int abc_parse_dt(struct device *dev)
 {
@@ -257,18 +261,12 @@ bool sec_abc_reached_spec(struct abc_key_data *key_data)
 }
 EXPORT_SYMBOL_KUNIT(sec_abc_reached_spec);
 
-int sec_abc_apply_changed_spec(char *str)
+int sec_abc_parse_spec_cmd(char *str, struct abc_spec_cmd *abc_spec)
 {
-	struct abc_common_spec_data *common_spec;
-	struct spec_data_type1 *spec_type1;
-	char *sys_input_strings[3] = {0,};
-	char module_name[ABC_EVENT_STR_MAX];
-	char error_name[ABC_EVENT_STR_MAX];
+	int idx = 0;
 	char temp[ABC_BUFFER_MAX];
 	char *c, *p;
-	int idx = 0, count = 0;
-
-	ABC_PRINT("start : %s", str);
+	char *sys_input_strings[3] = { 0, };
 
 	strlcpy(temp, str, ABC_BUFFER_MAX);
 	p = temp;
@@ -281,23 +279,36 @@ int sec_abc_apply_changed_spec(char *str)
 	if (idx != ABC_SPEC_CMD_STR_MAX)
 		return -EINVAL;
 
-	if (sec_abc_get_event_module(module_name, sys_input_strings[0]))
+	if (sec_abc_get_event_module(abc_spec->module, sys_input_strings[0]))
 		return -EINVAL;
 
-	if (sec_abc_get_event_name(error_name, sys_input_strings[1]))
+	if (sec_abc_get_event_name(abc_spec->name, sys_input_strings[1]))
 		return -EINVAL;
 
+	strlcpy(abc_spec->spec, sys_input_strings[2], ABC_EVENT_STR_MAX);
+
+	return 0;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_parse_spec_cmd);
+
+int sec_abc_apply_changed_spec(char *module_name, char *error_name, char *spec)
+{
+	struct abc_common_spec_data *common_spec;
+	struct spec_data_type1 *spec_type1;
+	int idx = 0, count = 0;
+
+	ABC_PRINT("start : %s %s %s", module_name, error_name, spec);
 	idx = sec_abc_get_idx_of_registered_event(module_name, error_name);
 
 	if (idx < 0)
 		return -EINVAL;
 
-	if (!strcmp(sys_input_strings[2], "OFF")) {
+	if (!strcmp(spec, "OFF")) {
 		abc_event_list[idx].enabled = false;
 		return 0;
 	}
 
-	if (sec_abc_get_count(&count, sys_input_strings[2]))
+	if (sec_abc_get_count(&count, spec))
 		return -EINVAL;
 
 	if (abc_event_list[idx].singular_spec) {
@@ -338,17 +349,52 @@ int sec_abc_apply_changed_spec(char *str)
 }
 EXPORT_SYMBOL_KUNIT(sec_abc_apply_changed_spec);
 
+enum abc_event_group sec_abc_get_group(char *module, char *name)
+{
+	int idx = 0;
+
+	for (idx = 0; idx < ARRAY_SIZE(abc_event_group_list); idx++) {
+		if (strcmp(module, abc_event_group_list[idx].module) == 0 &&
+			strcmp(name, abc_event_group_list[idx].name) == 0) {
+			return  abc_event_group_list[idx].group;
+		}
+	}
+
+	return ABC_GROUP_NONE;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_group);
+
+int sec_abc_apply_changed_group_spec(enum abc_event_group group, char *spec)
+{
+	int idx = 0;
+
+	ABC_PRINT("start : %d %s", group, spec);
+
+	for (idx = 0; idx < REGISTERED_ABC_EVENT_TOTAL; idx++) {
+		if (group == abc_event_list[idx].group) {
+			if (sec_abc_apply_changed_spec(abc_event_list[idx].module_name,
+				abc_event_list[idx].error_name, spec)) {
+				return -EINVAL;
+			}
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_apply_changed_group_spec);
+
 void sec_abc_change_spec(const char *str)
 {
 	char *cmd_string, *p;
 	char temp[ABC_BUFFER_MAX * 5];
 	int cnt = 0;
+	enum abc_event_group group;
+	struct abc_spec_cmd abc_spec;
 
 	ABC_PRINT("start : %s", str);
 
 	if (!strncmp(str, "reset", 5)) {
 		sec_abc_reset_all_spec();
-		sec_abc_enable_all_spec();
 		ABC_PRINT("end : %s", str);
 		return;
 	}
@@ -361,9 +407,21 @@ void sec_abc_change_spec(const char *str)
 		cnt++;
 		if (!cmd_string[0])
 			continue;
-		if (sec_abc_apply_changed_spec(cmd_string)) {
+		if (sec_abc_parse_spec_cmd(cmd_string, &abc_spec)) {
 			ABC_PRINT_KUNIT("Invalid change cmd. Check the Input");
 			break;
+		}
+		group = sec_abc_get_group(abc_spec.module, abc_spec.name);
+		if (group == ABC_GROUP_NONE) {
+			if (sec_abc_apply_changed_spec(abc_spec.module, abc_spec.name, abc_spec.spec)) {
+				ABC_PRINT_KUNIT("Invalid change cmd. Check the Input");
+				break;
+			}
+		} else {
+			if (sec_abc_apply_changed_group_spec(group, abc_spec.spec)) {
+				ABC_PRINT_KUNIT("Invalid change cmd. Check the Input");
+				break;
+			}
 		}
 	}
 }
@@ -385,19 +443,11 @@ void sec_abc_reset_all_spec(void)
 	list_for_each_entry(spec_type1, &abc_spec_list, node) {
 		spec_type1->threshold_cnt = spec_type1->default_count;
 		spec_type1->buffer.size = spec_type1->threshold_cnt + 1;
+		abc_event_list[spec_type1->common_spec.idx].enabled = spec_type1->default_enabled;
 		sec_abc_reset_buffer_type1(spec_type1);
 	}
 }
 EXPORT_SYMBOL_KUNIT(sec_abc_reset_all_spec);
-
-void sec_abc_enable_all_spec(void)
-{
-	int i;
-
-	for (i = 0; i < REGISTERED_ABC_EVENT_TOTAL; i++)
-		abc_event_list[i].enabled = true;
-}
-EXPORT_SYMBOL_KUNIT(sec_abc_enable_all_spec);
 
 int sec_abc_read_spec(char *buf)
 {
@@ -419,6 +469,17 @@ int sec_abc_read_spec(char *buf)
 		idx = spec_type1->common_spec.idx;
 		len += scnprintf(buf + len, PAGE_SIZE - len, "ENABLE=%s",
 						 ((abc_event_list[idx].enabled) ? "ON" : "OFF"));
+		len += scnprintf(buf + len, PAGE_SIZE - len, "\n");
+	}
+
+	for (idx = 0; idx < ARRAY_SIZE(abc_event_group_list); idx++) {
+		len += scnprintf(buf + len, PAGE_SIZE - len, "MODULE=%s ",
+						 abc_event_group_list[idx].module);
+		len += scnprintf(buf + len, PAGE_SIZE - len, "WARN=%s ",
+						 abc_event_group_list[idx].name);
+		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_CNT=group ");
+		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_TIME=group ");
+		len += scnprintf(buf + len, PAGE_SIZE - len, "ENABLE=group");
 		len += scnprintf(buf + len, PAGE_SIZE - len, "\n");
 	}
 

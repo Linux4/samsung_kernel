@@ -87,8 +87,9 @@ static int s2m_is_enabled_regmap(struct regulator_dev *rdev)
 	if (ret < 0)
 		return ret;
 
-    val &= rdev->desc->enable_mask;
-    return (val == rdev->desc->enable_mask);
+	val &= rdev->desc->enable_mask;
+
+	return (val == rdev->desc->enable_mask);
 }
 
 static int s2m_get_voltage_sel_regmap(struct regulator_dev *rdev)
@@ -193,7 +194,7 @@ static int s2m_set_buck_mode(struct regulator_dev *rdev, unsigned int mode)
 			S2MPB02_BUCK_MODE_MASK);
 }
 
-static unsigned s2m_get_buck_mode(struct regulator_dev *rdev)
+static unsigned int s2m_get_buck_mode(struct regulator_dev *rdev)
 {
 	struct s2mpb02_data *info = rdev_get_drvdata(rdev);
 	struct i2c_client *i2c = info->iodev->i2c;
@@ -245,7 +246,8 @@ static struct regulator_ops s2mpb02_buck_ops = {
 };
 
 #if IS_ENABLED(CONFIG_SEC_PM)
-static unsigned int s2mpb02_of_map_mode(unsigned int mode) {
+static unsigned int s2mpb02_of_map_mode(unsigned int mode)
+{
 	switch (mode) {
 	case 1 ... 2:		/* Forced PWM & Auto */
 		return mode;
@@ -254,7 +256,8 @@ static unsigned int s2mpb02_of_map_mode(unsigned int mode) {
 	}
 }
 #else
-static unsigned int s2mpb02_of_map_mode(unsigned int mode) {
+static unsigned int s2mpb02_of_map_mode(unsigned int mode)
+{
 	return REGULATOR_MODE_INVALID;
 }
 #endif /* CONFIG_SEC_PM */

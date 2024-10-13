@@ -25,7 +25,7 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION		0x3018
+#define MFC_FW_BIN_VERSION		0x301A
 #define MFC_FW_VER_BIN_CPS		0x00C4
 
 #define MFC_FLASH_FW_HEX_PATH		"mfc/mfc_fw_flash.bin"
@@ -185,6 +185,8 @@
 #define MFC_IEC_TA_PLOSS_FREQ_THRESH1_REG	0x12A
 #define MFC_IEC_TA_PLOSS_FREQ_THRESH2_REG	0x12B
 #define MFC_IEC_PLOSS_FOD_ENABLE_REG		0x12C
+#define MFC_IEC_PWM_DUTY_THRESH			0x12D
+#define MFC_IEC_TA_PWM_DUTY_THRESH		0x12E
 
 #define MIN_DUTY_SETTING_20_DATA	20
 #define MIN_DUTY_SETTING_30_DATA	30
@@ -961,6 +963,8 @@ struct mfc_charger_platform_data {
 	u32 iec_ta_ploss_freq_thresh_1;
 	u32 iec_ta_ploss_freq_thresh_2;
 	u32 iec_ploss_fod_enable;
+	u32 iec_pwm_duty_thresh;
+	u32 iec_ta_pwm_duty_thresh;
 
 #if defined(CONFIG_MST_PCR)
 	u32 mst_iset_pcr;
@@ -984,7 +988,6 @@ struct mfc_charger_data {
 
 	u8 det_state; /* ACTIVE HIGH */
 	u8 pdrc_state; /* ACTIVE LOW */
-	u8 pdetb_state; /* ACTIVE LOW */
 
 	struct power_supply *psy_chg;
 	struct wakeup_source *wpc_ws;
@@ -1004,6 +1007,8 @@ struct mfc_charger_data {
 	struct wakeup_source *mode_change_ws;
 	struct wakeup_source *wpc_cs100_ws;
 	struct wakeup_source *wpc_check_rx_power_ws;
+	struct wakeup_source *wpc_pdet_b_ws;
+	struct wakeup_source *wpc_rx_phm_ws;
 	struct workqueue_struct *wqueue;
 	struct work_struct wcin_work;
 	struct delayed_work wpc_det_work;
@@ -1031,6 +1036,8 @@ struct mfc_charger_data {
 	struct delayed_work align_check_work;
 	struct delayed_work mode_change_work;
 	struct delayed_work wpc_check_rx_power_work;
+	struct delayed_work wpc_rx_phm_work;
+	struct delayed_work wpc_deactivate_work;
 
 	struct alarm phm_alarm;
 
@@ -1056,8 +1063,8 @@ struct mfc_charger_data {
 	bool is_suspend;
 	int tx_id;
 	int tx_id_cnt;
-	bool initial_vrect;
 	bool rx_phm_status;
+	int rx_phm_state;
 
 	int flicker_delay;
 	int flicker_vout_threshold;

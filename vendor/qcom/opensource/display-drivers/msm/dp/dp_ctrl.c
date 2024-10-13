@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -701,6 +701,9 @@ static void dp_ctrl_set_clock_rate(struct dp_ctrl_private *ctrl,
 {
 	u32 num = ctrl->parser->mp[clk_type].num_clk;
 	struct dss_clk *cfg = ctrl->parser->mp[clk_type].clk_config;
+
+	/* convert to HZ for byte2 ops */
+	rate *= 1000;
 
 	while (num && strcmp(cfg->clk_name, name)) {
 		num--;

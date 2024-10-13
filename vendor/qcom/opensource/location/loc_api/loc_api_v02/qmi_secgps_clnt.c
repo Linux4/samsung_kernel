@@ -346,7 +346,7 @@ void secgps_inject_ni_message(uint8_t* message, uint32_t length, int8_t sub_id){
    }
    req.sub_id = sub_id;
 
-   memcpy(req.injectedNIMessage, message, sizeof(req.injectedNIMessage));
+   memcpy(req.injectedNIMessage, message, length);
 
    ALOGI("SECGPS: Inject NI Message sub_id(%d)",sub_id);
 
@@ -370,7 +370,7 @@ void secgps_agnss_config_message(uint8_t* message, uint32_t length){
    req.agnssConfigMessageType = 0;
    req.agnssConfigMessage_len= length;
 
-   memcpy(req.agnssConfigMessage, message, sizeof(req.agnssConfigMessage));
+   memcpy(req.agnssConfigMessage, message, length);
 
    ALOGI("SECGPS: AGNSS Config Message");
 

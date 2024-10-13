@@ -6461,7 +6461,7 @@ static int __iw_setnone_getnone(struct net_device *dev,
 					    &target_bssid);
 		ucfg_wlan_cm_roam_invoke(hdd_ctx->pdev, adapter->vdev_id,
 					 &target_bssid, chan_freq,
-					 CM_ROAMING_HOST);
+					 CM_ROAMING_USER);
 		return 0;
 	}
 

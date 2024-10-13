@@ -29,7 +29,7 @@
 #include <wlan_cm_public_struct.h>
 
 /* Max candidate/attempts to be tried to connect */
-#define CM_MAX_CONNECT_ATTEMPTS 5
+#define CM_MAX_CONNECT_ATTEMPTS 10
 /*
  * Default connect timeout to consider 3 sec join timeout + 5 sec auth timeout +
  * 2 sec assoc timeout + 5 sec buffer for vdev related timeouts.

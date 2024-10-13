@@ -13,6 +13,8 @@
 
 #include "sec_input.h"
 #if IS_ENABLED(CONFIG_INPUT_SEC_TRUSTED_TOUCH)
+#include <linux/gpio.h>
+#include <linux/pinctrl/qcom-pinctrl.h>
 #include <linux/gunyah/gh_msgq.h>
 #include <linux/gunyah/gh_rm_drv.h>
 #include <linux/gunyah/gh_irq_lend.h>

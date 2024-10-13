@@ -319,13 +319,12 @@ static ssize_t ss_disp_cell_id_show(struct device *dev,
 	}
 
 	if (!vdd->cell_id_dsi) {
-		LCD_INFO(vdd, "no cell_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no cell_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
-
-	strlcat(buf, vdd->cell_id_dsi, vdd->cell_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
+	strlcpy(buf, vdd->cell_id_dsi, vdd->cell_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 
 	return strlen(buf);
 }
@@ -342,11 +341,12 @@ static ssize_t ss_disp_octa_id_show(struct device *dev,
 	}
 
 	if (!vdd->octa_id_dsi) {
-		LCD_INFO(vdd, "no octa_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no octa_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
-
-	strlcat(buf, vdd->octa_id_dsi, vdd->octa_id_len);
+	strlcpy(buf, vdd->octa_id_dsi, vdd->octa_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 
 	return strlen(buf);
 }
@@ -379,7 +379,7 @@ static ssize_t ss_disp_lcdtype_show(struct device *dev,
 		snprintf(temp, 20, "SDC_000000\n");
 	}
 
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -413,10 +413,8 @@ static ssize_t ss_disp_windowtype_show(struct device *dev,
 	id3 = id & 0xFF;
 
 	LCD_INFO(vdd,"%02x %02x %02x\n", id1, id2, id3);
-
 	snprintf(temp, sizeof(temp), "%02x %02x %02x\n", id1, id2, id3);
-
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -438,8 +436,7 @@ static ssize_t ss_disp_manufacture_date_show(struct device *dev,
 	date = vdd->manufacture_date_dsi;
 	snprintf((char *)temp, sizeof(temp), "manufacture date : %d\n", date);
 
-	strlcat(buf, temp, string_size);
-
+	strlcpy(buf, temp, string_size);
 	LCD_INFO(vdd, "manufacture date : %d\n", date);
 
 	return strnlen(buf, string_size);
@@ -457,13 +454,13 @@ static ssize_t ss_disp_manufacture_code_show(struct device *dev,
 	}
 
 	if (!vdd->ddi_id_dsi) {
-		LCD_ERR(vdd, "no ddi_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_ERR(vdd, "no ddi_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
+	strlcpy(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 
 	return strlen(buf);
 }
@@ -2619,7 +2616,7 @@ static ssize_t mipi_samsung_poc_show(struct device *dev,
 
 	snprintf((char *)temp, sizeof(temp), "%d %d %02x\n",
 			poc, check_sum[4], EB_value[3]);
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -2727,10 +2724,18 @@ static ssize_t ss_fw_id_show(struct device *dev,
 		return -ENODEV;
 	}
 
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		snprintf(buf, PAGE_SIZE, "-1\n");
+		return strlen(buf);
+	}
 
-	if (vdd->fw.is_support)
+
+	if (vdd->fw.is_support) {
+		if (vdd->fw.fw_id_read)
+			vdd->fw.fw_id_read(vdd);
 		LCD_INFO(vdd, "fw_id : %x\n", vdd->fw.fw_id);
-	else
+	} else
 		LCD_INFO(vdd, "fw_id is not supported\n");
 
 	snprintf(buf, PAGE_SIZE, "%x\n", vdd->fw.fw_id);
@@ -3199,14 +3204,13 @@ static ssize_t ss_disp_SVC_OCTA_show(struct device *dev,
 	}
 
 	if (!vdd->cell_id_dsi) {
-		LCD_INFO(vdd, "no cell_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no cell_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->cell_id_dsi, vdd->cell_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->cell_id_dsi, vdd->cell_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3221,14 +3225,13 @@ static ssize_t ss_disp_SVC_OCTA2_show(struct device *dev,
 	}
 
 	if (!vdd->cell_id_dsi) {
-		LCD_INFO(vdd, "no cell_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no cell_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->cell_id_dsi, vdd->cell_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->cell_id_dsi, vdd->cell_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3243,14 +3246,13 @@ static ssize_t ss_disp_SVC_OCTA_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->octa_id_dsi) {
-		LCD_INFO(vdd, "no octa_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no octa_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->octa_id_dsi, vdd->octa_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->octa_id_dsi, vdd->octa_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3265,14 +3267,13 @@ static ssize_t ss_disp_SVC_OCTA2_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->octa_id_dsi) {
-		LCD_INFO(vdd, "no octa_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no octa_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->octa_id_dsi, vdd->octa_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->octa_id_dsi, vdd->octa_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3287,14 +3288,13 @@ static ssize_t ss_disp_SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->ddi_id_dsi) {
-		LCD_ERR(vdd, "no ddi_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_ERR(vdd, "no ddi_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3309,14 +3309,13 @@ static ssize_t ss_disp_SVC_OCTA2_DDI_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->ddi_id_dsi) {
-		LCD_ERR(vdd, "no ddi_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_ERR(vdd, "no ddi_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 

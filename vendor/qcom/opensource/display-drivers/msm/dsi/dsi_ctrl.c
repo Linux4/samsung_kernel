@@ -1150,6 +1150,7 @@ static int dsi_ctrl_enable_supplies(struct dsi_ctrl *dsi_ctrl, bool enable)
 	int rc = 0;
 
 	if (enable) {
+		SDE_EVT32(0xEEEEEEEE);
 		rc = pm_runtime_resume_and_get(dsi_ctrl->drm_dev->dev);
 		if (rc < 0) {
 			DSI_CTRL_ERR(dsi_ctrl, "failed to enable power resource %d\n", rc);

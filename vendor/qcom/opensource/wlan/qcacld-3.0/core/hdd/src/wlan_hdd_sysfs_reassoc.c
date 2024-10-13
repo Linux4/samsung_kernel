@@ -55,7 +55,7 @@ __wlan_hdd_store_reassoc_sysfs(struct net_device *net_dev, char const *buf,
 				    &target_bssid);
 	hdd_debug("reassoc: net_devname %s", net_dev->name);
 	ucfg_wlan_cm_roam_invoke(hdd_ctx->pdev, adapter->vdev_id,
-				 &target_bssid, operating_ch, CM_ROAMING_HOST);
+				 &target_bssid, operating_ch, CM_ROAMING_USER);
 
 	return count;
 }

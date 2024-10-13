@@ -390,7 +390,8 @@
 			snps,dis_u2_susphy_quirk;
 			tx-fifo-resize;
 			maximum-speed = "super-speed";
-			dr_mode = "drd";
+			dr_mode = "otg";
+			usb-role-switch;
 		};
 	};
 

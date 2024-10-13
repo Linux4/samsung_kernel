@@ -13,7 +13,7 @@
 #include <linux/blk_types.h>
 #include <linux/blkdev.h>
 
-#include "blk-sec-stats.h"
+#include "blk-sec.h"
 
 #define MAX_PIO_NODE_NUM	10000
 #define SORT_PIO_NODE_NUM	100
@@ -348,7 +348,5 @@ void blk_sec_stat_pio_exit(struct kobject *kobj)
 		return;
 
 	sysfs_remove_files(kobj, blk_sec_stat_pio_attrs);
-
-	if (pio_cache)
-		kmem_cache_destroy(pio_cache);
+	kmem_cache_destroy(pio_cache);
 }

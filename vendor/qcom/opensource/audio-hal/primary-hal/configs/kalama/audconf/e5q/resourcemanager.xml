@@ -197,13 +197,13 @@
                     <channels>2</channels>
                     <bit_width>16</bit_width>
                     <ec_enable>1</ec_enable>
-                    <snd_device_name>bargein-aec-usb-headphones-mic</snd_device_name>
+                    <snd_device_name>bargein-aec-headphones-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="bargein_tts">
                     <channels>2</channels>
                     <bit_width>16</bit_width>
                     <ec_enable>1</ec_enable>
-                    <snd_device_name>bargein-tts-usb-headphones-mic</snd_device_name>
+                    <snd_device_name>bargein-tts-headphones-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="echo_main_mic">
                     <bit_width>16</bit_width>
@@ -308,7 +308,15 @@
                     <channels>1</channels>
                     <snd_device_name>call-headphone-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="translation_headphone_mic">
+                    <channels>1</channels>
+                    <snd_device_name>call-headphone-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="usb_headphone_mic">
+                    <channels>1</channels>
+                    <snd_device_name>call-usb-headphone-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="translation_usb_headphone_mic">
                     <channels>1</channels>
                     <snd_device_name>call-usb-headphone-mic</snd_device_name>
                 </custom-config>
@@ -331,6 +339,9 @@
                 <custom-config key="flip">
                     <snd_device_name>call-handset-mic-flip</snd_device_name>
                 </custom-config>
+                <custom-config key="translation_flip">
+                    <snd_device_name>call-handset-mic-flip</snd_device_name>
+                </custom-config>
                 <custom-config key="dual-mic">
                     <channels>2</channels>
                     <snd_device_name>handset-dmic-endfire</snd_device_name>
@@ -345,6 +356,14 @@
                 <snd_device_name>rec-main-mic</snd_device_name>
                 <custom-config key="vr">
                     <snd_device_name>vr-main-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="vr_dual">
+                    <channels>2</channels>
+                    <snd_device_name>vr-dual-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="rec_stereo_mic">
+                    <channels>2</channels>
+                    <snd_device_name>rec-stereo-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="dual-mic">
                     <channels>2</channels>
@@ -489,6 +508,11 @@
                     <channels>2</channels>
                     <snd_device_name>loopback-incallmusic-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="incallmusic_all_spk">
+                    <priority>1</priority>
+                    <channels>2</channels>
+                    <snd_device_name>loopback-incallmusic-mic</snd_device_name>
+                </custom-config>
             </usecase>
         <!--Uncomment these lines instead of above lines if needing to enable EC per custom key
             <usecase>
@@ -573,6 +597,10 @@
                     <channels>1</channels>
                     <snd_device_name>call-dex-speaker-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="translation_dex">
+                    <channels>1</channels>
+                    <snd_device_name>call-dex-speaker-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="loopback_mic2_spk">
                     <channels>1</channels>
                     <snd_device_name>loopback-sub-mic</snd_device_name>
@@ -585,7 +613,14 @@
                     <channels>2</channels>
                     <snd_device_name>loopback-incallmusic-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="incallmusic_all_spk">
+                    <channels>2</channels>
+                    <snd_device_name>loopback-incallmusic-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="flip">
+                    <snd_device_name>call-speaker-mic-flip</snd_device_name>
+                </custom-config>
+                <custom-config key="translation_flip">
                     <snd_device_name>call-speaker-mic-flip</snd_device_name>
                 </custom-config>
                 <custom-config key="video_call_flip">
@@ -621,6 +656,14 @@
                 <custom-config key="vr">
                     <channels>1</channels>
                     <snd_device_name>vr-sub-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="vr_dual">
+                    <channels>2</channels>
+                    <snd_device_name>vr-dual-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="rec_stereo_mic">
+                    <channels>2</channels>
+                    <snd_device_name>rec-stereo-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="karaoke">
                     <channels>1</channels>
@@ -1083,6 +1126,9 @@
                     <snd_device_name>loopback-speaker-right</snd_device_name>
                 </custom-config>
                 <custom-config key="incallmusic_spk">
+                    <snd_device_name>loopback-incallmusic-speaker</snd_device_name>
+                </custom-config>
+                <custom-config key="incallmusic_all_spk">
                     <snd_device_name>loopback-incallmusic-speaker</snd_device_name>
                 </custom-config>
                 <custom-config key="flip">

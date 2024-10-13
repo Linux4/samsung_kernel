@@ -119,6 +119,7 @@ int mod_sendmsg(int type, int mod, struct priv_data* data)
 		if (payload->mod == MOD_BINDER) {
 			payload->code = data->code;
 			memcpy(payload->rpcname, data->rpcname, sizeof(data->rpcname));
+			payload->pkg_info.cmd = data->pkg_info.cmd;
 		}
 		if (payload->mod == MOD_PKG)
 			memcpy(&payload->pkg_info, &data->pkg_info, sizeof(pkg_info_t));
@@ -160,8 +161,10 @@ int binder_report(struct task_struct *p, int code, const char *str, int flag)
 	data.flag = flag;
 	data.code = code;
 	strlcpy(data.rpcname, str, INTERFACETOKEN_BUFF_SIZE);
-	if(p)
+	if(p) {
 		data.target_uid = task_uid(p).val;
+		data.pkg_info.cmd = p->pid;
+	}
 	ret = mod_sendmsg(MSG_TO_USER, MOD_BINDER, &data);
 	return ret;
 }

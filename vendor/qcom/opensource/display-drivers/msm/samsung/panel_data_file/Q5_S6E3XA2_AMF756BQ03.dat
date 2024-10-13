@@ -537,6 +537,7 @@ Delay 34ms
 W 0x51 0xXX 0xXX
     UPDATE BRIGHTNESS
 
+${TE_FRAME_SEL}
 ${IRC}
 
 W 0xF7 0x0F

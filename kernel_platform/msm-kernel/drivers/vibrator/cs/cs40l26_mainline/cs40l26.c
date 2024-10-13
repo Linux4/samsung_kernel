@@ -2461,13 +2461,8 @@ static int samsung_set_trigger_cal(struct input_dev *dev, u32 val)
 
 	if (ret < 0) {
 		dev_err(cs40l26->dev, "%s is return error : %d\n", __func__, ret);
-		cs40l26->cal_requested = 0;
-		cs40l26->sec_vib_ddata.trigger_calibration = 0;
 		goto err_pm;
-	} else {
-		cs40l26->cal_requested = val;
 	}
-	dev_info(cs40l26->dev, "%s: cal_requested : %u", __func__, cs40l26->cal_requested);
 
 	if (!wait_for_completion_timeout(
 			completion,
@@ -3558,8 +3553,8 @@ static int cs40l26_custom_upload(struct cs40l26_private *cs40l26,
 	bool is_pwle = (first != CS40L26_WT_TYPE10_COMP_BUFFER);
 	bool is_svc = (first == CS40L26_SVC_ID);
 	struct device *dev = cs40l26->dev;
+	int ret, data_len, refactored_data_len, max_index_tmp;
 	u32 nwaves, min_index, max_index, trigger_index;
-	int ret, data_len, refactored_data_len;
 	u8 *refactored_data;
 	u16 index, bank;
 
@@ -3615,7 +3610,14 @@ static int cs40l26_custom_upload(struct cs40l26_private *cs40l26,
 		}
 
 		min_index = CS40L26_RAM_INDEX_START;
-		max_index = min_index + nwaves - cs40l26->num_owt_effects - 1;
+
+		max_index_tmp = min_index + nwaves - cs40l26->num_owt_effects - 1;
+		if (max_index_tmp < 0) {
+			dev_err(dev, "Invalid RAM index %d\n", max_index_tmp);
+			return -EINVAL;
+		}
+
+		max_index = (u32) max_index_tmp;
 		break;
 	case CS40L26_ROM_BANK_ID:
 		min_index = CS40L26_ROM_INDEX_START;

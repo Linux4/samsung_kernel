@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interconnect.h>
@@ -12,6 +12,8 @@
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
 
+#define ACTIVE_ALWAYS_TAG 0x7
+#define PERF_MODE_TAG   0x8
 
 static u32 _ab_buslevel_update(struct kgsl_pwrctrl *pwr,
 		u32 ib)
@@ -31,9 +33,6 @@ static u32 _ab_buslevel_update(struct kgsl_pwrctrl *pwr,
 
 	return (pwr->bus_percent_ab * pwr->bus_max) / 100;
 }
-
-#define ACTIVE_ONLY_TAG 0x3
-#define PERF_MODE_TAG   0x8
 
 int kgsl_bus_update(struct kgsl_device *device,
 			 enum kgsl_bus_vote vote_state)
@@ -83,12 +82,15 @@ int kgsl_bus_update(struct kgsl_device *device,
 	/* buslevel is the IB vote, update the AB */
 	ab = _ab_buslevel_update(pwr, pwr->ddr_table[buslevel]);
 
-	if (buslevel == pwr->pwrlevels[0].bus_max)
-		icc_set_tag(pwr->icc_path, ACTIVE_ONLY_TAG | PERF_MODE_TAG);
-	else
-		icc_set_tag(pwr->icc_path, ACTIVE_ONLY_TAG);
-
 	return device->ftbl->gpu_bus_set(device, buslevel, ab);
+}
+
+void kgsl_icc_set_tag(struct kgsl_pwrctrl *pwr, int buslevel)
+{
+	if (buslevel == pwr->pwrlevels[0].bus_max)
+		icc_set_tag(pwr->icc_path, ACTIVE_ALWAYS_TAG | PERF_MODE_TAG);
+	else
+		icc_set_tag(pwr->icc_path, ACTIVE_ALWAYS_TAG);
 }
 
 static void validate_pwrlevels(struct kgsl_device *device, u32 *ibs,

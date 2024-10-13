@@ -125,10 +125,13 @@ void ssc_set_fw_idx(int src)
 EXPORT_SYMBOL(ssc_set_fw_idx);
 #endif
 
-void send_ssc_recovery_command(void)
+void send_ssc_recovery_command(int type)
 {
 	int32_t msg_buf;
-	msg_buf = OPTION_TYPE_SSC_RECOVERY;
+	if (type == 1)
+		msg_buf = OPTION_TYPE_SSC_SSR_DUMP;
+	else
+		msg_buf = OPTION_TYPE_SSC_RECOVERY;
 	pr_info("[FACTORY] %s: msg_buf = %d\n", __func__, msg_buf);
 	adsp_unicast(&msg_buf, sizeof(int32_t),
 			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
@@ -587,6 +590,7 @@ static ssize_t ssr_reset_show(struct device *dev,
 		(int)adsp->recovery_disabled);
 	if (adsp->fssr) {
 		adsp->fssr = false;
+		adsp->fssr_dump = false;
 		adsp->recovery_disabled = adsp->prev_recovery_disabled;
 	}
 
@@ -1293,6 +1297,45 @@ static ssize_t sbm_init_store(struct device *dev,
 
 	return size;
 }
+
+static ssize_t pocket_inject_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_POCKET_INJECT, 0};
+	int pocket_inject_data = 0;
+
+	if (kstrtoint(buf, 10, &pocket_inject_data)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (pocket_inject_data) {
+		msg_buf[1] = pocket_inject_data;
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
+static ssize_t sns_crash_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int mode;
+
+	if (kstrtoint(buf, 10, &mode)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("[FACTORY] %s : %d\n", __func__, mode);
+	if (mode == 1) {
+		panic("sensor is abnormal, force panic\n");
+	}
+
+	return size;
+}
+
 #if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
 void update_grip_error(u8 idx, u32 error_state)
 {
@@ -1363,6 +1406,8 @@ static DEVICE_ATTR(light_seamless, 0660,
 #endif
 static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
 static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
+static DEVICE_ATTR(pocket_inject, 0220, NULL, pocket_inject_store);
+static DEVICE_ATTR(sns_crash, 0220, NULL, sns_crash_store);
 
 static struct device_attribute *core_attrs[] = {
 	&dev_attr_dumpstate,
@@ -1396,6 +1441,8 @@ static struct device_attribute *core_attrs[] = {
 #endif
 	&dev_attr_ar_mode,
 	&dev_attr_sbm_init,
+	&dev_attr_pocket_inject,
+	&dev_attr_sns_crash,
 #if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
 	&dev_attr_grip_fail,
 #endif

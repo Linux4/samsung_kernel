@@ -176,6 +176,15 @@ static unsigned long monitor_region_end __read_mostly;
 module_param(monitor_region_end, ulong, 0600);
 
 /*
+ * Cpu affinity of the damon thread.
+ *
+ * set the cpu affinity of the damon thread
+ * from 0 - cpu_affinity. By default no cpu affinity will be set
+ */
+static unsigned long cpu_affinity __read_mostly;
+module_param(cpu_affinity, ulong, 0600);
+
+/*
  * PID of the DAMON thread
  *
  * If DAMON_RECLAIM is enabled, this becomes the PID of the worker thread.
@@ -213,6 +222,12 @@ module_param(bytes_reclaimed_regions, ulong, 0400);
  */
 static unsigned long nr_quota_exceeds __read_mostly;
 module_param(nr_quota_exceeds, ulong, 0400);
+
+/*
+ * Number of times that the time/space quota limits have exceeded
+ */
+static unsigned long idle_time __read_mostly;
+module_param(idle_time, ulong, 0400);
 
 static struct damon_ctx *ctx;
 static struct damon_target *target;
@@ -289,6 +304,28 @@ static struct damos *damon_reclaim_new_scheme(void)
 	return scheme;
 }
 
+/*
+ * sets the cpu affinity for damon raclaimer thread to power cpu
+ */
+static void damon_set_cpu_affinity(int pid)
+{
+	struct cpumask mask;
+	int i = 0;
+	int rc = 0;
+
+	if (cpu_affinity == 0)
+		return;
+
+	cpumask_clear(&mask);
+
+	for (i = 0; i < cpu_affinity; i += 1)
+		cpumask_set_cpu(i, &mask);
+
+	rc = sched_setaffinity(pid, &mask);
+	if (rc != 0)
+		pr_err("error setting cpu affinity for damon pid (%d) error:%d\n", pid, rc);
+}
+
 static int damon_reclaim_turn(bool on)
 {
 	struct damon_region *region;
@@ -332,6 +369,8 @@ static int damon_reclaim_turn(bool on)
 	err = damon_start(&ctx, 1);
 	if (!err) {
 		kdamond_pid = ctx->kdamond->pid;
+		damon_set_cpu_affinity(kdamond_pid);
+		idle_time = 0;
 		return 0;
 	}
 
@@ -342,9 +381,8 @@ free_region_out:
 	return err;
 }
 
-#define ENABLE_CHECK_INTERVAL_MS	1000
-static struct delayed_work damon_reclaim_timer;
-static void damon_reclaim_timer_fn(struct work_struct *work)
+static struct mutex enabled_lock;
+static void handle_damon_enabled(void)
 {
 	static bool last_enabled;
 	bool now_enabled;
@@ -356,24 +394,21 @@ static void damon_reclaim_timer_fn(struct work_struct *work)
 		else
 			enabled = last_enabled;
 	}
-
-	if (enabled)
-		schedule_delayed_work(&damon_reclaim_timer,
-			msecs_to_jiffies(ENABLE_CHECK_INTERVAL_MS));
 }
-static DECLARE_DELAYED_WORK(damon_reclaim_timer, damon_reclaim_timer_fn);
 
 static int enabled_store(const char *val,
 		const struct kernel_param *kp)
 {
-	int rc = param_set_bool(val, kp);
+	int rc = 0;
 
-	if (rc < 0)
+	mutex_lock(&enabled_lock);
+	rc = param_set_bool(val, kp);
+	if (rc < 0) {
+		mutex_unlock(&enabled_lock);
 		return rc;
-
-	if (enabled)
-		schedule_delayed_work(&damon_reclaim_timer, 0);
-
+	}
+	handle_damon_enabled();
+	mutex_unlock(&enabled_lock);
 	return 0;
 }
 
@@ -401,6 +436,17 @@ static int damon_reclaim_after_aggregation(struct damon_ctx *c)
 	return 0;
 }
 
+static int damon_before_sleep_aggregation(struct damon_ctx *c, unsigned long wait_time_ms)
+{
+	struct damos *s;
+
+	/* update the stats parameter */
+	damon_for_each_scheme(s, c) {
+		idle_time += wait_time_ms;
+	}
+	return 0;
+}
+
 static int __init damon_reclaim_init(void)
 {
 	ctx = damon_new_ctx();
@@ -409,7 +455,7 @@ static int __init damon_reclaim_init(void)
 
 	damon_pa_set_primitives(ctx);
 	ctx->callback.after_aggregation = damon_reclaim_after_aggregation;
-
+	ctx->callback.before_sleep = damon_before_sleep_aggregation;
 	/* 4242 means nothing but fun */
 	target = damon_new_target(4242);
 	if (!target) {
@@ -417,8 +463,7 @@ static int __init damon_reclaim_init(void)
 		return -ENOMEM;
 	}
 	damon_add_target(ctx, target);
-
-	schedule_delayed_work(&damon_reclaim_timer, 0);
+	mutex_init(&enabled_lock);
 	return 0;
 }
 

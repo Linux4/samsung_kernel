@@ -206,6 +206,7 @@
 	/delete-node/ cti@7320000;
 	/delete-node/ etm@7240000;
 	/delete-node/ etm@7340000;
+	/delete-node/ qcom,chd;
 
 	dsu_pmu@0 {
 		compatible = "arm,dsu-pmu";
@@ -266,6 +267,17 @@
 			/delete-node/ port@3;
 			/delete-node/ port@4;
 		};
+	};
+
+	qcom,chd {
+		compatible = "qcom,core-hang-detect";
+		label = "core";
+		qcom,chd-percpu-info = <&CPU0 0x18000058 0x18000060>,
+					<&CPU1 0x18010058 0x18010060>,
+					<&CPU2 0x18020058 0x18020060>,
+					<&CPU3 0x18030058 0x18030060>,
+					<&CPU4 0x18040058 0x18040060>,
+					<&CPU5 0x18050058 0x18050060>;
 	};
 };
 
@@ -342,9 +354,18 @@
 	/delete-node/ cpufreq_cdev;
 	cpufreq_cdev: qcom,cpufreq-cdev {
 		compatible = "qcom,cpufreq-cdev";
-		qcom,cpus = <&CPU0 &CPU2 &CPU5>;
-	};
+		cpu-cluster0 {
+			qcom,cpus = <&CPU0 &CPU1>;
+		};
 
+		cpu-cluster1 {
+			qcom,cpus = <&CPU2 &CPU3 &CPU4>;
+		};
+
+		cpu-cluster2 {
+			qcom,cpus = <&CPU5>;
+		};
+	};
 };
 
 &thermal_zones {

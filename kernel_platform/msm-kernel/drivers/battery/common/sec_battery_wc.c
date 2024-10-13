@@ -445,6 +445,7 @@ int sec_bat_choose_cable_type(struct sec_battery_info *battery)
 						POWER_SUPPLY_EXT_PROP_CHGINSEL, value);
 				}
 				sec_bat_switch_to_wr(battery, wrl_sts, prev_ct);
+				sec_vote(battery->input_vote, VOTER_WPC_CUR, false, 0);
 				sec_vote(battery->fcc_vote, VOTER_WL_TO_W, false, 0);
 				sec_vote(battery->chgen_vote, VOTER_WL_TO_W, false, 0);
 			}

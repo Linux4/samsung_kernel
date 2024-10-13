@@ -3589,6 +3589,8 @@ static void _sde_cp_notify_ad_event(struct drm_crtc *crtc_drm, void *arg)
 	}
 
 	priv = kms->dev->dev_private;
+
+	SDE_EVT32(0xEEEEEEEE);
 	ret = pm_runtime_resume_and_get(kms->dev->dev);
 	if (ret < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -3827,6 +3829,7 @@ static void _sde_cp_notify_hist_event(struct drm_crtc *crtc_drm, void *arg)
 		spin_unlock_irqrestore(&crtc->spin_lock, flags);
 		DRM_DEBUG_DRIVER("cannot find histogram event node in crtc\n");
 		/* unlock histogram */
+		SDE_EVT32(0xEEEEEEEE);
 		ret = pm_runtime_resume_and_get(kms->dev->dev);
 		if (ret < 0) {
 			SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -3852,6 +3855,7 @@ static void _sde_cp_notify_hist_event(struct drm_crtc *crtc_drm, void *arg)
 				irq_idx, ret);
 			spin_unlock_irqrestore(&node->state_lock, state_flags);
 			spin_unlock_irqrestore(&crtc->spin_lock, flags);
+			SDE_EVT32(0xEEEEEEEE);
 			ret = pm_runtime_resume_and_get(kms->dev->dev);
 			if (ret < 0) {
 				SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -3877,6 +3881,7 @@ static void _sde_cp_notify_hist_event(struct drm_crtc *crtc_drm, void *arg)
 	if (!crtc->hist_blob)
 		return;
 
+	SDE_EVT32(0xEEEEEEEE);
 	ret = pm_runtime_resume_and_get(kms->dev->dev);
 	if (ret < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", ret);

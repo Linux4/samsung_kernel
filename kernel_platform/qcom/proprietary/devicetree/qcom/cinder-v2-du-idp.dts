@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include "cinder-v2-du.dtsi"
+#include "cinder-v2-du-hireg.dtsi"
 #include "cinder-v2-idp.dtsi"
 
 / {

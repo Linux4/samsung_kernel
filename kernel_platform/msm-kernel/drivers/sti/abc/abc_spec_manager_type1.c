@@ -102,6 +102,7 @@ int abc_parse_dt_type1(struct device *dev,
 
 	spec_type1->default_count = spec_type1->threshold_cnt;
 	spec_type1->buffer.size = spec_type1->threshold_cnt + 1;
+	spec_type1->default_enabled = abc_event_list[spec_type1->common_spec.idx].enabled;
 	sec_abc_reset_buffer_type1(spec_type1);
 
 	ABC_PRINT("type1-spec : module(%s) error(%s) threshold_cnt(%d) threshold_time(%d) enabled(%s)",

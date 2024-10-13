@@ -10,6 +10,7 @@
 #include "dp_aux.h"
 #include "dp_hpd.h"
 #include "dp_debug.h"
+#include "sde_dbg.h"
 #if defined(CONFIG_SECDP)
 #if defined(CONFIG_SECDP_BIGDATA)
 #include <linux/secdp_bigdata.h>
@@ -346,6 +347,7 @@ static void dp_aux_isr(struct dp_aux *dp_aux)
 
 	aux->catalog->get_irq(aux->catalog, aux->cmd_busy);
 
+	SDE_EVT32_EXTERNAL(aux->catalog->isr);
 	if (!aux->cmd_busy)
 		return;
 

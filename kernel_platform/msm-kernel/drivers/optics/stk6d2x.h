@@ -624,17 +624,10 @@ int32_t stk6d2x_init_all_setting(stk6d2x_data *alps_data);
 int32_t stk6d2x_als_get_data(stk6d2x_data *alps_data, bool is_skip);
 void stk6d2x_dump_reg(struct stk6d2x_data *alps_data);
 
-#if IS_ENABLED(CONFIG_ARCH_EXYNOS)
-extern int sensors_create_symlink(struct input_dev *inputdev);
-extern void sensors_remove_symlink(struct input_dev *inputdev);
-extern int sensors_register(struct device *dev, void *drvdata,
-		struct device_attribute *attributes[], char *name);
-#else
 extern int sensors_create_symlink(struct kobject *target, const char *name);
 extern void sensors_remove_symlink(struct kobject *target, const char *name);
 extern int sensors_register(struct device **dev, void *drvdata,
 		struct device_attribute *attributes[], char *name);
-#endif
 extern void sensors_unregister(struct device *dev,
 		struct device_attribute *attributes[]);
 

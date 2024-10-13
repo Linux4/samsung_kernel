@@ -2082,6 +2082,7 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 	struct i2c_client *client = wac_i2c->client;
 	/* Set input values before registering input device */
 
+	input_dev->phys = input_dev->name;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
 
@@ -3638,7 +3639,7 @@ static void wacom_i2c_shutdown(struct i2c_client *client)
 	input_info(true, &wac_i2c->client->dev, "%s Done\n", __func__);
 }
 
-static int wacom_i2c_remove(struct i2c_client *client)
+static int wacom_dev_remove(struct i2c_client *client)
 {
 	struct wacom_i2c *wac_i2c = i2c_get_clientdata(client);
 
@@ -3692,6 +3693,20 @@ static int wacom_i2c_remove(struct i2c_client *client)
 
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static void wacom_i2c_remove(struct i2c_client *client)
+{
+	wacom_dev_remove(client);
+}
+#else
+static int wacom_i2c_remove(struct i2c_client *client)
+{
+	wacom_dev_remove(client);
+
+	return 0;
+}
+#endif
 
 static const struct i2c_device_id wacom_i2c_id[] = {
 	{"wacom_w90xx", 0},

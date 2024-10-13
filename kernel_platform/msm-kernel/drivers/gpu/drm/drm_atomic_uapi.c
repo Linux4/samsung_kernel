@@ -1335,32 +1335,32 @@ int drm_mode_atomic_ioctl(struct drm_device *dev,
 	 * wouldn't know how to call this ioctl)
 	 */
 	if (!file_priv->atomic) {
-		drm_dbg_atomic(dev,
-			       "commit failed: atomic cap not enabled\n");
+		drm_err(dev,
+			"commit failed: atomic cap not enabled\n");
 		return -EINVAL;
 	}
 
 	if (arg->flags & ~DRM_MODE_ATOMIC_FLAGS) {
-		drm_dbg_atomic(dev, "commit failed: invalid flag\n");
+		drm_err(dev, "commit failed: invalid flag\n");
 		return -EINVAL;
 	}
 
 	if (arg->reserved) {
-		drm_dbg_atomic(dev, "commit failed: reserved field set\n");
+		drm_err(dev, "commit failed: reserved field set\n");
 		return -EINVAL;
 	}
 
 	if (arg->flags & DRM_MODE_PAGE_FLIP_ASYNC) {
-		drm_dbg_atomic(dev,
-			       "commit failed: invalid flag DRM_MODE_PAGE_FLIP_ASYNC\n");
+		drm_err(dev,
+			"commit failed: invalid flag DRM_MODE_PAGE_FLIP_ASYNC\n");
 		return -EINVAL;
 	}
 
 	/* can't test and expect an event at the same time. */
 	if ((arg->flags & DRM_MODE_ATOMIC_TEST_ONLY) &&
 			(arg->flags & DRM_MODE_PAGE_FLIP_EVENT)) {
-		drm_dbg_atomic(dev,
-			       "commit failed: page-flip event requested with test-only commit\n");
+		drm_err(dev,
+			"commit failed: page-flip event requested with test-only commit\n");
 		return -EINVAL;
 	}
 

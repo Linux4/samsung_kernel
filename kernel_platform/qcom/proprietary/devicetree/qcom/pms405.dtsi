@@ -74,26 +74,20 @@
 			#thermal-sensor-cells = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			io-channels = <&pms405_vadc ADC5_XO_THERM_100K_PU>,
-					<&pms405_vadc ADC5_AMUX_THM1_100K_PU>,
-					<&pms405_vadc ADC5_AMUX_THM3_100K_PU>;
 
 			xo_therm {
-				reg = <ADC5_XO_THERM_100K_PU>;
-				qcom,ratiometric;
-				qcom,hw-settle-time = <200>;
+				reg = <0>;
+				io-channels = <&pms405_vadc ADC5_XO_THERM_100K_PU>;
 			};
 
 			pa_therm1 {
-				reg = <ADC5_AMUX_THM1_100K_PU>;
-				qcom,ratiometric;
-				qcom,hw-settle-time = <200>;
+				reg = <1>;
+				io-channels = <&pms405_vadc ADC5_AMUX_THM1_100K_PU>;
 			};
 
 			pa_therm3 {
-				reg = <ADC5_AMUX_THM3_100K_PU>;
-				qcom,ratiometric;
-				qcom,hw-settle-time = <200>;
+				reg = <2>;
+				io-channels = <&pms405_vadc ADC5_AMUX_THM3_100K_PU>;
 			};
 		};
 

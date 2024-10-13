@@ -63,7 +63,6 @@ typedef struct lc3_stream_map_s {
 typedef struct lc3_encoder_cfg_s {
     lc3_cfg_t toAirConfig;
     uint8_t stream_map_size;
-    uint8_t actual_stream_map_size; // SS_BT_LEA - A_041 : Stereo audio for SingleDev_OneChanStereoSnk
     lc3_stream_map_t *streamMapOut;
 } lc3_encoder_cfg_t;
 

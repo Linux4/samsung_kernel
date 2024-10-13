@@ -81,6 +81,10 @@ Optional properties:
  - mboxes: Mailbox tuple containing QMP mailbox phandle and channel identifier.
 			If this is specified, then a QMP message should be sent
 			to enable the GDSC instead of setting SW_COLLAPSE=0.
+ - qcom,collapse-vote : If present, GDSC will be controlled by votable register.
+			Some targets have single votable register to control GDSC,
+			but there could be targets where separate votable registers
+			to control the GDSCs individually for active and sleep states.
 
 Example:
 	gdsc_oxili_gx: qcom,gdsc@fd8c4024 {
@@ -91,4 +95,18 @@ Example:
 		clock-names = "core_clk";
 		mboxes = <&qmp_aop 0>;
 		qcom,collapse-vote = <&gcc_apcs_gdsc_vote_ctrl 0>;
+	};
+
+	/* Single votable register */
+	gcc_pcie_0_gdsc: qcom,gdsc@17b004 {
+		compatible = "qcom,gdsc";
+		regulator-name = "gcc_pcie_0_gdsc";
+		qcom,collapse-vote = <&active_ctrl 0>;
+	};
+
+	/* Multiple votable registers */
+	gcc_pcie_1_gdsc: qcom,gdsc@19d004 {
+		compatible = "qcom,gdsc";
+		regulator-name = "gcc_pcie_1_gdsc";
+		qcom,collapse-vote = <&active_ctrl &sleep_ctrl 1>;
 	};

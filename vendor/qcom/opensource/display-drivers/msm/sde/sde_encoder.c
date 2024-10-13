@@ -5481,6 +5481,7 @@ static ssize_t _sde_encoder_misr_read(struct file *file,
 	}
 	drm_enc = &sde_enc->base;
 
+	SDE_EVT32(0xEEEEEEEE);
 	rc = pm_runtime_resume_and_get(drm_enc->dev->dev);
 	if (rc < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", rc);
@@ -5792,6 +5793,10 @@ static int sde_encoder_setup_display(struct sde_encoder_virt *sde_enc,
 
 	sde_enc->input_event_enabled = test_bit(SDE_FEATURE_TOUCH_WAKEUP,
 						sde_kms->catalog->features);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	sde_enc->input_event_enabled = true;
+	SDE_INFO("input_event_enabled %d\n", sde_enc->input_event_enabled);
+#endif
 
 	sde_enc->ctl_done_supported = test_bit(SDE_FEATURE_CTL_DONE,
 						sde_kms->catalog->features);

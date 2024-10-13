@@ -2,13 +2,14 @@
 
 void set_sensor_type(const int type_value, int *result)
 {
-	if (type_value >= SENSOR_OOO && type_value < SENSOR_MAXIMUM) {
+	if (type_value >= SENSOR_OOO) {
 		if (type_value == SENSOR_OOO && *result == SENSOR_FAILED) {
 			pr_info("maintain type check from out of order :%s\n",
 				sensor_status[*result + 2]);
 		} else {
 			*result = type_value;
-			pr_info("FP_SET_SENSOR_TYPE :%s\n", sensor_status[*result + 2]);
+			pr_info("FP_SET_SENSOR_TYPE :%s\n", *result > 0 ?
+					sensor_status[3] : sensor_status[*result + 2]);
 		}
 	} else {
 		pr_err("FP_SET_SENSOR_TYPE invalid value %d\n", type_value);

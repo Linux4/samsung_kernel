@@ -68,6 +68,11 @@ stk6d2x_register_table stk6d2x_default_register_table[] =
 	{0xF3,                          0x03,                                                       0xFF},
 	{0x4F,                          0x0F,                                                       0xFF},
 	{0x50,                          0x04,                                                       0xFF},
+	{0xD1,                          0x16,                                                       0x1F}, //GC Setting
+	{0xE3,                          0x80,                                                       0xFF}, //WDT 50ms
+	{0xE5,                          0x80,                                                       0xFF}, //WDT 50ms
+	{0xEA,                          0x80,                                                       0xFF}, //WDT 50ms
+	{0xEC,                          0x80,                                                       0xFF}, //WDT 50ms
 };
 
 stk6d2x_register_table stk6d2x_default_otp_table[] =
@@ -984,7 +989,7 @@ void stk6d2x_get_data_polling(stk_timer_info *t_info)
 			return;
 		}
 
-		if (alps_data->is_local_avg_update)
+		if (alps_data->is_local_avg_update && alps_data->fifo_info.fft_buf_idx != 0)
 			stk_sec_report(alps_data);	//Stop reporting if it uses internal clk
 
 #ifdef STK_FIFO_DATA_SUMMATION
@@ -1246,10 +1251,8 @@ int32_t stk6d2x_alps_set_config(stk6d2x_data *alps_data, bool en)
 		goto err;
 	}
 
-	if (en == 1) {
-		stk_power_ctrl(alps_data, 1);
+	if (en == 1)
 		stk6d2x_init_all_reg(alps_data);
-	}
 
 	stk6d2x_pin_control(alps_data, en);
 
@@ -1264,6 +1267,7 @@ int32_t stk6d2x_alps_set_config(stk6d2x_data *alps_data, bool en)
 			if (ret < 0)
 			{
 				ALS_err("register timer fail\n");
+				mutex_unlock(&alps_data->config_lock);
 				return ret;
 			}
 		}
@@ -1277,6 +1281,7 @@ int32_t stk6d2x_alps_set_config(stk6d2x_data *alps_data, bool en)
 				if (ret < 0)
 				{
 					ALS_err(" start timer fail\n");
+					mutex_unlock(&alps_data->config_lock);
 					return ret;
 				}
 			}

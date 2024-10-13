@@ -1072,9 +1072,10 @@ static bool zram_should_writeback(struct zram *zram,
 				unsigned long pages, bool trigger)
 {
 	unsigned long stored = atomic64_read(&zram->stats.lru_pages);
-	unsigned long writtenback = atomic64_read(&zram->stats.bd_objcnt) -
-				    atomic64_read(&zram->stats.bd_ppr_objcnt) -
-				    atomic64_read(&zram->stats.bd_expire);
+	long writtenback = max_t(long, 0,
+			atomic64_read(&zram->stats.bd_objcnt) -
+			atomic64_read(&zram->stats.bd_ppr_objcnt) -
+			atomic64_read(&zram->stats.bd_expire));
 	unsigned long min_stored_byte;
 	int writtenback_ratio = stored ? (writtenback * 100) / stored : 0;
 	int min_writtenback_ratio = zram_balance_ratio;

@@ -66,6 +66,7 @@ static __always_inline bool __log_buf_is_probed(void)
 }
 
 /* sec_log_buf_main.c */
+extern bool __log_buf_is_acceptable(const char *s, size_t count);
 extern void __log_buf_write(const char *s, size_t count);
 extern void __log_buf_store_from_kmsg_dumper(void);
 extern const struct sec_log_buf_head *__log_buf_get_header(void);

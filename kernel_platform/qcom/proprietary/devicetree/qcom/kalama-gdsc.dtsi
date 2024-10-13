@@ -132,6 +132,11 @@
 		reg = <0x152020 0x4>;
 	};
 
+	gcc_apcs_gdsc_sleep_ctrl: syscon@152024 {
+		compatible = "syscon";
+		reg = <0x152024 0x4>;
+	};
+
 	/* GCC GDSCs */
 	gcc_pcie_0_gdsc: qcom,gdsc@16b004 {
 		compatible = "qcom,gdsc";
@@ -206,6 +211,7 @@
 	gcc_usb30_prim_gdsc: qcom,gdsc@139004 {
 		compatible = "qcom,gdsc";
 		reg = <0x139004 0x4>;
+		regulator-name = "gcc_usb30_prim_gdsc";
 		proxy-supply = <&gcc_usb30_prim_gdsc>;
 		qcom,gds-timeout = <1500>;
 		qcom,proxy-consumer-enable;
@@ -217,6 +223,8 @@
 	gcc_usb3_phy_gdsc: qcom,gdsc@150018 {
 		compatible = "qcom,gdsc";
 		reg = <0x150018 0x4>;
+		regulator-name = "gcc_usb3_phy_gdsc";
+		proxy-supply = <&gcc_usb3_phy_gdsc>;
 		qcom,gds-timeout = <1500>;
 		qcom,proxy-consumer-enable;
 		qcom,retain-regs;

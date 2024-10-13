@@ -6,10 +6,12 @@
  * as published by the Free Software Foundation.
  */
 
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "include/defex_rules.h"
 
 #define SAFE_STRCOPY(dst, src) do { strncpy(dst, src, sizeof(dst)); dst[sizeof(dst) - 1] = 0; } while(0)
@@ -45,6 +47,11 @@ int debug_ifdef_is_active = 0;
 void process_debug_ifdef(const char *src_str);
 #endif
 
+/* Show rules vars */
+const char header_name[16] = {"DEFEX_RULES_FILE"};
+static char work_path[512];
+static int global_data_size;
+
 /* Suplementary functions for packing rules */
 struct rule_item_struct *create_file_item(const char *name, int l);
 struct rule_item_struct *add_file_item(struct rule_item_struct *base, const char *name, int l);
@@ -72,7 +79,6 @@ int lookup_file_list(const char *rule, int for_recovery);
 /* Main processing functions */
 int reduce_rules(const char *source_rules_file, const char *reduced_rules_file, const char *list_file);
 int pack_rules(const char *source_rules_file, const char *packed_rules_file, const char *packed_rules_binfile);
-
 
 struct rule_item_struct *create_file_item(const char *name, int l)
 {
@@ -152,7 +158,7 @@ struct rule_item_struct *add_file_path(const char *file_path, int for_recovery)
 			printf("WARNING: Can not create the new item!\n");
 			exit(-1);
 		}
-		create_file_item("DEFEX_RULES_FILE", 16);
+		create_file_item(header_name, sizeof(header_name));
 	}
 	base = defex_packed_rules;
 	ptr = file_path + 1;
@@ -591,15 +597,19 @@ int pack_rules(const char *source_rules_file, const char *packed_rules_file, con
 	static char work_str[PATH_MAX*2];
 
 	src_file = fopen(source_rules_file, "r");
-	if (!src_file)
+	if (!src_file) {
+		printf("Failed to open %s, %s\n", source_rules_file, strerror(errno));
 		return -1;
+	}
 	dst_file = fopen(packed_rules_file, "wt");
-	if (!dst_file)
+	if (!dst_file) {
+		printf("Failed to open %s, %s\n", packed_rules_file, strerror(errno));
 		goto do_close2;
+	}
 	if (packed_rules_binfile) {
 		dst_binfile = fopen(packed_rules_binfile, "wt");
 		if (!dst_binfile)
-			goto do_close3;
+			printf("Failed to open %s, %s - Ignore\n", packed_rules_binfile, strerror(errno));
 	}
 
 	while(!feof(src_file)) {
@@ -624,13 +634,205 @@ int pack_rules(const char *source_rules_file, const char *packed_rules_file, con
 	ret_val = 0;
 	if (dst_binfile)
 		fclose(dst_binfile);
-do_close3:
 	fclose(dst_file);
 do_close2:
 	fclose(src_file);
 	return ret_val;
 }
 
+static void feature_to_str(char *str, unsigned short flags)
+{
+	int i;
+
+	str[0] = 0;
+	for (i = 0; i < feature_match_size; i++)
+		if (flags & feature_match[i].feature_num) {
+			if (str[0])
+				strcat(str, ", ");
+			strcat(str, feature_match[i].feature_name);
+		}
+	if (flags & feature_for_recovery) {
+		if (str[0])
+			strcat(str, ", ");
+		strcat(str, "feature_for_recovery");
+	}
+}
+
+static int check_array_size(struct rule_item_struct *ptr)
+{
+	unsigned long offset = (unsigned long)ptr - (unsigned long)defex_packed_rules;
+	int min_size = (global_data_size < packfiles_size)?global_data_size:packfiles_size;
+
+	offset += sizeof(struct rule_item_struct);
+
+	if (offset > min_size)
+		return 1;
+
+	offset += ptr->size;
+	if (offset > min_size)
+		return 2;
+	return 0;
+}
+
+static int parse_items(struct rule_item_struct *base, int path_length, int level)
+{
+	int l, err, ret = 0;
+	unsigned int offset;
+	struct rule_item_struct *child_item;
+	static char feature_list[128];
+
+	if (level > 8) {
+		printf("Level is too deep\n");
+		return -1;
+
+	}
+	if (path_length > (sizeof(work_path) - 128)) {
+		printf("Work path is too long\n");
+		return -1;
+	}
+	while (base) {
+		err = check_array_size(base);
+		if (err) {
+			printf("%s/<?> - out of array bounds\n", work_path);
+			return -1;
+		}
+		l = base->size;
+		if (!l) {
+			printf("WARNING: Name field is incorrect, structure error!\n");
+			return -1;
+
+		}
+
+		memcpy(work_path + path_length, base->name, l);
+		l += path_length;
+		work_path[l] = 0;
+		offset = base->next_level;
+		if (offset) {
+			if (base->feature_type & feature_is_file) {
+				printf("%s - is a file, but has children, structure error!\n", work_path);
+				ret = -1;
+			} else if (base->feature_type != 0) {
+				feature_to_str(feature_list, base->feature_type);
+				printf("%s%c - %s\n", work_path,
+					((base->feature_type & feature_is_file)?' ':'/'), feature_list);
+			}
+			child_item = GET_ITEM_PTR(offset, defex_packed_rules);
+			work_path[l++] = '/';
+			work_path[l] = 0;
+			err = check_array_size(child_item);
+			if (!err) {
+				err = parse_items(child_item, l, level + 1);
+				if (err != 0)
+					return err;
+			} else {
+				printf("%s/<?> - out of array bounds\n", work_path);
+				ret = -1;
+			}
+		} else {
+			feature_to_str(feature_list, base->feature_type);
+			printf("%s%c - %s\n", work_path,
+				((base->feature_type & feature_is_file)?' ':'/'), feature_list);
+		}
+		work_path[path_length] = 0;
+		offset = base->next_file;
+		base = (offset)?GET_ITEM_PTR(offset, defex_packed_rules):NULL;
+	}
+	return ret;
+}
+
+static int defex_show_structure(void *packed_rules, int rules_size)
+{
+	struct rule_item_struct *base;
+	int res, offset;
+	int first_item_size = sizeof(struct rule_item_struct) + sizeof(header_name);
+
+	defex_packed_rules = (struct rule_item_struct *)packed_rules;
+
+	work_path[0] = '/';
+	work_path[1] = 0;
+
+	packfiles_size = rules_size;
+	global_data_size = defex_packed_rules->data_size;
+
+	printf("Rules binary size: %d\n", packfiles_size);
+	printf("Rules internal data size: %d\n", global_data_size);
+
+	if (global_data_size > packfiles_size)
+		printf("WARNING: Internal size is bigger than binary size, possible structure error!\n");
+
+	if (packfiles_size < first_item_size) {
+		printf("ERROR: Too short binary size, can't continue!\n");
+		return -1;
+	}
+
+	if (global_data_size < first_item_size)
+		printf("WARNING: Too short data size, possible structure error!\n");
+
+	if (defex_packed_rules->size != sizeof(header_name))
+		printf("WARNING: incorrect size field (%d), possible structure error!\n",
+			(int)defex_packed_rules->size);
+
+
+	if (memcmp(header_name, defex_packed_rules->name, sizeof(header_name)) != 0)
+		printf("WARNING: incorrect name field, possible structure error!\n");
+
+	printf("File List:\n");
+	offset = defex_packed_rules->next_level;
+	base = (offset)?GET_ITEM_PTR(offset, defex_packed_rules):NULL;
+	if (!base) {
+		printf("- empty list\n");
+		return 0;
+	} else if (check_array_size(base)) {
+		printf("- list is out of array bounds!\n");
+		return -1;
+	}
+
+	res = parse_items(base, 1, 1);
+	printf("== End of File List ==\n");
+	return res;
+}
+
+static int parse_packed_bin_file(const char *source_bin_file)
+{
+	struct stat sb;
+	FILE *policy_file = NULL;
+	int policy_size;
+	unsigned char *policy_data = NULL;
+
+	if (stat(source_bin_file, &sb) == -1) {
+		perror("Error");
+		return -1;
+	}
+
+	policy_size = sb.st_size;
+
+	printf("Try to parse file: %s\n", source_bin_file);
+
+	policy_file = fopen(source_bin_file, "r");
+	if (policy_file == NULL) {
+		perror("Error");
+		return -1;
+	}
+
+	policy_data = malloc(policy_size);
+
+	if (policy_data == NULL) {
+		perror("Error");
+		goto exit;
+	}
+
+	if ((fread(policy_data, policy_size, 1, policy_file)) == -1) {
+		perror("Error");
+		goto exit;
+	}
+
+	defex_show_structure((void *)policy_data, policy_size);
+
+exit:
+	free(policy_data);
+	fclose(policy_file);
+	return 0;
+}
 
 int main(int argc, char **argv)
 {
@@ -639,8 +841,19 @@ int main(int argc, char **argv)
 	char *reduced_file = NULL, *list_file = NULL;
 	int i;
 
-	if (argc < 4 || argc > 5)
+	if (argc == 3) {
+		if (!strncmp(argv[1], "-s", 2)) {
+			SAFE_STRCOPY(param[0], argv[2]);
+			src_file = param[0];
+			parse_packed_bin_file(src_file);
+			return 0;
+		}
+	}
+
+	if (argc < 4 || argc > 5) {
+		printf("Invalid number of arguments\n");
 		goto show_help;
+	}
 
 	for(i = 0; i < (argc - 2); i++) {
 		SAFE_STRCOPY(param[i], argv[i + 2]);
@@ -667,12 +880,14 @@ int main(int argc, char **argv)
 			goto show_help;
 		return 0;
 	}
+	printf("Invalid command\n");
 
 show_help:
 	printf("Defex rules processing utility.\nUSAGE:\n%s <CMD> <PARAMS>\n"
 		"Commands:\n"
 		"  -p - Pack rules file to the tree. Params: <SOURCE_FILE> <PACKED_FILE> [PACKED_BIN_FILE]\n"
-		"  -r - Reduce rules file (remove unexistent files). Params: <SOURCE_FILE> <REDUCED_FILE> <FILE_LIST>\n",
+		"  -r - Reduce rules file (remove unexistent files). Params: <SOURCE_FILE> <REDUCED_FILE> <FILE_LIST>\n"
+		"  -s - Show rules binary file content. Params: <PACKED_BIN_FILE>\n",
 		argv[0]);
 	return -1;
 }

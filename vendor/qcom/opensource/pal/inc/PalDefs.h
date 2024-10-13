@@ -1145,6 +1145,12 @@ typedef enum {
                                */
 } pal_speaker_rotation_type;
 
+#ifdef SEC_AUDIO_CALL_RECORD
+enum {
+    PAL_CALL_RECORD_RX_TX_NON_MIX = PAL_SPEAKER_ROTATION_RL
+};
+#endif
+
 /* Payload For ID: PAL_PARAM_ID_DEVICE_ROTATION
  * Description   : Device Rotation
  */

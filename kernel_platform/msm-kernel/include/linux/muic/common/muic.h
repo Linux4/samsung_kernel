@@ -239,6 +239,8 @@ typedef enum {
 	ATTACHED_DEV_RETRY_AFC_CHARGER_5V_MUIC,
 	ATTACHED_DEV_RETRY_AFC_CHARGER_9V_MUIC,
 	ATTACHED_DEV_WIRELESS_TA_MUIC,
+
+	ATTACHED_DEV_LO_TA_MUIC = 91,
 	ATTACHED_DEV_NUM,
 } muic_attached_dev_t;
 
@@ -697,8 +699,8 @@ static inline int muic_set_pogo_adc(int adc) {return 0};
 static inline int muic_afc_set_voltage(int voltage) {return 0; }
 static inline int muic_afc_request_voltage(int cause, int voltage);
 static inline int muic_afc_request_cause_clear(void);
-static int muic_afc_get_request_cause(void) {return 0;}
-static bool muic_is_enable_afc_request(void) {return false;}
+static inline int muic_afc_get_request_cause(void) {return 0;}
+static inline bool muic_is_enable_afc_request(void) {return false;}
 static inline int muic_hv_charger_disable(bool en) {return 0; }
 #endif
 

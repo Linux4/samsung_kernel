@@ -328,13 +328,15 @@ wlan_denylist_action_on_bssid(struct wlan_objmgr_pdev *pdev,
  * @scan_list: scan list, contains the input list and after the
  *             func it will have sorted list
  * @bssid_hint: bssid hint
+ * @self_mac: connecting vdev self mac address
  *
  * Return: void
  */
 void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 				 struct pcl_freq_weight_list *pcl_lst,
 				 qdf_list_t *scan_list,
-				 struct qdf_mac_addr *bssid_hint);
+				 struct qdf_mac_addr *bssid_hint,
+				 struct qdf_mac_addr *self_mac);
 
 /**
  * wlan_cm_init_score_config() - Init score INI and config

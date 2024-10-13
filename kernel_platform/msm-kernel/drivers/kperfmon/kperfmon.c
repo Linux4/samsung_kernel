@@ -26,10 +26,10 @@
 #include <linux/sec_debug.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 #define KPERFMON_KERNEL
-#include <linux/perflog.h>
+#include "perflog.h"
 #undef KPERFMON_KERNEL
 #else
-#include <linux/perflog.h>
+#include "perflog.h"
 #endif
 #if !defined(KPERFMON_KMALLOC)
 #include <linux/vmalloc.h>
@@ -351,7 +351,7 @@ ssize_t kperfmon_write(struct file *filp,
 	}
 
 	if (length <= 0) {
-		pr_info("%s() - Error length : %d", __func__, length);
+		pr_info("%s() - Error length : %d", __func__, (int) length);
 		return length;
 	}
 
@@ -465,7 +465,7 @@ ssize_t kperfmon_read(struct file *filp,
 				int length = snprintf(readbuffer,
 							READ_BUFFER_SIZE,
 							"%s\n",
-							before_list_cur_pos->pdata);
+							(char *) before_list_cur_pos->pdata);
 
 				if (length <= 0 || copy_to_user(data, readbuffer, length)) {
 					pr_info("%s(copy_to_user(4) returned > 0)\n", __func__);
@@ -588,7 +588,7 @@ ssize_t kperfmon_read(struct file *filp,
 static int __init kperfmon_init(void)
 {
 	struct proc_dir_entry *entry;
-	char kperfmon_version[KPERFMON_VERSION_LENGTH] = {0, };
+	// char kperfmon_version[KPERFMON_VERSION_LENGTH] = {0, };
 
 	CreateBuffer(&buffer, BUFFER_SIZE);
 
@@ -611,8 +611,8 @@ static int __init kperfmon_init(void)
 	before_list_cur_pos =
 		list_first_entry(&before_print_list, typeof(*before_list_cur_pos), list);
 	process_version_function("  ");
-	snprintf(kperfmon_version, KPERFMON_VERSION_LENGTH, "kperfmon_version [1.0.1]   kperfmon_read : 0x%x,  kperfmon_write : 0x%x", kperfmon_read, kperfmon_write);
-	process_version_function(kperfmon_version);
+	// snprintf(kperfmon_version, KPERFMON_VERSION_LENGTH, "kperfmon_version [1.0.1]   kperfmon_read : 0x%x,  kperfmon_write : 0x%x", kperfmon_read, kperfmon_write);
+	// process_version_function(kperfmon_version);
 
 	pr_info("%s()\n", __func__);
 
@@ -775,43 +775,43 @@ void _perflog(int type, int logid, const char *fmt, ...)
 	va_end(args);
 }
 
-void get_callstack(char *buffer, int max_size, int max_count)
-{
-	struct stackframe frame;
-	struct task_struct *tsk = current;
-	//int len;
+// void get_callstack(char *buffer, int max_size, int max_count)
+// {
+// 	struct stackframe frame;
+// 	struct task_struct *tsk = current;
+// 	//int len;
 
-	if (!try_get_task_stack(tsk))
-		return;
+// 	if (!try_get_task_stack(tsk))
+// 		return;
 
-	frame.fp = (unsigned long)__builtin_frame_address(0);
-	frame.pc = (unsigned long)get_callstack;
+// 	frame.fp = (unsigned long)__builtin_frame_address(0);
+// 	frame.pc = (unsigned long)get_callstack;
 
-#if defined(CONFIG_FUNCTION_GRAPH_TRACER)
-	frame.graph = tsk->curr_ret_stack;
-#endif
-#if NOT_USED // temporary for GKI
-	if (max_size > 0) {
-		int count = 0;
+// #if defined(CONFIG_FUNCTION_GRAPH_TRACER)
+// 	frame.graph = tsk->curr_ret_stack;
+// #endif
+// #if NOT_USED // temporary for GKI
+// 	if (max_size > 0) {
+// 		int count = 0;
 
-		max_count += 3;
+// 		max_count += 3;
 
-		do {
-			if (count > 2) {
-				int len = snprintf(buffer, max_size, " %pS", (void *)frame.pc);
+// 		do {
+// 			if (count > 2) {
+// 				int len = snprintf(buffer, max_size, " %pS", (void *)frame.pc);
 
-				max_size -= len;
-				buffer += len;
-			}
-			count++;
-		} while (!unwind_frame(tsk, &frame) &&
-				max_size > 0 &&
-				max_count > count);
+// 				max_size -= len;
+// 				buffer += len;
+// 			}
+// 			count++;
+// 		} while (!unwind_frame(tsk, &frame) &&
+// 				max_size > 0 &&
+// 				max_count > count);
 
-		put_task_stack(tsk);
-	}
-#endif
-}
+// 		put_task_stack(tsk);
+// 	}
+// #endif
+// }
 
 void send_signal(void)
 {
@@ -855,9 +855,9 @@ void perflog_evt(int logid, int arg1)
 			// Refer to P200523-00343, P200523-01815.
 			/*send_signal();*/
 
-			get_callstack(log_buffer + len,
-					PERFLOG_BUFF_STR_MAX_SIZE - len,
-					/*(dbg_level_is_low ? 1 : 3)*/MAX_DEPTH_OF_CALLSTACK);
+			// get_callstack(log_buffer + len,
+			// 		PERFLOG_BUFF_STR_MAX_SIZE - len,
+			// 		/*(dbg_level_is_low ? 1 : 3)*/MAX_DEPTH_OF_CALLSTACK);
 			_perflog(PERFLOG_EVT, PERFLOG_MUTEX, log_buffer);
 			arg1 = MAX_MUTEX_RAWDATA;
 

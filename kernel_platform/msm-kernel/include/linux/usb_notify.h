@@ -230,6 +230,8 @@ extern void send_usb_audio_uevent(struct usb_device *dev,
 		int cardnum, int attach);
 extern int send_usb_notify_uevent
 		(struct otg_notify *n, char *envp_ext[]);
+extern int set_lpm_charging_type_done(struct otg_notify *n,
+		unsigned int state);
 extern int check_reverse_bypass_status(struct otg_notify *n);
 #if defined(CONFIG_USB_HW_PARAM)
 extern unsigned long long *get_hw_param(struct otg_notify *n,
@@ -290,6 +292,8 @@ static inline void send_usb_audio_uevent(struct usb_device *dev,
 		int cardnum, int attach) {}
 static inline int send_usb_notify_uevent
 			(struct otg_notify *n, char *envp_ext[]) {return 0; }
+static inline int set_lpm_charging_type_done(struct otg_notify *n,
+		unsigned int state) {return 0; }
 static inline int check_reverse_bypass_status(struct otg_notify *n)
 			{return 0; }
 #if defined(CONFIG_USB_HW_PARAM)

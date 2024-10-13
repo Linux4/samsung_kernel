@@ -1169,6 +1169,22 @@ int SessionAlsaPcm::start(Stream * s)
                         }
                     }
                 }
+#ifdef SEC_AUDIO_CALL_RECORD
+                if ((sAttr.type == PAL_STREAM_VOICE_CALL_RECORD) && (sAttr.in_media_config.ch_info.channels == 2)) {
+                    // To ensure the channel mapping rules in call recording (L-Rx/R-Tx).
+                    builder->payloadMFCMixerCoeff(&payload, &payloadSize, miid,
+                                            sAttr.in_media_config.ch_info.channels,
+                                            PAL_CALL_RECORD_RX_TX_NON_MIX);
+                    if (payloadSize && payload) {
+                        status = updateCustomPayload(payload, payloadSize);
+                        freeCustomPayload(&payload, &payloadSize);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                            goto set_mixer;
+                        }
+                    }
+                }
+#endif
 
 set_mixer:
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),

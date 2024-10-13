@@ -270,6 +270,11 @@ int stm_ts_get_version_info(struct stm_ts_data *ts)
 	ts->ic_name_of_ic = data[7];
 	ts->module_version_of_ic = data[8];
 
+	ts->plat_data->ic_vendor_name[0] = 'S';
+	ts->plat_data->ic_vendor_name[1] = 'T';
+
+	ts->plat_data->img_version_of_ic[0] = ts->ic_name_of_ic;
+	ts->plat_data->img_version_of_ic[1] = ts->project_id_of_ic;
 	ts->plat_data->img_version_of_ic[2] = ts->module_version_of_ic;
 	ts->plat_data->img_version_of_ic[3] = ts->fw_main_version_of_ic & 0xFF;
 

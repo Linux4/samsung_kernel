@@ -49,7 +49,7 @@ enum {
 };
 
 struct pon_alarm_info {
-	struct device* dev;
+	struct device *dev;
 	struct rtc_device *rtcdev;
 	struct rtc_wkalrm val;
 	struct alarm check_poll;
@@ -121,6 +121,7 @@ static void pon_alarm_parse_data(char *alarm_data, struct rtc_wkalrm *alm)
 	struct rtc_time     ktm_tm;
 	int ret;
 
+	alarm_data[BOOTALM_BIT_TOTAL] = '\0';
 	strlcpy(buf_ptr, alarm_data, BOOTALM_BIT_TOTAL+1);
 
 	/* 0|1234|56|78|90|12 */
@@ -134,7 +135,7 @@ static void pon_alarm_parse_data(char *alarm_data, struct rtc_wkalrm *alm)
 	alm->time.tm_mday = (buf_ptr[BOOTALM_BIT_DAY]-'0') * 10
 					+ (buf_ptr[BOOTALM_BIT_DAY+1]-'0');
 	alm->time.tm_mon  = (buf_ptr[BOOTALM_BIT_MONTH]-'0') * 10
-	                  + (buf_ptr[BOOTALM_BIT_MONTH+1]-'0');
+					+ (buf_ptr[BOOTALM_BIT_MONTH+1]-'0');
 	alm->time.tm_year = (buf_ptr[BOOTALM_BIT_YEAR]-'0') * 1000
 					+ (buf_ptr[BOOTALM_BIT_YEAR+1]-'0') * 100
 					+ (buf_ptr[BOOTALM_BIT_YEAR+2]-'0') * 10
@@ -203,7 +204,7 @@ static int pon_alarm_check_state(time64_t *data)
 		pr_err("%s: rtc read failed.\n", __func__);
 		return PON_ALARM_ERROR;
 	}
-	rtc_secs = rtc_tm_to_time64(&tm);	
+	rtc_secs = rtc_tm_to_time64(&tm);
 	secs_pwron = rtc_tm_to_time64(&pon_alarm.val.time);
 
 	if (rtc_secs < secs_pwron) {
@@ -277,14 +278,14 @@ static long pon_alarm_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	int rv = 0;
 	struct alarm_timespec data;
 	struct rtc_wkalrm alm;
-	
+
 	pr_info("%s: cmd=%08x\n", __func__, cmd);
 
 	switch (ANDROID_ALARM_BASE_CMD(cmd)) {
 	case ANDROID_ALARM_SET_ALARM_BOOT:
 		if (copy_from_user(data.alarm, (void __user *)arg, 14)) {
 			rv = -EFAULT;
- 			pr_err("%s: SET ret=%s\n", __func__, rv);
+			pr_err("%s: SET ret=%s\n", __func__, rv);
 			return rv;
 		}
 		pon_alarm_parse_data(data.alarm, &alm);
@@ -332,7 +333,7 @@ static int __init pon_alarm_init(void)
 		return ret;
 	}
 
- 	pr_info("%s: rtcalarm=%u, lpcharge=%u\n", __func__, rtcalarm, lpcharge);
+	pr_info("%s: rtcalarm=%u, lpcharge=%u\n", __func__, rtcalarm, lpcharge);
 	pon_alarm.rtcdev = rtcdev;
 	pon_alarm.lpm_mode = lpcharge;
 	pon_alarm.triggered = 0;

@@ -23,6 +23,8 @@ Optional properties:
 - qcom,tsc-nsec-update: boolean property to indicate the TSC counters
 			have values in nanoseconds, rather than in secs
 			and nanoseconds.
+- qcom,tsc-hw-preload: boolean property to indicate the TSC supports
+		the hw preload feature.
 - qcom,etu-slice: array of ETU slice numbers corresponding to the ETU sel.
 		In case this property is not defined the sel number will be
 		considered as the slice number for ETU offset calculation.

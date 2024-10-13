@@ -17,7 +17,6 @@ int cam_clock_data_recovery_write_register(void __iomem *csiphybase)
 	int count_idx = 0;
 	int cdr_num[10][10] = { 0, };
 	int final_num[10] = { 0, };
-	int dphy_delay_addr[4] = { 0x000, 0x400, 0x800, 0xc00 };
 
 	len = strlen(cdr_info.value);
 
@@ -90,20 +89,6 @@ int cam_clock_data_recovery_write_register(void __iomem *csiphybase)
 			cam_io_r_mb(csiphybase + final_num[i]),
 			final_num[i+2]);
 	}
-
-	for (i = 0; i < 4; i++) {
-		cam_io_w_mb(final_num[1],
-			csiphybase + dphy_delay_addr[i]);
-
-		if (final_num[2])
-			usleep_range(final_num[2], final_num[2] + 5);
-
-		CAM_INFO(CAM_UTIL, "[CDR_DBG] DPHY Offset: 0x%x, Val: 0x%x Delay(us): %u",
-			dphy_delay_addr[i],
-			cam_io_r_mb(csiphybase + dphy_delay_addr[i]),
-			final_num[2]);
-	}
-
 	return 1;
 }
 

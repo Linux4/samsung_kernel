@@ -316,6 +316,14 @@ static int sec_dual_battery_get_property(struct power_supply *psy,
 					val->intval = -1;
 			}
 			break;
+		case POWER_SUPPLY_EXT_PROP_MONITOR_WORK:
+			psy_do_property(battery->pdata->main_limiter_name, get, POWER_SUPPLY_EXT_PROP_MONITOR_WORK, value);
+			psy_do_property(battery->pdata->sub_limiter_name, get, POWER_SUPPLY_EXT_PROP_MONITOR_WORK, value);
+			if (battery->pdata->main_bat_det_gpio && battery->pdata->sub_bat_det_gpio) {
+				pr_info("%s : main det = %d, sub det = %d\n", __func__,
+					gpio_get_value(battery->pdata->main_bat_det_gpio), gpio_get_value(battery->pdata->sub_bat_det_gpio));
+			}
+			break;
 		default:
 			return -EINVAL;
 		}

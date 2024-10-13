@@ -533,6 +533,14 @@ error_allocate_mem:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+void stm_ts_i2c_remove(struct i2c_client *client)
+{
+	struct stm_ts_data *ts = i2c_get_clientdata(client);
+
+	stm_ts_remove(ts);
+}
+#else
 int stm_ts_i2c_remove(struct i2c_client *client)
 {
 	struct stm_ts_data *ts = i2c_get_clientdata(client);
@@ -542,6 +550,7 @@ int stm_ts_i2c_remove(struct i2c_client *client)
 
 	return 0;
 }
+#endif
 
 void stm_ts_i2c_shutdown(struct i2c_client *client)
 {

@@ -141,6 +141,9 @@ struct sec_vib_inputff_drvdata {
 	u16 effect_gain;
 	struct sec_vib_inputff_compose_effects effects[MAX_COMPOSE_EFFECT];
 	struct sec_vib_inputff_compose compose;
+
+	struct work_struct cal_work;
+	struct workqueue_struct *cal_workqueue;
 };
 
 /* firmware load status. if fail, return err number */
