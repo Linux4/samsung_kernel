@@ -164,9 +164,19 @@ int cam_sensor_read_frame_count(
 	uint32_t FRAME_COUNT_REG_ADDR = 0x0005;
 	if (s_ctrl->sensordata->slave_info.sensor_id == HI847_SENSOR_ID)
 		FRAME_COUNT_REG_ADDR = 0x0732;
+	else if (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_GC5035)
+		FRAME_COUNT_REG_ADDR = 0x3E;
 
-	rc = camera_io_dev_read(&s_ctrl->io_master_info, FRAME_COUNT_REG_ADDR,
-		frame_cnt, CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+    CAM_DBG(CAM_SENSOR, "[CNT_DBG] FRAME_COUNT_REG_ADDR = 0x%x",FRAME_COUNT_REG_ADDR);
+
+	if(s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_GC5035){
+		rc = camera_io_dev_read(&s_ctrl->io_master_info, FRAME_COUNT_REG_ADDR,
+			frame_cnt, CAMERA_SENSOR_I2C_TYPE_BYTE, CAMERA_SENSOR_I2C_TYPE_BYTE);
+	}
+	else{
+		rc = camera_io_dev_read(&s_ctrl->io_master_info, FRAME_COUNT_REG_ADDR,
+			frame_cnt, CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+	}
 	if (rc < 0)
 		CAM_ERR(CAM_SENSOR, "[CNT_DBG] Failed to read frame_cnt");
 
@@ -187,14 +197,14 @@ int cam_sensor_wait_stream_on(
 		if (rc < 0)
 			break;
 
-		if (frame_cnt == 0xFF){
+		if (frame_cnt != 0xFF && frame_cnt > 0){
 			usleep_range(4000, 5000);
 
 			CAM_INFO(CAM_SENSOR, "[CNT_DBG] 0x%x : Last frame_cnt 0x%x",
 				s_ctrl->sensordata->slave_info.sensor_id, frame_cnt);
 			return 0;
 		}
-		CAM_INFO(CAM_SENSOR, "[CNT_DBG] retry cnt : %d, Stream off, frame_cnt : 0x%x", retry_cnt, frame_cnt);
+		CAM_INFO(CAM_SENSOR, "[CNT_DBG] retry cnt : %d, Stream on, frame_cnt : 0x%x", retry_cnt, frame_cnt);
 		retry_cnt--;
 		usleep_range(5000, 6000);
 	} while ((frame_cnt < 0x01 || frame_cnt == 0xFF) && (retry_cnt > 0));
@@ -221,7 +231,7 @@ int cam_sensor_wait_stream_off(
 		if (rc < 0)
 			break;
 
-		if (frame_cnt == 0xFF) {
+		if (frame_cnt == 0xFF || (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_GC5035 && frame_cnt == 0x0)) {
             CAM_INFO(CAM_SENSOR, "[CNT_DBG] sensor 0x%x : Stream off, Last frame_cnt 0x%x",
                 s_ctrl->sensordata->slave_info.sensor_id, frame_cnt);
             return 0;
@@ -416,6 +426,87 @@ void cam_sensor_write_enable_crc(struct cam_sensor_ctrl_t *s_ctrl)
 }
 #endif
 
+#if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
+int cam_sensor_apply_gc5035_wait_settings(
+	struct cam_sensor_ctrl_t *s_ctrl, bool type)
+{
+	int rc = 0;
+
+	struct cam_sensor_i2c_reg_array i2c_wait_on_reg_array[] = {
+		{0xFE, 0x00, 0, 0},  // Page Register
+		{0x3E, 0x91, 0, 0},
+	};
+
+	struct cam_sensor_i2c_reg_array i2c_wait_off_reg_array[] = {
+		{0xFE, 0x00, 0, 0},  // Page Register
+		{0x3E, 0x00, 0, 0},
+	};
+
+	struct cam_sensor_i2c_reg_setting reg_waiton;
+	struct cam_sensor_i2c_reg_setting reg_waitoff;
+	int size = ARRAY_SIZE(i2c_wait_on_reg_array);
+
+	if (s_ctrl->sensordata->slave_info.sensor_id != SENSOR_ID_GC5035)
+	{
+		return rc;
+	}
+	
+	CAM_DBG(CAM_SENSOR, "[GC5035_DBG] write wait register settings START");
+	
+	if(type == 1)
+	{
+		CAM_DBG(CAM_SENSOR, "[GC5035_DBG] Write wait_on setting");
+		reg_waiton.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
+		if (reg_waiton.reg_setting != NULL) {
+			reg_waiton.size = size;
+			reg_waiton.addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+			reg_waiton.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+			reg_waiton.delay = 0;
+			memcpy(reg_waiton.reg_setting, &i2c_wait_on_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
+			CAM_DBG(CAM_SENSOR, "[GC5035_DBG] fll size = %d", size);
+		}
+		
+		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_waiton);
+		
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[GC5035_DBG] Failed to write Wait_on settings %d", rc);
+		
+		if (reg_waiton.reg_setting) {
+			kfree(reg_waiton.reg_setting);
+			reg_waiton.reg_setting = NULL;
+		}
+		
+	}
+	else if(type == 0)
+	{
+		CAM_DBG(CAM_SENSOR, "[GC5035_DBG] Write wait_off setting");
+		reg_waitoff.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
+		if (reg_waitoff.reg_setting != NULL) {
+			reg_waitoff.size = size;
+			reg_waitoff.addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+			reg_waitoff.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+			reg_waitoff.delay = 0;
+			memcpy(reg_waitoff.reg_setting, &i2c_wait_off_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
+			CAM_DBG(CAM_SENSOR, "[GC5035_DBG] fll size = %d", size);
+		}
+		
+		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_waitoff);
+		
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[GC5035_DBG] Failed to write Wait_off settings %d", rc);
+		
+		if (reg_waitoff.reg_setting) {
+			kfree(reg_waitoff.reg_setting);
+			reg_waitoff.reg_setting = NULL;
+		}
+	}
+	
+	CAM_DBG(CAM_SENSOR, "[GC5035_DBG] write wait register settings END");
+	
+	return rc;
+}
+#endif
+
 #if 1
 int cam_sensor_pre_apply_settings(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -424,6 +515,9 @@ int cam_sensor_pre_apply_settings(
 	int rc = 0;
 	switch (opcode) {
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
+#if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
+			cam_sensor_apply_gc5035_wait_settings(s_ctrl,1);
+#endif
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
 			rc = cam_sensor_wait_stream_on(s_ctrl, 20);
 #endif
@@ -457,6 +551,9 @@ int cam_sensor_post_apply_settings(
 	uint32_t gw1p_seamless_off_size = sizeof(gw1p_seamless_off)/sizeof(struct cam_sensor_i2c_reg_array);
 	switch (opcode) {
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
+#if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
+			cam_sensor_apply_gc5035_wait_settings(s_ctrl,0);
+#endif
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
 			cam_sensor_wait_stream_off(s_ctrl);
 #endif

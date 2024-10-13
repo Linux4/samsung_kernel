@@ -271,6 +271,7 @@ static int call_device_notify(struct usb_device *dev, int connect)
 
 			if (!usb_check_whitelist_for_mdm(dev)) {
 				pr_info("This deice will be noattached state.\n");
+				usb_set_configuration(dev, -1);
 				usb_set_device_state(dev, USB_STATE_NOTATTACHED);
 			}
 		} else

@@ -38,6 +38,7 @@
 #include <linux/reboot.h>
 #include <linux/sec_displayport.h>
 #include <linux/sched/clock.h>
+#include <linux/bitmap.h>
 #include "secdp.h"
 #include "secdp_sysfs.h"
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
@@ -434,36 +435,52 @@ int secdp_is_mst_receiver(void)
 }
 
 /**
- * read dongle's firmware version (if exist)
+ * read dongle's information
  */
 int secdp_read_branch_revision(struct dp_display_private *dp)
 {
+	struct secdp_adapter *adapter = &dp->sec.adapter;
+	struct drm_dp_aux *drm_aux = dp->aux->drm_aux;
+	char *ieee_oui, *devid_str, *fw_ver;
 	int rlen = 0;
-	struct drm_dp_aux *drm_aux;
-	char *fw_ver;
 
 	if (!dp || !dp->aux || !dp->aux->drm_aux) {
 		DP_ERR("invalid param\n");
 		goto end;
 	}
 
-	drm_aux = dp->aux->drm_aux;
-	fw_ver  = dp->sec.adapter.fw_ver;
+	ieee_oui  = adapter->ieee_oui;
+	devid_str = adapter->devid_str;
+	fw_ver    = adapter->fw_ver;
 
-	rlen = drm_dp_dpcd_read(drm_aux, DPCD_BRANCH_HW_REV, fw_ver, LEN_BRANCH_REV);
+	rlen = drm_dp_dpcd_read(drm_aux, DPCD_IEEE_OUI, ieee_oui, 3);
 	if (rlen < 3) {
-		DP_ERR("read fail, rlen(%d)\n", rlen);
+		DP_ERR("oui read fail:%d\n", rlen);
 		goto end;
 	}
+	DP_INFO("oui:%02x%02x%02x\n", ieee_oui[0], ieee_oui[1], ieee_oui[2]);
 
-	DP_INFO("branch revision: HW:0x%X, SW:0x%X,0x%X\n",
-		fw_ver[0], fw_ver[1], fw_ver[2]);
+	rlen = drm_dp_dpcd_read(drm_aux, DPCD_DEVID_STR, devid_str, 6);
+	if (rlen < 6) {
+		DP_ERR("devid read fail:%d\n", rlen);
+		goto end;
+	}
+	print_hex_dump(KERN_DEBUG, "devid:",
+			DUMP_PREFIX_NONE, 16, 1, devid_str, 6, true);
+	secdp_logger_hex_dump(devid_str, "devid:", 6);
+	
+	rlen = drm_dp_dpcd_read(drm_aux, DPCD_BRANCH_HW_REV, fw_ver, LEN_BRANCH_REV);
+	if (rlen < LEN_BRANCH_REV) {
+		DP_ERR("fw_ver read fail:%d\n", rlen);
+		goto end;
+	}
+	DP_INFO("branch revision: HW:0x%X, SW:0x%X,0x%X\n", fw_ver[0],
+		fw_ver[1], fw_ver[2]);
 
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	secdp_bigdata_save_item(BD_ADAPTER_HWID, fw_ver[0]);
 	secdp_bigdata_save_item(BD_ADAPTER_FWVER, (fw_ver[1] << 8) | fw_ver[2]);
 #endif
-
 end:
 	return rlen;
 }
@@ -573,6 +590,32 @@ static void secdp_adapter_check_dex(struct dp_display_private *dp)
 end:
 	DP_INFO("fan:%d %s\n", ss_fan, secdp_dex_res_to_string(dex_type));
 	adapter->dex_type = dex_type;
+}
+
+bool secdp_adapter_check_parade(void)
+{
+	struct dp_display_private *dp = g_secdp_priv;
+	struct secdp_adapter *adapter = &dp->sec.adapter;
+
+	if (adapter->ieee_oui[0] == 0x00 &&
+			adapter->ieee_oui[1] == 0x1c &&
+			adapter->ieee_oui[2] == 0xf8)
+		return true;
+
+	return false;
+}
+
+bool secdp_adapter_check_ps176(void)
+{
+	struct dp_display_private *dp = g_secdp_priv;
+	struct secdp_adapter *adapter = &dp->sec.adapter;
+
+	if (adapter->devid_str[0] == '1' &&
+			adapter->devid_str[1] == '7' &&
+			adapter->devid_str[2] == '6')
+		return true;
+
+	return false;
 }
 
 static void secdp_adapter_check_legacy(struct dp_display_private *dp)
@@ -5307,6 +5350,31 @@ end:
 	return ret;
 }
 
+#if defined(REMOVE_YUV420_AT_PREFER)
+static bool secdp_prefer_remove_yuv420(struct dp_display_private *dp,
+				struct drm_display_mode *mode)
+{
+	struct drm_connector *connector = dp->dp_display.base_connector;
+	u8 vic;
+	bool result = false;
+
+	if (!secdp_check_prefer_resolution(dp, mode))
+		goto exit;
+
+	if (!drm_mode_is_420_only(&connector->display_info, mode))
+		goto exit;
+
+	vic = drm_match_cea_mode(mode);
+
+	/* HACK: prevent preferred from becomming ycbcr420 */
+	bitmap_clear(connector->display_info.hdmi.y420_vdb_modes, vic, 1);
+	DP_INFO("unset ycbcr420 of vic %d\n", vic);
+	result = true;
+exit:
+	return result;
+}
+#endif
+
 static bool secdp_check_resolution(struct dp_display_private *dp,
 				struct drm_display_mode *mode,
 				bool supported)
@@ -5340,6 +5408,10 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 		DP_INFO("prefer timing found! %dx%d@%dhz, %s\n",
 			prefer->hdisp, prefer->vdisp, prefer->refresh,
 			secdp_aspect_ratio_to_string(prefer->ratio));
+
+#if defined(REMOVE_YUV420_AT_PREFER)
+		secdp_prefer_remove_yuv420(dp, mode);
+#endif
 
 		if (!prefer_support) {
 			DP_INFO("remove prefer!\n");

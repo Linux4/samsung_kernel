@@ -178,6 +178,7 @@
 	{feature_safeplace_path,"/vendor/bin/msm_irqbalance"},
 	{feature_safeplace_path,"/vendor/bin/poweropt-service"},
 	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.limits@1.0-service"},
+	{feature_safeplace_path,"/vendor/bin/hw/interfaces.factoryInterface@1.0-service"},
 	{feature_safeplace_path,"/vendor/bin/thermal_manager"},
 	{feature_safeplace_path,"/system/bin/linkerconfig"},
 	{feature_safeplace_path,"/system/bin/snapshotctl"},

@@ -45,6 +45,7 @@ struct s2mpb03_data {
 	struct s2mpb03_dev *iodev;
 	int num_regulators;
 	struct regulator_dev *rdev[S2MPB03_REGULATOR_MAX];
+	bool need_recovery;
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 	u8 read_addr;
 	u8 read_val;
@@ -312,6 +313,78 @@ static struct regulator_desc regulators[S2MPB03_REGULATOR_MAX] = {
 		_REG(_LDO7_CTRL), _TIME(_LDO))
 };
 
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+int s2mpb03_recovery(struct s2mpb03_data *s2mpb03)
+{
+	struct regulator_dev *rdev;
+	int i, ret = 0;
+	u8 val;
+	unsigned int vol;
+
+	if (!s2mpb03) {
+		pr_info("%s: There is no local rdev data\n", __func__);
+		return -ENODEV;
+	}
+
+	pr_info("%s: Start recovery\n", __func__);
+
+	// S2MPB03 Recovery
+	for (i = 0; i < s2mpb03->num_regulators; i++) {
+		if (s2mpb03->rdev[i]) {
+			rdev = s2mpb03->rdev[i];
+
+			pr_info("%s: name(%s): max_uV(%d), min_uV(%d), always_on(%d), use_count(%d)\n",
+					__func__, rdev->constraints->name, rdev->constraints->max_uV,
+					rdev->desc->min_uV,	rdev->constraints->always_on, rdev->use_count);
+
+			// Get and calculate voltage from regulator framework
+			vol = (rdev->constraints->min_uV - rdev->desc->min_uV) / rdev->desc->uV_step;
+			ret = s2m_set_voltage_sel_regmap(rdev, vol);
+
+			if (ret < 0)
+				return ret;
+
+			if (rdev->constraints->always_on) {
+				ret = s2mpb03_read_reg(s2mpb03->iodev->i2c, rdev->desc->enable_reg, &val);
+				if (ret < 0)
+					return ret;
+
+				if (!(val & 0x80)) {
+					ret = s2m_enable(rdev);
+					if (ret < 0)
+						return ret;
+				}
+			} else {
+				if (rdev->use_count > 0) {
+					ret = s2m_enable(rdev);
+					if (ret < 0)
+						return ret;
+				}
+			}
+		}
+	}
+
+	pr_info("%s: S2MPB03 is successfully recovered!\n", __func__);
+
+	return ret;
+}
+
+static int s2mpb03_regulator_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct s2mpb03_data *s2mpb03 = platform_get_drvdata(pdev);
+
+	if (s2mpb03->need_recovery)
+		s2mpb03_recovery(s2mpb03);
+
+	return 0;
+}
+
+const struct dev_pm_ops s2mpb03_regulator_pm = {
+	.resume = s2mpb03_regulator_resume,
+};
+#endif
+
 #if IS_ENABLED(CONFIG_OF)
 static int s2mpb03_pmic_dt_parse_pdata(struct device *dev,
 					struct s2mpb03_platform_data *pdata)
@@ -332,6 +405,8 @@ static int s2mpb03_pmic_dt_parse_pdata(struct device *dev,
 		dev_err(dev, "could not find regulators sub-node\n");
 		return -EINVAL;
 	}
+
+	pdata->need_recovery = of_property_read_bool(pmic_np, "s2mpb03,need_recovery");
 
 	/* count the number of regulators to be supported in pmic */
 	pdata->num_regulators = 0;
@@ -554,6 +629,7 @@ static int s2mpb03_pmic_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, s2mpb03);
 	s2mpb03->iodev = iodev;
+	s2mpb03->need_recovery = pdata->need_recovery;
 	s2mpb03->num_regulators = pdata->num_rdata;
 
 	for (i = 0; i < pdata->num_rdata; i++) {
@@ -646,6 +722,9 @@ static struct i2c_driver s2mpb03_i2c_driver = {
 #if IS_ENABLED(CONFIG_OF)
 		.of_match_table	= s2mpb03_i2c_dt_ids,
 #endif /* CONFIG_OF */
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		.pm = &s2mpb03_regulator_pm,
+#endif
 		.suppress_bind_attrs = true,
 	},
 	.probe = s2mpb03_pmic_probe,

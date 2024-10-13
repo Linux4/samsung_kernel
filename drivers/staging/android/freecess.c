@@ -119,6 +119,7 @@ int mod_sendmsg(int type, int mod, struct priv_data* data)
 		if (payload->mod == MOD_BINDER) {
 			payload->code = data->code;
 			memcpy(payload->rpcname, data->rpcname, sizeof(data->rpcname));
+			payload->pkg_info.cmd = data->pkg_info.cmd;
 		}
 		if (payload->mod == MOD_PKG)
 			memcpy(&payload->pkg_info, &data->pkg_info, sizeof(pkg_info_t));
@@ -160,8 +161,10 @@ int binder_report(struct task_struct *p, int code, const char *str, int flag)
 	data.flag = flag;
 	data.code = code;
 	strlcpy(data.rpcname, str, INTERFACETOKEN_BUFF_SIZE);
-	if(p)
+	if(p) {
 		data.target_uid = task_uid(p).val;
+		data.pkg_info.cmd = p->pid;
+	}
 	ret = mod_sendmsg(MSG_TO_USER, MOD_BINDER, &data);
 	return ret;
 }
@@ -209,42 +212,48 @@ static void recv_handler(struct sk_buff *skb)
 		return;
 	}
 
-	if (skb->len >= NLMSG_SPACE(0)) {
-		nlh = nlmsg_hdr(skb);
-		msglen = NLMSG_PAYLOAD(nlh, 0);
-		payload = (struct kfreecess_msg_data*)NLMSG_DATA(nlh);
+	if (skb->len < NLMSG_SPACE(0) + sizeof(struct kfreecess_msg_data)) {
+		pr_err("freecess recv_handler msglen invalid %u %lu\n", skb->len, (unsigned long)(NLMSG_SPACE(0) + sizeof(struct kfreecess_msg_data)));
+		return;
+	}
 
-		if (payload->src_portid < 0) {
-			pr_err("USER_HOOK_CALLBACK %s: src_portid %d is not valid!\n", __func__, payload->src_portid);
-			return;
-		}
+	nlh = nlmsg_hdr(skb);
+	msglen = NLMSG_PAYLOAD(nlh, 0);
+	if (msglen < sizeof(struct kfreecess_msg_data)) {
+		pr_err("USER_HOOK_CALLBACK: payload msglen invalid %u %lu\n", msglen, (unsigned long)sizeof(struct kfreecess_msg_data));
+		return;
+	}
 
-		if (payload->dst_portid != KERNEL_ID_NETLINK) {
-			pr_err("USER_HOOK_CALLBACK %s: dst_portid is %d not kernel!\n", __func__, payload->dst_portid);
-			return;
-		}
+	payload = (struct kfreecess_msg_data*)NLMSG_DATA(nlh);
 
-		if (!check_mod_type(payload->mod)) {
-			pr_err("USER_HOOK_CALLBACK %s: mod %d is not valid!\n", __func__, payload->mod);
-			return;
-		}
+	if (payload->src_portid < 0) {
+		pr_err("USER_HOOK_CALLBACK %s: src_portid %d is not valid!\n", __func__, payload->src_portid);
+		return;
+	}
 
-		switch (payload->type) {
-			case LOOPBACK_MSG:
-				atomic_set(&bind_port[payload->mod], payload->src_portid);
-				freecess_fw_version = FREECESS_PEER_VERSION(payload->version);
-				dump_kfreecess_msg(payload);
-				mod_sendmsg(LOOPBACK_MSG, payload->mod, NULL);
-				break;
-			case MSG_TO_KERN:
-				if (mod_recv_handler[payload->mod])
-					mod_recv_handler[payload->mod](payload, sizeof(struct kfreecess_msg_data));
-				break;
+	if (payload->dst_portid != KERNEL_ID_NETLINK) {
+		pr_err("USER_HOOK_CALLBACK %s: dst_portid is %d not kernel!\n", __func__, payload->dst_portid);
+		return;
+	}
 
-			default:
-				pr_err("msg type is valid %d\n", payload->type);
-				break;
-		}
+	if (!check_mod_type(payload->mod)) {
+		pr_err("USER_HOOK_CALLBACK %s: mod %d is not valid!\n", __func__, payload->mod);
+		return;
+	}
+
+	switch (payload->type) {
+		case LOOPBACK_MSG:
+			atomic_set(&bind_port[payload->mod], payload->src_portid);
+			freecess_fw_version = FREECESS_PEER_VERSION(payload->version);
+			dump_kfreecess_msg(payload);
+			mod_sendmsg(LOOPBACK_MSG, payload->mod, NULL);
+			break;
+		case MSG_TO_KERN:
+			if (mod_recv_handler[payload->mod])
+				mod_recv_handler[payload->mod](payload, sizeof(struct kfreecess_msg_data));
+			break;
+		default:
+			pr_err("msg type is valid %d\n", payload->type);
 	}
 }
 
