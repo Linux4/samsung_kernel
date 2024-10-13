@@ -1659,7 +1659,7 @@
 		qupv3_se15_i2c_scl_active: qupv3_se15_i2c_scl_active {
 			mux {
 				pins = "gpio129";
-				function = "qup1_se5_l1";
+				function = "qup1_se7_l1";
 			};
 
 			config {
@@ -1700,7 +1700,7 @@
 		qupv3_se15_spi_mosi_active: qupv3_se15_spi_mosi_active {
 			mux {
 				pins = "gpio129";
-				function = "qup1_se5_l1";
+				function = "qup1_se7_l1";
 			};
 
 			config {
@@ -1973,6 +1973,33 @@
 				bias-pull-down;
 				drive-strength = <2>;
 			};
+		};
+
+		usb3phy_portselect_gpio: usb3phy_portselect_gpio {
+			mux {
+				pins = "gpio83";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio83";
+				drive-strength = <2>;
+				bias-pull-down;
+				input-enable;
+			};
+		};
+	};
+
+	trigout_a: trigout_a {
+		mux {
+			pins = "gpio91";
+			function = "qdss_cti";
+		};
+
+		config {
+			pins = "gpio91";
+			drive-strength = <2>;
+			bias-disable;
 		};
 	};
 };

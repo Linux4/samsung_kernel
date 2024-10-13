@@ -221,12 +221,19 @@
 	rpmh-regulator-smpb2 {
 		compatible = "qcom,rpmh-vrm-regulator";
 		qcom,resource-name = "smpb2";
+		qcom,regulator-type = "pmic5-ftsmps";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_RET
+			RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 200000>;
+
 		S2B: pm7550_s2: regulator-pm7550-s2 {
 			regulator-name = "pm7550_s2";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
 			regulator-min-microvolt = <1256000>;
 			regulator-max-microvolt = <1408000>;
 			qcom,init-voltage = <1304000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_RET>;
 		};
 	};
 
@@ -355,9 +362,10 @@
 		qcom,resource-name = "ldob5";
 		qcom,regulator-type = "pmic5-ldo";
 		qcom,supported-modes =
-			<RPMH_REGULATOR_MODE_LPM
+			<RPMH_REGULATOR_MODE_RET
+			RPMH_REGULATOR_MODE_LPM
 			RPMH_REGULATOR_MODE_HPM>;
-		qcom,mode-threshold-currents = <0 30000>;
+		qcom,mode-threshold-currents = <0 10000 30000>;
 		L5B:
 		pm7550_l5: regulator-pm7550-l5 {
 			regulator-name = "pm7550_l5";

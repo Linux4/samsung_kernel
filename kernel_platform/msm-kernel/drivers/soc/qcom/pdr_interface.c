@@ -638,7 +638,7 @@ struct pdr_service *pdr_add_service_lookup(struct pdr_handle *pdr,
 
 	return pds;
 }
-EXPORT_SYMBOL(pdr_add_service_lookup);
+EXPORT_SYMBOL_GPL(pdr_add_service_lookup);
 
 /**
  * pdr_restart_pd() - restart PD

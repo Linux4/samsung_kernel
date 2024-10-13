@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Utility public constants.
+"""
 
 load(
     "//build/kernel/kleaf/impl:constants.bzl",
     "AARCH64_IMAGES",
     "GKI_ARTIFACTS_AARCH64_OUTS",
     "MODULES_STAGING_ARCHIVE",
-    "MODULE_OUTS_FILE_OUTPUT_GROUP",
     "MODULE_OUTS_FILE_SUFFIX",
     "SYSTEM_DLKM_OUTS",
     "TOOLCHAIN_VERSION_FILENAME",

@@ -318,6 +318,9 @@
 		coresight-ctis = <&cti0 &cti0>;
 		cti-reset-trig-num = <0>;
 		cti-flush-trig-num = <3>;
+		qcom,mem_support;
+		qcom,sw-usb;
+		dma-coherent;
 		coresight-csr = <&csr>;
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";

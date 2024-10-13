@@ -183,7 +183,7 @@
 	soc: soc { };
 
 	chosen {
-		bootargs = "console=ttyMSM0,115200n8 loglevel=6 log_buf_len=256K kpti=off kernel.panic_on_rcu_stall=1 msm_rtb.filter=0x237 rcupdate.rcu_expedited=1 rcu_nocbs=0-3 ftrace_dump_on_oops fw_devlink.strict=1 allow_mismatched_32bit_el0 printk.console_no_auto_verbose=1 irqaffinity=0-2 cpufreq.default_governor=performance android_kmalloc_64_create";
+		bootargs = "console=ttyMSM0,115200n8 loglevel=6 log_buf_len=256K kpti=off kernel.panic_on_rcu_stall=1 msm_rtb.filter=0x237 rcupdate.rcu_expedited=1 rcu_nocbs=0-3 ftrace_dump_on_oops fw_devlink.strict=1 printk.console_no_auto_verbose=1 irqaffinity=0-2 cpufreq.default_governor=performance slub_debug=- ";
 	};
 
 	reserved-memory {
@@ -1416,6 +1416,12 @@
 			qcom,glinkpkt-dev-name = "glink_pkt_slate_display_ctrl";
 		};
 
+		qcom,glinkpkt-slate-location-ctrl {
+			qcom,glinkpkt-edge = "slate";
+			qcom,glinkpkt-ch-name = "location_ctrl";
+			qcom,glinkpkt-dev-name = "glink_pkt_slate_location_ctrl";
+		};
+
 		qcom,glinkpkt-slate-display-data {
 			qcom,glinkpkt-edge = "slate";
 			qcom,glinkpkt-ch-name = "display-data";
@@ -1605,6 +1611,7 @@
 			qcom,glinkpkt-edge = "slate";
 			qcom,glinkpkt-ch-name = "slate-qcli";
 			qcom,glinkpkt-dev-name = "glink_pkt_slate_qcli";
+			qcom,glinkpkt-fragmented-read;
 		};
 
 		qcom,glinkpkt-slate-bt-ctrl {
@@ -1875,6 +1882,7 @@
 		qcom,scaling-lower-bus-speed-mode = "DDR52";
 
 		cap-mmc-hw-reset;
+		mmc-rst-n-disable;
 
 		/* Add dt entry for gcc hw reset */
 		resets = <&gcc GCC_SDCC1_BCR>;
@@ -2111,17 +2119,6 @@
 			qcom,sampling-path = <&ddr_dcvs_sp>;
 			qcom,miss-ev = <0x17>;
 
-			silver {
-				compatible = "qcom,memlat-mon";
-				qcom,cpulist = <&CPU0 &CPU1 &CPU2 &CPU3>;
-				qcom,sampling-enabled;
-				qcom,cpufreq-memfreq-tbl =
-					< 614400 681000 >,
-					< 864000 681000 >,
-					< 1363200 1353000 >,
-					< 1708800 1804000 >;
-			};
-
 			silver-compute {
 				compatible = "qcom,memlat-mon";
 				qcom,cpulist = <&CPU0 &CPU1 &CPU2 &CPU3>;
@@ -2150,6 +2147,7 @@
 #include "monaco-gdsc.dtsi"
 #include "monaco-usb.dtsi"
 #include "monaco-thermal.dtsi"
+#include "msm-rdbg-monaco.dtsi"
 
 &gcc_camss_top_gdsc {
 	parent-supply = <&VDD_CX_LEVEL>;

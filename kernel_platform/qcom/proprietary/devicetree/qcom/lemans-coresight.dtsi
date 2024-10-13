@@ -1304,19 +1304,16 @@
 		qcom,blk-size = <1>;
 	};
 
-
-	cti0: cti@078E0000 {
-		compatible = "arm,primecell";
-		arm,primecell-periphid = <0x0003b966>;
-		reg = <0x078E0000 0x1000>;
+	cti0: cti@04ad2000 {
+		compatible = "arm,coresight-cti", "arm,primecell";
+		reg = <0x04ad2000 0x1000>;
 		reg-names = "cti-base";
-
-		coresight-name = "coresight-cti0";
-
-		clocks = <&aoss_qmp QDSS_CLK>;
+		arm,primecell-periphid = <0x000bb922>;
+		coresight-name = "coresight-cti-cti0";
+		qcom,extended_cti;
+		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
 	};
-
 
 	swao_csr: csr@04b11000 {
 		compatible = "qcom,coresight-csr";

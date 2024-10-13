@@ -60,6 +60,12 @@ int set_slate_boot_mode(uint32_t boot_mode);
 int get_slate_boot_mode(void);
 
 /*
+ * To get current state of slate shutdown_only
+ * Return true if it unload only or else return false
+ */
+bool is_slate_unload_only(void);
+
+/*
  * Message header type - generic header structure
  */
 struct msg_header_t {
@@ -103,8 +109,8 @@ enum WMSlateCtrlChnlOpcode {
 	GMI_MGR_SSR_ADSP_DOWN_INDICATION = 8,
 
 	/*
-	 * Notification to slate about Modem Processor
-	 * Sub System being brought up after a subsystem reset.
+	 * Notification to slate about ADSP Sub System
+	 * being brought up after a subsystem reset.
 	 */
 	GMI_MGR_SSR_ADSP_UP_INDICATION = 9,
 
@@ -157,6 +163,30 @@ enum WMSlateCtrlChnlOpcode {
 	* Slate will return wear_firmware_info_t piggy-backing with the response code.
 	*/
 	GMI_WEAR_MGR_GET_FIRMWARE_DETAILS = 20,
+
+	/*
+	 * Pre notification to slate about Modem Processor Sub System
+	 * is down due to a subsystem reset.
+	 */
+	GMI_MGR_SSR_MPSS_DOWN_PRE_NOTIFICATION = 21,
+
+	/*
+	 * Pre notification to slate about Modem Processor Sub System
+	 * being brought up after a subsystem reset.
+	 */
+	GMI_MGR_SSR_MPSS_UP_PRE_NOTIFICATION = 22,
+
+	/*
+	 * Pre notification to slate about ADSP Sub System
+	 * is down due to a subsystem reset.
+	 */
+	GMI_MGR_SSR_ADSP_DOWN_PRE_INDICATION = 23,
+
+	/*
+	 * Pre notification to slate about ADSP Sub System
+	 * being brought up after a subsystem reset.
+	 */
+	GMI_MGR_SSR_ADSP_UP_PRE_INDICATION = 24,
 
 	/*
 	 * DEBUG Opcodes

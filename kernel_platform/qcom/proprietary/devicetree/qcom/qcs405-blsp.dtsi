@@ -20,7 +20,7 @@
 	blsp1_uart2_console: serial@78b1000 {
 		compatible = "qcom,msm-uartdm", "qcom,msm-uartdm-v1.4";
 		reg = <0x78b1000 0x200>;
-		interrupts = <0 118 0>;
+		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&gcc GCC_BLSP1_UART2_APPS_CLK>,
 			<&gcc GCC_BLSP1_AHB_CLK>;
 		clock-names = "core", "iface";
@@ -359,15 +359,10 @@
 		reg = <0x78af000 0x200>,
 		    <0x7884000 0x25000>;
 		reg-names = "core_mem", "bam_mem";
-		interrupt-names = "core_irq", "bam_irq", "wakeup_irq";
+		interrupts-extended = <&intc GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH>,
+				<&intc GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>,
+				<&tlmm 31 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <0>;
-		interrupt-parent = <&blsp1_uart1_hs>;
-		interrupts = <0 1 4>;
-		#interrupt-cells = <1>;
-		interrupt-map-mask = <0xffffffff>;
-		interrupt-map = <0 &intc 0 107 0
-			    1 &intc 0 238 0
-			    2 &tlmm 31 0>;
 		qcom,inject-rx-on-wakeup;
 		qcom,rx-char-to-inject = <0xfd>;
 		qcom,bam-tx-ep-pipe-index = <0>;
@@ -394,15 +389,10 @@
 		reg = <0x78b0000 0x200>,
 		    <0x7884000 0x25000>;
 		reg-names = "core_mem", "bam_mem";
-		interrupt-names = "core_irq", "bam_irq", "wakeup_irq";
+		interrupts-extended = <&intc GIC_SPI 108 IRQ_TYPE_LEVEL_HIGH>,
+				<&intc GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>,
+				<&tlmm 23 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <0>;
-		interrupt-parent = <&blsp1_uart2_hs>;
-		interrupts = <0 1 4>;
-		#interrupt-cells = <1>;
-		interrupt-map-mask = <0xffffffff>;
-		interrupt-map = <0 &intc 0 108 0
-			    1 &intc 0 238 0
-			    2 &tlmm 23 0>;
 		qcom,inject-rx-on-wakeup;
 		qcom,rx-char-to-inject = <0xfd>;
 		qcom,bam-tx-ep-pipe-index = <2>;
@@ -429,15 +419,10 @@
 		reg = <0x78b1000 0x200>,
 		    <0x7884000 0x25000>;
 		reg-names = "core_mem", "bam_mem";
-		interrupt-names = "core_irq", "bam_irq", "wakeup_irq";
+		interrupts-extended = <&intc GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>,
+				<&intc GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>,
+				<&tlmm 18 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <0>;
-		interrupt-parent = <&blsp1_uart3_hs>;
-		interrupts = <0 1 4>;
-		#interrupt-cells = <1>;
-		interrupt-map-mask = <0xffffffff>;
-		interrupt-map = <0 &intc 0 118 0
-			    1 &intc 0 238 0
-			    2 &tlmm 18 0>;
 		qcom,inject-rx-on-wakeup;
 		qcom,rx-char-to-inject = <0xfd>;
 		qcom,bam-tx-ep-pipe-index = <4>;
@@ -464,15 +449,10 @@
 		reg = <0x78b2000 0x200>,
 		    <0x7884000 0x25000>;
 		reg-names = "core_mem", "bam_mem";
-		interrupt-names = "core_irq", "bam_irq", "wakeup_irq";
+		interrupts-extended = <&intc GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH>,
+				<&intc GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>,
+				<&tlmm 83 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <0>;
-		interrupt-parent = <&blsp1_uart4_hs>;
-		interrupts = <0 1 4>;
-		#interrupt-cells = <1>;
-		interrupt-map-mask = <0xffffffff>;
-		interrupt-map = <0 &intc 0 119 0
-			    1 &intc 0 238 0
-			    2 &tlmm 83 0>;
 		qcom,inject-rx-on-wakeup;
 		qcom,rx-char-to-inject = <0xfd>;
 		qcom,bam-tx-ep-pipe-index = <6>;
@@ -482,10 +462,14 @@
 		clock-names = "core_clk", "iface_clk";
 		clocks = <&gcc GCC_BLSP1_UART3_APPS_CLK>,
 		    <&gcc GCC_BLSP1_AHB_CLK>;
-		pinctrl-names = "sleep", "default";
+		pinctrl-names = "sleep", "default", "shutdown", "active";
 		pinctrl-0 = <&blsp1_uart4_tx_sleep>,
 			 <&blsp1_uart4_rxcts_sleep>, <&blsp1_uart4_rfr_sleep>;
-		pinctrl-1 = <&blsp1_uart4_tx_active>,
+		pinctrl-1 = <&blsp1_uart4_tx_sleep>,
+			 <&blsp1_uart4_rxcts_sleep>, <&blsp1_uart4_rfr_sleep>;
+		pinctrl-2 = <&blsp1_uart4_tx_sleep>,
+			 <&blsp1_uart4_rxcts_sleep>, <&blsp1_uart4_rfr_sleep>;
+		pinctrl-3 = <&blsp1_uart4_tx_active>,
 			<&blsp1_uart4_rxcts_active>, <&blsp1_uart4_rfr_active>;
 		qcom,msm-bus,name = "buart4";
 		qcom,msm-bus,num-cases = <2>;
@@ -501,15 +485,10 @@
 		reg = <0x7aef000 0x200>,
 		    <0x7ac4000 0x17000>;
 		reg-names = "core_mem", "bam_mem";
-		interrupt-names = "core_irq", "bam_irq", "wakeup_irq";
+		interrupts-extended = <&intc GIC_SPI 297 IRQ_TYPE_LEVEL_HIGH>,
+				<&intc GIC_SPI 239 IRQ_TYPE_LEVEL_HIGH>,
+				<&tlmm 27 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <0>;
-		interrupt-parent = <&blsp2_uart1_hs>;
-		interrupts = <0 1 4>;
-		#interrupt-cells = <1>;
-		interrupt-map-mask = <0xffffffff>;
-		interrupt-map = <0 &intc 0 297 0
-			    1 &intc 0 239 0
-			    2 &tlmm 27 0>;
 		qcom,inject-rx-on-wakeup;
 		qcom,rx-char-to-inject = <0xfd>;
 		qcom,bam-tx-ep-pipe-index = <0>;

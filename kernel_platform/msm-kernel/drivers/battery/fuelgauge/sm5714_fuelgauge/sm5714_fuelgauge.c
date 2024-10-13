@@ -1225,7 +1225,8 @@ unsigned int sm5714_get_soc(struct sm5714_fuelgauge_data *fuelgauge)
 					(fuelgauge->info.top_off/5)) ||
 					(fuelgauge->info.batt_avgcurrent <= 0)) {
 					if (fuelgauge->info.batt_soc == 999)
-						soc = soc - 1;
+						if (soc > 1)
+							soc = soc - 1;
 				}
 			}
 		}

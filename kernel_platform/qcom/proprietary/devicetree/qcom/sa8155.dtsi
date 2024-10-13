@@ -60,6 +60,10 @@
 		#size-cells = <1>;
 		read-only;
 		ranges;
+		gpu_speed_bin: gpu_speed_bin@2 {
+			reg = <0x2 0x2>;
+			bits = <4 8>;
+			};
 	};
 
 	aop-set-ddr-freq {
@@ -272,7 +276,9 @@ hsi2s: qcom,hsi2s {
 			"dev-emac-rgmii_rx_ctl_state",
 			"dev-emac-phy_intr",
 			"dev-emac-phy_reset_state",
-			"dev-emac_pin_pps_0";
+			"dev-emac_pin_pps_0",
+			"dev-emac-rgmii_txc_suspend_state",
+			"dev-emac-rgmii_txc_resume_state";
 
 		pinctrl-0 = <&emac_mdc>;
 		pinctrl-1 = <&emac_mdio>;
@@ -294,6 +300,8 @@ hsi2s: qcom,hsi2s {
 		pinctrl-14 = <&emac_phy_intr>;
 		pinctrl-15 = <&emac_phy_reset_state>;
 		pinctrl-16 = <&emac_pin_pps_0>;
+		pinctrl-17 = <&emac_rgmii_txc_suspend>;
+		pinctrl-18 = <&emac_rgmii_txc_resume>;
 
 		snps,reset-delays-us = <0 11000 70000>;
 		phy-mode = "rgmii";

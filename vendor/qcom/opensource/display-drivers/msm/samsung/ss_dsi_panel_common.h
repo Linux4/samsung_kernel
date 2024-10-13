@@ -1870,7 +1870,6 @@ struct panel_func {
 	int (*set_ffc)(struct samsung_display_driver_data *vdd, int idx);
 	/* OSC */
 	int (*update_osc)(struct samsung_display_driver_data *vdd, int idx);
-	int (*set_osc)(struct samsung_display_driver_data *vdd, int idx);
 
 	/* check current mode (VRR, DMS, or etc..) to support tests (MCD, GCT, or etc..) */
 	bool (*samsung_check_support_mode)(struct samsung_display_driver_data *vdd,

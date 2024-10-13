@@ -187,6 +187,12 @@ static void tx_worker(struct vhost_hab_pchannel *vh_pchan)
 				pr_err("hab_msg_recv error %d\n", ret);
 
 			total_len += out_len;
+
+			if (vh_pchan->pchan->sequence_rx + 1 != header.sequence)
+				pr_err("%s: expected sequence_rx is %u, received is %u\n",
+						vh_pchan->pchan->name,
+						vh_pchan->pchan->sequence_rx,
+						header.sequence);
 			vh_pchan->pchan->sequence_rx = header.sequence;
 		}
 
@@ -770,6 +776,8 @@ void hab_hypervisor_unregister(void)
 	unregister_chrdev_region(g_vh.major, max_devices);
 }
 
+int hab_hypervisor_register_post(void) { return 0; }
+
 void hab_pipe_read_dump(struct physical_channel *pchan) {};
 
 void dump_hab_wq(struct physical_channel *pchan) {};
@@ -989,13 +997,17 @@ err_unlock:
 
 int physical_channel_send(struct physical_channel *pchan,
 			struct hab_header *header,
-			void *payload)
+			void *payload,
+			unsigned int flags)
 {
 	struct vhost_hab_pchannel *vh_pchan = pchan->hyp_data;
 	struct vhost_virtqueue *vq;
 	struct vhost_hab_dev *vh_dev;
 	struct vhost_hab_send_node *send_node;
 	size_t sizebytes = HAB_HEADER_GET_SIZE(*header);
+
+	/* Only used in virtio arch */
+	(void)flags;
 
 	if (!vh_pchan) {
 		pr_err("pchan is not ready yet\n");

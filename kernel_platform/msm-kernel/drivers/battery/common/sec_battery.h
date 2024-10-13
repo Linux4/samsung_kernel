@@ -51,6 +51,7 @@
 #endif
 #include "sec_adc.h"
 #include "sb_checklist_app.h"
+#include "sb_full_soc.h"
 
 extern const char *sb_get_ct_str(int cable_type);
 extern const char *sb_get_cm_str(int chg_mode);
@@ -393,6 +394,7 @@ typedef struct sec_battery_platform_data {
 
 	unsigned int swelling_high_rechg_voltage;
 	unsigned int swelling_low_rechg_voltage;
+	unsigned int swelling_low_rechg_soc;
 	unsigned int swelling_low_cool3_rechg_voltage;
 
 #if IS_ENABLED(CONFIG_STEP_CHARGING)
@@ -1195,6 +1197,8 @@ struct sec_battery_info {
 	struct sec_vote *topoff_vote;
 	struct sec_vote *iv_vote;
 
+	struct sb_full_soc *fs;
+
 	/* 25w ta alert */
 	bool ta_alert_wa;
 	int ta_alert_mode;
@@ -1203,7 +1207,6 @@ struct sec_battery_info {
 	bool mfc_fw_update;
 
 	int charging_night_mode;
-	int batt_full_capacity;
 
 	/* MAIN LRPST compensation */
 	unsigned long lr_start_time;

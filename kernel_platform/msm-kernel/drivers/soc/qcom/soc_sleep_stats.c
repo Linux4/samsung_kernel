@@ -78,6 +78,9 @@ static struct subsystem_data subsystems[] = {
 	{ "adsp", 606, 2 },
 	{ "adsp_island", 613, 2 },
 	{ "cdsp", 607, 5 },
+	{ "cdsp1", 607, 12 },
+	{ "gpdsp0", 607, 17 },
+	{ "gpdsp1", 607, 18 },
 	{ "slpi", 608, 3 },
 	{ "slpi_island", 613, 3 },
 	{ "gpu", 609, 0 },
@@ -85,13 +88,6 @@ static struct subsystem_data subsystems[] = {
 	{ "apss", 631, QCOM_SMEM_HOST_ANY },
 };
 #endif
-
-struct stats_config {
-	unsigned int offset_addr;
-	unsigned int ddr_offset_addr;
-	unsigned int num_records;
-	bool appended_stats_avail;
-};
 
 struct stats_entry {
 	uint32_t name;
@@ -111,11 +107,6 @@ struct sleep_stats {
 	u64 last_entered_at;
 	u64 last_exited_at;
 	u64 accumulated;
-};
-
-struct appended_stats {
-	u32 client_votes;
-	u32 reserved[3];
 };
 
 #if IS_ENABLED(CONFIG_MSM_QMP)
@@ -275,12 +266,10 @@ static void  print_ddr_stats(struct seq_file *s, int *count,
 
 	u32 cp_idx = 0;
 	u32 name;
-	u64 duration = 0;
+	u32 duration = 0;
 
-	if (accumulated_duration) {
-		duration = data->duration * 100;
-		do_div(duration, accumulated_duration);
-	}
+	if (accumulated_duration)
+		duration = (data->duration * 100) / accumulated_duration;
 
 	name = (data->name >> 8) & 0xFF;
 	if (name == 0x0) {

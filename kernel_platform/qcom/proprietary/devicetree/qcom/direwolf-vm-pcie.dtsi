@@ -30,6 +30,7 @@
 				0 0 0 3 &intc GIC_SPI 532 IRQ_TYPE_LEVEL_HIGH
 				0 0 0 4 &intc GIC_SPI 533 IRQ_TYPE_LEVEL_HIGH>;
 
+		iommu-map = <0x0 &virt_smmuv3 0x20000 0x10000>;
 		msi-parent = <&pcie2a_msi_snps>;
 
 		perst-gpio = <&tlmm 143 0>;
@@ -111,6 +112,7 @@
 		qcom,slv-addr-space-size = <0x2000000>;
 		qcom,ep-latency = <10>;
 		qcom,core-preset = <0x77777777>;
+		qcom,no-l1ss-supported;
 
 		qcom,pcie-phy-ver = <1106>;
 		qcom,phy-status-offset = <0x214>;
@@ -333,6 +335,7 @@
 		qcom,slv-addr-space-size = <0x2000000>;
 		qcom,ep-latency = <10>;
 		qcom,core-preset = <0x77777777>;
+		qcom,no-l1ss-supported;
 
 		qcom,pcie-phy-ver = <1106>;
 		qcom,phy-status-offset = <0x214>;
@@ -555,6 +558,7 @@
 		qcom,slv-addr-space-size = <0x2000000>;
 		qcom,ep-latency = <10>;
 		qcom,core-preset = <0x77777777>;
+		qcom,no-l1ss-supported;
 
 		qcom,pcie-phy-ver = <1106>;
 		qcom,phy-status-offset = <0x214>;
@@ -776,6 +780,7 @@
 		qcom,slv-addr-space-size = <0x2000000>;
 		qcom,ep-latency = <10>;
 		qcom,core-preset = <0x77777777>;
+		qcom,no-l1ss-supported;
 
 		qcom,pcie-phy-ver = <1106>;
 		qcom,phy-status-offset = <0x214>;
@@ -916,10 +921,12 @@
 				0 0 0 2 &intc GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH
 				0 0 0 3 &intc GIC_SPI 151 IRQ_TYPE_LEVEL_HIGH
 				0 0 0 4 &intc GIC_SPI 152 IRQ_TYPE_LEVEL_HIGH>;
+		iommu-map = <0x0 &virt_smmuv3 0x60000 0x10000>;
 
 		msi-parent = <&pcie4_msi_snps>;
 		qcom,target-link-speed = <0x3>;
 		qcom,core-preset = <0x77777777>;
+		qcom,no-l1ss-supported;
 
 		perst-gpio = <&tlmm 141 0>;
 		wake-gpio = <&tlmm 139 0>;

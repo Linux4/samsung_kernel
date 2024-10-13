@@ -1764,6 +1764,13 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->swelling_low_rechg_voltage = 4200;
 	}
 
+	ret = of_property_read_u32(np, "battery,swelling_low_rechg_soc",
+		&pdata->swelling_low_rechg_soc);
+	if (ret) {
+		pr_info("%s : swelling_low_rechg_soc is Empty\n", __func__);
+		pdata->swelling_low_rechg_soc = 90;
+	}
+
 	ret = of_property_read_u32(np, "battery,swelling_low_cool3_rechg_voltage", &temp);
 	pdata->swelling_low_cool3_rechg_voltage = (int)temp;
 	if (ret) {

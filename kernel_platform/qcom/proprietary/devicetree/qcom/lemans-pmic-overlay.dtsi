@@ -107,19 +107,27 @@
 };
 
 &pm8775_1_adc {
+	#thermal-sensor-cells = <1>;
 	status = "okay";
 };
 
 &pm8775_2_adc {
+	#thermal-sensor-cells = <1>;
 	status = "okay";
 };
 
 &pm8775_3_adc {
+	#thermal-sensor-cells = <1>;
 	status = "okay";
 };
 
 &pm8775_4_adc {
+	#thermal-sensor-cells = <1>;
 	status = "okay";
+};
+
+&pm8775_1_rtc {
+	qcom,disable-alarm-wakeup;
 };
 
 &thermal_zones {

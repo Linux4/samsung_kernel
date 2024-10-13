@@ -16,6 +16,9 @@ on the Qualcomm Hexagon core.
 		    "qcom,msm8998-mss-pil"
 		    "qcom,sc7180-mss-pil"
 		    "qcom,sdm845-mss-pil"
+		    "qcom,qcs405-cdsp-pas"
+		    "qcom,qcs405-wlan-dsp"
+		    "qcom,qcs405-adsp-pas"
 
 - reg:
 	Usage: required

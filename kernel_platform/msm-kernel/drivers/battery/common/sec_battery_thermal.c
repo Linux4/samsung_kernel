@@ -9,8 +9,10 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+
 #include "sec_battery.h"
 #include "battery_logger.h"
+#include "sb_full_soc.h"
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER) && !defined(CONFIG_SEC_FACTORY)
 extern int muic_set_hiccup_mode(int on_off);
@@ -1356,6 +1358,11 @@ int sec_usb_conn_check(struct sec_battery_info *battery)
 
 void sec_bat_thermal_charging_status(struct sec_battery_info *battery)
 {
+	if (is_full_capacity(battery->fs) && (battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY)) {
+		pr_info("%s: prevent the status during is_full_cap\n", __func__);
+		return;
+	}
+
 #if defined(CONFIG_ENABLE_FULL_BY_SOC)
 	if ((battery->capacity >= 100) || (battery->status == POWER_SUPPLY_STATUS_FULL))
 		sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_FULL);

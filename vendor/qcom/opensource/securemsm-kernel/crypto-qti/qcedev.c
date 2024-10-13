@@ -332,11 +332,11 @@ static void req_done(unsigned long data)
 	areq = podev->active_command;
 	podev->active_command = NULL;
 
-	if (areq) {
-		if (!areq->timed_out)
-			complete(&areq->complete);
-		areq->state = QCEDEV_REQ_DONE;
-	}
+    if (areq) {
+        areq->state = QCEDEV_REQ_DONE;
+        if (!areq->timed_out)
+            complete(&areq->complete);
+    }
 
 	/* Look through queued requests and wake up the corresponding thread */
 	if (!list_empty(&podev->ready_commands)) {

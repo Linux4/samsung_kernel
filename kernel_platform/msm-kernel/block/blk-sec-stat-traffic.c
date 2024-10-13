@@ -16,6 +16,8 @@
 #include <linux/log2.h>
 #include <linux/pm_qos.h>
 
+#include "blk-sec.h"
+
 struct traffic {
 	u64 transferred_bytes;
 	int level;
@@ -69,19 +71,16 @@ static int tp2level(int tput)
 static void notify_traffic_level(struct traffic *traffic)
 {
 #define BUF_SIZE 16
-	struct kobject *kobj;
 	char buf[BUF_SIZE];
 	char *envp[] = { "NAME=IO_TRAFFIC", buf, NULL, };
 	int ret;
 
-	if (!traffic->gd)
+	if (unlikely(IS_ERR(blk_sec_dev)))
 		return;
 
-	kobj = &disk_to_dev(traffic->gd)->kobj;
 	memset(buf, 0, BUF_SIZE);
 	snprintf(buf, BUF_SIZE, "LEVEL=%d", traffic->level);
-
-	ret = kobject_uevent_env(kobj, KOBJ_CHANGE, envp);
+	ret = kobject_uevent_env(&blk_sec_dev->kobj, KOBJ_CHANGE, envp);
 	if (ret)
 		pr_err("%s: couldn't send uevent (%d)", __func__, ret);
 }

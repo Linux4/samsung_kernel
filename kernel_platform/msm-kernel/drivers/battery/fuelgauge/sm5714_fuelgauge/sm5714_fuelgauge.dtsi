@@ -45,7 +45,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8816/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/gts9/fuelgauge/sm5714/sm5714_fuelgauge.gts9(wifi).dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/gts9/fuelgauge/sm5714/sm5714_fuelgauge.gts9(wifi).dtsi */
 /*
  * Gts9 battery device tree common
  *
@@ -150,5 +150,5 @@
 		};
 };
 
-/* /home/dpi/qb5_8816/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/gts9/fuelgauge/sm5714/sm5714_fuelgauge.gts9(wifi).02.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/gts9/fuelgauge/sm5714/sm5714_fuelgauge.gts9(wifi).02.dtsi */
 /* Battery data same as sm5714_fuelgauge.gts9.dtsi*/

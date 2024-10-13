@@ -230,6 +230,14 @@
 #     - MODULES_LIST=<file to list of modules> list of modules to use for
 #       vendor_boot.modules.load. If this property is not set, then the default
 #       modules.load is used.
+#    -  MODULES_RECOVERY_LIST=<file to list of modules> list of modules to load
+#       in addition to the modules defined in MODULES_LIST during first stage
+#       init when booting into recovery. If MODULES_LIST is not specified, this
+#       variable is ignored. Defining this variable is optional.
+#    -  MODULES_CHARGER_LIST=<file to list of modules> list of modules to load
+#       in addition to the modules defined in MODULES_LIST during first stage
+#       init when booting into charger mode. If MODULES_LIST is not specified, this
+#       variable is ignored. Defining this variable is optional.
 #     - TRIM_UNUSED_MODULES. If set, then modules not mentioned in
 #       modules.load are removed from initramfs. If MODULES_LIST is unset, then
 #       having this variable set effectively becomes a no-op.
@@ -568,7 +576,7 @@ if [ -n "${GKI_BUILD_CONFIG}" ]; then
   fi
 
   # Inherit SKIP_MRPROPER, LTO, SKIP_DEFCONFIG unless overridden by corresponding GKI_* variables
-  GKI_ENVIRON=("SKIP_MRPROPER=${SKIP_MRPROPER}" "LTO=${LTO}" "SKIP_DEFCONFIG=${SKIP_DEFCONFIG}" "SKIP_IF_VERSION_MATCHES=${SKIP_IF_VERSION_MATCHES}")
+  GKI_ENVIRON=("SKIP_MRPROPER=${SKIP_MRPROPER}" "KASAN=${KASAN}" "LTO=${LTO}" "SKIP_DEFCONFIG=${SKIP_DEFCONFIG}" "SKIP_IF_VERSION_MATCHES=${SKIP_IF_VERSION_MATCHES}")
   # Explicitly unset EXT_MODULES since they should be compiled against the device kernel
   GKI_ENVIRON+=("EXT_MODULES=")
   # Explicitly unset GKI_BUILD_CONFIG in case it was set by in the old environment
@@ -696,6 +704,29 @@ if [ "${SKIP_DEFCONFIG}" != "1" ] ; then
     eval ${POST_DEFCONFIG_CMDS}
     set +x
   fi
+fi
+
+if [ "${KASAN}" = "sw_tags" ]; then
+  echo "====================================================="
+  echo "Enabling KASAN"
+
+  set -x
+  ${KERNEL_DIR}/scripts/config --file ${OUT_DIR}/.config \
+      -e CONFIG_KASAN \
+      -e CONFIG_KASAN_SW_TAGS \
+      -e CONFIG_KASAN_OUTLINE \
+      -e CONFIG_PANIC_ON_WARN_DEFAULT_ENABLE \
+      -d CONFIG_KASAN_HW_TAGS \
+      --set-val CONFIG_FRAME_WARN 0 \
+      -d CFI \
+      -d CFI_PERMISSIVE \
+      -d CFI_CLANG \
+      -d SHADOW_CALL_STACK \
+      -d RANDOMIZE_BASE
+
+      (cd ${OUT_DIR} && make ${TOOL_ARGS} O=${OUT_DIR} "${MAKE_ARGS[@]}" olddefconfig)
+      set +x
+      LTO="none"
 fi
 
 if [ "${LTO}" = "none" -o "${LTO}" = "thin" -o "${LTO}" = "full" ]; then
@@ -1130,15 +1161,20 @@ if [ -n "${MODULES}" ]; then
     echo " Creating initramfs"
     rm -rf ${INITRAMFS_STAGING_DIR}
     create_modules_staging "${MODULES_LIST}" ${MODULES_STAGING_DIR} \
-      ${INITRAMFS_STAGING_DIR} "${MODULES_BLOCKLIST}" "-e" "${MODULES_LIST_ORDER}"
-
+      ${INITRAMFS_STAGING_DIR} "${MODULES_BLOCKLIST}" "${MODULES_RECOVERY_LIST:-""}" \
+      "${MODULES_CHARGER_LIST:-""}" "-e" "${MODULES_LIST_ORDER}"
     MODULES_ROOT_DIR=$(echo ${INITRAMFS_STAGING_DIR}/lib/modules/*)
-    cp ${MODULES_ROOT_DIR}/modules.load ${DIST_DIR}/modules.load
     if [ -n "${BUILD_VENDOR_BOOT_IMG}" ]; then
-      cp ${MODULES_ROOT_DIR}/modules.load ${DIST_DIR}/vendor_boot.modules.load
+      VENDOR_BOOT_NAME="vendor_boot"
     elif [ -n "${BUILD_VENDOR_KERNEL_BOOT}" ]; then
-      cp ${MODULES_ROOT_DIR}/modules.load ${DIST_DIR}/vendor_kernel_boot.modules.load
+      VENDOR_BOOT_NAME="vendor_kernel_boot"
     fi
+    MODULES_LOAD_FILES=( "modules.load" "modules.load.recovery" "modules.load.charger" )
+    for file in "${MODULES_LOAD_FILES[@]}"; do
+      [ -f ${MODULES_ROOT_DIR}/${file} ] && cp ${MODULES_ROOT_DIR}/${file} ${DIST_DIR}/${file}
+      [ -f ${MODULES_ROOT_DIR}/${file} -a -n "${VENDOR_BOOT_NAME}" ] && \
+              cp ${MODULES_ROOT_DIR}/${file} ${DIST_DIR}/${VENDOR_BOOT_NAME}.${file}
+    done
     echo "${MODULES_OPTIONS}" > ${MODULES_ROOT_DIR}/modules.options
     if [ -e "${MODULES_ROOT_DIR}/modules.blocklist" ]; then
       cp ${MODULES_ROOT_DIR}/modules.blocklist ${DIST_DIR}/modules.blocklist

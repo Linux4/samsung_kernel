@@ -91,3 +91,11 @@
 &qcom_rng_ee3 {
 	status = "okay";
 };
+
+&soc {
+	qcom,mpm-hr-counter@c210000 {
+		compatible = "qcom,mpm-hr-counter";
+		reg = <0xc210000 0x1000>;
+		clock-frequency = <19200000>;
+	};
+};

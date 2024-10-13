@@ -60,6 +60,12 @@ on the Qualcomm Technologies inc ADSP Hexagon core.
 		    "qcom,crow-adsp-pas"
 		    "qcom,crow-cdsp-pas"
 		    "qcom,crow-modem-pas"
+		    "qcom,trinket-modem-pas"
+		    "qcom,trinket-adsp-pas"
+		    "qcom,trinket-cdsp-pas"
+		    "qcom,qcs605-adsp-pas"
+		    "qcom,qcs605-cdsp-pas"
+		    "qcom,qcs605-modem-pas"
 
 - interrupts-extended:
 	Usage: required

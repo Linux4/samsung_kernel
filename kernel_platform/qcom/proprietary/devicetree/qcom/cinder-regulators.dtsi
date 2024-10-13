@@ -202,9 +202,9 @@
 		L6A: pm8150_a_l6: regulator-pm8150-a-l6 {
 			regulator-name = "pm8150_a_l6";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <880000>;
-			regulator-max-microvolt = <950000>;
-			qcom,init-voltage = <912000>;
+			regulator-min-microvolt = <866000>;
+			regulator-max-microvolt = <992000>;
+			qcom,init-voltage = <952000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
 		};
 	};
@@ -258,7 +258,7 @@
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
 			regulator-min-microvolt = <312000>;
 			regulator-max-microvolt = <1304000>;
-			qcom,init-voltage = <912000>;
+			qcom,init-voltage = <952000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
 		};
 	};

@@ -746,6 +746,39 @@ int msm_dss_clk_set_rate(struct dss_clk *clk_arry, int num_clk)
 } /* msm_dss_clk_set_rate */
 EXPORT_SYMBOL(msm_dss_clk_set_rate);
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+typedef struct min_clk_core
+{
+	const char *name;
+	int dummy0[16];
+	unsigned long		rate;
+	unsigned long		req_rate;
+	int dummy1[6];
+	unsigned long		flags; //offset:112
+	int dummy2[1];
+	unsigned int		enable_count; //offset:124
+	unsigned int		prepare_count;
+}min_clk_core;
+
+typedef struct min_clk
+{
+	struct min_clk_core *min_core;	
+}min_clk;
+
+void log_vsync_count (struct clk *clk, int step){
+	struct min_clk_core * mcore;
+	struct min_clk* mclk;
+	mclk = (struct min_clk*)clk;
+	mcore = (struct min_clk_core *)mclk->min_core;
+	if(mcore){
+		if(!strcmp(mcore->name,"disp_cc_mdss_rscc_vsync_clk"))
+		   	SDE_EVT32(0xA, mcore->enable_count, step);
+		else  //disp_cc_mdss_vsync_clk
+		   	SDE_EVT32(0xB, mcore->enable_count, step);
+	}
+}
+#endif
+
 int msm_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable)
 {
 	int i, rc = 0;
@@ -773,6 +806,10 @@ int msm_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable)
 				msm_dss_enable_clk(clk_arry, i, false);
 				break;
 			}
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			if(!strcmp(clk_arry[i].clk_name,"vsync_clk"))
+				log_vsync_count(clk_arry[i].clk, 0x1111);	
+#endif
 		}
 	} else {
 		for (i = num_clk - 1; i >= 0; i--) {
@@ -786,6 +823,10 @@ int msm_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable)
 				DEV_ERR("%pS->%s: '%s' is not available\n",
 					__builtin_return_address(0), __func__,
 					clk_arry[i].clk_name);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		if(!strcmp(clk_arry[i].clk_name,"vsync_clk"))
+			log_vsync_count(clk_arry[i].clk, 0x2222);
+#endif					
 		}
 	}
 

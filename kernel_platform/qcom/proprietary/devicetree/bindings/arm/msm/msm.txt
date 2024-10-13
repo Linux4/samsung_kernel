@@ -137,6 +137,12 @@ SoCs:
 - TRINKET
   compatible = "qcom,trinket", "qcom,trinket-iot"
 
+- SDM670
+  compatible = "qcom,sdm670"
+
+- QCS605
+  compatible = "qcom,qcs605"
+
 Generic board variants:
 
 - CDP device:
@@ -387,3 +393,5 @@ compatible = "qcom,trinket-iot"
 compatible = "qcom,trinketp-iot"
 compatible = "qcom,trinket-iot-idp"
 compatible = "qcom,trinketp-iot-idp"
+compatible = "qcom,qcs605-mtp"
+compatible = "qcom,qcs605-cdp"

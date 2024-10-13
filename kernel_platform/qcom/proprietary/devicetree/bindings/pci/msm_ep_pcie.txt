@@ -89,6 +89,8 @@ Optional Properties:
   - qcom,fast-boot-values: fast_boot values to check against boot_config based value for confirming
 	that host-interface is PCIe.
   - qcom,no-path-from-ipa-to-pcie: boolean type; No direct path from the IPA to PCIe.
+  - qcom,ep-pcie-num-ipc-pages-dev-fac: If property is present reduce the ep pcie ipc logging size
+	based on the divisor factor. This property also represents the divisor factor.
 
 Example:
 

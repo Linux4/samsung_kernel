@@ -33,6 +33,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sec_class.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/version.h>
 #if defined(CONFIG_SENSORS_CORE_AP)
 #include <linux/sensor/sensors_core.h>
 #endif
@@ -283,9 +284,6 @@ struct a96t396_data {
 	bool is_first_event;
 	bool prevent_sleep_irq;
 	bool fw_update_flag;
-#ifdef CONFIG_SENSORS_FW_VENDOR
-	int fw_retry;
-#endif
 };
 
 static void a96t396_check_first_working(struct a96t396_data *data);
@@ -712,8 +710,10 @@ static void a96t396_enter_unknown_mode(struct a96t396_data *data, int type)
 		data->first_working = false;
 		if (data->is_unknown_mode == UNKNOWN_OFF) {
 			data->is_unknown_mode = UNKNOWN_ON;
-			input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
-			input_sync(data->input_dev);
+			if (data->current_state) {
+				input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
+				input_sync(data->input_dev);
+			}
 			GRIP_INFO("UNKNOWN Re-enter\n");
 		} else {
 			GRIP_INFO("already UNKNOWN\n");
@@ -727,8 +727,10 @@ static void a96t396_enter_unknown_mode(struct a96t396_data *data, int type)
 			data->mul_ch->first_working = false;
 			if (data->mul_ch->is_unknown_mode == UNKNOWN_OFF) {
 				data->mul_ch->is_unknown_mode = UNKNOWN_ON;
-				input_report_rel(data->input_dev, REL_Y, data->mul_ch->is_unknown_mode);
-				input_sync(data->input_dev);
+				if (data->current_state) {
+					input_report_rel(data->input_dev, REL_Y, data->mul_ch->is_unknown_mode);
+					input_sync(data->input_dev);
+				}
 				GRIP_INFO("2ch UNKNOWN Re-enter\n");
 			} else {
 				GRIP_INFO("2ch already UNKNOWN\n");
@@ -737,7 +739,7 @@ static void a96t396_enter_unknown_mode(struct a96t396_data *data, int type)
 	}
 #endif
 	if (enable) {
-		GRIP_INFO("enable %d\n", enable);
+		GRIP_INFO("enable %d, type %d\n", enable, type);
 		input_report_rel(data->noti_input_dev, REL_X, type);
 		input_sync(data->noti_input_dev);
 	}
@@ -836,12 +838,7 @@ static void a96t396_firmware_work_func(struct work_struct *work)
 #if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
 	int i = 0;
 #endif
-	GRIP_INFO("start - probe_count %d, firmware_retry %d\n", probe_count, data->fw_retry);
-
-	if (data->fw_retry == 0) {
-		GRIP_INFO("stop\n");
-		return;
-	}
+	GRIP_INFO("start - probe_count %d\n", probe_count);
 
 	if (probe_count <= max_probe_count) {
 		if (probe_count == max_probe_count) {
@@ -850,7 +847,6 @@ static void a96t396_firmware_work_func(struct work_struct *work)
 		}
 		schedule_delayed_work(&data->firmware_work,
 				msecs_to_jiffies(500));
-		data->fw_retry--;
 		return;
 	}
 
@@ -1099,7 +1095,7 @@ static void a96t396_set_debug_work(struct a96t396_data *data, u8 enable,
 static void a96t396_set_firmware_work(struct a96t396_data *data, u8 enable,
 	unsigned int time_ms)
 {
-	GRIP_INFO("%s\n", __func__, enable ? "enabled" : "disabled");
+	GRIP_INFO("%s\n", enable ? "enabled" : "disabled");
 
 	if (enable == 1) {
 		data->firmware_count = 0;
@@ -3740,6 +3736,11 @@ static int a96t396_ioctl_fw_hal_to_kerenl(struct a96t396_data *data, void __user
 		GRIP_INFO("ioctl status %d, filesize = %d", status, temp->fw_size);
 		if (temp->fw_size) {
 			data->firm_data_ums = kzalloc(temp->fw_size, GFP_KERNEL);
+			if (!data->firm_data_ums) {
+				GRIP_ERR("firm_data_ums memory alloc fail");
+				vfree(temp);
+				return -ENOMEM;
+			}
 			memcpy((char __user *)data->firm_data_ums, temp->fw_data, temp->fw_size);
 			data->firm_size = temp->fw_size;
 			data->ioctl_pass = temp->pass;
@@ -4030,7 +4031,6 @@ static int a96t396_probe(struct i2c_client *client,
 	data->first_working = false;
 	data->motion = 1;
 #ifdef CONFIG_SENSORS_FW_VENDOR
-	data->fw_retry = 20;
 	parse_dt_for_max_count(data, &client->dev);
 #endif
 #if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
@@ -4338,7 +4338,11 @@ err_alloc:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+void a96t396_remove(struct i2c_client *client)
+#else
 static int a96t396_remove(struct i2c_client *client)
+#endif
 {
 	struct a96t396_data *data = i2c_get_clientdata(client);
 
@@ -4373,7 +4377,11 @@ static int a96t396_remove(struct i2c_client *client)
 #endif
 	kfree(data);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	return;
+#else
 	return 0;
+#endif
 }
 
 static int a96t396_suspend(struct device *dev)

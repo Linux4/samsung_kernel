@@ -13,6 +13,8 @@
 
 #define CS35L45_NUM_SUPPLIES 2
 
+#define CS35L45_REGMAP_RETRY	5
+
 struct bpe_inst_lvl_config {
 	bool is_present;
 	unsigned int thld;
@@ -223,6 +225,11 @@ struct cs35l45_private {
 	int hibernate_mode;
 	int max_quirks_read_nwords;
 	struct snd_soc_component *component;
+	/* Run-time mixer */
+	struct snd_kcontrol_new fast_ctl;
+	int fast_switch_file_idx;
+	struct soc_enum fast_switch_enum;
+	char const *const *fast_switch_names;
 };
 
 int cs35l45_initialize(struct cs35l45_private *cs35l45);

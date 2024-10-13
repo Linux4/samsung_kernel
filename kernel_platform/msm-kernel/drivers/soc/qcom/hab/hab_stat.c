@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include "hab.h"
 #include "hab_grantable.h"
@@ -62,11 +62,12 @@ int hab_stat_show_vchan(struct hab_driver *driver,
 			read_lock(&pchan->vchans_lock);
 			list_for_each_entry(vc, &pchan->vchannels, pnode) {
 				ret = hab_stat_buffer_print(buf, size,
-					"%08X(%d:%d:%lu:%lu:%d) ", vc->id,
+					"%08X(%d:%d:%d:%ld:%ld:%d) ", vc->id,
 					get_refcnt(vc->refcount),
 					vc->otherend_closed,
-					(unsigned long)vc->tx_cnt,
-					(unsigned long)vc->rx_cnt,
+					vc->closed,
+					atomic64_read(&vc->tx_cnt),
+					atomic64_read(&vc->rx_cnt),
 					vc->rx_inflight);
 			}
 			ret = hab_stat_buffer_print(buf, size, "\n");
@@ -215,6 +216,37 @@ int hab_stat_show_expimp(struct hab_driver *driver,
 	/* print pchannel status, drvlock is not required */
 	if (pchan_count > 0)
 		ret = hab_stat_log(pchans, pchan_count, buf, size);
+
+	return ret;
+}
+
+int hab_stat_show_reclaim(struct hab_driver *driver, char *buf, int size)
+{
+	struct export_desc *exp = NULL;
+	struct compressed_pfns *pfn_table = NULL;
+	int exim_size = 0;
+	int ret = 0;
+	size_t total_size = 0, total_num = 0;
+
+	ret = strscpy(buf, "", size);
+	ret = hab_stat_buffer_print(buf, size, "export[expid:vcid:size:pchan]:\n");
+
+	spin_lock(&hab_driver.reclaim_lock);
+	list_for_each_entry(exp, &hab_driver.reclaim_list, node) {
+		pfn_table = (struct compressed_pfns *)exp->payload;
+		exim_size = get_pft_tbl_total_size(pfn_table);
+		total_size += exim_size;
+		total_num++;
+		ret = hab_stat_buffer_print(buf, size, "[%d:%x:%d:%s] ",
+			exp->export_id,
+			exp->vcid_local,
+			exim_size,
+			exp->pchan->name);
+		ret = hab_stat_buffer_print(buf, size, "\n");
+	}
+	spin_unlock(&hab_driver.reclaim_lock);
+
+	ret = hab_stat_buffer_print(buf, size, "total: %u, size %u\n", total_num, total_size);
 
 	return ret;
 }

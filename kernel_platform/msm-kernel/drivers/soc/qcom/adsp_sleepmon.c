@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-//Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+//Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  */
@@ -531,33 +531,36 @@ static int adspsleepmon_smem_init(void)
 	g_adspsleepmon.lpm_stats = qcom_smem_get(
 						ADSPSLEEPMON_SMEM_ADSP_PID,
 						ADSPSLEEPMON_SLEEPSTATS_ADSP_SMEM_ID,
-						NULL);
+						&size);
 
-	if (IS_ERR_OR_NULL(g_adspsleepmon.lpm_stats)) {
-		pr_err("Failed to get sleep stats from SMEM for ADSP: %d\n",
-				PTR_ERR(g_adspsleepmon.lpm_stats));
+	if (IS_ERR_OR_NULL(g_adspsleepmon.lpm_stats) ||
+		(sizeof(struct sleep_stats) > size)) {
+		pr_err("Failed to get sleep stats from SMEM for ADSP: %d, size: %d\n",
+				PTR_ERR(g_adspsleepmon.lpm_stats), size);
 		return -ENOMEM;
 	}
 
 	g_adspsleepmon.lpi_stats = qcom_smem_get(
 						ADSPSLEEPMON_SMEM_ADSP_PID,
 						ADSPSLEEPMON_SLEEPSTATS_ADSP_LPI_SMEM_ID,
-						NULL);
+						&size);
 
-	if (IS_ERR_OR_NULL(g_adspsleepmon.lpi_stats)) {
-		pr_err("Failed to get LPI sleep stats from SMEM for ADSP: %d\n",
-				PTR_ERR(g_adspsleepmon.lpi_stats));
+	if (IS_ERR_OR_NULL(g_adspsleepmon.lpi_stats) ||
+		(sizeof(struct sleep_stats) > size)) {
+		pr_err("Failed to get LPI sleep stats from SMEM for ADSP: %d, size: %d\n",
+				PTR_ERR(g_adspsleepmon.lpi_stats), size);
 		return -ENOMEM;
 	}
 
 	g_adspsleepmon.dsppm_stats = qcom_smem_get(
 						   ADSPSLEEPMON_SMEM_ADSP_PID,
 						ADSPSLEEPMON_DSPPMSTATS_SMEM_ID,
-						NULL);
+						&size);
 
-	if (IS_ERR_OR_NULL(g_adspsleepmon.dsppm_stats)) {
-		pr_err("Failed to get DSPPM stats from SMEM for ADSP: %d\n",
-				PTR_ERR(g_adspsleepmon.dsppm_stats));
+	if (IS_ERR_OR_NULL(g_adspsleepmon.dsppm_stats) ||
+		(sizeof(struct dsppm_stats) > size)) {
+		pr_err("Failed to get DSPPM stats from SMEM for ADSP: %d, size: %d\n",
+				PTR_ERR(g_adspsleepmon.dsppm_stats), size);
 		return -ENOMEM;
 	}
 
@@ -1405,7 +1408,6 @@ static int adspsleepmon_worker(void *data)
 
 			sleepmon_lpi_exception_check(curr_timestamp, elapsed_time);
 		}
-
 TIME_NOT_ELAPSED:
 		if (g_adspsleepmon.timer_event) {
 			g_adspsleepmon.timer_event = false;

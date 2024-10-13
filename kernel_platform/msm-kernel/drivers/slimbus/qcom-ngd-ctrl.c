@@ -1003,8 +1003,8 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 	 * acquired by SSR sequence hence it will unblock SSR to finish
 	 * gracefully
 	 */
-	 if (!mutex_trylock(&ctrl->tx_lock)) {
-	 	SLIM_ERR(ctrl, "ngd going down due SSR/PDR, try again! skipping check hw state\n");
+	if (!mutex_trylock(&ctrl->tx_lock)) {
+		SLIM_ERR(ctrl, "ngd going down due SSR/PDR, try again! skipping check hw state\n");
 		return -EAGAIN;
 	}
 	ret = check_hw_state(ctrl, txn);
@@ -1845,9 +1845,9 @@ static int qcom_slim_ngd_ssr_pdr_notify(struct qcom_slim_ngd_ctrl *ctrl,
 			mutex_lock(&ctrl->tx_lock);
 			ctrl->state = QCOM_SLIM_NGD_CTRL_SSR_GOING_DOWN;
 			/*
-			* Mark capability_timeout to false here to handle
-			* BAM IRQ's from clean state.
-			*/
+			 * Mark capability_timeout to false here to handle
+			 * BAM IRQ's from clean state.
+			 */
 			ctrl->capability_timeout = false;
 			SLIM_INFO(ctrl, "SLIM SSR going down\n");
 			pm_runtime_get_noresume(ctrl->ctrl.dev);

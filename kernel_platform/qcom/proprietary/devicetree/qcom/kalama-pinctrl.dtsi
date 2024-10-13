@@ -3629,4 +3629,55 @@
 		};
 	};
 
+	ch101_rst: ch101_rst {
+		mux {
+			pins = "gpio127";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio127";
+			output-high;
+			drive-strength = <2>;
+		};
+	};
+
+	ch101_tmr_rst: ch101_tmr_rst {
+		mux {
+			pins = "gpio88";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio88";
+			bias-pull-up;
+			drive-strength = <2>;
+		};
+	};
+
+	ch101_0_irq: ch101_0_irq {
+		mux {
+			pins = "gpio18", "gpio129", "gpio17";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio18", "gpio129", "gpio17";
+			bias-no-pull;
+			drive-strength = <2>;
+		};
+	};
+
+	ch101_1_irq: ch101_1_irq {
+		mux {
+			pins = "gpio14", "gpio19", "gpio86";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio14", "gpio19", "gpio86";
+			bias-no-pull;
+			drive-strength = <2>;
+		};
+	};
 };

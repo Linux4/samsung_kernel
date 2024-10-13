@@ -1591,6 +1591,38 @@ done:
 		max_div = min_div;
 	}
 
+	/* VRR 96HS, 48HS (base_rr = 96): Allowed LFD frequencies.
+	 * - min_div_lowest: 1hz (div=96)
+	 * - min_div_def: 1hz (div=96), 12hz (div=8) or 10.67hz (div=9), depends on panels.
+	 * - 48hz(div=2)
+	 * - max_div_def : 96hz(div=1) for VRR 96HS. 48hz(div=2) for VRR 48HS
+	 */
+	if (base_rr == 96) {
+		if (max_div > min_div_def && max_div < min_div_lowest) {
+			/* min_div_def(div=8, 12hz) < div < min_div_loewst(div=96, 1hz) */
+			/* min_div_def(div=96, 1hz) < div < min_div_loewst(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD max div: %d -> %d\n", max_div, min_div_def);
+			max_div = min_div_def; /* 12hz */
+		} else if (max_div > 2 && max_div < min_div_def) {
+			/* 2(48hz) < div < min_div_def(div=8, 12hz) */
+			/* 2(48hz) < div < min_div_def(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD max div: %d -> 2\n", max_div);
+			max_div = 2; /* 48hz */
+		}
+
+		if (min_div > min_div_def && min_div < min_div_lowest) {
+			/* min_div_def(div=8, 12hz) < div < min_div_loewst(div=96, 1hz) */
+			/* min_div_def(div=96, 1hz) < div < min_div_loewst(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD min div: %d -> %d\n", max_div, min_div_def);
+			min_div = min_div_def; /* 12hz */
+		} else if (min_div > 2 && min_div < min_div_def) {
+			/* 2(48hz) < div < min_div_def(div=8, 12hz) */
+			/* 2(48hz) < div < min_div_def(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD min div: %d -> 2\n", min_div);
+			min_div = 2; /* 48hz */
+		}
+	}
+
 set_out_div:
 	*out_min_div = min_div;
 	*out_max_div = max_div;
@@ -1867,22 +1899,13 @@ int ss_dyn_mipi_clk_tx_ffc(struct samsung_display_driver_data *vdd)
 
 int ss_dyn_mipi_clk_tx_osc(struct samsung_display_driver_data *vdd)
 {
-	int ret = 0;
+	/* This function is not necessary.
+	 * While display is turned on, it should not send osc clock change command,
+	 * to prevent flicker.
+	 */
+	LCD_INFO(vdd, "skip tx osc\n");
 
-	if (is_ss_style_cmd(vdd, TX_OSC)) {
-		ss_send_cmd(vdd, TX_OSC);
-		return 0;
-	}
-
-	/* deprecated */
-	if (IS_ERR_OR_NULL(vdd->panel_func.set_osc))
-		LCD_ERR(vdd, "no set_osc function\n");
-	else
-		ret = vdd->panel_func.set_osc(vdd, vdd->dyn_mipi_clk.requested_osc_idx);
-
-	LCD_INFO(vdd, "OSC idx: %d, tx OSC\n", vdd->dyn_mipi_clk.requested_osc_idx);
-
-	return ret;
+	return 0;
 }
 
 static int ss_parse_dyn_mipi_clk_timing_table(struct device_node *np,
