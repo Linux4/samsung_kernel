@@ -675,6 +675,8 @@ struct goodix_ts_core {
 	u8 sponge_dump_delayed_area;
 	u16 sponge_dump_border;
 	unsigned int specific_fw_update_ver;
+
+	u32 edgehandler_direction_max;
 };
 
 /* external module structures */

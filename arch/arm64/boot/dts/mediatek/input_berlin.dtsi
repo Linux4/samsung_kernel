@@ -81,6 +81,7 @@
 #if defined(CONFIG_SEC_FACTORY)
 	sec,specific_fw_update_ver = <0x00040000>;
 #endif
+	goodix,edgehandler_direction_max = <5>;
 };
 
 /* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.01.dtsi */
