@@ -50,6 +50,7 @@ struct dp_power_private {
 	bool strm1_clks_parked;
 #if defined(CONFIG_SECDP)
 	bool aux_pullup_on;
+	struct mutex dp_clk_lock;
 
 	void (*redrv_onoff)(bool enable, int lane);
 	void (*redrv_aux_ctrl)(int cross);
@@ -340,7 +341,7 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 
 		power->pixel_parent = clk_get(dev, "pixel_parent");
 		if (IS_ERR(power->pixel_parent)) {
-			DP_ERR("Unable to get DP pixel RCG parent: %ld\n",
+			DP_ERR("Unable to get DP pixel RCG parent: %d\n",
 					PTR_ERR(power->pixel_parent));
 			rc = PTR_ERR(power->pixel_parent);
 			power->pixel_parent = NULL;
@@ -349,7 +350,7 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 
 		power->xo_clk = clk_get(dev, "rpmh_cxo_clk");
 		if (IS_ERR(power->xo_clk)) {
-			DP_ERR("Unable to get XO clk: %ld\n", PTR_ERR(power->xo_clk));
+			DP_ERR("Unable to get XO clk: %d\n", PTR_ERR(power->xo_clk));
 			rc = PTR_ERR(power->xo_clk);
 			power->xo_clk = NULL;
 			goto err_xo_clk;
@@ -358,7 +359,7 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 		if (power->parser->has_mst) {
 			power->pixel1_clk_rcg = clk_get(dev, "pixel1_clk_rcg");
 			if (IS_ERR(power->pixel1_clk_rcg)) {
-				DP_ERR("Unable to get DP pixel1 clk RCG: %ld\n",
+				DP_ERR("Unable to get DP pixel1 clk RCG: %d\n",
 						PTR_ERR(power->pixel1_clk_rcg));
 				rc = PTR_ERR(power->pixel1_clk_rcg);
 				power->pixel1_clk_rcg = NULL;
@@ -449,7 +450,11 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 {
 	int rc = 0;
 	struct dss_module_power *mp;
+#if defined(CONFIG_SECDP)
+	static bool prev[DP_MAX_PM];
 
+	mutex_lock(&power->dp_clk_lock);
+#endif
 	if (!power) {
 		DP_ERR("invalid power data\n");
 		rc = -EINVAL;
@@ -457,6 +462,13 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 	}
 
 	mp = &power->parser->mp[module];
+
+#if defined(CONFIG_SECDP)
+	if (prev[module] == enable) {
+		DP_DEBUG("%d clk already %s\n", module, enable ? "enabled" : "disabled");
+		goto exit;
+	}
+#endif
 
 	if (enable) {
 		rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
@@ -481,7 +493,14 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 
 		dp_power_park_module(power, module);
 	}
+
+#if defined(CONFIG_SECDP)
+	prev[module] = enable;
+#endif
 exit:
+#if defined(CONFIG_SECDP)
+	mutex_unlock(&power->dp_clk_lock);
+#endif
 	return rc;
 }
 
@@ -542,40 +561,6 @@ static int dp_power_clk_enable(struct dp_power *dp_power,
 			return 0;
 		}
 	}
-
-#if defined(CONFIG_SECDP)
-	if (!enable) {
-		/* consider below abnormal sequence :
-		 * PDIC_NOTIFY_ATTACH
-		 * -> no PDIC_NOTIFY_ID_DP_LINK_CONF, no PDIC_NOTIFY_ID_DP_HPD
-		 * -> PDIC_NOTIFY_DETACH
-		 */
-		if ((pm_type == DP_CORE_PM) && (!power->core_clks_on)) {
-			DP_DEBUG("core clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_CTRL_PM) && (!power->link_clks_on)) {
-			DP_DEBUG("links clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_STREAM0_PM) && (!power->strm0_clks_on)) {
-			DP_DEBUG("strm0 clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_STREAM1_PM) && (!power->strm1_clks_on)) {
-			DP_DEBUG("strm1 clks already disabled\n");
-			return 0;
-		}
-
-		if (pm_type == DP_LINK_PM && !power->link_clks_on) {
-			DP_DEBUG("links clks already disabled\n");
-			return 0;
-		}
-	}
-#endif
 
 	rc = dp_power_clk_set_rate(power, pm_type, enable);
 	if (rc) {
@@ -1111,32 +1096,6 @@ enum dp_hpd_plug_orientation secdp_get_plug_orientation(void)
 	/*cannot be here*/
 	return ORIENTATION_NONE;
 }
-
-bool secdp_get_clk_status(enum dp_pm_type type)
-{
-	struct dp_power_private *power = g_secdp_power;
-	bool ret = false;
-
-	switch (type) {
-	case DP_CORE_PM:
-		ret = power->core_clks_on;
-		break;
-	case DP_STREAM0_PM:
-		ret = power->strm0_clks_on;
-		break;
-	case DP_STREAM1_PM:
-		ret = power->strm1_clks_on;
-		break;
-	case DP_LINK_PM:
-		ret = power->link_clks_on;
-		break;
-	default:
-		DP_ERR("invalid type:%d\n", type);
-		break;
-	}
-
-	return ret;
-}
 #endif
 
 static int dp_power_config_gpios(struct dp_power_private *power, bool flip,
@@ -1488,6 +1447,7 @@ struct dp_power *dp_power_get(struct dp_parser *parser, struct dp_pll *pll)
 
 #if defined(CONFIG_SECDP)
 	secdp_redriver_register(power);
+	mutex_init(&power->dp_clk_lock);
 	g_secdp_power = power;
 #endif
 

@@ -99,6 +99,7 @@ static void run_cx_data_read(void *device_data);
 static void get_cx_all_data(void *device_data);
 static void run_cx_gap_data_x_all(void *device_data);
 static void run_cx_gap_data_y_all(void *device_data);
+static void run_vpump_cap_data_read(void *device_data);
 static void get_strength_all_data(void *device_data);
 static void run_high_frequency_rawcap_read_all(void *device_data);
 static void run_snr_non_touched(void *device_data);
@@ -188,6 +189,7 @@ struct sec_cmd ft_commands[] = {
 	{SEC_CMD("run_trx_short_test", run_trx_short_test),},
 	{SEC_CMD("check_connection", check_connection),},
 	{SEC_CMD("get_cx_data", get_cx_data),},
+	{SEC_CMD("run_vpump_cap_data_read", run_vpump_cap_data_read),},
 	{SEC_CMD("run_cx_data_read", run_cx_data_read),},
 	{SEC_CMD("run_cx_data_read_all", get_cx_all_data),},
 	{SEC_CMD("get_cx_all_data", get_cx_all_data),},
@@ -822,6 +824,8 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
+	input_info(true, &ts->client->dev, "%s: %d,%d\n", __func__, buff[0], buff[1]);
+
 	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
 		if (ts->board->enabled) {
 			input_err(true, &ts->client->dev, "%s: device already enabled\n", __func__);
@@ -852,6 +856,14 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 
 		ret = sec_input_disable_device(input_dev);
 		input_info(true, &ts->client->dev,"%s: DISPLAY_STATE_FORCE_OFF(%d)\n", __func__, ret);
+	} else if (buff[0] == DISPLAY_STATE_LPM_OFF) {
+		if (!ts->board->enabled) {
+			input_err(true, &ts->client->dev, "%s: device already disabled\n", __func__);
+			goto out;
+		}
+		cancel_delayed_work_sync(&ts->work_read_info);
+		ret = sec_input_disable_device(input_dev);
+		input_info(true, &ts->client->dev, "%s: DISPLAY_STATE_LPM_OFF(%d)\n", __func__, ret);
 	}
 
 	if (ret)
@@ -1782,7 +1794,7 @@ static void run_miscalibration(void *device_data)
 	char echo;
 	int ret;
 	int retry = 200;
-	short min, max;
+	short min = SHRT_MIN, max = SHRT_MAX;
 
 	sec_cmd_set_default_result(sec);
 
@@ -2497,6 +2509,7 @@ static void run_rawcap_read_all(void *device_data)
 	enter_factory_mode(info, true);
 	ret = fts_read_frame(info, TYPE_RAW_DATA, &min, &max);
 	enter_factory_mode(info, false);
+	fts_reinit(info, false);
 	if (ret < 0) {
 		kfree(all_strbuff);
 		goto NG;
@@ -3556,6 +3569,185 @@ static void run_cx_gap_data_y_all(void *device_data)
 	kfree(buff);
 }
 
+static int read_vpump_cap_data(struct fts_ts_info *info, s8 *cap_min, s8 *cap_max)
+{
+	u8 *rdata;
+	u8 regAdd[FTS_EVENT_SIZE] = { 0 };
+	u8 dataID;
+	u16 comp_start_addr;
+	int txnum, rxnum, i, j, ret = 0;
+	u8 *pStr = NULL;
+	u8 pTmp[16] = { 0 };
+
+	pStr = kzalloc(7 * (info->SenseChannelLength + 1), GFP_KERNEL);
+	if (pStr == NULL)
+		return -ENOMEM;
+
+	rdata = kzalloc(info->ForceChannelLength * info->SenseChannelLength * 2, GFP_KERNEL);
+	if (!rdata) {
+		kfree(pStr);
+		return -ENOMEM;
+	}
+
+	info->fts_command(info, FTS_CMD_CLEAR_ALL_EVENT, true); // Clear FIFO
+	fts_release_all_finger(info);
+
+	fts_interrupt_set(info, INT_DISABLE);
+
+	// Request compensation data type
+	dataID = 0x10;  // MS - Active
+	regAdd[0] = 0xA4;
+	regAdd[1] = 0x06;
+	regAdd[2] = dataID;
+	ret = fts_fw_wait_for_echo_event(info, &regAdd[0], 3, 0);
+	if (ret < 0) {
+		input_info(true, &info->client->dev, "%s: failed to request data\n", __func__);
+		fts_interrupt_set(info, INT_ENABLE);
+		goto out;
+	}
+
+	sec_delay(50);
+
+	// Read Header
+	regAdd[0] = 0xA6;
+	regAdd[1] = 0x00;
+	regAdd[2] = 0x00;
+	ret = info->fts_read_reg(info, &regAdd[0], 3, &rdata[0], FTS_COMP_DATA_HEADER_SIZE);
+	if (ret < 0) {
+		input_info(true, &info->client->dev, "%s: failed to read header\n", __func__);
+		fts_interrupt_set(info, INT_ENABLE);
+		goto out;
+	}
+
+	fts_interrupt_set(info, INT_ENABLE);
+
+	if ((rdata[0] != 0xA5) && (rdata[1] != dataID)) {
+		input_info(true, &info->client->dev, "%s: failed to read signature data of header.\n", __func__);
+		ret = -EIO;
+		goto out;
+	}
+
+	txnum = rdata[4];
+	rxnum = rdata[5];
+
+	comp_start_addr = (u16)FTS_COMP_DATA_HEADER_SIZE;
+	regAdd[0] = 0xA6;
+	regAdd[1] = (u8)(comp_start_addr >> 8);
+	regAdd[2] = (u8)(comp_start_addr & 0xFF);
+	ret = info->fts_read_reg(info, &regAdd[0], 3, &rdata[0], txnum * rxnum);
+	if (ret < 0) {
+		input_info(true, &info->client->dev, "%s: failed to read data\n", __func__);
+		goto out;
+	}
+
+	*cap_min = *cap_max = rdata[0];
+	for (j = 0; j < info->ForceChannelLength; j++) {
+		memset(pStr, 0x0, 7 * (info->SenseChannelLength + 1));
+		snprintf(pTmp, sizeof(pTmp), "Tx%02d | ", j);
+		strlcat(pStr, pTmp, 7 * (info->SenseChannelLength + 1));
+
+		for (i = 0; i < info->SenseChannelLength; i++) {
+			snprintf(pTmp, sizeof(pTmp), "%3d", (s8)rdata[j * info->SenseChannelLength + i]);
+			strlcat(pStr, pTmp, 7 * (info->SenseChannelLength + 1));
+			*cap_min = min(*cap_min, (s8)rdata[j * info->SenseChannelLength + i]);
+			*cap_max = max(*cap_max, (s8)rdata[j * info->SenseChannelLength + i]);
+		}
+		input_raw_info(true, &info->client->dev, "%s\n", pStr);
+	}
+	input_raw_info(true, &info->client->dev, "vp cap min:%d, vp cap min max:%d\n", *cap_min, *cap_max);
+
+	if (info->vp_cap_data)
+		memcpy(&info->vp_cap_data[0], &rdata[0], info->ForceChannelLength * info->SenseChannelLength);
+
+out:
+	kfree(rdata);
+	kfree(pStr);
+	return ret;
+}
+
+static void run_vpump_cap_data_read(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	char buff_minmax[SEC_CMD_STR_LEN] = { 0 };
+	int rc;
+	s8 cap_min, cap_max;
+
+	sec_cmd_set_default_result(sec);
+
+	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
+		input_err(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
+				__func__);
+		snprintf(buff, sizeof(buff), "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
+
+	input_raw_info(true, &info->client->dev, "%s: start\n", __func__);
+
+	rc = read_vpump_cap_data(info, &cap_min, &cap_max);
+	if (rc < 0) {
+		snprintf(buff, sizeof(buff), "NG");
+		snprintf(buff_minmax, sizeof(buff_minmax), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else {
+		snprintf(buff_minmax, sizeof(buff_minmax), "%d,%d", cap_min, cap_max);
+		snprintf(buff, sizeof(buff), "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
+}
+
+static void get_vpump_cap_tx_data(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int tx_min, tx_max, i, j;
+
+	tx_min = tx_max = (int)info->vp_cap_data[0];
+	for (i = 0; i < info->ForceChannelLength - 1; i++) {
+		for (j = 0; j < info->SenseChannelLength; j++) {
+			tx_min = min(tx_min, (int)info->vp_cap_data[i * info->SenseChannelLength + j]);
+			tx_max = max(tx_max, (int)info->vp_cap_data[i * info->SenseChannelLength + j]);
+		}
+	}
+
+	input_raw_info(true, &info->client->dev, "%s: tx min:%d tx max:%d\n", __func__, tx_min, tx_max);
+
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		snprintf(buff, sizeof(buff), "%d,%d", tx_min, tx_max);
+		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "VP_CAP_X");
+	}
+}
+
+static void get_vpump_cap_sum_data(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int tx_sum = 0, tx_max = 0, i, j;
+
+	for (j = 1; j < info->SenseChannelLength; j += 2) {
+		tx_sum = 0;
+		for (i = 0; i < 6; i++)
+			tx_sum += info->vp_cap_data[j * info->SenseChannelLength + i];
+
+		tx_max = max(tx_max, tx_sum);
+	}
+
+	input_raw_info(true, &info->client->dev, "%s: tx sum max:%d\n", __func__, tx_max);
+
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		snprintf(buff, sizeof(buff), "%d,%d", 0, tx_max);
+		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "VP_CAP_SUM_X");
+	}
+}
+
 static void run_high_frequency_rawcap_read_all(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -3641,6 +3833,10 @@ static void factory_cmd_result_all(void *device_data)
 	get_cx_gap_data(sec);
 	run_ix_data_read(sec);
 
+	run_vpump_cap_data_read(sec);
+	get_vpump_cap_tx_data(sec);
+	get_vpump_cap_sum_data(sec);
+
 	get_wet_mode(sec);
 
 	/* do not systemreset in COB type */
@@ -3651,6 +3847,8 @@ static void factory_cmd_result_all(void *device_data)
 
 	run_factory_miscalibration(sec);
 	run_sram_test(sec);
+
+	fts_get_hf_data(info);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -5078,7 +5276,7 @@ static void fod_enable(void *device_data)
 			info->press_prop, info->lowpower_flag);
 
 	if (!info->board->enabled && !info->lowpower_flag && !info->fod_lp_mode) {
-		if (device_may_wakeup(&info->client->dev) && (info->fts_power_state == FTS_POWER_STATE_LOWPOWER))
+		if (info->fts_power_state == FTS_POWER_STATE_LOWPOWER)
 			disable_irq_wake(info->irq);
 		fts_stop_device(info, 0);
 	} else {

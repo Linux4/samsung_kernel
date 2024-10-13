@@ -18,7 +18,7 @@
 	#size-cells = <2>;
 
 	chosen: chosen {
-		bootargs = "loglevel=6 kpti=0 log_buf_len=256K kernel.panic_on_rcu_stall=1 swiotlb=noforce loop.max_part=7 cgroup.memory=nokmem,nosocket pcie_ports=compat msm_rtb.filter=0x237 allow_mismatched_32bit_el0 kasan=off rcupdate.rcu_expedited=1 rcu_nocbs=0-7 pstore.compress=none cpufreq.default_governor=performance can.stats_timer=0";
+		bootargs = "loglevel=6 kpti=0 log_buf_len=256K kernel.panic_on_rcu_stall=1 swiotlb=noforce loop.max_part=7 cgroup.memory=nokmem,nosocket pcie_ports=compat msm_rtb.filter=0x237 allow_mismatched_32bit_el0 kasan=off rcupdate.rcu_expedited=1 rcu_nocbs=0-7 pstore.compress=none cpufreq.default_governor=performance can.stats_timer=0 fsa4480_i2c.async_probe=1 slub_debug=- disable_dma32=on";
 		stdout-path = "/soc/qcom,qup_uart@99c000:115200n8";
 	};
 
@@ -92,6 +92,7 @@
 			power-domains = <&CPU_PD1>;
 			power-domain-names = "psci";
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
+			#cooling-cells = <2>;
 		};
 
 		CPU2: cpu@200 {
@@ -106,6 +107,7 @@
 			power-domains = <&CPU_PD2>;
 			power-domain-names = "psci";
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
+			#cooling-cells = <2>;
 			L2_2: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -125,6 +127,7 @@
 			power-domains = <&CPU_PD3>;
 			power-domain-names = "psci";
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
+			#cooling-cells = <2>;
 		};
 
 		CPU4: cpu@400 {
@@ -159,6 +162,7 @@
 			power-domains = <&CPU_PD5>;
 			power-domain-names = "psci";
 			qcom,freq-domain = <&cpufreq_hw 1 4>;
+			#cooling-cells = <2>;
 			L2_5: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -178,6 +182,7 @@
 			power-domains = <&CPU_PD6>;
 			power-domain-names = "psci";
 			qcom,freq-domain = <&cpufreq_hw 1 4>;
+			#cooling-cells = <2>;
 			L2_6: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -545,6 +550,8 @@
 		qcom,bt-reset-gpio = <&tlmm 81 0>; /* BT_EN */
 		qcom,bt-sw-ctrl-gpio = <&tlmm 82 0>; /* SW_CTRL */
 		qcom,xo-clk-gpio = <&tlmm 204 0>; /* XO */
+		mboxes = <&qmp_aop 0>;
+		qcom,vreg_ipa="s3e";
 
 		qcom,bt-vdd-io-supply = <&S10B>;  /* IO */
 		qcom,bt-vdd-aon-supply = <&S11B>;
@@ -564,6 +571,10 @@
 		qcom,bt-vdd-rfa1-config = <1900000 2040000 0 1>;
 		qcom,bt-vdd-rfa2-config = <1350000 2024000 0 1>;
 		qcom,bt-vdd-asd-config = <2800000 2800000 0 1>;
+
+		/* This read as part of ipa */
+		qcom,vreg_ipa-supply=<&S3E>;
+		qcom,vreg_ipa-config= <2200000 2200000 0 1>;
 	};
 
 	intc: interrupt-controller@17100000 {
@@ -824,7 +835,7 @@
 					< 1113600  768000 >,
 					< 1324800 1555000 >,
 					< 1881600 2092000 >,
-					< 2572800 2736000 >,
+					< 2457600 2736000 >,
 					< 2995200 3196000 >;
 				qcom,sampling-enabled;
 			};
@@ -1122,6 +1133,7 @@
 		qcom,hyplog-enabled;
 		hyplog-address-offset = <0x410>;
 		hyplog-size-offset = <0x414>;
+		tmecrashdump-address-offset = <0x808a0000>;
 	};
 
 	qcom_qseecom: qseecom@c1700000 {
@@ -1503,13 +1515,15 @@
 					<&adsp_smp2p_in 0 0>,
 					<&adsp_smp2p_in 2 0>,
 					<&adsp_smp2p_in 1 0>,
-					<&adsp_smp2p_in 3 0>;
+					<&adsp_smp2p_in 3 0>,
+					<&adsp_smp2p_in 7 0>;
 
 		interrupt-names = "wdog",
 				"fatal",
 				"handover",
 				"ready",
-				"stop-ack";
+				"stop-ack",
+				"shutdown-ack";
 
 		/* Outputs to turing */
 		qcom,smem-states = <&adsp_smp2p_out 0>;
@@ -1582,13 +1596,15 @@
 					<&cdsp_smp2p_in 0 0>,
 					<&cdsp_smp2p_in 2 0>,
 					<&cdsp_smp2p_in 1 0>,
-					<&cdsp_smp2p_in 3 0>;
+					<&cdsp_smp2p_in 3 0>,
+					<&cdsp_smp2p_in 7 0>;
 
 		interrupt-names = "wdog",
 				"fatal",
 				"handover",
 				"ready",
-				"stop-ack";
+				"stop-ack",
+				"shutdown-ack";
 
 		/* Outputs to turing */
 		qcom,smem-states = <&cdsp_smp2p_out 0>;
@@ -1656,7 +1672,7 @@
 				<&aggre2_noc MASTER_CRYPTO &mc_virt SLAVE_EBI1>;
 		interconnect-names = "rproc_ddr","crypto_ddr";
 
-		memory-region = <&mpss_mem>;
+		memory-region = <&mpss_mem &system_cma>;
 
 		/* Inputs from mss */
 		interrupts-extended = <&intc GIC_SPI 264 IRQ_TYPE_EDGE_RISING>,
@@ -1830,6 +1846,7 @@
 		no-sdio;
 		no-mmc;
 		qcom,uses_level_shifter;
+		qcom,dll_lock_bist_fail_wa;
 
 		clocks = <&clock_gcc GCC_SDCC2_AHB_CLK>,
 			<&clock_gcc GCC_SDCC2_APPS_CLK>;
@@ -1911,6 +1928,8 @@
 		phy-names = "ufsphy";
 		#reset-cells = <1>;
 
+		qcom,prime-mask = <0x70>;
+		qcom,silver-mask = <0x0f>;
 		lanes-per-direction = <2>;
 		dev-ref-clk-freq = <0>; /* 19.2 MHz */
 		clock-names =
@@ -2562,7 +2581,8 @@
 				qcom,intents = <0x800  5
 						0x2000 3
 						0x4400 2>;
-						qcom,no-wake-svc = <0x190>;
+
+				qcom,no-wake-svc = <0x190>;
 			};
 
 			qcom,msm_fastrpc_rpmsg {
@@ -2704,7 +2724,7 @@
 				<0x146A8000 0x146A8000 0x2000>;
 			qcom,iommu-dma = "atomic";
 			dma-coherent;
-			qcom,ipa-q6-smem-size = <36864>;
+			qcom,ipa-q6-smem-size = <45056>;
 		};
 
 		ipa_smmu_wlan: ipa_smmu_wlan {
@@ -2835,7 +2855,7 @@
 		compatible = "qcom,msm-fastrpc-compute";
 		qcom,adsp-remoteheap-vmid = <22 37>;
 		qcom,fastrpc-adsp-audio-pdr;
-		qcom,fastrpc-adsp-sensors-pdr;
+		qcom,fastrpc-slpi-sensors-pdr;
 		qcom,rpc-latency-us = <235>;
 		qcom,fastrpc-gids = <2908>;
 		qcom,qos-cores = <0 1 2 3>;
@@ -3061,6 +3081,8 @@
 		qcom,vdd-wlan-rfa2-config = <1350000 2040000 0 0 1>;
 		wlan-ant-switch-supply = <&L7E>;
 		qcom,wlan-ant-switch-config = <2800000 2800000 0 0 1>;
+		vdd-wlan-ipa-supply = <&S3E>;
+		qcom,vdd-wlan-ipa-config = <2200000 2200000 0 0 0>;
 
 		interconnects =
 		<&pcie_noc MASTER_PCIE_0 &pcie_noc SLAVE_ANOC_PCIE_GEM_NOC>,

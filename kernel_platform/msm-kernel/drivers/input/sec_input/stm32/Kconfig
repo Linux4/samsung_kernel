@@ -17,3 +17,11 @@ config KEYBOARD_STM32_POGO_V2
           Say Y here if you want support for STM32 keyboard controllers.
           If unsure, say N.
 
+config KEYBOARD_STM32_POGO_V3
+        tristate "STM32 Keyboard driver V3"
+        depends on I2C
+        select INPUT_MATRIXKMAP
+        help
+          Say Y here if you want support for STM32 keyboard controllers.
+          If unsure, say N.
+

@@ -810,16 +810,23 @@ static void qmp_shim_worker(struct work_struct *work)
 
 static int qmp_shim_send_data(struct mbox_chan *chan, void *data)
 {
-	struct qmp_mbox *mbox = chan->con_priv;
-	struct qmp_device *mdev = mbox->mdev;
+	struct qmp_mbox *mbox;
+	struct qmp_device *mdev;
 	struct qmp_pkt *pkt = (struct qmp_pkt *)data;
 	struct qmp_pkt *defer_pkt;
 	unsigned long flags;
 	int idx = -1;
 	int i;
 
-	if (!mbox || !mbox->mdev || !data)
+	if (!chan || !data)
 		return -EINVAL;
+
+	mbox = chan->con_priv;
+
+	if (!mbox || !mbox->mdev)
+		return -EINVAL;
+
+	mdev = mbox->mdev;
 
 	if (pkt->size > SZ_4K)
 		return -EINVAL;
@@ -848,7 +855,7 @@ static int qmp_shim_send_data(struct mbox_chan *chan, void *data)
 	defer_pkt->size = pkt->size;
 	memcpy(defer_pkt->data, pkt->data, pkt->size);
 	QMP_INFO(mdev->ilc, "scheduling worker to send msg:%s\n", pkt->data);
-	schedule_work(&mbox->tx_work);
+	queue_work(system_highpri_wq, &mbox->tx_work);
 	spin_unlock_irqrestore(&mbox->tx_lock, flags);
 	return 0;
 }

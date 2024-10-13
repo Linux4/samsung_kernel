@@ -15,9 +15,11 @@
 #define __SM5440_CHARGER_H__
 
 #define SM5440_TA_MIN_CURRENT   1000
-#define SM5440_CV_OFFSET        0
+#define SM5440_CV_OFFSET        50
 #define SM5440_CI_OFFSET        300
 #define SM5440_VBAT_MIN         3300
+#define SM5440_SIOP_LEV1        1100
+#define SM5440_SIOP_LEV2        1700
 
 enum sm5440_int1_desc {
 	SM5440_INT1_VOUTOVP         = 1 << 4,
@@ -135,13 +137,18 @@ enum sm5440_op_mode {
 struct sm5440_platform_data {
 	u8 rev_id;
 	int irq_gpio;
+	u32 r_ttl;
 	u32 freq;
 	u32 freq_byp;
+	u32 freq_siop[2];
+	u32 topoff;
+	u32 en_vbatreg;
 
 	struct {
 		u32 chg_float_voltage;
 		u32 max_charging_charge_power;
 		char *sec_dc_name;
+		char *fuelgauge_name;
 	} battery;
 };
 

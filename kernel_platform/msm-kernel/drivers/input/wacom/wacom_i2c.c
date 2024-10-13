@@ -96,7 +96,7 @@ int wacom_i2c_send_sel(struct wacom_i2c *wac_i2c, const char *buf, int count, bo
 	int i;
 
 	/* in LPM, waiting blsp block resume */
-	if (wac_i2c->pm_suspend) {
+	if (!wac_i2c->pdata->enabled) {
 		__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(500));
 		ret = wait_for_completion_interruptible_timeout(&wac_i2c->resume_done, msecs_to_jiffies(500));
 		if (ret <= 0) {
@@ -162,7 +162,7 @@ int wacom_i2c_recv_sel(struct wacom_i2c *wac_i2c, char *buf, int count, bool mod
 	int i;
 
 	/* in LPM, waiting blsp block resume */
-	if (wac_i2c->pm_suspend) {
+	if (!wac_i2c->pdata->enabled) {
 		__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(500));
 		ret = wait_for_completion_interruptible_timeout(&wac_i2c->resume_done, msecs_to_jiffies(500));
 		if (ret <= 0) {
@@ -949,8 +949,7 @@ reset:
 	wac_i2c->tsp_block_cnt = 0;
 	schedule_work(&wac_i2c->work_print_info.work);
 
-	if (device_may_wakeup(&client->dev))
-		wacom_enable_irq_wake(wac_i2c, false);
+	wacom_enable_irq_wake(wac_i2c, false);
 
 	wac_i2c->screen_on = true;
 
@@ -1032,8 +1031,7 @@ reset:
 	if (wac_i2c->reset_flag && retry--)
 		goto reset;
 
-	if (device_may_wakeup(&client->dev))
-		wacom_enable_irq_wake(wac_i2c, true);
+	wacom_enable_irq_wake(wac_i2c, true);
 
 	wac_i2c->screen_on = false;
 
@@ -1084,6 +1082,11 @@ static void wacom_i2c_reply_handler(struct wacom_i2c *wac_i2c, char *data)
 	switch (pack_sub_id) {
 	case SWAP_PACKET:
 		wac_i2c_table_swap_reply(wac_i2c, data);
+		break;
+	case GARAGE_CHARGE_PACKET:	// #6
+		input_info(true, &wac_i2c->client->dev, "%s: REPLY GARAGE_CHARGE_PACKET curr(0x%X) : read(0x%X), pen_pdct(%d)\n",
+						__func__, wac_i2c->pen_pdct_direction, data[5], wac_i2c->pen_pdct);
+		wac_i2c->pen_pdct_direction = data[5];
 		break;
 	case ELEC_TEST_PACKET:
 		wac_i2c->check_elec++;
@@ -1621,7 +1624,7 @@ static irqreturn_t wacom_interrupt(int irq, void *dev_id)
 	int ret = 0;
 
 	/* in LPM, waiting blsp block resume */
-	if (wac_i2c->pm_suspend) {
+	if (!wac_i2c->pdata->enabled) {
 		__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(500));
 		/* waiting for blsp block resuming, if not occurs i2c error */
 		ret = wait_for_completion_interruptible_timeout(&wac_i2c->resume_done, msecs_to_jiffies(500));
@@ -1645,6 +1648,31 @@ static irqreturn_t wacom_interrupt(int irq, void *dev_id)
 }
 
 #if 1 // WACOM_PDCT_ENABLE
+static void wacom_check_pdct_direction(struct wacom_i2c *wac_i2c)
+{
+	u8 cmd = COM_REQUEST_GARAGEDIRECTION;
+	int retry = 5;
+
+	if (!wac_i2c->screen_on) {
+		input_info(true, &wac_i2c->client->dev, "%s : change to normal scan(%d)\n", __func__, wac_i2c->report_scan_seq);
+		/* change wacom mode to 0x2D(normal scan) */
+		mutex_lock(&wac_i2c->mode_lock);
+		wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_NONE);
+		msleep(250);
+		mutex_unlock(&wac_i2c->mode_lock);
+	}
+
+	wacom_i2c_send(wac_i2c, &cmd, 1);
+
+	while (retry--) {
+		if (wac_i2c->pen_pdct_direction == EPEN_GARAGE_UPSIDE || wac_i2c->pen_pdct_direction == EPEN_GARAGE_DOWNSIDE)
+			break;
+		msleep(10);
+	}
+
+	input_info(true, &wac_i2c->client->dev, "%s : PDCT PEN IN & pen_pdct_direction(%d)(%d)\n",
+										__func__, wac_i2c->pen_pdct_direction, retry);
+}
 static irqreturn_t wacom_interrupt_pdct(int irq, void *dev_id)
 {
 	struct wacom_i2c *wac_i2c = dev_id;
@@ -1676,18 +1704,9 @@ static irqreturn_t wacom_interrupt_pdct(int irq, void *dev_id)
 		wac_i2c->function_result |= EPEN_EVENT_PEN_OUT;
 
 	if (wac_i2c->pdata->use_garage) {
-#if WACOM_PRODUCT_SHIP
-		input_info(true, &client->dev, "%s: pen is %s garage\n",
-				__func__, wac_i2c->pen_pdct ? "IN " : "OUT of");
-#else
-		input_info(true, &client->dev, "%s: pen is %s garage(%d)\n",
-				__func__, wac_i2c->pen_pdct ? "IN" : "OUT of",
-				gpio_get_value(wac_i2c->pdata->irq_gpio));
-#endif
-
 		/* in LPM, waiting blsp block resume */
-		if (wac_i2c->pm_suspend) {
-		__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(1000));
+		if (!wac_i2c->pdata->enabled) {
+			__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(1000));
 			ret = wait_for_completion_interruptible_timeout(&wac_i2c->resume_done, msecs_to_jiffies(1000));
 			if (ret <= 0) {
 				input_err(true, &wac_i2c->client->dev,
@@ -1696,12 +1715,33 @@ static irqreturn_t wacom_interrupt_pdct(int irq, void *dev_id)
 			}
 		}
 
-		input_report_switch(wac_i2c->input_dev, SW_PEN_INSERT,
-				(wac_i2c->function_result & EPEN_EVENT_PEN_OUT));
-		input_sync(wac_i2c->input_dev);
+		if (wac_i2c->pdata->support_dual_garage) {
+			if (wac_i2c->pen_pdct)
+				wacom_check_pdct_direction(wac_i2c);	// only check pen in
 
-		if (wac_i2c->function_result & EPEN_EVENT_PEN_OUT)
+			input_report_switch(wac_i2c->input_dev,
+									wac_i2c->pen_pdct_direction == EPEN_GARAGE_DOWNSIDE ? SW_PEN_REVERSE_INSERT : SW_PEN_INSERT,
+									(wac_i2c->function_result & EPEN_EVENT_PEN_OUT));
+			input_sync(wac_i2c->input_dev);
+		} else {
+			input_report_switch(wac_i2c->input_dev, SW_PEN_INSERT, (wac_i2c->function_result & EPEN_EVENT_PEN_OUT));
+			input_sync(wac_i2c->input_dev);
+		}
+
+#if WACOM_PRODUCT_SHIP
+		input_info(true, &client->dev, "%s: pen is %s garage(%d) (screen_on:%d)\n",
+				__func__, wac_i2c->pen_pdct ? "IN " : "OUT of",
+				wac_i2c->pen_pdct_direction, wac_i2c->screen_on);
+#else
+		input_info(true, &client->dev, "%s: pen is %s garage(%d)(%d)(screen_on:%d)\n",
+				__func__, wac_i2c->pen_pdct ? "IN" : "OUT of",
+				wac_i2c->pen_pdct_direction, gpio_get_value(wac_i2c->pdata->irq_gpio), wac_i2c->screen_on);
+#endif
+
+		if (wac_i2c->function_result & EPEN_EVENT_PEN_OUT) {
 			wac_i2c->pen_out_count++;
+			wac_i2c->pen_pdct_direction = EPEN_GARAGE_UNKNOWN;
+		}
 
 		if (!mutex_trylock(&wac_i2c->lock)) {
 			input_err(true, &client->dev, "%s: mutex lock fail!\n", __func__);
@@ -1713,7 +1753,7 @@ static irqreturn_t wacom_interrupt_pdct(int irq, void *dev_id)
 		mutex_unlock(&wac_i2c->lock);
 
 	}
-	
+
 irq_ret:
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	if (wac_i2c->pen_pdct)
@@ -1733,12 +1773,14 @@ static void open_test_work(struct work_struct *work)
 	char data;
 	int ret = 0;
 
-#if !WACOM_SEC_FACTORY
 	input_info(true, &wac_i2c->client->dev, "%s : start!\n", __func__);
 
 	if (wac_i2c->pdata->support_garage_open_test) {
 		ret = wacom_open_test(wac_i2c, WACOM_GARAGE_TEST);
 		if (ret) {
+#if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_SEC_FACTORY)
+			sec_abc_send_event(SEC_ABC_SEND_EVENT_TYPE_WACOM_DIGITIZER_NOT_CONNECTED);
+#endif
 			input_err(true, &wac_i2c->client->dev, "grage test check failed %d\n", ret);
 			wacom_reset_hw(wac_i2c);
 		}
@@ -1746,6 +1788,9 @@ static void open_test_work(struct work_struct *work)
 
 	ret = wacom_open_test(wac_i2c, WACOM_DIGITIZER_TEST);
 	if (ret) {
+#if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_SEC_FACTORY)
+		sec_abc_send_event(SEC_ABC_SEND_EVENT_TYPE_WACOM_DIGITIZER_NOT_CONNECTED);
+#endif
 		input_err(true, &wac_i2c->client->dev, "open test check failed %d\n", ret);
 		wacom_reset_hw(wac_i2c);
 	}
@@ -1757,11 +1802,7 @@ static void open_test_work(struct work_struct *work)
 		input_err(true, &wac_i2c->client->dev, "%s : release tsp scan block\n", __func__);
 	}
 #endif
-
 	input_info(true, &wac_i2c->client->dev, "%s : end!\n", __func__);
-#else
-	input_info(true, &wac_i2c->client->dev, "open test skiped!\n");
-#endif
 
 #if 1 // WACOM_PDCT_ENABLE
 	if (wac_i2c->pdata->use_garage) {
@@ -1781,12 +1822,27 @@ static void open_test_work(struct work_struct *work)
 			wac_i2c->function_result |= EPEN_EVENT_PEN_OUT;
 	}
 
-	input_report_switch(wac_i2c->input_dev, SW_PEN_INSERT,
-			(wac_i2c->function_result & EPEN_EVENT_PEN_OUT));
-	input_sync(wac_i2c->input_dev);
+	if (wac_i2c->pdata->support_dual_garage) {
+		// set default pen out
+		input_report_switch(wac_i2c->input_dev, SW_PEN_INSERT, 1);
+		input_report_switch(wac_i2c->input_dev, SW_PEN_REVERSE_INSERT, 1);
+		input_sync(wac_i2c->input_dev);
 
-	input_info(true, &wac_i2c->client->dev, "%s : pen is %s\n", __func__,
-			(wac_i2c->function_result & EPEN_EVENT_PEN_OUT) ? "OUT" : "IN");
+		if (wac_i2c->pen_pdct)
+			wacom_check_pdct_direction(wac_i2c);
+
+		input_report_switch(wac_i2c->input_dev,
+								wac_i2c->pen_pdct_direction == EPEN_GARAGE_DOWNSIDE ? SW_PEN_REVERSE_INSERT : SW_PEN_INSERT,
+								(wac_i2c->function_result & EPEN_EVENT_PEN_OUT));
+		input_sync(wac_i2c->input_dev);
+	} else {
+		input_report_switch(wac_i2c->input_dev, SW_PEN_INSERT, (wac_i2c->function_result & EPEN_EVENT_PEN_OUT));
+		input_sync(wac_i2c->input_dev);
+	}
+
+	input_info(true, &wac_i2c->client->dev, "%s : pen is %s (%d)\n",
+				__func__, (wac_i2c->function_result & EPEN_EVENT_PEN_OUT) ? "OUT" : "IN",
+				wac_i2c->pen_pdct_direction);
 #endif
 
 	/* occur cover status event*/
@@ -1872,6 +1928,7 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 	struct wacom_g5_platform_data *pdata = wac_i2c->pdata;
 	/* Set input values before registering input device */
 
+	input_dev->phys = input_dev->name;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
 
@@ -1897,6 +1954,8 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 	input_set_capability(input_dev, EV_KEY, BTN_STYLUS);
 
 	input_set_capability(input_dev, EV_SW, SW_PEN_INSERT);
+	if (wac_i2c->pdata->support_dual_garage)
+		input_set_capability(input_dev, EV_SW, SW_PEN_REVERSE_INSERT);
 
 	/* AOP */
 	input_set_capability(input_dev, EV_KEY, KEY_WAKEUP_UNLOCK);
@@ -1924,10 +1983,10 @@ void wacom_print_info(struct wacom_i2c *wac_i2c)
 		wac_i2c->scan_info_fail_cnt = 1000;
 
 	input_info(true, &wac_i2c->client->dev,
-			"%s: ps %s, pen %s, report_scan_seq %d, epen %s, count(%u,%u,%u), "
+			"%s: ps %s, pen %s(%d), report_scan_seq %d, epen %s, count(%u,%u,%u), "
 			"mode(%d), block_cnt(%d), check(%d), test(%d,%d), ver[%02X%02X%02X%02X], cover(%d,%d) #%d\n",
 			__func__, wac_i2c->battery_saving_mode ?  "on" : "off",
-			(wac_i2c->function_result & EPEN_EVENT_PEN_OUT) ? "out" : "in",
+			(wac_i2c->function_result & EPEN_EVENT_PEN_OUT) ? "out" : "in", wac_i2c->pen_pdct_direction,
 			wac_i2c->report_scan_seq, wac_i2c->epen_blocked ? "blocked" : "unblocked",
 			wac_i2c->i2c_fail_count, wac_i2c->abnormal_reset_count, wac_i2c->scan_info_fail_cnt,
 			wac_i2c->check_survey_mode, wac_i2c->tsp_block_cnt, wac_i2c->check_elec,
@@ -2577,6 +2636,19 @@ void wacom_swap_compensation(struct wacom_i2c *wac_i2c, char cmd)
 	char data;
 	int ret;
 
+	if (wac_i2c->pdata->support_pogo_cover) {
+		if (!wac_i2c->hall_wacom && !wac_i2c->pogo_cover)
+			wac_i2c->cover = NOMAL_MODE;
+		else if (wac_i2c->hall_wacom && !wac_i2c->pogo_cover)
+			wac_i2c->cover = BOOKCOVER_MODE;
+		else if (wac_i2c->hall_wacom && wac_i2c->pogo_cover)
+			wac_i2c->cover = KBDCOVER_MODE;
+		else if (!wac_i2c->hall_wacom && wac_i2c->pogo_cover)
+			wac_i2c->cover = POGOCOVER_MODE;
+
+		cmd = wac_i2c->cover;
+	}
+
 	input_info(true, &wac_i2c->client->dev, "%s: %d\n", __func__, cmd);
 
 	if (!wac_i2c->power_enable) {
@@ -2612,6 +2684,9 @@ void wacom_swap_compensation(struct wacom_i2c *wac_i2c, char cmd)
 		break;
 	case KBDCOVER_MODE:
 		data = COM_KBDCOVER_COMPENSATION;
+		break;
+	case POGOCOVER_MODE:
+		data = COM_POGOCOVER_COMPENSATION;
 		break;
 	default:
 		input_err(true, &wac_i2c->client->dev,
@@ -2799,6 +2874,65 @@ static void wacom_i2c_nb_register_work(struct work_struct *work)
 	} while (count < 100);
 }
 
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+static void wacom_swap_work(struct work_struct *work)
+{
+	struct wacom_i2c *wac_i2c = container_of(work, struct wacom_i2c, nb_swap_work);
+
+	wacom_swap_compensation(wac_i2c, wac_i2c->cover);
+}
+
+static int wacom_hall_ic_notify(struct notifier_block *nb,
+			unsigned long hall_wacom, void *v)
+{
+	struct hall_notifier_context *hall_notifier;
+	struct wacom_i2c *wac_i2c = container_of(nb, struct wacom_i2c, nb_h);
+
+	hall_notifier = v;
+
+	if (strncmp(hall_notifier->name, "hall_wacom", 10))
+		return 0;
+
+	input_info(true, &wac_i2c->client->dev, "%s: hall_wacom %s\n", __func__,
+			 hall_wacom ? "close" : "open");
+
+	wac_i2c->hall_wacom = hall_wacom;
+	schedule_work(&wac_i2c->nb_swap_work);
+
+	return 0;
+}
+#endif
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+static int wacom_pogo_notify(struct notifier_block *nb,
+		unsigned long noti_id, void *data)
+{
+	struct wacom_i2c *wac_i2c = container_of(nb, struct wacom_i2c, nb_p);
+	struct pogo_data_struct pogo_data =  *(struct pogo_data_struct *)data;
+
+	switch (noti_id) {
+	case POGO_NOTIFIER_ID_ATTACHED:
+		wac_i2c->pogo_cover = true;
+		schedule_work(&wac_i2c->nb_swap_work);
+		break;
+	case POGO_NOTIFIER_ID_DETACHED:
+		wac_i2c->pogo_cover = false;
+		schedule_work(&wac_i2c->nb_swap_work);
+		break;
+	case POGO_NOTIFIER_EVENTID_ACESSORY:
+		if (pogo_data.size != 2) {
+			pr_info("%s size is wrong. size=%d!\n", __func__, pogo_data.size);
+			break;
+		}
+		wac_i2c->pogo_cover = pogo_data.data[1];
+		schedule_work(&wac_i2c->nb_swap_work);
+		break;
+	default:
+		break;
+	};
+
+	return 0;
+}
+#endif
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 static int wacom_notifier_call(struct notifier_block *n, unsigned long data, void *v)
 {
@@ -3072,13 +3206,19 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 
 	pdata->support_cover_noti = of_property_read_bool(np, "wacom,support_cover_noti");
 	pdata->support_cover_detection = of_property_read_bool(np, "wacom,support_cover_detection");
+	pdata->support_pogo_cover = of_property_read_bool(np, "wacom,support_pogo_cover");
+	pdata->support_dual_garage = of_property_read_bool(np, "wacom,support_dual_garage");
+	pdata->enable_sysinput_enabled = of_property_read_bool(np, "enable_sysinput_enabled");
+
+	input_info(true, &client->dev, "%s: Sysinput enabled %s\n",
+				__func__, pdata->enable_sysinput_enabled ? "ON" : "OFF");
 
 	input_info(true, &client->dev,
 			"boot_addr: 0x%X, origin: (%d,%d), max_coords: (%d,%d), "
 			"max_pressure: %d, max_height: %d, max_tilt: (%d,%d) "
 			"invert: (%d,%d,%d), fw_path: %s, "
 			"module_ver:%d, table_swap:%d%s%s, cover_noti:%d,"
-			"cover_detect:%d\n",
+			"cover_detect:%d, pogo_cover:%d, dual_garage:%d\n",
 			pdata->boot_addr, pdata->origin[0], pdata->origin[1],
 			pdata->max_x, pdata->max_y, pdata->max_pressure,
 			pdata->max_height, pdata->max_x_tilt, pdata->max_y_tilt,
@@ -3086,8 +3226,8 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 			pdata->fw_path, pdata->module_ver, pdata->table_swap,
 			pdata->support_garage_open_test ? ", support garage open test" : "",
 			pdata->regulator_boot_on ? ", boot on" : "",
-			pdata->support_cover_noti, pdata->support_cover_detection);
-
+			pdata->support_cover_noti, pdata->support_cover_detection,
+			pdata->support_pogo_cover, pdata->support_dual_garage);
 	return pdata;
 }
 #else
@@ -3175,7 +3315,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	wac_i2c->battery_saving_mode = false;
 #endif
 	wac_i2c->reset_flag = false;
-	wac_i2c->pm_suspend = false;
 	wac_i2c->samplerate_state = true;
 	wac_i2c->update_status = FW_UPDATE_PASS;
 
@@ -3216,14 +3355,13 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	mutex_init(&wac_i2c->ble_lock);
 	mutex_init(&wac_i2c->ble_charge_mode_lock);
 
-	wac_i2c->wacom_fw_ws = wakeup_source_register(&wac_i2c->client->dev, "wacom");
-	wac_i2c->wacom_ws = wakeup_source_register(&wac_i2c->client->dev, "wacom_wakelock");
-
 	INIT_DELAYED_WORK(&wac_i2c->work_print_info, wacom_print_info_work);
+	wac_i2c->wacom_fw_ws = wakeup_source_register(NULL, "wacom");
+	wac_i2c->wacom_ws = wakeup_source_register(NULL, "wacom_wakelock");
 
 	ret = wacom_fw_update_on_probe(wac_i2c);
 	if (ret)
-		goto err_register_input_dev;
+		goto err_fw_update_on_probe;
 
 	wacom_i2c_set_input_values(wac_i2c, input);
 
@@ -3234,6 +3372,10 @@ static int wacom_i2c_probe(struct i2c_client *client,
 		goto err_register_input_dev;
 
 	}
+
+	ret = wacom_sec_init(wac_i2c);
+	if (ret)
+		goto err_sec_init;
 
 	/*Request IRQ */
 	ret = devm_request_threaded_irq(&client->dev, wac_i2c->irq, NULL, wacom_interrupt,
@@ -3255,12 +3397,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	input_info(true, &client->dev, "init pdct %d\n", wac_i2c->irq_pdct);
 #endif
 
-	ret = wacom_sec_init(wac_i2c);
-	if (ret)
-		goto err_sec_init;
-
-	device_init_wakeup(&client->dev, true);
-
 	if (wac_i2c->pdata->table_swap) {
 		INIT_DELAYED_WORK(&wac_i2c->nb_reg_work, wacom_i2c_nb_register_work);
 		schedule_delayed_work(&wac_i2c->nb_reg_work, msecs_to_jiffies(500));
@@ -3269,7 +3405,19 @@ static int wacom_i2c_probe(struct i2c_client *client,
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	sec_input_register_notify(&wac_i2c->nb, wacom_notifier_call, 2);
 #endif
-
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	if (wac_i2c->pdata->support_pogo_cover) {
+		wac_i2c->nb_h.priority = 1;
+		wac_i2c->nb_h.notifier_call = wacom_hall_ic_notify;
+		hall_notifier_register(&wac_i2c->nb_h);
+		INIT_WORK(&wac_i2c->nb_swap_work, wacom_swap_work);
+	}
+#endif
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+	if (wac_i2c->pdata->support_pogo_cover)
+		pogo_notifier_register(&wac_i2c->nb_p,
+				wacom_pogo_notify, POGO_NOTIFY_DEV_WACOM);
+#endif
 	input_info(true, &client->dev, "probe done\n");
 	input_log_fix();
 
@@ -3287,18 +3435,19 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	wac_i2c->probe_done = true;
 	pdata->enabled = true;
 
+	sec_cmd_send_event_to_user(&wac_i2c->sec, NULL, "RESULT=PROBE_DONE");
+
 	return 0;
 
-err_sec_init:
-	cancel_delayed_work_sync(&wac_i2c->open_test_dwork);
 #if 1 // WACOM_PDCT_ENABLE
 err_request_pdct_irq:
 #endif
 err_request_irq:
+err_sec_init:
 err_register_input_dev:
+err_fw_update_on_probe:
 	wakeup_source_unregister(wac_i2c->wacom_fw_ws);
 	wakeup_source_unregister(wac_i2c->wacom_ws);
-
 	mutex_destroy(&wac_i2c->i2c_mutex);
 	mutex_destroy(&wac_i2c->irq_lock);
 	mutex_destroy(&wac_i2c->update_lock);
@@ -3331,7 +3480,6 @@ static int wacom_i2c_suspend(struct device *dev)
 			input_err(true, &wac_i2c->client->dev, "%s: completion expired, %d\n", __func__, ret);
 	}
 
-	wac_i2c->pm_suspend = true;
 	reinit_completion(&wac_i2c->resume_done);
 
 #ifndef USE_OPEN_CLOSE
@@ -3346,7 +3494,6 @@ static int wacom_i2c_resume(struct device *dev)
 {
 	struct wacom_i2c *wac_i2c = dev_get_drvdata(dev);
 
-	wac_i2c->pm_suspend = false;
 	complete_all(&wac_i2c->resume_done);
 #ifndef USE_OPEN_CLOSE
 	if (wac_i2c->input_dev->users)
@@ -3374,7 +3521,16 @@ static void wacom_i2c_shutdown(struct i2c_client *client)
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	sec_input_unregister_notify(&wac_i2c->nb);
 #endif
-
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	if (wac_i2c->pdata->support_pogo_cover) {
+		cancel_work_sync(&wac_i2c->nb_swap_work);
+		hall_notifier_unregister(&wac_i2c->nb_h);
+	}
+#endif
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+	if (wac_i2c->pdata->support_pogo_cover)
+		pogo_notifier_unregister(&wac_i2c->nb_p);
+#endif
 	if (wac_i2c->pdata->table_swap) {
 #if IS_ENABLED(CONFIG_MUIC_SUPPORT_KEYBOARDDOCK)
 		if (wac_i2c->pdata->table_swap == TABLE_SWAP_KBD_COVER)
@@ -3417,7 +3573,10 @@ static int wacom_i2c_remove(struct i2c_client *client)
 			manager_notifier_unregister(&wac_i2c->typec_nb);
 #endif
 	}
-
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+	if (wac_i2c->pdata->support_pogo_cover)
+		cancel_work_sync(&wac_i2c->nb_swap_work);
+#endif
 	cancel_delayed_work_sync(&wac_i2c->open_test_dwork);
 	cancel_delayed_work_sync(&wac_i2c->work_print_info);
 

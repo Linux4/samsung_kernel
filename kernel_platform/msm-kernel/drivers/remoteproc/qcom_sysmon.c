@@ -34,6 +34,7 @@ struct notif_timeout_data {
 
 struct qcom_sysmon {
 	struct rproc_subdev subdev;
+	struct rproc_subdev *ssr_subdev;
 	struct rproc *rproc;
 
 	int state;
@@ -57,6 +58,7 @@ struct qcom_sysmon {
 	struct completion comp;
 	struct completion ind_comp;
 	struct completion shutdown_comp;
+	struct completion ssctl_comp;
 	struct mutex lock;
 
 	bool ssr_ack;
@@ -470,6 +472,8 @@ static int ssctl_new_server(struct qmi_handle *qmi, struct qmi_service *svc)
 
 	svc->priv = sysmon;
 
+	complete(&sysmon->ssctl_comp);
+
 	return 0;
 }
 
@@ -572,6 +576,7 @@ static int sysmon_start(struct rproc_subdev *subdev)
 
 	trace_rproc_qcom_event(dev_name(sysmon->rproc->dev.parent), SYSMON_SUBDEV_NAME, "start");
 
+	reinit_completion(&sysmon->ssctl_comp);
 	mutex_lock(&sysmon->state_lock);
 	sysmon->state = QCOM_SSR_AFTER_POWERUP;
 	blocking_notifier_call_chain(&sysmon_notifiers, 0, (void *)sysmon);
@@ -597,6 +602,7 @@ static void sysmon_stop(struct rproc_subdev *subdev, bool crashed)
 {
 	unsigned long timeout;
 	struct qcom_sysmon *sysmon = container_of(subdev, struct qcom_sysmon, subdev);
+	struct qcom_rproc_ssr *ssr;
 
 	trace_rproc_qcom_event(dev_name(sysmon->rproc->dev.parent), SYSMON_SUBDEV_NAME,
 			       crashed ? "crash stop" : "stop");
@@ -617,6 +623,11 @@ static void sysmon_stop(struct rproc_subdev *subdev, bool crashed)
 	if (crashed)
 		return;
 
+	if (sysmon->ssctl_instance) {
+		if (!wait_for_completion_timeout(&sysmon->ssctl_comp, HZ / 2))
+			dev_err(sysmon->dev, "timeout waiting for ssctl service\n");
+	}
+
 	sysmon->timeout_data.timer.function = sysmon_shutdown_notif_timeout_handler;
 	timeout = jiffies + msecs_to_jiffies(SYSMON_NOTIF_TIMEOUT);
 	mod_timer(&sysmon->timeout_data.timer, timeout);
@@ -627,6 +638,12 @@ static void sysmon_stop(struct rproc_subdev *subdev, bool crashed)
 		sysmon->shutdown_acked = sysmon_request_shutdown(sysmon);
 
 	del_timer_sync(&sysmon->timeout_data.timer);
+	if (sysmon->ssr_subdev && sysmon->shutdown_acked) {
+		ssr = container_of(sysmon->ssr_subdev, struct qcom_rproc_ssr, subdev);
+		if (!ssr->is_notified)
+			qcom_notify_early_ssr_clients(sysmon->ssr_subdev);
+		ssr->is_notified = false;
+	}
 }
 
 static void sysmon_unprepare(struct rproc_subdev *subdev)
@@ -810,6 +827,12 @@ out:
 }
 EXPORT_SYMBOL(qcom_sysmon_get_reason);
 
+void qcom_sysmon_register_ssr_subdev(struct qcom_sysmon *sysmon, struct rproc_subdev *ssr_subdev)
+{
+	sysmon->ssr_subdev = ssr_subdev;
+}
+EXPORT_SYMBOL(qcom_sysmon_register_ssr_subdev);
+
 /**
  * qcom_add_sysmon_subdev() - create a sysmon subdev for the given remoteproc
  * @rproc:	rproc context to associate the subdev with
@@ -839,6 +862,7 @@ struct qcom_sysmon *qcom_add_sysmon_subdev(struct rproc *rproc,
 	init_completion(&sysmon->ind_comp);
 	init_completion(&sysmon->shutdown_comp);
 	timer_setup(&sysmon->timeout_data.timer, sysmon_notif_timeout_handler, 0);
+	init_completion(&sysmon->ssctl_comp);
 	mutex_init(&sysmon->lock);
 	mutex_init(&sysmon->state_lock);
 
@@ -851,7 +875,9 @@ struct qcom_sysmon *qcom_add_sysmon_subdev(struct rproc *rproc,
 		if (sysmon->shutdown_irq != -ENODATA) {
 			dev_err(sysmon->dev,
 				"failed to retrieve shutdown-ack IRQ\n");
-			return ERR_PTR(sysmon->shutdown_irq);
+			ret = sysmon->shutdown_irq;
+			kfree(sysmon);
+			return ERR_PTR(ret);
 		}
 	} else {
 		ret = devm_request_threaded_irq(sysmon->dev,
@@ -862,6 +888,7 @@ struct qcom_sysmon *qcom_add_sysmon_subdev(struct rproc *rproc,
 		if (ret) {
 			dev_err(sysmon->dev,
 				"failed to acquire shutdown-ack IRQ\n");
+			kfree(sysmon);
 			return ERR_PTR(ret);
 		}
 	}

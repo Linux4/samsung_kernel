@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "%s " fmt, KBUILD_MODNAME
@@ -23,6 +24,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/syscore_ops.h>
 #include <linux/wait.h>
 
 #include <soc/qcom/cmd-db.h>
@@ -95,11 +97,19 @@
 #define ACCL_TYPE(addr)			((addr >> 16) & 0xF)
 #define NR_ACCL_TYPES			3
 #define MAX_RSC_COUNT			2
+#define VREG_ADDR(addr)			(addr & ~0xF)
+
+enum {
+	HW_ACCL_CLK = 0x3,
+	HW_ACCL_VREG,
+	HW_ACCL_BUS,
+};
 
 static const char * const accl_str[] = {
 	"", "", "", "CLK", "VREG", "BUS",
 };
 
+static LIST_HEAD(rpmh_rsc_dev_list);
 static struct rsc_drv *__rsc_drv[MAX_RSC_COUNT];
 static int __rsc_count;
 bool rpmh_standalone;
@@ -424,6 +434,7 @@ static irqreturn_t tcs_tx_done(int irq, void *p)
 	int i;
 	unsigned long irq_status;
 	const struct tcs_request *req;
+	u32 enable;
 
 	irq_status = readl_relaxed(drv->tcs_base + RSC_DRV_IRQ_STATUS);
 
@@ -447,7 +458,14 @@ static irqreturn_t tcs_tx_done(int irq, void *p)
 skip:
 		/* Reclaim the TCS */
 		write_tcs_reg(drv, RSC_DRV_CMD_ENABLE, i, 0);
+		write_tcs_reg(drv, RSC_DRV_CMD_WAIT_FOR_CMPL, i, 0);
 		writel_relaxed(BIT(i), drv->tcs_base + RSC_DRV_IRQ_CLEAR);
+
+		/* Clear the AMC MODE Trigger */
+		enable = read_tcs_reg(drv, RSC_DRV_CONTROL, i);
+		enable &= ~TCS_AMC_MODE_TRIGGER;
+		write_tcs_reg(drv, RSC_DRV_CONTROL, i, enable);
+
 		spin_lock(&drv->lock);
 		clear_bit(i, drv->tcs_in_use);
 		/*
@@ -482,20 +500,18 @@ static void __tcs_buffer_write(struct rsc_drv *drv, int tcs_id, int cmd_id,
 	u32 msgid;
 	u32 cmd_msgid = CMD_MSGID_LEN | CMD_MSGID_WRITE;
 	u32 cmd_enable = 0;
+	u32 cmd_complete;
 	struct tcs_cmd *cmd;
 	int i, j;
 
-	/* Convert all commands to RR when the request has wait_for_compl set */
 	cmd_msgid |= msg->wait_for_compl ? CMD_MSGID_RESP_REQ : 0;
+	cmd_complete = read_tcs_reg(drv, RSC_DRV_CMD_WAIT_FOR_CMPL, tcs_id);
 
 	for (i = 0, j = cmd_id; i < msg->num_cmds; i++, j++) {
 		cmd = &msg->cmds[i];
 		cmd_enable |= BIT(j);
+		cmd_complete |= cmd->wait << j;
 		msgid = cmd_msgid;
-		/*
-		 * Additionally, if the cmd->wait is set, make the command
-		 * response reqd even if the overall request was fire-n-forget.
-		 */
 		msgid |= cmd->wait ? CMD_MSGID_RESP_REQ : 0;
 
 		write_tcs_cmd(drv, RSC_DRV_CMD_MSGID, tcs_id, j, msgid);
@@ -508,6 +524,7 @@ static void __tcs_buffer_write(struct rsc_drv *drv, int tcs_id, int cmd_id,
 			       cmd->data, cmd->wait);
 	}
 
+	write_tcs_reg(drv, RSC_DRV_CMD_WAIT_FOR_CMPL, tcs_id, cmd_complete);
 	cmd_enable |= read_tcs_reg(drv, RSC_DRV_CMD_ENABLE, tcs_id);
 	write_tcs_reg(drv, RSC_DRV_CMD_ENABLE, tcs_id, cmd_enable);
 }
@@ -539,6 +556,7 @@ static int check_for_req_inflight(struct rsc_drv *drv, struct tcs_group *tcs,
 	u32 addr;
 	int i, j, k;
 	int tcs_id = tcs->offset;
+	unsigned long accl;
 
 	for (i = 0; i < tcs->num_tcs; i++, tcs_id++) {
 		if (tcs_is_free(drv, tcs_id))
@@ -549,7 +567,16 @@ static int check_for_req_inflight(struct rsc_drv *drv, struct tcs_group *tcs,
 		for_each_set_bit(j, &curr_enabled, MAX_CMDS_PER_TCS) {
 			addr = read_tcs_cmd(drv, RSC_DRV_CMD_ADDR, tcs_id, j);
 			for (k = 0; k < msg->num_cmds; k++) {
-				if (addr == msg->cmds[k].addr)
+			/*
+			 * Each RPMh VREG accelerator resource has 3 or 4 contiguous 4-byte
+			 * aligned addresses associated with it. Ignore the offset to check
+			 * for in-flight VREG requests.
+			 */
+				accl = ACCL_TYPE(msg->cmds[k].addr);
+				if (accl == HW_ACCL_VREG &&
+				    VREG_ADDR(addr) == VREG_ADDR(msg->cmds[k].addr))
+					return -EBUSY;
+				else if (addr == msg->cmds[k].addr)
 					return -EBUSY;
 			}
 		}
@@ -1105,6 +1132,65 @@ int rpmh_rsc_update_fast_path(struct rsc_drv *drv,
 	return 0;
 }
 
+static int rpmh_rsc_poweroff_noirq(struct device *dev)
+{
+	return 0;
+}
+
+static void rpmh_rsc_tcs_irq_enable(struct rsc_drv *drv)
+{
+	writel_relaxed(drv->tcs[ACTIVE_TCS].mask, drv->tcs_base + RSC_DRV_IRQ_ENABLE);
+}
+
+static int rpmh_rsc_restore_noirq(struct device *dev)
+{
+	struct rsc_drv *drv = dev_get_drvdata(dev);
+
+	rpmh_rsc_tcs_irq_enable(drv);
+
+	return 0;
+}
+
+static struct rsc_drv_top *rpmh_rsc_get_top_device(const char *name)
+{
+	struct rsc_drv_top *rsc_top;
+	bool rsc_dev_present = false;
+
+	list_for_each_entry(rsc_top, &rpmh_rsc_dev_list, list) {
+		if (!strcmp(name, rsc_top->name)) {
+			rsc_dev_present = true;
+			break;
+		}
+	}
+
+	if (!rsc_dev_present)
+		return ERR_PTR(-ENODEV);
+
+	return rsc_top;
+}
+
+static int rpmh_rsc_syscore_suspend(void)
+{
+	struct rsc_drv_top *rsc_top = rpmh_rsc_get_top_device("apps_rsc");
+
+	if (IS_ERR(rsc_top))
+		return 0;
+
+	if (rpmh_rsc_ctrlr_is_busy(rsc_top->drv))
+		return -EAGAIN;
+
+	return _rpmh_flush(&rsc_top->drv->client);
+}
+
+static void rpmh_rsc_syscore_resume(void)
+{
+}
+
+static struct syscore_ops rpmh_rsc_syscore_ops = {
+	.suspend = rpmh_rsc_syscore_suspend,
+	.resume = rpmh_rsc_syscore_resume,
+};
+
 static int rpmh_probe_tcs_config(struct platform_device *pdev,
 				 struct rsc_drv *drv, void __iomem *base)
 {
@@ -1209,6 +1295,7 @@ static int rpmh_rsc_probe(struct platform_device *pdev)
 	struct rsc_drv *drv;
 	struct resource *res;
 	char drv_id[10] = {0};
+	struct rsc_drv_top *rsc_top;
 	int ret, irq;
 	u32 solver_config;
 	void __iomem *base;
@@ -1238,9 +1325,17 @@ static int rpmh_rsc_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	rsc_top = devm_kzalloc(&pdev->dev, sizeof(*rsc_top), GFP_KERNEL);
+	if (!rsc_top)
+		return -ENOMEM;
+
 	drv->name = of_get_property(dn, "label", NULL);
 	if (!drv->name)
 		drv->name = dev_name(&pdev->dev);
+
+	rsc_top->drv = drv;
+	rsc_top->dev = &pdev->dev;
+	scnprintf(rsc_top->name, sizeof(rsc_top->name), "%s", drv->name);
 
 	snprintf(drv_id, ARRAY_SIZE(drv_id), "drv-%d", drv->id);
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, drv_id);
@@ -1283,6 +1378,7 @@ static int rpmh_rsc_probe(struct platform_device *pdev)
 			pr_err("Failed to attach RSC %s to domain ret=%d\n", drv->name, ret);
 			return ret;
 		}
+		register_syscore_ops(&rpmh_rsc_syscore_ops);
 	} else if (!solver_config) {
 		drv->rsc_pm.notifier_call = rpmh_rsc_cpu_pm_callback;
 		cpu_pm_register_notifier(&drv->rsc_pm);
@@ -1307,8 +1403,16 @@ static int rpmh_rsc_probe(struct platform_device *pdev)
 	if (__rsc_count < MAX_RSC_COUNT)
 		__rsc_drv[__rsc_count++] = drv;
 
+	INIT_LIST_HEAD(&rsc_top->list);
+	list_add_tail(&rsc_top->list, &rpmh_rsc_dev_list);
+
 	return devm_of_platform_populate(&pdev->dev);
 }
+
+static const struct dev_pm_ops rpmh_rsc_dev_pm_ops = {
+	.poweroff_noirq = rpmh_rsc_poweroff_noirq,
+	.restore_noirq = rpmh_rsc_restore_noirq,
+};
 
 static const struct of_device_id rpmh_drv_match[] = {
 	{ .compatible = "qcom,rpmh-rsc", },
@@ -1322,6 +1426,7 @@ static struct platform_driver rpmh_driver = {
 	.driver = {
 		  .name = "rpmh",
 		  .of_match_table = rpmh_drv_match,
+		  .pm = &rpmh_rsc_dev_pm_ops,
 		  .suppress_bind_attrs = true,
 	},
 };

@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2017-2020, 2021, The Linux Foundation.
  * All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MAIN_H__
@@ -17,15 +18,17 @@
 #include <soc/qcom/icnss2.h>
 #include "wlan_firmware_service_v01.h"
 #include <linux/mailbox_client.h>
+#include <linux/timer.h>
 
 #define WCN6750_DEVICE_ID 0x6750
+#define WCN6450_DEVICE_ID 0x6450
 #define ADRASTEA_DEVICE_ID 0xabcd
-#define QMI_WLFW_MAX_NUM_MEM_SEG 32
 #define THERMAL_NAME_LENGTH 20
 #define ICNSS_SMEM_VALUE_MASK 0xFFFFFFFF
 #define ICNSS_SMEM_SEQ_NO_POS 16
 #define QCA6750_PATH_PREFIX    "qca6750/"
 #define ADRASTEA_PATH_PREFIX   "adrastea/"
+#define WCN6450_PATH_PREFIX    "wcn6450/"
 #define ICNSS_MAX_FILE_NAME      35
 #define ICNSS_PCI_EP_WAKE_OFFSET 4
 #define ICNSS_DISABLE_M3_SSR 0
@@ -43,6 +46,10 @@ struct icnss_control_params {
 	unsigned long quirks;
 	unsigned int qmi_timeout;
 	unsigned int bdf_type;
+	unsigned int recovery_timeout;
+	unsigned int soc_wake_timeout;
+	unsigned int cal_timeout;
+	unsigned int wpss_ssr_timeout;
 };
 
 enum icnss_driver_event_type {
@@ -358,6 +365,14 @@ struct icnss_ramdump_info {
 	struct device *dev;
 };
 
+struct icnss_pinctrl_info {
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *wlan_pon_en;
+	struct pinctrl_state *wlan_pon_dis;
+	struct pinctrl_state *wlan_poff_en;
+	struct pinctrl_state *wlan_poff_dis;
+};
+
 struct icnss_priv {
 	uint32_t magic;
 	struct platform_device *pdev;
@@ -457,7 +472,7 @@ struct icnss_priv {
 	struct rproc *rproc;
 	atomic_t is_shutdown;
 	u32 qdss_mem_seg_len;
-	struct icnss_fw_mem qdss_mem[QMI_WLFW_MAX_NUM_MEM_SEG];
+	struct icnss_fw_mem qdss_mem[QMI_WLFW_MAX_NUM_MEM_SEG_V01];
 	void *get_info_cb_ctx;
 	int (*get_info_cb)(void *ctx, void *event, int event_len);
 	atomic_t soc_wake_ref_count;
@@ -478,6 +493,7 @@ struct icnss_priv {
 	struct mbox_client mbox_client_data;
 	struct mbox_chan *mbox_chan;
 	u32 wlan_en_delay_ms;
+	u32 wlan_en_delay_ms_user;
 	struct class *icnss_ramdump_class;
 	dev_t icnss_ramdump_dev;
 	struct completion smp2p_soc_wake_wait;
@@ -486,6 +502,14 @@ struct icnss_priv {
 	bool bdf_download_support;
 	unsigned long device_config;
 	bool wpss_supported;
+	struct icnss_pinctrl_info pinctrl_info;
+	bool pon_gpio_control;
+	u32 pon_pinctrl_owners;
+	u32 pof_pinctrl_owners;
+	bool pon_in_progress;
+	struct timer_list recovery_timer;
+	struct timer_list wpss_ssr_timer;
+	bool wpss_self_recovery_enabled;
 };
 
 struct icnss_reg_info {
@@ -513,5 +537,9 @@ int icnss_update_cpr_info(struct icnss_priv *priv);
 void icnss_add_fw_prefix_name(struct icnss_priv *priv, char *prefix_name,
 			      char *name);
 int icnss_aop_mbox_init(struct icnss_priv *priv);
+struct icnss_priv *icnss_get_plat_priv(void);
+int icnss_get_pinctrl(struct icnss_priv *priv);
+void icnss_recovery_timeout_hdlr(struct timer_list *t);
+void icnss_wpss_ssr_timeout_hdlr(struct timer_list *t);
 #endif
 

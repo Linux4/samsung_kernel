@@ -285,7 +285,14 @@ static int gsx_gesture_ist(struct goodix_ts_core *cd,
 		goto re_send_ges_cmd;
 	}
 
+	if (gs_event->event_type & EVENT_EMPTY) {
+		ts_err("force release all finger because event type is empty");
+		goodix_ts_release_all_finger(cd);
+	}
+
 re_send_ges_cmd:
+	gs_event->event_type = EVENT_INVALID;	// clear event type
+
 	return EVT_CANCEL_IRQEVT;
 }
 

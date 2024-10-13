@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -19,6 +19,11 @@
 #include <linux/msm_rtb.h>
 #include <linux/spinlock.h>
 #include <linux/pinctrl/consumer.h>
+
+
+#define QUPV3_TEST_BUS_EN	0x204 //write 0x11
+#define QUPV3_TEST_BUS_SEL	0x200 //write 0x5  [for SE index 4)
+#define QUPV3_TEST_BUS_REG	0x208 //Read only reg, to be read as part of dump
 
 #define GENI_SE_IOMMU_VA_START	(0x40000000)
 #define GENI_SE_IOMMU_VA_SIZE	(0xC0000000)
@@ -194,6 +199,65 @@ void geni_write_reg(unsigned int value, void __iomem *base, int offset)
 	return writel_relaxed(value, (base + offset));
 }
 EXPORT_SYMBOL(geni_write_reg);
+
+/*
+ * test_bus_enable_per_qupv3: enables particular test bus number.
+ * @wrapper_dev: QUPV3 common driver handle from SE driver
+ *
+ * Note : Need to call only once.
+ * Return: none
+ */
+void test_bus_enable_per_qupv3(struct device *wrapper_dev)
+{
+	struct geni_se_device *geni_se_dev;
+
+	geni_se_dev = dev_get_drvdata(wrapper_dev);
+	//Enablement of test bus is required only once.
+	//TEST_BUS_EN:4, TEST_BUS_REG_EN:0
+	geni_write_reg(0x11, geni_se_dev->base, QUPV3_TEST_BUS_EN);
+
+	GENI_LOG_ERR(geni_se_dev->log_ctx, false, geni_se_dev->dev,
+		"%s: TEST_BUS_EN: 0x%x @address:0x%x\n", __func__,
+		geni_read_reg(geni_se_dev->base, QUPV3_TEST_BUS_EN),
+		(geni_se_dev->base + QUPV3_TEST_BUS_EN));
+}
+EXPORT_SYMBOL(test_bus_enable_per_qupv3);
+
+/*
+ * test_bus_select_per_qupv3: Selects the test bus as required
+ * @wrapper_dev: QUPV3 common driver handle from SE driver
+ * @test_bus_num: GENI SE number from QUPV3 core. E.g. SE0 should pass value 1.
+ * @Return:	None
+ */
+void test_bus_select_per_qupv3(struct device *wrapper_dev, u8 test_bus_num)
+{
+	struct geni_se_device *geni_se_dev;
+
+	geni_se_dev = dev_get_drvdata(wrapper_dev);
+
+	geni_write_reg(test_bus_num, geni_se_dev->base, QUPV3_TEST_BUS_SEL);
+	GENI_LOG_ERR(geni_se_dev->log_ctx, false, geni_se_dev->dev,
+		"%s: readback TEST_BUS_SEL: 0x%x @address:0x%x\n", __func__,
+		geni_read_reg(geni_se_dev->base, QUPV3_TEST_BUS_SEL),
+		(geni_se_dev->base + QUPV3_TEST_BUS_SEL));
+}
+EXPORT_SYMBOL(test_bus_select_per_qupv3);
+
+/*
+ * test_bus_read_per_qupv3: Selects the test bus as required
+ * @wrapper_dev:	QUPV3 common driver handle from SE driver
+ * Return:		None
+ */
+void test_bus_read_per_qupv3(struct device *wrapper_dev)
+{
+	struct geni_se_device *geni_se_dev;
+
+	geni_se_dev = dev_get_drvdata(wrapper_dev);
+	GENI_LOG_ERR(geni_se_dev->log_ctx, false, geni_se_dev->dev,
+		"%s: dump QUPV3_TEST_BUS_REG:0x%x\n",
+		__func__, geni_read_reg(geni_se_dev->base, QUPV3_TEST_BUS_REG));
+}
+EXPORT_SYMBOL(test_bus_read_per_qupv3);
 
 /**
  * get_se_proto() - Read the protocol configured for a serial engine
@@ -719,7 +783,7 @@ static bool geni_se_check_bus_bw_noc(struct geni_se_device *geni_se_dev)
 	unsigned long new_bus_bw;
 	bool bus_bw_update = false;
 
-	new_bus_bw = max(geni_se_dev->cur_ib_noc, geni_se_dev->cur_ab_noc) /
+	new_bus_bw = KHz(max(geni_se_dev->cur_ib_noc, geni_se_dev->cur_ab_noc)) /
 							DEFAULT_BUS_WIDTH;
 
 	for (i = 0; i < geni_se_dev->bus_bw_set_size_noc; i++) {
@@ -955,6 +1019,13 @@ static int geni_se_add_ab_ib(struct geni_se_device *geni_se_dev,
 		geni_se_dev->cur_ab, geni_se_dev->cur_ib,
 		rsc->ab, rsc->ib, bus_bw_update);
 
+	if (ret) {
+		GENI_LOG_ERR(geni_se_dev->log_ctx, true, geni_se_dev->dev,
+			     "%s: %s: Error %d core2x clock vote\n",
+			     __func__, dev_name(rsc->ctrl_dev), ret);
+		mutex_unlock(&geni_se_dev->geni_dev_lock);
+		return ret;
+	}
 
 	if (geni_se_dev->num_paths >= 2) {
 
@@ -1165,7 +1236,7 @@ int geni_se_resources_init(struct se_geni_rsc *rsc,
 		/* To reduce the higher ab values from individual drivers */
 		rsc->ab = ab/2;
 		rsc->ib = ab;
-		rsc->ab_noc = 0;
+		rsc->ab_noc = ib;
 		rsc->ib_noc = ib;
 		INIT_LIST_HEAD(&rsc->ab_list_noc);
 		INIT_LIST_HEAD(&rsc->ib_list_noc);
@@ -1614,6 +1685,7 @@ EXPORT_SYMBOL(geni_se_iommu_free_buf);
 void geni_se_dump_dbg_regs(struct se_geni_rsc *rsc, void __iomem *base,
 				void *ipc)
 {
+	const char *device_name;
 	u32 m_cmd0 = 0;
 	u32 m_irq_status = 0;
 	u32 s_cmd0 = 0;
@@ -1634,6 +1706,43 @@ void geni_se_dump_dbg_regs(struct se_geni_rsc *rsc, void __iomem *base,
 	u32 geni_s_irq_en = 0;
 	u32 geni_dma_tx_irq_en = 0;
 	u32 geni_dma_rx_irq_en = 0;
+	u32 ser_m_clk_cfg = 0;
+	u32 ser_s_clk_cfg = 0;
+	u32 loopback_cfg = 0;
+	u32 io_macro_ctrl = 0;
+	u32 io3_val = 0;
+	u32 tx_trans_cfg = 0;
+	u32 rx_trans_cfg = 0;
+	u32 tx_word_len = 0;
+	u32 stop_bit_len = 0;
+	u32 tx_trans_len = 0;
+	u32 rx_word_len = 0;
+	u32 rx_stale_cnt = 0;
+	u32 tx_parity_cfg = 0;
+	u32 rx_parity_cfg = 0;
+	u32 manual_rfr = 0;
+	u32 tx_watermark = 0;
+	u32 rx_watermark = 0;
+	u32 rx_watermark_rfr = 0;
+	u32 se_geni_general_cfg = 0;
+	u32 m_irq_enable = 0;
+	u32 m_cmd_err = 0;
+	u32 m_fw_err = 0;
+	u32 s_irq_enable = 0;
+	u32 rx_len_in = 0;
+	u32 m_gp_length  = 0;
+	u32 s_gp_length = 0;
+	u32 dma_tx_ptr_l = 0;
+	u32 dma_tx_ptr_h = 0;
+	u32 dma_tx_attr = 0;
+	u32 dma_tx_max_burst_size = 0;
+	u32 dma_rx_ptr_l = 0;
+	u32 dma_rx_ptr_h = 0;
+	u32 dma_rx_attr = 0;
+	u32 dma_rx_max_burst_size = 0;
+	u32 dma_if_en = 0;
+	u32 geni_clk_ctrl = 0;
+	u32 fifo_if_disable = 0;
 	struct geni_se_device *geni_se_dev;
 
 	if (!ipc)
@@ -1667,23 +1776,135 @@ void geni_se_dump_dbg_regs(struct se_geni_rsc *rsc, void __iomem *base,
 	geni_s_irq_en = geni_read_reg(base, SE_GENI_S_IRQ_EN);
 	geni_dma_tx_irq_en = geni_read_reg(base, SE_DMA_TX_IRQ_EN);
 	geni_dma_rx_irq_en = geni_read_reg(base, SE_DMA_RX_IRQ_EN);
+	ser_m_clk_cfg = geni_read_reg_nolog(base, GENI_SER_M_CLK_CFG);
+	ser_s_clk_cfg = geni_read_reg_nolog(base, GENI_SER_S_CLK_CFG);
+
+	if (rsc->proto == UART) {
+		loopback_cfg = geni_read_reg_nolog(base, SE_UART_LOOPBACK_CFG);
+		io_macro_ctrl = geni_read_reg_nolog(base, SE_UART_IO_MACRO_CTRL);
+		io3_val = geni_read_reg_nolog(base, SE_UART_IO3_VAL);
+		tx_trans_cfg = geni_read_reg_nolog(base, SE_UART_TX_TRANS_CFG);
+		rx_trans_cfg = geni_read_reg_nolog(base, SE_UART_RX_TRANS_CFG);
+		tx_word_len = geni_read_reg_nolog(base, SE_UART_TX_WORD_LEN);
+		stop_bit_len = geni_read_reg_nolog(base, SE_UART_TX_STOP_BIT_LEN);
+		tx_trans_len = geni_read_reg_nolog(base, SE_UART_TX_TRANS_LEN);
+		rx_word_len = geni_read_reg_nolog(base, SE_UART_RX_WORD_LEN);
+		rx_stale_cnt = geni_read_reg_nolog(base, SE_UART_RX_STALE_CNT);
+		tx_parity_cfg = geni_read_reg_nolog(base, SE_UART_TX_PARITY_CFG);
+		rx_parity_cfg = geni_read_reg_nolog(base, SE_UART_RX_PARITY_CFG);
+		manual_rfr = geni_read_reg_nolog(base, SE_UART_MANUAL_RFR);
+	}
+
+	tx_watermark = geni_read_reg_nolog(base, SE_GENI_TX_WATERMARK_REG);
+	rx_watermark = geni_read_reg_nolog(base, SE_GENI_RX_WATERMARK_REG);
+	rx_watermark_rfr = geni_read_reg_nolog(base, SE_GENI_RX_RFR_WATERMARK_REG);
+	se_geni_general_cfg = geni_read_reg_nolog(base, SE_GENI_GENERAL_CFG);
+	m_irq_enable = geni_read_reg_nolog(base, SE_GENI_M_IRQ_EN);
+	m_cmd_err = geni_read_reg_nolog(base, M_CMD_ERR_STATUS);
+	m_fw_err = geni_read_reg_nolog(base, M_FW_ERR_STATUS);
+	s_irq_enable = geni_read_reg_nolog(base, SE_GENI_S_IRQ_EN);
+	rx_len_in = geni_read_reg_nolog(base, SE_DMA_RX_LEN_IN);
+	m_gp_length  = geni_read_reg_nolog(base, SE_GENI_M_GP_LENGTH);
+	s_gp_length = geni_read_reg_nolog(base, SE_GENI_S_GP_LENGTH);
+	dma_tx_ptr_l = geni_read_reg_nolog(base, SE_DMA_TX_PTR_L);
+	dma_tx_ptr_h = geni_read_reg_nolog(base, SE_DMA_TX_PTR_H);
+	dma_tx_attr = geni_read_reg_nolog(base, SE_DMA_TX_ATTR);
+	dma_tx_max_burst_size = geni_read_reg_nolog(base, SE_DMA_TX_MAX_BURST);
+	dma_rx_ptr_l = geni_read_reg_nolog(base, SE_DMA_RX_PTR_L);
+	dma_rx_ptr_h = geni_read_reg_nolog(base, SE_DMA_RX_PTR_H);
+	dma_rx_attr = geni_read_reg_nolog(base, SE_DMA_RX_ATTR);
+	dma_rx_max_burst_size = geni_read_reg_nolog(base, SE_DMA_RX_MAX_BURST);
+	dma_if_en = geni_read_reg_nolog(base, SE_DMA_IF_EN);
+	geni_clk_ctrl = geni_read_reg_nolog(base, GENI_CLK_CTRL_RO);
+	fifo_if_disable = geni_read_reg_nolog(base, GENI_IF_FIFO_DISABLE_RO);
+
+	device_name = dev_name(rsc->ctrl_dev);
 
 	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
-	"%s: %s: m_cmd0:0x%x, m_irq_status:0x%x, geni_status:0x%x, geni_ios:0x%x\n",
-	__func__, dev_name(rsc->ctrl_dev), m_cmd0, m_irq_status, geni_status, geni_ios);
+		     "%s: %s: m_cmd0:0x%x, m_irq_status:0x%x\n",
+		     __func__, device_name, m_cmd0, m_irq_status);
 	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
-	"%s: dma_rx_irq:0x%x, dma_tx_irq:0x%x, rx_fifo_sts:0x%x, tx_fifo_sts:0x%x\n",
-	dev_name(rsc->ctrl_dev), dma_rx_irq, dma_tx_irq, rx_fifo_status, tx_fifo_status);
+		     "%s: geni_status:0x%x, geni_ios:0x%x\n",
+		     device_name, geni_status, geni_ios);
 	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
-	"%s: se_dma_dbg:0x%x, m_cmd_ctrl:0x%x, dma_rxlen:0x%x, dma_rxlen_in:0x%x\n",
-	dev_name(rsc->ctrl_dev), se_dma_dbg, m_cmd_ctrl, se_dma_rx_len, se_dma_rx_len_in);
+		     "%s: dma_rx_irq:0x%x, dma_tx_irq:0x%x\n",
+		     device_name, dma_rx_irq, dma_tx_irq);
 	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
-	"%s: dma_txlen:0x%x, dma_txlen_in:0x%x s_irq_status:0x%x\n",
-	dev_name(rsc->ctrl_dev), se_dma_tx_len, se_dma_tx_len_in, s_irq_status);
+		     "%s: rx_fifo_sts:0x%x, tx_fifo_sts:0x%x\n",
+		     device_name, rx_fifo_status, tx_fifo_status);
 	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
-	"%s: dma_txirq_en:0x%x, dma_rxirq_en:0x%x geni_m_irq_en:0x%x geni_s_irq_en:0x%x\n",
-	dev_name(rsc->ctrl_dev), geni_dma_tx_irq_en, geni_dma_rx_irq_en, geni_m_irq_en,
-	geni_s_irq_en);
+		     "%s: se_dma_dbg:0x%x, m_cmd_ctrl:0x%x\n",
+		     device_name, se_dma_dbg, m_cmd_ctrl);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: dma_rxlen:0x%x, dma_rxlen_in:0x%x\n",
+		     device_name, se_dma_rx_len, se_dma_rx_len_in);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: dma_txlen:0x%x, dma_txlen_in:0x%x\n",
+		     device_name, se_dma_tx_len);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: s_irq_status:0x%x, m_cmd_err:0x%x\n",
+		     device_name, s_irq_status, m_cmd_err);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: dma_txirq_en:0x%x, dma_rxirq_en:0x%x\n",
+		     device_name, geni_dma_tx_irq_en, geni_dma_rx_irq_en);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: geni_m_irq_en:0x%x, geni_s_irq_en:0x%x\n",
+		     device_name, geni_m_irq_en, geni_s_irq_en);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: ser_m_clk_cfg:0x%x, ser_s_clk_cfg:0x%x\n",
+		     device_name, ser_m_clk_cfg,  ser_s_clk_cfg);
+
+	if (rsc->proto == UART) {
+		GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+				"%s: loopback_cfg:0x%x, io_macro_ctrl:0x%x\n",
+				device_name, loopback_cfg, io_macro_ctrl);
+		GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+				"%s: io3_val:0x%x, rx_trans_cfg:0x%x\n",
+				device_name, io3_val, rx_trans_cfg);
+		GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+				"%s: tx_word_len:0x%x, tx_trans_cfg:0x%x\n",
+				device_name, tx_word_len, tx_trans_cfg);
+		GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+				"%s: rx_word_len:0x%x, rx_stale_cnt:0x%x\n",
+				device_name, rx_word_len, rx_stale_cnt);
+		GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+				"%s: tx_parity_cfg:0x%x, rx_parity_cfg:0x%x\n",
+				device_name, tx_parity_cfg, rx_parity_cfg);
+		GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+				"%s: manual_rfr:0x%x, m_irq_enable:0x%x\n",
+				device_name, manual_rfr, m_irq_enable);
+		GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+				"%s: tx_watermark:0x%x, rx_watermark:0x%x\n",
+				device_name, tx_watermark, rx_watermark);
+		GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+				"%s: rx_watermark_rfr:0x%x, se_geni_general_cfg:0x%x\n",
+				device_name, rx_watermark_rfr, se_geni_general_cfg);
+	}
+
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: m_fw_err:0x%x, s_irq_enable:0x%x\n",
+		     device_name, m_fw_err, s_irq_enable);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: rx_len_in:0x%x, m_gp_length:0x%x\n",
+		     device_name, rx_len_in, m_gp_length);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: s_gp_length:0x%x, dma_tx_ptr_l:0x%x\n",
+		     device_name, s_gp_length, dma_tx_ptr_l);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: dma_tx_ptr_h:0x%x, dma_tx_attr:0x%x\n",
+		     device_name, dma_tx_ptr_h, dma_tx_attr);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: dma_tx_max_burst_size:0x%x, dma_rx_ptr_l:0x%x\n",
+		     device_name, dma_tx_max_burst_size, dma_rx_ptr_l);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: dma_rx_ptr_h:0x%x, dma_rx_attr:0x%x\n",
+		     device_name, dma_rx_ptr_h, dma_rx_attr);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: dma_rx_max_burst_size:0x%x, dma_if_en :0x%x\n",
+		     device_name, dma_rx_max_burst_size, dma_if_en);
+	GENI_LOG_DBG(ipc, false, geni_se_dev->dev,
+		     "%s: geni_clk_ctrl:0x%x, fifo_if_disable:0x%x\n",
+		     device_name, geni_clk_ctrl, fifo_if_disable);
 }
 EXPORT_SYMBOL(geni_se_dump_dbg_regs);
 

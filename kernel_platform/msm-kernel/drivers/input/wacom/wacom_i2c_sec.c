@@ -1656,6 +1656,112 @@ static ssize_t flip_status_detect_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", wac_i2c->flip_state);
 }
 
+static int wacom_input_enable_device(struct input_dev *dev)
+{
+	int retval;
+
+	retval = mutex_lock_interruptible(&dev->mutex);
+	if (retval)
+		return retval;
+
+	if (dev->users && dev->open)
+		retval = dev->open(dev);
+
+	mutex_unlock(&dev->mutex);
+
+	return retval;
+}
+
+static int wacom_input_disable_device(struct input_dev *dev)
+{
+	int retval;
+
+	retval = mutex_lock_interruptible(&dev->mutex);
+	if (retval)
+		return retval;
+
+	if (dev->users && dev->close)
+		dev->close(dev);
+
+	mutex_unlock(&dev->mutex);
+	return 0;
+}
+
+static ssize_t enabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+
+	if (!wac_i2c->pdata->enable_sysinput_enabled)
+		return -EINVAL;
+
+	input_info(true, &wac_i2c->client->dev, "%s: %d\n", __func__, wac_i2c->pdata->enabled);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", wac_i2c->pdata->enabled);
+}
+
+static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+	int ret;
+	int buff[2];
+
+	if (!wac_i2c->pdata->enable_sysinput_enabled)
+		return -EINVAL;
+
+	ret = sscanf(buf, "%d,%d", &buff[0], &buff[1]);
+	if (ret != 2) {
+		input_err(true, &wac_i2c->client->dev,
+				"%s: failed read params [%d]\n", __func__, ret);
+		return -EINVAL;
+	}
+
+	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
+		if (wac_i2c->pdata->enabled) {
+			input_info(true, &wac_i2c->client->dev, "%s: [%s] device already enabled\n", __func__, current->comm);
+			goto out;
+		}
+		input_info(true, &wac_i2c->client->dev, "%s: [%s] enable\n", __func__, current->comm);
+		wacom_input_enable_device(wac_i2c->input_dev);
+	} else if (buff[0] == DISPLAY_STATE_OFF && buff[1] == DISPLAY_EVENT_EARLY) {
+		if (!wac_i2c->pdata->enabled) {
+			input_info(true, &wac_i2c->client->dev, "%s: [%s] device already disabled\n", __func__, current->comm);
+			goto out;
+		}
+		input_info(true, &wac_i2c->client->dev, "%s: [%s] disable\n", __func__, current->comm);
+		wacom_input_disable_device(wac_i2c->input_dev);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+		input_info(true, &wac_i2c->client->dev, "%s: [%s] DISPLAY_STATE_FORCE_ON\n", __func__, current->comm);
+		wacom_input_enable_device(wac_i2c->input_dev);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF) {
+		input_info(true, &wac_i2c->client->dev, "%s: [%s] DISPLAY_STATE_FORCE_OFF\n", __func__, current->comm);
+		wacom_input_disable_device(wac_i2c->input_dev);
+	}
+out:
+	return count;
+}
+
+static ssize_t support_feature_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	u32 feature = 0;
+
+	if (wac_i2c->pdata->enable_sysinput_enabled)
+		feature |= INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED;
+
+	snprintf(buff, sizeof(buff), "%d", feature);
+
+	input_info(true, &wac_i2c->client->dev, "%s: %d%s\n",
+			__func__, feature,
+			feature & INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED ? " SE" : "");
+
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s\n", buff);
+}
+
 /* firmware update */
 static DEVICE_ATTR(epen_firm_update, (S_IWUSR | S_IWGRP),
 		NULL, epen_firmware_update_store);
@@ -1714,6 +1820,8 @@ static DEVICE_ATTR(epen_fac_garage_rawdata, S_IRUGO,
 #endif
 static DEVICE_ATTR(flip_status_detect, 0444,
 		flip_status_detect_show, NULL);
+static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
+static DEVICE_ATTR(support_feature, S_IRUGO, support_feature_show, NULL);
 
 static struct attribute *epen_attributes[] = {
 	&dev_attr_epen_firm_update.attr,
@@ -1749,6 +1857,8 @@ static struct attribute *epen_attributes[] = {
 #endif
 #endif
 	&dev_attr_flip_status_detect.attr,
+	&dev_attr_enabled.attr,
+	&dev_attr_support_feature.attr,
 	NULL,
 };
 
@@ -2918,7 +3028,7 @@ static void get_digitizer_connection(void *device_data)
 
 #if WACOM_SEC_FACTORY
 	ret = wacom_check_ub(wac_i2c->client);
-	if (!ret) {
+	if (ret < 0) {
 		input_info(true, &client->dev, "%s: digitizer is not attached\n", __func__);
 		goto out;
 	}
@@ -3143,6 +3253,11 @@ static void set_disable_mode(void *device_data)
 		wacom_disable_mode(wac_i2c, WACOM_DISABLE);
 	else
 		wacom_disable_mode(wac_i2c, WACOM_ENABLE);
+
+	if (wac_i2c->pdata->enabled)
+		wacom_wakeup_sequence(wac_i2c);
+	else
+		wacom_sleep_sequence(wac_i2c);
 
 	snprintf(buff, sizeof(buff), "OK");
 
@@ -3413,6 +3528,7 @@ out:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec_cmd_set_cmd_exit(sec);
 }
+#endif
 
 static void set_fac_garage_mode(void *device_data)
 {
@@ -3425,14 +3541,19 @@ static void set_fac_garage_mode(void *device_data)
 	sec_cmd_set_default_result(sec);
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 
-	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1 ) {
-		input_err(true, &client->dev, "%s: abnormal param(%d)\n",
-					__func__, sec->cmd_param[0]);
+	if (sec->cmd_param[0] < EPEN_GARAGE_TEST_OFF || sec->cmd_param[0] > EPEN_GARAGE_TEST_ON_DUAL_XAXIS ) {
+		input_err(true, &client->dev, "%s: abnormal param(%d)\n", __func__, sec->cmd_param[0]);
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		goto out;
 	}
 
 	if (sec->cmd_param[0]) {
+		if (wac_i2c->fac_garage_mode != EPEN_GARAGE_TEST_OFF) {
+			input_err(true, &client->dev, "%s: test sequence error, current fac_garage_mode(%d) & parm(%d)\n",
+							__func__, wac_i2c->fac_garage_mode, sec->cmd_param[0]);
+			goto fail_out;
+		}
+
 		/* change normal mode for garage monitoring */
 		mutex_lock(&wac_i2c->mode_lock);
 		wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_NONE);
@@ -3440,27 +3561,42 @@ static void set_fac_garage_mode(void *device_data)
 
 		ret = wacom_start_stop_cmd(wac_i2c, WACOM_STOP_CMD);
 		if (ret != 1) {
-			input_err(true, &client->dev, "%s: failed to set stop cmd, %d\n",
-					__func__, ret);
-			wac_i2c->fac_garage_mode = 0;
+			input_err(true, &client->dev, "%s: failed to set stop cmd, %d\n", __func__, ret);
+			wac_i2c->fac_garage_mode = EPEN_GARAGE_TEST_OFF;
 			goto fail_out;
 		}
-
-		wac_i2c->fac_garage_mode = 1;
-
+		
+		if (sec->cmd_param[0] == EPEN_GARAGE_TEST_ON_DUAL_XAXIS) {
+			char buff = COM_REQUEST_GARAGE_SWAPAXIS;
+			ret = wacom_i2c_send(wac_i2c, &buff, 1);
+			msleep(50);
+			if (ret < 0) {
+				input_err(true, &wac_i2c->client->dev, "%s: failed to send 0x%02X\n", __func__, buff);
+				wac_i2c->fac_garage_mode = EPEN_GARAGE_TEST_OFF;
+				goto fail_out;
+			}
+		}
 	} else {
-		wac_i2c->fac_garage_mode = 0;
+		if (wac_i2c->fac_garage_mode == EPEN_GARAGE_TEST_ON_DUAL_XAXIS) {
+			/* need ic reset */
+			wacom_enable_irq(wac_i2c, false);
+			wacom_reset_hw(wac_i2c);
+			msleep(200);
+			wacom_enable_irq(wac_i2c, true);
 
-		ret = wacom_start_stop_cmd(wac_i2c, WACOM_STOP_AND_START_CMD);
-		if (ret != 1) {
-			input_err(true, &client->dev, "%s: failed to set stop cmd, %d\n",
-					__func__, ret);
-			goto fail_out;
+		} else {
+			ret = wacom_start_stop_cmd(wac_i2c, WACOM_STOP_AND_START_CMD);
+			if (ret != 1) {
+				input_err(true, &client->dev, "%s: failed to set stop cmd, %d\n", __func__, ret);
+				goto fail_out;
+			}
 		}
 
 		/* recovery wacom mode */
 		wacom_select_survey_mode(wac_i2c, wac_i2c->screen_on);
 	}
+
+	wac_i2c->fac_garage_mode = sec->cmd_param[0];
 
 	input_info(true, &client->dev, "%s: done(%d)\n", __func__, sec->cmd_param[0]);
 
@@ -3497,8 +3633,7 @@ static void get_fac_garage_mode(void *device_data)
 	sec_cmd_set_default_result(sec);
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 
-	snprintf(buff, sizeof(buff), "garage mode %s",
-			wac_i2c->fac_garage_mode ? "IN" : "OUT");
+	snprintf(buff, sizeof(buff), "garage mode %s", wac_i2c->fac_garage_mode ? "IN" : "OUT");
 
 	input_info(true, &wac_i2c->client->dev, "%s: %s\n", __func__, buff);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -3549,24 +3684,48 @@ get_garage_retry:
 
 	wacom_enable_irq(wac_i2c, true);
 
-	input_info(true, &client->dev, "%x %x %x %x %x %x %x %x %x %x\n",
-			data[2], data[3], data[4], data[5], data[6], data[7],
-			data[8], data[9], data[10], data[11]);
+	input_info(true, &client->dev, "%s : %x %x %x %x %x, %x %x %x %x %x , %x %x %x %x %x, %x %x\n",
+			__func__, data[0], data[1], data[2], data[3], data[4],
+			data[5], data[6], data[7], data[8], data[9],
+			data[10], data[11], data[12], data[13], data[14],
+			data[15], data[16]);
 
-	wac_i2c->garage_gain0 = data[6];
-	wac_i2c->garage_freq0 = ((u16)data[7] << 8) + data[8];
+	if(wac_i2c->fac_garage_mode == EPEN_GARAGE_TEST_ON_SINGLE) {
+		wac_i2c->garage_gain0 = data[6];
+		wac_i2c->garage_freq0 = ((u16)data[7] << 8) + data[8];
 
-	wac_i2c->garage_gain1 = data[9];
-	wac_i2c->garage_freq1 = ((u16)data[10] << 8) + data[11];
+		wac_i2c->garage_gain1 = data[9];
+		wac_i2c->garage_freq1 = ((u16)data[10] << 8) + data[11];
 
-	if (wac_i2c->garage_freq0 == 0 && retry > 0) {
-		retry--;
-		goto get_garage_retry;
+		if (wac_i2c->garage_freq0 == 0 && retry > 0) {
+			retry--;
+			goto get_garage_retry;
+		}
+
+		snprintf(buff, sizeof(buff), "%d,%d,%d,%d",
+				wac_i2c->garage_gain0, wac_i2c->garage_freq0,
+				wac_i2c->garage_gain1, wac_i2c->garage_freq1);
+	} else {
+
+		wac_i2c->garage_freq0_gain = data[7];
+		wac_i2c->garage_freq0_garage0 = ((u16)data[8] << 8) + data[9];
+		wac_i2c->garage_freq0_garage1 = ((u16)data[10] << 8) + data[11];
+
+		wac_i2c->garage_freq1_gain = data[12];
+		wac_i2c->garage_freq1_garage0 = ((u16)data[13] << 8) + data[14];
+		wac_i2c->garage_freq1_garage1 = ((u16)data[15] << 8) + data[16];
+
+		// Have to check value!
+		if (wac_i2c->garage_freq0_garage0 == 0 && retry > 0) {
+			retry--;
+			goto get_garage_retry;
+		}
+
+		snprintf(buff, sizeof(buff), "%d,%d,%d,%d,%d,%d",
+				wac_i2c->garage_freq0_gain, wac_i2c->garage_freq0_garage0, wac_i2c->garage_freq0_garage1,
+				wac_i2c->garage_freq1_gain, wac_i2c->garage_freq1_garage0, wac_i2c->garage_freq1_garage1);
+		
 	}
-
-	snprintf(buff, sizeof(buff), "%d,%d,%d,%d",
-			wac_i2c->garage_gain0, wac_i2c->garage_freq0,
-			wac_i2c->garage_gain1, wac_i2c->garage_freq1);
 
 	input_info(true, &client->dev, "%s: %s\n", __func__, buff);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -3581,7 +3740,6 @@ out:
 	input_info(true, &wac_i2c->client->dev, "%s: %s\n", __func__, buff);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 }
-#endif
 
 static void debug(void *device_data)
 {
@@ -3632,6 +3790,9 @@ static void set_cover_type(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
+	if (wac_i2c->pdata->support_pogo_cover)
+		goto return_ok;
+
 	if (wac_i2c->pdata->support_cover_noti) {
 		if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 2) {
 			input_err(true, &wac_i2c->client->dev, "%s: Not support command[%d]\n",
@@ -3653,7 +3814,7 @@ static void set_cover_type(void *device_data)
 	input_info(true, &wac_i2c->client->dev, "%s: %d\n", __func__, sec->cmd_param[0]);
 
 	wacom_swap_compensation(wac_i2c, wac_i2c->cover);
-
+return_ok:
 	snprintf(buff, sizeof(buff), "OK\n");
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -3710,10 +3871,10 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("set_epen_aot_enable", set_epen_aot_enable),},
 #if WACOM_SEC_FACTORY
 	{SEC_CMD_H("set_fac_select_firmware", set_fac_select_firmware),},
+#endif
 	{SEC_CMD("set_fac_garage_mode", set_fac_garage_mode),},
 	{SEC_CMD("get_fac_garage_mode", get_fac_garage_mode),},
 	{SEC_CMD("get_fac_garage_rawdata", get_fac_garage_rawdata),},
-#endif
 	{SEC_CMD("debug", debug),},
 #if 1 // WACOM_PDCT_ENABLE
 	{SEC_CMD("get_ble_charge_fp", get_ble_charge_fp),},
@@ -4074,37 +4235,6 @@ static int wacom_sec_elec_init(struct wacom_i2c *wac_i2c, int pos)
 	return 1;
 }
 
-static int wacom_input_enable_device(struct input_dev *dev)
-{
-	int retval;
-
-	retval = mutex_lock_interruptible(&dev->mutex);
-	if (retval)
-		return retval;
-
-	if (dev->users && dev->open)
-		retval = dev->open(dev);
-
-	mutex_unlock(&dev->mutex);
-
-	return retval;
-}
-
-static int wacom_input_disable_device(struct input_dev *dev)
-{
-	int retval;
-
-	retval = mutex_lock_interruptible(&dev->mutex);
-	if (retval)
-		return retval;
-
-	if (dev->users && dev->close)
-		dev->close(dev);
-
-	mutex_unlock(&dev->mutex);
-	return 0;
-}
-
 static ssize_t wacom_input_enabled_show(struct device *dev,
 					 struct device_attribute *attr,
 					 char *buf)
@@ -4138,15 +4268,8 @@ static ssize_t wacom_input_enabled_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(enabled, 0664, wacom_input_enabled_show, wacom_input_enabled_store);
-
-static struct attribute *input_attrs[] = {
-	&dev_attr_enabled.attr,
-	NULL
-};
-
-static const struct attribute_group input_attr_group = {
-	.attrs	= input_attrs,
+static struct device_attribute input_attr[] = {
+	__ATTR(enabled, 0664, wacom_input_enabled_show, wacom_input_enabled_store),
 };
 
 int wacom_sec_init(struct wacom_i2c *wac_i2c)
@@ -4178,7 +4301,7 @@ int wacom_sec_init(struct wacom_i2c *wac_i2c)
 		wacom_sec_elec_init(wac_i2c, i);
 	}
 
-	retval = sysfs_create_group(&wac_i2c->input_dev->dev.kobj, &input_attr_group);
+	retval = sysfs_create_file(&wac_i2c->input_dev->dev.kobj, &input_attr[0].attr);
 	if (retval < 0) {
 		input_err(true, &client->dev,
 				"%s: Failed to create sec_input_sysfs attributes\n", __func__);
@@ -4200,6 +4323,6 @@ void wacom_sec_remove(struct wacom_i2c *wac_i2c)
 {
 	sysfs_remove_link(&wac_i2c->sec.fac_dev->kobj, "input");
 	sysfs_remove_group(&wac_i2c->sec.fac_dev->kobj, &epen_attr_group);
-	sysfs_remove_group(&wac_i2c->input_dev->dev.kobj, &input_attr_group);
+	sysfs_remove_file(&wac_i2c->input_dev->dev.kobj, &input_attr[0].attr);
 	sec_cmd_exit(&wac_i2c->sec, SEC_CLASS_DEVT_WACOM);
 }

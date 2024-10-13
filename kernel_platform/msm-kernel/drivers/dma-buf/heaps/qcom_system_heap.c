@@ -56,6 +56,7 @@
 #include <linux/kthread.h>
 #include <linux/qcom_dma_heap.h>
 #include <uapi/linux/sched/types.h>
+#include <linux/page_owner.h>
 #include <trace/hooks/mm.h>
 
 #include "qcom_dma_heap_secure_utils.h"
@@ -252,6 +253,8 @@ struct page *qcom_sys_heap_alloc_largest_available(struct dynamic_page_pool **po
 		    pools[i]->order &&
 		    dynamic_pool_count_below_lowmark(pools[i]))
 			wake_up_process(pools[i]->refill_worker);
+
+		set_page_owner(page, pools[i]->order, GFP_KERNEL);
 
 		return page;
 	}

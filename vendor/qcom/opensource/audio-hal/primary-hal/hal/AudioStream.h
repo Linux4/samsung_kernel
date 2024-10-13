@@ -346,6 +346,16 @@ const std::map<uint32_t, uint32_t> getAlsaSupportedFmt {
     {AUDIO_FORMAT_PCM_16_BIT,           AUDIO_FORMAT_PCM_16_BIT},
 };
 
+#ifdef SEC_AUDIO_CALL_VOIP
+// refer to vendor/qcom/proprietary/mm-audio/ar-acdb/acdbdata/inc/kvh2xml.h
+const std::map<uint32_t, uint32_t> getVoipSampleRate {
+    {8000,     0 /* VOIP_SR_NB */},
+    {16000,    1 /* VOIP_SR_WB */},
+    {32000,    2 /* VOIP_SR_SWB */},
+    {48000,    3 /* VOIP_SR_FB */},
+};
+#endif
+
 const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_DEEP_BUFFER] = "deep-buffer-playback",
 #ifdef SEC_AUDIO_SUPPORT_MEDIA_OUTPUT
@@ -585,12 +595,11 @@ public:
     std::shared_ptr<SecAudioStreamOut> SecStreamOutInit();
     ssize_t isAndroidOutDevicesSize() {return mAndroidOutDevices.size();}
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
-#endif
+    int SetVoipMicModeEffectKvParams(int mode);
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
     void CheckAndSwitchListenbackMode(bool on);
 #endif
-#ifdef SEC_AUDIO_COMMON
     void lock_output_stream() { stream_mutex_.lock(); }
     void unlock_output_stream() { stream_mutex_.unlock(); }
 #endif
@@ -598,6 +607,7 @@ public:
     source_metadata_t btSourceMetadata;
     std::vector<playback_track_metadata_t> tracks;
     int SetAggregateSourceMetadata(bool voice_active);
+    static std::mutex sourceMetadata_mutex_;
 #endif
 protected:
 #ifdef SEC_AUDIO_DSM_AMP
@@ -628,6 +638,9 @@ protected:
 #endif
 #ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
     bool playback_volume_reset;
+#endif
+#ifdef SEC_AUDIO_SUPPORT_UHQ
+    bool need_update_output_for_uhq;
 #endif
     void *convertBuffer;
     //Haptics Usecase
@@ -698,6 +711,10 @@ public:
 #ifdef SEC_AUDIO_COMMON
     audio_source_t GetInputSource() { return source_; }
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
+    int SetVoipMicModeEffectKvParams(int mode);
+#ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
+    int SetVideoCallEffectParams(int mode);
+#endif // } CONFIG_EFFECTS_VIDEOCALL
 #endif
 #ifdef SEC_AUDIO_SOUND_TRIGGER_TYPE
     bool IsSeamlessEnabled();
@@ -709,6 +726,7 @@ public:
     sink_metadata_t btSinkMetadata;
     std::vector<record_track_metadata_t> tracks;
     int SetAggregateSinkMetadata(bool voice_active);
+    static std::mutex sinkMetadata_mutex_;
 #endif
 protected:
     struct timespec readAt;

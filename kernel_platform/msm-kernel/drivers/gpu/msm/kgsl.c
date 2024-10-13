@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <uapi/linux/sched/types.h>
@@ -24,6 +24,7 @@
 #include <linux/qcom_dma_heap.h>
 #include <linux/security.h>
 #include <linux/sort.h>
+#include <linux/string_helpers.h>
 #include <soc/qcom/of_common.h>
 #include <soc/qcom/secure_buffer.h>
 #include <linux/msm_kgsl.h>
@@ -39,6 +40,9 @@
 #include "kgsl_sync.h"
 #include "kgsl_sysfs.h"
 #include "kgsl_trace.h"
+/* Instantiate tracepoints */
+#define CREATE_TRACE_POINTS
+#include "kgsl_power_trace.h"
 
 #ifndef arch_mmap_check
 #define arch_mmap_check(addr, len, flags)	(0)
@@ -271,9 +275,9 @@ static struct kgsl_mem_entry *kgsl_mem_entry_create(void)
 	return entry;
 }
 
-static void add_dmabuf_list(struct kgsl_dma_buf_meta *meta)
+static void add_dmabuf_list(struct kgsl_dma_buf_meta *metadata)
 {
-	struct kgsl_device *device = dev_get_drvdata(meta->attach->dev);
+	struct kgsl_device *device = dev_get_drvdata(metadata->attach->dev);
 	struct dmabuf_list_entry *dle;
 	struct page *page;
 
@@ -282,16 +286,16 @@ static void add_dmabuf_list(struct kgsl_dma_buf_meta *meta)
 	 * buffer, since the same buffer can be mapped as different
 	 * mem entries.
 	 */
-	page = sg_page(meta->table->sgl);
+	page = sg_page(metadata->table->sgl);
 
 	spin_lock(&kgsl_dmabuf_lock);
 
 	/* Go through the list to see if we imported this buffer before */
 	list_for_each_entry(dle, &kgsl_dmabuf_list, node) {
 		if (dle->firstpage == page) {
-			/* Add the dmabuf meta to the list for this dle */
-			meta->dle = dle;
-			list_add(&meta->node, &dle->dmabuf_list);
+			/* Add the dmabuf metadata to the list for this dle */
+			metadata->dle = dle;
+			list_add(&metadata->node, &dle->dmabuf_list);
 			spin_unlock(&kgsl_dmabuf_lock);
 			return;
 		}
@@ -303,29 +307,29 @@ static void add_dmabuf_list(struct kgsl_dma_buf_meta *meta)
 		dle->firstpage = page;
 		INIT_LIST_HEAD(&dle->dmabuf_list);
 		list_add(&dle->node, &kgsl_dmabuf_list);
-		meta->dle = dle;
-		list_add(&meta->node, &dle->dmabuf_list);
+		metadata->dle = dle;
+		list_add(&metadata->node, &dle->dmabuf_list);
 		kgsl_trace_gpu_mem_total(device,
-				 meta->entry->memdesc.size);
+				 metadata->entry->memdesc.size);
 	}
 	spin_unlock(&kgsl_dmabuf_lock);
 }
 
-static void remove_dmabuf_list(struct kgsl_dma_buf_meta *meta)
+static void remove_dmabuf_list(struct kgsl_dma_buf_meta *metadata)
 {
-	struct kgsl_device *device = dev_get_drvdata(meta->attach->dev);
-	struct dmabuf_list_entry *dle = meta->dle;
+	struct kgsl_device *device = dev_get_drvdata(metadata->attach->dev);
+	struct dmabuf_list_entry *dle = metadata->dle;
 
 	if (!dle)
 		return;
 
 	spin_lock(&kgsl_dmabuf_lock);
-	list_del(&meta->node);
+	list_del(&metadata->node);
 	if (list_empty(&dle->dmabuf_list)) {
 		list_del(&dle->node);
 		kfree(dle);
 		kgsl_trace_gpu_mem_total(device,
-				-(meta->entry->memdesc.size));
+				-(metadata->entry->memdesc.size));
 	}
 	spin_unlock(&kgsl_dmabuf_lock);
 }
@@ -335,13 +339,15 @@ static void kgsl_destroy_ion(struct kgsl_memdesc *memdesc)
 {
 	struct kgsl_mem_entry *entry = container_of(memdesc,
 		struct kgsl_mem_entry, memdesc);
-	struct kgsl_dma_buf_meta *meta = entry->priv_data;
+	struct kgsl_dma_buf_meta *metadata = entry->priv_data;
 
-	if (meta != NULL) {
-		remove_dmabuf_list(meta);
-		dma_buf_detach(meta->dmabuf, meta->attach);
-		dma_buf_put(meta->dmabuf);
-		kfree(meta);
+	if (metadata != NULL) {
+		remove_dmabuf_list(metadata);
+		dma_buf_unmap_attachment(metadata->attach, metadata->table,
+			DMA_BIDIRECTIONAL);
+		dma_buf_detach(metadata->dmabuf, metadata->attach);
+		dma_buf_put(metadata->dmabuf);
+		kfree(metadata);
 	}
 
 	memdesc->sgt = NULL;
@@ -618,7 +624,7 @@ static int _kgsl_get_context_id(struct kgsl_device *device)
 	write_lock(&device->context_lock);
 	/* Allocate the slot but don't put a pointer in it yet */
 	id = idr_alloc(&device->context_idr, NULL, 1,
-		KGSL_MEMSTORE_MAX, GFP_NOWAIT);
+		KGSL_GLOBAL_CTXT_ID, GFP_NOWAIT);
 	write_unlock(&device->context_lock);
 	idr_preload_end();
 
@@ -880,6 +886,25 @@ bool kgsl_check_timestamp(struct kgsl_device *device,
 	return (timestamp_cmp(ts_processed, timestamp) >= 0);
 }
 
+static void kgsl_work_period_release(struct kref *kref)
+{
+	struct gpu_work_period *wp = container_of(kref,
+			struct gpu_work_period, refcount);
+
+	spin_lock(&kgsl_driver.wp_list_lock);
+	if (!list_empty(&wp->list))
+		list_del_init(&wp->list);
+	spin_unlock(&kgsl_driver.wp_list_lock);
+
+	kfree(wp);
+}
+
+static void kgsl_put_work_period(struct gpu_work_period *wp)
+{
+	if (!IS_ERR_OR_NULL(wp))
+		kref_put(&wp->refcount, kgsl_work_period_release);
+}
+
 /**
  * kgsl_destroy_process_private() - Cleanup function to free process private
  * @kref: - Pointer to object being destroyed's kref struct
@@ -894,6 +919,7 @@ static void kgsl_destroy_process_private(struct kref *kref)
 	struct kgsl_process_private *private = container_of(kref,
 			struct kgsl_process_private, refcount);
 
+	kgsl_put_work_period(private->period);
 	/*
 	 * While removing sysfs entries, kernfs_mutex is held by sysfs apis. Since
 	 * it is a global fs mutex, sometimes it takes longer for kgsl to get hold
@@ -917,6 +943,7 @@ static void kgsl_destroy_process_private(struct kref *kref)
 	write_unlock(&kgsl_driver.proclist_lock);
 	mutex_unlock(&kgsl_driver.process_mutex);
 
+	kfree(private->cmdline);
 	put_pid(private->pid);
 	idr_destroy(&private->mem_idr);
 	idr_destroy(&private->syncsource_idr);
@@ -956,6 +983,129 @@ struct kgsl_process_private *kgsl_process_private_find(pid_t pid)
 	read_unlock(&kgsl_driver.proclist_lock);
 
 	return private;
+}
+
+void kgsl_work_period_update(struct kgsl_device *device,
+				  struct gpu_work_period *period, u64 active)
+{
+	spin_lock(&device->work_period_lock);
+	if (test_bit(KGSL_WORK_PERIOD, &period->flags)) {
+		period->active += active;
+		period->cmds++;
+	}
+	spin_unlock(&device->work_period_lock);
+}
+
+static void _defer_work_period_put(struct work_struct *work)
+{
+	struct gpu_work_period *wp =
+		container_of(work, struct gpu_work_period, defer_ws);
+
+	/* Put back the refcount that was taken in kgsl_drawobj_cmd_create() */
+	kgsl_put_work_period(wp);
+}
+
+#define KGSL_GPU_ID 1
+static void _log_gpu_work_events(struct work_struct *work)
+{
+	struct kgsl_device *device = container_of(work, struct kgsl_device,
+							work_period_ws);
+	struct gpu_work_period *wp;
+	u64 active_time;
+	bool restart = false;
+
+	spin_lock(&device->work_period_lock);
+	device->gpu_period.end = ktime_get_ns();
+
+	spin_lock(&kgsl_driver.wp_list_lock);
+	list_for_each_entry(wp, &kgsl_driver.wp_list, list) {
+		if (!test_bit(KGSL_WORK_PERIOD, &wp->flags))
+			continue;
+
+		/* Active time in XO cycles(19.2MHz), convert to nanoseconds */
+		active_time = wp->active * 10000;
+		do_div(active_time, 192);
+
+		/* Ensure active_time is within work period */
+		active_time = min_t(u64, active_time,
+			device->gpu_period.end - device->gpu_period.begin);
+		/*
+		 * Emit GPU work period events via a kernel tracepoint
+		 * to provide information to the Android OS about how
+		 * apps are using the GPU.
+		 */
+		if (active_time)
+			trace_gpu_work_period(KGSL_GPU_ID, wp->uid,
+					device->gpu_period.begin,
+					device->gpu_period.end,
+					active_time);
+		/* Reset gpu work period stats */
+		wp->active = 0;
+		wp->cmds = 0;
+		atomic_set(&wp->frames, 0);
+
+		/* make sure other CPUs see the update */
+		smp_wmb();
+
+		if (!atomic_read(&wp->active_cmds)) {
+			__clear_bit(KGSL_WORK_PERIOD, &wp->flags);
+			queue_work(kgsl_driver.lockless_workqueue, &wp->defer_ws);
+		} else {
+			restart = true;
+		}
+	}
+	spin_unlock(&kgsl_driver.wp_list_lock);
+
+	if (restart) {
+		/*
+		 * GPU work period duration (end time - begin time) must be at
+		 * most 1 second. The event for a period must be emitted within
+		 * 1 second of the end time of the period. Restart timer within
+		 * 1 second to emit gpu work period events.
+		 */
+		mod_timer(&device->work_period_timer,
+			  jiffies + msecs_to_jiffies(KGSL_WORK_PERIOD_MS));
+		device->gpu_period.begin = device->gpu_period.end;
+	} else {
+		memset(&device->gpu_period, 0, sizeof(device->gpu_period));
+		__clear_bit(KGSL_WORK_PERIOD, &device->flags);
+	}
+	spin_unlock(&device->work_period_lock);
+
+}
+
+static void kgsl_work_period_timer(struct timer_list *t)
+{
+	struct kgsl_device *device = from_timer(device, t, work_period_timer);
+
+	queue_work(kgsl_driver.lockless_workqueue, &device->work_period_ws);
+}
+
+static struct gpu_work_period *kgsl_get_work_period(uid_t uid)
+{
+	struct gpu_work_period *wp;
+
+	spin_lock(&kgsl_driver.wp_list_lock);
+	list_for_each_entry(wp, &kgsl_driver.wp_list, list) {
+		if ((uid == wp->uid) && kref_get_unless_zero(&wp->refcount)) {
+			spin_unlock(&kgsl_driver.wp_list_lock);
+			return wp;
+		}
+	}
+
+	wp = kzalloc(sizeof(*wp), GFP_ATOMIC);
+	if (!wp) {
+		spin_unlock(&kgsl_driver.wp_list_lock);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	kref_init(&wp->refcount);
+	wp->uid = uid;
+	INIT_WORK(&wp->defer_ws, _defer_work_period_put);
+	list_add(&wp->list, &kgsl_driver.wp_list);
+	spin_unlock(&kgsl_driver.wp_list_lock);
+
+	return wp;
 }
 
 static struct kgsl_process_private *kgsl_process_private_new(
@@ -999,11 +1149,20 @@ static struct kgsl_process_private *kgsl_process_private_new(
 		return ERR_PTR(-ENOMEM);
 	}
 
+	private->period = kgsl_get_work_period(current_uid().val);
+	if (IS_ERR(private->period)) {
+		int err = PTR_ERR(private->period);
+
+		kfree(private);
+		return ERR_PTR(err);
+	}
+
 	kref_init(&private->refcount);
 
 	private->fd_count = 1;
 	private->pid = cur_pid;
 	get_task_comm(private->comm, current->group_leader);
+	private->cmdline = kstrdup_quotable_cmdline(current, GFP_KERNEL);
 
 	spin_lock_init(&private->mem_lock);
 	spin_lock_init(&private->syncsource_lock);
@@ -1020,6 +1179,7 @@ static struct kgsl_process_private *kgsl_process_private_new(
 	if (IS_ERR(private->pagetable)) {
 		int err = PTR_ERR(private->pagetable);
 
+		kgsl_put_work_period(private->period);
 		idr_destroy(&private->mem_idr);
 		idr_destroy(&private->syncsource_idr);
 		put_pid(private->pid);
@@ -1924,6 +2084,9 @@ long kgsl_ioctl_submit_commands(struct kgsl_device_private *dev_priv,
 				param->synclist, param->numsyncs);
 		if (result)
 			goto done;
+
+		if (!(syncobj->flags & KGSL_SYNCOBJ_SW))
+			syncobj->flags |= KGSL_SYNCOBJ_HW;
 	}
 
 	if (type & (CMDOBJ_TYPE | MARKEROBJ_TYPE)) {
@@ -2008,6 +2171,9 @@ long kgsl_ioctl_gpu_command(struct kgsl_device_private *dev_priv,
 				param->syncsize, param->numsyncs);
 		if (result)
 			goto done;
+
+		if (!(syncobj->flags & KGSL_SYNCOBJ_SW))
+			syncobj->flags |= KGSL_SYNCOBJ_HW;
 	}
 
 	if (type & (CMDOBJ_TYPE | MARKEROBJ_TYPE)) {
@@ -2083,6 +2249,10 @@ long kgsl_ioctl_gpu_aux_command(struct kgsl_device_private *dev_priv,
 
 	if (!(param->flags &
 		(KGSL_GPU_AUX_COMMAND_BIND | KGSL_GPU_AUX_COMMAND_TIMELINE)))
+		return -EINVAL;
+
+	if ((param->flags & KGSL_GPU_AUX_COMMAND_SYNC) &&
+		(param->numsyncs > KGSL_MAX_SYNCPOINTS))
 		return -EINVAL;
 
 	context = kgsl_context_get_owner(dev_priv, param->context_id);
@@ -2496,7 +2666,7 @@ static bool gpuobj_free_fence_func(void *priv)
 			entry->memdesc.flags);
 
 	INIT_WORK(&entry->work, _deferred_put);
-	queue_work(kgsl_driver.mem_workqueue, &entry->work);
+	queue_work(kgsl_driver.lockless_workqueue, &entry->work);
 	return true;
 }
 
@@ -3166,12 +3336,12 @@ static int kgsl_setup_dma_buf(struct kgsl_device *device,
 {
 	int ret = 0;
 	struct scatterlist *s;
-	struct sg_table *sg_table;
+	struct sg_table *sg_table = NULL;
 	struct dma_buf_attachment *attach = NULL;
-	struct kgsl_dma_buf_meta *meta;
+	struct kgsl_dma_buf_meta *metadata;
 
-	meta = kzalloc(sizeof(*meta), GFP_KERNEL);
-	if (!meta)
+	metadata = kzalloc(sizeof(*metadata), GFP_KERNEL);
+	if (!metadata)
 		return -ENOMEM;
 
 	attach = dma_buf_attach(dmabuf, device->dev);
@@ -3189,11 +3359,11 @@ static int kgsl_setup_dma_buf(struct kgsl_device *device,
 	if (entry->memdesc.flags & KGSL_MEMFLAGS_IOCOHERENT)
 		attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
 
-	meta->dmabuf = dmabuf;
-	meta->attach = attach;
-	meta->entry = entry;
+	metadata->dmabuf = dmabuf;
+	metadata->attach = attach;
+	metadata->entry = entry;
 
-	entry->priv_data = meta;
+	entry->priv_data = metadata;
 	entry->memdesc.pagetable = pagetable;
 	entry->memdesc.size = 0;
 	entry->memdesc.ops = &kgsl_dmabuf_ops;
@@ -3208,10 +3378,8 @@ static int kgsl_setup_dma_buf(struct kgsl_device *device,
 		goto out;
 	}
 
-	dma_buf_unmap_attachment(attach, sg_table, DMA_BIDIRECTIONAL);
-
-	meta->table = sg_table;
-	entry->priv_data = meta;
+	metadata->table = sg_table;
+	entry->priv_data = metadata;
 	entry->memdesc.sgt = sg_table;
 
 	ret = verify_secure_access(device, entry, dmabuf);
@@ -3227,15 +3395,18 @@ static int kgsl_setup_dma_buf(struct kgsl_device *device,
 		goto out;
 	}
 
-	add_dmabuf_list(meta);
+	add_dmabuf_list(metadata);
 	entry->memdesc.size = PAGE_ALIGN(entry->memdesc.size);
 
 out:
 	if (ret) {
+		if (!IS_ERR_OR_NULL(sg_table))
+			dma_buf_unmap_attachment(attach, sg_table, DMA_BIDIRECTIONAL);
+
 		if (!IS_ERR_OR_NULL(attach))
 			dma_buf_detach(dmabuf, attach);
 
-		kfree(meta);
+		kfree(metadata);
 	}
 
 	return ret;
@@ -3246,8 +3417,8 @@ out:
 void kgsl_get_egl_counts(struct kgsl_mem_entry *entry,
 		int *egl_surface_count, int *egl_image_count)
 {
-	struct kgsl_dma_buf_meta *meta = entry->priv_data;
-	struct dmabuf_list_entry *dle = meta->dle;
+	struct kgsl_dma_buf_meta *metadata = entry->priv_data;
+	struct dmabuf_list_entry *dle = metadata->dle;
 	struct kgsl_dma_buf_meta *scan_meta;
 	struct kgsl_mem_entry *scan_mem_entry;
 
@@ -3272,9 +3443,9 @@ void kgsl_get_egl_counts(struct kgsl_mem_entry *entry,
 
 unsigned long kgsl_get_dmabuf_inode_number(struct kgsl_mem_entry *entry)
 {
-	struct kgsl_dma_buf_meta *meta = entry->priv_data;
+	struct kgsl_dma_buf_meta *metadata = entry->priv_data;
 
-	return meta ? file_inode(meta->dmabuf->file)->i_ino : 0;
+	return metadata ? file_inode(metadata->dmabuf->file)->i_ino : 0;
 }
 #else
 void kgsl_get_egl_counts(struct kgsl_mem_entry *entry,
@@ -4022,13 +4193,17 @@ struct kgsl_mem_entry *gpumem_alloc_entry(
 
 	cachemode = kgsl_memdesc_get_cachemode(&entry->memdesc);
 	/*
-	 * Secure buffers cannot be reclaimed. Avoid reclaim of cached buffers
-	 * as we could get request for cache operations on these buffers when
-	 * they are reclaimed.
+	 * Secure buffers cannot be reclaimed. For IO-COHERENT devices cached
+	 * buffers can safely reclaimed. But avoid reclaim cached buffers of
+	 * non IO-COHERENT devices as we could get request for cache operations
+	 * on these buffers when they are reclaimed.
 	 */
 	if (!(flags & KGSL_MEMFLAGS_SECURE) &&
-			!(cachemode == KGSL_CACHEMODE_WRITEBACK) &&
-			!(cachemode == KGSL_CACHEMODE_WRITETHROUGH))
+			(((flags & KGSL_MEMFLAGS_IOCOHERENT) &&
+			!(cachemode == KGSL_CACHEMODE_WRITETHROUGH)) ||
+			(!(flags & KGSL_MEMFLAGS_IOCOHERENT) &&
+			 !(cachemode == KGSL_CACHEMODE_WRITEBACK) &&
+			!(cachemode == KGSL_CACHEMODE_WRITETHROUGH))))
 		entry->memdesc.priv |= KGSL_MEMDESC_CAN_RECLAIM;
 
 	kgsl_process_add_stats(private,
@@ -4617,6 +4792,7 @@ static int kgsl_mmap(struct file *file, struct vm_area_struct *vma)
 	struct kgsl_process_private *private = dev_priv->process_priv;
 	struct kgsl_mem_entry *entry = NULL;
 	struct kgsl_device *device = dev_priv->device;
+	uint64_t flags;
 	int ret;
 
 	/* Handle leagacy behavior for memstore */
@@ -4660,8 +4836,11 @@ static int kgsl_mmap(struct file *file, struct vm_area_struct *vma)
 
 	vma->vm_ops = &kgsl_gpumem_vm_ops;
 
-	if (cache == KGSL_CACHEMODE_WRITEBACK
-		|| cache == KGSL_CACHEMODE_WRITETHROUGH) {
+	flags = entry->memdesc.flags;
+
+	if (!(flags & KGSL_MEMFLAGS_IOCOHERENT) &&
+	    (cache == KGSL_CACHEMODE_WRITEBACK ||
+	     cache == KGSL_CACHEMODE_WRITETHROUGH)) {
 		int i;
 		unsigned long addr = vma->vm_start;
 		struct kgsl_memdesc *m = &entry->memdesc;
@@ -4688,8 +4867,8 @@ static int kgsl_mmap(struct file *file, struct vm_area_struct *vma)
 	 */
 	vma->vm_pgoff = 0;
 
-  if (atomic_inc_return(&entry->map_count) == 1)
-  atomic64_add(entry->memdesc.size, &entry->priv->gpumem_mapped);
+	if (atomic_inc_return(&entry->map_count) == 1)
+		atomic64_add(entry->memdesc.size, &entry->priv->gpumem_mapped);
 
 	trace_kgsl_mem_mmap(entry, vma->vm_start);
 	return 0;
@@ -4719,6 +4898,7 @@ struct kgsl_driver kgsl_driver  = {
 	.process_mutex = __MUTEX_INITIALIZER(kgsl_driver.process_mutex),
 	.proclist_lock = __RW_LOCK_UNLOCKED(kgsl_driver.proclist_lock),
 	.ptlock = __SPIN_LOCK_UNLOCKED(kgsl_driver.ptlock),
+	.wp_list_lock = __SPIN_LOCK_UNLOCKED(kgsl_driver.wp_list_lock),
 	.devlock = __MUTEX_INITIALIZER(kgsl_driver.devlock),
 	/*
 	 * Full cache flushes are faster than line by line on at least
@@ -4741,6 +4921,9 @@ struct kgsl_driver kgsl_driver  = {
 static void _unregister_device(struct kgsl_device *device)
 {
 	int minor;
+
+	if (device->gpu_sysfs_kobj.state_initialized)
+		kobject_put(&device->gpu_sysfs_kobj);
 
 	mutex_lock(&kgsl_driver.devlock);
 	for (minor = 0; minor < ARRAY_SIZE(kgsl_driver.devp); minor++) {
@@ -4844,8 +5027,8 @@ static int _register_device(struct kgsl_device *device)
 
 	set_dma_ops(device->dev, NULL);
 
-	kobject_init_and_add(&device->gpu_sysfs_kobj, &kgsl_gpu_sysfs_ktype,
-		kernel_kobj, "gpu");
+	WARN_ON(kobject_init_and_add(&device->gpu_sysfs_kobj, &kgsl_gpu_sysfs_ktype,
+		kernel_kobj, "gpu"));
 
 	return 0;
 }
@@ -4934,11 +5117,6 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 		goto error_pwrctrl_close;
 	}
 
-	/* This can return -EPROBE_DEFER */
-	status = kgsl_mmu_probe(device);
-	if (status != 0)
-		goto error_pwrctrl_close;
-
 	status = kgsl_reclaim_init();
 	if (status)
 		goto error_pwrctrl_close;
@@ -4959,6 +5137,9 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 	/* Initialize common sysfs entries */
 	kgsl_pwrctrl_init_sysfs(device);
 
+	timer_setup(&device->work_period_timer, kgsl_work_period_timer, 0);
+	spin_lock_init(&device->work_period_lock);
+	INIT_WORK(&device->work_period_ws, _log_gpu_work_events);
 	register_trace_android_vh_show_mem(kgsl_show_mem, NULL);
 	register_trace_android_vh_meminfo_proc_show(kgsl_meminfo, NULL);
 
@@ -4978,6 +5159,7 @@ error:
 
 void kgsl_device_platform_remove(struct kgsl_device *device)
 {
+	del_timer(&device->work_period_timer);
 	unregister_trace_android_vh_show_mem(kgsl_show_mem, NULL);
 	unregister_trace_android_vh_meminfo_proc_show(kgsl_meminfo, NULL);
 
@@ -4988,20 +5170,11 @@ void kgsl_device_platform_remove(struct kgsl_device *device)
 
 	kgsl_device_snapshot_close(device);
 
-	if (device->gpu_sysfs_kobj.state_initialized)
-		kobject_del(&device->gpu_sysfs_kobj);
-
 	idr_destroy(&device->context_idr);
 	idr_destroy(&device->timelines);
 
 	kgsl_device_events_remove(device);
 
-	kgsl_mmu_close(device);
-
-	/*
-	 * This needs to come after the MMU close so we can be sure all the
-	 * pagetables have been freed
-	 */
 	kgsl_free_globals(device);
 
 	kgsl_pwrctrl_close(device);
@@ -5020,9 +5193,9 @@ void kgsl_core_exit(void)
 		kgsl_driver.workqueue = NULL;
 	}
 
-	if (kgsl_driver.mem_workqueue) {
-		destroy_workqueue(kgsl_driver.mem_workqueue);
-		kgsl_driver.mem_workqueue = NULL;
+	if (kgsl_driver.lockless_workqueue) {
+		destroy_workqueue(kgsl_driver.lockless_workqueue);
+		kgsl_driver.lockless_workqueue = NULL;
 	}
 
 	kgsl_events_exit();
@@ -5095,6 +5268,7 @@ int __init kgsl_core_init(void)
 	dev_set_name(&kgsl_driver.virtdev, "kgsl");
 	result = device_register(&kgsl_driver.virtdev);
 	if (result) {
+		put_device(&kgsl_driver.virtdev);
 		pr_err("kgsl: driver_register failed\n");
 		goto err;
 	}
@@ -5120,6 +5294,8 @@ int __init kgsl_core_init(void)
 
 	INIT_LIST_HEAD(&kgsl_driver.pagetable_list);
 
+	INIT_LIST_HEAD(&kgsl_driver.wp_list);
+
 	kgsl_driver.workqueue = alloc_workqueue("kgsl-workqueue",
 		WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_SYSFS, 0);
 
@@ -5129,11 +5305,15 @@ int __init kgsl_core_init(void)
 		goto err;
 	}
 
-	kgsl_driver.mem_workqueue = alloc_workqueue("kgsl-mementry",
+	/*
+	 * The lockless workqueue is used to perform work which doesn't need to
+	 * take the device mutex
+	 */
+	kgsl_driver.lockless_workqueue = alloc_workqueue("kgsl-lockless-work",
 		WQ_UNBOUND | WQ_MEM_RECLAIM, 0);
 
-	if (!kgsl_driver.mem_workqueue) {
-		pr_err("kgsl: Failed to allocate mem workqueue\n");
+	if (!kgsl_driver.lockless_workqueue) {
+		pr_err("kgsl: Failed to allocate lockless workqueue\n");
 		result = -ENOMEM;
 		goto err;
 	}

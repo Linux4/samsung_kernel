@@ -24,6 +24,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/pm_wakeup.h>
 #include "../../common/sec_charging_common.h"
+#include <linux/types.h>
 
 /* Client address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
@@ -189,10 +190,7 @@ typedef struct max77705_fuelgauge_platform_data {
 	int capacity_max;
 	int capacity_max_margin;
 	int capacity_min;
-
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	unsigned int full_condition_soc;
-#endif
 } max77705_fuelgauge_platform_data_t;
 
 #define FG_RESET_DATA_COUNT		5
@@ -238,6 +236,8 @@ struct max77705_fuelgauge_data {
 	struct power_supply	      *psy_fg;
 	struct delayed_work isr_work;
 
+	atomic_t	shutdown_cnt;
+
 	int cable_type;
 	bool is_charging;
 
@@ -258,6 +258,7 @@ struct max77705_fuelgauge_data {
 
 	bool capacity_max_conv;
 	bool initial_update_of_soc;
+	bool initial_update_of_alert;
 	bool sleep_initial_update_of_soc;
 	struct mutex fg_lock;
 
@@ -270,6 +271,11 @@ struct max77705_fuelgauge_data {
 	int raw_capacity;
 	int current_now;
 	int current_avg;
+
+	int repcap_1st;
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	int prev_raw_soc;
+#endif
 
 	bool using_temp_compensation;
 	bool using_hw_vempty;
@@ -292,11 +298,11 @@ struct max77705_fuelgauge_data {
 	u32 err_cnt;
 	u32 q_res_table[4]; /* QResidual Table */
 
-#if defined(CONFIG_BATTERY_CISD)
 	bool valert_count_flag;
-#endif
 	struct lost_soc_data lost_soc;
 	char d_buf[128];
+	int bd_vfocv;
+	int bd_raw_soc;
 };
 
 #endif /* __MAX77705_FUELGAUGE_H */

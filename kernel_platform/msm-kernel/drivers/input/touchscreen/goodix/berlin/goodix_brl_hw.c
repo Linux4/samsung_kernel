@@ -1322,9 +1322,9 @@ static void goodix_parse_finger(struct goodix_ts_core *cd, unsigned int tid, u8 
 	u8 touch_type;
 
 	if (cd->debug_flag & GOODIX_TS_DEBUG_PRINT_ALLEVENT) {
-		ts_info("%s : ALL(%d): %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
+		ts_info("%s : ALL(%d): %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
 			__func__, tid, buf[0], buf[1], buf[2], buf[3],
-			buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10]);
+			buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11]);
 	}
 
 	pdata->prev_coord[tid] = pdata->coord[tid];
@@ -1342,7 +1342,7 @@ static void goodix_parse_finger(struct goodix_ts_core *cd, unsigned int tid, u8 
 	pdata->coord[tid].noise_level = max(pdata->coord[tid].noise_level, buf[8]);
 	pdata->coord[tid].max_strength = max(pdata->coord[tid].max_strength, buf[9]);
 	pdata->coord[tid].hover_id_num = max(pdata->coord[tid].hover_id_num, (u8)(buf[10] & 0x0F));
-
+	pdata->coord[tid].freq_id = buf[11] & 0x0F;
 
 	if (!pdata->coord[tid].palm && (pdata->coord[tid].ttype == SEC_TS_TOUCHTYPE_PALM))
 		pdata->coord[tid].palm_count++;
@@ -1365,7 +1365,7 @@ static void goodix_ts_report_finger(struct goodix_ts_core *cd, unsigned int tid)
 	int recal_tc = 0;
 	static int prev_tc;
 
-	sec_input_coord_event(cd->bus->dev, tid);
+	sec_input_coord_event_fill_slot(cd->bus->dev, tid);
 
 	ts_debug("press_cnt: %d", cd->plat_data->touch_count);
 
@@ -1621,6 +1621,8 @@ restart:
 
 			event_data += BYTES_PER_POINT;
 		} while (--event_num);
+
+		sec_input_coord_event_sync_slot(cd->bus->dev);
 	} else if ((buffer[0] & 0x80) && (event_num == 0)) {
 		/* if event_num equal 0, realease all fingers */
 		ts_debug("event num is zero [%02x%02x%02x]", buffer[0], buffer[1], buffer[2]);

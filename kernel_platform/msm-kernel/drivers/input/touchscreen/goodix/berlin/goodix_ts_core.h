@@ -77,8 +77,10 @@ extern struct device *ptsp;
 #define GOODIX_GLOVE_MODE_ADDR		0x72
 #define GOODIX_COVER_MODE_ADDR		0x78
 #define GOODIX_ED_MODE_ADDR			0x93
+#define GOODIX_LS_MODE_ADDR			0x40
 #define WATCH_DOG_REG			0xD040
-#define GPIO_REG				0xC804
+#define GIO_REG_BD				0xC804
+#define GIO_REG_BB				0xC808
 
 /* SEC status type */
 #define TYPE_STATUS_EVENT_CMD_DRIVEN	0
@@ -672,6 +674,7 @@ struct goodix_ts_core {
 	bool sponge_dump_delayed_flag;
 	u8 sponge_dump_delayed_area;
 	u16 sponge_dump_border;
+	unsigned int specific_fw_update_ver;
 };
 
 /* external module structures */

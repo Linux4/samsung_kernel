@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/err.h>
@@ -19,13 +20,13 @@
 
 #include <soc/qcom/secure_buffer.h>
 #include <soc/qcom/ramdump.h>
+#include <trace/events/rproc_qcom.h>
 
 /* Macros */
 #define MEMSHARE_DEV_NAME "memshare"
 static unsigned long(attrs);
 
 static struct qmi_handle *mem_share_svc_handle;
-static struct workqueue_struct *mem_share_svc_workqueue;
 static uint64_t bootup_request;
 static bool ramdump_event;
 static void *memshare_ramdump_dev[MAX_CLIENTS];
@@ -103,7 +104,7 @@ static int check_client(int client_id, int proc, int request)
 	int i = 0, rc;
 	int found = DHMS_MEM_CLIENT_INVALID;
 
-	for (i = 0; i < MAX_CLIENTS; i++) {
+	for (i = 0; i < num_clients; i++) {
 		if (memblock[i].client_id == client_id &&
 				memblock[i].peripheral == proc) {
 			found = i;
@@ -308,6 +309,7 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 	switch (code) {
 
 	case SUBSYS_BEFORE_SHUTDOWN:
+		trace_rproc_qcom_event("modem", "QCOM_SSR_BEFORE_SHUTDOWN", "modem_notifier-enter");
 		bootup_request++;
 		dev_info(memsh_drv->dev,
 		"memshare: SUBSYS_BEFORE_SHUTDOWN: bootup_request:%d\n",
@@ -317,6 +319,7 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 		break;
 
 	case SUBSYS_AFTER_SHUTDOWN:
+		trace_rproc_qcom_event("modem", "QCOM_SSR_AFTER_SHUTDOWN", "modem_notifier-enter");
 		ramdump_event = true;
 		dev_info(memsh_drv->dev,
 		"memshare: SUBSYS_AFTER_SHUTDOWN: ramdump_event:%d\n",
@@ -324,6 +327,8 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 		break;
 
 	case SUBSYS_BEFORE_POWERUP:
+		trace_rproc_qcom_event("modem", "QCOM_SSR_BEFORE_POWERUP",
+							 "modem_notifier-enter");
 		if (_cmd) {
 			notifdata = (struct notif_data *) _cmd;
 			dev_info(memsh_drv->dev,
@@ -346,6 +351,7 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 		break;
 
 	case SUBSYS_AFTER_POWERUP:
+		trace_rproc_qcom_event("modem", "QCOM_SSR_AFTER_POWERUP", "modem_notifier-enter");
 		dev_info(memsh_drv->dev, "memshare: SUBSYS_AFTER_POWERUP: Modem has booted up\n");
 		for (i = 0; i < MAX_CLIENTS; i++) {
 			client_node = memsh_child[i];
@@ -414,6 +420,8 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 	mutex_unlock(&memsh_drv->mem_share);
 	dev_info(memsh_drv->dev,
 	"memshare: notifier_cb processed for code: %d\n", code);
+
+	trace_rproc_qcom_event("modem", "modem_notifier", "exit");
 	return NOTIFY_DONE;
 }
 
@@ -483,7 +491,7 @@ static void handle_alloc_generic_req(struct qmi_handle *handle,
 		return;
 	}
 
-	for (i = 0; i < MAX_CLIENTS; i++) {
+	for (i = 0; i < num_clients; i++) {
 		if (memsh_child[i]->client_id == alloc_req->client_id) {
 			client_node = memsh_child[i];
 			dev_info(memsh_drv->dev,
@@ -502,8 +510,12 @@ static void handle_alloc_generic_req(struct qmi_handle *handle,
 		return;
 	}
 
-	if (!memblock[index].allotted) {
-		if (memblock[index].guard_band && alloc_req->num_bytes > 0)
+	if (!memblock[index].allotted && alloc_req->num_bytes > 0) {
+
+		if (alloc_req->num_bytes > memblock[index].init_size)
+			alloc_req->num_bytes = memblock[index].init_size;
+
+		if (memblock[index].guard_band)
 			size = alloc_req->num_bytes + MEMSHARE_GUARD_BYTES;
 		else
 			size = alloc_req->num_bytes;
@@ -585,7 +597,7 @@ static void handle_free_generic_req(struct qmi_handle *handle,
 		flag = 1;
 	}
 
-	for (i = 0; i < MAX_CLIENTS; i++) {
+	for (i = 0; i < num_clients; i++) {
 		if (memsh_child[i]->client_id == free_req->client_id) {
 			client_node = memsh_child[i];
 			dev_info(memsh_drv->dev,
@@ -748,6 +760,7 @@ static struct qmi_msg_handler qmi_memshare_handlers[] = {
 		.decoded_size = sizeof(struct mem_query_size_req_msg_v01),
 		.fn = handle_query_size_req,
 	},
+	{}
 };
 
 int memshare_alloc(struct device *dev,
@@ -776,17 +789,10 @@ static void memshare_init_worker(struct work_struct *work)
 {
 	int rc;
 
-	mem_share_svc_workqueue =
-		create_singlethread_workqueue("mem_share_svc");
-	if (!mem_share_svc_workqueue)
-		return;
-
 	mem_share_svc_handle = kzalloc(sizeof(struct qmi_handle),
 					  GFP_KERNEL);
-	if (!mem_share_svc_handle) {
-		destroy_workqueue(mem_share_svc_workqueue);
+	if (!mem_share_svc_handle)
 		return;
-	}
 
 	rc = qmi_handle_init(mem_share_svc_handle,
 		sizeof(struct qmi_elem_info),
@@ -795,7 +801,7 @@ static void memshare_init_worker(struct work_struct *work)
 		dev_err(memsh_drv->dev,
 			"memshare: Creating mem_share_svc qmi handle failed\n");
 		kfree(mem_share_svc_handle);
-		destroy_workqueue(mem_share_svc_workqueue);
+		mem_share_svc_handle = NULL;
 		return;
 	}
 	rc = qmi_add_server(mem_share_svc_handle, MEM_SHARE_SERVICE_SVC_ID,
@@ -803,9 +809,11 @@ static void memshare_init_worker(struct work_struct *work)
 	if (rc < 0) {
 		dev_err(memsh_drv->dev,
 			"memshare: Registering mem share svc failed %d\n", rc);
-		qmi_handle_release(mem_share_svc_handle);
-		kfree(mem_share_svc_handle);
-		destroy_workqueue(mem_share_svc_workqueue);
+		if (mem_share_svc_handle) {
+			qmi_handle_release(mem_share_svc_handle);
+			kfree(mem_share_svc_handle);
+			mem_share_svc_handle = NULL;
+		}
 		return;
 	}
 	dev_dbg(memsh_drv->dev, "memshare: memshare_init successful\n");
@@ -986,10 +994,11 @@ static int memshare_remove(struct platform_device *pdev)
 	if (!memsh_drv)
 		return 0;
 
-	flush_workqueue(mem_share_svc_workqueue);
-	qmi_handle_release(mem_share_svc_handle);
-	kfree(mem_share_svc_handle);
-	destroy_workqueue(mem_share_svc_workqueue);
+	if (mem_share_svc_handle) {
+		qmi_handle_release(mem_share_svc_handle);
+		kfree(mem_share_svc_handle);
+		mem_share_svc_handle = NULL;
+	}
 	return 0;
 }
 
