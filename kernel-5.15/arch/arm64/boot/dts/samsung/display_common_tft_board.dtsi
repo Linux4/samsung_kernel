@@ -1,0 +1,373 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#if 1
+/* BLIC I2C dt overlay START */
+&pio {
+	panel_i2c_bus: panel_i2c_bus {
+		samsung,pins = SEC_GPIO(AP,pio,127), SEC_GPIO(AP,pio,128);
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <3>;
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <3>;				// PREV in sleep
+		samsung,pin-pud-pdn = <3>;				// PU
+	};
+};
+
+&i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	clock-frequency = <400000>;
+
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&panel_i2c_bus>;
+
+	/* BLIC 1 */
+	panel_drv_i2c@0x11 {
+		compatible = "panel_drv,i2c";
+		reg = <0x11>;
+		len,addr= <0x01>;
+		len,data= <0x01>;
+	};
+
+#if 0
+	/* BLIC 2 */
+	panel_drv_i2c@0x11 {
+		compatible = "panel_drv,i2c";
+		reg = <0x11>;
+		len,addr= <0x01>;
+		len,data= <0x01>;
+	};
+#endif
+};
+#endif
+
+#if 1
+&pio {
+	disp_blic_1_0_default: disp-blic-1-0-default {
+		samsung,pins = SEC_GPIO(AP,pio,150);
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+#endif
+
+#if 1
+&pio {
+	disp_blic_1_1_default: disp-blic-1_1-default {
+		samsung,pins = SEC_GPIO(AP,pio,104);
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+#endif
+
+#if 1
+&pio {
+	disp_blic_1_2_default: disp-blic-1-2-default {
+		samsung,pins = SEC_GPIO(AP,pio,105);
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+#endif
+
+#if 0
+&${blic_2_bl_en_parent} {
+	disp_blic_2_0_default: disp-blic-2-0-default {
+		samsung,pins = SEC_GPIO(${blic_2_bl_en_gpio});
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+#endif
+
+#if 0
+&${blic_2_lcm_en_1_parent} {
+	disp_blic_2_1_default: disp-blic-2_1-default {
+		GPIO_CONFIG_PUD(${blic_2_lcm_en_1_gpio}, FUNC_OUTPUT, PULL_NONE);
+	};
+};
+#endif
+
+#if 0
+&${blic_2_lcm_en_2_parent} {
+	disp_blic_2_2_default: disp-blic-2-2-default {
+		samsung,pins = SEC_GPIO(${blic_2_lcm_en_2_gpio});
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+#endif
+/* BLIC I2C dt overlay END */
+
+&pio {
+	disp_rst_default: disp-rst-default {
+		samsung,pins = SEC_GPIO(AP,pio,86);
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+
+#if 0
+&${err_fg_parent} {
+	err_fg_default: err_fg_default {
+		GPIO_CONFIG_PUD(${err_fg_gpio}, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if 1
+&pio {
+	conn_det_default: conn_det_default {
+		GPIO_CONFIG_PUD(AP,pio,32, FUNC_INPUT, PULL_NONE);
+	};
+};
+#endif
+
+#if 1
+&mt6377_vaud18 {
+#if 1
+	regulator-name = "lcd_vddi";
+#endif
+	regulator-boot-on;
+};
+#endif
+
+#if 0
+&${lcd_vendor_check_parent} {
+	lcd_vendor_check_default: lcd_vendor_check_default {
+		samsung,pins = SEC_GPIO(${lcd_vendor_check_gpio});
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+#endif
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			ddi_reset_gpio: ddi_reset_gpio {
+				compatible = "regulator-fixed";
+				regulator-name = "lcd_rst";
+				gpio = <SEC_GPIO_REF(AP,pio,86) 1>;	/* LCD_RST */
+				enable-active-high;
+				regulator-boot-on;
+			};
+
+			ddi_blic_gpio: ddi_blic_gpio {
+				regulator-name = "lcd_bl_en";
+				regulator-desc-name = "ddi-blic";
+				regulator-min-microvolt = <5500000>;
+				regulator-max-microvolt = <5500000>;
+				regulator-boot-on;
+			};
+
+#if 1
+			ddi_blic_lcm_en_1_gpio: ddi_blic_lcm_en_1_gpio {
+				compatible = "regulator-fixed";
+				regulator-name = "lcd_vsp";
+				gpio = <SEC_GPIO_REF(AP,pio,104) 1>;
+				enable-active-high;
+				regulator-boot-on;
+			};
+#endif
+
+#if 1
+			ddi_blic_lcm_en_2_gpio: ddi_blic_lcm_en_2_gpio {
+				compatible = "regulator-fixed";
+				regulator-name = "lcd_vsn";
+				gpio = <SEC_GPIO_REF(AP,pio,105) 1>;
+				enable-active-high;
+				regulator-boot-on;
+			};
+#endif
+
+#if 0
+			ddi_blic_2_gpio: ddi_blic_2_gpio {
+				regulator-name = "ddi-blic-2";
+				regulator-desc-name = "ddi-blic-2";
+				regulator-min-microvolt = <5500000>;
+				regulator-max-microvolt = <5500000>;
+				regulator-boot-on;
+			};
+#endif
+#if 0
+			ddi_blic_2_lcm_en_1_gpio: ddi_blic_2_lcm_en_1_gpio {
+				compatible = "regulator-fixed";
+				regulator-name = "ddi-vsp-2";
+				gpio = <SEC_GPIO_REF(${blic_2_lcm_en_1_gpio}) 1>;
+				enable-active-high;
+				regulator-boot-on;
+			};
+#endif
+
+#if 0
+			ddi_blic_2_lcm_en_2_gpio: ddi_blic_2_lcm_en_2_gpio {
+				compatible = "regulator-fixed";
+				regulator-name = "ddi-vsn-2";
+				gpio = <SEC_GPIO_REF(${blic_2_lcm_en_2_gpio}) 1>;
+				enable-active-high;
+				regulator-boot-on;
+			};
+#endif
+
+			panel_blic: panel_blic {
+				ktz8864 {
+					regulator = <&ddi_blic_gpio>;
+					gpios {
+#if 1
+						gpio_hwen: gpio_hwen {
+							gpios = <SEC_GPIO_REF(AP,pio,150) 1>;
+							dir = <0>;  /* OUT */
+							irq-type = <0x0>;   /* NONE */
+						};
+#endif
+					};
+				};
+
+#if 0
+				${blic_2_name} {
+					regulator = <&ddi_blic_2_gpio>;
+					gpios {
+#if 0
+						gpio_hwen: gpio_hwen {
+							gpios = <SEC_GPIO_REF(${blic_2_bl_en_gpio}) 1>;
+							dir = <0>;  /* OUT */
+							irq-type = <0x0>;   /* NONE */
+						};
+#endif
+					};
+				};
+#endif
+			};
+
+			panel_drv_0: panel_drv_0 {
+				pinctrl-names = "default";
+				pinctrl-0 = <
+					&disp_rst_default
+#if 1
+					&disp_blic_1_0_default
+#endif
+#if 1
+					&disp_blic_1_1_default
+#endif
+#if 1
+					&disp_blic_1_2_default
+#endif
+#if 0
+					&disp_blic_2_0_default
+#endif
+#if 0
+					&disp_blic_2_1_default
+#endif
+#if 0
+					&disp_blic_2_2_default
+#endif
+#if 0
+					&err_fg_default
+#endif
+#if 1
+					&conn_det_default
+#endif
+#if 0
+					&lcd_vendor_check_default
+#endif
+				>;
+
+				blic = <&panel_blic>;
+				gpios {
+#if 0
+					err_fg: err-fg {
+						gpios = <SEC_GPIO_REF(${err_fg_gpio}) 0>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <0x00002001>;	/* RISING EDGE | ONE_SHOT */
+					};
+#endif
+#if 1
+					conn_det: conn-det {
+						gpios = <SEC_GPIO_REF(AP,pio,32) 0>;
+						dir = <1>;
+						irq-type = <0x00002001>;	//RISING EDGE | ONE_SHOT
+					};
+#endif
+#if 0
+					disp_det: disp-det {
+						gpios = <SEC_GPIO_REF(${disp_det_gpio}) 1>;  /* 0:OK, 1:NOK(active) */
+						dir = <1>;  /* IN */
+						irq-type = <0x2>;   /* FALLING EDGE */
+					};
+ #endif
+				};
+
+				regulators {
+#if 1
+					ddi_iovcc: ddi-iovcc {
+						regulator = <&mt6377_vaud18>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+					ddi_blic: ddi-blic {
+						regulator = <&ddi_blic_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#if 1
+					ddi_blic_en1: ddi-blic-en1 {
+						regulator = <&ddi_blic_lcm_en_1_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+#if 1
+					ddi_blic_en2: ddi-blic-en2 {
+						regulator = <&ddi_blic_lcm_en_2_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+#if 0
+					ddi_blic_2: ddi-blic-2 {
+						regulator = <&ddi_blic_2_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+#if 0
+					ddi_blic_2_en1: ddi-blic-2-en1 {
+						regulator = <&ddi_blic_2_lcm_en_1_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+#if 0
+					ddi_blic_2_en2: ddi-blic-2_en2 {
+						regulator = <&ddi_blic_2_lcm_en_2_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+					ddi_reset: ddi-reset {
+						regulator = <&ddi_reset_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+				};
+			};
+		};
+	};
+};

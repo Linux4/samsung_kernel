@@ -1,0 +1,18 @@
+menuconfig USDM_PANEL_TFT_COMMON
+	tristate "TFT_COMMON DDI Panel Driver"
+	depends on USDM_PANEL
+	default n
+	help
+		This enables TFT_COMMON DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the TFT_COMMON DDI.
+
+
+menuconfig USDM_PANEL_NT36672C_XCOVER7_00
+	tristate "NT36672C_XCOVER7_00 DDI Panel Driver"
+	depends on USDM_PANEL_TFT_COMMON
+	default n
+	help
+		This enables NT36672C_XCOVER7_00 DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the NT36672C_XCOVER7_00 DDI.

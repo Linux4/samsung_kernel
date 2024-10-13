@@ -1,0 +1,72 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/display/panel-display.h>
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_blic: panel_blic {
+				ktz8864 {
+					name = "ktz8864";
+					i2c,reg = <0x11>;
+					i2c,match = <0x01 0x00 0x00>; /* addr mask val */
+
+					power_ctrl {
+						actions {
+							ktz8864_gpio_hwen_on: ktz8864_gpio_hwen_on {
+								type = <PCTRL_GPIO_ENABLE>;
+								gpio = <&gpio_hwen>;
+							};
+
+							/*
+							ktz8864_gpio_hwen_off: ktz8864_gpio_hwen_off {
+								type = <PCTRL_GPIO_DISABLE>;
+								gpio = <&gpio_hwen>;
+							};
+							ktz8864_gpio_vsp_on: ktz8864_gpio_vsp_on {
+								type = <PCTRL_GPIO_ENABLE>;
+								gpio = <&gpio_vsp>;
+							};
+							ktz8864_gpio_vsp_off: ktz8864_gpio_vsp_off {
+								type = <PCTRL_GPIO_DISABLE>;
+								gpio = <&gpio_vsp>;
+							};
+							ktz8864_gpio_vsn_on: ktz8864_gpio_vsn_on {
+								type = <PCTRL_GPIO_ENABLE>;
+								gpio = <&gpio_vsn>;
+							};
+							ktz8864_gpio_vsn_off: ktz8864_gpio_vsn_off {
+								type = <PCTRL_GPIO_DISABLE>;
+								gpio = <&gpio_vsn>;
+							};
+							*/
+
+							ktz8864_delay_2ms: ktz8864-delay-2ms {
+								type = <PCTRL_DELAY_MSLEEP>;
+								value = <2>;
+							};
+
+						};
+
+						sequences {
+							panel_blic_pre_on = <&ktz8864_gpio_hwen_on &ktz8864_delay_2ms>;
+							/* panel_blic_post_on = <&ktz8864_gpio_vsp_on &ktz8864_delay_2ms &ktz8864_gpio_vsn_on &ktz8864_delay_2ms >; */
+							/* panel_blic_pre_off = <&ktz8864_gpio_vsn_off &ktz8864_delay_2ms  &ktz8864_gpio_vsp_off &ktz8864_delay_2ms >; */
+							/* KTZ: DO NOT turn off IC EN */
+							/* panel_blic_post_off = <&ktz8864_gpio_hwen_off>; */
+						};
+					};
+				};
+			};
+		};
+	};
+};
+

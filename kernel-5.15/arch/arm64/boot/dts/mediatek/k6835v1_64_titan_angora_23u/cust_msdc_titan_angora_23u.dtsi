@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2022 MediaTek Inc.
+ */
+
+&mmc0 {
+	vmmc-supply = <&mt6377_vemc>;
+	vqmmc-supply = <&mt6377_vufs>;
+};
+
+&mmc1 {
+	cd-gpios = <&pio 4 GPIO_ACTIVE_HIGH>;
+	vmmc-supply = <&mt6377_vmch_eint_low>;
+	vqmmc-supply = <&mt6377_vmc>;
+};
+
+/delete-node/ &mt6377_vmch_eint_high;
+/delete-node/ &mt6377_vmch;

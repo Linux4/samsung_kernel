@@ -1,0 +1,13 @@
+&i2c10{
+	status = "okay";
+	clock-frequency = <400000>;
+
+	bq27z746_fg: bq27z746-battery@55 {
+		compatible = "ti,bq27z746";
+		status = "okay";
+		reg = <0x55>;
+		fuelgauge,capacity_calculation_type = <0x8>;
+/*For FG atomic soc calculation, SEC_FUELGAUGE_CAPACITY_TYPE_ATOMIC value is 0x8*/
+
+	};
+};
