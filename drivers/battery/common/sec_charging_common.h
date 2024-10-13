@@ -243,9 +243,13 @@ enum sec_battery_usb_conf {
 };
 
 enum power_supply_ext_health {
-	POWER_SUPPLY_HEALTH_VSYS_OVP = POWER_SUPPLY_HEALTH_MAX,
-	POWER_SUPPLY_HEALTH_VBAT_OVP,
-	POWER_SUPPLY_HEALTH_DC_ERR,
+	POWER_SUPPLY_EXT_HEALTH_MIN = 20,
+	POWER_SUPPLY_EXT_HEALTH_UNDERVOLTAGE = POWER_SUPPLY_EXT_HEALTH_MIN,
+	POWER_SUPPLY_EXT_HEALTH_OVERHEATLIMIT,
+	POWER_SUPPLY_EXT_HEALTH_VSYS_OVP,
+	POWER_SUPPLY_EXT_HEALTH_VBAT_OVP,
+	POWER_SUPPLY_EXT_HEALTH_DC_ERR,
+	POWER_SUPPLY_EXT_HEALTH_MAX,
 };
 
 enum sec_battery_voltage_mode {
@@ -468,6 +472,13 @@ enum sec_battery_direct_charging_source_ctrl {
 	SEC_TEST_MODE = 0x1,
 	SEC_SEND_UVDM = 0x2,
 	SEC_STORE_MODE = 0x4,
+};
+
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
 };
 
 /* tx_event */
@@ -714,6 +725,9 @@ static inline struct power_supply *get_power_supply_by_name(char *name)
 
 #define is_wireless_type(cable_type) \
 	(is_hv_wireless_type(cable_type) || is_nv_wireless_type(cable_type))
+
+#define is_wireless_fake_type(cable_type) \
+	(is_wireless_type(cable_type) || (cable_type == SEC_BATTERY_CABLE_WIRELESS_FAKE))
 
 #define is_not_wireless_type(cable_type) ( \
 	cable_type != SEC_BATTERY_CABLE_WIRELESS && \

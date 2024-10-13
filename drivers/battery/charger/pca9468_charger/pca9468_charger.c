@@ -2211,7 +2211,7 @@ error:
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	if (ret == -EINVAL) {
 		pca9468->chg_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
-		pca9468->health_status = POWER_SUPPLY_HEALTH_DC_ERR;
+		pca9468->health_status = POWER_SUPPLY_EXT_HEALTH_DC_ERR;
 	}
 #endif
 	pr_info("%s: Active Status=%d\n", __func__, ret);
@@ -3776,7 +3776,7 @@ static void pca9468_timer_work(struct work_struct *work)
 error:
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	pca9468->chg_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
-	pca9468->health_status = POWER_SUPPLY_HEALTH_DC_ERR;
+	pca9468->health_status = POWER_SUPPLY_EXT_HEALTH_DC_ERR;
 #endif
 	pca9468_stop_charging(pca9468);
 	return;

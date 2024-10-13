@@ -71,7 +71,7 @@ int sec_calc_ttf_to_full_capacity(struct sec_battery_info *battery, unsigned int
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
 	int i, cc_time = 0, cv_time = 0;
-	int soc = battery->batt_full_capacity * 10;
+	int soc = get_full_capacity(battery->fs) * 10;
 	int charge_current = ttf_curr;
 	int design_cap = battery->ttf_d->ttf_capacity;
 
@@ -155,7 +155,7 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 			charge = (battery->max_charge_power / 5) > battery->pdata->charging_current[battery->cable_type].fast_charging_current ?
 					battery->pdata->charging_current[battery->cable_type].fast_charging_current : (battery->max_charge_power / 5);
 		}
-		if (battery->batt_full_capacity > 0 && battery->batt_full_capacity < 100) {
+		if (is_full_capacity(battery->fs)) {
 			pr_info("%s: time to %d percent\n", __func__, battery->batt_full_capacity);
 			battery->ttf_d->timetofull =
 				sec_calc_ttf(battery, charge) - sec_calc_ttf_to_full_capacity(battery, charge);

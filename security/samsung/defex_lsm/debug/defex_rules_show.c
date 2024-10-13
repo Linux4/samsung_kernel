@@ -15,18 +15,17 @@ const struct feature_match_entry feature_match[] = {
 	{"feature_immutable_path_open", feature_immutable_path_open},
 	{"feature_immutable_path_write", feature_immutable_path_write},
 	{"feature_immutable_src_exception", feature_immutable_src_exception},
+	{"feature_immutable_dst_exception", feature_immutable_dst_exception},
 	{"feature_umhbin_path", feature_umhbin_path},
 	{"feature_integrity_check", feature_integrity_check},
 };
-
-const int feature_match_size = ARRAY_SIZE(feature_match);
 
 static void feature_to_str(char *str, unsigned short flags)
 {
 	int i;
 
 	str[0] = 0;
-	for (i = 0; i < feature_match_size; i++)
+	for (i = 0; i < ARRAY_SIZE(feature_match); i++)
 		if (flags & feature_match[i].feature_num) {
 			if (str[0])
 				strcat(str, ", ");
@@ -57,7 +56,7 @@ static int check_array_size(struct rule_item_struct *ptr)
 
 static int parse_items(struct rule_item_struct *base, int path_length, int level)
 {
-	int l, err, ret = 0;
+	int l, err, ret = 0, is_rule_part2;
 	unsigned int offset;
 	struct rule_item_struct *child_item;
 	static char feature_list[128];
@@ -88,7 +87,10 @@ static int parse_items(struct rule_item_struct *base, int path_length, int level
 		l += path_length;
 		work_path[l] = 0;
 		offset = base->next_level;
-		if (offset) {
+		is_rule_part2 = (offset && (base->feature_type & feature_is_file) &&
+			(base->feature_type & feature_immutable_src_exception));
+
+		if (offset && !is_rule_part2) {
 			if (base->feature_type & feature_is_file) {
 				defex_log_timeoff("%s - is a file, but has children, structure error!", work_path);
 				ret = -1;
@@ -111,8 +113,9 @@ static int parse_items(struct rule_item_struct *base, int path_length, int level
 			}
 		} else {
 			feature_to_str(feature_list, base->feature_type);
-			defex_log_blob("%s%c - %s", work_path,
-						((base->feature_type & feature_is_file)?' ':'/'), feature_list);
+			defex_log_blob("%s%c%s - %s", work_path,
+						((base->feature_type & feature_is_file)?' ':'/'),
+						(is_rule_part2)?":<SECOND PART>":"", feature_list);
 		}
 		work_path[path_length] = 0;
 		offset = base->next_file;

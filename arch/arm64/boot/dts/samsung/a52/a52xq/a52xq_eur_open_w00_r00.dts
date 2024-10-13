@@ -386,50 +386,6 @@
 					phandle = <0xb5>;
 				};
 
-				sec_thermistor@1 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-pa-thermistor";
-					id = <0x1>;
-					io-channels = <0xffffffff 0x52>;
-					io-channel-names = "pa_therm";
-					io-channel-ranges;
-					use_iio_processed;
-					pinctrl-names = "default";
-					pinctrl-0 = <0x5>;
-					adc_array = <0x1cbfb 0x22ac3 0x28fa1 0x30476 0x38ac8 0x42dbd 0x4e436 0x5c3bd 0x6cc53 0x7f65c 0x922ef 0xa8c13 0xc1934 0xdcb56 0xf8594 0x11309d 0x12cd74 0x145951 0x15ce1e 0x171f2f 0x183b89 0x192ed5 0x19fcdf>;
-					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x0 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
-					phandle = <0xb6>;
-				};
-
-				sec_thermistor@2 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-wf-thermistor";
-					id = <0x2>;
-					io-channels = <0xffffffff 0x4f>;
-					io-channel-names = "wf_therm";
-					io-channel-ranges;
-					use_iio_processed;
-					adc_array = <0x1d721 0x22f94 0x29638 0x30a8b 0x393e8 0x4371e 0x4f01f 0x5d844 0x6d9c1 0x805d2 0x9342b 0xa9f15 0xc2c36 0xde162 0xf9b1e 0x11472b 0x12e2be 0x146e5a 0x15df9b 0x172f26 0x184a3c 0x193b40 0x1a0702>;
-					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x0 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
-					phandle = <0xb7>;
-				};
-
-				sec_thermistor@0 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-ap-thermistor";
-					id = <0x0>;
-					io-channels = <0xffffffff 0x4e>;
-					io-channel-names = "ap_therm";
-					io-channel-ranges;
-					use_iio_processed;
-					adc_array = <0x1b9fc 0x21a4a 0x27da3 0x2f2fa 0x37641 0x41770 0x4c711 0x59e7c 0x6b176 0x7dabd 0x900f9 0xa6be4 0xbf538 0xda615 0xf5e0b 0x110546 0x12abbf 0x143451 0x15b27e 0x1704d4 0x18257d 0x191e5c 0x19ef30>;
-					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x0 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
-					phandle = <0xb8>;
-				};
-
 				sm5714-fuelgauge {
 					status = "okay";
 					fuelgauge,fuel_alert_soc = <0x1>;
@@ -600,7 +556,7 @@
 					io-channels = <0xffffffff 0x53 0xffffffff 0x54>;
 					io-channel-names = "adc-temp", "adc-chg-temp", "n/a", "n/a", "n/a";
 					pinctrl-names = "default";
-					pinctrl-0 = <0x6 0x7>;
+					pinctrl-0 = <0x5 0x6>;
 					battery,chip_vendor = "SM";
 					battery,temp_table_adc = <0x1c48b 0x25a94 0x2c2d3 0x33c4d 0x3cbbe 0x47127 0x531ad 0x61cdd 0x7251c 0x85525 0x987a1 0xaf4be 0xc856c 0xe3c32 0xfefae 0x119a4b 0x1330cd 0x14b39f 0x161d30 0x176010 0x18734a 0x195d60 0x1a224b>;
 					battery,temp_table_data = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x0 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
@@ -638,6 +594,50 @@
 					battery,standard_curr = <0xa8c>;
 					battery,ttf_capacity = <0xf3c>;
 					battery,cv_data = <0x76f 0x2cf 0xac8 0x769 0x2d6 0xa8c 0x763 0x2df 0xa50 0x765 0x2e6 0xa14 0x75b 0x2ec 0x9d8 0x76b 0x2f5 0x99c 0x758 0x2fa 0x960 0x758 0x303 0x924 0x74f 0x309 0x8e8 0x752 0x313 0x8ac 0x754 0x318 0x870 0x750 0x31d 0x834 0x74f 0x325 0x7f8 0x73b 0x32d 0x7bc 0x744 0x334 0x780 0x727 0x33b 0x744 0x739 0x342 0x708 0x739 0x34a 0x6cc 0x738 0x34f 0x690 0x72f 0x358 0x654 0x6e4 0x360 0x618 0x696 0x367 0x5dc 0x72c 0x36e 0x5a0 0x729 0x374 0x564 0x6d6 0x37b 0x528 0x643 0x381 0x4ec 0x5d7 0x387 0x4b0 0x55b 0x38d 0x474 0x503 0x392 0x438 0x4aa 0x397 0x3fc 0x454 0x39c 0x3c0 0x40a 0x3a1 0x384 0x3d2 0x3a5 0x348 0x387 0x3a9 0x30c 0x346 0x3ac 0x2d0 0x314 0x3b0 0x294 0x2d5 0x3b3 0x258 0x2c4 0x3b6 0x21c 0x2cf 0x3ba 0x1e0 0x274 0x3bd 0x1a4 0x24b 0x3c3 0x168 0x23e 0x3ca 0x12c 0x20a 0x3d1 0xf0 0x1fe 0x3d7 0xb4 0x1e1 0x3de 0x78 0x1b1 0x3e4 0x3c 0x1af 0x3e8 0x0>;
+					phandle = <0xb6>;
+				};
+
+				sec_thermistor@1 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-pa-thermistor";
+					id = <0x1>;
+					io-channels = <0xffffffff 0x52>;
+					io-channel-names = "pa_therm";
+					io-channel-ranges;
+					use_iio_processed;
+					pinctrl-names = "default";
+					pinctrl-0 = <0x7>;
+					adc_array = <0x1cbfb 0x22ac3 0x28fa1 0x30476 0x38ac8 0x42dbd 0x4e436 0x5c3bd 0x6cc53 0x7f65c 0x922ef 0xa8c13 0xc1934 0xdcb56 0xf8594 0x11309d 0x12cd74 0x145951 0x15ce1e 0x171f2f 0x183b89 0x192ed5 0x19fcdf>;
+					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x0 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
+					phandle = <0xb7>;
+				};
+
+				sec_thermistor@2 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-wf-thermistor";
+					id = <0x2>;
+					io-channels = <0xffffffff 0x4f>;
+					io-channel-names = "wf_therm";
+					io-channel-ranges;
+					use_iio_processed;
+					adc_array = <0x1d721 0x22f94 0x29638 0x30a8b 0x393e8 0x4371e 0x4f01f 0x5d844 0x6d9c1 0x805d2 0x9342b 0xa9f15 0xc2c36 0xde162 0xf9b1e 0x11472b 0x12e2be 0x146e5a 0x15df9b 0x172f26 0x184a3c 0x193b40 0x1a0702>;
+					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x0 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
+					phandle = <0xb8>;
+				};
+
+				sec_thermistor@0 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-ap-thermistor";
+					id = <0x0>;
+					io-channels = <0xffffffff 0x4e>;
+					io-channel-names = "ap_therm";
+					io-channel-ranges;
+					use_iio_processed;
+					adc_array = <0x1b9fc 0x21a4a 0x27da3 0x2f2fa 0x37641 0x41770 0x4c711 0x59e7c 0x6b176 0x7dabd 0x900f9 0xa6be4 0xbf538 0xda615 0xf5e0b 0x110546 0x12abbf 0x143451 0x15b27e 0x1704d4 0x18257d 0x191e5c 0x19ef30>;
+					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x0 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
 					phandle = <0xb9>;
 				};
 
@@ -6810,7 +6810,7 @@
 				pins = "gpio5";
 				function = "normal";
 				bias-high-impedance;
-				phandle = <0x5>;
+				phandle = <0x7>;
 			};
 		};
 	};
@@ -6881,7 +6881,7 @@
 					pins = "gpio6";
 					function = "normal";
 					bias-high-impedance;
-					phandle = <0x6>;
+					phandle = <0x5>;
 				};
 			};
 
@@ -6891,7 +6891,7 @@
 					pins = "gpio7";
 					function = "normal";
 					bias-high-impedance;
-					phandle = <0x7>;
+					phandle = <0x6>;
 				};
 			};
 		};
@@ -9218,10 +9218,10 @@
 		hall = "/fragment@smd/__overlay__/samsung_mobile_device/hall_ic/hall";
 		fixed_regulator0 = "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@0";
 		fixed_regulator1 = "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@1";
+		sec_battery = "/fragment@smd/__overlay__/samsung_mobile_device/battery";
 		sec_pa_thermistor = "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@1";
 		sec_wf_thermistor = "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@2";
 		sec_ap_thermistor = "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@0";
-		sec_battery = "/fragment@smd/__overlay__/samsung_mobile_device/battery";
 		sm5714_charger = "/fragment@smd/__overlay__/samsung_mobile_device/sm5714-charger";
 		sec_battery_cable = "/fragment@smd/__overlay__/samsung_mobile_device/cable-info";
 		lpi_tlmm = "/fragment@0/__overlay__/lpi_pinctrl@33c0000";
@@ -9532,7 +9532,7 @@
 
 	__fixups__ {
 		tlmm = "/fragment@smd/__overlay__/samsung_mobile_device/dc_vibrator:dc_vib,gpio_en:0", "/fragment@smd/__overlay__/samsung_mobile_device/hall_ic/hall:gpios:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@0:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@1:gpio:0", "/fragment@6/__overlay__/qcom,mdss_dsi_rm69299_visionox_amoled_video:qcom,platform-te-gpio:0", "/fragment@7/__overlay__/qcom,mdss_dsi_rm69299_visionox_amoled_cmd:qcom,platform-te-gpio:0", "/fragment@20/__overlay__/qcom,dsi-display-primary:qcom,platform-te-gpio:0", "/fragment@30/__overlay__:cd-gpios:0", "/fragment@34/__overlay__/nq@28:qcom,nq-irq:0", "/fragment@34/__overlay__/nq@28:qcom,nq-ven:0", "/fragment@34/__overlay__/nq@28:qcom,nq-firm:0", "/fragment@34/__overlay__/nq@28:qcom,nq-clkreq:0", "/fragment@34/__overlay__/nq@28:interrupt-parent:0", "/fragment@35/__overlay__/synaptics_tcm@20:interrupt-parent:0", "/fragment@35/__overlay__/synaptics_tcm@20:synaptics,irq-gpio:0", "/fragment@35/__overlay__/synaptics_tcm@20:synaptics,reset-gpio:0", "/fragment@40:target:0", "/fragment@41/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD:qcom,platform-reset-gpio:0", "/fragment@44:target:0", "/fragment@45:target:0", "/fragment@model/__overlay__/i2c@30:gpios:0", "/fragment@model/__overlay__/i2c@30:gpios:12", "/fragment@46:target:0", "/fragment@47:target:0", "/fragment@48/__overlay__/sm5714@49:sm5714,irq-gpio:0", "/fragment@49/__overlay__/usbpd-sm5714@33:usbpd,usbpd_int:0", "/fragment@50:target:0", "/fragment@51:target:0", "/fragment@52:target:0", "/fragment@53:target:0", "/fragment@55/__overlay__/etspi,et7xx:etspi-sleepPin:0", "/fragment@56:target:0", "/fragment@57/__overlay__/sec-nfc@27:interrupt-parent:0", "/fragment@57/__overlay__/sec-nfc@27:sec-nfc,irq-gpio:0", "/fragment@57/__overlay__/sec-nfc@27:sec-nfc,ven-gpio:0", "/fragment@57/__overlay__/sec-nfc@27:sec-nfc,firm-gpio:0", "/fragment@57/__overlay__/sec-nfc@27:sec-nfc,clk_req-gpio:0", "/fragment@58:target:0", "/fragment@59/__overlay__/touchscreen@20:zinitix,irq_gpio:0", "/fragment@61/__overlay__/ss_dsi_panel_S6E3FC3_AMS646YD01_FHD:qcom,platform-reset-gpio:0", "/fragment@61/__overlay__/ss_dsi_panel_S6E3FC3_AMS646YD01_FHD:qcom,platform-te-gpio:0", "/fragment@61/__overlay__/ss_dsi_panel_S6E3FC3_AMS646YD01_FHD:samsung,ub-con-det:0", "/fragment@61/__overlay__/ss_dsi_panel_S6E3FC3_AMS646YD01_FHD:samsung,esd-irq-gpio1:0", "/fragment@64:target:0", "/fragment@65:target:0", "/fragment@66:target:0", "/fragment@67:target:0", "/fragment@79:target:0", "/fragment@116/__overlay__/fixed_regulator_mst_ldo:gpio:0", "/fragment@116/__overlay__/fixed_regulator_mot_ldo:gpio:0", "/fragment@116/__overlay__/fixed_regulator_rcam1_ldo:gpio:0", "/fragment@116/__overlay__/fixed_regulator_rcam2_ldo:gpio:0", "/fragment@116/__overlay__/fixed_regulator_rcam3_ldo:gpio:0", "/fragment@120/__overlay__/i2c@18:gpios:0", "/fragment@120/__overlay__/i2c@18:gpios:12", "/fragment@120/__overlay__/i2c@18/tas256x@4c:ti,reset-gpio:0", "/fragment@120/__overlay__/i2c@18/tas256x@4c:ti,irq-gpio:0", "/fragment@121/__overlay__:qcom,fm-lna-gpios:0", "/fragment@123:target:0", "/fragment@128:target:0", "/fragment@130:target:0", "/fragment@131/__overlay__/i2c@24:gpios:0", "/fragment@131/__overlay__/i2c@24:gpios:12", "/fragment@131/__overlay__/i2c@24/qcom,ois@62:gpios:0", "/fragment@131/__overlay__/i2c@24/qcom,ois@62:gpios:12", "/fragment@131/__overlay__/i2c@24/qcom,ois@62:gpios:24", "/fragment@132/__overlay__/sm5714-fled:flash-en-gpio:0", "/fragment@132/__overlay__/sm5714-fled:torch-en-gpio:0", "/fragment@133/__overlay__:gpios:0", "/fragment@133/__overlay__:gpios:12", "/fragment@133/__overlay__/qcom,cam-sensor@0:gpios:0", "/fragment@133/__overlay__/qcom,cam-sensor@0:gpios:12", "/fragment@133/__overlay__/qcom,cam-sensor@0:gpios:24", "/fragment@133/__overlay__/qcom,eeprom@37:gpios:0", "/fragment@133/__overlay__/qcom,eeprom@37:gpios:12", "/fragment@133/__overlay__/qcom,eeprom@37:gpios:24", "/fragment@134/__overlay__/qcom,cam-sensor@3:gpios:0", "/fragment@134/__overlay__/qcom,cam-sensor@3:gpios:12", "/fragment@134/__overlay__/qcom,cam-sensor@3:gpios:24", "/fragment@134/__overlay__/qcom,cam-sensor@2:gpios:0", "/fragment@134/__overlay__/qcom,cam-sensor@2:gpios:12", "/fragment@134/__overlay__/qcom,cam-sensor@2:gpios:24", "/fragment@134/__overlay__/qcom,cam-sensor@2:gpios:36", "/fragment@134/__overlay__/qcom,cam-sensor@4:gpios:0", "/fragment@134/__overlay__/qcom,cam-sensor@4:gpios:12", "/fragment@134/__overlay__/qcom,cam-sensor@4:gpios:24", "/fragment@134/__overlay__/qcom,cam-sensor@4:gpios:36", "/fragment@134/__overlay__/qcom,cam-sensor@1:gpios:0", "/fragment@134/__overlay__/qcom,cam-sensor@1:gpios:12", "/fragment@134/__overlay__/qcom,cam-sensor@13:gpios:0", "/fragment@134/__overlay__/qcom,cam-sensor@13:gpios:12", "/fragment@134/__overlay__/qcom,eeprom@0x2D:gpios:0", "/fragment@134/__overlay__/qcom,eeprom@0x2D:gpios:12", "/fragment@134/__overlay__/qcom,eeprom@0x2D:gpios:24", "/fragment@134/__overlay__/qcom,eeprom@0x2D:gpios:36", "/fragment@134/__overlay__/qcom,eeprom@0x3F:gpios:0", "/fragment@134/__overlay__/qcom,eeprom@0x3F:gpios:12", "/fragment@134/__overlay__/qcom,eeprom@0x3F:gpios:24", "/fragment@134/__overlay__/qcom,eeprom@0x3F:gpios:36", "/fragment@136/__overlay__/i2c@17:gpios:0", "/fragment@136/__overlay__/i2c@17:gpios:12", "/fragment@136/__overlay__/i2c@17/sx9360-i2c@28:interrupt-parent:0", "/fragment@136/__overlay__/i2c@17/sx9360-i2c@28:sx9360,nirq-gpio:0";
-		pm6150l_vadc = "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@1:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@2:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@0:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/battery:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/battery:io-channels:8", "/fragment@68:target:0", "/fragment@69:target:0", "/fragment@70:target:0", "/fragment@72:target:0", "/fragment@76:target:0";
+		pm6150l_vadc = "/fragment@smd/__overlay__/samsung_mobile_device/battery:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/battery:io-channels:8", "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@1:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@2:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@0:io-channels:0", "/fragment@68:target:0", "/fragment@69:target:0", "/fragment@70:target:0", "/fragment@72:target:0", "/fragment@76:target:0";
 		q6core = "/fragment@0:target:0", "/fragment@2/__overlay__:qcom,msm_audio_ssr_devs:4", "/fragment@3:target:0", "/fragment@119:target:0";
 		lpass_core_hw_vote = "/fragment@0/__overlay__/lpi_pinctrl@33c0000:clocks:0", "/fragment@1/__overlay__/tx-macro@3220000/tx_swr_master:clocks:0", "/fragment@1/__overlay__/rx-macro@3200000/rx_swr_master:clocks:0", "/fragment@1/__overlay__/wsa-macro@3240000/wsa_swr_master:clocks:0";
 		lpass_audio_hw_vote = "/fragment@0/__overlay__/lpi_pinctrl@33c0000:clocks:8", "/fragment@1/__overlay__/tx-macro@3220000/tx_swr_master:clocks:8", "/fragment@1/__overlay__/rx-macro@3200000/rx_swr_master:clocks:8", "/fragment@1/__overlay__/wsa-macro@3240000/wsa_swr_master:clocks:8", "/fragment@1/__overlay__/va-macro@3370000:clocks:0";
@@ -9714,12 +9714,12 @@
 						pinctrl-0 = <0x0>;
 					};
 
-					sec_thermistor@1 {
-						pinctrl-0 = <0x0>;
-					};
-
 					battery {
 						pinctrl-0 = <0x0 0x4>;
+					};
+
+					sec_thermistor@1 {
+						pinctrl-0 = <0x0>;
 					};
 				};
 			};

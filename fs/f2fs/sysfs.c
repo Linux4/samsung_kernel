@@ -19,7 +19,7 @@
 #include "gc.h"
 #include <trace/events/f2fs.h>
 
-#define SEC_BIGDATA_VERSION	(2)
+#define SEC_BIGDATA_VERSION	(3)
 
 static struct proc_dir_entry *f2fs_proc_root;
 
@@ -638,12 +638,13 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\","
 		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\","
 		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\","
-		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%u\","
-		"\"%s\":\"%u\",\"%s\":\"%u\"\n",
+		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\","
+		"\"%s\":\"%u\",\"%s\":\"%u\",\"%s\":\"%u\"\n",
 			"CP",		sbi->sec_stat.cp_cnt[STAT_CP_ALL],
 			"CPBG",		sbi->sec_stat.cp_cnt[STAT_CP_BG],
 			"CPSYNC",	sbi->sec_stat.cp_cnt[STAT_CP_FSYNC],
 			"CPNONRE",	sbi->sec_stat.cpr_cnt[CP_NON_REGULAR],
+			"CPCOMPR",	sbi->sec_stat.cpr_cnt[CP_COMPRESSED],
 			"CPSBNEED",	sbi->sec_stat.cpr_cnt[CP_SB_NEED_CP],
 			"CPWPINO",	sbi->sec_stat.cpr_cnt[CP_WRONG_PINO],
 			"CP_MAX_INT",	sbi->sec_stat.cp_max_interval,

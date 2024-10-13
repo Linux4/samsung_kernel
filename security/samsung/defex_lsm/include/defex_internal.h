@@ -45,7 +45,7 @@
 #define FEATURE_TRUSTED_MAP			(1 << 12)
 #define FEATURE_TRUSTED_MAP_SOFT		(1 << 13)
 #define FEATURE_INTEGRITY			(1 << 14)
-#define FEATURE_INTEGRITY_SOFT		(1 << 15)
+#define FEATURE_INTEGRITY_SOFT			(1 << 15)
 
 #define FEATURE_CLEAR_ALL			(0xFF0000)
 
@@ -174,6 +174,7 @@ struct defex_context {
 };
 
 extern const char unknown_file[];
+struct rule_item_struct;
 
 struct file *local_fopen(const char *fname, int flags, umode_t mode);
 int local_fread(struct file *f, loff_t offset, void *ptr, unsigned long bytes);
@@ -199,7 +200,7 @@ static inline void safe_str_free(void *ptr)
 /* Defex lookup API */
 /* -------------------------------------------------------------------------- */
 
-int rules_lookup(const char *target_file, int attribute, struct file *f);
+int rules_lookup(const char *target_file, int attribute, struct file *f, struct rule_item_struct **found_item);
 
 /* -------------------------------------------------------------------------- */
 /* Defex init API */

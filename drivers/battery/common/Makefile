@@ -2,7 +2,7 @@ obj-$(CONFIG_DIRECT_CHARGING)		+= sec_direct_charger.o
 
 ccflags-y := -Wformat
 
-obj-$(CONFIG_BATTERY_SAMSUNG)		+= sec_battery.o sec_battery_vote.o sec_battery_thermal.o sec_battery_dt.o sec_battery_ttf.o
+obj-$(CONFIG_BATTERY_SAMSUNG)		+= sec_battery.o sec_battery_vote.o sec_battery_thermal.o sec_battery_dt.o sec_battery_ttf.o sb_full_soc.o
 obj-$(CONFIG_BATTERY_SAMSUNG)	+= sec_core_sysfs.o sec_battery_sysfs.o sec_device_sysfs.o sec_event_sysfs.o
 obj-$(CONFIG_ENG_BATTERY_CONCEPT) += sec_eng_sysfs.o
 obj-$(CONFIG_OF)			+= sec_adc.o

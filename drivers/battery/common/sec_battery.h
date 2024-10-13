@@ -60,6 +60,7 @@
 
 #include "sec_battery_vote.h"
 #include "sec_adc.h"
+#include "sb_full_soc.h"
 
 extern char *sec_cable_type[];
 extern unsigned int lpcharge;
@@ -1193,6 +1194,8 @@ struct sec_battery_info {
 	struct sec_vote * chgen_vote;
 	struct sec_vote * topoff_vote;
 
+	struct sb_full_soc *fs;
+
 	/* 25w ta alert */
 	bool ta_alert_wa;
 	int ta_alert_mode;
@@ -1208,6 +1211,7 @@ struct sec_battery_info {
 	int batt_full_capacity;
 	bool usb_slow_chg;
 	bool usb_bootcomplete;
+	bool smart_sw_src;
 };
 
 /* event check */
@@ -1247,6 +1251,7 @@ extern void select_pdo(int num);
 extern int sec_pd_select_pps(int num, int ppsVol, int ppsCur);
 extern int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr);
 #endif
+extern int sec_pd_change_src(int max_cur);
 #if defined(CONFIG_BATTERY_CISD)
 extern int sec_pd_register_chg_info_cb(void *cb);
 #endif
@@ -1337,5 +1342,6 @@ void sec_bat_check_battery_health(struct sec_battery_info *battery);
 #endif
 bool sec_bat_hv_wc_normal_mode_check(struct sec_battery_info *battery);
 int sec_bat_get_dctp_info(struct sec_battery_info *battery);
+void sec_bat_smart_sw_src(struct sec_battery_info *battery, bool enable, int curr);
 
 #endif /* __SEC_BATTERY_H */
