@@ -1,9 +1,0 @@
-/* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 start*/
-&odm {
-	bat_id_adc: bat_id_adc {
-		compatible = "ss, bat_id_adc";
-		io-channels = <&auxadc 4>;
-		io-channel-names = "ss-battid";
-	};
-};
-/* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 end*/

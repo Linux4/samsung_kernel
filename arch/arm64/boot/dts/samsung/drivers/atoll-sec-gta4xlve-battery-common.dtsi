@@ -170,7 +170,7 @@
 		battery,siop_hv_input_limit_current_2nd = <550>;
 		battery,siop_hv_charging_limit_current = <1000>;
 
-		battery,ttf_hv_charge_current = <2600>;
+		battery,ttf_hv_charge_current = <2905>;
 
 		battery,rp_current_rp1 = <500>;
 		battery,rp_current_rp2 = <1500>;
@@ -208,24 +208,21 @@
 		battery,ignore_cisd_index = <0 960>; /* Do not use AFC_FAIL to DROP_VALUE */
 		battery,ignore_cisd_index_d = <0 120>; /* Do not use AFC_FAIL_PER_DAY to DROP_VALUE_PER_DAY */
 
-		battery,ttf_capacity = <5990>;
+		battery,ttf_capacity = <6899>;
 		battery,cv_data = <
-					2805	850	2241
-					2740	860	2151
-					2600	870	2061
-					2459	881	1971
-					2291	890	1875
-					2113	901	1755
-					1923	910	1653
-					1832	920	1541
-					1673	930	1408
-					1523	940	1265
-					1373	951	1091
-					1247	960	941
-					1088	970	740
-					922	980	522
-					980	990	236
-					680	1000	0
+					2771	800	2481
+					2489	820	2326
+					2196	840	2109
+					2073	850	1986
+					1757	870	1736
+					1450	890	1426
+					1311	900	1271
+					1003	920	868
+					761	940	341
+					649	970	93
+					648	980	62
+					641	990	31
+					624	1000	0
 					>;
 
 		io-channels = <&pm6150_vadc ADC_AMUX_THM3_PU2>, <&pm6150_vadc ADC_AMUX_THM1_PU2>, <&pm6150l_vadc ADC_GPIO3_PU2>;

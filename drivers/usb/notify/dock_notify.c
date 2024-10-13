@@ -217,22 +217,27 @@ skip:
 	return 0;
 }
 
-static int call_device_notify(struct usb_device *dev)
+static int call_device_notify(struct usb_device *dev, int connect)
 {
 	struct otg_notify *o_notify = get_otg_notify();
 
 	if (dev->bus->root_hub != dev) {
-		pr_info("%s device\n", __func__);
-		send_otg_notify(o_notify, NOTIFY_EVENT_DEVICE_CONNECT, 1);
+		if (connect) {
+			pr_info("%s device\n", __func__);
+			send_otg_notify(o_notify, NOTIFY_EVENT_DEVICE_CONNECT, 1);
 
-		if (check_gamepad_device(dev))
-			send_otg_notify(o_notify,
-				NOTIFY_EVENT_GAMEPAD_CONNECT, 1);
-		else if (check_lanhub_device(dev))
-			send_otg_notify(o_notify,
-				NOTIFY_EVENT_LANHUB_CONNECT, 1);
+			if (check_gamepad_device(dev))
+				send_otg_notify(o_notify,
+					NOTIFY_EVENT_GAMEPAD_CONNECT, 1);
+			else if (check_lanhub_device(dev))
+				send_otg_notify(o_notify,
+					NOTIFY_EVENT_LANHUB_CONNECT, 1);
 		else
 			;
+		} else {
+			send_otg_notify(o_notify,
+				NOTIFY_EVENT_DEVICE_CONNECT, 0);
+		}
 	} else
 		pr_info("%s root hub\n", __func__);
 
@@ -382,15 +387,18 @@ static int dev_notify(struct notifier_block *self,
 {
 	switch (action) {
 	case USB_DEVICE_ADD:
-		call_device_notify(dev);
+		call_device_notify(dev, 1);
 		call_battery_notify(dev, 1);
 		check_device_speed(dev, 1);
 		update_hub_autosuspend_timer(dev);
 #if defined(CONFIG_USB_HW_PARAM)
 		set_hw_param(dev);
 #endif
+		check_usbaudio(dev);
+		check_usbgroup(dev);
 		break;
 	case USB_DEVICE_REMOVE:
+		call_device_notify(dev, 0);
 		call_battery_notify(dev, 0);
 		check_device_speed(dev, 0);
 		break;
