@@ -1,0 +1,22 @@
+diff --git a/gcc-4.8.3/gcc/cp/cfns.h b/gcc-4.8.3/gcc/cp/cfns.h
+index c845ddf08..674c40d8a 100644
+--- a/gcc-4.8.3/gcc/cp/cfns.h
++++ b/gcc-4.8.3/gcc/cp/cfns.h
+@@ -125,7 +125,16 @@ hash (register const char *str, register unsigned int len)
+ #ifdef __GNUC__
+ __inline
+ #ifdef __GNUC_STDC_INLINE__
+-__attribute__ ((__gnu_inline__))
++/* When built with a recent GCC, this gnu_inline breaks our build:
++ * error: ‘const char* libc_name_p(const char*, unsigned int)’ redeclared inline
++ * with ‘gnu_inline’ attribute
++ *
++ * (With the previous declaration being above)
++ *
++ * Since gnu_inline appears optional here (as it should be), remove it.
++ *
++ * __attribute__ ((__gnu_inline__))
++ */
+ #endif
+ #endif
+ const char *

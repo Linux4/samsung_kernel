@@ -1,0 +1,2 @@
+# x55_sec_eng_defconfig
+CONFIG_SEC_FORCE_ERR=y

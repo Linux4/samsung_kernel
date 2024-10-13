@@ -1,0 +1,13 @@
+DEFCONFIG=gki_defconfig
+POST_DEFCONFIG_CMDS="check_defconfig"
+
+# M55 code for P240117-06821 by tangxiaoxing at 20240206 start
+function update_cpu_freq_gov_config() {
+ ${KERNEL_DIR}/scripts/config --file ${OUT_DIR}/.config \
+ -d CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL \
+ -e CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE
+ (cd ${OUT_DIR} && \
+ make ${CC_LD_ARG} O=${OUT_DIR} olddefconfig)
+}
+append_cmd POST_DEFCONFIG_CMDS "update_cpu_freq_gov_config"
+# M55 code for P240117-06821 by tangxiaoxing at 20240206 start

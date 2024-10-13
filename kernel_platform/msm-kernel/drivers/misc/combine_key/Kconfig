@@ -1,0 +1,5 @@
+config TRIGGER_CRASH_BY_KEY
+  	tristate "Enable trigger crash by keys"
+	  help
+	    You can trigger crash by pressing keys in strict order:
+	    VOLUMEUP twice + VOLUMEDOWN twice + POWER twice.

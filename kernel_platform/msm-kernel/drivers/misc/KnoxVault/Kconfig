@@ -1,0 +1,5 @@
+config KNOXVAULT_POWER
+    tristate "regulatore control of KnoxVault2"
+    help
+      Say m here if you have a KnoxVault2.
+      If unsure, say N.

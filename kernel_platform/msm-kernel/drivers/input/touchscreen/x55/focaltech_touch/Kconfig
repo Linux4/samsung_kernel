@@ -1,0 +1,17 @@
+#
+# Focaltech Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_FTS_I2C
+    tristate "Focaltech Touchscreen"
+    help
+      Say Y here if you have Focaltech touch panel.
+      If unsure, say N.
+
+config FTS_I2C_TRUSTED_TOUCH
+    bool "Focaltech Trusted Touch"
+    depends on TOUCHSCREEN_FTS_I2C
+    help
+      Say Y here to enable Focaltech Trusted Touch.
+      If unsure, say N.
+

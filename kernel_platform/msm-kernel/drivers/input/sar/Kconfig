@@ -1,0 +1,11 @@
+# M55 code for SR-QN6887A-01-458 by lichang at 20230911 start
+config INPUT_SAR
+    tristate "Support for sar"
+    help
+      Say Y here if you have sar driver.
+# M55 code for SR-QN6887A-01-458 by lichang at 20230911 end
+
+config SAR_SENSOR
+    tristate "Support for sx933x sar"
+    help
+      Say Y here if you have sar driver.

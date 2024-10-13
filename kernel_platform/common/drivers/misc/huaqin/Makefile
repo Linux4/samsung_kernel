@@ -1,0 +1,1 @@
+obj-y += crash_record.o

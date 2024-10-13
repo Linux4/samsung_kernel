@@ -1,0 +1,75 @@
+Common_CFlags = ["-Wall"]
+Common_CFlags += ["-Werror"]
+
+soong_config_module_type {
+    name: "vibrator_cc_defaults",
+    module_type: "cc_defaults",
+    config_namespace: "vibrator",
+    variables: ["vibratortargets"],
+    properties: ["shared_libs"],
+}
+
+soong_config_string_variable {
+    name: "vibratortargets",
+    values: ["vibratoraidlV2platformtarget", "vibratoraidlV2target"],
+}
+
+vibrator_cc_defaults {
+    name: "vibrator_defaults",
+    soong_config_variables: {
+        vibratortargets: {
+            vibratoraidlV2platformtarget: {
+                 shared_libs: [
+                       "android.hardware.vibrator-V2-ndk_platform",
+                  ],
+            },
+            vibratoraidlV2target: {
+                 shared_libs: [
+                       "android.hardware.vibrator-V2-ndk",
+                  ],
+            },
+        },
+    },
+}
+
+
+cc_library_shared {
+    name: "vendor.qti.hardware.vibrator.impl",
+    defaults: ["vibrator_defaults"],
+    vendor: true,
+    cflags: Common_CFlags,
+    srcs: [
+        "Vibrator.cpp",
+    ],
+    shared_libs: [
+        "libcutils",
+        "libutils",
+        "liblog",
+        "libqtivibratoreffect",
+        "libsoc_helper",
+        "libbinder_ndk",
+    ],
+    export_include_dirs: ["include"]
+}
+
+cc_binary {
+    name: "vendor.qti.hardware.vibrator.service",
+    defaults: ["vibrator_defaults"],
+    vendor: true,
+    relative_install_path: "hw",
+    init_rc: ["vendor.qti.hardware.vibrator.service.rc"],
+    vintf_fragments: [
+        "vendor.qti.hardware.vibrator.service.xml",
+    ],
+    cflags: Common_CFlags,
+    srcs: [
+        "service.cpp",
+    ],
+    shared_libs: [
+        "libcutils",
+        "libutils",
+        "libbase",
+        "libbinder_ndk",
+        "vendor.qti.hardware.vibrator.impl",
+    ],
+}

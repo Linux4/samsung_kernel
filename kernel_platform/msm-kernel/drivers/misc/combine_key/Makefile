@@ -1,0 +1,1 @@
+obj-$(CONFIG_TRIGGER_CRASH_BY_KEY)     := combine_key.o

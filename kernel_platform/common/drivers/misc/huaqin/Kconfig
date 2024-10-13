@@ -1,0 +1,4 @@
+config RECORD_CRASH_INFO
+    tristate "record crash info"
+    help
+      record crash info for display

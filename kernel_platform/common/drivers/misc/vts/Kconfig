@@ -1,0 +1,4 @@
+config VTS_TEST
+    tristate "vts test"
+    help
+      vts test for camera

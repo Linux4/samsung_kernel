@@ -1,0 +1,41 @@
+#
+# Generate for samsung config
+#
+
+config ARCH_X55
+	bool "Enable Support for Qualcomm Technologies, Inc. DIWALI"
+	depends on ARCH_QCOM
+	help
+	  This enables support for the Qualcomm Technologies, Inc.'s
+	  DIWALI chipset. If you do not wish to build a kernel that
+	  runs on this chipset or if you are unsure, say 'N' here.
+
+config CUSTOM_FACTORY_BUILD
+	bool "Enable custom factory build"
+
+config CUSTOM_D85_BUILD
+	bool "Enable custom D85 build"
+
+# M55 code for SR-QN6887A-01-321 by gaochao at 20230811 start
+config CUSTOM_SPI_SPIDEV
+	tristate "User mode SPI device driver support"
+	help
+	  This supports user mode SPI protocol drivers.
+
+	  Note that this application programming interface is EXPERIMENTAL
+	  and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
+# M55 code for SR-QN6887A-01-321 by gaochao at 20230811 end
+
+# M55 code for SR-QN6887A-01-548 by xiongxiaoliang at 20230814 start
+config OEM_GLINK_CHARGER
+	tristate "OEM GXY glink charger"
+	help
+	  To compile the driver as a module, choose M here: the module will be
+	  called gxy_glink.
+
+config OEM_PSY_CHARGER
+	tristate "OEM PSY battery charger"
+	help
+	  To compile the driver as a module, choose M here: the module will be
+	  called gxy_psy_sysfs.
+# M55 code for SR-QN6887A-01-548 by xiongxiaoliang at 20230814 end

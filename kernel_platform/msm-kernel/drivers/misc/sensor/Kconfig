@@ -1,0 +1,3 @@
+config SENSOR_ADSP
+    tristate "sensor adsp config"
+    default m

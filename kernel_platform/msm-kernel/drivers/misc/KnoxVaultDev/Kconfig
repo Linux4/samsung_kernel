@@ -1,0 +1,5 @@
+config I2C_KNOXVAULTDEV
+    tristate "regulatore control of I2C_KNOXVAULTDEV"
+    help
+      Say m here if you have a I2C_KNOXVAULTDEV.
+      If unsure, say N.

@@ -1,0 +1,12 @@
+#
+# Goodix touchscreen driver configuration
+#
+menuconfig TOUCHSCREEN_GOODIX_BRL_I2C
+    tristate "Goodix berlin touchscreen"
+    help
+      Say Y here if you have a Goodix berlin series touch controller
+      to your system.
+
+      If build module, say M.
+      If unsure, say N.
+

@@ -1,0 +1,11 @@
+#
+# for huaqin mis info
+#
+
+config HQ_SIM_TRAY_CHECK
+	tristate "check sim stry status"
+	help
+	  this will create a node to show sim tray status.
+
+	  If unsure, say N.
+
