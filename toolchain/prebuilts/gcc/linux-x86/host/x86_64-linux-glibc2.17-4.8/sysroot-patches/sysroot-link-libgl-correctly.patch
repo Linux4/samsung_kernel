@@ -1,0 +1,13 @@
+libGL.so was symlinked to itself. Unsurprisingly, this breaks things. Link it to
+mesa/ instead.
+
+-----
+diff --git a/usr/lib/libGL.so b/usr/lib/libGL.so
+index fc3a03e..e898a5b 120000
+--- a/usr/lib/libGL.so
++++ b/usr/lib/libGL.so
+@@ -1 +1 @@
+-libGL.so
+\ No newline at end of file
++mesa/libGL.so
+\ No newline at end of file
