@@ -1,6 +1,0 @@
-#ifndef IMGSENSOR_EEPROM_REAR_IMX582_GC5035_V001_H
-#define IMGSENSOR_EEPROM_REAR_IMX582_GC5035_V001_H
-#include "imgsensor_vendor_specific.h"
-
-extern const struct imgsensor_vendor_rom_addr rear_imx582_gc5035_cal_addr;
-#endif /*IMGSENSOR_EEPROM_REAR_IMX582_GC5035_V001_H*/
