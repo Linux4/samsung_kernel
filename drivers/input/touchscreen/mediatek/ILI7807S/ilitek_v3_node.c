@@ -1940,6 +1940,12 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 	} else if (strncmp(cmd, "iow", strlen(cmd)) == 0) {
 		int w_len = 0;
 		w_len = data[1];
+// +S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
+		if (w_len > 255) {
+			ILI_ERR("w_len is unused.\n");
+			goto out;
+		}
+// -S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
 		ILI_INFO("w_len = %d\n", w_len);
 		for (i = 0; i < w_len; i++) {
 			temp[i] = data[2 + i];
@@ -1950,6 +1956,12 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 	} else if (strncmp(cmd, "ior", strlen(cmd)) == 0) {
 		int r_len = 0;
 		r_len = data[1];
+// +S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
+		if (r_len > 255) {
+			ILI_ERR("r_len is unused.\n");
+			goto out;
+		}
+// -S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
 		ILI_INFO("r_len = %d\n", r_len);
 		ilits->wrapper(NULL, 0, temp, r_len, ON, OFF);
 		for (i = 0; i < r_len; i++)
@@ -1960,6 +1972,16 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 		w_len = data[1];
 		r_len = data[2];
 		delay = data[3];
+// +S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
+		if (w_len > 255) {
+			ILI_ERR("w_len is unused.\n");
+			goto out;
+		}
+		if (r_len > 255) {
+			ILI_ERR("r_len is unused.\n");
+			goto out;
+		}
+// -S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
 		ILI_INFO("w_len = %d, r_len = %d, delay = %d\n", w_len, r_len, delay);
 
 		for (i = 0; i < w_len; i++) {
@@ -1978,6 +2000,16 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 		w_len = data[1];
 		r_len = data[2];
 		delay = data[3];
+// +S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
+		if (w_len > 255) {
+			ILI_ERR("w_len is unused.\n");
+			goto out;
+		}
+		if (r_len > 255) {
+			ILI_ERR("r_len is unused.\n");
+			goto out;
+		}
+// -S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
 		ILI_INFO("w_len = %d, r_len = %d, delay = %d\n", w_len, r_len, delay);
 		for (i = 0; i < w_len; i++) {
 			temp[i] = data[4 + i];
@@ -2019,6 +2051,12 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 		int wlen;
 		wlen = data[1];
 		temp[0] = 0x82;
+// +S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
+		if (wlen > 255) {
+			ILI_ERR("wlen is unused.\n");
+			goto out;
+		}
+// -S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
 		for (i = 0; i < wlen; i++) {
 			temp[i] = data[2 + i];
 			ILI_INFO("write[%d] = %x\n", i, temp[i]);
@@ -2028,6 +2066,12 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 		int rlen;
 		u8 *rbuf = NULL;
 		rlen = data[1];
+// +S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
+		if (rlen > 255) {
+			ILI_ERR("rlen is unused.\n");
+			goto out;
+		}
+// -S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
 		rbuf = kzalloc(rlen, GFP_KERNEL | GFP_DMA);
 		if (ERR_ALLOC_MEM(rbuf)) {
 			ILI_ERR("Failed to allocate dma_rxbuf, %ld\n", PTR_ERR(rbuf));
@@ -2044,6 +2088,16 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 		u8 *rbuf = NULL;
 		wlen = data[1];
 		rlen = data[2];
+// +S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
+		if (wlen > 255) {
+			ILI_ERR("wlen is unused.\n");
+			goto out;
+		}
+		if (rlen > 255) {
+			ILI_ERR("rlen is unused.\n");
+			goto out;
+		}
+// -S96901AA1 lihesong.wt,add,20230922,add OOB read/write vulnerability
 		for (i = 0; i < wlen; i++) {
 			temp[i] = data[3 + i];
 			ILI_INFO("write[%d] = %x\n", i, temp[i]);

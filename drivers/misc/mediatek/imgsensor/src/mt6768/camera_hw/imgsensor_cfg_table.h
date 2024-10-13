@@ -14,7 +14,7 @@
 
 
 #define IMGSENSOR_HW_POWER_INFO_MAX	12
-#define IMGSENSOR_HW_SENSOR_MAX_NUM	8
+#define IMGSENSOR_HW_SENSOR_MAX_NUM	16
 
 enum IMGSENSOR_HW_PIN {
 	IMGSENSOR_HW_PIN_NONE = 0,
@@ -23,6 +23,9 @@ enum IMGSENSOR_HW_PIN {
 	IMGSENSOR_HW_PIN_AVDD,
 	IMGSENSOR_HW_PIN_DVDD,
 	IMGSENSOR_HW_PIN_DOVDD,
+	//+S96818AA1-1936,liudijin.wt,ADD,2023/07/22,add avdd ldo supprot for main sensor.
+	IMGSENSOR_HW_PIN_AVDD_2V8,
+	//-S96818AA1-1936,liudijin.wt,ADD,2023/07/22,add avdd ldo supprot for main sensor.
 	IMGSENSOR_HW_PIN_AFVDD,
 #ifdef MIPI_SWITCH
 	IMGSENSOR_HW_PIN_MIPI_SWITCH_EN,
@@ -56,6 +59,10 @@ enum IMGSENSOR_HW_PIN_STATE {
 #define	AVDD   IMGSENSOR_HW_PIN_AVDD
 #define	DVDD   IMGSENSOR_HW_PIN_DVDD
 #define	DOVDD  IMGSENSOR_HW_PIN_DOVDD
+//+S96818AA1-1936,liudijin.wt,ADD,2023/07/22,add avdd ldo supprot for main sensor.
+#define AVDD_2V8    IMGSENSOR_HW_PIN_AVDD_2V8
+//-S96818AA1-1936,liudijin.wt,ADD,2023/07/22,add avdd ldo supprot for main sensor.
+
 #define	AFVDD  IMGSENSOR_HW_PIN_AFVDD
 #define	VDD_None  IMGSENSOR_HW_PIN_NONE
 

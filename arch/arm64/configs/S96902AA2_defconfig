@@ -60,7 +60,7 @@ CONFIG_NL80211_TESTMODE=y
 CONFIG_CFG80211_DEVELOPER_WARNINGS=y
 # CONFIG_CFG80211_DEFAULT_PS is not set
 # CONFIG_UEVENT_HELPER is not set
-CONFIG_EXTRA_FIRMWARE="valhall-1691526.wa AbovCapSenseLA.BIN focaltech_ft8722_fw_txd.bin sipa.bin"
+CONFIG_EXTRA_FIRMWARE="valhall-1691526.wa AbovCapSenseLA.BIN focaltech_ft8722_fw_txd.bin sipa.bin focaltech_ft8722_fw_sharp_txd.bin"
 CONFIG_EXTRA_FIRMWARE_DIR="firmware"
 # CONFIG_FW_CACHE is not set
 CONFIG_ZRAM=y

@@ -42,7 +42,8 @@ extern char *saved_command_line;
 #define FTS_FW_REQUEST_SUPPORT                      1
 /* Example: focaltech_ts_fw_tianma.bin */
 #define FTS_FW_NAME_PREX_WITH_REQUEST               "focaltech_ft8722_fw_txd"
-#define FTS_FW_NAME_PREX_WITH_REQUEST_TEM               "focaltech_ft8722_fw_truly"
+#define FTS_FW_NAME_PREX_WITH_REQUEST_TEM           "focaltech_ft8722_fw_truly"
+#define FTS_FW_NAME_PREX_WITH_REQUEST_SHARP         "focaltech_ft8722_fw_sharp_txd"
 #define FTS_READ_BOOT_ID_TIMEOUT                    3
 #define FTS_FLASH_PACKET_LENGTH_SPI_LOW             (4 * 1024 - 4)
 #define FTS_FLASH_PACKET_LENGTH_SPI                 (32 * 1024 - 16)
@@ -688,12 +689,14 @@ static int fts_fw_write_start(const u8 *buf, u32 len, bool need_reset)
 
     ret = fts_read_reg(FTS_REG_FW_VER, &fwver);
     FTS_INFO("fts_tpfwver_show fw_version is : 0x0%d\n",fwver);
-	if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")){
+	if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd_sharp")){
+		sprintf(Ctp_name,"TXD_SHARP,FT8722,FW:0x0%d\n",fwver);
+	} else if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")){
 		sprintf(Ctp_name,"TXD,FT8722,FW:0x0%d\n",fwver);
 	}else if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_truly")){
 		sprintf(Ctp_name,"TRULY,FT8722,FW:0x0%d\n",fwver);
 	}
-    
+
 
     return 0;
 }
@@ -909,7 +912,10 @@ int fts_fw_resume(bool need_reset)
     }
 
     if (FTS_FW_REQUEST_SUPPORT) {
-        if(strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")){
+		if(strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd_sharp")){
+			snprintf(fwname, FILE_NAME_LENGTH, "%s.bin", \
+				 FTS_FW_NAME_PREX_WITH_REQUEST_SHARP);
+        } else if(strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")){
         snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
                  FTS_FW_NAME_PREX_WITH_REQUEST, upg->module_info->vendor_name);
 		}else if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_truly")){
@@ -1039,16 +1045,19 @@ static int fts_get_fw_file_via_request_firmware(struct fts_upgrade *upg)
     const struct firmware *fw = NULL;
     u8 *tmpbuf = NULL;
     char fwname[FILE_NAME_LENGTH] = { 0 };
-	if(strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")){
+	if(strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd_sharp")){
+        snprintf(fwname, FILE_NAME_LENGTH, "%s.bin", \
+             FTS_FW_NAME_PREX_WITH_REQUEST_SHARP);
+	} else if(strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")){
         snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
              FTS_FW_NAME_PREX_WITH_REQUEST, \
              upg->module_info->vendor_name);
-		}else if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_truly")){
+	}else if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_truly")){
 		snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
              FTS_FW_NAME_PREX_WITH_REQUEST_TEM, \
              upg->module_info->vendor_name);
-		}
-   // msleep(1800);
+	}
+    //msleep(1800);
     ret = request_firmware(&fw, fwname, upg->ts_data->dev);
     if (0 == ret) {
         FTS_INFO("firmware(%s) request successfully", fwname);

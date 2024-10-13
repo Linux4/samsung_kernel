@@ -997,9 +997,15 @@ static void set_tc_trigger_hw_protect
 
 	offset = tscpu_g_tc[tc_num].tc_offset;
 
+	/* set temp offset to 0x3FF to avoid interrupt false triggered */
+	mt_reg_sync_writel(
+			readl(offset + TEMPPROTCTL) | 0x3FF,
+				offset + TEMPPROTCTL);
+
 	/* temperature2=80000;  test only */
 	tscpu_dprintk("set_tc_trigger_hw_protect t1=%d t2=%d\n",
 					temperature, temperature2);
+
 
 	if (tscpu_g_tc[tc_num].dominator_ts_idx <
 		tscpu_g_tc[tc_num].ts_number){
@@ -1033,6 +1039,10 @@ static void set_tc_trigger_hw_protect
 
 	/* enable trigger Hot SPM interrupt */
 	mt_reg_sync_writel(temp | 0x80000000, offset + TEMPMONINT);
+	/* clear temp offset */
+	mt_reg_sync_writel(
+			readl(offset + TEMPPROTCTL) & ~0xFFF,
+				offset + TEMPPROTCTL);
 }
 
 static int read_tc_raw_and_temp(

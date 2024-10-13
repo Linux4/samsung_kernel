@@ -42,4 +42,8 @@ obj-$(CONFIG_SX9375_SAR) += sx9375_sar/
 obj-$(CONFIG_HX9023S_SAR) += hx9023_sar/
 obj-$(CONFIG_HX9031AS_SAR) += hx9031as_sar/
 
+#+S96818AA1-1936, liuling3.wt,ADD, 2023/06/05, sar sx9338 & sx9328 bringup
+obj-$(CONFIG_SX9338_SAR) += sx9338_sar/
+obj-$(CONFIG_SX9328_SAR) += sx9328_sar/
+#-S96818AA1-1936, liuling3.wt,ADD, 2023/06/05, sar sx9338 & sx9328 bringup
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/performance/include/

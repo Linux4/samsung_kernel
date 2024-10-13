@@ -336,27 +336,40 @@ static ssize_t sensors_max_latency_show(struct device *dev,
 		"%u\n", sensors_cdev->max_latency);
 }
 
-static ssize_t sensors_grip_flush_store(struct device *dev,
+static ssize_t sensors_flush_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
-	ssize_t ret = 0;
-	unsigned char handle = 0;
+	ssize_t ret = -EINVAL;
+	unsigned char data = 0;
 
-	ret = kstrtou8(buf, 10, &handle);
-	if (ret < 0) {
-		dev_err(dev, "Flush: Invalid value of input, input=%ld\n", ret);
-		return -EINVAL;
-	}
+	ret = kstrtou8(buf, 10, &data);
+	if (ret)
+		return ret;
 
-	if (sensors_cdev->sensors_flush == NULL) {
+//+S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal
+    if (sensors_cdev->sensors_flush == NULL) {
 		dev_err(dev, "Invalid sensor class flush handle\n");
 		return -EINVAL;
 	}
-	sensors_cdev->sensors_flush(sensors_cdev, handle);
-	dev_err(dev, "%s -flush \n", __func__);
+
+    ret = sensors_cdev->sensors_flush(sensors_cdev, data);
+//-S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal
+	if (ret)
+		return ret;
 
 	return size;
+}
+
+static ssize_t sensors_flush_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE,
+		"Flush handler %s\n",
+			(sensors_cdev->sensors_flush == NULL)
+				? "not exist" : "exist");
 }
 
 static ssize_t sensors_enable_wakeup_store(struct device *dev,
@@ -476,7 +489,9 @@ static DEVICE_ATTR(poll_delay, 0664, sensors_delay_show, sensors_delay_store);
 static DEVICE_ATTR(self_test, 0440, sensors_test_show, NULL);
 static DEVICE_ATTR(max_latency, 0660, sensors_max_latency_show,
 	sensors_max_latency_store);
-static DEVICE_ATTR(grip_flush, 0220, NULL, sensors_grip_flush_store);
+//+S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal
+static DEVICE_ATTR(grip_flush, 0660, NULL, sensors_flush_store);
+//-S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal
 static DEVICE_ATTR(calibrate, 0664, sensors_calibrate_show,
 	sensors_calibrate_store);
 
@@ -499,7 +514,9 @@ static struct attribute *sensors_class_attrs[] = {
 	&dev_attr_poll_delay.attr,
 	&dev_attr_self_test.attr,
 	&dev_attr_max_latency.attr,
+//+S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal
 	&dev_attr_grip_flush.attr,
+//-S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal
 	&dev_attr_calibrate.attr,
 	NULL,
 };

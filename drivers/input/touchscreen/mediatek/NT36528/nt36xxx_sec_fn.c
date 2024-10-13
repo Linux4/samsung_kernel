@@ -28,7 +28,10 @@
 #define FREQ_HOP_DISABLE	0x66
 #define FREQ_HOP_ENABLE		0x65
 #define HANDSHAKING_HOST_READY	0xBB
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/20,n28-nt36528 Modify sensitivity&&charger bit failure after screen extinction
+#define CHARGER_PLUG_OFF		0x51
+#define CHARGER_PLUG_AC			0x53
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/20,n28-nt36528 Modify sensitivity&&charger bit failure after screen extinction
 #define GLOVE_ENTER				0xB1
 #define GLOVE_LEAVE				0xB2
 #define HOLSTER_ENTER			0xB5
@@ -64,6 +67,7 @@ typedef enum {
 	SLEEP_IN = 8,
 	SLEEP_OUT = 9,
 #endif
+	SET_EARPHONE_MODE = 12,
 } EXTENDED_CUSTOMIZED_CMD_TYPE;
 
 typedef enum {
@@ -104,45 +108,49 @@ typedef enum {
 #define OPEN_SHORT_TEST		1
 #define CHECK_ONLY_OPEN_TEST	1
 #define CHECK_ONLY_SHORT_TEST	2
-
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
 typedef enum {
 	GLOVE = 1,
+	CHARGER,
 #if PROXIMITY_FUNCTION
 	PROXIMITY = 3,
 #endif
 	HOLSTER = 4,
+	EARPHONE,
 	EDGE_REJECT_L = 6,
 	EDGE_REJECT_H,
 	EDGE_PIXEL,
 	HOLE_PIXEL,
 	SPAY_SWIPE,
 	DOUBLE_CLICK,
-	SENSITIVITY,
 	BLOCK_AREA,
+	SENSITIVITY = 14,
 	FUNCT_MAX,
 } FUNCT_BIT;
 
 typedef enum {
-	GLOVE_MASK		= 0x0002,	// bit 1
+	GLOVE_MASK			= 0x0002,	// bit 1
+	CHARGER_MASK		= 0x0004,	// bit 2
 #if PROXIMITY_FUNCTION
-	PROXIMITY_MASK	= 0x0008,	// bit 3
+	PROXIMITY_MASK		= 0x0008,	// bit 3
 #endif
-	HOLSTER_MASK = 0x0010,	//bit 4
+	HOLSTER_MASK 		= 0x0010,	// bit 4
+	EARPHONE_MASK		= 0x0020,   // bit 5
 	EDGE_REJECT_MASK 	= 0x00C0,	// bit [6|7]
 	EDGE_PIXEL_MASK		= 0x0100,	// bit 8
 	HOLE_PIXEL_MASK		= 0x0200,	// bit 9
 	SPAY_SWIPE_MASK		= 0x0400,	// bit 10
 	DOUBLE_CLICK_MASK	= 0x0800,	// bit 11
-	SENSITIVITY_MASK	= 0x4000,	// bit 14
 	BLOCK_AREA_MASK		= 0x1000,	// bit 12
-	NOISE_MASK			= 0x2000,
+	NOISE_MASK			= 0x2000,	// bit 13
+	SENSITIVITY_MASK	= 0x4000,	// bit 14
 #if PROXIMITY_FUNCTION
-	FUNCT_ALL_MASK		= 0x7FDA,
+	FUNCT_ALL_MASK		= 0x7FFE,
 #else
-	FUNCT_ALL_MASK		= 0x7FD2,
+	FUNCT_ALL_MASK		= 0x7FF6,
 #endif
 } FUNCT_MASK;
-
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
 enum {
 	BUILT_IN = 0,
 	UMS,
@@ -1876,6 +1884,15 @@ int nvt_ts_mode_restore(struct nvt_ts_data *ts)
 				else
 					cmd = GLOVE_LEAVE;
 				break;
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/20,n28-nt36528 Modify sensitivity&&charger bit failure after screen extinction
+			case CHARGER:
+				if (ts->sec_function & CHARGER_MASK) {
+					cmd = CHARGER_PLUG_AC;
+				} else {
+					cmd = CHARGER_PLUG_OFF;
+				}
+				break;
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/20,n28-nt36528 Modify sensitivity&&charger bit failure after screen extinction
 #if PROXIMITY_FUNCTION
 			case PROXIMITY:
 				if ((ts->sec_function & PROXIMITY_MASK) && (ts->ear_detect_enable)) {
@@ -1901,6 +1918,22 @@ int nvt_ts_mode_restore(struct nvt_ts_data *ts)
 					cmd_list[3] = 0x00;
 				}
 				break;
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
+			case EARPHONE:
+				if (ts->sec_function & EARPHONE_MASK) {
+					cmd_list[0] = EVENT_MAP_HOST_CMD;
+					cmd_list[1] = EXTENDED_CUSTOMIZED_CMD;
+					cmd_list[2] = SET_EARPHONE_MODE;
+					cmd_list[3] = 0x01;
+				}
+				else {
+					cmd_list[0] = EVENT_MAP_HOST_CMD;
+					cmd_list[1] = EXTENDED_CUSTOMIZED_CMD;
+					cmd_list[2] = SET_EARPHONE_MODE;
+					cmd_list[3] = 0x00;
+				}
+				break;
+/* -S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
 /*
 			case EDGE_REJECT_L:
 				i++;
@@ -1949,12 +1982,22 @@ int nvt_ts_mode_restore(struct nvt_ts_data *ts)
 					cmd = BLOCK_AREA_LEAVE;
 				break;
 */
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/20,n28-nt36528 Modify sensitivity&&charger bit failure after screen extinction
 			case SENSITIVITY:
-				if (ts->sec_function & SENSITIVITY_MASK)
-					cmd = SENSITIVITY_ENTER;
-				else
-					cmd = SENSITIVITY_LEAVE;
+				if (ts->sec_function & SENSITIVITY_MASK) {
+					cmd_list[0] = EVENT_MAP_HOST_CMD;
+					cmd_list[1] = EXTENDED_CUSTOMIZED_CMD;
+					cmd_list[2] = SET_HIGH_SENSITIVITY_MODE;
+					cmd_list[3] = HIGH_SENSITIVITY_ENABLE;
+				}
+				else {
+					cmd_list[0] = EVENT_MAP_HOST_CMD;
+					cmd_list[1] = EXTENDED_CUSTOMIZED_CMD;
+					cmd_list[2] = SET_HIGH_SENSITIVITY_MODE;
+					cmd_list[3] = HIGH_SENSITIVITY_DISABLE;
+				}
 				break;
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/20,n28-nt36528 Modify sensitivity&&charger bit failure after screen extinction
 			default:
 				continue;
 			}
@@ -2257,6 +2300,115 @@ out:
 
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 }
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
+/*
+ *	cmd_param
+ *		[0], 0 disable set earphone mode
+ *		     1 enable set earphone mode
+ */
+static void set_earphone_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct nvt_ts_data *ts = container_of(sec, struct nvt_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	u8 mode;
+	u8 buf[4];
+	int reti;
+
+	sec_cmd_set_default_result(sec);
+
+	if (ts->power_status == POWER_OFF_STATUS) {
+		input_err(true, &ts->client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
+		goto out;
+	}
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		input_err(true, &ts->client->dev, "%s: invalid parameter %d\n",
+			__func__, sec->cmd_param[0]);
+		goto out;
+	} else {
+		mode = sec->cmd_param[0];
+	}
+
+	if (mutex_lock_interruptible(&ts->lock)) {
+		input_err(true, &ts->client->dev, "%s: another task is running\n",
+			__func__);
+		goto out;
+	}
+
+	input_info(true, &ts->client->dev, "%s: %s touch set earphone mode, cmd_param=%d\n",
+		__func__, sec->cmd_param[0] ? "enable" : "disable", sec->cmd_param[0]);
+
+	buf[0] = EVENT_MAP_HOST_CMD;
+	buf[1] = EXTENDED_CUSTOMIZED_CMD;
+	buf[2] = SET_EARPHONE_MODE;
+	buf[3] = (u8)sec->cmd_param[0];
+
+	reti = nvt_ts_mode_switch_extened(ts, buf, 4, true);
+	if (reti) {
+		input_err(true, &ts->client->dev, "%s failed to switch to earphone mode - 0x%02X\n", __func__, buf[3]);
+		mutex_unlock(&ts->lock);
+		goto out;
+	}
+
+	mutex_unlock(&ts->lock);
+
+	snprintf(buff, sizeof(buff), "%s", "OK");
+	sec->cmd_state =  SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+
+	return;
+out:
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+}
+
+extern int g_lcm_name;
+void nvt_set_headphone_mode(int mode)
+{
+	u8 buf[4];
+	int ret;
+	printk("nvt_set_headphone_mode %d enter\n",mode);
+	if(g_lcm_name != 18){
+		return;
+	}
+
+	if (mutex_lock_interruptible(&ts->lock)){
+		return;
+	}
+
+	if(mode){
+		ts->sec_function |= EARPHONE_MASK;
+	}else{
+		ts->sec_function &= ~EARPHONE_MASK;
+	}
+
+	if (ts->power_status != POWER_OFF_STATUS){
+
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = EXTENDED_CUSTOMIZED_CMD;
+		buf[2] = SET_EARPHONE_MODE;
+		buf[3] = (u8)mode;
+
+		ret = nvt_ts_mode_switch_extened(ts, buf, 4, true);
+		if (ret) {
+			input_err(true, &ts->client->dev, "%s failed to switch to earphone mode - 0x%02X\n", __func__, buf[3]);
+		}
+	}else{
+		input_info(true, &ts->client->dev, "nvt is suspend,mode=%d\n",mode);
+	}
+    mutex_unlock(&ts->lock);
+}
+EXPORT_SYMBOL(nvt_set_headphone_mode);
+/* -S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
+
 //+S96818AA1-1936,daijun1.wt,modify,2023/05/06,nt36528 tp disable sip high_sensitivity glove func
 //+S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
 /*
@@ -2304,6 +2456,9 @@ static void high_sensitivity_mode(void *device_data)
 
 	reti = nvt_ts_mode_switch_extened(ts, buf, 4, true);
 	if (reti) {
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/14,n28-nt36528 call completed to release mutex
+		mutex_unlock(&ts->lock);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/14,n28-nt36528 call completed to release mutex
 		input_err(true, &ts->client->dev, "%s failed to switch high sensitivity mode - 0x%02X\n", __func__, buf[3]);
 		goto out;
 	}
@@ -5509,6 +5664,9 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_chip_name", get_chip_name),},
 	{SEC_CMD("get_threshold", get_threshold),},
 	{SEC_CMD("check_connection", check_connection),},
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
+	{SEC_CMD_H("set_earphone_mode", set_earphone_mode),},
+/* -S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
 	{SEC_CMD_H("set_game_mode", set_game_mode),},
 	{SEC_CMD_H("clear_cover_mode", clear_cover_mode),},
 	{SEC_CMD_H("aot_enable", aot_enable),},

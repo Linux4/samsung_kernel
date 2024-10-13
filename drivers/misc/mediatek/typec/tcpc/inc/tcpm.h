@@ -1086,6 +1086,13 @@ extern int tcpm_reset_pd_charging_policy(struct tcpc_device *tcpc,
 extern int tcpm_set_pd_charging_policy(struct tcpc_device *tcpc,
 	uint8_t policy, const struct tcp_dpm_event_cb_data *data);
 
+/* +S96818AA1-1936, zhouxiaopeng2.wt, MODIFY, 20230606, fixed the PD2.0 charging issue of Ai Wei PD chip */
+#if IS_ENABLED(CONFIG_AW35615_PD)
+extern int tcpm_set_pd_charging_policy_for_aw(struct tcpc_device *tcpc,
+	uint8_t policy, const struct tcp_dpm_event_cb_data *data);
+#endif
+/* -S96818AA1-1936, zhouxiaopeng2.wt, MODIFY, 20230606, fixed the PD2.0 charging issue of Ai Wei PD chip */
+
 extern int tcpm_set_pd_charging_policy_default(
 	struct tcpc_device *tcpc, uint8_t policy);
 

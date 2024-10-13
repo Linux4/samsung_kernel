@@ -777,7 +777,9 @@ static int txd_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle,
 				 unsigned int level)
 {
 	char bl_tb0[] = {0x51, 0xff, 0x0f, 0x00};
-
+	//+S96901AA4-194 liuxueyou.wt, 20231016, add, screen backlight flashing during sleep
+	char bl_tb1[] = {0x53, 0x24,0x00,0x00};
+	char bl_tb2[] = {0x53, 0x2c,0x00,0x00};
 	pr_info("%s backlight = -%d\n", __func__, level);
 	if (level > 255)
 		level = 255;
@@ -791,6 +793,12 @@ static int txd_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle,
 		return -1;
 
 	cb(dsi, handle, bl_tb0, ARRAY_SIZE(bl_tb0));
+	if(level == 0){
+		cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
+	}else if(last_brightness == 0 && level > 0){
+		cb(dsi, handle, bl_tb2, ARRAY_SIZE(bl_tb2));
+	}
+	//-S96901AA4-194 liuxueyou.wt, 20231016, add, screen backlight flashing during sleep
 	last_brightness = level;
 	return 0;
 }

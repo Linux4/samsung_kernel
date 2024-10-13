@@ -35,7 +35,7 @@ static bool aw_get_pps_status(struct tcpc_device *tcpc, struct pd_pps_status *pp
 	return true;
 }
 
-static bool aw_request_dr_swap(struct tcpc_device *tcpc, uint8_t role)
+static int aw_request_dr_swap(struct tcpc_device *tcpc, uint8_t role)
 {
 	struct aw35615_chip *chip = aw35615_GetChip();
 
@@ -70,7 +70,7 @@ static bool aw_request_dr_swap(struct tcpc_device *tcpc, uint8_t role)
 	return 0;
 }
 
-static bool aw_request_pr_swap(struct tcpc_device *tcpc, uint8_t role)
+static int aw_request_pr_swap(struct tcpc_device *tcpc, uint8_t role)
 {
 	struct aw35615_chip *chip = aw35615_GetChip();
 
@@ -276,7 +276,7 @@ static int aw_get_power_cap(struct tcpc_device *tcpc,
 	return TCPM_SUCCESS;
 }
 //+S96818AA1-1936,zhouxiaopeng2.wt,MODIFY,20230508,add the PPS call interface
-static bool aw_pd_pe_ready(struct tcpc_device *tcpc)
+static int aw_pd_pe_ready(struct tcpc_device *tcpc)
 {
 	struct aw35615_chip *chip = aw35615_GetChip();
 
@@ -1778,6 +1778,23 @@ int tcpm_set_pd_charging_policy_default(
 	return TCPM_SUCCESS;
 }
 
+/* +S96818AA1-1936, zhouxiaopeng2.wt, MODIFY, 20230606, fixed the PD2.0 charging issue of Ai Wei PD chip */
+#if IS_ENABLED(CONFIG_AW35615_PD)
+int tcpm_set_pd_charging_policy_for_aw(struct tcpc_device *tcpc,
+	uint8_t policy, const struct tcp_dpm_event_cb_data *cb_data)
+{
+	struct pd_port *pd_port = &tcpc->pd_port;
+	/* PPS should call another function ... */
+	if ((policy & DPM_CHARGING_POLICY_MASK) >= DPM_CHARGING_POLICY_PPS)
+		return TCPM_ERROR_PARAMETER;
+
+	pd_port->dpm_charging_policy = policy;
+	AW_LOG("tcpm_set_pd_charging_policy_for_aw\n");
+	return TCPM_SUCCESS;
+}
+#endif
+/* -S96818AA1-1936, zhouxiaopeng2.wt, MODIFY, 20230606, fixed the PD2.0 charging issue of Ai Wei PD chip */
+
 int tcpm_set_pd_charging_policy(struct tcpc_device *tcpc,
 	uint8_t policy, const struct tcp_dpm_event_cb_data *cb_data)
 {
@@ -1796,7 +1813,6 @@ int tcpm_set_pd_charging_policy(struct tcpc_device *tcpc,
 
 #if IS_ENABLED(CONFIG_AW35615_PD)
 	pd_port->dpm_charging_policy = policy;
-
 	ret = aw_request_pdo(tcpc, 5000, 2000);
 	if (ret >= 0) {
 		if (ret == 0) {

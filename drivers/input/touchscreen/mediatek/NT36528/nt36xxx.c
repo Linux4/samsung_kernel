@@ -26,7 +26,11 @@
 #include <linux/of_irq.h>
 #include<linux/hardware_info.h>
 #include<linux/platform_data/spi-mt65xx.h>	//S96818AA1-1936,daijun1.wt,modify,2023/05/10,nt36528 modify SPI timing
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+#ifdef CONFIG_PM
+#include <linux/completion.h>
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 #if defined(CONFIG_FB)
 #ifdef CONFIG_DRM_MSM
 #include <linux/msm_drm_notify.h>
@@ -41,11 +45,21 @@
 #if NVT_TOUCH_ESD_PROTECT
 #include <linux/jiffies.h>
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-nt36528 add charger_mode
 #include <linux/power_supply.h>
+#include <../../../../misc/mediatek/lcm/inc/panel_notifier.h>
+/* +S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP nt36528 blocking shutdown issue */
+#include <linux/types.h>
+#include <mt-plat/v1/mtk_battery.h>
+#include <mt-plat/mtk_boot.h>
+//#include <mtk_gauge_class.h>
+#include <../../../../misc/mediatek/pmic/include/pmic_lbat_service.h>
+#include <../../../../power/supply/mediatek/battery/mtk_battery_internal.h>
+//extern int battery_get_boot_mode(void);
+/* -S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP nt36528 blocking shutdown issue */
 void nvt_plat_charger_init(void);
 extern int32_t nvt_set_charger(uint8_t charger_on_off);
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-nt36528 add charger_mode
 #if SEC_TOUCH_CMD
 int nvt_ts_sec_fn_init(struct nvt_ts_data *ts);
 void nvt_ts_sec_fn_remove(struct nvt_ts_data *ts);
@@ -88,7 +102,7 @@ static int nvt_fb_notifier_callback(struct notifier_block *self, unsigned long e
 static void nvt_ts_early_suspend(struct early_suspend *h);
 static void nvt_ts_late_resume(struct early_suspend *h);
 #endif
-
+static void nvt_resume_workqueue_callback(struct work_struct *work);  //S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
 uint32_t ENG_RST_ADDR  = 0x7FFF80;
 uint32_t SWRST_N8_ADDR = 0; //read from dtsi
 uint32_t SPI_RD_FAST_ADDR = 0;	//read from dtsi
@@ -738,9 +752,14 @@ info_retry:
 	}
 
 	input_info(true, &ts->client->dev, "fw_ver = 0x%02X, fw_type = 0x%02X\n", ts->fw_ver, buf[14]);
-    sprintf(Ctp_name,"TRULY,NT36528,FW:0x%02x\n", ts->fw_ver);
-    printk("Nvt_tpfwver_show Ctp_name is : %s\n",Ctp_name);
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
+	if (strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly")) {
+		sprintf(Ctp_name,"TRULY,NT36528,FW:0x%02x\n", ts->fw_ver);
+	}else if(strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_txd_sharp")) {
+		sprintf(Ctp_name,"TXD,NT36528,FW:0x%02x\n", ts->fw_ver);
+	}
+	printk("Nvt_tpfwver_show Ctp_name is : %s\n",Ctp_name);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
 	// Customized version string start
 	//---Get IC name---
 	ts->fw_ver_ic[0] = buf[15];
@@ -1079,15 +1098,24 @@ static int nvt_parse_dt(struct device *dev)
 #else
 	platdata->lcd_id = 0;
 #endif
-	of_property_read_string_index(np, "novatek,fw_name", platdata->lcd_id, &platdata->firmware_name);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
+	if (strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly")) {
+		of_property_read_string_index(np, "novatek,fw_name", platdata->lcd_id, &platdata->firmware_name);
+	}else if(strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_txd_sharp")) {
+		platdata->firmware_name = "novatek_ts_txd_fw.bin";
+	}
 	if (platdata->firmware_name == NULL || strlen(platdata->firmware_name) == 0) {
 		input_err(true, dev, "%s: Failed to get fw name\n", __func__);
 		return -EINVAL;
 	} else {
 		input_info(true, dev, "%s: fw name(%s)\n", __func__, platdata->firmware_name);
 	}
-
-	of_property_read_string_index(np, "novatek,fw_name_mp", platdata->lcd_id, &platdata->firmware_name_mp);
+	if (strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly")) {
+		of_property_read_string_index(np, "novatek,fw_name_mp", platdata->lcd_id, &platdata->firmware_name_mp);
+	}else if(strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_txd_sharp")) {
+		platdata->firmware_name_mp = "novatek_ts_txd_mp.bin";
+	}
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
 	if (platdata->firmware_name_mp == NULL || strlen(platdata->firmware_name_mp) == 0) {
 		input_err(true, dev, "%s: Failed to get mp fw name\n", __func__);
 		return -EINVAL;
@@ -1514,6 +1542,7 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 //			ts->all_finger_count++;
 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	/* +S96818AA2-checklist ,zhangshaoxiong1.wt,modify,2023/10/20,close the TP coordinate log
 			input_info(true, &ts->client->dev,
 				"[P] tId:%d.%d x:%d y:%d p:%d mj:%d major:%d minor:%d loc:%s tc:%d type:%X\n",
 				i, (ts->input_dev->mt->trkid - 1) & TRKID_MAX,
@@ -1521,6 +1550,7 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 				ts->coords[i].palm, ts->coords[i].metal_jig,
 				ts->coords[i].w_major, ts->coords[i].w_minor,
 				location, ts->touch_count, ts->coords[i].status);
+		-S96818AA2-checklist ,zhangshaoxiong1.wt,modify,2023/10/20,close the TP coordinate log */
 #else
 			input_info(true, &ts->client->dev,
 				"[P] tId:%d.%d p:%d mj:%d major:%d minor:%d loc:%s tc:%d type:%X\n",
@@ -1543,11 +1573,13 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 //				ts->print_info_cnt_release = 0;
 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	/* +S96818AA2-checklist ,zhangshaoxiong1.wt,modify,2023/10/20,close the TP coordinate log
 			input_info(true, &ts->client->dev, "[R] tId:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d\n",
 				i, location, ts->coords[i].p_x - ts->coords[i].x,
 				ts->coords[i].p_y - ts->coords[i].y,
 				ts->coords[i].move_count, ts->touch_count,
 				ts->coords[i].x, ts->coords[i].y);
+		-S96818AA2-checklist ,zhangshaoxiong1.wt,modify,2023/10/20,close the TP coordinate log */
 #else
 			input_info(true, &ts->client->dev, "[R] tId:%d loc:%s dd:%d,%d mc:%d tc:%d\n",
 				i, location, ts->coords[i].p_x - ts->coords[i].x,
@@ -1764,7 +1796,17 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 #endif /* MT_PROTOCOL_B */
 	int32_t i = 0;
 	int32_t finger_cnt = 0;
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+#ifdef CONFIG_PM
+	if (ts->dev_pm_suspend) {
+		ret = wait_for_completion_timeout(&ts->dev_pm_resume_completion, msecs_to_jiffies(700));
+		if (!ret) {
+			input_err(true, &ts->client->dev, "system(bus) can't finished resuming procedure, skip it\n");
+			return IRQ_HANDLED;
+		}
+	}
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 #if PROXIMITY_FUNCTION
 		if ((ts->power_status == POWER_LPM_STATUS) || (ts->power_status == POWER_PROX_STATUS))
 #else
@@ -2115,12 +2157,22 @@ return:
 *******************************************************/
 static int32_t nvt_ts_probe(struct spi_device *client)
 {
+/* +S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP nt36528 blocking shutdown issue */
 	int32_t ret = 0;
 	int32_t index = 0;
+	int boot_mode;
 	struct nvt_ts_platdata *platdata;
 
 	input_info(true, &client->dev, "%s : start\n", __func__);
 
+	boot_mode = battery_get_boot_mode();
+	if (boot_mode == 8)
+	{
+	printk("%s : start mode =%d\n", __func__,boot_mode);
+		return -1;
+	}
+	printk("%s : start mode =%d\n", __func__,boot_mode);
+/* -S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP nt36528 blocking shutdown issue */
 	ts = kmalloc(sizeof(struct nvt_ts_data), GFP_KERNEL);
 	if (ts == NULL) {
 		input_err(true, &client->dev, "failed to allocated memory for nvt ts data\n");
@@ -2140,7 +2192,12 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		ret = -ENOMEM;
 		goto err_malloc_rbuf;
 	}
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+#ifdef CONFIG_PM
+	ts->dev_pm_suspend = false;
+	init_completion(&ts->dev_pm_resume_completion);
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 	if (client->dev.of_node) {
 		platdata = devm_kzalloc(&client->dev,sizeof(struct nvt_ts_platdata), GFP_KERNEL);
 		if (!platdata) {
@@ -2365,8 +2422,9 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 //comment this if condition due to LPWG also need this feature
 //	if (ts->platdata->support_ear_detect)
 #endif
-		device_init_wakeup(&ts->input_dev->dev, 1);
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+		device_init_wakeup(&ts->client->dev, 1);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 #if BOOT_UPDATE_FIRMWARE
 	nvt_fwu_wq = alloc_workqueue("nvt_fwu_wq", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 	if (!nvt_fwu_wq) {
@@ -2376,7 +2434,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	}
 	INIT_DELAYED_WORK(&ts->nvt_fwu_work, Boot_Update_Firmware);
 	// please make sure boot update start after display reset(RESX) sequence
-	queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work, msecs_to_jiffies(14000));
+	queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work, msecs_to_jiffies(4000));  //S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
 #endif
 
 	input_info(true, &ts->client->dev, "NVT_TOUCH_ESD_PROTECT is %d\n", NVT_TOUCH_ESD_PROTECT);
@@ -2426,7 +2484,10 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		goto err_init_sec_fn;
 	}
 #endif
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
+	ts->nvt_resume_workqueue = create_singlethread_workqueue("touch_resume");
+	INIT_WORK(&ts->nvt_resume_work, nvt_resume_workqueue_callback);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
 #if defined(CONFIG_FB)
 #ifdef _MSM_DRM_NOTIFY_H_
 	ts->drm_notif.notifier_call = nvt_drm_notifier_callback;
@@ -2511,7 +2572,9 @@ err_create_nvt_fwu_wq_failed:
 //comment this if condition due to LPWG also need this feature
 //	if (ts->platdata->support_ear_detect)
 #endif
-		device_init_wakeup(&ts->input_dev->dev, 0);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+		device_init_wakeup(&ts->client->dev, 0);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 	free_irq(client->irq, ts);
 err_int_request_failed:
 #if PROXIMITY_FUNCTION
@@ -2630,8 +2693,9 @@ static int32_t nvt_ts_remove(struct spi_device *client)
 //comment this if condition due to LPWG also need this feature
 //	if (ts->platdata->support_ear_detect)
 #endif
-		device_init_wakeup(&ts->input_dev->dev, 0);
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+		device_init_wakeup(&ts->client->dev, 0);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 	nvt_irq_enable(false);
 	free_irq(client->irq, ts);
 
@@ -2700,7 +2764,9 @@ static void nvt_ts_shutdown(struct spi_device *client)
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 	unregister_early_suspend(&ts->early_suspend);
 #endif
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/07/05,n28-tp Add charger notifier logout function
+	usb_unregister_client(&ts->notifier_charger);
+//-S96818AA1-1936,daijun1.wt,modify,2023/07/05,n28-tp Add charger notifier logout function
 #if SEC_TOUCH_CMD
 	nvt_ts_sec_fn_remove(ts);
 #endif
@@ -2735,7 +2801,9 @@ static void nvt_ts_shutdown(struct spi_device *client)
 //comment this if condition due to LPWG also need this feature
 //	if (ts->platdata->support_ear_detect)
 #endif
-		device_init_wakeup(&ts->input_dev->dev, 0);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+		device_init_wakeup(&ts->client->dev, 0);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 }
 
 int nvt_ts_lcd_power_ctrl(bool on)
@@ -2855,13 +2923,16 @@ static int32_t nvt_ts_suspend(struct device *dev)
 #if PROXIMITY_FUNCTION
 skip_cmd:
 #endif
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 	if (ts->power_status != POWER_OFF_STATUS) {
 		nvt_ts_lcd_power_ctrl(true);
-		if (device_may_wakeup(&ts->client->dev))
+		if (device_may_wakeup(&ts->client->dev)){
 			enable_irq_wake(ts->client->irq);
+			input_err(true, &ts->client->dev, " enable_irq_wake\n");
+		}
 		nvt_irq_enable(true);
 	}
-
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 #if PROXIMITY_FUNCTION
 	if (ts->prox_power_off) {
 		input_info(true, &ts->client->dev, "%s : cancel touch\n", __func__);
@@ -2997,11 +3068,11 @@ static int32_t nvt_ts_resume(struct device *dev)
 	// After resume, DDIC should be in sleep-out mode
 	ts->prox_power_off = 0;
 #endif
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
-    if((ts->usb_plug_status == 0)&&(gesture_flag != 1)){
-        nvt_set_charger(0);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-nt36528 add charger_mode
+	if(gesture_flag != 1){
+		nvt_set_charger(ts->usb_plug_status);
     }
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-nt36528 add charger_mode
 	nvt_irq_enable(true);
 
 	cancel_delayed_work(&ts->work_print_info);
@@ -3013,8 +3084,14 @@ static int32_t nvt_ts_resume(struct device *dev)
 
 	return 0;
 }
-
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
+static void nvt_resume_workqueue_callback(struct work_struct *work)
+{
+	input_info(true, &ts->client->dev, "%s : start\n", __func__);
+	nvt_ts_resume(&ts->client->dev);
+	input_info(true, &ts->client->dev, "%s : end\n", __func__);
+}
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
 #if defined(CONFIG_FB)
 #ifdef _MSM_DRM_NOTIFY_H_
 static int nvt_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
@@ -3055,7 +3132,7 @@ static int nvt_fb_notifier_callback(struct notifier_block *self, unsigned long e
 	if (evdata && evdata->data && event == FB_EARLY_EVENT_BLANK) {
 		blank = evdata->data;
 		if (*blank == FB_BLANK_POWERDOWN) {
-			input_info(true, &ts->client->dev, "event=%lu, *blank=%d\n", event, *blank);
+			input_info(true, &ts->client->dev, "event=%lu, *blank=%d\n", event, *blank);	
 			nvt_ts_suspend(&ts->client->dev);
 		} else if (*blank == FB_BLANK_UNBLANK) {
 			input_info(true, &ts->client->dev, "event=%lu, *blank=%d\n", event, *blank);
@@ -3065,7 +3142,10 @@ static int nvt_fb_notifier_callback(struct notifier_block *self, unsigned long e
 		blank = evdata->data;
 		if (*blank == FB_BLANK_UNBLANK) {
 			input_info(true, &ts->client->dev, "event=%lu, *blank=%d\n", event, *blank);
-			nvt_ts_resume(&ts->client->dev);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
+//			nvt_ts_resume(&ts->client->dev);
+			queue_work(ts->nvt_resume_workqueue,&ts->nvt_resume_work);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
 		}
 	}
 
@@ -3097,37 +3177,53 @@ static void nvt_ts_late_resume(struct early_suspend *h)
 	nvt_ts_resume(ts->client);
 }
 #endif
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+#ifdef CONFIG_PM
+static int nvt_ts_pm_suspend(struct device *dev)
+{
+	input_info(true, &ts->client->dev, "%s : start\n", __func__);
+
+	ts->dev_pm_suspend = true;
+//	reinit_completion(&ts->dev_pm_resume_completion);
+	init_completion(&ts->dev_pm_resume_completion);
+
+	input_info(true, &ts->client->dev, "%s : end\n", __func__);
+	return 0;
+}
+
+static int nvt_ts_pm_resume(struct device *dev)
+{
+	input_info(true, &ts->client->dev, "%s : start\n", __func__);
+
+	ts->dev_pm_suspend = false;
+	complete(&ts->dev_pm_resume_completion);
+
+	input_info(true, &ts->client->dev, "%s : end\n", __func__);
+	return 0;
+}
+
+static const struct dev_pm_ops nvt_ts_dev_pm_ops = {
+	.suspend = nvt_ts_pm_suspend,
+	.resume = nvt_ts_pm_resume,
+};
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-nt36528 add charger_mode
 static int nvt_charger_notifier_callback(struct notifier_block *nb, unsigned long val, void *v)
 {
-    int ret = 0;
-    struct power_supply *psy = NULL;
-    union power_supply_propval prop;
+	int usb_plug_status;
 
-    psy = power_supply_get_by_name("usb");
-    if (!psy) {
-        input_err(true, &ts->client->dev, "%s Couldn't get usbpsy\n", __func__);
-        return -EINVAL;
-    }
-    if (!strcmp(psy->desc->name, "usb")) {
-        if (psy && val == POWER_SUPPLY_PROP_STATUS) {
-            ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
-            if (ret < 0) {
-                input_info(true, &ts->client->dev, "%s Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", __func__, ret);
-                return ret;
-            } else {
-                if (ts->usb_plug_status == 2)
-                    ts->usb_plug_status = prop.intval;
-                if (ts->usb_plug_status != prop.intval) {
-                    input_info(true, &ts->client->dev,"usb prop.intval =%d\n", prop.intval);
-                    ts->usb_plug_status = prop.intval;
-                    if (ts->charger_notify_wq != NULL)
-                        queue_work(ts->charger_notify_wq, &ts->update_charger);
-                }
-            }
-        }
-    }
-    return 0;
+	usb_plug_status = (int) val;
+	input_info(true, &ts->client->dev,"val=%d\n",val);
+
+	if (usb_plug_status != ts->usb_plug_status){
+		ts->usb_plug_status = usb_plug_status;
+
+		if (ts->charger_notify_wq != NULL){
+			queue_work(ts->charger_notify_wq, &ts->update_charger);
+		}
+	}
+	return 0;
 }
 
 static void nvt_update_charger(struct work_struct *work)
@@ -3158,11 +3254,11 @@ void nvt_plat_charger_init(void)
     }
     INIT_WORK(&ts->update_charger, nvt_update_charger);
     ts->notifier_charger.notifier_call = nvt_charger_notifier_callback;
-    ret = power_supply_reg_notifier(&ts->notifier_charger);
+    ret = usb_register_client(&ts->notifier_charger);
     if (ret < 0)
         input_err(true, &ts->client->dev, "nvt power_supply_reg_notifier failed\n");
 }
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-nt36528 add charger_mode
 static const struct spi_device_id nvt_ts_id[] = {
 	{ NVT_SPI_NAME, 0 },
 	{ }
@@ -3183,6 +3279,11 @@ static struct spi_driver nvt_spi_driver = {
 	.driver = {
 		.name	= NVT_SPI_NAME,
 		.owner	= THIS_MODULE,
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+#ifdef CONFIG_PM
+		.pm = &nvt_ts_dev_pm_ops,
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 #ifdef CONFIG_OF
 		.of_match_table = nvt_match_table,
 #endif
@@ -3200,10 +3301,10 @@ extern char *saved_command_line;
 static int32_t __init nvt_driver_init(void)
 {
 	int32_t ret = 0;
-	
-	if (!strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly"))
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
+	if (!strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly") && !strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_txd_sharp"))
         return  -1;
-
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
 	pr_info("[sec_input] %s : start\n", __func__);
 
 	//---add spi driver---
@@ -3230,10 +3331,10 @@ static void __exit nvt_driver_exit(void)
 {
 	spi_unregister_driver(&nvt_spi_driver);
 }
-
-//late_initcall(nvt_driver_init);
-module_init(nvt_driver_init);
+/* +S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP nt36528 blocking shutdown issue */
+late_initcall(nvt_driver_init);
+//module_init(nvt_driver_init);
 module_exit(nvt_driver_exit);
-
+/* -S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP nt36528 blocking shutdown issue */
 MODULE_DESCRIPTION("Novatek Touchscreen Driver");
 MODULE_LICENSE("GPL");

@@ -75,8 +75,11 @@ int g_Q_MAX_SYS_VOLTAGE[TOTAL_BATTERY_NUMBER] = { 3400, 3400, 3400, 3400};
 
 /* 0~0.5V for battery 0, 0.5~1V for battery 1*/
 /* 1~1.5V for battery 2, -1 for the last one (battery 3) */
+/*+S96818AA1-9286,zhouxiaopeng2.wt,MODIFY,20230727,Set the battery ID voltage*/
 int g_battery_id_voltage[TOTAL_BATTERY_NUMBER] = {
-	439, 266, -1, -1};
+	439, 266, 66, -1};
+/*-S96818AA1-9286,zhouxiaopeng2.wt,MODIFY,20230727,Set the battery ID voltage*/
+
 
 int g_FG_PSEUDO1[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	/*bat1,   bat2,   bat3,    bat4*/

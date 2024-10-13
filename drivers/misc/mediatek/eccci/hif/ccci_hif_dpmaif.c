@@ -2461,7 +2461,7 @@ static int dpmaif_tx_release(unsigned char q_num, unsigned short budget)
 	dpmaif_ctrl->tx_done_last_count[q_num] = real_rel_cnt;
 #endif
 
-	if (real_rel_cnt < 0 || txq->que_started == false)
+	if (txq->que_started == false)
 		return ERROR_STOP;
 	else {
 		atomic_set(&s_tx_busy_num[q_num], 0);
@@ -3800,13 +3800,11 @@ int dpmaif_late_init(unsigned char hif_id)
 			dpmaif_ctrl->dpmaif_irq_id, ret);
 		return ret;
 	}
-#ifdef MT6297
 	ret = irq_set_irq_wake(dpmaif_ctrl->dpmaif_irq_id, 1);
 	if (ret)
 		CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
 			"irq_set_irq_wake dpmaif irq(%d) error %d\n",
 			dpmaif_ctrl->dpmaif_irq_id, ret);
-#endif
 	atomic_set(&dpmaif_ctrl->dpmaif_irq_enabled, 1); /* init */
 	dpmaif_disable_irq(dpmaif_ctrl);
 
@@ -4446,17 +4444,10 @@ int dpmaif_stop(unsigned char hif_id)
 	/* stop debug mechnism */
 	del_timer(&dpmaif_ctrl->traffic_monitor);
 
-#ifdef MT6297
 	/* CG set */
 	ccci_hif_dpmaif_set_clk(0);
 	/* 3. todo: reset IP */
 	dpmaif_hw_reset(dpmaif_ctrl->md_id);
-#else
-	/* 3. todo: reset IP */
-	dpmaif_hw_reset(dpmaif_ctrl->md_id);
-	/* CG set */
-	ccci_hif_dpmaif_set_clk(0);
-#endif
 
 #ifdef DPMAIF_DEBUG_LOG
 	CCCI_HISTORY_LOG(-1, TAG, "dpmaif:stop end\n");
@@ -4602,6 +4593,11 @@ static int dpmaif_pre_stop(unsigned char hif_id)
 {
 	if (hif_id != DPMAIF_HIF_ID)
 		return -1;
+
+	if (dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_PWROFF
+		|| dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_MIN)
+		return 0;
+
 	dpmaif_stop_hw();
 	return 0;
 }

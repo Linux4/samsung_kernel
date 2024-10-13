@@ -38,6 +38,7 @@ typedef enum {
 
 static const char *cable_type_names[] = {
 	"NONE",
+	"USB",
 	"USB SDP",
 	"USB CDP",
 	"OTG",

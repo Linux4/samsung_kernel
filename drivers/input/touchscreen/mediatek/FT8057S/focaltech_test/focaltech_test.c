@@ -2236,10 +2236,11 @@ int fts_factory_test()
 
     input_dev = ts_data->input_dev;
     FTS_TEST_DBG("ini file name is :%s", fwname);
-
     mutex_lock(&input_dev->mutex);
     fts_irq_disable();
-
+//+S96818AA1-1936,wangtao14.wt,add,2023/07/24,ft8057s tp turn off esd during open_short test
+    fts_esdcheck_switch(ts_data, DISABLE);
+//-S96818AA1-1936,wangtao14.wt,add,2023/07/24,ft8057s tp turn off esd during open_short test
     ret = fts_enter_test_environment(1);
     if (ret < 0) {
         FTS_ERROR("enter test environment fail");
@@ -2258,7 +2259,9 @@ int fts_factory_test()
         FTS_ERROR("enter normal environment fail");
         factory_result = -1;
     }
-
+//+S96818AA1-1936,wangtao14.wt,add,2023/07/24,ft8057s tp turn on esd during open_short test
+    fts_esdcheck_switch(ts_data, ENABLE);
+//-S96818AA1-1936,wangtao14.wt,add,2023/07/24,ft8057s tp turn on esd during open_short test
     fts_irq_enable();
     mutex_unlock(&input_dev->mutex);
 

@@ -61,7 +61,7 @@
 #include "disp_partial.h"
 #include "ddp_dsi.h"
 #include "ddp_disp_bdg.h"
-
+#include "gcore_drv_common.h"
 /* For abnormal check */
 static struct task_struct *primary_display_check_task;
 /* used for blocking check task  */
@@ -224,7 +224,13 @@ int _esd_check_config_handle_vdo(struct cmdqRecStruct *qhandle)
 
 	/* 6.flush instruction */
 	dprec_logger_start(DPREC_LOGGER_ESD_CMDQ, 0, 0);
+	cmdq_mbox_set_thread_timeout(
+		cmdq_helper_mbox_client((u32)qhandle->thread)->chan, 300);
 	ret = cmdqRecFlush(qhandle);
+	cmdq_mbox_set_thread_timeout(
+		cmdq_helper_mbox_client((u32)qhandle->thread)->chan,
+		CMDQ_TIMEOUT_DEFAULT);
+
 	dprec_logger_done(DPREC_LOGGER_ESD_CMDQ, 0, 0);
 	DISPINFO("[ESD]%s ret=%d\n", __func__, ret);
 	primary_display_manual_unlock();
@@ -555,6 +561,7 @@ DISPTORY:
  * return 1: esd check fail
  * return 0: esd check pass
  */
+
 int primary_display_esd_check(void)
 {
 	int ret = 0;
@@ -638,6 +645,7 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 	int i = 0;
 	int esd_try_cnt = 5; /* 20; */
 	int recovery_done = 0;
+	int gcore_esd = 0;
 
 	sched_setscheduler(current, SCHED_RR, &param);
 
@@ -672,6 +680,15 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 		i = 0; /* repeat */
 		do {
 			ret = primary_display_esd_check();
+			//+S96818AA1-1936,liyuhong1.wt,add,2023/09/05,n28-lcd add gc7272 tp esd check protection
+			if (strstr(saved_command_line,"n28_gc7272_dsi_vdo_hdp_txd_sharp")){
+				DISPCHECK("[ESD check from TP gcore_tp_esd_fail = %d\n",gcore_esd);
+				if(gcore_esd_is_fail()){
+					ret = 1;
+				}
+				printk("<GTP>ret=%d,gcore_esd=%d\n",ret,gcore_esd);
+			}
+			//-S96818AA1-1936,liyuhong1.wt,add,2023/09/05,n28-lcd add gc7272 tp esd check protection
 			if (!ret) /* success */
 				break;
 
@@ -705,6 +722,7 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 /* ESD RECOVERY */
 int primary_display_esd_recovery(void)
 {
+	unsigned int last_level;
 	enum DISP_STATUS ret = DISP_STATUS_OK;
 	struct LCM_PARAMS *lcm_param = NULL;
 	mmp_event mmp_r = ddp_mmp_get_events()->esd_recovery_t;
@@ -730,8 +748,11 @@ int primary_display_esd_recovery(void)
 		mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 2);
 
 	}
+
 	/* blocking flush before stop trigger loop */
-	_blocking_flush();
+	//_blocking_flush();
+	if (bdg_is_bdg_connected() != 1)
+		_blocking_flush();
 
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 3);
 
@@ -759,6 +780,8 @@ int primary_display_esd_recovery(void)
 	DISPCHECK("[ESD]reset display path[end]\n");
 
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 6);
+
+	last_level=get_lcm_backlight_level();
 
 	DISPDBG("[POWER]lcm suspend[begin]\n");
 	/*after dsi_stop, we should enable the dsi basic irq.*/
@@ -813,7 +836,12 @@ int primary_display_esd_recovery(void)
 		bdg_tx_set_mode(DISP_BDG_DSI0, NULL, get_bdg_tx_mode());
 		bdg_tx_start(DISP_BDG_DSI0, NULL);
 	}
-
+	//+S96818AA1-1936,liyuhong1.wt,modify,2023/07/05,add lcm ESD recovery
+	mdelay(200);
+	DISPDBG("[ESD]backlignt on[begin]\n");
+	disp_lcm_set_backlight(primary_get_lcm(), NULL, last_level);
+	DISPDBG("[ESD] backlignt on[end]\n");
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/07/05,add lcm ESD recovery
 	DISPDBG("[ESD]start dpmgr path[begin]\n");
 	if (disp_partial_is_support()) {
 		struct disp_ddp_path_config *data_config =

@@ -65,12 +65,20 @@ ifneq ($(filter m, $(CONFIG_TOUCHSCREEN_HIMAX_COMMON)),)
     ccflags-y += -DHX_FIRMWARE_HEADER
     himax_mmi-objs += himax_firmware.o
   endif
+  ifneq ($(filter y, $(CONFIG_WT_PROJECT_S96616AA1)),)
+    ccflags-y += -DHX_FIRMWARE_HEADER
+    himax_mmi-objs += himax_firmware.o
+  endif
   obj-m += himax_mmi.o
 endif
 ifneq ($(filter y, $(CONFIG_TOUCHSCREEN_HIMAX_COMMON)),)
   himax_mmi-objs += himax_common.o
   himax_mmi-objs += himax_platform.o
   ifneq ($(filter y, $(CONFIG_TOUCHSCREEN_HIMAX_EMBEDDED_FIRMWARE)),)
+	ccflags-y += -DHX_FIRMWARE_HEADER
+	himax_mmi-objs += himax_firmware.o
+  endif
+  ifneq ($(filter y, $(CONFIG_WT_PROJECT_S96616AA1)),)
 	ccflags-y += -DHX_FIRMWARE_HEADER
 	himax_mmi-objs += himax_firmware.o
   endif

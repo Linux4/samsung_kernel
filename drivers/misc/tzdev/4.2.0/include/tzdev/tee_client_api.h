@@ -89,22 +89,22 @@
 
 typedef uint32_t TEEC_Result;
 
-typedef struct {
+typedef struct TEEC_UUID {
 	uint32_t timeLow;
 	uint16_t timeMid;
 	uint16_t timeHiAndVersion;
 	uint8_t clockSeqAndNode[8];
 } TEEC_UUID;
 
-typedef struct {
+typedef struct TEEC_Context {
 	void *imp;
 } TEEC_Context;
 
-typedef struct {
+typedef struct TEEC_Session {
 	void *imp;
 } TEEC_Session;
 
-typedef struct {
+typedef struct TEEC_SharedMemory {
 	void *buffer;
 	size_t size;
 	uint32_t flags;
@@ -133,7 +133,7 @@ typedef union {
 	TEEC_Value value;
 } TEEC_Parameter;
 
-typedef struct {
+typedef struct TEEC_Operation {
 	uint32_t started;
 	uint32_t paramTypes;
 	TEEC_Parameter params[4];

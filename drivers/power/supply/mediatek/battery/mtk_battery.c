@@ -163,6 +163,10 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
 	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY, //Bug774038,churui1.wt,add batt_full_capacity node
 	POWER_SUPPLY_PROP_BATT_TEMP,
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	POWER_SUPPLY_PROP_DIRECT_CHARGING_STATUS,
+	POWER_SUPPLY_PROP_CHARGING_TYPE,
+#endif
 };
 
 static enum power_supply_property otg_props[] = {
@@ -541,6 +545,7 @@ int battery_get_input_current_limit(void)
 
 extern bool mtk_is_pep_series_connect(struct charger_manager *info);
 extern void wt_batt_full_capacity_check(struct charger_manager *info); //Bug774038,churui1.wt,add batt_full_capacity node
+extern int adapter_is_support_pd_pps(void);	//P230725-04754,zhouxiaopeng2.wt,add 25W pps hv_charger_status value
 
 static int battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
@@ -733,14 +738,27 @@ static int battery_get_property(struct power_supply *psy,
 				(!IS_ERR_OR_NULL(cm)))
 			{
 				#ifdef CONFIG_AFC_CHARGER
-				if (mtk_is_pep_series_connect(cm) || mtk_pdc_check_charger(cm) ||
-					afc_get_is_connect(cm))
+				if (mtk_is_pep_series_connect(cm) || mtk_pdc_check_charger(cm) || afc_get_is_connect(cm)) {
 					val->intval = 1;
+/*+P230725-04754 zhouxiaopeng2.wt,add 25W pps hv_charger_status value*/
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+					if (adapter_is_support_pd_pps())
+						val->intval = 3;
+#endif
+/*-P230725-04754 zhouxiaopeng2.wt,add 25W pps hv_charger_status value*/
+				}
 				else
 					val->intval = 0;
 				#else
-				if (mtk_is_pep_series_connect(cm) || mtk_pdc_check_charger(cm))
+				if (mtk_is_pep_series_connect(cm) || mtk_pdc_check_charger(cm)) {
 					val->intval = 1;
+/*+P230725-04754 zhouxiaopeng2.wt,add 25W pps hv_charger_status value*/
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+					if (adapter_is_support_pd_pps())
+						val->intval = 3;
+#endif
+/*-P230725-04754 zhouxiaopeng2.wt,add 25W pps hv_charger_status value*/
+				}
 				else
 					val->intval = 0;
 				#endif
@@ -751,6 +769,14 @@ static int battery_get_property(struct power_supply *psy,
 			}
 		}
 		break;
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	case POWER_SUPPLY_PROP_DIRECT_CHARGING_STATUS:
+	if(POWER_SUPPLY_STATUS_CHARGING == data->BAT_STATUS)
+		val->intval = true;
+	else
+		val->intval = false;
+	break;
+#endif
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
 			val->intval = batt_slate_mode; //Bug773947,churui1.wt,set mode 2 for batt_slate_mode node
 		break;
@@ -761,7 +787,7 @@ static int battery_get_property(struct power_supply *psy,
 		b_ischarging = gauge_get_current(&fgcurrent);
 		if (b_ischarging == false)
 			fgcurrent = 0 - fgcurrent;
-		if (1000 > fgcurrent/10)
+		if ((1000 > fgcurrent/10) || (batt_hv_disable == true))
 			val->strval = "Slow";
 		else
 			val->strval = "Fast";
@@ -779,6 +805,45 @@ static int battery_get_property(struct power_supply *psy,
 		else
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
 		break;
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	case POWER_SUPPLY_PROP_CHARGING_TYPE:
+		chr_type = mt_get_charger_type();
+		if (((chr_type == STANDARD_CHARGER) ||(chr_type == NONSTANDARD_CHARGER ) ) &&(!IS_ERR_OR_NULL(cm)))
+			{
+			#ifdef CONFIG_AFC_CHARGER
+			if (mtk_is_pep_series_connect(cm) || mtk_pdc_check_charger(cm) || afc_get_is_connect(cm)) {
+				val->strval = "9V_TA";
+				if (adapter_is_support_pd_pps())
+					val->strval = "PDIC_APDO";
+			}
+			else if (chr_type == NONSTANDARD_CHARGER)
+				val->strval = "UNDEFINED";
+			else if (chr_type == STANDARD_CHARGER)
+				val->strval = "TA";
+			#else
+			if (mtk_is_pep_series_connect(cm) || mtk_pdc_check_charger(cm)) {
+				val->intval = "9V_TA";
+				if (adapter_is_support_pd_pps())
+					val->strval = "PDIC_APDO";
+			}
+			else if (chr_type == NONSTANDARD_CHARGER)
+				val->strval = "UNDEFINED";
+			else if (chr_type == STANDARD_CHARGER)
+				val->strval = "TA";
+			#endif
+		}
+		else if (chr_type == CHARGER_UNKNOWN)
+				val->strval = "NONE";
+		else if (chr_type == STANDARD_HOST)
+					val->strval = "USB";
+		else if (chr_type == CHARGING_HOST)
+					val->strval = "USB_CDP";
+		else
+		{
+			val->strval = "UNDEFINED";
+		}
+		break;
+#endif
 	case POWER_SUPPLY_PROP_HV_DISABLE:
 		val->intval = batt_hv_disable;
 		break;
@@ -817,6 +882,8 @@ static int battery_set_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+		if(val->intval == 3)
+			return ret;
 		set_batt_slate_mode(&pval);
 		batt_slate_mode = val->intval; //Bug773947,churui1.wt,set mode 2 for batt_slate_mode node
 		break;

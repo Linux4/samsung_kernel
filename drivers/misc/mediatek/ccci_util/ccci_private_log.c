@@ -31,6 +31,8 @@
 #define CCCI_LOG_BUF_SIZE 4096	/* must be power of 2 */
 #define CCCI_LOG_MAX_WRITE 4096
 
+#define CUST_FT_DUMP_BUF_FROM_DT 
+
 /*extern u64 local_clock(void); */
 
 struct ccci_ring_buffer {
@@ -1069,8 +1071,7 @@ void ccci_util_mem_dump(int md_id, int buf_type, void *start_addr, int len)
 		return;
 	}
 
-	ccci_dump_write(md_id, buf_type, 0, "Base:%px\n",
-					(unsigned long)start_addr);
+	ccci_dump_write(md_id, buf_type, 0, "Base:%p\n", start_addr);
 	/* Fix section */
 	for (i = 0; i < _16_fix_num; i++) {
 		ccci_dump_write(md_id, buf_type, 0,

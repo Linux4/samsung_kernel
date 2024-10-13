@@ -25,7 +25,10 @@
 #include "wt_sy6970.h"
 #include "wt_sgm41543.h"
 #include "wt_rt9467.h"
-
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+#include <charger_class.h>
+static struct charger_device *primary_charger;
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 static struct charger_ic_t *charger_ic_list[] = {
 	&sy6970,
 	&sgm41543,
@@ -226,6 +229,16 @@ void charger_set_en_hiz(struct wtchg_info *info,bool en)
 		printc("set hiz failed !!!!!\n");
 	else
 		info->is_hiz = en;
+}
+
+int charger_set_vrechg(struct wtchg_info *info,bool en)
+{
+	unsigned int ret = 0;
+	printc("## set vrechg = %d\n",en);
+	ret = charger_field_write(info, B_VRECHG, en);
+	if (ret < 0)
+		printc("set vrechg failed !!!!!\n");
+	return ret;
 }
 
 void charger_get_en_hiz(struct wtchg_info *info,bool *en)
@@ -757,6 +770,9 @@ static int charger_plug_out(struct charger_device *chg_dev)
 		info->slate_mode = 0;
 		info->wt_discharging_state &= ~WT_CHARGE_SLATE_MODE_DISCHG;
 	}
+	if(info->batt_full_capacity != 100){
+		info->wt_discharging_state &= ~WT_CHARGE_FULL_CAP_DISCHG;
+	}
 	plug_flag = false;
 	if(!IS_ERR_OR_NULL(mtchg_info)) {
 		charger_set_en_hiz(info,0);	
@@ -1179,7 +1195,34 @@ static int  wt_otg_get_property(struct power_supply *psy,
 	}
 	return ret;
 }
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+static int  wt_otg_set_property(struct power_supply *psy,
+				       enum power_supply_property psp,
+				       const union power_supply_propval *val)
+{
+	struct wtchg_info *info = power_supply_get_drvdata(psy);
+	int ret = 0;
 
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		pr_info("%s: OTG %s \n",__func__,val->intval > 0 ? "ON" : "OFF");
+		primary_charger = get_charger_by_name("primary_chg");
+		if (!primary_charger){
+			pr_err("[%s]get primary charger device failed\n",__func__);
+			return ret;
+		}
+		if(val->intval)
+			charger_dev_enable_otg(primary_charger, val->intval);
+		else
+			charger_dev_enable_otg(primary_charger, val->intval);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+	return ret;
+}
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 static int  wt_otg_property_is_writeable(struct power_supply *psy,
 						enum power_supply_property psp)
 {
@@ -1245,6 +1288,9 @@ static const struct power_supply_desc  wt_otg_desc = {
 	.properties		=  wt_otg_properties,
 	.num_properties	= ARRAY_SIZE( wt_otg_properties),
 	.get_property	=  wt_otg_get_property,
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+	.set_property	=  wt_otg_set_property,
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 	.property_is_writeable	=  wt_otg_property_is_writeable,
 };
 
@@ -1288,7 +1334,9 @@ static int charger_init_device(struct wtchg_info *info)
 	ret = charger_get_chip_state(info, &state);
 	if (ret < 0)
 		printc("get chip state failed!\n");
-
+	ret = charger_set_vrechg(info,1);
+	if (ret < 0)
+		printc("set vreg failed!\n");
 	return 0;
 }
 

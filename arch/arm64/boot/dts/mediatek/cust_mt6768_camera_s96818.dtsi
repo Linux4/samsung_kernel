@@ -106,6 +106,36 @@
 			output-high;
 		};
 	};
+	//+S96818AA1-1936,liudijin.wt,ADD,2023/07/22,add avdd ldo supprot for main sensor.
+	camera_pins_cam0_vcama_2v8_0: cam0@vcam6 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_vcama_2v8_1: cam0@vcam7 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam1_vcama_2v8_0: cam1@vcam8 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam1_vcama_2v8_1: cam1@vcam9 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	//-S96818AA1-1936,liudijin.wt,ADD,2023/07/22,add avdd ldo supprot for main sensor.
 	camera1_rst_low: camera1_rst_output_low@gpio109 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
@@ -148,7 +178,9 @@
 			"cam1_mclk_6mA", "cam1_mclk_8mA",
 			"cam2_mclk_off",
 			"cam2_mclk_2mA", "cam2_mclk_4mA",
-			"cam2_mclk_6mA", "cam2_mclk_8mA";
+			"cam2_mclk_6mA", "cam2_mclk_8mA",
+			"cam0_ldo_vcama_2v8_0","cam0_ldo_vcama_2v8_1",
+			"cam1_ldo_vcama_2v8_0","cam1_ldo_vcama_2v8_1";
 
 	pinctrl-0 = <&camera_pins_default>;
 	pinctrl-1 = <&camera0_rst_low>;
@@ -172,6 +204,10 @@
 	pinctrl-19 = <&camera2_mclk_4mA>;
 	pinctrl-20 = <&camera2_mclk_6mA>;
 	pinctrl-21 = <&camera2_mclk_8mA>;
+	pinctrl-22 = <&camera_pins_cam0_vcama_2v8_0>;
+	pinctrl-23 = <&camera_pins_cam0_vcama_2v8_1>;
+	pinctrl-24 = <&camera_pins_cam1_vcama_2v8_0>;
+	pinctrl-25 = <&camera_pins_cam1_vcama_2v8_1>;
 
 	cam0_vcama-supply = <&mt_pmic_vcama1_ldo_reg>;
 	cam1_vcama-supply = <&mt_pmic_vcama1_ldo_reg>;
@@ -183,7 +219,7 @@
 	cam2_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
 	cam0_vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
 	cam0_enable_sensor = "n28hi5021qreartruly_mipi_raw n28hi5021qreardc_mipi_raw n28hi5022qreartxd_mipi_raw";
-	cam1_enable_sensor = "n28hi846fronttruly_mipi_raw n28gc08a3frontcxt_mipi_raw n28sc800csfrontdc_mipi_raw n28c8496frontdc_mipi_raw";
+	cam1_enable_sensor = "n28hi846fronttruly_mipi_raw n28gc08a3frontcxt_mipi_raw n28sc800csfrontdc_mipi_raw n28c8496frontdc_mipi_raw n28sc800csafrontdc_mipi_raw";
 	cam2_enable_sensor = "n28c2519depcxt_mipi_mono n28c2519depcxt2_mipi_mono n28gc2375hdeplh_mipi_raw n28gc2375hdeplh2_mipi_raw";
 	status = "okay";
 

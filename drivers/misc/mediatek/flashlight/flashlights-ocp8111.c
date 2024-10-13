@@ -112,9 +112,14 @@ static struct pinctrl_state *ocp8111_main_low;
 static struct pinctrl_state *flashlight_pwm_en;
 static struct pinctrl_state *flashlight_pwm_aw_en;
 static int light_pwm_value;
-
-
-
+#define GET_BOARDID_ERR 0
+#define USE_AW3641 1
+#define USE_OCP8111 2
+#define USE_AW3641_PVT 3
+#define USE_OCP8111_PVT 4
+extern camera_switch;
+extern hs_video_flag;
+int pwm_flag = 0;
 /* define usage count */
 static int use_count;
 
@@ -247,6 +252,29 @@ static int mt_flashlight_led_set_pwm(int pwm_num, u32 level, u32 clk_src, u32 cl
 
 static DEFINE_MUTEX(flashlight_gpio_lock);
 
+static int flash_distinguishes()
+{
+	if ((strcmp(boardid_get(), "S96818AA1") == 0) || (strcmp(boardid_get(), "S96818CA1") == 0)
+		|| (strcmp(boardid_get(), "S96818FA1") == 0)) {
+		printk("flashlight_ic is aw3641\n");
+		return USE_AW3641;
+	}
+	else if ((strcmp(boardid_get(), "S96818BA1") == 0) || (strcmp(boardid_get(), "S96818EA1") == 0)) {
+		printk("flashlight_ic is ocp8111\n");
+		return USE_OCP8111;
+	}
+	else if ((strcmp(boardid_get(), "S96818GA1") == 0) || (strcmp(boardid_get(), "S96818JA1") == 0)) {
+		printk("flashlight_ic is aw3641_pvt\n");
+		return USE_AW3641_PVT;
+	}
+	else if ((strcmp(boardid_get(), "S96818HA1") == 0) || (strcmp(boardid_get(), "S96818IA1") == 0)
+		|| (strcmp(boardid_get(), "S96818KA1") == 0)) {
+		printk("flashlight_ic is ocp8111_pvt\n");
+		return USE_OCP8111_PVT;
+	}
+	else
+		return GET_BOARDID_ERR;
+}
 static int ocp8111_pinctrl_set(int pin, int state)
 {
 	int ret = 0;
@@ -267,23 +295,42 @@ static int ocp8111_pinctrl_set(int pin, int state)
 			udelay(500);
 		}
 		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
-				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_en) && ((strcmp(boardid_get(), "S96818BA1") == 0) || (strcmp(boardid_get(), "S96818EA1") == 0)) && TorchFlag == 1){	//torch mode
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_en) && (flash_distinguishes() == USE_OCP8111) && TorchFlag == 1){	//torch mode
 			printk("flashlights_ocp8111 enter torch mode, light_pwm_value= %d\n", light_pwm_value);
+			mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
 			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
 			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
 			mdelay(6);
 			ret = pinctrl_select_state(ocp8111_pinctrl, flashlight_pwm_en); //ENM
-			mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
 		}
 		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
-				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && ((strcmp(boardid_get(), "S96818CA1") == 0) || (strcmp(boardid_get(), "S96818AA1") == 0)) && TorchFlag == 1){	//torch mode
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && (flash_distinguishes() == USE_AW3641) && TorchFlag == 1){	//torch mode
 			printk("flashlights_aw3641 enter torch mode, light_pwm_value= %d\n", light_pwm_value);
+			mt_flashlight_led_set_pwm(2, light_pwm_value / 20, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
 			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
 			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
 			mdelay(6);
 			ret = pinctrl_select_state(ocp8111_pinctrl, flashlight_pwm_aw_en); //ENM
-			mt_flashlight_led_set_pwm(2, light_pwm_value / 20, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
 		}
+		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && (flash_distinguishes() == USE_AW3641_PVT) && TorchFlag == 1){	//torch mode
+			printk("flashlights_aw3641_PVT enter torch mode, light_pwm_value= %d, flashlight_pwm_en\n", light_pwm_value);
+			mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
+			mdelay(6);
+			ret = pinctrl_select_state(ocp8111_pinctrl, flashlight_pwm_en); //ENM
+		}
+		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && (flash_distinguishes() == USE_OCP8111_PVT) && TorchFlag == 1){	//torch mode
+			printk("flashlights_ocp8111_PVT enter torch mode, light_pwm_value= %d, flashlight_pwm_en\n", light_pwm_value);
+			mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
+			mdelay(6);
+			ret = pinctrl_select_state(ocp8111_pinctrl, flashlight_pwm_en); //ENM
+		}
+
 		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
 				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && TorchFlag == 0){	//torch mode
 			printk("flashlights_aw3641 enter torch mode, light_pwm_value= %d\n", light_pwm_value);
@@ -292,7 +339,103 @@ static int ocp8111_pinctrl_set(int pin, int state)
 			mdelay(6);
 		}	
 		else
+			pr_err("set err, pin(%d) state(%d) flash_distinguishes(%d)\n", pin, state, flash_distinguishes());
+		pwm_flag = 1;
+		break;
+	case OCP8111_PINCTRL_PIN_MAIN:
+		if (state == OCP8111_PINCTRL_MAIN_PINSTATE_LOW &&
+				!IS_ERR(ocp8111_main_low)){
+				pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+				pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_low);
+				udelay(500);
+				pr_info("flashlights_ocp8111 pwn disable");
+		}
+		else if (state == OCP8111_PINCTRL_MAIN_PINSTATE_HIGH &&
+				!IS_ERR(ocp8111_main_high)){	//flash mode
+			printk("flashlights_ocp8111 enter flash mode");
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_high);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
+			mdelay(5);
+		}
+		else
 			pr_err("set err, pin(%d) state(%d)\n", pin, state);
+		break;
+	default:
+		pr_err("set err, pin(%d) state(%d)\n", pin, state);
+		break;
+	}
+
+	mutex_unlock(&flashlight_gpio_lock);
+
+	pr_debug("pin(%d) state(%d)\n", pin, state);
+
+	return ret;
+}
+
+static int ocp8111_pinctrl_video_set(int pin, int state)
+{
+	int ret = 0;
+	printk("boardid_get = %s, TorchFlag = %d.", boardid_get(), TorchFlag);
+	LOG_INF("+++pin:%d, state:%d. \n", pin, state);
+	if (IS_ERR(ocp8111_pinctrl)) {
+		pr_err("pinctrl is not available\n");
+		return -1;
+	}
+
+	mutex_lock(&flashlight_gpio_lock);
+	switch (pin) {
+	case OCP8111_PINCTRL_PIN_XXX:
+		if (state == OCP8111_PINCTRL_PINSTATE_LOW &&
+				!IS_ERR(ocp8111_xxx_low)){
+			pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+			pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_low);
+			udelay(500);
+		}
+		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_en) && (flash_distinguishes() == USE_OCP8111) && TorchFlag == 1){	//torch mode
+			printk("flashlights_ocp8111 enter video mode, light_pwm_value= %d\n", light_pwm_value);
+			mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
+			mdelay(6);
+			ret = pinctrl_select_state(ocp8111_pinctrl, flashlight_pwm_en); //ENM
+		}
+		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && (flash_distinguishes() == USE_AW3641) && TorchFlag == 1){	//torch mode
+			printk("flashlights_aw3641 enter video mode, light_pwm_value= %d\n", light_pwm_value);
+			mt_flashlight_led_set_pwm(2, light_pwm_value, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
+			mdelay(6);
+			ret = pinctrl_select_state(ocp8111_pinctrl, flashlight_pwm_aw_en); //ENM
+		}
+		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && (flash_distinguishes() == USE_AW3641_PVT) && TorchFlag == 1){	//torch mode
+			printk("flashlights_aw3641_PVT enter video mode, light_pwm_value= %d, flashlight_pwm_en\n", light_pwm_value);
+			mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 150);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
+			mdelay(6);
+			ret = pinctrl_select_state(ocp8111_pinctrl, flashlight_pwm_en); //ENM
+		}
+		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && (flash_distinguishes() == USE_OCP8111_PVT) && TorchFlag == 1){	//torch mode
+			printk("flashlights_ocp8111_PVT enter video mode, light_pwm_value= %d, flashlight_pwm_en\n", light_pwm_value);
+			mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
+			mdelay(6);
+			ret = pinctrl_select_state(ocp8111_pinctrl, flashlight_pwm_en); //ENM
+		}
+		else if (state == OCP8111_PINCTRL_PINSTATE_HIGH &&
+				!IS_ERR(ocp8111_xxx_high) && !IS_ERR(flashlight_pwm_aw_en) && TorchFlag == 0){	//torch mode
+			printk("flashlights_aw3641 enter video mode, light_pwm_value= %d\n", light_pwm_value);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_main_low);
+			ret = pinctrl_select_state(ocp8111_pinctrl, ocp8111_xxx_high);
+			mdelay(6);
+		}
+		else
+			pr_err("set err, pin(%d) state(%d) flash_distinguishes(%d)\n", pin, state, flash_distinguishes());
 		break;
 	case OCP8111_PINCTRL_PIN_MAIN:
 		if (state == OCP8111_PINCTRL_MAIN_PINSTATE_LOW &&
@@ -342,16 +485,52 @@ static int ocp8111_enable(void)
 	} else {
 		//ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_MAIN, OCP8111_PINCTRL_MAIN_PINSTATE_LOW);
 		//+EXTB P211011-02914,zhanghao2.wt,modify,2021/10/12,fix press home key torch has flash
-		if (g_torchWaitLock == 0) {
+		//+S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
+		if ((g_torchWaitLock == 0 || hs_video_flag) && camera_switch == 1) {
 			enable_torch_wakelock(); //bug 682590, zhanghao2.wt, ADD, 2021/9/28, fix flashlight close screen and torch had closed.
-			if ((strcmp(boardid_get(), "S96818CA1") == 0) || (strcmp(boardid_get(), "S96818AA1") == 0))
-				light_pwm_value = 4*20;
-			else
-				light_pwm_value = 58*20;
-			ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);		//torch mode
+			if (flash_distinguishes() == USE_AW3641) {
+				light_pwm_value = 0;
+				printk("flashlights_aw3641 set torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111){
+				light_pwm_value = 70;
+				printk("flashlights_ocp8111 set torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111_PVT){
+				light_pwm_value = 70;
+				printk("flashlights_ocp8111_pvt set torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_AW3641_PVT){
+				light_pwm_value = 120;
+				printk("flashlights_ocp8111_pvt set torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			if (!pwm_flag)
+				ocp8111_pinctrl_video_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);//torch mode
+		} else {
+			enable_torch_wakelock(); //bug 682590, zhanghao2.wt, ADD, 2021/9/28, fix flashlight close screen and torch had closed.
+			if (flash_distinguishes() == USE_AW3641) {
+				light_pwm_value = 0*20;
+				printk("flashlights_aw3641 set torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111){
+				light_pwm_value = 44*20;
+				printk("flashlights_ocp8111 set torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111_PVT){
+				light_pwm_value = 48*20;
+				printk("flashlights_ocp8111_pvt set torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_AW3641_PVT){
+				light_pwm_value = 50*20;
+				printk("flashlights_ocp8111_pvt set torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+				ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
+
 		}
+		//-S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
 		//-EXTB P211011-02914,zhanghao2.wt,modify,2021/10/12,fix press home key torch has flash
 	}
+	pwm_flag = 1;
 	return 0;
 }
 
@@ -366,6 +545,7 @@ static int ocp8111_disable(void)
 	diable_torch_wakelock();
 	//-bug 682590, zhanghao2.wt, ADD, 2021/9/28, fix flashlight close screen and torch had closed.
 	ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_MAIN, OCP8111_PINCTRL_MAIN_PINSTATE_LOW);
+	pwm_flag = 0;
 	return 0;
 }
 
@@ -599,57 +779,164 @@ static ssize_t store_flashduty1(struct device *dev, struct device_attribute *att
 	if(err != 0){
 		return err;
 	}
-        LOG_INF("ss-torch:set torch level,flashduty1= %d\n", flashduty1);
-
+    LOG_INF("ss-torch:set torch level,flashduty1= %d\n", flashduty1);
 	switch(flashduty1){
 		case 1001:
-			if ((strcmp(boardid_get(), "S96818CA1") == 0) || (strcmp(boardid_get(), "S96818AA1") == 0))
+			if (flash_distinguishes() == USE_AW3641) {
 				light_pwm_value = 2*20;
-			else
+				mt_flashlight_led_set_pwm(2, light_pwm_value / 20, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
+				printk("flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111) {
 				light_pwm_value = 50*20;
-			ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_AW3641_PVT) {
+				light_pwm_value = 29*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111_PVT) {
+				light_pwm_value = 25*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+
+			if (!pwm_flag)
+				ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
 			break;
 
 		case 1002:
-			if ((strcmp(boardid_get(), "S96818CA1") == 0) || (strcmp(boardid_get(), "S96818AA1") == 0))
+			if (flash_distinguishes() == USE_AW3641) {
 				light_pwm_value = 4*20;
-			else
+				mt_flashlight_led_set_pwm(2, light_pwm_value / 20, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
+				printk("flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111) {
 				light_pwm_value = 58*20;
-			ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_AW3641_PVT) {
+				light_pwm_value = 39*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111_PVT) {
+				light_pwm_value = 34*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+
+			if (!pwm_flag)
+				ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
 			break;
 
 		case 1003:
-			if ((strcmp(boardid_get(), "S96818CA1") == 0) || (strcmp(boardid_get(), "S96818AA1") == 0))
+			if (flash_distinguishes() == USE_AW3641) {
 				light_pwm_value = 6*20;
-			else
+				mt_flashlight_led_set_pwm(2, light_pwm_value / 20, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
+				printk("flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111) {
 				light_pwm_value = 67*20;
-			ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_AW3641_PVT) {
+				light_pwm_value = 49*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111_PVT) {
+				light_pwm_value = 42*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+
+			if (!pwm_flag)
+				ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
 			break;
 
 		case 1005:
-			if ((strcmp(boardid_get(), "S96818CA1") == 0) || (strcmp(boardid_get(), "S96818AA1") == 0))
+			if (flash_distinguishes() == USE_AW3641) {
 				light_pwm_value = 8*20;
-			else
+				mt_flashlight_led_set_pwm(2, light_pwm_value / 20, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
+				printk("flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111) {
 				light_pwm_value = 76*20;
-			ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_AW3641_PVT) {
+				light_pwm_value = 59*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111_PVT) {
+				light_pwm_value = 52*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+
+			if (!pwm_flag)
+				ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
 			break;
 
 		case 1007:
-			if ((strcmp(boardid_get(), "S96818CA1") == 0) || (strcmp(boardid_get(), "S96818AA1") == 0))
+			if (flash_distinguishes() == USE_AW3641) {
 				light_pwm_value = 10*20;
-			else
+				mt_flashlight_led_set_pwm(2, light_pwm_value / 20, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
+				printk("flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111) {
 				light_pwm_value = 85*20;
-			ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_AW3641_PVT) {
+				light_pwm_value = 69*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111_PVT) {
+				light_pwm_value = 62*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+
+			if (!pwm_flag)
+				ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
 			break;
 
 		default:
-			if ((strcmp(boardid_get(), "S96818CA1") == 0) || (strcmp(boardid_get(), "S96818AA1") == 0))
+			if (flash_distinguishes() == USE_AW3641) {
 				light_pwm_value = 5*20;
-			else
+				mt_flashlight_led_set_pwm(2, light_pwm_value / 20, PWM_CLK_OLD_MODE_BLOCK, CLK_DIV32, 100);
+				printk("flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111) {
 				light_pwm_value = 63*20;
-			ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_AW3641_PVT) {
+				light_pwm_value = 50*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_aw3641 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+			else if (flash_distinguishes() == USE_OCP8111_PVT) {
+				light_pwm_value = 41*20;
+				mt_flashlight_led_set_pwm(0, light_pwm_value, PWM_CLK_OLD_MODE_32K, CLK_DIV128, 100*20);
+				printk("PVT_flashlights_ocp8111 set SS torch mode light_pwm_value = %d\n", light_pwm_value);
+			}
+
+			if (!pwm_flag)
+				ocp8111_pinctrl_set(OCP8111_PINCTRL_PIN_XXX, OCP8111_PINCTRL_PINSTATE_HIGH);
 			break;
-	}
+		}
 	pr_info("Exit!\n");
 	return count;
 }

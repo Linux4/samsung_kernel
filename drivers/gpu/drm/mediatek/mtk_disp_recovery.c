@@ -40,6 +40,13 @@
 #else
 #define ESD_CHECK_PERIOD 2000 /* ms */
 #endif
+
+//+S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
+#include <mt-plat/mtk_boot_common.h>
+int lcm_vsn_flag = 1;
+extern int battery_get_boot_mode(void);
+//-S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
+
 /* pinctrl implementation */
 long _set_state(struct drm_crtc *crtc, const char *name)
 {
@@ -552,7 +559,6 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 		i = 0; /* repeat */
 		do {
 			ret = mtk_drm_esd_check(crtc);
-
 			if (!ret) /* success */ {
 				rec_esd = 0;
 				break;
@@ -561,6 +567,15 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 				"[ESD]esd check fail, will do esd recovery. try=%d\n",
 				i);
 			rec_esd = 1;
+			//+S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
+			pr_info("lcm_vsn_flag = %d\n",lcm_vsn_flag);
+			if(battery_get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT || battery_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT){
+				if(lcm_vsn_flag == 0){
+					DDPPR_ERR("[ESD] battery_get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT, lcm vsn is power off, do not esd recovery\n");
+					break;
+				}
+			}
+			//-S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
 			mtk_drm_esd_recover(crtc);
 			recovery_flg = 1;
 		} while (++i < ESD_TRY_CNT);

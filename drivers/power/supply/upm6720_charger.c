@@ -27,6 +27,7 @@
 #include <linux/hardware_info.h>
 
 #include "upm6720_reg.h"
+struct upm6720 *otg_upm;
 
 typedef enum {
 	CHG_SW_CAP_MODE,
@@ -445,6 +446,34 @@ static int upm6720_check_charge_enabled(struct upm6720 *upm, bool *enable)
 
 	return ret;
 }
+
+/* +S96818AA1-1936,zhouxiaopeng2.wt,add,20230803,Modify OTG current path */
+int upm6720_set_otg_txmode(bool enable)
+{
+	int ret = 0;
+	u8 val1,val2,val3;
+	if (!otg_upm)
+		return 0;
+	if (enable) {
+		val1 = UPM6720_EN_OTG_ENABLE;
+		val2 = UPM6720_DIS_ACDRV_BOTH_DISABLE;
+		val3 = UPM6720_ACDRV1_STAT_ON;
+		upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_EN_OTG_MASK, val1 <<= UPM6720_EN_OTG_SHIFT);
+		upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_DIS_ACDRV_BOTH_MASK, val2 <<= UPM6720_DIS_ACDRV_BOTH_SHIFT);
+		ret = upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_ACDRV1_STAT_MASK, val3 <<= UPM6720_ACDRV1_STAT_SHIFT);
+	} else {
+		val1 = UPM6720_VBUS_PD_ENABLE;
+		val2 = UPM6720_ACDRV1_STAT_OFF;
+		val3 = UPM6720_EN_OTG_DISABLE;
+		upm6720_update_bits(otg_upm, UPM6720_REG_06,UPM6720_VBUS_PD_EN_MASK, val1 <<= UPM6720_VBUS_PD_EN_SHIFT);
+		upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_ACDRV1_STAT_MASK, val2 <<= UPM6720_ACDRV1_STAT_SHIFT);
+		ret = upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_EN_OTG_MASK, val3 <<= UPM6720_EN_OTG_SHIFT);
+	}
+	printk("upm6720_set_otg_txmode = %d\n", enable);
+	return ret;
+}
+EXPORT_SYMBOL(upm6720_set_otg_txmode);
+/* -S96818AA1-1936,zhouxiaopeng2.wt,add,20230803,Modify OTG current path */
 
 #if 0
 static int upm6720_set_chg_config(struct upm6720 *upm, bool enable)
@@ -1029,6 +1058,21 @@ static int upm6720_enable_adc(struct upm6720 *upm, bool enable)
     return upm6720_update_bits(upm, UPM6720_REG_23,
                 UPM6720_ADC_EN_MASK, val);
 }
+
+int upm6720_adc_en(bool enable)
+{
+	int ret = 0;
+	if (!otg_upm)
+		return 0;
+	if (enable) {
+		ret = upm6720_enable_adc(otg_upm, true);
+	} else {
+		ret = upm6720_enable_adc(otg_upm, false);
+	}
+	printk("upm6720_adc_en = %d\n", enable);
+	return ret;
+}
+EXPORT_SYMBOL(upm6720_adc_en);
 
 static int upm6720_set_adc_scanrate(struct upm6720 *upm, bool oneshot)
 {
@@ -1753,7 +1797,7 @@ static int upm6720_init_adc(struct upm6720 *upm)
     upm6720_set_adc_channel_enable(upm, UPM_ADC_TSBAT, !upm->cfg->tsbat_adc_disable);
     upm6720_set_adc_channel_enable(upm, UPM_ADC_TDIE, !upm->cfg->tdie_adc_disable);
 
-    upm6720_enable_adc(upm, upm->cfg->adc_enable);
+    upm6720_enable_adc(upm, false);
 
     return 0;
 }
@@ -1807,7 +1851,7 @@ static void upm6720_monitor_work(struct work_struct *work)
 	
 	upm6720_dump_registers(upm);
 	
-	schedule_delayed_work(&upm->monitor_work, msecs_to_jiffies(3*1000));
+	//schedule_delayed_work(&upm->monitor_work, msecs_to_jiffies(3*1000));
 }
 
 #if 0
@@ -2251,6 +2295,7 @@ static int upm6720_charger_probe(struct i2c_client *client,
     hardwareinfo_set_prop(HARDWARE_CHARGER_PUMP, "UPM6720");
     /* -Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
 
+	otg_upm = upm;
     return 0;
 
 err_2:

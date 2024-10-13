@@ -8,6 +8,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/of_address.h>
+#include <linux/power_supply.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 
@@ -23,6 +24,10 @@
 #endif
 
 #include <mt-plat/mtk_boot_common.h>
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+#include <linux/usb_notify.h>
+#endif
+
 MODULE_LICENSE("GPL v2");
 
 struct musb *mtk_musb;
@@ -77,6 +82,10 @@ EXPORT_SYMBOL(register_usb_hal_disconnect_check);
 
 #if defined(CONFIG_MTK_BASE_POWER)
 #include "mtk_spm_resource_req.h"
+
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+#include <linux/cable_type_notifier.h>
+#endif
 
 static int dpidle_status = USB_DPIDLE_ALLOWED;
 module_param(dpidle_status, int, 0644);
@@ -806,6 +815,22 @@ static bool musb_hal_is_vbus_exist(void)
 }
 
 /* be aware this could not be used in non-sleep context */
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+bool usb_cable_connected(void)
+{
+	struct otg_notify *usb_notify;
+	int usb_mode = 0;
+
+	usb_notify = get_otg_notify();
+	usb_mode = get_usb_mode(usb_notify);
+	pr_info("usb: %s: %d\n", __func__, usb_mode);
+	if (usb_mode == NOTIFY_PERIPHERAL_MODE)
+		return true;
+	else
+		return false;
+
+}
+#else
 bool usb_cable_connected(struct musb *musb)
 {
 	if (musb->usb_connected)
@@ -813,6 +838,7 @@ bool usb_cable_connected(struct musb *musb)
 	else
 		return false;
 }
+#endif
 
 static bool cmode_effect_on(void)
 {
@@ -843,15 +869,34 @@ void do_connection_work(struct work_struct *data)
 	/* clk_prepare_cnt +1 here*/
 	usb_prepare_clock(true);
 
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+	usb_connected = usb_cable_connected();
+#else
 	/* be aware this could not be used in non-sleep context */
 	usb_connected = mtk_musb->usb_connected;
+#endif
 
 	/* additional check operation here */
 	if (musb_force_on)
 		usb_on = true;
-	else if (work->ops == CONNECTION_OPS_CHECK)
+	else if (work->ops == CONNECTION_OPS_CHECK) {
 		usb_on = usb_connected;
-	else
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+		if (!musb_is_host() && usb_on) {
+			DBG(0, "mtk_musb->sec_cable_type=%d", mtk_musb->sec_cable_type);
+			switch (mtk_musb->sec_cable_type) {
+				case POWER_SUPPLY_USB_TYPE_SDP:
+					cable_type_notifier_set_attached_dev(CABLE_TYPE_USB_SDP);
+					break;
+				case POWER_SUPPLY_USB_TYPE_CDP:
+					cable_type_notifier_set_attached_dev(CABLE_TYPE_USB_CDP);
+					break;
+				default:
+					break;
+			}
+		}
+#endif
+	} else
 		usb_on = (work->ops ==
 			CONNECTION_OPS_CONN ? true : false);
 

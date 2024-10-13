@@ -13,6 +13,11 @@ config WT_PROJECT_S96818AA1
 	help
 	Say Y here for distinguish different projects
 
+config WT_PROJECT_S96818BA1
+        bool "Define for S96818BA1"
+	help
+	Say Y here for distinguish different projects
+
 config WT_PROJECT_S96901AA1
 	bool "Define for S96901AA1"
 	help

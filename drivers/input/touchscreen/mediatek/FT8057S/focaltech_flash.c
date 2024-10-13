@@ -38,7 +38,8 @@
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
-#define FTS_FW_REQUEST_SUPPORT                      1
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
+#define FTS_FW_REQUEST_SUPPORT                      0
 /* Example: focaltech_ts_fw_tianma.bin */
 #define FTS_FW_NAME_PREX_WITH_REQUEST               "focaltech_ft8057s_fw_mdt"
 #define FTS_READ_BOOT_ID_TIMEOUT                    3
@@ -59,11 +60,9 @@ extern char Ctp_name[64];
 *****************************************************************************/
 //+S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s Modify the compilation error
 u8 fw_file[] = {
-#ifndef FTS_FW_REQUEST_SUPPORT
 #include FTS_UPGRADE_FW_FILE
-#endif
 };
-
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
 u8 fw_file2[] = {
 #ifndef FTS_FW_REQUEST_SUPPORT
 #include FTS_UPGRADE_FW2_FILE

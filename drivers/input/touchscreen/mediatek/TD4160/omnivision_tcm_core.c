@@ -41,7 +41,10 @@
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+#include <../../../../misc/mediatek/lcm/inc/panel_notifier.h>
+void ovt_plat_charger_init(void);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
 /* #define RESET_ON_RESUME */
 
 /* #define RESUME_EARLY_UNBLANK */
@@ -244,6 +247,7 @@ DECLARE_COMPLETION(helper_complete);
 static struct kobject *sysfs_dir;
 
 static struct ovt_tcm_module_pool mod_pool;
+extern unsigned char n28_lcm_sn[20];
 
 SHOW_PROTOTYPE(ovt_tcm, info)
 SHOW_PROTOTYPE(ovt_tcm, info_appfw)
@@ -291,8 +295,12 @@ static void get_fw_ver_bin(void *device_data)
     char buff[SEC_CMD_STR_LEN] = { 0 };
 
     sec_cmd_set_default_result(sec);
-
-    snprintf(buff, sizeof(buff), "XINXIAN,TD4160,FW:0x%02x",g_tcm_hcd->app_info.customer_config_id[15]);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
+	if (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
+		snprintf(buff, sizeof(buff), "XINXIAN,TD4160,FW:0x%02x",g_tcm_hcd->app_info.customer_config_id[15]);
+	}else{
+		snprintf(buff, sizeof(buff), "BOE,TD4160,FW:0x%02x",g_tcm_hcd->app_info.customer_config_id[15]);
+	}
 
     sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
     sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -306,9 +314,12 @@ static void get_fw_ver_ic(void *device_data)
     char buff[SEC_CMD_STR_LEN] = { 0 };
 
     sec_cmd_set_default_result(sec);
-
-    snprintf(buff, sizeof(buff), "XINXIAN,TD4160,FW:0x%02x",g_tcm_hcd->app_info.customer_config_id[15]);
-    
+	if (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
+		snprintf(buff, sizeof(buff), "XINXIAN,TD4160,FW:0x%02x",g_tcm_hcd->app_info.customer_config_id[15]);
+	}else{
+		snprintf(buff, sizeof(buff), "BOE,TD4160,FW:0x%02x",g_tcm_hcd->app_info.customer_config_id[15]);
+	}
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
     sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
     sec->cmd_state = SEC_CMD_STATUS_OK;
     sec_cmd_set_cmd_exit(sec);
@@ -340,11 +351,52 @@ static void aot_enable(void *device_data)
     LOGN(g_tcm_hcd->pdev->dev.parent,"%s end\n",__func__);
     sec_cmd_set_cmd_exit(sec);
 }
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/02,n28-tp td4160 add Touch sensitivity 
+static void glove_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
+	unsigned int buf[4];
+	unsigned short value;
+	int retval;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	sec_cmd_set_default_result(sec);
+
+	buf[0] = sec->cmd_param[0];
+
+	if(buf[0] == 1){
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd,
+				DC_ENABLE_GLOVE,
+				1);
+	}else{
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd,
+				DC_ENABLE_GLOVE,
+				0);
+	}
+	if(retval < 0){
+		LOGE(g_tcm_hcd->pdev->dev.parent,"%s failed to set glove mode\n");
+		snprintf(buff, sizeof(buff), "%s", "fail");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		goto out;
+	}
+	tcm_hcd->get_dynamic_config(tcm_hcd, DC_ENABLE_GLOVE, &value);
+	LOGN(g_tcm_hcd->pdev->dev.parent,"value=%u\n",value);
+
+	snprintf(buff, sizeof(buff), "%s", "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+
+out:
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	LOGN(g_tcm_hcd->pdev->dev.parent,"%s end\n",__func__);
+	sec_cmd_set_cmd_exit(sec);
+}
 static struct sec_cmd sec_cmds[] = {
     {SEC_CMD("get_fw_ver_ic", get_fw_ver_ic),},
     {SEC_CMD("get_fw_ver_bin", get_fw_ver_bin),},
     {SEC_CMD("aot_enable", aot_enable),},
+    {SEC_CMD("glove_mode", glove_mode),},
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/02,n28-tp td4160 add Touch sensitivity
     {SEC_CMD("not_support_cmd", not_support_cmd),},
 };
 
@@ -357,14 +409,30 @@ static ssize_t ovt_support_feature(struct device *dev,
 
     return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", feature);
 }
+//+S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
+static ssize_t upgrade_mode_show(struct device *dev,
+    struct device_attribute *attr, char *buf)
+{
+	int ret;
+    struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
+    ret = snprintf(buf, SEC_CMD_BUF_SIZE, "%d -> %d\n",
+	tcm_hcd->upgrade_mode, !tcm_hcd->upgrade_mode);
+	tcm_hcd->upgrade_mode = !tcm_hcd->upgrade_mode;
+
+	LOGN(g_tcm_hcd->pdev->dev.parent,"%s end,%d\n",__func__,tcm_hcd->upgrade_mode);
+    return ret;
+}
+
+static DEVICE_ATTR(upgrade_mode, 0444, upgrade_mode_show, NULL);
 static DEVICE_ATTR(support_feature, 0444, ovt_support_feature, NULL);
 
 static struct attribute *ovt_cmd_attributes[] = {
     &dev_attr_support_feature.attr,
+	&dev_attr_upgrade_mode.attr,
     NULL,
 };
-
+//-S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
 static struct attribute_group ovt_cmd_attr_group = {
     .attrs = ovt_cmd_attributes,
 };
@@ -2649,9 +2717,13 @@ get_app_info:
 				"Failed to copy application info\n");
 		goto exit;
 	}
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/17,td4160 modification add hardware information
-	sprintf(Ctp_name,"XINXIAN,TD4160,FW:0x%02x\n",tcm_hcd->app_info.customer_config_id[15]);
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/17,td4160 modification and hardware information
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
+	if (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
+		sprintf(Ctp_name,"XINXIAN,TD4160,FW:0x%02x\n",tcm_hcd->app_info.customer_config_id[15]);
+	}else if(strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_boe_boe")) {
+		sprintf(Ctp_name,"BOE,TD4160,FW:0x%02x\n",tcm_hcd->app_info.customer_config_id[15]);
+	}
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
 	tcm_hcd->app_status = le2_to_uint(tcm_hcd->app_info.status);
 
 	if (tcm_hcd->app_status == APP_STATUS_BOOTING ||
@@ -2715,7 +2787,53 @@ exit:
 
 	return retval;
 }
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/03,td4160 Read the electronic QR code of the LCM module
+static int ovt_tcm_get_serial_number(unsigned char *p_data, unsigned int data_len)
+{
+	int retval;
+	unsigned char *resp_buf;
+	unsigned int resp_buf_size;
+	unsigned int resp_length;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
+	resp_buf = NULL;
+	resp_buf_size = 0;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_GET_SERIAL_NUMBER,
+			NULL,
+			0,
+			&resp_buf,
+			&resp_buf_size,
+			&resp_length,
+			NULL,
+			0);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s\n",
+				STR(CMD_GET_SERIAL_NUMBER));
+		goto exit;
+	}
+
+	retval = secure_memcpy((unsigned char *)p_data,
+			data_len,
+			resp_buf,
+			resp_buf_size,
+			MIN(data_len, resp_length));
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to copy serail number info\n");
+		goto exit;
+	}
+
+	retval = 0;
+
+exit:
+	kfree(resp_buf);
+
+	return retval;
+}
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/03,td4160 Read the electronic QR code of the LCM module
 static int ovt_tcm_get_romboot_info(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -3611,7 +3729,16 @@ static void ovt_tcm_helper_work(struct work_struct *work)
 			mutex_unlock(&tcm_hcd->reset_mutex);
 			break;
 		}
-
+		//+S96818AA1-1936,daijun1.wt,modify,2023/06/03,td4160 Read the electronic QR code of the LCM module
+		if (n28_lcm_sn[0] == 0){
+			retval = ovt_tcm_get_serial_number(n28_lcm_sn, 20);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed ovt_tcm_get_serial_number info\n");
+			}
+			pr_err("read lcm sn = %s\n", n28_lcm_sn);
+		}
+		//-S96818AA1-1936,daijun1.wt,modify,2023/06/03,td4160 Read the electronic QR code of the LCM module
 		/* init the touch reporting here */
 		/* since the HDL is completed */
 		retval = touch_reinit(tcm_hcd);
@@ -4056,15 +4183,102 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 
 	return 0;
 }
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+static int ovt_charger_notifier_callback(struct notifier_block *nb, unsigned long val, void *v)
+{
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+	int usb_plug_status;
 
+	usb_plug_status = (int) val;
+	LOGN(tcm_hcd->pdev->dev.parent,"val=%d\n",val);
+
+	if (usb_plug_status != tcm_hcd->usb_plug_status){
+		tcm_hcd->usb_plug_status = usb_plug_status;
+
+		if (tcm_hcd->charger_notify_wq != NULL){
+			queue_work(tcm_hcd->charger_notify_wq, &tcm_hcd->update_charger);
+		}
+	}
+	return 0;
+}
+
+static void ovt_update_charger(struct work_struct *work)
+{
+	int retval;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+
+//	if (mutex_lock_interruptible(&tcm_hcd->command_mutex)) {
+//	return;
+//	}
+
+	if(tcm_hcd->usb_plug_status == 1){
+		tcm_hcd->func_charger_connected_en = 1;
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_CHARGER_CONNECTED, 1);
+		LOGN(tcm_hcd->pdev->dev.parent, "ovt usb_online usb_plug_status=%d\n",tcm_hcd->usb_plug_status);
+	}else{
+		tcm_hcd->func_charger_connected_en = 0;
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_CHARGER_CONNECTED, 0);
+		LOGN(tcm_hcd->pdev->dev.parent, "ovt usb_offline usb_plug_status=%d\n",tcm_hcd->usb_plug_status);
+	}
+//	mutex_unlock(&tcm_hcd->command_mutex);
+}
+//+S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode
+extern int g_lcm_name;
+void ovt_set_headphone_mode(int mode)
+{
+	int retval;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+
+	if(g_lcm_name != 19 && g_lcm_name != 21){
+		return;
+	}
+
+	tcm_hcd->func_ear_phone_connected_en = mode;
+	if (tcm_hcd->in_suspend == false){
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_ENABLE_EAR_PHONE, mode);
+		LOGN(tcm_hcd->pdev->dev.parent, "set headphone mode ok\n");
+	}
+	LOGN(tcm_hcd->pdev->dev.parent, "func_ear_phone_connected_en=%d\n",tcm_hcd->func_ear_phone_connected_en);
+}
+EXPORT_SYMBOL(ovt_set_headphone_mode);
+//-S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode
+void ovt_plat_charger_init(void)
+{
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+	int ret = 0;
+	tcm_hcd->usb_plug_status = 2;
+	tcm_hcd->charger_notify_wq = create_singlethread_workqueue("ovt_charger_wq");
+	if (!tcm_hcd->charger_notify_wq) {
+		LOGN(tcm_hcd->pdev->dev.parent, "%s allocate ovt_charger_notify_wq failed\n", __func__);
+		return;
+	}
+	INIT_WORK(&tcm_hcd->update_charger, ovt_update_charger);
+	tcm_hcd->notifier_charger.notifier_call = ovt_charger_notifier_callback;
+	ret = usb_register_client(&tcm_hcd->notifier_charger);
+	if (ret < 0)
+		LOGN(tcm_hcd->pdev->dev.parent, "ovt power_supply_reg_notifier failed\n");
+}
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+/* +S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP td4160 blocking shutdown issue */
+extern int battery_get_boot_mode(void);
 static int ovt_tcm_probe(struct platform_device *pdev)
 {
 	int retval;
 	int idx;
+	int boot_mode;
 	struct ovt_tcm_hcd *tcm_hcd;
 	const struct ovt_tcm_board_data *bdata;
 	const struct ovt_tcm_hw_interface *hw_if;
 
+	msleep(200);
+	boot_mode = battery_get_boot_mode();
+	if (boot_mode == 8)
+	{
+	printk("%s : start mode =%d\n", __func__,boot_mode);
+		return -1;
+	}
+	printk("%s : start mode =%d\n", __func__,boot_mode);
+/* -S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP td4160 blocking shutdown issue */
 	hw_if = pdev->dev.platform_data;
 	if (!hw_if) {
 		LOGE(&pdev->dev,
@@ -4115,7 +4329,9 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 #else
 	tcm_hcd->read_length = MESSAGE_HEADER_SIZE;
 #endif
-
+//+S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
+	tcm_hcd->upgrade_mode = 1;
+//-S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
 #ifdef WATCHDOG_SW
 	tcm_hcd->watchdog.run = RUN_WATCHDOG;
 	tcm_hcd->update_watchdog = ovt_tcm_update_watchdog;
@@ -4345,7 +4561,9 @@ prepare_modules:
 	mod_pool.tcm_hcd = tcm_hcd;
 	mod_pool.queue_work = true;
 	queue_work(mod_pool.workqueue, &mod_pool.work);
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+	ovt_plat_charger_init();
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
 	return 0;
 
 err_enable_irq:
@@ -4478,7 +4696,9 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 	flush_workqueue(tcm_hcd->watchdog.workqueue);
 	destroy_workqueue(tcm_hcd->watchdog.workqueue);
 #endif
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/07/05,n28-tp Add charger notifier logout function
+	usb_unregister_client(&tcm_hcd->notifier_charger);
+//-S96818AA1-1936,daijun1.wt,modify,2023/07/05,n28-tp Add charger notifier logout function
 #ifdef REPORT_NOTIFIER
 	kthread_stop(tcm_hcd->notifier_thread);
 #endif
@@ -4587,9 +4807,14 @@ struct tpd_driver_t ovt_mtk_driver = {
 
 
 static int __init ovt_tcm_module_init(void)
-{	
+{
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
+	pr_info("ovt_tcm_module_init entry\n");
+	if (!strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx") && !strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_boe_boe"))
+		return -1;
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
 	tpd_get_dts_info();
-    
+
 	if(tpd_driver_add(&ovt_mtk_driver) < 0){
 		pr_err("Fail to add ovt tpd driver\n");
 		return -ENODEV;
@@ -4607,10 +4832,10 @@ static void __exit ovt_tcm_module_exit(void)
 
 	return;
 }
-
-late_initcall(ovt_tcm_module_init);
+//+S96818AA1-1936,daijun1.wt,modify,2023/07/14,td4160 early loading of TP driver
+module_init(ovt_tcm_module_init);
 module_exit(ovt_tcm_module_exit);
-
+//-S96818AA1-1936,daijun1.wt,modify,2023/07/14,td4160 early loading of TP driver
 MODULE_AUTHOR("Omnivision, Inc.");
 MODULE_DESCRIPTION("Omnivision TCM Touch Driver");
 MODULE_LICENSE("GPL v2");

@@ -231,12 +231,16 @@ static int ovt_tcm_get_thr_from_csvfile(void)
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
 	char file_path[256] = {0};
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/17,td4160 modification openshort test fail
-	strncpy(file_path, "/vendor/firmware/ovt_tcm_", sizeof(file_path));
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
+	if (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
+		strncpy(file_path, "/vendor/firmware/ovt_tcm_", sizeof(file_path));
+	}else{
+		strncpy(file_path, "/vendor/firmware/ovt_tcm_boe_", sizeof(file_path));
+	}
 	// if (tcm_hcd->hw_if->bdata->project_id) {
 	// 	strncat(file_path, tcm_hcd->hw_if->bdata->project_id, sizeof(file_path));
 	// }
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/17,td4160 modification openshort test fail
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
 	strncat(file_path, "cap_limits.csv", sizeof(file_path) - strlen(file_path) - 1);
 
 	app_info = &tcm_hcd->app_info;
@@ -1523,7 +1527,12 @@ static int testing_do_testing(void)
     struct rtc_time rtc_now_time;
 	struct ovt_tcm_hcd *tcm_hcd;
 	loff_t pos;
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/07/14,Modify TD&GC TP driver compatibility issues
+	if (!testing_hcd) {
+		printk("ovt_tcm_driver is not init\n");
+		return 0;
+	}
+//-S96818AA1-1936,daijun1.wt,modify,2023/07/14,Modify TD&GC TP driver compatibility issues
 	tcm_hcd = testing_hcd->tcm_hcd;
 
 	if (!g_testing_output_buf) {
@@ -2021,9 +2030,10 @@ static const struct file_operations proc_ctp_openshort_test_fops = {
 extern char *saved_command_line;
 static int __init proc_node_init(void)
 {
-    if (!strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx"))
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
+    if (!strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx") && !strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_boe_boe"))
         return  -1;
-
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
     ovt_proc_touchscreen_dir = proc_mkdir(OVT_PROC_TOUCHSCREEN_FOLDER , NULL);
     if (ovt_proc_touchscreen_dir == NULL)  {
         printk(KERN_ERR "%s: ovt_proc_touchpanel_dir file create failed!\n", __func__);

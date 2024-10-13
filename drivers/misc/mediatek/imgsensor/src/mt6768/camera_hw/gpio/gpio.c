@@ -17,6 +17,10 @@ struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
 	{"vcamd_off"},
 	{"vcamio_on"},
 	{"vcamio_off"},
+	//+S96818AA1-1936,liudijin.wt,ADD,2023/07/22,add avdd ldo supprot for main sensor.
+	{"ldo_vcama_2v8_1"},
+	{"ldo_vcama_2v8_0"},
+	//+S96818AA1-1936,liudijin.wt,ADD,2023/07/22,add avdd ldo supprot for main sensor.
 };
 
 #ifdef MIPI_SWITCH

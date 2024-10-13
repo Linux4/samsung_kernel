@@ -804,7 +804,9 @@ struct mtk_battery {
 	struct sock *mtk_battery_sk;
 
 	struct mtk_battery_algo algo;
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)|| defined (CONFIG_N26_CHARGER_PRIVATE)
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 	struct power_supply	*cw_battery_psy;
 	int			*batt_cycle_fv_cfg;
 	int			fv_levels;
@@ -1044,4 +1046,9 @@ extern void unre_mtk_battery_notifier(struct notifier_block *nb);
 
 extern int wt_set_batt_cycle_fv(struct mtk_battery *gm);
 #endif
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+extern int wt_set_batt_cycle_fv(struct mtk_battery *gm,bool updata);
+#endif
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 #endif /* __MTK_BATTERY_INTF_H__ */

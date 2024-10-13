@@ -3,8 +3,6 @@
  * Copyright (c) 2019 MediaTek Inc.
  */
 
-/dts-v1/;
-/plugin/;
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/pinctrl/mt6768-pinfunc.h>
@@ -35,8 +33,74 @@
 &bat_gm30 {
 	io-channels = <&auxadc 4>;
 	io-channel-names = "batteryID-channel";
-#include "mediatek/bat_setting/battery_N28_SCUD_4V4_5000mAh.dtsi"
+#include "mediatek/bat_setting/battery_N28_BYD_4V4_5000mAh.dtsi"
 #include "mediatek/bat_setting/battery_N28_ATL_4V4_5000mAh.dtsi"
+#include "mediatek/bat_setting/battery_N28_GF_4V4_5000mAh.dtsi"
+
+/* +S96818AA1-2906, churui1.wt, ADD, 20230621, batt_full_capacity_New */
+	wt,batt-cycle-ranges = <
+		0   299  4400000
+		300 399  4350000
+		400 699  4330000
+		700 999  4310000
+		1000 999999 4290000>;
+	ACTIVE_TABLE = <(5)>;
+	g_FG_PSEUDO100_cv4400 = <
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4350 = <
+		95  95  100 100
+		96  95  100 100
+		96  95  100 100
+		96  95  100 100
+		96  96  100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4330 = <
+		92  92  100 100
+		91  92  100 100
+		91  92  100 100
+		92  92  100 100
+		92  93  100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4310 = <
+		91  91  100 100
+		90  91  100 100
+		90  91  100 100
+		91  91  100 100
+		92  92  100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4290 = <
+		89  89  100 100
+		88  89  100 100
+		88  89  100 100
+		89  90  100 100
+		90  91  100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+/* -S96818AA1-2906, churui1.wt, ADD, 20230621, batt_full_capacity_New */
 };
 
 /* TOUCH start */
@@ -179,20 +243,158 @@
         tyhx,irq-gpio = <&pio 19 0x0>;
         tyhx,irq-flags = <2>;
         tyhx,channel-flag = <0x07>;
+        tyhx5,channel-flag = <0x1F>;
         status = "okay";
     };
 
-    sar_hx9031as:sar_hx9031as@60 {
-        compatible = "tyhx,hx9031as";
+	Semtech_sx932x@60 {
+        compatible = "Semtech,sx932x";
         reg = <0x60>;
         pinctrl-names = "sar_int_default";
         pinctrl-0 = <&sar_int_default>;
         interrupt-parent = <&pio>;
         interrupts = <19 IRQ_TYPE_EDGE_FALLING 19 0>;
-        tyhx,irq-gpio = <&pio 19 0x0>;
-        tyhx,irq-flags = <2>;
-        tyhx,channel-flag = <0x1F>;
-        status = "okay";
+        Semtech,nirq-gpio = <&pio 19 0x00>;
+        Semtech,reg-num = <46>;
+        Semtech5,main-phases = <0x07>;
+        Semtech5,ref-phases = <0x18>;
+        Semtech5,reg-num = <85>;
+        Semtech5,reg-init = <
+			0x4004 0x00000070
+			0x4008 0x00000000
+			0x4054 0x00000400
+			0x42C0 0x08000000
+			0x42C4 0x0000003F
+			0x800C 0x00000000
+			0x8010 0x00000000
+			0x8014 0x00000000
+			0x8018 0x00000000
+			0x801C 0x00000031
+			0x8020 0x001F0000
+			0x8028 0x3FFE82DA
+			0x802C 0x10000A76
+			0x8030 0x3FF78261
+			0x8034 0x10000A6E
+			0x8038 0x3DFF8024
+			0x803C 0x10000A76
+			0x8040 0x3FBF8267
+			0x8044 0x10000A96
+			0x8048 0x2FFF82E1
+			0x804C 0x0000088E
+			0x8050 0x80001EE6
+			0x8054 0x10323700
+			0x8058 0x20630030
+			0x805C 0x00005300
+			0x8060 0x00000000
+			0x8064 0x00000000
+			0x8068 0x00000000
+			0x806C 0x1F001F00
+			0x8070 0x00010000
+			0x8074 0x10323B05
+			0x8078 0x20630030
+			0x807C 0x00005300
+			0x8080 0x00000000
+			0x8084 0x00000000
+			0x8088 0x00000000
+			0x808C 0x00200020
+			0x8090 0x10022805
+			0x8094 0x10323705
+			0x8098 0x20630030
+			0x809C 0x00005300
+			0x80A0 0x00000000
+			0x80A4 0x00000000
+			0x80A8 0x00000000
+			0x80AC 0x00000000
+			0x80B0 0x00000000
+			0x80B4 0x1652FF05
+			0x80B8 0x20630030
+			0x80BC 0x00005300
+			0x80C0 0x00000000
+			0x80C4 0x00000000
+			0x80C8 0x00000000
+			0x80CC 0x00000000
+			0x80D0 0x00000000
+			0x80D4 0x1652FF05
+			0x80D8 0x20630031
+			0x80DC 0x7F805300
+			0x80E0 0x00000000
+			0x80E4 0x00000000
+			0x80E8 0x00000000
+			0x80EC 0x00000000
+			0x80F0 0x00000000
+			0x80F4 0x10162800
+			0x80F8 0x20400031
+			0x80FC 0x54AC5300
+			0x8100 0x00000000
+			0x8104 0x00000000
+			0x8108 0x00000000
+			0x810C 0x00000000
+			0x8110 0x00000000
+			0x8124 0x0400000B
+			0x8128 0x0400000C
+			0x812C 0x00000000
+			0x8130 0x00000000
+			0x8134 0x00000000
+			0x8138 0x00000000
+			0x813C 0x00000000
+			0x8140 0x00000000
+			0x8144 0x00000000
+			0x8148 0x00000000
+			0x814C 0x00000000
+			0x81A4 0x01C40011
+			0x4280 0x0000000F
+			0x8024 0x10000A6E
+			0x4280 0x0000000E
+        >;
+        Semtech,reg-init  = /bits/ 8 <
+			0x10 0x16
+			0x20 0x20
+			0x23 0x00
+			0x24 0x65
+			0x26 0x00
+			0x27 0x65
+			0x28 0x01 /*PH0 to CS0 input*/
+			0x29 0x10
+			0x2A 0x04 /*PH2 CS2-input,CS1-dync,CS0-HZ*/
+			0x2B 0x3D
+			0x2C 0x12
+			0x2D 0x08
+			0x30 0x0B
+			0x31 0x0B
+			0x32 0x3D
+			0x33 0x2D
+			0x34 0x0C
+			0x35 0x00
+			0x36 0x1A
+			0x37 0x12
+			0x40 0x00
+			0x41 0x00
+			0x42 0x12
+			0x43 0x04
+			0x44 0x00
+			0x45 0x05
+			0x46 0x00
+			0x47 0x00
+			0x48 0x00
+			0x49 0x00
+			0x4A 0x00
+			0x4B 0x00
+			0x4C 0x00
+			0x4D 0x00
+			0x4E 0x80
+			0x4F 0x0C
+			0x50 0x14
+			0x51 0x70
+			0x52 0x20
+			0x53 0x00
+			0x54 0x00
+			0x05 0x70
+			0x06 0x00
+			0x07 0x80
+			0x08 0x01
+			0x11 0x20
+        >;
+        status = "ok";
     };
 };
 
@@ -233,8 +435,8 @@
 		upm,upm6910,usb-ichg = <2000>;
 		upm,upm6910,stat-pin-ctrl = <0>;
 		upm,upm6910,precharge-current = <180>;
-		upm,upm6910,termination-current = <180>;
-		upm,upm6910,boost-voltage = <5000>;
+		upm,upm6910,termination-current = <240>; //set eoc current 240mA
+		upm,upm6910,boost-voltage = <5150>; //set otg voltage 5.15V
 		upm,upm6910,boost-current = <1200>;
 		upm,upm6910,vac-ovp-threshold = <14000>;
 
@@ -283,14 +485,14 @@
 		sp2130,bat-ovp-alarm-threshold = <4490>;
 		sp2130,bat-ocp-threshold = <7000>;
 		sp2130,bat-ocp-alarm-threshold = <6000>;
-		sp2130,bus-ovp-threshold = <12000>;
+		sp2130,bus-ovp-threshold = <11000>;
 		sp2130,bus-ovp-alarm-threshold = <11000>;
 
 		sp2130,bat-therm-threshold = <0x15>;
 		sp2130,bus-therm-threshold = <0x15>;
 		sp2130,die-therm-threshold = <145>;
 
-		sp2130,ac-ovp-threshold = <13000>;
+		sp2130,ac-ovp-threshold = <11000>;
 		sp2130,sense-resistor-mohm = <2>;
 	};
 
@@ -317,12 +519,12 @@
 
 		upm6720,bat-ovp-threshold = <4525>;			/* unit: 1mV */
 		upm6720,bat-ocp-threshold = <8200>;			/* unit: 1mA */
-		upm6720,bus-ovp-threshold = <11000>;		/* unit: 1mV */
+		upm6720,bus-ovp-threshold = <10500>;		/* unit: 1mV set as 10.5V */
 		upm6720,bus-ocp-threshold = <3500>;			/* unit: 1mA */
 		upm6720,bus-ucp-threshold = <250>;			/* unit: 1mA */
 		upm6720,bus-rcp-threshold = <300>;			/* unit: 1mA */
-		upm6720,vac1-ovp-threshold = <18000>;		/* unit: 1mV */
-		upm6720,vac2-ovp-threshold = <18000>;		/* unit: 1mV */
+		upm6720,vac1-ovp-threshold = <10500>;		/* unit: 1mV programmed threshold set as 10.5V */
+		upm6720,vac2-ovp-threshold = <10500>;		/* unit: 1mV programmed threshold set as 10.5V */
 		upm6720,vout-ovp-threshold = <5000>;		/* unit: 1mV */
 		upm6720,tdie-flt-threshold = <140>;			/* unit: 1℃ */
 		upm6720,tsbus-flt-threshold = <4102>;		/* unit: 0.001% */
@@ -420,7 +622,7 @@
 	charger = <&wt_chargers>;
 
 	battery_cv = <4400000>;
-	max_charger_voltage = <10500000>;
+	max_charger_voltage = <10400000>; /* software OVP protection set as 10.4V */
 	ac_charger_current = <2000000>;
 	ac_charger_input_current = <2000000>;
 	pd_vbus_upper_bound = <9000000>;
@@ -474,6 +676,10 @@
 	pinctrl-names = "active", "sleep";
 	pinctrl-0 = <&afc_enable_pin>;
 	pinctrl-1 = <&afc_disable_pin>;
+/*+S96818AA1-9230 lijiawei,wt.modify upm6910 safetytimer function logic*/
+	enable_sw_safety_timer;
+	max_charging_time = <43200>;/* 12 hours */
+/*-S96818AA1-9230 lijiawei,wt.modify upm6910 safetytimer function logic*/
 };
 
 &pio {

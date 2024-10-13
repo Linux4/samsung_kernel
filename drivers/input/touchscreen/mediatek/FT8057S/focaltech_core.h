@@ -67,6 +67,13 @@
 #include <linux/input/sec_cmd.h>
 #endif
 //-S96818AA1-1936,wangtao14.wt,modify,2023/05/17,ft8057s tp factory test
+//+S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
+enum _ex_mode {
+	MODE_GLOVE = 0,
+	MODE_COVER,
+	MODE_CHARGER,
+};
+//-S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
@@ -114,7 +121,7 @@
 /*
  * For commnication error in PM(deep sleep) state
  */
-#define FTS_PATCH_COMERR_PM                 0
+#define FTS_PATCH_COMERR_PM                 1	//S96818AA1-9384,wangtao14.wt,modify,2023/08/04,ft8057s TP Double click
 #define FTS_TIMEOUT_COMERR_PM               700
 
 //+S96818AA1-1936,wangtao14.wt,modify,2023/05/17,ft8057s tp factory test

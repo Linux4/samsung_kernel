@@ -69,8 +69,10 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #define LCM_DSI_CMD_MODE									0
 #define FRAME_WIDTH										(720)
 #define FRAME_HEIGHT									(1600)
-#define LCM_PHYSICAL_WIDTH								(67932)
-#define LCM_PHYSICAL_HEIGHT								(150960)
+//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/14,nt36528 modify the physical size of the screen
+#define LCM_PHYSICAL_WIDTH								(70380)
+#define LCM_PHYSICAL_HEIGHT								(156240)
+//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/14,nt36528 modify the physical size of the screen
 #define REGFLAG_DELAY			0xFFFC
 #define REGFLAG_UDELAY			0xFFFB
 #define REGFLAG_END_OF_TABLE	0xFFFD

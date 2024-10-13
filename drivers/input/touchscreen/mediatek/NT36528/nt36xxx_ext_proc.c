@@ -82,9 +82,10 @@ static const struct file_operations proc_ctp_openshort_test_fops = {
 extern char *saved_command_line;
 static int __init proc_node_init(void)
 {
-    if (!strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly"))
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
+	if (!strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly") && !strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_txd_sharp"))
         return  -1;
-
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
     proc_touchscreen_dir = proc_mkdir(PROC_TOUCHSCREEN_FOLDER , NULL);
     if (proc_touchscreen_dir == NULL)  {
         printk(KERN_ERR "%s: proc_touchpanel_dir file create failed!\n", __func__);
@@ -415,7 +416,7 @@ static const struct file_operations nvt_diff_fops = {
 	.llseek = seq_lseek,
 	.release = seq_release,
 };
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/20,n28-nt36528 Modify sensitivity&&charger bit failure after screen extinction
 /*******************************************************
 Description:
 	Novatek touchscreen /proc/nvt_set_charger open function.
@@ -425,6 +426,7 @@ return:
 *******************************************************/
 #define USB_DETECT_IN 1
 #define USB_DETECT_OUT 0
+#define CHARGER_BIT (0x0004)
 #define CMD_CHARGER_ON	(0x53)
 #define CMD_CHARGER_OFF (0x51)
 
@@ -445,6 +447,7 @@ int32_t nvt_set_charger(uint8_t charger_on_off)
 	}
 
 	if (charger_on_off == USB_DETECT_IN) {
+		ts->sec_function |= CHARGER_BIT;
 		buf[0] = EVENT_MAP_HOST_CMD;
 		buf[1] = CMD_CHARGER_ON;
 		ret = CTP_SPI_WRITE(ts->client, buf, 2);
@@ -455,6 +458,8 @@ int32_t nvt_set_charger(uint8_t charger_on_off)
 		    input_info(true, &ts->client->dev, "%s: set charger on cmd succeeded\n", __func__);
 		}
 	} else if (charger_on_off == USB_DETECT_OUT) {
+		ts->sec_function &= ~CHARGER_BIT;
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/20,n28-nt36528 Modify sensitivity&&charger bit failure after screen extinction
 		buf[0] = EVENT_MAP_HOST_CMD;
 		buf[1] = CMD_CHARGER_OFF;
 		ret = CTP_SPI_WRITE(ts->client, buf, 2);
@@ -622,12 +627,13 @@ void nvt_extra_proc_deinit(void)
 		NVT_proc_diff_entry = NULL;
 		input_info(true, &ts->client->dev, "%s: Removed /proc/%s\n", __func__, NVT_DIFF);
 	}
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
 	if (NVT_proc_set_charger_entry != NULL) {
 		remove_proc_entry(NVT_SET_CHARGER, NULL);
-		NVT_proc_diff_entry = NULL;
+		NVT_proc_set_charger_entry  = NULL;
 		input_info(true, &ts->client->dev, "%s: Removed /proc/%s\n", __func__, NVT_SET_CHARGER);
 	}
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/29,nt36528_txd tp bringup
 }
 #endif
 

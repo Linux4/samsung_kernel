@@ -32,7 +32,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AFVDD},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
-			//{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_AVDD_2V8},
 			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
 			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
 		},
@@ -45,6 +45,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_AVDD_2V8},
 			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
 			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
 			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
@@ -150,6 +151,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			{DOVDD, Vol_1800, 1},
 			{DVDD, Vol_1200, 1},
 			{AVDD, Vol_2800, 2},
+			{AVDD_2V8, Vol_High, 2},
 			{AFVDD, Vol_2800, 1},
 			{SensorMCLK, Vol_High,5 },
 			{RST, Vol_Low, 2},
@@ -164,6 +166,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			{DOVDD, Vol_1800, 1},
 			{DVDD, Vol_1200, 1},
 			{AVDD, Vol_2800, 2},
+			{AVDD_2V8, Vol_High, 2},
 			{AFVDD, Vol_2800, 1},
 			{SensorMCLK, Vol_High,5 },
 			{RST, Vol_Low, 2},
@@ -180,6 +183,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 				 {RST, Vol_Low, 0},
 				 {DOVDD, Vol_1800, 0},
 				 {AVDD, Vol_2800, 0},
+				 {AVDD_2V8, Vol_High, 1},
 				 {DVDD, Vol_1200, 2},
 				 {SensorMCLK, Vol_High, 1},
 				 {RST, Vol_High, 1}
@@ -196,6 +200,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 				 {DOVDD, Vol_1800, 1},
 				 {DVDD, Vol_1200, 1},
 				 {AVDD, Vol_2800, 1},
+				 {AVDD_2V8, Vol_High, 1},
 				 {SensorMCLK, Vol_High, 1},
 				 {RST, Vol_High, 5}
             },
@@ -211,6 +216,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
                 {DOVDD, Vol_1800, 1},
                 {DVDD, Vol_1200, 1},
                 {AVDD, Vol_2800, 1},
+                {AVDD_2V8, Vol_High, 1},
                 {RST, Vol_High, 2},
                 {RST, Vol_Low, 2},
                 {RST, Vol_High, 2}
@@ -225,6 +231,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
                 {RST, Vol_Low, 0},
                 {DOVDD, Vol_1800, 1},
                 {AVDD, Vol_2800, 1},
+                {AVDD_2V8, Vol_High, 1},
                 {DVDD, Vol_1200, 1},
                 {RST, Vol_High, 5},
                 {SensorMCLK, Vol_High, 5},
@@ -232,6 +239,24 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
         },
 #endif
 //-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+//+S96818AA1-1936,zhujianjia.wt,ADD,2023/08/21,sc800csa sub sensor bringup
+#if defined(N28SC800CSAFRONTDC_MIPI_RAW)
+        {
+            SENSOR_DRVNAME_N28SC800CSAFRONTDC_MIPI_RAW,
+            {
+                {RST, Vol_Low, 0},
+                {SensorMCLK, Vol_High, 0},
+                {DOVDD, Vol_1800, 1},
+                {DVDD, Vol_1200, 1},
+                {AVDD, Vol_2800, 1},
+                {AVDD_2V8, Vol_High, 1},
+                {RST, Vol_High, 2},
+                {RST, Vol_Low, 2},
+                {RST, Vol_High, 2}
+            },
+        },
+#endif
+//-S96818AA1-1936,zhujianjia.wt,ADD,2023/08/21,sc800csa sub sensor bringup
 //+S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
 #if defined(N28C2519DEPCXT_MIPI_MONO)
       {

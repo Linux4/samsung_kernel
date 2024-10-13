@@ -42,25 +42,9 @@
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
 #define per_frame 1
-
-#define Hi846_OTP_FUNCTION 0
-
-#if Hi846_OTP_FUNCTION
-//+bug604664 zhouyikuan, add, 2020/12/14,hi846 eeprom bring up
-#define EEPROM_GT24P64E_ID 0xA0
-
-static kal_uint16 read_n28_hi846_eeprom(kal_uint32 addr)
-{
-    kal_uint16 get_byte=0;
-
-    char pu_send_cmd[2] = { (char)(addr >> 8), (char)(addr & 0xFF) };
-    iReadRegI2C(pu_send_cmd, 2, (u8*)&get_byte, 1, EEPROM_GT24P64E_ID);
-
-    return get_byte;
-}
-//-bug604664 zhouyikuan, add, 2020/12/14,hi846 eeprom bring up
-#endif
-
+//+S96818AA1-1936,liudijin.wt,ADD,2023/05/19,hi846 sensor otp bring up.
+#define Hi846_OTP_FUNCTION 1
+//-S96818AA1-1936,liudijin.wt,ADD,2023/05/19,hi846 sensor otp bring up.
 static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_id = N28HI846FRONTTRULY_SENSOR_ID,
 	.checksum_value = 0xdf4593fd,
@@ -75,7 +59,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.mipi_data_lp2hs_settle_dc = 85,
 		/*	 following for GetDefaultFramerateByScenario()	*/
 		.max_framerate = 300,
-		.mipi_pixel_rate = 139200000, //(360M*4/10)
+		.mipi_pixel_rate = 144000000,
 	},
 	.cap = {
 		.pclk = 288000000,
@@ -87,7 +71,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.grabwindow_height = 2448,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.max_framerate = 300,
-		.mipi_pixel_rate = 278400000, //(720M*4/10)
+		.mipi_pixel_rate = 288000000,
 	},
 	.cap1 = {
 		.pclk = 288000000,
@@ -99,7 +83,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.grabwindow_height = 2448,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.max_framerate = 150,
-		.mipi_pixel_rate = 278400000, //(720M*4/10)
+		.mipi_pixel_rate = 288000000,
 	},
 	.normal_video = {
 		.pclk = 288000000,				//record different mode's pclk
@@ -113,7 +97,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.mipi_data_lp2hs_settle_dc = 85,
 		/*	 following for GetDefaultFramerateByScenario()	*/
 		.max_framerate = 300,
-		.mipi_pixel_rate = 278400000, //(720M*4/10)
+		.mipi_pixel_rate = 288000000,
 	},
 	.hs_video = {
 		.pclk = 288000000,
@@ -125,7 +109,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.grabwindow_height = 480 ,
 		.mipi_data_lp2hs_settle_dc = 85,//unit , ns
 		.max_framerate = 1200,
-		.mipi_pixel_rate = 69600000, //(180M*4/10)
+		.mipi_pixel_rate = 72000000,
 	},
 	.slim_video = {
 		.pclk = 288000000,
@@ -137,7 +121,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.grabwindow_height = 720,
 		.mipi_data_lp2hs_settle_dc = 85,//unit , ns
 		.max_framerate = 900,
-		.mipi_pixel_rate = 139200000, //(360M*4/10)
+		.mipi_pixel_rate = 144000000,
 	},
 
 	.margin = 6,
@@ -262,384 +246,6 @@ static void write_cmos_sensor_8(kal_uint32 addr, kal_uint32 para)
 
 	iWriteRegI2C(pu_send_cmd, 3, imgsensor.i2c_write_id);
 }
-
-#if 0
-//+bug584789,zhouyikuan.wt,ADD,2020/20/28,hi846 eeprom bring up
-#define HI846_OTP_DUMP 1
-
-#if HI846_OTP_DUMP
-extern void dumpEEPROMData(int u4Length,u8* pu1Params);
-#endif
-
-#define MODULE_INFO_SIZE 7
-#define AWB_DATA_SIZE 16
-#define LSC_DATA_SIZE 1868
-
-#define MODULE_GROUP_FLAG 0x201
-#define AWB_GROUP_FLAG 0x21A
-#define LSC_GROUP_FLAG 0x24E
-
-#define VALID_OTP_GROUP1_FLAG 0x01
-#define VALID_OTP_GROUP2_FLAG 0x13
-#define VALID_OTP_GROUP3_FLAG 0x37
-
-//#define OTP_GROUP_OFFSET 0x76A
-
-unsigned char hi846_data_lsc[LSC_DATA_SIZE + 1] = {0};/*Add check sum*/
-unsigned char hi846_data_awb[AWB_DATA_SIZE + 1] = {0};/*Add check sum*/
-unsigned char hi846_data_info[MODULE_INFO_SIZE + 1] = {0};/*Add check sum*/
-unsigned char hi846_module_id = 0;
-unsigned char hi846_lsc_valid = 0;
-unsigned char hi846_awb_valid = 0;
-
-static void hi846_disable_otp_func(void)
-{
-	write_cmos_sensor(0x0a00, 0x00);
-	mdelay(10);
-	write_cmos_sensor(0x003e, 0x00);
-	write_cmos_sensor(0x0a00, 0x00);
-}
-#if 0
-void HI846_Sensor_update_wb_gain(kal_uint32 r_gain, kal_uint32 g_gain,kal_uint32 b_gain)
-{
-    kal_int16 temp;
-
-    LOG_INF("write_to_register:  r_gain = 0x%x,Gr_gain = 0x%x, Gb_gain = 0x%x, b_gain = 0x%x\n", r_gain, g_gain,b_gain);
-
-    write_cmos_sensor_8(0x0078, g_gain >> 8); //gr_gain
-    write_cmos_sensor_8(0x0079, g_gain & 0xFF); //gr_gain
-    write_cmos_sensor_8(0x007A, g_gain >> 8); //gb_gain
-    write_cmos_sensor_8(0x007B, g_gain & 0xFF); //gb_gain
-
-    write_cmos_sensor_8(0x007C, r_gain >> 8); //r_gain
-    write_cmos_sensor_8(0x007D, r_gain & 0xFF); //r_gain
-    write_cmos_sensor_8(0x007E, b_gain >> 8); //b_gain
-    write_cmos_sensor_8(0x007F, b_gain & 0xFF); //b_gain
-
-    temp = read_cmos_sensor(0x0a05) | 0x08;
-    LOG_INF("HI846_OTP_write_cmos_sensor :0x6000, temp= 0x%x\n", temp);
-    write_cmos_sensor_8(0x0a05, temp); //Digital Gain enable
-
-
-}
-
-void Hi846_Sensor_OTP_update_LSC(void)
-{
-    uint16_t temp = 0;
-    LOG_INF("%s enter\n",__func__);
-
-    temp = read_cmos_sensor (0x0a05) | 0x10;
-    //`temp = temp & 0xF7;
-    LOG_INF("lsc_enable flag 0x0a05 = 0x%x\n",temp);
-    write_cmos_sensor_8(0x0a05, temp); //LSC enable
-    LOG_INF("%s exit\n",__func__);
-
-}
-#endif
-
-static int read_hi846_module_info(void)
-{
-	int otp_grp_flag = 0, minfo_start_addr = 0;
-	int year = 0, month = 0, day = 0;
-	int position = 0,lens_id = 0,vcm_id = 0;
-	int check_sum = 0, check_sum_cal = 0;
-	int i = 0;
-
-
-	/* read flag */
-	write_cmos_sensor_8(0x070a,((MODULE_GROUP_FLAG)>>8)&0xff);//start address H
-	write_cmos_sensor_8(0x070b,(MODULE_GROUP_FLAG)&0xff);//start address L
-	write_cmos_sensor_8(0x0702,0x01);//read enable
-	otp_grp_flag = read_cmos_sensor(0x0708);//OTP data read
-
-	if(otp_grp_flag == VALID_OTP_GROUP1_FLAG){
-		minfo_start_addr = MODULE_GROUP_FLAG + 1;
-		check_sum_cal += VALID_OTP_GROUP1_FLAG;
-		LOG_INF("the group1 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,minfo_start_addr);
-	}else if(otp_grp_flag == VALID_OTP_GROUP2_FLAG){
-                minfo_start_addr = MODULE_GROUP_FLAG + (MODULE_INFO_SIZE+ 1)+ 1;
-		check_sum_cal += VALID_OTP_GROUP2_FLAG;
-		LOG_INF("the group2 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,minfo_start_addr);
-	}else if(otp_grp_flag == VALID_OTP_GROUP3_FLAG){
-		minfo_start_addr = MODULE_GROUP_FLAG + (MODULE_INFO_SIZE+ 1)*2+ 1;
-		check_sum_cal += VALID_OTP_GROUP3_FLAG;
-		LOG_INF("the group3 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,minfo_start_addr);
-	}else{
-		LOG_ERR("the group is invalid or empty,otp_grp_flag = 0x%x\n",otp_grp_flag);
-		return 0;
-	}
-
-	if(minfo_start_addr != 0){
-		write_cmos_sensor_8(0x070a,((minfo_start_addr)>>8)&0xff);
-		write_cmos_sensor_8(0x070b,(minfo_start_addr)&0xff);
-		write_cmos_sensor_8(0x0702,0x01);
-		for(i = 0; i < MODULE_INFO_SIZE + 1; i++){
-			hi846_data_info[i]=read_cmos_sensor(0x0708);
-		}
-		for(i = 0; i < MODULE_INFO_SIZE; i++){
-			check_sum_cal += hi846_data_info[i];
-		}
-
-		check_sum_cal = (check_sum_cal % 255) + 1;
-		hi846_module_id = hi846_data_info[0];
-		position = hi846_data_info[1];
-		lens_id = hi846_data_info[2];
-		vcm_id = hi846_data_info[3];
-		year = hi846_data_info[4];
-		month = hi846_data_info[5];
-		day = hi846_data_info[6];
-		check_sum = hi846_data_info[MODULE_INFO_SIZE];
-	}
-#if HI846_OTP_DUMP
-	dumpEEPROMData(MODULE_INFO_SIZE,&hi846_data_info[0]);
-#endif
-	//LOG_INF("module_id=0x%x position=0x%x\n", hi846_module_id, position);
-	LOG_INF("=== HI846 INFO module_id=0x%x position=0x%x ===\n", hi846_module_id, position);
-	LOG_INF("=== HI846 INFO lens_id=0x%x,vcm_id=0x%x ===\n",lens_id, vcm_id);
-	LOG_INF("=== HI846 INFO date is %d-%d-%d ===\n",year,month,day);
-	LOG_INF("=== HI846 INFO check_sum=0x%x,check_sum_cal=0x%x ===\n", check_sum, check_sum_cal);
-	if(check_sum == check_sum_cal){
-		LOG_INF("check_sum_module_info success!\n");
-		return 1;
-	}else{
-	         LOG_ERR("check_sum_module_info fail!\n");
-		return 0;
-	}
-}
-
-static int read_hi846_awb_info(void)
-{
-	int otp_grp_flag = 0, awb_start_addr=0;
-	int check_sum_awb = 0, check_sum_awb_cal = 0;
-	UINT32 r = 0,b = 0,gr = 0, gb = 0, golden_r = 0, golden_b = 0, golden_gr = 0, golden_gb = 0;
-	int i = 0;
-        //UINT32 r_gain = 0,b_gain = 0, g_gain = 0;
-
-	/* awb group 1 */
-	/* read flag */
-	write_cmos_sensor_8(0x070a,((AWB_GROUP_FLAG)>>8)&0xff);
-	write_cmos_sensor_8(0x070b,(AWB_GROUP_FLAG)&0xff);
-	write_cmos_sensor_8(0x0702,0x01);
-	otp_grp_flag = read_cmos_sensor(0x0708);
-
-	if(otp_grp_flag == VALID_OTP_GROUP1_FLAG){
-		awb_start_addr = AWB_GROUP_FLAG + 1;
-		check_sum_awb_cal += VALID_OTP_GROUP1_FLAG;
-		LOG_INF("the group1 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,awb_start_addr);
-	}else if(otp_grp_flag == VALID_OTP_GROUP2_FLAG){
-                awb_start_addr = AWB_GROUP_FLAG + (AWB_DATA_SIZE+ 1)+ 1;
-		check_sum_awb_cal += VALID_OTP_GROUP2_FLAG;
-		LOG_INF("the group2 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,awb_start_addr);
-	}else if(otp_grp_flag == VALID_OTP_GROUP3_FLAG){
-		awb_start_addr = AWB_GROUP_FLAG + (AWB_DATA_SIZE+ 1)*2+ 1;
-		check_sum_awb_cal += VALID_OTP_GROUP3_FLAG;
-		LOG_INF("the group3 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,awb_start_addr);
-	}else{
-		LOG_ERR("the group is invalid or empty,otp_grp_flag = 0x%x\n",otp_grp_flag);
-		return 0;
-	}
-
-
-	if(awb_start_addr != 0)
-	{
-		write_cmos_sensor_8(0x070a,((awb_start_addr)>>8)&0xff);
-		write_cmos_sensor_8(0x070b,(awb_start_addr)&0xff);
-		write_cmos_sensor_8(0x0702,0x01);
-		for(i = 0; i < AWB_DATA_SIZE + 1; i++){
-			hi846_data_awb[i]=read_cmos_sensor(0x0708);
-		}
-		for(i = 0; i < AWB_DATA_SIZE; i++){
-			check_sum_awb_cal += hi846_data_awb[i];
-		}
-		LOG_INF("check_sum_awb_cal =0x%x \n",check_sum_awb_cal);
-		r = ((hi846_data_awb[1]<<8)&0xff00)|(hi846_data_awb[0]&0xff);
-		b = ((hi846_data_awb[3]<<8)&0xff00)|(hi846_data_awb[2]&0xff);
-		gr = ((hi846_data_awb[5]<<8)&0xff00)|(hi846_data_awb[4]&0xff);
-		gb = ((hi846_data_awb[7]<<8)&0xff00)|(hi846_data_awb[6]&0xff);
-		golden_r = ((hi846_data_awb[9]<<8)&0xff00)|(hi846_data_awb[8]&0xff);
-		golden_b = ((hi846_data_awb[11]<<8)&0xff00)|(hi846_data_awb[10]&0xff);
-		golden_gr = ((hi846_data_awb[13]<<8)&0xff00)|(hi846_data_awb[12]&0xff);
-		golden_gb = ((hi846_data_awb[15]<<8)&0xff00)|(hi846_data_awb[14]&0xff);
-		check_sum_awb = hi846_data_awb[AWB_DATA_SIZE];
-		check_sum_awb_cal = (check_sum_awb_cal % 255) + 1;
-
-#if 0
-//start cal awb gain
-		g  = (gr + gb+1) >> 1;
-                  golden_g = (golden_gr + golden_gb+1) >> 1;
-
-#ifdef OTP_SUPPORT_FLOATING
-		r_gain = (int)(((float)golden_r/r) * 0x200);
-		b_gain = (int)(((float)golden_b/b) * 0x200);
-#else
-#define OTP_MULTIPLE_FAC    (128L)   // 128 = 2^7
-		r_gain = (((OTP_MULTIPLE_FAC * golden_r) / r) * 0x200) / OTP_MULTIPLE_FAC;
-		b_gain = (((OTP_MULTIPLE_FAC * golden_b) / b) * 0x200) / OTP_MULTIPLE_FAC;
-#endif
-
-		if(r_gain < b_gain)
-		{
-			if(r_gain < 0x200)
-			{
-				b_gain = 0x200 * b_gain/r_gain;
-				g_gain = 0x200 * g_gain/r_gain;
-				r_gain = 0x200;
-			}
-		}else{
-			if(b_gain < 0x200)
-			{
-				r_gain = 0x200 * r_gain/b_gain;
-				g_gain = 0x200 * g_gain/b_gain;
-				b_gain = 0x200;
-			}
-		}
-#endif
-
-	}
-#if HI846_OTP_DUMP
-	dumpEEPROMData(AWB_DATA_SIZE,&hi846_data_awb[0]);
-#endif
-	LOG_INF("=== HI846 AWB r=0x%x, b=0x%x, gr=%x, gb=0x%x ===\n", r, b,gb, gr);
-	LOG_INF("=== HI846 AWB gr=0x%x,gb=0x%x,gGr=%x, gGb=0x%x ===\n", golden_r, golden_b, golden_gr, golden_gb);
-	LOG_INF("=== HI846 AWB check_sum_awb=0x%x,check_sum_awb_cal=0x%x ===\n",check_sum_awb,check_sum_awb_cal);
-	if(check_sum_awb == check_sum_awb_cal){
-		LOG_INF("check_sum_awb success!\n");
-		//HI846_Sensor_update_wb_gain(r,g,b);
-		return 1;
-	}else{
-	         LOG_ERR("check_sum_awb fail!\n");
-		return 0;
-	}
-}
-static int read_hi846_lsc_info(void)
-{
-	int otp_grp_flag = 0, lsc_start_addr = 0;
-	int check_sum_lsc = 0, check_sum_lsc_cal = 0;
-         int i = 0;
-
-	/* lsc group */
-	/* read flag */
-	write_cmos_sensor_8(0x070a,((LSC_GROUP_FLAG)>>8)&0xff);
-	write_cmos_sensor_8(0x070b,(LSC_GROUP_FLAG)&0xff);
-	write_cmos_sensor_8(0x0702,0x01);
-	otp_grp_flag = read_cmos_sensor(0x0708);
-
-	if(otp_grp_flag == VALID_OTP_GROUP1_FLAG){
-		lsc_start_addr = LSC_GROUP_FLAG + 1;//0x24E+1
-		check_sum_lsc_cal += VALID_OTP_GROUP1_FLAG;
-		LOG_INF("the group1 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,lsc_start_addr);
-	}else if(otp_grp_flag == VALID_OTP_GROUP2_FLAG){
-                lsc_start_addr = LSC_GROUP_FLAG + (LSC_DATA_SIZE+ 1)+ 2;//0x99D
-		check_sum_lsc_cal += VALID_OTP_GROUP2_FLAG;
-		LOG_INF("the group2 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,lsc_start_addr);
-	}else if(otp_grp_flag == VALID_OTP_GROUP3_FLAG){
-		lsc_start_addr = LSC_GROUP_FLAG + (LSC_DATA_SIZE+ 1)*2+ 3;//0x10EB
-		check_sum_lsc_cal += VALID_OTP_GROUP3_FLAG;
-		LOG_INF("the group3 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,lsc_start_addr);
-	}else{
-		LOG_ERR("the group is invalid or empty,otp_grp_flag = 0x%x\n",otp_grp_flag);
-		return 0;
-	}
-
-	if(lsc_start_addr != 0){
-		write_cmos_sensor_8(0x070a,((lsc_start_addr)>>8)&0xff);
-		write_cmos_sensor_8(0x070b,(lsc_start_addr)&0xff);
-		write_cmos_sensor_8(0x0702,0x01);
-		for(i = 0; i < LSC_DATA_SIZE + 1; i++)
-		{
-		  hi846_data_lsc[i] = read_cmos_sensor(0x0708);
-		}
-		for(i = 0; i < LSC_DATA_SIZE; i++){
-		  check_sum_lsc_cal += hi846_data_lsc[i];
-		}
-		LOG_INF("check_sum_lsc_cal =0x%x \n",check_sum_lsc_cal);
-		check_sum_lsc = hi846_data_lsc[LSC_DATA_SIZE];
-		check_sum_lsc_cal = (check_sum_lsc_cal % 255) + 1;
-	}
-#if HI846_OTP_DUMP
-	dumpEEPROMData(LSC_DATA_SIZE,&hi846_data_lsc[0]);
-#endif
-	LOG_INF("=== HI846 LSC check_sum_lsc=0x%x, check_sum_lsc_cal=0x%x ===\n", check_sum_lsc, check_sum_lsc_cal);
-	if(check_sum_lsc == check_sum_lsc_cal){
-		LOG_INF("check_sum_lsc success!\n");
-		return 1;
-	}else{
-	         LOG_ERR("check_sum_lsc fail!\n");
-		return 0;
-	}
-}
-
-static int hi846_sensor_otp_info(void)
-{
-	int ret = 0;
-
-	LOG_INF("come to %s:%d E!\n", __func__, __LINE__);
-
-	/* 1. sensor init */
-        //sensor_init();
-	#if 0
-	write_cmos_sensor(0x0e00, 0x0102); //tg_pmem_sckpw/sdly
-	write_cmos_sensor(0x0e02, 0x0102); //tg_pmem_sckpw/sdly
-	write_cmos_sensor(0x0e0c, 0x0100); //tg_pmem_rom_dly
-	write_cmos_sensor(0x27fe, 0xe000); // firmware start address-ROM
-	write_cmos_sensor(0x0b0e, 0x8600); // BGR enable
-	write_cmos_sensor(0x0d04, 0x0100); // STRB(OTP Busy) output enable
-	write_cmos_sensor(0x0d02, 0x0707); // STRB(OTP Busy) output drivability
-	write_cmos_sensor(0x0f30, 0x6e25); // Analog PLL setting
-	write_cmos_sensor(0x0f32, 0x7067); // Analog CLKGEN setting
-	write_cmos_sensor(0x0f02, 0x0106); // PLL enable
-	write_cmos_sensor(0x0a04, 0x0000); // mipi disable
-	write_cmos_sensor(0x0e0a, 0x0001); // TG PMEM CEN anable
-	write_cmos_sensor(0x004a, 0x0100); // TG MCU enable
-	write_cmos_sensor(0x003e, 0x1000); // ROM OTP Continuous W/R mode enable
-	write_cmos_sensor(0x0a00, 0x0100); // Stream ON
-         #endif
-	/* 2. init OTP setting*/
-	write_cmos_sensor_8(0x0a02, 0x01); //Fast sleep on
-	write_cmos_sensor_8(0x0a00, 0x00);//stand by on
-	mdelay(10);
-	write_cmos_sensor_8(0x0f02, 0x00);//pll disable
-	write_cmos_sensor_8(0x071a, 0x01);//CP TRIM_H
-	write_cmos_sensor_8(0x071b, 0x09);//IPGM TRIM_H
-	write_cmos_sensor_8(0x0d04, 0x00);//Fsync(OTP busy)Output Enable
-	write_cmos_sensor_8(0x0d00, 0x07);//Fsync(OTP busy)Output Drivability
-	write_cmos_sensor_8(0x003e, 0x10);//OTP r/w mode
-	write_cmos_sensor_8(0x0a00, 0x01);//standby off
-        mdelay(1);
-
-	/* 3. read eeprom data */
-	//minfo && awb &&lsc group
-	ret = read_hi846_module_info();
-	if(ret != 1){
-		hi846_module_id = 0;
-		LOG_ERR("=== hi846_data_info invalid ===\n");
-	}
-	ret = read_hi846_awb_info();
-	if(ret != 1){
-		hi846_awb_valid = 0;
-		LOG_ERR("=== hi846_data_awb invalid ===\n");
-	}else{
-		hi846_awb_valid = 1;
-	}
-	ret = read_hi846_lsc_info();
-	if(ret != 1){
-		hi846_lsc_valid = 0;
-		LOG_ERR("=== hi846_data_lsc invalid ===\n");
-	}else{
-		hi846_lsc_valid = 1;
-		//Hi846_Sensor_OTP_update_LSC();
-	}
-
-	/* 4. disable otp function */
-	hi846_disable_otp_func();
-	if(hi846_module_id == 0 || hi846_lsc_valid == 0 || hi846_awb_valid == 0){
-		return 0;
-	}else{
-		return 1;
-	}
-}
-//-bug584789,zhouyikuan.wt,ADD,2020/20/28,hi846 eeprom bring up
-#endif
 
 static void set_dummy(void)
 {
@@ -1421,7 +1027,7 @@ kal_uint16 addr_data_pair_init_hi846[] = {
 	0x0758, 0x3F1D,
 	0x0B02, 0xE04D,
 	0x0B10, 0x6821,
-	0x0B12, 0x0020,
+	0x0B12, 0x0120,
 	0x0B14, 0x0001,
 	0x2008, 0x38FD,
 	0x326E, 0x0000,
@@ -1437,8 +1043,8 @@ kal_uint16 addr_data_pair_init_hi846[] = {
 	0x090E, 0x0059,
 	0x0954, 0x0089,
 	0x0956, 0x0000,
-	0x0958, 0xB880,
-	0x095A, 0x6180,
+	0x0958, 0xAA80,
+	0x095A, 0x9240,
 	0x0040, 0x0200,
 	0x0042, 0x0100,
 	0x0D04, 0x0000,
@@ -2026,56 +1632,56 @@ static void sensor_init(void)
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_preview_hi846[] = {
-	0x002E, 0x3311,
-	0x0032, 0x3311,
-	0x0026, 0x0040,
-	0x002C, 0x09CF,
-	0x005C, 0x4202,
-	0x0006, 0x09DE,
-	0x0008, 0x0ED8,
-	0x000C, 0x0122,
-	0x0A22, 0x0100,
-	0x0A24, 0x0000,
-	0x0804, 0x0000,
-	0x0A12, 0x0660,
-	0x0A14, 0x04C8,
-	0x0074, 0x09D8,
-	0x021C, 0x0001,
-	0x0A04, 0x016A,
-	0x0418, 0x0000,
-	0x0128, 0x0027,
-	0x012A, 0xFFFF,
-	0x0120, 0x0044,
-	0x0122, 0x0374,
-	0x012C, 0x001F,
-	0x012E, 0xFFFF,
-	0x0124, 0x003E,
-	0x0126, 0x0376,
-	0x0B02, 0xE04D,
-	0x0B10, 0x6C21,
-	0x0B12, 0x0020,
-	0x0B14, 0x0005,
-	0x2008, 0x38FD,
-	0x326E, 0x0000,
-	0x0710, 0x04E0,
-	0x0900, 0x0300,
-	0x0902, 0xC319,
-	0x0914, 0xC105,
-	0x0916, 0x030C,
-	0x0918, 0x0304,
-	0x091A, 0x0708,
-	0x091C, 0x0B04,
-	0x091E, 0x0500,
-	0x090C, 0x01EC,
-	0x090E, 0x0009,
-	0x0954, 0x0089,
-	0x0956, 0x0000,
-	0x0958, 0xB880,
-	0x095A, 0x6180,
-	0x0F32, 0x025A,
-	0x0F38, 0x0257,
-	0x0F2A, 0x4924,
-	0x004C, 0x0100,
+0x002E, 0x3311,
+0x0032, 0x3311,
+0x0026, 0x0040,
+0x002C, 0x09CF,
+0x005C, 0x4202,
+0x0006, 0x09DE,
+0x0008, 0x0ED8,
+0x000C, 0x0122,
+0x0A22, 0x0100,
+0x0A24, 0x0000,
+0x0804, 0x0000,
+0x0A12, 0x0660,
+0x0A14, 0x04C8,
+0x0074, 0x09D8,
+0x021C, 0x0001,
+0x0A04, 0x016A,
+0x0418, 0x0000,
+0x0128, 0x0028,
+0x012A, 0xFFFF,
+0x0120, 0x0046,
+0x0122, 0x0376,
+0x012C, 0x0020,
+0x012E, 0xFFFF,
+0x0124, 0x0040,
+0x0126, 0x0378,
+0x0B02, 0xE04D,
+0x0B10, 0x6C21,
+0x0B12, 0x0120,
+0x0B14, 0x0005,
+0x2008, 0x38FD,
+0x326E, 0x0000,
+0x0710, 0x04E0,
+0x0900, 0x0300,
+0x0902, 0xC319,
+0x0914, 0xC105,
+0x0916, 0x030C,
+0x0918, 0x0304,
+0x091A, 0x0708,
+0x091C, 0x0B04,
+0x091E, 0x0500,
+0x090C, 0x0208,
+0x090E, 0x001C,
+0x0954, 0x0089,
+0x0956, 0x0000,
+0x0958, 0xAA80,
+0x095A, 0x9240,
+0x0F32, 0x025A,
+0x0F38, 0x025A,
+0x0F2A, 0x4924,
+0x004C, 0x0100,
 };
 #endif
 
@@ -2160,121 +1766,109 @@ static void preview_setting(void)
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_capture_fps_hi846[] = {
-	0x002E, 0x1111,
-	0x0032, 0x1111,
-	0x0026, 0x0040,
-	0x002C, 0x09CF,
-	0x005C, 0x2101,
-	0x0006, 0x13BC,
-	0x0008, 0x0ED8,
-	0x000C, 0x0022,
-	0x0A22, 0x0000,
-	0x0A24, 0x0000,
-	0x0804, 0x0000,
-	0x0A12, 0x0CC0,
-	0x0A14, 0x0990,
-	0x0074, 0x13B6,
-	0x021C, 0x0001,
-	0x0A04, 0x014A,
-	0x0418, 0x0000,
-	0x0128, 0x0027,
-	0x012A, 0xFFFF,
-	0x0120, 0x0044,
-	0x0122, 0x0374,
-	0x012C, 0x001F,
-	0x012E, 0xFFFF,
-	0x0124, 0x003E,
-	0x0126, 0x0376,
-	0x0B02, 0xE04D,
-	0x0B10, 0x6821,
-	0x0B12, 0x0020,
-	0x0B14, 0x0001,
-	0x2008, 0x38FD,
-	0x326E, 0x0000,
-	0x0710, 0x09B0,
-	0x0900, 0x0300,
-	0x0902, 0xC319,
-	0x0914, 0xC109,
-	0x0916, 0x061A,
-	0x0918, 0x0407,
-	0x091A, 0x0A0B,
-	0x091C, 0x0E08,
-	0x091E, 0x0A00,
-	0x090C, 0x03FA,
-	0x090E, 0x0018,
-	0x0954, 0x0089,
-	0x0956, 0x0000,
-	0x0958, 0xB880,
-#ifdef CONFIG_WINGTECH_S96806
-	0x095A, 0x618e,
-	0x0F32, 0x025A,
-	0x0F38, 0x0256,
-#else
-	0x095A, 0x6180,
-	0x0F32, 0x025A,
-	0x0F38, 0x0257,
-#endif
-	0x0F2A, 0x4124,
-	0x004C, 0x0100,
+0x002E, 0x1111,
+0x0032, 0x1111,
+0x0026, 0x0040,
+0x002C, 0x09CF,
+0x005C, 0x2101,
+0x0006, 0x13BC,
+0x0008, 0x0ED8,
+0x000C, 0x0022,
+0x0A22, 0x0000,
+0x0A24, 0x0000,
+0x0804, 0x0000,
+0x0A12, 0x0CC0,
+0x0A14, 0x0990,
+0x0074, 0x13B4,
+0x021C, 0x0001,
+0x0A04, 0x014A,
+0x0418, 0x0000,
+0x0128, 0x0028,
+0x012A, 0xFFFF,
+0x0120, 0x0046,
+0x0122, 0x0376,
+0x012C, 0x0020,
+0x012E, 0xFFFF,
+0x0124, 0x0040,
+0x0126, 0x0378,
+0x0B02, 0xE04D,
+0x0B10, 0x6821,
+0x0B12, 0x0120,
+0x0B14, 0x0001,
+0x2008, 0x38FD,
+0x326E, 0x0000,
+0x0710, 0x09B0,
+0x0900, 0x0300,
+0x0902, 0xC319,
+0x0914, 0xC109,
+0x0916, 0x061A,
+0x0918, 0x0407,
+0x091A, 0x0A0B,
+0x091C, 0x0E08,
+0x091E, 0x0A00,
+0x090C, 0x0427,
+0x090E, 0x0059,
+0x0954, 0x0089,
+0x0956, 0x0000,
+0x0958, 0xAA80,
+0x095A, 0x9240,
+0x0F32, 0x025A,
+0x0F38, 0x025A,
+0x0F2A, 0x4124,
+0x004C, 0x0100,
 };
 
 kal_uint16 addr_data_pair_capture_30fps_hi846[] = {
-	0x002E, 0x1111,
-	0x0032, 0x1111,
-	0x0026, 0x0040,
-	0x002C, 0x09CF,
-	0x005C, 0x2101,
-	0x0006, 0x09DE,
-	0x0008, 0x0ED8,
-	0x000C, 0x0022,
-	0x0A22, 0x0000,
-	0x0A24, 0x0000,
-	0x0804, 0x0000,
-	0x0A12, 0x0CC0,
-	0x0A14, 0x0990,
-	0x0074, 0x09D8,
-	0x021C, 0x0001,
-	0x0A04, 0x014A,
-	0x0418, 0x0000,
-	0x0128, 0x0027,
-	0x012A, 0xFFFF,
-	0x0120, 0x0044,
-	0x0122, 0x0374,
-	0x012C, 0x001F,
-	0x012E, 0xFFFF,
-	0x0124, 0x003E,
-	0x0126, 0x0376,
-	0x0B02, 0xE04D,
-	0x0B10, 0x6821,
-	0x0B12, 0x0020,
-	0x0B14, 0x0001,
-	0x2008, 0x38FD,
-	0x326E, 0x0000,
-	0x0710, 0x09B0,
-	0x0900, 0x0300,
-	0x0902, 0xC319,
-	0x0914, 0xC109,
-	0x0916, 0x061A,
-	0x0918, 0x0407,
-	0x091A, 0x0A0B,
-	0x091C, 0x0E08,
-	0x091E, 0x0A00,
-	0x090C, 0x03FA,
-	0x090E, 0x0018,
-	0x0954, 0x0089,
-	0x0956, 0x0000,
-	0x0958, 0xB880,
-#ifdef CONFIG_WINGTECH_S96806
-	0x095A, 0x618e,
-	0x0F32, 0x025A,
-	0x0F38, 0x0256,
-#else
-	0x095A, 0x6180,
-	0x0F32, 0x025A,
-	0x0F38, 0x0257,
-#endif
-	0x0F2A, 0x4124,
-	0x004C, 0x0100,
+0x002E, 0x1111,
+0x0032, 0x1111,
+0x0026, 0x0040,
+0x002C, 0x09CF,
+0x005C, 0x2101,
+0x0006, 0x09DE,
+0x0008, 0x0ED8,
+0x000C, 0x0022,
+0x0A22, 0x0000,
+0x0A24, 0x0000,
+0x0804, 0x0000,
+0x0A12, 0x0CC0,
+0x0A14, 0x0990,
+0x0074, 0x09D8,
+0x021C, 0x0001,
+0x0A04, 0x014A,
+0x0418, 0x0000,
+0x0128, 0x0028,
+0x012A, 0xFFFF,
+0x0120, 0x0046,
+0x0122, 0x0376,
+0x012C, 0x0020,
+0x012E, 0xFFFF,
+0x0124, 0x0040,
+0x0126, 0x0378,
+0x0B02, 0xE04D,
+0x0B10, 0x6821,
+0x0B12, 0x0120,
+0x0B14, 0x0001,
+0x2008, 0x38FD,
+0x326E, 0x0000,
+0x0710, 0x09B0,
+0x0900, 0x0300,
+0x0902, 0xC319,
+0x0914, 0xC109,
+0x0916, 0x061A,
+0x0918, 0x0407,
+0x091A, 0x0A0B,
+0x091C, 0x0E08,
+0x091E, 0x0A00,
+0x090C, 0x0427,
+0x090E, 0x0059,
+0x0954, 0x0089,
+0x0956, 0x0000,
+0x0958, 0xAA80,
+0x095A, 0x9240,
+0x0F32, 0x025A,
+0x0F38, 0x025A,
+0x0F2A, 0x4124,
+0x004C, 0x0100,
 };
 #endif
 
@@ -2450,56 +2044,56 @@ static void capture_setting(kal_uint16 currefps)
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_video_hi846[] = {
-	0x002E, 0x1111,
-	0x0032, 0x1111,
-	0x0026, 0x0040,
-	0x002C, 0x09CF,
-	0x005C, 0x2101,
-	0x0006, 0x09DE,
-	0x0008, 0x0ED8,
-	0x000C, 0x0022,
-	0x0A22, 0x0000,
-	0x0A24, 0x0000,
-	0x0804, 0x0000,
-	0x0A12, 0x0CC0,
-	0x0A14, 0x0990,
-	0x0074, 0x09D8,
-	0x021C, 0x0001,
-	0x0A04, 0x014A,
-	0x0418, 0x0000,
-	0x0128, 0x0027,
-	0x012A, 0xFFFF,
-	0x0120, 0x0044,
-	0x0122, 0x0374,
-	0x012C, 0x001F,
-	0x012E, 0xFFFF,
-	0x0124, 0x003E,
-	0x0126, 0x0376,
-	0x0B02, 0xE04D,
-	0x0B10, 0x6821,
-	0x0B12, 0x0020,
-	0x0B14, 0x0001,
-	0x2008, 0x38FD,
-	0x326E, 0x0000,
-	0x0710, 0x09B0,
-	0x0900, 0x0300,
-	0x0902, 0xC319,
-	0x0914, 0xC109,
-	0x0916, 0x061A,
-	0x0918, 0x0407,
-	0x091A, 0x0A0B,
-	0x091C, 0x0E08,
-	0x091E, 0x0A00,
-	0x090C, 0x03FA,
-	0x090E, 0x0018,
-	0x0954, 0x0089,
-	0x0956, 0x0000,
-	0x0958, 0xB880,
-	0x095A, 0x6180,
-	0x0F32, 0x025A,
-	0x0F38, 0x0257,
-	0x0F2A, 0x4124,
-	0x004C, 0x0100,
+0x002E, 0x1111,
+0x0032, 0x1111,
+0x0026, 0x0040,
+0x002C, 0x09CF,
+0x005C, 0x2101,
+0x0006, 0x09DE,
+0x0008, 0x0ED8,
+0x000C, 0x0022,
+0x0A22, 0x0000,
+0x0A24, 0x0000,
+0x0804, 0x0000,
+0x0A12, 0x0CC0,
+0x0A14, 0x0990,
+0x0074, 0x09D8,
+0x021C, 0x0001,
+0x0A04, 0x014A,
+0x0418, 0x0000,
+0x0128, 0x0028,
+0x012A, 0xFFFF,
+0x0120, 0x0046,
+0x0122, 0x0376,
+0x012C, 0x0020,
+0x012E, 0xFFFF,
+0x0124, 0x0040,
+0x0126, 0x0378,
+0x0B02, 0xE04D,
+0x0B10, 0x6821,
+0x0B12, 0x0120,
+0x0B14, 0x0001,
+0x2008, 0x38FD,
+0x326E, 0x0000,
+0x0710, 0x09B0,
+0x0900, 0x0300,
+0x0902, 0xC319,
+0x0914, 0xC109,
+0x0916, 0x061A,
+0x0918, 0x0407,
+0x091A, 0x0A0B,
+0x091C, 0x0E08,
+0x091E, 0x0A00,
+0x090C, 0x0427,
+0x090E, 0x0059,
+0x0954, 0x0089,
+0x0956, 0x0000,
+0x0958, 0xAA80,
+0x095A, 0x9240,
+0x0F32, 0x025A,
+0x0F38, 0x025A,
+0x0F2A, 0x4124,
+0x004C, 0x0100,
 };
 #endif
 
@@ -2584,56 +2178,56 @@ static void normal_video_setting(void)
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_hs_video_hi846[] = {
-	0x002E, 0x7711,
-	0x0032, 0x7711,
-	0x0026, 0x0148,
-	0x002C, 0x08C7,
-	0x005C, 0x4404,
-	0x0006, 0x0277,
-	0x0008, 0x0ED8,
-	0x000C, 0x0322,
-	0x0A22, 0x0200,
-	0x0A24, 0x0000,
-	0x0804, 0x0058,
-	0x0A12, 0x0280,
-	0x0A14, 0x01E0,
-	0x0074, 0x0271,
-	0x021C, 0x0001,
-	0x0A04, 0x016A,
-	0x0418, 0x0210,
-	0x0128, 0x0027,
-	0x012A, 0xFFFF,
-	0x0120, 0x0044,
-	0x0122, 0x0374,
-	0x012C, 0x001F,
-	0x012E, 0xFFFF,
-	0x0124, 0x003E,
-	0x0126, 0x0376,
-	0x0B02, 0xE04D,
-	0x0B10, 0x7021,
-	0x0B12, 0x0020,
-	0x0B14, 0x0001,
-	0x2008, 0x38FD,
-	0x326E, 0x0000,
-	0x0710, 0x01F2,
-	0x0900, 0x0300,
-	0x0902, 0xC319,
-	0x0914, 0xC102,
-	0x0916, 0x0205,
-	0x0918, 0x0202,
-	0x091A, 0x0205,
-	0x091C, 0x0802,
-	0x091E, 0x0400,
-	0x090C, 0x00E6,
-	0x090E, 0x0003,
-	0x0954, 0x0089,
-	0x0956, 0x0000,
-	0x0958, 0xB880,
-	0x095A, 0x6180,
-	0x0F32, 0x025A,
-	0x0F38, 0x0257,
-	0x0F2A, 0x5124,
-	0x004C, 0x0100,
+0x002E, 0x7711,
+0x0032, 0x7711,
+0x0026, 0x0148,
+0x002C, 0x08C7,
+0x005C, 0x4404,
+0x0006, 0x0277,
+0x0008, 0x0ED8,
+0x000C, 0x0322,
+0x0A22, 0x0200,
+0x0A24, 0x0000,
+0x0804, 0x0058,
+0x0A12, 0x0280,
+0x0A14, 0x01E0,
+0x0074, 0x0271,
+0x021C, 0x0001,
+0x0A04, 0x016A,
+0x0418, 0x0210,
+0x0128, 0x0028,
+0x012A, 0xFFFF,
+0x0120, 0x0046,
+0x0122, 0x0376,
+0x012C, 0x0020,
+0x012E, 0xFFFF,
+0x0124, 0x0040,
+0x0126, 0x0378,
+0x0B02, 0xE04D,
+0x0B10, 0x7021,
+0x0B12, 0x0120,
+0x0B14, 0x0001,
+0x2008, 0x38FD,
+0x326E, 0x0000,
+0x0710, 0x01F2,
+0x0900, 0x0300,
+0x0902, 0xC319,
+0x0914, 0xC103,
+0x0916, 0x0207,
+0x0918, 0x0202,
+0x091A, 0x0305,
+0x091C, 0x0902,
+0x091E, 0x0300,
+0x090C, 0x00FB,
+0x090E, 0x0036,
+0x0954, 0x0089,
+0x0956, 0x0000,
+0x0958, 0xAA80,
+0x095A, 0x9240,
+0x0F32, 0x025A,
+0x0F38, 0x025A,
+0x0F2A, 0x5124,
+0x004C, 0x0100,
 };
 #endif
 
@@ -2718,56 +2312,56 @@ static void hs_video_setting(void)
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_slim_video_hi846[] = {
-	0x002E, 0x3311,
-	0x0032, 0x3311,
-	0x0026, 0x0238,
-	0x002C, 0x07D7,
-	0x005C, 0x4202,
-	0x0006, 0x034A,
-	0x0008, 0x0ED8,
-	0x000C, 0x0122,
-	0x0A22, 0x0100,
-	0x0A24, 0x0000,
-	0x0804, 0x00B0,
-	0x0A12, 0x0500,
-	0x0A14, 0x02D0,
-	0x0074, 0x0344,
-	0x021C, 0x0001,
-	0x0A04, 0x016A,
-	0x0418, 0x0410,
-	0x0128, 0x0027,
-	0x012A, 0xFFFF,
-	0x0120, 0x0044,
-	0x0122, 0x0374,
-	0x012C, 0x001F,
-	0x012E, 0xFFFF,
-	0x0124, 0x003E,
-	0x0126, 0x0376,
-	0x0B02, 0xE04D,
-	0x0B10, 0x6C21,
-	0x0B12, 0x0020,
-	0x0B14, 0x0005,
-	0x2008, 0x38FD,
-	0x326E, 0x0000,
-	0x0710, 0x02E8,
-	0x0900, 0x0300,
-	0x0902, 0xC319,
-	0x0914, 0xC105,
-	0x0916, 0x030C,
-	0x0918, 0x0304,
-	0x091A, 0x0708,
-	0x091C, 0x0B04,
-	0x091E, 0x0500,
-	0x090C, 0x01EC,
-	0x090E, 0x0009,
-	0x0954, 0x0089,
-	0x0956, 0x0000,
-	0x0958, 0xB880,
-	0x095A, 0x6180,
-	0x0F32, 0x025A,
-	0x0F38, 0x0257,
-	0x0F2A, 0x4924,
-	0x004C, 0x0100,
+0x002E, 0x3311,
+0x0032, 0x3311,
+0x0026, 0x0238,
+0x002C, 0x07D7,
+0x005C, 0x4202,
+0x0006, 0x034A,
+0x0008, 0x0ED8,
+0x000C, 0x0122,
+0x0A22, 0x0100,
+0x0A24, 0x0000,
+0x0804, 0x00B0,
+0x0A12, 0x0500,
+0x0A14, 0x02D0,
+0x0074, 0x0344,
+0x021C, 0x0001,
+0x0A04, 0x016A,
+0x0418, 0x0410,
+0x0128, 0x0028,
+0x012A, 0xFFFF,
+0x0120, 0x0046,
+0x0122, 0x0376,
+0x012C, 0x0020,
+0x012E, 0xFFFF,
+0x0124, 0x0040,
+0x0126, 0x0378,
+0x0B02, 0xE04D,
+0x0B10, 0x6C21,
+0x0B12, 0x0120,
+0x0B14, 0x0005,
+0x2008, 0x38FD,
+0x326E, 0x0000,
+0x0710, 0x02E8,
+0x0900, 0x0300,
+0x0902, 0xC319,
+0x0914, 0xC105,
+0x0916, 0x030C,
+0x0918, 0x0304,
+0x091A, 0x0708,
+0x091C, 0x0B04,
+0x091E, 0x0500,
+0x090C, 0x0208,
+0x090E, 0x008A,
+0x0954, 0x0089,
+0x0956, 0x0000,
+0x0958, 0xAA80,
+0x095A, 0x9240,
+0x0F32, 0x025A,
+0x0F38, 0x025A,
+0x0F2A, 0x4924,
+0x004C, 0x0100,
 };
 #endif
 
@@ -2864,43 +2458,409 @@ static void slim_video_setting(void)
 
 #endif
 }
-
+//+S96818AA1-1936,liudijin.wt,ADD,2023/05/19,hi846 sensor otp bring up.
 #if Hi846_OTP_FUNCTION
-//+bug604664 zhouyikuan, add, 2020/12/14,hi846 eeprom bring up
+#define HI846_OTP_DUMP 1
+
+#if HI846_OTP_DUMP
+extern void dumpEEPROMData(int u4Length,u8* pu1Params);
+#endif
+
+#define MODULE_INFO_SIZE 7
+#define AWB_DATA_SIZE 16
+#define LSC_DATA_SIZE 1868
+//#define SN_INFO_SIZE 12
+
+#define MODULE_GROUP_FLAG 0x201
+#define AWB_GROUP_FLAG 0x242
+#define LSC_GROUP_FLAG 0x276
+#define SN_INFO_FLAG 0x21A
+
+#define VALID_OTP_GROUP1_FLAG 0x01
+#define VALID_OTP_GROUP2_FLAG 0x13
+#define VALID_OTP_GROUP3_FLAG 0x37
+
+//#define OTP_GROUP_OFFSET 0x76A
+
+unsigned char hi846_data_lsc[LSC_DATA_SIZE + 1] = {0};/*Add check sum*/
+unsigned char hi846_data_awb[AWB_DATA_SIZE + 1] = {0};/*Add check sum*/
+unsigned char hi846_data_info[MODULE_INFO_SIZE + 1] = {0};/*Add check sum*/
+//static unsigned char hi846_data_sn[SN_INFO_SIZE + 1] = {0};/*Add check sum*/
+unsigned char hi846_module_id = 0;
+unsigned char hi846_lsc_valid = 0;
+unsigned char hi846_awb_valid = 0;
+
+static void hi846_disable_otp_func(void)
+{
+	write_cmos_sensor(0x0a00, 0x00);
+	mdelay(10);
+	write_cmos_sensor(0x003e, 0x00);
+	write_cmos_sensor(0x0a00, 0x01);
+}
+#if 0
+void HI846_Sensor_update_wb_gain(kal_uint32 r_gain, kal_uint32 g_gain,kal_uint32 b_gain)
+{
+    kal_int16 temp;
+
+    LOG_INF("write_to_register:  r_gain = 0x%x,Gr_gain = 0x%x, Gb_gain = 0x%x, b_gain = 0x%x\n", r_gain, g_gain,b_gain);
+
+    write_cmos_sensor_8(0x0078, g_gain >> 8); //gr_gain
+    write_cmos_sensor_8(0x0079, g_gain & 0xFF); //gr_gain
+    write_cmos_sensor_8(0x007A, g_gain >> 8); //gb_gain
+    write_cmos_sensor_8(0x007B, g_gain & 0xFF); //gb_gain
+
+    write_cmos_sensor_8(0x007C, r_gain >> 8); //r_gain
+    write_cmos_sensor_8(0x007D, r_gain & 0xFF); //r_gain
+    write_cmos_sensor_8(0x007E, b_gain >> 8); //b_gain
+    write_cmos_sensor_8(0x007F, b_gain & 0xFF); //b_gain
+
+    temp = read_cmos_sensor(0x0a05) | 0x08;
+    LOG_INF("HI846_OTP_write_cmos_sensor :0x6000, temp= 0x%x\n", temp);
+    write_cmos_sensor_8(0x0a05, temp); //Digital Gain enable
+
+
+}
+
+void Hi846_Sensor_OTP_update_LSC(void)
+{
+    uint16_t temp = 0;
+    LOG_INF("%s enter\n",__func__);
+
+    temp = read_cmos_sensor (0x0a05) | 0x10;
+    //`temp = temp & 0xF7;
+    LOG_INF("lsc_enable flag 0x0a05 = 0x%x\n",temp);
+    write_cmos_sensor_8(0x0a05, temp); //LSC enable
+    LOG_INF("%s exit\n",__func__);
+
+}
+#endif
+
+static int read_hi846_module_info(void)
+{
+	int otp_grp_flag = 0, minfo_start_addr = 0;
+	int year = 0, month = 0, day = 0;
+	int position = 0,lens_id = 0,vcm_id = 0;
+	int check_sum = 0, check_sum_cal = 0;
+	int i = 0;
+
+
+	/* read flag */
+	write_cmos_sensor_8(0x070a,((MODULE_GROUP_FLAG)>>8)&0xff);//start address H
+	write_cmos_sensor_8(0x070b,(MODULE_GROUP_FLAG)&0xff);//start address L
+	write_cmos_sensor_8(0x0702,0x01);//read enable
+	otp_grp_flag = read_cmos_sensor(0x0708);//OTP data read
+
+	if(otp_grp_flag == VALID_OTP_GROUP1_FLAG){
+		minfo_start_addr = MODULE_GROUP_FLAG + 1;
+		//check_sum_cal += VALID_OTP_GROUP1_FLAG;
+		LOG_INF("the group1 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,minfo_start_addr);
+	}else if(otp_grp_flag == VALID_OTP_GROUP2_FLAG){
+                minfo_start_addr = MODULE_GROUP_FLAG + (MODULE_INFO_SIZE+ 1)+ 1;
+		//check_sum_cal += VALID_OTP_GROUP2_FLAG;
+		LOG_INF("the group2 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,minfo_start_addr);
+	}else if(otp_grp_flag == VALID_OTP_GROUP3_FLAG){
+		minfo_start_addr = MODULE_GROUP_FLAG + (MODULE_INFO_SIZE+ 1)*2+ 1;
+		//check_sum_cal += VALID_OTP_GROUP3_FLAG;
+		LOG_INF("the group3 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,minfo_start_addr);
+	}else{
+		LOG_ERR("the group is invalid or empty,otp_grp_flag = 0x%x\n",otp_grp_flag);
+		return 0;
+	}
+
+	if(minfo_start_addr != 0){
+		write_cmos_sensor_8(0x070a,((minfo_start_addr)>>8)&0xff);
+		write_cmos_sensor_8(0x070b,(minfo_start_addr)&0xff);
+		write_cmos_sensor_8(0x0702,0x01);
+		for(i = 0; i < MODULE_INFO_SIZE + 1; i++){
+			hi846_data_info[i]=read_cmos_sensor(0x0708);
+			LOG_INF("111 hi846_data_info[%d]:%d \n", i, hi846_data_info[i]);
+		}
+		for(i = 0; i < MODULE_INFO_SIZE; i++){
+			check_sum_cal += hi846_data_info[i];
+			LOG_INF("222 hi846_data_info[%d]:%d \n", i, hi846_data_info[i]);
+		}
+
+		check_sum_cal = (check_sum_cal % 255) + 1;
+		hi846_module_id = hi846_data_info[0];
+		position = hi846_data_info[1];
+		lens_id = hi846_data_info[2];
+		vcm_id = hi846_data_info[3];
+		year = hi846_data_info[4];
+		month = hi846_data_info[5];
+		day = hi846_data_info[6];
+		check_sum = hi846_data_info[MODULE_INFO_SIZE];
+	}
+#if HI846_OTP_DUMP
+	dumpEEPROMData(MODULE_INFO_SIZE,&hi846_data_info[0]);
+#endif
+	//LOG_INF("module_id=0x%x position=0x%x\n", hi846_module_id, position);
+	LOG_INF("=== HI846 INFO module_id=0x%x position=0x%x ===\n", hi846_module_id, position);
+	LOG_INF("=== HI846 INFO lens_id=0x%x,vcm_id=0x%x ===\n",lens_id, vcm_id);
+	LOG_INF("=== HI846 INFO date is %d-%d-%d ===\n",year,month,day);
+	LOG_INF("=== HI846 INFO check_sum=0x%x,check_sum_cal=0x%x ===\n", check_sum, check_sum_cal);
+	if(check_sum == check_sum_cal){
+		LOG_INF("check_sum_module_info success!\n");
+		return 1;
+	}else{
+	         LOG_ERR("check_sum_module_info fail!\n");
+		return 0;
+	}
+}
+
+static int read_hi846_awb_info(void)
+{
+	int otp_grp_flag = 0, awb_start_addr=0;
+	int check_sum_awb = 0, check_sum_awb_cal = 0;
+	UINT32 r = 0,b = 0,gr = 0, gb = 0, golden_r = 0, golden_b = 0, golden_gr = 0, golden_gb = 0;
+	int i = 0;
+        //UINT32 r_gain = 0,b_gain = 0, g_gain = 0;
+
+	/* awb group 1 */
+	/* read flag */
+	write_cmos_sensor_8(0x070a,((AWB_GROUP_FLAG)>>8)&0xff);
+	write_cmos_sensor_8(0x070b,(AWB_GROUP_FLAG)&0xff);
+	write_cmos_sensor_8(0x0702,0x01);
+	otp_grp_flag = read_cmos_sensor(0x0708);
+
+	if(otp_grp_flag == VALID_OTP_GROUP1_FLAG){
+		awb_start_addr = AWB_GROUP_FLAG + 1;
+		//check_sum_awb_cal += VALID_OTP_GROUP1_FLAG;
+		LOG_INF("the group1 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,awb_start_addr);
+	}else if(otp_grp_flag == VALID_OTP_GROUP2_FLAG){
+                awb_start_addr = AWB_GROUP_FLAG + (AWB_DATA_SIZE+ 1)+ 1;
+		//check_sum_awb_cal += VALID_OTP_GROUP2_FLAG;
+		LOG_INF("the group2 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,awb_start_addr);
+	}else if(otp_grp_flag == VALID_OTP_GROUP3_FLAG){
+		awb_start_addr = AWB_GROUP_FLAG + (AWB_DATA_SIZE+ 1)*2+ 1;
+		//check_sum_awb_cal += VALID_OTP_GROUP3_FLAG;
+		LOG_INF("the group3 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,awb_start_addr);
+	}else{
+		LOG_ERR("the group is invalid or empty,otp_grp_flag = 0x%x\n",otp_grp_flag);
+		return 0;
+	}
+
+	if(awb_start_addr != 0)
+	{
+		write_cmos_sensor_8(0x070a,((awb_start_addr)>>8)&0xff);
+		write_cmos_sensor_8(0x070b,(awb_start_addr)&0xff);
+		write_cmos_sensor_8(0x0702,0x01);
+		for(i = 0; i < AWB_DATA_SIZE + 1; i++){
+			hi846_data_awb[i]=read_cmos_sensor(0x0708);
+		}
+		for(i = 0; i < AWB_DATA_SIZE; i++){
+			check_sum_awb_cal += hi846_data_awb[i];
+		}
+		LOG_INF("check_sum_awb_cal =0x%x \n",check_sum_awb_cal);
+		r = ((hi846_data_awb[1]<<8)&0xff00)|(hi846_data_awb[0]&0xff);
+		b = ((hi846_data_awb[3]<<8)&0xff00)|(hi846_data_awb[2]&0xff);
+		gr = ((hi846_data_awb[5]<<8)&0xff00)|(hi846_data_awb[4]&0xff);
+		gb = ((hi846_data_awb[7]<<8)&0xff00)|(hi846_data_awb[6]&0xff);
+		golden_r = ((hi846_data_awb[9]<<8)&0xff00)|(hi846_data_awb[8]&0xff);
+		golden_b = ((hi846_data_awb[11]<<8)&0xff00)|(hi846_data_awb[10]&0xff);
+		golden_gr = ((hi846_data_awb[13]<<8)&0xff00)|(hi846_data_awb[12]&0xff);
+		golden_gb = ((hi846_data_awb[15]<<8)&0xff00)|(hi846_data_awb[14]&0xff);
+		check_sum_awb = hi846_data_awb[AWB_DATA_SIZE];
+		check_sum_awb_cal = (check_sum_awb_cal % 255) + 1;
+
+#if 0
+//start cal awb gain
+		g  = (gr + gb+1) >> 1;
+                  golden_g = (golden_gr + golden_gb+1) >> 1;
+
+#ifdef OTP_SUPPORT_FLOATING
+		r_gain = (int)(((float)golden_r/r) * 0x200);
+		b_gain = (int)(((float)golden_b/b) * 0x200);
+#else
+#define OTP_MULTIPLE_FAC    (128L)   // 128 = 2^7
+		r_gain = (((OTP_MULTIPLE_FAC * golden_r) / r) * 0x200) / OTP_MULTIPLE_FAC;
+		b_gain = (((OTP_MULTIPLE_FAC * golden_b) / b) * 0x200) / OTP_MULTIPLE_FAC;
+#endif
+
+		if(r_gain < b_gain)
+		{
+			if(r_gain < 0x200)
+			{
+				b_gain = 0x200 * b_gain/r_gain;
+				g_gain = 0x200 * g_gain/r_gain;
+				r_gain = 0x200;
+			}
+		}else{
+			if(b_gain < 0x200)
+			{
+				r_gain = 0x200 * r_gain/b_gain;
+				g_gain = 0x200 * g_gain/b_gain;
+				b_gain = 0x200;
+			}
+		}
+#endif
+
+	}
+#if HI846_OTP_DUMP
+	dumpEEPROMData(AWB_DATA_SIZE,&hi846_data_awb[0]);
+#endif
+	LOG_INF("=== HI846 AWB r=0x%x, b=0x%x, gr=%x, gb=0x%x ===\n", r, b,gb, gr);
+	LOG_INF("=== HI846 AWB gr=0x%x,gb=0x%x,gGr=%x, gGb=0x%x ===\n", golden_r, golden_b, golden_gr, golden_gb);
+	LOG_INF("=== HI846 AWB check_sum_awb=0x%x,check_sum_awb_cal=0x%x ===\n",check_sum_awb,check_sum_awb_cal);
+	if(check_sum_awb == check_sum_awb_cal){
+		LOG_INF("check_sum_awb success!\n");
+		//HI846_Sensor_update_wb_gain(r,g,b);
+		return 1;
+	}else{
+	         LOG_ERR("check_sum_awb fail!\n");
+		return 0;
+	}
+}
+static int read_hi846_lsc_info(void)
+{
+	int otp_grp_flag = 0, lsc_start_addr = 0;
+	int check_sum_lsc = 0, check_sum_lsc_cal = 0;
+         int i = 0;
+
+	/* lsc group */
+	/* read flag */
+	write_cmos_sensor_8(0x070a,((LSC_GROUP_FLAG)>>8)&0xff);
+	write_cmos_sensor_8(0x070b,(LSC_GROUP_FLAG)&0xff);
+	write_cmos_sensor_8(0x0702,0x01);
+	otp_grp_flag = read_cmos_sensor(0x0708);
+
+	if(otp_grp_flag == VALID_OTP_GROUP1_FLAG){
+		lsc_start_addr = LSC_GROUP_FLAG + 1;//0x24E+1
+		//check_sum_lsc_cal += VALID_OTP_GROUP1_FLAG;
+		LOG_INF("the group1 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,lsc_start_addr);
+	}else if(otp_grp_flag == VALID_OTP_GROUP2_FLAG){
+                lsc_start_addr = LSC_GROUP_FLAG + (LSC_DATA_SIZE+ 1)+ 1;//+S96818AA1-3562,wuwenhao2.wt,ADD,2023/06/05,hi846 lsc checksum error
+		//check_sum_lsc_cal += VALID_OTP_GROUP2_FLAG;
+		LOG_INF("the group2 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,lsc_start_addr);
+	}else if(otp_grp_flag == VALID_OTP_GROUP3_FLAG){
+		lsc_start_addr = LSC_GROUP_FLAG + (LSC_DATA_SIZE+ 1)*2+ 1;//+S96818AA1-3562,wuwenhao2.wt,ADD,2023/06/05,hi846 lsc checksum error
+		//check_sum_lsc_cal += VALID_OTP_GROUP3_FLAG;
+		LOG_INF("the group3 is valid,otp_grp_flag = 0x%x,info_start_addr:0x%x\n",otp_grp_flag,lsc_start_addr);
+	}else{
+		LOG_ERR("the group is invalid or empty,otp_grp_flag = 0x%x\n",otp_grp_flag);
+		return 0;
+	}
+
+	if(lsc_start_addr != 0){
+		write_cmos_sensor_8(0x070a,((lsc_start_addr)>>8)&0xff);
+		write_cmos_sensor_8(0x070b,(lsc_start_addr)&0xff);
+		write_cmos_sensor_8(0x0702,0x01);
+		for(i = 0; i < LSC_DATA_SIZE + 1; i++)
+		{
+		  hi846_data_lsc[i] = read_cmos_sensor(0x0708);
+		}
+		for(i = 0; i < LSC_DATA_SIZE; i++){
+		  check_sum_lsc_cal += hi846_data_lsc[i];
+		}
+		LOG_INF("check_sum_lsc_cal =0x%x \n",check_sum_lsc_cal);
+		check_sum_lsc = hi846_data_lsc[LSC_DATA_SIZE];
+		check_sum_lsc_cal = (check_sum_lsc_cal % 255) + 1;
+	}
+#if HI846_OTP_DUMP
+	dumpEEPROMData(LSC_DATA_SIZE,&hi846_data_lsc[0]);
+#endif
+	LOG_INF("=== HI846 LSC check_sum_lsc=0x%x, check_sum_lsc_cal=0x%x ===\n", check_sum_lsc, check_sum_lsc_cal);
+	if(check_sum_lsc == check_sum_lsc_cal){
+		LOG_INF("check_sum_lsc success!\n");
+		return 1;
+	}else{
+	         LOG_ERR("check_sum_lsc fail!\n");
+		return 0;
+	}
+}
+
+static int hi846_sensor_otp_info(void)
+{
+	int ret = 0;
+
+	LOG_INF("come to %s:%d E!\n", __func__, __LINE__);
+
+	/* 1. sensor init */
+    write_cmos_sensor(0x0A00, 0x0000);
+    write_cmos_sensor(0x2000, 0x0000);
+    write_cmos_sensor(0x2002, 0x00FF);
+    write_cmos_sensor(0x2004, 0x0000);
+    write_cmos_sensor(0x2008, 0x3FFF);
+    write_cmos_sensor(0x23FE, 0xC056);
+    write_cmos_sensor(0x0A00, 0x0000);
+    write_cmos_sensor(0x0E04, 0x0012);
+    write_cmos_sensor(0x0F08, 0x2F04);
+    write_cmos_sensor(0x0F30, 0x001F);
+    write_cmos_sensor(0x0F36, 0x001F);
+    write_cmos_sensor(0x0F04, 0x3A00);
+    write_cmos_sensor(0x0F32, 0x025A);
+    write_cmos_sensor(0x0F38, 0x025A);
+    write_cmos_sensor(0x0F2A, 0x4124);
+    write_cmos_sensor(0x006A, 0x0100);
+    write_cmos_sensor(0x004C, 0x0100);
+
+	/* 2. init OTP setting*/
+	write_cmos_sensor_8(0x0A02, 0x01); //Fast sleep on
+	write_cmos_sensor_8(0x0A00, 0x00);//stand by on
+    mdelay(10);
+    write_cmos_sensor_8(0x0f02, 0x00); // pll disable
+    write_cmos_sensor_8(0x071a, 0x01); // CP TRIM_H
+    write_cmos_sensor_8(0x071b, 0x09); // IPGM TRIM_H
+    write_cmos_sensor_8(0x0d04, 0x01); // Fsync(OTP busy) Output Enable
+    write_cmos_sensor_8(0x0d00, 0x07); // Fsync(OTP busy) Output Drivability
+    write_cmos_sensor_8(0x003e, 0x10); // OTP R/W mode
+    write_cmos_sensor_8(0x070f, 0x05); // OTP data rewrite
+    write_cmos_sensor_8(0x0a00, 0x01); // stand by off
+
+	/* 3. read eeprom data */
+	//minfo && awb &&lsc group
+	ret = read_hi846_module_info();
+	if(ret != 1){
+		hi846_module_id = 0;
+		LOG_ERR("=== hi846_data_info invalid ===\n");
+	}
+	ret = read_hi846_awb_info();
+	if(ret != 1){
+		hi846_awb_valid = 0;
+		LOG_ERR("=== hi846_data_awb invalid ===\n");
+	}else{
+		hi846_awb_valid = 1;
+	}
+	ret = read_hi846_lsc_info();
+	if(ret != 1){
+		hi846_lsc_valid = 0;
+		LOG_ERR("=== hi846_data_lsc invalid ===\n");
+	}else{
+		hi846_lsc_valid = 1;
+		//Hi846_Sensor_OTP_update_LSC();
+	}
+
+	/* 4. disable otp function */
+	hi846_disable_otp_func();
+	if(hi846_module_id == 0 || hi846_lsc_valid == 0 || hi846_awb_valid == 0){
+		return 0;
+	}else{
+		return 1;
+	}
+}
+
 #include "cam_cal_define.h"
 #include <linux/slab.h>
-static struct stCAM_CAL_DATAINFO_STRUCT n28_hi846_front_truly_eeprom_data ={
-	.sensorID= N28_HI846_FRONT_TRULY_SENSOR_ID,
-	.deviceID = 0x02,
-	.dataLength = 0x076A,
-	.sensorVendorid = 0x17050000,
-	.vendorByte = {1,2,3,4},
-	.dataBuffer = NULL,
+static struct stCAM_CAL_DATAINFO_STRUCT n28hi846fronttruly_eeprom_data ={
+    .sensorID= N28HI846FRONTTRULY_SENSOR_ID,
+    .deviceID = 0x02,
+    .dataLength = 0x0763,//1912
+    .sensorVendorid = 0x060500ff,
+    .vendorByte = {1,2,3,4},
+    .dataBuffer = NULL,
 };
-static struct stCAM_CAL_CHECKSUM_STRUCT n28_hi846_front_truly_checksum[8] =
-{
-	{MODULE_ITEM,0x0000,0x0000,0x0007,0x0008,0x55},
-         {AWB_ITEM,0x0009,0x0009,0x0019,0x001A,0x55},
-	{LSC_ITEM,0x001B,0x001B,0x0767,0x0768,0x55},
-	{TOTAL_ITEM,0x0000,0x0000,0x0768,0x0769,0x55},
-	{MAX_ITEM,0xFFFF,0xFFFF,0xFFFF,0xFFFF,0x55},  // this line must haved
-};
-extern int imgSensorReadEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData,
-	struct stCAM_CAL_CHECKSUM_STRUCT* checkData);
 extern int imgSensorSetEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData);
-//-bug604664 zhouyikuan, add, 2020/12/14,hi846 eeprom bring up
 #endif
+//-S96818AA1-1936,liudijin.wt,ADD,2023/05/19,hi846 sensor otp bring up.
 
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
-
-	#if Hi846_OTP_FUNCTION
-	//+bug604664 zhouyikuan, add, 2020/12/14,hi846 eeprom bring up
-	kal_int32 size = 0;
+	//+S96818AA1-1936,liudijin.wt,ADD,2023/05/19,hi846 sensor otp bring up.
+ 	#if Hi846_OTP_FUNCTION
+		kal_uint8 ret = 0;
     #endif
-
+	//-S96818AA1-1936,liudijin.wt,ADD,2023/05/19,hi846 sensor otp bring up.
 	while (imgsensor_info.i2c_addr_table[i] != 0xff) {
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
@@ -2911,33 +2871,28 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				pr_err("hi8462 i2c write id : 0x%x, sensor id: 0x%x\n",
 				imgsensor.i2c_write_id, *sensor_id);
-				#if Hi846_OTP_FUNCTION
-				//+bug604664 zhouyikuan, add, 2020/12/14,hi846 eeprom bring up
-				size = imgSensorReadEepromData(&n28_hi846_front_truly_eeprom_data,n28_hi846_front_truly_checksum);
-				if(size != n28_hi846_front_truly_eeprom_data.dataLength || (n28_hi846_front_truly_eeprom_data.sensorVendorid >> 24)!= read_n28_hi846_eeprom(0x0001)) {
-					pr_err("get eeprom data failed\n");
-					if(n28_hi846_front_truly_eeprom_data.dataBuffer != NULL) {
-						kfree(n28_hi846_front_truly_eeprom_data.dataBuffer);
-						n28_hi846_front_truly_eeprom_data.dataBuffer = NULL;
-					}
-					*sensor_id = 0xFFFFFFFF;
-					return ERROR_SENSOR_CONNECT_FAIL;
-				}else{
-						pr_debug("get eeprom data success\n");
-						//+bug604664 wangmingli, add, 2021/11/9,hi846 lens differentiation
-						if(0x00 != n28_hi846_front_truly_eeprom_data.dataBuffer[0x03]) {
-							*sensor_id = 0xFFFFFFFF;
-							kfree(n28_hi846_front_truly_eeprom_data.dataBuffer);
-							n28_hi846_front_truly_eeprom_data.dataBuffer = NULL;
-							return ERROR_SENSOR_CONNECT_FAIL;
-						}else{
-							imgSensorSetEepromData(&n28_hi846_front_truly_eeprom_data);
-							pr_info("Read eeprom success, n28_hi846_front_truly_eeprom_data lens id: 0x%x\n", n28_hi846_front_truly_eeprom_data.dataBuffer[0x03]);
-						}
-				}
-						//-bug604664 wangmingli, add, 2021/11/9,hi846 lens differentiation
-				//-bug604664 zhouyikuan, add, 2020/12/14,hi846 eeprom bring up
-				#endif
+				//+S96818AA1-1936,liudijin.wt,ADD,2023/05/19,hi846 sensor otp bring up.
+	            #if Hi846_OTP_FUNCTION
+	            ret = hi846_sensor_otp_info();
+	            if(ret != 1){
+	                *sensor_id = 0xFFFFFFFF;
+	                LOG_INF("n28hi846fronttruly read OTP failed ret:%d, \n",ret);
+	                return ERROR_SENSOR_CONNECT_FAIL;
+	                }else{
+	                LOG_INF("n28hi846fronttruly read OTP successed: ret: %d \n",ret);
+	                n28hi846fronttruly_eeprom_data.dataBuffer = kmalloc(n28hi846fronttruly_eeprom_data.dataLength, GFP_KERNEL);
+	                 if (n28hi846fronttruly_eeprom_data.dataBuffer == NULL) {
+	                     LOG_INF("n28hi846fronttruly_eeprom_data->dataBuffer is malloc fail\n");
+	                     return -EFAULT;
+	                }
+	                memcpy(n28hi846fronttruly_eeprom_data.dataBuffer, (u8 *)&hi846_data_info, MODULE_INFO_SIZE);
+	                //memcpy(n28hi846fronttruly_eeprom_data.dataBuffer+MODULE_INFO_SIZE, (u8 *)&hi846_data_sn, SN_INFO_SIZE);
+	                memcpy(n28hi846fronttruly_eeprom_data.dataBuffer+MODULE_INFO_SIZE, (u8 *)&hi846_data_awb, AWB_DATA_SIZE);
+	                memcpy(n28hi846fronttruly_eeprom_data.dataBuffer+MODULE_INFO_SIZE+AWB_DATA_SIZE, (u8 *)&hi846_data_lsc, LSC_DATA_SIZE);
+	                imgSensorSetEepromData(&n28hi846fronttruly_eeprom_data);
+	             }
+	            #endif
+				//-S96818AA1-1936,liudijin.wt,ADD,2023/05/19,hi846 sensor otp bring up.
 				return ERROR_NONE;
 			}
 			retry--;
@@ -3665,12 +3620,12 @@ static kal_uint32 feature_control(
 			if (*(feature_data + 2))/* HDR on */
 				*feature_return_para_32 = 1;/*BINNING_NONE*/
 			else
-				*feature_return_para_32 = 2;/*BINNING_AVERAGED*/
+				*feature_return_para_32 = 1;/*BINNING_AVERAGED*///+S96818AA1-1936,wuwenhao2.wt,Modify,2023/06/12,hi846 no binning type
 			break;
 		case MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO:
 		case MSDK_SCENARIO_ID_SLIM_VIDEO:
 		default:
-			*feature_return_para_32 = 2; /*BINNING_AVERAGED*/
+			*feature_return_para_32 = 1; /*BINNING_AVERAGED*///+S96818AA1-1936,wuwenhao2.wt,Modify,2023/06/12,hi846 no binning type
 			break;
 		}
 		pr_debug("SENSOR_FEATURE_GET_BINNING_TYPE AE_binning_type:%d\n",

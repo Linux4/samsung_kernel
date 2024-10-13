@@ -1819,12 +1819,14 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 	instance->eye_vrt = 0x7;
         instance->eye_term = 0x3;
         instance->eye_rev6 = 0x3;
+	instance->eye_disc = 0x9;
 //Bug- S96818AA1-4552 wangchunhua2.wt,20230519,change the usb eye parameter
 //Bug+ S96818AA1-4552 wangchunhua2.wt,20220524,compatible the usb eye parameter
 #elif defined(CONFIG_WT_PROJECT_S96818BA1)
 	instance->eye_vrt = 0x7;
         instance->eye_term = 0x3;
         instance->eye_rev6 = 0x3;
+	instance->eye_disc = 0x9;
 #else
 //Bug- S96818AA1-4552 wangchunhua2.wt,20230524,compatible the usb eye parameter
         instance->eye_vrt = 0x5;
@@ -1881,12 +1883,14 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 	instance->eye_vrt = 0x7;
         instance->eye_term = 0x3;
         instance->eye_rev6 = 0x3;
+	instance->eye_disc = 0x9;
 //Bug- S96818AA1-4552 wangchunhua2.wt,20220519,change the usb eye parameter
 //Bug+ S96818BA1-4552 wangchunhua2.wt,20220524,compatible S96818BA1
 #elif defined(CONFIG_WT_PROJECT_S96818BA1)
 	instance->eye_vrt = 0x7;
         instance->eye_term = 0x3;
         instance->eye_rev6 = 0x3;
+	instance->eye_disc = 0x9;
 #else
 //Bug- S96818BA1-4552 wangchunhua2.wt,20220524,compatible S96818BA1
         instance->eye_vrt = 0x5;

@@ -66,6 +66,15 @@
 #endif /* WT_COMPILE_FACTORY_VERSION */
 #endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
+/* +churui1.wt, ADD, 20230602, CP charging control */
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+#include "../../pd_policy_manager.h"
+#include "mtk_charger_init.h"
+extern struct cp_charging g_cp_charging;
+extern struct usbpd_pm *__pdpm;
+#endif
+/* -churui1.wt, ADD, 20230602, CP charging control */
+
 bool g_chg_done = false;
 bool first_enter_pdc = false;
 
@@ -128,6 +137,11 @@ static void _disable_all_charging(struct charger_manager *info)
 #endif
 		pdc_stop();
 	}
+
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	g_cp_charging.cp_chg_status |= CP_STOP;
+#endif
+
 }
 
 static void swchg_select_charging_current_limit(struct charger_manager *info)
@@ -252,32 +266,39 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 	} else if (info->chr_type == STANDARD_HOST) {
 		if (IS_ENABLED(CONFIG_USBIF_COMPLIANCE)) {
 #if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
-			if (info->usb_state == USB_SUSPEND) {
-				charger_dev_enable_powerpath(info->chg1_dev,false);
-				pdata->input_current_limit =
-					info->data.usb_charger_current_suspend;
-				chr_err("powerpatch flase input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
-			} else if (info->usb_state == USB_UNCONFIGURED) {
-				charger_dev_enable_powerpath(info->chg1_dev,true);
-				pdata->input_current_limit =
-				info->data.usb_charger_current_unconfigured;
-				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
-			} else if (info->usb_state == USB_CONFIGURED) {
-				charger_dev_enable_powerpath(info->chg1_dev,true);
-				pdata->input_current_limit =
-				info->data.usb_charger_current_configured;
-				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
-			} else {
-				charger_dev_enable_powerpath(info->chg1_dev,true);
-				pdata->input_current_limit =
-				info->data.usb_charger_current_unconfigured;
-				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+if(!(boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT || boot_mode == LOW_POWER_OFF_CHARGING_BOOT)){
+				if (info->usb_state == USB_SUSPEND) {
+					charger_dev_enable_powerpath(info->chg1_dev,false);
+					pdata->input_current_limit =
+						info->data.usb_charger_current_suspend;
+					chr_err("powerpatch flase input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+				} else if (info->usb_state == USB_UNCONFIGURED) {
+					charger_dev_enable_powerpath(info->chg1_dev,true);
+					pdata->input_current_limit =
+					info->data.usb_charger_current_unconfigured;
+					chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+				} else if (info->usb_state == USB_CONFIGURED) {
+					charger_dev_enable_powerpath(info->chg1_dev,true);
+					pdata->input_current_limit =
+					info->data.usb_charger_current_configured;
+					chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+				} else {
+					charger_dev_enable_powerpath(info->chg1_dev,true);
+					pdata->input_current_limit =
+					info->data.usb_charger_current_unconfigured;
+					chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+				}
+				pdata->charging_current_limit =
+						pdata->input_current_limit;
 			}
-			pdata->charging_current_limit =
-					pdata->input_current_limit;
+			else{
+				pdata->input_current_limit = 500000;
+				pdata->charging_current_limit = 500000;
+			}
 		} else {
 			//charger_dev_enable_hz(info->chg1_dev, 0);
 			charger_dev_enable_powerpath(info->chg1_dev,true);
+
 			pdata->input_current_limit =
 					info->data.usb_charger_current;
 			/* it can be larger */
@@ -686,7 +707,6 @@ retry:
 	return 0;
 }
 
-
 static int mtk_switch_chr_pe40_init(struct charger_manager *info)
 {
 	int ret;
@@ -944,15 +964,23 @@ stop:
 	info->is_pdc_run = false;
 	return 0;
 }
-
-
+/*+S96818AA1-9230 lijiawei,wt.modify upm6910 safetytimer function logic*/
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+extern bool is_upm6910;
+#endif
+/*-S96818AA1-9230 lijiawei,wt.modify upm6910 safetytimer function logic*/
 /* return false if total charging time exceeds max_charging_time */
 static bool mtk_switch_check_charging_time(struct charger_manager *info)
 {
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 	struct timespec time_now;
-
+/*+S96818AA1-9230 lijiawei,wt.modify upm6910 safetytimer function logic*/
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	if (info->enable_sw_safety_timer && is_upm6910) {
+#else
 	if (info->enable_sw_safety_timer) {
+#endif
+/*-S96818AA1-9230 lijiawei,wt.modify upm6910 safetytimer function logic*/
 		get_monotonic_boottime(&time_now);
 		chr_debug("%s: begin: %ld, now: %ld\n", __func__,
 			swchgalg->charging_begin_time.tv_sec, time_now.tv_sec);
@@ -971,11 +999,13 @@ static bool mtk_switch_check_charging_time(struct charger_manager *info)
 	return true;
 }
 
+extern int mtkts_bts_get_hw_temp(void);
 static int mtk_switch_chr_cc(struct charger_manager *info)
 {
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 	struct timespec time_now, charging_time;
 	int tmp = battery_get_bat_temperature();
+	int ap_temp;
 //zhaosidong.wt, SOC is mantained for a long time
 	u_int fg_daemon_init = false;
 
@@ -1046,15 +1076,59 @@ static int mtk_switch_chr_cc(struct charger_manager *info)
 		}
 	}
 
+/* +BugS96818AA1-8318, -wangshewen.wt, ADD, 20230711, need to limit current by thermal */
+	if(info->ap_temp != 0xffff) {
+		ap_temp = info->ap_temp;
+	} else {
+		ap_temp = mtkts_bts_get_hw_temp();
+		ap_temp = ap_temp / 1000;
+	}
+/* -BugS96818AA1-8318, -wangshewen.wt, ADD, 20230711, need to limit current by thermal */
+
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	if (adapter_is_support_pd_pps()) { //identified as APDO, run pps protocol
+/* +P230703-01143, zhouxiaopeng2.wt, MODIFY, 20230710, the PD item of the mold cannot pass */
+		g_pd_work_status = 1;
+/* -P230703-01143, zhouxiaopeng2.wt, MODIFY, 20230710, the PD item of the mold cannot pass */
+#ifndef WT_COMPILE_FACTORY_VERSION //charging unlimited current on ATO version
+		if (info->lcmoff) {
+			chr_err("enable_hv_charging=%d, ap_temp=%d, battery_temp=%d \n",
+				info->enable_hv_charging, ap_temp, info->battery_temp);
+			if (info->enable_hv_charging == true && //set hv_disable
+				ap_temp <= AP_TEMP_T3_CP_THRES && //AP temp higher than 45??
+				info->battery_temp > TEMP_T1_THRES_PLUS_X_DEGREE) { //batt temp lower than 5??
+				g_cp_charging.cp_chg_status &= ~CP_EXIT;
+			} else {
+				g_cp_charging.cp_chg_status |= CP_EXIT;
+			}
+		} else { //no CP charging when lcd is on
+			g_cp_charging.cp_chg_status |= CP_EXIT;
+		}
+#else
+		g_cp_charging.cp_chg_status &= ~CP_EXIT; //don't exit cp on ATO version
+#endif
+		if (!(g_cp_charging.cp_chg_status & CP_EXIT) &&
+			!(g_cp_charging.cp_chg_status & CP_DONE)) {
+
+			if (g_cp_charging.cp_chg_status & CP_REENTER) {
+				g_cp_charging.cp_chg_status &= ~CP_REENTER;
+				schedule_work(&__pdpm->usb_psy_change_work);
+				chr_err("CP Reenter!\n");
+			}
+
+			charger_dev_enable(info->chg1_dev, false);
+			chr_err("CP charging!\n");
+			return 0;
+		} else { //when cp done, keep cp exit
+			g_cp_charging.cp_chg_status |= CP_EXIT;
+		}
+
+		info->leave_pdc = 1; //doesn't enter PDC when CP not charged
+	}
+#endif
+
 	if (pdc_is_ready() &&
 		!info->leave_pdc) {
-#ifdef CONFIG_N28_CHARGER_PRIVATE
-		if (pe40_is_ready()) {
-			charger_dev_enable(info->chg1_dev, false);
-			g_pd_work_status = 1;
-			return 0;
-		}
-#endif
 		if (info->enable_hv_charging == true) {
 			chr_err("enter PDC!\n");
 			swchgalg->state = CHR_PDC;

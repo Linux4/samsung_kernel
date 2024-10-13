@@ -889,7 +889,7 @@ config FAULT_AROUND_4KB
 
 config KSWAPD_CPU
 	hex "Set kswapd cpu affinity by default"
-	default 0xF0
+	default 0x3F
 	help
 	  Set kswapd cpu affinity by default. 0x3F means allowing CPU as 0 to 5.
 	  To disable this config, set this to 0.

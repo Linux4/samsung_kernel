@@ -104,6 +104,8 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 #define LCD_SETTING 0
 #define PROXIMITY_FUNCTION 0
 #define SEC_TOUCH_CMD 1
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
+#define LOAD_TP_FW_FROM_H 1
 
 //---Customized Test---
 #define LPWG_TEST 1
@@ -116,13 +118,15 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 extern const uint16_t gesture_key_array[];
 
 #define BOOT_UPDATE_FIRMWARE 1
-//#define BOOT_UPDATE_FIRMWARE_NAME "tsp_novatek/nt36525_a01core_tp.bin"
-//#define MP_UPDATE_FIRMWARE_NAME   "tsp_novatek/nt36525_a01core_mp.bin"
+#if LOAD_TP_FW_FROM_H
+#define BOOT_UPDATE_FIRMWARE_NAME "novatek_ts_truly_fw.bin" //dtsi tp fw name
+#define MP_UPDATE_FIRMWARE_NAME   "novatek_ts_truly_mp.bin" //dtsi mp fw name
+#endif
 #define POINT_DATA_CHECKSUM 1
 #define POINT_DATA_CHECKSUM_LEN 65
 
-#define NVT_TS_DEFAULT_UMS_FW		"/sdcard/firmware/tsp/nvt.bin"
-
+#define NVT_TS_DEFAULT_UMS_FW		"/sdcard/firmware/tsp/nvt.bin" //debug or tuning fw from file system location
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
 //---ESD Protect.---
 #define NVT_TOUCH_ESD_PROTECT 0
 #define NVT_TOUCH_ESD_CHECK_PERIOD 1500	/* ms */
@@ -279,12 +283,22 @@ struct nvt_ts_data {
 	struct regulator *regulator_lcd_bl_en;
 #endif
 	u8 noise_mode;
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
+#ifdef CONFIG_PM
+	bool dev_pm_suspend;
+	struct completion dev_pm_resume_completion;
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/08,Fix the issue of gesture failure when the system enters deep sleep
 //+S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
     struct notifier_block notifier_charger;
     struct workqueue_struct *charger_notify_wq;
     struct work_struct	update_charger;
     int usb_plug_status;
 //-S96818AA1-1936,daijun1.wt,modify,2023/05/29,n28-nt36528 add high_sensitivity_mode &charger_mode
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
+	struct work_struct nvt_resume_work;
+	struct workqueue_struct *nvt_resume_workqueue;
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/12,n28-nt36528 Performance issues with LCD on
 };
 
 #if NVT_TOUCH_PROC
@@ -362,6 +376,9 @@ extern unsigned int lcdtype;
 //---extern structures---
 extern struct nvt_ts_data *ts;
 extern bool gesture_flag;	//S96818AA1-1936,daijun1.wt,modify,2023/05/06,nt36528 tp add gesture wake-up func
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
+void nvt_set_headphone_mode(int mode);
+/* -S96818AA1-1936,daijun1.wt,add,2023/07/31,n28-tp nt36528 add ear_phone mode */
 
 //---extern functions---
 int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len);

@@ -95,7 +95,8 @@ struct sd7601_chip {
 	struct task_struct *bc12_en_kthread;
 #endif /* CONFIG_MTK_EXTERNAL_CHARGER_TYPE_DETECT */
 	struct power_supply_desc psy_desc;
-	struct power_supply * sd7601_psy;
+	struct power_supply *sd7601_psy;
+	struct power_supply *otg_psy;
 	int32_t	component_id;
 	int32_t  intr_gpio;
 	int32_t  irq;
@@ -245,11 +246,45 @@ static int32_t sd7601_get_en_hiz(struct sd7601_chip *chip)
 	return !!data_reg;
 }
 
+/* +S96818AA1-6675, churui1.wt, ADD, 20230614, added pg_state judgment logic */
+static int32_t sd7601_get_power_good(struct sd7601_chip *chip)
+{
+	uint8_t data_reg = 0, index = 0;
+	int32_t ret = 0;
+
+	for (index = 0; index <= 30; ++index) {
+		ret = sd7601_read_byte(chip, SD7601_R08, &data_reg);
+		if (ret < 0) {
+			pr_err("get pg_state fail(%d)\n", ret);
+			return ret;
+		}
+		data_reg = (data_reg & (CON8_PG_STAT_MASK << CON8_PG_STAT_SHIFT)) >> CON8_PG_STAT_SHIFT;
+		if (data_reg)
+			break;
+
+		msleep(100);
+	}
+
+	return data_reg;
+}
+/* -S96818AA1-6675, churui1.wt, ADD, 20230614, added pg_state judgment logic */
+
 /* +churui1.wt, ADD, 20230519, set the hiz mode */
 static int32_t sd7601_enable_hiz(struct charger_device* chg_dev , bool enable)
 {
+	uint8_t data_reg = 0;
 	int32_t ret = 0;
 	struct sd7601_chip *chip = dev_get_drvdata(&chg_dev->dev);
+
+/* +S96818AA1-6675, churui1.wt, ADD, 20230614, added pg_state judgment logic */
+	if (enable) {
+		data_reg = sd7601_get_power_good(chip);
+		if (data_reg == 0) {
+			pr_err("pg_state error!!!\n");
+		}
+	}
+/* +S96818AA1-6675, churui1.wt, ADD, 20230614, added pg_state judgment logic */
+
 	ret = sd7601_set_en_hiz(chip, enable);
 	return ret;
 }
@@ -1314,17 +1349,18 @@ static int32_t sd7601_do_event(struct charger_device *chg_dev, uint32_t event,ui
 		return -1;
 
 	sd7601_dbg("event = %d\n", event);
-
+/* +S96818AA1-6688, zhouxiaopeng2.wt, MODIFY, 20230629, UI_soc reaches 100% after charging stops */
 	switch (event) {
-	/*case EVENT_EOC:
+	case EVENT_EOC:
 		charger_dev_notify(chg_dev, CHARGER_DEV_NOTIFY_EOC);
 		break;
 	case EVENT_RECHARGE:
 		charger_dev_notify(chg_dev, CHARGER_DEV_NOTIFY_RECHG);
-		break;*/
+		break;
 	default:
 		break;
 	}
+/* -S96818AA1-6688, zhouxiaopeng2.wt, MODIFY, 20230629, UI_soc reaches 100% after charging stops */
 
 	return 0;
 }
@@ -1604,13 +1640,56 @@ int32_t sd7601_old_test_set_charger_en(bool en)
 }
 static int sd7601_enable_otg(struct charger_device *chg_dev, bool en)
 {
-	 int32_t ret = 0;
-	 struct sd7601_chip *chip = dev_get_drvdata(&chg_dev->dev);
-	 sd7601_dbg("en = %d\n", en);
+	int32_t ret = 0;
+	uint8_t  data_reg = 0;
+	struct sd7601_chip *chip = dev_get_drvdata(&chg_dev->dev);
+	union power_supply_propval propval = {.intval = 0};
 
-	 ret = sd7601_set_otg_en(chip,!!en);
+	sd7601_dbg("en = %d\n", en);
 
-	 return (ret < 0)? ret:0;
+/* +Bug S96818AA1-5256,zhouxiaopeng2.wt,20230620, set HIZ to exit when OTG insertion */
+	if (en) {
+		ret = sd7601_read_byte(chip,SD7601_R00,&data_reg);
+		if (!ret && ((data_reg & (CON0_EN_HIZ_MASK << CON0_EN_HIZ_SHIFT)) >> CON0_EN_HIZ_SHIFT)) {
+			ret = sd7601_set_en_hiz(chip, 0);
+			if (ret < 0) {
+				sd7601_dbg("exit hiz failed(%d)\n", ret);
+			}
+		}
+	}
+/* -Bug S96818AA1-5256,zhouxiaopeng2.wt,20230620, set HIZ to exit when OTG insertion */
+
+	ret = sd7601_set_otg_en(chip,!!en);
+	if (ret < 0) {
+		sd7601_dbg("set otg en failed(%d)\n", ret);
+		return ret;
+	}
+
+/* +S96818AA1-2041, churui1.wt, ADD, 20230606, the node obtains OTG information */
+	if (!chip->otg_psy)
+		chip->otg_psy = power_supply_get_by_name("otg");
+	if (!chip->otg_psy) {
+		sd7601_dbg("get power supply failed\n");
+		return -EINVAL;
+	}
+
+	propval.intval = en;
+	ret = power_supply_set_property(chip->otg_psy, POWER_SUPPLY_PROP_TYPE, &propval);
+	if (ret < 0) {
+		sd7601_dbg("psy type fail(%d)\n", ret);
+		return ret;
+	}
+/*
+	propval.intval = en;
+	ret = power_supply_set_property(chip->otg_psy, POWER_SUPPLY_PROP_ONLINE, &propval);
+	if (ret < 0) {
+		sd7601_dbg("psy online fail(%d)\n", ret);
+		return ret;
+	}
+*/
+/* -S96818AA1-2041, churui1.wt, ADD, 20230606, the node obtains OTG information */
+
+	return 0;
 }
 #if 0
 int32_t sd7601_enable_otg(bool en)
@@ -1717,15 +1796,14 @@ static int32_t sd7601_set_shipmode_delay(struct charger_device *chg_dev, bool en
 	int32_t ret;
 
 	struct sd7601_chip *chip = dev_get_drvdata(&chg_dev->dev);
-	if(NULL == chg_dev)
+	if (NULL == chg_dev)
 		return -1;
 
-	if (en) {
-		ret = sd7601_update(chip, SD7601_R07, 1, BATFET_DLY_MASK, BATFET_DLY_SHIFT);
-		if (ret < 0) {
-			pr_err("set shipmode delay failed(%d)\n", ret);
-			return ret;
-		}
+	//if set R07 bit5 as 1, then set bit3 as 0
+	ret = sd7601_update(chip, SD7601_R07, en, BATFET_DLY_MASK, BATFET_DLY_SHIFT);
+	if (ret < 0) {
+		pr_err("set shipmode delay failed(%d)\n", ret);
+		return ret;
 	}
 
 	return 0;
@@ -1961,7 +2039,7 @@ static void sd7601_hw_init(struct sd7601_chip *chip)
 	sd7601_write_byte(chip,SD7601_R01,0x18);
 	sd7601_write_byte(chip,SD7601_R02,0xA2);	//set ichg 2040ma as default
 	sd7601_write_byte(chip,SD7601_R03,0x22);	//set pre_chg and iterm current 180ma
-	sd7601_write_byte(chip,SD7601_R04,0x58);	//set as default,cv 4208mv
+	sd7601_write_byte(chip,SD7601_R04,0x88);	//set cv as 4400mv
 	sd7601_write_byte(chip,SD7601_R05,0x0F);	//disable iterm,disable wdt,enable charge timer,chg timer 10hrs,jeita 20% ichg
 	sd7601_write_byte(chip,SD7601_R06,0xE6);	//set vindpm 4500mv as default
 	sd7601_write_byte(chip,SD7601_R07,0x48);	//4C as default;48 as long press prohibited
@@ -1980,13 +2058,14 @@ static void sd7601_hw_init(struct sd7601_chip *chip)
 	sd7601_set_vreg_volt(chip,chip->cv_mv);
 	sd7601_set_ichg_current(chip,chip->cc_ma);
 	sd7601_set_rechg_volt(chip,chip->rechg_mv);
-	//sd7601_set_en_term_chg(chip,1); //disable iterm
+#ifndef WT_COMPILE_FACTORY_VERSION
+	sd7601_set_en_term_chg(chip,1); //disable iterm on ATO version
+#endif
 	sd7601_set_wd_timer(chip,0);
 	sd7601_set_en_chg_timer(chip,1);
 	sd7601_set_otg_en(chip,0);
 	sd7601_set_charger_en(chip,1);
 }
-
 
 static void sd7601_work_func(struct work_struct *work)
 {

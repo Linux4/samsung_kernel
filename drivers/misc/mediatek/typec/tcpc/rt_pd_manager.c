@@ -24,10 +24,19 @@
 #endif /* CONFIG_WATER_DETECTION */
 
 #define RT_PD_MANAGER_VERSION	"1.0.8_MTK"
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+#include <../../../lcm/inc/panel_notifier.h>
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
 #ifdef CONFIG_OCP96011_I2C
 #include "../switch/ocp96011-i2c.h"
 extern void typec_headset_queue_work(void);
+#endif
+
+#if IS_ENABLED(CONFIG_AW35615_PD)
+#include "aw35615/aw35615_global.h"
+#include "aw35615/TypeC.h"
 #endif
 
 struct rt_pd_manager_data {
@@ -163,6 +172,10 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			dev_info(rpmd->dev,
 				 "%s Charger plug in, polarity = %d\n",
 				 __func__, noti->typec_state.polarity);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+			usb_notifier_call_chain(USB_PLUG_IN,NULL);
+#endif
 			/*
 			 * start charger type detection,
 			 * and enable device connection
@@ -185,6 +198,10 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			    old_state == TYPEC_ATTACHED_WD_SNK) &&
 			    new_state == TYPEC_UNATTACHED) {
 			dev_info(rpmd->dev, "%s Charger plug out\n", __func__);
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+			usb_notifier_call_chain(USB_PLUG_OUT,NULL);
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
 			/*
 			 * report charger plug-out,
 			 * and disable device connection
@@ -572,6 +589,24 @@ static int tcpc_typec_vconn_set(const struct typec_capability *cap,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_AW35615_PD)
+static int aw_port_type_set(enum typec_port_type type)
+{
+	struct aw35615_chip *chip = aw35615_GetChip();
+	if (!chip) {
+		AW_LOG("AWINIC  %s - Chip structure is NULL!\n", __func__);
+		return -1;
+	}
+	msleep(1000);
+	if ((chip->tcpc->typec_attach_old == TYPEC_ATTACHED_SNK) &&
+			(type == TYPEC_PORT_SRC)) {
+		SetStateUnattached(&chip->port);
+	}
+
+	return 0;
+}
+#endif
+
 static int tcpc_typec_port_type_set(const struct typec_capability *cap,
 				    enum typec_port_type type)
 {
@@ -579,9 +614,21 @@ static int tcpc_typec_port_type_set(const struct typec_capability *cap,
 		container_of(cap, struct rt_pd_manager_data, typec_caps);
 	bool as_sink = tcpc_typec_is_act_as_sink_role(rpmd->tcpc);
 	uint8_t typec_role = TYPEC_ROLE_UNKNOWN;
-
+#if IS_ENABLED(CONFIG_AW35615_PD)
+	int ret;
+#endif
 	dev_info(rpmd->dev, "%s type = %d, as_sink = %d\n",
 			    __func__, type, as_sink);
+#if IS_ENABLED(CONFIG_AW35615_PD)
+	ret = aw_port_type_set(type);
+
+	if (ret >= 0) {
+		if (ret)
+			return true;
+		else
+			return false;
+	}
+#endif
 
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	switch (type) {

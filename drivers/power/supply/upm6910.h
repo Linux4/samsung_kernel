@@ -16,6 +16,14 @@
 #define _LINUX_BQ2560X_I2C_H
 
 #include <linux/power_supply.h>
+/* +S96818AA1-6688, zhouxiaopeng2.wt, MODIFY, 20230629, UI_soc reaches 100% after charging stops */
+enum {
+	EVENT_EOC,
+	EVENT_RECHARGE,
+	CHARGER_DEV_NOTIFY_EOC,
+	CHARGER_DEV_NOTIFY_RECHG,
+};
+/* -S96818AA1-6688, zhouxiaopeng2.wt, MODIFY, 20230629, UI_soc reaches 100% after charging stops */
 
 /* Register 00h */
 #define UPM6910_REG_00      		0x00
@@ -331,6 +339,8 @@
 #define	REG0C_DPDM_OUT_0V			1
 #define	REG0C_DPDM_OUT_0P6V			2
 #define	REG0C_DPDM_OUT_3P3V			3
+/* Register 0x0C */
+#define	SGM41513D_REG_0D			0x0D
 
 struct upm6910_charge_param {
 	int vlim;

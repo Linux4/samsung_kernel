@@ -306,6 +306,7 @@ enum commands {
 	CMD_SPI_MASTER_WRITE_THEN_READ_EXTENDED = 0x43,
 	CMD_ENTER_IO_BRIDGE_MODE = 0x44,
 	CMD_ROMBOOT_DOWNLOAD = 0x45,
+	CMD_GET_SERIAL_NUMBER = 0xcf,//S96818AA1-1936,daijun1.wt,modify,2023/06/28,td4160 Read the electronic QR code of the LCM module
 };
 
 enum status_code {
@@ -509,11 +510,19 @@ struct ovt_tcm_hcd {
 //+S96818AA1-1936,daijun1.wt,modify,2023/05/23,n28-tp add SS func node and double click to wakeup
         struct sec_cmd_data sec;
 //-S96818AA1-1936,daijun1.wt,modify,2023/05/23,n28-tp add SS func node and double click to wakeup
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+	struct notifier_block notifier_charger;
+	struct workqueue_struct *charger_notify_wq;
+	struct work_struct	update_charger;
+	int usb_plug_status;
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
 	unsigned int func_ear_phone_connected_en;
 	unsigned int func_charger_connected_en;
 	unsigned int func_roate_horizontal_level_en;
 	unsigned int func_face_detect_en;
-
+//+S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
+	unsigned int upgrade_mode;
+//-S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
 	struct platform_device *pdev;
 	struct regulator *pwr_reg;
 	struct regulator *bus_reg;
@@ -636,7 +645,9 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd);
 int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd);
 int touch_suspend(struct ovt_tcm_hcd *tcm_hcd);
 int touch_resume(struct ovt_tcm_hcd *tcm_hcd);
-
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode */
+void ovt_set_headphone_mode(int mode);
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode */
 static inline int ovt_tcm_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)
 {

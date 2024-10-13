@@ -6827,7 +6827,7 @@ void mtk_crtc_vblank_irq(struct drm_crtc *crtc)
  *		hwc_pid, 0);
  *	mtk_drm_trace_c("%s", tag_name);
  */
-	mtk_drm_trace_c("%d|DISP-HW_Vsync|%lld",
+	mtk_drm_trace_c("%d|DISP-HW_Vsync|%d",
 		hwc_pid, 0);
 }
 
@@ -7285,6 +7285,7 @@ static int dc_main_path_commit_thread(void *data)
 	return 0;
 }
 
+/* This pf release thread only is aiming for frame trigger mode's CRTC */
 static int mtk_drm_pf_release_thread(void *data)
 {
 	int ret;
@@ -7313,6 +7314,7 @@ static int mtk_drm_pf_release_thread(void *data)
 		cmdq_buf = &(mtk_crtc->gce_obj.buf);
 		fence_idx = *(unsigned int *)(cmdq_buf->va_base +
 				DISP_SLOT_PRESENT_FENCE(crtc_idx));
+		atomic_set(&private->crtc_rel_present[crtc_idx], fence_idx);
 
 		mtk_release_present_fence(private->session_id[crtc_idx],
 					  fence_idx, 0);
@@ -7732,6 +7734,10 @@ int mtk_drm_crtc_getfence_ioctl(struct drm_device *dev, void *data,
 		ret = -EFAULT;
 		return ret;
 	}
+
+	/* async kick idle */
+	mtk_drm_idlemgr_kick_async(crtc);
+
 	/* create fence */
 	fence.fence = MTK_INVALID_FENCE_FD;
 	fence.value = ++fence_idx;

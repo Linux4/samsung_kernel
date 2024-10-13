@@ -51,9 +51,7 @@
 #define FTS_SUSPEND_LEVEL 1     /* Early-suspend level */
 #endif
 #include "focaltech_core.h"
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
-#include "tpd.h"
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
+
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
@@ -72,7 +70,10 @@
 * Global variable or extern global variabls/functions
 *****************************************************************************/
 struct fts_ts_data *fts_data;
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
+struct pinctrl_state *rst_pin0, *rst_pin1;
+struct pinctrl *fts_pinctrl;
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
 /*****************************************************************************
 * Static function prototypes
 *****************************************************************************/
@@ -153,13 +154,13 @@ void fts_tp_state_recovery(struct fts_ts_data *ts_data)
 int fts_reset_proc(int hdelayms)
 {
     FTS_DEBUG("tp reset");
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
-    tpd_gpio_output(0, 0); 
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
+	pinctrl_select_state(fts_pinctrl, rst_pin0);
 //  gpio_direction_output(fts_data->pdata->reset_gpio, 0);
     msleep(1);
-    tpd_gpio_output(0, 1); 	
+	pinctrl_select_state(fts_pinctrl, rst_pin1);
 //  gpio_direction_output(fts_data->pdata->reset_gpio, 1);
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
     if (hdelayms) {
         msleep(hdelayms);
     }
@@ -1206,10 +1207,10 @@ static int fts_power_source_ctrl(struct fts_ts_data *ts_data, int enable)
     if (enable) {
         if (ts_data->power_disabled) {
             FTS_DEBUG("regulator enable !");
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
-            tpd_gpio_output(0, 0); 
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
+			pinctrl_select_state(fts_pinctrl, rst_pin0);
 //          gpio_direction_output(ts_data->pdata->reset_gpio, 0);
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
             msleep(1);
             ret = regulator_enable(ts_data->vdd);
             if (ret) {
@@ -1227,10 +1228,10 @@ static int fts_power_source_ctrl(struct fts_ts_data *ts_data, int enable)
     } else {
         if (!ts_data->power_disabled) {
             FTS_DEBUG("regulator disable !");
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
-            tpd_gpio_output(0, 0); 
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
+			pinctrl_select_state(fts_pinctrl, rst_pin0);
 //          gpio_direction_output(ts_data->pdata->reset_gpio, 0);
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
             msleep(1);
             ret = regulator_disable(ts_data->vdd);
             if (ret) {
@@ -1369,8 +1370,28 @@ static int fts_power_source_resume(struct fts_ts_data *ts_data)
 static int fts_gpio_configure(struct fts_ts_data *data)
 {
     int ret = 0;
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
+	FTS_FUNC_ENTER();
 
-    FTS_FUNC_ENTER();
+	fts_pinctrl = devm_pinctrl_get(data->dev);
+	if (IS_ERR(fts_pinctrl)) {
+		ret = PTR_ERR(fts_pinctrl);
+		FTS_ERROR("cannot find fts_pinctrl");
+		goto err_irq_gpio_req;
+	}
+	rst_pin0 = pinctrl_lookup_state(fts_pinctrl, "state_rst_output0");
+	if (IS_ERR(rst_pin0)) {
+		ret = PTR_ERR(rst_pin0);
+		FTS_ERROR("cannot find rst_pin0");
+		goto err_irq_gpio_req;
+	}
+	rst_pin1 = pinctrl_lookup_state(fts_pinctrl, "state_rst_output1");
+	if (IS_ERR(rst_pin1)) {
+		ret = PTR_ERR(rst_pin1);
+		FTS_ERROR("cannot find rst_pin1");
+		goto err_irq_gpio_req;
+	}
+
     /* request irq gpio */
     if (gpio_is_valid(data->pdata->irq_gpio)) {
         ret = gpio_request(data->pdata->irq_gpio, "fts_irq_gpio");
@@ -1393,10 +1414,9 @@ static int fts_gpio_configure(struct fts_ts_data *data)
             FTS_ERROR("[GPIO]reset gpio request failed");
             goto err_irq_gpio_dir;
         }
-//+S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
-            tpd_gpio_output(0, 1); 
+			pinctrl_select_state(fts_pinctrl, rst_pin1);
 //          ret = gpio_direction_output(data->pdata->reset_gpio, 1);
-//-S96818AA1-1936,daijun1.wt,modify,2023/05/24,ft8057 Modify res control method
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/21,ft8057 Modifying the issue of crashing during startup
         if (ret) {
             FTS_ERROR("[GPIO]set_direction for reset gpio failed");
             goto err_reset_gpio_dir;
@@ -1728,12 +1748,23 @@ static void fts_ts_late_resume(struct early_suspend *handler)
     queue_work(fts_data->ts_workqueue, &fts_data->resume_work);
 }
 #endif
-
+/* +S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP ft8507 blocking shutdown issue */
+extern int battery_get_boot_mode(void);
 static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 {
     int ret = 0;
+	int boot_mode;
     int pdata_size = sizeof(struct fts_ts_platform_data);
 
+	msleep(200);
+	boot_mode = battery_get_boot_mode();
+	if (boot_mode == 8)
+	{
+	printk("%s : start mode =%d\n", __func__,boot_mode);
+		return -1;
+	}
+	printk("%s : start mode =%d\n", __func__,boot_mode);
+/* -S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP ft8507 blocking shutdown issue */
     FTS_FUNC_ENTER();
     FTS_INFO("%s", FTS_DRIVER_VERSION);
     ts_data->pdata = kzalloc(pdata_size, GFP_KERNEL);

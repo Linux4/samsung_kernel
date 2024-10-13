@@ -93,7 +93,8 @@ static int softdog_ping(struct watchdog_device *w)
 	hrtimer_start(&softdog_ticktock, ktime_set(w->timeout, 0),
 		      HRTIMER_MODE_REL);
 
-	pr_info_ratelimited("%s: %u\n", __func__, w->timeout);
+	if (IS_ENABLED(CONFIG_SEC_DEBUG_SOFTDOG_PWDT))
+		pr_info_ratelimited("%s: %u\n", __func__, w->timeout);
 
 	if (IS_ENABLED(CONFIG_SOFT_WATCHDOG_PRETIMEOUT)) {
 		if (w->pretimeout)
@@ -112,7 +113,8 @@ static int softdog_stop(struct watchdog_device *w)
 	if (hrtimer_cancel(&softdog_ticktock))
 		module_put(THIS_MODULE);
 
-	pr_info_ratelimited("%s: %u\n", __func__, w->timeout);
+	if (IS_ENABLED(CONFIG_SEC_DEBUG_SOFTDOG_PWDT))
+		pr_info_ratelimited("%s: %u\n", __func__, w->timeout);
 
 	if (IS_ENABLED(CONFIG_SOFT_WATCHDOG_PRETIMEOUT))
 		hrtimer_cancel(&softdog_preticktock);
@@ -173,6 +175,13 @@ static void __exit softdog_exit(void)
 	watchdog_unregister_device(&softdog_dev);
 }
 module_exit(softdog_exit);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_SOFTDOG_PWDT)
+/*
+ * Softdog has to be /dev/watchdog1, but not /dev/watchdog0
+ */
+MODULE_SOFTDEP("pre: mtk_wdt");
+#endif
 
 MODULE_AUTHOR("Alan Cox");
 MODULE_DESCRIPTION("Software Watchdog Device Driver");

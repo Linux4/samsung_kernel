@@ -1329,8 +1329,11 @@ static const struct file_operations fts_proc_ctp_openshort_test_fops = {
 extern char *saved_command_line;
 static int __init proc_node_init(void)
 {
-    if (!strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd"))
-        return  -1;
+	if (!strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd_sharp")) {
+		if (!strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd"))
+			return  -1;
+	}
+
 
     fts_proc_touchscreen_dir = proc_mkdir(FTS_PROC_TOUCHSCREEN_FOLDER , NULL);
     if (fts_proc_touchscreen_dir == NULL)  {

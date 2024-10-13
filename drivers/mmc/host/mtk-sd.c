@@ -1889,6 +1889,12 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			regulator_disable(mmc->supply.vqmmc);
 			host->vqmmc_enabled = false;
 		}
+            	//S96818AA1-2199,wangchunhua2.wt,add 2023.6.6,modify for emmc power off timing start
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+		if (host->mclk != ios->clock || host->timing != ios->timing)
+			msdc_set_mclk(host, ios->timing, ios->clock);
+#endif
+            	//S96818AA1-2199,wangchunhua2.wt,add 2023.6.6,modify for emmc power off timing end
 		if (host->pins_pull_down) {
 			dev_info(host->dev, "%s pins_pull_down", __func__);
 			pinctrl_select_state(host->pinctrl, host->pins_pull_down);
@@ -3140,6 +3146,9 @@ static int msdc_runtime_suspend(struct device *dev)
 
 	msdc_save_reg(host);
 	msdc_gate_clock(mmc);
+#if defined(CONFIG_MACH_MT6768) && defined(CONFIG_MTK_PMQOS)
+    mtk_pm_qos_update_request(&host->pm_qos, MTK_PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+#endif
 	return 0;
 }
 
@@ -3149,6 +3158,9 @@ static int msdc_runtime_resume(struct device *dev)
 	struct msdc_host *host = mmc_priv(mmc);
 	struct arm_smccc_res smccc_res;
 
+#if defined(CONFIG_MACH_MT6768) && defined(CONFIG_MTK_PMQOS)
+    mtk_pm_qos_update_request(&host->pm_qos, 1);
+#endif
 	msdc_ungate_clock(mmc);
 	msdc_restore_reg(host);
 

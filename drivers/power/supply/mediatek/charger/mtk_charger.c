@@ -71,6 +71,16 @@
 #if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 #include <../../../misc/mediatek/leds/leds-mtk-disp.h>
 #endif
+
+/* +churui1.wt, ADD, 20230602, CP charging control */
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+#include "../../pd_policy_manager.h"
+#include "mtk_intf.h"
+extern struct cp_charging g_cp_charging;
+int mtk_chg_status = 0; //enable charging flag
+#endif
+/* -churui1.wt, ADD, 20230602, CP charging control */
+
 static struct charger_manager *pinfo;
 static struct list_head consumer_head = LIST_HEAD_INIT(consumer_head);
 static DEFINE_MUTEX(consumer_mutex);
@@ -81,12 +91,6 @@ extern int batt_full_capacity;
 
 bool g_pd_active = 0;
 static void ato_charger_limit_soc(struct charger_manager *info, int min, int max);
-
-/* +churui1.wt, ADD, 20230519, CP stop charging control on ATO version */
-#ifdef CONFIG_N28_CHARGER_PRIVATE
-extern void usbpd_pm_enable_cp_for_ato(bool enable);
-#endif
-/* -churui1.wt, ADD, 20230519, CP stop charging control on ATO version */
 
 static void lcmoff_switch(int onoff);
 struct tag_bootmode {
@@ -449,10 +453,16 @@ static int _charger_manager_enable_charging(struct charger_consumer *consumer,
 
 		if (en == false) {
 			_mtk_charger_do_charging(info, en);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+			g_cp_charging.cp_chg_status |= CP_STOP;
+#endif
 			pdata->disable_charging_count++;
 		} else {
 			if (pdata->disable_charging_count == 1) {
 				_mtk_charger_do_charging(info, en);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+				g_cp_charging.cp_chg_status &= ~CP_STOP;
+#endif
 				pdata->disable_charging_count = 0;
 			} else if (pdata->disable_charging_count > 1)
 				pdata->disable_charging_count--;
@@ -1079,7 +1089,7 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 {
 	struct sw_jeita_data *sw_jeita;
 
-#if defined (CONFIG_W2_CHARGER_PRIVATE)
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
 	int cycle_fv;
 #endif
 
@@ -1181,7 +1191,7 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 		sw_jeita->cv = info->data.jeita_temp_t3_to_t4_cv;
 		sw_jeita->cc = info->data.jeita_temp_t3_to_t4_cc;
 	} else if (sw_jeita->sm == TEMP_T2_TO_T3) {
-		sw_jeita->cv = info->data.jeita_temp_t2_to_t3_cv;;
+		sw_jeita->cv = info->data.jeita_temp_t2_to_t3_cv;
 		sw_jeita->cc = info->data.jeita_temp_t2_to_t3_cc;
 	} else if (sw_jeita->sm == TEMP_T1_TO_T2) {
 		sw_jeita->cv = info->data.jeita_temp_t1_to_t2_cv;
@@ -1197,12 +1207,33 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 		sw_jeita->cc = info->data.ac_charger_input_current;
 	}
 
-#if defined (CONFIG_W2_CHARGER_PRIVATE)
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
 	cycle_fv = wt_set_batt_cycle_fv(false);
 	if ((cycle_fv != 0) && (sw_jeita->cv > cycle_fv)) {
 		sw_jeita->cv = cycle_fv;
 	}
 #endif
+
+/* +churui1.wt, ADD, 20230602, CP JEITA control */
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	if (adapter_is_support_pd_pps() && !(g_cp_charging.cp_chg_status & CP_EXIT)) {
+		if (sw_jeita->sm == TEMP_T3_TO_T4) {
+			sw_jeita->cc = JEITA_TEMP_T3_TO_T4_CP_CC;
+		} else if (sw_jeita->sm == TEMP_T2_TO_T3) {
+			sw_jeita->cc = JEITA_TEMP_T2_TO_T3_CP_CC;
+		}
+#ifndef WT_COMPILE_FACTORY_VERSION
+		g_cp_charging.cp_jeita_cc = sw_jeita->cc;
+		g_cp_charging.cp_jeita_cv = sw_jeita->cv;
+#endif
+		chr_err("[CP_JEITA]preState:%d newState:%d tmp:%d cv:%d cc:%d\n",
+			sw_jeita->pre_sm, sw_jeita->sm, info->battery_temp,
+			sw_jeita->cv, sw_jeita->cc);
+
+		return;
+	}
+#endif
+/* -churui1.wt, ADD, 20230602, CP JEITA control */
 
 	chr_err("[SW_JEITA]preState:%d newState:%d tmp:%d cv:%d cc:%d\n",
 		sw_jeita->pre_sm, sw_jeita->sm, info->battery_temp,
@@ -1249,7 +1280,7 @@ void ap_thermal_machine(struct charger_manager *info)
 		ap_temp = info->ap_temp;
 	} else {
 		ap_temp = mtkts_bts_get_hw_temp();
-		ap_temp = ap_temp/1000;
+		ap_temp = ap_temp / 1000;
 	}
 
 	lcmoff_data = &info->ap_thermal_lcmoff;
@@ -1356,6 +1387,167 @@ void ap_thermal_machine(struct charger_manager *info)
 	}
 }
 //-Bug774000,gudi.wt,ADD,charge current limit
+
+/* +churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+void ap_thermal_machine_of_cp(struct charger_manager *info)
+{
+	int ap_temp;
+	struct sw_jeita_data *cp_lcmoff_data;
+	struct sw_jeita_data *cp_lcmon_data;
+	struct device *dev = NULL;
+	struct device_node *boot_node = NULL;
+	struct tag_bootmode *tag = NULL;
+	u32 boot_mode = 11; // UNKNOWN_BOOT
+// workaround for mt6768
+	dev = &(info->pdev->dev);
+	if (dev != NULL) {
+		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
+		if (!boot_node) {
+			chr_err("%s: failed to get boot mode phandle\n", __func__);
+		} else {
+			tag = (struct tag_bootmode *)of_get_property(boot_node,
+								"atag,boot", NULL);
+			if (!tag) {
+				chr_err("%s: failed to get atag,boot\n", __func__);
+			} else
+				boot_mode = tag->bootmode;
+		}
+	}
+	if ((KERNEL_POWER_OFF_CHARGING_BOOT == boot_mode) ||
+		(LOW_POWER_OFF_CHARGING_BOOT == boot_mode)) {
+		lcmoff_switch(0);
+		chr_err("[AP_THERMAL_CP]lcmoff_switch off!!\n");
+	}
+
+	if (info->ap_temp != 0xffff) {
+		ap_temp = info->ap_temp;
+	} else {
+		ap_temp = mtkts_bts_get_hw_temp();
+		ap_temp = ap_temp / 1000;
+	}
+
+	cp_lcmoff_data = &info->ap_thermal_lcmoff;
+	cp_lcmoff_data->pre_sm = cp_lcmoff_data->sm;
+	cp_lcmon_data = &info->ap_thermal_lcmon;
+	cp_lcmon_data->pre_sm = cp_lcmon_data->sm;
+
+	if (info->lcmoff) {
+		if (ap_temp >= info->data.ap_temp_t4_cp_thres) {
+			chr_err("[AP_THERMAL_CP] AP Over %d Temperature!!\n", info->data.ap_temp_t4_cp_thres);
+			cp_lcmoff_data->sm = TEMP_ABOVE_T4;
+		} else if (ap_temp >= info->data.ap_temp_t3_cp_thres) {
+			if ((cp_lcmoff_data->sm == TEMP_ABOVE_T4)
+				&& (ap_temp >= info->data.ap_temp_t4_cp_thres_minus_x_degree)) {
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d!!\n",
+					info->data.ap_temp_t4_cp_thres_minus_x_degree,
+					info->data.ap_temp_t4_cp_thres);
+			} else {
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d !!\n",
+					info->data.ap_temp_t3_cp_thres,
+					info->data.ap_temp_t4_cp_thres_minus_x_degree);
+
+				cp_lcmoff_data->sm = TEMP_T3_TO_T4;
+			}
+		} else if (ap_temp >= info->data.ap_temp_t2_cp_thres) {
+			if ((cp_lcmoff_data->sm == TEMP_T3_TO_T4)
+				 && (ap_temp >= info->data.ap_temp_t3_cp_thres_minus_x_degree)){
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d!!\n",
+					info->data.ap_temp_t3_cp_thres_minus_x_degree,
+					info->data.ap_temp_t3_cp_thres);
+			} else {
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d !!\n",
+					info->data.ap_temp_t2_cp_thres,
+					info->data.ap_temp_t3_cp_thres_minus_x_degree);
+				cp_lcmoff_data->sm = TEMP_T2_TO_T3;
+			}
+		} else if (ap_temp >= info->data.ap_temp_t1_cp_thres) {
+			if ((cp_lcmoff_data->sm == TEMP_T2_TO_T3)
+				 && (ap_temp >= info->data.ap_temp_t2_cp_thres_minus_x_degree)){
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d!!\n",
+					info->data.ap_temp_t2_cp_thres_minus_x_degree,
+					info->data.ap_temp_t2_cp_thres);
+			} else {
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d !!\n",
+					info->data.ap_temp_t1_cp_thres,
+					info->data.ap_temp_t2_cp_thres_minus_x_degree);
+				cp_lcmoff_data->sm = TEMP_T1_TO_T2;
+			}
+		} else if (ap_temp >= info->data.ap_temp_t0_cp_thres) {
+			if ((cp_lcmoff_data->sm == TEMP_T1_TO_T2)
+				 && (ap_temp >= info->data.ap_temp_t1_cp_thres_minus_x_degree)){
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d!!\n",
+					info->data.ap_temp_t1_cp_thres_minus_x_degree,
+					info->data.ap_temp_t1_cp_thres);
+			} else {
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d !!\n",
+					info->data.ap_temp_t0_cp_thres,
+					info->data.ap_temp_t1_cp_thres_minus_x_degree);
+				cp_lcmoff_data->sm = TEMP_T0_TO_T1;
+			}
+		} else {
+			if ((cp_lcmoff_data->sm == TEMP_T0_TO_T1)
+				&& (ap_temp >= info->data.ap_temp_t0_cp_thres_minus_x_degree)) {
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d !!\n",
+					info->data.ap_temp_t0_cp_thres_minus_x_degree,
+					info->data.ap_temp_t0_cp_thres);
+			} else {
+				chr_err("[AP_THERMAL_CP] AP below Temperature(%d) !!\n",
+					info->data.ap_temp_t0_cp_thres);
+				cp_lcmoff_data->sm = TEMP_BELOW_T0;
+			}
+		}
+
+		if (cp_lcmoff_data->sm == TEMP_ABOVE_T4) {
+			cp_lcmoff_data->cc = info->data.ap_temp_above_t4_cp_cc;
+		} else if (cp_lcmoff_data->sm == TEMP_T3_TO_T4) {
+			cp_lcmoff_data->cc = info->data.ap_temp_t3_to_t4_cp_cc;
+		} else if (cp_lcmoff_data->sm == TEMP_T2_TO_T3) {
+			cp_lcmoff_data->cc = info->data.ap_temp_t2_to_t3_cp_cc;
+		} else if (cp_lcmoff_data->sm == TEMP_T1_TO_T2) {
+			cp_lcmoff_data->cc = info->data.ap_temp_t1_to_t2_cp_cc;
+		} else if (cp_lcmoff_data->sm == TEMP_T0_TO_T1) {
+			cp_lcmoff_data->cc = info->data.ap_temp_t0_to_t1_cp_cc;
+		} else if (cp_lcmoff_data->sm == TEMP_BELOW_T0) {
+			cp_lcmoff_data->cc = info->data.ap_temp_below_t0_cp_cc;
+		}
+#ifndef WT_COMPILE_FACTORY_VERSION
+		g_cp_charging.cp_therm_cc = cp_lcmoff_data->cc;
+#endif
+		chr_err("[AP_THERMAL_CP]lcd is off!!preState:%d newState:%d tmp:%d cc:%d\n",
+			cp_lcmoff_data->pre_sm, cp_lcmoff_data->sm, ap_temp, cp_lcmoff_data->cc);
+	} else {
+		if (ap_temp >= info->data.ap_temp_cp_thres_lcmon) {
+			cp_lcmon_data->sm = TEMP_T1_TO_T2;
+			chr_err("[AP_THERMAL_CP] AP Over Temperature(%d) !!\n",
+				info->data.ap_temp_cp_thres_lcmon);
+		} else {
+			if ((cp_lcmon_data->sm == TEMP_T1_TO_T2)
+				&& (ap_temp >= info->data.ap_temp_cp_thres_minus_x_degree_lcmon)) {
+				chr_err("[AP_THERMAL_CP] AP Temperature between %d and %d !!\n",
+					info->data.ap_temp_cp_thres_minus_x_degree_lcmon,
+					info->data.ap_temp_cp_thres_lcmon);
+			} else {
+				cp_lcmon_data->sm = TEMP_T0_TO_T1;
+				chr_err("[AP_THERMAL_CP] AP below Temperature(%d) !!\n",
+				info->data.ap_temp_cp_thres_minus_x_degree_lcmon);
+			}
+		}
+
+		if (cp_lcmon_data->sm == TEMP_T0_TO_T1) {
+			cp_lcmon_data->cc = info->data.ap_temp_low_lcmon_cp_cc;
+		} else if (cp_lcmon_data->sm == TEMP_T1_TO_T2) {
+			cp_lcmon_data->cc = info->data.ap_temp_high_lcmon_cp_cc;
+		}
+#ifndef WT_COMPILE_FACTORY_VERSION
+		g_cp_charging.cp_therm_cc = cp_lcmon_data->cc;
+#endif
+		chr_err("[AP_THERMAL_CP]lcd is on!!!preState:%d newState:%d tmp:%d cc:%d\n",
+			cp_lcmon_data->pre_sm, cp_lcmon_data->sm, ap_temp, cp_lcmon_data->cc);
+	}
+}
+#endif
+/* -churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
 
 static ssize_t show_sw_jeita(struct device *dev, struct device_attribute *attr,
 					       char *buf)
@@ -1702,6 +1894,11 @@ static int mtk_charger_plug_out(struct charger_manager *info)
 	info->chr_type = CHARGER_UNKNOWN;
 	info->charger_thread_polling = false;
 	info->pd_reset = false;
+
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	mtk_chg_status = 0; // clear the flag
+	g_cp_charging.cp_chg_status = 0;
+#endif
 
 	pdata1->disable_charging_count = 0;
 	pdata1->input_current_limit_by_aicl = -1;
@@ -2057,7 +2254,6 @@ static void charger_check_status(struct charger_manager *info)
 			goto stop_charging;
 		}
 	} else {
-
 		if (thermal->enable_min_charge_temp) {
 			if (temperature < thermal->min_charge_temp) {
 				chr_err("Battery Under Temperature or NTC fail %d %d\n",
@@ -2101,7 +2297,15 @@ static void charger_check_status(struct charger_manager *info)
 		}
 	}
 
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	if (adapter_is_support_pd_pps() && !(g_cp_charging.cp_chg_status & CP_EXIT)) {
+		ap_thermal_machine_of_cp(info);
+	} else {
+		ap_thermal_machine(info);
+	}
+#else
 	ap_thermal_machine(info);  //Bug774000,gudi.wt,ADD,20191126,charge current limit for AP overheat
+#endif
 	mtk_chg_get_tchg(info);
 
 	if (!mtk_chg_check_vbus(info)) {
@@ -2303,7 +2507,7 @@ static void ato_charger_limit_soc(struct charger_manager *info, int min, int max
 		charger_dev_enable_hz(info->chg1_dev, 1);
 		_mtk_charger_do_charging(info, 0);
 #ifdef CONFIG_N28_CHARGER_PRIVATE
-		usbpd_pm_enable_cp_for_ato(0);
+		g_cp_charging.cp_chg_status |= CP_STOP;
 #endif
 		chr_err("ato_charger_limit_soc:disable charging\n");
 	}
@@ -2312,13 +2516,54 @@ static void ato_charger_limit_soc(struct charger_manager *info, int min, int max
 		charger_dev_enable_hz(info->chg1_dev, 0);
 		_mtk_charger_do_charging(info, 1);
 #ifdef CONFIG_N28_CHARGER_PRIVATE
-		usbpd_pm_enable_cp_for_ato(1);
+		g_cp_charging.cp_chg_status &= ~CP_STOP;
 #endif
 		chr_err("ato_charger_limit_soc:enable charging\n");
 	}
 //- Bug653977 lvyuanchuan.wt 2021/05/20 Modify,Low power off and full charge occurred during aging test
 }
 
+
+/* +S96818AA1-2189, -churui1.wt, ADD, 20230615, batt_full_capacity function */
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+void wt_batt_full_capacity_check(struct charger_manager *info)
+{
+	int uisoc = 0;
+	bool is_charger_on = false;
+
+	uisoc = battery_get_uisoc();
+	is_charger_on = mtk_is_charger_on(info);
+
+	if (batt_full_capacity != 100) {
+		if (uisoc >= batt_full_capacity && (is_charger_on == true)) {
+			mtk_chg_status |= 2;
+			charger_dev_enable_hz(info->chg1_dev, 1);
+			_mtk_charger_do_charging(info, 0);
+			g_cp_charging.cp_chg_status |= CP_STOP;
+			chr_err("batt_full_capacity:disable charging\n");
+		} else if ((mtk_chg_status & 2) && (uisoc <= (batt_full_capacity - 2)) && (is_charger_on == true)) {
+			mtk_chg_status &= ~2;
+			if (!mtk_chg_status) {
+				charger_dev_enable_hz(info->chg1_dev, 0);
+				_mtk_charger_do_charging(info, 1);
+				g_cp_charging.cp_chg_status &= ~CP_STOP;
+				chr_err("batt_full_capacity:enable charging\n");
+			}
+		}
+	} else if (mtk_chg_status & 2) {
+		mtk_chg_status &= ~2;
+		if (!mtk_chg_status) {
+			if (is_charger_on == true) {
+				charger_dev_enable_hz(info->chg1_dev, 0);
+				_mtk_charger_do_charging(info, 1);
+				g_cp_charging.cp_chg_status &= ~CP_STOP;
+				chr_err("FULL_CAP relieve 100%!!\n");
+			}
+		}
+	}
+}
+/* -S96818AA1-2189, -churui1.wt, ADD, 20230615, batt_full_capacity function */
+#else
 //+Bug774038,churui1.wt,add batt_full_capacity node
 void wt_batt_full_capacity_check(struct charger_manager *info)
 {
@@ -2349,6 +2594,7 @@ void wt_batt_full_capacity_check(struct charger_manager *info)
 	}
 }
 //-Bug774038,churui1.wt,add batt_full_capacity node
+#endif
 
 //+bug 538879,zhaosidong.wt,ADD,20200311, battery SOC limitation for store mode
 #define SALE_CODE_STR_LEN  3
@@ -2430,7 +2676,7 @@ static int charger_routine_thread(void *arg)
 				charger_dev_enable_hz(info->chg1_dev, 0);
 				_mtk_charger_do_charging(info, 1);
 #ifdef CONFIG_N28_CHARGER_PRIVATE
-				usbpd_pm_enable_cp_for_ato(1);
+				g_cp_charging.cp_chg_status &= ~CP_STOP;
 #endif
 				charging_flag = 1;
 			}
@@ -2914,6 +3160,32 @@ static int mtk_charger_parse_dt(struct charger_manager *info,
 	info->data.ap_temp_thres_lcmon = AP_TEMP_THRES_LCMON;
 	info->data.ap_temp_thres_minus_x_degree_lcmon = AP_TEMP_THRES_MINUS_X_DEGREE_LCMON;
 //-Bug774000,gudi.wt,ADD,charge current limit for AP overheat
+
+/* +churui1.wt, ADD, 20230602, cp charging current limit for AP overheat*/
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	info->data.ap_temp_above_t4_cp_cc = AP_TEMP_ABOVE_T4_CP_CC;
+	info->data.ap_temp_t3_to_t4_cp_cc = AP_TEMP_T3_TO_T4_CP_CC;
+	info->data.ap_temp_t2_to_t3_cp_cc = AP_TEMP_T2_TO_T3_CP_CC;
+	info->data.ap_temp_t1_to_t2_cp_cc = AP_TEMP_T1_TO_T2_CP_CC;
+	info->data.ap_temp_t0_to_t1_cp_cc = AP_TEMP_T0_TO_T1_CP_CC;
+	info->data.ap_temp_below_t0_cp_cc = AP_TEMP_BELOW_T0_CP_CC;
+	info->data.ap_temp_high_lcmon_cp_cc = AP_TEMP_HIGH_LCMON_CP_CC;
+	info->data.ap_temp_low_lcmon_cp_cc = AP_TEMP_LOW_LCMON_CP_CC;
+
+	info->data.ap_temp_t4_cp_thres = AP_TEMP_T4_CP_THRES;
+	info->data.ap_temp_t4_cp_thres_minus_x_degree = AP_TEMP_T4_CP_THRES_MINUS_X_DEGREE;
+	info->data.ap_temp_t3_cp_thres = AP_TEMP_T3_CP_THRES;
+	info->data.ap_temp_t3_cp_thres_minus_x_degree = AP_TEMP_T3_CP_THRES_MINUS_X_DEGREE;
+	info->data.ap_temp_t2_cp_thres = AP_TEMP_T2_CP_THRES;
+	info->data.ap_temp_t2_cp_thres_minus_x_degree = AP_TEMP_T2_CP_THRES_MINUS_X_DEGREE;
+	info->data.ap_temp_t1_cp_thres = AP_TEMP_T1_CP_THRES;
+	info->data.ap_temp_t1_cp_thres_minus_x_degree = AP_TEMP_T1_CP_THRES_MINUS_X_DEGREE;
+	info->data.ap_temp_t0_cp_thres = AP_TEMP_T0_CP_THRES;
+	info->data.ap_temp_t0_cp_thres_minus_x_degree = AP_TEMP_T0_CP_THRES_MINUS_X_DEGREE;
+	info->data.ap_temp_cp_thres_lcmon = AP_TEMP_CP_THRES_LCMON;
+	info->data.ap_temp_cp_thres_minus_x_degree_lcmon = AP_TEMP_CP_THRES_MINUS_X_DEGREE_LCMON;
+#endif
+/* -churui1.wt, ADD, 20230602, cp charging current limit for AP overheat*/
 
 	/* battery temperature protection */
 	info->thermal.sm = BAT_TEMP_NORMAL;
@@ -4090,14 +4362,14 @@ void ato_soc_charging_ctrl(struct charger_manager *info, bool en)
 		charger_dev_enable_hz(info->chg1_dev, 0);
 		_mtk_charger_do_charging(info, 1);
 #ifdef CONFIG_N28_CHARGER_PRIVATE
-		usbpd_pm_enable_cp_for_ato(1);
+		g_cp_charging.cp_chg_status &= ~CP_STOP;
 #endif
 		chr_err("ato_soc_charging_ctrl:enable charging\n");
 	} else {
 		charger_dev_enable_hz(info->chg1_dev, 1);
 		_mtk_charger_do_charging(info, 0);
 #ifdef CONFIG_N28_CHARGER_PRIVATE
-		usbpd_pm_enable_cp_for_ato(0);
+		g_cp_charging.cp_chg_status |= CP_STOP;
 #endif
 		chr_err("ato_soc_charging_ctrl:disable charging\n");
 	}
@@ -4950,13 +5222,24 @@ static void mtk_charger_shutdown(struct platform_device *dev)
 		pr_debug("%s: reset TA before shutdown\n", __func__);
 	}
 	if (factory_shipmode == true) {
-		printk("##shutdown with entering shipmode!\n");
+/* +ExtBP230525-02564, churui1.wt, ADD, 20230620, shipmode function modify */
 #ifdef CONFIG_N28_CHARGER_PRIVATE
+		printk("##N28 shutdown with entering shipmode!\n");
+		charger_dev_enable_hz(info->chg1_dev, 1); //set HIZ before set shipmode
+		charger_dev_set_shipmode(info->chg1_dev, true);
+		charger_dev_set_shipmode_delay(info->chg1_dev, false);
+/* -ExtBP230525-02564, churui1.wt, ADD, 20230620, shipmode function modify */
+#else
+		printk("##shutdown with entering shipmode!\n");
+/* +Bug SSNA-9203,zhouxiaopeng2.wt,20230607, Current station shipmodecurrent too high */
+#ifdef WT_COMPILE_FACTORY_VERSION
+/* -Bug SSNA-9203,zhouxiaopeng2.wt,20230607, Current station shipmodecurrent too high */
 		charger_dev_set_shipmode(info->chg1_dev, true);
 		charger_dev_set_shipmode_delay(info->chg1_dev, false);
 #else
 		charger_dev_set_shipmode_delay(info->chg1_dev, true); /* churui1.wt 2023.03.18 modify for enter shipmode delay*/
 		charger_dev_set_shipmode(info->chg1_dev, true);
+#endif
 #endif
 	} else
 		printk("##shutdown only!!\n");

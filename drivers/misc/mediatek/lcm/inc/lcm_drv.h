@@ -1083,11 +1083,14 @@ extern enum LCM_DSI_MODE_CON lcm_dsi_mode;
 extern int display_bias_enable(void);
 extern int display_bias_disable(void);
 extern int display_bias_regulator_init(void);
-
 extern int lcm_power_disable(void);
 extern int lcm_power_enable(void);
 extern void lcm_reset_pin(unsigned int mode);
-
+//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
+extern void lcm_bais_enp_enable(unsigned int mode);
+extern void lcm_bais_enn_enable(unsigned int mode);
+extern int lcm_set_power_reg(unsigned char addr, unsigned char val, unsigned char mask);
+//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
 extern int wingtech_bright_to_bl(int level,int max_bright,int min_bright,int bl_max,int bl_min);
 
 #endif /* __LCM_DRV_H__ */

@@ -43,6 +43,13 @@
 #include "sec_accdet_sysfs_cb.h"
 #endif
 
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode */
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+#include "gcore_drv_common.h"
+#include "../TD4160/omnivision_tcm_core.h"
+#include "../NT36528/nt36xxx.h"
+#endif
+/* -S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode */
 /********************grobal variable definitions******************/
 #if PMIC_ACCDET_CTP
 #define CONFIG_ACCDET_EINT_IRQ
@@ -1030,6 +1037,19 @@ static void send_accdet_status_event(u32 cable_type, u32 status)
 		input_sync(accdet_input_dev);
 		pr_info("%s HEADPHONE(3-pole) %s\n", __func__,
 			status ? "PlugIn" : "PlugOut");
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode */
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+		if (status == 0) {
+			gcore_extern_notify_event(10);
+			ovt_set_headphone_mode(0);
+			nvt_set_headphone_mode(0);
+		} else if (status == 1) {
+			gcore_extern_notify_event(9);
+			ovt_set_headphone_mode(1);
+			nvt_set_headphone_mode(1);
+		}
+#endif
+/* -S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode */
 		break;
 	case HEADSET_MIC:
 		/* when plug 4-pole out, 3-pole plug out should also be
@@ -1043,6 +1063,19 @@ static void send_accdet_status_event(u32 cable_type, u32 status)
 		input_sync(accdet_input_dev);
 		pr_info("%s MICROPHONE(4-pole) %s\n", __func__,
 			status ? "PlugIn" : "PlugOut");
+/* +S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode */
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+		if (status == 0) {
+                        gcore_extern_notify_event(10);
+						ovt_set_headphone_mode(0);
+						nvt_set_headphone_mode(0);
+                } else if (status == 1) {
+                        gcore_extern_notify_event(9);
+						ovt_set_headphone_mode(1);
+						nvt_set_headphone_mode(1);
+                }
+#endif
+/* -S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode */
 		/* when press key for a long time then plug in
 		 * even recoginized as 4-pole
 		 * disable micbias timer still timeout after 6s

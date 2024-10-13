@@ -218,11 +218,23 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 		//boot_mode = get_boot_mode();
 		if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		    boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
+/*+P230715-01490,zhouxiaopeng2.wt,MODIFY,20230729,PD cannot charge when shutdown*/
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+			struct charger_manager *pinfo = cti->chg_consumer->cm;
+			if (pinfo->pd_reset) {
+				pr_notice("%s: stay charging for pd_reset\n", __func__);
+				return ret;
+			}
+#endif
+/*-P230715-01490,zhouxiaopeng2.wt,MODIFY,20230729,PD cannot charge when shutdown*/
 			pr_notice("%s: Unplug Charger/USB\n", __func__);
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
-			pr_info("%s error_recovery_once = %d\n", __func__,
-				cti->tcpc->pd_port.error_recovery_once);
-			if (cti->tcpc->pd_port.error_recovery_once != 1) {
+			if(cti->tcpc == NULL)
+				pr_err("%s: cti->tcpc is null\n", __func__);
+			else
+				pr_info("%s error_recovery_once = %d\n", __func__,
+					cti->tcpc->pd_port.error_recovery_once);
+			if (cti->tcpc == NULL || (cti->tcpc != NULL && cti->tcpc->pd_port.error_recovery_once != 1)) {
 #endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 				pr_notice("%s: system_state=%d\n", __func__,
 					system_state);
@@ -624,9 +636,12 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 			plug_in_out_handler(cti, false, false);
 			if (cti->tcpc_kpoc) {
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
-				pr_info("%s error_recovery_once = %d\n", __func__,
-					cti->tcpc->pd_port.error_recovery_once);
-				if (cti->tcpc->pd_port.error_recovery_once == 1) {
+				if(cti->tcpc == NULL)
+					pr_err("%s: cti->tcpc is null\n", __func__);
+				else
+					pr_info("%s error_recovery_once = %d\n", __func__,
+						cti->tcpc->pd_port.error_recovery_once);
+				if (cti->tcpc == NULL || (cti->tcpc != NULL && cti->tcpc->pd_port.error_recovery_once == 1)) {
 					pr_info("%s KPOC error recovery once\n",
 					__func__);
 					plug_in_out_handler(cti, false, false);

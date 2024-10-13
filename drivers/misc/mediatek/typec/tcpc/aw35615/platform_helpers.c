@@ -296,8 +296,8 @@ int DeviceRead(Port_t *port, AW_U8 reg_addr, AW_U8 length, AW_U8 *buf)
 
 	if (chip->client == NULL) {
 		pr_err("msg %s i2c client is NULL\n", __func__);
-		return -ENODEV;
 		kfree(rdbuf);
+		return -ENODEV;
 	}
 
 	ret = i2c_transfer(chip->client->adapter, msgs, ARRAY_SIZE(msgs));
@@ -1330,6 +1330,9 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 		AW_LOG("aw35615 :PD_STATE_CHANGED=0x%x, PE_ST=%d\n",
 				event, chip->port.PolicyState);
 
+		if (chip->port.PolicyState == peSinkSendHardReset)
+					tcpci_notify_pd_state(chip->tcpc, PD_CONNECT_HARD_RESET);
+
 		if (chip->port.PolicyState == peSinkReady &&
 			chip->port.PolicyHasContract == AW_TRUE) {
 			if (!chip->port.pd_state) {
@@ -1363,13 +1366,22 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 	case PD_NEW_CONTRACT:
 		AW_LOG("aw35615 :PD_NEW_CONTRACT=0x%x, PE_ST=%d\n",
 				event, chip->port.PolicyState);
-		tcpci_sink_vbus(chip->tcpc, TCP_VBUS_CTRL_PD | TCP_VBUS_CTRL_PD_DETECT,
-				chip->port.SrcCapsReceived[chip->port.SinkRequest.FVRDO.ObjectPosition - 1].FPDOSupply.Voltage * 50,
-				chip->port.SinkRequest.FVRDO.MinMaxCurrent * 10);
-		AW_LOG("SinkRequest ObjectPosition = %d,Voltage = %d,Current = %d\n",
+		if (chip->port.SrcCapsReceived[chip->port.SinkRequest.FVRDO.ObjectPosition - 1].PDO.SupplyType == pdoTypeAugmented) {
+			AW_LOG("SinkRequestpps ObjectPosition = %d,Voltage = %d,Current = %d\n",
+				chip->port.SinkRequest.PPSRDO.ObjectPosition,
+				chip->port.SinkRequest.PPSRDO.Voltage * 20,
+				chip->port.SinkRequest.PPSRDO.OpCurrent * 50);
+			tcpci_sink_vbus(chip->tcpc, TCP_VBUS_CTRL_PD | TCP_VBUS_CTRL_PD_DETECT,
+				chip->port.SinkRequest.PPSRDO.Voltage * 20, chip->port.SinkRequest.PPSRDO.OpCurrent * 50);
+		} else {
+			AW_LOG("SinkRequest ObjectPosition = %d,Voltage = %d,Current = %d\n",
 				chip->port.SinkRequest.FVRDO.ObjectPosition,
 				chip->port.SrcCapsReceived[chip->port.SinkRequest.FVRDO.ObjectPosition - 1].FPDOSupply.Voltage * 50,
 				chip->port.SinkRequest.FVRDO.MinMaxCurrent * 10);
+			tcpci_sink_vbus(chip->tcpc, TCP_VBUS_CTRL_PD | TCP_VBUS_CTRL_PD_DETECT,
+				chip->port.SrcCapsReceived[chip->port.SinkRequest.FVRDO.ObjectPosition - 1].FPDOSupply.Voltage * 50,
+				chip->port.SinkRequest.FVRDO.MinMaxCurrent * 10);
+		}
 		break;
 	case DATA_ROLE:
 		AW_LOG("aw35615 :DATA_ROLE=0x%x\n", event);

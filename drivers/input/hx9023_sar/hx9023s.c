@@ -29,7 +29,7 @@
    更多的gpio配置，请放在 static int hx9023s_gpio_init(void) 和 static void hx9023s_gpio_deinit(void) 中
 */
 
-#define HX9023S_DRIVER_VER "Change-Id 003" //20230522 update by liuling
+#define HX9023S_DRIVER_VER "Change-Id 004" //20230627 update by liuling
 
 //+S96818AA1-2208, liuling3.wt,ADD, 2023/05/15, add sar power reduction control switch
 #define POWER_ENABLE    1
@@ -86,7 +86,7 @@ static uint16_t data_offset_dac[HX9023S_CH_NUM] = {0};
 
 static struct hx9023s_near_far_threshold hx9023s_ch_thres[HX9023S_CH_NUM] = {
 /*+S96818AA1-1936, liuling3.wt,ADD, 2023/05/22, Modify the sar trigger distance*/
-    {.thr_near = 320, .thr_far = 288}, //ch0
+    {.thr_near = 288, .thr_far = 256}, //ch0
     {.thr_near = 96, .thr_far = 64},
     {.thr_near = 32736, .thr_far = 32736},
 /*-S96818AA1-1936, liuling3.wt,ADD, 2023/05/22, Modify the sar trigger distance*/
@@ -108,8 +108,10 @@ static struct wake_lock hx9023s_wake_lock;
 #endif
 
 enum {
-    SAR_STATE_NEAR,
-    SAR_STATE_FAR = 5,
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+    SAR_STATE_NEAR = 1,
+    SAR_STATE_FAR,
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
 };
 
 
@@ -838,7 +840,10 @@ static void hx9023s_input_report_abs(void)
                 PRINT_DBG("[power_enable]:%s already released, nothing report\n", hx9023s_pdata.chs_info[ii].name);
             else{
                 wake_lock_timeout(&hx9023s_wake_lock, HZ * 1);
-                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9023s_pdata.chs_info[ii].input_dev_abs);
                 hx9023s_pdata.chs_info[ii].state = IDLE;
                 PRINT_DBG("[power_enable]:%s report released\n", hx9023s_pdata.chs_info[ii].name);
@@ -856,7 +861,10 @@ static void hx9023s_input_report_abs(void)
 #else
                 wake_lock_timeout(&hx9023s_wake_lock, HZ * 1);
 #endif
-                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_MISC, 1);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_MISC, SAR_STATE_NEAR);
+                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9023s_pdata.chs_info[ii].input_dev_abs);
                 hx9023s_pdata.chs_info[ii].state = PROXACTIVE;
                 PRINT_DBG("%s report PROXACTIVE\n", hx9023s_pdata.chs_info[ii].name);
@@ -870,7 +878,10 @@ static void hx9023s_input_report_abs(void)
 #else
                 wake_lock_timeout(&hx9023s_wake_lock, HZ * 1);
 #endif
-                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+                input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9023s_pdata.chs_info[ii].input_dev_abs);
                 hx9023s_pdata.chs_info[ii].state = IDLE;
                 PRINT_DBG("%s report released\n", hx9023s_pdata.chs_info[ii].name);
@@ -1104,7 +1115,10 @@ static int hx9023s_ch_en_hal(uint8_t ch_id, uint8_t enable)//yasin: for upper la
         input_event(hx9023s_pdata.input_dev_key, EV_KEY, hx9023s_pdata.chs_info[ch_id].keycode, IDLE);
         input_sync(hx9023s_pdata.input_dev_key);
 #else
-        input_report_rel(hx9023s_pdata.chs_info[ch_id].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+        input_report_rel(hx9023s_pdata.chs_info[ch_id].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+        input_report_rel(hx9023s_pdata.chs_info[ch_id].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_sync(hx9023s_pdata.chs_info[ch_id].input_dev_abs);
 #endif
     } else if (0 == enable) {
@@ -1128,7 +1142,10 @@ static int hx9023s_ch_en_hal(uint8_t ch_id, uint8_t enable)//yasin: for upper la
         input_event(hx9023s_pdata.input_dev_key, EV_KEY, hx9023s_pdata.chs_info[ch_id].keycode, -1);
         input_sync(hx9023s_pdata.input_dev_key);
 #else
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_report_rel(hx9023s_pdata.chs_info[ch_id].input_dev_abs, REL_MISC, -1);
+        input_report_rel(hx9023s_pdata.chs_info[ch_id].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_sync(hx9023s_pdata.chs_info[ch_id].input_dev_abs);
 #endif
     } else {
@@ -1618,7 +1635,10 @@ static ssize_t store_enable(struct device *dev,
                     hx9023s_pdata.chs_info[index + 2].enabled = true;
                 }
 //-S96818AA1-1936, liuling3.wt,ADD, 2023/05/17, add sar reference channel switch
-                input_report_rel(hx9023s_pdata.chs_info[index].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9023s_pdata.chs_info[index].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+                input_report_rel(hx9023s_pdata.chs_info[index].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9023s_pdata.chs_info[index].input_dev_abs);
             } else {
                 PRINT_INF("name:%s: disable\n", hx9023_channels[index].name);
@@ -1629,7 +1649,10 @@ static ssize_t store_enable(struct device *dev,
                     hx9023s_pdata.chs_info[index + 2].enabled = false;
                 }
 //-S96818AA1-1936, liuling3.wt,ADD, 2023/05/17, add sar reference channel switch
-                input_report_rel(hx9023s_pdata.chs_info[index].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9023s_pdata.chs_info[index].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+                input_report_rel(hx9023s_pdata.chs_info[index].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9023s_pdata.chs_info[index].input_dev_abs);
             }
         }
@@ -1757,26 +1780,6 @@ static struct class capsense_class = {
 };
 // - wt factory app test need, wangjianlong 20230413, end
 
-#if defined(CONFIG_SENSORS)
-static int hx9023s_grip_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
-{
-    input_report_rel(hx9023s_pdata.chs_info[0].input_dev_abs, REL_MAX, val);
-    input_sync(hx9023s_pdata.chs_info[0].input_dev_abs);
-
-    PRINT_INF("%s val=%u\n", __func__, val);
-    return 0;
-}
-
-static int hx9023s_grip_wifi_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
-{
-    input_report_rel(hx9023s_pdata.chs_info[1].input_dev_abs, REL_MAX, val);
-    input_sync(hx9023s_pdata.chs_info[1].input_dev_abs);
-
-    PRINT_INF("%s -%u\n", __func__, val);
-    return 0;
-}
-#endif
-
 #if HX9023S_REPORT_EVKEY
 static int hx9023s_input_init_key(struct i2c_client *client)
 {
@@ -1879,8 +1882,17 @@ static int hx9023s_input_init_abs(struct i2c_client *client)
         }
 
         hx9023s_pdata.chs_info[ii].input_dev_abs->name = hx9023s_pdata.chs_info[ii].name;
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+        __set_bit(EV_REL, hx9023s_pdata.chs_info[ii].input_dev_abs->evbit);
         input_set_capability(hx9023s_pdata.chs_info[ii].input_dev_abs, EV_REL, REL_MISC);
+        __set_bit(EV_REL, hx9023s_pdata.chs_info[ii].input_dev_abs->evbit);
+        input_set_capability(hx9023s_pdata.chs_info[ii].input_dev_abs, EV_REL, REL_X);
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+        __set_bit(EV_REL, hx9023s_pdata.chs_info[ii].input_dev_abs->evbit);
         input_set_capability(hx9023s_pdata.chs_info[ii].input_dev_abs, EV_REL, REL_MAX);
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+
 
         ret = input_register_device(hx9023s_pdata.chs_info[ii].input_dev_abs);
         if (ret) {
@@ -1894,7 +1906,10 @@ static int hx9023s_input_init_abs(struct i2c_client *client)
 		}
 // - wt add Adaptive ss sensor hal, wangjianlong, 20230413, end
 
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_MISC, -1);
+        input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_sync(hx9023s_pdata.chs_info[ii].input_dev_abs);
 
         if ((hx9023s_pdata.channel_used_flag >> ii) & 0x1) {
@@ -1946,6 +1961,23 @@ static int hx9023s_ch_en_classdev(struct sensors_classdev *sensors_cdev, unsigne
     return 0;
 }
 
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+static int hx9023s_flush_classdev(struct sensors_classdev *sensors_cdev, unsigned char flush)
+{
+    int ii = 0;
+
+    ENTER;
+    for (ii = 0; ii < HX9023S_CH_NUM; ii++) {
+        if (sensors_cdev->type == hx9023_channels[ii].type) {
+            input_report_rel(hx9023s_pdata.chs_info[ii].input_dev_abs, REL_MAX, flush);
+            input_sync(hx9023s_pdata.chs_info[ii].input_dev_abs);
+            break;
+        }
+    }
+    return 0;
+}
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+
 static int hx9023s_classdev_init(void)
 {
     int ii = 0;
@@ -1958,8 +1990,12 @@ static int hx9023s_classdev_init(void)
         type = ii ? SENSOR_TYPE_SAR_WCN : SENSOR_TYPE_SAR_MIAN ;
         hx9023s_pdata.chs_info[ii].classdev.sensors_enable = hx9023s_ch_en_classdev;
         hx9023s_pdata.chs_info[ii].classdev.sensors_poll_delay = NULL;
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+        hx9023s_pdata.chs_info[ii].classdev.sensors_flush = hx9023s_flush_classdev;
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
         hx9023s_pdata.chs_info[ii].classdev.name = "HX9031";
         hx9023s_pdata.chs_info[ii].classdev.sensor_name = hx9023_channels[ii].name;
+        hx9023s_pdata.chs_info[ii].classdev.name = "HX9031";
         hx9023s_pdata.chs_info[ii].classdev.vendor = HX9023S_DRIVER_NAME;
         hx9023s_pdata.chs_info[ii].classdev.version = 1;
         hx9023s_pdata.chs_info[ii].classdev.type = type;
@@ -1971,15 +2007,12 @@ static int hx9023s_classdev_init(void)
         hx9023s_pdata.chs_info[ii].classdev.fifo_max_event_count = 0;
         hx9023s_pdata.chs_info[ii].classdev.delay_msec = 100;
         hx9023s_pdata.chs_info[ii].classdev.enabled = 0;
-        
-        if(0 == strcmp(hx9023s_pdata.chs_info[ii].name,"grip_sensor")){
-            hx9023s_pdata.chs_info[ii].classdev.sensors_flush = hx9023s_grip_flush;      
-        } else if(0 == strcmp(hx9023s_pdata.chs_info[ii].name,"grip_sensor_wifi")) {
-            hx9023s_pdata.chs_info[ii].classdev.sensors_flush = hx9023s_grip_wifi_flush;        
-        }
 
         ret = sensors_classdev_register(&hx9023s_pdata.chs_info[ii].input_dev_abs->dev,
                                         &hx9023s_pdata.chs_info[ii].classdev);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+        hx9023s_pdata.chs_info[ii].classdev.sensor_name = "HX9031";
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         if (ret) {
             PRINT_ERR("sensors_classdev_register failed, ii=%d\n", ii);
             for(jj = ii - 1; jj >= 0; jj--) {
@@ -2267,9 +2300,6 @@ static int __init hx9023s_module_init(void)
 {
     ENTER;
     PRINT_INF("driver version:%s\n", HX9023S_DRIVER_VER);
-
-    if ( sar_get_boardid())
-        return -1;
 
     return i2c_add_driver(&hx9023s_i2c_driver);
 }

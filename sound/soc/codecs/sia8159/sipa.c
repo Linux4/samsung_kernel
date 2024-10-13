@@ -2535,7 +2535,11 @@ static int __init sipa_pa_init(void)
 #ifdef CONFIG_WT_PROJECT_AUDIO_PA
         char* s1= "";
         s1 = boardid_get_n28();
-        if((strncmp(s1, "S96818EA1", 9) != 0) && (strncmp(s1, "S96818FA1", 9) != 0)) {
+        if((strncmp(s1, "S96818EA1", 9) != 0) &&
+	   (strncmp(s1, "S96818FA1", 9) != 0) &&
+	   (strncmp(s1, "S96818IA1", 9) != 0) &&
+	   (strncmp(s1, "S96818JA1", 9) != 0) &&
+	   (strncmp(s1, "S96818KA1", 9) != 0)) {
                 pr_info("[  info][%s] %s: get n28 board_id = %s \r\n",
                         LOG_FLAG, __func__, s1);
                 return 0;

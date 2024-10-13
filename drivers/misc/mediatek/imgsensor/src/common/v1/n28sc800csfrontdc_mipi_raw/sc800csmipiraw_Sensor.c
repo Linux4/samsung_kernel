@@ -324,7 +324,7 @@ static void set_shutter(kal_uint16 shutter)
     shutter = shutter *2;
     //shutter = 3;
     //write_cmos_sensor8(0x3802,0x01);//group hold on
-    write_cmos_sensor8(0x3e20, (shutter >> 20) & 0x0F);
+    //write_cmos_sensor8(0x3e20, (shutter >> 20) & 0x0F);
     write_cmos_sensor8(0x3e00, (shutter >> 12) & 0xFF);
     write_cmos_sensor8(0x3e01, (shutter >> 4)&0xFF);
     write_cmos_sensor8(0x3e02, (shutter<<4) & 0xF0);

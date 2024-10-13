@@ -41,11 +41,6 @@
 /*****************************************************************************
 * 3.Private enumerations, structures and unions using typedef
 *****************************************************************************/
-enum _ex_mode {
-    MODE_GLOVE = 0,
-    MODE_COVER,
-    MODE_CHARGER,
-};
 
 /*****************************************************************************
 * 4.Static variables
@@ -58,7 +53,8 @@ enum _ex_mode {
 /*****************************************************************************
 * 6.Static function prototypes
 *******************************************************************************/
-static int fts_ex_mode_switch(enum _ex_mode mode, u8 value)
+//-S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
+int fts_ex_mode_switch(enum _ex_mode mode, u8 value)
 {
     int ret = 0;
     u8 m_val = 0;
@@ -95,7 +91,7 @@ static int fts_ex_mode_switch(enum _ex_mode mode, u8 value)
 
     return ret;
 }
-
+//-S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
 static ssize_t fts_glove_mode_show(
     struct device *dev, struct device_attribute *attr, char *buf)
 {

@@ -236,6 +236,32 @@ struct charger_custom_data {
 	int ap_temp_thres_minus_x_degree_lcmon;
 //-Bug774000,gudi.wt,ADD,20191126,charge current limit for AP overheat
 
+/* +churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	int ap_temp_above_t4_cp_cc;
+	int ap_temp_t3_to_t4_cp_cc;
+	int ap_temp_t2_to_t3_cp_cc;
+	int ap_temp_t1_to_t2_cp_cc;
+	int ap_temp_t0_to_t1_cp_cc;
+	int ap_temp_below_t0_cp_cc;
+	int ap_temp_high_lcmon_cp_cc;
+	int ap_temp_low_lcmon_cp_cc;
+
+	int ap_temp_t4_cp_thres;
+	int ap_temp_t4_cp_thres_minus_x_degree;
+	int ap_temp_t3_cp_thres;
+	int ap_temp_t3_cp_thres_minus_x_degree;
+	int ap_temp_t2_cp_thres;
+	int ap_temp_t2_cp_thres_minus_x_degree;
+	int ap_temp_t1_cp_thres;
+	int ap_temp_t1_cp_thres_minus_x_degree;
+	int ap_temp_t0_cp_thres;
+	int ap_temp_t0_cp_thres_minus_x_degree;
+	int ap_temp_cp_thres_lcmon;
+	int ap_temp_cp_thres_minus_x_degree_lcmon;
+#endif
+/* -churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
+
 	/* battery temperature protection */
 	int mtk_temperature_recharge_support;
 	int max_charge_temp;

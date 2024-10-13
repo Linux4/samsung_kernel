@@ -997,7 +997,8 @@ void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p,
  * this lock, it should use kbase_mem_pool_alloc_pages_locked() instead.
  */
 int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
-		struct tagged_addr *pages, bool partial_allowed);
+		struct tagged_addr *pages, bool partial_allowed,
+		struct task_struct *page_owner);
 
 /**
  * kbase_mem_pool_alloc_pages_locked - Allocate pages from memory pool
@@ -1115,7 +1116,8 @@ void kbase_mem_pool_set_max_size(struct kbase_mem_pool *pool, size_t max_size);
  *
  * Returns: 0 on success, -ENOMEM if unable to allocate sufficent pages
  */
-int kbase_mem_pool_grow(struct kbase_mem_pool *pool, size_t nr_to_grow);
+int kbase_mem_pool_grow(struct kbase_mem_pool *pool, size_t nr_to_grow,
+										struct task_struct *page_owner);
 
 /**
  * kbase_mem_pool_trim - Grow or shrink the pool to a new size
@@ -2210,4 +2212,25 @@ kbase_ctx_reg_zone_get(struct kbase_context *kctx, unsigned long zone_bits)
 	return &kctx->reg_zone[KBASE_REG_ZONE_IDX(zone_bits)];
 }
 
+/**
+ * kbase_mem_allow_alloc - Check if allocation of GPU memory is allowed
+ * @kctx: Pointer to kbase context
+ *
+ * Don't allow the allocation of GPU memory until user space has set up the
+ * tracking page (which sets kctx->process_mm) or if the ioctl has been issued
+ * from the forked child process using the mali device file fd inherited from
+ * the parent process.
+ *
+ * Return: true if allocation is allowed.
+ */
+static inline bool kbase_mem_allow_alloc(struct kbase_context *kctx)
+{
+	bool allow_alloc = true;
+
+	rcu_read_lock();
+	allow_alloc = (rcu_dereference(kctx->process_mm) == current->mm);
+	rcu_read_unlock();
+
+	return allow_alloc;
+}
 #endif				/* _KBASE_MEM_H_ */

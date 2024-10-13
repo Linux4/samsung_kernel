@@ -85,6 +85,14 @@ kal_uint32 main_sensor_id = 0xffffffff;
 int sc800cs_is_alive = 0;
 #endif
 //-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+
+//+S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
+#ifdef CONFIG_MTK_S96818_CAMERA
+int camera_switch = 0;
+int hs_video_flag =0;
+#endif
+//-S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
+
 /*prevent imgsensor race condition in vulunerbility test*/
 
 struct mutex imgsensor_mutex;
@@ -220,6 +228,12 @@ imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 			PK_DBG("SensorOpen fail");
 		} else {
 			psensor_inst->state = IMGSENSOR_STATE_OPEN;
+//+S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
+#ifdef CONFIG_MTK_S96818_CAMERA
+			if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN)
+			    camera_switch = 1;
+#endif
+//-S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
 #ifdef CONFIG_MTK_CCU
 			ccuSensorInfo.slave_addr =
 			    (psensor_inst->i2c_cfg.pinst->msg->addr << 1);
@@ -384,7 +398,14 @@ imgsensor_sensor_control(
 
 		psensor_func->psensor_inst = psensor_inst;
 		psensor_func->ScenarioId = ScenarioId;
-
+//+S96818AA1-1936,chenming01.wt,ADD,2023/08/02, hs_video switch distinguishes the flash PWM frequency
+#ifdef CONFIG_MTK_S96818_CAMERA
+		if(psensor_func->ScenarioId == MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO)
+			hs_video_flag = 1;
+		else
+			hs_video_flag = 0;
+#endif
+//-S96818AA1-1936,chenming01.wt,ADD,2023/08/02, hs_video switch distinguishes the flash PWM frequency
 		ret = psensor_func->SensorControl(ScenarioId,
 		    &image_window,
 		    &sensor_config_data);
@@ -430,6 +451,11 @@ imgsensor_sensor_close(struct IMGSENSOR_SENSOR *psensor)
 			PK_DBG(" [%s]error : %d\n", __func__, ret);
 		} else {
 			psensor_inst->state = IMGSENSOR_STATE_CLOSE;
+//+S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
+#ifdef CONFIG_MTK_S96818_CAMERA
+			camera_switch = 0;
+#endif
+//-S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
 			imgsensor_hw_power(&pgimgsensor->hw,
 			    psensor,
 			    psensor_inst->psensor_name,
@@ -577,6 +603,10 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 			}
 			if(!strcmp(psensor_inst->psensor_name, "n28c8496frontdc_mipi_raw"))
 				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DMEGC");
+			if(!strcmp(psensor_inst->psensor_name, "n28sc800csafrontdc_mipi_raw")){
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DMEGC");
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM, "n28sc800csfrontdc_mipi_raw");
+			}
 		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN2){
 			hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, psensor_inst->psensor_name);
 			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt_mipi_mono"))

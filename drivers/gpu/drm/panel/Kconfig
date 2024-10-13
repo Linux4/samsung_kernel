@@ -839,6 +839,17 @@ config DRM_PANEL_WT_CHUANGWEI_ILI7807S_CPHY_VDO_90HZ
       and uses 24-bits RGB per pixel. It provides a MIPI DSI
       interface to host.
 
+config DRM_PANEL_WT_TXD_SHARP_FT8722_CPHY_VDO_90HZ
+    tristate "wt txd sharp module ft8722 fhdp vdo panel"
+    depends on OF
+    depends on DRM_MIPI_DSI
+    depends on BACKLIGHT_CLASS_DEVICE
+    help
+      Say Y here if you want to enable support for wt txd sharp ft8722
+      fhdp vdo panel. The panel has a 1080x2408 resolution
+      and uses 24-bits RGB per pixel. It provides a MIPI DSI
+      interface to host.
+
 config DRM_PANEL_VIRTUAL_DSI_VDO_DEFAULT
     tristate "wt virtual_dsi_vdo_default panel"
     depends on OF

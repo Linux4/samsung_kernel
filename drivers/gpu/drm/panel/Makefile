@@ -78,6 +78,7 @@ obj-$(CONFIG_DRM_PANEL_WT_TRULY_FT8722_CPHY_VDO_90HZ) += panel-wt-tianma-ili7807
 obj-$(CONFIG_DRM_PANEL_WT_DSBJ_HX83112F_CPHY_VDO_90HZ) += panel-wt-dsbj-hx83112f-cphy-vdo-90hz.o
 obj-$(CONFIG_DRM_PANEL_WT_DJN_HX83112F_CPHY_VDO_90HZ) += panel-wt-djn-hx83112f-cphy-vdo-90hz.o
 obj-$(CONFIG_DRM_PANEL_WT_CHUANGWEI_ILI7807S_CPHY_VDO_90HZ) += panel-wt-chuangwei-ili7807s-cphy-vdo-90hz.o
+obj-$(CONFIG_DRM_PANEL_WT_TXD_SHARP_FT8722_CPHY_VDO_90HZ) += panel-wt-txd-sharp-ft8722-cphy-vdo-90hz.o
 obj-$(CONFIG_DRM_PANEL_LCM_CUST_COMMON) += lcm_cust_common.o
 obj-$(CONFIG_DRM_PANEL_VIRTUAL_DSI_VDO_DEFAULT) += panel-virtual-dsi-vdo-default.o
 obj-$(CONFIG_DRM_PANEL_BOE_SW83109_CMD) += panel-boe-sw83109-cmd.o

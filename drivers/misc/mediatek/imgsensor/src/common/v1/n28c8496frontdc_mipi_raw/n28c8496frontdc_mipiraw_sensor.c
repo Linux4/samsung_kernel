@@ -93,7 +93,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns //85
         /*     following for GetDefaultFramerateByScenario()    */
         .max_framerate = 300,
-        .mipi_pixel_rate = 288000000,
+        .mipi_pixel_rate = 294400000,
     },
     .cap = {
         .pclk = 290000000,            //record different mode's pclk//84
@@ -107,7 +107,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns //85
         /*     following for GetDefaultFramerateByScenario()    */
         .max_framerate = 300,
-        .mipi_pixel_rate = 288000000,
+        .mipi_pixel_rate = 294400000,
     },
     .normal_video = {
         .pclk = 290000000,            //record different mode's pclk//84
@@ -121,7 +121,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns //85
         /*     following for GetDefaultFramerateByScenario()    */
         .max_framerate = 300,
-        .mipi_pixel_rate = 288000000,
+        .mipi_pixel_rate = 294400000,
     },
     .hs_video = {
         .pclk = 290000000,            //record different mode's pclk//84
@@ -135,7 +135,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns //85
         /*     following for GetDefaultFramerateByScenario()    */
         .max_framerate = 300,
-        .mipi_pixel_rate = 288000000,
+        .mipi_pixel_rate = 294400000,
     },
     .slim_video = {
         .pclk = 290000000,            //record different mode's pclk//84
@@ -149,7 +149,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns //85
         /*     following for GetDefaultFramerateByScenario()    */
         .max_framerate = 300,
-        .mipi_pixel_rate = 288000000,
+        .mipi_pixel_rate = 294400000,
     },
     .margin = 4,            //sensor framelength & shutter margin
     .min_shutter = 8,        //min shutter
@@ -474,6 +474,7 @@ static void sensor_init(void)
 	write_cmos_sensor(0x0209,0x80);
 	write_cmos_sensor(0x3219,0x54);
 	write_cmos_sensor(0x0207,0x08);
+	write_cmos_sensor(0x3517,0xb8); //+S96818AA1-1936,wuwenhao2.wt,add,2023/07/12, c8496 modify mipi rate to 736M
 	write_cmos_sensor(0x3500,0x10); //group access start
 	write_cmos_sensor(0x3584,0x02);
 	write_cmos_sensor(0x3401,0x01);
@@ -492,11 +493,15 @@ static void sensor_init(void)
 	write_cmos_sensor(0xe017,0xff);
 	write_cmos_sensor(0x3584,0x22);
 	write_cmos_sensor(0x3500,0x00); //group access end
-	write_cmos_sensor(0x3293,0x07);
-	write_cmos_sensor(0x32a9,0x10);
-	write_cmos_sensor(0x3286,0x18);
-	write_cmos_sensor(0x32ac,0xff);
-	write_cmos_sensor(0x3180,0x06);
+	write_cmos_sensor(0x0202,0x11);
+	write_cmos_sensor(0x0203,0xa0);
+	write_cmos_sensor(0x3293,0x01);
+	write_cmos_sensor(0x32a9,0x12);
+	write_cmos_sensor(0x3286,0x68);
+	write_cmos_sensor(0x32ac,0xfc);
+	write_cmos_sensor(0x3180,0x06); //mirror flip on
+	write_cmos_sensor(0x3120,0x22); //blc refine
+	write_cmos_sensor(0x3121,0xa6);
 	write_cmos_sensor(0x3215,0x10);
 	write_cmos_sensor(0x323a,0x1d);
 	write_cmos_sensor(0x3287,0x28);
@@ -505,9 +510,7 @@ static void sensor_init(void)
 	write_cmos_sensor(0x32ae,0x44);
 	write_cmos_sensor(0x32ad,0x00);
 	write_cmos_sensor(0x3904,0x02);
-        write_cmos_sensor(0x3122,0x10); //first 2 frame blc on
-        write_cmos_sensor(0x3120,0x22);
-        write_cmos_sensor(0x3121,0xa6);
+	write_cmos_sensor(0x3122,0x40); //first 2 frame blc on
 }
 
 static void preview_setting(kal_uint16 currefps)

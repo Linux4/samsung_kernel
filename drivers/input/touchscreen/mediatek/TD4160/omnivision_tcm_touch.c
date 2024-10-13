@@ -43,9 +43,9 @@
 #define TOUCH_REPORT_CONFIG_SIZE 128
 #include "../tpd.h"
 extern struct tpd_device *tpd;
-
-#define SUPPORT_FACE_DETECT 1
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/07/05,n28-tp disable face_detect function
+#define SUPPORT_FACE_DETECT 0
+//+S96818AA1-1936,daijun1.wt,modify,2023/07/05,n28-tp disable face_detect function
 enum touch_status {
 	LIFT = 0,
 	FINGER = 1,
@@ -1339,7 +1339,8 @@ int touch_resume(struct ovt_tcm_hcd *tcm_hcd)
 		return 0;
 
 	touch_hcd->suspend_touch = false;
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+	LOGN(tcm_hcd->pdev->dev.parent,"%s enter\n",__func__);
 	if (tcm_hcd->wakeup_gesture_enabled) {
 		if (touch_hcd->irq_wake) {
 			disable_irq_wake(tcm_hcd->irq);
@@ -1354,8 +1355,21 @@ int touch_resume(struct ovt_tcm_hcd *tcm_hcd)
 					"Failed to disable wakeup gesture mode\n");
 			return retval;
 		}
+	}else{
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_CHARGER_CONNECTED, tcm_hcd->func_charger_connected_en);
+			if (retval != 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,"Failed to set charger connect command\n");
+			}
+		LOGN(tcm_hcd->pdev->dev.parent,"set charger connect status =%d\n",tcm_hcd->func_charger_connected_en);
 	}
-
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+//+S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode
+	retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_ENABLE_EAR_PHONE, tcm_hcd->func_ear_phone_connected_en);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,"Failed to set DC_ENABLE_EAR_PHONE command\n");
+	}
+	LOGN(tcm_hcd->pdev->dev.parent,"set func_ear_phone_connected_en =%d\n",tcm_hcd->func_ear_phone_connected_en);
+//-S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode
 	return 0;
 }
 

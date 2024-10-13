@@ -66,6 +66,11 @@ int batt_full_capacity = 100;
 extern void wt_batt_full_capacity_check(void);
 //-bug 790826,yangchaojun,wt,add batt_full_capacity node
 #endif
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+static struct charger_device *primary_charger;
+#endif
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 struct tag_bootmode {
 	u32 size;
 	u32 tag;
@@ -1592,6 +1597,32 @@ int wt_set_batt_cycle_fv(struct mtk_battery *gm)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(wt_set_batt_cycle_fv);
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+#elif defined (CONFIG_N26_CHARGER_PRIVATE)
+int wt_set_batt_cycle_fv(struct mtk_battery *gm,bool updata)
+{
+	int i, cycle = 0;
+	static int cycle_fv = 0;
+
+	if (!updata)
+		return cycle_fv;
+
+	if (gm->bat_cycle >= 0 && gm->bat_cycle < 999999)
+		cycle = gm->bat_cycle;
+	bm_err("WT cycle %d\n", cycle);
+	if (gm->batt_cycle_fv_cfg && gm->fv_levels) {
+		for (i = 0; i < gm->fv_levels; i += 3) {
+			if ((cycle >= gm->batt_cycle_fv_cfg[i]) && (cycle <= gm->batt_cycle_fv_cfg[i + 1])) {
+				chr_err("WT set cv = %d\n", gm->batt_cycle_fv_cfg[i + 2]);
+				cycle_fv = gm->batt_cycle_fv_cfg[i + 2];
+				return gm->batt_cycle_fv_cfg[i + 2];
+			}
+		}
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(wt_set_batt_cycle_fv);
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 #endif
 
 void fg_custom_init_from_header(struct mtk_battery *gm)
@@ -2189,6 +2220,28 @@ void fg_custom_init_from_dts(struct platform_device *dev,
 	}
 
 	cycle_fv = wt_set_batt_cycle_fv(gm);
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+#elif defined (CONFIG_N26_CHARGER_PRIVATE)
+	int cycle_fv, byte_len;
+
+	if (of_find_property(np, "wt,batt-cycle-ranges", &byte_len)) {
+		gm->batt_cycle_fv_cfg = devm_kzalloc(&dev->dev, byte_len,
+			GFP_KERNEL);
+		if (gm->batt_cycle_fv_cfg) {
+			gm->fv_levels = byte_len / sizeof(u32);
+			ret = of_property_read_u32_array(np,
+				"wt,batt-cycle-ranges",
+				gm->batt_cycle_fv_cfg,
+				gm->fv_levels);
+			if (ret < 0) {
+				bm_err("Couldn't read battery protect limits ret = %d\n", ret);
+				gm->batt_cycle_fv_cfg = NULL;
+			}
+		}
+	}
+
+	cycle_fv = wt_set_batt_cycle_fv(gm,true);
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 #endif
 	gm->battery_id = fgauge_get_profile_id();
 	bm_err("battery id = %d\n", gm->battery_id);
@@ -2570,6 +2623,17 @@ void fg_custom_init_from_dts(struct platform_device *dev,
 			i*TOTAL_BATTERY_NUMBER + gm->battery_id,
 			&(fg_table_cust_data->fg_profile[i].pseudo1),
 			UNIT_TRANS_100);
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+		if (cycle_fv != 0) {
+			sprintf(node_name, "g_FG_PSEUDO100_cv%d", cycle_fv / 1000);
+			fg_read_dts_val_by_idx(np, node_name,
+				i*TOTAL_BATTERY_NUMBER+gm->battery_id,
+				&(fg_table_cust_data->fg_profile[i].pseudo100),
+				UNIT_TRANS_100);
+		} else
+#endif
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 		fg_read_dts_val_by_idx(np, "g_FG_PSEUDO100",
 			i*TOTAL_BATTERY_NUMBER + gm->battery_id,
 			&(fg_table_cust_data->fg_profile[i].pseudo100),

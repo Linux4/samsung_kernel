@@ -442,7 +442,7 @@ static int mtk_leds_remove(struct platform_device *pdev)
 	int i;
 	struct mtk_leds_info *m_leds = dev_get_platdata(&pdev->dev);
 
-	if (m_leds)
+	if (!m_leds)
 		return 0;
 	for (i = 0; i < m_leds->nums; i++) {
 		if (!m_leds->leds[i].parent)
@@ -450,8 +450,6 @@ static int mtk_leds_remove(struct platform_device *pdev)
 		led_classdev_unregister(&m_leds->leds[i].conf.cdev);
 		m_leds->leds[i].parent = NULL;
 	}
-	kfree(m_leds);
-	m_leds = NULL;
 
 	return 0;
 }

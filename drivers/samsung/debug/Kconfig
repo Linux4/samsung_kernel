@@ -62,8 +62,9 @@ config SEC_DEBUG_INIT_EXIT_PANIC
 
 config SEC_DEBUG_SOFTDOG_PWDT
 	bool "Enable Soft Watchdog for Platform"
-	default n
+	default y
 	depends on WATCHDOG
+	select SOFT_WATCHDOG
 	help
 	  This option enables soft watchdog device and soft_panic.
 

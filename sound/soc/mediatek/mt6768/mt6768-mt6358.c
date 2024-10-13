@@ -908,7 +908,11 @@ static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
 /* +Req S96818AA1-1936 shenwenlei.wt 2023.4.14  audio bringup */
 #ifdef CONFIG_WT_PROJECT_AUDIO_PA
 	s1 = boardid_get_n28();
-        if ((strncmp(s1, "S96818EA1", 9) == 0) || (strncmp(s1, "S96818FA1", 9) == 0)) {
+        if ((strncmp(s1, "S96818EA1", 9) == 0) ||
+	    (strncmp(s1, "S96818FA1", 9) == 0) ||
+	    (strncmp(s1, "S96818IA1", 9) == 0) ||
+	    (strncmp(s1, "S96818JA1", 9) == 0) ||
+	    (strncmp(s1, "S96818KA1", 9) == 0)) {
 
 		dev_info(&pdev->dev, "%s get n28 board_id = %s\n", __func__, s1);
 		ret = soc_aux_init_only_sia81xx(pdev, card);
@@ -929,7 +933,9 @@ static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
         s1 = boardid_get_n28();
         if ((strncmp(s1, "S96818AA1", 9) == 0) ||
 	    (strncmp(s1, "S96818BA1", 9) == 0) ||
-	    (strncmp(s1, "S96818CA1", 9) == 0)) {
+	    (strncmp(s1, "S96818CA1", 9) == 0) ||
+	    (strncmp(s1, "S96818GA1", 9) == 0) ||
+	    (strncmp(s1, "S96818HA1", 9) == 0)) {
 
                 dev_info(&pdev->dev, "%s get n28 board_id = %s\n", __func__, s1);
                 ret = fs150x_audio_amp_init(card);

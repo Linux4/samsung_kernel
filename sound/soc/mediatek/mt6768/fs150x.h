@@ -199,8 +199,8 @@ static struct snd_soc_dapm_widget fs150x_amp_widgets[] = {
 
 static const struct snd_soc_dapm_route fs150x_amp_routes[] = {
 	{FS150X_AMP_W_NAME, NULL, "LINEOUT L"}, // mt6359
-//	{FS150X_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
-//	{FS150X_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
+	{FS150X_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
+	{FS150X_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
 //	{FS150X_AMP_W_NAME, NULL, "AUX"}, // wcd938x lineout
 //	{FS150X_AMP_W_NAME, NULL, "HPHL"},
 //	{FS150X_AMP_W_NAME, NULL, "HPHR"},

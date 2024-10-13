@@ -84,8 +84,10 @@ static int32_t data_bl[HX9031AS_CH_NUM] = {0};
 static uint16_t data_offset_dac[HX9031AS_CH_NUM] = {0};
 
 enum {
-    SAR_STATE_NEAR,
-    SAR_STATE_FAR = 5,
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+    SAR_STATE_NEAR = 1,
+    SAR_STATE_FAR,
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
 };
 
 //hx9031A默认阈值设置值，请客户根据实测修改
@@ -986,7 +988,10 @@ static void hx9031as_input_report_abs(void)
                 PRINT_DBG("[power_enable]:%s already released, nothing report\n", hx9031as_pdata.chs_info[ii].name);
             else{
                 wake_lock_timeout(&hx9031as_wake_lock, HZ * 1);
-                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9031as_pdata.chs_info[ii].input_dev_abs);
                 hx9031as_pdata.chs_info[ii].state = IDLE;
                 PRINT_DBG("[power_enable]:%s report released\n", hx9031as_pdata.chs_info[ii].name);
@@ -1006,7 +1011,7 @@ static void hx9031as_input_report_abs(void)
 #endif
 
 #if 0   //liuling 
-                input_report_abs(hx9031as_pdata.chs_info[ii].input_dev_abs, ABS_DISTANCE, BODYACTIVE);
+                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MISC, BODYACTIVE);
                 input_sync(hx9031as_pdata.chs_info[ii].input_dev_abs);
 #endif
                 hx9031as_pdata.chs_info[ii].state = BODYACTIVE;
@@ -1021,7 +1026,10 @@ static void hx9031as_input_report_abs(void)
 #else
                 wake_lock_timeout(&hx9031as_wake_lock, HZ * 1);
 #endif
-                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MISC, 1);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MISC, SAR_STATE_NEAR);
+                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9031as_pdata.chs_info[ii].input_dev_abs);
                 hx9031as_pdata.chs_info[ii].state = PROXACTIVE;
                 PRINT_DBG("%s report PROXACTIVE\n", hx9031as_pdata.chs_info[ii].name);
@@ -1035,7 +1043,10 @@ static void hx9031as_input_report_abs(void)
 #else
                 wake_lock_timeout(&hx9031as_wake_lock, HZ * 1);
 #endif
-                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+                input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9031as_pdata.chs_info[ii].input_dev_abs);
                 hx9031as_pdata.chs_info[ii].state = IDLE;
                 PRINT_DBG("%s report released\n", hx9031as_pdata.chs_info[ii].name);
@@ -1077,7 +1088,7 @@ static int hx9031as_parse_dt(struct device *dev)
     PRINT_INF("hx9031as_pdata.irq_gpio=%d\n", hx9031as_pdata.irq_gpio);
 
     hx9031as_pdata.channel_used_flag = 0x1F;
-    ret = of_property_read_u32(dt_node, "tyhx,channel-flag", &hx9031as_pdata.channel_used_flag);//客户配置：有效通道标志位：9031AS最大传入0x1F
+    ret = of_property_read_u32(dt_node, "tyhx5,channel-flag", &hx9031as_pdata.channel_used_flag);//客户配置：有效通道标志位：9031AS最大传入0x1F
     if(ret < 0) {
         PRINT_ERR("\"tyhx,channel-flag\" is not set in DT\n");
         return -1;
@@ -1293,7 +1304,10 @@ static int hx9031as_ch_en_hal(uint8_t ch_id, uint8_t enable)//yasin: for upper l
         input_event(hx9031as_pdata.input_dev_key, EV_KEY, hx9031as_pdata.chs_info[ch_id].keycode, IDLE);
         input_sync(hx9031as_pdata.input_dev_key);
 #else
-        input_report_rel(hx9031as_pdata.chs_info[ch_id].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+        input_report_rel(hx9031as_pdata.chs_info[ch_id].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+        input_report_rel(hx9031as_pdata.chs_info[ch_id].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_sync(hx9031as_pdata.chs_info[ch_id].input_dev_abs);
 #endif
     } else if (0 == enable) {
@@ -1317,7 +1331,10 @@ static int hx9031as_ch_en_hal(uint8_t ch_id, uint8_t enable)//yasin: for upper l
         input_event(hx9031as_pdata.input_dev_key, EV_KEY, hx9031as_pdata.chs_info[ch_id].keycode, -1);
         input_sync(hx9031as_pdata.input_dev_key);
 #else
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_report_rel(hx9031as_pdata.chs_info[ch_id].input_dev_abs, REL_MISC, -1);
+        input_report_rel(hx9031as_pdata.chs_info[ch_id].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_sync(hx9031as_pdata.chs_info[ch_id].input_dev_abs);
 #endif
     } else {
@@ -2141,7 +2158,10 @@ static ssize_t store_enable(struct device *dev,
                     hx9031as_pdata.chs_info[index + 2].enabled = true;
                 }
 //-S96818AA1-1936, liuling3.wt,ADD, 2023/05/17, add sar reference channel switch
-                input_report_rel(hx9031as_pdata.chs_info[index].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9031as_pdata.chs_info[index].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+                input_report_rel(hx9031as_pdata.chs_info[index].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9031as_pdata.chs_info[index].input_dev_abs);
             } else {
                 PRINT_INF("name:%s: disable\n", hx9031as_channels[index].name);
@@ -2154,7 +2174,10 @@ static ssize_t store_enable(struct device *dev,
                     hx9031as_pdata.chs_info[index + 2].enabled = false;
                 }
 //-S96818AA1-1936, liuling3.wt,ADD, 2023/05/17, add sar reference channel switch
-                input_report_rel(hx9031as_pdata.chs_info[index].input_dev_abs, REL_MISC, 2);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+                input_report_rel(hx9031as_pdata.chs_info[index].input_dev_abs, REL_MISC, SAR_STATE_FAR);
+                input_report_rel(hx9031as_pdata.chs_info[index].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
                 input_sync(hx9031as_pdata.chs_info[index].input_dev_abs);
             }
         }
@@ -2293,35 +2316,6 @@ static struct class capsense_class = {
 };
 // - wt factory app test need, liuling 20230417, end
 
-#if defined(CONFIG_SENSORS)
-static int hx9031as_grip_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
-{
-    input_report_rel(hx9031as_pdata.chs_info[0].input_dev_abs, REL_MAX, val);
-    input_sync(hx9031as_pdata.chs_info[0].input_dev_abs);
-
-    PRINT_INF("%s val=%u\n", __func__, val);
-    return 0;
-}
-
-static int hx9031as_grip_wifi_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
-{
-    input_report_rel(hx9031as_pdata.chs_info[2].input_dev_abs, REL_MAX, val);
-    input_sync(hx9031as_pdata.chs_info[2].input_dev_abs);
-
-    PRINT_INF("%s -%u\n", __func__, val);
-    return 0;
-}
-
-static int hx9031as_grip_sub_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
-{
-    input_report_rel(hx9031as_pdata.chs_info[1].input_dev_abs, REL_MAX, val);
-    input_sync(hx9031as_pdata.chs_info[1].input_dev_abs);
-
-    PRINT_INF("%s -%u\n", __func__, val);
-    return 0;
-}
-#endif
-
 #if HX9031AS_REPORT_EVKEY
 static int hx9031as_input_init_key(struct i2c_client *client)
 {
@@ -2423,8 +2417,15 @@ static int hx9031as_input_init_abs(struct i2c_client *client)
         }
 
         hx9031as_pdata.chs_info[ii].input_dev_abs->name = hx9031as_pdata.chs_info[ii].name;
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+        __set_bit(EV_REL, hx9031as_pdata.chs_info[ii].input_dev_abs->evbit);
         input_set_capability(hx9031as_pdata.chs_info[ii].input_dev_abs, EV_REL, REL_MISC);
+        __set_bit(EV_REL, hx9031as_pdata.chs_info[ii].input_dev_abs->evbit);
+        input_set_capability(hx9031as_pdata.chs_info[ii].input_dev_abs, EV_REL, REL_X);
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
         input_set_capability(hx9031as_pdata.chs_info[ii].input_dev_abs, EV_REL, REL_MAX);
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
 
         ret = input_register_device(hx9031as_pdata.chs_info[ii].input_dev_abs);
         if (ret) {
@@ -2438,8 +2439,10 @@ static int hx9031as_input_init_abs(struct i2c_client *client)
         }
 // - wt add Adaptive ss sensor hal, liuling, 20230417, end
 
-
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MISC, -1);
+        input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_X, 2);
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         input_sync(hx9031as_pdata.chs_info[ii].input_dev_abs);
 
         if ((hx9031as_pdata.channel_used_flag >> ii) & 0x1) {
@@ -2491,6 +2494,23 @@ static int hx9031as_ch_en_classdev(struct sensors_classdev *sensors_cdev, unsign
     return 0;
 }
 
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+static int hx9031as_flush_classdev(struct sensors_classdev *sensors_cdev, unsigned char flush)
+{
+    int ii = 0;
+
+    ENTER;
+    for (ii = 0; ii < HX9031AS_CH_NUM; ii++) {
+        if (sensors_cdev->type == hx9031as_channels[ii].type) {
+            input_report_rel(hx9031as_pdata.chs_info[ii].input_dev_abs, REL_MAX, flush);
+            input_sync(hx9031as_pdata.chs_info[ii].input_dev_abs);
+            break;
+        }
+    }
+    return 0;
+}
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+
 static int hx9031as_classdev_init(void)
 {
     int ii = 0;
@@ -2501,6 +2521,9 @@ static int hx9031as_classdev_init(void)
     for (ii = 0; ii < HX9031AS_CH_NUM; ii++) {
         hx9031as_pdata.chs_info[ii].classdev.sensors_enable = hx9031as_ch_en_classdev;
         hx9031as_pdata.chs_info[ii].classdev.sensors_poll_delay = NULL;
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
+        hx9031as_pdata.chs_info[ii].classdev.sensors_flush = hx9031as_flush_classdev;
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal*/
         hx9031as_pdata.chs_info[ii].classdev.name = "HX9031";
         hx9031as_pdata.chs_info[ii].classdev.sensor_name = hx9031as_pdata.chs_info[ii].name;
         hx9031as_pdata.chs_info[ii].classdev.vendor = HX9031AS_DRIVER_NAME;
@@ -2514,17 +2537,12 @@ static int hx9031as_classdev_init(void)
         hx9031as_pdata.chs_info[ii].classdev.fifo_max_event_count = 0;
         hx9031as_pdata.chs_info[ii].classdev.delay_msec = 100;
         hx9031as_pdata.chs_info[ii].classdev.enabled = 0;
-        
-        if(0 == strcmp(hx9031as_pdata.chs_info[ii].name,"grip_sensor")){
-            hx9031as_pdata.chs_info[ii].classdev.sensors_flush = hx9031as_grip_flush;
-        } else if(0 == strcmp(hx9031as_pdata.chs_info[ii].name,"grip_sensor_sub")) {
-            hx9031as_pdata.chs_info[ii].classdev.sensors_flush = hx9031as_grip_sub_flush;        
-        } else if(0 == strcmp(hx9031as_pdata.chs_info[ii].name,"grip_sensor_wifi")) {
-            hx9031as_pdata.chs_info[ii].classdev.sensors_flush = hx9031as_grip_wifi_flush;        
-        }
 
         ret = sensors_classdev_register(&hx9031as_pdata.chs_info[ii].input_dev_abs->dev,
                                         &hx9031as_pdata.chs_info[ii].classdev);
+/* +S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
+        hx9031as_pdata.chs_info[ii].classdev.sensor_name = "HX9031";
+/* -S96818AA1-6209, liuling3.wt,ADD, 2023/06/08, wt Adaptive sensor new hal */
         if (ret) {
             PRINT_ERR("sensors_classdev_register failed, ii=%d\n", ii);
             for(jj = ii - 1; jj >= 0; jj--) {
@@ -2819,11 +2837,6 @@ static int __init hx9031as_module_init(void)
 {
     ENTER;
     PRINT_INF("driver version:%s\n", HX9031AS_DRIVER_VER);
-
-    int ret;
-    ret = sar_get_boardid();
-    if (1 != ret)
-        return -1;
     
     return i2c_add_driver(&hx9031as_i2c_driver);
 }

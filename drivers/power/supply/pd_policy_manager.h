@@ -6,7 +6,7 @@
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/power_supply.h>
-#include <../../misc/mediatek/typec/tcpc/inc/tcpm.h>
+#include "../../misc/mediatek/typec/tcpc/inc/tcpm.h"
 
 #define PSY_NAME_CP_MASTER		"cp-master"
 #define PSY_NAME_CP_SLAVE		"cp-slave"
@@ -16,6 +16,15 @@
 #define PSY_NAME_BMS			"battery"
 #define TCPC_DEV_NAME			"type_c_port0"
 
+/* +churui1.wt, ADD, 20230602, CP JEITA configuration */
+#define JEITA_TEMP_T2_TO_T3_CP_CC1 5500
+#define JEITA_TEMP_T2_TO_T3_CP_CC2 5000
+#define JEITA_TEMP_T2_TO_T3_CP_CC3 4000
+
+#define JEITA_TEMP_T2_TO_T3_CP_CV1 4120
+#define JEITA_TEMP_T2_TO_T3_CP_CV2 4220
+/*-churui1.wt, ADD, 20230602, CP JEITA configuration */
+
 enum pm_state {
     PD_PM_STATE_ENTRY,
     PD_PM_STATE_FC2_ENTRY,
@@ -24,7 +33,7 @@ enum pm_state {
     PD_PM_STATE_FC2_ENTRY_3,
     PD_PM_STATE_FC2_TUNE,
     PD_PM_STATE_FC2_EXIT,
-    PD_PM_STATE_ATO_STOP_CHARGING, // churui1.wt, ADD, 20230522, CP stop charging control on ATO version
+    PD_PM_STATE_STOP_CHARGING, // churui1.wt, ADD, 20230602, CP charging control
 };
 
 struct sw_device {
@@ -47,6 +56,22 @@ struct cp_device {
 
     int die_temp;
 };
+
+enum {
+	CP_STOP = BIT(0),    /* bit0: CP stop */
+	CP_REENTER = BIT(1), /* bit1：CP reenter */
+	CP_EXIT = BIT(2),    /* bit2：CP exit */
+	CP_DONE = BIT(3),    /* bit3：CP done */
+};
+
+/* +churui1.wt, ADD, 20230602, CP charging control */
+struct cp_charging {
+	int cp_chg_status;
+	int cp_jeita_cc;
+	int cp_jeita_cv;
+	int cp_therm_cc;
+};
+/* -churui1.wt, ADD, 20230602, CP charging control */
 
 struct usbpd_pm {
 	struct device *dev;
@@ -107,8 +132,9 @@ struct pdpm_config {
     int	min_vbat_for_cp;
 
     bool cp_sec_enable;
-    bool fc2_disable_sw;		/* disable switching charger during flash charge*/
+    bool fc2_disable_sw; /* disable switching charger during flash charge*/
 
 };
 
 #endif /* SRC_PDLIB_USB_PD_POLICY_MANAGER_H_ */
+

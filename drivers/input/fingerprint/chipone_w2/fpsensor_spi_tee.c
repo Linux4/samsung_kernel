@@ -75,6 +75,7 @@ struct device *fingerprint_adm_dev;
 //-Bug 773955,gwq.wt,add,2022/08/05, add fp adm node
 
 static int mt_spi_clk_flag =  0;
+static int mt_power_flag =  0;
 
 /* -------------------------------------------------------------------- */
 /* fingerprint chip hardware configuration                              */
@@ -275,7 +276,7 @@ static void fpsensor_spi_clk_enable(u8 bonoff)
 {
     mutex_lock(&spidev_set_gpio_mutex);
     if ((bonoff == 0) && (mt_spi_clk_flag == 1)) {
-        udelay(1000);
+        udelay(2000);
         mt_spi_disable_master_clk(g_fpsensor->spi);
         mt_spi_clk_flag = 0;
     } else if((bonoff == 1) && (mt_spi_clk_flag == 0)) {
@@ -285,6 +286,30 @@ static void fpsensor_spi_clk_enable(u8 bonoff)
     mutex_unlock(&spidev_set_gpio_mutex);
 }
 
+static void fpsensor_power_enable(u8 power_onoff)
+{
+    int retval = 0;
+    fpsensor_debug(ERR_LOG, "fpsensor_power_enable power_onoff = %d\n", power_onoff);
+    if ((power_onoff == 0) && (mt_power_flag == 1)) {
+      if ((g_fpsensor->fp_regulator != NULL) && (regulator_is_enabled(g_fpsensor->fp_regulator))) {
+           retval = regulator_disable(g_fpsensor->fp_regulator);
+           fpsensor_debug(ERR_LOG, "fpsensor regulator_disable retval = %d\n", retval);
+           if (retval) {
+               fpsensor_debug(ERR_LOG, "Regulator vdd disable failed status = %d\n", retval);
+            }
+           mt_power_flag = 0;
+       }
+    } else if((power_onoff == 1) && (mt_power_flag == 0)) {
+      if (g_fpsensor->fp_regulator != NULL) {
+          retval = regulator_enable(g_fpsensor->fp_regulator);
+          fpsensor_debug(ERR_LOG, "fpsensor regulator_enable retval = %d\n", retval);
+          if (retval) {
+             fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
+          }
+         mt_power_flag = 1;
+         }
+    }
+}
 static void setRcvIRQ(int val)
 {
     fpsensor_data_t *fpsensor_dev = g_fpsensor;
@@ -378,6 +403,7 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
         if(fpsensor_irq_gpio_cfg(fpsensor_dev) != 0) {
             break;
         }
+        fpsensor_power_enable(1);
         fpsensor_spi_clk_enable(1);
         //regist irq
         irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
@@ -399,10 +425,6 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
         fpsensor_disable_irq(fpsensor_dev);
         fpsensor_gpio_wirte(FPSENSOR_RST_PIN,  0);
         mdelay(1);
-        retval = regulator_enable(g_fpsensor->fp_regulator);
-        if (retval) {
-            fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
-        }
         fpsensor_debug(INFO_LOG, "%s: fpsensor init finished======\n", __func__);
         break;
 
@@ -448,18 +470,12 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
         fpsensor_spi_clk_enable(0);
         break;
     case FPSENSOR_IOC_ENABLE_POWER:
-        fpsensor_debug(INFO_LOG, "%s: FPSENSOR_IOC_ENABLE_POWER ======\n", __func__);
-        retval = regulator_enable(g_fpsensor->fp_regulator);
-        if (retval) {
-            fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
-        }
+        fpsensor_debug(ERR_LOG, "%s: FPSENSOR_IOC_ENABLE_POWER ======\n", __func__);
+        fpsensor_power_enable(1);
         break;
     case FPSENSOR_IOC_DISABLE_POWER:
-        fpsensor_debug(INFO_LOG, "%s: FPSENSOR_IOC_DISABLE_POWER ======\n", __func__);
-        retval = regulator_disable(g_fpsensor->fp_regulator);
-        if (retval) {
-            fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
-        }
+        fpsensor_debug(ERR_LOG, "%s: FPSENSOR_IOC_DISABLE_POWER ======\n", __func__);
+        fpsensor_power_enable(0);
         break;
     case FPSENSOR_IOC_REMOVE:
         fpsensor_gpio_wirte(FPSENSOR_RST_PIN,  0);
@@ -470,11 +486,9 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 	    gpio_free(fpsensor_dev->irq_gpio);
         }
         fpsensor_dev->device_available = 0;
-        retval = regulator_disable(g_fpsensor->fp_regulator);
-        if (retval) {
-            fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
-        }
+        fpsensor_power_enable(0);
         if (fpsensor_dev->fp_regulator) {
+            fpsensor_debug(ERR_LOG, "%s: regulator_put ======\n", __func__);
             regulator_put(fpsensor_dev->fp_regulator);
             fpsensor_dev->fp_regulator = NULL;
         }
@@ -587,6 +601,7 @@ static int fpsensor_release(struct inode *inode, struct file *filp)
         fpsensor_debug(INFO_LOG, "%s, disble_irq. irq = %d\n", __func__, fpsensor_dev->irq);
         fpsensor_disable_irq(fpsensor_dev);
     }
+    fpsensor_power_enable(0);
     fpsensor_dev->device_available = 0;
     FUNC_EXIT();
     return status;

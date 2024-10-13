@@ -38,6 +38,7 @@
 #include <linux/hardware_info.h>
 
 #include "sp2130_charger.h"
+struct sp2130 *otg_bq;
 
 /* ADC channel*/
 enum sp2130_adc_channel{
@@ -1716,10 +1717,10 @@ static int sp2130_init_device(struct sp2130 *bq)
     sp2130_write_byte(bq, SP2130_REG_02, 0xB2);
     sp2130_write_byte(bq, SP2130_REG_03, 0x28);
     sp2130_write_byte(bq, SP2130_REG_04, 0x80);
-    sp2130_write_byte(bq, SP2130_REG_05, 0x06);
+    sp2130_write_byte(bq, SP2130_REG_05, 0x02); //set AC_OVP as 11v
     //sp2130_write_byte(bq, SP2130_REG_06, 0x41);
-    sp2130_write_byte(bq, SP2130_REG_07, 0x3C);
-    sp2130_write_byte(bq, SP2130_REG_08, 0x35);
+    sp2130_write_byte(bq, SP2130_REG_07, 0x32); //set BUS_OVP as 11v
+    sp2130_write_byte(bq, SP2130_REG_08, 0x32); //set BUS_OVP_ALM as 11v
     sp2130_write_byte(bq, SP2130_REG_09, 0x06);
     sp2130_write_byte(bq, SP2130_REG_0A, 0x0A);
     //sp2130_write_byte(bq, SP2130_REG_0B, 0x41);
@@ -1736,7 +1737,10 @@ static int sp2130_init_device(struct sp2130 *bq)
     sp2130_write_byte(bq, SP2130_REG_16, 0x0E);//0x06
 
     sp2130_write_byte(bq, SP2130_REG_32, 0x90);
-
+/* +S96818AA1-8255, zhouxiaopeng2.wt, MODIFY, 20230629, increase delay to prevent current jitter effets */
+	sp2130_write_byte(bq, SP2130_REG_2E, 0xE4);
+	sp2130_write_byte(bq, SP2130_REG_33, 0X0B);
+/* -S96818AA1-8255, zhouxiaopeng2.wt, MODIFY, 20230629, increase delay to prevent current jitter effets */
 	return 0;
 }
 
@@ -2353,6 +2357,30 @@ static int sp2130_irq_init(struct sp2130 *chip)
 	return ret;
 }
 
+/* +S96818AA1-1936,zhouxiaopeng2.wt,add,20230803,Modify OTG current path */
+int sp2130_set_otg_txmode(bool enable)
+{
+	int ret = 0;
+	u8 val1,val2;
+	if (!otg_bq)
+		return 0;
+	if (enable) {
+		val1 = SP2130_OTG_ENABLE;
+		val2 = SP2130_ACDRV1_ENABLE;
+		sp2130_update_bits(otg_bq, SP2130_REG_2F,SP2130_EN_OTG_MASK, val1 <<= SP2130_EN_OTG_SHIFT);
+		ret = sp2130_update_bits(otg_bq, SP2130_REG_30,SP2130_EN_ACDRV1_MASK, val2 <<= SP2130_EN_ACDRV1_SHIFT);
+	} else {
+		val1 = SP2130_ACDRV1_DISABLE;
+		val2 = SP2130_OTG_DISABLE;
+		sp2130_update_bits(otg_bq, SP2130_REG_30,SP2130_EN_ACDRV1_MASK, val1 <<= SP2130_EN_ACDRV1_SHIFT);
+		ret = sp2130_update_bits(otg_bq, SP2130_REG_2F,SP2130_EN_OTG_MASK, val2 <<= SP2130_EN_OTG_SHIFT);
+	}
+	printk("sp2130_set_otg_txmode = %d \n", enable);
+	return ret;
+}
+EXPORT_SYMBOL(sp2130_set_otg_txmode);
+/* -S96818AA1-1936,zhouxiaopeng2.wt,add,20230803,Modify OTG current path */
+
 static int sp2130_charger_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
@@ -2450,6 +2478,7 @@ static int sp2130_charger_probe(struct i2c_client *client,
 	hardwareinfo_set_prop(HARDWARE_CHARGER_PUMP, "SP2130");
 	/* -Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
 
+	otg_bq = bq;
 	return 0;
 
 err_1:

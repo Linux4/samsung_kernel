@@ -1717,11 +1717,14 @@ extern char *saved_command_line;
 static int __init tpd_driver_init(void)
 {
 
-    if (!strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_truly")){
-        if (!strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")){
-			return  -1;
+    if (!strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd_sharp")) {
+		if (!strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_truly")){
+			if (!strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")){
+				return  -1;
+			}
 		}
 	}
+
     FTS_FUNC_ENTER();
     FTS_INFO("Driver version: %s", FTS_DRIVER_VERSION);
     tpd_get_dts_info();

@@ -67,7 +67,7 @@ int disp_lcm_is_partial_support(struct disp_lcm_handle *plcm);
 int disp_lcm_validate_roi(struct disp_lcm_handle *plcm,
 	int *x, int *y, int *w, int *h);
 int disp_lcm_aod(struct disp_lcm_handle *plcm, int enter);
-
+int get_lcm_backlight_level(void);
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 /*-----------------------DynFPS start-----------------------------------*/
 int disp_lcm_is_dynfps_support(struct disp_lcm_handle *plcm);

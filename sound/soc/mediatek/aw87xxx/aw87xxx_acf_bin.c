@@ -613,6 +613,7 @@ static int aw_parse_dev_type_v_0_0_0_1(struct device *dev,
 			ret = aw_check_data_type_is_monitor_v_0_0_0_1(dev, &acf_dde[i]);
 			if (ret == 0) {
 				prof_desc = NULL;
+				continue;
 			} else {
 				prof_desc = &all_prof_info->prof_desc[acf_dde[i].dev_profile];
 			}
@@ -659,6 +660,7 @@ static int aw_parse_default_type_v_0_0_0_1(struct device *dev,
 			ret = aw_check_data_type_is_monitor_v_0_0_0_1(dev, &acf_dde[i]);
 			if (ret == 0) {
 				prof_desc = NULL;
+				continue;
 			} else {
 				prof_desc = &all_prof_info->prof_desc[acf_dde[i].dev_profile];
 			}

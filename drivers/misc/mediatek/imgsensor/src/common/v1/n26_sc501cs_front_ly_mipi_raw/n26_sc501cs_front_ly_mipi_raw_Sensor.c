@@ -27,7 +27,8 @@
 #define LOG_INF(format, args...)    \
     pr_info(PFX "[%s] " format, __func__, ##args)
 
-#define MULTI_WRITE 0
+//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
+#define MULTI_WRITE 1
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 // +bug727089, liangyiyi.wt, MODIFY, 2022/3/29, update setting for 1st front camera module consistency by fae
 static struct imgsensor_info_struct imgsensor_info = {
@@ -560,7 +561,7 @@ static void sensor_init(void)
 // +bug727089, liangyiyi.wt, MODIFY, 2022/3/2, modify 1st front camera read otp by fae
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_preview_n26sc501csfrontly[] = {
-    0x0103,0x01,
+    //0x0103,0x01,//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
     0x0100,0x00,
     0x36e9,0x80,
     0x37f9,0x80,
@@ -650,7 +651,7 @@ kal_uint16 addr_data_pair_preview_n26sc501csfrontly[] = {
     0x5788,0x07,
     0x5789,0x02,
     0x5901,0x04,
-    0x0100,0x01
+    0x0100,0x01//+ExtB P231014-02494, wuwenhao2.wt,modify, 2023/10/18,Low probability front camera screen mosaic
 };
 #endif
 
@@ -662,8 +663,8 @@ static void preview_setting(void)
          sizeof(addr_data_pair_preview_n26sc501csfrontly) /
          sizeof(kal_uint16));
 #else
-     write_cmos_sensor8(0x0103,0x01);
-     mdelay(10);
+     //write_cmos_sensor8(0x0103,0x01);//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
+     //mdelay(10);
      write_cmos_sensor8(0x0100,0x00);
      write_cmos_sensor8(0x36e9,0x80);
      write_cmos_sensor8(0x37f9,0x80);
@@ -753,13 +754,13 @@ static void preview_setting(void)
      write_cmos_sensor8(0x5788,0x07);
      write_cmos_sensor8(0x5789,0x02);
      write_cmos_sensor8(0x5901,0x04);
-     write_cmos_sensor8(0x0100,0x01);
+     //write_cmos_sensor8(0x0100,0x01);//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
 #endif
 }
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_capture_fps_n26sc501csfrontly[] = {
-    0x0103,0x01,
+    //0x0103,0x01,//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
     0x0100,0x00,
     0x36e9,0x80,
     0x37f9,0x80,
@@ -840,11 +841,11 @@ kal_uint16 addr_data_pair_capture_fps_n26sc501csfrontly[] = {
     0x5787,0x08,
     0x5788,0x07,
     0x5789,0x02,
-    0x0100,0x01
+    0x0100,0x01//+ExtB P231014-02494, wuwenhao2.wt,modify, 2023/10/18,Low probability front camera screen mosaic
 };
 
 kal_uint16 addr_data_pair_capture_30fps_n26sc501csfrontly[] = {
-    0x0103,0x01,
+    //0x0103,0x01,//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
     0x0100,0x00,
     0x36e9,0x80,
     0x37f9,0x80,
@@ -925,7 +926,7 @@ kal_uint16 addr_data_pair_capture_30fps_n26sc501csfrontly[] = {
     0x5787,0x08,
     0x5788,0x07,
     0x5789,0x02,
-    0x0100,0x01
+    0x0100,0x01//+ExtB P231014-02494, wuwenhao2.wt,modify, 2023/10/18,Low probability front camera screen mosaic
 };
 #endif
 
@@ -946,8 +947,8 @@ static void capture_setting(kal_uint16 currefps)
 #else
      if (currefps == 300) {
      LOG_INF("capture_setting fps = 300");
-     write_cmos_sensor8(0x0103,0x01);
-     mdelay(10);
+     //write_cmos_sensor8(0x0103,0x01);//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
+     //mdelay(10);
      write_cmos_sensor8(0x0100,0x00);
      write_cmos_sensor8(0x36e9,0x80);
      write_cmos_sensor8(0x37f9,0x80);
@@ -1028,11 +1029,11 @@ static void capture_setting(kal_uint16 currefps)
      write_cmos_sensor8(0x5787,0x08);
      write_cmos_sensor8(0x5788,0x07);
      write_cmos_sensor8(0x5789,0x02);
-     write_cmos_sensor8(0x0100,0x01);
+     //write_cmos_sensor8(0x0100,0x01);//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
      } else {
      LOG_INF("capture_setting fps not 300");
-     write_cmos_sensor8(0x0103,0x01);
-     mdelay(10);
+     //write_cmos_sensor8(0x0103,0x01);//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
+     //mdelay(10);
      write_cmos_sensor8(0x0100,0x00);
      write_cmos_sensor8(0x36e9,0x80);
      write_cmos_sensor8(0x37f9,0x80);
@@ -1113,7 +1114,7 @@ static void capture_setting(kal_uint16 currefps)
      write_cmos_sensor8(0x5787,0x08);
      write_cmos_sensor8(0x5788,0x07);
      write_cmos_sensor8(0x5789,0x02);
-     write_cmos_sensor8(0x0100,0x01);
+     //write_cmos_sensor8(0x0100,0x01);//+ExtB P230925-09847, wuwenhao2.wt,modify, 2023/10/09,Video mode switching resolution blinks green
      }
 #endif
 }
@@ -1208,7 +1209,7 @@ kal_uint16 addr_data_pair_hs_video_n26sc501csfrontly[] = {
 static void hs_video_setting(void)
 {
 #if MULTI_WRITE
-     n26sc501csfrongly_table_write_cmos_sensor(
+     n26sc501csfrontly_table_write_cmos_sensor(
           addr_data_pair_hs_video_n26sc501csfrontly,
           sizeof(addr_data_pair_hs_video_n26sc501csfrontly) /
           sizeof(kal_uint16));

@@ -99,7 +99,9 @@ static struct fts_gesture_st fts_gesture_data;
 //+S96818AA1-1936,wangtao14.wt,modify,2023/05/17,ft8057s tp gesture
 bool fts_gestrue_status = DISABLE;
 //-S96818AA1-1936,wangtao14.wt,modify,2023/05/17,ft8057s tp gesture
-
+//+S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
+bool fts_sensitivity_status = DISABLE;
+//-S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
 /*****************************************************************************
 * Global variable or extern global variabls/functions
 *****************************************************************************/
@@ -485,7 +487,39 @@ static void aot_enable(void *device_data)
     FTS_INFO( "%s: %s,sec->cmd_state == %d\n", __func__, buff, sec->cmd_state);
     sec_cmd_set_cmd_exit(sec);
 }
-
+//+S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
+extern int fts_ex_mode_switch(enum _ex_mode mode, u8 value);
+static void glove_mode(void *device_data)
+{
+    struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+    char buff[SEC_CMD_STR_LEN] = { 0 };
+    unsigned int buf[4];
+    int ret = 0;
+    FTS_INFO("sensitivity_enable Enter.\n");
+    sec_cmd_set_default_result(sec);
+    buf[0] = sec->cmd_param[0];
+    if(buf[0] == 1){
+    FTS_DEBUG("enter glove mode");
+    ret = fts_ex_mode_switch(MODE_GLOVE, ENABLE);
+    if (ret >= 0){
+        fts_data->glove_mode = ENABLE;
+        fts_sensitivity_status = fts_data->glove_mode;
+    }
+    }else{
+    FTS_DEBUG("exit glove mode");
+    ret = fts_ex_mode_switch(MODE_GLOVE, DISABLE);
+    if (ret >= 0) {
+        fts_data->glove_mode = DISABLE;
+        fts_sensitivity_status = fts_data->glove_mode;
+        }
+    }
+    snprintf(buff, sizeof(buff), "%s", "OK");
+    sec->cmd_state = SEC_CMD_STATUS_OK;
+    sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+    FTS_INFO( "%s: %s,sec->cmd_state == %d\n", __func__, buff, sec->cmd_state);
+    sec_cmd_set_cmd_exit(sec);
+}
+//-S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
 static void not_support_cmd(void *device_data)
 {
     struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -501,14 +535,15 @@ static void not_support_cmd(void *device_data)
 
     FTS_INFO("%s: %s\n", __func__, buff);
 }
-
+//+S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
 struct sec_cmd fts_commands[] = {
     {SEC_CMD("get_fw_ver_ic", get_fw_ver_ic),},
     {SEC_CMD("get_fw_ver_bin", get_fw_ver_bin),},
     {SEC_CMD("aot_enable", aot_enable),},
     {SEC_CMD("not_support_cmd", not_support_cmd),},
+    {SEC_CMD("glove_mode", glove_mode),},
 };
-
+//-S96818AA1-1936,wangtao14.wt,modify,2023/06/02,ft8057s tp High sensitivity
 static ssize_t fts_support_feature(struct device *dev,
     struct device_attribute *attr, char *buf)
 {

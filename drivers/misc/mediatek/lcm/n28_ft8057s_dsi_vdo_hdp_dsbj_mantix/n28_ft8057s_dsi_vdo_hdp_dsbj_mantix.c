@@ -69,8 +69,10 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #define LCM_DSI_CMD_MODE									0
 #define FRAME_WIDTH										(720)
 #define FRAME_HEIGHT									(1600)
-#define LCM_PHYSICAL_WIDTH								(67932)
-#define LCM_PHYSICAL_HEIGHT								(150960)
+//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/14,nt36528 modify the physical size of the screen
+#define LCM_PHYSICAL_WIDTH								(70380)
+#define LCM_PHYSICAL_HEIGHT								(156240)
+//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/14,nt36528 modify the physical size of the screen
 #define REGFLAG_DELAY			0xFFFC
 #define REGFLAG_UDELAY			0xFFFB
 #define REGFLAG_END_OF_TABLE	0xFFFD
@@ -92,7 +94,12 @@ static struct LCM_setting_table lcm_suspend_setting[] = {
 	{0x28, 0,{0x00}},
 	{REGFLAG_DELAY, 20,{}},
 	{0x10, 0,{0x00}},
-	{REGFLAG_DELAY, 120,{}},
+	//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/06,reduce sleep power consumption
+	{REGFLAG_DELAY, 140,{}},
+	{0x00, 1,{0x00}},
+	{0xF7, 4,{0x5A,0xA5,0x95,0x27}},
+	{REGFLAG_DELAY, 3,{}},
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/06,reduce sleep power consumption
 };
 static struct LCM_setting_table init_setting_vdo[] = {
 	{0x00, 1, {0x00}},
@@ -349,8 +356,8 @@ static struct LCM_setting_table init_setting_vdo[] = {
 	{0xFF, 3, {0x00, 0x00, 0x00}},
 	{0x00, 1, {0x80}},
 	{0xFF, 2, {0x00, 0x00}},
-	{0x51, 2, {0xFF, 0x0F}},
-	{0x53, 1, {0x2C}},
+	{0x51, 2, {0x00, 0x00}},//CABC 12bit
+	{0x53, 1, {0x24}},//close dimming
 	{0x55, 1, {0x00}},
 	{0x11, 0, {}},
 	{REGFLAG_DELAY,100, {}},
@@ -358,10 +365,7 @@ static struct LCM_setting_table init_setting_vdo[] = {
 	{0x35, 1, {0x00}},
 	{REGFLAG_DELAY,10, {}},
 };
-static struct LCM_setting_table bl_level[] = {
-	{ 0x51, 0x02, {0xFF,0x0F} },
-	{ REGFLAG_END_OF_TABLE, 0x00, {} }
-};
+
 static void push_table(void *cmdq, struct LCM_setting_table *table,
 	unsigned int count, unsigned char force_update)
 {
@@ -419,6 +423,7 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	/* Highly depends on LCD driver capability. */
 	params->dsi.packet_size = 256;
 	/* video mode timing */
+	//+S96818AA1-1936,liyuhong1.wt,modify,2023/07/05,adjust mipi 660Mhz
 	params->dsi.PS = LCM_PACKED_PS_24BIT_RGB888;
 	params->dsi.vertical_sync_active = 6;
 	params->dsi.vertical_backporch = 28;
@@ -428,7 +433,7 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	//+S96818AA1-1936,liuzhizun2.wt,modify,2023/05/06,adjust frame rate 60hz
 	params->dsi.horizontal_sync_active = 4;
 	params->dsi.horizontal_backporch = 14;
-	params->dsi.horizontal_frontporch = 76;
+	params->dsi.horizontal_frontporch = 156;
 	//-S96818AA1-1936,liuzhizun2.wt,modify,2023/05/06,adjust frame rate 60hz
 	params->dsi.horizontal_active_pixel = FRAME_WIDTH;
 	params->dsi.ssc_range = 4;
@@ -437,9 +442,10 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 #if (LCM_DSI_CMD_MODE)
 	params->dsi.PLL_CLOCK = 282;	/* this value must be in MTK suggested table */
 #else
-	params->dsi.PLL_CLOCK = 300;	/* this value must be in MTK suggested table */
-	params->dsi.data_rate = 600;
+	params->dsi.PLL_CLOCK = 330;	/* this value must be in MTK suggested table */
+	params->dsi.data_rate = 660;
 #endif
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/07/05,adjust mipi 660Mhz
 	//params->dsi.PLL_CK_CMD = 220;
 	//params->dsi.PLL_CK_VDO = 255;
 #else
@@ -448,7 +454,7 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	params->dsi.fbk_div = 0x1;
 #endif
 	/* mipi hopping setting params */
-	params->dsi.dynamic_switch_mipi = 1;
+	params->dsi.dynamic_switch_mipi = 0;    /* turn off frequency hopping */
 	params->dsi.data_rate_dyn = 610;
 	params->dsi.PLL_CLOCK_dyn = 305;
 	params->dsi.horizontal_sync_active_dyn = 4;
@@ -476,7 +482,17 @@ static void lcm_init_power(void)
 	int ret = 0;
 	pr_err("[LCM]ft8057s_dsbj_mantix lcm_init_power !\n");
     lcm_reset_pin(LOW);
-	ret = lcm_power_enable();
+	//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
+	MDELAY(5);
+	//ret = lcm_power_enable();
+	lcm_bais_enp_enable(HIGH);
+  	MDELAY(3);
+  	lcm_bais_enn_enable(HIGH);
+	MDELAY(2);
+	ret = lcm_set_power_reg(0X00,0x0F,(0x1F << 0));
+	ret = lcm_set_power_reg(0X01,0x0F,(0x1F << 0));
+	ret = lcm_set_power_reg(0X03,((1<<0) | (1<<1)),((1<<0) | (1<<1)));
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
     MDELAY(11);
 }
 //+S96818AA1-1936,daijun1.wt,modify,2023/05/06,nt36528 tp add gesture wake-up func
@@ -502,7 +518,8 @@ static void lcm_resume_power(void)
 	pr_err("[LCM]ft8057s_dsbj_mantix lcm_resume_power !\n");
 	lcm_init_power();
 }
-
+static int last_brightness = 0;
+static int dimming_state = 0;
 static void lcm_init(void)
 {
 	pr_err("[LCM] ft8057s_dsbj_mantix lcm_init\n");
@@ -515,6 +532,7 @@ static void lcm_init(void)
 	MDELAY(1);
 	push_table(NULL, init_setting_vdo, sizeof(init_setting_vdo) / sizeof(struct LCM_setting_table), 1);
 	pr_err("[LCM] ft8057s_dsbj_mantix----init success ----\n");
+	dimming_state = 0;
 }
 static void lcm_suspend(void)
 {
@@ -570,9 +588,26 @@ static unsigned int lcm_ata_check(unsigned char *buffer)
 	return 0;
 #endif
 }
+
+static struct LCM_setting_table bl_level[] = {
+	{ 0x51, 0x02, {0xFF,0x0F} },
+};
+
+static struct LCM_setting_table dimming[] = {
+	{ 0x53, 0x01, {0x2C} },
+};
+
 static void lcm_setbacklight_cmdq(void* handle,unsigned int level)
 {
 	unsigned int bl_lvl;
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/07/19,lcd adjust dimming func
+	if((dimming_state == 0) && (last_brightness !=0))
+	{
+		push_table(handle, dimming, sizeof(dimming) / sizeof(struct LCM_setting_table), 1);
+		MDELAY(20);
+		dimming_state = 1;
+	}
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/07/19,lcd adjust dimming func
 	bl_lvl = wingtech_bright_to_bl(level,255,10,4095,48);
 	pr_err("%s,ft8057s_dsbj_mantix backlight: level = %d,bl_lvl=%d\n", __func__, level,bl_lvl);
 	// set 12bit
@@ -580,6 +615,7 @@ static void lcm_setbacklight_cmdq(void* handle,unsigned int level)
 	bl_level[0].para_list[1] = (bl_lvl&0xF);
 	pr_err("ft8057s_dsbj_mantix backlight: para_list[0]=%x,para_list[1]=%x\n",bl_level[0].para_list[0],bl_level[0].para_list[1]);
 	push_table(handle, bl_level, sizeof(bl_level) / sizeof(struct LCM_setting_table), 1);
+	last_brightness = bl_lvl;
 }
 struct LCM_DRIVER n28_ft8057s_dsi_vdo_hdp_dsbj_mantix_drv = {
 	.name = "n28_ft8057s_dsi_vdo_hdp_dsbj_mantix",

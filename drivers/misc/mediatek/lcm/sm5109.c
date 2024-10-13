@@ -305,6 +305,29 @@ void lcm_bais_enn_enable(unsigned int mode)
 }
 EXPORT_SYMBOL(lcm_bais_enn_enable);
 
+//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
+int lcm_set_power_reg(unsigned char addr, unsigned char val, unsigned char mask)
+{
+    unsigned char data = 0;
+    unsigned int ret = 0;
+
+    ret = _lcm_i2c_read_bytes(addr, data);
+    if(ret<0){
+		pr_debug("[LCM][I2C]  lcm_set_power_reg fail\n");
+    }
+    data &= ~mask;
+    data |= val;
+
+    ret = _lcm_i2c_write_bytes(addr, data);
+    if(ret<0){
+        pr_debug("[LCM][I2C]  lcm_set_power_reg fail\n");
+    }
+
+    return ret;
+}
+EXPORT_SYMBOL(lcm_set_power_reg);
+//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
+
 int wingtech_bright_to_bl(int level,int max_bright,int min_bright,int bl_max,int bl_min) {
 	if(!level){
 		return 0;

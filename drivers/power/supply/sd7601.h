@@ -13,10 +13,15 @@
 
 #ifndef SD7601_H_
 #define SD7601_H_
+/* +S96818AA1-6688, zhouxiaopeng2.wt, MODIFY, 20230629, UI_soc reaches 100% after charging stops */
 enum {
 	EVENT_EOC,
 	EVENT_RECHARGE,
+	CHARGER_DEV_NOTIFY_EOC,
+	CHARGER_DEV_NOTIFY_RECHG,
 };
+/* -S96818AA1-6688, zhouxiaopeng2.wt, MODIFY, 20230629, UI_soc reaches 100% after charging stops */
+
 #define DEFAULT_ILIMIT     3000
 #define DEFAULT_VLIMIT		4600
 #define DEFAULT_CC			2000

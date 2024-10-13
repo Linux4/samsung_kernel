@@ -153,6 +153,37 @@ static void _set_vbus(int is_on)
 	}
 }
 
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+void mt_otg_accessory_power(int is_on)
+{
+	DBG(0, "is_on<%d>, control<%d>\n", is_on, vbus_control);
+
+	if (!vbus_control)
+		return;
+
+	if (is_on)
+		_set_vbus(1);
+	else
+		_set_vbus(0);
+}
+#else
+void mt_usb_set_vbus(struct musb *musb, int is_on)
+{
+#ifndef FPGA_PLATFORM
+
+	DBG(0, "is_on<%d>, control<%d>\n", is_on, vbus_control);
+
+	if (!vbus_control)
+		return;
+
+	if (is_on)
+		_set_vbus(1);
+	else
+		_set_vbus(0);
+#endif
+}
+void mt_otg_accessory_power(int is_on) {}
+#endif
 int mt_usb_get_vbus_status(struct musb *musb)
 {
 #if 1
@@ -228,7 +259,7 @@ void mt_usb_host_disconnect(int delay)
 }
 EXPORT_SYMBOL(mt_usb_host_disconnect);
 
-static bool musb_is_host(void)
+bool musb_is_host(void)
 {
 	bool host_mode = 0;
 

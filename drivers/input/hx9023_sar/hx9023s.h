@@ -236,6 +236,9 @@ struct hx9023s_channel_info {
     bool enabled;
     bool used;
     int state;
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add sar sensor type*/
+    int type;
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add sar sensor type*/
 #if !HX9023S_REPORT_EVKEY
     struct sensors_classdev classdev;
 #endif
@@ -270,11 +273,17 @@ static struct hx9023s_channel_info hx9023_channels[] = {
         .name = "grip_sensor",
         .enabled = false,
         .used = false,
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add sar sensor type*/
+        .type = 65560,
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add sar sensor type*/
     },
     {
         .name = "grip_sensor_wifi",
         .enabled = false,
         .used = false,
+/* +S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add sar sensor type*/
+        .type = 65575,
+/* -S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add sar sensor type*/
     },
 //+S96818AA1-1936, liuling3.wt,ADD, 2023/05/17, add sar reference channel switch
     {

@@ -998,6 +998,15 @@ void do_sw_jeita_state_machine(struct mtk_charger *info)
 				jeita_cc = info->data.ac_charger_current;
 		
 		}
+/*+S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	if (1) {
+		int cycle_fv = wt_set_batt_cycle_fv(NULL,false);
+		if ((cycle_fv != 0) && (sw_jeita->cv > cycle_fv))
+			sw_jeita->cv = cycle_fv;
+	}
+#endif
+/*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 		chr_err("[SW_JEITA] sm = %d, jeita_cc = %d, cv = %d, \n",sw_jeita->sm,jeita_cc,sw_jeita->cv);
 		if(info->wtchg_info->lcm_on){
 			if(ap_temp > info->data.ap_lcmon_t0_thres){

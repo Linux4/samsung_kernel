@@ -141,6 +141,8 @@ static char* hwid_get(void)
 //Bug 432505 njm@wt, 20180314 end
 
 /*get lcm serialnum */
+/* +Req S96818AA1-1936,liuzhizun2.wt,modify,2023/06/07, td4160 read panel sn*/
+unsigned char n28_lcm_sn[20];
 char lcm_serialnum[HARDWARE_MAX_ITEM_LONGTH];
 static char* hw_lcm_serialnum_get(void)
 {
@@ -148,10 +150,19 @@ static char* hw_lcm_serialnum_get(void)
 	char* s2="not found";
 	char *ptr =NULL;
 
-	s1 = strstr(saved_command_line, "lcm_serialnum:");
-	if(!s1) {
-		printk("lcm_serialnum not found in cmdline\n");
-		return s2;
+	if ((strcmp(Lcm_name, "n28_td4160_dsi_vdo_hdp_xinxian_inx") == 0)
+			|| (strcmp(Lcm_name, "n28_td4160_dsi_vdo_hdp_boe_boe") == 0)) {
+		s1 = n28_lcm_sn;
+		strncpy(lcm_serialnum, n28_lcm_sn, 20);
+		lcm_serialnum[20] = '\0';
+		printk("lcm_serialnum found in tp : %s\n", lcm_serialnum);
+		return s1;
+	} else {
+		s1 = strstr(saved_command_line, "lcm_serialnum:");
+		if(!s1) {
+			printk("lcm_serialnum not found in cmdline\n");
+			return s2;
+		}
 	}
 	s1 += strlen("lcm_serialnum:");
 	ptr=s1;
@@ -164,6 +175,7 @@ static char* hw_lcm_serialnum_get(void)
 	s1 = lcm_serialnum;
 	return s1;
 }
+/* -Req S96818AA1-1936,liuzhizun2.wt,modify,2023/06/07, td4160 read panel sn*/
 
 static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long arg)
 {

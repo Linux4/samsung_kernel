@@ -161,8 +161,10 @@ struct sensors_classdev {
 					unsigned int max_latency);
 	int	(*sensors_enable_wakeup)(struct sensors_classdev *sensor_cdev,
 					unsigned int enable);
+//+S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal
 	int	(*sensors_flush)(struct sensors_classdev *sensors_cdev,
-					unsigned char val);
+                    unsigned char flush);
+//-S96818AA1-1936, liuling3.wt,ADD, 2023/06/25,  add flush node for ss sensor hal
 	int	(*sensors_calibrate)(struct sensors_classdev *sensor_cdev,
 					int axis, int apply_now);
 	int	(*sensors_write_cal_params)(struct sensors_classdev

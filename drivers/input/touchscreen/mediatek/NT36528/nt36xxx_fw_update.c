@@ -22,6 +22,7 @@
 //#include <linux/spu-verify.h>
 
 #include "nt36xxx.h"
+#include "nvt_ts_fw.h"
 
 #if BOOT_UPDATE_FIRMWARE
 
@@ -44,6 +45,10 @@
 
 static struct timeval start, end;
 const struct firmware *fw_entry = NULL;
+#if LOAD_TP_FW_FROM_H
+const struct firmware *fw_entry_mp = NULL;
+struct firmware *request_fw_headfile = NULL;
+#endif
 static size_t fw_need_write_size = 0;
 static uint8_t *fwbuf = NULL;
 //UMS
@@ -299,15 +304,30 @@ Description:
 return:
 	n.a.
 *******************************************************/
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
 static void update_firmware_release(void)
 {
+#if LOAD_TP_FW_FROM_H
+	if (request_fw_headfile) {
+		kfree(request_fw_headfile);
+	}
+
+	if (fw_entry_mp) {
+		release_firmware(fw_entry_mp);
+	}
+
+	request_fw_headfile = NULL;
+	fw_entry_mp = NULL;
+	fw_entry = NULL;
+#else
 	if (fw_entry) {
 		release_firmware(fw_entry);
 	}
 
 	fw_entry = NULL;
+#endif
 }
-
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
 /*******************************************************
 Description:
 	Novatek touchscreen request update firmware function.
@@ -337,15 +357,52 @@ static int32_t update_firmware_request(const char *filename)
 				ts->isUMS = false;
 			}
 		}
-
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
 		if(!ts->isUMS){
+			#if LOAD_TP_FW_FROM_H
+			if ((strcmp(filename, BOOT_UPDATE_FIRMWARE_NAME)) &&
+				(strcmp(filename, MP_UPDATE_FIRMWARE_NAME))) {
+				input_err(true, &ts->client->dev, "filename %s not support\n", filename);
+				goto request_fail;
+			}
+
+			//LOAD TP FW from headfile
+			if (!strcmp(filename, BOOT_UPDATE_FIRMWARE_NAME)) {
+				input_info(true, &ts->client->dev, "request normal firmware from headfile\n");
+
+				request_fw_headfile = kzalloc(sizeof(struct firmware), GFP_KERNEL);
+				if(request_fw_headfile == NULL) {
+					input_info(true, &ts->client->dev, "request_fw_headfile kzalloc failed!\n");
+					ret = -1;
+					goto request_fail;
+				}
+
+				request_fw_headfile->size = sizeof(NVT_TS_FW);
+				request_fw_headfile->data = NVT_TS_FW;
+
+				fw_entry = request_fw_headfile;
+			}
+
+			//LOAD MP FW from file system
+			else if (!strcmp(filename, MP_UPDATE_FIRMWARE_NAME)) {
+				input_info(true, &ts->client->dev, "request mp firmware\n");
+				ret = request_firmware(&fw_entry_mp, filename, &ts->client->dev);
+				if (ret) {
+					input_info(true, &ts->client->dev, "request mp firmware failed\n");
+					goto request_fail;
+				} else {
+					fw_entry = fw_entry_mp;
+				}
+			}
+			#else
 			ret = request_firmware(&fw_entry, filename, &ts->client->dev);
 			if (ret) {
 				input_err(true, &ts->client->dev, "firmware load failed, ret=%d\n", ret);
 				goto request_fail;
 			}
+			#endif
 		}
-
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
 		// check FW need to write size
 		if (nvt_get_fw_need_write_size(fw_entry)) {
 			input_err(true, &ts->client->dev, "get fw need to write size fail!\n");

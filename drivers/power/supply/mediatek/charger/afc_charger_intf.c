@@ -398,6 +398,10 @@ err:
 */
 bool afc_get_is_connect(struct charger_manager *pinfo)
 {
+	if (pinfo == NULL) {
+		pr_err("%s: pinfo is NULL\n", __func__);
+		return false;
+	}
 
 	return pinfo->afc.is_connect;
 }

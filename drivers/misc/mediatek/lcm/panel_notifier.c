@@ -43,4 +43,24 @@ int panel_notifier_call_chain(unsigned long val, void *v)
 	return blocking_notifier_call_chain(&panel_notifier_list, val, v);
 }
 EXPORT_SYMBOL_GPL(panel_notifier_call_chain);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+static BLOCKING_NOTIFIER_HEAD(usb_notifier_list);
 
+int usb_register_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&usb_notifier_list, nb);
+}
+EXPORT_SYMBOL(usb_register_client);
+
+int usb_unregister_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&usb_notifier_list, nb);
+}
+EXPORT_SYMBOL(usb_unregister_client);
+
+int usb_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&usb_notifier_list, val, v);
+}
+EXPORT_SYMBOL_GPL(usb_notifier_call_chain);
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode

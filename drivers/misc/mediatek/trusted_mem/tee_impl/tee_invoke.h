@@ -8,7 +8,7 @@
 #define TEE_INVOKE_H_
 
 int tee_directly_invoke_cmd(struct trusted_driver_cmd_params *invoke_params);
-
+int m4u_sec_init(void);
 #if defined(CONFIG_MTK_SECURE_MEM_SUPPORT)                                     \
 	&& defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 int secmem_fr_set_prot_shared_region(u64 pa, u32 size, int remote_region_type);

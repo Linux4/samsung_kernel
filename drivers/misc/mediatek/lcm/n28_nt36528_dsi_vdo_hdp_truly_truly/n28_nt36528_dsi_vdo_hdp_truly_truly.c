@@ -69,8 +69,10 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #define LCM_DSI_CMD_MODE									0
 #define FRAME_WIDTH										(720)
 #define FRAME_HEIGHT									(1600)
-#define LCM_PHYSICAL_WIDTH								(67932)
-#define LCM_PHYSICAL_HEIGHT								(150960)
+//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/14,nt36528 modify the physical size of the screen
+#define LCM_PHYSICAL_WIDTH								(70380)
+#define LCM_PHYSICAL_HEIGHT								(156240)
+//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/14,nt36528 modify the physical size of the screen
 #define REGFLAG_DELAY			0xFFFC
 #define REGFLAG_UDELAY			0xFFFB
 #define REGFLAG_END_OF_TABLE	0xFFFD
@@ -82,6 +84,7 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #ifndef FALSE
 #define FALSE 0
 #endif
+
 struct LCM_setting_table {
 	unsigned int cmd;
 	unsigned char count;
@@ -104,7 +107,7 @@ static struct LCM_setting_table init_setting_vdo[] = {
 	{0x1F, 1, {0x33}},//230424 update Gate CTRL
 	{0x6D, 1, {0x22}},//230425 update SD CTRL 1
 	{0x80, 1, {0x64}},
-	{0x94, 1, {0xC0}},//VOP[8]
+	{0x94, 1, {0x80}},//VOP[8]//修正C0->80
 	{0x95, 1, {0x13}},//GVDDP=5.6V //20230518 update
 	{0x96, 1, {0xFF}},//GVDDN=-5.4V //20230518 update
 
@@ -114,12 +117,13 @@ static struct LCM_setting_table init_setting_vdo[] = {
 	{0x12, 1, {0xB4}},
 	{0x15, 1, {0xE9}},
 	{0x16, 1, {0x14}},
-	{0x00, 1, {0x80}},//PWM set 12bit
+	{0x00, 1, {0x60}},//PWM set 11bit
 	{0x07, 1, {0x00}},
-	{0x09, 1, {0x80}},//PWM set 30KHz
+	{0x09, 1, {0xA4}},//PWM set 20khz
 
 	{0xFF, 1, {0x24}},
 	{0xFB, 1, {0x01}},
+	{0xF1, 1, {0x2B}},//reduce peak overshoot of bias current
 	{0x00, 1, {0x26}},
 	{0x01, 1, {0x26}},
 	{0x02, 1, {0x05}},
@@ -174,8 +178,8 @@ static struct LCM_setting_table init_setting_vdo[] = {
 	{0x56, 1, {0x04}},
 	{0x5E, 2, {0x00, 0x08}},
 	{0x59, 1, {0x50}},
-	{0x5A, 1, {0x78}},
-	{0x5B, 1, {0x65}},//230425 update GCK_falling
+	{0x5A, 1, {0xC5}},//230704
+	{0x5B, 1, {0xAE}},//230704 update GCK_falling
 	{0x5C, 1, {0x9F}},//230425 update GCKR_EQT1
 	{0x5D, 1, {0x0F}},//230425 update GCKF_EQT1
 	{0x92, 1, {0xD3}},
@@ -266,7 +270,7 @@ static struct LCM_setting_table init_setting_vdo[] = {
 
 	{0xFF, 1, {0x10}},
 	{0xFB, 1, {0x01}},
-	{0x68, 2, {0x03, 0x01}},//dimming 16/60s
+	{0x68, 2, {0x03, 0x01}},//dimming 16/60s 背光測試抖動問題修改---5/17
 	{0x35, 1, {0x00}},//TE
 	{0x53, 1, {0x2C}},
 	{0x55, 1, {0x00}},
@@ -344,20 +348,22 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	params->dsi.vertical_frontporch = 181;
 	//params->dsi.vertical_frontporch_for_low_power = 540;/*disable dynamic frame rate*/
 	params->dsi.vertical_active_line = FRAME_HEIGHT;
-	//+S96818AA1-1936,liuzhizun2.wt,modify,2023/05/06,adjust frame rate 60hz
+	//+S96818AA1-1936,liyuhong1.wt,modify,2023/05/30,adjust mipi rate 560mbps,optimize GPS interference to 0.5db
 	params->dsi.horizontal_sync_active = 12;
 	params->dsi.horizontal_backporch = 50;
-	params->dsi.horizontal_frontporch = 100;
-	//-S96818AA1-1936,liuzhizun2.wt,modify,2023/05/06,adjust frame rate 60hz
+	params->dsi.horizontal_frontporch = 180;
 	params->dsi.horizontal_active_pixel = FRAME_WIDTH;
 	params->dsi.ssc_range = 4;
+	//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/15,close spread spectrum
 	params->dsi.ssc_disable = 1;
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/15,close spread spectrum
 #ifndef CONFIG_FPGA_EARLY_PORTING
 #if (LCM_DSI_CMD_MODE)
 	params->dsi.PLL_CLOCK = 282;	/* this value must be in MTK suggested table */
 #else
-	params->dsi.PLL_CLOCK = 300;	/* this value must be in MTK suggested table */
-	params->dsi.data_rate = 600;
+	params->dsi.PLL_CLOCK = 330;	/* this value must be in MTK suggested table */
+	params->dsi.data_rate = 660;
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/05/30,adjust mipi rate 560mbps,optimize GPS interference to 0.5db
 #endif
 	//params->dsi.PLL_CK_CMD = 220;
 	//params->dsi.PLL_CK_VDO = 255;
@@ -367,7 +373,7 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	params->dsi.fbk_div = 0x1;
 #endif
 	/* mipi hopping setting params */
-	params->dsi.dynamic_switch_mipi = 1;
+	params->dsi.dynamic_switch_mipi = 0;	/* turn off frequency hopping */
 	params->dsi.data_rate_dyn = 610;
 	params->dsi.PLL_CLOCK_dyn = 305;
 	params->dsi.horizontal_sync_active_dyn = 4;
@@ -432,6 +438,7 @@ static void lcm_init(void)
 	MDELAY(1);
 	push_table(NULL, init_setting_vdo, sizeof(init_setting_vdo) / sizeof(struct LCM_setting_table), 1);
 	pr_err("[LCM] nt36528_truly_truly----init success ----\n");
+
 }
 static void lcm_suspend(void)
 {
@@ -490,14 +497,17 @@ static unsigned int lcm_ata_check(unsigned char *buffer)
 static void lcm_setbacklight_cmdq(void* handle,unsigned int level)
 {
 	unsigned int bl_lvl;
-	bl_lvl = wingtech_bright_to_bl(level,255,10,4095,48);
+	//+S96818AA1-1936,liyuhong1.wt,modify,2023/07/11,nt36528 lcd modify backlight level to 11 bit
+	bl_lvl = wingtech_bright_to_bl(level,255,10,2047,48);
+	//-S96818AA1-1936,liyuhong1.wt,modify,2023/07/11,nt36528 lcd modify backlight level to 11 bit
 	pr_err("%s,nt36528_truly_truly backlight: level = %d,bl_lvl=%d\n", __func__, level,bl_lvl);
-	// set 12bit
+	// set 11bit
 	bl_level[0].para_list[0] = (bl_lvl & 0xF00) >> 8;
 	bl_level[0].para_list[1] = (bl_lvl & 0xFF);
 	pr_err("nt36528_truly_truly backlight: para_list[0]=%x,para_list[1]=%x\n",bl_level[0].para_list[0],bl_level[0].para_list[1]);
 	push_table(handle, bl_level, sizeof(bl_level) / sizeof(struct LCM_setting_table), 1);
 }
+
 struct LCM_DRIVER n28_nt36528_dsi_vdo_hdp_truly_truly_drv = {
 	.name = "n28_nt36528_dsi_vdo_hdp_truly_truly",
 	.set_util_funcs = lcm_set_util_funcs,

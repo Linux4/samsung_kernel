@@ -337,7 +337,14 @@ int pdc_get_setting(int *newvbus, int *newcur,
 	} else if (now_max_watt <= pd_min_watt) {
 		*newidx = pd->pd_buck_idx;
 		buck = true;
-	} else {
+	}
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+	else if(now_max_watt <= pd_max_watt && now_max_watt >= pd_min_watt){
+		*newidx = pd->pd_boost_idx;
+		boost = true;
+	}
+#endif
+	else {
 		*newidx = selected_idx;
 		boost = false;
 		buck = false;

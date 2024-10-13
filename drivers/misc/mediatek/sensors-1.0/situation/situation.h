@@ -30,6 +30,16 @@ enum situation_index_table {
 	tilt_detector,
 	flat,
 	sar,
+//+S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+#ifdef CONFIG_N28_SMART_ALERT_HUB
+    smart_alert,
+#endif
+//-S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+//+S96818AA1-2213, liuling3.wt,ADD, 2023/06/15, add lift_to_wake sensor
+#ifdef CONFIG_N28_LIFT_TO_WAKE
+    lift_to_wake,
+#endif
+//-S96818AA1-2213, liuling3.wt,ADD, 2023/06/15, add lift_to_wake sensor
 	max_situation_support,
 };
 

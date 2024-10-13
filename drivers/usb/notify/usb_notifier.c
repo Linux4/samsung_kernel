@@ -29,7 +29,9 @@
 
 #if defined(CONFIG_USB_MTK_HDRC)
 #include "../../misc/mediatek/usb20/mtk_musb.h"
+#if defined(CONFIG_MACH_MT6833)
 #include "../../misc/mediatek/usb20/mt6833/usb20.h"
+#endif
 #endif
 
 #if defined(CONFIG_EXTCON_MTK_USB)

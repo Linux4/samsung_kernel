@@ -153,7 +153,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.max_framerate = 240,
 	},
 
-	.margin = 0,            //sensor framelength & shutter margin
+	.margin = 16,            //sensor framelength & shutter margin
 	.min_shutter = 1,        //min shutter
 	.max_frame_length = 0x3fff,//max framelength by sensor register's limitation
 	.ae_shut_delay_frame = 0,    //shutter delay frame for AE cycle, 2 frame with ispGain_delay-shut_delay=2-0=2

@@ -308,6 +308,11 @@ static ssize_t power_supply_show_property(struct device *dev,
 		ret = sprintf(buf, "%s\n", value.strval);
 		break;
 #endif
+#if defined (CONFIG_N28_CHARGER_PRIVATE)
+	case POWER_SUPPLY_PROP_CHARGING_TYPE:
+		ret = sprintf(buf, "%s\n", value.strval);
+		break;
+#endif
 	default:
 		ret = sprintf(buf, "%d\n", value.intval);
 	}
@@ -493,6 +498,8 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(batt_temp),
 #endif
 #if defined CONFIG_N28_CHARGER_PRIVATE
+	POWER_SUPPLY_ATTR(direct_charging_status),
+	POWER_SUPPLY_ATTR(charging_type),
 	POWER_SUPPLY_ATTR(upm_bus_voltage),
 	POWER_SUPPLY_ATTR(upm_bus_current),
 	POWER_SUPPLY_ATTR(upm_bat_voltage),

@@ -375,6 +375,11 @@ void set_task_creds_tcnt(struct task_struct *p, int addition)
 
 #else
 
+int is_task_creds_ready(void)
+{
+	return 0;
+}
+
 void set_task_creds_tcnt(struct task_struct *p, int addition)
 {
 	(void)p;

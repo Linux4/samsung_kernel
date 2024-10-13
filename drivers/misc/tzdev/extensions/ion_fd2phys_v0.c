@@ -28,7 +28,7 @@
 #endif
 
 #if defined(CONFIG_ION_FD2PHYS_USE_ION_FROM_STAGING)
-#include "../../../staging/android/ion/ion.h"
+#include "../../../staging/android/mtk_ion/ion.h"
 #include <linux/dma-buf.h>
 #else
 #include <linux/ion.h>

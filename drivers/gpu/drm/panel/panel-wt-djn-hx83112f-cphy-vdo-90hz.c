@@ -38,6 +38,7 @@
 #include "lcm_cust_common.h"
 
 extern u8 rec_esd;				//ESD recover flag global value
+extern int lcm_vsn_flag;		//S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
 
 struct djn {
 	struct device *dev;
@@ -52,6 +53,8 @@ struct djn {
 
 	int error;
 };
+
+extern bool is_kernel_power_off_charging(void);
 
 #define djn_dcs_write_seq(ctx, seq...)                                  \
 	({                                                              \
@@ -225,6 +228,19 @@ static void djn_panel_init(struct djn *ctx)
 	}
 	djn_dcs_write_seq_static(ctx, 0x11);
 	msleep(100);
+
+	//+S96901AA1 liuyongliang.wt 20230621 add two command for djn gongmo line
+	djn_dcs_write_seq_static(ctx, 0xB9, 0x83, 0x11, 0x2F);
+        djn_dcs_write_seq_static(ctx, 0xBD, 0x00);
+        djn_dcs_write_seq_static(ctx, 0xD3, 0x81, 0x14, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x03, 0x03, 0x14,
+	0x14, 0x08, 0x08, 0x08, 0x08, 0x22, 0x18, 0x32, 0x10, 0x1B, 0x00, 0x1B, 0x32, 0x10, 0x11, 0x00, 0x11, 0x32,
+	0x10, 0x08, 0x00, 0x08, 0x00, 0x00, 0x19, 0x09, 0x69);
+	djn_dcs_write_seq_static(ctx, 0xBD, 0x03);
+	djn_dcs_write_seq_static(ctx, 0xBA, 0x00, 0x00, 0x20, 0xC0);
+	djn_dcs_write_seq_static(ctx, 0xBD, 0x00);
+        djn_dcs_write_seq_static(ctx, 0xB9, 0x00, 0x00, 0x00);
+	//-S96901AA1 liuyongliang.wt 20230621 add two command for djn gongmo line
+
 	/* Display On*/
 	djn_dcs_write_seq_static(ctx, 0x29);
 	djn_dcs_write_seq_static(ctx, 0x55, 0x00);
@@ -260,7 +276,6 @@ static int djn_unprepare(struct drm_panel *panel)
 
 	if (!ctx->prepared)
 		return 0;
-
 	djn_dcs_write_seq_static(ctx, MIPI_DCS_SET_DISPLAY_OFF);
 	msleep(50);
 	djn_dcs_write_seq_static(ctx, MIPI_DCS_ENTER_SLEEP_MODE);
@@ -272,6 +287,7 @@ static int djn_unprepare(struct drm_panel *panel)
 		printk("[HXTP]djn_unprepare himax_gesture_status = 0\n ");
 		djn_dcs_write_seq_static(ctx, 0xB9, 0x83, 0x11, 0x2F);	//himax_djn_deep_standby
 		djn_dcs_write_seq_static(ctx, 0xB1, 0x01);
+
 		msleep(20);
 #if 0
 		ctx->reset_gpio = devm_gpiod_get(ctx->dev, "reset", GPIOD_OUT_HIGH);
@@ -325,6 +341,10 @@ static int djn_prepare(struct drm_panel *panel)
 	usleep_range(4000, 4001);
 	ctx->bias_neg = devm_gpiod_get_index(ctx->dev, "bias", 1, GPIOD_OUT_HIGH);
 	gpiod_set_value(ctx->bias_neg, 1);
+	//+S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
+	lcm_vsn_flag = 1;
+	pr_info("prepare djn_ lcm_vsn_flag = %d\n",lcm_vsn_flag);
+	//-S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
 	devm_gpiod_put(ctx->dev, ctx->bias_neg);
 	_lcm_i2c_write_bytes(AVDD_REG, 0xf);
 	_lcm_i2c_write_bytes(AVEE_REG, 0xf);
@@ -467,6 +487,9 @@ static int djn_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle,
 		unsigned int level)
 {
 	char bl_tb0[] = {0x51, 0x0f, 0xff,0x00};
+	//+S96901AA4-194 liuxueyou.wt, 20231016, add, screen backlight flashing during sleep
+	char bl_tb1[] = {0x53, 0x24,0x00,0x00};
+	char bl_tb2[] = {0x53, 0x2c,0x00,0x00};
 
 	pr_info("%s hx83112f backlight = -%d\n", __func__, level);
 	if (level > 255)
@@ -481,9 +504,14 @@ static int djn_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle,
 		return -1;
 
 	cb(dsi, handle, bl_tb0, ARRAY_SIZE(bl_tb0));
-
+	if(level == 0){
+		cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
+	}else if(last_brightness == 0 && level > 0){
+		cb(dsi, handle, bl_tb2, ARRAY_SIZE(bl_tb2));
+	}
+	//-S96901AA4-194 liuxueyou.wt, 20231016, add, screen backlight flashing during sleep
 	last_brightness = level;
-
+	
 	return 0;
 }
 
@@ -730,7 +758,17 @@ static int djn_remove(struct mipi_dsi_device *dsi)
 
 static void djn_panel_shutdown(struct mipi_dsi_device *dsi)
 {
+	struct djn *ctx = mipi_dsi_get_drvdata(dsi);
+
 	pr_info("hx83112f djn%s++\n", __func__);
+	if(true == is_kernel_power_off_charging()) {
+	//+S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
+		lcm_vsn_flag = 0;
+		pr_info("djn_panel_shutdown djn_ lcm_vsn_flag = %d\n",lcm_vsn_flag);
+	//-S96901AA4-1584, liuxueyou.wt, 20231103, add, Flash screen when reboot
+		djn_unprepare(&ctx->panel);
+		pr_info("WT_LCD,is_kernel_power_off_charging is true\n");
+	}
 	himax_gesture_status = 0;
 	pr_info("optimize shutdown sequence himax_gesture_status is 0 %s++\n", __func__);
 }

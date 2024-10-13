@@ -2156,6 +2156,11 @@ int fts_factory_test()
         return -EINVAL;
     }
 
+    if(strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd_sharp")){
+        snprintf(fwname, FILE_NAME_LENGTH, \
+                 "focaltech_ft8722_sharp_txd.ini");
+    }
+
     input_dev = ts_data->input_dev;
     FTS_TEST_DBG("ini file name is :%s", fwname);
 
