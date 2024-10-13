@@ -152,6 +152,7 @@ static DEFINE_SPINLOCK(qrtr_port_lock);
 #define QRTR_BACKUP_HI_SIZE	SZ_16K
 #define QRTR_BACKUP_LO_NUM	20
 #define QRTR_BACKUP_LO_SIZE	SZ_1K
+
 static struct sk_buff_head qrtr_backup_lo;
 static struct sk_buff_head qrtr_backup_hi;
 static struct work_struct qrtr_backup_work;
@@ -873,7 +874,7 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	size_t hdrlen;
 	int errcode, i;
 	bool wake = true;
-	unsigned int svc_id;
+	int svc_id;
 
 	if (len == 0 || len & 3)
 		return -EINVAL;
@@ -992,18 +993,19 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 		if (sock_queue_rcv_skb(&ipc->sk, skb))
 			goto err;
 
-		/* Force wakeup for all packets except for sensors and blacklisted services
+		/**
+		 * Force wakeup for all packets except for sensors and blacklisted services
 		 * from adsp side
 		 */
 		if ((node->nid != 9 && node->nid != 5) ||
-			(node->nid == 5 && wake)) {
+		    (node->nid == 5 && wake)) {
 #if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
 			qrtr_debug_change_ws_name(node, copied_cb.src_node,
-							copied_cb.src_port,
-							copied_cb.dst_node,
-							copied_cb.dst_port,
-							ipc->sent_name,
-							ipc->sent_pid);
+					copied_cb.src_port,
+					copied_cb.dst_node,
+					copied_cb.dst_port,
+					ipc->sent_name,
+					ipc->sent_pid);
 #endif
 			pm_wakeup_ws_event(node->ws, qrtr_wakeup_ms, true);
 		}

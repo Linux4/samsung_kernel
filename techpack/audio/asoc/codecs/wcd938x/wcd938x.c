@@ -2164,8 +2164,8 @@ static int wcd938x_event_notify(struct notifier_block *block,
 		wcd938x->mbhc->wcd_mbhc.deinit_in_progress = true;
 		mbhc = &wcd938x->mbhc->wcd_mbhc;
 		if(mbhc->mbhc_cfg)
-		wcd938x->usbc_hs_status = get_usbc_hs_status(component,
-						mbhc->mbhc_cfg);
+			wcd938x->usbc_hs_status = get_usbc_hs_status(component,
+							mbhc->mbhc_cfg);
 		wcd938x_mbhc_ssr_down(wcd938x->mbhc, component);
 		wcd938x_reset_low(wcd938x->dev);
 		break;
@@ -2188,7 +2188,7 @@ static int wcd938x_event_notify(struct notifier_block *block,
 				__func__);
 		} else {
 			if(mbhc->mbhc_cfg)
-			wcd938x_mbhc_hs_detect(component, mbhc->mbhc_cfg);
+				wcd938x_mbhc_hs_detect(component, mbhc->mbhc_cfg);
 		}
 		wcd938x->mbhc->wcd_mbhc.deinit_in_progress = false;
 		wcd938x->dev_up = true;

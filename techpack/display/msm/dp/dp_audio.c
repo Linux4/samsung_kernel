@@ -807,7 +807,7 @@ static int dp_audio_on(struct dp_audio *dp_audio)
 	if (rc)
 		goto end;
 
-	DP_INFO("success\n");
+	DP_INFO("[AUDIO_ON]success\n");
 end:
 	return rc;
 }
@@ -850,7 +850,7 @@ static int dp_audio_off(struct dp_audio *dp_audio)
 	if (rc)
 		goto end;
 
-	DP_INFO("success\n");
+	DP_INFO("[AUDIO_OFF]success\n");
 end:
 	dp_audio_config(audio, EXT_DISPLAY_CABLE_DISCONNECT);
 

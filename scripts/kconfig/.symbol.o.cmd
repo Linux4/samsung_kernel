@@ -1,4 +1,4 @@
-cmd_scripts/kconfig/symbol.o := /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/bin/clang -Wp,-MD,scripts/kconfig/.symbol.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89       -c -o scripts/kconfig/symbol.o scripts/kconfig/symbol.c
+cmd_scripts/kconfig/symbol.o := /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/bin/clang -Wp,-MD,scripts/kconfig/.symbol.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89       -c -o scripts/kconfig/symbol.o scripts/kconfig/symbol.c
 
 source_scripts/kconfig/symbol.o := scripts/kconfig/symbol.c
 
@@ -22,7 +22,7 @@ deps_scripts/kconfig/symbol.o := \
   /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h \
   /usr/include/stdlib.h \
   /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
-  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stddef.h \
+  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stddef.h \
   /usr/include/x86_64-linux-gnu/bits/waitflags.h \
   /usr/include/x86_64-linux-gnu/bits/waitstatus.h \
   /usr/include/x86_64-linux-gnu/bits/floatn.h \
@@ -62,12 +62,12 @@ deps_scripts/kconfig/symbol.o := \
   /usr/include/x86_64-linux-gnu/bits/libio.h \
   /usr/include/x86_64-linux-gnu/bits/_G_config.h \
   /usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h \
-  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stdarg.h \
+  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stdarg.h \
   /usr/include/x86_64-linux-gnu/bits/stdio_lim.h \
   /usr/include/x86_64-linux-gnu/bits/sys_errlist.h \
   /usr/include/x86_64-linux-gnu/bits/stdio.h \
   scripts/kconfig/list.h \
-  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stdbool.h \
+  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stdbool.h \
   scripts/kconfig/lkc_proto.h \
 
 scripts/kconfig/symbol.o: $(deps_scripts/kconfig/symbol.o)

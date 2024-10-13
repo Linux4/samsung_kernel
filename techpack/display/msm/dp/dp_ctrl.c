@@ -1495,10 +1495,10 @@ static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 		goto end;
 
 	min_link_rate = dp_panel->get_min_req_link_rate(dp_panel);
+	if (!min_link_rate)
+		DP_INFO("timing not found\n");
 
-	if (min_link_rate == 0)
-		DP_INFO("timing not found, set default\n");
-	else if (min_link_rate <= 162000)
+	if (min_link_rate <= 162000)
 		calc_link_rate = 162000;
 	else if (min_link_rate <= 270000)
 		calc_link_rate = 270000;

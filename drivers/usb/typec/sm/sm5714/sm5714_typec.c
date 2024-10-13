@@ -1792,6 +1792,22 @@ void sm5714_usbpd_set_host_on(void *data, int mode)
 		usbpd_data->host_turn_on_event = 0;
 	}
 }
+
+static void sm5714_usbpd_wait_entermode(void *data, int on)
+{
+	struct sm5714_phydrv_data *usbpd_data = data;
+
+	if (!usbpd_data)
+		return;
+
+	pr_info("%s : %d!\n", __func__, on);
+	if (on) {
+		usbpd_data->wait_entermode = 1;
+	} else {
+		usbpd_data->wait_entermode = 0;
+		wake_up_interruptible(&usbpd_data->host_turn_on_wait_q);
+	}
+}
 #endif
 
 static int sm5714_write_msg_header(struct i2c_client *i2c, u8 *buf)
@@ -2364,7 +2380,8 @@ static bool sm5714_poll_status(void *_data, int irq)
 	}
 	mutex_unlock(&pdic_data->lpm_mutex);
 
-	if (intr[3] & SM5714_REG_INT_STATUS4_HRST_RCVED) {
+	if ((intr[3] & SM5714_REG_INT_STATUS4_HRST_RCVED) &&
+			(status[0] & SM5714_REG_INT_STATUS1_ATTACH)) {
 		pdic_data->status_reg |= MSG_HARDRESET;
 		goto out;
 	}
@@ -2897,6 +2914,7 @@ static void sm5714_usbpd_check_rid(struct sm5714_phydrv_data *pdic_data)
 struct usbpd_ops ops_usbpd = {
 	.usbpd_sbu_test_read = sm5714_usbpd_sbu_test_read,
 	.usbpd_set_host_on = sm5714_usbpd_set_host_on,
+	.usbpd_wait_entermode = sm5714_usbpd_wait_entermode,
 	.usbpd_cc_control_command = sm5714_cc_control_command,
 };
 #endif

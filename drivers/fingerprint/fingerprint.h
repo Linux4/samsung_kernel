@@ -31,21 +31,11 @@ enum {
 	SENSOR_OOO = -2,
 	SENSOR_UNKNOWN,
 	SENSOR_FAILED,
-	SENSOR_VIPER,
-	SENSOR_RAPTOR,
-	SENSOR_EGIS,
-	SENSOR_VIPER_WOG,
-	SENSOR_NAMSAN,
-	SENSOR_GOODIX,
-	SENSOR_QBT2000,
-	SENSOR_EGISOPTICAL,
-	SENSOR_GOODIXOPTICAL,
-	SENSOR_MAXIMUM,
+	SENSOR_OK,
 };
 
-#define SENSOR_STATUS_SIZE 12
-static char sensor_status[SENSOR_STATUS_SIZE][10] = {"ooo", "unknown", "failed",
-	"viper", "raptor", "egis", "viper_wog", "namsan", "goodix", "qbt2000", "et7xx", "goodixopt"};
+#define SENSOR_STATUS_SIZE 4
+static char sensor_status[SENSOR_STATUS_SIZE][10] = {"ooo", "unknown", "failed", "okay"};
 
 /* For Finger Detect Mode */
 enum {

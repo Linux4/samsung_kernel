@@ -34,6 +34,8 @@
 #include "usb_notify_sysfs.h"
 
 #define DEFAULT_OVC_POLL_SEC 3
+#define MAX_SECURE_CONNECTION 10
+#define MAX_VAL 0x7FFFFFFF
 
 struct  ovc {
 	struct otg_notify *o_notify;
@@ -107,6 +109,8 @@ struct usb_notify {
 	int sec_whitelist_enable;
 	int reserve_vbus_booster;
 	int disable_state;
+	int restricted;
+	unsigned int secure_connect_group[USB_GROUP_MAX];
 #if defined(CONFIG_USB_HW_PARAM)
 	unsigned long long hw_param[USB_CCIC_HW_PARAM_MAX];
 #endif
@@ -710,7 +714,7 @@ static void update_cable_status(struct otg_notify *n, unsigned long event,
 		if (check_block_event(n, event) ||
 			(check_event_type(u_notify->c_type)
 				& NOTIFY_EVENT_NEED_HOST &&
-					n->unsupport_host))
+					(n->unsupport_host || u_notify->restricted)))
 			u_notify->c_status = (start) ?
 				NOTIFY_EVENT_BLOCKING : NOTIFY_EVENT_BLOCKED;
 		else
@@ -979,6 +983,29 @@ static int control_usb_maximum_speed(struct usb_notify_dev *udev, int speed)
 	return ret;
 }
 
+static int set_notify_lock_state(struct usb_notify_dev *udev)
+{
+	struct otg_notify *n = udev->o_notify;
+	struct usb_notify *u_notify = (struct usb_notify *)(n->u_notify);
+	int i;
+
+	if (udev->secure_lock) {
+		pr_info("%s lock\n", __func__);
+	} else {
+		for (i = 0; i < USB_GROUP_MAX; i++)
+			u_notify->secure_connect_group[i] = 0;
+		pr_info("%s unlock host cable=%d, restricted=%d\n", __func__,
+			is_host_cable_block(n), u_notify->restricted);
+		if (is_host_cable_block(n) && u_notify->restricted) {
+			u_notify->restricted = 0;
+			send_otg_notify(n, VIRT_EVENT(u_notify->c_type), 1);
+		} else
+			u_notify->restricted = 0;
+	}
+
+	return 0;
+}
+
 void send_usb_mdm_uevent(void)
 {
 	struct otg_notify *o_notify = get_otg_notify();
@@ -1009,6 +1036,49 @@ err:
 	return;
 }
 EXPORT_SYMBOL(send_usb_mdm_uevent);
+
+void send_usb_restrict_uevent(int usb_restrict)
+{
+	struct otg_notify *o_notify = get_otg_notify();
+	char *envp[4];
+	char *type = {"TYPE=usbrestrict"};
+	char *state = {"STATE=ADD"};
+	char *words;
+	int index = 0;
+
+	if (!o_notify) {
+		pr_err("%s o_notify is null\n", __func__);
+		goto err;
+	}
+
+	envp[index++] = type;
+	envp[index++] = state;
+
+	switch (usb_restrict) {
+	case USB_SECURE_RESTRICTED:
+		words = "WORDS=securerestrict";
+		break;
+	case USB_SECURE_RELEASE:
+		words = "WORDS=securerelease";
+		break;
+	default:
+		pr_err("%s invalid input\n", __func__);
+		goto err;
+	}
+
+	envp[index++] = words;
+
+	envp[index++] = NULL;
+
+	if (send_usb_notify_uevent(o_notify, envp)) {
+		pr_err("%s error\n", __func__);
+		goto err;
+	}
+	pr_info("%s: %s(%d)\n", __func__, words, usb_restrict);
+err:
+	return;
+}
+EXPORT_SYMBOL(send_usb_restrict_uevent);
 
 void send_usb_certi_uevent(int usb_certi)
 {
@@ -1317,6 +1387,17 @@ static void otg_notify_state(struct otg_notify *n,
 
 	type = check_event_type(event);
 
+	if (virtual && enable) {
+		if (check_event_type(event) & NOTIFY_EVENT_NEED_HOST) {
+			if (!(check_event_type(u_notify->c_type)
+				& NOTIFY_EVENT_NEED_HOST)) {
+				pr_err("event skip. mismatch cable type(%s)\n",
+					event_string(u_notify->c_type));
+				goto no_save_event;
+			}
+		}
+	}
+
 	if (!(type & NOTIFY_EVENT_NOSAVE)) {
 		update_cable_status(n, event, virtual, enable, 1);
 
@@ -1427,6 +1508,13 @@ static void otg_notify_state(struct otg_notify *n,
 				pr_err("now host mode, skip this command\n");
 				goto err;
 			}
+
+			if (u_notify->restricted) {
+				send_usb_restrict_uevent(USB_SECURE_RESTRICTED);
+				pr_err("now restricted, skip this command\n");
+				goto err;
+			}
+
 			mutex_lock(&u_notify->state_lock);
 			u_notify->ndev.mode = NOTIFY_HOST_MODE;
 			u_notify->typec_status.doing_drswap = 0;
@@ -1727,9 +1815,15 @@ static void extra_notify_state(struct otg_notify *n,
 				(NOTIFY_EVENT_HMD_EXT_CURRENT, enable);
 		break;
 	case NOTIFY_EVENT_DEVICE_CONNECT:
-		if (!u_notify->is_device) {
-			u_notify->is_device = 1;
-			send_external_notify(EXTERNAL_NOTIFY_DEVICEADD, 1);
+		if (enable) {
+			if (!u_notify->is_device) {
+				u_notify->is_device = 1;
+				send_external_notify(EXTERNAL_NOTIFY_DEVICEADD, 1);
+			}
+		}
+		if (u_notify->udev.secure_lock) {
+			if (!enable)
+				detect_illegal_condition(NOTIFY_EVENT_SECURE_DISCONNECTION);
 		}
 		break;
 	case NOTIFY_EVENT_GAMEPAD_CONNECT:
@@ -2423,6 +2517,121 @@ done:
 }
 EXPORT_SYMBOL(is_known_usbaudio);
 
+#define MAX_C_D_L (2048)
+int check_usbaudio(struct usb_device *dev)
+{
+	struct otg_notify *o_notify = get_otg_notify();
+	struct usb_notify *u_notify = NULL;
+	struct usb_interface *intf;
+	struct usb_host_interface *alts;
+	unsigned int i;
+	int ret = 0;
+	u16 total_length;
+
+	if (!o_notify) {
+		pr_err("%s o_notify is null\n", __func__);
+		goto done;
+	}
+	u_notify = (struct usb_notify *)(o_notify->u_notify);
+
+	if (!u_notify) {
+		pr_err("%s u_notify structure is null\n",
+			__func__);
+		goto done;
+	}
+
+	if (!u_notify->udev.secure_lock)
+		goto done;
+
+	if (!dev->actconfig) {
+		pr_info("%s no set config\n", __func__);
+		goto done;
+	}
+
+	for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
+		intf = dev->actconfig->interface[i];
+		alts = intf->cur_altsetting;
+
+		if (alts->desc.bInterfaceClass == USB_CLASS_AUDIO) {
+			total_length = le16_to_cpu(dev->actconfig->desc.wTotalLength);
+			if (total_length > MAX_C_D_L) {
+				pr_info("%s total_length %u\n", __func__, total_length);
+				detect_illegal_condition(NOTIFY_EVENT_AUDIO_DESCRIPTOR);
+				ret = -EACCES;
+				break;
+			}
+		}
+	}
+done:
+	return ret;
+}
+EXPORT_SYMBOL(check_usbaudio);
+
+int check_usbgroup(struct usb_device *dev)
+{
+	struct otg_notify *o_notify = get_otg_notify();
+	struct usb_notify *u_notify = NULL;
+	struct usb_interface *intf;
+	struct usb_host_interface *alts;
+	struct usb_device *hdev;
+	unsigned int i;
+	int ret = 0;
+	bool is_audio_group = false;
+
+	if (!o_notify) {
+		pr_err("%s o_notify is null\n", __func__);
+		goto done;
+	}
+	u_notify = (struct usb_notify *)(o_notify->u_notify);
+
+	if (!u_notify) {
+		pr_err("%s u_notify structure is null\n",
+			__func__);
+		goto done;
+	}
+
+	hdev = dev->parent;
+	if (!hdev) {
+		pr_err("%s root hub is not counted\n",
+			__func__);
+		goto done;
+	}
+
+	if (!u_notify->udev.secure_lock)
+		goto done;
+
+	if (!dev->actconfig) {
+		pr_info("%s no set config\n", __func__);
+		goto done;
+	}
+
+	for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
+		intf = dev->actconfig->interface[i];
+		alts = intf->cur_altsetting;
+
+		if (alts->desc.bInterfaceClass == USB_CLASS_AUDIO) {
+			is_audio_group = true;
+			break;
+		}
+	}
+
+	if (is_audio_group) {
+	    if (u_notify->secure_connect_group[USB_GROUP_AUDIO] < MAX_VAL)
+	        u_notify->secure_connect_group[USB_GROUP_AUDIO]++;
+	} else {
+	    if (u_notify->secure_connect_group[USB_GROUP_OTEHR] < MAX_VAL)
+	        u_notify->secure_connect_group[USB_GROUP_OTEHR]++;
+	}
+
+	pr_info("%s current audio_cnt=%d, other_cnt=%d\n", __func__,
+		u_notify->secure_connect_group[USB_GROUP_AUDIO],
+		u_notify->secure_connect_group[USB_GROUP_OTEHR]);
+
+done:
+	return ret;
+}
+EXPORT_SYMBOL(check_usbgroup);
+
 void set_usb_audio_cardnum(int card_num, int bundle, int attach)
 {
 	struct otg_notify *o_notify = get_otg_notify();
@@ -2553,6 +2762,68 @@ err:
 	return ret;
 }
 EXPORT_SYMBOL(send_usb_notify_uevent);
+
+static int check_secure_connection(struct usb_notify *u_notify)
+{
+	int i;
+
+	for (i = 0; i < USB_GROUP_MAX; i++) {
+		if (u_notify->secure_connect_group[i] >= MAX_SECURE_CONNECTION)
+			return true;
+	}
+	return false;
+}
+
+int detect_illegal_condition(int type)
+{
+	struct otg_notify *o_notify = get_otg_notify();
+	struct usb_notify *u_notify;
+	int ret = 0, restricted = 0;
+
+	if (!o_notify) {
+		pr_err("%s otg_notify is null\n", __func__);
+		return ret;
+	}
+
+	u_notify = (struct usb_notify *)(o_notify->u_notify);
+	if (!u_notify) {
+		pr_err("%s usb_notify is null\n", __func__);
+		return ret;
+	}
+
+	pr_info("%s type %d +\n", __func__, type);
+
+	switch (type) {
+	case NOTIFY_EVENT_AUDIO_DESCRIPTOR:
+		restricted = 1;
+#if defined(CONFIG_USB_HW_PARAM)
+		if (o_notify)
+			inc_hw_param(o_notify, USB_HOST_OVER_AUDIO_DESCRIPTOR_COUNT);
+#endif
+		break;
+	case NOTIFY_EVENT_SECURE_DISCONNECTION:
+		if (check_secure_connection(u_notify))
+			restricted = 1;
+		break;
+	default:
+		break;
+	}
+
+	if (restricted) {
+		u_notify->restricted = 1;
+#if defined(CONFIG_USB_HW_PARAM)
+		if (o_notify)
+			inc_hw_param(o_notify, USB_HOST_SB_COUNT);
+#endif
+		if (is_host_cable_enable(o_notify))
+			send_otg_notify(o_notify, VIRT_EVENT(u_notify->c_type), 0);
+	}
+
+	pr_info("%s type %d restricted=%d -\n", __func__, type, restricted);
+
+	return ret;
+}
+EXPORT_SYMBOL(detect_illegal_condition);
 
 #if defined(CONFIG_USB_HW_PARAM)
 unsigned long long *get_hw_param(struct otg_notify *n,
@@ -2816,6 +3087,7 @@ int set_otg_notify(struct otg_notify *n)
 	u_notify->udev.set_mdm = set_notify_mdm;
 	u_notify->udev.control_usb_max_speed = control_usb_maximum_speed;
 	u_notify->udev.fp_hw_param_manager = NULL;
+	u_notify->udev.set_lock_state = set_notify_lock_state;
 	u_notify->udev.o_notify = n;
 
 	ret = usb_notify_dev_register(&u_notify->udev);

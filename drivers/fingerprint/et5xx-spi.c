@@ -811,7 +811,7 @@ static int et5xx_parse_dt(struct device *dev, struct et5xx_data *etspi)
 
 	if (of_property_read_string_index(np, "etspi-chipid", 0,
 			(const char **)&etspi->chipid)) {
-		etspi->chipid = NULL;
+		etspi->chipid = "NULL";
 	}
 	pr_info("chipid: %s\n", etspi->chipid);
 
@@ -910,27 +910,27 @@ static int et5xx_type_check(struct et5xx_data *etspi)
 	 */
 
 	if ((buf1 == 0x00) && (buf2 == 0x10) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET516A sensor\n");
 	} else if ((buf1 == 0x03) && (buf2 == 0x0A) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET510D sensor\n");
 	} else if ((buf1 == 0x03) && (buf2 == 0x14) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET520 sensor\n");
 	} else if ((buf1 == 0x04) && (buf2 == 0x14) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET520E sensor\n");
 	} else if ((buf1 == 0x00) && (buf2 == 0x17) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET523 sensor\n");
 	} else if ((buf2 == 0x1C) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET528 sensor\n");
 	} else {
 		if ((buf4 == 0x00) && (buf5 == 0x66)
 				&& (buf6 == 0x00) && (buf7 == 0x33)) {
-			etspi->sensortype = SENSOR_EGIS;
+			etspi->sensortype = SENSOR_OK;
 			pr_info("sensor type is EGIS ET510C sensor\n");
 		} else {
 			etspi->sensortype = SENSOR_FAILED;
@@ -1061,7 +1061,7 @@ static void et5xx_work_func_debug(struct work_struct *work)
 	pr_info("ldo: %d, sleep: %d, tz: %d, spi_value: 0x%x, type: %s\n",
 		etspi->ldo_enabled, gpio_get_value(etspi->sleepPin),
 		etspi->tz_mode, etspi->spi_value,
-		sensor_status[etspi->sensortype + 2]);
+		etspi->sensortype > 0 ? etspi->chipid : sensor_status[etspi->sensortype + 2]);
 }
 
 static struct et5xx_data *alloc_platformdata(struct device *dev)

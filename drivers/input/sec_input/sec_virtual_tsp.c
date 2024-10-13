@@ -87,6 +87,19 @@ static void sec_virtual_tsp_sub_cmd(void *device_data)
 }
 #endif
 
+static void sec_virtual_not_support_cmd(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	snprintf(buff, sizeof(buff), "%s", "NA");
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
 static void sec_virtual_tsp_switch_cmd(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -286,7 +299,7 @@ static struct sec_cmd tsp_commands[] = {
 
 	{SEC_CMD_H("set_factory_panel", set_factory_panel),},
 	{SEC_CMD("dev_count", dev_count),},
-
+	{SEC_CMD("ligthsensor_detect_enable", sec_virtual_not_support_cmd),},
 	{SEC_CMD("not_support_cmd", sec_virtual_tsp_switch_cmd),},
 };
 

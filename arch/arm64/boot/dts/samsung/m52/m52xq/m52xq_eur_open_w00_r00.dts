@@ -4121,6 +4121,7 @@
 				compatible = "samsung,s2mpb03pmic";
 				reg = <0x56>;
 				s2mpb03,wakeup;
+				phandle = <0xd9>;
 
 				regulators {
 
@@ -4297,7 +4298,7 @@
 				pca9468,ntc-threshold = <0x0>;
 				pca9468,ta-mode = <0x1>;
 				pca9468,ta-max-vol = <0xa037a0>;
-				phandle = <0xd9>;
+				phandle = <0xda>;
 			};
 		};
 	};
@@ -4952,7 +4953,7 @@
 				support_open_short_test;
 				sec,firmware_name = "tsp_stm/fts5cu56a_m52xq.bin";
 				sec,regulator_boot_on;
-				phandle = <0xda>;
+				phandle = <0xdb>;
 			};
 		};
 	};
@@ -5112,7 +5113,7 @@
 				samsung,ub-con-det = <0xffffffff 0x2f 0x0>;
 				samsung,esd-irq-gpio1 = <0xffffffff 0x3 0x0>;
 				qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
-				phandle = <0xdb>;
+				phandle = <0xdc>;
 
 				qcom,mdss-dsi-display-timings {
 
@@ -5247,7 +5248,7 @@
 		__overlay__ {
 
 			panel_067xmm_te_active {
-				phandle = <0xdc>;
+				phandle = <0xdd>;
 
 				mux {
 					pins = "gpio80";
@@ -5262,7 +5263,7 @@
 			};
 
 			panel_067xmm_te_suspend {
-				phandle = <0xdd>;
+				phandle = <0xde>;
 
 				mux {
 					pins = "gpio80";
@@ -5284,7 +5285,7 @@
 		__overlay__ {
 
 			panel_067xmm_reset_active {
-				phandle = <0xde>;
+				phandle = <0xdf>;
 
 				mux {
 					pins = "gpio44";
@@ -5299,7 +5300,7 @@
 			};
 
 			panel_067xmm_reset_suspend {
-				phandle = <0xdf>;
+				phandle = <0xe0>;
 
 				mux {
 					pins = "gpio44";
@@ -5321,7 +5322,7 @@
 		__overlay__ {
 
 			panel_067xmm_ubcon_active {
-				phandle = <0xe0>;
+				phandle = <0xe1>;
 
 				mux {
 					pins = "gpio47";
@@ -5337,7 +5338,7 @@
 			};
 
 			panel_067xmm_ubcon_suspend {
-				phandle = <0xe1>;
+				phandle = <0xe2>;
 
 				mux {
 					pins = "gpio47";
@@ -5360,7 +5361,7 @@
 		__overlay__ {
 
 			panel_067xmm_esd_1_active {
-				phandle = <0xe2>;
+				phandle = <0xe3>;
 
 				mux {
 					pins = "gpio3";
@@ -5376,7 +5377,7 @@
 			};
 
 			panel_067xmm_esd_1_suspend {
-				phandle = <0xe3>;
+				phandle = <0xe4>;
 
 				mux {
 					pins = "gpio3";
@@ -5700,7 +5701,7 @@
 				samsung,ub-con-det = <0xffffffff 0x2f 0x0>;
 				samsung,esd-irq-gpio1 = <0xffffffff 0x3 0x0>;
 				qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
-				phandle = <0xe4>;
+				phandle = <0xe5>;
 
 				qcom,mdss-dsi-display-timings {
 
@@ -5837,7 +5838,7 @@
 		__overlay__ {
 
 			panel_an01_te_active {
-				phandle = <0xe5>;
+				phandle = <0xe6>;
 
 				mux {
 					pins = "gpio80";
@@ -5852,7 +5853,7 @@
 			};
 
 			panel_an01_te_suspend {
-				phandle = <0xe6>;
+				phandle = <0xe7>;
 
 				mux {
 					pins = "gpio80";
@@ -5874,7 +5875,7 @@
 		__overlay__ {
 
 			panel_an01_reset_active {
-				phandle = <0xe7>;
+				phandle = <0xe8>;
 
 				mux {
 					pins = "gpio44";
@@ -5889,7 +5890,7 @@
 			};
 
 			panel_an01_reset_suspend {
-				phandle = <0xe8>;
+				phandle = <0xe9>;
 
 				mux {
 					pins = "gpio44";
@@ -5911,7 +5912,7 @@
 		__overlay__ {
 
 			panel_an01_ubcon_active {
-				phandle = <0xe9>;
+				phandle = <0xea>;
 
 				mux {
 					pins = "gpio47";
@@ -5927,7 +5928,7 @@
 			};
 
 			panel_an01_ubcon_suspend {
-				phandle = <0xea>;
+				phandle = <0xeb>;
 
 				mux {
 					pins = "gpio47";
@@ -5950,7 +5951,7 @@
 		__overlay__ {
 
 			panel_an01_esd_1_active {
-				phandle = <0xeb>;
+				phandle = <0xec>;
 
 				mux {
 					pins = "gpio3";
@@ -5966,7 +5967,7 @@
 			};
 
 			panel_an01_esd_1_suspend {
-				phandle = <0xec>;
+				phandle = <0xed>;
 
 				mux {
 					pins = "gpio3";
@@ -6085,7 +6086,7 @@
 				qcom,platform-reset-gpio = <0xffffffff 0x2c 0x0>;
 				qcom,platform-te-gpio = <0xffffffff 0x50 0x0>;
 				qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
-				phandle = <0xed>;
+				phandle = <0xee>;
 
 				qcom,mdss-dsi-display-timings {
 
@@ -6170,7 +6171,7 @@
 		__overlay__ {
 
 			panel_um36_te_active {
-				phandle = <0xee>;
+				phandle = <0xef>;
 
 				mux {
 					pins = "gpio80";
@@ -6185,7 +6186,7 @@
 			};
 
 			panel_um36_te_suspend {
-				phandle = <0xef>;
+				phandle = <0xf0>;
 
 				mux {
 					pins = "gpio80";
@@ -6207,7 +6208,7 @@
 		__overlay__ {
 
 			panel_um36_reset_active {
-				phandle = <0xf0>;
+				phandle = <0xf1>;
 
 				mux {
 					pins = "gpio44";
@@ -6222,7 +6223,7 @@
 			};
 
 			panel_um36_reset_suspend {
-				phandle = <0xf1>;
+				phandle = <0xf2>;
 
 				mux {
 					pins = "gpio44";
@@ -6245,27 +6246,27 @@
 
 			qcom,dsi-display@4 {
 				label = "ss_dsi_panel_S6E3HAB_AMB667AN01_FHD";
-				phandle = <0xf2>;
+				phandle = <0xf3>;
 			};
 
 			qcom,dsi-display@3 {
 				label = "ss_dsi_panel_SW83109_BF067XMM_FHD";
-				phandle = <0xf3>;
+				phandle = <0xf4>;
 			};
 
 			qcom,dsi-display@2 {
 				label = "ss_dsi_panel_S6E3FA9_AMB667UM36_FHD";
-				phandle = <0xf4>;
+				phandle = <0xf5>;
 			};
 
 			qcom,dsi-display@1 {
 				label = "ss_dsi_panel_S6E3FC3_AMS646YD01_LO_FHD";
-				phandle = <0xf5>;
+				phandle = <0xf6>;
 			};
 
 			qcom,dsi-display@0 {
 				label = "ss_dsi_panel_PBA_BOOTING_FHD";
-				phandle = <0xf6>;
+				phandle = <0xf7>;
 			};
 		};
 	};
@@ -6530,7 +6531,7 @@
 				compatible = "samsung,usb-notifier";
 				qcom,disable_control_en = <0x1>;
 				qcom,unsupport_host_en = <0x0>;
-				phandle = <0xf7>;
+				phandle = <0xf8>;
 			};
 
 			qcom,glinkpkt {
@@ -6564,19 +6565,19 @@
 			samsung,security_mz1@146e9aa0 {
 				compatible = "samsung,security_mz1";
 				reg = <0x146aaaa0 0x4>;
-				phandle = <0xf8>;
+				phandle = <0xf9>;
 			};
 
 			samsung,security_mz2@146e9aa4 {
 				compatible = "samsung,security_mz2";
 				reg = <0x146aaaa4 0x4>;
-				phandle = <0xf9>;
+				phandle = <0xfa>;
 			};
 
 			samsung,security_mz3@146e9aa8 {
 				compatible = "samsung,security_mz3";
 				reg = <0x146aaaa8 0x4>;
-				phandle = <0xfa>;
+				phandle = <0xfb>;
 			};
 		};
 	};
@@ -6605,14 +6606,14 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xf0000000 0x0 0x900000>;
-				phandle = <0xfb>;
+				phandle = <0xfc>;
 			};
 
 			sec_debug_rdx_bootdev@0 {
 				alloc-ranges = <0x1 0x0 0x0 0xad00000>;
 				size = <0x0 0x0>;
 				non_gki_size = <0x0 0xad00000>;
-				phandle = <0xfc>;
+				phandle = <0xfd>;
 			};
 
 			ss_plog@1B0900000 {
@@ -6634,14 +6635,14 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xa0001000 0x0 0x1000>;
-				phandle = <0xfd>;
+				phandle = <0xfe>;
 			};
 
 			tima_region@B0100000 {
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xb0100000 0x0 0x100000>;
-				phandle = <0xfe>;
+				phandle = <0xff>;
 			};
 
 			modem_shared_mem_region@d0000000 {
@@ -6662,7 +6663,7 @@
 			dummy_mem {
 				reg = <0x0 0x9c700000 0x0 0x100000>;
 				no-map;
-				phandle = <0xff>;
+				phandle = <0x100>;
 			};
 		};
 	};
@@ -6913,7 +6914,7 @@
 				port_id = <0x1016>;
 				reset-gpio = <0xffffffff 0x3f 0x0>;
 				irq-gpio = <0xffffffff 0x37 0x0>;
-				phandle = <0x100>;
+				phandle = <0x101>;
 			};
 		};
 	};
@@ -6959,7 +6960,7 @@
 
 			det_zones {
 				#list-det-cells = <0x2>;
-				phandle = <0x101>;
+				phandle = <0x102>;
 			};
 		};
 	};
@@ -7094,7 +7095,7 @@
 				size-cells = <0x0>;
 				pinctrl-names = "default";
 				pinctrl-0 = <0x62>;
-				phandle = <0x102>;
+				phandle = <0x103>;
 
 				a96t3x6@20 {
 					compatible = "a96t3x6";
@@ -7166,7 +7167,7 @@
 			grip_sub_i2c {
 
 				grip_sub_i2c_active {
-					phandle = <0x103>;
+					phandle = <0x104>;
 
 					mux {
 						pins = "gpio8", "gpio9";
@@ -7318,7 +7319,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x104>;
+				phandle = <0x105>;
 			};
 		};
 	};
@@ -7372,7 +7373,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x105>;
+				phandle = <0x106>;
 			};
 
 			qcom,cam-sensor4 {
@@ -7422,7 +7423,7 @@
 				cam,ois = <0x1>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x106>;
+				phandle = <0x107>;
 			};
 
 			qcom,cam-sensor1 {
@@ -7471,7 +7472,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x107>;
+				phandle = <0x108>;
 			};
 
 			qcom,cam-sensor13 {
@@ -7520,7 +7521,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x108>;
+				phandle = <0x109>;
 			};
 
 			qcom,actuator@0xC {
@@ -8173,6 +8174,7 @@
 		sde_wb = "/fragment@35/__overlay__/qcom,wb-display@0";
 		gpio_keys = "/fragment@37/__overlay__/gpio_keys";
 		ss_dsi_panel_PBA_BOOTING_FHD = "/fragment@47/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD";
+		s2mpb03_pmic_0 = "/fragment@48/__overlay__/s2mpb03_pmic@56";
 		s2mpb03_0_l1 = "/fragment@48/__overlay__/s2mpb03_pmic@56/regulators/s2mpb03-ldo1";
 		s2mpb03_0_l2 = "/fragment@48/__overlay__/s2mpb03_pmic@56/regulators/s2mpb03-ldo2";
 		s2mpb03_0_l3 = "/fragment@48/__overlay__/s2mpb03_pmic@56/regulators/s2mpb03-ldo3";
