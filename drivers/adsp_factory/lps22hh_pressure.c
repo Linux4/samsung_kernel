@@ -123,7 +123,7 @@ static ssize_t selftest_show(struct device *dev,
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &
 		1 << MSG_PRESSURE) && cnt++ < TIMEOUT_CNT)
-		msleep(20);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_PRESSURE);
 
@@ -159,7 +159,7 @@ static ssize_t pressure_dhr_sensor_info_show(struct device *dev,
 	if (cnt >= TIMEOUT_CNT) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
 	} else {
-		for (i = 0; i < 7; i++) {
+		for (i = 0; i < 8; i++) {
 			pr_info("[FACTORY] %s - %02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x\n",
 				__func__,
 				data->msg_buf[MSG_PRESSURE][i * 16 + 0],
@@ -179,15 +179,6 @@ static ssize_t pressure_dhr_sensor_info_show(struct device *dev,
 				data->msg_buf[MSG_PRESSURE][i * 16 + 14],
 				data->msg_buf[MSG_PRESSURE][i * 16 + 15]);
 		}
-		pr_info("[FACTORY] %s - %02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x\n",
-			__func__, data->msg_buf[MSG_PRESSURE][i * 16 + 0],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 1],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 2],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 3],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 4],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 5],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 6],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 7]);
 	}
 
 	return snprintf(buf, PAGE_SIZE, "%s\n", "Done");
@@ -241,7 +232,7 @@ void pressure_cal_work_func(struct work_struct *work)
 	}
 
 	pressure_cal = data->msg_buf[MSG_PRESSURE][0];
-	pr_info("[FACTORY] %s: flg_update= %d\n", __func__, data->msg_buf[MSG_PRESSURE][0]);
+	pr_info("[FACTORY] %s: pressure_cal = %d (lsb)\n", __func__, data->msg_buf[MSG_PRESSURE][0]);
 }
 void pressure_factory_init_work(struct adsp_data *data)
 {

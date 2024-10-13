@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _SDE_CONNECTOR_H_
@@ -382,6 +382,14 @@ struct sde_connector_ops {
 	 * Returns: Qsync min fps value on success
 	 */
 	int (*get_qsync_min_fps)(void *display, u32 mode_fps);
+
+	/**
+	 * get_num_lm_from_mode - Get LM count from topology for this drm mode
+	 * @display: Pointer to private display structure
+	 * @mode: Pointer to drm mode info structure
+	 */
+	int (*get_num_lm_from_mode)(void *display, const struct drm_display_mode *mode);
+
 };
 
 /**
@@ -462,6 +470,7 @@ struct sde_connector_dyn_hdr_metadata {
  * @esd_status_interval: variable to change ESD check interval in millisec
  * @panel_dead: Flag to indicate if panel has gone bad
  * @esd_status_check: Flag to indicate if ESD thread is scheduled or not
+ * @twm_en: Flag to indicate if TWM mode is enabled or not
  * @bl_scale_dirty: Flag to indicate PP BL scale value(s) is changed
  * @bl_scale: BL scale value for ABA feature
  * @bl_scale_sv: BL scale value for sunlight visibility feature
@@ -481,6 +490,7 @@ struct sde_connector_dyn_hdr_metadata {
  * @hdr_capable: external hdr support present
  * @cmd_rx_buf: the return buffer of response of command transfer
  * @rx_len: the length of dcs command received buffer
+ * @cached_edid: cached edid data for the connector
  */
 struct sde_connector {
 	struct drm_connector base;
@@ -502,6 +512,7 @@ struct sde_connector {
 	int dpms_mode;
 	int lp_mode;
 	int last_panel_power_mode;
+	struct device *sysfs_dev;
 
 	struct msm_property_info property_info;
 	struct msm_property_data property_data[CONNECTOR_PROP_COUNT];
@@ -523,6 +534,7 @@ struct sde_connector {
 	u32 esd_status_interval;
 	bool panel_dead;
 	bool esd_status_check;
+	bool twm_en;
 
 	bool bl_scale_dirty;
 	u32 bl_scale;
@@ -538,6 +550,7 @@ struct sde_connector {
 	bool hdr_supported;
 
 	u32 color_enc_fmt;
+	u32 lm_mask;
 
 	u8 hdr_plus_app_ver;
 	u32 qsync_mode;
@@ -550,6 +563,8 @@ struct sde_connector {
 
 	u8 cmd_rx_buf[MAX_CMD_RECEIVE_SIZE];
 	int rx_len;
+
+	struct edid *cached_edid;
 };
 
 /**
@@ -740,6 +755,15 @@ static inline uint64_t sde_connector_get_lp(
 int sde_connector_set_property_for_commit(struct drm_connector *connector,
 		struct drm_atomic_state *atomic_state,
 		uint32_t property_idx, uint64_t value);
+
+/**
+ * sde_connector_post_init - update connector object with post initialization.
+ * It can update the debugfs, sysfs, entries
+ * @dev: Pointer to drm device struct
+ * @conn: Pointer to drm connector
+ * Returns: Zero on success
+ */
+int sde_connector_post_init(struct drm_device *dev, struct drm_connector *conn);
 
 /**
  * sde_connector_init - create drm connector object for a given display
@@ -977,6 +1001,15 @@ int sde_connector_helper_reset_custom_properties(
  */
 int sde_connector_state_get_mode_info(struct drm_connector_state *conn_state,
 	struct msm_mode_info *mode_info);
+
+/**
+ * sde_connector_get_lm_cnt_from_topology - retrieves the topology info
+ *	from the panel mode and returns the lm count.
+ * conn: Pointer to DRM connector object
+ * drm_mode: Pointer to the drm mode structure
+ */
+int sde_connector_get_lm_cnt_from_topology(struct drm_connector *conn,
+	 const struct drm_display_mode *drm_mode);
 
 /**
  * sde_connector_state_get_topology - get topology from given connector state

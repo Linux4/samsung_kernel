@@ -131,6 +131,8 @@ static int of_s2mpb02_dt(struct device *dev,
 		struct s2mpb02_platform_data *pdata)
 {
 	struct device_node *np_s2mpb02 = dev->of_node;
+	int count = 0;
+	int i, ret;
 
 	if (!np_s2mpb02)
 		return -EINVAL;
@@ -138,7 +140,42 @@ static int of_s2mpb02_dt(struct device *dev,
 	pdata->irq_gpio = of_get_named_gpio(np_s2mpb02, "s2mpb02,irq-gpio", 0);
 	pdata->wakeup = of_property_read_bool(np_s2mpb02, "s2mpb02,wakeup");
 
+	count = of_property_count_strings(np_s2mpb02, "s2mpb02,mfd-cell");
+
+	if (!count || (count == -EINVAL)) {
+		pdata->devs_num = ARRAY_SIZE(s2mpb02_devs);
+		pdata->devs = s2mpb02_devs;
+
+		for (i = 0; i < pdata->devs_num; i++)
+			pr_info("%s mfd-cell(%d) = %s\n", __func__, i,
+				pdata->devs[i].name);
+
+	} else {
+		pdata->devs_num = count;
+		pdata->devs = kcalloc(pdata->devs_num,
+				      sizeof(struct mfd_cell), GFP_KERNEL);
+		if (!pdata->devs) {
+			pr_err("%s failed %d\n", __func__, __LINE__);
+			return -ENOMEM;
+		}
+
+		for (i = 0; i < pdata->devs_num; i++) {
+			ret = of_property_read_string_index(np_s2mpb02,
+				 "s2mpb02,mfd-cell", i, &pdata->devs[i].name);
+			pr_info("%s mfd-cell(%d) = %s\n", __func__, i,
+				pdata->devs[i].name);
+			if (ret < 0) {
+				pr_err("%s failed %d\n", __func__, __LINE__);
+				goto err_mfd_cell;
+			}
+		}
+	}
+
 	return 0;
+
+err_mfd_cell:
+	kfree(pdata->devs);
+	return ret;
 }
 #else
 static int of_s2mpb02_dt(struct device *dev,
@@ -227,8 +264,9 @@ static int s2mpb02_i2c_probe(struct i2c_client *i2c,
 	if (ret < 0)
 		goto err_irq_init;
 
-	ret = mfd_add_devices(s2mpb02->dev, PLATFORM_DEVID_AUTO, s2mpb02_devs,
-			      ARRAY_SIZE(s2mpb02_devs), NULL, 0, NULL);
+	ret = mfd_add_devices(s2mpb02->dev, -1, pdata->devs,
+			pdata->devs_num, NULL, 0, NULL);
+
 	if (ret < 0)
 		goto err_irq_init;
 
@@ -243,8 +281,11 @@ static int s2mpb02_i2c_probe(struct i2c_client *i2c,
 err_irq_init:
 	mutex_destroy(&s2mpb02->i2c_lock);
 err:
+	kfree(pdata);
 	s2mpb02_irq_exit(s2mpb02);
 err_pdata:
+	kfree(s2mpb02);
+
 	return ret;
 }
 
@@ -257,6 +298,7 @@ static int s2mpb02_i2c_remove(struct i2c_client *i2c)
 	mfd_remove_devices(s2mpb02->dev);
 	s2mpb02_irq_exit(s2mpb02);
 	mutex_destroy(&s2mpb02->i2c_lock);
+	kfree(s2mpb02);
 
 	return 0;
 }

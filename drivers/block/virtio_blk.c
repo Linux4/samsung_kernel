@@ -16,10 +16,21 @@
 #include <linux/blk-mq.h>
 #include <linux/blk-mq-virtio.h>
 #include <linux/numa.h>
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+#include <linux/bio-crypt-ctx.h>
+#include "virtio_blk_qti_crypto.h"
+#endif
 
 #define PART_BITS 4
 #define VQ_NAME_LEN 16
 #define MAX_DISCARD_SEGMENTS 256u
+
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+/* Temporaryly declaring ice supported feature bit.
+ * Will discard this macro once uapi chages are mainlined
+ */
+#define VIRTIO_BLK_F_ICE	23	/* support ice virtualization */
+#endif
 
 static int major;
 static DEFINE_IDA(vd_index_ida);
@@ -71,6 +82,15 @@ struct virtio_blk {
 	struct virtio_blk_vq *vqs;
 };
 
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+struct virtio_blk_ice_info {
+	/*the key slot to use for inline crypto*/
+	u8  ice_slot;
+	u8  activate;
+	u16 reserved;
+} __packed;
+#endif
+
 struct virtblk_req {
 #ifdef CONFIG_VIRTIO_BLK_SCSI
 	struct scsi_request sreq;	/* for SCSI passthrough, must be first */
@@ -78,6 +98,9 @@ struct virtblk_req {
 	struct virtio_scsi_inhdr in_hdr;
 #endif
 	struct virtio_blk_outhdr out_hdr;
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+	struct virtio_blk_ice_info ice_info;
+#endif
 	u8 status;
 	struct scatterlist sg[];
 };
@@ -173,8 +196,14 @@ static int virtblk_add_req(struct virtqueue *vq, struct virtblk_req *vbr,
 {
 	struct scatterlist hdr, status, *sgs[3];
 	unsigned int num_out = 0, num_in = 0;
-
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+	size_t const hdr_size = virtio_has_feature(vq->vdev, VIRTIO_BLK_F_ICE) ?
+				sizeof(vbr->out_hdr) + sizeof(vbr->ice_info) :
+				sizeof(vbr->out_hdr);
+	sg_init_one(&hdr, &vbr->out_hdr, hdr_size);
+#else
 	sg_init_one(&hdr, &vbr->out_hdr, sizeof(vbr->out_hdr));
+#endif
 	sgs[num_out++] = &hdr;
 
 	if (have_data) {
@@ -205,15 +234,30 @@ static int virtblk_setup_discard_write_zeroes(struct request *req, bool unmap)
 	if (!range)
 		return -ENOMEM;
 
-	__rq_for_each_bio(bio, req) {
-		u64 sector = bio->bi_iter.bi_sector;
-		u32 num_sectors = bio->bi_iter.bi_size >> SECTOR_SHIFT;
+	/*
+	 * Single max discard segment means multi-range discard isn't
+	 * supported, and block layer only runs contiguity merge like
+	 * normal RW request. So we can't reply on bio for retrieving
+	 * each range info.
+	 */
+	if (queue_max_discard_segments(req->q) == 1) {
+		range[0].flags = cpu_to_le32(flags);
+		range[0].num_sectors = cpu_to_le32(blk_rq_sectors(req));
+		range[0].sector = cpu_to_le64(blk_rq_pos(req));
+		n = 1;
+	} else {
+		__rq_for_each_bio(bio, req) {
+			u64 sector = bio->bi_iter.bi_sector;
+			u32 num_sectors = bio->bi_iter.bi_size >> SECTOR_SHIFT;
 
-		range[n].flags = cpu_to_le32(flags);
-		range[n].num_sectors = cpu_to_le32(num_sectors);
-		range[n].sector = cpu_to_le64(sector);
-		n++;
+			range[n].flags = cpu_to_le32(flags);
+			range[n].num_sectors = cpu_to_le32(num_sectors);
+			range[n].sector = cpu_to_le64(sector);
+			n++;
+		}
 	}
+
+	WARN_ON_ONCE(n != segments);
 
 	req->special_vec.bv_page = virt_to_page(range);
 	req->special_vec.bv_offset = offset_in_page(range);
@@ -284,6 +328,25 @@ static void virtio_commit_rqs(struct blk_mq_hw_ctx *hctx)
 		virtqueue_notify(vq->vq);
 }
 
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+static void virtblk_get_ice_info(struct virtio_blk *vblk, struct request *req)
+{
+	/* whether or not the request needs inline crypto operations*/
+	struct bio_crypt_ctx *bc;
+	struct virtblk_req *vbr = blk_mq_rq_to_pdu(req);
+
+	if (!bio_crypt_should_process(req)) {
+		/* ice is not activated */
+		vbr->ice_info.activate = false;
+	} else {
+		bc = req->bio->bi_crypt_context;
+		/* ice is activated - successful flow */
+		vbr->ice_info.ice_slot = bc->bc_keyslot;
+		vbr->ice_info.activate = true;
+	}
+}
+#endif
+
 static blk_status_t virtio_queue_rq(struct blk_mq_hw_ctx *hctx,
 			   const struct blk_mq_queue_data *bd)
 {
@@ -333,7 +396,10 @@ static blk_status_t virtio_queue_rq(struct blk_mq_hw_ctx *hctx,
 	vbr->out_hdr.sector = type ?
 		0 : cpu_to_virtio64(vblk->vdev, blk_rq_pos(req));
 	vbr->out_hdr.ioprio = cpu_to_virtio32(vblk->vdev, req_get_ioprio(req));
-
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+	if (virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE))
+		virtblk_get_ice_info(vblk, req);
+#endif
 	blk_mq_start_request(req);
 
 	if (type == VIRTIO_BLK_T_DISCARD || type == VIRTIO_BLK_T_WRITE_ZEROES) {
@@ -923,9 +989,17 @@ static int virtblk_probe(struct virtio_device *vdev)
 	err = virtio_cread_feature(vdev, VIRTIO_BLK_F_BLK_SIZE,
 				   struct virtio_blk_config, blk_size,
 				   &blk_size);
-	if (!err)
+	if (!err) {
+		err = blk_validate_block_size(blk_size);
+		if (err) {
+			dev_err(&vdev->dev,
+				"virtio_blk: invalid block size: 0x%x\n",
+				blk_size);
+			goto out_cleanup_disk;
+		}
+
 		blk_queue_logical_block_size(q, blk_size);
-	else
+	} else
 		blk_size = queue_logical_block_size(q);
 
 	/* Use topology information if available */
@@ -955,11 +1029,12 @@ static int virtblk_probe(struct virtio_device *vdev)
 		blk_queue_io_opt(q, blk_size * opt_io_size);
 
 	if (virtio_has_feature(vdev, VIRTIO_BLK_F_DISCARD)) {
-		q->limits.discard_granularity = blk_size;
-
 		virtio_cread(vdev, struct virtio_blk_config,
 			     discard_sector_alignment, &v);
-		q->limits.discard_alignment = v ? v << SECTOR_SHIFT : 0;
+		if (v)
+			q->limits.discard_granularity = v << SECTOR_SHIFT;
+		else
+			q->limits.discard_granularity = blk_size;
 
 		virtio_cread(vdev, struct virtio_blk_config,
 			     max_discard_sectors, &v);
@@ -967,9 +1042,15 @@ static int virtblk_probe(struct virtio_device *vdev)
 
 		virtio_cread(vdev, struct virtio_blk_config, max_discard_seg,
 			     &v);
+
+		/*
+		 * max_discard_seg == 0 is out of spec but we always
+		 * handled it.
+		 */
+		if (!v)
+			v = sg_elems - 2;
 		blk_queue_max_discard_segments(q,
-					       min_not_zero(v,
-							    MAX_DISCARD_SEGMENTS));
+					       min(v, MAX_DISCARD_SEGMENTS));
 
 		blk_queue_flag_set(QUEUE_FLAG_DISCARD, q);
 	}
@@ -981,11 +1062,22 @@ static int virtblk_probe(struct virtio_device *vdev)
 	}
 
 	virtblk_update_capacity(vblk, false);
-	virtio_device_ready(vdev);
 
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+	if (virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE)) {
+		dev_notice(&vdev->dev, "%s\n", vblk->disk->disk_name);
+		/* Initilaize supported crypto capabilities*/
+		err = virtblk_init_crypto_qti_spec();
+		if (!err)
+			virtblk_crypto_qti_setup_rq_keyslot_manager(vblk->disk->queue);
+	}
+#endif
+	virtio_device_ready(vdev);
 	device_add_disk(&vdev->dev, vblk->disk, virtblk_attr_groups);
 	return 0;
 
+out_cleanup_disk:
+	blk_cleanup_queue(vblk->disk->queue);
 out_free_tags:
 	blk_mq_free_tag_set(&vblk->tag_set);
 out_put_disk:
@@ -1007,7 +1099,10 @@ static void virtblk_remove(struct virtio_device *vdev)
 
 	/* Make sure no work handler is accessing the device. */
 	flush_work(&vblk->config_work);
-
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+	if (virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE))
+		virtblk_crypto_qti_destroy_rq_keyslot_manager(vblk->disk->queue);
+#endif
 	del_gendisk(vblk->disk);
 	blk_cleanup_queue(vblk->disk->queue);
 
@@ -1044,6 +1139,8 @@ static int virtblk_freeze(struct virtio_device *vdev)
 	blk_mq_quiesce_queue(vblk->disk->queue);
 
 	vdev->config->del_vqs(vdev);
+	kfree(vblk->vqs);
+
 	return 0;
 }
 
@@ -1083,6 +1180,9 @@ static unsigned int features[] = {
 	VIRTIO_BLK_F_RO, VIRTIO_BLK_F_BLK_SIZE,
 	VIRTIO_BLK_F_FLUSH, VIRTIO_BLK_F_TOPOLOGY, VIRTIO_BLK_F_CONFIG_WCE,
 	VIRTIO_BLK_F_MQ, VIRTIO_BLK_F_DISCARD, VIRTIO_BLK_F_WRITE_ZEROES,
+#ifdef CONFIG_QTI_CRYPTO_VIRTUALIZATION
+	VIRTIO_BLK_F_ICE,
+#endif
 };
 
 static struct virtio_driver virtio_blk = {

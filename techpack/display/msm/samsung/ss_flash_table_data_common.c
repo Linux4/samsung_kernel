@@ -643,6 +643,51 @@ void flash_read_bytes(struct samsung_display_driver_data *vdd, int faddr, int fs
 	return;
 }
 
+void spsram_read_bytes(struct samsung_display_driver_data *vdd, int addr, int rsize, u8 *buf)
+{
+	struct dsi_panel_cmd_set *tx_sram_offset_cmds = ss_get_cmds(vdd, TX_SPSRAM_DATA_READ);
+	struct dsi_panel_cmd_set *rx_gamma_cmds = ss_get_cmds(vdd, RX_FLASH_GAMMA);
+	bool gpara_temp;
+	struct vrr_info *vrr = &vdd->vrr;
+	int cur_rr, delay;
+
+	if (SS_IS_CMDS_NULL(tx_sram_offset_cmds) || SS_IS_CMDS_NULL(rx_gamma_cmds)) {
+		LCD_INFO(vdd, "No cmds for TX_GLUT_SRAM_OFFSET or RX_FLASH_GAMMA..\n");
+		return;
+	}
+
+	if (vrr)
+		cur_rr = vrr->cur_refresh_rate;
+	else
+		cur_rr = 60;
+
+	tx_sram_offset_cmds->cmds[0].ss_txbuf[2] = (addr & 0xFF00) >> 8;
+	tx_sram_offset_cmds->cmds[0].ss_txbuf[3] = addr & 0xFF;
+
+	tx_sram_offset_cmds->cmds[0].ss_txbuf[4] = (rsize & 0xFF00) >> 8;
+	tx_sram_offset_cmds->cmds[0].ss_txbuf[5] = rsize & 0xFF;
+
+	ss_send_cmd(vdd, TX_SPSRAM_DATA_READ);
+
+	/* need 1frame delay between 71h and 6Eh */
+	delay = ss_frame_delay(cur_rr, 1);
+	usleep_range(delay, delay);
+
+	/* RX - Flash read
+	 * do not send level key.. */
+	rx_gamma_cmds->state = DSI_CMD_SET_STATE_HS;
+	rx_gamma_cmds->cmds[0].msg.rx_len = rsize;
+	rx_gamma_cmds->cmds[0].msg.rx_buf = buf;
+	rx_gamma_cmds->read_startoffset = 0;
+
+	gpara_temp = vdd->gpara;
+
+	/* Do not use gpara to read flash via MIPI */
+	vdd->gpara = false;
+	ss_panel_data_read(vdd, RX_FLASH_GAMMA, buf, LEVEL_KEY_NONE);
+
+	vdd->gpara = gpara_temp;
+}
 
 void flash_write_check_read(struct samsung_display_driver_data *vdd)
 {
@@ -1233,7 +1278,7 @@ int __flash_br(struct samsung_display_driver_data *vdd)
 		mutex_lock(&vdd->ss_spi_lock);
 		gpio_direction_output(vdd->ddi_spi_cs_high_gpio_for_gpara , 1);
 		LCD_INFO(vdd, "gpio%d value : %d\n", vdd->ddi_spi_cs_high_gpio_for_gpara,
-			gpio_get_value(vdd->ddi_spi_cs_high_gpio_for_gpara));
+			ss_gpio_get_value(vdd, vdd->ddi_spi_cs_high_gpio_for_gpara));
 	}
 
 	for (count = 0; count < vdd->br_info.br_tbl_count; count++) {
@@ -1285,7 +1330,7 @@ skip_read_flash:
 		gpio_direction_input(vdd->ddi_spi_cs_high_gpio_for_gpara);
 		mutex_unlock(&vdd->ss_spi_lock);
 		LCD_INFO(vdd, "gpio%d value : %d\n", vdd->ddi_spi_cs_high_gpio_for_gpara,
-			gpio_get_value(vdd->ddi_spi_cs_high_gpio_for_gpara));
+			ss_gpio_get_value(vdd, vdd->ddi_spi_cs_high_gpio_for_gpara));
 	}
 
 	if (test_and_clear_bit(BOOST_DSI_CLK, vdd->br_info.panel_br_info.flash_br_boosting)) {

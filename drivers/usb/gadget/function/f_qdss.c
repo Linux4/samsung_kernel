@@ -2,7 +2,7 @@
 /*
  * f_qdss.c -- QDSS function Driver
  *
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -256,12 +256,13 @@ void usb_qdss_free_req(struct usb_qdss_ch *ch)
 	unsigned long flags;
 
 	spin_lock_irqsave(&channel_lock, flags);
-	qdss = ch->priv_usb;
-	if (!qdss) {
+	if (ch == NULL || ch->priv_usb == NULL) {
 		spin_unlock_irqrestore(&channel_lock, flags);
-		pr_err("%s: qdss ctx is NULL\n", __func__);
+		pr_err("%s: qdss channel or qdss ctx is NULL\n", __func__);
 		return;
 	}
+
+	qdss = ch->priv_usb;
 	spin_unlock_irqrestore(&channel_lock, flags);
 
 	spin_lock_irqsave(&qdss->lock, flags);
@@ -590,7 +591,7 @@ static void usb_qdss_connect_work(struct work_struct *work)
 
 	qdss = container_of(work, struct f_qdss, connect_w);
 
-	/* If cable is already removed, discard connect_work */
+	/* If cable is removed, discard connect_work */
 	if (qdss->usb_connected == 0) {
 		cancel_work_sync(&qdss->disconnect_w);
 		return;
@@ -810,7 +811,6 @@ int usb_qdss_write(struct usb_qdss_ch *ch, struct qdss_request *d_req)
 	req->length = d_req->length;
 	req->sg = d_req->sg;
 	req->num_sgs = d_req->num_sgs;
-	req->num_mapped_sgs = d_req->num_mapped_sgs;
 	reinit_completion(&qreq->write_done);
 	if (req->sg)
 		qdss_log("%s: req:%pK req->num_sgs:0x%x\n",
@@ -898,16 +898,20 @@ void usb_qdss_close(struct usb_qdss_ch *ch)
 	qdss_log("channel:%s\n", ch->name);
 	qdss = ch->priv_usb;
 	qdss->qdss_close = true;
+	spin_lock(&qdss->lock);
 	while (!list_empty(&qdss->queued_data_pool)) {
 		qreq = list_first_entry(&qdss->queued_data_pool,
 				struct qdss_req, list);
+		spin_unlock(&qdss->lock);
 		spin_unlock_irqrestore(&channel_lock, flags);
 		qdss_log("dequeue req:%pK\n", qreq->usb_req);
-		usb_ep_dequeue(qdss->port.data, qreq->usb_req);
-		wait_for_completion(&qreq->write_done);
+		if (!usb_ep_dequeue(qdss->port.data, qreq->usb_req))
+			wait_for_completion(&qreq->write_done);
 		spin_lock_irqsave(&channel_lock, flags);
+		spin_lock(&qdss->lock);
 	}
 
+	spin_unlock(&qdss->lock);
 	spin_unlock_irqrestore(&channel_lock, flags);
 	usb_qdss_free_req(ch);
 	spin_lock_irqsave(&channel_lock, flags);
@@ -922,6 +926,8 @@ void usb_qdss_close(struct usb_qdss_ch *ch)
 
 	if (qdss->endless_req) {
 		spin_unlock_irqrestore(&channel_lock, flags);
+		/* Flush connect work before proceeding with de-queue */
+		flush_work(&qdss->connect_w);
 		usb_ep_dequeue(qdss->port.data, qdss->endless_req);
 		spin_lock_irqsave(&channel_lock, flags);
 	}

@@ -12,7 +12,7 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb_notify.h>
 #include <linux/usb/typec/manager/usb_typec_manager_hwparam.h>
-extern unsigned int lpcharge;
+#include <linux/usb/typec/common/pdic_param.h>
 
 struct typec_manager_hwparam {
 	struct delayed_work rtctime_update_work;
@@ -189,30 +189,26 @@ unsigned long manager_hw_param_update(int param)
 		ret = get_waterdet_duration();
 		break;
 	case USB_CCIC_WATER_VBUS_COUNT:
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-		if (!lpcharge) {
+		if (!is_lpcharge_pdic_param()) {
 			ret = manager_hwparam.water_Chg_count;
 			manager_hwparam.water_Chg_count = 0;
 		}
-#endif
 		break;
 	case USB_CCIC_WATER_LPM_VBUS_COUNT:
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-		if (lpcharge) {
+		if (is_lpcharge_pdic_param()) {
 			ret = manager_hwparam.water_Chg_count;
 			manager_hwparam.water_Chg_count = 0;
 		}
-#endif
 		break;
 	case USB_CCIC_WATER_VBUS_TIME_DURATION:
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-		if (!lpcharge)
+		if (!is_lpcharge_pdic_param())
 			ret = get_wvbus_duration();
 #endif
 		break;
 	case USB_CCIC_WATER_LPM_VBUS_TIME_DURATION:
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-		if (lpcharge)
+		if (is_lpcharge_pdic_param())
 			ret = get_wvbus_duration();
 #endif
 		break;

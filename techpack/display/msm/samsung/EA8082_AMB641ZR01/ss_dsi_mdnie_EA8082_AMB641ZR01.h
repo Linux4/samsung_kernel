@@ -12867,4 +12867,3 @@ static struct dsi_cmd_desc *hdr_tune_value_dsi0[HDR_MAX] = {
 #define DSI0_RGB_SENSOR_MDNIE_5_SIZE ARRAY_SIZE(DSI0_RGB_SENSOR_MDNIE_5)
 
 #endif
-

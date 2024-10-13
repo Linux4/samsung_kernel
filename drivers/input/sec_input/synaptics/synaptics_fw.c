@@ -396,7 +396,7 @@ int synaptics_ts_compare_image_id_info(struct synaptics_ts_data *ts,
 		ts->plat_data->img_version_of_ic[idx] = device_config_id[idx];
 	}
 
-	input_err(true, &ts->client->dev, "%s: bin: %02x%02x%02x%02x  ic:%02x%02x%02x%02x", __func__,
+	input_info(true, &ts->client->dev, "%s: bin: %02x%02x%02x%02x  ic:%02x%02x%02x%02x\n", __func__,
 		image_config_id[0], image_config_id[1], image_config_id[2], image_config_id[3],
 		device_config_id[0], device_config_id[1], device_config_id[2], device_config_id[3]);
 
@@ -1081,7 +1081,7 @@ static int synaptics_ts_write_flash(struct synaptics_ts_data *ts,
 			input_err(true, &ts->client->dev, "%s: xfer: %d, delay: ATTN-driven\n", __func__, xfer_length);
 		} else {
 			delay_ms = (delay_ms * xfer_length) / 1000;
-			input_dbg(true, &ts->client->dev, "%s: xfer: %d, delay: %d\n", __func__, xfer_length, delay_ms);
+			//input_dbg(true, &ts->client->dev, "%s: xfer: %d, delay: %d\n", __func__, xfer_length, delay_ms);
 		}
 
 		retval = synaptics_ts_reflash_send_command(ts,
@@ -1535,7 +1535,7 @@ int synaptics_ts_do_fw_update(struct synaptics_ts_data *ts,
 		const unsigned char *image, unsigned int image_size,
 		unsigned int wait_delay_ms, bool force_reflash)
 {
-	int retval;
+	int retval, retry = 3;
 	enum update_area type = UPDATE_NONE;
 	struct synaptics_ts_reflash_data_blob reflash_data;
 
@@ -1582,33 +1582,34 @@ int synaptics_ts_do_fw_update(struct synaptics_ts_data *ts,
 		goto exit;
 
 reflash:
-	synaptics_ts_buf_init(&reflash_data.out);
+	do {
+		synaptics_ts_buf_init(&reflash_data.out);
 
-	retval = synaptics_ts_set_up_flash_access(ts, &reflash_data);
-	if (retval < 0)
-		goto reset;
+		retval = synaptics_ts_set_up_flash_access(ts, &reflash_data);
+		if (retval < 0) {
+			input_err(true, &ts->client->dev,
+					"%s: fail to set up flash access, %d\n", __func__, retval);
+		} else {
+			/* perform the fw update */
+			if (ts->dev_mode == SYNAPTICS_TS_MODE_BOOTLOADER) {
+				retval = synaptics_ts_do_reflash_generic(ts,
+					&reflash_data,
+					type,
+					wait_delay_ms);
+				if (retval < 0)
+					input_err(true, &ts->client->dev, "%s: fail to do firmware update, retry=%d\n", __func__, retry);
+				else
+					input_info(true, &ts->client->dev, "%s: succeed to do firmware update\n", __func__);
+			} else {
+				retval = -EINVAL;
+				input_err(true, &ts->client->dev, "%s: Incorrect bootloader mode, 0x%02x\n", __func__,
+					ts->dev_mode);
+			}
+		}
 
-	/* perform the fw update */
-	if (ts->dev_mode == SYNAPTICS_TS_MODE_BOOTLOADER) {
-		retval = synaptics_ts_do_reflash_generic(ts,
-			&reflash_data,
-			type,
-			wait_delay_ms);
-	} else {
-		input_err(true, &ts->client->dev, "%s: Incorrect bootloader mode, 0x%02x\n", __func__,
-			ts->dev_mode);
-		goto reset;
-	}
-	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: fail to do firmware update\n", __func__);
-		goto reset;
-	}
-
-	retval = 0;
-reset:
-	retval = synaptics_ts_soft_reset(ts);
-	if (retval < 0)
-		input_err(true, &ts->client->dev, "Fail to do reset\n");
+		if (synaptics_ts_soft_reset(ts) < 0)
+			input_err(true, &ts->client->dev, "Fail to do reset\n");
+	} while ((retval < 0) && (--retry > 0));
 exit:
 	ATOMIC_SET(ts->firmware_flashing, 0);
 
@@ -1626,6 +1627,12 @@ int synaptics_ts_fw_update_on_probe(struct synaptics_ts_data *ts)
 	int restore_cal = 0;
 #endif
 	input_info(true, &ts->client->dev, "%s:\n", __func__);
+
+	if (ts->plat_data->bringup == 1) {
+		input_info(true, &ts->client->dev, "%s: bringup 1\n", __func__);
+		goto exit_fwload;
+	}
+
  	if (!ts->plat_data->firmware_name) {
 		input_err(true, &ts->client->dev, "%s: firmware name does not declair in dts\n", __func__);
 		retval = -ENOENT;
@@ -1941,7 +1948,7 @@ int synaptics_ts_fw_update_on_hidden_menu(struct synaptics_ts_data *ts, int upda
 	}
 
 	synaptics_ts_get_custom_library(ts);
-	synaptics_ts_set_custom_library(ts);
+	ts->plat_data->init(ts);
 
 	return retval;
 }

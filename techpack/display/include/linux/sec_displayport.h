@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,6 +14,10 @@
  */
 #ifndef __SEC_DISPLAYPORT_H
 #define __SEC_DISPLAYPORT_H
+
+#if IS_ENABLED(CONFIG_SWITCH) || IS_ENABLED(CONFIG_ANDROID_SWITCH)
+#define CONFIG_SECDP_SWITCH
+#endif
 
 /*
  * this function waits for completion of dp disconnection.

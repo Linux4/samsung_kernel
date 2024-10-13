@@ -172,6 +172,8 @@ void battery_last_dcvs(int cap, int volt, int temp, int curr)
 	phealth->battery.tail++;
 }
 
+EXPORT_SYMBOL_GPL(battery_last_dcvs);
+
 static ssize_t show_last_dcvs(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1262,10 +1264,10 @@ static ssize_t show_extrm_info(struct device *dev,
 	offset += scnprintf((char*)(buf + offset), SPECIAL_LEN_STR - offset,
 			"\"RWC\":\"%d\",", sec_debug_get_reset_write_cnt());
 
-	extrm_buf[SEC_DEBUG_RESET_ETRM_SIZE-1] = '\0';
+	extrm_buf[SEC_DEBUG_RESET_ETRM_SIZE - 1] = '\0';
 
 	offset += scnprintf((char*)(buf + offset), SPECIAL_LEN_STR - offset,
-			"\"RKP\":\"%s\"", &extrm_buf[offset]);
+			"\"RKP\":\"%s\"", extrm_buf);
 out:
 	if (extrm_buf)
 		kfree(extrm_buf);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved. */
 
 #include <linux/debugfs.h>
 #include <linux/delay.h>
@@ -143,6 +143,17 @@ bool mhi_scan_rddm_cookie(struct mhi_controller *mhi_cntrl, u32 cookie)
 {
 	int ret;
 	u32 val;
+	int i;
+	bool result = false;
+	struct {
+		char *name;
+		u32 offset;
+	} error_reg[] = {
+		{ "ERROR_DBG1", BHI_ERRDBG1 },
+		{ "ERROR_DBG2", BHI_ERRDBG2 },
+		{ "ERROR_DBG3", BHI_ERRDBG3 },
+		{ NULL },
+	};
 
 	if (!mhi_cntrl->rddm_supported || !cookie)
 		return false;
@@ -152,15 +163,23 @@ bool mhi_scan_rddm_cookie(struct mhi_controller *mhi_cntrl, u32 cookie)
 	if (!MHI_REG_ACCESS_VALID(mhi_cntrl->pm_state))
 		return false;
 
-	ret = mhi_read_reg(mhi_cntrl, mhi_cntrl->bhi, BHI_ERRDBG2, &val);
-	if (ret)
-		return false;
+	/* look for an RDDM cookie match in any of the error debug registers */
+	for (i = 0; error_reg[i].name; i++) {
+		ret = mhi_read_reg(mhi_cntrl, mhi_cntrl->bhi,
+				   error_reg[i].offset, &val);
+		if (ret)
+			break;
+		MHI_CNTRL_LOG("reg:%s value:0x%x\n", error_reg[i].name, val);
 
-	MHI_CNTRL_LOG("BHI_ERRDBG2 value:0x%x\n", val);
-	if (val == cookie)
-		return true;
+		if (!(val ^ cookie)) {
+			MHI_CNTRL_ERR("RDDM cookie found in %s\n",
+					error_reg[i].name);
+			return true;
+		}
+	}
 
-	return false;
+	MHI_CNTRL_ERR("RDDM cookie not found\n");
+	return result;
 }
 EXPORT_SYMBOL(mhi_scan_rddm_cookie);
 
@@ -204,22 +223,58 @@ void mhi_rddm_prepare(struct mhi_controller *mhi_cntrl,
 			&mhi_buf->dma_addr, mhi_buf->len, sequence_id);
 }
 
+/* check RDDM image is downloaded */
+static int mhi_rddm_download_status(struct mhi_controller *mhi_cntrl)
+{
+	u32 rx_status;
+	enum mhi_ee ee;
+	const u32 delayms = 5;
+	void __iomem *base = mhi_cntrl->bhie;
+	u32 retry = (mhi_cntrl->timeout_ms) / delayms;
+	int ret = 0;
+
+	while (retry--) {
+		ret = mhi_read_reg_field(mhi_cntrl, base, BHIE_RXVECSTATUS_OFFS,
+				BHIE_RXVECSTATUS_STATUS_BMSK,
+				BHIE_RXVECSTATUS_STATUS_SHFT,
+				&rx_status);
+		if (ret)
+			return -EIO;
+
+		if (rx_status == BHIE_RXVECSTATUS_STATUS_XFER_COMPL) {
+			MHI_CNTRL_LOG("RDDM dumps collected successfully");
+			return 0;
+		}
+
+		mdelay(delayms);
+	}
+
+	ee = mhi_get_exec_env(mhi_cntrl);
+	ret = mhi_read_reg(mhi_cntrl, base, BHIE_RXVECSTATUS_OFFS, &rx_status);
+	MHI_ERR("RXVEC_STATUS: 0x%x\n", rx_status);
+	MHI_CNTRL_ERR("Current EE:%s\n", TO_MHI_EXEC_STR(ee));
+	return -EIO;
+}
+
 /* collect rddm during kernel panic */
 static int __mhi_download_rddm_in_panic(struct mhi_controller *mhi_cntrl)
 {
 	int ret;
-	u32 rx_status;
 	enum mhi_ee ee;
 	const u32 delayms = 5;
-	u32 retry = (mhi_cntrl->timeout_ms) / delayms;
-	const u32 rddm_timeout_ms = 200;
+	const u32 rddm_timeout_ms = 250;
 	int rddm_retry = rddm_timeout_ms / delayms; /* time to enter rddm */
-	void __iomem *base = mhi_cntrl->bhie;
 
 	MHI_CNTRL_LOG("Entered with pm_state:%s dev_state:%s ee:%s\n",
 			to_mhi_pm_state_str(mhi_cntrl->pm_state),
 			TO_MHI_STATE_STR(mhi_cntrl->dev_state),
 			TO_MHI_EXEC_STR(mhi_cntrl->ee));
+
+	if (mhi_cntrl->ee == MHI_EE_PBL) {
+		MHI_CNTRL_LOG("Aborting RDDM dumps as device is in %s state\n",
+				 TO_MHI_EXEC_STR(mhi_cntrl->ee));
+		return -EACCES;
+	}
 
 	/*
 	 * This should only be executing during a kernel panic, we expect all
@@ -263,9 +318,7 @@ static int __mhi_download_rddm_in_panic(struct mhi_controller *mhi_cntrl)
 			/* Hardware reset; force device to enter rddm */
 			MHI_CNTRL_LOG(
 				"Did not enter RDDM, do a host req. reset\n");
-			mhi_cntrl->write_reg(mhi_cntrl, mhi_cntrl->regs,
-				      MHI_SOC_RESET_REQ_OFFSET,
-				      MHI_SOC_RESET_REQ);
+			mhi_soc_reset(mhi_cntrl);
 			mdelay(delayms);
 		}
 
@@ -274,29 +327,14 @@ static int __mhi_download_rddm_in_panic(struct mhi_controller *mhi_cntrl)
 
 	MHI_CNTRL_LOG("Waiting for image download completion, current EE:%s\n",
 			TO_MHI_EXEC_STR(ee));
-	while (retry--) {
-		ret = mhi_read_reg_field(mhi_cntrl, base, BHIE_RXVECSTATUS_OFFS,
-					 BHIE_RXVECSTATUS_STATUS_BMSK,
-					 BHIE_RXVECSTATUS_STATUS_SHFT,
-					 &rx_status);
-		if (ret)
-			return -EIO;
 
-		if (rx_status == BHIE_RXVECSTATUS_STATUS_XFER_COMPL) {
-			MHI_CNTRL_LOG("RDDM successfully collected\n");
-			return 0;
-		}
-
-		mdelay(delayms);
+	ret = mhi_rddm_download_status(mhi_cntrl);
+	if (!ret) {
+		MHI_CNTRL_LOG("RDDM dumps collected successfully");
+		return 0;
 	}
 
-	ee = mhi_get_exec_env(mhi_cntrl);
-	ret = mhi_read_reg(mhi_cntrl, base, BHIE_RXVECSTATUS_OFFS, &rx_status);
-
-	MHI_CNTRL_ERR("RXVEC_STATUS:0x%x, ret:%d\n", rx_status, ret);
-
 err_no_rddm:
-	MHI_CNTRL_ERR("Current EE:%s\n", TO_MHI_EXEC_STR(ee));
 	MHI_CNTRL_ERR("Did not complete RDDM transfer\n");
 
 	return -EIO;
@@ -329,6 +367,19 @@ int mhi_download_rddm_img(struct mhi_controller *mhi_cntrl, bool in_panic)
 	return (rx_status == BHIE_RXVECSTATUS_STATUS_XFER_COMPL) ? 0 : -EIO;
 }
 EXPORT_SYMBOL(mhi_download_rddm_img);
+
+/* MHI host reset request*/
+int mhi_force_reset(struct mhi_controller *mhi_cntrl)
+{
+	MHI_VERB("Entered with pm_state:%s dev_state:%s ee:%s\n",
+		 to_mhi_pm_state_str(mhi_cntrl->pm_state),
+		 TO_MHI_STATE_STR(mhi_cntrl->dev_state),
+		 TO_MHI_EXEC_STR(mhi_cntrl->ee));
+
+	mhi_soc_reset(mhi_cntrl);
+	return mhi_rddm_download_status(mhi_cntrl);
+}
+EXPORT_SYMBOL(mhi_force_reset);
 
 static int mhi_fw_load_bhie(struct mhi_controller *mhi_cntrl,
 			    const struct mhi_buf *mhi_buf)
@@ -524,7 +575,7 @@ int mhi_alloc_bhie_table(struct mhi_controller *mhi_cntrl,
 		if (!mhi_buf->buf)
 			goto error_alloc_segment;
 
-		MHI_CNTRL_LOG("Entry:%d Address:0x%llx size:%lu\n", i,
+		MHI_CNTRL_LOG("Entry:%d Address:0x%llx size:%zu\n", i,
 			mhi_buf->dma_addr, mhi_buf->len);
 	}
 

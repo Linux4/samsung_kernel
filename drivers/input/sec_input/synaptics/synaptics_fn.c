@@ -73,6 +73,48 @@ exit:
 	return retval;
 }
 
+/**
+ * syna_tcm_send_immediate_command()
+ *
+ * Helper to forward the immediate custom commnd to the device. This
+ * function only support the immediate command. For having the response
+ * please use the generic commands through the synaptics_ts_send_command
+ * function. The firmware will not send the response for the immediate
+ * commands including the error code.
+ *
+ * @param
+ *    [ in] tcm_dev:        the device handle
+ *    [ in] command:        TouchComm immediate command
+ *    [ in] payload:        data payload, if any
+ *    [ in] payload_length: length of data payload, if any
+ *
+ * @return
+ *    on success for sending the command, 0 or positive value;
+ *    otherwise, negative value on error.
+ */
+int synaptics_ts_send_immediate_command(struct synaptics_ts_data *ts,
+			unsigned char command, unsigned char *payload,
+			unsigned int payload_length)
+{
+	int retval = 0;
+
+	if (!ts) {
+		pr_err("%s%s: Invalid tcm device handle\n", SECLOG, __func__);
+		return SEC_ERROR;
+	}
+
+	retval = ts->write_immediate_message(ts,
+			command,
+			payload,
+			payload_length);
+	if (retval < 0) {
+		input_err(true, &ts->client->dev, "Fail to send immediate command 0x%02x\n",
+			command);
+	}
+
+	return retval;
+}
+
 
 /**
  * syna_tcm_rezero()
@@ -317,13 +359,13 @@ show_info:
 		ts->plat_data->img_version_of_ic[i] = ts->config_id[i];
 	}
 
-	input_err(true, &ts->client->dev, "%s: ic:%02x%02x%02x%02x", __func__,
+	input_info(true, &ts->client->dev, "%s: ic:%02x%02x%02x%02x\n", __func__,
 		ts->plat_data->img_version_of_ic[0], ts->plat_data->img_version_of_ic[1],
 		ts->plat_data->img_version_of_ic[2], ts->plat_data->img_version_of_ic[3]);
 
-	input_err(true, &ts->client->dev, "%s: App info version: %d, status: %d\n", __func__,
+	input_info(true, &ts->client->dev, "%s: App info version: %d, status: %d\n", __func__,
 		synaptics_ts_pal_le2_to_uint(info->version), app_status);
-	input_err(true, &ts->client->dev, "%s: App info: max_objs: %d, max_x:%d, max_y: %d, img: %dx%d\n", __func__,
+	input_info(true, &ts->client->dev, "%s: App info: max_objs: %d, max_x:%d, max_y: %d, img: %dx%d\n", __func__,
 		ts->max_objects, ts->max_x, ts->max_y,
 		ts->rows, ts->cols);
 
@@ -1057,6 +1099,162 @@ exit:
 
 }
 
+static int synaptics_ts_v1_write_immediate_message(struct synaptics_ts_data *ts,
+	unsigned char command, unsigned char *payload, unsigned int payload_len)
+{
+	int retval = 0;
+	unsigned int idx;
+	unsigned int chunks;
+	unsigned int chunk_space;
+	unsigned int xfer_length;
+	unsigned int remaining_length;
+	struct synaptics_ts_message_data_blob *tcm_msg = NULL;
+	synaptics_ts_pal_mutex_t *cmd_mutex = NULL;
+	synaptics_ts_pal_mutex_t *rw_mutex = NULL;
+
+	if (!ts) {
+		pr_err("%s%s: Invalid tcm device handle\n", SECLOG, __func__);
+		return -EINVAL;
+	}
+
+	if (!ts->support_immediate_cmd) {
+		input_err(true, &ts->client->dev, "%s: not support immediate cmd\n", __func__);
+		return -EINVAL;
+	}
+
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	if (atomic_read(&ts->secure_enabled) == SECURE_TOUCH_ENABLE) {
+		input_err(true, &ts->client->dev,
+				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return -EBUSY;
+	}
+#endif
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		return -EBUSY;
+#endif
+
+	/* add the extra condition if any other immediate command is supported. */
+	if (command != CMD_SET_IMMEDIATE_DYNAMIC_CONFIG) {
+		pr_err("Invalid command, 0x%02x is not a immediate command\n", command);
+		return -EINVAL;
+	}
+
+	tcm_msg = &ts->msg_data;
+	cmd_mutex = &tcm_msg->cmd_mutex;
+	rw_mutex = &tcm_msg->rw_mutex;
+
+	synaptics_ts_pal_mutex_lock(cmd_mutex);
+
+	synaptics_ts_pal_mutex_lock(rw_mutex);
+
+	ATOMIC_SET(tcm_msg->command_status, CMD_STATE_BUSY);
+
+	tcm_msg->command = command;
+
+	/* adding two length bytes as part of payload */
+	remaining_length = payload_len + 2;
+
+	/* available space for payload = total size - command byte */
+	if (ts->max_wr_size == 0)
+		chunk_space = remaining_length;
+	else
+		chunk_space = ts->max_wr_size - 1;
+
+	chunks = synaptics_ts_pal_ceil_div(remaining_length, chunk_space);
+	chunks = chunks == 0 ? 1 : chunks;
+
+	input_dbg(false, &ts->client->dev, "%s: Command: 0x%02x, payload len: %d\n", __func__, command, payload_len);
+
+	synaptics_ts_buf_lock(&tcm_msg->out);
+
+	for (idx = 0; idx < chunks; idx++) {
+		if (remaining_length > chunk_space)
+			xfer_length = chunk_space;
+		else
+			xfer_length = remaining_length;
+
+		/* allocate the space storing the written data */
+		retval = synaptics_ts_buf_alloc(&tcm_msg->out,
+				xfer_length + 1);
+		if (retval < 0) {
+			input_err(true, &ts->client->dev, "%s: Fail to allocate memory for internal buf.out\n", __func__);
+			synaptics_ts_buf_unlock(&tcm_msg->out);
+			synaptics_ts_pal_mutex_unlock(rw_mutex);
+			goto exit;
+		}
+
+		/* construct the command packet */
+		if (idx == 0) {
+			tcm_msg->out.buf[0] = tcm_msg->command;
+			tcm_msg->out.buf[1] = (unsigned char)payload_len;
+			tcm_msg->out.buf[2] = (unsigned char)(payload_len >> 8);
+
+			if (xfer_length > 2) {
+				retval = synaptics_ts_pal_mem_cpy(&tcm_msg->out.buf[3],
+						tcm_msg->out.buf_size - 3,
+						payload,
+						remaining_length - 2,
+						xfer_length - 2);
+				if (retval < 0) {
+					input_err(true, &ts->client->dev, "%s: Fail to copy payload\n", __func__);
+					synaptics_ts_buf_unlock(&tcm_msg->out);
+					synaptics_ts_pal_mutex_unlock(rw_mutex);
+					goto exit;
+				}
+			}
+		}
+		/* construct the continued writes packet */
+		else {
+			tcm_msg->out.buf[0] = SYNAPTICS_TS_CMD_CONTINUE_WRITE;
+
+			retval = synaptics_ts_pal_mem_cpy(&tcm_msg->out.buf[1],
+					tcm_msg->out.buf_size - 1,
+					&payload[idx * chunk_space - 2],
+					remaining_length,
+					xfer_length);
+			if (retval < 0) {
+				input_err(true, &ts->client->dev, "%s: Fail to copy continued write\n", __func__);
+				synaptics_ts_buf_unlock(&tcm_msg->out);
+				synaptics_ts_pal_mutex_unlock(rw_mutex);
+				goto exit;
+			}
+		}
+
+		/* write command packet to the device */
+		retval = ts->synaptics_ts_i2c_write(ts,
+				tcm_msg->out.buf,
+				xfer_length + 1, NULL, 0);
+		if (retval < 0) {
+			input_err(true, &ts->client->dev, "%s: Fail to write %d bytes to device\n", __func__,
+				xfer_length + 1);
+			synaptics_ts_buf_unlock(&tcm_msg->out);
+			synaptics_ts_pal_mutex_unlock(rw_mutex);
+			goto exit;
+		}
+
+		remaining_length -= xfer_length;
+
+		if (chunks > 1)
+			synaptics_ts_pal_sleep_us(WR_DELAY_US_MIN, WR_DELAY_US_MAX);
+	}
+
+	synaptics_ts_buf_unlock(&tcm_msg->out);
+
+	synaptics_ts_pal_mutex_unlock(rw_mutex);
+
+	retval = 0;
+
+exit:
+	tcm_msg->command = SYNAPTICS_TS_CMD_NONE;
+
+	ATOMIC_SET(tcm_msg->command_status, CMD_STATE_IDLE);
+
+	synaptics_ts_pal_mutex_unlock(cmd_mutex);
+
+	return retval;
+
+}
 
 /**
  * syna_tcm_enable_report()
@@ -1184,6 +1382,39 @@ exit:
 	return retval;
 }
 
+int synaptics_ts_set_up_report(struct synaptics_ts_data *ts)
+{
+	int ret;
+
+	/* disable the generic touchcomm touch report */
+	ret = synaptics_ts_enable_report(ts,
+			REPORT_TOUCH, false);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to disable touch report\n", __func__);
+		return -EIO;
+	}
+	/* enable the sec reports */
+	ret = synaptics_ts_enable_report(ts,
+			REPORT_SEC_SPONGE_GESTURE, true);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to enable sec gesture report\n", __func__);
+		return -EIO;
+	}
+	ret = synaptics_ts_enable_report(ts,
+			REPORT_SEC_COORDINATE_EVENT, true);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to enable sec coordinate report\n", __func__);
+		return -EIO;
+	}
+	ret = synaptics_ts_enable_report(ts,
+			REPORT_SEC_STATUS_EVENT, true);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to enable sec status report\n", __func__);
+		return -EIO;
+	}
+
+	return ret;
+}
 
 /**
  * syna_dev_set_up_app_fw()
@@ -1228,30 +1459,9 @@ int synaptics_ts_set_up_app_fw(struct synaptics_ts_data *ts)
 		return -EIO;
 	}
 
-	/* disable the generic touchcomm touch report */
-	retval = synaptics_ts_enable_report(ts,
-			REPORT_TOUCH, false);
+	retval = synaptics_ts_set_up_report(ts);
 	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: Fail to disable touch report\n", __func__);
-		return -EIO;
-	}
-	/* enable the sec reports */
-	retval = synaptics_ts_enable_report(ts,
-			REPORT_SEC_SPONGE_GESTURE, true);
-	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: Fail to enable sec gesture report\n", __func__);
-		return -EIO;
-	}
-	retval = synaptics_ts_enable_report(ts,
-			REPORT_SEC_COORDINATE_EVENT, true);
-	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: Fail to enable sec coordinate report\n", __func__);
-		return -EIO;
-	}
-	retval = synaptics_ts_enable_report(ts,
-			REPORT_SEC_STATUS_EVENT, true);
-	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: Fail to enable sec status report\n", __func__);
+		input_err(true, &ts->client->dev, "%s: Fail to set up report\n", __func__);
 		return -EIO;
 	}
 
@@ -1401,6 +1611,7 @@ int synaptics_ts_v1_detect(struct synaptics_ts_data *ts, unsigned char *data,
 	/* expose the read / write operations */
 	ts->read_message = synaptics_ts_v1_read_message;
 	ts->write_message = synaptics_ts_v1_write_message;
+	ts->write_immediate_message = synaptics_ts_v1_write_immediate_message;
 
 	return retval;
 }
@@ -1796,6 +2007,57 @@ exit:
 	return retval;
 }
 
+/**
+ * syna_tcm_set_immediate_dynamic_config()
+ *
+ * Implement the application firmware command code to set the specified
+ * value to the selected field of the immediate dynamic configuration.
+ * The firmware will not send the response for immediate commands
+ * including error response for setting the config. The firmware will
+ * ignore the operation of dynamic config setting when failed to set the
+ * config.
+ *
+ * @param
+ *    [ in] tcm_dev:  the device handle
+ *    [ in] id:       target field id
+ *    [ in] value:    the value to the selected field
+ *
+ * @return
+ *    on success for sending the config, 0 or positive value; otherwise,
+ *    negative value on error.
+ */
+int synaptics_ts_set_immediate_dynamic_config(struct synaptics_ts_data *ts,
+		unsigned char id, unsigned short value)
+{
+	int retval = 0;
+	unsigned char out[3];
+
+	if (IS_NOT_APP_FW_MODE(ts->dev_mode)) {
+		input_err(true, &ts->client->dev, "%s: Device is not in application fw mode, mode: %x\n", __func__,
+			ts->dev_mode);
+		return -EINVAL;
+	}
+
+	input_err(true, &ts->client->dev, "%s: Set %d to dynamic field 0x%x\n", __func__, value, id);
+
+	out[0] = (unsigned char)id;
+	out[1] = (unsigned char)value;
+	out[2] = (unsigned char)(value >> 8);
+
+	retval = ts->write_immediate_message(ts,
+			CMD_SET_IMMEDIATE_DYNAMIC_CONFIG,
+			out,
+			sizeof(out));
+	if (retval < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to send immediate command 0x%02x to set %d to field 0x%x\n", __func__,
+			CMD_SET_IMMEDIATE_DYNAMIC_CONFIG, value, (unsigned char)id);
+		goto exit;
+	}
+
+exit:
+	return retval;
+}
+
 int synaptics_ts_clear_buffer(struct synaptics_ts_data *ts)
 {
 	int retval = 0;
@@ -1986,10 +2248,8 @@ void synaptics_ts_reset_work(struct work_struct *work)
 			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
 		mutex_unlock(&ts->modechange);
 
-		if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-			snprintf(result, sizeof(result), "RESULT=RESET");
-			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-		}
+		snprintf(result, sizeof(result), "RESULT=RESET");
+		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
 		__pm_relax(ts->plat_data->sec_ws);
 
@@ -2021,12 +2281,8 @@ void synaptics_ts_reset_work(struct work_struct *work)
 	ts->reset_is_on_going = false;
 	mutex_unlock(&ts->modechange);
 
-	if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-		char result[32];
-
-		snprintf(result, sizeof(result), "RESULT=RESET");
-		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-	}
+	snprintf(result, sizeof(result), "RESULT=RESET");
+	sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
 	__pm_relax(ts->plat_data->sec_ws);
 }
@@ -2077,6 +2333,7 @@ void synaptics_ts_set_cover_type(struct synaptics_ts_data *ts, bool enable)
 			__func__, enable ? "close" : "open", ts->plat_data->cover_type);
 
 	cover_cmd = sec_input_check_cover_type(&ts->client->dev) & 0xFF;
+	ts->cover_closed = enable;
 
 	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		input_err(true, &ts->client->dev, "%s: pwr off, close:%d, touch_fn:%x\n", __func__,
@@ -2087,7 +2344,7 @@ void synaptics_ts_set_cover_type(struct synaptics_ts_data *ts, bool enable)
 	ret = synaptics_ts_set_dynamic_config(ts, DC_ENABLE_COVER, enable);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev,
-				"%s: Failed to send cover enable command: %d, ret:%d/n",
+				"%s: Failed to send cover enable command: %d, ret:%d\n",
 				__func__, enable, ret);
 		return;
 	}
@@ -2096,7 +2353,7 @@ void synaptics_ts_set_cover_type(struct synaptics_ts_data *ts, bool enable)
 		ret = synaptics_ts_set_dynamic_config(ts, DC_ENABLE_COVERTYPE, cover_cmd);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev,
-					"%s: Failed to send covertype command: %d, ret:%d/n",
+					"%s: Failed to send covertype command: %d, ret:%d\n",
 					__func__, cover_cmd, ret);
 			return;
 		}
@@ -2108,7 +2365,25 @@ void synaptics_ts_set_cover_type(struct synaptics_ts_data *ts, bool enable)
 
 int synaptics_ts_set_temperature(struct device *dev, u8 temperature_data)
 {
-	return 0;
+	struct synaptics_ts_data *ts = dev_get_drvdata(dev);
+	int ret;
+
+	if (ts->plat_data->not_support_temp_noti) {
+		input_info(true, &ts->client->dev, "%s: SKIP! temp:%d\n",
+					__func__, temperature_data);
+		return SEC_ERROR;
+	}
+
+	if (ts->support_immediate_cmd)
+		ret = synaptics_ts_set_immediate_dynamic_config(ts, DC_TSP_SET_TEMP, temperature_data);
+	else
+		ret = synaptics_ts_set_dynamic_config(ts, DC_TSP_SET_TEMP, temperature_data);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: failed to set temperature_data(%d)\n",
+					__func__, temperature_data);
+	}
+
+	return SEC_SUCCESS;
 }
 
 int synaptics_ts_set_aod_rect(struct synaptics_ts_data *ts)
@@ -2339,9 +2614,67 @@ int synaptics_ts_ear_detect_enable(struct synaptics_ts_data *ts, u8 enable)
 
 int synaptics_ts_pocket_mode_enable(struct synaptics_ts_data *ts, u8 enable)
 {
+	int ret;
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		input_err(true, &ts->client->dev, "%s: ic power is off\n", __func__);
+		return 0;
+	}
+
+	ret = synaptics_ts_set_dynamic_config(ts, DC_TSP_ENABLE_POCKET_MODE, enable);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Failed to send %d, ret:%d\n",
+				__func__, enable, ret);
+		return ret;
+	}
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, enable ? "on" : "off");
+
 	return 0;
 }
 
+int synaptics_ts_low_sensitivity_mode_enable(struct synaptics_ts_data *ts, u8 enable)
+{
+	int ret;
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		input_err(true, &ts->client->dev, "%s: ic power is off\n", __func__);
+		return 0;
+	}
+
+	ret = synaptics_ts_set_dynamic_config(ts, DC_TSP_ENABLE_LOW_SENSITIVITY_MODE, enable);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Failed to send %d, ret:%d\n",
+				__func__, enable, ret);
+		return ret;
+	}
+
+	input_info(true, &ts->client->dev, "%s: %d\n", __func__, enable);
+
+	return 0;
+}
+
+int synaptics_ts_set_charger_mode(struct device *dev, bool on)
+{
+	struct synaptics_ts_data *ts = dev_get_drvdata(dev);
+	int ret;
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		input_err(true, dev, "%s: ic power is off\n", __func__);
+		return 0;
+	}
+
+	ret = synaptics_ts_set_dynamic_config(ts, DC_ENABLE_CHARGER_CONNECTED, on);
+	if (ret < 0) {
+		input_err(true, dev, "%s: Failed to send charger cmd: %d, ret:%d\n",
+				__func__, on, ret);
+		return ret;
+	}
+
+	input_info(true, dev, "%s: %s\n", __func__, on ? "on" : "off");
+
+	return 0;
+}
 
 /**
  * syna_testing_pt1e()

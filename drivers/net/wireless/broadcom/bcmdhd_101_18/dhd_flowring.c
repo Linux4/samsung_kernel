@@ -4,7 +4,7 @@
  * Flow rings are transmit traffic (=propagating towards antenna) related entities
  *
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -831,7 +831,7 @@ dhd_flowid_lookup(dhd_pub_t *dhdp, uint8 ifindex,
 
 	id = dhd_flowid_find(dhdp, ifindex, prio, sa, da);
 
-	if (id == FLOWID_INVALID) {
+	if (id == FLOWID_INVALID || (id > dhdp->max_tx_flowid)) {
 		bool if_role_multi_client;
 		if_flow_lkup_t *if_flow_lkup;
 		if_flow_lkup = (if_flow_lkup_t *)dhdp->if_flow_lkup;

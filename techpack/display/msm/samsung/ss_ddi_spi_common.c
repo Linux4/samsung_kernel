@@ -65,7 +65,7 @@ int ss_spi_write(struct spi_device *spi, int tx_bpw, u8 *tx_buf, int tx_size)
 	for (i = 0; i < ARRAY_SIZE(xfer); i++)
 		spi_message_add_tail(&xfer[i], &msg);
 
-	ret = spi_sync(spi, &msg);
+	ret = ss_wrapper_spi_sync(spi, &msg);
 	if (ret) {
 		pr_err("[spi] %s : spi_sync fail..\n", __func__);
 		goto err;
@@ -160,7 +160,7 @@ int ss_spi_read(struct spi_device *spi, u8 *buf,
 	for (i = 0; i < ARRAY_SIZE(xfer); i++)
 		spi_message_add_tail(&xfer[i], &msg);
 
-	ret = spi_sync(spi, &msg);
+	ret = ss_wrapper_spi_sync(spi, &msg);
 	if (ret) {
 		LCD_ERR(vdd, "[spi] %s : spi_sync fail..\n", __func__);
 		goto err;
@@ -294,7 +294,7 @@ int ss_spi_sync(struct spi_device *spi, u8 *buf, enum spi_cmd_set_type type)
 		goto err;
 	}
 
-	ret = spi_sync(spi, &msg);
+	ret = ss_wrapper_spi_sync(spi, &msg);
 	if (ret) {
 		pr_err("[spi] %s : spi_sync fail..\n", __func__);
 		goto err;

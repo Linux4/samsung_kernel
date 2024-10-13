@@ -1,4 +1,115 @@
-BCM4361/BCM4375/BCM430132 DHD 101.16.79.6 for Android R OS - Palette(O1,T2)/Canvas/Hubble/Davinci/Beyond/R7/R9/Watch Project
+BCM4361/BCM4375/BCM430132 DHD 101.16.90 for Android S OS - Palette(O1,T2)/Canvas/Hubble/Davinci/Beyond/R7/R9/Watch Project
+
+DHD 101.16.90 - 2022.04.05
+Kernel Panic
+ - CS00012224356(By Suthar Nitesh) Fixed kernel panic caused by out of bounds array access in softap bigdata parsing
+ - CS00012229955(By Jeong Min Cheol) Fixed kernel panic caused by deleting the wrong list in wl_bad_ap_mngr_deinit
+ - CS00012233932(By LEE EONJI) Fixed BRK panic by doing array index validation
+ - CS00012237206(By Kim Taeyong) Fixed kernel panic caused by wrong remained length
+
+Others
+ - CS00012222928(By Lee SoonHo) Increased NAN max discovery cache number
+ - CS00012224765(By Kim TaeYong) Fixed continuous IOVARs failure with added handles for resumed on timeout during WiFi turn on
+ - CS00012229256(By Shivendra) Fixed connection failure caused by disconnect event handled asynchronously
+ - CS00012232088(By Lee Sunghee) Disabled RuntimePM during monitor mode
+ - Allow PNO scan interval to 3600 sec(max) for connected state
+
+
+DHD 101.16.89 - 2021.12.15
+Kernel Panic
+ - CS00012218890(By Kim TaeYong) Fixed kernel panic due to invalid pre-reserved socket buffer when retrying WIFI on
+
+Others
+ - CS00012222072(By Choi Sung-gi) Disabled DHD periodic ecounters due to host suspend failure
+
+
+DHD 101.16.88 - 2021.11.19
+Kernel Panic
+ - CS00012211742(By Kim TaeYong) Use isb to block instruction out of order during pcie flr
+ - CS00012217129(By Kim TaeYoung) Fixed kernel panic caused by dhd_open failure
+
+Others
+ - CS00012204758(By Lee SoonHo) Fixed to reject country code change when AP/GO up or NDP established
+ - CS00012211765(By Lee SoonHo) Fixed to distinguish publisher by considering service instance ID
+ - CS00012211807(By Choi Junsu) Fixed coverity issues (CID:75116, 68513, 64052)
+
+Vendor HAL Library
+ - HAL_REL_1_60_25
+   - CS00012211544(By Choi Hyeonu) Changed HAL build condition according to PRODUCT_SHIPPING_API_LEVEL or PRODUCT_MANUFACTURER
+
+
+DHD 101.16.87.1 - 2021.11.11
+Kernel Panic
+ - CS00012211901 CS00012212000 (By Kim TaeYong) Fixed kernel panic due to access freed pre-reserved memory
+ - CS00012214342(By Min SungBin) Fixed kernel panic caused during system suspend
+
+Others
+ - CS00012213011(By Park Jun-young) Added DHD up state check in dhd_pm_callback
+ - CS00012213829(By Jeong Min Cheol) Added clearing of the bus busy state for recover WiFi up
+ - CS00012213829(By Jeong Min Cheol) Fixed bus busy state conflicted by added spin lock for bus busy state value
+ - CS00012214715(By Lee SoonHo) Fixed to clean up NAN status properly when NAN initialization failed
+
+
+DHD 101.16.87 - 2021.10.05
+Kernel Panic
+ - CS00012209247(By LEE EONJI) Fixed kernel crash due to wrong ieee channel update in cfg80211 roam/connect indication
+ - CS00012210345(By Kim TaeYong) Fixed Kernel Panic by added the busy state for pm callback function
+
+Others
+ - CS00012210127(By Park Jun-young) Skipped dongle memory dump caused by EXCESS_PM_AWAKE under weak signal(-80 dBm)
+ - CS00012211206(By Choi Sung-gi) Fixed power consumption issue due to Idle ROAM while LCD off
+
+
+DHD 101.16.85 - 2021.09.14
+Others
+ - CS00012187270(By Hyeonu Choi) Added New Android private command SET_DWELL_TIME in order to one-shot set scan dwell times
+ - CS00012198566(By Jeong Min Cheol) Applied new pcie rc driver changes for S OS MSM platform
+ - CS00012203918(By Choi Hyeonu) Removed SSID in PNO log message due to protect personal information
+ - CS00012206194(By Myung Jung-Young) Changed the excess pm setting to be called in pm suspend/resume
+ - CS00012206375(By Sinwoo Park) Fixed CTS failure due to RTT burstsize mismatch
+ - Cleaned up excess PM info explicitly on WiFi stop
+ - Fixed the compile error when enabled Wcast-qual option
+
+
+DHD 101.16.84 - 2021.08.13
+Others
+ - CS00012200300(By Choi Hyeonu) Added return BCME_UNSUPPORTED for unknown private command
+ - CS00012200344(By Choi Jongmin) Changed the 11mode of softap bigdata for bit operation
+ - CS00012200952(By Lee SoonHo) Fixed not to do passive scan during P2P GO up phase
+ - CS00012201435(By Yoon YeJi) Added to update RCC frequencies list
+ - CS00012202540(By Park Jun-young) Changed the DHD IOVARs for setting resume to be called in early resume
+ - Fixed to trigger disconnection and memdump condition at repeatedly PM awake event
+
+
+DHD 101.16.82 - 2021.07.30
+Others
+ - CS00012196490(By Lee sanguk) Added private cmd to set MIMO/SISO for SoftAP
+ - CS00012198527(By Lee SoonHo) Fixed not to access nan wake lock after WiFi turned off
+ - CS00012198644(By Choi Junsu) Fixed OOB caused by invalid memory access
+ - CS00012198644(By Choi Junsu) Fixed OOB caused by strlen
+ - CS00012199012(By Jeong Min Cheol) Fixed FATAL_NOC_ERROR when triggering sysfs dump and calling dhd_stop() at same time
+
+
+DHD 101.16.81 - 2021.07.16
+Kernel Panic
+ - CS00012196505(By Gu JaYoung) Fixed kernel panic caused by invalid address access during watch FOTA
+
+Others
+ - CS00011635065(By Park Jun-young) Changed the DHD IOVARs for setting suspend/resume to be called in pm_notifier
+ - CS00011780474(By LEE EONJI) Added pre-memory allocation for DHD flow ring
+ - CS00012187292(By Choi Hyeonu) Introduced dump_in_progress sysfs to trigger/monitor dump
+ - CS00012192552(By Choi Sung-gi) Added 5G channels to initial scan list
+ - CS00012193990(By Min SungBin) Fixed NOC error by removing remained DHCP helper timer at disconnection
+ - CS00012193996(By Kim Beom Jip) Fixed to return nan capability error value properly
+ - CS00012195846(By Min SungBin) Moved iovar request on pm_resume to pm_complete
+ - Added excess PM awake operation to debug Current consumption
+ - Added DHD periodic ecounters for BCM4375
+ - Added excess PM awake operation to debug Current consumption
+ - Fixed to clean up 4 way handshake handler when it gets ack after transmit failure
+ - Fixed to send up NAN MatchExpiredInd event to upper layer
+ - Fixed to wlan oob interrupt type to level-triggered
+ - Prevented delay for dongle memory dump after dhd_stop
+
 
 DHD 101.16.79.6 - 2021.07.19
 Others

@@ -13,23 +13,27 @@ struct debug_partition_data_s {
 
 enum debug_partition_index {
 	debug_index_reset_summary_info = 0,
-	debug_index_reset_klog_info,
-	debug_index_reset_tzlog_info,
+	debug_index_reset_klog_info = 0,
+	debug_index_reset_header = 0,
 	debug_index_reset_ex_info,
-	debug_index_reset_summary,
-	debug_index_reset_klog,
-	debug_index_reset_tzlog,
 	debug_index_ap_health,
-	debug_index_reset_extrc_info,
 	debug_index_lcd_debug_info,
-	debug_index_modem_info,
-	debug_index_auto_comment,
 	debug_index_reset_history,
-	debug_index_reset_rkplog,
-	debug_index_reset_lpm_klog,
+	debug_index_reserve_0,
+	debug_index_reserve_1,
 	debug_index_onoff_history,
+	debug_index_reset_tzlog,
+	debug_index_reset_extrc_info,
+	debug_index_auto_comment,
+	debug_index_reset_rkplog,
+	debug_index_modem_info,
+	debug_index_reset_klog,
+	debug_index_reset_lpm_klog,
+	debug_index_reset_summary,
 	debug_index_max,
 };
+
+#define DEBUG_PART_MAX_TABLE (debug_index_max)
 
 #define AP_HEALTH_MAGIC 0x48544C4145485041
 #define AP_HEALTH_VER 2
@@ -219,7 +223,7 @@ typedef struct debug_onoff_history {
 #define SEC_DEBUG_ONOFF_HISTORY_SIZE            (4*1024)
 
 #define SEC_DEBUG_RESET_ETRM_SIZE		(0x3c0)
-#define SEC_DEBUG_RESET_ETRM_OFFSET		(SEC_DEBUG_AUTO_COMMENT_OFFSET + ALIGN(SEC_DEBUG_AUTO_COMMENT_SIZE, SECTOR_UNIT_SIZE) - 0x15)	/* 5MB + 16KB + 4KB */
+#define SEC_DEBUG_RESET_ETRM_OFFSET		(SEC_DEBUG_AUTO_COMMENT_OFFSET + ALIGN(SEC_DEBUG_AUTO_COMMENT_SIZE, SECTOR_UNIT_SIZE))	/* 5MB + 16KB + 4KB */
 
 #define SEC_DEBUG_RESET_LPM_KLOG_OFFSET		(6 * 1024 * 1024)
 #define SEC_DEBUG_RESET_LPM_KLOG_SIZE		(0x200000)		/* 2MB */

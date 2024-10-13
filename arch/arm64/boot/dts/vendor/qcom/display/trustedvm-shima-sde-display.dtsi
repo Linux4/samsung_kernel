@@ -27,9 +27,25 @@
 			"shadow_byte_clk1", "shadow_pixel_clk1";
 
 	qcom,panel-te-source = <0>;
-	qcom,dsi-default-panel = <&dsi_r66451_amoled_60hz_cmd>;
+	qcom,dsi-default-panel = <&dsi_r66451_amoled_cmd>;
 };
 
 &mdss_mdp {
 	connectors = <&sde_dsi>;
+};
+
+&dsi_r66451_amoled_cmd {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,mdss-brightness-max-level = <255>;
+	qcom,mdss-dsi-bl-inverted-dbv;
+};
+
+&dsi_r66451_amoled_video {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,mdss-brightness-max-level = <255>;
+	qcom,mdss-dsi-bl-inverted-dbv;
 };

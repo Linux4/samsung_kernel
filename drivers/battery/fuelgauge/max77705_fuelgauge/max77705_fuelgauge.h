@@ -133,6 +133,10 @@ struct battery_data_t {
 	u32 ichgterm_2nd;
 	u32 misccfg_2nd;
 	u32 fullsocthr_2nd;
+	u32 coff_origin;
+	u32 coff_charging;
+	u32 cgain_origin;
+	u32 cgain_charging;
 };
 
 /* FullCap learning setting */
@@ -152,12 +156,16 @@ struct battery_data_t {
 
 #define LEARNING_QRTABLE 0x0001
 
+/* Need to be increased if there are more than 2 BAT ID GPIOs */
+#define BAT_GPIO_NO	2
+
 typedef struct max77705_fuelgauge_platform_data {
 	int jig_irq;
 	int jig_gpio;
 	int jig_low_active;
 
-	int bat_id_gpio;
+	int bat_id_gpio[BAT_GPIO_NO];
+	int bat_gpio_cnt;
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	int sub_bat_id_gpio;
 #endif
@@ -259,6 +267,7 @@ struct max77705_fuelgauge_data {
 
 	bool using_temp_compensation;
 	bool using_hw_vempty;
+	bool using_room_temperature_vempty;
 	unsigned int vempty_mode;
 	int temperature;
 	bool vempty_init_flag;
@@ -275,7 +284,7 @@ struct max77705_fuelgauge_data {
 	unsigned int verify_selected_reg_length;
 	u32 data_ver;
 	bool skip_fg_verify;
-
+	u32 err_cnt;
 
 #if defined(CONFIG_BATTERY_CISD)
 	bool valert_count_flag;

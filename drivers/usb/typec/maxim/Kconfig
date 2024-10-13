@@ -85,3 +85,27 @@ config MUIC_QC_DISABLE
 	default n
 	help
 	  If you say yes here you will not get support for the QC charging
+
+config UPGRADED_WATER_DETECT
+	bool "Using improved water detection"
+	depends on CCIC_MAX77705
+	default n
+	help
+	  If you say yes here you will get support for extra water detection
+	  driver will check if it is water + no VBUS + no hiccup state,
+	  and if the condition is satisfied, it will reset IC.
+
+config GET_UNMASK_VBUS_HWPARAM
+	bool "Using get unmask vbus hw param"
+	depends on CCIC_MAX77705
+	default n
+	help
+	  If you say yes here you will get support for getting unmask vbus hw param
+	  driver will check if it is attach/detach repeat state,
+	  and if the condition is satisfied, it will get the hw param.
+
+config MUIC_DISABLE_CHGDET
+	bool "Using disable chgdet"
+	default n
+	help
+	  If you say yes here you will get support for disabling chgdet.

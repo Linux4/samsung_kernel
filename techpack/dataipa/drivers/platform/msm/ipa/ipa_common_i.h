@@ -103,6 +103,23 @@
 		ipa3_dec_client_disable_clks(&log_info); \
 	} while (0)
 
+#define IPA_ACTIVE_CLIENTS_INC_EP_NO_BLOCK(client) ({\
+	int __ret = 0; \
+	do { \
+		struct ipa_active_client_logging_info log_info; \
+		IPA_ACTIVE_CLIENTS_PREP_EP(log_info, client); \
+		__ret = ipa3_inc_client_enable_clks_no_block(&log_info); \
+	} while (0); \
+	(__ret); \
+})
+
+#define IPA_ACTIVE_CLIENTS_DEC_EP_NO_BLOCK(client) \
+	do { \
+		struct ipa_active_client_logging_info log_info; \
+		IPA_ACTIVE_CLIENTS_PREP_EP(log_info, client); \
+		ipa3_dec_client_disable_clks_no_block(&log_info); \
+	} while (0)
+
 /*
  * Printing one warning message in 5 seconds if multiple warning messages
  * are coming back to back.
@@ -147,8 +164,8 @@ do {\
 #define IPA_CLIENT_IS_CONS(x) \
 	(x < IPA_CLIENT_MAX && (x & 0x1) == 1)
 
-#define IPA_GSI_CHANNEL_STOP_SLEEP_MIN_USEC (1000)
-#define IPA_GSI_CHANNEL_STOP_SLEEP_MAX_USEC (2000)
+#define IPA_GSI_CHANNEL_STOP_SLEEP_MIN_USEC (3000)
+#define IPA_GSI_CHANNEL_STOP_SLEEP_MAX_USEC (5000)
 
 enum ipa_active_client_log_type {
 	EP,
@@ -471,10 +488,6 @@ int ipa3_connect_mhi_pipe(struct ipa_mhi_connect_params_internal *in,
 		u32 *clnt_hdl);
 int ipa3_disconnect_mhi_pipe(u32 clnt_hdl);
 bool ipa3_mhi_stop_gsi_channel(enum ipa_client_type client);
-int ipa3_qmi_enable_force_clear_datapath_send(
-	struct ipa_enable_force_clear_datapath_req_msg_v01 *req);
-int ipa3_qmi_disable_force_clear_datapath_send(
-	struct ipa_disable_force_clear_datapath_req_msg_v01 *req);
 int ipa3_generate_tag_process(void);
 int ipa3_disable_sps_pipe(enum ipa_client_type client);
 int ipa3_mhi_reset_channel_internal(enum ipa_client_type client);

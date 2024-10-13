@@ -39,14 +39,14 @@ static void print_RGB_offset(struct SMART_DIM *pSmart)
 	int i;
 
 	for (i = 0; i < V_MAX; i++) {
-		pr_info("%s MTP_OFFSET %4s %3d %3d %3d \n", __func__, V_LIST[i],
+		pr_info("[SDE] %s MTP_OFFSET %4s %3d %3d %3d \n", __func__, V_LIST[i],
 			pSmart->MTP[i][R],
 			pSmart->MTP[i][G],
 			pSmart->MTP[i][B]);
 	}
 
 	for (i = 0; i < V_MAX; i++) {
-		pr_info("%s CENTER_GAMMA %4s %3x %3x %3x \n", __func__, V_LIST[i],
+		pr_info("[SDE] %s CENTER_GAMMA %4s %3x %3x %3x \n", __func__, V_LIST[i],
 			pSmart->CENTER_GAMMA_V[i][R],
 			pSmart->CENTER_GAMMA_V[i][G],
 			pSmart->CENTER_GAMMA_V[i][B]);
@@ -98,7 +98,7 @@ static void print_lux_table(struct SMART_DIM *psmart, char *type)
 			else
 				snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %02x", gamma);
 		}
-		pr_info("lux[%3d]  %s\n", psmart->plux_table[lux_loop], pBuffer);
+		pr_info("[SDE] lux[%3d]  %s\n", psmart->plux_table[lux_loop], pBuffer);
 		memset(pBuffer, 0x00, 256);
 	}
 }
@@ -153,7 +153,7 @@ static void print_hbm_lux_table(struct SMART_DIM *psmart, char *type)
 			else
 				snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %02x", gamma);
 		}
-		pr_info("hbm[%3d]  %s\n", hbm_interpolation_candela_table[i], pBuffer);
+		pr_info("[SDE] hbm[%3d]  %s\n", hbm_interpolation_candela_table[i], pBuffer);
 		memset(pBuffer, 0x00, 256);
 	}
 }
@@ -584,7 +584,7 @@ static int get_vreg_voltage(char panel_revision)
 		break;
 	}
 
-	pr_info("panel revision %c\n", panel_revision);
+	pr_info("[SDE] panel revision %c\n", panel_revision);
 
 	return vreg_voltage;
 }
@@ -601,7 +601,7 @@ static int get_vref(char panel_revision)
 		break;
 	}
 
-	pr_info("panel revision %c\n", panel_revision);
+	pr_info("[SDE] panel revision %c\n", panel_revision);
 
 	return vreg_voltage;
 }
@@ -1138,7 +1138,7 @@ static int smart_dimming_init(struct SMART_DIM *psmart)
 	id2 = (psmart->ldi_revision & 0x0000FF00) >> 8;
 	id3 = psmart->ldi_revision & 0xFF;
 
-	pr_info("++ id3(%d), panel_revision(%c) rr(%d) sot(%d)\n",
+	pr_info("[SDE] ++ id3(%d), panel_revision(%c) rr(%d) sot(%d)\n",
 			id3, psmart->panel_revision, psmart->rr, psmart->sot_hs);
 
 	mtp_sorting(psmart->MTP_ORIGN, psmart->MTP, true);
@@ -1263,7 +1263,7 @@ static void wrap_smart_dimming_init(struct smartdim_conf *conf)
 		memcpy(smart->CENTER_GAMMA_V, smart->CENTER_GAMMA_120HS_V, sizeof(smart->CENTER_GAMMA_120HS_V));
 	}
 
-	pr_info("rr[%d] sot[%d]\n", smart->rr, smart->sot_hs);
+	pr_err("[SDE] rr[%d] sot[%d]\n", smart->rr, smart->sot_hs);
 
 	if (smart->lux_table_max != LUMINANCE_MAX)
 		pr_err("%s : [ERROR] LUMINANCE_MAX(%d) lux_table_max(%d) are different!\n",
@@ -1354,7 +1354,7 @@ static void print_lux_table_hmt(struct SMART_DIM *psmart)
 			gamma = temp & 0x0F;
 			snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %3d", gamma);
 		}
-		pr_info("lux : %3d  %s\n", psmart->plux_table[lux_loop], pBuffer);
+		pr_info("[SDE] lux : %3d  %s\n", psmart->plux_table[lux_loop], pBuffer);
 		memset(pBuffer, 0x00, 256);
 	}
 }
@@ -1362,10 +1362,10 @@ static void print_lux_table_hmt(struct SMART_DIM *psmart)
 
 static void print_aid_log_hmt(struct smartdim_conf *conf)
 {
-	pr_info("== print_aid_log_hmt ==\n");
+	pr_info("[SDE] == print_aid_log_hmt ==\n");
 	print_RGB_offset(conf->psmart);
 	print_lux_table_hmt(conf->psmart);
-	pr_info("\n");
+	pr_info("[SDE] \n");
 }
 
 static int get_base_luminance_hmt(int brightness_level, int panel_revision)
@@ -1590,7 +1590,7 @@ static int smart_dimming_init_hmt(struct SMART_DIM *psmart)
 	id2 = (psmart->ldi_revision & 0x0000FF00) >> 8;
 	id3 = psmart->ldi_revision & 0xFF;
 
-	pr_info("++ id3(%d), panel_revision(%c)\n",
+	pr_info("[SDE] ++ id3(%d), panel_revision(%c)\n",
 			id3, psmart->panel_revision);
 
 	mtp_sorting(psmart->MTP_ORIGN, psmart->MTP, true);

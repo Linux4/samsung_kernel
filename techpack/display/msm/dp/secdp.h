@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -45,14 +46,12 @@ extern unsigned int lpcharge;
 #define SECDP_USE_WAKELOCK
 #define SECDP_MAX_HBR2
 #define SECDP_OPTIMAL_LINK_RATE	 /* use optimum link_rate, not max link_rate */
-#define SECDP_LIMIT_REFRESH_RATE /* needs to be DISABLED once android has menu for user to change DP resolution */
 
 /*#define SECDP_AUDIO_CTS*/
 /*#define SECDP_HDCP_DISABLE*/
 /*#define SECDP_EVENT_THREAD*/
 /*#define SECDP_TEST_HDCP2P2_REAUTH*/
 /*#define NOT_SUPPORT_DEX_RES_CHANGE*/
-/*#define SECDP_IGNORE_PREFER_IF_DEX_RES_EXIST*/
 
 #define LEN_BRANCH_REV		3
 #define	DPCD_BRANCH_HW_REV		0x509
@@ -188,6 +187,8 @@ static inline char *secdp_dex_res_to_string(int res)
 	switch (res) {
 	case DEX_RES_NOT_SUPPORT:
 		return DP_ENUM_STR(DEX_RES_NOT_SUPPORT);
+	case DEX_RES_1600X900:
+		return DP_ENUM_STR(DEX_RES_1600X900);
 	case DEX_RES_1920X1080:
 		return DP_ENUM_STR(DEX_RES_1920X1080);
 	case DEX_RES_1920X1200:
@@ -213,6 +214,7 @@ static inline char *secdp_dex_res_to_string(int res)
 #define DEX_MAX_ROW	1440
 #define DEX_FPS_MIN	50                  /* DeX min refresh rate */
 #define DEX_FPS_MAX	60                  /* DeX max refresh rate */
+#define MIRROR_REFRESH_MIN	24
 
 enum DEX_STATUS {
 	DEX_DISABLED = 0,
@@ -300,6 +302,11 @@ struct secdp_attention_node {
 struct secdp_adapter {
 	uint ven_id;
 	uint prod_id;
+	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
+
+	bool ss_genuine;
+	bool ss_legacy;
+	enum dex_support_res_t dex_type;
 };
 
 #define MON_NAME_LEN	14	/* monitor name length, max 13 chars + null */
@@ -324,8 +331,6 @@ struct secdp_prefer {
 	enum mon_aspect_ratio_t	ratio;
 
 	bool exist;   /* true if preferred resolution */
-	bool ignore;  /* true if larger refresh rate exists */
-
 	int  hdisp;   /* horizontal pixel of preferred resolution */
 	int  vdisp;   /* vertical pixel of preferred resolution */
 	int  refresh; /* refresh rate of preferred resolution */
@@ -339,6 +344,7 @@ struct secdp_dex {
 	enum DEX_STATUS curr; /* previously known as "dex_en" */
 	int  setting_ui;      /* "dex_set", true if setting has Dex mode */
 
+	bool ignore_prefer_ratio; /* true if prefer ratio does not match to dex ratio */
 	bool adapter_check_skip;
 
 	/*
@@ -348,12 +354,7 @@ struct secdp_dex {
 	 */
 	enum DEX_STATUS status; /* previously known as "dex_node_status" */
 
-	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
 	bool reconnecting; /* true if dex is under reconnecting */
-
-#ifdef SECDP_IGNORE_PREFER_IF_DEX_RES_EXIST
-	bool res_exist;    /* true if dex resolution exists */
-#endif
 };
 
 struct secdp_display_timing {
@@ -365,6 +366,7 @@ struct secdp_display_timing {
 	enum dex_support_res_t dex_res;    /* dex supported resolution */
 	enum mon_aspect_ratio_t mon_ratio; /* monitor aspect ratio */
 	int  supported;                    /* for unit test */
+	u64  total;
 };
 
 struct secdp_mst {
@@ -395,6 +397,8 @@ struct secdp_debug {
 
 struct secdp_misc {
 	struct delayed_work link_status_work;
+	struct delayed_work link_backoff_work;
+	bool backoff_start;
 	struct delayed_work poor_discon_work;
 
 	bool cable_connected; /* previously known as "cable_connected_phy" */
@@ -453,7 +457,6 @@ struct secdp_misc {
 bool secdp_check_if_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
 bool secdp_get_clk_status(enum dp_pm_type type);
-void secdp_send_poor_connection_event(void);
 
 int  secdp_pdic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_phy_reset_check(void);
@@ -467,6 +470,7 @@ struct dp_panel *secdp_get_panel_info(void);
 struct drm_connector *secdp_get_connector(void);
 
 void secdp_redriver_onoff(bool enable, int lane);
+void secdp_redriver_linkinfo(u32 rate, u8 v_level, u8 p_level);
 
 int  secdp_is_mst_receiver(void);
 
@@ -479,19 +483,21 @@ bool secdp_check_hmd_dev(const char *name_to_search);
 int  secdp_store_hmd_dev(char *buf, size_t len, int num);
 
 void secdp_timing_init(void);
-void secdp_dex_do_reconnecting(void);
-bool secdp_check_dex_reconnect(void);
+void secdp_reconnect(void);
+bool secdp_check_reconnect(void);
 bool secdp_check_dex_mode(void);
 
 void secdp_clear_link_status_cnt(struct dp_link *dp_link);
 void secdp_reset_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+void secdp_link_backoff_start(void);
+void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
 
 bool secdp_panel_hdr_supported(void);
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 enum secdp_hw_preshoot_t {
 	DP_HW_PRESHOOT_0,
 	DP_HW_PRESHOOT_1,
@@ -511,7 +517,6 @@ static inline char *secdp_preshoot_to_string(int hw)
 }
 
 int  secdp_show_hmd_dev(char *buf);
-int  secdp_show_phy_param(char *buf);
 
 /* preshoot adjustment */
 int  secdp_catalog_preshoot_show(char *buf);
@@ -522,6 +527,7 @@ int  secdp_parse_vxpx_show(enum secdp_hw_ver_t hw,
 				enum secdp_phy_param_t vxpx, char *buf);
 int  secdp_parse_vxpx_store(enum secdp_hw_ver_t hw,
 				enum secdp_phy_param_t vxpx, char *buf);
+int  secdp_show_phy_param(char *buf);
 
 /* AUX configuration */
 int  secdp_aux_cfg_show(char *buf);
@@ -532,6 +538,7 @@ int  secdp_debug_prefer_skip_show(void);
 void secdp_debug_prefer_skip_store(bool skip);
 int  secdp_debug_prefer_ratio_show(void);
 void secdp_debug_prefer_ratio_store(int ratio);
+int  secdp_show_link_param(char *buf);
 #endif/*CONFIG_SEC_DISPLAYPORT_ENG*/
 
 #endif/*__SECDP_H*/

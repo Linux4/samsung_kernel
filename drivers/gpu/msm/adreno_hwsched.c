@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "adreno.h"
@@ -17,6 +18,15 @@ struct cmd_list_obj {
 	/** @node: List node to put it in the list of inflight commands */
 	struct list_head node;
 };
+
+/*
+ * Number of commands that can be queued in a context before it sleeps
+ *
+ * Our code that "puts back" a command from the context is much cleaner
+ * if we are sure that there will always be enough room in the ringbuffer
+ * so restrict the size of the context queue to ADRENO_CONTEXT_DRAWQUEUE_SIZE - 1
+ */
+static u32 _context_drawqueue_size = ADRENO_CONTEXT_DRAWQUEUE_SIZE - 1;
 
 /* Number of milliseconds to wait for the context queue to clear */
 static unsigned int _context_queue_wait = 10000;
@@ -44,7 +54,7 @@ static struct adreno_device *hwsched_to_adreno(struct adreno_hwsched *hwsched)
 	return &a6xx_hwsched->a6xx_dev.adreno_dev;
 }
 
-static bool _check_context_queue(struct adreno_context *drawctxt)
+static bool _check_context_queue(struct adreno_context *drawctxt, u32 count)
 {
 	bool ret;
 
@@ -58,7 +68,7 @@ static bool _check_context_queue(struct adreno_context *drawctxt)
 	if (kgsl_context_invalid(&drawctxt->base))
 		ret = false;
 	else
-		ret = drawctxt->queued < (ADRENO_CONTEXT_DRAWQUEUE_SIZE - 1);
+		ret = ((drawctxt->queued + count) < _context_drawqueue_size) ? 1 : 0;
 
 	spin_unlock(&drawctxt->lock);
 
@@ -454,7 +464,7 @@ static int hwsched_sendcmds(struct adreno_device *adreno_dev,
 	 * or marker commands and we have room in the context queue.
 	 */
 
-	if (_check_context_queue(drawctxt))
+	if (_check_context_queue(drawctxt, 0))
 		wake_up_all(&drawctxt->wq);
 
 	if (!ret)
@@ -648,7 +658,8 @@ static inline bool _verify_ib(struct kgsl_device_private *dev_priv,
 	}
 
 	/* Make sure that the address is mapped */
-	if (!kgsl_mmu_gpuaddr_in_range(private->pagetable, ib->gpuaddr)) {
+	if (!kgsl_mmu_gpuaddr_in_range(private->pagetable, ib->gpuaddr,
+		ib->size)) {
 		pr_context(device, context, "ctxt %d invalid ib gpuaddr %llX\n",
 			context->id, ib->gpuaddr);
 		return false;
@@ -688,17 +699,22 @@ static inline int _verify_cmdobj(struct kgsl_device_private *dev_priv,
 }
 
 static inline int _wait_for_room_in_context_queue(
-	struct adreno_context *drawctxt)
+	struct adreno_context *drawctxt, u32 count)
 {
 	int ret = 0;
 
-	/* Wait for room in the context queue */
-	while (drawctxt->queued >= ADRENO_CONTEXT_DRAWQUEUE_SIZE - 2) {
+	/*
+	 * There is always a possibility that dispatcher may end up pushing
+	 * the last popped draw object back to the context drawqueue. Hence,
+	 * we can only queue up to _context_drawqueue_size - 1 here to make
+	 * sure we never let drawqueue->queued exceed _context_drawqueue_size.
+	 */
+	if ((drawctxt->queued + count) > (_context_drawqueue_size - 1)) {
 		trace_adreno_drawctxt_sleep(drawctxt);
 		spin_unlock(&drawctxt->lock);
 
 		ret = wait_event_interruptible_timeout(drawctxt->wq,
-			_check_context_queue(drawctxt),
+			_check_context_queue(drawctxt, count),
 			msecs_to_jiffies(_context_queue_wait));
 
 		spin_lock(&drawctxt->lock);
@@ -708,27 +724,24 @@ static inline int _wait_for_room_in_context_queue(
 		 * Account for the possibility that the context got invalidated
 		 * while we were sleeping
 		 */
-
-		if (ret > 0) {
+		if (ret > 0)
 			ret = _check_context_state(&drawctxt->base);
-			if (ret)
-				return ret;
-		} else
-			return (ret == 0) ? -ETIMEDOUT : (int) ret;
+		else if (ret == 0)
+			ret = -ETIMEDOUT;
 	}
 
-	return 0;
+	return ret;
 }
 
 static unsigned int _check_context_state_to_queue_cmds(
-	struct adreno_context *drawctxt)
+	struct adreno_context *drawctxt, u32 count)
 {
 	int ret = _check_context_state(&drawctxt->base);
 
 	if (ret)
 		return ret;
 
-	return _wait_for_room_in_context_queue(drawctxt);
+	return _wait_for_room_in_context_queue(drawctxt, count);
 }
 
 static void _queue_drawobj(struct adreno_context *drawctxt,
@@ -837,7 +850,13 @@ int adreno_hwsched_queue_cmds(struct kgsl_device_private *dev_priv,
 	int ret;
 	unsigned int i, user_ts;
 
-	if (!count)
+	/*
+	 * There is always a possibility that dispatcher may end up pushing
+	 * the last popped draw object back to the context drawqueue. Hence,
+	 * we can only queue up to _context_drawqueue_size - 1 here to make
+	 * sure we never let drawqueue->queued exceed _context_drawqueue_size.
+	 */
+	if (!count || count > _context_drawqueue_size - 1)
 		return -EINVAL;
 
 	for (i = 0; i < count; i++) {
@@ -876,7 +895,7 @@ int adreno_hwsched_queue_cmds(struct kgsl_device_private *dev_priv,
 
 	spin_lock(&drawctxt->lock);
 
-	ret = _check_context_state_to_queue_cmds(drawctxt);
+	ret = _check_context_state_to_queue_cmds(drawctxt, count);
 	if (ret) {
 		spin_unlock(&drawctxt->lock);
 		kmem_cache_free(jobs_cache, job);
@@ -884,6 +903,23 @@ int adreno_hwsched_queue_cmds(struct kgsl_device_private *dev_priv,
 	}
 
 	user_ts = *timestamp;
+
+	/*
+	 * If there is only one drawobj in the array and it is of
+	 * type SYNCOBJ_TYPE, skip comparing user_ts as it can be 0
+	 */
+	if (!(count == 1 && drawobj[0]->type == SYNCOBJ_TYPE) &&
+		(drawctxt->base.flags & KGSL_CONTEXT_USER_GENERATED_TS)) {
+		/*
+		 * User specified timestamps need to be greater than the last
+		 * issued timestamp in the context
+		 */
+		if (timestamp_cmp(drawctxt->timestamp, user_ts) >= 0) {
+			spin_unlock(&drawctxt->lock);
+			kmem_cache_free(jobs_cache, job);
+			return -ERANGE;
+		}
+	}
 
 	for (i = 0; i < count; i++) {
 
@@ -1085,18 +1121,38 @@ static unsigned int _preempt_count_show(struct adreno_device *adreno_dev)
 	return count < 0 ? 0 : count;
 }
 
+static int _gmu_log_stream_enable_store(struct adreno_device *adreno_dev,
+		bool val)
+{
+	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
+
+	if (gmu->log_stream_enable == val)
+		return 0;
+
+	return adreno_power_cycle_bool(adreno_dev, &gmu->log_stream_enable, val);
+}
+
+static bool _gmu_log_stream_enable_show(struct adreno_device *adreno_dev)
+{
+	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
+
+	return gmu->log_stream_enable;
+}
+
 static ADRENO_SYSFS_BOOL(preemption);
 static ADRENO_SYSFS_U32(preempt_level);
 static ADRENO_SYSFS_BOOL(usesgmem);
 static ADRENO_SYSFS_BOOL(skipsaverestore);
 static ADRENO_SYSFS_RO_U32(preempt_count);
+static ADRENO_SYSFS_BOOL(gmu_log_stream_enable);
 
-static const struct attribute *_preempt_attr_list[] = {
+static const struct attribute *_hwsched_attr_list[] = {
 	&adreno_attr_preemption.attr.attr,
 	&adreno_attr_preempt_level.attr.attr,
 	&adreno_attr_usesgmem.attr.attr,
 	&adreno_attr_skipsaverestore.attr.attr,
 	&adreno_attr_preempt_count.attr.attr,
+	&adreno_attr_gmu_log_stream_enable.attr.attr,
 	NULL,
 };
 
@@ -1107,7 +1163,7 @@ void adreno_hwsched_dispatcher_close(struct adreno_device *adreno_dev)
 	kmem_cache_destroy(jobs_cache);
 	kmem_cache_destroy(obj_cache);
 
-	sysfs_remove_files(&device->dev->kobj, _preempt_attr_list);
+	sysfs_remove_files(&device->dev->kobj, _hwsched_attr_list);
 }
 
 static void adreno_hwsched_init_replay(struct adreno_hwsched *hwsched)
@@ -1322,8 +1378,7 @@ static void adreno_hwsched_work(struct kthread_work *work)
 	} else {
 		mutex_lock(&device->mutex);
 		kgsl_pwrscale_update(device);
-		mod_timer(&device->idle_timer,
-			jiffies + device->pwrctrl.interval_timeout);
+		kgsl_start_idle_timer(device);
 		mutex_unlock(&device->mutex);
 	}
 
@@ -1352,7 +1407,7 @@ void adreno_hwsched_init(struct adreno_device *adreno_dev)
 		init_llist_head(&hwsched->requeue[i]);
 	}
 
-	sysfs_create_files(&device->dev->kobj, _preempt_attr_list);
+	WARN_ON(sysfs_create_files(&device->dev->kobj, _hwsched_attr_list));
 }
 
 void adreno_hwsched_mark_drawobj(struct adreno_device *adreno_dev,
@@ -1387,6 +1442,14 @@ void adreno_hwsched_parse_fault_cmdobj(struct adreno_device *adreno_dev,
 {
 	struct adreno_hwsched *hwsched = to_hwsched(adreno_dev);
 	struct cmd_list_obj *obj, *tmp;
+
+	/*
+	 * During IB parse, vmalloc is called which can sleep and
+	 * should not be called from atomic context. Since IBs are not
+	 * dumped during atomic snapshot, there is no need to parse it.
+	 */
+	if (adreno_dev->dev.snapshot_atomic)
+		return;
 
 	list_for_each_entry_safe(obj, tmp, &hwsched->cmd_list, node) {
 		struct kgsl_drawobj_cmd *cmdobj = obj->cmdobj;

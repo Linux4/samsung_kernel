@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _LINUX_MSM_GENI_SE
@@ -24,7 +24,8 @@ enum se_protocol_types {
 	SPI,
 	UART,
 	I2C,
-	I3C
+	I3C,
+	SPI_SLAVE
 };
 
 /**
@@ -50,6 +51,7 @@ enum se_protocol_types {
  * @geni_gpi_sleep:	Handle to the sleep pinctrl state.
  * @num_clk_levels:	Number of valid clock levels in clk_perf_tbl.
  * @clk_perf_tbl:	Table of clock frequency input to Serial Engine clock.
+ * @skip_bw_vote:	Used for PMIC over i2c use case to skip the BW vote.
  */
 struct se_geni_rsc {
 	struct device *ctrl_dev;
@@ -66,16 +68,23 @@ struct se_geni_rsc {
 	unsigned long ib;
 	unsigned long ib_noc;
 	struct pinctrl *geni_pinctrl;
+#if defined(CONFIG_QC_BT_UART)
+	struct pinctrl_state *geni_gpio_shutdown;
+#endif
 	struct pinctrl_state *geni_gpio_active;
 	struct pinctrl_state *geni_gpio_sleep;
 	int	clk_freq_out;
 	unsigned int num_clk_levels;
 	unsigned long *clk_perf_tbl;
+	bool skip_bw_vote;
 };
 
 #define PINCTRL_DEFAULT	"default"
 #define PINCTRL_ACTIVE	"active"
 #define PINCTRL_SLEEP	"sleep"
+#if defined(CONFIG_QC_BT_UART)
+#define PINCTRL_SHUTDOWN	"shutdown"
+#endif
 
 #define KHz(freq) (1000 * (freq))
 
@@ -93,6 +102,9 @@ struct se_geni_rsc {
 #define GENI_FW_REVISION_RO		(0x68)
 #define GENI_FW_S_REVISION_RO		(0x6C)
 #define SE_GENI_CLK_SEL			(0x7C)
+#define SE_GENI_CFG_SEQ_START		(0x84)
+#define SE_GENI_CFG_REG			(0x200)
+#define GENI_CFG_REG80			(0x240)
 #define SE_GENI_BYTE_GRAN		(0x254)
 #define SE_GENI_DMA_MODE_EN		(0x258)
 #define SE_GENI_TX_PACKING_CFG0		(0x260)
@@ -125,10 +137,19 @@ struct se_geni_rsc {
 #define SE_HW_PARAM_1			(0xE28)
 #define SE_DMA_GENERAL_CFG		(0xE30)
 #define SE_DMA_DEBUG_REG0		(0xE40)
+#define SLAVE_MODE_EN			(BIT(3))
+#define START_TRIGGER			(BIT(0))
 #define QUPV3_HW_VER			(0x4)
 
 /* GENI_OUTPUT_CTRL fields */
-#define DEFAULT_IO_OUTPUT_CTRL_MSK	(GENMASK(6, 0))
+#define DEFAULT_IO_OUTPUT_CTRL_MSK      (GENMASK(6, 0))
+#define GENI_IO_MUX_0_EN		BIT(0)
+#define GENI_IO_MUX_1_EN		BIT(1)
+
+/* GENI_CFG_REG80 fields */
+#define IO1_SEL_TX			BIT(2)
+#define IO2_DATA_IN_SEL_PAD2		(GENMASK(11, 10))
+#define IO3_DATA_IN_SEL_PAD2		BIT(15)
 
 /* GENI_FORCE_DEFAULT_REG fields */
 #define FORCE_DEFAULT	(BIT(0))
@@ -823,6 +844,15 @@ int geni_se_iommu_free_buf(struct device *wrapper_dev, dma_addr_t *iova,
  */
 void geni_se_dump_dbg_regs(struct se_geni_rsc *rsc, void __iomem *base,
 				void *ipc);
+
+#if defined(CONFIG_QC_BT_UART)
+/*
+ * This function is used to remove proxy ICC BW vote put from common driver
+ * probe on behalf of earlycon usecase.
+ */
+void geni_se_remove_earlycon_icc_vote(struct device *dev);
+#endif
+
 #else
 static inline unsigned int geni_read_reg_nolog(void __iomem *base, int offset)
 {

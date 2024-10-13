@@ -389,7 +389,6 @@ struct ufs_hba_variant_ops {
 	void	(*config_scaling_param)(struct ufs_hba *hba,
 					struct devfreq_dev_profile *profile,
 					void *data);
-
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
@@ -997,6 +996,7 @@ struct ufs_hba {
 	u32 limit_rx_hs_gear;
 	u32 limit_tx_pwm_gear;
 	u32 limit_rx_pwm_gear;
+	u32 limit_phy_submode;
 	bool restore_needed;
 	u32 scsi_cmd_timeout;
 	bool auto_h8_err;
@@ -1041,6 +1041,11 @@ struct ufs_hba {
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
+#ifdef CONFIG_SCSI_UFSHCD_QTI
+	/* distinguish between resume and restore */
+	bool restore;
+	bool abort_triggered_wlun;
+#endif
 };
 
 /* Returns true if clocks can be gated. Otherwise false */
@@ -1471,6 +1476,10 @@ static inline void ufshcd_vops_device_reset(struct ufs_hba *hba)
 	if (hba->vops && hba->vops->device_reset) {
 		hba->vops->device_reset(hba);
 		ufshcd_set_ufs_dev_active(hba);
+		if (ufshcd_is_wb_allowed(hba)) {
+			hba->wb_enabled = false;
+			hba->wb_buf_flush_enabled = false;
+		}
 		ufshcd_update_reg_hist(&hba->ufs_stats.dev_reset, 0);
 	}
 }

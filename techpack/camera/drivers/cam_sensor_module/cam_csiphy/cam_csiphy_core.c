@@ -39,6 +39,11 @@ static DEFINE_MUTEX(active_csiphy_cnt_mutex);
 
 static int csiphy_dump;
 module_param(csiphy_dump, int, 0644);
+#if defined(CONFIG_CAMERA_CDR_TEST)
+extern int cdr_value_exist;
+extern char cdr_value[50];
+extern char cdr_result[40];
+#endif
 
 struct g_csiphy_data {
 	void __iomem *base_address;
@@ -96,6 +101,92 @@ static void cam_csiphy_reset_phyconfig_param(struct csiphy_device *csiphy_dev,
 	csiphy_dev->csiphy_info[index].secure_mode = 0;
 	csiphy_dev->csiphy_info[index].hdl_data.device_hdl = -1;
 }
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static int cam_csiphy_apply_cdr_reg_values(void __iomem *csiphybase, uint8_t csiphy_idx)
+{
+	int i, j, k;
+	int len = 0;
+	int count[10] = { 0, };
+	int count_idx = 0;
+	int cdr_num[10][10] = { 0, };
+	int final_num[10] = { 0, };
+
+	len = strlen(cdr_value);
+
+	CAM_INFO(CAM_CSIPHY, "[CDR_DBG] input: %s", cdr_value);
+	sprintf(cdr_result, "%s\n", "");
+
+	for (i = 0; i < len - 1; i++)
+	{
+		if (count_idx > 9)
+		{
+			CAM_ERR(CAM_CSIPHY, "[CDR_DBG] input value overflow");
+			return 0;
+		}
+
+		if (cdr_value[i] != ',')
+		{
+			if (count[count_idx] > 9)
+			{
+				CAM_ERR(CAM_CSIPHY, "[CDR_DBG] input value overflow");
+				return 0;
+			}
+
+			if (cdr_value[i] >= 'a' && cdr_value[i] <= 'f')
+			{
+				cdr_num[count_idx][count[count_idx]] = cdr_value[i] - 'W';
+				count[count_idx]++;
+			}
+			else if (cdr_value[i] >= 'A' && cdr_value[i] <= 'F')
+			{
+				cdr_num[count_idx][count[count_idx]] = cdr_value[i] - '7';
+				count[count_idx]++;
+			}
+			else if (cdr_value[i] >= '0' && cdr_value[i] <= '9')
+			{
+				cdr_num[count_idx][count[count_idx]] = cdr_value[i] - '0';
+				count[count_idx]++;
+			}
+			else
+			{
+				CAM_ERR(CAM_CSIPHY, "[CDR_DBG] invalid input value");
+				return 0;
+			}
+		}
+		else
+		{
+			count_idx++;
+		}
+	}
+
+	for (i = 0; i <= count_idx; i++)
+	{
+		for (j = 0; j < count[i]; j++)
+		{
+			int temp = 1;
+			for (k = count[i] - 1; k > j; k--)
+				temp = temp * 16;
+			final_num[i] += temp * cdr_num[i][j];
+		}
+	}
+
+	for (i = 0; i < 9; i += 3) {
+		cam_io_w_mb(final_num[i+1],
+			csiphybase + final_num[i]);
+
+		if (final_num[i+2])
+			usleep_range(final_num[i+2], final_num[i+2] + 5);
+
+		CAM_INFO(CAM_CSIPHY, "[CDR_DBG] Offset: 0x%x, Val: 0x%x Delay(us): %u",
+			final_num[i],
+			cam_io_r_mb(csiphybase + final_num[i]),
+			final_num[i+2]);
+	}
+
+	return 0;
+}
+#endif
 
 void cam_csiphy_query_cap(struct csiphy_device *csiphy_dev,
 	struct cam_csiphy_query_cap *csiphy_cap)
@@ -643,6 +734,7 @@ static void cam_csiphy_cphy_overwrite_config(
 		int uw_tunning_data[] = { 0x09, 0x09, 0x09 };
 #endif
 
+
 		if (csiphy_device->soc_info.index == 1) { // Tele sensor
 			addrs = tele_tunning_addr;
 			datas = tele_tunning_data;
@@ -704,19 +796,19 @@ static void cam_csiphy_cphy_overwrite_config(
 					0x16C, 0x36C, 0x56C };
 
 		int wide_tunning_data[] = { 0xA0, 0xA0, 0xA0,
-					0x09, 0x09, 0x09,
+					0x08, 0x08, 0x08,
 					0x17, 0x17, 0x17 };
-
+					
 		if (csiphy_device->soc_info.index == 0) { // Wide sensor
 			addrs = wide_tunning_addr;
-			datas = wide_tunning_data;
+                        datas = wide_tunning_data;
 			tunning_size = ARRAY_SIZE(wide_tunning_addr);
 			if (ARRAY_SIZE(wide_tunning_data) < tunning_size)
 				tunning_size = ARRAY_SIZE(wide_tunning_data);
 		}
 #endif
 
-#if defined(CONFIG_SEC_Q2Q_PROJECT)
+#if defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 				int wide_tunning_addr[] = { 0x98C, 0xA8C, 0xB8C };
 		
 				int wide_tunning_data[] = { 0xA0, 0xA0, 0xA0 };
@@ -1264,6 +1356,10 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 	struct csiphy_device *csiphy_dev =
 		(struct csiphy_device *)phy_dev;
 	struct cam_control   *cmd = (struct cam_control *)arg;
+#if defined(CONFIG_CAMERA_CDR_TEST)
+	void __iomem *csiphybase;
+	struct cam_hw_soc_info *soc_info;
+#endif
 	int32_t              rc = 0;
 
 	if (!csiphy_dev || !cmd) {
@@ -1277,6 +1373,13 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+	soc_info = &csiphy_dev->soc_info;
+	if (!soc_info) {
+		CAM_ERR(CAM_CSIPHY, "Null Soc_info");
+	}
+	csiphybase = soc_info->reg_map[0].mem_base;
+#endif
 	CAM_DBG(CAM_CSIPHY, "Opcode received: %d", cmd->op_code);
 	mutex_lock(&csiphy_dev->mutex);
 	switch (cmd->op_code) {
@@ -1723,6 +1826,12 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			cam_cpas_stop(csiphy_dev->cpas_handle);
 			goto release_mutex;
 		}
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		if (cdr_value_exist) {
+			cam_csiphy_apply_cdr_reg_values(csiphybase, soc_info->index);
+			cdr_value_exist = 0;
+		}
+#endif
 		csiphy_dev->start_dev_count++;
 
 		if (csiphy_dev->ctrl_reg->csiphy_reg

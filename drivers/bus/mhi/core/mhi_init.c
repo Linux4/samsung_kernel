@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved. */
 
 #include <asm/arch_timer.h>
 #include <linux/debugfs.h>
@@ -92,9 +92,12 @@ struct mhi_controller *find_mhi_controller_by_name(const char *name)
 
 const char *to_mhi_pm_state_str(enum MHI_PM_STATE state)
 {
-	int index = find_last_bit((unsigned long *)&state, 32);
+	int index;
 
-	if (index >= ARRAY_SIZE(mhi_pm_state_str))
+	if (state)
+		index = __fls(state);
+
+	if (!state || index >= ARRAY_SIZE(mhi_pm_state_str))
 		return "Invalid State";
 
 	return mhi_pm_state_str[index];
@@ -131,8 +134,7 @@ static ssize_t time_show(struct device *dev,
 	ret = mhi_get_remote_time_sync(mhi_dev, &t_host, &t_device);
 	if (ret) {
 		MHI_ERR("Failed to obtain time, ret:%d\n", ret);
-		return scnprintf(buf, PAGE_SIZE,
-				 "Request failed or feature unsupported\n");
+		return ret;
 	}
 
 	return scnprintf(buf, PAGE_SIZE, "local: %llu remote: %llu (ticks)\n",
@@ -152,8 +154,7 @@ static ssize_t time_us_show(struct device *dev,
 	ret = mhi_get_remote_time_sync(mhi_dev, &t_host, &t_device);
 	if (ret) {
 		MHI_ERR("Failed to obtain time, ret:%d\n", ret);
-		return scnprintf(buf, PAGE_SIZE,
-				 "Request failed or feature unsupported\n");
+		return ret;
 	}
 
 	return scnprintf(buf, PAGE_SIZE, "local: %llu remote: %llu (us)\n",
@@ -434,8 +435,11 @@ int mhi_init_irq_setup(struct mhi_controller *mhi_cntrl)
 				   mhi_intvec_threaded_handlr,
 				   IRQF_ONESHOT | IRQF_NO_SUSPEND,
 				   "mhi", mhi_cntrl);
-	if (ret)
+	if (ret) {
+		MHI_CNTRL_ERR("Error in requesting threaded irq:%d, ret=%d\n",
+				mhi_cntrl->irq[0], ret);
 		return ret;
+	}
 
 	for (i = 0; i < mhi_cntrl->total_ev_rings; i++, mhi_event++) {
 		if (!mhi_event->request_irq)
@@ -1062,7 +1066,16 @@ void mhi_deinit_chan_ctxt(struct mhi_controller *mhi_cntrl,
 	vfree(buf_ring->base);
 
 	buf_ring->base = tre_ring->base = NULL;
+	tre_ring->ctxt_wp = NULL;
 	chan_ctxt->rbase = 0;
+	chan_ctxt->rlen = 0;
+	chan_ctxt->rp = chan_ctxt->wp = chan_ctxt->rbase;
+	tre_ring->rp = tre_ring->wp = tre_ring->base;
+	buf_ring->rp = buf_ring->wp = buf_ring->base;
+
+	/* Update to all cores */
+	smp_wmb();
+
 }
 
 int mhi_init_chan_ctxt(struct mhi_controller *mhi_cntrl,
@@ -1496,7 +1509,6 @@ static int of_parse_dt(struct mhi_controller *mhi_cntrl,
 	int ret;
 	enum mhi_ee i;
 	u32 *ee;
-	u32 bhie_offset;
 
 	/* parse MHI channel configuration */
 	ret = of_parse_ch_cfg(mhi_cntrl, of_node);
@@ -1537,9 +1549,9 @@ static int of_parse_dt(struct mhi_controller *mhi_cntrl,
 		of_property_read_u32_index(of_node, "mhi,ee", ret, ee);
 	}
 
-	ret = of_property_read_u32(of_node, "mhi,bhie-offset", &bhie_offset);
+	ret = of_property_read_u32(of_node, "mhi,bhie-offset", &mhi_cntrl->bhie_offset);
 	if (!ret)
-		mhi_cntrl->bhie = mhi_cntrl->regs + bhie_offset;
+		MHI_LOG("bhie-offset = 0x%x\n", mhi_cntrl->bhie_offset);
 
 	of_property_read_string(of_node, "mhi,name", &mhi_cntrl->name);
 
@@ -1734,6 +1746,8 @@ void mhi_unregister_mhi_controller(struct mhi_controller *mhi_cntrl)
 	struct mhi_device *mhi_dev = mhi_cntrl->mhi_dev;
 	struct mhi_sfr_info *sfr_info = mhi_cntrl->mhi_sfr;
 
+	destroy_workqueue(mhi_cntrl->wq);
+
 	kfree(mhi_cntrl->mhi_cmd);
 	kfree(mhi_cntrl->mhi_event);
 	vfree(mhi_cntrl->mhi_chan);
@@ -1778,7 +1792,6 @@ EXPORT_SYMBOL(mhi_alloc_controller);
 int mhi_prepare_for_power_up(struct mhi_controller *mhi_cntrl)
 {
 	int ret;
-	u32 bhie_off;
 
 	mutex_lock(&mhi_cntrl->pm_mutex);
 
@@ -1800,23 +1813,23 @@ int mhi_prepare_for_power_up(struct mhi_controller *mhi_cntrl)
 		 * This controller supports rddm, we need to manually clear
 		 * BHIE RX registers since por values are undefined.
 		 */
-		if (!mhi_cntrl->bhie) {
+		if (!mhi_cntrl->bhie_offset) {
 			ret = mhi_read_reg(mhi_cntrl, mhi_cntrl->regs, BHIEOFF,
-					   &bhie_off);
+					   &mhi_cntrl->bhie_offset);
 			if (ret) {
 				MHI_CNTRL_ERR("Error getting bhie offset\n");
 				goto bhie_error;
 			}
 
-			if (bhie_off >= mhi_cntrl->len) {
+			if (mhi_cntrl->bhie_offset >= mhi_cntrl->len) {
 				MHI_ERR("Invalid BHIE=0x%x  len=0x%x\n",
-					bhie_off, mhi_cntrl->len);
+					mhi_cntrl->bhie_offset, mhi_cntrl->len);
 				ret = -EINVAL;
 				goto bhie_error;
 			}
-
-			mhi_cntrl->bhie = mhi_cntrl->regs + bhie_off;
 		}
+
+		mhi_cntrl->bhie = mhi_cntrl->regs + mhi_cntrl->bhie_offset;
 
 		memset_io(mhi_cntrl->bhie + BHIE_RXVECADDR_LOW_OFFS, 0,
 			  BHIE_RXVECSTATUS_OFFS - BHIE_RXVECADDR_LOW_OFFS + 4);

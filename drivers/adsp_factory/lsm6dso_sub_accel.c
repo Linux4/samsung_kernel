@@ -74,7 +74,7 @@ int get_sub_accel_cal_data(struct adsp_data *data, int32_t *cal_data)
 
 	if (data->msg_buf[MSG_ACCEL_SUB][3] != ACCEL_RAW_DATA_CNT) {
 		pr_err("[FACTORY] %s: Reading Bytes Num %d!!!\n",
-			__func__, data->msg_buf[MSG_ACCEL][3]);
+			__func__, data->msg_buf[MSG_ACCEL_SUB][3]);
 		return 0;
 	}
 
@@ -203,7 +203,7 @@ static void sub_accel_work_func(struct work_struct *work)
 void sub_accel_cal_work_func(struct work_struct *work)
 {
 	struct adsp_data *data = container_of((struct delayed_work *)work,
-		struct adsp_data, accel_cal_work);
+		struct adsp_data, sub_accel_cal_work);
 	int ret = 0;
 
 	mutex_lock(&data->accel_factory_mutex);
@@ -224,12 +224,16 @@ void sub_accel_cal_work_func(struct work_struct *work)
 	}
 }
 
-static ssize_t accel_selftest_show(struct device *dev,
+static ssize_t sub_accel_selftest_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct adsp_data *data = dev_get_drvdata(dev);
 	uint8_t cnt = 0;
 	int retry = 0;
+	int msg_buf = LSM6DSO_SELFTEST_TRUE;
+
+	adsp_unicast(&msg_buf, sizeof(msg_buf),
+		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
 
 	pdata->st_complete = false;
 RETRY_ACCEL_SELFTEST:
@@ -237,7 +241,7 @@ RETRY_ACCEL_SELFTEST:
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] & 1 << MSG_ACCEL_SUB) &&
 		cnt++ < TIMEOUT_CNT)
-		msleep(25);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_ACCEL_SUB);
 
@@ -275,6 +279,8 @@ RETRY_ACCEL_SELFTEST:
 	}
 
 	pdata->st_complete = true;
+
+	schedule_delayed_work(&data->lsm6dso_selftest_stop_work, msecs_to_jiffies(300));
 
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d\n",
 			data->msg_buf[MSG_ACCEL_SUB][1],
@@ -518,7 +524,7 @@ static struct device_attribute *acc_attrs[] = {
 	NULL,
 };
 
-void sub_accel_factory_init_work(void)
+void sub_accel_factory_init_work(struct adsp_data *data)
 {
 	schedule_delayed_work(&data->sub_accel_cal_work, msecs_to_jiffies(8000));
 }
@@ -528,7 +534,7 @@ static int __init lsm6dso_sub_accel_factory_init(void)
 	adsp_factory_register(MSG_ACCEL_SUB, acc_attrs);
 
 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-	pdata->accel_wq = create_singlethread_workqueue("accel_wq");
+	pdata->accel_wq = create_singlethread_workqueue("sub_accel_wq");
 	INIT_WORK(&pdata->work_accel, sub_accel_work_func);
 
 	pdata->lpf_onoff = true;

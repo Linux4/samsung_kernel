@@ -118,9 +118,11 @@ struct msm_watchdog_data {
 	bool do_ipi_ping;
 	bool in_panic;
 	bool wakeup_irq_enable;
+	bool irq_ppi;
 	unsigned long long last_pet;
 	cpumask_t alive_mask;
 	struct mutex disable_lock;
+	struct msm_watchdog_data * __percpu *wdog_cpu_dd;
 	struct notifier_block panic_blk;
 	struct notifier_block die_blk;
 	struct notifier_block wdog_cpu_pm_nb;
@@ -147,6 +149,7 @@ struct msm_watchdog_data {
 	struct qcom_irq_info ipi_counts[NR_IPI];
 	unsigned int tot_irq_count[NR_CPUS];
 	atomic_t irq_counts_running;
+	struct timer_list user_pet_timer;
 };
 
 extern void qcom_wdt_trigger_bite(void);

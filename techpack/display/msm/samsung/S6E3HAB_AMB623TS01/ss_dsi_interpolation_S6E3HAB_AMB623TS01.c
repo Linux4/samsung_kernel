@@ -47,7 +47,7 @@ static struct ss_interpolation_brightness_table hbm_interpolation_table[] = {
 	{486, 5, 800},
 };
 
-#if defined(CONFIG_MACH_X1Q_JPN_SINGLE)
+#if IS_ENABLED(CONFIG_MACH_X1Q_JPN_SINGLE)
 static struct ss_interpolation_brightness_table normal_interpolation_table[] = {
 	{0, 	1,	2},
 	{7, 	7,	3},
@@ -868,7 +868,7 @@ int table_gamma_update_hmd_S6E3HAB_AMB623TS01(struct samsung_display_driver_data
 	int *hmd_candela_table = hmd_tbl->candela_table;
 	int loop;
 
-	LCD_ERR(vdd, "++\n");
+	LCD_INFO(vdd, "++\n");
 
 	if (vdd->hmt.is_support) {
 		/* 2st : hmd gamma update */
@@ -881,7 +881,7 @@ int table_gamma_update_hmd_S6E3HAB_AMB623TS01(struct samsung_display_driver_data
 		LCD_ERR(vdd, "hmt is not support..\n");
 	}
 
-	LCD_ERR(vdd, "--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
@@ -1048,11 +1048,11 @@ int flash_gamma_support_S6E3HAB_AMB623TS01(struct samsung_display_driver_data *v
 }
 
 /*
- * convert_GAMMA_to_V : convert CA gamma reg to V format
+ * convert_GAMMA_to_V_S6E3HAB_AMB623TS01 : convert CA gamma reg to V format
  * src : packed gamma value (CAh)
  * dst : extened V values (V255 ~ VT)
  */
-void convert_GAMMA_to_V(unsigned char* src, unsigned int *dst)
+void convert_GAMMA_to_V_S6E3HAB_AMB623TS01(unsigned char *src, unsigned int *dst)
 {
 	/* i : V index
 	 * j : RGB index
@@ -1097,15 +1097,18 @@ void convert_GAMMA_to_V(unsigned char* src, unsigned int *dst)
 		}
 	}
 
+	pr_debug("[SDE] src[0~3] = %02x %02x %02x %02x\n", src[0], src[1], src[2], src[3]);
+	pr_debug("[SDE] src[31~33] = %02x %02x %02x\n", src[31], src[32], src[33]);
+
 	return;
 }
 
 /*
- * convert_V_to_GAMMA : convert V format to CAh gamma reg
+ * convert_V_to_GAMMA_S6E3HAB_AMB623TS01 : convert V format to CAh gamma reg
  * src : extened V values (V255 ~ VT)
  * dst : packed gamma values (CAh)
  */
-void convert_V_to_GAMMA(unsigned int *src, unsigned char* dst)
+void convert_V_to_GAMMA_S6E3HAB_AMB623TS01(unsigned int *src, unsigned char *dst)
 {
 	/* i : gamma index
 	 * k : packed gamma index
@@ -1127,6 +1130,9 @@ void convert_V_to_GAMMA(unsigned int *src, unsigned char* dst)
 			dst[i] |= GET_BITS(src[k++], 0, 7);
 		}
 	}
+
+	pr_debug("[SDE] src[0~2] = %02x %02x %02x \n", src[0], src[1], src[2]);
+	pr_debug("[SDE] dst[0] = %02x \n", dst[0]);
 
 	return;
 }
@@ -1206,8 +1212,8 @@ void gen_hbm_interpolation_gamma_S6E3HAB_AMB623TS01(struct samsung_display_drive
 	}
 
 	/* 1. Make V format from GAMMA format */
-	convert_GAMMA_to_V(normal_max_gamma, normal_max_gammaV);
-	convert_GAMMA_to_V(hbm_max_gamma, hbm_max_gammaV);
+	convert_GAMMA_to_V_S6E3HAB_AMB623TS01(normal_max_gamma, normal_max_gammaV);
+	convert_GAMMA_to_V_S6E3HAB_AMB623TS01(hbm_max_gamma, hbm_max_gammaV);
 
 	LCD_DEBUG(vdd, "gamma_size %d / gamma_V_size %d \n", gamma_size, gamma_V_size);
 	for (i = 0; i < gamma_V_size; i++)
@@ -1229,7 +1235,7 @@ void gen_hbm_interpolation_gamma_S6E3HAB_AMB623TS01(struct samsung_display_drive
 
 	/* 3. Make GAMMA format from V format */
 	for (i = 0; i < hbm_itp_step; i++)
-		convert_V_to_GAMMA(hbm_temp_gamma[i], hbm_itp_gamma[i]);
+		convert_V_to_GAMMA_S6E3HAB_AMB623TS01(hbm_temp_gamma[i], hbm_itp_gamma[i]);
 
 	kfree(hbm_itp_cd);
 

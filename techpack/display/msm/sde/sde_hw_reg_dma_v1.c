@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -685,8 +686,14 @@ static int write_kick_off_v1(struct sde_reg_dma_kickoff_cfg *cfg)
 		}
 	}
 
-	SDE_EVT32(cfg->feature, cfg->dma_type, cfg->dma_buf, cfg->op,
-			cfg->queue_select, cfg->ctl->idx);
+	SDE_EVT32(cfg->feature, cfg->dma_type,
+			((uint64_t)cfg->dma_buf) >> 32,
+			((uint64_t)cfg->dma_buf) & 0xFFFFFFFF,
+			(cfg->dma_buf->iova) >> 32,
+			(cfg->dma_buf->iova) & 0xFFFFFFFF,
+			cfg->op,
+			cfg->queue_select, cfg->ctl->idx,
+			SIZE_DWORD(cfg->dma_buf->index));
 	return 0;
 }
 
@@ -874,7 +881,8 @@ static int check_support_v1(enum sde_reg_dma_features feature,
 	if (!is_supported)
 		return -EINVAL;
 
-	if (feature >= REG_DMA_FEATURES_MAX || blk >= BIT(REG_DMA_BLK_MAX)) {
+	if (feature >= REG_DMA_FEATURES_MAX
+		|| blk >= BIT_ULL(REG_DMA_BLK_MAX)) {
 		*is_supported = false;
 		return ret;
 	}
@@ -1184,6 +1192,10 @@ static int last_cmd_v1(struct sde_hw_ctl *ctl, enum sde_reg_dma_queue q,
 	//Lack of block support will be caught by kick_off
 	memset(&hw, 0, sizeof(hw));
 	SET_UP_REG_DMA_REG(hw, reg_dma, kick_off.dma_type);
+	if (hw.hwversion == 0) {
+		DRM_ERROR("DMA type %d is unsupported\n", kick_off.dma_type);
+		return -EOPNOTSUPP;
+	}
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY, mode, ctl->idx, kick_off.queue_select,
 			kick_off.dma_type, kick_off.op);

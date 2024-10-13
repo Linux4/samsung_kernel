@@ -27,7 +27,7 @@ config ARM
 	select ARCH_HAS_TICK_BROADCAST if GENERIC_CLOCKEVENTS_BROADCAST
 	select ARCH_HAVE_CUSTOM_GPIO_H
 	select ARCH_HAS_GCOV_PROFILE_ALL
-	select ARCH_KEEP_MEMBLOCK if HAVE_ARCH_PFN_VALID || KEXEC
+	select ARCH_KEEP_MEMBLOCK
 	select ARCH_MIGHT_HAVE_PC_PARPORT
 	select ARCH_NO_SG_CHAIN if !ARM_HAS_SG_CHAIN
 	select ARCH_OPTIONAL_KERNEL_RWX if ARCH_HAS_STRICT_KERNEL_RWX
@@ -120,7 +120,6 @@ config ARM
 	select OLD_SIGSUSPEND3
 	select PCI_SYSCALL if PCI
 	select PERF_USE_VMALLOC
-	select REFCOUNT_FULL
 	select RTC_LIB
 	select SYS_SUPPORTS_APM_EMULATION
 	select IOMMU_DMA if IOMMU_SUPPORT
@@ -474,6 +473,7 @@ config ARCH_QCOM
        select SPARSE_IRQ
        select USE_OF
        select PINCTRL
+       select SND_HWDEP
        help
          Support for Qualcomm MSM/QSD based systems.  This runs on the
          apps processor of the MSM/QSD and depends on a shared memory
@@ -535,8 +535,10 @@ config ARCH_S3C24XX
 	select HAVE_S3C2410_WATCHDOG if WATCHDOG
 	select HAVE_S3C_RTC if RTC_CLASS
 	select NEED_MACH_IO_H
+	select S3C2410_WATCHDOG
 	select SAMSUNG_ATAGS
 	select USE_OF
+	select WATCHDOG
 	help
 	  Samsung S3C2410, S3C2412, S3C2413, S3C2416, S3C2440, S3C2442, S3C2443
 	  and S3C2450 SoCs based systems, such as the Simtec Electronics BAST
@@ -546,7 +548,6 @@ config ARCH_S3C24XX
 config ARCH_OMAP1
 	bool "TI OMAP1"
 	depends on MMU
-	select ARCH_HAS_HOLES_MEMORYMODEL
 	select ARCH_OMAP
 	select CLKDEV_LOOKUP
 	select CLKSRC_MMIO
@@ -1277,7 +1278,7 @@ config HAVE_ARM_ARCH_TIMER
 	depends on CPU_V7
 	select ARM_ARCH_TIMER
 	select GENERIC_CLOCKEVENTS
-	select GENERIC_GETTIMEOFDAY
+	select GENERIC_GETTIMEOFDAY if HAVE_GENERIC_VDSO
 	help
 	  This option enables support for the ARM architected timer
 
@@ -1544,9 +1545,6 @@ config OABI_COMPAT
 	  UNPREDICTABLE (in fact it can be predicted that it won't work
 	  at all). If in doubt say N.
 
-config ARCH_HAS_HOLES_MEMORYMODEL
-	bool
-
 config ARCH_SPARSEMEM_ENABLE
 	bool
 
@@ -1554,7 +1552,7 @@ config ARCH_SPARSEMEM_DEFAULT
 	def_bool ARCH_SPARSEMEM_ENABLE
 
 config HAVE_ARCH_PFN_VALID
-	def_bool ARCH_HAS_HOLES_MEMORYMODEL || !SPARSEMEM
+	def_bool y
 
 config HIGHMEM
 	bool "High Memory Support"
@@ -1633,7 +1631,7 @@ config ARM_MODULE_PLTS
 
 choice
 	prompt "Virtual Memory Reclaim"
-	default NO_VM_RECLAIM
+	default ENABLE_VMALLOC_SAVING
 	help
 	  Select the method of reclaiming virtual memory. Two values
 	  are allowed to choose, one is NO_VM_RECLAIM, the other is
@@ -1644,6 +1642,7 @@ choice
 
 config ENABLE_VMALLOC_SAVING
 	bool "Reclaim memory for each subsystem"
+	depends on QGKI
 	help
 	  Enable this config to reclaim the virtual space belonging
 	  to any subsystem which is expected to have a lifetime of
@@ -1912,7 +1911,6 @@ config CMDLINE
 choice
 	prompt "Kernel command line type" if CMDLINE != ""
 	default CMDLINE_FROM_BOOTLOADER
-	depends on ATAGS
 
 config CMDLINE_FROM_BOOTLOADER
 	bool "Use bootloader kernel arguments if available"

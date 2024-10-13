@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -176,12 +176,12 @@ static void init_queues(struct adreno_device *adreno_dev)
 	/*
 	 * Overwrite the queue IDs for A630, A615 and A616 as they use
 	 * legacy firmware. Legacy firmware has different queue IDs for
-	 * message, debug and dispatch queues.
+	 * message, debug and dispatch queues (dispatch queues aren't used
+	 * on these targets so the queue idx value update is not needed).
 	 */
 	if (adreno_is_a630(adreno_dev) || adreno_is_a615_family(adreno_dev)) {
 		queue[HFI_MSG_ID].idx = HFI_MSG_IDX_LEGACY;
 		queue[HFI_DBG_ID].idx = HFI_DBG_IDX_LEGACY;
-		queue[HFI_DSP_ID_0].idx = HFI_DSP_IDX_0_LEGACY;
 	}
 
 	/* Fill Table Header */
@@ -268,6 +268,19 @@ static int poll_gmu_reg(struct adreno_device *adreno_dev,
 		gmu_core_regread(device, offsetdwords, &val);
 		if ((val & mask) == expected_val)
 			return 0;
+
+		/*
+		 * If GMU firmware fails any assertion, error message is sent
+		 * to KMD and NMI is triggered. So check if GMU is in NMI and
+		 * timeout early. Bits [11:9] of A6XX_GMU_CM3_FW_INIT_RESULT
+		 * contain GMU reset status. Non zero value here indicates that
+		 * GMU reset is active, NMI handler would eventually complete
+		 * and GMU would wait for recovery.
+		 */
+		gmu_core_regread(device, A6XX_GMU_CM3_FW_INIT_RESULT, &val);
+		if (val & 0xE00)
+			return -ETIMEDOUT;
+
 		usleep_range(10, 100);
 	}
 
@@ -439,6 +452,27 @@ int a6xx_hfi_send_feature_ctrl(struct adreno_device *adreno_dev,
 	return ret;
 }
 
+int a6xx_hfi_send_set_value(struct adreno_device *adreno_dev,
+		u32 type, u32 subtype, u32 data)
+{
+	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
+	struct hfi_set_value_cmd cmd = {
+		.type = type,
+		.subtype = subtype,
+		.data = data,
+	};
+	int ret;
+
+	CMD_MSG_HDR(cmd, H2F_MSG_SET_VALUE);
+
+	ret = a6xx_hfi_send_generic_req(adreno_dev, &cmd);
+	if (ret)
+		dev_err(&gmu->pdev->dev,
+			"Unable to set HFI Value %d, %d to %d, error = %d\n",
+			type, subtype, data, ret);
+	return ret;
+}
+
 static int a6xx_hfi_send_dcvstbl_v1(struct adreno_device *adreno_dev)
 {
 	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
@@ -469,6 +503,7 @@ static int a6xx_hfi_send_test(struct adreno_device *adreno_dev)
 	struct hfi_test_cmd cmd;
 
 	CMD_MSG_HDR(cmd, H2F_MSG_TEST);
+	cmd.data = 0;
 
 	return a6xx_hfi_send_generic_req(adreno_dev, &cmd);
 }

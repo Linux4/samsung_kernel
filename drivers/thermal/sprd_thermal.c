@@ -348,8 +348,8 @@ static int sprd_thm_probe(struct platform_device *pdev)
 
 	thm->var_data = pdata;
 	thm->base = devm_platform_ioremap_resource(pdev, 0);
-	if (!thm->base)
-		return -ENOMEM;
+	if (IS_ERR(thm->base))
+		return PTR_ERR(thm->base);
 
 	thm->nr_sensors = of_get_child_count(np);
 	if (thm->nr_sensors == 0 || thm->nr_sensors > SPRD_THM_MAX_SENSOR) {
@@ -530,6 +530,7 @@ static const struct of_device_id sprd_thermal_of_match[] = {
 	{ .compatible = "sprd,ums512-thermal", .data = &ums512_data },
 	{ },
 };
+MODULE_DEVICE_TABLE(of, sprd_thermal_of_match);
 
 static const struct dev_pm_ops sprd_thermal_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(sprd_thm_suspend, sprd_thm_resume)

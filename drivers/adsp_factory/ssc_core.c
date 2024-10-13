@@ -18,10 +18,22 @@
 #include <linux/string.h>
 #ifdef CONFIG_VBUS_NOTIFIER
 #include <linux/vbus_notifier.h> 
-#endif 
+#endif
+
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+#define REV_SW_OPEN_CLOSE 2
+#endif
+
+#ifdef CONFIG_HALL_NOTIFIER
+#define SUPPORT_HALL_NOTIFIER
+#endif
+
+
 
 #ifdef CONFIG_SUPPORT_DEVICE_MODE
-#include <linux/hall.h>
+#ifdef SUPPORT_HALL_NOTIFIER
+#include <linux/hall/hall_ic_notifier.h>
+#endif // SUPPORT_HALL_NOTIFIER
 #endif
 #ifdef CONFIG_SUPPORT_SSC_SPU
 #include <linux/adsp/ssc_spu.h>
@@ -51,11 +63,12 @@
 
 #ifdef CONFIG_SUPPORT_DUAL_6AXIS
 #define SUPPORT_DUAL_SENSOR "DUAL_GYRO"
+#define SENSOR_DUMP_CNT 5
 #else
 #define SUPPORT_DUAL_SENSOR "SINGLE_GYRO"
+#define SENSOR_DUMP_CNT 4
 #endif
 
-#define SENSOR_DUMP_CNT 4
 #define SENSOR_DUMP_DONE "SENSOR_DUMP_DONE"
 
 #define SENSOR_HW_REVISION_MAX 31
@@ -74,6 +87,12 @@ static char ssr_history[HISTORY_CNT][TIME_LEN + SSR_REASON_LEN];
 static unsigned char ssr_idx = NO_SSR;
 
 #if defined(CONFIG_SUPPORT_DEVICE_MODE) || defined(CONFIG_SUPPORT_VIRTUAL_OPTIC)
+#ifdef CONFIG_SUPPORT_DEVICE_MODE
+#ifdef SUPPORT_HALL_NOTIFIER
+#define FLIP_HALL_NAME "flip"
+static struct hall_notifier_context *hall_notifier;
+#endif //SUPPORT_HALL_NOTIFIER
+#endif
 static int32_t curr_fstate;
 #endif
 
@@ -93,320 +112,18 @@ extern int ssc_get_fw_idx(void);
 
 static unsigned int sec_hw_rev(void);
 
-#ifdef CONFIG_SUPPORT_AK0997X
-#define SUPPORT_ANALOG_HALL (5)
-struct ak09970_digital_hall_data {
-	int32_t ref_x[19];
-	int32_t ref_y[19];
-	int32_t ref_z[19];
-	int32_t flg_update;
-	bool support_a_hall;
-};
-static struct ak09970_digital_hall_data *pdata;
-
-void init_digital_hall_data()
+#ifdef CONFIG_SUPPORT_AK09973
+void dhall_cal_work_func(struct work_struct *work)
 {
-	int i;
-
-	for (i = 0; i < 19; i++) {
-		pdata->ref_x[i] = 0;
-		pdata->ref_y[i] = 0;
-		pdata->ref_z[i] = 0;
-	}
-
-	pdata->flg_update = 0;
-	pdata->support_a_hall = true;
-}
-
-int set_digital_hall_auto_cal_data(bool first_booting)
-{
-	struct file *auto_cal_filp = NULL;
-	mm_segment_t old_fs;
-	int flag, ret = 0;
-	umode_t mode = 0;
-	char *write_buf = kzalloc(AUTO_CAL_FILE_BUF_LEN, GFP_KERNEL);
-
-	if (first_booting) {
-		flag = O_TRUNC | O_RDWR | O_CREAT;
-		mode = 0600;
-	} else {
-		flag = O_RDWR;
-		mode = 0660;
-	}
-
-	/* auto_cal X */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	auto_cal_filp = filp_open(DIGITAL_HALL_AUTO_CAL_X_PATH, flag, mode);
-
-	if (IS_ERR(auto_cal_filp)) {
-		set_fs(old_fs);
-		ret = PTR_ERR(auto_cal_filp);
-		pr_err("[FACTORY] %s: open fail dhall auto_cal_x_filp:%d\n",
-			__func__, ret);
-		kfree(write_buf);
-		return ret;
-	}
-
-	snprintf(write_buf, AUTO_CAL_FILE_BUF_LEN,
-		"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-		pdata->flg_update, pdata->ref_x[0], pdata->ref_x[1],
-		pdata->ref_x[2], pdata->ref_x[3], pdata->ref_x[4],
-		pdata->ref_x[5], pdata->ref_x[6], pdata->ref_x[7],
-		pdata->ref_x[8], pdata->ref_x[9], pdata->ref_x[10],
-		pdata->ref_x[11], pdata->ref_x[12], pdata->ref_x[13],
-		pdata->ref_x[14], pdata->ref_x[15], pdata->ref_x[16],
-		pdata->ref_x[17], pdata->ref_x[18]);
-
-	ret = vfs_write(auto_cal_filp, (char *)write_buf,
-		AUTO_CAL_FILE_BUF_LEN * sizeof(char), &auto_cal_filp->f_pos);
-
-	if (ret < 0)
-		pr_err("[FACTORY] %s: auto_cal_x fd write:%d\n", __func__, ret);
-
-	filp_close(auto_cal_filp, current->files);
-	set_fs(old_fs);
-	memset(write_buf, 0, sizeof(char) * AUTO_CAL_FILE_BUF_LEN);
-
-	/* auto_cal Y */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	auto_cal_filp = filp_open(DIGITAL_HALL_AUTO_CAL_Y_PATH, flag, mode);
-
-	if (IS_ERR(auto_cal_filp)) {
-		set_fs(old_fs);
-		ret = PTR_ERR(auto_cal_filp);
-		pr_err("[FACTORY] %s: open fail dhall auto_cal_y_filp:%d\n",
-			__func__, ret);
-		kfree(write_buf);
-		return ret;
-	}
-
-	snprintf(write_buf, AUTO_CAL_FILE_BUF_LEN,
-		"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-		pdata->ref_y[0], pdata->ref_y[1], pdata->ref_y[2],
-		pdata->ref_y[3], pdata->ref_y[4], pdata->ref_y[5],
-		pdata->ref_y[6], pdata->ref_y[7], pdata->ref_y[8],
-		pdata->ref_y[9], pdata->ref_y[10], pdata->ref_y[11],
-		pdata->ref_y[12], pdata->ref_y[13], pdata->ref_y[14],
-		pdata->ref_y[15], pdata->ref_y[16], pdata->ref_y[17],
-		pdata->ref_y[18]);
-
-	ret = vfs_write(auto_cal_filp, (char *)write_buf,
-		AUTO_CAL_FILE_BUF_LEN * sizeof(char), &auto_cal_filp->f_pos);
-
-	if (ret < 0)
-		pr_err("[FACTORY] %s: auto_cal_y fd write:%d\n", __func__, ret);
-
-	filp_close(auto_cal_filp, current->files);
-	set_fs(old_fs);
-	memset(write_buf, 0, sizeof(char) * AUTO_CAL_FILE_BUF_LEN);
-
-	/* auto_cal Z */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	auto_cal_filp = filp_open(DIGITAL_HALL_AUTO_CAL_Z_PATH, flag, mode);
-
-	if (IS_ERR(auto_cal_filp)) {
-		set_fs(old_fs);
-		ret = PTR_ERR(auto_cal_filp);
-		pr_err("[FACTORY] %s: open fail dhall auto_cal_z_filp:%d\n",
-			__func__, ret);
-		kfree(write_buf);
-		return ret;
-	}
-
-	snprintf(write_buf, AUTO_CAL_FILE_BUF_LEN,
-		"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-		pdata->ref_z[0], pdata->ref_z[1], pdata->ref_z[2],
-		pdata->ref_z[3], pdata->ref_z[4], pdata->ref_z[5],
-		pdata->ref_z[6], pdata->ref_z[7], pdata->ref_z[8],
-		pdata->ref_z[9], pdata->ref_z[10], pdata->ref_z[11],
-		pdata->ref_z[12], pdata->ref_z[13], pdata->ref_z[14],
-		pdata->ref_z[15], pdata->ref_z[16], pdata->ref_z[17],
-		pdata->ref_z[18]);
-
-	ret = vfs_write(auto_cal_filp, (char *)write_buf,
-		AUTO_CAL_FILE_BUF_LEN * sizeof(char), &auto_cal_filp->f_pos);
-
-	if (ret < 0)
-		pr_err("[FACTORY] %s: auto_cal_z fd write:%d\n", __func__, ret);
-
-	filp_close(auto_cal_filp, current->files);
-	set_fs(old_fs);
-
-	kfree(write_buf);
-
-	pr_info("[FACTORY] %s: saved", __func__);
-	return ret;
-}
-
-void digital_hall_factory_auto_cal_init_work(void)
-{
-	struct file *cal_filp = NULL;
-	mm_segment_t old_fs;
-	int ret = 0;
-	int buf[58] = { 0, };
-	char *auto_cal_buf = kzalloc(AUTO_CAL_FILE_BUF_LEN * sizeof(char),
-		GFP_KERNEL);
-
-	if (sec_hw_rev() < SUPPORT_ANALOG_HALL)
-		pdata->support_a_hall = false;
-
-	/* auto_cal X */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	cal_filp = filp_open(DIGITAL_HALL_AUTO_CAL_X_PATH, O_RDONLY, 0440);
-	if (PTR_ERR(cal_filp) == -ENOENT || PTR_ERR(cal_filp) == -ENXIO) {
-		pr_info("[FACTORY] %s - no digital_hall_auto_cal_x file\n",
-			__func__);
-		set_fs(old_fs);
-		set_digital_hall_auto_cal_data(true);
-	} else if (IS_ERR(cal_filp)) {
-		pr_err("[FACTORY]: %s - filp_open error: auto_cal_x\n",
-			__func__);
-		set_fs(old_fs);
-	} else {
-		pr_info("[FACTORY] %s - already exist: auto_cal_x\n", __func__);
-
-		ret = vfs_read(cal_filp, (char *)auto_cal_buf,
-			AUTO_CAL_FILE_BUF_LEN * sizeof(char), &cal_filp->f_pos);
-		if (ret < 0) {
-			pr_err("[FACTORY] %s - read fail:%d\n", __func__, ret);
-			filp_close(cal_filp, current->files);
-			set_fs(old_fs);
-			kfree(auto_cal_buf);
-			return;
-		}
-
-		ret = sscanf(auto_cal_buf,
-			"%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d",
-			&buf[0], &buf[1], &buf[2], &buf[3], &buf[4], &buf[5],
-			&buf[6], &buf[7], &buf[8], &buf[9], &buf[10], &buf[11],
-			&buf[12], &buf[13], &buf[14], &buf[15], &buf[16], &buf[17],
-			&buf[18], &buf[19]);
-
-
-		if (ret != AUTO_CAL_DATA_NUM + 1) {
-			pr_err("[FACTORY] %s - auto_cal_x: sscanf fail %d\n",
-				__func__, ret);
-			filp_close(cal_filp, current->files);
-			set_fs(old_fs);
-			kfree(auto_cal_buf);
-			return;
-		}
-
-		pdata->flg_update = buf[0];
-		memcpy(pdata->ref_x, &buf[1], sizeof(int32_t) * 19);
-		pr_info("[FACTORY] %s: flg_update=%d\n",
-			__func__, pdata->flg_update);
-		filp_close(cal_filp, current->files);
-		set_fs(old_fs);
-	}
-
-	/* auto_cal Y */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	cal_filp = filp_open(DIGITAL_HALL_AUTO_CAL_Y_PATH, O_RDONLY, 0440);
-	if (PTR_ERR(cal_filp) == -ENOENT || PTR_ERR(cal_filp) == -ENXIO) {
-		pr_info("[FACTORY] %s - no digital_hall_auto_cal_y file\n",
-			__func__);
-		set_fs(old_fs);
-	} else if (IS_ERR(cal_filp)) {
-		pr_err("[FACTORY]: %s - filp_open error: auto_cal_y\n",
-			__func__);
-		set_fs(old_fs);
-	} else {
-		pr_info("[FACTORY] %s - already exist: auto_cal_y\n", __func__);
-
-		ret = vfs_read(cal_filp, (char *)auto_cal_buf,
-			AUTO_CAL_FILE_BUF_LEN * sizeof(char), &cal_filp->f_pos);
-		if (ret < 0) {
-			pr_err("[FACTORY] %s - read fail:%d\n", __func__, ret);
-			filp_close(cal_filp, current->files);
-			set_fs(old_fs);
-			kfree(auto_cal_buf);
-			return;
-		}
-
-		ret = sscanf(auto_cal_buf,
-			"%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d",
-			&buf[20], &buf[21], &buf[22], &buf[23],	&buf[24],
-			&buf[25], &buf[26], &buf[27], &buf[28], &buf[29],
-			&buf[30], &buf[31], &buf[32], &buf[33], &buf[34],
-			&buf[35], &buf[36], &buf[37], &buf[38]);
-
-
-		if (ret != AUTO_CAL_DATA_NUM) {
-			pr_err("[FACTORY] %s - auto_cal_y: sscanf fail %d\n",
-				__func__, ret);
-			filp_close(cal_filp, current->files);
-			set_fs(old_fs);
-			kfree(auto_cal_buf);
-			return;
-		}
-
-		memcpy(pdata->ref_y, &buf[20], sizeof(int32_t) * 19);
-		filp_close(cal_filp, current->files);
-		set_fs(old_fs);
-	}
-
-	/* auto_cal Z */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	cal_filp = filp_open(DIGITAL_HALL_AUTO_CAL_Z_PATH, O_RDONLY, 0440);
-	if (PTR_ERR(cal_filp) == -ENOENT || PTR_ERR(cal_filp) == -ENXIO) {
-		pr_info("[FACTORY] %s - no digital_hall_auto_cal_z file\n",
-			__func__);
-		set_fs(old_fs);
-	} else if (IS_ERR(cal_filp)) {
-		pr_err("[FACTORY]: %s - filp_open error: auto_cal_z\n",
-			__func__);
-		set_fs(old_fs);
-	} else {
-		pr_info("[FACTORY] %s - already exist: auto_cal_z\n", __func__);
-
-		ret = vfs_read(cal_filp, (char *)auto_cal_buf,
-			AUTO_CAL_FILE_BUF_LEN * sizeof(char), &cal_filp->f_pos);
-		if (ret < 0) {
-			pr_err("[FACTORY] %s - read fail:%d\n", __func__, ret);
-			filp_close(cal_filp, current->files);
-			set_fs(old_fs);
-			kfree(auto_cal_buf);
-			return;
-		}
-
-		ret = sscanf(auto_cal_buf,
-			"%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d,%9d",
-			&buf[39], &buf[40], &buf[41], &buf[42], &buf[43],
-			&buf[44], &buf[45], &buf[46], &buf[47],	&buf[48],
-			&buf[49], &buf[50], &buf[51], &buf[52], &buf[53],
-			&buf[54], &buf[55], &buf[56], &buf[57]);
-
-
-		if (ret != AUTO_CAL_DATA_NUM) {
-			pr_err("[FACTORY] %s - auto_cal_z: sscanf fail %d\n",
-				__func__, ret);
-			filp_close(cal_filp, current->files);
-			set_fs(old_fs);
-			kfree(auto_cal_buf);
-			return;
-		}
-
-		memcpy(pdata->ref_z, &buf[39], sizeof(int32_t) * 19);
-		filp_close(cal_filp, current->files);
-		set_fs(old_fs);
-	}
-	kfree(auto_cal_buf);
+	int buf[58] = { 1, };
 
 	adsp_unicast(buf, sizeof(buf),
 		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_SET_REGISTER);
+}
+
+void digital_hall_factory_auto_cal_init_work(struct adsp_data *data)
+{
+	schedule_delayed_work(&data->dhall_cal_work, msecs_to_jiffies(8000));
 }
 #endif
 /*
@@ -414,7 +131,7 @@ void digital_hall_factory_auto_cal_init_work(void)
  */
 #define NO_OIS_STRUCT (-1)
 
-#if defined(CONFIG_SUPPORT_DEVICE_MODE) && defined(CONFIG_SUPPORT_DUAL_OPTIC)
+#ifdef CONFIG_SUPPORT_DEVICE_MODE
 struct ssc_flip_data {
 	struct workqueue_struct *ssc_flip_wq;
 	struct work_struct work_ssc_flip;
@@ -519,28 +236,6 @@ void sns_vbus_init_work(void)
 /*************************************************************************/
 
 static char operation_mode_flag[11];
-#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT)
-static int get_prox_sidx(struct adsp_data *data)
-{
-	int ret = MSG_PROX;
-#ifdef CONFIG_SUPPORT_DUAL_OPTIC
-	switch (data->fac_fstate) {
-	case FSTATE_INACTIVE:
-	case FSTATE_FAC_INACTIVE:
-	case FSTATE_FAC_INACTIVE_2:
-		ret = MSG_PROX;
-		break;
-	case FSTATE_ACTIVE:
-	case FSTATE_FAC_ACTIVE:
-		ret = MSG_PROX_SUB;
-		break;
-	default:
-		break;
-	}
-#endif
-	return ret;
-}
-#endif
 
 static ssize_t dumpstate_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -849,10 +544,10 @@ static ssize_t support_algo_store(struct device *dev,
 }
 
 #ifdef CONFIG_SUPPORT_DEVICE_MODE
-#ifdef CONFIG_SUPPORT_DUAL_OPTIC
 void ssc_flip_work_func(struct work_struct *work)
 {
-	int32_t msg_buf[2];
+	int32_t msg_buf[4];
+#ifdef CONFIG_SUPPORT_DUAL_OPTIC
 	if (pdata_ssc_flip->only_update) {
 		msg_buf[0] = VOPTIC_OP_CMD_SSC_FLIP_UPDATE;
 		pdata_ssc_flip->only_update = false;
@@ -865,9 +560,18 @@ void ssc_flip_work_func(struct work_struct *work)
 			MSG_VIR_OPTIC, 0, MSG_TYPE_OPTION_DEFINE);
 
 #ifdef CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR
-	msg_buf[0] += 10;
+	msg_buf[0] = 11;
+	msg_buf[1] = (int32_t)curr_fstate;
+	msg_buf[2] = msg_buf[3] = -1;
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 			MSG_DDI, 0, MSG_TYPE_OPTION_DEFINE);
+#endif
+#else
+	msg_buf[0] = 11;
+	msg_buf[1] = (int32_t)curr_fstate;
+	pr_info("[FACTORY] %s: msg_buf = %d\n", __func__, msg_buf[1]);
+	adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_LIGHT, 0, MSG_TYPE_OPTION_DEFINE);
 #endif
 }
 
@@ -877,13 +581,39 @@ void sns_flip_init_work(void)
 	queue_work(pdata_ssc_flip->ssc_flip_wq,
 		&pdata_ssc_flip->work_ssc_flip);
 }
-#endif
 
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+int sns_device_mode_fold(struct adsp_data *data, unsigned long flip_state)
+{
+	pr_info("[FACTORY] %s - [before] curr:%d, fstate:%d",
+		__func__, curr_fstate, data->fac_fstate);
+
+	data->fac_fstate = curr_fstate = (int32_t)flip_state;
+	pr_info("[FACTORY] %s - [after] curr:%d, fstate:%d",
+		__func__, curr_fstate, data->fac_fstate);
+
+	if(curr_fstate == 0)
+		adsp_unicast(NULL, 0, MSG_SSC_CORE, 0, MSG_TYPE_FACTORY_ENABLE);
+	else
+		adsp_unicast(NULL, 0, MSG_SSC_CORE, 0, MSG_TYPE_FACTORY_DISABLE);
+
+	// send the flip state by qmi.
+	queue_work(pdata_ssc_flip->ssc_flip_wq, &pdata_ssc_flip->work_ssc_flip);
+
+	return 0;
+}
+#endif //CONFOG_SUPPORT_SENSOR_FOLD
+
+#ifdef SUPPORT_HALL_NOTIFIER
 int sns_device_mode_notify(struct notifier_block *nb,
 	unsigned long flip_state, void *v)
 {
 	struct adsp_data *data = container_of(nb, struct adsp_data, adsp_nb);
-	
+	hall_notifier = v;
+
+	if (strncmp(hall_notifier->name, FLIP_HALL_NAME, 4))
+		return 0;
+
 	pr_info("[FACTORY] %s - before device mode curr:%d, fstate:%d",
 		__func__, curr_fstate, data->fac_fstate);
 
@@ -896,12 +626,12 @@ int sns_device_mode_notify(struct notifier_block *nb,
 	else
 		adsp_unicast(NULL, 0, MSG_SSC_CORE, 0, MSG_TYPE_FACTORY_DISABLE);
 
-#ifdef CONFIG_SUPPORT_DUAL_OPTIC
         // send the flip state by qmi.
 	queue_work(pdata_ssc_flip->ssc_flip_wq, &pdata_ssc_flip->work_ssc_flip);
-#endif
+
 	return 0;
 }
+#endif
 
 void sns_device_mode_init_work(void)
 {
@@ -960,7 +690,7 @@ static ssize_t support_dual_sensor_show(struct device *dev,
 
 #if defined(CONFIG_SUPPORT_BHL_COMPENSATION_FOR_LIGHT_SENSOR) || \
 	defined(CONFIG_SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX) || \
-	defined(CONFIG_SUPPORT_AK0997X)
+	defined(CONFIG_SUPPORT_AK09973)
 static ssize_t lcd_onoff_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -971,7 +701,7 @@ static ssize_t lcd_onoff_store(struct device *dev,
 	uint16_t light_idx = get_light_sidx(data);
 	int32_t msg_buf[2];
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
+#ifdef CONFIG_SUPPORT_AK09973
 	uint8_t cnt = 0;
 #endif
 
@@ -993,8 +723,8 @@ static ssize_t lcd_onoff_store(struct device *dev,
 		light_idx, 0, MSG_TYPE_OPTION_DEFINE);
 	mutex_unlock(&data->light_factory_mutex);
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
-	if (new_value && !pdata->support_a_hall) {
+#ifdef CONFIG_SUPPORT_AK09973
+	if (new_value) {
 		adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_CAL_DATA);
 
 		while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
@@ -1008,17 +738,8 @@ static ssize_t lcd_onoff_store(struct device *dev,
 			return size;
 		}
 
-		pdata->flg_update = data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0];
-		pr_info("[FACTORY] %s: flg_update=%d\n", __func__, pdata->flg_update);
-
-		if (!pdata->flg_update)
-			return size;
-
-		memcpy(pdata->ref_x, &data->msg_buf[MSG_DIGITAL_HALL_ANGLE][1], sizeof(int32_t) * 19);
-		memcpy(pdata->ref_y, &data->msg_buf[MSG_DIGITAL_HALL_ANGLE][20], sizeof(int32_t) * 19);
-		memcpy(pdata->ref_z, &data->msg_buf[MSG_DIGITAL_HALL_ANGLE][39], sizeof(int32_t) * 19);
-
-		set_digital_hall_auto_cal_data(false);
+		pr_info("[FACTORY] %s: flg_update=%d\n", __func__,
+			data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0]);
 	}
 #endif
 	return size;
@@ -1143,13 +864,44 @@ static void print_sensor_dump(struct adsp_data *data, int sensor)
 			data->msg_buf[sensor][10], data->msg_buf[sensor][11],
 			data->msg_buf[sensor][12], data->msg_buf[sensor][13],
 			data->msg_buf[sensor][14], data->msg_buf[sensor][15]);
-#if defined (CONFIG_SUPPORT_LIGHT_CALIBRATION) && (CONFIG_SUPPORT_PROX_CALIBRATION)
+#if defined(CONFIG_SUPPORT_LIGHT_CALIBRATION) && defined(CONFIG_SUPPORT_PROX_CALIBRATION)
 		pr_info("[FACTORY] %s - %d: [L] R:%d, %d, %d, W:%d, P:%d\n",
 			__func__, sensor, data->light_cal_result,
 			data->light_cal1, data->light_cal2,
 			data->copr_w, data->prox_cal);
 #endif
 		break;
+#ifdef CONFIG_SUPPORT_DUAL_OPTIC
+	case MSG_LIGHT_SUB:
+		pr_info("[FACTORY] %s - %d: %d,%d,%d,%d,%d,%d,%d [P]:%d,%d,%d [L]:%d,%d,%d [E]:%d,%d,%d\n",
+			__func__, sensor,
+			data->msg_buf[sensor][0], data->msg_buf[sensor][1],
+			data->msg_buf[sensor][2], data->msg_buf[sensor][3],
+			data->msg_buf[sensor][4], data->msg_buf[sensor][5],
+			data->msg_buf[sensor][6], data->msg_buf[sensor][7],
+			data->msg_buf[sensor][8], data->msg_buf[sensor][9],
+			data->msg_buf[sensor][10], data->msg_buf[sensor][11],
+			data->msg_buf[sensor][12], data->msg_buf[sensor][13],
+			data->msg_buf[sensor][14], data->msg_buf[sensor][15]);
+#if defined(CONFIG_SUPPORT_LIGHT_CALIBRATION) && defined(CONFIG_SUPPORT_PROX_CALIBRATION)
+		pr_info("[FACTORY] %s - %d: [L] R:%d, %d, %d, W:%d, P:%d\n",
+			__func__, sensor, data->sub_light_cal_result,
+			data->sub_light_cal1, data->sub_light_cal2,
+			data->sub_copr_w, data->prox_cal);
+#endif
+#endif
+		break;
+#ifdef CONFIG_SUPPORT_AK09973
+	case MSG_DIGITAL_HALL:
+		pr_info("[FACTORY] %s - %d: ST: %02x, HX/HY/HZ: %d/%d/%d, CNTL: %02x/%02x/%02x, BOP/BRP: %d/%d\n",
+			__func__, sensor,
+			data->msg_buf[MSG_DIGITAL_HALL][0], data->msg_buf[MSG_DIGITAL_HALL][1],
+			data->msg_buf[MSG_DIGITAL_HALL][2], data->msg_buf[MSG_DIGITAL_HALL][3],
+			data->msg_buf[MSG_DIGITAL_HALL][4], data->msg_buf[MSG_DIGITAL_HALL][5],
+			data->msg_buf[MSG_DIGITAL_HALL][6], data->msg_buf[MSG_DIGITAL_HALL][7],
+			data->msg_buf[MSG_DIGITAL_HALL][8]);
+		break;
+#endif
 	default:
 		break;
 	}
@@ -1198,7 +950,7 @@ void sensor_dump_work_func(struct work_struct *work)
 		struct sdump_data, work_sdump);
 	struct adsp_data *data = sensor_dump_data->dev_data;
 #ifdef CONFIG_SUPPORT_DUAL_6AXIS
-	int sensor_type[SENSOR_DUMP_CNT] = { MSG_ACCEL, MSG_MAG, MSG_PRESSURE, MSG_ACCEL_SUB };
+	int sensor_type[SENSOR_DUMP_CNT] = { MSG_ACCEL, MSG_MAG, MSG_PRESSURE, MSG_LIGHT, MSG_ACCEL_SUB };
 #else
 	int sensor_type[SENSOR_DUMP_CNT] = { MSG_ACCEL, MSG_MAG, MSG_PRESSURE, MSG_LIGHT };
 #endif
@@ -1207,28 +959,17 @@ void sensor_dump_work_func(struct work_struct *work)
 
 	sensordump_notifier_call_chain(1, NULL);
 
-#ifdef CONFIG_SUPPORT_AK0997X
-	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_CAL_DATA);
-
-	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
-		cnt++ < 3)
-		msleep(30);
-
-	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
-
-	if (cnt >= 3) {
-		pr_err("[FACTORY] %s: Read D/Hall Auto Cal Table Timeout!!!\n", __func__);
-	}
-
-	pr_info("[FACTORY] %s: flg_update=%d\n", __func__, data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0]);
-#endif
-
 	for (i = 0; i < SENSOR_DUMP_CNT; i++) {
 		if (!data->sysfs_created[sensor_type[i]]) {
 			pr_info("[FACTORY] %s: %d was not probed\n",
 				__func__, sensor_type[i]);
 			continue;
 		}
+
+#ifdef CONFIG_SUPPORT_DUAL_OPTIC
+		if (sensor_type[i] == MSG_LIGHT)
+			sensor_type[i] = get_light_sidx(data);
+#endif
 		pr_info("[FACTORY] %s: %d\n", __func__, sensor_type[i]);
 		cnt = 0;
 		adsp_unicast(NULL, 0, sensor_type[i], 0, MSG_TYPE_GET_DHR_INFO);
@@ -1247,18 +988,37 @@ void sensor_dump_work_func(struct work_struct *work)
 		}
 	}
 
-#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT)
-	cnt = 0;
-	adsp_unicast(NULL, 0, get_prox_sidx(data), 0, MSG_TYPE_GET_DHR_INFO);
-	while (!(data->ready_flag[MSG_TYPE_GET_DHR_INFO] & 1 << get_prox_sidx(data)) &&
-		cnt++ < TIMEOUT_DHR_CNT)
-		msleep(20);
+#ifdef CONFIG_SUPPORT_AK09973
+	if (data->sysfs_created[MSG_DIGITAL_HALL]) {
+		cnt = 0;
+		adsp_unicast(NULL, 0, MSG_DIGITAL_HALL, 0, MSG_TYPE_GET_DHR_INFO);
+		while (!(data->ready_flag[MSG_TYPE_GET_DHR_INFO] & 1 << MSG_DIGITAL_HALL) &&
+			cnt++ < TIMEOUT_DHR_CNT)
+			msleep(20);
 
-	data->ready_flag[MSG_TYPE_GET_DHR_INFO] &= ~(1 << get_prox_sidx(data));
+		data->ready_flag[MSG_TYPE_GET_DHR_INFO] &= ~(1 << MSG_DIGITAL_HALL);
 
-	if (cnt >= TIMEOUT_DHR_CNT)
-		pr_err("[FACTORY] %s: prox(%d) dhr_sensor_info Timeout!!!\n",
-			__func__, get_prox_sidx(data));
+		if (cnt >= TIMEOUT_DHR_CNT) {
+			pr_err("[FACTORY] %s: %d Timeout!!!\n",
+				__func__, MSG_DIGITAL_HALL);
+		} else {
+			print_sensor_dump(data, MSG_DIGITAL_HALL);
+			msleep(200);
+		}
+	}
+	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_CAL_DATA);
+
+	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
+		cnt++ < 3)
+		msleep(30);
+
+	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+
+	if (cnt >= 3) {
+		pr_err("[FACTORY] %s: Read D/Hall Auto Cal Table Timeout!!!\n", __func__);
+	}
+
+	pr_info("[FACTORY] %s: flg_update=%d\n", __func__, data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0]);
 #endif
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
@@ -1331,50 +1091,207 @@ static ssize_t ssc_mode_store(struct device *dev,
 #endif
 
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
-static int light_seamless_lux = -1;
+static int light_seamless_lux_low, light_seamless_lux_high;
+static int sub_light_seamless_lux_low, sub_light_seamless_lux_high;
 void light_seamless_work_func(struct work_struct *work)
 {
-	if (light_seamless_lux != -1) {
-		int32_t msg_buf[2];
+	if (light_seamless_lux_low != 0
+		|| light_seamless_lux_high != 0
+		|| sub_light_seamless_lux_low != 0
+		|| sub_light_seamless_lux_high != 0) {
+		int32_t msg_buf[5] = {0, };
 		msg_buf[0] = OPTION_TYPE_SSC_LIGHT_SEAMLESS;
-		msg_buf[1] = light_seamless_lux;
+		msg_buf[1] = light_seamless_lux_low;
+		msg_buf[2] = light_seamless_lux_high;
+		msg_buf[3] = sub_light_seamless_lux_low;
+		msg_buf[4] = sub_light_seamless_lux_high;
 		adsp_unicast(msg_buf, sizeof(msg_buf),
 			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
-		pr_info("[FACTORY] light seamless init:%d\n", light_seamless_lux);
 	}
+	pr_info("[FACTORY] light seamless init, M%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 }
 
 static ssize_t light_seamless_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	pr_info("[FACTORY] light_seamless_lux:%d\n", light_seamless_lux);
-	return snprintf(buf, PAGE_SIZE, "%d\n", light_seamless_lux);
+	pr_info("[FACTORY] light seamless M%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
+	return snprintf(buf, PAGE_SIZE, "M:%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 }
 
 static ssize_t light_seamless_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	int32_t msg_buf[2];
+	int32_t msg_buf[5] = {0, };
+	int32_t ret = 0;
 
-	if (kstrtoint(buf, 10, &light_seamless_lux)) {
-		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+	ret = sscanf(buf, "%5d,%5d,%5d,%5d",
+		&light_seamless_lux_low, &light_seamless_lux_high,
+		&sub_light_seamless_lux_low, &sub_light_seamless_lux_high);
+	if (ret != 4) {
+		pr_err("[FACTORY]: %s - The number of data are wrong,%d\n",
+			__func__, ret);
 		return -EINVAL;
 	}
 
 	msg_buf[0] = OPTION_TYPE_SSC_LIGHT_SEAMLESS;
-	msg_buf[1] = light_seamless_lux;
+	msg_buf[1] = light_seamless_lux_low;
+	msg_buf[2] = light_seamless_lux_high;
+	msg_buf[3] = sub_light_seamless_lux_low;
+	msg_buf[4] = sub_light_seamless_lux_high;
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
-	pr_info("[FACTORY] light_seamless_lux:%d\n", light_seamless_lux);
+	pr_info("[FACTORY] light_seamless_lux, M:%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 
 	return size;
 }
+
 
 void light_seamless_init_work(struct adsp_data *data)
 {
 	schedule_delayed_work(&data->light_seamless_work, msecs_to_jiffies(5000));
 }
 #endif
+
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+static BLOCKING_NOTIFIER_HEAD(sensorfold_notifier_list);
+int sensorfold_notifier_register(struct notifier_block *nb)
+{
+	pr_info("[FACTORY] %s\n", __func__);
+	return blocking_notifier_chain_register(&sensorfold_notifier_list, nb);
+}
+EXPORT_SYMBOL(sensorfold_notifier_register);
+
+int sensorfold_notifier_unregister(struct notifier_block *nb)
+{
+	pr_info("[FACTORY] %s\n", __func__);
+	return blocking_notifier_chain_unregister(&sensorfold_notifier_list, nb);
+}
+EXPORT_SYMBOL(sensorfold_notifier_unregister);
+
+int sensorfold_notifier_notify(unsigned long fold_state)
+{
+	return blocking_notifier_call_chain(&sensorfold_notifier_list, fold_state, NULL);
+}
+EXPORT_SYMBOL_GPL(sensorfold_notifier_notify);
+
+static ssize_t fold_state_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	int flip_status = 0;
+
+	/* notifier open: 0, close: 1 */
+	/* factory app was accessing /sys/class/sec/hall_ic/flip_status */
+	/* and this sysfs return value is opposite. close: 0, open: 1 */
+
+	if (data->fold_state.state == 0)
+		flip_status = 1;
+	else if (data->fold_state.state == 1)
+		flip_status = 0;
+
+	pr_info("[FACTORY] %s: ts:%lld, %d, %d(flip_status)\n", __func__,
+		data->fold_state.ts, data->fold_state.state, flip_status);
+
+	/* For Factory App */
+	return snprintf(buf, PAGE_SIZE,	"%d\n", flip_status);
+}
+
+static ssize_t fold_state_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	struct timespec ts;
+	int ret = 0;
+
+	pr_info("[FACTORY] %s:  %s\n", __func__, buf);
+	if (sysfs_streq(buf, "0")) // fold
+		data->fold_state.state = 1;
+	else if (sysfs_streq(buf, "1")) //unfold
+		data->fold_state.state = 0;
+	else
+		return size;
+	
+	ret = sensorfold_notifier_notify(data->fold_state.state);
+	ts = ktime_to_timespec(ktime_get_boottime());
+	data->fold_state.ts = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+
+#ifdef CONFIG_SUPPORT_DEVICE_MODE
+	sns_device_mode_fold(data, data->fold_state.state);
+#endif
+	pr_info("[FACTORY] %s: %d, ret: %x\n", __func__, data->fold_state.state, ret);
+	return size;
+}
+#endif
+
+static ssize_t ar_mode_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_AUTO_ROTATION_MODE, 0};
+
+	msg_buf[1] = buf[0] - 48;
+	pr_info("[FACTORY]%s: ar_mode:%d\n", __func__, msg_buf[1]);
+	adsp_unicast(msg_buf, sizeof(msg_buf),
+		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+
+	return size;
+}
+
+static int sbm_init;
+static ssize_t sbm_init_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	pr_info("[FACTORY] %s sbm_init_show:%d\n", __func__, sbm_init);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", sbm_init);
+}
+
+static ssize_t sbm_init_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_SBM_INIT, 0};
+
+	if (kstrtoint(buf, 10, &sbm_init)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sbm_init) {
+		msg_buf[1] = sbm_init;
+		pr_info("[FACTORY] %s sbm_init_store %d\n", __func__, sbm_init);
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
+static ssize_t pocket_inject_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_POCKET_INJECT, 0};
+	int pocket_inject_data = 0;
+
+	if (kstrtoint(buf, 10, &pocket_inject_data)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (pocket_inject_data) {
+		msg_buf[1] = pocket_inject_data;
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
 
 static DEVICE_ATTR(dumpstate, 0440, dumpstate_show, NULL);
 static DEVICE_ATTR(operation_mode, 0664,
@@ -1404,13 +1321,20 @@ static DEVICE_ATTR(ssc_mode, 0664, ssc_mode_show, ssc_mode_store);
 #endif
 #if defined(CONFIG_SUPPORT_BHL_COMPENSATION_FOR_LIGHT_SENSOR) || \
 	defined(CONFIG_SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX) || \
-	defined(CONFIG_SUPPORT_AK0997X)
+	defined(CONFIG_SUPPORT_AK09973)
 static DEVICE_ATTR(lcd_onoff, 0220, NULL, lcd_onoff_store);
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
 static DEVICE_ATTR(light_seamless, 0660,
 	light_seamless_show, light_seamless_store);
 #endif
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+static DEVICE_ATTR(fold_state, 0660, fold_state_show, fold_state_store);
+#endif
+static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
+static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
+static DEVICE_ATTR(pocket_inject, 0220, NULL, pocket_inject_store);
+
 static struct device_attribute *core_attrs[] = {
 	&dev_attr_dumpstate,
 	&dev_attr_operation_mode,
@@ -1438,12 +1362,18 @@ static struct device_attribute *core_attrs[] = {
 #endif
 #if defined(CONFIG_SUPPORT_BHL_COMPENSATION_FOR_LIGHT_SENSOR) || \
 	defined(CONFIG_SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX) || \
-	defined(CONFIG_SUPPORT_AK0997X)
+	defined(CONFIG_SUPPORT_AK09973)
 	&dev_attr_lcd_onoff,
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
 	&dev_attr_light_seamless,
 #endif
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+	&dev_attr_fold_state,
+#endif
+	&dev_attr_sbm_init,
+	&dev_attr_ar_mode,
+	&dev_attr_pocket_inject,
 	NULL,
 };
 
@@ -1509,9 +1439,19 @@ static int __init core_factory_init(void)
 	struct adsp_data *data = adsp_ssc_core_register(MSG_SSC_CORE, core_attrs);
 	pr_info("[FACTORY] %s\n", __func__);
 #ifdef CONFIG_SUPPORT_DEVICE_MODE
+#ifdef SUPPORT_HALL_NOTIFIER
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+	if (sec_hw_rev() > REV_SW_OPEN_CLOSE) {
+		data->adsp_nb.notifier_call = sns_device_mode_notify,
+		data->adsp_nb.priority = 1,
+		hall_notifier_register(&data->adsp_nb);
+	}
+#else
 	data->adsp_nb.notifier_call = sns_device_mode_notify,
 	data->adsp_nb.priority = 1,
-        hall_ic_register_notify(&data->adsp_nb);
+	hall_notifier_register(&data->adsp_nb);
+#endif
+#endif //SUPPORT_HALL_NOTIFIER
 #endif
 #ifdef CONFIG_VBUS_NOTIFIER
 	vbus_notifier_register(&data->vbus_nb,
@@ -1520,7 +1460,7 @@ static int __init core_factory_init(void)
 #else
 	adsp_factory_register(MSG_SSC_CORE, core_attrs);
 #endif
-#if defined(CONFIG_SUPPORT_DEVICE_MODE) && defined(CONFIG_SUPPORT_DUAL_OPTIC)
+#ifdef CONFIG_SUPPORT_DEVICE_MODE
 	pdata_ssc_flip = kzalloc(sizeof(*pdata_ssc_flip), GFP_KERNEL);
 	if (pdata_ssc_flip == NULL)
 		return -ENOMEM;
@@ -1552,11 +1492,6 @@ static int __init core_factory_init(void)
 	INIT_WORK(&pdata_sdump->work_sdump, sensor_dump_work_func);
 	pr_info("[FACTORY] %s\n", __func__);
 
-#ifdef CONFIG_SUPPORT_AK0997X
-	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-	init_digital_hall_data();
-#endif
-
 #ifdef CONFIG_VBUS_NOTIFIER
 	pdata_ssc_charge = kzalloc(sizeof(*pdata_ssc_charge), GFP_KERNEL);
 	if (pdata_ssc_charge == NULL)
@@ -1582,7 +1517,14 @@ static void __exit core_factory_exit(void)
 #if defined(CONFIG_SUPPORT_DEVICE_MODE) || defined(CONFIG_VBUS_NOTIFIER)
 	struct adsp_data *data = adsp_ssc_core_unregister(MSG_SSC_CORE);;
 #ifdef CONFIG_SUPPORT_DEVICE_MODE
-	hall_ic_unregister_notify(&data->adsp_nb);
+#ifdef SUPPORT_HALL_NOTIFIER
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+	if (sec_hw_rev() > REV_SW_OPEN_CLOSE)
+		hall_notifier_unregister(&data->adsp_nb);
+#else
+	hall_notifier_unregister(&data->adsp_nb);
+#endif
+#endif //SUPPORT_HALL_NOTIFIER
 #endif
 #ifdef CONFIG_VBUS_NOTIFIER
 	vbus_notifier_unregister(&data->vbus_nb);
@@ -1598,7 +1540,7 @@ static void __exit core_factory_exit(void)
 	}
 #endif
 
-#if defined(CONFIG_SUPPORT_DEVICE_MODE) && defined(CONFIG_SUPPORT_DUAL_OPTIC)
+#ifdef CONFIG_SUPPORT_DEVICE_MODE
 	if (pdata_ssc_flip != NULL && pdata_ssc_flip->ssc_flip_wq != NULL) {
 		cancel_work_sync(&pdata_ssc_flip->work_ssc_flip);
 		destroy_workqueue(pdata_ssc_flip->ssc_flip_wq);

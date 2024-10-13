@@ -32,6 +32,9 @@ enum panel_notifier_event_t {
 	PANEL_EVENT_STATE_CHANGED,
 	PANEL_EVENT_LFD_CHANGED,
 	PANEL_EVENT_UB_CON_CHANGED,
+	PANEL_EVENT_TEST_MODE_CHANGED,
+	PANEL_EVENT_SCREEN_MODE_CHANGED,
+	PANEL_EVENT_ESD,
 };
 
 enum panel_notifier_event_ub_con_state {
@@ -49,6 +52,7 @@ struct panel_bl_event_data {
 	int aor_data;
 	int display_idx;
 	int finger_mask_hbm_on;
+	int acl_status;
 };
 
 struct panel_dms_data {
@@ -65,8 +69,25 @@ enum panel_state {
 	MAX_PANEL_STATE,
 };
 
+enum panel_test_mode_state {
+	TEST_NONE,
+	TEST_GCT,
+	MAX_TEST_MODE,
+};
+
 struct panel_state_data {
+	int display_idx;
 	enum panel_state state;
+};
+
+struct panel_test_mode_data {
+	int display_idx;
+	enum panel_test_mode_state state;
+};
+
+struct panel_screen_mode_data {
+	int display_idx;
+	int mode;
 };
 
 extern int ss_panel_notifier_register(struct notifier_block *nb);

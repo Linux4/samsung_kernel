@@ -21,6 +21,12 @@
 #include "cam_cpas_api.h"
 #include "cam_subdev.h"
 #include "cam_tasklet_util.h"
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include <linux/ktime.h>
+extern char cdr_result[40];
+extern uint64_t cdr_start_ts;
+extern uint64_t cdr_end_ts;
+#endif
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 #include "cam_sensor_cmn_header.h"
@@ -4735,6 +4741,17 @@ end:
 	cam_csid_put_evt_payload(csid_hw, &evt_payload);
 	return 0;
 }
+#if defined(CONFIG_SEC_ABC)
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static void cam_ife_csid_cdr_store_result()
+{
+	cdr_end_ts	= ktime_get();
+	cdr_end_ts = cdr_end_ts / 1000 / 1000;
+	sprintf(cdr_result, "%d,%lld\n", 0, cdr_end_ts-cdr_start_ts);
+	CAM_INFO(CAM_ISP, "[CDR_DBG] mipi_overflow, time(ms): %llu", cdr_end_ts-cdr_start_ts);
+}
+#endif
+#endif
 
 static int cam_csid_handle_hw_err_irq(
 	struct cam_ife_csid_hw *csid_hw,
@@ -5188,17 +5205,24 @@ handle_fatal_error:
 				csid_hw->hw_intf->hw_idx);
 
 		if ((irq_status[CAM_IFE_CSID_IRQ_REG_IPP] &
-			CSID_PATH_ERROR_CCIF_VIOLATION))
+			CSID_PATH_ERROR_CCIF_VIOLATION)) {
 			CAM_INFO_RATE_LIMIT(CAM_ISP,
 				"CSID:%d IPP CCIF violation",
 				csid_hw->hw_intf->hw_idx);
+			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+				CAM_SUBDEV_MESSAGE_IRQ_ERR,
+				csid_hw->csi2_rx_cfg.phy_sel);
+		}
 
 		if ((irq_status[CAM_IFE_CSID_IRQ_REG_IPP] &
-			CSID_PATH_OVERFLOW_RECOVERY))
+			CSID_PATH_OVERFLOW_RECOVERY)) {
 			CAM_INFO_RATE_LIMIT(CAM_ISP,
 				"CSID:%d IPP Overflow due to back pressure",
 				csid_hw->hw_intf->hw_idx);
-
+#if defined(CONFIG_SEC_ABC)
+			sec_abc_send_event("MODULE=camera@INFO=ipp_overflow");
+#endif
+		}
 		if (irq_status[CAM_IFE_CSID_IRQ_REG_IPP] &
 			CSID_PATH_ERROR_FIFO_OVERFLOW) {
 			CAM_ERR_RATE_LIMIT(CAM_ISP,
@@ -5263,10 +5287,14 @@ handle_fatal_error:
 				csid_hw->hw_intf->hw_idx);
 
 		if ((irq_status[CAM_IFE_CSID_IRQ_REG_PPP] &
-			CSID_PATH_ERROR_CCIF_VIOLATION))
+			CSID_PATH_ERROR_CCIF_VIOLATION)) {
 			CAM_INFO_RATE_LIMIT(CAM_ISP,
 				"CSID:%d PPP CCIF violation",
 				csid_hw->hw_intf->hw_idx);
+			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+				CAM_SUBDEV_MESSAGE_IRQ_ERR,
+				csid_hw->csi2_rx_cfg.phy_sel);
+		}
 
 		if ((irq_status[CAM_IFE_CSID_IRQ_REG_PPP] &
 			CSID_PATH_OVERFLOW_RECOVERY))
@@ -5335,10 +5363,14 @@ handle_fatal_error:
 				"CSID:%d RDI:%d EOF received",
 				csid_hw->hw_intf->hw_idx, i);
 
-		if ((irq_status[i] & CSID_PATH_ERROR_CCIF_VIOLATION))
+		if ((irq_status[i] & CSID_PATH_ERROR_CCIF_VIOLATION)) {
 			CAM_INFO_RATE_LIMIT(CAM_ISP,
 				"CSID:%d RDI :%d CCIF violation",
 				csid_hw->hw_intf->hw_idx, i);
+			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+				CAM_SUBDEV_MESSAGE_IRQ_ERR,
+				csid_hw->csi2_rx_cfg.phy_sel);
+		}
 
 		if ((irq_status[i] & CSID_PATH_OVERFLOW_RECOVERY))
 			CAM_INFO_RATE_LIMIT(CAM_ISP,
@@ -5410,10 +5442,14 @@ handle_fatal_error:
 				csid_hw->hw_intf->hw_idx, i);
 
 		if ((irq_status[CAM_IFE_CSID_IRQ_REG_UDI_0 + i] &
-			CSID_PATH_ERROR_CCIF_VIOLATION))
+			CSID_PATH_ERROR_CCIF_VIOLATION)) {
 			CAM_WARN_RATE_LIMIT(CAM_ISP,
 				"CSID:%d UDI :%d CCIF violation",
 				csid_hw->hw_intf->hw_idx, i);
+			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+				CAM_SUBDEV_MESSAGE_IRQ_ERR,
+				csid_hw->csi2_rx_cfg.phy_sel);
+		}
 
 		if ((irq_status[CAM_IFE_CSID_IRQ_REG_UDI_0 + i] &
 			CSID_PATH_OVERFLOW_RECOVERY))
@@ -5441,7 +5477,9 @@ handle_fatal_error:
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	if (hwb_mipi_err == TRUE) {
 		msm_is_sec_get_sensor_position(&hw_cam_position);
+#if defined(CONFIG_SEC_ABC)
 		abc_err_report = TRUE;
+#endif
 		if (hw_cam_position != NULL) {
 			switch (*hw_cam_position) {
 				case CAMERA_0:
@@ -5619,8 +5657,12 @@ handle_fatal_error:
 #endif
 
 #if defined(CONFIG_SEC_ABC)
-	if (abc_err_report)
+	if (abc_err_report) {
 		sec_abc_send_event("MODULE=camera@ERROR=mipi_overflow");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_ife_csid_cdr_store_result();
+#endif		
+	}
 #endif
 
 	CAM_DBG(CAM_ISP, "IRQ Handling exit");

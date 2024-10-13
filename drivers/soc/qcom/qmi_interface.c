@@ -556,8 +556,7 @@ static void qmi_data_ready_work(struct work_struct *work)
 			break;
 		}
 
-		if (sq.sq_node == qmi->sq.sq_node &&
-		    sq.sq_port == QRTR_PORT_CTRL) {
+		if (sq.sq_port == QRTR_PORT_CTRL) {
 			qmi_recv_ctrl_pkt(qmi, qmi->recv_buf, msglen);
 		} else if (ops->msg_handler) {
 			ops->msg_handler(qmi, &sq, qmi->recv_buf, msglen);
@@ -666,7 +665,7 @@ int qmi_handle_init(struct qmi_handle *qmi, size_t recv_buf_size,
 	if (!qmi->recv_buf)
 		return -ENOMEM;
 
-	qmi->wq = alloc_workqueue("qmi_msg_handler", WQ_UNBOUND, 1);
+	qmi->wq = alloc_workqueue("qmi_msg_handler", WQ_UNBOUND|WQ_HIGHPRI, 1);
 	if (!qmi->wq) {
 		ret = -ENOMEM;
 		goto err_free_recv_buf;

@@ -38,3 +38,10 @@ config TOUCHSCREEN_DUAL_FOLDABLE
 	tristate "Dual TSP IC for Foldable"
 	help
 	  Say Y here if you need to use dual tsp.
+
+config SEC_INPUT_CMD_TEST
+	tristate "KUnit test for tsp_common_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+

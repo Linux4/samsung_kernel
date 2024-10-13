@@ -244,46 +244,6 @@ void make_mass_self_display_img_cmds_HAB_AMB667AN01(struct samsung_display_drive
 	return;
 }
 
-static int self_display_debug(struct samsung_display_driver_data *vdd)
-{
-	char buf[64];
-
-	if (ss_get_cmds(vdd, RX_SELF_DISP_DEBUG)->count) {
-
-		ss_panel_data_read(vdd, RX_SELF_DISP_DEBUG, buf, LEVEL1_KEY);
-
-		vdd->self_disp.debug.SI_X_O = ((buf[14] & 0x07) << 8);
-		vdd->self_disp.debug.SI_X_O |= (buf[15] & 0xFF);
-
-		vdd->self_disp.debug.SI_Y_O = ((buf[16] & 0x0F) << 8);
-		vdd->self_disp.debug.SI_Y_O |= (buf[17] & 0xFF);
-
-		vdd->self_disp.debug.SM_SUM_O = ((buf[6] & 0xFF) << 24);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[7] & 0xFF) << 16);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[8] & 0xFF) << 8);
-		vdd->self_disp.debug.SM_SUM_O |= (buf[9] & 0xFF);
-
-		vdd->self_disp.debug.MEM_SUM_O = ((buf[10] & 0xFF) << 24);
-		vdd->self_disp.debug.MEM_SUM_O |= ((buf[11] & 0xFF) << 16);
-		vdd->self_disp.debug.MEM_SUM_O |= ((buf[12] & 0xFF) << 8);
-		vdd->self_disp.debug.MEM_SUM_O |= (buf[13] & 0xFF);
-
-		LCD_INFO(vdd, "[HAB_AMB667AN01] SI_X_O(%u) SI_Y_O(%u) MEM_SUM_O(0x%X) SM_SUM_O(0x%X)\n",
-			vdd->self_disp.debug.SI_X_O,
-			vdd->self_disp.debug.SI_Y_O,
-			vdd->self_disp.debug.MEM_SUM_O,
-			vdd->self_disp.debug.SM_SUM_O);
-
-		if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum !=
-					vdd->self_disp.debug.SM_SUM_O) {
-			LCD_ERR(vdd, "[HAB_AMB667AN01] self mask img checksum fail!!\n");
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
 static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 {
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
@@ -329,17 +289,19 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 	LCD_INFO(vdd, "[HAB_AMB667AN01] --\n");
 }
 
-static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
+static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 {
+	int ret = 0;
+
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "vdd is null or error\n");
-		return;
+		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.is_support) {
 		LCD_ERR(vdd, "self display is not supported..(%d)\n",
 						vdd->self_disp.is_support);
-		return;
+		return -EACCES;
 	}
 
 	LCD_INFO(vdd, "[HAB_AMB667AN01] ++ (%d)\n", enable);
@@ -359,7 +321,7 @@ static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 
 	LCD_INFO(vdd, "[HAB_AMB667AN01] --\n");
 
-	return;
+	return ret;
 }
 
 #define WAIT_FRAME (2)
@@ -589,9 +551,8 @@ int self_display_init_HAB_AMB667AN01(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.self_mask_img_write = self_mask_img_write;
 	vdd->self_disp.self_mask_on = self_mask_on;
 	vdd->self_disp.self_mask_check = self_mask_check;
-	vdd->self_disp.self_display_debug = self_display_debug;
 
-	ret = misc_register(&vdd->self_disp.dev);
+	ret = ss_wrapper_misc_register(vdd, &vdd->self_disp.dev);
 	if (ret) {
 		LCD_ERR(vdd, "failed to register driver : %d\n", ret);
 		vdd->self_disp.is_support = false;

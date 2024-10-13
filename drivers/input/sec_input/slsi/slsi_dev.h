@@ -269,7 +269,6 @@ struct slsi_ts_data {
 	short *pFrame;
 
 	bool probe_done;
-	bool info_work_done;
 
 	struct delayed_work check_rawdata;
 	u8 tsp_dump_lock;

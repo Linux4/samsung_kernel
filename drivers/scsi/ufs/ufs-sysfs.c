@@ -850,7 +850,7 @@ static ssize_t dyn_cap_needed_attribute_show(struct device *dev,
 
 	pm_runtime_get_sync(hba->dev);
 	ret = ufshcd_query_attr(hba, UPIU_QUERY_OPCODE_READ_ATTR,
-		QUERY_ATTR_IDN_DYN_CAP_NEEDED, lun, 0, &value);
+			QUERY_ATTR_IDN_DYN_CAP_NEEDED, lun, 0, &value);
 	pm_runtime_put_sync(hba->dev);
 	if (ret)
 		return -EINVAL;
@@ -1129,6 +1129,14 @@ void SEC_ufs_utp_error_check(struct scsi_cmnd *cmd, u8 tm_cmd)
 out:
 	if (tm_cmd || opcode)
 		SEC_UFS_ERR_COUNT_INC(utp_err->UTP_err, UINT_MAX);
+
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (tm_cmd == UFS_QUERY_TASK || tm_cmd == UFS_ABORT_TASK) {
+		/* waiting for cache flush and make a panic */
+		ssleep(2);
+		panic("UFS TM(0x%x) ERROR\n", tm_cmd);
+	}
+#endif
 }
 
 void SEC_ufs_query_error_check(struct ufs_hba *hba, enum dev_cmd_type cmd_type)

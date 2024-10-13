@@ -95,6 +95,33 @@ static int select_enable(struct sec_voter * voter, int max, int * id, int * res)
 	}
 	return 0;
 }
+
+static int select_vote_value(struct sec_vote * vote, int * id, int * res)
+{
+	int ret = 0;
+
+	switch (vote->type) {
+		case SEC_VOTE_MIN:
+			select_min(vote->voter, vote->num, id, res);
+			if (*res == INT_MAX)
+				*res = vote->init_val;
+			break;
+		case SEC_VOTE_MAX:
+			select_max(vote->voter, vote->num, id, res);
+			if (*res == INT_MIN)
+				*res = vote->init_val;
+			break;
+		case SEC_VOTE_EN:
+			select_enable(vote->voter, vote->num, id, res);
+			break;
+		default:
+			pr_err("%s type invalid\n", __func__);
+			ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 int get_sec_vote(struct sec_vote * vote, const char ** name, int * value)
 {
 	mutex_lock(&vote->lock);
@@ -358,9 +385,9 @@ static int force_set(void *data, u64 val)
 		goto out;
 
 	if (vote->force_set) {
-		vote->cb(vote->data, vote->force_val);
+		vote->res = vote->cb(vote->data, vote->force_val);
 	} else {
-		vote->cb(vote->data, vote->res);
+		vote->res = vote->cb(vote->data, vote->res);
 	}
 out:
 	mutex_unlock(&vote->lock);
@@ -497,7 +524,7 @@ EXPORT_SYMBOL(change_sec_voter_pri);
 
 void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *fname, int line)
 {
-	int id, res;
+	int id, res, ret;
 
 	if (event >= vote->num) {
 		pr_info("%s id Error(%d)\n", __func__, event);
@@ -508,24 +535,10 @@ void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *
 		vote->voter[event].enable, en, vote->voter[event].value, value);
 	vote->voter[event].enable = en;
 	vote->voter[event].value = value;
-	switch (vote->type) {
-		case SEC_VOTE_MIN:
-			select_min(vote->voter, vote->num, &id, &res);
-			if (res == INT_MAX)
-				res = vote->init_val;
-			break;
-		case SEC_VOTE_MAX:
-			select_max(vote->voter, vote->num, &id, &res);
-			if (res == INT_MIN)
-				res = vote->init_val;
-			break;
-		case SEC_VOTE_EN:
-			select_enable(vote->voter, vote->num, &id, &res);
-			break;
-		default:
-			pr_err("%s type invalid\n", __func__);
+
+	ret = select_vote_value(vote, &id, &res);
+	if (ret < 0)
 			goto out;
-	}
 
 	if (res != vote->res) {
 		pr_info("%s(%s:%d): %s (%s, %d) -> (%s, %d)\n", __func__, fname, line, vote->name,
@@ -536,7 +549,7 @@ void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *
 		if (vote->force_set)
 			pr_err("%s skip by force_set\n", __func__);
 		else
-			vote->cb(vote->data, res);
+			vote->res = vote->cb(vote->data, res);
 	} else if (!en && (vote->id == event))
 		vote->id = id;
 out:
@@ -552,13 +565,19 @@ void sec_vote_refresh(struct sec_vote *vote)
 	} else {
 		if (vote->force_set) {
 			pr_info("%s: refresh (%s, %d)\n", vote->name, force_str, vote->force_val);
-			vote->cb(vote->data, vote->force_val);
+			vote->res = vote->cb(vote->data, vote->force_val);
 		} else {
-			pr_info("%s: refresh (%s, %d)\n", vote->name,
-					(vote->id >= 0) ? vote->voter_name[vote->id] : none_str, vote->res);
-			vote->cb(vote->data, vote->res);
+			int id, res, ret;
+
+			ret = select_vote_value(vote, &id, &res);
+			pr_info("%s: refresh (%s, %d, %d)\n", vote->name,
+				(id >= 0) ? vote->voter_name[id] : none_str, res, ret);
+			if (ret < 0)
+				goto out;
+			vote->res = vote->cb(vote->data, res);
 		}
 	}
+out:
 	mutex_unlock(&vote->lock);
 }
 EXPORT_SYMBOL(sec_vote_refresh);

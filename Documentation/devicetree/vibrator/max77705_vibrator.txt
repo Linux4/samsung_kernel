@@ -4,7 +4,7 @@ Required properties:
 
  - compatible: Must be "maxim,max77705_vibrator".
 
- - dc_vib,motor_type: "LINEAR" or "LINEAR_0832RC" or "LINEAR_1040"
+ - haptic,motor_type: "LINEAR" or "LINEAR_0832RC" or "LINEAR_1040"
 
  - pwms: Pwm phandle of the device.
 

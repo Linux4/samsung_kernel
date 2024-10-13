@@ -102,4 +102,6 @@ int cs35l41_reinit(struct snd_soc_component *component);
 int cs35l41_probe(struct cs35l41_private *cs35l41);
 int cs35l41_remove(struct cs35l41_private *cs35l41);
 
+int cs35l41_set_surface_temp(const char *suffix, int temperature);
+
 #endif /* __CS35L41_H */

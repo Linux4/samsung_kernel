@@ -26,6 +26,32 @@ include $(srctree)/techpack/dataipa/config/dataipa_GKI.conf
 endif
 endif
 
+ifeq ($(CONFIG_QTI_QUIN_GVM),y)
+LINUXINCLUDE    += -include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1.h
+ifeq ($(CONFIG_QGKI),y)
+include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1_QGKI.conf
+ifeq ($(CONFIG_LOCALVERSION), "-qgki-debug")
+include $(srctree)/techpack/dataipa/config/dataipa_debug.conf
+LINUXINCLUDE    += -include $(srctree)/techpack/dataipa/config/dataipa_debug.h
+endif
+else
+include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1_GKI.conf
+endif
+endif
+
+ifeq ($(CONFIG_ARCH_MONACO), y)
+LINUXINCLUDE    += -include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1.h
+ifeq ($(CONFIG_QGKI),y)
+include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1_QGKI.conf
+ifeq ($(CONFIG_LOCALVERSION), "-qgki-debug")
+include $(srctree)/techpack/dataipa/config/dataipa_debug.conf
+LINUXINCLUDE    += -include $(srctree)/techpack/dataipa/config/dataipa_debug.h
+endif
+else
+include $(srctree)/techpack/dataipa/config/dataipa_gsi_V1_GKI.conf
+endif
+endif
+
 DATAIPADRVTOP = $(srctree)/techpack/dataipa/drivers/platform/msm
 
 ifneq (,$(filter $(CONFIG_IPA3),y m))
@@ -44,6 +70,9 @@ ifneq (,$(filter $(CONFIG_IPA3_REGDUMP_IPA_4_5),y m))
 LINUXINCLUDE += -I$(DATAIPADRVTOP)/ipa/ipa_v3/dump/ipa4.5
 endif
 
+ifneq (,$(filter $(CONFIG_IPA3_REGDUMP_IPA_4_1),y m))
+LINUXINCLUDE += -I$(DATAIPADRVTOP)/ipa/ipa_v3/dump/ipa4.1
+endif
 
 obj-$(CONFIG_GSI) += gsi/
 obj-$(CONFIG_IPA3) += ipa/

@@ -793,6 +793,7 @@ static void remove_rmap_item_from_tree(struct rmap_item *rmap_item)
 		stable_node->rmap_hlist_len--;
 
 		put_anon_vma(rmap_item->anon_vma);
+		rmap_item->head = NULL;
 		rmap_item->address &= PAGE_MASK;
 
 	} else if (rmap_item->address & UNSTABLE_FLAG) {
@@ -2620,7 +2621,13 @@ again:
 		struct vm_area_struct *vma;
 
 		cond_resched();
-		anon_vma_lock_read(anon_vma);
+		if (!anon_vma_trylock_read(anon_vma)) {
+			if (rwc->try_lock) {
+				rwc->contended = true;
+				return;
+			}
+			anon_vma_lock_read(anon_vma);
+		}
 		anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root,
 					       0, ULONG_MAX) {
 			unsigned long addr;
@@ -2660,31 +2667,6 @@ again:
 		goto again;
 }
 
-bool reuse_ksm_page(struct page *page,
-		    struct vm_area_struct *vma,
-		    unsigned long address)
-{
-#ifdef CONFIG_DEBUG_VM
-	if (WARN_ON(is_zero_pfn(page_to_pfn(page))) ||
-			WARN_ON(!page_mapped(page)) ||
-			WARN_ON(!PageLocked(page))) {
-		dump_page(page, "reuse_ksm_page");
-		return false;
-	}
-#endif
-
-	if (PageSwapCache(page) || !page_stable_node(page))
-		return false;
-	/* Prohibit parallel get_ksm_page() */
-	if (!page_ref_freeze(page, 1))
-		return false;
-
-	page_move_anon_rmap(page, vma);
-	page->index = linear_page_index(vma, address);
-	page_ref_unfreeze(page, 1);
-
-	return true;
-}
 #ifdef CONFIG_MIGRATION
 void ksm_migrate_page(struct page *newpage, struct page *oldpage)
 {

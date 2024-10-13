@@ -18,6 +18,7 @@
 #include <linux/percpu.h>
 #include <linux/refcount.h>
 #include <linux/slab.h>
+#include <linux/suspend.h>
 #include <linux/msm_rtb.h>
 #include <linux/wakeup_reason.h>
 
@@ -167,11 +168,11 @@ static inline void __iomem *gic_dist_base(struct irq_data *d)
 	}
 }
 
-static void gic_do_wait_for_rwp(void __iomem *base)
+static void gic_do_wait_for_rwp(void __iomem *base, u32 bit)
 {
 	u32 count = 1000000;	/* 1s! */
 
-	while (readl_relaxed(base + GICD_CTLR) & GICD_CTLR_RWP) {
+	while (readl_relaxed(base + GICD_CTLR) & bit) {
 		count--;
 		if (!count) {
 			pr_err_ratelimited("RWP timeout, gone fishing\n");
@@ -185,13 +186,13 @@ static void gic_do_wait_for_rwp(void __iomem *base)
 /* Wait for completion of a distributor change */
 static void gic_dist_wait_for_rwp(void)
 {
-	gic_do_wait_for_rwp(gic_data.dist_base);
+	gic_do_wait_for_rwp(gic_data.dist_base, GICD_CTLR_RWP);
 }
 
 /* Wait for completion of a redistributor change */
 static void gic_redist_wait_for_rwp(void)
 {
-	gic_do_wait_for_rwp(gic_data_rdist_rd_base());
+	gic_do_wait_for_rwp(gic_data_rdist_rd_base(), GICR_CTLR_RWP);
 }
 
 #ifdef CONFIG_ARM64
@@ -604,10 +605,15 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 		struct irq_desc *desc = irq_to_desc(irq);
 		const char *name = "null";
 
+		if (i < 32)
+			continue;
+
 		if (desc == NULL)
 			name = "stray irq";
 		else if (desc->action && desc->action->name)
 			name = desc->action->name;
+		else if (desc->irq_data.chip && desc->irq_data.chip->name)
+			name = desc->irq_data.chip->name;
 
 		pr_warn("%s: irq:%d hwirq:%u triggered %s\n",
 			 __func__, irq, i, name);
@@ -690,6 +696,10 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 
 	irqnr = gic_read_iar();
 
+	/* Check for special IDs first */
+	if ((irqnr >= 1020 && irqnr <= 1023))
+		return;
+
 	if (gic_supports_nmi() &&
 	    unlikely(gic_read_rpr() == GICD_INT_NMI_PRI)) {
 		gic_handle_nmi(irqnr, regs);
@@ -700,10 +710,6 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 		gic_pmr_mask_irqs();
 		gic_arch_enable_irqs();
 	}
-
-	/* Check for special IDs first */
-	if ((irqnr >= 1020 && irqnr <= 1023))
-		return;
 
 	/* Treat anything but SGIs in a uniform way */
 	if (likely(irqnr > 15)) {
@@ -1244,6 +1250,13 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 #define gic_smp_init()		do { } while(0)
 #endif
 
+#ifdef CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ
+void gic_s2idle_wake(void)
+{
+	gic_resume_one(&gic_data);
+}
+#endif /* CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ */
+
 #ifdef CONFIG_CPU_PM
 static int gic_cpu_pm_notifier(struct notifier_block *self,
 			       unsigned long cmd, void *v)
@@ -1686,7 +1699,7 @@ static void __init gic_populate_ppi_partitions(struct device_node *gic_node)
 
 	gic_data.ppi_descs = kcalloc(gic_data.ppi_nr, sizeof(*gic_data.ppi_descs), GFP_KERNEL);
 	if (!gic_data.ppi_descs)
-		return;
+		goto out_put_node;
 
 	nr_parts = of_get_child_count(parts_node);
 
@@ -1727,12 +1740,15 @@ static void __init gic_populate_ppi_partitions(struct device_node *gic_node)
 				continue;
 
 			cpu = of_cpu_node_to_id(cpu_node);
-			if (WARN_ON(cpu < 0))
+			if (WARN_ON(cpu < 0)) {
+				of_node_put(cpu_node);
 				continue;
+			}
 
 			pr_cont("%pOF[%d] ", cpu_node, cpu);
 
 			cpumask_set_cpu(cpu, &part->mask);
+			of_node_put(cpu_node);
 		}
 
 		pr_cont("}\n");

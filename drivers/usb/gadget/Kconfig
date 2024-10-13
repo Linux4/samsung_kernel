@@ -97,8 +97,8 @@ config USB_GADGET_DEBUG_FS
 	   to conserve kernel memory, say "N".
 
 config USB_GADGET_VBUS_DRAW
-	int "Maximum VBUS Power usage (2-500 mA)"
-	range 2 500
+	int "Maximum VBUS Power usage (2-900 mA)"
+	range 2 900
 	default 2
 	help
 	   Some devices need to draw power from USB when they are
@@ -107,7 +107,9 @@ config USB_GADGET_VBUS_DRAW
 	   such as an AC adapter or batteries.
 
 	   Enter the maximum power your device draws through USB, in
-	   milliAmperes.  The permitted range of values is 2 - 500 mA;
+	   milliAmperes.  The permitted range of values depends on the
+	   connected speed: for SuperSpeed and up it is 2 - 900 mA, but
+	   connections at High Speed or slower will be capped at 500 mA;
 	   0 mA would be legal, but can make some hosts misbehave.
 
 	   This value will be used except for system-specific gadget
@@ -258,6 +260,9 @@ config USB_F_PTP
 config USB_F_CONN_GADGET
 	tristate
 
+config USB_F_SS_MON_GADGET
+	tristate
+
 # this first set of drivers all depend on bulk-capable hardware.
 
 config USB_CONFIGFS
@@ -315,6 +320,7 @@ config USB_CONFIGFS_NCM
 	depends on NET
 	select USB_U_ETHER
 	select USB_F_NCM
+	select CRC32
 	help
 	  NCM is an advanced protocol for Ethernet encapsulation, allows
 	  grouping of several ethernet frames into one USB transfer and
@@ -365,6 +371,14 @@ config USB_CONFIGFS_F_CONN_GADGET
 	help
 	  USB Sidesync function support
 
+config USB_CONFIGFS_F_SS_MON_GADGET
+	bool "F_SAMSUNG gadget"
+	depends on USB_CONFIGFS
+	select USB_F_SS_MON_GADGET
+	help
+	 Driver for control to Samsung Usb device layer
+	 For Samung working scenario and saving debug log, etc
+
 config USB_G_ANDROID
 	bool "Android Composite Gadget"
 	help
@@ -388,6 +402,7 @@ config USB_CONFIGFS_EEM
 	depends on NET
 	select USB_U_ETHER
 	select USB_F_EEM
+	select CRC32
 	help
 	  CDC EEM is a newer USB standard that is somewhat simpler than CDC ECM
 	  and therefore can be supported by more hardware.  Technically ECM and

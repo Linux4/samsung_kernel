@@ -410,25 +410,35 @@ class TestExtKunitconfigGenerator(unittest.TestCase):
                 ]
         self.assertCountEqual(result, tobe)
 
+    def test_get_subconfig_simular_name(self):
+        ek = kunit_kernel.ExtKunitconfigGenerator(['xxx'], path=self.test_path)
+        result = ek.get_sub_config('xxx')
+        tobe = [
+                os.path.join(self.test_path, 'kunitconfigs/kunitconfig.xxx'),
+                os.path.join(self.test_path, 'kunitconfigs/kunitconfig.xxx.yyy')
+                ]
+        self.assertCountEqual(result, tobe)
+
+
     def test_get_merge_config_single(self):
         ek = kunit_kernel.ExtKunitconfigGenerator(['muic'], path=self.test_path)
         with open(ek.final_config_file, 'r') as fp:
             result = fp.read()
-        tobe = str('CONFIG_KUNIT=y\n# for MUIC MAX77705_UML_TEST\nCONFIG_USE_MUIC=y\nCONFIG_MAX77705_MUIC_TEST=y\nCONFIG_I2C=y\n')
+        tobe = str('CONFIG_SEC_KUNIT=y\n# for MUIC MAX77705_UML_TEST\nCONFIG_USE_MUIC=y\nCONFIG_MAX77705_MUIC_TEST=y\nCONFIG_I2C=y\n')
         self.assertEqual(result, tobe)
 
     def test_get_merge_config_multi(self):
         ek = kunit_kernel.ExtKunitconfigGenerator(['kunit.test1', 'sensorhub'], path=self.test_path)
         with open(ek.final_config_file, 'r') as fp:
             result = fp.read()
-        tobe = str('CONFIG_KUNIT=y\nCONFIG_KUNIT_TEST1=y\nCONFIG_SENSORHUB=y\n')
+        tobe = str('CONFIG_SEC_KUNIT=y\nCONFIG_SEC_KUNIT_TEST1=y\nCONFIG_SENSORHUB=y\n')
         self.assertEqual(result, tobe)
 
     def test_get_merge_config_triple(self):
         ek = kunit_kernel.ExtKunitconfigGenerator(['kunit.test1', 'sensorhub', 'muic.i2c'], path=self.test_path)
         with open(ek.final_config_file, 'r') as fp:
             result = fp.read()
-        tobe = str('CONFIG_KUNIT=y\nCONFIG_KUNIT_TEST1=y\nCONFIG_SENSORHUB=y\nCONFIG_I2C=y\n')
+        tobe = str('CONFIG_SEC_KUNIT=y\nCONFIG_SEC_KUNIT_TEST1=y\nCONFIG_SENSORHUB=y\nCONFIG_I2C=y\n')
         self.assertEqual(result, tobe)
 
 if __name__ == '__main__':

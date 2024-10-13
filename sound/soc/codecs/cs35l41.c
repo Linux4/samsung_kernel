@@ -193,6 +193,7 @@ static int cs35l41_dsp_power_ev(struct snd_soc_dapm_widget *w,
 			wm_adsp_early_event(w, kcontrol, event);
 			wm_adsp_event(w, kcontrol, event);
 		}
+		return 0;
 	default:
 		return 0;
 	}
@@ -990,6 +991,7 @@ static int cs35l41_main_amp_event(struct snd_soc_dapm_widget *w,
 			}
 			usleep_range(1000, 1100);
 		}
+
 		cirrus_pwr_start(cs35l41->pdata.mfd_suffix);
 
 		cs35l41->halo_played = true;
@@ -1008,6 +1010,7 @@ static int cs35l41_main_amp_event(struct snd_soc_dapm_widget *w,
 		regmap_multi_reg_write_bypassed(cs35l41->regmap,
 					cs35l41_pdn_patch,
 					ARRAY_SIZE(cs35l41_pdn_patch));
+
 		cirrus_pwr_stop(cs35l41->pdata.mfd_suffix);
 
 		dev_info(cs35l41->dev, "%s PMD\n", __func__);
@@ -1716,6 +1719,7 @@ static int cs35l41_apply_pdata(struct snd_soc_component *component)
 }
 
 
+
 static struct reg_sequence cs35l41_cal_pre_config[] = {
 	{CS35L41_MIXER_NGATE_CH1_CFG,	0},
 	{CS35L41_MIXER_NGATE_CH2_CFG,	0},
@@ -1734,27 +1738,6 @@ static struct reg_sequence cs35l41_cal_post_config[] = {
 
 #define CS35L41_CAL_N_CONFIGS	5
 
-int cs35l41_set_surface_temp(const char *suffix, int temperature)
-{
-
-	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(suffix);
-	struct cs35l41_private *cs35l41 =
-				snd_soc_component_get_drvdata(amp->component);
-	unsigned int global_en;
-
-	regmap_read(amp->regmap, amp->global_en, &global_en);
-
-	if (!global_en || !cs35l41->halo_routed)
-		return -EINVAL;
-
-	dev_info(cs35l41->dev, "Set Surface temp: %d degrees\n", temperature);
-	cirrus_amp_write_ctl(amp, "CSPL_SURFACE_TEMP", WMFW_ADSP2_XM,
-		     CIRRUS_AMP_ALG_ID_CSPL, temperature);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(cs35l41_set_surface_temp);
-
 static int cs35l41_cirrus_amp_probe(struct cs35l41_private *cs35l41,
 				struct snd_soc_component *component)
 {
@@ -1764,7 +1747,7 @@ static int cs35l41_cirrus_amp_probe(struct cs35l41_private *cs35l41,
 	const char *dsp_part_name;
 	const char *mfd_suffix;
 	int ret, bd_max_temp;
-	struct cirrus_amp_config amp_cfg;
+	struct cirrus_amp_config amp_cfg = {0};
 	bool calibration_disable;
 	unsigned int default_redc;
 
@@ -1837,6 +1820,7 @@ static int cs35l41_cirrus_amp_probe(struct cs35l41_private *cs35l41,
 	amp_cfg.halo_alg_id = CS35L41_ALG_ID_HALO;
 	amp_cfg.cal_vpk_id = CS35L41_CAL_RTLOG_ID_V_PEAK;
 	amp_cfg.cal_ipk_id = CS35L41_CAL_RTLOG_ID_I_PEAK;
+	amp_cfg.amp_reinit = cs35l41_reinit;
 
 	ret = cirrus_amp_add(mfd_suffix, amp_cfg);
 	if (ret < 0) {
@@ -1860,6 +1844,7 @@ static int cs35l41_component_probe(struct snd_soc_component *component)
 	wm_adsp2_component_probe(&cs35l41->dsp, component);
 
 	snd_soc_add_component_controls(component, &cs35l41->dsp.fw_ctrl, 1);
+
 
 	cs35l41_cirrus_amp_probe(cs35l41, component);
 
@@ -2375,7 +2360,6 @@ int cs35l41_probe(struct cs35l41_private *cs35l41)
 	/* CS35L41 needs INT for PDN_DONE */
 	if (ret != 0) {
 		dev_err(cs35l41->dev, "Failed to request IRQ: %d\n", ret);
-		goto err;
 	}
 
 	ret = snd_soc_register_component(cs35l41->dev, &soc_component_dev_cs35l41,
@@ -2445,6 +2429,19 @@ int cs35l41_reinit(struct snd_soc_component *component)
 					CS35L41_ASP_FMT_MASK,
 					cs35l41->i2s_mode ? 2 : 0 <<
 					CS35L41_ASP_FMT_SHIFT);
+
+	regmap_update_bits(cs35l41->regmap,
+			CS35L41_SP_FRAME_RX_SLOT,
+			CS35L41_ASP_RX1_SLOT_MASK,
+			((cs35l41->pdata.right_channel) ? 1 : 0)
+			 << CS35L41_ASP_RX1_SLOT_SHIFT);
+	regmap_update_bits(cs35l41->regmap,
+			CS35L41_SP_FRAME_RX_SLOT,
+			CS35L41_ASP_RX2_SLOT_MASK,
+			((cs35l41->pdata.right_channel) ? 0 : 1)
+			 << CS35L41_ASP_RX2_SLOT_SHIFT);
+	regmap_write(cs35l41->regmap, CS35L41_DSP1_RX2_SRC,
+					CS35L41_INPUT_SRC_ASPRX1);
 
 	cs35l41->pll_freq_last = 0;
 	cs35l41->pcm_source_last = CS35L41_DAC_PCM1_SRC;

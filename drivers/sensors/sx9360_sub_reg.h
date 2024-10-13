@@ -135,6 +135,7 @@ enum {
 #define SX9360_HYST		"sx9360_sub,hyst_reg"
 #define SX9360_PROXTHRESH	"sx9360_sub,proxthresh_reg"
 #define SX9360_HALLIC_CERT      "sx9360_sub,hallic_cert_detect"
+#define SX9360_HALLIC_FOLD      "sx9360_sub,hallic_fold_detect"
 
 /*define the value without Phase enable settings for easy changes in driver*/
 #define SX9360_GNRLCTRL0_VAL_PHOFF (0x00)    

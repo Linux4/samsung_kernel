@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1843,7 +1843,7 @@ static const struct msm_pingroup shima_groups[] = {
 	[203] = PINGROUP(203, NA, NA, NA, NA, NA, NA, NA, NA, NA,
 			 0, -1),
 	[204] = UFS_RESET(ufs_reset, 0x1db000),
-	[205] = SDC_QDSD_PINGROUP(sdc1_rclk, 0x1d0000, 15, 0),
+	[205] = SDC_QDSD_PINGROUP(sdc1_rclk, 0x1d0004, 0, 0),
 	[206] = SDC_QDSD_PINGROUP(sdc1_clk, 0x1d0000, 13, 6),
 	[207] = SDC_QDSD_PINGROUP(sdc1_cmd, 0x1d0000, 11, 3),
 	[208] = SDC_QDSD_PINGROUP(sdc1_data, 0x1d0000, 9, 0),
@@ -1866,19 +1866,19 @@ static struct pinctrl_qup shima_qup_regs[] = {
 static const struct msm_gpio_wakeirq_map shima_pdc_map[] = {
 	{ 2, 103 }, { 3, 104 }, { 7, 82 }, { 10, 163 }, { 11, 83 }, { 14, 80 },
 	{ 15, 146 }, { 16, 155 }, { 17, 154 }, { 19, 121 }, { 23, 84 },
-	{ 25, 135}, { 26, 86 }, { 27, 75 }, { 31, 85 }, { 32, 95 }, { 34, 98 },
-	{ 35, 131}, { 36, 79 }, { 38, 99 }, { 39, 92 }, { 40, 101 },
+	{ 25, 135 }, { 26, 86 }, { 27, 75 }, { 31, 85 }, { 32, 95 }, { 34, 98 },
+	{ 35, 131 }, { 36, 79 }, { 38, 99 }, { 39, 92 }, { 40, 101 },
 	{ 43, 137 }, { 44, 102 }, { 45, 133 }, { 46, 96 }, { 47, 93 },
-	{ 48, 127 }, { 50, 108 }, { 55, 128}, { 56, 81 }, { 59, 112 },
+	{ 48, 127 }, { 50, 108 }, { 55, 128 }, { 56, 81 }, { 59, 112 },
 	{ 60, 119 }, { 63, 73 }, { 66, 74 }, { 71, 134 }, { 80, 126 },
 	{ 81, 139 }, { 82, 140 }, { 83, 141 }, { 84, 124 }, { 86, 143 },
 	{ 87, 138 }, { 88, 122 }, { 89, 113 }, { 90, 114 }, { 91, 115 },
 	{ 92, 76 }, { 93, 117 }, { 95, 147 }, { 96, 148 }, { 98, 149 },
-	{ 99, 150 }, { 104, 162}, { 105, 161 }, { 107, 160 }, { 110, 159 },
+	{ 99, 150 }, { 104, 162 }, { 105, 161 }, { 107, 160 }, { 110, 159 },
 	{ 113, 158 }, { 114, 157 }, { 115, 125 }, { 116, 106 }, { 117, 105 },
 	{ 118, 116 }, { 119, 123 }, { 130, 145 }, { 132, 156 }, { 136, 72 },
 	{ 140, 100 }, { 151, 110 }, { 155, 107 }, { 156, 94 }, { 157, 111 },
-	{ 159, 118 }, { 162, 77 }, { 169, 70 }, { 172, 132 }, { 174, 87 },
+	{ 159, 118 }, { 162, 77 }, { 169, 130 }, { 172, 132 }, { 174, 87 },
 	{ 175, 88 }, { 177, 89 }, { 179, 120 }, { 180, 129 }, { 183, 90 },
 	{ 185, 136 }, { 187, 142 }, { 190, 144 }, { 192, 164 }, { 200, 166 },
 	{ 202, 165 },
@@ -1899,9 +1899,31 @@ static const struct msm_pinctrl_soc_data shima_pinctrl = {
 	.nwakeirq_map = ARRAY_SIZE(shima_pdc_map),
 };
 
+/* By default, all the gpios that are mpm wake capable are enabled.
+ * The following list disables the gpios explicitly
+ */
+static const unsigned int config_mpm_wake_disable_gpios[] = { 151, 202 };
+
+static void shima_pinctrl_config_mpm_wake_disable_gpios(void)
+{
+	unsigned int i;
+	unsigned int n_gpios = ARRAY_SIZE(config_mpm_wake_disable_gpios);
+
+	for (i = 0; i < n_gpios; i++)
+		msm_gpio_mpm_wake_set(config_mpm_wake_disable_gpios[i], false);
+}
+
 static int shima_pinctrl_probe(struct platform_device *pdev)
 {
-	return msm_pinctrl_probe(pdev, &shima_pinctrl);
+	int ret;
+
+	ret = msm_pinctrl_probe(pdev, &shima_pinctrl);
+	if (ret)
+		return ret;
+
+	shima_pinctrl_config_mpm_wake_disable_gpios();
+
+	return 0;
 }
 
 static const struct of_device_id shima_pinctrl_of_match[] = {

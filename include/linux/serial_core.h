@@ -102,6 +102,12 @@ struct uart_icount {
 typedef unsigned int __bitwise upf_t;
 typedef unsigned int __bitwise upstat_t;
 
+struct uart_local_buf {
+	unsigned char *buffer;
+	unsigned int size;
+	unsigned int index;
+};
+
 struct uart_port {
 	spinlock_t		lock;			/* port lock */
 	unsigned long		iobase;			/* in/out[bwl] */
@@ -253,6 +259,11 @@ struct uart_port {
 	struct serial_rs485     rs485;
 	struct serial_iso7816   iso7816;
 	void			*private_data;		/* generic platform data pointer */
+
+#ifdef CONFIG_QGKI
+	unsigned int			uart_logging;
+	struct uart_local_buf	uart_local_buf;
+#endif
 };
 
 static inline int serial_port_in(struct uart_port *up, int offset)
@@ -298,6 +309,23 @@ struct uart_state {
 
 /* number of characters left in xmit buffer before we ask for more */
 #define WAKEUP_CHARS		256
+
+/**
+ * uart_xmit_advance - Advance xmit buffer and account Tx'ed chars
+ * @up: uart_port structure describing the port
+ * @chars: number of characters sent
+ *
+ * This function advances the tail of circular xmit buffer by the number of
+ * @chars transmitted and handles accounting of transmitted bytes (into
+ * @up's icount.tx).
+ */
+static inline void uart_xmit_advance(struct uart_port *up, unsigned int chars)
+{
+	struct circ_buf *xmit = &up->state->xmit;
+
+	xmit->tail = (xmit->tail + chars) & (UART_XMIT_SIZE - 1);
+	up->icount.tx += chars;
+}
 
 struct module;
 struct tty_driver;

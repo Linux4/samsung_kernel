@@ -134,7 +134,9 @@ enum {
 #define SX9360_REGPROXCTRL3	"sx9360,regproxctrl3_reg"
 #define SX9360_HYST		"sx9360,hyst_reg"
 #define SX9360_PROXTHRESH	"sx9360,proxthresh_reg"
+#define SX9360_HALLIC		"sx9360,hallic_detect"
 #define SX9360_HALLIC_CERT      "sx9360,hallic_cert_detect"
+#define SX9360_HALLIC_FOLD      "sx9360,hallic_fold_detect"
 #define SX9360_PROXTHRESH_MCC	"sx9360,proxthresh_mcc"
 
 /*define the value without Phase enable settings for easy changes in driver*/

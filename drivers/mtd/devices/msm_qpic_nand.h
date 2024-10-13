@@ -27,6 +27,7 @@
 #include <linux/ctype.h>
 #include <linux/msm-sps.h>
 #include <linux/soc/qcom/smem.h>
+#include <linux/interconnect.h>
 
 #define PAGE_SIZE_2K 2048
 #define PAGE_SIZE_4K 4096
@@ -269,7 +270,8 @@ struct msm_nand_chip {
 	uint32_t ecc_buf_cfg;
 	uint32_t ecc_bch_cfg;
 	uint32_t ecc_cfg_raw;
-	uint32_t qpic_version; /* To store the qpic controller version */
+	uint32_t qpic_version; /* To store the qpic controller major version */
+	uint16_t qpic_min_version; /* To store the qpic controller minor version */
 	uint32_t caps; /* General host capabilities */
 #define MSM_NAND_CAP_PAGE_SCOPE_READ   BIT(0)
 #define MSM_NAND_CAP_MULTI_PAGE_READ   BIT(1)
@@ -311,10 +313,29 @@ struct flash_identification {
 	uint32_t ecc_capability; /* Set based on the ECC capability selected. */
 };
 
+struct msm_bus_vectors {
+	u64 ab;
+	u64 ib;
+};
+
+struct msm_bus_path {
+	unsigned int num_paths;
+	struct msm_bus_vectors *vec;
+};
+
+struct msm_nand_bus_vote_data {
+	const char *name;
+	unsigned int num_usecase;
+	struct msm_bus_path *usecase;
+
+	struct icc_path *nand_ddr;
+
+	u32 curr_vote;
+};
+
 struct msm_nand_clk_data {
 	struct clk *qpic_clk;
-	struct msm_bus_scale_pdata *use_cases;
-	uint32_t client_handle;
+	struct msm_nand_bus_vote_data *bus_vote_data;
 	atomic_t clk_enabled;
 	atomic_t curr_vote;
 	bool rpmh_clk;

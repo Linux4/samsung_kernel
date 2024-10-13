@@ -4,7 +4,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1127,6 +1127,10 @@ typedef host_txbuf_post_v1_t host_txbuf_post_t;
 
 #define BCMPCIE_PKT_FLAGS_EPOCH_SHIFT           3u
 #define BCMPCIE_PKT_FLAGS_EPOCH_MASK            (1u << BCMPCIE_PKT_FLAGS_EPOCH_SHIFT)
+
+#define BCMPCIE_PKT_FLAGS_IGMP			0x10
+#define BCMPCIE_PKT_FLAGS_IGMP_SHIFT		4u
+#define BCMPCIE_PKT_FLAGS_IGMP_MASK		(1u << BCMPCIE_PKT_FLAGS_IGMP_SHIFT)
 
 #define BCMPCIE_PKT_FLAGS_PRIO_SHIFT		5
 #define BCMPCIE_PKT_FLAGS_PRIO_MASK		(7 << BCMPCIE_PKT_FLAGS_PRIO_SHIFT)

@@ -989,8 +989,11 @@ void stk3a8x_get_fifo_data_polling(struct stk3a8x_data *alps_data)
 		}
 	}
 
-	stk3a8x_fifo_get_data(alps_data, frame_num);
-	//stk3a8x_pause_fifo(alps_data, false);
+	if (alps_data->fifo_info.enable == true)
+	{
+		stk3a8x_fifo_get_data(alps_data, frame_num);
+		//stk3a8x_pause_fifo(alps_data, false);
+	}
 
 	if (alps_data->fifo_info.last_frame_count != 0)
 	{

@@ -20,6 +20,7 @@
 #include "atl_fwdnl.h"
 #include "atl_macsec.h"
 #include "atl_ptp.h"
+#include "atl_fwd.h"
 
 static uint32_t atl_ethtool_get_link(struct net_device *ndev)
 {
@@ -181,6 +182,7 @@ static int atl_set_fixed_speed(struct atl_hw *hw, unsigned int speed,
 {
 	unsigned int dplx = (duplex == DUPLEX_HALF) ? DUPLEX_HALF : DUPLEX_FULL;
 	struct atl_link_state *lstate = &hw->link_state;
+	__ETHTOOL_DECLARE_LINK_MODE_MASK(link_modes);
 	struct atl_link_type *type;
 	unsigned long tmp;
 	int i;
@@ -197,9 +199,9 @@ static int atl_set_fixed_speed(struct atl_hw *hw, unsigned int speed,
 
 	if (lstate->eee_enabled) {
 		atl_link_to_kernel(lstate->supported >> ATL_EEE_BIT_OFFT,
-				   &tmp, false);
+				   link_modes, false);
 		/* advertize the supported links */
-		tmp = atl_kernel_to_link(&tmp, false);
+		tmp = atl_kernel_to_link(link_modes, false);
 		lstate->advertized |= tmp << ATL_EEE_BIT_OFFT;
 	}
 
@@ -479,6 +481,7 @@ static int atl_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
 	struct atl_nic *nic = netdev_priv(ndev);
 	struct atl_hw *hw = &nic->hw;
 	struct atl_link_state *lstate = &hw->link_state;
+	__ETHTOOL_DECLARE_LINK_MODE_MASK(link_modes);
 	unsigned long tmp = 0;
 
 	if ((hw->chip_id == ATL_ATLANTIC) && (atl_fw_major(hw) < 2))
@@ -491,14 +494,15 @@ static int atl_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
 
 	if (lstate->eee_enabled) {
 		atl_link_to_kernel(lstate->supported >> ATL_EEE_BIT_OFFT,
-				   &tmp, false);
-		if (eee->advertised & ~tmp)
+				   link_modes, false);
+		if (eee->advertised & ~link_modes[0])
 			return -EINVAL;
 
 		/* advertize the requested link or all supported */
 		if (eee->advertised)
-			tmp = eee->advertised;
-		tmp = atl_kernel_to_link(&tmp, false);
+			ethtool_convert_legacy_u32_to_link_mode(link_modes,
+								eee->advertised);
+		tmp = atl_kernel_to_link(link_modes, false);
 	}
 
 	lstate->advertized &= ~ATL_EEE_MASK;
@@ -628,8 +632,10 @@ static const struct atl_stat_desc rx_fwd_stat_descs[] = {
 
 static const struct atl_stat_desc eth_stat_descs[] = {
 	ATL_ETH_STAT(tx_pause, tx_pause),
+	ATL_ETH_STAT(tx_ether_pkts, tx_ether_pkts),
+	ATL_ETH_STAT(tx_ether_octets, tx_ether_octets),
+	ATL_ETH_STAT(tx_errors, tx_errors),
 	ATL_ETH_STAT(rx_pause, rx_pause),
-	ATL_ETH_STAT(rx_ether_drops, rx_ether_drops),
 	ATL_ETH_STAT(rx_ether_octets, rx_ether_octets),
 	ATL_ETH_STAT(rx_ether_pkts, rx_ether_pkts),
 	ATL_ETH_STAT(rx_ether_broacasts, rx_ether_broacasts),
@@ -637,6 +643,13 @@ static const struct atl_stat_desc eth_stat_descs[] = {
 	ATL_ETH_STAT(rx_ether_crc_align_errs, rx_ether_crc_align_errs),
 	ATL_ETH_STAT(rx_filter_host, rx_filter_host),
 	ATL_ETH_STAT(rx_filter_lost, rx_filter_lost),
+	ATL_ETH_STAT(rx_errors, rx_errors),
+	ATL_ETH_STAT(rx_drops, rx_drops),
+	ATL_ETH_STAT(rx_dma_packets, rx_dma_packets),
+	ATL_ETH_STAT(rx_dma_octets, rx_dma_octets),
+	ATL_ETH_STAT(rx_dma_drops, rx_dma_drops),
+	ATL_ETH_STAT(tx_dma_packets, tx_dma_packets),
+	ATL_ETH_STAT(tx_dma_octets, tx_dma_octets),
 };
 
 #define ATL_PRIV_FLAG(_name, _bit)		\
@@ -655,6 +668,7 @@ static const char atl_priv_flags[][ETH_GSTRING_LEN] = {
 	ATL_PRIV_FLAG(ResetStatistics, STATS_RESET),
 	ATL_PRIV_FLAG(StripEtherPadding, STRIP_PAD),
 	ATL_PRIV_FLAG(MediaDetect, MEDIA_DETECT),
+	ATL_PRIV_FLAG(Downshift, DOWNSHIFT),
 };
 
 #if IS_ENABLED(CONFIG_MACSEC) && defined(NETIF_F_HW_MACSEC)
@@ -1089,6 +1103,16 @@ int atl_set_media_detect(struct atl_nic *nic, bool on)
 	return ret;
 }
 
+int atl_set_downshift(struct atl_nic *nic, bool on)
+{
+	struct atl_hw *hw = &nic->hw;
+	int ret;
+
+	ret = hw->mcp.ops->set_downshift(hw, on);
+
+	return ret;
+}
+
 static uint32_t atl_get_priv_flags(struct net_device *ndev)
 {
 	struct atl_nic *nic = netdev_priv(ndev);
@@ -1129,6 +1153,13 @@ static int atl_set_priv_flags(struct net_device *ndev, uint32_t flags)
 			return ret;
 	}
 
+	if (diff & ATL_PF_BIT(DOWNSHIFT)) {
+		ret = atl_set_downshift(nic,
+			!!(flags & ATL_PF_BIT(DOWNSHIFT)));
+		if (ret)
+			return ret;
+	}
+
 	if (hweight32(lpb) > 1) {
 		atl_nic_err("Can't enable more than one loopback simultaneously\n");
 		return -EINVAL;
@@ -1150,8 +1181,15 @@ static int atl_set_priv_flags(struct net_device *ndev, uint32_t flags)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+static int atl_get_coalesce(struct net_device *ndev,
+			    struct ethtool_coalesce *ec,
+			    struct kernel_ethtool_coalesce *kec,
+			    struct netlink_ext_ack *extack)
+#else
 static int atl_get_coalesce(struct net_device *ndev,
 			    struct ethtool_coalesce *ec)
+#endif
 {
 	struct atl_nic *nic = netdev_priv(ndev);
 
@@ -1162,8 +1200,15 @@ static int atl_get_coalesce(struct net_device *ndev,
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+static int atl_set_coalesce(struct net_device *ndev,
+			    struct ethtool_coalesce *ec,
+			    struct kernel_ethtool_coalesce *kec,
+			    struct netlink_ext_ack *extack)
+#else
 static int atl_set_coalesce(struct net_device *ndev,
 			    struct ethtool_coalesce *ec)
+#endif
 {
 	struct atl_nic *nic = netdev_priv(ndev);
 
@@ -2688,9 +2733,7 @@ static void atl_refresh_rxf_desc(struct atl_nic *nic,
 	atl_for_each_rxf_idx(desc, idx)
 		desc->update_rxf(nic, idx);
 
-	atl_set_vlan_promisc(&nic->hw, (nic->ndev->flags & IFF_PROMISC) ||
-				       nic->rxf_vlan.promisc_count ||
-				       !nic->rxf_vlan.vlans_active);
+	atl_set_vlan_promisc(&nic->hw, atl_vlan_promisc_status(nic->ndev));
 }
 
 void atl_refresh_rxfs(struct atl_nic *nic)
@@ -2700,9 +2743,7 @@ void atl_refresh_rxfs(struct atl_nic *nic)
 	atl_for_each_rxf_desc(desc)
 		atl_refresh_rxf_desc(nic, desc);
 
-	atl_set_vlan_promisc(&nic->hw, (nic->ndev->flags & IFF_PROMISC) ||
-				       nic->rxf_vlan.promisc_count ||
-				       !nic->rxf_vlan.vlans_active);
+	atl_set_vlan_promisc(&nic->hw, atl_vlan_promisc_status(nic->ndev));
 }
 
 static bool atl_vlan_pull_from_promisc(struct atl_nic *nic, uint32_t idx)
@@ -2742,9 +2783,8 @@ static bool atl_vlan_pull_from_promisc(struct atl_nic *nic, uint32_t idx)
 	} while (idx & ATL_VIDX_FREE);
 
 	kfree(map);
-	atl_set_vlan_promisc(&nic->hw, (nic->ndev->flags & IFF_PROMISC) ||
-				       vlan->promisc_count ||
-				       !vlan->vlans_active);
+	atl_set_vlan_promisc(&nic->hw, atl_vlan_promisc_status(nic->ndev));
+
 	return true;
 }
 
@@ -2932,9 +2972,7 @@ int atl_vlan_rx_add_vid(struct net_device *ndev, __be16 proto, u16 vid)
 		vlan->promisc_count++;
 		if (pm_runtime_active(&nic->hw.pdev->dev))
 			atl_set_vlan_promisc(&nic->hw,
-					     (ndev->flags & IFF_PROMISC) ||
-					     vlan->promisc_count ||
-					     !vlan->vlans_active);
+					atl_vlan_promisc_status(nic->ndev));
 		return 0;
 	}
 
@@ -2961,9 +2999,8 @@ update_vlan:
 	atl_rxf_update_vlan(nic, idx);
 	if (pm_runtime_active(&nic->hw.pdev->dev))
 		atl_set_vlan_promisc(&nic->hw,
-				     (nic->ndev->flags & IFF_PROMISC) ||
-				     vlan->promisc_count ||
-				     !vlan->vlans_active);
+				atl_vlan_promisc_status(nic->ndev));
+
 	return 0;
 }
 
@@ -3004,9 +3041,9 @@ int atl_vlan_rx_kill_vid(struct net_device *ndev, __be16 proto, u16 vid)
 
 update_vlan_promisc:
 	if (pm_runtime_active(&nic->hw.pdev->dev))
-		atl_set_vlan_promisc(&nic->hw, (ndev->flags & IFF_PROMISC) ||
-				     vlan->promisc_count ||
-				     !vlan->vlans_active);
+		atl_set_vlan_promisc(&nic->hw,
+				atl_vlan_promisc_status(nic->ndev));
+
 	return 0;
 }
 
@@ -3063,6 +3100,18 @@ static void atl_ethtool_complete(struct net_device *ndev)
 	pm_runtime_put(&nic->hw.pdev->dev);
 }
 
+static int atl_ethool_get_regs_len(struct net_device *ndev)
+{
+	return atl_get_crash_dump(ndev, NULL);
+}
+
+static void atl_ethool_get_regs(struct net_device *ndev, struct ethtool_regs *regs, void *buf)
+{
+	regs->version = 0;
+	memset(buf, 0, regs->len);
+	atl_get_crash_dump(ndev, buf);
+}
+
 const struct ethtool_ops atl_ethtool_ops = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
 	.supported_coalesce_params = ETHTOOL_COALESCE_USECS |
@@ -3105,4 +3154,6 @@ const struct ethtool_ops atl_ethtool_ops = {
 	.set_wol = atl_set_wol,
 	.begin = atl_ethtool_begin,
 	.complete = atl_ethtool_complete,
+	.get_regs_len = atl_ethool_get_regs_len,
+	.get_regs = atl_ethool_get_regs,
 };

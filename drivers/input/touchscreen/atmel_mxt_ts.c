@@ -1881,7 +1881,7 @@ static int mxt_read_info_block(struct mxt_data *data)
 	if (error) {
 		dev_err(&client->dev, "Error %d parsing object table\n", error);
 		mxt_free_object_table(data);
-		goto err_free_mem;
+		return error;
 	}
 
 	data->object_table = (struct mxt_object *)(id_buf + MXT_OBJECT_START);
@@ -3001,7 +3001,6 @@ static int mxt_configure_objects(struct mxt_data *data,
 		dev_warn(dev, "No touch object detected\n");
 	}
 
-	disable_irq(data->irq);
 	mxt_debug_init(data);
 
 	return 0;

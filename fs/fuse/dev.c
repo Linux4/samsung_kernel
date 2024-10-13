@@ -205,10 +205,13 @@ static unsigned int fuse_req_hash(u64 unique)
 /**
  * A new request is available, wake fiq->waitq
  */
-static void fuse_dev_wake_and_unlock(struct fuse_iqueue *fiq)
+static void fuse_dev_wake_and_unlock(struct fuse_iqueue *fiq, bool sync)
 __releases(fiq->lock)
 {
-	wake_up(&fiq->waitq);
+	if (sync)
+		wake_up_sync(&fiq->waitq);
+	else
+		wake_up(&fiq->waitq);
 	kill_fasync(&fiq->fasync, SIGIO, POLL_IN);
 	spin_unlock(&fiq->lock);
 }
@@ -221,14 +224,14 @@ const struct fuse_iqueue_ops fuse_dev_fiq_ops = {
 EXPORT_SYMBOL_GPL(fuse_dev_fiq_ops);
 
 static void queue_request_and_unlock(struct fuse_iqueue *fiq,
-				     struct fuse_req *req)
+				     struct fuse_req *req, bool sync)
 __releases(fiq->lock)
 {
 	req->in.h.len = sizeof(struct fuse_in_header) +
 		fuse_len_args(req->args->in_numargs,
 			      (struct fuse_arg *) req->args->in_args);
 	list_add_tail(&req->list, &fiq->pending);
-	fiq->ops->wake_pending_and_unlock(fiq);
+	fiq->ops->wake_pending_and_unlock(fiq, sync);
 }
 
 void fuse_queue_forget(struct fuse_conn *fc, struct fuse_forget_link *forget,
@@ -243,7 +246,7 @@ void fuse_queue_forget(struct fuse_conn *fc, struct fuse_forget_link *forget,
 	if (fiq->connected) {
 		fiq->forget_list_tail->next = forget;
 		fiq->forget_list_tail = forget;
-		fiq->ops->wake_forget_and_unlock(fiq);
+		fiq->ops->wake_forget_and_unlock(fiq, 0);
 	} else {
 		kfree(forget);
 		spin_unlock(&fiq->lock);
@@ -263,7 +266,7 @@ static void flush_bg_queue(struct fuse_conn *fc)
 		fc->active_background++;
 		spin_lock(&fiq->lock);
 		req->in.h.unique = fuse_get_unique(fiq);
-		queue_request_and_unlock(fiq, req);
+		queue_request_and_unlock(fiq, req, 0);
 	}
 }
 
@@ -284,10 +287,10 @@ void fuse_request_end(struct fuse_conn *fc, struct fuse_req *req)
 
 	/*
 	 * test_and_set_bit() implies smp_mb() between bit
-	 * changing and below intr_entry check. Pairs with
+	 * changing and below FR_INTERRUPTED check. Pairs with
 	 * smp_mb() from queue_interrupt().
 	 */
-	if (!list_empty(&req->intr_entry)) {
+	if (test_bit(FR_INTERRUPTED, &req->flags)) {
 		spin_lock(&fiq->lock);
 		list_del_init(&req->intr_entry);
 		spin_unlock(&fiq->lock);
@@ -352,7 +355,7 @@ static int queue_interrupt(struct fuse_iqueue *fiq, struct fuse_req *req)
 			spin_unlock(&fiq->lock);
 			return 0;
 		}
-		fiq->ops->wake_interrupt_and_unlock(fiq);
+		fiq->ops->wake_interrupt_and_unlock(fiq, 0);
 	} else {
 		spin_unlock(&fiq->lock);
 	}
@@ -418,7 +421,7 @@ static void __fuse_request_send(struct fuse_conn *fc, struct fuse_req *req)
 		/* acquire extra reference, since request is still needed
 		   after fuse_request_end() */
 		__fuse_get_request(req);
-		queue_request_and_unlock(fiq, req);
+		queue_request_and_unlock(fiq, req, 1);
 
 		request_wait_answer(fc, req);
 		/* Pairs with smp_wmb() in fuse_request_end() */
@@ -589,7 +592,7 @@ static int fuse_simple_notify_reply(struct fuse_conn *fc,
 
 	spin_lock(&fiq->lock);
 	if (fiq->connected) {
-		queue_request_and_unlock(fiq, req);
+		queue_request_and_unlock(fiq, req, 0);
 	} else {
 		err = -ENODEV;
 		spin_unlock(&fiq->lock);
@@ -766,13 +769,13 @@ static int fuse_check_page(struct page *page)
 {
 	if (page_mapcount(page) ||
 	    page->mapping != NULL ||
-	    page_count(page) != 1 ||
 	    (page->flags & PAGE_FLAGS_CHECK_AT_PREP &
 	     ~(1 << PG_locked |
 	       1 << PG_referenced |
 	       1 << PG_uptodate |
 	       1 << PG_lru |
 	       1 << PG_active |
+	       1 << PG_workingset |
 	       1 << PG_reclaim |
 	       1 << PG_waiters))) {
 		pr_warn("trying to steal weird page\n");
@@ -789,15 +792,16 @@ static int fuse_try_move_page(struct fuse_copy_state *cs, struct page **pagep)
 	struct page *newpage;
 	struct pipe_buffer *buf = cs->pipebufs;
 
+	get_page(oldpage);
 	err = unlock_request(cs->req);
 	if (err)
-		return err;
+		goto out_put_old;
 
 	fuse_copy_finish(cs);
 
 	err = pipe_buf_confirm(cs->pipe, buf);
 	if (err)
-		return err;
+		goto out_put_old;
 
 	BUG_ON(!cs->nr_segs);
 	cs->currbuf = buf;
@@ -837,13 +841,19 @@ static int fuse_try_move_page(struct fuse_copy_state *cs, struct page **pagep)
 	err = replace_page_cache_page(oldpage, newpage, GFP_KERNEL);
 	if (err) {
 		unlock_page(newpage);
-		return err;
+		goto out_put_old;
 	}
 
 	get_page(newpage);
 
 	if (!(buf->flags & PIPE_BUF_FLAG_LRU))
 		lru_cache_add_file(newpage);
+
+	/*
+	 * Release while we have extra ref on stolen page.  Otherwise
+	 * anon_pipe_buf_release() might think the page can be reused.
+	 */
+	pipe_buf_release(cs->pipe, buf);
 
 	err = 0;
 	spin_lock(&cs->req->waitq.lock);
@@ -856,14 +866,19 @@ static int fuse_try_move_page(struct fuse_copy_state *cs, struct page **pagep)
 	if (err) {
 		unlock_page(newpage);
 		put_page(newpage);
-		return err;
+		goto out_put_old;
 	}
 
 	unlock_page(oldpage);
+	/* Drop ref for ap->pages[] array */
 	put_page(oldpage);
 	cs->len = 0;
 
-	return 0;
+	err = 0;
+out_put_old:
+	/* Drop ref obtained in this function */
+	put_page(oldpage);
+	return err;
 
 out_fallback_unlock:
 	unlock_page(newpage);
@@ -872,10 +887,10 @@ out_fallback:
 	cs->offset = buf->offset;
 
 	err = lock_request(cs->req);
-	if (err)
-		return err;
+	if (!err)
+		err = 1;
 
-	return 1;
+	goto out_put_old;
 }
 
 static int fuse_ref_page(struct fuse_copy_state *cs, struct page *page,
@@ -887,14 +902,16 @@ static int fuse_ref_page(struct fuse_copy_state *cs, struct page *page,
 	if (cs->nr_segs == cs->pipe->buffers)
 		return -EIO;
 
+	get_page(page);
 	err = unlock_request(cs->req);
-	if (err)
+	if (err) {
+		put_page(page);
 		return err;
+	}
 
 	fuse_copy_finish(cs);
 
 	buf = cs->pipebufs;
-	get_page(page);
 	buf->page = page;
 	buf->offset = offset;
 	buf->len = count;
@@ -921,7 +938,17 @@ static int fuse_copy_page(struct fuse_copy_state *cs, struct page **pagep,
 
 	while (count) {
 		if (cs->write && cs->pipebufs && page) {
-			return fuse_ref_page(cs, page, offset, count);
+			/*
+			 * Can't control lifetime of pipe buffers, so always
+			 * copy user pages.
+			 */
+			if (cs->req->args->user_pages) {
+				err = fuse_copy_fill(cs);
+				if (err)
+					return err;
+			} else {
+				return fuse_ref_page(cs, page, offset, count);
+			}
 		} else if (!cs->len) {
 			if (cs->move_pages && page &&
 			    offset == 0 && count == PAGE_SIZE) {
@@ -1264,6 +1291,15 @@ static ssize_t fuse_dev_do_read(struct fuse_dev *fud, struct file *file,
 		goto restart;
 	}
 	spin_lock(&fpq->lock);
+	/*
+	 *  Must not put request on fpq->io queue after having been shut down by
+	 *  fuse_abort_conn()
+	 */
+	if (!fpq->connected) {
+		req->out.h.error = err = -ECONNABORTED;
+		goto out_end;
+
+	}
 	list_add(&req->list, &fpq->io);
 	spin_unlock(&fpq->lock);
 	cs->req = req;
@@ -1860,7 +1896,7 @@ static ssize_t fuse_dev_do_write(struct fuse_dev *fud,
 	}
 
 	err = -EINVAL;
-	if (oh.error <= -1000 || oh.error > 0)
+	if (oh.error <= -512 || oh.error > 0)
 		goto copy_finish;
 
 	spin_lock(&fpq->lock);
@@ -1905,13 +1941,13 @@ static ssize_t fuse_dev_do_write(struct fuse_dev *fud,
 		err = nbytes != sizeof(oh) ? -EINVAL : 0;
 	else
 		err = copy_out_args(cs, req->args, nbytes);
-	if (req->in.h.opcode == FUSE_CANONICAL_PATH) {
-		char *path = (char *)req->args->out_args[0].value;
+	fuse_copy_finish(cs);
 
+	if (!err && req->in.h.opcode == FUSE_CANONICAL_PATH) {
+		char *path = (char *)req->args->out_args[0].value;
 		path[req->args->out_args[0].size - 1] = 0;
 		req->out.h.error = kern_path(path, 0, req->args->canonical_path);
 	}
-	fuse_copy_finish(cs);
 
 	spin_lock(&fpq->lock);
 	clear_bit(FR_LOCKED, &req->flags);
@@ -2024,8 +2060,12 @@ static ssize_t fuse_dev_splice_write(struct pipe_inode_info *pipe,
 
 	pipe_lock(pipe);
 out_free:
-	for (idx = 0; idx < nbuf; idx++)
-		pipe_buf_release(pipe, &bufs[idx]);
+	for (idx = 0; idx < nbuf; idx++) {
+		struct pipe_buffer *buf = &bufs[idx];
+
+		if (buf->ops)
+			pipe_buf_release(pipe, buf);
+	}
 	pipe_unlock(pipe);
 
 	kvfree(bufs);
@@ -2104,6 +2144,7 @@ void fuse_abort_conn(struct fuse_conn *fc)
 {
 	struct fuse_iqueue *fiq = &fc->iq;
 
+	/* @fs.sec -- d7bd5cc97a05d48e04defc719fbaffefdd4e6f22 -- */
 	ST_LOG("<%s> dev = %u:%u  fuse abort all requests",
 			__func__, MAJOR(fc->dev), MINOR(fc->dev));
 	spin_lock(&fc->lock);

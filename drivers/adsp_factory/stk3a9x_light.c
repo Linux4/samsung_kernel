@@ -39,6 +39,8 @@ enum {
 	OPTION_TYPE_SET_DEVICE_MODE,
 	OPTION_TYPE_SET_PANEL_STATE,
 	OPTION_TYPE_SET_PANEL_TEST_STATE,
+	OPTION_TYPE_SET_AUTO_BRIGHTNESS_HYST,
+	OPTION_TYPE_SET_PANEL_SCREEN_MODE,
 	OPTION_TYPE_MAX
 };
 
@@ -48,7 +50,7 @@ enum {
 #ifdef CONFIG_SUPPORT_LIGHT_CALIBRATION
 int light_load_ub_cell_id_from_file(char *path, char *data_str);
 int light_save_ub_cell_id_to_efs(char *data_str, bool first_booting);
-#define LIGHT_FACTORY_CAL_PATH "/efs/FactoryApp/light_factory_cal_v3"
+#define LIGHT_FACTORY_CAL_PATH "/efs/FactoryApp/light_factory_cal_v4"
 #define LIGHT_UB_CELL_ID_PATH "/efs/FactoryApp/light_ub_cell_id_v3"
 #define LIGHT_CAL_DATA_LENGTH 4
 #define LIGHT_CAL_PASS 1
@@ -228,6 +230,49 @@ static ssize_t light_register_write_store(struct device *dev,
 	return size;
 }
 
+static ssize_t light_hyst_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+
+	pr_info("[SSC_FAC] %s: %d,%d,%d,%d\n", __func__,
+		data->hyst[0], data->hyst[1], data->hyst[2], data->hyst[3]);
+
+	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d\n",
+		data->hyst[0], data->hyst[1], data->hyst[2], data->hyst[3]);
+}
+
+static ssize_t light_hyst_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint16_t light_idx = get_light_sidx(data);
+	int32_t msg_buf[5];
+
+	if (sscanf(buf, "%11d,%11d,%11d,%11d", &data->hyst[0], &data->hyst[1],
+		&data->hyst[2], &data->hyst[3]) != 4) {
+		pr_err("[SSC_FAC]: %s - The number of data are wrong\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	pr_info("[SSC_FAC] %s: (%d) %d < %d < %d\n", __func__,
+		data->hyst[0], data->hyst[1], data->hyst[2], data->hyst[3]);
+
+	msg_buf[0] = OPTION_TYPE_SET_AUTO_BRIGHTNESS_HYST;
+	msg_buf[1] = data->hyst[0];
+	msg_buf[2] = data->hyst[1];
+	msg_buf[3] = data->hyst[2];
+	msg_buf[4] = data->hyst[3];
+
+	mutex_lock(&data->light_factory_mutex);
+	adsp_unicast(msg_buf, sizeof(msg_buf),
+		light_idx, 0, MSG_TYPE_OPTION_DEFINE);
+	mutex_unlock(&data->light_factory_mutex);
+
+	return size;
+}
+
 #if defined(CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR) && defined(CONFIG_DISPLAY_SAMSUNG)
 void light_brightness_work_func(struct work_struct *work)
 {
@@ -249,8 +294,9 @@ void light_brightness_work_func(struct work_struct *work)
 		pr_err("[SSC_FAC] %s: Timeout!!! br: %d\n", __func__,
 			data->brightness_info[0]);
 	else
-		pr_info("[SSC_FAC] %s: set br: %d, lux: %d\n", __func__,
-			data->brightness_info[0], data->msg_buf[MSG_LIGHT][0]);
+		pr_info("[SSC_FAC] %s: set br: %d, lux: %d(lcd:%d)\n", __func__,
+			data->brightness_info[0], data->msg_buf[MSG_LIGHT][0],
+			data->brightness_info[5]);
 
 	mutex_unlock(&data->light_factory_mutex);
 }
@@ -266,7 +312,6 @@ int light_panel_data_notify(struct notifier_block *nb,
 	static int32_t pre_acl_status = -1;
 #endif
 	uint16_t light_idx = get_light_sidx(data);
-	int32_t msg_buf[2];
 
 	if (val == PANEL_EVENT_BL_CHANGED) {
 		struct panel_bl_event_data *panel_data = v;
@@ -301,6 +346,7 @@ int light_panel_data_notify(struct notifier_block *nb,
 			data->brightness_info[4], data->brightness_info[5]);
 	} else if (val == PANEL_EVENT_UB_CON_CHANGED) {
 		struct panel_ub_con_event_data *panel_data = v;
+		int32_t msg_buf[2];
 
 		if ((int32_t)panel_data->state == pre_ub_con_state)
 			return 0;
@@ -319,6 +365,7 @@ int light_panel_data_notify(struct notifier_block *nb,
 	} else if (val == PANEL_EVENT_STATE_CHANGED) {
 		struct panel_state_data *evdata = (struct panel_state_data *)v;
 		int32_t panel_state = (int32_t)evdata->state;
+		int32_t msg_buf[4];
 
 		if ((evdata->display_idx > 0) ||
 			(panel_state >= MAX_PANEL_STATE) ||
@@ -328,16 +375,20 @@ int light_panel_data_notify(struct notifier_block *nb,
 		data->brightness_info[5] = data->pre_panel_state = panel_state;
 		msg_buf[0] = OPTION_TYPE_SET_PANEL_STATE;
 		msg_buf[1] = panel_state;
+		msg_buf[2] = evdata->display_idx;
+		msg_buf[3] = data->pre_screen_mode;
 
 		mutex_lock(&data->light_factory_mutex);
-		pr_info("[SSC_FAC] %s: panel_state %d\n",
-			__func__, (int)evdata->state);
+		pr_info("[SSC_FAC] %s: panel_state %d(inx: %d, mode: %d)\n",
+			__func__, (int)evdata->state, evdata->display_idx,
+			data->pre_screen_mode);
 
 		adsp_unicast(msg_buf, sizeof(msg_buf),
 			light_idx, 0, MSG_TYPE_OPTION_DEFINE);
 		mutex_unlock(&data->light_factory_mutex);
 	} else if (val == PANEL_EVENT_TEST_MODE_CHANGED) {
 		struct panel_test_mode_data *test_data = v;
+		int32_t msg_buf[2];
 
 		if ((test_data->display_idx > 0) ||
 			(pre_test_state == (int32_t)test_data->state))
@@ -350,6 +401,25 @@ int light_panel_data_notify(struct notifier_block *nb,
 		mutex_lock(&data->light_factory_mutex);
 		pr_info("[SSC_FAC] %s: panel test state %d\n",
 			__func__, (int)test_data->state);
+
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			light_idx, 0, MSG_TYPE_OPTION_DEFINE);
+		mutex_unlock(&data->light_factory_mutex);
+	} else if (val == PANEL_EVENT_SCREEN_MODE_CHANGED) {
+		struct panel_screen_mode_data *screen_data = v;
+		int32_t msg_buf[3];
+
+		if (data->pre_screen_mode == (int32_t)screen_data->mode)
+			return 0;
+
+		data->pre_screen_mode = (int32_t)screen_data->mode;
+		msg_buf[0] = OPTION_TYPE_SET_PANEL_SCREEN_MODE;
+		msg_buf[1] = (int32_t)screen_data->mode;
+		msg_buf[2] = (int32_t)screen_data->display_idx;
+
+		mutex_lock(&data->light_factory_mutex);
+		pr_info("[SSC_FAC] %s: panel screen mode %d %d\n",
+			__func__, screen_data->mode, screen_data->display_idx);
 
 		adsp_unicast(msg_buf, sizeof(msg_buf),
 			light_idx, 0, MSG_TYPE_OPTION_DEFINE);
@@ -405,7 +475,9 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	uint16_t light_idx = get_light_sidx(data);
 	int32_t msg_buf[3];
 	int new_value;
-
+#if defined(CONFIG_SEC_B2Q_PROJECT)
+	int cnt = 0;
+#endif
 	if (sysfs_streq(buf, "0"))
 		new_value = 0;
 	else if (sysfs_streq(buf, "1"))
@@ -441,6 +513,16 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	mutex_lock(&data->light_factory_mutex);
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		light_idx, 0, MSG_TYPE_OPTION_DEFINE);
+#if defined(CONFIG_SEC_B2Q_PROJECT)
+	while (!(data->ready_flag[MSG_TYPE_OPTION_DEFINE] & 1 << light_idx)
+		&& cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+	data->ready_flag[MSG_TYPE_OPTION_DEFINE] &= ~(1 << light_idx);
+	if (cnt >= TIMEOUT_CNT)
+		pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
+
+	pr_info("[SSC_FAC] %s: done(%d)\n", __func__, new_value);
+#endif
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
 #ifdef CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR
@@ -663,6 +745,9 @@ void light_copr_debug_work_func(struct work_struct *work)
 		struct adsp_data, light_copr_debug_work);
 	uint16_t light_idx = get_light_sidx(data);
 	uint8_t cnt = 0;
+
+	if (data->brightness_info[5] == 0)
+		return;
 
 	mutex_lock(&data->light_factory_mutex);
 	adsp_unicast(NULL, 0, light_idx, 0, MSG_TYPE_GET_DUMP_REGISTER);
@@ -1005,7 +1090,6 @@ void light_cal_init_work(struct adsp_data *data)
 	data->light_cal1 = -1;
 	data->light_cal2 = -1;
 	data->copr_w = -1;
-	data->brightness_info[5] = 1;
 	data->light_debug_info_cmd = 0;
 
 	old_fs = get_fs();
@@ -1270,6 +1354,7 @@ static DEVICE_ATTR(raw_data, 0444, light_raw_data_show, NULL);
 static DEVICE_ATTR(dhr_sensor_info, 0444, light_get_dhr_sensor_info_show, NULL);
 static DEVICE_ATTR(debug_info, 0664,
 		light_debug_info_show, light_debug_info_store);
+static DEVICE_ATTR(hyst, 0664, light_hyst_show, light_hyst_store);
 #ifdef CONFIG_SUPPORT_SSC_AOD_RECT
 static DEVICE_ATTR(set_aod_rect, 0220, NULL, light_set_aod_rect_store);
 #endif
@@ -1299,6 +1384,7 @@ static struct device_attribute *light_attrs[] = {
 	&dev_attr_light_test,
 #endif
 	&dev_attr_debug_info,
+	&dev_attr_hyst,
 #ifdef CONFIG_SUPPORT_SSC_AOD_RECT
 	&dev_attr_set_aod_rect,
 #endif

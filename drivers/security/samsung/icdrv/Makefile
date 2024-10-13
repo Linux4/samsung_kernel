@@ -32,6 +32,6 @@ endif
 
 ccflags-y += -Wformat
 
-ifneq ($(CONFIG_KUNIT), y)
+ifneq ($(CONFIG_SEC_KUNIT), y)
   EXTRA_CFLAGS += -D__visible_for_testing=static
 endif

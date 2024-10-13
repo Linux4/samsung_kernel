@@ -347,20 +347,19 @@ int synaptics_ts_i2c_write(struct synaptics_ts_data *ts, u8 *reg, int cnum, u8 *
 	mutex_unlock(&ts->i2c_mutex);
 
 	if (retry == SYNAPTICS_TS_I2C_RETRY_CNT) {
+		char result[32];
 		input_err(true, &ts->client->dev, "%s: I2C write over retry limit retry:%d\n", __func__, retry);
 		ts->plat_data->hw_param.comm_err_count++;
-		if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-			char result[32];
 
-			snprintf(result, sizeof(result), "RESULT=I2C");
-			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-		}
+		snprintf(result, sizeof(result), "RESULT=I2C");
+		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
+
 		ret = -EIO;
 		if (ts->probe_done && !ts->reset_is_on_going && !ts->plat_data->shutdown_called)
 			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
 	}
 
-	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_I2C_WRITE_CMD) {
+	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_WRITE_CMD) {
 		pr_info("sec_input:i2c_cmd: W:");
 		for (i = 0; i < cnum; i++)
 			pr_cont("%02X ", reg[i]);
@@ -494,21 +493,20 @@ int synaptics_ts_i2c_only_read(struct synaptics_ts_data *ts, u8 *data, int len)
 	mutex_unlock(&ts->i2c_mutex);
 
 	if (retry == SYNAPTICS_TS_I2C_RETRY_CNT) {
+		char result[32];
 		input_err(true, &ts->client->dev, "%s: I2C read over retry limit retry:%d\n", __func__, retry);
 		ts->plat_data->hw_param.comm_err_count++;
-		if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-			char result[32];
 
-			snprintf(result, sizeof(result), "RESULT=I2C");
-			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-		}
+		snprintf(result, sizeof(result), "RESULT=I2C");
+		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
+
 		ret = -EIO;
 		if (ts->probe_done && !ts->reset_is_on_going && !ts->plat_data->shutdown_called)
 			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
 	}
 
 	memcpy(data, buff, len);
-	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_I2C_READ_CMD) {
+	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_READ_CMD) {
 		pr_info("sec_input:i2c_cmd: only read:");
 		for (i = 0; i < len; i++)
 			pr_cont("%02X ", data[i]);
@@ -635,21 +633,20 @@ int synaptics_ts_i2c_read(struct synaptics_ts_data *ts, u8 *reg, int cnum, u8 *d
 	mutex_unlock(&ts->i2c_mutex);
 
 	if (retry == SYNAPTICS_TS_I2C_RETRY_CNT) {
+		char result[32];
 		input_err(true, &ts->client->dev, "%s: I2C read over retry limit retry:%d\n", __func__, retry);
 		ts->plat_data->hw_param.comm_err_count++;
-		if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-			char result[32];
 
-			snprintf(result, sizeof(result), "RESULT=I2C");
-			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-		}
+		snprintf(result, sizeof(result), "RESULT=I2C");
+		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
+
 		ret = -EIO;
 		if (ts->probe_done && !ts->reset_is_on_going && !ts->plat_data->shutdown_called)
 			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
 	}
 
 	memcpy(data, buff, len);
-	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_I2C_READ_CMD) {
+	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_READ_CMD) {
 		pr_info("sec_input:i2c_cmd: R:");
 		for (i = 0; i < cnum; i++)
 			pr_cont("%02X ", reg[i]);
@@ -688,19 +685,24 @@ void synaptics_ts_reinit(void *data)
 		input_err(true, &ts->client->dev, "%s: fail to detect protocol\n", __func__);
 */
 	/* synaptics_ts_set_up_app_fw(ts); */
+
+	if (ts->do_set_up_report)
+		synaptics_ts_set_up_report(ts);
+
 	synaptics_ts_rezero(ts);
 
 	input_info(true, &ts->client->dev,
 		"%s: charger=0x%x, touch_functions=0x%x, Power mode=0x%x ic mode = %d\n",
-		__func__, ts->plat_data->wirelesscharger_mode, ts->plat_data->touch_functions, ts->plat_data->power_state, ts->dev_mode);
+		__func__, ts->plat_data->charger_flag, ts->plat_data->touch_functions, ts->plat_data->power_state, ts->dev_mode);
 
 	ts->plat_data->touch_noise_status = 0;
 	ts->plat_data->touch_pre_noise_status = 0;
 	ts->plat_data->wet_mode = 0;
 	/* buffer clear asking */
 	synaptics_ts_release_all_finger(ts);
- 
-	synaptics_ts_set_cover_type(ts, ts->plat_data->touch_functions);
+
+	if (ts->cover_closed)
+		synaptics_ts_set_cover_type(ts, ts->cover_closed);
 
 	synaptics_ts_set_custom_library(ts);
 	synaptics_ts_set_press_property(ts);
@@ -726,7 +728,11 @@ void synaptics_ts_reinit(void *data)
 	if (ts->plat_data->ed_enable)
 		synaptics_ts_ear_detect_enable(ts, ts->plat_data->ed_enable);
 	if (ts->plat_data->pocket_mode)
-		synaptics_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);	
+		synaptics_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);
+	if (ts->plat_data->low_sensitivity_mode)
+		synaptics_ts_low_sensitivity_mode_enable(ts, ts->plat_data->low_sensitivity_mode);
+	if (ts->plat_data->charger_flag)
+		synaptics_ts_set_charger_mode(&ts->client->dev, ts->plat_data->charger_flag);
 }
 
 /**
@@ -843,6 +849,7 @@ int synaptics_ts_allocate_device(struct synaptics_ts_data *ts)
 
 	ts->write_message = NULL;
 	ts->read_message = NULL;
+	ts->write_immediate_message = NULL;
 
 	/* allocate internal buffers */
 	synaptics_ts_buf_init(&ts->report_buf);
@@ -915,18 +922,21 @@ void synaptics_ts_remove_device(struct synaptics_ts_data *ts)
  * If you are requested additional i2c protocol in interrupt handler by vendor.
  * please add it in synaptics_ts_external_func.
  */
- #if 0
-static void synaptics_ts_external_func(struct synaptics_ts_data *ts)
+void synaptics_ts_external_func(struct synaptics_ts_data *ts)
 {
-	sec_input_set_temperature(&ts->client->dev, SEC_INPUT_SET_TEMPERATURE_IN_IRQ);
-
+	if (ts->support_immediate_cmd)
+		sec_input_set_temperature(&ts->client->dev, SEC_INPUT_SET_TEMPERATURE_IN_IRQ);
 }
- #endif
 
 int synaptics_ts_input_open(struct input_dev *dev)
 {
 	struct synaptics_ts_data *ts = input_get_drvdata(dev);
 	int ret;
+
+	if (!ts->probe_done) {
+		input_err(true, &ts->client->dev, "%s: probe is not done yet\n", __func__);
+		return 0;
+	}
 
 	cancel_delayed_work_sync(&ts->work_read_info);
 
@@ -942,13 +952,15 @@ int synaptics_ts_input_open(struct input_dev *dev)
 	if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM) {
 		ts->plat_data->lpmode(ts, TO_TOUCH_MODE);
 		sec_input_set_grip_type(&ts->client->dev, ONLY_EDGE_HANDLER);
+		if (ts->plat_data->low_sensitivity_mode)
+			synaptics_ts_low_sensitivity_mode_enable(ts, ts->plat_data->low_sensitivity_mode);
 	} else {
 		ret = ts->plat_data->start_device(ts);
 		if (ret < 0)
 			input_err(true, &ts->client->dev, "%s: Failed to start device\n", __func__);
 	}
 
-	//sec_input_set_temperature(ts->client, SEC_INPUT_SET_TEMPERATURE_FORCE);
+	sec_input_set_temperature(&ts->client->dev, SEC_INPUT_SET_TEMPERATURE_FORCE);
 
 	mutex_unlock(&ts->modechange);
 
@@ -963,6 +975,11 @@ int synaptics_ts_input_open(struct input_dev *dev)
 void synaptics_ts_input_close(struct input_dev *dev)
 {
 	struct synaptics_ts_data *ts = input_get_drvdata(dev);
+
+	if (!ts->probe_done) {
+		input_err(true, &ts->client->dev, "%s: probe is not done yet\n", __func__);
+		return;
+	}
 
 	cancel_delayed_work_sync(&ts->work_read_info);
 
@@ -1165,6 +1182,22 @@ err_allocate_cdev:
 
 }
 
+static void synaptics_ts_parse_dt(struct device *dev, struct synaptics_ts_data *ts)
+{
+	struct device_node *np = dev->of_node;
+
+	if (!np) {
+		input_err(true, dev, "%s: of_node is not exist\n", __func__);
+		return;
+	}
+
+	ts->support_immediate_cmd = of_property_read_bool(np, "synaptics,support_immediate_cmd");
+	ts->do_set_up_report = of_property_read_bool(np, "synaptics,do_set_up_report");
+
+	input_info(true, dev, "%s: support_immediate_cmd:%d, do_set_up_report:%d\n",
+			__func__, ts->support_immediate_cmd, ts->do_set_up_report);
+}
+
 static int synaptics_ts_init(struct i2c_client *client)
 {
 	struct synaptics_ts_data *ts;
@@ -1217,6 +1250,8 @@ static int synaptics_ts_init(struct i2c_client *client)
 		goto error_allocate_mem;
 	}
 
+	synaptics_ts_parse_dt(&client->dev, ts);
+
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	ts->vendor_data = devm_kzalloc(&client->dev, sizeof(struct synaptics_ts_sysfs), GFP_KERNEL);
 	if (!ts->vendor_data) {
@@ -1242,8 +1277,10 @@ static int synaptics_ts_init(struct i2c_client *client)
 	ts->plat_data->init = synaptics_ts_reinit;
 	ts->plat_data->lpmode = synaptics_ts_set_lowpowermode;
 	ts->plat_data->set_grip_data = synaptics_set_grip_data_to_ic;
-	ts->plat_data->set_temperature = synaptics_ts_set_temperature;
-
+	if (!ts->plat_data->not_support_temp_noti)
+		ts->plat_data->set_temperature = synaptics_ts_set_temperature;
+	if (ts->plat_data->support_vbus_notifier)
+		ts->plat_data->set_charger_mode = synaptics_ts_set_charger_mode;
 	ptsp = &client->dev;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
@@ -1323,6 +1360,7 @@ static int synaptics_ts_init(struct i2c_client *client)
 	dump_callbacks.inform_dump = synaptics_ts_dump_tsp_log;
 	INIT_DELAYED_WORK(&ts->check_rawdata, synaptics_ts_check_rawdata);
 #endif
+
 	input_info(true, &client->dev, "%s: init resource\n", __func__);
 
 	return 0;
@@ -1416,10 +1454,13 @@ int synaptics_ts_probe(struct i2c_client *client, const struct i2c_device_id *id
 	synaptics_ts_get_custom_library(ts);
 	synaptics_ts_set_custom_library(ts);
 
+	sec_input_register_vbus_notifier(&ts->client->dev);
+
 	ts->probe_done = true;
 	ts->plat_data->enabled = true;
 
 	input_err(true, &ts->client->dev, "%s: done\n", __func__);
+
 	input_log_fix();
 
 	if (!ts->plat_data->shutdown_called)
@@ -1433,6 +1474,8 @@ int synaptics_ts_remove(struct i2c_client *client)
 	struct synaptics_ts_data *ts = i2c_get_clientdata(client);
 
 	input_info(true, &ts->client->dev, "%s\n", __func__);
+
+	sec_input_unregister_vbus_notifier(&ts->client->dev);
 
 	mutex_lock(&ts->modechange);
 	ts->plat_data->shutdown_called = true;

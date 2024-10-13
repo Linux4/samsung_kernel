@@ -39,4 +39,5 @@ source "test/Kconfig"
 source "techpack/display/msm/samsung/S6E3HAB_AMB623TS01/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "techpack/display/msm/samsung/EA8082_AMB641ZR01/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "techpack/display/msm/samsung/S6E3FAB_AMB624XT01/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "techpack/display/msm/samsung/S6E3FC3_AMB641ZR02/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "techpack/display/msm/samsung/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

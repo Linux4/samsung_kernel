@@ -213,12 +213,20 @@ static void sec_secure_touch_hall_ic_work(struct work_struct *work)
 static int sec_secure_touch_hall_ic_notifier(struct notifier_block *nb, unsigned long hall_ic, void *ptr)
 {
 	struct sec_secure_touch *data = container_of(nb, struct sec_secure_touch, nb);
+	struct hall_notifier_context *hall_notifier;
 
 	if (!data)
 		return -ENOMEM;
 
 	if (data->device_number < 1)
 		return -ENODEV;
+
+	hall_notifier = ptr;
+
+	if (strncmp(hall_notifier->name, "flip", 4) != 0) {
+		pr_info("%s: %s\n", __func__, hall_notifier->name);
+		return 0;
+	}
 
 	data->hall_ic = hall_ic;
 

@@ -42,4 +42,9 @@ void remap_sensor_data_32(int *, u32);
 extern int sensordump_notifier_register(struct notifier_block *nb);
 extern int sensordump_notifier_unregister(struct notifier_block *nb);
 extern int sensordump_notifier_call_chain(unsigned long val, void *v);
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+extern int sensorfold_notifier_register(struct notifier_block *nb);
+extern int sensorfold_notifier_unregister(struct notifier_block *nb);
+extern int sensorfold_notifier_notify(unsigned long fold_state);
+#endif
 #endif

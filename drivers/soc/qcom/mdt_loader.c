@@ -95,10 +95,10 @@ void *qcom_mdt_read_metadata(const struct firmware *fw, size_t *data_len)
 	ehdr = (struct elf32_hdr *)fw->data;
 	phdrs = (struct elf32_phdr *)(ehdr + 1);
 
-	if (ehdr->e_phnum < 2)
+	if (ehdr->e_phnum < 2 || ehdr->e_phnum > PN_XNUM)
 		return ERR_PTR(-EINVAL);
 
-	if (phdrs[0].p_type == PT_LOAD || phdrs[1].p_type == PT_LOAD)
+	if (phdrs[0].p_type == PT_LOAD)
 		return ERR_PTR(-EINVAL);
 
 	if ((phdrs[1].p_flags & QCOM_MDT_TYPE_MASK) != QCOM_MDT_TYPE_HASH)
@@ -106,6 +106,10 @@ void *qcom_mdt_read_metadata(const struct firmware *fw, size_t *data_len)
 
 	ehdr_size = phdrs[0].p_filesz;
 	hash_size = phdrs[1].p_filesz;
+
+	/* Overflow check */
+	if (ehdr_size >  SIZE_MAX - hash_size)
+		return ERR_PTR(-ENOMEM);
 
 	data = kmalloc(ehdr_size + hash_size, GFP_KERNEL);
 	if (!data)
@@ -230,6 +234,14 @@ static int __qcom_mdt_load(struct device *dev, const struct firmware *fw,
 			break;
 		}
 
+		if (phdr->p_filesz > phdr->p_memsz) {
+			dev_err(dev,
+				"refusing to load segment %d with p_filesz > p_memsz\n",
+				i);
+			ret = -EINVAL;
+			break;
+		}
+
 		ptr = mem_region + offset;
 
 		if (phdr->p_filesz && phdr->p_offset < fw->size) {
@@ -250,6 +262,15 @@ static int __qcom_mdt_load(struct device *dev, const struct firmware *fw,
 							ptr, phdr->p_filesz);
 			if (ret) {
 				dev_err(dev, "failed to load %s\n", fw_name);
+				break;
+			}
+
+			if (seg_fw->size != phdr->p_filesz) {
+				dev_err(dev,
+					"failed to load segment %d from truncated file %s\n",
+					i, fw_name);
+				release_firmware(seg_fw);
+				ret = -EINVAL;
 				break;
 			}
 

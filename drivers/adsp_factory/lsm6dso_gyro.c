@@ -91,13 +91,19 @@ static ssize_t gyro_selftest_show(struct device *dev,
 	uint8_t cnt = 0;
 	int st_diff_res = ST_FAIL;
 	int st_zro_res = ST_FAIL;
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+	int msg_buf = LSM6DSO_SELFTEST_TRUE;
+
+	adsp_unicast(&msg_buf, sizeof(msg_buf),
+		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
+#endif
 
 	pr_info("[FACTORY] %s - start", __func__);
 	adsp_unicast(NULL, 0, MSG_GYRO, 0, MSG_TYPE_ST_SHOW_DATA);
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] & 1 << MSG_GYRO) &&
 		cnt++ < TIMEOUT_CNT)
-		msleep(25);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_GYRO);
 
@@ -105,6 +111,9 @@ static ssize_t gyro_selftest_show(struct device *dev,
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
 #ifdef CONFIG_SEC_FACTORY
 		panic("force crash : sensor selftest timeout\n");
+#endif
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+		schedule_delayed_work(&data->lsm6dso_selftest_stop_work, msecs_to_jiffies(300));
 #endif
 		return snprintf(buf, PAGE_SIZE,
 			"0,0,0,0,0,0,0,0,0,0,0,0,%d,%d\n",
@@ -126,6 +135,9 @@ static ssize_t gyro_selftest_show(struct device *dev,
 		else if (data->msg_buf[MSG_GYRO][5] == G_ZRL_DELTA_FAIL)
 			pr_info("[FACTORY] %s - ZRL Delta fail\n", __func__);
 
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+		schedule_delayed_work(&data->lsm6dso_selftest_stop_work, msecs_to_jiffies(300));
+#endif
 		return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n",
 			data->msg_buf[MSG_GYRO][2],
 			data->msg_buf[MSG_GYRO][3],
@@ -149,6 +161,9 @@ static ssize_t gyro_selftest_show(struct device *dev,
 		data->msg_buf[MSG_GYRO][13], data->msg_buf[MSG_GYRO][14],
 		st_diff_res, st_zro_res);
 
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+	schedule_delayed_work(&data->lsm6dso_selftest_stop_work, msecs_to_jiffies(300));
+#endif
 	return snprintf(buf, PAGE_SIZE,
 		"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
 		data->msg_buf[MSG_GYRO][2], data->msg_buf[MSG_GYRO][3],

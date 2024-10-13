@@ -409,7 +409,7 @@ static int ss_module_info_read(struct samsung_display_driver_data *vdd)
 		vdd->manufacture_date_dsi = year * 10000 + month * 100 + day;
 		vdd->manufacture_time_dsi = hour * 100 + min;
 
-		LCD_ERR(vdd, "manufacture_date DSI%d = (%d%04d) - year(%d) month(%d) day(%d) hour(%d) min(%d)\n",
+		LCD_INFO(vdd, "manufacture_date DSI%d = (%d%04d) - year(%d) month(%d) day(%d) hour(%d) min(%d)\n",
 			vdd->ndx, vdd->manufacture_date_dsi, vdd->manufacture_time_dsi,
 			year, month, day, hour, min);
 
@@ -936,7 +936,7 @@ static struct dsi_panel_cmd_set *__ss_vrr(struct samsung_display_driver_data *vd
 	}
 
 	if (is_hmt && !(cur_rr == 60 && !cur_hs))
-		LCD_ERR(vdd, "error: HMT not in 60hz NM mode, cur: %dhz%s\n",
+		LCD_ERR(vdd, "HMT not in 60hz NM mode, cur: %dhz%s\n",
 				cur_rr, cur_hs ? "HS" : "NM");
 
 	/* 2. AID: HS: 0x40 (AOR cycle=2), Normal: 0x80 (AOR cycle=4), HMT: 0x00 (AOR cycle=1) */
@@ -1412,7 +1412,7 @@ static void ss_update_panel_lpm_ctrl_cmd
 	static int off_reg_list[1][2] = {
 		{ALPM_CTRL_REG, -EINVAL} };
 
-	LCD_ERR(vdd, "%s++\n", __func__);
+	LCD_INFO(vdd, "%s++\n", __func__);
 
 	cmd_list[0] = ss_get_cmds(vdd, TX_LPM_ON);
 	cmd_list[1] = ss_get_cmds(vdd, TX_LPM_ON);
@@ -1541,7 +1541,7 @@ static void ss_update_panel_lpm_ctrl_cmd
 				sizeof(char) * off_cmd_list[0]->cmds[off_reg_list[0][1]].msg.tx_len);
 	}
 
-	LCD_ERR(vdd, "%s--\n", __func__);
+	LCD_INFO(vdd, "%s--\n", __func__);
 }
 
 static int ddi_hw_cursor(struct samsung_display_driver_data *vdd, int *input)
@@ -2106,28 +2106,6 @@ static void poc_comp(struct samsung_display_driver_data *vdd)
 	return;
 }
 
-u8 poc_spi_read_id(struct samsung_display_driver_data *vdd)
-{
-	u8 rxbuf[1];
-	int ret = 0;
-
-	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR(vdd, "no vdd\n");
-		return -EINVAL;
-	}
-
-	/* read manufacture id */
-	ret = ss_spi_sync(vdd->spi_dev, rxbuf, RX_FLASH_MANUFACTURE_ID);
-	if (ret) {
-		LCD_ERR(vdd, "fail to spi read.. ret (%d) \n", ret);
-		return ret;
-	}
-
-	LCD_ERR(vdd, "spi manufacture id = %02x\n", rxbuf[0]);
-
-	return rxbuf[0];
-}
-
 static int poc_spi_get_status(struct samsung_display_driver_data *vdd)
 {
 	u8 rxbuf[1];
@@ -2452,9 +2430,9 @@ cancel_poc:
 
 static int ss_vrr_init(struct vrr_info *vrr)
 {
-	struct vrr_bridge_rr_tbl *brr;
 	struct samsung_display_driver_data *vdd =
 		container_of(vrr, struct samsung_display_driver_data, vrr);
+	struct vrr_bridge_rr_tbl *brr;
 
 	LCD_INFO(vdd, "+++\n");
 
@@ -2942,8 +2920,8 @@ void S6E3HAB_AMB623TS01_WQHD_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_interpolation_init = init_interpolation_S6E3HAB_AMB623TS01;
 	vdd->panel_func.force_use_table_for_hmd = table_gamma_update_hmd_S6E3HAB_AMB623TS01;
 	vdd->panel_func.get_gamma_V_size = get_gamma_V_size_S6E3HAB_AMB623TS01;
-	vdd->panel_func.convert_GAMMA_to_V = convert_GAMMA_to_V;
-	vdd->panel_func.convert_V_to_GAMMA = convert_V_to_GAMMA;
+	vdd->panel_func.convert_GAMMA_to_V = convert_GAMMA_to_V_S6E3HAB_AMB623TS01;
+	vdd->panel_func.convert_V_to_GAMMA = convert_V_to_GAMMA_S6E3HAB_AMB623TS01;
 
 	vdd->panel_func.samsung_octa_id_read = ss_octa_id_read;
 

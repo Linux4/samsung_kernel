@@ -37,6 +37,15 @@ config AK09918_FACTORY
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
 
+config MXGX300_FACTORY
+	tristate "factory test for SSC - mxgx300"
+	default n
+	help
+	  mxgx300 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
 config SUPPORT_MAG_ABS_SUM
 	tristate "mag abs sum for SSC"
 	depends on AK09918_FACTORY
@@ -54,11 +63,29 @@ config LPS22HH_FACTORY
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
 
+config SPL07_FACTORY
+	tristate "factory test for SSC - SPL07"
+	default n
+	help
+	  spl07 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
 config TMD49XX_FACTORY
 	tristate "factory test for SSC - tmd49xx"
 	default n
 	help
 	  tmd49xx factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config STK3A5X_FACTORY
+	tristate "factory test for SSC - stk3a5x"
+	default n
+	help
+	  stk3a5x factory driver.
 	  provide sysfs for factory test.
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
@@ -90,11 +117,26 @@ config SUPPORT_PROX_CALIBRATION
 	  request prox cal to adsp_factory.
 	  receive cal value from adsp_factory.
 
+config SUPPORT_CONTROL_PROX_LED_GPIO
+	tristate "control prox led gpio for SSC"
+	default n
+	help
+	  Support to control prox led gpio.
+
 config TCS3701_FACTORY
 	tristate "factory test for SSC - TCS3701"
 	default n
 	help
 	  tcs3701 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config TCS340X_FLICKER_FACTORY
+	tristate "factory test for SSC - TCS340X flicker"
+	default n
+	help
+	  tcs340x factory driver.
 	  provide sysfs for factory test.
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
@@ -213,6 +255,12 @@ config SUPPORT_DUAL_6AXIS
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
 
+config SUB_SENSOR_VDD
+	tristate "Using subsensor_vdd for sub 6axis"
+	default n
+	help
+	  Support subsensor vdd control for sub 6axis
+
 config SUPPORT_DUAL_OPTIC
 	tristate "Sensors support dual optic"
 	default n
@@ -237,11 +285,29 @@ config SUPPORT_AK0997X
 	help
 	  Support ak0997x.
 
+config SUPPORT_AK09973
+	tristate "Support ak09973"
+	default n
+	help
+	  Support ak09973.
+
+config SUPPORT_DHALL_SWITCH
+	tristate "Support DHALL_SWITCH"
+	default n
+	help
+	  Support ak09973.
+
 config SUPPORT_DEVICE_MODE
 	tristate "Support device mode"
 	default n
 	help
 	  Support device mode.
+
+config SUPPORT_SENSOR_FOLD
+	tristate "Support fold state by sensor algorithm"
+	default n
+	help
+	  Support fold state by sensor algorithm.
 
 config SUPPORT_LIGHT_SEAMLESS
 	tristate "Support Light seamless"
@@ -281,6 +347,15 @@ config VEML3235_SUB_FACTORY
 	default n
 	help
 	  veml3328_sub factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_TCS3407_STK3A9X_FACTORY
+	tristate "factory test for SSC - tcs3407 and stk3a9x"
+	default n
+	help
+	  tcs3407 and stk3a9x factory driver
 	  provide sysfs for factory test.
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.

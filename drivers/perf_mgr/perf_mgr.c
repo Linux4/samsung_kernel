@@ -18,7 +18,13 @@
 #define MAX_INSERT_DIGIT 4
 
 #ifdef CONFIG_SEC_PERF_MANAGER_QC
+
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER)
+#include <linux/sec_panel_notifier.h>
+#else
 #include "../../../techpack/display/msm/samsung/ss_panel_notify.h"
+#endif
+
 
 extern int ss_panel_notifier_register(struct notifier_block *nb);
 extern int ss_panel_notifier_unregister(struct notifier_block *nb);
@@ -124,9 +130,14 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			rcu_read_unlock();
 		} else {
 			//Drawing Flag OFF on Task Struct
+			rcu_read_lock();
 			task = find_task_by_vpid(target_tid);
-			if (task != NULL)
+			if (task != NULL) {
+				get_task_struct(task);
 				task->drawing_flag = 0;
+				put_task_struct(task);
+			}
+			rcu_read_unlock();
 
 			fi = get_target_task(target_tid);
 			if (fi == NULL)
@@ -216,23 +227,24 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		 *If the drawing task keeps boosting value more than 2 frames,
 		 *we initialize boosting information of the task.
 		 */
+			tmp_task = find_task_by_vpid(ofi.tid);
 
+			if (tmp_task == NULL ||
+				tmp_task->drawing_flag != task->drawing_flag)
+				continue;
+				
 			if (++(fi->last_update_frame) > hold_frame_count) {
 				fi->last_update_frame = 0;
 				fi->updated_fps_util = 0;
-				task->drawing_mig_boost = 0;
+				tmp_task->drawing_mig_boost = 0;
 			}
 
-			tmp_task = find_task_by_vpid(ofi.tid);
-			if (tmp_task != NULL &&
-				tmp_task->drawing_flag == task->drawing_flag) {
 #ifdef CONFIG_SEC_PERF_MANAGER_MTK
-				rn_sum += get_boosted_task_util(tmp_task);
+			rn_sum += get_boosted_task_util(tmp_task);
 #endif
 #ifdef CONFIG_SEC_PERF_MANAGER_QC
-				rn_sum += get_task_util(tmp_task);
+			rn_sum += get_task_util(tmp_task);
 #endif
-			}
 		}
 		rcu_read_unlock();
 

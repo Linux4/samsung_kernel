@@ -17,7 +17,8 @@ Charger specific properties:
 - compatible
   Usage:      required
   Value type: <string>
-  Definition: "qcom,qpnp-smblite".
+  Definition: "qcom,qpnp-smblite" for SMBLITE on PM2250.
+	      "qcom,qpnp-pm5100-smblite" for SMBLITE on PM5100.
 
 - qcom,pmic-revid
   Usage:      required
@@ -195,6 +196,12 @@ Charger specific properties:
   Value type: <u32>
   Definition: Specifies the step size of each step of FCC stepper algorithm.
 		If left unspecified, the default value is 100mA.
+
+- qcom,concurrency-mode-enable
+ Usage:      optional
+ Value type: bool
+ Definition: Boolean flag to control charger concurrency mode. Its supported
+		only on PM5100, By default this feature is disabled.
 
 =================================================
 Second Level Nodes - SMBLITE Charger Peripherals

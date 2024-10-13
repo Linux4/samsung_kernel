@@ -71,8 +71,8 @@ void gen_normal_interpolation_irc_S6E3HAB_AMB623TS01(struct samsung_display_driv
 		struct brightness_table *br_tbl,
 		struct ss_interpolation_brightness_table *normal_table, int normal_table_size);
 int get_gamma_V_size_S6E3HAB_AMB623TS01(void);
-void convert_GAMMA_to_V(unsigned char* src, unsigned int *dst);
-void convert_V_to_GAMMA(unsigned int *src, unsigned char* dst);
+void convert_GAMMA_to_V_S6E3HAB_AMB623TS01(unsigned char *src, unsigned int *dst);
+void convert_V_to_GAMMA_S6E3HAB_AMB623TS01(unsigned int *src, unsigned char *dst);
 int table_gamma_update_hmd_S6E3HAB_AMB623TS01(struct samsung_display_driver_data *vdd,
 		struct brightness_table *br_tbl);
 int table_gamma_update_hmd_S6E3HAB_AMB687TZ01(struct samsung_display_driver_data *vdd,

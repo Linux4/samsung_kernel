@@ -626,6 +626,8 @@ try_again:
 	if (host->ops->init_card)
 		host->ops->init_card(host, card);
 
+	card->ocr = ocr_card;
+
 	/*
 	 * If the host and card support UHS-I mode request the card
 	 * to switch to 1.8V signaling level.  No 1.8v signalling if
@@ -738,7 +740,7 @@ try_again:
 			goto mismatch;
 		}
 	}
-	card->ocr = ocr_card;
+
 	mmc_fixup_device(card, sdio_fixup_methods);
 
 	if (card->type == MMC_TYPE_SD_COMBO) {
@@ -924,21 +926,37 @@ out:
  */
 static int mmc_sdio_pre_suspend(struct mmc_host *host)
 {
-	int i, err = 0;
+	int i;
 
 	for (i = 0; i < host->card->sdio_funcs; i++) {
 		struct sdio_func *func = host->card->sdio_func[i];
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
-			if (!pmops || !pmops->suspend || !pmops->resume) {
+			if (!pmops || !pmops->suspend || !pmops->resume)
 				/* force removal of entire card in that case */
-				err = -ENOSYS;
-				break;
-			}
+				goto remove;
 		}
 	}
 
-	return err;
+	return 0;
+
+remove:
+	if (!mmc_card_is_removable(host)) {
+		dev_warn(mmc_dev(host),
+			 "missing suspend/resume ops for non-removable SDIO card\n");
+		/* Don't remove a non-removable card - we can't re-detect it. */
+		return 0;
+	}
+
+	/* Remove the SDIO card and let it be re-detected later on. */
+	mmc_sdio_remove(host);
+	mmc_claim_host(host);
+	mmc_detach_bus(host);
+	mmc_power_off(host);
+	mmc_release_host(host);
+	host->pm_flags = 0;
+
+	return 0;
 }
 
 /*
@@ -953,6 +971,7 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 	cancel_delayed_work_sync(&host->sdio_irq_work);
 
 	mmc_claim_host(host);
+	mmc_log_string(host, "Enter\n");
 
 	if (mmc_card_keep_power(host) && mmc_card_wake_sdio_irq(host))
 		sdio_disable_wide(host->card);
@@ -964,6 +983,7 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 		mmc_retune_needed(host);
 	}
 
+	mmc_log_string(host, "Exit\n");
 	mmc_release_host(host);
 
 	return 0;
@@ -975,6 +995,7 @@ static int mmc_sdio_resume(struct mmc_host *host)
 
 	/* Basic card reinitialization. */
 	mmc_claim_host(host);
+	mmc_log_string(host, "Enter\n");
 
 	/*
 	 * Restore power and reinitialize the card when needed. Note that a
@@ -1014,9 +1035,11 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	}
 
 out:
+	mmc_log_string(host, "Exit err: %d\n", err);
 	mmc_release_host(host);
 
 	host->pm_flags &= ~MMC_PM_KEEP_POWER;
+	host->pm_flags &= ~MMC_PM_WAKE_SDIO_IRQ;
 	return err;
 }
 

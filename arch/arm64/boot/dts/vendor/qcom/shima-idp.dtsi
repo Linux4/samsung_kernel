@@ -178,7 +178,6 @@
 		focaltech,display-coords = <0 0 1080 2340>;
 
 		vdd-supply = <&L3C>;
-		vcc_i2c-supply = <&L8C>;
 
 		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend","pmx_ts_release";
 		pinctrl-0 = <&ts_active>;
@@ -189,7 +188,9 @@
 			 &dsi_r66451_amoled_video
 			&dsi_r66451_amoled_60hz_video
 			&dsi_r66451_amoled_60hz_cmd
-			&dsi_r66451_amoled_144hz_cmd>;
+			&dsi_r66451_amoled_144hz_cmd
+			&dsi_r66451_amoled_video_cphy
+			&dsi_r66451_amoled_cmd_cphy>;
 
 		focaltech,trusted-touch-mode = "vm_mode";
 		focaltech,touch-environment = "pvm";
@@ -197,10 +198,33 @@
 		focaltech,trusted-touch-io-bases = <0xF114000 0xF115000 0xF116000 0xF117000 0x988000 0x00910000>;
 		focaltech,trusted-touch-io-sizes = <0x1000 0x1000 0x1000 0x1000 0x1000 0x4000>;
 	};
+
+	atmel_mxt_ts@4a {
+		compatible = "atmel,maxtouch";
+		reg = <0x4a>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <23 0x2008>;
+		avdd-supply = <&L3C>;
+		vdd-supply = <&L8C>;
+		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+		pinctrl-0 = <&ts_active>;
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+
+		atmel,xy_switch;
+		atmel,inverty;
+		atmel,invertx;
+		reset-gpios = <&tlmm 22 0x00>;
+		irq-gpios = <&tlmm 23 0x2008>;
+		atmel,panel-coords = <0 0 479 799>;
+		atmel,display-coords = <0 0 339 729>;
+		panel = <&dsi_sharp_qhd_plus_dsc_cmd
+			&dsi_sharp_qhd_plus_dsc_video>;
+		status = "disabled";
+	};
 };
 
-&dai_mi2s2 {
-	qcom,msm-mi2s-tx-lines = <1>;
+&dai_mi2s2_tx {
+	qcom,msm-mi2s-lines = <1>;
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&tert_mi2s_sck_active &tert_mi2s_ws_active
 			&tert_mi2s_sd0_active>;

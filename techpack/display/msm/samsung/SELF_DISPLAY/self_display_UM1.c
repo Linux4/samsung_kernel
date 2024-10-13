@@ -65,7 +65,7 @@ void make_self_dispaly_img_cmds_UM1(struct samsung_display_driver_data *vdd,
 
 	pcmds = ss_get_cmds(vdd, cmd);
 	if (IS_ERR_OR_NULL(pcmds->cmds)) {
-		LCD_ERR(vdd, "pcmds->cmds is null!!\n");
+		LCD_INFO(vdd, "allocate pcmds->cmds\n");
 		pcmds->cmds = kzalloc(cmd_size * sizeof(struct dsi_cmd_desc), GFP_KERNEL);
 		if (IS_ERR_OR_NULL(pcmds->cmds)) {
 			LCD_ERR(vdd, "fail to kzalloc for self_mask cmds \n");
@@ -173,17 +173,19 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 	LCD_INFO(vdd, "--\n");
 }
 
-static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
+static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 {
+	int ret = 0;
+
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "vdd is null or error\n");
-		return;
+		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.is_support) {
 		LCD_ERR(vdd, "self display is not supported..(%d) \n",
 						vdd->self_disp.is_support);
-		return;
+		return -EACCES;
 	}
 
 	LCD_INFO(vdd, "++ (%d)\n", enable);
@@ -202,7 +204,7 @@ static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 
 	LCD_INFO(vdd, "-- \n");
 
-	return;
+	return ret;
 }
 
 static int self_mask_check(struct samsung_display_driver_data *vdd)
@@ -234,7 +236,7 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 		}
 	}
 
-	LCD_ERR(vdd, "++ \n");
+	LCD_INFO(vdd, "++ \n");
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -284,7 +286,7 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_ERR(vdd, "-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return ret;
 }
@@ -300,7 +302,7 @@ static int self_partial_hlpm_scan_set(struct samsung_display_driver_data *vdd)
 		return -ENODEV;
 	}
 
-	LCD_ERR(vdd, "++\n");
+	LCD_INFO(vdd, "++\n");
 
 	sphs_info = vdd->self_disp.sphs_info;
 
@@ -352,7 +354,7 @@ static int self_partial_hlpm_scan_set(struct samsung_display_driver_data *vdd)
 
 	ss_send_cmd(vdd, TX_SELF_PARTIAL_HLPM_SCAN_SET);
 
-	LCD_ERR(vdd, "--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
@@ -720,7 +722,7 @@ int self_display_init_UM1(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.self_partial_hlpm_scan_set = NULL;
 	vdd->self_disp.self_display_debug = self_display_debug;
 
-	ret = misc_register(&vdd->self_disp.dev);
+	ret = ss_wrapper_misc_register(vdd, &vdd->self_disp.dev);
 	if (ret) {
 		LCD_ERR(vdd, "failed to register driver : %d\n", ret);
 		vdd->self_disp.is_support = false;

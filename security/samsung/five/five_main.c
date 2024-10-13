@@ -30,6 +30,7 @@
 #include <linux/debugfs.h>
 #include <linux/fs.h>
 #include <linux/shmem_fs.h>
+#include <linux/version.h>
 
 #include "five.h"
 #include "five_audit.h"
@@ -40,6 +41,13 @@
 #include "five_cache.h"
 #include "five_dmverity.h"
 #include "five_dsms.h"
+#include "five_testing.h"
+
+/* crash_dump in Android 12 uses this request even if Kernel doesn't
+ * support it */
+#ifndef PTRACE_PEEKMTETAGS
+#define PTRACE_PEEKMTETAGS 33
+#endif
 
 static const bool check_dex2oat_binary = true;
 static const bool check_memfd_file = true;
@@ -209,6 +217,7 @@ static void work_handler(struct work_struct *in_data)
 	kfree(context);
 }
 
+__mockable
 const char *five_d_path(const struct path *path, char **pathbuf, char *namebuf)
 {
 	char *pathname = NULL;
@@ -325,7 +334,8 @@ static int push_file_event_bunch(struct task_struct *task, struct file *file,
 
 		context->tint = TASK_INTEGRITY(task);
 
-		list_add_tail(&five_file->list, &TASK_INTEGRITY(task)->events.list);
+		list_add_tail(&five_file->list,
+			      &TASK_INTEGRITY(task)->events.list);
 		spin_unlock(&TASK_INTEGRITY(task)->list_lock);
 		INIT_WORK(&context->data_work, work_handler);
 		rc = queue_work(g_five_workqueue, &context->data_work) ? 0 : 1;
@@ -334,11 +344,12 @@ static int push_file_event_bunch(struct task_struct *task, struct file *file,
 
 		INIT_LIST_HEAD(&dead_list);
 		if ((function == BPRM_CHECK) &&
-			(!list_is_singular(&(TASK_INTEGRITY(task)->events.list)))) {
+		    (!list_is_singular(&(TASK_INTEGRITY(task)->events.list)))) {
 			list_cut_tail(&TASK_INTEGRITY(task)->events.list,
 					&dead_list);
 		}
-		list_add_tail(&five_file->list, &TASK_INTEGRITY(task)->events.list);
+		list_add_tail(&five_file->list,
+			      &TASK_INTEGRITY(task)->events.list);
 		spin_unlock(&TASK_INTEGRITY(task)->list_lock);
 		free_files_list(&dead_list);
 		kfree(context);
@@ -702,7 +713,7 @@ int five_file_mmap(struct file *file, unsigned long prot)
  *
  * On success return 0.
  */
-int five_bprm_check(struct linux_binprm *bprm)
+int __five_bprm_check(struct linux_binprm *bprm, int depth)
 {
 	int rc = 0;
 	struct task_struct *task = current;
@@ -711,7 +722,7 @@ int five_bprm_check(struct linux_binprm *bprm)
 	if (unlikely(task->ptrace))
 		return rc;
 
-	if (bprm->recursion_depth > 0) {
+	if (depth > 0) {
 		rc = push_file_event_bunch(task, bprm->file, MMAP_CHECK);
 	} else {
 		struct task_integrity *tint = task_integrity_alloc();
@@ -728,6 +739,18 @@ int five_bprm_check(struct linux_binprm *bprm)
 
 	return rc;
 }
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+int five_bprm_check(struct linux_binprm *bprm, int depth)
+{
+	return __five_bprm_check(bprm, depth);
+}
+#else
+int five_bprm_check(struct linux_binprm *bprm)
+{
+	return __five_bprm_check(bprm, bprm->recursion_depth);
+}
+#endif
 
 /**
  * This function handles two situations:
@@ -801,7 +824,7 @@ static int __init hash_setup(const char *str)
 	return 1;
 }
 
-static int __init init_five(void)
+int __init init_five(void)
 {
 	int error;
 
@@ -908,7 +931,7 @@ int five_fork(struct task_struct *task, struct task_struct *child_task)
 			}
 
 			list_add_tail(&five_file->list,
-					&TASK_INTEGRITY(child_task)->events.list);
+				      &TASK_INTEGRITY(child_task)->events.list);
 		}
 
 		context->tint = TASK_INTEGRITY(child_task);
@@ -949,7 +972,8 @@ int five_ptrace(struct task_struct *task, long request)
 	case PTRACE_PEEKSIGINFO:
 	case PTRACE_GETSIGMASK:
 	case PTRACE_GETEVENTMSG:
-#ifdef CONFIG_ARM64
+	case PTRACE_PEEKMTETAGS:
+#if defined(CONFIG_ARM64) || defined(KUNIT_UML)
 	case COMPAT_PTRACE_GETREGS:
 	case COMPAT_PTRACE_GET_THREAD_AREA:
 	case COMPAT_PTRACE_GETVFPREGS:

@@ -24,13 +24,24 @@ Required properties :
 			"qcom,gcc-sdm660"
 			"qcom,gcc-sdm845"
 			"qcom,lahaina-gcc"
-			"qcom,gcc-sm8150"
-			"qcom,gcc-sm8150-v2"
-			"qcom,gcc-sa8155"
-			"qcom,gcc-sa8155-v2"
+			"qcom,sm8150-gcc"
+			"qcom,sm8150-gcc-v2"
+			"qcom,sa8155-gcc"
+			"qcom,sa8155-gcc-v2"
 			"qcom,shima-gcc"
 			"qcom,holi-gcc"
 			"qcom,sdxlemur-gcc"
+			"qcom,yupik-gcc"
+			"qcom,sdxnightjar-gcc"
+			"qcom,scshrike-gcc"
+			"qcom,scshrike-gcc-v2"
+			"qcom,sm6150-gcc"
+			"qcom,sa6155-gcc"
+			"qcom,monaco-gcc"
+			"qcom,direwolf-gcc"
+			"qcom,blair-gcc"
+			"qcom,scuba-gcc"
+			"qcom,qcs404-gcc-mdss"
 
 - reg : shall contain base register location and length
 - vdd_cx-supply: The vdd_cx logic rail supply.
@@ -46,6 +57,10 @@ For more details on the TSENS properties please refer
 Documentation/devicetree/bindings/thermal/qcom-tsens.txt
 - protected-clocks : Protected clock specifier list as per common clock
  binding.
+- qcom,critical-clocks : List of clock specifiers that should be enabled during
+  probe and not registered with the clock framework.
+- qcom,critical-devices : List of device phandles whose associated clocks
+  should be enabled during probe and not registered with the clock framework.
 
 Example:
 	clock-controller@900000 {
@@ -79,4 +94,24 @@ Example of GCC with protected-clocks properties:
 				   <GCC_QSPI_CNOC_PERIPH_AHB_CLK>,
 				   <GCC_LPASS_Q6_AXI_CLK>,
 				   <GCC_LPASS_SWAY_CLK>;
+	};
+
+Example of GCC with qcom,critical-clocks properties:
+	clock-controller@100000 {
+		compatible = "qcom,waipio-gcc", "syscon";
+		reg = <0x100000 0x1f4200>;
+		#clock-cells = <1>;
+		#reset-cells = <1>;
+		qcom,critical-clocks = <GCC_QUPV3_WRAP0_S5_CLK>,
+				       <GCC_QUPV3_WRAP_0_M_AHB_CLK>,
+				       <GCC_QUPV3_WRAP_0_S_AHB_CLK>;
+	};
+
+Example of GCC with qcom,critical-devices properties:
+	clock-controller@100000 {
+		compatible = "qcom,waipio-gcc", "syscon";
+		reg = <0x100000 0x1f4200>;
+		#clock-cells = <1>;
+		#reset-cells = <1>;
+		qcom,critical-devices = <&qupv3_se5_i2c>;
 	};

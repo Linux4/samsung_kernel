@@ -24,6 +24,7 @@
 //#define STK_CHECK_LIB
 #define STK_FFT_FLICKER
 #define STK_SW_AGC
+#define CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS
 
 /* Define Register Map */
 #define STK3A8X_REG_STATE                   0x00
@@ -404,13 +405,18 @@ typedef struct stk3a8x_data
 {
 	struct      i2c_client *client;
 	struct      device *dev;
+	struct      device *sensor_dev;
 	struct      stk3a8x_platform_data *pdata;
 	const struct stk3a8x_bus_ops *bops;
 #ifdef SUPPORT_SENSOR_CLASS
 	struct sensors_classdev als_cdev;
 #endif
+	struct mutex            config_lock;
 	struct mutex            io_lock;
 	struct mutex            data_info_lock;
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	struct mutex            enable_lock;
+#endif
 	struct input_dev        *als_input_dev;
 	ktime_t                 alps_poll_delay;
 	struct work_struct      stk_alps_work;
@@ -464,6 +470,10 @@ typedef struct stk3a8x_data
 	bool                    recover_state;
 #endif
 	int                     isTrimmed;
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	bool als_flag;
+	bool flicker_flag;
+#endif
 } stk3a8x_data;
 
 struct stk3a8x_bus_ops
@@ -509,10 +519,13 @@ void stk3a8x_get_reg_default_setting(uint8_t reg, uint16_t* value);
 int32_t stk3a8x_update_registry(struct stk3a8x_data *alps_data);
 
 
-int sensors_register(struct device *dev, void *drvdata,
+int sensors_register(struct device **dev, void *drvdata,
 	struct device_attribute *attributes[], char *name);
 void sensors_unregister(struct device * const dev,
 	struct device_attribute *attributes[]);
+
+#define vfs_read(a, b, c, d)
+#define vfs_write(a, b, c, d)
 
 #ifdef STK_FIFO_ENABLE
 	void stk3a8x_free_fifo_data(struct stk3a8x_data *alps_data);

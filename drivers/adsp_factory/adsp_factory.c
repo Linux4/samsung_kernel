@@ -45,6 +45,9 @@ static u8 msg_size[MSG_SENSOR_MAX] = {
 #ifdef CONFIG_SUPPORT_SUB_MOBEAM
 	MSG_MOBEAM_MAX,
 #endif
+#ifdef CONFIG_TCS340X_FLICKER_FACTORY
+	MSG_FLICKER_MAX,
+#endif
 	MSG_TYPE_SIZE_ZERO,  /* PHYSICAL_SENSOR_SYSFS */
 	MSG_GYRO_TEMP_MAX,
 #ifdef CONFIG_SUPPORT_DUAL_6AXIS
@@ -59,10 +62,12 @@ static u8 msg_size[MSG_SENSOR_MAX] = {
 	MSG_TYPE_SIZE_ZERO,
 #endif
 	MSG_TYPE_SIZE_ZERO,
-#ifdef CONFIG_SUPPORT_AK0997X
+#ifdef CONFIG_SUPPORT_AK09973
 	MSG_DIGITAL_HALL_MAX,
 	MSG_DIGITAL_HALL_ANGLE_MAX,
+#if ENABLE_LF_STREAM
 	MSG_DIGITAL_HALL_ANGLE_MAX,
+#endif
 #endif
 #ifdef CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR
 	MSG_DDI_MAX,
@@ -211,9 +216,14 @@ int adsp_factory_register(unsigned int type,
 		dev_name = "hidden_hole_sub";
 		break;
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
+#ifdef CONFIG_SUPPORT_AK09973
 	case MSG_DIGITAL_HALL:
 		dev_name = "digital_hall";
+		break;
+#endif
+#ifdef CONFIG_TCS340X_FLICKER_FACTORY
+	case MSG_FLICKER:
+		dev_name = "als_rear";
 		break;
 #endif
 	default:
@@ -345,6 +355,13 @@ int get_sub_accel_raw_data(int32_t *raw_data)
 
 	return 0;
 }
+
+void lsm6dso_selftest_stop_work_func(struct work_struct *work)
+{
+	int msg_buf = LSM6DSO_SELFTEST_FALSE;
+	adsp_unicast(&msg_buf, sizeof(msg_buf),
+		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
+}
 #endif
 
 #ifdef CONFIG_SEC_FACTORY
@@ -414,7 +431,7 @@ void adsp_sub_mobeam_unregister(struct device_attribute *attributes[])
 #endif
 #endif
 
-#ifdef CONFIG_SUPPORT_AK0997X
+#ifdef CONFIG_SUPPORT_AK09973
 int get_hall_angle_data(int32_t *raw_data)
 {
 	uint8_t cnt = 0;
@@ -460,11 +477,12 @@ static int process_received_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	if (msg_type >= MSG_TYPE_MAX || sensor_type >= MSG_SENSOR_MAX ||
 		nlh->nlmsg_len - (int32_t)sizeof(struct nlmsghdr) >
 	    	sizeof(int32_t) * msg_size[sensor_type]) {
-		pr_err("[FACTORY] %d, %d, %d\n", msg_type, sensor_type, nlh->nlmsg_len);
+		pr_err("[FACTORY] %s %d, %d, %d\n", __func__, msg_type, sensor_type, nlh->nlmsg_len);
 		return 0;
 	}
 
 	if (sensor_type == MSG_FACTORY_INIT_CMD) {
+		pr_info("[FACTORY] %s - MSG_FACTORY_INIT_CMD\n", __func__);
 		accel_factory_init_work(data);
 #ifdef CONFIG_SUPPORT_DUAL_6AXIS
 		sub_accel_factory_init_work(data);
@@ -477,8 +495,6 @@ static int process_received_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 #endif
 #ifdef CONFIG_SUPPORT_DEVICE_MODE
 		sns_device_mode_init_work();
-#endif
-#if defined(CONFIG_SUPPORT_DUAL_OPTIC) && defined(CONFIG_SUPPORT_DEVICE_MODE)
 		sns_flip_init_work();
 #endif
 #ifdef CONFIG_SUPPORT_PROX_CALIBRATION
@@ -493,8 +509,8 @@ static int process_received_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 #ifdef CONFIG_VBUS_NOTIFIER
 		sns_vbus_init_work();
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
-		digital_hall_factory_auto_cal_init_work();
+#ifdef CONFIG_SUPPORT_AK09973
+		digital_hall_factory_auto_cal_init_work(data);
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
 		light_seamless_init_work(data);
@@ -502,7 +518,9 @@ static int process_received_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 #ifdef CONFIG_FLIP_COVER_DETECTOR_FACTORY
 		flip_cover_detector_init_work(data);
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 		pressure_factory_init_work(data);
+#endif
 		return 0;
 	}
 
@@ -570,12 +588,17 @@ static int __init factory_adsp_init(void)
 	mutex_init(&data->accel_factory_mutex);
 	mutex_init(&data->prox_factory_mutex);
 	mutex_init(&data->light_factory_mutex);
+#ifdef CONFIG_TCS340X_FLICKER_FACTORY
+	mutex_init(&data->flicker_factory_mutex);
+	INIT_DELAYED_WORK(&data->flicker_eol_work, flicker_eol_work_func);
+#endif
 	mutex_init(&data->remove_sysfs_mutex);
 #ifdef CONFIG_FLIP_COVER_DETECTOR_FACTORY
 	mutex_init(&data->flip_cover_factory_mutex);
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
+#ifdef CONFIG_SUPPORT_AK09973
 	mutex_init(&data->digital_hall_mutex);
+	INIT_DELAYED_WORK(&data->dhall_cal_work, dhall_cal_work_func);
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_CALIBRATION
 	INIT_DELAYED_WORK(&data->light_cal_work, light_cal_read_work_func);
@@ -594,12 +617,14 @@ static int __init factory_adsp_init(void)
 	INIT_DELAYED_WORK(&data->accel_cal_work, accel_cal_work_func);
 #ifdef CONFIG_SUPPORT_DUAL_6AXIS
 	INIT_DELAYED_WORK(&data->sub_accel_cal_work, sub_accel_cal_work_func);
+	INIT_DELAYED_WORK(&data->lsm6dso_selftest_stop_work, lsm6dso_selftest_stop_work_func);
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
 	INIT_DELAYED_WORK(&data->light_seamless_work, light_seamless_work_func);
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 	INIT_DELAYED_WORK(&data->pressure_cal_work, pressure_cal_work_func);
-
+#endif
 	pr_info("[FACTORY] %s: Timer Init\n", __func__);
 	return 0;
 }
@@ -615,8 +640,13 @@ static void __exit factory_adsp_exit(void)
 #ifdef CONFIG_FLIP_COVER_DETECTOR_FACTORY
 	mutex_destroy(&data->flip_cover_factory_mutex);
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
+#ifdef CONFIG_TCS340X_FLICKER_FACTORY
+	mutex_destroy(&data->flicker_factory_mutex);
+	cancel_delayed_work_sync(&data->flicker_eol_work);
+#endif
+#ifdef CONFIG_SUPPORT_AK09973
 	mutex_destroy(&data->digital_hall_mutex);
+	cancel_delayed_work_sync(&data->dhall_cal_work);
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_CALIBRATION
 	cancel_delayed_work_sync(&data->light_cal_work);
@@ -633,12 +663,14 @@ static void __exit factory_adsp_exit(void)
 	cancel_delayed_work_sync(&data->accel_cal_work);
 #ifdef CONFIG_SUPPORT_DUAL_6AXIS
 	cancel_delayed_work_sync(&data->sub_accel_cal_work);
+	cancel_delayed_work_sync(&data->lsm6dso_selftest_stop_work);
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
 	cancel_delayed_work_sync(&data->light_seamless_work);
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 	cancel_delayed_work_sync(&data->pressure_cal_work);
-
+#endif
 	for (i = 0; i < MSG_SENSOR_MAX; i++)
 		kfree(data->msg_buf[i]);
 	pr_info("[FACTORY] %s\n", __func__);

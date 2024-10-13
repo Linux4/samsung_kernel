@@ -61,6 +61,8 @@ static struct fscrypt_mode *
 select_encryption_mode(const union fscrypt_policy *policy,
 		       const struct inode *inode)
 {
+	BUILD_BUG_ON(ARRAY_SIZE(fscrypt_modes) != FSCRYPT_MODE_MAX + 1);
+
 	if (S_ISREG(inode->i_mode))
 		return &fscrypt_modes[fscrypt_policy_contents_mode(policy)];
 
@@ -140,8 +142,10 @@ int fscrypt_prepare_key(struct fscrypt_prepared_key *prep_key,
 	if (IS_ERR(tfm))
 		return PTR_ERR(tfm);
 	/*
-	 * Pairs with READ_ONCE() in fscrypt_is_key_prepared().  (Only matters
-	 * for the per-mode keys, which are shared by multiple inodes.)
+	 * Pairs with the smp_load_acquire() in fscrypt_is_key_prepared().
+	 * I.e., here we publish ->tfm with a RELEASE barrier so that
+	 * concurrent tasks can ACQUIRE it.  Note that this concurrency is only
+	 * possible for per-mode keys, not for per-file keys.
 	 */
 	smp_store_release(&prep_key->tfm, tfm);
 	return 0;
@@ -177,7 +181,7 @@ static int setup_per_mode_enc_key(struct fscrypt_info *ci,
 	unsigned int hkdf_infolen = 0;
 	int err;
 
-	if (WARN_ON(mode_num > __FSCRYPT_MODE_MAX))
+	if (WARN_ON(mode_num > FSCRYPT_MODE_MAX))
 		return -EINVAL;
 
 	prep_key = &keys[mode_num];
@@ -200,7 +204,7 @@ static int setup_per_mode_enc_key(struct fscrypt_info *ci,
 			err = -EINVAL;
 			goto out_unlock;
 		}
-		for (i = 0; i <= __FSCRYPT_MODE_MAX; i++) {
+		for (i = 0; i <= FSCRYPT_MODE_MAX; i++) {
 			if (fscrypt_is_key_prepared(&keys[i], ci)) {
 				fscrypt_warn(ci->ci_inode,
 					     "Each hardware-wrapped key can only be used with one encryption mode");
@@ -242,15 +246,40 @@ out_unlock:
 	return err;
 }
 
+/*
+ * Derive a SipHash key from the given fscrypt master key and the given
+ * application-specific information string.
+ *
+ * Note that the KDF produces a byte array, but the SipHash APIs expect the key
+ * as a pair of 64-bit words.  Therefore, on big endian CPUs we have to do an
+ * endianness swap in order to get the same results as on little endian CPUs.
+ */
+static int fscrypt_derive_siphash_key(const struct fscrypt_master_key *mk,
+				      u8 context, const u8 *info,
+				      unsigned int infolen, siphash_key_t *key)
+{
+	int err;
+
+	err = fscrypt_hkdf_expand(&mk->mk_secret.hkdf, context, info, infolen,
+				  (u8 *)key, sizeof(*key));
+	if (err)
+		return err;
+
+	BUILD_BUG_ON(sizeof(*key) != 16);
+	BUILD_BUG_ON(ARRAY_SIZE(key->key) != 2);
+	le64_to_cpus(&key->key[0]);
+	le64_to_cpus(&key->key[1]);
+	return 0;
+}
+
 int fscrypt_derive_dirhash_key(struct fscrypt_info *ci,
 			       const struct fscrypt_master_key *mk)
 {
 	int err;
 
-	err = fscrypt_hkdf_expand(&mk->mk_secret.hkdf, HKDF_CONTEXT_DIRHASH_KEY,
-				  ci->ci_nonce, FS_KEY_DERIVATION_NONCE_SIZE,
-				  (u8 *)&ci->ci_dirhash_key,
-				  sizeof(ci->ci_dirhash_key));
+	err = fscrypt_derive_siphash_key(mk, HKDF_CONTEXT_DIRHASH_KEY,
+					 ci->ci_nonce, FSCRYPT_FILE_NONCE_SIZE,
+					 &ci->ci_dirhash_key);
 	if (err)
 		return err;
 	ci->ci_dirhash_key_initialized = true;
@@ -275,10 +304,9 @@ static int fscrypt_setup_iv_ino_lblk_32_key(struct fscrypt_info *ci,
 		if (mk->mk_ino_hash_key_initialized)
 			goto unlock;
 
-		err = fscrypt_hkdf_expand(&mk->mk_secret.hkdf,
-					  HKDF_CONTEXT_INODE_HASH_KEY, NULL, 0,
-					  (u8 *)&mk->mk_ino_hash_key,
-					  sizeof(mk->mk_ino_hash_key));
+		err = fscrypt_derive_siphash_key(mk,
+						 HKDF_CONTEXT_INODE_HASH_KEY,
+						 NULL, 0, &mk->mk_ino_hash_key);
 		if (err)
 			goto unlock;
 		/* pairs with smp_load_acquire() above */
@@ -354,8 +382,7 @@ static int fscrypt_setup_v2_file_key(struct fscrypt_info *ci,
 
 		err = fscrypt_hkdf_expand(&mk->mk_secret.hkdf,
 					  HKDF_CONTEXT_PER_FILE_ENC_KEY,
-					  ci->ci_nonce,
-					  FS_KEY_DERIVATION_NONCE_SIZE,
+					  ci->ci_nonce, FSCRYPT_FILE_NONCE_SIZE,
 					  derived_key, ci->ci_mode->keysize);
 		if (err)
 			return err;
@@ -565,6 +592,25 @@ int fscrypt_get_encryption_info(struct inode *inode)
 		memcpy(&ctx, dummy_ctx, res);
 	}
 
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (res == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			res = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (res == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			res = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
+
 	crypt_info = kmem_cache_zalloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
@@ -586,7 +632,7 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	}
 
 	memcpy(crypt_info->ci_nonce, fscrypt_context_nonce(&ctx),
-	       FS_KEY_DERIVATION_NONCE_SIZE);
+	       FSCRYPT_FILE_NONCE_SIZE);
 
 	if (!fscrypt_supported_policy(&crypt_info->ci_policy, inode)) {
 		res = -EINVAL;
@@ -774,7 +820,7 @@ static inline int __find_and_derive_mode_key(
 	unsigned int hkdf_infolen = 0;
 	int err;
 
-	if (WARN_ON(mode_num > __FSCRYPT_MODE_MAX))
+	if (WARN_ON(mode_num > FSCRYPT_MODE_MAX))
 		return -EINVAL;
 
 	mutex_lock(&fscrypt_mode_key_setup_mutex);
@@ -806,11 +852,8 @@ static inline int __find_and_derive_mode_key(
 		memcpy(fskey->raw, mode_key, mode->keysize);
 		fskey->size = mode->keysize;
 		memzero_explicit(mode_key, mode->keysize);
-		if (err)
-			goto out_unlock;
 	}
 
-	err = 0;
 out_unlock:
 	mutex_unlock(&fscrypt_mode_key_setup_mutex);
 	return err;
@@ -900,7 +943,7 @@ static inline int __find_and_derive_fskey(
 		err = fscrypt_hkdf_expand(&mk->mk_secret.hkdf,
 					  HKDF_CONTEXT_PER_FILE_ENC_KEY,
 					  ci->ci_nonce,
-					  FS_KEY_DERIVATION_NONCE_SIZE,
+					  FSCRYPT_FILE_NONCE_SIZE,
 					  fskey->raw, ci->ci_mode->keysize);
 		if (err == 0)
 			fskey->size = ci->ci_mode->keysize;

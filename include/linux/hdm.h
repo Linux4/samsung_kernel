@@ -27,6 +27,7 @@
 #define HDM_HYP_CALL		0x40000
 #define HDM_HYP_CALLP		0x80000
 #define HDM_CMD_MAX		0xFFFFF
+#define HDM_WIFI_SUPPORT_BIT	0x08
 
 enum {
 	HDM_ALLOW = 0,

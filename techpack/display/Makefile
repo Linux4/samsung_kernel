@@ -2,11 +2,13 @@
 
 # auto-detect subdirs
 ifeq ($(CONFIG_ARCH_KONA), y)
-include $(srctree)/techpack/display/config/konadisp.conf
-endif
-
-ifeq ($(CONFIG_ARCH_KONA), y)
+     ifeq ($(CONFIG_QGKI), y)
+		include $(srctree)/techpack/display/config/konadisp.conf
 LINUXINCLUDE    += -include $(srctree)/techpack/display/config/konadispconf.h
+     else
+		include $(srctree)/techpack/display/config/gki_konadisp.conf
+LINUXINCLUDE    += -include $(srctree)/techpack/display/config/gki_konadispconf.h
+     endif
 endif
 
 ifeq ($(CONFIG_ARCH_LAHAINA), y)
@@ -50,4 +52,22 @@ ifeq ($(CONFIG_ARCH_BENGAL), y)
 LINUXINCLUDE    += -include $(srctree)/techpack/display/config/bengaldispconf.h
 endif
 
+ifeq ($(CONFIG_ARCH_MONACO), y)
+include $(srctree)/techpack/display/config/monacodisp.conf
+endif
+
+ifeq ($(CONFIG_ARCH_MONACO), y)
+LINUXINCLUDE    += -include $(srctree)/techpack/display/config/monacodispconf.h
+endif
+
 obj-$(CONFIG_DRM_MSM) += msm/
+
+ifeq ($(CONFIG_ARCH_SDXLEMUR), y)
+include $(srctree)/techpack/display/config/sdxlemurdisp.conf
+endif
+
+ifeq ($(CONFIG_ARCH_SDXLEMUR), y)
+LINUXINCLUDE    += -include $(srctree)/techpack/display/config/sdxlemurdispconf.h
+endif
+
+obj-$(CONFIG_DRM_QPIC_DISPLAY) += tinydrm/

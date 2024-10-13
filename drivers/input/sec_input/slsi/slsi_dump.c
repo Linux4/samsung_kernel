@@ -790,17 +790,8 @@ static ssize_t slsi_ts_tsp_fail_hist_read(struct file *file, char __user *buf,
 	return slsi_ts_tsp_fail_hist_all_read(file, buf, len, offset);
 }
 
-static const struct file_operations tsp_cmoffset_all_file_ops = {
-	.owner = THIS_MODULE,
-	.read = slsi_ts_tsp_cmoffset_read,
-	.llseek = generic_file_llseek,
-};
-
-static const struct file_operations tsp_fail_hist_all_file_ops = {
-	.owner = THIS_MODULE,
-	.read = slsi_ts_tsp_fail_hist_read,
-	.llseek = generic_file_llseek,
-};
+static sec_input_proc_ops(THIS_MODULE, tsp_cmoffset_all_file_ops, slsi_ts_tsp_cmoffset_read, NULL);
+static sec_input_proc_ops(THIS_MODULE, tsp_fail_hist_all_file_ops, slsi_ts_tsp_fail_hist_read, NULL);
 
 void slsi_ts_init_proc(struct slsi_ts_data *ts)
 {

@@ -36,6 +36,9 @@
 #if IS_REACHABLE(CONFIG_LEDS_KTD2692)
 #include <linux/leds-ktd2692.h>
 #endif
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+#include <linux/sm5714.h>
+#endif
 
 #if 0 //EARLY_RETENTION
 extern int32_t cam_sensor_early_retention(void);
@@ -139,6 +142,64 @@ static ssize_t rear_ssm_flicker_state_store(struct device *dev,
 }
 #endif
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+int cdr_value_exist = 0;
+uint64_t cdr_start_ts;
+uint64_t cdr_end_ts;
+char cdr_value[50] = "";
+static ssize_t rear_cam_cdr_value_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_value);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear_cam_cdr_value_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	cdr_value_exist = 1;
+	scnprintf(cdr_value, sizeof(cdr_value), "%s", buf);
+
+	return size;
+}
+
+char cdr_result[40] = "\n";
+static ssize_t rear_cam_cdr_result_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_result);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+char cdr_fastaec[5] = "";
+static ssize_t rear_cam_cdr_fastaec_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_fastaec);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear_cam_cdr_fastaec_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	scnprintf(cdr_fastaec, sizeof(cdr_fastaec), "%s", buf);
+
+	return size;
+}
+#endif
+
 char rear_fw_ver[SYSFS_FW_VER_SIZE] = "NULL NULL\n";//multi module
 static ssize_t rear_firmware_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -173,6 +234,9 @@ static ssize_t rear_type_show(struct device *dev,
 #elif defined(CONFIG_SEC_R9Q_PROJECT)
 	char cam_type_sony[] = "SONY_IMX555\n";
 	char cam_type_slsi[] = "SLSI_S5K2LD\n";
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+char cam_type[] = "SLSI_S5KJN1\n";
+
 #else
 	char cam_type[] = "SONY_IMX555\n";
 #endif
@@ -199,8 +263,11 @@ static ssize_t front_camera_type_show(struct device *dev,
 	char cam_type[] = "SLSI_S5KGH1\n";
 #elif defined(CONFIG_SEC_R9Q_PROJECT)
 	char cam_type[] = "SONY_IMX616\n";
-#elif defined(CONFIG_SEC_Q2Q_PROJECT)
+#elif defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 	char cam_type[] = "SONY_IMX471\n";
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+char cam_type[] = "HYNIX_HI1336\n";
+
 #else
 	char cam_type[] = "SONY_IMX374\n";
 #endif
@@ -1627,9 +1694,11 @@ static ssize_t rear3_type_show(struct device *dev,
 	char cam_type[] = "SLSI_S5K3J1\n";
 #elif defined(CONFIG_SEC_R9Q_PROJECT)
 	char cam_type[] = "HYNIX_HI847\n";
-#elif defined(CONFIG_SEC_Q2Q_PROJECT)
+#elif defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 	char cam_type_lsi[] = "SLSI_S5K3M5\n";
 	char cam_type_hynix[] = "HYNIX_HI1337\n";
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+    char cam_type[] = "SLSI_GCO2M2\n";
 #else
 	char cam_type[] = "SLSI_S5KGW2\n";
 #endif
@@ -2049,11 +2118,15 @@ static ssize_t rear2_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int rc = 0;
-#if defined(CONFIG_SEC_Q2Q_PROJECT)|| defined(CONFIG_SEC_B2Q_PROJECT)
+#if defined(CONFIG_SEC_Q2Q_PROJECT)|| defined(CONFIG_SEC_B2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 	char cam_type[] = "SONY_IMX258\n";
 #elif defined(CONFIG_SEC_R9Q_PROJECT)
 	char cam_type_sony[] = "SONY_IMX258\n";
 	char cam_type_hynix[] = "HYNIX_HI1336C\n";
+#elif defined(CONFIG_SEC_O1Q_PROJECT) || defined(CONFIG_SEC_T2Q_PROJECT) || defined(CONFIG_SEC_P3Q_PROJECT)
+	char cam_type[] = "SONY_IMX563\n";
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+char cam_type[] = "SLSI_SC201CS\n";
 #else
 	char cam_type[] = "";
 #endif
@@ -3995,6 +4068,8 @@ ssize_t rear_flash_store(struct device *dev,
 	s2mpb02_store(buf);
 #elif IS_REACHABLE(CONFIG_LEDS_KTD2692)
 	ktd2692_store(buf);
+#elif IS_REACHABLE(CONFIG_LEDS_SM5714)
+	sm5714_rear_flash_store(buf);
 #endif
 	return count;
 }
@@ -4006,6 +4081,8 @@ ssize_t rear_flash_show(struct device *dev,
 	return s2mpb02_show(buf);
 #elif IS_REACHABLE(CONFIG_LEDS_KTD2692)
 	return ktd2692_show(buf);
+#elif IS_REACHABLE(CONFIG_LEDS_SM5714)
+	return sm5714_rear_flash_show(buf);
 #else
 	return 0;
 #endif
@@ -4022,7 +4099,13 @@ static DEVICE_ATTR(ssm_gmc_state, S_IRUGO|S_IWUSR|S_IWGRP,
 static DEVICE_ATTR(ssm_flicker_state, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear_ssm_flicker_state_show, rear_ssm_flicker_state_store);
 #endif
-
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static DEVICE_ATTR(cam_cdr_value, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear_cam_cdr_value_show, rear_cam_cdr_value_store);
+static DEVICE_ATTR(cam_cdr_result, S_IRUGO, rear_cam_cdr_result_show, NULL);
+static DEVICE_ATTR(cam_cdr_fastaec, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear_cam_cdr_fastaec_show, rear_cam_cdr_fastaec_store);
+#endif
 static DEVICE_ATTR(rear_camtype, S_IRUGO, rear_type_show, NULL);
 static DEVICE_ATTR(rear_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear_firmware_show, rear_firmware_store);
@@ -4530,6 +4613,11 @@ const struct device_attribute *rear_attrs[] = {
 #endif
 #if defined(CONFIG_CAMERA_FAC_LN_TEST)
 	&dev_attr_cam_ln_test,
+#endif
+#if defined(CONFIG_CAMERA_CDR_TEST)
+	&dev_attr_cam_cdr_value,
+	&dev_attr_cam_cdr_result,
+	&dev_attr_cam_cdr_fastaec,
 #endif
 	NULL, // DO NOT REMOVE
 };

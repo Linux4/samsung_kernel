@@ -457,10 +457,8 @@ void slsi_ts_reset_work(struct work_struct *work)
 			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
 		mutex_unlock(&ts->modechange);
 
-		if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-			snprintf(result, sizeof(result), "RESULT=RESET");
-			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-		}
+		snprintf(result, sizeof(result), "RESULT=RESET");
+		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
 		__pm_relax(ts->plat_data->sec_ws);
 
@@ -497,12 +495,8 @@ void slsi_ts_reset_work(struct work_struct *work)
 			slsi_ts_fix_tmode(ts, TOUCH_SYSTEM_MODE_TOUCH, TOUCH_MODE_STATE_TOUCH);
 	}
 
-	if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-		char result[32];
-
-		snprintf(result, sizeof(result), "RESULT=RESET");
-		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-	}
+	snprintf(result, sizeof(result), "RESULT=RESET");
+	sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
 	__pm_relax(ts->plat_data->sec_ws);
 }
@@ -565,8 +559,6 @@ void slsi_ts_read_info_work(struct work_struct *work)
 	} else {
 		input_err(true, &ts->client->dev, "%s: read fail-history fail : alloc fail\n", __func__);
 	}
-
-	ts->info_work_done = true;
 
 	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s done, do not run work\n", __func__);

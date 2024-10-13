@@ -115,7 +115,7 @@ RETRY_MAG_SELFTEST:
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] & 1 << MSG_MAG) &&
 		cnt++ < TIMEOUT_CNT)
-		msleep(20);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_MAG);
 
@@ -151,7 +151,7 @@ RETRY_MAG_SELFTEST:
 		pr_info("[FACTORY] %s - msg_buf[1] 0x%x", __func__, data->msg_buf[MSG_MAG][1]);
 		st_status = AKM_ST_FAIL;
 	}
-	pr_info("[FACTORY] status=%d, st_status=%d, st_x=%d, st_y=%d, st_z=%d\n dac=%d, adc=%d, adc_x=%d, adc_y=%d, adc_z=%d\n",
+	pr_info("[FACTORY] status=%d, st_status=%d, st_xyz=%d,%d,%d, dac=%d, adc=%d, adc_xyz=%d,%d,%d\n",
 		data->msg_buf[MSG_MAG][0], st_status,
 		data->msg_buf[MSG_MAG][2], data->msg_buf[MSG_MAG][3],
 		data->msg_buf[MSG_MAG][4], data->msg_buf[MSG_MAG][5],

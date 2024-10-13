@@ -39,7 +39,7 @@ uint32_t notifyCameraList[] = {
 	SEC_TELE2_SENSOR,
 	SEC_FRONT_SENSOR,
 };
-#elif defined(CONFIG_SEC_Q2Q_PROJECT)
+#elif defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 uint32_t notifyCameraList[] = {
 	SEC_WIDE_SENSOR,
 	SEC_ULTRA_WIDE_SENSOR,

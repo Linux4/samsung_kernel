@@ -356,6 +356,9 @@ smb2_reconnect(__le16 smb2_command, struct cifs_tcon *tcon)
 			rc = -EHOSTDOWN;
 			mutex_unlock(&tcon->ses->session_mutex);
 			goto failed;
+		} else if (rc) {
+			mutex_unlock(&ses->session_mutex);
+			goto out;
 		}
 	}
 	if (rc || !tcon->need_reconnect) {
@@ -490,8 +493,8 @@ build_preauth_ctxt(struct smb2_preauth_neg_context *pneg_ctxt)
 	pneg_ctxt->ContextType = SMB2_PREAUTH_INTEGRITY_CAPABILITIES;
 	pneg_ctxt->DataLength = cpu_to_le16(38);
 	pneg_ctxt->HashAlgorithmCount = cpu_to_le16(1);
-	pneg_ctxt->SaltLength = cpu_to_le16(SMB311_SALT_SIZE);
-	get_random_bytes(pneg_ctxt->Salt, SMB311_SALT_SIZE);
+	pneg_ctxt->SaltLength = cpu_to_le16(SMB311_LINUX_CLIENT_SALT_SIZE);
+	get_random_bytes(pneg_ctxt->Salt, SMB311_LINUX_CLIENT_SALT_SIZE);
 	pneg_ctxt->HashAlgorithms = SMB2_PREAUTH_INTEGRITY_SHA512;
 }
 
@@ -616,6 +619,9 @@ static void decode_preauth_context(struct smb2_preauth_neg_context *ctxt)
 	/* If invalid preauth context warn but use what we requested, SHA-512 */
 	if (len < MIN_PREAUTH_CTXT_DATA_LEN) {
 		printk_once(KERN_WARNING "server sent bad preauth context\n");
+		return;
+	} else if (len < MIN_PREAUTH_CTXT_DATA_LEN + le16_to_cpu(ctxt->SaltLength)) {
+		pr_warn_once("server sent invalid SaltLength\n");
 		return;
 	}
 	if (le16_to_cpu(ctxt->HashAlgorithmCount) != 1)
@@ -976,6 +982,13 @@ SMB2_negotiate(const unsigned int xid, struct cifs_ses *ses)
 	/* Internal types */
 	server->capabilities |= SMB2_NT_FIND | SMB2_LARGE_FILES;
 
+	/*
+	 * SMB3.0 supports only 1 cipher and doesn't have a encryption neg context
+	 * Set the cipher type manually.
+	 */
+	if (server->dialect == SMB30_PROT_ID && (server->capabilities & SMB2_GLOBAL_CAP_ENCRYPTION))
+		server->cipher_type = SMB2_ENCRYPTION_AES128_CCM;
+
 	security_blob = smb2_get_data_area_len(&blob_offset, &blob_length,
 					       (struct smb2_sync_hdr *)rsp);
 	/*
@@ -1087,9 +1100,9 @@ int smb3_validate_negotiate(const unsigned int xid, struct cifs_tcon *tcon)
 		pneg_inbuf->Dialects[0] =
 			cpu_to_le16(server->vals->protocol_id);
 		pneg_inbuf->DialectCount = cpu_to_le16(1);
-		/* structure is big enough for 3 dialects, sending only 1 */
+		/* structure is big enough for 4 dialects, sending only 1 */
 		inbuflen = sizeof(*pneg_inbuf) -
-				sizeof(pneg_inbuf->Dialects[0]) * 2;
+				sizeof(pneg_inbuf->Dialects[0]) * 3;
 	}
 
 	rc = SMB2_ioctl(xid, tcon, NO_FILE_ID, NO_FILE_ID,
@@ -2945,8 +2958,8 @@ SMB2_close_free(struct smb_rqst *rqst)
 }
 
 int
-SMB2_close_flags(const unsigned int xid, struct cifs_tcon *tcon,
-		 u64 persistent_fid, u64 volatile_fid, int flags)
+SMB2_close(const unsigned int xid, struct cifs_tcon *tcon,
+		 u64 persistent_fid, u64 volatile_fid)
 {
 	struct smb_rqst rqst;
 	struct smb2_close_rsp *rsp = NULL;
@@ -2955,6 +2968,7 @@ SMB2_close_flags(const unsigned int xid, struct cifs_tcon *tcon,
 	struct kvec rsp_iov;
 	int resp_buftype = CIFS_NO_BUFFER;
 	int rc = 0;
+	int flags = 0;
 
 	cifs_dbg(FYI, "Close\n");
 
@@ -2993,27 +3007,17 @@ SMB2_close_flags(const unsigned int xid, struct cifs_tcon *tcon,
 close_exit:
 	SMB2_close_free(&rqst);
 	free_rsp_buf(resp_buftype, rsp);
-	return rc;
-}
-
-int
-SMB2_close(const unsigned int xid, struct cifs_tcon *tcon,
-	   u64 persistent_fid, u64 volatile_fid)
-{
-	int rc;
-	int tmp_rc;
-
-	rc = SMB2_close_flags(xid, tcon, persistent_fid, volatile_fid, 0);
 
 	/* retry close in a worker thread if this one is interrupted */
-	if (rc == -EINTR) {
+	if (is_interrupt_error(rc)) {
+		int tmp_rc;
+
 		tmp_rc = smb2_handle_cancelled_close(tcon, persistent_fid,
 						     volatile_fid);
 		if (tmp_rc)
 			cifs_dbg(VFS, "handle cancelled close fid 0x%llx returned error %d\n",
 				 persistent_fid, tmp_rc);
 	}
-
 	return rc;
 }
 
@@ -3610,10 +3614,10 @@ smb2_new_read_req(void **buf, unsigned int *total_len,
 			 * Related requests use info from previous read request
 			 * in chain.
 			 */
-			shdr->SessionId = 0xFFFFFFFF;
+			shdr->SessionId = 0xFFFFFFFFFFFFFFFF;
 			shdr->TreeId = 0xFFFFFFFF;
-			req->PersistentFileId = 0xFFFFFFFF;
-			req->VolatileFileId = 0xFFFFFFFF;
+			req->PersistentFileId = 0xFFFFFFFFFFFFFFFF;
+			req->VolatileFileId = 0xFFFFFFFFFFFFFFFF;
 		}
 	}
 	if (remaining_bytes > io_parms->length)
@@ -3635,12 +3639,15 @@ smb2_readv_callback(struct mid_q_entry *mid)
 				(struct smb2_sync_hdr *)rdata->iov[0].iov_base;
 	struct cifs_credits credits = { .value = 0, .instance = 0 };
 	struct smb_rqst rqst = { .rq_iov = &rdata->iov[1],
-				 .rq_nvec = 1,
-				 .rq_pages = rdata->pages,
-				 .rq_offset = rdata->page_offset,
-				 .rq_npages = rdata->nr_pages,
-				 .rq_pagesz = rdata->pagesz,
-				 .rq_tailsz = rdata->tailsz };
+				 .rq_nvec = 1, };
+
+	if (rdata->got_bytes) {
+		rqst.rq_pages = rdata->pages;
+		rqst.rq_offset = rdata->page_offset;
+		rqst.rq_npages = rdata->nr_pages;
+		rqst.rq_pagesz = rdata->pagesz;
+		rqst.rq_tailsz = rdata->tailsz;
+	}
 
 	cifs_dbg(FYI, "%s: mid=%llu state=%d result=%d bytes=%u\n",
 		 __func__, mid->mid, mid->mid_state, rdata->result,
@@ -3749,8 +3756,7 @@ smb2_async_readv(struct cifs_readdata *rdata)
 	if (rdata->credits.value > 0) {
 		shdr->CreditCharge = cpu_to_le16(DIV_ROUND_UP(rdata->bytes,
 						SMB2_MAX_BUFFER_SIZE));
-		shdr->CreditRequest =
-			cpu_to_le16(le16_to_cpu(shdr->CreditCharge) + 1);
+		shdr->CreditRequest = cpu_to_le16(le16_to_cpu(shdr->CreditCharge) + 8);
 
 		rc = adjust_credits(server, &rdata->credits, rdata->bytes);
 		if (rc)
@@ -4044,8 +4050,7 @@ smb2_async_writev(struct cifs_writedata *wdata,
 	if (wdata->credits.value > 0) {
 		shdr->CreditCharge = cpu_to_le16(DIV_ROUND_UP(wdata->bytes,
 						    SMB2_MAX_BUFFER_SIZE));
-		shdr->CreditRequest =
-			cpu_to_le16(le16_to_cpu(shdr->CreditCharge) + 1);
+		shdr->CreditRequest = cpu_to_le16(le16_to_cpu(shdr->CreditCharge) + 8);
 
 		rc = adjust_credits(server, &wdata->credits, wdata->bytes);
 		if (rc)

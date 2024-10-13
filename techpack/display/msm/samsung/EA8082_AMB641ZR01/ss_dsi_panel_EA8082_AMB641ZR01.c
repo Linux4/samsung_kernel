@@ -297,12 +297,13 @@ static int ss_ddi_id_read(struct samsung_display_driver_data *vdd)
 			vdd->ddi_id_dsi[2], vdd->ddi_id_dsi[3],
 			vdd->ddi_id_dsi[4], vdd->ddi_id_dsi[5]);
 	} else {
-		LCD_ERR(vdd, "DSI%d no ddi_id_rx_cmds cmds", vdd->ndx);
+		LCD_INFO(vdd, "DSI%d no ddi_id_rx_cmds cmds", vdd->ndx);
 		return false;
 	}
 
 	return true;
 }
+
 static int ss_module_info_read(struct samsung_display_driver_data *vdd)
 {
 	unsigned char buf[11];
@@ -616,7 +617,7 @@ static struct dsi_panel_cmd_set *ss_acl_on(struct samsung_display_driver_data *v
 		return NULL;
 	}
 
-	pcmds->cmds[0].ss_txbuf[1] = 0x03;	/* ACL 15% */
+	pcmds->cmds[0].ss_txbuf[1] = 0x01;	/* ACL 8% */
 
 	LCD_INFO(vdd, "gradual_acl: %d, acl per: 0x%x",
 			vdd->br_info.gradual_acl_val, pcmds->cmds[0].ss_txbuf[1]);
@@ -634,6 +635,26 @@ static struct dsi_panel_cmd_set *ss_acl_off(struct samsung_display_driver_data *
 	*level_key = LEVEL1_KEY;
 	LCD_INFO(vdd, "off\n");
 	return ss_get_cmds(vdd, TX_ACL_OFF);
+}
+
+static struct dsi_panel_cmd_set *ss_vint(struct samsung_display_driver_data *vdd, int *level_key)
+{
+	struct dsi_panel_cmd_set *vint_cmds = ss_get_cmds(vdd, TX_VINT);
+	int idx = 0;
+
+	if (IS_ERR_OR_NULL(vdd) || SS_IS_CMDS_NULL(vint_cmds)) {
+		LCD_ERR(vdd, "Invalid data vdd : 0x%zx cmds : 0x%zx", (size_t)vdd, (size_t)vint_cmds);
+		return NULL;
+	}
+
+	idx = ss_get_cmd_idx(vint_cmds, 0x0C, 0xD3);
+
+	if (vdd->xtalk_mode)
+		vint_cmds->cmds[idx].ss_txbuf[1] = 0x0D; // ON
+	else
+		vint_cmds->cmds[idx].ss_txbuf[1] = 0x13; // OFF
+
+	return vint_cmds;
 }
 
 static void ss_set_panel_lpm_brightness(struct samsung_display_driver_data *vdd)
@@ -865,6 +886,9 @@ static void make_brightness_packet(struct samsung_display_driver_data *vdd,
 			/* gamma */
 			ss_add_brightness_packet(vdd, BR_FUNC_GAMMA, packet, cmd_cnt);
 
+			/* vint */
+			ss_add_brightness_packet(vdd, BR_FUNC_VINT, packet, cmd_cnt);
+
 			/* VRR */
 			ss_add_brightness_packet(vdd, BR_FUNC_VRR, packet, cmd_cnt);
 
@@ -891,6 +915,9 @@ static void make_brightness_packet(struct samsung_display_driver_data *vdd,
 
 		/* hbm etc */
 		ss_add_brightness_packet(vdd, BR_FUNC_HBM_ETC, packet, cmd_cnt);
+
+		/* vint */
+		ss_add_brightness_packet(vdd, BR_FUNC_HBM_VINT, packet, cmd_cnt);
 
 		/* VRR */
 		ss_add_brightness_packet(vdd, BR_FUNC_HBM_VRR, packet, cmd_cnt);
@@ -933,6 +960,7 @@ void EA8082_AMB641ZR01_FHD_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.br_func[BR_FUNC_ACL_ON] = ss_acl_on;
 	vdd->panel_func.br_func[BR_FUNC_ACL_OFF] = ss_acl_off;
 	vdd->panel_func.br_func[BR_FUNC_VRR] = ss_vrr;
+	vdd->panel_func.br_func[BR_FUNC_VINT] = ss_vint;
 
 	vdd->br_info.smart_dimming_loaded_dsi = false;
 
@@ -941,6 +969,7 @@ void EA8082_AMB641ZR01_FHD_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.br_func[BR_FUNC_HBM_ACL_ON] = ss_acl_on_hbm;
 	vdd->panel_func.br_func[BR_FUNC_HBM_ACL_OFF] = ss_acl_off;
 	vdd->panel_func.br_func[BR_FUNC_HBM_VRR] = ss_vrr_hbm;
+	vdd->panel_func.br_func[BR_FUNC_HBM_VINT] = ss_vint;
 
 	/* HMT */
 	vdd->panel_func.br_func[BR_FUNC_HMT_GAMMA] = ss_brightness_gamma_mode2_hmt;

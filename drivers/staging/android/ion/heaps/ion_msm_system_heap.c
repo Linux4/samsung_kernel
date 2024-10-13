@@ -3,7 +3,7 @@
  * ION Memory Allocator system heap exporter
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (c) 2011-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
  *
  */
 
@@ -33,6 +33,8 @@ static gfp_t low_order_gfp_flags  = GFP_HIGHUSER | __GFP_ZERO;
 
 static bool pool_auto_refill_en  __read_mostly =
 IS_ENABLED(CONFIG_ION_POOL_AUTO_REFILL);
+
+static bool valid_vmids[VMID_LAST];
 
 int order_to_index(unsigned int order)
 {
@@ -141,7 +143,7 @@ void free_buffer_page(struct ion_msm_system_heap *heap,
 	if (!(buffer->flags & ION_FLAG_POOL_FORCE_ALLOC)) {
 		struct ion_msm_page_pool *pool;
 
-		if (vmid > 0)
+		if (vmid > 0 && PagePrivate(page))
 			pool = heap->secure_pools[vmid][order_to_index(order)];
 		else if (cached)
 			pool = heap->cached_pools[order_to_index(order)];
@@ -280,6 +282,43 @@ static void process_info(struct page_info *info,
 	kfree(info);
 }
 
+static bool check_valid_vmid(int dest_vmid, struct ion_msm_system_heap *sys_heap)
+{
+	phys_addr_t addr;
+	struct page *page;
+	int ret;
+	bool from_pool = true;
+	u32 source_vmid = VMID_HLOS;
+	u32 dest_perms = msm_secure_get_vmid_perms(dest_vmid);
+	int order_ind = order_to_index(0);
+
+	if (valid_vmids[dest_vmid])
+		return true;
+
+	page = ion_msm_page_pool_alloc(sys_heap->uncached_pools[order_ind],
+				       &from_pool);
+	if (IS_ERR(page))
+		return false;
+
+	if (!from_pool)
+		ion_pages_sync_for_device(sys_heap->heap.dev,
+					  page, PAGE_SIZE,
+					  DMA_BIDIRECTIONAL);
+	addr = page_to_phys(page);
+	ret = hyp_assign_phys(addr, PAGE_SIZE, &source_vmid, 1,
+			      &dest_vmid, &dest_perms, 1);
+	if (ret) {
+		ion_msm_page_pool_free(sys_heap->uncached_pools[order_ind],
+				       page);
+		return false;
+	}
+	valid_vmids[dest_vmid] = true;
+	SetPagePrivate(page);
+	ion_msm_page_pool_free(sys_heap->secure_pools[dest_vmid][order_ind],
+			       page);
+	return true;
+}
+
 static int ion_msm_system_heap_allocate(struct ion_heap *heap,
 					struct ion_buffer *buffer,
 					unsigned long size,
@@ -309,6 +348,19 @@ static int ion_msm_system_heap_allocate(struct ion_heap *heap,
 	    is_secure_allocation(buffer->flags)) {
 		pr_info("%s: System heap doesn't support secure allocations\n",
 			__func__);
+		return -EINVAL;
+	}
+
+	/*
+	 * check if vmid is valid and skip this
+	 * check for trusted vm vmids (i.e; for
+	 * vmids > VMID_LAST) assuming vmids for
+	 * trusted vm are already validated.
+	 */
+	if (vmid > 0 && vmid < VMID_LAST &&
+	    !check_valid_vmid(vmid, sys_heap)) {
+		pr_err("%s: VMID: %d not valid\n",
+		       __func__, vmid);
 		return -EINVAL;
 	}
 
@@ -398,8 +450,10 @@ static int ion_msm_system_heap_allocate(struct ion_heap *heap,
 	if (nents_sync) {
 		if (vmid > 0) {
 			ret = ion_hyp_assign_sg(&table_sync, &vmid, 1, true);
-			if (ret)
+			if (ret == -EADDRNOTAVAIL)
 				goto err_free_sg2;
+			else if (ret < 0)
+				goto err_free;
 		}
 	}
 
@@ -418,16 +472,20 @@ static int ion_msm_system_heap_allocate(struct ion_heap *heap,
 	return 0;
 
 err_free_sg2:
-	/* We failed to zero buffers. Bypass pool */
-	buffer->private_flags |= ION_PRIV_FLAG_SHRINKER_FREE;
-
 	if (vmid > 0)
-		if (ion_hyp_unassign_sg(table, &vmid, 1, true))
+		if (ion_hyp_unassign_sg(&table_sync, &vmid, 1, true))
 			goto err_free_table_sync;
-
-	for_each_sg(table->sgl, sg, table->nents, i)
+err_free:
+	for_each_sg(table->sgl, sg, table->nents, i) {
+		if (!PagePrivate(sg_page(sg))) {
+			/* Pages from buddy are not zeroed. Bypass pool */
+			buffer->private_flags |= ION_PRIV_FLAG_SHRINKER_FREE;
+		} else {
+			buffer->private_flags &= ~ION_PRIV_FLAG_SHRINKER_FREE;
+		}
 		free_buffer_page(sys_heap, buffer, sg_page(sg),
 				 get_order(sg->length));
+	}
 err_free_table_sync:
 	if (nents_sync)
 		sg_free_table(&table_sync);
@@ -526,10 +584,50 @@ static int ion_msm_system_heap_shrink(struct ion_heap *heap, gfp_t gfp_mask,
 	return nr_total;
 }
 
+static long ion_msm_system_heap_get_pool_size(struct ion_heap *heap)
+{
+	struct ion_msm_system_heap *sys_heap;
+	unsigned long total_size = 0;
+	int i, j;
+	struct ion_msm_page_pool *pool;
+
+	sys_heap = to_msm_system_heap(heap);
+	for (i = 0; i < NUM_ORDERS; i++) {
+		pool = sys_heap->uncached_pools[i];
+		total_size += (1 << pool->order) *
+				pool->high_count;
+		total_size += (1 << pool->order) *
+				pool->low_count;
+	}
+
+	for (i = 0; i < NUM_ORDERS; i++) {
+		pool = sys_heap->cached_pools[i];
+		total_size += (1 << pool->order) *
+				pool->high_count;
+		total_size += (1 << pool->order) *
+				pool->low_count;
+	}
+
+	for (i = 0; i < NUM_ORDERS; i++) {
+		for (j = 0; j < VMID_LAST; j++) {
+			if (!is_secure_vmid_valid(j))
+				continue;
+			pool = sys_heap->secure_pools[j][i];
+		total_size += (1 << pool->order) *
+				pool->high_count;
+		total_size += (1 << pool->order) *
+				pool->low_count;
+		}
+	}
+
+	return total_size;
+}
+
 static struct ion_heap_ops system_heap_ops = {
 	.allocate = ion_msm_system_heap_allocate,
 	.free = ion_msm_system_heap_free,
 	.shrink = ion_msm_system_heap_shrink,
+	.get_pool_size = ion_msm_system_heap_get_pool_size,
 };
 
 static int ion_msm_system_heap_debug_show(struct ion_heap *heap,

@@ -44,6 +44,9 @@
 #include "cam_trace.h"
 #include "cam_cpas_api.h"
 #include "cam_common_util.h"
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
 
 #define ICP_WORKQ_TASK_CMD_TYPE 1
 #define ICP_WORKQ_TASK_MSG_TYPE 2
@@ -2129,6 +2132,9 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 				ctx_data->icp_dev_acquire_info->dev_type);
 			event_id = CAM_CTX_EVT_ID_CANCEL;
 		} else {
+#if defined(CONFIG_SEC_ABC)
+			sec_abc_send_event("MODULE=camera@ERROR=icp_error");
+#endif
 			CAM_ERR(CAM_ICP,
 				"Done with error: %u err_type= [%s] on ctx_id %d dev %d for req %llu",
 				ioconfig_ack->err_type,

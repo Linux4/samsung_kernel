@@ -66,7 +66,7 @@ void make_self_dispaly_img_cmds_FAB(struct samsung_display_driver_data *vdd,
 
 	pcmds = ss_get_cmds(vdd, cmd);
 	if (IS_ERR_OR_NULL(pcmds->cmds)) {
-		LCD_ERR(vdd, "pcmds->cmds is null!!\n");
+		LCD_INFO(vdd, "allocate pcmds->cmds\n");
 		pcmds->cmds = kzalloc(cmd_size * sizeof(struct dsi_cmd_desc), GFP_KERNEL);
 		if (IS_ERR_OR_NULL(pcmds->cmds)) {
 			LCD_ERR(vdd, "fail to kzalloc for self_mask cmds \n");
@@ -648,7 +648,7 @@ static void self_aclock_img_write(struct samsung_display_driver_data *vdd)
 
 	ss_send_cmd(vdd, TX_SELF_ACLOCK_IMAGE);
 
-	usleep_range(100, 110);
+	usleep_range(1000, 1100);
 
 	ss_send_cmd(vdd, TX_SELF_ACLOCK_SET_POST);
 	ss_send_cmd(vdd, TX_LEVEL1_KEY_DISABLE);
@@ -1047,17 +1047,19 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 	LCD_INFO(vdd, "--\n");
 }
 
-static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
+static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 {
+	int ret = 0;
+
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "vdd is null or error\n");
-		return;
+		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.is_support) {
 		LCD_ERR(vdd, "self display is not supported..(%d) \n",
 						vdd->self_disp.is_support);
-		return;
+		return -EACCES;
 	}
 
 	LCD_INFO(vdd, "++ (%d)\n", enable);
@@ -1077,7 +1079,7 @@ static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 
 	LCD_INFO(vdd, "-- \n");
 
-	return;
+	return ret;
 }
 
 #define WAIT_FRAME (2)
@@ -1100,7 +1102,7 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 	}
 
 	if (!vdd->self_disp.mask_crc_size) {
-		LCD_ERR(vdd, "mask crc size is zero..\n\n");
+		LCD_ERR(vdd, "mask crc size is zero..\n");
 		return 0;
 	}
 
@@ -1665,7 +1667,7 @@ int self_display_init_FAB(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.self_partial_hlpm_scan_set = self_partial_hlpm_scan_set;
 	vdd->self_disp.self_display_debug = self_display_debug;
 
-	ret = misc_register(&vdd->self_disp.dev);
+	ret = ss_wrapper_misc_register(vdd, &vdd->self_disp.dev);
 	if (ret) {
 		LCD_ERR(vdd, "failed to register driver : %d\n", ret);
 		vdd->self_disp.is_support = false;

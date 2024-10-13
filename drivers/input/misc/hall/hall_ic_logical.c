@@ -27,18 +27,31 @@
 #include <linux/version.h>
 #include <linux/pm_wakeup.h>
 
-#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
 #define POGO_NOTIFIER_ENABLED
 #endif
+
 #ifdef POGO_NOTIFIER_ENABLED
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+#include "../../sec_input/stm32/pogo_notifier_v3.h"
+#include "../../sec_input/stm32/stm32_pogo_v3.h"
+#else
 #include <linux/input/pogo_i2c_notifier.h>
+#include "../../sec_input/stm32/stm32_pogo_i2c.h"
+#endif
 #endif
 
 /*
  * Switch events
  */
-#define SW_FLIP                 0x15  /* set = flip cover open, close*/
-#define SW_HALL_LOGICAL         0x1f  /* set = logical hall ic attach/detach */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define SW_FLIP				0x10  /* set = flip cover open, close*/
+#define SW_HALL_LOGICAL		0x0a  /* set = logical hall ic attach/detach */
+#else
+#define SW_FLIP				0x15  /* set = flip cover open, close*/
+#define SW_HALL_LOGICAL		0x1f  /* set = logical hall ic attach/detach */
+#endif
+#define SW_POGO_HALL		0x0d  /* set = pogo cover attach/detach */
 
 enum LID_POSITION {
 	E_LID_0 = 1,
@@ -53,7 +66,7 @@ enum LOGICAL_HALL_STATUS {
 };
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
-extern struct device *sec_hall_ic;
+struct device *hall_logical;
 #endif
 
 struct hall_drvdata {
@@ -63,7 +76,9 @@ struct hall_drvdata {
 #endif
 };
 
-static int hall_logical_status = 1;
+static int hall_logical_status;
+static int hall_backflip_status;
+static int pogo_cover_status;
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 static ssize_t hall_logical_detect_show(struct device *dev,
@@ -84,7 +99,7 @@ static DEVICE_ATTR_RO(hall_logical_detect);
 static int hall_logical_open(struct input_dev *input)
 {
 	/* Report current state of buttons that are connected to GPIOs */
-	input_report_switch(input, SW_FLIP, 0);
+	input_report_switch(input, SW_FLIP, hall_logical_status);
 	input_sync(input);
 
 	return 0;
@@ -123,22 +138,37 @@ static int logical_hallic_notifier_handler(struct notifier_block *nb,
 
 		if (hall_status == E_LID_0) {
 			hall_logical_status = LOGICAL_HALL_CLOSE;
-			pr_info("%s hall_status = %d (CLOSE)\n", __func__, hall_status);
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (CLOSE)\n", __func__, hall_status);
 			input_report_switch(logical_hall_dev->input, SW_FLIP, hall_logical_status);
 			input_sync(logical_hall_dev->input);
 		} else if (hall_status == E_LID_NORMAL) {
 			hall_logical_status = LOGICAL_HALL_OPEN;
-			pr_info("%s hall_status = %d (NORMAL)\n", __func__, hall_status);
+			hall_backflip_status = 0;
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (NORMAL)\n", __func__, hall_status);
 			input_report_switch(logical_hall_dev->input, SW_FLIP, hall_logical_status);
-			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, 0);
+			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, hall_backflip_status);
 			input_sync(logical_hall_dev->input);
 		} else if (hall_status == E_LID_360) {
-			hall_logical_status = LOGICAL_HALL_BACK;
-			pr_info("%s hall_status = %d (BACK)\n", __func__, hall_status);
-			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, 1);
+			hall_backflip_status = 1;
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (BACK)\n", __func__, hall_status);
+			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, hall_backflip_status);
 			input_sync(logical_hall_dev->input);
 		}
-
+		break;
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+	case POGO_NOTIFIER_EVENTID_ACESSORY:
+		if (pogo_data.size != 2) {
+			pr_info("%s size is wrong. size=%d!\n", __func__, pogo_data.size);
+			break;
+		}
+		pogo_cover_status = pogo_data.data[1];
+		input_info(true, &logical_hall_dev->input->dev, "%s pogo_cover_status = %d\n",
+					__func__, pogo_cover_status);
+		input_report_switch(logical_hall_dev->input, SW_POGO_HALL, pogo_cover_status);
+		input_sync(logical_hall_dev->input);
+		break;
+#endif
+	default:
 		break;
 	};
 
@@ -188,6 +218,7 @@ static int hall_logical_probe(struct platform_device *pdev)
 	input->evbit[0] |= BIT_MASK(EV_SW);
 	input_set_capability(input, EV_SW, SW_FLIP);
 	input_set_capability(input, EV_SW, SW_HALL_LOGICAL);
+	input_set_capability(input, EV_SW, SW_POGO_HALL);
 
 	input->open = hall_logical_open;
 	input->close = hall_logical_close;
@@ -196,7 +227,12 @@ static int hall_logical_probe(struct platform_device *pdev)
 	__set_bit(EV_REP, input->evbit);
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
-	error = device_create_file(sec_hall_ic, &dev_attr_hall_logical_detect);
+	hall_logical = sec_device_create(ddata, "hall_logical");
+	if (IS_ERR(hall_logical)) {
+		dev_err(dev, "%s: failed to create device for the sysfs\n",__func__);
+	}
+
+	error = device_create_file(hall_logical, &dev_attr_hall_logical_detect);
 	if (error < 0) {
 		pr_err("Failed to create device file(%s)!, error: %d\n",
 		dev_attr_hall_logical_detect.attr.name, error);
@@ -215,6 +251,12 @@ static int hall_logical_probe(struct platform_device *pdev)
 	pogo_notifier_register(&ddata->pogo_nb,
 			logical_hallic_notifier_handler, POGO_NOTIFY_DEV_HALLIC);
 #endif
+
+	input_report_switch(input, SW_FLIP, hall_logical_status);
+	input_report_switch(input, SW_HALL_LOGICAL, hall_backflip_status);
+	input_report_switch(input, SW_POGO_HALL, pogo_cover_status);
+	input_info(true, dev, "%s hall_status = %d backflip_status = %d pogo_cover_status = %d\n",
+			__func__, hall_logical_status, hall_backflip_status, pogo_cover_status);
 
 	pr_info("%s end", __func__);
 	return 0;
@@ -291,20 +333,21 @@ static struct platform_driver hall_device_driver = {
 	}
 };
 
-static int __init hall_logical_init(void)
+int hall_logical_init(void)
 {
 	pr_info("%s start\n", __func__);
-	return platform_driver_register(&hall_device_driver);
-}
 
-static void __exit hall_logical_exit(void)
+	return platform_driver_probe(&hall_device_driver, hall_logical_probe);
+}
+EXPORT_SYMBOL(hall_logical_init);
+
+
+void hall_logical_exit(void)
 {
 	pr_info("%s start\n", __func__);
 	platform_driver_unregister(&hall_device_driver);
 }
+EXPORT_SYMBOL(hall_logical_exit);
 
-late_initcall(hall_logical_init);
-module_exit(hall_logical_exit);
-
-MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Samsung");
 MODULE_DESCRIPTION("Hall IC logical driver for GPIOs");

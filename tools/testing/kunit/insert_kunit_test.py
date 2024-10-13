@@ -95,7 +95,7 @@ class TestAdditionalInsertionSameDirectory(unittest.TestCase):
     # 1. Test cases for 'fingerprint/qbt2000_common.c'
     def test_append_makefile_qbt2000_common(self):
         self.assertTrue(os.path.exists(self.mkfile))
-        self.assertTrue(is_contain('obj-$(CONFIG_KUNIT)', self.mkfile))
+        self.assertTrue(is_contain('obj-$(CONFIG_SEC_KUNIT)', self.mkfile))
         self.assertTrue(is_contain('test/', self.mkfile))
         self.assertTrue(is_contain('GCOV_PROFILE_qbt2000_common', self.mkfile))
 
@@ -161,7 +161,7 @@ class TestConstruntionTemplate(unittest.TestCase):
     def test_append_makefile(self):
         self.af.append_makefile()
         self.assertTrue(os.path.exists(self.mkfile))
-        self.assertTrue(is_contain('obj-$(CONFIG_KUNIT)', self.mkfile))
+        self.assertTrue(is_contain('obj-$(CONFIG_SEC_KUNIT)', self.mkfile))
         self.assertTrue(is_contain('test/', self.mkfile))
         self.assertTrue(is_contain('GCOV_PROFILE_qbt2000_common', self.mkfile))
 

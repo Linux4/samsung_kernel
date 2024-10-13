@@ -20060,6 +20060,543 @@ static char DSI_AFC_OFF[] = {
 	//end
 };
 
+#if IS_ENABLED(CONFIG_ARCH_WAIPIO)
+/* From SM8450, To match below dsi_cmd_desc structure (ctrl & ctrl_flags are added)
+ *
+ * struct dsi_cmd_desc {
+ *	struct mipi_dsi_msg msg;
+ *	bool last_command;
+ *	u32  post_wait_ms;
+ *	u32 ctrl;
+ *	u32 ctrl_flags;
+ * #if defined(CONFIG_DISPLAY_SAMSUNG)
+ *	u8 *ss_txbuf;
+ * #endif
+ * };
+ *
+ */
+
+static struct dsi_cmd_desc DSI0_BYPASS_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_1), DSI0_BYPASS_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_2), DSI0_BYPASS_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_3), DSI0_BYPASS_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_NEGATIVE_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_NEGATIVE_MDNIE_1), DSI0_NEGATIVE_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_NEGATIVE_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_NEGATIVE_MDNIE_2), DSI0_NEGATIVE_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_NEGATIVE_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_NEGATIVE_MDNIE_3), DSI0_NEGATIVE_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_NEGATIVE_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GRAYSCALE_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GRAYSCALE_MDNIE_1), DSI0_GRAYSCALE_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_GRAYSCALE_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GRAYSCALE_MDNIE_2), DSI0_GRAYSCALE_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_GRAYSCALE_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GRAYSCALE_MDNIE_3), DSI0_GRAYSCALE_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_GRAYSCALE_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GRAYSCALE_NEGATIVE_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GRAYSCALE_NEGATIVE_MDNIE_1), DSI0_GRAYSCALE_NEGATIVE_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_GRAYSCALE_NEGATIVE_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GRAYSCALE_NEGATIVE_MDNIE_2), DSI0_GRAYSCALE_NEGATIVE_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_GRAYSCALE_NEGATIVE_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GRAYSCALE_NEGATIVE_MDNIE_3), DSI0_GRAYSCALE_NEGATIVE_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_GRAYSCALE_NEGATIVE_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_COLOR_BLIND_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_COLOR_BLIND_MDNIE_1), DSI0_COLOR_BLIND_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_COLOR_BLIND_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_COLOR_BLIND_MDNIE_2), DSI0_COLOR_BLIND_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_COLOR_BLIND_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_COLOR_BLIND_MDNIE_3), DSI0_COLOR_BLIND_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_COLOR_BLIND_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_NIGHT_MODE_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_NIGHT_MODE_MDNIE_1), DSI0_NIGHT_MODE_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_NIGHT_MODE_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_NIGHT_MODE_MDNIE_2), DSI0_NIGHT_MODE_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_NIGHT_MODE_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_NIGHT_MODE_MDNIE_3), DSI0_NIGHT_MODE_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_NIGHT_MODE_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_COLOR_LENS_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_COLOR_LENS_MDNIE_1), DSI0_COLOR_LENS_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_COLOR_LENS_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_COLOR_LENS_MDNIE_2), DSI0_COLOR_LENS_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_COLOR_LENS_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_COLOR_LENS_MDNIE_3), DSI0_COLOR_LENS_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_COLOR_LENS_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_HBM_CE_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HBM_CE_MDNIE_1), DSI0_HBM_CE_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_HBM_CE_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HBM_CE_MDNIE_2), DSI0_HBM_CE_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_HBM_CE_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HBM_CE_MDNIE_3), DSI0_HBM_CE_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_HBM_CE_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_HBM_CE_D65_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HBM_CE_D65_MDNIE_1), DSI0_HBM_CE_D65_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_HBM_CE_D65_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HBM_CE_D65_MDNIE_2), DSI0_HBM_CE_D65_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_HBM_CE_D65_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HBM_CE_D65_MDNIE_3), DSI0_HBM_CE_D65_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_HBM_CE_D65_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_RGB_SENSOR_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_RGB_SENSOR_MDNIE_1), DSI0_RGB_SENSOR_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_RGB_SENSOR_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_RGB_SENSOR_MDNIE_2), DSI0_RGB_SENSOR_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_RGB_SENSOR_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_RGB_SENSOR_MDNIE_3), DSI0_RGB_SENSOR_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_RGB_SENSOR_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_SCREEN_CURTAIN_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_SCREEN_CURTAIN_MDNIE_1), DSI0_SCREEN_CURTAIN_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_SCREEN_CURTAIN_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_SCREEN_CURTAIN_MDNIE_2), DSI0_SCREEN_CURTAIN_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_SCREEN_CURTAIN_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_SCREEN_CURTAIN_MDNIE_3), DSI0_SCREEN_CURTAIN_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_SCREEN_CURTAIN_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_LIGHT_NOTIFICATION_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_LIGHT_NOTIFICATION_MDNIE_1), DSI0_LIGHT_NOTIFICATION_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_LIGHT_NOTIFICATION_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_LIGHT_NOTIFICATION_MDNIE_2), DSI0_LIGHT_NOTIFICATION_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_LIGHT_NOTIFICATION_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_LIGHT_NOTIFICATION_MDNIE_3), DSI0_LIGHT_NOTIFICATION_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_LIGHT_NOTIFICATION_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_HDR_VIDEO_1_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_1_MDNIE_1), DSI0_HDR_VIDEO_1_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_1_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_1_MDNIE_2), DSI0_HDR_VIDEO_1_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_1_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_1_MDNIE_3), DSI0_HDR_VIDEO_1_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_1_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_HDR_VIDEO_2_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_2_MDNIE_1), DSI0_HDR_VIDEO_2_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_2_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_2_MDNIE_2), DSI0_HDR_VIDEO_2_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_2_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_2_MDNIE_3), DSI0_HDR_VIDEO_2_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_2_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_HDR_VIDEO_3_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_3_MDNIE_1), DSI0_HDR_VIDEO_3_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_3_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_3_MDNIE_2), DSI0_HDR_VIDEO_3_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_3_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_3_MDNIE_3), DSI0_HDR_VIDEO_3_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_3_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_HDR_VIDEO_4_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_4_MDNIE_1), DSI0_HDR_VIDEO_4_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_4_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_4_MDNIE_2), DSI0_HDR_VIDEO_4_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_4_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_4_MDNIE_3), DSI0_HDR_VIDEO_4_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_4_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_HDR_VIDEO_5_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_5_MDNIE_1), DSI0_HDR_VIDEO_5_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_5_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_5_MDNIE_2), DSI0_HDR_VIDEO_5_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_5_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HDR_VIDEO_5_MDNIE_3), DSI0_HDR_VIDEO_5_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_HDR_VIDEO_5_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_VIDEO_ENHANCER_D65_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_D65_MDNIE_1), DSI0_VIDEO_ENHANCER_D65_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_D65_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_D65_MDNIE_2), DSI0_VIDEO_ENHANCER_D65_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_D65_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_D65_MDNIE_3), DSI0_VIDEO_ENHANCER_D65_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_D65_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_VIDEO_ENHANCER_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_AUTO_MDNIE_1), DSI0_VIDEO_ENHANCER_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_AUTO_MDNIE_2), DSI0_VIDEO_ENHANCER_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_AUTO_MDNIE_3), DSI0_VIDEO_ENHANCER_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_1), DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_2), DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_3), DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_THIRD_D65_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_1), DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_2), DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_3), DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_ENHANCER_THIRD_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+///////////////////////////////////////////////////////////////////////////////////
+
+static struct dsi_cmd_desc DSI0_UI_DYNAMIC_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_DYNAMIC_MDNIE_1), DSI0_UI_DYNAMIC_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_UI_DYNAMIC_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_DYNAMIC_MDNIE_2), DSI0_UI_DYNAMIC_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_UI_DYNAMIC_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_DYNAMIC_MDNIE_3), DSI0_UI_DYNAMIC_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_UI_DYNAMIC_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_UI_STANDARD_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_STANDARD_MDNIE_1), DSI0_UI_STANDARD_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_UI_STANDARD_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_STANDARD_MDNIE_2), DSI0_UI_STANDARD_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_UI_STANDARD_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_STANDARD_MDNIE_3), DSI0_UI_STANDARD_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_UI_STANDARD_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_UI_NATURAL_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_NATURAL_MDNIE_1), DSI0_UI_NATURAL_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_UI_NATURAL_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_NATURAL_MDNIE_2), DSI0_UI_NATURAL_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_UI_NATURAL_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_NATURAL_MDNIE_3), DSI0_UI_NATURAL_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_UI_NATURAL_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_UI_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_AUTO_MDNIE_1), DSI0_UI_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_UI_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_AUTO_MDNIE_2), DSI0_UI_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_UI_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_UI_AUTO_MDNIE_3), DSI0_UI_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_UI_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_VIDEO_DYNAMIC_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_DYNAMIC_MDNIE_1), DSI0_VIDEO_DYNAMIC_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_DYNAMIC_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_DYNAMIC_MDNIE_2), DSI0_VIDEO_DYNAMIC_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_DYNAMIC_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_DYNAMIC_MDNIE_3), DSI0_VIDEO_DYNAMIC_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_DYNAMIC_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_VIDEO_STANDARD_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_STANDARD_MDNIE_1), DSI0_VIDEO_STANDARD_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_STANDARD_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_STANDARD_MDNIE_2), DSI0_VIDEO_STANDARD_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_STANDARD_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_STANDARD_MDNIE_3), DSI0_VIDEO_STANDARD_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_STANDARD_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_VIDEO_NATURAL_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_NATURAL_MDNIE_1), DSI0_VIDEO_NATURAL_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_NATURAL_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_NATURAL_MDNIE_2), DSI0_VIDEO_NATURAL_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_NATURAL_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_NATURAL_MDNIE_3), DSI0_VIDEO_NATURAL_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_NATURAL_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_VIDEO_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_AUTO_MDNIE_1), DSI0_VIDEO_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_AUTO_MDNIE_2), DSI0_VIDEO_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_VIDEO_AUTO_MDNIE_3), DSI0_VIDEO_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_VIDEO_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_CAMERA_DYNAMIC_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_DYNAMIC_MDNIE_1), DSI0_CAMERA_DYNAMIC_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_DYNAMIC_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_DYNAMIC_MDNIE_2), DSI0_CAMERA_DYNAMIC_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_DYNAMIC_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_DYNAMIC_MDNIE_3), DSI0_CAMERA_DYNAMIC_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_DYNAMIC_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_CAMERA_STANDARD_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_STANDARD_MDNIE_1), DSI0_CAMERA_STANDARD_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_STANDARD_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_STANDARD_MDNIE_2), DSI0_CAMERA_STANDARD_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_STANDARD_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_STANDARD_MDNIE_3), DSI0_CAMERA_STANDARD_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_STANDARD_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_CAMERA_NATURAL_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_NATURAL_MDNIE_1), DSI0_CAMERA_NATURAL_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_NATURAL_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_NATURAL_MDNIE_2), DSI0_CAMERA_NATURAL_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_NATURAL_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_NATURAL_MDNIE_3), DSI0_CAMERA_NATURAL_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_NATURAL_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_CAMERA_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_AUTO_MDNIE_1), DSI0_CAMERA_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_AUTO_MDNIE_2), DSI0_CAMERA_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_CAMERA_AUTO_MDNIE_3), DSI0_CAMERA_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_CAMERA_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GALLERY_DYNAMIC_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_DYNAMIC_MDNIE_1), DSI0_GALLERY_DYNAMIC_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_DYNAMIC_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_DYNAMIC_MDNIE_2), DSI0_GALLERY_DYNAMIC_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_DYNAMIC_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_DYNAMIC_MDNIE_3), DSI0_GALLERY_DYNAMIC_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_DYNAMIC_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GALLERY_STANDARD_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_STANDARD_MDNIE_1), DSI0_GALLERY_STANDARD_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_STANDARD_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_STANDARD_MDNIE_2), DSI0_GALLERY_STANDARD_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_STANDARD_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_STANDARD_MDNIE_3), DSI0_GALLERY_STANDARD_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_STANDARD_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GALLERY_NATURAL_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_NATURAL_MDNIE_1), DSI0_GALLERY_NATURAL_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_NATURAL_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_NATURAL_MDNIE_2), DSI0_GALLERY_NATURAL_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_NATURAL_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_NATURAL_MDNIE_3), DSI0_GALLERY_NATURAL_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_NATURAL_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GALLERY_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_AUTO_MDNIE_1), DSI0_GALLERY_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_AUTO_MDNIE_2), DSI0_GALLERY_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_GALLERY_AUTO_MDNIE_3), DSI0_GALLERY_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_GALLERY_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_BROWSER_DYNAMIC_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_DYNAMIC_MDNIE_1), DSI0_BROWSER_DYNAMIC_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_DYNAMIC_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_DYNAMIC_MDNIE_2), DSI0_BROWSER_DYNAMIC_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_DYNAMIC_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_DYNAMIC_MDNIE_3), DSI0_BROWSER_DYNAMIC_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_DYNAMIC_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_BROWSER_STANDARD_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_STANDARD_MDNIE_1), DSI0_BROWSER_STANDARD_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_STANDARD_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_STANDARD_MDNIE_2), DSI0_BROWSER_STANDARD_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_STANDARD_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_STANDARD_MDNIE_3), DSI0_BROWSER_STANDARD_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_STANDARD_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_BROWSER_NATURAL_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_NATURAL_MDNIE_1), DSI0_BROWSER_NATURAL_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_NATURAL_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_NATURAL_MDNIE_2), DSI0_BROWSER_NATURAL_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_NATURAL_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_NATURAL_MDNIE_3), DSI0_BROWSER_NATURAL_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_NATURAL_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_BROWSER_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_AUTO_MDNIE_1), DSI0_BROWSER_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_AUTO_MDNIE_2), DSI0_BROWSER_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BROWSER_AUTO_MDNIE_3), DSI0_BROWSER_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_BROWSER_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_EBOOK_DYNAMIC_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_DYNAMIC_MDNIE_1), DSI0_EBOOK_DYNAMIC_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_DYNAMIC_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_DYNAMIC_MDNIE_2), DSI0_EBOOK_DYNAMIC_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_DYNAMIC_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_DYNAMIC_MDNIE_3), DSI0_EBOOK_DYNAMIC_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_DYNAMIC_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_EBOOK_STANDARD_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_STANDARD_MDNIE_1), DSI0_EBOOK_STANDARD_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_STANDARD_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_STANDARD_MDNIE_2), DSI0_EBOOK_STANDARD_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_STANDARD_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_STANDARD_MDNIE_3), DSI0_EBOOK_STANDARD_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_STANDARD_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_EBOOK_NATURAL_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_NATURAL_MDNIE_1), DSI0_EBOOK_NATURAL_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_NATURAL_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_NATURAL_MDNIE_2), DSI0_EBOOK_NATURAL_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_NATURAL_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_NATURAL_MDNIE_3), DSI0_EBOOK_NATURAL_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_NATURAL_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_EBOOK_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_AUTO_MDNIE_1), DSI0_EBOOK_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_AUTO_MDNIE_2), DSI0_EBOOK_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EBOOK_AUTO_MDNIE_3), DSI0_EBOOK_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_EBOOK_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_EMAIL_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EMAIL_AUTO_MDNIE_1), DSI0_EMAIL_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_EMAIL_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EMAIL_AUTO_MDNIE_2), DSI0_EMAIL_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_EMAIL_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_EMAIL_AUTO_MDNIE_3), DSI0_EMAIL_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_EMAIL_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GAME_LOW_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_1), DSI0_BYPASS_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_2), DSI0_BYPASS_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_3), DSI0_BYPASS_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GAME_MID_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_1), DSI0_BYPASS_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_2), DSI0_BYPASS_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_3), DSI0_BYPASS_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_GAME_HIGH_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_1), DSI0_BYPASS_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_2), DSI0_BYPASS_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_3), DSI0_BYPASS_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_BYPASS_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_TDMB_DYNAMIC_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_DYNAMIC_MDNIE_1), DSI0_TDMB_DYNAMIC_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_DYNAMIC_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_DYNAMIC_MDNIE_2), DSI0_TDMB_DYNAMIC_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_DYNAMIC_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_DYNAMIC_MDNIE_3), DSI0_TDMB_DYNAMIC_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_DYNAMIC_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_TDMB_STANDARD_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_STANDARD_MDNIE_1), DSI0_TDMB_STANDARD_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_STANDARD_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_STANDARD_MDNIE_2), DSI0_TDMB_STANDARD_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_STANDARD_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_STANDARD_MDNIE_3), DSI0_TDMB_STANDARD_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_STANDARD_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_TDMB_NATURAL_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_NATURAL_MDNIE_1), DSI0_TDMB_NATURAL_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_NATURAL_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_NATURAL_MDNIE_2), DSI0_TDMB_NATURAL_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_NATURAL_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_NATURAL_MDNIE_3), DSI0_TDMB_NATURAL_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_NATURAL_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_TDMB_AUTO_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, 0, 0, level_1_key_on,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_AUTO_MDNIE_1), DSI0_TDMB_AUTO_MDNIE_1, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_AUTO_MDNIE_1,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_AUTO_MDNIE_2), DSI0_TDMB_AUTO_MDNIE_2, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_AUTO_MDNIE_2,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_TDMB_AUTO_MDNIE_3), DSI0_TDMB_AUTO_MDNIE_3, 0, NULL}, false, 0, 0, 0, DSI0_TDMB_AUTO_MDNIE_3,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI_AFC), DSI_AFC, 0, NULL}, false, 0, 0, 0, DSI_AFC,},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, 0, 0, level_1_key_off,},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_3000K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_4000K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_5000K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_6500K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_1), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_2), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_3), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_7500K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_1), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_2), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_3), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+#else
+
 static struct dsi_cmd_desc DSI0_BYPASS_MDNIE[] = {
 	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0, level_1_key_on,},
 	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_BYPASS_MDNIE_1), DSI0_BYPASS_MDNIE_1, 0, NULL}, false, 0, DSI0_BYPASS_MDNIE_1,},
@@ -20539,6 +21076,47 @@ static struct dsi_cmd_desc DSI0_TDMB_AUTO_MDNIE[] = {
 	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0, level_1_key_off,},
 };
 
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_3000K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_4000K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_5000K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_6500K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_1), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_2), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_3), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+
+static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_7500K_MDNIE[] = {
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_1), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_1, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_2), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_2, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_3), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_3, 0, NULL}, false, 0},
+	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
+};
+#endif
+
 static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_MODE] = {
 	/*
 		DYNAMIC_MODE
@@ -20701,46 +21279,6 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 		{DSI0_TDMB_AUTO_MDNIE,          NULL},
 		{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 	},
-};
-
-static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_3000K_MDNIE[] = {
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_1, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_2, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_3000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_3000K_MDNIE_3, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
-};
-
-static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_4000K_MDNIE[] = {
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_1, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_2, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_4000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_4000K_MDNIE_3, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
-};
-
-static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_5000K_MDNIE[] = {
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_1), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_1, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_2), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_2, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_5000K_MDNIE_3), DSI0_HMT_COLOR_TEMP_5000K_MDNIE_3, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
-};
-
-static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_6500K_MDNIE[] = {
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_1), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_1, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_2), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_2, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_6500K_MDNIE_3), DSI0_HMT_COLOR_TEMP_6500K_MDNIE_3, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
-};
-
-static struct dsi_cmd_desc DSI0_HMT_COLOR_TEMP_7500K_MDNIE[] = {
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_on), level_1_key_on, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_1), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_1, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_2), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_2, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(DSI0_HMT_COLOR_TEMP_7500K_MDNIE_3), DSI0_HMT_COLOR_TEMP_7500K_MDNIE_3, 0, NULL}, false, 0},
-	{{0, MIPI_DSI_DCS_LONG_WRITE, 0, 0, 0, sizeof(level_1_key_off), level_1_key_off, 0, NULL}, true, 0},
 };
 
 static struct dsi_cmd_desc *hmt_color_temperature_tune_value_dsi0[HMT_COLOR_TEMP_MAX] = {

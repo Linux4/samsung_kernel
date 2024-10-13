@@ -244,46 +244,6 @@ void make_mass_self_display_img_cmds_SW83109(struct samsung_display_driver_data 
 	return;
 }
 
-static int self_display_debug(struct samsung_display_driver_data *vdd)
-{
-	char buf[64];
-
-	if (ss_get_cmds(vdd, RX_SELF_DISP_DEBUG)->count) {
-
-		ss_panel_data_read(vdd, RX_SELF_DISP_DEBUG, buf, LEVEL1_KEY);
-
-		vdd->self_disp.debug.SI_X_O = ((buf[14] & 0x07) << 8);
-		vdd->self_disp.debug.SI_X_O |= (buf[15] & 0xFF);
-
-		vdd->self_disp.debug.SI_Y_O = ((buf[16] & 0x0F) << 8);
-		vdd->self_disp.debug.SI_Y_O |= (buf[17] & 0xFF);
-
-		vdd->self_disp.debug.SM_SUM_O = ((buf[6] & 0xFF) << 24);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[7] & 0xFF) << 16);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[8] & 0xFF) << 8);
-		vdd->self_disp.debug.SM_SUM_O |= (buf[9] & 0xFF);
-
-		vdd->self_disp.debug.MEM_SUM_O = ((buf[10] & 0xFF) << 24);
-		vdd->self_disp.debug.MEM_SUM_O |= ((buf[11] & 0xFF) << 16);
-		vdd->self_disp.debug.MEM_SUM_O |= ((buf[12] & 0xFF) << 8);
-		vdd->self_disp.debug.MEM_SUM_O |= (buf[13] & 0xFF);
-
-		LCD_INFO(vdd, "[SW83109] SI_X_O(%u) SI_Y_O(%u) MEM_SUM_O(0x%X) SM_SUM_O(0x%X)\n",
-			vdd->self_disp.debug.SI_X_O,
-			vdd->self_disp.debug.SI_Y_O,
-			vdd->self_disp.debug.MEM_SUM_O,
-			vdd->self_disp.debug.SM_SUM_O);
-
-		if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum !=
-					vdd->self_disp.debug.SM_SUM_O) {
-			LCD_ERR(vdd, "[SW83109] self mask img checksum fail!!\n");
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
 static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 {
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
@@ -330,17 +290,19 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 	LCD_INFO(vdd, "[SW83109] --\n");
 }
 
-static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
+static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 {
+	int ret = 0;
+
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "vdd is null or error\n");
-		return;
+		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.is_support) {
 		LCD_ERR(vdd, "self display is not supported..(%d)\n",
 						vdd->self_disp.is_support);
-		return;
+		return -EACCES;
 	}
 
 	LCD_INFO(vdd, "[SW83109] ++ (%d)\n", enable);
@@ -360,7 +322,7 @@ static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 
 	LCD_INFO(vdd, "[SW83109] --\n");
 
-	return;
+	return ret;
 }
 
 #define WAIT_FRAME (2)
@@ -419,16 +381,9 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 	ss_send_cmd(vdd, TX_SELF_MASK_CHECK_PRE2);
 
 	ss_panel_data_read(vdd, RX_SELF_MASK_CHECK, vdd->self_disp.mask_crc_read_data, LEVEL_KEY_NONE);
-	LCD_INFO(vdd, "[SW83109] mask_crc_read_data (%x)\n", vdd->self_disp.mask_crc_read_data);
-
 	ss_send_cmd(vdd, TX_SELF_MASK_CHECK_POST);
 
 	for (i = 0; i < vdd->self_disp.mask_crc_size; i++) {
-
-		LCD_INFO(vdd, "self_disp.mask_crc_size 0x(%x)\n", vdd->self_disp.mask_crc_size);
-		LCD_INFO(vdd, "self_disp.mask_crc_read_data 0x(%x) - self_disp.mask_crc_pass_data 0x(%x)\n",
-			vdd->self_disp.mask_crc_read_data[i], vdd->self_disp.mask_crc_pass_data[i]);
-
 		if (vdd->self_disp.mask_crc_read_data[i] != vdd->self_disp.mask_crc_pass_data[i]) {
 			LCD_ERR(vdd, "self mask check fail !!\n");
 			ret = 0;
@@ -585,9 +540,8 @@ int self_display_init_SW83109(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.self_mask_img_write = self_mask_img_write;
 	vdd->self_disp.self_mask_on = self_mask_on;
 	vdd->self_disp.self_mask_check = self_mask_check;
-	vdd->self_disp.self_display_debug = self_display_debug;
 
-	ret = misc_register(&vdd->self_disp.dev);
+	ret = ss_wrapper_misc_register(vdd, &vdd->self_disp.dev);
 	if (ret) {
 		LCD_ERR(vdd, "failed to register driver : %d\n", ret);
 		vdd->self_disp.is_support = false;

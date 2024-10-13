@@ -8,4 +8,11 @@ config MAX77705_VIBRATOR
 	  To enable this driver, MFD_MAX77705 should be enabled and
 	  MFD_MAX77705 calls this driver.
 
+config MAX77705_VIB_FOLD_MODEL
+	tristate "get support for folder status "
+	default n
+	help
+	  If you enable this feature,
+	  you will get event for folder status
+	  through event_cmd sysfs
 

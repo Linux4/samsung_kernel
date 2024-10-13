@@ -193,7 +193,8 @@ static uint8_t *read_calibration_data(int calib_data_len)
 			return NULL;
 		}
 		read_len = sensor->calib_data_pkt[2];
-		if(read_len <=0) {
+
+		if (read_len <= 0) {
 			pr_err("%s:Viewer returned non positve length\n", __func__);
 			kfree(hid_buf);
 			kfree(complete_data);
@@ -620,8 +621,10 @@ static int qvr_external_sensor_raw_event(struct hid_device *hid,
 		else if (data[0] == 2 && data[1] == 1) { /*calibration data*/
 			sensor->calib_data_pkt = data;
 			sensor->calib_data_recv = 1;
-		} else if (data[0] == 2 && data[1] == 4) /*calibration ack*/
+		} else if (data[0] == 2 && data[1] == 4) { /*calibration ack*/
 			sensor->ext_ack = 1;
+			wake_up(&wq);
+		}
 
 	}
 	return ret;
@@ -629,6 +632,9 @@ static int qvr_external_sensor_raw_event(struct hid_device *hid,
 
 static void qvr_external_sensor_device_remove(struct hid_device *hdev)
 {
+	struct qvr_external_sensor *sensor = &qvr_external_sensor;
+
+	sensor->device = NULL;
 	hid_hw_stop(hdev);
 }
 

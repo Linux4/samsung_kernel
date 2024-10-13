@@ -61,7 +61,6 @@
 #include "core.h"
 #include "reg.h"
 #include "rdev-ops.h"
-#include "regdb.h"
 #include "nl80211.h"
 
 /*
@@ -503,38 +502,6 @@ static int reg_schedule_apply(const struct ieee80211_regdomain *regdom)
 	schedule_work(&reg_regdb_work);
 	return 0;
 }
-
-#ifdef CONFIG_CFG80211_INTERNAL_REGDB
-static int reg_query_builtin(const char *alpha2)
-{
-	const struct ieee80211_regdomain *regdom = NULL;
-	unsigned int i;
-
-	for (i = 0; i < reg_regdb_size; i++) {
-		if (alpha2_equal(alpha2, reg_regdb[i]->alpha2)) {
-			regdom = reg_copy_regd(reg_regdb[i]);
-			break;
-		}
-	}
-	if (!regdom)
-		return -ENODATA;
-
-	return reg_schedule_apply(regdom);
-}
-
-/* Feel free to add any other sanity checks here */
-static void reg_regdb_size_check(void)
-{
-	/* We should ideally BUILD_BUG_ON() but then random builds would fail */
-	WARN_ONCE(!reg_regdb_size, "db.txt is empty, you should update it...");
-}
-#else
-static inline void reg_regdb_size_check(void) {}
-static inline int reg_query_builtin(const char *alpha2)
-{
-	return -ENODATA;
-}
-#endif /* CONFIG_CFG80211_INTERNAL_REGDB */
 
 #ifdef CONFIG_CFG80211_CRDA_SUPPORT
 /* Max number of consecutive attempts to communicate with CRDA  */
@@ -1093,6 +1060,8 @@ static void regdb_fw_cb(const struct firmware *fw, void *context)
 
 static int query_regdb_file(const char *alpha2)
 {
+	int err;
+
 	ASSERT_RTNL();
 
 	if (regdb)
@@ -1102,9 +1071,13 @@ static int query_regdb_file(const char *alpha2)
 	if (!alpha2)
 		return -ENOMEM;
 
-	return request_firmware_nowait(THIS_MODULE, true, "regulatory.db",
-				       &reg_pdev->dev, GFP_KERNEL,
-				       (void *)alpha2, regdb_fw_cb);
+	err = request_firmware_nowait(THIS_MODULE, true, "regulatory.db",
+				      &reg_pdev->dev, GFP_KERNEL,
+				      (void *)alpha2, regdb_fw_cb);
+	if (err)
+		kfree(alpha2);
+
+	return err;
 }
 
 int reg_reload_regdb(void)
@@ -1141,10 +1114,6 @@ int reg_reload_regdb(void)
 
 static bool reg_query_database(struct regulatory_request *request)
 {
-	/* query internal regulatory database (if it exists) */
-	if (reg_query_builtin(request->alpha2) == 0)
-		return true;
-
 	if (query_regdb_file(request->alpha2) == 0)
 		return true;
 
@@ -2979,6 +2948,9 @@ int regulatory_hint_user(const char *alpha2,
 	if (WARN_ON(!alpha2))
 		return -EINVAL;
 
+	if (!is_world_regdom(alpha2) && !is_an_alpha2(alpha2))
+		return -EINVAL;
+
 	request = kzalloc(sizeof(struct regulatory_request), GFP_KERNEL);
 	if (!request)
 		return -ENOMEM;
@@ -2996,6 +2968,7 @@ int regulatory_hint_user(const char *alpha2,
 
 	return 0;
 }
+EXPORT_SYMBOL(regulatory_hint_user);
 
 int regulatory_hint_indoor(bool is_indoor, u32 portid)
 {
@@ -3441,7 +3414,7 @@ static void print_rd_rules(const struct ieee80211_regdomain *rd)
 		power_rule = &reg_rule->power_rule;
 
 		if (reg_rule->flags & NL80211_RRF_AUTO_BW)
-			snprintf(bw, sizeof(bw), "%d KHz, %d KHz AUTO",
+			snprintf(bw, sizeof(bw), "%d KHz, %u KHz AUTO",
 				 freq_range->max_bandwidth_khz,
 				 reg_get_max_bandwidth(rd, reg_rule));
 		else
@@ -3985,9 +3958,19 @@ void regulatory_propagate_dfs_state(struct wiphy *wiphy,
 	}
 }
 
+#ifdef CONFIG_BATTERY_SAMSUNG
+extern unsigned int lpcharge;
+#endif
 static int __init regulatory_init_db(void)
 {
 	int err;
+
+#ifdef CONFIG_BATTERY_SAMSUNG
+	if (lpcharge) {
+		pr_info("%s: skip regulatory_init_db due to lpm mode.\n", __func__);
+		return 0;
+	}
+#endif
 
 	/*
 	 * It's possible that - due to other bugs/issues - cfg80211
@@ -3999,8 +3982,10 @@ static int __init regulatory_init_db(void)
 		return -EINVAL;
 
 	err = load_builtin_regdb_keys();
-	if (err)
+	if (err) {
+		platform_device_unregister(reg_pdev);
 		return err;
+	}
 
 	/* We always try to get an update for the static regdomain */
 	err = regulatory_hint_core(cfg80211_world_regdom->alpha2);
@@ -4035,6 +4020,14 @@ late_initcall(regulatory_init_db);
 
 int __init regulatory_init(void)
 {
+
+#ifdef CONFIG_BATTERY_SAMSUNG
+	if (lpcharge) {
+		pr_info("%s: skip regulatory_init_db due to lpm mode.\n", __func__);
+		return 0;
+	}
+#endif
+
 	reg_pdev = platform_device_register_simple("regulatory", 0, NULL, 0);
 	if (IS_ERR(reg_pdev))
 		return PTR_ERR(reg_pdev);
@@ -4042,8 +4035,6 @@ int __init regulatory_init(void)
 	spin_lock_init(&reg_requests_lock);
 	spin_lock_init(&reg_pending_beacons_lock);
 	spin_lock_init(&reg_indoor_lock);
-
-	reg_regdb_size_check();
 
 	rcu_assign_pointer(cfg80211_regdomain, cfg80211_world_regdom);
 

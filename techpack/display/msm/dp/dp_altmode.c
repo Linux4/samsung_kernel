@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -40,8 +40,9 @@ enum dp_altmode_pin_assignment {
 	DPAM_HPD_F,
 };
 
-#ifndef CONFIG_SEC_DISPLAYPORT
-static int dp_altmode_release_ss_lanes(struct dp_altmode_private *altmode)
+#if !defined(CONFIG_SEC_DISPLAYPORT)
+static int dp_altmode_release_ss_lanes(struct dp_altmode_private *altmode,
+		bool multi_func)
 {
 	int rc;
 	struct device_node *np;
@@ -70,7 +71,7 @@ static int dp_altmode_release_ss_lanes(struct dp_altmode_private *altmode)
 	}
 
 	while (timeout) {
-		rc = dwc3_msm_release_ss_lane(&usb_pdev->dev);
+		rc = dwc3_msm_release_ss_lane(&usb_pdev->dev, multi_func);
 		if (rc != -EBUSY)
 			break;
 
@@ -128,7 +129,8 @@ static int dp_altmode_notify(void *priv, void *data, size_t len)
 	altmode->dp_altmode.base.hpd_high = !!hpd_state;
 	altmode->dp_altmode.base.hpd_irq = !!hpd_irq;
 	altmode->dp_altmode.base.multi_func = force_multi_func ? true :
-		!(pin == DPAM_HPD_C || pin == DPAM_HPD_E);
+		!(pin == DPAM_HPD_C || pin == DPAM_HPD_E ||
+		pin == DPAM_HPD_OUT);
 
 	DP_DEBUG("payload=0x%x\n", dp_data);
 	DP_DEBUG("port_index=%d, orientation=%d, pin=%d, hpd_state=%d\n",
@@ -159,6 +161,7 @@ static int dp_altmode_notify(void *priv, void *data, size_t len)
 	if (!altmode->connected) {
 		altmode->connected = true;
 		altmode->dp_altmode.base.alt_mode_cfg_done = true;
+		altmode->forced_disconnect = false;
 
 		switch (orientation) {
 		case 0:
@@ -177,11 +180,10 @@ static int dp_altmode_notify(void *priv, void *data, size_t len)
 
 		altmode->dp_altmode.base.orientation = orientation;
 
-		if (!altmode->dp_altmode.base.multi_func) {
-			rc = dp_altmode_release_ss_lanes(altmode);
-			if (rc)
-				goto ack;
-		}
+		rc = dp_altmode_release_ss_lanes(altmode,
+				altmode->dp_altmode.base.multi_func);
+		if (rc)
+			goto ack;
 
 		if (altmode->dp_cb && altmode->dp_cb->configure)
 			altmode->dp_cb->configure(altmode->dev);
@@ -263,7 +265,7 @@ static int dp_altmode_simulate_attention(struct dp_hpd *dp_hpd, int vdo)
 
 struct dp_hpd *dp_altmode_get(struct device *dev, struct dp_hpd_cb *cb)
 {
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	int rc = 0;
 #endif
 	struct dp_altmode_private *altmode;
@@ -286,7 +288,7 @@ struct dp_hpd *dp_altmode_get(struct device *dev, struct dp_hpd_cb *cb)
 	dp_altmode->base.simulate_connect = dp_altmode_simulate_connect;
 	dp_altmode->base.simulate_attention = dp_altmode_simulate_attention;
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	rc = altmode_register_notifier(dev, dp_altmode_register, altmode);
 	if (rc < 0) {
 		DP_ERR("altmode probe notifier registration failed: %d\n", rc);
@@ -297,7 +299,7 @@ struct dp_hpd *dp_altmode_get(struct device *dev, struct dp_hpd_cb *cb)
 	DP_DEBUG("success\n");
 
 	return &dp_altmode->base;
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 error:
 	kfree(altmode);
 	return ERR_PTR(rc);
@@ -316,7 +318,7 @@ void dp_altmode_put(struct dp_hpd *dp_hpd)
 	altmode = container_of(dp_altmode, struct dp_altmode_private,
 			dp_altmode);
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	altmode_deregister_client(altmode->amclient);
 	altmode_deregister_notifier(altmode->dev, altmode);
 #endif

@@ -134,6 +134,6 @@ void ss_copr_reset_cnt(struct samsung_display_driver_data *vdd);
 int ss_copr_get_roi_opr(struct samsung_display_driver_data *vdd);
 
 void ss_read_copr_work(struct work_struct *work);
-void ss_copr_init(struct samsung_display_driver_data *vdd);
+int ss_copr_init(struct samsung_display_driver_data *vdd);
 
 #endif /* __SS_COPR_COMMON_H__ */

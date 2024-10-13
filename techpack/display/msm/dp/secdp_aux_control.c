@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright © 2015 Intel Corporation
+ * Copyright © 2015-2021 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),

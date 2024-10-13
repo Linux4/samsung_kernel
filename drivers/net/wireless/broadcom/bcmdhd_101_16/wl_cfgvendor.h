@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -612,6 +612,8 @@ typedef enum wl_vendor_event {
 	BRCM_VENDOR_EVENT_ACS			= 42,
 	BRCM_VENDOR_EVENT_TWT			= 43,
 	BRCM_VENDOR_EVENT_TPUT_DUMP		= 44,
+	GOOGLE_NAN_EVENT_MATCH_EXPIRY           = 45,
+	BRCM_VENDOR_EVENT_RCC_FREQ_INFO		= 46,
 	BRCM_VENDOR_EVENT_LAST
 } wl_vendor_event_t;
 

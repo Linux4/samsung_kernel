@@ -10,8 +10,9 @@
 
 #include "dp_ctrl.h"
 #include "dp_debug.h"
-#ifdef CONFIG_SEC_DISPLAYPORT
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#include "sde_dbg.h"
+#if defined(CONFIG_SEC_DISPLAYPORT)
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 #include <linux/displayport_bigdata.h>
 #endif
 #include "secdp.h"
@@ -67,7 +68,7 @@ struct dp_ctrl_private {
 	struct dp_power *power;
 	struct dp_parser *parser;
 	struct dp_catalog_ctrl *catalog;
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	bool link_train_status;
 #endif
 
@@ -102,13 +103,11 @@ enum notification_status {
 
 static void dp_ctrl_idle_patterns_sent(struct dp_ctrl_private *ctrl)
 {
-	DP_DEBUG("idle_patterns_sent\n");
 	complete(&ctrl->idle_comp);
 }
 
 static void dp_ctrl_video_ready(struct dp_ctrl_private *ctrl)
 {
-	DP_DEBUG("dp_video_ready\n");
 	complete(&ctrl->video_comp);
 }
 
@@ -196,6 +195,8 @@ static void dp_ctrl_wait4video_ready(struct dp_ctrl_private *ctrl)
 {
 	if (!wait_for_completion_timeout(&ctrl->video_comp, HZ / 2))
 		DP_WARN("SEND_VIDEO time out\n");
+	else
+		DP_DEBUG("SEND_VIDEO triggered\n");
 }
 
 static int dp_ctrl_update_sink_vx_px(struct dp_ctrl_private *ctrl)
@@ -239,6 +240,12 @@ static void dp_ctrl_update_hw_vx_px(struct dp_ctrl_private *ctrl)
 	if (ctrl->link->link_params.bw_code == DP_LINK_BW_5_4 ||
 	    ctrl->link->link_params.bw_code == DP_LINK_BW_8_1)
 		high = true;
+
+#if defined(CONFIG_SEC_DISPLAYPORT)
+	secdp_redriver_linkinfo(link->link_params.bw_code,
+		link->phy_params.v_level,
+		link->phy_params.p_level);
+#endif
 
 	ctrl->catalog->update_vx_px(ctrl->catalog,
 		link->phy_params.v_level, link->phy_params.p_level, high);
@@ -329,7 +336,7 @@ static u8 dp_ctrl_get_active_lanes(struct dp_ctrl_private *ctrl,
 	return count;
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 static void secdp_link_train_clock_recovery_delay(const u8 dpcd[DP_RECEIVER_CAP_SIZE])
 {
 	unsigned long rd_interval = dpcd[DP_TRAINING_AUX_RD_INTERVAL] &
@@ -407,7 +414,7 @@ static int dp_ctrl_link_training_1(struct dp_ctrl_private *ctrl)
 		if (ret)
 			break;
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 		drm_dp_link_train_clock_recovery_delay(ctrl->panel->dpcd);
 #else
 		secdp_link_train_clock_recovery_delay(ctrl->panel->dpcd);
@@ -490,7 +497,7 @@ static int dp_ctrl_link_rate_down_shift(struct dp_ctrl_private *ctrl)
 
 	DP_DEBUG("new bw code=0x%x\n", ctrl->link->link_params.bw_code);
 
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	secdp_bigdata_save_item(BD_CUR_LINK_RATE,
 		ctrl->link->link_params.bw_code);
 #endif
@@ -501,7 +508,7 @@ static int dp_ctrl_link_rate_down_shift(struct dp_ctrl_private *ctrl)
 static void dp_ctrl_clear_training_pattern(struct dp_ctrl_private *ctrl)
 {
 	dp_ctrl_update_sink_pattern(ctrl, 0);
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	drm_dp_link_train_channel_eq_delay(ctrl->panel->dpcd);
 #else
 	secdp_link_train_channel_eq_delay(ctrl->panel->dpcd);
@@ -551,7 +558,7 @@ static int dp_ctrl_link_training_2(struct dp_ctrl_private *ctrl)
 		if (ret)
 			break;
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 		drm_dp_link_train_channel_eq_delay(ctrl->panel->dpcd);
 #else
 		secdp_link_train_channel_eq_delay(ctrl->panel->dpcd);
@@ -599,7 +606,7 @@ static int dp_ctrl_link_train(struct dp_ctrl_private *ctrl)
 	u8 const encoding = 0x1, downspread = 0x00;
 	struct drm_dp_link link_info = {0};
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (!secdp_get_cable_status()) {
 		DP_INFO("cable is out\n");
 		return -EIO;
@@ -612,7 +619,7 @@ static int dp_ctrl_link_train(struct dp_ctrl_private *ctrl)
 	ctrl->link->phy_params.p_level = 0;
 	ctrl->link->phy_params.v_level = 0;
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (secdp_check_hmd_dev("PicoVR")) {
 		DP_INFO("pico REAL Plus!\n");
 		ctrl->link->phy_params.v_level = 2;	/*800mV*/
@@ -661,7 +668,7 @@ static int dp_ctrl_link_train(struct dp_ctrl_private *ctrl)
 	DP_INFO("link training #2 successful\n");
 
 end:
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (!secdp_get_cable_status()) {
 		DP_INFO("cable is out <2>\n");
 		return -EIO;
@@ -673,7 +680,7 @@ end:
 	wmb();
 
 	dp_ctrl_clear_training_pattern(ctrl);
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (!ret)
 		ctrl->link_train_status = true;
 #endif
@@ -701,9 +708,9 @@ static int dp_ctrl_setup_main_link(struct dp_ctrl_private *ctrl)
 				0x01);
 
 	ret = dp_ctrl_link_train(ctrl);
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (ret) {
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 		secdp_bigdata_inc_error_cnt(ERR_LINK_TRAIN);
 #endif
 	}
@@ -814,7 +821,7 @@ static int dp_ctrl_link_setup(struct dp_ctrl_private *ctrl, bool shallow)
 				link_params->lane_count);
 
 	while (1) {
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 		if (!secdp_get_cable_status()) {
 			DP_INFO("cable is out\n");
 			rc = -EIO;
@@ -1002,7 +1009,7 @@ static void dp_ctrl_host_deinit(struct dp_ctrl *dp_ctrl)
 	DP_DEBUG("Host deinitialized successfully\n");
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 static bool dp_ctrl_get_link_train_status(struct dp_ctrl *dp_ctrl)
 {
 	struct dp_ctrl_private *ctrl;
@@ -1317,16 +1324,32 @@ static void dp_ctrl_fec_dsc_setup(struct dp_ctrl_private *ctrl)
 	u8 fec_sts = 0;
 	int rlen;
 	u32 dsc_enable;
+	int i, max_retries = 3;
+	bool fec_en_detected = false;
 
 	if (!ctrl->fec_mode)
 		return;
 
-	ctrl->catalog->fec_config(ctrl->catalog, ctrl->fec_mode);
+	/* Need to try to enable multiple times due to BS symbols collisions */
+	for (i = 0; i < max_retries; i++) {
+		ctrl->catalog->fec_config(ctrl->catalog, ctrl->fec_mode);
 
-	/* wait for controller to start fec sequence */
-	usleep_range(900, 1000);
-	drm_dp_dpcd_readb(ctrl->aux->drm_aux, DP_FEC_STATUS, &fec_sts);
-	DP_DEBUG("sink fec status:%d\n", fec_sts);
+		/* wait for controller to start fec sequence */
+		usleep_range(900, 1000);
+
+		/* read back FEC status and check if it is enabled */
+		drm_dp_dpcd_readb(ctrl->aux->drm_aux, DP_FEC_STATUS, &fec_sts);
+		if (fec_sts & DP_FEC_DECODE_EN_DETECTED) {
+			fec_en_detected = true;
+			break;
+		}
+	}
+
+	SDE_EVT32_EXTERNAL(i, fec_en_detected);
+	DP_DEBUG("retries %d, fec_en_detected %d\n", i, fec_en_detected);
+
+	if (!fec_en_detected)
+		DP_WARN("failed to enable sink fec\n");
 
 	dsc_enable = ctrl->dsc_mode ? 1 : 0;
 	rlen = drm_dp_dpcd_writeb(ctrl->aux->drm_aux, DP_DSC_ENABLE,
@@ -1515,10 +1538,10 @@ static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 		goto end;
 
 	min_link_rate = dp_panel->get_min_req_link_rate(dp_panel);
+	if (!min_link_rate)
+		DP_INFO("timing not found\n");
 
-	if (min_link_rate == 0)
-		DP_INFO("timing not found, set default\n");
-	else if (min_link_rate <= 162000)
+	if (min_link_rate <= 162000)
 		calc_link_rate = 162000;
 	else if (min_link_rate <= 270000)
 		calc_link_rate = 270000;
@@ -1648,12 +1671,14 @@ static void dp_ctrl_isr(struct dp_ctrl *dp_ctrl)
 {
 	struct dp_ctrl_private *ctrl;
 
+	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_ENTRY);
 	if (!dp_ctrl)
 		return;
 
 	ctrl = container_of(dp_ctrl, struct dp_ctrl_private, dp_ctrl);
 
 	ctrl->catalog->get_interrupt(ctrl->catalog);
+	SDE_EVT32_EXTERNAL(ctrl->catalog->isr);
 
 	if (ctrl->catalog->isr & DP_CTRL_INTR_READY_FOR_VIDEO)
 		dp_ctrl_video_ready(ctrl);
@@ -1666,6 +1691,7 @@ static void dp_ctrl_isr(struct dp_ctrl *dp_ctrl)
 
 	if (ctrl->catalog->isr5 & DP_CTRL_INTR_MST_DP1_VCPF_SENT)
 		dp_ctrl_idle_patterns_sent(ctrl);
+	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT);
 }
 
 void dp_ctrl_set_sim_mode(struct dp_ctrl *dp_ctrl, bool en)
@@ -1729,7 +1755,7 @@ struct dp_ctrl *dp_ctrl_get(struct dp_ctrl_in *in)
 	dp_ctrl->stream_pre_off = dp_ctrl_stream_pre_off;
 	dp_ctrl->set_mst_channel_info = dp_ctrl_set_mst_channel_info;
 	dp_ctrl->set_sim_mode = dp_ctrl_set_sim_mode;
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	dp_ctrl->get_link_train_status = dp_ctrl_get_link_train_status;
 #endif
 

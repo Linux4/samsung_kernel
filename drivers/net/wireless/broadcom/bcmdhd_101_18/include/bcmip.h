@@ -1,7 +1,7 @@
 /*
  * Fundamental constants relating to IP Protocol
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -123,6 +123,18 @@ BWL_PRE_PACKED_STRUCT struct ipv4_hdr {
 	uint16	hdr_chksum;		/* IP header checksum */
 	uint8	src_ip[IPV4_ADDR_LEN];	/* Source IP Address */
 	uint8	dst_ip[IPV4_ADDR_LEN];	/* Destination IP Address */
+} BWL_POST_PACKED_STRUCT;
+
+#define IPOPTION_RA		148u	/* router alert */
+#define IPOPTION_RA_LEN		4u	/* router alert length */
+
+/*
+ * Router Alert option structure.
+ */
+BWL_PRE_PACKED_STRUCT struct ip_router_alert {
+	uint8  ipra_code;		/* IPOPT_RA */
+	uint8  ipra_len;		/* size of structure (variable) */
+	uint16 ipra_data;		/* index of current entry */
 } BWL_POST_PACKED_STRUCT;
 
 /* IPV6 field offsets */

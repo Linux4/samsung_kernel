@@ -104,6 +104,16 @@
 
 
 /*****************************************************************************
+*  Alternative mode (When something goes wrong, the modules may be able to solve the problem.)
+*****************************************************************************/
+/*
+ * For commnication error in PM(deep sleep) state
+ */
+#define FTS_PATCH_COMERR_PM                     0
+#define FTS_TIMEOUT_COMERR_PM                   700
+
+
+/*****************************************************************************
 * Private enumerations, structures and unions using typedef
 *****************************************************************************/
 struct ftxxxx_proc {
@@ -114,6 +124,7 @@ struct ftxxxx_proc {
 };
 
 struct fts_ts_platform_data {
+	u32 type;
 	u32 irq_gpio;
 	u32 irq_gpio_flags;
 	u32 reset_gpio;
@@ -128,6 +139,7 @@ struct fts_ts_platform_data {
 	u32 x_min;
 	u32 y_min;
 	u32 max_touch_number;
+	bool power_always_on;
 };
 
 struct ts_event {
@@ -144,8 +156,58 @@ enum trusted_touch_mode_config {
 	TRUSTED_TOUCH_MODE_NONE
 };
 
+enum trusted_touch_pvm_states {
+	TRUSTED_TOUCH_PVM_INIT,
+	PVM_I2C_RESOURCE_ACQUIRED,
+	PVM_INTERRUPT_DISABLED,
+	PVM_IOMEM_LENT,
+	PVM_IOMEM_LENT_NOTIFIED,
+	PVM_IRQ_LENT,
+	PVM_IRQ_LENT_NOTIFIED,
+	PVM_IOMEM_RELEASE_NOTIFIED,
+	PVM_IRQ_RELEASE_NOTIFIED,
+	PVM_ALL_RESOURCES_RELEASE_NOTIFIED,
+	PVM_IRQ_RECLAIMED,
+	PVM_IOMEM_RECLAIMED,
+	PVM_INTERRUPT_ENABLED,
+	PVM_I2C_RESOURCE_RELEASED,
+	TRUSTED_TOUCH_PVM_STATE_MAX
+};
+
+enum trusted_touch_tvm_states {
+	TRUSTED_TOUCH_TVM_INIT,
+	TVM_IOMEM_LENT_NOTIFIED,
+	TVM_IRQ_LENT_NOTIFIED,
+	TVM_ALL_RESOURCES_LENT_NOTIFIED,
+	TVM_IOMEM_ACCEPTED,
+	TVM_I2C_SESSION_ACQUIRED,
+	TVM_IRQ_ACCEPTED,
+	TVM_INTERRUPT_ENABLED,
+	TVM_INTERRUPT_DISABLED,
+	TVM_IRQ_RELEASED,
+	TVM_I2C_SESSION_RELEASED,
+	TVM_IOMEM_RELEASED,
+	TRUSTED_TOUCH_TVM_STATE_MAX
+};
+
 #ifdef CONFIG_FTS_TRUSTED_TOUCH
 #define TRUSTED_TOUCH_MEM_LABEL 0x7
+
+#define TOUCH_RESET_GPIO_BASE 0xF116000
+#define TOUCH_RESET_GPIO_SIZE 0x1000
+#define TOUCH_RESET_GPIO_OFFSET 0x4
+#define TOUCH_INTR_GPIO_BASE 0xF117000
+#define TOUCH_INTR_GPIO_SIZE 0x1000
+#define TOUCH_INTR_GPIO_OFFSET 0x8
+
+#define TRUSTED_TOUCH_EVENT_LEND_FAILURE -1
+#define TRUSTED_TOUCH_EVENT_LEND_NOTIFICATION_FAILURE -2
+#define TRUSTED_TOUCH_EVENT_ACCEPT_FAILURE -3
+#define	TRUSTED_TOUCH_EVENT_FUNCTIONAL_FAILURE -4
+#define	TRUSTED_TOUCH_EVENT_RELEASE_FAILURE -5
+#define	TRUSTED_TOUCH_EVENT_RECLAIM_FAILURE -6
+#define	TRUSTED_TOUCH_EVENT_I2C_FAILURE -7
+#define	TRUSTED_TOUCH_EVENT_NOTIFICATIONS_PENDING 5
 
 struct trusted_touch_vm_info {
 	enum hh_irq_label irq_label;
@@ -157,11 +219,11 @@ struct trusted_touch_vm_info {
 	u32 iomem_list_size;
 	void *mem_cookie;
 #ifdef CONFIG_ARCH_QTI_VM
-	atomic_t tvm_owns_iomem;
-	atomic_t tvm_owns_irq;
+	struct mutex tvm_state_mutex;
+	atomic_t tvm_state;
 #else
-	atomic_t pvm_owns_iomem;
-	atomic_t pvm_owns_irq;
+	struct mutex pvm_state_mutex;
+	atomic_t pvm_state;
 #endif
 };
 #endif
@@ -187,6 +249,10 @@ struct fts_ts_data {
 	int log_level;
 	int fw_is_running;      /* confirm fw is running when using spi:default 0 */
 	int dummy_byte;
+#if defined(CONFIG_PM) && FTS_PATCH_COMERR_PM
+	struct completion pm_completion;
+	bool pm_suspend;
+#endif
 	bool suspended;
 	bool fw_loading;
 	bool irq_disabled;
@@ -200,6 +266,7 @@ struct fts_ts_data {
 	struct ts_event *events;
 	u8 *bus_tx_buf;
 	u8 *bus_rx_buf;
+	int bus_type;
 	u8 *point_buf;
 	int pnt_buf_size;
 	int touchs;
@@ -225,14 +292,23 @@ struct fts_ts_data {
 	struct mutex fts_clk_io_ctrl_mutex;
 	const char *touch_environment;
 	struct completion trusted_touch_powerdown;
-	struct completion resource_checkpoint;
 	struct clk *core_clk;
 	struct clk *iface_clk;
 	atomic_t trusted_touch_initialized;
 	atomic_t trusted_touch_enabled;
+	atomic_t trusted_touch_underway;
+	atomic_t trusted_touch_event;
+	atomic_t trusted_touch_abort_status;
 	atomic_t delayed_vm_probe_pending;
 	atomic_t trusted_touch_mode;
 #endif
+};
+
+enum _FTS_BUS_TYPE {
+	BUS_TYPE_NONE,
+	BUS_TYPE_I2C,
+	BUS_TYPE_SPI,
+	BUS_TYPE_SPI_V2,
 };
 
 /*****************************************************************************
@@ -276,6 +352,11 @@ int fts_esdcheck_suspend(void);
 int fts_esdcheck_resume(void);
 #endif
 
+/* Production test */
+#if FTS_TEST_EN
+int fts_test_init(struct fts_ts_data *ts_data);
+int fts_test_exit(struct fts_ts_data *ts_data);
+#endif
 
 /* Point Report Check*/
 #if FTS_POINT_REPORT_CHECK_EN
@@ -287,7 +368,6 @@ void fts_prc_queue_work(struct fts_ts_data *ts_data);
 /* FW upgrade */
 int fts_fwupg_init(struct fts_ts_data *ts_data);
 int fts_fwupg_exit(struct fts_ts_data *ts_data);
-int fts_upgrade_bin(char *fw_name, bool force);
 int fts_enter_test_environment(bool test_state);
 
 /* Other */
@@ -303,4 +383,9 @@ void fts_irq_disable(void);
 void fts_irq_enable(void);
 int fts_ts_handle_trusted_touch_pvm(struct fts_ts_data *ts_data, int value);
 int fts_ts_handle_trusted_touch_tvm(struct fts_ts_data *ts_data, int value);
+#ifdef CONFIG_FTS_TRUSTED_TOUCH
+#ifdef CONFIG_ARCH_QTI_VM
+void fts_ts_trusted_touch_tvm_i2c_failure_report(struct fts_ts_data *fts_data);
+#endif
+#endif
 #endif /* __LINUX_FOCALTECH_CORE_H__ */

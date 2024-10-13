@@ -39,13 +39,12 @@
 #ifdef CONFIG_SUPPORT_LIGHT_CALIBRATION
 #define LIGHT_UB_CELL_ID_INFO_STRING_LENGTH 23
 #define UB_CELL_ID_PATH "/sys/class/lcd/panel/SVC_OCTA"
+#define SUB_UB_CELL_ID_PATH "/sys/class/lcd/panel/SVC_OCTA2"
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
-#define AUTO_CAL_DATA_NUM 19
-#define AUTO_CAL_FILE_BUF_LEN 140
-#define DIGITAL_HALL_AUTO_CAL_X_PATH "/efs/FactoryApp/digital_hall_auto_cal_x"
-#define DIGITAL_HALL_AUTO_CAL_Y_PATH "/efs/FactoryApp/digital_hall_auto_cal_y"
-#define DIGITAL_HALL_AUTO_CAL_Z_PATH "/efs/FactoryApp/digital_hall_auto_cal_z"
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+/* To avoid wrong folder close */
+#define LSM6DSO_SELFTEST_TRUE 3
+#define LSM6DSO_SELFTEST_FALSE 4
 #endif
 
 enum {
@@ -75,6 +74,13 @@ enum {
 	ID_MAX,
 };
 
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+struct sensor_fold_state {
+	int64_t ts;
+	int state; // 0: unfold, 1: close(fold)
+};
+#endif
+
 /* Main struct containing all the data */
 struct adsp_data {
 	struct device *adsp;
@@ -97,7 +103,11 @@ struct adsp_data {
 #ifdef CONFIG_FLIP_COVER_DETECTOR_FACTORY
 	struct mutex flip_cover_factory_mutex;
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
+#ifdef CONFIG_TCS340X_FLICKER_FACTORY
+	struct mutex flicker_factory_mutex;
+	struct delayed_work flicker_eol_work;
+#endif
+#ifdef CONFIG_SUPPORT_AK09973
 	struct mutex digital_hall_mutex;
 #endif
 	struct notifier_block adsp_nb;
@@ -134,19 +144,34 @@ struct adsp_data {
 	int32_t brightness_info[6];
 	int32_t pre_bl_level;
 	int32_t pre_panel_state;
+	int32_t pre_panel_idx;
+	int32_t pre_test_state;
+	int32_t pre_screen_mode;
         int32_t light_debug_info_cmd;
 #ifdef CONFIG_SUPPORT_PROX_CALIBRATION
 	int32_t prox_cal;
 #endif
 	struct delayed_work accel_cal_work;
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
 	struct delayed_work sub_accel_cal_work;
+	struct delayed_work lsm6dso_selftest_stop_work;
+#endif
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
 	struct delayed_work light_seamless_work;
 #endif
+#ifdef CONFIG_SUPPORT_AK09973
+	struct delayed_work dhall_cal_work;
+#endif
+#ifdef CONFIG_LPS22HH_FACTORY
 	struct delayed_work pressure_cal_work;
+#endif
+#ifdef CONFIG_SUPPORT_SENSOR_FOLD
+	struct sensor_fold_state fold_state;
+#endif
 	uint32_t support_algo;
 	bool restrict_mode;
 	int turn_over_crash;
+	int32_t hyst[4];
 };
 
 #ifdef CONFIG_SUPPORT_MOBEAM
@@ -197,8 +222,6 @@ void sub_accel_cal_work_func(struct work_struct *work);
 #endif
 #ifdef CONFIG_SUPPORT_DEVICE_MODE
 void sns_device_mode_init_work(void);
-#endif
-#ifdef CONFIG_SUPPORT_DUAL_OPTIC
 void sns_flip_init_work(void);
 #endif
 #ifdef CONFIG_VBUS_NOTIFIER
@@ -227,8 +250,8 @@ void prox_send_cal_data(struct adsp_data *data, bool fac_cal);
 #ifdef CONFIG_SUPPORT_PROX_POWER_ON_CAL
 void prox_factory_init_work(void);
 #endif
-#ifdef CONFIG_SUPPORT_AK0997X
-void digital_hall_factory_auto_cal_init_work(void);
+#ifdef CONFIG_SUPPORT_AK09973
+void digital_hall_factory_auto_cal_init_work(struct adsp_data *data);
 int get_hall_angle_data(int32_t *raw_data);
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
@@ -236,16 +259,28 @@ void light_seamless_work_func(struct work_struct *work);
 void light_seamless_init_work(struct adsp_data *data);
 #endif
 #if defined(CONFIG_SUPPORT_BHL_COMPENSATION_FOR_LIGHT_SENSOR) || \
-	defined(CONFIG_SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX)
+	defined(CONFIG_SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX) || \
+	defined(CONFIG_SUPPORT_DUAL_OPTIC)
 int get_light_sidx(struct adsp_data *data);
 #endif
 #ifdef CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR
 struct adsp_data* adsp_get_struct_data(void);
 void light_brightness_work_func(struct work_struct *work);
 #endif
+#ifdef CONFIG_SUPPORT_AK09973
+void dhall_cal_work_func(struct work_struct *work);
+#endif
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+void lsm6dso_selftest_stop_work_func(struct work_struct *work);
+#endif
+#ifdef CONFIG_TCS340X_FLICKER_FACTORY
+void flicker_eol_work_func(struct work_struct *work);
+#endif
 #ifdef CONFIG_FLIP_COVER_DETECTOR_FACTORY
 void flip_cover_detector_init_work(struct adsp_data *data);
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 void pressure_factory_init_work(struct adsp_data *data);
 void pressure_cal_work_func(struct work_struct *work);
+#endif
 #endif /* __ADSP_SENSOR_H__ */

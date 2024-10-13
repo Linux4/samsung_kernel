@@ -37,6 +37,7 @@
 
 		qcom,sde-mixer-cwb-pref = "none", "none", "cwb",
 					      "cwb", "cwb", "cwb";
+		qcom,sde-mixer-cwb-mask = <0x0 0x0 0x5 0xa 0x11 0x22>;
 
 		qcom,sde-dspp-top-off = <0x1300>;
 		qcom,sde-dspp-top-size = <0x80>;
@@ -62,7 +63,7 @@
 
 		qcom,sde-intf-off = <0x35000 0x36000
 					0x37000 0x38000>;
-		qcom,sde-intf-size = <0x2c0>;
+		qcom,sde-intf-size = <0x2c4>;
 		qcom,sde-intf-type = "dp", "dsi", "dsi", "dp";
 		qcom,sde-intf-tear-irq-off = <0 0x36800 0x37800 0>;
 
@@ -283,8 +284,9 @@
 		cell-index = <0>;
 		frame-threshold-time-us = <800>;
 		reg = <0xae94000 0x400>,
-			<0xaf08000 0x4>;
-		reg-names = "dsi_ctrl", "disp_cc_base";
+			<0xaf08000 0x4>,
+			<0x0ae36000 0x300>;
+		reg-names = "dsi_ctrl", "disp_cc_base", "mdp_intf_base";
 		interrupt-parent = <&mdss_mdp>;
 		interrupts = <4 0>;
 
@@ -322,8 +324,9 @@
 		cell-index = <1>;
 		frame-threshold-time-us = <800>;
 		reg = <0xae96000 0x400>,
-			<0xaf08000 0x4>;
-		reg-names = "dsi_ctrl", "disp_cc_base";
+			<0xaf08000 0x4>,
+			<0x0ae37000 0x300>;
+		reg-names = "dsi_ctrl", "disp_cc_base", "mdp_intf_base";
 		interrupt-parent = <&mdss_mdp>;
 		interrupts = <5 0>;
 

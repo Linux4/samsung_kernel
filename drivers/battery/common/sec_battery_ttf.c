@@ -67,12 +67,11 @@ int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 		return 60;	/* minimum 1minutes */
 }
 
-#define FULL_CAPACITY 850
 int sec_calc_ttf_to_full_capacity(struct sec_battery_info *battery, unsigned int ttf_curr)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
 	int i, cc_time = 0, cv_time = 0;
-	int soc = FULL_CAPACITY;
+	int soc = battery->batt_full_capacity * 10;
 	int charge_current = ttf_curr;
 	int design_cap = battery->ttf_d->ttf_capacity;
 
@@ -128,7 +127,7 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 			battery->cable_type == SEC_BATTERY_CABLE_PREPARE_WIRELESS_20) {
 			if (sec_bat_hv_wc_normal_mode_check(battery))
 				charge = battery->ttf_d->ttf_wireless_charge_current;
-			else if ((battery->cable_type == SEC_BATTERY_CABLE_PREPARE_WIRELESS_20 && !read_cmdline(lpcharge)) ||
+			else if ((battery->cable_type == SEC_BATTERY_CABLE_PREPARE_WIRELESS_20 && !sec_bat_get_lpmode()) ||
 				battery->cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20)
 				charge = battery->ttf_d->ttf_predict_wc20_charge_current;
 			else
@@ -157,7 +156,7 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 					battery->pdata->charging_current[battery->cable_type].fast_charging_current : (battery->max_charge_power / 5);
 		}
 		if (battery->batt_full_capacity > 0 && battery->batt_full_capacity < 100) {
-			pr_info("%s: time to 85 percent\n", __func__);
+			pr_info("%s: time to %d percent\n", __func__, battery->batt_full_capacity);
 			battery->ttf_d->timetofull =
 				sec_calc_ttf(battery, charge) - sec_calc_ttf_to_full_capacity(battery, charge);
 		} else
@@ -180,6 +179,7 @@ void sec_bat_predict_wireless20_time_to_full_current(struct sec_battery_info *ba
 
 	pr_info("%s: %dmA \n", __func__, battery->ttf_d->ttf_predict_wc20_charge_current);
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_predict_wireless20_time_to_full_current);
 #endif
 
 int sec_ttf_parse_dt(struct sec_battery_info *battery)
@@ -316,7 +316,7 @@ void sec_bat_time_to_full_work(struct work_struct *work)
 
 void ttf_work_start(struct sec_battery_info *battery)
 {
-	if (read_cmdline(lpcharge)) {
+	if (sec_bat_get_lpmode()) {
 		cancel_delayed_work(&battery->ttf_d->timetofull_work);
 		if (battery->current_event & SEC_BAT_CURRENT_EVENT_AFC) {
 			int work_delay = 0;
@@ -344,6 +344,7 @@ int ttf_display(unsigned int capacity, int bat_sts, int thermal_zone, int time)
 	else
 		return 0;
 }
+EXPORT_SYMBOL_KUNIT(ttf_display);
 
 void ttf_init(struct sec_battery_info *battery)
 {
@@ -357,3 +358,4 @@ void ttf_init(struct sec_battery_info *battery)
 
 	INIT_DELAYED_WORK(&battery->ttf_d->timetofull_work, sec_bat_time_to_full_work);
 }
+EXPORT_SYMBOL_KUNIT(ttf_init);

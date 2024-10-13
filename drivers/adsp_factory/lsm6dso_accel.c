@@ -257,6 +257,12 @@ static ssize_t accel_selftest_show(struct device *dev,
 	struct adsp_data *data = dev_get_drvdata(dev);
 	uint8_t cnt = 0;
 	int retry = 0;
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+	int msg_buf = LSM6DSO_SELFTEST_TRUE;
+
+	adsp_unicast(&msg_buf, sizeof(msg_buf),
+		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
+#endif
 
 	pdata->st_complete = false;
 RETRY_ACCEL_SELFTEST:
@@ -264,7 +270,7 @@ RETRY_ACCEL_SELFTEST:
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] & 1 << MSG_ACCEL) &&
 		cnt++ < TIMEOUT_CNT)
-		msleep(25);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_ACCEL);
 
@@ -303,6 +309,9 @@ RETRY_ACCEL_SELFTEST:
 
 	pdata->st_complete = true;
 
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+	schedule_delayed_work(&data->lsm6dso_selftest_stop_work, msecs_to_jiffies(300));
+#endif
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d\n",
 			data->msg_buf[MSG_ACCEL][1],
 			(int)abs(data->msg_buf[MSG_ACCEL][2]),

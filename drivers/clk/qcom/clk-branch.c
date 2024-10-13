@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2013, 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013, 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -72,7 +72,6 @@ static int clk_branch_wait(const struct clk_branch *br, bool enabling,
 		bool (check_halt)(const struct clk_branch *, bool))
 {
 	bool voted = br->halt_check & BRANCH_VOTED;
-	const char *name = clk_hw_get_name(&br->clkr.hw);
 
 	/*
 	 * Skip checking halt bit if we're explicitly ignoring the bit or the
@@ -93,7 +92,7 @@ static int clk_branch_wait(const struct clk_branch *br, bool enabling,
 				return 0;
 			udelay(1);
 		}
-		WARN(1, "%s status stuck at 'o%s'", name,
+		WARN_CLK((struct clk_hw *)&br->clkr.hw, 1, "status stuck at 'o%s'",
 				enabling ? "ff" : "n");
 		return -EBUSY;
 	}
@@ -191,7 +190,7 @@ static void clk_branch2_list_registers(struct seq_file *f, struct clk_hw *hw)
 	for (i = 0; i < size; i++) {
 		regmap_read(br->clkr.regmap, br->halt_reg + data[i].offset,
 					&val);
-		seq_printf(f, "%20s: 0x%.8x\n", data[i].name, val);
+		clock_debug_output(f, "%20s: 0x%.8x\n", data[i].name, val);
 	}
 
 	if ((br->halt_check & BRANCH_HALT_VOTED) &&
@@ -201,15 +200,55 @@ static void clk_branch2_list_registers(struct seq_file *f, struct clk_hw *hw)
 			for (i = 0; i < size; i++) {
 				regmap_read(br->clkr.regmap, rclk->enable_reg +
 						data1[i].offset, &val);
-				seq_printf(f, "%20s: 0x%.8x\n",
+				clock_debug_output(f, "%20s: 0x%.8x\n",
 						data1[i].name, val);
 			}
 		}
 	}
 }
 
+static int clk_branch2_set_flags(struct clk_hw *hw, unsigned long flags)
+{
+	struct clk_branch *br = to_clk_branch(hw);
+	u32 cbcr_val = 0, cbcr_mask;
+	int ret;
+
+	switch (flags) {
+	case CLKFLAG_PERIPH_OFF_SET:
+		cbcr_val = cbcr_mask = BIT(12);
+		break;
+	case CLKFLAG_PERIPH_OFF_CLEAR:
+		cbcr_mask = BIT(12);
+		break;
+	case CLKFLAG_RETAIN_PERIPH:
+		cbcr_val = cbcr_mask = BIT(13);
+		break;
+	case CLKFLAG_NORETAIN_PERIPH:
+		cbcr_mask = BIT(13);
+		break;
+	case CLKFLAG_RETAIN_MEM:
+		cbcr_val = cbcr_mask = BIT(14);
+		break;
+	case CLKFLAG_NORETAIN_MEM:
+		cbcr_mask = BIT(14);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	ret = regmap_update_bits(br->clkr.regmap, br->halt_reg, cbcr_mask,
+								cbcr_val);
+	/* Make sure power is enabled/disabled before returning. */
+	mb();
+
+	udelay(1);
+
+	return ret;
+}
+
 static struct clk_regmap_ops clk_branch2_regmap_ops = {
 	.list_registers = clk_branch2_list_registers,
+	.set_flags = clk_branch2_set_flags,
 };
 
 static void clk_branch2_init(struct clk_hw *hw)
@@ -307,55 +346,3 @@ const struct clk_ops clk_branch_simple_ops = {
 	.is_enabled = clk_is_enabled_regmap,
 };
 EXPORT_SYMBOL_GPL(clk_branch_simple_ops);
-
-int qcom_clk_set_flags(struct clk *clk, unsigned long flags)
-{
-	struct clk_hw *hw;
-	struct clk_branch *br;
-	u32 cbcr_val = 0, cbcr_mask;
-	int ret;
-
-	if (IS_ERR_OR_NULL(clk))
-		return 0;
-
-	hw = __clk_get_hw(clk);
-	if (IS_ERR_OR_NULL(hw))
-		return -EINVAL;
-
-	switch (flags) {
-	case CLKFLAG_PERIPH_OFF_SET:
-		cbcr_val = cbcr_mask = BIT(12);
-		break;
-	case CLKFLAG_PERIPH_OFF_CLEAR:
-		cbcr_mask = BIT(12);
-		break;
-	case CLKFLAG_RETAIN_PERIPH:
-		cbcr_val = cbcr_mask = BIT(13);
-		break;
-	case CLKFLAG_NORETAIN_PERIPH:
-		cbcr_mask = BIT(13);
-		break;
-	case CLKFLAG_RETAIN_MEM:
-		cbcr_val = cbcr_mask = BIT(14);
-		break;
-	case CLKFLAG_NORETAIN_MEM:
-		cbcr_mask = BIT(14);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	br = to_clk_branch(hw);
-	ret = regmap_update_bits(br->clkr.regmap, br->halt_reg, cbcr_mask,
-								cbcr_val);
-	if (ret)
-		return ret;
-
-	/* Make sure power is enabled/disabled before returning. */
-	mb();
-
-	udelay(1);
-
-	return 0;
-}
-EXPORT_SYMBOL(qcom_clk_set_flags);

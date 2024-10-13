@@ -693,13 +693,16 @@ struct synaptics_ts_data {
 	bool fw_corruption;
 	bool glove_enabled;
 	u8 brush_mode;
+	bool cover_closed;
 
 	int resolution_x;
 	int resolution_y;
 
 	u8 touch_opmode;
-	u8 charger_mode;
 	u8 scan_mode;
+
+	bool support_immediate_cmd;
+	bool do_set_up_report;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;
@@ -708,9 +711,6 @@ struct synaptics_ts_data {
 	struct completion secure_interrupt;
 #endif
 
-#ifdef SYNAPTICS_TS_SUPPORT_TA_MODE
-	bool TA_Pluged;
-#endif	
 	struct notifier_block synaptics_input_nb;
 	struct delayed_work work_print_info;
 	struct delayed_work work_read_functions;
@@ -773,6 +773,9 @@ struct synaptics_ts_data {
 	unsigned int delay_ms_resp);
 	int (*read_message)(struct synaptics_ts_data *ts,
 		unsigned char *status_report_code);
+	int (*write_immediate_message)(struct synaptics_ts_data *ts,
+		unsigned char command, unsigned char *payload,
+		unsigned int payload_len);
 };
 
 //temporily
@@ -1579,7 +1582,8 @@ int synaptics_ts_set_fod_rect(struct synaptics_ts_data *ts);
 int synaptics_ts_set_touchable_area(struct synaptics_ts_data *ts);
 int synaptics_ts_ear_detect_enable(struct synaptics_ts_data *ts, u8 enable);
 int synaptics_ts_pocket_mode_enable(struct synaptics_ts_data *ts, u8 enable);
-int synaptics_ts_set_charger_mode(struct synaptics_ts_data *ts);
+int synaptics_ts_low_sensitivity_mode_enable(struct synaptics_ts_data *ts, u8 enable);
+int synaptics_ts_set_charger_mode(struct device *dev, bool on);
 void synaptics_ts_set_cover_type(struct synaptics_ts_data *ts, bool enable);
 int synaptics_ts_set_press_property(struct synaptics_ts_data *ts);
 int get_nvm_data(struct synaptics_ts_data *ts, int type, u8 *nvdata);
@@ -1589,6 +1593,7 @@ int set_nvm_data_by_size(struct synaptics_ts_data *ts, u8 offset, int length, u8
 int synaptics_ts_set_touch_function(struct synaptics_ts_data *ts);
 void synaptics_ts_get_touch_function(struct work_struct *work);
 int synaptics_ts_detect_protocol(struct synaptics_ts_data *ts, unsigned char *data, unsigned int data_len);
+int synaptics_ts_set_up_report(struct synaptics_ts_data *ts);
 int synaptics_ts_set_up_app_fw(struct synaptics_ts_data *ts);
 inline unsigned int synaptics_ts_pal_le2_to_uint(const unsigned char *src);
 inline unsigned int synaptics_ts_pal_le4_to_uint(const unsigned char *src);
@@ -1606,8 +1611,13 @@ int synaptics_ts_send_command(struct synaptics_ts_data *ts,
 			unsigned char command, unsigned char *payload,
 			unsigned int payload_length, unsigned char *resp_code,
 			struct synaptics_ts_buffer *resp, unsigned int delay_ms_resp);
+int synaptics_ts_send_immediate_command(struct synaptics_ts_data *ts,
+			unsigned char command, unsigned char *payload,
+			unsigned int payload_length);
 int synaptics_ts_calibration(struct synaptics_ts_data *ts);
 int synaptics_ts_set_dynamic_config(struct synaptics_ts_data *ts,
+		unsigned char id, unsigned short value);
+int synaptics_ts_set_immediate_dynamic_config(struct synaptics_ts_data *ts,
 		unsigned char id, unsigned short value);
 int synaptics_ts_clear_buffer(struct synaptics_ts_data *ts);
 int synaptics_tclm_data_read(struct i2c_client *client, int address);
@@ -1640,6 +1650,7 @@ int synaptics_ts_wait_for_echo_event(struct synaptics_ts_data *ts, u8 *cmd, u8 c
 int synaptics_ts_fw_wait_for_event(struct synaptics_ts_data *ts, u8 *result, u8 result_cnt);
 int synaptics_ts_tclm_execute_force_calibration(struct i2c_client *client, int cal_mode);
 void synaptics_ts_checking_miscal(struct synaptics_ts_data *ts);
+void synaptics_ts_external_func(struct synaptics_ts_data *ts);
 
 /* for vendor */
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
@@ -1654,13 +1665,6 @@ void syna_cdev_update_report_queue(struct synaptics_ts_data *ts,
 
 #ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
 extern struct tsp_dump_callbacks dump_callbacks;
-#endif
-
-#ifdef SYNAPTICS_TS_SUPPORT_TA_MODE
-extern struct synaptics_ts_callbacks *SYNAPTICS_TS_charger_callbacks;
-struct synaptics_ts_callbacks {
-	void (*inform_charger)(struct SYNAPTICS_TS_callbacks *, int);
-};
 #endif
 
 #endif /* _LINUX_synaptics_ts_H_ */

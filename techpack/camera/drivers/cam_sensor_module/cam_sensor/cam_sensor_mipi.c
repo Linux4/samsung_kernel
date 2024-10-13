@@ -187,13 +187,18 @@ int32_t cam_check_sensor_type(uint16_t sensor_id)
 #if defined(CONFIG_SEC_B2Q_PROJECT)
 		case SENSOR_ID_IMX563:
 #endif
+		case SENSOR_ID_S5KJN1:
+		case SENSOR_ID_S5KJN1_1:
 			sensor_type = WIDE;
 			break;
-#if !defined(CONFIG_SEC_Q2Q_PROJECT)
+#if !defined(CONFIG_SEC_Q2Q_PROJECT) && !defined(CONFIG_SEC_V2Q_PROJECT)
 		case FRONT_SENSOR_ID_IMX374:
 #endif
 		case FRONT_SENSOR_ID_IMX471:
 		case SENSOR_ID_S5KGH1:
+#if defined(CONFIG_SEC_M44X_PROJECT)
+		case SENSOR_ID_HI1336:
+#endif
  			sensor_type = FRONT;
 			break;
 
@@ -210,12 +215,12 @@ int32_t cam_check_sensor_type(uint16_t sensor_id)
 		case SENSOR_ID_IMX586:
 		case SENSOR_ID_S5KGW2:
 		case SENSOR_ID_S5K3J1:
-#if defined(CONFIG_SEC_Q2Q_PROJECT)
+#if defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 		case SENSOR_ID_HI1337:
 #endif
 			sensor_type = TELE;
 			break;
-#if defined(CONFIG_SEC_Q2Q_PROJECT)
+#if defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 		case FRONT_SENSOR_ID_IMX374:
  			sensor_type = FRONT_TOP;
 			break;

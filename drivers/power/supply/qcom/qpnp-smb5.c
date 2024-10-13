@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -218,7 +218,6 @@ struct smb_dt_props {
 	int			term_current_src;
 	int			term_current_thresh_hi_ma;
 	int			term_current_thresh_lo_ma;
-	int			disable_suspend_on_collapse;
 };
 
 struct smb5 {
@@ -446,6 +445,9 @@ static int smb5_parse_dt_misc(struct smb5 *chip, struct device_node *node)
 	chg->sw_jeita_enabled = of_property_read_bool(node,
 				"qcom,sw-jeita-enable");
 
+	chg->jeita_arb_enable = of_property_read_bool(node,
+				"qcom,jeita-arb-enable");
+
 	chg->pd_not_supported = chg->pd_not_supported ||
 			of_property_read_bool(node, "qcom,usb-pd-disable");
 
@@ -553,7 +555,7 @@ static int smb5_parse_dt_misc(struct smb5 *chip, struct device_node *node)
 	of_property_read_u32(node, "qcom,connector-internal-pull-kohm",
 					&chg->connector_pull_up);
 
-	chip->dt.disable_suspend_on_collapse = of_property_read_bool(node,
+	chg->disable_suspend_on_collapse = of_property_read_bool(node,
 					"qcom,disable-suspend-on-collapse");
 	chg->smb_pull_up = -EINVAL;
 	of_property_read_u32(node, "qcom,smb-internal-pull-kohm",
@@ -836,6 +838,7 @@ static enum power_supply_property smb5_usb_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 	POWER_SUPPLY_PROP_SCOPE,
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+	POWER_SUPPLY_PROP_POWER_NOW,
 };
 
 static int smb5_usb_get_prop(struct power_supply *psy,
@@ -881,6 +884,13 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 		val->intval = get_client_vote(chg->usb_icl_votable,
 					      USB_PSY_VOTER);
 		break;
+	case POWER_SUPPLY_PROP_POWER_NOW:
+		/* Show power rating for QC3+ adapter. */
+		if (chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5)
+			val->intval = chg->qc3p5_detected_mw;
+		else
+			rc = -ENODATA;
+		break;
 	default:
 		pr_err("get prop %d is not supported in usb\n", psp);
 		rc = -EINVAL;
@@ -907,6 +917,9 @@ static int smb5_usb_set_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
 		rc = smblib_set_prop_sdp_current_max(chg, val->intval);
 		break;
+	case POWER_SUPPLY_PROP_POWER_NOW:
+			chg->qc3p5_detected_mw = val->intval;
+		break;
 	default:
 		pr_err("Set prop %d is not supported in usb psy\n",
 				psp);
@@ -922,6 +935,7 @@ static int smb5_usb_prop_is_writeable(struct power_supply *psy,
 {
 	switch (psp) {
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+	case POWER_SUPPLY_PROP_POWER_NOW:
 		return 1;
 	default:
 		break;
@@ -1482,14 +1496,12 @@ static int smb5_configure_typec(struct smb_charger *chg)
 	}
 
 	/*
-	 * Across reboot, standard typeC cables get detected as legacy cables
-	 * due to VBUS attachment prior to CC attach/dettach. To handle this,
-	 * "early_usb_attach" flag is used, which assumes that across reboot,
-	 * the cable connected can be standard typeC. However, its jurisdiction
-	 * is limited to PD capable designs only. Hence, for non-PD type designs
-	 * reset legacy cable detection by disabling/enabling typeC mode.
+	 * Across reboot, standard typeC cables get detected as legacy
+	 * cables due to VBUS attachment prior to CC attach/detach.
+	 * Reset the legacy detection logic by enabling/disabling the typeC mode.
 	 */
-	if (chg->pd_not_supported && (value & TYPEC_LEGACY_CABLE_STATUS_BIT)) {
+
+	if (value & TYPEC_LEGACY_CABLE_STATUS_BIT) {
 		val = QTI_POWER_SUPPLY_TYPEC_PR_NONE;
 		rc = smblib_set_prop_typec_power_role(chg, val);
 		if (rc < 0) {
@@ -2135,7 +2147,7 @@ static int smb5_init_hw(struct smb5 *chip)
 	mask = USBIN_AICL_PERIODIC_RERUN_EN_BIT | USBIN_AICL_ADC_EN_BIT
 			| USBIN_AICL_EN_BIT | SUSPEND_ON_COLLAPSE_USBIN_BIT;
 	val = USBIN_AICL_PERIODIC_RERUN_EN_BIT | USBIN_AICL_EN_BIT;
-	if (!chip->dt.disable_suspend_on_collapse)
+	if (!chg->disable_suspend_on_collapse)
 		val |= SUSPEND_ON_COLLAPSE_USBIN_BIT;
 	if (chip->dt.adc_based_aicl)
 		val |= USBIN_AICL_ADC_EN_BIT;
@@ -2339,7 +2351,7 @@ static int smb5_determine_initial_status(struct smb5 *chip)
 	chg->early_usb_attach = val.intval;
 
 	if (chg->iio_chan_list_qg)
-		smblib_suspend_on_debug_battery(chg);
+		smblib_config_charger_on_debug_battery(chg);
 
 	smb5_usb_plugin_irq_handler(0, &irq_data);
 	smb5_dc_plugin_irq_handler(0, &irq_data);

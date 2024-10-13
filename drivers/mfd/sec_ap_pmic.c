@@ -159,6 +159,10 @@ static ssize_t manual_reset_store(struct device *in_dev,
 
 	pr_info("%s: onoff(%d)\n", __func__, onoff);
 
+	/* unregister keyboard_notifier first before register */
+	if (onoff)
+		do_keyboard_notifier(0);
+	
 	do_keyboard_notifier(onoff);
 	sec_set_s2_reset_onoff(onoff);
 

@@ -177,7 +177,7 @@ static inline char *dp_phy_aux_config_type_to_string(u32 cfg_type)
 	}
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 enum secdp_phy_pre_emphasis_type {
 	PHY_PRE_EMP0,		/* 0   db */
 	PHY_PRE_EMP1,		/* 3.5 db */
@@ -213,6 +213,7 @@ enum secdp_phy_voltage_type {
  * @gpio_aux_switch: presence GPIO AUX switch status
  * @dsc_feature_enable: DSC feature enable status
  * @fec_feature_enable: FEC feature enable status
+ * @dsc_continuous_pps: PPS sent every frame by HW
  * @has_widebus: widebus (2PPC) feature eanble status
  * @mst_fixed_port: mst port_num reserved for fixed topology
  * @parse: function to be called by client to parse device tree.
@@ -239,12 +240,13 @@ struct dp_parser {
 	bool no_aux_switch;
 	bool dsc_feature_enable;
 	bool fec_feature_enable;
+	bool dsc_continuous_pps;
 	bool has_widebus;
 	bool gpio_aux_switch;
 	bool lphw_hpd;
 	u32 mst_fixed_port[MAX_DP_MST_STREAMS];
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	bool cc_dir_inv;  /* CC_DIR is inversed, e.g, T865 */
 	bool aux_sel_inv; /* inverse control of AUX_SEL e.g, D2Xq hwid 01,02 */
 	int  use_redrv;   /* ptn36502 needs NOT AUX switch SEL control */

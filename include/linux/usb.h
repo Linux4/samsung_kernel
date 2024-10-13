@@ -309,7 +309,7 @@ void usb_put_intf(struct usb_interface *intf);
  * should cope with both LPJ calibration errors and devices not following every
  * detail of the USB Specification.
  */
-#define USB_RESUME_TIMEOUT	40 /* ms */
+#define USB_RESUME_TIMEOUT	20 /* ms */
 
 /**
  * struct usb_interface_cache - long-term representation of a device interface
@@ -770,11 +770,14 @@ extern void usb_queue_reset_device(struct usb_interface *dev);
 extern int usb_acpi_set_power_state(struct usb_device *hdev, int index,
 	bool enable);
 extern bool usb_acpi_power_manageable(struct usb_device *hdev, int index);
+extern int usb_acpi_port_lpm_incapable(struct usb_device *hdev, int index);
 #else
 static inline int usb_acpi_set_power_state(struct usb_device *hdev, int index,
 	bool enable) { return 0; }
 static inline bool usb_acpi_power_manageable(struct usb_device *hdev, int index)
 	{ return true; }
+static inline int usb_acpi_port_lpm_incapable(struct usb_device *hdev, int index)
+	{ return 0; }
 #endif
 
 /* USB autosuspend and autoresume */

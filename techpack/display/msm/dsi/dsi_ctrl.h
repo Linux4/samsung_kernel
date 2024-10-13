@@ -53,6 +53,9 @@
 /* max size supported for dsi cmd transfer using TPG */
 #define DSI_CTRL_MAX_CMD_FIFO_STORE_SIZE 64
 
+/*Default tearcheck window size as programmed by MDP*/
+#define TEARCHECK_WINDOW_SIZE	5
+
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 /* max size supported for dsi cmd transfer using DMA */
 #define DSI_CTRL_MAX_CMD_FET_MEMORY_SIZE 200

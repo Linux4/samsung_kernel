@@ -160,7 +160,7 @@ do_integrity_check(void)
 
 #ifdef FIPS_DEBUG_INTEGRITY
 	pr_info("FIPS_DEBUG_INTEGRITY : crypto_buildtime_address = %llx,  &crypto_buildtime_address = %llx",
-			crypto_buildtime_address, (__u64)&crypto_buildtime_address);
+			*(const volatile __u64 *)&crypto_buildtime_address, (__u64)&crypto_buildtime_address);
 	pr_info("FIPS_DEBUG_INTEGRITY : return_value_from_pointer((__u64*)&crypto_buildtime_address) = %llx",
 			return_value_from_pointer(&crypto_buildtime_address));
 #endif

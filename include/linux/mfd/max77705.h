@@ -48,6 +48,8 @@ struct max77705_vibrator_pdata {
 	int overdrive_ratio;
 	int high_temp_ratio;
 	int high_temp_ref;
+	int fold_open_ratio;
+	int fold_close_ratio;
 #if defined(CONFIG_SEC_VIBRATOR)
 	bool calibration;
 	int steps;

@@ -214,4 +214,8 @@ config SEC_PANIC_PCIE_ERR
 	depends on SEC_PCIE
 	bool "SEC_PANIC_PCIE_ERR feature"
 
+config SEC_PCIE_KEEP_LINKBW
+	depends on PCI_MSM
+	depends on SEC_PCIE
+	bool "SEC_PCIE_KEEP_LINKBW feature"
 endif

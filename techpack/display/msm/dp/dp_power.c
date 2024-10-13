@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -11,7 +11,7 @@
 #include "dp_debug.h"
 #include "dp_pll.h"
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 #include <linux/regulator/consumer.h>
 #include <linux/delay.h>
 #include "secdp.h"
@@ -40,15 +40,16 @@ struct dp_power_private {
 	bool link_clks_on;
 	bool strm0_clks_on;
 	bool strm1_clks_on;
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	bool aux_pullup_on;
 
 	void (*redrv_onoff)(bool enable, int lane);
 	void (*redrv_aux_ctrl)(int cross);
+	void (*redrv_notify_linkinfo)(u32 bw_code, u8 v_level, u8 p_level);
 #endif
 };
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 struct dp_power_private *g_secdp_power;
 
 #define DP_ENUM_STR(x)	#x
@@ -109,7 +110,7 @@ static void dp_power_regulator_deinit(struct dp_power_private *power)
 	}
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 extern struct regulator *aux_pullup_vreg;
 
 /* factory use only
@@ -157,7 +158,7 @@ static int secdp_aux_pullup_vreg_enable(bool on)
 			goto unset_vdd33;
 		}
 
-		DP_INFO("on success\n");
+		DP_INFO("[AUX_PU] on success\n");
 		power->aux_pullup_on = true;
 	} else {
 
@@ -177,7 +178,7 @@ put_vdda33_lpm:
 			DP_ERR("Unable to set 0 HPM of vdda33: %d\n", rc);
 
 		if (!rc)
-			DP_INFO("off success\n");
+			DP_INFO("[AUX_PU] off success\n");
 
 		power->aux_pullup_on = false;
 	}
@@ -224,7 +225,7 @@ static int dp_power_regulator_ctrl(struct dp_power_private *power, bool enable)
 		}
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	secdp_aux_pullup_vreg_enable(enable);
 #endif
 
@@ -327,20 +328,22 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 
 		power->pixel_parent = clk_get(dev, "pixel_parent");
 		if (IS_ERR(power->pixel_parent)) {
-			DP_DEBUG("Unable to get DP pixel RCG parent: %d\n",
+			DP_ERR("Unable to get DP pixel RCG parent: %d\n",
 					PTR_ERR(power->pixel_parent));
 			rc = PTR_ERR(power->pixel_parent);
 			power->pixel_parent = NULL;
 			goto err_pixel_parent;
 		}
 
-		power->pixel1_clk_rcg = clk_get(dev, "pixel1_clk_rcg");
-		if (IS_ERR(power->pixel1_clk_rcg)) {
-			DP_DEBUG("Unable to get DP pixel1 clk RCG: %d\n",
-					PTR_ERR(power->pixel1_clk_rcg));
-			rc = PTR_ERR(power->pixel1_clk_rcg);
-			power->pixel1_clk_rcg = NULL;
-			goto err_pixel1_clk_rcg;
+		if (power->parser->has_mst) {
+			power->pixel1_clk_rcg = clk_get(dev, "pixel1_clk_rcg");
+			if (IS_ERR(power->pixel1_clk_rcg)) {
+				DP_ERR("Unable to get DP pixel1 clk RCG: %d\n",
+						PTR_ERR(power->pixel1_clk_rcg));
+				rc = PTR_ERR(power->pixel1_clk_rcg);
+				power->pixel1_clk_rcg = NULL;
+				goto err_pixel1_clk_rcg;
+			}
 		}
 	} else {
 		if (power->pixel1_clk_rcg)
@@ -462,7 +465,7 @@ static int dp_power_clk_enable(struct dp_power *dp_power,
 		}
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (!enable) {
 		/* consider below abnormal sequence :
 		 * PDIC_NOTIFY_ATTACH
@@ -573,7 +576,7 @@ static bool dp_power_find_gpio(const char *gpio1, const char *gpio2)
 	return !!strnstr(gpio1, gpio2, strlen(gpio1));
 }
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 static void dp_power_set_gpio(struct dp_power_private *power, bool flip)
 {
 	int i;
@@ -684,6 +687,13 @@ static void secdp_ptn36502_onoff(bool enable, int lane)
 exit:
 	return;
 }
+
+static void secdp_ptn36502_notify_linkinfo(u32 bw_code, u8 v_level, u8 p_level)
+{
+	DP_DEBUG("+++ 0x%x,%d,%d, do nothing!\n", bw_code, v_level, p_level);
+
+	//.TODO:
+}
 #elif IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
 static void secdp_ps5169_aux_ctrl(int cross)
 {
@@ -720,6 +730,13 @@ static void secdp_ps5169_onoff(bool enable, int lane)
 exit:
 	return;
 }
+
+static void secdp_ps5169_notify_linkinfo(u32 bw_code, u8 v_level, u8 p_level)
+{
+	DP_DEBUG("+++ 0x%x,%d,%d\n", bw_code, v_level, p_level);
+
+//	ps5169_notify_dplink(bw_code, v_level, p_level);
+}
 #endif
 
 void secdp_redriver_onoff(bool enable, int lane)
@@ -736,6 +753,14 @@ static void secdp_redriver_aux_ctrl(int cross)
 
 	if (power && power->redrv_aux_ctrl)
 		power->redrv_aux_ctrl(cross);
+}
+
+void secdp_redriver_linkinfo(u32 rate, u8 v_level, u8 p_level)
+{
+	struct dp_power_private *power = g_secdp_power;
+
+	if (power && power->redrv_notify_linkinfo)
+		power->redrv_notify_linkinfo(rate, v_level, p_level);
 }
 
 static void secdp_redriver_register(struct dp_power_private *power)
@@ -758,10 +783,12 @@ static void secdp_redriver_register(struct dp_power_private *power)
 #if IS_ENABLED(CONFIG_COMBO_REDRIVER_PTN36502)
 	power->redrv_onoff = secdp_ptn36502_onoff;
 	power->redrv_aux_ctrl = secdp_ptn36502_aux_ctrl;
+	power->redrv_notify_linkinfo = secdp_ptn36502_notify_linkinfo;
 	DP_INFO("ptn36502 API registered!\n");
 #elif IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
 	power->redrv_onoff = secdp_ps5169_onoff;
 	power->redrv_aux_ctrl = secdp_ps5169_aux_ctrl;
+	power->redrv_notify_linkinfo = secdp_ps5169_notify_linkinfo;
 	DP_INFO("ps5169 API registered!\n");
 #endif
 
@@ -902,7 +929,7 @@ enum dp_hpd_plug_orientation secdp_get_plug_orientation(void)
 	struct dp_parser *parser;
 
 	parser = power->parser;
-	DP_INFO("+++ cc_dir_inv: %d\n", parser->cc_dir_inv);
+	DP_INFO("cc_dir_inv:%d\n", parser->cc_dir_inv);
 
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
@@ -956,7 +983,7 @@ bool secdp_get_clk_status(enum dp_pm_type type)
 static int dp_power_config_gpios(struct dp_power_private *power, bool flip,
 					bool enable)
 {
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	int rc = 0, i;
 #endif
 	struct dss_module_power *mp;
@@ -969,7 +996,7 @@ static int dp_power_config_gpios(struct dp_power_private *power, bool flip,
 	config = mp->gpio_config;
 
 	if (enable) {
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 		rc = dp_power_request_gpios(power);
 		if (rc) {
 			DP_ERR("gpio request failed\n");
@@ -981,7 +1008,7 @@ static int dp_power_config_gpios(struct dp_power_private *power, bool flip,
 		secdp_power_set_gpio(flip);
 #endif
 	} else {
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 		for (i = 0; i < mp->num_gpio; i++) {
 			if (gpio_is_valid(config[i].gpio)) {
 				gpio_set_value(config[i].gpio, 0);
@@ -1023,7 +1050,7 @@ static int dp_power_client_init(struct dp_power *dp_power,
 	dp_power->phandle = phandle;
 	dp_power->drm_dev = drm_dev;
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	rc = dp_power_pinctrl_set(power, false);
 	if (rc) {
 		DP_ERR("failed to set pinctrl state\n");
@@ -1032,7 +1059,7 @@ static int dp_power_client_init(struct dp_power *dp_power,
 #endif
 	return 0;
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 error_client:
 	dp_power_clk_init(power, false);
 #endif
@@ -1247,7 +1274,7 @@ struct dp_power *dp_power_get(struct dp_parser *parser, struct dp_pll *pll)
 	dp_power->power_client_init = dp_power_client_init;
 	dp_power->power_client_deinit = dp_power_client_deinit;
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	secdp_redriver_register(power);
 	g_secdp_power = power;
 #endif
@@ -1268,7 +1295,7 @@ void dp_power_put(struct dp_power *dp_power)
 
 	kfree(power);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	g_secdp_power = NULL;
 #endif
 }
