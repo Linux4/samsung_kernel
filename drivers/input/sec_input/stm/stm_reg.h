@@ -352,5 +352,8 @@
 #define	STM_TS_ERROR_BROKEN_OSC_TRIM		11
 #define	STM_TS_ERROR_BROKEN_FW			12
 
+/* 403601 is rgb */
+#define STM_TS_IS_EXCEPTIONAL_CHIP(id) ((id == 0x503601) || (id == 0x393603) || (id == 0x403601) || (id == 0x403603))
+
 
 

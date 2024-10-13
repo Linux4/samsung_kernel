@@ -466,11 +466,18 @@ struct panel_expr_node *panel_expr_from_infix(struct panel_expr_data *data, size
 
 	kfree(ops);
 
-	return list_first_entry_or_null(&head, struct panel_expr_node, list);
+	if (list_empty(&head))
+		return NULL;
+
+	return list_first_entry(&head, struct panel_expr_node, list);
 
 err:
 	kfree(ops);
-	exprtree_delete(list_first_entry_or_null(&head, struct panel_expr_node, list));
+
+	if (list_empty(&head))
+		return NULL;
+
+	exprtree_delete(list_first_entry(&head, struct panel_expr_node, list));
 
 	return NULL;
 }
@@ -506,10 +513,16 @@ struct panel_expr_node *panel_expr_from_postfix(struct panel_expr_data *data, si
 		}
 	}
 
-	return list_first_entry_or_null(&head, struct panel_expr_node, list);
+	if (list_empty(&head))
+		return NULL;
+
+	return list_first_entry(&head, struct panel_expr_node, list);
 
 err:
-	exprtree_delete(list_first_entry_or_null(&head, struct panel_expr_node, list));
+	if (list_empty(&head))
+		return NULL;
+
+	exprtree_delete(list_first_entry(&head, struct panel_expr_node, list));
 	return NULL;
 }
 

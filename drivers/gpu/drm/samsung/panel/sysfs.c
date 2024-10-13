@@ -42,6 +42,8 @@
 #include "panel_testmode.h"
 #endif
 
+#define INVALID_CELL_ID_STR ("0000000000")
+
 static DEFINE_MUTEX(sysfs_lock);
 
 static int find_sysfs_arg_by_name(struct sysfs_arg *arglist, int nr_arglist, char *s)
@@ -326,13 +328,9 @@ static ssize_t mafpc_time_show(struct device *dev,
 
 static int mafpc_get_target_crc(struct panel_device *panel, u8 *crc)
 {
-	struct mafpc_device *mafpc = NULL;
+	struct mafpc_device *mafpc = get_mafpc_device(panel);
 
-	v4l2_subdev_call(panel->mafpc_sd, core, ioctl,
-		V4L2_IOCTL_MAFPC_GET_INFO, NULL);
-
-	mafpc = (struct mafpc_device *)v4l2_get_subdev_hostdata(panel->mafpc_sd);
-	if (mafpc == NULL) {
+	if (!mafpc) {
 		panel_err("failed to get mafpc info\n");
 		return -EINVAL;
 	}
@@ -351,6 +349,7 @@ static void prepare_mafpc_check_mode(struct panel_device *panel)
 {
 	int ret;
 
+	panel_dsi_set_commit_retry(panel, true);
 	panel_dsi_set_bypass(panel, true);
 	usleep_range(90000, 100000);
 	ret = panel_disable_irq(panel, PANEL_IRQ_ALL_WITHOUT_CONN_DET);
@@ -391,6 +390,7 @@ static void clear_mafpc_check_mode(struct panel_device *panel)
 	panel_set_cur_state(panel, PANEL_STATE_NORMAL);
 	panel->state.disp_on = PANEL_DISPLAY_OFF;
 	panel_dsi_set_bypass(panel, false);
+	panel_dsi_set_commit_retry(panel, false);
 
 	ret = panel_enable_irq(panel, PANEL_IRQ_ALL_WITHOUT_CONN_DET);
 	if (ret < 0)
@@ -500,13 +500,17 @@ static ssize_t manufacture_code_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct panel_device *panel = dev_get_drvdata(dev);
+	int ret;
 
 	if (panel == NULL) {
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
 
-	panel_get_manufacture_code(panel, buf);
+	ret = panel_get_manufacture_code(panel, buf);
+	if (ret < 0) {
+		snprintf(buf, PAGE_SIZE, "%s\n", INVALID_CELL_ID_STR);
+	}
 	return strlen(buf);
 }
 
@@ -520,13 +524,17 @@ static ssize_t cell_id_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct panel_device *panel = dev_get_drvdata(dev);
+	int ret;
 
 	if (panel == NULL) {
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
 
-	panel_get_cell_id(panel, buf);
+	ret = panel_get_cell_id(panel, buf);
+	if (ret < 0) {
+		snprintf(buf, PAGE_SIZE, "%s\n", INVALID_CELL_ID_STR);
+	}
 	return strlen(buf);
 }
 
@@ -540,13 +548,16 @@ static ssize_t octa_id_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct panel_device *panel = dev_get_drvdata(dev);
+	int ret;
 
 	if (panel == NULL) {
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
-	panel_get_octa_id(panel, buf);
-
+	ret = panel_get_octa_id(panel, buf);
+	if (ret < 0) {
+		snprintf(buf, PAGE_SIZE, "%s\n", INVALID_CELL_ID_STR);
+	}
 	return strlen(buf);
 }
 
@@ -749,9 +760,13 @@ static ssize_t siop_enable_store(struct device *dev,
 static ssize_t temperature_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	char temp[] = "-15, -14, 0, 1\n";
+	struct panel_device *panel = dev_get_drvdata(dev);
 
-	strcat(buf, temp);
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+	panel_get_temperature_range(panel, buf);
 	return strlen(buf);
 }
 
@@ -1512,7 +1527,7 @@ static void clear_dsc_crc(struct panel_device *panel)
 }
 
 int decoder_test_result = 0;
-char decoder_test_result_str[32] = { 0, };
+char decoder_test_result_str[128] = { 0, };
 static ssize_t dsc_crc_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1558,8 +1573,8 @@ static ssize_t dsc_crc_store(struct device *dev,
 
 	memset(decoder_test_result_str, 0, ARRAY_SIZE(decoder_test_result_str));
 
-	if (!check_panel_decoder_test_exists(panel)) {
-		panel_warn("cannot found dsc_crc test seq. skip\n");
+	if (!check_seqtbl_exist(panel, PANEL_DECODER_TEST_SEQ)) {
+		panel_warn("sequence(%s) not found\n", PANEL_DECODER_TEST_SEQ);
 		decoder_test_result = 0;
 		snprintf(decoder_test_result_str, ARRAY_SIZE(decoder_test_result_str), "0");
 		ret = -EINVAL;
@@ -1624,6 +1639,10 @@ static ssize_t dsc_crc_store(struct device *dev,
 		panel_info("ret %d\n", decoder_test_result);
 		panel_dsi_print_dpu_event_log(panel);
 	}
+#ifdef CONFIG_USDM_PANEL_COPR
+	copr_enable(&panel->copr);
+#endif
+
 exit:
 	if (ret < 0)
 		return ret;
@@ -2174,50 +2193,29 @@ exit:
 static int set_alpm_mode(struct panel_device *panel, int mode)
 {
 	int ret = 0;
-#ifdef CONFIG_USDM_PANEL_AOD_BL
-	int lpm_ver = (mode & 0x00FF0000) >> 16;
-#endif
 	int lpm_mode = (mode & 0xFF);
-#ifdef CONFIG_USDM_FACTORY
-	static int backup_br;
-#endif
 	struct panel_info *panel_data = &panel->panel_data;
-#if defined(CONFIG_USDM_FACTORY) || defined(CONFIG_USDM_PANEL_AOD_BL)
+#if defined(CONFIG_USDM_PANEL_AOD_BL)
+	int lpm_ver = (mode & 0x00FF0000) >> 16;
 	struct panel_bl_device *panel_bl = &panel->panel_bl;
 	struct backlight_device *bd = panel_bl->bd;
 #endif
 	switch (lpm_mode) {
 	case ALPM_OFF:
-#ifdef CONFIG_USDM_FACTORY
-		ret = panel_seq_exit_alpm(panel);
-		if (ret)
-			panel_err("failed to write set_alpm\n");
-		if (backup_br)
-			bd->props.brightness = backup_br;
-#endif
 		panel_data->props.alpm_mode = lpm_mode;
 		panel_update_brightness(panel);
-#ifdef CONFIG_USDM_FACTORY
-		msleep(34);
-#endif
 		break;
 	case ALPM_LOW_BR:
 	case HLPM_LOW_BR:
 	case ALPM_HIGH_BR:
 	case HLPM_HIGH_BR:
 		panel_data->props.alpm_mode = lpm_mode;
-
-#ifndef CONFIG_USDM_FACTORY
 		if (panel_get_cur_state(panel) != PANEL_STATE_ALPM) {
 			panel_info("panel state(%d) is not lpm mode\n",
 					panel_get_cur_state(panel));
 			return ret;
 		}
-#endif
-#ifdef CONFIG_USDM_FACTORY
-		backup_br = bd->props.brightness;
-#endif
-#ifdef CONFIG_USDM_PANEL_AOD_BL
+#if defined(CONFIG_USDM_PANEL_AOD_BL)
 		if (lpm_ver == 0) {
 			bd->props.brightness =
 				(lpm_mode <= HLPM_LOW_BR) ? BRT(0) : BRT(94);
@@ -2225,17 +2223,61 @@ static int set_alpm_mode(struct panel_device *panel, int mode)
 				(lpm_mode <= HLPM_LOW_BR) ? BRT(0) : BRT(94);
 		}
 #endif
-#ifdef CONFIG_USDM_FACTORY
-		ret = panel_seq_set_alpm(panel);
-		if (ret)
-			panel_err("failed to set_alpm\n");
-#endif
 		break;
 	default:
 		panel_err("invalid alpm_mode: %d\n", lpm_mode);
 		break;
 	}
 
+	return ret;
+}
+
+static int set_alpm_mode_factory(struct panel_device *panel, int mode)
+{
+	int ret = 0;
+	int lpm_mode = (mode & 0xFF);
+	static int backup_br;
+	struct panel_info *panel_data = &panel->panel_data;
+	struct panel_bl_device *panel_bl = &panel->panel_bl;
+	struct backlight_device *bd = panel_bl->bd;
+#if defined(CONFIG_USDM_PANEL_AOD_BL)
+	int lpm_ver = (mode & 0x00FF0000) >> 16;
+#endif
+
+	switch (lpm_mode) {
+	case ALPM_OFF:
+		ret = panel_seq_exit_alpm(panel);
+		if (ret)
+			panel_err("failed to write set_alpm\n");
+		if (backup_br)
+			bd->props.brightness = backup_br;
+
+		panel_data->props.alpm_mode = lpm_mode;
+		panel_update_brightness(panel);
+		msleep(34);
+		break;
+	case ALPM_LOW_BR:
+	case HLPM_LOW_BR:
+	case ALPM_HIGH_BR:
+	case HLPM_HIGH_BR:
+		panel_data->props.alpm_mode = lpm_mode;
+		backup_br = bd->props.brightness;
+#if defined(CONFIG_USDM_PANEL_AOD_BL)
+		if (lpm_ver == 0) {
+			bd->props.brightness =
+				(lpm_mode <= HLPM_LOW_BR) ? BRT(0) : BRT(94);
+			panel_bl->subdev[PANEL_BL_SUBDEV_TYPE_AOD].brightness =
+				(lpm_mode <= HLPM_LOW_BR) ? BRT(0) : BRT(94);
+		}
+#endif
+		ret = panel_seq_set_alpm(panel);
+		if (ret)
+			panel_err("failed to set_alpm\n");
+		break;
+	default:
+		panel_err("invalid alpm_mode: %d\n", lpm_mode);
+		break;
+	}
 	return ret;
 }
 #endif
@@ -2256,7 +2298,8 @@ static ssize_t alpm_store(struct device *dev,
 	}
 
 #ifdef CONFIG_USDM_PANEL_LPM
-	rc = set_alpm_mode(panel, value);
+	rc = (panel_is_factory_mode(panel) ?
+			set_alpm_mode_factory(panel, value) : set_alpm_mode(panel, value));
 	if (rc)
 		panel_err("failed to set alpm (value %d, ret %d)\n", value, rc);
 #endif
@@ -2949,6 +2992,7 @@ static void prepare_self_mask_check(struct panel_device *panel)
 {
 	int ret = 0;
 
+	panel_dsi_set_commit_retry(panel, true);
 	panel_dsi_set_bypass(panel, true);
 	ret = panel_disable_irq(panel, PANEL_IRQ_ALL_WITHOUT_CONN_DET);
 	if (ret < 0)
@@ -2964,6 +3008,7 @@ static void clear_self_mask_check(struct panel_device *panel)
 		panel_err("failed to panel_enable_irq\n");
 
 	panel_dsi_set_bypass(panel, false);
+	panel_dsi_set_commit_retry(panel, false);
 }
 
 static ssize_t self_mask_check_show(struct device *dev,
@@ -2973,7 +3018,7 @@ static ssize_t self_mask_check_show(struct device *dev,
 	struct aod_dev_info *aod;
 	struct panel_info *panel_data;
 	u8 success_check = 1;
-	u8 *recv_checksum = NULL;
+	u8 *recv_crc = NULL;
 	int ret = 0, i = 0;
 	int len = 0;
 
@@ -2984,44 +3029,59 @@ static ssize_t self_mask_check_show(struct device *dev,
 	aod = &panel->aod;
 	panel_data = &panel->panel_data;
 
-	if (aod->props.self_mask_checksum_len) {
-		recv_checksum = kmalloc_array(aod->props.self_mask_checksum_len, sizeof(u8), GFP_KERNEL);
-		if (!recv_checksum)
+	if (!find_panel_dumpinfo(panel, "self_mask_crc")) {
+		if (!aod->props.self_mask_crc_len)
+			return snprintf(buf, PAGE_SIZE, "-1\n");
+
+		recv_crc = kmalloc_array(aod->props.self_mask_crc_len, sizeof(u8), GFP_KERNEL);
+		if (!recv_crc)
 			return -ENOMEM;
 		prepare_self_mask_check(panel);
 
-		ret = panel_do_aod_seqtbl_by_name(aod, SELF_MASK_CHECKSUM_SEQ);
+		ret = panel_do_aod_seqtbl_by_name(aod, SELF_MASK_CRC_SEQ);
 		if (unlikely(ret < 0)) {
-			panel_err("failed to send cmd selfmask checksum\n");
-			kfree(recv_checksum);
+			panel_err("failed to send cmd selfmask crc\n");
+			kfree(recv_crc);
 			return ret;
 		}
 
-		ret = panel_resource_copy_and_clear(panel, recv_checksum, "self_mask_checksum");
+		ret = panel_resource_copy_and_clear(panel, recv_crc, "self_mask_crc");
 		if (unlikely(ret < 0)) {
-			panel_err("failed to get selfmask checksum\n");
-			kfree(recv_checksum);
+			panel_err("failed to get selfmask crc\n");
+			kfree(recv_crc);
 			return ret;
 		}
 		clear_self_mask_check(panel);
 
-		for (i = 0; i < aod->props.self_mask_checksum_len; i++) {
-			if (aod->props.self_mask_checksum[i] != recv_checksum[i]) {
+		for (i = 0; i < aod->props.self_mask_crc_len; i++) {
+			if (aod->props.self_mask_crc[i] != recv_crc[i]) {
 				success_check = 0;
 				break;
 			}
 		}
 		len = snprintf(buf, PAGE_SIZE, "%d", success_check);
-		for (i = 0; i < aod->props.self_mask_checksum_len; i++)
-			len += snprintf(buf + len, PAGE_SIZE - len, " %02x", recv_checksum[i]);
+		for (i = 0; i < aod->props.self_mask_crc_len; i++)
+			len += snprintf(buf + len, PAGE_SIZE - len, " %02x", recv_crc[i]);
 		len += snprintf(buf + len, PAGE_SIZE - len, "\n");
-		kfree(recv_checksum);
+		kfree(recv_crc);
 	} else {
-		snprintf(buf, PAGE_SIZE, "-1\n");
+		prepare_self_mask_check(panel);
+		ret = panel_do_aod_seqtbl_by_name(aod, SELF_MASK_CRC_SEQ);
+		if (unlikely(ret < 0)) {
+			panel_err("failed to send cmd selfmask crc\n");
+			return ret;
+		}
+		clear_self_mask_check(panel);
+
+		len = snprintf(buf, PAGE_SIZE, "%d ",
+				panel_is_dump_status_success(panel, "self_mask_crc"));
+		len += snprintf_resource_data((char *)buf + len, PAGE_SIZE - len,
+				panel_get_dump_resource(panel, "self_mask_crc"));
+		len += snprintf(buf + len, PAGE_SIZE - len, "\n");
 	}
+
 	return strlen(buf);
 }
-
 #endif
 
 #ifdef SUPPORT_NORMAL_SELF_MOVE
@@ -3166,6 +3226,52 @@ static ssize_t brightdot_store(struct device *dev,
 	ret = panel_do_seqtbl_by_name_nolock(panel, PANEL_BRIGHTDOT_TEST_SEQ);
 	if (unlikely(ret < 0))
 		panel_err("failed to write brightdot seq\n");
+
+	panel_mutex_unlock(&panel->op_lock);
+
+	return size;
+}
+#endif
+
+#ifdef CONFIG_USDM_FACTORY_VGLHIGHDOT_TEST
+static ssize_t vglhighdot_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	struct panel_info *panel_data = &panel->panel_data;
+
+	snprintf(buf, PAGE_SIZE, "%u\n", panel_data->props.vglhighdot);
+
+	return strlen(buf);
+}
+
+static ssize_t vglhighdot_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int rc, ret;
+	u32 value = 0;
+	struct panel_device *panel = dev_get_drvdata(dev);
+	struct panel_info *panel_data;
+
+	panel_data = &panel->panel_data;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	rc = kstrtouint(buf, 0, &value);
+
+	if (rc < 0)
+		return rc;
+
+	panel_mutex_lock(&panel->op_lock);
+	panel_info("%u -> %u\n", panel_data->props.vglhighdot, value);
+	panel_set_property(panel, &panel_data->props.vglhighdot, value);
+
+	ret = panel_do_seqtbl_by_name_nolock(panel, PANEL_VGLHIGHDOT_TEST_SEQ);
+	if (unlikely(ret < 0))
+		panel_err("failed to run %s\n", PANEL_VGLHIGHDOT_TEST_SEQ);
 
 	panel_mutex_unlock(&panel->op_lock);
 
@@ -3909,10 +4015,9 @@ static ssize_t enable_fd_store(struct device *dev,
 		return ret;
 	}
 
-#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
-	queue_delayed_work(panel->work[PANEL_WORK_EVASION_DISP_DET].wq,
-		&panel->work[PANEL_WORK_EVASION_DISP_DET].dwork, msecs_to_jiffies(34));
-#endif
+	if (panel_data->ddi_props.evasion_disp_det)
+		queue_delayed_work(panel->work[PANEL_WORK_EVASION_DISP_DET].wq,
+				&panel->work[PANEL_WORK_EVASION_DISP_DET].dwork, msecs_to_jiffies(34));
 	panel_info("fast discharge set to %s\n", panel_data->props.enable_fd ? "on" : "off");
 
 	return size;
@@ -3993,6 +4098,88 @@ static ssize_t actual_mask_brightness_show(struct device *dev,
 	return strlen(buf);
 }
 #endif
+
+static ssize_t night_dim_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	struct panel_bl_device *panel_bl;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+	panel_bl = &panel->panel_bl;
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", panel_bl->props.night_dim);
+}
+
+static ssize_t night_dim_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	struct panel_bl_device *panel_bl;
+	int value, rc;
+
+	rc = kstrtouint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	panel_bl = &panel->panel_bl;
+	panel_mutex_lock(&panel_bl->lock);
+	panel_bl_set_property(panel_bl, &panel_bl->props.night_dim,
+			value ? NIGHT_DIM_ON : NIGHT_DIM_OFF);
+	panel_mutex_unlock(&panel_bl->lock);
+	panel_update_brightness(panel);
+
+	return size;
+}
+
+static ssize_t smooth_dim_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	struct panel_bl_device *panel_bl;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+	panel_bl = &panel->panel_bl;
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", panel_bl->props.smooth_transition);
+}
+
+static ssize_t  smooth_dim_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	struct panel_bl_device *panel_bl;
+	int value, rc;
+
+	rc = kstrtouint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	panel_bl = &panel->panel_bl;
+	panel_mutex_lock(&panel_bl->lock);
+	panel_bl_set_property(panel_bl, &panel_bl->props.smooth_transition,
+			value ? SMOOTH_TRANS_ON : SMOOTH_TRANS_OFF);
+	panel_mutex_unlock(&panel_bl->lock);
+	panel_info("%d\n", panel_bl->props.smooth_transition);
+
+	return size;
+}
 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 static ssize_t test_mode_show(struct device *dev,
@@ -4124,6 +4311,88 @@ static ssize_t vcom_trim_show(struct device *dev,
 }
 #endif
 
+static ssize_t check_mipi_read_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	int ret;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	if (!IS_PANEL_ACTIVE(panel))
+		return -EIO;
+
+	ret = panel_check_mipi_read_test(panel, buf);
+	if (ret == -ENOENT) {
+		panel_info("this panel doesn't supported. test pass.\n");
+	}
+
+	return strlen(buf);
+}
+
+
+static ssize_t display_on_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	return sprintf(buf, "%lld\n", ktime_to_ms(panel->ktime_first_frame));
+}
+
+static ssize_t panel_aging_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	struct panel_info *panel_data = &panel->panel_data;
+
+	snprintf(buf, PAGE_SIZE, "%u\n", panel_data->props.panel_aging);
+
+	return strlen(buf);
+}
+
+static ssize_t panel_aging_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int rc, ret;
+	u32 value = 0;
+	struct panel_device *panel = dev_get_drvdata(dev);
+	struct panel_info *panel_data;
+
+	panel_data = &panel->panel_data;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	rc = kstrtouint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	panel_mutex_lock(&panel->op_lock);
+	panel_data->props.panel_aging = value;
+	panel_mutex_unlock(&panel->op_lock);
+
+	ret = panel_do_seqtbl_by_name(panel,
+			value ? PANEL_AGING_ON_SEQ : PANEL_AGING_OFF_SEQ);
+	if (unlikely(ret < 0))
+		panel_err("failed to run %s\n",
+				value ? PANEL_AGING_ON_SEQ : PANEL_AGING_OFF_SEQ);
+
+	panel_info("panel_aging %s\n",
+			panel_data->props.panel_aging ? "on" : "off");
+
+	return size;
+}
+
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 static ssize_t _enable_node_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size);
@@ -4239,13 +4508,21 @@ struct panel_device_attr panel_attrs[] = {
 	__PANEL_ATTR_RW(mask_brightness, 0664, PA_DEFAULT),
 	__PANEL_ATTR_RO(actual_mask_brightness, 0444, PA_DEFAULT),
 #endif
+	__PANEL_ATTR_RW(night_dim, 0664, PA_DEFAULT),
+	__PANEL_ATTR_RW(smooth_dim, 0664, PA_DEFAULT),
 #ifdef CONFIG_USDM_FACTORY_BRIGHTDOT_TEST
 	__PANEL_ATTR_RW(brightdot, 0664, PA_DEFAULT),
+#endif
+#ifdef CONFIG_USDM_FACTORY_VGLHIGHDOT_TEST
+	__PANEL_ATTR_RW(vglhighdot, 0664, PA_DEFAULT),
 #endif
 	__PANEL_ATTR_RO(te_check, 0440, PA_DEFAULT),
 #if defined(CONFIG_USDM_PANEL_VCOM_TRIM_TEST)
 	__PANEL_ATTR_RO(vcom_trim, 0440, PA_DEFAULT),
 #endif
+	__PANEL_ATTR_RO(check_mipi_read, 0440, PA_FACTORY),
+	__PANEL_ATTR_RO(display_on, 0440, PA_DEFAULT),
+	__PANEL_ATTR_RW(panel_aging, 0664, PA_DEFAULT),
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	/* DEBUG: enable ALL node */
 	__PANEL_ATTR_WO(_enable_node, 0220, PA_DEFAULT | PA_DEBUG_ONLY),

@@ -1894,6 +1894,8 @@ int is_group_open(struct is_groupmgr *groupmgr,
 	group->aeflashMode = 0; /* Flash Mode Control */
 	group->remainIntentCount = 0;
 	group->remainCaptureIntentCount = 0;
+	group->remainRemosaicCropIntentCount = 0;
+
 	atomic_set(&group->scount, 0);
 	atomic_set(&group->rcount, 0);
 	atomic_set(&group->backup_fcount, 0);

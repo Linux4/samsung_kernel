@@ -41,6 +41,8 @@ module_param(lpcharge, uint, 0444);
 static int __read_mostly factory_mode;
 module_param(factory_mode, int, 0444);
 #endif
+static int __read_mostly factory_mode_siso;
+module_param(factory_mode_siso, int, 0444);
 
 extern void max77705_usbc_icurr(u8 curr);
 extern void max77705_set_fw_noautoibus(int enable);
@@ -75,6 +77,7 @@ static unsigned int max77705_get_lpmode(void) { return lpcharge; }
 #if defined(CONFIG_SEC_FACTORY)
 static unsigned int max77705_get_facmode(void) { return factory_mode; }
 #endif
+static unsigned int max77705_get_facmode_siso(void) { return factory_mode_siso; }
 
 static bool max77705_charger_unlock(struct max77705_charger_data *charger)
 {
@@ -543,10 +546,12 @@ static void max77705_force_change_charge_path(struct max77705_charger_data *char
 {
 	u8 cnfg12 = (1 << CHG_CNFG_12_CHGINSEL_SHIFT);
 
-	max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			    cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
-	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
-	pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
+	if (!max77705_get_facmode_siso()) {
+		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
+		max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
+		pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
+	}
 
 	max77705_check_cnfg12_reg(charger);
 }
@@ -556,16 +561,17 @@ static void max77705_change_charge_path(struct max77705_charger_data *charger,
 {
 	u8 cnfg12;
 
-	if (is_wcin_type(charger->cable_type))
-		cnfg12 = (0 << CHG_CNFG_12_CHGINSEL_SHIFT);
-	else
-		cnfg12 = (1 << CHG_CNFG_12_CHGINSEL_SHIFT);
+	if (!max77705_get_facmode_siso()) {
+		if (is_wcin_type(charger->cable_type))
+			cnfg12 = (0 << CHG_CNFG_12_CHGINSEL_SHIFT);
+		else
+			cnfg12 = (1 << CHG_CNFG_12_CHGINSEL_SHIFT);
 
-	max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			    cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
-	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
-	pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
-
+		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
+		max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
+		pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
+	}
 	max77705_check_cnfg12_reg(charger);
 }
 
@@ -978,16 +984,22 @@ static void max77705_charger_initialize(struct max77705_charger_data *charger)
 	max77705_set_float_voltage(charger, charger->pdata->chg_float_voltage);
 
 	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_INT_OK, &reg_data);
-	/* VCHGIN : REG=4.6V, UVLO=4.8V
+	/*
+	 * VCHGIN : REG=4.6V, UVLO=4.8V
 	 * to fix CHGIN-UVLO issues including cheapy battery packs
 	 */
-	if (reg_data & MAX77705_CHGIN_OK)
-		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			CHG_CNFG_12_VCHGIN(REG_4600_UVLO_4800), CHG_CNFG_12_VCHGIN_REG_MASK);
-	/* VCHGIN : REG=4.5V, UVLO=4.7V */
-	else
-		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+	if (!max77705_get_facmode_siso()) {
+		if (reg_data & MAX77705_CHGIN_OK)
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(REG_4600_UVLO_4800), CHG_CNFG_12_VCHGIN_REG_MASK);
+		/* VCHGIN : REG=4.5V, UVLO=4.7V */
+		else
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+	} else {
+		max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &reg_data);
+		pr_info("%s: maintain siso settings(cnfg_12 = 0x%2x)\n", __func__, reg_data);
+	}
 
 	/* Boost mode possible in FACTORY MODE */
 	max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_07,
@@ -1752,20 +1764,25 @@ static int max77705_chg_set_property(struct power_supply *psy,
 
 		if (is_nocharge_type(charger->cable_type)) {
 			charger->wc_pre_current = WC_CURRENT_START;
+			if (!max77705_get_facmode_siso()) {
 			/* VCHGIN : REG=4.5V, UVLO=4.7V */
-			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			    CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+				max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+			}
 			if (charger->pdata->enable_sysovlo_irq)
 				max77705_set_sysovlo(charger, 1);
 
 			if (!charger->pdata->boosting_voltage_aicl)
 				max77705_aicl_irq_enable(charger, true);
 		} else if (is_wired_type(charger->cable_type)) {
-			/* VCHGIN : REG=4.6V, UVLO=4.8V
-			 * to fix CHGIN-UVLO issues including cheapy battery packs
-			 */
-			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-				CHG_CNFG_12_VCHGIN(REG_4600_UVLO_4800), CHG_CNFG_12_VCHGIN_REG_MASK);
+			if (!max77705_get_facmode_siso()) {
+				/*
+				 * VCHGIN : REG=4.6V, UVLO=4.8V
+				 * to fix CHGIN-UVLO issues including cheapy battery packs
+				 */
+				max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					CHG_CNFG_12_VCHGIN(REG_4600_UVLO_4800), CHG_CNFG_12_VCHGIN_REG_MASK);
+			}
 			if (is_hv_wire_type(charger->cable_type) ||
 			(charger->cable_type == SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT)) {
 				if (!charger->pdata->boosting_voltage_aicl) {
@@ -2992,17 +3009,19 @@ static void max77705_charger_set_shtdn_vchgin(struct max77705_charger_data *char
 {
 	u8 reg_data;
 
-	if (charger->pdata->fac_vchgin_reg) {
+	if (!max77705_get_facmode_siso()) {
+		if (charger->pdata->fac_vchgin_reg) {
 #if defined(CONFIG_SEC_FACTORY)
-		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			CHG_CNFG_12_VCHGIN(charger->pdata->fac_vchgin_reg), CHG_CNFG_12_VCHGIN_REG_MASK);
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(charger->pdata->fac_vchgin_reg), CHG_CNFG_12_VCHGIN_REG_MASK);
 #else
-		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
 #endif
-	} else if (set) {
-		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+		} else if (set) {
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+		}
 	}
 
 	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &reg_data);

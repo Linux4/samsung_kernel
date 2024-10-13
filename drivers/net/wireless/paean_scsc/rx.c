@@ -208,22 +208,65 @@ do_no_calc:
 }
 
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
-static int slsi_populate_bssid_info(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
-				    struct sk_buff *skb, struct list_head *bssid_list)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0))
+static int slsi_bssid_rssi_sort(void *priv, const struct list_head *a, const struct list_head *b)
 {
-	struct list_head *pos;
+#else
+static int slsi_bssid_rssi_sort(void *priv, struct list_head *a, struct list_head *b)
+{
+#endif
+	struct slsi_bssid_info *a_element = container_of(a, struct slsi_bssid_info, list);
+	struct slsi_bssid_info *b_element = container_of(b, struct slsi_bssid_info, list);
+
+	if (a_element->rssi > b_element->rssi)
+		return -1;
+	return 1;
+}
+
+static void slsi_bssid_list_sort_rssi(struct list_head *bssid_list)
+{
+	struct slsi_bssid_info *bssid_info, *tmp;
+
+	list_for_each_entry_safe(bssid_info, tmp, bssid_list, list) {
+		if (!bssid_info->rssi)
+			list_del(&bssid_info->list);
+	}
+
+	list_sort(NULL, bssid_list, slsi_bssid_rssi_sort);
+}
+
+static int slsi_add_bssid_list(struct slsi_dev *sdev, struct ieee80211_mgmt *mgmt,
+			       struct list_head *bssid_list, int current_rssi, u16 current_freq)
+{
 	struct slsi_bssid_info *current_result;
-	struct ieee80211_mgmt *mgmt = fapi_get_mgmt(skb);
-	int current_rssi;
-	u16 current_freq;
 
-	current_rssi =  fapi_get_s16(skb, u.mlme_scan_ind.rssi);
-	current_freq = fapi_get_s16(skb, u.mlme_scan_ind.channel_frequency);
+	current_result = kzalloc(sizeof(*current_result), GFP_KERNEL);
+	if (!current_result) {
+		SLSI_ERR(sdev, "Failed to allocate node for bssid info\n");
+		return -1;
+	}
 
-	list_for_each(pos, bssid_list) {
-		struct slsi_bssid_info *bssid_info = list_entry(pos, struct slsi_bssid_info, list);
+	SLSI_ETHER_COPY(current_result->bssid, mgmt->bssid);
+	current_result->rssi = current_rssi;
+	current_result->freq = current_freq;
+	current_result->connect_attempted = false;
 
+	list_add_tail(&current_result->list, bssid_list);
+
+	return 0;
+}
+
+static int slsi_update_bssid_list(struct ieee80211_mgmt *mgmt, struct list_head *bssid_list,
+				  int current_rssi, u16 current_freq, s16 rssi_min)
+{
+	struct slsi_bssid_info *bssid_info, *tmp;
+
+	list_for_each_entry_safe(bssid_info, tmp, bssid_list, list) {
 		if (SLSI_ETHER_EQUAL(bssid_info->bssid, mgmt->bssid)) {
+			if (current_rssi < rssi_min) {
+				list_del(&bssid_info->list);
+				return 0;
+			}
 			/*entry exists for bssid*/
 			bssid_info->rssi = current_rssi;
 			bssid_info->freq = current_freq;
@@ -231,18 +274,27 @@ static int slsi_populate_bssid_info(struct slsi_dev *sdev, struct netdev_vif *nd
 		}
 	}
 
-	current_result = kzalloc(sizeof(*current_result), GFP_KERNEL);
-	if (!current_result) {
-		SLSI_ERR(sdev, "Failed to allocate node for bssid info\n");
-		return -1;
-	}
-	SLSI_ETHER_COPY(current_result->bssid, mgmt->bssid);
-	current_result->rssi = current_rssi;
-	current_result->freq = current_freq;
-	current_result->connect_attempted = false;
-	list_add_tail(&current_result->list, bssid_list);
+	return 1;
+}
 
-	return 0;
+static int slsi_populate_bssid_info(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
+				    struct sk_buff *skb, struct list_head *bssid_list)
+{
+	struct ieee80211_mgmt *mgmt = fapi_get_mgmt(skb);
+	int current_rssi;
+	u16 current_freq;
+	s16 rssi_min = sdev->ini_conf_struct.conn_non_hint_target_min_rssi;
+
+	current_rssi =  fapi_get_s16(skb, u.mlme_scan_ind.rssi);
+	current_freq = fapi_get_s16(skb, u.mlme_scan_ind.channel_frequency);
+
+	if (!slsi_update_bssid_list(mgmt, bssid_list, current_rssi, current_freq, rssi_min))
+		return 0;
+
+	if (current_rssi < rssi_min)
+		return 0;
+
+	return slsi_add_bssid_list(sdev, mgmt, bssid_list, current_rssi, current_freq);
 }
 
 static inline void slsi_gen_new_bssid(const u8 *bssid, u8 max_bssid,
@@ -263,22 +315,18 @@ static int slsi_mbssid_to_ssid_list(struct slsi_dev *sdev, struct netdev_vif *nd
 				    u8 *scan_ssid, int ssid_len,
 				    u8 *bssid, int freq, int rssi, u8 akm_type)
 {
-	struct list_head *pos;
+	struct slsi_ssid_info *ssid_info;
 	int found = 0;
 
-	list_for_each(pos, &ndev_vif->sta.ssid_info) {
-		struct slsi_ssid_info *ssid_info = list_entry(pos, struct slsi_ssid_info, list);
-		struct list_head    *pos_bssid;
-		struct slsi_bssid_info *current_result;
+	list_for_each_entry(ssid_info, &ndev_vif->sta.ssid_info, list) {
+		struct slsi_bssid_info *current_result, *bssid_info;
 
 		if (ssid_info->ssid.ssid_len == ssid_len &&
 		    memcmp(ssid_info->ssid.ssid, scan_ssid, ssid_len) == 0 &&
 		    ssid_info->akm_type & akm_type) {
 			found = 1;
 
-			list_for_each(pos_bssid, &ssid_info->bssid_list) {
-				struct slsi_bssid_info *bssid_info = list_entry(pos_bssid, struct slsi_bssid_info, list);
-
+			list_for_each_entry(bssid_info, &ssid_info->bssid_list, list) {
 				if (SLSI_ETHER_EQUAL(bssid_info->bssid, bssid)) {
 					/*entry exists for bssid*/
 					bssid_info->rssi = rssi;
@@ -511,23 +559,20 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 static void slsi_remove_assoc_disallowed_bssid(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 					       struct slsi_scan_result *scan_result)
 {
-	struct list_head    *pos;
+	struct slsi_ssid_info *ssid_info;
 
-	list_for_each(pos, &ndev_vif->sta.ssid_info) {
-		struct slsi_ssid_info *ssid_info = list_entry(pos, struct slsi_ssid_info, list);
-		struct list_head    *pos_bssid;
+	list_for_each_entry(ssid_info, &ndev_vif->sta.ssid_info, list) {
+		struct slsi_bssid_info *bssid_info, *tmp;
 
 		if (ssid_info->ssid.ssid_len != scan_result->ssid_length ||
 		    memcmp(ssid_info->ssid.ssid, &scan_result->ssid, scan_result->ssid_length) != 0 ||
 		    !(ssid_info->akm_type & scan_result->akm_type))
 			continue;
 
-		list_for_each(pos_bssid, &ssid_info->bssid_list) {
-			struct slsi_bssid_info *bssid_info = list_entry(pos_bssid, struct slsi_bssid_info, list);
-
+		list_for_each_entry_safe(bssid_info, tmp, &ssid_info->bssid_list, list) {
 			if (!SLSI_ETHER_EQUAL(bssid_info->bssid, scan_result->bssid))
 				continue;
-			list_del(pos_bssid);
+			list_del(&bssid_info->list);
 			kfree(bssid_info);
 			break;
 		}
@@ -565,12 +610,11 @@ static int slsi_reject_ap_for_scan_info(struct slsi_dev *sdev, struct netdev_vif
 
 static int slsi_populate_ssid_info(struct slsi_dev *sdev, struct netdev_vif *ndev_vif, u16 scan_id)
 {
-	struct list_head *pos;
-	int found = 0;
+	bool found = false;
 	struct sk_buff *beacon_probe_skb = NULL;
 	struct ieee80211_mgmt *mgmt = NULL;
 	struct slsi_scan_result *scan_result = ndev_vif->scan[scan_id].scan_results;
-	struct slsi_ssid_info *ssid_info;
+	struct slsi_ssid_info *ssid_info, *new_ssid_info;
 	int max_count, scanresultcount = 0;
 
 	max_count  = slsi_dev_get_scan_result_count();
@@ -597,38 +641,43 @@ static int slsi_populate_ssid_info(struct slsi_dev *sdev, struct netdev_vif *nde
 			scan_result = scan_result->next;
 			continue;
 		}
-		found = 0;
-		list_for_each(pos, &ndev_vif->sta.ssid_info) {
-			struct slsi_ssid_info *ssid_info = list_entry(pos, struct slsi_ssid_info, list);
-
+		found = false;
+		list_for_each_entry(ssid_info, &ndev_vif->sta.ssid_info, list) {
 			if (ssid_info->ssid.ssid_len != scan_result->ssid_length ||
 			    memcmp(ssid_info->ssid.ssid, &scan_result->ssid, scan_result->ssid_length) != 0 ||
 			    !(ssid_info->akm_type & scan_result->akm_type))
 				continue;
-			found = 1;
-			slsi_populate_bssid_info(sdev, ndev_vif, beacon_probe_skb, &ssid_info->bssid_list);
+			found = true;
+			slsi_populate_bssid_info(sdev, ndev_vif, beacon_probe_skb,
+						 &ssid_info->bssid_list);
 			break;
 		}
 		if (found) {
-			slsi_extract_mbssids(sdev, ndev_vif, mgmt, beacon_probe_skb, scan_result->akm_type);
+			slsi_extract_mbssids(sdev, ndev_vif, mgmt, beacon_probe_skb,
+					     scan_result->akm_type);
 			scan_result = scan_result->next;
 			continue;
 		}
 
-		ssid_info = kmalloc(sizeof(*ssid_info), GFP_ATOMIC);
-		if (ssid_info) {
-			ssid_info->ssid.ssid_len = scan_result->ssid_length;
-			memcpy(ssid_info->ssid.ssid, &scan_result->ssid, scan_result->ssid_length);
-			ssid_info->akm_type = scan_result->akm_type;
-			INIT_LIST_HEAD(&ssid_info->bssid_list);
-			slsi_populate_bssid_info(sdev, ndev_vif, beacon_probe_skb, &ssid_info->bssid_list);
-			list_add(&ssid_info->list, &ndev_vif->sta.ssid_info);
+		new_ssid_info = kmalloc(sizeof(*new_ssid_info), GFP_ATOMIC);
+		if (new_ssid_info) {
+			new_ssid_info->ssid.ssid_len = scan_result->ssid_length;
+			memcpy(new_ssid_info->ssid.ssid, &scan_result->ssid, scan_result->ssid_length);
+			new_ssid_info->akm_type = scan_result->akm_type;
+			INIT_LIST_HEAD(&new_ssid_info->bssid_list);
+			slsi_populate_bssid_info(sdev, ndev_vif, beacon_probe_skb,
+						 &new_ssid_info->bssid_list);
+			list_add(&new_ssid_info->list, &ndev_vif->sta.ssid_info);
 		} else {
-			SLSI_ERR(sdev, "Failed to allocate entry : %.*s kmalloc() failed\n", scan_result->ssid_length, scan_result->ssid);
+			SLSI_ERR(sdev, "Failed to allocate entry : %.*s kmalloc() failed\n",
+				 scan_result->ssid_length, scan_result->ssid);
 		}
 		slsi_extract_mbssids(sdev, ndev_vif, mgmt, beacon_probe_skb, scan_result->akm_type);
 		scan_result = scan_result->next;
 	}
+
+	list_for_each_entry(ssid_info, &ndev_vif->sta.ssid_info, list)
+		slsi_bssid_list_sort_rssi(&ssid_info->bssid_list);
 
 	return 0;
 }
@@ -1245,7 +1294,8 @@ void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_
 	int scan_results_count = 0;
 	int more_than_max_count = 0;
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
-	struct list_head    *pos, *q, *blacklist_pos, *blacklist_q;
+	struct slsi_ssid_info *ssid_info, *ssid_tmp;
+	struct slsi_bssid_blacklist_info *blacklist_info, *blacklist_tmp;
 #endif
 
 	if (WLBT_WARN_ON(scan_id >= SLSI_SCAN_MAX))
@@ -1261,29 +1311,21 @@ void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_
 	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
 		if (flush_scan_results) {
-			list_for_each_safe(pos, q, &ndev_vif->sta.ssid_info) {
-				struct slsi_ssid_info *ssid_info;
-				struct list_head *bssid_pos, *p;
+			list_for_each_entry_safe(ssid_info, ssid_tmp, &ndev_vif->sta.ssid_info, list) {
+				struct slsi_bssid_info *bssid_info, *bssid_tmp;
 
-				ssid_info = list_entry(pos, struct slsi_ssid_info, list);
-				list_for_each_safe(bssid_pos, p, &ssid_info->bssid_list) {
-					struct slsi_bssid_info *bssid_info;
-
-					bssid_info = list_entry(bssid_pos, struct slsi_bssid_info, list);
-					list_del(bssid_pos);
+				list_for_each_entry_safe(bssid_info, bssid_tmp, &ssid_info->bssid_list, list) {
+					list_del(&bssid_info->list);
 					kfree(bssid_info);
 				}
-				list_del(pos);
+				list_del(&ssid_info->list);
 				kfree(ssid_info);
 			}
 			INIT_LIST_HEAD(&ndev_vif->sta.ssid_info);
 		}
-		list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->sta.blacklist_head) {
-			struct slsi_bssid_blacklist_info *blacklist_info;
-
-			blacklist_info = list_entry(blacklist_pos, struct slsi_bssid_blacklist_info, list);
+		list_for_each_entry_safe(blacklist_info, blacklist_tmp, &ndev_vif->sta.blacklist_head, list) {
 			if (blacklist_info && (jiffies_to_msecs(jiffies) > blacklist_info->end_time)) {
-				list_del(blacklist_pos);
+				list_del(&blacklist_info->list);
 				kfree(blacklist_info);
 			}
 		}
@@ -2154,7 +2196,9 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	ndev_vif->ap.channel_freq = freq; /* updated for GETSTAINFO */
 	ndev_vif->chan = chandef.chan;
 	ndev_vif->chandef_saved = chandef;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 22))
+        cfg80211_ch_switch_notify(dev, &chandef, 0, 0);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
 	cfg80211_ch_switch_notify(dev, &chandef, 0);
 #else
 	cfg80211_ch_switch_notify(dev, &chandef);
@@ -2282,6 +2326,11 @@ void __slsi_rx_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 	WLBT_WARN_ON(!peer);
 
 	if (peer) {
+		if (priority >= NUM_BA_SESSIONS_PER_PEER) {
+			SLSI_NET_DBG3(dev, SLSI_MLME, "priority is invalid (priority:%d)\n", priority);
+			goto invalid;
+		}
+
 		/* Buffering of frames before the mlme_connected_ind */
 		if (ndev_vif->vif_type == FAPI_VIFTYPE_AP && peer->connected_state == SLSI_STA_CONN_STATE_CONNECTING) {
 			SLSI_NET_DBG3(dev, SLSI_MLME, "buffering MA_BLOCKACKREQ_IND\n");
@@ -2932,15 +2981,12 @@ static void slsi_add_blacklist_info(struct slsi_dev *sdev, struct net_device *de
 {
 	struct slsi_bssid_blacklist_info *data;
 	int blacklist_received_time;
-	struct list_head *blacklist_pos, *blacklist_q;
+	struct slsi_bssid_blacklist_info *blacklist_info, *tmp;
 
 	/*Check if mac is already present ,
 	 * if present then update the rentention time
 	 */
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
-		struct slsi_bssid_blacklist_info *blacklist_info;
-
-		blacklist_info = list_entry(blacklist_pos, struct slsi_bssid_blacklist_info, list);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_fw_list, list) {
 		if (blacklist_info && SLSI_ETHER_EQUAL(blacklist_info->bssid, addr)) {
 			blacklist_received_time =  jiffies_to_msecs(jiffies);
 			blacklist_info->end_time = blacklist_received_time + retention_time * 1000;
@@ -2970,20 +3016,18 @@ int slsi_set_acl(struct slsi_dev *sdev, struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int ret = 0;
 	int num_bssid_total = 0;
-	struct list_head *blacklist_pos, *blacklist_q;
+	struct slsi_bssid_blacklist_info *blacklist_info, *tmp;
 	int ioctl_acl_entries_count = 0;
 
 	/* acl is required only for wlan index */
 	if (!SLSI_IS_VIF_INDEX_WLAN(ndev_vif))
 		return -EINVAL;
 
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_fw_list, list)
 		fw_acl_entries_count++;
-	}
 
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_ioctl_list) {
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_ioctl_list, list)
 		ioctl_acl_entries_count++;
-	}
 
 	if (ndev_vif->acl_data_supplicant)
 		num_bssid_total += ndev_vif->acl_data_supplicant->n_acl_entries;
@@ -3013,20 +3057,14 @@ int slsi_set_acl(struct slsi_dev *sdev, struct net_device *dev)
 		acl_data_total->n_acl_entries += ndev_vif->acl_data_hal->n_acl_entries;
 	}
 
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
-		struct slsi_bssid_blacklist_info *blacklist_info;
-
-		blacklist_info = list_entry(blacklist_pos, struct slsi_bssid_blacklist_info, list);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_fw_list, list) {
 		if (blacklist_info) {
 			memcpy(acl_data_total->mac_addrs[acl_data_total->n_acl_entries].addr, blacklist_info->bssid, ETH_ALEN);
 			acl_data_total->n_acl_entries++;
 		}
 	}
 
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_ioctl_list) {
-		struct slsi_ioctl_blacklist_info *blacklist_info;
-
-		blacklist_info = list_entry(blacklist_pos, struct slsi_ioctl_blacklist_info, list);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_ioctl_list, list) {
 		if (blacklist_info) {
 			memcpy(acl_data_total->mac_addrs[acl_data_total->n_acl_entries].addr, blacklist_info->bssid, ETH_ALEN);
 			acl_data_total->n_acl_entries++;

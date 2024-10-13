@@ -52,7 +52,9 @@
 #include "panel_obj.h"
 #include "panel_dump.h"
 
-#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
+#include "sdp_adaptive_mipi.h"
+#elif defined(CONFIG_USDM_ADAPTIVE_MIPI)
 #include "adaptive_mipi.h"
 #endif
 
@@ -131,36 +133,26 @@ struct pininfo {
 /* command type */
 enum {
 	CMD_TYPE_NONE,
-	/* property */
 	CMD_TYPE_PROP,
-	/* function */
 	CMD_TYPE_FUNC,
+	CMD_TYPE_MAP,
 	/* delay */
 	CMD_TYPE_DELAY,
 	CMD_TYPE_TIMER_DELAY,
 	CMD_TYPE_TIMER_DELAY_BEGIN,
-	/* tx packet*/
-	CMD_TYPE_TX_PACKET,
-	/* rx packet*/
-	CMD_TYPE_RX_PACKET,
-	/* resource */
-	CMD_TYPE_RES,
-	/* sequence */
-	CMD_TYPE_SEQ,
-	/* key */
-	CMD_TYPE_KEY,
-	/* maptable */
-	CMD_TYPE_MAP,
-	/* dump */
-	CMD_TYPE_DMP,
 	/* condition */
 	CMD_TYPE_COND_IF,
 	CMD_TYPE_COND_EL,
 	CMD_TYPE_COND_FI,
-	/* power control */
 	CMD_TYPE_PCTRL,
-	/* property */
+	CMD_TYPE_RX_PACKET,
+	/* dependant command type */
 	CMD_TYPE_CFG,
+	CMD_TYPE_TX_PACKET,
+	CMD_TYPE_KEY,
+	CMD_TYPE_RES,
+	CMD_TYPE_DMP,
+	CMD_TYPE_SEQ,
 	MAX_CMD_TYPE,
 };
 
@@ -169,9 +161,6 @@ enum {
 #define IS_CMD_TYPE_KEY(_type_) ((_type_) == CMD_TYPE_KEY)
 #define IS_CMD_TYPE_RES(_type_) ((_type_) == CMD_TYPE_RES)
 #define IS_CMD_TYPE_SEQ(_type_) ((_type_) == CMD_TYPE_SEQ)
-
-#define IS_CMD_TYPE_TX_MEM_PKT(_type_) \
-	(DSI_PKT_TYPE_WR_SR <= (_type_) && (_type_) <= DSI_PKT_TYPE_WR_MEM)
 
 #define IS_CMD_TYPE_TX_PKT(_type_) \
 	((_type_) == CMD_TYPE_TX_PACKET)
@@ -356,6 +345,9 @@ struct freq_hop_param {
 #ifdef CONFIG_USDM_FACTORY_BRIGHTDOT_TEST
 #define PANEL_BRIGHTDOT_TEST_SEQ ("panel_brightdot_test_seq")
 #endif
+#ifdef CONFIG_USDM_FACTORY_VGLHIGHDOT_TEST
+#define PANEL_VGLHIGHDOT_TEST_SEQ ("panel_vglhighdot_test_seq")
+#endif
 #define PANEL_FFC_SEQ ("panel_ffc_seq")
 #define PANEL_OSC_SEQ ("panel_osc_seq")
 #ifdef CONFIG_USDM_FACTORY_SSR_TEST
@@ -378,6 +370,8 @@ struct freq_hop_param {
 #if defined(CONFIG_USDM_PANEL_VCOM_TRIM_TEST)
 #define PANEL_VCOM_TRIM_TEST_SEQ ("panel_vcom_trim_test_seq")
 #endif
+#define PANEL_AGING_ON_SEQ ("panel_aging_on_seq")
+#define PANEL_AGING_OFF_SEQ ("panel_aging_off_seq")
 
 /* structure of sequence table */
 struct brt_map {
@@ -495,6 +489,7 @@ struct ddi_properties {
 	u32 dft_osc_freq; //ddi's oscillator clock rate, unit: khz
 	bool init_seq_by_lpdt;
 	bool support_avoid_sandstorm;
+	bool evasion_disp_det;
 };
 
 struct ddi_ops {
@@ -515,6 +510,8 @@ struct ddi_ops {
 	int (*get_octa_id)(struct panel_device *panel, void *data);
 	int (*get_manufacture_code)(struct panel_device *panel, void *data);
 	int (*get_manufacture_date)(struct panel_device *panel, void *data);
+	int (*get_temperature_range)(struct panel_device *panel, void *data);
+	int (*check_mipi_read)(struct panel_device *panel, void *data);
 };
 
 struct rcd_region {
@@ -618,6 +615,7 @@ struct common_panel_info {
 #endif
 	struct panel_prop_list *prop_lists[MAX_USDM_DRV_LEVEL];
 	unsigned int num_prop_lists[MAX_USDM_DRV_LEVEL];
+	const char *ezop_json;
 };
 
 enum {
@@ -649,13 +647,8 @@ enum {
 };
 
 enum {
-	ACL_OPR_OFF,
-	ACL_OPR_03P,
-	ACL_OPR_06P,
-	ACL_OPR_08P,
-	ACL_OPR_12P,
-	ACL_OPR_15P,
-	ACL_OPR_MAX
+	NIGHT_DIM_OFF,
+	NIGHT_DIM_ON,
 };
 
 enum {
@@ -772,7 +765,8 @@ struct panel_dt_lut {
 	struct list_head head;
 	struct list_head id_mask_list;
 	const char *dqe_suffix;
-#ifdef CONFIG_USDM_ADAPTIVE_MIPI
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 	struct device_node *adap_mipi_node;
 #endif
 };
@@ -843,7 +837,7 @@ struct panel_properties {
 	u32 panel_partial_disp;
 	u32 panel_mode;
 	/* resolution */
-	bool mres_updated;
+	u32 mres_updated;
 	u32 old_mres_mode;
 	u32 mres_mode;
 	u32 xres;
@@ -858,6 +852,7 @@ struct panel_properties {
 	u32 vrr_origin_idx;
 	bool vrr_updated;
 	struct vrr_lfd_info vrr_lfd_info;
+	struct vrr_lfd_info prev_vrr_lfd_info;
 	u32 dia_mode;
 	u32 ub_con_cnt;
 	u32 conn_det_enable;
@@ -867,8 +862,14 @@ struct panel_properties {
 #ifdef CONFIG_USDM_FACTORY_BRIGHTDOT_TEST
 	u32 brightdot_test_enable;
 #endif
+#ifdef CONFIG_USDM_FACTORY_VGLHIGHDOT_TEST
+	u32 vglhighdot;
+#endif
+	u32 panel_aging;
 	u32 dsi_freq;
 	u32 osc_freq;
+	u32 board_rev;
+	bool is_valid_mtp;
 };
 
 struct panel_info {
@@ -896,6 +897,7 @@ struct panel_info {
 	struct panel_rcd_data *rcd_data;
 #endif
 	const char *dqe_suffix;
+	const char *ezop_json;
 };
 
 struct attr_show_args {
@@ -1038,6 +1040,7 @@ static inline int search_table(void *tbl, int itemsize, u32 sz_tbl, void *value)
 const char *cmd_type_to_string(u32 type);
 int string_to_cmd_type(const char *str);
 int register_common_panel(struct common_panel_info *info);
+int panel_vote_up_to_probe(struct panel_device *panel);
 int deregister_common_panel(struct common_panel_info *info);
 struct panel_dt_lut *find_panel_lut(struct panel_device *panel, u32 panel_id);
 struct maptbl *find_panel_maptbl_by_substr(struct panel_device *panel, char *substr);
@@ -1060,6 +1063,10 @@ int get_panel_resource_size(struct panel_device *panel, char *name);
 int panel_resource_update(struct panel_device *panel, struct resinfo *res);
 int panel_resource_update_by_name(struct panel_device *panel, char *name);
 int panel_do_init_maptbl(struct panel_device *panel, struct maptbl *maptbl);
+struct dumpinfo *find_panel_dumpinfo(struct panel_device *panel, char *name);
+struct resinfo *panel_get_dump_resource(struct panel_device *panel, char *name);
+bool panel_is_dump_status_success(struct panel_device *panel, char *name);
+int panel_init_dumpinfo(struct panel_device *panel, char *name);
 int panel_dumpinfo_update(struct panel_device *panel, struct dumpinfo *info);
 int panel_rx_nbytes(struct panel_device *panel, u32 type, u8 *buf, u8 addr, u32 pos, u32 len);
 int panel_tx_nbytes(struct panel_device *panel,	u32 type, u8 *buf, u8 addr, u32 pos, u32 len);
@@ -1077,9 +1084,12 @@ int panel_dsi_set_lpdt(struct panel_device *panel, bool on);
 int panel_wake_lock(struct panel_device *panel, unsigned long timeout);
 int panel_wake_unlock(struct panel_device *panel);
 int panel_emergency_off(struct panel_device *panel);
-#if defined(CONFIG_USDM_PANEL_FREQ_HOP) || defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP) ||\
+	defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_param *param);
 #endif
+int panel_trigger_recovery(struct panel_device *panel);
 int panel_parse_ap_vendor_node(struct panel_device *panel, struct device_node *node);
 int panel_flush_image(struct panel_device *panel);
 int read_panel_id(struct panel_device *panel, u8 *buf);

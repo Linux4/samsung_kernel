@@ -70,7 +70,9 @@
 #include "panel_freq_hop.h"
 #endif
 
-#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
+#include "sdp_adaptive_mipi.h"
+#elif defined(CONFIG_USDM_ADAPTIVE_MIPI)
 #include "adaptive_mipi.h"
 #endif
 
@@ -155,10 +157,14 @@ enum panel_irq_lists {
 #define PANEL_PROPERTY_PREV_PANEL_REFRESH_RATE ("prev_panel_refresh_rate")
 #define PANEL_PROPERTY_PREV_PANEL_REFRESH_MODE ("prev_panel_refresh_mode")
 #define PANEL_PROPERTY_RESOLUTION_CHANGED ("resolution_changed")
+#define PANEL_PROPERTY_LFD_FIX ("lfd_fix")
+#define PANEL_PROPERTY_HMD_LFD_FIX ("hmd_lfd_fix")
+#define PANEL_PROPERTY_LPM_LFD_FIX ("lpm_lfd_fix")
 #define PANEL_PROPERTY_DSI_FREQ ("dsi_freq")
 #define PANEL_PROPERTY_OSC_FREQ ("osc_freq")
 #define PANEL_PROPERTY_IS_FACTORY_MODE ("is_factory_mode")
 #define PANEL_PROPERTY_BRIGHTDOT_TEST_ENABLE ("brightdot_test_enable")
+#define PANEL_PROPERTY_VGLHIGHDOT ("vglhighdot")
 #define PANEL_PROPERTY_XTALK_MODE ("xtalk_mode")
 #define PANEL_PROPERTY_IRC_MODE ("irc_mode")
 #define PANEL_PROPERTY_DIA_MODE ("dia_mode")
@@ -204,9 +210,7 @@ enum ctrl_interface_state {
 };
 
 #define WAKE_TIMEOUT_MSEC (100)
-#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
 #define EVASION_DISP_DET_DELAY_MSEC (600)
-#endif
 
 struct panel_adapter_funcs {
 	int (*read)(void *ctx, u8 addr, u32 ofs, u8 *buf, int size, u32 option);
@@ -227,9 +231,13 @@ struct panel_adapter_funcs {
 	int (*dpu_register_dump)(void *ctx);
 	int (*dpu_event_log_print)(void *ctx);
 	int (*emergency_off)(void *ctx);
-#if defined(CONFIG_PANEL_FREQ_HOP) || defined(CONFIG_USDM_PANEL_FREQ_HOP) || defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_PANEL_FREQ_HOP) ||\
+	defined(CONFIG_USDM_PANEL_FREQ_HOP) ||\
+	defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 	int (*set_freq_hop)(void *ctx, struct freq_hop_param *param);
 #endif
+	int (*trigger_recovery)(void *ctx);
 };
 
 #define call_panel_adapter_func(_p, _func, args...) \
@@ -281,6 +289,9 @@ struct panel_drv_funcs {
 	int (*req_set_clock)(struct panel_device *, void *);
 	int (*get_ddi_props)(struct panel_device *, void *);
 	int (*get_rcd_info)(struct panel_device *, void *);
+	int (*first_frame)(struct panel_device *);
+	int (*set_brightness)(struct panel_device *, unsigned int brightness_level);
+	int (*set_uevent_recovery_state)(struct panel_device *, void *);
 };
 
 int panel_drv_attach_adapter_ioctl(struct panel_device *panel, void *arg);
@@ -342,9 +353,19 @@ enum panel_bypass {
 	PANEL_BYPASS_ON = 1,
 };
 
+enum panel_uevent_recovery_state {
+	PANEL_UEVENT_RECOVERY_IDLE = 0,
+	PANEL_UEVENT_RECOVERY_RUNNING = 1,
+};
+
 enum {
 	PANEL_PCD_BYPASS_OFF = 0,
 	PANEL_PCD_BYPASS_ON = 1,
+};
+
+enum {
+	PANEL_FSYNC_EVENT_OFF = 0,
+	PANEL_FSYNC_EVENT_ON = 1,
 };
 
 #define ALPM_MODE	0
@@ -386,9 +407,8 @@ enum {
 	PANEL_WORK_DIM_FLASH,
 	PANEL_WORK_CHECK_CONDITION,
 	PANEL_WORK_UPDATE,
-#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
 	PANEL_WORK_EVASION_DISP_DET,
-#endif
+	PANEL_WORK_LATE_PROBE,
 	PANEL_WORK_MAX,
 };
 
@@ -423,6 +443,8 @@ struct panel_state {
 #endif
 	int lpm_brightness;
 	int pcd_bypass;
+	int fsync_event_on;
+	enum panel_uevent_recovery_state uevent_recovery;
 };
 
 struct copr_spi_gpios {
@@ -506,36 +528,45 @@ struct panel_thread {
 };
 
 enum {
-	PANEL_DEBUGFS_LOG,
-	PANEL_DEBUGFS_CMD_LOG,
-	PANEL_DEBUGFS_SEQUENCE,
-	PANEL_DEBUGFS_RESOURCE,
+	PANEL_DEBUGFS_FILE_LOG,
+	PANEL_DEBUGFS_FILE_CMD_LOG,
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
-	PANEL_DEBUGFS_FREQ_HOP,
+	PANEL_DEBUGFS_FILE_FREQ_HOP,
 #endif
 #if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2)
-	PANEL_DEBUGFS_PANEL_EVENT,
+	PANEL_DEBUGFS_FILE_PANEL_EVENT,
 #endif
 #if defined(CONFIG_USDM_PANEL_JSON)
-	PANEL_DEBUGFS_EZOP,
-	PANEL_DEBUGFS_FIRMWARE,
+	PANEL_DEBUGFS_FILE_EZOP,
+	PANEL_DEBUGFS_FILE_FIRMWARE,
 #endif
 #if defined(CONFIG_USDM_ADAPTIVE_MIPI)
-	PANEL_DEBUGFS_ADAPTIVE_MIPI,
+	PANEL_DEBUGFS_FILE_ADAPTIVE_MIPI,
 #endif
-	MAX_PANEL_DEBUGFS,
+	MAX_PANEL_DEBUGFS_FILE,
 };
 
+enum {
+	PANEL_DEBUGFS_DIR_SEQUENCE,
+	PANEL_DEBUGFS_DIR_RESOURCE,
+	PANEL_DEBUGFS_DIR_PROPERTY,
+	MAX_PANEL_DEBUGFS_DIR,
+};
+
+#define MAX_PANEL_DEBUGFS_NAME_SIZE (32)
+
 struct panel_debugfs {
-	int id;
+	char name[MAX_PANEL_DEBUGFS_NAME_SIZE];
 	struct dentry *dir;
 	struct dentry *file;
+	struct panel_debugfs *parent;
 	void *private;
+	struct list_head dirs;
+	struct list_head list;
 };
 
 struct panel_debug {
-	struct dentry *dir;
-	struct panel_debugfs *debugfs[MAX_PANEL_DEBUGFS];
+	struct panel_debugfs *root;
 };
 
 #ifdef CONFIG_USDM_PANEL_TESTMODE
@@ -641,8 +672,7 @@ struct panel_device {
 #endif
 
 #ifdef CONFIG_USDM_PANEL_MAFPC
-	struct mafpc_device mafpc;
-	struct v4l2_subdev *mafpc_sd;
+	struct mafpc_device *mafpc;
 	s64 mafpc_write_time;
 #endif
 
@@ -670,6 +700,7 @@ struct panel_device {
 	ktime_t ktime_panel_on;
 	ktime_t ktime_panel_off;
 	ktime_t ktime_panel_disp_on;
+	ktime_t ktime_first_frame;
 
 	struct dim_flash_result flash_checksum_result;
 
@@ -683,7 +714,11 @@ struct panel_device {
 	struct device_node *freq_hop_node;
 #endif
 
-#ifdef CONFIG_USDM_ADAPTIVE_MIPI
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
+	struct adaptive_mipi_v2_info sdp_adap_mipi;
+#endif
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 	struct panel_adaptive_mipi adap_mipi;
 	struct device_node *adap_mipi_node;
 #endif
@@ -722,10 +757,10 @@ int panel_ssr_test(struct panel_device *panel);
 int panel_ecc_test(struct panel_device *panel);
 #endif
 int panel_decoder_test(struct panel_device *panel, u8 *buf, int len);
-bool check_panel_decoder_test_exists(struct panel_device *panel);
 #if defined(CONFIG_USDM_PANEL_VCOM_TRIM_TEST)
 int panel_vcom_trim_test(struct panel_device *panel, u8 *buf, int len);
 #endif
+int panel_check_mipi_read_test(struct panel_device *panel, char *buf);
 int panel_ddi_init(struct panel_device *panel);
 
 #ifdef CONFIG_USDM_PANEL_DIM_FLASH
@@ -764,7 +799,7 @@ static inline int panel_set_bypass(struct panel_device *panel,
 
 int panel_display_on(struct panel_device *panel);
 int __set_panel_power(struct panel_device *panel, int power);
-
+bool panel_is_factory_mode(struct panel_device *panel);
 #ifdef CONFIG_USDM_PANEL_SELF_DISPLAY
 
 #define INIT_WITHOUT_LOCK	0
@@ -822,6 +857,7 @@ static inline int panel_self_move_pattern_update(struct panel_device *panel)
 #endif
 #endif
 
+int panel_find_max_brightness_from_cpi(struct common_panel_info *info);
 char *get_panel_state_names(enum panel_active_state);
 void panel_set_cur_state(struct panel_device *panel,
 		enum panel_active_state state);
@@ -837,6 +873,7 @@ int panel_get_octa_id(struct panel_device *panel, char *buf);
 int panel_get_cell_id(struct panel_device *panel, char *buf);
 int panel_get_manufacture_code(struct panel_device *panel, char *buf);
 int panel_get_manufacture_date(struct panel_device *panel, char *buf);
+int panel_get_temperature_range(struct panel_device *panel, char *buf);
 
 bool panel_disconnected(struct panel_device *panel);
 #ifdef CONFIG_USDM_DDI_CMDLOG
@@ -846,7 +883,9 @@ void panel_send_ubconn_uevent(struct panel_device *panel);
 
 int panel_create_debugfs(struct panel_device *panel);
 void panel_destroy_debugfs(struct panel_device *panel);
-#if defined(CONFIG_USDM_PANEL_LPM) && defined(CONFIG_USDM_FACTORY)
+int panel_create_panel_object_debugfs(struct panel_device *panel);
+void panel_destroy_panel_object_debugfs(struct panel_device *panel);
+#if defined(CONFIG_USDM_PANEL_LPM)
 int panel_seq_exit_alpm(struct panel_device *panel);
 int panel_seq_set_alpm(struct panel_device *panel);
 #endif
@@ -879,6 +918,7 @@ int panel_get_rcd_info(struct panel_device *panel, void *arg);
 #else
 static inline int panel_get_rcd_info(struct panel_device *panel, void *arg) { return -ENODEV; }
 #endif
+int panel_set_brightness(struct panel_device *panel, unsigned int level);
 
 struct list_head *panel_get_object_list(struct panel_device *panel,
 		unsigned int type);

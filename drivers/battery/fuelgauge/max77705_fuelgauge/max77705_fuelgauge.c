@@ -3100,8 +3100,10 @@ static int max77705_fuelgauge_probe(struct platform_device *pdev)
 		goto err_pdata_free;
 	}
 	ret = max77705_fuelgauge_parse_dt(fuelgauge);
-	if (ret < 0)
+	if (ret < 0) {
 		pr_err("%s not found fg dt! ret[%d]\n", __func__, ret);
+		goto err_data_free;
+	}
 #endif
 
 	fuelgauge->capacity_max = fuelgauge->pdata->capacity_max;

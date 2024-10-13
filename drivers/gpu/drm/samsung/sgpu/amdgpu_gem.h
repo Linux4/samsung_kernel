@@ -79,5 +79,8 @@ int amdgpu_gem_op_ioctl(struct drm_device *dev, void *data,
 int amdgpu_gem_metadata_ioctl(struct drm_device *dev, void *data,
 				struct drm_file *filp);
 
+void amdgpu_backoff_reservation(struct ww_acquire_ctx *ticket,
+				struct list_head *list);
+
 int amdgpu_gem_bo_size(struct drm_gem_object *gobj, struct drm_file *file_priv, int flag);
 #endif

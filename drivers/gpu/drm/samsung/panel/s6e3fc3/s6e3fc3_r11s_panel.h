@@ -184,7 +184,7 @@ static u8 r11s_acl_frame_avg_table[][1] = {
 
 static u8 r11s_acl_start_point_table[][2] = {
 	[OLED_BR_HBM_OFF] = { 0x01, 0xB0 }, /* 50 Percent */
-	[OLED_BR_HBM_OFF] = { 0x41, 0x28 }, /* 60 Percent */
+	[OLED_BR_HBM_ON] = { 0x41, 0x28 }, /* 60 Percent */
 };
 
 static u8 r11s_acl_dim_speed_table[MAX_S6E3FC3_ACL_DIM][1] = {
@@ -389,6 +389,9 @@ static DEFINE_STATIC_PACKET(r11s_hw_code, DSI_PKT_TYPE_WR, R11S_HW_CODE, 0x10);
 static u8 R11S_NORMAL_SETTING[] = { 0x91, 0x02 };
 static DEFINE_STATIC_PACKET(r11s_normal_setting, DSI_PKT_TYPE_WR, R11S_NORMAL_SETTING, 0);
 
+static u8 R11S_LPM_TE_SETTING[] = { 0xB9, 0x00, 0x09, 0x34, 0x00, 0x0F  };
+static DEFINE_STATIC_PACKET(r11s_lpm_te_setting, DSI_PKT_TYPE_WR, R11S_LPM_TE_SETTING, 0);
+
 static u8 R11S_LPM_CTRL[] = { 0x63, 0x01, 0x09, 0x40, 0x02, 0x00, 0x80 };
 static DEFINE_STATIC_PACKET(r11s_lpm_ctrl, DSI_PKT_TYPE_WR, R11S_LPM_CTRL, 0x76);
 
@@ -404,7 +407,7 @@ static DEFINE_STATIC_PACKET(r11s_lpm_display_set, DSI_PKT_TYPE_WR, R11S_LPM_DISP
 static u8 R11S_LPM_BLACK_FRAME_ENTER[] = { 0xBB, 0x39 };
 static DEFINE_STATIC_PACKET(r11s_lpm_black_frame_enter, DSI_PKT_TYPE_WR, R11S_LPM_BLACK_FRAME_ENTER, 0);
 
-static u8 R11S_LPM_BLACK_FRAME_EXIT[] = { 0xBB, 0xF9 };
+static u8 R11S_LPM_BLACK_FRAME_EXIT[] = { 0xBB, 0x31 };
 static DEFINE_STATIC_PACKET(r11s_lpm_black_frame_exit, DSI_PKT_TYPE_WR, R11S_LPM_BLACK_FRAME_EXIT, 0);
 
 static u8 R11S_LPM_AOR_NIT[] = { 0x63, 0x08, 0xF3 };
@@ -540,6 +543,12 @@ static u8 R11S_IRC_MDOE[] = {
 };
 static DEFINE_PKTUI(r11s_irc_mode, &r11s_maptbl[IRC_MODE_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(r11s_irc_mode, DSI_PKT_TYPE_WR, R11S_IRC_MDOE, 0x03);
+
+static u8 R11S_IRC_MDOE_MODERATO[] = {
+	0x8F,
+	0x65, 0xFD, 0x03, 0x00,
+};
+static DEFINE_STATIC_PACKET(r11s_irc_mode_moderato, DSI_PKT_TYPE_WR, R11S_IRC_MDOE_MODERATO, 0x03);
 
 static u8 R11S_CASET[] = { 0x2A, 0x00, 0x00, 0x04, 0x37 };
 static u8 R11S_PASET[] = { 0x2B, 0x00, 0x00, 0x09, 0x23 };
@@ -922,7 +931,6 @@ static void *r11s_exit_cmdtbl[] = {
 	&s6e3fc3_dmptbl[DUMP_ERR],
 	&s6e3fc3_dmptbl[DUMP_DSI_ERR],
 	&s6e3fc3_dmptbl[DUMP_SELF_DIAG],
-	&s6e3fc3_dmptbl[DUMP_SELF_MASK_CRC],
 #endif
 	&PKTINFO(r11s_sleep_in),
 	&KEYINFO(r11s_level3_key_disable),
@@ -933,6 +941,7 @@ static void *r11s_exit_cmdtbl[] = {
 
 static void *r11s_alpm_init_cmdtbl[] = {
 	&KEYINFO(r11s_level2_key_enable),
+	&PKTINFO(r11s_lpm_te_setting),
 	&PKTINFO(r11s_lpm_ctrl),
 	&PKTINFO(r11s_lpm_fps),
 	&PKTINFO(r11s_lpm_display_set),
@@ -960,9 +969,10 @@ static void *r11s_alpm_exit_cmdtbl[] = {
 	&PKTINFO(r11s_lpm_black_frame_exit),
 	&PKTINFO(r11s_swire_no_pulse_lpm_off),
 	&PKTINFO(r11s_lpm_porch_off),
-	&PKTINFO(r11s_normal_setting),
 	&PKTINFO(r11s_lpm_off_sync_ctrl),
 	&PKTINFO(r11s_normal_mode),
+	&DLYINFO(r11s_wait_34msec),
+	&PKTINFO(r11s_normal_setting),
 	&PKTINFO(r11s_lpm_ctrl_off),
 	&PKTINFO(r11s_panel_update),
 	&KEYINFO(r11s_level2_key_disable),
@@ -1025,6 +1035,9 @@ static void *r11s_mask_layer_enter_br_cmdtbl[] = {
 	&KEYINFO(r11s_level2_key_enable),
 	&KEYINFO(r11s_level3_key_enable),
 
+	&PKTINFO(r11s_irc_mode_moderato),
+	&PKTINFO(r11s_panel_update),
+
 	&PKTINFO(r11s_acl_dim_off),
 	&PKTINFO(r11s_lpm_off_sync_ctrl),
 	&PKTINFO(r11s_hbm_transition),
@@ -1044,6 +1057,9 @@ static void *r11s_mask_layer_exit_br_cmdtbl[] = {
 	&KEYINFO(r11s_level1_key_enable),
 	&KEYINFO(r11s_level2_key_enable),
 	&KEYINFO(r11s_level3_key_enable),
+
+	&PKTINFO(r11s_irc_mode),
+	&PKTINFO(r11s_panel_update),
 
 	&PKTINFO(r11s_acl_control),
 	&CONDINFO_IF(r11s_cond_is_120hz),

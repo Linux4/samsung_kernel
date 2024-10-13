@@ -916,6 +916,23 @@ int amdgpu_mode_dumb_create(struct drm_file *file_priv,
 	return 0;
 }
 
+void amdgpu_backoff_reservation(struct ww_acquire_ctx *ticket,
+		struct list_head *list)
+{
+	struct ttm_validate_buffer *entry;
+
+	if (list_empty(list))
+		return;
+
+	list_for_each_entry(entry, list, head) {
+		struct ttm_buffer_object *bo = entry->bo;
+		dma_resv_unlock(bo->base.resv);
+	}
+
+	if (ticket)
+		ww_acquire_fini(ticket);
+}
+
 int amdgpu_gem_bo_size(struct drm_gem_object *gobj, struct drm_file *filp, int flag)
 {
 	struct amdgpu_bo *bo = gem_to_amdgpu_bo(gobj);

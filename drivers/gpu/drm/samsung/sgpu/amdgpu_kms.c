@@ -1205,8 +1205,8 @@ int amdgpu_driver_open_kms(struct drm_device *dev, struct drm_file *file_priv)
 	idr_init(&fpriv->bo_list_handles);
 
 	amdgpu_ctx_mgr_init(&fpriv->ctx_mgr);
-	ida_init(&fpriv->cwsr_res_slots);
-	mutex_init(&fpriv->cwsr_lock);
+	ida_init(&fpriv->res_slots);
+	mutex_init(&fpriv->lock);
 
 	mutex_init(&fpriv->memory_lock);
 	fpriv->total_pages = 0;
@@ -1294,7 +1294,7 @@ void amdgpu_driver_postclose_kms(struct drm_device *dev,
 
 	amdgpu_ctx_mgr_fini(&fpriv->ctx_mgr);
 	amdgpu_vm_fini(adev, &fpriv->vm);
-	ida_destroy(&fpriv->cwsr_res_slots);
+	ida_destroy(&fpriv->res_slots);
 
 	if (pasid)
 		amdgpu_pasid_free_delayed(pd->tbo.base.resv, pasid);

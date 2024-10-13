@@ -31,6 +31,11 @@ static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *
 	u8 *copier;
 	int total;
 
+	if (!g_ts->raw_pool[0] || !g_ts->raw_pool[1] || !g_ts->raw_pool[2]) {
+		input_info(true, g_ts->dev, "%s: is not allocated\n", __func__);
+		return -ENOMEM;
+	}
+
 	mutex_lock(&lock);
 
 	if (cmd == IOCTL_TSP_MAP_READ) {
@@ -170,15 +175,15 @@ int stm_ts_rawdata_buffer_alloc(struct stm_ts_data *ts)
 	return 0;
 
 alloc_out:
-	if (!ts->raw_pool[0])
+	if (ts->raw_pool[0])
 		vfree(ts->raw_pool[0]);
-	if (!ts->raw_pool[1])
+	if (ts->raw_pool[1])
 		vfree(ts->raw_pool[1]);
-	if (!ts->raw_pool[2])
+	if (ts->raw_pool[2])
 		vfree(ts->raw_pool[2]);
-	if (!ts->raw_u8)
+	if (ts->raw_u8)
 		kfree(ts->raw_u8);
-	if (!ts->raw)
+	if (ts->raw)
 		kfree(ts->raw);
 	ts->raw_pool[0] = ts->raw_pool[1] = ts->raw_pool[2] = NULL;
 	ts->raw_u8 =  NULL;
@@ -205,15 +210,15 @@ int stm_ts_rawdata_init(struct stm_ts_data *ts)
 void stm_ts_rawdata_buffer_remove(struct stm_ts_data *ts)
 {
 	input_info(true, ts->dev, "%s\n", __func__);
-	if (!ts->raw_pool[0])
+	if (ts->raw_pool[0])
 		vfree(ts->raw_pool[0]);
-	if (!ts->raw_pool[1])
+	if (ts->raw_pool[1])
 		vfree(ts->raw_pool[1]);
-	if (!ts->raw_pool[2])
+	if (ts->raw_pool[2])
 		vfree(ts->raw_pool[2]);
-	if (!ts->raw_u8)
+	if (ts->raw_u8)
 		kfree(ts->raw_u8);
-	if (!ts->raw)
+	if (ts->raw)
 		kfree(ts->raw);
 
 	ts->raw_pool[0] = ts->raw_pool[1] = ts->raw_pool[2] = NULL;

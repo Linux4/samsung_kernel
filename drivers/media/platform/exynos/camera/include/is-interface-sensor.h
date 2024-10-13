@@ -352,6 +352,8 @@ typedef struct {
 	/* set remosaic zoom */
 	u32 cur_remosaic_zoom_ratio;
 	u32 pre_remosaic_zoom_ratio;
+	u32 pre_remosaic_zoom_ratio_backup;
+	u32 pre_remosaic_zoom_ratio_vsync;
 
 	u32 frame_length_lines_shifter;
 

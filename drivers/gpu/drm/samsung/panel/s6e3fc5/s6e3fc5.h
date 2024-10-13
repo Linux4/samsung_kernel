@@ -344,7 +344,7 @@ static u8 S6E3FC5_DECODER_TEST4[S6E3FC5_DECODER_TEST4_LEN];
 #endif
 #ifdef CONFIG_USDM_FACTORY_CCD_TEST
 static u8 S6E3FC5_CCD_STATE[S6E3FC5_CCD_STATE_LEN];
-static u8 S6E3FC5_CCD_CHKSUM_PASS_LIST[S6E3FC5_CCD_STATE_PASS_LIST_LEN] = { 0x20, 0x00, };
+static u8 S6E3FC5_CCD_CHKSUM_PASS_LIST[S6E3FC5_CCD_STATE_PASS_LIST_LEN] = { 0x08, 0x00, };
 #endif
 #ifdef CONFIG_USDM_FACTORY_ECC_TEST
 static u8 S6E3FC5_ECC_TEST[S6E3FC5_ECC_TEST_LEN];
@@ -464,6 +464,7 @@ enum {
 
 #ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 int s6e3fc5_decoder_test(struct panel_device *panel, void *data, u32 len);
+int s6e3fc5_decoder_test_v2(struct panel_device *panel, void *data, u32 len);
 #endif
 #ifdef CONFIG_USDM_FACTORY_ECC_TEST
 int s6e3fc5_ecc_test(struct panel_device *panel, void *data, u32 len);
@@ -611,6 +612,6 @@ int s6e3fc5_get_octa_id(struct panel_device *panel, void *buf);
 int s6e3fc5_get_cell_id(struct panel_device *panel, void *buf);
 int s6e3fc5_get_manufacture_code(struct panel_device *panel, void *buf);
 int s6e3fc5_get_manufacture_date(struct panel_device *panel, void *buf);
-int s6e3fc5_init(void);
+int s6e3fc5_init(struct common_panel_info *cpi);
 
 #endif /* __S6E3FC5_H__ */

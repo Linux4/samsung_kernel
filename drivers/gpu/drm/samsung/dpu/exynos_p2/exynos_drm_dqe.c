@@ -562,6 +562,33 @@ static int dqe_restore_context(struct exynos_dqe *dqe)
 	return 0;
 }
 
+static char *dqe_acquire_colormode_ctx(struct exynos_dqe *dqe)
+{
+	int i, ctx_no, size;
+	char *ctx;
+
+	if (!dqe->colormode.dma_buf || !dqe->colormode.dma_vbuf)
+		return NULL;
+
+	size = dqe->colormode.dma_buf->size;
+	if (dqe->colormode.ctx_size != size) {
+		for (i = 0; i < MAX_DQE_COLORMODE_CTX; i++) {
+			if (dqe->colormode.ctx[i])
+				kfree(dqe->colormode.ctx[i]);
+
+			dqe->colormode.ctx[i] = kzalloc(size, GFP_KERNEL);
+		}
+		dqe_info(dqe, "ctx realloc %d -> %d\n", dqe->colormode.ctx_size, size);
+	}
+	dqe->colormode.ctx_size = size;
+
+	ctx_no = (atomic_inc_return(&dqe->colormode.ctx_no) & INT_MAX) % MAX_DQE_COLORMODE_CTX;
+	ctx = dqe->colormode.ctx[ctx_no];
+	if (ctx)
+		memcpy(ctx, (void *)dqe->colormode.dma_vbuf, size);
+	return ctx;
+}
+
 static int dqe_alloc_colormode_dma(struct exynos_dqe *dqe,
 					struct drm_crtc_state *crtc_state)
 {
@@ -611,6 +638,7 @@ static int dqe_alloc_colormode_dma(struct exynos_dqe *dqe,
 	dqe->colormode.dma_vbuf = vaddr;
 
 done:
+	exynos_crtc_state->dqe_colormode_ctx = dqe_acquire_colormode_ctx(dqe);
 	return 0;
 
 error:
@@ -619,6 +647,7 @@ error:
 			dma_buf_vunmap(buf, vaddr);
 		dma_buf_put(buf);
 	}
+	exynos_crtc_state->dqe_colormode_ctx = NULL;
 	return -1;
 }
 
@@ -645,11 +674,13 @@ static u32 dqe_update_colormode(struct exynos_dqe *dqe,
 	const char *data;
 	u32 *lut;
 	u16 size, len, count = 0, count_cgc = 0;
+	struct exynos_drm_crtc_state *exynos_crtc_state =
+					to_exynos_crtc_state(crtc_state);
 
-	if (!dqe->colormode.dma_buf || !dqe->colormode.dma_vbuf)
+	if (!exynos_crtc_state->dqe_colormode_ctx)
 		return DQE_UPDATED_NONE;
 
-	hdr = (struct dqe_colormode_global_header *)dqe->colormode.dma_vbuf;
+	hdr = (struct dqe_colormode_global_header *)exynos_crtc_state->dqe_colormode_ctx;
 	if (!hdr) {
 		dqe_err(dqe, "no allocated virtual buffer\n");
 		goto error;

@@ -114,8 +114,14 @@ static int synaptics_ts_spi_write(struct synaptics_ts_data *ts, u8 *reg, int cnu
 	}
 
 	memcpy(tx_buf, reg, cnum);
-	if (len > 0)
-		memcpy(tx_buf + cnum, data, len);
+	if (len > 0) {
+		if (data) {
+			memcpy(tx_buf + cnum, data, len);
+		} else {
+			ret = -ENOMEM;
+			goto exit;
+		}
+	}
 
 	spi_message_init(&msg);
 	xfer[0].len = len + cnum;
@@ -282,7 +288,12 @@ static int synaptics_ts_spi_only_read(struct synaptics_ts_data *ts, u8 *data, in
 			input_err(true, ts->dev, "%s: gpio value invalid:%d\n",
 				__func__, gpio_get_value(ts->plat_data->gpio_spi_cs));
 	}
-	memcpy(data, rx_buf, len);
+	if (data) {
+		memcpy(data, rx_buf, len);
+	} else {
+		ret = -ENOMEM;
+		goto exit;
+	}
 
 	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_READ_CMD) {
 		unsigned char *rdata;

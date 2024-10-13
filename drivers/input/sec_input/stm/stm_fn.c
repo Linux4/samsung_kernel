@@ -278,6 +278,11 @@ int stm_ts_get_version_info(struct stm_ts_data *ts)
 	ts->ic_name_of_ic = data[7];
 	ts->module_version_of_ic = data[8];
 
+	ts->plat_data->ic_vendor_name[0] = 'S';
+	ts->plat_data->ic_vendor_name[1] = 'T';
+
+	ts->plat_data->img_version_of_ic[0] = ts->ic_name_of_ic;
+	ts->plat_data->img_version_of_ic[1] = ts->project_id_of_ic;
 	ts->plat_data->img_version_of_ic[2] = ts->module_version_of_ic;
 	ts->plat_data->img_version_of_ic[3] = ts->fw_main_version_of_ic & 0xFF;
 
@@ -817,12 +822,10 @@ retry_pmode:
 
 	stm_ts_locked_release_all_finger(ts);
 
-	if (device_may_wakeup(ts->sec.fac_dev)) {
-		if (mode)
-			enable_irq_wake(ts->irq);
-		else
-			disable_irq_wake(ts->irq);
-	}
+	if (mode)
+		enable_irq_wake(ts->irq);
+	else
+		disable_irq_wake(ts->irq);
 
 	if (mode == TO_LOWPOWER_MODE)
 		atomic_set(&ts->plat_data->power_state, SEC_INPUT_STATE_LPM);
@@ -992,6 +995,11 @@ void stm_ts_read_rawdata_address(struct stm_ts_data *ts)
 	int ret;
 	int retry = 0;
 
+	if (!ts->raw) {
+		input_info(true, ts->dev, "%s: alloc rawdata buffer\n", __func__);
+		stm_ts_rawdata_buffer_alloc(ts);
+	}
+
 	input_info(true, ts->dev, "%s\n", __func__);
 
 	disable_irq(ts->irq);
@@ -1015,15 +1023,18 @@ void stm_ts_read_rawdata_address(struct stm_ts_data *ts)
 
 	reg[0] = 0xA7;
 	reg[1] = 0x00;
-	if (ts->raw_mode == 2)//RAW
-		reg[2] = 0x88;
-	else if (ts->raw_mode == 1)//STRENGTH
-		reg[2] = 0x8C;
+	reg[2] = 0x8C; // strength
 	memset(header, 0x00, 16);
 	ret = ts->stm_ts_read(ts, reg, 3, header, 2);
 
 	ts->raw_addr_h = header[1];
 	ts->raw_addr_l = header[0];
+
+	if (ts->raw_addr_h == 0 && ts->raw_addr_l == 0)
+		input_fail_hist(true, ts->dev, "%s: rawdata address is 0\n", __func__);
+	else
+		input_info(true, ts->dev, "%s: rawdata address 0x%02X 0x%02X\n",
+				__func__, ts->raw_addr_h, ts->raw_addr_l);
 
 	reg[0] = 0xA7;
 	reg[1] = ts->raw_addr_h;
@@ -1040,6 +1051,9 @@ void stm_ts_read_info_work(struct work_struct *work)
 			work_read_info.work);
 	int ret;
 
+	stm_ts_set_scanmode(ts, STM_TS_SCAN_MODE_SCAN_OFF);
+	sec_delay(30);
+
 #ifdef TCLM_CONCEPT
 	ret = sec_tclm_check_cal_case(ts->tdata);
 	input_info(true, ts->dev, "%s: sec_tclm_check_cal_case ret: %d \n", __func__, ret);
@@ -1050,6 +1064,7 @@ void stm_ts_read_info_work(struct work_struct *work)
 				__func__);
 	input_raw_info_d(GET_DEV_COUNT(ts->multi_dev), ts->dev, "%s: fac test result %02X\n",
 				__func__, ts->test_result.data[0]);
+	stm_ts_set_scanmode(ts, ts->scan_mode);
 
 	stm_ts_run_rawdata_all(ts);
 
@@ -1319,7 +1334,7 @@ void stm_set_grip_data_to_ic(struct device *dev, u8 flag)
 			data[1] = (ts->plat_data->grip_data.edgehandler_start_y << 4 & 0xF0)
 					| ((ts->plat_data->grip_data.edgehandler_end_y >> 8) & 0xF);
 			data[2] = ts->plat_data->grip_data.edgehandler_end_y & 0xFF;
-			data[3] = ts->plat_data->grip_data.edgehandler_direction & 0x3;
+			data[3] = ts->plat_data->grip_data.edgehandler_direction & 0xF;
 		}
 		address[1] = STM_TS_FUNCTION_EDGE_HANDLER;
 		ts->stm_ts_write(ts, address, 2, data, 4);
@@ -1343,10 +1358,20 @@ void stm_set_grip_data_to_ic(struct device *dev, u8 flag)
 		data[1] = ts->plat_data->grip_data.deadzone_dn_x & 0xFF;
 		data[2] = (ts->plat_data->grip_data.deadzone_y >> 8) & 0xFF;
 		data[3] = ts->plat_data->grip_data.deadzone_y & 0xFF;
+		data[4] = ts->plat_data->grip_data.deadzone_dn2_x & 0xFF;
+		data[5] = (ts->plat_data->grip_data.deadzone_dn_y >> 8) & 0xFF;
+		data[6] = ts->plat_data->grip_data.deadzone_dn_y & 0xFF;
+
 		address[1] = STM_TS_FUNCTION_DEAD_ZONE;
-		ts->stm_ts_write(ts, address, 2, data, 4);
-		input_info(true, ts->dev, "%s: 0x%02X %02X,%02X,%02X,%02X\n",
-				__func__, STM_TS_FUNCTION_DEAD_ZONE, data[0], data[1], data[2], data[3]);
+		if (ts->support_grip_cmd_v2) {
+			ts->stm_ts_write(ts, address, 2, data, 4);
+			input_info(true, ts->dev, "%s: 0x%02X %02X,%02X,%02X,%02X\n",
+					__func__, STM_TS_FUNCTION_DEAD_ZONE, data[0], data[1], data[2], data[3]);
+		} else {
+			ts->stm_ts_write(ts, address, 2, data, 7);
+			input_info(true, ts->dev, "%s: 0x%02X %02X,%02X,%02X,%02X,%02X,%02X,%02X\n",
+					__func__, STM_TS_FUNCTION_DEAD_ZONE, data[0], data[1], data[2], data[3], data[4], data[5], data[6]);
+		}
 	}
 
 	if (flag & G_SET_LANDSCAPE_MODE) {

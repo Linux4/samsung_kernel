@@ -86,6 +86,7 @@ struct is_module_regulator {
 	struct regulator *regulator;
 	char *name;
 	struct list_head list;
+	struct mutex regulator_lock;
 };
 
 struct exynos_platform_is_module {

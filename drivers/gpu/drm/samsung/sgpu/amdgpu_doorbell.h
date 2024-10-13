@@ -77,8 +77,8 @@ struct amdgpu_doorbell_index {
 	};
 	uint32_t first_non_cp;
 	uint32_t last_non_cp;
-	uint32_t first_cwsr;
-	uint32_t last_cwsr;
+	uint32_t first_resv; /* reserved for tmz and cwsr */
+	uint32_t last_resv;
 	uint32_t max_assignment;
 	/* Per engine SDMA doorbell size in dword */
 	uint32_t sdma_doorbell_range;
@@ -180,8 +180,8 @@ typedef enum _AMDGPU_NAVI10_DOORBELL_ASSIGNMENT
 	AMDGPU_NAVI10_DOORBELL_MEC_RING7		= 0x00A,
 	AMDGPU_NAVI10_DOORBELL_USERQUEUE_START		= 0x00B,
 	AMDGPU_NAVI10_DOORBELL_USERQUEUE_END		= 0x08A,
-	AMDGPU_NAVI10_DOORBELL64_FIRST_CWSR		= 0x08B,
-	AMDGPU_NAVI10_DOORBELL64_LAST_CWSR		= 0x10A,
+	AMDGPU_NAVI10_DOORBELL64_FIRST_RESV		= 0x08B,
+	AMDGPU_NAVI10_DOORBELL64_LAST_RESV		= 0x10A,
 
 	AMDGPU_NAVI10_DOORBELL_GFX_RING0		= 0x10B,
 	AMDGPU_NAVI10_DOORBELL_GFX_RING1		= 0x10C,

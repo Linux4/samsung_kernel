@@ -565,7 +565,7 @@ static int sec_audio_sysfs_probe(struct platform_device *pdev)
 	}
 
 	of_property_read_u32(np, "audio,num-amp", &audio_data->num_amp);
-	if (audio_data->num_amp > 0) {
+	if (audio_data->num_amp >= 0) {
 		for (i = audio_data->num_amp; i < AMP_ID_MAX; i++) {
 			sysfs_remove_group(&audio_data->amp_dev->kobj,
 				&sec_audio_amp_big_data_attr_group[i]);

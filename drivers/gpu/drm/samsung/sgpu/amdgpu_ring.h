@@ -232,6 +232,7 @@ struct amdgpu_ring_funcs {
 	size_t (*get_ring_status)(struct amdgpu_ring *ring, char *buf,
 				  size_t len);
 	int (*compute_mqd_init)(struct amdgpu_ring *ring);
+	int (*compute_mqd_update)(struct amdgpu_ring *ring);
 };
 
 struct amdgpu_ring {
@@ -275,6 +276,7 @@ struct amdgpu_ring {
 	volatile u32		*cond_exe_cpu_addr;
 	unsigned		vm_inv_eng;
 	struct dma_fence	*vmid_wait;
+	struct dma_fence	*tmz_queue_wait;
 	bool			has_compute_vm_bug;
 	bool			no_scheduler;
 
@@ -292,10 +294,6 @@ struct amdgpu_ring {
 	struct work_struct poll_fence_work;
 
 	bool			cwsr;
-	u32			cwsr_vmid;
-	u32                     cwsr_slot_idx;
-	struct amdgpu_bo_va     *cwsr_ring_va;
-	struct amdgpu_bo_va     *cwsr_mqd_va;
 
 	struct amdgpu_bo        *cwsr_sr_obj;
 	struct amdgpu_bo_va     *cwsr_sr_va;
@@ -305,15 +303,20 @@ struct amdgpu_ring {
 	u32			cwsr_sr_size;
 	u32			cwsr_sr_ctl_size;
 
-	u64                     cwsr_wptr_gpu_addr;
-	volatile u32            *cwsr_wptr_cpu_addr;
-	u64                     cwsr_rptr_gpu_addr;
-	volatile u32            *cwsr_rptr_cpu_addr;
-	u64                     cwsr_fence_gpu_addr;
-	volatile u32            *cwsr_fence_cpu_addr;
-	void			*cwsr_mqd_backup;
-	bool                    cwsr_queue_broken;
+	bool			tmz;
+	/* reused by cwsr and tmz */
+	struct amdgpu_bo_va     *ring_va;
+	struct amdgpu_bo_va     *mqd_va;
+	u64                     wptr_gpu_addr;
+	volatile u32            *wptr_cpu_addr;
+	u64                     rptr_gpu_addr;
+	volatile u32            *rptr_cpu_addr;
+	u64                     fence_gpu_addr;
+	volatile u32            *fence_cpu_addr;
+	u32                     resv_slot_idx;
+	u32			priv_vmid;
 
+	bool                    cwsr_queue_broken;
 	u64                     cwsr_tba_gpu_addr;
 	u64                     cwsr_tma_gpu_addr;
 
@@ -345,6 +348,7 @@ struct amdgpu_ring {
 #define amdgpu_ring_patch_cond_exec(r,o) (r)->funcs->patch_cond_exec((r),(o))
 #define amdgpu_ring_preempt_ib(r) (r)->funcs->preempt_ib(r)
 #define amdgpu_ring_compute_mqd_init(r) (r)->funcs->compute_mqd_init(r)
+#define amdgpu_ring_compute_mqd_update(r) (r)->funcs->compute_mqd_update(r)
 
 int amdgpu_ring_alloc(struct amdgpu_ring *ring, unsigned ndw);
 void amdgpu_ring_insert_nop(struct amdgpu_ring *ring, uint32_t count);

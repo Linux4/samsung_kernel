@@ -57,6 +57,12 @@
 #include <linux/vbus_notifier.h>
 #endif
 
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SEC_FACTORY)
+#include <linux/sec_panel_notifier_v2.h>
+#define STM_PANEL_DETACHED	0
+#define STM_PANEL_ATTACHED	1
+#endif
+
 #include "../sec_tclm_v2.h"
 #if IS_ENABLED(CONFIG_INPUT_TOUCHSCREEN_TCLMV2)
 #define TCLM_CONCEPT
@@ -272,7 +278,7 @@ struct stm_ts_event_coordinate {
 	u8 eom:1;
 	u8 game_mode:1;
 	u8 freq_id:4;
-	u8 reserved_11:4;
+	u8 fod_debug:4;
 	u8 reserved_12;
 	u8 reserved_13;
 	u8 reserved_14;
@@ -395,6 +401,7 @@ struct stm_ts_data {
 	struct device *dev;
 
 	bool support_mutual_raw;
+	bool support_grip_cmd_v2;
 	int irq;
 	int irq_empty_count;
 	struct sec_ts_plat_data *plat_data;
@@ -433,6 +440,7 @@ struct stm_ts_data {
 	u8 sip_mode;
 	u8 note_mode;
 	u8 dead_zone;
+	u8 block_rawdata;
 
 	int fw_version_of_ic;			/* firmware version of IC */
 	int fw_version_of_bin;			/* firmware version of binary */
@@ -450,6 +458,10 @@ struct stm_ts_data {
 	u32 chip_id;
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	struct notifier_block vbus_nb;
+#endif
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SEC_FACTORY)
+	u8 panel_attached;
+	struct notifier_block lcd_nb;
 #endif
 	struct notifier_block stm_input_nb;
 	struct delayed_work work_print_info;
@@ -559,7 +571,7 @@ struct stm_ts_data {
 int stm_ts_stop_device(void *data);
 int stm_ts_start_device(void *data);
 irqreturn_t stm_ts_irq_thread(int irq, void *ptr);
-int stm_ts_probe(struct stm_ts_data *ts);
+int stm_ts_probe(struct device *dev);
 int stm_ts_remove(struct stm_ts_data *ts);
 void stm_ts_shutdown(struct stm_ts_data *ts);
 int stm_ts_pm_suspend(struct stm_ts_data *ts);
@@ -567,6 +579,7 @@ int stm_ts_pm_resume(struct stm_ts_data *ts);
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_STM_SPI)
 void stm_ts_set_spi_mode(struct stm_ts_data *ts);
 #endif
+int stm_ts_init(struct stm_ts_data *ts);
 
 //i2c or spi
 int stm_ts_wire_mode_change(struct stm_ts_data *ts, u8 *reg);
@@ -680,6 +693,11 @@ void stm_ts_read_rawdata_address(struct stm_ts_data *ts);
 int stm_ts_rawdata_buffer_alloc(struct stm_ts_data *ts);
 int stm_ts_rawdata_init(struct stm_ts_data *ts);
 void  stm_ts_rawdata_buffer_remove(struct stm_ts_data *ts);
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SEC_FACTORY)
+extern int panel_notifier_register(struct notifier_block *nb);
+extern int panel_notifier_unregister(struct notifier_block *nb);
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)

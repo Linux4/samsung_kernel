@@ -526,7 +526,7 @@ out:
  * on !rwc->try_lock case.
  */
 struct anon_vma *page_lock_anon_vma_read(struct page *page,
-					struct rmap_walk_control *rwc)
+					 struct rmap_walk_control *rwc)
 {
 	struct anon_vma *anon_vma = NULL;
 	struct anon_vma *root_anon_vma;
@@ -863,9 +863,10 @@ static bool invalid_page_referenced_vma(struct vm_area_struct *vma, void *arg)
  * @memcg: target memory cgroup
  * @vm_flags: collect encountered vma->vm_flags who actually referenced the page
  *
- * Quick test_and_clear_referenced for all mappings to a page,
- * returns the number of ptes which referenced the page. Return -1 if
- * the function bailed out to rmap lock contention.
+ * Quick test_and_clear_referenced for all mappings of a page,
+ *
+ * Return: The number of mappings which referenced the page. Return -1 if
+ * the function bailed out due to rmap lock contention.
  */
 int page_referenced(struct page *page,
 		    int is_locked,
@@ -914,6 +915,7 @@ int page_referenced(struct page *page,
 
 	return rwc.contended ? -1 : pra.referenced;
 }
+EXPORT_SYMBOL_GPL(page_referenced);
 
 static bool page_mkclean_one(struct page *page, struct vm_area_struct *vma,
 			    unsigned long address, void *arg)

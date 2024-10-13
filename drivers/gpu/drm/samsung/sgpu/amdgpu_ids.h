@@ -91,6 +91,13 @@ void amdgpu_vmid_free_reserved(struct amdgpu_device *adev,
 			       struct amdgpu_vm *vm,
 			       unsigned vmhub);
 
+void amdgpu_vmid_hide_id(struct amdgpu_device *adev,
+			 u32 vmhub,
+			 u32 idx);
+void amdgpu_vmid_unhide_id(struct amdgpu_device *adev,
+			   u32 vmhub,
+			   u32 idx);
+
 int amdgpu_vmid_alloc_reserved_range(struct amdgpu_device *adev,
 				     u32 vmhub, u32 start, u32 end);
 

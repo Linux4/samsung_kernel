@@ -73,4 +73,9 @@ int amdgpu_sws_deinit_debugfs(struct amdgpu_device *adev);
 //clear broken queue after gpu reset
 void amdgpu_sws_clear_broken_queue(struct amdgpu_device *adev);
 
+//manage tmz queue
+int amdgpu_sws_get_tmz_queue(struct amdgpu_ring *ring, struct dma_fence *fence,
+			     struct amdgpu_job *job);
+int amdgpu_sws_put_tmz_queue(struct amdgpu_ctx *ctx, struct dma_fence *fence);
+
 #endif

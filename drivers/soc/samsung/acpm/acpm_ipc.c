@@ -813,13 +813,14 @@ EXPORT_SYMBOL_GPL(acpm_ipc_send_data);
 bool is_acpm_ipc_busy(unsigned ch_id)
 {
 	struct acpm_ipc_ch *channel;
-	unsigned int tx_front, rx_front;
+	unsigned int tx_front, tx_rear, rx_front;
 
 	channel = &acpm_ipc->channel[ch_id];
 	tx_front = __raw_readl(channel->tx_ch.front);
+	tx_rear = __raw_readl(channel->tx_ch.rear);
 	rx_front = __raw_readl(channel->rx_ch.front);
 
-	return (tx_front != rx_front);
+	return !(tx_front == tx_rear && tx_front == rx_front);
 }
 EXPORT_SYMBOL_GPL(is_acpm_ipc_busy);
 

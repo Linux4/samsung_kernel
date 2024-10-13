@@ -3467,13 +3467,6 @@ static int slsi_roam_add_scan_frequencies(struct net_device *dev, char *command,
 		return -EINVAL;
 	}
 
-	if (sdev->device_config.roam_scan_mode) {
-		SLSI_ERR(sdev, "ROAM Scan Control must be 0, roam mode = %d\n", sdev->device_config.roam_scan_mode);
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
-	}
-
 	if (sdev->device_config.wes_roam_scan_list.n == SLSI_NCHO_MAX_CHANNEL_LIST) {
 		SLSI_ERR(sdev, "Roam scan list is already full\n");
 		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);

@@ -1149,6 +1149,7 @@ int abox_dma_can_stop(struct snd_soc_pcm_runtime *rtd, int stream)
 			SNDRV_PCM_STREAM_CAPTURE : SNDRV_PCM_STREAM_PLAYBACK;
 
 	switch (rtd->dpcm[rdir].state) {
+	case SND_SOC_DPCM_STATE_PREPARE:
 	case SND_SOC_DPCM_STATE_START:
 	case SND_SOC_DPCM_STATE_PAUSED:
 	case SND_SOC_DPCM_STATE_SUSPEND:
@@ -1164,6 +1165,7 @@ int abox_dma_can_start(struct snd_soc_pcm_runtime *rtd, int stream)
 			SNDRV_PCM_STREAM_CAPTURE : SNDRV_PCM_STREAM_PLAYBACK;
 
 	switch (rtd->dpcm[rdir].state) {
+	case SND_SOC_DPCM_STATE_PREPARE:
 	case SND_SOC_DPCM_STATE_START:
 		return 0;
 	default:

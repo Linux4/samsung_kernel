@@ -12,8 +12,8 @@
 #include "synaptics_dev.h"
 #include "synaptics_reg.h"
 
-#define RD_CHUNK_SIZE_I2C (1024)
-#define WR_CHUNK_SIZE_I2C (1024)
+#define RD_CHUNK_SIZE_I2C (512)
+#define WR_CHUNK_SIZE_I2C (512)
 
 
 static int synaptics_ts_i2c_write(struct synaptics_ts_data *ts, u8 *reg, int cnum, u8 *data, int len)

@@ -1434,141 +1434,62 @@ static void get_gap_data_y_all(void *device_data)
 	kfree(buff);
 }
 
-static void run_interrupt_gpio_test(void *device_data)
-{
-	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
-	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
-	char buff[SEC_CMD_STR_LEN] = {0};
-	unsigned char *buf = NULL;
-	int ret, status1, status2;
-	unsigned char command[3] = {0x00, 0x00, 0x00};
-
-	synaptics_ts_enable_report(ts, REPORT_SEC_COORDINATE_EVENT, false);
-	synaptics_ts_enable_report(ts, REPORT_SEC_STATUS_EVENT, false);
-
-	buf = synaptics_ts_pal_mem_alloc(2, sizeof(struct synaptics_ts_identification_info));
-	if (unlikely(buf == NULL)) {
-		input_err(true, ts->dev, "%s: Fail to create a buffer for test\n", __func__);
-		goto err_power_state;
-	}
-
-	disable_irq(ts->irq);
-
-	command[0] = CMD_DBG_ATTN;
-	ret = ts->synaptics_ts_write_data(ts, command, sizeof(command), NULL, 0);
-	if (ret < 0) {
-		input_err(true, ts->dev, "%s: Fail to write cmd\n", __func__);
-		goto err;
-	}
-
-	msleep(20);
-	status1 = gpio_get_value(ts->plat_data->irq_gpio);
-	input_info(true, ts->dev, "%s: gpio value %d (should be 0)\n", __func__, status1);
-
-	msleep(100);
-
-	ret = ts->synaptics_ts_read_data_only(ts, buf, SYNAPTICS_TS_MESSAGE_HEADER_SIZE);
-	if (ret < 0) {
-		input_err(true, ts->dev, "%s: Fail to read cmd\n", __func__);
-		goto err;
-	}
-
-	status2 = gpio_get_value(ts->plat_data->irq_gpio);
-	input_info(true, ts->dev, "%s: gpio value %d (should be 1)\n", __func__, status2);
-
-	if ((status1 == 0) && (status2 == 1)) {
-		snprintf(buff, sizeof(buff), "0");
-		sec->cmd_state = SEC_CMD_STATUS_OK;
-	} else {
-		if (status1 != 0)
-			snprintf(buff, sizeof(buff), "1:HIGH");
-		else if (status2 != 1)
-			snprintf(buff, sizeof(buff), "1:LOW");
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-	}
-
-	enable_irq(ts->irq);
-	synaptics_ts_pal_mem_free(buf);
-
-	synaptics_ts_enable_report(ts, REPORT_SEC_COORDINATE_EVENT, true);
-	synaptics_ts_enable_report(ts, REPORT_SEC_STATUS_EVENT, true);
-
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
-	return;
-
-err:
-	enable_irq(ts->irq);
-	synaptics_ts_pal_mem_free(buf);
-err_power_state:
-
-	synaptics_ts_enable_report(ts, REPORT_SEC_COORDINATE_EVENT, true);
-	synaptics_ts_enable_report(ts, REPORT_SEC_STATUS_EVENT, true);
-
-	snprintf(buff, sizeof(buff), "NG");
-	sec->cmd_state = SEC_CMD_STATUS_FAIL;
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
-}
-
 static void run_sram_test(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = {0};
+	unsigned char *buf = NULL;
 	int ret;
 	u8 result = 0;
 	unsigned char command[4] = {SYNAPTICS_TS_CMD_PRODUCTION_TEST,
 		0x01, 0x00, TEST_PID53_SRAM_TEST};
-	unsigned char id;
 
-	synaptics_ts_enable_report(ts, REPORT_SEC_COORDINATE_EVENT, false);
-	synaptics_ts_enable_report(ts, REPORT_SEC_STATUS_EVENT, false);
+	buf = synaptics_ts_pal_mem_alloc(2, sizeof(struct synaptics_ts_identification_info));
+	if (!buf) {
+		input_err(true, ts->dev, "Fail to create a buffer for test\n");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
 
 	disable_irq(ts->irq);
 
 	ret = ts->synaptics_ts_write_data(ts, command, sizeof(command), NULL, 0);
 	if (ret < 0) {
-		input_err(true, ts->dev, "%s: Fail to write cmd\n", __func__);
+		input_err(true, ts->dev, "Fail to write cmd\n");
 		enable_irq(ts->irq);
-		synaptics_ts_enable_report(ts, REPORT_SEC_COORDINATE_EVENT, true);
-		synaptics_ts_enable_report(ts, REPORT_SEC_STATUS_EVENT, true);
+		synaptics_ts_pal_mem_free(buf);
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		return;
 	}
 
 	msleep(500);
 
-	ret = ts->read_message(ts, &id);
+	ret = ts->synaptics_ts_read_data_only(ts, buf,
+			sizeof(struct synaptics_ts_identification_info) + SYNAPTICS_TS_MESSAGE_HEADER_SIZE);
 	if (ret < 0) {
-		input_err(true, ts->dev, "%s: Fail to read cmd\n", __func__);
+		input_err(true, ts->dev, "Fail to read cmd\n");
 		enable_irq(ts->irq);
-		synaptics_ts_enable_report(ts, REPORT_SEC_COORDINATE_EVENT, true);
-		synaptics_ts_enable_report(ts, REPORT_SEC_STATUS_EVENT, true);
-
+		synaptics_ts_pal_mem_free(buf);
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		return;
 	}
 
-	if (id == REPORT_IDENTIFY)
-		result = 0; /* PASS */
+	if (buf[0] != SYNAPTICS_TS_V1_MESSAGE_MARKER)
+		result = 1; /* FAIL*/
 	else
-		result = 1;  /* FAIL */
+		result = 0;  /* PASS */
 
-	enable_irq(ts->irq);
 	msleep(200);
 
-	synaptics_ts_enable_report(ts, REPORT_SEC_COORDINATE_EVENT, true);
-	synaptics_ts_enable_report(ts, REPORT_SEC_STATUS_EVENT, true);
-
+	enable_irq(ts->irq);
 	snprintf(buff, sizeof(buff), "%d", result);
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
 		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "SRAM");
 
+	synaptics_ts_pal_mem_free(buf);
 }
 
 static int check_support_calibration(void *device_data)
@@ -1795,7 +1716,6 @@ static void factory_cmd_result_all(void *device_data)
 		run_factory_miscalibration(sec);
 
 	run_sram_test(sec);
-	run_interrupt_gpio_test(sec);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -3064,38 +2984,6 @@ static void set_fod_rect(void *device_data)
 	input_info(true, ts->dev, "%s: OK\n", __func__);
 }
 
-static void fp_int_control(void *device_data)
-{
-	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
-	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
-	int ret = 0;
-	unsigned int input;
-
-	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-		return;
-	} else if (!ts->plat_data->support_fod) {
-		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
-		return;
-	}
-
-	if (sec->cmd_param[0])
-		input = 0x01;
-	else
-		input = 0x03;
-
-	ret = synaptics_ts_set_dynamic_config(ts, DC_ENABLE_FOD_INT, (unsigned short)input);
-	if (ret < 0) {
-		input_err(true, ts->dev, "%s: failed to set (%d)\n", __func__, sec->cmd_param[0]);
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-		return;
-	}
-
-	input_info(true, ts->dev, "%s: fod int %d\n", __func__, sec->cmd_param[0]);
-
-	sec->cmd_state = SEC_CMD_STATUS_OK;
-}
-
 static int game_mode_store(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -3669,7 +3557,6 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_V2("get_gap_data_x_all", get_gap_data_x_all, NULL, CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("get_gap_data_y_all", get_gap_data_y_all, NULL, CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("run_sram_test", run_sram_test, NULL, CHECK_ON_LP, WAIT_RESULT),},
-	{SEC_CMD_V2("run_interrupt_gpio_test", run_interrupt_gpio_test, NULL, CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("run_factory_miscalibration", run_factory_miscalibration, check_support_calibration,
 			CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("run_miscalibration", run_miscalibration, check_support_calibration, CHECK_ON_LP, WAIT_RESULT),},
@@ -3714,7 +3601,6 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_V2("fod_enable", fod_enable, fod_store, CHECK_ON_LP, EXIT_RESULT),},
 	{SEC_CMD_V2_H("fod_lp_mode", fod_lp_mode, NULL, CHECK_ALL, EXIT_RESULT),},
 	{SEC_CMD_V2("set_fod_rect", set_fod_rect, fod_rect_store, CHECK_ON_LP, EXIT_RESULT),},
-	{SEC_CMD_V2("fp_int_control", fp_int_control, NULL, CHECK_ON_LP, EXIT_RESULT),},
 	{SEC_CMD_V2_H("singletap_enable", singletap_enable, singletap_store, CHECK_ON_LP, EXIT_RESULT),},
 	{SEC_CMD_V2_H("ear_detect_enable", ear_detect_enable, ear_detect_store, CHECK_ON_LP, EXIT_RESULT),},
 	{SEC_CMD_V2_H("pocket_mode_enable", pocket_mode_enable, pocket_mode_store, CHECK_ON_LP, EXIT_RESULT),},

@@ -449,7 +449,9 @@ static void sec_nfc_power_on(struct sec_nfc_info *nfc_info)
 		gpio_direction_output(nfc_info->pdata->pvdd, 1);
 	}
 
-	/* contorl the i2c switch if it exists */
+	sec_nfc_set_i2c_pinctrl(nfc_info->dev, "i2c_pull_up");
+
+	/* control the i2c switch if it exists */
 	if (of_find_property(nfc_info->dev->of_node, "sec-nfc,i2c_switch-gpio", NULL)) {
 		if (NFC_GPIO_IS_VALID(nfc_info->pdata->i2c_switch)) {
 			ret = gpio_request(nfc_info->pdata->i2c_switch, "nfc_i2c_sw");
@@ -458,6 +460,9 @@ static void sec_nfc_power_on(struct sec_nfc_info *nfc_info)
 			gpio_direction_output(nfc_info->pdata->i2c_switch, 1);
 		}
 	}
+
+	/* turning on the PVDD takes time on a particular HW */
+	usleep_range(1000, 1100);
 
 	gpio_direction_output(nfc_info->pdata->ven, SEC_NFC_PW_OFF);
 	msleep(25);
@@ -524,7 +529,6 @@ int sec_nfc_i2c_probe(struct i2c_client *client)
 	if (nfc_param_lpcharge == LPM_FALSE) {
 		NFC_LOG_INFO("use param but not lpm : %d\n", nfc_param_lpcharge);
 		sec_nfc_power_on(info);
-		sec_nfc_set_i2c_pinctrl(dev, "i2c_pull_up");
 	}
 
 	NFC_LOG_INFO("i2c probe() success\n");
@@ -1317,10 +1321,8 @@ static ssize_t pvdd_store(struct class *class,
 
 	NFC_LOG_INFO("late_pvdd_en %c\n", buf[0]);
 
-	if (buf[0] == '1') {
+	if (buf[0] == '1')
 		sec_nfc_power_on(g_nfc_info);
-		sec_nfc_set_i2c_pinctrl(g_nfc_info->dev, "i2c_pull_up");
-	}
 
 	return size;
 }

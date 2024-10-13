@@ -73,12 +73,9 @@ struct slsi_traffic_mon_client_entry {
 
 static inline void traffic_mon_invoke_client_callback(struct slsi_dev *sdev, u32 tput_tx, u32 tput_rx, bool override)
 {
-	struct list_head       *pos, *n;
-	struct slsi_traffic_mon_client_entry *traffic_client;
+	struct slsi_traffic_mon_client_entry *traffic_client, *tmp;
 
-	list_for_each_safe(pos, n, &sdev->traffic_mon_clients.client_list) {
-		traffic_client = list_entry(pos, struct slsi_traffic_mon_client_entry, q);
-
+	list_for_each_entry_safe(traffic_client, tmp, &sdev->traffic_mon_clients.client_list, q) {
 		if (override) {
 			traffic_client->state = TRAFFIC_MON_CLIENT_STATE_OVERRIDE;
 			if (traffic_client->traffic_mon_client_cb)
@@ -346,19 +343,17 @@ int slsi_traffic_mon_client_register(
 
 void slsi_traffic_mon_client_unregister(struct slsi_dev *sdev, void *client_ctx)
 {
-	struct list_head       *pos, *n;
-	struct slsi_traffic_mon_client_entry *traffic_mon_client;
+	struct slsi_traffic_mon_client_entry *traffic_mon_client, *tmp;
 	struct net_device *dev;
 	struct netdev_vif *ndev_vif;
 	u8 i;
 
 	spin_lock_bh(&sdev->traffic_mon_clients.lock);
 	SLSI_DBG1(sdev, SLSI_HIP, "client: %p\n", client_ctx);
-	list_for_each_safe(pos, n, &sdev->traffic_mon_clients.client_list) {
-		traffic_mon_client = list_entry(pos, struct slsi_traffic_mon_client_entry, q);
+	list_for_each_entry_safe(traffic_mon_client, tmp, &sdev->traffic_mon_clients.client_list, q) {
 		if (traffic_mon_client->client_ctx == client_ctx) {
 			SLSI_DBG1(sdev, SLSI_HIP, "delete: %p\n", traffic_mon_client->client_ctx);
-			list_del(pos);
+			list_del(&traffic_mon_client->q);
 			kfree(traffic_mon_client);
 		}
 	}
@@ -407,8 +402,7 @@ void slsi_traffic_mon_clients_init(struct slsi_dev *sdev)
 
 void slsi_traffic_mon_clients_deinit(struct slsi_dev *sdev)
 {
-	struct list_head       *pos, *n;
-	struct slsi_traffic_mon_client_entry *traffic_mon_client;
+	struct slsi_traffic_mon_client_entry *traffic_mon_client, *tmp;
 
 	if (!sdev) {
 		SLSI_ERR_NODEV("invalid sdev\n");
@@ -416,10 +410,9 @@ void slsi_traffic_mon_clients_deinit(struct slsi_dev *sdev)
 	}
 
 	spin_lock_bh(&sdev->traffic_mon_clients.lock);
-	list_for_each_safe(pos, n, &sdev->traffic_mon_clients.client_list) {
-		traffic_mon_client = list_entry(pos, struct slsi_traffic_mon_client_entry, q);
+	list_for_each_entry_safe(traffic_mon_client, tmp, &sdev->traffic_mon_clients.client_list, q) {
 		SLSI_DBG1(sdev, SLSI_HIP, "delete: %p\n", traffic_mon_client->client_ctx);
-		list_del(pos);
+		list_del(&traffic_mon_client->q);
 		kfree(traffic_mon_client);
 	}
 	spin_unlock_bh(&sdev->traffic_mon_clients.lock);

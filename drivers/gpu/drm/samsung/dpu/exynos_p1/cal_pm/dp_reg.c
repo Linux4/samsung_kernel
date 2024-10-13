@@ -2437,8 +2437,15 @@ void dp_reg_phy_post_init(struct dp_cal_res *cal_res)
 	dp_reg_phy_update(req_status_val, req_status_mask);
 	dp_write(PCS_SNPS_PHY_DATAPATH_CONTROL, datapath_control_val[1]);
 	dp_phy_formal_write_mask(DP_CONFIG11, pstate_val, pstate_mask);
-
 	dp_reg_phy_update(req_status_val, req_status_mask);
+
+	if (link_rate > LINK_RATE_1_62Gbps) {
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX0_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX1_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX2_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX3_DCC_BYP_AC_CAP);
+	}
+
 	if (link_rate > LINK_RATE_1_62Gbps) {
 		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX0_DCC_BYP_AC_CAP);
 		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX1_DCC_BYP_AC_CAP);

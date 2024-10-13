@@ -472,6 +472,36 @@ error:
 	return r;
 }
 
+void amdgpu_vmid_hide_id(struct amdgpu_device *adev,
+			 u32 vmhub,
+			 u32 idx)
+{
+	struct amdgpu_vmid_mgr *id_mgr;
+	struct amdgpu_vmid *id;
+
+	id_mgr = &adev->vm_manager.id_mgr[vmhub];
+	id = &id_mgr->ids[idx];
+
+	mutex_lock(&id_mgr->lock);
+	list_del_init(&id->list);
+	mutex_unlock(&id_mgr->lock);
+}
+
+void amdgpu_vmid_unhide_id(struct amdgpu_device *adev,
+			   u32 vmhub,
+			   u32 idx)
+{
+	struct amdgpu_vmid_mgr *id_mgr;
+	struct amdgpu_vmid *id;
+
+	id_mgr = &adev->vm_manager.id_mgr[vmhub];
+	id = &id_mgr->ids[idx];
+
+	mutex_lock(&id_mgr->lock);
+	list_add(&id->list, &id_mgr->ids_lru);
+	mutex_unlock(&id_mgr->lock);
+}
+
 int amdgpu_vmid_alloc_reserved(struct amdgpu_device *adev,
 			       struct amdgpu_vm *vm,
 			       unsigned vmhub)
@@ -680,11 +710,7 @@ int amdgpu_vmid_cwsr_grab(struct amdgpu_device *adev, struct amdgpu_vmid **vmid)
 		return 0;
 
 	id_mgr = &adev->vm_manager.id_mgr[AMDGPU_GFXHUB_0];
-
-	r = mutex_trylock(&id_mgr->lock);
-	if (r != MUTEX_TRYLOCK_SUCCESS)
-		return -EINVAL;
-
+	mutex_lock(&id_mgr->lock);
 	r = ida_simple_get(&id_mgr->cwsr_ida,
 			   0, AMDGPU_MAX_CWSR_RINGS, GFP_KERNEL);
 	if (r < 0) {

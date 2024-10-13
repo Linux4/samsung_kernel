@@ -371,7 +371,7 @@ int teei_compare_lc_hmac(uint8_t *rx_hmac, size_t rx_hmac_len)
 	return ret;
 }
 
-int teei_generate_riv(uint8_t *out, size_t len)
+int teei_generate_riv(uint8_t *out, size_t len, uint8_t *type)
 {
 	int ret = 0;
 	struct hci_message *hci = hctx.msg;
@@ -386,6 +386,7 @@ int teei_generate_riv(uint8_t *out, size_t len)
 		return ret;
 
 	memcpy(out, hci->genriv.riv, len);
+	*type = hci->genriv.type;
 
 	/* todo:  check returned message from SWD */
 

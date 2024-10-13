@@ -106,7 +106,7 @@ static ssize_t kq_mesh_user_nad_read(struct file *filp, char *buf, size_t size, 
 	size_t ret = 0;
 	struct kq_mesh_user_nad_info *kmn_info = g_kmn_info;
 
-	if (!kmn_info->v_addr)
+	if (!kmn_info->v_addr || kmn_info->v_offset + size > kmn_info->size)
 		return -EFAULT;
 
 	memcpy(kmn_info->buf, kmn_info->v_addr + kmn_info->v_offset, size);
@@ -120,7 +120,7 @@ static ssize_t kq_mesh_user_nad_write(struct file *filp, const char *buf, size_t
 	size_t ret = 0;
 	struct kq_mesh_user_nad_info *kmn_info = g_kmn_info;
 
-	if (!kmn_info->v_addr)
+	if (!kmn_info->v_addr || kmn_info->v_offset + size > kmn_info->size)
 		return -EFAULT;
 
 	ret = copy_from_user(kmn_info->buf, buf, size);

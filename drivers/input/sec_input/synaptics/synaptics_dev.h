@@ -1658,7 +1658,6 @@ int synaptics_ts_tclm_read(struct device *dev, int address);
 int synaptics_ts_tclm_write(struct device *dev, int address);
 int synaptics_ts_tclm_execute_force_calibration(struct device *dev, int cal_mode);
 int synaptics_ts_set_up_rawdata_report_type(struct synaptics_ts_data *ts);
-int synaptics_ts_enable_report(struct synaptics_ts_data *ts, unsigned char report_code, bool en);
 
 //cmd
 void synaptics_ts_fn_remove(struct synaptics_ts_data *ts);

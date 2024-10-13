@@ -147,6 +147,7 @@ struct is_group {
 	u32				aeflashMode; /* Flash Mode Control */
 	u32				remainIntentCount;
 	u32				remainCaptureIntentCount;
+	u32				remainRemosaicCropIntentCount;
 	u32				remainFlashCtlCount;
 	u32				junction_vid;
 	struct mutex			mlock_votf;

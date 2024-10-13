@@ -844,13 +844,11 @@ static int is_ischain_byrp_tag(struct is_subdev *subdev,
 
 			// Check if input and output dma's size are same when vid is IS_LVN_BYRP_BYR_PROCESSED.
 			cap_otcrop = (struct is_crop *)cap_node->output.cropRegion;
-
 			if ((cap_node->vid == IS_LVN_BYRP_BYR_PROCESSED) &&
-				(!(incrop->w == cap_otcrop->w && incrop->h == cap_otcrop->h) &&
-				!(incrop->w == subdev->input.width && incrop->h == subdev->input.height))) {
-				merr("abnormal size : input dma (w %d, h %d), output dma (w %d, h %d) sub_drv(w %d, h %d)",
-					device, incrop->w, incrop->h, cap_otcrop->w, cap_otcrop->h,
-					subdev->input.width, subdev->input.height);
+				(cap_otcrop->w && cap_otcrop->h) &&
+				(!(incrop->w == cap_otcrop->w && incrop->h == cap_otcrop->h))) {
+				merr("abnormal size : input dma (w %d, h %d), output dma (w %d, h %d)",
+					device, incrop->w, incrop->h, cap_otcrop->w, cap_otcrop->h);
 				ret = -EINVAL;
 				goto p_err;
 			}

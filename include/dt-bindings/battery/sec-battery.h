@@ -44,7 +44,12 @@
 #define SEC_BATTERY_CABLE_POGO                   39
 #define SEC_BATTERY_CABLE_POGO_9V		 40
 #define SEC_BATTERY_CABLE_FPDO_DC		 41
-#define SEC_BATTERY_CABLE_MAX                    42
+#define SEC_BATTERY_CABLE_WIRELESS_EPP		 42
+#define SEC_BATTERY_CABLE_WIRELESS_MPP		 43
+#define SEC_BATTERY_CABLE_LO_TA			44
+#define SEC_BATTERY_CABLE_WIRELESS_EPP_NV	 45
+#define SEC_BATTERY_CABLE_WIRELESS_EPP_FAKE	 46
+#define SEC_BATTERY_CABLE_MAX			47
 
 /* d2d support type */
 #define SB_D2D_NONE	0
@@ -65,6 +70,10 @@
 	 /* ADC by additional IC */
 #define SEC_BATTERY_ADC_TYPE_IC		2
 #define SEC_BATTERY_ADC_TYPE_NUM	3
+
+/* ADC read type */
+#define SEC_BATTERY_ADC_PROCESSED 0
+#define SEC_BATTERY_ADC_RAW 1
 
 /* thermal source */
 /* none */
@@ -350,6 +359,7 @@
 #define SET_FOD_CC(_flag)		(FOD_FLAG_ ##_flag)
 #define SET_FOD_CV(_flag)		(FOD_FLAG_ ##_flag << 4)
 #define SET_FOD_FULL(_flag)		(FOD_FLAG_ ##_flag << 8)
-#define SET_FOD_HV(_flag)		(FOD_FLAG_ ##_flag << 12)
+#define SET_FOD_HV_CC(_flag)	(FOD_FLAG_ ##_flag << 12)
+#define SET_FOD_HV_CV(_flag)	(FOD_FLAG_ ##_flag << 16)
 
 #endif /* _DT_BINDINGS_BATTERY_SEC_BATTERY_H */

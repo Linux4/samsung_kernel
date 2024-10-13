@@ -107,7 +107,7 @@
 				#phy-cells = <0x00>;
 				clocks = <0x03 0x87>;
 				clock-names = "pipe0";
-				clock-output-names = "gcc_usb1_pipe_clk_src";
+				clock-output-names = "usb3phy_1_cc_pipe_clk";
 				phandle = <0x10>;
 			};
 		};
@@ -142,7 +142,7 @@
 				#phy-cells = <0x00>;
 				clocks = <0x03 0x80>;
 				clock-names = "pipe0";
-				clock-output-names = "gcc_usb0_pipe_clk_src";
+				clock-output-names = "usb3phy_0_cc_pipe_clk";
 				phandle = <0x0e>;
 			};
 		};
@@ -158,30 +158,52 @@
 			phandle = <0x0d>;
 		};
 
-		phy@86000 {
-			compatible = "qcom,ipq8074-qmp-pcie-phy";
-			reg = <0x86000 0x1000>;
-			#phy-cells = <0x00>;
-			clocks = <0x03 0x73>;
-			clock-names = "pipe_clk";
-			clock-output-names = "pcie20_phy0_pipe_clk";
+		phy@84000 {
+			compatible = "qcom,ipq8074-qmp-gen3-pcie-phy";
+			reg = <0x84000 0x1bc>;
+			#address-cells = <0x01>;
+			#size-cells = <0x01>;
+			ranges;
+			clocks = <0x03 0x70 0x03 0x6f>;
+			clock-names = "aux\0cfg_ahb";
 			resets = <0x03 0x4e 0x03 0x4f>;
 			reset-names = "phy\0common";
 			status = "okay";
-			phandle = <0x13>;
+			phandle = <0x1b>;
+
+			phy@84200 {
+				reg = <0x84200 0x16c 0x84400 0x200 0x84800 0x1f0 0x84c00 0xf4>;
+				#phy-cells = <0x00>;
+				#clock-cells = <0x00>;
+				clocks = <0x03 0x73>;
+				clock-names = "pipe0";
+				clock-output-names = "pcie20_phy0_pipe_clk";
+				phandle = <0x13>;
+			};
 		};
 
 		phy@8e000 {
 			compatible = "qcom,ipq8074-qmp-pcie-phy";
-			reg = <0x8e000 0x1000>;
-			#phy-cells = <0x00>;
-			clocks = <0x03 0x79>;
-			clock-names = "pipe_clk";
-			clock-output-names = "pcie20_phy1_pipe_clk";
+			reg = <0x8e000 0x1c4>;
+			#address-cells = <0x01>;
+			#size-cells = <0x01>;
+			ranges;
+			clocks = <0x03 0x76 0x03 0x75>;
+			clock-names = "aux\0cfg_ahb";
 			resets = <0x03 0x52 0x03 0x53>;
 			reset-names = "phy\0common";
 			status = "okay";
-			phandle = <0x12>;
+			phandle = <0x1c>;
+
+			phy@8e200 {
+				reg = <0x8e200 0x130 0x8e400 0x200 0x8e800 0x1f8>;
+				#phy-cells = <0x00>;
+				#clock-cells = <0x00>;
+				clocks = <0x03 0x79>;
+				clock-names = "pipe0";
+				clock-output-names = "pcie20_phy1_pipe_clk";
+				phandle = <0x12>;
+			};
 		};
 
 		pinctrl@1000000 {
@@ -258,7 +280,7 @@
 			mmc-hs400-1_8v;
 			bus-width = <0x08>;
 			status = "okay";
-			phandle = <0x1b>;
+			phandle = <0x1d>;
 		};
 
 		dma@7884000 {
@@ -279,7 +301,7 @@
 			clocks = <0x03 0x22 0x03 0x15>;
 			clock-names = "core\0iface";
 			status = "disabled";
-			phandle = <0x1c>;
+			phandle = <0x1e>;
 		};
 
 		serial@78b1000 {
@@ -293,7 +315,7 @@
 			pinctrl-0 = <0x07>;
 			pinctrl-names = "default";
 			status = "okay";
-			phandle = <0x1d>;
+			phandle = <0x1f>;
 		};
 
 		serial@78b3000 {
@@ -305,7 +327,7 @@
 			pinctrl-0 = <0x08>;
 			pinctrl-names = "default";
 			status = "okay";
-			phandle = <0x1e>;
+			phandle = <0x20>;
 		};
 
 		spi@78b5000 {
@@ -322,7 +344,7 @@
 			pinctrl-0 = <0x09>;
 			pinctrl-names = "default";
 			status = "okay";
-			phandle = <0x1f>;
+			phandle = <0x21>;
 
 			m25p80@0 {
 				#address-cells = <0x01>;
@@ -347,7 +369,7 @@
 			pinctrl-0 = <0x0a>;
 			pinctrl-names = "default";
 			status = "okay";
-			phandle = <0x20>;
+			phandle = <0x22>;
 		};
 
 		i2c@78b7000 {
@@ -362,7 +384,7 @@
 			dmas = <0x06 0x11 0x06 0x10>;
 			dma-names = "rx\0tx";
 			status = "disabled";
-			phandle = <0x21>;
+			phandle = <0x23>;
 		};
 
 		dma@7984000 {
@@ -377,7 +399,7 @@
 			phandle = <0x0b>;
 		};
 
-		nand@79b0000 {
+		nand-controller@79b0000 {
 			compatible = "qcom,ipq8074-nand";
 			reg = <0x79b0000 0x10000>;
 			#address-cells = <0x01>;
@@ -389,7 +411,7 @@
 			pinctrl-0 = <0x0c>;
 			pinctrl-names = "default";
 			status = "okay";
-			phandle = <0x22>;
+			phandle = <0x24>;
 
 			nand@0 {
 				reg = <0x00>;
@@ -411,7 +433,7 @@
 			assigned-clock-rates = <0x7f27450 0x7f27450 0x124f800>;
 			resets = <0x03 0x2b>;
 			status = "okay";
-			phandle = <0x23>;
+			phandle = <0x25>;
 
 			dwc3@8a00000 {
 				compatible = "snps,dwc3";
@@ -424,7 +446,7 @@
 				snps,dis_u2_susphy_quirk;
 				snps,dis_u3_susphy_quirk;
 				dr_mode = "host";
-				phandle = <0x24>;
+				phandle = <0x26>;
 			};
 		};
 
@@ -440,7 +462,7 @@
 			assigned-clock-rates = <0x7f27450 0x7f27450 0x124f800>;
 			resets = <0x03 0x2e>;
 			status = "okay";
-			phandle = <0x25>;
+			phandle = <0x27>;
 
 			dwc3@8c00000 {
 				compatible = "snps,dwc3";
@@ -453,7 +475,7 @@
 				snps,dis_u2_susphy_quirk;
 				snps,dis_u3_susphy_quirk;
 				dr_mode = "host";
-				phandle = <0x26>;
+				phandle = <0x28>;
 			};
 		};
 
@@ -476,7 +498,7 @@
 			interrupts = <0x00 0x03 0x01>;
 			clocks = <0x11>;
 			timeout-sec = <0x1e>;
-			phandle = <0x27>;
+			phandle = <0x29>;
 		};
 
 		timer@b120000 {
@@ -548,7 +570,7 @@
 			#size-cells = <0x02>;
 			phys = <0x12>;
 			phy-names = "pciephy";
-			ranges = <0x81000000 0x00 0x10200000 0x10200000 0x00 0x100000 0x82000000 0x00 0x10300000 0x10300000 0x00 0xd00000>;
+			ranges = <0x81000000 0x00 0x00 0x10200000 0x00 0x10000 0x82000000 0x00 0x10220000 0x10220000 0x00 0xfde0000>;
 			interrupts = <0x00 0x55 0x04>;
 			interrupt-names = "msi";
 			#interrupt-cells = <0x01>;
@@ -560,34 +582,35 @@
 			reset-names = "pipe\0sleep\0sticky\0axi_m\0axi_s\0ahb\0axi_m_sticky";
 			status = "okay";
 			perst-gpio = <0x05 0x3a 0x01>;
-			phandle = <0x28>;
+			phandle = <0x2a>;
 		};
 
 		pci@20000000 {
-			compatible = "qcom,pcie-ipq8074";
-			reg = <0x20000000 0xf1d 0x20000f20 0xa8 0x80000 0x2000 0x20100000 0x1000>;
-			reg-names = "dbi\0elbi\0parf\0config";
+			compatible = "qcom,pcie-ipq8074-gen3";
+			reg = <0x20000000 0xf1d 0x20000f20 0xa8 0x20001000 0x1000 0x80000 0x4000 0x20100000 0x1000>;
+			reg-names = "dbi\0elbi\0atu\0parf\0config";
 			device_type = "pci";
 			linux,pci-domain = <0x00>;
 			bus-range = <0x00 0xff>;
 			num-lanes = <0x01>;
+			max-link-speed = <0x03>;
 			#address-cells = <0x03>;
 			#size-cells = <0x02>;
 			phys = <0x13>;
 			phy-names = "pciephy";
-			ranges = <0x81000000 0x00 0x20200000 0x20200000 0x00 0x100000 0x82000000 0x00 0x20300000 0x20300000 0x00 0xd00000>;
+			ranges = <0x81000000 0x00 0x00 0x20200000 0x00 0x10000 0x82000000 0x00 0x20220000 0x20220000 0x00 0xfde0000>;
 			interrupts = <0x00 0x34 0x04>;
 			interrupt-names = "msi";
 			#interrupt-cells = <0x01>;
 			interrupt-map-mask = <0x00 0x00 0x00 0x07>;
 			interrupt-map = <0x00 0x00 0x00 0x01 0x01 0x00 0x4b 0x04 0x00 0x00 0x00 0x02 0x01 0x00 0x4e 0x04 0x00 0x00 0x00 0x03 0x01 0x00 0x4f 0x04 0x00 0x00 0x00 0x04 0x01 0x00 0x53 0x04>;
-			clocks = <0x03 0x74 0x03 0x71 0x03 0x72 0x03 0x6f 0x03 0x70>;
-			clock-names = "iface\0axi_m\0axi_s\0ahb\0aux";
-			resets = <0x03 0x75 0x03 0x76 0x03 0x77 0x03 0x78 0x03 0x79 0x03 0x7a 0x03 0x7b>;
-			reset-names = "pipe\0sleep\0sticky\0axi_m\0axi_s\0ahb\0axi_m_sticky";
+			clocks = <0x03 0x74 0x03 0x71 0x03 0x72 0x03 0xe0 0x03 0xe2>;
+			clock-names = "iface\0axi_m\0axi_s\0axi_bridge\0rchng";
+			resets = <0x03 0x75 0x03 0x76 0x03 0x77 0x03 0x78 0x03 0x79 0x03 0x7a 0x03 0x7b 0x03 0x83>;
+			reset-names = "pipe\0sleep\0sticky\0axi_m\0axi_s\0ahb\0axi_m_sticky\0axi_s_sticky";
 			status = "okay";
 			perst-gpio = <0x05 0x3d 0x01>;
-			phandle = <0x29>;
+			phandle = <0x2b>;
 		};
 	};
 
@@ -620,8 +643,10 @@
 		ssphy_0 = "/soc/phy@78000";
 		usb0_ssphy = "/soc/phy@78000/lane@78200";
 		qusb_phy_0 = "/soc/phy@79000";
-		pcie_phy0 = "/soc/phy@86000";
-		pcie_phy1 = "/soc/phy@8e000";
+		pcie_qmp0 = "/soc/phy@84000";
+		pcie_phy0 = "/soc/phy@84000/phy@84200";
+		pcie_qmp1 = "/soc/phy@8e000";
+		pcie_phy1 = "/soc/phy@8e000/phy@8e200";
 		tlmm = "/soc/pinctrl@1000000";
 		serial_4_pins = "/soc/pinctrl@1000000/serial4-pinmux";
 		i2c_0_pins = "/soc/pinctrl@1000000/i2c-0-pinmux";
@@ -638,7 +663,7 @@
 		blsp1_i2c2 = "/soc/i2c@78b6000";
 		blsp1_i2c3 = "/soc/i2c@78b7000";
 		qpic_bam = "/soc/dma@7984000";
-		qpic_nand = "/soc/nand@79b0000";
+		qpic_nand = "/soc/nand-controller@79b0000";
 		usb_0 = "/soc/usb@8af8800";
 		dwc_0 = "/soc/usb@8af8800/dwc3@8a00000";
 		usb_1 = "/soc/usb@8cf8800";

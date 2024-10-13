@@ -606,6 +606,25 @@ void is_vendor_csi_stream_on(struct is_device_csi *csi)
 
 void is_vendor_csi_stream_off(struct is_device_csi *csi)
 {
+	struct is_device_sensor *device;
+	struct is_device_ischain *ischain;
+	struct is_group *group;
+
+	device = container_of(csi->subdev, struct is_device_sensor, subdev_csi);
+	ischain = device->ischain;
+	if (!ischain) {
+		merr("ischain is NULL", device);
+		return;
+	}
+
+	group = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, &ischain->group_3aa);
+
+	if (!group) {
+		mwarn("group is NULL", device);
+		return;
+	}
+
+	group->remainRemosaicCropIntentCount = 0;
 }
 
 void is_vender_csi_err_handler(struct is_device_csi *csi)
@@ -2263,8 +2282,9 @@ int is_vender_vidioc_s_ctrl(struct is_video_ctx *vctx, struct v4l2_control *ctrl
 	case V4L2_CID_IS_REMOSAIC_CROP_ZOOM_RATIO:
 		ctrl->id = VENDER_S_CTRL;
 		head->intent_ctl.vendor_remosaicCropZoomRatio = ctrl->value;
-		head->remainIntentCount = INTENT_RETRY_CNT;
-		mvinfo("[VENDOR] s_ctrl remosaic crop zoom ratio(%d)\n", device, video, ctrl->value);
+		head->remainRemosaicCropIntentCount = (INTENT_RETRY_CNT * 3) + 1;
+		mvinfo("[VENDOR] s_ctrl remosaic crop zoom ratio(%d) remainRemosaicCropIntentCount(%d)\n",
+			device, video, ctrl->value, head->remainRemosaicCropIntentCount);
 		break;
 	case V4L2_CID_IS_FORCE_FLASH_MODE:
 		if (device->sensor != NULL) {

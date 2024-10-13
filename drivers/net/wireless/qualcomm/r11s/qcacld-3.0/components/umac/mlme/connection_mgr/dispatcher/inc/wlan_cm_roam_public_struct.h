@@ -2466,19 +2466,29 @@ struct wlan_cm_vendor_handoff_param {
 #endif
 
 /**
+ * struct sae_offload_params - SAE roam auth offload related params
+ * @ssid: SSID of the roam candidate
+ * @bssid: BSSID of the roam candidate
+ */
+struct sae_offload_params {
+	struct wlan_ssid ssid;
+	struct qdf_mac_addr bssid;
+};
+
+/**
  * struct wlan_cm_roam  - Connection manager roam configs, state and roam
  * data related structure
  * @pcl_vdev_cmd_active:  Flag to check if vdev level pcl command needs to be
  * sent or PDEV level PCL command needs to be sent
  * @vendor_handoff_param: vendor handoff params
- * @sae_offload_ssid: SSID of the roam auth offload bssid
+ * @sae_offload: SAE roam offload related params
  */
 struct wlan_cm_roam {
 	bool pcl_vdev_cmd_active;
 #ifdef WLAN_VENDOR_HANDOFF_CONTROL
 	struct wlan_cm_vendor_handoff_param vendor_handoff_param;
 #endif
-	struct wlan_ssid sae_offload_ssid;
+	struct sae_offload_params sae_offload;
 };
 
 /**

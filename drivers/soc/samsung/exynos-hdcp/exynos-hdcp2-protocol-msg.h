@@ -172,6 +172,8 @@ struct hdcp_tx_ctx {
 	uint32_t seq_num_M;
 	uint8_t strmsg[HDCP_TX_REPEATER_MAX_STREAM * 8];
 	size_t strmsg_len;
+
+	uint8_t type;
 };
 
 struct hdcp_rx_ctx {
@@ -226,6 +228,6 @@ int lc_make_hmac(struct hdcp_tx_ctx *tx_ctx,
 int lc_generate_rn(uint8_t *out, size_t out_len);
 int lc_compare_hmac(uint8_t *rx_hmac, size_t hmac_len);
 
-int ske_generate_riv(uint8_t *out);
+int ske_generate_riv(uint8_t *out, uint8_t *type);
 int ske_generate_sessionkey(uint32_t lk_type, uint8_t *enc_skey,
 			int share_skey);

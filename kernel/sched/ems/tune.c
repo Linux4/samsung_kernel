@@ -1398,7 +1398,7 @@ static ssize_t aio_tuner_store(struct device *dev,
 	_arg = arg0;
 	ptr = strsep(&_arg, ",");
 	i = 0;
-	while (ptr != NULL) {
+	while (ptr != NULL && (i < NUM_OF_KEY)) {
 		ret = kstrtol(ptr, 10, &val);
 		if (ret)
 			return ret;

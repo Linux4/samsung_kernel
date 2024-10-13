@@ -86,7 +86,8 @@ int mailbox_init(volatile struct mailbox_hdr *header, struct npu_system *system)
 
 		header->max_slot = 0;//TODO : TBD in firmware policy.
 		/* half low 16 bits is mailbox ipc version, half high 16 bits is command version */
-		header->version = ((CONFIG_NPU_COMMAND_VERSION << 16) |
+		header->version = ((NPU_COMMAND_SUB_VERSION << 24) |
+				(CONFIG_NPU_COMMAND_VERSION << 16) |
 				CONFIG_NPU_MAILBOX_VERSION);
 		npu_info("header version \t: %08X\n", header->version);
 		header->log_level = 192;

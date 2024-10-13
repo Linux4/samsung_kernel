@@ -43,6 +43,47 @@ int string_to_prop_type(const char *str)
 	return -EINVAL;
 }
 
+int snprintf_property(char *buf, size_t size,
+		struct panel_property *property)
+{
+	int len;
+
+	if (!buf || !size || !property)
+		return 0;
+
+	len = snprintf(buf, size, "%s\n",
+			get_panel_property_name(property));
+	len += snprintf(buf + len, size - len, "type: %s\n",
+			prop_type_to_string(property->type));
+	if (property->type == PANEL_PROP_TYPE_RANGE) {
+		len += snprintf(buf + len, size - len, "value: %d (min: %d, max: %d)",
+				property->value, property->min, property->max);
+	} else if (property->type == PANEL_PROP_TYPE_ENUM) {
+		struct panel_property_enum *prop_enum;
+
+		prop_enum = panel_property_find_enum_item_by_value(property, property->value);
+		if (!prop_enum) {
+			panel_err("property(%s) enum (%d) not found\n",
+					get_panel_property_name(property), property->value);
+			return 0;
+		}
+
+		len += snprintf(buf + len, size - len, "value: %d (%s)\n",
+				property->value, prop_enum->name);
+		len += snprintf(buf + len, size - len, "enum:\n");
+		list_for_each_entry(prop_enum, &property->enum_list, head) {
+			len += snprintf(buf + len, size - len, "%s[%d]: %s",
+					(prop_enum->value == property->value) ? "*" : " ",
+					prop_enum->value, prop_enum->name);
+			if (prop_enum->value != property->max)
+				len += snprintf(buf + len, size - len, "\n");
+		}
+	}
+
+	return len;
+}
+EXPORT_SYMBOL(snprintf_property);
+
 struct panel_property *panel_property_create(u32 type, const char *name)
 {
 	struct panel_property *property = NULL;
@@ -81,7 +122,7 @@ void panel_property_destroy(struct panel_property *property)
 	if (!property)
 		return;
 
-	panel_info("%s\n", get_panel_property_name(property));
+	panel_dbg("%s\n", get_panel_property_name(property));
 	panel_property_enum_free(property);
 	pnobj_deinit(&property->base);
 	kfree(property);
@@ -498,7 +539,7 @@ int panel_add_range_property(struct panel_device *panel,
 
 	list_add_tail(get_pnobj_list(&property->base), &panel->prop_list);
 
-	panel_info("added: %s init_value: %d.\n",
+	panel_dbg("added: %s init_value: %d.\n",
 			get_panel_property_name(property), property->value);
 
 	return 0;
@@ -525,7 +566,7 @@ int panel_add_enum_property(struct panel_device *panel,
 
 	list_add_tail(get_pnobj_list(&property->base), &panel->prop_list);
 
-	panel_info("added: %s init_enum: %d.\n",
+	panel_dbg("added: %s init_enum: %d.\n",
 			get_panel_property_name(property), property->value);
 
 	return 0;

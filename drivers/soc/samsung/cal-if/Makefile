@@ -2,6 +2,11 @@
 # Makefile for the CMUCAL drivers.
 #
 
+# project name 
+ifneq ($(findstring r11,$(PROJECT_NAME)), )
+ccflags-y += -DCONFIG_PROJECT_NAME_R11
+endif
+
 # Object files in subdirectories
 
 obj-$(CONFIG_CAL_IF)			+= cmupmucal.o

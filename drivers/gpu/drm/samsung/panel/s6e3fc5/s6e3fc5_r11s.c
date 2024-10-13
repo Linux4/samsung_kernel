@@ -48,9 +48,11 @@ struct pnobj_func s6e3fc5_r11s_function_table[MAX_S6E3FC5_R11S_FUNCTION] = {
 
 __visible_for_testing int __init s6e3fc5_r11s_panel_init(void)
 {
-	s6e3fc5_init();
+	struct common_panel_info *cpi = &s6e3fc5_r11s_panel_info;
+
+	s6e3fc5_init(cpi);
 	panel_function_insert_array(s6e3fc5_r11s_function_table, ARRAY_SIZE(s6e3fc5_r11s_function_table));
-	register_common_panel(&s6e3fc5_r11s_panel_info);
+	register_common_panel(cpi);
 
 	return 0;
 }

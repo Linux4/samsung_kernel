@@ -19,11 +19,13 @@ extern int stui_spi_unlock(struct spi_master *spi);
 int stm_stui_tsp_enter(void)
 {
 	struct stm_ts_data *ts = dev_get_drvdata(ptsp);
-	struct spi_device *spi = (struct spi_device *)ts->client;
+	struct spi_device *spi;
 	int ret = 0;
 
 	if (!ts)
 		return -EINVAL;
+
+	spi = (struct spi_device *)ts->client;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	sec_input_notify(&ts->stm_input_nb, NOTIFIER_SECURE_TOUCH_ENABLE, NULL);
@@ -47,11 +49,13 @@ int stm_stui_tsp_enter(void)
 int stm_stui_tsp_exit(void)
 {
 	struct stm_ts_data *ts = dev_get_drvdata(ptsp);
-	struct spi_device *spi = (struct spi_device *)ts->client;
+	struct spi_device *spi;
 	int ret = 0;
 
 	if (!ts)
 		return -EINVAL;
+
+	spi = (struct spi_device *)ts->client;
 
 	ret = stui_spi_unlock(spi->controller);
 	if (ret < 0)
@@ -614,15 +618,9 @@ int stm_ts_spi_read(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *buf, int rlen
 		buf_len = 3;
 		temp_write_buf[0] = 0xD1;
 
-		if (tlen == 1) {
+		if (tlen <= 3) {
 			temp_write_buf[1] = 0x00;
 			temp_write_buf[2] = 0x00;
-		} else if (tlen == 2) {
-			temp_write_buf[1] = 0x00;
-			temp_write_buf[2] = reg[0];
-		} else if (tlen == 3) {
-			temp_write_buf[1] = reg[1];
-			temp_write_buf[2] = reg[0];
 		} else {
 			input_err(true, ts->dev, "%s: tlen is mismatched: %d\n", __func__, tlen);
 			mutex_unlock(&ts->read_write_mutex);
@@ -633,7 +631,7 @@ int stm_ts_spi_read(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *buf, int rlen
 	}
 
 	if (wmsg)
-		stm_ts_no_lock_spi_write(ts, reg, 1, NULL, 0);
+		stm_ts_no_lock_spi_write(ts, reg, tlen, NULL, 0);
 
 	spi_message_init(ts->message);
 	memcpy(ts->write_buf, temp_write_buf, buf_len);
@@ -680,12 +678,10 @@ int stm_ts_spi_read(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *buf, int rlen
 	return ret;
 }
 
-int stm_ts_spi_probe(struct spi_device *client)
+static int stm_ts_spi_init(struct spi_device *client)
 {
 	struct stm_ts_data *ts;
 	int ret = 0;
-
-	input_info(true, &client->dev, "%s\n", __func__);
 
 	ts = devm_kzalloc(&client->dev, sizeof(struct stm_ts_data), GFP_KERNEL);
 	if (unlikely(ts == NULL)) {
@@ -751,10 +747,36 @@ int stm_ts_spi_probe(struct spi_device *client)
 	ts->plat_data->stui_tsp_exit = stm_stui_tsp_exit;
 	ts->plat_data->stui_tsp_type = stm_stui_tsp_type;
 #endif
-	ret = stm_ts_probe(ts);
 
+	ret = stm_ts_init(ts);
+	if (ret < 0) {
+		input_err(true, ts->dev, "%s: fail to init resource\n", __func__);
+		return ret;
+	}
+	ret = 0;
 error_allocate:
 	return ret;
+}
+
+int stm_ts_spi_probe(struct spi_device *client)
+{
+	struct stm_ts_data *ts;
+	int ret = 0;
+
+	input_info(true, &client->dev, "%s\n", __func__);
+
+	ret = stm_ts_spi_init(client);
+	if (ret < 0) {
+		input_err(true, &client->dev, "%s: fail to init resource\n", __func__);
+		return ret;
+	}
+
+	ts = spi_get_drvdata(client);
+	if (!ts->plat_data->work_queue_probe_enabled)
+		return stm_ts_probe(ts->dev);
+
+	queue_work(ts->plat_data->probe_workqueue, &ts->plat_data->probe_work);
+	return 0;
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))

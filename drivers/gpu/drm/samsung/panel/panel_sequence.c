@@ -25,6 +25,27 @@ char *get_sequence_name(struct seqinfo *seq)
 	return get_pnobj_name(&seq->base);
 }
 
+int snprintf_sequence(char *buf, size_t size, struct seqinfo *seq)
+{
+	int i, len;
+
+	if (!seq)
+		return 0;
+
+	len = snprintf(buf, size, "%s\n", get_sequence_name(seq));
+	len += snprintf(buf + len, size - len, "commands: %d\n", seq->size);
+	for (i = 0; i < seq->size; i++) {
+		if (!seq->cmdtbl[i])
+			break;
+		len += snprintf(buf + len, size - len, "[%d]: type: %8s, name: %s",
+				i, cmd_type_to_string(get_pnobj_cmd_type(seq->cmdtbl[i])),
+				get_pnobj_name(seq->cmdtbl[i]));
+		if (i + 1 != seq->size)
+			len += snprintf(buf + len, size - len, "\n");
+	}
+	return len;
+}
+
 /**
  * create_sequence - create a struct seqinfo structure
  * @name: pointer to a string for the name of this sequence.

@@ -1504,13 +1504,10 @@ static void get_fw_ver_ic(void *device_data)
 	stm_ts_get_version_info(ts);
 
 	snprintf(buff, sizeof(buff), "ST%02X%02X%02X%02X",
-			ts->ic_name_of_ic,
-			ts->project_id_of_ic,
-			ts->module_version_of_ic,
-			ts->fw_main_version_of_ic & 0xFF);
+			ts->plat_data->img_version_of_ic[0], ts->plat_data->img_version_of_ic[1],
+			ts->plat_data->img_version_of_ic[2], ts->plat_data->img_version_of_ic[3]);
 	snprintf(model_ver, sizeof(model_ver), "ST%02X%02X",
-			ts->ic_name_of_ic,
-			ts->project_id_of_ic);
+			ts->plat_data->img_version_of_ic[0], ts->plat_data->img_version_of_ic[1]);
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
@@ -2035,26 +2032,6 @@ static void run_rawcap_read_all(void *device_data)
 	kfree(all_strbuff);
 }
 
-static void run_nonsync_rawcap_read(void *device_data)
-{
-	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
-	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
-	char buff[SEC_CMD_STR_LEN] = { 0 };
-	short min = 0x7FFF;
-	short max = 0x8000;
-
-	input_raw_info_d(GET_DEV_COUNT(ts->multi_dev), ts->dev, "%s\n", __func__);
-
-	stm_ts_read_nonsync_frame(ts, &min, &max);
-
-	snprintf(buff, sizeof(buff), "%d,%d", min, max);
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "RAW_DATA");
-	sec->cmd_state = SEC_CMD_STATUS_OK;
-	input_info(true, ts->dev, "%s: %s\n", __func__, buff);
-}
-
 static void run_nonsync_rawcap_read_all(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -2202,6 +2179,8 @@ static void run_low_frequency_rawcap_read(void *device_data)
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	u8 reg[4] = { 0xA4, 0x04, 0x00, 0xC0 };
 	int ret;
+	short min = 0x7FFF;
+	short max = 0x8000;
 
 	stm_ts_set_scanmode(ts, STM_TS_SCAN_MODE_SCAN_OFF);
 	sec_delay(30);
@@ -2216,7 +2195,18 @@ static void run_low_frequency_rawcap_read(void *device_data)
 	}
 
 	input_raw_info_d(GET_DEV_COUNT(ts->multi_dev), ts->dev, "%s\n", __func__);
-	run_nonsync_rawcap_read(sec);
+
+	stm_ts_read_nonsync_frame(ts, &min, &max);
+
+	snprintf(buff, sizeof(buff), "%d,%d", min, max);
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		char rawcap_buff[SEC_CMD_STR_LEN];
+
+		snprintf(rawcap_buff, SEC_CMD_STR_LEN, "%d,%d", min, max);
+		sec_cmd_set_cmd_result_all(sec, rawcap_buff, SEC_CMD_STR_LEN, "LF_RAW_DATA");
+	}
 
 	stm_ts_set_scanmode(ts, ts->scan_mode);
 
@@ -2271,9 +2261,15 @@ static void run_high_frequency_rawcap_read(void *device_data)
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
+	short rawcap[2] = {SHRT_MAX, SHRT_MIN}; /* min, max */
+	short rawcap_edge[2] = {SHRT_MAX, SHRT_MIN}; /* min, max */
 	u8 reg[4] = { 0xA4, 0x04, 0xFF, 0x01 };
 	int ret;
 	int i, j;
+	short min = 0x7FFF;
+	short max = 0x8000;
+
+	input_raw_info_d(GET_DEV_COUNT(ts->multi_dev), ts->dev, "%s\n", __func__);
 
 	stm_ts_set_scanmode(ts, STM_TS_SCAN_MODE_SCAN_OFF);
 	sec_delay(30);
@@ -2287,17 +2283,42 @@ static void run_high_frequency_rawcap_read(void *device_data)
 		goto out;
 	}
 
-	input_raw_info_d(GET_DEV_COUNT(ts->multi_dev), ts->dev, "%s\n", __func__);
-	run_nonsync_rawcap_read(sec);
+	stm_ts_read_nonsync_frame(ts, &min, &max);
+
+	snprintf(buff, sizeof(buff), "%d,%d", min, max);
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 
 	stm_ts_set_scanmode(ts, ts->scan_mode);
 
-	pr_info("sec_input: %s - correlation\n", __func__);
 	for (i = 0; i < ts->tx_count; i++) {
-		pr_info("sec_input: [%2d] ", i);
-		for (j = 0; j < ts->rx_count; j++)
-			pr_cont("%d, ", ts->pFrame[(i * ts->rx_count) + j]);
-		pr_cont("\n");
+		for (j = 0; j < ts->rx_count; j++) {
+			short *rawcap_ptr;
+
+			if (i == 0 || i == ts->tx_count - 1 || j == 0 || j == ts->rx_count - 1)
+				rawcap_ptr = rawcap_edge;
+			else
+				rawcap_ptr = rawcap;
+
+			if (ts->pFrame[(i * ts->rx_count) + j] < rawcap_ptr[0])
+				rawcap_ptr[0] = ts->pFrame[(i * ts->rx_count) + j];
+			if (ts->pFrame[(i * ts->rx_count) + j] > rawcap_ptr[1])
+				rawcap_ptr[1] = ts->pFrame[(i * ts->rx_count) + j];
+		}
+	}
+
+	input_raw_info_d(GET_DEV_COUNT(ts->multi_dev), ts->dev,
+			"%s: rawcap:%d,%d rawcap_edge:%d,%d\n",
+			__func__, rawcap[0], rawcap[1], rawcap_edge[0], rawcap_edge[1]);
+
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		char rawcap_buff[SEC_CMD_STR_LEN];
+
+		snprintf(rawcap_buff, SEC_CMD_STR_LEN, "%d,%d", min, max);
+		sec_cmd_set_cmd_result_all(sec, rawcap_buff, SEC_CMD_STR_LEN, "HF_RAW_DATA");
+		snprintf(rawcap_buff, SEC_CMD_STR_LEN, "%d,%d", rawcap[0], rawcap[1]);
+		sec_cmd_set_cmd_result_all(sec, rawcap_buff, SEC_CMD_STR_LEN, "TSP_RAWCAP");
+		snprintf(rawcap_buff, SEC_CMD_STR_LEN, "%d,%d", rawcap_edge[0], rawcap_edge[1]);
+		sec_cmd_set_cmd_result_all(sec, rawcap_buff, SEC_CMD_STR_LEN, "TSP_RAWCAP_EDGE");
 	}
 
 	return;
@@ -2317,7 +2338,6 @@ static void run_high_frequency_rawcap_read_all(void *device_data)
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	u8 reg[4] = { 0xA4, 0x04, 0xFF, 0x01 };
 	int ret;
-	int i, j;
 
 	input_raw_info_d(GET_DEV_COUNT(ts->multi_dev), ts->dev, "%s\n", __func__);
 
@@ -2337,14 +2357,6 @@ static void run_high_frequency_rawcap_read_all(void *device_data)
 
 	run_nonsync_rawcap_read_all(sec);
 	stm_ts_set_scanmode(ts, ts->scan_mode);
-
-	pr_info("sec_input: %s - correlation\n", __func__);
-	for (i = 0; i < ts->tx_count; i++) {
-		pr_info("sec_input: [%2d] ", i);
-		for (j = 0; j < ts->rx_count; j++)
-			pr_cont("%d, ", ts->pFrame[(i * ts->rx_count) + j]);
-		pr_cont("\n");
-	}
 
 	return;
 
@@ -2687,8 +2699,7 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 		self_force_raw_data[count] = (s16)(data[count * 2 + Offset] + (data[count * 2 + 1 + Offset] << 8));
 
 		/* Only for YOCTA */
-		if ((count == 0 && ts->chip_id == 0x503601) || (count == 0 && ts->chip_id == 0x393603)
-			 || (count == 0 && ts->chip_id == 0x403601)) /* 403601 is rgb */
+		if ((count == 0) && STM_TS_IS_EXCEPTIONAL_CHIP(ts->chip_id))
 			continue;
 
 		if (max_tx_self_raw_data < self_force_raw_data[count])
@@ -2702,8 +2713,7 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 		self_sense_raw_data[count] = (s16)(data[count * 2 + Offset] + (data[count * 2 + 1 + Offset] << 8));
 
 		/* Only for YOCTA */
-		if ((count == 0 && ts->chip_id == 0x503601) || (count == 0 && ts->chip_id == 0x393603)
-			|| (count == 0 && ts->chip_id == 0x403601)) /* 403601 is rgb */
+		if ((count == 0) && STM_TS_IS_EXCEPTIONAL_CHIP(ts->chip_id))
 			continue;
 
 		if (max_rx_self_raw_data < self_sense_raw_data[count])
@@ -2873,6 +2883,13 @@ static int read_ms_cx_data(struct stm_ts_data *ts, u8 active, s8 *cx_min, s8 *cx
 	if (ts->cx_data && active == NORMAL_CX2)
 		memcpy(&ts->cx_data[0], &rdata[0], ts->tx_count * ts->rx_count);
 
+	/* for get_gap_data_all */
+	for (i = 0; i < ts->tx_count; i++) {
+		for (j = 0; j < ts->rx_count; j++) {
+			ts->pFrame[i * ts->rx_count + j] = rdata[i * ts->rx_count + j];
+		}
+	}
+
 	kfree(pStr);
 out:
 	kfree(rdata);
@@ -2986,6 +3003,49 @@ static void run_cx_gap_data_y_all(void *device_data)
 			strlcat(buff, temp, ts->tx_count * ts->rx_count * 5);
 			memset(temp, 0x00, 5);
 		}
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, ts->tx_count * ts->rx_count * 5));
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	kfree(buff);
+}
+
+#define GAP_MULTIPLE_VAL	100
+static void get_gap_data_all(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+	char *buff = NULL;
+	int ii;
+	char temp[6] = { 0 };
+	int node_gap_tx = 0;
+	int node_gap_rx = 0;
+	int node_gap_max = 0;
+
+	buff = kzalloc(ts->tx_count * ts->rx_count * 6, GFP_KERNEL);
+	if (!buff) {
+		snprintf(temp, sizeof(temp), "NG");
+		sec_cmd_set_cmd_result(sec, temp, strnlen(temp, sizeof(temp)));
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
+
+	for (ii = 0; ii < (ts->rx_count * ts->tx_count); ii++) {
+		node_gap_tx = node_gap_rx = node_gap_max = 0;
+
+		/* rx(x) gap max */
+		if ((ii + 1) % (ts->rx_count) != 0)
+			node_gap_tx = 1 * GAP_MULTIPLE_VAL - (min(ts->pFrame[ii], ts->pFrame[ii + 1]) * GAP_MULTIPLE_VAL) / (max(ts->pFrame[ii], ts->pFrame[ii + 1]));
+
+		/* tx(y) gap max */
+		if (ii < (ts->tx_count - 1) * ts->rx_count)
+			node_gap_rx = 1 * GAP_MULTIPLE_VAL - (min(ts->pFrame[ii], ts->pFrame[ii + ts->rx_count]) * GAP_MULTIPLE_VAL) / (max(ts->pFrame[ii], ts->pFrame[ii + ts->rx_count]));
+
+		node_gap_max = max(node_gap_tx, node_gap_rx);
+
+		snprintf(temp, sizeof(temp), "%d,", node_gap_max);
+		strlcat(buff, temp, ts->tx_count * ts->rx_count * 6);
+		memset(temp, 0x00, 6);
 	}
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, ts->tx_count * ts->rx_count * 5));
@@ -4375,6 +4435,51 @@ autotune_fail:
 	input_info(true, ts->dev, "%s: %s\n", __func__, sec->cmd_state == SEC_CMD_STATUS_OK ? "OK" : "NG");
 }
 
+static void run_interrupt_gpio_test(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN];
+	u8 drv_data[3] = { 0xA4, 0x01, 0x01 };
+	u8 irq_data[3] = { 0xA4, 0x01, 0x00 };
+	int drv_value = -1;
+	int irq_value = -1;
+
+	disable_irq(ts->irq);
+
+	ts->stm_ts_write(ts, drv_data, 3, NULL, 0);
+
+	sec_delay(50);
+
+	drv_value = gpio_get_value(ts->plat_data->irq_gpio);
+	ts->stm_ts_write(ts, irq_data, 3, NULL, 0);
+
+	sec_delay(50);
+
+	irq_value = gpio_get_value(ts->plat_data->irq_gpio);
+	input_info(true, ts->dev, "%s: drv_value:%d, irq_value:%d\n", __func__, drv_value, irq_value);
+
+	if (drv_value == 0 && irq_value == 1) {
+		snprintf(buff, sizeof(buff), "0");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	} else {
+		if (drv_value != 0)
+			snprintf(buff, sizeof(buff), "1:HIGH");
+		else if (irq_value != 1)
+			snprintf(buff, sizeof(buff), "1:LOW");
+		else
+			snprintf(buff, sizeof(buff), "1:FAIL");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+
+	stm_ts_reinit(ts);
+	enable_irq(ts->irq);
+}
+
 static void set_factory_level(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -4430,15 +4535,18 @@ static void factory_cmd_result_all(void *device_data)
 	get_cx_gap_data(sec);
 	run_ix_data_read(sec);
 
-	get_wet_mode(sec);
-
 	enter_factory_mode(ts, false);
+
+	get_wet_mode(sec);
 
 	run_mutual_jitter(sec);
 	run_self_jitter(sec);
 	run_factory_miscalibration(sec);
 	run_sram_test(sec);
 	run_polarity_test(sec);
+
+	run_high_frequency_rawcap_read(sec);
+	run_interrupt_gpio_test(sec);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -4968,7 +5076,7 @@ static void fod_enable(void *device_data)
 	mutex_lock(&ts->plat_data->enable_mutex);
 
 	if (!atomic_read(&ts->plat_data->enabled) && sec_input_need_ic_off(ts->plat_data)) {
-		if (device_may_wakeup(ts->sec.fac_dev) && atomic_read(&ts->plat_data->power_state) == SEC_INPUT_STATE_LPM)
+		if (atomic_read(&ts->plat_data->power_state) == SEC_INPUT_STATE_LPM)
 			disable_irq_wake(ts->irq);
 		ts->plat_data->stop_device(ts);
 	} else {
@@ -5227,16 +5335,16 @@ static int rawdata_init_save(void *device_data)
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 
+	if (!ts->plat_data->support_rawdata) {
+		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
+		return SEC_ERROR;
+	}
+
 	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		return SEC_ERROR;
 	}
 
-	if (sec->cmd_param[0] == 0) {
-		ts->raw_mode = sec->cmd_param[0];
-		ts->raw_addr_h = 0;
-		ts->raw_addr_l = 0;
-	}
 	ts->raw_mode = sec->cmd_param[0]; //param : 1 strength , 2 raw
 	input_info(true, ts->dev, "%s: %d\n", __func__, ts->raw_mode);
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -5257,18 +5365,22 @@ static void rawdata_init(void *device_data)
 		return;
 	}
 
-	if (!ts->raw)
-		stm_ts_rawdata_buffer_alloc(ts);
-	else
-		input_info(true, ts->dev, "%s: already init\n", __func__);
-
-	stm_ts_read_rawdata_address(ts);
-
 	snprintf(buff, sizeof(buff), "OK:%d", ts->plat_data->support_rawdata_map_num);
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 
 	input_info(true, ts->dev, "%s: %s\n", __func__, buff);
+}
+
+static void blocking_palm(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+
+	ts->plat_data->blocking_palm = sec->cmd_param[0];
+
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	input_info(true, ts->dev, "%s: %s\n", __func__, "OK");
 }
 #endif
 
@@ -5658,6 +5770,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_V2("run_cx_data_read_all", run_cx_data_read_all, NULL, CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("run_cx_gap_data_rx_all", run_cx_gap_data_x_all, NULL, CHECK_ALL, WAIT_RESULT),},
 	{SEC_CMD_V2("run_cx_gap_data_tx_all", run_cx_gap_data_y_all, NULL, CHECK_ALL, WAIT_RESULT),},
+	{SEC_CMD_V2("get_gap_data_all", get_gap_data_all, NULL, CHECK_ALL, WAIT_RESULT),},
 	{SEC_CMD_V2("get_strength_all_data", get_strength_all_data, NULL, CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("set_tsp_test_result", set_tsp_test_result, NULL, CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("get_tsp_test_result", get_tsp_test_result, NULL, CHECK_ON_LP, WAIT_RESULT),},
@@ -5695,6 +5808,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_V2("debug", debug, NULL, CHECK_ALL, EXIT_RESULT),},
 #ifdef ENABLE_RAWDATA_SERVICE
 	{SEC_CMD_V2("rawdata_init", rawdata_init, rawdata_init_save, CHECK_ON_LP, EXIT_RESULT),},
+	{SEC_CMD_V2("blocking_palm", blocking_palm, NULL, CHECK_ALL, EXIT_RESULT),},
 #endif
 	{SEC_CMD_V2_H("fix_active_mode", fix_active_mode, fix_active_mode_save, CHECK_POWERON, EXIT_RESULT),},
 	{SEC_CMD_V2("touch_aging_mode", touch_aging_mode, touch_aging_mode_save, CHECK_ON_LP, EXIT_RESULT),},
@@ -5704,6 +5818,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_V2("set_sip_mode", set_sip_mode, set_sip_mode_save, CHECK_ON_LP, EXIT_RESULT),},
 	{SEC_CMD_V2("set_game_mode", set_game_mode, set_game_mode_save, CHECK_ON_LP, EXIT_RESULT),},
 	{SEC_CMD_V2("set_note_mode", set_note_mode, set_note_mode_save, CHECK_ON_LP, EXIT_RESULT),},
+	{SEC_CMD_V2("run_interrupt_gpio_test", run_interrupt_gpio_test, NULL, CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("not_support_cmd", not_support_cmd, NULL, CHECK_ALL, EXIT_RESULT),},
 };
 

@@ -586,6 +586,11 @@ static int synaptics_ts_v1_continued_read(struct synaptics_ts_data *ts,
 	total_length = SYNAPTICS_TS_MESSAGE_HEADER_SIZE + length + 1;
 	remaining_length = total_length - SYNAPTICS_TS_MESSAGE_HEADER_SIZE;
 
+	if (total_length > PAGE_SIZE) {
+		input_fail_hist(true, ts->dev, "%s: Invalid length %d to read\n", __func__, total_length);
+		return -EINVAL;
+	}
+
 	synaptics_ts_buf_lock(&tcm_msg->in);
 
 	/* in case the current buf.in is smaller than requested size */
@@ -746,6 +751,16 @@ static int synaptics_ts_v1_read_message(struct synaptics_ts_data *ts, unsigned c
 retry:
 	synaptics_ts_buf_lock(&tcm_msg->in);
 
+	/* in case the current in.buf is smaller than header size */
+	retval = synaptics_ts_buf_realloc(&tcm_msg->in, SYNAPTICS_TS_MESSAGE_HEADER_SIZE);
+	if (retval < 0) {
+		input_err(true, ts->dev, "%s: Fail to allocate memory for internal buf_in\n", __func__);
+		synaptics_ts_buf_unlock(&tcm_msg->in);
+		tcm_msg->status_report_code = STATUS_INVALID;
+		tcm_msg->payload_length = 0;
+		goto exit;
+	}
+
 	/* read in the message header from device */
 	retval = ts->synaptics_ts_read_data_only(ts,
 			tcm_msg->in.buf,
@@ -827,10 +842,14 @@ retry:
 	synaptics_ts_pal_sleep_us(MSG_DELAY_US_MIN, MSG_DELAY_US_MAX);
 
 	/* retrieve the remaining data, if any */
-	retval = synaptics_ts_v1_continued_read(ts,
-			tcm_msg->payload_length);
-	if (retval < 0) {
-		input_err(true, ts->dev, "Fail to do continued read\n");
+	if ((ts->header->code != 0x00) && (ts->header->code != 0xFF)) {
+		retval = synaptics_ts_v1_continued_read(ts,
+				tcm_msg->payload_length);
+		if (retval < 0) {
+			input_err(true, ts->dev, "Fail to do continued read\n");
+			goto exit;
+		}
+	} else {
 		goto exit;
 	}
 
@@ -1695,7 +1714,6 @@ int synaptics_ts_set_custom_library(struct synaptics_ts_data *ts)
 	unsigned char data;
 	unsigned char data_orig;
 	unsigned char data_dump[2];
-	unsigned char force_fod_enable = 0;
 
 	offset = 0;
 
@@ -1709,22 +1727,15 @@ int synaptics_ts_set_custom_library(struct synaptics_ts_data *ts)
 
 	data_orig = data;
 
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		/* enable FOD when LCD on state */
-	if (ts->plat_data->support_fod && atomic_read(&ts->plat_data->enabled))
-		force_fod_enable = SEC_TS_MODE_SPONGE_PRESS;
-#endif
-
 	if (ts->plat_data->prox_power_off) {
 		data = ts->plat_data->lowpower_mode & ~SEC_TS_MODE_SPONGE_DOUBLETAP_TO_WAKEUP;
 		input_info(true, ts->dev, "%s: prox off. disable AOT\n", __func__);
 	} else {
-		data = ts->plat_data->lowpower_mode | force_fod_enable;
+		data = ts->plat_data->lowpower_mode;
 	}
 
-	input_info(true, ts->dev, "sponge data:0x%x (original:0x%x)%s\n",
-			data, data_orig,
-			force_fod_enable ? ", force fod enable" : "");
+	input_info(true, ts->dev, "sponge data:0x%x (original:0x%x)\n",
+			data, data_orig);
 
 	retval = ts->synaptics_ts_write_sponge(ts,
 			&data, sizeof(data), offset, 1);

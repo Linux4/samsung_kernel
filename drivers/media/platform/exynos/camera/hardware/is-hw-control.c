@@ -1564,8 +1564,7 @@ static void is_hardware_aeb_change(struct is_group *group, u32 fcount)
 				 * Short frame to turn off AEB mode
 				 * Skip next Short frame shot
 				 */
-				sensor->aeb_state |= BIT(IS_SENSOR_SWITCHING)
-							| BIT(IS_SKIP_CHAIN_SHOT);
+				sensor->aeb_state |= BIT(IS_SENSOR_SWITCHING);
 		} else {
 			/**
 			 * Short frame shot conext in SINGLE mode

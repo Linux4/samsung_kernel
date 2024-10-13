@@ -48,10 +48,8 @@ struct seqinfo *find_blic_seq(struct panel_blic_dev *blic, char *seqname)
 		return NULL;
 	}
 
-	if (list_empty(&blic->seq_list)) {
-		panel_err("blic sequence is empty\n");
+	if (list_empty(&blic->seq_list))
 		return NULL;
-	}
 
 	pnobj = pnobj_find_by_name(&blic->seq_list, seqname);
 	if (!pnobj)
@@ -255,7 +253,8 @@ int panel_blic_regulator_enable(struct regulator_dev *rdev)
 	if (panel_blic_power_ctrl_exists(blic, "panel_blic_pre_on"))
 		ret |= blic->ops->execute_power_ctrl(blic, "panel_blic_pre_on");
 
-	ret |= blic->ops->do_seq(blic, PANEL_BLIC_I2C_ON_SEQ);
+	if (panel_blic_check_seqtbl_exist(blic, PANEL_BLIC_I2C_ON_SEQ))
+		ret |= blic->ops->do_seq(blic, PANEL_BLIC_I2C_ON_SEQ);
 
 	if (panel_blic_power_ctrl_exists(blic, "panel_blic_post_on"))
 		ret |= blic->ops->execute_power_ctrl(blic, "panel_blic_post_on");
@@ -311,7 +310,8 @@ __visible_for_testing int panel_blic_regulator_disable(struct regulator_dev *rde
 	if (panel_blic_power_ctrl_exists(blic, "panel_blic_pre_off"))
 		ret |= blic->ops->execute_power_ctrl(blic, "panel_blic_pre_off");
 
-	ret |= blic->ops->do_seq(blic, PANEL_BLIC_I2C_OFF_SEQ);
+	if (panel_blic_check_seqtbl_exist(blic, PANEL_BLIC_I2C_OFF_SEQ))
+		ret |= blic->ops->do_seq(blic, PANEL_BLIC_I2C_OFF_SEQ);
 
 	if (panel_blic_power_ctrl_exists(blic, "panel_blic_post_off"))
 		ret |= blic->ops->execute_power_ctrl(blic, "panel_blic_post_off");

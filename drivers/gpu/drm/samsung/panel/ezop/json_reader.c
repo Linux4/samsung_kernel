@@ -32,7 +32,7 @@ int jsonr_parse(json_reader_t *r, char *buf)
 	r->buf = buf;	
 	r->pos = 0;
 
-	return jsmn_parse(&parser, r->buf, strlen(r->buf), r->tokens, r->size);
+	return jsmn_parse(&parser, r->buf, strnlen(r->buf, r->size), r->tokens, r->size);
 }
 
 char *get_jsonr_buf(json_reader_t *r)

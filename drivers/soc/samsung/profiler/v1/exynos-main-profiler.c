@@ -917,8 +917,16 @@ static ssize_t control_profile_store(struct device *dev,
 				profiler.disable_llc_way = (bool)value;
 				break;
 			case CONTROL_CMD_CHANGE_GPU_GOVERNOR:
-				if (profiler.disable_gfx)
+				if (profiler.disable_gfx) {
 					value = 0;
+				}
+				if (!value && profiler.dm_dynamic) {
+					exynos_dm_dynamic_disable(0);
+					profiler.dm_dynamic = 0;
+				} else if (value && psd.enable_gfx && !profiler.dm_dynamic) {
+					exynos_dm_dynamic_disable(1);
+					profiler.dm_dynamic = 1;
+				}
 				exynos_profiler_set_profiler_governor(value);
 				break;
 			default:

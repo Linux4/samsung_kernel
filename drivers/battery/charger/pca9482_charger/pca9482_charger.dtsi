@@ -24,7 +24,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/pca9482/pca9482_charger.r11[qs].dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/stable/r11/charger/pca9482/pca9482_charger.r11[qs].dtsi */
 &pca9482_charger {
 	pca9482,switching-frequency-low = <1000>; /* Keep same with PCA9482_FSW_CFG_DFT 1.0MHz(1000kHz) */
 	pca9482,iin-low-frequency = <1700000>; /* 1700000uA */

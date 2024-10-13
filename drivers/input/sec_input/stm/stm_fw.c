@@ -599,6 +599,7 @@ int stm_ts_fw_update_on_probe(struct stm_ts_data *ts)
 #ifdef TCLM_CONCEPT
 	int ret = 0;
 	bool restore_cal = false;
+	int retry = 3;
 
 	if (ts->tdata->support_tclm_test) {
 		ret = sec_tclm_test_on_probe(ts->tdata);
@@ -610,7 +611,7 @@ int stm_ts_fw_update_on_probe(struct stm_ts_data *ts)
 	if (ts->plat_data->bringup == 1)
 		return STM_TS_NOT_ERROR;
 
- 	if (!ts->plat_data->firmware_name) {
+	if (!ts->plat_data->firmware_name) {
 		input_err(true, ts->dev, "%s: firmware name does not declair in dts\n", __func__);
 		retval = -ENOENT;
 		goto exit_fwload;
@@ -619,11 +620,18 @@ int stm_ts_fw_update_on_probe(struct stm_ts_data *ts)
 	snprintf(fw_path, STM_TS_MAX_FW_PATH, "%s", ts->plat_data->firmware_name);
 	input_info(true, ts->dev, "%s: Load firmware : %s\n", __func__, fw_path);
 
-	retval = request_firmware(&fw_entry, fw_path, ts->dev);
+	while (retry--) {
+		retval = request_firmware(&fw_entry, fw_path, ts->dev);
+		if (retval)
+			input_err(true, ts->dev,
+					"%s: Firmware image %s not available retry:%d\n", __func__,
+					fw_path, retry);
+		else
+			break;
+		sec_delay(1000);
+	}
+
 	if (retval) {
-		input_err(true, ts->dev,
-				"%s: Firmware image %s not available\n", __func__,
-				fw_path);
 		retval = STM_TS_NOT_ERROR;
 		goto exit_fwload;
 	}
@@ -938,7 +946,10 @@ int stm_ts_fw_update_on_hidden_menu(struct stm_ts_data *ts, int update_type)
 
 	stm_ts_get_custom_library(ts);
 	stm_ts_set_custom_library(ts);
-
+#ifdef ENABLE_RAWDATA_SERVICE
+	if (ts->plat_data->support_rawdata)
+		stm_ts_read_rawdata_address(ts);
+#endif
 	return retval;
 }
 EXPORT_SYMBOL(stm_ts_fw_update_on_hidden_menu);

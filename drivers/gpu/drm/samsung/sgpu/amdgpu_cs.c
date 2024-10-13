@@ -1413,7 +1413,10 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
 	if (trace_sgpu_job_dependency_enabled())
 		sgpu_sync_trace_fence(&job->sync);
 
-	ttm_eu_fence_buffer_objects(&p->ticket, &p->validated, p->fence);
+	if (ring->funcs->type == AMDGPU_RING_TYPE_COMPUTE)
+		ttm_eu_fence_buffer_objects(&p->ticket, &p->validated, p->fence);
+	else
+		amdgpu_backoff_reservation(&p->ticket, &p->validated);
 	mutex_unlock(&p->adev->notifier_lock);
 
 	/* minlock set request to PM QoS */

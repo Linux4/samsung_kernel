@@ -37,6 +37,7 @@ void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
 {
 	void __iomem *phy_base_regs = exynos_pcie->phy_base;
 	void __iomem *phyudbg_base_regs = exynos_pcie->phyudbg_base;
+	void __iomem *phy_pcs_base_regs = exynos_pcie->phy_pcs_base;
 	u32 val;
 
 	if (exynos_pcie->chip_ver == 1) {
@@ -46,6 +47,17 @@ void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
 				PCIE_PHY_CONTROL_MASK2, (0x3 << 15));
 	}
 	if (exynos_pcie->ch_num == 0) { //PCIE GEN2 channel
+		if (exynos_pcie->chip_ver == 1) {
+			if (exynos_pcie->max_link_speed == 2) {
+				//IA disable
+				dev_info(exynos_pcie->pci->dev, "I/A disable\n");
+				exynos_ia_write(exynos_pcie, 0x0, 0x60);
+				exynos_ia_write(exynos_pcie, 0x0, 0x0);
+				exynos_ia_write(exynos_pcie, 0xD0000004, 0x100);
+				exynos_ia_write(exynos_pcie, 0xB0020188, 0x108);
+				udelay(10);
+			}
+		}
 		if (exynos_pcie->chip_ver == 0)
 		{
 			val = readl(phy_base_regs + 0x204) & ~(0x3 << 2);
@@ -70,6 +82,9 @@ void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
 
 		//Common Bias, PLL off
 		writel(0x0A, phy_base_regs + 0x00C);
+
+		dev_info(exynos_pcie->pci->dev, "UDBG+0xC808: 0x%x, PCS+0x188: 0x%x\n",
+				readl(phyudbg_base_regs + 0xC808), readl(phy_pcs_base_regs + 0x188));
 
 		mdelay(1);
 	}
@@ -137,6 +152,7 @@ void exynos_pcie_rc_phy_all_pwrdn_clear(struct exynos_pcie *exynos_pcie, int ch_
 
 		//writel(0x00, phy_base_regs + 0x01B4);
 		//writel(0x00, phy_base_regs + 0x0208);
+		udelay(100);
 		writel(0x02, phy_base_regs + 0x0580);
 		writel(0x55, phy_base_regs + 0x0928);
 		mdelay(1);
@@ -244,7 +260,7 @@ void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
 				udelay(10);
 			}
 		}
-
+		udelay(100);
 		writel(0x00, phy_base_regs + 0x01B4);
 		writel(0x00, phy_base_regs + 0x0208);
 		udelay(10);

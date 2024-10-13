@@ -1621,7 +1621,10 @@ static int aw8622x_osc_trim_calculation(unsigned long theory_time,
 		}
 		real_code = ((theory_time - real_time) * 4000) / theory_time;
 		real_code = ((real_code % 10 < 5) ? 0 : 1) + real_code / 10;
-		real_code = 32 - real_code;
+		if (real_code < 32)
+			real_code = 32 - real_code;
+		else
+			real_code = 0;
 	}
 	if (real_code > 31)
 		lra_code = real_code - 32;
@@ -2021,6 +2024,10 @@ static int aw8622x_rtp_trim_lra_calibration(struct aw8622x *aw8622x)
 
 	aw_info("microsecond:%ld  theory_time=%d", aw8622x->microsecond,
 		theory_time);
+	if (theory_time == 0) {
+		aw_info("theory_time is zero, please check rtp_len!!!");
+		return -1;
+	}
 
 	lra_trim_code = aw8622x_osc_trim_calculation(theory_time,
 						     aw8622x->microsecond);

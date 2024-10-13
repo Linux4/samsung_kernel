@@ -78,7 +78,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/wireless/p9320/p9320_charger.r11s.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/stable/r11/wireless/p9320/p9320_charger.r11s.dtsi */
 &hsi2c_32 {
 	samsung,stop-after-trans;
 	samsung,stand-mode;
@@ -155,6 +155,13 @@
 				flag = <(SET_FOD_CC(USE_DEFAULT) | SET_FOD_CV(ADD) | SET_FOD_FULL(USE_DEFAULT))>;
 				cv = <150 137 142 127 150 116 150 108 155 94 156 91>;
 			};
+		};
+
+		iec_data {
+			fod_enable = <1>;
+			fod_thres1 = <0x0C8>; /* 200mW */
+			fod_thres2 = <0x5DC>; /* 1500mW */
+			fod_counter = <3>;
 		};
 	};
 };

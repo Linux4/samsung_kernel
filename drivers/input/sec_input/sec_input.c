@@ -21,6 +21,18 @@ EXPORT_SYMBOL(ptsp);
 struct sec_ts_secure_data *psecuretsp;
 EXPORT_SYMBOL(psecuretsp);
 
+void sec_input_utc_marker(struct device *dev, const char *annotation)
+{
+	struct timespec64 ts;
+	struct rtc_time tm;
+
+	ktime_get_real_ts64(&ts);
+	rtc_time64_to_tm(ts.tv_sec, &tm);
+	input_info(true, dev, "%s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
+		annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+}
+
 bool sec_input_cmp_ic_status(struct device *dev, int check_bit)
 {
 	struct sec_ts_plat_data *plat_data = dev->platform_data;
@@ -34,7 +46,7 @@ EXPORT_SYMBOL(sec_input_cmp_ic_status);
 
 bool sec_input_need_ic_off(struct sec_ts_plat_data *pdata)
 {
-	bool lpm = pdata->lowpower_mode || pdata->ed_enable || pdata->pocket_mode || pdata->fod_lp_mode;
+	bool lpm = pdata->lowpower_mode || pdata->ed_enable || pdata->pocket_mode || pdata->fod_lp_mode || pdata->support_always_on;
 
 	return (sec_input_need_fold_off(pdata->multi_dev) || !lpm);
 }
@@ -151,6 +163,41 @@ int sec_input_get_lcd_id(struct device *dev)
 }
 EXPORT_SYMBOL(sec_input_get_lcd_id);
 
+void sec_input_probe_work_remove(struct sec_ts_plat_data *pdata)
+{
+	if (pdata == NULL)
+		return;
+
+	if (!pdata->work_queue_probe_enabled) {
+		input_err(true, pdata->dev, "%s: work_queue_probe_enabled is false\n", __func__);
+		return;
+	}
+
+	cancel_work_sync(&pdata->probe_work);
+	flush_workqueue(pdata->probe_workqueue);
+	destroy_workqueue(pdata->probe_workqueue);
+}
+EXPORT_SYMBOL(sec_input_probe_work_remove);
+
+static void sec_input_probe_work(struct work_struct *work)
+{
+	struct sec_ts_plat_data *pdata = container_of(work, struct sec_ts_plat_data, probe_work);
+	int ret = 0;
+
+	if (pdata->probe == NULL) {
+		input_err(true, pdata->dev, "%s: probe function is null\n", __func__);
+		return;
+	}
+
+	sec_delay(pdata->work_queue_probe_delay);
+
+	ret = pdata->probe(pdata->dev);
+	if (pdata->first_booting_disabled && ret == 0) {
+		input_info(true, pdata->dev, "%s: first_booting_disabled.\n", __func__);
+		pdata->disable(pdata->dev);
+	}
+}
+
 static void sec_input_handler_wait_resume_work(struct work_struct *work)
 {
 	struct sec_ts_plat_data *pdata = container_of(work, struct sec_ts_plat_data, irq_work);
@@ -174,7 +221,7 @@ static void sec_input_handler_wait_resume_work(struct work_struct *work)
 		desc->action->thread_fn(irq, desc->action->dev_id);
 	}
 out:
-	enable_irq(irq);
+	sec_input_forced_enable_irq(irq);
 }
 
 int sec_input_handler_start(struct device *dev)
@@ -235,6 +282,8 @@ static void location_detect(struct sec_ts_plat_data *pdata, int t_id)
 
 void sec_delay(unsigned int ms)
 {
+	if (!ms)
+		return;
 	if (ms < 20)
 		usleep_range(ms * 1000, ms * 1000);
 	else
@@ -354,7 +403,7 @@ int sec_input_store_grip_data(struct device *dev, int *cmd_param)
 		if (cmd_param[1] == 0) {
 			pdata->grip_data.edgehandler_direction = 0;
 			input_info(true, dev, "%s: [edge handler] clear\n", __func__);
-		} else if (cmd_param[1] < 3) {
+		} else if (cmd_param[1] < 5) {
 			pdata->grip_data.edgehandler_direction = cmd_param[1];
 			pdata->grip_data.edgehandler_start_y = cmd_param[2];
 			pdata->grip_data.edgehandler_end_y = cmd_param[3];
@@ -588,16 +637,20 @@ ssize_t sec_input_get_common_hw_param(struct sec_ts_plat_data *pdata, char *buf)
 	strlcat(buff, tbuff, sizeof(buff));
 
 	memset(tbuff, 0x00, sizeof(tbuff));
-	snprintf(tbuff, sizeof(tbuff), "\"TCOM%s\":\"%d\"", mdev, pdata->hw_param.comm_err_count);
+	snprintf(tbuff, sizeof(tbuff), "\"TCOM%s\":\"%d\",", mdev, pdata->hw_param.comm_err_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TCHK%s\":\"%d\",", mdev, pdata->hw_param.checksum_result);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TRIC%s\":\"%d\"", mdev, pdata->hw_param.ic_reset_count);
 	strlcat(buff, tbuff, sizeof(buff));
 
 	if (GET_DEV_COUNT(pdata->multi_dev) != MULTI_DEV_SUB) {
 		memset(tbuff, 0x00, sizeof(tbuff));
 		snprintf(tbuff, sizeof(tbuff), ",\"TMUL\":\"%d\",", pdata->hw_param.multi_count);
-		strlcat(buff, tbuff, sizeof(buff));
-
-		memset(tbuff, 0x00, sizeof(tbuff));
-		snprintf(tbuff, sizeof(tbuff), "\"TCHK\":\"%d\",", pdata->hw_param.checksum_result);
 		strlcat(buff, tbuff, sizeof(buff));
 
 		memset(tbuff, 0x00, sizeof(tbuff));
@@ -607,11 +660,7 @@ ssize_t sec_input_get_common_hw_param(struct sec_ts_plat_data *pdata, char *buf)
 		strlcat(buff, tbuff, sizeof(buff));
 
 		memset(tbuff, 0x00, sizeof(tbuff));
-		snprintf(tbuff, sizeof(tbuff), "\"TMCF\":\"%d\",", pdata->hw_param.mode_change_failed_count);
-		strlcat(buff, tbuff, sizeof(buff));
-
-		memset(tbuff, 0x00, sizeof(tbuff));
-		snprintf(tbuff, sizeof(tbuff), "\"TRIC\":\"%d\"", pdata->hw_param.ic_reset_count);
+		snprintf(tbuff, sizeof(tbuff), "\"TMCF\":\"%d\"", pdata->hw_param.mode_change_failed_count);
 		strlcat(buff, tbuff, sizeof(buff));
 	}
 
@@ -640,6 +689,7 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata)
 	unsigned int irq = gpio_to_irq(pdata->irq_gpio);
 	struct irq_desc *desc = irq_to_desc(irq);
 	char tclm_buff[INPUT_TCLM_LOG_BUF_SIZE] = { 0 };
+	char fw_ver_prefix[7] = { 0 };
 
 	pdata->print_info_cnt_open++;
 
@@ -664,16 +714,20 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata)
 	snprintf(tclm_buff, sizeof(tclm_buff), "");
 #endif
 
+	if (pdata->ic_vendor_name[0] != 0)
+		snprintf(fw_ver_prefix, sizeof(fw_ver_prefix), "%c%c%02X%02X",
+				pdata->ic_vendor_name[0], pdata->ic_vendor_name[1], pdata->img_version_of_ic[0], pdata->img_version_of_ic[1]);
+
 	input_info(true, dev,
-			"mode:%04X tc:%d noise:%d/%d ext_n:%d wet:%d wc:%d(f:%d) lp:%x fn:%04X/%04X irqd:%d ED:%d PK:%d LS:%d// v:%02X%02X %s // tmp:%d // #%d %d\n",
-			pdata->print_info_currnet_mode, pdata->touch_count,
+			"tc:%d noise:%d/%d ext_n:%d wet:%d wc:%d(f:%d) lp:%x fn:%04X/%04X irqd:%d ED:%d PK:%d LS:%d// v:%s%02X%02X %s chk:%d // tmp:%d // #%d %d\n",
+			pdata->touch_count,
 			atomic_read(&pdata->touch_noise_status), atomic_read(&pdata->touch_pre_noise_status),
 			pdata->external_noise_mode, pdata->wet_mode,
 			pdata->wirelesscharger_mode, pdata->force_wirelesscharger_mode,
 			pdata->lowpower_mode, pdata->touch_functions, pdata->ic_status, desc->depth,
 			pdata->ed_enable, pdata->pocket_mode, pdata->low_sensitivity_mode,
-			pdata->img_version_of_ic[2], pdata->img_version_of_ic[3],
-			tclm_buff,
+			fw_ver_prefix, pdata->img_version_of_ic[2], pdata->img_version_of_ic[3],
+			tclm_buff, pdata->hw_param.checksum_result,
 			pdata->tsp_temperature_data,
 			pdata->print_info_cnt_open, pdata->print_info_cnt_release);
 }
@@ -710,6 +764,12 @@ void sec_input_gesture_report(struct device *dev, int id, int x, int y)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 	char buff[SEC_TS_GESTURE_REPORT_BUFF_SIZE] = { 0 };
+
+	if (pdata->support_gesture_uevent) {
+		if (!IS_ERR_OR_NULL(pdata->sec))
+			sec_cmd_send_gesture_uevent(pdata->sec, id, x, y);
+		return;
+	}
 
 	pdata->gesture_id = id;
 	pdata->gesture_x = x;
@@ -773,7 +833,10 @@ static void sec_input_coord_report(struct device *dev, u8 t_id)
 			pdata->print_info_cnt_release = 0;
 			pdata->palm_flag = 0;
 		}
-		input_report_key(pdata->input_dev, BTN_PALM, pdata->palm_flag);
+		if (pdata->blocking_palm)
+			input_report_key(pdata->input_dev, BTN_PALM, 0);
+		else
+			input_report_key(pdata->input_dev, BTN_PALM, pdata->palm_flag);
 	} else if (action == SEC_TS_COORDINATE_ACTION_PRESS || action == SEC_TS_COORDINATE_ACTION_MOVE) {
 		if (action == SEC_TS_COORDINATE_ACTION_PRESS) {
 			pdata->touch_count++;
@@ -794,7 +857,10 @@ static void sec_input_coord_report(struct device *dev, u8 t_id)
 		input_mt_report_slot_state(pdata->input_dev, MT_TOOL_FINGER, 1);
 		input_report_key(pdata->input_dev, BTN_TOUCH, 1);
 		input_report_key(pdata->input_dev, BTN_TOOL_FINGER, 1);
-		input_report_key(pdata->input_dev, BTN_PALM, pdata->palm_flag);
+		if (pdata->blocking_palm)
+			input_report_key(pdata->input_dev, BTN_PALM, 0);
+		else
+			input_report_key(pdata->input_dev, BTN_PALM, pdata->palm_flag);
 
 		input_report_abs(pdata->input_dev, ABS_MT_POSITION_X, pdata->coord[t_id].x);
 		input_report_abs(pdata->input_dev, ABS_MT_POSITION_Y, pdata->coord[t_id].y);
@@ -812,8 +878,8 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 	if (action == SEC_TS_COORDINATE_ACTION_PRESS) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[P] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
-				t_id, (pdata->input_dev->mt->trkid - 1) & TRKID_MAX,
+				"[P] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d fod:%x\n",
+				t_id, input_mt_get_value(&pdata->input_dev->mt->slots[t_id], ABS_MT_TRACKING_ID),
 				pdata->coord[t_id].x, pdata->coord[t_id].y, pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
 				pdata->location, pdata->touch_count,
@@ -821,47 +887,48 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].noise_status, atomic_read(&pdata->touch_noise_status),
 				atomic_read(&pdata->touch_pre_noise_status), pdata->coord[t_id].noise_level,
 				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
-				pdata->coord[t_id].freq_id);
+				pdata->coord[t_id].freq_id, pdata->coord[t_id].fod_debug);
 #else
 		input_info(true, dev,
-				"[P] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
-				t_id, (pdata->input_dev->mt->trkid - 1) & TRKID_MAX,
+				"[P] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d fod:%x\n",
+				t_id, input_mt_get_value(&pdata->input_dev->mt->slots[t_id], ABS_MT_TRACKING_ID),
 				pdata->coord[t_id].z, pdata->coord[t_id].major,
 				pdata->coord[t_id].minor, pdata->location, pdata->touch_count,
 				pdata->coord[t_id].ttype,
 				pdata->coord[t_id].noise_status, atomic_read(&pdata->touch_noise_status),
 				atomic_read(&pdata->touch_pre_noise_status), pdata->coord[t_id].noise_level,
 				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
-				pdata->coord[t_id].freq_id);
+				pdata->coord[t_id].freq_id, pdata->coord[t_id].fod_debug);
 #endif
 
 	} else if (action == SEC_TS_COORDINATE_ACTION_MOVE) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[M] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
-				t_id, (pdata->input_dev->mt->trkid - 1) & TRKID_MAX,
+				"[M] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d fod:%x\n",
+				t_id, input_mt_get_value(&pdata->input_dev->mt->slots[t_id], ABS_MT_TRACKING_ID),
 				pdata->coord[t_id].x, pdata->coord[t_id].y, pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
 				pdata->location, pdata->touch_count,
 				pdata->coord[t_id].ttype, pdata->coord[t_id].noise_status,
 				atomic_read(&pdata->touch_noise_status), atomic_read(&pdata->touch_pre_noise_status),
 				pdata->coord[t_id].noise_level, pdata->coord[t_id].max_strength,
-				pdata->coord[t_id].hover_id_num, pdata->coord[t_id].freq_id);
+				pdata->coord[t_id].hover_id_num, pdata->coord[t_id].freq_id, pdata->coord[t_id].fod_debug);
 #else
 		input_info(true, dev,
-				"[M] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
-				t_id, (pdata->input_dev->mt->trkid - 1) & TRKID_MAX, pdata->coord[t_id].z,
+				"[M] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d fod:%x\n",
+				t_id, input_mt_get_value(&pdata->input_dev->mt->slots[t_id], ABS_MT_TRACKING_ID),
+				pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
 				pdata->location, pdata->touch_count,
 				pdata->coord[t_id].ttype, pdata->coord[t_id].noise_status,
 				atomic_read(&pdata->touch_noise_status), atomic_read(&pdata->touch_pre_noise_status),
 				pdata->coord[t_id].noise_level, pdata->coord[t_id].max_strength,
-				pdata->coord[t_id].hover_id_num, pdata->coord[t_id].freq_id);
+				pdata->coord[t_id].hover_id_num, pdata->coord[t_id].freq_id, pdata->coord[t_id].fod_debug);
 #endif
 	} else if (action == SEC_TS_COORDINATE_ACTION_RELEASE || action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
+				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d, fid:%d fod:%x\n",
 				action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE ? "A" : "",
 				t_id, pdata->location,
 				pdata->coord[t_id].x - pdata->coord[t_id].p_x,
@@ -872,10 +939,10 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].noise_status, atomic_read(&pdata->touch_noise_status),
 				atomic_read(&pdata->touch_pre_noise_status), pdata->coord[t_id].noise_level,
 				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
-				pdata->coord[t_id].freq_id);
+				pdata->coord[t_id].freq_id, pdata->coord[t_id].fod_debug);
 #else
 		input_info(true, dev,
-				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
+				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d, fid:%d fod:%x\n",
 				action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE ? "A" : "",
 				t_id, pdata->location,
 				pdata->coord[t_id].x - pdata->coord[t_id].p_x,
@@ -885,12 +952,12 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].noise_status, atomic_read(&pdata->touch_noise_status),
 				atomic_read(&pdata->touch_pre_noise_status), pdata->coord[t_id].noise_level,
 				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
-				pdata->coord[t_id].freq_id);
+				pdata->coord[t_id].freq_id, pdata->coord[t_id].fod_debug);
 #endif
 	}
 }
 
-void sec_input_coord_event(struct device *dev, int t_id)
+void sec_input_coord_event_fill_slot(struct device *dev, int t_id)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 
@@ -946,9 +1013,19 @@ void sec_input_coord_event(struct device *dev, int t_id)
 		}
 	}
 
-	input_sync(pdata->input_dev);
+	pdata->fill_slot = true;
 }
-EXPORT_SYMBOL(sec_input_coord_event);
+EXPORT_SYMBOL(sec_input_coord_event_fill_slot);
+
+void sec_input_coord_event_sync_slot(struct device *dev)
+{
+	struct sec_ts_plat_data *pdata = dev->platform_data;
+
+	if (pdata->fill_slot)
+		input_sync(pdata->input_dev);
+	pdata->fill_slot = false;
+}
+EXPORT_SYMBOL(sec_input_coord_event_sync_slot);
 
 void sec_input_release_all_finger(struct device *dev)
 {
@@ -1017,7 +1094,8 @@ static void sec_input_set_prop(struct device *dev, struct input_dev *input_dev, 
 	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
 	set_bit(BTN_PALM, input_dev->keybit);
 	set_bit(BTN_LARGE_PALM, input_dev->keybit);
-	set_bit(KEY_BLACK_UI_GESTURE, input_dev->keybit);
+	if (!pdata->support_gesture_uevent)
+		set_bit(KEY_BLACK_UI_GESTURE, input_dev->keybit);
 	set_bit(KEY_INT_CANCEL, input_dev->keybit);
 
 	set_bit(propbit, input_dev->propbit);
@@ -1126,6 +1204,9 @@ int sec_input_pinctrl_configure(struct device *dev, bool on)
 	struct pinctrl_state *state;
 
 	input_info(true, dev, "%s: %s\n", __func__, on ? "ACTIVE" : "SUSPEND");
+
+	if (sec_check_secure_trusted_mode_status(pdata))
+		return 0;
 
 	if (on) {
 		state = pinctrl_lookup_state(pdata->pinctrl, "on_state");
@@ -1358,6 +1439,8 @@ void sec_input_support_feature_parse_dt(struct device *dev)
 	pdata->sense_off_when_cover_closed = of_property_read_bool(np, "sense_off_when_cover_closed");
 	pdata->not_support_temp_noti = of_property_read_bool(np, "not_support_temp_noti");
 	pdata->support_vbus_notifier = of_property_read_bool(np, "support_vbus_notifier");
+	pdata->support_gesture_uevent = of_property_read_bool(np, "support_gesture_uevent");
+	pdata->support_always_on = of_property_read_bool(np, "support_always_on");
 
 	if (of_property_read_u32(np, "support_rawdata_map_num", &pdata->support_rawdata_map_num) < 0)
 		pdata->support_rawdata_map_num = 0;
@@ -1365,6 +1448,10 @@ void sec_input_support_feature_parse_dt(struct device *dev)
 	if (of_property_read_u32(np, "sec,support_sensor_hall", &pdata->support_sensor_hall) < 0)
 		pdata->support_sensor_hall = 0;
 	pdata->support_lightsensor_detect = of_property_read_bool(np, "support_lightsensor_detect");
+
+	pdata->prox_lp_scan_enabled = of_property_read_bool(np, "sec,prox_lp_scan_enabled");
+	input_info(true, dev, "%s: Prox LP Scan enabled %s\n",
+				__func__, pdata->prox_lp_scan_enabled ? "ON" : "OFF");
 
 	pdata->enable_sysinput_enabled = of_property_read_bool(np, "sec,enable_sysinput_enabled");
 	input_info(true, dev, "%s: Sysinput enabled %s\n",
@@ -1386,8 +1473,8 @@ void sec_input_support_feature_parse_dt(struct device *dev)
 			pdata->support_ear_detect, pdata->support_fod_lp_mode);
 	input_info(true, dev, "COB:%d, disable_vsync_scan:%d,\n",
 			pdata->chip_on_board, pdata->disable_vsync_scan);
-	input_info(true, dev, "not_support_temp_noti:%d, support_vbus_notifier:%d\n",
-			pdata->not_support_temp_noti, pdata->support_vbus_notifier);
+	input_info(true, dev, "not_support_temp_noti:%d, support_vbus_notifier:%d support_always_on:%d\n",
+			pdata->not_support_temp_noti, pdata->support_vbus_notifier, pdata->support_always_on);
 }
 EXPORT_SYMBOL(sec_input_support_feature_parse_dt);
 
@@ -1443,7 +1530,9 @@ int sec_input_parse_dt(struct device *dev)
 		}
 	}
 
-	pdata->irq_gpio = of_get_named_gpio(np, "sec,irq_gpio", 0);
+	mutex_init(&pdata->irq_lock);
+
+	pdata->irq_gpio = of_get_named_gpio_flags(np, "sec,irq_gpio", 0, &pdata->irq_flag);
 	if (gpio_is_valid(pdata->irq_gpio)) {
 		char label[15] = { 0 };
 
@@ -1453,6 +1542,10 @@ int sec_input_parse_dt(struct device *dev)
 			input_err(true, dev, "%s: Unable to request %s [%d]\n", __func__, label, pdata->irq_gpio);
 			return -EINVAL;
 		}
+		input_info(true, dev, "%s: irq gpio requested. %s [%d]\n", __func__, label, pdata->irq_gpio);
+		if (pdata->irq_flag)
+			input_info(true, dev, "%s: irq flag 0x%02X\n", __func__, pdata->irq_flag);
+		pdata->irq = gpio_to_irq(pdata->irq_gpio);
 	} else {
 		input_err(true, dev, "%s: Failed to get irq gpio\n", __func__);
 		return -EINVAL;
@@ -1588,6 +1681,26 @@ int sec_input_parse_dt(struct device *dev)
 		input_err(true, dev, "%s: failed to create irq_workqueue, err: %ld\n",
 				__func__, PTR_ERR(pdata->irq_workqueue));
 	}
+
+	pdata->work_queue_probe_enabled = of_property_read_bool(np, "work_queue_probe_enabled");
+	if (pdata->work_queue_probe_enabled) {
+		pdata->probe_workqueue = create_singlethread_workqueue("sec_tsp_probe_wq");
+		if (!IS_ERR_OR_NULL(pdata->probe_workqueue)) {
+			INIT_WORK(&pdata->probe_work, sec_input_probe_work);
+			input_info(true, dev, "%s: set sec_input_probe_work\n", __func__);
+		} else {
+			pdata->work_queue_probe_enabled = false;
+			input_err(true, dev, "%s: failed to create probe_work, err: %ld enabled:%s\n",
+					__func__, PTR_ERR(pdata->probe_workqueue),
+					pdata->work_queue_probe_enabled ? "ON" : "OFF");
+		}
+	}
+
+	if (of_property_read_u32(np, "sec,probe_queue_delay", &pdata->work_queue_probe_delay)) {
+		input_dbg(false, dev, "%s: Failed to get work_queue_probe_delay property\n", __func__);
+		pdata->work_queue_probe_delay = 0;
+	}
+
 
 	sec_input_support_feature_parse_dt(dev);
 
@@ -1830,12 +1943,87 @@ int stui_tsp_type(void)
 }
 EXPORT_SYMBOL(stui_tsp_type);
 
+void sec_input_irq_enable(struct sec_ts_plat_data *pdata)
+{
+	struct irq_desc *desc;
+
+	if (!pdata->irq)
+		return;
+
+	desc = irq_to_desc(pdata->irq);
+	if (!desc) {
+		pr_info("%s: invalid irq number: %d\n", __func__, pdata->irq);
+		return;
+	}
+
+	mutex_lock(&pdata->irq_lock);
+
+	while (desc->depth > 0) {
+		enable_irq(pdata->irq);
+		pr_info("%s: depth: %d\n", __func__, desc->depth);
+	}
+	atomic_set(&pdata->irq_enabled, SEC_INPUT_IRQ_ENABLE);
+	mutex_unlock(&pdata->irq_lock);
+}
+EXPORT_SYMBOL(sec_input_irq_enable);
+
+void sec_input_irq_disable(struct sec_ts_plat_data *pdata)
+{
+	struct irq_desc *desc;
+
+	if (!pdata->irq)
+		return;
+
+	desc = irq_to_desc(pdata->irq);
+	if (!desc) {
+		pr_info("%s: invalid irq number: %d\n", __func__, pdata->irq);
+		return;
+	}
+
+	mutex_lock(&pdata->irq_lock);
+	if (atomic_read(&pdata->irq_enabled) == SEC_INPUT_IRQ_ENABLE)
+		disable_irq(pdata->irq);
+	pr_info("%s: depth: %d\n", __func__, desc->depth);
+
+	atomic_set(&pdata->irq_enabled, SEC_INPUT_IRQ_DISABLE);
+	mutex_unlock(&pdata->irq_lock);
+}
+EXPORT_SYMBOL(sec_input_irq_disable);
+
+void sec_input_irq_disable_nosync(struct sec_ts_plat_data *pdata)
+{
+	struct irq_desc *desc;
+
+	if (!pdata->irq)
+		return;
+
+	desc = irq_to_desc(pdata->irq);
+	if (!desc) {
+		pr_info("%s: invalid irq number: %d\n", __func__, pdata->irq);
+		return;
+	}
+
+	mutex_lock(&pdata->irq_lock);
+
+	if (atomic_read(&pdata->irq_enabled) == SEC_INPUT_IRQ_ENABLE)
+		disable_irq_nosync(pdata->irq);
+	pr_info("%s: depth: %d\n", __func__, desc->depth);
+
+	atomic_set(&pdata->irq_enabled, SEC_INPUT_IRQ_DISABLE_NOSYNC);
+	mutex_unlock(&pdata->irq_lock);
+}
+EXPORT_SYMBOL(sec_input_irq_disable_nosync);
+
 void sec_input_forced_enable_irq(int irq)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
+
+	if (!desc)
+		return;
+
 	while (desc->depth > 0) {
-		pr_info("%s: depth: %d\n", __func__, desc->depth);
 		enable_irq(irq);
+		pr_info("%s: depth: %d\n", __func__, desc->depth);
 	}
 }
 EXPORT_SYMBOL(sec_input_forced_enable_irq);
@@ -1844,6 +2032,8 @@ int sec_input_enable_device(struct device *dev)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 	int retval;
+
+	sec_input_utc_marker(dev, __func__);
 
 	retval = mutex_lock_interruptible(&pdata->enable_mutex);
 	if (retval)
@@ -1861,6 +2051,8 @@ int sec_input_disable_device(struct device *dev)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 	int retval;
+
+	sec_input_utc_marker(dev, __func__);
 
 	retval = mutex_lock_interruptible(&pdata->enable_mutex);
 	if (retval)
@@ -1894,7 +2086,7 @@ static int __init sec_input_init(void)
 #endif
 
 	pr_info("%s %s --\n", SECLOG, __func__);
-	return 0;
+	return ret;
 }
 
 static void __exit sec_input_exit(void)

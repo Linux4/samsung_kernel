@@ -1773,10 +1773,12 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 				SLSI_NET_ERR(dev, "Could not allocate memory for peer entry (queueset:%d)\n", queueset);
 
 				/* Free previously allocated peer database memory till current queueset */
+				slsi_spinlock_lock(&ndev_vif->peer_lock);
 				for (j = 0; j < queueset; j++) {
 					kfree(ndev_vif->peer_sta_record[j]);
 					ndev_vif->peer_sta_record[j] = NULL;
 				}
+				slsi_spinlock_unlock(&ndev_vif->peer_lock);
 
 				ret = -ENOMEM;
 				goto exit_with_error;
@@ -2086,9 +2088,10 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev, boo
 	int               i;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
-	struct list_head    *pos, *q;
+	struct slsi_ssid_info *ssid_info, *ssid_tmp;
 #endif
-	struct list_head    *blacklist_pos, *blacklist_q;
+	struct slsi_bssid_blacklist_info *blacklist_info, *blacklist_tmp;
+
 
 	SLSI_NET_DBG1(dev, SLSI_NETDEV, "Unregister:%pM\n", dev->dev_addr);
 
@@ -2108,10 +2111,12 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev, boo
 	if (!SLSI_IS_VIF_INDEX_P2P(ndev_vif)) {
 		int queueset;
 
+		slsi_spinlock_lock(&ndev_vif->peer_lock);
 		for (queueset = 0; queueset < SLSI_ADHOC_PEER_CONNECTIONS_MAX; queueset++) {
 			kfree(ndev_vif->peer_sta_record[queueset]);
 			ndev_vif->peer_sta_record[queueset] = NULL;
 		}
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 	}
 
 	if (SLSI_IS_VIF_INDEX_P2P(ndev_vif)) {
@@ -2146,17 +2151,14 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev, boo
 	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
 		SLSI_NET_DBG1(dev, SLSI_NETDEV, "Cleaning up scan list!\n");
-		list_for_each_safe(pos, q, &ndev_vif->sta.ssid_info) {
-			struct slsi_ssid_info *ssid_info = list_entry(pos, struct slsi_ssid_info, list);
-			struct list_head *bssid_pos, *p;
+		list_for_each_entry_safe(ssid_info, ssid_tmp, &ndev_vif->sta.ssid_info, list) {
+			struct slsi_bssid_info *bssid_info, *bssid_tmp;
 
-			list_for_each_safe(bssid_pos, p, &ssid_info->bssid_list) {
-				struct slsi_bssid_info *bssid_info = list_entry(bssid_pos, struct slsi_bssid_info, list);
-
-				list_del(bssid_pos);
+			list_for_each_entry_safe(bssid_info, bssid_tmp, &ssid_info->bssid_list, list) {
+				list_del(&bssid_info->list);
 				kfree(bssid_info);
 			}
-			list_del(pos);
+			list_del(&ssid_info->list);
 			kfree(ssid_info);
 		}
 #endif
@@ -2167,19 +2169,13 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev, boo
 		kfree(ndev_vif->acl_data_hal);
 		ndev_vif->acl_data_hal = NULL;
 
-		list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
-			struct slsi_bssid_blacklist_info *blacklist_info = list_entry(blacklist_pos,
-				struct slsi_bssid_blacklist_info, list);
-
-			list_del(blacklist_pos);
+		list_for_each_entry_safe(blacklist_info, blacklist_tmp, &ndev_vif->acl_data_fw_list, list) {
+			list_del(&blacklist_info->list);
 			kfree(blacklist_info);
 		}
 		/* Clear IOCTL list */
-		list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_ioctl_list) {
-			struct slsi_ioctl_blacklist_info *blacklist_info = list_entry(blacklist_pos,
-				struct slsi_ioctl_blacklist_info, list);
-
-			list_del(blacklist_pos);
+		list_for_each_entry_safe(blacklist_info, blacklist_tmp, &ndev_vif->acl_data_ioctl_list, list) {
+			list_del(&blacklist_info->list);
 			kfree(blacklist_info);
 		}
 	}

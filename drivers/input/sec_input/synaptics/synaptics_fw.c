@@ -411,20 +411,6 @@ int synaptics_ts_compare_image_id_info(struct synaptics_ts_data *ts,
 		image_config_id[0], image_config_id[1], image_config_id[2], image_config_id[3],
 		device_config_id[0], device_config_id[1], device_config_id[2], device_config_id[3]);
 
-	if (ts->plat_data->bringup == 2) {
-		input_info(true, ts->dev, "%s: skip fw_update for bringup\n", __func__);
-		result = UPDATE_NONE;
-		goto exit;
-	}
-
-	//E2, E3 temp
-	if ((strcmp(ts->plat_data->firmware_name, "tsp_synaptics/s3916t_e2.bin") == 0) ||
-		(strcmp(ts->plat_data->firmware_name, "tsp_synaptics/s3916t_e3.bin") == 0)) {
-		input_info(true, ts->dev, "%s: s3916t skip fw_update\n", __func__);
-		result = UPDATE_NONE;
-		goto exit;
-	}
-
 	/* check f/w version
 	 * ver[0] : IC version		-> skip update
 	 * ver[1] : Project version	-> need update

@@ -374,7 +374,6 @@ void stm_ts_reinit(void *data)
 		stm_ts_fix_active_mode(ts, true);
 out:
 	stm_ts_set_scanmode(ts, ts->scan_mode);
-	
 }
 /*
  * don't need it in interrupt handler in reality, but, need it in vendor IC for requesting vendor IC.
@@ -417,6 +416,7 @@ static void stm_ts_coord_parsing(struct stm_ts_data *ts, struct stm_ts_event_coo
 							p_event_coord->hover_id_num);
 	ts->plat_data->coord[t_id].noise_status = p_event_coord->noise_status;
 	ts->plat_data->coord[t_id].freq_id = p_event_coord->freq_id;
+	ts->plat_data->coord[t_id].fod_debug = p_event_coord->fod_debug;
 
 	if (ts->plat_data->coord[t_id].z <= 0)
 		ts->plat_data->coord[t_id].z = 1;
@@ -522,7 +522,7 @@ static void stm_ts_coordinate_event(struct stm_ts_data *ts, u8 *event_buff)
 	}
 
 	p_event_coord = (struct stm_ts_event_coordinate *)event_buff;
-	ts->game_mode = p_event_coord->game_mode;
+	ts->block_rawdata = p_event_coord->game_mode;
 
 	t_id = p_event_coord->tid;
 
@@ -534,7 +534,7 @@ static void stm_ts_coordinate_event(struct stm_ts_data *ts, u8 *event_buff)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_PALM)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_WET)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_GLOVE)) {
-			sec_input_coord_event(ts->dev, t_id);
+			sec_input_coord_event_fill_slot(ts->dev, t_id);
 		} else {
 			input_err(true, ts->dev,
 					"%s: do not support coordinate type(%d)\n",
@@ -909,14 +909,15 @@ irqreturn_t stm_ts_irq_thread(int irq, void *ptr)
 		remain_event_count--;
 	} while (remain_event_count >= 0);
 
+	sec_input_coord_event_sync_slot(ts->dev);
+
 	stm_ts_external_func(ts);
 
 	mutex_unlock(&ts->eventlock);
 
 #ifdef ENABLE_RAWDATA_SERVICE
-	if (raw_irq_flag && !ts->game_mode) {
+	if (ts->plat_data->support_rawdata && raw_irq_flag && !ts->block_rawdata)
 		stm_ts_get_rawdata(ts);
-	}
 #endif
 	return IRQ_HANDLED;
 }
@@ -930,14 +931,11 @@ int stm_ts_enable(struct device *dev)
 
 	if (!ts->probe_done) {
 		input_err(true, ts->dev, "%s: device probe is not done\n", __func__);
+		ts->plat_data->first_booting_disabled = false;
 		return 0;
 	}
 	cancel_delayed_work_sync(&ts->work_read_info);
-#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
-#if IS_ENABLED(CONFIG_INPUT_SEC_TRUSTED_TOUCH)
-	cancel_delayed_work_sync(&ts->close_work);
-#endif
-#endif
+
 	atomic_set(&ts->plat_data->enabled, true);
 	ts->plat_data->prox_power_off = 0;
 
@@ -1001,64 +999,13 @@ retry_fodmode:
 		schedule_work(&ts->work_print_info.work);
 	return 0;
 }
-#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
-#if IS_ENABLED(CONFIG_INPUT_SEC_TRUSTED_TOUCH)
-void stm_ts_close_work(struct work_struct *work)
-{
-	struct stm_ts_data *ts = container_of(work, struct stm_ts_data, close_work.work);
-	struct timespec64 cur_ts;
-	struct rtc_time tm;
-	ktime_t calltime;
-	u64 realtime;
-	int curr_time;
 
-	if (atomic_read(&ts->plat_data->pvm->trusted_touch_enabled)) {
-		calltime = ktime_get();
-		realtime = ktime_to_ns(calltime);
-		do_div(realtime, NSEC_PER_USEC);
-		curr_time = realtime / USEC_PER_MSEC;
-		ktime_get_real_ts64(&cur_ts);
-		rtc_time64_to_tm(cur_ts.tv_sec, &tm);
-		input_info(true, ts->dev,
-			"%s: start waiting for trusted touch to be disable.(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC/ kernel: %d)\n",
-			__func__,  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-			tm.tm_hour, tm.tm_min, tm.tm_sec, cur_ts.tv_nsec, curr_time);
-
-		wait_for_completion_interruptible(&ts->plat_data->pvm->trusted_touch_powerdown);
-
-		calltime = ktime_get();
-		realtime = ktime_to_ns(calltime);
-		do_div(realtime, NSEC_PER_USEC);
-		curr_time = realtime / USEC_PER_MSEC;
-		ktime_get_real_ts64(&cur_ts);
-		rtc_time64_to_tm(cur_ts.tv_sec, &tm);
-		input_info(true, ts->dev,
-			"%s: disabling trusted touch is done(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC/ kernel: %d)\n",
-			__func__,  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-			tm.tm_hour, tm.tm_min, tm.tm_sec, cur_ts.tv_nsec, curr_time);
-	}
-
-	mutex_lock(&ts->plat_data->enable_mutex);
-
-	cancel_delayed_work(&ts->reset_work);
-
-	if (sec_input_need_ic_off(ts->plat_data)) {
-		ts->plat_data->stop_device(ts);
-	} else {
-		if (ts->fix_active_mode)
-			stm_ts_fix_active_mode(ts, STM_TS_ACTIVE_FALSE);
-		ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
-	}
-
-	mutex_unlock(&ts->plat_data->enable_mutex);
-}
-#endif
-#endif
 int stm_ts_disable(struct device *dev)
 {
 	struct stm_ts_data *ts = dev_get_drvdata(dev);
 
 	if (!ts->probe_done) {
+		ts->plat_data->first_booting_disabled = true;
 		input_err(true, ts->dev, "%s: device probe is not done\n", __func__);
 		return 0;
 	}
@@ -1081,8 +1028,7 @@ int stm_ts_disable(struct device *dev)
 #if IS_ENABLED(CONFIG_INPUT_SEC_TRUSTED_TOUCH)
 	if (atomic_read(&ts->plat_data->pvm->trusted_touch_enabled)) {
 		input_info(true, ts->dev, "%s wait for disabling trusted touch\n", __func__);
-		schedule_work(&ts->close_work.work);
-		return 0;
+		wait_for_completion_interruptible(&ts->plat_data->pvm->trusted_touch_powerdown);
 	}
 #endif
 #endif
@@ -1107,6 +1053,13 @@ int stm_ts_stop_device(void *data)
 	struct stm_ts_data *ts = (struct stm_ts_data *)data;
 
 	input_info(true, ts->dev, "%s\n", __func__);
+
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SEC_FACTORY)
+	if (ts->panel_attached == STM_PANEL_DETACHED) {
+		input_err(true, ts->dev, "%s: panel detached(%d) skip!\n", __func__, ts->panel_attached);
+		return 0;
+	}
+#endif
 
 	mutex_lock(&ts->device_mutex);
 
@@ -1136,6 +1089,13 @@ int stm_ts_start_device(void *data)
 	u8 address = 0;
 
 	input_info(true, ts->dev, "%s\n", __func__);
+
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SEC_FACTORY)
+	if (ts->panel_attached == STM_PANEL_DETACHED) {
+		input_err(true, ts->dev, "%s: panel detached(%d) skip!\n", __func__, ts->panel_attached);
+		return ret;
+	}
+#endif
 
 	ts->plat_data->pinctrl_configure(ts->dev, true);
 
@@ -1290,12 +1250,14 @@ static void stm_ts_parse_dt(struct device *dev, struct stm_ts_data *ts)
 	if (of_property_read_u32(np, "stm,lpmode_change_delay", &ts->lpmode_change_delay))
 		ts->lpmode_change_delay = 5;
 
-	input_info(true, dev, "%s: lpmode_change_delay:%d\n", __func__, ts->lpmode_change_delay);
+	ts->support_mutual_raw = of_property_read_bool(np, "stm,support_mutual_raw");
+	ts->support_grip_cmd_v2 = of_property_read_bool(np, "stm,support_grip_cmd_v2");
 
-	 ts->support_mutual_raw = of_property_read_bool(np, "stm,support_mutual_raw");
+	input_info(true, dev, "%s: lpmode_change_delay:%d, support_mutual_raw:%d, support_grip_cmd_v2:%d\n",
+			__func__, ts->lpmode_change_delay, ts->support_mutual_raw, ts->support_grip_cmd_v2);	
 }
 
-static int stm_ts_init(struct stm_ts_data *ts)
+int stm_ts_init(struct stm_ts_data *ts)
 {
 	int ret = 0;
 
@@ -1318,6 +1280,7 @@ static int stm_ts_init(struct stm_ts_data *ts)
 	ts->stm_ts_systemreset = stm_ts_systemreset;
 	ts->stm_ts_command = stm_ts_command;
 	ts->plat_data->pinctrl_configure = sec_input_pinctrl_configure;
+	ts->plat_data->probe = stm_ts_probe;
 	ts->plat_data->power = sec_input_power;
 	ts->plat_data->start_device = stm_ts_start_device;
 	ts->plat_data->stop_device = stm_ts_stop_device;
@@ -1343,11 +1306,6 @@ static int stm_ts_init(struct stm_ts_data *ts)
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	INIT_DELAYED_WORK(&ts->plat_data->interrupt_notify_work, stm_ts_interrupt_notify);
 #endif
-#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
-#if IS_ENABLED(CONFIG_INPUT_SEC_TRUSTED_TOUCH)
-	INIT_DELAYED_WORK(&ts->close_work, stm_ts_close_work);
-#endif
-#endif
 	mutex_init(&ts->device_mutex);
 	mutex_init(&ts->read_write_mutex);
 	mutex_init(&ts->eventlock);
@@ -1369,15 +1327,7 @@ static int stm_ts_init(struct stm_ts_data *ts)
 	ts->plat_data->enable = stm_ts_enable;
 	ts->plat_data->disable = stm_ts_disable;
 
-	ret = stm_ts_fn_init(ts);
-	if (ret) {
-		input_err(true, ts->dev, "%s: fail to init fn\n", __func__);
-		goto err_fn_init;
-	}
-
-	ts->plat_data->sec_ws = wakeup_source_register(ts->sec.fac_dev, "TSP");
-	ret = device_init_wakeup(ts->sec.fac_dev, true);
-	input_info(true, ts->dev, "%s: device_init_wakeup: fac_dev: ret: %d\n", __func__, ret);
+	ts->plat_data->sec_ws = wakeup_source_register(NULL, "TSP");
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUMP_MODE)
 	sec_input_dumpkey_register(MULTI_DEV_NONE, stm_ts_dump_tsp_log, ts->dev);
@@ -1387,9 +1337,6 @@ static int stm_ts_init(struct stm_ts_data *ts)
 
 	return 0;
 
-err_fn_init:
-	ts->plat_data->enable = NULL;
-	ts->plat_data->disable = NULL;
 err_register_input_device:
 error_allocate_mem:
 	input_err(true, ts->dev, "%s: failed(%d)\n", __func__, ret);
@@ -1404,6 +1351,10 @@ void stm_ts_release(struct stm_ts_data *ts)
 	ts->plat_data->enable = NULL;
 	ts->plat_data->disable = NULL;
 
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SEC_FACTORY)
+	panel_notifier_unregister(&ts->lcd_nb);
+#endif
+
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	sec_input_unregister_notify(&ts->stm_input_nb);
 #endif
@@ -1417,19 +1368,11 @@ void stm_ts_release(struct stm_ts_data *ts)
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	cancel_delayed_work_sync(&ts->plat_data->interrupt_notify_work);
 #endif
-#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
-#if IS_ENABLED(CONFIG_INPUT_SEC_TRUSTED_TOUCH)
-	cancel_delayed_work_sync(&ts->close_work);
-#endif
-#endif
 	flush_delayed_work(&ts->reset_work);
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUMP_MODE)
 	cancel_delayed_work_sync(&ts->check_rawdata);
 	sec_input_dumpkey_unregister(MULTI_DEV_NONE);
 #endif
-	device_init_wakeup(ts->sec.fac_dev, false);
-	stm_ts_fn_remove(ts);
-
 	wakeup_source_unregister(ts->plat_data->sec_ws);
 
 	ts->plat_data->lowpower_mode = false;
@@ -1438,27 +1381,37 @@ void stm_ts_release(struct stm_ts_data *ts)
 	ts->plat_data->power(ts->dev, false);
 }
 
-
-int stm_ts_probe(struct stm_ts_data *ts)
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SEC_FACTORY)
+static int stm_notifier_call(struct notifier_block *n, unsigned long event, void *data)
 {
-	int ret = 0;
-#if IS_MODULE(CONFIG_TOUCHSCREEN_STM) || IS_MODULE(CONFIG_TOUCHSCREEN_STM_SPI)
-	static int deferred_flag = 0;
+	struct stm_ts_data *ts = container_of(n, struct stm_ts_data, lcd_nb);
+	struct panel_notifier_event_data *evtdata = data;
 
-	if (!deferred_flag) {
-		deferred_flag = 1;
-		input_info(true, ts->dev, "deferred_flag boot %s\n", __func__);
-		return -EPROBE_DEFER;
+	input_dbg(false, ts->dev, "%s: called! event = %ld,  ev_data->state = %d\n", __func__, event, evtdata->state);
+
+	if (event == PANEL_EVENT_UB_CON_STATE_CHANGED) {
+		input_info(false, ts->dev, "%s: event = %ld, ev_data->state = %d\n", __func__, event, evtdata->state);
+
+		if (evtdata->state == PANEL_EVENT_UB_CON_STATE_DISCONNECTED) {
+			input_info(true, ts->dev, "%s: UB_CON_DISCONNECTED : stm_ts_stop_device\n", __func__);
+			stm_ts_stop_device(ts);
+			ts->panel_attached = STM_PANEL_DETACHED;
+		} else if(evtdata->state == PANEL_EVENT_UB_CON_STATE_CONNECTED && ts->panel_attached != STM_PANEL_ATTACHED) {
+			input_info(true, ts->dev, "%s: UB_CON_CONNECTED : panel attached!\n", __func__);
+			ts->panel_attached = STM_PANEL_ATTACHED;
+		}
 	}
+
+	return 0;
+}
 #endif
 
-	input_info(true, ts->dev, "%s\n", __func__);
+int stm_ts_probe(struct device *dev)
+{
+	struct stm_ts_data *ts = dev_get_drvdata(dev);
+	int ret = 0;
 
-	ret = stm_ts_init(ts);
-	if (ret < 0) {
-		input_err(true, ts->dev, "%s: fail to init resource\n", __func__);
-		return ret;
-	}
+	input_info(true, ts->dev, "%s\n", __func__);
 
 	ret = stm_ts_hw_init(ts);
 	if (ret < 0) {
@@ -1481,6 +1434,12 @@ int stm_ts_probe(struct stm_ts_data *ts)
 
 	ts->probe_done = true;
 	atomic_set(&ts->plat_data->enabled, true);
+	ret = stm_ts_fn_init(ts);
+	if (ret < 0) {
+		input_err(true, ts->dev, "%s: fail to init fn\n", __func__);
+		stm_ts_release(ts);
+		return ret;
+	}
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	if (sysfs_create_group(&ts->plat_data->input_dev->dev.kobj, &secure_attr_group) < 0)
@@ -1504,9 +1463,19 @@ int stm_ts_probe(struct stm_ts_data *ts)
 						VBUS_NOTIFY_DEV_CHARGER);
 #endif
 
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SEC_FACTORY)
+	ts->lcd_nb.priority = 1;
+	ts->lcd_nb.notifier_call = stm_notifier_call;
+	ts->panel_attached = STM_PANEL_ATTACHED;
+	panel_notifier_register(&ts->lcd_nb);
+#endif
+
 	input_err(true, ts->dev, "%s: done\n", __func__);
 #ifdef ENABLE_RAWDATA_SERVICE
-	stm_ts_rawdata_init(ts);
+	if (ts->plat_data->support_rawdata) {
+		stm_ts_rawdata_init(ts);
+		stm_ts_read_rawdata_address(ts);
+	}
 #endif
 	input_log_fix();
 
@@ -1521,6 +1490,10 @@ int stm_ts_probe(struct stm_ts_data *ts)
 
 int stm_ts_remove(struct stm_ts_data *ts)
 {
+	if (!ts->probe_done) {
+		input_info(true, ts->dev, "%s don't success probe yet\n", __func__);
+		return 0;
+	}
 	input_info(true, ts->dev, "%s\n", __func__);
 
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP) && IS_ENABLED(CONFIG_TOUCHSCREEN_STM_SPI)
@@ -1530,8 +1503,10 @@ int stm_ts_remove(struct stm_ts_data *ts)
 	atomic_set(&ts->plat_data->shutdown_called, true);
 	mutex_unlock(&ts->plat_data->enable_mutex);
 
+	sec_input_probe_work_remove(ts->plat_data);
 	disable_irq_nosync(ts->irq);
 	stm_ts_release(ts);
+	stm_ts_fn_remove(ts);
 
 	return 0;
 }

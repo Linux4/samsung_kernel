@@ -339,7 +339,7 @@ static int dp_cap_ske_send_eks(uint8_t *m, size_t *m_len,
 
 	/* Generate riv */
 	if (!tx_ctx->share_skey) {
-		ret = ske_generate_riv(tx_ctx->riv);
+		ret = ske_generate_riv(tx_ctx->riv, &tx_ctx->type);
 		if (ret)
 			return ERR_GENERATE_RIV;
 	}
@@ -354,7 +354,8 @@ static int dp_cap_ske_send_eks(uint8_t *m, size_t *m_len,
 	/* Make Message */
 	memcpy(m, enc_skey, HDCP_AKE_MKEY_BYTE_LEN);
 	memcpy(&m[HDCP_AKE_MKEY_BYTE_LEN], tx_ctx->riv, HDCP_RTX_BYTE_LEN);
-	*m_len = HDCP_AKE_MKEY_BYTE_LEN + HDCP_RTX_BYTE_LEN;
+	m[HDCP_AKE_MKEY_BYTE_LEN + HDCP_RTX_BYTE_LEN] = tx_ctx->type;
+	*m_len = HDCP_AKE_MKEY_BYTE_LEN + HDCP_RTX_BYTE_LEN + sizeof(uint8_t);
 
 	return 0;
 }

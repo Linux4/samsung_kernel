@@ -58,7 +58,7 @@ bool f2fs_available_free_memory(struct f2fs_sb_info *sbi, int type)
 	avail_ram = val.totalram - val.totalhigh;
 
 	/*
-	 * give 25%, 25%, 50%, 50%, 50% memory for each components respectively
+	 * give 25%, 25%, 50%, 50%, 25%, 25% memory for each components respectively
 	 */
 	if (type == FREE_NIDS) {
 		mem_size = (nm_i->nid_cnt[FREE_NID] *
@@ -83,12 +83,16 @@ bool f2fs_available_free_memory(struct f2fs_sb_info *sbi, int type)
 						sizeof(struct ino_entry);
 		mem_size >>= PAGE_SHIFT;
 		res = mem_size < ((avail_ram * nm_i->ram_thresh / 100) >> 1);
-	} else if (type == EXTENT_CACHE) {
-		mem_size = (atomic_read(&sbi->total_ext_tree) *
+	} else if (type == READ_EXTENT_CACHE || type == AGE_EXTENT_CACHE) {
+		enum extent_type etype = type == READ_EXTENT_CACHE ?
+						EX_READ : EX_BLOCK_AGE;
+		struct extent_tree_info *eti = &sbi->extent_tree[etype];
+
+		mem_size = (atomic_read(&eti->total_ext_tree) *
 				sizeof(struct extent_tree) +
-				atomic_read(&sbi->total_ext_node) *
+				atomic_read(&eti->total_ext_node) *
 				sizeof(struct extent_node)) >> PAGE_SHIFT;
-		res = mem_size < ((avail_ram * nm_i->ram_thresh / 100) >> 1);
+		res = mem_size < ((avail_ram * nm_i->ram_thresh / 100) >> 2);
 	} else if (type == INMEM_PAGES) {
 		/* @fs.sec -- a8f1fe6ef2c636b244d6b55a363ebe61 -- */
 		/* it allows 50% / total_ram for inmemory pages */
@@ -867,6 +871,31 @@ int f2fs_get_dnode_of_data(struct dnode_of_data *dn, pgoff_t index, int mode)
 	dn->ofs_in_node = offset[level];
 	dn->node_page = npage[level];
 	dn->data_blkaddr = f2fs_data_blkaddr(dn);
+
+	if (is_inode_flag_set(dn->inode, FI_COMPRESSED_FILE) &&
+					f2fs_sb_has_readonly(sbi)) {
+		struct dnode_of_data dn2 = *dn;
+		unsigned int cluster_size = F2FS_I(dn->inode)->i_cluster_size;
+		unsigned int c_len;
+		block_t blkaddr;
+
+		dn2.ofs_in_node = round_down(dn2.ofs_in_node, cluster_size);
+		dn2.data_blkaddr = f2fs_data_blkaddr(&dn2);
+		c_len = f2fs_cluster_blocks_are_contiguous(&dn2);
+
+		if (!c_len)
+			goto out;
+
+		blkaddr = f2fs_data_blkaddr(&dn2);
+		if (blkaddr == COMPRESS_ADDR)
+			blkaddr = data_blkaddr(dn2.inode, dn2.node_page,
+						dn2.ofs_in_node + 1);
+
+		f2fs_update_read_extent_tree_range_compressed(dn->inode,
+					round_down(index, cluster_size),
+					blkaddr, cluster_size, c_len);
+	}
+out:
 	__lock_dnode(dn, false);
 	return 0;
 
@@ -943,8 +972,10 @@ static int truncate_dnode(struct dnode_of_data *dn)
 	dn->ofs_in_node = 0;
 	f2fs_truncate_data_blocks(dn);
 	err = truncate_node(dn);
-	if (err)
+	if (err) {
+		f2fs_put_page(page, 1);
 		return err;
+	}
 
 	return 1;
 }
@@ -1297,7 +1328,11 @@ struct page *f2fs_new_node_page(struct dnode_of_data *dn, unsigned int ofs)
 		dec_valid_node_count(sbi, dn->inode, !ofs);
 		goto fail;
 	}
-	f2fs_bug_on(sbi, new_ni.blk_addr != NULL_ADDR);
+	if (unlikely(new_ni.blk_addr != NULL_ADDR)) {
+		err = -EFSCORRUPTED;
+		set_sbi_flag(sbi, SBI_NEED_FSCK);
+		goto fail;
+	}
 #endif
 	new_ni.nid = dn->nid;
 	new_ni.ino = dn->inode->i_ino;
@@ -1358,8 +1393,8 @@ static int read_node_page(struct page *page, int op_flags)
 	if (err)
 		return err;
 
-	if (unlikely(ni.blk_addr == NULL_ADDR) ||
-			is_sbi_flag_set(sbi, SBI_IS_SHUTDOWN)) {
+	/* NEW_ADDR can be seen, after cp_error drops some dirty node pages */
+	if (unlikely(ni.blk_addr == NULL_ADDR || ni.blk_addr == NEW_ADDR)) {
 		if (ni.blk_addr == NULL_ADDR)
 			f2fs_warn(sbi, "node block address is NULL, nid: %lu, ino: %lu, blk_addr: %lu, version: %u, flag: 0x%x",
 					(unsigned long) ni.nid, (unsigned long) ni.ino,
@@ -2200,8 +2235,7 @@ static int f2fs_set_node_page_dirty(struct page *page)
 	if (IS_INODE(page))
 		f2fs_inode_chksum_set(F2FS_P_SB(page), page);
 #endif
-	if (!PageDirty(page)) {
-		__set_page_dirty_nobuffers(page);
+	if (__set_page_dirty_nobuffers(page)) {
 		inc_page_count(F2FS_P_SB(page), F2FS_DIRTY_NODES);
 		set_page_private_reference(page);
 		return 1;
@@ -2418,7 +2452,6 @@ static int scan_nat_page(struct f2fs_sb_info *sbi,
 				page_address(nat_page), 0, F2FS_BLKSIZE);
 			return -EINVAL;
 		}
-
 
 		if (blk_addr == NULL_ADDR) {
 			add_free_nid(sbi, start_nid, true, true);

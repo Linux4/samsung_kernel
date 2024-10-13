@@ -291,6 +291,13 @@ enum sec_battery_direct_charging_source_ctrl {
 	SEC_STORE_MODE = 0x4,
 };
 
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
+};
+
 extern const char *sb_rx_type_str(int type);
 extern const char *sb_vout_ctr_mode_str(int vout_mode);
 extern const char *sb_rx_vout_str(int vout);
@@ -481,7 +488,7 @@ enum sec_battery_check {
  */
 #define SEC_CHARGER_MINIMUM_SIOP_CHARGING_CURRENT	2
 
-#define SEC_BATTERY_CALBE_TYPE_FROM_MTK	1
+#define SEC_BATTERY_CABLE_TYPE_FROM_MTK	1
 
 #if defined(CONFIG_TABLET_MODEL_CONCEPT) && !defined(CONFIG_SEC_FACTORY)
 #define SLOW_CHARGING_CURRENT_STANDARD          1000
@@ -523,11 +530,17 @@ typedef struct {
 	cable_type == SEC_BATTERY_CABLE_PREPARE_WIRELESS_20 || \
 	cable_type == SEC_BATTERY_CABLE_WIRELESS_TX)
 
-#define is_wireless_type(cable_type) \
-	(is_hv_wireless_type(cable_type) || is_nv_wireless_type(cable_type))
+#define is_wireless_type(cable_type) ( \
+	is_hv_wireless_type(cable_type) || \
+	is_nv_wireless_type(cable_type))
 
-#define is_wireless_fake_type(cable_type) \
-	(is_wireless_type(cable_type) || (cable_type == SEC_BATTERY_CABLE_WIRELESS_FAKE))
+#define is_wireless_fake_type(cable_type) ( \
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_FAKE || \
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_EPP_FAKE)
+
+#define is_wireless_all_type(cable_type) ( \
+	is_wireless_type(cable_type) || \
+	is_wireless_fake_type(cable_type))
 
 #define is_not_wireless_type(cable_type) ( \
 	cable_type != SEC_BATTERY_CABLE_WIRELESS && \

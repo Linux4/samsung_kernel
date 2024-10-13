@@ -1027,6 +1027,8 @@ static int abox_tplg_apply_pipeline_item(struct abox_tplg_pipeline_item *item,
 	struct device *dev = cmpnt->dev;
 	int ret;
 
+	abox_dbg(dev, "pipeline item apply: %s\n", item->name);
+
 	ret = abox_tplg_put_pipeline_item(item, false);
 	if (ret < 0)
 		abox_err(dev, "pipeline item apply fail: %s %d\n", item->name, ret);
@@ -1135,14 +1137,14 @@ static int abox_tplg_dapm_put_mux_virt(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	unsigned int value = ucontrol->value.enumerated.item[0];
 
-	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
-			e->texts[value]);
-
 	if (value >= e->items) {
 		abox_err(dev, "%s: value=%d, items=%d\n",
 				kcontrol->id.name, value, e->items);
 		return -EINVAL;
 	}
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
+			e->texts[value]);
 
 #ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
 	abox_tplg_kcontrol_check_usage(kdata, kdata);
@@ -1189,14 +1191,14 @@ static int abox_tplg_dapm_put_mux(struct snd_kcontrol *kcontrol,
 	unsigned int value = ucontrol->value.enumerated.item[0];
 	int ret;
 
-	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
-			e->texts[value]);
-
 	if (value >= e->items) {
 		abox_err(dev, "%s: value=%d, items=%d\n",
 				kcontrol->id.name, value, e->items);
 		return -EINVAL;
 	}
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
+			e->texts[value]);
 
 #ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
 	abox_tplg_kcontrol_check_usage(kdata, kdata);

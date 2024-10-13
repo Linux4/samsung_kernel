@@ -457,7 +457,7 @@ err:
 	return -EIO;
 }
 
-int stm_ts_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+int stm_ts_i2c_init(struct i2c_client *client)
 {
 	struct stm_ts_data *ts;
 	struct sec_ts_plat_data *pdata;
@@ -517,13 +517,39 @@ int stm_ts_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	ts->plat_data->stui_tsp_exit = stm_stui_tsp_exit;
 	ts->plat_data->stui_tsp_type = stm_stui_tsp_type;
 #endif
-	ret = stm_ts_probe(ts);
+	ret = stm_ts_init(ts);
+	if (ret < 0) {
+		input_err(true, ts->dev, "%s: fail to init resource\n", __func__);
+		return ret;
+	}
+	ret = 0;
 	return ret;
 
 error_allocate_tdata:
 error_allocate_pdata:
 error_allocate_mem:
 	return ret;
+}
+
+int stm_ts_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+{
+	struct stm_ts_data *ts;
+	int ret = 0;
+
+	input_info(true, &client->dev, "%s\n", __func__);
+
+	ret = stm_ts_i2c_init(client);
+	if (ret < 0) {
+		input_err(true, &client->dev, "%s: fail to init resource\n", __func__);
+		return ret;
+	}
+
+	ts = i2c_get_clientdata(client);
+	if (!ts->plat_data->work_queue_probe_enabled)
+		return stm_ts_probe(ts->dev);
+
+	queue_work(ts->plat_data->probe_workqueue, &ts->plat_data->probe_work);
+	return 0;
 }
 
 int stm_ts_i2c_remove(struct i2c_client *client)

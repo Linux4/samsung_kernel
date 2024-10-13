@@ -29,16 +29,27 @@
 #define MAFPC_UPDATED_FROM_SVC		0x01
 #define MAFPC_UPDATED_TO_DEV		0x10
 
-#define MAFPC_V4L2_DEV_NAME	"mafpc-sd"
+#define ABC_CTRL_CMD_OFFSET(_mafpc) (MAFPC_HEADER_SIZE)
+#define ABC_CTRL_CMD_SIZE(_mafpc) ((_mafpc)->ctrl_cmd_len)
+#define ABC_COMP_IMG_OFFSET(_mafpc) (ABC_CTRL_CMD_OFFSET(_mafpc) + ABC_CTRL_CMD_SIZE(_mafpc))
+#define ABC_COMP_IMG_SIZE(_mafpc) ((_mafpc)->comp_img_len)
+#define ABC_SCALE_FACTOR_OFFSET(_mafpc) (ABC_COMP_IMG_OFFSET(_mafpc) + ABC_COMP_IMG_SIZE(_mafpc))
+#define ABC_SCALE_FACTOR_SIZE(_mafpc) ((_mafpc)->scale_len)
+#define ABC_SCALE_FACTOR_EXIST(_mafpc) ((_mafpc)->scale_len > 0)
+#define ABC_DATA_SIZE(_mafpc) (ABC_SCALE_FACTOR_OFFSET(_mafpc) + ABC_SCALE_FACTOR_SIZE(_mafpc))
 
+enum {
+	INSTANT_CMD_NONE,
+	INSTANT_CMD_ON,
+	INSTANT_CMD_OFF,
+	MAX_INSTANT_CMD,
+};
 
 /*reserved mem info for generate lpd burn-in image*/
 struct comp_mem_info {
 	bool reserved;
-
 	phys_addr_t image_base;
 	size_t image_size;
-
 	phys_addr_t lut_base;
 	size_t lut_size;
 };
@@ -47,42 +58,30 @@ struct mafpc_device {
 	int id;
 	struct device *dev;
 	struct miscdevice miscdev;
-	struct v4l2_subdev sd;
+	struct panel_mutex lock;
+	struct panel_device *panel;
 
 	bool req_update;
-
-	/* To prevent rapid image quality change due to mAFPC application,
-	Instant_on performs at frame done after Instant_on ioctl.*/
-	bool req_instant_on;
-
-	wait_queue_head_t wq_wait;
-	struct task_struct *thread;
-
 	bool enable;
-	struct panel_mutex mafpc_lock;
-
-	struct panel_device *panel;
+	u32 written;
 
 	u8 *comp_img_buf;
 	int comp_img_len;
-
-	u8 ctrl_cmd[MAX_MAFPC_CTRL_CMD_SIZE];
-
 	u8 *scale_buf;
 	u8 scale_len;
-
-	u32 written;
-
 	u8 *comp_crc_buf;
 	int comp_crc_len;
-
 	/* table: platform brightness -> scale factor index */
 	u8 *scale_map_br_tbl;
 	int scale_map_br_tbl_len;
-
+	u8 ctrl_cmd[MAX_MAFPC_CTRL_CMD_SIZE];
 	u32 ctrl_cmd_len;
 
 	struct comp_mem_info comp_mem;
+
+	struct workqueue_struct *instant_wq;
+	struct work_struct instant_work;
+	u32 instant_cmd;
 };
 
 struct mafpc_info {
@@ -98,27 +97,17 @@ struct mafpc_info {
 	u32 abc_ctrl_cmd_len;
 };
 
+struct mafpc_device *get_mafpc_device(struct panel_device *panel);
 struct mafpc_device *mafpc_device_create(void);
 int mafpc_device_init(struct mafpc_device *mafpc);
-struct mafpc_device *get_mafpc_device(struct panel_device *panel);
+int mafpc_device_probe(struct mafpc_device *mafpc, struct mafpc_info *info);
+int mafpc_set_written_to_dev(struct mafpc_device *mafpc);
+int mafpc_clear_written_to_dev(struct mafpc_device *mafpc);
 
 #define MAFPC_IOCTL_MAGIC		'M'
-
 #define IOCTL_MAFPC_ON			_IOW(MAFPC_IOCTL_MAGIC, 1, int)
 #define IOCTL_MAFPC_ON_INSTANT		_IOW(MAFPC_IOCTL_MAGIC, 2, int)
 #define IOCTL_MAFPC_OFF			_IOW(MAFPC_IOCTL_MAGIC, 3, int)
 #define IOCTL_MAFPC_OFF_INSTANT		_IOW(MAFPC_IOCTL_MAGIC, 4, int)
 #define IOCTL_CLEAR_IMAGE_BUFFER	_IOW(MAFPC_IOCTL_MAGIC, 5, int)
-
-
-#define MAFPC_V4L2_IOC_BASE		'V'
-
-#define V4L2_IOCTL_PROBE_ABC		_IOR(MAFPC_V4L2_IOC_BASE, 0, int *)
-#define V4L2_IOCTL_MAFPC_GET_INFO	_IOR(MAFPC_V4L2_IOC_BASE, 3, int *)
-
-#define V4L2_IOCTL_MAFPC_PANEL_INIT	_IOR(MAFPC_V4L2_IOC_BASE, 4, int *)
-#define V4L2_IOCTL_MAFPC_PANEL_EXIT 	_IOR(MAFPC_V4L2_IOC_BASE, 5, int *)
-
-#define V4L2_IOCL_MAFPC_FRAME_DONE	_IOR(MAFPC_V4L2_IOC_BASE, 6, int *)
-
 #endif

@@ -25,6 +25,8 @@
 #endif
 #include "../panel_drv.h"
 #include "../panel_debug.h"
+#include "oled_common.h"
+#include "oled_property.h"
 
 #ifdef CONFIG_USDM_PANEL_DIMMING
 unsigned int s6e3fc5_gamma_bits[S6E3FC5_NR_TP] = {
@@ -488,7 +490,7 @@ int s6e3fc5_maptbl_init_analog_gamma(struct maptbl *tbl)
 
 #ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 /*
- * s6e3fc5_decoder_test - test ddi's decoder function
+ * s6e3fc5_decoder_test (A34/A54) - test ddi's decoder function
  *
  * description of state values:
  * [0](14h 1st): 0xF6 (OK) other (NG)
@@ -545,6 +547,82 @@ int s6e3fc5_decoder_test(struct panel_device *panel, void *data, u32 len)
 		(read_buf2[0] == 0xB7) && (read_buf2[1] == 0xAA) &&
 		(read_buf3[0] == 0xF6) && (read_buf3[1] == 0x17) &&
 		(read_buf4[0] == 0xB7) && (read_buf4[1] == 0xAA)) {
+		ret = PANEL_DECODER_TEST_PASS;
+		panel_info("Pass [normal]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, [low]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, ret: %d\n",
+			read_buf1[0], read_buf1[1], read_buf2[0], read_buf2[1],
+			read_buf3[0], read_buf3[1], read_buf4[0], read_buf4[1],	ret);
+	} else {
+		ret = PANEL_DECODER_TEST_FAIL;
+		panel_info("Fail [normal]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, [low]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, ret: %d\n",
+			read_buf1[0], read_buf1[1], read_buf2[0], read_buf2[1],
+			read_buf3[0], read_buf3[1], read_buf4[0], read_buf4[1],	ret);
+	}
+
+	snprintf((char *)data, len, "%02x %02x %02x %02x %02x %02x %02x %02x",
+		read_buf1[0], read_buf1[1], read_buf2[0], read_buf2[1],
+		read_buf3[0], read_buf3[1], read_buf4[0], read_buf4[1]);
+
+	return ret;
+}
+
+/*
+ * s6e3fc5_decoder_test_v2 (A35/A55) - test ddi's decoder function
+ *
+ * description of state values:
+ * [0](14h 1st): 0x29 (OK) other (NG)
+ * [1](14h 2nd): 0xDC (OK) other (NG)
+ *
+ * [0](15h 1st): 0x13 (OK) other (NG)
+ * [1](15h 2nd): 0x15 (OK) other (NG)
+ */
+int s6e3fc5_decoder_test_v2(struct panel_device *panel, void *data, u32 len)
+{
+	int ret = 0;
+	u8 read_buf1[S6E3FC5_DECODER_TEST1_LEN] = { -1, -1 };
+	u8 read_buf2[S6E3FC5_DECODER_TEST2_LEN] = { -1, -1 };
+	u8 read_buf3[S6E3FC5_DECODER_TEST3_LEN] = { -1, -1 };
+	u8 read_buf4[S6E3FC5_DECODER_TEST4_LEN] = { -1, -1 };
+
+	if (!panel)
+		return -EINVAL;
+
+	ret = panel_do_seqtbl_by_name_nolock(panel, PANEL_DECODER_TEST_SEQ);
+	if (unlikely(ret < 0)) {
+		panel_err("failed to write decoder-test seq\n");
+		return ret;
+	}
+
+	ret = panel_resource_copy(panel, read_buf1, "decoder_test1"); // 0x14 in normal voltage
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test1 copy failed\n");
+		return -ENODATA;
+	}
+
+	ret = panel_resource_copy(panel, read_buf2, "decoder_test2"); // 0x15 in normal voltage
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test2 copy failed\n");
+		return -ENODATA;
+	}
+
+	ret = panel_resource_copy(panel, read_buf3, "decoder_test3"); // 0x14 in low voltage
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test1 copy failed\n");
+		return -ENODATA;
+	}
+
+	ret = panel_resource_copy(panel, read_buf4, "decoder_test4"); // 0x15 in low voltage
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test2 copy failed\n");
+		return -ENODATA;
+	}
+	panel_info("buf1: 0x%02x,0x%02x, buf2: 0x%02x,0x%02x, buf3: 0x%02x,0x%02x, buf4: 0x%02x,0x%02x\n",
+				read_buf1[0], read_buf1[1], read_buf2[0], read_buf2[1],
+				read_buf3[0], read_buf3[1], read_buf4[0], read_buf4[1]);
+
+	if ((read_buf1[0] == 0x29) && (read_buf1[1] == 0xDC) &&
+		(read_buf2[0] == 0x13) && (read_buf2[1] == 0x15) &&
+		(read_buf3[0] == 0x29) && (read_buf3[1] == 0xDC) &&
+		(read_buf4[0] == 0x13) && (read_buf4[1] == 0x15)) {
 		ret = PANEL_DECODER_TEST_PASS;
 		panel_info("Pass [normal]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, [low]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, ret: %d\n",
 			read_buf1[0], read_buf1[1], read_buf2[0], read_buf2[1],
@@ -783,7 +861,7 @@ struct pnobj_func s6e3fc5_function_table[MAX_S6E3FC5_FUNCTION] = {
 	[S6E3FC5_MAPTBL_GETIDX_IRC_MODE] = __PNOBJ_FUNC_INITIALIZER(S6E3FC5_MAPTBL_GETIDX_IRC_MODE, s6e3fc5_maptbl_getidx_irc_mode),
 };
 
-int s6e3fc5_init(void)
+int s6e3fc5_init(struct common_panel_info *cpi)
 {
 	static bool once;
 	int ret;
@@ -795,6 +873,9 @@ int s6e3fc5_init(void)
 			ARRAY_SIZE(s6e3fc5_function_table));
 	if (ret < 0)
 		panel_err("failed to insert s6e3fc5_function_table\n");
+
+	cpi->prop_lists[USDM_DRV_LEVEL_COMMON] = oled_property_array;
+	cpi->num_prop_lists[USDM_DRV_LEVEL_COMMON] = oled_property_array_size;
 
 	once = true;
 

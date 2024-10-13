@@ -3779,15 +3779,21 @@ static void is_ischain_update_otf_data(struct is_device_ischain *device,
 				frame->fcount, frame->shot->ctl.aa.vendor_transientAction,  group->remainIntentCount);
 		}
 
-		if (group->intent_ctl.vendor_remosaicCropZoomRatio != AA_REMOSAIC_CROP_ZOOM_RATIO_INVALID){
-			frame->shot->ctl.aa.vendor_remosaicCropZoomRatio = group->intent_ctl.vendor_remosaicCropZoomRatio;
-			info("frame count(%d), vendor_remosaicCropZoomRatio(%d), remainIntentCount(%d)\n",
-				frame->fcount, frame->shot->ctl.aa.vendor_remosaicCropZoomRatio, group->remainIntentCount);
-		}
-
 		group->remainIntentCount--;
 	} else {
 		group->intent_ctl.vendor_transientAction = AA_TRANSIENT_ACTION_INVALID;
+	}
+
+	if (group->remainRemosaicCropIntentCount > 0) {
+		if (group->intent_ctl.vendor_remosaicCropZoomRatio != AA_REMOSAIC_CROP_ZOOM_RATIO_INVALID) {
+			frame->shot->ctl.aa.vendor_remosaicCropZoomRatio = group->intent_ctl.vendor_remosaicCropZoomRatio;
+			info("frame count(%d), vendor_remosaicCropZoomRatio(%d), remainRemosaicCropIntentCount(%d)\n",
+				frame->fcount, frame->shot->ctl.aa.vendor_remosaicCropZoomRatio,
+				group->remainRemosaicCropIntentCount);
+		}
+
+		group->remainRemosaicCropIntentCount--;
+	} else {
 		group->intent_ctl.vendor_remosaicCropZoomRatio = AA_REMOSAIC_CROP_ZOOM_RATIO_INVALID;
 	}
 #endif

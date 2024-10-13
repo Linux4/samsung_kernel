@@ -1193,7 +1193,7 @@ static DECLARE_PKTUI(r11s_mdnie_hbm_0) = {
 static DEFINE_VARIABLE_PACKET(r11s_mdnie_hbm_0, DSI_PKT_TYPE_WR, R11S_MDNIE_0, S6E3FC5_MDNIE_0_OFS);
 static DEFINE_PKTUI(r11s_mdnie_hbm_1, &r11s_mdnie_hbm_1_maptbl, S6E3FC5_DATA_OFS);
 static DEFINE_VARIABLE_PACKET(r11s_mdnie_hbm_1, DSI_PKT_TYPE_WR, R11S_MDNIE_1, S6E3FC5_MDNIE_1_OFS);
-static void *r11s_mdnie_hbm_cmdtbl[] = {
+static void *r11s_mdnie_hbm_ce_cmdtbl[] = {
 	&KEYINFO(r11s_level1_key_enable),
 	&KEYINFO(r11s_level2_key_enable),
 	&PKTINFO(r11s_mdnie_hbm_0),
@@ -1269,7 +1269,7 @@ static struct seqinfo r11s_mdnie_seqtbl[] = {
 	SEQINFO_INIT(MDNIE_GRAYSCALE_NEGATIVE_SEQ, r11s_mdnie_grayscale_negative_cmdtbl),
 	SEQINFO_INIT(MDNIE_COLOR_BLIND_HBM_SEQ, r11s_mdnie_color_blind_hbm_cmdtbl),
 	SEQINFO_INIT(MDNIE_BYPASS_SEQ, r11s_mdnie_bypass_cmdtbl),
-	SEQINFO_INIT(MDNIE_HBM_SEQ, r11s_mdnie_hbm_cmdtbl),
+	SEQINFO_INIT(MDNIE_HBM_CE_SEQ, r11s_mdnie_hbm_ce_cmdtbl),
 	SEQINFO_INIT(MDNIE_HDR_SEQ, r11s_mdnie_hdr_cmdtbl),
 	SEQINFO_INIT(MDNIE_NIGHT_SEQ, r11s_mdnie_night_cmdtbl),
 	SEQINFO_INIT(MDNIE_LIGHT_NOTIFICATION_SEQ, r11s_mdnie_light_notification_cmdtbl),
@@ -1354,7 +1354,7 @@ static struct mdnie_tune s6e3fc5_r11s_mdnie_tune = {
 	.num_night_level = S6E3FC5_R11S_MAX_NIGHT_LEVEL,
 	.num_color_lens_color = COLOR_LENS_COLOR_MAX,
 	.num_color_lens_level = COLOR_LENS_LEVEL_MAX,
-	.hbm_ce_lux = 30000,
+	.hbm_ce_lux = { 30000 },
 	.scr_white_len = S6E3FC5_SCR_WHITE_LEN,
 	.scr_cr_ofs = S6E3FC5_SCR_CR_OFS,
 	.night_mode_ofs = S6E3FC5_NIGHT_MODE_OFS,

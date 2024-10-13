@@ -1071,8 +1071,8 @@ static int syna_cdev_ioctl_set_reports(struct synaptics_ts_data *ts,
 	return -EINVAL;
 #endif
 
-	if (report_size == 0) {
-		input_err(true, ts->dev, "Invalid written size\n");
+	if (report_size == 0 || report_size > buf_size) {
+		input_err(true, ts->dev, "Invalid written size: %u\n", buf_size);
 		return -EINVAL;
 	}
 
@@ -1137,8 +1137,8 @@ static int syna_cdev_ioctl_send_message(struct synaptics_ts_data *ts,
 		return -EINVAL;
 	}
 
-	if (*msg_size == 0) {
-		input_err(true, ts->dev, "Invalid message length, msg size: 0\n");
+	if (*msg_size == 0 || *msg_size > buf_size) {
+		input_err(true, ts->dev, "Invalid message length, msg size: %u\n", *msg_size);
 		return -EINVAL;
 	}
 
@@ -1374,7 +1374,7 @@ static int syna_cdev_ioctl_store_pid(struct synaptics_ts_data *ts,
 		return -EINVAL;
 	}
 
-	if (data_size < 4) {
+	if (data_size < 4 || data_size > buf_size) {
 		input_err(true, ts->dev, "Invalid data_size\n");
 		return -EINVAL;
 	}

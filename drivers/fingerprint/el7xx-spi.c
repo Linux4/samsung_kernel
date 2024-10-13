@@ -29,11 +29,12 @@ struct debug_logger *g_logger;
 
 static void el7xx_reset(struct el7xx_data *etspi)
 {
-	pr_debug("Entry\n");
+	pr_info("Entry\n");
 	if (etspi->sleepPin) {
 		gpio_set_value(etspi->sleepPin, 0);
 		usleep_range(1050, 1100);
 		gpio_set_value(etspi->sleepPin, 1);
+		etspi->reset_count++;
 	}
 }
 
@@ -721,11 +722,33 @@ static ssize_t rb_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", etspi->rb);
 }
 
+static ssize_t resetcnt_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct el7xx_data *etspi = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", etspi->reset_count);
+}
+
+static ssize_t resetcnt_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t size)
+{
+	struct el7xx_data *etspi = dev_get_drvdata(dev);
+
+	if (sysfs_streq(buf, "c")) {
+		etspi->reset_count = 0;
+		pr_info("initialization is done\n");
+	}
+	return size;
+}
+
 static DEVICE_ATTR_RO(bfs_values);
 static DEVICE_ATTR_RO(type_check);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RW(resetcnt);
 static DEVICE_ATTR_RO(position);
 static DEVICE_ATTR_RO(rb);
 
@@ -735,6 +758,7 @@ static struct device_attribute *fp_attrs[] = {
 	&dev_attr_vendor,
 	&dev_attr_name,
 	&dev_attr_adm,
+	&dev_attr_resetcnt,
 	&dev_attr_position,
 	&dev_attr_rb,
 	NULL,
@@ -818,6 +842,7 @@ static int el7xx_probe_common(struct device *dev, struct el7xx_data *etspi)
 		goto el7xx_probe_spi_clk_register_failed;
 	}
 
+	etspi->reset_count = 0;
 	etspi->clk_setting->enabled_clk = false;
 	etspi->spi_value = 0;
 	etspi->clk_setting->spi_speed = (unsigned int)SLOW_BAUD_RATE;
@@ -994,6 +1019,16 @@ static int el7xx_remove_common(struct device *dev)
 }
 
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
+#if LINUX_VERSION_CODE > KERNEL_VERSION(6, 1, 0)
+static void el7xx_remove(struct spi_device *spi)
+{
+	struct el7xx_data *etspi = spi_get_drvdata(spi);
+
+	el7xx_free_buffer(etspi);
+	el7xx_remove_common(&spi->dev);
+	return;
+}
+#else
 static int el7xx_remove(struct spi_device *spi)
 {
 	struct el7xx_data *etspi = spi_get_drvdata(spi);
@@ -1002,13 +1037,14 @@ static int el7xx_remove(struct spi_device *spi)
 	el7xx_remove_common(&spi->dev);
 	return 0;
 }
+#endif /* LINUX_VERSION_CODE */
 #else
 static int el7xx_remove(struct platform_device *pdev)
 {
 	el7xx_remove_common(&pdev->dev);
 	return 0;
 }
-#endif
+#endif /* ENABLE_SENSORS_FPRINT_SECURE */
 
 static int el7xx_pm_suspend(struct device *dev)
 {

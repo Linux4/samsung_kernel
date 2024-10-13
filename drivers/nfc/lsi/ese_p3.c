@@ -95,16 +95,16 @@ static unsigned char debug_level = P3_FULL_DEBUG;
 		case P3_DEBUG_OFF: \
 			break; \
 		case P3_FULL_DEBUG: \
-			NFC_LOG_INFO("ESE: "msg); \
+			NFC_LOG_INFO("S: "msg); \
 			break; \
 		default: \
-			NFC_LOG_ERR("ESE: debug level %d", debug_level);\
+			NFC_LOG_ERR("S: debug level %d", debug_level);\
 			break; \
 		}; \
 	} while (0)
 
-#define P3_ERR_MSG(msg...) NFC_LOG_ERR("ESE: " msg)
-#define P3_INFO_MSG(msg...) NFC_LOG_INFO("ESE: " msg)
+#define P3_ERR_MSG(msg...) NFC_LOG_ERR("S: " msg)
+#define P3_INFO_MSG(msg...) NFC_LOG_INFO("S: " msg)
 #else
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level = P3_FULL_DEBUG;
@@ -151,6 +151,11 @@ struct p3_data {
 
 	bool pwr_always_on;
 	enum coldrst_type coldrst_type;
+
+	char opened_task[TASK_COMM_LEN + 1];
+	pid_t opened_pid;
+
+	u32 read_1byte_cnt;
 };
 
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
@@ -324,6 +329,7 @@ static int spip3_open(struct inode *inode, struct file *filp)
 #else
 	struct p3_data *p3_dev = container_of(filp->private_data, struct p3_data, p3_device);
 #endif
+	struct task_struct *task = current;
 	int ret = 0;
 
 	if (p3_dev == NULL) {
@@ -333,7 +339,8 @@ static int spip3_open(struct inode *inode, struct file *filp)
 
 	/* for defence MULTI-OPEN */
 	if (p3_dev->device_opened) {
-		P3_ERR_MSG("%s - ALREADY opened!\n", __func__);
+		P3_ERR_MSG("ALREADY opened! try(%d, %s), opened(%d, %s)\n",
+			task->pid, task->comm, p3_dev->opened_pid, p3_dev->opened_task);
 		return -EBUSY;
 	}
 #ifdef CONFIG_ESE_COLDRESET
@@ -343,7 +350,9 @@ static int spip3_open(struct inode *inode, struct file *filp)
 #endif
 	mutex_lock(&device_list_lock);
 	p3_dev->device_opened = true;
-	P3_INFO_MSG("open\n");
+	memcpy(p3_dev->opened_task, task->comm, TASK_COMM_LEN);
+	p3_dev->opened_pid = task->pid;
+	P3_INFO_MSG("open(%d, %s)\n", task->pid, task->comm);
 
 #ifdef FEATURE_ESE_WAKELOCK
 	wake_lock(&p3_dev->ese_lock);
@@ -367,14 +376,15 @@ static int spip3_open(struct inode *inode, struct file *filp)
 static int spip3_release(struct inode *inode, struct file *filp)
 {
 	struct p3_data *p3_dev = filp->private_data;
+	struct task_struct *task = current;
 	int ret = 0;
 
 	if (!p3_dev->device_opened) {
-		P3_ERR_MSG("%s - was NOT opened....\n", __func__);
+		P3_ERR_MSG("close(%d, %s) - NOT opened\n", task->pid, task->comm);
 		return 0;
 	}
 
-	P3_INFO_MSG("%s\n", __func__);
+	P3_INFO_MSG("close(%d, %s)\n", task->pid, task->comm);
 	mutex_lock(&device_list_lock);
 
 #ifdef FEATURE_ESE_WAKELOCK
@@ -402,8 +412,7 @@ static int spip3_release(struct inode *inode, struct file *filp)
 	trig_nfc_sleep();
 #endif
 #endif
-	P3_DBG_MSG("%s, users:%d, Major Minor No:%d %d\n", __func__,
-			p3_dev->users, imajor(inode), iminor(inode));
+
 	return 0;
 }
 
@@ -581,7 +590,10 @@ static ssize_t spip3_write(struct file *filp, const char *buf, size_t count,
 		ret = -EIO;
 	} else {
 		ret = count;
-		P3_INFO_MSG("w%zu\n", count);
+		if (p3_dev->read_1byte_cnt)
+			P3_INFO_MSG("w%zu 1r:%u\n", count, p3_dev->read_1byte_cnt);
+		else
+			P3_INFO_MSG("w%zu\n", count);
 	}
 
 	mutex_unlock(&p3_dev->buffer_mutex);
@@ -630,8 +642,16 @@ static ssize_t spip3_read(struct file *filp, char *buf, size_t count,
 		ret = -EFAULT;
 		goto fail;
 	}
-	if (count > 1 && rx_buffer[0])
-		P3_INFO_MSG("r%zu\n", count);
+	if (count == 1 && (rx_buffer[0] == 0 || rx_buffer[0] == 0xFF)) {
+		p3_dev->read_1byte_cnt++;
+	} else {
+		if (p3_dev->read_1byte_cnt) {
+			P3_INFO_MSG("r%zu t%u\n", count, p3_dev->read_1byte_cnt);
+			p3_dev->read_1byte_cnt = 0;
+		} else {
+			P3_INFO_MSG("r%zu\n", count);
+		}
+	}
 	ret = count;
 
 	mutex_unlock(&p3_dev->buffer_mutex);
@@ -761,7 +781,7 @@ static int spip3_probe(struct spi_device *spi)
 	delay_params = devm_kzalloc(&spi->dev, sizeof(struct spi_geni_qcom_ctrl_data),
 			GFP_KERNEL);
 	pr_info("%s success alloc ctrl_data!\n", __func__);
-	delay_params->spi_cs_clk_delay = 35; /*clock cycles*/
+	delay_params->spi_cs_clk_delay = 133; /*clock cycles*/
 	delay_params->spi_inter_words_delay = 0;
 	spi->controller_data = delay_params;
 #endif

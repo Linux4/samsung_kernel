@@ -1420,7 +1420,9 @@ int sensor_gn3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 	dbg_sensor(1, "[%s] min dgain : %d\n", __func__, dummy_value);
 	CALL_CISOPS(cis, cis_get_max_digital_gain, subdev, &dummy_value);
 	dbg_sensor(1, "[%s] max dgain : %d\n", __func__, dummy_value);
+	cis->cis_data->pre_remosaic_zoom_ratio_backup = cis->cis_data->pre_remosaic_zoom_ratio;
 	cis->cis_data->pre_remosaic_zoom_ratio = cis->cis_data->cur_remosaic_zoom_ratio;
+	cis->cis_data->pre_remosaic_zoom_ratio_vsync = cis->cis_data->sen_vsync_count;
 	cis->cis_data->pre_12bit_mode = cis->cis_data->cur_12bit_mode;
 	cis->cis_data->pre_lownoise_mode = cis->cis_data->cur_lownoise_mode;
 
@@ -1621,6 +1623,8 @@ int sensor_gn3_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 
 	cis->cis_data->pre_remosaic_zoom_ratio = 0;
 	cis->cis_data->cur_remosaic_zoom_ratio = 0;
+	cis->cis_data->pre_remosaic_zoom_ratio_backup = 0;
+	cis->cis_data->pre_remosaic_zoom_ratio_vsync = 0;
 
 	cis->cis_data->pre_hdr_mode = SENSOR_HDR_MODE_SINGLE;
 	cis->cis_data->cur_hdr_mode = SENSOR_HDR_MODE_SINGLE;

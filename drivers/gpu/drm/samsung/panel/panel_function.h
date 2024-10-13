@@ -30,6 +30,8 @@ struct pnobj_func {
 
 struct pnobj_func *create_pnobj_function(char *name, void *addr);
 void destroy_pnobj_function(struct pnobj_func *pnobj_func);
+struct pnobj_func *deepcopy_pnobj_function(struct pnobj_func *dst,
+		struct pnobj_func *src);
 int pnobj_function_list_add(struct pnobj_func *f, struct list_head *list);
 char *get_pnobj_function_name(struct pnobj_func *pnobj_func);
 unsigned long get_pnobj_function_addr(struct pnobj_func *pnobj_func);

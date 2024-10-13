@@ -1580,7 +1580,7 @@ static void mfc_set_tx_power(struct mfc_charger_data *charger, bool on)
 		charger->wc_rx_type = NO_DEV;
 		charger->gear_start_time = 0;
 		charger->duty_min = 20;
-		charger->ping_duty = 50;
+		charger->ping_duty = 0;
 		charger->tx_device_phm = 0;
 
 		alarm_cancel(&charger->phm_alarm);
@@ -4942,6 +4942,7 @@ static void mfc_set_iec_params(struct i2c_client *client, struct mfc_iec_data da
 static void mfc_mst_routine(struct mfc_charger_data *charger, u8 irq_src_l, u8 irq_src_h)
 {
 	u8 data = 0;
+	u8 now_ping_duty = 0;
 
 	pr_info("%s\n", __func__);
 
@@ -4967,6 +4968,12 @@ static void mfc_mst_routine(struct mfc_charger_data *charger, u8 irq_src_l, u8 i
 			mfc_set_iec_params(charger->client, charger->pdata->iec_params);
 			mfc_reg_write(charger->client, MFC_MST_MODE_SEL_REG, 0x03); /* set TX-ON mode */
 			mfc_set_cep_timeout(charger, charger->pdata->cep_timeout); // this is only for CAN
+			now_ping_duty = mfc_get_ping_duty(charger);
+			if ((charger->ping_duty != now_ping_duty) && charger->ping_duty) {
+				pr_info("%s: Reset ping_duty(0x%x), now_ping_duty(0x%x)\n",
+					__func__, charger->ping_duty, now_ping_duty);
+				mfc_set_ping_duty(charger, charger->ping_duty);
+			}
 			pr_info("@Tx_Mode %s: TX-ON Mode : %d\n", __func__, charger->pdata->wc_ic_rev);
 		} //ac missing is 0, ie, TX detected
 	}
@@ -6111,7 +6118,7 @@ static int mfc_s2miw04_charger_probe(
 	charger->is_suspend = false;
 	charger->device_event = 0;
 	charger->duty_min = 20;
-	charger->ping_duty = 50;
+	charger->ping_duty = 0;
 	charger->wpc_en_flag = (WPC_EN_SYSFS | WPC_EN_CHARGING | WPC_EN_CCIC | WPC_EN_SLATE);
 	charger->req_tx_id = false;
 	charger->is_abnormal_pad = false;

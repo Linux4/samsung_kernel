@@ -172,7 +172,6 @@ void slsi_tx_stop_all_queues(struct net_device *dev)
 	struct tx_netdev_data *tx_priv = NULL;
 	u8 q_num = 0;
 
-	SLSI_INFO_NODEV("\n");
 
 	tx_priv = (struct tx_netdev_data *)ndev_vif->tx_netdev_data;
 	if (!tx_priv) {
@@ -180,6 +179,7 @@ void slsi_tx_stop_all_queues(struct net_device *dev)
 		return;
 	}
 
+	SLSI_NET_INFO(dev, "\n");
 	for (q_num = 0; q_num < SLSI_TX_TOTAL_QUEUES; q_num++) {
 		netif_stop_subqueue(dev, q_num);
 	}
@@ -191,13 +191,13 @@ void slsi_tx_wake_all_queues(struct net_device *dev)
 	struct tx_netdev_data *tx_priv = NULL;
 	u8 q_num = 0;
 
-	SLSI_INFO_NODEV("\n");
 	tx_priv = (struct tx_netdev_data *)ndev_vif->tx_netdev_data;
 	if (!tx_priv) {
 		SLSI_WARN_NODEV("invalid Tx priv\n");
 		return;
 	}
 
+	SLSI_NET_INFO(dev, "\n");
 	for (q_num = 0; q_num < SLSI_TX_TOTAL_QUEUES; q_num++) {
 		netif_wake_subqueue(dev, q_num);
 	}
@@ -654,13 +654,25 @@ static int slsi_txbp_napi(struct napi_struct *napi, int budget)
 		goto tx_done;
 
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-	if (!tx->mx_claim) {
-		if (scsc_mx_service_claim_deferred(sdev->service, slsi_tx_mx_service_claim_complete_cb, (void *)tx)) {
-			slsi_tx_stop_all_queues(tx->ndev);
+	spin_lock_bh(&tx->mx_claim_lock);
+	/* PCIe is not claimed. */
+	if (!(tx->mx_claim & MX_CLAIM_STATE_CLAIMED)) {
+		/* Make sure deferred claim is called only once. */
+		if (!(tx->mx_claim & MX_CLAIM_STATE_DEFERRED)) {
+			if (scsc_mx_service_claim_deferred(sdev->service, slsi_tx_mx_service_claim_complete_cb, (void *)tx, WLAN_TX_DATA)) {
+				slsi_tx_stop_all_queues(tx->ndev);
+				tx->mx_claim |= MX_CLAIM_STATE_DEFERRED;
+				spin_unlock_bh(&tx->mx_claim_lock);
+				goto tx_done;
+			} else {
+				tx->mx_claim |= MX_CLAIM_STATE_CLAIMED;
+			}
+		} else {
+			spin_unlock_bh(&tx->mx_claim_lock);
 			goto tx_done;
 		}
-		tx->mx_claim = true;
 	}
+	spin_unlock_bh(&tx->mx_claim_lock);
 #endif
 	slsi_txbp_update_presence(tx_priv);
 
@@ -743,10 +755,12 @@ tx_done:
 		clear_bit(SLSI_TX_NAPI_POLLING, &tx->napi_state);
 #endif
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-		if (tx->mx_claim && (bh_s->cpu_affinity->state == TRAFFIC_MON_CLIENT_STATE_LOW)) {
-			tx->mx_claim = false;
-			scsc_mx_service_release(NULL);
+		spin_lock_bh(&tx->mx_claim_lock);
+		if ((tx->mx_claim & MX_CLAIM_STATE_CLAIMED) && (bh_s->cpu_affinity->state == TRAFFIC_MON_CLIENT_STATE_LOW)) {
+			tx->mx_claim &= ~MX_CLAIM_STATE_CLAIMED;
+			scsc_mx_service_release(NULL, WLAN_TX_DATA);
 		}
+		spin_unlock_bh(&tx->mx_claim_lock);
 #endif
 		napi_complete(napi);
 		if (tx_priv)
@@ -832,6 +846,9 @@ __always_inline bool slsi_vif_activated_post(struct slsi_dev *sdev, struct net_d
 	struct tx_struct *tx_info;
 	u8 ac;
 
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	spin_lock_init(&ndev_vif->mx_claim_tx_ctrl_lock);
+#endif
 	tx_priv = (struct tx_netdev_data *)ndev_vif->tx_netdev_data;
 	if (tx_priv)
 		return true;
@@ -847,7 +864,11 @@ __always_inline bool slsi_vif_activated_post(struct slsi_dev *sdev, struct net_d
 		return false;
 
 	tx_info = &tx_priv->tx;
-	tx_info->mx_claim = false;
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	spin_lock_init(&tx_info->mx_claim_lock);
+	tx_info->mx_claim = 0;
+#endif
+
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 	if (!test_and_set_bit(SLSI_TX_NAPI_ENABLED, &tx_info->napi_state)) {
 		tx_priv->bh_tx = slsi_lbm_register_napi(sdev, slsi_txbp_napi, -1, NP_TX_0);
@@ -936,10 +957,21 @@ __always_inline bool slsi_vif_deactivated_post(struct slsi_dev *sdev, struct net
 	for (qidx = 0; qidx < SLSI_TX_DATA_QUEUE_NUM; qidx++)
 		skb_queue_purge(&tx_priv->q[qidx]);
 
-	if (tx_info->mx_claim) {
-		scsc_mx_service_release(NULL);
-		tx_info->mx_claim = false;
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	spin_lock_bh(&tx_info->mx_claim_lock);
+	if (tx_info->mx_claim & (MX_CLAIM_STATE_DEFERRED | MX_CLAIM_STATE_CLAIMED)) {
+		scsc_mx_service_release(NULL, WLAN_TX_DATA);
+		tx_info->mx_claim = 0;
 	}
+	spin_unlock_bh(&tx_info->mx_claim_lock);
+
+	spin_lock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
+	if (ndev_vif->mx_claim_tx_ctrl) {
+		ndev_vif->mx_claim_tx_ctrl = false;
+		scsc_mx_service_release(NULL, WLAN_TX_CTRL);
+	}
+	spin_unlock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
+#endif
 
 	kfree(tx_priv);
 	SLSI_NET_INFO(dev, "BP: deactive interfaces(%s) vif_cnt %u\n", dev->name, txbp_priv.vif_cnt);
@@ -990,6 +1022,11 @@ static __always_inline void slsi_txbp_set_priority(struct slsi_dev *sdev, struct
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int proto;
 
+	if (!ndev_vif->is_available) {
+		skb->priority = FAPI_PRIORITY_QOS_UP0;
+		return;
+	}
+
 	proto = be16_to_cpu(eth_hdr(skb)->h_proto);
 	/**
 	 * Multicast / broadcast over AP interface
@@ -1010,11 +1047,15 @@ static __always_inline void slsi_txbp_set_priority(struct slsi_dev *sdev, struct
 	 */
 	if (peer) {
 		if (peer->qos_enabled) {
+			if (peer->qos_map_set) {
+				skb->priority = cfg80211_classify8021d(skb, &peer->qos_map);
+			} else {
 #ifdef CONFIG_SCSC_USE_WMM_TOS
-			skb->priority = slsi_get_priority_from_tos(skb->data + ETH_HLEN, proto);
+				skb->priority = slsi_get_priority_from_tos(skb->data + ETH_HLEN, proto);
 #else
-			skb->priority = slsi_get_priority_from_tos_dscp(skb->data + ETH_HLEN, proto);
+				skb->priority = slsi_get_priority_from_tos_dscp(skb->data + ETH_HLEN, proto);
 #endif
+			}
 			slsi_netif_set_tid_change_tid(dev, skb);
 		} else {
 			skb->priority = FAPI_PRIORITY_QOS_UP0;
@@ -1128,37 +1169,69 @@ __always_inline int __slsi_tx_transmit_ctrl(struct slsi_dev *sdev, struct net_de
 #if defined(CONFIG_SCSC_PCIE_CHIP)
 int slsi_tx_ctrl_claim_complete_cb(void *service, void *data)
 {
-	struct net_device *dev = (struct net_device *)data;
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct net_device    *dev = (struct net_device *)data;
+	struct netdev_vif    *ndev_vif = netdev_priv(dev);
+	struct netdev_queue  *txq;
+	int                  qidx;
+	bool                 is_empty = true;
+
 	SLSI_UNUSED_PARAMETER(service);
 
+	spin_lock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
 	ndev_vif->mx_claim_tx_ctrl = true;
 	slsi_tx_wake_all_queues(dev);
+	spin_unlock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
+
+	for (qidx = SLSI_TX_PRIORITY_Q_INDEX; qidx < SLSI_TX_TOTAL_QUEUES; qidx++) {
+		txq = &dev->_tx[qidx];
+
+		if (txq->qdisc->q.qlen) {
+			is_empty = false;
+			break;
+		}
+	}
+
+	if (is_empty) {
+		spin_lock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
+		if (ndev_vif->mx_claim_tx_ctrl) {
+			ndev_vif->mx_claim_tx_ctrl = false;
+			scsc_mx_service_release(NULL, WLAN_TX_CTRL);
+		}
+		spin_unlock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
+	}
+
 	return 0;
 }
 #endif
 
 __always_inline int slsi_tx_transmit_ctrl(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
 {
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int ret;
 
 #if defined(CONFIG_SCSC_PCIE_CHIP)
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+
+	spin_lock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
+
 	if (!ndev_vif->mx_claim_tx_ctrl) {
-		if (scsc_mx_service_claim_deferred(sdev->service, slsi_tx_ctrl_claim_complete_cb, (void *)dev)) {
+		if (scsc_mx_service_claim_deferred(sdev->service, slsi_tx_ctrl_claim_complete_cb, (void *)dev, WLAN_TX_CTRL)) {
 			slsi_tx_stop_all_queues(dev);
+			spin_unlock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
 			return -ENOSPC;
 		}
 		ndev_vif->mx_claim_tx_ctrl = true;
 	}
+	spin_unlock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
 #endif
 	ret = __slsi_tx_transmit_ctrl(sdev, dev, skb);
 
 #if defined(CONFIG_SCSC_PCIE_CHIP)
+	spin_lock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
 	if (ndev_vif->mx_claim_tx_ctrl) {
 		ndev_vif->mx_claim_tx_ctrl = false;
-		scsc_mx_service_release(NULL);
+		scsc_mx_service_release(NULL, WLAN_TX_CTRL);
 	}
+	spin_unlock_bh(&ndev_vif->mx_claim_tx_ctrl_lock);
 #endif
 	return ret;
 }
@@ -1279,11 +1352,14 @@ int slsi_tx_mx_service_claim_complete_cb(void *service, void *data)
 		return -EINVAL;
 	}
 
-	tx->mx_claim = true;
-	local_bh_disable();
+	spin_lock_bh(&tx->mx_claim_lock);
+	tx->mx_claim &= ~MX_CLAIM_STATE_DEFERRED;
+	if (unlikely((tx->mx_claim & MX_CLAIM_STATE_CLAIMED) > 0))
+		SLSI_NET_ERR(tx->ndev, "PCIe is already claimed\n");
+	tx->mx_claim |= MX_CLAIM_STATE_CLAIMED;
 	slsi_tx_wake_all_queues(dev);
 	slsi_txbp_schedule_napi(dev, tx_priv);
-	local_bh_enable();
+	spin_unlock_bh(&tx->mx_claim_lock);
 	return 0;
 }
 #endif

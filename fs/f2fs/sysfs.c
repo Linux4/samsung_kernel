@@ -26,7 +26,7 @@
 #define ST_LOG(fmt, ...)
 #endif
 
-#define SEC_BIGDATA_VERSION	(2)
+#define SEC_BIGDATA_VERSION	(3)
 
 static struct proc_dir_entry *f2fs_proc_root;
 
@@ -308,238 +308,6 @@ static ssize_t avg_vblocks_show(struct f2fs_attr *a,
 }
 #endif
 
-#if defined(CONFIG_F2FS_SEC_BLOCK_OPERATIONS_DEBUG) && defined(CONFIG_F2FS_SEC_DEBUG_NODE)
-static int f2fs_sec_blockops_dbg(struct f2fs_sb_info *sbi, char *buf, int src_len)
-{
-	int len = src_len;
-	int i, j;
-
-	len += snprintf(buf + len, PAGE_SIZE - len, "\nblock_operations() DBG : %u, max : %llu\n",
-			sbi->s_sec_blkops_total,
-			sbi->s_sec_blkops_max_elapsed);
-	for (i = 0; i < F2FS_SEC_BLKOPS_ENTRIES; i++) {
-		len += snprintf(buf + len, PAGE_SIZE - len, " - [%u - %s(%d)] S: %llu, E: %llu [%llu]",
-				sbi->s_sec_dbg_entries[i].entry_idx,
-				sec_blkops_dbg_type_names[sbi->s_sec_dbg_entries[i].step],
-				sbi->s_sec_dbg_entries[i].ret_val,
-				sbi->s_sec_dbg_entries[i].start_time,
-				sbi->s_sec_dbg_entries[i].end_time,
-				(sbi->s_sec_dbg_entries[i].end_time - sbi->s_sec_dbg_entries[i].start_time));
-
-		for (j = 0; j < NR_F2FS_SEC_DBG_ENTRY; j++) {
-			len += snprintf(buf + len, PAGE_SIZE - len, ", %s: [%u] [%llu]",
-					sec_blkops_dbg_type_names[j],
-					sbi->s_sec_dbg_entries[i].entry[j].nr_ops,
-					sbi->s_sec_dbg_entries[i].entry[j].cumulative_jiffies);
-		}
-	}
-
-	len += snprintf(buf + len, PAGE_SIZE - len, "\n - [MAX - %s(%d)] S: %llu, E: %llu [%llu]",
-				sec_blkops_dbg_type_names[sbi->s_sec_dbg_max_entry.step],
-				sbi->s_sec_dbg_max_entry.ret_val,
-				sbi->s_sec_dbg_max_entry.start_time,
-				sbi->s_sec_dbg_max_entry.end_time,
-				(sbi->s_sec_dbg_max_entry.end_time - sbi->s_sec_dbg_max_entry.start_time));
-	for (j = 0; j < NR_F2FS_SEC_DBG_ENTRY; j++) {
-		len += snprintf(buf + len, PAGE_SIZE - len, ", %s: [%u] [%llu]",
-				sec_blkops_dbg_type_names[j],
-				sbi->s_sec_dbg_max_entry.entry[j].nr_ops,
-				sbi->s_sec_dbg_max_entry.entry[j].cumulative_jiffies);
-	}
-
-	len += snprintf(buf + len, PAGE_SIZE - len, "\n");
-
-	return (len - src_len);
-}
-#endif
-
-#ifdef CONFIG_F2FS_SEC_DEBUG_NODE
-/* @fs.sec -- b9f9a3e3a1883edc2ea06ae264291970 -- */
-/* Copy from debug.c stat_show */
-static ssize_t f2fs_sec_stats_show(struct f2fs_sb_info *sbi, char *buf)
-{
-	struct f2fs_stat_info *si = sbi->stat_info;
-	int i = 0, len = 0;
-	int j;
-
-	f2fs_update_sec_stats(sbi);
-
-	len += snprintf(buf + len, PAGE_SIZE - len,
-			"\n=====[ partition info(%pg). #%d, %s, CP: %s]=====\n",
-			si->sbi->sb->s_bdev, i++,
-			f2fs_readonly(si->sbi->sb) ? "RO" : "RW",
-			is_set_ckpt_flags(si->sbi, CP_DISABLED_FLAG) ?
-			"Disabled" : (f2fs_cp_error(si->sbi) ? "Error" : "Good"));
-	len += snprintf(buf + len, PAGE_SIZE - len,
-			"[SB: 1] [CP: 2] [SIT: %d] [NAT: %d] ",
-			si->sit_area_segs, si->nat_area_segs);
-	len += snprintf(buf + len, PAGE_SIZE - len, "[SSA: %d] [MAIN: %d",
-			si->ssa_area_segs, si->main_area_segs);
-	len += snprintf(buf + len, PAGE_SIZE - len, "(OverProv:%d Resv:%d)]\n\n",
-			si->overp_segs, si->rsvd_segs);
-	if (test_opt(si->sbi, DISCARD))
-		len += snprintf(buf + len, PAGE_SIZE - len, "Utilization: %u%% (%u valid blocks, %u discard blocks)\n",
-				si->utilization, si->valid_count, si->discard_blks);
-	else
-		len += snprintf(buf + len, PAGE_SIZE - len, "Utilization: %u%% (%u valid blocks)\n",
-				si->utilization, si->valid_count);
-
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Node: %u (Inode: %u, ",
-			si->valid_node_count, si->valid_inode_count);
-	len += snprintf(buf + len, PAGE_SIZE - len, "Other: %u)\n  - Data: %u\n",
-			si->valid_node_count - si->valid_inode_count,
-			si->valid_count - si->valid_node_count);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Inline_xattr Inode: %u\n",
-			si->inline_xattr);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Inline_data Inode: %u\n",
-			si->inline_inode);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Inline_dentry Inode: %u\n",
-			si->inline_dir);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Orphan/Append/Update Inode: %u, %u, %u\n",
-			si->orphans, si->append, si->update);
-	len += snprintf(buf + len, PAGE_SIZE - len, "\nMain area: %d segs, %d secs %d zones\n",
-			si->main_area_segs, si->main_area_sections,
-			si->main_area_zones);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - COLD  data: %d, %d, %d\n",
-			si->curseg[CURSEG_COLD_DATA],
-			si->cursec[CURSEG_COLD_DATA],
-			si->curzone[CURSEG_COLD_DATA]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - WARM  data: %d, %d, %d\n",
-			si->curseg[CURSEG_WARM_DATA],
-			si->cursec[CURSEG_WARM_DATA],
-			si->curzone[CURSEG_WARM_DATA]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - HOT   data: %d, %d, %d\n",
-			si->curseg[CURSEG_HOT_DATA],
-			si->cursec[CURSEG_HOT_DATA],
-			si->curzone[CURSEG_HOT_DATA]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Dir   dnode: %d, %d, %d\n",
-			si->curseg[CURSEG_HOT_NODE],
-			si->cursec[CURSEG_HOT_NODE],
-			si->curzone[CURSEG_HOT_NODE]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - File   dnode: %d, %d, %d\n",
-			si->curseg[CURSEG_WARM_NODE],
-			si->cursec[CURSEG_WARM_NODE],
-			si->curzone[CURSEG_WARM_NODE]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Indir nodes: %d, %d, %d\n",
-			si->curseg[CURSEG_COLD_NODE],
-			si->cursec[CURSEG_COLD_NODE],
-			si->curzone[CURSEG_COLD_NODE]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "\n  - Valid: %d\n  - Dirty: %d\n",
-			si->main_area_segs - si->dirty_count -
-			si->prefree_count - si->free_segs,
-			si->dirty_count);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Prefree: %d\n  - Free: %d (%d)\n\n",
-			si->prefree_count, si->free_segs, si->free_secs);
-	len += snprintf(buf + len, PAGE_SIZE - len, "CP calls: %d (BG: %d)\n",
-			si->cp_count, si->bg_cp_count);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - cp blocks : %u\n", si->meta_count[META_CP]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - sit blocks : %u\n",
-			si->meta_count[META_SIT]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - nat blocks : %u\n",
-			si->meta_count[META_NAT]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - ssa blocks : %u\n",
-			si->meta_count[META_SSA]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "GC calls: %d (BG: %d)\n",
-			si->call_count, si->bg_gc);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - data segments : %d (%d)\n",
-			si->data_segs, si->bg_data_segs);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - node segments : %d (%d)\n",
-			si->node_segs, si->bg_node_segs);
-	len += snprintf(buf + len, PAGE_SIZE - len, "Try to move %d blocks (BG: %d)\n", si->tot_blks,
-			si->bg_data_blks + si->bg_node_blks);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - data blocks : %d (%d)\n", si->data_blks,
-			si->bg_data_blks);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - node blocks : %d (%d)\n", si->node_blks,
-			si->bg_node_blks);
-	len += snprintf(buf + len, PAGE_SIZE - len, "Skipped : atomic write %llu (%llu)\n",
-			si->skipped_atomic_files[BG_GC] +
-			si->skipped_atomic_files[FG_GC],
-			si->skipped_atomic_files[BG_GC]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "BG skip : IO: %u, Other: %u\n",
-			si->io_skip_bggc, si->other_skip_bggc);
-	len += snprintf(buf + len, PAGE_SIZE - len, "\nExtent Cache:\n");
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Hit Count: L1-1:%llu L1-2:%llu L2:%llu\n",
-			si->hit_largest, si->hit_cached,
-			si->hit_rbtree);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Hit Ratio: %llu%% (%llu / %llu)\n",
-			!si->total_ext ? 0 :
-			div64_u64(si->hit_total * 100, si->total_ext),
-			si->hit_total, si->total_ext);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - Inner Struct Count: tree: %d(%d), node: %d\n",
-			si->ext_tree, si->zombie_tree, si->ext_node);
-	len += snprintf(buf + len, PAGE_SIZE - len, "\nBalancing F2FS Async:\n");
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - IO_R (Data: %4d, Node: %4d, Meta: %4d\n",
-			si->nr_rd_data, si->nr_rd_node, si->nr_rd_meta);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - IO_W (CP: %4d, Data: %4d, Flush: (%4d %4d %4d), "
-			"Discard: (%4d %4d)) cmd: %4d undiscard:%4u\n",
-			si->nr_wb_cp_data, si->nr_wb_data,
-			si->nr_flushing, si->nr_flushed,
-			si->flush_list_empty,
-			si->nr_discarding, si->nr_discarded,
-			si->nr_discard_cmd, si->undiscard_blks);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - inmem: %4d, atomic IO: %4d (Max. %4d), "
-			"volatile IO: %4d (Max. %4d)\n",
-			si->inmem_pages, si->aw_cnt, si->max_aw_cnt,
-			si->vw_cnt, si->max_vw_cnt);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - nodes: %4d in %4d\n",
-			si->ndirty_node, si->node_pages);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - dents: %4d in dirs:%4d (%4d)\n",
-			si->ndirty_dent, si->ndirty_dirs, si->ndirty_all);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - datas: %4d in files:%4d\n",
-			si->ndirty_data, si->ndirty_files);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - quota datas: %4d in quota files:%4d\n",
-			si->ndirty_qdata, si->nquota_files);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - meta: %4d in %4d\n",
-			si->ndirty_meta, si->meta_pages);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - imeta: %4d\n",
-			si->ndirty_imeta);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - NATs: %9d/%9d\n  - SITs: %9d/%9d\n",
-			si->dirty_nats, si->nats, si->dirty_sits, si->sits);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - free_nids: %9d/%9d\n  - alloc_nids: %9d\n",
-			si->free_nids, si->avail_nids, si->alloc_nids);
-	len += snprintf(buf + len, PAGE_SIZE - len, "\nDistribution of User Blocks:");
-	len += snprintf(buf + len, PAGE_SIZE - len, " [ valid | invalid | free ]\n");
-	len += snprintf(buf + len, PAGE_SIZE - len, "  [");
-
-	for (j = 0; j < si->util_valid; j++)
-		len += snprintf(buf + len, PAGE_SIZE - len, "-");
-	len += snprintf(buf + len, PAGE_SIZE - len, "|");
-
-	for (j = 0; j < si->util_invalid; j++)
-		len += snprintf(buf + len, PAGE_SIZE - len, "-");
-	len += snprintf(buf + len, PAGE_SIZE - len, "|");
-
-	for (j = 0; j < si->util_free; j++)
-		len += snprintf(buf + len, PAGE_SIZE - len, "-");
-	len += snprintf(buf + len, PAGE_SIZE - len, "]\n\n");
-	len += snprintf(buf + len, PAGE_SIZE - len, "IPU: %u blocks\n", si->inplace_count);
-	len += snprintf(buf + len, PAGE_SIZE - len, "SSR: %u blocks in %u segments\n",
-			si->block_count[SSR], si->segment_count[SSR]);
-	len += snprintf(buf + len, PAGE_SIZE - len, "LFS: %u blocks in %u segments\n",
-			si->block_count[LFS], si->segment_count[LFS]);
-
-	/* segment usage info */
-	len += snprintf(buf + len, PAGE_SIZE - len, "\nBDF: %u, avg. vblocks: %u\n",
-			si->bimodal, si->avg_vblocks);
-
-	/* memory footprint */
-	len += snprintf(buf + len, PAGE_SIZE - len, "\nMemory: %llu KB\n",
-			(si->base_mem + si->cache_mem + si->page_mem) >> 10);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - static: %llu KB\n",
-			si->base_mem >> 10);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - cached: %llu KB\n",
-			si->cache_mem >> 10);
-	len += snprintf(buf + len, PAGE_SIZE - len, "  - paged : %llu KB\n",
-			si->page_mem >> 10);
-
-#ifdef CONFIG_F2FS_SEC_BLOCK_OPERATIONS_DEBUG
-	/* block_operations debug node */
-	len += f2fs_sec_blockops_dbg(sbi, buf, len);
-#endif
-	return len;
-}
-#endif
-
 static void __sec_bigdata_init_value(struct f2fs_sb_info *sbi,
 		const char *attr_name)
 {
@@ -670,12 +438,13 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\","
 		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\","
 		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\","
-		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%u\","
-		"\"%s\":\"%u\",\"%s\":\"%u\"\n",
+		"\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\",\"%s\":\"%llu\","
+		"\"%s\":\"%u\",\"%s\":\"%u\",\"%s\":\"%u\"\n",
 			"CP",		sbi->sec_stat.cp_cnt[STAT_CP_ALL],
 			"CPBG",		sbi->sec_stat.cp_cnt[STAT_CP_BG],
 			"CPSYNC",	sbi->sec_stat.cp_cnt[STAT_CP_FSYNC],
 			"CPNONRE",	sbi->sec_stat.cpr_cnt[CP_NON_REGULAR],
+			"CPCOMPR",	sbi->sec_stat.cpr_cnt[CP_COMPRESSED],
 			"CPSBNEED",	sbi->sec_stat.cpr_cnt[CP_SB_NEED_CP],
 			"CPWPINO",	sbi->sec_stat.cpr_cnt[CP_WRONG_PINO],
 			"CP_MAX_INT",	sbi->sec_stat.cp_max_interval,
@@ -756,10 +525,6 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 		}
 
 		return len;
-#ifdef CONFIG_F2FS_SEC_DEBUG_NODE
-	} else if (!strcmp(a->attr.name, "sec_stats")) {
-		return f2fs_sec_stats_show(sbi, buf);
-#endif
 	}
 
 	if (!strcmp(a->attr.name, "ckpt_thread_ioprio")) {
@@ -1085,6 +850,13 @@ out:
 			}
 		} else if (t == 2) {
 			sbi->gc_mode = GC_URGENT_LOW;
+		} else if (t == 3) {
+			sbi->gc_mode = GC_URGENT_MID;
+			if (sbi->gc_thread) {
+				sbi->gc_thread->gc_wake = 1;
+				wake_up_interruptible_all(
+					&sbi->gc_thread->gc_wait_queue_head);
+			}
 		} else {
 			return -EINVAL;
 		}
@@ -1115,9 +887,9 @@ out:
 	if (!strcmp(a->attr.name, "iostat_period_ms")) {
 		if (t < MIN_IOSTAT_PERIOD_MS || t > MAX_IOSTAT_PERIOD_MS)
 			return -EINVAL;
-		spin_lock(&sbi->iostat_lock);
+		spin_lock_irq(&sbi->iostat_lock);
 		sbi->iostat_period_ms = (unsigned int)t;
-		spin_unlock(&sbi->iostat_lock);
+		spin_unlock_irq(&sbi->iostat_lock);
 		return count;
 	}
 
@@ -1199,6 +971,33 @@ out:
 		return count;
 	}
 #endif
+
+	if (!strcmp(a->attr.name, "hot_data_age_threshold")) {
+		if (t == 0 || t >= sbi->warm_data_age_threshold)
+			return -EINVAL;
+		if (t == *ui)
+			return count;
+		*ui = (unsigned int)t;
+		return count;
+	}
+
+	if (!strcmp(a->attr.name, "warm_data_age_threshold")) {
+		if (t == 0 || t <= sbi->hot_data_age_threshold)
+			return -EINVAL;
+		if (t == *ui)
+			return count;
+		*ui = (unsigned int)t;
+		return count;
+	}
+
+	if (!strcmp(a->attr.name, "last_age_weight")) {
+		if (t > 100)
+			return -EINVAL;
+		if (t == *ui)
+			return count;
+		*ui = (unsigned int)t;
+		return count;
+	}
 
 	*ui = (unsigned int)t;
 
@@ -1375,9 +1174,6 @@ F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, data_io_flag, data_io_flag);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, node_io_flag, node_io_flag);
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_gc_stat, sec_stat);
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_io_stat, sec_stat);
-#ifdef CONFIG_F2FS_SEC_DEBUG_NODE
-F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_stats, stat_info);
-#endif
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_fsck_stat, sec_fsck_stat);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_heimdallfs_stat, sec_heimdallfs_stat);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_best_extents, s_sec_part_best_extents);
@@ -1466,6 +1262,11 @@ F2FS_RW_ATTR(ATGC_INFO, atgc_management, atgc_age_threshold, age_threshold);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, gc_segment_mode, gc_segment_mode);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, gc_reclaimed_segments, gc_reclaimed_segs);
 
+/* For block age extent cache */
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, hot_data_age_threshold, hot_data_age_threshold);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, warm_data_age_threshold, warm_data_age_threshold);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, last_age_weight, last_age_weight);
+
 #define ATTR_LIST(name) (&f2fs_attr_##name.attr)
 static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(gc_urgent_sleep_time),
@@ -1516,9 +1317,6 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(extension_list),
 	ATTR_LIST(sec_gc_stat),
 	ATTR_LIST(sec_io_stat),
-#ifdef CONFIG_F2FS_SEC_DEBUG_NODE
-	ATTR_LIST(sec_stats),
-#endif
 	ATTR_LIST(sec_fsck_stat),
 	ATTR_LIST(sec_heimdallfs_stat),
 	ATTR_LIST(sec_part_best_extents),
@@ -1569,6 +1367,9 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(atgc_age_threshold),
 	ATTR_LIST(gc_segment_mode),
 	ATTR_LIST(gc_reclaimed_segments),
+	ATTR_LIST(hot_data_age_threshold),
+	ATTR_LIST(warm_data_age_threshold),
+	ATTR_LIST(last_age_weight),
 	NULL,
 };
 ATTRIBUTE_GROUPS(f2fs);

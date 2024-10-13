@@ -822,7 +822,7 @@ static size_t gmc_v10_0_get_gmc_status(struct amdgpu_device *adev,
 }
 #endif /* CONFIG_DRM_AMDGPU_GMC_DuMP */
 
-void gmc_v10_0_cwsr_flush_gpu_tlb(u32 vmid, struct amdgpu_bo *root_bo,
+void gmc_v10_0_sws_flush_gpu_tlb(u32 vmid, struct amdgpu_bo *root_bo,
 				  struct amdgpu_ring *ring)
 {
 	int i;
@@ -858,7 +858,7 @@ void gmc_v10_0_cwsr_flush_gpu_tlb(u32 vmid, struct amdgpu_bo *root_bo,
 	}
 
 	if (i == adev->usec_timeout)
-		DRM_WARN("Timeout to flush(0x%x) cwsr VM(%d)\n", tmp, vmid);
+		DRM_WARN("Timeout to flush(0x%x) sws VM(%d)\n", tmp, vmid);
 }
 
 static const struct amdgpu_gmc_funcs gmc_v10_0_gmc_funcs = {
@@ -873,7 +873,7 @@ static const struct amdgpu_gmc_funcs gmc_v10_0_gmc_funcs = {
 #if defined(CONFIG_DRM_AMDGPU_GMC_DUMP)
 	.get_gmc_status = gmc_v10_0_get_gmc_status,
 #endif
-	.cwsr_flush_gpu_tlb = gmc_v10_0_cwsr_flush_gpu_tlb,
+	.sws_flush_gpu_tlb = gmc_v10_0_sws_flush_gpu_tlb,
 };
 
 static void gmc_v10_0_set_gmc_funcs(struct amdgpu_device *adev)

@@ -161,6 +161,9 @@ unsigned int get_wc20_vout_idx(unsigned int vout)
 	case 11000:
 		ret = WIRELESS_VOUT_11V;
 		break;
+	case 12000:
+		ret = WIRELESS_VOUT_12V;
+		break;
 	default:
 		pr_info("%s vout(%d) is not supported\n", __func__, vout);
 		return -1;
@@ -433,7 +436,7 @@ int sec_bat_choose_cable_type(struct sec_battery_info *battery)
 					psy_do_property(battery->pdata->wireless_charger_name, set,
 						POWER_SUPPLY_EXT_PROP_INPUT_VOLTAGE_REGULATION, value);
 				}
-				if (is_wireless_fake_type(prev_ct)) {
+				if (is_wireless_all_type(prev_ct)) {
 					msleep(200);
 					sec_vote(battery->fcc_vote, VOTER_WL_TO_W, true, 300);
 					msleep(200);
@@ -1207,7 +1210,7 @@ static void sec_bat_tx_work_nodev(struct sec_battery_info *battery)
 		sec_bat_wireless_uno_cntl(battery, true);
 
 	sec_bat_wireless_vout_cntl(battery, battery->pdata->tx_ping_vout);
-	sec_bat_wireless_iout_cntl(battery, battery->pdata->tx_uno_iout, battery->pdata->tx_mfc_iout_gear);
+	sec_bat_wireless_iout_cntl(battery, battery->pdata->tx_uno_iout_aov_gear, battery->pdata->tx_mfc_iout_aov_gear);
 	sec_bat_wireless_minduty_cntl(battery, battery->pdata->tx_minduty_default);
 }
 
@@ -1343,6 +1346,9 @@ void sec_bat_wpc_tx_work_content(struct sec_battery_info *battery)
 			battery->tx_switch_mode = TX_SWITCH_GEAR_PPS;
 			battery->tx_switch_mode_change = true;
 
+			sec_bat_wireless_iout_cntl(battery, battery->pdata->tx_uno_iout_aov_gear,
+				battery->pdata->tx_mfc_iout_aov_gear);
+
 			if (delayed_work_pending(&battery->wpc_tx_work))
 				return;
 			break;
@@ -1363,7 +1369,7 @@ void sec_bat_wpc_tx_work_content(struct sec_battery_info *battery)
 						/* prevent ocp */
 						if (!battery->buck_cntl_by_tx) {
 							sec_bat_wireless_vout_cntl(battery, WC_TX_VOUT_5000MV);
-							sec_bat_wireless_iout_cntl(battery, battery->pdata->tx_uno_iout, 1000);
+							sec_bat_wireless_iout_cntl(battery, battery->pdata->tx_uno_iout_gear, 1000);
 							battery->buck_cntl_by_tx = true;
 							sec_vote(battery->chgen_vote, VOTER_WC_TX,
 								true, SEC_BAT_CHG_MODE_BUCK_OFF);
@@ -1399,7 +1405,7 @@ void sec_bat_wpc_tx_work_content(struct sec_battery_info *battery)
 		}
 
 		sec_bat_wireless_vout_cntl(battery, tx_uno_vout);
-		sec_bat_wireless_iout_cntl(battery, battery->pdata->tx_uno_iout,
+		sec_bat_wireless_iout_cntl(battery, battery->pdata->tx_uno_iout_gear,
 			battery->pdata->tx_mfc_iout_gear);
 	}
 		break;
@@ -1510,6 +1516,7 @@ void sec_bat_wpc_tx_en_work_content(struct sec_battery_info *battery)
 	battery->tx_switch_mode = TX_SWITCH_MODE_OFF;
 	battery->tx_switch_start_soc = 0;
 	battery->tx_switch_mode_change = false;
+	battery->tx_ping_duty = 0;
 
 	if (battery->wc_tx_enable) {
 		/* set tx event */
@@ -1574,7 +1581,6 @@ void sec_bat_wpc_tx_en_work_content(struct sec_battery_info *battery)
 		__pm_relax(battery->wpc_tx_ws);
 
 		sec_bat_wireless_minduty_cntl(battery, battery->pdata->tx_minduty_default);
-		sec_bat_wireless_set_ping_duty(battery, battery->pdata->tx_ping_duty_default);
 		battery->wc_rx_type = NO_DEV;
 		battery->wc_rx_connected = false;
 		battery->tx_uno_iout = 0;
