@@ -144,7 +144,7 @@ void set_led_mode(int led_curr)
 		aw36518_enable_flicker(led_curr, true);
 	else
 		aw36518_enable_flicker(0, false);
-#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH) && IS_ENABLED(CONFIG_SENSORS_STK6D2X)
+#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH) && (IS_ENABLED(CONFIG_SENSORS_STK6D2X) || IS_ENABLED(CONFIG_SENSORS_TSL2511))
 	if(led_curr) {
 		qti_flash_led_set_strobe_sel(switch3_trigger, 1); 
 		led_trigger_event(torch2_trigger, led_curr/2);
@@ -325,7 +325,7 @@ static int __init als_eol_init(void)
 	}
 
 #if !IS_ENABLED(CONFIG_LEDS_S2MPB02) && !IS_ENABLED(CONFIG_LEDS_KTD2692) && IS_ENABLED(CONFIG_LEDS_QTI_FLASH) \
-	&& IS_ENABLED(CONFIG_SENSORS_STK6D2X) && !IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	&& (IS_ENABLED(CONFIG_SENSORS_STK6D2X) || IS_ENABLED(CONFIG_SENSORS_TSL2511)) && !IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
 	led_trigger_register_simple("torch2_trigger", &torch2_trigger);
 	led_trigger_register_simple("torch3_trigger", &torch3_trigger);
 	led_trigger_register_simple("switch3_trigger", &switch3_trigger);
@@ -339,7 +339,7 @@ static void __exit als_eol_exit(void)
 	printk(KERN_INFO "%s - EOL_TEST Module exit\n", __func__);
 
 #if !IS_ENABLED(CONFIG_LEDS_S2MPB02) && !IS_ENABLED(CONFIG_LEDS_KTD2692) && IS_ENABLED(CONFIG_LEDS_QTI_FLASH) \
-	&& IS_ENABLED(CONFIG_SENSORS_STK6D2X) && !IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	&& (IS_ENABLED(CONFIG_SENSORS_STK6D2X) || IS_ENABLED(CONFIG_SENSORS_TSL2511)) && !IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
 	led_trigger_unregister_simple(torch2_trigger);
 	led_trigger_unregister_simple(torch3_trigger);
 	led_trigger_unregister_simple(switch3_trigger);

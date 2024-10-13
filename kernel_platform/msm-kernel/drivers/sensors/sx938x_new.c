@@ -697,7 +697,7 @@ static void enter_unknown_mode(struct sx938x_p *data, int type)
 		data->first_working = false;
 		if (data->is_unknown_mode == UNKNOWN_OFF) {
 			data->is_unknown_mode = UNKNOWN_ON;
-			if (!data->skip_data) {
+			if (atomic_read(&data->enable) == ON) {
 				input_report_rel(data->input, REL_X, UNKNOWN_ON);
 				input_sync(data->input);
 			}

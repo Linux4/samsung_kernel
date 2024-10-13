@@ -1223,7 +1223,7 @@
 		qcom,vmid = <45>;
 		qcom,firmware-name = "trustedvm";
 		qcom,reserved-cpus = <0x5>, <0x6>;
-		qcom,unisolate-timeout-ms = <30000>;
+		qcom,unisolate-timeout-ms = <50000>;
 		memory-region = <&trust_ui_vm_mem>;
 	};
 
@@ -3407,7 +3407,7 @@
 				<0x146A8000 0x146A8000 0x2000>;
 			qcom,iommu-dma = "fastmap";
 			dma-coherent;
-			qcom,ipa-q6-smem-size = <36864>;
+			qcom,ipa-q6-smem-size = <45056>;
 		};
 
 		ipa_smmu_wlan: ipa_smmu_wlan {

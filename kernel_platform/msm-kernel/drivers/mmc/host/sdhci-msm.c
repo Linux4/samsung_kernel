@@ -37,7 +37,9 @@
 #include "sdhci-msm-scaling.h"
 #endif
 #include "sdhci-msm.h"
-
+#if IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER)
+#include <linux/hwkm.h>
+#endif
 #if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
 #include "mmc-sec-feature.h"
 #endif
@@ -90,9 +92,6 @@
 #define ENABLE_DLL_LOCK_STATUS	BIT(26)
 #define FINE_TUNE_MODE_EN	BIT(27)
 #define BIAS_OK_SIGNAL		BIT(29)
-
-#define DLL_CONFIG_3_LOW_FREQ_VAL	0x08
-#define DLL_CONFIG_3_HIGH_FREQ_VAL	0x10
 
 #define CORE_VENDOR_SPEC_POR_VAL 0xa9c
 #define CORE_CLK_PWRSAVE	BIT(1)
@@ -772,8 +771,6 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 				| CORE_LOW_FREQ_MODE), host->ioaddr +
 				msm_offset->core_dll_config_2);
 		}
-		/* wait for 5us before enabling DLL clock */
-		udelay(5);
 	}
 
 	/*
@@ -785,28 +782,6 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 			msm_offset->core_dll_config) |
 			(msm_host->dll_hsr->dll_config & 0xffff)),
 			host->ioaddr + msm_offset->core_dll_config);
-	}
-
-	/*
-	 * Configure DLL user control register to enable DLL status.
-	 * This setting is applicable to SDCC v5.1 onwards only.
-	 */
-	if (msm_host->uses_tassadar_dll) {
-		u32 config;
-		config = DLL_USR_CTL_POR_VAL | FINE_TUNE_MODE_EN |
-			ENABLE_DLL_LOCK_STATUS | BIAS_OK_SIGNAL;
-		writel_relaxed(config, host->ioaddr +
-				msm_offset->core_dll_usr_ctl);
-
-		config = readl_relaxed(host->ioaddr +
-				msm_offset->core_dll_config_3);
-		config &= ~0xFF;
-		if (msm_host->clk_rate < 150000000)
-			config |= DLL_CONFIG_3_LOW_FREQ_VAL;
-		else
-			config |= DLL_CONFIG_3_HIGH_FREQ_VAL;
-		writel_relaxed(config, host->ioaddr +
-			msm_offset->core_dll_config_3);
 	}
 
 	/* Step 11 - Wait for 52us */
@@ -1723,6 +1698,9 @@ static bool sdhci_msm_populate_pdata(struct device *dev,
 	msm_host->dll_lock_bist_fail_wa =
 		of_property_read_bool(np, "qcom,dll_lock_bist_fail_wa");
 
+	msm_host->need_special_up_threshold =
+		of_property_read_bool(np, "qcom,need_special_up_threshold");
+
 	msm_host->crash_on_err =
 		of_property_read_bool(np, "qcom,enable_crash_on_err");
 
@@ -2502,6 +2480,7 @@ static void __sdhci_msm_set_clock(struct sdhci_host *host, unsigned int clock)
 	u16 clk;
 #if IS_ENABLED(CONFIG_MMC_SDHCI_MSM_SCALING)
 	struct mmc_ios ios = host->mmc->ios;
+	struct mmc_host *mmc = host->mmc;
 #endif
 	/*
 	 * Keep actual_clock as zero -
@@ -2525,8 +2504,14 @@ static void __sdhci_msm_set_clock(struct sdhci_host *host, unsigned int clock)
 	sdhci_enable_clk(host, clk);
 
 #if IS_ENABLED(CONFIG_MMC_SDHCI_MSM_SCALING)
-	if (ios.timing == MMC_TIMING_MMC_HS400)
+	if (ios.timing == MMC_TIMING_MMC_HS400 ||
+			ios.timing == MMC_TIMING_MMC_DDR52) {
+
+		if (mmc->card && mmc_card_mmc(mmc->card))
+			mmc->card->mmc_avail_type |= (EXT_CSD_CARD_TYPE_HS400ES |
+				EXT_CSD_CARD_TYPE_HS400 | EXT_CSD_CARD_TYPE_HS200);
 		sdhci_msm_cqe_scaling_resume(host->mmc);
+	}
 #endif
 }
 
@@ -3662,6 +3647,18 @@ static int sdhci_msm_start_signal_voltage_switch(struct mmc_host *mmc,
 	return -EAGAIN;
 }
 
+#if IS_ENABLED(CONFIG_MMC_SDHCI_MSM_SCALING)
+static void sdhci_msm_init_card(struct mmc_host *host,
+				struct mmc_card *card)
+{
+
+	if (host->card && mmc_card_mmc(card)) {
+		card->mmc_avail_type &= ~(EXT_CSD_CARD_TYPE_HS400ES |
+			EXT_CSD_CARD_TYPE_HS400 | EXT_CSD_CARD_TYPE_HS200);
+	}
+}
+#endif
+
 #define MAX_TEST_BUS 60
 #define DRIVER_NAME "sdhci_msm"
 #define SDHCI_MSM_DUMP(f, x...) \
@@ -3860,6 +3857,15 @@ static int sdhci_msm_gcc_reset(struct device *dev, struct sdhci_host *host)
 	return ret;
 }
 
+static void sdhci_msm_hwkm_ice_init(struct sdhci_msm_host *msm_host)
+{
+	struct ice_mmio_data mmio_data;
+
+	mmio_data.ice_base_mmio = msm_host->ice_mem;
+	mmio_data.ice_hwkm_mmio = msm_host->ice_hwkm_mem;
+	qti_hwkm_ice_init_sequence(&mmio_data);
+}
+
 static void sdhci_msm_hw_reset(struct sdhci_host *host)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
@@ -3888,6 +3894,9 @@ static void sdhci_msm_hw_reset(struct sdhci_host *host)
 #if defined(CONFIG_SDC_QTI)
 	if (host->mmc->card)
 		mmc_power_cycle(host->mmc, host->mmc->card->ocr);
+#endif
+#if IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER)
+	sdhci_msm_hwkm_ice_init(msm_host);
 #endif
 	return;
 }
@@ -4012,6 +4021,9 @@ static inline void sdhci_msm_get_of_property(struct platform_device *pdev,
 		msm_host->ddr_config = DDR_CONFIG_POR_VAL;
 
 	of_property_read_u32(node, "qcom,dll-config", &msm_host->dll_config);
+
+	if (of_device_is_compatible(node, "qcom,msm8916-sdhci"))
+		host->quirks2 |= SDHCI_QUIRK2_BROKEN_64_BIT_DMA;
 }
 
 static void sdhci_msm_clkgate_bus_delayed_work(struct work_struct *work)
@@ -4955,6 +4967,9 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	host->mmc_host_ops.start_signal_voltage_switch =
 		sdhci_msm_start_signal_voltage_switch;
 	host->mmc_host_ops.execute_tuning = sdhci_msm_execute_tuning;
+#if IS_ENABLED(CONFIG_MMC_SDHCI_MSM_SCALING)
+	host->mmc_host_ops.init_card = sdhci_msm_init_card;
+#endif
 
 	msm_host->workq = create_workqueue("sdhci_msm_generic_swq");
 	if (!msm_host->workq)
@@ -4971,13 +4986,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	mmc_set_sec_features(host->mmc, pdev);
 #endif
 
-	if (of_property_read_bool(node, "supports-cqe"))
-		ret = sdhci_msm_cqe_add_host(host, pdev);
-	else
-		ret = sdhci_add_host(host);
-	if (ret)
-		goto pm_runtime_disable;
-
 #if IS_ENABLED(CONFIG_MMC_SDHCI_MSM_SCALING)
 	pwrseq_scale = kzalloc(sizeof(struct mmc_pwrseq), GFP_KERNEL);
 
@@ -4989,6 +4997,13 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	pwrseq_scale->ops = &mmc_pwrseq_emmc_ops;
 	host->mmc->pwrseq = pwrseq_scale;
 #endif
+
+	if (of_property_read_bool(node, "supports-cqe"))
+		ret = sdhci_msm_cqe_add_host(host, pdev);
+	else
+		ret = sdhci_add_host(host);
+	if (ret)
+		goto pm_runtime_disable;
 
 	/* For SDHC v5.0.0 onwards, ICE 3.0 specific registers are added
 	 * in CQ register space, due to which few CQ registers are

@@ -9312,6 +9312,31 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         }
         break;
 #endif
+#ifdef SEC_AUDIO_MULTI_DEVICE_SOUND
+        case PAL_PARAM_ID_LEAKAGE_PROTECTION_ENABLED:
+        {
+            pal_param_leakage_protection_t* pal_param_leakage_protection = (pal_param_leakage_protection_t*) param_payload;
+
+            if (payload_size == sizeof(pal_param_leakage_protection_t)) {
+                struct pal_stream_attributes sAttr;
+                mActiveStreamMutex.lock();
+                for (auto& str : mActiveStreams) {
+                    str->getStreamAttributes(&sAttr);
+                    if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
+                        (sAttr.type == PAL_STREAM_DEEP_BUFFER)) {
+                        str->setLeakageProtectionEnabled(pal_param_leakage_protection->enable);
+                    }
+                }
+                mActiveStreamMutex.unlock();
+            } else {
+                PAL_ERR(LOG_TAG, "Incorrect size : expected (%zu), received(%zu)",
+                        sizeof(pal_param_leakage_protection_t), payload_size);
+                status = -EINVAL;
+                goto exit;
+            }
+        }
+        break;
+#endif
         default:
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;

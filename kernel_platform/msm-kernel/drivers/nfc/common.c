@@ -71,7 +71,8 @@ void nfc_parse_dt_for_platform_device(struct device *dev)
 		if (IS_ERR(nfc_configs->nfc_pvdd))
 			NFC_LOG_ERR("get nfc_pvdd error\n");
 		else
-			NFC_LOG_INFO("LDO nfc_pvdd: %pK\n", nfc_configs->nfc_pvdd);
+			NFC_LOG_INFO("LDO nfc_pvdd: %pK, vol:%d\n",
+				nfc_configs->nfc_pvdd, regulator_get_voltage(nfc_configs->nfc_pvdd));
 	}
 }
 #endif
@@ -173,7 +174,8 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		else
 			return -ENODEV;
 	} else {
-		NFC_LOG_INFO("LDO nfc_pvdd: %pK\n", nfc_configs->nfc_pvdd);
+		NFC_LOG_INFO("LDO nfc_pvdd: %pK, vol:%d\n",
+				nfc_configs->nfc_pvdd, regulator_get_voltage(nfc_configs->nfc_pvdd));
 	}
 
 	if (of_find_property(np, "clocks", NULL)) {

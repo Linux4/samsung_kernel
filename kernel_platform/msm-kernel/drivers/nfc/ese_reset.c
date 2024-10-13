@@ -75,7 +75,7 @@ static long start_gpio_reset_guard_timer(void)
 	if (!ret)
 		sResetTimer.in_progress = true;
 	else
-		NFC_LOG_ERR("%s: Error in mod_timer, returned:'%d'\n", __func__, ret);
+		NFC_LOG_ERR("%s: Error in mod_timer, returned:'%ld'\n", __func__, ret);
 	NFC_LOG_INFO("%s: exit\n", __func__);
 	return ret;
 }

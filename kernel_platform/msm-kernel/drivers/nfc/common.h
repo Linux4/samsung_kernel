@@ -25,6 +25,7 @@
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #include <linux/clk.h>
+#include <linux/reboot.h>
 #include "nfc_wakelock.h"
 #ifdef CONFIG_SEC_NFC_LOGGER
 #ifdef CONFIG_NFC_NXP_COMBINED
@@ -279,6 +280,7 @@ struct nfc_dev {
 	bool screen_on_cmd;
 	bool screen_off_cmd;
 	int screen_off_rsp_count;
+	struct notifier_block reboot_nb;
 #endif
 
 	/* function pointers for the common i2c functionality */
