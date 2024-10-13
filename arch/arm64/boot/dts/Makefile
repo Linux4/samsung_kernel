@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
-dtbo-y += samsung/exynos9611-f41_swa_open_00.dtbo
 dtb-y += exynos/exynos9610.dtb
+dtbo-y += samsung/exynos9611-f41_swa_open_00.dtbo
 
 targets += dtbs
 DTB_LIST  := $(dtb-y) $(dtbo-y)
