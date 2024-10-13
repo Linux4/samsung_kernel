@@ -1,11 +1,10 @@
-/* dd_mdnie.c
- *
- * Copyright (c) 2018 Samsung Electronics
+/*
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-*/
+ */
 
 /* temporary solution: Do not use these sysfs as official purpose */
 /* these function are not official one. only purpose is for temporary test */
@@ -147,6 +146,8 @@ static uintptr_t mdnie_request_firmware(char *path, char *name, int *ret)
 	while (!IS_ERR_OR_NULL(ptr)) {
 		ptr = (name) ? strstr(ptr, name) : ptr;
 		while ((token = strsep(&ptr, "\n")) != NULL) {
+			if (*token == '\0')
+				continue;
 			numperline = sscanf(token, "%8i, %8i", &data[0], &data[1]);
 			if (numperline < 0)
 				goto exit;
@@ -241,7 +242,8 @@ static int status_show(struct seq_file *m, void *unused)
 	u8 *buffer;
 
 	if (!mdnie->enable) {
-		dbg_info("mdnie state is off\n");
+		dbg_info("mdnie state is %s\n", mdnie->enable ? "on" : "off");
+		seq_printf(m, "mdnie state is %s\n", mdnie->enable ? "on" : "off");
 		goto exit;
 	}
 
@@ -303,7 +305,8 @@ static int tuning_show(struct seq_file *m, void *unused)
 	int i, idx;
 
 	if (!d->tuning) {
-		seq_puts(m, "tunning mode is off\n");
+		dbg_info("tuning mode is %s\n", d->tuning ? "on" : "off");
+		seq_printf(m, "tuning mode is %s\n", d->tuning ? "on" : "off");
 		goto exit;
 	}
 
@@ -360,25 +363,19 @@ static ssize_t tuning_store(struct file *f, const char __user *user_buf,
 	struct mdnie_info *mdnie = d->md;
 	int ret = 0;
 	const char *filename = NULL;
-	char wbuf[NAME_MAX] = {0, };
+	char ibuf[NAME_MAX] = {0, };
 	char *pbuf;
 	unsigned int value;
 
-	if (*ppos != 0)
+	ret = dd_simple_write_to_buffer(ibuf, sizeof(ibuf), ppos, user_buf, count);
+	if (ret < 0) {
+		dbg_info("dd_simple_write_to_buffer fail: %d\n", ret);
 		goto exit;
+	}
 
-	if (count > sizeof(wbuf))
-		goto exit;
-
-	ret = simple_write_to_buffer(wbuf, sizeof(wbuf) - 1, ppos, user_buf, count);
-	if (ret < 0)
-		goto exit;
-
-	wbuf[ret] = '\0';
-
-	pbuf = strim(wbuf);
-	if (!strncmp(wbuf, "0", 1) || !strncmp(wbuf, "1", 1)) {
-		ret = kstrtouint(wbuf, 0, &value);
+	pbuf = ibuf;
+	if (!strncmp(ibuf, "0", count - 1) || !strncmp(ibuf, "1", count - 1)) {
+		ret = kstrtouint(ibuf, 0, &value);
 		if (ret < 0)
 			return count;
 
@@ -446,6 +443,8 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "* If you insist, we eliminate these function immediately\n");
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
+	seq_puts(m, "---------- usage\n");
+	seq_puts(m, "# cd /d/dd_mdnie\n");
 	seq_puts(m, "---------- status usage\n");
 	seq_puts(m, "# cat status\n");
 	seq_puts(m, "= see status value with latest read data from panel\n");
@@ -509,7 +508,7 @@ int init_debugfs_mdnie(struct mdnie_info *md, unsigned int mdnie_no)
 
 	if (!debugfs_root) {
 		debugfs_root = debugfs_create_dir("dd_mdnie", NULL);
-		debugfs_create_file("_help", S_IRUSR, debugfs_root, md, &help_fops);
+		debugfs_create_file("_help", 0400, debugfs_root, md, &help_fops);
 	}
 
 	d->md = md;
@@ -517,11 +516,11 @@ int init_debugfs_mdnie(struct mdnie_info *md, unsigned int mdnie_no)
 
 	memset(name, 0, sizeof(name));
 	scnprintf(name, sizeof(name), !mdnie_no ? "tuning" : "tuning.%d", mdnie_no);
-	debugfs_create_file(name, S_IRUSR | S_IWUSR, debugfs_root, d, &tuning_fops);
+	debugfs_create_file(name, 0600, debugfs_root, d, &tuning_fops);
 
 	memset(name, 0, sizeof(name));
 	scnprintf(name, sizeof(name), !mdnie_no ? "status" : "status.%d", mdnie_no);
-	debugfs_create_file(name, S_IRUSR, debugfs_root, d, &status_fops);
+	debugfs_create_file(name, 0400, debugfs_root, d, &status_fops);
 
 	dbg_info("-\n");
 

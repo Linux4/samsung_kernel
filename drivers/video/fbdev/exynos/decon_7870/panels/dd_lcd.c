@@ -1,11 +1,10 @@
-/* dd_lcd.c
- *
- * Copyright (c) 2018 Samsung Electronics
+/*
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-*/
+ */
 
 /* temporary solution: Do not use these sysfs as official purpose */
 /* these function are not official one. only purpose is for temporary test */
@@ -241,7 +240,7 @@ static int unlock_open(struct inode *inode, struct file *f)
 static int make_tx(struct d_info *d, struct rw_info *rw, unsigned char *ibuf)
 {
 	unsigned char obuf[MAX_INPUT] = {0, };
-	unsigned char data;
+	unsigned char data = 0;
 	char *pbuf, *token;
 
 	int ret = 0, end = 0;
@@ -261,17 +260,22 @@ static int make_tx(struct d_info *d, struct rw_info *rw, unsigned char *ibuf)
 		token = strsep(&pbuf, " ,:");
 		ret = token ? kstrtou8(token, 16, &data) : -EINVAL;
 		if (ret < 0) {
-			if (dsi_data_type_is_tx_short(data) || dsi_data_type_is_tx_long(data)) {
-				type = data;
-				dbg_info("datatype is %02x\n", type);
-			} else {
-				dbg_info("datatype is invalid\n");
-				goto exit;
-			}
+			dbg_info("datatype is invalid\n");
+			goto exit;
+		}
+
+		if (dsi_data_type_is_tx_short(data) || dsi_data_type_is_tx_long(data)) {
+			type = data;
+			dbg_info("datatype is %02x\n", data);
+		} else {
+			dbg_info("datatype is invalid, %02x\n", data);
+			goto exit;
 		}
 	}
 
 	while ((token = strsep(&pbuf, " ,"))) {
+		if (*token == '\0')
+			continue;
 		ret = kstrtou8(token, 16, &data);
 		if (ret < 0 || end == ARRAY_SIZE(obuf))
 			break;
@@ -346,20 +350,17 @@ static ssize_t unlock_store(struct file *f, const char __user *user_buf,
 		goto exit;
 	}
 
-	if (count > sizeof(ibuf))
+	ret = dd_simple_write_to_buffer(ibuf, sizeof(ibuf), ppos, user_buf, count);
+	if (ret < 0) {
+		dbg_info("dd_simple_write_to_buffer fail: %d\n", ret);
 		goto exit;
+	}
 
-	if (!strncmp(user_buf, "0", count)) {
+	if (!strncmp(ibuf, "0", count - 1)) {
 		dbg_info("input is 0(zero). reset unlock parameter to default(nothing)\n");
 		clean_unlock(d);
 		goto exit;
 	}
-
-	ret = simple_write_to_buffer(ibuf, sizeof(ibuf) - 1, ppos, user_buf, count);
-	if (ret < 0)
-		goto exit;
-
-	ibuf[ret] = '\0';
 
 	cmdlist = add_unlock(d, ibuf);
 	if (!cmdlist)
@@ -398,6 +399,7 @@ static int tx_show(struct seq_file *m, void *unused)
 
 	if (!d->enable) {
 		dbg_info("enable is %s\n", d->enable ? "on" : "off");
+		seq_printf(m, "enable is %s\n", d->enable ? "on" : "off");
 		goto exit;
 	}
 
@@ -444,14 +446,11 @@ static ssize_t tx_store(struct file *f, const char __user *user_buf,
 		goto exit;
 	}
 
-	if (count > sizeof(ibuf))
+	ret = dd_simple_write_to_buffer(ibuf, sizeof(ibuf), ppos, user_buf, count);
+	if (ret < 0) {
+		dbg_info("dd_simple_write_to_buffer fail: %d\n", ret);
 		goto exit;
-
-	ret = simple_write_to_buffer(ibuf, sizeof(ibuf) - 1, ppos, user_buf, count);
-	if (ret < 0)
-		goto exit;
-
-	ibuf[ret] = '\0';
+	}
 
 	tx_unlock(d);
 
@@ -489,6 +488,7 @@ static int rx_show(struct seq_file *m, void *unused)
 
 	if (!d->enable) {
 		dbg_info("enable is %s\n", d->enable ? "on" : "off");
+		seq_printf(m, "enable is %s\n", d->enable ? "on" : "off");
 		goto exit;
 	}
 
@@ -547,13 +547,13 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 	if (count > sizeof(ibuf))
 		goto exit;
 
-	ret = simple_write_to_buffer(ibuf, sizeof(ibuf) - 1, ppos, user_buf, count);
-	if (ret < 0)
+	ret = dd_simple_write_to_buffer(ibuf, sizeof(ibuf), ppos, user_buf, count);
+	if (ret < 0) {
+		dbg_info("dd_simple_write_to_buffer fail: %d\n", ret);
 		goto exit;
+	}
 
-	ibuf[ret] = '\0';
-
-	pbuf = strim(ibuf);
+	pbuf = ibuf;
 	if (strchr(pbuf, ':')) {
 		if (strchr(pbuf, ':') >= strchr(pbuf, ' ')) {
 			dbg_info("if you want custom data type, colon(:) should come first\n");
@@ -630,6 +630,9 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "* If you insist, we eliminate these function immediately\n");
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
+	seq_puts(m, "---------- usage\n");
+	seq_puts(m, "# cd /d/dd_lcd\n");
+	seq_puts(m, "\n");
 	seq_puts(m, "---------- rx usage\n");
 	seq_puts(m, "# echo cmd len > rx\n");
 	seq_puts(m, "# echo (datatype:) cmd len (pos) > rx\n");
@@ -704,6 +707,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "= check current tx_dump status\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage summary\n");
+	seq_puts(m, "# cd /d/dd_lcd\n");
 	seq_puts(m, "# echo 29 > tx\n");
 	seq_puts(m, "# cat tx\n");
 	seq_puts(m, "# echo a1 4 > rx\n");
@@ -878,6 +882,8 @@ static ssize_t write_store(struct kobject *kobj,
 
 	pos = (char *)buf;
 	while ((token = strsep(&pos, " ")) != NULL) {
+		if (*token == '\0')
+			continue;
 		ret = kstrtouint(token, 16, &val);
 		if (!ret) {
 			seqbuf[len] = val;
@@ -978,16 +984,16 @@ static int init_debugfs_lcd(void)
 
 	if (!debugfs_root) {
 		debugfs_root = debugfs_create_dir("dd_lcd", NULL);
-		debugfs_create_file("_help", S_IRUSR, debugfs_root, d, &help_fops);
+		debugfs_create_file("_help", 0400, debugfs_root, d, &help_fops);
 	}
 
 	d->dev = dev;
 	d->tx_dump = &tx_dump;
 
-	debugfs_create_u32("tx_dump", S_IRUSR | S_IWUSR, debugfs_root, d->tx_dump);
-	debugfs_create_file("rx", S_IRUSR | S_IWUSR, debugfs_root, d, &rx_fops);
-	debugfs_create_file("tx", S_IRUSR | S_IWUSR, debugfs_root, d, &tx_fops);
-	debugfs_create_file("unlock", S_IRUSR | S_IWUSR, debugfs_root, d, &unlock_fops);
+	debugfs_create_u32("tx_dump", 0600, debugfs_root, d->tx_dump);
+	debugfs_create_file("rx", 0600, debugfs_root, d, &rx_fops);
+	debugfs_create_file("tx", 0600, debugfs_root, d, &tx_fops);
+	debugfs_create_file("unlock", 0600, debugfs_root, d, &unlock_fops);
 
 	INIT_LIST_HEAD(&d->unlock_list);
 	init_add_unlock(d, "f0 5a 5a");
@@ -1006,48 +1012,13 @@ exit:
 	return ret;
 }
 
-static struct notifier_block dd_lcd_fb_notifier;
-
-static int fb_register_callback(struct notifier_block *self,
-			unsigned long event, void *data)
-{
-	struct fb_event *evdata = data;
-
-	switch (event) {
-	case FB_EVENT_FB_REGISTERED:
-		break;
-	default:
-		return NOTIFY_DONE;
-	}
-
-	if (evdata->info->node)
-		return NOTIFY_DONE;
-
-	init_debugfs_lcd();
-
-	fb_unregister_client(&dd_lcd_fb_notifier);
-
-	return NOTIFY_DONE;
-}
-
 static int __init dd_lcd_init(void)
 {
-	/* init_debugfs_lcd(); */
-
-	dd_lcd_fb_notifier.notifier_call = fb_register_callback;
-	fb_register_client(&dd_lcd_fb_notifier);
+	init_debugfs_lcd();
 
 	return 0;
 }
 
-static void __exit dd_lcd_exit(void)
-{
-	fb_unregister_client(&dd_lcd_fb_notifier);
-}
-
-/* we use fb notification instead of late_initcall */
-/* late_initcall(dd_lcd_init); */
-module_init(dd_lcd_init);
-module_exit(dd_lcd_exit);
+late_initcall(dd_lcd_init);
 #endif
 

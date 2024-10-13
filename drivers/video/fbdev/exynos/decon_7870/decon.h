@@ -628,8 +628,21 @@ void DISP_SS_DUMP(u32 type);
 #define DISP_SS_DUMP(...)
 #endif
 
+#define ABD_EVENT_LOG_MAX	50
+#define ABD_LOG_MAX		10
+
+struct abd_event_log {
+	u64 stamp;
+	const char *print;
+};
+
+struct abd_event {
+	struct abd_event_log log[ABD_EVENT_LOG_MAX];
+	atomic_t log_idx;
+};
+
 struct abd_log {
-	ktime_t stamp;
+	u64 stamp;
 
 	unsigned int level;
 	unsigned int state;
@@ -644,8 +657,6 @@ struct abd_log {
 	unsigned long disp;
 };
 
-#define ABD_LOG_MAX	10
-
 struct abd_trace {
 	const char *name;
 	unsigned int count;
@@ -656,6 +667,7 @@ struct abd_trace {
 struct abd_pin {
 	const char *name;
 	unsigned int irq;
+	struct irq_desc *desc;
 	int gpio;
 	int level;
 	int active_level;
@@ -677,6 +689,7 @@ enum {
 
 struct abd_protect {
 	struct abd_pin pin[ABD_PIN_MAX];
+	struct abd_event event;
 
 	struct abd_trace f_first;
 	struct abd_trace f_lcdon;
@@ -688,13 +701,14 @@ struct abd_protect {
 
 	unsigned int irq_enable;
 	struct notifier_block reboot_notifier;
+	spinlock_t slock;
 };
 
 void decon_abd_enable(struct decon_device *decon, int enable);
 int decon_abd_register(struct decon_device *decon);
 void decon_abd_save_log_fto(struct abd_protect *abd, struct sync_fence *fence);
-void decon_abd_save_log_udr(struct abd_protect *abd, unsigned long , unsigned long, unsigned long);
 int decon_abd_register_pin_handler(int irq, irq_handler_t handler, void *dev_id);
+void decon_abd_save_log_event(struct abd_protect *abd, const char *print);
 
 struct decon_device {
 	void __iomem			*regs;
@@ -789,6 +803,11 @@ struct decon_device {
 	void	(*tracing_mark_write)( int pid, char id, char* str1, int value);
 
 	int 			update_regs_list_cnt;
+
+#if defined(CONFIG_EXYNOS_SUPPORT_FB_HANDOVER)
+	bool				fst_frame;
+#endif
+	bool				fb_reservation;
 };
 
 static inline struct decon_device *get_decon_drvdata(u32 id)
@@ -876,6 +895,10 @@ void decon_reg_set_block_mode(u32 id, u32 win_idx, u32 x, u32 y, u32 h, u32 w, u
 void decon_reg_set_tui_va(u32 id, u32 va);
 void decon_set_qos(struct decon_device *decon, struct decon_reg_data *regs,
 			bool is_after, bool is_default_qos);
+
+#if defined(CONFIG_EXYNOS_SUPPORT_FB_HANDOVER)
+void decon_fb_handover_color_map(struct decon_device *decon);
+#endif
 
 /* LPD related */
 static inline void decon_lpd_block(struct decon_device *decon)

@@ -713,7 +713,6 @@ void dwc3_otg_exit(struct dwc3 *dwc)
 		return;
 	}
 
-
 has_ext_otg:
 	sysfs_remove_group(&dwc->dev->kobj, &dwc3_otg_attr_group);
 	wake_lock_destroy(&dotg->wakelock);

@@ -95,7 +95,7 @@ static void clk_enable_unlock(unsigned long flags)
 
 /***        debugfs support        ***/
 
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_ARCH_EXYNOS)
 #include <linux/debugfs.h>
 
 static struct dentry *rootdir;
@@ -446,7 +446,6 @@ DEFINE_SIMPLE_ATTRIBUTE(freq_stats_fops, freq_stats_get,
 			freq_stats_set, "%llu\n");
 #endif /*CONFIG_COMMON_CLK_FREQ_STATS_ACCOUNTING*/
 
-/* caller must hold prepare_lock */
 static int clk_debug_create_one(struct clk *clk, struct dentry *pdentry)
 {
 	struct dentry *d;

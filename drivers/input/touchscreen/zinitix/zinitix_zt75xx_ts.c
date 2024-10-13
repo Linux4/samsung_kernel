@@ -39,6 +39,7 @@
 #include <linux/input/sec_tclm_v2.h>
 #include <linux/of_gpio.h>
 #include <linux/firmware.h>
+#include <linux/vmalloc.h>
 #ifdef CONFIG_BATTERY_SAMSUNG
 #include <linux/sec_batt.h>
 #endif
@@ -126,8 +127,8 @@ enum key_event {
 /* ESD Protection */
 /*second : if 0, no use. if you have to use, 3 is recommended*/
 #define ESD_TIMER_INTERVAL			1
-#define SCAN_RATE_HZ				1000
-#define CHECK_ESD_TIMER				3
+#define SCAN_RATE_HZ				800
+#define CHECK_ESD_TIMER				1400
 
 /*Test Mode (Monitoring Raw Data) */
 #define TSP_INIT_TEST_RATIO  100
@@ -406,10 +407,11 @@ enum zt_cover_id {
 
 /* REG_USB_STATUS : optional setting from AP */
 #define DEF_OPTIONAL_MODE_USB_DETECT_BIT		0
-#define	DEF_OPTIONAL_MODE_SVIEW_DETECT_BIT		1
-#define	DEF_OPTIONAL_MODE_SENSITIVE_BIT		2
+#define DEF_OPTIONAL_MODE_SVIEW_DETECT_BIT		1
+#define DEF_OPTIONAL_MODE_SENSITIVE_BIT			2
 #define DEF_OPTIONAL_MODE_EDGE_SELECT			3
-#define	DEF_OPTIONAL_MODE_DUO_TOUCH		4
+#define DEF_OPTIONAL_MODE_DUO_TOUCH				4
+#define DEF_OPTIONAL_MODE_TOUCHABLE_AREA		5
 /* end header file */
 
 #define DEF_MIS_CAL_SPEC_MIN 40
@@ -1292,7 +1294,7 @@ static void esd_timeout_handler(unsigned long data)
 	queue_work(esd_tmr_workqueue, &info->tmr_work);
 }
 
-static void esd_timer_start(u16 sec, struct bt532_ts_info *info)
+static void esd_timer_start(u16 msec, struct bt532_ts_info *info)
 {
 	unsigned long flags;
 
@@ -1312,7 +1314,7 @@ static void esd_timer_start(u16 sec, struct bt532_ts_info *info)
 	init_timer(&(info->esd_timeout_tmr));
 	info->esd_timeout_tmr.data = (unsigned long)(info);
 	info->esd_timeout_tmr.function = esd_timeout_handler;
-	info->esd_timeout_tmr.expires = jiffies + (HZ * sec);
+	info->esd_timeout_tmr.expires = jiffies + ((HZ * msec) / 1000);
 	info->p_esd_timeout_tmr = &info->esd_timeout_tmr;
 	add_timer(&info->esd_timeout_tmr);
 	spin_unlock_irqrestore(&info->lock, flags);
@@ -1635,7 +1637,7 @@ static u8 ts_upgrade_firmware(struct bt532_ts_info *info,
 	int fuzing_udelay = 8000;
 #endif
 
-	verify_data = kzalloc(size, GFP_KERNEL);
+	verify_data = vzalloc(size);
 	if (verify_data == NULL) {
 		zinitix_printk(KERN_ERR "cannot alloc verify buffer\n");
 		return false;
@@ -1910,8 +1912,8 @@ retry_upgrade:
 			goto fail_upgrade;
 
 		if (verify_data){
-			zinitix_printk("kfree\n");
-			kfree(verify_data);
+			zinitix_printk("vfree\n");
+			vfree(verify_data);
 			verify_data = NULL;
 		}
 
@@ -1927,8 +1929,8 @@ fail_upgrade:
 	}
 
 	if (verify_data){
-		zinitix_printk("kfree\n");
-		kfree(verify_data);
+		zinitix_printk("vfree\n");
+		vfree(verify_data);
 	}
 
 	input_info(true, &client->dev, "Failed to upgrade\n");
@@ -6378,6 +6380,38 @@ static void ium_read(void *device_data)
 #endif
 #endif
 
+static void set_touchable_area(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct bt532_ts_info *info = container_of(sec, struct bt532_ts_info, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int val = sec->cmd_param[0];
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		snprintf(buff, sizeof(buff), "%s", "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		goto out;
+	}
+
+	input_info(true, &info->client->dev,
+			"%s: set 16:9 mode %s\n", __func__, val ? "enable" : "disable");
+
+	if (val)
+		zinitix_bit_set(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_TOUCHABLE_AREA);
+	else
+		zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_TOUCHABLE_AREA);
+	
+	snprintf(buff, sizeof(buff), "%s", "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+out:
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
+}
+
 static void clear_cover_mode(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -7331,6 +7365,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("clear_reference_data", clear_reference_data),},
 	{SEC_CMD("run_ref_calibration", run_ref_calibration),},
 	{SEC_CMD("dead_zone_enable", dead_zone_enable),},
+	{SEC_CMD("set_touchable_area", set_touchable_area),},
 	{SEC_CMD("clear_cover_mode", clear_cover_mode),},
 	{SEC_CMD("spay_enable", spay_enable),},
 	{SEC_CMD("aod_enable", aod_enable),},

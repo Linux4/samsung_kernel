@@ -469,7 +469,13 @@ static int sec_bat_set_charging_current(struct sec_battery_info *battery)
 			battery->wired_input_current = input_current;
 		}
 		/* set charging current */
+#ifdef CONFIG_CHARGER_S2MU005
+		psy_do_property(battery->pdata->charger_name, get,
+		POWER_SUPPLY_PROP_CURRENT_NOW, value);
+		if (value.intval != ((charging_current / 50) * 50) || battery->charging_current != charging_current) {
+#else
 		if (battery->charging_current != charging_current) {
+#endif
 			value.intval = charging_current;
 			psy_do_property(battery->pdata->charger_name, set,
 				POWER_SUPPLY_PROP_CURRENT_NOW, value);
@@ -1574,7 +1580,7 @@ static void sec_bat_aging_check(struct sec_battery_info *battery)
 	int calc_step = -1;
 	bool ret;
 
-	if (battery->pdata->num_age_step <= 0)
+	if (battery->pdata->num_age_step <= 0 || battery->batt_cycle < 0)
 		return;
 
 	if (battery->temperature < 50) {
@@ -7533,7 +7539,7 @@ static int sec_bat_parse_dt(struct device *dev,
 	ret = of_property_read_u32(np, "battery,swelling_high_temp_current", 
 					&pdata->swelling_high_temp_current);
 	if (ret) {
-		pr_info("%s: swelling_low_temp_current is Empty, Defualt value 1300mA \n", __func__);
+		pr_info("%s: swelling_high_temp_current is Empty, Defualt value 1300mA \n", __func__);
 		pdata->swelling_high_temp_current = 1300;
 	}
 

@@ -1,7 +1,5 @@
 /*
- * s6e8aa5x01_a6lte_lcd_ctrl.c
- *
- * Copyright (c) 2017 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -645,13 +643,13 @@ static int s6e8aa5x01_read_coordinate(struct lcd_info *lcd)
 static int s6e8aa5x01_read_manufacture_info(struct lcd_info *lcd)
 {
 	int ret = 0;
-	unsigned char buf[LDI_LEN_MANUFACTURE_INFO] = {0, };
+	unsigned char buf[LDI_GPARA_MANUFACTURE_INFO + LDI_LEN_MANUFACTURE_INFO] = {0, };
 
-	ret = s6e8aa5x01_read_info(lcd, LDI_REG_MANUFACTURE_INFO, LDI_LEN_MANUFACTURE_INFO, buf);
+	ret = s6e8aa5x01_read_info(lcd, LDI_REG_MANUFACTURE_INFO, ARRAY_SIZE(buf), buf);
 	if (ret < 0)
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
 
-	memcpy(lcd->manufacture_info, buf, LDI_LEN_MANUFACTURE_INFO);
+	memcpy(lcd->manufacture_info, &buf[LDI_GPARA_MANUFACTURE_INFO], LDI_LEN_MANUFACTURE_INFO);
 
 	return ret;
 }
@@ -900,11 +898,6 @@ static int init_hbm_gamma(struct lcd_info *lcd)
 	for (i = IBRIGHTNESS_MAX; i < IBRIGHTNESS_HBM_MAX; i++)
 		memcpy(&lcd->gamma_table[i], SEQ_GAMMA_CONDITION_SET, GAMMA_CMD_CNT);
 
-/*
-*	V255 of 443 nit
-*	ratio = (443-420) / (600-420) = 0.127778
-*	target gamma = 256 + (281 - 256) * 0.127778 = 259.1944
-*/
 	for (i = IBRIGHTNESS_MAX; i < IBRIGHTNESS_HBM_MAX; i++) {
 		t1 = hitp->ibr_tbl[i] - hitp->ibr_tbl[hitp->idx_ref];
 		t2 = hitp->ibr_tbl[hitp->idx_hbm] - hitp->ibr_tbl[hitp->idx_ref];
@@ -1108,18 +1101,18 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 	set_dpui_field(DPUI_KEY_CELLID, tbuf, size);
 
 	m_info = lcd->manufacture_info;
-	site = get_bit(m_info[1], 4, 4);
-	rework = get_bit(m_info[1], 0, 4);
-	poc = get_bit(m_info[2], 0, 4);
-	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[3], m_info[4]);
+	site = get_bit(m_info[0], 4, 4);
+	rework = get_bit(m_info[0], 0, 4);
+	poc = get_bit(m_info[1], 0, 4);
+	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[2], m_info[3]);
 
-	for (i = 5; i < LDI_LEN_MANUFACTURE_INFO; i++) {
+	for (i = 4; i < LDI_LEN_MANUFACTURE_INFO; i++) {
 		if (!isdigit(m_info[i]) && !isupper(m_info[i])) {
 			invalid = 1;
 			break;
 		}
 	}
-	for (i = 5; !invalid && i < LDI_LEN_MANUFACTURE_INFO; i++)
+	for (i = 4; !invalid && i < LDI_LEN_MANUFACTURE_INFO; i++)
 		seq_printf(&m, "%c", m_info[i]);
 
 	set_dpui_field(DPUI_KEY_OCTAID, tbuf, m.count);
@@ -1180,7 +1173,7 @@ static ssize_t window_type_show(struct device *dev,
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
-	sprintf(buf, "%x %x %x\n", lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
+	sprintf(buf, "%02x %02x %02x\n", lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
 
 	return strlen(buf);
 }
@@ -1447,18 +1440,18 @@ static ssize_t octa_id_show(struct device *dev,
 	};
 
 	m_info = lcd->manufacture_info;
-	site = get_bit(m_info[1], 4, 4);
-	rework = get_bit(m_info[1], 0, 4);
-	poc = get_bit(m_info[2], 0, 4);
-	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[3], m_info[4]);
+	site = get_bit(m_info[0], 4, 4);
+	rework = get_bit(m_info[0], 0, 4);
+	poc = get_bit(m_info[1], 0, 4);
+	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[2], m_info[3]);
 
-	for (i = 5; i < LDI_LEN_MANUFACTURE_INFO; i++) {
+	for (i = 4; i < LDI_LEN_MANUFACTURE_INFO; i++) {
 		if (!isdigit(m_info[i]) && !isupper(m_info[i])) {
 			invalid = 1;
 			break;
 		}
 	}
-	for (i = 5; !invalid && i < LDI_LEN_MANUFACTURE_INFO; i++)
+	for (i = 4; !invalid && i < LDI_LEN_MANUFACTURE_INFO; i++)
 		seq_printf(&m, "%c", m_info[i]);
 
 	seq_puts(&m, "\n");
@@ -1583,7 +1576,7 @@ static void lcd_init_svc(struct lcd_info *lcd)
 	buf = kzalloc(PATH_MAX, GFP_KERNEL);
 	if (buf) {
 		path = kernfs_path(svc_kobj->sd, buf, PATH_MAX);
-		dev_info(&lcd->ld->dev, "%s: %s %s\n", __func__, path, !kn ? "create" : "");
+		dev_info(&lcd->ld->dev, "%s: %s %s\n", __func__, buf, !kn ? "create" : "");
 		kfree(buf);
 	}
 

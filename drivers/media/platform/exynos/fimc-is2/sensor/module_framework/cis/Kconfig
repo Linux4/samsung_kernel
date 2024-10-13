@@ -35,6 +35,22 @@ config CAMERA_CIS_5E6_OBJ
 	default n
 	help
 	  Use to build 5E6 camera sensor.
+	  
+config CAMERA_CIS_5E9_OBJ
+	bool "Use 5E9 camera cis"
+	depends on USE_DIRECT_IS_CONTROL
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build 5E9 camera sensor.
+
+config CAMERA_CIS_5F1_OBJ
+	bool "Use 5F1 camera cis"
+	depends on USE_DIRECT_IS_CONTROL
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build 5F1 camera sensor.
 
 config CAMERA_CIS_4H5YC_OBJ
 	bool "Use 4H5YC camera cis"
@@ -147,3 +163,12 @@ config CAMERA_CIS_IMX219_OBJ
 	default n
 	help
 	  Use to build IMX219 camera sensor.
+
+config CAMERA_CIS_GC5035_OBJ
+		bool "Use GC5035 camera cis"
+	depends on USE_DIRECT_IS_CONTROL
+	depends on CAMERA_CIS_SELECT
+		default n
+		help
+		  Use to build GC5035 camera sensor.
+

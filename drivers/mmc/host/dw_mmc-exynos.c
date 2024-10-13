@@ -1196,7 +1196,17 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 	 * And that mid is odd number, means the selected case includes
 	 * using fine tuning.
 	 */
-
+	
+	/* 
+	 * This config should be applied only to T58x.
+	 */
+#ifdef CONFIG_MMC_TUNING_ALL_PASS_QUIRK 
+	if (!tuned && (all_pass_count >=2)) {
+		best_sample = 0x7;
+		tuned = true; 
+	}
+#endif
+ 
 	best_sample_ori = best_sample;
 	best_sample /= 2;
 
@@ -1252,7 +1262,7 @@ static ssize_t sd_detection_cmd_show(struct device *dev,
 		if (priv->sec_sd_slot_type > 0 && !gpio_is_valid(priv->cd_gpio))
 			goto gpio_error;
 
-		if (gpio_get_value(priv->cd_gpio)
+		if (gpio_get_value(priv->cd_gpio) ^ (host->pdata->use_gpio_invert)
 				&& priv->sec_sd_slot_type == SEC_HYBRID_SD_SLOT) {
 			dev_info(host->dev, "SD slot tray Removed.\n");
 			return sprintf(buf, "Notray\n");
@@ -1575,6 +1585,27 @@ static ssize_t mmc_summary_show(struct device *dev,
 	}
 }
 
+static ssize_t sd_cid_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct dw_mci *host = dev_get_drvdata(dev);
+	struct mmc_card *cur_card = NULL;
+	int len = 0;
+
+	if (host->cur_slot && host->cur_slot->mmc && host->cur_slot->mmc->card)
+		cur_card = host->cur_slot->mmc->card;
+	else {
+		len = snprintf(buf, PAGE_SIZE, "No Card\n");
+		goto out;
+	}
+
+	len = snprintf(buf, PAGE_SIZE,
+			"%08x%08x%08x%08x\n",
+			cur_card->raw_cid[0], cur_card->raw_cid[1],
+			cur_card->raw_cid[2], cur_card->raw_cid[3]);
+out:
+	return len;
+}
 static DEVICE_ATTR(status, 0444, sd_detection_cmd_show, NULL);
 static DEVICE_ATTR(cd_cnt, 0444, sd_detection_cnt_show, NULL);
 static DEVICE_ATTR(max_mode, 0444, sd_detection_maxmode_show, NULL);
@@ -1584,6 +1615,7 @@ static DEVICE_ATTR(sd_count, 0444, sd_count_show, NULL);
 static DEVICE_ATTR(sd_data, 0444, sd_data_show, NULL);
 static DEVICE_ATTR(mmc_data, S_IRUGO, mmc_data_show, NULL);
 static DEVICE_ATTR(mmc_summary, S_IRUGO, mmc_summary_show, NULL);
+static DEVICE_ATTR(data, 0444, sd_cid_show, NULL);
 
 /* Callback function for SD Card IO Error */
 static int sdcard_uevent(struct mmc_card *card)
@@ -1722,6 +1754,10 @@ static void dw_mci_exynos_add_sysfs(struct dw_mci *host)
 				pr_err("Fail to create sysfs dev\n");
 			if (device_create_file(sd_info_cmd_dev,
 						&dev_attr_sd_count) < 0)
+				pr_err("Fail to create status sysfs file\n");
+
+			if (device_create_file(sd_info_cmd_dev,
+						&dev_attr_data) < 0)
 				pr_err("Fail to create status sysfs file\n");
 		}
 		if (!sd_data_cmd_dev) {

@@ -1172,6 +1172,43 @@ static int set_interrupt(struct synaptics_rmi4_data *rmi4_data, bool set)
 	return 0;
 }
 
+static int wait_for_command_completion_ex(struct synaptics_rmi4_data *rmi4_data)
+{
+	int retval;
+	unsigned char value;
+	unsigned char timeout_count;
+	struct synaptics_rmi4_f54_handle *f54 = rmi4_data->f54;
+
+	timeout_count = 0;
+	do {
+		retval = rmi4_data->i2c_read(rmi4_data,
+				f54->command_base_addr,
+				&value,
+				sizeof(value));
+		if (retval < 0) {
+			input_err(true, &rmi4_data->i2c_client->dev,
+					"%s: Failed to read command register\n",
+					__func__);
+			return retval;
+		}
+
+		if (value == 0x00)
+			break;
+
+		msleep(100);
+		timeout_count++;
+	} while (timeout_count < (FORCE_TIMEOUT_100MS * 2));
+
+	if (timeout_count == (FORCE_TIMEOUT_100MS * 2)) {
+		input_err(true, &rmi4_data->i2c_client->dev,
+				"%s: Timed out waiting for command completion\n",
+				__func__);
+		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
 static int wait_for_command_completion(struct synaptics_rmi4_data *rmi4_data)
 {
 	int retval;
@@ -2430,6 +2467,15 @@ static void fw_update(void *dev_data)
 	int retval = 0;
 
 	set_default_result(data);
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (data->cmd_param[0] == 1) {
+		snprintf(data->cmd_buff, CMD_RESULT_STR_LEN, "%s", tostring(OK));
+		data->cmd_state = CMD_STATUS_OK;
+		set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+		input_info(true, &rmi4_data->i2c_client->dev, "%s: user_ship, success\n", __func__);
+		return;
+	}
+#endif
 
 	retval = synaptics_rmi4_fw_update_on_hidden_menu(rmi4_data,
 		data->cmd_param[0]);
@@ -2618,6 +2664,9 @@ static void get_chip_name(void *dev_data)
 		break;
 	case SYNAPTICS_PRODUCT_ID_TD4300:
 		snprintf(data->cmd_buff, CMD_RESULT_STR_LEN, "%s", tostring(TD4300));
+		break;
+	case SYNAPTICS_PRODUCT_ID_TD4310:
+		snprintf(data->cmd_buff, CMD_RESULT_STR_LEN, "%s", tostring(TD4310));
 		break;
 	default:
 		snprintf(data->cmd_buff, CMD_RESULT_STR_LEN, "%s", tostring(NA));
@@ -3814,7 +3863,7 @@ static void run_trx_open_test(void *dev_data)
 	}
 
 	/* syna customized for sec 20160819 + */
-	if(rmi4_data->product_id== SYNAPTICS_PRODUCT_ID_TD4300)
+	if((rmi4_data->product_id== SYNAPTICS_PRODUCT_ID_TD4300) || (rmi4_data->product_id== SYNAPTICS_PRODUCT_ID_TD4310))
 	{
 
 		// read the original f54 ctrl_95 data
@@ -4017,7 +4066,7 @@ static void run_trx_open_test(void *dev_data)
 	}
 
 		/* syna customized for sec 20160819 + */
-	if(rmi4_data->product_id == SYNAPTICS_PRODUCT_ID_TD4300)
+	if((rmi4_data->product_id == SYNAPTICS_PRODUCT_ID_TD4300) || (rmi4_data->product_id == SYNAPTICS_PRODUCT_ID_TD4310))
 	{
 		retval = rmi4_data->i2c_write(rmi4_data,
 				control.reg_95->address,
@@ -4924,7 +4973,14 @@ static ssize_t synaptics_rmi4_f54_get_report_store(struct kobject *kobj,
 			ktime_set(WATCHDOG_TIMEOUT_S, 0),
 			HRTIMER_MODE_REL);
 #else
-	retval = wait_for_command_completion(rmi4_data);
+	/* 20180822 - wait extra time if it is F54_TRX_SHORT_TDDI */
+	if (F54_TRX_SHORT_TDDI == f54->report_type) {
+		retval = wait_for_command_completion_ex(rmi4_data);
+	}
+	else {
+		retval = wait_for_command_completion(rmi4_data);
+	}
+
 	if (retval < 0) {
 		input_err(true, &rmi4_data->i2c_client->dev,
 				"%s: error wait_for_command_completion\n",

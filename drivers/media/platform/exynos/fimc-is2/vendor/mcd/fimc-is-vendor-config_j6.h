@@ -1,7 +1,7 @@
 #ifndef FIMC_IS_VENDOR_CONFIG_J6_H
 #define FIMC_IS_VENDOR_CONFIG_J6_H
 
-#include "fimc-is-eeprom-rear-3l2_v001.h"
+#include "fimc-is-eeprom-rear-3l2_v002.h"
 #include "fimc-is-eeprom-front-4h5yc_v002.h"
 
 
@@ -22,5 +22,7 @@
 #define CSI_SCENARIO_SEN_REAR	(0)
 #define CSI_SCENARIO_SEN_FRONT	(1)
 #endif
+
+#define USE_FACE_UNLOCK_AE_AWB_INIT /* for Face Unlock */
 
 #endif /* FIMC_IS_VENDOR_CONFIG_J6_H */

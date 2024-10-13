@@ -1,11 +1,10 @@
-/* decon_board.c
- *
- * Copyright (c) 2015 Samsung Electronics
+/*
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-*/
+ */
 
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -21,7 +20,7 @@
 #include "decon_board.h"
 
 /*
-*
+ *
 0. There is a pre-defined property of the name of "decon_board".
 decon_board has a phandle value that uniquely identifies the other node
 containing subnodes to control gpio, regulator, delay and pinctrl.
@@ -121,9 +120,9 @@ struct dt_node_info {
 
 struct timer_info {
 	const char			*name;
-	ktime_t				start;
-	ktime_t				end;
-	ktime_t				now;
+	u64				start;
+	u64				end;
+	u64				now;
 	unsigned int			delay;
 };
 
@@ -235,15 +234,15 @@ static void print_timer(struct timer_info *timer)
 	char buf[70] = {0, };
 	int len = 0;
 
-	elapse = timer->now.tv64 - timer->start.tv64;
-	remain = abs(timer->end.tv64 - timer->now.tv64);
+	elapse = timer->now - timer->start;
+	remain = abs(timer->end - timer->now);
 
-	len += secprintf(buf + len, sizeof(buf) - len, timer->start.tv64);
+	len += secprintf(buf + len, sizeof(buf) - len, timer->start);
 	len += scnprintf(buf + len, sizeof(buf) - len, " - ");
-	len += secprintf(buf + len, sizeof(buf) - len, timer->now.tv64);
+	len += secprintf(buf + len, sizeof(buf) - len, timer->now);
 	len += scnprintf(buf + len, sizeof(buf) - len, " = ");
 	len += secprintf(buf + len, sizeof(buf) - len, elapse);
-	len += scnprintf(buf + len, sizeof(buf) - len, ", %s", timer->end.tv64 < timer->now.tv64 ? "-" : "");
+	len += scnprintf(buf + len, sizeof(buf) - len, ", remain: %s", timer->end < timer->now ? "-" : "");
 	len += secprintf(buf + len, sizeof(buf) - len, remain);
 
 	bd_info("%s: delay: %d, %s\n", timer->name, timer->delay, buf);
@@ -377,7 +376,7 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 	switch (action->idx) {
 	case ACTION_GPIO_HIGH:
 	case ACTION_GPIO_LOW:
-		action->gpio = of_get_named_gpio_flags(np->parent, subinfo, 0, NULL);
+		action->gpio = of_get_named_gpio(np->parent, subinfo, 0);
 		if (!gpio_is_valid(action->gpio)) {
 			bd_warn("of_get_named_gpio fail %d %s\n", action->gpio, subinfo);
 			ret = -EINVAL;
@@ -480,7 +479,7 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 		break;
 	}
 
-	bd_info("idx: %d, type: %s\n", action->idx, action->type);
+	bd_info("idx: %d, type: %s, subinfo: %s\n", action->idx, action->type, action->subinfo);
 exit:
 
 	return ret;
@@ -556,31 +555,31 @@ static int do_list(struct list_head *lh)
 {
 	struct action_info *action;
 	int ret = 0;
-	u64 delta;
+	u64 us_delta;
 
 	list_for_each_entry(action, lh, node) {
 		switch (action->idx) {
 		case ACTION_GPIO_HIGH:
 			ret = gpio_request_one(action->gpio, GPIOF_OUT_INIT_HIGH, NULL);
 			if (ret < 0)
-				bd_warn("gpio_request_one fail\n");
+				bd_warn("gpio_request_one fail %d, %d, %s\n", ret, action->gpio, action->subinfo);
 			gpio_free(action->gpio);
 			break;
 		case ACTION_GPIO_LOW:
 			ret = gpio_request_one(action->gpio, GPIOF_OUT_INIT_LOW, NULL);
 			if (ret < 0)
-				bd_warn("gpio_request_one fail\n");
+				bd_warn("gpio_request_one fail %d, %d, %s\n", ret, action->gpio, action->subinfo);
 			gpio_free(action->gpio);
 			break;
 		case ACTION_REGULATOR_ENABLE:
 			ret = regulator_enable(action->supply->consumer);
 			if (ret < 0)
-				bd_warn("regulator_enable fail %s\n", action->supply->supply);
+				bd_warn("regulator_enable fail %d, %s\n", ret, action->supply->supply);
 			break;
 		case ACTION_REGULATOR_DISABLE:
 			ret = regulator_disable(action->supply->consumer);
 			if (ret < 0)
-				bd_warn("regulator_disable fail %s\n", action->supply->supply);
+				bd_warn("regulator_disable fail %d, %s\n", ret, action->supply->supply);
 			break;
 		case ACTION_DELAY_MDELAY:
 			mdelay(action->delay[0]);
@@ -595,28 +594,28 @@ static int do_list(struct list_head *lh)
 			pinctrl_select_state(action->pins, action->state);
 			break;
 		case ACTION_TIMER_START:
-			action->timer->start = ns_to_ktime(local_clock());
-			action->timer->end = ktime_add_ms(action->timer->start, action->timer->delay);
+			action->timer->start = local_clock();
+			action->timer->end = action->timer->start + (action->timer->delay * NSEC_PER_MSEC);
 			break;
 		case ACTION_TIMER_DELAY:
-			action->timer->now = ns_to_ktime(local_clock());
+			action->timer->now = local_clock();
 			print_timer(action->timer);
 
-			if (!action->timer->end.tv64)
+			if (!action->timer->end)
 				msleep(action->timer->delay);
-			else if (action->timer->end.tv64 > action->timer->now.tv64) {
-				delta = ktime_us_delta(action->timer->end, action->timer->now);
+			else if (action->timer->end > action->timer->now) {
+				us_delta = ktime_us_delta(ns_to_ktime(action->timer->end), ns_to_ktime(action->timer->now));
 
-				if (!delta || delta > UINT_MAX)
+				if (!us_delta || us_delta > UINT_MAX)
 					break;
 
-				if (delta < MSEC_TO_USEC(SMALL_MSECS))
-					usleep_range(delta, delta + (delta >> 1));
+				if (us_delta < MSEC_TO_USEC(SMALL_MSECS))
+					usleep_range(us_delta, us_delta + (us_delta >> 1));
 				else
-					msleep(USEC_TO_MSEC(delta));
+					msleep(USEC_TO_MSEC(us_delta));
 			}
 		case ACTION_TIMER_CLEAR:
-			action->timer->end.tv64 = 0;
+			action->timer->end = 0;
 			break;
 		case ACTION_DUMMY:
 			break;
@@ -669,5 +668,127 @@ void run_list(struct device *dev, const char *name)
 	}
 
 	do_list(lh);
+}
+
+int of_gpio_get_active(const char *gpioname)
+{
+	int ret = 0, gpio = 0, gpio_level, active_level;
+	struct device_node *np = NULL;
+	enum of_gpio_flags flags = {0, };
+
+	np = of_find_node_with_property(NULL, gpioname);
+	if (!np) {
+		bd_info("of_find_node_with_property fail for %s\n", gpioname);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	bd_dbg("%s property find in node %s\n", gpioname, np->name);
+
+	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
+	if (!gpio_is_valid(gpio)) {
+		bd_warn("of_get_named_gpio fail %d %s\n", gpio, gpioname);
+		ret = -EINVAL;
+		goto exit;
+	}
+	of_node_put(np);
+
+	active_level = !(flags & OF_GPIO_ACTIVE_LOW);
+	gpio_level = gpio_get_value(gpio);
+	ret = (gpio_level == active_level) ? 1 : 0;
+exit:
+	return ret;
+}
+
+int of_gpio_get_value(const char *gpioname)
+{
+	int ret = 0, gpio = 0, gpio_level, active_level;
+	struct device_node *np = NULL;
+	enum of_gpio_flags flags = {0, };
+
+	np = of_find_node_with_property(NULL, gpioname);
+	if (!np) {
+		bd_info("of_find_node_with_property fail for %s\n", gpioname);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	bd_dbg("%s property find in node %s\n", gpioname, np->name);
+
+	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
+	if (!gpio_is_valid(gpio)) {
+		bd_warn("of_get_named_gpio fail %d %s\n", gpio, gpioname);
+		of_node_put(np);
+		ret = -EINVAL;
+		goto exit;
+	}
+	of_node_put(np);
+
+	active_level = !(flags & OF_GPIO_ACTIVE_LOW);
+	gpio_level = gpio_get_value(gpio);
+	ret = gpio_level;
+
+exit:
+	return ret;
+}
+
+int of_gpio_set_value(const char *gpioname, int value)
+{
+	int ret = 0, gpio = 0;
+	struct device_node *np = NULL;
+	enum of_gpio_flags flags = {0, };
+
+	np = of_find_node_with_property(NULL, gpioname);
+	if (!np) {
+		bd_info("of_find_node_with_property fail for %s\n", gpioname);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	bd_dbg("%s property find in node %s\n", gpioname, np->name);
+
+	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
+	if (!gpio_is_valid(gpio)) {
+		bd_warn("of_get_named_gpio fail %d %s\n", gpio, gpioname);
+		of_node_put(np);
+		ret = -EINVAL;
+		goto exit;
+	}
+	of_node_put(np);
+
+	ret = gpio_request_one(gpio, value ? GPIOF_OUT_INIT_HIGH : GPIOF_OUT_INIT_LOW, NULL);
+	if (ret < 0)
+		bd_warn("gpio_request_one fail %d, %d, %s\n", ret, gpio, gpioname);
+	gpio_free(gpio);
+exit:
+	return ret;
+}
+
+int of_get_gpio_with_name(const char *gpioname)
+{
+	int ret = 0, gpio = 0;
+	struct device_node *np = NULL;
+	enum of_gpio_flags flags = {0, };
+
+	np = of_find_node_with_property(NULL, gpioname);
+	if (!np) {
+		bd_info("of_find_node_with_property fail for %s\n", gpioname);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	bd_dbg("%s property find in node %s\n", gpioname, np->name);
+
+	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
+	if (!gpio_is_valid(gpio)) {
+		bd_warn("of_get_named_gpio fail %d %s\n", gpio, gpioname);
+		ret = -EINVAL;
+		goto exit;
+	}
+	of_node_put(np);
+
+	ret = gpio;
+exit:
+	return ret;
 }
 

@@ -33,7 +33,6 @@
 #include <linux/usb/otg.h>
 
 #include <linux/phy/phy.h>
-#include "../../battery_v2/include/sec_charging_common.h"
 
 #define DWC3_MSG_MAX	500
 
@@ -869,8 +868,6 @@ struct dwc3 {
 	unsigned		adj_sof_accuracy:1;
 	unsigned		is_not_vbus_pad:1;
 	unsigned		sparse_transfer_control:1;
-	struct			work_struct      set_vbus_current_work;
-	int				vbus_current; /* 100mA,  500mA,  900mA */
 #ifdef CONFIG_ARGOS
 	u32			irq_affinity_cpu_mask;
 #endif

@@ -22,6 +22,7 @@
 #include <asm/compat.h>
 #include <asm/page.h>
 #include <asm/dma-contiguous.h>
+#include <linux/cma.h>
 
 #include <linux/memblock.h>
 #include <linux/err.h>
@@ -217,6 +218,12 @@ void __init dma_contiguous_reserve(phys_addr_t limit)
 
 		__dma_contiguous_reserve_area(selected_size, 0, limit,
 					    &dma_contiguous_default_area);
+		if (dma_contiguous_default_area) {
+			record_memsize_reserved("default_CMA",
+				cma_get_base(dma_contiguous_default_area),
+				cma_get_size(dma_contiguous_default_area),
+				false, true);
+		}
 	}
 };
 
@@ -336,7 +343,7 @@ int __init dma_contiguous_reserve_area(phys_addr_t size, phys_addr_t base,
  * global one. Requires architecture specific get_dev_cma_area() helper
  * function.
  */
-struct page *dma_alloc_from_contiguous(struct device *dev, int count,
+struct page *dma_alloc_from_contiguous(struct device *dev, size_t count,
 				       unsigned int align)
 {
 	unsigned long mask, pfn, pageno, start = 0;
@@ -349,10 +356,10 @@ struct page *dma_alloc_from_contiguous(struct device *dev, int count,
 
 	if (align > CONFIG_CMA_ALIGNMENT)
 		align = CONFIG_CMA_ALIGNMENT;
-
+/*
 	pr_debug("%s(cma %p, count %d, align %d)\n", __func__, (void *)cma,
 		 count, align);
-
+*/
 	if (!count)
 		return NULL;
 

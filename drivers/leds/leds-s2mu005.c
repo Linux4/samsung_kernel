@@ -620,12 +620,13 @@ int s2mu005_led_mode_ctrl(int mode)
 		default:
 			break;
 	}
-/*	//For control brightness of front flash led
+#if defined (CONFIG_CAMERA_J7VE) || defined (CONFIG_CAMERA_J5Y17)
+	//For control brightness of front flash led
 	ret = s2mu005_update_reg(led_data->i2c, S2MU005_REG_FLED_CH2_CTRL1,
 				brightness, S2MU005_TORCH_IOUT_MASK);
 	if (ret < 0)
 		goto error_set_bits;
-*/
+#endif
 	ret = s2mu005_write_reg(led_data->i2c, CH_FLASH_TORCH_EN, value);
 	if (ret < 0)
 		goto error_set_bits;
@@ -760,10 +761,11 @@ int s2mu005_led_select_ctrl(int ch)
 			S2MU005_CH2_TORCH_ON_GPIO);
 #endif
 		/* brightness set - front torch*/
-/*
+#if defined (CONFIG_CAMERA_J7VE) || defined (CONFIG_CAMERA_J5Y17)
 		s2mu005_update_reg(led_data->i2c, S2MU005_REG_FLED_CH2_CTRL1,
 			led_data->front_brightness, S2MU005_TORCH_IOUT_MASK);
-*/	/*For control brightness of front flash led*/
+	/*For control brightness of front flash led*/
+#endif
 	} else {
 #ifndef CONFIG_S2MU005_LEDS_I2C
 		devm_gpio_request(led_data->cdev.dev, gpio_flash, "s2mu005_gpio_flash");
@@ -866,6 +868,20 @@ static ssize_t rear_flash_store(struct device *dev,
 		flash_config_factory = true;
 	} else if (1001 <= value && value <= 1010) {
 		/* (value) 1001, 1002, 1004, 1006, 1009 */
+#if defined (CONFIG_CAMERA_M10LTE)
+		if (value <= 1001)
+			torch_current = 50;
+		else if (value <= 1002)
+			torch_current = 75;
+		else if (value <= 1004)
+			torch_current = 125;
+		else if (value <= 1006)
+			torch_current = 175;
+		else if (value <= 1009)
+			torch_current = 225;
+		else
+			torch_current = 75;
+#else		
 		if (value <= 1001)
 			torch_current = 25;
 		else if (value <= 1002)
@@ -882,7 +898,7 @@ static ssize_t rear_flash_store(struct device *dev,
 #endif
 		else
 			torch_current = 50;
-
+#endif
 		brightness= S2MU005_TORCH_BRIGHTNESS(torch_current);
 		pr_info("torch current : %d mA\n", torch_current);
 		assistive_light = true;

@@ -540,7 +540,7 @@
 			pinctrl-0 = <&prox_int>;
 			stk,irq-gpio = <&gpa0 5 0x00>;
 			stk,vdd-supply = <&sm5703_ldo3_reg>;
-			stk,state-reg = <0x2d>;
+			stk,state-reg = <0x2c>;
 			stk,psctrl-reg = <0x71>;
 			stk,alsctrl-reg = <0x2A>;
 			stk,ledctrl-reg = <0xBF>;

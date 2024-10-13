@@ -15,7 +15,10 @@
  */
 
 #include <linux/task_integrity.h>
+#include <linux/file.h>
+#include <linux/fs.h>
 #include <linux/slab.h>
+#include "five_porting.h"
 
 static struct kmem_cache *task_integrity_cache;
 
@@ -58,14 +61,25 @@ struct task_integrity *task_integrity_alloc(void)
 void task_integrity_free(struct task_integrity *intg)
 {
 	if (intg) {
-		spin_lock(&intg->value_lock);
+		/* These values should be changed under "value_lock" spinlock.
+		   But then lockdep prints warning because this function can be called
+		   from sw-irq (from function free_task).
+		   Actually deadlock never happens because this function is called
+		   only if usage_count is 0 (no reference to this struct),
+		   so changing these values without spinlock is safe.
+		*/
 		kfree(intg->label);
 		intg->label = NULL;
 		intg->user_value = INTEGRITY_NONE;
-		spin_unlock(&intg->value_lock);
-
+		intg->value = INTEGRITY_NONE;
 		atomic_set(&intg->usage_count, 0);
-		task_integrity_set(intg, INTEGRITY_NONE);
+
+		intg->reset_cause = CAUSE_UNKNOWN;
+		if (intg->reset_file) {
+			fput(intg->reset_file);
+			intg->reset_file = NULL;
+		}
+
 		kmem_cache_free(task_integrity_cache, intg);
 	}
 }
@@ -77,6 +91,12 @@ void task_integrity_clear(struct task_integrity *tint)
 	kfree(tint->label);
 	tint->label = NULL;
 	spin_unlock(&tint->value_lock);
+
+	tint->reset_cause = CAUSE_UNKNOWN;
+	if (tint->reset_file) {
+		fput(tint->reset_file);
+		tint->reset_file = NULL;
+	}
 }
 
 static int copy_label(struct task_integrity *from, struct task_integrity *to)
@@ -117,5 +137,57 @@ int task_integrity_copy(struct task_integrity *from, struct task_integrity *to)
 
 	rc = copy_label(from, to);
 
+	to->reset_cause = from->reset_cause;
+	if (from->reset_file) {
+		get_file(from->reset_file);
+		to->reset_file = from->reset_file;
+	}
+
 	return rc;
+}
+
+char const * const tint_reset_cause_to_string(
+	enum task_integrity_reset_cause cause)
+{
+	static const char * const tint_cause2str[] = {
+		[CAUSE_UNKNOWN] = "unknown",
+		[CAUSE_MISMATCH_LABEL] = "mismatch-label",
+		[CAUSE_BAD_FS] = "bad-fs",
+		[CAUSE_NO_CERT] = "no-cert",
+		[CAUSE_INVALID_HASH_LENGTH] = "invalid-hash-length",
+		[CAUSE_INVALID_HEADER] = "invalid-header",
+		[CAUSE_CALC_HASH_FAILED] = "calc-hash-failed",
+		[CAUSE_INVALID_LABEL_DATA] = "invalid-label-data",
+		[CAUSE_INVALID_SIGNATURE_DATA] = "invalid-signature-data",
+		[CAUSE_INVALID_HASH] = "invalid-hash",
+		[CAUSE_INVALID_CALC_CERT_HASH] = "invalid-calc-cert-hash",
+		[CAUSE_INVALID_UPDATE_LABEL] = "invalid-update-label",
+		[CAUSE_INVALID_SIGNATURE] = "invalid-signature",
+		[CAUSE_UKNOWN_FIVE_DATA] = "unknown-five-data",
+		[CAUSE_MAX] = "incorrect-cause",
+	};
+
+	if (cause > CAUSE_MAX)
+		cause = CAUSE_MAX;
+
+	return tint_cause2str[cause];
+}
+
+/*
+ * task_integrity_set_reset_reason
+ *
+ * Only first call of this function per task will have effect, because first
+ * reason will be root cause.
+ */
+void task_integrity_set_reset_reason(struct task_integrity *intg,
+	enum task_integrity_reset_cause cause, struct file *file)
+{
+	if (intg->reset_cause != CAUSE_UNKNOWN)
+		return;
+
+	intg->reset_cause = cause;
+	if (file) {
+		get_file(file);
+		intg->reset_file = file;
+	}
 }

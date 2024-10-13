@@ -32,6 +32,10 @@
 #include <trace/events/ion.h>
 #include <asm/cacheflush.h>
 
+#ifdef CONFIG_ION_POOL_CACHE_POLICY
+#include <asm/cacheflush.h>
+#endif
+
 #include "ion.h"
 
 struct exynos_ion_platform_heap {
@@ -240,6 +244,9 @@ struct ion_heap {
 	struct task_struct *task;
 
 	int (*debug_show)(struct ion_heap *heap, struct seq_file *, void *);
+	atomic_long_t total_allocated;
+	atomic_long_t total_allocated_peak;
+	atomic_long_t total_handles;
 };
 
 /**
@@ -519,6 +526,37 @@ void ion_page_pool_destroy(struct ion_page_pool *);
 void *ion_page_pool_alloc_pages(struct ion_page_pool *pool);
 struct page *ion_page_pool_alloc(struct ion_page_pool *);
 void ion_page_pool_free(struct ion_page_pool *, struct page *);
+void ion_page_pool_free_immediate(struct ion_page_pool *, struct page *);
+
+#ifdef CONFIG_ION_POOL_CACHE_POLICY
+static inline void ion_page_pool_alloc_set_cache_policy
+				(struct ion_page_pool *pool,
+				struct page *page){
+	void *va = page_address(page);
+
+	if (va)
+		set_memory_wc((unsigned long)va, 1 << pool->order);
+}
+
+static inline void ion_page_pool_free_set_cache_policy
+				(struct ion_page_pool *pool,
+				struct page *page){
+	void *va = page_address(page);
+
+	if (va)
+		set_memory_wb((unsigned long)va, 1 << pool->order);
+
+}
+#else
+static inline void ion_page_pool_alloc_set_cache_policy
+				(struct ion_page_pool *pool,
+				struct page *page){ }
+
+static inline void ion_page_pool_free_set_cache_policy
+				(struct ion_page_pool *pool,
+				struct page *page){ }
+#endif
+
 
 /** ion_page_pool_shrink - shrinks the size of the memory cached in the pool
  * @pool:		the pool
@@ -559,23 +597,24 @@ typedef enum ion_event_type {
 	ION_EVENT_TYPE_CLEAR,
 } ion_event_t;
 
+#define ION_EVENT_HEAPNAME	8
 struct ion_event_alloc {
 	void *id;
-	struct ion_heap *heap;
+	unsigned char heapname[ION_EVENT_HEAPNAME];
 	size_t size;
 	unsigned long flags;
 };
 
 struct ion_event_free {
 	void *id;
-	struct ion_heap *heap;
+	unsigned char heapname[ION_EVENT_HEAPNAME];
 	size_t size;
 	bool shrinker;
 };
 
 struct ion_event_mmap {
 	void *id;
-	struct ion_heap *heap;
+	unsigned char heapname[ION_EVENT_HEAPNAME];
 	size_t size;
 };
 
@@ -585,7 +624,7 @@ struct ion_event_shrink {
 
 struct ion_event_clear {
 	void *id;
-	struct ion_heap *heap;
+	unsigned char heapname[ION_EVENT_HEAPNAME];
 	size_t size;
 	unsigned long flags;
 };
@@ -605,6 +644,10 @@ struct ion_eventlog {
 
 void ION_EVENT_SHRINK(struct ion_device *dev, size_t size);
 void ION_EVENT_CLEAR(struct ion_buffer *buffer, ktime_t begin);
+
+void show_ion_system_heap_size(struct seq_file *s);
+void show_ion_system_heap_pool_size(struct seq_file *s);
+
 #else
 #define ION_EVENT_BEGIN()		do { } while (0)
 #define ION_EVENT_DONE()		do { } while (0)

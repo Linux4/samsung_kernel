@@ -46,6 +46,6 @@ config FIVE_TRUSTLET_PATH
 config FIVE_EARLY_LOAD_TRUSTED_APP
     bool "Load trusted application in early boot"
     depends on FIVE_TEE_DRIVER
-    default n
+    default y if !FIVE_USE_TZDEV
     help
       Enable the load of trusted application on during initialization of driver

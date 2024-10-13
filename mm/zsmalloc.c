@@ -319,7 +319,8 @@ static int create_handle_cache(struct zs_pool *pool)
 
 static void destroy_handle_cache(struct zs_pool *pool)
 {
-	kmem_cache_destroy(pool->handle_cachep);
+	if (pool->handle_cachep)
+		kmem_cache_destroy(pool->handle_cachep);
 }
 
 static unsigned long alloc_handle(struct zs_pool *pool)
@@ -424,6 +425,11 @@ static void *zs_zpool_map(void *pool, unsigned long handle,
 	case ZPOOL_MM_RO:
 		zs_mm = ZS_MM_RO;
 		break;
+#ifdef CONFIG_ZSWAP_SAME_PAGE_SHARING
+	case ZPOOL_MM_RO_NOWAIT:
+		zs_mm = ZS_MM_RO_NOWAIT;
+		break;
+#endif
 	case ZPOOL_MM_WO:
 		zs_mm = ZS_MM_WO;
 		break;
@@ -834,7 +840,8 @@ static enum fullness_group fix_fullness_group(struct size_class *class,
  * to form a zspage for each size class. This is important
  * to reduce wastage due to unusable space left at end of
  * each zspage which is given as:
- *	wastage = Zp - Zp % size_class
+ *     wastage = Zp % class_size
+ *     usage = Zp - wastage
  * where Zp = zspage size = k * PAGE_SIZE where k = 1, 2, ...
  *
  * For example, for size class of 3/8 * PAGE_SIZE, we should
@@ -1507,7 +1514,15 @@ void *zs_map_object(struct zs_pool *pool, unsigned long handle,
 	BUG_ON(in_interrupt());
 
 	/* From now on, migration cannot move the object */
+#ifdef CONFIG_ZSWAP_SAME_PAGE_SHARING
+	if (mm == ZS_MM_RO_NOWAIT) {
+		if (!trypin_tag(handle))
+			return NULL;
+	} else
+		pin_tag(handle);
+#else
 	pin_tag(handle);
+#endif
 
 	obj = handle_to_obj(handle);
 	obj_to_location(obj, &page, &obj_idx);

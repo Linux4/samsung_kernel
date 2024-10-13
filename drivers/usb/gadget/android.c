@@ -165,24 +165,7 @@ EXPORT_SYMBOL_GPL(is_rndis_use);
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 void set_usb_enumeration_state(int state);
 void set_usb_enable_state(void);
-#else
-static int usb_enum_state;
-void set_usb_enumeration_state(int state)
-{
-	if(usb_enum_state != state) {
-		usb_enum_state = state;
-	}
-}
-EXPORT_SYMBOL(set_usb_enumeration_state);
-
-bool get_usb_enumeration_state(void)
-{
-	return usb_enum_state? 1: 0;
-}
-EXPORT_SYMBOL(get_usb_enumeration_state);
 #endif
-
-
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_CCR_PROTOCOL
 #include "../function/u_ccr.c"
 #endif
@@ -257,7 +240,18 @@ static void android_work(struct work_struct *data)
 			dev->sw_connected);
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (cdev->config)
-		uevent_envp = configured;
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_CCR_PROTOCOL
+	{
+		if (dev->connected != dev->sw_connected) {
+			uevent_envp = connected;
+			schedule_work(&dev->work);
+		} else {
+#endif
+			uevent_envp = configured;
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_CCR_PROTOCOL
+		}
+	}
+#endif
 	else if (dev->connected != dev->sw_connected) {
 		uevent_envp = dev->connected ? connected : disconnected;
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
@@ -281,15 +275,10 @@ static void android_work(struct work_struct *data)
 #ifndef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 		if (dev->connected && cdev->config) {
 			if (dev->cdev && (dev->cdev->desc.bcdUSB == 0x310)) {
-				dev->usb310_count++;	// Super-Speed
-				set_usb_enumeration_state(0x310);
+				dev->usb310_count++;	// Super-Speed	
 			} else {
 				dev->usb210_count++;	// High-Speed
-				set_usb_enumeration_state(0x210);
 			}
-		}
-		else{
-				set_usb_enumeration_state(0); //disconnected
 		}
 #endif
 		printk(KERN_DEBUG "usb: %s sent uevent %s\n",
@@ -878,6 +867,8 @@ static ssize_t rndis_manufacturer_store(struct device *dev,
 	struct android_usb_function *f = dev_get_drvdata(dev);
 	struct rndis_function_config *config = f->config;
 
+	if (size < strlen(buf))
+		return -EINVAL;
 	if (size >= sizeof(config->manufacturer))
 		return -EINVAL;
 	if (sscanf(buf, "%s", config->manufacturer) == 1)
@@ -1218,6 +1209,8 @@ static ssize_t mass_storage_vendor_store(struct device *dev,
 	struct android_usb_function *f = dev_get_drvdata(dev);
 	struct mass_storage_function_config *config = f->config;
 
+	if (size < strlen(buf))
+		return -EINVAL;
 	if (size >= sizeof(config->common->vendor_string))
 		return -EINVAL;
 	if (sscanf(buf, "%s", config->common->vendor_string) != 1)
@@ -1246,6 +1239,8 @@ static ssize_t mass_storage_product_store(struct device *dev,
 	struct android_usb_function *f = dev_get_drvdata(dev);
 	struct mass_storage_function_config *config = f->config;
 
+	if (size < strlen(buf))
+		return -EINVAL;
 	if (size >= sizeof(config->common->product_string))
 		return -EINVAL;
 	if (sscanf(buf, "%s", config->common->product_string) != 1)

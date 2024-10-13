@@ -108,6 +108,16 @@ config SENSORS_CM3323
 
 	  Say N here if you do not use cm3323.
 
+config SENSORS_VEML3328
+	depends on I2C
+	tristate "VEML3328 driver"
+	default n
+	help
+	  Say Y here if you use veml3328.
+	  This option enables RGB sensors using
+	  Capella veml3328 device driver.
+	  Say N here if you do not use veml3328.
+
 config SENSORS_CM36652
 	depends on I2C
 	tristate "CM36652 driver"
@@ -226,6 +236,13 @@ config SENSORS_GP2AP070S
 	default n
 	help
 	  This option enables proximity sensor using GP2AP070S driver
+
+config SENSORS_GP2AP110S
+	depends on I2C
+	tristate "GP2AP110S proximity sensor" 
+	default n
+	help
+	  Say Y here to enable the GP2AP110S
 
 config SENSORS_SX9306
 	depends on I2C
@@ -501,6 +518,17 @@ config SENSORS_A96T3X6_A6
 	  Above A96T3X6 device driver for grip.
 
 	  Say N here if you do not use A96T3X6 for grip.
+
+config SENSORS_TC3XXK_M10
+	depends on I2C
+	tristate "TC3XXK driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC3XXK IC for grip Sensor.
+	  This option enables grip sensors using
+	  Coreriver TC3XXK device driver for grip Sensor.
+
+	  Say N here if you do not use TC3XXK for grip Sensor
 
 config SENSORS_MAX86900
 	tristate "MAXIM MAX86900 HRM Sensor"

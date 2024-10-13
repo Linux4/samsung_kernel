@@ -164,6 +164,14 @@
 #undef ENABLE_DVFS
 #undef ENABLE_CLOCK_GATE
 
+#ifdef USE_FACE_UNLOCK_AE_AWB_INIT
+/* init AWB */
+#define ENABLE_INIT_AWB
+#define WB_GAIN_COUNT		(4)
+#define INIT_AWB_COUNT_REAR	(3)
+#define INIT_AWB_COUNT_FRONT	(7)
+#endif
+
 #elif defined(CONFIG_SOC_EXYNOS7880)
 #define SOC_30S
 #define SOC_30C
@@ -388,6 +396,10 @@
 #undef ENABLE_FD_SW
 #endif
 #endif
+
+/* BUG_ON | FIMC_BUG Macro control */
+#define USE_FIMC_BUG
+
 /*
  * =================================================================================================
  * CONFIG - DEBUG OPTIONS
@@ -782,6 +794,19 @@
 	fimc_is_cont(fmt, ##args)
 #else
 #define dbg_fliteisr(fmt, args...)
+#endif
+
+#ifdef USE_FIMC_BUG
+#define FIMC_BUG(condition)									\
+	{											\
+		if (unlikely(condition)) {							\
+			info("[BUG][%s] %s:%d(%s)\n", __FILE__, __func__, __LINE__, #condition);\
+			return -EINVAL;								\
+		}										\
+	}
+#else
+#define FIMC_BUG(condition)									\
+	BUG_ON(condition);
 #endif
 
 /* Tasklet Msg log */

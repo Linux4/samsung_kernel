@@ -46,23 +46,6 @@
 
 #include "debug.h"
 
-/* for BC1.2 spec */
-int dwc3_set_vbus_current(int state)
-{
-    union power_supply_propval pval = {0};
-
-    pval.intval = state;
-    psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_USB_CONFIGURE, pval);
-    return 0;
-}
-
-static void dwc3_exynos_set_vbus_current_work(struct work_struct *w)
-{
-	struct dwc3 *dwc = container_of(w, struct dwc3, set_vbus_current_work);
-
-	dwc3_set_vbus_current(dwc->vbus_current);
-}
-
 /* -------------------------------------------------------------------------- */
 
 void dwc3_set_mode(struct dwc3 *dwc, u32 mode)
@@ -1011,8 +994,7 @@ static int dwc3_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_allow(dev);
-	INIT_WORK(&dwc->set_vbus_current_work, dwc3_exynos_set_vbus_current_work);	
-	
+
 	return 0;
 
 err3:

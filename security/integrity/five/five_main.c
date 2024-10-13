@@ -27,28 +27,110 @@
 #include <crypto/hash_info.h>
 #include <linux/ptrace.h>
 #include <linux/task_integrity.h>
+#include <linux/reboot.h>
+#include <linux/debugfs.h>
+#include <linux/fs.h>
 
 #include "five.h"
 #include "five_audit.h"
+#include "five_hooks.h"
 #include "five_state.h"
 #include "five_pa.h"
-#include "five_trace.h"
 #include "five_porting.h"
+
+static const bool unlink_on_error;	// false
 
 static struct workqueue_struct *g_five_workqueue;
 
 static inline void task_integrity_processing(struct task_integrity *tint);
 static inline void task_integrity_done(struct task_integrity *tint);
-static int process_measurement(const struct processing_event_list *params);
+static void process_measurement(const struct processing_event_list *params);
 static inline struct processing_event_list *five_event_create(
 		enum five_event event, struct task_struct *task,
 		struct file *file, int function, gfp_t flags);
 static inline void five_event_destroy(
 		const struct processing_event_list *file);
 
+#ifdef CONFIG_FIVE_DEBUG
+static int five_enabled = 1;
+
+static ssize_t five_enabled_write(struct file *file, const char __user *buf,
+				size_t count, loff_t *pos)
+{
+	char command;
+
+	if (get_user(command, buf))
+		return -EFAULT;
+
+	switch (command) {
+	case '0':
+		five_enabled = 0;
+		break;
+	case '1':
+		five_enabled = 1;
+		break;
+	default:
+		pr_err("FIVE: %s: unknown cmd: %hhx\n", __func__, command);
+		return -EINVAL;
+	}
+
+	pr_info("FIVE debug: FIVE %s\n", five_enabled ? "enabled" : "disabled");
+	return count;
+}
+
+static ssize_t five_enabled_read(struct file *file, char __user *user_buf,
+				size_t count, loff_t *pos)
+{
+	char buf[2];
+
+	buf[0] = five_enabled ? '1' : '0';
+	buf[1] = '\n';
+
+	return simple_read_from_buffer(user_buf, count, pos, buf, sizeof(buf));
+}
+
+static const struct file_operations five_enabled_fops = {
+	.owner = THIS_MODULE,
+	.read  = five_enabled_read,
+	.write = five_enabled_write
+};
+
+static int __init init_fs(void)
+{
+	struct dentry *debug_file = NULL;
+	umode_t umode = (S_IRUGO | S_IWUSR | S_IWGRP);
+
+	debug_file = debugfs_create_file(
+		"five_enabled", umode, NULL, NULL, &five_enabled_fops);
+	if (IS_ERR_OR_NULL(debug_file))
+		goto error;
+
+	return 0;
+error:
+	if (debug_file)
+		return -PTR_ERR(debug_file);
+
+	return -EEXIST;
+}
+
+static inline int is_five_enabled(void)
+{
+	return five_enabled;
+}
+#else
+static int __init init_fs(void)
+{
+	return 0;
+}
+
+static inline int is_five_enabled(void)
+{
+	return 1;
+}
+#endif
+
 static void work_handler(struct work_struct *in_data)
 {
-	int rc;
 	struct worker_context *context = container_of(in_data,
 			struct worker_context, data_work);
 	struct task_integrity *intg;
@@ -67,11 +149,12 @@ static void work_handler(struct work_struct *in_data)
 		spin_unlock(&intg->list_lock);
 		switch (five_file->event) {
 		case FIVE_VERIFY_BUNCH_FILES: {
-			rc = process_measurement(five_file);
+			process_measurement(five_file);
 			break;
 		}
 		case FIVE_RESET_INTEGRITY: {
 			task_integrity_reset(intg);
+			five_hook_integrity_reset(five_file->task);
 			break;
 		}
 		default:
@@ -182,10 +265,8 @@ static int push_file_event_bunch(struct task_struct *task, struct file *file,
 	struct worker_context *context;
 	struct processing_event_list *five_file;
 
-	if (five_check_params(task, file))
+	if (unlikely(!is_five_enabled()) || five_check_params(task, file))
 		return 0;
-
-	trace_five_push_workqueue(file, function);
 
 	context = kmalloc(sizeof(struct worker_context), GFP_KERNEL);
 	if (unlikely(!context))
@@ -197,15 +278,17 @@ static int push_file_event_bunch(struct task_struct *task, struct file *file,
 		kfree(context);
 		return -ENOMEM;
 	}
-	context->tint = task->integrity;
 
 	spin_lock(&task->integrity->list_lock);
 
 	if (list_empty(&(task->integrity->events.list))) {
+		task_integrity_get(task->integrity);
 		task_integrity_processing(task->integrity);
+
+		context->tint = task->integrity;
+
 		list_add_tail(&five_file->list, &task->integrity->events.list);
 		spin_unlock(&task->integrity->list_lock);
-		task_integrity_get(five_file->saved_integrity);
 		INIT_WORK(&context->data_work, work_handler);
 		rc = queue_work(g_five_workqueue, &context->data_work) ? 0 : 1;
 	} else {
@@ -231,19 +314,24 @@ static int push_reset_event(struct task_struct *task)
 	struct task_integrity *current_tint;
 	struct processing_event_list *five_reset;
 
+	if (unlikely(!is_five_enabled()))
+		return 0;
+
 	INIT_LIST_HEAD(&dead_list);
 	current_tint = task->integrity;
 	task_integrity_get(current_tint);
 
-	five_reset = five_event_create(FIVE_RESET_INTEGRITY, NULL, NULL, 0,
+	five_reset = five_event_create(FIVE_RESET_INTEGRITY, task, NULL, 0,
 		GFP_KERNEL);
 	if (unlikely(!five_reset)) {
 		task_integrity_reset_both(current_tint);
+		five_hook_integrity_reset(task);
 		task_integrity_put(current_tint);
 		return -ENOMEM;
 	}
 
 	task_integrity_reset_both(current_tint);
+	five_hook_integrity_reset(task);
 	spin_lock(&current_tint->list_lock);
 	if (!list_empty(&current_tint->events.list)) {
 		list_cut_tail(&current_tint->events.list, &dead_list);
@@ -266,28 +354,6 @@ void task_integrity_delayed_reset(struct task_struct *task)
 	push_reset_event(task);
 }
 
-int five_hash_algo = HASH_ALGO_SHA1;
-static int hash_setup_done;
-
-static int __init hash_setup(char *str)
-{
-	int i;
-
-	if (hash_setup_done)
-		return 1;
-
-	for (i = 0; i < HASH_ALGO__LAST; i++) {
-		if (strcmp(str, hash_algo_name[i]) == 0) {
-			five_hash_algo = i;
-			break;
-		}
-	}
-
-	hash_setup_done = 1;
-	return 1;
-}
-__setup("ima_hash=", hash_setup);
-
 static void five_check_last_writer(struct integrity_iint_cache *iint,
 				  struct inode *inode, struct file *file)
 {
@@ -301,6 +367,7 @@ static void five_check_last_writer(struct integrity_iint_cache *iint,
 		if (iint->version != inode->i_version)
 			iint->five_status = FIVE_FILE_UNKNOWN;
 	}
+	iint->five_signing = false;
 	inode_unlock(inode);
 }
 
@@ -333,7 +400,7 @@ void five_task_free(struct task_struct *task)
 }
 
 /* Returns string representation of input function */
-static const char *get_string_fn(enum five_hooks fn)
+const char *five_get_string_fn(enum five_hooks fn)
 {
 	switch (fn) {
 	case FILE_CHECK:
@@ -348,31 +415,18 @@ static const char *get_string_fn(enum five_hooks fn)
 	return "unknown-function";
 }
 
-/* Returns 1 if input function could affect */
-/* integrity and returns 0 if it couldn't   */
-static int hook_affects_integrity(enum five_hooks fn)
+static inline bool match_trusted_executable(const struct five_cert *cert,
+				const struct integrity_iint_cache *iint)
 {
-	switch (fn) {
-	case FILE_CHECK:
-		return 1;
-	case MMAP_CHECK:
-		return 1;
-	case BPRM_CHECK:
-		return 1;
-	case POST_SETATTR:
-		return 0;
-	}
-	return 0;
-}
-
-static inline bool match_trusted_executable(struct five_cert *cert)
-{
-	struct five_cert_header *hdr = NULL;
+	const struct five_cert_header *hdr = NULL;
 
 	if (!cert)
 		return false;
 
-	hdr = (struct five_cert_header *)cert->body.header->value;
+	if (five_get_cache_status(iint) != FIVE_FILE_RSA)
+		return false;
+
+	hdr = (const struct five_cert_header *)cert->body.header->value;
 
 	if (hdr->privilege == FIVE_PRIV_ALLOW_SIGN)
 		return true;
@@ -390,12 +444,11 @@ static inline void task_integrity_done(struct task_integrity *tint)
 	tint->user_value = task_integrity_read(tint);
 }
 
-static int process_measurement(const struct processing_event_list *params)
+static void process_file(struct task_struct *task,
+			struct file *file,
+			int function,
+			struct file_verification_result *result)
 {
-	struct task_struct *task = params->task;
-	struct task_integrity *integrity = params->saved_integrity;
-	struct file *file = params->file;
-	int function = params->function;
 	struct inode *inode = file_inode(file);
 	struct integrity_iint_cache *iint = NULL;
 	struct five_cert cert = { {0} };
@@ -403,32 +456,11 @@ static int process_measurement(const struct processing_event_list *params)
 	int rc = -ENOMEM;
 	char *xattr_value = NULL;
 	int xattr_len = 0;
-	enum five_hooks fn = function;
-	unsigned int trace_op = FIVE_TRACE_UNDEFINED;
-	unsigned int trace_type = FIVE_TRACE_UNDEFINED;
-	enum integrity_status prev_tint;
-
-	trace_five_measurement_enter(file, task->pid);
 
 	if (!S_ISREG(inode->i_mode)) {
-		trace_five_measurement_exit(file,
-			FIVE_TRACE_MEASUREMENT_OP_FILTEROUT,
-			FIVE_TRACE_FILTEROUT_NONREG);
-		return 0;
+		rc = 0;
+		goto out;
 	}
-
-	prev_tint = task_integrity_read(integrity);
-
-	if (function != BPRM_CHECK) {
-		if (task_integrity_read(integrity) == INTEGRITY_NONE) {
-			trace_five_measurement_exit(file,
-				FIVE_TRACE_MEASUREMENT_OP_FILTEROUT,
-				FIVE_TRACE_FILTEROUT_NONEINTEGRITY);
-			return 0;
-		}
-	}
-
-	inode_lock(inode);
 
 	iint = integrity_inode_get(inode);
 	if (!iint)
@@ -438,89 +470,74 @@ static int process_measurement(const struct processing_event_list *params)
 	rc = five_get_cache_status(iint);
 	if (rc != FIVE_FILE_UNKNOWN) {
 		rc = 0;
-		trace_op = FIVE_TRACE_MEASUREMENT_OP_CACHE;
-		goto out_digsig;
+		goto out;
 	}
 
 	xattr_len = five_read_xattr(file->f_path.dentry, &xattr_value);
-
 	if (xattr_value && xattr_len) {
-		trace_op = FIVE_TRACE_MEASUREMENT_OP_CALC;
 		rc = five_cert_fillout(&cert, xattr_value, xattr_len);
 		if (rc) {
 			pr_err("FIVE: certificate is incorrect inode=%lu\n",
 								inode->i_ino);
-			goto out_digsig;
+			goto out;
 		}
 
 		pcert = &cert;
 
 		if (file->f_flags & O_DIRECT) {
 			rc = -EACCES;
-			goto out_digsig;
+			goto out;
 		}
 	}
 
 	rc = five_appraise_measurement(task, function, iint, file, pcert);
+	if (!rc && match_trusted_executable(pcert, iint))
+		iint->five_flags |= FIVE_TRUSTED_FILE;
 
-	if (!rc) {
-		if (match_trusted_executable(pcert))
-			iint->five_flags |= FIVE_TRUSTED_FILE;
-	}
-
-out_digsig:
-	kfree(xattr_value);
 out:
-	inode_unlock(inode);
-
-	if (!iint) {
-		trace_five_measurement_exit(file,
-			FIVE_TRACE_MEASUREMENT_OP_FILTEROUT,
-			FIVE_TRACE_FILTEROUT_ERROR);
-		return 0;
-	}
-
-	if (trace_op != FIVE_TRACE_MEASUREMENT_OP_FILTEROUT) {
-		trace_type = iint->five_status == FIVE_FILE_RSA ?
-			FIVE_TRACE_MEASUREMENT_TYPE_RSA :
-			FIVE_TRACE_MEASUREMENT_TYPE_HMAC;
-	}
-
-	if (rc)
+	if (rc && iint)
 		iint->five_flags &= ~FIVE_TRUSTED_FILE;
 
-	if (rc || five_get_cache_status(iint) == FIVE_FILE_UNKNOWN
-			|| five_get_cache_status(iint) == FIVE_FILE_FAIL) {
-		if (hook_affects_integrity(fn)) {
-			enum integrity_status tint;
+	result->file = file;
+	result->task = task;
+	result->iint = iint;
+	result->fn = function;
+	result->xattr = xattr_value;
+	result->xattr_len = xattr_len;
+	if (!iint || iint->five_status == FIVE_FILE_UNKNOWN ||
+		iint->five_status == FIVE_FILE_FAIL)
+		result->five_result = 1;
+	else
+		result->five_result = 0;
+}
 
-			task_integrity_reset(integrity);
-			tint = task_integrity_read(integrity);
-			five_audit_info(task, file, get_string_fn(fn),
-					prev_tint, tint, "reset-integrity", rc);
-		}
+static void process_measurement(const struct processing_event_list *params)
+{
+	struct task_struct *task = params->task;
+	struct task_integrity *integrity = params->task->integrity;
+	struct file *file = params->file;
+	struct inode *inode = file_inode(file);
+	int function = params->function;
+	struct file_verification_result file_result;
 
-		trace_five_measurement_exit(file, trace_op, trace_type);
-
-		return -EACCES;
+	if (function != BPRM_CHECK) {
+		if (task_integrity_read(integrity) == INTEGRITY_NONE)
+			return;
 	}
 
-	if (hook_affects_integrity(fn)) {
-		enum task_integrity_value new_tint;
-		bool is_newstate;
-		const char *msg = NULL;
+	file_verification_result_init(&file_result);
+	inode_lock(inode);
 
-		is_newstate = five_state_proceed(iint, integrity, fn,
-				&new_tint, &msg);
-		if (is_newstate && msg) {
-			five_audit_verbose(task, file, get_string_fn(fn),
-					prev_tint, new_tint, msg, rc);
-		}
-	}
+	process_file(task, file, function, &file_result);
 
-	trace_five_measurement_exit(file, trace_op, trace_type);
+	five_hook_file_processed(task, file,
+		file_result.xattr, file_result.xattr_len,
+		file_result.five_result);
 
-	return 0;
+	five_state_proceed(integrity, &file_result);
+
+	inode_unlock(inode);
+	file_verification_result_deinit(&file_result);
 }
 
 /**
@@ -537,13 +554,17 @@ int five_file_mmap(struct file *file, unsigned long prot)
 	struct task_struct *task = current;
 	struct task_integrity *tint = task->integrity;
 
+	if (five_check_params(task, file))
+		return 0;
+
 	if (file && task_integrity_user_read(tint)) {
 		if (prot & PROT_EXEC) {
 			rc = push_file_event_bunch(task, file, MMAP_CHECK);
 			if (rc)
 				return rc;
+		} else {
+			five_hook_file_skipped(task, file);
 		}
-		rc = fivepa_push_set_xattr_event(task, file);
 	}
 
 	return rc;
@@ -554,45 +575,192 @@ int five_file_mmap(struct file *file, unsigned long prot)
  * the process_measurement() policy decision.
  * @bprm: contains the linux_binprm structure
  *
+ * Notes:
+ * bprm_check could be called few times for one process when few binary loaders
+ * are used. Example: execution of shell script.
+ * In this case we should process first file (e.g. shell script) as main and
+ * use BPRM_CHECK. The second file (interpetator ) will be processed as general
+ * mapping (MMAP_CHECK).
+ * To implement this option variable bprm->recursion_depth is used.
+ *
  * On success return 0.
  */
 int five_bprm_check(struct linux_binprm *bprm)
 {
 	int rc = 0;
 	struct task_struct *task = current;
+	struct task_integrity *old_tint = task->integrity;
 
-	trace_five_entry(bprm->file, FIVE_TRACE_ENTRY_BPRM_CHECK);
+	if (unlikely(task->ptrace))
+		return rc;
 
-	if (likely(!task->ptrace)) {
-		task_integrity_put(task->integrity);
+	if (bprm->recursion_depth > 0) {
+		rc = push_file_event_bunch(task, bprm->file, MMAP_CHECK);
+	} else {
 		task->integrity = task_integrity_alloc();
 		if (likely(task->integrity)) {
 			rc = push_file_event_bunch(task,
 							bprm->file, BPRM_CHECK);
-			if (!rc)
-				rc = fivepa_push_set_xattr_event(
-							task, bprm->file);
 		} else {
 			rc = -ENOMEM;
 		}
+		task_integrity_put(old_tint);
 	}
 
 	return rc;
+}
+
+/* Does `unlink' of the `file'.
+ * This function breaks delegation (drops file's leases. See
+ * man 2 fcntl "Leases"). do_unlinkat function in fs/namei.c was used
+ * as an example.
+ */
+static int five_unlink(struct file *file)
+{
+	int rc;
+	struct dentry *dentry = file->f_path.dentry;
+	struct inode *inode = d_backing_inode(dentry->d_parent);
+	struct inode *delegated_inode = NULL;
+	bool retry;
+
+	do {
+		delegated_inode = NULL;
+		retry = false;
+		inode_lock_nested(inode, I_MUTEX_PARENT);
+		ihold(inode);
+		rc = vfs_unlink(inode, dentry, &delegated_inode);
+		inode_unlock(inode);
+		iput(inode);
+		if (rc == -EWOULDBLOCK && delegated_inode) {
+			rc = break_deleg_wait(&delegated_inode);
+			if (!rc)
+				retry = true;
+		}
+	} while (retry);
+
+	five_audit_info(current, file, "five_unlink", 0, 0,
+			"Unlink a file", rc);
+
+	return rc;
+}
+
+/**
+ * This function handles two situations:
+ * 1. Device had been rebooted before five_sign finished.
+ *    Then xattr_len will be zero and iint->five_signing will be false.
+ * 2. The file is being signing when another process tries to open it.
+ *    Then xattr_len will be zero and iint->five_signing will be true.
+ *
+ * - five_fcntl_edit stores the xattr with zero length and set
+ *   iint->five_signing to true
+ * - five_fcntl_sign stores correct certificates and set
+ *   iint->five_signing to false
+ *
+ * On success returns 0
+ */
+int five_file_open(struct file *file, const struct cred *cred)
+{
+	ssize_t xattr_len;
+	struct inode *inode = file_inode(file);
+
+	if (!S_ISREG(inode->i_mode))
+		return 0;
+
+	xattr_len = vfs_getxattr(file->f_path.dentry, XATTR_NAME_FIVE,
+					NULL, 0);
+	if (xattr_len == 0) {
+		struct integrity_iint_cache *iint;
+		bool is_signing = false;
+
+		if (!unlink_on_error) {
+			five_audit_info(current, file, "five_unlink", 0, 0,
+					"Found a dummy-cert", 0);
+			return 0;
+		}
+
+		inode_lock(inode);
+		iint = integrity_iint_find(inode);
+		if (iint)
+			is_signing = iint->five_signing;
+		inode_unlock(inode);
+
+		if (!is_signing) {
+			int rc;
+
+			rc = five_unlink(file);
+			rc = rc ?: -ENOENT;
+
+			return rc;
+		}
+		return -EPERM;
+	}
+
+	return 0;
+}
+
+/**
+ * five_file_verify - force five integrity measurements for file
+ * the process_measurement() policy decision. This check affects
+ * task integrity.
+ * @file: pointer to the file to be measured (May be NULL)
+ *
+ * On success return 0.
+ */
+int five_file_verify(struct task_struct *task, struct file *file)
+{
+	int rc = 0;
+	struct task_integrity *tint = task->integrity;
+
+	if (file && task_integrity_user_read(tint))
+		rc = push_file_event_bunch(task, file, FILE_CHECK);
+
+	return rc;
+}
+
+static struct notifier_block five_reboot_nb = {
+	.notifier_call = five_reboot_notifier,
+	.priority = INT_MAX,
+};
+
+int five_hash_algo = HASH_ALGO_SHA1;
+
+static int __init hash_setup(const char *str)
+{
+	int i;
+
+	for (i = 0; i < HASH_ALGO__LAST; i++) {
+		if (strcmp(str, hash_algo_name[i]) == 0) {
+			five_hash_algo = i;
+			break;
+		}
+	}
+
+	return 1;
 }
 
 static int __init init_five(void)
 {
 	int error;
 
-	g_five_workqueue = create_workqueue("five_wq");
+	g_five_workqueue = alloc_workqueue("%s", WQ_FREEZABLE | WQ_MEM_RECLAIM,
+						0, "five_wq");
 	if (!g_five_workqueue)
-		return -ENOMEM;
-
-	if (fivepa_init_signature_wq())
 		return -ENOMEM;
 
 	hash_setup(CONFIG_FIVE_DEFAULT_HASH);
 	error = five_init();
+	if (error)
+		return error;
+
+	error = five_hook_wq_init();
+	if (error)
+		return error;
+
+	error = register_reboot_notifier(&five_reboot_nb);
+	if (error)
+		return error;
+
+	error = init_fs();
 
 	return error;
 }
@@ -611,8 +779,6 @@ static int fcntl_verify(struct file *file)
 /* Called from do_fcntl */
 int five_fcntl_verify_async(struct file *file)
 {
-	trace_five_entry(file, FIVE_TRACE_ENTRY_VERIFY);
-
 	return fcntl_verify(file);
 }
 
@@ -625,8 +791,6 @@ int five_fcntl_verify_sync(struct file *file)
 int five_fork(struct task_struct *task, struct task_struct *child_task)
 {
 	int rc = 0;
-
-	trace_five_entry(NULL, FIVE_TRACE_ENTRY_FORK);
 
 	spin_lock(&task->integrity->list_lock);
 
@@ -678,6 +842,10 @@ int five_fork(struct task_struct *task, struct task_struct *child_task)
 				child_task->integrity);
 		spin_unlock(&task->integrity->list_lock);
 	}
+
+	if (!rc)
+		five_hook_task_forked(task, child_task);
+
 	return rc;
 }
 
@@ -760,14 +928,14 @@ static inline struct processing_event_list *five_event_create(
 	case FIVE_VERIFY_BUNCH_FILES: {
 		get_task_struct(task);
 		get_file(file);
-		task_integrity_get(task->integrity);
 		five_file->task = task;
 		five_file->file = file;
 		five_file->function = function;
-		five_file->saved_integrity = task->integrity;
 		break;
 	}
 	case FIVE_RESET_INTEGRITY: {
+		get_task_struct(task);
+		five_file->task = task;
 		break;
 	}
 	default:
@@ -782,12 +950,12 @@ static inline void five_event_destroy(
 {
 	switch (file->event) {
 	case FIVE_VERIFY_BUNCH_FILES: {
-		task_integrity_put(file->saved_integrity);
 		fput(file->file);
 		put_task_struct(file->task);
 		break;
 	}
 	case FIVE_RESET_INTEGRITY: {
+		put_task_struct(file->task);
 		break;
 	}
 	default:

@@ -165,16 +165,17 @@ $(warning '$(TSPFIRMWARE_DIRECTORY)' directory dose not exist)
 endif
 fw-shipped-$(CONFIG_TOUCHSCREEN_ZINITIX_BT541C) += tsp_zinitix/bt541c_GPPIris.fw
 
-fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_DSX2) += tsp_synaptics/td4300_on7xelte.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_DSX2) += tsp_synaptics/td4300_on7xelte_recovery.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_DSX2) += tsp_synaptics/td4300_on7xelte.fw  tsp_synaptics/td4300_on7xelte_recovery.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_DSX2) += tsp_synaptics/td4310_on7xelte.fw  tsp_synaptics/td4310_on7xelte_recovery.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_TD4X00) += tsp_synaptics/td4100_j7pop.fw tsp_synaptics/td4100_j7pop_recovery.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_TD4X01_A2CORELTE) += tsp_synaptics/td4101_a2corelte.fw tsp_synaptics/td4101_a2corelte_recovery.fw
 
 fw-shipped-$(CONFIG_TOUCHSCREEN_IST3032C) += tsp_imagis/ist3032c_a3x.fw tsp_imagis/ist3032c_a3x_cmcs.bin
 fw-shipped-$(CONFIG_TOUCHSCREEN_IST3038H) += tsp_imagis/ist3038h_a3x.fw tsp_imagis/ist3038h_a3x_cmcs.bin \
 						tsp_imagis/ist3038h_j5y.fw tsp_imagis/ist3038h_j5y_cmcs.bin \
 						tsp_imagis/ist3038h_a3xpre.fw tsp_imagis/ist3038h_a3xpre_cmcs.bin
 
-fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_INCELL_TS) += tsp_sec/s6d7at01a01_j7toplte.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_INCELL_TS) += tsp_sec/s6d7at01a01_j7toplte.fw tsp_sec/s6d7at01a01_m10.fw
 
 fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_TS) += tsp_sec/y761_daimler.fw tsp_sec/y761_daimler_old_rev01.fw tsp_sec/y761_daimler_old.fw
 
@@ -196,6 +197,7 @@ fw-shipped-$(CONFIG_SENSORS_A96T3X6_J8) += abov/a96t326_j8lte.fw abov/a96t346_j8
 fw-shipped-$(CONFIG_SENSORS_A96T3X6_A6) += abov/a96t326_a6lte.fw abov/a96t346_a6lte.fw
 fw-shipped-$(CONFIG_SENSORS_A96T3X6_J6) += abov/a96t326_j6lte.fw
 fw-shipped-$(CONFIG_SENSORS_A96T3X6_J6KOR) += abov/a96t326_j6ltekor.fw
+fw-shipped-$(CONFIG_SENSORS_TC3XXK_M10) += coreriver/tc305k_m10_grip.fw
 
 #Sensor Hub
 fw-shipped-$(CONFIG_SENSORS_SSP_2017A3) += ssp_stmf410_a2017.fw

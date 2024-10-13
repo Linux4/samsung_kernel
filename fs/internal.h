@@ -44,6 +44,14 @@ extern void guard_bio_eod(int rw, struct bio *bio);
  */
 extern void __init chrdev_init(void);
 
+#ifdef CONFIG_PROC_DLOG
+/*
+ * dlog_hook.c
+ */
+void dlog_hook(struct dentry *, struct inode *, struct path *);
+void dlog_hook_rmdir(struct dentry *, struct path *);
+#endif
+
 /*
  * namei.c
  */
@@ -108,6 +116,7 @@ extern struct file *do_file_open_root(struct dentry *, struct vfsmount *,
 extern long do_handle_open(int mountdirfd,
 			   struct file_handle __user *ufh, int open_flag);
 extern int open_check_o_direct(struct file *f);
+extern int vfs_open(const struct path *, struct file *, const struct cred *);
 
 /*
  * inode.c

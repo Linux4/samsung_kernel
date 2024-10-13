@@ -122,23 +122,20 @@ static int s2mu004_read_reg(struct i2c_client *client, int reg, u8 *buf)
 
 static void s2mu004_fg_test_read(struct i2c_client *client)
 {
+	static int reg_list[] = {
+		0x03, 0x0E, 0x0F, 0x10, 0x11, 0x1E, 0x1F, 0x21, 0x24, 0x25,
+		0x26, 0x27, 0x44, 0x45, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D,
+		0x4E, 0x4F, 0x54, 0x55, 0x56, 0x57
+	};
 	u8 data;
 	char str[1016] = {0,};
-	int i;
+	int i = 0, reg_list_size = 0;
 
-	/* address 0x00 ~ 0x1f */
-	for (i = 0x0; i <= 0x1F; i++) {
-		s2mu004_read_reg_byte(client, i, &data);
-		sprintf(str+strlen(str), "0x%02x:0x%02x, ", i, data);
+	reg_list_size = ARRAY_SIZE(reg_list);
+	for (i = 0; i < reg_list_size; i++) {
+		s2mu004_read_reg_byte(client, reg_list[i], &data);
+		sprintf(str+strlen(str), "0x%02x:0x%02x, ", reg_list[i], data);
 	}
-	
-	/* address 0x25 */
-	s2mu004_read_reg_byte(client, 0x25, &data);
-	sprintf(str+strlen(str),"0x25:0x%02x, ",data);
-
-	/* address 0x27 */
-	s2mu004_read_reg_byte(client, 0x27, &data);
-	sprintf(str+strlen(str),"0x27:0x%02x, ",data);
 
 	/* print buffer */
 	pr_info("[FG]%s: %s\n", __func__, str);
@@ -1463,6 +1460,27 @@ static int s2mu004_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
 		val->intval = s2mu004_get_temperature(fuelgauge);
 		break;
+	case POWER_SUPPLY_PROP_ENERGY_FULL:
+#if defined(CONFIG_FUELGAUGE_ASOC_FROM_CYCLES)
+		{
+			int calc_step = 0;
+
+			if (!(fuelgauge->pdata->fixed_asoc_levels <= 0 || val->intval < 0)) {
+				for (calc_step = fuelgauge->pdata->fixed_asoc_levels - 1; calc_step >= 0; calc_step--) {
+					if (fuelgauge->pdata->cycles_to_asoc[calc_step].cycle <= val->intval)
+						break;
+				}
+
+				dev_info(fuelgauge->dev, "%s: Battery Cycles = %d, ASOC step = %d\n",
+					__func__, val->intval, calc_step);
+
+				val->intval = fuelgauge->pdata->cycles_to_asoc[calc_step].asoc;
+			}
+		}
+#else
+		return -1;
+#endif
+		break;
 	case POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN:
 		val->intval = fuelgauge->capacity_max;
 		break;
@@ -1636,6 +1654,9 @@ static int s2mu004_fuelgauge_parse_dt(struct s2mu004_fuelgauge_data *fuelgauge)
 	int ret;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int len, i;
+#if defined(CONFIG_FUELGAUGE_ASOC_FROM_CYCLES)
+	const u32 *p;
+#endif
 #endif
 
 	/* reset, irq gpio info */
@@ -1749,6 +1770,33 @@ static int s2mu004_fuelgauge_parse_dt(struct s2mu004_fuelgauge_data *fuelgauge)
 					fuelgauge->age_data_info[i].soc_arr_val[0],
 					fuelgauge->age_data_info[i].ocv_arr_val[0]);
 			}
+#if defined(CONFIG_FUELGAUGE_ASOC_FROM_CYCLES)
+			p = of_get_property(np, "battery,cycles_to_asoc_mapping", &len);
+			if (p) {
+				fuelgauge->pdata->fixed_asoc_levels = len / sizeof(sec_cycles_to_asoc_t);
+				fuelgauge->pdata->cycles_to_asoc = kzalloc(len, GFP_KERNEL);
+				ret = of_property_read_u32_array(np, "battery,cycles_to_asoc_mapping",
+						 (u32 *)fuelgauge->pdata->cycles_to_asoc, len/sizeof(u32));
+				if (ret) {
+					pr_err("%s: failed to read fuelgauge->pdata->cycles_to_asoc: %d\n",
+							__func__, ret);
+					kfree(fuelgauge->pdata->cycles_to_asoc);
+					fuelgauge->pdata->cycles_to_asoc = NULL;
+					fuelgauge->pdata->fixed_asoc_levels = 0;
+				}
+				pr_err("%s: fixed_asoc_levels : %d\n", __func__, fuelgauge->pdata->fixed_asoc_levels);
+				for (len = 0; len < fuelgauge->pdata->fixed_asoc_levels; ++len) {
+					pr_err("[%d/%d]cycle:%d, asoc:%d\n",
+						len, fuelgauge->pdata->fixed_asoc_levels-1,
+						fuelgauge->pdata->cycles_to_asoc[len].cycle,
+						fuelgauge->pdata->cycles_to_asoc[len].asoc);
+				}
+
+			} else {
+				fuelgauge->pdata->fixed_asoc_levels = 0;
+				pr_err("%s: Cycles to ASOC mapping not defined\n", __func__);
+			}
+#endif
 #endif
 		}
 	}

@@ -50,7 +50,7 @@ enum {
 	END_MODE,
 };
 
-enum s2mu004_vbatl_mode {
+enum s2mu005_vbatl_mode {
 	VBATL_MODE_NORMAL = 0,
 	VBATL_MODE_SW_VALERT,
 	VBATL_MODE_SW_RECOVERY,
@@ -71,6 +71,7 @@ struct sec_fg_info {
 
 	/* battery info */
 	int soc;
+
 #if !defined(CONFIG_BATTERY_AGE_FORECAST)
 	/* copy from platform data /
 	 * DTS or update by shell script */
@@ -89,16 +90,20 @@ struct sec_fg_info {
 	unsigned long fullcap_check_interval;
 	int full_check_flag;
 	bool is_first_check;
+	int data_ver;
 };
 
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 struct fg_age_data_info {
-	int battery_table3[88]; /* evt2 */
-	int battery_table4[22]; /* evt2 */
-	int batcap[4];
-	int accum[2];
+    int battery_table3[88]; // evt2
+    int battery_table4[22]; // evt2
+    int batcap[4];
+    int accum[2];
 	int soc_arr_val[22];
-	int ocv_arr_val[22];
+    int ocv_arr_val[22];
+#if defined(CONFIG_S2MU005_MODE_CHANGE_BY_TOPOFF)
+	int volt_mode_tunning;
+#endif
 };
 
 #define	fg_age_data_info_t \
@@ -108,12 +113,14 @@ struct s2mu005_platform_data {
 	int capacity_max;
 	int capacity_max_margin;
 	int capacity_min;
+	int capacity_full;
 	int capacity_calculation_type;
 	int evt2_val;
 	int fuel_alert_soc;
 	int fullsocthr;
 	int fg_irq;
 	int fg_log_enable;
+	int fuel_alert_vol;
 
 	char *fuelgauge_name;
 
@@ -135,9 +142,13 @@ struct s2mu005_fuelgauge_data {
 	bool is_charging;
 	int mode;
 	int revision;
+	int change_step;
+#if defined(CONFIG_S2MU005_MODE_CHANGE_BY_TOPOFF)
+	int topoff_current;
+#endif
 
-	/* HW-dedicated fuel guage info structure
-	 * used in individual fuel gauge file only
+	/* HW-dedicated fuelgauge info structure
+	 * used in individual fuelgauge file only
 	 * (ex. dummy_fuelgauge.c)
 	 */
 	struct sec_fg_info      info;
@@ -153,10 +164,12 @@ struct s2mu005_fuelgauge_data {
 	unsigned int capacity_old;      /* only for atomic calculation */
 	unsigned int capacity_max;      /* only for dynamic calculation */
 	unsigned int standard_capacity;
+	int raw_capacity;
 
 	bool initial_update_of_soc;
 	bool sleep_initial_update_of_soc;
 	struct mutex fg_lock;
+	bool wa_flag;	/*Prevent WA_0_issue_at_init1 overlap*/
 	struct delayed_work isr_work;
 
 	/* register programming */

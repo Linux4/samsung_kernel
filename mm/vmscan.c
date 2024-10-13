@@ -139,7 +139,12 @@ struct scan_control {
 /*
  * From 0 .. 100.  Higher means more swappy.
  */
+#if CONFIG_MEMCG_HIGHER_SWAPPINESS
+int vm_swappiness = CONFIG_MEMCG_HIGHER_SWAPPINESS;
+#else
 int vm_swappiness = 60;
+#endif
+
 /*
  * The total number of pages which are beyond the high watermark within all
  * zones.
@@ -940,20 +945,16 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 *
 		 * 2) Global reclaim encounters a page, memcg encounters a
 		 *    page that is not marked for immediate reclaim or
-		 *    the caller does not have __GFP_IO. In this case mark
+		 *    the caller does not have __GFP_FS (or __GFP_IO if it's
+		 *    simply going to swap, not to fs). In this case mark
 		 *    the page for immediate reclaim and continue scanning.
 		 *
-		 *    __GFP_IO is checked  because a loop driver thread might
+		 *    Require may_enter_fs because we would wait on fs, which
+		 *    may not have submitted IO yet. And the loop driver might
 		 *    enter reclaim, and deadlock if it waits on a page for
 		 *    which it is needed to do the write (loop masks off
 		 *    __GFP_IO|__GFP_FS for this reason); but more thought
 		 *    would probably show more reasons.
-		 *
-		 *    Don't require __GFP_FS, since we're not going into the
-		 *    FS, just waiting on its writeback completion. Worryingly,
-		 *    ext4 gfs2 and xfs allocate pages with
-		 *    grab_cache_page_write_begin(,,AOP_FLAG_NOFS), so testing
-		 *    may_enter_fs here is liable to OOM on them.
 		 *
 		 * 3) memcg encounters a page that is not already marked
 		 *    PageReclaim. memcg does not have any dirty pages
@@ -971,7 +972,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 
 			/* Case 2 above */
 			} else if (global_reclaim(sc) ||
-			    !PageReclaim(page) || !(sc->gfp_mask & __GFP_IO)) {
+			    !PageReclaim(page) || !may_enter_fs) {
 				/*
 				 * This is slightly racy - end_page_writeback()
 				 * might have just cleared PageReclaim, then
@@ -1160,7 +1161,7 @@ cull_mlocked:
 		if (PageSwapCache(page))
 			try_to_free_swap(page);
 		unlock_page(page);
-		putback_lru_page(page);
+		list_add(&page->lru, &ret_pages);
 		continue;
 
 activate_locked:
@@ -1928,6 +1929,7 @@ enum mem_boost {
 };
 static int mem_boost_mode = NO_BOOST;
 static unsigned long last_mode_change;
+static bool memory_boosting_disabled = false;
 
 #define MEM_BOOST_MAX_TIME (5 * HZ) /* 5 sec */
 
@@ -1982,15 +1984,42 @@ static ssize_t am_mem_boost_mode_store(struct kobject *kobj,
 	return count;
 }
 
+static ssize_t disable_mem_boost_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	int ret;
+
+	ret = memory_boosting_disabled ? 1 : 0;
+	return sprintf(buf, "%d\n", ret);
+}
+
+static ssize_t disable_mem_boost_store(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int mode;
+	int err;
+
+	err = kstrtoint(buf, 10, &mode);
+	if (err || (mode != 0 && mode != 1))
+		return -EINVAL;
+
+	memory_boosting_disabled = mode ? true : false;
+
+	return count;
+}
+
 #define MEM_BOOST_ATTR(_name) \
 	static struct kobj_attribute _name##_attr = \
 		__ATTR(_name, 0644, _name##_show, _name##_store)
 MEM_BOOST_ATTR(mem_boost_mode);
 MEM_BOOST_ATTR(am_mem_boost_mode);
+MEM_BOOST_ATTR(disable_mem_boost);
 
 static struct attribute *mem_boost_attrs[] = {
 	&mem_boost_mode_attr.attr,
 	&am_mem_boost_mode_attr.attr,
+	&disable_mem_boost_attr.attr,
 	NULL,
 };
 
@@ -2011,6 +2040,9 @@ static inline bool need_memory_boosting(struct zone *zone)
 
 	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
 		mem_boost_mode = NO_BOOST;
+
+	if (memory_boosting_disabled)
+		return false;
 
 	switch (mem_boost_mode) {
 	case BOOST_HIGH:

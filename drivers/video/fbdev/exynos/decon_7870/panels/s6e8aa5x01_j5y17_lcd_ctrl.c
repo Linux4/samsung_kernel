@@ -1,14 +1,10 @@
 /*
- * drivers/video/fbdev/exynos/decon_7870/panels/s6e8aa5x01_j5y17_lcd_ctrl.c
- *
- * Samsung SoC MIPI LCD CONTROL functions
- *
- * Copyright (c) 2015 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-*/
+ */
 
 #include <linux/lcd.h>
 #include <linux/backlight.h>
@@ -526,7 +522,7 @@ static int init_gamma(struct lcd_info *lcd, u8 *mtp_data)
 	int **gamma;
 
 	/* allocate memory for local gamma table */
-	gamma = kzalloc(IBRIGHTNESS_HBM_MAX * sizeof(int *), GFP_KERNEL);
+	gamma = kcalloc(IBRIGHTNESS_HBM_MAX, sizeof(int *), GFP_KERNEL);
 	if (!gamma) {
 		pr_err("failed to allocate gamma table\n");
 		ret = -ENOMEM;
@@ -534,7 +530,7 @@ static int init_gamma(struct lcd_info *lcd, u8 *mtp_data)
 	}
 
 	for (i = 0; i < IBRIGHTNESS_HBM_MAX; i++) {
-		gamma[i] = kzalloc(IV_MAX*CI_MAX * sizeof(int), GFP_KERNEL);
+		gamma[i] = kcalloc(IV_MAX*CI_MAX, sizeof(int), GFP_KERNEL);
 		if (!gamma[i]) {
 			pr_err("failed to allocate gamma\n");
 			ret = -ENOMEM;
@@ -654,14 +650,14 @@ exit:
 static int s6e8aa5x01_read_manufacture_info(struct lcd_info *lcd)
 {
 	int ret = 0;
+	unsigned char buf[LDI_GPARA_MANUFACTURE_INFO + LDI_LEN_MANUFACTURE_INFO] = {0, };
 
-	ret = s6e8aa5x01_read_info(lcd, LDI_REG_MANUFACTURE_INFO, LDI_LEN_MANUFACTURE_INFO, lcd->manufacture_info);
-	if (ret < 0) {
+	ret = s6e8aa5x01_read_info(lcd, LDI_REG_MANUFACTURE_INFO, ARRAY_SIZE(buf), buf);
+	if (ret < 0)
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
-		goto exit;
-	}
 
-exit:
+	memcpy(lcd->manufacture_info, &buf[LDI_GPARA_MANUFACTURE_INFO], LDI_LEN_MANUFACTURE_INFO);
+
 	return ret;
 }
 
@@ -788,14 +784,14 @@ static int s6e8aa5x01_exit(struct lcd_info *lcd)
 
 #ifdef CONFIG_DISPLAY_USE_INFO
 /*
-* ESD_ERROR[6] = VLIN1 error is occurred by ESD = 0x40
-* ESD_ERROR[5] = Internal HSYNC error is occurred by ESD
-* ESD_ERROR[4] = CHECK_SUM error is occurred by ESD
-* ESD_ERROR[3] = ELVDD error is occurred by ESD = 0x08
-* ESD_ERROR[2] = VLIN3 error is occurred by ESD = 0x04
-* ESD_ERROR[1] = HS CLK lane error is occurred by ESD
-* ESD_ERROR[0] = MIPI DSI error is occurred by ESD
-*/
+ * ESD_ERROR[6] = VLIN1 error is occurred by ESD = 0x40
+ * ESD_ERROR[5] = Internal HSYNC error is occurred by ESD
+ * ESD_ERROR[4] = CHECK_SUM error is occurred by ESD
+ * ESD_ERROR[3] = ELVDD error is occurred by ESD = 0x08
+ * ESD_ERROR[2] = VLIN3 error is occurred by ESD = 0x04
+ * ESD_ERROR[1] = HS CLK lane error is occurred by ESD
+ * ESD_ERROR[0] = MIPI DSI error is occurred by ESD
+ */
 	ret = s6e8aa5x01_read_info(lcd, ERR_READ_REG, sizeof(buf), &buf);
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
@@ -969,18 +965,18 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 	set_dpui_field(DPUI_KEY_CELLID, tbuf, size);
 
 	m_info = lcd->manufacture_info;
-	site = get_bit(m_info[1], 4, 4);
-	rework = get_bit(m_info[1], 0, 4);
-	poc = get_bit(m_info[2], 0, 4);
-	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[3], m_info[4]);
+	site = get_bit(m_info[0], 4, 4);
+	rework = get_bit(m_info[0], 0, 4);
+	poc = get_bit(m_info[1], 0, 4);
+	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[2], m_info[3]);
 
-	for (i = 5; i < LDI_LEN_MANUFACTURE_INFO; i++) {
+	for (i = 4; i < LDI_LEN_MANUFACTURE_INFO; i++) {
 		if (!isdigit(m_info[i]) && !isupper(m_info[i])) {
 			invalid = 1;
 			break;
 		}
 	}
-	for (i = 5; !invalid && i < LDI_LEN_MANUFACTURE_INFO; i++)
+	for (i = 4; !invalid && i < LDI_LEN_MANUFACTURE_INFO; i++)
 		seq_printf(&m, "%c", m_info[i]);
 
 	set_dpui_field(DPUI_KEY_OCTAID, tbuf, m.count);
@@ -1048,7 +1044,7 @@ static ssize_t window_type_show(struct device *dev,
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
-	sprintf(buf, "%x %x %x\n", lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
+	sprintf(buf, "%02x %02x %02x\n", lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
 
 	return strlen(buf);
 }
@@ -1283,18 +1279,18 @@ static ssize_t octa_id_show(struct device *dev,
 	};
 
 	m_info = lcd->manufacture_info;
-	site = get_bit(m_info[1], 4, 4);
-	rework = get_bit(m_info[1], 0, 4);
-	poc = get_bit(m_info[2], 0, 4);
-	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[3], m_info[4]);
+	site = get_bit(m_info[0], 4, 4);
+	rework = get_bit(m_info[0], 0, 4);
+	poc = get_bit(m_info[1], 0, 4);
+	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[2], m_info[3]);
 
-	for (i = 5; i < LDI_LEN_MANUFACTURE_INFO; i++) {
+	for (i = 4; i < LDI_LEN_MANUFACTURE_INFO; i++) {
 		if (!isdigit(m_info[i]) && !isupper(m_info[i])) {
 			invalid = 1;
 			break;
 		}
 	}
-	for (i = 5; !invalid && i < LDI_LEN_MANUFACTURE_INFO; i++)
+	for (i = 4; !invalid && i < LDI_LEN_MANUFACTURE_INFO; i++)
 		seq_printf(&m, "%c", m_info[i]);
 
 	seq_puts(&m, "\n");
@@ -1419,7 +1415,7 @@ static void lcd_init_svc(struct lcd_info *lcd)
 	buf = kzalloc(PATH_MAX, GFP_KERNEL);
 	if (buf) {
 		path = kernfs_path(svc_kobj->sd, buf, PATH_MAX);
-		dev_info(&lcd->ld->dev, "%s: %s %s\n", __func__, path, !kn ? "create" : "");
+		dev_info(&lcd->ld->dev, "%s: %s %s\n", __func__, buf, !kn ? "create" : "");
 		kfree(buf);
 	}
 

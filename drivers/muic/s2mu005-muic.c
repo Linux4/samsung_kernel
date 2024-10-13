@@ -61,7 +61,9 @@ static int s2mu005_i2c_update_bit(struct i2c_client *i2c,
 #if defined(DEBUG_MUIC)
 #define MAX_LOG 25
 #define READ 0
+#ifndef WRITE
 #define WRITE 1
+#endif
 
 static u8 s2mu005_log_cnt;
 static u8 s2mu005_log[MAX_LOG][3];
@@ -616,6 +618,36 @@ static ssize_t s2mu005_muic_jig_disable_store(struct device *dev,
 	return count;
 }
 
+#if defined(CONFIG_NEW_FACTORY_UART)
+static ssize_t factory_uart_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct s2mu005_muic_data *muic_data = dev_get_drvdata(dev);
+
+	if (muic_data->pdata->is_factory_uart)
+		return sprintf(buf, "ENABLE\n");
+	else
+		return sprintf(buf, "DISABLE\n");
+}
+
+static ssize_t factory_uart_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct s2mu005_muic_data *muic_data = dev_get_drvdata(dev);
+
+	pr_info("%s : %s\n", __func__, buf);
+	if (!strncasecmp(buf, "ENABLE", 6)) {
+		muic_data->pdata->is_factory_uart = true;
+		set_jig_sw(muic_data, false);
+	} else {
+		muic_data->pdata->is_factory_uart = false;
+		set_jig_sw(muic_data, true);
+	}
+
+	return count;
+}
+#endif
+
 static ssize_t s2mu005_muic_show_attached_dev(struct device *dev,
 					 struct device_attribute *attr,
 					 char *buf)
@@ -650,6 +682,8 @@ static ssize_t s2mu005_muic_show_attached_dev(struct device *dev,
 		return sprintf(buf, "DESKDOCK\n");
 	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
 		return sprintf(buf, "PS CABLE\n");
+	case ATTACHED_DEV_FACTORY_UART_MUIC:
+		return sprintf(buf, "FACTORY UART\n");
 	default:
 		break;
 	}
@@ -770,6 +804,10 @@ static DEVICE_ATTR(usb_en, 0664, s2mu005_muic_show_usb_en,
 					s2mu005_muic_set_usb_en);
 static DEVICE_ATTR(jig_disable, 0664, s2mu005_muic_jig_disable_show,
 					s2mu005_muic_jig_disable_store);
+#if defined(CONFIG_NEW_FACTORY_UART)
+static DEVICE_ATTR(factory_uart, 0664, factory_uart_show,
+					factory_uart_store);
+#endif
 
 static struct attribute *s2mu005_muic_attributes[] = {
 	&dev_attr_uart_en.attr,
@@ -788,6 +826,9 @@ static struct attribute *s2mu005_muic_attributes[] = {
 	&dev_attr_apo_factory.attr,
 	&dev_attr_usb_en.attr,
 	&dev_attr_jig_disable.attr,
+#if defined(CONFIG_NEW_FACTORY_UART)
+	&dev_attr_factory_uart.attr,
+#endif
 	NULL
 };
 
@@ -795,6 +836,43 @@ static const struct attribute_group s2mu005_muic_group = {
 	.attrs = s2mu005_muic_attributes,
 };
 
+#if defined(CONFIG_LANHUB_SUPPORT)
+static int set_adc_mode_oneshot(struct s2mu005_muic_data *muic_data, bool oneshot)
+{
+	struct i2c_client *i2c = muic_data->i2c;
+	u8 reg_val;
+	int ret = 0;
+
+	ret = s2mu005_i2c_read_byte(i2c, S2MU005_REG_MUIC_CTRL3);
+	if (ret < 0)
+		pr_err("%s:%s: err read CTRL3(%d)\n", MUIC_DEV_NAME, __func__, ret);
+
+	if (oneshot)
+		reg_val = ret | (0x1 << CTRL_ONE_SHOT_SHIFT);
+	else
+		reg_val = ret & ~(0x1 << CTRL_ONE_SHOT_SHIFT);
+
+	if (reg_val ^ ret) {
+		pr_info("%s:%s: 0x%x != 0x%x, update\n", MUIC_DEV_NAME, __func__, reg_val, ret);
+
+		ret = s2mu005_i2c_write_byte(i2c, S2MU005_REG_MUIC_CTRL3, reg_val);
+		if (ret < 0)
+			pr_err("%s:%s: err write(%d)\n", MUIC_DEV_NAME, __func__, ret);
+	} else {
+		pr_info("%s:%s: 0x%x == 0x%x, just return\n",
+			MUIC_DEV_NAME, __func__, reg_val, ret);
+		return 0;
+	}
+
+	ret = s2mu005_i2c_read_byte(i2c, S2MU005_REG_MUIC_CTRL3);
+	if (ret < 0)
+		pr_err("%s:%s: err read CTRL(%d)\n", MUIC_DEV_NAME, __func__, ret);
+	else
+		pr_info("%s:%s: after change(0x%x)\n", MUIC_DEV_NAME, __func__, ret);
+
+	return ret;
+}
+#endif
 static int set_ctrl_reg(struct s2mu005_muic_data *muic_data, int shift, bool on)
 {
 	struct i2c_client *i2c = muic_data->i2c;
@@ -1043,12 +1121,22 @@ static void s2mu005_muic_handle_attach(struct s2mu005_muic_data *muic_data,
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
 	case ATTACHED_DEV_JIG_USB_ON_MUIC:
 	case ATTACHED_DEV_OTG_MUIC:
+#if defined(CONFIG_LANHUB_SUPPORT)
+		if(new_dev == ATTACHED_DEV_USB_LANHUB_MUIC)
+			break;
+#endif
 	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
 	case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:
 	case ATTACHED_DEV_JIG_UART_OFF_MUIC:
 	case ATTACHED_DEV_JIG_UART_ON_MUIC:
+	case ATTACHED_DEV_FACTORY_UART_MUIC:
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+	case ATTACHED_DEV_JIG_UART_ON_VB_MUIC:
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
+#endif
+	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
 #if defined(CONFIG_SEC_FACTORY) && defined(CONFIG_MUIC_S2MU005_DISCHARGING_WA)		
 	case ATTACHED_DEV_CARKIT_MUIC:
 #endif
@@ -1081,15 +1169,26 @@ static void s2mu005_muic_handle_attach(struct s2mu005_muic_data *muic_data,
 	/* Attach Accessary */
 	noti = true;
 	switch (new_dev) {
+	case ATTACHED_DEV_OTG_MUIC:
+#if defined(CONFIG_LANHUB_SUPPORT)		
+	case ATTACHED_DEV_USB_LANHUB_MUIC:
+		set_ctrl_reg(muic_data, CTRL_MANUAL_SW_SHIFT, false);
+		set_adc_mode_oneshot(muic_data, false);
+#endif		
+		ret = attach_usb(muic_data);
+		break;
 	case ATTACHED_DEV_USB_MUIC:
 	case ATTACHED_DEV_CDP_MUIC:
-	case ATTACHED_DEV_OTG_MUIC:
+	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:	
 		ret = attach_usb(muic_data);
 		break;
 	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
 	case ATTACHED_DEV_UNKNOWN_MUIC:
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
+#endif
 		com_to_open(muic_data);
 		break;
 	case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:
@@ -1107,11 +1206,16 @@ static void s2mu005_muic_handle_attach(struct s2mu005_muic_data *muic_data,
 			muic_data->jigonb_enable = true;
 		ret = attach_jig_uart_boot_on_off(muic_data);
 		break;
+	case ATTACHED_DEV_JIG_UART_ON_VB_MUIC:
 	case ATTACHED_DEV_JIG_UART_ON_MUIC:
 		if (pdata->is_new_factory)
 			muic_data->jigonb_enable = false;
 		else
 			muic_data->jigonb_enable = true;
+		ret = attach_jig_uart_boot_on_off(muic_data);
+		break;
+	case ATTACHED_DEV_FACTORY_UART_MUIC:
+		muic_data->jigonb_enable = false;
 		ret = attach_jig_uart_boot_on_off(muic_data);
 		break;
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
@@ -1177,6 +1281,15 @@ static void s2mu005_muic_handle_detach(struct s2mu005_muic_data *muic_data)
 #endif /* CONFIG_MUIC_NOTIFIER */
 
 out_without_noti:
+#if defined(CONFIG_LANHUB_SUPPORT)
+	if (muic_data->attached_dev == ATTACHED_DEV_OTG_MUIC ||
+			muic_data->attached_dev == ATTACHED_DEV_USB_LANHUB_MUIC) {
+#ifdef CONFIG_MUIC_S2MU005_ENABLE_AUTOSW
+		set_ctrl_reg(muic_data, CTRL_MANUAL_SW_SHIFT, true);
+#endif
+		set_adc_mode_oneshot(muic_data, true);
+	}
+#endif
 	ret = com_to_open(muic_data);
 	muic_data->attached_dev = ATTACHED_DEV_NONE_MUIC;
 }
@@ -1276,7 +1389,10 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 	case DEV_TYPE1_T1_T2_CHG:
 	if (vbvolt) {
 		/* 200K, 442K should be checkef */
-#if defined(CONFIG_SEC_FACTORY) && defined(CONFIG_MUIC_S2MU005_DISCHARGING_WA)
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+		new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+		pr_info("%s:%s: UNDEFINED RANGE DETECTED\n", MUIC_DEV_NAME, __func__);
+#elif defined(CONFIG_SEC_FACTORY) && defined(CONFIG_MUIC_S2MU005_DISCHARGING_WA)
 		new_dev = ATTACHED_DEV_CARKIT_MUIC;
 		pr_info("%s:%s:CARKIT DETECTED\n", MUIC_DEV_NAME, __func__);
 #else
@@ -1294,6 +1410,12 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 		pr_info("%s:%s: 442K->523K JIG_USB_OFF DETECTED\n", MUIC_DEV_NAME, __func__);
 	}
 		break;
+#if defined (CONFIG_LANHUB_SUPPORT)
+	case DEV_TYPE1_AUDIO_2:
+		new_dev = ATTACHED_DEV_USB_LANHUB_MUIC;
+		pr_info("%s:%s:LANHUB DETECTED DETECTED\n", MUIC_DEV_NAME, __func__);
+		break;
+#endif
 	default:
 		break;
 	}
@@ -1301,9 +1423,9 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 	switch (val2) {
 
 	case DEV_TYPE2_SDP_1P8S:
-		if (vbvolt) {
-			new_dev = ATTACHED_DEV_USB_MUIC;
-			pr_info("%s:%s: SDP_1P8S DETECTED\n", MUIC_DEV_NAME, __func__);
+		if (vbvolt && adc == ADC_OPEN) {
+			new_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
+			pr_info("%s:%s: TIMEOUT_OPEN DETECTED\n", MUIC_DEV_NAME, __func__);
 		}
 	
 		break; 
@@ -1330,22 +1452,56 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 		}
 		break;
 	case DEV_TYPE2_JIG_UART_ON:
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+		if (vbvolt) {
+			new_dev = ATTACHED_DEV_JIG_UART_ON_VB_MUIC;
+			pr_info("%s:%s: JIG_UART_ON_VB DETECTED\n", MUIC_DEV_NAME, __func__);
+		}
+		else {
+			new_dev = ATTACHED_DEV_JIG_UART_ON_MUIC;
+			pr_info("%s:%s: JIG_UART_ON DETECTED\n", MUIC_DEV_NAME, __func__);
+		}
+#else
 		if (new_dev != ATTACHED_DEV_JIG_UART_ON_MUIC) {
 			new_dev = ATTACHED_DEV_JIG_UART_ON_MUIC;
 			pr_info("%s:%s: JIG_UART_ON DETECTED\n", MUIC_DEV_NAME, __func__);
 		}
+#endif
 		break;
 	case DEV_TYPE2_JIG_USB_OFF:
 		if (!vbvolt)
 			break;
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+		new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+		pr_info("%s:%s: UNDEFINED RANGE DETECTED\n", MUIC_DEV_NAME, __func__);
+#else
 		new_dev = ATTACHED_DEV_JIG_USB_OFF_MUIC;
 		pr_info("%s:%s: JIG_USB_OFF DETECTED\n", MUIC_DEV_NAME, __func__);
+#endif
 		break;
 	case DEV_TYPE2_JIG_USB_ON:
 		if (!vbvolt)
 			break;
 		new_dev = ATTACHED_DEV_JIG_USB_ON_MUIC;
 		pr_info("%s:%s: JIG_USB_ON DETECTED\n", MUIC_DEV_NAME, __func__);
+		break;
+	default:
+		break;
+	}
+
+	switch (val3) {
+	case DEV_TYPE3_MHL:
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+		if (vbvolt) {
+			new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+			pr_info("%s:%s: UNDEFINED RANGE DETECTED\n", MUIC_DEV_NAME, __func__);
+		}
+#else
+		pr_info("%s:%s: MHL DETECTED\n", MUIC_DEV_NAME, __func__);
+		if (muic_data->pdata->is_factory_uart)
+			new_dev = ATTACHED_DEV_FACTORY_UART_MUIC;
+			pr_info("%s:%s: FACTORY_UART DETECTED\n", MUIC_DEV_NAME, __func__);
+#endif			
 		break;
 	default:
 		break;
@@ -1359,7 +1515,7 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 		new_dev = ATTACHED_DEV_TA_MUIC;
 		pr_info("%s:%s: APPLE_CHG DETECTED\n", MUIC_DEV_NAME, __func__);
 	}
-
+#if !defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
 	if ((val6 & DEV_TYPE_CHG_TYPE) &&
 		(new_dev == ATTACHED_DEV_UNKNOWN_MUIC)) {
 		/* This is workaround for LG USB cable which has 219k ohm ID */
@@ -1377,7 +1533,7 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 			pr_info("%s:%s: TYPE3_CHARGER DETECTED\n", MUIC_DEV_NAME, __func__);
 		}
 	}
-
+#endif
 	if (val2 & DEV_TYPE2_AV || val3 & DEV_TYPE3_AV_WITH_VBUS) {
 		if (vbvolt) {
 			new_dev = ATTACHED_DEV_DESKDOCK_VB_MUIC;
@@ -1404,7 +1560,10 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 			/* This is workaround for LG USB cable
 					which has 219k ohm ID */
 			if (vbvolt) {
-#if defined(CONFIG_SEC_FACTORY) && defined(CONFIG_MUIC_S2MU005_DISCHARGING_WA)
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+				new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+				pr_info("%s:%s: UNDEFINED RANGE DETECTED\n", MUIC_DEV_NAME, __func__);
+#elif defined(CONFIG_SEC_FACTORY) && defined(CONFIG_MUIC_S2MU005_DISCHARGING_WA)
 				new_dev = ATTACHED_DEV_CARKIT_MUIC;
 				pr_info("%s:%s: CARKIT DETECTED\n", MUIC_DEV_NAME, __func__);
 #else
@@ -1415,17 +1574,27 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 			break;
 		case ADC_CEA936ATYPE2_CHG:
 			if (vbvolt) {
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+				new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+				pr_info("%s:%s: UNDEFINED RANGE DETECTED\n", MUIC_DEV_NAME, __func__);
+#else
 				new_dev = ATTACHED_DEV_TA_MUIC;
 				pr_info("%s:%s: ADC TYPE2 CHARGER DETECTED(TA)\n", MUIC_DEV_NAME, __func__);
+#endif
 			}
 			break;
 		case ADC_JIG_USB_OFF: /* 255k */
 			if (!vbvolt)
 				break;
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+			new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+			pr_info("%s:%s: UNDEFINED RANGE DETECTED\n", MUIC_DEV_NAME, __func__);
+#else
 			if (new_dev != ATTACHED_DEV_JIG_USB_OFF_MUIC) {
 				new_dev = ATTACHED_DEV_JIG_USB_OFF_MUIC;
 				pr_info("%s:%s: ADC JIG_USB_OFF DETECTED\n", MUIC_DEV_NAME, __func__);
 			}
+#endif
 			break;
 		case ADC_JIG_USB_ON:
 			if (!vbvolt)
@@ -1460,11 +1629,21 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 			}
 			break;
 		case ADC_JIG_UART_ON:
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+			if (vbvolt) {
+				new_dev = ATTACHED_DEV_JIG_UART_ON_VB_MUIC;
+				pr_info("%s:%s: ADC JIG_UART_ON_VB DETECTED\n", MUIC_DEV_NAME, __func__);
+			}
+			else {
+				new_dev = ATTACHED_DEV_JIG_UART_ON_MUIC;
+				pr_info("%s:%s: ADC JIG_UART_ON DETECTED\n", MUIC_DEV_NAME, __func__);
+			}
+#else
 			if (new_dev != ATTACHED_DEV_JIG_UART_ON_MUIC) {
 				new_dev = ATTACHED_DEV_JIG_UART_ON_MUIC;
-				pr_info("%s:%s: ADC JIG_UART_ON DETECTED\n",
-							MUIC_DEV_NAME, __func__);
+				pr_info("%s:%s: ADC JIG_UART_ON DETECTED\n", MUIC_DEV_NAME, __func__);
 			}
+#endif
 			break;
 		case ADC_DESKDOCK:
 			if (vbvolt) {
@@ -1478,6 +1657,20 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 							MUIC_DEV_NAME, __func__);
 			}
 			break;
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL)
+		case ADC_SMARTDOCK:
+			if(vbvolt) {
+				pr_info("%s:%s: ADC RDU DETECTED\n", MUIC_DEV_NAME, __func__);
+				new_dev = ATTACHED_DEV_TA_MUIC;
+			}
+			break;
+#endif
+#if defined(CONFIG_LANHUB_SUPPORT)
+		case ADC_USB_LANHUB:
+			new_dev = ATTACHED_DEV_USB_LANHUB_MUIC;
+			pr_info("%s:%s: ADC LANHUB DETECTED\n", MUIC_DEV_NAME, __func__);
+			break;
+#endif			
 		case ADC_OPEN:
 			break;
 		default:
@@ -1490,8 +1683,13 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 
 	if ((ATTACHED_DEV_UNKNOWN_MUIC == new_dev) && (ADC_OPEN != adc)) {
 		if (vbvolt) {
+#if defined(CONFIG_TYPEB_WATERPROOF_MODEL) && !defined(CONFIG_SEC_FACTORY)
+			new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+			pr_info("%s:%s: UNDEFINED RANGE DETECTED\n", MUIC_DEV_NAME, __func__);
+#else
 			new_dev = ATTACHED_DEV_UNDEFINED_CHARGING_MUIC;
 			pr_info("%s:%s: UNDEFINED VB DETECTED\n", MUIC_DEV_NAME, __func__);
+#endif
 		}
 	}
 
@@ -1799,6 +1997,7 @@ static int s2mu005_muic_probe(struct platform_device *pdev)
 	muic_data->i2c = s2mu005->i2c;
 	muic_data->mfd_pdata = mfd_pdata;
 	muic_data->pdata = &muic_pdata;
+	pr_info("factory_uart: %d\n", muic_data->pdata->is_factory_uart);
 #if defined(CONFIG_OF)
 	ret = of_s2mu005_muic_dt(&pdev->dev, muic_data);
 	if (ret < 0)

@@ -54,8 +54,9 @@
 			fuelgauge,fuel_int = <&gpa0 3 0>;
 			fuelgauge,fuel_alert_soc = <2>;
 			fuelgauge,capacity_max = <1000>;
-			fuelgauge,capacity_max_margin = <70>;
+			fuelgauge,capacity_max_margin = <200>;
 			fuelgauge,capacity_min = <0>;
+			fuelgauge,capacity_full = <3300>;
 			fuelgauge,capacity_calculation_type = <28>;
 			fuelgauge,type_str = "SDI";
 			fuelgauge,model_type = <4>;
@@ -204,6 +205,7 @@
 		battery,swelling_low_rechg_voltage = <4000>;
 		
 		battery,standard_curr = <1603>;      // In-efficient charging case
+		battery,battery_full_capacity = <3300>;
 		battery,expired_time = <14400>;      // 240min  
 		battery,recharging_expired_time = <5400>;
 

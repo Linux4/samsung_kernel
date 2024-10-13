@@ -46,6 +46,9 @@
 #include "../../../../staging/android/sw_sync.h"
 #include "../../../../kernel/irq/internals.h"
 
+#include <linux/of_reserved_mem.h>
+#include "../../../../../mm/internal.h"
+
 #define MHZ (1000 * 1000)
 
 #ifdef CONFIG_OF
@@ -1598,6 +1601,139 @@ static void decon_set_protected_content_check(struct decon_device *decon,
 	decon->prev_protection_status = enable;
 }
 
+#if defined(CONFIG_DECON_COLORMAP_PROTECT_SWITCH) || defined(CONFIG_EXYNOS_SUPPORT_FB_HANDOVER)
+static void decon_set_color_map(struct decon_device *decon, u32 color)
+{
+	int i;
+	struct decon_psr_info psr;
+	struct decon_regs_data win_regs = {0};
+
+	/* 1.Protect SHADOW */
+	for (i = 0; i < decon->pdata->max_win; i++)
+		decon_reg_shadow_protect_win(DECON_INT, i, 1);
+
+	/* 2.Disable all the windows */
+	for (i = 0; i < decon->pdata->max_win; i++)
+		decon_reg_clear_win(DECON_INT, i);
+	/* 3. Colormap should be set for VIDEO MODE */
+	win_regs.wincon = WINCON_BPPMODE_ARGB8888;
+	win_regs.winmap = 0x0; /* WIN0 <-> G2 */
+	win_regs.vidosd_a = vidosd_a(0, 0);
+	/* 0, 0, width, height */
+	win_regs.vidosd_b = vidosd_b(0, 0,
+			decon->lcd_info->xres, decon->lcd_info->yres);
+	win_regs.vidosd_c = vidosd_c(0, 0, 0);
+	win_regs.vidosd_d = vidosd_d(0xff, 0xff, 0xff);
+	win_regs.vidw_whole_w = decon->lcd_info->xres;/* width */
+	win_regs.vidw_whole_h = decon->lcd_info->yres;/* height */
+	win_regs.vidw_offset_x = 0;
+	win_regs.vidw_offset_y = 0;
+	win_regs.type = IDMA_G2;
+	decon_reg_set_regs_data(DECON_INT, 0, &win_regs);
+	decon_reg_set_winmap(DECON_INT, 0, color/* 0 => black */, true);
+
+	/* 4.Enable window0 for colormap setting */
+	decon_reg_activate_window(DECON_INT, 0);
+
+	/* 5.Unprotect SHADOW */
+	for (i = 0; i < decon->pdata->max_win; i++)
+		decon_reg_shadow_protect_win(DECON_INT, i, 0);
+
+	/* 6.Request global update and start decon */
+	decon_to_psr_info(decon, &psr);
+	decon_reg_start(DECON_INT, DSI_MODE_SINGLE, &psr);
+
+	/* 7.SFR configuration update */
+	if (decon_reg_wait_for_update_timeout(DECON_INT, 300 * 1000) < 0) {
+		decon_dump(decon);
+		BUG();
+	}
+}
+#endif
+
+#if defined(CONFIG_DECON_COLORMAP_PROTECT_SWITCH)
+static void decon_set_color_for_protected_content(struct decon_device *decon,
+		struct decon_reg_data *regs)
+{
+	int enable = 0;
+
+	/* Protection can be enabled only when cur_protection_bitmask is not 0 */
+	enable = decon->cur_protection_bitmask ? 1 : 0;
+
+	if (decon->prev_protection_status) {
+		if (enable) {
+			/* S -> S */
+		} else {
+			/* S -> N */
+			if (decon->pdata->psr_mode != DECON_MIPI_COMMAND_MODE) {
+				decon_set_color_map(decon, 0x0);
+				pr_info("decon is set to black colormap for S -> N\n");
+			}
+		}
+	} else {
+		if (enable) {
+			/* N -> S */
+			if (decon->pdata->psr_mode != DECON_MIPI_COMMAND_MODE) {
+				decon_set_color_map(decon, 0x0);
+				pr_info("decon is set to black colormap for N -> S\n");
+			}
+		} else {
+			/* N -> N */
+		}
+	}
+}
+#endif
+
+static int decon_free_fb_resource(struct decon_device *decon)
+{
+	decon_info("%s ++\n", __func__);
+
+	/* unreserve memory */
+	of_reserved_mem_device_release(decon->dev);
+
+	/* update state */
+	decon->fb_reservation = false;
+
+	decon_info("%s --\n", __func__);
+
+	return 0;
+}
+
+static int decon_acquire_fb_resource(struct decon_device *decon)
+{
+	decon_info("%s ++\n", __func__);
+
+	decon->fb_reservation = true;
+
+	decon_info("%s --\n", __func__);
+
+	return 0;
+}
+
+#if defined(CONFIG_EXYNOS_SUPPORT_FB_HANDOVER)
+void decon_fb_handover_color_map(struct decon_device *decon)
+{
+	int ret = 0;
+
+	if (decon->fst_frame)
+		return;
+
+	decon_info("%s ++\n", __func__);
+
+	if (!decon->fst_frame && decon->out_type == DECON_OUT_DSI
+		&& decon->pdata->psr_mode == DECON_VIDEO_MODE) {
+			decon->fst_frame = true;
+			decon_set_color_map(decon, 0x0);
+			ret = iovmm_activate(decon->dev);
+			if (ret < 0) {
+				decon_err("failed to reactivate vmm\n");
+			}
+			decon_free_fb_resource(decon);
+	}
+	decon_info("%s --\n", __func__);
+}
+#endif
+
 static void decon_set_protected_content(struct decon_device *decon,
 		struct decon_reg_data *regs, bool enable)
 {
@@ -1631,6 +1767,7 @@ static void decon_set_protected_content(struct decon_device *decon,
 					DISP_SS_EVENT_LOG(DISP_EVT_LINECNT_ZERO,
 							&decon->sd, ktime_set(0, 0));
 			} else {
+#if !defined(CONFIG_DECON_COLORMAP_PROTECT_SWITCH)
 				decon_reg_per_frame_off(DECON_INT);
 				decon_reg_update_standalone(DECON_INT);
 
@@ -1639,6 +1776,7 @@ static void decon_set_protected_content(struct decon_device *decon,
 					BUG();
 				}
 				DISP_SS_EVENT_LOG(DISP_EVT_UPDATE_TIMEOUT, &decon->sd, ktime_set(0, 0));
+#endif
 			}
 
 			/* unprotect previous buffers */
@@ -1663,6 +1801,7 @@ static void decon_set_protected_content(struct decon_device *decon,
 					DISP_SS_EVENT_LOG(DISP_EVT_LINECNT_ZERO,
 							&decon->sd, ktime_set(0, 0));
 			} else {
+#if !defined(CONFIG_DECON_COLORMAP_PROTECT_SWITCH)
 				decon_reg_per_frame_off(DECON_INT);
 				decon_reg_update_standalone(DECON_INT);
 
@@ -1671,6 +1810,7 @@ static void decon_set_protected_content(struct decon_device *decon,
 					BUG();
 				}
 				DISP_SS_EVENT_LOG(DISP_EVT_UPDATE_TIMEOUT, &decon->sd, ktime_set(0, 0));
+#endif
 			}
 
 			/* protect new buffers */
@@ -2163,6 +2303,15 @@ static void __decon_update_regs(struct decon_device *decon, struct decon_reg_dat
 
 	decon->cur_protection_bitmask = 0;
 
+#if defined(CONFIG_DECON_COLORMAP_PROTECT_SWITCH)
+	for (i = 0; i < decon->pdata->max_win; i++) {
+		decon_to_regs_param(&win_regs, regs, i);
+		decon->cur_protection_bitmask |=
+			regs->protection[i] << regs->win_config[i].idma_type;
+	}
+	decon_set_color_for_protected_content(decon, regs);
+#endif
+
 	if (decon->pdata->trig_mode == DECON_HW_TRIG)
 		decon_reg_set_trigger(DECON_INT, decon->pdata->dsi_mode,
 				decon->pdata->trig_mode, DECON_TRIG_DISABLE);
@@ -2331,6 +2480,11 @@ static void decon_update_regs(struct decon_device *decon, struct decon_reg_data 
 
 	if (decon->state == DECON_STATE_LPD)
 		decon_exit_lpd(decon);
+
+
+#if defined(CONFIG_EXYNOS_SUPPORT_FB_HANDOVER)
+	decon_fb_handover_color_map(decon);
+#endif
 
 	memset(old_dma_bufs, 0, sizeof(struct decon_dma_buf_data) *
 			decon->pdata->max_win *
@@ -2912,11 +3066,13 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 	struct decon_win_config_data win_data = { 0 };
 	int ret = 0;
 	u32 crtc;
-	struct fb_event v;
+#ifdef CONFIG_LCD_DOZE_MODE
+	struct fb_event v = {0, };
 	int blank = 0;
 
 	v.info = info;
 	v.data = &blank;
+#endif
 
 	/* enable lpd only when system is ready to interact with driver */
 	decon_lpd_enable();
@@ -3016,24 +3172,24 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 		switch (decon->pwr_mode) {
 		case DECON_POWER_MODE_DOZE:
-			decon_info("%s: DECON_POWER_MODE_DOZE\n", __func__);
+			blank = FB_BLANK_UNBLANK;
+			decon_notifier_call_chain(DECON_EARLY_EVENT_DOZE, &v);
 			ret = decon_doze_enable(decon);
 			if (ret) {
 				decon_err("%s: failed to decon_doze_enable: %d\n", __func__, ret);
 				ret = 0;
 			}
-			blank = FB_BLANK_UNBLANK;
-			decon_notifier_call_chain(FB_EVENT_BLANK, &v);
+			decon_notifier_call_chain(DECON_EVENT_DOZE, &v);
 			break;
 		case DECON_POWER_MODE_DOZE_SUSPEND:
-			decon_info("%s: DECON_POWER_MODE_DOZE_SUSPEND\n", __func__);
+			blank = FB_BLANK_POWERDOWN;
+			decon_notifier_call_chain(DECON_EARLY_EVENT_DOZE, &v);
 			ret = decon_doze_suspend(decon);
 			if (ret) {
 				decon_err("%s: failed to decon_doze_suspend: %d\n", __func__, ret);
 				ret = 0;
 			}
-			blank = FB_BLANK_POWERDOWN;
-			decon_notifier_call_chain(FB_EVENT_BLANK, &v);
+			decon_notifier_call_chain(DECON_EVENT_DOZE, &v);
 			break;
 		default:
 			decon_info("%s: pwr_mode: %d\n", __func__, decon->pwr_mode);
@@ -4116,6 +4272,18 @@ static int decon_probe(struct platform_device *pdev)
 	decon_to_psr_info(decon, &psr);
 	decon_to_init_param(decon, &p);
 
+	/* if decon already running in video mode and fb_handover is enabled */
+	if (decon_reg_get_stop_status(DECON_INT) &&
+			decon->out_type == DECON_OUT_DSI
+			&& decon->pdata->psr_mode == DECON_VIDEO_MODE) {
+		ret = decon_acquire_fb_resource(decon);
+		if (ret < 0) {
+			decon_err("failed to decon_acquire_fb_resource\n");
+			goto fail_entity;
+		}
+	}
+
+#if !defined(CONFIG_EXYNOS_SUPPORT_FB_HANDOVER)
 	/* if decon already running in video mode but no bootloader fb info, stop decon */
 	if (decon_reg_get_stop_status(DECON_INT) &&
 			psr.psr_mode == DECON_VIDEO_MODE &&
@@ -4139,6 +4307,8 @@ static int decon_probe(struct platform_device *pdev)
 			goto fail_entity;
 		}
 	}
+	decon_free_fb_resource(decon);
+#endif
 
 	/* configure windows */
 	ret = decon_acquire_window(decon);
@@ -4422,8 +4592,17 @@ static int decon_remove(struct platform_device *pdev)
 static void decon_shutdown(struct platform_device *pdev)
 {
 	struct decon_device *decon = platform_get_drvdata(pdev);
+	struct fb_info *fbinfo = decon->windows[decon->pdata->default_win]->fbinfo;
+	struct fb_event v = {0, };
+	int blank = FB_BLANK_POWERDOWN;
 
 	dev_info(decon->dev, "%s + state:%d\n", __func__, decon->state);
+
+	if (!lock_fb_info(fbinfo)) {
+		decon_warn("%s: fblock is failed\n", __func__);
+		return;
+	}
+
 	DISP_SS_EVENT_LOG(DISP_EVT_DECON_SHUTDOWN, &decon->sd, ktime_set(0, 0));
 
 	if (decon->pdata->psr_mode == DECON_MIPI_COMMAND_MODE)
@@ -4431,10 +4610,17 @@ static void decon_shutdown(struct platform_device *pdev)
 
 	decon_lpd_block_exit(decon);
 	/* Unused DECON state is DECON_STATE_INIT */
-	if (decon->state == DECON_STATE_ON)
-		decon_disable(decon);
+	if (decon->state == DECON_STATE_ON) {
+		v.info = fbinfo;
+		v.data = &blank;
 
-	decon_lpd_unblock(decon);
+		decon_notifier_call_chain(FB_EARLY_EVENT_BLANK, &v);
+		decon_disable(decon);
+		decon_notifier_call_chain(FB_EVENT_BLANK, &v);
+	}
+
+	/* decon_lpd_unblock(decon); */
+	unlock_fb_info(fbinfo);
 
 	dev_info(decon->dev, "%s -\n", __func__);
 }
@@ -4465,6 +4651,47 @@ static void exynos_decon_unregister(void)
 }
 late_initcall(exynos_decon_register);
 module_exit(exynos_decon_unregister);
+
+static int rmem_device_init(struct reserved_mem *rmem, struct device *dev)
+{
+	pr_info("%s: base=%pa, size=%pa\n",
+			__func__, &rmem->base, &rmem->size);
+
+	return 0;
+}
+
+/* of_reserved_mem_device_release(dev) when reserved memory is no logner required */
+static void rmem_device_release(struct reserved_mem *rmem, struct device *dev)
+{
+	struct page *first = phys_to_page(PAGE_ALIGN(rmem->base));
+	struct page *last = phys_to_page((rmem->base + rmem->size) & PAGE_MASK);
+	struct page *page;
+
+	pr_info("%s: base=%pa, size=%pa, first=%pa, last=%pa\n",
+			__func__, &rmem->base, &rmem->size, first, last);
+
+	free_memsize_reserved(rmem->base, rmem->size);
+	for (page = first; page != last; page++) {
+		__ClearPageReserved(page);
+		set_page_count(page, 1);
+		__free_pages(page, 0);
+		adjust_managed_page_count(page, 1);
+	}
+}
+
+static const struct reserved_mem_ops rmem_ops = {
+	.device_init	= rmem_device_init,
+	.device_release = rmem_device_release,
+};
+
+static int __init fb_handover_setup(struct reserved_mem *rmem)
+{
+	pr_info("%s: base=%pa, size=%pa\n", __func__, &rmem->base, &rmem->size);
+
+	rmem->ops = &rmem_ops;
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(fb_handover, "exynos,fb_handover", fb_handover_setup);
 
 MODULE_AUTHOR("Ayoung Sim <a.sim@samsung.com>");
 MODULE_DESCRIPTION("Samsung EXYNOS Soc DECON driver");

@@ -42,7 +42,7 @@
 #define LDI_LEN_RDDPM		1
 #define LDI_LEN_RDDSM		1
 #define LDI_LEN_ESDERR		1
-#define LDI_LEN_MANUFACTURE_INFO	21
+#define LDI_LEN_MANUFACTURE_INFO	20
 
 /* offset is position including addr, not only para */
 #define LDI_OFFSET_AOR_1	1
@@ -58,6 +58,7 @@
 
 #define LDI_GPARA_DATE		40	/* 0xC8 41st Para */
 #define LDI_GPARA_HBM_ELVSS	22	/* 0xB6 23th para */
+#define LDI_GPARA_MANUFACTURE_INFO	1	/* C9h 2nd Para */
 
 struct lcd_seq_info {
 	unsigned char	*cmd;
@@ -346,7 +347,7 @@ static unsigned char *ACL_TABLE[ACL_STATUS_MAX] = {SEQ_ACL_OFF, SEQ_ACL_ON};
 static unsigned char *OPR_TABLE[OPR_STATUS_MAX] = {SEQ_OPR_ACL_OFF, SEQ_OPR_ACL_ON};
 
 static unsigned char elvss_mpscon_offset_data[IBRIGHTNESS_HBM_MAX][3] = {
-	[IBRIGHTNESS_005NIT ... IBRIGHTNESS_020NIT]= {0xB6, 0xAC, 0x07},
+	[IBRIGHTNESS_005NIT ... IBRIGHTNESS_020NIT] = {0xB6, 0xAC, 0x07},
 	[IBRIGHTNESS_021NIT] = {0xB6, 0xAC, 0x09},
 	[IBRIGHTNESS_022NIT] = {0xB6, 0xAC, 0x0B},
 	[IBRIGHTNESS_024NIT] = {0xB6, 0xAC, 0x0D},
@@ -715,7 +716,7 @@ static unsigned int brightness_table[EXTEND_BRIGHTNESS + 1] = {
 	[318 ... 329] =	IBRIGHTNESS_448NIT,
 	[330 ... 341] =	IBRIGHTNESS_465NIT,
 	[342 ... 354] =	IBRIGHTNESS_483NIT,
-	[355 ... EXTEND_BRIGHTNESS ] =	 IBRIGHTNESS_500NIT,
+	[355 ... EXTEND_BRIGHTNESS] =	 IBRIGHTNESS_500NIT,
 };
 
 #endif /* __S6E3FA3_J7Y17_PARAM_H__ */

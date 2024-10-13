@@ -4,7 +4,7 @@
 #include <linux/kernel.h>
 
 #define UI_MAX_BRIGHTNESS	255
-#define UI_DEFAULT_BRIGHTNESS	128
+#define UI_DEFAULT_BRIGHTNESS	115
 
 struct lcd_seq_info {
 	unsigned char	*cmd;
@@ -59,7 +59,7 @@ static const unsigned char SEQ_FD_PARAM_MDNIE[] = {
 
 static const unsigned char SEQ_FE_PARAM_MDNIE[] = {
 	0xFE,
-	0x00, 0x02, 0x03, 0x21, 0x00, 0x78
+	0x00, 0x02, 0x03, 0x21, 0x00, 0x58
 };
 
 static const unsigned char SEQ_B3_PARAM[] = {
