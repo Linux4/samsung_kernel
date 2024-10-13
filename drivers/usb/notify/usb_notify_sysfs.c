@@ -80,6 +80,8 @@ usb_hw_param_print[USB_CCIC_HW_PARAM_MAX][MAX_HWPARAM_STRING] = {
 	{"CC_PRS"},
 	{"CC_DRS"},
 	{"C_ARP"},
+	{"H_SB"},
+	{"H_OAD"},
 	{"CC_VER"},
 };
 #endif /* CONFIG_USB_HW_PARAM */
@@ -734,7 +736,7 @@ void init_usb_whitelist_array(int *whitelist_array)
 		whitelist_array[i] = 0;
 }
 
-int set_usb_whitelist_array(const char *buf, int *whitelist_array)
+int set_usb_allowlist_array(const char *buf, int *whitelist_array)
 {
 	int valid_class_count = 0;
 	char *ptr = NULL;
@@ -743,6 +745,8 @@ int set_usb_whitelist_array(const char *buf, int *whitelist_array)
 
 	source = (char *)buf;
 	while ((ptr = strsep(&source, ":")) != NULL) {
+		if (strlen(ptr) < 3)
+			continue;
 		pr_info("%s token = %c%c%c!\n", __func__,
 			ptr[0], ptr[1], ptr[2]);
 		for (i = U_CLASS_PER_INTERFACE; i <= U_CLASS_VENDOR_SPEC; i++) {
@@ -769,8 +773,8 @@ static ssize_t whitelist_for_mdm_show(struct device *dev,
 		pr_err("udev is NULL\n");
 		return -EINVAL;
 	}
-	pr_info("%s read whitelist_classes %s\n",
-		__func__, udev->whitelist_str);
+	pr_info("allowlist_for_mdm read allowlist_classes %s\n",
+		udev->whitelist_str);
 	return sprintf(buf, "%s\n", udev->whitelist_str);
 }
 
@@ -793,7 +797,7 @@ static ssize_t whitelist_for_mdm_store(
 	}
 
 	if (size > MAX_WHITELIST_STR_LEN || size < 3) {
-		pr_err("%s size(%zu) is invalid.\n", __func__, size);
+		pr_err("allowlist_for_mdm_store size(%zu) is invalid.\n", size);
 		goto error;
 	}
 
@@ -806,7 +810,7 @@ static ssize_t whitelist_for_mdm_store(
 	sret = sscanf(buf, "%s", disable);
 	if (sret != 1)
 		goto error1;
-	pr_info("%s buf=%s\n", __func__, disable);
+	pr_info("allowlist_for_mdm_store buf=%s\n", disable);
 
 	init_usb_whitelist_array(udev->whitelist_array_for_mdm);
 	/* To active displayport, hub class must be enabled */
@@ -816,7 +820,7 @@ static ssize_t whitelist_for_mdm_store(
 	} else if (!strncmp(buf, "OFF", 3))
 		mdm_disable = NOTIFY_MDM_TYPE_OFF;
 	else {
-		valid_whilelist_count =	set_usb_whitelist_array
+		valid_whilelist_count = set_usb_allowlist_array
 			(buf, udev->whitelist_array_for_mdm);
 		if (valid_whilelist_count > 0) {
 			udev->whitelist_array_for_mdm[U_CLASS_HUB] = 1;
@@ -906,6 +910,57 @@ err:
 }
 EXPORT_SYMBOL_GPL(usb_notify_dev_uevent);
 
+static ssize_t usb_sl_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct usb_notify_dev *udev = (struct usb_notify_dev *)
+		dev_get_drvdata(dev);
+
+	if (udev == NULL) {
+		pr_err("udev is NULL\n");
+		return -EINVAL;
+	}
+	pr_info("%s secure_lock = %lu\n",
+		__func__, udev->secure_lock);
+
+	return sprintf(buf, "%lu\n", udev->secure_lock);
+}
+
+static ssize_t usb_sl_store(
+		struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+
+{
+	struct usb_notify_dev *udev = (struct usb_notify_dev *)
+		dev_get_drvdata(dev);
+	unsigned long secure_lock = 0;
+	int sret = -EINVAL;
+	size_t ret = -ENOMEM;
+
+	if (udev == NULL) {
+		pr_err("udev is NULL\n");
+		return -EINVAL;
+	}
+	if (size > PAGE_SIZE) {
+		pr_err("%s size(%zu) is too long.\n", __func__, size);
+		goto error;
+	}
+
+	sret = sscanf(buf, "%lu", &secure_lock);
+	if (sret != 1)
+		goto error;
+
+	udev->secure_lock = secure_lock;
+	udev->set_lock_state(udev);
+
+	pr_info("%s secure_lock = %lu\n",
+		__func__, udev->secure_lock);
+	ret = size;
+
+error:
+	return ret;
+}
+
 static DEVICE_ATTR_RW(disable);
 static DEVICE_ATTR_RW(usb_data_enabled);
 static DEVICE_ATTR_RO(support);
@@ -918,6 +973,7 @@ static DEVICE_ATTR_RO(cards);
 static DEVICE_ATTR_RW(usb_hw_param);
 static DEVICE_ATTR_RW(hw_param);
 #endif
+static DEVICE_ATTR_RW(usb_sl);
 
 static struct attribute *usb_notify_attrs[] = {
 	&dev_attr_disable.attr,
@@ -932,6 +988,7 @@ static struct attribute *usb_notify_attrs[] = {
 	&dev_attr_usb_hw_param.attr,
 	&dev_attr_hw_param.attr,
 #endif
+	&dev_attr_usb_sl.attr,
 	NULL,
 };
 
