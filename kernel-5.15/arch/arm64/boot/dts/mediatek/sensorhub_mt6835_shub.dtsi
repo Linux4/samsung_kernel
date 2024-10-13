@@ -1,0 +1,31 @@
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6835_shub/dts/sensorhub_mt6835_shub.m15x.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-motor-coef = <2>;
+				acc-lsm6dsl-position = <2>;
+
+				mag-ak09918c-position = <0>;
+				mag-check-nfc = <&pio 108 0>;
+				mag-ak09918c-nfc-array = /bits/ 8 <207 89 243 13 38 233 0 130 213 54 239 222 17 28 249 232 5 134 58 223 197 2 67 156 10 77 28>;
+				mag-ak09918c-array = /bits/ 8 <171 82 202 13 81 59 255 130 215 54 239 196 156 28 254 232 0 131 0 195 195 252 144 22 10 77 119>;
+				light-position = /bits/ 32 <42 62 8 52 3 0>;
+				brightness-array-len = <11>;
+				brightness-array = /bits/ 32 <19 48 54 58 63 67 70 73 75 77 100>;
+			};
+		};
+	};
+};
