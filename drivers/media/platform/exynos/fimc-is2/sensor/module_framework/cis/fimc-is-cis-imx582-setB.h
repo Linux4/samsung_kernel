@@ -1,7 +1,6 @@
 /*
  * Samsung Exynos5 SoC series Sensor driver
  *
- *
  * Copyright (c) 2018 Samsung Electronics Co., Ltd
  *
  * This program is free software; you can redistribute it and/or modify

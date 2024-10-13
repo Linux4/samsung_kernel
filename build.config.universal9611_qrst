@@ -7,7 +7,7 @@ CLANG_PREBUILT_BIN=prebuilts-master/clang/host/linux-x86/clang-r365631c/bin
 SET_TOOLCHAIN=1
 
 DEFCONFIG=universal9611_qr_defconfig
-MALI_CONFIG=universal9611_qrs_mali.cfg
+MALI_CONFIG=universal9611_qrst_mali.cfg
 TARGET_SOC=exynos9611
 
 FILES="

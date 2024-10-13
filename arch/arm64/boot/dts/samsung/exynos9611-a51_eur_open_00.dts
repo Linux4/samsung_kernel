@@ -850,7 +850,7 @@
 					rear3_video_capture_hpg = <0x1>;
 					rear4_preview_int_cam = <0xa1220>;
 					rear4_preview_cam = <0xa1220>;
-					rear4_preview_mif = <0xf78f0>;
+					rear4_preview_mif = <0x14a140>;
 					rear4_preview_int = <0x186a0>;
 					rear4_preview_hpg = <0x1>;
 					rear4_capture_int_cam = <0xa1220>;
