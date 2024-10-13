@@ -1,3 +1,0 @@
-config GPIO_DEBUG
-	tristate "GPIO debug functionality"
-

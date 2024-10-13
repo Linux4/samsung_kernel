@@ -1,2 +1,0 @@
-. ${ROOT_DIR}/common/build.config.gki.aarch64
-TRIM_NONLISTED_KMI=""
