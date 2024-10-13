@@ -105,6 +105,7 @@ __vfs_getxattr(struct dentry *dentry, struct inode *inode, const char *name,
 /*
  * KASLR is backported to 4.4 kernels
  */
+#ifndef PROCA_KUNIT_ENABLED
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 
 static inline uintptr_t get_kimage_vaddr(void)
@@ -128,6 +129,7 @@ static inline u64 get_kimage_voffset(void)
 {
 	return kimage_voffset;
 }
+#endif
 #endif
 
 #ifndef OVERLAYFS_SUPER_MAGIC

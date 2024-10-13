@@ -388,11 +388,6 @@ MzResult load_trusted_app_teegris(void)
 	tlc_struct->operation.params[0].memref.size = tlc_struct->shmem.size;
 	tlc_struct->operation.params[0].memref.offset = 0;
 
-	if (!mz_exynos_pmu_write) {
-		pr_debug("MZ mz_exynos_pmu_write null, set\n");
-		mz_exynos_pmu_write = exynos_pmu_write;
-	}
-
 	goto exit;
 
 close_session:

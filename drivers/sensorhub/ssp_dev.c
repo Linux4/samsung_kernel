@@ -90,6 +90,8 @@ static void init_sensorlist(struct ssp_data *data)
 		SENSOR_INFO_UNKNOWN,
 		SENSOR_INFO_UNKNOWN,
 		SENSOR_INFO_DEVICE_ORIENTATION_WU,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_SAR_BACKOFF_MOTION,
 	};
 
 	memcpy(&data->info, sensorinfo, sizeof(data->info));

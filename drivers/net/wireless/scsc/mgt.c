@@ -4978,11 +4978,10 @@ void slsi_p2p_vif_deactivate(struct slsi_dev *sdev, struct net_device *dev, bool
 	}
 
 	/* Indicate failure using cfg80211_mgmt_tx_status() if frame TX is not completed during VIF delete */
-	if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID) {
+	if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID)
 		ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
+	if (ndev_vif->mgmt_tx_data.host_tag)
 		cfg80211_mgmt_tx_status(&ndev_vif->wdev, ndev_vif->mgmt_tx_data.cookie, ndev_vif->mgmt_tx_data.buf, ndev_vif->mgmt_tx_data.buf_len, false, GFP_KERNEL);
-	}
-
 	cancel_delayed_work(&ndev_vif->unsync.del_vif_work);
 	if (delayed_work_pending(&ndev_vif->unsync.roc_expiry_work) && sdev->recovery_status) {
 		cfg80211_remain_on_channel_expired(&ndev_vif->wdev, ndev_vif->unsync.roc_cookie, ndev_vif->chan,
