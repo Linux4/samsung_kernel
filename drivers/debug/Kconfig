@@ -1,0 +1,4 @@
+# When adding new entries keep the list in alphabetical order
+
+source "drivers/debug/user_reset/Kconfig"
+
