@@ -156,7 +156,7 @@ static int secdp_aux_pullup_vreg_enable(bool on)
 			goto unset_vdd33;
 		}
 
-		DP_INFO("on success\n");
+		DP_INFO("[AUX_PU] on success\n");
 		power->aux_pullup_on = true;
 	} else {
 
@@ -176,7 +176,7 @@ put_vdda33_lpm:
 			DP_ERR("Unable to set 0 HPM of vdda33: %d\n", rc);
 
 		if (!rc)
-			DP_INFO("off success\n");
+			DP_INFO("[AUX_PU] off success\n");
 
 		power->aux_pullup_on = false;
 	}
