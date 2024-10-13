@@ -137,13 +137,22 @@ struct ufs_sec_err_info {
 
 #define get_err_member(member) ufs_sec_features.ufs_err->member
 #define get_err_backup_member(member) ufs_sec_features.ufs_err_backup->member
+#define get_err_hist_member(member) ufs_sec_features.ufs_err_hist->member
 
 #define SEC_UFS_ERR_INFO_BACKUP(err_cnt, member) ({                                      \
 		get_err_backup_member(err_cnt).member += get_err_member(err_cnt).member; \
 		get_err_member(err_cnt).member = 0; })
 
+/* Get the sum of error count about current booting */
 #define SEC_UFS_ERR_INFO_GET_VALUE(err_cnt, member)                                      \
 	(get_err_backup_member(err_cnt).member + get_err_member(err_cnt).member)
+
+/*  Get the sum of error count about current and previous booting */
+#define SEC_UFS_ERR_INFO_HIST_SUM_GET_VALUE(err_cnt, member)                                \
+	(SEC_UFS_ERR_INFO_GET_VALUE(err_cnt, member) + get_err_hist_member(err_cnt).member)
+
+#define SEC_UFS_ERR_INFO_HIST_SET_VALUE(err_cnt, member, value)                                \
+	(get_err_hist_member(err_cnt).member = (value - '0'))
 
 #define SEC_UFS_DATA_ATTR_RO(name, fmt, args...)                                         \
 static ssize_t name##_show(struct device *dev, struct device_attribute *attr, char *buf) \
@@ -171,4 +180,58 @@ static DEVICE_ATTR(name, 0664, name##_show, name##_store)
 		ufs_sec_features.ufs_wb_backup->member += ufs_sec_features.ufs_wb->member;       \
 		ufs_sec_features.ufs_wb->member = 0; })
 /* SEC next WB : end */
+
+#define get_min_errinfo_hist(type, min_val, err_cnt, member)	\
+	min_t(type, min_val, SEC_UFS_ERR_INFO_HIST_SUM_GET_VALUE(err_cnt, member))
+
+#define ERR_SUM_SIZE 25
+#define ERR_HIST_SUM_SIZE 26
+
+/**
+ * UFS Error Information
+ *
+ * Format : U0I0H0L0X0Q0R0W0F0SM0SH0
+ * U : UTP cmd error count
+ * I : UIC error count
+ * H : HWRESET count
+ * L : Link startup failure count
+ * X : Link Lost Error count
+ * Q : UTMR QUERY_TASK error count
+ * R : READ error count
+ * W : WRITE error count
+ * F : Device Fatal Error count
+ * SM : Sense Medium error count
+ * SH : Sense Hardware error count
+ **/
+#define SEC_UFS_ERR_SUM(buf) \
+	sprintf(buf, "U%uI%uH%uL%uX%uQ%uR%uW%uF%uSM%uSH%u", \
+			get_min_errinfo(u32, 9, UTP_cnt, UTP_err), \
+			get_min_errinfo(u32, 9, UIC_err_cnt, UIC_err), \
+			get_min_errinfo(u32, 9, op_cnt, HW_RESET_cnt), \
+			get_min_errinfo(u32, 9, op_cnt, link_startup_cnt), \
+			get_min_errinfo(u8, 9, Fatal_err_cnt, LLE), \
+			get_min_errinfo(u8, 9, UTP_cnt, UTMR_query_task_cnt), \
+			get_min_errinfo(u8, 9, UTP_cnt, UTR_read_err), \
+			get_min_errinfo(u8, 9, UTP_cnt, UTR_write_err), \
+			get_min_errinfo(u8, 9, Fatal_err_cnt, DFE), \
+			get_min_errinfo(u32, 9, sense_cnt, scsi_medium_err), \
+			get_min_errinfo(u32, 9, sense_cnt, scsi_hw_err))
+
+/**
+ * UFS Error Information
+ * previous boot's error count + current boot's error count
+ **/
+#define SEC_UFS_ERR_HIST_SUM(buf) \
+	sprintf(buf, "U%uI%uH%uL%uX%uQ%uR%uW%uF%uSM%uSH%u\n", \
+			get_min_errinfo_hist(u32, 9, UTP_cnt, UTP_err), \
+			get_min_errinfo_hist(u32, 9, UIC_err_cnt, UIC_err), \
+			get_min_errinfo_hist(u32, 9, op_cnt, HW_RESET_cnt), \
+			get_min_errinfo_hist(u32, 9, op_cnt, link_startup_cnt), \
+			get_min_errinfo_hist(u8, 9, Fatal_err_cnt, LLE), \
+			get_min_errinfo_hist(u8, 9, UTP_cnt, UTMR_query_task_cnt), \
+			get_min_errinfo_hist(u8, 9, UTP_cnt, UTR_read_err), \
+			get_min_errinfo_hist(u8, 9, UTP_cnt, UTR_write_err), \
+			get_min_errinfo_hist(u8, 9, Fatal_err_cnt, DFE), \
+			get_min_errinfo_hist(u32, 9, sense_cnt, scsi_medium_err), \
+			get_min_errinfo_hist(u32, 9, sense_cnt, scsi_hw_err))
 #endif

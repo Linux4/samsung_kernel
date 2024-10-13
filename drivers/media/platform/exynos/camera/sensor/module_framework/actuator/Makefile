@@ -17,6 +17,7 @@ obj-$(CONFIG_CAMERA_ACT_LC898219_OBJ) += is-actuator-lc898219.o
 obj-$(CONFIG_CAMERA_ACT_BU64981_OBJ) += is-actuator-bu64981.o
 obj-$(CONFIG_CAMERA_ACT_SEM1215S_OBJ) += is-actuator-sem1215s.o
 obj-$(CONFIG_CAMERA_ACT_DW9800_OBJ) += is-actuator-dw9800.o
+obj-$(CONFIG_CAMERA_ACT_FP5529_OBJ) += is-actuator-fp5529.o
 
 EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera
 EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera/include

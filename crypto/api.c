@@ -23,6 +23,10 @@
 #include <linux/completion.h>
 #include "internal.h"
 
+#ifdef CONFIG_CRYPTO_SKC_FIPS_FUNC_TEST
+#include "fips140_test.h"
+#endif
+
 LIST_HEAD(crypto_alg_list);
 EXPORT_SYMBOL_GPL(crypto_alg_list);
 DECLARE_RWSEM(crypto_alg_sem);
@@ -610,7 +614,23 @@ void crypto_destroy_tfm(void *mem, struct crypto_tfm *tfm)
 		alg->cra_exit(tfm);
 	crypto_exit_ops(tfm);
 	crypto_mod_put(alg);
+#ifdef CONFIG_CRYPTO_SKC_FIPS_FUNC_TEST
+	if (!strcmp("zeroization", get_fips_functest_mode())) {
+		size_t mem_size = ksize(mem);
+
+		pr_err("FIPS FUNC : Zeroization, mem area before: %s %d\n", __func__, mem_size);
+		print_hex_dump(KERN_INFO, "FIPS FUNC : ", DUMP_PREFIX_OFFSET,
+			16, 1, mem, mem_size, false);
+		kfree_sensitive(mem);
+		pr_err("FIPS FUNC : Zeroization, mem area after: %s %d\n", __func__, mem_size);
+		print_hex_dump(KERN_INFO, "FIPS FUNC : ", DUMP_PREFIX_OFFSET,
+			16, 1, mem, mem_size, false);
+	} else {
+		kfree_sensitive(mem);
+	}
+#else
 	kfree_sensitive(mem);
+#endif /* CONFIG_CRYPTO_SKC_FIPS_FUNC_TEST */
 }
 EXPORT_SYMBOL_GPL(crypto_destroy_tfm);
 

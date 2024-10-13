@@ -153,6 +153,7 @@ int ufs_perf_init_v1(struct ufs_perf *perf);
 void ufs_perf_exit_v1(struct ufs_perf *perf);
 
 void ufs_gear_scale_init(struct ufs_perf *perf);
+void ufs_gear_scale_exit(struct ufs_perf *perf);
 int ufs_gear_change(struct ufs_hba *hba, bool en);
 int ufs_gear_scale_update(struct ufs_perf *perf);
 

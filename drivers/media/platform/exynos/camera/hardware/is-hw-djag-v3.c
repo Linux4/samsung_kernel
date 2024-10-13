@@ -215,25 +215,6 @@ static u32 is_hw_mcsc_check_djag_stripe_size(struct is_hw_ip *hw_ip, struct para
 }
 #endif
 
-static void is_hw_djag_adjust_out_size(u32 in_width, u32 in_height,
-					u32 *out_width, u32 *out_height,
-					u32 video_mode, u32 bratio)
-{
-	bool is_down_scale = (*out_width < in_width) || (*out_height < in_height);
-
-	dbg_hw(2, "%s:video_mode %d is_down_scale %d bratio %d\n", __func__,
-			video_mode, is_down_scale, bratio);
-
-	if (video_mode && is_down_scale
-	    && bratio >= MCSC_DJAG_ENABLE_SENSOR_BRATIO) {
-		dbg_hw(2, "%s:%dx%d -> %dx%d\n", __func__,
-				*out_width, *out_height, in_width, in_height);
-
-		*out_width = in_width;
-		*out_height = in_height;
-	}
-}
-
 int is_hw_mcsc_update_djag_register(struct is_hw_ip *hw_ip,
 		struct mcs_param *param,
 		u32 instance)
@@ -241,8 +222,6 @@ int is_hw_mcsc_update_djag_register(struct is_hw_ip *hw_ip,
 	int i = 0;
 	int ret = 0;
 	int output_id = 0;
-	struct is_region *region;
-	u32 bratio;
 	struct is_hw_mcsc *hw_mcsc = NULL;
 	struct is_hw_mcsc_cap *cap = GET_MCSC_HW_CAP(hw_ip);
 	const struct djag_scaling_ratio_depended_config *djag_tuneset;
@@ -337,16 +316,10 @@ int is_hw_mcsc_update_djag_register(struct is_hw_ip *hw_ip,
 		out_width = MCSC_LINE_BUF_SIZE;
 	}
 
-	region = hw_ip->region[instance];
-	bratio = region->parameter.sensor.config.sensor_binning_ratio_x;
-	is_hw_djag_adjust_out_size(in_width, in_height,
-				&out_width, &out_height,
-				hw_ip->hardware->video_mode, bratio);
+	if (!djag_en || !out_width || !out_height) {
+		sdbg_hw(2, "DJAG is not applied still.(djag_en(%d), input : %dx%d, output : %dx%d)\n",
+			hw_ip, djag_en, in_width, in_height, out_width, out_height);
 
-	if (!djag_en || param->input.width > out_width || param->input.height > out_height) {
-		sdbg_hw(2, "DJAG is not applied still.(djag_en(%d), input : %dx%d > output : %dx%d)\n", hw_ip,
-				djag_en, param->input.width, param->input.height,
-				out_width, out_height);
 		is_scaler_set_djag_enable(get_base(hw_ip), 0);
 #ifdef USE_MCSC_STRIP_OUT_CROP
 		is_scaler_set_djag_strip_enable(get_base(hw_ip), output_id, 0);
@@ -354,6 +327,16 @@ int is_hw_mcsc_update_djag_register(struct is_hw_ip *hw_ip,
 #endif
 		return ret;
 	}
+
+	if (in_width > out_width || in_height > out_height) {
+		sdbg_hw(4, "DJAG output size is smaller than input.(input : %dx%d > output : %dx%d)\n",
+			hw_ip, in_width, in_height, out_width, out_height);
+
+		out_width = in_width;
+		out_height = in_height;
+		full_out_width = full_in_width;
+	}
+
 	/* check scale ratio if over 2.5 times */
 	if (out_width * 10 > in_width * 25)
 		out_width = round_down(in_width * 25 / 10, MCSC_WIDTH_ALIGN);

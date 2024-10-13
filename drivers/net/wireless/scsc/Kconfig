@@ -436,3 +436,10 @@ config SCSC_WLAN_CUSTOM_TX_POWER
 	default y
 	help
 	This option enables SET_CUSTOM_TX_POWER_CALLING api to set max power backoff
+
+config SCSC_WLAN_TAS
+	bool "Enable WLAN TAS"
+	default n
+	depends on SCSC_WLAN_TX_API
+	help
+	  This option enables TAS in Host. Native daemon should be configured.

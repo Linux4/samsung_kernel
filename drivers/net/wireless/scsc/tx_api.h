@@ -184,4 +184,10 @@ int slsi_tx_transmit_lower(struct slsi_dev *sdev, struct sk_buff *skb);
  */
 void slsi_tx_timeout(struct net_device *dev);
 
+/**
+ * Lock: N/A
+ * Context: N/A
+ * Description: Get gcod value
+ */
+int slsi_tx_get_gcod(void);
 #endif

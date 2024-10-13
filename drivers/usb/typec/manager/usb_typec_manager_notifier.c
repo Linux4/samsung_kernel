@@ -778,6 +778,12 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 
 	switch (p_noti.id) {
 	case PDIC_NOTIFY_ID_POWER_STATUS:
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
+		if (typec_manager.water.detected) {
+			pr_err("%s: PD event is invalid in water state", __func__);
+			return 0;
+		}
+#endif
 		if (p_noti.sub1 && !typec_manager.pd_con_state) {
 #if IS_ENABLED(CONFIG_MTK_CHARGER)
 			if (!typec_manager.pdic_attach_state) {
@@ -833,9 +839,17 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 		return 0;
 	case PDIC_NOTIFY_ID_WATER:
 		if (p_noti.sub1) {	/* attach */
-			if (!typec_manager.water.detected)
+			if (!typec_manager.water.detected) {
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
+				if (typec_manager.pd_con_state) {
+					typec_manager.pd_con_state = 0;
+					manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_BATT,
+						PDIC_NOTIFY_ID_ATTACH, PDIC_NOTIFY_DETACH, 0, ATTACHED_DEV_UNOFFICIAL_ID_ANY_MUIC);
+				}
+#endif
 				manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_MUIC,
 					PDIC_NOTIFY_ID_WATER, p_noti.sub1, p_noti.sub2, p_noti.sub3);
+			}
 			manager_water_status_update(p_noti.sub1);
 		} else {
 			manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_MUIC,
@@ -859,15 +873,20 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 			p_noti.id, p_noti.sub1, p_noti.sub2, p_noti.sub3);
 
 		if (p_noti.sub1) {
+			mutex_lock(&typec_manager.mo_lock);
 			/* Send water cable event to battery */
 			manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_BATT,
 					PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_ATTACH, p_noti.sub2,
 					typec_manager.water.report_type);
 
-			/* make detach event like hiccup case*/
-			manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_BATT,
-					PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, p_noti.sub2,
-					typec_manager.water.report_type);
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+			if (typec_manager.vbus_state == STATUS_VBUS_LOW)
+#endif
+				/* make detach event like hiccup case*/
+				manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_BATT,
+						PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, p_noti.sub2,
+						typec_manager.water.report_type);
+			mutex_unlock(&typec_manager.mo_lock);
 		}
 		return 0;
 	case PDIC_NOTIFY_ID_DEVICE_INFO:

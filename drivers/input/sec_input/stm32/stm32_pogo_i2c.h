@@ -191,6 +191,7 @@ struct stm32_erase_param_type
 
 
 #define STM32_DEV_FW_UPDATE_PACKET_SIZE		(256)
+#define STM32_KEYBOARD_FW_SIZE			(100 * 1024) /* 100 KB */
 
 /* keyboard bus vote */
 enum stm32_bus_vote {
@@ -394,6 +395,9 @@ struct stm32_dev {
 	struct icc_path 			*stm32_icc_data;
 	int					voting_flag;
 #endif
+	u8 *sec_pogo_keyboard_fw;
+	size_t sec_pogo_keyboard_size;
+
 };
 
 struct stm32_devicetree_data {

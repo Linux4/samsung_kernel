@@ -628,7 +628,6 @@ static int maptbl_props_to_pos(struct maptbl *m, struct maptbl_pos *pos)
 		int index = 0;
 
 		if (m->props.name[dimen]) {
-			panel_property_update(panel, m->props.name[dimen]);
 			index = panel_get_property_value(panel, m->props.name[dimen]);
 			if (index < 0) {
 				panel_err("%s: failed to get property(%s) value\n",

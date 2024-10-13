@@ -284,6 +284,7 @@ struct nvt_ts_data {
 #if PROXIMITY_FUNCTION
 	struct input_dev *input_dev_proximity;
 #endif
+	struct wakeup_source *nvt_ws;
 	uint16_t addr;
 	int8_t phys[32];
 	uint8_t fw_ver;

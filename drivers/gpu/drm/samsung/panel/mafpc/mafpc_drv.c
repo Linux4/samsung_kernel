@@ -27,76 +27,100 @@
 #include <soc/samsung/exynos/exynos-lpd.h>
 #endif
 
+static int mafpc_set_written_flag(struct mafpc_device *mafpc, u32 flags)
+{
+	if (!mafpc)
+		return -EINVAL;
+
+	mafpc->written |= flags;
+
+	return 0;
+}
+
+static int mafpc_clear_written_flag(struct mafpc_device *mafpc, u32 flags)
+{
+	if (!mafpc)
+		return -EINVAL;
+
+	mafpc->written &= ~(flags);
+
+	return 0;
+}
+
+int mafpc_set_written_to_dev(struct mafpc_device *mafpc)
+{
+	return mafpc_set_written_flag(mafpc, MAFPC_UPDATED_TO_DEV);
+}
+
+int mafpc_clear_written_to_dev(struct mafpc_device *mafpc)
+{
+	return mafpc_clear_written_flag(mafpc, MAFPC_UPDATED_TO_DEV);
+}
+
 static int abc_fops_open(struct inode *inode, struct file *file)
 {
-	int ret = 0;
 	struct miscdevice *miscdev = file->private_data;
 	struct mafpc_device *mafpc = container_of(miscdev, struct mafpc_device, miscdev);
 
 	file->private_data = mafpc;
 	panel_info("was called\n");
 
-	return ret;
+	return 0;
 }
 
 
-static ssize_t write_comp_image(struct mafpc_device *mafpc, const char __user *buf, size_t count)
+__visible_for_testing ssize_t write_comp_image(struct mafpc_device *mafpc, const char __user *buf, size_t count)
 {
-	bool scale_factor = false;
-	int offset = MAFPC_HEADER_SIZE;
-
-	if ((mafpc == NULL) || (buf == NULL)) {
-		panel_err("invalid param\n");
+	if (!mafpc) {
+		panel_err("null mafpc\n");
 		return -EINVAL;
 	}
 
-	if ((!mafpc->comp_img_buf) || (!mafpc->scale_buf)) {
+	if (!buf) {
+		panel_err("buf is null\n");
+		return -EINVAL;
+	}
+
+	if (!mafpc->comp_img_buf || !mafpc->scale_buf) {
 		panel_err("invalid buffer");
 		return -EINVAL;
 	}
 
-	if (count == (MAFPC_HEADER_SIZE + mafpc->ctrl_cmd_len + mafpc->comp_img_len)) {
-		panel_info("Write size: %ld, without scale factor\n", count);
-	} else if (count == (MAFPC_HEADER_SIZE + mafpc->ctrl_cmd_len + mafpc->comp_img_len + mafpc->scale_len)) {
-		panel_info("Write size: %ld, with scale factor\n", count);
-		scale_factor = true;
-	} else {
-		panel_err("invalid count: %ld\n", count);
+	if (count != ABC_DATA_SIZE(mafpc) &&
+		count != (ABC_DATA_SIZE(mafpc) - ABC_SCALE_FACTOR_SIZE(mafpc))) {
+		panel_err("invalid buffer size: %ld\n", count);
 		return -EINVAL;
 	}
 
-	if (copy_from_user(mafpc->ctrl_cmd, buf + offset, mafpc->ctrl_cmd_len)) {
-		panel_err("failed to get user's header\n");
-		goto exit_comp_write;
-	}
-	print_hex_dump(KERN_ERR, "COMP_IMG", DUMP_PREFIX_ADDRESS, 32, 4, mafpc->ctrl_cmd, mafpc->ctrl_cmd_len, false);
-
-	offset += mafpc->ctrl_cmd_len;
-	if (copy_from_user(mafpc->comp_img_buf, buf + offset, mafpc->comp_img_len)) {
-		panel_err("failed to get comp img\n");
-		goto exit_comp_write;
+	/* CTRL_CMD */
+	if (copy_from_user(mafpc->ctrl_cmd, buf + ABC_CTRL_CMD_OFFSET(mafpc),
+				ABC_CTRL_CMD_SIZE(mafpc))) {
+		panel_err("failed to get ctrl_cmd\n");
+		return -EFAULT;
 	}
 
-	if (scale_factor) {
-		offset += mafpc->comp_img_len;
-		if (copy_from_user(mafpc->scale_buf, buf + offset, mafpc->scale_len)) {
-			panel_err("failed to get comp img\n");
-			goto exit_comp_write;
+	/* COMP_IMG */
+	if (copy_from_user(mafpc->comp_img_buf, buf + ABC_COMP_IMG_OFFSET(mafpc),
+				ABC_COMP_IMG_SIZE(mafpc))) {
+		panel_err("failed to get comp_img\n");
+		return -EFAULT;
+	}
+
+	/* SCALE_FACTOR */
+	if (count == ABC_DATA_SIZE(mafpc)) {
+		if (copy_from_user(mafpc->scale_buf, buf + ABC_SCALE_FACTOR_OFFSET(mafpc),
+					ABC_SCALE_FACTOR_SIZE(mafpc))) {
+			panel_err("failed to get scale_factor\n");
+			return -EFAULT;
 		}
-		print_hex_dump(KERN_ERR, "SCALE_FACTOR", DUMP_PREFIX_ADDRESS, 32, 4,
-			mafpc->scale_buf, mafpc->scale_len, false);
-	}
-	mafpc->written |= MAFPC_UPDATED_FROM_SVC;
 
-exit_comp_write:
+	}
+	mafpc_set_written_flag(mafpc, MAFPC_UPDATED_FROM_SVC);
+
 	return count;
 }
 
-
 #if IS_ENABLED(CONFIG_LPD_OLED_COMPENSATION)
-
-#define MAX_LUT_TABLE		(256 * 4 * 3)
-
 /* header(1byte) + lut_type(1byte) + reserved + reserved
  * lut_type => 0,  grey ^ coeff [0]: 0, [1] : 1
  * lut_type => 1,  grey/255 ^ coeff  [0] : 0, [255] : 1
@@ -114,9 +138,10 @@ static ssize_t write_lut_table(struct mafpc_device *mafpc, const char __user *bu
 	}
 
 	comp_mem = &mafpc->comp_mem;
-	panel_info("lut buf size: %d, count: %d\n", comp_mem->lut_size, count);
+	panel_info("lut_size: %d, count: %ld\n",
+			comp_mem->lut_size, count);
 	if (comp_mem->lut_size != count) {
-		panel_err("invalid lut size: %d\n");
+		panel_err("invalid lut_size: %d\n", count);
 		return -EINVAL;
 	}
 
@@ -131,7 +156,7 @@ static ssize_t write_lut_table(struct mafpc_device *mafpc, const char __user *bu
 		panel_err("failed to get user's header\n");
 		return ret;
 	}
-	panel_info("header : %c, lut_type: %d\n", header, (header >> 8) & 0xff);
+	panel_info("header: %c, lut_type: %d\n", header, (header >> 8) & 0xff);
 
 	ret = copy_from_user(lut_buf, buf, count);
 	if (ret) {
@@ -140,10 +165,8 @@ static ssize_t write_lut_table(struct mafpc_device *mafpc, const char __user *bu
 	}
 
 	return count;
-
 }
 #endif
-
 
 static ssize_t abc_fops_write(struct file *file, const char __user *buf,  size_t count, loff_t *ppos)
 {
@@ -157,7 +180,8 @@ static ssize_t abc_fops_write(struct file *file, const char __user *buf,  size_t
 		return ret;
 	}
 
-	panel_info("write cnt: %d, header : %c\n", count, header[MAFPC_DATA_IDENTIFIER]);
+	panel_info("count: %ld, header: %c\n",
+			count, header[MAFPC_DATA_IDENTIFIER]);
 
 	switch (header[MAFPC_DATA_IDENTIFIER]) {
 	case 'M':
@@ -182,7 +206,6 @@ static ssize_t abc_fops_write(struct file *file, const char __user *buf,  size_t
 	}
 
 	return count;
-
 }
 
 static int mafpc_instant_on(struct mafpc_device *mafpc)
@@ -195,16 +218,14 @@ static int mafpc_instant_on(struct mafpc_device *mafpc)
 		return -EINVAL;
 	}
 
-	mafpc->req_update = true;
-	panel_mutex_lock(&mafpc->mafpc_lock);
-
+	panel_mutex_lock(&mafpc->lock);
 	if (!IS_PANEL_ACTIVE(panel)) {
-		panel_err("panel is not active\n");
+		panel_warn("panel is not active\n");
 		goto exit_write;
 	}
 
 	if (panel_get_cur_state(panel) == PANEL_STATE_ALPM) {
-		panel_err("gct not supported on LPM\n");
+		panel_warn("ABC not supported on LPM\n");
 		goto exit_write;
 	}
 
@@ -213,20 +234,25 @@ static int mafpc_instant_on(struct mafpc_device *mafpc)
 	 * 1. Send compensation image for mAFPC to DDI, as soon as transmitted the instant_on ioctl.
 	 * 2. Send instant_on command to DDI, after frame done
 	 */
-	panel_info("++ PANEL_MAFPC_IMG_SEQ ++\n");
+	panel_info("++ PANEL_MAFPC_IMG_SEQ\n");
 	ret = panel_do_seqtbl_by_name(panel, PANEL_MAFPC_IMG_SEQ);
 	if (unlikely(ret < 0)) {
-		panel_err("failed to write init seqtbl\n");
+		panel_err("failed to run sequence(%s)\n", PANEL_MAFPC_IMG_SEQ);
 		goto exit_write;
 	}
 
-	mafpc->written |= MAFPC_UPDATED_TO_DEV;
-	mafpc->req_instant_on = true;
+	mafpc_set_written_to_dev(mafpc);
+
+	panel_info("++ PANEL_MAFPC_ON_SEQ\n");
+	ret = panel_do_seqtbl_by_name(panel, PANEL_MAFPC_ON_SEQ);
+	if (unlikely(ret < 0)) {
+		panel_err("failed to run sequence(%s)\n", PANEL_MAFPC_ON_SEQ);
+		goto exit_write;
+	}
 
 exit_write:
-	panel_info("-- PANEL_MAFPC_IMG_SEQ -- \n");
-	panel_mutex_unlock(&mafpc->mafpc_lock);
-	mafpc->req_update = false;
+	panel_mutex_unlock(&mafpc->lock);
+
 	return ret;
 }
 
@@ -235,32 +261,53 @@ static int mafpc_instant_off(struct mafpc_device *mafpc)
 	int ret = 0;
 	struct panel_device *panel = mafpc->panel;
 
-	panel_mutex_lock(&mafpc->mafpc_lock);
-
+	panel_mutex_lock(&mafpc->lock);
 	if (!IS_PANEL_ACTIVE(panel)) {
-		panel_err("panel is not active\n");
+		panel_warn("panel is not active\n");
 		goto err;
 	}
 
 	if (panel_get_cur_state(panel) == PANEL_STATE_ALPM) {
-		panel_err("gct not supported on LPM\n");
+		panel_warn("ABC not supported on LPM\n");
 		goto err;
 	}
 
 	ret = panel_do_seqtbl_by_name(panel, PANEL_MAFPC_OFF_SEQ);
 	if (unlikely(ret < 0)) {
-		panel_err("failed to write init seqtbl\n");
+		panel_err("failed to run sequence(%s)\n", PANEL_MAFPC_OFF_SEQ);
+		goto err;
 	}
 
 err:
-	panel_mutex_unlock(&mafpc->mafpc_lock);
+	panel_mutex_unlock(&mafpc->lock);
 	return ret;
 }
 
+static void mafpc_instant_handler(struct work_struct *data) {
+	struct mafpc_device *mafpc = container_of(data, struct mafpc_device, instant_work);
+	int ret = 0;
+
+	switch (mafpc->instant_cmd) {
+	case INSTANT_CMD_ON:
+		panel_info("mafpc_instant_on +\n");
+		ret = mafpc_instant_on(mafpc);
+		break;
+	case INSTANT_CMD_OFF:
+		panel_info("mafpc_instant_off +\n");
+		ret = mafpc_instant_off(mafpc);
+		break;
+	default:
+		ret = -ENOENT;
+		break;
+	}
+	if (ret == 0) {
+		mafpc->instant_cmd = INSTANT_CMD_NONE;
+	}
+	panel_info("done %d\n", ret);
+}
 
 static int mafpc_clear_image_buffer(struct mafpc_device *mafpc)
 {
-
 	void *image_buf;
 	struct comp_mem_info *comp_mem;
 
@@ -289,9 +336,7 @@ static int mafpc_clear_image_buffer(struct mafpc_device *mafpc)
 	memset(image_buf, 0x00, comp_mem->image_size);
 
 	return 0;
-
 }
-
 
 static long abc_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -310,9 +355,12 @@ static long abc_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case IOCTL_MAFPC_ON_INSTANT:
 		panel_info("mAFPC on instantly On\n");
 		mafpc->enable = true;
-		ret = mafpc_instant_on(mafpc);
-		if (ret)
-			panel_info("failed to instant on\n");
+		mafpc->instant_cmd = INSTANT_CMD_ON;
+		if (!mafpc->panel) {
+			panel_info("panel is not ready. pending instant on\n");
+			break;
+		}
+		queue_work(mafpc->instant_wq, &mafpc->instant_work);
 		break;
 	case IOCTL_MAFPC_OFF:
 		panel_info("mAFPC off\n");
@@ -321,9 +369,12 @@ static long abc_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case IOCTL_MAFPC_OFF_INSTANT:
 		panel_info("mAFPC off instantly\n");
 		mafpc->enable = false;
-		ret = mafpc_instant_off(mafpc);
-		if (ret)
-			panel_info("failed to instant off\n");
+		mafpc->instant_cmd = INSTANT_CMD_OFF;
+		if (!mafpc->panel) {
+			panel_info("panel is not ready. pending instant off\n");
+			break;
+		}
+		queue_work(mafpc->instant_wq, &mafpc->instant_work);
 		break;
 	case IOCTL_CLEAR_IMAGE_BUFFER:
 		panel_info("mAFPC clear image buffer\n");
@@ -346,7 +397,7 @@ static ssize_t abc_fops_read(struct file *file, char __user *buf, size_t count, 
 	struct comp_mem_info *comp_mem;
 	struct mafpc_device *mafpc = file->private_data;
 
-	panel_info("count:%d\n", count);
+	panel_info("count: %ld\n", count);
 
 	if (mafpc == NULL) {
 		panel_err("null mafpc\n");
@@ -379,7 +430,6 @@ static ssize_t abc_fops_read(struct file *file, char __user *buf, size_t count, 
 	}
 
 	return count;
-
 }
 
 static int abc_fops_release(struct inode *inode, struct file *file)
@@ -399,132 +449,52 @@ static const struct file_operations abc_drv_fops = {
 	.release = abc_fops_release,
 };
 
-static int mafpc_v4l2_probe(struct mafpc_device *mafpc, void *arg)
+int mafpc_device_probe(struct mafpc_device *mafpc, struct mafpc_info *info)
 {
-	int ret = 0;
-	struct mafpc_info *info = (struct mafpc_info *)arg;
-
-	if (unlikely(!info)) {
+	if (!info) {
 		panel_err("got null mafpc info\n");
-		ret = -EINVAL;
-		goto err_v4l2_probe;
+		return -EINVAL;
 	}
 
 	if (!info->abc_img) {
-		panel_err("MCD:ABC: Can't found abc image\n");
-		ret = -EINVAL;
-		goto err_v4l2_probe;
+		panel_err("ABC: Can't found abc image\n");
+		return -EINVAL;
 	}
 
 	if (!info->abc_crc) {
-		panel_err("MCD:ABC: Can't found abc's crc value\n");
-		ret = -EINVAL;
-		goto err_v4l2_probe;
+		panel_err("ABC: Can't found abc's crc value\n");
+		return -EINVAL;
 	}
 
 	if (!info->abc_scale_factor) {
-		panel_err("MCD:ABC: Can't found abc's scale factor\n");
-		ret = -EINVAL;
-		goto err_v4l2_probe;
+		panel_err("ABC: Can't found abc's scale factor\n");
+		return -EINVAL;
 	}
 
 	if (!info->abc_scale_map_tbl) {
-		panel_err("MCD:ABC: Can't found abc's scale br map\n");
-		ret = -EINVAL;
-		goto err_v4l2_probe;
+		panel_err("ABC: Can't found abc's scale br map\n");
+		return -EINVAL;
 	}
 
 	mafpc->comp_img_buf = info->abc_img;
 	mafpc->comp_img_len = info->abc_img_len;
-	panel_info("MCD:ABC: ABC Image Size : %d\n", mafpc->comp_img_len);
-
 	mafpc->scale_buf = info->abc_scale_factor;
 	mafpc->scale_len = info->abc_scale_factor_len;
-	panel_info("MCD:ABC: ABC's Scale Factor Size : %d\n", mafpc->scale_len);
-
 	mafpc->comp_crc_buf = info->abc_crc;
 	mafpc->comp_crc_len = info->abc_crc_len;
-
 	mafpc->scale_map_br_tbl = info->abc_scale_map_tbl;
 	mafpc->scale_map_br_tbl_len = info->abc_scale_map_tbl_len;
-
 	mafpc->ctrl_cmd_len = info->abc_ctrl_cmd_len;
-	return ret;
 
-err_v4l2_probe:
-	return ret;
-}
+	panel_info("ABC: image size: %d\n", mafpc->comp_img_len);
+	panel_info("ABC: scale factor size: %d\n", mafpc->scale_len);
 
-static int mafpc_v4l2_frame_done(struct mafpc_device *mafpc)
-{
-	int ret = 0;
-	struct panel_device *panel = mafpc->panel;
-
-	ret = panel_do_seqtbl_by_name(panel, PANEL_MAFPC_ON_SEQ);
-	if (unlikely(ret < 0)) {
-		panel_err("failed to write init seqtbl\n");
+	/* check pending instant cmd */
+	if (mafpc->instant_cmd == INSTANT_CMD_ON || mafpc->instant_cmd == INSTANT_CMD_OFF) {
+		queue_work(mafpc->instant_wq, &mafpc->instant_work);
 	}
 
-	mafpc->req_instant_on = false;
-
-	return ret;
-}
-
-static long mafpc_core_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
-{
-	int ret = 0;
-	struct mafpc_device *mafpc = container_of(sd, struct mafpc_device, sd);
-
-	switch (cmd) {
-	case V4L2_IOCTL_PROBE_ABC:
-		panel_info("MCD:ABC: v4l2_ioctl: PROBE_ABC\n");
-		ret = mafpc_v4l2_probe(mafpc, arg);
-		break;
-
-	case V4L2_IOCTL_MAFPC_GET_INFO:
-		v4l2_set_subdev_hostdata(sd, mafpc);
-		break;
-
-	case V4L2_IOCTL_MAFPC_PANEL_INIT:
-		panel_info("MCD:ABC: v4l2_ioctl: V4L2_IOCTL_MAFPC_GET_INIT\n");
-		mafpc->written |= MAFPC_UPDATED_TO_DEV;
-		break;
-
-	case V4L2_IOCTL_MAFPC_PANEL_EXIT:
-		panel_info("MCD:ABC: v4l2_ioctl: V4L2_IOCTL_MAFPC_GET_EXIT\n");
-		mafpc->written &= ~(MAFPC_UPDATED_TO_DEV);
-		break;
-
-	case V4L2_IOCL_MAFPC_FRAME_DONE:
-		if (mafpc->req_instant_on) {
-			panel_info("MCD:ABC: v4l2_ioctl: V4L2_IOCL_MAFPC_FRAME_DONE\n");
-			ret = mafpc_v4l2_frame_done(mafpc);
-		}
-		break;
-	default:
-		panel_err("invalid cmd\n");
-	}
-
-	return ret;
-}
-
-static const struct v4l2_subdev_core_ops mafpc_v4l2_sd_core_ops = {
-	.ioctl = mafpc_core_ioctl,
-};
-
-static const struct v4l2_subdev_ops mafpc_subdev_ops = {
-	.core = &mafpc_v4l2_sd_core_ops,
-};
-
-static void mafpc_init_v4l2_subdev(struct mafpc_device *mafpc)
-{
-	struct v4l2_subdev *sd = &mafpc->sd;
-
-	v4l2_subdev_init(sd, &mafpc_subdev_ops);
-	sd->owner = THIS_MODULE;
-	sd->grp_id = 0;
-	snprintf(sd->name, sizeof(sd->name), "%s.%d", MAFPC_V4L2_DEV_NAME, mafpc->id);
-	v4l2_set_subdevdata(sd, mafpc);
+	return 0;
 }
 
 struct mafpc_device *mafpc_device_create(void)
@@ -544,51 +514,20 @@ int mafpc_device_init(struct mafpc_device *mafpc)
 	if (!mafpc)
 		return -EINVAL;
 
-	mafpc_init_v4l2_subdev(mafpc);
-
 	return 0;
 }
 EXPORT_SYMBOL(mafpc_device_init);
 
 struct mafpc_device *get_mafpc_device(struct panel_device *panel)
 {
-	struct mafpc_device *mafpc;
-	int ret;
-
 	if (!panel)
 		return NULL;
 
-	if (panel->mafpc_sd == NULL) {
-		panel_err("mafpc_sd is null\n");
-		return NULL;
-	}
-
-	/* check if mafpc v4l2 subdev initialized */
-	if (!panel->mafpc_sd->ops) {
-		panel_err("mafpc v4l2 subdev is not initlaized\n");
-		return NULL;
-	}
-
-	ret = v4l2_subdev_call(panel->mafpc_sd, core, ioctl,
-		V4L2_IOCTL_MAFPC_GET_INFO, NULL);
-	if (ret < 0) {
-		panel_err("failed to mafpc V4L2_IOCTL_MAFPC_GET_INFO\n");
-		return NULL;
-	}
-
-	mafpc = (struct mafpc_device *)v4l2_get_subdev_hostdata(panel->mafpc_sd);
-	if (mafpc == NULL) {
-		panel_err("failed to get mafpc device\n");
-		return NULL;
-	}
-
-	return mafpc;
+	return panel->mafpc;
 }
 EXPORT_SYMBOL(get_mafpc_device);
 
-
 #if IS_ENABLED(CONFIG_LPD_OLED_COMPENSATION)
-
 int parse_lpd_rmem(struct mafpc_device *mafpc, struct device *dev)
 {
 	struct device_node *np;
@@ -640,9 +579,7 @@ int parse_lpd_rmem(struct mafpc_device *mafpc, struct device *dev)
 
 	return 0;
 }
-
 #endif
-
 
 static int mafpc_probe(struct platform_device *pdev)
 {
@@ -660,14 +597,13 @@ static int mafpc_probe(struct platform_device *pdev)
 	mafpc->miscdev.minor = MISC_DYNAMIC_MINOR;
 	mafpc->miscdev.fops = &abc_drv_fops;
 	mafpc->miscdev.name = MAFPC_DEV_NAME;
-	mafpc->req_instant_on = false;
 	mafpc->id = 0;
 
 	platform_set_drvdata(pdev, mafpc);
 
 	ret = mafpc_device_init(mafpc);
 	if (ret < 0) {
-		panel_err("failed to initialize panel device\n");
+		panel_err("failed to initialize mafpc device\n");
 		return ret;
 	}
 
@@ -687,11 +623,18 @@ static int mafpc_probe(struct platform_device *pdev)
 	}
 #endif
 
-	panel_info("MCD:ABC: probed done\n");
+	INIT_WORK(&mafpc->instant_work, mafpc_instant_handler);
+	mafpc->instant_wq = create_singlethread_workqueue("mafpc_instant");
+	if (mafpc->instant_wq == NULL) {
+		panel_err("failed to create mafpc instant workqueue\n");
+		return -ENOMEM;
+	}
+	mafpc->instant_cmd = INSTANT_CMD_NONE;
+
+	panel_info("ABC: probed done\n");
 
 	return 0;
 }
-
 
 static const struct of_device_id mafpc_drv_of_match_table[] = {
 	{ .compatible = "samsung,panel-mafpc", },

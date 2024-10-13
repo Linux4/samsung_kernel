@@ -77,7 +77,7 @@
 #define MAX_NUM_DMA				(4) /* number of CSIS WDMA */
 
 enum is_hw_csi_dma_int_src {
-	CSIS_INT_DMA_LINE_END = 0,		/* [0] ~ [3] */
+	CSIS_INT_DMA_ADDR_VIOLATION_IRQ = 0,	/* [0] ~ [3] */
 	CSIS_INT_DMA_FRAME_START = 4,		/* [4] ~ [7] */
 	CSIS_INT_DMA_FRAME_END = 8,		/* [8] ~ [11] */
 	CSIS_INT_DMA_FIFO_FULL = 12,
@@ -92,10 +92,10 @@ enum is_hw_csi_dma_int_src {
 };
 
 #define CSIS_DMA_IRQ_MASK	((0)\
-				/* |(1 << CSIS_INT_DMA_LINE_END) */\
-				/* |(1 << (CSIS_INT_DMA_LINE_END + 1)) */\
-				/* |(1 << (CSIS_INT_DMA_LINE_END + 2)) */\
-				/* |(1 << (CSIS_INT_DMA_LINE_END + 3)) */\
+				|(1 << CSIS_INT_DMA_ADDR_VIOLATION_IRQ)\
+				|(1 << (CSIS_INT_DMA_ADDR_VIOLATION_IRQ + 1))\
+				|(1 << (CSIS_INT_DMA_ADDR_VIOLATION_IRQ + 2))\
+				|(1 << (CSIS_INT_DMA_ADDR_VIOLATION_IRQ + 3))\
 				|(1 << CSIS_INT_DMA_FRAME_START)\
 				|(1 << (CSIS_INT_DMA_FRAME_START + 1))\
 				|(1 << (CSIS_INT_DMA_FRAME_START + 2))\
@@ -106,8 +106,8 @@ enum is_hw_csi_dma_int_src {
 				|(1 << (CSIS_INT_DMA_FRAME_END + 3))\
 				|(1 << CSIS_INT_DMA_FIFO_FULL)\
 				|(1 << CSIS_INT_DMA_ABORT_DONE)\
-				/* |(1 << CSIS_INT_DMA_LASTDATA_ERROR) */\
-				/* |(1 << CSIS_INT_DMA_LASTADDR_ERROR) */\
+				|(1 << CSIS_INT_DMA_LASTDATA_ERROR)\
+				|(1 << CSIS_INT_DMA_LASTADDR_ERROR)\
 				/* |(1 << CSIS_INT_DMA_FSTART_IN_FLUSH) */\
 				/* |(1 << (CSIS_INT_DMA_FSTART_IN_FLUSH + 1)) */\
 				/* |(1 << (CSIS_INT_DMA_FSTART_IN_FLUSH + 2)) */\

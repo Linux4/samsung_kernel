@@ -128,6 +128,9 @@ static void __mfc_deinit_dec_ctx(struct mfc_ctx *ctx)
 	if (dec->ref_info)
 		vfree(dec->ref_info);
 
+	if (dec->hdr10_plus_full)
+		vfree(dec->hdr10_plus_full);
+
 	if (dec->hdr10_plus_info)
 		vfree(dec->hdr10_plus_info);
 
@@ -1065,6 +1068,9 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 	/* Scheduler */
 	of_property_read_u32(np, "scheduler", &pdata->scheduler);
 	of_property_read_u32(np, "pbs_num_prio", &pdata->pbs_num_prio);
+
+	/* Encoder RGB CSC formula by VUI from F/W */
+	of_property_read_u32(np, "enc_rgb_csc_by_fw", &pdata->enc_rgb_csc_by_fw);
 
 	return 0;
 }

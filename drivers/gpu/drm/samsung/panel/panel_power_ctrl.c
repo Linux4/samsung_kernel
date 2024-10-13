@@ -15,6 +15,7 @@ static u32 action_table[MAX_PANEL_POWER_CTRL_ACTION] = {
 	[PANEL_POWER_CTRL_ACTION_REGULATOR_SSD_CURRENT] = (PARSE_REG | PARSE_VALUE),
 	[PANEL_POWER_CTRL_ACTION_GPIO_ENABLE] = (PARSE_GPIO),
 	[PANEL_POWER_CTRL_ACTION_GPIO_DISABLE] = (PARSE_GPIO),
+	[PANEL_POWER_CTRL_ACTION_REGULATOR_FORCE_DISABLE] = (PARSE_REG),
 };
 
 static int panel_power_ctrl_action_delay(struct panel_power_ctrl *pctrl,
@@ -158,6 +159,19 @@ static int panel_power_ctrl_action_regulator(struct panel_power_ctrl *pctrl,
 				pctrl->name, paction->name, paction->reg->node_name, paction->value, ret);
 		}
 		break;
+	case PANEL_POWER_CTRL_ACTION_REGULATOR_FORCE_DISABLE:
+		if (!paction->reg) {
+			panel_err("%s %s regulator_force_disable: invalid regulator\n",
+				pctrl->name, paction->name);
+			ret = -ENODEV;
+			break;
+		}
+		ret = panel_regulator_helper_force_disable(paction->reg);
+		if (ret < 0) {
+			panel_err("failed to execute regulator_disable %s %s %s %d\n",
+				pctrl->name, paction->name, paction->reg->node_name, ret);
+		}
+		break;
 	default:
 		panel_err("%s:%s is not regulator action\n", pctrl->name, paction->name);
 		break;
@@ -186,6 +200,7 @@ static int panel_power_ctrl_action_execute(struct panel_power_ctrl *pctrl)
 		case PANEL_POWER_CTRL_ACTION_REGULATOR_DISABLE:
 		case PANEL_POWER_CTRL_ACTION_REGULATOR_SET_VOLTAGE:
 		case PANEL_POWER_CTRL_ACTION_REGULATOR_SSD_CURRENT:
+		case PANEL_POWER_CTRL_ACTION_REGULATOR_FORCE_DISABLE:
 			ret = panel_power_ctrl_action_regulator(pctrl, paction);
 			break;
 		case PANEL_POWER_CTRL_ACTION_GPIO_ENABLE:

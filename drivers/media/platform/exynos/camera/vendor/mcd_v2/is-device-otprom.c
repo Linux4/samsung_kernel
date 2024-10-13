@@ -53,6 +53,7 @@ static int sensor_otprom_probe(struct i2c_client *client,
 	static bool probe_retried = false;
 	struct is_device_eeprom *otprom;
 	struct is_vender_specific *specific;
+	int rom_client_index = 0;
 
 	core = is_get_is_core();
 	if (!core)
@@ -66,8 +67,10 @@ static int sensor_otprom_probe(struct i2c_client *client,
 	}
 
 	if (id->driver_data >= ROM_ID_REAR && id->driver_data < ROM_ID_MAX) {
-		specific->rom_client[id->driver_data] = client;
-		specific->rom_valid[id->driver_data] = true;
+		if (specific->rom_valid[id->driver_data][0] == true)
+			rom_client_index = 1;
+		specific->rom_client[id->driver_data][rom_client_index] = client;
+		specific->rom_valid[id->driver_data][rom_client_index] = true;
 	} else {
 		probe_err("rear otprom device is failed!");
 		return -ENODEV;
@@ -85,10 +88,6 @@ static int sensor_otprom_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, otprom);
 
 	if (client->dev.of_node) {
-#if defined(CAMERA_UWIDE_DUALIZED)
-		if(otprom->driver_data == ROM_ID_REAR3)
-                	is_sec_set_rear3_dualized_rom_probe();
-#endif
 		if(is_vendor_rom_parse_dt(client->dev.of_node, otprom->driver_data)) {
 			probe_err("parsing device tree is fail");
 			kfree(otprom);

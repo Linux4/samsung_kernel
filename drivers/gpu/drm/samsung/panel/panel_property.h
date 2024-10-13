@@ -114,6 +114,9 @@ static inline bool panel_property_type_is(struct panel_property *property,
 	return property->type == type;
 }
 
+int snprintf_property(char *buf, size_t size,
+		struct panel_property *property);
+
 struct panel_property *panel_property_create(u32 type, const char *name);
 void panel_property_enum_free(struct panel_property *property);
 void panel_property_destroy(struct panel_property *property);

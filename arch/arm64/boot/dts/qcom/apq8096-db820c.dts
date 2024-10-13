@@ -171,97 +171,109 @@
 
 		opp-307200000 {
 			opp-hz = <0x00 0x124f8000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-422400000 {
 			opp-hz = <0x00 0x192d5000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-480000000 {
 			opp-hz = <0x00 0x1c9c3800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-556800000 {
 			opp-hz = <0x00 0x21301800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-652800000 {
 			opp-hz = <0x00 0x26e8f000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-729600000 {
 			opp-hz = <0x00 0x2b7cd000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-844800000 {
 			opp-hz = <0x00 0x325aa000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-960000000 {
 			opp-hz = <0x00 0x39387000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1036800000 {
 			opp-hz = <0x00 0x3dcc5000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1113600000 {
 			opp-hz = <0x00 0x42603000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1190400000 {
 			opp-hz = <0x00 0x46f41000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1228800000 {
 			opp-hz = <0x00 0x493e0000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1324800000 {
 			opp-hz = <0x00 0x4ef6d800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x05>;
+			clock-latency-ns = <0x30d40>;
+		};
+
+		opp-1363200000 {
+			opp-hz = <0x00 0x5140c800>;
+			opp-supported-hw = <0x02>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1401600000 {
 			opp-hz = <0x00 0x538ab800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x05>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1478400000 {
 			opp-hz = <0x00 0x581e9800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x01>;
+			clock-latency-ns = <0x30d40>;
+		};
+
+		opp-1497600000 {
+			opp-hz = <0x00 0x59439000>;
+			opp-supported-hw = <0x04>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1593600000 {
 			opp-hz = <0x00 0x5efc6800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x01>;
 			clock-latency-ns = <0x30d40>;
 		};
 	};
@@ -274,151 +286,163 @@
 
 		opp-307200000 {
 			opp-hz = <0x00 0x124f8000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-403200000 {
 			opp-hz = <0x00 0x18085800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-480000000 {
 			opp-hz = <0x00 0x1c9c3800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-556800000 {
 			opp-hz = <0x00 0x21301800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-652800000 {
 			opp-hz = <0x00 0x26e8f000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-729600000 {
 			opp-hz = <0x00 0x2b7cd000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-806400000 {
 			opp-hz = <0x00 0x3010b000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-883200000 {
 			opp-hz = <0x00 0x34a49000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-940800000 {
 			opp-hz = <0x00 0x38137800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1036800000 {
 			opp-hz = <0x00 0x3dcc5000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1113600000 {
 			opp-hz = <0x00 0x42603000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1190400000 {
 			opp-hz = <0x00 0x46f41000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1248000000 {
 			opp-hz = <0x00 0x4a62f800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1324800000 {
 			opp-hz = <0x00 0x4ef6d800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1401600000 {
 			opp-hz = <0x00 0x538ab800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1478400000 {
 			opp-hz = <0x00 0x581e9800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1555200000 {
 			opp-hz = <0x00 0x5cb27800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1632000000 {
 			opp-hz = <0x00 0x61465800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1708800000 {
 			opp-hz = <0x00 0x65da3800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1785600000 {
 			opp-hz = <0x00 0x6a6e1800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x07>;
+			clock-latency-ns = <0x30d40>;
+		};
+
+		opp-1804800000 {
+			opp-hz = <0x00 0x6b931000>;
+			opp-supported-hw = <0x06>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1824000000 {
 			opp-hz = <0x00 0x6cb80800>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x01>;
+			clock-latency-ns = <0x30d40>;
+		};
+
+		opp-1900800000 {
+			opp-hz = <0x00 0x714be800>;
+			opp-supported-hw = <0x04>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1920000000 {
 			opp-hz = <0x00 0x7270e000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x01>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-1996800000 {
 			opp-hz = <0x00 0x7704c000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x01>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-2073600000 {
 			opp-hz = <0x00 0x7b98a000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x01>;
 			clock-latency-ns = <0x30d40>;
 		};
 
 		opp-2150400000 {
 			opp-hz = <0x00 0x802c8000>;
-			opp-supported-hw = <0x77>;
+			opp-supported-hw = <0x01>;
 			clock-latency-ns = <0x30d40>;
 		};
 	};
@@ -964,7 +988,7 @@
 			vdda-pll-supply = <0x20>;
 			phandle = <0xd1>;
 
-			lane@35000 {
+			phy@35000 {
 				reg = <0x35000 0x130 0x35200 0x200 0x35400 0x1dc>;
 				#phy-cells = <0x00>;
 				clock-output-names = "pcie_0_pipe_clk_src";
@@ -975,7 +999,7 @@
 				phandle = <0x39>;
 			};
 
-			lane@36000 {
+			phy@36000 {
 				reg = <0x36000 0x130 0x36200 0x200 0x36400 0x1dc>;
 				#phy-cells = <0x00>;
 				clock-output-names = "pcie_1_pipe_clk_src";
@@ -986,7 +1010,7 @@
 				phandle = <0x3d>;
 			};
 
-			lane@37000 {
+			phy@37000 {
 				reg = <0x37000 0x130 0x37200 0x200 0x37400 0x1dc>;
 				#phy-cells = <0x00>;
 				clock-output-names = "pcie_2_pipe_clk_src";
@@ -1267,12 +1291,12 @@
 
 				opp-624000000 {
 					opp-hz = <0x00 0x25317c00>;
-					opp-supported-hw = <0x01>;
+					opp-supported-hw = <0x09>;
 				};
 
 				opp-560000000 {
 					opp-hz = <0x00 0x2160ec00>;
-					opp-supported-hw = <0x01>;
+					opp-supported-hw = <0x0d>;
 				};
 
 				opp-510000000 {
@@ -1521,6 +1545,22 @@
 					drive-strength = <0x02>;
 					bias-disable;
 				};
+			};
+
+			blsp1-uart2-default {
+				pins = "gpio41\0gpio42\0gpio43\0gpio44";
+				function = "blsp_uart2";
+				drive-strength = <0x10>;
+				bias-disable;
+				phandle = <0x79>;
+			};
+
+			blsp1-uart2-sleep {
+				pins = "gpio41\0gpio42\0gpio43\0gpio44";
+				function = "gpio";
+				drive-strength = <0x02>;
+				bias-disable;
+				phandle = <0x7a>;
 			};
 
 			blsp1-i2c2-default {
@@ -1860,36 +1900,6 @@
 					pins = "gpio38";
 					bias-pull-up;
 					drive-strength = <0x02>;
-				};
-			};
-
-			blsp1_uart2_default {
-				phandle = <0x7a>;
-
-				mux {
-					pins = "gpio41\0gpio42\0gpio43\0gpio44";
-					function = "blsp_uart2";
-				};
-
-				config {
-					pins = "gpio41\0gpio42\0gpio43\0gpio44";
-					drive-strength = <0x10>;
-					bias-disable;
-				};
-			};
-
-			blsp1_uart2_sleep {
-				phandle = <0x7b>;
-
-				mux {
-					pins = "gpio41\0gpio42\0gpio43\0gpio44";
-					function = "gpio";
-				};
-
-				config {
-					pins = "gpio41\0gpio42\0gpio43\0gpio44";
-					drive-strength = <0x02>;
-					bias-disable;
 				};
 			};
 
@@ -2280,7 +2290,7 @@
 				phy-names = "pciephy";
 				#address-cells = <0x03>;
 				#size-cells = <0x02>;
-				ranges = <0x1000000 0x00 0xc200000 0xc200000 0x00 0x100000 0x2000000 0x00 0xc300000 0xc300000 0x00 0xd00000>;
+				ranges = <0x1000000 0x00 0x00 0xc200000 0x00 0x100000 0x2000000 0x00 0xc300000 0xc300000 0x00 0xd00000>;
 				device_type = "pci";
 				interrupts = <0x00 0x195 0x04>;
 				interrupt-names = "msi";
@@ -2311,7 +2321,7 @@
 				phy-names = "pciephy";
 				#address-cells = <0x03>;
 				#size-cells = <0x02>;
-				ranges = <0x1000000 0x00 0xd200000 0xd200000 0x00 0x100000 0x2000000 0x00 0xd300000 0xd300000 0x00 0xd00000>;
+				ranges = <0x1000000 0x00 0x00 0xd200000 0x00 0x100000 0x2000000 0x00 0xd300000 0xd300000 0x00 0xd00000>;
 				device_type = "pci";
 				interrupts = <0x00 0x19d 0x04>;
 				interrupt-names = "msi";
@@ -2341,7 +2351,7 @@
 				phy-names = "pciephy";
 				#address-cells = <0x03>;
 				#size-cells = <0x02>;
-				ranges = <0x1000000 0x00 0xe200000 0xe200000 0x00 0x100000 0x2000000 0x00 0xe300000 0xe300000 0x00 0x1d00000>;
+				ranges = <0x1000000 0x00 0x00 0xe200000 0x00 0x100000 0x2000000 0x00 0xe300000 0xe300000 0x00 0x1d00000>;
 				device_type = "pci";
 				interrupts = <0x00 0x1a5 0x04>;
 				interrupt-names = "msi";
@@ -2402,14 +2412,14 @@
 			vddp-ref-clk-supply = <0x45>;
 			phandle = <0xe9>;
 
-			lanes@627400 {
+			phy@627400 {
 				reg = <0x627400 0x12c 0x627600 0x200 0x627c00 0x1b4>;
 				#phy-cells = <0x00>;
 				phandle = <0x43>;
 			};
 		};
 
-		camss@a00000 {
+		camss@a34000 {
 			compatible = "qcom,msm8996-camss";
 			reg = <0xa34000 0x1000 0xa00030 0x04 0xa35000 0x1000 0xa00038 0x04 0xa36000 0x1000 0xa00040 0x04 0xa30000 0x100 0xa30400 0x100 0xa30800 0x100 0xa30c00 0x100 0xa31000 0x500 0xa00020 0x10 0xa10000 0x1000 0xa14000 0x1000>;
 			reg-names = "csiphy0\0csiphy0_clk_mux\0csiphy1\0csiphy1_clk_mux\0csiphy2\0csiphy2_clk_mux\0csid0\0csid1\0csid2\0csid3\0ispif\0csi_clk_mux\0vfe0\0vfe1";
@@ -3070,8 +3080,11 @@
 				interrupts = <0x00 0x83 0x04>;
 				phys = <0x6c 0x6d>;
 				phy-names = "usb2-phy\0usb3-phy";
+				snps,hird-threshold = [00];
 				snps,dis_u2_susphy_quirk;
 				snps,dis_enblslpm_quirk;
+				snps,is-utmi-l1-suspend;
+				tx-fifo-resize;
 				extcon = <0x6b>;
 				dr_mode = "otg";
 				phandle = <0xf0>;
@@ -3094,7 +3107,7 @@
 			vdda-pll-supply = <0x20>;
 			phandle = <0xf1>;
 
-			lane@7410200 {
+			phy@7410200 {
 				reg = <0x7410200 0x200 0x7410400 0x130 0x7410600 0x1a8>;
 				#phy-cells = <0x00>;
 				clock-output-names = "usb3_phy_pipe_clk_src";
@@ -3177,7 +3190,7 @@
 			qcom,controlled-remotely;
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
-			phandle = <0x79>;
+			phandle = <0x7b>;
 		};
 
 		serial@7570000 {
@@ -3186,13 +3199,13 @@
 			interrupts = <0x00 0x6c 0x04>;
 			clocks = <0x1e 0x74 0x1e 0x6d>;
 			clock-names = "core\0iface";
-			dmas = <0x79 0x02 0x79 0x03>;
+			pinctrl-names = "default\0sleep";
+			pinctrl-0 = <0x79>;
+			pinctrl-1 = <0x7a>;
+			dmas = <0x7b 0x02 0x7b 0x03>;
 			dma-names = "tx\0rx";
 			status = "okay";
 			label = "BT-UART";
-			pinctrl-names = "default\0sleep";
-			pinctrl-0 = <0x7a>;
-			pinctrl-1 = <0x7b>;
 			phandle = <0xf4>;
 
 			bluetooth {
@@ -3211,7 +3224,7 @@
 			pinctrl-names = "default\0sleep";
 			pinctrl-0 = <0x7d>;
 			pinctrl-1 = <0x7e>;
-			dmas = <0x79 0x0c 0x79 0x0d>;
+			dmas = <0x7b 0x0c 0x7b 0x0d>;
 			dma-names = "tx\0rx";
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
@@ -3229,7 +3242,7 @@
 			pinctrl-names = "default\0sleep";
 			pinctrl-0 = <0x7f>;
 			pinctrl-1 = <0x80>;
-			dmas = <0x79 0x10 0x79 0x11>;
+			dmas = <0x7b 0x10 0x7b 0x11>;
 			dma-names = "tx\0rx";
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
@@ -4150,9 +4163,9 @@
 		smp2p_slpi_out = "/smp2p-slpi/master-kernel";
 		soc = "/soc";
 		pcie_phy = "/soc/phy@34000";
-		pciephy_0 = "/soc/phy@34000/lane@35000";
-		pciephy_1 = "/soc/phy@34000/lane@36000";
-		pciephy_2 = "/soc/phy@34000/lane@37000";
+		pciephy_0 = "/soc/phy@34000/phy@35000";
+		pciephy_1 = "/soc/phy@34000/phy@36000";
+		pciephy_2 = "/soc/phy@34000/phy@37000";
 		rpm_msg_ram = "/soc/sram@68000";
 		qusb2p_hstx_trim = "/soc/qfprom@74000/hstx_trim@24e";
 		qusb2s_hstx_trim = "/soc/qfprom@74000/hstx_trim@24f";
@@ -4199,6 +4212,8 @@
 		camera2_rst = "/soc/pinctrl@1010000/camera-front-default/rst";
 		pcie0_state_on = "/soc/pinctrl@1010000/pcie0-state-on";
 		pcie0_state_off = "/soc/pinctrl@1010000/pcie0-state-off";
+		blsp1_uart2_default = "/soc/pinctrl@1010000/blsp1-uart2-default";
+		blsp1_uart2_sleep = "/soc/pinctrl@1010000/blsp1-uart2-sleep";
 		blsp1_i2c3_default = "/soc/pinctrl@1010000/blsp1-i2c2-default";
 		blsp1_i2c3_sleep = "/soc/pinctrl@1010000/blsp1-i2c2-sleep";
 		blsp2_uart3_4pins_default = "/soc/pinctrl@1010000/blsp2-uart2-4pins";
@@ -4223,8 +4238,6 @@
 		sdc2_state_off = "/soc/pinctrl@1010000/sdc2-clk-off";
 		sdc2_cd_on = "/soc/pinctrl@1010000/sdc2_cd_on";
 		sdc2_cd_off = "/soc/pinctrl@1010000/sdc2_cd_off";
-		blsp1_uart2_default = "/soc/pinctrl@1010000/blsp1_uart2_default";
-		blsp1_uart2_sleep = "/soc/pinctrl@1010000/blsp1_uart2_sleep";
 		hdmi_hpd_active = "/soc/pinctrl@1010000/hdmi_hpd_active";
 		hdmi_hpd_suspend = "/soc/pinctrl@1010000/hdmi_hpd_suspend";
 		hdmi_ddc_active = "/soc/pinctrl@1010000/hdmi_ddc_active";
@@ -4254,8 +4267,8 @@
 		pcie2 = "/soc/agnoc@0/pcie@610000";
 		ufshc = "/soc/ufshc@624000";
 		ufsphy = "/soc/phy@627000";
-		ufsphy_lane = "/soc/phy@627000/lanes@627400";
-		camss = "/soc/camss@a00000";
+		ufsphy_lane = "/soc/phy@627000/phy@627400";
+		camss = "/soc/camss@a34000";
 		cci = "/soc/cci@a0c000";
 		cci_i2c0 = "/soc/cci@a0c000/i2c-bus@0";
 		cci_i2c1 = "/soc/cci@a0c000/i2c-bus@1";
@@ -4299,7 +4312,7 @@
 		usb3 = "/soc/usb@6af8800";
 		usb3_dwc3 = "/soc/usb@6af8800/dwc3@6a00000";
 		usb3phy = "/soc/phy@7410000";
-		ssusb_phy_0 = "/soc/phy@7410000/lane@7410200";
+		ssusb_phy_0 = "/soc/phy@7410000/phy@7410200";
 		hsusb_phy1 = "/soc/phy@7411000";
 		hsusb_phy2 = "/soc/phy@7412000";
 		sdhc1 = "/soc/sdhci@7464900";

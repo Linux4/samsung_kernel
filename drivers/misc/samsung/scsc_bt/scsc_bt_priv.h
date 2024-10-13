@@ -313,7 +313,7 @@ extern struct scsc_common_service common_service;
 
 #ifdef CONFIG_SCSC_QOS
 struct scsc_qos_service {
-	struct work_struct             update_work;
+	struct delayed_work            update_work;
 	struct delayed_work            disable_work;
 	bool                           enabled;
 	bool                           disabling;
@@ -379,6 +379,7 @@ struct scsc_bt_service {
 	struct scsc_bt_big_info        big_handle_list[SCSC_BT_BIG_INFO_MAX];
 	bool                           hci_event_paused;
 	bool                           data_paused; /* ACL or ISO */
+	uint16_t                       data_paused_conn_hdl; /* ACL or ISO */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	struct scsc_wake_lock	       read_wake_lock;
         struct scsc_wake_lock	       write_wake_lock;
@@ -416,6 +417,8 @@ struct scsc_bt_service {
 	struct completion              recovery_release_complete;
 	struct completion              recovery_probe_complete;
 	u8                             recovery_level;
+	bool                           recovery_waiting;
+
 	u8                             *system_error_info;
 
 	bool                           iq_reports_enabled;

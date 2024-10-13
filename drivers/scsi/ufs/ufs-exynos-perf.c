@@ -507,6 +507,8 @@ void ufs_perf_exit(void *data)
 	struct ufs_perf *perf = (struct ufs_perf *)data;
 
 	ufs_perf_exit_v1(perf);
+	if (perf->exynos_gear_scale)
+		ufs_gear_scale_exit(perf);
 
 	__sysfs_exit(perf);
 

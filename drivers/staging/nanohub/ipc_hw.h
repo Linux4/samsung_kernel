@@ -59,4 +59,6 @@ unsigned int ipc_hw_read_int_status_reg_all(void *base,
 					    enum ipc_mb_id which_mb);
 unsigned int ipc_hw_read_int_status_reg(void *base, enum ipc_mb_id which_mb,
 					int irq);
+void ipc_hw_mask_set_int_reg(void *base, enum ipc_mb_id which_mb, int irq);
+void ipc_hw_mask_clear_int_reg(void *base, enum ipc_mb_id which_mb, int irq);
 #endif

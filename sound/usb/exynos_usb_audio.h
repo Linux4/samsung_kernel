@@ -192,6 +192,7 @@ struct hcd_hw_info {
 	void *in_buf;
 	u64 in_dma;
 	int use_uram;
+	int need_first_probe;
 	int rawdesc_length;
 	/* phy */
 	struct phy *phy;

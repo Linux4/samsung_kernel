@@ -24,89 +24,88 @@
 
 static struct pablo_interface_irta *itf_irta;
 
-int pablo_interface_irta_dma_buf_attach(struct pablo_interface_irta *pii,
-				enum interface_irta_buf_type type, int fd)
+int pablo_interface_irta_dma_buf_attach(struct pablo_interface_irta *pii, u32 idx, int fd)
 {
 	int ret;
 
 	if (fd < 0) {
-		err("fd is invalid (type: %d, fd: %d)", type, fd);
+		err("fd is invalid (idx: %d, fd: %d)", idx, fd);
 		return -EINVAL;
 	}
 
-	pii->dma_buf[type] = dma_buf_get(fd);
-	if (IS_ERR(pii->dma_buf[type])) {
-		err("Failed to get dmabuf. fd %d ret %ld", fd, PTR_ERR(pii->dma_buf[type]));
+	pii->dma_buf[idx] = dma_buf_get(fd);
+	if (IS_ERR(pii->dma_buf[idx])) {
+		err("Failed to get dmabuf. fd %d ret %ld", fd, PTR_ERR(pii->dma_buf[idx]));
 		return -EINVAL;
 	}
 
-	pii->attachment[type] = dma_buf_attach(pii->dma_buf[type], pablo_itf_get_icpu_dev());
-	if (IS_ERR(pii->attachment[type])) {
+	pii->attachment[idx] = dma_buf_attach(pii->dma_buf[idx], pablo_itf_get_icpu_dev());
+	if (IS_ERR(pii->attachment[idx])) {
 		ret = -ENOMEM;
 		goto err_attach;
 	}
 
-	pii->sgt[type] = dma_buf_map_attachment(pii->attachment[type], DMA_BIDIRECTIONAL);
-	if (IS_ERR(pii->sgt[type])) {
+	pii->sgt[idx] = dma_buf_map_attachment(pii->attachment[idx], DMA_BIDIRECTIONAL);
+	if (IS_ERR(pii->sgt[idx])) {
 		ret = -ENOMEM;
 		goto err_map_attachment;
 	}
 
-	pii->dva[type] = sg_dma_address(pii->sgt[type]->sgl);
-	if (!pii->dva[type]) {
+	pii->dva[idx] = sg_dma_address(pii->sgt[idx]->sgl);
+	if (!pii->dva[idx]) {
 		ret = -ENOMEM;
 		goto err_address;
 	}
 
-	pii->dma_buf_fd[type] = fd;
+	pii->dma_buf_fd[idx] = fd;
 
 	return 0;
 
 err_address:
-	dma_buf_unmap_attachment(pii->attachment[type], pii->sgt[type], DMA_BIDIRECTIONAL);
+	dma_buf_unmap_attachment(pii->attachment[idx], pii->sgt[idx], DMA_BIDIRECTIONAL);
 
 err_map_attachment:
-	dma_buf_detach(pii->dma_buf[type], pii->attachment[type]);
+	dma_buf_detach(pii->dma_buf[idx], pii->attachment[idx]);
 
 err_attach:
-	dma_buf_put(pii->dma_buf[type]);
+	dma_buf_put(pii->dma_buf[idx]);
 
-	pii->dva[type] = 0;
-	pii->sgt[type] = NULL;
-	pii->attachment[type] = NULL;
-	pii->dma_buf[type] = NULL;
-	pii->dma_buf_fd[type] = 0;
+	pii->dva[idx] = 0;
+	pii->sgt[idx] = NULL;
+	pii->attachment[idx] = NULL;
+	pii->dma_buf[idx] = NULL;
+	pii->dma_buf_fd[idx] = 0;
 
 	return ret;
 }
 KUNIT_EXPORT_SYMBOL(pablo_interface_irta_dma_buf_attach);
 
-int pablo_interface_irta_dma_buf_detach(struct pablo_interface_irta *pii, enum interface_irta_buf_type type)
+int pablo_interface_irta_dma_buf_detach(struct pablo_interface_irta *pii, u32 idx)
 {
-	if(!pii->dma_buf[type]) {
-		err("dma_buf is NULL(type: %d)", type);
+	if (!pii->dma_buf[idx]) {
+		err("dma_buf is NULL(idx: %d)", idx);
 		return -EINVAL;
 	}
 
-	dma_buf_unmap_attachment(pii->attachment[type], pii->sgt[type], DMA_BIDIRECTIONAL);
-	dma_buf_detach(pii->dma_buf[type], pii->attachment[type]);
-	dma_buf_put(pii->dma_buf[type]);
+	dma_buf_unmap_attachment(pii->attachment[idx], pii->sgt[idx], DMA_BIDIRECTIONAL);
+	dma_buf_detach(pii->dma_buf[idx], pii->attachment[idx]);
+	dma_buf_put(pii->dma_buf[idx]);
 
-	pii->dva[type] = 0;
-	pii->sgt[type] = NULL;
-	pii->attachment[type] = NULL;
-	pii->dma_buf[type] = NULL;
-	pii->dma_buf_fd[type] = 0;
-
+	pii->dva[idx] = 0;
+	pii->sgt[idx] = NULL;
+	pii->attachment[idx] = NULL;
+	pii->dma_buf[idx] = NULL;
+	pii->dma_buf_fd[idx] = 0;
+	
 	return 0;
 }
 KUNIT_EXPORT_SYMBOL(pablo_interface_irta_dma_buf_detach);
 
-int pablo_interface_irta_kva_map(struct pablo_interface_irta *pii, enum interface_irta_buf_type type)
+int pablo_interface_irta_kva_map(struct pablo_interface_irta *pii, u32 idx)
 {
-	pii->kva[type] = pkv_dma_buf_vmap(pii->dma_buf[type]);
-	if (!pii->kva[type]) {
-		err("kva is invalid(type: %d, kva: %p)", type, pii->kva[type]);
+	pii->kva[idx] = pkv_dma_buf_vmap(pii->dma_buf[idx]);
+	if (!pii->kva[idx]) {
+		err("kva is invalid(idx: %d, kva: %p)", idx, pii->kva[idx]);
 		return -ENOMEM;
 	}
 
@@ -114,69 +113,72 @@ int pablo_interface_irta_kva_map(struct pablo_interface_irta *pii, enum interfac
 }
 KUNIT_EXPORT_SYMBOL(pablo_interface_irta_kva_map);
 
-int pablo_interface_irta_kva_unmap(struct pablo_interface_irta *pii, enum interface_irta_buf_type type)
+int pablo_interface_irta_kva_unmap(struct pablo_interface_irta *pii, u32 idx)
 {
-	if(!pii->dma_buf[type]) {
-		err("dma_buf is NULL(type: %d)", type);
+	if (!pii->dma_buf[idx]) {
+		err("dma_buf is NULL(idx: %d)", idx);
 		return -EINVAL;
 	}
 
-	if(!pii->kva[type])
+	if (!pii->kva[idx])
 		return 0;
 
-	pkv_dma_buf_vunmap(pii->dma_buf[type], pii->kva[type]);
+	pkv_dma_buf_vunmap(pii->dma_buf[idx], pii->kva[idx]);
 
-	pii->kva[type] = NULL;
+	pii->kva[idx] = NULL;
 
 	return 0;
 }
 KUNIT_EXPORT_SYMBOL(pablo_interface_irta_kva_unmap);
 
-static void check_valid_fd(struct pablo_interface_irta *pii,
-			enum interface_irta_buf_type type, int fd)
+static void check_valid_fd(struct pablo_interface_irta *pii, u32 idx, int fd)
 {
-	int prev_fd = pii->dma_buf_fd[type];
+	int prev_fd = pii->dma_buf_fd[idx];
 
-	if (pii->dma_buf[type]) {
+	if (pii->dma_buf[idx]) {
 		if (prev_fd == fd)
-			warn("fd is same(type: %d)", type);
+			warn("fd is same(idx: %d)", idx);
 		else
-			warn("fd is not empty(type: %d)", type);
+			warn("fd is not empty(idx: %d)", idx);
 
-		if (pii->kva[type])
-			pablo_interface_irta_kva_unmap(pii, type);
+		if (pii->kva[idx])
+			pablo_interface_irta_kva_unmap(pii, idx);
 
-		pablo_interface_irta_dma_buf_detach(pii, type);
+		pablo_interface_irta_dma_buf_detach(pii, idx);
 	}
 }
 
-int pablo_interface_irta_result_buf_set(struct pablo_interface_irta *pii, int fd)
+int pablo_interface_irta_result_buf_set(struct pablo_interface_irta *pii, int fd, u32 idx)
 {
 	int ret;
-	enum interface_irta_buf_type type = ITF_IRTA_BUF_TYPE_RESULT;
 	struct pablo_crta_buf_info buf_info = { 0, };
 
-	check_valid_fd(pii, type, fd);
+	if (idx >= ITF_IRTA_BUF_TYPE_MAX) {
+		err("idx is invalid (idx: %d, fd: %d)", idx, fd);
+		return -EINVAL;
+	}
 
-	ret = pablo_interface_irta_dma_buf_attach(pii, type, fd);
+	check_valid_fd(pii, idx, fd);
+
+	ret = pablo_interface_irta_dma_buf_attach(pii, idx, fd);
 	if (ret)
 		return ret;
 
-	ret = pablo_interface_irta_kva_map(pii, type);
+	ret = pablo_interface_irta_kva_map(pii, idx);
 	if (ret)
 		goto err_save_kva;
 
-	buf_info.id = 0;
-	buf_info.dva = pii->dva[type];
-	buf_info.kva = pii->kva[type];
-	buf_info.size = pii->dma_buf[type]->size;
+	buf_info.id = idx;
+	buf_info.dva = pii->dva[idx];
+	buf_info.kva = pii->kva[idx];
+	buf_info.size = pii->dma_buf[idx]->size;
 	CALL_ADT_MSG_OPS(pii->icpu_adt, send_msg_put_buf, pii->instance,
 			PABLO_BUFFER_RTA, &buf_info);
 
 	return 0;
 
 err_save_kva:
-	pablo_interface_irta_dma_buf_detach(pii, type);
+	pablo_interface_irta_dma_buf_detach(pii, idx);
 
 	return ret;
 }
@@ -199,14 +201,14 @@ KUNIT_EXPORT_SYMBOL(pablo_interface_irta_start);
 
 static void flush_all_buf_type(struct pablo_interface_irta *pii)
 {
-	enum interface_irta_buf_type type;
+	u32 idx;
 
-	for (type = 0; type < ITF_IRTA_BUF_TYPE_MAX; type++) {
-		if (pii->kva[type])
-			pablo_interface_irta_kva_unmap(pii, type);
+	for (idx = 0; idx < ITF_IRTA_BUF_TYPE_MAX; idx++) {
+		if (pii->kva[idx])
+			pablo_interface_irta_kva_unmap(pii, idx);
 
-		if (pii->dma_buf[type])
-			pablo_interface_irta_dma_buf_detach(pii, type);
+		if (pii->dma_buf[idx])
+			pablo_interface_irta_dma_buf_detach(pii, idx);
 	}
 }
 

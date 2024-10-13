@@ -368,11 +368,9 @@
 					battery,mix_v2_dchg_cond = <0x00>;
 					battery,full_condition_type = <0x09>;
 					battery,full_condition_soc = <0x5d>;
-					battery,full_condition_vcell = <0x10fe>;
 					battery,recharge_check_count = <0x01>;
 					battery,recharge_condition_type = <0x04>;
 					battery,recharge_condition_soc = <0x62>;
-					battery,recharge_condition_vcell = <0x10ea>;
 					battery,charging_reset_time = <0x00>;
 					battery,chg_float_voltage = <0x1130>;
 					battery,pre_afc_work_delay = <0x7d0>;
@@ -380,7 +378,6 @@
 					battery,pre_afc_input_current = <0x1f4>;
 					battery,pre_wc_afc_input_current = <0x1f4>;
 					battery,swelling_high_rechg_voltage = <0xfa0>;
-					battery,swelling_low_rechg_voltage = <0x109a>;
 					battery,siop_icl = <0x4b0>;
 					battery,siop_fcc = <0x708>;
 					battery,siop_hv_icl = <0x2bc>;
@@ -408,9 +405,7 @@
 					battery,wireless_otg_input_current = <0x384>;
 					battery,age_data_cycle = <0x00 0x12c 0x190 0x2bc 0x3e8>;
 					battery,age_data_full_condition_soc = <0x5d 0x5c 0x5b 0x5a 0x59>;
-					battery,age_data_chg_float_voltage_offset = <0x00 0x14 0x28 0x3c 0x6e>;
-					battery,age_data_full_condition_vcell_offset = <0x00 0x14 0x28 0x3c 0x6e>;
-					battery,age_data_recharge_condition_vcell_offset = <0x00 0x14 0x28 0x3c 0x6e>;
+					battery,age_data_common_offset = <0x00 0x14 0x28 0x6e>;
 					battery,age_data = <0x00 0x1130 0x10ea 0x10fe 0x5d 0x12c 0x111c 0x10d6 0x10ea 0x5c 0x190 0x1108 0x10c2 0x10d6 0x5b 0x2bc 0x10f4 0x10ae 0x10c2 0x5a 0x3e9 0x10c2 0x107c 0x1090 0x59>;
 					battery,health_condition_cycle = <0x384 0x4b0 0x5dc>;
 					battery,health_condition_asoc = <0x00 0x00 0x00>;
@@ -424,7 +419,7 @@
 					battery,recharging_expired_time = <0x1518>;
 					battery,battery_full_capacity = <0x276a>;
 					battery,ttf_capacity = <0x26a0>;
-					battery,cv_data = <0x157d 0x352 0x739 0x15c8 0x35c 0x6fc 0x1254 0x370 0x68d 0xfac 0x384 0x60a 0xcef 0x398 0x568 0x9ea 0x3ac 0x494 0x760 0x3c0 0x383 0x476 0x3d4 0x1e5 0x335 0x3de 0xa0 0x2f4 0x3e8 0x00>;
+					battery,cv_data = <0x157d 0x352 0x739 0x15c8 0x35c 0x6fc 0x1254 0x370 0x68d 0xfac 0x384 0x60a 0xcef 0x398 0x568 0x9ea 0x3ac 0x494 0x760 0x3c0 0x383 0x476 0x3d4 0x1e5 0x335 0x3de 0x6e 0x2f4 0x3e8 0x00>;
 					io-channels = <0x01 0x00 0x01 0x02 0x01 0x03 0x01 0x04>;
 					io-channel-names = "adc-in-bat\0adc-temp\0adc-chg-temp\0adc-blkt-temp\0n/a";
 					pinctrl-names = "default";
@@ -443,6 +438,7 @@
 					battery,dchg_temp_table_data = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x00 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
 					battery,high_temp_float = <0x1036>;
 					battery,low_temp_float = <0x1130>;
+					battery,swelling_low_rechg_voltage = <0x109a>;
 					battery,dchg_dc_in_swelling;
 					battery,standard_curr = <0x15cc>;
 					battery,max_charging_charge_power = <0xafc8>;
@@ -452,6 +448,8 @@
 					battery,siop_icl_70 = <0xfffe 0xfffe 0xfffe 0x758>;
 					battery,siop_fcc_70 = <0xfffe 0xfffe 0xfffe 0xeb0>;
 					battery,store_mode_max_input_power = <0x2328>;
+					battery,full_condition_vcell = <0x10fe>;
+					battery,recharge_condition_vcell = <0x10ea>;
 					battery,factory_chg_limit_max = <0x46>;
 					battery,factory_chg_limit_min = <0x41>;
 					battery,temp_table_LRP_NORMAL = <0x186 0x17c 0x17c 0x172 0x186 0x17c 0x17c 0x172 0x3e8 0x7d0 0x4b0 0x708>;
@@ -586,7 +584,7 @@
 					io-channel-names = "adc-pa-temp";
 					io-channel-ranges;
 					adc_array = <0x12a 0x1ac 0x22d 0x2c8 0x37d 0x448 0x52b 0x655 0x706 0x80a 0x8ed 0x9c1 0xa8f 0xb83 0xc16 0xcaa 0xd29 0xd94 0xdf1 0xe41 0xe83 0xec5 0xf07>;
-					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x00 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
+					temp_array = <0xffffff38 0xffffff6a 0xffffff9c 0xffffffce 0x00 0x32 0x64 0x96 0xc8 0xfa 0x12c 0x15e 0x190 0x1c2 0x1f4 0x226 0x258 0x28a 0x2bc 0x2ee 0x320 0x352 0x384>;
 					phandle = <0xb0>;
 				};
 
@@ -758,13 +756,13 @@
 				};
 
 				wireless-power-info {
-					count = <0x06>;
+					count = <0x09>;
 					phandle = <0xb4>;
 
 					current_group_0 {
 						wireless_power_class = <0x02>;
 						vout = <0x2328>;
-						input_current_limit = <0x339>;
+						input_current_limit = <0x33e>;
 						fast_charging_current = <0xc4e>;
 						ttf_charge_current = <0x5dc>;
 						rx_power = <0x1d4c>;
@@ -790,26 +788,53 @@
 
 					current_group_3 {
 						wireless_power_class = <0x02>;
-						vout = <0x2328>;
-						input_current_limit = <0x4b0>;
+						vout = <0x2ee0>;
+						input_current_limit = <0x271>;
 						fast_charging_current = <0xc4e>;
-						ttf_charge_current = <0x87f>;
-						rx_power = <0x2ee0>;
+						ttf_charge_current = <0x5dc>;
+						rx_power = <0x1d4c>;
 					};
 
 					current_group_4 {
 						wireless_power_class = <0x02>;
-						vout = <0x2af8>;
-						input_current_limit = <0x44c>;
+						vout = <0x2328>;
+						input_current_limit = <0x532>;
 						fast_charging_current = <0xc4e>;
-						ttf_charge_current = <0x834>;
+						ttf_charge_current = <0x87f>;
 						rx_power = <0x2ee0>;
 					};
 
 					current_group_5 {
 						wireless_power_class = <0x02>;
 						vout = <0x2af8>;
-						input_current_limit = <0x514>;
+						input_current_limit = <0x442>;
+						fast_charging_current = <0xc4e>;
+						ttf_charge_current = <0x834>;
+						rx_power = <0x2ee0>;
+					};
+
+					current_group_6 {
+						wireless_power_class = <0x02>;
+						vout = <0x2ee0>;
+						input_current_limit = <0x3e8>;
+						fast_charging_current = <0xc4e>;
+						ttf_charge_current = <0x834>;
+						rx_power = <0x2ee0>;
+					};
+
+					current_group_7 {
+						wireless_power_class = <0x02>;
+						vout = <0x2af8>;
+						input_current_limit = <0x550>;
+						fast_charging_current = <0xc4e>;
+						ttf_charge_current = <0x8fc>;
+						rx_power = <0x3a98>;
+					};
+
+					current_group_8 {
+						wireless_power_class = <0x02>;
+						vout = <0x2ee0>;
+						input_current_limit = <0x4e2>;
 						fast_charging_current = <0xc4e>;
 						ttf_charge_current = <0x8fc>;
 						rx_power = <0x3a98>;
@@ -3101,6 +3126,7 @@
 			model = "Samsung GTS9FE EUR OPEN board based on S5E8835";
 
 			shub {
+				pinctrl-names = "default";
 				compatible = "shub";
 				acc-lsm6dsotr-position = <0x02>;
 				mag-ak09918c-position = <0x04>;
@@ -3115,6 +3141,28 @@
 				sec,gpio-label = "reloc_gpio";
 				sec,reloc-base = <0x00>;
 				phandle = <0xea>;
+			};
+
+			sec-bootstat {
+
+				thermal-zones {
+
+					BIG {
+						display-name = "BIG";
+					};
+
+					LITTLE {
+						display-name = "LIT";
+					};
+
+					G3D {
+						display-name = "G3D";
+					};
+
+					ISP {
+						display-name = "ISP";
+					};
+				};
 			};
 
 			secgpio_dvs {
@@ -3144,6 +3192,7 @@
 					linux,code = <0x73>;
 					gpios = <0xffffffff 0x00 0x0f>;
 					debounce-interval = <0x0f>;
+					gpio-key,wakeup;
 				};
 			};
 
@@ -5760,8 +5809,8 @@
 			rcd-overlay-enable = <0x00>;
 			vote-overlap-bw = <0x00>;
 			rd_en = <0x01>;
-			rd_hi_thres = <0x168>;
-			rd_lo_thres = <0x1e0>;
+			rd_hi_thres = <0x1e0>;
+			rd_lo_thres = <0x168>;
 		};
 	};
 

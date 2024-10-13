@@ -7,6 +7,9 @@
 #include <net/cfg80211.h>
 #include <net/ip.h>
 #include <linux/etherdevice.h>
+#if defined(CONFIG_SCSC_WLAN_TAS)
+#include <net/genetlink.h>
+#endif
 #include "dev.h"
 #include "cfg80211_ops.h"
 #include "debug.h"
@@ -4215,10 +4218,6 @@ static int slsi_rx_event_log_parse(struct slsi_dev *sdev, struct net_device *dev
 					break;
 				}
 				if (event_id == FAPI_EVENT_WIFI_EVENT_ROAM_SCAN_RESULT) {
-					if (!valid_data) {
-						valid_data = true;
-						break;
-					}
 					dump_roam_scan_result(sdev, dev, &evt_info->current_info, evt_info->mac_addr,
 							      evt_info->chan_frequency, evt_info->roam_rssi_val,
 							      evt_info->vd.chan_utilisation, evt_info->vd.score_val,
@@ -4368,10 +4367,10 @@ static int slsi_get_roam_reason_from_expired_tv(int roam_reason, int expired_tim
 	if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_DEFAULT)
 		return slsi_get_roam_reason_for_fw_reason(roam_reason);
 	else if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_INACTIVITY_TIMER)
-		return SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER;
+		return 8;
 	else if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_RESCAN_TIMER ||
 		 expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_BACKGROUND_RESCAN_TIMER)
-		return SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER;
+		return 9;
 	else
 		return 0;
 }
@@ -6007,6 +6006,68 @@ exit:
 	return ret;
 }
 
+/*TODO: define will be removed when autogen to be done*/
+#define SLSI_PSID_UNIFI_DTIM_MULTIPLIER 3002 /* unifiDTIMMultiplier */
+
+static int slsi_set_dtim_config(struct wiphy *wiphy, struct wireless_dev *wdev, const void *data, int len)
+{
+	struct slsi_dev		*sdev = SDEV_FROM_WIPHY(wiphy);
+	struct net_device	*dev = wdev->netdev;
+	struct netdev_vif	*ndev_vif;
+	const struct nlattr	*attr;
+	int			ret = 0;
+	int			temp = 0;
+	int			type = 0;
+	int			multiplier = 0;
+	u32			val = 0;
+
+	if (!dev) {
+		SLSI_ERR(sdev, "dev is NULL!!\n");
+		return -EINVAL;
+	}
+	ndev_vif = netdev_priv(dev);
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	if (ndev_vif->vif_type != FAPI_VIFTYPE_STATION) {
+		SLSI_WARN(sdev, "Not a STA VIF\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+	if (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED) {
+		SLSI_WARN(sdev, "VIF is not connected\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+	nla_for_each_attr(attr, data, len, temp) {
+		type = nla_type(attr);
+		switch (type) {
+		case SLSI_VENDOR_ATTR_DTIM_MULTIPLIER:
+			if (slsi_util_nla_get_u32(attr, &val)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			if (val < 1 || val > 9) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			multiplier = (int)val;
+			break;
+		default:
+			SLSI_ERR_NODEV("Unknown attribute: %d\n", type);
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+	SLSI_INFO(sdev, "multiplier %d\n", multiplier);
+	if (slsi_set_uint_mib(sdev, NULL, SLSI_PSID_UNIFI_DTIM_MULTIPLIER, multiplier)) {
+		SLSI_ERR(sdev, "Set MIB DTIM_MULTIPLIER failed\n");
+		ret = -EIO;
+		goto exit;
+	}
+exit:
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+	return ret;
+}
+
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 static int slsi_select_tx_power_scenario(struct wiphy *wiphy, struct wireless_dev *wdev, const void *data, int len)
 {
@@ -6174,6 +6235,11 @@ slsi_wlan_vendor_usable_channels_policy[SLSI_UC_ATTRIBUTE_MAX + 1] = {
 	[SLSI_UC_ATTRIBUTE_IFACE_MODE] = {.type = NLA_U32},
 	[SLSI_UC_ATTRIBUTE_FILTER] = {.type = NLA_U32},
 	[SLSI_UC_ATTRIBUTE_MAX_NUM] = {.type = NLA_U32},
+};
+
+static const struct nla_policy
+slsi_wlan_vendor_dtim_policy[SLSI_VENDOR_ATTR_DTIM_MAX + 1] = {
+	[SLSI_VENDOR_ATTR_DTIM_MULTIPLIER] = {.type = NLA_U32},
 };
 
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
@@ -7044,6 +7110,15 @@ static struct wiphy_vendor_command slsi_vendor_cmd[] = {
 		.flags =  WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = slsi_get_usable_channels
 	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG
+		},
+		.flags =  WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = slsi_set_dtim_config
+	},
+
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 	{
 		{
@@ -7244,6 +7319,10 @@ static void slsi_nll80211_vendor_init_policy(struct wiphy_vendor_command *slsi_v
 			vcmd->policy = slsi_wlan_vendor_usable_channels_policy;
 			vcmd->maxattr = SLSI_UC_ATTRIBUTE_MAX;
 			break;
+		case SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG:
+			vcmd->policy = slsi_wlan_vendor_dtim_policy;
+			vcmd->maxattr = SLSI_VENDOR_ATTR_DTIM_MAX;
+			break;
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 		case SLSI_NL80211_VENDOR_SUBCMD_SELECT_TX_POWER_SCENARIO:
 			vcmd->policy = slsi_wlan_vendor_tx_power_scenario_policy;
@@ -7282,4 +7361,434 @@ void slsi_nl80211_vendor_init(struct slsi_dev *sdev)
 
 	INIT_LIST_HEAD(&sdev->hotlist_results);
 }
+
+#if defined(CONFIG_SCSC_WLAN_TAS)
+#define SLSI_TAS_FAMILY_NAME "slsi_nl_tas_fam"
+#define SLSI_TAS_GROUP_NAME  "slsi_nl_tas_grp"
+
+enum slsi_tas_cmd {
+	SLSI_TAS_CMD_SAR_IND = 1,
+	SLSI_TAS_CMD_SAR_REQ,
+	SLSI_TAS_CMD_IF_STATUS,
+	SLSI_TAS_CMD_SHORT_WIN_NUM_REQ,
+	SLSI_TAS_CMD_GET_CONFIG,
+	SLSI_TAS_CMD_UPDATE_SAR_LIMIT_UPPER,
+	SLSI_TAS_CMD_REQUEST_NOTIFICATION,
+	SLSI_TAS_CMD_MAX,
+};
+
+enum slsi_tas_attr {
+	SLSI_TAS_ATTR_SHORT_WIN_NUM = 1,
+	SLSI_TAS_ATTR_AVG_SAR,
+	SLSI_TAS_ATTR_TIMESTAMP,
+	SLSI_TAS_ATTR_TX_SAR_LIMIT,
+	SLSI_TAS_ATTR_CTRL_BACKOFF,
+	SLSI_TAS_ATTR_IF_TYPE,
+	SLSI_TAS_ATTR_IF_ENABLED,
+	SLSI_TAS_ATTR_SAR_LIMIT_UPPER,
+	SLSI_TAS_ATTR_IF_STATUS_ENTRIES,
+	SLSI_TAS_ATTR_SAR_COMPLIANCE,
+	SLSI_TAS_ATTR_RF_TEST_MODE,
+	SLSI_TAS_ATTR_MAX,
+};
+
+static struct genl_family slsi_tas_fam;
+static bool is_req_noti;
+
+static int slsi_tas_tx_sar_limit_req(struct sk_buff *skb, struct genl_info *info)
+{
+	struct slsi_dev *sdev = slsi_get_sdev();
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct tas_sar_param sar_param = {0};
+	int err = 0;
+
+	if (!info || !info->attrs[SLSI_TAS_ATTR_TX_SAR_LIMIT] ||
+	    !info->attrs[SLSI_TAS_ATTR_SHORT_WIN_NUM] ||
+	    !info->attrs[SLSI_TAS_ATTR_CTRL_BACKOFF]) {
+		err = -EINVAL;
+		goto release_lock;
+	}
+
+	sar_param.win_num = nla_get_u16(info->attrs[SLSI_TAS_ATTR_SHORT_WIN_NUM]);
+	if (nla_get_u8(info->attrs[SLSI_TAS_ATTR_CTRL_BACKOFF]))
+		sar_param.flags |= SLSI_TAS_SET_CTRL_BACKOFF;
+	sar_param.sar_limit = nla_get_u16(info->attrs[SLSI_TAS_ATTR_TX_SAR_LIMIT]);
+
+	slsi_mlme_tas_tx_sar_limit(sdev, &sar_param);
+
+release_lock:
+	if (slsi_wake_lock_active(&tas_info->wlan_wl_tas))
+		slsi_wake_unlock(&tas_info->wlan_wl_tas);
+
+	return err;
+}
+
+static int slsi_tas_short_win_num_req(struct sk_buff *skb, struct genl_info *info)
+{
+	struct slsi_dev *sdev = slsi_get_sdev();
+	struct tas_sar_param sar_param = {0};
+
+	if (!info || !info->attrs[SLSI_TAS_ATTR_TX_SAR_LIMIT] || !info->attrs[SLSI_TAS_ATTR_SHORT_WIN_NUM])
+		return -EINVAL;
+
+	sar_param.win_num = nla_get_u16(info->attrs[SLSI_TAS_ATTR_SHORT_WIN_NUM]);
+	sar_param.flags = 0;
+	sar_param.sar_limit = nla_get_u16(info->attrs[SLSI_TAS_ATTR_TX_SAR_LIMIT]);
+
+	slsi_mlme_tas_set_short_win_num(sdev, &sar_param);
+	return 0;
+}
+
+static int slsi_tas_if_status_entry(struct sk_buff *msg, enum slsi_tas_if_type type, bool enabled)
+{
+	struct nlattr *attr = NULL;
+
+	attr = nla_nest_start(msg, type);
+	if (!attr)
+		return -EMSGSIZE;
+
+	if (nla_put_u8(msg, SLSI_TAS_ATTR_IF_TYPE, type) ||
+	    nla_put_u8(msg, SLSI_TAS_ATTR_IF_ENABLED, enabled)) {
+		nla_nest_cancel(msg, attr);
+		return -EMSGSIZE;
+	}
+
+	nla_nest_end(msg, attr);
+	return 0;
+}
+
+static int slsi_tas_fill_config(struct sk_buff *msg, struct genl_info *info)
+{
+	struct slsi_dev *sdev = slsi_get_sdev();
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	void *hdr = NULL;
+	struct nlattr *attr = NULL;
+	int type = 0;
+
+	hdr = genlmsg_put(msg, info->snd_portid, info->snd_seq, &slsi_tas_fam, 0, SLSI_TAS_CMD_GET_CONFIG);
+	if (!hdr) {
+		SLSI_ERR_NODEV("genlmsg_put failed\n");
+		return -EMSGSIZE;
+	}
+
+	if (nla_put_u16(msg, SLSI_TAS_ATTR_SAR_LIMIT_UPPER, tas_info->sar_limit_upper) ||
+		nla_put_u16(msg, SLSI_TAS_ATTR_SAR_COMPLIANCE, tas_info->sar_compliance) ||
+		nla_put_u8(msg, SLSI_TAS_ATTR_RF_TEST_MODE, slsi_is_rf_test_mode_enabled()))
+		goto nla_put_failure;
+
+	attr = nla_nest_start(msg, SLSI_TAS_ATTR_IF_STATUS_ENTRIES);
+	if (!attr)
+		goto nla_put_failure;
+
+	for (type = SLSI_TAS_IF_TYPE_NONE + 1; type < SLSI_TAS_IF_TYPE_MAX; type++) {
+		if (slsi_tas_if_status_entry(msg, type, tas_info->if_enabled[type]))
+			goto nest_put_failure;
+	}
+
+	nla_nest_end(msg, attr);
+	genlmsg_end(msg, hdr);
+	return 0;
+
+nest_put_failure:
+	nla_nest_cancel(msg, attr);
+nla_put_failure:
+	genlmsg_cancel(msg, hdr);
+	return -EMSGSIZE;
+}
+
+static int slsi_tas_config_req(struct sk_buff *skb, struct genl_info *info)
+{
+	struct sk_buff *msg = NULL;
+	int ret = 0;
+
+	msg = genlmsg_new(NLMSG_GOODSIZE, GFP_KERNEL);
+	if (!msg) {
+		SLSI_ERR_NODEV("No memory\n");
+		return -ENOMEM;
+	}
+
+	ret = slsi_tas_fill_config(msg, info);
+	if (ret) {
+		SLSI_ERR_NODEV("Msg error\n");
+		nlmsg_free(msg);
+		return ret;
+	}
+	return genlmsg_reply(msg, info);
+}
+
+static int slsi_tas_notification_req(struct sk_buff *skb, struct genl_info *info)
+{
+	is_req_noti = true;
+	return 0;
+}
+
+static const struct genl_small_ops slsi_tas_ops[] = {
+	{
+		.cmd = SLSI_TAS_CMD_SAR_REQ,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.doit = slsi_tas_tx_sar_limit_req,
+	},
+	{
+		.cmd = SLSI_TAS_CMD_SHORT_WIN_NUM_REQ,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.doit = slsi_tas_short_win_num_req,
+	},
+	{
+		.cmd = SLSI_TAS_CMD_GET_CONFIG,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.doit = slsi_tas_config_req,
+	},
+	{
+		.cmd = SLSI_TAS_CMD_REQUEST_NOTIFICATION,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.doit = slsi_tas_notification_req,
+	},
+};
+
+static struct nla_policy slsi_tas_policy[SLSI_TAS_ATTR_MAX + 1] = {
+	[SLSI_TAS_ATTR_SHORT_WIN_NUM] = { .type = NLA_U16 },
+	[SLSI_TAS_ATTR_AVG_SAR] = { .type = NLA_U16 },
+	[SLSI_TAS_ATTR_TIMESTAMP] = { .type = NLA_U32 },
+	[SLSI_TAS_ATTR_TX_SAR_LIMIT] = { .type = NLA_U16 },
+	[SLSI_TAS_ATTR_CTRL_BACKOFF] = { .type = NLA_U8 },
+	[SLSI_TAS_ATTR_IF_TYPE] = { .type = NLA_U8 },
+	[SLSI_TAS_ATTR_IF_ENABLED] = { .type = NLA_U8 },
+	[SLSI_TAS_ATTR_SAR_LIMIT_UPPER] = { .type = NLA_U16 },
+	[SLSI_TAS_ATTR_IF_STATUS_ENTRIES] = { .type = NLA_NESTED },
+};
+
+static const struct genl_multicast_group slsi_tas_mcgrp[] = {
+	{ .name = SLSI_TAS_GROUP_NAME, },
+};
+
+static struct genl_family slsi_tas_fam __ro_after_init = {
+	.name = SLSI_TAS_FAMILY_NAME,
+	.hdrsize = 0,
+	.version = 1,
+	.maxattr = SLSI_TAS_ATTR_MAX,
+	.policy = slsi_tas_policy,
+	.netnsok = true,
+	.module = THIS_MODULE,
+	.small_ops = slsi_tas_ops,
+	.n_small_ops = ARRAY_SIZE(slsi_tas_ops),
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	.resv_start_op = SLSI_TAS_CMD_MAX,
+#endif
+	.mcgrps = slsi_tas_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(slsi_tas_mcgrp),
+};
+
+static int slsi_tas_fill_sar_ind(struct sk_buff *msg, u16 win_num, u16 sar)
+{
+	void *hdr;
+
+	hdr = genlmsg_put(msg, 0, 0, &slsi_tas_fam, 0, SLSI_TAS_CMD_SAR_IND);
+	if (!hdr) {
+		SLSI_ERR_NODEV("genlmsg_put failed\n");
+		return -EMSGSIZE;
+	}
+
+	if (nla_put_u16(msg, SLSI_TAS_ATTR_SHORT_WIN_NUM, win_num) ||
+	    nla_put_u16(msg, SLSI_TAS_ATTR_AVG_SAR, sar)) {
+		SLSI_ERR_NODEV("attr put failed\n");
+		genlmsg_cancel(msg, hdr);
+		return -EMSGSIZE;
+	}
+
+	genlmsg_end(msg, hdr);
+	return 0;
+}
+
+static bool is_support_notification(void)
+{
+	/* Need to block notification when tasd is disabled */
+	return is_req_noti;
+}
+
+#define SLSI_TAS_WAKELOCK_TIME_OUT_IN_MS   (100)
+int slsi_tas_notify_sar_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct sk_buff *msg = NULL;
+	u16 win_num = 0, sar = 0;
+	int ret = 0;
+
+	if (!is_support_notification())
+		return ret;
+
+	win_num = fapi_get_u16(skb, u.mlme_sar_ind.short_window_number);
+	sar = fapi_get_u16(skb, u.mlme_sar_ind.sar);
+
+	msg = genlmsg_new(NLMSG_GOODSIZE, GFP_KERNEL);
+	if (!msg) {
+		SLSI_ERR(sdev, "No memory\n");
+		kfree_skb(skb);
+		return -ENOMEM;
+	}
+
+	ret = slsi_tas_fill_sar_ind(msg, win_num, sar);
+	if (ret) {
+		nlmsg_free(msg);
+		kfree_skb(skb);
+		return ret;
+	}
+
+	ret = genlmsg_multicast_allns(&slsi_tas_fam, msg, 0, 0, GFP_KERNEL);
+	if (ret)
+		SLSI_ERR(sdev, "genlmsg_multicast_allns failed : [%d]\n", ret);
+
+	slsi_wake_lock_timeout(&tas_info->wlan_wl_tas, msecs_to_jiffies(SLSI_TAS_WAKELOCK_TIME_OUT_IN_MS));
+
+	kfree_skb(skb);
+	return ret;
+}
+
+static int slsi_tas_fill_if_status(struct sk_buff *msg, enum slsi_tas_if_type type, bool enabled)
+{
+	struct slsi_dev *sdev = slsi_get_sdev();
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	void *hdr;
+
+	hdr = genlmsg_put(msg, 0, 0, &slsi_tas_fam, 0, SLSI_TAS_CMD_IF_STATUS);
+	if (!hdr) {
+		SLSI_ERR_NODEV("genlmsg_put failed\n");
+		return -EMSGSIZE;
+	}
+
+	if (nla_put_u8(msg, SLSI_TAS_ATTR_IF_TYPE, type) ||
+	    nla_put_u8(msg, SLSI_TAS_ATTR_IF_ENABLED, enabled)) {
+		genlmsg_cancel(msg, hdr);
+		return -EMSGSIZE;
+	}
+
+	if (type == SLSI_TAS_IF_TYPE_WIFI && enabled) {
+		if (nla_put_u16(msg, SLSI_TAS_ATTR_SAR_LIMIT_UPPER, tas_info->sar_limit_upper) ||
+		    nla_put_u16(msg, SLSI_TAS_ATTR_SAR_COMPLIANCE, tas_info->sar_compliance) ||
+		    nla_put_u8(msg, SLSI_TAS_ATTR_RF_TEST_MODE, slsi_is_rf_test_mode_enabled())) {
+			genlmsg_cancel(msg, hdr);
+			return -EMSGSIZE;
+		}
+	}
+
+	genlmsg_end(msg, hdr);
+	return 0;
+}
+
+static void slsi_tas_notify_if_status(enum slsi_tas_if_type type, bool enabled)
+{
+	struct slsi_dev *sdev = slsi_get_sdev();
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct sk_buff *msg = NULL;
+	int ret = 0;
+
+	if (!is_support_notification())
+		return;
+
+	if (!(type > SLSI_TAS_IF_TYPE_NONE && type < SLSI_TAS_IF_TYPE_MAX)) {
+		SLSI_ERR_NODEV("Invalid type : [%d]\n", type);
+		return;
+	}
+
+	tas_info->if_enabled[type] = enabled;
+
+	msg = genlmsg_new(NLMSG_GOODSIZE, GFP_KERNEL);
+	if (!msg) {
+		SLSI_ERR_NODEV("No memory\n");
+		return;
+	}
+
+	ret = slsi_tas_fill_if_status(msg, type, enabled);
+	if (ret) {
+		nlmsg_free(msg);
+		return;
+	}
+
+	ret = genlmsg_multicast_allns(&slsi_tas_fam, msg, 0, 0, GFP_KERNEL);
+	if (ret)
+		SLSI_ERR_NODEV("genlmsg_multicast_allns failed : [%d]\n", ret);
+}
+
+void slsi_tas_notify_wifi_status(bool enabled)
+{
+	slsi_tas_notify_if_status(SLSI_TAS_IF_TYPE_WIFI, enabled);
+}
+
+static void slsi_tas_notify_bt_status(bool enabled)
+{
+	slsi_tas_notify_if_status(SLSI_TAS_IF_TYPE_BT, enabled);
+}
+
+static int slsi_tas_fill_sar_limit_upper(struct sk_buff *msg, u16 sar_limit_upper)
+{
+	void *hdr;
+
+	hdr = genlmsg_put(msg, 0, 0, &slsi_tas_fam, 0, SLSI_TAS_CMD_UPDATE_SAR_LIMIT_UPPER);
+	if (!hdr) {
+		SLSI_ERR_NODEV("genlmsg_put failed\n");
+		return -EMSGSIZE;
+	}
+
+	if (nla_put_u16(msg, SLSI_TAS_ATTR_SAR_LIMIT_UPPER, sar_limit_upper)) {
+		SLSI_ERR_NODEV("attr put failed\n");
+		genlmsg_cancel(msg, hdr);
+		return -EMSGSIZE;
+	}
+
+	genlmsg_end(msg, hdr);
+	return 0;
+}
+
+int slsi_tas_notify_sar_limit_upper(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct sk_buff *msg = NULL;
+	int ret = 0;
+
+	if (!is_support_notification())
+		return ret;
+
+	msg = genlmsg_new(NLMSG_GOODSIZE, GFP_KERNEL);
+	if (!msg) {
+		SLSI_ERR_NODEV("No memory\n");
+		kfree_skb(skb);
+		return -ENOMEM;
+	}
+
+	tas_info->sar_limit_upper = fapi_get_u16(skb, u.mlme_sar_limit_upper_ind.sar_limit_upper);
+
+	ret = slsi_tas_fill_sar_limit_upper(msg, tas_info->sar_limit_upper);
+	if (ret) {
+		nlmsg_free(msg);
+		kfree_skb(skb);
+		return ret;
+	}
+
+	ret = genlmsg_multicast_allns(&slsi_tas_fam, msg, 0, 0, GFP_KERNEL);
+	if (ret)
+		SLSI_ERR_NODEV("genlmsg_multicast_allns failed : [%d]\n", ret);
+
+	kfree_skb(skb);
+	return ret;
+}
+
+void slsi_tas_nl_deinit(void)
+{
+	SLSI_INFO_NODEV("TAS nl deinit\n");
+	genl_unregister_family(&slsi_tas_fam);
+	scsc_service_unregister_check_bt_status_cb();
+}
+
+void slsi_tas_nl_init(void)
+{
+	int err;
+
+	SLSI_INFO_NODEV("TAS nl init\n");
+	is_req_noti = false;
+	err = genl_register_family(&slsi_tas_fam);
+	if (err)
+		SLSI_ERR_NODEV("genl_register_family failed : [%d]\n", err);
+
+	scsc_service_register_check_bt_status_cb(slsi_tas_notify_bt_status);
+}
+#endif
 

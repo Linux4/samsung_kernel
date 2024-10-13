@@ -33,11 +33,12 @@ struct panel_irc_info;
 #define PANEL_BL_PROPERTY_SMOOTH_TRANSITION ("smooth_transition")
 #define PANEL_BL_PROPERTY_ACL_OPR ("acl_opr")
 #define PANEL_BL_PROPERTY_ACL_PWRSAVE ("acl_pwrsave")
+#define PANEL_BL_PROPERTY_NIGHT_DIM ("night_dim")
 
 #define MAX_PANEL_BL_NAME_SIZE (32)
 
 #ifdef CONFIG_USDM_PANEL_BACKLIGHT_PAC_3_0
-#define BRT_SCALE	(100)
+#define BRT_SCALE	(10)
 #define PANEL_BACKLIGHT_PAC_STEPS	(512)
 #else
 #define PANEL_BACKLIGHT_PAC_STEPS	(256)
@@ -176,12 +177,14 @@ struct panel_bl_properties {
 	int acl_opr;
 	int aor_ratio;
 	int smooth_transition;
+	int night_dim;
 #ifdef CONFIG_USDM_PANEL_MASK_LAYER
 	int mask_layer_br_target;
 	int mask_layer_br_actual;
 	int mask_layer_br_hook;
 #endif
 	atomic_t brightness_set_count;
+	atomic_t brightness_non_zero_set_count;
 	bool saved;
 };
 
@@ -242,6 +245,7 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 int panel_update_brightness(struct panel_device *panel);
 int panel_update_brightness_cmd_skip(struct panel_device *panel);
 int panel_update_brightness_cmd_skip_nolock(struct panel_device *panel);
+int max_brt_tbl(struct brightness_table *brt_tbl);
 int get_max_brightness(struct panel_bl_device *panel_bl);
 int get_brightness_pac_step_by_subdev_id(struct panel_bl_device *panel_bl, int id, int brightness);
 int get_brightness_pac_step(struct panel_bl_device *panel_bl, int brightness);
@@ -275,5 +279,5 @@ int search_tbl(int *tbl, int sz, enum SEARCH_TYPE type, int value);
 int panel_bl_get_brightness_set_count(struct panel_bl_device *panel_bl);
 void panel_bl_update_acl_state(struct panel_bl_device *panel_bl);
 int panel_update_subdev_brightness(struct panel_device *panel, u32 subdev_id, u32 brightness);
-
+void panel_bl_clear_brightness_non_zero_set_count(struct panel_bl_device *panel_bl);
 #endif /* __PANEL_BL_H__ */

@@ -69,8 +69,8 @@ static int sensor_eeprom_probe(struct i2c_client *client,
 	}
 
 	if (id->driver_data >= ROM_ID_REAR && id->driver_data < ROM_ID_MAX) {
-		specific->rom_client[id->driver_data] = client;
-		specific->rom_valid[id->driver_data] = true;
+		specific->rom_client[id->driver_data][0] = client;
+		specific->rom_valid[id->driver_data][0] = true;
 	} else {
 		probe_err("rear eeprom device is failed!");
 		return -ENODEV;

@@ -58,4 +58,6 @@ int init_aois(bool en);
 int init_rotation_vector(bool en);
 int init_game_rotation_vector(bool en);
 int init_light_ir(bool en);
+int init_drop_classifier(bool en);
+int init_sequential_step(bool en);
 #endif

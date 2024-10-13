@@ -930,6 +930,7 @@ static int contexthub_alive_noirq(struct contexthub_ipc_info *ipc)
 #else
 	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, CHUB_PG_OUT);
 #endif
+	ipc_hw_mask_set_int_reg(base, rcv_mb_id, IRQ_NUM_CHUB_ALIVE);
 	ipc_hw_gen_interrupt(ipc->iomem.mailbox, ipc->chub_ipc->opp_mb_id, IRQ_NUM_CHUB_ALIVE);
 
 	atomic_set(&ipc->event.chub_alive_lock.flag, 0);
@@ -938,11 +939,13 @@ static int contexthub_alive_noirq(struct contexthub_ipc_info *ipc)
 		status = ipc_hw_read_int_status_reg_all(base, rcv_mb_id);
 		if (status & (1 << irq_num)) {
 			ipc_hw_clear_int_pend_reg(base, rcv_mb_id, irq_num);
+			ipc_hw_mask_clear_int_reg(base, rcv_mb_id, IRQ_NUM_CHUB_ALIVE);
 			atomic_set(&ipc->event.chub_alive_lock.flag, 1);
 			nanohub_dev_info(ipc->dev, "chub is alive\n");
 			return 0;
 		}
 	}
+	ipc_hw_mask_clear_int_reg(base, rcv_mb_id, IRQ_NUM_CHUB_ALIVE);
 	nanohub_dev_info(ipc->dev, "chub is not alive\n");
 	return -1;
 }
@@ -1042,7 +1045,6 @@ static int contexthub_resume(struct device *dev)
 	}
 #endif
 #endif
-
 #if !IS_ENABLED(CONFIG_SHUB)
 	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, AP_WAKE);
 	ipc_hw_gen_interrupt(chub->iomem.mailbox, chub->chub_ipc->opp_mb_id, IRQ_NUM_CHUB_ALIVE);

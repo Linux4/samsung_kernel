@@ -37,28 +37,24 @@ static struct panel_prop_enum_item smooth_transition_enum_items[] = {
 	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(SMOOTH_TRANS_ON),
 };
 
-static struct panel_prop_enum_item acl_opr_enum_items[] = {
-	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ACL_OPR_OFF),
-	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ACL_OPR_03P),
-	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ACL_OPR_06P),
-	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ACL_OPR_08P),
-	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ACL_OPR_12P),
-	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ACL_OPR_15P),
-};
-
 static struct panel_prop_enum_item acl_pwrsave_enum_items[] = {
 	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ACL_PWRSAVE_OFF),
 	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ACL_PWRSAVE_ON),
+};
+
+static struct panel_prop_enum_item night_dim_enum_items[] = {
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(NIGHT_DIM_OFF),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(NIGHT_DIM_ON),
 };
 
 static struct panel_prop_list panel_bl_property_array[] = {
 	/* enum property */
 	__PANEL_PROPERTY_ENUM_INITIALIZER(PANEL_BL_PROPERTY_SMOOTH_TRANSITION,
 			SMOOTH_TRANS_ON, smooth_transition_enum_items),
-	__PANEL_PROPERTY_ENUM_INITIALIZER(PANEL_BL_PROPERTY_ACL_OPR,
-			ACL_OPR_03P, acl_opr_enum_items),
 	__PANEL_PROPERTY_ENUM_INITIALIZER(PANEL_BL_PROPERTY_ACL_PWRSAVE,
 			ACL_PWRSAVE_OFF, acl_pwrsave_enum_items),
+	__PANEL_PROPERTY_ENUM_INITIALIZER(PANEL_BL_PROPERTY_NIGHT_DIM,
+			NIGHT_DIM_OFF, night_dim_enum_items),
 	/* range property */
 	__PANEL_PROPERTY_RANGE_INITIALIZER(PANEL_BL_PROPERTY_BRIGHTNESS,
 			UI_DEF_BRIGHTNESS, 0, 1000000000),
@@ -107,6 +103,8 @@ int panel_bl_set_property(struct panel_bl_device *panel_bl,
 		propname = PANEL_BL_PROPERTY_ACL_OPR;
 	else if (property == &panel_bl->props.acl_pwrsave)
 		propname = PANEL_BL_PROPERTY_ACL_PWRSAVE;
+	else if (property == &panel_bl->props.night_dim)
+		propname = PANEL_BL_PROPERTY_NIGHT_DIM;
 
 	if (!propname) {
 		panel_err("unknown property\n");
@@ -139,7 +137,7 @@ static void print_tbl(int *tbl, int sz)
 static void print_tbl(int *tbl, int sz) {}
 #endif
 
-static int max_brt_tbl(struct brightness_table *brt_tbl)
+int max_brt_tbl(struct brightness_table *brt_tbl)
 {
 	if (unlikely(!brt_tbl || !brt_tbl->brt || !brt_tbl->sz_brt)) {
 		panel_err("invalid parameter\n");
@@ -582,21 +580,21 @@ void panel_bl_update_acl_state(struct panel_bl_device *panel_bl)
 
 #ifdef CONFIG_USDM_PANEL_HMD
 	if (panel_bl->props.id == PANEL_BL_SUBDEV_TYPE_HMD) {
-		panel_bl_set_property(panel_bl, &panel_bl->props.acl_opr, ACL_OPR_OFF);
+		panel_bl->props.acl_opr = 0;
 		panel_bl_set_property(panel_bl, &panel_bl->props.acl_pwrsave, ACL_PWRSAVE_OFF);
 		return;
 	}
 #endif
 #ifdef CONFIG_USDM_PANEL_AOD_BL
 	if (panel_bl->props.id == PANEL_BL_SUBDEV_TYPE_AOD) {
-		panel_bl_set_property(panel_bl, &panel_bl->props.acl_opr, ACL_OPR_OFF);
+		panel_bl->props.acl_opr = 0;
 		panel_bl_set_property(panel_bl, &panel_bl->props.acl_pwrsave, ACL_PWRSAVE_OFF);
 		return;
 	}
 #endif
 #ifdef CONFIG_USDM_PANEL_MASK_LAYER
 	if (panel_bl->props.mask_layer_br_hook == MASK_LAYER_HOOK_ON) {
-		panel_bl_set_property(panel_bl, &panel_bl->props.acl_opr, ACL_OPR_OFF);
+		panel_bl->props.acl_opr = 0;
 		panel_bl_set_property(panel_bl, &panel_bl->props.acl_pwrsave, ACL_PWRSAVE_OFF);
 		return;
 	}
@@ -605,8 +603,7 @@ void panel_bl_update_acl_state(struct panel_bl_device *panel_bl)
 		panel_warn("invalid range %d\n", panel_data->props.adaptive_control);
 		return;
 	}
-	panel_bl_set_property(panel_bl, &panel_bl->props.acl_opr,
-			panel_data->props.adaptive_control);
+	panel_bl->props.acl_opr = panel_data->props.adaptive_control;
 	panel_bl_set_property(panel_bl, &panel_bl->props.acl_pwrsave,
 		(panel_data->props.adaptive_control == 0) ?
 		ACL_PWRSAVE_OFF : ACL_PWRSAVE_ON);
@@ -644,6 +641,21 @@ EXPORT_SYMBOL(panel_bl_get_brightness_set_count);
 inline void panel_bl_inc_brightness_set_count(struct panel_bl_device *panel_bl)
 {
 	atomic_inc(&panel_bl->props.brightness_set_count);
+}
+
+void panel_bl_clear_brightness_non_zero_set_count(struct panel_bl_device *panel_bl)
+{
+	atomic_set(&panel_bl->props.brightness_non_zero_set_count, 0);
+}
+
+int panel_bl_get_brightness_non_zero_set_count(struct panel_bl_device *panel_bl)
+{
+	return atomic_read(&panel_bl->props.brightness_non_zero_set_count);
+}
+
+inline void panel_bl_inc_brightness_non_zero_set_count(struct panel_bl_device *panel_bl)
+{
+	atomic_inc(&panel_bl->props.brightness_non_zero_set_count);
 }
 
 int panel_bl_set_subdev(struct panel_bl_device *panel_bl, int id)
@@ -948,10 +960,13 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 		seqname = PANEL_ALPM_SET_BL_SEQ;
 #endif
 
-#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
-	if (panel_get_cur_state(panel) == PANEL_STATE_NORMAL)
-		panel_disable_irq(panel, PANEL_IRQ_DISP_DET);
-#endif
+	if (panel->panel_data.ddi_props.evasion_disp_det) {
+		if (panel_get_cur_state(panel) == PANEL_STATE_NORMAL)
+			panel_disable_irq(panel, PANEL_IRQ_DISP_DET);
+	}
+
+	if (brightness > 0)
+		panel_bl_inc_brightness_non_zero_set_count(panel_bl);
 
 	if (!strcmp(seqname, PANEL_SET_BL_SEQ) && need_update_display_mode) {
 #if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
@@ -983,10 +998,10 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 	wake_up_interruptible_all(&panel_bl->wq.wait);
 	panel_bl_inc_brightness_set_count(panel_bl);
 
-#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
-	if (panel_get_cur_state(panel) == PANEL_STATE_NORMAL)
-		panel_enable_irq(panel, PANEL_IRQ_DISP_DET);
-#endif
+	if (panel->panel_data.ddi_props.evasion_disp_det) {
+		if (panel_get_cur_state(panel) == PANEL_STATE_NORMAL)
+			panel_enable_irq(panel, PANEL_IRQ_DISP_DET);
+	}
 	panel_bl_set_saved_flag(panel_bl, false);
 
 set_br_exit:

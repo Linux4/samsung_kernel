@@ -101,6 +101,15 @@
 #include <crypto/internal/cipher.h>
 #include <linux/kernel.h>
 
+/*
+ * The section is added in accordance with MDFPP requirements.
+ * Further, the CONFIG_CRYPTO_SKC_FIPS should be replaced by
+ * the MDFPP relevant config.
+ */
+#ifdef CONFIG_CRYPTO_SKC_FIPS
+#include "drbg_mdfpp_cast.h"
+#endif
+
 /***************************************************************
  * Backend cipher definitions available to DRBG
  ***************************************************************/
@@ -1516,6 +1525,14 @@ static int drbg_prepare_hrng(struct drbg_state *drbg)
 		return 0;
 
 	drbg->jent = crypto_alloc_rng("jitterentropy_rng", 0, 0);
+	if (IS_ERR(drbg->jent)) {
+		const int err = PTR_ERR(drbg->jent);
+
+		drbg->jent = NULL;
+		if (fips_enabled)
+			return err;
+		pr_info("DRBG: Continuing without Jitter RNG\n");
+	}
 
 	return 0;
 }
@@ -1570,14 +1587,6 @@ static int drbg_instantiate(struct drbg_state *drbg, struct drbg_string *pers,
 		ret = drbg_prepare_hrng(drbg);
 		if (ret)
 			goto free_everything;
-
-		if (IS_ERR(drbg->jent)) {
-			ret = PTR_ERR(drbg->jent);
-			drbg->jent = NULL;
-			if (fips_enabled || ret != -ENOENT)
-				goto free_everything;
-			pr_info("DRBG: Continuing without Jitter RNG\n");
-		}
 
 		reseed = false;
 	}
@@ -2112,7 +2121,19 @@ static int __init drbg_init(void)
 		drbg_fill_array(&drbg_algs[i], &drbg_cores[j], 1);
 	for (j = 0; ARRAY_SIZE(drbg_cores) > j; j++, i++)
 		drbg_fill_array(&drbg_algs[i], &drbg_cores[j], 0);
-	return crypto_register_rngs(drbg_algs, (ARRAY_SIZE(drbg_cores) * 2));
+	ret = crypto_register_rngs(drbg_algs, (ARRAY_SIZE(drbg_cores) * 2));
+
+/*
+ * The section is added in accordance with MDFPP requirements.
+ * Further, the CONFIG_CRYPTO_SKC_FIPS should be replaced by
+ * the MDFPP relevant config.
+ */
+#ifdef CONFIG_CRYPTO_SKC_FIPS
+	/* Call CASTs, in case of fail the kernel panic will be initiated. */
+	drbg_mdfpp_cast();
+#endif
+
+	return ret;
 }
 
 static void __exit drbg_exit(void)

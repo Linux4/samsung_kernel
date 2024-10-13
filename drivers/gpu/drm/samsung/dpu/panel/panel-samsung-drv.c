@@ -1342,9 +1342,13 @@ static void exynos_panel_parse_vendor_params(struct device *dev, struct exynos_p
 		of_property_read_u32(np, "comp_cfg",
 				&decon->config.vendor_pps.comp_cfg);
 
-		if (dsim != NULL)
+		if (dsim != NULL) {
 			dsim->config.lp_force_en = of_property_read_bool(
 				np, "samsung,force-seperate-trans");
+
+			dsim->config.ignore_rx_trail = of_property_read_bool(
+				np, "samsung,ignore-rx-trail");
+		}
 }
 
 static void exynos_panel_parse_vfp_detail(struct exynos_panel *ctx)

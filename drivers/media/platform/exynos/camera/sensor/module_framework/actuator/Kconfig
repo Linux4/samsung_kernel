@@ -136,3 +136,10 @@ config CAMERA_ACT_DW9800_OBJ
         default n
         help
           Use to build DW9800 driver.
+
+config CAMERA_ACT_FP5529_OBJ
+        tristate "Use actuator FP5529"
+	depends on CAMERA_ACT_SELECT
+        default n
+        help
+          Use to build FP5529 driver.

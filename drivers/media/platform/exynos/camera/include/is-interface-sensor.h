@@ -648,6 +648,7 @@ struct is_actuator_ops {
 	int (*set_active)(struct v4l2_subdev *subdev, int enable);
 #endif
 	int (*nrc_soft_landing)(struct v4l2_subdev *subdev);
+	bool (*perform_soft_landing_on_exit)(struct v4l2_subdev *subdev);
 	int (*soft_landing_on_recording)(struct v4l2_subdev *subdev);
 };
 

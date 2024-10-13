@@ -27,6 +27,7 @@
 #define ICL_VOTE_NAME	"ICL"
 #define FCC_VOTE_NAME	"FCC"
 #define CHGEN_VOTE_NAME	"CHGEN"
+#define DCFV_VOTE_NAME	"DCFV"
 
 struct sb_pt {
 	struct notifier_block nb;
@@ -211,10 +212,17 @@ static void clear_state(struct sb_pt *pt, int init_step)
 	pt->adj_op_cnt = 0;
 
 	if (init_step == PT_STEP_NONE) {
+		int prev_dcfv = get_sec_vote_resultf(DCFV_VOTE_NAME);
+
 		pt->ref_cap = 0;
 
 		/* set charging off before re-starting dc */
 		sec_votef(CHGEN_VOTE_NAME, VOTER_PASS_THROUGH, true, SEC_BAT_CHG_MODE_CHARGING_OFF);
+
+		sec_votef(DCFV_VOTE_NAME, VOTER_PASS_THROUGH, false, 0);
+		if (get_sec_vote_resultf(DCFV_VOTE_NAME) == prev_dcfv)
+			sec_vote_refreshf(DCFV_VOTE_NAME);
+
 		sec_votef(CHGEN_VOTE_NAME, VOTER_PASS_THROUGH, false, 0);
 
 		/* clear event */
@@ -473,10 +481,19 @@ static int parse_dt(struct sb_pt *pt, struct device *parent)
 	sb_of_parse_u32(np, pt, min_cap, 200);
 	sb_of_parse_u32(np, pt, fixed_sc_cap, 900);
 	sb_of_parse_u32(np, pt, max_icl, 3000);
-	sb_of_parse_u32(np, pt, vfloat, 4400);
+	sb_of_parse_u32(np, pt, vfloat, 0);
 
 	np = of_find_node_by_name(NULL, "battery");
 	if (np) {
+		if (pt->vfloat == 0) {
+			ret = of_property_read_u32(np, "battery,chg_float_voltage",
+				(unsigned int *)&pt->vfloat);
+			if (ret) {
+				pt_log("vfloat is Empty\n");
+				pt->vfloat = 4400;
+			}
+		}
+
 		ret = of_property_read_string(np,
 			"battery,fuelgauge_name", (const char **)&pt->fg_name);
 		if (ret)
@@ -713,9 +730,7 @@ int sb_pt_monitor(struct sb_pt *pt, int chg_src)
 				POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE, value);
 			sec_pd_detach_with_cc(1);
 
-			value.intval = pt->vfloat;
-			psy_do_property(pt->dc_name, set,
-				POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE, value);
+			sec_votef(DCFV_VOTE_NAME, VOTER_PASS_THROUGH, true, pt->vfloat);
 
 			/* set adj state */
 			pt->adj_state = check_cap(pt);

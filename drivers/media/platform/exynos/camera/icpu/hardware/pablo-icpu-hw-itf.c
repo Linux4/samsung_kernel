@@ -51,6 +51,15 @@ void pablo_icpu_hw_misc_prepare(struct icpu_platform_data *pdata)
 }
 KUNIT_EXPORT_SYMBOL(pablo_icpu_hw_misc_prepare);
 
+void pablo_icpu_hw_set_sw_reset(struct icpu_platform_data *pdata)
+{
+	if (!pdata)
+		return;
+
+	HW_OPS(set_reg_sequence, pdata->num_sw_reset_step, pdata->sw_reset_seq);
+}
+KUNIT_EXPORT_SYMBOL(pablo_icpu_hw_set_sw_reset);
+
 int pablo_icpu_hw_reset(struct icpu_platform_data *pdata, int on)
 {
 	if (!pdata)
@@ -85,7 +94,7 @@ void pablo_icpu_hw_force_powerdown(struct icpu_platform_data *pdata)
 	if (!clk_prepare_err)
 		clk_enable_err = clk_enable(pdata->clk);
 
-	HW_OPS(force_powerdown, pdata->num_force_powerdown_step, pdata->force_powerdown_seq);
+	HW_OPS(set_reg_sequence, pdata->num_force_powerdown_step, pdata->force_powerdown_seq);
 
 	if (!clk_enable_err)
 		clk_disable(pdata->clk);
@@ -205,6 +214,54 @@ static int __get_force_powerdown_sequence(struct device_node *np, struct icpu_pl
 error:
 	kfree(pdata->force_powerdown_seq);
 	pdata->force_powerdown_seq = NULL;
+
+	return ret;
+}
+
+static int __get_sw_reset_sequence(struct device_node *np, struct icpu_platform_data *pdata)
+{
+	int ret;
+	u32 tmp;
+	int i, k;
+	u32 *args;
+	u32 offset;
+
+	if (!of_get_property(np, "sw-reset-seq", &tmp)) {
+		ICPU_ERR("fail to get sw-reset-seq property");
+		return 0;
+	}
+
+	pdata->num_sw_reset_step = tmp / (sizeof(u32) * ICPU_IO_SEQUENCE_LEN);
+
+	pdata->sw_reset_seq =
+		kcalloc(pdata->num_sw_reset_step, sizeof(struct icpu_io_sequence), GFP_KERNEL);
+	if (!pdata->sw_reset_seq) {
+		ICPU_ERR("fail to alloc");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < pdata->num_sw_reset_step; i++) {
+		offset = i * ICPU_IO_SEQUENCE_LEN;
+		args = (u32 *)&pdata->sw_reset_seq[i];
+
+		for (k = 0; k < ICPU_IO_SEQUENCE_LEN; k++) {
+			if (of_property_read_u32_index(np, "sw-reset-seq", offset + k, &args[k])) {
+				ICPU_ERR("icpu fail to get arg, offset(%d), k(%d)", offset, k);
+				ret = -EINVAL;
+				goto error;
+			}
+		}
+
+		ICPU_INFO("[%d] 0x%x 0x%x 0x%x 0x%x %d", i, pdata->sw_reset_seq[i].type,
+			pdata->sw_reset_seq[i].addr, pdata->sw_reset_seq[i].mask,
+			pdata->sw_reset_seq[i].val, pdata->sw_reset_seq[i].timeout);
+	}
+
+	return 0;
+
+error:
+	kfree(pdata->sw_reset_seq);
+	pdata->sw_reset_seq = NULL;
 
 	return ret;
 }
@@ -386,6 +443,10 @@ int pablo_icpu_hw_probe(void *pdev)
 
 	pdata->num_chans = pdata->num_tx_mbox + pdata->num_rx_mbox;
 
+	ret = __get_sw_reset_sequence(np, pdata);
+	if (ret)
+		goto alloc_fail;
+
 	ret = __get_force_powerdown_sequence(np, pdata);
 	if (ret)
 		goto alloc_fail;
@@ -399,6 +460,7 @@ int pablo_icpu_hw_probe(void *pdev)
 alloc_fail:
 	kfree(pdata->tx_infos);
 	kfree(pdata->rx_infos);
+	kfree(pdata->sw_reset_seq);
 	kfree(pdata->force_powerdown_seq);
 	kfree(pdata);
 
@@ -412,6 +474,7 @@ void pablo_icpu_hw_remove(struct icpu_platform_data *pdata)
 
 	kfree(pdata->tx_infos);
 	kfree(pdata->rx_infos);
+	kfree(pdata->sw_reset_seq);
 	kfree(pdata->force_powerdown_seq);
 	kfree(pdata);
 }

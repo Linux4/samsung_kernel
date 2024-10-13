@@ -360,6 +360,7 @@ int mfc_core_run_dec_init(struct mfc_core *core, struct mfc_ctx *ctx)
 	struct mfc_core_ctx *core_ctx = core->core_ctx[ctx->num];
 	struct mfc_dec *dec = ctx->dec_priv;
 	struct mfc_buf *src_mb;
+	unsigned int strm_size;
 
 	/* Initializing decoding - parsing header */
 
@@ -370,16 +371,15 @@ int mfc_core_run_dec_init(struct mfc_core *core, struct mfc_ctx *ctx)
 		return -EAGAIN;
 	}
 
+	strm_size = mfc_dec_get_strm_size(ctx, src_mb);
 	mfc_debug(2, "Preparing to init decoding\n");
-	mfc_debug(2, "[STREAM] Header size: %d, (offset: %lu)\n",
-		src_mb->vb.vb2_buf.planes[0].bytesused, dec->consumed);
+	mfc_debug(2, "[STREAM] Header size: %d, (offset: %u, consumed: %u)\n",
+			strm_size,
+			src_mb->vb.vb2_buf.planes[0].data_offset,
+			dec->consumed);
 
-	if (dec->consumed)
-		mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-				dec->consumed, dec->remained_size);
-	else
-		mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-				0, src_mb->vb.vb2_buf.planes[0].bytesused);
+	mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
+			mfc_dec_get_strm_offset(ctx, src_mb), strm_size);
 
 	mfc_debug(2, "[BUFINFO] Header addr: 0x%08llx\n", src_mb->addr[0][0]);
 	mfc_clean_core_ctx_int_flags(core->core_ctx[ctx->num]);
@@ -442,12 +442,9 @@ int mfc_core_run_dec_frame(struct mfc_core *core, struct mfc_ctx *ctx)
 	if (mfc_check_mb_flag(src_mb, MFC_FLAG_EMPTY_DATA))
 		src_mb->vb.vb2_buf.planes[0].bytesused = 0;
 
-	if (dec->consumed)
-		mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-				dec->consumed, dec->remained_size);
-	else
-		mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-				0, src_mb->vb.vb2_buf.planes[0].bytesused);
+	mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
+			mfc_dec_get_strm_offset(ctx, src_mb),
+			mfc_dec_get_strm_size(ctx, src_mb));
 
 	if (call_bop(ctx, core_set_buf_ctrls, core, ctx, &ctx->src_ctrls[index]) < 0)
 		mfc_err("failed in core_set_buf_ctrls\n");
@@ -464,7 +461,6 @@ int mfc_core_run_dec_frame(struct mfc_core *core, struct mfc_ctx *ctx)
 	if (dec->consumed && IS_TWO_MODE2(ctx)) {
 		mfc_debug(2, "[STREAM][2CORE] clear consumed for next core\n");
 		dec->consumed = 0;
-		dec->remained_size = 0;
 	}
 	return ret;
 }
@@ -501,7 +497,8 @@ int mfc_core_run_dec_last_frames(struct mfc_core *core, struct mfc_ctx *ctx)
 	} else {
 		if (dec->consumed)
 			mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-					dec->consumed, dec->remained_size);
+					mfc_dec_get_strm_offset(ctx, src_mb),
+					mfc_dec_get_strm_size(ctx, src_mb));
 		else
 			mfc_core_set_dec_stream_buffer(core, ctx, src_mb, 0, 0);
 		src_index = src_mb->src_index;

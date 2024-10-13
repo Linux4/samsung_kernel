@@ -109,9 +109,9 @@ static inline void pnobj_deinit(struct pnobj *base)
 #define __PNOBJ_INITIALIZER(_pnobjname, _cmdtype) \
 { .name = (#_pnobjname), .cmd_type = (_cmdtype) }
 
-static inline void INIT_PNOBJ_REFS(struct pnobj_refs *list)
+static inline void INIT_PNOBJ_REFS(struct pnobj_refs *refs)
 {
-	INIT_LIST_HEAD(&list->list);
+	INIT_LIST_HEAD(&refs->list);
 }
 
 static inline struct list_head *get_pnobj_refs_list(struct pnobj_refs *pnobj_refs)
@@ -126,10 +126,17 @@ struct pnobj *pnobj_find_by_name(struct list_head *head, char *name);
 struct pnobj *pnobj_find_by_substr(struct list_head *head, char *substr);
 struct pnobj *pnobj_find_by_pnobj(struct list_head *head, struct pnobj *pnobj);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
-int pnobj_type_compare(void *priv,
+int pnobj_compare(void *priv,
 		struct list_head *a, struct list_head *b);
 #else
-int pnobj_type_compare(void *priv,
+int pnobj_compare(void *priv,
+		const struct list_head *a, const struct list_head *b);
+#endif
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+int pnobj_ref_compare(void *priv,
+		struct list_head *a, struct list_head *b);
+#else
+int pnobj_ref_compare(void *priv,
 		const struct list_head *a, const struct list_head *b);
 #endif
 struct pnobj_refs *create_pnobj_refs(void);
@@ -138,4 +145,5 @@ int get_count_of_pnobj_ref(struct pnobj_refs *pnobj_refs);
 void remove_all_pnobj_ref(struct pnobj_refs *pnobj_refs);
 void remove_pnobj_refs(struct pnobj_refs *pnobj_refs);
 struct pnobj_refs *pnobj_refs_filter(bool (*filter_func)(struct pnobj *), struct pnobj_refs *orig_refs);
+struct pnobj_refs *pnobj_list_to_pnobj_refs(struct list_head *pnobj_list);
 #endif /* __PANEL_OBJ_H__ */

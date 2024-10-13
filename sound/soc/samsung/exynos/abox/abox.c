@@ -3454,18 +3454,17 @@ static void abox_parse_config_file(struct abox_data *data, const struct firmware
 
 static int abox_load_config_file(struct abox_data *data)
 {
-	static const char *file_name[2]= {"abox_solution.conf", "abox_system.conf"};
 	const struct firmware *fw = NULL;
 	int ret, i;
 
 	if (!list_empty(&data->conf.nodes))
 		return 0;
 
-	for(i = 0; i < ARRAY_SIZE(file_name); i++) {
+	for(i = 0; i < ARRAY_SIZE(data->file_name); i++) {
 		abox_init_config(data);
-		ret = request_firmware_direct(&fw, file_name[i], data->dev);
+		ret = request_firmware_direct(&fw, data->file_name[i], data->dev);
 		if (ret < 0) {
-			abox_err(data->dev, "%s request fail: %d\n", file_name[i], ret);
+			abox_err(data->dev, "%s request fail: %d\n", data->file_name[i], ret);
 			return -EAGAIN;
 		}
 		abox_parse_config_file(data, fw);
@@ -4624,6 +4623,11 @@ static int samsung_abox_probe(struct platform_device *pdev)
 		"pmu-pad-ret-skip");
 	if (data->pad_ret_skip)
 		abox_info(dev, "Do not control PAD retention at ABOX\n");
+
+	for (i = 0; i < ARRAY_SIZE(data->file_name); i++) {
+		of_property_read_string_index(np, "samsung,conf-file-name", i, &data->file_name[i]);
+		dev_info(dev, "conf file[%d]: %s\n", i, data->file_name[i]);
+	}
 
 	np_tmp = of_parse_phandle(np, "samsung,abox-gic", 0);
 	if (!np_tmp) {

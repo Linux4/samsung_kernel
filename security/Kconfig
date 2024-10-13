@@ -282,6 +282,19 @@ config LSM
 
 	  If unsure, leave this as the default.
 
+config DDAR
+	bool "Enables dual encryption"
+	default n
+	help
+	Knox Dual-DAR (Data-At-Rest) protection
+
+config DDAR_KEY_DUMP
+	bool "DDAR KEY DUMP"
+	default n
+	help
+	For dumping sensitive keying material for CC Certification test.
+	Enabled only for eng and userdebug builds.
+
 source "security/Kconfig.hardening"
 
 source "security/samsung/defex_lsm/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

@@ -3442,6 +3442,8 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 #endif
 		slsi_rx_ba_update_timer(sdev, data_dev, SLSI_RX_BA_EVENT_VIF_CONNECTED);
 		ndev_data_vif->activated = true;
+
+		slsi_spinlock_lock(&ndev_vif->peer_lock);
 		peer = slsi_get_peer_from_mac(sdev, data_dev, peer_ndi);
 		if (peer) {
 			peer->ndp_count++;
@@ -3463,6 +3465,8 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 		}
 		if (peer)
 			peer->flow_id = flow_id;
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
+
 		if (ndev_data_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START) {
 			dev->flags |= IFF_NOARP;
 			netif_carrier_on(data_dev);

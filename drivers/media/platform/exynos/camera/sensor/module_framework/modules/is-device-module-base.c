@@ -220,8 +220,12 @@ int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 	/* If use CIS_GLOBAL_WORK feature,
 	 * cis global setting need to start after other peri initialize finished
 	 */
-	if (IS_ENABLED(USE_CIS_GLOBAL_WORK) && device->pdata->scenario == SENSOR_SCENARIO_NORMAL)
-		schedule_work(&sensor_peri->cis.global_setting_work);
+	if (IS_ENABLED(USE_CIS_GLOBAL_WORK) && device->pdata->scenario == SENSOR_SCENARIO_NORMAL) {
+		if (sensor_peri->cis.global_setting_work_q != NULL)
+			queue_work(sensor_peri->cis.global_setting_work_q, &sensor_peri->cis.global_setting_work);
+		else
+			schedule_work(&sensor_peri->cis.global_setting_work);
+	}
 
 	pr_info("[MOD:%s] %s(%d)\n", module->sensor_name, __func__, val);
 
@@ -273,9 +277,11 @@ int sensor_module_deinit(struct v4l2_subdev *subdev)
 	if (sensor_peri->actuator) {
 		flush_work(&sensor_peri->actuator->actuator_init_work);
 
-		ret = is_sensor_peri_actuator_softlanding(sensor_peri);
-		if (ret)
-			err("failed to soft landing control\n");
+		if (CALL_ACTUATOROPS(sensor_peri->actuator, perform_soft_landing_on_exit, sensor_peri->subdev_actuator)) {
+			ret = is_sensor_peri_actuator_softlanding(sensor_peri);
+			if (ret)
+				err("failed to soft landing control\n");
+		}
 
 		mutex_lock(&sensor_peri->actuator->control_init_lock);
 		sensor_peri->actuator->actuator_init_state = ACTUATOR_NOT_INITIALIZED;

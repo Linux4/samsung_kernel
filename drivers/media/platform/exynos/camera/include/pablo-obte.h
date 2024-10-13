@@ -16,9 +16,10 @@
  * ENUM defined by OBTE
  * V4L2_CID_IS_OBTE_CONFIG: bit field of value
  * {0} VC_STAT_TYPE, 0=BSP (live), 1=INVALID (emulation)
- * {1} use of custome bayer order, 0=disable, 1=enable
+ * {1} use of custom bayer order, 0=disable, 1=enable
  * {2:3} bayer order, 0=GRGB, 1=RGGB, 2=BGGR, 3=GBRG
- * {4:13} reserved
+ * {4} use of custom sensor binning, 0=disable, 1=enable
+ * {5:9} sensor binning, e.g. 00001(b) = 1x binning, 00010(b) = 2x binning, 01100(b) = 12x binning
  * {14} INPUT BITWIDTH (EX_12BIT), 0=BSP, 1=14BIT (backward compatibility)
  * {15:31} reserved
  */
@@ -27,11 +28,18 @@ enum v4l2_cid_pablo_obte_config_bit {
 	OBTE_CONFIG_BIT_BAYER_ORDER_EN	=	1,
 	OBTE_CONFIG_BIT_BAYER_ORDER_LSB	=	2,
 	OBTE_CONFIG_BIT_BAYER_ORDER_MSB	=	3,
+	OBTE_CONFIG_BIT_SENSOR_BINNING_EN	=	4,
+	OBTE_CONFIG_BIT_SENSOR_BINNING_RATIO	=	5,
+
 	OBTE_CONFIG_BIT_EX_12BIT	=	14, /* to use EX_12BIT 14 in exynos_is_dt.h */
 
 	OBTE_CONFIG_BIT_MAX		=	31,
 };
 
+#define OBTE_CONFIG_BITMASK_SENSOR_BINNING_RATIO 0x3E0
+#define OBTE_CONFIG_GET_SENSOR_BINNING_RATIO(binning) \
+	((((binning) & OBTE_CONFIG_BITMASK_SENSOR_BINNING_RATIO) >> \
+	OBTE_CONFIG_BIT_SENSOR_BINNING_RATIO) * 1000)
 
 #if IS_ENABLED(CONFIG_PABLO_OBTE_SUPPORT)
 bool pablo_obte_is_running(void);

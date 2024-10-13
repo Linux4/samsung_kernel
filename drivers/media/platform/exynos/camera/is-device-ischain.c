@@ -608,9 +608,11 @@ int is_ischain_runtime_suspend(struct device *dev)
 	if (ret)
 		err("clk_off is fail(%d)", ret);
 
-	refcount = atomic_dec_return(&core->resourcemgr.qos_refcount);
-	if (refcount == 0)
+	refcount = atomic_read(&core->resourcemgr.qos_refcount);
+	if (refcount == 1) {
 		is_remove_dvfs(core, START_DVFS_LEVEL);
+		atomic_dec(&core->resourcemgr.qos_refcount);
+	}
 
 #ifdef CAMERA_HW_BIG_DATA_FILE_IO
 	if (is_sec_need_update_to_file())
@@ -650,9 +652,11 @@ int is_ischain_runtime_resume(struct device *dev)
 	/*
 	 * DVFS level should be locked after power on.
 	 */
-	refcount = atomic_inc_return(&core->resourcemgr.qos_refcount);
-	if (refcount == 1)
+	refcount = atomic_read(&core->resourcemgr.qos_refcount);
+	if (refcount == 0) {
 		is_add_dvfs(core, START_DVFS_LEVEL);
+		atomic_inc(&core->resourcemgr.qos_refcount);
+	}
 
 	/* Clock on */
 	ret = pdata->clk_on(&pdev->dev);
@@ -820,6 +824,12 @@ p_sensor_config:
 	if (!cfg) {
 		merr("is_sensor_g_mode is fail", device);
 		return -EINVAL;
+	}
+
+	if (sensor->obte_config & BIT(OBTE_CONFIG_BIT_SENSOR_BINNING_EN)) {
+		sensor->cfg->binning =
+				(u32)OBTE_CONFIG_GET_SENSOR_BINNING_RATIO(sensor->obte_config);
+		minfo("[ISC:D] binning(%u) changed by OBTE\n", device, sensor->cfg->binning);
 	}
 
 	sensor_width = is_sensor_g_width(sensor);

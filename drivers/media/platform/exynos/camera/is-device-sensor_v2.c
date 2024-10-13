@@ -85,6 +85,11 @@ int is_search_sensor_module_with_position(struct is_device_sensor *device,
 	module_enum = device->module_enum;
 	*module = NULL;
 
+	if (position >= SENSOR_POSITION_MAX) {
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	sensor_id = priv->sensor_id[position];
 	sensor_name = priv->sensor_name[position];
 

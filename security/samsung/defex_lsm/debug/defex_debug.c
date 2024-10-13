@@ -151,23 +151,23 @@ void defex_print_msg(const enum defex_log_level msg_type, const char *format, ..
 #endif /* DEFEX_LOG_BUFFER_ENABLE */
 	switch (msg_type) {
 	case MSG_CRIT:
-		pr_crit("%s%s", header, msg + ktime_msg_len);
+		pr_crit("%s%s\n", header, msg + ktime_msg_len);
 		break;
 	case MSG_ERR:
-		pr_err("%s%s", header, msg + ktime_msg_len);
+		pr_err("%s%s\n", header, msg + ktime_msg_len);
 		break;
 	case MSG_WARN:
-		pr_warn("%s%s", header, msg + ktime_msg_len);
+		pr_warn("%s%s\n", header, msg + ktime_msg_len);
 		break;
 	case MSG_INFO:
 	case MSG_TIMEOFF:
-		pr_info("%s%s", header, msg + ktime_msg_len);
+		pr_info("%s%s\n", header, msg + ktime_msg_len);
 		break;
 	case MSG_DEBUG:
-		pr_debug("%s%s", header, msg + ktime_msg_len);
+		pr_debug("%s%s\n", header, msg + ktime_msg_len);
 		break;
 	case MSG_BLOB:
-		pr_crit("%s", msg + ktime_msg_len);
+		pr_crit("%s\n", msg + ktime_msg_len);
 		break;
 	}
 }
@@ -176,7 +176,7 @@ void blob(const char *title, const char *buffer, const size_t bufLen, const int 
 {
 	size_t i = 0, line;
 	size_t j = 0, len = bufLen;
-	int offset = 0;
+	int offset;
 	char c, stringToPrint[MAX_DATA_LEN];
 
 	defex_log_blob("%s", title);
@@ -205,7 +205,7 @@ void blob(const char *title, const char *buffer, const size_t bufLen, const int 
 				offset += snprintf(stringToPrint + offset, MAX_DATA_LEN - offset, " ");
 		}
 
-		offset += snprintf(stringToPrint + offset, MAX_DATA_LEN - offset, " |");
+		snprintf(stringToPrint + offset, MAX_DATA_LEN - offset, " |");
 		defex_log_blob("%s", stringToPrint);
 		memset(stringToPrint, 0, MAX_DATA_LEN);
 		i += line;
@@ -316,7 +316,9 @@ __visible_for_testing ssize_t debug_store(struct kobject *kobj, struct kobj_attr
 		ret = set_cred(i, new_val);
 		break;
 	case DBG_SET_PE_STATUS:
+#ifdef DEFEX_PED_ENABLE
 		privesc_status_store(buf + l);
+#endif /* DEFEX_PED_ENABLE */
 		break;
 	case DBG_SET_IM_STATUS:
 #ifdef DEFEX_IMMUTABLE_ENABLE
@@ -324,10 +326,14 @@ __visible_for_testing ssize_t debug_store(struct kobject *kobj, struct kobj_attr
 #endif /* DEFEX_IMMUTABLE_ENABLE */
 		break;
 	case DBG_SET_SP_STATUS:
+#ifdef DEFEX_SAFEPLACE_ENABLE
 		safeplace_status_store(buf + l);
+#endif /* DEFEX_SAFEPLACE_ENABLE */
 		break;
 	case DBG_SET_INT_STATUS:
+#ifdef DEFEX_INTEGRITY_ENABLE
 		integrity_status_store(buf + l);
+#endif /* DEFEX_INTEGRITY_ENABLE */
 		break;
 	case DBG_GET_LOG:
 		break;

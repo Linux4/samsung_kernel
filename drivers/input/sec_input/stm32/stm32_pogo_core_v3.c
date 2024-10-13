@@ -73,7 +73,7 @@ static void stm32_init_mutex(struct stm32_dev *stm32)
 
 static int stm32_wakeup_source_register(struct stm32_dev *stm32)
 {
-	stm32->stm32_ws = wakeup_source_register(&stm32->client->dev, "stm_key wake lock");
+	stm32->stm32_ws = wakeup_source_register(NULL, "stm_key wake lock");
 	if (IS_ERR_OR_NULL(stm32->stm32_ws))
 		return SEC_ERROR;
 
@@ -272,16 +272,16 @@ int stm32_pogo_v3_start(struct stm32_dev *stm32)
 		goto err_new_i2c_dummy;
 	}
 
+	ret = stm32_init_cmd(stm32);
+	if (IS_SEC_ERROR(ret)) {
+		input_err(true, dev, "Failed to interrupt init\n");
+		goto err_create_device;
+	}
+
 	ret = stm32_wakeup_source_register(stm32);
 	if (IS_SEC_ERROR(ret)) {
 		input_err(true, dev, "Failed to wakeup source register\n");
-		goto err_new_i2c_dummy;
-	}
-
-	ret = device_init_wakeup(dev, 1);
-	if (ret) {
-		input_err(true, dev, "Failed to wakeup source register\n");
-		goto err_config;
+		goto err_wakeup_source_register;
 	}
 
 	stm32_init_mutex(stm32);
@@ -315,12 +315,6 @@ int stm32_pogo_v3_start(struct stm32_dev *stm32)
 		goto interrupt_err;
 	}
 
-	ret = stm32_init_cmd(stm32);
-	if (IS_SEC_ERROR(ret)) {
-		input_err(true, dev, "Failed to interrupt init\n");
-		goto err_create_device;
-	}
-
 	stm32->connect_state = gpio_get_value(stm32->dtdata->gpio_conn);
 	if (stm32->connect_state)
 		atomic_set(&stm32->check_ic_flag, true);
@@ -334,14 +328,14 @@ int stm32_pogo_v3_start(struct stm32_dev *stm32)
 
 	return ret;
 
-err_create_device:
 interrupt_err:
 	stm32_destroy_voting(stm32);
 err_pinctrl:
 	stm32_destroy_mutex(stm32);
-err_config:
 	wakeup_source_unregister(stm32->stm32_ws);
+err_wakeup_source_register:
 err_new_i2c_dummy:
+err_create_device:
 	i2c_unregister_device(stm32->client_boot);
 	input_err(true, dev, "Error at %s\n", __func__);
 	return ret;

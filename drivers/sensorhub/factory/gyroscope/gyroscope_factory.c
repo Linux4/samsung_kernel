@@ -24,6 +24,15 @@
 
 #include <linux/slab.h>
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
@@ -110,7 +119,7 @@ static DEVICE_ATTR_RO(temperature);
 static DEVICE_ATTR_RO(selftest_revised);
 static DEVICE_ATTR(selftest_dps, 0664, selftest_dps_show, selftest_dps_store);
 
-static struct device_attribute *gyro_attrs[] = {
+__visible_for_testing struct device_attribute *gyro_attrs[] = {
 	&dev_attr_power_on,
 	&dev_attr_power_off,
 	&dev_attr_temperature,

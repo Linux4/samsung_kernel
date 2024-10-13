@@ -25,7 +25,9 @@
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
 #endif
-#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
+#include "sdp_adaptive_mipi.h"
+#elif defined(CONFIG_USDM_ADAPTIVE_MIPI)
 #include "adaptive_mipi.h"
 #endif
 #ifdef CONFIG_USDM_COPR_SPI
@@ -106,6 +108,8 @@ int register_common_panel(struct common_panel_info *info)
 			return -EINVAL;
 		}
 	}
+
+	panel_find_max_brightness_from_cpi(info);
 	panel_list[nr_panel++] = info;
 	panel_info("name:%s id:0x%06X rev:%d registered\n",
 			info->name, info->id, info->rev);
@@ -944,7 +948,9 @@ int panel_flush_image(struct panel_device *panel)
 	return call_panel_adapter_func(panel, flush_image);
 }
 
-#if defined(CONFIG_USDM_PANEL_FREQ_HOP) || defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP) ||\
+	defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_param *param)
 {
 	if (!param)
@@ -953,6 +959,12 @@ int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_param *param)
 	return call_panel_adapter_func(panel, set_freq_hop, param);
 }
 #endif
+
+int panel_trigger_recovery(struct panel_device *panel)
+{
+	return call_panel_adapter_func(panel, trigger_recovery);
+}
+
 
 int panel_parse_ap_vendor_node(struct panel_device *panel, struct device_node *node)
 {
@@ -1979,6 +1991,7 @@ read_err:
 	return ret;
 }
 #endif
+EXPORT_SYMBOL(read_panel_id);
 
 __visible_for_testing struct rdinfo *find_panel_rdinfo(struct panel_device *panel, char *name)
 {
@@ -2117,6 +2130,64 @@ int __mockable panel_resource_update_by_name(struct panel_device *panel, char *n
 }
 EXPORT_SYMBOL(panel_resource_update_by_name);
 
+struct dumpinfo *find_panel_dumpinfo(struct panel_device *panel, char *name)
+{
+	struct pnobj *pnobj;
+
+	if (!panel) {
+		panel_err("invalid panel\n");
+		return NULL;
+	}
+
+	pnobj = pnobj_find_by_name(&panel->dump_list, name);
+	if (!pnobj)
+		return NULL;
+
+	return pnobj_container_of(pnobj, struct dumpinfo);
+}
+EXPORT_SYMBOL(find_panel_dumpinfo);
+
+int panel_get_dump_result(struct panel_device *panel, char *name)
+{
+	struct dumpinfo *dump = find_panel_dumpinfo(panel, name);
+
+	if (!dump)
+		return -EINVAL;
+
+	return dump->result;
+}
+
+struct resinfo *panel_get_dump_resource(struct panel_device *panel, char *name)
+{
+	struct dumpinfo *dump = find_panel_dumpinfo(panel, name);
+
+	if (!dump)
+		return NULL;
+
+	return dump->res;
+}
+EXPORT_SYMBOL(panel_get_dump_resource);
+
+bool panel_is_dump_status_success(struct panel_device *panel, char *name)
+{
+	return panel_get_dump_result(panel, name) == DUMP_STATUS_SUCCESS;
+}
+EXPORT_SYMBOL(panel_is_dump_status_success);
+
+int panel_init_dumpinfo(struct panel_device *panel, char *name)
+{
+	struct dumpinfo *dump = find_panel_dumpinfo(panel, name);
+
+	if (!dump)
+		return -EINVAL;
+
+	dump->result = DUMP_STATUS_NONE;
+	set_resource_state(dump->res, RES_UNINITIALIZED);
+
+	return 0;
+}
+EXPORT_SYMBOL(panel_init_dumpinfo);
+
 int panel_dumpinfo_update(struct panel_device *panel, struct dumpinfo *info)
 {
 	int ret;
@@ -2132,6 +2203,7 @@ int panel_dumpinfo_update(struct panel_device *panel, struct dumpinfo *info)
 		return ret;
 	}
 
+	info->result = DUMP_STATUS_NONE;
 	ret = call_dump_func(info);
 	if (unlikely(ret < 0)) {
 		panel_err("dump:%s failed to show\n", get_dump_name(info));

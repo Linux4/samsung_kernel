@@ -83,6 +83,51 @@ enum scsc_subsystem scsc_service_id_subsystem_mapping(enum scsc_service_id id)
 	(((subsys == SYSERR_SUBSYS_WLAN) && (service == SCSC_SERVICE_ID_WLAN)) || \
 	((subsys == SYSERR_SUBSYS_BT) && ((service == SCSC_SERVICE_ID_BT) || (service == SCSC_SERVICE_ID_ANT))))
 
+static void (*check_bt_status_cb)(bool bt_on);
+struct mutex check_bt_status_mutex;
+#define BT_SERVICE_ON true
+#define BT_SERVICE_OFF false
+
+int scsc_service_register_check_bt_status_cb(void(*status_cb)(bool bt_on))
+{
+	SCSC_TAG_INFO(MXMAN, "register check_bt_status_cb");
+
+	mutex_lock(&check_bt_status_mutex);
+
+	if(check_bt_status_cb) {
+		SCSC_TAG_INFO(MXMAN, "already registered check_bt_status_cb");
+		mutex_unlock(&check_bt_status_mutex);
+		return -EINVAL;
+	}
+
+	check_bt_status_cb = status_cb;
+
+	mutex_unlock(&check_bt_status_mutex);
+
+	return 0;
+}
+EXPORT_SYMBOL(scsc_service_register_check_bt_status_cb);
+
+int scsc_service_unregister_check_bt_status_cb(void)
+{
+	SCSC_TAG_INFO(MXMAN, "register check_bt_status_cb");
+
+	mutex_lock(&check_bt_status_mutex);
+
+	if(!check_bt_status_cb) {
+		SCSC_TAG_INFO(MXMAN, "already unregistered check_bt_status_cb");
+		mutex_unlock(&check_bt_status_mutex);
+		return -EINVAL;
+	}
+
+	check_bt_status_cb = NULL;
+
+	mutex_unlock(&check_bt_status_mutex);
+
+	return 0;
+}
+EXPORT_SYMBOL(scsc_service_unregister_check_bt_status_cb);
+
 void srvman_init(struct srvman *srvman, struct scsc_mx *mx)
 {
 	SCSC_TAG_INFO(MXMAN, "\n");
@@ -98,6 +143,8 @@ void srvman_init(struct srvman *srvman, struct scsc_mx *mx)
 	wake_lock_init(NULL, &srvman->sm_wake_lock.ws, "srvman_wakelock");
 #endif
 #endif
+	mutex_init(&check_bt_status_mutex);
+	check_bt_status_cb = NULL;
 	srvman_set_error(srvman, ALLOWED_START_STOP);
 }
 
@@ -114,6 +161,7 @@ void srvman_deinit(struct srvman *srvman)
 	mutex_destroy(&srvman->api_access_mutex);
 	mutex_destroy(&srvman->service_list_mutex);
 	mutex_destroy(&srvman->error_state_mutex);
+	mutex_destroy(&check_bt_status_mutex);
 #ifdef CONFIG_ANDROID
 	wake_lock_destroy(&srvman->sm_wake_lock);
 #endif
@@ -458,6 +506,10 @@ int scsc_mx_service_start(struct scsc_service *service, scsc_mifram_ref ref)
 		return r;
 	}
 
+	mutex_lock(&check_bt_status_mutex);
+	if (service->id == SCSC_SERVICE_ID_BT && check_bt_status_cb)
+		check_bt_status_cb(BT_SERVICE_ON);
+	mutex_unlock(&check_bt_status_mutex);
 #ifdef CONFIG_ANDROID
 	wake_unlock(&srvman->sm_wake_lock);
 #endif
@@ -585,6 +637,10 @@ int scsc_mx_service_stop(struct scsc_service *service)
 		mutex_unlock(&srvman->api_access_mutex);
 		return -EIO; /* operation failed */
 	}
+	mutex_lock(&check_bt_status_mutex);
+	if (service->id == SCSC_SERVICE_ID_BT && check_bt_status_cb)
+		check_bt_status_cb(BT_SERVICE_OFF);
+	mutex_unlock(&check_bt_status_mutex);
 
 #ifdef CONFIG_ANDROID
 	wake_unlock(&srvman->sm_wake_lock);

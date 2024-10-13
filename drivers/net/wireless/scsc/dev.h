@@ -100,6 +100,7 @@
 #define SLSI_80211_MODE_11A 3
 #define SLSI_80211_MODE_11AC 4
 #define SLSI_80211_MODE_11AX 5
+#define SLSI_80211_MODE_11BE 6
 
 #define SLSI_FW_API_RATE_HT_SELECTOR_FIELD  0xc000
 #define SLSI_FW_API_RATE_NON_HT_SELECTED    0x4000
@@ -289,8 +290,14 @@ static inline void ethr_ii_to_subframe_msdu(struct sk_buff *skb)
 	memcpy(skb->data, &msduh, sizeof(struct msduhdr));
 }
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+#define SLSI_TX_PROCESS_ID_MIN          (0xC001)
+#define SLSI_TX_PROCESS_ID_MAX          (0xCF00 - 1)
+#define SLSI_TX_PROCESS_ID_TAS_NO_CFM   (0xCF00)
+#else
 #define SLSI_TX_PROCESS_ID_MIN       (0xC001)
 #define SLSI_TX_PROCESS_ID_MAX       (0xCF00)
+#endif
 #define SLSI_TX_PROCESS_ID_UDI_MIN   (0xCF01)
 #define SLSI_TX_PROCESS_ID_UDI_MAX   (0xCFFE)
 
@@ -308,8 +315,7 @@ static inline void ethr_ii_to_subframe_msdu(struct sk_buff *skb)
 #define SLSI_MAX_FREQUENCY_LIST 20
 #define SLSI_MAX_RX_BA_SESSIONS (32)
 #define SLSI_STA_ACTION_FRAME_BITMAP (SLSI_ACTION_FRAME_PUBLIC | SLSI_ACTION_FRAME_WMM | SLSI_ACTION_FRAME_WNM |\
-				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL |\
-				      SLSI_ACTION_FRAME_RADIO_MEASUREMENT)
+				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL)
 #define SLSI_STA_ACTION_FRAME_SUSPEND_BITMAP (SLSI_ACTION_FRAME_PUBLIC | SLSI_ACTION_FRAME_WMM | SLSI_ACTION_FRAME_WNM |\
 				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL)
 
@@ -1457,6 +1463,41 @@ struct buff_list {
 	int len;
 };
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+struct tas_sar_param {
+	u16 win_num;
+	u16 flags;
+	u16 sar_limit;
+};
+
+enum slsi_tas_mib_band {
+	SLSI_TAS_MIB_BAND_NONE,
+	SLSI_TAS_MIB_BAND_2GHZ,
+	SLSI_TAS_MIB_BAND_5GHZ,
+#if defined(CONFIG_SCSC_WLAN_SUPPORT_6G)
+	SLSI_TAS_MIB_BAND_6GHZ,
+#endif
+	SLSI_TAS_MIB_BAND_MAX,
+};
+
+enum slsi_tas_if_type {
+	SLSI_TAS_IF_TYPE_NONE,
+	SLSI_TAS_IF_TYPE_WIFI,
+	SLSI_TAS_IF_TYPE_BT,
+	SLSI_TAS_IF_TYPE_MAX,
+};
+
+struct slsi_tas_info {
+	struct slsi_spinlock req_lock;
+	struct scsc_wake_lock wlan_wl_tas;
+	struct tas_sar_param deferred_sar_param;
+	struct tas_sar_param previous_sar_param;
+	u16 sar_limit_upper;
+	u16 sar_compliance;
+	bool if_enabled[SLSI_TAS_IF_TYPE_MAX];
+};
+#endif
+
 struct conn_log2us {
 	/* Lock to protect the log buffers */
 	spinlock_t conn_lock;
@@ -1758,6 +1799,9 @@ struct slsi_dev {
 	u32                        fw_build_id;
 	u8                         qsfs_feature_set[SLSI_QSF_BUFF_LEN];
 	u32                        qsf_feature_set_len;
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	struct slsi_tas_info       tas_info;
+#endif
 };
 
 /* Compact representation of channels a ESS has been seen on
@@ -2042,6 +2086,8 @@ static inline int slsi_get_supported_mode(const u8 *peer_ie)
 	}
 	return SLSI_80211_MODE_11B;
 }
+
+#define SLSI_WAKEUP_PKT_MARK 0x80000000
 
 /* Names of full mode HCF files */
 extern char *slsi_mib_file;

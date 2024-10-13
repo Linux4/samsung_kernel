@@ -129,6 +129,8 @@ static int lock_region(struct kbase_gpu_props const *gpu_props, u64 *lockaddr,
 	return 0;
 }
 
+extern void dbg_snapshot_expire_watchdog(void);
+
 static int wait_ready(struct kbase_device *kbdev,
 		unsigned int as_nr)
 {
@@ -141,10 +143,11 @@ static int wait_ready(struct kbase_device *kbdev,
 		;
 	}
 
-	if (WARN_ON_ONCE(max_loops == 0)) {
+	if (max_loops == 0) {
 		dev_err(kbdev->dev,
 			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
 			as_nr);
+		dbg_snapshot_expire_watchdog();			
 		return -1;
 	}
 

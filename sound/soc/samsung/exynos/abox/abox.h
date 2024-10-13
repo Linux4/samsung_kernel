@@ -499,6 +499,7 @@ struct abox_data {
 	struct abox_conf conf;
 	struct list_head firmware_extra;
 	const char *bootargs;
+	const char *file_name[2];
 	struct device *dev_gic;
 	struct device *dev_if[9];
 	struct device *dev_rdma[16];

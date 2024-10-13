@@ -785,6 +785,9 @@ void csi_hw_s_output_dma(u32 __iomem *base_reg, u32 vc, bool enable)
 	u32 val = is_hw_get_reg(base_reg, &csi_dmax_chx_regs[CSIS_DMAX_CHX_R_CTRL]);
 
 	val = is_hw_set_field_value(val, &csi_dmax_chx_fields[CSIS_DMAX_CHX_F_DMA_ENABLE], enable);
+	val = is_hw_set_field_value(val, &csi_dmax_chx_fields[CSIS_DMAX_CHX_F_ADDRESS_VIOLATION_AUTOFLUSH_ENABLE], enable);
+	val = is_hw_set_field_value(val, &csi_dmax_chx_fields[CSIS_DMAX_CHX_F_OVERLAP_AUTOFLUSH_EN], enable);
+
 	is_hw_set_reg(base_reg, &csi_dmax_chx_regs[CSIS_DMAX_CHX_R_CTRL], val);
 }
 
@@ -1366,6 +1369,10 @@ int csi_hw_g_dma_irq_src_vc(u32 __iomem *base_reg, struct csis_irq_src *src, u32
 				BIT(CSIS_ERR_DMA_FSTART_IN_FLUSH_VC) : 0;
 		src->err_id[vc] |= (BIT(vc) & (dma_src >> CSIS_INT_DMA_C2COM_LOST_FLUSH)) ?
 				BIT(CSIS_ERR_DMA_C2COM_LOST_FLUSH_VC) : 0;
+#if IS_ENABLED(CONFIG_CSIS_V5_4_8)
+		src->err_id[vc] |= (BIT(vc) & (dma_src >> CSIS_INT_DMA_ADDR_VIOLATION_IRQ)) ?
+				BIT(CSIS_ERR_DMA_ADDR_VIOLATION_IRQ_VC) : 0;
+#endif
 
 		if (src->err_id[vc])
 			src->err_flag = true;

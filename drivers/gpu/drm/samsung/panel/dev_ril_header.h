@@ -11,6 +11,8 @@
 #if !defined(CONFIG_UML)
 #include <linux/dev_ril_bridge.h>
 #else
+#if !defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
 #include "dev_ril_bridge.h"
+#endif
 #endif
 #endif /* __DEV_RIL_HEADER_H__ */

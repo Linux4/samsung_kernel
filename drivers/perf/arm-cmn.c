@@ -36,7 +36,7 @@
 #define CMN_CI_CHILD_COUNT		GENMASK_ULL(15, 0)
 #define CMN_CI_CHILD_PTR_OFFSET		GENMASK_ULL(31, 16)
 
-#define CMN_CHILD_NODE_ADDR		GENMASK(27, 0)
+#define CMN_CHILD_NODE_ADDR		GENMASK(29, 0)
 #define CMN_CHILD_NODE_EXTERNAL		BIT(31)
 
 #define CMN_MAX_DIMENSION		8
@@ -71,9 +71,11 @@
 #define CMN_DTM_WPn(n)			(0x1A0 + (n) * 0x18)
 #define CMN_DTM_WPn_CONFIG(n)		(CMN_DTM_WPn(n) + 0x00)
 #define CMN_DTM_WPn_CONFIG_WP_DEV_SEL2	GENMASK_ULL(18,17)
-#define CMN_DTM_WPn_CONFIG_WP_COMBINE	BIT(6)
-#define CMN_DTM_WPn_CONFIG_WP_EXCLUSIVE	BIT(5)
-#define CMN_DTM_WPn_CONFIG_WP_GRP	BIT(4)
+#define CMN_DTM_WPn_CONFIG_WP_COMBINE	BIT(9)
+#define CMN_DTM_WPn_CONFIG_WP_EXCLUSIVE	BIT(8)
+#define CMN600_WPn_CONFIG_WP_COMBINE	BIT(6)
+#define CMN600_WPn_CONFIG_WP_EXCLUSIVE	BIT(5)
+#define CMN_DTM_WPn_CONFIG_WP_GRP	GENMASK_ULL(5, 4)
 #define CMN_DTM_WPn_CONFIG_WP_CHN_SEL	GENMASK_ULL(3, 1)
 #define CMN_DTM_WPn_CONFIG_WP_DEV_SEL	BIT(0)
 #define CMN_DTM_WPn_VAL(n)		(CMN_DTM_WPn(n) + 0x08)
@@ -155,6 +157,7 @@
 #define CMN_CONFIG_WP_COMBINE		GENMASK_ULL(27, 24)
 #define CMN_CONFIG_WP_DEV_SEL		GENMASK_ULL(50, 48)
 #define CMN_CONFIG_WP_CHN_SEL		GENMASK_ULL(55, 51)
+/* Note that we don't yet support the tertiary match group on newer IPs */
 #define CMN_CONFIG_WP_GRP		BIT_ULL(56)
 #define CMN_CONFIG_WP_EXCLUSIVE		BIT_ULL(57)
 #define CMN_CONFIG1_WP_VAL		GENMASK_ULL(63, 0)
@@ -595,6 +598,9 @@ static umode_t arm_cmn_event_attr_is_visible(struct kobject *kobj,
 		if ((intf & 4) && !(cmn->ports_used & BIT(intf & 3)))
 			return 0;
 
+		if (chan == 4 && cmn->model == CMN600)
+			return 0;
+
 		if ((chan == 5 && cmn->rsp_vc_num < 2) ||
 		    (chan == 6 && cmn->dat_vc_num < 2))
 			return 0;
@@ -905,15 +911,18 @@ static u32 arm_cmn_wp_config(struct perf_event *event)
 	u32 grp = CMN_EVENT_WP_GRP(event);
 	u32 exc = CMN_EVENT_WP_EXCLUSIVE(event);
 	u32 combine = CMN_EVENT_WP_COMBINE(event);
+	bool is_cmn600 = to_cmn(event->pmu)->model == CMN600;
 
 	config = FIELD_PREP(CMN_DTM_WPn_CONFIG_WP_DEV_SEL, dev) |
 		 FIELD_PREP(CMN_DTM_WPn_CONFIG_WP_CHN_SEL, chn) |
 		 FIELD_PREP(CMN_DTM_WPn_CONFIG_WP_GRP, grp) |
-		 FIELD_PREP(CMN_DTM_WPn_CONFIG_WP_EXCLUSIVE, exc) |
 		 FIELD_PREP(CMN_DTM_WPn_CONFIG_WP_DEV_SEL2, dev >> 1);
+	if (exc)
+		config |= is_cmn600 ? CMN600_WPn_CONFIG_WP_EXCLUSIVE :
+				      CMN_DTM_WPn_CONFIG_WP_EXCLUSIVE;
 	if (combine && !grp)
-		config |= CMN_DTM_WPn_CONFIG_WP_COMBINE;
-
+		config |= is_cmn600 ? CMN600_WPn_CONFIG_WP_COMBINE :
+				      CMN_DTM_WPn_CONFIG_WP_COMBINE;
 	return config;
 }
 
@@ -1242,7 +1251,6 @@ static int arm_cmn_event_init(struct perf_event *event)
 			hw->dn++;
 			continue;
 		}
-		hw->dtcs_used |= arm_cmn_node_to_xp(cmn, dn)->dtc;
 		hw->num_dns++;
 		if (bynodeid)
 			break;
@@ -1255,6 +1263,12 @@ static int arm_cmn_event_init(struct perf_event *event)
 			nodeid, nid.x, nid.y, nid.port, nid.dev, type);
 		return -EINVAL;
 	}
+	/*
+	 * Keep assuming non-cycles events count in all DTC domains; turns out
+	 * it's hard to make a worthwhile optimisation around this, short of
+	 * going all-in with domain-local counter allocation as well.
+	 */
+	hw->dtcs_used = (1U << cmn->num_dtcs) - 1;
 
 	return arm_cmn_validate_group(cmn, event);
 }
@@ -1557,9 +1571,10 @@ static int arm_cmn_init_dtc(struct arm_cmn *cmn, struct arm_cmn_node *dn, int id
 	if (dtc->irq < 0)
 		return dtc->irq;
 
-	writel_relaxed(0, dtc->base + CMN_DT_PMCR);
+	writel_relaxed(CMN_DT_DTC_CTL_DT_EN, dtc->base + CMN_DT_DTC_CTL);
+	writel_relaxed(CMN_DT_PMCR_PMU_EN | CMN_DT_PMCR_OVFL_INTR_EN, dtc->base + CMN_DT_PMCR);
+	writeq_relaxed(0, dtc->base + CMN_DT_PMCCNTR);
 	writel_relaxed(0x1ff, dtc->base + CMN_DT_PMOVSR_CLR);
-	writel_relaxed(CMN_DT_PMCR_OVFL_INTR_EN, dtc->base + CMN_DT_PMCR);
 
 	return 0;
 }
@@ -1615,7 +1630,7 @@ static int arm_cmn_init_dtcs(struct arm_cmn *cmn)
 			dn->type = CMN_TYPE_RNI;
 	}
 
-	writel_relaxed(CMN_DT_DTC_CTL_DT_EN, cmn->dtc[0].base + CMN_DT_DTC_CTL);
+	arm_cmn_set_state(cmn, CMN_STATE_DISABLED);
 
 	return 0;
 }
