@@ -1,0 +1,43 @@
+config PANEL_E1_S6E3FAC_AMB606AW01_FHD
+	bool "LSI S6E3FAC LDI"
+config PANEL_E1_S6E3FAE_AMB616FM01_FHD
+	bool "LSI S6E3FAE LDI"
+config SAMSUNG_DEBUG_DISPLAY
+	bool "Add Samsung Debugging code"
+	default n
+
+config DISPLAY_SAMSUNG
+	bool "mdss config for samsung product"
+	default n
+
+config PANEL_KUNIT
+    bool "KUnit test for panel"
+    depends on SEC_KUNIT
+
+#
+#	PANEL UNIQUE FEATURE
+#
+config DUAL_PANEL
+	depends on DISPLAY_SAMSUNG
+	bool "dual paneloperation"
+	default n
+
+config PARTIAL_UPDATE
+	depends on DISPLAY_SAMSUNG
+	bool "partial update operation"
+	default n
+
+config CABC_FUNCTION
+	depends on DISPLAY_SAMSUNG
+	bool "DDI cabc operation"
+	default n
+
+config SUPPORT_POC_FLASH
+	depends on DISPLAY_SAMSUNG
+	bool "SUPPORT POC FLASH"
+	default n
+
+config OPCODE_PARSER
+	bool "OPCODE PARSER"
+	default n
+

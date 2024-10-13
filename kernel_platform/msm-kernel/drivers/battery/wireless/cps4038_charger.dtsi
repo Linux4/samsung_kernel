@@ -1,0 +1,235 @@
+#include <dt-bindings/battery/sec-battery.h>
+
+&smd {
+	sb_tx: sb-tx {
+	       aov {
+		       high_freq = <144>;
+	       };
+       };
+};
+
+&tlmm {
+	cps_irq_default: cps_irq_default {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,84, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pm8550_gpios {
+	cps_det_default: cps_det_default {
+		GPIO_CONFIG_PUD(PM,pm8550_gpios,9, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&tlmm {
+	cps_en_default: cps_en_default {
+		GPIO_CONFIG_PUD(AP,tlmm,82, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+
+#if 1
+&pm8550ve_gpios {
+	cps_pdrc_default: cps_pdrc_default {
+		GPIO_CONFIG_PUD(PM,pm8550ve_gpios,6, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+#endif
+
+#if 1
+&tlmm {
+	cps_ping_nen_default: cps_ping_nen_default {
+		GPIO_CONFIG_PUD(AP,tlmm,180, FUNC_OUTPUT_HIGH, PULL_NONE);
+	};
+};
+#endif
+
+#if 1
+&tlmm {
+	cps_pdet_b_default: cps_pdet_b_default {
+		GPIO_CONFIG_PUD(AP,tlmm,55, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+#endif
+
+#if 1
+&pm8550vs_g_gpios {
+	cps_mag_det_default: cps_mag_det_default {
+		GPIO_CONFIG_PUD(PM,pm8550vs_g_gpios,5, FUNC_OUTPUT_HIGH, PULL_NONE);
+	};
+};
+#endif
+
+&qupv3_hub_i2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+
+	cps4038_charger: cps4038-charger@38 {
+		compatible = "cps,cps4038-charger";
+		reg = <0x38>;
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cps_irq_default &cps_det_default &cps_en_default &cps_pdrc_default
+#if 1
+			&cps_ping_nen_default
+#endif
+#if 1
+			&cps_pdet_b_default
+#endif
+#if 1
+			&cps_mag_det_default
+#endif
+			>;
+
+		battery,wpc_int = <SEC_GPIO_REF(AP,tlmm,84) 1>; /* MFC_AP_INT */
+		battery,wpc_det = <SEC_GPIO_REF(PM,pm8550_gpios,9) 0>; /* WPC_DET */
+#if 0
+		battery,mst_pwr_en = <SEC_GPIO_REF(${cps_pwr_en_gpio}) 0>; /* MST_PWR_EN */
+#endif
+#if 1
+		battery,wpc_ping_nen = <SEC_GPIO_REF(AP,tlmm,180) 1>; /* PING_NEN */
+#endif
+#if 1
+		battery,wpc_pdet_b = <SEC_GPIO_REF(AP,tlmm,55) 1>; /* PDET_B */
+#endif
+		battery,wpc_en = <SEC_GPIO_REF(AP,tlmm,82) 0>; /* WPC_EN */
+#if 1
+		battery,wpc_pdrc = <SEC_GPIO_REF(PM,pm8550ve_gpios,6) 1>; /* VRECT_INT */
+#endif
+#if 1
+		battery,wpc_mag_det = <SEC_GPIO_REF(PM,pm8550vs_g_gpios,5) 0>; /* MAG_DET */
+#endif
+
+		battery,charger_name = "max77775-charger";
+		battery,fuelgauge_name = "max77775-fuelgauge";
+		battery,wireless_charger_name = "cps4038-charger";
+		battery,wc_cover_rpp = <0x44>;
+		battery,phone_fod_threshold = <0x3b>;
+		battery,wireless20_vout_list = <WIRELESS_VOUT_9V /* 0xA0 */
+						WIRELESS_VOUT_12V /* 0xA1 */
+						WIRELESS_VOUT_12V /* 0xA2 */
+						WIRELESS_VOUT_12V /* 0xA3 */
+						WIRELESS_VOUT_12V /* 0xA4 */
+						WIRELESS_VOUT_12V>; /* 0xA5 */
+		battery,wireless20_vrect_list = <MFC_AFC_CONF_12V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX>;
+		battery,wireless20_max_power_list = <SEC_WIRELESS_RX_POWER_12W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W>;
+
+		battery,buds_fod_ta_thresh = <0x0898>; /* 2200mW */
+		battery,wpc_vout_ctrl_full = <WIRELESS_VOUT_5V_STEP>;
+		battery,mis_align_guide;
+		battery,mis_align_target_vout = <5000>;
+		battery,mpp_epp_vout = <WIRELESS_VOUT_12V>;
+
+		fod_list {
+			count = <1>;
+
+			pad_0x00 { /* DEFAULT PAD */
+				bpp { /* DEFAULT OP MODE */
+					flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(USE_CC) | SET_FOD_FULL(ADD))>;
+					cc = <0x4E 0x0F 0x4E 0x10 0x4E 0x0C 0x4E 0x0C 0x4E 0x0C 0x4E 0x0C 0x4E 0x0D 0x4E 0x0D 0x4E 0x0D 0x4E 0x0D>;
+					full = <0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F
+						0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F>;
+				};
+
+				ppde {
+					flag = <(SET_FOD_CC(USE_DEF_OP) | SET_FOD_CV(USE_DEF_OP) | SET_FOD_FULL(USE_DEF_OP))>;
+				};
+
+				epp {
+					flag = <(SET_FOD_CC(USE_DEF_OP) | SET_FOD_CV(USE_DEF_OP) | SET_FOD_FULL(USE_DEF_OP))>;
+				};
+
+				mpp {
+					flag = <(SET_FOD_CC(USE_DEF_OP) | SET_FOD_CV(USE_DEF_OP) | SET_FOD_FULL(USE_DEF_OP))>;
+				};
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/eureka/wireless/cps4038/cps4038_charger.e1q.dtsi */
+#include <dt-bindings/battery/sec-battery.h>
+
+&cps_pdrc_default {
+	power-source = <1>; /* need to set default MV gpio to LV */
+};
+
+&cps_det_default {
+	power-source = <1>; /* need to set default MV gpio to LV */
+};
+
+#if 1
+&cps_mag_det_default {
+	power-source = <1>; /* need to set default MV gpio to LV */
+};
+#endif
+
+&cps4038_charger {
+	battery,unknown_cmb_ctrl;
+	battery,default_clamp_volt;
+	battery,tx_max_op_freq = <1450>;
+	battery,tx_min_op_freq = <1120>;
+	battery,wireless20_iec_ploss_fod_enable = <0x1>;
+	battery,tx_fod_gain = <0x74>;
+	battery,buds_fod_thresh1 = <0x0DAC>;
+	battery,buds_fod_ta_thresh = <0x0DAC>;
+	battery,cep_timeout_xac = <900>;
+
+	fod_list {
+		epp_ref_qf = <0x24>;
+		epp_ref_rf = <0x69>;
+
+		count = <3>;
+
+		pad_0x00 { /* DEFAULT */
+			bpp { /* DEFAULT OP MODE */
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(ADD) | SET_FOD_FULL(ADD))>;
+				cc = <0x52 0x0E 0x52 0x0E 0x52 0x0A 0x52 0x0A 0x52 0x0A 0x52 0x0A 0x52 0x0B 0x52 0x0B 0x52 0x0B 0x52 0x0B>;
+				cv = <0x52 0x16 0x52 0x16 0x52 0x12 0x52 0x12 0x52 0x12 0x52 0x12 0x52 0x13 0x52 0x13 0x52 0x13 0x52 0x13>;
+				full = <0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F>;
+			};
+
+			epp {
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(ADD) | SET_FOD_FULL(ADD))>;
+				cc = <0x65 0x1B 0x65 0x1B 0x65 0x16 0x65 0x16 0x65 0x19 0x65 0x19 0x62 0x1D 0x62 0x1D 0x62 0x1D 0x0E 0x03>;
+				cv = <0x65 0x23 0x65 0x23 0x65 0x1E 0x65 0x1E 0x65 0x21 0x65 0x21 0x62 0x25 0x62 0x25 0x62 0x25 0x0E 0x03>;
+				full = <0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0x0E 0x03>;
+			};
+
+			ppde {
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(ADD) | SET_FOD_FULL(USE_DEF_OP))>;
+				cc = <0xA0 0x4F 0xA0 0x4F 0xA0 0x3B 0xA0 0x3D 0xA0 0x3E 0xA0 0x3E 0xA0 0x3E 0xA0 0x3B 0xA0 0x39 0xA0 0x39>;
+				cv = <0xA0 0x57 0xA0 0x57 0xA0 0x43 0xA0 0x45 0xA0 0x46 0xA0 0x46 0xA0 0x46 0xA0 0x43 0xA0 0x41 0xA0 0x41>;
+			};
+		};
+
+		pad_0xA3 { /* p2400 */
+			epp {
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(ADD) | SET_FOD_FULL(ADD))>;
+				cc = <0x65 0x41 0x65 0x41 0x65 0x3C 0x65 0x3C 0x65 0x3E 0x65 0x3E 0x62 0x43 0x62 0x43 0x62 0x43 0x0E 0x0A>;
+				cv = <0x65 0x49 0x65 0x49 0x65 0x44 0x65 0x44 0x65 0x46 0x65 0x46 0x62 0x4B 0x62 0x4B 0x62 0x4B 0x62 0x4B>;
+				full = <0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F>;
+			};
+		};
+
+		pad_0x18 { /* p2400 */
+			epp {
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(ADD) | SET_FOD_FULL(ADD))>;
+				cc = <0x65 0x41 0x65 0x41 0x65 0x3C 0x65 0x3C 0x65 0x3E 0x65 0x3E 0x62 0x43 0x62 0x43 0x62 0x43 0x0E 0x0A>;
+				cv = <0x65 0x49 0x65 0x49 0x65 0x44 0x65 0x44 0x65 0x46 0x65 0x46 0x62 0x4B 0x62 0x4B 0x62 0x4B 0x62 0x4B>;
+				full = <0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F>;
+			};
+		};
+	};
+};
