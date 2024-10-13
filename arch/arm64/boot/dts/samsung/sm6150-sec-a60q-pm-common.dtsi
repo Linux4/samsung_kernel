@@ -1,0 +1,191 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include <dt-bindings/input/qcom,qpnp-power-on.h>
+
+&soc {
+	/* AP Thermistor table */
+	sec_thermistor@0 {
+		compatible = "samsung,sec-ap-thermistor";
+		status = "okay";
+		io-channels = <&pm6150_vadc ADC_AMUX_THM2_PU2>;
+		io-channel-names = "ap_therm";
+		adc_array = <1992 2292 2592 3042 3500 4223 4596 4731 4947 5100
+				5210 5455 5528 5820 6017 6222 6422 6485 6808 7004
+				7224 7482 7765 8055 8310 8546 8866 9082 9348 9614
+				9850 10211 10469 10779 11159 11361 11752 12096 12352 12841
+				13112 13485 13790 13982 14456 14802 15169 15486 15706 16215
+				16453 16930 17305 17291 17972 18157 18603 18961 19367 20783
+				21527 23603 24753 25734 26491 27114>;
+		temp_array = <900 850 800 750 700 650 620 610 600 590
+				580 570 560 550 540 530 520 510 500 490
+				480 470 460 450 440 430 420 410 400 390
+				380 370 360 350 340 330 320 310 300 290
+				280 270 260 250 240 230 220 210 200 190
+				180 170 160 150 140 130 120 110 100 50
+				0 (-50) (-100) (-150) (-200) (-250)>;
+	};
+
+	/* PA Thermistor table */
+	sec_thermistor@1 {
+		compatible = "samsung,sec-pa-thermistor";
+		status = "okay";
+		io-channels = <&pm6150l_vadc ADC_AMUX_THM2_PU2>;
+		io-channel-names = "pa_therm";
+		adc_array = <1764 2164 2614 3114 3639 4389 4745 4888 5095 5253
+				5413 5605 5789 5983 6184 6383 6596 6750 7006 7237
+				7487 7677 8001 8274 8535 8764 9075 9328 9593 9895
+				10171 10481 10790 11074 11414 11686 12066 12388 12667 13083
+				13378 13740 14053 14321 14731 15079 15439 15776 16040 16483
+				16748 17168 17576 17658 18211 18553 18882 19237 19599 20891
+				22109 23850 24991 25891 26621 27215>;
+		temp_array = <900 850 800 750 700 650 620 610 600 590
+				580 570 560 550 540 530 520 510 500 490
+				480 470 460 450 440 430 420 410 400 390
+				380 370 360 350 340 330 320 310 300 290
+				280 270 260 250 240 230 220 210 200 190
+				180 170 160 150 140 130 120 110 100 50
+				0 (-50) (-100) (-150) (-200) (-250)>;
+	};
+
+	/* WiFi Thermistor table */
+	sec_thermistor@2 {
+		compatible = "samsung,sec-wf-thermistor";
+		status = "okay";
+		io-channels = <&pm6150l_vadc ADC_AMUX_THM3_PU2>;
+		io-channel-names = "wf_therm";
+		adc_array = <1720 2120 2520 3020 3552 4270 4633 4763 4983 5134
+				5251 5491 5601 5863 6061 6264 6452 6554 6863 7069
+				7281 7533 7818 8110 8371 8597 8916 9134 9399 9675
+				9946 10248 10545 10843 11231 11435 11832 12160 12414 12905
+				13180 13538 13856 13960 14526 14875 15245 15561 15761 16288
+				16539 16996 17383 17376 18047 18253 18680 19039 19431 20881
+				21580 23695 24840 25791 26541 27148>;
+		temp_array = <900 850 800 750 700 650 620 610 600 590
+				580 570 560 550 540 530 520 510 500 490
+				480 470 460 450 440 430 420 410 400 390
+				380 370 360 350 340 330 320 310 300 290
+				280 270 260 250 240 230 220 210 200 190
+				180 170 160 150 140 130 120 110 100 50
+				0 (-50) (-100) (-150) (-200) (-250)>;
+	};
+
+};
+
+&spmi_bus {
+	qcom,pm6150@0{
+		qcom,power-on@800 {
+			interrupts = <0x0 0x8 0x0 IRQ_TYPE_NONE>,
+					<0x0 0x8 0x1 IRQ_TYPE_NONE>,
+					<0x0 0x8 0x4 IRQ_TYPE_NONE>,
+					<0x0 0x8 0x5 IRQ_TYPE_NONE>;
+			interrupt-names = "kpdpwr", "resin",
+					"resin-bark", "kpdpwr-resin-bark";
+			qcom,store-hard-reset-reason;
+			qcom,s3-debounce = <128>;
+
+			qcom,pon_1 {
+				qcom,support-reset = <0>;
+			};
+
+			qcom,pon_2 {
+				qcom,support-reset = <0>;
+			};
+
+			qcom,pon_3 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR_RESIN>;
+				qcom,support-reset = <1>;
+				qcom,pull-up = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <1000>;
+				qcom,s2-type = <PON_POWER_OFF_TYPE_DVDD_HARD_RESET>;
+				qcom,use-bark;
+			};
+		};
+	};
+
+	qcom,pm6150l@5 {
+		flash_led: qcom,leds@d300 {
+			pm6150l_flash0: qcom,flash_0 {
+				label = "flash";
+				qcom,led-name = "led:flash_0";
+				qcom,max-current = <1500>;
+				qcom,default-led-trigger = "flash0_trigger";
+				qcom,id = <0>;
+				qcom,current-ma = <1400>;
+				qcom,duration-ms = <1280>;
+				qcom,ires-ua = <12500>;
+				qcom,hdrm-voltage-mv = <325>;
+				qcom,hdrm-vol-hi-lo-win-mv = <100>;
+				qcom,record-current-ma = <200>;
+			};
+			pm6150l_torch0: qcom,torch_0 {
+				label = "torch";
+				qcom,led-name = "led:torch_0";
+				qcom,max-current = <500>;
+				qcom,default-led-trigger = "torch0_trigger";
+				qcom,id = <0>;
+				qcom,current-ma = <300>;
+				qcom,ires-ua = <12500>;
+				qcom,hdrm-voltage-mv = <325>;
+				qcom,hdrm-vol-hi-lo-win-mv = <100>;
+			};
+		};			
+	};
+};
+&pm6150_gpios {
+    interrupts = <0x0 0xc0 0 IRQ_TYPE_NONE>,
+            <0x0 0xc1 0 IRQ_TYPE_NONE>,
+            <0x0 0xc2 0 IRQ_TYPE_NONE>,
+            <0x0 0xc3 0 IRQ_TYPE_NONE>,
+            <0x0 0xc6 0 IRQ_TYPE_NONE>,
+            <0x0 0xc7 0 IRQ_TYPE_NONE>,
+            <0x0 0xc9 0 IRQ_TYPE_NONE>;
+    interrupt-names = "pm6150_gpio1", "pm6150_gpio2",
+            "pm6150_gpio3", "pm6150_gpio4",
+            "pm6150_gpio7", "pm6150_gpio8",
+            "pm6150_gpio10";
+    qcom,gpios-disallowed = <5 6 9>;
+};
+
+&pm6150_vadc {
+	sdm_therm {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "ap_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+&pm6150l_vadc {
+	rf_pa0_therm {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "pa_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+
+	rf_pa1_therm {
+		reg = <ADC_AMUX_THM3_PU2>;
+		label = "wf_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};

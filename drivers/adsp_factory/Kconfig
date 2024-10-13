@@ -195,3 +195,12 @@ config FLIP_COVER_DETECTOR_FACTORY
 	help
 	  flip_cover_detector factory driver.
 	  provide sysfs for cover status by nfc.
+
+config VEML3328_FACTORY
+	tristate "factory test for SSC - veml3328"
+	default n
+	help
+	  veml3328 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.

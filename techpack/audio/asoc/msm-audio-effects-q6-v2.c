@@ -957,6 +957,15 @@ int msm_audio_effects_pbe_handler(struct audio_client *ac,
 				rc = -EINVAL;
 				goto invalid_config;
 			}
+
+			if ((pbe->config.bandpass_filter_order > 3) ||
+				(pbe->config.bandpass_filter_order < 1)) {
+				pr_err("%s: Invalid BPF order\n",
+					__func__);
+				rc = -EINVAL;
+				goto invalid_config;
+			}
+
 			if (command_config_state != CONFIG_SET)
 				break;
 			max_params_length =

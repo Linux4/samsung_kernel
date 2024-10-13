@@ -1181,6 +1181,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
 	switch (cmd->op_code) {
 	case CAM_SENSOR_PROBE_CMD: {
+		CAM_INFO(CAM_SENSOR, "Probe command received for %d", s_ctrl->soc_info.index);
 		if (s_ctrl->is_probe_succeed == 1) {
 			CAM_ERR(CAM_SENSOR,
 				"Already Sensor Probed in the slot");
@@ -1301,6 +1302,24 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 
 #if 0
 		if (rc < 0) {
+			cam_sensor_power_down(s_ctrl);
+			msleep(20);
+			goto free_power_settings;
+		}
+#endif
+
+#if defined(CONFIG_SEC_GTA4XLVE_PROJECT)
+		if ((rc < 0) &&
+			(((s_ctrl->soc_info.index == 0) && (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_S5K4HA)) ||
+			 ((s_ctrl->soc_info.index == 1) && (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_GC5035)) ||
+			 ((s_ctrl->soc_info.index == 8) && (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_GC5035))))
+		{
+			CAM_ERR(CAM_SENSOR,
+				"Probe failed - slot:%d,slave_addr:0x%x,sensor_id:0x%x",
+				s_ctrl->soc_info.index,
+				s_ctrl->sensordata->slave_info.sensor_slave_addr,
+				s_ctrl->sensordata->slave_info.sensor_id);
+			rc = -EINVAL;
 			cam_sensor_power_down(s_ctrl);
 			msleep(20);
 			goto free_power_settings;
@@ -1736,6 +1755,8 @@ init:
 #if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
 #if defined (CONFIG_SEC_A52Q_PROJECT)
 			if ((s_ctrl->soc_info.index == 4)||(s_ctrl->soc_info.index == 3)) {
+#elif defined(CONFIG_SEC_GTA4XLVE_PROJECT)
+            if ((s_ctrl->soc_info.index == 1)||(s_ctrl->soc_info.index == 8)) {
 #elif defined(CONFIG_SEC_A72Q_PROJECT)
 			if (s_ctrl->soc_info.index == 4) {
 #endif			

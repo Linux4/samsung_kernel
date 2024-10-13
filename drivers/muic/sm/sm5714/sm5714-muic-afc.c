@@ -141,6 +141,7 @@ EXPORT_SYMBOL(muic_request_disable_afc_state);
 int muic_check_fled_state(int enable, int mode)
 {
 	struct sm5714_muic_data *muic_data = afc_init_data;
+	int hv_voltage = 9;
 
 	pr_info("[%s:%s] enable(%d), mode(%d)\n", MUIC_DEV_NAME, __func__,
 			enable, mode);
@@ -166,7 +167,10 @@ int muic_check_fled_state(int enable, int mode)
 
 	if ((muic_data->fled_torch_enable == false) &&
 			(muic_data->fled_flash_enable == false)) {
-		if (muic_data->hv_voltage == 5) {
+		if (muic_data->pdata)
+			hv_voltage = muic_afc_request_voltage_check(muic_data->pdata->afc_request_cause, 9);
+
+		if (muic_data->hv_voltage == 5 || hv_voltage != 9) {
 			pr_info("[%s:%s] skip high voltage setting\n",
 					MUIC_DEV_NAME, __func__);
 			return 0;
@@ -473,11 +477,17 @@ int sm5714_muic_voltage_control(struct sm5714_muic_data *muic_data,
 static void muic_afc_torch_work(struct work_struct *work)
 {
 	struct sm5714_muic_data *muic_data = afc_init_data;
+	int voltage = 5;
+
+	if (muic_data && muic_data->pdata) {
+		voltage = muic_afc_request_voltage_check(muic_data->pdata->afc_request_cause, 9);
+	}
 
 	pr_info("[%s:%s]\n", MUIC_DEV_NAME, __func__);
+	pr_info("[%s:%s] voltage:%d\n", MUIC_DEV_NAME, __func__, voltage);
 
-	if ((muic_data->fled_torch_enable == 1) || (muic_data->fled_flash_enable == 1)) {
-		pr_info("[%s:%s] FLASH or Torch On, Skip 5V -> 9V\n",
+	if ((muic_data->fled_torch_enable == 1) || (muic_data->fled_flash_enable == 1) || (voltage != 9)) {
+		pr_info("[%s:%s] FLASH or Torch On or AFC 5V requested, Skip 5V -> 9V\n",
 			MUIC_DEV_NAME, __func__);
 		return;
 	}
@@ -536,6 +546,7 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 	union power_supply_propval value;
 	int retry = 0;
 	int dev1 = 0, dev2 = 0;
+	int afc_voltage = 9;
 
 	pr_info("[%s:%s] AFC_TA_ATTACHED\n", MUIC_DEV_NAME, __func__);
 
@@ -608,6 +619,18 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 		pr_info("[%s:%s] FLASH or Torch On, Skip AFC\n",
 			MUIC_DEV_NAME, __func__);
 		muic_data->attached_dev = ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC;
+		muic_notifier_attach_attached_dev(muic_data->attached_dev);
+		return 0;
+	}
+
+	if (muic_data && muic_data->pdata) {
+		afc_voltage = muic_afc_request_voltage_check(muic_data->pdata->afc_request_cause, 9);
+	}
+
+	if (afc_voltage == 5) {
+		pr_info("[%s:%s] Requested AFC Voltage is 5, Skip AFC\n",
+			MUIC_DEV_NAME, __func__);
+		muic_data->attached_dev = ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC;
 		muic_notifier_attach_attached_dev(muic_data->attached_dev);
 		return 0;
 	}

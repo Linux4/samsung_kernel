@@ -1,0 +1,51 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	tas25xx_gpio_default: tas25xx_gpio_default {
+		mux {
+			pins = "gpio90", "gpio94", "gpio118";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio90", "gpio94", "gpio118";
+			bias-disable; /* No PULL */
+		};
+	};
+};
+
+&lpi_tlmm {
+	lpi_i2s1_sck_active: lpi_i2s1_sck_active {
+		config {
+			drive-strength = <4>;
+		};
+	};
+
+	lpi_i2s1_ws_active: lpi_i2s1_ws_active {
+		config {
+			drive-strength = <4>;
+		};
+	};
+
+	lpi_i2s1_sd0_active: lpi_i2s1_sd0_active {
+		config {
+			drive-strength = <4>;
+		};
+	};
+
+	lpi_i2s1_sd1_active: lpi_i2s1_sd1_active {
+		config {
+			drive-strength = <4>;
+		};
+	};
+};
+

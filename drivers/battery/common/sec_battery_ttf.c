@@ -12,6 +12,11 @@
 #include "sec_battery.h"
 #include "sec_battery_ttf.h"
 
+#define is_ttf_thermal_zone(thermal_zone) ( \
+	thermal_zone == BAT_THERMAL_NORMAL || \
+	thermal_zone == BAT_THERMAL_COOL1 || \
+	thermal_zone == BAT_THERMAL_COOL2)
+
 int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
@@ -62,12 +67,11 @@ int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 		return 60;	/* minimum 1minutes */
 }
 
-#define FULL_CAPACITY 850
 int sec_calc_ttf_to_full_capacity(struct sec_battery_info *battery, unsigned int ttf_curr)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
 	int i, cc_time = 0, cv_time = 0;
-	int soc = FULL_CAPACITY;
+	int soc = get_full_capacity(battery->fs) * 10;
 	int charge_current = ttf_curr;
 	int design_cap = battery->ttf_d->ttf_capacity;
 
@@ -133,7 +137,7 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 			charge = battery->ttf_d->ttf_wireless_charge_current;
 #if defined(CONFIG_PDIC_NOTIFIER)
 		} else if (is_pd_apdo_wire_type(battery->cable_type) ||
-			(is_pd_fpdo_wire_type(battery->cable_type) && battery->hv_pdo)) {
+			(is_pd_fpdo_wire_type(battery->cable_type) && battery->pdic_info.sink_status.available_pdo_num > 1)) {
 			if (battery->pd_max_charge_power > HV_CHARGER_STATUS_STANDARD4) {
 				charge = battery->ttf_d->ttf_dc45_charge_current;
 			} else if (battery->pd_max_charge_power > HV_CHARGER_STATUS_STANDARD3) {
@@ -151,8 +155,8 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 			charge = (battery->max_charge_power / 5) > battery->pdata->charging_current[battery->cable_type].fast_charging_current ?
 					battery->pdata->charging_current[battery->cable_type].fast_charging_current : (battery->max_charge_power / 5);
 		}
-		if (battery->batt_full_capacity > 0 && battery->batt_full_capacity < 100) {
-			pr_info("%s: time to 85 percent\n", __func__);
+		if (is_full_capacity(battery->fs)) {
+			pr_info("%s: time to %d percent\n", __func__, battery->batt_full_capacity);
 			battery->ttf_d->timetofull =
 				sec_calc_ttf(battery, charge) - sec_calc_ttf_to_full_capacity(battery, charge);
 		} else {
@@ -328,7 +332,7 @@ int ttf_display(struct sec_battery_info *battery)
 
 	if (((battery->status == POWER_SUPPLY_STATUS_CHARGING) ||
 		(battery->status == POWER_SUPPLY_STATUS_FULL && battery->capacity != 100)) &&
-		!battery->swelling_mode)
+		is_ttf_thermal_zone(battery->thermal_zone))
 		return battery->ttf_d->timetofull;
 	else
 		return 0;

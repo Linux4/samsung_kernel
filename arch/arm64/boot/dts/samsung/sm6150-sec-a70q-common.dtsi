@@ -1,0 +1,202 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/clock/qcom,gcc-sm6150.h>
+#include "sm6150-sec-a70q-audio.dtsi"
+#include "sm6150-sec-a70q-mst-r00.dtsi"
+
+&sdhc_2 {
+	cd-gpios = <&tlmm 99 0x0>;
+	sec,tflash-en-gpio = <&tlmm 121 0x0>;     /* T_Flash EN - GPIO121 */
+};
+
+&soc {
+	pm6150l_rid_adc {
+		status = "okay";
+		compatible = "pm6150l_rid_adc";
+
+		interrupt-parent = <&spmi_bus>;
+		pm6150l_rid_adc,irq-gpio = <&pm6150l_gpios 9 GPIO_ACTIVE_LOW>;
+		jigon-gpios = <&pm6150l_gpios 11 GPIO_ACTIVE_LOW>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&rid_adc_irq_default &gpio11_dig_out_default>;
+
+		io-channels = <&pm6150l_vadc ADC_GPIO4>;
+		io-channel-names = "rid_adc_channel";
+	};
+
+	sec_detect_conn {
+		compatible = "samsung,sec_detect_conn";
+		sec,det_conn_gpios = <&tlmm 103 0>; /* UB_CON_DETECT */
+		sec,det_conn_name = "UB_CONNECT";
+		sec,det_conn_irq_type = <3>; /*UB_CON_DETECT FALLING, RIGING EDGE*/
+
+		sec,det_pm_conn_gpios = <&pm6150_gpios 8 0>; /* UB_CONNECT */
+		sec,det_pm_conn_name = "SUB_CONNECT";
+
+		pinctrl-names = "det_ap_connect", "det_pm_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+		pinctrl-1 = <&detect_conn_pm_setting>;
+	};
+
+	sec_abc {
+		compatible = "samsung,sec_abc";
+		status = "okay";
+
+		gpu {
+			gpu,label="GPU fault";
+			gpu,threshold_count=<20>;
+			gpu,threshold_time=<1200>;
+		};
+
+		aicl {
+			aicl,label="battery aicl";
+			aicl,threshold_count=<5>;
+			aicl,threshold_time=<300>;
+		};
+	};
+
+	abc_hub {
+		compatible = "samsung,abc_hub";
+		status = "okay";
+
+		pinctrl-names = "det_ap_connect", "det_pm_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+		pinctrl-1 = <&detect_conn_pm_setting>;
+
+		bootc {
+			bootc,time_spec_user = <100000>; /* user binary user build */
+			bootc,time_spec_eng = <100000>; /* user binary eng build */
+			bootc,time_spec_fac = <100000>; /* factory binary */
+		};
+
+		cond {
+			sec,det_conn_gpios = <&tlmm 103 0>; /* UB_CON_DETECT */
+			sec,det_conn_name = "ub";
+			sec,det_pm_conn_gpios = <&pm6150_gpios 8 0>; /* SUB_CONNECT */
+			sec,det_pm_conn_name = "sub";
+		};
+	};
+
+	hall {
+                status = "okay";
+                compatible = "hall";
+                linux,input-type = <1>;
+                linux,code = <21>;
+                hall,gpio_flip_cover = <&pm6150_gpios 10 0x1>;
+                debounce-interval = <15>;
+		pinctrl-names = "default";
+	        pinctrl-0 = <&hall_default>;
+        };
+
+        certify_hall {
+		status = "okay";
+                compatible = "certify_hall";
+                linux,input-type = <1>;
+                linux,code = <27>;
+                certify_hall,gpio_certify_cover = <&tlmm 96 0x1>;
+                debounce-interval = <15>;
+		pinctrl-names = "default";
+	        pinctrl-0 = <&certify_hall_default>;
+        };
+
+	qupv3_se4_afc: afc@a80000 { 
+		compatible = "pm6150_afc";
+		reg = <0xa80000 0x4000>;
+		interrupts = <GIC_SPI 353 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clock-names = "se-clk", "m-ahb", "s-ahb";
+		clocks = <&clock_gcc GCC_QUPV3_WRAP1_S0_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_1_M_AHB_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_1_S_AHB_CLK>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se4_afc_active &gpio1_afc_switch_default>;
+		pinctrl-1 = <&qupv3_se4_afc_sleep>;
+		qcom,wrapper-core = <&qupv3_1>;
+		afc-gpios = <&pm6150_gpios 1 GPIO_ACTIVE_LOW>;
+		status = "ok";
+	};
+
+	/* Sensor */
+       	qcom,lpass@62400000 {
+			sensor_vdd-supply = <&pm6150l_l8>;
+				qcom,sensor_vdd-uV-uA = <1800000 0>;
+				qcom,active-reg-names = "sensor_vdd";
+			};
+
+			i2c_17: i2c@17 { /* SW I2C */
+			status = "ok";
+
+			cell-index = <17>;
+			compatible = "i2c-gpio";
+			gpios = < &tlmm 115 0 /* sda */
+				  	  &tlmm 116 0 /* scl */
+					>;
+			pinctrl-names = "default","on_i2c","off_i2c";
+			pinctrl-0 = <&grip_i2c>;
+			pinctrl-1 = <&grip_i2c>;
+			pinctrl-2 = <&grip_gpio>;
+
+			a96t3x6@20 {
+				compatible = "a96t3x6";
+				pinctrl-names = "default";
+				reg = <0x20>;
+
+				interrupt-parent = <&spmi_bus>;
+				interrupts = <0x4 0xc4 0 IRQ_TYPE_EDGE_FALLING>;
+
+				a96t3x6,irq_gpio = <&pm6150l_gpios 5 GPIO_ACTIVE_HIGH>;
+				a96t3x6,ldo_en = <&tlmm 122 0>;
+				a96t3x6,fw_path = "abov/a96t346_a70q_eur.bin";
+				a96t3x6,firmup_cmd = <0x38>;
+				a96t3x6,earjack_noise = <1>;
+			};
+		};
+
+	i2c_18: i2c@18 { /* SW I2C */
+		status = "ok";
+
+		cell-index = <18>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 25 0 /* sda */
+			 &tlmm 26 0 /* scl */
+		>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub_i2c>;
+
+		a96t3x6_sub@20 {
+			compatible = "a96t3x6_sub";
+			pinctrl-names = "default";
+			reg = <0x20>;
+
+			interrupt-parent = <&spmi_bus>;
+			interrupts = <0x4 0xc4 0 IRQ_TYPE_EDGE_FALLING>;
+
+			a96t3x6,irq_gpio = <&pm6150l_gpios 4 GPIO_ACTIVE_HIGH>;
+			a96t3x6,ldo_en = <&pm6150l_gpios 1 0>;
+			/*a96t3x6,fw_path = "abov/a96t346_a70q_sub_usa.bin";*/
+			a96t3x6,fw_path = "a96t346_a70q_sub_usa.bin";
+			a96t3x6,firmup_cmd = <0x3b>;
+			a96t3x6,earjack_noise = <1>;
+		};
+	};
+
+	ssc_core {
+		status = "okay";
+		compatible = "ssc_core";
+		ssc_core,nfc_gpio = <&pm6150l_gpios 1 GPIO_ACTIVE_HIGH>;
+		ssc_core,mst_gpio = <&pm6150l_gpios 2 GPIO_ACTIVE_HIGH>;
+	};
+};

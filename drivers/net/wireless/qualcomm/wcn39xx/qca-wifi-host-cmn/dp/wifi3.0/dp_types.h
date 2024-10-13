@@ -824,6 +824,8 @@ struct dp_soc_stats {
 			uint32_t invalid_link_cookie;
 			/* Nbuf sanity failure */
 			uint32_t nbuf_sanity_fail;
+			/* Rx invalid tid count */
+			uint32_t rx_invalid_tid_err;
 		} err;
 
 		/* packet count per core - per ring */

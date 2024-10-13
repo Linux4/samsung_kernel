@@ -1111,9 +1111,9 @@ again:
 
 		input_report_key(pon->pon_input, cfg->key_code, key_status);
 		input_sync(pon->pon_input);
-		pr_info("%s %s: %d, 0x%x, 0x%x, %d\n", SECLOG, __func__, cfg->key_code, pon_rt_sts_ori, pon_rt_sts, !!key_status);
+		pr_info("[sec_input] %s: %d, 0x%x, 0x%x, %d\n", __func__, cfg->key_code, pon_rt_sts_ori, pon_rt_sts, !!key_status);
 	} else
-		pr_debug("%s %s: %d, 0x%x, 0x%x, %d (skip)\n", SECLOG, __func__, cfg->key_code, pon_rt_sts_ori, pon_rt_sts, !!key_status);
+		pr_debug("[sec_input] %s: %d, 0x%x, 0x%x, %d (skip)\n", __func__, cfg->key_code, pon_rt_sts_ori, pon_rt_sts, !!key_status);
 
 #if defined(CONFIG_SEC_PM)
 	/* RESIN is used for VOL DOWN key, it should report the keycode for kernel panic */

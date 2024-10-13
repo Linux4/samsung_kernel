@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, 2021 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2473,6 +2473,7 @@ static bool is_eos_buffer(struct msm_vidc_inst *inst, u32 device_addr)
 	list_for_each_entry_safe(temp, next, &inst->eosbufs.list, list) {
 		if (temp->smem.device_addr == device_addr) {
 			found = true;
+			temp->is_queued = 0;
 			list_del(&temp->list);
 			msm_comm_smem_free(inst, &temp->smem);
 			kfree(temp);
@@ -4098,6 +4099,9 @@ int msm_vidc_send_pending_eos_buffers(struct msm_vidc_inst *inst)
 
 	mutex_lock(&inst->eosbufs.lock);
 	list_for_each_entry_safe(binfo, temp, &inst->eosbufs.list, list) {
+		if (binfo->is_queued)
+			continue;
+
 		data.alloc_len = binfo->smem.size;
 		data.device_addr = binfo->smem.device_addr;
 		data.buffer_type = HAL_BUFFER_INPUT;
@@ -4113,6 +4117,7 @@ int msm_vidc_send_pending_eos_buffers(struct msm_vidc_inst *inst)
 
 		rc = call_hfi_op(hdev, session_etb, inst->session,
 				&data);
+		binfo->is_queued = 1;
 	}
 	mutex_unlock(&inst->eosbufs.lock);
 
@@ -4192,7 +4197,6 @@ int msm_vidc_comm_cmd(void *instance, union msm_v4l2_cmd *cmd)
 		mutex_lock(&inst->eosbufs.lock);
 		list_add_tail(&binfo->list, &inst->eosbufs.list);
 		mutex_unlock(&inst->eosbufs.lock);
-
 		rc = msm_vidc_send_pending_eos_buffers(inst);
 		if (rc) {
 			dprintk(VIDC_ERR,
@@ -4668,6 +4672,17 @@ int msm_comm_try_get_bufreqs(struct msm_vidc_inst *inst)
 				req.buffer_count_actual,
 				req.buffer_count_min_host,
 				req.buffer_count_min, req.buffer_size);
+		}
+	}
+
+	/* Buffer size will be double when the resolution is
+	 * 360p < resolution <= 720p
+	 */
+	for (i = 0; i < HAL_BUFFER_MAX; i++) {
+		if ((inst->buff_req.buffer[i].buffer_type == HAL_BUFFER_OUTPUT) &&
+				(inst->buff_req.buffer[i].buffer_size >= 175000 &&
+				inst->buff_req.buffer[i].buffer_size <= 900000)) {
+			inst->buff_req.buffer[i].buffer_size *= 2;
 		}
 	}
 
@@ -5585,6 +5600,46 @@ static int msm_vidc_load_supported(struct msm_vidc_inst *inst)
 	return 0;
 }
 
+static int msm_vidc_check_mbpf_supported(struct msm_vidc_inst *inst)
+{
+	u32 mbpf = 0;
+	struct msm_vidc_core *core;
+	struct msm_vidc_inst *temp;
+	struct msm_vidc_capability *capability;
+
+	if (!inst || !inst->core)
+		return -EINVAL;
+
+	core = inst->core;
+	capability = &inst->capability;
+
+	if (!capability->mbs_per_frame.max) {
+		dprintk(VIDC_DBG, "%s: max mbpf not available\n",
+			__func__);
+		return 0;
+	}
+
+	mutex_lock(&core->lock);
+	list_for_each_entry(temp, &core->instances, list) {
+		/* ignore invalid and completed session */
+		if (temp->state == MSM_VIDC_CORE_INVALID ||
+			temp->state >= MSM_VIDC_STOP_DONE)
+			continue;
+		/* ignore thumbnail session */
+		if (is_thumbnail_session(temp))
+			continue;
+		mbpf += NUM_MBS_PER_FRAME(
+                        inst->prop.height[OUTPUT_PORT],
+                        inst->prop.width[OUTPUT_PORT]);
+	}
+	mutex_unlock(&core->lock);
+	if (mbpf > 2*capability->mbs_per_frame.max) {
+		msm_vidc_print_running_insts(inst->core);
+		return -EBUSY;
+	}
+	return 0;
+}
+
 int msm_vidc_check_scaling_supported(struct msm_vidc_inst *inst)
 {
 	u32 x_min, x_max, y_min, y_max;
@@ -5749,7 +5804,11 @@ int msm_vidc_check_session_supported(struct msm_vidc_inst *inst)
 			"%s: Hardware is overloaded\n", __func__);
 		return rc;
 	}
-
+	
+	rc = msm_vidc_check_mbpf_supported(inst);
+	if (rc)
+		return rc;
+	
 	if (!is_thermal_permissible(core)) {
 		dprintk(VIDC_WARN,
 			"Thermal level critical, stop all active sessions!\n");

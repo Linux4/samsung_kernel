@@ -28,6 +28,7 @@
 #include <soc/qcom/rmnet_qmi.h>
 #define CREATE_TRACE_POINTS
 #include <trace/events/rmnet.h>
+#include <uapi/linux/msm_rmnet.h>
 
 /* RX/TX Fixup */
 
@@ -176,6 +177,46 @@ static u16 rmnet_vnd_select_queue(struct net_device *dev,
 	return (txq < dev->real_num_tx_queues) ? txq : 0;
 }
 
+static int rmnet_vnd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
+{
+	int rc = 0;
+	struct rmnet_ioctl_data_s ioctl_data;
+
+	pr_err("%s: [%s]: rmnet_ipa got ioctl number 0x%08x", __func__, dev->name, cmd);
+
+	switch (cmd) {
+	/*  Flow enable  */
+	case RMNET_IOCTL_FLOW_ENABLE:
+		pr_err("[%s] %s: enabled flow +++", dev->name, __func__);
+		if (copy_from_user(&ioctl_data, ifr->ifr_ifru.ifru_data,
+				   sizeof(struct rmnet_ioctl_data_s))) {
+			rc = -EFAULT;
+			break;
+		}
+		tc_qdisc_flow_control(dev, ioctl_data.u.tcm_handle, 1);
+		pr_err("[%s] %s: enabled flow ---", dev->name, __func__);
+		break;
+
+	/*  Flow disable  */
+	case RMNET_IOCTL_FLOW_DISABLE:
+		pr_err("[%s] %s: disabled flow +++", dev->name, __func__);
+		if (copy_from_user(&ioctl_data, ifr->ifr_ifru.ifru_data,
+				   sizeof(struct rmnet_ioctl_data_s))) {
+			rc = -EFAULT;
+			break;
+		}
+		tc_qdisc_flow_control(dev, ioctl_data.u.tcm_handle, 0);
+		pr_err("[%s] %s: disabled flow ---", dev->name, __func__);
+		break;
+
+	default:
+		pr_err("%s: [%s] unsupported cmd[%d]", __func__, dev->name, cmd);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
 static const struct net_device_ops rmnet_vnd_ops = {
 	.ndo_start_xmit = rmnet_vnd_start_xmit,
 	.ndo_change_mtu = rmnet_vnd_change_mtu,
@@ -186,6 +227,7 @@ static const struct net_device_ops rmnet_vnd_ops = {
 	.ndo_uninit     = rmnet_vnd_uninit,
 	.ndo_get_stats64 = rmnet_get_stats64,
 	.ndo_select_queue = rmnet_vnd_select_queue,
+	.ndo_do_ioctl = rmnet_vnd_ioctl,
 };
 
 static const char rmnet_gstrings_stats[][ETH_GSTRING_LEN] = {

@@ -42,13 +42,16 @@ struct usb_notify_dev {
 	struct otg_notify *o_notify;
 	int index;
 	unsigned long disable_state;
+	unsigned long secure_lock;
 	char disable_state_cmd[MAX_DISABLE_STR_LEN];
 	int (*set_disable)(struct usb_notify_dev *, int);
 	void (*set_mdm)(struct usb_notify_dev *udev, int mdm_disable);
+	int (*set_lock_state)(struct usb_notify_dev *udev);
 	char whitelist_str[MAX_WHITELIST_STR_LEN];
 	int whitelist_array_for_mdm[MAX_CLASS_TYPE_NUM+1];
 };
-
+extern int usb_notify_dev_uevent(struct usb_notify_dev *udev,
+							char *envp_ext[]);
 extern int usb_notify_dev_register(struct usb_notify_dev *ndev);
 extern void usb_notify_dev_unregister(struct usb_notify_dev *ndev);
 extern int usb_notify_class_init(void);

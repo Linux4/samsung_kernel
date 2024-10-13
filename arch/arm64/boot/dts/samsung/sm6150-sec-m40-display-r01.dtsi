@@ -1,0 +1,253 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../../../../../drivers/gpu/drm/msm/samsung/NT36672A_B6P064YQ5LP/dsi_panel_NT36672A_B6P064YQ5LP_fhd_video.dtsi"
+#include "../../../../../drivers/gpu/drm/msm/samsung/NT36672A_B6TMA60/dsi_panel_NT36672A_B6TMA60_fhd_video.dtsi"
+#include "../../../../../drivers/gpu/drm/msm/samsung/NT36672A_PM6300JB1/dsi_panel_NT36672A_PM6300JB1_fhd_video.dtsi"
+#include "../../../../../drivers/gpu/drm/msm/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+&tlmm {
+	pmx_sde: pmx_sde {
+		sde_dsi_active: sde_dsi_active {
+			mux {
+				pins = "gpio25", "gpio97", "gpio103", "gpio91";/*reset*/
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio25", "gpio97", "gpio103", "gpio91";/*reset*/
+				drive-strength = <8>;   /* 8 mA */
+				bias-disable = <0>;   /* no pull */
+			};
+		};
+		sde_dsi_suspend: sde_dsi_suspend {
+			mux {
+				pins = "gpio25", "gpio97", "gpio103", "gpio91";/*reset*/
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio25", "gpio97", "gpio103", "gpio91";/*reset*/
+				drive-strength = <2>;   /* 2 mA */
+				bias-pull-down;         /* PULL DOWN */
+			};
+		};
+	};
+#if 1
+	bl_i2c_active: bl_i2c_active {
+		mux {
+			pins = "gpio21", "gpio22";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio21", "gpio22";
+			drive-strength = <2>;
+			bias-disable;
+		};
+
+	};
+	bl_i2c_suspend: bl_i2c_suspend {
+		mux {
+			pins = "gpio21", "gpio22";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio21", "gpio22";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+#endif
+};
+
+&soc {
+	i2c_20: i2c@20 {
+		status = "okay";
+
+		cell-index = <20>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 21 0 /* sda */
+			&tlmm 22 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bl_i2c_active>;
+		pinctrl-1 = <&bl_i2c_suspend>;
+
+		lm36274_backlight@11 {
+			compatible = "lm36274,backlight-control";
+			reg = <0x11>; /* 7bits i2c addr */
+
+			lm36274_hwen_gpio = <&tlmm 25 0x00>;
+			lm36274_enp_gpio = <&tlmm 97 0x00>;
+			lm36274_enn_gpio = <&tlmm 103 0x00>;
+
+			pinctrl-names = "i2c_default", "i2c_suspend";
+			pinctrl-0 = <&bl_i2c_active>;
+			pinctrl-1 = <&bl_i2c_suspend>;
+
+			blic_init_data = [
+				02		2B /*(defalut 28) ramp & PWM enable*/
+				03		8E /*(defalut 8d) LED current ramp, PWM sample rate & hysteris */
+			/* TO DO: select a suitable BL value */
+				04		04 /* D[2:0] LSB of 11 bit BL code*/
+				05		D4 /* D[7:0] MSB of 11 bit BL code*/
+				09		99 /* VPOS and VNEG enabled via external pin*/
+				0E		1E /* VNEG -5.5V */
+			/* TO DO: set PWM freq to be 10kHz or lower, remove reg 0x10, and set reg 0x03 PWM sample rate lower */
+				10		07 /* PWM sample rate 24MHz */
+				11		75 /* backlight_boost_l_select:10uH */
+				08		1F /* finally: BL_EN, all LEDs enable*/
+			];
+		};
+	};
+
+	/* A60Q panel */	
+	ss_dsi_panel_NT36672A_B6P064YQ5LP_FHD_display: qcom,dsi-display@13 {
+		label = "ss_dsi_panel_NT36672A_B6P064YQ5LP_FHD";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&ss_dsi_panel_NT36672A_B6P064YQ5LP_FHD>;
+	};
+
+	ss_dsi_panel_NT36672A_B6TMA60_FHD_display: qcom,dsi-display@14 {
+		label = "ss_dsi_panel_NT36672A_B6TMA60_FHD";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&ss_dsi_panel_NT36672A_B6TMA60_FHD>;
+	};
+
+	ss_dsi_panel_NT36672A_PM6300JB1_FHD_display: qcom,dsi-display@15 {
+		label = "ss_dsi_panel_NT36672A_PM6300JB1_FHD";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&ss_dsi_panel_NT36672A_PM6300JB1_FHD>;
+	};
+
+	/* PBA */
+	ss_dsi_panel_PBA_BOOTING_FHD_display: qcom,dsi-display@16 {
+		label = "ss_dsi_panel_PBA_BOOTING_FHD";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+		
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&ss_dsi_panel_PBA_BOOTING_FHD>;
+	};
+};
+
+&sde_dsi {
+	vddr-supply = <&pm6150_l15>;
+	pinctrl-names = "panel_active", "panel_suspend";
+	pinctrl-0 = <&sde_dsi_active>;
+	pinctrl-1 = <&sde_dsi_suspend>;
+
+	qcom,dsi-display-list =
+		<&ss_dsi_panel_NT36672A_B6P064YQ5LP_FHD_display
+		&ss_dsi_panel_NT36672A_B6TMA60_FHD_display
+		&ss_dsi_panel_NT36672A_PM6300JB1_FHD_display
+		&ss_dsi_panel_PBA_BOOTING_FHD_display>;
+};
+
+&ss_dsi_panel_NT36672A_B6P064YQ5LP_FHD {
+	qcom,platform-reset-gpio = <&tlmm 91 0>;
+
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+		    reg = <0>;
+		    qcom,supply-name = "vddr";
+		    qcom,supply-min-voltage = <1800000>;
+		    qcom,supply-max-voltage = <1800000>;
+		    qcom,supply-enable-load = <100000>;
+		    qcom,supply-disable-load = <100>;
+		    qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+		    qcom,supply-post-on-sleep = <1>;
+   		    qcom,supply-pre-off-sleep = <0>;
+		};
+	};
+};
+
+&ss_dsi_panel_NT36672A_B6TMA60_FHD {
+	qcom,platform-reset-gpio = <&tlmm 91 0>;
+
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+		    reg = <0>;
+		    qcom,supply-name = "vddr";
+		    qcom,supply-min-voltage = <1800000>;
+		    qcom,supply-max-voltage = <1800000>;
+		    qcom,supply-enable-load = <100000>;
+		    qcom,supply-disable-load = <100>;
+		    qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+		    qcom,supply-post-on-sleep = <1>;
+   		    qcom,supply-pre-off-sleep = <0>;
+		};
+	};
+};
+
+&ss_dsi_panel_NT36672A_PM6300JB1_FHD {
+	qcom,platform-reset-gpio = <&tlmm 91 0>;
+
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+		    reg = <0>;
+		    qcom,supply-name = "vddr";
+		    qcom,supply-min-voltage = <1800000>;
+		    qcom,supply-max-voltage = <1800000>;
+		    qcom,supply-enable-load = <100000>;
+		    qcom,supply-disable-load = <100>;
+		    qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+		    qcom,supply-post-on-sleep = <1>;
+   		    qcom,supply-pre-off-sleep = <0>;
+		};
+	};
+};
+
+&ss_dsi_panel_PBA_BOOTING_FHD {
+	qcom,platform-reset-gpio = <&tlmm 91 0>;
+	
+	qcom,display-topology = <1 0 1>;
+	qcom,mdss-dsi-panel-phy-timings = [24 1e 08 09 05 02 04 a0
+									   24 1e 08 09 05 02 04 a0
+									   24 1e 08 09 05 02 04 a0
+									   24 1e 08 09 05 02 04 a0
+									   24 1a 08 09 05 02 04 a0];
+};

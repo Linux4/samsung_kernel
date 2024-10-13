@@ -1,0 +1,102 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "atoll-sec-m42q-common.dtsi"
+#include "drivers/atoll-sec-m42q-audio-common.dtsi"
+#include "drivers/atoll-sec-m42q-usb-r00.dtsi"
+#include "atoll-sec-m42q-pinctrl-r00.dtsi"
+#include "atoll-sec-m42q-pm-common.dtsi"
+#include "drivers/atoll-sec-m42q-display-r00.dtsi"
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include "drivers/atoll-sec-m42q-vibrator-r00.dtsi"
+#include "drivers/atoll-sec-a52q-nfc_r00.dtsi"
+#include "drivers/atoll-sec-m42q-camera-sensor-r00.dtsi"
+#include "drivers/atoll-sec-m42q-abc-r00.dtsi"
+
+&soc {
+	rpmh-regulator-ldoc8 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		mboxes = <&apps_rsc 0>;
+		qcom,resource-name = "ldoc8";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 1>;
+		L8C:
+		pm6150l_l8: regulator-pm6150l-l8 {
+			regulator-name = "pm6150l_l8";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			qcom,init-voltage = <1800000>;
+			regulator-always-on;
+			qcom,init-mode =
+				<RPMH_REGULATOR_MODE_LPM>;
+		};
+	};
+	
+	//Grip Sensor Vdd
+	rpmh-regulator-ldoa5 {
+		pm6150_l5: regulator-pm6150-l5 {
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+			qcom,init-voltage = <3000000>;
+			regulator-always-on;
+		};
+	};
+	
+	i2c_17: i2c@17 { /* SW I2C */
+		status = "ok";
+
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 51 0 /* sda */
+			 	 &tlmm 52 0 /* scl */
+		>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_i2c_active>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isg5320a: isg5320a@28 {
+			compatible = "isg5320a";
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int_active>;
+			reg = <0x28>;
+			status = "okay";
+			
+			interrupt-parent = <&spmi_bus>;
+			interrupts = <0x4 0xc3 0 IRQ_TYPE_EDGE_FALLING>;
+
+			isg5320a,irq-gpio = <&pm6150l_gpios 4 GPIO_ACTIVE_LOW>;
+			isg5320a,hallic_detect = <1>;
+			isg5320a,hallic_cert_detect = <1>;
+		};
+		
+		isg5320a_sub: isg5320a_sub@2C {
+			compatible = "isg5320a_sub";
+			pinctrl-names = "default";
+			pinctrl-0 = <&sub_grip_int_active>;
+			reg = <0x2C>;
+			status = "okay";
+		
+			interrupt-parent = <&spmi_bus>;
+			interrupts = <0x4 0xc4 0 IRQ_TYPE_EDGE_FALLING>;
+	
+			isg5320a_sub,irq-gpio = <&pm6150l_gpios 5 GPIO_ACTIVE_LOW>;
+			isg5320a_sub,hallic_detect = <1>;
+			isg5320a_sub,hallic_cert_detect = <1>;
+		};
+	};
+};

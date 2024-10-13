@@ -1,0 +1,512 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+#include "../qcom/atoll-idp.dtsi"
+#include "../qcom/atoll-audio-overlay.dtsi"
+
+#include "atoll-sec-uart-common.dtsi"
+#include "atoll-sec-dcc-common.dtsi"
+
+&reserved_memory {
+	ss_plog@B4400000 {
+		compatible = "ss_plog";
+		no-map;
+		reg = <0x0 0xB4400000 0x0 0x00200000>;
+	};
+
+	ramoops@B4600000 {
+		compatible = "ramoops";
+		reg = <0 0xB4600000 0 0x100000>;
+		record-size = <0x40000>;
+		console-size = <0x40000>;
+		ftrace-size = <0x40000>;
+		pmsg-size = <0x40000>;
+	};
+
+	/* CONFIG_SEC_DEBUG reserves 8MB */
+	sec_debug_region: sec_debug_region@0 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0xB4700000 0x0 0x00800000>;
+	};
+
+	/* sec_debug_low_region reserves 4MB
+	   This region is reserved if only debuglevel low */
+	/* FIXME:
+	sec_debug_low_region: sec_debug_low_region@0 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0xB1400000 0x0 0x00400000>;
+	};
+	*/
+
+	sec_debug_autocomment: sec_debug_autocomment@0 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0xB4F00000 0x0 0x00001000>;
+	};
+
+	sec_debug_rdx_bootdev: sec_debug_rdx_bootdev@0 {
+		no-ship;
+		reg = <0x1 0x00000000 0x0 0x05900000>;
+	};
+
+	/* Kaslr offset reserve */
+	kaslr_region: kaslr_region@A0001000 {
+		compatible = "removed-dma-pool";
+		reg = <0x0 0xA0001000 0x0 0x00001000>;
+	};
+
+	/* rkp_region reserves 2MB for UH_LOG and UH_STATIC_HEAP */
+	/* CAUSION: DO NOT reserve 0xB0200000 ~ 0xB1800000 region for RKP at the runtime */
+	rkp_region: rkp_region@B0200000 {
+		compatible = "removed-dma-pool";
+		reg = <0x0 0xB0200000 0x0 0x00200000>;
+	};
+
+	hdm_region: hdm_region@A1000000 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0xA1000000 0x0 0x1000>;
+	};
+
+	modem_shared_mem: modem_shared_mem_region@B5000000 {
+		compatible = "modem-removed-dma-pool";
+		no-map;
+		reg = <0x0 0xb5000000 0x0 0x06000000>;
+	};
+};
+
+&removed_region {
+	reg = <0 0x80B00000 0 0x7100000>;
+};
+
+&pil_modem_mem {
+	reg = <0 0x8B000000 0 0x8900000>;
+};
+
+&pil_adsp_mem {
+	reg = <0 0x93C00000 0 0x3E00000>;
+};
+
+&pil_camera_mem {
+	reg = <0 0x97A00000 0 0x500000>;
+};
+
+&pil_npu_mem {
+	reg = <0 0x97F00000 0 0x500000>;
+};
+
+&pil_video_mem {
+	reg = <0 0x98400000 0 0x500000>;
+};
+
+&pil_cdsp_mem {
+	reg = <0 0x98900000 0 0x1E00000>;
+};
+
+&qseecom_mem {
+	reg = <0 0x9e000000 0 0x2000000>;
+};
+
+&qseecom_ta_mem {
+	size = <0 0x2000000>;
+};
+
+/* disable QC CDSPsec memory region and the related ION heap */
+&secure_carveout_heap {
+	status = "disabled";
+};
+&cdsp_sec_mem {
+	status = "disabled";
+};
+
+&msm_imem {
+	upload_cause@66c {
+		compatible = "qcom,msm-imem-upload_cause";
+		reg = <0x66c 4>;
+	};
+};
+
+&camera {
+	status = "ok";
+};
+
+&cam_vfe0 {
+	status = "ok";
+};
+
+&cam_vfe1 {
+	status = "ok";
+};
+
+&cam_vfe_lite {
+	status = "ok";
+};
+
+&cam_lrme {
+	status = "ok";
+};
+
+&shared_meta {
+	status = "ok";
+};
+
+&android_q_fstab {
+	status = "ok";
+};
+
+&pm8008_8 {
+	status = "ok";
+};
+
+&pm8008_9 {
+	status = "ok";
+};
+
+&usb0 {
+	dwc3@a600000 {
+		maximum-speed = "high-speed";
+	};
+};
+
+&soc {
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;   /* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:   1_Head */
+			input_booster,cpu_freqs = <1267200>;
+			input_booster,hmp_boost = <2>;
+			input_booster,ddr_freqs = <0>;
+			input_booster,lpm_bias = <0>;
+
+			/* Time table */
+			input_booster,head_times = <200>;
+			input_booster,tail_times = <0>;
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;   /* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:   1_Head */
+			input_booster,cpu_freqs = <1267200>;
+			input_booster,hmp_boost = <2>;
+			input_booster,ddr_freqs = <0>;
+			input_booster,lpm_bias = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <300>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;   /* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:   1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <1267200 1267200 1113600>;
+			input_booster,hmp_boost = <2 2 2>;
+			input_booster,ddr_freqs = <1017 1017 1017>;
+			input_booster,lpm_bias = <5 5 5>;
+
+			/* Time table */
+			input_booster,head_times = <200 200 0>;
+			input_booster,tail_times = <0 0 300>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;   /* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:   1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1267200 0>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <1000 0>;
+			input_booster,tail_times = <0 500>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;   /* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:   1_Head, 2_Tail */
+			input_booster,cpu_freqs = <1267200 1267200>;
+			input_booster,hmp_boost = <2 2>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <130 130>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;   /* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:   1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1267200 1113600>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;   /* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:   1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1267200 0>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN HOVER";
+			input_booster,type = <7>;   /* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:   1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1267200 1113600>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		};
+		booster_key@9 {
+			input_booster,label = "PEN";
+			input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1555200 1113600>;
+			input_booster,hmp_boost = <2 2>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 600>;
+		}; // Input Booster -
+		booster_key@10 {
+			input_booster,label = "KEY_TWO";
+			input_booster,type = <9>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1555200>;
+			input_booster,hmp_boost = <2>;
+			input_booster,ddr_freqs = <0>;
+			input_booster,lpm_bias = <0>;
+
+			/* Time table */
+			input_booster,head_times = <700>;
+			input_booster,tail_times = <700>;
+		};
+		// Input Booster -
+		/* If you need to add new key type, add it this position */
+	};
+
+	sec_smem@0 {
+		compatible = "samsung,sec-smem";
+		status = "okay";
+	};
+
+	qcom,memshare {
+		compatible = "qcom,memshare";
+
+		qcom,client_4 {
+			compatible = "qcom,memshare-peripheral";
+			memory-region = <&modem_shared_mem>;
+			qcom,peripheral-size = <0x02000000>;
+			qcom,reserved-size = <0x04000000>;
+			qcom,client-id = <3>;
+			qcom,allocate-boot-time;
+			label = "modem";
+		};
+	};
+
+	samsung,sec_misc {
+        	qfprom_jtag,reg = <0x00780180>;
+	};
+
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+		qcom,disable_control_en = <1>;
+		qcom,unsupport_host_en = <0>;
+	};
+
+	samsung,sec_hdm {
+		memory-region = <&hdm_region>;
+	};
+
+	argos {
+		compatible = "samsung,argos";
+		#address-cells = <1>;
+		/* The device number should be assigned for each device, e.g. "boot_device@1" and "boot_device@2".
+		 * Duplicated number is not allowed. Please refer the below example.
+		 */
+		/* Table Format should be
+		 * <Throughput(Mbps) ARM_min ARM_max Little_min Little_max BIMC1 BIMC1 Task IRQ SCHED_boost>
+		 * ARM_min : Big Core's minimum frequency lock. 0 means not set,
+		 * ARM_max : Big Core's maximum frequency lock. 0 means not set,
+		 * Little_min : Little Core's minimum frequency lock. 0 means not set,
+		 * Little_max : Little Core's maximum frequency lock. 0 means not set,
+		 * BIMC1 : Memory frequency lock. 0 means not set,(not used now)
+		 * BIMC2 : Memory frequency lock. 0 means not set, (not used now)
+		 * Task : 1 - Set task affinity lock.
+		 *	0 - Not set or unlock,
+		 *		Task affinity should be predefined driver's code.
+		 * IRQ : 1 - Set irq affinity lock.
+		 *       0 - Not set or unlock,
+		 *		Task affinity should be predefined driver's code.
+		 * SCHED_boost : 1 - Increase sched boosting count (not used now)
+		 *             0 - Decrease sched boosting count
+		 */
+		/*
+		 *boot_device@1 {
+		 *		net_boost,label="WIFI";
+		 *		net_boost,node="wlan0";
+		 *		net_boost,table_size = <3>;
+		 *		net_boost,table= <
+		 *			5  2016000 0 2016000 0 0 0 0 0 0
+		 *			10  2016000 0 2016000 0 0 0 0 0 0
+		 *			20  2016000 0 2016000 0 0 0 0 0 0
+		 *			30  2016000 0 2016000 0 0 0 0 0 0
+		 *			>;
+		 * };
+		 */
+		boot_device@1 {
+			net_boost,label="WIFI";
+			net_boost,node="wlan0";
+			net_boost,table_size = <1>;
+			net_boost,table= <
+				0 0 0 0 0 0 0 0 0 0
+				>;
+		};
+		boot_device@2 {
+			net_boost,label="WIFI TX";
+			net_boost,node="wlan0";
+			net_boost,table_size = <1>;
+			net_boost,table= <
+				200 2208000 0 1804800 0 0 0 1 1 1
+				>;
+		};
+		boot_device@3 {
+			net_boost,label="WIFI RX";
+			net_boost,node="wlan0";
+			net_boost,table_size = <1>;
+			net_boost,table= <
+				0 0 0 0 0 0 0 0 0 0
+				>;
+		};
+		boot_device@4 {
+			net_boost,label="SWLAN";
+			net_boost,node="swlan0";
+			net_boost,table_size = <1>;
+			net_boost,table= <
+				0 0 0 0 0 0 0 0 0 0
+				>;
+		};
+		boot_device@5 {
+			net_boost,label="P2P";
+			net_boost,node="p2p-wlan0-0";
+			net_boost,table_size = <1>;
+			net_boost,table= <
+				0 0 0 0 0 0 0 0 0 0
+				>;
+		};
+		boot_device@6 {
+			net_boost,label="IPA";
+			net_boost,node="rmnet_ipa0";
+			net_boost,table_size = <1>;
+			net_boost,table= <
+				0 0 0 0 0 0 0 0 0 0
+				>;
+		};
+	};
+};
+
+&firmware {
+	android {
+		vbmeta {
+			compatible = "android,vbmeta";
+			parts = "vbmeta,boot,system,vendor,product,odm,prism,optics,vbmeta_system,recovery,dtbo,abl,xbl,tz,hyp";
+		};
+	};
+};
+
+&pil_modem {
+	/* Outputs to mss */
+	qcom,smem-states = <&modem_smp2p_out 0>, <&modem_smp2p_out 4>, <&modem_smp2p_out 5>;
+	qcom,smem-state-names = "qcom,force-stop", "qcom,stop-reason-0", "qcom,stop-reason-1";
+};
+
+&dsi_rm69299_visionox_amoled_vid_display {
+	qcom,dsi-display-active;
+};
+
+&tx_swr_gpios {
+	qcom,chip-wakeup-reg = <0x01FFB000>;
+	qcom,chip-wakeup-maskbit = <0>;
+	qcom,chip-wakeup-default-val = <0x1>;
+};
+
+&ufshc_mem {
+	spm-level = <3>;
+};

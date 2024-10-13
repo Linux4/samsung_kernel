@@ -1,0 +1,45 @@
+#
+# Sec_Input device configuration
+#
+
+config SEC_DEBUG_TSP_LOG_LEGO
+	bool "SEC_DEBUG_TSP_LOG_LEGO"
+	help
+		Say Y here if you have a SEC_DEBUG_TSP_LOG_LEGO.
+		If unsure, say N.
+		
+config INPUT_TOUCHSCREEN_TCLMV2_LEGO
+	bool "INPUT_TOUCHSCREEN_TCLMV2_LEGO"
+	help
+		Say Y here if you have a INPUT_TOUCHSCREEN_TCLMV2_LEGO.
+		If unsure, say N.
+
+config INPUT_SEC_SECURE_TOUCH_LEGO
+	bool "INPUT_SEC_SECURE_TOUCH_LEGO"
+	help
+		Say Y here if you have a INPUT_SEC_SECURE_TOUCH_LEGO.
+		If unsure, say N.
+
+config TOUCHSCREEN_DUMP_MODE_LEGO
+	bool "TOUCHSCREEN_DUMP_MODE_LEGO"
+	help
+		Say Y here if you have a TOUCHSCREEN_DUMP_MODE_LEGO.
+		If unsure, say N.
+
+config INPUT_SEC_NOTIFIER_LEGO
+	bool "INPUT_SEC_NOTIFIER_LEGO"
+	help
+		Say Y here if you have a INPUT_SEC_NOTIFIER_LEGO.
+		If unsure, say N.
+
+config TOUCHSCREEN_DUAL_FOLDABLE_LEGO
+	bool "TOUCHSCREEN_DUAL_FOLDABLE_LEGO"
+	help
+		Say Y here if you have a TOUCHSCREEN_DUAL_FOLDABLE_LEGO.
+		If unsure, say N.
+
+config INPUT_SEC_INPUT_LEGO
+	bool "INPUT_SEC_INPUT_LEGO"
+	help
+		Say Y here if you have a INPUT_SEC_INPUT_LEGO.
+		If unsure, say N.

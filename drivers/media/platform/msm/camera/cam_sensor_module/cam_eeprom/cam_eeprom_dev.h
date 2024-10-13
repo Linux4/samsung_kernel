@@ -149,6 +149,12 @@
 #define FROM_FRONT_MODULE_ID_ADDR               0x005E
 #define FROM_FRONT_SENSOR_ID_ADDR               0x0068
 #define FRONT_MODULE_FW_VERSION                 0x0048
+#elif defined(CONFIG_SEC_GTA4XLVE_PROJECT)
+#define FRONT_CAL_VERSION_ADDR                  0x0013
+#define FRONT_CAM_MAP_VERSION_ADDR              0x0013
+#define FROM_FRONT_MODULE_ID_ADDR               0x002A
+#define FROM_FRONT_SENSOR_ID_ADDR               0x0033
+#define FRONT_MODULE_FW_VERSION                 0x0009
 #elif defined(CONFIG_SEC_A90Q_PROJECT)
 #define FRONT_CAM_MAP_VERSION_ADDR              0x00E0
 #define FROM_FRONT_MODULE_ID_ADDR               0x00AE
@@ -192,6 +198,8 @@
 #endif
 #if defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT) || defined(CONFIG_SEC_M42Q_PROJECT)
 #define FRONT_DLL_VERSION_ADDR                  0x0034
+#elif defined(CONFIG_SEC_GTA4XLVE_PROJECT)
+#define FRONT_DLL_VERSION_ADDR                  0x0017
 #else
 #define FRONT_DLL_VERSION_ADDR                  0x00CF
 #endif
@@ -206,6 +214,10 @@
 #define FROM_REAR_AF_CAL_PAN_ADDR               0x0110
 #define FROM_REAR_AF_CAL_MACRO_ADDR             0x010C
 #elif defined(CONFIG_SEC_M42Q_PROJECT)
+#define FROM_REAR_AF_CAL_D10_ADDR               0x010C
+#define FROM_REAR_AF_CAL_PAN_ADDR               0x0100
+#define FROM_REAR_AF_CAL_MACRO_ADDR             0x010C
+#elif defined(CONFIG_SEC_GTA4XLVE_PROJECT)
 #define FROM_REAR_AF_CAL_D10_ADDR               0x010C
 #define FROM_REAR_AF_CAL_PAN_ADDR               0x0100
 #define FROM_REAR_AF_CAL_MACRO_ADDR             0x010C
@@ -753,6 +765,12 @@ extern char module_info[SYSFS_MODULE_INFO_SIZE];
 #define FRONT_VENDOR_INFO                       ("C")
 #define FRONT_PROCESS_INFO                      ("A")
 #define CRITERION_REV_FRONT                      (0)
+#elif defined(CONFIG_SEC_GTA4XLVE_PROJECT)
+#define FRONT_HW_INFO                           ("V05EG")
+#define FRONT_SW_INFO                           ("PAF0")
+#define FRONT_VENDOR_INFO                       ("H")
+#define FRONT_PROCESS_INFO                      ("A")
+#define CRITERION_REV_FRONT                     (0)
 #else
 #define FRONT_HW_INFO                           ("B32QL")
 #define FRONT_SW_INFO                           ("LA00")

@@ -115,6 +115,7 @@ extern char *sec_cable_type[];
 #define BATT_MISC_EVENT_WIRELESS_AUTH_PASS      0x00001000
 #define BATT_MISC_EVENT_TEMP_HICCUP_TYPE	0x00002000
 #define BATT_MISC_EVENT_HEALTH_OVERHEATLIMIT		0x00100000
+#define BATT_MISC_EVENT_FULL_CAPACITY		0x01000000
 
 #if defined(CONFIG_SEC_FACTORY)             // SEC_FACTORY
 #define STORE_MODE_CHARGING_MAX 80
@@ -651,6 +652,7 @@ struct sec_battery_info {
 	/* 25w ta alert */
 	bool ta_alert_wa;
 	int ta_alert_mode;
+	int batt_full_capacity;
 
 };
 

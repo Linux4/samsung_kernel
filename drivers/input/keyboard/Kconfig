@@ -211,6 +211,13 @@ config KEYBOARD_EP93XX
 	  To compile this driver as a module, choose M here: the
 	  module will be called ep93xx_keypad.
 
+config INPUT_HALL_IC
+	tristate "Enable HALL IC"
+	default n
+	help
+	  Enable Hall IC Feature
+	  If unsure, say N.
+
 config SENSORS_HALL
 	bool "HALL"
 	default n

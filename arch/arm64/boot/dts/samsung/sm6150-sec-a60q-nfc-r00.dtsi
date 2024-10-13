@@ -1,0 +1,85 @@
+
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+/*
+/ {
+	aliases {
+		spi1 = &qupv3_se6_spi;
+	};
+};
+*/
+
+&tlmm {
+	ese_qupv3_se6_spi_sleep: ese_qupv3_se6_spi_sleep {
+		 mux {
+			 pins = "gpio6", "gpio7", "gpio8",
+				      "gpio9";
+			 function = "gpio";
+		 };
+
+		 config {
+			 pins = "gpio6", "gpio7", "gpio8",
+				      "gpio9";
+			 drive-strength = <6>;
+			 bias-pull-down; /* pull down */
+			 output-low;
+		 };
+	 };
+
+	nfc_qupv3_se5_i2c_sleep: nfc_qupv3_se5_i2c_sleep {
+		mux {
+			pins = "gpio14", "gpio15";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio14", "gpio15";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+};
+
+/* gpio14 and gpio15 are used for nfc i2c */
+&qupv3_se5_i2c { 
+	status = "okay";
+	pinctrl-1 = <&nfc_qupv3_se5_i2c_sleep>;
+	pn547@2B {
+		compatible = "pn547";
+		reg = <0x2B>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <86 0>;
+		pn547,irq-gpio = <&tlmm 86 0>;
+		pn547,ven-gpio = <&tlmm 84 0>;
+		pn547,firm-gpio = <&tlmm 85 0>;
+		pn547,clk_req-gpio = <&tlmm 50 0>; /* BBCLK3 is controled by gpio 50 */
+		pn547,pwr_req =  <&tlmm 87 0>;
+		pn547,pvdd-gpio = <&tlmm 23 0>;
+		pn547,clk_req_wake;
+	};
+};
+
+
+/* gpio 6~9 are used for ese spi */
+&qupv3_se6_spi {
+	status = "okay";
+	spi-max-frequency = <19200000>;
+	pinctrl-1 = <&ese_qupv3_se6_spi_sleep>;
+
+	ese_spi@0 {
+		compatible = "p61";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+		p61-ap_vendor = "qualcomm";
+		p61-spi_node = <&qupv3_se6_spi>;
+	};
+};

@@ -61,6 +61,7 @@ struct sub_bootc_pdata {
 	// common
 	int init;
 	int enabled;
+	int bootc_time;
 	// custom
 	int time_spec;
 	int time_spec_offset;

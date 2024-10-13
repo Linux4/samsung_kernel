@@ -22,7 +22,7 @@
 #ifdef CONFIG_PROCA_GKI_10
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 #define OFFSETOF_INTEGRITY offsetof(struct task_struct, android_oem_data1[2])
-#define OFFSETOF_F_SIGNATURE offsetof(struct file, android_oem_data1)
+#define OFFSETOF_F_SIGNATURE 0
 #else
 #define OFFSETOF_INTEGRITY offsetof(struct task_struct, android_vendor_data1[2])
 #define OFFSETOF_F_SIGNATURE offsetof(struct file, android_vendor_data1)
@@ -84,25 +84,42 @@ static struct GAForensicINFO {
 } GAFINFO = {
 	.ver = 0x0600, /* by hryhorii tur 2019 10 21 */
 	.size = sizeof(GAFINFO),
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0))
+	.task_struct_struct_state = offsetof(struct task_struct, __state),
+#else
 	.task_struct_struct_state = offsetof(struct task_struct, state),
+#endif
 	.task_struct_struct_comm = offsetof(struct task_struct, comm),
 	.task_struct_struct_tasks = offsetof(struct task_struct, tasks),
 	.task_struct_struct_pid = offsetof(struct task_struct, pid),
 	.task_struct_struct_mm = offsetof(struct task_struct, mm),
 	.mm_struct_struct_pgd = offsetof(struct mm_struct, pgd),
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))	
+/*The reason of that branching is a changing avl to maple tree
+  in mm_struct(since Linux v6). There is a temporary workaround,
+  but the following values will be revised appropriate to maple
+  tree traversal soon */
+	.mm_struct_struct_mmap = offsetof(struct mm_struct, mm_mt),
+	.mm_struct_struct_mm_rb = offsetof(struct mm_struct, mm_mt),
+	.vm_area_struct_struct_vm_next =
+		offsetof(struct vm_area_struct, vm_start),
+	.vm_area_struct_struct_vm_rb
+		= offsetof(struct vm_area_struct, vm_mm),
+#else
 	.mm_struct_struct_mmap = offsetof(struct mm_struct, mmap),
 	.mm_struct_struct_mm_rb = offsetof(struct mm_struct, mm_rb),
+	.vm_area_struct_struct_vm_next =
+		offsetof(struct vm_area_struct, vm_next),
+	.vm_area_struct_struct_vm_rb
+		= offsetof(struct vm_area_struct, vm_rb),
+#endif
 	.vm_area_struct_struct_vm_start =
 		offsetof(struct vm_area_struct, vm_start),
 	.vm_area_struct_struct_vm_end = offsetof(struct vm_area_struct, vm_end),
-	.vm_area_struct_struct_vm_next =
-		offsetof(struct vm_area_struct, vm_next),
 	.vm_area_struct_struct_vm_flags =
 		offsetof(struct vm_area_struct, vm_flags),
 	.vm_area_struct_struct_vm_file =
 		offsetof(struct vm_area_struct, vm_file),
-	.vm_area_struct_struct_vm_rb
-		= offsetof(struct vm_area_struct, vm_rb),
 	.hlist_node_struct_next = offsetof(struct hlist_node, next),
 	.file_struct_f_path = offsetof(struct file, f_path),
 	.path_struct_mnt = offsetof(struct path, mnt),

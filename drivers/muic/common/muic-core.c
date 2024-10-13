@@ -538,6 +538,56 @@ int muic_afc_set_voltage(int voltage)
 	pr_err("%s: cannot supported\n", __func__);
 	return -ENODEV;
 }
+ 
+int muic_afc_request_cause_clear(void)
+{
+	struct muic_platform_data *pdata = &muic_pdata;
+
+	if (pdata == NULL)
+		return -ENOENT;
+	pdata->afc_request_cause = 0;
+	return 0;
+}
+
+int muic_afc_request_voltage_check(int cause, int vol)
+{
+	int ret = 0;
+
+	if (vol == 9 && cause == 0)
+		ret = 9;
+	else
+		ret = 5;
+	pr_info("%s: cause=%x %dv->%dv\n", __func__, cause, vol, ret);
+	return ret;
+}
+
+int muic_afc_request_voltage(int cause, int voltage)
+{
+	struct muic_platform_data *pdata = &muic_pdata;
+	int set_vol = 0, ret = 0;
+
+	if (pdata == NULL) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	if (voltage == 9) {
+		pr_info("%s: afc request clear, cause(%d), voltage(%d)\n", __func__, cause, voltage);
+		pdata->afc_request_cause &= ~(cause);
+	} else if (voltage == 5) {
+		pr_info("%s: afc request set, cause(%d), voltage(%d)\n", __func__, cause, voltage);
+		pdata->afc_request_cause |= (cause);
+	} else {
+		pr_err("%s: not support. cause(%d), voltage(%d)\n", __func__, cause, voltage);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	set_vol = muic_afc_request_voltage_check(pdata->afc_request_cause, voltage);
+	ret = muic_afc_set_voltage(set_vol);
+out:
+	return ret;
+}
 
 int muic_hv_charger_disable(bool en)
 {

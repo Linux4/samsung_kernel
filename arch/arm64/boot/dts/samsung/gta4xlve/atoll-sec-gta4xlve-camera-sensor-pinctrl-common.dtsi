@@ -1,0 +1,221 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+
+	rcam_sensor_mclk_active: rcam_sensor_mclk_active {
+		/* Main Rear MCLK */
+		mux {
+			pins = "gpio13";
+			function = "cam_mclk";
+		};
+		config {
+			pins = "gpio13";
+			bias-disable; /* No PULL */
+			drive-strength = <4>; /* 4 MA */
+		};
+	};
+
+
+	rcam_sensor_mclk_suspend: rcam_sensor_mclk_suspend {
+	/* Main Rear MCLK */
+		mux {
+			pins = "gpio13";
+			function = "cam_mclk";
+		};
+		config {
+			pins = "gpio13";
+			bias-pull-down; /* No PULL */
+			drive-strength = <4>; /* 4 MA */
+			output-low;
+		};
+	};
+
+	fcam_sensor_mclk_active: fcam_sensor_mclk_active {
+		/* Front MCLK */
+		mux {
+			pins = "gpio23";
+			function = "cam_mclk";
+		};
+		config {
+			pins = "gpio23";
+			bias-disable; /* No PULL */
+			drive-strength = <4>; /* 4 MA */
+		};
+	};
+
+	fcam_sensor_mclk_suspend: fcam_sensor_mclk_suspend {
+	/* Front MCLK */
+		mux {
+			pins = "gpio23";
+			function = "cam_mclk";
+		};
+		config {
+			pins = "gpio23";
+			bias-pull-down; /* No PULL */
+			drive-strength = <4>; /* 4 MA */
+			output-low;
+		};
+	};
+
+	rcam_sensor_reset_active: rcam_sensor_reset_active {
+	/* Main Rear reset */
+		mux {
+			pins = "gpio24";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio24";
+			bias-disable; /* No PULL */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+
+	rcam_sensor_reset_suspend: rcam_sensor_reset_suspend {
+	/* Main Rear reset */
+		mux {
+			pins = "gpio24";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio24";
+			bias-pull-down; /* PULL DOWN */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+
+	fcam_sensor_reset_active: fcam_sensor_reset_active {
+	/* front reset */
+		mux {
+			pins = "gpio21";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio21";
+			bias-disable; /* No PULL */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+
+	fcam_sensor_reset_suspend: fcam_sensor_reset_suspend {
+	/* front reset */
+		mux {
+			pins = "gpio21";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio21";
+			bias-pull-down; /* PULL DOWN */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+
+	rcam_sensor_vana_active: rcam_sensor_vana_active {
+	/* Rear VANA */
+		mux {
+			pins = "gpio22";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio22";
+			bias-disable; /* No PULL */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+	rcam_sensor_vana_suspend: rcam_sensor_vana_suspend {
+	/* Rear VANA */
+		mux {
+			pins = "gpio22";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio22";
+			bias-pull-down; /* PULL DOWN */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+
+	fcam_sensor_vana_active: fcam_sensor_vana_active {
+	/* Front VANA */
+		mux {
+			pins = "gpio63";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio63";
+			bias-disable; /* No PULL */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+	fcam_sensor_vana_suspend: fcam_sensor_vana_suspend {
+	/* Front VANA */
+		mux {
+			pins = "gpio63";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio63";
+			bias-pull-down; /* PULL DOWN */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+
+	rcam_sensor_vdig_active: rcam_sensor_vdig_active {
+	/* Rear VANA */
+		mux {
+			pins = "gpio10";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio10";
+			bias-disable; /* No PULL */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+	rcam_sensor_vdig_suspend: rcam_sensor_vdig_suspend {
+	/* Rear VANA */
+		mux {
+			pins = "gpio10";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio10";
+			bias-pull-down; /* PULL DOWN */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+
+	fcam_sensor_vdig_active: fcam_sensor_vdig_active {
+	/* Front VANA */
+		mux {
+			pins = "gpio14";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio14";
+			bias-disable; /* No PULL */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+	fcam_sensor_vdig_suspend: fcam_sensor_vdig_suspend {
+	/* Front VANA */
+		mux {
+			pins = "gpio14";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio14";
+			bias-pull-down; /* PULL DOWN */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+};

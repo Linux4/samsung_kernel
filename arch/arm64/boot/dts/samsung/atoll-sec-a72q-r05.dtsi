@@ -1,0 +1,25 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "atoll-sec-a72q-r04.dtsi"
+#include "atoll-sec-a72q-pinctrl-r05.dtsi"
+
+/delete-node/ &vibrator;
+
+&soc {
+	msm_vibrator {
+		compatible = "vibrator";
+		motor-vdd_type = <0>; /* 0: gpio, 1: pmic */
+		motor-en = <&tlmm 57 0x0>;
+		samsung,vib_type = "COINDC";
+	};
+};

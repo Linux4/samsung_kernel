@@ -64,6 +64,7 @@
 
 #include "sec_battery_vote.h"
 #include "sec_adc.h"
+#include "sb_full_soc.h"
 
 extern char *sec_cable_type[];
 extern unsigned int lpcharge;
@@ -267,12 +268,6 @@ enum {
 	USB_THM_NORMAL = 0,
 	USB_THM_OVERHEATLIMIT,
 	USB_THM_GAP_OVER,
-};
-
-enum swelling_mode_state {
-	SWELLING_MODE_NONE = 0,
-	SWELLING_MODE_CHARGING,
-	SWELLING_MODE_FULL,
 };
 
 enum tx_switch_mode_state {
@@ -970,7 +965,6 @@ struct sec_battery_info {
 	int normal_warm_thresh;
 	int warm_overheat_thresh;
 	int thermal_zone;
-	bool swelling_mode;
 	int bat_thm_count;
 
 	/* charging */
@@ -1159,6 +1153,8 @@ struct sec_battery_info {
 	struct sec_vote * chgen_vote;
 	struct sec_vote * topoff_vote;
 
+	struct sb_full_soc *fs;
+
 	/* 25w ta alert */
 	bool ta_alert_wa;
 	int ta_alert_mode;
@@ -1172,6 +1168,7 @@ struct sec_battery_info {
 	unsigned int batt_f_mode;
 #endif
 	int batt_full_capacity;
+	bool usb_slow_chg;
 };
 
 /* event check */

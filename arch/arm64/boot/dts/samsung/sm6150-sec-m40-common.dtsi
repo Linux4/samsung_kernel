@@ -1,0 +1,153 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/clock/qcom,gcc-sm6150.h>
+#include "sm6150-sec-a60q-audio.dtsi"
+
+&sdhc_2 {
+	cd-gpios = <&tlmm 99 0x1>;
+	sec,tflash-en-gpio = <&tlmm 121 0x0>;     /* T_Flash EN - GPIO121 */
+};
+
+&soc {
+	pm6150l_rid_adc {
+		status = "okay";
+		compatible = "pm6150l_rid_adc";
+
+		interrupt-parent = <&spmi_bus>;
+		pm6150l_rid_adc,irq-gpio = <&pm6150l_gpios 9 GPIO_ACTIVE_LOW>;
+		jigon-gpios = <&pm6150l_gpios 11 GPIO_ACTIVE_LOW>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&rid_adc_irq_default &gpio11_dig_out_default>;
+
+		io-channels = <&pm6150l_vadc ADC_GPIO4>;
+		io-channel-names = "rid_adc_channel";
+	};
+
+	hall {
+                status = "okay";
+                compatible = "hall";
+                linux,input-type = <1>;
+                linux,code = <21>;
+                hall,gpio_flip_cover = <&pm6150_gpios 10 0x1>;
+                debounce-interval = <15>;
+		pinctrl-names = "default";
+	        pinctrl-0 = <&hall_default>;
+        };
+
+        certify_hall {
+		status = "okay";
+                compatible = "certify_hall";
+                linux,input-type = <1>;
+                linux,code = <27>;
+                certify_hall,gpio_certify_cover = <&tlmm 96 0x1>;
+                debounce-interval = <15>;
+		pinctrl-names = "default";
+	        pinctrl-0 = <&certify_hall_default>;
+        };
+
+	qupv3_se4_afc: afc@a80000 { 
+		compatible = "pm6150_afc";
+		reg = <0xa80000 0x4000>;
+		interrupts = <GIC_SPI 353 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clock-names = "se-clk", "m-ahb", "s-ahb";
+		clocks = <&clock_gcc GCC_QUPV3_WRAP1_S0_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_1_M_AHB_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_1_S_AHB_CLK>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se4_afc_active &gpio1_afc_switch_default>;
+		pinctrl-1 = <&qupv3_se4_afc_sleep>;
+		qcom,wrapper-core = <&qupv3_1>;
+		afc-gpios = <&pm6150_gpios 1 GPIO_ACTIVE_LOW>;
+		status = "ok";
+	};
+
+	/* Sensor */
+       	qcom,lpass@62400000 {
+		sensor_vdd-supply = <&pm6150l_l8>;
+		qcom,sensor_vdd-uV-uA = <1800000 0>;
+		qcom,active-reg-names = "sensor_vdd";
+       	};
+
+       	i2c_17: i2c@17 { /* SW I2C */
+		status = "ok";
+
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 115 0 /* sda */
+			 &tlmm 116 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default","on_i2c","off_i2c";
+		pinctrl-0 = <&grip_i2c>;
+		pinctrl-1 = <&grip_i2c>;
+		pinctrl-2 = <&grip_gpio>;
+
+		tc3xxk@20 {
+			compatible = "coreriver,tc3xx-grip";
+			pinctrl-names = "default","on_irq","off_irq";
+			pinctrl-0 = <&grip_irq>;
+			pinctrl-1 = <&grip_irq>;
+			pinctrl-2 = <&grip_input>;
+			reg = <0x20>;
+
+			interrupt-parent = <&spmi_bus>;
+			interrupts = <0x4 0xc4 0 IRQ_TYPE_EDGE_FALLING>;
+
+			coreriver,scl-gpio = <&tlmm 116 0>;
+			coreriver,sda-gpio = <&tlmm 115 0>;
+			coreriver,irq-gpio = <&pm6150l_gpios 5 GPIO_ACTIVE_LOW>;
+			coreriver,regulator_ic = "pm6150_l16";
+			coreriver,i2c-gpio = "true";
+			coreriver,boot-on-ldo = "true";
+			coreriver,fw_name = "coreriver/tc305k_a60_grip.fw";
+			coreriver,use_bitmap = <1>;
+		};
+	};
+	sec_abc {
+		compatible = "samsung,sec_abc";
+		status = "okay";
+		gpu {
+			gpu,label="GPU fault";
+			gpu,threshold_count=<20>;
+			gpu,threshold_time=<1200>;
+		};
+		aicl {
+			aicl,label="battery aicl";
+			aicl,threshold_count=<5>;
+			aicl,threshold_time=<300>;
+		};
+	};
+
+	abc_hub {
+		compatible = "samsung,abc_hub";
+		status = "okay";
+
+		bootc {
+			bootc,time_spec_user = <100000>; /* user binary user build */
+			bootc,time_spec_eng = <100000>; /* user binary eng build */
+			bootc,time_spec_fac = <100000>; /* factory binary */
+		};
+	};
+};
+
+/* Grip Sensor */
+&pm6150_l16 {
+	regulator-min-microvolt = <2200000>;
+	regulator-max-microvolt = <2200000>;
+	qcom,init-voltage = <2200000>;
+};

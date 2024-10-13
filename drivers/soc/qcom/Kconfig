@@ -1104,3 +1104,9 @@ config RENAME_BLOCK_DEVICE
 	  to a name that is needed.
 
 source "drivers/soc/qcom/wcnss/Kconfig"
+
+config SEC_CDSP_NOT_CRASH_ENG
+	bool "crash only trigger on USER/USERDEBUG except ENG"
+	default n
+	help
+	  This option provides crash only except ENG Binary.

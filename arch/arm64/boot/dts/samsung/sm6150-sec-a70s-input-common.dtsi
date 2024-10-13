@@ -1,0 +1,98 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+
+&pm6150_l18 {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+	regulator-boot-on;
+};
+
+&tlmm {
+	tsp_int: tsp_int {
+		mux {
+			pins = "gpio89";
+			function = "gpio";
+		};
+		
+		config {
+			pins = "gpio89";
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+
+&qupv3_se1_i2c {
+	status = "ok";
+	
+	touchscreen@50 {
+		status = "ok";
+		compatible = "imagis,ist40xx-ts";
+		reg = <0x50>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tsp_int>;
+		imagis,irq-gpio = <&tlmm 89 0>;
+		imagis,regulator_avdd = "pm6150_l18";
+		imagis,x_resolution = <1080>;
+		imagis,y_resolution = <2400>;
+		imagis,ic-version = "ist40xx";
+		imagis,project-name = "a70";
+		imagis,fw-bin = <1>;
+		imagis,octa-hw = <1>;
+		imagis,tclm_level = <2>;
+		imagis,afe_base = <0x0303>;
+		imagis,factory_item_version = <1>;
+		imagis,cm_spec = <300 2200 43>;	/* min, max, gap */
+		enable_settings_aot;
+		support_fod;
+	};
+};
+
+/delete-node/&key_vol_up_default;
+&pm6150l_gpios {
+	key_vol_up {
+		key_vol_up_default: key_vol_up_default {
+			pins = "gpio8";
+			function = "normal";
+			input-enable;
+			bias-pull-up;
+			power-source = <0>;
+		};
+	};
+};
+
+&soc {
+	/delete-node/gpio_keys;
+	gpio_keys {
+		status = "ok";
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_vol_up_default>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm6150l_gpios 8 0x1>;
+			linux,input-type = <1>;
+			linux,code = <KEY_VOLUMEUP>;
+			debounce-interval = <15>;
+		};
+	};
+
+	ss_touch {
+		compatible = "samsung,ss_touch";
+		ss_touch,numbers = <1>;
+	};
+};

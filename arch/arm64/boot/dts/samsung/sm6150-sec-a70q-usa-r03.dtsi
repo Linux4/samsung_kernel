@@ -1,0 +1,46 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sm6150-sec-a70q-usa-r02.dtsi"
+
+/delete-node/ &i2c_17;
+
+&soc {
+	i2c_17: i2c@17 { /* SW I2C */
+		status = "ok";
+
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = < &tlmm 115 0 /* sda */
+		  	  &tlmm 116 0 /* scl */
+			>;
+		pinctrl-names = "default","on_i2c","off_i2c";
+		pinctrl-0 = <&grip_i2c>;
+		pinctrl-1 = <&grip_i2c>;
+		pinctrl-2 = <&grip_gpio>;
+
+		a96t3x6@20 {
+			compatible = "a96t3x6";
+			pinctrl-names = "default";
+			reg = <0x20>;
+
+			interrupt-parent = <&spmi_bus>;
+			interrupts = <0x4 0xc4 0 IRQ_TYPE_EDGE_FALLING>;
+			a96t3x6,irq_gpio = <&pm6150l_gpios 5 GPIO_ACTIVE_HIGH>;
+			a96t3x6,ldo_en = <&tlmm 122 0>;
+			/* a96t3x6,fw_path = "abov/a96t346_a70q_usa.bin"; */
+			a96t3x6,fw_path = "a96t346_a70q_usa.bin";
+			a96t3x6,firmup_cmd = <0x38>;
+			a96t3x6,earjack_noise = <1>;
+		};
+	};
+};

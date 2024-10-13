@@ -186,6 +186,13 @@ config SAMSUNG_CAMERA_OTP_MACRO
 	---help---
 	Enables support for MACRO SENSOR OTP
 
+config SAMSUNG_CAMERA_OTP_FRONT
+	tristate "Front sensor OTP support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for Front SENSOR OTP
+
 config SAMSUNG_CAMERA_OTP
 	tristate "Sensor OTP support"
 	depends on SPECTRA_CAMERA

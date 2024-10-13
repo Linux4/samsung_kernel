@@ -60,6 +60,10 @@
 #define ST_LOG(fmt, ...)
 #endif
 
+#if defined(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
+
 /* If the device is not responding */
 #define MMC_CORE_TIMEOUT_MS	(10 * 60 * 1000) /* 10 minute timeout */
 
@@ -4260,6 +4264,25 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 	return -EIO;
 }
 
+#if defined(CONFIG_SEC_ABC)
+void _mmc_trigger_abc_event(struct mmc_host *host)
+{
+	if (host->ops->get_cd && host->ops->get_cd(host)) {
+		host->card_removed_cnt++;
+		if ((host->card_removed_cnt % 5) == 0)
+#if defined(CONFIG_SEC_FACTORY)
+			sec_abc_send_event("MODULE=storage@INFO=sd_removed_err");
+#else
+			sec_abc_send_event("MODULE=storage@WARN=sd_removed_err");
+#endif
+	}
+}
+#else
+void _mmc_trigger_abc_event(struct mmc_host *host)
+{
+}
+#endif
+
 int _mmc_detect_card_removed(struct mmc_host *host)
 {
 	int ret, i = 0;
@@ -4288,6 +4311,7 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 	if (ret) {
 		mmc_card_set_removed(host->card);
 		pr_err("%s: card remove detected\n", mmc_hostname(host));
+		_mmc_trigger_abc_event(host);
 
 		for (i = 0; i < 6; i++) {
 			if (err_log[i].err_type == -EILSEQ && total_crc_cnt < MAX_CNT_U64)

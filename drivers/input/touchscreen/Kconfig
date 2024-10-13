@@ -1256,17 +1256,17 @@ config TOUCHSCREEN_ST
 
 source "drivers/input/touchscreen/st/Kconfig"
 
-config TOUCHSCREEN_HIMAX_CHIPSET
-	bool "Himax touchpanel CHIPSET"
-	depends on I2C
-	help
-	  Say Y here if you have a Himax CHIPSET touchscreen.
-	  HIMAX controllers are multi touch controllers which can
-	  report 10 touches at a time.
+#config TOUCHSCREEN_HIMAX_CHIPSET
+#	bool "Himax touchpanel CHIPSET"
+#	depends on I2C
+#	help
+#	  Say Y here if you have a Himax CHIPSET touchscreen.
+#	  HIMAX controllers are multi touch controllers which can
+#	  report 10 touches at a time.
+#
+#	  If unsure, say N.
 
-	  If unsure, say N.
-
-source "drivers/input/touchscreen/hxchipset/Kconfig"
+# source "drivers/input/touchscreen/hxchipset/Kconfig"
 
 config TOUCHSCREEN_SYNAPTICS_DSX
         bool "Synaptics DSX Touchscreen Driver"
@@ -1294,6 +1294,7 @@ source "drivers/input/touchscreen/melfas/mss100/Kconfig"
 source "drivers/input/touchscreen/sec_ts/y771/Kconfig"
 source "drivers/input/touchscreen/zinitix/zt7650/Kconfig"
 source "drivers/input/touchscreen/stm/fts5cu56a/Kconfig"
+source "drivers/input/touchscreen/himax/hx831xx/Kconfig"
 
 config TOUCHSCREEN_SYNAPTICS_TCM
 	bool "Synaptics TCM Touchscreen Driver"

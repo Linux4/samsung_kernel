@@ -69,6 +69,8 @@ extern int factory_mode;
 
 static void sm5714_charger_enable_aicl_irq(struct sm5714_charger_data *charger);
 
+static int sm5714_get_facmode(void) { return factory_mode; }
+
 static int chg_get_en_shipmode(struct sm5714_charger_data *charger)
 {
 	u8 reg;
@@ -92,13 +94,15 @@ static void chg_set_en_shipmode(struct sm5714_charger_data *charger, bool enable
 
 static void chg_set_auto_shipmode(struct sm5714_charger_data *charger, u8 vref)
 {
-	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL11, (vref << 1), (0x3 << 1)); 		/*	SHIP_AUTO_VREF	*/
-	pr_info("sm5714-charger: %s: set auto ship vref = %d mV \n", __func__, (2600 + (vref * 200)));
+	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL11,
+		(vref << 1), (0x3 << 1));	/*	SHIP_AUTO_VREF	*/
+	pr_info("sm5714-charger: %s: set auto ship vref = %d mV\n", __func__, (2600 + (vref * 200)));
 }
 
 static void chg_set_auto_shipmode_time(struct sm5714_charger_data *charger, u8 deglitch_time)
 {
-	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL11, (deglitch_time << 3), (0x3 << 3));	/*	SHIP_AUTO_TIME	*/
+	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL11,
+		(deglitch_time << 3), (0x3 << 3));	/*	SHIP_AUTO_TIME	*/
 }
 
 #if defined(ENABLE_SM5714_ENBYPASS_MODE)
@@ -113,9 +117,16 @@ static void chg_set_en_bypass_mode(struct sm5714_charger_data *charger, bool ena
 	union power_supply_propval val = {0, };
 
 	if (enable) {
-		sm5714_update_reg(charger->i2c, SM5714_CHG_REG_FACTORY1, (0x1 << 4), (0x1 << 4));	/* OFFREVERSE deactivated(1) */
+		if (!sm5714_get_facmode())
+			sm5714_update_reg(charger->i2c, SM5714_CHG_REG_VBUSCNTL,
+				(0x24 << 0), (0x7F << 0));		/* VBUS_LIMIT	= 1000mA */
 
-		sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CNTL1, (0x0 << 6), (0x1 << 6));		/* AICLEN_VBUS = disable(0) */
+		sm5714_update_reg(charger->i2c, SM5714_CHG_REG_FACTORY1,
+			(0x1 << 4), (0x1 << 4));	/* OFFREVERSE deactivated(1) */
+
+
+		sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CNTL1,
+			(0x0 << 6), (0x1 << 6));	/* AICLEN_VBUS = disable(0) */
 
 		chg_set_en_bypass(charger, 1);	/* ENBYPASS = enable(1) */
 
@@ -123,10 +134,14 @@ static void chg_set_en_bypass_mode(struct sm5714_charger_data *charger, bool ena
 			POWER_SUPPLY_PROP_ENERGY_NOW, val);
 
 	} else {
-
-		sm5714_update_reg(charger->i2c, SM5714_CHG_REG_FACTORY1, (0x0 << 4), (0x1 << 4));	/* OFFREVERSE activated(0) */
+		sm5714_update_reg(charger->i2c, SM5714_CHG_REG_FACTORY1,
+			(0x0 << 4), (0x1 << 4));	/* OFFREVERSE activated(0) */
 
 		chg_set_en_bypass(charger, 0);	/* ENBYPASS = disable(0) */
+
+		if (!sm5714_get_facmode())
+			sm5714_update_reg(charger->i2c, SM5714_CHG_REG_VBUSCNTL,
+				(0x00 << 0), (0x7F << 0));		/* VBUS_LIMIT	= 100mA */
 	}
 	pr_info("sm5714-charger: %s: %s\n", __func__, enable ? "Enable" : "Disable");
 }
@@ -170,7 +185,7 @@ static void chg_set_batreg(struct sm5714_charger_data *charger, u16 float_voltag
 {
 	u8 offset;
 
-	if (factory_mode) {
+	if (sm5714_get_facmode()) {
 		pr_info("%s: Factory Mode Skip batreg Control\n", __func__);
 		return;
 	}
@@ -184,7 +199,8 @@ static void chg_set_batreg(struct sm5714_charger_data *charger, u16 float_voltag
 	else if (float_voltage < 4630)
 		offset = (((float_voltage - 4050) / 10) + 6);    /* BATREG = 4.05 ~ 4.62V in 0.01V steps */
 	else {
-		dev_err(charger->dev, "%s: can't support BATREG at over voltage 4.62V (mV=%d)\n", __func__, float_voltage);
+		dev_err(charger->dev, "%s: can't support BATREG at over voltage 4.62V (mV=%d)\n",
+			__func__, float_voltage);
 		offset = 0x15;    /* default Offset : 4.2V */
 	}
 	
@@ -224,7 +240,7 @@ static void chg_set_input_current_limit(struct sm5714_charger_data *charger, int
 {
 	u8 offset;
 
-	if (factory_mode) {
+	if (sm5714_get_facmode()) {
 		pr_info("%s: Factory Mode Skip current limit Control\n", __func__);
 		return;
 	}
@@ -252,7 +268,7 @@ static void chg_set_charging_current(struct sm5714_charger_data *charger, int mA
 
 	uA = mA * 1000;
 
-	if (factory_mode) {
+	if (sm5714_get_facmode()) {
 		pr_info("%s: Factory Mode Skip charging current Control\n", __func__);
 		return;
 	}
@@ -723,7 +739,7 @@ static int sm5714_chg_get_property(struct power_supply *psy,
 
 static void sm5714_chg_buck_control(struct sm5714_charger_data *charger, bool buck_on)
 {
-	if (factory_mode) {
+	if (sm5714_get_facmode()) {
 		pr_info("%s: Factory Mode Skip buck_control\n", __func__);
 		return;
 	}
@@ -741,7 +757,7 @@ static void sm5714_chg_charging(struct sm5714_charger_data *charger, int chg_en)
 {
 	u8 reg;
 
-	if (factory_mode) {
+	if (sm5714_get_facmode()) {
 		pr_info("%s: Factory Mode Skip chg charging\n", __func__);
 		return;
 	}
@@ -759,12 +775,13 @@ static void sm5714_chg_charging(struct sm5714_charger_data *charger, int chg_en)
 static void psy_chg_set_charging_enable(struct sm5714_charger_data *charger, int charge_mode)
 {
 	int buck_off = false;
-	bool buck_off_status = (sm5714_charger_oper_get_current_status() & (0x1 << SM5714_CHARGER_OP_EVENT_SUSPEND)) ? 1 : 0;
+	bool buck_off_status =
+		(sm5714_charger_oper_get_current_status() & (0x1 << SM5714_CHARGER_OP_EVENT_SUSPEND)) ? 1 : 0;
 
 	dev_info(charger->dev, "charger_mode changed [%d] -> [%d]\n", charger->charge_mode, charge_mode);
 	charger->charge_mode = charge_mode;
 
-	if (factory_mode) {
+	if (sm5714_get_facmode()) {
 		pr_info("%s: Factory Mode Skip charging enable Control\n", __func__);
 		return;
 	}
@@ -1130,7 +1147,7 @@ static irqreturn_t chg_done_isr(int irq, void *data)
 	struct sm5714_charger_data *charger = data;
 
 	dev_info(charger->dev, "%s: irq=%d\n", __func__, irq);
-	if (factory_mode) {
+	if (sm5714_get_facmode()) {
 		pr_info("%s: Factory Mode Skip chg done\n", __func__);
 		return IRQ_HANDLED;
 	}
@@ -1275,6 +1292,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	struct sm5714_charger_data *charger;
 	struct power_supply_config psy_cfg = {};
 	int ret = 0;
+	u8 reg_data1 = 0, reg_data2 = 0, reg_data3 = 0, reg_data4 = 0;
 
 	dev_info(&pdev->dev, "%s: probe start\n", __func__);
 	charger = kzalloc(sizeof(*charger), GFP_KERNEL);
@@ -1304,6 +1322,48 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	sm5714_chg_init(charger);
 	sm5714_charger_oper_table_init(sm5714);
 
+	/* W/A : for Q3 option bit write */
+	sm5714_read_reg(charger->i2c, 0xEA, &reg_data1);
+	sm5714_read_reg(charger->i2c, 0xED, &reg_data2);
+	sm5714_read_reg(charger->i2c, 0xE4, &reg_data3);
+	sm5714_read_reg(charger->i2c, 0xCB, &reg_data4);
+	dev_info(&pdev->dev, "%s: read sm5714 option bits [0x%X,0x%X,0x%X,0x%X]\n",
+		__func__, reg_data1, reg_data2, reg_data3, reg_data4);
+
+	if ((reg_data1 != 0x93) || (reg_data2 != 0x10) || (reg_data3 != 0x9E) || (reg_data4 != 0x80)) {
+		sm5714_write_reg(charger->i2c, 0x51, 0xEA);
+		sm5714_write_reg(charger->i2c, 0x51, 0xAE);
+		sm5714_update_reg(charger->i2c, 0x6B, (0x1 << 2), (0x1 << 2));
+		sm5714_write_reg(charger->i2c, 0x4C, 0xFF);
+		sm5714_write_reg(charger->i2c, 0x57, 0x20);
+		sm5714_write_reg(charger->i2c, 0x49, 0xE8);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x02);
+		sm5714_write_reg(charger->i2c, 0x49, 0xCB);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x80);
+		sm5714_write_reg(charger->i2c, 0x49, 0xDA);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x00);
+		sm5714_write_reg(charger->i2c, 0x49, 0xEA);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x93);
+		sm5714_write_reg(charger->i2c, 0x49, 0xED);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x10);
+		sm5714_write_reg(charger->i2c, 0x49, 0xE4);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x9E);
+		sm5714_write_reg(charger->i2c, 0x4C, 0x3F);
+		sm5714_write_reg(charger->i2c, 0x57, 0x00);
+		sm5714_update_reg(charger->i2c, 0x6B, (0x0 << 2), (0x1 << 2));
+		sm5714_write_reg(charger->i2c, 0x51, 0x00);
+		dev_info(&pdev->dev, "%s: option bit write all\n", __func__);
+	}
+
+	// re-read, for check write.
+	sm5714_read_reg(charger->i2c, 0xEA, &reg_data1);
+	sm5714_read_reg(charger->i2c, 0xED, &reg_data2);
+	sm5714_read_reg(charger->i2c, 0xE4, &reg_data3);
+	sm5714_read_reg(charger->i2c, 0xCB, &reg_data4);
+	dev_info(&pdev->dev, "%s: again read sm5714 option bits [0x%X,0x%X,0x%X,0x%X]\n",
+		__func__, reg_data1, reg_data2, reg_data3, reg_data4);
+
+	/* Re-cycle Buck contdition */
 	sm5714_chg_buck_control(charger, 0);
 	sm5714_chg_buck_control(charger, 1);
 	/* Init work_queue, ws for Slow-rate-charging */
@@ -1439,7 +1499,7 @@ static void sm5714_charger_shutdown(struct platform_device *pdev)
 	pr_info("%s: ++\n", __func__);
 
 	if (charger->i2c) {
-		if (!factory_mode) {
+		if (!sm5714_get_facmode()) {
 			u8 reg;
 
 			/* disable charger */

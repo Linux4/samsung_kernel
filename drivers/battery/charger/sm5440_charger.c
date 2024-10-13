@@ -29,7 +29,7 @@ static bool wireless_4x_charger = 1;
 static int offset_4x;
 #endif
 
-#define SM5440_DC_VERSION  "UF2"
+#define SM5440_DC_VERSION  "VD1"
 
 static int sm5440_read_reg(struct sm5440_charger *sm5440, u8 reg, u8 *dest)
 {
@@ -444,23 +444,19 @@ static int get_wpc_mfd_max_power(struct sm5440_charger *sm5440, struct sm_dc_pow
 
 static int get_apdo_max_power(struct sm5440_charger *sm5440, struct sm_dc_power_source_info *ta)
 {
-	int ret, cnt;
+	int ret;
+	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 
 	ta->pdo_pos = 0;        /* set '0' else return error */
 	ta->v_max = 10000;      /* request voltage level */
 	ta->c_max = 0;
 	ta->p_max = 0;
 
-	for (cnt = 0; cnt < 3; ++cnt) {
-		ret = sec_pd_get_apdo_max_power(&ta->pdo_pos, &ta->v_max, &ta->c_max, &ta->p_max);
-		if (ret < 0)
-			dev_err(sm5440->dev, "%s: error:sec_pd_get_apdo_max_power, RETRY=%d\n", __func__, cnt);
-		else
-			break;
-	}
-
-	if (cnt == 3)
+	ret = sec_pd_get_apdo_max_power(&ta->pdo_pos, &ta->v_max, &ta->c_max, &ta->p_max);
+	if (ret < 0) {
 		dev_err(sm5440->dev, "%s: fail to get apdo_max_power(ret=%d)\n", __func__, ret);
+		sm_dc_report_error_status(sm_dc, SM_DC_ERR_SEND_PD_MSG);
+	}
 
 	dev_info(sm5440->dev, "%s: pdo_pos:%d, max_vol:%dmV, max_cur:%dmA, max_pwr:%dmW\n",
 			__func__, ta->pdo_pos, ta->v_max, ta->c_max, ta->p_max);

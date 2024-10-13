@@ -40,28 +40,24 @@ extern struct class *sec_class;
 #include <linux/suspend.h>
 #include <linux/workqueue.h>
 #include <linux/rtc.h>
+#include <linux/version.h>
+
+#if (KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE)
 #include <linux/sched/clock.h>
+#else
+#include <linux/sched.h>
+#endif
 
 #define ABC_UEVENT_MAX		20
 #define ABC_BUFFER_MAX		256
 #define ABC_LOG_STR_LEN		50
-#define ABC_LOG_MAX		80
-
+#define ABC_LOG_MAX			80
+#define ABC_DISABLED		0
+#define ERROR_REPORT_MODE_BIT	(1<<0)
+#define ALL_REPORT_MODE_BIT		(1<<1)
 #define ABC_WAIT_ENABLE_TIMEOUT	10000
 
-enum {
-	ABC_DISABLED,
-	/* TYPE1 : ABC Driver - ABC Daemon is not used. ABC Driver manage ABC Error */
-	ABC_TYPE1_ENABLED,
-	/* TYPE2 : Common Driver - ABC Daemon is used. ABC Daemon manage ABC Error. Common Driver send uevent bypass */
-	ABC_TYPE2_ENABLED,
-};
-
-enum {
-	ABC_EVENT_I2C = 1,
-	ABC_EVENT_UNDERRUN,
-	ABC_EVENT_GPU_FAULT,
-};
+#define ABC_PRINT(format, ...) pr_info("[sec_abc] " format, ##__VA_ARGS__)
 
 struct abc_fault_info {
 	unsigned long cur_time;

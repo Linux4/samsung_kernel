@@ -727,6 +727,7 @@ static const struct freq_tbl ftbl_gcc_sdcc2_apps_clk_src[] = {
 	F(25000000, P_GPLL0_OUT_EVEN, 12, 0, 0),
 	F(50000000, P_GPLL0_OUT_EVEN,  6, 0, 0),
 	F(100000000, P_GPLL0_OUT_EVEN, 3, 0, 0),
+	F(179555556, P_GPLL7_OUT_MAIN, 4.5, 0, 0),
 	F(202000000, P_GPLL7_OUT_MAIN, 4, 0, 0),
 	{ }
 };
