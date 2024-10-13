@@ -1,0 +1,5 @@
+config BENCHMARK
+    bool "enable benchmark proc"
+    default n
+    help
+    enable benchmark proc

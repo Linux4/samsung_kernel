@@ -1,0 +1,2 @@
+
+source "drivers/misc/sprd_vpp/sprd_deint/Kconfig"

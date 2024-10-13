@@ -1,0 +1,39 @@
+config SPRD_DEBUG_FRAME
+	bool "sprd debug proc interface support"
+	depends on DEBUG_FS && SPRD_DEBUG
+	default y
+
+config SPRD_DEBUG_PHYMEM_INFO
+	bool "physical memory show support"
+	depends on SPRD_DEBUG_FRAME
+	default n
+
+config SPRD_DEBUG_USRPROCMEM_INFO
+	bool "user proc's memory show support"
+	depends on SPRD_DEBUG_FRAME
+	default n
+
+config SPRD_DEBUG_USRPROCSTACK_INFO
+	bool "user proc's current stack show support"
+	depends on SPRD_DEBUG_FRAME
+	default n
+
+config SPRD_DEBUG_CPU_RATE
+	bool "open sprd cpu rate compute"
+	depends on SPRD_DEBUG_FRAME
+	default y
+
+config SPRD_DEBUG_MORE_SMAPS_INFO
+	default n
+	depends on PROC_FS && MMU
+	bool "Enable more smaps info" if EXPERT
+	help
+	  Add more infos in /proc/pid/smaps
+
+config SPRD_UBOOT_LOG_DUMP
+        bool  "Spreadtrum u-boot log dump"
+        depends on SPRD_SYSDUMP && PROC_FS
+        default y
+        help
+          Enable this option to support dumping u-boot log via sysfs from
+          userspace

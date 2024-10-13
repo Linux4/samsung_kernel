@@ -1,0 +1,45 @@
+#
+# Cypress cyttsp5 touchscreen driver configuration
+#
+
+config TOUCHSCREEN_FT6436
+	tristate "Focaltech Touchscreen Driver"
+	default n
+	depends on I2C
+	help
+	  Focaltech touch driver
+	  I2C bus interface.
+
+	  Say Y here to enable I2C bus interface to TTSP
+	  touchscreen controller.
+
+config TOUCHSCREEN_LU202x
+	tristate "leadingui Touchscreen Driver"
+	default n
+	depends on I2C
+	help
+	  leadingui touch driver
+	  I2C bus interface.
+
+	  Say Y here to enable I2C bus interface to TTSP
+	  touchscreen controller.
+
+config TOUCHSCREEN_MELFAS_MMS500
+        tristate "MELFAS MMS500 Touchscreen"
+        depends on I2C
+        help
+          Say Y here if you have a MELFAS MMS500 touchscreen device in your system.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MCS8040L
+        tristate "MELFAS MCS8040L Touchscreen"
+        depends on I2C
+        help
+          Say Y here if you have a MELFAS MCS8040L touchscreen device in your system.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the module will be called mip4_ts.	  

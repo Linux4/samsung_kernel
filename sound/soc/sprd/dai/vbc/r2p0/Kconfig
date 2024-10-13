@@ -1,0 +1,20 @@
+config SND_SOC_SPRD_VBC_R2P0
+	tristate # "VBC_R2P0"
+	help
+
+config SND_SOC_SPRD_VBC_SRC_OPEN
+	bool "VBC ADC/ADC23 SRC open"
+	depends on SND_SOC_SPRD_VBC_R2P0
+	help
+	  say Y then the VBC will open adc SRC for FM  function.
+
+config SND_SOC_VBC_SRC_SAMPLE_RATE
+	int "VBC SRC Source Rate (32000 or 48000) unit(HZ)"
+	range 32000 48000
+	default 32000
+	depends on SND_SOC_SPRD_VBC_R2P0
+	help
+	  when capture sample rate is 44100HZ,
+	   we cann't set 44100 HZ for CODEC adc sample rate,
+	   so need to set CODEC sample to 32000/48000,
+	   then open VBC SRC changing to 44100HZ..

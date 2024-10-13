@@ -1,0 +1,24 @@
+Richtek RT8973 MUIC
+
+Required properties:
+
+ - compatible	: should be "richtek,rt8973"
+ - reg			: i2c slave address of the device
+ - interrupt-parent	: parent of interrupt
+ - interrupts		: interrupt to indicate accessories attach or detach
+ - rt8973,irq-gpio	: irq gpio
+
+
+
+Example:
+		&soc {
+
+			i2c_0: i2c@f9967000 {
+					rt8973@14 {
+						compatible = "richtek,rt8973";
+						reg = <0x14>;
+						interrupt-parent = <&msmgpio>;
+						rt8973,irq-gpio = <&msmgpio 73 0>;
+				};
+			};
+		};
