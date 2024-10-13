@@ -1,0 +1,7 @@
+ifeq ($(CONFIG_TZDEV),y)
+    $(warning "CONFIG_MTK_PLATFORM: $(CONFIG_MTK_PLATFORM)")
+    $(warning "CONFIG_TEEGRIS_VERSION_STRING: $(CONFIG_TEEGRIS_VERSION_STRING)")
+    ccflags-y += -I$(srctree)/drivers/misc/tzdev/$(CONFIG_TEEGRIS_VERSION_STRING)
+    ccflags-y += -I$(srctree)/drivers/misc/tzdev/$(CONFIG_TEEGRIS_VERSION_STRING)/include
+    ccflags-y += -I$(srctree)/drivers/misc/tzdev/$(CONFIG_TEEGRIS_VERSION_STRING)/include/tzdev
+endif

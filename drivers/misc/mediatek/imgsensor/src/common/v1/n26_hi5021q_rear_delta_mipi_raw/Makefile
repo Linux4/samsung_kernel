@@ -1,0 +1,1 @@
+obj-y += n26_hi5021q_rear_delta_mipiraw_Sensor.o

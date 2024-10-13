@@ -1,0 +1,7 @@
+config N28_LIFT_TO_WAKE
+    bool "lift to wake for ss"
+    help
+        A wake is a device,
+        usually portable and electronic
+        or electromechanical,
+        that detect device is picked up with 35 degree.
