@@ -2481,7 +2481,7 @@ static irqreturn_t zt75xx_touch_work(int irq, void *data)
 
 	if (info->power_state == POWER_STATE_LPM) {
 		/* run lpm interrupt handler */
-//		wake_lock_timeout(&info->wakelock, msecs_to_jiffies(500));
+		__pm_wakeup_event(info->wakelock, SEC_TS_WAKE_LOCK_TIME);
 
 		/* waiting for blsp block resuming, if not occurs i2c error */
 		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
@@ -10445,8 +10445,7 @@ static int zt75xx_ts_probe(struct i2c_client *client,
 	}
 
 	info->work_state = NOTHING;
-
-//	wake_lock_init(&info->wakelock, WAKE_LOCK_SUSPEND, "tsp_wakelock");
+	info->wakelock = wakeup_source_register(&client->dev, "tsp_wakelock_sub");
 	init_completion(&info->resume_done);
 	complete_all(&info->resume_done);
 
@@ -10584,7 +10583,7 @@ err_misc_register:
 	free_irq(info->irq, info);
 err_request_irq:
 error_gpio_irq:
-//	wake_lock_destroy(&info->wakelock);
+	wakeup_source_unregister(info->wakelock);
 err_init_touch:
 	input_unregister_device(info->input_dev);
 err_input_register_device:
@@ -10658,7 +10657,7 @@ static int zt75xx_ts_remove(struct i2c_client *client)
 
 	if (info->irq)
 		free_irq(info->irq, info);
-//	wake_lock_destroy(&info->wakelock);
+	wakeup_source_unregister(info->wakelock);
 #ifdef USE_MISC_DEVICE
 	misc_deregister(&touch_misc_device);
 #endif

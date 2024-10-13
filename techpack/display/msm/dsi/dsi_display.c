@@ -3707,6 +3707,12 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 
 	num_clk = dsi_display_get_clocks_count(display, dsi_clock_name);
 
+	if (num_clk <= 0) {
+		rc = num_clk;
+		DSI_WARN("failed to read %s, rc = %d\n", dsi_clock_name, num_clk);
+		goto error;
+	}
+
 	DSI_DEBUG("clk count=%d\n", num_clk);
 
 	for (i = 0; i < num_clk; i++) {
@@ -5185,6 +5191,10 @@ static int dsi_display_dfps_update(struct dsi_display *display,
 	 */
 	panel_mode->dsi_mode_flags = 0;
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	DSI_INFO("%s] success configuring dynamic-fps\n", __func__);
+#endif
+
 error:
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 	return rc;
@@ -5699,6 +5709,24 @@ int dsi_display_cont_splash_config(void *dsi_display)
 	dsi_panel_bl_handoff(display->panel);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+	/* Splash boot && pba_reuglator_control && PBA panel => PBA regulators off */
+	if (!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+		(!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))) {
+		LCD_INFO(vdd, "splash && pba_regulator && PBA panel => regulator OFF\n");
+
+		/* Reset off  */
+		if (gpio_is_valid(display->panel->reset_config.reset_gpio))
+			gpio_set_value(display->panel->reset_config.reset_gpio, 0);
+		else
+			LCD_ERR(vdd, "reset_gpio is invalid\n");
+
+		/* Regulators off : including reset regulator off */
+		rc = dsi_pwr_enable_regulator(&display->panel->power_info, false);
+		if (rc)
+			DSI_ERR("[%s] failed to disable vregs, rc=%d\n",
+				display->panel->name, rc);
+	}
+
 	if (vdd->br_info.support_early_gamma_flash || vdd->support_early_id_read) {
 		drm_enc = display->bridge->base.encoder;
 

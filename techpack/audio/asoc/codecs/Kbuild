@@ -72,6 +72,11 @@ else
 			include $(AUDIO_ROOT)/config/konaauto.conf
 			INCS    +=  -include $(AUDIO_ROOT)/config/konaautoconf.h
 		endif
+		ifeq ($(CONFIG_ARCH_LAHAINA), y)
+			include $(AUDIO_ROOT)/config/lahainaauto.conf
+			export
+			INCS    +=  -include $(AUDIO_ROOT)/config/lahainaautoconf.h
+		endif
 		ifeq ($(CONFIG_ARCH_LITO), y)
 			include $(AUDIO_ROOT)/config/litoauto.conf
 			export
@@ -273,6 +278,14 @@ endif
 
 ifdef CONFIG_SND_SOC_TAS256x
 	obj-y	 += tas256x/
+endif
+
+ifdef CONFIG_SND_SOC_TAS256x
+	obj-y	 += tas256x/
+endif
+
+ifdef CONFIG_SND_SOC_AW882XX
+	obj-y += aw882xx/
 endif
 
 # Module information used by KBuild framework

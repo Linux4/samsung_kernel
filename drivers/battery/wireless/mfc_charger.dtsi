@@ -84,4 +84,10 @@
 			cv = <150 92 142 85 150 76 150 79 170 33 156 96>;
 		};
 	};
+	iec_data {
+		fod_enable = <1>;
+		fod_thres1 = <0x2bc>; /* 700mW */
+		fod_thres2 = <0x640>; /* 1600mW */
+		fod_counter = <3>;
+	};
 };

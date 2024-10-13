@@ -197,11 +197,13 @@ static ssize_t nfc_logger_read(struct file *file, char __user *buf, size_t len, 
 #if KERNEL_VERSION(5, 6, 0) <= LINUX_VERSION_CODE
 static const struct proc_ops nfc_logger_ops = {
 	.proc_read = nfc_logger_read,
+	.proc_lseek = default_llseek,
 };
 #else
 static const struct file_operations nfc_logger_ops = {
 	.owner = THIS_MODULE,
 	.read = nfc_logger_read,
+	.llseek = default_llseek,
 };
 #endif
 

@@ -15,6 +15,12 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include "adsp.h"
+#if IS_ENABLED(CONFIG_SUPPORT_CONTROL_PROX_LED_GPIO)
+#include <linux/gpio.h>
+#include <linux/of.h>
+#include <linux/of_gpio.h>
+#define PROX_LED_EN_GPIO 195
+#endif
 #define VENDOR "SensorTek"
 #define CHIP_ID "STK33512"
 
@@ -65,7 +71,7 @@ enum {
 	PROX_CMD_TYPE_MAX
 };
 
-static struct stk3a9x_prox_data *pdata;
+static struct stk3a5x_prox_data *pdata;
 
 static int get_prox_sidx(struct adsp_data *data)
 {
@@ -955,7 +961,7 @@ static struct device_attribute *prox_attrs[] = {
 	NULL,
 };
 
-static int __init stk3a9x_prox_factory_init(void)
+static int __init stk3a5x_prox_factory_init(void)
 {
 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 	adsp_factory_register(MSG_PROX, prox_attrs);
@@ -979,7 +985,7 @@ static int __init stk3a9x_prox_factory_init(void)
 	return 0;
 }
 
-static void __exit stk3a9x_prox_factory_exit(void)
+static void __exit stk3a5x_prox_factory_exit(void)
 {
 	if (pdata->avgtimer_enabled == 1) {
 		hrtimer_cancel(&pdata->prox_timer);
@@ -991,5 +997,5 @@ static void __exit stk3a9x_prox_factory_exit(void)
 	pr_info("[SSC_FAC] %s\n", __func__);
 }
 
-module_init(stk3a9x_prox_factory_init);
-module_exit(stk3a9x_prox_factory_exit);
+module_init(stk3a5x_prox_factory_init);
+module_exit(stk3a5x_prox_factory_exit);

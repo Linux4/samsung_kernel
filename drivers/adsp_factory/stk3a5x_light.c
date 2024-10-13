@@ -532,10 +532,8 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 static ssize_t light_circle_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-#if defined(CONFIG_SEC_R9Q_PROJECT)
-	return snprintf(buf, PAGE_SIZE, "41.9 11.4 2.9\n");
-#elif defined(CONFIG_SEC_B2Q_PROJECT)
-	return snprintf(buf, PAGE_SIZE, "42.1 7.0 2.9\n");
+#if defined(CONFIG_SEC_M44X_PROJECT)
+	return snprintf(buf, PAGE_SIZE, "50.499 -5.0 3.0\n");
 #else
 	return snprintf(buf, PAGE_SIZE, "0 0 0\n");
 #endif

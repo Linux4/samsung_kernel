@@ -109,3 +109,11 @@ config MMC_CRYPTO
 	  Enabling this makes it possible for the kernel to use the crypto
 	  capabilities of the MMC device (if present) to perform crypto
 	  operations on data being transferred to/from the device.
+
+config SEC_STORAGE_MMC
+	tristate "Enable SEC specific MMC/SD code"
+	depends on QGKI && MMC_SDHCI_MSM
+	default n
+	help
+	  This configuration flag allows to add SEC MMC/SD code.
+

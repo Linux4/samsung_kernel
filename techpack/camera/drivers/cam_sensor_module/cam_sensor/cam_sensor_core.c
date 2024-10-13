@@ -11,6 +11,11 @@
 #include "cam_trace.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include <linux/ktime.h>
+extern int cdr_value_exist;
+extern uint64_t cdr_start_ts;
+#endif
 
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
 #include "cam_sensor_mipi.h"
@@ -77,6 +82,11 @@ int32_t cam_check_stream_on(
 		case FRONT_SENSOR_ID_IMX471:
 #if defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 		case SENSOR_ID_HI1337:
+#endif
+		case SENSOR_ID_S5KJN1:
+		case SENSOR_ID_S5KJN1_1:
+#if defined(CONFIG_SEC_M44X_PROJECT)
+		case SENSOR_ID_HI1336:
 #endif
 			ret = 1;
  			break;
@@ -163,6 +173,13 @@ int cam_sensor_wait_stream_on(
 {
 	int rc = 0;
 	uint32_t frame_cnt = 0;
+
+#if defined(CONFIG_SEC_Q2Q_PROJECT)
+		if (s_ctrl->sensordata->slave_info.sensor_id == FRONT_SENSOR_ID_IMX374) {
+			rc = gpio_get_value_cansleep(MIPI_SW_SEL_GPIO);
+			CAM_INFO(CAM_SENSOR, "[0x%x]: mipi_sw_sel_gpio value = %d",s_ctrl->sensordata->slave_info.sensor_id, rc);
+		}
+#endif
 
 	CAM_DBG(CAM_SENSOR, "E");
 
@@ -455,7 +472,7 @@ int cam_sensor_apply_hyperlapse_settings(
     }
 #endif
 
-#if defined(CONFIG_SEC_O1Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_T2Q_PROJECT) || defined(CONFIG_SEC_Q2Q_PROJECT)
+#if defined(CONFIG_SEC_O1Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_T2Q_PROJECT) || defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 		struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
         {0x0104, 0x01, 0, 0}, //group hold on
         {0x3100, 0x00, 0, 0}, //COARSE_SHORT_INT_TIME_SHIFTER
@@ -477,14 +494,14 @@ int cam_sensor_apply_hyperlapse_settings(
     }
 #endif
 
-#if defined(CONFIG_SEC_B2Q_PROJECT) || defined(CONFIG_SEC_O1Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_T2Q_PROJECT) || defined(CONFIG_SEC_Q2Q_PROJECT)
+#if defined(CONFIG_SEC_B2Q_PROJECT) || defined(CONFIG_SEC_O1Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_T2Q_PROJECT) || defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
 
 	if (s_ctrl->shooting_mode == 16)
 	{
 		int size = 0;
-	struct cam_sensor_i2c_reg_setting reg_fllsetting;
-	struct cam_sensor_i2c_reg_setting reg_streamoffsetting;
-	struct cam_sensor_i2c_reg_setting reg_streamonsetting;
+		struct cam_sensor_i2c_reg_setting reg_fllsetting;
+		struct cam_sensor_i2c_reg_setting reg_streamoffsetting;
+		struct cam_sensor_i2c_reg_setting reg_streamonsetting;
 		size = ARRAY_SIZE(i2c_fll_reg_array);
 		CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] write register settings :: StreamOff -> FLL -> StreamOn");
 		reg_fllsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
@@ -1299,13 +1316,21 @@ static uint16_t cam_sensor_id_by_mask(struct cam_sensor_ctrl_t *s_ctrl,
 	if (!sensor_id_mask)
 		sensor_id_mask = ~sensor_id_mask;
 
+        CAM_ERR(CAM_SENSOR," Sensor id mask prev: %XX",sensor_id_mask);
+
 	sensor_id &= sensor_id_mask;
 	sensor_id_mask &= -sensor_id_mask;
 	sensor_id_mask -= 1;
+
+        CAM_ERR(CAM_SENSOR," Sensor id mask after operation: %XX",sensor_id_mask);
+
 	while (sensor_id_mask) {
 		sensor_id_mask >>= 1;
 		sensor_id >>= 1;
 	}
+
+        CAM_ERR(CAM_SENSOR," Sensor id final: %XX",sensor_id);
+
 	return sensor_id;
 }
 
@@ -1377,11 +1402,21 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 		return rc;
 	}
 #endif
-	CAM_DBG(CAM_SENSOR, "read id: 0x%x expected id 0x%x:",
+
+        CAM_ERR(CAM_SENSOR, " Read reg addr: %XX, chipid: %XX",
+			slave_info->sensor_id_reg_addr,
+			chipid);
+	CAM_ERR(CAM_SENSOR, "read id: 0x%x expected id 0x%x:",
 		chipid, slave_info->sensor_id);
+#if defined(CONFIG_SEC_M44X_PROJECT)//TEMP_FIX
+    if (s_ctrl->soc_info.index == SEC_WIDE_SENSOR && (cam_sensor_id_by_mask(s_ctrl, chipid) ==
+		SENSOR_ID_S5KJN1 || cam_sensor_id_by_mask(s_ctrl, chipid) == SENSOR_ID_S5KJN1_1)) {
+        return rc;
+    }
+#endif
 
 	if (cam_sensor_id_by_mask(s_ctrl, chipid) != slave_info->sensor_id) {
-		CAM_WARN(CAM_SENSOR, "read id: 0x%x expected id 0x%x:",
+		CAM_ERR(CAM_SENSOR, "read id: 0x%x expected id 0x%x:",
 				chipid, slave_info->sensor_id);
 		return -ENODEV;
 	}
@@ -1511,7 +1546,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #else
 			((s_ctrl->soc_info.index == SEC_WIDE_SENSOR) ||
 			(s_ctrl->soc_info.index == SEC_TELE_SENSOR) ||
-			(s_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR)))
+			(s_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR)))	
 #endif
 		{
 			cam_sensor_power_down(s_ctrl);
@@ -1714,6 +1749,12 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 #endif
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		if (cdr_value_exist) {
+			cdr_start_ts	= ktime_get();
+			cdr_start_ts = cdr_start_ts / 1000 / 1000;
+		}
+#endif
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
 		s_ctrl->last_flush_req = 0;
 		CAM_INFO(CAM_SENSOR,
@@ -2410,6 +2451,15 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "failed: power_info %pK", power_info);
 		return -EINVAL;
 	}
+
+// Add 1000us delay to meet the power off specification iT3 (End of MIPI transfer to MCLK disable and I2C shutdown)	
+#if defined(CONFIG_SEC_M44X_PROJECT)
+    if ((soc_info->index == SEC_FRONT_SENSOR) || (soc_info->index == SEC_FRONT_FULL_SENSOR))
+	{
+		msleep(10);
+	}	
+#endif
+	
 	rc = cam_sensor_util_power_down(power_info, soc_info);
 
 #if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT))

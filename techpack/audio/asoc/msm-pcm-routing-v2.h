@@ -900,8 +900,12 @@ int snd_pcm_add_usr_ctls(struct snd_pcm *pcm, int stream,
     unsigned long private_value,
     struct snd_pcm_usr **info_ret);
 #endif
+
+bool msm_pcm_routing_get_portid_copp_idx(int fe_id,
+	int session_type, int *port_id, int *copp_idx);
 #ifdef CONFIG_SEC_SND_ADAPTATION
 int q6audio_get_copp_idx_from_port_id(int port_id, enum sb_type func_type,
 	int *copp_idx);
+int sec_get_copp_idx(int port_id, int func_type);
 #endif /* CONFIG_SEC_SND_ADAPTATION */
 #endif /*_MSM_PCM_H*/

@@ -9,7 +9,7 @@
 #include "cam_flash_core.h"
 #include "cam_common_util.h"
 #include "camera_main.h"
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || IS_REACHABLE(CONFIG_LEDS_KTD2692)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || IS_REACHABLE(CONFIG_LEDS_KTD2692) || IS_REACHABLE(CONFIG_LEDS_SM5714)
 #include <cam_sensor_cmn_header.h>
 #include <cam_sensor_util.h>
 struct msm_pinctrl_info flash_pctrl;
@@ -495,7 +495,7 @@ static int cam_flash_component_bind(struct device *dev,
 
 	mutex_init(&(fctrl->flash_mutex));
 
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || IS_REACHABLE(CONFIG_LEDS_KTD2692)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || IS_REACHABLE(CONFIG_LEDS_KTD2692) || IS_REACHABLE(CONFIG_LEDS_SM5714)
 	if (msm_camera_pinctrl_init(&flash_pctrl, &pdev->dev) >= 0) {
 		// make pin state to suspend
 		rc = pinctrl_select_state(flash_pctrl.pinctrl, flash_pctrl.gpio_state_suspend);

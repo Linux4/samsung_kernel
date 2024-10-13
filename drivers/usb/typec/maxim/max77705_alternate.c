@@ -474,7 +474,11 @@ static int max77705_vdm_process_discover_svids(void *data, char *vdm_data, int l
 					(usbpd_data->host_turn_on_wait_time)*HZ);
 
 			timeleft = wait_event_interruptible_timeout(usbpd_data->host_turn_on_wait_q,
-					usbpd_data->host_turn_on_event && !usbpd_data->detach_done_wait, (usbpd_data->host_turn_on_wait_time)*HZ);
+					usbpd_data->host_turn_on_event && !usbpd_data->detach_done_wait
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+					&& !usbpd_data->wait_entermode
+#endif
+					, (usbpd_data->host_turn_on_wait_time)*HZ);
 			msg_maxim("%s host turn on wait = %d\n", __func__, timeleft);
 		}
 		max77705_ccic_event_work(usbpd_data,

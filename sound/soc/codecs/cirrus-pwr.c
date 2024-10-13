@@ -1,5 +1,5 @@
 /*
- * Power-management support for Cirrus Logic CS35L41 amplifier
+ * Power-management support for Cirrus Logic Smart Amplifiers
  *
  * Copyright 2018 Cirrus Logic
  *
@@ -43,7 +43,7 @@
 #define CIRRUS_PWR_AMB_TEMP_OFFSET	500
 #define CIRRUS_PWR_SCALING_Q15		846397
 
-static unsigned int sqrt_q24(unsigned long int x)
+static unsigned int sqrt_q24(unsigned long x)
 {
 	u32 root, remHi, remLo, testDiv, count;
 
@@ -68,7 +68,7 @@ static unsigned int sqrt_q24(unsigned long int x)
 
 static unsigned int convert_power(unsigned int power_squared)
 {
-	unsigned long long int power;
+	unsigned long long power;
 
 	power = sqrt_q24(power_squared*2);
 	power *= CIRRUS_PWR_SCALING_Q15;
@@ -116,11 +116,11 @@ void cirrus_pwr_start(const char *mfd_suffix)
 	if (amp_group->status == CIRRUS_PWR_STATUS_ENABLED) {
 		/* State machine already active on one amp */
 		dev_dbg(amp_group->pwr_dev,
-			"cirrus_pwr_start(), additional amp activated");
+			"%s(), additional amp activated", __func__);
 	} else {
 		/* Init state machine */
 		dev_dbg(amp_group->pwr_dev,
-			"cirrus_pwr_start() Entering wait period.\n");
+			"%s() Entering wait period.\n", __func__);
 		amp_group->status = CIRRUS_PWR_STATUS_ENABLED;
 
 		/* Queue state machine operation */
@@ -154,12 +154,12 @@ void cirrus_pwr_stop(const char *mfd_suffix)
 
 	if (amps_active) {
 		/* One amp still active */
-		dev_dbg(amp_group->pwr_dev, "Amp cs35l41%s deactivated\n",
-			mfd_suffix);
+		dev_dbg(amp_group->pwr_dev, "Amp %s%s deactivated\n",
+			amp->dsp_part_name, amp->mfd_suffix);
 	} else {
 		/* Exit state machine */
 		dev_dbg(amp_group->pwr_dev,
-			"cirrus_pwr_stop(). Disabling PASSPORT\n");
+			"%s(). Disabling PASSPORT\n", __func__);
 
 		for (i = 0; i < amp_group->num_amps; i++) {
 			cirrus_pwr_passport_enable(
@@ -207,7 +207,8 @@ static void cirrus_pwr_work(struct work_struct *work)
 	for (i = 0; i < amp_group->num_amps; i++) {
 		amp = &amp_group->amps[i];
 
-		dev_dbg(amp_group->pwr_dev,"Amp cs35l41%s\n", amp->mfd_suffix);
+		dev_dbg(amp_group->pwr_dev, "Amp %s%s\n",
+			amp->dsp_part_name, amp->mfd_suffix);
 		dev_dbg(amp_group->pwr_dev,
 			"Spk Temp:\t%d.%d C\t(Target: %d.%d C)\n",
 			amp->pwr.spk_temp / 100,
@@ -229,8 +230,8 @@ static void cirrus_pwr_work(struct work_struct *work)
 					false);
 
 				dev_info(amp_group->pwr_dev,
-					 "Amp cs35l41%s below exit temp. Disabling PASSPORT\n",
-					 amp->mfd_suffix);
+					 "Amp %s%s below exit temp. Disabling PASSPORT\n",
+					 amp->dsp_part_name, amp->mfd_suffix);
 
 				amp->pwr.passport_enable = 0;
 			}
@@ -242,8 +243,8 @@ static void cirrus_pwr_work(struct work_struct *work)
 				cirrus_pwr_passport_enable(amp->regmap, true);
 
 				dev_info(amp_group->pwr_dev,
-					 "Amp cs35l41%s above target temp and ambient + 5.\n",
-					 amp->mfd_suffix);
+					 "Amp %s%s above target temp and ambient + 5.\n",
+					 amp->dsp_part_name, amp->mfd_suffix);
 
 				dev_info(amp_group->pwr_dev,
 					 "Enabling PASSPORT\n");
@@ -253,8 +254,8 @@ static void cirrus_pwr_work(struct work_struct *work)
 
 		}
 
-		dev_dbg(amp_group->pwr_dev, "Amp cs35l41%s: Passport %s\n",
-			amp->mfd_suffix, amp->pwr.passport_enable ?
+		dev_dbg(amp_group->pwr_dev, "Amp %s%s: Passport %s\n",
+			amp->dsp_part_name, amp->mfd_suffix, amp->pwr.passport_enable ?
 				"Enabled" : "Disabled");
 	}
 

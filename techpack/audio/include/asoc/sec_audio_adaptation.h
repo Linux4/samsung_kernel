@@ -13,6 +13,7 @@
 /* Samsung Record */
 #define MODULE_ID_PP_SS_REC             0x10001050
 #define PARAM_ID_PP_SS_REC_GETPARAMS    0x10001052
+#define PARAM_ID_PP_SS_REC_SETPARAMS    0x1000BA30
 
 /* Sound Alive */
 #define MODULE_ID_PP_SA                 0x10001fa0
@@ -143,6 +144,10 @@ struct asm_stream_cmd_set_pp_params_dolby_atmos {
 	int16_t device;
 	int16_t dolby_profile;
 	int16_t swap_param;
+} __packed;
+
+struct adm_param_interview_operating_mode {
+	uint32_t onoff;
 } __packed;
 
 struct afe_volume_monitor_set_params_t {

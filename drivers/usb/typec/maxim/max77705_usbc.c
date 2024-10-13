@@ -3638,8 +3638,25 @@ static void max77705_usbpd_set_host_on(void *data, int mode)
 	}
 }
 
+static void max77705_usbpd_wait_entermode(void *data, int on)
+{
+	struct max77705_usbc_platform_data *usbpd_data = data;
+
+	if (!usbpd_data)
+		return;
+
+	pr_info("%s : %d!\n", __func__, on);
+	if (on) {
+		usbpd_data->wait_entermode = 1;
+	} else {
+		usbpd_data->wait_entermode = 0;
+		wake_up_interruptible(&usbpd_data->host_turn_on_wait_q);
+	}
+}
+
 struct usbpd_ops ops_usbpd = {
 	.usbpd_set_host_on = max77705_usbpd_set_host_on,
+	.usbpd_wait_entermode = max77705_usbpd_wait_entermode,
 };
 #endif
 
