@@ -20,7 +20,7 @@
 
 #include <linux/slab.h>
 
-#define ORIENTATION_CMD_MODE	128
+#define ORIENTATION_SUBCMD_MODE	128
 
 struct orientation_data {
 	u8 mode;
@@ -35,7 +35,7 @@ int set_device_orientation_mode(struct orientation_data *data)
 		return ret;
 	}
 
-	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_DEVICE_ORIENTATION, ORIENTATION_CMD_MODE,
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_DEVICE_ORIENTATION, ORIENTATION_SUBCMD_MODE,
 				&data->mode, sizeof(data->mode));
 	if (ret < 0) {
 		shub_errf("CMD fail %d", ret);
@@ -72,80 +72,46 @@ int inject_device_orientation_additional_data(char *buf, int count)
 	return set_device_orientation_mode(data);
 }
 
+static struct sensor_funcs device_orientation_sensor_func = {
+	.sync_status = sync_device_orientation_status,
+	.inject_additional_data = inject_device_orientation_additional_data,
+};
+
+static struct orientation_data orientation_data;
 
 int init_device_orientation(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_DEVICE_ORIENTATION);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "device_orientation");
-		sensor->receive_event_size = 1;
-		sensor->report_event_size = 1;
-		sensor->event_buffer.value = kzalloc(sensor->receive_event_size, GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "device_orientation", 1, 1, 1);
 
-		sensor->data = kzalloc(sizeof(struct orientation_data), GFP_KERNEL);
-		if (!sensor->data)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->sync_status = sync_device_orientation_status;
-		sensor->funcs->inject_additional_data = inject_device_orientation_additional_data;
+		sensor->data = (void *)&orientation_data;
+		sensor->funcs = &device_orientation_sensor_func;
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
-
-		kfree(sensor->data);
-		sensor->data = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->data);
-	sensor->data = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
 
 int init_device_orientation_wu(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_DEVICE_ORIENTATION_WU);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "device_orientation_wu");
-		sensor->receive_event_size = 1;
-		sensor->report_event_size = 1;
-		sensor->event_buffer.value = kzalloc(sensor->receive_event_size, GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "device_orientation_wu", 1, 1, 1);
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

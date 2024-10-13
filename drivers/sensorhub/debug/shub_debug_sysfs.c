@@ -36,6 +36,16 @@ do { \
 	SENSOR_TYPE_PROXIMITY, SENSOR_TYPE_LIGHT} \
 } while (0)
 
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+static void sensor_get_grip_info(void)
+{
+	int i = 0;
+
+	for (i = 0; i < GRIP_MAX_CNT; i++)
+		pr_err("GRIP%d_REASON : %d\n", i, grip_error[i]);
+}
+#endif
+
 static ssize_t sensor_dump_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	char **sensor_dump_data  = get_sensor_dump_data();
@@ -186,6 +196,15 @@ static ssize_t sensor_dump_store(struct device *dev, struct device_attribute *at
 		return -EINVAL;
 
 	if ((strcmp(name, "all")) == 0) {
+		int type;
+
+		shub_errf("last event of sensors");
+		for (type = 0; type < SENSOR_TYPE_MAX; type++) {
+			print_sensor_debug(type);
+		}
+
+		print_big_data();
+	
 		sensorhub_save_ram_dump();
 		ret = send_all_sensor_dump_command();
 	} else {
@@ -208,7 +227,9 @@ static ssize_t sensor_dump_store(struct device *dev, struct device_attribute *at
 		}
 		ret = send_sensor_dump_command(sensor_type);
 	}
-
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+	sensor_get_grip_info();
+#endif
 	return (ret == 0) ? size : ret;
 }
 
@@ -383,6 +404,14 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 					shub_errf("parsing error");
 					goto exit;
 				}
+			} else if (cmd == CMD_ADD) {
+				send_buf_len = 8;
+				send_buf = kzalloc(send_buf_len, GFP_KERNEL);
+				if (kstrtouint(tmp, 10, &arg[0])) {
+					shub_errf("parssing error");
+					goto exit;
+				}
+				memcpy(&send_buf[0], &arg[0], 4);
 			} else {
 				if ((strlen(tmp) - 1) % 2 != 0) {
 					shub_errf("not match buf len(%d) != %d", (int)strlen(tmp), send_buf_len);
@@ -402,11 +431,21 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 			}
 			break;
 		case 4:
-			if (cmd == CMD_SETVALUE && subcmd == HUB_SYSTEM_CHECK)
+			if (cmd == CMD_SETVALUE && subcmd == HUB_SYSTEM_CHECK) {
 				if (kstrtouint(tmp, 10, &arg[1])) {
 					shub_errf("parsing error");
 					goto exit;
 				}
+			} else if (cmd == CMD_ADD) {
+				if (kstrtouint(tmp, 10, &arg[1])) {
+					shub_errf("parssing error");
+					goto exit;
+				}
+				memcpy(&send_buf[4], &arg[1], 4);
+				shub_infof("type : %d, sampling : %d, report : %d", type, arg[0], arg[1]);
+			} else {
+				shub_errf("unused input");
+			}
 			break;
 		default:
 			goto exit;
@@ -464,7 +503,7 @@ static ssize_t register_rw_store(struct device *dev, struct device_attribute *at
 	char *tmp;
 
 	if (strlen(buf) >= sizeof(input_str)) {
-		shub_errf("bufsize too long(%d)", strlen(buf));
+		shub_errf("bufsize too long(%d)", (int)strlen(buf));
 		goto exit;
 	}
 
@@ -538,6 +577,37 @@ exit:
 }
 #endif
 
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+void update_grip_error(u8 idx, u32 error_state)
+{
+	if (idx >= GRIP_MAX_CNT) {
+		pr_info("[FACTORY] %s dump is NULL \n", __func__,
+			idx);
+		return;
+	}
+	grip_error[idx] = error_state;
+	pr_info("[FACTORY] %s [IC num %d] grip_error %d\n", __func__,
+		idx, error_state);
+}
+EXPORT_SYMBOL(update_grip_error);
+static ssize_t grip_fail_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int i = 0, j = 0;
+
+	for (i = 0; i < GRIP_MAX_CNT; i++) {
+		j += snprintf(buf + j, PAGE_SIZE - j,
+			"\"GRIP%d_REASON\":\"%d\",",
+			i, grip_error[i]);
+		pr_info("[FACTORY] %s \"GRIP%d_REASON\":\"%d\",",
+			__func__, i, grip_error[i]);
+		grip_error[i] = 0;
+	}
+
+	return j;
+}
+#endif
+
 static DEVICE_ATTR(sensor_dump, 0664, sensor_dump_show, sensor_dump_store);
 static DEVICE_ATTR_RW(sensor_axis);
 static DEVICE_ATTR_RW(debug_enable);
@@ -545,9 +615,14 @@ static DEVICE_ATTR_RW(debug_enable);
 static DEVICE_ATTR(make_command, 0220, NULL, make_command_store);
 static DEVICE_ATTR_RW(register_rw);
 #endif
-
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+static DEVICE_ATTR(grip_fail, 0440, grip_fail_show, NULL);
+#endif
 static struct device_attribute *shub_debug_attrs[] = {
 	&dev_attr_sensor_axis,
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+	&dev_attr_grip_fail,
+#endif
 	&dev_attr_sensor_dump,
 	&dev_attr_debug_enable,
 #ifdef CONFIG_SHUB_DEBUG

@@ -1,8 +1,6 @@
 /*
  * Copyright (C) 2018 Semtech Corporation. All rights reserved.
  *
- * Copyright (C) 2013 Samsung Electronics. All rights reserved.
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * version 2 as published by the Free Software Foundation.
@@ -310,6 +308,7 @@ static void sx9360_send_event(struct sx9360_p *data, u8 state)
 	else
 		input_report_rel(data->input, REL_MISC, 2);
 
+	input_report_rel(data->input, REL_X, data->is_unknown_mode);
 	input_sync(data->input);
 }
 

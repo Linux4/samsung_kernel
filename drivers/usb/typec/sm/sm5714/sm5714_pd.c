@@ -1502,8 +1502,11 @@ int sm5714_usbpd_get_svids(struct sm5714_usbpd_data *pd_data)
 		manager->dp_hs_connect = 1;
 
 		timeleft = wait_event_interruptible_timeout(pdic_data->host_turn_on_wait_q,
-					pdic_data->host_turn_on_event && !pdic_data->detach_done_wait,
-					(pdic_data->host_turn_on_wait_time)*HZ);
+					pdic_data->host_turn_on_event && !pdic_data->detach_done_wait
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+					&& !pdic_data->wait_entermode
+#endif
+					, (pdic_data->host_turn_on_wait_time)*HZ);
 		pr_info("%s host turn on wait = %d\n", __func__, timeleft);
 		/* notify to dp event */
 		sm5714_pdic_event_work(pdic_data,

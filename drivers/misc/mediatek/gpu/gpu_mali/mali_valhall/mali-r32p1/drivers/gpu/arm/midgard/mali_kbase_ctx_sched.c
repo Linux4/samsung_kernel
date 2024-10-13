@@ -23,6 +23,9 @@
 #include <mali_kbase_defs.h>
 #include "mali_kbase_ctx_sched.h"
 #include "tl/mali_kbase_tracepoints.h"
+#if !MALI_USE_CSF
+#include <mali_kbase_hwaccess_jm.h>
+#endif
 
 /* Helper for ktrace */
 #if KBASE_KTRACE_ENABLE
@@ -62,6 +65,12 @@ void kbase_ctx_sched_term(struct kbase_device *kbdev)
 		WARN_ON(kbdev->as_to_kctx[i] != NULL);
 		WARN_ON(!(kbdev->as_free & (1u << i)));
 	}
+}
+
+void kbase_ctx_sched_init_ctx(struct kbase_context *kctx)
+{
+	kctx->as_nr = KBASEP_AS_NR_INVALID;
+	atomic_set(&kctx->refcount, 0);
 }
 
 /* kbasep_ctx_sched_find_as_for_ctx - Find a free address space
@@ -124,7 +133,6 @@ int kbase_ctx_sched_retain_ctx(struct kbase_context *kctx)
 						kbdev, prev_kctx->id);
 					prev_kctx->as_nr = KBASEP_AS_NR_INVALID;
 				}
-
 				kctx->as_nr = free_as;
 				kbdev->as_to_kctx[free_as] = kctx;
 				KBASE_TLSTREAM_TL_KBASE_CTX_ASSIGN_AS(
@@ -173,6 +181,9 @@ void kbase_ctx_sched_release_ctx(struct kbase_context *kctx)
 			kbdev->as_to_kctx[kctx->as_nr] = NULL;
 			kctx->as_nr = KBASEP_AS_NR_INVALID;
 			kbase_ctx_flag_clear(kctx, KCTX_AS_DISABLED_ON_FAULT);
+#if !MALI_USE_CSF
+			kbase_backend_slot_kctx_purge_locked(kbdev, kctx);
+#endif
 		}
 	}
 
@@ -183,8 +194,10 @@ void kbase_ctx_sched_remove_ctx(struct kbase_context *kctx)
 {
 	struct kbase_device *const kbdev = kctx->kbdev;
 
-	lockdep_assert_held(&kbdev->mmu_hw_mutex);
-	lockdep_assert_held(&kbdev->hwaccess_lock);
+	unsigned long flags;
+
+	mutex_lock(&kbdev->mmu_hw_mutex);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	WARN_ON(atomic_read(&kctx->refcount) != 0);
 
@@ -196,6 +209,9 @@ void kbase_ctx_sched_remove_ctx(struct kbase_context *kctx)
 		kbdev->as_to_kctx[kctx->as_nr] = NULL;
 		kctx->as_nr = KBASEP_AS_NR_INVALID;
 	}
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	mutex_unlock(&kbdev->mmu_hw_mutex);
 }
 
 void kbase_ctx_sched_restore_all_as(struct kbase_device *kbdev)

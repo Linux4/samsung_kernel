@@ -19,30 +19,53 @@
 
 #include <linux/slab.h>
 
+int init_pocket_pos_mode(bool en)
+{
+	int ret = 0;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_POCKET_POS_MODE);
+
+	if (!sensor)
+		return 0;
+
+	if (en) {
+		ret = init_default_func(sensor, "pocket_pos_mode", 15, 15, 15);
+	} else {
+		destroy_default_func(sensor);
+	}
+
+	return ret;
+}
+
 int init_pocket_mode_lite(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_POCKET_MODE_LITE);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "pocket_mode_lite");
-		sensor->receive_event_size = 5;
-		sensor->report_event_size = 5;
-		sensor->event_buffer.value = kzalloc(sensor->receive_event_size, GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "pocket_mode_lite", 5, 5, 5);
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
 
+int init_pocket_mode(bool en)
+{
+	int ret = 0;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_POCKET_MODE);
+
+	if (!sensor)
+		return 0;
+
+	if (en) {
+		ret = init_default_func(sensor, "pocket_mode", 58, 58, 58);
+	} else {
+		destroy_default_func(sensor);
+	}
+
+	return ret;
+}
