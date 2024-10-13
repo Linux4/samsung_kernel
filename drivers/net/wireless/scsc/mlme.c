@@ -940,10 +940,12 @@ int slsi_mlme_del_vif(struct slsi_dev *sdev, struct net_device *dev)
 
 	if (((ndev_vif->iftype == NL80211_IFTYPE_P2P_CLIENT) || (ndev_vif->iftype == NL80211_IFTYPE_STATION)) &&
 	    (ndev_vif->delete_probe_req_ies)) {
+		SLSI_MUTEX_LOCK(ndev_vif->scan_mutex);
 		kfree(ndev_vif->probe_req_ies);
 		ndev_vif->probe_req_ies = NULL;
 		ndev_vif->probe_req_ie_len = 0;
 		ndev_vif->delete_probe_req_ies = false;
+		SLSI_MUTEX_UNLOCK(ndev_vif->scan_mutex);
 	}
 	if (SLSI_IS_VIF_INDEX_P2P(ndev_vif))
 		ndev_vif->drv_in_p2p_procedure = false;

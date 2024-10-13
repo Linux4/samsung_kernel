@@ -10,14 +10,15 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/kdebug.h>
-
-#include <linux/sec_debug.h>
+#include <asm/debug-monitors.h>
 
 #if IS_ENABLED(CONFIG_SOC_S5E3830)
 #include <soc/samsung/exynos-pmu.h>
 #else
 #include <soc/samsung/exynos-pmu-if.h>
 #endif
+
+#include <linux/sec_debug.h>
 
 #include "../../../kernel/sched/sched.h"
 #include "sec_debug_internal.h"
@@ -134,6 +135,28 @@ static struct notifier_block nb_die_block = {
 	.notifier_call = secdbg_base_die_handler,
 };
 
+#define UBSAN_TRAP_OOB_BRK_IMM		0x5512
+#define UBSAN_TRAP_OOBPTR_BRK_IMM	0x1
+
+static int ubsan_trap_handler(struct pt_regs *regs, unsigned int esr)
+{
+	if (IS_ENABLED(CONFIG_SEC_DEBUG_FAULT_MSG_ADV))
+		pr_auto(ASL1, "UBSAN Trap: Out-of-bounds (0x%x)\n", esr);
+
+	/* make kernel panic */
+	return DBG_HOOK_ERROR;
+}
+
+static struct break_hook ubsan_oob_hook = {
+	.fn = ubsan_trap_handler,
+	.imm = UBSAN_TRAP_OOB_BRK_IMM,
+};
+
+static struct break_hook ubsan_oobptr_hook = {
+	.fn = ubsan_trap_handler,
+	.imm = UBSAN_TRAP_OOBPTR_BRK_IMM,
+};
+
 static int __init secdbg_base_init(void)
 {
 	int ret;
@@ -145,7 +168,10 @@ static int __init secdbg_base_init(void)
 	secdbg_base_setup_hardlockup_handler();
 
 	secdbg_atsl_init();
-	
+
+	register_kernel_break_hook(&ubsan_oob_hook);
+	register_kernel_break_hook(&ubsan_oobptr_hook);
+
 	ret = sec_dump_sink_init();
 	if (ret)
 		pr_crit("%s: fail to sec_init dump_sink\n", __func__);

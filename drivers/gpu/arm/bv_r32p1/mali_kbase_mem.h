@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -2124,12 +2124,26 @@ kbase_ctx_reg_zone_get(struct kbase_context *kctx, unsigned long zone_bits)
 	return &kctx->reg_zone[KBASE_REG_ZONE_IDX(zone_bits)];
 }
 
+/*
+ * kbase_mem_mmgrab - Wrapper function to take reference on mm_struct of current process
+ */
+static inline void kbase_mem_mmgrab(void)
+{
+        /* This merely takes a reference on the memory descriptor structure
+        * i.e. mm_struct of current process and not on its address space and
+        * so won't block the freeing of address space on process exit.
+        */
+#if KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE
+        atomic_inc(&current->mm->mm_count);
+#else
+        mmgrab(current->mm);
+#endif
+}
 /**
  * kbase_mem_allow_alloc - Check if allocation of GPU memory is allowed
  * @kctx: Pointer to kbase context
  *
- * Don't allow the allocation of GPU memory until user space has set up the
- * tracking page (which sets kctx->process_mm) or if the ioctl has been issued
+ * Don't allow the allocation of GPU memory if the ioctl has been issued
  * from the forked child process using the mali device file fd inherited from
  * the parent process.
  *
@@ -2137,12 +2151,6 @@ kbase_ctx_reg_zone_get(struct kbase_context *kctx, unsigned long zone_bits)
  */
 static inline bool kbase_mem_allow_alloc(struct kbase_context *kctx)
 {
-	bool allow_alloc = true;
-
-	rcu_read_lock();
-	allow_alloc = (rcu_dereference(kctx->process_mm) == current->mm);
-	rcu_read_unlock();
-
-	return allow_alloc;
+        return (kctx->process_mm == current->mm);
 }
 #endif				/* _KBASE_MEM_H_ */

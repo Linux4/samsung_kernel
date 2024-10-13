@@ -13,7 +13,7 @@
 #include "ufs-sec-sysfs.h"
 
 /* sec specific vendor sysfs nodes */
-static struct device *sec_ufs_cmd_dev;
+struct device *sec_ufs_cmd_dev;
 
 /* UFS info nodes : begin */
 static ssize_t ufs_sec_unique_number_show(struct device *dev,
@@ -64,6 +64,61 @@ static ssize_t ufs_sec_lc_info_store(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR(lc, 0664, ufs_sec_lc_info_show, ufs_sec_lc_info_store);
+
+static ssize_t ufs_sec_hist_info_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return SEC_UFS_ERR_HIST_SUM(buf);
+}
+
+static bool is_valid_hist_info(const char *buf, size_t count)
+{
+	int i;
+
+	if (count != ERR_SUM_SIZE)
+		return false;
+
+	if (buf[0] != 'U' || buf[2] != 'I' || buf[4] != 'H' ||
+	    buf[6] != 'L' || buf[8] != 'X' || buf[10] != 'Q' ||
+	    buf[12] != 'R' || buf[14] != 'W' || buf[16] != 'F' ||
+	    buf[18] != 'S' || buf[19] != 'M' || buf[21] != 'S' ||
+	    buf[22] != 'H')
+		return false;
+
+	for (i = 1; i < ERR_SUM_SIZE; i += 2) {
+		if (buf[i] - '0' < 0 || buf[i] - '0' >= 10)
+			return false;
+		/* increase index for "SM", "SH" */
+		if (i == 17 || i == 20)
+			i++;
+	}
+
+	return true;
+}
+
+static ssize_t ufs_sec_hist_info_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	if (!is_valid_hist_info(buf, count)) {
+		pr_err("%s: %s, len(%lu)\n", __func__, buf, count);
+		return -EINVAL;
+	}
+
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UTP_count, UTP_err, buf[1]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UIC_err_count, UIC_err, buf[3]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(op_count, HW_RESET_count, buf[5]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(op_count, link_startup_count, buf[7]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(Fatal_err_count, LLE, buf[9]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UTP_count, UTMR_query_task_count, buf[11]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UTP_count, UTR_read_err, buf[13]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UTP_count, UTR_write_err, buf[15]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(Fatal_err_count, DFE, buf[17]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(sense_count, scsi_medium_err, buf[20]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(sense_count, scsi_hw_err, buf[23]);
+
+	return count;
+}
+static DEVICE_ATTR(hist, 0664, ufs_sec_hist_info_show, ufs_sec_hist_info_store);
 
 static ssize_t ufs_sec_man_id_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -128,6 +183,9 @@ void ufs_sec_create_sysfs(struct ufs_hba *hba)
 		if (device_create_file(sec_ufs_cmd_dev,
 					&dev_attr_stid) < 0)
 			pr_err("Fail to create stream id sysfs file\n");
+		if (device_create_file(sec_ufs_cmd_dev,
+					&dev_attr_hist) < 0)
+			pr_err("Fail to create hist sysfs file\n");
 	}
 }
 /* UFS info nodes : end */
@@ -529,6 +587,38 @@ SEC_UFS_DATA_ATTR_RO(sense_err_logging, "\"LBA0\":\"%lx\",\"LBA1\":\"%lx\",\"LBA
 		ufs_err_info.sense_err_log.issue_LBA_list[9],
 		ufs_err_info.sense_err_log.issue_region_map);
 
+/* SEC cmd log : begin */
+static ssize_t ufs_sec_cmd_log_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ufs_sec_cmd_log_info *ufs_cmd_log =
+		ufs_sec_features.ufs_cmd_log;
+	struct ufs_sec_cmd_log_entry *entry = NULL;
+	int i = (ufs_cmd_log->pos + UFS_SEC_CMD_LOGGING_MAX
+			- UFS_SEC_CMD_LOGNODE_MAX);
+	int idx = 0;
+	int len = 0;
+
+	len += snprintf(buf + len, PAGE_SIZE - len,
+			"%2s: %10s: %2s %3s %4s %9s %6s %16s\n",
+			"No", "log string", "lu", "tag",
+			"c_id", "lba", "length", "time");
+
+	for (idx = 0; idx < UFS_SEC_CMD_LOGNODE_MAX; idx++, i++) {
+		i %= UFS_SEC_CMD_LOGGING_MAX;
+		entry = &ufs_cmd_log->entries[i];
+		len += snprintf(buf + len, PAGE_SIZE - len,
+				"%2d: %10s: %2d %3d 0x%02x %9u %6d %16llu\n",
+				idx,
+				entry->str, entry->lun, entry->tag,
+				entry->cmd_id, entry->lba,
+				entry->transfer_len, entry->tstamp);
+	}
+
+	return len;
+}
+static DEVICE_ATTR(cmd_log, 0440, ufs_sec_cmd_log_show, NULL);
+
 static struct attribute *sec_ufs_error_attributes[] = {
 	&dev_attr_SEC_UFS_op_cnt.attr,
 	&dev_attr_SEC_UFS_uic_cmd_cnt.attr,
@@ -543,10 +633,29 @@ static struct attribute *sec_ufs_error_attributes[] = {
 	NULL
 };
 
+static struct attribute *sec_ufs_cmd_log_attributes[] = {
+	&dev_attr_cmd_log.attr,
+	NULL
+};
+
+static struct attribute_group sec_ufs_cmd_log_attribute_group = {
+	.attrs	= sec_ufs_cmd_log_attributes,
+};
 
 static struct attribute_group sec_ufs_error_attribute_group = {
 	.attrs	= sec_ufs_error_attributes,
 };
+
+void ufs_sec_create_cmd_log_sysfs(struct ufs_hba *hba)
+{
+	int ret = 0;
+
+	ret = sysfs_create_group(&sec_ufs_cmd_dev->kobj,
+			&sec_ufs_cmd_log_attribute_group);
+	if (ret)
+		dev_err(hba->dev, "%s: Failed to create sec_ufs_cmd_log sysfs group, %d\n",
+				__func__, ret);
+}
 
 void ufs_sysfs_add_sec_nodes(struct ufs_hba *hba)
 {
@@ -562,6 +671,9 @@ void ufs_sysfs_add_sec_nodes(struct ufs_hba *hba)
 
 	/* create WB sysfs-nodes */
 	ufs_sec_wb_init_sysfs(hba);
+
+	if (ufs_sec_features.ufs_cmd_log)
+		ufs_sec_create_cmd_log_sysfs(hba);
 }
 
 void ufs_sysfs_remove_sec_nodes(struct ufs_hba *hba)

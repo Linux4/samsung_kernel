@@ -402,7 +402,7 @@ static void exynos_ufs_config_host(struct exynos_ufs *ufs)
 	hci_writel(&ufs->handle, PRDT_SET_SIZE(12), HCI_RXPRDT_ENTRY_SIZE);
 
 	/* I_T_L_Q isn't used at the beginning */
-	ufs->nexus = 0;
+	ufs->nexus = 0xFFFFFFFF;
 	hci_writel(&ufs->handle, ufs->nexus, HCI_UTRL_NEXUS_TYPE);
 	hci_writel(&ufs->handle, 0xFFFFFFFF, HCI_UTMRL_NEXUS_TYPE);
 
@@ -985,6 +985,14 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 	struct scsi_cmnd *scmd;
 	struct ufs_vs_handle *handle = &ufs->handle;
 	u32 qd;
+	/*
+	 * Wait up to 50us, seen as safe value for nexus configuration.
+	 * Accessing HCI_UTRL_NEXUS_TYPE takes hundreds of nanoseconds
+	 * given w/ simulation but we don't know when the previous access
+	 * will finish. To reduce its polling latency, we use 10ns.
+	 */
+	int timeout_cnt = 50000 / 10;
+	int wait_ns = 10;
 
 	if (!IS_C_STATE_ON(ufs) ||
 			(ufs->h_state != H_LINK_UP &&
@@ -1013,10 +1021,10 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 		exynos_ufs_cmd_log_start(handle, hba, scmd);
 	}
 
-	/*
-	 * check if an update is needed. not require protection
-	 * because this functions is wrapped with spin lock outside
-	 */
+	/* check if an update is needed */
+	while (test_and_set_bit(EXYNOS_UFS_BIT_CHK_NEXUS, &ufs->flag)
+	       && timeout_cnt--)
+		ndelay(wait_ns);
 
 	if (cmd) {
 		if (test_and_set_bit(tag, &ufs->nexus))
@@ -1027,6 +1035,7 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 	}
 	hci_writel(&ufs->handle, (u32)ufs->nexus, HCI_UTRL_NEXUS_TYPE);
 out:
+	clear_bit(EXYNOS_UFS_BIT_CHK_NEXUS, &ufs->flag);
 	ufs->h_state = H_REQ_BUSY;
 }
 
@@ -1207,6 +1216,13 @@ static int __exynos_ufs_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	if (!IS_C_STATE_ON(ufs) ||
 			ufs->h_state != H_HIBERN8)
 		PRINT_STATES(ufs);
+
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	if (pm_op == UFS_SHUTDOWN_PM)
+		ufs_sec_print_err_info(hba);
+	else
+		ufs_sec_print_err();
+#endif
 
 	/* Make sure AH8 FSM is at Hibern State.
 	 * When doing SW H8 Enter UIC CMD, don't need to check this state.
@@ -2204,6 +2220,10 @@ static int exynos_ufs_probe(struct platform_device *pdev)
 	/* register vendor hooks: compl_commmand, etc */
 	exynos_ufs_register_vendor_hooks();
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	ufs_sec_init_logging(dev);
+#endif
+
 	/* go to core driver through the glue driver */
 	ret = ufshcd_pltfrm_init(pdev, &exynos_ufs_ops);
 out:
@@ -2295,10 +2315,6 @@ static void exynos_ufs_shutdown(struct platform_device *pdev)
 
 	ufshcd_shutdown(hba);
 	hba->ufshcd_state = UFSHCD_STATE_ERROR;
-
-#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
-	ufs_sec_print_err_info(hba);
-#endif
 }
 
 static const struct dev_pm_ops exynos_ufs_dev_pm_ops = {

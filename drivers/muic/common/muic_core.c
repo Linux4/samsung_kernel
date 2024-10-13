@@ -1414,7 +1414,7 @@ int muic_afc_request_cause_clear(void)
 	if (muic_if == NULL)
 		return -ENOENT;
 
-	muic_if->afc_request_cause = 0;
+	muic_if->afc_request_cause &= ~(AFC_REQUEST_DETACH_CLEAR_BIT);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(muic_afc_request_cause_clear);

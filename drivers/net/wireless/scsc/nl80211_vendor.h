@@ -90,6 +90,7 @@
 #define SLSI_WIFI_HAL_FEATURE_CONFIG_NDO         0x200000      /* ND offload */
 #define SLSI_WIFI_HAL_FEATURE_CONTROL_ROAMING    0x800000      /* Enable/Disable firmware roaming macro */
 #define SLSI_WIFI_HAL_FEATURE_SCAN_RAND          0x2000000     /* Random MAC & Probe seq */
+#define SLSI_WIFI_HAL_FEATURE_DYNAMIC_SET_MAC    0x10000000    /* Support changing MAC address without iface reset(down and up) */
 #define SLSI_WIFI_HAL_FEATURE_LOW_LATENCY        0x40000000    /* Low Latency modes */
 #define SLSI_WIFI_HAL_FEATURE_P2P_RAND_MAC       0x80000000    /* Random P2P MAC */
 
@@ -381,6 +382,7 @@ enum slsi_hal_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_GET_ROAMING_CAPABILITIES,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_ROAMING_STATE,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_LATENCY_MODE,
+	SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG,
 	SLSI_NL80211_VENDOR_SUBCMD_SELECT_TX_POWER_SCENARIO,
 	SLSI_NL80211_VENDOR_SUBCMD_RESET_TX_POWER_SCENARIO,
 	SLSI_NL80211_VENDOR_SUBCMD_RTT_GET_CAPABILITIES = SLSI_NL80211_RTT_SUBCMD_RANGE_START,
@@ -683,6 +685,11 @@ enum slsi_wifi_rtt_status {
 	SLSI_RTT_STATUS_INVALID_REQ,    /* bad request args */
 	SLSI_RTT_STATUS_NO_WIFI,    /* WiFi not enabled */
 	SLSI_RTT_STATUS_FAIL_FTM_PARAM_OVERRIDE /* Responder overrides param info, cannot range with new params */
+};
+
+enum wifi_dtim_config_attr {
+	SLSI_VENDOR_ATTR_DTIM_MULTIPLIER = 1,
+	SLSI_VENDOR_ATTR_DTIM_MAX
 };
 
 /* Format of information elements found in the beacon */
