@@ -574,6 +574,9 @@ registerPeripheralCBFnPtr ResourceManager::mRegisterPeripheralCb = nullptr;
 deregisterPeripheralCBFnPtr ResourceManager::mDeregisterPeripheralCb = nullptr;
 #define PRPHRL_REGSTR_RETRY_COUNT 10
 #endif
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+int ResourceManager::interpreter_mode = 0;
+#endif
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
 int str_parms_get_str(struct str_parms *str_parms, const char *key,
@@ -1532,12 +1535,13 @@ int ResourceManager::init_audio()
     status = -EINVAL;
     goto exit;
 #endif
-
+#ifdef SEC_AUDIO_BOOT_ON_ERR
     if (property_get_bool("vendor.audio.use.primary.default", false)) {
         PAL_ERR(LOG_TAG, "skip audio mixer open because sndcard is not active");
         status = -EINVAL;
         goto exit;
     }
+#endif
 
     do {
         /* Look for only default codec sound card */
@@ -2872,57 +2876,54 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
 
                 getChannelMap(&(dev_ch_info.ch_map[0]), channels);
                 deviceattr->config.ch_info = dev_ch_info;
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
+#ifdef SEC_AUDIO_SUPPORT_UHQ
+                int target_sample_rate = deviceattr->config.sample_rate;
+                if ((sAttr->type == PAL_STREAM_DEEP_BUFFER)
+                        || (sAttr->type == PAL_STREAM_COMPRESSED)) {
+                    target_sample_rate = rm->stateUHQA;
+                }
+                if (dp_device->isSupportedSR(NULL, target_sample_rate)) {
+                    deviceattr->config.sample_rate = target_sample_rate;
+                } else
+#else
                 if (!dp_device->isSupportedSR(NULL,
                             deviceattr->config.sample_rate))
-#else
-                if (dp_device->isSupportedSR(NULL,
-                            sAttr->out_media_config.sample_rate)) {
-                    deviceattr->config.sample_rate =
-                            sAttr->out_media_config.sample_rate;
-                } else
 #endif
                 {
-                    int sr = dp_device->getHighestSupportedSR();
-                    if (sAttr->out_media_config.sample_rate > sr)
-                        deviceattr->config.sample_rate = sr;
-                    else
-                        deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+                    deviceattr->config.sample_rate = dp_device->getHighestSupportedSR();
 
-                    if (sAttr->out_media_config.sample_rate < SAMPLINGRATE_32K) {
-                        if ((sAttr->out_media_config.sample_rate % SAMPLINGRATE_8K) == 0)
-                            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-                        else if ((sAttr->out_media_config.sample_rate % 11025) == 0)
+                    if (sAttr->out_media_config.sample_rate < SAMPLINGRATE_32K &&
+                        (sAttr->out_media_config.sample_rate % 11025) == 0 &&
+                        dp_device->isSupportedSR(NULL,SAMPLINGRATE_44K)) {
                             deviceattr->config.sample_rate = SAMPLINGRATE_44K;
                     }
                 }
 
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (DisplayPort::isBitWidthSupported(
-                            deviceattr->config.bit_width) != 0)
-#else
-                if (DisplayPort::isBitWidthSupported(
-                            sAttr->out_media_config.bit_width)) {
-                    deviceattr->config.bit_width =
-                            sAttr->out_media_config.bit_width;
-                } else
-#endif
-                {
+                            deviceattr->config.bit_width) != 0) {
                     int bps = dp_device->getHighestSupportedBps();
                     if (sAttr->out_media_config.bit_width > bps)
                         deviceattr->config.bit_width = bps;
                     else
                         deviceattr->config.bit_width = BITWIDTH_16;
                 }
-                if (deviceattr->config.bit_width == 32) {
-                    deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
-                } else if (deviceattr->config.bit_width == 24) {
-                    if (sAttr->out_media_config.aud_fmt_id == PAL_AUDIO_FMT_PCM_S24_LE)
-                        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
-                    else
-                        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
+                if ((deviceattr->config.bit_width == BITWIDTH_32) &&
+                            (devinfo.bitFormatSupported != PAL_AUDIO_FMT_PCM_S32_LE)) {
+                    PAL_DBG(LOG_TAG, "32 bit is not supported; update with supported bit format");
+                    deviceattr->config.aud_fmt_id = devinfo.bitFormatSupported;
+                    deviceattr->config.bit_width =
+                            palFormatToBitwidthLookup(devinfo.bitFormatSupported);
                 } else {
-                    deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
+                    if (deviceattr->config.bit_width == 32) {
+                        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
+                    } else if (deviceattr->config.bit_width == 24) {
+                        if (sAttr->out_media_config.aud_fmt_id == PAL_AUDIO_FMT_PCM_S24_LE)
+                            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
+                        else
+                            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
+                    } else {
+                        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
+                    }
                 }
 
                 PAL_DBG(LOG_TAG, "devcie %d sample rate %d bitwidth %d",
@@ -10395,6 +10396,22 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             } else {
                 PAL_ERR(LOG_TAG, "Incorrect size : expected (%zu), received(%zu)",
                         sizeof(pal_param_amp_ssrm_t), payload_size);
+                status = -EINVAL;
+                goto exit;
+            }
+        }
+        break;
+#endif
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+        case PAL_PARAM_ID_INTERPRETER_MODE:
+        {
+            pal_param_interpreter_mode_t *param_interpreter_mode =
+                                   (pal_param_interpreter_mode_t*) param_payload;
+            if (payload_size == sizeof(pal_param_interpreter_mode_t)) {
+                interpreter_mode = param_interpreter_mode->mode;
+            } else {
+                PAL_ERR(LOG_TAG, "Incorrect size : expected (%zu), received(%zu)",
+                        sizeof(pal_param_interpreter_mode_t), payload_size);
                 status = -EINVAL;
                 goto exit;
             }

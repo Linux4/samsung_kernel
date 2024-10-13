@@ -3948,6 +3948,12 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        tkv.push_back(std::make_pair(TAG_KEY_ORIENTATION, s->getOrientation()));
        *gsltag = TAG_ORIENTATION;
        break;
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+   case INTERPRETER_MODE_TAG:
+       tkv.push_back(std::make_pair(INTERPRETER_MODE, s->getInterpreterMode()));
+       *gsltag = TAG_INTERPRETER_MODE;
+       break;
+#endif
     default:
        PAL_ERR(LOG_TAG,"Tag not supported \n");
        break;

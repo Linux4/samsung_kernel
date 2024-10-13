@@ -36,12 +36,28 @@
 #include <linux/threads.h>
 #include <linux/version.h>
 #include <linux/workqueue.h>
+#if defined(CONFIG_MST_ARCH_EXYNOS)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+#include <soc/samsung/exynos-pmu-if.h>
+#endif
+#endif
 #if defined(CONFIG_MFC_CHARGER)
 #include <linux/battery/sec_battery_common.h>
 #endif
 #include "mstdrv_main.h"
 
 /* defines */
+#if defined(CONFIG_MST_VOUT_SETTING)
+#define WC_TX_VOUT_5000MV		5000
+#define WC_TX_VOUT_5500MV		5500
+#define WC_TX_VOUT_6000MV		6000
+#define UNO						0x08
+#define UNO_OTG					0x0B
+#define UNO_BUCK				0x0C
+#define UNO_CHARGING			0x02
+#define UNO_BUCK_CHARGING		0x0D
+#endif
+
 #define	ON				1	// On state
 #define	OFF				0	// Off state
 #define	TRACK1				1	// Track1 data
@@ -177,6 +193,13 @@ extern void mst_ctrl_of_mst_hw_onoff(bool on)
 			value.intval = 1000;
 			psy_do_property("otg", set,
 					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+
+#if defined(CONFIG_MST_VOUT_SETTING)
+			mst_info("%s: Setting VOUT as 5000MV when MST is OFF, VOUT = %d\n", __func__, WC_TX_VOUT_5000MV);
+			value.intval = WC_TX_VOUT_5000MV;								// Setting VOUT as 5000MV when MST is OFF
+			psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_VOUT, value);
+#endif
 		}
 #endif
 #endif
@@ -244,14 +267,46 @@ static void of_mst_hw_onoff(bool on)
 #if !defined(CONFIG_MST_IF_PMIC)
 #if defined(CONFIG_MST_PCR)
 		if (mst_pwr_use_uno) {
+#if !defined(CONFIG_MST_VOUT_SETTING)
 			value.intval = 1500;
 			psy_do_property("otg", set,
 					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
-
+#endif
 			value.intval = ON;
 			psy_do_property("battery", set,
 					POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+
+#if defined(CONFIG_MST_VOUT_SETTING)
+			psy_do_property("otg", get, 
+				POWER_SUPPLY_EXT_PROP_CHG_MODE, value);
+
+			if(value.intval == UNO || value.intval == UNO_BUCK){
+				mst_info("%s : MST using UNO \n", __func__);
+				value.intval = 2000;											// Setting IOUT as 2A when MST (UNO) is ON
+				psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+
+				value.intval = WC_TX_VOUT_6000MV;								// Setting VOUT as 6000MV when MST (UNO) is ON
+				psy_do_property("otg", set,
+						POWER_SUPPLY_EXT_PROP_WIRELESS_TX_VOUT, value);
+			}
+			else if(value.intval == UNO_OTG || value.intval == UNO_BUCK_CHARGING || value.intval == UNO_CHARGING){
+				mst_info("%s : MST using UNO+OTG \n", __func__);
+				value.intval = WC_TX_VOUT_5000MV;								// Setting VOUT as 5000MV when MST (UNO+OTG) is ON
+				psy_do_property("otg", set,
+						POWER_SUPPLY_EXT_PROP_WIRELESS_TX_VOUT, value);
+
+				value.intval = 1600;											// Setting IOUT as 1.6A when MST (UNO+OTG) is ON
+				psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+			}
+#endif
 		}
+#endif
+#if defined(CONFIG_MST_ARCH_EXYNOS)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+		exynos_pmu_update(0x1960, 0x00000800, 0x00000800);	
+#endif
 #endif
 		gpio_set_value(mst_pwr_en, 1);
 		mst_info("%s: mst_pwr_en HIGH\n", __func__);
@@ -302,6 +357,13 @@ static void of_mst_hw_onoff(bool on)
 			value.intval = 1000;
 			psy_do_property("otg", set,
 					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+
+#if defined(CONFIG_MST_VOUT_SETTING)
+			mst_info("%s: Setting VOUT as 5000MV when MST is OFF, VOUT = %d\n", __func__, WC_TX_VOUT_5000MV);
+			value.intval = WC_TX_VOUT_5000MV;								// Setting VOUT as 5000MV when MST is OFF
+			psy_do_property("otg", set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_VOUT, value);
+#endif
 		}
 #endif
 #endif

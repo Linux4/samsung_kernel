@@ -1920,7 +1920,8 @@ static void hdd_regulatory_dyn_cbk(struct wlan_objmgr_psoc *psoc,
 	wiphy = pdev_priv->wiphy;
 	hdd_ctx = wiphy_priv(wiphy);
 
-	nb_flag = ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer(hdd_ctx->psoc);
+	nb_flag = ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer_for_sap(
+								hdd_ctx->psoc);
 	reg_flag = ucfg_mlme_get_coex_unsafe_chan_reg_disable(hdd_ctx->psoc);
 
 	if (avoid_freq_ind && nb_flag && reg_flag)

@@ -60,8 +60,8 @@
 #define UCI_EXTND_LEN_INDICATOR_OFFSET_MASK 0x80
 #define UCI_EXTENDED_LENGTH_OFFSET 2
 
-#define SR200_TXBUF_SIZE 4200
-#define SR200_RXBUF_SIZE 4200
+#define SR200_TXBUF_SIZE 4201 //4200 + one directional byte
+#define SR200_RXBUF_SIZE 4202 //4200 + two directional bytes
 #define SR200_MAX_TX_BUF_SIZE 4200
 #define MAX_READ_RETRY_COUNT 10
 /* Macro to define SPI clock frequency */
@@ -118,4 +118,5 @@ struct sr200_dev {
   long timeout_in_ms;
   const char *uwb_vdd_io;
   const char *uwb_vdd_sw;
+  struct mutex sr200_read_count_lock;
 };

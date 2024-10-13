@@ -98,6 +98,12 @@ struct vl53l8_k_asz_tuning_t {
 	uint32_t asz_3_ll_zone_id;
 };
 
+struct vl53l8_k_bin_version {
+	unsigned int fw_ver_major;
+	unsigned int fw_ver_minor;
+	unsigned int config_ver_major;
+	unsigned int config_ver_minor;
+};
 struct vl53l8_k_version_t {
 	struct vl53l5_version_t driver;
 	struct vl53l5_patch_version_t patch;
@@ -107,6 +113,7 @@ struct vl53l8_k_version_t {
 		uint16_t ver_build;
 		uint16_t ver_revision;
 	} kernel;
+	struct vl53l8_k_bin_version bin_version;
 };
 
 enum vl53l8_k_config_preset {

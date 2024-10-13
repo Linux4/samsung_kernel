@@ -1400,7 +1400,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     bool isCurrentDeviceDpOut = false;
     bool matchFound = false;
     bool voice_call_switch = false;
-    uint32_t force_switch_dev_id = PAL_DEVICE_IN_MAX;
+    bool force_switch_dev_id[PAL_DEVICE_IN_MAX] = {};
     uint32_t curDeviceSlots[PAL_DEVICE_IN_MAX], newDeviceSlots[PAL_DEVICE_IN_MAX];
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
     std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
@@ -1479,7 +1479,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                     PAL_DBG(LOG_TAG, "found diff custom key is %s, running dev has %s, device switch needed",
                         newDevices[j].custom_config.custom_key,
                         curDevAttr.custom_config.custom_key);
-                    force_switch_dev_id = newDevices[j].id;
+                    if (newDevices[j].id >= PAL_DEVICE_IN_MAX) {
+                        PAL_ERR(LOG_TAG, "invalid device id %d:", newDevices[j].id);
+                        break;
+                    }
+                    force_switch_dev_id[newDevices[j].id] = true;
                 }
                 break;
             }
@@ -1694,11 +1698,15 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
                 curDevAttr.id = (pal_device_id_t)std::get<1>(elem);
                 /*
-                 * for current stream, if custom key updated, even reset of the attr
+                 * for current stream, if custom key updated, even rest of the attr
                  * like sample rate/channels/bit width/... are the same, still need
                  * to switch device to update custom config like devicePP
                  */
-                if ((sharedStream == streamHandle) && (force_switch_dev_id == curDevAttr.id)) {
+                if (curDevAttr.id >= PAL_DEVICE_IN_MAX) {
+                    PAL_ERR(LOG_TAG, "cur device id: %d is invalid", curDevAttr.id);
+                    continue;
+                }
+                if ((sharedStream == streamHandle) && force_switch_dev_id[curDevAttr.id]) {
                     custom_switch = true;
                 }
                 /* If prioirty based attr diffs with running dev switch all devices */

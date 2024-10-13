@@ -148,10 +148,6 @@ static int __qc_reboot_reason_ioremap_qcom_restart_reason(struct builder *bd)
 
 	drvdata->qcom_restart_reason = qcom_restart_reason;
 
-	dev_err(dev, "restart_reason addr : 0x%p(0x%llx)\n",
-			qcom_restart_reason,
-			(unsigned long long)virt_to_phys(qcom_restart_reason));
-
 	return 0;
 }
 

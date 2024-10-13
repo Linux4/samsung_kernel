@@ -11139,6 +11139,9 @@ QDF_STATUS populate_dot11f_btm_extended_caps(struct mac_context *mac_ctx,
 	if (QDF_IS_STATUS_ERROR(status)) {
 		p_ext_cap->bss_transition = 0;
 		pe_debug("Disable btm for roaming not suppprted");
+	} else {
+		p_ext_cap->bss_transition = 1;
+		pe_debug("Enable btm for roaming suppprted");
 	}
 
 	dot11f->num_bytes = lim_compute_ext_cap_ie_length(dot11f);
@@ -11663,6 +11666,8 @@ QDF_STATUS populate_dot11f_assoc_req_mlo_ie(struct mac_context *mac_ctx,
 		}
 
 		populate_dot11f_ext_cap(mac_ctx, true, &ext_cap, NULL);
+		populate_dot11f_btm_extended_caps(mac_ctx, pe_session,
+						  &ext_cap);
 		if ((ext_cap.present && frm->ExtCap.present &&
 		     qdf_mem_cmp(&ext_cap, &frm->ExtCap, sizeof(ext_cap))) ||
 		     (ext_cap.present && !frm->ExtCap.present)) {

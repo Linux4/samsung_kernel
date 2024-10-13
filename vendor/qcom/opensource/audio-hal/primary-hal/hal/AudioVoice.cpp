@@ -130,7 +130,7 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
                     }
                     /* duo mt call : voicestream > mode 3, hac custom key setting error */
                     astream_out->ForceRouteStream({AUDIO_DEVICE_NONE});
-                    avoice->sec_voice_->SetVideoCallEffect();
+                    avoice->sec_voice_->SetVoipMicModeEffect();
                 }
             }
 #endif
@@ -554,6 +554,7 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     uint16_t device_count = 0;
 #ifdef SEC_AUDIO_COMMON
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+    pal_device_id_t pre_pal_voice_rx_device_id_ = pal_voice_rx_device_id_;
 #endif
 
     pal_param_bta2dp_t *param_bt_a2dp = nullptr;
@@ -649,7 +650,7 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
                     sec_voice_->SetVoiceRxMute(true);
                 }
 #ifdef SEC_AUDIO_VOICE_TX_FOR_INCALL_MUSIC
-                else if(sec_voice_->screen_call){
+                else if (sec_voice_->screen_call && sec_voice_->voice_rx_control == TRANSLATION_MUTE) {
                     sec_voice_->SetVoiceRxMute(true);
                 }
 #endif
@@ -706,18 +707,26 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
 #ifdef SEC_AUDIO_CALL
              else {
                  voice_session_t *session = &voice_.session[i];
-                 if (session && session->pal_voice_handle &&
-                       session->pal_vol_data && sec_voice_->volume != -1.0f) {
-                     session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
-#ifdef SEC_AUDIO_SUPPORT_BT_RVC
-                     if (adevice->effect_->SetScoVolume(session->pal_vol_data->volume_pair[0].vol) == 0) {
-                         AHAL_DBG("sco volume applied on voice session %d", i);
-                     } else
+                 if (session && session->pal_voice_handle) {
+#ifdef SEC_AUDIO_CALL_TRANSLATION
+                     if (sec_voice_->call_translation &&
+                            (pre_pal_voice_rx_device_id_ != pal_voice_rx_device_id_)) {                 
+                         sec_voice_->ControlTxVolumeDown();
+                         sec_voice_->SetVoiceRxEffectForTranslation(true);
+                     }
 #endif
-                     ret = pal_stream_set_volume(session->pal_voice_handle,
-                           session->pal_vol_data);
-                     if (ret)
-                         AHAL_ERR("Failed to apply volume on voice session %d, status %x", i, ret);
+                     if (session->pal_vol_data && sec_voice_->volume != -1.0f) {
+                         session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
+#ifdef SEC_AUDIO_SUPPORT_BT_RVC
+                         if (adevice->effect_->SetScoVolume(session->pal_vol_data->volume_pair[0].vol) == 0) {
+                             AHAL_DBG("sco volume applied on voice session %d", i);
+                         } else
+#endif
+                         ret = pal_stream_set_volume(session->pal_voice_handle,
+                               session->pal_vol_data);
+                         if (ret)
+                             AHAL_ERR("Failed to apply volume on voice session %d, status %x", i, ret);
+                    }
                 }
             }
 #endif
@@ -1181,6 +1190,13 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
     if (!sec_voice_->mute_voice && session->device_mute.mute && !sec_voice_->is_shutter_playing)
         session->device_mute.mute = false;
 #endif
+#ifdef SEC_AUDIO_CALL_TRANSLATION
+    if (sec_voice_->voice_rx_control == TRANSLATION_MUTE)
+        session->device_mute.mute = true;
+
+    if (sec_voice_->call_translation)
+        sec_voice_->ControlTxVolumeDown();
+#endif
 
     /*Apply device mute if needed*/
     if (session->device_mute.mute) {
@@ -1538,6 +1554,9 @@ int AudioVoice::SetVoiceVolume(float volume) {
                     AHAL_DBG("sco volume applied on voice session %d", i);
                     return 0;
                 }
+#endif
+#ifdef SEC_AUDIO_CALL
+                sec_voice_->volume = volume;
 #endif
                 session[i].pal_vol_data->volume_pair[0].vol = volume;
                 if (session[i].pal_voice_handle) {

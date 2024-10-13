@@ -1015,6 +1015,9 @@ typedef enum {
     PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_START = 3005,
     PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_STOP = 3006,
 #endif
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+    PAL_PARAM_ID_INTERPRETER_MODE = 3008,
+#endif
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1316,6 +1319,11 @@ typedef struct pal_bt_lc3_payload_s {
 typedef struct pal_param_haptics_intensity {
     int intensity;
 } pal_param_haptics_intensity_t;
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+typedef struct pal_param_interpreter_mode {
+    int mode;
+} pal_param_interpreter_mode_t;
+#endif
 
 /**< PAL device */
 #define DEVICE_NAME_MAX_SIZE 128

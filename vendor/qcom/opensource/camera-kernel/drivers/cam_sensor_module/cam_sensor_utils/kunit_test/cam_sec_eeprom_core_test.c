@@ -280,13 +280,13 @@ void eeprom_rear_match_crc_test(struct kunit *test)
 	int rc = 0;
 
 	e_ctrl->soc_info.index = SEC_WIDE_SENSOR;
-	
+
 	rc = eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "read_eeprom_memory failed");
 	}
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
-		
+
 	rc = cam_sec_eeprom_match_crc(&e_ctrl->cal_data, e_ctrl->soc_info.index);
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
 }
@@ -296,13 +296,13 @@ void eeprom_rear2_match_crc_test(struct kunit *test)
 	int rc = 0;
 
 	e_ctrl->soc_info.index = SEC_ULTRA_WIDE_SENSOR;
-	
+
 	rc = eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "read_eeprom_memory failed");
 	}
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
-		
+
 	rc = cam_sec_eeprom_match_crc(&e_ctrl->cal_data, e_ctrl->soc_info.index);
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
 }
@@ -312,13 +312,13 @@ void eeprom_rear3_match_crc_test(struct kunit *test)
 	int rc = 0;
 
 	e_ctrl->soc_info.index = SEC_TELE_SENSOR;
-	
+
 	rc = eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "read_eeprom_memory failed");
 	}
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
-		
+
 	rc = cam_sec_eeprom_match_crc(&e_ctrl->cal_data, e_ctrl->soc_info.index);
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
 }
@@ -328,13 +328,13 @@ void eeprom_rear4_match_crc_test(struct kunit *test)
 	int rc = 0;
 
 	e_ctrl->soc_info.index = SEC_TELE2_SENSOR;
-	
+
 	rc = eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "read_eeprom_memory failed");
 	}
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
-		
+
 	rc = cam_sec_eeprom_match_crc(&e_ctrl->cal_data, e_ctrl->soc_info.index);
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
 }
@@ -344,13 +344,13 @@ void eeprom_front_match_crc_test(struct kunit *test)
 	int rc = 0;
 
 	e_ctrl->soc_info.index = SEC_FRONT_SENSOR;
-	
+
 	rc = eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "read_eeprom_memory failed");
 	}
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
-		
+
 	rc = cam_sec_eeprom_match_crc(&e_ctrl->cal_data, e_ctrl->soc_info.index);
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
 }
@@ -358,7 +358,7 @@ void eeprom_front_match_crc_test(struct kunit *test)
 void eeprom_calc_calmap_size_test(struct kunit *test)
 {
 	uint32_t size = 0;
-	
+
 	size = cam_sec_eeprom_calc_calmap_size(e_ctrl);
 	KUNIT_EXPECT_EQ(test, (size >= 0), TRUE);
 }
@@ -367,11 +367,11 @@ void eeprom_get_custom_info_test(struct kunit *test)
 {
 	int rc = 0;
 	struct cam_packet *csl_packet = kmalloc(sizeof(struct cam_packet), GFP_KERNEL);
-	
+
 	csl_packet->payload[0] = 0;
 	csl_packet->io_configs_offset = 0;
 	csl_packet->num_io_configs = 2;
-	
+
 	rc = cam_sec_eeprom_get_customInfo(e_ctrl, csl_packet);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "cam_sec_eeprom_get_customInfo failed");
@@ -388,7 +388,7 @@ void eeprom_fill_config_info_test(struct kunit *test)
 
 	strcpy(configString, "DEF_M_CORE_VER");
 	configValue = MODULE_CORE_VERSION_VALUE;
-	
+
 	cam_sec_eeprom_fill_configInfo(configString, configValue, ConfigInfo);
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
 }
@@ -396,7 +396,8 @@ void eeprom_fill_config_info_test(struct kunit *test)
 void eeprom_link_module_info_rear_test(struct kunit *test)
 {
 	ModuleInfo_t	mInfo;
-	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR);
+	e_ctrl->soc_info.index = SEC_WIDE_SENSOR;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo);
 	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
 	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
 	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
@@ -406,7 +407,8 @@ void eeprom_link_module_info_rear_test(struct kunit *test)
 void eeprom_link_module_info_rear2_test(struct kunit *test)
 {
 	ModuleInfo_t	mInfo;
-	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR2);
+	e_ctrl->soc_info.index = SEC_ULTRA_WIDE_SENSOR;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo);
 	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
 	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
 	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
@@ -416,7 +418,8 @@ void eeprom_link_module_info_rear2_test(struct kunit *test)
 void eeprom_link_module_info_rear3_test(struct kunit *test)
 {
 	ModuleInfo_t	mInfo;
-	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR3);
+	e_ctrl->soc_info.index = SEC_TELE_SENSOR;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo);
 	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
 	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
 	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
@@ -426,7 +429,8 @@ void eeprom_link_module_info_rear3_test(struct kunit *test)
 void eeprom_link_module_info_rear4_test(struct kunit *test)
 {
 	ModuleInfo_t	mInfo;
-	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR4);
+	e_ctrl->soc_info.index = SEC_TELE2_SENSOR;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo);
 	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
 	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
 	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
@@ -436,7 +440,8 @@ void eeprom_link_module_info_rear4_test(struct kunit *test)
 void eeprom_link_module_info_front_test(struct kunit *test)
 {
 	ModuleInfo_t	mInfo;
-	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT);
+	e_ctrl->soc_info.index = SEC_FRONT_SENSOR;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo);
 	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
 	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
 	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
@@ -446,7 +451,8 @@ void eeprom_link_module_info_front_test(struct kunit *test)
 void eeprom_link_module_info_front2_test(struct kunit *test)
 {
 	ModuleInfo_t	mInfo;
-	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT2);
+	e_ctrl->soc_info.index = SEC_FRONT_AUX1_SENSOR;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo);
 	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
 	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
 	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
@@ -456,7 +462,8 @@ void eeprom_link_module_info_front2_test(struct kunit *test)
 void eeprom_link_module_info_front3_test(struct kunit *test)
 {
 	ModuleInfo_t	mInfo;
-	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT3);
+	e_ctrl->soc_info.index = SEC_FRONT_TOP_SENSOR;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo);
 	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
 	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
 	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);

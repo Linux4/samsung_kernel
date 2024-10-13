@@ -30,6 +30,7 @@
 #define HDM_HYP_CALLP       0x80000
 #define HDM_CMD_MAX         0xFFFFF
 
+#define HDM_GET_SUPPORTED_SUBSYSTEM 6
 
 #define HDM_WIFI_SUPPORT_BIT    0x08
 #define HDM_CP_SUPPORT_BIT      0x100

@@ -75,6 +75,16 @@ config MST_PCR
 	  It is for model using MFC IC
 	  Some MFC ICs support PCR mode.
 
+config MST_VOUT_SETTING
+	bool "setting vout for MST"
+	default n
+	depends on MFC_CHARGER
+	help
+	  Say Y here to enable
+	  support for setting vout
+	  It is for model using MFC IC
+	  Some MFC ICs support PCR mode.
+
 config MST_TEEGRIS
 	bool "MST running on TEEGRIS"
 	default n

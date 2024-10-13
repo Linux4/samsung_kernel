@@ -21,7 +21,7 @@ struct qc_rbcmd_drvdata *qc_rbcmd;
 __ss_static int __rbcmd_register_pon_rr_writer(
 		struct qc_rbcmd_drvdata *drvdata, struct notifier_block *nb)
 {
-	return atomic_notifier_chain_register(&drvdata->pon_rr_writers, nb);
+	return raw_notifier_chain_register(&drvdata->pon_rr_writers, nb);
 }
 
 int sec_qc_rbcmd_register_pon_rr_writer(struct notifier_block *nb)
@@ -36,7 +36,7 @@ EXPORT_SYMBOL_GPL(sec_qc_rbcmd_register_pon_rr_writer);
 __ss_static void __rbcmd_unregister_pon_rr_writer(
 		struct qc_rbcmd_drvdata *drvdata, struct notifier_block *nb)
 {
-	atomic_notifier_chain_unregister(&drvdata->pon_rr_writers, nb);
+	raw_notifier_chain_unregister(&drvdata->pon_rr_writers, nb);
 }
 
 void sec_qc_rbcmd_unregister_pon_rr_writer(struct notifier_block *nb)
@@ -53,7 +53,7 @@ __ss_static void __rbcmd_write_pon_rr(struct qc_rbcmd_drvdata *drvdata,
 {
 	pr_warn("power on reason: 0x%08X\n", pon_rr);
 
-	atomic_notifier_call_chain(&drvdata->pon_rr_writers, pon_rr, param);
+	raw_notifier_call_chain(&drvdata->pon_rr_writers, pon_rr, param);
 }
 
 void __qc_rbcmd_write_pon_rr(unsigned int pon_rr,
@@ -70,7 +70,7 @@ __ss_static int __rbcmd_register_sec_rr_writer(
 {
 	int err;
 
-	err = atomic_notifier_chain_register(&drvdata->sec_rr_writers, nb);
+	err = raw_notifier_chain_register(&drvdata->sec_rr_writers, nb);
 	if (err)
 		return err;
 
@@ -97,7 +97,7 @@ EXPORT_SYMBOL_GPL(sec_qc_rbcmd_register_sec_rr_writer);
 __ss_static void __rbcmd_unregister_sec_rr_writer(
 		struct qc_rbcmd_drvdata *drvdata, struct notifier_block *nb)
 {
-	atomic_notifier_chain_unregister(&drvdata->sec_rr_writers, nb);
+	raw_notifier_chain_unregister(&drvdata->sec_rr_writers, nb);
 }
 
 void sec_qc_rbcmd_unregister_sec_rr_writer(struct notifier_block *nb)
@@ -114,7 +114,7 @@ __ss_static void __rbcmd_write_sec_rr(struct qc_rbcmd_drvdata *drvdata,
 {
 	pr_warn("reboot mode: 0x%08X\n", sec_rr);
 
-	atomic_notifier_call_chain(&drvdata->sec_rr_writers, sec_rr, param);
+	raw_notifier_call_chain(&drvdata->sec_rr_writers, sec_rr, param);
 }
 
 void __qc_rbcmd_write_sec_rr(unsigned int sec_rr,
@@ -183,8 +183,8 @@ static int __rbcmd_probe_prolog(struct builder *bd)
 	struct qc_rbcmd_drvdata *drvdata =
 			container_of(bd, struct qc_rbcmd_drvdata, bd);
 
-	ATOMIC_INIT_NOTIFIER_HEAD(&drvdata->pon_rr_writers);
-	ATOMIC_INIT_NOTIFIER_HEAD(&drvdata->sec_rr_writers);
+	RAW_INIT_NOTIFIER_HEAD(&drvdata->pon_rr_writers);
+	RAW_INIT_NOTIFIER_HEAD(&drvdata->sec_rr_writers);
 
 	return 0;
 }

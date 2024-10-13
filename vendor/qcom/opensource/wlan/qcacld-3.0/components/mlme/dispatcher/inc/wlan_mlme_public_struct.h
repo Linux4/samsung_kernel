@@ -2612,7 +2612,7 @@ struct wlan_mlme_reg {
 	bool is_afc_reg_noaction;
 #endif
 #ifdef FEATURE_WLAN_CH_AVOID_EXT
-	bool coex_unsafe_chan_nb_user_prefer;
+	uint32_t coex_unsafe_chan_nb_user_prefer;
 	bool coex_unsafe_chan_reg_disable;
 #endif
 };

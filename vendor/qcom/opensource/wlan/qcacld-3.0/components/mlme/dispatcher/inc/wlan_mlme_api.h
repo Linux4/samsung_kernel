@@ -300,11 +300,29 @@ wlan_mlme_get_wlm_multi_client_ll_caps(struct wlan_objmgr_psoc *psoc)
  *
  * Return: coex_unsafe_chan_nb_user_prefer
  */
-bool wlan_mlme_get_coex_unsafe_chan_nb_user_prefer(
+uint32_t wlan_mlme_get_coex_unsafe_chan_nb_user_prefer(
+		struct wlan_objmgr_psoc *psoc);
+bool wlan_mlme_get_coex_unsafe_chan_nb_user_prefer_for_p2p_go(
+		struct wlan_objmgr_psoc *psoc);
+bool wlan_mlme_get_coex_unsafe_chan_nb_user_prefer_for_sap(
 		struct wlan_objmgr_psoc *psoc);
 #else
 static inline
-bool wlan_mlme_get_coex_unsafe_chan_nb_user_prefer(
+uint32_t wlan_mlme_get_coex_unsafe_chan_nb_user_prefer(
+		struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+bool wlan_mlme_get_coex_unsafe_chan_nb_user_prefer_for_sap(
+		struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+bool wlan_mlme_get_coex_unsafe_chan_nb_user_prefer_for_p2p_go(
 		struct wlan_objmgr_psoc *psoc)
 {
 	return false;

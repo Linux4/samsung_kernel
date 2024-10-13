@@ -1,15 +1,61 @@
-/*
-* This file is part of VL53L8 Kernel Driver
+/*******************************************************************************
+* Copyright (c) 2023, STMicroelectronics - All Rights Reserved
 *
-* Copyright (C) 2022, STMicroelectronics - All Rights Reserved
+* This file is part of VL53L8 Kernel Driver and is dual licensed,
+* either 'STMicroelectronics Proprietary license'
+* or 'BSD 3-clause "New" or "Revised" License' , at your option.
 *
-* License terms: STMicroelectronics Proprietary
+********************************************************************************
+*
+* 'STMicroelectronics Proprietary license'
+*
+********************************************************************************
+*
+* License terms: STMicroelectronics Proprietary in accordance with licensing
+* terms at www.st.com/sla0081
 *
 * STMicroelectronics confidential
 * Reproduction and Communication of this document is strictly prohibited unless
 * specifically authorized in writing by STMicroelectronics.
 *
-*/
+*
+********************************************************************************
+*
+* Alternatively, VL53L8 Kernel Driver may be distributed under the terms of
+* 'BSD 3-clause "New" or "Revised" License', in which case the following
+* provisions apply instead of the ones mentioned above :
+*
+********************************************************************************
+*
+* License terms: BSD 3-clause "New" or "Revised" License.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met:
+*
+* 1. Redistributions of source code must retain the above copyright notice, this
+* list of conditions and the following disclaimer.
+*
+* 2. Redistributions in binary form must reproduce the above copyright notice,
+* this list of conditions and the following disclaimer in the documentation
+* and/or other materials provided with the distribution.
+*
+* 3. Neither the name of the copyright holder nor the names of its contributors
+* may be used to endorse or promote products derived from this software
+* without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*
+*
+*******************************************************************************/
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -88,7 +134,7 @@ static const struct of_device_id vl53l8_k_match_table[] = {
 #endif
 
 #ifdef CONFIG_SENSORS_VL53L8_SLSI
-extern int sensors_register(struct device *dev, void *drvdata,
+extern int sensors_register(struct device **dev, void *drvdata,
 	struct device_attribute *attributes[], char *name);
 extern int sensordump_notifier_register(struct notifier_block *nb);
 #endif
@@ -108,13 +154,49 @@ static const struct spi_device_id vl53l8_k_spi_id[] = {
 	{ VL53L8_K_DRIVER_NAME, 0 },
 	{ },
 };
-
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
+#ifdef CONFIG_SENSORS_VL53L8_SUPPORT_RESUME_WORK
+void vl53l8_initialize_state_for_resume(struct vl53l8_k_module_t *p_module)
+{
+	int status = 0;
+
+	usleep_range(1000, 1100);
+	p_module->stdev.host_dev.p_fw_buff = NULL;
+	status = vl53l5_init(&p_module->stdev);
+	if (status < 0) {
+		vl53l8_k_log_error("resume init err: %d\n", status);
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+		vl53l8_last_error_counter(p_module, status);
+#endif
+		p_module->stdev.last_dev_error = VL53L8_RESUME_INIT_ERROR;
+		return;
+	}
+
+	p_module->stdev.last_dev_error = VL53L5_ERROR_NONE;
+	p_module->stdev.status_probe = STATUS_OK;
+	p_module->last_driver_error = STATUS_OK;
+
+	p_module->state_preset = VL53L8_STATE_INITIALISED;
+	p_module->power_state = VL53L5_POWER_STATE_HP_IDLE;
+	vl53l8_k_log_info("VL53L8_STATE_INITIALISED");
+}
+
+static void resume_work_func(struct work_struct *work)
+{
+	struct vl53l8_k_module_t *p_module = container_of((struct work_struct *)work,
+						struct vl53l8_k_module_t, resume_work);
+
+	vl53l8_initialize_state_for_resume(p_module);
+	vl53l8_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_ULP_IDLE);
+}
+#endif
 static int vl53l8_suspend(struct device *dev)
 {
 	struct vl53l8_k_module_t *p_module = dev_get_drvdata(dev);
 	int status;
-
+#ifdef CONFIG_SENSORS_VL53L8_SUPPORT_RESUME_WORK
+	cancel_work_sync(&p_module->resume_work);
+#endif
 	vl53l8_k_log_info("fac en %d, state %d",
 		p_module->enabled,
 		p_module->state_preset);
@@ -149,7 +231,12 @@ static int vl53l8_resume(struct device *dev)
 	vl53l8_k_log_info("err %d, force stop count %u", p_module->last_driver_error, p_module->force_suspend_count);
 
 	vl53l8_power_onoff(p_module, true);
+
+#ifdef CONFIG_SENSORS_VL53L8_SUPPORT_RESUME_WORK
+	schedule_work(&p_module->resume_work);
+#else
 	vl53l8_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_ULP_IDLE);
+#endif
 
 	return 0;
 }
@@ -448,7 +535,6 @@ static int vl53l8_parse_dt(struct device *dev,
 			"The GPIO setting of comms select is not configured.");
 #endif
 #ifdef VL53L8_INTERRUPT
-
 	p_module->gpio.interrupt_owned = 0;
 	p_module->gpio.interrupt = of_get_named_gpio(
 						np, "stm,interrupt", 0);
@@ -753,6 +839,7 @@ static ssize_t vl53l8_distance_show(struct device *dev,
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 out:
 #endif
+	mutex_lock(&p_module->mutex);
 	memcpy(&p_module->range_data.per_zone_results,
 			&p_module->range.data.tcpm_0_patch.per_zone_results,
 			sizeof(struct vl53l5_range_per_zone_results_t));
@@ -762,6 +849,7 @@ out:
 	memcpy(&p_module->range_data.d16_per_target_data,
 			&p_module->range.data.tcpm_0_patch.d16_per_target_data,
 			sizeof(struct vl53l5_d16_per_tgt_results_t));
+	mutex_unlock(&p_module->mutex);
 
 	if (p_module->read_data_valid) {
 		for (i = 0; i < p_module->print_counter; i++) {
@@ -1000,6 +1088,7 @@ static ssize_t vl53l8_calibration_store(struct device *dev,
 #ifdef VL53L5_TEST_ENABLE
 			panic("failed %d", p_module->last_driver_error);
 #endif
+			mutex_unlock(&p_module->mutex);
 			return count;
 		}
 		break;
@@ -1276,9 +1365,9 @@ static ssize_t vl53l8_integration_store(struct device *dev,
 	ret = set_integration_time(p_module, integration);
 	if (ret != STATUS_OK)
 		return count;
-
+	mutex_lock(&p_module->mutex);
 	vl53l8_ioctl_set_integration_time_us(p_module, p_module->integration);
-
+	mutex_unlock(&p_module->mutex);
 	return count;
 }
 
@@ -1392,14 +1481,9 @@ static ssize_t vl53l8_firmware_version_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct vl53l8_k_module_t *p_module = dev_get_drvdata(dev);
-	struct vl53l5_version_t p_version;
+	struct vl53l8_k_version_t p_version;
 	int status = STATUS_OK;
 	enum vl53l8_k_state_preset prev_state;
-
-	p_version.firmware.ver_major = 0;
-	p_version.firmware.ver_minor = 0;
-	p_version.firmware.ver_build = 0;
-	p_version.firmware.ver_revision = 0;
 
 	prev_state = p_module->state_preset;
 
@@ -1407,7 +1491,7 @@ static ssize_t vl53l8_firmware_version_show(struct device *dev,
 	if (p_module->state_preset <= VL53L8_STATE_LOW_POWER)
 		vl53l8_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_HP_IDLE);
 
-	status = vl53l5_get_version(&p_module->stdev, &p_version);
+	status = vl53l8_get_firmware_version(p_module, &p_version);
 
 	vl53l8_k_log_info("fw read %d", status);
 
@@ -1415,28 +1499,25 @@ static ssize_t vl53l8_firmware_version_show(struct device *dev,
 		vl53l8_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_ULP_IDLE);
 	mutex_unlock(&p_module->mutex);
 
-	vl53l8_k_log_info(
-		"FW Version %d.%d.%d.%d\n",
-		p_version.firmware.ver_major,
-		p_version.firmware.ver_minor,
-		p_version.firmware.ver_build,
-		p_version.firmware.ver_revision);
-
-	return snprintf(buf, PAGE_SIZE, "%d.%d.%d.%d\n",
-		p_version.firmware.ver_major,
-		p_version.firmware.ver_minor,
-		p_version.firmware.ver_build,
-		p_version.firmware.ver_revision);
+	return snprintf(buf, PAGE_SIZE, "FW:%d.%d.%d.%d, Patch:%d.%d, Config:%d.%d\n",
+		p_version.driver.firmware.ver_major,
+		p_version.driver.firmware.ver_minor,
+		p_version.driver.firmware.ver_build,
+		p_version.driver.firmware.ver_revision,
+		p_version.patch.patch_version.ver_major,
+		p_version.patch.patch_version.ver_minor,
+		p_version.bin_version.config_ver_major,
+		p_version.bin_version.config_ver_minor);
 }
 
 #define MIN_TEMP_SPEC 10
-#define MAX_TEMP_SPEC 50
+#define MAX_TEMP_SPEC 80
 
 static ssize_t vl53l8_temp_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct vl53l8_k_module_t *p_module = dev_get_drvdata(dev);
-	int prev_state = VL53L8_STATE_RANGING, count = 10;
+	int prev_state = VL53L8_STATE_RANGING, count = 7;
 	int8_t temp = -100;
 
 	vl53l8_k_log_debug("Lock");
@@ -1445,25 +1526,27 @@ static ssize_t vl53l8_temp_show(struct device *dev,
 	if (p_module->state_preset != VL53L8_STATE_RANGING) {
 		prev_state = p_module->state_preset;
 		vl53l8_ioctl_start(p_module);
-		msleep(100);
 	}
+	p_module->range.data.tcpm_0_patch.meta_data.silicon_temp_degc = temp;
 	vl53l8_k_log_debug("unLock");
 	mutex_unlock(&p_module->mutex);
 
+	msleep(130);
 
 	while (count > 0) {
-		if (p_module->range.data.tcpm_0_patch.meta_data.silicon_temp_degc == 0)
+		if (p_module->range.data.tcpm_0_patch.meta_data.silicon_temp_degc == temp)
 			msleep(20);
 		else
 			break;
 		count--;
 	}
 
+	vl53l8_k_log_debug("Lock");
+	mutex_lock(&p_module->mutex);
+
 	temp = p_module->range.data.tcpm_0_patch.meta_data.silicon_temp_degc;
 	vl53l8_k_log_info("temp %d", temp);
 
-	vl53l8_k_log_debug("Lock");
-	mutex_lock(&p_module->mutex);
 	if (prev_state != VL53L8_STATE_RANGING)
 		vl53l8_ioctl_stop(p_module);
 
@@ -1686,6 +1769,24 @@ static ssize_t vl53l8_target_status_show(struct device *dev,
 	return j;
 }
 
+static ssize_t vl53l8_asz_distance_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct vl53l8_k_module_t *p_module = dev_get_drvdata(dev);
+	u16 asz_distance[4], asz_status[4];
+	u8 i = 0;
+
+	for (; i < 4; i++) {
+		asz_distance[i] =
+			(uint16_t)(p_module->range.data.tcpm_0_patch.d16_per_target_data.depth16[64 + i] & 0x1FFFU);
+		asz_status[i] =
+			(uint16_t)(p_module->range.data.tcpm_0_patch.d16_per_target_data.depth16[64 + i] & 0xE000U) >> 13;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "%d, %d, %d, %d, %d, %d, %d, %d\n",
+		asz_distance[0], asz_status[0], asz_distance[1], asz_status[1],
+		asz_distance[2], asz_status[2], asz_distance[3], asz_status[3]);
+}
 
 static ssize_t vl53l8_test_mode_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1785,7 +1886,7 @@ static ssize_t vl53l8_status_show(struct device *dev,
 }
 
 #ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
-void sort_error_code(s16 *top5_error_code, u8 *top5_error_cnt)
+void sort_error_code(int *top5_error_code, u8 *top5_error_cnt)
 {
 	int i;
 	int temp;
@@ -1812,8 +1913,11 @@ static ssize_t vl53l8_error_show(struct device *dev,
 
 	int i = 0;
 	int j = 0;
-	s16 top5_error_code[5];
-	u8 top5_error_cnt[5];
+	int top5_error_code[5] = {0};
+	u8 top5_error_cnt[5] = {0};
+
+	vl53l8_last_error_counter(p_module, p_module->last_driver_error);
+	vl53l8_check_ldo_onoff(p_module);
 
 	for (; i < MAX_TABLE; i++) {
 		if (p_module->errdata[i].last_error_cnt == 0)
@@ -1824,14 +1928,10 @@ static ssize_t vl53l8_error_show(struct device *dev,
 			sort_error_code(top5_error_code, top5_error_cnt);
 		}
 	}
-
-	j += snprintf(buf + j, PAGE_SIZE - j, "\"RS_REASON\":");
-	j += snprintf(buf + j, PAGE_SIZE, "UID=%x%x", p_module->m_info.module_id_hi, p_module->m_info.module_id_lo);
+	j += snprintf(buf + j, PAGE_SIZE, "\"RS_UID\":\"%x%x\"", p_module->m_info.module_id_hi, p_module->m_info.module_id_lo);
 	for (i = 0; i < 5; i++) {
-		if (top5_error_cnt[i] == 0)
-			continue;
-		j += snprintf(buf + j, PAGE_SIZE - j, ", ");
-		j += snprintf(buf + j, PAGE_SIZE - j, "err[%d]=%d", top5_error_code[i], top5_error_cnt[i]);
+		j += snprintf(buf + j, PAGE_SIZE - j, ",");
+		j += snprintf(buf + j, PAGE_SIZE - j, "\"errno%d\":\"%d\",\"cnt%d\":\"%d\"", i, top5_error_code[i], i, top5_error_cnt[i]);
 	}
 	j += snprintf(buf + j, PAGE_SIZE - j, "\n");
 
@@ -1852,9 +1952,9 @@ static ssize_t vl53l8_interrupt_show(struct device *dev,
 	}
 
 	if (p_module->range.count > 0)
-		return snprintf(buf, PAGE_SIZE, "Pass,%lu\n", p_module->range.count);
+		return snprintf(buf, PAGE_SIZE, "1,%lu\n", p_module->range.count);
 	else
-		return snprintf(buf, PAGE_SIZE, "Fail,%lu\n", p_module->range.count);
+		return snprintf(buf, PAGE_SIZE, "0,%lu\n", p_module->range.count);
 }
 #endif
 
@@ -1863,6 +1963,7 @@ static DEVICE_ATTR(name, 0440, vl53l8_name_show, NULL);
 static DEVICE_ATTR(vendor, 0440, vl53l8_vendor_show, NULL);
 static DEVICE_ATTR(fw_version, 0440, vl53l8_firmware_version_show, NULL);
 static DEVICE_ATTR(enable, 0660, vl53l8_enable_show, vl53l8_enable_store);
+static DEVICE_ATTR(asz_test, 0440, vl53l8_asz_distance_show, NULL);
 static DEVICE_ATTR(test_mode, 0660, vl53l8_test_mode_show, vl53l8_test_mode_store);
 static DEVICE_ATTR(temp, 0440, vl53l8_temp_show, NULL);
 static DEVICE_ATTR(test01, 0440, vl53l8_distance_show, NULL);
@@ -1897,6 +1998,7 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_vendor,
 	&dev_attr_fw_version,
 	&dev_attr_enable,
+	&dev_attr_asz_test,
 	&dev_attr_temp,
 	&dev_attr_test01,
 	&dev_attr_test02,
@@ -1972,14 +2074,8 @@ void vl53l8_k_prelaod(struct vl53l8_k_module_t *p_module)
 		}
 
 		if (!p_module->sensors_register_done) {
-#ifdef CONFIG_SENSORS_VL53L8_QCOM
 			ret = sensors_register(&p_module->factory_device,
 				p_module, sensor_attrs, MODULE_NAME);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_VL53L8_SLSI)
-			ret = sensors_register(p_module->factory_device,
-				p_module, sensor_attrs, MODULE_NAME);
-#endif
 			if (ret)
 				vl53l8_k_log_error("could not register sensor-%d\n", ret);
 			else {
@@ -2008,9 +2104,7 @@ static void power_delayed_work_func(struct work_struct *work)
 		return;
 	}
 
-	vl53l8_ldo_onoff(p_module, AVDD, 1);
-	vl53l8_ldo_onoff(p_module, IOVDD, 1);
-	vl53l8_ldo_onoff(p_module, COREVDD, 1);
+	vl53l8_power_onoff(p_module, true);
 }
 #endif
 
@@ -2023,6 +2117,8 @@ int vl53l8_k_spi_probe(struct spi_device *spi)
 	unsigned char revision_id = 0;
 	unsigned char page = 0;
 #endif
+	u8 ldo_num = 0;
+
 	LOG_FUNCTION_START("");
 
 	vl53l8_k_log_debug("Allocate module data");
@@ -2095,6 +2191,8 @@ int vl53l8_k_spi_probe(struct spi_device *spi)
 
 
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
+	for (ldo_num = 0; ldo_num < VDD_MAX_CNT; ldo_num++)
+		p_module->ldo_prev_state[ldo_num] = 0xFF;
 	p_module->number_of_zones = NUM_OF_ZONE;
 	p_module->print_counter = 8;
 	vl53l8_k_log_info("print_counter = %d",
@@ -2116,6 +2214,9 @@ int vl53l8_k_spi_probe(struct spi_device *spi)
 #endif
 #endif
 #ifdef CONFIG_SEPARATE_IO_CORE_POWER
+#ifdef CONFIG_SENSORS_VL53L8_SUPPORT_RESUME_WORK
+	INIT_WORK(&p_module->resume_work, resume_work_func);
+#endif
 	INIT_DELAYED_WORK(&p_module->power_delayed_work, power_delayed_work_func);
 	schedule_delayed_work(&p_module->power_delayed_work, msecs_to_jiffies(5000));
 #endif
@@ -2177,7 +2278,9 @@ void vl53l8_k_spi_shutdown(struct spi_device *device)
 	struct vl53l8_k_module_t *p_module = spi_get_drvdata(device);
 
 	vl53l8_k_log_info("state %d err %d", p_module->state_preset, p_module->last_driver_error);
-
+#ifdef CONFIG_SENSORS_VL53L8_SUPPORT_RESUME_WORK
+	cancel_work_sync(&p_module->resume_work);
+#endif
 	p_module->last_driver_error = VL53L8_SHUTDOWN;
 #ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
 	vl53l8_last_error_counter(p_module, p_module->last_driver_error);
@@ -2453,8 +2556,11 @@ static int vl53l8_k_ioctl_handler(struct vl53l8_k_module_t *p_module,
 			return status;
 		}
 		status = set_sampling_rate(p_module, (uint32_t)value);
-		if (status != STATUS_OK)
+		if (status != STATUS_OK) {
+			vl53l8_k_log_error("RR Fail %d", status);
 			return status;
+		} else
+			vl53l8_k_log_info("RR %d", value);
 #else
 		status = vl53l8_ioctl_set_ranging_rate(p_module, p);
 #endif
@@ -2470,12 +2576,14 @@ static int vl53l8_k_ioctl_handler(struct vl53l8_k_module_t *p_module,
 		status = set_integration_time(p_module, (uint32_t)value);
 		if (status != STATUS_OK)
 			return status;
-
+		mutex_lock(&p_module->mutex);
 		status = vl53l8_ioctl_set_integration_time_us(p_module, p_module->integration);
+		mutex_unlock(&p_module->mutex);
 		if (status != VL53L5_ERROR_NONE) {
 			status = vl53l5_read_device_error(&p_module->stdev, status);
-			vl53l8_k_log_error("Failed: %d", status);
-		}
+			vl53l8_k_log_error("IT Fail %d", status);
+		} else
+			vl53l8_k_log_info("IT %d", p_module->integration);
 #else
 		status = vl53l8_ioctl_set_integration_time_us(p_module, p);
 #endif

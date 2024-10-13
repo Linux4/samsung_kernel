@@ -525,14 +525,6 @@
 			size = <0 0x1000000>;
 		};
 
-		sp_mem: sp_region {  /* SPSS-HLOS ION shared mem */
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x800000>;
-		};
-
 		secure_display_memory: secure_display_region { /* Secure UI */
 			compatible = "shared-dma-pool";
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
@@ -717,6 +709,11 @@
 		pil@94c {
 			compatible = "qcom,pil-reloc-info";
 			reg = <0x94c 0xc8>;
+		};
+
+		pil@6dc {
+			compatible = "qcom,msm-imem-pil-disable-timeout";
+			reg = <0x6dc 0x4>;
 		};
 	};
 
@@ -1130,6 +1127,24 @@
 			#size-cells = <0>;
 			qcom,can-sleep;
 		};
+	};
+
+	ufs_ice: ufsice@1d90000 {
+		compatible = "qcom,ice";
+		reg = <0x1d90000 0x8000>;
+		qcom,enable-ice-clk;
+		clock-names = "ufs_core_clk", "bus_clk",
+			"iface_clk", "ice_core_clk";
+		clocks = <&gcc GCC_UFS_PHY_AXI_CLK>,
+			<&gcc GCC_UFS_MEM_CLKREF_CLK>,
+			<&gcc GCC_UFS_PHY_AHB_CLK>,
+			<&gcc GCC_UFS_PHY_ICE_CORE_CLK>;
+		qcom,op-freq-hz = <0>, <0>, <0>, <300000000>;
+		vdd-hba-supply = <&ufs_phy_gdsc>;
+		qcom,bus-vector-names = "MIN",
+			"MAX";
+		qcom,instance-type = "ufs";
+		qcom,num-fde-slots = <31>;
 	};
 
 	ufsphy_mem: ufsphy_mem@1d87000 {
@@ -1671,7 +1686,7 @@
 		memory-region = <&rproc_modem_mem>;
 
 		/* Inputs from mss */
-		interrupts-extended = <&intc GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>,
+		interrupts-extended = <&intc GIC_SPI 266 IRQ_TYPE_EDGE_RISING>,
 					<&modem_smp2p_in 0 0>,
 					<&modem_smp2p_in 2 0>,
 					<&modem_smp2p_in 1 0>,

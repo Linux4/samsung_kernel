@@ -1052,6 +1052,15 @@ static void ss_read_gamma(struct samsung_display_driver_data *vdd)
 	char pBuffer[256];
 	int i, j;
 
+	mutex_lock(&vdd->exclusive_tx.ex_tx_lock);
+	vdd->exclusive_tx.permit_frame_update = 1;
+	vdd->exclusive_tx.enable = 1;
+
+	ss_set_exclusive_tx_packet(vdd, TX_SPSRAM_DATA_READ, 1);
+	ss_set_exclusive_tx_packet(vdd, RX_FLASH_GAMMA, 1);
+	ss_set_exclusive_tx_packet(vdd, TX_POC_ENABLE, 1);
+	ss_set_exclusive_tx_packet(vdd, TX_POC_DISABLE, 1);
+
 	ss_send_cmd(vdd, TX_POC_ENABLE);
 
 	LCD_INFO(vdd, "READ_R start\n");
@@ -1075,6 +1084,16 @@ static void ss_read_gamma(struct samsung_display_driver_data *vdd)
 			snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %02x", HS120_R_TYPE_BUF[i][j]);
 		LCD_INFO(vdd, "READ_R 120 SET[%2d] : %s\n", GAMMA_SET_MAX - 1 - i, pBuffer);
 	}
+
+	ss_set_exclusive_tx_packet(vdd, TX_SPSRAM_DATA_READ, 0);
+	ss_set_exclusive_tx_packet(vdd, RX_FLASH_GAMMA, 0);
+	ss_set_exclusive_tx_packet(vdd, TX_POC_ENABLE, 0);
+	ss_set_exclusive_tx_packet(vdd, TX_POC_DISABLE, 0);
+
+	vdd->exclusive_tx.enable = 0;
+	vdd->exclusive_tx.permit_frame_update = 0;
+	mutex_unlock(&vdd->exclusive_tx.ex_tx_lock);
+	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
 
 	return;
 }

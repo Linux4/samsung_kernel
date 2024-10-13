@@ -25,7 +25,7 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION		0x3019
+#define MFC_FW_BIN_VERSION		0x301D
 #define MFC_FW_VER_BIN_CPS		0x00C4
 
 #define MFC_FLASH_FW_HEX_PATH		"mfc/mfc_fw_flash.bin"

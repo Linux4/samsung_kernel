@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <uapi/linux/sched/types.h>
@@ -250,13 +250,28 @@ const char *kgsl_context_type(int type)
 	return "ANY";
 }
 
-/* Scheduled by kgsl_mem_entry_put_deferred() */
-static void _deferred_put(struct work_struct *work)
+/* Scheduled by kgsl_mem_entry_destroy_deferred() */
+static void _deferred_destroy(struct work_struct *work)
 {
 	struct kgsl_mem_entry *entry =
 		container_of(work, struct kgsl_mem_entry, work);
 
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_destroy(&entry->refcount);
+}
+
+static void kgsl_mem_entry_destroy_deferred(struct kref *kref)
+{
+	struct kgsl_mem_entry *entry =
+		container_of(kref, struct kgsl_mem_entry, refcount);
+
+	INIT_WORK(&entry->work, _deferred_destroy);
+	queue_work(kgsl_driver.lockless_workqueue, &entry->work);
+}
+
+void kgsl_mem_entry_put_deferred(struct kgsl_mem_entry *entry)
+{
+	if (entry)
+		kref_put(&entry->refcount, kgsl_mem_entry_destroy_deferred);
 }
 
 static struct kgsl_mem_entry *kgsl_mem_entry_create(void)
@@ -268,6 +283,7 @@ static struct kgsl_mem_entry *kgsl_mem_entry_create(void)
 		/* put this ref in userspace memory alloc and map ioctls */
 		kref_get(&entry->refcount);
 		atomic_set(&entry->map_count, 0);
+		atomic_set(&entry->vbo_count, 0);
 	}
 
 	return entry;
@@ -339,6 +355,9 @@ static void kgsl_destroy_ion(struct kgsl_memdesc *memdesc)
 		struct kgsl_mem_entry, memdesc);
 	struct kgsl_dma_buf_meta *metadata = entry->priv_data;
 
+	if (memdesc->priv & KGSL_MEMDESC_MAPPED)
+		return;
+
 	if (metadata != NULL) {
 		remove_dmabuf_list(metadata);
 		dma_buf_unmap_attachment(metadata->attach, memdesc->sgt, DMA_BIDIRECTIONAL);
@@ -361,6 +380,9 @@ static void kgsl_destroy_anon(struct kgsl_memdesc *memdesc)
 	int i = 0, j;
 	struct scatterlist *sg;
 	struct page *page;
+
+	if (memdesc->priv & KGSL_MEMDESC_MAPPED)
+		return;
 
 	for_each_sg(memdesc->sgt->sgl, sg, memdesc->sgt->nents, i) {
 		page = sg_page(sg);
@@ -2572,7 +2594,7 @@ static void gpumem_free_func(struct kgsl_device *device,
 			entry->memdesc.gpuaddr, entry->memdesc.size,
 			entry->memdesc.flags);
 
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_put_deferred(entry);
 }
 
 static long gpumem_free_entry_on_timestamp(struct kgsl_device *device,
@@ -2669,8 +2691,7 @@ static bool gpuobj_free_fence_func(void *priv)
 			entry->memdesc.gpuaddr, entry->memdesc.size,
 			entry->memdesc.flags);
 
-	INIT_WORK(&entry->work, _deferred_put);
-	queue_work(kgsl_driver.lockless_workqueue, &entry->work);
+	kgsl_mem_entry_put_deferred(entry);
 	return true;
 }
 
@@ -3961,6 +3982,14 @@ static u64 cap_alignment(struct kgsl_device *device, u64 flags)
 	return flags | FIELD_PREP(KGSL_MEMALIGN_MASK, align);
 }
 
+static u64 gpumem_max_va_size(struct kgsl_pagetable *pt, u64 flags)
+{
+	if (flags & KGSL_MEMFLAGS_FORCE_32BIT)
+		return pt->compat_va_end - pt->compat_va_start;
+
+	return pt->va_end - pt->va_start;
+}
+
 static struct kgsl_mem_entry *
 gpumem_alloc_vbo_entry(struct kgsl_device_private *dev_priv,
 		u64 size, u64 flags)
@@ -3969,6 +3998,7 @@ gpumem_alloc_vbo_entry(struct kgsl_device_private *dev_priv,
 	struct kgsl_device *device = dev_priv->device;
 	struct kgsl_memdesc *memdesc;
 	struct kgsl_mem_entry *entry;
+	struct kgsl_pagetable *pt;
 	int ret;
 
 	/* Disallow specific flags */
@@ -3987,6 +4017,12 @@ gpumem_alloc_vbo_entry(struct kgsl_device_private *dev_priv,
 
 	if ((flags & KGSL_MEMFLAGS_SECURE) && !check_and_warn_secured(device))
 		return ERR_PTR(-EOPNOTSUPP);
+
+	pt = (flags & KGSL_MEMFLAGS_SECURE) ?
+		device->mmu.securepagetable : private->pagetable;
+
+	if (!size || (size > gpumem_max_va_size(pt, flags)))
+		return ERR_PTR(-EINVAL);
 
 	flags = cap_alignment(device, flags);
 
@@ -4971,14 +5007,14 @@ static void kgsl_show_mem(void *data, unsigned int filter, nodemask_t *nodemask)
 {
 	long total_kbytes = atomic_long_read(&kgsl_driver.stats.page_alloc) >> 10;
 
-	pr_info("%s: %ld kB\n", "KgslSharedmem", total_kbytes);
+	pr_info("%s: %ld kB\n", "GpuTotal", total_kbytes);
 }
 
 static void kgsl_meminfo(void *data, struct seq_file *m)
 {
 	long total_kbytes = atomic_long_read(&kgsl_driver.stats.page_alloc) >> 10;
 
-	show_val_meminfo(m, "KgslSharedmem", total_kbytes);
+	show_val_meminfo(m, "GpuTotal", total_kbytes);
 }
 
 int kgsl_device_platform_probe(struct kgsl_device *device)

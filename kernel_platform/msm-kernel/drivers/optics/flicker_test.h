@@ -28,6 +28,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/of_gpio.h>
 #include <linux/of_device.h>
+#include <linux/version.h>
 
 /*
  * Flicker Sensor Self test module
@@ -45,7 +46,7 @@
 #include <linux/leds-ktd2692.h>
 #elif IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
 #include <linux/leds-aw36518.h>
-#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH) && IS_ENABLED(CONFIG_SENSORS_STK6D2X)
+#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH) && (IS_ENABLED(CONFIG_SENSORS_STK6D2X) || IS_ENABLED(CONFIG_SENSORS_TSL2511))
 #include <linux/leds.h>
 #include <linux/leds-qti-flash.h>
 DEFINE_LED_TRIGGER(torch2_trigger);
