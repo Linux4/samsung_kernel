@@ -1,0 +1,276 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#if 1
+#if 0
+&${ese_check_parent} {
+	ese_check_default: ese_check_default {
+		GPIO_CONFIG_PUD_DRV(${ese_check}, FUNC_INPUT, PULL_NONE, DRV_LV3);
+		samsung,pin-con-pdn = <2>; /* PIN_PDN_INPUT */
+		samsung,pin-pud-pdn = <PIN_PULL_NONE>;
+	};
+};
+#endif
+
+&pinctrl_7 {
+	ese_spi_bus_suspend: ese_spi_bus_suspend {
+		samsung,pins = SEC_GPIO(AP,gpp1,gpp1,0), SEC_GPIO(AP,gpp1,gpp1,1), SEC_GPIO(AP,gpp1,gpp1,2);
+		samsung,pin-function = <0>; /* INPUT */
+		samsung,pin-pud = <PIN_PULL_DOWN>; /* DOWN */
+		samsung,pin-drv = <PIN_AP_DRV_LV1>;
+		samsung,pin-con-pdn = <2>; /* PIN_PDN_INPUT */
+		samsung,pin-pud-pdn = <PIN_PULL_DOWN>;
+	};
+
+	ese_spi_cs_suspend: ese_spi_cs_suspend {
+		samsung,pins = SEC_GPIO(AP,gpp1,gpp1,3);
+		samsung,pin-function = <1>; /* OUTPUT */
+		samsung,pin-pud = <PIN_PULL_NONE>; /* NONE */
+		samsung,pin-drv = <PIN_AP_DRV_LV1>;
+		samsung,pin-val = <1>;
+		samsung,pin-con-pdn = <1>; /*OUT1*/
+		samsung,pin-pud-pdn = <PIN_PULL_NONE>;
+	};
+
+	ese_spi_bus: ese_spi_bus {
+		samsung,pins = SEC_GPIO(AP,gpp1,gpp1,0), SEC_GPIO(AP,gpp1,gpp1,1), SEC_GPIO(AP,gpp1,gpp1,2);
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <PIN_PULL_NONE>;
+		samsung,pin-drv = <PIN_AP_DRV_LV1>;
+	};
+
+	ese_spi_cs: ese_spi_cs {
+		samsung,pins = SEC_GPIO(AP,gpp1,gpp1,3);
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <PIN_PULL_NONE>;
+		samsung,pin-drv = <PIN_AP_DRV_LV1>;
+	};
+};
+
+&spi_1 {
+	status = "ok";
+	pinctrl-names = "ese_active", "ese_suspend";
+	pinctrl-0 = <&ese_spi_bus &ese_spi_cs>;
+	pinctrl-1 = <&ese_spi_bus_suspend &ese_spi_cs_suspend>;
+
+	ese_spi@0 {
+#if defined(CONFIG_SEC_FACTORY_INTERPOSER) && 1
+		status = "disabled";
+#else
+		status = "ok";
+#endif
+		compatible = "ese_p3";
+		reg = <0>;
+		spi-max-frequency = <7000000>;
+#if 0
+		check_ese = <SEC_GPIO_REF(${ese_check}) 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ese_check_default>;
+#endif
+		gpio-controller;
+		#gpio-cells = <2>;
+#if 0
+		p3-vdd-supply = <&${ese_pvdd_ldo}>;
+#endif
+		ese_p3,cs-gpio = <SEC_GPIO_REF(AP,gpp1,gpp1,3) 0>;
+		controller-data {
+			samsung,spi-feedback-delay = <0>;
+			samsung,spi-chip-select-mode = <0>;
+		};
+	};
+};
+
+#if 0
+	regulator-name = "ese_pvdd";
+};
+#endif
+
+#if 0
+/ {
+	fragment@ese_platform {
+		target-path = "/";
+		__overlay__ {
+			ese_platform {
+#if defined(CONFIG_SEC_FACTORY_INTERPOSER) && 1
+				status = "disabled";
+#else
+				status = "ok";
+#endif
+				compatible = "p3_platform";
+			};
+		};
+	};
+};
+#endif
+#endif
+
+&pinctrl_1 {
+	nfc_i2c_pull_none: nfc_i2c_pull_none {
+		samsung,pins = SEC_GPIO(AP,gpm4,gpm4,0), SEC_GPIO(AP,gpm4,gpm4,1);
+		samsung,pin-function = <2>;
+		samsung,pin-con-pdn = <2>; /* PIN_PDN_INPUT */
+		samsung,pin-pud = <PIN_PULL_NONE>;
+		samsung,pin-pud-pdn = <PIN_PULL_NONE>;
+	};
+
+#if 0
+	nfc_i2c_no_change: nfc_i2c_no_change {
+		samsung,pins = SEC_GPIO(AP,gpm4,gpm4,0), SEC_GPIO(AP,gpm4,gpm4,1);
+		samsung,pin-function = <2>;
+		samsung,pin-con-pdn = <2>; /* PIN_PDN_INPUT */
+	};
+	nfc_i2c_pull_up: nfc_i2c_pull_up {
+		samsung,pins = SEC_GPIO(AP,gpm4,gpm4,0), SEC_GPIO(AP,gpm4,gpm4,1);
+		samsung,pin-function = <2>;
+		samsung,pin-con-pdn = <2>; /* PIN_PDN_INPUT */
+		samsung,pin-pud = <PIN_PULL_UP>;
+		samsung,pin-pud-pdn = <PIN_PULL_UP>;
+	};
+#endif
+};
+
+#if 0
+&${xclkout_parent} {
+	xclkout: xclkout {
+		samsung,pins = SEC_GPIO(${xclkout_gpio});
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <PIN_PULL_NONE>;
+	};
+
+	xclkout_nc: xclkout_nc {
+		samsung,pins = SEC_GPIO(${xclkout_gpio});
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <PIN_PULL_DOWN>;
+	};
+};
+#endif
+
+&pinctrl_3 {
+	nfc_firm: nfc_firm {
+		GPIO_CONFIG_PUD_DRV(AP,gpf1,gpf1,1, FUNC_OUTPUT_LOW, PULL_NONE, DRV_LV3);
+		samsung,pin-con-pdn = <3>; /* PIN_PDN_PREV */
+		samsung,pin-pud-pdn = <PIN_PULL_NONE>;
+	};
+
+	nfc_firm_nc: nfc_firm_nc {
+		GPIO_CONFIG_PUD_DRV(AP,gpf1,gpf1,1, FUNC_INPUT, PULL_DOWN, DRV_LV3);
+	};
+};
+
+&s2mps28_2_gpio {
+	nfc_en: nfc_en {
+		GPIO_CONFIG_PUD_DRV(PM,s2mps28_2_gpio,gpio_s,4, FUNC_OUTPUT_LOW, PULL_NONE, DRV_LV3);
+		samsung,pin-con-pdn = <3>; /* PIN_PDN_PREV */
+		samsung,pin-pud-pdn = <PIN_PULL_NONE>;
+	};
+
+	nfc_en_nc: nfc_en_nc {
+		GPIO_CONFIG_PUD_DRV(PM,s2mps28_2_gpio,gpio_s,4, FUNC_INPUT, PULL_DOWN, DRV_LV3);
+	};
+};
+
+&pinctrl_0 {
+	nfc_clk_req: nfc_clk_req {
+		samsung,pins = SEC_GPIO(AP,gpa4,gpa4,0);
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <PIN_PULL_DOWN>;
+	};
+
+	nfc_clk_req_nc: nfc_clk_req_nc {
+		samsung,pins = SEC_GPIO(AP,gpa4,gpa4,0);
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <PIN_PULL_DOWN>;
+	};
+};
+
+#if 0
+&${nfc_check_parent} {
+	nfc_check: nfc_check {
+		GPIO_CONFIG_PUD_DRV(${nfc_check}, FUNC_INPUT, PULL_NONE, DRV_LV3);
+		samsung,pin-con-pdn = <2>; /* PIN_PDN_INPUT */
+		samsung,pin-pud-pdn = <PIN_PULL_NONE>;
+	};
+};
+#endif
+
+&hsi2c_39 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	status = "ok";
+	clock-frequency = <400000>; /* for HSI2C */
+	samsung,i2c-max-bus-freq = <400000>; /* for Normal HW I2C */
+	samsung,reset-before-trans;
+#if 0
+	pinctrl-names = "default", "i2c_pull_up";
+	pinctrl-0 = <&nfc_i2c_no_change>;
+	pinctrl-1 = <&nfc_i2c_pull_up>;
+#else
+	pinctrl-names = "default";
+	pinctrl-0 = <&nfc_i2c_pull_none>;
+#endif
+	sec_nfc: sec-nfc@27 {
+#if defined(CONFIG_SEC_FACTORY_INTERPOSER) && 1
+		status = "disabled";
+#else
+		status = "ok";
+#endif
+		compatible = "sec-nfc";
+		reg = <0x27>;
+
+		interrupts = <SEC_GPIO_NUM(AP,gpa2,gpa2,3) 0 0>;
+		interrupt-parent = <SEC_GPIO_TYPE(AP,gpa2,gpa2,3)>;
+
+		sec-nfc,ven-gpio = <SEC_GPIO_REF(PM,s2mps28_2_gpio,gpio_s,4) 0>;
+		sec-nfc,firm-gpio = <SEC_GPIO_REF(AP,gpf1,gpf1,1) 0>;
+		sec-nfc,irq-gpio = <SEC_GPIO_REF(AP,gpa2,gpa2,3) 0>;
+#if 0
+		sec-nfc,check_nfc = <SEC_GPIO_REF(${nfc_check}) 0>;
+#endif
+		sec-nfc,clk_req-gpio = <SEC_GPIO_REF(AP,gpa4,gpa4,0) 0xf>;
+#if 1
+		sec-nfc,coldreset-gpio = <SEC_GPIO_REF(AP,gpf1,gpf1,0) 0>;
+#endif
+		nfc_pvdd-supply = <&l12_reg>;
+
+		sec-nfc,ldo_control;
+
+#if 0
+		sec-nfc,irq_all_trigger;
+#endif
+#if 0
+		clocks = <&clock OSC_NFC>;
+		clock-names = "oscclk_nfc";
+		sec-nfc,nfc_ap_clk;
+#endif
+		sec-nfc,nfc_ic_type = "SEN6";
+
+		pinctrl-names = "default", "nfc_nc";
+		pinctrl-0 = <&nfc_en &nfc_firm &nfc_clk_req
+#if 0
+				&nfc_check
+#endif
+#if 0
+				&xclkout
+#endif
+				>;
+		pinctrl-1 = <&nfc_en_nc &nfc_firm_nc &nfc_clk_req_nc
+#if 0
+				&xclkout_nc
+#endif
+				>;
+	};
+};
+
+&l12_reg {
+	regulator-name = "nfc_pvdd";
+};
+

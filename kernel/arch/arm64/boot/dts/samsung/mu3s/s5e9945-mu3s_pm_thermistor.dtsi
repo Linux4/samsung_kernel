@@ -1,0 +1,87 @@
+/*
+ * SAMSUNG S5E9945 Power Management device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			sec_thermistor_0: sec_thermistor@0 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-ap-thermistor";
+				id = <0>;
+
+				adc_array = <>;
+				temp_array = <>;
+
+				io-channels = <&s2mps27_gpadc 0>;
+				io-channel-names = "adc-ap-temp";
+				io-channel-ranges;
+			};
+
+			sec_thermistor_2: sec_thermistor@2 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-wf-thermistor";
+				id = <1>;
+
+				adc_array = <>;
+				temp_array = <>;
+
+				io-channels = <&s2mps27_gpadc 2>;
+				io-channel-names = "adc-wf-temp";
+				io-channel-ranges;
+			};
+
+			sec_thermistor_7: sec_thermistor@7 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-lte-thermistor";
+				id = <2>;
+
+				adc_array = <>;
+				temp_array = <>;
+
+				io-channels = <&s2mps27_gpadc 7>;
+				io-channel-names = "adc-lte-temp";
+				io-channel-ranges;
+			};
+
+			sec_thermistor_10: sec_thermistor@10 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-nr-thermistor";
+				id = <3>;
+
+				adc_array = <>;
+				temp_array = <>;
+
+				io-channels = <&s2mps27_gpadc 10>;
+				io-channel-names = "adc-nr-temp";
+				io-channel-ranges;
+			};
+
+			sec_thermistor_11: sec_thermistor@11 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-flash-thermistor";
+				id = <4>;
+
+				adc_array = <>;
+				temp_array = <>;
+
+				io-channels = <&s2mps27_gpadc 11>;
+				io-channel-names = "adc-flash-temp";
+				io-channel-ranges;
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

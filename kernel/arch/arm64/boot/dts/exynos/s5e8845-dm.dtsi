@@ -1,0 +1,136 @@
+/*
+ * SAMSUNG S5E8845 SoC DVFS Manager device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG S5E8845 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	exynos_dm: exynos-dm@17000000 {
+		compatible = "samsung,exynos-dvfs-manager";
+		reg = <0x0 0x17000000 0x0>;
+		dm_domains {
+			devfreq_mif {
+				dm-index = <DM_MIF>;
+				available = "true";
+				policy_use = "true";
+				cal_id = <ACPM_DVFS_MIF>;
+				dm_type_name = "dm_mif";
+			};
+			devfreq_int {
+				dm-index = <DM_INT>;
+				available = "true";
+				policy_use = "true";
+				cal_id = <ACPM_DVFS_INT>;
+				dm_type_name = "dm_int";
+			};
+			cpufreq_cl0 {
+				dm-index = <DM_CPUCL0>;
+				available = "true";
+				cal_id = <ACPM_DVFS_CPUCL0>;
+				dm_type_name = "dm_cpu_cl0";
+				fast_switch;
+			};
+			cpufreq_cl1 {
+				dm-index = <DM_CPUCL1>;
+				available = "true";
+				cal_id = <ACPM_DVFS_CPUCL1>;
+				dm_type_name = "dm_cpu_cl1";
+				fast_switch;
+			};
+			devfreq_dsu {
+				dm-index = <DM_DSU>;
+				available = "true";
+				cal_id = <ACPM_DVFS_DSU>;
+				dm_type_name = "dm_dsu";
+			};
+			devfreq_npu {
+				dm-index = <DM_NPU>;
+				available = "true";
+				cal_id = <ACPM_DVFS_NPU>;
+				dm_type_name = "dm_npu";
+			};
+			devfreq_dnc {
+				dm-index = <DM_DNC>;
+				available = "true";
+				cal_id = <ACPM_DVFS_DNC>;
+				dm_type_name = "dm_dnc";
+			};
+			devfreq_aud {
+				dm-index = <DM_AUD>;
+				available = "true";
+				cal_id = <ACPM_DVFS_AUD>;
+				dm_type_name = "dm_aud";
+			};
+			devfreq_g3d {
+				dm-index = <DM_G3D>;
+				available = "true";
+				cal_id = <ACPM_DVFS_G3D>;
+				dm_type_name = "dm_gpu";
+			};
+			devfreq_disp {
+				dm-index = <DM_DISP>;
+				available = "true";
+				cal_id = <ACPM_DVFS_DISP>;
+				dm_type_name = "dm_disp";
+			};
+			devfreq_intcam {
+				dm-index = <DM_INTCAM>;
+				available = "true";
+				cal_id = <ACPM_DVFS_INTCAM>;
+				dm_type_name = "dm_intcam";
+			};	
+			devfreq_cam {
+				dm-index = <DM_CAM>;
+				available = "true";
+				cal_id = <ACPM_DVFS_CAM>;
+				dm_type_name = "dm_cam";
+			};
+			devfreq_isp {
+				dm-index = <DM_ISP>;
+				available = "true";
+				cal_id = <ACPM_DVFS_ISP>;
+				dm_type_name = "dm_isp";
+			};
+			devfreq_mfc {
+				dm-index = <DM_MFC>;
+				available = "true";
+				cal_id = <ACPM_DVFS_MFC>;
+				dm_type_name = "dm_mfc";
+			};
+			devfreq_csis {
+				dm-index = <DM_CSIS>;
+				available = "true";
+				cal_id = <ACPM_DVFS_CSIS>;
+				dm_type_name = "dm_csis";
+			};
+			devfreq_icpu {
+				dm-index = <DM_ICPU>;
+				available = "true";
+				cal_id = <ACPM_DVFS_ICPU>;
+				dm_type_name = "dm_icpu";
+			};
+		};
+
+		dm_channel {
+			esca-ipc-channel = <0x80000001>;
+		};
+		dm_req_channel {
+			esca-ipc-channel = <0x80000006>;
+		};
+		dm_sync_channel {
+			esca-ipc-channel = <0x80000004>;
+		};
+		dm-fast-switch {
+			esca-ipc-channel = <0x0000000B>;
+		};
+	};
+};

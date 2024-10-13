@@ -1,0 +1,32 @@
+&pinctrl_0 {
+	s2dos07_irq: s2dos07_irq {
+		GPIO_CONFIG_PUD(AP,gpa2,gpa2,6, FUNC_INPUT, PULL_NONE);
+	};
+};
+
+&hsi2c_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	s2dos07_pmic: s2dos07_pmic@60 {
+		compatible = "samsung,s2dos07pmic";
+		reg = <0x60>;
+		s2dos07,wakeup;
+		pinctrl-names = "default";
+		pinctrl-0 = <&s2dos07_irq>;
+		s2dos07,s2dos07_int = <SEC_GPIO_REF(AP,gpa2,gpa2,6) 0>;
+
+		regulators {
+			s2dos07_buck1: s2dos07-buck1 {
+				regulator-name = "s2dos07-buck1";
+				regulator-min-microvolt	= <850000>;
+				regulator-max-microvolt	= <2100000>;
+				regulator-boot-on;
+				 
+			};
+			s2dos07_elvdd_elvss: s2dos07-elvdd-elvss {
+				regulator-name = "s2dos07-elvdd-elvss";
+			};
+		};
+	};
+};

@@ -1,0 +1,36 @@
+#define USE_VIBRATOR_i2c
+
+&pinctrl_0 {
+	motor_int_default: motor-int {
+		GPIO_CONFIG_PUD(AP,gpa3,gpa3,7, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&pinctrl_7 {
+	motor_rst_default: motor-rst {
+		GPIO_CONFIG_PUD_DRV(AP,gpp2,gpp2,2, FUNC_OUTPUT, PULL_NONE, DRV_LV1);
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+
+#if defined(USE_VIBRATOR_i3c)
+&${vib_i3c} {
+	status = "okay";
+	i2c-scl-hz = <1000000>;
+	cs40l26a: cs40l26a@40 {
+		reg = <0x40 0x0 0x10>;
+	};
+};
+#elif defined(USE_VIBRATOR_i2c)
+&hsi2c_4 {
+	status = "okay";
+	clock-frequency = <1000000>;
+	cs40l26a: cs40l26a@40 {
+		reg = <0x40>;
+	};
+};
+#endif
+
+
+#include "../cs40l26.dtsi"

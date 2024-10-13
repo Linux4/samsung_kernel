@@ -1,0 +1,70 @@
+#if 1
+&pinctrl_0 {
+	sub_detect_conn_setting: sub-detect-conn-setting {
+		samsung,pins = SEC_GPIO(AP,gpa2,gpa2,5);
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+};
+#endif
+
+#if 0
+&${gpio_sub_connect_conn_parent2} {
+	sub_detect_conn_setting2: sub-detect-conn-setting2 {
+		samsung,pins = SEC_GPIO(${gpio_sub_connect_conn2});
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+};
+#endif
+
+#if 0
+&${gpio_cam_connect_conn_parent} {
+	cam_detect_conn_setting: cam-detect-conn-setting {
+		samsung,pins = SEC_GPIO(${gpio_cam_connect_conn});
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+};
+#endif
+
+&smd {
+	sec_abc_detect_conn {
+		compatible = "samsung,sec_abc_detect_conn";
+		status = "okay";
+#if 1 && 0 && 0
+		sec,det_conn_gpios = <SEC_GPIO_REF(AP,gpa2,gpa2,5) 0
+							SEC_GPIO_REF(${gpio_sub_connect_conn2}) 0
+							SEC_GPIO_REF(${gpio_cam_connect_conn}) 0>;
+		sec,det_conn_name = "SUB_CONNECT", "SUB_CONNECT2", "CAM_CONNECT";
+		sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		pinctrl-0 = <&sub_detect_conn_setting &sub_detect_conn_setting2 &cam_detect_conn_setting>;
+#elif 1 && 0
+		sec,det_conn_gpios = <SEC_GPIO_REF(AP,gpa2,gpa2,5) 0
+							SEC_GPIO_REF(${gpio_cam_connect_conn}) 0>;
+		sec,det_conn_name = "SUB_CONNECT", "CAM_CONNECT";
+		sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		pinctrl-0 = <&sub_detect_conn_setting &cam_detect_conn_setting>;
+#elif 1 && 0
+		sec,det_conn_gpios = <SEC_GPIO_REF(AP,gpa2,gpa2,5) 0
+							SEC_GPIO_REF(${gpio_sub_connect_conn2}) 0>;
+		sec,det_conn_name = "SUB_CONNECT", "SUB_CONNECT2";
+		sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		pinctrl-0 = <&sub_detect_conn_setting &sub_detect_conn_setting2>;
+#elif 1
+		sec,det_conn_gpios = <SEC_GPIO_REF(AP,gpa2,gpa2,5) 0>;
+		sec,det_conn_name = "SUB_CONNECT";
+		sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		pinctrl-0 = <&sub_detect_conn_setting>;
+#elif 0
+		sec,det_conn_gpios = <SEC_GPIO_REF(${gpio_cam_connect_conn}) 0>;
+		sec,det_conn_name = "CAM_CONNECT";
+		sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		pinctrl-0 = <&cam_detect_conn_setting>;
+#endif
+		pinctrl-names = "default";
+	};
+};

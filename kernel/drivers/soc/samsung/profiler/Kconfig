@@ -1,0 +1,39 @@
+config EXYNOS_PROFILER_LEGACY
+	tristate "Exynos Multi IP Governor Legacy version"
+	default n
+	help
+	  Support Multi IP Governor Legacy version.
+
+config EXYNOS_MAIN_PROFILER
+	tristate "Exynos Multi IP Governor support"
+	default n
+	help
+	  Support Multi IP Governor for Exynos SoC.
+
+config EXYNOS_CPU_PROFILER
+	tristate "Exynos CPU Profiler support"
+	depends on EXYNOS_MAIN_PROFILER
+	default n
+	help
+	  Support CPU Profiler for Exynos SoC.
+
+config EXYNOS_GPU_PROFILER
+	tristate "Exynos GPU Profiler support"
+	depends on EXYNOS_MAIN_PROFILER
+	default n
+	help
+	  Support GPU Profiler for Exynos SoC.
+
+config EXYNOS_MIF_PROFILER
+	tristate "Exynos MIF Profiler support"
+	depends on EXYNOS_MAIN_PROFILER
+	default n
+	help
+	  Support MIF Profiler for Exynos SoC.
+
+config EXYNOS_PROFILER_GFLOW
+	tristate "Exynos Profiler GFLOW feature"
+	depends on EXYNOS_MAIN_PROFILER
+	default n
+	help
+	  Exynos Profiler GFLOW feature

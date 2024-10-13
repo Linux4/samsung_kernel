@@ -1,0 +1,45 @@
+/ {
+	/* balance mode - touch boost */
+	set4_1: set@401{
+		/* Boosting margin applied to frequency selection */
+		freqboost {	   		/* LIT MED-L MED-H BIG */
+			top-app         	= <  0  0  0  0 >;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <21>;
+			};
+			domain1 {
+				cpus = "4-6";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain2 {
+				cpus = "7-8";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain3 {
+				cpus = "9";
+				lower-boundary = <43>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <50 50 50 50>;
+			min-cpus = "0-6";
+		};
+
+		tex {
+			top-app = <119>;
+		};
+	};
+};

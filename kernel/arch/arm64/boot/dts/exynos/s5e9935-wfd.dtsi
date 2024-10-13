@@ -1,0 +1,23 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * EXYNOS device tree source for WFD
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ */
+
+/ {
+	tsmux: tsmux@186E0000 {
+		compatible = "samsung,exynos-tsmux";
+		reg = <0x0 0x186E0000 0x1000>;
+		interrupts = <0 INTREQ__WFD IRQ_TYPE_LEVEL_HIGH>;
+		iommus = <&sysmmu_mfc_s0>;
+		samsung,iommu-group = <&iommu_group_mfc>;
+		power-domains = <&pd_mfc>;
+	};
+
+	repeater: repeater@0 {
+		compatible = "samsung,exynos-repeater";
+		power-domains = <&pd_mfc>;
+	};
+};

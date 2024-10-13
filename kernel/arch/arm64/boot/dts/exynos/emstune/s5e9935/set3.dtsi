@@ -1,0 +1,51 @@
+/ {
+	/* game mode - default */
+	set3: set@300{
+		cpu-dsu-table-index = <1>;
+
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 50 100 100>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <18>;
+			};
+			domain1 {
+				cpus = "4-8";
+				lower-boundary = <6>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {};
+
+		/* cpus_binding applied to core selection */
+		cpus_binding {
+			target-sched-class = <0x8>;	/* fair */
+
+			background	= "0-3";
+		};
+
+		fclamp {
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		cpufreq_gov {
+				/* LIT MED BIG */
+			htask-boost = < 50 50 50 >;
+		};
+
+		support_uclamp {
+			enabled = <0>;
+		};
+	};
+};

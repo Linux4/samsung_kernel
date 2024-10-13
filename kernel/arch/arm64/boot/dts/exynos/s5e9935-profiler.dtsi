@@ -1,0 +1,227 @@
+
+/*
+ * SAMSUNG PROFILER device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/soc/samsung/s5e9935-profiler-dt.h>
+
+/{
+	exynos-profiler {
+		compatible = "samsung,exynos-profiler";
+		status = "okay";
+
+		/* Common */
+		version = < 1000 >;
+		window-period = < 100 >;
+		window-number = < 30 >;
+		mo-id = < 45 46 47 48 > ;
+
+		/* FPS */
+		frame-src = < 0 >;      /* 0: use frame-done, 1: use frame-done and  missed-frame */
+		max-fps = < 600 >;
+		dt-up-step = < 10 >;
+		dt-down-step =  < 10 >;
+
+		/* Common(legacy) */
+		active-pct-thr = < 50 >;
+		valid-freq-delta-pct = < 50 >;
+		min-sensitivity = < 10 >;
+		cpu-bottleneck-thr = < 270 >;
+		gpu-bottleneck-thr = < 800 >;
+		mif-bottleneck-thr = < 4800 >;
+		hp-minlock-fps-delta-pct-thr = < 375 >;
+		hp-minlock-power-upper-thr = < 3000 >;
+		hp-minlock-power-lower-thr = < 2500 >;
+		dyn-mo-control = < 0 >;
+
+		/* FPS(Legacy) */
+		dt-ctrl-en = < 1 >;
+		dt-over-thr = < 10 >;
+		dt-under-thr = < 100 >;
+		dpat-upper-thr = < 9000000 >;
+		dpat-lower-thr = < 0 >;
+		dpat-lower-cnt-thr = < 1 >;
+		dpat-up-step = < 10 >;
+		dpat-down-step = < 10 >;
+		inc-perf-temp-thr = < 65 >;
+		inc-perf-power-thr = < 0 >;
+		inc-perf-thr = < 0 >;
+		dec-perf-thr = < (-1000) >;
+		fragutil-thr = < 50 >;
+		gpu-freq-thr = < 403000 >;
+		heavy-gpu-ms-thr = < 50 >;
+		runtime-thr-0 = < (-200) >;
+		runtime-thr-1 = < (-450) >;
+		runtime-thr-2 = < (-50) >;
+		runtime-thr-3 = < (-50) >;
+		runtime-thr-4 = < (-250) >;
+		runtime-thr-5 = < (-10) >;
+
+		/* Render-Time(Legacy) */
+		pid-cpu = < 1000 600 400 >;
+		pid-gpu = < 1000 200 800 >;
+		pid-util = < 1000 200 500 >;
+
+		/* domain list */
+		domain-names = "cl0", "cl1", "cl2", "gpu", "mif";
+
+		cl0 {
+			pm-qos-cpu = < 0 >;
+
+			/* Legacy */
+			max = < 200 >;
+			min = < (-100) >;
+			up-step = < 2 >;
+			down-step = < 5 >;
+			default-step = < 10 >;
+			hp-minlock-low-limit = < 2002000 >;
+			lp-minlock-low-limit = < 0 >;
+			pid-util-max = < 800 >;
+			pid-util-min = < 600 >;
+			pid-util-lpmax = < 900 >;
+			pid-util-lpmin = < 700 >;
+		};
+		cl1 {
+			pm-qos-cpu = < 4 >;
+
+			/* Legacy */
+			max = < 200 >;
+			min = < (-100) >;
+			up-step = < 2 >;
+			down-step = < 5 >;
+			default-step = < 10 >;
+			hp-minlock-low-limit = < 1976000 >;
+			lp-minlock-low-limit = < 0 >;
+			pid-util-max = < 800 >;
+			pid-util-min = < 600 >;
+			pid-util-lpmax = < 900 >;
+			pid-util-lpmin = < 700 >;
+		};
+		cl2 {
+			pm-qos-cpu = < 8 >;
+
+			/* Legacy */
+			max = < 200 >;
+			min = < (-100) >;
+			up-step = < 2 >;
+			down-step = < 5 >;
+			default-step = < 10 >;
+			hp-minlock-low-limit = < 1976000 >;
+			lp-minlock-low-limit = < 0 >;
+			pid-util-max = < 900 >;
+			pid-util-min = < 700 >;
+			pid-util-lpmax = < 950 >;
+			pid-util-lpmin = < 650 >;
+		};
+		gpu {
+			pm-qos-min-class = < PM_QOS_GPU_THROUGHPUT_MIN >;
+
+			/* Legacy */
+			max = < 150 >;
+			min = < (-100) >;
+			up-step = < 2 >;
+			down-step = < 5 >;
+			default-step = < 2 >;
+			pm-qos-max-class = < PM_QOS_GPU_THROUGHPUT_MAX >;
+			q0-empty-pct-thr = < 0 >;
+			q1-empty-pct-thr = < 0 >;
+			active-pct-thr = < 100 >;
+		};
+		mif {
+			pm-qos-min-class = < PM_QOS_BUS_THROUGHPUT >;
+
+			/* Legacy */
+			max = < 200 >;
+			min = < (-50) >;
+			up-step = < 2 >;
+			down-step = < 5 >;
+			default-step = < 10 >;
+			pm-qos-max-class = < PM_QOS_BUS_THROUGHPUT_MAX >;
+			freq-stats0-mode-min-freq = < 1716000 >;
+			freq-stats0-thr = < 4500 >;
+			freq-stats0-updown-delta-pct-thr = < 200 >;
+			hp-minlock-low-limit = < 2730000 >;
+			pid-util-max = < 980 >;
+			pid-util-min = < 920 >;
+			pid-util-lpmax = < 980 >;
+			pid-util-lpmin = < 940 >;
+		};
+	};
+
+	exynos-cpu-profiler {
+		compatible = "samsung,exynos-cpu-profiler";
+		status = "okay";
+
+		#define CPU_CL0 "0-3"
+		#define CPU_CL1 "4-7"
+		#define CPU_CL2 "8"
+
+		cpu_domain0: domain@0 {
+		     /* necessary data */
+		     sibling-cpus = CPU_CL0;
+		     cal-id = <ACPM_DVFS_CPUCL0>;
+
+		     /* un-necessary data */
+		     profiler-id = <PROFILER_CL0>;
+		     power-coefficient = <189>;
+		     static-power-coefficient = <62>;
+		};
+		cpu_domain1: domain@1 {
+		     /* necessary data */
+		     sibling-cpus = CPU_CL1;
+		     cal-id = <ACPM_DVFS_CPUCL1>;
+
+		     /* un-necessary data */
+		     profiler-id = <PROFILER_CL1>;
+		     power-coefficient = <560>;
+		     static-power-coefficient = <234>;
+		     tz-name = "MID";
+		};
+		cpu_domain2: domain@2 {
+		     /* necessary data */
+		     sibling-cpus = CPU_CL2;
+		     cal-id = <ACPM_DVFS_CPUCL2>;
+
+		     /* un-necessary data */
+		     profiler-id = <PROFILER_CL2>;
+		     power-coefficient = <765>;
+		     static-power-coefficient = <537>;
+		     tz-name = "BIG";
+		};
+	};
+
+	exynos-gpu-profiler {
+		compatible = "samsung,exynos-gpu-profiler";
+		status = "okay";
+
+		/* necessary data */
+		cal-id = <ACPM_DVFS_G3D>;
+
+		/* un-necessary data */
+		profiler-id = <PROFILER_GPU>;
+		power-coefficient = <13360>;
+		static-power-coefficient = <400>;
+		tz-name = "G3D";
+	};
+
+	exynos-mif-profiler {
+		compatible = "samsung,exynos-mif-profiler";
+		status = "okay";
+
+		/* necessary data */
+		cal-id = <ACPM_DVFS_MIF>;
+
+		/* un-necessary data */
+		profiler-id = <PROFILER_MIF>;
+		devfreq-type = <DEVFREQ_MIF>;
+		power-coefficient = <70110000>;
+		static-power-coefficient = <535>;
+	};
+};

@@ -1,0 +1,517 @@
+/*
+ * s2mps28-private.h - Voltage regulator driver for the s2mps28
+ *
+ *  Copyright (C) 2023 Samsung Electrnoics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
+#ifndef __LINUX_MFD_S2MPS28_REGULATOR_H
+#define __LINUX_MFD_S2MPS28_REGULATOR_H
+#include <linux/i2c.h>
+
+/* Slave id */
+enum s2mps28_slave_id {
+	SUB1_ID = 0x00,
+	SUB2_ID = 0x03,
+	SUB3_ID = 0x04,
+	SUB4_ID = 0x0B,
+	SUB5_ID = 0x0C,
+};
+
+/* base address */
+enum s2mps28_base_addr {
+	VGPIO_ADDR = 0x00,
+	COM_ADDR = 0x03,
+	PM1_ADDR = 0x05,
+	PM2_ADDR = 0x06,
+	PM3_ADDR = 0x07,
+	EXT_ADDR = 0x0E,
+	GPIO_ADDR = 0x0B,
+	TEMP_ADDR = 0x1F,
+};
+
+#define MASK(width, shift)		(((0x1 << (width)) - 1) << shift)
+#define SetBit(no)			(0x1 << (no))
+
+#define S2MPS28_REG_INVALID		(0xFF)
+
+/* S2MPS28 VGPIO(0x00) Address */
+#define S2MPS28_VGPIO_REG0			0x00
+#define S2MPS28_VGPIO_PSI			0x01
+#define S2MPS28_VGPIO_VGI0			0x02
+#define S2MPS28_VGPIO_VGI1			0x03
+#define S2MPS28_VGPIO_VGI2			0x04
+#define S2MPS28_VGPIO_VGI3			0x05
+#define S2MPS28_VGPIO_VGI4			0x06
+#define S2MPS28_VGPIO_VGI5			0x07
+#define S2MPS28_VGPIO_VGI6			0x08
+#define S2MPS28_VGPIO_VGI7			0x09
+#define S2MPS28_VGPIO_VGI8			0x0A
+#define S2MPS28_VGPIO_VGI9			0x0B
+#define S2MPS28_VGPIO_VGI10			0x0C
+#define S2MPS28_VGPIO_VGI11			0x0D
+#define S2MPS28_VGPIO_VGI12			0x0E
+#define S2MPS28_VGPIO_VGI13			0x0F
+#define S2MPS28_VGPIO_VGI14			0x10
+#define S2MPS28_VGPIO_VGI15			0x11
+#define S2MPS28_VGPIO_VGI16			0x12
+#define S2MPS28_VGPIO_VGI17			0x13
+#define S2MPS28_VGPIO_VGI18			0x14
+
+/* S2MPS28 COM(0x03) Address */
+#define S2MPS28_COM_VGPIO_REG0_1		0x00
+#define S2MPS28_COM_VGPIO_REG0_2		0x01
+#define S2MPS28_COM_CHIP_ID			0x0E
+#define S2MPS28_COM_PLATFORM_ID			0x0F
+#define S2MPS28_COM_SPMI_CFG1			0x10
+#define S2MPS28_COM_SPMI_CFG2			0x11
+#define S2MPS28_COM_SPMI_CFG3			0x12
+#define S2MPS28_COM_SPMI_CFG4			0x13
+#define S2MPS28_COM_SPMI_CFG5			0x14
+#define S2MPS28_COM_COM_CTRL1			0x15
+#define S2MPS28_COM_TX_MASK			0x16
+#define S2MPS28_COM_IRQ				0x17
+#define S2MPS28_COM_COM_CTRL2			0x18
+#define S2MPS28_COM_CLK_ON			0x19
+#define S2MPS28_COM_CLK_OFF			0x1A
+#define S2MPS28_COM_OM				0x1B
+#define S2MPS28_COM_OTP_TEST			0x1C
+#define S2MPS28_COM_OTP_AW_OPT			0x1D
+#define S2MPS28_COM_OTP_ADRH			0x1E
+#define S2MPS28_COM_OTP_ADRL			0x1F
+#define S2MPS28_COM_OTP_DATA			0x20
+#define S2MPS28_COM_MONSEL1			0x21
+#define S2MPS28_COM_MONSEL2			0x22
+#define S2MPS28_COM_MONRD1			0x23
+#define S2MPS28_COM_MONRD2			0x24
+#define S2MPS28_COM_CCD				0x25
+#define S2MPS28_COM_CHECKSUM_DATA		0x26
+#define S2MPS28_COM_CHECKSUM_REF		0x27
+#define S2MPS28_COM_CHECKSUM_RESULT		0x28
+#define S2MPS28_COM_OTP_LOAD_EN_PAT		0x29
+#define S2MPS28_COM_BUCK_OM			0x2A
+#define S2MPS28_COM_BUCK_MON_SEL		0x2B
+#define S2MPS28_COM_BUCK_MON_SEL2		0x2C
+
+/* CHIP ID MASK */
+#define S2MPS28_CHIP_ID_MASK			(0xFF)
+#define S2MPS28_CHIP_ID_HW_MASK			(0x0F)
+#define S2MPS28_CHIP_ID_SW_MASK			(0xF0)
+
+/* S2MPS28 PM1(0x05) Address */
+#define S2MPS28_PM1_INT1			0x00
+#define S2MPS28_PM1_INT2			0x01
+#define S2MPS28_PM1_INT3			0x02
+#define S2MPS28_PM1_INT4			0x03
+#define S2MPS28_PM1_INT1M			0x04
+#define S2MPS28_PM1_INT2M			0x05
+#define S2MPS28_PM1_INT3M			0x06
+#define S2MPS28_PM1_INT4M			0x07
+#define S2MPS28_PM1_STATUS1			0x08
+#define S2MPS28_PM1_STATUS2			0x09
+#define S2MPS28_PM1_OFFSRC1_CUR			0x0A
+#define S2MPS28_PM1_OFFSRC2_CUR			0x0B
+#define S2MPS28_PM1_OFFSRC1_OLD1		0x0C
+#define S2MPS28_PM1_OFFSRC2_OLD1		0x0D
+#define S2MPS28_PM1_OFFSRC1_OLD2		0x0E
+#define S2MPS28_PM1_OFFSRC2_OLD2		0x0F
+#define S2MPS28_PM1_CTRL1			0x17
+#define S2MPS28_PM1_CTRL2			0x18
+#define S2MPS28_PM1_CTRL3			0x19
+#define S2MPS28_PM1_ETC_OTP1			0x1A
+#define S2MPS28_PM1_ETC_OTP2			0x1B
+#define S2MPS28_PM1_UVLO_OTP			0x1C
+#define S2MPS28_PM1_CFG_PM			0x1D
+#define S2MPS28_PM1_TIME_CTRL			0x1E
+#define S2MPS28_PM1_BUCK1_DVS			0x1F
+#define S2MPS28_PM1_BUCK1_AFM			0x20
+#define S2MPS28_PM1_BUCK1_OCP			0x21
+#define S2MPS28_PM1_BUCK1_AVP			0x22
+#define S2MPS28_PM1_BUCK2_DVS			0x23
+#define S2MPS28_PM1_BUCK2_AFM			0x24
+#define S2MPS28_PM1_BUCK2_OCP			0x25
+#define S2MPS28_PM1_BUCK2_AVP			0x26
+#define S2MPS28_PM1_BUCK3_DVS			0x27
+#define S2MPS28_PM1_BUCK3_AFM			0x28
+#define S2MPS28_PM1_BUCK3_OCP			0x29
+#define S2MPS28_PM1_BUCK3_AVP			0x2A
+#define S2MPS28_PM1_BUCK4_DVS			0x2B
+#define S2MPS28_PM1_BUCK4_AFM			0x2C
+#define S2MPS28_PM1_BUCK4_OCP			0x2D
+#define S2MPS28_PM1_BUCK4_AVP			0x2E
+#define S2MPS28_PM1_BUCK5_DVS			0x2F
+#define S2MPS28_PM1_BUCK5_AFM			0x30
+#define S2MPS28_PM1_BUCK5_OCP			0x31
+#define S2MPS28_PM1_BUCK5_AVP			0x32
+#define S2MPS28_PM1_BUCK_SR1_DVS		0x33
+#define S2MPS28_PM1_BUCK_SR1_OCP		0x34
+#define S2MPS28_PM1_DVS_LDO_RAMP1		0x35
+#define S2MPS28_PM1_DVS_LDO_RAMP2		0x36
+#define S2MPS28_PM1_DVS_LDO_RAMP3		0x37
+#define S2MPS28_PM1_SR_ADVC_CTRL		0x38
+#define S2MPS28_PM1_RET_SICD_CTRL		0x39
+#define S2MPS28_PM1_RET_DSUPD_CTRL		0x3A
+#define S2MPS28_PM1_PM1_RSVD0			0x3B
+#define S2MPS28_PM1_PM1_RSVD1			0x3C
+#define S2MPS28_PM1_PM1_RSVD2			0x3D
+#define S2MPS28_PM1_BUCK1_CTRL			0x3E
+#define S2MPS28_PM1_BUCK1_OUT1			0x3F
+#define S2MPS28_PM1_BUCK1_OUT2			0x40
+#define S2MPS28_PM1_BUCK1_OUT3			0x41
+#define S2MPS28_PM1_BUCK1_OUT4			0x42
+#define S2MPS28_PM1_BUCK1_AFMX			0x43
+#define S2MPS28_PM1_BUCK1_AFMY			0x44
+#define S2MPS28_PM1_BUCK1_AFMZ			0x45
+#define S2MPS28_PM1_BUCK2_CTRL			0x46
+#define S2MPS28_PM1_BUCK2_OUT1			0x47
+#define S2MPS28_PM1_BUCK2_OUT2			0x48
+#define S2MPS28_PM1_BUCK2_OUT3			0x49
+#define S2MPS28_PM1_BUCK2_OUT4			0x4A
+#define S2MPS28_PM1_BUCK2_AFMX			0x4B
+#define S2MPS28_PM1_BUCK2_AFMY			0x4C
+#define S2MPS28_PM1_BUCK2_AFMZ			0x4D
+#define S2MPS28_PM1_BUCK3_CTRL			0x4E
+#define S2MPS28_PM1_BUCK3_OUT1			0x4F
+#define S2MPS28_PM1_BUCK3_OUT2			0x50
+#define S2MPS28_PM1_BUCK3_OUT3			0x51
+#define S2MPS28_PM1_BUCK3_OUT4			0x52
+#define S2MPS28_PM1_BUCK3_AFMX			0x53
+#define S2MPS28_PM1_BUCK3_AFMY			0x54
+#define S2MPS28_PM1_BUCK3_AFMZ			0x55
+#define S2MPS28_PM1_BUCK4_CTRL			0x56
+#define S2MPS28_PM1_BUCK4_OUT1			0x57
+#define S2MPS28_PM1_BUCK4_OUT2			0x58
+#define S2MPS28_PM1_BUCK4_OUT3			0x59
+#define S2MPS28_PM1_BUCK4_OUT4			0x5A
+#define S2MPS28_PM1_BUCK4_AFMX			0x5B
+#define S2MPS28_PM1_BUCK4_AFMY			0x5C
+#define S2MPS28_PM1_BUCK4_AFMZ			0x5D
+#define S2MPS28_PM1_BUCK5_CTRL			0x5E
+#define S2MPS28_PM1_BUCK5_OUT1			0x5F
+#define S2MPS28_PM1_BUCK5_OUT2			0x60
+#define S2MPS28_PM1_BUCK5_OUT3			0x61
+#define S2MPS28_PM1_BUCK5_OUT4			0x62
+#define S2MPS28_PM1_BUCK5_AFMX			0x63
+#define S2MPS28_PM1_BUCK5_AFMY			0x64
+#define S2MPS28_PM1_BUCK5_AFMZ			0x65
+#define S2MPS28_PM1_BUCK_SR1_CTRL		0x66
+#define S2MPS28_PM1_BUCK_SR1_OUT1		0x67
+#define S2MPS28_PM1_BUCK_SR1_OUT2		0x68
+#define S2MPS28_PM1_DVS_LDO1_CTRL		0x69
+#define S2MPS28_PM1_DVS_LDO2_CTRL		0x6A
+#define S2MPS28_PM1_DVS_LDO3_CTRL		0x6B
+#define S2MPS28_PM1_DVS_LDO4_CTRL		0x6C
+#define S2MPS28_PM1_DVS_LDO5_CTRL		0x6D
+#define S2MPS28_PM1_DVS_BUCK4_CTRL		0x6E
+#define S2MPS28_PM1_DVS_LDO_HVTHR1		0x6F
+#define S2MPS28_PM1_DVS_LDO_HVTHR2		0x70
+#define S2MPS28_PM1_DVS_LDO_HVTHR3		0x71
+#define S2MPS28_PM1_LDO1_CTRL			0x72
+#define S2MPS28_PM1_LDO1_OUT1			0x73
+#define S2MPS28_PM1_LDO1_OUT2			0x74
+#define S2MPS28_PM1_LDO1_OUT3			0x75
+#define S2MPS28_PM1_LDO1_OUT4			0x76
+#define S2MPS28_PM1_LDO2_CTRL			0x77
+#define S2MPS28_PM1_LDO2_OUT1			0x78
+#define S2MPS28_PM1_LDO2_OUT2			0x79
+#define S2MPS28_PM1_LDO2_OUT3			0x7A
+#define S2MPS28_PM1_LDO2_OUT4			0x7B
+#define S2MPS28_PM1_LDO3_CTRL			0x7C
+#define S2MPS28_PM1_LDO3_OUT1			0x7D
+#define S2MPS28_PM1_LDO3_OUT2			0x7E
+#define S2MPS28_PM1_LDO3_OUT3			0x7F
+#define S2MPS28_PM1_LDO3_OUT4			0x80
+#define S2MPS28_PM1_LDO4_CTRL			0x81
+#define S2MPS28_PM1_LDO4_OUT1			0x82
+#define S2MPS28_PM1_LDO4_OUT2			0x83
+#define S2MPS28_PM1_LDO4_OUT3			0x84
+#define S2MPS28_PM1_LDO4_OUT4			0x85
+#define S2MPS28_PM1_LDO5_CTRL			0x86
+#define S2MPS28_PM1_LDO5_OUT1			0x87
+#define S2MPS28_PM1_LDO5_OUT2			0x88
+#define S2MPS28_PM1_LDO5_OUT3			0x89
+#define S2MPS28_PM1_LDO5_OUT4			0x8A
+#define S2MPS28_PM1_LDO_EXT_OUT			0x8B
+#define S2MPS28_PM1_BUCK_WRST_CTRL		0x8C
+#define S2MPS28_PM1_LDO_WRST_CTRL		0x8D
+#define S2MPS28_PM1_PSI_WTSR			0xF0
+#define S2MPS28_PM1_EXT_PWRHOLD			0xFB
+#define S2MPS28_PM1_EXT_LDO5_CTRL		0xFC
+
+/* S2MPS28 PM2(0x06) Address */
+#define S2MPS28_PM2_ONSEQ_CTRL1			0x00
+#define S2MPS28_PM2_ONSEQ_CTRL2			0x01
+#define S2MPS28_PM2_ONSEQ_CTRL3			0x02
+#define S2MPS28_PM2_ONSEQ_CTRL4			0x03
+#define S2MPS28_PM2_ONSEQ_CTRL5			0x04
+#define S2MPS28_PM2_ONSEQ_CTRL6			0x05
+#define S2MPS28_PM2_ONSEQ_CTRL7			0x06
+#define S2MPS28_PM2_ONSEQ_CTRL8			0x07
+#define S2MPS28_PM2_ONSEQ_CTRL9			0x08
+#define S2MPS28_PM2_ONSEQ_CTRL10			0x09
+#define S2MPS28_PM2_ONSEQ_CTRL11			0x0A
+#define S2MPS28_PM2_OFF_SEQ_CTRL1			0x0B
+#define S2MPS28_PM2_OFF_SEQ_CTRL2			0x0C
+#define S2MPS28_PM2_OFF_SEQ_CTRL3			0x0D
+#define S2MPS28_PM2_OFF_SEQ_CTRL4			0x0E
+#define S2MPS28_PM2_OFF_SEQ_CTRL5			0x0F
+#define S2MPS28_PM2_OFF_SEQ_CTRL6			0x10
+#define S2MPS28_PM2_SEL_VGPIO1			0x11
+#define S2MPS28_PM2_SEL_VGPIO2			0x12
+#define S2MPS28_PM2_SEL_VGPIO3			0x13
+#define S2MPS28_PM2_SEL_VGPIO4			0x14
+#define S2MPS28_PM2_SEL_VGPIO5			0x15
+#define S2MPS28_PM2_SEL_VGPIO6			0x16
+#define S2MPS28_PM2_SEL_VGPIO7			0x17
+#define S2MPS28_PM2_SEL_VGPIO8			0x18
+#define S2MPS28_PM2_SEL_VGPIO9			0x19
+#define S2MPS28_PM2_SEL_VGPIO10			0x1A
+#define S2MPS28_PM2_SEL_VGPIO11			0x1B
+#define S2MPS28_PM2_SEL_DVS_EN1			0x1C
+#define S2MPS28_PM2_SEL_DVS_EN2			0x1D
+#define S2MPS28_PM2_SEL_DVS_EN3			0x1E
+#define S2MPS28_PM2_SEL_DVS_EN4			0x1F
+#define S2MPS28_PM2_SEL_DVS_EN5			0x20
+#define S2MPS28_PM2_SEL_DVS_EN6			0x21
+#define S2MPS28_PM2_OFF_CTRL1			0x22
+#define S2MPS28_PM2_OFF_CTRL2			0x23
+#define S2MPS28_PM2_OFF_CTRL3			0x24
+#define S2MPS28_PM2_OFF_CTRL4			0x25
+#define S2MPS28_PM2_OFF_CTRL5			0x26
+#define S2MPS28_PM2_OFF_CTRL6			0x27
+#define S2MPS28_PM2_OFF_CTRL7			0x28
+
+
+
+
+/* PMIC 1 mask */
+#define BUCK_RAMP_MASK			(0x03)
+#define BUCK_RAMP_UP_SHIFT		6
+
+/* CFG_PM reg WTSR_EN Mask */
+#define S2MPS28_WTSREN_MASK		MASK(1,2)
+
+/* BUCKs 1S ~ 5S  */
+#define S2MPS28_BUCK_MIN1		300000
+#define S2MPS28_BUCK_STEP1		6250
+/* BUCK SR1S */
+#define S2MPS28_BUCK_MIN2		300000
+#define S2MPS28_BUCK_STEP2		6250
+/* (LV) LDOs 1S ~ 5S */
+#define S2MPS28_LDO_MIN1		300000
+#define S2MPS28_LDO_STEP1		6250
+
+/* LDO/BUCK output voltage control */
+#define S2MPS28_LDO_VSEL_MASK1		0xFF	/* LDO_OUT */
+#define S2MPS28_LDO_VSEL_MASK2		0x3F	/* LDO_CTRL */
+#define S2MPS28_BUCK_VSEL_MASK		0xFF
+#define S2MPS28_BUCK_N_VOLTAGES 	(S2MPS28_BUCK_VSEL_MASK + 1)
+
+/* BUCK Enable control[7:6] */
+#define S2MPS28_ENABLE_SHIFT		0x06
+#define S2MPS28_ENABLE_MASK		(0x03 << S2MPS28_ENABLE_SHIFT)
+#define SEL_VGPIO_ON			(0x01 << S2MPS28_ENABLE_SHIFT)
+
+/* BUCK_SR1/BB Mode Control [3:2] */
+#define S2MPS28_BUCK_MODE_SHIFT		2
+#define S2MPS28_BUCK_MODE_MASK		0x0C
+#define S2MPS28_BUCK_AUTO_MODE		(0x02 << S2MPS28_BUCK_MODE_SHIFT)
+#define S2MPS28_BUCK_FCCM_MODE		(0x03 << S2MPS28_BUCK_MODE_SHIFT)
+
+#define S2MPS28_REGULATOR_MAX		(S2MPS28_REG_MAX)
+
+/* Set LDO/BUCK soft time */
+#define S2MPS28_ENABLE_TIME_LDO		120
+#define S2MPS28_ENABLE_TIME_BUCK	130
+#define S2MPS28_ENABLE_TIME_BUCK_SR	130
+#define S2MPS28_ENABLE_TIME_BB		160
+
+/* OI mask */
+#define S2MPS28_PMIC_IRQ_OI_B1_MASK	(1 << 0)
+#define S2MPS28_PMIC_IRQ_OI_B2_MASK	(1 << 1)
+#define S2MPS28_PMIC_IRQ_OI_B3_MASK	(1 << 2)
+#define S2MPS28_PMIC_IRQ_OI_B4_MASK	(1 << 3)
+#define S2MPS28_PMIC_IRQ_OI_B5_MASK	(1 << 4)
+#define S2MPS28_PMIC_IRQ_OI_SR1_MASK	(1 << 5)
+
+/* OCP mask */
+#define S2MPS28_PMIC_IRQ_OCP_B1_MASK	(1 << 0)
+#define S2MPS28_PMIC_IRQ_OCP_B2_MASK	(1 << 1)
+#define S2MPS28_PMIC_IRQ_OCP_B3_MASK	(1 << 2)
+#define S2MPS28_PMIC_IRQ_OCP_B4_MASK	(1 << 3)
+#define S2MPS28_PMIC_IRQ_OCP_B5_MASK	(1 << 4)
+#define S2MPS28_PMIC_IRQ_OCP_SR1_MASK	(1 << 5)
+
+/* Temp mask */
+#define S2MPS28_IRQ_INT120C_MASK	(1 << 2)
+#define S2MPS28_IRQ_INT140C_MASK	(1 << 3)
+
+/* S2MPS28 sub1 Regulator ids */
+enum s2mps28_regulators {
+	S2MPS28_BUCK1,
+	S2MPS28_BUCK2,
+	S2MPS28_BUCK3,
+	S2MPS28_BUCK4,
+	S2MPS28_BUCK5,
+	S2MPS28_BUCK_SR1,
+	S2MPS28_LDO1,
+	S2MPS28_LDO2,
+	S2MPS28_LDO3,
+	S2MPS28_LDO4,
+	S2MPS28_LDO5,
+	S2MPS28_REG_MAX,
+};
+
+enum s2mps28_temperature_source {
+	S2MPS28_TEMP_120 = 0,	/* 120 degree */
+	S2MPS28_TEMP_140,	/* 140 degree */
+
+	S2MPS28_TEMP_NR,
+};
+
+enum s2mps28_irq_source {
+	S2MPS28_PMIC_INT1 = 0,
+	S2MPS28_PMIC_INT2,
+	S2MPS28_PMIC_INT3,
+	S2MPS28_PMIC_INT4,
+	S2MPS28_IRQ_GROUP_NR,
+};
+
+#define S2MPS28_NUM_IRQ_PMIC_REGS	4 /* INT1 ~ INT4 */
+#define S2MPS28_BUCK_MAX		6 /* buck 1S ~ 5S, SR1 */
+#define S2MPS28_TEMP_MAX		2
+
+enum s2mps28_irq {
+	/* PMIC */
+	S2MPS28_PMIC_IRQ_PWRONF_INT1,
+	S2MPS28_PMIC_IRQ_PWRONR_INT1,
+	S2MPS28_PMIC_IRQ_INT120C_INT1,
+	S2MPS28_PMIC_IRQ_INT140C_INT1,
+	S2MPS28_PMIC_IRQ_TSD_INT1,
+	S2MPS28_PMIC_IRQ_WTSR_INT1,
+	S2MPS28_PMIC_IRQ_WRSTB_INT1,
+	S2MPS28_PMIC_IRQ_TX_TRAN_FAIL_INT1,
+
+	S2MPS28_PMIC_IRQ_OCP_B1_INT2,
+	S2MPS28_PMIC_IRQ_OCP_B2_INT2,
+	S2MPS28_PMIC_IRQ_OCP_B3_INT2,
+	S2MPS28_PMIC_IRQ_OCP_B4_INT2,
+	S2MPS28_PMIC_IRQ_OCP_B5_INT2,
+	S2MPS28_PMIC_IRQ_OCP_SR1_INT2,
+	S2MPS28_PMIC_IRQ_BUCK_AUTO_EXIT_INT2,
+
+	S2MPS28_PMIC_IRQ_OI_B1_INT3,
+	S2MPS28_PMIC_IRQ_OI_B2_INT3,
+	S2MPS28_PMIC_IRQ_OI_B3_INT3,
+	S2MPS28_PMIC_IRQ_OI_B4_INT3,
+	S2MPS28_PMIC_IRQ_OI_B5_INT3,
+	S2MPS28_PMIC_IRQ_OI_SR1_INT3,
+	S2MPS28_PMIC_IRQ_OVP_INT3,
+
+	S2MPS28_PMIC_IRQ_SPMI_LDO_OK_F_INT4,
+	S2MPS28_PMIC_IRQ_CHECKSUM_INT4,
+	S2MPS28_PMIC_IRQ_PARITY_ERR_DATA_INT4,
+	S2MPS28_PMIC_IRQ_PARITY_ERR_ADDR_L_INT4,
+	S2MPS28_PMIC_IRQ_PARITY_ERR_ADDR_H_INT4,
+	S2MPS28_PMIC_IRQ_PARITY_ERR_CMD_INT4,
+
+	S2MPS28_IRQ_NR,
+};
+
+enum s2mps28_irq_type {
+	/* OI */
+	S2MPS28_IRQ_OI_B1S = 1,
+	S2MPS28_IRQ_OI_B2S,
+	S2MPS28_IRQ_OI_B3S,
+	S2MPS28_IRQ_OI_B4S,
+	S2MPS28_IRQ_OI_B5S,
+	S2MPS28_IRQ_OI_SR1S,
+	/* OCP */
+	S2MPS28_IRQ_OCP_B1S,
+	S2MPS28_IRQ_OCP_B2S,
+	S2MPS28_IRQ_OCP_B3S,
+	S2MPS28_IRQ_OCP_B4S,
+	S2MPS28_IRQ_OCP_B5S,
+	S2MPS28_IRQ_OCP_SR1S,
+	/* Temp */
+	S2MPS28_IRQ_INT120C,
+	S2MPS28_IRQ_INT140C,
+};
+
+enum sec_device_type {
+	S2MPS28X,
+};
+
+struct s2mps28_dev {
+	struct device *dev;
+	struct s2mps28_platform_data *pdata;
+	struct i2c_client *com;
+	struct i2c_client *vgpio;
+	struct i2c_client *pm1;
+	struct i2c_client *pm2;
+	struct i2c_client *pm3;
+	struct i2c_client *ext;
+	struct i2c_client *gpio;
+	struct mutex i2c_lock;
+	struct mutex irqlock;
+
+	bool wakeup;
+	int type;
+	int device_type;
+	uint8_t sid;
+
+	/* IRQ */
+	int irq;
+	int irq_base;
+	int irq_masks_cur[S2MPS28_IRQ_GROUP_NR];
+	int irq_masks_cache[S2MPS28_IRQ_GROUP_NR];
+
+	/* pmic VER/REV register */
+	uint8_t pmic_rev;	/* pmic Rev */
+
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
+	struct device *irq_dev;
+#endif
+	/* VGPIO_RX_MONITOR */
+	void __iomem *mem_base;
+
+	/* Work queue */
+	struct workqueue_struct *irq_wqueue;
+	struct delayed_work irq_work;
+};
+
+enum s2mps28_types {
+	TYPE_S2MPS28_1,
+	TYPE_S2MPS28_2,
+	TYPE_S2MPS28_3,
+	TYPE_S2MPS28_4,
+	TYPE_S2MPS28_5,
+	TYPE_S2MPS28_MAX,
+};
+
+/* S2MPS28 shared i2c API function */
+extern int s2mps28_read_reg(struct i2c_client *i2c, uint8_t reg, uint8_t *dest);
+extern int s2mps28_bulk_read(struct i2c_client *i2c, uint8_t reg, int count,
+			     uint8_t *buf);
+extern int s2mps28_write_reg(struct i2c_client *i2c, uint8_t reg, uint8_t value);
+extern int s2mps28_bulk_write(struct i2c_client *i2c, uint8_t reg, int count,
+			      uint8_t *buf);
+extern int s2mps28_update_reg(struct i2c_client *i2c, uint8_t reg, uint8_t val, uint8_t mask);
+
+extern int s2mps28_notifier_init(struct s2mps28_dev *s2mps28);
+extern void s2mps28_notifier_deinit(struct s2mps28_dev *s2mps28);
+
+#endif /* __LINUX_MFD_S2MPS28_REGULATOR_H */

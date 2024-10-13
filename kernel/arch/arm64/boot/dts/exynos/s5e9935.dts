@@ -1,0 +1,842 @@
+/*
+ * SAMSUNG S5E9935 SoC device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG S5E9935 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/clock/s5e9935.h>
+#include <dt-bindings/interrupt-controller/s5e9935.h>
+#include <dt-bindings/soc/samsung/s5e9935-dm.h>
+#include <dt-bindings/soc/samsung/s5e9935-devfreq.h>
+#include <dt-bindings/soc/samsung/exynos_pm_qos.h>
+#include <dt-bindings/soc/samsung/exynos-bcm_dbg.h>
+#include "s5e9935-rmem.dtsi"
+#include "s5e9935-sysmmu.dtsi"
+#include "s5e9935-dma-heap.dtsi"
+#include "s5e9935-pinctrl.dtsi"
+#include "s5e9935-usi.dtsi"
+#include "s5e9935-sgpu.dtsi"
+#include "s5e9935-acpm.dtsi"
+#include "s5e9935-audio.dtsi"
+#include "s5e9935-drm-dpu.dtsi"
+#include "s5e9935-cpu.dtsi"
+#include "s5e9935-usb.dtsi"
+#include "s5e9935-pcie.dtsi"
+#include "s5e9935-ufs.dtsi"
+#include "s5e9935-debug.dtsi"
+#include "s5e9935-security.dtsi"
+#include "s5e9935-power.dtsi"
+#include "s5e9935-bts.dtsi"
+#include "s5e9935-pm-domains.dtsi"
+#include "s5e9935-ems.dtsi"
+#include "s5e9935-mfc.dtsi"
+#include "s5e9935-profiler.dtsi"
+#include "s5e9935-m2m.dtsi"
+//#include "s5e9935-wlbt.dtsi"
+#include "s5e9935-wfd.dtsi"
+#include "s5e9935-xperf.dtsi"
+//#include "s5e9935-dsp.dtsi"
+//#include "s5e9935-camera.dtsi"
+#include "s5e9935-npu.dtsi"
+//#include "s5e9935-pmucal-dbg.dtsi"
+//#include "abc_common.dtsi"
+//#include "abc_spec_manager_type1.dtsi"
+#include "s5e9935-wlbt.dtsi"
+
+/ {
+	compatible = "samsung,armv8", "samsung,s5e9935";
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <1>;
+
+	aliases {
+		pinctrl0 = &pinctrl_0;
+		pinctrl1 = &pinctrl_1;
+		pinctrl2 = &pinctrl_2;
+		pinctrl3 = &pinctrl_3;
+		pinctrl4 = &pinctrl_4;
+		pinctrl5 = &pinctrl_5;
+		pinctrl6 = &pinctrl_6;
+		pinctrl7 = &pinctrl_7;
+		pinctrl8 = &pinctrl_8;
+		pinctrl9 = &pinctrl_9;
+
+		uart0 = &serial_0;
+	};
+
+	fixed-rate-clocks {
+		oscclk {
+			compatible = "samsung,s5e9935-oscclk";
+			clock-frequency = <76800000>;
+		};
+	};
+
+	chosen: chosen {
+		bootargs = "console=ram printk.devkmsg=on arm64.nopauth arm64.nomte nokaslr kasan=off panic_on_warn=1 clocksource=arch_sys_counter clk_ignore_unused firmware_class.path=/vendor/firmware rcupdate.rcu_expedited=1 sec_debug.cp=3 cpif.cp_btl=on allow_mismatched_32bit_el0 swiotlb=noforce loop.max_part=7";
+		linux,initrd-start = <0x84000000>;
+		linux,initrd-end = <0x84FFFFFF>;
+	};
+
+	gic:interrupt-controller@10200000 {
+		compatible = "arm,gic-v3";
+		#interrupt-cells = <3>;
+		interrupt-controller;
+		reg = <0x0 0x10200000 0x10000>,         /* GICD */
+		      <0x0 0x10240000 0x200000>;        /* GICR * 8 */
+		interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	gic_vh: gic_vh {
+		compatible = "arm,gic-v3-vh";
+		reg = <0x0 0x10200000 0x10000>;		/* GICD */
+		class0-cpus = "0-3";
+		class1-cpus = "4-8";
+	};
+
+	clock: clock-controller@1A320000 {
+		compatible = "samsung,s5e9935-clock";
+		reg = <0x0 0x1A320000 0x8000>;
+		#clock-cells = <1>;
+	};
+
+	chipid@10000000 {
+		compatible = "samsung,s5e9935-chipid";
+		reg = <0x0 0x10000000 0x10000>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL_LOW>,
+			     <GIC_PPI 14 IRQ_TYPE_LEVEL_LOW>,
+			     <GIC_PPI 11 IRQ_TYPE_LEVEL_LOW>,
+			     <GIC_PPI 10 IRQ_TYPE_LEVEL_LOW>;
+		clock-frequency = <25600000>;
+	};
+
+	exynos-pmu {
+		compatible = "samsung,exynos-pmu";
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		reg = <0x0 0x15860000 0x10000>;
+		reg-names = "pmu_alive";
+		cpu_offset = <0x0>, <0x80>, <0x100>, <0x180>,
+			   <0x300>, <0x380>, <0x400>, <0x480>,
+			   <0x600>;
+	};
+
+	pmu_system_controller: system-controller@15860000 {
+		compatible = "samsung,exynos991-pmu", "syscon";
+		reg = <0x0 0x15860000 0x10000>;
+	};
+
+	spmi_controller: system-controller@15960000 {
+		compatible = "samsung,spmi", "syscon";
+		reg = <0x0 0x15960000 0x1000>;
+	};
+
+	exynos-s2i {
+		compatible = "samsung,exynos-s2idle";
+	        reg = <0x0 0x15820000 0x1000>;
+		reg-names = "sysreg_alive";
+		notify-offset = <0x0414>; 	/* SYSREG_ALIVE NOTIFY offset */
+		interrupts = <GIC_SPI INTREQ__NOTIFY IRQ_TYPE_LEVEL_HIGH>;	/* SYSREG_ALIVE NOTIFY */
+		sr-offset = <0xa7c>;		/* PMU_SPARE7 */
+		intgr-offset = <0x3c14>;	/* PMU_SPARE_CTRL */
+	};
+
+	exynos-reboot {
+		compatible = "samsung,exynos-reboot";
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		samsung,spmi-syscon-phandle = <&spmi_controller>;
+		shutdown-offset = <0x030C>;
+		shutdown-trigger = <0x100>;
+		reboot-offset = <0x3C00>;
+		reboot-trigger = <0x2>;
+		reboot-cmd-offset = <0x0810>;
+		status = "okay";
+	};
+
+	mct_alive@15890000 {
+		compatible = "samsung,exynos-mct-v3";
+		reg = <0x0 0x15890000 0x800>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		interrupt-parent = <&mct_alive_map>;
+		interrupts =    <0>, <1>, <2>, <3>,
+				<4>, <5>, <6>, <7>,
+				<8>, <9>, <10>, <11>;
+		clocks = <&clock OSCCLK1>, <&clock GATE_MCT_ALIVE_QCH>;
+		clock-names = "fin_pll", "mct";
+
+		mct_alive_map: mct-alive-map {
+			#interrupt-cells = <1>;
+			#address-cells = <0>;
+			#size-cells = <0>;
+			interrupt-map = <0 &gic 0 INTREQ__MCT_ALIVE_IRQ_0 IRQ_TYPE_LEVEL_HIGH>,
+				<1 &gic 0 INTREQ__MCT_ALIVE_IRQ_1 IRQ_TYPE_LEVEL_HIGH>,
+				<2 &gic 0 INTREQ__MCT_ALIVE_IRQ_2 IRQ_TYPE_LEVEL_HIGH>,
+				<3 &gic 0 INTREQ__MCT_ALIVE_IRQ_3 IRQ_TYPE_LEVEL_HIGH>,
+				<4 &gic 0 INTREQ__MCT_ALIVE_IRQ_4 IRQ_TYPE_LEVEL_HIGH>,
+				<5 &gic 0 INTREQ__MCT_ALIVE_IRQ_5 IRQ_TYPE_LEVEL_HIGH>,
+				<6 &gic 0 INTREQ__MCT_ALIVE_IRQ_6 IRQ_TYPE_LEVEL_HIGH>,
+				<7 &gic 0 INTREQ__MCT_ALIVE_IRQ_7 IRQ_TYPE_LEVEL_HIGH>,
+				<8 &gic 0 INTREQ__MCT_ALIVE_IRQ_8 IRQ_TYPE_LEVEL_HIGH>,
+				<9 &gic 0 INTREQ__MCT_ALIVE_IRQ_9 IRQ_TYPE_LEVEL_HIGH>,
+				<10 &gic 0 INTREQ__MCT_ALIVE_IRQ_10 IRQ_TYPE_LEVEL_HIGH>,
+				<11 &gic 0 INTREQ__MCT_ALIVE_IRQ_11 IRQ_TYPE_LEVEL_HIGH>;
+		};
+	};
+
+	/* ALIVE */
+	pinctrl_0: pinctrl@15850000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x15850000 0x1000>;
+		interrupts = <GIC_SPI EXT_INTA0_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA4_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA4_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTM14_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTM20_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTM21_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTM22_OUT0 IRQ_TYPE_LEVEL_HIGH>;
+
+		wakeup-interrupt-controller {
+			compatible = "samsung,exynos7-wakeup-eint";
+		};
+	};
+
+	/* CMGP */
+	pinctrl_1: pinctrl@14E30000{
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x14E30000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__EXT_INTM00 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM01 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM02 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM03 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM04 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM05 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM06 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM07 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM08 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM09 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM10 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM11 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM12 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM13 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM14 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM15 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM16 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM17 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM18 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM19 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM20 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM21 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM22 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM23 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM24 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM25 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM26 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM27 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM29 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM30 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM31 IRQ_TYPE_LEVEL_HIGH>;
+
+		wakeup-interrupt-controller {
+			compatible = "samsung,exynos-cmgp-wakeup-eint";
+		};
+	};
+
+	/* HSI1 */
+	pinctrl_2: pinctrl@11230000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x11230000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_HSI1 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* UFS */
+	pinctrl_3: pinctrl@11040000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x11040000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_UFS IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* HSI1UFS */
+	pinctrl_4: pinctrl@11060000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x11060000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_HSI1UFS IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* PERIC0 */
+	pinctrl_5: pinctrl@10430000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x10430000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_PERIC0 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* PERIC1 */
+	pinctrl_6: pinctrl@10730000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x10730000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_PERIC1 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* PERIC2 */
+	pinctrl_7: pinctrl@11C30000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x11C30000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_PERIC2 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* VTS */
+	pinctrl_8: pinctrl@15320000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x15320000 0x1000>;
+		/* NO Pinctrl VTS GPIO interrupts */
+	};
+
+	/* CHUBVTS */
+	pinctrl_9: pinctrl@149D0000 {
+		compatible = "samsung,s5e9935-pinctrl";
+		reg = <0x0 0x149D0000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__EXT_INTB5_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTB5_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTB5_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTB5_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH0_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH0_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH0_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH0_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH1_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH1_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH1_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH1_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH2_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH2_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH2_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH2_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH3_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH3_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH3_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH3_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH4_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH4_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH4_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH4_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH5_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH5_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH5_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH5_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH5_4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH5_5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTH5_6 IRQ_TYPE_LEVEL_HIGH>;
+
+		wakeup-interrupt-controller {
+			compatible = "samsung,exynos7-wakeup-eint";
+		};
+	};
+
+	sec_pwm: pwm@10450000 {
+		compatible = "samsung,s3c6400-pwm";
+		reg = <0x0 0x10450000 0x1000>;
+		samsung,pwm-outputs = <0>, <1>, <2>, <3>, <4>;
+		#pwm-cells = <3>;
+		clocks = <&clock GATE_PWM_QCH>, <&clock OSCCLK1>;
+		clock-names = "pwm_pclk", "pwm_sclk";
+		status = "okay";
+	};
+
+	watchdog_cl0@10060000 {
+		compatible = "samsung,s5e9925-v1-wdt";
+		reg = <0x0 0x10060000 0x100>;
+		interrupts = <GIC_SPI INTREQ__WDT0 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock OSCCLK2>, <&clock GATE_WDT0_QCH>;
+		clock-names = "rate_watchdog", "gate_watchdog";
+		timeout-sec = <60>;
+		shutdown_wdt_timeout = <30>;
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		index = <0>; /* if little cluster then index is 0 */
+		status = "okay";
+	};
+
+	watchdog_cl1@10070000 {
+		compatible = "samsung,s5e9925-v2-wdt";
+		reg = <0x0 0x10070000 0x100>;
+		interrupts = <GIC_SPI INTREQ__WDT1 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock OSCCLK2>, <&clock GATE_WDT1_QCH>;
+		clock-names = "rate_watchdog", "gate_watchdog";
+		timeout-sec = <60>;
+		shutdown_wdt_timeout = <30>;
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		index = <1>; /* if big cluster then index is 1 */
+		status = "okay";
+	};
+
+	watchdog_builtin_wdt {
+		compatible = "samsung,s3c2410-builtin-wdt";
+		reg = <0x0 0x10060000 0x20>;
+		status = "okay";
+	};
+
+	exynos-sci_dbg {
+		compatible = "samsung,exynos-sci_dbg";
+		memory-region = <&log_ppc>;
+	};
+
+	exynos-sci {
+		compatible = "samsung,exynos-sci";
+		sci_base = <0x1A000000>;
+		interrupts = <GIC_SPI INTREQ__CCI_ERRINT_UNCOR IRQ_TYPE_LEVEL_HIGH>;
+		nr_irq = <1>;
+		acpm-ipc-channel = <3>;
+		use-llc = "enabled";
+		use-llc-retention = "enabled";
+
+		disable-threshold = <20>;
+		mpam-nr = <8>;
+
+		region_name = "LLC_REGION_DISABLE",
+			    "LLC_REGION_CPU",
+			    "LLC_REGION_CPU_MPAM0",
+			    "LLC_REGION_CPU_MPAM1",
+			    "LLC_REGION_CPU_MPAM2",
+			    "LLC_REGION_CPU_MPAM3",
+			    "LLC_REGION_CPU_MPAM4",
+			    "LLC_REGION_CPU_MPAM5",
+			    "LLC_REGION_CPU_MPAM6",
+			    "LLC_REGION_CPU_MPAM7",
+			    "LLC_REGION_CALL",
+			    "LLC_REGION_OFFLOAD",
+			    "LLC_REGION_CPD2",
+			    "LLC_REGION_CPCPU",
+			    "LLC_REGION_DPU",
+			    "LLC_REGION_ICPU",
+			    "LLC_REGION_MFC0_DPB",
+			    "LLC_REGION_MFC1_DPB",
+			    "LLC_REGION_MFC0_INT",
+			    "LLC_REGION_MFC1_INT",
+			    "LLC_REGION_GDC",
+			    "LLC_REGION_PROFILER",
+			    "LLC_REGION_GPU",
+			    "LLC_REGION_NPU0",
+			    "LLC_REGION_NPU1",
+			    "LLC_REGION_NPU2",
+			    "LLC_REGION_DSP0",
+			    "LLC_REGION_DSP1",
+			    "LLC_REGION_CAM_MCFP",
+			    "LLC_REGION_CAM_CSIS",
+			    "LLC_REGION_CP_MAX_TP";
+		qpd_onoff = <0>, <0>, <0>, <0>, <0>,
+			    <0>, <0>, <0>, <0>, <0>,
+			    <0>, <0>, <0>, <0>,
+			    <0>, <0>, <1>, <1>, <1>,
+			    <1>, <1>, <1>, <1>, <1>,
+			    <1>, <1>, <1>, <1>, <0>,
+			    <0>, <0>;
+
+		/* dnc, csis */
+		vch_pd_calid = <0xB1380017>, <0xB1380006>;
+
+		use-llcgov = "enabled";
+		devfreq = <&devfreq_0>;
+		freq_th = <2028000>;
+		on_time_th = <200000000>; /* nsec */
+		off_time_th = <1400000000>; /* nsec */
+		hfreq_rate = <30>; /* percentage */
+	};
+
+	cal_if {
+		compatible = "samsung,exynos_cal_if";
+		reg = <0x0 0x1A320000 0x8000>,
+			<0x0 0x18c00000 0x1000>,
+			<0x0 0x1a030000 0x1000>,
+			<0x0 0x1dc40000 0x1000>,
+			<0x0 0x1dc50000 0x1000>,
+			<0x0 0x1dc60000 0x1000>,
+			<0x0 0x1dc30000 0x1000>,
+			<0x0 0x10020000 0x1000>;
+		acpm-ipc-channel = <0>;
+	};
+
+	exynos-pm {
+		compatible = "samsung,exynos-pm";
+	        reg = <0x0 0x15850000 0x1000>,
+			<0x0 0x10200200 0x100>,
+			<0x0 0x15950000 0x1000>;
+		reg-names = "gpio_alive_base",
+			"gicd_ispendrn_base",
+			"sysreg_vgpio2pmu";
+
+		eint-pend-offsets = <0xa00>, <0xa04>, <0xa08>, <0xa0c>, <0xa10>;
+		num-eint-pends = <8>, <8>, <8>, <8>, <2>;
+	        num-gic = <31>;
+	        suspend_mode_idx = <8>;         /* SYS_SLEEP */
+
+	        /* WAKEUP_STAT,      WAKEUP2_STAT*/
+	        wakeup_stat_offset = <0x3b50>,         <0x3b54>;
+	        wakeup_int_en_offset = <0x3b44>,         <0x3b64>;
+	        wakeup_int_en = <0x0007ff6f>,         <0x4180D>;
+	        usbl2_wakeup_int_en = <0x0>, <0xC>;
+	        eint_wakeup_mask_offset = <0x60C>,      <0x610>;
+	        wakeup-stat-eint = <13>;
+	        wakeup-stat-rtc = <0>;
+
+	        vgpio_wakeup_inten = <0xfc0>; // check needed
+	        vgpio_wakeup_inten_offset = <0x288>;
+
+	        wake_lock = <0>;                /* 1: held wake_lock */
+
+	        pcieon_suspend_available = <1>;
+	        pcieon_suspend_mode_idx = <13>;  /* SYS_SLEEP_HSI1ON */
+	};
+
+	memlogger: samsung,memlogger {
+		compatible = "samsung,memlogger";
+		memory-region = <&memlog_mem>;
+		samsung,bl-node = <&memlog_bl_base>;
+	};
+
+	memlogger_policy: samsung,memlog_policy {
+		samsung,log-level = <4>;
+		samsung,file-default-status = <1>;
+		samsung,mem-constraint = <0>;
+		samsung,mem-to-file-allow = <1>;
+	};
+
+	/* DMA */
+	amba {
+		#address-cells = <2>;
+		#size-cells = <1>;
+		compatible = "arm,amba-bus";
+		interrupt-parent = <&gic>;
+		ranges;
+		pdma0: pdma0@1A8E0000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0x0 0x1A8E0000 0x1000>;
+			interrupts = <GIC_SPI INTREQ__PDMA IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clock UMUX_CLKCMU_NOCL1B_NOC1>;
+			clock-names = "apb_pclk";
+			#dma-cells = <1>;
+			#dma-channels = <8>;
+			#dma-requests = <32>;
+			#dma-multi-irq = <1>;
+			dma-arwrapper = <0x1A8E4400>,
+					<0x1A8E4420>,
+					<0x1A8E4440>,
+					<0x1A8E4460>,
+					<0x1A8E4480>,
+					<0x1A8E44A0>,
+					<0x1A8E44C0>,
+					<0x1A8E44E0>;
+			dma-awwrapper = <0x1A8E4404>,
+					<0x1A8E4424>,
+					<0x1A8E4444>,
+					<0x1A8E4464>,
+					<0x1A8E4484>,
+					<0x1A8E44A4>,
+					<0x1A8E44C4>,
+					<0x1A8E44E4>;
+			dma-instwrapper = <0x1A8E4500>;
+			dma-mask-bit = <36>;
+			coherent-mask-bit = <36>;
+	       };
+	};
+
+	exynos-sci_dbg {
+		compatible = "samsung,exynos-sci_dbg";
+		memory-region = <&log_ppc>;
+	};
+
+	exynos-sci {
+		compatible = "samsung,exynos-sci";
+		sci_base = <0x1A000000>;
+		interrupts = <GIC_SPI INTREQ__CCI_ERRINT_UNCOR IRQ_TYPE_LEVEL_HIGH>;
+		nr_irq = <1>;
+		acpm-ipc-channel = <3>;
+		use-llc = "enabled";
+		use-llc-retention = "enabled";
+
+		disable-threshold = <20>;
+		mpam-nr = <8>;
+
+		region_name = "LLC_REGION_DISABLE",
+			    "LLC_REGION_CPU",
+			    "LLC_REGION_CPU_MPAM0",
+			    "LLC_REGION_CPU_MPAM1",
+			    "LLC_REGION_CPU_MPAM2",
+			    "LLC_REGION_CPU_MPAM3",
+			    "LLC_REGION_CPU_MPAM4",
+			    "LLC_REGION_CPU_MPAM5",
+			    "LLC_REGION_CPU_MPAM6",
+			    "LLC_REGION_CPU_MPAM7",
+			    "LLC_REGION_CALL",
+			    "LLC_REGION_OFFLOAD",
+			    "LLC_REGION_CPD2",
+			    "LLC_REGION_CPCPU",
+			    "LLC_REGION_DPU",
+			    "LLC_REGION_ICPU",
+			    "LLC_REGION_MFC0_DPB",
+			    "LLC_REGION_MFC1_DPB",
+			    "LLC_REGION_MFC0_INT",
+			    "LLC_REGION_MFC1_INT",
+			    "LLC_REGION_GDC",
+			    "LLC_REGION_PROFILER",
+			    "LLC_REGION_GPU",
+			    "LLC_REGION_NPU0",
+			    "LLC_REGION_NPU1",
+			    "LLC_REGION_NPU2",
+			    "LLC_REGION_DSP0",
+			    "LLC_REGION_DSP1",
+			    "LLC_REGION_CAM_MCFP",
+			    "LLC_REGION_CAM_CSIS",
+			    "LLC_REGION_CP_MAX_TP";
+		quadrant_pd = <0>, <0>, <0>, <0>, <0>,
+			    <0>, <0>, <0>, <0>, <0>,
+			    <0>, <0>, <0>, <0>, <0>,
+			    <0>, <0>, <0>, <0>, <0>,
+			    <0>, <0>, <0>, <0>, <0>,
+			    <0>, <0>, <0>, <0>, <0>, <0>;
+		/* dnc, csis */
+		vch_pd_calid = <0xB1380017>, <0xB1380006>;
+
+		use-llcgov = "enabled";
+		devfreq = <&devfreq_0>;
+		freq_th = <2028000>;
+		on_time_th = <200000000>; /* nsec */
+		off_time_th = <1400000000>; /* nsec */
+		hfreq_rate = <30>; /* percentage */
+	};
+
+	exynos-bcmdbg {
+		compatible = "samsung,exynos-bcm_dbg";
+		memory-region = <&log_bcm>;
+
+		pd-name = "pd_trex", "pd_aud", "pd_nocl1c", "pd_brp", "pd_aoccsis", "pd_csis",
+			"pd_cstat", "pd_dpub", "pd_dpuf0", "pd_dpuf1", "pd_g3dcore", "pd_strong",
+			"pd_dnc", "pd_gnpu0", "pd_gnpu1", "pd_hsi0", "pd_hsi1", "pd_lme",
+			"pd_m2m", "pd_mcfp", "pd_mcsc", "pd_mfc", "pd_mfd", "pd_dsp",
+			"pd_yuvp", "pd_sdma", "pd_ufd", "pd_rgbp", "pd_icpu";
+		max_define_event = <PRE_DEFINE_EVT_MAX>;
+		/* define_event_index ev0 ev1 ev2 ev3 ev4 ev5 ev6 ev7 */
+		define_events = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+				<LATENCY_FMT_EVT	0x4  0x2  0x26 0x24 0x5  0x3  0x27 0x25>,
+				<MO_FMT_EVT		0x4  0x0  0x24 0x24 0x5  0x1  0x25 0x25>,
+				<BURST_LENGTH_FMT_EVT	0x4  0x2  0x4  0x26 0x5  0x3  0x5  0x27>,
+				<REQ_BLOCK_FMT_EVT	0x2  0x10 0x10 0x26 0x3  0x11 0x11 0x27>,
+				<DATA_BLOCK_FMT_EVT	0x4  0x12 0x12 0x6  0x5  0x13 0x13 0x14>,
+				<REQ_TYPE_FMT_EVT	0x2  0x15 0x18 0x1B 0x3  0x16 0x19 0x1C>,
+				<BW_DFP_FMT_EVT		0x4  0x2  0x2A 0x24 0x5  0x3  0x2B 0x25>,
+				<BCM_CALC_FMT_EVT	0x4  0x5  0x26 0x24 0x0  0x1  0x27 0x25>;
+		default_define_event = <LATENCY_FMT_EVT>;
+
+		/* sm_id_mask sm_id_value */
+		define_filter_id = <NO_PRE_DEFINE_EVT	0x0  0x0>,
+				<LATENCY_FMT_EVT	0x0  0x0>,
+				<MO_FMT_EVT		0x0  0x0>,
+				<BURST_LENGTH_FMT_EVT	0x0  0x0>,
+				<REQ_BLOCK_FMT_EVT	0x0  0x0>,
+				<DATA_BLOCK_FMT_EVT	0x0  0x0>,
+				<REQ_TYPE_FMT_EVT	0x0  0x0>,
+				<BW_DFP_FMT_EVT		0x0  0x0>,
+				<BCM_CALC_FMT_EVT	0x0  0x0>;
+		/* ev0 ev1 ev2 ev3 ev4 ev5 ev6 ev7 */
+		define_filter_id_active = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BW_DFP_FMT_EVT		0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>;
+		/* sm_other_type0 sm_other_mask0 sm_other_value0 */
+		define_filter_other_0 = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x0>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x0>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0>,
+					<BW_DFP_FMT_EVT		0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0>;
+		/* sm_other_type1 sm_other_mask1 sm_other_value1 */
+		define_filter_other_1 = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x0>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x0>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0>,
+					<BW_DFP_FMT_EVT		0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0>;
+		/* ev0 ev1 ev2 ev3 ev4 ev5 ev6 ev7 */
+		define_filter_other_active = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BW_DFP_FMT_EVT		0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>;
+		/* peak_mask peak_id */
+		define_sample_id = <NO_PRE_DEFINE_EVT	0x0  0x0>,
+				<LATENCY_FMT_EVT	0x0  0x0>,
+				<MO_FMT_EVT		0x0  0x0>,
+				<BURST_LENGTH_FMT_EVT	0x0  0x0>,
+				<REQ_BLOCK_FMT_EVT	0x0  0x0>,
+				<DATA_BLOCK_FMT_EVT	0x0  0x0>,
+				<REQ_TYPE_FMT_EVT	0x0  0x0>,
+				<BW_DFP_FMT_EVT		0x0  0x0>,
+				<BCM_CALC_FMT_EVT	0x0  0x0>;
+		/* ev0 ev1 ev2 ev3 ev4 ev5 ev6 ev7 */
+		define_sample_id_enable = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x1  0x0  0x0  0x0  0x1  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x1  0x0  0x0  0x0  0x1  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x1  0x1  0x0  0x0  0x1  0x1>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x1  0x1  0x0  0x0  0x1  0x1>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x1  0x0  0x0  0x0  0x1  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BW_DFP_FMT_EVT		0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>;
+
+		bcm_cnt_nr = <8>;
+		bcm_ip_nr = <77>;
+		bcm_ip_print_nr = <10>;
+		initial_run_bcm_ip = <0>, <1>, <2>, <3>, <4>, <5>, <6>, <7>, <8>, <9>, <10>,
+				<11>, <12>, <13>, <14>, <15>, <16>, <17>, <18>,	<19>, <20>,
+				<22>, <23>, <24>, <25>, <26>, <27>, <28>, <29>, <30>,
+				<31>, <32>, <33>, <34>, <35>, <36>, <37>, <38>, <39>, <40>,
+				<41>, <42>, <43>, <44>, <45>, <46>, <47>, <48>, <49>, <50>,
+				<51>, <52>, <53>, <54>, <55>, <56>, <57>, <58>, <59>, <60>,
+				<61>, <62>, <63>, <64>, <65>, <66>, <67>, <68>, <69>, <70>,
+				<71>, <72>, <73>, <74>, <75>, <76>;
+		initial_bcm_run = <BCM_STOP>;
+		/* msec (max 500msec) */
+		initial_period = <1000>;
+		initial_bcm_mode = <BCM_MODE_INTERVAL>;
+		available_stop_owner = <PANIC_HANDLE CAMERA_DRIVER MODEM_IF ITMON_HANDLE>;
+		glb_auto_en = <0>;
+
+		/* profiler infomation */
+		bcm_calc_num_ip = <4>;
+		bcm_calc_ip_idx = <1>, <3>, <50>, <61>;
+		bcm_calc_ip_name = "CPUCL0_0", "G3D0", "IRPS0", "MIF0";
+		bcm_calc_ip_cnt = <2>, <4>, <4>, <4>;
+		bcm_calc_bus_width = <32>, <16>, <32>, <16>;
+		bcm_calc_sample_time = <50>;
+		perf_define_event = <BCM_CALC_FMT_EVT>;
+
+		rtc_addr = <0x15910000>, <0x90>;
+
+		bcm_esca_ipc {
+			acpm-ipc-channel = <4>;
+		};
+	};
+
+#if 0
+	contexthub_0: contexthub {
+		compatible = "samsung,exynos-nanohub";
+		memory-region = <&contexthub_rmem>;
+		/* INTREQ MAILBOX_AP2CHUB */
+		interrupts = <GIC_SPI INTREQ__MAILBOX_CHUB2AP IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__WDT_CHUB IRQ_TYPE_LEVEL_HIGH>;
+		reg =	<0x0 0x159F0000 0x200>, //mailbox
+			<0x0 0x02800000 0x180000>, //sram
+			<0x0 0x148F0000 0x100>, // dumpgpr
+			<0x0 0x15530000 0xC0>, // baaw_c_chub
+			<0x0 0x15540000 0xC0>, // baaw_ld_chub
+			<0x0 0x15560000 0x200>, // upmu_chub
+			<0x0 0x158619A0 0x10>; // pmu chub_out
+			/*<0x0 0x14820000 0x4000>,
+			<0x0 0x14800000 0x1820>,
+			<0x0 0x14830000 0x10>,
+			<0x0 0x14840000 0x10>,
+			<0x0 0x14860000 0x50>,
+			<0x0 0x14A50000 0x10>,
+			<0x0 0x14A60000 0x10>,
+			<0x0 0x14A70000 0x10>,
+			<0x0 0x14A80000 0x10>,
+			<0x0 0x14A90000 0x10>,
+			<0x0 0x14AA0000 0x10>,
+			<0x0 0x14AB0000 0x10>,
+			<0x0 0x14AC0000 0x10>;
+			<0x0 0x14AD0000 0x1000>;*/
+		reg-names = "mailbox", "sram", "dumpgpr", "baaw_c_chub",
+			    "baaw_ld_chub", "upmu", "chub_out";
+			    /*"sysreg_chub",
+			    "chub_dump_cmu", "chub_dump_wdt",
+			    "chub_dump_timer", "chub_dump_pwm",
+			    "chub_dump_usi0", "chub_dump_usi1",
+			    "chub_dump_usi2", "chub_dump_spi_i2c1",
+			    "chub_dump_i2c", "chub_dump_i3c",
+			    "chub_dump_spi_i2c0", "chub_dump_usi3",
+			    "chub_dump_gpio";*/
+		baaw,names = "baaw_c_chub", "baaw_ld_chub";
+		baaw,sizes = < 3 1 >; // baaw_c_chub : 3, baaw_ld_chub : 1
+		baaw,values = < 0x0  0x6000000 0x10000000 0x6000000 0x0
+				0x40 0x14C0000 0x151FFFF 0x14C0000 0x80000003
+				0x90 0x5000000 0x5000100 0x5000000 0x80000003
+				0x80 0x5000000 0x5000100 0x1000000 0x80000003 >;
+				// =====baaw_c_chub======
+				// dram (clear)
+				// CMGP
+				// sensor algorithm
+				// might be added uPMU
+				// =====baaw_ld_chub======
+				// sensor algorithm(baaw_ld_chub
+		smc-required = "true";
+		multi-os = "disabled";
+		one-binary = "enabled";
+		/* chub dfs governer */
+		chub-dfs-gov = "disabled";
+		use_alive_mct;
+		clocks =
+			<&clock DOUT_CLKALIVE_CHUBVTS_NOC>,
+			<&clock DOUT_CLKALIVE_CHUB_PERI>;
+		clock-names =
+			"chub_bus",
+			"chub_peri";
+	};
+#endif
+};

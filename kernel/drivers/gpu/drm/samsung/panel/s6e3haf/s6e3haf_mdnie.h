@@ -1,0 +1,33 @@
+#ifndef __S6E3HAF_MDNIE_H__
+#define __S6E3HAF_MDNIE_H__
+
+#include "oled_common_mdnie.h"
+
+#define NR_S6E3HAF_MDNIE_REG	(3)
+
+#define S6E3HAF_MDNIE_0_REG		(0xDF)
+#define S6E3HAF_MDNIE_0_OFS		(0)
+#define S6E3HAF_MDNIE_0_LEN		(237)
+
+#define S6E3HAF_MDNIE_1_REG		(0xDE)
+#define S6E3HAF_MDNIE_1_OFS		(0)
+#define S6E3HAF_MDNIE_1_LEN		(221)
+
+#define S6E3HAF_MDNIE_2_REG		(0xDD)
+#define S6E3HAF_MDNIE_2_OFS		(0)
+#define S6E3HAF_MDNIE_2_LEN		(21)
+
+#define S6E3HAF_SCR_CR_OFS	(19)
+#define S6E3HAF_SCR_WR_OFS	(49)
+#define S6E3HAF_SCR_WG_OFS	(51)
+#define S6E3HAF_SCR_WB_OFS	(53)
+#define S6E3HAF_SCR_WHITE_LEN (2)
+#define S6E3HAF_NIGHT_MODE_OFS	(S6E3HAF_SCR_CR_OFS)
+#define S6E3HAF_NIGHT_MODE_LEN	(36)
+#define S6E3HAF_COLOR_LENS_OFS	(S6E3HAF_SCR_CR_OFS)
+#define S6E3HAF_COLOR_LENS_LEN	(36)
+
+#define S6E3HAF_TRANS_MODE_OFS	(17)
+#define S6E3HAF_TRANS_MODE_LEN	(1)
+
+#endif /* __S6E3HAF_MDNIE_H__ */

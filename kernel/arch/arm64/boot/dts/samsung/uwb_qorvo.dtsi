@@ -1,0 +1,124 @@
+#if 0
+&${ant_connection_status_parent} {
+	ant_connection_status: ant-connection-status {
+		samsung,pins = SEC_GPIO(${ant_connection_status_gpio});
+		samsung,pin-function = <0>; /* IN */
+		samsung,pin-pud = <0>;		/* NO */
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <3>;	/* PREV */
+		samsung,pin-pud-pdn = <0>;	/* NO */
+	};
+};
+#endif
+
+&pinctrl_6 {
+	wakeup_gpio: wakeup_gpio {
+		GPIO_CONFIG_PUD(AP,gpc5,gpc5,1, FUNC_OUTPUT_LOW, PULL_NONE);
+		samsung,pin-con-pdn = <3>;	/* PREV */
+		samsung,pin-pud-pdn = <0>;	/* NO */
+	};
+};
+
+&s2mps28_3_gpio {
+	rstn_gpio: rstn_gpio {
+		GPIO_CONFIG_PUD(PM,s2mps28_3_gpio,gpio_s,3, FUNC_OUTPUT_HIGH, PULL_NONE);
+		samsung,pin-con-pdn = <3>;	/* PREV */
+		samsung,pin-pud-pdn = <0>;	/* NO */
+	};
+};
+
+&pinctrl_0 {
+	exton_gpio: exton_gpio {
+		samsung,pins = SEC_GPIO(AP,gpa1,gpa1,1);
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <1>;		/* DOWN */
+		samsung,pin-drv = <3>;
+		samsung,pin-con-pdn = <2>;	/* IN */
+		samsung,pin-pud-pdn = <1>;	/* DOWN */
+	};
+};
+
+&pinctrl_0 {
+	ssirq_gpio: ssirq_gpio {
+		samsung,pins = SEC_GPIO(AP,gpa3,gpa3,3);
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <1>;		/* DOWN */
+		samsung,pin-drv = <3>;
+		samsung,pin-con-pdn = <2>;	/* IN */
+		samsung,pin-pud-pdn = <1>;	/* DOWN */
+	};
+};
+
+&pinctrl_0 {
+	ssrdy_gpio: ssrdy_gpio {
+		samsung,pins = SEC_GPIO(AP,gpa3,gpa3,1);
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <1>;		/* DOWN */
+		samsung,pin-drv = <3>;
+		samsung,pin-con-pdn = <2>;	/* IN */
+		samsung,pin-pud-pdn = <1>;	/* DOWN */
+	};
+};
+
+&pinctrl_6 {
+	uwb_spi_bus: uwb_spi_bus {
+		samsung,pins = SEC_GPIO(AP,gpp10,gpp10,0), SEC_GPIO(AP,gpp10,gpp10,1), SEC_GPIO(AP,gpp10,gpp10,2);
+		samsung,pin-function = <2>;	/* SPI */
+		samsung,pin-pud = <0>;		/* NO */
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <2>;	/* IN */
+		samsung,pin-pud-pdn = <1>;	/* DOWN */
+	};
+
+	uwb_spi_cs_func: uwb_spi_cs_func {
+		samsung,pins = SEC_GPIO(AP,gpp10,gpp10,3);
+		samsung,pin-function = <2>;	/* SPI */
+		samsung,pin-pud = <3>;		/* UP */
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <2>;	/* IN */
+		samsung,pin-pud-pdn = <3>;	/* UP */
+	};
+};
+
+&spi_10 {
+	status = "okay";
+	pinctrl-0 = <>;
+	dma-mode;
+	//samsung,spi-fifosize = <64>;
+	//cs-gpio = <SEC_GPIO_REF(AP,gpp10,gpp10,3) 0>;
+
+	qm35@0 {
+		compatible = "qorvo,qm35";
+		reg = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uwb_spi_bus &uwb_spi_cs_func &ssrdy_gpio &ssirq_gpio &exton_gpio &rstn_gpio &wakeup_gpio
+#if 0
+								&ant_connection_status
+#endif
+		>;
+		spi-max-frequency = <20000000>;
+		interrupt-parent = <SEC_GPIO_TYPE(AP,gpa3,gpa3,3)>;
+		interrupts = <SEC_GPIO_NUM(AP,gpa3,gpa3,3) 0 0>;
+		reset-gpios = <SEC_GPIO_REF(PM,s2mps28_3_gpio,gpio_s,3) 1>; /* ACTIVE_LOW */
+		ss-ready-gpios = <SEC_GPIO_REF(AP,gpa3,gpa3,1) 0>;
+		ss-irq-gpios = <SEC_GPIO_REF(AP,gpa3,gpa3,3) 0>;
+		wakeup-gpios = <SEC_GPIO_REF(AP,gpc5,gpc5,1) 0>; /* ACTIVE_HIGH */
+		exton-gpios = <SEC_GPIO_REF(AP,gpa1,gpa1,1) 0>; /* ACTIVE_HIGH */
+#if 0
+		ant-connection-gpios = <SEC_GPIO_REF(${ant_connection_status_gpio}) 0>;
+#endif
+		// Uncomment to bind regulators to qm35-vddX
+#if 1
+		qm35-vdd1-supply = <&l1_reg>; // 1p8
+#endif
+#if 1
+		qm35-vdd2-supply = <&e_l2_reg>; // 2p8
+#endif
+		//qm35-vdd3-supply = ${vdd_3}; // 1p8
+		//qm35-vdd4-supply = ${vdd_4}; // 1p8
+		controller-data {
+			samsung,spi-feedback-delay = <0>;
+			samsung,spi-chip-select-mode = <0>;
+		};
+	};
+};

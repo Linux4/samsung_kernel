@@ -1,0 +1,51 @@
+/ {
+	/* booting exclusive set */
+	boot_set: boot_set {
+		/* Boosting margin applied to frequency selection */
+		freqboost {			/* LIT MED-L MED-H BIG */
+			top-app			= <  5   5   5   5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <21>;
+			};
+			domain1 {
+				cpus = "4-6";
+				lower-boundary = <8>;
+				upper-boundary = <75>;
+			};
+			domain2 {
+				cpus = "7-8";
+				lower-boundary = <8>;
+				upper-boundary = <75>;
+			};
+			domain3 {
+				cpus = "9";
+				lower-boundary = <49>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic { };
+
+		gsc { };
+
+		fclamp {
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		et {
+			default-idx = < 2 >;
+			uarch-selection = < 0 >;
+		};
+	};
+};
