@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+*/
+
+
+package vendor.qti.hardware.display.composer@3.2;
+
+import @3.1::IQtiComposerClient;
+interface IQtiComposerClient extends @3.1::IQtiComposerClient {
+
+    enum Command : @3.1::IQtiComposerClient.Command {
+        /**
+         * SET_SINGLE_BUFFER_MODE has this pseudo prototype
+         * setSingleBufferMode(bool isAutoRefresh);
+         */
+
+        SET_SINGLE_BUFFER_MODE_3_2 = 0x805 << IQtiComposerClient.Command:OPCODE_SHIFT,
+    };
+
+
+};
+
