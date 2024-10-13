@@ -1,0 +1,30 @@
+&odm {
+    prox: prox {
+        compatible = "mediatek, prox_ldo";
+    };
+};
+
+&prox {
+    pinctrl-names = "prox_enable", "prox_disable";
+    pinctrl-0 = <&prox_ldo_enable>;
+    pinctrl-1 = <&prox_ldo_disable>;
+};
+
+&pio {
+    prox_ldo_enable: prox_ldo_enable {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+            slew-rate = <1>;
+            bias-disable;
+            output-high;
+        };
+    };
+    prox_ldo_disable: prox_ldo_disable {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+            slew-rate = <1>;
+            bias-disable;
+            output-low;
+        };
+    };
+};

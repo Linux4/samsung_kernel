@@ -1,0 +1,63 @@
+&${if_pmic_parent} {
+	if_pmic_irq: if_pmic_irq {
+		GPIO_CONFIG_PUD_DRV(${if_pmic_gpio}, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+};
+
+&${usbpd_parent} {
+	usbpd_irq: usbpd_irq {
+		GPIO_CONFIG_PUD_DRV(${usbpd_gpio}, FUNC_INPUT_WAKEUP, PULL_UP, DRV_LV4);
+	};
+};
+
+&${mfd_i2c} {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	samsung,i2c-max-bus-freq = <400000>;
+	sm5714@49{
+		status = "okay";
+		compatible = "siliconmitus,sm5714mfd";
+		reg = <0x49>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&if_pmic_irq>;
+		sm5714,irq-gpio = <SEC_GPIO_REF(${if_pmic_gpio}) 0>;
+		sm5714,wakeup;
+	};
+};
+
+&${usbpd_i2c} {
+	i2c-gpio,delay-us = <5>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	samsung,i2c-max-bus-freq = <400000>;
+
+	usbpd-sm5714@33 {
+		status = "okay";
+		compatible = "sm5714-usbpd";
+		reg = <0x33>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usbpd_irq>;
+		usbpd,usbpd_int = <SEC_GPIO_REF(${usbpd_gpio}) 0>;
+		support_pd_role_swap;
+		pdic-manager {
+			/* sink */
+			pdic,max_power = <5000>;
+			pdic_op_power = <2500>;
+			pdic_max_voltage = <6000>;
+			pdic_max_current = <2000>;
+			pdic,min_current = <500>;
+
+			pdic,giveback = <0>;
+			pdic,usb_com_capable = <1>;
+			pdic,no_usb_suspend = <1>;
+
+			/* source */
+			source,max_voltage = <5000>;
+			source,min_voltage = <4000>;
+			source,max_power = <2500>;
+		};
+	};
+};
+

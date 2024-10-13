@@ -1,0 +1,175 @@
+
+/ {
+	/*TabA7 Lite code for OT8-2452 config PE parameter by wenyaqi at 20210201 start*/
+	pe: pe {
+		ta_ac_12v_input_current = <2700000>;
+		ta_ac_9v_input_current = <2700000>;
+		ta_ac_7v_input_current = <2700000>;
+		pe_charger_current = <2150000>;
+	};
+
+	pe2: pe2 {
+		/* single charger */
+		sc_input_current = <2700000>;
+		sc_charger_current = <2150000>;
+
+		/* dual charger in series */
+		dcs_input_current = <2700000>;
+		dcs_chg1_charger_current = <1300000>;
+		dcs_chg2_charger_current = <1300000>;
+	};
+	/*TabA7 Lite code for OT8-2452 config PE parameter by wenyaqi at 20210201 end*/
+
+	/*TabA7 Lite code for SR-AX3565-01-181 config charge parameter by wenyaqi at 20201203 start*/
+	charger: charger {
+		compatible = "mediatek,charger";
+		/* common */
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 start */
+		battery_cv = <4380000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 end */
+		/*TabA7 Lite code for OT8-602 modify sw_ovp function by wenyaqi at 20210107 start*/
+		max_charger_voltage = <10400000>;
+		/*TabA7 Lite code for OT8-602 modify sw_ovp function by wenyaqi at 20210107 end*/
+
+		/* sw jeita */
+		/*TabA7 Lite code for SR-AX3565-01-194 config jeita by wenyaqi at 20201204 start*/
+		/*TabA7 Lite code for OT8-604 modify jeita by wenyaqi at 20201230 start*/
+		enable_sw_jeita;
+		jeita_temp_above_t4_cv = <4100000>;
+		jeita_temp_t3_to_t4_cv = <4100000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 start */
+		jeita_temp_t2_to_t3_cv = <4380000>;
+		jeita_temp_t1_to_t2_cv = <4380000>;
+		jeita_temp_t0_to_t1_cv = <4380000>;
+		jeita_temp_below_t0_cv = <4380000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 end */
+		jeita_temp_above_t4_cur = <0>;
+		jeita_temp_t3_to_t4_cur = <1750000>;
+		jeita_temp_t2_to_t3_cur = <2000000>;
+		jeita_temp_t1_to_t2_cur = <1500000>;
+		jeita_temp_t0_to_t1_cur = <500000>;
+		jeita_temp_below_t0_cur = <0>;
+		temp_t4_thres = <50>;
+		temp_t4_thres_minus_x_degree = <48>;
+		temp_t3_thres = <45>;
+		temp_t3_thres_minus_x_degree = <43>;
+		temp_t2_thres = <20>;
+		temp_t2_thres_plus_x_degree = <22>;
+		temp_t1_thres = <10>;
+		temp_t1_thres_plus_x_degree = <12>;
+		temp_t0_thres = <0>;
+		temp_t0_thres_plus_x_degree = <2>;
+		temp_neg_10_thres = <0>;
+		/*TabA7 Lite code for OT8-604 modify jeita by wenyaqi at 20201230 end*/
+		/*TabA7 Lite code for SR-AX3565-01-194 config jeita by wenyaqi at 20201204 end*/
+
+		/* charging current */
+		ac_charger_current = <2000000>;
+		/*TabA7 Lite code for SR-AX3565-01-181 modify AICR for Charging certification by wenyaqi at 20210201 start*/
+		ac_charger_input_current = <1550000>;
+		/*TabA7 Lite code for SR-AX3565-01-181 modify AICR for Charging certification by wenyaqi at 20210201 end*/
+
+		/*TabA7 Lite code for SR-AX3565-01-124 Import battery aging by wenyaqi at 20201221 start*/
+		ss-batt-aging-enable;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 start */
+		ss,cv-ranges = <0 199 4380000
+						200 249 4360000
+						250 299 4340000
+						300 1000 4320000
+						1001 9999 4270000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 end */
+		/*TabA7 Lite code for SR-AX3565-01-124 Import battery aging by wenyaqi at 20201221 end*/
+
+		/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 start*/
+		enable_afc;
+		afc_switch_gpio_num = <5>;
+		afc_switch_gpio = <&pio 5 0x0>;
+		afc_data_gpio_num = <6>;
+		afc_data_gpio = <&pio 6 0x0>;
+		pinctrl-names = "default", "active", "sleep";
+		pinctrl-0 = <&afc_data_default>;
+		pinctrl-1 = <&afc_data_active>;
+		pinctrl-2 = <&afc_data_sleep>;
+
+		afc_start_battery_soc = <0>;
+		afc_stop_battery_soc = <95>;
+		afc_pre_input_current = <500000>;
+		afc_charger_input_current = <1650000>;
+		afc_charger_current = <2700000>;
+		afc_ichg_level_threshold = <1000000>;
+		afc_min_charger_voltage = <4200000>;
+		afc_max_charger_voltage = <10050000>;
+		/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 end*/
+	};
+	/*TabA7 Lite code for SR-AX3565-01-181 config charge parameter by wenyaqi at 20201203 end*/
+
+	/*TabA7 Lite code for SR-AX3565-01-95 add batt_id and battery profile by wenyaqi at 20201201 start*/
+	bat_id_adc: bat_id_adc {
+		compatible = "hq, bat_id_adc";
+		io-channels = <&auxadc 2>;
+		io-channel-names = "hq-battid";
+	};
+	/*TabA7 Lite code for SR-AX3565-01-95 add batt_id and battery profile by wenyaqi at 20201201 end*/
+
+	/*TabA7 Lite code for OT8-89 add USB temp protection by wenyaqi at 20201213 start*/
+	/* VBUS control */
+	vbus_ctrl: vbus_ctrl {
+		compatible = "hq, vbus_ctrl";
+		vbus_ctrl_gpio_num = <171>;
+		vbus_ctrl_gpio = <&pio 171 0x0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vbus_ctrl_default>;
+	};
+	/*TabA7 Lite code for OT8-89 add USB temp protection by wenyaqi at 20201213 end*/
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+	gxy_battery_ttf: gxy_battery_ttf {
+		status = "okay";
+		battery,ttf_dcp_charge_current = <1500>;
+		battery,ttf_hv_charge_current = <2655>;
+		battery,ttf_pd25_charge_current = <2655>;
+		battery,ttf_pd45_charge_current = <2655>;
+		battery,ttf_capacity = <4980>;
+		/*fg_current soc cv_time*/
+		battery,cv_data = <
+			2655  75  5220   /*45W, not support in this project, use 15W*/
+			2655  75  5220   /*25w, not support in this project, use 15W*/
+			2655  75  5220   /*15W*/
+			1585 86 4380    /* hv_disable true or 7.75W*/
+			979 93  3060   /*CDP*/
+			495  95  2820   /*SDP*/
+		>;
+	};
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
+};
+
+/*TabA7 Lite code for OT8-89 add USB temp protection by wenyaqi at 20201213 start*/
+&pio {
+	vbus_ctrl_default: vbus_ctrl_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO171__FUNC_GPIO171>;
+			bias-disable;
+		};
+	};
+	/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 start*/
+	afc_data_default: afc_data_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO6__FUNC_GPIO6>;
+			bias-disable;
+		};
+	};
+	afc_data_active: afc_data_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO6__FUNC_GPIO6>;
+			bias-disable;
+		};
+	};
+	afc_data_sleep: afc_data_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO6__FUNC_GPIO6>;
+			bias-disable;
+			input-enable;
+		};
+	};
+	/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 end*/
+};
+/*TabA7 Lite code for OT8-89 add USB temp protection by wenyaqi at 20201213 end*/

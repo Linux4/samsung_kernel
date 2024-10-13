@@ -1,0 +1,467 @@
+/* FINGERPRINT start */
+&spi0 {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    /delete-property/mediatek,pad-select;
+    mediatek,pad-select = <0>,<0>,<0>,<0>;
+    cs-gpios = <0>,<0>,<0>,<0>;
+    status = "okay";
+
+    silead_fp@0 {
+        compatible = "sil,silead_fp-pins";
+        reg = <0>;
+        spi-id = <0>;
+        spi-irq = <118>;
+        spi-reg = <0x1100a000>;
+        spi-max-frequency = <8000000>;
+        avdd-gpio =<&pio 90 0x0>;
+        status = "okay";
+    };
+
+    ontimfp@1 {
+        compatible = "cdfinger,fingerprint_tee";
+        reg = <1>;
+        spi-max-frequency = <8000000>;
+        status = "okay";
+    };
+
+    fpsensor_finger@2 {
+        compatible = "mediatek,fingerprint";
+        reg = <2>;
+        spi-max-frequency = <8000000>;
+        status = "okay";
+    };
+
+    fingerprint@3 {
+        compatible = "egistec,fingerprint";
+        reg = <3>;
+        spi-max-frequency = <8000000>;
+        status = "okay";
+    };
+};
+
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 start */
+&silead_fp {
+    interrupt-parent = <&pio>;
+    interrupts = <2 IRQ_TYPE_EDGE_RISING 2 0>;
+
+    pinctrl-names = "default", "rst-low", "rst-high" ,
+                    "irq-init", "spi-default", "irq-low",
+                    "avdd-enable", "avdd-disable";
+    pinctrl-0 = <&silfp_default>;
+    pinctrl-1 = <&silfp_rst_low>;
+    pinctrl-2 = <&silfp_rst_high>;
+    pinctrl-3 = <&silfp_irq>;
+    pinctrl-4 = <&fingerprint_pins_default>;
+    pinctrl-5 = <&silfp_irq_low>;
+    pinctrl-6 = <&silfp_avdd_enable>;
+    pinctrl-7 = <&silfp_avdd_disable>;
+    status = "okay";
+};
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 end */
+
+&pio {
+    silfp_default: silfpdefault {
+    };
+
+    silfp_rst_high: state_reset_high {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    silfp_rst_low: state_reset_low {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    silfp_irq: fp_eint@2 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO2__FUNC_GPIO2>;
+            slew-rate = <0>;
+            bias-pull-down = <00>;
+        };
+    };
+
+    silfp_irq_low: state_irq_low {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO2__FUNC_GPIO2>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    silfp_avdd_enable: state_avdd_high {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO90__FUNC_GPIO90>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 start */
+    silfp_avdd_disable: state_avdd_low {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO90__FUNC_GPIO90>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 end */
+};
+
+&pio {
+    fingerprint_pins_default: fp_default {
+	pins_cmd_dat {
+		pinmux = <PINMUX_GPIO156__FUNC_SPI0_CSB>;
+		slew-rate = <1>;
+		bias-pull-up;
+	};
+
+	pins_cmd2_dat {
+		pinmux = <PINMUX_GPIO158__FUNC_SPI0_CLK>;
+		slew-rate = <1>;
+		bias-pull-down;
+	};
+
+	pins_cmd3_dat {
+		pinmux = <PINMUX_GPIO155__FUNC_SPI0_MI>;
+		slew-rate = <0>;
+		bias-pull-down;
+	};
+
+	pins_cmd4_dat {
+		pinmux = <PINMUX_GPIO157__FUNC_SPI0_MO>;
+		slew-rate = <1>;
+		bias-pull-down;
+	};
+    };
+};
+
+&cdfinger {
+    interrupt-parent = <&pio>;
+    interrupts = <2 IRQ_TYPE_EDGE_RISING 2 0>;
+
+    compatible = "mediatek,mtk_finger";
+    reg = <0>;
+    debounce = <2 0>;
+    vdd_ldo_enable = <1>;
+    vio_ldo_enable = <0>;
+    config_spi_pin = <1>;
+    spi-max-frequency = <8000000>;
+
+    pinctrl-names = "fingerprint_reset_high",
+        "fingerprint_reset_low",
+        "fingerprint_spi_miso",
+        "fingerprint_spi_mosi",
+        "fingerprint_spi_sck",
+        "fingerprint_spi_cs",
+        "fingerprint_irq",
+        "fingerprint_power_high",
+        "fingerprint_power_low";
+
+    pinctrl-0 = <&fps_reset_high>;
+    pinctrl-1 = <&fps_reset_low>;
+    pinctrl-2 = <&fps_spi_miso>;
+    pinctrl-3 = <&fps_spi_mosi>;
+    pinctrl-4 = <&fps_spi_sck>;
+    pinctrl-5 = <&fps_spi_cs>;
+    pinctrl-6 = <&fps_irq>;
+    pinctrl-7 = <&fps_power_on>;
+    pinctrl-8 = <&fps_power_off>;
+    status = "okay";
+};
+
+
+&pio {
+    fps_reset_high: fps_reset_high {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+            slew-rate = <1>;
+            bias-disable;
+            output-high;
+        };
+    };
+    fps_reset_low: fps_reset_low {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+            slew-rate = <1>;
+            bias-disable;
+            output-low;
+        };
+    };
+    fps_spi_miso:fps_spi_miso@0{
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO155__FUNC_SPI0_MI>;
+            slew-rate = <0>;
+            bias-pull-down;
+        };
+    };
+    fps_spi_mosi:fps_spi_mosi@0{
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO157__FUNC_SPI0_MO>;
+            slew-rate = <1>;
+            bias-pull-down;
+        };
+    };
+    fps_spi_sck:fps_spi_sck@0{
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_SPI0_CLK>;
+            slew-rate = <1>;
+            bias-pull-down;
+        };
+    };
+    fps_spi_cs:fps_spi_cs@0{
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO156__FUNC_SPI0_CSB>;
+            slew-rate = <1>;
+            bias-pull-up;
+        };
+    };
+    fps_irq: fps_irq {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO2__FUNC_GPIO2>;
+            slew-rate = <0>;
+            bias-disable;
+            output-low;
+        };
+    };
+    fps_power_on: fps_power_on {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO90__FUNC_GPIO90>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+    fps_power_off: fps_power_off {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO90__FUNC_GPIO90>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+};
+
+&fpsensor_finger {
+	interrupt-parent = <&pio>;
+	interrupts = <2 IRQ_TYPE_EDGE_RISING 2 0>;
+	debounce = <2 0>;
+	pinctrl-names = "fpsensor_spi_default", "fpsensor_spi_cs_low","fpsensor_spi_cs_high","fpsensor_spi_mi_low","fpsensor_spi_mi_high",
+					"fpsensor_spi_mo_low","fpsensor_spi_mo_high","fpsensor_spi_mclk_low","fpsensor_spi_mclk_high",
+					"fpsensor_finger_rst_low","fpsensor_finger_rst_high","fpsensor_finger_power_low","fpsensor_finger_power_high",
+					"fpsensor_eint_as_int","fpsensor_eint_in_low","fpsensor_eint_in_float","fpsensor_finger_cs_low","fpsensor_finger_cs_high";
+	pinctrl-0 = <&fpsensor_spi_default>;
+	pinctrl-1 = <&fpsensor_spi_cs_en0>;
+	pinctrl-2 = <&fpsensor_spi_cs_en1>;
+	pinctrl-3 = <&fpsensor_spi_mi_mode_en0>;
+	pinctrl-4 = <&fpsensor_spi_mi_mode_en1>;
+	pinctrl-5 = <&fpsensor_spi_mo_mode_en0>;
+	pinctrl-6 = <&fpsensor_spi_mo_mode_en1>;
+	pinctrl-7 = <&fpsensor_spi_mclk_mode_en0>;
+	pinctrl-8 = <&fpsensor_spi_mclk_mode_en1>;
+	pinctrl-9 = <&fpsensor_finger_rst_mode_en0>;
+	pinctrl-10 = <&fpsensor_finger_rst_mode_en1>;
+	pinctrl-11 = <&fpsensor_finger_power_en0>;
+	pinctrl-12 = <&fpsensor_finger_power_en1>;
+	pinctrl-13 = <&fpsensor_fp_eint_as_int>;
+	pinctrl-14 = <&fpsensor_fp_eint_in_low>;
+	pinctrl-15 = <&fpsensor_fp_eint_in_float>;
+	pinctrl-16 = <&fpsensor_finger_cs_mode_en0>;
+	pinctrl-17 = <&fpsensor_finger_cs_mode_en1>;
+	status = "okay";
+};
+
+&pio {
+
+	fpsensor_spi_default: fpsensor_spi_default {
+	};
+
+	fpsensor_spi_cs_en0: fpsensor_spi_cs_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO156__FUNC_SPI0_CSB>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	fpsensor_spi_cs_en1: fpsensor_spi_cs_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO156__FUNC_SPI0_CSB>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	fpsensor_spi_mi_mode_en0: fpsensor_spi_mi_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO155__FUNC_SPI0_MI>;
+			slew-rate = <0>;
+			bias-pull-up = <00>;
+		};
+	};
+	fpsensor_spi_mi_mode_en1: fpsensor_spi_mi_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO155__FUNC_SPI0_MI>;
+			bias-disable;
+		};
+	};
+	fpsensor_spi_mo_mode_en0: fpsensor_spi_mo_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO157__FUNC_SPI0_MO>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	fpsensor_spi_mo_mode_en1: fpsensor_spi_mo_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO157__FUNC_SPI0_MO>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+		fpsensor_spi_mclk_mode_en0: fpsensor_spi_mclk_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO158__FUNC_SPI0_CLK>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	fpsensor_spi_mclk_mode_en1: fpsensor_spi_mclk_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO158__FUNC_SPI0_CLK>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	fpsensor_finger_rst_mode_en0: fpsensor_finger_rst_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	fpsensor_finger_rst_mode_en1: fpsensor_finger_rst_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	fpsensor_finger_power_en0: fpsensor_finger_power_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO90__FUNC_GPIO90>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	fpsensor_finger_power_en1: fpsensor_finger_power_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO90__FUNC_GPIO90>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	fpsensor_fp_eint_as_int: fpsensor_eint_as_int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO2__FUNC_GPIO2>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	fpsensor_fp_eint_in_low: fpsensor_eint_in_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO2__FUNC_GPIO2>;
+			slew-rate = <0>;
+			bias-pull-down = <00>;
+		};
+	};
+	fpsensor_fp_eint_in_float: fpsensor_eint_in_float {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO2__FUNC_GPIO2>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	fpsensor_finger_cs_mode_en0: fpsensor_finger_cs_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO156__FUNC_SPI0_CSB>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	fpsensor_finger_cs_mode_en1: fpsensor_finger_cs_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO156__FUNC_SPI0_CSB>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+};
+
+&fp_egistec {
+    compatible = "fp-egistec";
+    interrupt-parent = <&pio>;
+    interrupts = <2 IRQ_TYPE_EDGE_RISING 2 0>;
+    fp-gpio-vcc-enable;
+    fp-ctrl-power;
+
+    egistec,gpio_reset = <&pio 173 0x0>;
+    egistec,gpio_irq = <&pio 2 0x0>;
+    egistec,gpio_vcc_en = <&pio 90 0x0>;
+
+    pinctrl-names = "egis_rst_high", "egis_rst_low", "egis_irq_active", "egis_spi_active", "egis_spi_default";
+    pinctrl-0 = <&fingerfp_rst_high>;
+    pinctrl-1 = <&fingerfp_rst_low>;
+    pinctrl-2 = <&fingerfp_irq_active>;
+    pinctrl-3 = <&fingerfp_spi_active>;
+    pinctrl-4 = <&fingerfp_spi_default>;
+
+    status="okay";
+};
+
+
+&pio {
+	fingerfp_rst_high: fingerfp_rst_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	fingerfp_rst_low: fingerfp_rst_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	fingerfp_irq_active: fingerfp_irq_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO2__FUNC_GPIO2>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	fingerfp_spi_active: fingerfp_spi_active{
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO155__FUNC_SPI0_MI>, <PINMUX_GPIO156__FUNC_SPI0_CSB>, <PINMUX_GPIO157__FUNC_SPI0_MO>, <PINMUX_GPIO158__FUNC_SPI0_CLK>;
+			drive-strength = <2>;
+		};
+	};
+
+	fingerfp_spi_default: fingerfp_spi_default{
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO155__FUNC_GPIO155>, <PINMUX_GPIO156__FUNC_GPIO156>, <PINMUX_GPIO157__FUNC_GPIO157>, <PINMUX_GPIO158__FUNC_GPIO158>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+};
+/* FINGERPRINT end */

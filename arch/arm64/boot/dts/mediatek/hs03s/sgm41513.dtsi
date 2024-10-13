@@ -1,0 +1,27 @@
+/*hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 start*/
+&i2c5 {
+    sgm41513: sgm41513@1a {
+        compatible = "sgm41513";
+        reg = <0x1A>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <123 IRQ_TYPE_EDGE_FALLING>;
+        charger_name = "primary_chg";
+
+        sgm41513,charge-detect-enable;
+        sgm41513,usb-vlim = <4600>;
+        sgm41513,usb-ilim = <500>;
+        sgm41513,usb-vreg = <4400>;
+        sgm41513,usb-ichg = <500>;
+
+        sgm41513,precharge-current = <480>;
+        sgm41513,termination-current = <180>;
+        sgm41513,boost-voltage = <4998>;
+        sgm41513,boost-current = <1200>;
+        sgm41513,enable_term;
+        sgm41513,stat-pin-ctrl = <3>;
+        sgm41513,vac-ovp-threshold = <6500>;
+    };
+};
+/*hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 end*/

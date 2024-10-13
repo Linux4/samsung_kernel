@@ -1,0 +1,22 @@
+#
+# for huaqin mis info
+#
+
+
+config HQ_SIM_TRAY_CHECK
+	bool "check sim stry status"
+        default y
+	help
+	  this will create a node to show sim tray status.
+
+	  If unsure, say N.
+
+#hs03s code for DEVAL5625-88 by ningkaixuan at 2022/02/15 start
+config TRIGGER_CRASH_BY_KEY
+	default n
+	bool "Enable trigger crash by keys"
+	help
+	  You can trigger crash by pressing keys in strict order:
+	  VOLUMEUP twice + VOLUMEDOWN twice + POWER twice.
+#hs03s code for DEVAL5625-88 by ningkaixuan at 2022/02/15 end
+

@@ -1,0 +1,33 @@
+/* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 start*/
+&odm {
+	bat_id_adc: bat_id_adc {
+		compatible = "ss, bat_id_adc";
+		io-channels = <&auxadc 4>;
+		io-channel-names = "ss-battid";
+	};
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/02/19 start */
+	gxy_battery_ttf: gxy_battery_ttf {
+		status = "okay";
+		battery,ttf_dcp_charge_current = <1500>;
+		battery,ttf_hv_charge_current = <2655>;
+		battery,ttf_pd25_charge_current = <2655>;
+		battery,ttf_pd45_charge_current = <2655>;
+		battery,ttf_capacity = <4980>;
+		/*fg_current soc cv_time*/
+		battery,cv_data = <
+			2043  82  4031
+			1722  85  3758
+			1502  87  3541
+			1286  89  3294
+			1074  91  3005
+			864  93  2647
+			664  95  2197
+			478  97  1591
+			384  98  1172
+			307   99  698
+			227   100  0
+		>;
+	};
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/02/19 end */
+};
+/* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 end*/
