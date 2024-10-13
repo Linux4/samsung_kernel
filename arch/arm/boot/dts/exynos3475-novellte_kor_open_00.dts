@@ -1,0 +1,165 @@
+/*
+ * SAMSUNG EXYNOS3475 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos3475-novel_common.dtsi"
+#include "modem-ss308ap-pdata.dtsi"
+#include "exynos3475-novellte_kor-tdmb_00.dtsi"
+#include "exynos3475-novellte_kor_open_gpio_00.dtsi"
+
+/ {
+	model = "Samsung UNIVERSAL3475 board based on EXYNOS3475";
+	model_info-chip = <3475>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <0>;
+	model_info-hw_rev_end = <0>;
+	compatible = "samsung,UNIVERSAL3475", "samsung,exynos3475";
+
+	hsi2c@13870000 {
+		status = "okay";
+		s2mu003@34 {
+			compatible = "samsung,s2mu003mfd";
+			reg = <0x34>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&if_irq>;
+			s2mu003,irq-gpio = <&gpa0 2 0>;
+
+			regulators {
+				s2mu003-buck1 {
+					regulator-name = "VDDD_1.2V_CAM";
+					regulator-min-microvolt = <1200000>;
+					regulator-max-microvolt = <1200000>;
+				};
+				s2mu003-ldo1 {
+					regulator-name = "VDDA_2.8V_CAM";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+				};
+			};
+		};
+
+		leds {
+			torch-gpio = <&gpd0 7 0>;
+			flash-gpio = <&gpd2 3 0>;
+
+			status = "okay";
+			s2mu003-leds1 {
+				ledname = "leds-sec1";
+				id = <0>;
+				brightness = <0x17>;
+				timeout = <0x0>;
+				max-brightness = <0x15>;
+			};
+
+			s2mu003-leds2 {
+				ledname = "leds-sec2";
+				id = <1>;
+				brightness = <0x02>;
+				timeout = <0x0>;
+				max-brightness = <0xf>;
+			};
+		};
+	};
+
+	i2c@13850000 {
+		ktd2026@30 {
+			compatible = "ktd2026";
+			reg = <0x30>;
+
+			led_conf@1 {
+				led_conf-name = "led_r";
+				brightness = <0>;
+				max_brightness = /bits/ 8 <0x05>;
+				flags = <0>;
+			};
+			led_conf@2 {
+				led_conf-name = "led_g";
+				brightness = <0>;
+				max_brightness = /bits/ 8 <0x02>;
+				flags = <0>;
+			};
+			led_conf@3 {
+				led_conf-name = "led_b";
+				brightness = <0>;
+				max_brightness = /bits/ 8 <0x08>;
+				flags = <0>;
+			};
+		};
+	};
+
+	i2c@13860000 {
+		status = "okay";
+		samsung,i2c-sda-delay = <100>;
+		samsung,i2c-max-bus-freq = <400000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		s2mu003-fuelgauge@35 {
+			compatible = "samsung,s2mu003-fuelgauge";
+			reg = <0x35>;
+			fuelgauge,fuel_alert_soc = <1>;
+			fuelgauge,capacity_max = <1000>;
+			fuelgauge,capacity_max_margin = <30>;
+			fuelgauge,capacity_min = <0>;
+			fuelgauge,capacity_calculation_type = <28>;
+			fuelgauge,repeated_fuelalert;
+			fuelgauge,type_str = "SDI";
+		};
+	};
+
+	battery {
+		battery,charger_name = "sec-charger";
+		battery,fuelgauge_name = "sec-fuelgauge";
+
+		battery,input_current_limit = <1800 0 0 1000 460 900 1000 460 1000 0 820 1900 1000 0 0 400 700 1300 300 1000 1500 0 1667 1000 80 1800>;
+		battery,fast_charging_current = <2100 0 0 1000 460 1200 1000 460 1200 0 1000 1600 1000 0 0 400 700 1300 300 1000 1500 0 3150 1000 80 1800>;
+		battery,full_check_current_1st = <350 0 0 250 250 250 250 250 250 0 250 250 250 0 0 350 350 350 350 350 350 0 350 350 0 350>;
+		battery,full_check_current_2nd = <3000 0 0 3000 3000 3000 3000 3000 3000 0 3000 3000 0 0 0 3000 3000 3000 3000 3000 3000 0 3000 3000 3000 3000>;
+
+	};
+
+	s2mu003-charger {
+		status = "disable";
+		compatible = "samsung,s2mu003-charger";
+		battery,is_1MHz_switching = <1>;
+		battery,is_fixed_switching = <1>;
+		battery,chg_gpio_en = <0>;
+		battery,chg_polarity_en = <0>;
+		battery,chg_gpio_status = <0>;
+		battery,chg_polarity_status = <0>;
+		battery,chg_float_voltage = <4350>;
+	};
+
+	hsi2c@13880000 {
+		status = "okay";
+		muic-s2mm001@25 {
+			compatible = "sec-muic,i2c";
+			reg = <0x25>;
+			pinctrl-names = "default";
+			muic,muic_int = <&gpa0 4 0>;
+			muic,uart_addr = "139c0000.pinctrl";
+			muic,uart_rxd = "gpb1-0";
+			muic,uart_txd = "gpb1-1";
+		};
+	};
+
+	hall {
+		compatible = "hall";
+		pinctrl-names = "default";
+		pinctrl-0 = <&hall_irq>;
+		hall,gpio_flip_cover = <&gpa0 5 0>;
+		status = "disable";
+	};
+
+	earjack {
+		status = "okay";
+	};
+};
