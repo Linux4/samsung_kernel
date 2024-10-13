@@ -149,6 +149,9 @@ s32 mm_hrt_add_bw_throttle_notifier(struct notifier_block *nb);
  */
 s32 mm_hrt_remove_bw_throttle_notifier(struct notifier_block *nb);
 
+s32 add_cam_max_bw_notifier(struct notifier_block *nb);
+s32 remove_cam_max_bw_notifier(struct notifier_block *nb);
+
 /**
  * mmdvfs_set_max_camera_hrt_bw - set maximum camera hrt bw
  * @bw: bandwidth size in MB/s

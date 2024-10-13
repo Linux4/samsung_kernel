@@ -43,6 +43,9 @@ static struct audio_gpio_attr aud_gpios[MT6833_AFE_GPIO_GPIO_NUM] = {
 	[MT6833_AFE_GPIO_VOW_DAT_ON] = {"vow_dat_miso_on", false, NULL},
 	[MT6833_AFE_GPIO_VOW_CLK_OFF] = {"vow_clk_miso_off", false, NULL},
 	[MT6833_AFE_GPIO_VOW_CLK_ON] = {"vow_clk_miso_on", false, NULL},
+	/*bug 767771 chenfeng.wt add HAC 20220719*/
+	[GPIO_AUD_HAC_HIGH] = {"hacamp_pullhigh", false, NULL},
+	[GPIO_AUD_HAC_LOW] = {"hacamp_pulllow", false, NULL},
 };
 
 static DEFINE_MUTEX(gpio_request_mutex);
@@ -83,7 +86,53 @@ bool mt6833_afe_gpio_is_prepare(enum mt6833_afe_gpio type)
 {
 	return aud_gpios[type].gpio_prepare;
 }
+/*+bug 767771 chenfeng.wt add HAC 20220719*/
+static int mt6833_afe_hac_gpio_select(enum mt6833_afe_gpio type)
+{
+	int ret = 0;
 
+	if (type < 0 || type >= MT6833_AFE_GPIO_GPIO_NUM) {
+		pr_err("%s(), error, invaild hac gpio type %d\n", __func__, type);
+		return -EINVAL;
+	}
+	pr_err("%s(), hac gpio type %d\n", __func__, type);
+	if (!aud_gpios[type].gpio_prepare) {
+		pr_err("%s(), error, hac gpio type %d not prepared\n", __func__, type);
+		return -EIO;
+	}
+
+	ret = pinctrl_select_state(aud_pinctrl,
+				   aud_gpios[type].gpioctrl);
+	if (ret) {
+		pr_err("%s(), error, can not set hac gpio type %d\n", __func__, type);
+		AUDIO_AEE("can not set gpio type");
+	}
+	pr_err("%s(), set hac gpio type %d\n", __func__, type);
+	return ret;
+}
+
+int mt6833_afe_gpio_hac_Select(int mode)
+{
+	int retval = 0;
+
+	mutex_lock(&gpio_request_mutex);
+	switch (mode) {
+	case 0:
+		if (mt6833_afe_gpio_is_prepare(GPIO_AUD_HAC_LOW))
+			retval = mt6833_afe_hac_gpio_select(GPIO_AUD_HAC_LOW);
+		break;
+	case 1:
+		if (mt6833_afe_gpio_is_prepare(GPIO_AUD_HAC_HIGH))
+			retval = mt6833_afe_hac_gpio_select(GPIO_AUD_HAC_HIGH);
+		break;
+	default:
+		pr_err("%s(), invalid mode = %d", __func__, mode);
+		retval = -1;
+	}
+	mutex_unlock(&gpio_request_mutex);
+	return retval;
+}
+/*-bug 767771 chenfeng.wt add HAC 20220719*/
 static int mt6833_afe_gpio_select(struct mtk_base_afe *afe,
 				  enum mt6833_afe_gpio type)
 {

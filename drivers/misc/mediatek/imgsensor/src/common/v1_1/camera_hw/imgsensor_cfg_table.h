@@ -14,7 +14,7 @@
 
 
 #define IMGSENSOR_HW_POWER_INFO_MAX	12
-#define IMGSENSOR_HW_SENSOR_MAX_NUM	12
+#define IMGSENSOR_HW_SENSOR_MAX_NUM	26
 
 enum IMGSENSOR_HW_PIN {
 	IMGSENSOR_HW_PIN_NONE = 0,
@@ -24,11 +24,12 @@ enum IMGSENSOR_HW_PIN {
 #ifdef CONFIG_REGULATOR_RT5133
 	IMGSENSOR_HW_PIN_AVDD1,
 #endif
-#if defined(IMGSENSOR_MT6781) || defined(IMGSENSOR_MT6877)
-	IMGSENSOR_HW_PIN_AFVDD,
-#endif
 	IMGSENSOR_HW_PIN_DVDD,
 	IMGSENSOR_HW_PIN_DOVDD,
+	IMGSENSOR_HW_PIN_AFVDD,
+	 //+bug767771,liudijin.wt,ADD,2022/06/22,add s5kjn1/sc202cs/c2519 bringup code.
+	IMGSENSOR_HW_PIN_DVDD_1V2,
+	//-bug767771,liudijin.wt,ADD,2022/06/22,add s5kjn1/sc202cs/c2519 bringup code.
 #ifdef MIPI_SWITCH
 	IMGSENSOR_HW_PIN_MIPI_SWITCH_EN,
 	IMGSENSOR_HW_PIN_MIPI_SWITCH_SEL,
@@ -66,14 +67,15 @@ enum IMGSENSOR_HW_PIN_STATE {
 #endif
 #define DVDD        IMGSENSOR_HW_PIN_DVDD
 #define DOVDD       IMGSENSOR_HW_PIN_DOVDD
+//+bug767771,liudijin.wt,ADD,2022/06/22,add s5kjn1/sc202cs/c2519 bringup code.
+#define DVDD_1V2    IMGSENSOR_HW_PIN_DVDD_1V2
+//-bug767771,liudijin.wt,ADD,2022/06/22,add s5kjn1/sc202cs/c2519 bringup code.
+
 #define VDD_None    IMGSENSOR_HW_PIN_NONE
 
 	/* For backward compatible */
-#if defined(IMGSENSOR_MT6781) || defined(IMGSENSOR_MT6877)
+//#define AFVDD       IMGSENSOR_HW_PIN_UNDEF
 #define AFVDD       IMGSENSOR_HW_PIN_AFVDD
-#else
-#define AFVDD       IMGSENSOR_HW_PIN_UNDEF
-#endif
 
 
 /* Voltage */

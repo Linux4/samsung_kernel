@@ -776,16 +776,6 @@ struct LCM_DSI_PARAMS {
 #endif
 };
 
-
-
-//+bug717431, chensibo.wt, add, 20220118, lcd bring up
-struct LCM_BACKLIGHT_CUSTOM{
-	unsigned int max_brightness;
-	unsigned int min_brightness;
-	unsigned int max_bl_lvl;
-	unsigned int min_bl_lvl;
-};
-//-bug717431, chensibo.wt, add, 20220118, lcd bring up
 /* ------------------------------------------------------------------------- */
 struct LCM_PARAMS {
 	enum LCM_TYPE type;
@@ -822,8 +812,6 @@ struct LCM_PARAMS {
 	unsigned int corner_pattern_width;
 	unsigned int corner_pattern_height;
 	unsigned int corner_pattern_height_bot;
-	unsigned int backlight_cust_count;
-	struct LCM_BACKLIGHT_CUSTOM backlight_cust[6]; //bug717431, chensibo.wt, add, 20220118, lcd bring up
 	unsigned int corner_pattern_tp_size;
 	void *corner_pattern_lt_addr;
 
@@ -838,11 +826,6 @@ struct LCM_PARAMS {
 
 	unsigned int hbm_en_time;
 	unsigned int hbm_dis_time;
-	
-	unsigned use_gpioID;
-	unsigned gpioID_value;
-	unsigned int vbias_level;
-	unsigned int default_panel_bl_off;  //bug717431, chensibo.wt, add, 20220118, lcd bring up
 };
 
 
@@ -941,8 +924,8 @@ struct LCM_DTS {
 struct LCM_setting_table_V3 {
 	unsigned char id;
 	unsigned char cmd;
-	unsigned char count;
-	unsigned char para_list[128];
+	unsigned int count;
+	unsigned char para_list[512];
 };
 
 /*
@@ -977,11 +960,11 @@ struct LCM_UTIL_FUNCS {
 
 	void (*dsi_set_cmdq_V3)(struct LCM_setting_table_V3 *para_list,
 			unsigned int size, unsigned char force_update);
-	void (*dsi_set_cmdq_V2)(unsigned int cmd, unsigned char count,
+	void (*dsi_set_cmdq_V2)(unsigned int cmd, unsigned int count,
 			unsigned char *para_list, unsigned char force_update);
 	void (*dsi_set_cmdq)(unsigned int *pdata, unsigned int queue_size,
 			unsigned char force_update);
-	void (*dsi_set_null)(unsigned int cmd, unsigned char count,
+	void (*dsi_set_null)(unsigned int cmd, unsigned int count,
 			unsigned char *para_list, unsigned char force_update);
 	void (*dsi_write_cmd)(unsigned int cmd);
 	void (*dsi_write_regs)(unsigned int addr, unsigned int *para,
@@ -1001,11 +984,11 @@ struct LCM_UTIL_FUNCS {
 	void (*dsi_set_cmdq_V11)(void *cmdq, unsigned int *pdata,
 			unsigned int queue_size, unsigned char force_update);
 	void (*dsi_set_cmdq_V22)(void *cmdq, unsigned int cmd,
-			unsigned char count, unsigned char *para_list,
+			unsigned int count, unsigned char *para_list,
 			unsigned char force_update);
 	void (*dsi_swap_port)(int swap);
 	void (*dsi_set_cmdq_V23)(void *cmdq, unsigned int cmd,
-		unsigned char count, unsigned char *para_list,
+		unsigned int count, unsigned char *para_list,
 		unsigned char force_update);	/* dual */
 	void (*mipi_dsi_cmds_tx)(void *cmdq, struct dsi_cmd_desc *cmds);
 	unsigned int (*mipi_dsi_cmds_rx)(char *out,
@@ -1013,7 +996,7 @@ struct LCM_UTIL_FUNCS {
 	/*Dynfps*/
 	void (*dsi_dynfps_send_cmd)(
 		void *cmdq, unsigned int cmd,
-		unsigned char count, unsigned char *para_list,
+		unsigned int count, unsigned char *para_list,
 		unsigned char force_update, enum LCM_Send_Cmd_Mode sendmode);
 
 };
@@ -1082,16 +1065,10 @@ struct LCM_DRIVER {
 	void (*aod)(int enter);
 
 	/* /////////////DynFPS///////////////////////////// */
-	void (*set_cabc_cmdq)(void *handle, unsigned int enable);
-	void (*get_cabc_status)(int *status);
 	void (*dfps_send_lcm_cmd)(void *cmdq_handle,
 		unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params);
 	bool (*dfps_need_send_cmd)(
-
-	unsigned int from_level, unsigned int to_level);
-
-	/* /////////////suspend////////////////////////// */
-	void (*disable)(void);
+	unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params);
 };
 
 /* LCM Driver Functions */
@@ -1106,12 +1083,14 @@ extern enum LCM_DSI_MODE_CON lcm_dsi_mode;
 extern int display_bias_enable(void);
 extern int display_bias_disable(void);
 extern int display_bias_regulator_init(void);
-
 extern int lcm_power_disable(void);
 extern int lcm_power_enable(void);
 extern void lcm_reset_pin(unsigned int mode);
-
+//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
+extern void lcm_bais_enp_enable(unsigned int mode);
+extern void lcm_bais_enn_enable(unsigned int mode);
+extern int lcm_set_power_reg(unsigned char addr, unsigned char val, unsigned char mask);
+//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
 extern int wingtech_bright_to_bl(int level,int max_bright,int min_bright,int bl_max,int bl_min);
-
 
 #endif /* __LCM_DRV_H__ */

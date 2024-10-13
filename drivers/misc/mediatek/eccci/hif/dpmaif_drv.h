@@ -23,7 +23,7 @@ unsigned int  drv_dpmaif_dl_get_wridx(unsigned char q_num);
 void drv_dpmaif_mask_dl_interrupt(unsigned char q_num);
 void drv_dpmaif_unmask_dl_interrupt(unsigned char q_num);
 int drv_dpmaif_dl_all_queue_en(bool enable);
-unsigned int drv_dpmaif_dl_idle_check(void);
+int drv_dpmaif_dl_idle_check(void);
 
 /* == TX part == */
 void drv_dpmaif_mask_ul_que_interrupt(unsigned char q_num);
@@ -99,7 +99,7 @@ void drv_dpmaif_ul_update_drb_base_addr(unsigned char q_num,
 void drv_dpmaif_ul_rdy_en(unsigned char q_num, bool ready);
 void drv_dpmaif_ul_arb_en(unsigned char q_num, bool enable);
 void drv_dpmaif_ul_all_queue_en(bool enable);
-unsigned int drv_dpmaif_ul_idle_check(void);
+int drv_dpmaif_ul_idle_check(void);
 
 /* suspend resume */
 bool drv_dpmaif_check_power_down(void);

@@ -186,6 +186,7 @@ static DEFINE_MUTEX(bw_mutex);
 static s32 total_hrt_bw = UNINITIALIZED_VALUE;
 static s32 total_ui_only_hrt_bw = UNINITIALIZED_VALUE;
 static BLOCKING_NOTIFIER_HEAD(hrt_bw_throttle_notifier);
+static BLOCKING_NOTIFIER_HEAD(cam_max_bw_notifier);
 
 
 static int mm_freq_notify(struct notifier_block *nb,
@@ -1505,6 +1506,22 @@ s32 mm_hrt_remove_bw_throttle_notifier(struct notifier_block *nb)
 }
 EXPORT_SYMBOL_GPL(mm_hrt_remove_bw_throttle_notifier);
 
+s32 add_cam_max_bw_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(
+				&cam_max_bw_notifier,
+				nb);
+}
+EXPORT_SYMBOL_GPL(add_cam_max_bw_notifier);
+
+s32 remove_cam_max_bw_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(
+				&cam_max_bw_notifier,
+				nb);
+}
+EXPORT_SYMBOL_GPL(remove_cam_max_bw_notifier);
+
 #ifdef HRT_MECHANISM
 static int notify_bw_throttle(void *data)
 {
@@ -1561,8 +1578,60 @@ static void delay_work_handler(struct work_struct *work)
 static DECLARE_DELAYED_WORK(g_delay_work, delay_work_handler);
 #endif /* HRT_MECHANISM */
 
+#ifdef SMI_TAL
+static int notify_bw_throttle(void *data)
+{
+	u64 start_jiffies = jiffies;
+
+	blocking_notifier_call_chain(&cam_max_bw_notifier,
+		camera_max_bw, NULL);
+
+	pr_notice("notify_time=%u\n",
+		jiffies_to_msecs(jiffies-start_jiffies));
+	return 0;
+}
+
+static u32 camera_overlap_bw;
+static void set_camera_max_bw(u32 occ_bw)
+{
+	struct task_struct *pKThread;
+
+	camera_max_bw = occ_bw;
+	wait_next_max_cam_bw_set = false;
+	pr_notice("set cam max occupy_bw=%d\n", occ_bw);
+	pKThread = kthread_run(notify_bw_throttle,
+		NULL, "notify bw throttle");
+}
+static void delay_work_handler(struct work_struct *work)
+{
+	set_camera_max_bw(camera_overlap_bw);
+}
+static DECLARE_DELAYED_WORK(g_delay_work, delay_work_handler);
+#endif /* SMI_TAL */
+
+
+#define MULTIPLY_W_DRAM_WEIGHT(value) ((value)*6/5) /* Write DRAM Weight*/
+
 void mmdvfs_set_max_camera_hrt_bw(u32 bw)
 {
+#ifdef SMI_TAL
+	u32 mw_hrt_bw;
+
+	cancel_delayed_work_sync(&g_delay_work);
+
+	mw_hrt_bw = MULTIPLY_W_DRAM_WEIGHT(bw);
+	if (mw_hrt_bw < camera_max_bw) {
+		camera_overlap_bw = mw_hrt_bw;
+		schedule_delayed_work(&g_delay_work, 2 * HZ);
+	} else {
+		camera_overlap_bw = 0;
+		set_camera_max_bw(mw_hrt_bw);
+	}
+
+	pr_notice("middleware set max camera hrt bw:%d\n", bw);
+
+#endif
+
 #ifdef HRT_MECHANISM
 	u32 mw_hrt_bw;
 

@@ -623,7 +623,7 @@ static int fgauge_get_info(struct mtk_gauge *gauge,
 			bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
 			__func__, sign_bit, tmp_val);
 		}
-#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 		else if (sign_bit == 0)
 			*value = tmp_val;
 
@@ -3256,10 +3256,6 @@ static int mt6357_gauge_probe(struct platform_device *pdev)
 
 	bm_err("%s: done\n", __func__);
 
-//+bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi message
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	hardwareinfo_set_prop(HARDWARE_BMS_GAUGE_INFO, "MT6357");
-#endif
 //-bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi messages
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	hardwareinfo_set_prop(HARDWARE_BMS_GAUGE_INFO, "MT6357");

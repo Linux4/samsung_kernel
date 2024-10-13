@@ -56,6 +56,7 @@
 #include "ufs-mediatek.h"
 #include "ufs-mediatek-dbg.h"
 #include "ufs-mtk-block.h"
+#include "ufs-sec-feature.h"
 
 #define UFSHCD_ENABLE_INTRS	(UTP_TRANSFER_REQ_COMPL |\
 				 UTP_TASK_REQ_COMPL |\
@@ -2218,6 +2219,9 @@ ufshcd_wait_for_uic_cmd(struct ufs_hba *hba, struct uic_command *uic_cmd)
 	else
 		ret = -ETIMEDOUT;
 
+	if (ret)
+		ufs_sec_uic_cmd_error_check(hba, uic_cmd->command);
+
 	spin_lock_irqsave(hba->host->host_lock, flags);
 	hba->active_uic_cmd = NULL;
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
@@ -2802,13 +2806,7 @@ send_orig_cmd:
 	/* Make sure descriptors are ready before ringing the doorbell */
 	wmb();
 
-#if defined(CONFIG_SCSI_UFS_FEATURE) && defined(CONFIG_SCSI_UFS_HPB)
-		if (!pre_req_err)
-			ufs_mtk_biolog_send_command(add_tag, add_lrbp->cmd);
-#endif
-		ufs_mtk_biolog_send_command(tag, lrbp->cmd);
-
-spin_lock_irqsave(hba->host->host_lock, flags);
+	spin_lock_irqsave(hba->host->host_lock, flags);
 
 #if defined(CONFIG_SCSI_UFS_FEATURE) && defined(CONFIG_SCSI_UFS_HPB)
 	if (!pre_req_err) {
@@ -3581,6 +3579,12 @@ static int ufshcd_read_device_desc(struct ufs_hba *hba, u8 *buf, u32 size)
 {
 	return ufshcd_read_desc(hba, QUERY_DESC_IDN_DEVICE, 0, buf, size);
 }
+
+int ufshcd_read_health_desc(struct ufs_hba *hba, u8 *buf, u32 size)
+{
+	return ufshcd_read_desc(hba, QUERY_DESC_IDN_HEALTH, 0, buf, size);
+}
+EXPORT_SYMBOL(ufshcd_read_health_desc);
 
 /**
  * struct uc_string_id - unicode string
@@ -4739,6 +4743,7 @@ void ufshcd_update_evt_hist(struct ufs_hba *hba, u32 id, u32 val)
 	e->pos = (e->pos + 1) % UFS_EVENT_HIST_LENGTH;
 
 	ufshcd_vops_event_notify(hba, id, &val);
+	ufs_sec_op_err_check(hba, id, &val);
 }
 EXPORT_SYMBOL_GPL(ufshcd_update_evt_hist);
 
@@ -4779,7 +4784,7 @@ link_startup:
 		 * but we can't be sure if the link is up until link startup
 		 * succeeds. So reset the local Uni-Pro and try again.
 		 */
-		if (ret && ufshcd_hba_enable(hba))
+		if (ret && retries && ufshcd_hba_enable(hba))
 			goto out;
 	} while (ret && retries--);
 
@@ -5258,6 +5263,7 @@ static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 	for_each_set_bit(index, &completed_reqs, hba->nutrs) {
 		lrbp = &hba->lrb[index];
 		cmd = lrbp->cmd;
+		ufs_sec_compl_cmd_check(hba, lrbp);
 		ufshcd_vops_compl_xfer_req(hba, index, completed_reqs,
 			(cmd) ? true : false);
 		if (cmd) {
@@ -6256,8 +6262,10 @@ static int ufshcd_issue_tm_cmd(struct ufs_hba *hba, int lun_id, int task_id,
 	treq.input_param2 = cpu_to_be32(task_id);
 
 	err = __ufshcd_issue_tm_cmd(hba, &treq, tm_function);
-	if (err == -ETIMEDOUT)
+	if (err == -ETIMEDOUT) {
+		ufs_sec_tm_error_check(tm_function);
 		return err;
+	}
 
 	ocs_value = le32_to_cpu(treq.header.dword_2) & MASK_OCS;
 	if (ocs_value != OCS_SUCCESS)
@@ -6266,6 +6274,10 @@ static int ufshcd_issue_tm_cmd(struct ufs_hba *hba, int lun_id, int task_id,
 	else if (tm_response)
 		*tm_response = be32_to_cpu(treq.output_param1) &
 				MASK_TM_SERVICE_RESP;
+
+	if (err || tm_response)
+		ufs_sec_tm_error_check(tm_function);
+
 	return err;
 }
 
@@ -6607,7 +6619,7 @@ static int ufshcd_abort(struct scsi_cmnd *cmd)
 	 */
 	scsi_print_command(hba->lrb[tag].cmd);
 	if (!hba->req_abort_count) {
-		ufshcd_update_evt_hist(hba, UFS_EVT_ABORT, 0);
+		ufshcd_update_evt_hist(hba, UFS_EVT_ABORT, tag);
 		ufshcd_print_info(hba, UFS_INFO_HOST_STATE |
 				  UFS_INFO_HOST_REGS | UFS_INFO_PWR);
 		ufshcd_print_trs(hba, 1 << tag, true);
@@ -6772,6 +6784,8 @@ static int ufshcd_reset_and_restore(struct ufs_hba *hba)
 {
 	int err = 0;
 	int retries = MAX_HOST_RESET_RETRIES;
+
+	ufs_sec_hwrst_cnt_check();
 
 	do {
 		/* Reset the attached device */
@@ -7044,7 +7058,9 @@ static int ufs_get_device_desc(struct ufs_hba *hba)
 	size_t buff_len;
 	u8 model_index;
 	u8 *desc_buf;
+	u8 *str_desc_buf = NULL;
 	struct ufs_dev_info *dev_info = &hba->dev_info;
+	u8 serial_num_index;
 
 	buff_len = max_t(size_t, hba->desc_size.dev_desc,
 			 QUERY_DESC_MAX_SIZE + 1);
@@ -7089,7 +7105,27 @@ static int ufs_get_device_desc(struct ufs_hba *hba)
 	 */
 	err = 0;
 
+	/* serial number string desc */
+	str_desc_buf = kzalloc(QUERY_DESC_MAX_SIZE, GFP_KERNEL);
+	if (!str_desc_buf) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	serial_num_index = desc_buf[DEVICE_DESC_PARAM_SN];
+
+	err = ufshcd_read_desc(hba, QUERY_DESC_IDN_STRING,
+			       serial_num_index, str_desc_buf,
+			       QUERY_DESC_MAX_SIZE);
+	if (err < 0)
+		goto out;
+	else
+		err = 0;
+
+	ufs_set_sec_features(hba, str_desc_buf, desc_buf);
+
 out:
+	kfree(str_desc_buf);
 	kfree(desc_buf);
 	return err;
 }
@@ -7250,7 +7286,7 @@ static int ufshcd_quirk_tune_host_pa_tactivate(struct ufs_hba *hba)
 	peer_pa_tactivate_us = peer_pa_tactivate *
 			     gran_to_us_table[peer_granularity - 1];
 
-	if (pa_tactivate_us > peer_pa_tactivate_us) {
+	if (pa_tactivate_us >= peer_pa_tactivate_us) {
 		u32 new_peer_pa_tactivate;
 
 		new_peer_pa_tactivate = pa_tactivate_us /
@@ -7326,6 +7362,7 @@ static void ufshcd_init_desc_sizes(struct ufs_hba *hba)
 		&hba->desc_size.hlth_desc);
 	if (err)
 		hba->desc_size.hlth_desc = QUERY_DESC_HEALTH_DEF_SIZE;
+	hba->desc_size.str_desc = QUERY_DESC_STRING_DEF_SIZE;
 }
 
 static int ufshcd_device_geo_params_init(struct ufs_hba *hba)
@@ -7599,6 +7636,9 @@ static int ufshcd_probe_hba(struct ufs_hba *hba, bool async)
 	ufshcd_auto_hibern8_enable(hba);
 
 out:
+#if defined(CONFIG_SCSI_UFS_TEST_MODE)
+	ufshcd_vops_dbg_register_dump(hba);
+#endif
 
 #if defined(CONFIG_SCSI_UFS_FEATURE)
 		ufsf_hpb_reset(&hba->ufsf);
@@ -7675,8 +7715,7 @@ int ufshcd_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buf_user)
 		goto out_release_mem;
 	}
 #if defined(CONFIG_SCSI_UFS_FEATURE)
-		if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG ||
-			hba->dev_info.wmanufacturerid == UFS_VENDOR_MICRON)
+		if (hba->dev_info.wmanufacturerid == UFS_VENDOR_MICRON)
 			selector = UFSFEATURE_SELECTOR;
 		else
 			selector = 0;
@@ -8704,7 +8743,8 @@ static int ufshcd_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 			ufshcd_disable_auto_bkops(hba);
 		}
 	}
-#if defined(CONFIG_SCSI_UFS_FEATURE) && defined(CONFIG_SCSI_UFS_TW)
+//bug709381,yanrenjie.wt,modified,diable the function in ATO version	
+#if defined(CONFIG_SCSI_UFS_FEATURE) && defined(CONFIG_SCSI_UFS_TW) && !defined(WT_COMPILE_FACTORY_VERSION)
 		if (ufstw_need_flush(&hba->ufsf)) {
 			ret = -EAGAIN;
 			pm_runtime_mark_last_busy(hba->dev);
@@ -9148,6 +9188,7 @@ int ufshcd_shutdown(struct ufs_hba *hba)
 out:
 	if (ret)
 		dev_err(hba->dev, "%s failed, err %d\n", __func__, ret);
+
 	/* allow force shutdown even in case of errors */
 	return 0;
 }
@@ -9416,6 +9457,9 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 		hba->ahit = FIELD_PREP(UFSHCI_AHIBERN8_TIMER_MASK, 150) |
 			    FIELD_PREP(UFSHCI_AHIBERN8_SCALE_MASK, 3);
 	}
+#if defined(CONFIG_SCSI_UFS_TEST_MODE)
+	dev_info(hba->dev, "UFS test mode enabled\n");
+#endif
 
 	/* Hold auto suspend until async scan completes */
 	pm_runtime_get_sync(dev);

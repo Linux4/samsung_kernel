@@ -353,7 +353,6 @@ struct mmc_card {
 
 	unsigned int		bouncesz;	/* Bounce buffer size */
 	struct workqueue_struct *complete_wq;	/* Private workqueue */
-
 	struct mmc_card_error_log err_log[MAX_ERR_LOG_INDEX];
 };
 

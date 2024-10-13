@@ -24,7 +24,11 @@
 #endif /* CONFIG_WATER_DETECTION */
 
 #define RT_PD_MANAGER_VERSION	"1.0.8_MTK"
-
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+#include <../../../lcm/inc/panel_notifier.h>
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
 #ifdef CONFIG_OCP96011_I2C
 #include "../switch/ocp96011-i2c.h"
 extern void typec_headset_queue_work(void);
@@ -48,7 +52,9 @@ struct rt_pd_manager_data {
 	int sink_ma_new;
 	int sink_mv_old;
 	int sink_ma_old;
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	bool is_request_disabled;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 	struct typec_capability typec_caps;
 	struct typec_port *typec_port;
 	struct typec_partner *partner;
@@ -71,6 +77,9 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 	uint8_t old_state = TYPEC_UNATTACHED, new_state = TYPEC_UNATTACHED;
 	enum typec_pwr_opmode opmode = TYPEC_PWR_MODE_USB;
 	uint32_t partner_vdos[VDO_MAX_NR];
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	int sink_type;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 #ifdef CONFIG_WATER_DETECTION
 #ifdef CONFIG_MTK_CHARGER
 #ifndef ADAPT_CHARGER_V1
@@ -83,9 +92,47 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 	case TCP_NOTIFY_SINK_VBUS:
 		rpmd->sink_mv_new = noti->vbus_state.mv;
 		rpmd->sink_ma_new = noti->vbus_state.ma;
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+		sink_type = noti->vbus_state.type;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		dev_info(rpmd->dev, "%s sink vbus %dmV %dmA type(0x%02X)\n",
 				    __func__, rpmd->sink_mv_new,
 				    rpmd->sink_ma_new, noti->vbus_state.type);
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+//#ifdef CONFIG_MTK_CHARGER
+		if ((rpmd->sink_mv_new != rpmd->sink_mv_old) ||
+		    (rpmd->sink_ma_new != rpmd->sink_ma_old)) {
+			rpmd->sink_mv_old = rpmd->sink_mv_new;
+			rpmd->sink_ma_old = rpmd->sink_ma_new;
+			if (rpmd->sink_mv_new && rpmd->sink_ma_new &&
+			   (!rpmd->is_request_disabled || (rpmd->is_request_disabled && (sink_type >= TCP_VBUS_CTRL_PD)))) {
+				rpmd->is_request_disabled = false;
+#ifdef CONFIG_MTK_CHARGER
+#ifdef ADAPT_CHARGER_V1
+				charger_manager_enable_power_path(
+					rpmd->chg_consumer, MAIN_CHARGER, true);
+#else
+				charger_dev_enable_powerpath(rpmd->chg_dev,
+							true);
+#endif /* ADAPT_CHARGER_V1 */
+			} else {
+				if (sink_type >= TCP_VBUS_CTRL_PD_REQUEST)
+					rpmd->is_request_disabled = true;
+				else
+					rpmd->is_request_disabled = false;
+#ifdef ADAPT_CHARGER_V1
+				charger_manager_enable_power_path(
+					rpmd->chg_consumer, MAIN_CHARGER, false);
+#else
+				charger_dev_enable_powerpath(rpmd->chg_dev,
+							false);
+
+#endif /* ADAPT_CHARGER_V1 */
+
+#endif /* CONFIG_MTK_CHARGER */
+			}
+		}
+#else  /* CONFIG_WT_PROJECT_S96902AA1 */
 #ifdef CONFIG_MTK_CHARGER
 		if ((rpmd->sink_mv_new != rpmd->sink_mv_old) ||
 		    (rpmd->sink_ma_new != rpmd->sink_ma_old)) {
@@ -105,6 +152,7 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 #endif /* ADAPT_CHARGER_V1 */
 		}
 #endif /* CONFIG_MTK_CHARGER */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		break;
 	case TCP_NOTIFY_TYPEC_STATE:
 		old_state = noti->typec_state.old_state;
@@ -113,10 +161,16 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		    (new_state == TYPEC_ATTACHED_SNK ||
 		     new_state == TYPEC_ATTACHED_NORP_SRC ||
 		     new_state == TYPEC_ATTACHED_CUSTOM_SRC ||
-		     new_state == TYPEC_ATTACHED_DBGACC_SNK)) {
+		     new_state == TYPEC_ATTACHED_DBGACC_SNK ||
+		     new_state == TYPEC_ATTACHED_WD_SNK)) {
+
 			dev_info(rpmd->dev,
 				 "%s Charger plug in, polarity = %d\n",
 				 __func__, noti->typec_state.polarity);
+//+S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+			usb_notifier_call_chain(USB_PLUG_IN,NULL);
+#endif
 			/*
 			 * start charger type detection,
 			 * and enable device connection
@@ -135,9 +189,14 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		} else if ((old_state == TYPEC_ATTACHED_SNK ||
 			    old_state == TYPEC_ATTACHED_NORP_SRC ||
 			    old_state == TYPEC_ATTACHED_CUSTOM_SRC ||
-			    old_state == TYPEC_ATTACHED_DBGACC_SNK) &&
+			    old_state == TYPEC_ATTACHED_DBGACC_SNK ||
+			    old_state == TYPEC_ATTACHED_WD_SNK) &&
 			    new_state == TYPEC_UNATTACHED) {
 			dev_info(rpmd->dev, "%s Charger plug out\n", __func__);
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+			usb_notifier_call_chain(USB_PLUG_OUT,NULL);
+#endif
+//-S96818AA1-1936,daijun1.wt,modify,2023/06/19,n28-tp td4160 add charger_mode
 			/*
 			 * report charger plug-out,
 			 * and disable device connection
@@ -251,12 +310,13 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			 * report charger plug-in without charger type detection
 			 * to not interfering with USB2.0 communication
 			 */
+
 			typec_set_pwr_role(rpmd->typec_port, TYPEC_SINK);
-	
 		} else if (noti->swap_state.new_role == PD_ROLE_SOURCE) {
 			dev_info(rpmd->dev, "%s swap power role to source\n",
 					    __func__);
 			/* report charger plug-out */
+
 			typec_set_pwr_role(rpmd->typec_port, TYPEC_SOURCE);
 		}
 		break;
@@ -535,6 +595,23 @@ static int tcpc_typec_port_type_set(const struct typec_capability *cap,
 	dev_info(rpmd->dev, "%s type = %d, as_sink = %d\n",
 			    __func__, type, as_sink);
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	switch (type) {
+	case TYPEC_PORT_SNK:
+		typec_role = TYPEC_ROLE_SNK;
+		break;
+	case TYPEC_PORT_SRC:
+		typec_role = TYPEC_ROLE_SRC;
+		break;
+	case TYPEC_PORT_DRP:
+		typec_role = TYPEC_ROLE_DRP;
+		break;
+	default:
+		return 0;
+		}
+
+		return tcpm_typec_change_role(rpmd->tcpc, typec_role);
+#else
 	switch (type) {
 	case TYPEC_PORT_SNK:
 		if (as_sink)
@@ -557,6 +634,7 @@ static int tcpc_typec_port_type_set(const struct typec_capability *cap,
 	}
 
 	return tcpm_typec_role_swap(rpmd->tcpc);
+#endif
 }
 
 static int typec_init(struct rt_pd_manager_data *rpmd)
@@ -658,6 +736,9 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 
 	rpmd->sink_mv_old = -1;
 	rpmd->sink_ma_old = -1;
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	rpmd->is_request_disabled = false;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 	ret = typec_init(rpmd);
 	if (ret < 0) {

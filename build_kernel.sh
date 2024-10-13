@@ -5,7 +5,6 @@ export CC=$(pwd)/toolchain/clang/host/linux-x86/clang-r383902/bin/clang
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export ARCH=arm64
 
-
 export KCFLAGS=-w
 export CONFIG_SECTION_MISMATCH_WARN_ONLY=y
 

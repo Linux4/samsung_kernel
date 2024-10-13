@@ -65,11 +65,11 @@
 #endif
 #include <linux/nvmem-consumer.h>
 
-//pangxin.wt,add , 20220420 daisiqing.wt add
-#if defined(CONFIG_SND_SOC_FS17XX) || defined(CONFIG_SND_SOC_FS15XX)
+//zhangxingyuan.wt,add , 20220723
+#if defined(CONFIG_SND_SOC_FS17XX)
 #include "fsm_public.h"
 #endif
-//pangxin.wt,add
+//zhangxingyuan.wt,add
 
 #include "mtk-soc-speaker-amp.h"
 
@@ -105,7 +105,7 @@ static unsigned int mBlockSampleRate[AUDIO_ANALOG_DEVICE_INOUT_MAX] = {
 	48000, 48000, 48000};
 #define MAX_DL_SAMPLE_RATE (192000)
 #define MAX_UL_SAMPLE_RATE (192000)
-//Bug717428, qiuyonghui.wt, modify, 20220124, audio bringup for hac
+//ckl, zhangxingyuan.wt, modify, 20220725, audio bringup for hac
 #ifdef CONFIG_SND_SOC_HAC_SUPPORT
 static DEFINE_MUTEX(Ana_Ctrl_Mutex);
 #endif
@@ -3704,25 +3704,25 @@ static int Speaker_Amp_Set(struct snd_kcontrol *kcontrol,
 	}
 	return 0;
 }
-//pangxin01,wt.add
+//zhangxingyuan,wt.add
 static void Ext_Speaker_Amp_Change(bool enable)
 {
+#if defined(CONFIG_SND_SOC_FS17XX)
 	pr_info("%s(), enable %d\n", __func__, enable);
-
+#else
+	pr_debug("%s(), enable %d\n", __func__, enable);
+#endif
 #define SPK_WARM_UP_TIME        (25)	/* unit is ms */
-
-
-  if (enable) {
+	if (enable) {
 #ifdef CONFIG_SND_SOC_AW87XXX
     aw87xxx_set_profile(AW_DEV_0, aw_profile[mode]);
+#ifndef WT_COMPILE_FACTORY_VERSION
+    mdelay(20);
+#endif
     pr_err("%s(), mode = %d\n", __func__, mode);
 #endif
-
 #if defined(CONFIG_SND_SOC_FS17XX)
-
 		fsm_speaker_on();
-#elif defined(CONFIG_SND_SOC_FS15XX)
-		fsm_speaker_onn();
 #else
 		AudDrv_GPIO_EXTAMP_Select(false, 3);
 		/*udelay(1000); */
@@ -3734,7 +3734,7 @@ static void Ext_Speaker_Amp_Change(bool enable)
 #ifdef CONFIG_SND_SOC_AW87XXX
     aw87xxx_set_profile(AW_DEV_0, aw_profile[2]);
 #endif
-#if defined(CONFIG_SND_SOC_FS17XX) || defined(CONFIG_SND_SOC_FS15XX)
+#if defined(CONFIG_SND_SOC_FS17XX)
         fsm_speaker_off();
 #else
 		AudDrv_GPIO_EXTAMP_Select(false, 3);
@@ -3742,7 +3742,7 @@ static void Ext_Speaker_Amp_Change(bool enable)
 #endif
 	}
 }
-//pangxin01,wt.add
+//zhangxingyuan,wt.add
 static int Ext_Speaker_Amp_Get(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
 {
@@ -3764,10 +3764,7 @@ static int Ext_Speaker_Amp_Set(struct snd_kcontrol *kcontrol,
 		aw87519_amp_rch_on();
 #endif
 /*AKITA-5 - end */
-                  Ext_Speaker_Amp_Change(true);
-#ifdef CONFIG_WT_PROJECT_S96616AA1
-                  fs15xx_startup();
-#endif
+		Ext_Speaker_Amp_Change(true);
 		mCodec_data->mAudio_Ana_DevicePower
 			[AUDIO_ANALOG_DEVICE_OUT_EXTSPKAMP] =
 		    ucontrol->value.integer.value[0];
@@ -3781,10 +3778,8 @@ static int Ext_Speaker_Amp_Set(struct snd_kcontrol *kcontrol,
 		aw87519_amp_rch_off();
 #endif
 /*AKITA-5 - end */
-                 Ext_Speaker_Amp_Change(false);
-#ifdef CONFIG_WT_PROJECT_S96616AA1
-                 fs15xx_shutdown();
-#endif
+
+		Ext_Speaker_Amp_Change(false);
 	}
 	return 0;
 }
@@ -4418,7 +4413,7 @@ static int apply_n12db_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-//pangxin01.wt, add, audio bringup for hac
+//zhangxingyuan.wt, add, audio bringup for hac
 #ifdef CONFIG_SND_SOC_HAC_SUPPORT
 static int HAC_Amp_Get(struct snd_kcontrol *kcontrol,
                              struct snd_ctl_elem_value *ucontrol)
@@ -4449,9 +4444,7 @@ static int HAC_Amp_Set(struct snd_kcontrol *kcontrol,
         return 0;
 }
 #endif
-//pangxin01.wt, add, audio bringup for hac
-
-//daisiqing .wt,add, audio pa sence
+//zhangxingyuan.wt, add, audio bringup for hac
 #ifdef CONFIG_SND_SOC_AW87XXX
 static const char *const mode_setting[] = {"Off","On"};
 static int Aw87xx_Ktcl_Get(struct snd_kcontrol *kcontrol,
@@ -4471,8 +4464,6 @@ static int Aw87xx_Ktcl_Set(struct snd_kcontrol *kcontrol,
         return 0;
 }
 #endif
-//daisiqing .wt,add, audio pa sence
-
 static int hp_plugged;
 static int hp_plugged_in_get(struct snd_kcontrol *kcontrol,
 			     struct snd_ctl_elem_value *ucontrol)
@@ -4525,13 +4516,11 @@ static const struct soc_enum Audio_DL_Enum[] = {
 			    dctrim_control_state),
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(apply_n12db_setting),
 			    apply_n12db_setting),
-//daisiqing.wt, add, audio for ktcl
 #ifdef CONFIG_SND_SOC_AW87XXX
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(mode_setting),
 			    mode_setting),
 #endif
-
-//pangxin01.wt, add, audio bringup for hac
+//zhangxingyuan.wt, add, audio bringup for hac
 #ifdef CONFIG_SND_SOC_HAC_SUPPORT
     SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(amp_function), amp_function),
 #endif
@@ -4588,12 +4577,11 @@ static const struct snd_kcontrol_new mt6357_snd_controls[] = {
 		     hp_plugged_in_get, hp_plugged_in_set),
 	SOC_ENUM_EXT("Apply_N12DB_Gain", Audio_DL_Enum[14],
 		     apply_n12db_get, apply_n12db_set),
-//daisiqing.wt,add,audio for ktcl
 #ifdef CONFIG_SND_SOC_AW87XXX
 	SOC_ENUM_EXT("Aw87xx_Ktcl_Switch", Audio_DL_Enum[15], Aw87xx_Ktcl_Get,
                      Aw87xx_Ktcl_Set),
 #endif
-//pangxin01.wt, add, audio bringup for hac
+//zhangxingyuan.wt, add, audio bringup for hac
 #ifdef CONFIG_SND_SOC_HAC_SUPPORT
     SOC_ENUM_EXT("HAC_Amp_Switch", Audio_DL_Enum[15], HAC_Amp_Get,
                      HAC_Amp_Set),
@@ -4646,13 +4634,23 @@ static bool TurnOnADcPowerACC(int ADCType, bool enable)
 			if (mCodec_data->mAudio_Ana_Mux
 				[AUDIO_MICSOURCE_MUX_IN_1] == 0) {
 				/* phone mic */
+#if defined(CONFIG_SND_SOC_FS17XX) || defined(CONFIG_SND_SOC_AW87XXX)
 				/* Enable MICBIAS0, MISBIAS0 = 2P5V */
 				Ana_Set_Reg(AUDENC_ANA_CON8, 0x0051, 0xffff);
+#else
+				/* Enable MICBIAS0, MISBIAS0 = 1P9V */
+				Ana_Set_Reg(AUDENC_ANA_CON8, 0x0021, 0xffff);
+#endif
 			} else if (mCodec_data->mAudio_Ana_Mux
 					[AUDIO_MICSOURCE_MUX_IN_1] == 1) {
 				/* headset mic */
+#if defined(CONFIG_SND_SOC_FS17XX) || defined(CONFIG_SND_SOC_AW87XXX)
 				/* Enable MICBIAS1, MISBIAS1 = 2P5V */
 				Ana_Set_Reg(AUDENC_ANA_CON9, 0x0051, 0x0001);
+#else
+				/* Enable MICBIAS1, MISBIAS1 = 2P6V */
+				Ana_Set_Reg(AUDENC_ANA_CON9, 0x0001, 0x0001);
+#endif
 			}
 			SetMicPGAGain();
 		}
@@ -6037,6 +6035,8 @@ static void mt6357_codec_init_reg(struct snd_soc_component *component)
 	Ana_Set_Reg(AUDDEC_ANA_CON3, 0x1 << 4, 0x1 << 4);
 	/* disable LO buffer left short circuit protection */
 	Ana_Set_Reg(AUDDEC_ANA_CON4, 0x1 << 4, 0x1 << 4);
+	/* AUDENC_ANA_CON10 bit12 EINTHIRENB 0:2M 1:500k */
+	Ana_Set_Reg(AUDENC_ANA_CON10, 0x1c07, 0xffff);
 	/* set gpio */
 	set_playback_gpio(false);
 	set_capture_gpio(false);
@@ -6110,8 +6110,8 @@ static int mt6357_component_probe(struct snd_soc_component *component)
 				   ARRAY_SIZE(mt6357_pmic_Test_controls));
 	snd_soc_add_component_controls(component, Audio_snd_auxadc_controls,
 				   ARRAY_SIZE(Audio_snd_auxadc_controls));
-//pangxin01,wt.add ,20220420 daisiqing.wt add
-#if defined(CONFIG_SND_SOC_FS17XX) || defined(CONFIG_SND_SOC_FS15XX)
+//zhangxingyuan,wt.add ,20220723
+#if defined(CONFIG_SND_SOC_FS17XX)
     fsm_add_codec_controls(component);
 #endif
 	/* here to set  private data */

@@ -19,6 +19,7 @@
 #include <linux/hardware_info.h>
 #include <linux/fb.h>
 #include <linux/input/sec_cmd.h>
+#include <tcpm.h>
 
 #include "wt_sc89890.h"
 #include "wt_sy6970.h"
@@ -219,9 +220,12 @@ static int wtchg_dump_register(struct wtchg_info *info)
 void charger_set_en_hiz(struct wtchg_info *info,bool en)
 {
 	unsigned int ret = 0;
+	printc("## set hiz = %d\n",en);
 	ret = charger_field_write(info, B_EN_HIZ, en);
 	if (ret < 0)
 		printc("set hiz failed !!!!!\n");
+	else
+		info->is_hiz = en;
 }
 
 void charger_get_en_hiz(struct wtchg_info *info,bool *en)
@@ -443,6 +447,12 @@ static int charger_set_input_limit(struct charger_device *chg_dev,u32 limit_cur)
 		printc("disable en_ilim failed !!!\n");
 	}
 
+	if(limit_cur == 0){
+		printc("limit_cur = 0, set hiz !\n");
+		charger_set_en_hiz(info,1);
+	}else
+		charger_set_en_hiz(info,0);
+	
 	limit_cur = limit_cur / 1000;
 	if (limit_cur >= chg_prop->input_limit_max)
 		limit_cur = chg_prop->input_limit_max;
@@ -706,6 +716,7 @@ static int charger_enable_charging(struct charger_device *chg_dev,bool en)
 
 static int charger_plug_in(struct charger_device *chg_dev)
 {
+	unsigned long flags;
 	struct wtchg_info *info = dev_get_drvdata(&chg_dev->dev);
 	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
 	if (IS_ERR_OR_NULL(mtchg_info)) {
@@ -713,26 +724,33 @@ static int charger_plug_in(struct charger_device *chg_dev)
 		return -1;
 	}
 	printc("in.\n");
+	spin_lock_irqsave(&info->slock, flags);
+	if (!info->wtchg_wakelock->active)
+		__pm_stay_awake(info->wtchg_wakelock);
+	spin_unlock_irqrestore(&info->slock, flags);
 	info->can_charging = true;
 	mtchg_info->disable_charger = false;
-	if(!info->wtchg_wakelock->active)
-		__pm_stay_awake(info->wtchg_wakelock);
 	charger_enable_charging(chg_dev, true);
 	power_supply_changed(info->psy);
 	schedule_delayed_work(&info->afc_check_work,1*HZ);
-	cancel_delayed_work_sync(&info->wtchg_monitor_work);
-	schedule_delayed_work(&info->wtchg_monitor_work,1*HZ);
+	info->charger_thread_polling = true;
+	info->charger_thread_timeout = true;
+	wake_up(&info->wait_que);
+	//cancel_delayed_work_sync(&info->wtchg_monitor_work);
+	//schedule_delayed_work(&info->wtchg_monitor_work,1*HZ);
+	printc("out.\n");
 	return 0;
 }
 static int charger_plug_out(struct charger_device *chg_dev)
 {
+	unsigned long flags;
 	struct wtchg_info *info = dev_get_drvdata(&chg_dev->dev);
 	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
 	printc("in.\n");
 	info->afc_enable = false;
 	info->is_afc_charger = false;
 	info->cc_polarity = 0;
-	__pm_relax(info->wtchg_wakelock);
+	//__pm_relax(info->wtchg_wakelock);
 	//info->wt_discharging_state = 0;
 	//info->force_dis_afc = false;
 	if(info->slate_mode == 2){
@@ -741,10 +759,14 @@ static int charger_plug_out(struct charger_device *chg_dev)
 	}
 	plug_flag = false;
 	if(!IS_ERR_OR_NULL(mtchg_info)) {
-		charger_dev_set_input_current(info->chg_dev,0);
+		charger_set_en_hiz(info,0);	
 		charger_dev_set_charging_current(info->chg_dev,0);
 	}
-	
+	spin_lock_irqsave(&info->slock, flags);
+	__pm_relax(info->wtchg_wakelock);
+	spin_unlock_irqrestore(&info->slock, flags);
+	info->charger_thread_polling = false;
+	printc("out.\n");
 	return charger_enable_charging(chg_dev, false);
 }
 static int charger_set_iterm(struct charger_device *chg_dev, u32 cur)
@@ -1568,9 +1590,8 @@ static int afc_set_voltage(struct wtchg_info *info, int chr_volt)
 {
 	int ret = 0;
 	int vchr_before, vchr_after, vchr_delta;
-	const u32 sw_retry_cnt_max = 3;
-	const u32 retry_cnt_max = 5;
-	u32 sw_retry_cnt = 0, retry_cnt = 0;
+	const u32 retry_cnt_max = 8;
+	u32 retry_cnt = 0;
 	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
 	if (IS_ERR_OR_NULL(mtchg_info)) {
 		printc("Couldn't get mtchg_info\n");
@@ -1590,18 +1611,15 @@ static int afc_set_voltage(struct wtchg_info *info, int chr_volt)
 		 * less than 1000mV.
 		 */	
 		if (vchr_delta < 1000) {
-				printc("afc set %d  seccessfully!!!\n",chr_volt);			
-				return 0;
+			printc("afc set %d  seccessfully!!!\n",chr_volt);			
+			return 0;
 		}
-		if (ret == 0 || sw_retry_cnt >= sw_retry_cnt_max)
-			retry_cnt++;
-		else
-			sw_retry_cnt++;
+		retry_cnt++;
 
-		printc("retry cnt(%d-%d)\n",retry_cnt,sw_retry_cnt);
+		printc("retry cnt(%d)\n",retry_cnt);
 	} while ( info->usb_type != POWER_SUPPLY_USB_TYPE_UNKNOWN &&
 		 retry_cnt < retry_cnt_max);
-	if(info->usb_type == POWER_SUPPLY_USB_TYPE_UNKNOWN || !info->is_afc_charger)
+	if(info->usb_type == POWER_SUPPLY_USB_TYPE_UNKNOWN || !info->is_afc_charger || retry_cnt >= retry_cnt_max)
 		ret = -1;
 	
 	return ret;
@@ -1610,10 +1628,8 @@ static int afc_set_voltage(struct wtchg_info *info, int chr_volt)
 static int afc_test_set_voltage(struct wtchg_info *info, int chr_volt)
 {
 	int ret = 0;
-	int vchr_before, vchr_after, vchr_delta;
-	const u32 sw_retry_cnt_max = 3;
-	const u32 retry_cnt_max = 5;
-	u32 sw_retry_cnt = 0, retry_cnt = 0;
+	const u32 retry_cnt_max = 15;
+	u32 retry_cnt = 0;
 	static int try_work_cnt_max = 2;
 	bool online;
 	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
@@ -1622,7 +1638,6 @@ static int afc_test_set_voltage(struct wtchg_info *info, int chr_volt)
 		return -1;
 	}
 	printc("set volt = %d\n",chr_volt);
-	vchr_before = get_vbus(mtchg_info);
 	wt_charger_get_online(info,&online);
 	if(!online)
 		return -1;
@@ -1631,42 +1646,30 @@ static int afc_test_set_voltage(struct wtchg_info *info, int chr_volt)
 		if(!online)
 			return -1;
 		ret = __afc_set_ta_vchr(info, chr_volt);
-		mdelay(200);
-		vchr_after = get_vbus(mtchg_info);
-		vchr_delta = abs(vchr_after - chr_volt);
-		printc("vchr_before=%d,vchr_after=%d,vchr_delta=%d\n",vchr_before,vchr_after,vchr_delta);
-		/*
-		 * It is successful if VBUS difference to target is
-		 * less than 1000mV.
-		 */	
-		if (vchr_delta < 1000) {
-			if(!info->afc.afc_error){
-				printc("afc match seccessfully!!!\n");
-				info->is_afc_charger = true;
-				try_work_cnt_max = 2;
-				if((get_uisoc(mtchg_info) >= info->afc_start_battery_soc) 
-					&& (get_uisoc(mtchg_info) <= info->afc_stop_battery_soc)
-					&& (!info->force_dis_afc))
-					afc_5v_to_9v(info);
-				else{
-					power_supply_changed(info->psy);
-					printc("uisoc out of range! not enter afc charging!!!\n");
-				}
-				return 0;
-			}else{
-				printc("afc match failed!!\n");
-				info->afc_enable = false;
+		
+		if(!info->afc.afc_error){
+			printc("afc match seccessfully!!!\n");
+			info->is_afc_charger = true;
+			try_work_cnt_max = 2;
+			if((get_uisoc(mtchg_info) >= info->afc_start_battery_soc) 
+				&& (get_uisoc(mtchg_info) <= info->afc_stop_battery_soc)
+				&& (!info->force_dis_afc))
+				schedule_delayed_work(&info->afc_5v_to_9v_work,0);
+			else{
+				power_supply_changed(info->psy);
+				printc("uisoc out of range! not enter afc charging!!!\n");
 			}
+			return 0;
+		}else{
+			printc("afc match failed!!\n");
+			info->afc_enable = false;
 		}
-		if (ret == 0 || sw_retry_cnt >= sw_retry_cnt_max)
-			retry_cnt++;
-		else
-			sw_retry_cnt++;
+		retry_cnt++;
 
-		printc("retry cnt(%d-%d)\n",retry_cnt,sw_retry_cnt);
+		printc("retry cnt(%d)\n",retry_cnt);
 	} while ( info->usb_type != POWER_SUPPLY_USB_TYPE_UNKNOWN &&
 		 retry_cnt < retry_cnt_max);
-	if(info->usb_type == POWER_SUPPLY_USB_TYPE_UNKNOWN || !info->is_afc_charger)
+	if(info->usb_type == POWER_SUPPLY_USB_TYPE_UNKNOWN || !info->is_afc_charger || retry_cnt >= retry_cnt_max)
 		ret = -1;
 
 	if(try_work_cnt_max > 0){
@@ -1745,20 +1748,30 @@ static void afc_check_work_handler(struct work_struct *data)
 {
 	struct delayed_work *dwork = to_delayed_work(data);
 	struct wtchg_info *info = container_of(dwork, struct wtchg_info, afc_check_work);
-	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
-	if (IS_ERR_OR_NULL(mtchg_info)) {
-		printc("Couldn't get mtchg_info\n");
-		schedule_delayed_work(&info->afc_check_work,1*HZ);
-		return;
-	}
+
 	if(info->psy_desc.type == POWER_SUPPLY_TYPE_USB_DCP && 
-		mtchg_info->pd_type != MTK_PD_CONNECT_PE_READY_SNK &&
-		mtchg_info->pd_type != MTK_PD_CONNECT_PE_READY_SNK_PD30 &&
-		mtchg_info->pd_type != MTK_PD_CONNECT_PE_READY_SNK_APDO){
+		info->pd_type != MTK_PD_CONNECT_PE_READY_SNK &&
+		info->pd_type != MTK_PD_CONNECT_PE_READY_SNK_PD30 &&
+		info->pd_type != MTK_PD_CONNECT_PE_READY_SNK_APDO &&
+		!info->wt_discharging_state){
 		printc("afc test valtage start\n");
 		afc_test_set_voltage(info,SET_5V);
 	}
 }
+static void afc_5v_to_9v_work_handler(struct work_struct *data)
+{
+	struct delayed_work *dwork = to_delayed_work(data);
+	struct wtchg_info *info = container_of(dwork, struct wtchg_info, afc_5v_to_9v_work);
+	afc_5v_to_9v(info);
+}
+static void afc_9v_to_5v_work_handler(struct work_struct *data)
+{
+	struct delayed_work *dwork = to_delayed_work(data);
+	struct wtchg_info *info = container_of(dwork, struct wtchg_info, afc_9v_to_5v_work);
+	afc_9v_to_5v(info);
+}
+
+
 static void afc_5v_to_9v(struct wtchg_info *info)
 {	
 	bool online = false;
@@ -1875,8 +1888,21 @@ static void disable_charging_check(struct wtchg_info *info)
 		charging = false;
 	}
 
+	if((!charging) && (info->afc_enable)){
+		if(afc_set_voltage(info,SET_5V)){
+			info->afc_enable = false;
+			mtchg_info->data.max_charger_voltage = OVP_5V;
+			charger_dev_set_mivr(info->chg_dev, VINDPM_5V);
+			power_supply_changed(info->psy);
+			printc("afc disable successfully!\n");
+		}else
+			printc("afc disable failed!\n");
+	}
+
 	if (charging != info->can_charging){
 		printc("charging changed: %s\n",charging?"restore charging!!":"force discharging!!");
+		if(!charging)
+			charger_dev_set_input_current(info->chg_dev,0);
 		_mtk_enable_charging(mtchg_info, charging);
 	}else if(!charging && (1 == charger_field_read(info, B_CHG_CFG))){
 		printc("chg_stat abnormal,force disable charge!! \n");
@@ -1905,26 +1931,23 @@ void wt_batt_full_capacity_check(struct wtchg_info *info)
 		}
 	}
 }
-static void wtchg_monitor_work_handler(struct work_struct *data)
+static void wt_charger_start_timer(struct wtchg_info *info);
+static void wtchg_monitor_work_handler(struct wtchg_info *info)
 {
 	bool online = false;
-	int chg_stat = 0, uisoc = 0;
-	struct delayed_work *dwork = to_delayed_work(data);
-	struct wtchg_info *info = container_of(dwork, struct wtchg_info, wtchg_monitor_work);
+	int chg_stat = 0, uisoc = 0;	
 	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
 	if (IS_ERR_OR_NULL(mtchg_info)) {
 		printc("Couldn't get mtchg_info\n");
-		schedule_delayed_work(&info->wtchg_monitor_work,10*HZ);
 		return;
 	}
 	wt_charger_get_online(info,&online);
 	uisoc = get_uisoc(mtchg_info);
 
-	if(online){	
+	if(online){		
 		if(info->is_ato_versions){
 			if((uisoc >= ATO_LIMIT_SOC_MAX) && !(info->wt_discharging_state & WT_CHARGE_SOC_LIMIT_DISCHG)){
 				info->wt_discharging_state |= WT_CHARGE_SOC_LIMIT_DISCHG;
-				charger_dev_set_input_current(info->chg_dev,0);
 				printc("ATO soc limit !! \n");
 			}else if(uisoc < ATO_LIMIT_SOC_MIN && (info->wt_discharging_state & WT_CHARGE_SOC_LIMIT_DISCHG)){
 				info->wt_discharging_state &= ~WT_CHARGE_SOC_LIMIT_DISCHG;
@@ -1942,28 +1965,31 @@ static void wtchg_monitor_work_handler(struct work_struct *data)
 		}
 		wt_batt_full_capacity_check(info);
 		disable_charging_check(info);
-		
-		if((info->is_afc_charger) && (!info->force_dis_afc)){
-			if(((info->afc_enable) && (uisoc > info->afc_stop_battery_soc)) || mtchg_info->disable_charger){
+
+		if(info->afc_enable && get_vbus(mtchg_info) < 6500){
+			info->afc_enable = false;
+			printc("## afc exit,ready retry!\n");
+		}
+		if((info->is_afc_charger) && (!info->force_dis_afc) && (!mtchg_info->disable_charger)){
+			if((info->afc_enable) && ((uisoc > info->afc_stop_battery_soc))){
 				printc("uisoc > %d or disable_charger, leave afc 9V to 5V !\n",info->afc_stop_battery_soc);
-				afc_9v_to_5v(info);
+				schedule_delayed_work(&info->afc_9v_to_5v_work,0);
 			}else if((!info->afc_enable) && (uisoc >= info->afc_start_battery_soc) 
 					&& (uisoc <= info->afc_stop_battery_soc)){
 				printc("Restore afc fast charging!\n");
-				afc_5v_to_9v(info);
+				schedule_delayed_work(&info->afc_5v_to_9v_work,0);
 			}
 		}
 		
 		wtchg_dump_register(info);
 	}
 	chg_stat = wt_charger_get_bat_state(info);
-	printc("ato=%d,afc=(%d %d %d),chg_stat=(%d:%d,%d:%d),(%d,%d,%d,%d),type:%d->%d,wake:(%d,%d),lcm=%d,otg=%d\n",
+	printc("ato=%d,afc=(%d %d %d),chg_stat=(%d:%d,%d:%d),(%d,%d,%d,%d),type:%d->%d,poll:%d,lcm=%d,otg=%d,hiz=%d,temp=%d\n",
 		info->is_ato_versions,info->is_afc_charger,info->afc_enable,info->force_dis_afc,info->wt_discharging_state,
 		info->can_charging,chg_stat,info->chg_stat,get_battery_voltage(mtchg_info),get_vbus(mtchg_info),
 		get_battery_current(mtchg_info),uisoc,mtchg_info->chr_type,get_charger_type(mtchg_info),
-		info->wtchg_wakelock->active,info->wtchg_wakelock->active_count,info->lcm_on,info->otg_enabled);
+		info->charger_thread_polling,info->lcm_on,info->otg_enabled,info->is_hiz,info->bat_temp);
 
-	schedule_delayed_work(&info->wtchg_monitor_work,10*HZ);
 }
 struct wtchg_info *wt_get_wtchg_info(void); 
 static ssize_t batt_slate_mode_show(struct device *dev,
@@ -2021,19 +2047,14 @@ static ssize_t hv_charger_status_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	struct wtchg_info *info = wt_get_wtchg_info();
-	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
 	bool is_hv_charger;
 	
-	if (IS_ERR_OR_NULL(mtchg_info)) {
-		printc("Couldn't get mtchg_info\n");
-		return sprintf(buf, "ERROR\n");
-	}
 	if(info->force_dis_afc)
 		is_hv_charger = false;
 	else{
-		if((mtchg_info->pd_type == MTK_PD_CONNECT_PE_READY_SNK) ||
-			(mtchg_info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30) ||
-			(mtchg_info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO) ||
+		if((info->pd_type == MTK_PD_CONNECT_PE_READY_SNK) ||
+			(info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30) ||
+			(info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO) ||
 			(info->is_afc_charger))
 			is_hv_charger = true;
 		else
@@ -2084,21 +2105,17 @@ static ssize_t batt_current_event_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
 	struct wtchg_info *info = wt_get_wtchg_info();
-	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
 	int ret = SEC_BAT_CURRENT_EVENT_NONE;
 	bool online = false;
 	union power_supply_propval val;
-	
-	if (IS_ERR_OR_NULL(mtchg_info)) {
-		printc("Couldn't get mtchg_info\n");
-		goto out;
-	}
-
 	wt_charger_get_online(info, &online);
 	if(!online)
 		goto out;
 
-	if(mtchg_info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30 || mtchg_info->chr_type == POWER_SUPPLY_TYPE_USB_AFC)
+	if((info->pd_type == MTK_PD_CONNECT_PE_READY_SNK) ||
+			(info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30) ||
+			(info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO) ||
+			(info->is_afc_charger))
 		ret |= SEC_BAT_CURRENT_EVENT_FAST;
 	
 	if(info->wt_discharging_state & WT_CHARGE_SLATE_MODE_DISCHG)
@@ -2108,9 +2125,9 @@ static ssize_t batt_current_event_show(struct device *dev,
 	if(val.intval == POWER_SUPPLY_STATUS_NOT_CHARGING)
 		ret |= SEC_BAT_CURRENT_EVENT_CHARGE_DISABLE;
 	
-	if(mtchg_info->battery_temp < 10)
+	if(info->bat_temp < 10)
 		ret |= SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING;
-	else if(mtchg_info->battery_temp > 45)
+	else if(info->bat_temp > 45)
 		ret |= SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING;
 out:
 	return sprintf(buf, "%d\n",ret);
@@ -2128,7 +2145,7 @@ static ssize_t batt_current_ua_now_show(struct device *dev,
 		printc("Couldn't get mtchg_info\n");
 		return sprintf(buf, "%d\n",ret);
 	}
-	ret = get_battery_current(mtchg_info);
+	ret = get_battery_current(mtchg_info) * 1000;
 	return sprintf(buf, "%d\n",ret);
 }
 static ssize_t hv_disable_show(struct device *dev,
@@ -2168,6 +2185,7 @@ static ssize_t start_charge_show(struct device *dev,
 {
 	struct wtchg_info *info = wt_get_wtchg_info();
 	if(info->wt_discharging_state & WT_CHARGE_SLATE_MODE_DISCHG){
+		printc("## get start charge cmd!\n");
 		info->wt_discharging_state &= ~WT_CHARGE_SLATE_MODE_DISCHG;
 		if(!(info->wt_discharging_state & ~WT_CHARGE_SLATE_MODE_DISCHG)){
 			disable_charging_check(info);
@@ -2186,6 +2204,7 @@ static ssize_t stop_charge_show(struct device *dev,
 {
 	struct wtchg_info *info = wt_get_wtchg_info();
 	if(!(info->wt_discharging_state & WT_CHARGE_SLATE_MODE_DISCHG)){
+		printc("## get stop charge cmd!\n");
 		info->wt_discharging_state |= WT_CHARGE_SLATE_MODE_DISCHG;
 		disable_charging_check(info);
 		return sprintf(buf, "stop charge!\n");
@@ -2392,6 +2411,16 @@ static ssize_t shipmode_store(struct device *dev,
 	return size;
 }
 #endif
+static ssize_t voltage_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	int vbus = 0;
+	struct wtchg_info *info = wt_get_wtchg_info();
+	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
+		if(!IS_ERR_OR_NULL(mtchg_info))
+			vbus = get_vbus(mtchg_info);
+	return sprintf(buf, "%d\n",vbus);
+}
 
 static DEVICE_ATTR_RW(batt_slate_mode);
 static DEVICE_ATTR_RO(typec_cc_orientation);
@@ -2411,6 +2440,7 @@ static DEVICE_ATTR_RO(batt_misc_event);
 static DEVICE_ATTR_RW(batt_full_capacity);
 //static DEVICE_ATTR_RO(time_to_full_now);
 static DEVICE_ATTR_RO(shipmode);
+static DEVICE_ATTR_RO(voltage);
 
 #ifdef CHG_WITH_STEP_CURRENT
 static void wtchg_set_current_work_handler(struct work_struct *data)
@@ -2466,11 +2496,12 @@ static void wtchg_lateinit_work_handler(struct work_struct *data)
 			device_create_file(&info->bat_psy->dev,&dev_attr_batt_full_capacity);
 			//device_create_file(&info->bat_psy->dev,&dev_attr_time_to_full_now);
 			device_create_file(&info->bat_psy->dev,&dev_attr_shipmode);
+			device_create_file(&info->bat_psy->dev,&dev_attr_voltage);
 			info->batsys_created = true;
 		}else
 			printc("batsys_created\n");
-	} 
-	
+	}
+
 	info->usb_psy = power_supply_get_by_name("usb");
 	if (IS_ERR_OR_NULL(info->usb_psy)) {
 		printc("Couldn't get usb_psy\n");
@@ -2541,6 +2572,131 @@ static int lcmoff_fb_notifier_callback(struct notifier_block *self, unsigned lon
 static struct notifier_block lcmoff_fb_notifier = {
 	.notifier_call = lcmoff_fb_notifier_callback,
 };
+
+
+static enum alarmtimer_restart
+	wt_charger_alarm_timer_func(struct alarm *alarm, ktime_t now)
+{
+	struct wtchg_info *info = container_of(alarm, struct wtchg_info, charger_timer);
+	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
+	if (IS_ERR_OR_NULL(mtchg_info)) {
+		printc("Couldn't get mtchg_info\n");
+		wt_charger_start_timer(info);
+		return ALARMTIMER_NORESTART;
+	}
+	info->charger_thread_timeout = true;
+	wake_up(&info->wait_que);
+
+	return ALARMTIMER_NORESTART;
+}
+static void wt_charger_start_timer(struct wtchg_info *info)
+{
+	struct timespec time, time_now;
+	ktime_t ktime;
+	int ret = 0;
+
+	/* If the timer was already set, cancel it */
+	ret = alarm_try_to_cancel(&info->charger_timer);
+	if (ret < 0) {
+		printc("%s: callback was running, skip timer\n", __func__);
+		return;
+	}
+
+	get_monotonic_boottime(&time_now);
+	time.tv_sec = 10;
+	time.tv_nsec = 0;
+	info->endtime = timespec_add(time_now, time);
+	ktime = ktime_set(info->endtime.tv_sec, info->endtime.tv_nsec);
+
+	printc("%s: alarm timer start:%d, %ld %ld\n", __func__, ret,
+		info->endtime.tv_sec, info->endtime.tv_nsec);
+	alarm_start(&info->charger_timer, ktime);
+}
+
+static void wt_charger_init_timer(struct wtchg_info *info)
+{
+	alarm_init(&info->charger_timer, ALARM_BOOTTIME,
+			wt_charger_alarm_timer_func);
+	wt_charger_start_timer(info);
+}
+static int wtchg_routine_thread(void *arg)
+{
+	struct wtchg_info *info = arg;
+	while (1) {
+		wait_event(info->wait_que,(info->charger_thread_timeout == true));
+
+		mutex_lock(&info->charger_lock);
+		info->charger_thread_timeout = false;
+
+		wtchg_monitor_work_handler(info);
+		if (info->charger_thread_polling == true)
+			wt_charger_start_timer(info);
+		
+		mutex_unlock(&info->charger_lock);
+	}
+	return 0;
+}
+
+static int pd_tcp_notifier_call(struct notifier_block *pnb,
+				unsigned long event, void *data)
+{
+	struct tcp_notify *noti = data;
+	struct wtchg_info *info;
+	int ret = 0;
+	info = container_of(pnb, struct wtchg_info, pd_nb);
+
+	printc("PD charger event:%d %d\n", (int)event,
+		(int)noti->pd_state.connected);
+
+	switch (event) {
+	case TCP_NOTIFY_PD_STATE:
+		switch (noti->pd_state.connected) {
+		case  PD_CONNECT_NONE:
+			info->pd_type = MTK_PD_CONNECT_NONE;
+			break;
+
+		case PD_CONNECT_HARD_RESET:
+			info->pd_type = MTK_PD_CONNECT_NONE;
+			break;
+
+		case PD_CONNECT_PE_READY_SNK:
+			info->pd_type = MTK_PD_CONNECT_PE_READY_SNK;
+			break;
+
+		case PD_CONNECT_PE_READY_SNK_PD30:
+			info->pd_type = MTK_PD_CONNECT_PE_READY_SNK_PD30;
+			break;
+
+		case PD_CONNECT_PE_READY_SNK_APDO:
+			info->pd_type = MTK_PD_CONNECT_PE_READY_SNK_APDO;
+			break;
+
+		case PD_CONNECT_TYPEC_ONLY_SNK_DFT:
+			/* fall-through */
+		case PD_CONNECT_TYPEC_ONLY_SNK:
+			info->pd_type = MTK_PD_CONNECT_TYPEC_ONLY_SNK;
+			break;
+		};
+		break;
+	case TCP_NOTIFY_TYPEC_STATE:
+		/* handle No-rp and dual-rp cable */
+		if (noti->typec_state.old_state == TYPEC_UNATTACHED &&
+		   (noti->typec_state.new_state == TYPEC_ATTACHED_CUSTOM_SRC ||
+		    noti->typec_state.new_state == TYPEC_ATTACHED_NORP_SRC)) {
+			info->pd_type = MTK_PD_CONNECT_TYPEC_ONLY_SNK;
+		} else if ((noti->typec_state.old_state ==
+			TYPEC_ATTACHED_CUSTOM_SRC ||
+			noti->typec_state.old_state == TYPEC_ATTACHED_NORP_SRC)
+			&& noti->typec_state.new_state == TYPEC_UNATTACHED) {
+			info->pd_type = MTK_PD_CONNECT_NONE;
+		}
+		break;
+	}
+	printc("## pd_type = %d\n",info->pd_type);
+	power_supply_changed(info->psy);
+	return ret;
+}
+
 static int wt_charger_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
@@ -2684,14 +2840,31 @@ static int wt_charger_probe(struct i2c_client *client,
 		info->is_ato_versions = false;
 #endif
 	info->batt_full_capacity = 100;
-	INIT_DELAYED_WORK(&info->wtchg_monitor_work, wtchg_monitor_work_handler);
+	INIT_DELAYED_WORK(&info->afc_5v_to_9v_work, afc_5v_to_9v_work_handler);
+	INIT_DELAYED_WORK(&info->afc_9v_to_5v_work, afc_9v_to_5v_work_handler);
 	INIT_DELAYED_WORK(&info->wtchg_lateinit_work, wtchg_lateinit_work_handler);
 #ifdef CHG_WITH_STEP_CURRENT
 	INIT_DELAYED_WORK(&info->wtchg_set_current_work, wtchg_set_current_work_handler);
-#endif	
-	schedule_delayed_work(&info->wtchg_monitor_work,5*HZ);
+#endif
+	info->charger_thread_polling = false;
+	mutex_init(&info->charger_lock);
+	spin_lock_init(&info->slock);
+	init_waitqueue_head(&info->wait_que);
+	wt_charger_init_timer(info);
+	kthread_run(wtchg_routine_thread, info, "charger_thread");
+
+	//schedule_delayed_work(&info->wtchg_monitor_work,5*HZ);
 	schedule_delayed_work(&info->wtchg_lateinit_work,4*HZ);
 	info->wtchg_wakelock = wakeup_source_register(NULL, "wtchg_wakelock");
+
+	info->tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
+	if (!info->tcpc_dev) {
+		printc("%s get tcpc device type_c_port0 fail\n");
+	}else{
+		info->pd_nb.notifier_call = pd_tcp_notifier_call;
+		ret = register_tcp_dev_notifier(info->tcpc_dev, &info->pd_nb,
+					TCP_NOTIFY_TYPE_USB | TCP_NOTIFY_TYPE_MISC);
+	}
 	printc("wt charger probe successfully! \n");
 	return 0;
 

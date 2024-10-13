@@ -1894,18 +1894,6 @@ void fb_set_suspend(struct fb_info *info, int state)
 }
 EXPORT_SYMBOL(fb_set_suspend);
 
-//+Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
-int fb_lcm_cabc_op(struct fb_info *info, unsigned int cmd, unsigned long arg)
-{
-	int err;
-
-	err = do_fb_ioctl(info, cmd, arg);
-
-	return err;
-}
-EXPORT_SYMBOL(fb_lcm_cabc_op);
-//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
-
 /**
  *	fbmem_init - init frame buffer subsystem
  *

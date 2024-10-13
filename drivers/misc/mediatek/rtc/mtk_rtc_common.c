@@ -375,6 +375,17 @@ void rtc_disable_writeif(void)
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
+//+CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
+void rtc_mark_bind(void)
+{
+	unsigned long flags;
+
+	rtc_xinfo("rtc_mark_bind\n");
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_set_spare_register(RTC_ENABLE_BIND, 0x1);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+}
+//-CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 void rtc_mark_recovery(void)
 {
 	unsigned long flags;

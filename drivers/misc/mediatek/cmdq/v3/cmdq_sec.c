@@ -61,7 +61,11 @@ static DEFINE_SPINLOCK(cmdq_sec_task_list_lock);
 
 /* secure context list. note each porcess has its own sec context */
 static struct list_head gCmdqSecContextList;
-
+//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
+#ifdef CONFIG_MTK_S96818_CAMERA
+static int wt_is_secure = 0;
+#endif
+//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
 #if defined(CMDQ_SECURE_PATH_SUPPORT)
 
 /* sectrace interface */
@@ -564,7 +568,6 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 	if (task->secData.addrMetadataCount > 0) {
 		struct iwcCmdqAddrMetadata_t *addr;
 		u8 i;
-
 		iwc->command.metadata.addrListLength =
 			task->secData.addrMetadataCount;
 		memcpy((iwc->command.metadata.addrList),
@@ -575,12 +578,26 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 		/* command copy from user space may insert jump,
 		 * thus adjust index of handle list
 		 */
+		//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
+		#ifdef CONFIG_MTK_S96818_CAMERA
+		if(wt_is_secure == 0)
+		{
+			addr = iwc->command.metadata.addrList;
+			for (i = 0; i < ARRAY_SIZE(iwc->command.metadata.addrList);
+				i++) {
+				addr[i].instrIndex = addr[i].instrIndex +
+					addr[i].instrIndex / CMDQ_CMD_CNT;
+			}
+		}
+		#else
 		addr = iwc->command.metadata.addrList;
 		for (i = 0; i < ARRAY_SIZE(iwc->command.metadata.addrList);
 			i++) {
 			addr[i].instrIndex = addr[i].instrIndex +
 				addr[i].instrIndex / CMDQ_CMD_CNT;
 		}
+		#endif
+		//-S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
 	}
 
 	/* medatada: debug config */
@@ -1847,7 +1864,7 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 	struct cmdq_task *task, struct cmdq_sec_thread *thread,
 	const s32 cookie, const bool reset_thread)
 {
-	s32 err = 0, max_task = 0;
+	s32 max_task = 0;
 
 	if (!task || !thread) {
 		CMDQ_ERR(
@@ -1892,7 +1909,7 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 		CMDQ_ERR("task_cnt:%u cannot more than %u task:%p thrd-idx:%u",
 			task->thread->task_cnt, max_task,
 			task, task->thread->idx);
-		err = -EMSGSIZE;
+		return -EMSGSIZE;
 	}
 
 	thread->task_list[cookie % cmdq_max_task_in_secure_thread[
@@ -1905,7 +1922,7 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 		cookie % cmdq_max_task_in_secure_thread[
 		thread->idx - CMDQ_MIN_SECURE_THREAD_ID]);
 
-	return err;
+	return 0;
 }
 
 static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
@@ -1938,7 +1955,11 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 		handle->pkt->cmd_buf_size, handle->pkt->buf_size,
 		handle->scenario, handle->engineFlag);
 	CMDQ_MSG("%s", long_msg);
-
+	//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
+	#ifdef CONFIG_MTK_S96818_CAMERA
+	wt_is_secure = handle->secData.is_secure;
+	#endif
+	//-S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
 	if (!handle->secData.is_secure)
 		CMDQ_ERR("not secure %s", long_msg);
 
@@ -1985,6 +2006,8 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 			spin_unlock_irqrestore(&task->thread->chan->lock, flags);
 
 			cmdq_sec_release_task(task);
+			status = err;
+			break;
 		}
 
 		handle->state = TASK_STATE_BUSY;

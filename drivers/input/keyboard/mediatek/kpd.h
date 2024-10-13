@@ -44,6 +44,7 @@ struct keypad_dts_data {
 	u32 boot_mode;
 };
 
+extern void kpd_pwk_event(int pressed);
 extern struct keypad_dts_data kpd_dts_data;
 extern int kpd_klog_en;
 #ifdef CONFIG_LONG_PRESS_MODE_EN

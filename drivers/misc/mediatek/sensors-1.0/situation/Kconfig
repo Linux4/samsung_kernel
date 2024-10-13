@@ -17,3 +17,11 @@ source "drivers/misc/mediatek/sensors-1.0/situation/motion_detect/Kconfig"
 source "drivers/misc/mediatek/sensors-1.0/situation/tilt_detector/Kconfig"
 source "drivers/misc/mediatek/sensors-1.0/situation/flat/Kconfig"
 source "drivers/misc/mediatek/sensors-1.0/situation/sar/Kconfig"
+
+#+S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+source "drivers/misc/mediatek/sensors-1.0/situation/smart_alert/Kconfig"
+#-S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+
+#+S96818AA1-2216, liuling3.wt,ADD, 2023/06/15, add lift_to_wake sensor
+source "drivers/misc/mediatek/sensors-1.0/situation/lift_to_wake/Kconfig"
+#-S96818AA1-2216, liuling3.wt,ADD, 2023/06/15, add lift_to_wake sensor

@@ -349,7 +349,7 @@ int kbase_csf_alloc_command_stream_user_pages(struct kbase_context *kctx,
 
 	ret = kbase_mem_pool_alloc_pages(
 				&kctx->mem_pools.small[KBASE_MEM_GROUP_CSF_IO],
-				num_pages, queue->phys, false);
+				num_pages, queue->phys, false, kctx->task);
 
 	if (ret != num_pages)
 		goto phys_alloc_failed;
@@ -456,6 +456,17 @@ static void release_queue(struct kbase_queue *queue)
 		/* The queue can't still be on the per context list. */
 		WARN_ON(!list_empty(&queue->link));
 		WARN_ON(queue->group);
+
+		/* After this the Userspace would be able to free the
+		 * memory for GPU queue. In case the Userspace missed
+		 * terminating the queue, the cleanup will happen on
+		 * context termination where tear down of region tracker
+		 * would free up the GPU queue memory.
+		 */
+		kbase_gpu_vm_lock(queue->kctx);
+		kbase_va_region_no_user_free_put(queue->kctx, queue->queue_reg);
+		kbase_gpu_vm_unlock(queue->kctx);
+
 		kfree(queue);
 	}
 }
@@ -509,7 +520,8 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	region = kbase_region_tracker_find_region_enclosing_address(kctx,
 								    queue_addr);
 
-	if (kbase_is_region_invalid_or_free(region)) {
+	if (kbase_is_region_invalid_or_free(region) || kbase_is_region_shrinkable(region) ||
+	    region->gpu_alloc->type != KBASE_MEM_TYPE_NATIVE) {
 		ret = -ENOENT;
 		goto out_unlock_vm;
 	}
@@ -558,7 +570,7 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 
 	queue->kctx = kctx;
 	queue->base_addr = queue_addr;
-	queue->queue_reg = region;
+	queue->queue_reg = kbase_va_region_no_user_free_get(kctx, region);
 	queue->size = (queue_size << PAGE_SHIFT);
 	queue->csi_index = KBASEP_IF_NR_INVALID;
 	queue->enabled = false;
@@ -583,8 +595,6 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	INIT_WORK(&queue->oom_event_work, oom_event_worker);
 	INIT_WORK(&queue->fatal_event_work, fatal_event_worker);
 	list_add(&queue->link, &kctx->csf.queue_list);
-
-	region->flags |= KBASE_REG_NO_USER_FREE;
 
 	/* Initialize the cs_trace configuration parameters, When buffer_size
 	 * is 0, trace is disabled. Here we only update the fields when
@@ -679,15 +689,8 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 		unbind_queue(kctx, queue);
 
 		kbase_gpu_vm_lock(kctx);
-		if (!WARN_ON(!queue->queue_reg)) {
-			/* After this the Userspace would be able to free the
-			 * memory for GPU queue. In case the Userspace missed
-			 * terminating the queue, the cleanup will happen on
-			 * context termination where teardown of region tracker
-			 * would free up the GPU queue memory.
-			 */
-			queue->queue_reg->flags &= ~KBASE_REG_NO_USER_FREE;
-		}
+		if (!WARN_ON(!queue->queue_reg))
+			queue->queue_reg->user_data = NULL;
 		kbase_gpu_vm_unlock(kctx);
 
 		spin_lock_irqsave(&kctx->csf.event_lock, flags);
@@ -898,6 +901,7 @@ static void unbind_stopped_queue(struct kbase_context *kctx,
 		kbase_csf_scheduler_spin_unlock(kctx->kbdev, flags);
 
 		put_user_pages_mmap_handle(kctx, queue);
+		WARN_ON_ONCE(queue->doorbell_nr != KBASEP_USER_DB_NR_INVALID);
 		queue->bind_state = KBASE_CSF_QUEUE_UNBOUND;
 	}
 }
@@ -1073,7 +1077,7 @@ static int create_normal_suspend_buffer(struct kbase_context *const kctx,
 	/* Get physical page for a normal suspend buffer */
 	err = kbase_mem_pool_alloc_pages(
 			&kctx->mem_pools.small[KBASE_MEM_GROUP_CSF_FW],
-			nr_pages, &s_buf->phy[0], false);
+			nr_pages, &s_buf->phy[0], false,kctx->task);
 
 	if (err < 0)
 		goto phy_pages_alloc_failed;
@@ -1535,6 +1539,22 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 	if (group) {
 		unsigned long flags;
 
+		/* Stop the running of the given group */
+		term_queue_group(group);
+		kctx->csf.queue_groups[group_handle] = NULL;
+
+		mutex_unlock(&kctx->csf.lock);
+
+		/* Cancel any pending event callbacks. If one is in progress
+		 * then this thread waits synchronously for it to complete (which
+		 * is why we must unlock the context first). We already ensured
+		 * that no more callbacks can be enqueued by terminating the group.
+		 */
+		cancel_queue_group_events(group);
+
+		mutex_lock(&kctx->csf.lock);
+
+		/* Clean up after the termination */
 		spin_lock_irqsave(&kctx->csf.event_lock, flags);
 
 		dev_dbg(kbdev->dev,
@@ -1545,24 +1565,12 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 		list_del_init(&group->error_timeout.link);
 		list_del_init(&group->error_fatal.link);
 		spin_unlock_irqrestore(&kctx->csf.event_lock, flags);
-
-		term_queue_group(group);
-		kctx->csf.queue_groups[group_handle] = NULL;
 	}
 
 	mutex_unlock(&kctx->csf.lock);
 	if (reset_prevented)
 		kbase_reset_gpu_allow(kbdev);
 
-	if (!group)
-		return;
-
-	/* Cancel any pending event callbacks. If one is in progress
-	 * then this thread waits synchronously for it to complete (which
-	 * is why we must unlock the context first). We already ensured
-	 * that no more callbacks can be enqueued by terminating the group.
-	 */
-	cancel_queue_group_events(group);
 	kfree(group);
 }
 
@@ -1892,9 +1900,7 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 		 * only one reference left that was taken when queue was
 		 * registered.
 		 */
-		if (atomic_read(&queue->refcount) != 1)
-			dev_warn(kctx->kbdev->dev,
-				 "Releasing queue with incorrect refcounting!\n");
+		WARN_ON(atomic_read(&queue->refcount) != 1);
 		list_del_init(&queue->link);
 		release_queue(queue);
 	}
@@ -3002,7 +3008,7 @@ int kbase_csf_doorbell_mapping_init(struct kbase_device *kbdev)
 
 	ret = kbase_mem_pool_alloc_pages(
 		&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW],
-		1, &phys, false);
+		1, &phys, false,NULL);
 
 	if (ret <= 0) {
 		fput(filp);
@@ -3038,7 +3044,7 @@ int kbase_csf_setup_dummy_user_reg_page(struct kbase_device *kbdev)
 
 	ret = kbase_mem_pool_alloc_pages(
 		&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW], 1, &phys,
-		false);
+		false,NULL);
 
 	if (ret <= 0)
 		return ret;

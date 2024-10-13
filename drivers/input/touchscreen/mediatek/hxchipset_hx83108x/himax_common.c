@@ -228,6 +228,7 @@ static uint8_t p_stylus_num = 0xFF;
 static int probe_fail_flag;
 #if defined(HX_USB_DETECT_GLOBAL)
 bool USB_detect_flag;
+EXPORT_SYMBOL(USB_detect_flag);
 #endif
 
 #if defined(HX_GESTURE_TRACK)
@@ -1342,9 +1343,22 @@ static void himax_excp_hw_reset(void)
 #endif
 	I("%s: START EXCEPTION Reset\n", __func__);
 #if defined(HX_ZERO_FLASH)
+//	g_core_fp.fp_ic_reset(false, false);
 	result = g_core_fp.fp_0f_op_file_dirly(g_fw_boot_upgrade_name);
+#if defined(DD_VSN_RECOV_EXCP)
+	if (result) {
+		private_ts->update_fw_fail++;
+		private_ts->update_fw_flag = 0;
+		I("%s:himax  TP upgrade error, update_fw_fail = %d, update_fw_flag = %d\n", __func__, private_ts->update_fw_fail, private_ts->update_fw_flag);
+	} else {
+		private_ts->update_fw_fail = 0;
+		private_ts->update_fw_flag++;
+		I("%s: himax TP upgrade OK, update_fw_fail = %d, update_fw_flag = %d\n", __func__, private_ts->update_fw_fail, private_ts->update_fw_flag);
+	}
+#else
 	if (result)
 		E("%s: update FW fail, code[%d]!!\n", __func__, result);
+#endif
 #else
 	g_core_fp.fp_excp_ic_reset();
 #endif
@@ -1949,6 +1963,20 @@ END_FUNCTION:
 	return ret_val;
 }
 
+extern void lcm_bais_enn_enable(unsigned int mode);
+
+static void himax_vsn_reset_device(void)
+{
+	I("lcm_bais_enn_enable start\n");
+	lcm_bais_enn_enable(0);
+	I("lcm_bais_enn_enable end\n");
+}
+
+static void himax_mcu_vsn_recovery(void)
+{
+	himax_vsn_reset_device();
+}
+
 #if defined(HX_EXCP_RECOVERY)
 #if defined(HW_ED_EXCP_EVENT)
 static int himax_ts_event_check(struct himax_ts_data *ts,
@@ -1992,9 +2020,12 @@ static int himax_ts_event_check(struct himax_ts_data *ts,
 		I("Now Path=%d, Now status=%d, length=%d\n",
 				ts_path, ts_status, length);
 
-	if (ts_path == HX_REPORT_COORD || ts_path == HX_REPORT_COORD_RAWDATA) {
-		if (ic_data->HX_STYLUS_FUNC)
-			length -= STYLUS_INFO_SZ;
+	if (ts_path == HX_REPORT_COORD || ts_path == HX_REPORT_COORD_RAWDATA ||ts_path == HX_REPORT_SMWP_EVENT ) {
+		if (ic_data->HX_STYLUS_FUNC) {
+			if(length != (GEST_PTLG_ID_LEN + GEST_PTLG_HDR_LEN)) {
+				length -= STYLUS_INFO_SZ;
+			}
+		}
 		for (i = 0; i < length; i++) {
 			/* case 1 EXCEEPTION recovery flow */
 			if (buf[i] == 0xEB) {
@@ -2105,7 +2136,11 @@ static int himax_ts_event_check(struct himax_ts_data *ts,
 		I("Now Path=%d, Now status=%d, length=%d\n",
 				ts_path, ts_status, length);
 
-	if (ts_path == HX_REPORT_COORD || ts_path == HX_REPORT_COORD_RAWDATA) {
+	if (ts_path == HX_REPORT_COORD || ts_path == HX_REPORT_COORD_RAWDATA
+#if defined(HX_SMART_WAKEUP)
+	|| ts_path == HX_REPORT_SMWP_EVENT
+#endif
+	) {
 		if (ic_data->HX_STYLUS_FUNC)
 			length -= STYLUS_INFO_SZ;
 		for (i = 0; i < length; i++) {
@@ -2163,21 +2198,57 @@ static int himax_ts_event_check(struct himax_ts_data *ts,
 		shaking_ret = g_core_fp.fp_ic_excp_recovery(
 			hx_excp_event, hx_zero_event, length);
 
-		if (shaking_ret == HX_EXCP_EVENT || 
+		if (private_ts->suspended == true) {
+			if (shaking_ret == HX_EXCP_ZERO_EVENT ) {
+#if defined(DD_VSN_RECOV_EXCP)	
+			private_ts->gesture_fail_flag = true;
+			I("%s: gesture_fail_flag = %d\n", __func__,private_ts->gesture_fail_flag);
+#endif	
+			}
+		} else {
+			if (shaking_ret == HX_EXCP_EVENT || 
 			shaking_ret == HX_EXCP_ZERO_EVENT ) {
 			g_core_fp.fp_read_FW_status();
+			g_core_fp.fp_ic_reset(false, false);
 			himax_excp_hw_reset();
-			ret_val = HX_EXCP_EVENT;
-		} else if (shaking_ret == HX_EXCP_ZERO_DD_EVENT) {
-			HX_EXCP_DD_RESET_ACTIVATE = 1;
+
+#if defined(DD_VSN_RECOV_EXCP)
+			if ( private_ts->gesture_fail_flag  == true ) {
+				if (private_ts->update_fw_fail == 1) 
+				{
+					private_ts->gesture_fail_flag = false;
+					private_ts->update_fw_fail = 0;
+					private_ts->vsn_flag = 1;
+					himax_mcu_vsn_recovery();//À­VSN
+					I("%s: recovery by unnormal gesture\n", __func__ );
+				}				
+			}else {
+				if (private_ts->update_fw_fail == 2) {
+					private_ts->update_fw_fail = 0;
+					private_ts->vsn_flag = 1;
+					himax_mcu_vsn_recovery();//vsn low
+					I("%s: recovery normal\n", __func__ );
+				}
+			}
+			if (private_ts->vsn_flag == 1) {
+				//vsn_flag = 0;
+				if (private_ts->update_fw_flag == 4) {
+					private_ts->update_fw_flag = 0;
 			g_core_fp._ic_excp_dd_recovery();
+				}
+			}
+#endif
 			ret_val = HX_EXCP_EVENT;
+//		} else if (shaking_ret == HX_EXCP_ZERO_DD_EVENT) {
+//			g_core_fp._ic_excp_dd_recovery();
+//			ret_val = HX_EXCP_EVENT;
 		} else if (shaking_ret == HX_ZERO_EVENT_COUNT) {
 			g_core_fp.fp_read_FW_status();
 			ret_val = HX_ZERO_EVENT_COUNT;
 		} else {
 			I("IC is running. Nothing to be done!\n");
 			ret_val = HX_IC_RUNNING;
+			}
 		}
 
 	/* drop 1st interrupts after chip reset */
@@ -3049,6 +3120,7 @@ static int hx_chk_flash_sts(uint32_t size)
 
 static void himax_boot_upgrade(struct work_struct *work)
 {
+	int upgrade_num;
 #if defined(HX_BOOT_UPGRADE) || defined(HX_ZERO_FLASH)
 	int fw_sts = -1;
 #endif
@@ -3072,7 +3144,13 @@ static void himax_boot_upgrade(struct work_struct *work)
 #endif
 
 #if defined(HX_BOOT_UPGRADE) || defined(HX_ZERO_FLASH)
-	fw_sts = i_get_FW();
+	for(upgrade_num = 0;upgrade_num < 3; upgrade_num++){
+		fw_sts = i_get_FW();
+		if(fw_sts < NO_ERR)
+			msleep(1000);
+		else
+			break;
+	}
 	if (fw_sts < NO_ERR)
 		goto END;
 
@@ -3332,6 +3410,12 @@ int himax_chip_common_init(void)
 		E("%s: register interrupt failed\n", __func__);
 		goto err_register_interrupt_failed;
 	}
+#if defined(DD_VSN_RECOV_EXCP)
+	private_ts->update_fw_fail = 0;
+	private_ts->update_fw_flag = 0;
+	private_ts->vsn_flag = 0;
+	private_ts->gesture_fail_flag = false;
+#endif
 
 	himax_int_enable(0);
 
@@ -3603,6 +3687,9 @@ else
 int himax_chip_common_suspend(struct himax_ts_data *ts)
 {
 	if (ts->suspended) {
+#if defined(HX_CONTAINER_SPEED_UP)
+		cancel_delayed_work(&ts->ts_int_work);
+#endif
 		I("%s: Already suspended, skip...\n", __func__);
 		goto END;
 	} else {
@@ -3615,6 +3702,10 @@ int himax_chip_common_suspend(struct himax_ts_data *ts)
 	}
 
 	I("%s: enter\n", __func__);
+#if defined(DD_VSN_RECOV_EXCP)		
+	private_ts->gesture_fail_flag = false;
+	g_zero_event_count = 0;
+#endif
 
 	if (ts->in_self_test == 1) {
 		atomic_set(&ts->suspend_mode, 1);
@@ -3667,6 +3758,44 @@ END:
 	return 0;
 }
 
+int himax_fw_event_notify(int event)
+{
+	uint8_t tmp_addr[DATA_LEN_4] = {0};
+	uint8_t tmp_data[DATA_LEN_4] = {0};
+	I("himax_fw_event_notify:start \n");
+	if(event == 9) {
+		I("himax_fw_event_notify: plug \n");
+		himax_parse_assign_cmd(0x10007FE8, tmp_addr, DATA_LEN_4);
+		himax_parse_assign_cmd(0xA55AA55A, tmp_data, DATA_LEN_4);
+		g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
+	} else if(event == 10) {
+		I("himax_fw_event_notify: unplug \n");
+		himax_parse_assign_cmd(0x10007FE8, tmp_addr, DATA_LEN_4);
+		himax_parse_assign_cmd(0x00000000, tmp_data, DATA_LEN_4);
+		g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
+	}
+	I("himax_fw_event_notify:end \n");
+	return 0;
+}
+
+int himax_headset_notifier_callback(
+	struct notifier_block *self,
+	unsigned long event,
+	void *data)
+{
+	I("himax_headset_nodifier_callback start event = %d\n",event);
+	if(event == 9)
+		private_ts->hx_headset_flag = 1;
+	else if (event == 10)
+		private_ts->hx_headset_flag = 0;
+
+	if(!atomic_read(&private_ts->suspend_mode)){
+		himax_fw_event_notify(event);
+	}
+	I("himax_headset_nodifier_callback end\n");
+	return 0;
+}
+
 int himax_chip_common_resume(struct himax_ts_data *ts)
 {
 	if (ts->suspended == false) {
@@ -3675,13 +3804,13 @@ int himax_chip_common_resume(struct himax_ts_data *ts)
 	} else {
 		ts->suspended = false;
 	}
-
-	I("%s: enter\n", __func__);
-#if defined(HX_SMART_WAKEUP)	
-	if (ts->SMWP_enable) {
-			himax_int_enable(0);
-		}
+#if defined(DD_VSN_RECOV_EXCP)
+	private_ts->vsn_flag = 0;
+	private_ts->update_fw_fail = 0;
+	private_ts->update_fw_flag = 0;
+	g_zero_event_count = 0;
 #endif
+	I("%s: enter\n", __func__);
 
 	if (ts->in_self_test == 1) {
 		atomic_set(&ts->suspend_mode, 0);
@@ -3713,6 +3842,14 @@ int himax_chip_common_resume(struct himax_ts_data *ts)
 	g_core_fp.fp_resume_proc(ts->suspended);
 	himax_report_all_leave_event(ts);
 	himax_int_enable(1);
+
+	if(private_ts->hx_headset_flag == 1){
+		I("himax_chip_common_resume:headset plug\n");
+		himax_fw_event_notify(9);
+	}else if (private_ts->hx_headset_flag == 0){
+		I("himax_chip_common_resume:headset unplug\n");
+		himax_fw_event_notify(10);
+	}
 /*
  *#if defined(HX_ZERO_FLASH) && defined(HX_RESUME_SET_FW)
  *ESCAPE_0F_UPDATE:

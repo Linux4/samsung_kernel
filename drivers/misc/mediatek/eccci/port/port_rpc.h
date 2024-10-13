@@ -255,7 +255,6 @@ extern bool is_clk_buf_from_pmic(void);
 extern void clk_buf_get_rf_drv_curr(void *rf_drv_curr);
 extern void clk_buf_save_afc_val(unsigned int afcdac);
 extern int ccci_get_adc_val(void);
-extern char* hw_id_vol_get(void);//ExtB P210506-05247 penghui.wt add 2021/7/5 get wrong hwid
 
 
 #endif	/* __PORT_RPC_H__ */

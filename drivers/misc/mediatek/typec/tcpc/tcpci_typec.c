@@ -5,6 +5,8 @@
 
 #include <linux/delay.h>
 #include <linux/cpu.h>
+#include <linux/kthread.h>
+#include <uapi/linux/sched/types.h>
 
 #include "inc/tcpci.h"
 #include "inc/tcpci_typec.h"
@@ -208,6 +210,7 @@ enum TYPEC_CONNECTION_STATE {
 #ifdef CONFIG_WATER_DETECTION
 	typec_water_protection_wait,
 	typec_water_protection,
+	typec_water_protection_snk,
 #endif /* CONFIG_WATER_DETECTION */
 
 	typec_unattachwait_pe,	/* Wait Policy Engine go to Idle */
@@ -263,6 +266,7 @@ static const char *const typec_state_name[] = {
 #ifdef CONFIG_WATER_DETECTION
 	"WaterProtection.Wait",
 	"WaterProtection",
+	"WaterProtection.SNK",
 #endif /* CONFIG_WATER_DETECTION */
 
 	"UnattachWait.PE",
@@ -297,12 +301,19 @@ static const char *const typec_attach_name[] = {
 	"DBGACC_SNK",
 	"CUSTOM_SRC",
 	"NORP_SRC",
+	"WD_SNK",
 };
 #endif /* TYPEC_INFO_ENABLE || TYPEC_DBG_ENABLE */
 
 static int typec_alert_attach_state_change(struct tcpc_device *tcpc)
 {
 	int ret = 0;
+
+#ifdef CONFIG_WATER_DETECTION
+	if ((tcpc->tcpc_flags & TCPC_FLAGS_WATER_DETECTION) &&
+	    tcpc->typec_state == typec_water_protection_snk)
+		return true;
+#endif /* CONFIG_WATER_DETECTION */
 
 #ifdef CONFIG_TYPEC_CHECK_LEGACY_CABLE
 	if (tcpc->typec_legacy_cable)
@@ -339,23 +350,118 @@ static inline int typec_set_drp_toggling(struct tcpc_device *tcpc)
 }
 
 #ifdef CONFIG_WATER_DETECTION
+static int tcpc_typec_wd_threadfn(void *param);
+static enum alarmtimer_restart typec_wd_timerfn(struct alarm *alarm,
+						ktime_t now);
+
+static void typec_wd_work(struct work_struct *work)
+{
+	struct tcpc_device *tcpc = container_of(work, struct tcpc_device,
+						wd_status_work.work);
+
+	mutex_lock(&tcpc->wd_lock);
+	if (tcpc->retry_wd) {
+		tcpc->retry_wd = 0;
+		if (tcpci_is_water_detected(tcpc) > 0) {
+			TCPC_INFO("%s water detected. check again.\n", __func__);
+		} else {
+			mutex_unlock(&tcpc->wd_lock);
+			return;
+		}
+	}
+
+	if (tcpci_is_water_detected(tcpc) > 0) {
+		tcpci_lock_typec(tcpc);
+		tcpc_typec_handle_wd(tcpc, true);
+		tcpci_unlock_typec(tcpc);
+	}
+	mutex_unlock(&tcpc->wd_lock);
+}
+
 static int typec_check_water_status(struct tcpc_device *tcpc)
 {
-	int ret;
-
 	if (!(tcpc->tcpc_flags & TCPC_FLAGS_WATER_DETECTION))
 		return 0;
+	/* prevent multiple checks after enter water_protection state */
+	if (tcpc->typec_state == typec_water_protection)
+		return 0;
 
-	ret = tcpci_is_water_detected(tcpc);
-	if (ret < 0)
-		return ret;
-	if (ret) {
-		tcpc_typec_handle_wd(tcpc, true);
-		return 1;
-	}
+	TCPC_INFO("%s\n", __func__);
+
+	schedule_delayed_work(&tcpc->wd_status_work, 0);
+
 	return 0;
 }
+
+static bool typec_try_enter_wd_snk(struct tcpc_device *tcpc)
+{
+	if (tcpc->tcpc_flags & TCPC_FLAGS_WATER_DETECTION) {
+		if (tcpc->typec_state == typec_water_protection) {
+			TYPEC_INFO("%s attached during water protection\n",
+				   __func__);
+			alarm_cancel(&tcpc->wd_wakeup_timer);
+			tcpc->typec_attach_new = TYPEC_ATTACHED_WD_SNK;
+			TYPEC_NEW_STATE(typec_water_protection_snk);
+			typec_alert_attach_state_change(tcpc);
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool typec_try_exit_wd_snk(struct tcpc_device *tcpc)
+{
+	if (tcpc->tcpc_flags & TCPC_FLAGS_WATER_DETECTION) {
+		if (tcpc->typec_state == typec_water_protection_snk) {
+			TYPEC_INFO("%s detached during water protection snk\n",
+				   __func__);
+			tcpc_typec_handle_wd(tcpc, true);
+			return true;
+		}
+	}
+	return false;
+}
 #endif /* CONFIG_WATER_DETECTION */
+
+#ifdef CONFIG_CC_BOUNCE_DETECTION
+static void typec_reset_cc_bounce(struct tcpc_device *tcpc)
+{
+	tcpc->cc_bounce_cnt = 0;
+	tcpc->cc_bounce_detected = false;
+}
+
+static bool typec_check_cc_bounce(struct tcpc_device *tcpc)
+{
+	s64 bounce_lapse;
+
+	if (tcpc->cc_bounce_cnt > 0) {
+		bounce_lapse = ktime_ms_delta(ktime_get(),
+					      tcpc->last_cc_change_time);
+		TCPC_INFO("%s cc bounce lapse %dms\n", __func__, bounce_lapse);
+		if (bounce_lapse >= CONFIG_CC_BOUNCE_TIME) {
+			typec_reset_cc_bounce(tcpc);
+			goto out;
+		}
+		if (tcpc->cc_bounce_cnt == CONFIG_CC_BOUNCE_COUNT &&
+		    !tcpc->cc_bounce_detected) {
+			tcpc->cc_bounce_detected = true;
+			TCPC_INFO("%s cc bounce detected\n", __func__);
+#ifdef CONFIG_WD_TRY_CC_BOUNCE
+			tcpc->retry_wd = 1;
+			typec_check_water_status(tcpc);
+#endif /* CONFIG_WD_TRY_CC_BOUNCE */
+		}
+	}
+	if (!tcpc->cc_bounce_detected) {
+		tcpc->cc_bounce_cnt++;
+		TCPC_INFO("%s cc bounce count %d\n", __func__,
+			 tcpc->cc_bounce_cnt);
+	}
+	tcpc->last_cc_change_time = ktime_get();
+out:
+	return tcpc->cc_bounce_detected;
+}
+#endif /* CONFIG_CC_BOUNCE_DETECTION */
 
 /*
  * [BLOCK] NoRpSRC Entry
@@ -611,6 +717,10 @@ static void typec_unattached_entry(struct tcpc_device *tcpc)
 		tcpci_set_vconn(tcpc, false);
 	typec_unattached_cc_entry(tcpc);
 	typec_unattached_power_entry(tcpc);
+
+#ifdef CONFIG_WATER_DETECTION
+	cancel_delayed_work(&tcpc->wd_status_work);
+#endif /* CONFIG_WATER_DETECTION */
 }
 
 static void typec_unattach_wait_pe_idle_entry(struct tcpc_device *tcpc)
@@ -661,11 +771,7 @@ static inline void typec_disable_entry(struct tcpc_device *tcpc)
 /*
  * [BLOCK] Attached Entry
  */
-//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-int cc_polarity = 0;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
+
 #if defined (CONFIG_N26_CHARGER_PRIVATE)
 #include <wingtech_charger.h>
 #endif
@@ -686,12 +792,6 @@ static inline int typec_set_polarity(struct tcpc_device *tcpc,
 	}
 #endif
 //-Bug 715587,guoyanjun.wt,ADD,20220110,ATO need interface
-
-//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	cc_polarity = polarity + 1;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	polarity_state = polarity + 1;
 #endif
@@ -975,6 +1075,13 @@ static inline void typec_cc_snk_detect_vsafe5v_entry(
 
 static inline void typec_cc_snk_detect_entry(struct tcpc_device *tcpc)
 {
+#ifdef CONFIG_WATER_DETECTION
+	if (typec_try_enter_wd_snk(tcpc)) {
+		TYPEC_INFO("%s enter WD.SNK\n", __func__);
+		return;
+	}
+#endif /* CONFIG_WATER_DETECTION */
+
 	/* If Port Partner act as Source without VBUS, wait vSafe5V */
 	if (tcpci_check_vbus_valid(tcpc))
 		typec_cc_snk_detect_vsafe5v_entry(tcpc);
@@ -1013,6 +1120,11 @@ static inline void typec_cc_src_detect_entry(
 
 static inline void typec_cc_src_remove_entry(struct tcpc_device *tcpc)
 {
+#ifdef CONFIG_WATER_DETECTION
+	if (typec_try_exit_wd_snk(tcpc))
+		return;
+#endif /* CONFIG_WATER_DETECTION */
+
 	typec_wait_ps_change(tcpc, TYPEC_WAIT_PS_DISABLE);
 
 	tcpc->typec_is_attached_src = false;
@@ -2018,6 +2130,12 @@ static inline bool typec_is_ignore_cc_change(
 	if (typec_is_cc_open_state(tcpc))
 		return true;
 
+#ifdef CONFIG_WATER_DETECTION
+	if ((tcpc->tcpc_flags & TCPC_FLAGS_WATER_DETECTION) &&
+	    tcpc->typec_state == typec_water_protection_snk)
+		return true;
+#endif /* CONFIG_WATER_DETECTION */
+
 #ifdef CONFIG_TYPEC_CHECK_LEGACY_CABLE
 	if (tcpc->typec_legacy_cable &&
 		typec_legacy_handle_cc_change(tcpc)) {
@@ -2070,6 +2188,10 @@ int tcpc_typec_handle_cc_change(struct tcpc_device *tcpc)
 	u8 typec_state_old = tcpc->typec_state;
 #endif /* CONFIG_WATER_DETECTION */
 
+#ifdef CONFIG_CC_BOUNCE_DETECTION
+	typec_check_cc_bounce(tcpc);
+#endif /* CONFIG_CC_BOUNCE_DETECTION */
+
 	rp_present = typec_get_rp_present_flag(tcpc);
 
 	ret = tcpci_get_cc(tcpc);
@@ -2107,6 +2229,12 @@ int tcpc_typec_handle_cc_change(struct tcpc_device *tcpc)
 #ifdef CONFIG_WD_POLLING_ONLY
 			if (tcpc->bootmode == 8 || tcpc->bootmode == 9)
 				typec_check_water_status(tcpc);
+#ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
+			else if (tcpc->init_pwroff_check) {
+				tcpc->init_pwroff_check = false;
+				typec_check_water_status(tcpc);
+			}
+#endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
 #else
 			typec_check_water_status(tcpc);
 #endif /* CONFIG_WD_POLLING_ONLY */
@@ -2473,6 +2601,13 @@ int tcpc_typec_handle_timeout(struct tcpc_device *tcpc, uint32_t timer_id)
 
 static inline int typec_handle_vbus_present(struct tcpc_device *tcpc)
 {
+#ifdef CONFIG_WATER_DETECTION
+	if (typec_try_enter_wd_snk(tcpc)) {
+		TYPEC_INFO("%s enter WD.SNK\n", __func__);
+		return 0;
+	}
+#endif /* CONFIG_WATER_DETECTION */
+
 	switch (tcpc->typec_wait_ps_change) {
 	case TYPEC_WAIT_PS_SNK_VSAFE5V:
 		typec_cc_snk_detect_vsafe5v_entry(tcpc);
@@ -2537,6 +2672,11 @@ static inline int typec_attached_snk_vbus_absent(struct tcpc_device *tcpc)
 
 static inline int typec_handle_vbus_absent(struct tcpc_device *tcpc)
 {
+#ifdef CONFIG_WATER_DETECTION
+	if (typec_try_exit_wd_snk(tcpc))
+		return 0;
+#endif /* CONFIG_WATER_DETECTION */
+
 #ifdef CONFIG_USB_POWER_DELIVERY
 	if (tcpc->pd_wait_pr_swap_complete) {
 		TYPEC_DBG("[PR.Swap] Ignore vbus_absent\n");
@@ -2645,10 +2785,14 @@ int tcpc_typec_handle_vsafe0v(struct tcpc_device *tcpc)
 #ifdef CONFIG_WATER_DETECTION
 	if ((tcpc->tcpc_flags & TCPC_FLAGS_WATER_DETECTION) &&
 	    tcpc->typec_state == typec_water_protection_wait) {
+		typec_enable_low_power_mode(tcpc, TYPEC_CC_DRP);
 		TYPEC_NEW_STATE(typec_water_protection);
 		tcpci_set_water_protection(tcpc, true);
+		alarm_start_relative(&tcpc->wd_wakeup_timer,
+				     ktime_set(CONFIG_WD_SNK_CHECKING_TIME, 0));
 		return 0;
-	}
+	} else if (tcpc->typec_state == typec_water_protection)
+		return 0;
 #endif /* CONFIG_WATER_DETECTION */
 
 	if (tcpc->typec_wait_ps_change == TYPEC_WAIT_PS_SRC_VSAFE0V) {
@@ -2761,6 +2905,14 @@ int tcpc_typec_change_role(
 			typec_role_name[typec_role]);
 		return 0;
 	}
+
+#ifdef CONFIG_WATER_DETECTION
+	if (tcpc->is_water_checked) {
+		TYPEC_INFO("water is detected: %s is not allowed\n", __func__);
+		return 0;
+	}
+#endif
+
 	tcpc->typec_role_new = typec_role;
 
 	TYPEC_INFO("typec_new_role: %s\n", typec_role_name[typec_role]);
@@ -2790,9 +2942,16 @@ static int typec_init_power_off_charge(struct tcpc_device *tcpc)
 		return 0;
 #endif	/* CONFIG_TYPEC_CAP_NORP_SRC */
 
+#ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
+	tcpc->init_pwroff_check = true;
+#endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
+
 	if (!tcpci_check_vbus_valid(tcpc))
 		return 0;
 
+#ifdef CONFIG_WATER_DETECTION
+	tcpc->retry_wd = 1;
+#endif
 	TYPEC_INFO2("PowerOffCharge\n");
 
 	TYPEC_NEW_STATE(typec_unattached_snk);
@@ -2815,9 +2974,44 @@ static int typec_init_power_off_charge(struct tcpc_device *tcpc)
 }
 #endif	/* CONFIG_TYPEC_CAP_POWER_OFF_CHARGE */
 
+#ifdef CONFIG_WATER_DETECTION
+static inline void wakeup_source_prepare(struct wakeup_source *ws,
+							const char *name)
+{
+	if (ws) {
+		memset(ws, 0, sizeof(*ws));
+		ws->name = name;
+	}
+}
+
+static inline void wakeup_source_drop(struct wakeup_source *ws)
+{
+	if (!ws)
+		return;
+	__pm_relax(ws);
+}
+
+static inline void wakeup_source_init(struct wakeup_source *ws,
+							const char *name)
+{
+	wakeup_source_prepare(ws, name);
+	wakeup_source_add(ws);
+}
+
+static inline void wakeup_source_trash(struct wakeup_source *ws)
+{
+	wakeup_source_remove(ws);
+	wakeup_source_drop(ws);
+}
+#endif
+
 int tcpc_typec_init(struct tcpc_device *tcpc, uint8_t typec_role)
 {
 	int ret = 0;
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	bool is_power_off_boot = (tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT
+		|| tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT) ? true:false;
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 
 	if (typec_role == TYPEC_ROLE_UNKNOWN ||
 		typec_role >= TYPEC_ROLE_NR) {
@@ -2825,21 +3019,46 @@ int tcpc_typec_init(struct tcpc_device *tcpc, uint8_t typec_role)
 		return -EINVAL;
 	}
 
-	TYPEC_INFO("typec_init: %s\n", typec_role_name[typec_role]);
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	if (is_power_off_boot)
+		tcpc->typec_role = TYPEC_ROLE_SNK;
+	else
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
+		tcpc->typec_role = typec_role;
 
-	tcpc->typec_role = typec_role;
-	tcpc->typec_role_new = typec_role;
+	TYPEC_INFO("typec_init: %s\n", typec_role_name[tcpc->typec_role]);
+
+	tcpc->typec_role_new = tcpc->typec_role;
 	tcpc->typec_attach_new = TYPEC_UNATTACHED;
 	tcpc->typec_attach_old = TYPEC_UNATTACHED;
 
 	tcpc->typec_remote_cc[0] = TYPEC_CC_VOLT_OPEN;
 	tcpc->typec_remote_cc[1] = TYPEC_CC_VOLT_OPEN;
+#ifdef CONFIG_WATER_DETECTION
+	INIT_WORK(&tcpc->wd_report_usb_port_work, typec_wd_report_usb_port_work);
+#endif /* CONFIG_WATER_DETECTION */
 
 	mutex_lock(&tcpc->access_lock);
 	tcpc->wake_lock_pd = 0;
 	tcpc->wake_lock_user = true;
 	mutex_unlock(&tcpc->access_lock);
 	tcpc->typec_usb_sink_curr = CONFIG_TYPEC_SNK_CURR_DFT;
+
+#ifdef CONFIG_WATER_DETECTION
+	atomic_set(&tcpc->wd_wakeup, 0);
+	atomic_set(&tcpc->wd_thread_stop, 0);
+	wakeup_source_init(&tcpc->wd_thread_wlock, "typec_wd_wlock");
+	init_waitqueue_head(&tcpc->wd_wait_queue);
+	tcpc->wd_task = kthread_run(tcpc_typec_wd_threadfn, tcpc,
+					"tcpc_typec_wd_%s.%p",
+					dev_name(&tcpc->dev), tcpc);
+	if (IS_ERR(tcpc->wd_task)) {
+		TYPEC_INFO("failed to run wd thread\n");
+		return PTR_ERR(tcpc->wd_task);
+	}
+	alarm_init(&tcpc->wd_wakeup_timer, ALARM_REALTIME,
+		   typec_wd_timerfn);
+#endif /* CONFIG_WATER_DETECTION */
 
 #ifdef CONFIG_TYPEC_CAP_CUSTOM_HV
 	tcpc->typec_during_custom_hv = false;
@@ -2851,6 +3070,10 @@ int tcpc_typec_init(struct tcpc_device *tcpc, uint8_t typec_role)
 	typec_legacy_reset_cable_suspect(tcpc);
 #endif	/* CONFIG_TYPEC_CHECK_LEGACY_CABLE */
 
+#ifdef CONFIG_WATER_DETECTION
+	INIT_DELAYED_WORK(&tcpc->wd_status_work, typec_wd_work);
+#endif /* CONFIG_WATER_DETECTION */
+
 #ifdef CONFIG_TYPEC_CAP_POWER_OFF_CHARGE
 	ret = typec_init_power_off_charge(tcpc);
 	if (ret != 0)
@@ -2861,24 +3084,95 @@ int tcpc_typec_init(struct tcpc_device *tcpc, uint8_t typec_role)
 	tcpc->typec_power_ctrl = true;
 #endif	/* CONFIG_TYPEC_POWER_CTRL_INIT */
 
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	if (!is_power_off_boot) {
+		tcpc_typec_error_recovery(tcpc);
+		return ret;
+	}
+#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
 	typec_unattached_entry(tcpc);
 	return ret;
 }
 
 void  tcpc_typec_deinit(struct tcpc_device *tcpc)
 {
+#ifdef CONFIG_WATER_DETECTION
+	cancel_delayed_work_sync(&tcpc->wd_status_work);
+	alarm_cancel(&tcpc->wd_wakeup_timer);
+	atomic_set(&tcpc->wd_thread_stop, 1);
+	wake_up_interruptible(&tcpc->wd_wait_queue);
+	kthread_stop(tcpc->wd_task);
+	wakeup_source_trash(&tcpc->wd_thread_wlock);
+#endif /* CONFIG_WATER_DETECTION */
 }
 
 #ifdef CONFIG_WATER_DETECTION
+static enum alarmtimer_restart typec_wd_timerfn(struct alarm *alarm,
+						ktime_t now)
+{
+	struct tcpc_device *tcpc =
+		container_of(alarm, struct tcpc_device, wd_wakeup_timer);
+
+	atomic_set(&tcpc->wd_wakeup, 1);
+	wake_up_interruptible(&tcpc->wd_wait_queue);
+	return ALARMTIMER_NORESTART;
+}
+
+static int tcpc_typec_wd_threadfn(void *param)
+{
+	struct tcpc_device *tcpc = param;
+	struct sched_param sch_param = {.sched_priority = MAX_RT_PRIO - 1};
+
+	sched_setscheduler(current, SCHED_FIFO, &sch_param);
+
+	while (!kthread_should_stop()) {
+		wait_event_interruptible(tcpc->wd_wait_queue,
+					 atomic_read(&tcpc->wd_wakeup) ||
+					 atomic_read(&tcpc->wd_thread_stop));
+		__pm_stay_awake(&tcpc->wd_thread_wlock);
+		atomic_set(&tcpc->wd_wakeup, 0);
+		if (kthread_should_stop() ||
+		    atomic_read(&tcpc->wd_thread_stop)) {
+			__pm_relax(&tcpc->wd_thread_wlock);
+			break;
+		}
+		alarm_cancel(&tcpc->wd_wakeup_timer);
+		mutex_lock(&tcpc->typec_lock);
+		TYPEC_INFO("%s start:%s\n", __func__,
+			   typec_state_name[tcpc->typec_state]);
+		if (tcpc->typec_state != typec_water_protection)
+			goto ignore;
+		tcpci_set_water_protection(tcpc, false);
+		tcpci_set_cc(tcpc, TYPEC_CC_RD);
+		mutex_unlock(&tcpc->typec_lock);
+		msleep(200);
+		mutex_lock(&tcpc->typec_lock);
+		TYPEC_INFO("%s end:%s\n", __func__,
+			   typec_state_name[tcpc->typec_state]);
+		if (tcpc->typec_state != typec_water_protection)
+			goto ignore;
+		tcpci_set_cc(tcpc, TYPEC_CC_OPEN);
+		tcpci_set_water_protection(tcpc, true);
+		alarm_start_relative(&tcpc->wd_wakeup_timer,
+				     ktime_set(CONFIG_WD_SNK_CHECKING_TIME, 0));
+ignore:
+		mutex_unlock(&tcpc->typec_lock);
+		__pm_relax(&tcpc->wd_thread_wlock);
+	}
+	return 0;
+}
 int tcpc_typec_handle_wd(struct tcpc_device *tcpc, bool wd)
 {
 	int ret = 0;
+	u8 old_state = tcpc->typec_state;
 
 	if (!(tcpc->tcpc_flags & TCPC_FLAGS_WATER_DETECTION))
 		return 0;
 
 	TYPEC_INFO("%s %d\n", __func__, wd);
+	tcpc->water_state = wd;
 	if (!wd) {
+		alarm_cancel(&tcpc->wd_wakeup_timer);
 		tcpci_set_water_protection(tcpc, false);
 		tcpc_typec_error_recovery(tcpc);
 		goto out;
@@ -2896,18 +3190,23 @@ int tcpc_typec_handle_wd(struct tcpc_device *tcpc, bool wd)
 #ifdef CONFIG_TCPC_VSAFE0V_DETECT_IC
 	ret = tcpci_is_vsafe0v(tcpc);
 	if (ret == 0) {
+		typec_disable_low_power_mode(tcpc);
 		TYPEC_NEW_STATE(typec_water_protection_wait);
-		typec_wait_ps_change(tcpc, TYPEC_WAIT_PS_SRC_VSAFE0V);
+		typec_wait_ps_change(tcpc, TYPEC_WAIT_PS_DISABLE);
 	} else {
+		typec_enable_low_power_mode(tcpc, TYPEC_CC_DRP);
 		TYPEC_NEW_STATE(typec_water_protection);
 		tcpci_set_water_protection(tcpc, true);
+		alarm_start_relative(&tcpc->wd_wakeup_timer,
+				     ktime_set(CONFIG_WD_SNK_CHECKING_TIME, 0));
 	}
 #else
 	/* TODO: Wait ps change ? */
 #endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 out:
-	tcpci_notify_wd_status(tcpc, wd);
+	if (old_state != typec_water_protection_snk)
+		tcpci_notify_wd_status(tcpc, wd);
 	if (tcpc->typec_state == typec_water_protection ||
 	    tcpc->typec_state == typec_water_protection_wait) {
 		typec_alert_attach_state_change(tcpc);

@@ -435,13 +435,6 @@ READ_START:
 		 */
 		if (port->rx_skb_list.qlen == 0)
 			port_ask_more_req_to_md(port);
-		if (port->rx_skb_list.qlen < 0) {
-			spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
-			CCCI_ERROR_LOG(md_id, CHAR,
-				"%s:port->rx_skb_list.qlen < 0 %s\n",
-				__func__, port->name);
-			return -EFAULT;
-		}
 	} else {
 		read_len = count;
 	}
@@ -458,7 +451,6 @@ READ_START:
 		ret = -EFAULT;
 	}
 	ts_1 = local_clock();
-
 #ifdef CONFIG_MTK_SRIL_SUPPORT
 	if (port->rx_ch == CCCI_RIL_IPC0_RX || port->rx_ch == CCCI_RIL_IPC1_RX) {
 		print_hex_dump(KERN_INFO, "3. mif: RX: ",
@@ -480,9 +472,9 @@ READ_START:
 
 
  exit:
-	if (ret < 0 && (port->rx_ch == CCCI_RIL_IPC0_RX || port->rx_ch == CCCI_RIL_IPC1_RX))
-		CCCI_ERROR_LOG(port->md_id, CHAR,
-				"RILD failed to read ipc packet, ret = %d, rx_ch = %d\n",
+ 	if (ret < 0 && (port->rx_ch == CCCI_RIL_IPC0_RX || port->rx_ch == CCCI_RIL_IPC1_RX))
+		CCCI_ERROR_LOG(port->md_id, CHAR, 
+				"RILD failed to read ipc packet, ret = %d, rx_ch = %d\n", 
 				ret, port->rx_ch);
 	return ret ? ret : read_len;
 }
@@ -1016,11 +1008,12 @@ int port_recv_skb(struct port_t *port, struct sk_buff *skb)
 					ccci_h->seq_num);
 			}
 		}
+
 #ifdef CONFIG_MTK_SRIL_SUPPORT
 		if (ccci_h->channel == CCCI_RIL_IPC0_RX
 			|| ccci_h->channel == CCCI_RIL_IPC1_RX) {
 			print_hex_dump(KERN_INFO, "2. mif: RX: ",
-				DUMP_PREFIX_NONE, 32, 1, skb->data, 32, 0);
+					DUMP_PREFIX_NONE, 32, 1, skb->data, 32, 0);
 		}
 #endif
 		/* set udc status */
@@ -1042,13 +1035,9 @@ int port_recv_skb(struct port_t *port, struct sk_buff *skb)
 			"port %s Rx full, drop packet\n",
 			port->name);
 		goto drop;
-	} else {
-		__pm_wakeup_event(port->rx_wakelock, jiffies_to_msecs(HZ/2));
-		spin_lock_irqsave(&port->rx_wq.lock, flags);
-		wake_up_all_locked(&port->rx_wq);
-		spin_unlock_irqrestore(&port->rx_wq.lock, flags);
+	} else
 		return -CCCI_ERR_PORT_RX_FULL;
-	}
+
  drop:
 	/* only return drop and caller do drop */
 	CCCI_NORMAL_LOG(port->md_id, TAG,
@@ -1302,9 +1291,9 @@ static inline void proxy_setup_channel_mapping(struct port_proxy *proxy_p)
 	for (i = 0; i < proxy_p->port_number; i++) {
 		port = proxy_p->ports + i;
 
-		if (port->rx_ch < CCCI_MAX_CH_NUM)
+		if (port->rx_ch >= 0 && port->rx_ch < CCCI_MAX_CH_NUM)
 			port_list[port->rx_ch] = port;
-		if (port->tx_ch < CCCI_MAX_CH_NUM)
+		if (port->tx_ch >= 0 && port->tx_ch < CCCI_MAX_CH_NUM)
 			port_list[port->tx_ch] = port;
 
 		/*setup RX_CH=>port list mapping*/

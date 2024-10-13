@@ -6,13 +6,13 @@ bat_gm30: battery{
 	compatible = "mediatek,bat_gm30";
 	DIFFERENCE_FULLOCV_ITH = <(200)>;
 /*	Charging termination current*/
-	SHUTDOWN_1_TIME = <(5)>;
+	SHUTDOWN_1_TIME = <(10)>;
 /*	If ui_soc shows 1% more than X minites, system will shutdown*/
 	KEEP_100_PERCENT = <(1)>;
 /*	The ui_soc will keep 100% until SOC drop X percents after unplugged*/
 	R_FG_VALUE = <(5)>;
 /*	R_sense resistance*/
-	EMBEDDED_SEL = <(0)>;
+	EMBEDDED_SEL = <(1)>;
 /*	Configures whether using embedded battery or not*/
 	PMIC_SHUTDOWN_CURRENT = <(20)>;
 /*	System shutdown current*/

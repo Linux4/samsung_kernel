@@ -1,0 +1,8 @@
+
+config N28_SMART_ALERT_HUB
+	bool "smart_alert_hub for MediaTek package"
+	help
+	  smart_alert is a device,
+	  usually portable and electronic
+	  or electromechanical,
+	  that detect device is picked up with 35 degree.

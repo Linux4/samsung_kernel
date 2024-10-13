@@ -72,6 +72,20 @@ static int handle_to_index(int handle)
 	case ID_SAR:
 		index = sar;
 		break;
+//+S96818AA1-2213, liuling3.wt,ADD, 2023/06/15, add lift_to_wake sensor
+#ifdef CONFIG_N28_LIFT_TO_WAKE
+    case ID_LIFT_TO_WAKE:
+        index = lift_to_wake;
+        break;
+#endif
+//-S96818AA1-2213, liuling3.wt,ADD, 2023/06/15, add lift_to_wake sensor
+//+S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+#ifdef CONFIG_N28_SMART_ALERT_HUB
+    case ID_SMART_ALERT:
+        index = smart_alert;
+        break;
+#endif
+//-S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
 	default:
 		index = -1;
 		pr_err("%s invalid handle:%d,index:%d\n", __func__,

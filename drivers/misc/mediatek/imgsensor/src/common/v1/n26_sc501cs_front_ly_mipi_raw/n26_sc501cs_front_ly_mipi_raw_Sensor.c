@@ -1606,60 +1606,47 @@ static int read_sc501cs_awb_info(kal_uint32 addr)
 	}
 }
 
-static int sc501cs_sensor_otp_init(int section)
+static int sc501cs_sensor_otp_init(int section, kal_uint8 threshold)
 {
 	int delay=0;
-	kal_uint16 otp_start_add_h,otp_start_add_l,otp_end_add_h,otp_end_add_l;
-	
+	kal_uint16 otp_start_add_h,otp_start_add_l,otp_end_add_h,otp_end_add_l,otp_read_flag;
+
 	if(section == 1) {
 		otp_start_add_h = (OTP_SECTION1_START_ADDR&0x0f00)>>8;
 		otp_start_add_l = OTP_SECTION1_START_ADDR&0x00ff;
 		otp_end_add_h   = (OTP_SECTION1_END_ADDR&0x0f00)>>8;
 		otp_end_add_l   = OTP_SECTION1_END_ADDR&0x00ff;
-		
-		write_cmos_sensor8(0x36b0,0x4c);
-		write_cmos_sensor8(0x36b1,0xd8);
-		write_cmos_sensor8(0x36b2,0x01);
-		write_cmos_sensor8(0x4408,otp_start_add_h);
-		write_cmos_sensor8(0x4409,otp_start_add_l);
-		write_cmos_sensor8(0x440a,otp_end_add_h);
-		write_cmos_sensor8(0x440b,otp_end_add_l);
-		write_cmos_sensor8(0x4401,0x1f);
-		write_cmos_sensor8(0x4400,0x11);
-
-		//msleep(5);
-		while((read_cmos_sensor(0x4420)&0x01) == 0x01){
-			delay++;
-			if(delay == 1000) {
-				LOG_INF("1st section OTP is still busy for reading. R0x4420[0]!=0 \n");
-				return 0;
-			}
-		}
+		otp_read_flag = 0x1f;
 	} else if(section == 2) {
 		otp_start_add_h = (OTP_SECTION2_START_ADDR&0x0f00)>>8;
 		otp_start_add_l = OTP_SECTION2_START_ADDR&0x00ff;
 		otp_end_add_h   = (OTP_SECTION2_END_ADDR&0x0f00)>>8;
 		otp_end_add_l   = OTP_SECTION2_END_ADDR&0x00ff;
-		
-		write_cmos_sensor8(0x4408,otp_start_add_h);
-		write_cmos_sensor8(0x4409,otp_start_add_l);
-		write_cmos_sensor8(0x440a,otp_end_add_h);
-		write_cmos_sensor8(0x440b,otp_end_add_l);
-		write_cmos_sensor8(0x4401,0x1e);
-		write_cmos_sensor8(0x4400,0x11);
-
-		while((read_cmos_sensor(0x4420)&0x01) == 0x01){
-			delay++;
-			if(delay == 1000) {
-				LOG_INF("2nd section OTP is still busy for reading. R0x4420[0]!=0 \n");
-				return 0;
-			}
-		}
+		otp_read_flag = 0x1e;
 	} else {
 		LOG_INF("section input error \n");
 		return 0;
 	}
-	#if 0
+
+	write_cmos_sensor8(0x36b0,0x4c);
+	write_cmos_sensor8(0x36b1,threshold);
+	write_cmos_sensor8(0x36b2,0x01);
+	write_cmos_sensor8(0x4408,otp_start_add_h);
+	write_cmos_sensor8(0x4409,otp_start_add_l);
+	write_cmos_sensor8(0x440a,otp_end_add_h);
+	write_cmos_sensor8(0x440b,otp_end_add_l);
+	write_cmos_sensor8(0x4401,otp_read_flag);
+	write_cmos_sensor8(0x4400,0x11);
+
+	//msleep(5);
+	while((read_cmos_sensor(0x4420)&0x01) == 0x01){
+		delay++;
+		if(delay == 1000) {
+			LOG_INF("section-%d OTP is still busy for reading. R0x4420[0]!=0 \n", section);
+			return 0;
+		}
+	}
+#if 0
 	otp_start_add_h = (OTP_SECTION1_START_ADDR&0x0f00)>>8;
 	otp_start_add_l = OTP_SECTION1_START_ADDR&0x00ff;
 	otp_end_add_h   = (OTP_SECTION1_END_ADDR&0x0f00)>>8;
@@ -1678,13 +1665,13 @@ static int sc501cs_sensor_otp_init(int section)
 	write_cmos_sensor8(0x440e,0x22);
 	write_cmos_sensor8(0x440f,0x39);
 	write_cmos_sensor8(0x4401,0x1f);
-	#endif
-	
+#endif
+
 	return 1;
 }
 
 
-static int read_sc501cs_lsc_info(kal_uint32 addr)
+static int read_sc501cs_lsc_info(kal_uint32 addr, kal_uint8 threshold)
 {
 	int check_sum_lsc = 0, check_sum_lsc_cal = 0;
 	int i;
@@ -1694,7 +1681,7 @@ static int read_sc501cs_lsc_info(kal_uint32 addr)
 			sc501cs_data_lsc[i]=read_cmos_sensor(addr+i+1);
 		}
 		//LSC_GROUP1 need jump 0x87F4-0x87FF addr, and start the 2nd otp option.
-		sc501cs_sensor_otp_init(2);
+		sc501cs_sensor_otp_init(2,threshold);
 
 		for(i =OTP_SECTION1_END_ADDR - addr ; i < LSC_DATA_SIZE + 1; i++){
 			sc501cs_data_lsc[i]=read_cmos_sensor(addr+i+12+1);
@@ -1725,7 +1712,7 @@ static int read_sc501cs_lsc_info(kal_uint32 addr)
 	}
 }
 
-static int sc501cs_sensor_otp_info(void)
+static int sc501cs_sensor_otp_info(kal_uint8 threshold)
 {
 	int ret = 0;
 	kal_uint16 total_ret = 0x1f;  //bit0:module info, bit1:AWB data, bit2:LSC data, bit3:otp init-1, bit4:otp init-2;
@@ -1733,9 +1720,9 @@ static int sc501cs_sensor_otp_info(void)
 	LOG_INF("come to %s:%d E!\n", __func__, __LINE__);
 
 	//read first section, R0x80ec~R0x87f3;
-	ret = sc501cs_sensor_otp_init(1);
+	ret = sc501cs_sensor_otp_init(1,threshold);
 	if(ret != 1){
-		LOG_INF("=== sc501cs_sensor_otp_init(1) failed ===\n");
+		LOG_INF("=== sc501cs_sensor_otp_init(1, 0x%2x) failed ===\n", threshold);
 		total_ret = total_ret & 0xf7;
 	}
 	//Get Module Info
@@ -1760,18 +1747,18 @@ static int sc501cs_sensor_otp_info(void)
 	}
 	//Get LSC data
 	if(VALID_OTP_FLAG == read_cmos_sensor(LSC_GROUP1_FLAG)) {
-		ret = read_sc501cs_lsc_info(LSC_GROUP1_FLAG);
+		ret = read_sc501cs_lsc_info(LSC_GROUP1_FLAG,threshold);
 		if(ret != 1){
 			LOG_INF("=== read_sc501cs_lsc_info(LSC_GROUP1_FLAG) checksum error ===\n");
 			total_ret = total_ret & 0xfb;
 		}
 	} else {
 		LOG_INF("=== sc501cs_data_lsc group1 invalid ===\n");
-		ret = sc501cs_sensor_otp_init(2);
+		ret = sc501cs_sensor_otp_init(2,threshold);
 		if(ret != 1){
-			LOG_INF("=== sc501cs_sensor_otp_init(2) failed ===\n");
+			LOG_INF("=== sc501cs_sensor_otp_init(2, 0x%2x) failed ===\n", threshold);
 			total_ret = total_ret & 0xef;
-		}		
+		}
 	}
 
 	//Get Module Info
@@ -1796,8 +1783,8 @@ static int sc501cs_sensor_otp_info(void)
 	}
 	//Get LSC data
 	if(VALID_OTP_FLAG == read_cmos_sensor(LSC_GROUP2_FLAG)) {
-		ret = read_sc501cs_lsc_info(LSC_GROUP2_FLAG);
-		if(ret != 1){
+		ret = read_sc501cs_lsc_info(LSC_GROUP2_FLAG,threshold);
+			if(ret != 1){
 			LOG_INF("=== read_sc501cs_lsc_info(LSC_GROUP2_FLAG) checksum error ===\n");
 			total_ret = total_ret & 0xfb;
 		}
@@ -1826,9 +1813,10 @@ extern int imgSensorSetEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData);
 
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
-    kal_uint8 i = 0;
-    kal_uint8 retry = 2;
+    kal_uint8 i = 0, j = 0;  //j is for otpThreshold;
+    kal_uint8 retry = 3;
     int rc = 0;
+    kal_uint8 otpThreshold[3] = {0xd8, 0x58, 0x98};
 
     while (imgsensor_info.i2c_addr_table[i] != 0xff) {
         spin_lock(&imgsensor_drv_lock);
@@ -1840,11 +1828,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 
 #if 1
 			//+bug682590,zhanghengyuan.wt,ADD,2022/2/18, n26 sc501cs front xl porting otp
-			rc = sc501cs_sensor_otp_info();
+			rc = sc501cs_sensor_otp_info(otpThreshold[j]);
 			if(rc != 0x1f){
 				*sensor_id = 0xFFFFFFFF;
-				LOG_INF("sc501cs read OTP failed: 0x%2x \n",rc);
+				LOG_INF("sc501cs read OTP failed: 0x%2x, otpThreshold = 0x%2x \n",rc,otpThreshold[j]);
 				retry--;
+				j++;
 				continue;
 				//return ERROR_SENSOR_CONNECT_FAIL;
 			}else{

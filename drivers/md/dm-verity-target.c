@@ -320,8 +320,8 @@ static int verity_verify_level(struct dm_verity *v, struct dm_verity_io *io,
 		}
 #ifdef SEC_HEX_DEBUG
 		else if (verity_handle_err_hex_debug(v,
-					   DM_VERITY_BLOCK_TYPE_METADATA,
-					   hash_block, io, NULL)) {
+					DM_VERITY_BLOCK_TYPE_METADATA,
+					hash_block, io, NULL)) {
 			add_corrupted_blks();
 #else
 		else if (verity_handle_err(v,
@@ -1255,7 +1255,7 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 
 #ifdef SEC_HEX_DEBUG
 	if (!verity_fec_is_enabled(v))
-		add_fec_off_cnt(v->data_dev->name);
+	    add_fec_off_cnt(v->data_dev->name);
 #endif
 
 	return 0;

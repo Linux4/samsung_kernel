@@ -71,6 +71,49 @@ enum {
 	CMC_TRC_DEBUG = 0x8000,
 } CMC_TRC;
 
+//+S96818AA1, duxin2.wt,ADD, 2023/07/11, fix lcdType None
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+#define HARDWARE_MAX_ITEM_LONGTH        64
+enum {
+	N28_NT36528_DSI_VDO_HDP_TRULY_TRULY = 11,
+	N28_FT8057s_DSI_VDO_HDP_DSBJ_MANTIX,
+	N28_TD4160_DSI_VDO_HDP_XINXIAN_INX,
+	N28_GC7272_DSI_VDO_HDP_TXD_SHARP,
+	N28_NT36528_DSI_VDO_HDP_TXD_SHARP,
+	N28_GC7272_DSI_VDO_HDP_XIANXIAN_HKC,
+	N28_TD4160_DSI_VDO_HDP_BOE_BOE,
+	LCD_MAX_TYPES
+};
+struct LCDInfo {
+	char lcdName[HARDWARE_MAX_ITEM_LONGTH];
+	int32_t lcdType;
+};
+static const struct LCDInfo lcdInfo[LCD_MAX_TYPES] = {
+	{.lcdName = "n28_nt36528_dsi_vdo_hdp_truly_truly", .lcdType = N28_NT36528_DSI_VDO_HDP_TRULY_TRULY},
+	{.lcdName = "n28_ft8057s_dsi_vdo_hdp_dsbj_mantix", .lcdType = N28_FT8057s_DSI_VDO_HDP_DSBJ_MANTIX},
+	{.lcdName = "n28_td4160_dsi_vdo_hdp_xinxian_inx", .lcdType = N28_TD4160_DSI_VDO_HDP_XINXIAN_INX},
+	{.lcdName = "n28_gc7272_dsi_vdo_hdp_txd_sharp", .lcdType = N28_GC7272_DSI_VDO_HDP_TXD_SHARP},
+	{.lcdName = "n28_nt36528_dsi_vdo_hdp_txd_sharp", .lcdType = N28_NT36528_DSI_VDO_HDP_TXD_SHARP},
+	{.lcdName = "n28_gc7272_dsi_vdo_hdp_xianxian_hkc", .lcdType = N28_GC7272_DSI_VDO_HDP_XIANXIAN_HKC},
+	{.lcdName = "n28_td4160_dsi_vdo_hdp_boe_boe", .lcdType = N28_TD4160_DSI_VDO_HDP_BOE_BOE},
+};
+
+extern char *saved_command_line;
+static int32_t sensor_match_lcm_name(void)
+{
+	int index = 0;
+	printk("saved_command_line is %s \t%s, %d\n", saved_command_line,__func__,__LINE__);
+	for(index = 0; index < LCD_MAX_TYPES; index++) {
+		if (strstr(saved_command_line, lcdInfo[index].lcdName)) {
+			printk("%s Found correct LCD %s\n", __func__, lcdInfo[index].lcdName);
+			return lcdInfo[index].lcdType;
+		}
+	}
+	return N28_NT36528_DSI_VDO_HDP_TRULY_TRULY;
+}
+#endif
+//-S96818AA1, duxin2.wt,ADD, 2023/07/11, fix lcdType None
+
 long alspshub_read_ps(u8 *ps)
 {
 	long res;
@@ -686,10 +729,14 @@ static int als_set_cali(uint8_t *data, uint8_t count)
 	spin_unlock(&calibration_lock);
 	return sensor_cfg_to_hub(ID_LIGHT, data, count);
 }
-//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 static int als_set_lcdinfo(uint8_t *data, uint8_t count)
 {
 	int res = 0;
+//+S96818AA1, duxin2.wt,ADD, 2023/07/11, fix lcdType None
+#if defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
+	data[0] = sensor_match_lcm_name();
+#endif
+//-S96818AA1, duxin2.wt,ADD, 2023/07/11, fix lcdType None
 	res = sensor_set_lcdname_to_hub(ID_LIGHT, data, count);
 	if (res < 0) {
 		pr_err("%s is failed!!\n", __func__);
@@ -697,7 +744,6 @@ static int als_set_lcdinfo(uint8_t *data, uint8_t count)
 	}
 	return 0;
 }
-//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 static int rgbw_enable(int en)
 {
 	int res = 0;

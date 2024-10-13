@@ -23,31 +23,72 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{N23_GC5035_FRONT_LY_SENSOR_ID, 0xA0, Common_read_region},
 	//+bug682590 liudijin.wt, add, 2021/8/26, gc5035 otp porting
 #else
-	/*Below is commom sensor */
-#ifdef CONFIG_MTK_96717_CAMERA
-	{N21_TXD_MAIN_S5K2P6_SENSOR_ID	,	0xA0, Common_read_region},
-	{N21_HLT_MAIN_OV16B10_SENSOR_ID	,	0xA0, Common_read_region},
-	{N21_SHINE_SUB_HI1336_SENSOR_ID ,	0xA0, Common_read_region},
-	{N21_TXD_SUB_S5K3L6_SENSOR_ID ,		0xA0, Common_read_region},
-	{N21_CXT_MICRO_GC2375H_SENSOR_ID,	0xA4, Common_read_region},
-	{N21_HLT_MICRO_GC2375H_SENSOR_ID,	0xA4, Common_read_region},
-	//+bug 621775 huangzheng1.wt, add, 2021/03/08, add for n21 otp bring up
-	{N21_HLT_WIDE_GC8034W_SENSOR_ID,		0xA2, Common_read_region},
-	{N21_SHINE_WIDE_GC8034W_SENSOR_ID,	0xA2, Common_read_region},
-	//-bug 621775 huangzheng1.wt, add, 2021/03/08, add for n21 otp bring up
-#else
-	{N26_HI5021Q_REAR_TRULY_SENSOR_ID,	0xA0, Common_read_region},
-	{N26_HI5021Q_REAR_ST_SENSOR_ID, 0xA0, Common_read_region},
-	{N26_S5KJN1_REAR_TXD_SENSOR_ID, 0xA0, Common_read_region},
-	{N26_HI5021Q_REAR_DELTA_SENSOR_ID, 0xA0, Common_read_region},
-	{N26_S5K5E9_FRONT_TXD_SENSOR_ID, 0xA0, Common_read_region},
+        {N26_HI5021Q_REAR_TRULY_SENSOR_ID,	0xA0, Common_read_region},
+        {N26_HI5021Q_REAR_ST_SENSOR_ID, 0xA0, Common_read_region},
+        {N26_S5KJN1_REAR_TXD_SENSOR_ID, 0xA0, Common_read_region},
+        {N26_HI5021Q_REAR_DELTA_SENSOR_ID, 0xA0, Common_read_region},
+        {N26_S5K5E9_FRONT_TXD_SENSOR_ID, 0xA0, Common_read_region},
         //+Bug 720367, liudijin.wt, add, 2022.03.02, bring-up OTP for n26 micro camera
         {N26_GC02M2_MICRO_CXT_SENSOR_ID, 0xA4, Common_read_region},
         {N26_SC201CS_MICRO_LCE_SENSOR_ID, 0xA4, Common_read_region},
         {N26_C2599_MICRO_DELTA_SENSOR_ID, 0xA4, Common_read_region},
         //-Bug 720367, liudijin.wt, add, 2022.03.02, bring-up OTP for n26 micro camera
 #endif
-#endif
+	#if 0
+	/*Below is commom sensor */
+	{IMX230_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K2T7SP_SENSOR_ID, 0xA4, Common_read_region},
+	{IMX338_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K4E6_SENSOR_ID, 0xA8, Common_read_region},
+	{IMX386_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K3M3_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K2L7_SENSOR_ID, 0xA0, Common_read_region},
+	{IMX398_SENSOR_ID, 0xA0, Common_read_region},
+	{IMX318_SENSOR_ID, 0xA0, Common_read_region},
+	{OV8858_SENSOR_ID, 0xA8, Common_read_region},
+	{IMX386_MONO_SENSOR_ID, 0xA0, Common_read_region},
+	/*B+B*/
+	{S5K2P7_SENSOR_ID, 0xA0, Common_read_region},
+	{OV8856_SENSOR_ID, 0xA0, Common_read_region},
+	/*61*/
+	{IMX499_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K3L8_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K5E8YX_SENSOR_ID, 0xA2, Common_read_region},
+	/*99*/
+	{IMX258_SENSOR_ID, 0xA0, Common_read_region},
+	{IMX258_MONO_SENSOR_ID, 0xA0, Common_read_region},
+	/*97*/
+	{OV23850_SENSOR_ID, 0xA0, Common_read_region},
+	{OV23850_SENSOR_ID, 0xA8, Common_read_region},
+	{S5K3M2_SENSOR_ID, 0xA0, Common_read_region},
+	/*55*/
+	{S5K2P8_SENSOR_ID, 0xA2, Common_read_region},
+	{S5K2P8_SENSOR_ID, 0xA0, Common_read_region},
+	{OV8858_SENSOR_ID, 0xA2, Common_read_region},
+	/* Others */
+	{S5K2X8_SENSOR_ID, 0xA0, Common_read_region},
+	{IMX377_SENSOR_ID, 0xA0, Common_read_region},
+	{IMX214_SENSOR_ID, 0xA0, Common_read_region},
+	{IMX214_MONO_SENSOR_ID, 0xA0, Common_read_region},
+	{IMX486_SENSOR_ID, 0xA8, Common_read_region},
+	{OV12A10_SENSOR_ID, 0xA8, Common_read_region},
+	{OV13855_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K3L8_SENSOR_ID, 0xA0, Common_read_region},
+	{HI556_SENSOR_ID, 0x51, Common_read_region},
+	{S5K5E8YX_SENSOR_ID, 0x5a, Common_read_region},
+	{S5K5E8YXREAR2_SENSOR_ID, 0x5a, Common_read_region},
+	{S5KGM2_SENSOR_ID, 0xB0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{S5K2P6_SENSOR_ID, 0xB0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{GC5035_SENSOR_ID, 0x7E, Otp_read_region_GC5035,
+		DEFAULT_MAX_EEPROM_SIZE_8K},
+	{GC02M1_SENSOR_ID, 0xA4, Common_read_region},
+	{GC02M1_SENSOR_ID1, 0x6E, Otp_read_region_GC02M1B,
+		DEFAULT_MAX_EEPROM_SIZE_8K},
+	{SR846_SENSOR_ID, 0x40, Otp_read_region_SR846,
+		DEFAULT_MAX_EEPROM_SIZE_8K},
+	{SR846D_SENSOR_ID, 0x40, Otp_read_region_SR846D,
+		DEFAULT_MAX_EEPROM_SIZE_8K},
+	#endif
 	/*  ADD before this line */
 	{0, 0, 0}       /*end of list */
 };

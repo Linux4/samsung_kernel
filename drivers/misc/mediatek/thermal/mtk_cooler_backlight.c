@@ -62,7 +62,8 @@ static void mtk_cl_backlight_set_max_brightness_limit(void)
 				(defined(CONFIG_LEDS_MTK_DISP) || \
 				defined(CONFIG_LEDS_MTK_PWM) || \
 				defined(CONFIG_LEDS_MTK_I2C))
-			mt_leds_max_brightness_set("lcd-backlight", 70, 0);
+                        /*bug802295 , yexiaojun.wt, modify, 20220927， enable mtk-cl-backlight01*/
+			mt_leds_max_brightness_set("lcd-backlight", 70, 1);
 			#elif defined(CONFIG_LEDS_MTK_DISP) || \
 				  defined(CONFIG_LEDS_MTK_PWM) || \
 				  defined(CONFIG_LEDS_MTK_I2C)

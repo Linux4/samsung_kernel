@@ -17,19 +17,31 @@
 static const struct snd_kcontrol_new mtk_hw_gain1_in_ch1_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH1", AFE_CONN13_1,
 				    I_CONNSYS_I2S_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH1", AFE_CONN13,
+				    I_DL1_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH1", AFE_CONN13,
+				    I_DL2_CH1, 1, 0),
 };
 
 static const struct snd_kcontrol_new mtk_hw_gain1_in_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH2", AFE_CONN14_1,
 				    I_CONNSYS_I2S_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH2", AFE_CONN14,
+				    I_DL1_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH2", AFE_CONN14,
+				    I_DL2_CH2, 1, 0),
 };
 
 static const struct snd_kcontrol_new mtk_hw_gain2_in_ch1_mix[] = {
+	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH1", AFE_CONN15_1,
+				    I_CONNSYS_I2S_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH1", AFE_CONN15,
 				    I_ADDA_UL_CH1, 1, 0),
 };
 
 static const struct snd_kcontrol_new mtk_hw_gain2_in_ch2_mix[] = {
+	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH2", AFE_CONN16_1,
+				    I_CONNSYS_I2S_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH2", AFE_CONN16,
 				    I_ADDA_UL_CH2, 1, 0),
 };
@@ -60,12 +72,6 @@ static int mtk_hw_gain_event(struct snd_soc_dapm_widget *w,
 		regmap_update_bits(afe->regmap,
 				   gain_cur,
 				   AFE_GAIN1_CUR_MASK_SFT,
-				   0);
-
-		/* set target gain to 0 */
-		regmap_update_bits(afe->regmap,
-				   gain_con1,
-				   GAIN1_TARGET_MASK_SFT,
 				   0);
 		break;
 	default:
@@ -103,6 +109,7 @@ static const struct snd_soc_dapm_widget mtk_dai_hw_gain_widgets[] = {
 	SND_SOC_DAPM_INPUT("HW Gain 1 Out Endpoint"),
 	SND_SOC_DAPM_INPUT("HW Gain 2 Out Endpoint"),
 	SND_SOC_DAPM_OUTPUT("HW Gain 1 In Endpoint"),
+	SND_SOC_DAPM_OUTPUT("HW Gain 2 In Endpoint"),
 };
 
 static const struct snd_soc_dapm_route mtk_dai_hw_gain_routes[] = {
@@ -117,8 +124,16 @@ static const struct snd_soc_dapm_route mtk_dai_hw_gain_routes[] = {
 	{"HW Gain 2 Out", NULL, HW_GAIN_2_EN_W_NAME},
 
 	{"HW Gain 1 In Endpoint", NULL, "HW Gain 1 In"},
+	{"HW Gain 2 In Endpoint", NULL, "HW Gain 2 In"},
 	{"HW Gain 1 Out", NULL, "HW Gain 1 Out Endpoint"},
 	{"HW Gain 2 Out", NULL, "HW Gain 2 Out Endpoint"},
+
+	{"HW_GAIN1_IN_CH1", "DL1_CH1", "DL1"},
+	{"HW_GAIN1_IN_CH2", "DL1_CH2", "DL1"},
+	{"HW_GAIN1_IN_CH1", "DL2_CH1", "DL2"},
+	{"HW_GAIN1_IN_CH2", "DL2_CH2", "DL2"},
+	{"HW_GAIN2_IN_CH1", "CONNSYS_I2S_CH1", "Connsys I2S"},
+	{"HW_GAIN2_IN_CH2", "CONNSYS_I2S_CH2", "Connsys I2S"},
 };
 
 static const struct snd_kcontrol_new mtk_hw_gain_controls[] = {

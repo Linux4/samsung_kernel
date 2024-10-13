@@ -21,9 +21,11 @@ s32 mdp_ioctl_simulate(unsigned long param);
 void mdp_ioctl_free_job_by_node(void *node);
 void mdp_ioctl_free_readback_slots_by_node(void *fp);
 
-
+//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/24, mtk patch:mdp
 #if (IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)) && \
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	(IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT) && \
+	!IS_ENABLED(CONFIG_MTK_CMDQ_MBOX_EXT))) && \
 	IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT)
 #if (IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) && \
 	!IS_ENABLED(CONFIG_MTK_SVP_ON_MTEE_SUPPORT)) || \
@@ -43,4 +45,5 @@ int m4u_gz_sec_init(int mtk_iommu_sec_id);
 #define MDP_M4U_MTEE_SVP_SUPPORT
 int m4u_gz_sec_init(int mtk_iommu_sec_id);
 #endif
+//-S96818AA1-1936,liangyiyi.wt,modify,2023/05/24, mtk patch:mdp
 #endif				/* __MDP_IOCTL_EX_H__ */

@@ -15,6 +15,8 @@
 
 static struct pdc *pd;
 
+int g_pd_work_status = 0; //Bug790556,churui1.wt,ADD,20220808, Charging pd flag
+
 bool pdc_is_ready(void)
 {
 	return adapter_is_support_pd();
@@ -24,11 +26,17 @@ void pdc_init_table(void)
 {
 	pd->cap.nr = 0;
 	pd->cap.selected_cap_idx = -1;
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+	pd->vbus_l = pd->data.pd_vbus_low_bound / 1000;
+	pd->vbus_h = pd->data.pd_vbus_upper_bound / 1000;
+#endif
 
-	if (pdc_is_ready())
+	if (pdc_is_ready()) {
 		adapter_get_cap(&pd->cap);
-	else
+		}
+	else {
 		chr_err("mtk_is_pdc_ready is fail\n");
+		}
 
 	chr_err("[%s] nr:%d default:%d\n", __func__, pd->cap.nr,
 	pd->cap.selected_cap_idx);
@@ -290,7 +298,9 @@ int pdc_get_setting(int *newvbus, int *newcur,
 	ret = charger_get_ibus(&ibus);
 	if (ret < 0) {
 		chr_err("[%s] get ibus fail, keep default voltage\n", __func__);
+#ifndef	CONFIG_N28_CHARGER_PRIVATE
 		return -1;
+#endif
 	}
 
 	charger_get_mivr_state(&chg1_mivr);
@@ -298,7 +308,10 @@ int pdc_get_setting(int *newvbus, int *newcur,
 
 	vbus = battery_get_vbus();
 	ibus = ibus / 1000;
-
+#ifdef	CONFIG_N28_CHARGER_PRIVATE
+	if (ibus == 0)
+		ibus = 2000;
+#endif
 	if ((chg1_mivr && (vbus < mivr1 / 1000 - 500)))
 		goto reset;
 
@@ -361,6 +374,7 @@ int pdc_check_leave(void)
 	unsigned int mivr1 = 0;
 	bool mivr_state = false;
 	int max_mv = 0;
+	int uisoc = 0; //Bug807549,churui1.wt,modify the pdc leave condition
 
 	cap = &pd->cap;
 	max_mv = cap->max_mv[pd->pd_idx];
@@ -370,16 +384,19 @@ int pdc_check_leave(void)
 	vbus = battery_get_vbus();
 	charger_get_mivr_state(&mivr_state);
 	charger_get_mivr(&mivr1);
+	uisoc = battery_get_uisoc();
 
-	chr_err("[%s]mv:%d vbus:%d ibus:%d idx:%d min_watt:%d mivr:%d mivr_state:%d\n",
+	chr_err("[%s]mv:%d vbus:%d ibus:%d idx:%d min_watt:%d mivr:%d mivr_state:%d uisoc:%d\n",
 		__func__, max_mv, vbus, ibus, pd->pd_idx,
-		PD_MIN_WATT, mivr1 / 1000, mivr_state);
+		PD_MIN_WATT, mivr1 / 1000, mivr_state, uisoc);
 
 	if (max_mv * ibus <= PD_MIN_WATT) {
-		if (mivr_state)
-			chr_err("[%s] MIVR occurred, ibus can't draw much higher current",
-				__func__);
-		goto leave;
+		if (uisoc >= 85) {
+			if (mivr_state)
+				chr_err("[%s] MIVR occurred, ibus can't draw much higher current",
+					__func__);
+			goto leave;
+		}
 	}
 
 	return 0;
@@ -419,6 +436,8 @@ int pdc_init(void)
 		pd->pd_buck_idx = 0;
 		pd->vbus_l = 5000;
 		pd->vbus_h = 5000;
+
+		g_pd_work_status = 0; //Bug790556,churui1.wt,ADD,20220808, Charging pd flag
 
 		return 0;
 	}
@@ -483,6 +502,8 @@ int pdc_run(void)
 {
 	int ret = 0;
 	int vbus = 0, cur = 0, idx = 0;
+
+	g_pd_work_status = 1; //Bug805009,churui1.wt,modify the ATO version of battery test
 
 	pd->vbus_l = pd->data.pd_vbus_low_bound / 1000;
 	pd->vbus_h = pd->data.pd_vbus_upper_bound / 1000;

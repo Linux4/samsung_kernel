@@ -30,7 +30,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.pre = {
 		.pclk = 168000000,
 		.linelength = 2816,
-		.framelength = 2049,
+		.framelength = 1980,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width = 1296,
@@ -44,7 +44,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.cap = {
 		.pclk = 168000000,
 		.linelength = 2816,
-		.framelength = 2049,
+		.framelength = 1980,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width = 2592,
@@ -68,7 +68,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.normal_video = {
 		.pclk = 168000000,
 		.linelength = 2816,
-		.framelength = 2049,
+		.framelength = 1980,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width = 2592,
@@ -144,7 +144,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	//enter slim video delay frame num
 	//.slim_video_delay_frame = 2,
 
-	.isp_driving_current = ISP_DRIVING_6MA,
+	.isp_driving_current = ISP_DRIVING_4MA,
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	.mipi_sensor_type = MIPI_OPHY_NCSI2,
 	.mipi_settle_delay_mode = 1,
@@ -985,15 +985,15 @@ static kal_uint16 addr_data_pair_init_hi556[] = {
 	0x0b0c, 0xf814,
 	0x0b0e, 0xc618,
 	0x0b10, 0xa828,
-	0x0b12, 0x000c,
+	0x0b12, 0x0010,
 	0x0b14, 0x4068,
 	0x0b16, 0x0000,
 	0x0f30, 0x6925,
 	0x0f32, 0x7067,
 	0x0954, 0x0009,
 	0x0956, 0x1100,
-	0x0958, 0Xc980,
-	0x095a, 0x9FF3,
+	0x0958, 0xB880,
+	0x095a, 0x0173,
 	0x0c00, 0x1110,
 	0x0c02, 0x0011,
 	0x0c04, 0x0000,
@@ -1218,15 +1218,15 @@ static void sensor_init(void)
 	write_cmos_sensor(0x0b0c, 0xf814);
 	write_cmos_sensor(0x0b0e, 0xc618);
 	write_cmos_sensor(0x0b10, 0xa828);
-	write_cmos_sensor(0x0b12, 0x000c);
+	write_cmos_sensor(0x0b12, 0x0010);
 	write_cmos_sensor(0x0b14, 0x4068);
 	write_cmos_sensor(0x0b16, 0x0000);
 	write_cmos_sensor(0x0f30, 0x6925);
 	write_cmos_sensor(0x0f32, 0x7067);
 	write_cmos_sensor(0x0954, 0x0009);
 	write_cmos_sensor(0x0956, 0x1100);
-	write_cmos_sensor(0x0958, 0Xc980);
-	write_cmos_sensor(0x095a, 0x9FF3);
+	write_cmos_sensor(0x0958, 0xB880);
+	write_cmos_sensor(0x095a, 0x0173);
 	write_cmos_sensor(0x0c00, 0x1110);
 	write_cmos_sensor(0x0c02, 0x0011);
 	write_cmos_sensor(0x0c04, 0x0000);
@@ -1307,12 +1307,12 @@ static kal_uint16 addr_data_pair_preview_hi556[] = {
 	0x002e, 0x3311,
 	0x0030, 0x3311,
 	0x0032, 0x3311,
-	0x0006, 0x0801,
+	0x0006, 0x07bc,
 	0x0a22, 0x0000,
 	0x0a12, 0x0510,
 	0x0a14, 0x03cc,
 	0x003e, 0x0000,
-	0x0074, 0x07ff,
+	0x0074, 0x07ba,
 	0x0070, 0x0411,
 	0x0804, 0x0200,
 	0x0a04, 0x016a,
@@ -1356,12 +1356,12 @@ static void preview_setting(void)
 	write_cmos_sensor(0x002e, 0x3311);
 	write_cmos_sensor(0x0030, 0x3311);
 	write_cmos_sensor(0x0032, 0x3311);
-	write_cmos_sensor(0x0006, 0x0801);
+	write_cmos_sensor(0x0006, 0x07bc);
 	write_cmos_sensor(0x0a22, 0x0000);
 	write_cmos_sensor(0x0a12, 0x0510);
 	write_cmos_sensor(0x0a14, 0x03cc);
 	write_cmos_sensor(0x003e, 0x0000);
-	write_cmos_sensor(0x0074, 0x07ff);
+	write_cmos_sensor(0x0074, 0x07ba);
 	write_cmos_sensor(0x0070, 0x0411);
 	write_cmos_sensor(0x0804, 0x0200);
 	write_cmos_sensor(0x0a04, 0x016a);
@@ -1443,12 +1443,12 @@ static kal_uint16 addr_data_pair_capture_30fps_hi556[] = {
 	0x002e, 0x1111,
 	0x0030, 0x1111,
 	0x0032, 0x1111,
-	0x0006, 0x0801,
+	0x0006, 0x07bc,
 	0x0a22, 0x0000,
 	0x0a12, 0x0a20,
 	0x0a14, 0x0798,
 	0x003e, 0x0000,
-	0x0074, 0x07ff,
+	0x0074, 0x07ba,
 	0x0070, 0x0411,
 	0x0804, 0x0200,
 	0x0a04, 0x014a,
@@ -1502,12 +1502,12 @@ static void capture_setting(kal_uint16 currefps)
 		write_cmos_sensor(0x002e, 0x1111);
 		write_cmos_sensor(0x0030, 0x1111);
 		write_cmos_sensor(0x0032, 0x1111);
-		write_cmos_sensor(0x0006, 0x0801);
+		write_cmos_sensor(0x0006, 0x07bc);
 		write_cmos_sensor(0x0a22, 0x0000);
 		write_cmos_sensor(0x0a12, 0x0a20);
 		write_cmos_sensor(0x0a14, 0x0798);
 		write_cmos_sensor(0x003e, 0x0000);
-		write_cmos_sensor(0x0074, 0x07ff);
+		write_cmos_sensor(0x0074, 0x07ba);
 		write_cmos_sensor(0x0070, 0x0411);
 		write_cmos_sensor(0x0804, 0x0200);
 		write_cmos_sensor(0x0a04, 0x014a);

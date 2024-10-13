@@ -101,7 +101,7 @@ unsigned int adsp_A_log_poll(void)
 	if (!adsp_A_logger_inited)
 		return 0;
 
-	if (ADSP_A_buf_info->r_pos != ADSP_A_buf_info->w_pos)
+	if ((buf_info->r_pos != buf_info->w_pos) || !(ctrl->enable))
 		return POLLIN | POLLRDNORM;
 
 	/* adsp_log_timer_add(); */

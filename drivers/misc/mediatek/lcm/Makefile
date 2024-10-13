@@ -14,15 +14,16 @@
 #
 # Makefile for misc devices that really don't fit anywhere else.
 #
-# bug682591, liutongxing.wt, modify, 20210806, lcd bring up
 
 obj-$(CONFIG_MTK_LCM) += mt65xx_lcm_list.o        \
-			 lcm_common.o             \
-			 lcm_gpio.o               \
-			 lcm_i2c.o                \
+                         lcm_common.o             \
+                         lcm_gpio.o               \
+                         lcm_i2c.o                \
 			 panel_notifier.o         \
-			 lcm_pmic.o               \
-			 lcm_util.o
+                         lcm_pmic.o               \
+                         lcm_util.o
+
+obj-$(CONFIG_PANEL_NOTIFIER_W2) += panel_notifier.o
 
 ifeq ($(CONFIG_WT_PROJECT_S96516SA1),y)
     obj-$(CONFIG_MTK_LCM) += lcm_cust_common.o

@@ -210,6 +210,11 @@ struct fts_ts_data {
     int key_state;
     int touch_point;
     int point_num;
+
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    int fts_head_set;
+#endif
+
     struct regulator *vdd;
     struct pinctrl          *pinctrl;
     struct pinctrl_state    *spi_default;
@@ -298,6 +303,10 @@ int fts_ex_mode_recovery(struct fts_ts_data *ts_data);
 
 void fts_irq_disable(void);
 void fts_irq_enable(void);
+
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+int focal_headset_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
+#endif
 
 #if FTS_PSENSOR_EN
 int fts_proximity_init(void);

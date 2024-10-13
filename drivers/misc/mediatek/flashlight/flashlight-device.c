@@ -87,11 +87,28 @@ const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-sywt78", 0, 0},
 };
-#else
+//+S98616-1936, chenming01.wt, ADD, 2023/6/6, Project macros distinguish flash driver files.
+#elif defined(CONFIG_WT_PROJECT_S96516SA1)
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-sgm3785", 0, 1},
-	{0, 0, 0, "flashlights-mt6370", 0, 0},
+};
+#elif defined(CONFIG_WT_PROJECT_S96616AA1)
+const struct flashlight_device_id flashlight_id[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-sgm3785", 0, 1},
+};
+#elif defined(CONFIG_MTK_S96818_CAMERA)
+const struct flashlight_device_id flashlight_id[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-ocp8111", 0, 1},
+};
+//-S98616-1936, chenming01.wt, ADD, 2023/6/6, Project macros distinguish flash driver files.
+
+#else
+const struct flashlight_device_id flashlight_id[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-ocp8111", 0, 1},
 	{0, 1, 0, "flashlights-none", -1, 0},
 	{1, 0, 0, "flashlights-none", -1, 0},
 	{1, 1, 0, "flashlights-none", -1, 0},

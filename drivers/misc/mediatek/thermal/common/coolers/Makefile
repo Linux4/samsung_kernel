@@ -157,7 +157,9 @@ else
 			obj-$(CONFIG_THERMAL) += mtk_cooler_bcct_2nd.o
 		endif
 	else
+ifeq ($(CONFIG_MTK_GAUGE_VERSION),30)
 		obj-$(CONFIG_THERMAL) += mtk_cooler_bcct.o
+endif
 	endif
 endif
 

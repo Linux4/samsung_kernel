@@ -1,20 +1,3 @@
-/*  Himax Android Driver Sample Code for MTK kernel 4.4 platform
-
-    Copyright (C) 2018 Himax Corporation.
-
-    This software is licensed under the terms of the GNU General Public
-    License version 2, as published by the Free Software Foundation, and
-    may be copied, distributed, and modified under those terms.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-*/
-
-#ifndef HIMAX_PLATFORM_H
-#define HIMAX_PLATFORM_H
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2019 MediaTek Inc.
@@ -26,8 +9,6 @@
 #include <linux/delay.h>
 #include <linux/fs.h>
 #include <linux/gpio.h>
-#include <linux/types.h>
-#include <linux/i2c.h>
 #include <linux/i2c.h>
 #include <linux/types.h>
 
@@ -42,31 +23,11 @@
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
 
-#define MTK
 #define MTK_KERNEL_44
 /* #define MTK_I2C_DMA */
 /* #define MTK_INT_NOT_WORK_WORKAROUND */
 
 #if defined(CONFIG_TOUCHSCREEN_HIMAX_DEBUG)
-#define D(x...) printk("[HXTP] " x)
-#define I(x...) printk("[HXTP] " x)
-#define W(x...) printk("[HXTP][WARNING] " x)
-#define E(x...) printk("[HXTP][ERROR] " x)
-#define DIF(x...) \
- do { \
-	if (debug_flag) \
-		printk("[HXTP][DEBUG] " x) \
-	} while (0)
-#else
-#define D(x...)
-#define I(x...)
-#define W(x...)
-#define E(x...)
-#define DIF(x...)
-#endif
-
-#define HIMAX_I2C_RETRY_TIMES 			10
-#define HIMAX_common_NAME 				"hxmax_generic" /* "himax_tp" */
 #define D(fmt, arg...) pr_debug("<<-GTP-ERROR->> " fmt "\n", ##arg)
 #define I(fmt, arg...) pr_info("<<-GTP-INFO->> " fmt "\n", ##arg)
 #define W(fmt, arg...) pr_debug("<<-GTP-ERROR->> " fmt "\n", ##arg)
@@ -90,7 +51,6 @@
 extern struct tpd_device *tpd;
 
 static unsigned short force[] = {0, 0x90, I2C_CLIENT_END, I2C_CLIENT_END};
-static const unsigned short *const forces[] = { force, NULL };
 static const unsigned short *const forces[] = {force, NULL};
 
 static DECLARE_WAIT_QUEUE_HEAD(waiter);
@@ -123,26 +83,10 @@ struct himax_i2c_platform_data {
 	struct kobject *vk_obj;
 	struct kobj_attribute *vk2Use;
 
-	struct himax_config *hx_config;
 	int hx_config_size;
 };
 
 extern int irq_enable_count;
-extern int himax_bus_read(uint8_t command, uint8_t *data, uint8_t length, uint8_t toRetry);
-extern int himax_bus_write(uint8_t command, uint8_t *data, uint8_t length, uint8_t toRetry);
-extern int himax_bus_write_command(uint8_t command, uint8_t toRetry);
-extern int himax_bus_master_write(uint8_t *data, uint8_t length, uint8_t toRetry);
-extern void himax_int_enable(int enable);
-extern int himax_ts_register_interrupt(void);
-extern uint8_t himax_int_gpio_read(int pinnum);
-
-extern int himax_gpio_power_config(struct himax_i2c_platform_data *pdata);
-extern int of_get_himax85xx_platform_data(struct device *dev);
-
-#if defined(CONFIG_FB)
-	extern int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
-#endif
-
 extern int i2c_himax_read(struct i2c_client *client, uint8_t command,
 			  uint8_t *data, uint8_t length, uint8_t toRetry);
 extern int i2c_himax_write(struct i2c_client *client, uint8_t command,

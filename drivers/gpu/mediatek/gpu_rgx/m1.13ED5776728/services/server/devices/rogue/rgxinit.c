@@ -1592,7 +1592,7 @@ const void * RGXLoadAndGetFWData(PVRSRV_DEVICE_NODE *psDeviceNode,
 		*ppsRGXFW = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION);
 		if (*ppsRGXFW == NULL)
 		{
-			pszLoadedFwStr = aszFWFilenameStr;
+			pszLoadedFwStr = aszFWpFilenameStr;
 			*ppsRGXFW = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION);
 			if (*ppsRGXFW == NULL)
 			{

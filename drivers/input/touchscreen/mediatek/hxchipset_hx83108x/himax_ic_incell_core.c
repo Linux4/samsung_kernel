@@ -421,10 +421,11 @@ static void himax_mcu_suspend_ic_action(void)
 	/* Nothing to do */
 }
 
-static void himax_mcu_power_on_init(void)
+int himax_mcu_power_on_init(void)
 {
 	uint8_t tmp_data[4] = {0x01, 0x00, 0x00, 0x00};
 	uint8_t retry = 0;
+	int ret = -1;
 
 	/*RawOut select initial*/
 	g_core_fp.fp_register_write(pfw_op->addr_raw_out_sel,
@@ -442,7 +443,7 @@ static void himax_mcu_power_on_init(void)
 
 	I("%s: waiting for FW reload data\n", __func__);
 
-	while (retry++ < 60) {
+	while (retry++ < 10) {
 		g_core_fp.fp_register_read(
 			pdriver_op->addr_fw_define_2nd_flash_reload, tmp_data,
 			DATA_LEN_4);
@@ -455,8 +456,12 @@ static void himax_mcu_power_on_init(void)
 		}
 		I("%s: wait FW reload %d times\n", __func__, retry);
 		g_core_fp.fp_read_FW_status();
-		usleep_range(5000, 5100);
+		usleep_range(10000, 11000);
 	}
+		if(retry < 10 ) {
+		ret = 0;
+	}
+	return ret;
 }
 /* IC side end*/
 /* CORE_IC */
@@ -1236,7 +1241,7 @@ static void himax_mcu_read_FW_ver(void)
 	/*I("CFG_VER : %X\n",ic_data->vendor_config_ver);*/
 	ic_data->vendor_touch_cfg_ver = data[2];
 	I("TOUCH_VER : %X\n", ic_data->vendor_touch_cfg_ver);
-	sprintf(Ctp_name,"BOE,HX83108,FW:0x0%d",ic_data->vendor_touch_cfg_ver);
+	sprintf(Ctp_name,"BOE,HX83108,FW:0x%02x",ic_data->vendor_touch_cfg_ver);
 
 	ic_data->vendor_display_cfg_ver = data[3];
 	I("DISPLAY_VER : %X\n", ic_data->vendor_display_cfg_ver);
@@ -2216,7 +2221,7 @@ static void himax_mcu_ic_reset(uint8_t loadconfig, uint8_t int_off)
 {
 	struct himax_ts_data *ts = private_ts;
 
-	HX_HW_RESET_ACTIVATE = 0;
+	HX_HW_RESET_ACTIVATE = 1;
 	I("%s,status: loadconfig=%d,int_off=%d\n", __func__,
 			loadconfig, int_off);
 
@@ -2484,17 +2489,26 @@ static int himax_mcu_ic_excp_recovery(uint32_t hx_excp_event,
 	} else if (hx_zero_event == length) {
 		I("ALL Zero event is %d times.\n",
 			++g_zero_event_count);
-		if (g_zero_event_count == HX_ALL0_EXCPT_TIMES) {
-			I("EXCEPTION event checked=%d - ALL Zero.\n", g_zero_event_count);
-			ret_val = HX_EXCP_ZERO_EVENT;
-		} else if (g_zero_event_count > HX_ALL0_EXCPT_DD_TIMES) {
-			g_zero_event_count = 0;
-			I("EXCEPTION event checked=%d- ALL Zero(Limitation)\n", g_zero_event_count);
-			ret_val = HX_EXCP_ZERO_DD_EVENT; 
+		if (private_ts->suspended == false) {
+			if (g_zero_event_count == HX_ALL0_EXCPT_TIMES) {
+				I("EXCEPTION event checked=%d - ALL Zero.\n", g_zero_event_count);
+				ret_val = HX_EXCP_ZERO_EVENT;
+//			} else if (g_zero_event_count > HX_ALL0_EXCPT_DD_TIMES) {
+				g_zero_event_count = 0;
+//     			I("EXCEPTION event checked=%d- ALL Zero(Limitation)\n", g_zero_event_count);
+//				ret_val = HX_EXCP_ZERO_DD_EVENT;
+			} else {
+				ret_val = HX_ZERO_EVENT_COUNT;
+			}
 		} else {
-			ret_val = HX_ZERO_EVENT_COUNT;
+			if (g_zero_event_count == HX_supend_ALL0_EXCPT_TIMES) {
+				I("EXCEPTION event at suspend checked=%d - ALL Zero.\n", g_zero_event_count);
+				ret_val = HX_EXCP_ZERO_EVENT;
+				g_zero_event_count = 0;
+			} else {
+				ret_val = HX_ZERO_EVENT_COUNT;
+			}
 		}
-
 	}
 
 	return ret_val;
@@ -3377,10 +3391,11 @@ int himax_zf_part_info(const struct firmware *fw, int type)
 		if (cfg_crc_hw != cfg_crc_sw) {
 			E("Cfg CRC FAIL,HWCRC=%X,SWCRC=%X,retry=%d\n",
 				cfg_crc_hw, cfg_crc_sw, retry);
+			retry++;
 		}
-	} while (cfg_crc_hw != cfg_crc_sw && retry++ < 3);
+	} while (cfg_crc_hw != cfg_crc_sw && retry < 3);
 
-	if (retry > 3) {
+	if (retry >= 3) {
 		ret = 2;
 		goto BURN_SRAM_FAIL;
 	}
@@ -3534,8 +3549,8 @@ int hx_0f_op_file_dirly(char *file_name)
 	if (reqret >= 0)
 		release_firmware(fw);
 
-	if (ret < 0)
-		goto END;
+//	if (ret < 0)
+//		goto END;
 
 if (!g_has_alg_overlay) {
 	if (type == 1)
@@ -3543,13 +3558,17 @@ if (!g_has_alg_overlay) {
 	else
 		g_core_fp.fp_turn_on_mp_func(0);
 	g_core_fp.fp_reload_disable(0);
-	g_core_fp.fp_power_on_init();
+	if( ret != 0 ) {
+		g_core_fp.fp_power_on_init();
+	} else {
+		ret = g_core_fp.fp_power_on_init();
+	}
 }
 
 END:
 	g_f_0f_updat = 0;
 
-	I("%s: END\n", __func__);
+	I("%s: ret=%d, END\n", __func__,ret);
 	return ret;
 }
 

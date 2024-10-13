@@ -3,7 +3,7 @@
 
 #include "cts_config.h"
 #include<linux/hardware_info.h>   //for hardwareinfo
-extern uint32_t lcm_name;
+extern uint32_t g_lcm_name;
 
 #if defined(CONFIG_DRV_SAMSUNG)
 #include <linux/input/sec_cmd.h>

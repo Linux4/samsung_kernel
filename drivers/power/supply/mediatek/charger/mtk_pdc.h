@@ -8,6 +8,8 @@
 
 #define ADAPTER_CAP_MAX_NR 10
 
+extern int g_pd_work_status; //Bug518556,churui1.wt,ADD,20220808, Charging pd flag
+
 struct pd_cap {
 	uint8_t selected_cap_idx;
 	uint8_t nr;

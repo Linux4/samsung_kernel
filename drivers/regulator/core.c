@@ -57,6 +57,8 @@ static LIST_HEAD(regulator_supply_alias_list);
 static bool has_full_constraints;
 
 static struct dentry *debugfs_root;
+//bug760445 , liangyiyi.wt, MODIFY, 2022/6/9, modify for solving the 2st dep camera leakage during standby
+int iovdd_alway_on=0;
 
 /*
  * struct regulator_map
@@ -131,7 +133,12 @@ static bool regulator_ops_is_valid(struct regulator_dev *rdev, int ops)
 		rdev_err(rdev, "no constraints\n");
 		return false;
 	}
-
+    //+bug760445 , liangyiyi.wt, MODIFY, 2022/6/9, modify for solving the 2st dep camera leakage during standby
+    if(!strcmp((char *)rdev->constraints->name, "vcamio") &&
+            iovdd_alway_on && (rdev->constraints->valid_ops_mask&REGULATOR_CHANGE_STATUS == 0)){
+        rdev->constraints->valid_ops_mask |= REGULATOR_CHANGE_STATUS;
+    }
+    //-bug760445 , liangyiyi.wt, MODIFY, 2022/6/9, modify for solving the 2st dep camera leakage during standby
 	if (rdev->constraints->valid_ops_mask & ops)
 		return true;
 
@@ -2420,7 +2427,13 @@ static int _regulator_disable(struct regulator_dev *rdev)
 	if (WARN(rdev->use_count <= 0,
 		 "unbalanced disables for %s\n", rdev_get_name(rdev)))
 		return -EIO;
-
+    //+bug760445 , liangyiyi.wt, MODIFY, 2022/6/9, modify for solving the 2st dep camera leakage during standby
+    if(!strcmp((char *)rdev->constraints->name, "vcamio") &&
+            iovdd_alway_on && rdev->constraints->always_on == 0){
+        rdev->constraints->always_on =1;
+    }
+    //printk("iovdd_alway_on(%d) always_on(%d) name(%s)\n",iovdd_alway_on,rdev->constraints->always_on,rdev->constraints->name);
+    //-bug760445 , liangyiyi.wt, MODIFY, 2022/6/9, modify for solving the 2st dep camera leakage during standby
 	/* are we the last user and permitted to disable ? */
 	if (rdev->use_count == 1 &&
 	    (rdev->constraints && !rdev->constraints->always_on)) {
@@ -4940,8 +4953,12 @@ static int regulator_late_cleanup(struct device *dev, void *data)
 
 	if (!enabled)
 		goto unlock;
-	//bug 717429, linaiyu.wt, add, 2022.04.24, keep vbus detect Pen Driver after restarting
+//bug 782977, linaiyu.wt, add, 2022.08.18, keep vbus detect Pen Driver after restarting
+#if defined(CONFIG_WT_PROJECT_S96516SA1) || defined(CONFIG_WT_PROJECT_S96616AA1)
 	if (have_full_constraints()&& strcmp(rdev->desc->name, "usb-otg-vbus")) {
+#else
+	if (have_full_constraints()) {
+#endif
 		/* We log since this may kill the system if it goes
 		 * wrong. */
 		rdev_info(rdev, "disabling\n");

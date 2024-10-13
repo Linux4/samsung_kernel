@@ -96,11 +96,17 @@ static const struct snd_soc_dapm_route mtk_dai_hostless_routes[] = {
 	/* Hostelss FM */
 	/* connsys_i2s to hw gain 1*/
 	{"Hostless FM UL", NULL, "Connsys I2S"},
+	/* connsys_i2s to hw gain 2*/
+	{"Hostless FM RECORD UL", NULL, "HW Gain 2 In"},
 
 	{"HW_GAIN1_IN_CH1", "CONNSYS_I2S_CH1", "Hostless FM DL"},
 	{"HW_GAIN1_IN_CH2", "CONNSYS_I2S_CH2", "Hostless FM DL"},
+	{"HW_GAIN2_IN_CH1", "CONNSYS_I2S_CH1", "Hostless FM DL"},
+	{"HW_GAIN2_IN_CH2", "CONNSYS_I2S_CH2", "Hostless FM DL"},
+
 	/* hw gain to adda dl */
 	{"Hostless FM UL", NULL, "HW Gain 1 Out"},
+	{"Hostless_ADDA_DL_HWGain DL", NULL, "HW Gain 1 Out"},
 
 	{"ADDA_DL_CH1", "GAIN1_OUT_CH1", "Hostless FM DL"},
 	{"ADDA_DL_CH2", "GAIN1_OUT_CH2", "Hostless FM DL"},
@@ -135,6 +141,11 @@ static const struct snd_soc_dapm_route mtk_dai_hostless_routes[] = {
 	{"Hostless SRC AAudio UL", NULL, "HW Gain 2 Out"},
 	{"HW_SRC_2_IN_CH1", "HW_GAIN2_OUT_CH1", "Hostless SRC AAudio DL"},
 	{"HW_SRC_2_IN_CH2", "HW_GAIN2_OUT_CH2", "Hostless SRC AAudio DL"},
+
+	/* Hostless_HWGain_1 */
+	{"ADDA_DL_CH1", "GAIN1_OUT_CH1", "Hostless HWGain_1 DL"},
+	{"ADDA_DL_CH2", "GAIN1_OUT_CH2", "Hostless HWGain_1 DL"},
+	{"Hostless HWGain_1 UL", NULL, "HW Gain 1 Out"},
 };
 
 /* dai ops */
@@ -201,6 +212,18 @@ static struct snd_soc_dai_driver mtk_dai_hostless_driver[] = {
 		},
 		.capture = {
 			.stream_name = "Hostless FM UL",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = MTK_HOSTLESS_RATES,
+			.formats = MTK_HOSTLESS_FORMATS,
+		},
+		.ops = &mtk_dai_hostless_ops,
+	},
+	{
+		.name = "Hostless FM RECORD DAI",
+		.id = MT6833_DAI_HOSTLESS_FM_RECORD,
+		.capture = {
+			.stream_name = "Hostless FM RECORD UL",
 			.channels_min = 1,
 			.channels_max = 2,
 			.rates = MTK_HOSTLESS_RATES,
@@ -278,6 +301,18 @@ static struct snd_soc_dai_driver mtk_dai_hostless_driver[] = {
 		.ops = &mtk_dai_hostless_ops,
 	},
 	{
+		.name = "Hostless_ADDA_DL_HWGain DAI",
+		.id = MT6833_DAI_HOSTLESS_ADDA_DL_HWGain,
+		.playback = {
+			.stream_name = "Hostless_ADDA_DL_HWGain DL",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = MTK_HOSTLESS_RATES,
+			.formats = MTK_HOSTLESS_FORMATS,
+		},
+		.ops = &mtk_dai_hostless_ops,
+	},
+	{
 		.name = "Hostless_SRC_1_DAI",
 		.id = MT6833_DAI_HOSTLESS_SRC_1,
 		.playback = {
@@ -289,6 +324,25 @@ static struct snd_soc_dai_driver mtk_dai_hostless_driver[] = {
 		},
 		.capture = {
 			.stream_name = "Hostless_SRC_1_UL",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = MTK_HOSTLESS_RATES,
+			.formats = MTK_HOSTLESS_FORMATS,
+		},
+		.ops = &mtk_dai_hostless_ops,
+	},
+	{
+		.name = "Hostless_HWGain_1_DAI",
+		.id = MT6833_DAI_HOSTLESS_HWGain_1,
+		.playback = {
+			.stream_name = "Hostless HWGain_1 DL",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = MTK_HOSTLESS_RATES,
+			.formats = MTK_HOSTLESS_FORMATS,
+		},
+		.capture = {
+			.stream_name = "Hostless HWGain_1 UL",
 			.channels_min = 1,
 			.channels_max = 2,
 			.rates = MTK_HOSTLESS_RATES,

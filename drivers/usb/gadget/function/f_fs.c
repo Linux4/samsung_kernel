@@ -989,9 +989,13 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		}
 	}
 
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+    if (!strncmp(epfile->ffs->dev_name, "mtp", 3) || !strncmp(epfile->ffs->dev_name, "ptp", 3))
+		usb_boost();
+#else
 	if (!strncmp(epfile->ffs->dev_name, "mtp", 3))
 		usb_boost();
-
+#endif
 	spin_lock_irq(&epfile->ffs->eps_lock);
 
 	if (epfile->ep != ep) {
@@ -1119,7 +1123,7 @@ static int
 ffs_epfile_open(struct inode *inode, struct file *file)
 {
 	struct ffs_epfile *epfile = inode->i_private;
-#if defined(CONFIG_MACH_MT6765)
+#if defined(CONFIG_MACH_MT6765) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 	struct cpumask cpu_mask;
 	int i = 1, idx = 0;
 	unsigned int mask = 0x0F;
@@ -1154,6 +1158,21 @@ ffs_epfile_open(struct inode *inode, struct file *file)
 	}
 #endif
 
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+    if (!strncmp(epfile->ffs->dev_name, "mtp", 3) || !strncmp(epfile->ffs->dev_name, "ptp", 3)) {
+		cpumask_clear(&cpu_mask);
+
+		while (i <= mask) {
+			if (i & mask) {
+				cpumask_set_cpu(idx, &cpu_mask);
+				pr_info("Set CPU[%d] On\n", idx);
+			}
+			idx++;
+			i = i << 1;
+		}
+		set_cpus_allowed_ptr(current, &cpu_mask);
+	}
+#endif
 	atomic_set(&epfile->opened, 1);
 	file->private_data = epfile;
 	ffs_data_opened(epfile->ffs);
@@ -1741,9 +1760,11 @@ static void ffs_data_put(struct ffs_data *ffs)
 		kfree(ffs);
 	}
 }
-
+//Bug+715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_data_closed(struct ffs_data *ffs)
 {
+	struct ffs_epfile *epfiles;
+	unsigned long flags;
 	ENTER();
 
 	/* to get updated opened atomic variable value */
@@ -1751,11 +1772,14 @@ static void ffs_data_closed(struct ffs_data *ffs)
 	if (atomic_dec_and_test(&ffs->opened)) {
 		if (ffs->no_disconnect) {
 			ffs->state = FFS_DEACTIVATED;
-			if (ffs->epfiles) {
-				ffs_epfiles_destroy(ffs->epfiles,
+			spin_lock_irqsave(&ffs->eps_lock, flags);
+			epfiles = ffs->epfiles;
+			ffs->epfiles = NULL;
+			spin_unlock_irqrestore(&ffs->eps_lock,
+							flags);
+			if (epfiles)
+				ffs_epfiles_destroy(epfiles,
 						   ffs->eps_count);
-				ffs->epfiles = NULL;
-			}
 			if (ffs->setup_state == FFS_SETUP_PENDING)
 				__ffs_ep0_stall(ffs);
 		} else {
@@ -1763,7 +1787,7 @@ static void ffs_data_closed(struct ffs_data *ffs)
 			ffs_data_reset(ffs);
 		}
 	}
-
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 	/* to get updated opened atomic variable value */
 	smp_mb__before_atomic();
 	if (atomic_read(&ffs->opened) < 0) {
@@ -1804,21 +1828,32 @@ static struct ffs_data *ffs_data_new(const char *dev_name)
 
 	return ffs;
 }
-
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_data_clear(struct ffs_data *ffs)
 {
+	struct ffs_epfile *epfiles;
+	unsigned long flags;
 	ENTER();
 
 	ffs_closed(ffs);
 
 	BUG_ON(ffs->gadget);
 
-	if (ffs->epfiles)
-		ffs_epfiles_destroy(ffs->epfiles, ffs->eps_count);
+	spin_lock_irqsave(&ffs->eps_lock, flags);
+	epfiles = ffs->epfiles;
+	ffs->epfiles = NULL;
+	spin_unlock_irqrestore(&ffs->eps_lock, flags);
 
-	if (ffs->ffs_eventfd)
+	if (epfiles){
+		ffs_epfiles_destroy(epfiles, ffs->eps_count);
+		ffs->epfiles = NULL;
+	}
+
+	if (ffs->ffs_eventfd){
 		eventfd_ctx_put(ffs->ffs_eventfd);
-
+		ffs->ffs_eventfd = NULL;
+	}
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 	kfree(ffs->raw_descs_data);
 	kfree(ffs->raw_strings);
 	kfree(ffs->stringtabs);
@@ -1956,16 +1991,20 @@ static void ffs_epfiles_destroy(struct ffs_epfile *epfiles, unsigned count)
 	}
 
 	kfree(epfiles);
+	epfiles = NULL;
 }
-
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_func_eps_disable(struct ffs_function *func)
 {
-	struct ffs_ep *ep         = func->eps;
-	struct ffs_epfile *epfile = func->ffs->epfiles;
-	unsigned count            = func->ffs->eps_count;
+	struct ffs_ep *ep;
+	struct ffs_epfile *epfile;
+	unsigned short count;
 	unsigned long flags;
 
 	spin_lock_irqsave(&func->ffs->eps_lock, flags);
+	count = func->ffs->eps_count;
+	epfile = func->ffs->epfiles;
+	ep = func->eps;
 	while (count--) {
 
 		if (epfile)
@@ -1987,14 +2026,18 @@ static void ffs_func_eps_disable(struct ffs_function *func)
 
 static int ffs_func_eps_enable(struct ffs_function *func)
 {
-	struct ffs_data *ffs      = func->ffs;
-	struct ffs_ep *ep         = func->eps;
-	struct ffs_epfile *epfile = ffs->epfiles;
-	unsigned count            = ffs->eps_count;
+	struct ffs_data *ffs;
+	struct ffs_ep *ep;
+	struct ffs_epfile *epfile;
+	unsigned short count;
 	unsigned long flags;
 	int ret = 0;
 
 	spin_lock_irqsave(&func->ffs->eps_lock, flags);
+	ffs = func->ffs;
+	ep = func->eps;
+	epfile = ffs->epfiles;
+	count = ffs->eps_count;
 	while(count--) {
 		ep->ep->driver_data = ep;
 
@@ -2023,7 +2066,7 @@ static int ffs_func_eps_enable(struct ffs_function *func)
 
 	return ret;
 }
-
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 
 /* Parsing and building descriptors and strings *****************************/
 
@@ -3288,6 +3331,12 @@ static int ffs_func_set_alt(struct usb_function *f,
 	struct ffs_data *ffs = func->ffs;
 	int ret = 0, intf;
 
+	pr_info("%s - ffs->state:%d\n", __func__, ffs->state);
+	if (ffs->epfiles == NULL) {
+		pr_info("%s - UAF fix\n", __func__);
+		return -ENODEV;
+	}
+
 	if (alt != (unsigned)-1) {
 		intf = ffs_func_revmap_intf(func, interface);
 		if (unlikely(intf < 0))
@@ -3617,6 +3666,7 @@ static void ffs_func_unbind(struct usb_configuration *c,
 static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 {
 	struct ffs_function *func;
+	struct ffs_dev *dev;
 
 	ENTER();
 
@@ -3624,7 +3674,8 @@ static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 	if (unlikely(!func))
 		return ERR_PTR(-ENOMEM);
 
-	func->function.name    = "Function FS Gadget";
+	dev = to_f_fs_opts(fi)->dev;
+	func->function.name    = dev->name;
 
 	func->function.bind    = ffs_func_bind;
 	func->function.unbind  = ffs_func_unbind;

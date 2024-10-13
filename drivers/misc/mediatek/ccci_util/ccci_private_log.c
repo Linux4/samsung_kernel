@@ -31,6 +31,8 @@
 #define CCCI_LOG_BUF_SIZE 4096	/* must be power of 2 */
 #define CCCI_LOG_MAX_WRITE 4096
 
+#define CUST_FT_DUMP_BUF_FROM_DT 
+
 /*extern u64 local_clock(void); */
 
 struct ccci_ring_buffer {
@@ -84,6 +86,11 @@ int ccci_log_write(const char *fmt, ...)
 			CCCI_LOG_MAX_WRITE - write_len,
 			fmt, args);
 	va_end(args);
+	if (write_len >= CCCI_LOG_MAX_WRITE) {
+		pr_notice("%s-%d: string too long, write_len(%d) is over max(%d)\n",
+			__func__, __LINE__, write_len, CCCI_LOG_MAX_WRITE);
+		write_len = CCCI_LOG_MAX_WRITE - 1;
+	}
 
 	spin_lock_irqsave(&ccci_log_buf.write_lock, flags);
 	if (ccci_log_buf.write_pos + write_len > CCCI_LOG_BUF_SIZE) {
@@ -146,16 +153,19 @@ int ccci_log_write_raw(unsigned int set_flags, const char *fmt, ...)
 
 	if (set_flags & CCCI_DUMP_CURR_FLAG) {
 		write_len += scnprintf(temp_log + write_len,
-						CCCI_LOG_MAX_WRITE - write_len,
-						"[%d:%s]",
-						current->pid, current->comm);
+				CCCI_LOG_MAX_WRITE - write_len,
+				"[%d:%s]", current->pid, current->comm);
 	}
 
 	va_start(args, fmt);
 	write_len += vsnprintf(temp_log + write_len,
-					CCCI_LOG_MAX_WRITE - write_len,
-					fmt, args);
+			CCCI_LOG_MAX_WRITE - write_len, fmt, args);
 	va_end(args);
+	if (write_len >= CCCI_LOG_MAX_WRITE) {
+		pr_notice("%s-%d: string too long, write_len(%d) is over max(%d)\n",
+			__func__, __LINE__, write_len, CCCI_LOG_MAX_WRITE);
+		write_len = CCCI_LOG_MAX_WRITE - 1;
+	}
 
 	spin_lock_irqsave(&ccci_log_buf.write_lock, flags);
 	if (ccci_log_buf.write_pos + write_len > CCCI_LOG_BUF_SIZE) {
@@ -284,7 +294,7 @@ static const struct file_operations ccci_log_fops = {
 #define CCCI_HISTORY_BUF		(4096*128)
 #endif
 
-#define CCCI_REG_DUMP_BUF		(4096*64 * 2)
+#define CCCI_REG_DUMP_BUF		(4096*128 * 2)
 #define CCCI_DPMA_DRB_BUF		(1024 * 16 * 16)
 #define CCCI_DUMP_MD_INIT_BUF		(1024*16)
 #define CCCI_KE_DUMP_BUF                (1024 * 32)
@@ -1061,8 +1071,7 @@ void ccci_util_mem_dump(int md_id, int buf_type, void *start_addr, int len)
 		return;
 	}
 
-	ccci_dump_write(md_id, buf_type, 0, "Base:%px\n",
-					(unsigned long)start_addr);
+	ccci_dump_write(md_id, buf_type, 0, "Base:%p\n", start_addr);
 	/* Fix section */
 	for (i = 0; i < _16_fix_num; i++) {
 		ccci_dump_write(md_id, buf_type, 0,
@@ -1234,11 +1243,14 @@ int ccci_event_log(const char *fmt, ...)
 			current->comm);
 
 	va_start(args, fmt);
-	write_len += vsnprintf(temp_log
-					+ write_len,
-					CCCI_LOG_MAX_WRITE - write_len,
-					fmt, args);
+	write_len += vsnprintf(temp_log + write_len,
+			CCCI_LOG_MAX_WRITE - write_len, fmt, args);
 	va_end(args);
+	if (write_len >= CCCI_LOG_MAX_WRITE) {
+		pr_notice("%s-%d: string too long, write_len(%d) is over max(%d)\n",
+			__func__, __LINE__, write_len, CCCI_LOG_MAX_WRITE);
+		write_len = CCCI_LOG_MAX_WRITE - 1;
+	}
 
 	spin_lock_irqsave(&ccci_event_buffer.lock, flags);
 

@@ -32,13 +32,17 @@ enum mt6833_afe_gpio {
 	MT6833_AFE_GPIO_VOW_DAT_ON,
 	MT6833_AFE_GPIO_VOW_CLK_OFF,
 	MT6833_AFE_GPIO_VOW_CLK_ON,
+	/*bug 767771 chenfeng.wt add HAC 20220719*/
+	GPIO_AUD_HAC_HIGH,
+	GPIO_AUD_HAC_LOW,
 	MT6833_AFE_GPIO_GPIO_NUM
 };
 
 struct mtk_base_afe;
 
 int mt6833_afe_gpio_init(struct mtk_base_afe *afe);
-
+/* bug 767771 chenfeng.wt add HAC 20220719*/
+int mt6833_afe_gpio_hac_Select(int mode);
 int mt6833_afe_gpio_request(struct mtk_base_afe *afe, bool enable,
 			    int dai, int uplink);
 

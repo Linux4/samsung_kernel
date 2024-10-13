@@ -258,7 +258,7 @@ dm_bind(struct usb_configuration *c, struct usb_function *f)
 		goto fail;
 	dm->port.out = ep;
 	ep->driver_data = cdev;	/* claim */
-	printk(KERN_INFO "[%s]   in =0x%p , out =0x%p\n", __func__,
+	printk(KERN_INFO "[%s]   in =0x%pK , out =0x%pK\n", __func__,
 				dm->port.in, dm->port.out);
 
 	/* copy descriptors, and track endpoint copies */
@@ -465,7 +465,6 @@ struct usb_function *function_alloc_dm(struct usb_function_instance *fi, bool dm
 
 	struct dm_instance *fi_dm = to_fi_dm(fi);
 	struct f_dm	*dm;
-	//int		ret;
 
 	/* REVISIT might want instance-specific strings to help
 	 * distinguish instances ...

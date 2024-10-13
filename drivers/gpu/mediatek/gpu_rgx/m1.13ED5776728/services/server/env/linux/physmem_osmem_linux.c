@@ -508,6 +508,9 @@ _ScanObjectsInPagePool(struct shrinker *psShrinker, struct shrink_control *psShr
 		/* Remove item from pool */
 		list_del(&psUnpinEntry->sUnpinPoolItem);
 
+		/* The LinuxUnpinEntry object can be now freed */
+		OSFreeMem(psUnpinEntry);
+
 		g_ui32UnpinPageCount -= uiNumPages;
 
 		/* Check if there is more to free or if we already surpassed the limit */
@@ -1421,6 +1424,11 @@ _AllocOSPageArray(PVRSRV_DEVICE_NODE *psDevNode,
 				eError = PVRSRV_ERROR_OUT_OF_MEMORY;
 				goto e_free_cpuvirtaddrarray;
 			}
+		}
+		else
+		{
+			psPageArrayData->dmavirtarray = NULL;
+			psPageArrayData->dmaphysarray = NULL;
 		}
 	}
 
@@ -2597,6 +2605,16 @@ _FreeOSPagesArray(PMR_OSPAGEARRAY_DATA *psPageArrayData)
 		OSFreeMemNoStats(psPageArrayData->pagearray);
 	}
 
+	/* Check if we need to free additional DMA/CMA cpu kernel virtual address & device bus address arrays */
+	if (psPageArrayData->dmaphysarray != NULL)
+	{
+		OSFreeMemNoStats(psPageArrayData->dmaphysarray);
+	}
+	if (psPageArrayData->dmavirtarray != NULL)
+	{
+		OSFreeMemNoStats(psPageArrayData->dmavirtarray);
+	}
+
 	kmem_cache_free(g_psLinuxPageArray, psPageArrayData);
 
 	return PVRSRV_OK;
@@ -2977,6 +2995,13 @@ PMRUnlockSysPhysAddressesOSMem(PMR_IMPL_PRIVDATA pvPriv)
 	return eError;
 }
 
+static INLINE IMG_BOOL IsOffsetValid(const PMR_OSPAGEARRAY_DATA *psOSPageArrayData,
+                                     IMG_UINT32 ui32Offset)
+{
+	return (ui32Offset >> psOSPageArrayData->uiLog2AllocPageSize) <
+	    psOSPageArrayData->uiTotalNumOSPages;
+}
+
 /* Determine PA for specified offset into page array. */
 static IMG_DEV_PHYADDR GetOffsetPA(const PMR_OSPAGEARRAY_DATA *psOSPageArrayData,
                                    IMG_UINT32 ui32Offset)
@@ -2986,7 +3011,6 @@ static IMG_DEV_PHYADDR GetOffsetPA(const PMR_OSPAGEARRAY_DATA *psOSPageArrayData
 	IMG_UINT32 ui32InPageOffset = ui32Offset - (ui32PageIndex << ui32Log2AllocPageSize);
 	IMG_DEV_PHYADDR sPA;
 
-	PVR_ASSERT(ui32PageIndex < psOSPageArrayData->uiTotalNumOSPages);
 	PVR_ASSERT(ui32InPageOffset < (1U << ui32Log2AllocPageSize));
 
 	sPA.uiAddr = page_to_phys(psOSPageArrayData->pagearray[ui32PageIndex]);
@@ -3021,6 +3045,9 @@ PMRSysPhysAddrOSMem(PMR_IMPL_PRIVDATA pvPriv,
 	{
 		if (pbValid[uiIdx])
 		{
+			PVR_LOG_RETURN_IF_FALSE(IsOffsetValid(psOSPageArrayData, puiOffset[uiIdx]),
+			                        "puiOffset out of range", PVRSRV_ERROR_OUT_OF_RANGE);
+
 			psDevPAddr[uiIdx] = GetOffsetPA(psOSPageArrayData, puiOffset[uiIdx]);
 
 #if !defined(PVR_LINUX_PHYSMEM_USE_HIGHMEM_ONLY)
@@ -3440,7 +3467,7 @@ PMRChangeSparseMemOSMem(PMR_IMPL_PRIVDATA pPriv,
 			{
 				uiFreepgidx = pai32FreeIndices[ui32Loop];
 
-				if (uiFreepgidx > (psPMRPageArrayData->uiTotalNumOSPages >> uiOrder))
+				if (uiFreepgidx >= (psPMRPageArrayData->uiTotalNumOSPages >> uiOrder))
 				{
 					eError = PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE;
 					goto e0;
@@ -3471,35 +3498,20 @@ PMRChangeSparseMemOSMem(PMR_IMPL_PRIVDATA pPriv,
 	{
 		uiAllocpgidx = pai32AllocIndices[ui32Loop];
 
-		if (uiAllocpgidx > (psPMRPageArrayData->uiTotalNumOSPages >> uiOrder))
+		if (uiAllocpgidx >= (psPMRPageArrayData->uiTotalNumOSPages >> uiOrder))
 		{
 			eError = PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE;
 			goto e0;
 		}
 
-		if (SPARSE_REMAP_MEM != (uiFlags & SPARSE_REMAP_MEM))
+		if ((NULL != psPageArray[uiAllocpgidx]) ||
+		    (TRANSLATION_INVALID != psPMRMapTable->aui32Translation[uiAllocpgidx]))
 		{
-			if ((NULL != psPageArray[uiAllocpgidx]) ||
-			    (TRANSLATION_INVALID != psPMRMapTable->aui32Translation[uiAllocpgidx]))
-			{
-				eError = PVRSRV_ERROR_INVALID_PARAMS;
-				PVR_DPF((PVR_DBG_ERROR,
-				         "%s: Trying to allocate already allocated page again",
-				         __func__));
-				goto e0;
-			}
-		}
-		else
-		{
-			if ((NULL == psPageArray[uiAllocpgidx]) ||
-			    (TRANSLATION_INVALID == psPMRMapTable->aui32Translation[uiAllocpgidx]) )
-			{
-				eError = PVRSRV_ERROR_INVALID_PARAMS;
-				PVR_DPF((PVR_DBG_ERROR,
-				         "%s: Unable to remap memory due to missing page",
-				         __func__));
-				goto e0;
-			}
+			eError = PVRSRV_ERROR_INVALID_PARAMS;
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Trying to allocate already allocated page again",
+			         __func__));
+			goto e0;
 		}
 	}
 
@@ -3545,30 +3557,13 @@ PMRChangeSparseMemOSMem(PMR_IMPL_PRIVDATA pPriv,
 			psDMAPhysArray[uiAllocpgidx] = psDMAPhysArray[uiFreepgidx];
 		}
 
-		/* Is remap mem used in real world scenario? Should it be turned to a
-		 *  debug feature? The condition check needs to be out of loop, will be
-		 *  done at later point though after some analysis */
-		if (SPARSE_REMAP_MEM != (uiFlags & SPARSE_REMAP_MEM))
+		psPMRMapTable->aui32Translation[uiFreepgidx] = TRANSLATION_INVALID;
+		psPMRMapTable->aui32Translation[uiAllocpgidx] = uiAllocpgidx;
+		psPageArray[uiFreepgidx] = NULL;
+		if (bCMA)
 		{
-			psPMRMapTable->aui32Translation[uiFreepgidx] = TRANSLATION_INVALID;
-			psPMRMapTable->aui32Translation[uiAllocpgidx] = uiAllocpgidx;
-			psPageArray[uiFreepgidx] = NULL;
-			if (bCMA)
-			{
-				psDMAVirtArray[uiFreepgidx] = NULL;
-				psDMAPhysArray[uiFreepgidx] = (dma_addr_t)0;
-			}
-		}
-		else
-		{
-			psPMRMapTable->aui32Translation[uiFreepgidx] = uiFreepgidx;
-			psPMRMapTable->aui32Translation[uiAllocpgidx] = uiAllocpgidx;
-			psPageArray[uiFreepgidx] = psPage;
-			if (bCMA)
-			{
-				psDMAVirtArray[uiFreepgidx] = pvDMAVAddr;
-				psDMAPhysArray[uiFreepgidx] = psDMAPAddr;
-			}
+			psDMAVirtArray[uiFreepgidx] = NULL;
+			psDMAPhysArray[uiFreepgidx] = (dma_addr_t)0;
 		}
 	}
 

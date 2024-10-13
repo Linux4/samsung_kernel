@@ -12,6 +12,12 @@
 #define AUX_IN0_NTC (0)
 #define AUX_IN1_NTC (1)
 #define AUX_IN2_NTC (2)
+//[+Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
+#define AUX_IN3_NTC (3)
+#define AUX_IN4_NTC (4)
+#define AUX_IN6_NTC (6)
+//[-Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
+
 
 #define BTS_RAP_PULL_UP_R		100000 /* 100K, pull up resister */
 
@@ -48,8 +54,39 @@
 
 #define BTSNRPA_RAP_ADC_CHANNEL		AUX_IN2_NTC
 
+//[+Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
+#define BTSCHARGER_RAP_PULL_UP_R		100000	/* 100K,pull up resister */
+#define BTSCHARGER_TAP_OVER_CRITICAL_LOW	4397119	/* base on 100K NTC temp
+						 *default value -40 deg
+						 */
+
+#define BTSCHARGER_RAP_PULL_UP_VOLTAGE	1800	/* 1.8V ,pull up voltage */
+#define BTSCHARGER_RAP_NTC_TABLE		7
+
+#define BTSCHARGER_RAP_ADC_CHANNEL		AUX_IN3_NTC
+
+#define BTSFLASH_RAP_PULL_UP_R		100000	/* 100K,pull up resister */
+#define BTSFLASH_TAP_OVER_CRITICAL_LOW	4397119	/* base on 100K NTC temp
+						 *default value -40 deg
+						 */
+
+#define BTSFLASH_RAP_PULL_UP_VOLTAGE	1800	/* 1.8V ,pull up voltage */
+#define BTSFLASH_RAP_NTC_TABLE		7
+
+#define BTSFLASH_RAP_ADC_CHANNEL		AUX_IN4_NTC
 
 
+
+#define BTSMAINBOARD_RAP_PULL_UP_R		100000	/* 100K,pull up resister */
+#define BTSMAINBOARD_TAP_OVER_CRITICAL_LOW	4397119	/* base on 100K NTC temp
+						 *default value -40 deg
+						 */
+
+#define BTSMAINBOARD_RAP_PULL_UP_VOLTAGE	1800	/* 1.8V ,pull up voltage */
+#define BTSMAINBOARD_RAP_NTC_TABLE		7
+
+#define BTSMAINBOARD_RAP_ADC_CHANNEL		AUX_IN6_NTC
+//[-Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
 extern int IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata);
 extern int IMM_IsAdcInitReady(void);
 

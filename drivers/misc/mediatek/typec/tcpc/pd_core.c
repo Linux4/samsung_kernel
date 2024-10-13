@@ -269,11 +269,17 @@ static inline void pd_parse_pdata_src_cap_ext(
 {
 #ifdef CONFIG_USB_PD_REV30_SRC_CAP_EXT_LOCAL
 	int ret = 0;
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+//	ret = of_property_read_u32_array(np, "pd,source-cap-ext",
+//		(u32 *) &pd_port->src_cap_ext,
+//		sizeof(struct pd_source_cap_ext)/4);
+	ret = of_property_read_u8_array(np, "pd,source-cap-ext",
+		(u8 *) &pd_port->src_cap_ext,PD_SCEDB_SIZE);
+#else
 	ret = of_property_read_u32_array(np, "pd,source-cap-ext",
 		(u32 *) &pd_port->src_cap_ext,
 		sizeof(struct pd_source_cap_ext)/4);
-
+#endif
 	if (ret < 0)
 		pr_err("%s get source-cap-ext fail\n", __func__);
 	else

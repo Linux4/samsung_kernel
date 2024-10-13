@@ -745,7 +745,6 @@ static irqreturn_t bq2560x_irq_handler(int irq, void *data)
 	} else if (prev_pg && !bq->power_good) {
 		pr_notice("adapter/usb removed\n");
 		cancel_delayed_work(&bq->chgstat_detect_work);
-
 		bq2560x_dump_regs(bq);
 	}
 
@@ -788,7 +787,11 @@ static int bq2560x_register_interrupt(struct bq2560x *bq)
 		return ret;
 	}
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	disable_irq_wake(bq->irq);
+#else
 	enable_irq_wake(bq->irq);
+#endif
 
 	return 0;
 }
@@ -1188,6 +1191,7 @@ static int bq2560x_kick_wdt(struct charger_device *chg_dev)
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 extern bool otg_enabled;
 #endif
+
 static int bq2560x_set_otg(struct charger_device *chg_dev, bool en)
 {
 	int ret;
@@ -1209,7 +1213,6 @@ static int bq2560x_set_otg(struct charger_device *chg_dev, bool en)
 		schedule_delayed_work(&bq->otg_detect_work, 500);
 	else
 		cancel_delayed_work_sync(&bq->otg_detect_work);
-
 #endif
 	bq2560x_dump_regs(bq);
 
@@ -1253,7 +1256,6 @@ static int bq2560x_set_boost_ilmt(struct charger_device *chg_dev, u32 curr)
 
 	ret = bq2560x_set_boost_current(bq, curr / 1000);
 	bq2560x_dump_register(chg_dev);
-
 	return ret;
 }
 
@@ -1535,6 +1537,7 @@ extern int tcpc_set_cc_polarity_state(int state);
 #ifdef CONFIG_TCPC_WUSB3801
 extern int wusb3801_typec_cc_orientation(void);
 #endif
+//-Bug682956,yangyuhang.wt ,20210813, add cc polarity node
 
 static int pd_tcp_notifier_call(struct notifier_block *nb,
 				unsigned long event, void *data)
@@ -1777,11 +1780,13 @@ static int bq2560x_charger_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&bq->otg_detect_work, get_otg_status_work);
 #endif
 	INIT_DELAYED_WORK(&bq->chgstat_detect_work, get_chg_status_work);
-
 	ret = sysfs_create_group(&bq->dev->kobj, &bq2560x_attr_group);
 	if (ret)
 		dev_err(bq->dev, "failed to register sysfs. err: %d\n", ret);
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	enable_irq_wake(bq->irq);
+#endif
 	determine_initial_status(bq);
 
 	pr_err("bq2560x probe successfully, Part Num:%d, Revision:%d\n",

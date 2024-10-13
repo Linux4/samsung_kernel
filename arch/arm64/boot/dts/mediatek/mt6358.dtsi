@@ -422,7 +422,7 @@
 		};
 		mt_pmic_vmch_ldo_reg: ldo_vmch {
 			regulator-name = "vmch";
-			regulator-min-microvolt = <2900000>;
+			regulator-min-microvolt = <3000000>;
 			regulator-max-microvolt = <3300000>;
 			regulator-enable-ramp-delay = <60>;
 		};
@@ -446,7 +446,7 @@
 		};
 		mt_pmic_vemc_ldo_reg: ldo_vemc {
 			regulator-name = "vemc";
-			regulator-min-microvolt = <2900000>;
+			regulator-min-microvolt = <3000000>;
 			regulator-max-microvolt = <3300000>;
 			regulator-enable-ramp-delay = <60>;
 		};
@@ -516,6 +516,18 @@
 			regulator-max-microvolt = <900000>;
 			regulator-enable-ramp-delay = <264>;
 			regulator-boot-on;
+		};
+		mt6358_vmch_eint_high: VMCH_EINT_HIGH {
+				regulator-name = "mt6358_vmch_eint_high";
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <60>;
+		};
+		mt6358_vmch_eint_low: VMCH_EINT_LOW {
+				regulator-name = "mt6358_vmch_eint_low";
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <60>;
 		};
 	};	/* End of mt6358regulator */
 	mt6358_rtc: mt6358_rtc {

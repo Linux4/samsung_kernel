@@ -20,6 +20,13 @@
 
 #include "u_os_desc.h"
 
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_TCPC_CLASS
+#include "tcpm.h"
+#include "tcpci_core.h"
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 /**
  * struct usb_os_string - represents OS String to be reported by a gadget
  * @bLength: total length of the entire descritor, always 0x12
@@ -613,6 +620,39 @@ static u8 encode_bMaxPower(enum usb_device_speed speed,
 		return min(val, 900U) / 8;
 }
 
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_TCPC_CLASS
+static struct tcpc_device *tcpc_dev;
+
+static int __init usb_pd_init(void)
+{
+	tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
+	if (!tcpc_dev)
+		pr_info("%s get tcpc device type_c_port0 fail\n", __func__);
+
+	return 0;
+}
+late_initcall(usb_pd_init);
+
+static bool is_usb_pd(void)
+{
+	struct pd_port *pd_port;
+
+	if (!tcpc_dev)
+		return false;
+
+	pd_port = &tcpc_dev->pd_port;
+
+       pr_info("test xw %s pe_ready=%d, pd_connected = %d\n", __func__, pd_port->pe_data.pe_ready, pd_port->pe_data.pd_connected);
+
+       if (pd_port->pe_data.pd_connected)
+              return true;
+       else
+              return false;
+}
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 static int config_buf(struct usb_configuration *config,
 		enum usb_device_speed speed, void *buf, u8 type)
 {
@@ -633,6 +673,17 @@ static int config_buf(struct usb_configuration *config,
 	c->iConfiguration = config->iConfiguration;
 	c->bmAttributes = USB_CONFIG_ATT_ONE | config->bmAttributes;
 	c->bMaxPower = encode_bMaxPower(speed, config);
+
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_TCPC_CLASS
+	if (is_usb_pd()) {
+		c->bmAttributes |= USB_CONFIG_ATT_SELFPOWER;
+		c->bMaxPower = 0;
+	} else {
+		c->bmAttributes &= ~USB_CONFIG_ATT_SELFPOWER;
+	}
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 	/* There may be e.g. OTG descriptors */
 	if (config->descriptors) {
@@ -976,6 +1027,8 @@ static int set_config(struct usb_composite_dev *cdev,
 		if (!f)
 			break;
 
+		pr_info("usb: e %s[%d]\n", f->name, tmp);
+
 		/*
 		 * Record which endpoints are used by the function. This is used
 		 * to dispatch control requests targeted at that endpoint to the
@@ -999,7 +1052,7 @@ static int set_config(struct usb_composite_dev *cdev,
 
 		result = f->set_alt(f, tmp, 0);
 		if (result < 0) {
-			DBG(cdev, "interface %d (%s/%p) alt 0 --> %d\n",
+			DBG(cdev, "interface %d (%s/%pK) alt 0 --> %d\n",
 					tmp, f->name, f, result);
 
 			reset_config(cdev);
@@ -2082,6 +2135,9 @@ unknown:
 				if (w_index != 0x5 || (w_value >> 8))
 					break;
 				interface = w_value & 0xFF;
+				if (interface >= MAX_CONFIG_INTERFACES ||
+					!os_desc_cfg->interface[interface])
+						break;
 				buf[6] = w_index;
 				count = count_ext_prop(os_desc_cfg,
 					interface);
@@ -2331,7 +2387,7 @@ int composite_dev_prepare(struct usb_composite_driver *composite,
 	if (!cdev->req->buf)
 		goto fail;
 
-	pr_info("%s %p\n", __func__, cdev->req);
+	pr_info("%s %pK\n", __func__, cdev->req);
 
 	ret = device_create_file(&gadget->dev, &dev_attr_suspended);
 	if (ret)
@@ -2376,7 +2432,7 @@ int composite_os_desc_req_prepare(struct usb_composite_dev *cdev,
 		goto end;
 	}
 
-	pr_info("%s %p\n", __func__, cdev->os_desc_req);
+	pr_info("%s %pK\n", __func__, cdev->os_desc_req);
 
 	cdev->os_desc_req->buf = kmalloc(USB_COMP_EP0_OS_DESC_BUFSIZ,
 					 GFP_KERNEL);
@@ -2401,7 +2457,7 @@ void composite_dev_cleanup(struct usb_composite_dev *cdev)
 		kfree(uc);
 	}
 
-	pr_info("%s os_desc_req[%d]=%p cdev->req[%d]=%p\n",
+	pr_info("%s os_desc_req[%d]=%pK cdev->req[%d]=%pK\n",
 			__func__,
 			cdev->os_desc_pending, cdev->os_desc_req,
 			cdev->setup_pending, cdev->req);
@@ -2496,13 +2552,27 @@ fail:
 
 void composite_suspend(struct usb_gadget *gadget)
 {
-	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
+	struct usb_composite_dev	*cdev = NULL;
 	struct usb_function		*f;
+	unsigned long			flags;
 
 	/* REVISIT:  should we have config level
 	 * suspend/resume callbacks?
 	 */
+
+	if (gadget == NULL) {
+		pr_info("%s: gadget is NULL\n", __func__);
+		return;
+	}
+
+	cdev = get_gadget_data(gadget);
+	if (!cdev) {
+		pr_info("%s: cdev is NULL\n", __func__);
+		return;
+	}
 	DBG(cdev, "suspend\n");
+
+	spin_lock_irqsave(&cdev->lock, flags);
 	if (cdev->config) {
 		list_for_each_entry(f, &cdev->config->functions, list) {
 			if (f->suspend)
@@ -2511,6 +2581,8 @@ void composite_suspend(struct usb_gadget *gadget)
 	}
 	if (cdev->driver->suspend)
 		cdev->driver->suspend(cdev);
+
+	spin_unlock_irqrestore(&cdev->lock, flags);
 
 	cdev->suspended = 1;
 

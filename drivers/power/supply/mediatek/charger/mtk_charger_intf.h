@@ -24,6 +24,15 @@
 
 struct charger_manager;
 struct charger_data;
+#ifdef CONFIG_AFC_CHARGER
+//yuanjian.wt add for AFC charge
+#include "afc_charger_intf.h"
+#endif
+#ifdef CONFIG_W2_CHARGER_PRIVATE
+#include "mtk_pdc.h" //Bug790556,churui1.wt,ADD,20220808,charging pd flag
+extern int batt_slate_mode; //Bug773947,churui1.wt,set mode 2 for batt_slate_mode node
+#endif
+
 #include "mtk_pe_intf.h"
 #include "mtk_pe20_intf.h"
 #include "mtk_pe40_intf.h"
@@ -130,6 +139,7 @@ struct sw_jeita_data {
 	int sm;
 	int pre_sm;
 	int cv;
+	int cc;//Bug493176,zhaosidong.wt,MODIFY,20191017,SW JEITA configuration
 	bool charging;
 	bool error_recovery_flag;
 };
@@ -162,6 +172,8 @@ struct charger_custom_data {
 	int usb_charger_current;
 	int ac_charger_current;
 	int ac_charger_input_current;
+//zhaosidong.wt, pe20 icl
+	int pe20_charger_input_current;
 	int non_std_ac_charger_current;
 	int charging_host_charger_current;
 	int apple_1_0a_charger_current;
@@ -182,6 +194,12 @@ struct charger_custom_data {
 	int jeita_temp_t1_to_t2_cv;
 	int jeita_temp_t0_to_t1_cv;
 	int jeita_temp_below_t0_cv;
+	int jeita_temp_above_t4_cc;//Bug493176,zhaosidong.wt,ADD,20191017,SW JEITA configuration
+	int jeita_temp_t3_to_t4_cc;
+	int jeita_temp_t2_to_t3_cc;
+	int jeita_temp_t1_to_t2_cc;
+	int jeita_temp_t0_to_t1_cc;
+	int jeita_temp_below_t0_cc;
 	int temp_t4_thres;
 	int temp_t4_thres_minus_x_degree;
 	int temp_t3_thres;
@@ -193,6 +211,56 @@ struct charger_custom_data {
 	int temp_t0_thres;
 	int temp_t0_thres_plus_x_degree;
 	int temp_neg_10_thres;
+
+//+Bug774000,gudi.wt,ADD,20191126,charge current limit for AP overheat
+//+Bug678504,lvyuanchuan.wt,modify,20210813,T =25 charging , the back exceeds 1.29
+	int ap_temp_above_t3_cc;
+	int ap_temp_t2_to_t3_cc;
+//-Bug678504,lvyuanchuan.wt,modify,20210813,T =25 charging , the back exceeds 1.29	
+	int ap_temp_t1_to_t2_cc;
+	int ap_temp_t0_to_t1_cc;
+	int ap_temp_below_t0_cc;
+	int ap_temp_high_lcmon_cc;
+	int ap_temp_low_lcmon_cc;
+//+Bug678504,lvyuanchuan.wt,modify,20210813,T =25 charging , the back exceeds 1.29
+	int ap_temp_t3_thres;
+	int ap_temp_t3_thres_minus_x_degree;
+//-Bug678504,lvyuanchuan.wt,modify,20210813,T =25 charging , the back exceeds 1.29	
+	int ap_temp_t2_thres;
+	int ap_temp_t2_thres_minus_x_degree;
+	int ap_temp_t1_thres;
+	int ap_temp_t1_thres_minus_x_degree;
+	int ap_temp_t0_thres;
+	int ap_temp_t0_thres_minus_x_degree;
+	int ap_temp_thres_lcmon;
+	int ap_temp_thres_minus_x_degree_lcmon;
+//-Bug774000,gudi.wt,ADD,20191126,charge current limit for AP overheat
+
+/* +churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	int ap_temp_above_t4_cp_cc;
+	int ap_temp_t3_to_t4_cp_cc;
+	int ap_temp_t2_to_t3_cp_cc;
+	int ap_temp_t1_to_t2_cp_cc;
+	int ap_temp_t0_to_t1_cp_cc;
+	int ap_temp_below_t0_cp_cc;
+	int ap_temp_high_lcmon_cp_cc;
+	int ap_temp_low_lcmon_cp_cc;
+
+	int ap_temp_t4_cp_thres;
+	int ap_temp_t4_cp_thres_minus_x_degree;
+	int ap_temp_t3_cp_thres;
+	int ap_temp_t3_cp_thres_minus_x_degree;
+	int ap_temp_t2_cp_thres;
+	int ap_temp_t2_cp_thres_minus_x_degree;
+	int ap_temp_t1_cp_thres;
+	int ap_temp_t1_cp_thres_minus_x_degree;
+	int ap_temp_t0_cp_thres;
+	int ap_temp_t0_cp_thres_minus_x_degree;
+	int ap_temp_cp_thres_lcmon;
+	int ap_temp_cp_thres_minus_x_degree_lcmon;
+#endif
+/* -churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
 
 	/* battery temperature protection */
 	int mtk_temperature_recharge_support;
@@ -208,6 +276,18 @@ struct charger_custom_data {
 	int ta_ac_7v_input_current;
 	bool ta_12v_support;
 	bool ta_9v_support;
+
+/*yuanjian.wt, start 20191123, add for AFC charge*/
+	/*AFC*/
+	int afc_start_battery_soc;
+	int afc_stop_battery_soc;
+	int afc_ichg_level_threshold;
+	int afc_pre_input_current;
+	int afc_charger_input_current;
+	int afc_charger_current;
+	int afc_min_charger_voltage;
+	int afc_max_charger_voltage;
+/*yuanjian.wt, End 20191123, add for AFC charge*/
 
 	/* pe2.0 */
 	int pe20_ichg_level_threshold;	/* ma */
@@ -325,10 +405,18 @@ struct charger_manager {
 	struct srcu_notifier_head evt_nh;
 	/* receive from battery */
 	struct notifier_block psy_nb;
+	//+Bug492299,lili5.wt,ADD,20191021,battery Current event and slate mode
+	struct notifier_block charger_nb;
+	//-Bug492299,lili5.wt,ADD,20191021,battery Current event and slate mode
 
 	/* common info */
 	int battery_temp;
-
+	//+Bug516174,zhaosidong.wt,ADD,20191126,charge current limit for AP overheat
+	int ap_temp;
+	bool lcmoff;
+	struct sw_jeita_data ap_thermal_lcmoff;
+	struct sw_jeita_data ap_thermal_lcmon;
+	//-Bug516174,zhaosidong.wt,ADD,20191126,charge current limit for AP overheat
 	/* sw jeita */
 	bool enable_sw_jeita;
 	struct sw_jeita_data sw_jeita;
@@ -355,6 +443,12 @@ struct charger_manager {
 
 	/* High voltage charging */
 	bool enable_hv_charging;
+
+#ifdef CONFIG_AFC_CHARGER
+	/*AFC*/
+	bool enable_afc;
+	struct afc_dev afc;
+#endif
 
 	/* pe */
 	bool enable_pe_plus;

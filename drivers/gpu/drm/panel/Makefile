@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/lcm/inc
 obj-$(CONFIG_DRM_PANEL_LVDS) += panel-lvds.o
 obj-$(CONFIG_DRM_PANEL_SIMPLE) += panel-simple.o
 obj-$(CONFIG_DRM_PANEL_INNOLUX_P079ZCA) += panel-innolux-p079zca.o
@@ -69,4 +70,17 @@ obj-$(CONFIG_DRM_PANEL_TRULY_NT35595_VDO) += panel-truly-nt35595-vdo.o
 obj-$(CONFIG_DRM_PANEL_TRULY_ILI9881H_VDO) += panel-truly-ili9881h-rt4801-vdo.o
 obj-$(CONFIG_DRM_PANEL_TRULY_ILI9882N_VDO_90HZ) += panel-truly-ili9882n-rt4801-vdo-90hz.o
 obj-$(CONFIG_DRM_PANEL_RAYDIUM_RM692H0) += panel-raydium-rm692h0-cmd-120hz.o
-
+obj-$(CONFIG_DRM_PANEL_HIMAX_HX83102D_VDO) += panel-himax-hx83102d-vdo.o
+obj-$(CONFIG_DRM_PANEL_BOE_NT36525B_HDP_DSI_VDO_LM36274) += panel-boe-nt36525b-hdp-dsi-vdo-lm36274.o
+obj-$(CONFIG_DRM_PANEL_WT_TRULY_FT8722_CPHY_VDO_90HZ) += panel-wt-truly-ft8722-cphy-vdo-90hz.o
+obj-$(CONFIG_DRM_PANEL_WT_TRULY_FT8722_CPHY_VDO_90HZ) += panel-wt-txd-ft8722-cphy-vdo-90hz.o
+obj-$(CONFIG_DRM_PANEL_WT_TRULY_FT8722_CPHY_VDO_90HZ) += panel-wt-tianma-ili7807s-cphy-vdo-90hz.o
+obj-$(CONFIG_DRM_PANEL_WT_DSBJ_HX83112F_CPHY_VDO_90HZ) += panel-wt-dsbj-hx83112f-cphy-vdo-90hz.o
+obj-$(CONFIG_DRM_PANEL_WT_DJN_HX83112F_CPHY_VDO_90HZ) += panel-wt-djn-hx83112f-cphy-vdo-90hz.o
+obj-$(CONFIG_DRM_PANEL_WT_CHUANGWEI_ILI7807S_CPHY_VDO_90HZ) += panel-wt-chuangwei-ili7807s-cphy-vdo-90hz.o
+obj-$(CONFIG_DRM_PANEL_LCM_CUST_COMMON) += lcm_cust_common.o
+obj-$(CONFIG_DRM_PANEL_VIRTUAL_DSI_VDO_DEFAULT) += panel-virtual-dsi-vdo-default.o
+obj-$(CONFIG_DRM_PANEL_BOE_SW83109_CMD) += panel-boe-sw83109-cmd.o
+obj-$(CONFIG_DRM_PANEL_HIMAX_HX83102J_VDO) += panel-himax-hx83102j-vdo.o
+obj-$(CONFIG_DRM_PANEL_S6E8FC3_VDO) += panel-s6e8fc3-vdo.o
+obj-$(CONFIG_DRM_PANEL_S6E8FC5_CMD) += panel-s6e8fc5-cmd.o

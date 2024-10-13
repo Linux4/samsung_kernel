@@ -719,6 +719,11 @@ static int usb_audio_probe(struct usb_interface *intf,
 	}
 	dev_set_drvdata(&dev->dev, chip);
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	/*trace_android_vh_audio_usb_offload_connect(intf, chip);*/
+	sound_usb_connect(intf, chip);
+#endif
+
 	/*
 	 * For devices with more than one control interface, we assume the
 	 * first contains the audio controls. We might need a more specific
@@ -795,6 +800,11 @@ static void usb_audio_disconnect(struct usb_interface *intf)
 		return;
 
 	card = chip->card;
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	/*trace_android_rvh_audio_usb_offload_disconnect(intf);*/
+	sound_usb_disconnect(intf);
+#endif
 
 	mutex_lock(&register_mutex);
 	if (atomic_inc_return(&chip->shutdown) == 1) {

@@ -11,7 +11,7 @@
 #endif
 
 #include <linux/interrupt.h>
-#include <musb.h>
+#include "../musb.h"
 
 struct mt_usb_work {
 	struct delayed_work dwork;
@@ -122,7 +122,7 @@ extern bool in_uart_mode;
 extern int usb20_phy_init_debugfs(void);
 extern enum charger_type mt_get_charger_type(void);
 #ifndef CONFIG_FPGA_EARLY_PORTING
-#include <upmu_common.h>
+#include <mt-plat/upmu_common.h>
 #endif
 #define PHY_IDLE_MODE       0
 #define PHY_DEV_ACTIVE      1

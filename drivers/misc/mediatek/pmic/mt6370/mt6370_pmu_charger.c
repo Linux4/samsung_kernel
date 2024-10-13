@@ -29,12 +29,8 @@
 #include "inc/mt6370_pmu_charger.h"
 #include "inc/mt6370_pmu.h"
 #include <tcpm.h>
-#include <linux/hardware_info.h>
 
 #define MT6370_PMU_CHARGER_DRV_VERSION	"1.1.30_MTK"
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-extern otg_enabled;
-#endif
 
 static bool dbg_log_en;
 module_param(dbg_log_en, bool, 0644);
@@ -151,9 +147,7 @@ struct mt6370_pmu_charger_data {
 	int tchg;
 
 	u32 bootmode;
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	bool hz_mode;
-#endif
+
 #ifdef CONFIG_TCPC_CLASS
 	atomic_t tcpc_usb_connected;
 
@@ -1805,25 +1799,12 @@ static int mt6370_set_ircmp_vclamp(struct mt6370_pmu_charger_data *chg_data,
 	return ret;
 }
 
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-int mt6370_hz_mode(struct charger_device *chg_dev, bool en)
-{
-	int ret = 0;
-	struct mt6370_pmu_charger_data *chg_data =
-		dev_get_drvdata(&chg_dev->dev);
-	chg_data->hz_mode = en;
-	dev_err(chg_data->dev, "%s: en = %d\n", __func__, en);
-	ret = mt6370_enable_hz(chg_data, en);
-	return ret;
-}
-#endif
+
 
 /* =================== */
 /* Released interfaces */
 /* =================== */
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-bool charge_enabled;
-#endif
+
 static int mt6370_enable_charging(struct charger_device *chg_dev, bool en)
 {
 	struct mt6370_pmu_charger_data *chg_data =
@@ -1832,9 +1813,7 @@ static int mt6370_enable_charging(struct charger_device *chg_dev, bool en)
 	u32 ichg_ramp_t = 0;
 
 	mt_dbg(chg_data->dev, "%s: en = %d\n", __func__, en);
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	charge_enabled = en;
-#endif
+
 	/* Workaround for avoiding vsys overshoot when charge disable */
 	mutex_lock(&chg_data->ichg_access_lock);
 	if (!en) {
@@ -1860,10 +1839,6 @@ static int mt6370_enable_charging(struct charger_device *chg_dev, bool en)
 					   "%s: set ichg fail\n", __func__);
 		}
 	}
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	if (en && chg_data->hz_mode)
-		ret = mt6370_hz_mode(chg_dev, en);
-#endif
 out:
 	ret = (en ? mt6370_pmu_reg_set_bit : mt6370_pmu_reg_clr_bit)
 		(chg_data->chip, MT6370_PMU_REG_CHGCTRL2, MT6370_MASK_CHG_EN);
@@ -2221,10 +2196,6 @@ static int mt6370_enable_otg(struct charger_device *chg_dev, bool en)
 	else
 		dev_info(chg_data->dev, "%s: reg0x33 = 0x%02X\n", __func__,
 			ret);
-
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	otg_enabled = en;
-#endif
 
 	/* Turn off USB charger detection/Enable WDT */
 	if (en) {
@@ -4058,9 +4029,7 @@ static struct charger_ops mt6370_chg_ops = {
 	.safety_check = mt6370_safety_check,
 	.get_min_charging_current = mt6370_get_min_ichg,
 	.get_min_input_current = mt6370_get_min_aicr,
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	.hz_mode = mt6370_hz_mode,
-#endif
+
 	/* Safety timer */
 	.enable_safety_timer = mt6370_enable_safety_timer,
 	.is_safety_timer_enabled = mt6370_is_safety_timer_enable,
@@ -4234,11 +4203,6 @@ static int mt6370_pmu_chg_get_property(struct power_supply *psy,
 		switch (chg_stat) {
 		case MT6370_CHG_STATUS_READY:
 		case MT6370_CHG_STATUS_FAULT:
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-			if (charge_enabled)
-				val->intval = POWER_SUPPLY_STATUS_CHARGING;
-			else
-#endif
 			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 			break;
 		case MT6370_CHG_STATUS_PROGRESS:
@@ -4496,29 +4460,19 @@ static int mt6370_get_charger_type(struct mt6370_pmu_charger_data *chg_data,
 		val.intval = true;
 		ret = power_supply_set_property(chg_psy,
 				POWER_SUPPLY_PROP_ONLINE, &val);
-
 		ret = power_supply_get_property(chg_psy,
 				POWER_SUPPLY_PROP_TYPE, &val);
 		chg_data->psy_desc.type = val.intval;
 		pr_notice("%s type:%d\n", __func__, val.intval);
-
 		ret = power_supply_get_property(chg_psy,
 				POWER_SUPPLY_PROP_USB_TYPE, &val);
 		chg_data->psy_usb_type = val.intval;
-
 		pr_notice("%s usb_type:%d\n", __func__, val.intval);
 	} else {
 		chg_data->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
 		chg_data->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
-//+bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
-		ret = power_supply_set_property(chg_psy,
-					POWER_SUPPLY_PROP_ONLINE, &val);
-//-bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
 	}
 out:
-//+bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
-	power_supply_changed(chg_psy);
-//-bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
 	mt6370_power_supply_changed(chg_data);
 
 	return chg_data->psy_usb_type;
@@ -4825,11 +4779,6 @@ static int mt6370_pmu_charger_probe(struct platform_device *pdev)
 		schedule_work(&chg_data->chgdet_work);
 #endif /* !CONFIG_TCPC_CLASS */
 
-//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	hardwareinfo_set_prop(HARDWARE_CHARGER_IC_INFO, "MT6371_PMU_CHARGER");
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
 	dev_info(&pdev->dev, "%s successfully\n", __func__);
 	return 0;
 

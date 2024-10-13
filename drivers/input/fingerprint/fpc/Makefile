@@ -1,15 +1,9 @@
 #
-# Makefile for the fingerprint device.
+# Makefile for all kinds of Fingerprint
 #
+obj-y += fpc.o
 
-# Each configuration option enables a list of files.
-#include $(srctree)/drivers/misc/mediatek/Makefile.custom
-
-ccflags-y += -I$(srctree)/drivers/spi/mediatek/$(MTK_PLATFORM)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
-subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
-subdir-ccflags-y += -I$(srctree)/drivers/spi/mediatek/$(MTK_PLATFORM)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/teei/270/tz_driver/include
-
-obj-$(CONFIG_FPC_FINGERPRINT)	+= mtk_spi.o
+ccflags-$(CONFIG_MICROTRUST_TEE_SUPPORT) += -DCONFIG_MICROTRUST_TEE_SUPPORT
+ccflags-$(CONFIG_MICROTRUST_TEE_SUPPORT) += -I$(srctree)/drivers/misc/mediatek/teei/300/tz_driver/include
+ccflags-$(CONFIG_MICROTRUST_TEE_SUPPORT) += -I$(srctree)/drivers/misc/mediatek/teei/300/common/include
+ccflags-$(CONFIG_MEDIATEK_SOLUTION) += -DMTK

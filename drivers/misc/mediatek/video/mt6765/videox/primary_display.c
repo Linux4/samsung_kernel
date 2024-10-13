@@ -2266,6 +2266,9 @@ static int _DC_switch_to_DL_fast(int block)
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	int active_cfg = 0;
 #endif
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	unsigned int vfp;
+#endif
 
 	/* 3.destroy ovl->mem path. */
 	data_config_dc = dpmgr_path_get_last_config(pgc->ovl2mem_path_handle);
@@ -2351,6 +2354,15 @@ static int _DC_switch_to_DL_fast(int block)
 	gset_arg.is_decouple_mode = 0;
 	dpmgr_path_ioctl(pgc->dpmgr_handle, pgc->cmdq_handle_config,
 		DDP_OVL_GOLDEN_SETTING, &gset_arg);
+
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	if (primary_display_is_support_DynFPS()) {
+		primary_display_dynfps_get_vfp_info(&vfp, NULL);
+		DISPMSG("%s, apply vfp=%d\n", __func__, vfp);
+		dpmgr_path_ioctl(pgc->dpmgr_handle, pgc->cmdq_handle_config,
+			DDP_DSI_PORCH_CHANGE, &vfp);
+	}
+#endif
 
 	cmdqRecBackupUpdateSlot(pgc->cmdq_handle_config, pgc->rdma_buff_info,
 		0, 0);
@@ -9523,83 +9535,6 @@ int primary_display_set_scenario(int scenario)
 
 	return ret;
 }
-
-//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC fucntion
-int _set_cabc_by_cmdq(unsigned int enable)
-{
-	int ret = 0;
-	struct cmdqRecStruct *cmdq_handle_cabc = NULL;
-	ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &cmdq_handle_cabc);
-	DISPDBG("primary cabc, handle=%p\n", cmdq_handle_cabc);
-	if (ret) {
-		DISPWARN("fail to create primary cmdq handle for cabc\n");
-		return -1;
-	}
-
-	if (primary_display_is_video_mode()) {
-		cmdqRecReset(cmdq_handle_cabc);
-		_cmdq_insert_wait_frame_done_token_mira(cmdq_handle_cabc);
-		disp_lcm_set_cabc(pgc->plcm, cmdq_handle_cabc, enable);
-		_cmdq_flush_config_handle_mira(cmdq_handle_cabc, 1);
-		DISPMSG("[BL]_set_backlight_by_cmdq ret=%d\n", ret);
-	} else {
-		cmdqRecReset(cmdq_handle_cabc);
-		cmdqRecWait(cmdq_handle_cabc, CMDQ_SYNC_TOKEN_CABC_EOF);
-		_cmdq_handle_clear_dirty(cmdq_handle_cabc);
-		_cmdq_insert_wait_frame_done_token_mira(cmdq_handle_cabc);
-		disp_lcm_set_backlight(pgc->plcm, cmdq_handle_cabc, enable);
-		cmdqRecSetEventToken(cmdq_handle_cabc,
-			CMDQ_SYNC_TOKEN_CONFIG_DIRTY);
-		cmdqRecSetEventToken(cmdq_handle_cabc,
-			CMDQ_SYNC_TOKEN_CABC_EOF);
-		_cmdq_flush_config_handle_mira(cmdq_handle_cabc, 1);
-		DISPMSG("[BL]_set_backlight_by_cmdq ret=%d\n", ret);
-	}
-	cmdqRecDestroy(cmdq_handle_cabc);
-	cmdq_handle_cabc = NULL;
-	mmprofile_log_ex(ddp_mmp_get_events()->primary_set_bl,
-		MMPROFILE_FLAG_PULSE, 1, 5);
-
-	return ret;
-}
-
-int primary_display_set_cabc(unsigned int enable)
-{
-	int ret = 0;
-	static unsigned int last_status;
-	DISPFUNC();
-	_primary_path_switch_dst_lock();
-	_primary_path_lock(__func__);
-	if (pgc->state == DISP_SLEPT) {
-		DISPWARN("Sleep State set CABC invald\n");
-	} else {
-		primary_display_idlemgr_kick(__func__, 0);
-		if (primary_display_cmdq_enabled()) {
-			_set_cabc_by_cmdq(enable);
-			atomic_set(&delayed_trigger_kick, 1);
-		} else {
-			DISPWARN("CAMQ disbaled, not support set CABC\n");
-		}
-		last_status = enable;
-	}
-	_primary_path_unlock(__func__);
-	_primary_path_switch_dst_unlock();
-	return ret;
-}
-
-int primary_display_get_cabc(int *status)
-{
-	int ret = 0;
-	if (pgc->state == DISP_SLEPT) {
-		DISPWARN("Sleep State get CABC invald\n");
-	} else {
-		ret = disp_lcm_get_cabc(pgc->plcm, status);
-
-	}
-	return ret;
-}
-//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC fucntion
-
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 /*-----------------DynFPS start-------------------------------*/
 unsigned int primary_display_is_support_DynFPS(void)

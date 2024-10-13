@@ -46,4 +46,8 @@ extern int mt6359tsx_get_hw_temp(void);
 extern int mt6359dcxo_get_hw_temp(void);
 extern u32 pmic_Read_Efuse_HPOffset(int i);
 
+/*[+Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704] */
+extern int mtkts_flash_get_temp_new(void);
+extern int mFlag; 
+/* [-Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704] */
 #endif	/* __TSPMIC_SETTINGS_H__ */

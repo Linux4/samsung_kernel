@@ -101,10 +101,18 @@ extern int charger_manager_enable_charging(
 	struct charger_consumer *consumer,
 	int idx,
 	bool en);
+//zhaosidong.wt, charging conrtrol
+extern int charger_manager_enable_charging_new(
+	struct charger_consumer *consumer,
+	bool en);
 extern int charger_manager_get_zcv(
 	struct charger_consumer *consumer,
 	int idx,
 	u32 *uV);
+extern int charger_manager_set_constant_voltage(
+	struct charger_consumer *consumer,
+	int idx,
+	u32 uV);
 extern int charger_manager_enable_chg_type_det(
 	struct charger_consumer *consumer,
 	bool en);
@@ -112,5 +120,8 @@ extern int mtk_chr_is_charger_exist(unsigned char *exist);
 extern bool is_power_path_supported(void);
 extern int charger_get_vbus(void);
 extern bool mt_charger_plugin(void);
+//zhaosidong.wt, CHG REQ
+extern int battery_get_charger_input_current_limit(struct charger_consumer *consumer, u32 *uA);
+extern int battery_set_store_mode(struct charger_consumer *consumer, int min, int max);
 
 #endif /* __MTK_CHARGER_H__ */

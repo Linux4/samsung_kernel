@@ -39,7 +39,7 @@
 #include "mdp_m4u.h"
 #include "ion_sec_heap.h"
 
-#define MDP_TASK_PAENDING_TIME_MAX	100000000
+#define MDP_TASK_PAENDING_TIME_MAX	10000000
 
 /* compatible with cmdq legacy driver */
 #ifndef CMDQ_TRACE_FORCE_BEGIN
@@ -566,7 +566,6 @@ static s32 mdp_init_secure_id(struct cmdqRecStruct *handle)
 	int iommu_sec_id = 0;
 	ion_phys_addr_t sec_handle;
 	struct cmdqSecAddrMetadataStruct *secMetadatas = NULL;
-
 	if (!handle->secData.is_secure)
 		return 0;
 	secMetadatas = (struct cmdqSecAddrMetadataStruct *)handle->secData.addrMetadatas;
@@ -769,11 +768,16 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
 	}
 
 #ifdef MDP_M4U_TEE_SUPPORT
-	if (atomic_cmpxchg(&m4u_init, 0, 1) == 0) {
-		m4u_sec_init();
-		CMDQ_LOG("[SEC] m4u_sec_init is called\n");
+#ifdef CMDQ_ENG_MTEE_GROUP_BITS
+	if (!(handle->engineFlag & CMDQ_ENG_MTEE_GROUP_BITS) && user_job.secData.is_secure) {
+		if (atomic_cmpxchg(&m4u_init, 0, 1) == 0) {
+			m4u_sec_init();
+			CMDQ_LOG("[SEC] m4u_sec_init is called\n");
+		}
 	}
+#endif  //CMDQ_ENG_MTEE_GROUP_BITS
 #endif
+
 #ifdef MDP_M4U_MTEE_SEC_CAM_SUPPORT
 	if (atomic_cmpxchg(&m4u_gz_init_sec_cam, 0, 1) == 0) {
 		// 0: SEC_ID_SEC_CAM

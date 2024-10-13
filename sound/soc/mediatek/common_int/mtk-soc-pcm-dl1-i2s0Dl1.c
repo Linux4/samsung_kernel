@@ -65,6 +65,8 @@ static int mtk_afe_I2S0dl1_component_probe(struct snd_soc_component *component);
 
 static int mI2S0dl1_hdoutput_control;
 static bool mPrepareDone;
+static int mI2S0dl1_wgain;
+static unsigned int m_hw_volume = 0x10000;
 
 static const void *irq_user_id;
 static unsigned int irq1_cnt;
@@ -72,9 +74,11 @@ static unsigned int irq1_cnt;
 static struct device *mDev;
 
 const char *const I2S0dl1_HD_output[] = {"Off", "On"};
+const char *const I2S0dl1_WGAIN[] = {"Off", "On"};
 
 static const struct soc_enum Audio_I2S0dl1_Enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(I2S0dl1_HD_output), I2S0dl1_HD_output),
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(I2S0dl1_WGAIN), I2S0dl1_WGAIN),
 };
 
 static int Audio_I2S0dl1_hdoutput_Get(struct snd_kcontrol *kcontrol,
@@ -138,11 +142,56 @@ static int Audio_Irqcnt1_Set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int Audio_hwgain_Get(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("Audio_AmpR_Get = %d\n", mI2S0dl1_wgain);
+	ucontrol->value.integer.value[0] = mI2S0dl1_wgain;
+	return 0;
+}
+
+static int Audio_hwgain_Set(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s()\n", __func__);
+	if (ucontrol->value.enumerated.item[0] >
+	    ARRAY_SIZE(I2S0dl1_WGAIN)) {
+		pr_debug("%s(), return -EINVAL\n", __func__);
+		return -EINVAL;
+	}
+
+	mI2S0dl1_wgain = ucontrol->value.integer.value[0];
+	return 0;
+}
+
+static int Audio_hw_Volume_Get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("mfm_i2s_Volume = %d\n", m_hw_volume);
+	ucontrol->value.integer.value[0] = m_hw_volume;
+	return 0;
+}
+
+static int Audio_hw_Volume_Set(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	m_hw_volume = ucontrol->value.integer.value[0];
+
+	pr_debug("%s mfm_i2s_Volume = 0x%x\n", __func__, m_hw_volume);
+	SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN1, m_hw_volume);
+
+	return 0;
+}
+
 static const struct snd_kcontrol_new Audio_snd_I2S0dl1_controls[] = {
 	SOC_ENUM_EXT("Audio_I2S0dl1_hd_Switch", Audio_I2S0dl1_Enum[0],
 		     Audio_I2S0dl1_hdoutput_Get, Audio_I2S0dl1_hdoutput_Set),
 	SOC_SINGLE_EXT("Audio IRQ1 CNT", SND_SOC_NOPM, 0, IRQ_MAX_RATE, 0,
 		       Audio_Irqcnt1_Get, Audio_Irqcnt1_Set),
+	SOC_ENUM_EXT("Audio_I2S0dl1_wgain", Audio_I2S0dl1_Enum[1],
+		     Audio_hwgain_Get, Audio_hwgain_Set),
+	SOC_SINGLE_EXT("Audio HW gain Volume", SND_SOC_NOPM, 0, 0x80000, 0,
+			 Audio_hw_Volume_Get, Audio_hw_Volume_Set)
 };
 
 static struct snd_pcm_hardware mtk_I2S0dl1_hardware = {
@@ -280,15 +329,36 @@ static int mtk_pcm_I2S0dl1_close(struct snd_pcm_substream *substream)
 	}
 
 	if (mPrepareDone == true) {
-		SetIntfConnection(Soc_Aud_InterCon_DisConnect,
-				  Soc_Aud_AFE_IO_Block_MEM_DL1,
-				  Soc_Aud_AFE_IO_Block_I2S3);
-		SetIntfConnection(Soc_Aud_InterCon_DisConnect,
-				  Soc_Aud_AFE_IO_Block_MEM_DL1,
-				  Soc_Aud_AFE_IO_Block_I2S1_DAC);
-		SetIntfConnection(Soc_Aud_InterCon_DisConnect,
-				  Soc_Aud_AFE_IO_Block_MEM_DL1,
-				  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+		if (!mI2S0dl1_wgain) {
+			SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+					  Soc_Aud_AFE_IO_Block_MEM_DL1,
+					  Soc_Aud_AFE_IO_Block_I2S3);
+			SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+					  Soc_Aud_AFE_IO_Block_MEM_DL1,
+					  Soc_Aud_AFE_IO_Block_I2S1_DAC);
+			SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+					  Soc_Aud_AFE_IO_Block_MEM_DL1,
+					  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+		} else {
+			SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+					  Soc_Aud_AFE_IO_Block_MEM_DL1,
+					  Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT);
+			SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+					  Soc_Aud_AFE_IO_Block_MEM_DL1,
+					  Soc_Aud_AFE_IO_Block_I2S3);
+			if (GetFmI2sInPathEnable() == false) {
+				SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+					  Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,
+					  Soc_Aud_AFE_IO_Block_I2S1_DAC);
+				SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+					  Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,
+					  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+			} else {
+				pr_debug("%s bypass hw gain control when FM Enable(%d)\n",
+				__func__, GetFmI2sInPathEnable());
+			}
+		}
+		mI2S0dl1_wgain = 0;
 		/* stop DAC output */
 		SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, false);
 		if (GetI2SDacEnable() == false)
@@ -365,16 +435,37 @@ static int mtk_pcm_I2S0dl1_prepare(struct snd_pcm_substream *substream)
 					    Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
 			mI2SWLen = Soc_Aud_I2S_WLEN_WLEN_16BITS;
 		}
-		SetIntfConnection(Soc_Aud_InterCon_Connection,
+		if (!mI2S0dl1_wgain) {
+			SetIntfConnection(Soc_Aud_InterCon_Connection,
+					  Soc_Aud_AFE_IO_Block_MEM_DL1,
+					  Soc_Aud_AFE_IO_Block_I2S3);
+			SetIntfConnection(Soc_Aud_InterCon_Connection,
+					  Soc_Aud_AFE_IO_Block_MEM_DL1,
+					  Soc_Aud_AFE_IO_Block_I2S1_DAC);
+			SetIntfConnection(Soc_Aud_InterCon_Connection,
+					  Soc_Aud_AFE_IO_Block_MEM_DL1,
+					  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+		} else {
+			SetIntfConnection(Soc_Aud_InterCon_Connection,
+				  Soc_Aud_AFE_IO_Block_MEM_DL1,
+				  Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT);
+			SetIntfConnection(Soc_Aud_InterCon_Connection,
+				  Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,
+				  Soc_Aud_AFE_IO_Block_I2S1_DAC);
+			SetIntfConnection(Soc_Aud_InterCon_Connection,
+				  Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,
+				  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+			SetIntfConnection(Soc_Aud_InterCon_Connection,
 				  Soc_Aud_AFE_IO_Block_MEM_DL1,
 				  Soc_Aud_AFE_IO_Block_I2S3);
-		SetIntfConnection(Soc_Aud_InterCon_Connection,
-				  Soc_Aud_AFE_IO_Block_MEM_DL1,
-				  Soc_Aud_AFE_IO_Block_I2S1_DAC);
-		SetIntfConnection(Soc_Aud_InterCon_Connection,
-				  Soc_Aud_AFE_IO_Block_MEM_DL1,
-				  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
-
+			/* Set HW_GAIN */
+			SetHwDigitalGainMode(Soc_Aud_Digital_Block_HW_GAIN1,
+					     runtime->rate, 0x40);
+			SetHwDigitalGainEnable(Soc_Aud_Digital_Block_HW_GAIN1,
+					       true);
+			SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN1,
+					 m_hw_volume);
+		}
 		/* TODO: KC: use Set2ndI2SOut() to set i2s3 */
 		/* I2S out Setting */
 		u32AudioI2S =

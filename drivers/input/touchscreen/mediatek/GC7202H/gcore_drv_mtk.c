@@ -61,6 +61,24 @@ static void tpd_resume(struct device *h)
 #ifdef CONFIG_GCORE_AUTO_UPDATE_FW_HOSTDOWNLOAD
 	gcore_request_firmware_update_work(NULL);
 #endif
+	msleep(200);
+	if(fn_data.gdev->tpd_charger_flag == 1){
+			gcore_fw_event_notify(FW_CHARGER_PLUG);
+			GTP_ERROR("tpd_resume start FW_CHARGER_PLUG \n");
+	}else if (fn_data.gdev->tpd_charger_flag == 2){
+			gcore_fw_event_notify(FW_CHARGER_UNPLUG);
+			GTP_ERROR("tpd_resume start FW_CHARGER_UNPLUG\n");
+	}
+
+	if(fn_data.gdev->tpd_headset_flag == 1){
+			msleep(10);
+			gcore_fw_event_notify(FW_HEADSET_PLUG);
+			GTP_ERROR("tpd_resume start FW_HEADSET_PLUG\n");
+	}else if(fn_data.gdev->tpd_headset_flag == 0){
+			msleep(10);
+			gcore_fw_event_notify(FW_HEADSET_UNPLUG);
+			GTP_ERROR("tpd_resume start FW_HEADSET_UNPLUG\n");
+	}
 
 	fn_data.gdev->ts_stat = TS_NORMAL;
 	

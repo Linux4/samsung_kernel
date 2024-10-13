@@ -54,5 +54,3 @@ static int __init proc_secboot_init(void)
         return 0;
 }
 fs_initcall(proc_secboot_init);
-
-

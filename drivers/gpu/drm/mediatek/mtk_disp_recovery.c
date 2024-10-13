@@ -35,8 +35,11 @@
 #endif
 
 #define ESD_TRY_CNT 5
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+#define ESD_CHECK_PERIOD 1000 /* ms */
+#else
 #define ESD_CHECK_PERIOD 2000 /* ms */
-
+#endif
 /* pinctrl implementation */
 long _set_state(struct drm_crtc *crtc, const char *name)
 {
@@ -489,6 +492,8 @@ done:
 	return 0;
 }
 
+u8 rec_esd = 1;	//LCM ESD recover flag global value
+
 static int mtk_drm_esd_check_worker_kthread(void *data)
 {
 	struct sched_param param = {.sched_priority = 87};
@@ -519,6 +524,7 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 
 	while (1) {
 		msleep(ESD_CHECK_PERIOD);
+		DDPPR_ERR("ESD_CHECK_PERIOD=%d\n",ESD_CHECK_PERIOD);
 		ret = wait_event_interruptible(
 			esd_ctx->check_task_wq,
 			atomic_read(&esd_ctx->check_wakeup) &&
@@ -547,12 +553,14 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 		do {
 			ret = mtk_drm_esd_check(crtc);
 
-			if (!ret) /* success */
+			if (!ret) /* success */ {
+				rec_esd = 0;
 				break;
-
+			}
 			DDPPR_ERR(
 				"[ESD]esd check fail, will do esd recovery. try=%d\n",
 				i);
+			rec_esd = 1;
 			mtk_drm_esd_recover(crtc);
 			recovery_flg = 1;
 		} while (++i < ESD_TRY_CNT);

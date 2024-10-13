@@ -23,7 +23,8 @@
 #define Q_MAX_H_CURRENT 10000
 
 /* multiple battery profile compile options */
-/*#define MTK_GET_BATTERY_ID_BY_AUXADC*/
+//Bug774037,gudi.wt,temp modify according to customer requirements
+#define MTK_GET_BATTERY_ID_BY_AUXADC
 
 
 /* if ACTIVE_TABLE == 0 && MULTI_BATTERY == 0
@@ -77,7 +78,7 @@ int g_Q_MAX_SYS_VOLTAGE[TOTAL_BATTERY_NUMBER] = { 3400, 3400, 3400, 3400};
 /* 0~0.5V for battery 0, 0.5~1V for battery 1*/
 /* 1~1.5V for battery 2, -1 for the last one (battery 3) */
 int g_battery_id_voltage[TOTAL_BATTERY_NUMBER] = {
-	500000, 1000000, 1500000, -1};
+	329, 439, -1, -1};
 
 int g_FG_PSEUDO1[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	/*bat1,   bat2,   bat3,    bat4*/
@@ -204,7 +205,8 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_10 == 1)
-struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
+//Bug774037,gudi.wt,temp modify according to customer requirements
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[23] = {
 		{-40, 195652},
 		{-35, 148171},
 		{-30, 113347},
@@ -225,7 +227,9 @@ struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
 		{45, 4917},
 		{50, 4161},
 		{55, 3535},
-		{60, 3014}
+		{60, 3014},
+		{65, 2595},
+		{70, 2233} 
 };
 #endif
 

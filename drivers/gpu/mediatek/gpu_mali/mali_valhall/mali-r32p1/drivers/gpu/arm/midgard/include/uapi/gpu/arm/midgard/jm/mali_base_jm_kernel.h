@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  *
- * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -766,6 +766,9 @@ typedef __u8 base_jd_prio;
  */
 #define BASE_JD_PRIO_REALTIME    ((base_jd_prio)3)
 
+/* Invalid atom priority (max uint8_t value) */
+#define BASE_JD_PRIO_INVALID ((base_jd_prio)255)
+
 /* Count of the number of priority levels. This itself is not a valid
  * base_jd_prio setting
  */
@@ -1159,8 +1162,9 @@ enum base_jd_event_code {
 /**
  * struct base_jd_event_v2 - Event reporting structure
  *
- * @event_code:  event code.
+ * @event_code:  event code of type @ref base_jd_event_code.
  * @atom_number: the atom number that has completed.
+ * @padding:     padding.
  * @udata:       user data.
  *
  * This structure is used by the kernel driver to report information
@@ -1171,8 +1175,9 @@ enum base_jd_event_code {
  * by ANDing with BASE_JD_SW_EVENT_TYPE_MASK.
  */
 struct base_jd_event_v2 {
-	enum base_jd_event_code event_code;
+	__u32 event_code;
 	base_atom_id atom_number;
+	__u8 padding[3];
 	struct base_jd_udata udata;
 };
 

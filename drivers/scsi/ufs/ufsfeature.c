@@ -46,8 +46,7 @@ int ufsf_query_flag(struct ufs_hba *hba, enum query_opcode opcode,
 	ufshcd_hold(hba, false);
 	mutex_lock(&hba->dev_cmd.lock);
 
-	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG ||
-		hba->dev_info.wmanufacturerid == UFS_VENDOR_MICRON)
+	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_MICRON)
 		selector = UFSFEATURE_SELECTOR;
 	else
 		selector = 0;
@@ -130,8 +129,7 @@ int ufsf_query_attr_retry(struct ufs_hba *hba, enum query_opcode opcode,
 	int retries;
 	u8 selector;
 
-	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG ||
-		hba->dev_info.wmanufacturerid == UFS_VENDOR_MICRON)
+	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_MICRON)
 		selector = UFSFEATURE_SELECTOR;
 	else
 		selector = 0;
@@ -200,7 +198,8 @@ static int ufsf_read_dev_desc(struct ufsf_feature *ufsf, u8 selector)
 	ufshpb_get_dev_info(&ufsf->hpb_dev_info, desc_buf);
 #endif
 
-#if defined(CONFIG_SCSI_UFS_TW)
+//bug709381,yanrenjie.wt,modified,diable the function in ATO version
+#if defined(CONFIG_SCSI_UFS_TW) && !defined(WT_COMPILE_FACTORY_VERSION)
 	ufstw_get_dev_info(&ufsf->tw_dev_info, desc_buf);
 #endif
 	return 0;
@@ -221,7 +220,8 @@ static int ufsf_read_geo_desc(struct ufsf_feature *ufsf, u8 selector)
 		ufshpb_get_geo_info(&ufsf->hpb_dev_info, geo_buf);
 #endif
 
-#if defined(CONFIG_SCSI_UFS_TW)
+//bug709381,yanrenjie.wt,modified,diable the function in ATO version
+#if defined(CONFIG_SCSI_UFS_TW) && !defined(WT_COMPILE_FACTORY_VERSION)
 	if (ufsf->tw_dev_info.tw_device)
 		ufstw_get_geo_info(&ufsf->tw_dev_info, geo_buf);
 #endif
@@ -253,7 +253,8 @@ static int ufsf_read_unit_desc(struct ufsf_feature *ufsf,
 	}
 #endif
 
-#if defined(CONFIG_SCSI_UFS_TW)
+//bug709381,yanrenjie.wt,modified,diable the function in ATO version
+#if defined(CONFIG_SCSI_UFS_TW) && !defined(WT_COMPILE_FACTORY_VERSION)
 	if (ufsf->tw_dev_info.tw_device) {
 		ret = ufstw_get_lu_info(ufsf, lun, unit_buf);
 		if (ret == -ENOMEM)
@@ -275,8 +276,7 @@ void ufsf_device_check(struct ufs_hba *hba)
 
 	ufsf->hba = hba;
 
-	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG ||
-		hba->dev_info.wmanufacturerid == UFS_VENDOR_MICRON)
+	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_MICRON)
 		selector = UFSFEATURE_SELECTOR;
 
 	ret = ufsf_read_dev_desc(ufsf, selector);
@@ -302,7 +302,9 @@ out_free_mem:
 	/* don't call init handler */
 	ufsf->ufshpb_state = HPB_NOT_SUPPORTED;
 #endif
-#if defined(CONFIG_SCSI_UFS_TW)
+
+//bug709381,yanrenjie.wt,modified,diable the function in ATO version
+#if defined(CONFIG_SCSI_UFS_TW) && !defined(WT_COMPILE_FACTORY_VERSION)
 	seq_scan_lu(lun)
 		kfree(ufsf->tw_lup[lun]);
 
@@ -599,7 +601,8 @@ inline void ufsf_hpb_set_init_state(struct ufsf_feature *ufsf) {}
  * Wrapper functions for ufstw.
  */
 
-#if defined(CONFIG_SCSI_UFS_TW)
+//bug709381,yanrenjie.wt,modified,diable the function in ATO version
+#if defined(CONFIG_SCSI_UFS_TW) && !defined(WT_COMPILE_FACTORY_VERSION)
 inline void ufsf_tw_prep_fn(struct ufsf_feature *ufsf, struct ufshcd_lrb *lrbp)
 {
 	ufstw_prep_fn(ufsf, lrbp);

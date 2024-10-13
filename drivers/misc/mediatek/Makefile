@@ -19,6 +19,12 @@ else ifeq ($(CONFIG_MACH_MT6885),y)
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/v1
 else ifeq ($(CONFIG_MACH_MT6893),y)
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/v1
+else ifeq ($(CONFIG_MACH_MT6853),y)
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/v1
+else ifeq ($(CONFIG_MACH_MT6873),y)
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/v1
+else ifeq ($(CONFIG_MACH_MT6785),y)
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/v1
 else
 obj-$(CONFIG_MTK_POWER_THROTTLING_COMMON) += power_throttling/
 endif
@@ -60,6 +66,7 @@ obj-$(CONFIG_MTK_EMI_BWL)	+= emi_bwl/
 obj-$(CONFIG_MTK_EMI_MPU) += emi_mpu/
 obj-$(CONFIG_MMPROFILE) += mmp/
 obj-$(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) += trusted_mem/
+obj-$(CONFIG_TEEGRIS_TUI) += tui/
 obj-$(CONFIG_MTK_ENABLE_GENIEZONE) += geniezone/
 obj-$(CONFIG_MTK_TEE_SANITY) += tee_sanity/
 obj-$(CONFIG_MTK_CMDQ) += cmdq/
@@ -68,6 +75,7 @@ obj-$(CONFIG_MTK_CMDQ) += mdp/
 obj-$(CONFIG_MTK_CMDQ_TAB) += mdp/
 obj-$(CONFIG_MTK_VDEC_FMT) += vdec_fmt/
 obj-$(CONFIG_MTK_LCM) += lcm/
+obj-$(CONFIG_PANEL_NOTIFIER_W2) += lcm/
 obj-$(CONFIG_MTK_LCM) += ext_disp/
 ifeq (,$(filter $(CONFIG_MTK_PLATFORM_NAME), "mt6768" "mt6785"))
 obj-y += spi_slave_drv/
@@ -197,3 +205,5 @@ obj-$(CONFIG_MTK_MDDP_SUPPORT) += mddp/
 obj-$(CONFIG_MTK_GATE_IC) += gate_ic/
 obj-$(CONFIG_MTK_FREQ_HOPPING) += freqhopping/
 obj-$(CONFIG_MTK_TASK_TURBO) += task_turbo/
+obj-$(CONFIG_MTK_USB_OFFLOAD) += usb_offload/
+

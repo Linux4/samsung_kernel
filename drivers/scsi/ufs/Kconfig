@@ -179,6 +179,13 @@ config SCSI_SKHPB
 	help
 	  Activate or deactive SKHPB driver
 
+config SCSI_UFS_TEST_MODE
+	bool "Samsung UFS TEST feature"
+	depends on SCSI_UFSHCD && SCSI_UFSHCD_PLATFORM
+	---help---
+	  This selects support for test mode for debugging.
+	  Select this option if this feature is needed on working.
+
 config SCSI_UFS_CRYPTO
 	bool "UFS Crypto Engine Support"
 	depends on SCSI_UFSHCD && BLK_INLINE_ENCRYPTION

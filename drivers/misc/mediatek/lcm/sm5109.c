@@ -217,9 +217,9 @@
  	int ret=0;
 	//pr_debug("[LCM]power enable\n");
 	pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[1]);    //enable enp
-	mdelay(5);
+	mdelay(2);
 	pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[3]);	   //enable enn
-	mdelay(5);
+	mdelay(2);
 	/* set AVDD*/
 	/*4.0V + 20* 100mV*/
 	ret = SM5109_REG_MASK(0x00, 20, (0x1F << 0));
@@ -272,6 +272,61 @@
  	}
  }
  EXPORT_SYMBOL(lcm_reset_pin);
+
+void lcm_bais_enp_enable(unsigned int mode)
+{
+	pr_debug("[LCM][GPIO]lcm_bais_enp_enable mode:%d !\n",mode);
+	if((mode==0)||(mode==1)){
+		switch (mode){
+			case LOW :
+				pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[0]);
+				break;
+			case HIGH:
+				pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[1]);
+				break;
+		 }
+	}
+}
+EXPORT_SYMBOL(lcm_bais_enp_enable);
+
+void lcm_bais_enn_enable(unsigned int mode)
+{
+    pr_debug("[LCM][GPIO]lcm_bais_enn_enable mode:%d !\n",mode);
+	if((mode==0)||(mode==1)){
+		switch (mode){
+			case LOW :
+				pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[2]);
+				break;
+			case HIGH:
+				pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[3]);
+				break;
+		}
+	}
+}
+EXPORT_SYMBOL(lcm_bais_enn_enable);
+
+//+S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
+int lcm_set_power_reg(unsigned char addr, unsigned char val, unsigned char mask)
+{
+    unsigned char data = 0;
+    unsigned int ret = 0;
+
+    ret = _lcm_i2c_read_bytes(addr, data);
+    if(ret<0){
+		pr_debug("[LCM][I2C]  lcm_set_power_reg fail\n");
+    }
+    data &= ~mask;
+    data |= val;
+
+    ret = _lcm_i2c_write_bytes(addr, data);
+    if(ret<0){
+        pr_debug("[LCM][I2C]  lcm_set_power_reg fail\n");
+    }
+
+    return ret;
+}
+EXPORT_SYMBOL(lcm_set_power_reg);
+//-S96818AA1-1936,liyuhong1.wt,modify,2023/06/07,modify power-on timing
 
 int wingtech_bright_to_bl(int level,int max_bright,int min_bright,int bl_max,int bl_min) {
 	if(!level){

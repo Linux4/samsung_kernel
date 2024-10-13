@@ -18,7 +18,7 @@
 #define REG00_IINLIM_MASK		    0x1F
 #define REG00_IINLIM_SHIFT			0
 #define	REG00_IINLIM_LSB			100
-#define	REG00_IINLIM_BASE			111
+#define	REG00_IINLIM_BASE			100
 
 /* Register 01h */
 #define BQ2560X_REG_01		    	0x01

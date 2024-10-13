@@ -97,6 +97,7 @@ u16 rtc_spare_reg[RTC_SPAR_NUM][3] = {
 	{RTC_PDN2, 0x1, 15},
 	{RTC_SPAR0, 0x1, 6},
 	{RTC_SPAR0, 0x1, 7},
+	{RTC_SPAR0, 0x1, 8},//CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 	{RTC_AL_HOU, 0xff, 8}
 };
 

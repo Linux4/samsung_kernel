@@ -6,11 +6,19 @@
 #define LITTLE_CPU_FREQ 1138000
 #define INPUT_BOOSTER_DDR_OPP_NUM 2
 
+#if defined(CONFIG_MACH_MT6765)
 enum cluster{
 	BIG = 0,
 	LITTLE,
 	CLUSTER_NUM
 };
+#else
+enum cluster{
+	LITTLE = 0,
+	BIG,
+	CLUSTER_NUM
+};
+#endif
 
 int dvfsrc_opp_table[INPUT_BOOSTER_DDR_OPP_NUM] = {
 	1866,

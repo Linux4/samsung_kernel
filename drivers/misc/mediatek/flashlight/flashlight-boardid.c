@@ -28,7 +28,7 @@ static int flashlightbi_major = FLASHLIGHTBIDEV_MAJOR;
 static int flashlightbi_min = FLASHLIGHTBIDEV_MIN;
 
 static char board_id[10];
-static char* boardid_get(void)
+char* boardid_get(void)
 {
     char* s1= "";
     char* s2="not found";

@@ -546,6 +546,12 @@ void mmc_queue_suspend(struct mmc_queue *mq)
 {
 	blk_mq_quiesce_queue(mq->queue);
 
+#ifdef CONFIG_LARGE_DIRTY_BUFFER
+	/* Restore bdi min/max ratio before device removal */
+	bdi_set_min_ratio(q->backing_dev_info, 0);
+	bdi_set_max_ratio(q->backing_dev_info, 100);
+#endif
+
 	/*
 	 * The host remains claimed while there are outstanding requests, so
 	 * simply claiming and releasing here ensures there are none.
@@ -563,11 +569,6 @@ void mmc_cleanup_queue(struct mmc_queue *mq)
 {
 	struct request_queue *q = mq->queue;
 
-#ifdef CONFIG_LARGE_DIRTY_BUFFER
-	/* Restore bdi min/max ratio before device removal */
-	bdi_set_min_ratio(q->backing_dev_info, 0);
-	bdi_set_max_ratio(q->backing_dev_info, 100);
-#endif
 
 	/*
 	 * The legacy code handled the possibility of being suspended,

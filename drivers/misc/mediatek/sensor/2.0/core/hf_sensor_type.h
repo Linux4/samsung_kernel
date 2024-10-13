@@ -65,6 +65,9 @@ enum {
 	SENSOR_TYPE_GYRO_TEMPERATURE,
 	SENSOR_TYPE_SAR,
 	SENSOR_TYPE_OIS,
+// add smart alert sensor to project by wangjianlong at 20221029 start
+    SENSOR_TYPE_SMART_ALERT,
+// add smart alert sensor to project by wangjianlong at 20221029 end
 	SENSOR_TYPE_FLICKER,
 	SENSOR_TYPE_GYRO_SECONDARY,
 	SENSOR_TYPE_FLICKER_REAR,
@@ -132,6 +135,9 @@ enum {
 	ID_GYRO_TEMPERATURE,
 	ID_SAR,
 	ID_OIS,
+// add smart alert sensor to project by wangjianlong at 20221029 start
+    ID_SMART_ALERT,
+// add smart alert sensor to project by wangjianlong at 20221029 end
 	ID_FLICKER,
 	ID_GYRO_SECONDARY,
 	ID_FLICKER_REAR,

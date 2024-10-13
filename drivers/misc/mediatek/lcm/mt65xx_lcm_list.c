@@ -22,7 +22,6 @@ enum LCM_DSI_MODE_CON lcm_dsi_mode;
 
 struct LCM_DRIVER *lcm_driver_list[] = {
 
-/* bug715586, fengcheng.wt, add, 20220123, lcd bring up */
 #if defined(FT8006S_DSI_VDO_HDP_SKYWORTH_SHENCHAO)
 	&ft8006s_dsi_vdo_hdp_skyworth_shenchao_drv,
 #endif
@@ -55,27 +54,46 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&hx83108_dsi_vdo_hdp_boe_boe_drv,
 #endif
 
+#if defined(N28_ICNL9911C_DSI_VDO_HDP_TXD_INX)
+	&n28_icnl9911c_dsi_vdo_hdp_txd_inx_drv,
+#endif
+
+#if defined(N28_NT36528_DSI_VDO_HDP_TRULY_TRULY)
+	&n28_nt36528_dsi_vdo_hdp_truly_truly_drv,
+#endif
+
+//+S96818AA1-1936,liuzhizun2.wt,add,2023/05/16,ft8057s lcd bringup
+#if defined(N28_FT8057S_DSI_VDO_HDP_DSBJ_MANTIX)
+	&n28_ft8057s_dsi_vdo_hdp_dsbj_mantix_drv,
+#endif
+//-S96818AA1-1936,liuzhizun2.wt,add,2023/05/16,ft8057s lcd bringup
+
+//+S96818AA1-1936,liuzhizun2.wt,add,2023/05/15,td4160 lcd bringup
+#if defined(N28_TD4160_DSI_VDO_HDP_XINXIAN_INX)
+	&n28_td4160_dsi_vdo_hdp_xinxian_inx_drv,
+#endif
+//-S96818AA1-1936,liuzhizun2.wt,add,2023/05/15,td4160 lcd bringup
+
+//+S96818AA1-1936,liyuhong1.wt,add,2023/06/27,td4160 & gc7272 & nt36528 lcd bringup
+#if defined(N28_GC7272_DSI_VDO_HDP_TXD_SHARP)
+	&n28_gc7272_dsi_vdo_hdp_txd_sharp_drv,
+#endif
+
+#if defined(N28_NT36528_DSI_VDO_HDP_TXD_SHARP)
+	&n28_nt36528_dsi_vdo_hdp_txd_sharp_drv,
+#endif
+
+#if defined(N28_GC7272_DSI_VDO_HDP_XINXIAN_HKC)
+	&n28_gc7272_dsi_vdo_hdp_xinxian_hkc_drv,
+#endif
+
+#if defined(N28_TD4160_DSI_VDO_HDP_BOE_BOE)
+	&n28_td4160_dsi_vdo_hdp_boe_boe_drv,
+#endif
+//-S96818AA1-1936,liyuhong1.wt,add,2023/06/27,td4160 & gc7272 & nt36528 lcd bringup
+
 #if defined(VIRTUAL_DSI_VDO_DEFAULT)
 	&virtual_dsi_vdo_default_drv,
-#endif
-
-#if defined(ILI7807G_HD_PLUS_DSI_INCELL_TXD_NA)
-	&ili7807g_hd_plus_dsi_vdo_txd_na_lcm_drv,
-#endif
-//-bug717431, chensibo.wt, add, 20220118, 1st lcd bring up
-//+bug717431, chensibo.wt, add, 20220118, 2nd lcd bring up
-#if defined(ILI7807G_HD_PLUS_DSI_INCELL_TRULY_NA)
-	&ili7807g_hd_plus_dsi_vdo_truly_na_lcm_drv,
-#endif
-//-bug717431, chensibo.wt, add, 20220118, 2nd lcd bring up
-
-#if defined(ILI7806S_HD_PLUS_DSI_INCELL_TXD_NA)
-	&ili7806s_hd_plus_dsi_vdo_txd_na_lcm_drv,
-#endif
-
-/*bug682591, fanchenchen.wt, modify, 20220214, lcd bring up*/
-#if defined(INCL9911C_DSI_VDO_HDP_TIANMA_TIANMA)
-	&incl9911c_dsi_vdo_hdp_tianma_tianma_drv,
 #endif
 
 #if defined(ILI9882Q_DSI_VDO_HDP_CTC_TXD)
@@ -93,7 +111,6 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 #if defined(FT8006S_DSI_VDO_HDP_BOE_SKYWORTH)
 	&ft8006s_dsi_vdo_hdp_boe_skyworth_drv,
 #endif
-
 #if defined(HX83102P_WXGA_VDO_INCELL_BOE)
 	&hx83102p_wxga_vdo_incell_boe_lcm_drv,
 #endif
@@ -1336,6 +1353,18 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 
 #if defined(ILI9882N_HDP_DSI_VDO_ILITEK_LM36274)
 	&ili9882n_hdp_dsi_vdo_ilitek_lm36274_lcm_drv,
+#endif
+
+#if defined(S6E3FC3_FHDP_CMD)
+	&s6e3fc3_fhdp_cmd_lcm_drv,
+#endif
+
+#if defined(S6E3FC3_FHDP_CMD_A22_LTE)
+	&s6e3fc3_fhdp_cmd_a22_lte_lcm_drv,
+#endif
+
+#if defined(S6E3FC3_HDP_CMD_A22_LTE)
+	&s6e3fc3_hdp_cmd_a22_lte_lcm_drv,
 #endif
 };
 

@@ -254,11 +254,11 @@ void DevPhysMemFree(PVRSRV_DEVICE_NODE *psDevNode,
 
 
 /* Checks the input parameters and adjusts them if possible and necessary */
-static inline PVRSRV_ERROR _ValidateParams(IMG_UINT32 ui32NumPhysChunks,
-                                           IMG_UINT32 ui32NumVirtChunks,
-                                           PVRSRV_MEMALLOCFLAGS_T uiFlags,
-                                           IMG_UINT32 *puiLog2AllocPageSize,
-                                           IMG_DEVMEM_SIZE_T *puiSize,
+PVRSRV_ERROR PhysMemValidateParams(IMG_UINT32 ui32NumPhysChunks,
+                                   IMG_UINT32 ui32NumVirtChunks,
+                                   PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                                   IMG_UINT32 *puiLog2AllocPageSize,
+                                   IMG_DEVMEM_SIZE_T *puiSize,
                                            PMR_SIZE_T *puiChunkSize)
 {
 	IMG_UINT32 uiLog2AllocPageSize = *puiLog2AllocPageSize;
@@ -269,11 +269,26 @@ static inline PVRSRV_ERROR _ValidateParams(IMG_UINT32 ui32NumPhysChunks,
 	IMG_BOOL bIsSparse = (ui32NumVirtChunks != ui32NumPhysChunks ||
 			ui32NumVirtChunks > 1) ? IMG_TRUE : IMG_FALSE;
 
-	/* Protect against ridiculous page sizes */
-	if (uiLog2AllocPageSize > RGX_HEAP_2MB_PAGE_SHIFT)
+if (ui32NumVirtChunks == 0)
 	{
-		PVR_DPF((PVR_DBG_ERROR, "Page size is too big: 2^%u.", uiLog2AllocPageSize));
+		PVR_DPF((PVR_DBG_ERROR, "%s: Number of virtual chunks cannot be 0",
+				__func__));
 		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	/* Protect against invalid page sizes */
+	switch (uiLog2AllocPageSize)
+	{
+		#define X(_name, _shift) case _shift:
+			RGX_HEAP_PAGE_SHIFTS_DEF
+		#undef X
+			break;
+		default:
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Page size of %u is invalid.",
+			         __func__,
+			         1 << uiLog2AllocPageSize));
+			return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
 	/* Sanity check of the alloc size */
@@ -413,12 +428,12 @@ PhysmemNewRamBackedPMR(CONNECTION_DATA *psConnection,
 
 	PVR_UNREFERENCED_PARAMETER(uiAnnotationLength);
 
-	eError = _ValidateParams(ui32NumPhysChunks,
-	                         ui32NumVirtChunks,
-	                         uiFlags,
-	                         &uiLog2AllocPageSize,
-	                         &uiSize,
-	                         &uiChunkSize);
+	eError = PhysMemValidateParams(ui32NumPhysChunks,
+	                               ui32NumVirtChunks,
+	                               uiFlags,
+	                               &uiLog2AllocPageSize,
+	                               &uiSize,
+	                               &uiChunkSize);
 	PVR_RETURN_IF_ERROR(eError);
 
 	/* Lookup the requested physheap index to use for this PMR allocation */

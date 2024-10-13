@@ -641,7 +641,6 @@ struct ISP_IRQ_ERR_WAN_CNT_STRUCT {
 };
 
 static int FirstUnusedIrqUserKey = 1;
-#define USERKEY_STR_LEN 32
 
 struct UserKeyInfo {
 	/* name for the user that register a userKey */
@@ -7934,7 +7933,7 @@ static int ISP_resume(struct platform_device *pDev)
 	ISP_EnableClock(module, MTRUE);
 
 	if (SuspnedRecord[module]) {
-		LOG_INF("%s_resume,enable VF,wakelock:%d,clk:%p,devct:%d\n",
+		LOG_INF("%s_resume,enable VF,wakelock:%d,clk:0x%x,devct:%d\n",
 			moduleName, g_WaitLockCt, G_u4EnableClockCount,
 			atomic_read(&G_u4DevNodeCt));
 
@@ -7947,7 +7946,7 @@ static int ISP_resume(struct platform_device *pDev)
 		regVal = ISP_RD32(CAMX_REG_TG_VF_CON(module));
 		ISP_WR32(CAMX_REG_TG_VF_CON(module), (regVal | 0x01));
 	} else {
-		LOG_INF("%s_resume,wakelock:%d,clk:%p,devct:%d\n", moduleName,
+		LOG_INF("%s_resume,wakelock:%d,clk:0x%x,devct:%d\n", moduleName,
 			g_WaitLockCt, G_u4EnableClockCount,
 			atomic_read(&G_u4DevNodeCt));
 	}

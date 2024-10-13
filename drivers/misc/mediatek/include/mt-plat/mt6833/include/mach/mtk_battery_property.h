@@ -14,7 +14,8 @@
 #define EMBEDDED_SEL 0
 #define PMIC_SHUTDOWN_CURRENT 20	/* 0.01 mA */
 #define FG_METER_RESISTANCE	100
-#define CAR_TUNE_VALUE	100 /*1.00 */
+//zhaosidong.wt, MODIFY, 2021/2/22, modify for FG accuracy
+#define CAR_TUNE_VALUE	97 /*1.00 */
 #define NO_BAT_TEMP_COMPENSATE 0
 /* NO_BAT_TEMP_COMPENSATE 1 = don't need bat_temper compensate, */
 /* but fg_meter_resistance still use for SWOCV */

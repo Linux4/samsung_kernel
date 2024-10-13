@@ -53,8 +53,6 @@ static bool hx83108_sense_off(bool check_en)
 			g_core_fp.fp_register_write(pfw_op->addr_ctrl_fw_isr,
 				pfw_op->data_fw_stop, DATA_LEN_4);
 
-		/*msleep(20);*/
-		usleep_range(10000, 10001);
 		/* check fw status */
 		g_core_fp.fp_register_read(pic_op->addr_cs_central_state,
 			tmp_data, ADDR_LEN_4);
@@ -64,7 +62,8 @@ static bool hx83108_sense_off(bool check_en)
 					__func__, tmp_data[0]);
 			break;
 		}
-
+		/*msleep(20);*/
+		usleep_range(10000, 10001);
 		g_core_fp.fp_register_read(pfw_op->addr_ctrl_fw_isr, tmp_data,
 			4);
 		I("%s: cnt = %d, data[0] = 0x%02X!\n", __func__,
@@ -140,36 +139,65 @@ static int himax_hx83108a_excp_dd_recovery(void)
 	int retry = 0;
 
 	I("%s: Entering!\n", __func__);
+	g_core_fp.fp_sense_off(false);
+
 	//unlock
 	himax_parse_assign_cmd(0x9000009C, tmp_addr, DATA_LEN_4);
 	himax_parse_assign_cmd(0x000000DD, tmp_data, DATA_LEN_4);
 	g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
-	usleep_range(20000, 20001);
+	usleep_range(2000, 2100);
 
 
 	himax_parse_assign_cmd(0x90000280, tmp_addr, DATA_LEN_4);
 	himax_parse_assign_cmd(0x000000A5, tmp_data, DATA_LEN_4);
 	g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
-	usleep_range(20000, 20001);
+	usleep_range(2000, 2100);
 
 	
 	himax_parse_assign_cmd(0x300B9000, tmp_addr, DATA_LEN_4);
 	himax_parse_assign_cmd(0x8A108300, tmp_data, DATA_LEN_4);
 	g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
-	usleep_range(20000, 20001);
+	usleep_range(2000, 2100);
 
 
 	himax_parse_assign_cmd(0x300EB000, tmp_addr, DATA_LEN_4);
 	himax_parse_assign_cmd(0xCC665500, tmp_data, DATA_LEN_4);
 	g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
-	usleep_range(20000, 20001);
+	usleep_range(2000, 2100);
 
 	
-	himax_parse_assign_cmd(0x300EB004, tmp_addr, DATA_LEN_4);
-	himax_parse_assign_cmd(0x5AB395C6, tmp_data, DATA_LEN_4);
-	g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
-	usleep_range(20000, 20001);
+#if defined(DD_RECOV_EXCP_TE)
+	do {
 
+		himax_parse_assign_cmd(0x3000E001, tmp_addr, DATA_LEN_4);
+		g_core_fp.fp_register_read(tmp_addr, tmp_data, DATA_LEN_4);
+
+		I("Before trigger,retry:%d, R%02X%02X%02X%02XH = 0x%02X%02X%02X%02X\n",
+				retry, tmp_addr[3], tmp_addr[2], tmp_addr[1], tmp_addr[0],
+				tmp_data[3], tmp_data[2], tmp_data[1], tmp_data[0]);
+
+		himax_parse_assign_cmd(0x30034000, tmp_addr, DATA_LEN_4);
+		himax_parse_assign_cmd(0x00000000, tmp_data, DATA_LEN_4);
+		g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
+		usleep_range(1000, 1100);
+
+		himax_parse_assign_cmd(0x3000E001, tmp_addr, DATA_LEN_4);
+		g_core_fp.fp_register_read(tmp_addr, tmp_data, DATA_LEN_4);
+
+		I("After trigger,retry:%d, R%02X%02X%02X%02XH = 0x%02X%02X%02X%02X\n",
+				retry, tmp_addr[3], tmp_addr[2], tmp_addr[1], tmp_addr[0],
+				tmp_data[3], tmp_data[2], tmp_data[1], tmp_data[0]);
+
+		if ((tmp_data[0] == tmp_data[1]) && (tmp_data[1] == tmp_data[2]) && (tmp_data[2] == tmp_data[3])) {
+			if (tmp_data[0] == 0x00) {
+				I("%s: EnteringTE!\n", __func__);
+				break;
+			}
+		}
+		
+	} while((retry++ < 5));
+
+#else		
 			
 	do {
 
@@ -199,7 +227,7 @@ static int himax_hx83108a_excp_dd_recovery(void)
 			himax_parse_assign_cmd(0x300B8800, tmp_addr, DATA_LEN_4);
 			himax_parse_assign_cmd(0x000001B8, tmp_data, DATA_LEN_4);
 			g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
-			usleep_range(10000, 10100);
+			usleep_range(1000, 1100);
 
 
 			// read 0A
@@ -209,13 +237,17 @@ static int himax_hx83108a_excp_dd_recovery(void)
 					__func__, retry, tmp_addr[3], tmp_addr[2], tmp_addr[1], tmp_addr[0],
 					tmp_read[3], tmp_read[2], tmp_read[1], tmp_read[0]);
 			
-			if (tmp_addr[0] != 0x9D) {
+			if (tmp_read[0] != 0x9D) {
 				break;
 			}
 		} while((retry++ < 5));
 		
 	}
+#endif
 
+#if defined(DD_RECOV_EXCP_TE)
+	g_core_fp.fp_sense_on(0x00);
+#endif
 	return ret;
 }
 #endif

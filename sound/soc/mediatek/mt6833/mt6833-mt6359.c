@@ -26,6 +26,9 @@
 #include "sia81xx_common.h"
 #endif
 
+#ifdef CONFIG_SND_SOC_SIA8159
+#include "../../codecs/sia8159/sipa_aux_dev_if.h"
+#endif
 /*
  * if need additional control for the ext spk amp that is connected
  * after Lineout Buffer / HP Buffer on the codec, put the control in
@@ -693,6 +696,30 @@ static struct snd_soc_dai_link mt6833_mt6359_dai_links[] = {
 		.ignore_suspend = 1,
 	},
 	{
+		.name = "Hostless_FM_Record",
+		.stream_name = "Hostless_FM_Record",
+		.cpu_dai_name = "Hostless FM RECORD DAI",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
+			    SND_SOC_DPCM_TRIGGER_PRE},
+		.dynamic = 1,
+		.dpcm_capture = 1,
+		.ignore_suspend = 1,
+	},
+	{
+		.name = "Hostless_ADDA_DL_HWGain",
+		.stream_name = "Hostless_ADDA_DL_HWGain",
+		.cpu_dai_name = "Hostless_ADDA_DL_HWGain DAI",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
+			    SND_SOC_DPCM_TRIGGER_PRE},
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.ignore_suspend = 1,
+	},
+	{
 		.name = "Hostless_Speech",
 		.stream_name = "Hostless_Speech",
 		.cpu_dai_name = "Hostless Speech DAI",
@@ -747,6 +774,19 @@ static struct snd_soc_dai_link mt6833_mt6359_dai_links[] = {
 		.name = "Hostless_SRC_1",
 		.stream_name = "Hostless_SRC_1",
 		.cpu_dai_name = "Hostless_SRC_1_DAI",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
+			    SND_SOC_DPCM_TRIGGER_PRE},
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.ignore_suspend = 1,
+	},
+	{
+		.name = "Hostless_HWGain_1",
+		.stream_name = "Hostless_HWGain_1",
+		.cpu_dai_name = "Hostless_HWGain_1_DAI",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
@@ -1110,7 +1150,14 @@ static int mt6833_mt6359_dev_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 
 	dev_info(&pdev->dev, "%s(), devm_snd_soc_register_card\n", __func__);
-
+//zhangsen
+#ifdef CONFIG_SND_SOC_SIA8159
+	ret = soc_aux_init_only_sia81xx(pdev, card);
+	if (ret)
+		dev_err(&pdev->dev, "%s soc_aux_init_only_sia81xx fail %d\n",	
+			__func__, ret);
+#endif
+//zhangsen
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)
 		dev_err(&pdev->dev, "%s snd_soc_register_card fail %d\n",

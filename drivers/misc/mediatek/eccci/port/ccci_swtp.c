@@ -20,10 +20,13 @@
 #include "ccci_modem.h"
 #include "ccci_swtp.h"
 #include "ccci_fsm.h"
-//+ bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
+
+//+ BUG 782693 suhao1.wt 2022.08.15  add swtp proc start
+#ifdef CONFIG_WT_PROJECT_S96516SA1
 #include <linux/proc_fs.h>
 static unsigned int swtp_gpio_value=0;
-//- bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
+#endif
+//- BUG 782693 suhao1.wt 2022.08.15  add swtp proc end
 
 /* must keep ARRAY_SIZE(swtp_of_match) = ARRAY_SIZE(irq_name) */
 const struct of_device_id swtp_of_match[] = {
@@ -119,10 +122,13 @@ static int swtp_switch_state(int irq, struct swtp_t *swtp)
 
 	inject_pin_status_event(swtp->curr_mode, rf_name);
 	spin_unlock_irqrestore(&swtp->spinlock, flags);
-	
-	//+ bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
+
+	//+ BUG 782693 suhao1.wt 2022.08.15  add swtp proc start
+	#ifdef CONFIG_WT_PROJECT_S96516SA1
 	swtp_gpio_value = !(swtp->tx_power_mode);
-	//- bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
+	#endif
+	//- BUG 782693 suhao1.wt 2022.08.15  add swtp proc end
+
 	return swtp->tx_power_mode;
 }
 
@@ -185,7 +191,7 @@ static void swtp_tx_delayed_work(struct work_struct *work)
 int swtp_md_tx_power_req_hdlr(int md_id, int data)
 {
 	struct swtp_t *swtp = NULL;
-
+	unsigned long flags;
 	if (md_id < 0 || md_id >= SWTP_MAX_SUPPORT_MD) {
 		CCCI_LEGACY_ERR_LOG(md_id, SYS,
 		"%s:md_id=%d not support\n",
@@ -194,12 +200,17 @@ int swtp_md_tx_power_req_hdlr(int md_id, int data)
 	}
 
 	swtp = &swtp_data[md_id];
+	/*default do tx power for special use*/
+	spin_lock_irqsave(&swtp->spinlock, flags);
+	swtp->tx_power_mode = SWTP_DO_TX_POWER;
+	spin_unlock_irqrestore(&swtp->spinlock, flags);
 	swtp_send_tx_power_state(swtp);
 
 	return 0;
 }
 
-//+ bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
+//+ BUG 782693 suhao1.wt 2022.08.15  add swtp proc start
+#ifdef CONFIG_WT_PROJECT_S96516SA1
 static int swtp_gpio_show(struct seq_file *m, void *v)
 {
 	seq_printf(m,"%d\n", swtp_gpio_value);
@@ -222,7 +233,9 @@ static void swtp_gpio_create_proc(void)
 {
 	proc_create("swtp_status_value", 0444, NULL, &swtp_gpio_fops);
 }
-//- bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
+#endif
+//- BUG 782693 suhao1.wt 2022.08.15  add swtp proc end
+
 static void swtp_init_delayed_work(struct work_struct *work)
 {
 	struct swtp_t *swtp = container_of(to_delayed_work(work),
@@ -314,9 +327,12 @@ static void swtp_init_delayed_work(struct work_struct *work)
 	}
 	register_ccci_sys_call_back(md_id, MD_SW_MD1_TX_POWER_REQ,
 		swtp_md_tx_power_req_hdlr);
-	//+ bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
-	swtp_gpio_create_proc();
-	//- bug 717427  zhouxin2.wt 2022.02.10  add swtp proc end
+
+    //+ BUG 782693  suhao1.wt 2022.08.15  add swtp proc start
+    #ifdef CONFIG_WT_PROJECT_S96516SA1
+    swtp_gpio_create_proc();
+    #endif
+    //- BUG 782693  suhao1.wt 2022.08.15  add swtp proc end
 
 SWTP_INIT_END:
 	CCCI_BOOTUP_LOG(md_id, SYS, "%s end: ret = %d\n", __func__, ret);

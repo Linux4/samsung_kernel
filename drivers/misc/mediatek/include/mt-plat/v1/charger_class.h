@@ -56,6 +56,8 @@ struct charger_ops {
 	int (*enable)(struct charger_device *dev, bool en);
 
 	int (*is_enabled)(struct charger_device *dev, bool *en);
+//zhaosidong.wt, CHG REQ
+	int (*hz_mode)(struct charger_device *chg_dev, bool en);
 
 	/* enable/disable chip */
 	int (*enable_chip)(struct charger_device *dev, bool en);
@@ -93,6 +95,11 @@ struct charger_ops {
 	int (*set_mivr)(struct charger_device *dev, u32 uV);
 	int (*get_mivr)(struct charger_device *dev, u32 *uV);
 	int (*get_mivr_state)(struct charger_device *dev, bool *in_loop);
+
+//Bug774039,gudi.wt,add shipmode ctrl
+	/* ship mode */
+	int (*set_shipmode)(struct charger_device *dev, bool en);
+	int (*set_shipmode_delay)(struct charger_device *dev, bool en);
 
 	/* enable/disable powerpath */
 	int (*is_powerpath_enabled)(struct charger_device *dev, bool *en);
@@ -238,6 +245,12 @@ extern int charger_dev_get_mivr_state(
 	struct charger_device *charger_dev, bool *in_loop);
 extern int charger_dev_do_event(
 	struct charger_device *charger_dev, u32 event, u32 args);
+//Bug774039,gudi.wt,add shipmode ctrl
+/* ship mode */
+extern int charger_dev_set_shipmode(
+	struct charger_device *chg_dev, bool en);
+extern int charger_dev_set_shipmode_delay(
+	struct charger_device *chg_dev, bool en);
 extern int charger_dev_is_powerpath_enabled(
 	struct charger_device *charger_dev, bool *en);
 extern int charger_dev_is_safety_timer_enabled(
@@ -266,6 +279,9 @@ extern int charger_dev_reset_eoc_state(
 	struct charger_device *charger_dev);
 extern int charger_dev_safety_check(
 	struct charger_device *charger_dev, u32 polling_ieoc);
+//zhaosidong.wt, CHG REQ
+extern int charger_dev_hz_mode(
+	struct charger_device *chg_dev, bool en);
 extern int charger_dev_enable_hz(
 	struct charger_device *charger_dev, bool en);
 

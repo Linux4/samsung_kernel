@@ -50,6 +50,13 @@
 #include "mt_spi.h"
 #endif
 
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+#include "../../../../misc/mediatek/lcm/inc/panel_notifier.h"
+static struct notifier_block focal_headset_notifier;
+#define FTS_HEADSET_PLUG 9
+#define FTS_HEADSET_UNPLUG 10
+#endif
+
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
@@ -1336,6 +1343,12 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
         FTS_ERROR("init fw upgrade fail");
     }
 
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    focal_headset_notifier.notifier_call = focal_headset_notifier_callback;
+    if(panel_register_client(&focal_headset_notifier))
+        FTS_ERROR("gcore_headset_nodifier register notifier failed!");
+#endif
+
     tpd_load_status = 1;
     FTS_FUNC_EXIT();
     return 0;
@@ -1666,6 +1679,29 @@ void tpd_focal_suspend(struct device *dev)
     FTS_FUNC_EXIT();
 }
 
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+int focal_headset_notifier_callback(struct notifier_block *self, unsigned long event, void *data){
+    struct fts_ts_data *ts_data = fts_data;
+
+    FTS_ERROR("focal_headset_nodifier_callback start event = %d\n",event);
+
+    if (event == FTS_HEADSET_PLUG) {
+        ts_data->fts_head_set = 1;
+        if(ts_data->suspended == false) {
+            fts_write_reg(0x9E, 0x01);
+            FTS_ERROR("focal headset plug");
+        }
+    }else if(event == FTS_HEADSET_UNPLUG) {
+        ts_data->fts_head_set = 0;
+        if(ts_data->suspended == false){
+            fts_write_reg(0x9E, 0x00);
+            FTS_ERROR("focal headset unplug");
+        }
+    }
+    return 0;
+}
+#endif
+
 void tpd_focal_resume(struct device *dev)
 {
     struct fts_ts_data *ts_data = fts_data;
@@ -1704,6 +1740,16 @@ void tpd_focal_resume(struct device *dev)
     } else {
     }
 
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    if(ts_data->fts_head_set) {
+        fts_write_reg(0x9E, 0x01);
+        FTS_ERROR("focal headset plug");
+    }else {
+        fts_write_reg(0x9E, 0x00);
+        FTS_ERROR("focal headset unplug");
+    }
+#endif
+
     ts_data->suspended = false;
     FTS_FUNC_EXIT();
 }
@@ -1729,13 +1775,6 @@ static struct tpd_driver_t tpd_device_driver = {
 extern char *saved_command_line;
 static int __init tpd_driver_init(void)
 {
-#ifndef CONFIG_WT_PROJECT_S96516SA1
-    if (!strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_skyworth_shenchao")) {
-	FTS_ERROR("MATCH LCD ERROR\n");		
-        return  -1;
-    }
-#endif
-
     FTS_FUNC_ENTER();
     FTS_INFO("Driver version: %s", FTS_DRIVER_VERSION);
     tpd_get_dts_info();

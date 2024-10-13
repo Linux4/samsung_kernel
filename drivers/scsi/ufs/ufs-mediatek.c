@@ -47,7 +47,7 @@
 #include "mtk_clkbuf_ctl.h"
 #endif
 
-#if defined(CONFIG_SCSI_UFS_HPB)
+#if defined(CONFIG_SCSI_UFS_HPB) || defined(CONFIG_SCSI_SKHPB)
 #include "ufshpb.h"
 #endif
 
@@ -258,7 +258,7 @@ static int ufs_mtk_rpmb_cmd_seq(struct device *dev,
 	 * Use rpmb lock to prevent other rpmb read/write threads cut in line.
 	 * Use mutex not spin lock because in/out function might sleep.
 	 */
-	mutex_lock(&host->rpmb_lock);
+	down(&host->rpmb_sem);
 	for (ret = 0, i = 0; i < ncmds && !ret; i++) {
 		cmd = &cmds[i];
 		if (cmd->flags & RPMB_F_WRITE)
@@ -268,7 +268,7 @@ static int ufs_mtk_rpmb_cmd_seq(struct device *dev,
 			ret = ufs_mtk_rpmb_security_in(sdev, cmd->frames,
 						      cmd->nframes);
 	}
-	mutex_unlock(&host->rpmb_lock);
+	up(&host->rpmb_sem);
 
 	scsi_device_put(sdev);
 	return ret;
@@ -322,6 +322,11 @@ void ufs_mtk_rpmb_add(struct ufs_hba *hba, struct scsi_device *sdev_rpmb)
 	 *            rpmb ioctl solution.
 	 */
 	host->rawdev_ufs_rpmb = rdev;
+
+	/*
+	 * Initialize rpmb semaphore.
+	 */
+	sema_init(&host->rpmb_sem, 1);
 
 	return;
 
@@ -444,7 +449,7 @@ int ufs_mtk_ioctl_rpmb(struct ufs_hba *hba, const void __user *buf_user)
 	 * Use rpmb lock to prevent other rpmb read/write threads cut in line.
 	 * Use mutex not spin lock because in/out function might sleep.
 	 */
-	mutex_lock(&host->rpmb_lock);
+	down(&host->rpmb_sem);
 	for (i = 0; i < 3; i++) {
 		if (cmd[i].nframes == 0)
 			break;
@@ -493,7 +498,7 @@ int ufs_mtk_ioctl_rpmb(struct ufs_hba *hba, const void __user *buf_user)
 
 		frames += cmd[i].nframes;
 	}
-	mutex_unlock(&host->rpmb_lock);
+	up(&host->rpmb_sem);
 
 	kfree(frame_buf);
 
@@ -1251,6 +1256,7 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 	struct device *dev = hba->dev;
 	struct ufs_mtk_host *host;
 	int err = 0;
+	struct platform_device *pdev;
 
 	host = devm_kzalloc(dev, sizeof(*host), GFP_KERNEL);
 	if (!host) {
@@ -1275,6 +1281,15 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 		if (host->cfg->quirks & UFS_MTK_HOST_QUIRK_BROKEN_AUTO_HIBERN8)
 			host->auto_hibern_enabled = true;
 	}
+
+	/* Rename device to unify device path for booting storage device. */
+	device_rename(hba->dev, "bootdevice");
+	/*
+	 * fix uaf(use afer free) issue: modify pdev->name,
+	 * device_rename will free pdev->name
+	 */
+	pdev = to_platform_device(hba->dev);
+	pdev->name = pdev->dev.kobj.name;
 
 	err = ufs_mtk_bind_mphy(hba);
 	if (err)
@@ -2030,9 +2045,38 @@ static int ufs_mtk_remove(struct platform_device *pdev)
 	return 0;
 }
 
+int ufs_mtk_pltfrm_suspend(struct device *dev)
+{
+	int ret;
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+
+	if (down_trylock(&host->rpmb_sem))
+		return -EBUSY;
+
+	ret = ufshcd_pltfrm_suspend(dev);
+	if (ret)
+		up(&host->rpmb_sem);
+
+	return ret;
+}
+
+int ufs_mtk_pltfrm_resume(struct device *dev)
+{
+	int ret;
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+
+	ret = ufshcd_pltfrm_resume(dev);
+	if (!ret)
+		up(&host->rpmb_sem);
+
+	return ret;
+}
+
 static const struct dev_pm_ops ufs_mtk_pm_ops = {
-	.suspend         = ufshcd_pltfrm_suspend,
-	.resume          = ufshcd_pltfrm_resume,
+	.suspend         = ufs_mtk_pltfrm_suspend,
+	.resume          = ufs_mtk_pltfrm_resume,
 	.runtime_suspend = ufshcd_pltfrm_runtime_suspend,
 	.runtime_resume  = ufshcd_pltfrm_runtime_resume,
 	.runtime_idle    = ufshcd_pltfrm_runtime_idle,

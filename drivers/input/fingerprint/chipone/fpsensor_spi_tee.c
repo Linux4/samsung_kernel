@@ -31,7 +31,7 @@
 
 #include <linux/spi/spi.h>
 #include <linux/spi/spidev.h>
-//#include <linux/wakelock.h>
+#include <linux/wakelock.h>
 
 #if defined(USE_PLATFORM_BUS)
 #include <linux/platform_device.h>
@@ -48,9 +48,9 @@ static fpsensor_data_t *g_fpsensor = NULL;
 uint32_t g_cmd_sn = 0;
 
 /* regulator VDD select */
-//#define FPSENSOR_VDD_NAME                 "fp_vdd"
-//#define FPSENSOR_VDD_MIN_UV               3300000
-//#define FPSENSOR_VDD_MAX_UV               3300000
+#define FPSENSOR_VDD_NAME                 "fp_vdd"
+#define FPSENSOR_VDD_MIN_UV               3300000
+#define FPSENSOR_VDD_MAX_UV               3300000
 
 //extern bool sunwave_fp_exist ;
 //extern struct spi_device *spi_fingerprint;
@@ -91,11 +91,10 @@ static int fpsensor_irq_gpio_cfg(fpsensor_data_t *fpsensor)
         // gpio_set_debounce(ints[0], ints[1]);
         //fpsensor_debug(DEBUG_LOG,"[fpsensor]ints[0] = %d,is irq_gpio , ints[1] = %d!!\n", ints[0], ints[1]);
         //fpsensor->irq_gpio = ints[0];
-		
+
 	fpsensor->irq_gpio = of_get_named_gpio(node, "int-gpios", 0);
 	fpsensor_debug(DEBUG_LOG,"[fpsensor]  irq_gpio is %d!!\n",fpsensor->irq_gpio);
 
-		
 /*
 	rc = devm_gpio_request(fpsensor->dev, fpsensor->irq_gpio, "chipone,gpio_irq");
 	if (rc) {
@@ -110,7 +109,7 @@ static int fpsensor_irq_gpio_cfg(fpsensor_data_t *fpsensor)
 
 	fpsensor_debug(DEBUG_LOG,"[fpsensor]fpsensor->irq = %d,!\n",fpsensor->irq);
 
-	/*	
+	/*
         fpsensor->irq = irq_of_parse_and_map(node, 0);  // get irq number
         if (!fpsensor->irq) {
             fpsensor_debug(ERR_LOG,"fpsensor irq_of_parse_and_map fail!!\n");
@@ -147,35 +146,6 @@ void fpsensor_gpio_output_dts(int gpio, int level)
     }
     mutex_unlock(&spidev_set_gpio_mutex);
 }
-
-static void spidev_gpio_ldo_en(fpsensor_data_t *fpsensor)
-{
-    fpsensor_debug(DEBUG_LOG, "[fpsensor]----%s---\n", __func__);
-	if (fpsensor->pinctrl1 == NULL) {
-        fpsensor_debug(ERR_LOG,"fpsensor Cannot find fp pinctrl1.\n");
-        return;
-    }
-	if (fpsensor->fp_ldo_en == NULL) {
-        fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_ldo-en!\n");
-        return;
-    }
-    pinctrl_select_state(fpsensor->pinctrl1, fpsensor->fp_ldo_en);
-}
-
-static void spidev_gpio_ldo_disable(fpsensor_data_t *fpsensor)
-{
-    fpsensor_debug(DEBUG_LOG, "[fpsensor]----%s---\n", __func__);
-	if (fpsensor->pinctrl1 == NULL) {
-        fpsensor_debug(ERR_LOG,"fpsensor Cannot find fp pinctrl1.\n");
-        return;
-    }
-	if (fpsensor->fp_ldo_disable == NULL) {
-        fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_ldo_disable!\n");
-        return;
-    }
-    pinctrl_select_state(fpsensor->pinctrl1, fpsensor->fp_ldo_disable);
-}
-
 int fpsensor_gpio_wirte(int gpio, int value)
 {
     fpsensor_gpio_output_dts(gpio, value);
@@ -213,30 +183,16 @@ int fpsensor_spidev_dts_init(fpsensor_data_t *fpsensor)
             fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl eint_as_int!\n");
             return ret;
         }
-        fpsensor->fp_rst_low = pinctrl_lookup_state(fpsensor->pinctrl1, "reset-low");
+        fpsensor->fp_rst_low = pinctrl_lookup_state(fpsensor->pinctrl1, "rst-low");
         if (IS_ERR(fpsensor->fp_rst_low)) {
             ret = PTR_ERR(fpsensor->fp_rst_low);
-            fpsensor_debug(ERR_LOG,"fpsensor Cannot find fp pinctrl fp_reset-low!\n");
+            fpsensor_debug(ERR_LOG,"fpsensor Cannot find fp pinctrl fp_rst_low!\n");
             return ret;
         }
-        fpsensor->fp_rst_high = pinctrl_lookup_state(fpsensor->pinctrl1, "reset-high");
+        fpsensor->fp_rst_high = pinctrl_lookup_state(fpsensor->pinctrl1, "rst-high");
         if (IS_ERR(fpsensor->fp_rst_high)) {
             ret = PTR_ERR(fpsensor->fp_rst_high);
-            fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_reset-high!\n");
-            return ret;
-        }
-
-		fpsensor->fp_ldo_en = pinctrl_lookup_state(fpsensor->pinctrl1, "ldo-en");
-        if (IS_ERR(fpsensor->fp_ldo_en)) {
-            ret = PTR_ERR(fpsensor->fp_ldo_en);
-            fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_ldo-en!\n");
-            return ret;
-        }
-		
-		fpsensor->fp_ldo_disable = pinctrl_lookup_state(fpsensor->pinctrl1, "ldo-disable");
-        if (IS_ERR(fpsensor->fp_ldo_disable)) {
-            ret = PTR_ERR(fpsensor->fp_ldo_disable);
-            fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_ldo_disable!\n");
+            fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_rst_high!\n");
             return ret;
         }
 /*
@@ -284,8 +240,10 @@ static void fpsensor_hw_reset(int delay)
 {
     FUNC_ENTRY();
 
-    //fpsensor_gpio_wirte(FPSENSOR_RST_PIN,    1);
-    //udelay(100);
+//    fpsensor_gpio_wirte(FPSENSOR_RST_PIN,    1);
+//    udelay(100);
+    gpio_set_value(g_fpsensor->irq_gpio, 0);
+    fpsensor_debug(ERR_LOG, "%s, when reset ，set int low\n", __func__);
     fpsensor_gpio_wirte(FPSENSOR_RST_PIN,  0);
     udelay(1000);
     fpsensor_gpio_wirte(FPSENSOR_RST_PIN,  1);
@@ -301,10 +259,10 @@ static void fpsensor_spi_clk_enable(u8 bonoff)
 {
     if ((bonoff == 0) && (mt_spi_clk_flag == 1)) {
         mt_spi_disable_master_clk(g_fpsensor->spi);
-        mt_spi_clk_flag = 0;
+	mt_spi_clk_flag = 0;
     } else if((bonoff == 1) && (mt_spi_clk_flag == 0)) {
         mt_spi_enable_master_clk(g_fpsensor->spi);
-        mt_spi_clk_flag = 1;	
+	mt_spi_clk_flag = 1;
     }
 }
 
@@ -360,8 +318,8 @@ static irqreturn_t fpsensor_irq(int irq, void *handle)
     /* Make sure 'wakeup_enabled' is updated before using it
     ** since this is interrupt context (other thread...) */
     smp_rmb();
-//    wake_lock_timeout(&fpsensor_dev->ttw_wl, msecs_to_jiffies(1000));
-    __pm_wakeup_event(fpsensor_dev->ttw_wl, 3000);
+    wake_lock_timeout(&fpsensor_dev->ttw_wl, msecs_to_jiffies(1000));
+//    __pm_wakeup_event(&fpsensor_dev->ttw_wl, 3000);
     setRcvIRQ(1);
     wake_up_interruptible(&fpsensor_dev->wq_irq_return);
 
@@ -401,6 +359,7 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
         if(fpsensor_irq_gpio_cfg(fpsensor_dev) != 0) {
             break;
         }
+        fpsensor_spi_clk_enable(1);
         //regist irq
         irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
        /* retval = request_threaded_irq(g_fpsensor->irq, fpsensor_irq, NULL,
@@ -421,13 +380,10 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
         fpsensor_disable_irq(fpsensor_dev);
         fpsensor_gpio_wirte(FPSENSOR_RST_PIN,  0);
         mdelay(1);
-        spidev_gpio_ldo_en(fpsensor_dev);
-#if 0
         retval = regulator_enable(g_fpsensor->fp_regulator);
         if (retval) {
             fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
         }
-#endif
         fpsensor_debug(INFO_LOG, "%s: fpsensor init finished======\n", __func__);
         break;
 
@@ -443,7 +399,7 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 
     case FPSENSOR_IOC_RESET:
         fpsensor_debug(INFO_LOG, "%s: chip reset command\n", __func__);
-        fpsensor_hw_reset(1250);
+        fpsensor_hw_reset(5000);
         break;
 
     case FPSENSOR_IOC_ENABLE_IRQ:
@@ -474,34 +430,35 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
         break;
     case FPSENSOR_IOC_ENABLE_POWER:
         fpsensor_debug(INFO_LOG, "%s: FPSENSOR_IOC_ENABLE_POWER ======\n", __func__);
-		spidev_gpio_ldo_en(fpsensor_dev);
+        retval = regulator_enable(g_fpsensor->fp_regulator);
+        if (retval) {
+            fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
+        }
         break;
     case FPSENSOR_IOC_DISABLE_POWER:
         fpsensor_debug(INFO_LOG, "%s: FPSENSOR_IOC_DISABLE_POWER ======\n", __func__);
-		spidev_gpio_ldo_disable(fpsensor_dev);
+        retval = regulator_disable(g_fpsensor->fp_regulator);
+        if (retval) {
+            fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
+        }
         break;
     case FPSENSOR_IOC_REMOVE:
         fpsensor_gpio_wirte(FPSENSOR_RST_PIN,  0);
         fpsensor_disable_irq(fpsensor_dev);
-		
-		if(fpsensor_dev->pinctrl1) {
-	        devm_pinctrl_put(fpsensor_dev->pinctrl1);
-	    }
-		
         if (fpsensor_dev->irq) {
             free_irq(fpsensor_dev->irq, fpsensor_dev);
             fpsensor_dev->irq_enabled = 0;
 	    gpio_free(fpsensor_dev->irq_gpio);
         }
         fpsensor_dev->device_available = 0;
-        //retval = regulator_disable(g_fpsensor->fp_regulator);
-        //if (retval) {
-        //    fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
-        //}
-        //if (fpsensor_dev->fp_regulator) {
-        //    regulator_put(fpsensor_dev->fp_regulator);
-        //    fpsensor_dev->fp_regulator = NULL;
-        //}
+        retval = regulator_disable(g_fpsensor->fp_regulator);
+        if (retval) {
+            fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
+        }
+        if (fpsensor_dev->fp_regulator) {
+            regulator_put(fpsensor_dev->fp_regulator);
+            fpsensor_dev->fp_regulator = NULL;
+        }
         fpsensor_dev_cleanup(fpsensor_dev);
 #if FP_NOTIFY
         fb_unregister_client(&fpsensor_dev->notifier);
@@ -751,7 +708,7 @@ static int fpsensor_fb_notifier_callback(struct notifier_block* self, unsigned l
 }
 #endif
 
-/*
+
 static int tee_spi_transfer(const char *txbuf, char *rxbuf, int len)
 {
     struct spi_transfer t;
@@ -774,14 +731,15 @@ static int chipone_read_sensor_id(void)
     char readbuf[16]  = {0};
     char writebuf[16] = {0};
 	 do {
-        //1.detect 7153 7222 7332 
+        //1.detect 7153 7222 7332
         memset(readbuf,  0, sizeof(readbuf));
         memset(writebuf, 0, sizeof(writebuf));
         writebuf[0] = (uint8_t)(0x08);
         writebuf[1] = (uint8_t)(0x55);
+
 		ret =  tee_spi_transfer(writebuf, readbuf, 6);
 		 if (ret != 0) {
-            printk("SPI transfer failed ret = %d\n", ret);
+            printk("SPI transfer failed\n");
             continue;
         }
         memset(readbuf,  0, sizeof(readbuf));
@@ -789,11 +747,14 @@ static int chipone_read_sensor_id(void)
         writebuf[0] = (uint8_t)(0x00);
         writebuf[1] = (uint8_t)(0x00);
         writebuf[2] = (uint8_t)(0x00);
+
 		ret =  tee_spi_transfer(writebuf, readbuf, 7);
+
 		if (ret != 0) {
             printk("SPI transfer failed\n");
             continue;
            }
+
         if (readbuf[1] == 0x71 || readbuf[1] == 0x72 || readbuf[1] == 0x73) {
 			printk("fpsensor FINGERPRINT CHIPID is ICNT%x%x \n",readbuf[1],readbuf[2]);
             return 0;
@@ -802,7 +763,7 @@ static int chipone_read_sensor_id(void)
 	 printk("fpsensor FINGERPRINT CHIPID is   CHIPID:%x%x \n",readbuf[1],readbuf[2]);
     return -1;
 }
-*/
+
 
 #if defined(USE_SPI_BUS)
 static int fpsensor_probe(struct spi_device *spi)
@@ -827,7 +788,7 @@ static int fpsensor_probe(struct platform_device *spi)
 
     /* Initialize the driver data */
     g_fpsensor = fpsensor_dev;
-    spi->chip_select                = 0;
+	spi->chip_select                = 0;
     fpsensor_dev->spi               = spi;
     fpsensor_dev->device_available  = 0;
     fpsensor_dev->users             = 0;
@@ -835,14 +796,13 @@ static int fpsensor_probe(struct platform_device *spi)
     fpsensor_dev->irq_gpio          = 0;
     fpsensor_dev->irq_enabled       = 0;
     fpsensor_dev->free_flag         = 0;
-#if 0 
     fpsensor_dev->fp_regulator      = regulator_get(&spi->dev,  FPSENSOR_VDD_NAME);
 
     if (IS_ERR(fpsensor_dev->fp_regulator)) {
 		fpsensor_debug(ERR_LOG, "fpsensor Regulator get failed vdd err \n,");
         goto release_drv_data;
     }
- 
+
     if (regulator_count_voltages(fpsensor_dev->fp_regulator) > 0) {
         status = regulator_set_voltage(fpsensor_dev->fp_regulator, FPSENSOR_VDD_MIN_UV,FPSENSOR_VDD_MAX_UV);
         if (status) {
@@ -850,9 +810,30 @@ static int fpsensor_probe(struct platform_device *spi)
             goto release_drv_data;
         }
     }
-#endif
+    fpsensor_spi_clk_enable(0);
+/*
+    status = regulator_enable(fpsensor_dev->fp_regulator);
+    if (status) {
+       fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", status);
+       goto release_drv_data;
+    }
 
+    status = fpsensor_spidev_dts_init(fpsensor_dev);
+    if(status != 0){
+        goto out;
+    }
+    
+    fpsensor_spi_clk_enable(1);
+    fpsensor_hw_reset(5000);
+
+    status = chipone_read_sensor_id();
+    if(status != 0){
+	devm_pinctrl_put( fpsensor_dev->pinctrl1);
+        goto out;
+    }
+*/
     fingerprint_adm = status;
+    //fpc_or_chipone_exist= 1;
 
     /* setup a char device for fpsensor */
     status = fpsensor_dev_setup(fpsensor_dev);
@@ -860,12 +841,10 @@ static int fpsensor_probe(struct platform_device *spi)
         fpsensor_debug(ERR_LOG, "fpsensor setup char device failed, %d", status);
         goto release_drv_data;
     }
-	
+
     init_waitqueue_head(&fpsensor_dev->wq_irq_return);
-    //wake_lock_init(&g_fpsensor->ttw_wl, WAKE_LOCK_SUSPEND, "fpsensor_ttw_wl");
+    wake_lock_init(&g_fpsensor->ttw_wl, WAKE_LOCK_SUSPEND, "fpsensor_ttw_wl");
     //wakeup_source_init(&g_fpsensor->ttw_wl, "fpsensor_ttw_wl");
-    g_fpsensor->ttw_wl= wakeup_source_create("fpsensor_ttw_wl");    
-    wakeup_source_add(g_fpsensor->ttw_wl);
     fpsensor_dev->device_available = 1;
 #if FP_NOTIFY
     fpsensor_dev->notifier.notifier_call = fpsensor_fb_notifier_callback;
@@ -900,9 +879,8 @@ static int fpsensor_remove(struct platform_device *spi)
     fb_unregister_client(&fpsensor_dev->notifier);
 #endif
     fpsensor_dev_cleanup(fpsensor_dev);
-    //wake_lock_destroy(&fpsensor_dev->ttw_wl);
-    //wakeup_source_trash(&fpsensor_dev->ttw_wl);
-    wakeup_source_remove(fpsensor_dev->ttw_wl);
+    wake_lock_destroy(&fpsensor_dev->ttw_wl);
+//    wakeup_source_trash(&fpsensor_dev->ttw_wl);
     kfree(fpsensor_dev);
     g_fpsensor = NULL;
 
@@ -966,7 +944,17 @@ static int __init fpsensor_init(void)
 {
     int status;
     fpsensor_debug(ERR_LOG, "%s,fpsensor Enter TEE driver.\n", __func__);
+	/*
+    if (sunwave_fp_exist) {
+        fpsensor_debug(ERR_LOG, "%s, fpsensor sunwave sensor has been detected.\n", __func__);
+         return -EINVAL;
+     }
 
+    if(fpc_or_chipone_exist != -1){
+        fpsensor_debug(ERR_LOG, "%s, fpsensor fpc sensor has been detected.\n", __func__);
+        return -EINVAL;
+    }
+*/
 #if defined(USE_PLATFORM_BUS)
     status = platform_driver_register(&fpsensor_plat_driver);
 #elif defined(USE_SPI_BUS)

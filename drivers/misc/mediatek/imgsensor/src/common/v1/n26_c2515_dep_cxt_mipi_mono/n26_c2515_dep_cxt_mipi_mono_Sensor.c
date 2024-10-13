@@ -222,7 +222,7 @@ static struct imgsensor_info_struct imgsensor_info = {
     .gain_type = 0,
     .i2c_speed = 400,
 
-    .isp_driving_current = ISP_DRIVING_2MA, //Bug682590 liuxiangyin.wt, add, 2021/10/23, add fae code change mipi rate to fix c2515 sensor radio-frequency interference issue.
+    .isp_driving_current = ISP_DRIVING_4MA, //+bug 720367, wangmingli.wt,MODIFY,2022/6/30, optimize desense of depth camera.
     .sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,//sensor_interface_type
     .mipi_sensor_type = MIPI_OPHY_NCSI2, //0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2
     .mipi_settle_delay_mode = 0,//0,MIPI_SETTLEDELAY_AUTO; 1,MIPI_SETTLEDELAY_MANNUAL
@@ -638,7 +638,7 @@ static void sensor_init(void)
 	//write_cmos_sensor(0x3287,0x62);
 	write_cmos_sensor(0x3212,0x4a);
 	write_cmos_sensor(0x3286,0x05); //remove H line
-	write_cmos_sensor(0x3287,0x4b); //improve H line
+	write_cmos_sensor(0x3287,0x46); //improve H line
 
 	write_cmos_sensor(0x3881,0x00); //FIFO
 	write_cmos_sensor(0x0400,0x47);

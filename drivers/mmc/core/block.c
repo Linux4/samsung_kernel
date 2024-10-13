@@ -416,6 +416,29 @@ static inline bool mmc_blk_in_tran_state(u32 status)
 	       (R1_CURRENT_STATE(status) == R1_STATE_TRAN);
 }
 
+static void mmc_sec_init_err_count(struct mmc_card *card)
+{
+	int i = 0;
+
+	static const char *const req_types[] = {
+		"sbc  ", "cmd  ", "data ", "stop ", "busy "
+	};
+
+	/*
+	 * err_log[0].type = "sbc  "
+	 * err_log[0].err_type = -EILSEQ;
+	 * err_log[1].type = "sbc  "
+	 * err_log[1].err_type = -ETIMEDOUT;
+	 * ...
+	 */
+	for (i = 0; i < MAX_ERR_LOG_INDEX; i++) {
+		strncpy(card->err_log[i].type,
+			req_types[i / MAX_ERR_TYPE_INDEX], sizeof(char) * 5);
+		card->err_log[i].err_type =
+			(i % MAX_ERR_TYPE_INDEX == 0) ?	-EILSEQ : -ETIMEDOUT;
+	}
+}
+
 #define CMD_ERRORS_EXCL_OOR						\
 	(R1_ADDRESS_ERROR |	/* Misaligned address */		\
 	 R1_BLOCK_LEN_ERROR |	/* Transferred block length incorrect */\
@@ -1060,13 +1083,31 @@ static unsigned int mmc_blk_data_timeout_ms(struct mmc_host *host,
 	return ms;
 }
 
-static void mmc_error_count_log(struct mmc_card *card, int index, int error, u32 status)
+void mmc_error_count_log(struct mmc_card *card, int index, int error, u32 status)
 {
 	struct mmc_card_error_log *err_log;
 	int i = 0;
 	int cpu = raw_smp_processor_id();
 
 	err_log = card->err_log;
+
+	if (!error)
+		return;
+
+	/*
+	 * -EIO (-5) : I/O error case. So log as CRC.
+	 * -ENOMEDIUM (-123), etc : SW timeout and other error. So log as TIMEOUT.
+	 */
+	switch (error) {
+	case -EIO:
+		error = -EILSEQ;
+		break;
+	case -EILSEQ:
+		break;
+	default:
+		error = -ETIMEDOUT;
+		break;
+	}
 
 	for (i = 0; i < MAX_ERR_TYPE_INDEX; i++) {
 		if (err_log[index + i].err_type == error) {
@@ -1124,18 +1165,18 @@ void mmc_card_error_logging(struct mmc_card *card,
 	}
 
 	if (brq->sbc.error)
-		mmc_error_count_log(card, 0, brq->sbc.error, status);
+		mmc_error_count_log(card, MMC_SBC_OFFSET, brq->sbc.error, status);
 	if (brq->cmd.error)
-		mmc_error_count_log(card, 2, brq->cmd.error, status);
+		mmc_error_count_log(card, MMC_CMD_OFFSET, brq->cmd.error, status);
 	if (brq->data.error)
-		mmc_error_count_log(card, 4, brq->data.error, status);
+		mmc_error_count_log(card, MMC_DATA_OFFSET, brq->data.error, status);
 	if (brq->stop.error)
-		mmc_error_count_log(card, 6, brq->stop.error, status);
+		mmc_error_count_log(card, MMC_STOP_OFFSET, brq->stop.error, status);
 
 	if (!(status & R1_READY_FOR_DATA) ||
 			(R1_CURRENT_STATE(status) == R1_STATE_PRG)) {
 		// card stuck in prg state
-		mmc_error_count_log(card, 8, -ETIMEDOUT, status);
+		mmc_error_count_log(card, MMC_BUSY_OFFSET, -ETIMEDOUT, status);
 	}
 }
 
@@ -1889,13 +1930,12 @@ static void mmc_blk_read_single(struct mmc_queue *mq, struct request *req)
 			mmc_blk_rw_rq_prep(mqrq, card, 1, mq);
 
 			mmc_wait_for_req(host, mrq);
-
 			err = mmc_send_status(card, &status);
 			if (err)
 				goto error_exit;
 
 			if (!mmc_host_is_spi(host) &&
-			    !mmc_blk_in_tran_state(status)) {
+				!mmc_blk_in_tran_state(status)) {
 				err = mmc_blk_fix_state(card, req);
 				if (err)
 					goto error_exit;
@@ -1903,6 +1943,7 @@ static void mmc_blk_read_single(struct mmc_queue *mq, struct request *req)
 
 			if (!mrq->cmd->error)
 				break;
+
 		}
 
 		if (mrq->cmd->error ||
@@ -2375,7 +2416,7 @@ static int mmc_blk_mq_issue_rw_rq(struct mmc_queue *mq,
 		(host->caps2 & MMC_CAP2_NO_MMC)) {
 		mt_bio_queue_alloc(current, req->q, true);
 		mt_biolog_mmcqd_req_check(true);
-		mt_biolog_mmcqd_req_start(host, true);
+		mt_biolog_mmcqd_req_start(host, req, true);
 	}
 
 	mmc_blk_rw_rq_prep(mqrq, mq->card, 0, mq);
@@ -2472,11 +2513,6 @@ static int mmc_blk_swcq_issue_rw_rq(struct mmc_queue *mq,
 	int index = 0;
 	struct mmc_async_req *new_areq = &mqrq->areq;
 	struct mmc_card *card = mq->card;
-	struct sched_param scheduler_params = {0};
-
-	/* Set as RT priority */
-	scheduler_params.sched_priority = 1;
-	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
 
 	if (atomic_read(&host->areq_cnt) < card->ext_csd.cmdq_depth) {
 		index = mmc_get_cmdq_index(mq);
@@ -2491,12 +2527,11 @@ static int mmc_blk_swcq_issue_rw_rq(struct mmc_queue *mq,
 	if (req) {
 		mt_bio_queue_alloc(current, req->q, false);
 		mt_biolog_mmcqd_req_check(false);
-		mt_biolog_mmcqd_req_start(host, false);
+		mt_biolog_mmcqd_req_start(host, req, false);
 	}
 	mq->mqrq[index].req = req;
 	atomic_set(&mqrq->index, index + 1);
 	atomic_set(&mq->mqrq[index].index, index + 1);
-	atomic_inc(&card->host->areq_cnt);
 
 	mmc_blk_rw_rq_prep(mqrq, mq->card, 0, mq);
 
@@ -3274,8 +3309,8 @@ static int mmc_blk_probe(struct mmc_card *card)
 		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
 		cap_str, md->read_only ? "(ro)" : "");
 	ST_LOG("%s: %s %s %s %s\n",
-			md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
-			cap_str, md->read_only ? "(ro)" : "");
+		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
+		cap_str, md->read_only ? "(ro)" : "");
 
 	if (mmc_blk_alloc_parts(card, md))
 		goto out;
@@ -3322,6 +3357,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 		}
 	}
 #endif
+	mmc_sec_init_err_count(card);
 	return 0;
 
  out:

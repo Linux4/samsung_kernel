@@ -32,7 +32,12 @@ static inline u32 pe20_get_ibat(void)
 
 static bool cancel_pe20(struct charger_manager *pinfo)
 {
+#ifdef CONFIG_AFC_CHARGER
+/* yuanjian.wt modify for AFC */
+	if (mtk_pdc_check_charger(pinfo) || mtk_is_TA_support_pd_pps(pinfo) || afc_get_is_connect(pinfo))
+#else
 	if (mtk_pdc_check_charger(pinfo) || mtk_is_TA_support_pd_pps(pinfo))
+#endif
 		return true;
 	return false;
 }
@@ -56,10 +61,12 @@ int mtk_pe20_reset_ta_vchr(struct charger_manager *pinfo)
 			if (chg2_chip_enabled)
 				charger_dev_enable(pinfo->chg2_dev, false);
 		}
-
+//+Extb P210723-03397,lvyuanchuan.wt modify 2021/11/2.Fisrt charging current check faild for SDP
+#if 0
 		ret = charger_dev_reset_ta(pinfo->chg1_dev);
 		msleep(250);
-
+#endif
+//-Extb P210723-03397,lvyuanchuan.wt modify 2021/11/2.Fisrt charging current check faild for SDP
 		/* Check charger's voltage */
 		chr_volt = pe20_get_vbus();
 		if (abs(chr_volt - pe20->ta_vchr_org) <= 1000000) {
@@ -287,7 +294,7 @@ static void mtk_pe20_check_cable_impedance(struct charger_manager *pinfo)
 		chr_err("VBAT > %dmV, directly set aicr to %dmA\n",
 			pinfo->data.vbat_cable_imp_threshold / 1000,
 			pinfo->data.ac_charger_input_current / 1000);
-		pe20->aicr_cable_imp = pinfo->data.ac_charger_input_current;
+		pe20->aicr_cable_imp = pinfo->data.pe20_charger_input_current;
 		goto end;
 	}
 
@@ -341,7 +348,7 @@ static void mtk_pe20_check_cable_impedance(struct charger_manager *pinfo)
 	msleep(250);
 
 	if (cable_imp < pinfo->data.cable_imp_threshold) {
-		pe20->aicr_cable_imp = pinfo->data.ac_charger_input_current;
+		pe20->aicr_cable_imp = pinfo->data.pe20_charger_input_current;
 		chr_info("Normal cable\n");
 	} else {
 		pe20->aicr_cable_imp = 1000000; /* uA */
@@ -388,6 +395,7 @@ static int pe20_detect_ta(struct charger_manager *pinfo)
 
 	return ret;
 err:
+	charger_dev_reset_ta(pinfo->chg1_dev);
 	pe20->is_connect = false;
 	pe20_enable_vbus_ovp(pinfo, true);
 	chr_err("%s: failed, ret = %d\n", __func__, ret);

@@ -611,6 +611,17 @@ static ssize_t mode_show(struct device *dev,
 }
 static DEVICE_ATTR_RW(mode);
 
+static ssize_t role_mode_show(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	struct ssusb_mtk *ssusb = dev_get_drvdata(dev);
+	enum usb_role role = ssusb->is_host ? USB_ROLE_HOST : USB_ROLE_DEVICE;
+
+	return sprintf(buf, "%d\n", role);
+}
+static DEVICE_ATTR_RO(role_mode);
+
 static ssize_t max_speed_store(struct device *dev,
 				 struct device_attribute *attr,
 				 const char *buf, size_t count)
@@ -683,6 +694,7 @@ static DEVICE_ATTR_RW(saving);
 
 static struct attribute *ssusb_dr_attrs[] = {
 	&dev_attr_mode.attr,
+	&dev_attr_role_mode.attr,
 	&dev_attr_max_speed.attr,
 	&dev_attr_saving.attr,
 	NULL

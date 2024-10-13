@@ -202,7 +202,7 @@ int DSI_set_roi(int x, int y);
 int DSI_check_roi(void);
 int ddp_dsi_trigger(enum DISP_MODULE_ENUM module, void *cmdq);
 void DSI_set_cmdq_V2(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq,
-	unsigned int cmd, unsigned char count, unsigned char *para_list,
+	unsigned int cmd, unsigned int count, unsigned char *para_list,
 	unsigned char force_update);
 
 int dsi_enable_irq(enum DISP_MODULE_ENUM module, void *handle,
@@ -218,7 +218,7 @@ int ddp_dsi_read_lcm_cmdq(enum DISP_MODULE_ENUM module,
 		struct ddp_lcm_read_cmd_table *read_table);
 int ddp_dsi_write_lcm_cmdq(enum DISP_MODULE_ENUM module,
 		struct cmdqRecStruct *cmdq,
-		unsigned char cmd, unsigned char count,
+		unsigned char cmd, unsigned int count,
 		unsigned char *para_list);
 
 #ifdef __cplusplus

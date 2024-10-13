@@ -11,6 +11,249 @@
 
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
+ //+bug767771,liudijin.wt,ADD,2022/06/22,add s5kjn1/sc202cs/c2519 bringup code.
+#if defined(W2S5KJN1REARTRULY_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2S5KJN1REARTRULY_MIPI_RAW,
+		{
+			{AFVDD, Vol_2800, 2},
+			{DOVDD, Vol_1800, 0},
+			{DVDD_1V2, Vol_High, 0},
+			{DVDD, Vol_High, 1},
+			{AVDD, Vol_2800, 1},
+			{SensorMCLK, Vol_High,5 },
+			{RST, Vol_Low, 2},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(W2S5KJN1REARST_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2S5KJN1REARST_MIPI_RAW,
+		{
+			{AFVDD, Vol_2800, 2},
+			{DOVDD, Vol_1800, 0},
+			{DVDD_1V2, Vol_High, 0},
+			{DVDD, Vol_High, 1},
+			{AVDD, Vol_2800, 1},
+			{SensorMCLK, Vol_High,5 },
+			{RST, Vol_Low, 2},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(W2HI5022QREARTXD_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2HI5022QREARTXD_MIPI_RAW,
+		{
+			{AFVDD, Vol_2800, 2},
+			//{DOVDD, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			//{AVDD, Vol_Low, 1},
+			{AVDD, Vol_2800, 1},
+			//{DVDD, Vol_Low, 1},
+			{DVDD_1V2, Vol_High, 1},
+			{DVDD, Vol_High, 1},
+			{SensorMCLK, Vol_High,5 },
+			{RST, Vol_Low, 2},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+
+#if defined(W2SC202CSDEPLH_MIPI_MONO)
+	{
+		SENSOR_DRVNAME_W2SC202CSDEPLH_MIPI_MONO,
+		{
+			{PDN, Vol_Low, 0},
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{PDN, Vol_High, 1},
+			{PDN, Vol_Low, 1},
+			{PDN, Vol_High, 5},
+			{SensorMCLK, Vol_High, 2},
+		},
+	},
+#endif
+#if defined(W2SC202CSDEPLH2_MIPI_MONO)
+	{
+		SENSOR_DRVNAME_W2SC202CSDEPLH2_MIPI_MONO,
+		{
+			{PDN, Vol_Low, 0},
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{PDN, Vol_High, 1},
+			{PDN, Vol_Low, 1},
+			{PDN, Vol_High, 5},
+			{SensorMCLK, Vol_High, 2},
+		},
+	},
+#endif
+#if defined(W2C2519DEPCXT_MIPI_MONO)
+	{
+		SENSOR_DRVNAME_W2C2519DEPCXT_MIPI_MONO,
+		{
+			{PDN, Vol_Low, 1},
+			{DOVDD, Vol_1800, 20},
+			{AVDD, Vol_2800, 10},
+			{PDN, Vol_High, 10},
+			{SensorMCLK, Vol_High, 10},
+		},
+	},
+#endif
+#if defined(W2C2519DEPCXT2_MIPI_MONO)
+	{
+		SENSOR_DRVNAME_W2C2519DEPCXT2_MIPI_MONO,
+		{
+			{PDN, Vol_Low, 1},
+			{DOVDD, Vol_1800, 20},
+			{AVDD, Vol_2800, 10},
+			{PDN, Vol_High, 10},
+			{SensorMCLK, Vol_High, 10},
+		},
+	},
+#endif
+
+#if defined(W2GC02M1DEPSJ_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2GC02M1DEPSJ_MIPI_RAW,
+		{
+			{PDN, Vol_Low, 15},
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 0},
+			{PDN, Vol_High, 0},
+		},
+	},
+#endif
+//-bug767771,liudijin.wt,ADD,2022/06/22,add s5kjn1/sc202cs/c2519 bringup code.
+//+bug767771,chenming.wt,ADD,2022/07/06,add gc02m1/bf2253L bringup code.
+#if defined(W2GC02M1MICROCXT_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2GC02M1MICROCXT_MIPI_RAW,
+		{
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{RST, Vol_High, 2},
+			{SensorMCLK, Vol_High, 2},
+		},
+	},
+#endif
+#if defined(W2BF2253LMICROSJ_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2BF2253LMICROSJ_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1,Vol_Low},
+			{DOVDD, Vol_1800, 1,Vol_Low},
+			{AVDD, Vol_Low, 1,Vol_Low},
+			{SensorMCLK, Vol_High, 1,Vol_Low},
+			{AVDD, Vol_2800, 1,Vol_2800},
+			{RST, Vol_High, 1,Vol_Low},
+			{RST, Vol_Low, 1,Vol_Low},
+		},
+	},
+#endif
+//+bug767771,chenming.wt,ADD,2022/07/06,add gc02m1/bf2253L bringup code.
+//+bug767771,liangyiyi.wt,ADD,2022/06/23,add sc501cs bringup code.
+#if defined(W2SC501CSFRONTSY_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2SC501CSFRONTSY_MIPI_RAW,
+		{
+			{DOVDD, Vol_1800, 0},
+			{DVDD_1V2,Vol_Low,0},
+			{DVDD, Vol_High, 0},
+			{AVDD, Vol_High, 0},
+			{RST, Vol_Low, 0},
+			{RST, Vol_High, 1},
+			{SensorMCLK, Vol_High, 4},
+		},
+	},
+#endif
+//+bug767771,liangyiyi.wt,ADD,2022/06/23,add sc501cs bringup code.
+//+bug767771,liangyiyi.wt,ADD,2022/07/12,add hi1336 bringup code.
+#if defined(W2HI1336FRONTTRULY_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2HI1336FRONTTRULY_MIPI_RAW,
+		{
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_High, 1},
+			{DVDD_1V2,Vol_Low,1},
+			{DVDD, Vol_High, 1},
+			{RST, Vol_High, 1},
+			{SensorMCLK, Vol_High, 5},
+		},
+	},
+#endif
+//-bug767771,liangyiyi.wt,ADD,2022/07/12,add hi1336 bringup code.
+//+bug767771,liangyiyi.wt,MODIFY,2022/09/06,modify the power on timging of sc1300mcs
+//+bug767771,liangyiyi.wt,MODIFY,2022/07/27,modify for fix abnormal sc1300mcs power on timing
+//+bug767771,liangyiyi.wt,ADD,2022/07/17,add sc1300mcs bringup code.
+#if defined(W2SC1300MCSFRONTTXD_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2SC1300MCSFRONTTXD_MIPI_RAW,
+		{
+			{DOVDD, Vol_1800, 1},
+			{DVDD_1V2,Vol_Low,0},
+			{DVDD, Vol_High, 2},
+			{AVDD, Vol_High, 2},
+			{RST, Vol_High, 1},
+			{RST, Vol_Low, 1},
+			{RST, Vol_High, 1},
+			{SensorMCLK, Vol_High, 4},
+		},
+	},
+#endif
+//-bug767771,liangyiyi.wt,ADD,2022/07/17,add sc1300mcs bringup code.
+//+bug767771,liangyiyi.wt,ADD,2022/07/26,add w2sc1300mcsfrontst bringup code.
+#if defined(W2SC1300MCSFRONTST_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2SC1300MCSFRONTST_MIPI_RAW,
+		{
+			{DOVDD, Vol_1800, 1},
+			{DVDD_1V2,Vol_Low,0},
+			{DVDD, Vol_High, 2},
+			{AVDD, Vol_High, 2},
+			{RST, Vol_High, 1},
+			{RST, Vol_Low, 1},
+			{RST, Vol_High, 1},
+			{SensorMCLK, Vol_High, 4},
+		},
+	},
+#endif
+//-bug767771,liangyiyi.wt,ADD,2022/07/26,add w2sc1300mcsfrontst bringup code.
+//-bug767771,liangyiyi.wt,MODIFY,2022/07/27,modify for fix abnormal sc1300mcs power on timing
+//-bug767771,liangyiyi.wt,MODIFY,2022/09/06,modify the power on timging of sc1300mcs
+#if defined(W2SC202CSMICROLH_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_W2SC202CSMICROLH_MIPI_RAW,
+		{
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{RST, Vol_High, 1},
+			{RST, Vol_Low, 1},
+			{RST, Vol_High, 5},
+			{SensorMCLK, Vol_High, 2},
+		},
+	},
+#endif
+//+bug767771,zhujianjia.wt,ADD,2022/08/04,add w2c2599microdelta bringup code.
+#if defined(W2C2599MICRODELTA_MIPI_RAW)
+   {
+        SENSOR_DRVNAME_W2C2599MICRODELTA_MIPI_RAW,
+        {
+            {RST, Vol_Low, 0},
+            {DOVDD, Vol_1800, 1},
+            {AVDD, Vol_2800, 1},
+            {RST, Vol_High, 2},
+            {SensorMCLK, Vol_High, 2},
+        },
+   },
+#endif
+//-bug767771,zhujianjia.wt,ADD,2022/08/04,add w2c2599microdelta bringup code.
+#if 0
 #if defined(IMX766_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_IMX766_MIPI_RAW,
@@ -33,6 +276,22 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 #if defined(S5KJD1_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_S5KJD1_MIPI_RAW,
+		{
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 0},
+			{DVDD, Vol_1100, 0},
+			{AVDD, Vol_2800, 0},
+			{AFVDD, Vol_2800, 0},
+			{DOVDD, Vol_1800, 0},
+			{PDN, Vol_High, 0},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 2}
+		},
+	},
+#endif
+#if defined(S5KJN1_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_S5KJN1_MIPI_RAW,
 		{
 			{PDN, Vol_Low, 0},
 			{RST, Vol_Low, 0},
@@ -582,14 +841,12 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	{
 		SENSOR_DRVNAME_IMX258_MIPI_RAW,
 		{
-			{SensorMCLK, Vol_High, 0},
-			{PDN, Vol_Low, 0},
 			{RST, Vol_Low, 0},
 			{DOVDD, Vol_1800, 0},
+			{AFVDD, Vol_2800, 0},
 			{AVDD, Vol_2800, 0},
-			{DVDD, Vol_1200, 0},
-			{AFVDD, Vol_2800, 1},
-			{PDN, Vol_High, 0},
+			{DVDD, Vol_1200, 1},
+			{SensorMCLK, Vol_High, 0},
 			{RST, Vol_High, 5}
 		},
 	},
@@ -721,6 +978,32 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
+#if defined(S5KGM2_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_S5KGM2_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{AFVDD, Vol_2800, 5},
+			{DOVDD, Vol_High, 1},
+			{AVDD, Vol_High, 1},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 0}
+		},
+	},
+#endif
+#if defined(S5K3L6_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_S5K3L6_MIPI_RAW,
+		{
+			{RST, Vol_Low, 0},
+			{SensorMCLK, Vol_High, 0},
+			{DOVDD, Vol_High, 0},
+			{AVDD, Vol_High, 0},
+			{AFVDD, Vol_2800, 5},
+			{RST, Vol_High, 1},
+		},
+	},
+#endif
 #if defined(S5K3L8_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_S5K3L8_MIPI_RAW,
@@ -734,6 +1017,19 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			{AFVDD, Vol_2800, 1},
 			{PDN, Vol_High, 0},
 			{RST, Vol_High, 0}
+		},
+	},
+#endif
+#if defined(S5K4HAYX_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_S5K4HAYX_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{AVDD, Vol_High, 1},
+			{DOVDD, Vol_High, 1},
+			{AFVDD, Vol_2800, 5},
+			{SensorMCLK, Vol_High, 0},
+			{RST, Vol_High, 1}
 		},
 	},
 #endif
@@ -964,6 +1260,19 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			},
 		},
 #endif
+#if defined(GC02M1_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC02M1_MIPI_RAW,
+		{
+			{AVDD, Vol_Low, 0},
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_High, 0},
+			{AVDD, Vol_High, 1},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 2}
+		},
+	},
+#endif
 #if defined(OV02A10_MIPI_MONO)
 		{
 			SENSOR_DRVNAME_OV02A10_MIPI_MONO,
@@ -1006,6 +1315,19 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			},
 		},
 #endif
+#if defined(GC5035_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC5035_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_High, 1},
+			{AVDD, Vol_High, 1},
+			{DVDD, Vol_High, 1},
+			{SensorMCLK, Vol_High, 0},
+			{RST, Vol_High, 0},
+		},
+	},
+#endif
 #if defined(IMX355_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_IMX355_MIPI_RAW,
@@ -1044,6 +1366,18 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 				{RST, Vol_High, 5},
 			},
 		},
+#endif
+#if defined(SR846D_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_SR846D_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_High, 1},
+			{AVDD, Vol_High, 1},
+			{SensorMCLK, Vol_High, 0},
+			{RST, Vol_High, 0},
+		},
+	},
 #endif
 #if defined(OV16A10_MIPI_RAW)
 	{
@@ -1147,7 +1481,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
-
+#endif
 	/* add new sensor before this line */
 	{NULL,},
 };

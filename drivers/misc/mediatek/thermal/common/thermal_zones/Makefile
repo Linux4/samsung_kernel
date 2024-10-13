@@ -84,11 +84,6 @@ obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
 obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
 
-#+bug 715587,renjiawei.wt,20220221,modify,thermal bring up
-obj-$(CONFIG_THERMAL) += mtk_ts_btscharger_ext.o
-obj-$(CONFIG_THERMAL) += mtk_ts_btsfled.o
-#+bug 715587,renjiawei.wt,20220221,modify,thermal bring up
-
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)
     obj-$(CONFIG_THERMAL) += mtk_ts_wmt.o
 endif
@@ -198,10 +193,10 @@ obj-$(CONFIG_THERMAL) += mtk_ts_pa.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
 
-#+bug 715587,renjiawei.wt,20220128,modify,thermal bring up
+#+chk 129980,jinyucheng@wingtech.com,add new NTC,20220728#
 obj-$(CONFIG_THERMAL) += mtk_ts_btscharger_ext.o
 obj-$(CONFIG_THERMAL) += mtk_ts_btsfled.o
-#+bug 715587,renjiawei.wt,20220128,modify,thermal bring up
+#-chk 129980,jinyucheng@wingtech.com,add new NTC,20220728#
 
 ifneq (,$(findstring tb8768, $(CONFIG_ARCH_MTK_PROJECT)))
 ifneq ($(CONFIG_CHARGER_BQ25601),)
@@ -223,7 +218,9 @@ obj-$(CONFIG_THERMAL) += mtk_ts_imgsensor.o
 endif
 
 ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6768"))
+ifeq ($(CONFIG_MTK_GAUGE_VERSION),30)
 obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
+endif
 
 obj-$(CONFIG_THERMAL) += mtk_ts_bts.o
 obj-$(CONFIG_THERMAL) += mtk_ts_btsmdpa.o
@@ -232,7 +229,9 @@ obj-$(CONFIG_THERMAL) += mtk_ts_cpu_noBank.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 
-obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
+ifeq ($(CONFIG_MTK_GAUGE_VERSION),30)
+#obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
+endif
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
 
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)
@@ -243,7 +242,10 @@ obj-$(CONFIG_THERMAL) += mtk_tsAll.o
 obj-$(CONFIG_THERMAL) += mtk_ts_imgsensor.o
 obj-$(CONFIG_THERMAL) += mtk_ts_dctm.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
-
+#[+Chk 127645, zhonghuijie2, add ntc add the thermal to S96818, 20230413]
+obj-$(CONFIG_THERMAL) += wt_mtk_ts_charger.o
+obj-$(CONFIG_THERMAL) += wt_mtk_ts_flash.o
+#[+Chk 127645, zhonghuijie2, add ntc add the thermal to S96818, 20230413]
 ifneq ($(CONFIG_MTK_BIF_SUPPORT),)
 #obj-$(CONFIG_THERMAL) += mtk_ts_bif.o
 endif
@@ -261,10 +263,16 @@ obj-$(CONFIG_THERMAL) += mtk_ts_cpu_noBankv2.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
-obj-$(CONFIG_THERMAL) += mtk_ts_charger_v1.o
+#[+Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
+#obj-$(CONFIG_THERMAL) += mtk_ts_charger_v1.o
+#[-Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
-
-
+#[+Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
+obj-$(CONFIG_THERMAL) += wt_mtk_ts_charger.o
+obj-$(CONFIG_THERMAL) += wt_mtk_ts_flash.o
+obj-$(CONFIG_THERMAL) += wt_mtk_ts_mainboard.o
+#-Chk111712, madongyu.wt, modify, 20220303, ntc
+#[-Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)
     obj-$(CONFIG_THERMAL) += mtk_ts_wmt.o
 endif

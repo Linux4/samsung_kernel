@@ -35,7 +35,7 @@
 	/* chosen */
 	chosen: chosen {
 		bootargs = "console=tty0 console=ttyS0,921600n1 root=/dev/ram \
-vmalloc=400M slub_debug=OFZPU swiotlb=noforce \
+vmalloc=400M swiotlb=noforce \
 initcall_debug=1 \
 firmware_class.path=/vendor/firmware \
 page_owner=on loop.max_part=7";
@@ -395,6 +395,11 @@ page_owner=on loop.max_part=7";
 			size = <0 0x10000000>;
 			alignment = <0 0x1000000>;
 			alloc-range = <0 0xc0000000 0 0x10000000>;
+		};
+
+		cccimdee-reserved-memory {
+			compatible = "mediatek,ccci-md-ee-dump";
+			reg = <0 0x48400000 0 0x1c2000>;/* 1800KB */
 		};
 
 		ion-carveout-heap {
@@ -1007,7 +1012,7 @@ page_owner=on loop.max_part=7";
 			"syscon", "simple-mfd";
 		reg = <0 0x10007000 0 0x1000>;
 		interrupts = <GIC_SPI 433 IRQ_TYPE_LEVEL_HIGH>;
-		mediatek,rg_dfd_timeout = <0xa0>;
+		mediatek,rg_dfd_timeout = <0x1ffff>;
 		#reset-cells = <1>;
 		reboot-mode {
 			compatible = "syscon-reboot-mode";
@@ -3674,7 +3679,7 @@ page_owner=on loop.max_part=7";
 			<0>, /*MTK_DRM_OPT_SODI_SUPPORT*/
 			<1>, /*MTK_DRM_OPT_IDLE_MGR*/
 			<0>, /*MTK_DRM_OPT_IDLEMGR_SWTCH_DECOUPLE*/
-			<1>, /*MTK_DRM_OPT_IDLEMGR_BY_REPAINT*/
+			<0>, /*MTK_DRM_OPT_IDLEMGR_BY_REPAINT*/
 			<0>, /*MTK_DRM_OPT_IDLEMGR_ENTER_ULPS*/
 			<0>, /*MTK_DRM_OPT_IDLEMGR_KEEP_LP11*/
 			<0>, /*MTK_DRM_OPT_DYNAMIC_RDMA_GOLDEN_SETTING*/
@@ -6392,7 +6397,7 @@ page_owner=on loop.max_part=7";
 		compatible = "mediatek,speaker_amp";
 		#sound-dai-cells = <0>;
 		reg = <0x34>;
-		status = "okay";
+		status = "disabled";
 	};
 };
 
@@ -7010,6 +7015,7 @@ page_owner=on loop.max_part=7";
 			wd,sbu_ph_ubound2_c2c = <3800>;	/* mV */
 			wd,sbu_aud_ubound = <1600>;	/* mV */
 			switch = <&typec_mux_switch>;
+			bootmode = <&chosen>;
 			pd-data {
 				/*
 				 * VSAFE5V = 0, MAX_POWER = 1, CUSTOM = 2,

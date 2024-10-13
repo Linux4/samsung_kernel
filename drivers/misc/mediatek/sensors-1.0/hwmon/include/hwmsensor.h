@@ -68,8 +68,16 @@
 #define SENSOR_TYPE_RGBW                               70
 #define SENSOR_TYPE_GYRO_TEMPERATURE                   71
 #define SENSOR_TYPE_SAR                                72
+//+S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+#ifdef CONFIG_N28_SMART_ALERT_HUB
+#define SENSOR_TYPE_SMART_ALERT                        73
+#define SENSOR_TYPE_LIFT_TO_WAKE                       74
 /* end sensor type */
+#define SENSOR_TYPE_MAX_NUM                            SENSOR_TYPE_LIFT_TO_WAKE
+#else
 #define SENSOR_TYPE_MAX_NUM                            SENSOR_TYPE_SAR
+#endif
+//-S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
 #define SENSOR_TYPE_MAX_NUM_PLUS_ONE                   (SENSOR_TYPE_MAX_NUM + 1)
 
 /*---------------------------------------------------------------------------*/
@@ -141,8 +149,16 @@
 #define ID_RGBW                 (ID_BASE + SENSOR_TYPE_RGBW - 1)
 #define ID_GYRO_TEMPERATURE     (ID_BASE + SENSOR_TYPE_GYRO_TEMPERATURE - 1)
 #define ID_SAR                  (ID_BASE + SENSOR_TYPE_SAR - 1)
+//+S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+#ifdef CONFIG_N28_SMART_ALERT_HUB
+#define ID_SMART_ALERT          (ID_BASE + SENSOR_TYPE_SMART_ALERT - 1)
+#define ID_LIFT_TO_WAKE         (ID_BASE + SENSOR_TYPE_LIFT_TO_WAKE - 1)
 /* end sensor ID */
+#define ID_SENSOR_MAX_HANDLE    (ID_LIFT_TO_WAKE)
+#else
 #define ID_SENSOR_MAX_HANDLE    (ID_SAR)
+#endif
+//-S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
 #define ID_SENSOR_MAX_HANDLE_PLUS_ONE    (ID_SENSOR_MAX_HANDLE + 1)
 
 #if (ID_SENSOR_MAX_HANDLE_PLUS_ONE != SENSOR_TYPE_MAX_NUM)

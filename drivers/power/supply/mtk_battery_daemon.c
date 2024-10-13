@@ -1486,12 +1486,7 @@ static ssize_t Battery_Temperature_store(
 	return size;
 }
 
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-signed int battery_get_debug_uisoc(void)
-{
-	return get_mtk_battery()->fixed_uisoc;
-}
-#endif
+
 
 static ssize_t UI_SOC_show(
 	struct device *dev, struct device_attribute *attr, char *buf)
@@ -2338,7 +2333,7 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 
 		if (gm->bs_data.bat_status == POWER_SUPPLY_STATUS_CHARGING)
 			is_charger_exist = true;
-#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 		else if (gm->bs_data.bat_status == POWER_SUPPLY_STATUS_FULL)
 			is_charger_exist = true;
 #endif
@@ -3068,7 +3063,22 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 				daemon_ui_soc);
 			daemon_ui_soc = 0;
 		}
-
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+#ifdef WT_COMPILE_FACTORY_VERSION
+		if(1){
+			static bool soc_inited = false;
+			if(!soc_inited && gm->gauge->hw_status.is_bat_plugout){
+				int diff = abs(gm->soc*100 - daemon_ui_soc);
+				printk("## soc=%d,ui_soc=%d,daemon_ui_soc=%d,diff=%d\n",gm->soc*100,gm->ui_soc,daemon_ui_soc,diff);
+				if(diff > 500){
+					daemon_ui_soc = gm->soc*100;
+					printk("## force set uisoc = soc!\n");
+				}
+				soc_inited = true;
+			}
+		}
+#endif
+#endif
 		gm->fg_cust_data.ui_old_soc = daemon_ui_soc;
 		old_uisoc = gm->ui_soc;
 

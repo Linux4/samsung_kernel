@@ -683,6 +683,7 @@ compat_get_ion_sys_data(struct
 		break;
 	}
 	case ION_SYS_GET_PHYS:
+	case ION_SYS_GET_IOVA:
 	{
 		struct compat_ion_sys_get_phys_param *get_phys32 = NULL;
 		struct ion_sys_get_phys_param *get_phys = NULL;
@@ -728,6 +729,7 @@ compat_put_ion_sys_data(struct
 		return err;
 	switch (sys_cmd) {
 	case ION_SYS_GET_PHYS:
+	case ION_SYS_GET_IOVA:
 	{
 		struct compat_ion_sys_get_phys_param *get_phys32 = NULL;
 		struct ion_sys_get_phys_param *get_phys = NULL;

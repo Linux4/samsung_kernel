@@ -8,13 +8,18 @@
 #include <linux/atomic.h>
 #include <linux/delay.h>
 #include <linux/string.h>
+#include <linux/pinctrl/pinctrl.h>
 
 #include "kd_camera_typedef.h"
 #include "kd_camera_feature.h"
 
 
 #include "imgsensor_hw.h"
-
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+#ifdef CONFIG_MTK_S96818_CAMERA
+extern int sc800cs_is_alive;
+#endif
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 enum IMGSENSOR_RETURN imgsensor_hw_release_all(struct IMGSENSOR_HW *phw)
 {
 	int i;
@@ -128,7 +133,23 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 		 *  ppwr_info->pin_state_on,
 		 * psensor_pwr->id[ppwr_info->pin]);
 		 */
-
+		//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+		#ifdef CONFIG_MTK_S96818_CAMERA
+		if(sc800cs_is_alive==1
+			&& (!strcmp(pcurr_idx, "n28hi5021qreartruly_mipi_raw") || !strcmp(pcurr_idx, "n28hi5021qreardc_mipi_raw"))
+			&& ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD
+			&& ppwr_info->pin_state_on == IMGSENSOR_HW_PIN_STATE_LEVEL_2800){
+				pr_info("in avdd befor,let sub sc800cs rst high");
+					phw->pdev[1]->set(
+					    phw->pdev[1]->pinstance,
+					    IMGSENSOR_SENSOR_IDX_SUB,
+					    IMGSENSOR_HW_PIN_RST,
+					    IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH);
+				usleep_range(1 * 1000,
+				(1 + 2) * 1000);
+		}
+		#endif
+		//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 			if (pdev->set != NULL)
 				pdev->set(
 				    pdev->pinstance,
@@ -136,7 +157,25 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 				    ppwr_info->pin,
 				    ppwr_info->pin_state_on);
 
-			mdelay(ppwr_info->pin_on_delay);
+			usleep_range(ppwr_info->pin_on_delay * 1000,
+			(ppwr_info->pin_on_delay + 2) * 1000);
+		//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+		#ifdef CONFIG_MTK_S96818_CAMERA
+		if(sc800cs_is_alive==1
+			&& (!strcmp(pcurr_idx, "n28hi5021qreartruly_mipi_raw") || !strcmp(pcurr_idx, "n28hi5021qreardc_mipi_raw"))
+			&& ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD
+			&& ppwr_info->pin_state_on == IMGSENSOR_HW_PIN_STATE_LEVEL_2800){
+				pr_info("in avdd after,let sub sc800cs rst low");
+					phw->pdev[1]->set(
+					    phw->pdev[1]->pinstance,
+					    IMGSENSOR_SENSOR_IDX_SUB,
+					    IMGSENSOR_HW_PIN_RST,
+					    IMGSENSOR_HW_PIN_STATE_LEVEL_0);
+				usleep_range(1 * 1000,
+				(1 + 2) * 1000);
+		}
+		#endif
+		//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 		}
 
 		ppwr_info++;
@@ -151,7 +190,8 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
 				pdev =
 				    phw->pdev[psensor_pwr->id[ppwr_info->pin]];
-				mdelay(ppwr_info->pin_on_delay);
+				usleep_range(ppwr_info->pin_on_delay * 1000,
+				(ppwr_info->pin_on_delay + 2) * 1000);
 
 				if (pdev->set != NULL)
 					pdev->set(
@@ -165,7 +205,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 	/* wait for power stable */
 	if (pwr_status == IMGSENSOR_HW_POWER_STATUS_ON)
-		mdelay(5);
+		usleep_range(5000, 7000);
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
@@ -192,6 +232,21 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	!strstr(phw->enable_sensor_by_index[(uint32_t)sensor_idx], curr_sensor_name))
 		return IMGSENSOR_RETURN_ERROR;
 
+	mutex_lock(&psensor->inst.i2c_cfg.pinst->lock);
+	if (pwr_status && psensor->inst.i2c_cfg.pinst->pi2c_state_on) {
+		psensor->inst.i2c_cfg.pinst->refcnt++;
+		if (psensor->inst.i2c_cfg.pinst->refcnt == 1)
+			pinctrl_select_state(
+				psensor->inst.i2c_cfg.pinst->pi2c_pinctrl,
+				psensor->inst.i2c_cfg.pinst->pi2c_state_on);
+	} else if (!pwr_status && psensor->inst.i2c_cfg.pinst->pi2c_state_off) {
+		psensor->inst.i2c_cfg.pinst->refcnt--;
+		if (psensor->inst.i2c_cfg.pinst->refcnt == 0)
+			pinctrl_select_state(
+				psensor->inst.i2c_cfg.pinst->pi2c_pinctrl,
+				psensor->inst.i2c_cfg.pinst->pi2c_state_off);
+	}
+	mutex_unlock(&psensor->inst.i2c_cfg.pinst->lock);
 
 	ret = snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
 	if (ret == 0) {

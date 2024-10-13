@@ -20,6 +20,7 @@
 #include <charger_class.h>
 #include <mt-plat/mtk_boot.h>
 #include <linux/regmap.h>
+#include <linux/alarmtimer.h>
 
 enum register_bits  {
 	B_EN_HIZ, B_EN_ILIM, B_IILIM, B_EN_ICHG_MON, B_BHOT,
@@ -227,7 +228,8 @@ struct wtchg_info {
 	/*OTHER*/
 	u8 wt_discharging_state;
 	bool can_charging;
-	struct delayed_work wtchg_monitor_work;
+	struct delayed_work afc_5v_to_9v_work;
+	struct delayed_work afc_9v_to_5v_work;
 	bool is_ato_versions;
 	struct delayed_work wtchg_lateinit_work;
 	bool store_mode;
@@ -242,6 +244,18 @@ struct wtchg_info {
 	bool usbsys_created;
 	struct wakeup_source *wtchg_wakelock;
 	bool shipmode;
+	spinlock_t slock;
+	wait_queue_head_t  wait_que;
+	struct alarm charger_timer;
+	struct timespec endtime;
+	bool charger_thread_timeout;
+	struct mutex charger_lock;
+	bool charger_thread_polling;
+	bool is_hiz;
+	struct tcpc_device *tcpc_dev;
+	struct notifier_block pd_nb;
+	int pd_type;
+	int bat_temp;
 };
 
 enum wt_discharging_status {

@@ -14,7 +14,7 @@
 		rt-tcpc,role_def = <5>;
 		rt-tcpc,rp_level = <0>; /* 0: Default, 1: 1.5, 2: 3.0 */
 		/* 0: Never, 1: Always, 2: EMarkOnly, 3: StartOnly */
-		rt-tcpc,vconn_supply  = <1>;
+		rt-tcpc,vconn_supply  = <0>;
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 		/* the number of notifier supply */
 		rt-tcpc,notifier_supply_num = <3>;
@@ -93,11 +93,11 @@
 			// local_high_cap;
 			// local_give_back;
 			local_no_suspend;
-			local_vconn_supply;
+			//local_vconn_supply;
 
 			// attemp_discover_cable_dfp;
 			attemp_enter_dp_mode;
-			attemp_discover_cable;
+			//attemp_discover_cable;
 			attemp_discover_id;
 
 			/* 0: disable, 1: prefer_snk, 2: prefer_src */

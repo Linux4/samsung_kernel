@@ -1250,6 +1250,8 @@ static const struct snd_kcontrol_new memif_ul2_ch2_mix[] = {
 static const struct snd_kcontrol_new memif_ul3_ch1_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH1", AFE_CONN32_1,
 				    I_CONNSYS_I2S_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("GAIN2_OUT_CH1", AFE_CONN32,
+				    I_GAIN2_OUT_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH1", AFE_CONN32,
 				    I_DL1_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH1", AFE_CONN32,
@@ -1259,6 +1261,8 @@ static const struct snd_kcontrol_new memif_ul3_ch1_mix[] = {
 static const struct snd_kcontrol_new memif_ul3_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH2", AFE_CONN33_1,
 				    I_CONNSYS_I2S_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("GAIN2_OUT_CH2", AFE_CONN33,
+				    I_GAIN2_OUT_CH2, 1, 0),
 };
 
 static const struct snd_kcontrol_new memif_ul4_ch1_mix[] = {
@@ -1503,6 +1507,8 @@ static const struct snd_soc_dapm_route mt6833_memif_routes[] = {
 	{"UL3", NULL, "UL3_CH2"},
 	{"UL3_CH1", "CONNSYS_I2S_CH1", "Connsys I2S"},
 	{"UL3_CH2", "CONNSYS_I2S_CH2", "Connsys I2S"},
+	{"UL3_CH1", "GAIN2_OUT_CH1", "HW Gain 2 Out"},
+	{"UL3_CH2", "GAIN2_OUT_CH2", "HW Gain 2 Out"},
 
 	{"UL4", NULL, "UL4_CH1"},
 	{"UL4", NULL, "UL4_CH2"},

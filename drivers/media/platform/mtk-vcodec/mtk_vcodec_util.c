@@ -134,6 +134,22 @@ struct mtk_vcodec_ctx *mtk_vcodec_get_curr_ctx(struct mtk_vcodec_dev *dev,
 }
 EXPORT_SYMBOL(mtk_vcodec_get_curr_ctx);
 
+void mtk_vcodec_add_ctx_list(struct mtk_vcodec_ctx *ctx)
+{
+	mutex_lock(&ctx->dev->ctx_mutex);
+	list_add(&ctx->list, &ctx->dev->ctx_list);
+	mutex_unlock(&ctx->dev->ctx_mutex);
+}
+EXPORT_SYMBOL_GPL(mtk_vcodec_add_ctx_list);
+
+void mtk_vcodec_del_ctx_list(struct mtk_vcodec_ctx *ctx)
+{
+	mutex_lock(&ctx->dev->ctx_mutex);
+	list_del_init(&ctx->list);
+	mutex_unlock(&ctx->dev->ctx_mutex);
+}
+EXPORT_SYMBOL_GPL(mtk_vcodec_del_ctx_list);
+
 
 struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 {
@@ -184,6 +200,7 @@ struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 		}
 		pfb->status = 0;
 		dst_buf_info->used = true;
+		ctx->fb_list[pfb->index + 1] = (uintptr_t)pfb;
 		mutex_unlock(&ctx->buf_lock);
 
 		mtk_v4l2_debug(1, "[%d] id=%d pfb=0x%p %llx VA=%p dma_addr[0]=%lx dma_addr[1]=%lx Size=%zx fd:%x, dma_general_buf = %p, general_buf_fd = %d",

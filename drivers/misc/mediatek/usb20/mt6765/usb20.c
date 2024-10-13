@@ -199,22 +199,6 @@ static void usb_6765_dpidle_request(int mode)
 }
 #endif
 
-/* default value 0 */
-static int usb_rdy;
-bool is_usb_rdy(void)
-{
-	if (mtk_musb->is_ready) {
-		usb_rdy = 1;
-		DBG(0, "set usb_rdy, wake up bat\n");
-	}
-
-	if (usb_rdy)
-		return true;
-	else
-		return false;
-}
-EXPORT_SYMBOL(is_usb_rdy);
-
 /* BC1.2 */
 /* Duplicate define in phy-mtk-tphy */
 #define PHY_MODE_BC11_SW_SET 1
@@ -842,6 +826,15 @@ bool mt_usb_is_device(void)
 	return true;
 #endif
 }
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+bool mt_usb_is_connected(void)
+{
+	if (mtk_musb->usb_connected)
+		return true;
+	else
+		return false;
+}
+#endif
 static struct delayed_work disconnect_check_work;
 static bool musb_hal_is_vbus_exist(void);
 void do_disconnect_check_work(struct work_struct *data)
@@ -938,7 +931,7 @@ static bool cmode_effect_on(void)
 void do_connection_work(struct work_struct *data)
 {
 	unsigned long flags = 0;
-	int usb_clk_state = NO_CHANGE;
+	int usb_clk_state = NO_CHANGE, phy_mode = -1;
 	bool usb_on, usb_connected;
 	struct mt_usb_work *work =
 		container_of(data, struct mt_usb_work, dwork.work);
@@ -1010,8 +1003,9 @@ void do_connection_work(struct work_struct *data)
 		/* note this already put SOFTCON */
 		musb_start(mtk_musb);
 		usb_clk_state = OFF_TO_ON;
-
+		phy_mode = PHY_MODE_USB_DEVICE;
 	} else if (mtk_musb->power && (usb_on == false)) {
+		phy_mode = PHY_MODE_INVALID;
 		/* disable usb */
 		musb_stop(mtk_musb);
 		if (mtk_musb->usb_lock->active) {
@@ -1026,6 +1020,13 @@ void do_connection_work(struct work_struct *data)
 				usb_on, mtk_musb->power);
 exit:
 	spin_unlock_irqrestore(&mtk_musb->lock, flags);
+#ifdef CONFIG_PHY_MTK_TPHY
+	/* set PHY mode after spinlock released */
+	if(phy_mode == PHY_MODE_USB_DEVICE)
+		phy_set_mode(glue->phy, PHY_MODE_USB_DEVICE);
+	else if (phy_mode == PHY_MODE_INVALID)
+		phy_set_mode(glue->phy, PHY_MODE_INVALID);
+#endif
 
 	if (usb_clk_state == ON_TO_OFF) {
 		/* clock on -> of: clk_prepare_cnt -2 */

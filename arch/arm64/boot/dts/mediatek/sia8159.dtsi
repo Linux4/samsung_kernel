@@ -1,0 +1,68 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+&pio {
+	sia81xx_gpio_L_ONE: sia81xx_gpio_L_ONE {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO169__FUNC_GPIO169>;	
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+
+};
+
+&odm {
+	si_pa_L_One: si_pa@L_One{
+		compatible = "si,sia81xx";
+		si,si_pa_type = "sia81x9";
+		si,si_pa_reset = <&pio 169 0>;
+		si,si_pa_disable_pin = <1>;
+		
+		/* the same value share a same task
+		 * valid value range : 0 ~ 7 */	
+		channel_num = <0>;
+ 		timer_task_hdl = <0>;
+ 		owi_mode = <6>;
+ 		en_x_filter = <0>;
+ 		en_dynamic_updata_vdd = <0>;
+ 		dynamic_updata_vdd_port = <0x8>;	
+
+	};
+
+};
+
+&sound {
+	si,sia81xx-max-num = <1>;
+	si,sia81xx-aux-devs = <&si_pa_L_One>;
+	si,sia81xx-aux-devs-prefix = "SpkrLeft_One";
+};
+
+&i2c6 {
+ 	#address-cells = <1>;
+ 	#size-cells = <0>;
+	sipa_i2c: sipa_i2c@28 {
+                compatible = "si,sia81xx-i2c";
+                reg = <0x28>;
+                si,si_pa_reset = <&pio 169 0>;
+                si,sipa-dev = <&si_pa_L_One>;
+                status = "okay";
+        };
+
+
+};
+
+
+
+
+

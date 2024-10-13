@@ -2638,6 +2638,36 @@ unsigned int mt6359_upmu_get_rg_vbbck_vosel(void)
 	return val;
 }
 
+unsigned int mt6359_upmu_get_pwrkey_deb(void)
+{
+	unsigned int ret = 0;
+	unsigned int val = 0;
+
+	ret = pmic_read_interface(
+		(MT6359_TOPSTATUS),
+		(&val),
+		(PMIC_PWRKEY_DEB_MASK),
+		(PMIC_PWRKEY_DEB_SHIFT)
+		);
+
+	return val;
+}
+
+unsigned int mt6359_upmu_get_homekey_deb(void)
+{
+	unsigned int ret = 0;
+	unsigned int val = 0;
+
+	ret = pmic_read_interface(
+		(MT6359_TOPSTATUS),
+		(&val),
+		(PMIC_HOMEKEY_DEB_MASK),
+		(PMIC_HOMEKEY_DEB_SHIFT)
+		);
+
+	return val;
+}
+
 unsigned int mt6359_upmu_set_rg_vcn33_1_bt_vosel(unsigned int val)
 {
 	return mt6359_upmu_set_rg_vcn33_1_vosel(val);

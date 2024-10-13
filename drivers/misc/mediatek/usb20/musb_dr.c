@@ -125,12 +125,18 @@ static void mt_usb_set_mailbox(struct otg_switch_mtk *otg_sx,
 		mt_usb_set_vbus(otg_sx, false);
 		musb->usb_connected = 0;
 		musb->is_host = false;
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+		musb->is_ready = false;
+#endif
 		mt_usb_disconnect(); /* sync to UI */
 		mt_usb_gadget_disconnect(musb); /* sync to UI */
 		otg_sx->sw_state &= ~MUSB_VBUS_VALID;
 		break;
 	case MUSB_VBUS_VALID:
 		mt_usb_set_vbus(otg_sx, true);
+#if defined (CONFIG_N26_CHARGER_PRIVATE)		
+		musb->is_ready = true;
+#endif
 		/* avoid suspend when works as device */
 		otg_sx->sw_state |= MUSB_VBUS_VALID;
 		musb->usb_connected = 1;

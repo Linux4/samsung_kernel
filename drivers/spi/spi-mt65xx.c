@@ -783,6 +783,8 @@ static int mtk_spi_probe(struct platform_device *pdev)
 	const struct of_device_id *of_id;
 	struct resource *res;
 	int i, irq, ret, addr_bits, value;
+	u32 num_cs = 0;
+	u32 max_dma = 0;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*mdata));
 	if (!master) {
@@ -805,6 +807,8 @@ static int mtk_spi_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto err_put_master;
 	}
+	if (!of_property_read_u32(pdev->dev.of_node, "num-cs", &num_cs))
+		master->num_chipselect = num_cs;
 
 	mdata = spi_master_get_devdata(master);
 	mdata->dev_comp = of_id->data;
@@ -861,6 +865,19 @@ static int mtk_spi_probe(struct platform_device *pdev)
 			}
 		}
 		master->num_chipselect = mdata->pad_num;
+	}
+
+	if (!of_property_read_u32(pdev->dev.of_node, "max-dma", &max_dma)) {
+		if(max_dma > SZ_256K)
+			max_dma = SZ_256K;
+
+		if(!pdev->dev.dma_parms)
+			pdev->dev.dma_parms = kzalloc(sizeof(pdev->dev.dma_parms), GFP_KERNEL);
+
+		ret = dma_set_max_seg_size(&pdev->dev, max_dma);
+
+		spi_debug("max_dma size is changed to 0x%x\n",
+				dma_get_max_seg_size(&pdev->dev));
 	}
 
 	pm_qos_add_request(&mdata->spi_qos_request, PM_QOS_CPU_DMA_LATENCY,
@@ -956,6 +973,7 @@ static int mtk_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register master (%d)\n", ret);
 		goto err_disable_runtime_pm;
 	}
+	pr_info("num_chipselect=%d\n", master->num_chipselect);
 
 	if (mdata->dev_comp->need_pad_sel) {
 		if (mdata->pad_num != master->num_chipselect) {
@@ -965,14 +983,14 @@ static int mtk_spi_probe(struct platform_device *pdev)
 			ret = -EINVAL;
 			goto err_disable_runtime_pm;
 		}
-
-		/*if (!master->cs_gpios && master->num_chipselect > 1) {
+		
+	/*	if (!master->cs_gpios && master->num_chipselect > 1) {
 			dev_err(&pdev->dev,
 				"cs_gpios not specified and num_chipselect > 1\n");
 			ret = -EINVAL;
 			goto err_disable_runtime_pm;
-		}*/
-
+		}
+	*/
 		if (master->cs_gpios) {
 			for (i = 0; i < master->num_chipselect; i++) {
 				ret = devm_gpio_request(&pdev->dev,

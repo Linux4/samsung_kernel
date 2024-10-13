@@ -536,7 +536,7 @@ firmware_class.path=/vendor/firmware";
 		consys_mem: consys-reserve-memory {
 			compatible = "mediatek,consys-reserve-memory";
 			no-map;
-			size = <0 0x400000>;
+			size = <0 0x440000>;
 			alignment = <0 0x1000000>;
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
@@ -1056,8 +1056,8 @@ firmware_class.path=/vendor/firmware";
 	};
 
 	lcm: lcm_gpio {
-		compatible = "mediatek,lcm_gpio";
-	};
+                compatible = "mediatek,lcm_gpio";
+        };
 
 	touch: touch {
 		compatible = "mediatek,touch";
@@ -1082,12 +1082,6 @@ firmware_class.path=/vendor/firmware";
 		compatible = "mediatek,fpsensor_fp_eint";
 		int-gpios = <&pio 14 0>;
 	};
-
-	fpsensor_finger:fpsensor_finger{
-		compatible = "mediatek,fingerprint";
-		fpc,enable-wakeup;
-	};
-
 	focaltech_fp_eint:focaltech_fp_eint{
  		compatible = "mediatek,focaltech_fp_eint";
  		int-gpios = <&pio 14 0>;
@@ -2808,14 +2802,10 @@ firmware_class.path=/vendor/firmware";
 
 	nfc:nfc {
 			compatible = "mediatek,nfc-gpio-v2";
-			/*+bug 717439,jinzhao.wt,20220209,add,NFC bring up*/
-			/*
 			gpio-rst = <172>;
 			gpio-rst-std = <&pio 172 0x0>;
 			gpio-irq = <10>;
 			gpio-irq-std = <&pio 10 0x0>;
-			*/
-			/*-bug 717439,jinzhao.wt,20220209,add,NFC bring up*/
 		};
 
 	irq_nfc: irq_nfc {
@@ -3111,20 +3101,15 @@ firmware_class.path=/vendor/firmware";
 			"TOP_ULPOSC1_D2",
 			"TOP_ULPOSC1_D8";
 	};
-//+bug 717427,zhouxin2.wt,20220207,add swtp bringup	
-	swtp: swtp {
+	//+bug 717427,zhouxin2.wt,20220207,add swtp bringup
+        swtp: swtp {
               compatible = "mediatek, swtp-eint";
         };
-#ifdef CONFIG_WT_PROJECT_S96717AA2
-        swtp1: swtp1 {
-              compatible = "mediatek, swtp1-eint";
-        };
-#else
+
         swtp_1: swtp_1 {
               compatible = "mediatek, swtp1-eint";
         };
-#endif
-//-bug 717427,zhouxin2.wt,20220207,add swtp bringup
+
 	dsi_te: dsi_te {
 		compatible = "mediatek, DSI_TE-eint";
 		status = "disabled";
@@ -4013,7 +3998,7 @@ firmware_class.path=/vendor/firmware";
 
 				resource@3 {
 					resource,label = "SCHEDBOOST";
-					resource,value = <0 0>;
+					resource,value = <1 1>;
 				};
 			};
 		};
@@ -4201,5 +4186,3 @@ firmware_class.path=/vendor/firmware";
 #include "mediatek/rt1711.dtsi"
 #endif
 #include "mediatek/trusty.dtsi"
-#include "mediatek/sia81xx.dtsi"
-#include "modem-MT6765ap-pdata.dtsi"

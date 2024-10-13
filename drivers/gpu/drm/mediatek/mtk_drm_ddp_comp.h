@@ -177,6 +177,7 @@ enum mtk_ddp_comp_id {
 struct mtk_ddp_comp;
 struct cmdq_pkt;
 enum mtk_ddp_comp_trigger_flag {
+	MTK_TRIG_FLAG_PRE_TRIGGER,
 	MTK_TRIG_FLAG_TRIGGER,
 	MTK_TRIG_FLAG_EOF,
 	MTK_TRIG_FLAG_LAYER_REC,
@@ -215,6 +216,7 @@ enum mtk_ddp_io_cmd {
 	DSI_SET_BL,
 	DSI_SET_BL_AOD,
 	DSI_SET_BL_GRP,
+	DSI_SET_DISP_ON_CMD,
 	DSI_HBM_SET,
 	DSI_HBM_GET_STATE,
 	DSI_HBM_GET_WAIT_STATE,
@@ -241,6 +243,10 @@ enum mtk_ddp_io_cmd {
 	DSI_LFR_STATUS_CHECK,
 	WDMA_WRITE_DST_ADDR0,
 	WDMA_READ_DST_SIZE,
+	SET_LCM_DCS_CMD,
+	SET_LCM_CMDQ,
+	READ_LCM_DCS_CMD,
+	DSI_HBM_SET_LCM,
 };
 
 struct golden_setting_context {

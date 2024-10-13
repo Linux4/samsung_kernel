@@ -886,7 +886,7 @@ out:
 
 	/* Init sched_rampup_factor */
 	sched_ramup_factor = 0;
-	
+
 	mutex_init(&boost_eas);
 	return 0;
 }

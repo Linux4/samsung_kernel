@@ -41,7 +41,7 @@
 #if !defined(CONFIG_TOUCHSCREEN_MTK)
 	#error Please check if need to enable HX_CONFIG_FB or not
 #endif
-/*#define HX_CONFIG_FB*/ /* Need Enable if mtk_tpd not support suspend/resume */
+#define HX_CONFIG_FB /* Need Enable if mtk_tpd not support suspend/resume */
 
 extern struct device *g_device;
 #if defined(CONFIG_TOUCHSCREEN_HIMAX_DEBUG)

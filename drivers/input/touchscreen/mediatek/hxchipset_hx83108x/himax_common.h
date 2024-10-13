@@ -43,7 +43,7 @@
 	#include <linux/of_gpio.h>
 #endif
 
-#define HIMAX_DRIVER_VER "2.1.0.4_N26_01"
+#define HIMAX_DRIVER_VER "2.1.0.4_N26_02"
 
 #define FLASH_DUMP_FILE "/sdcard/HX_Flash_Dump.bin"
 
@@ -93,7 +93,7 @@
 /*#define HX_STRESS_SELF_TEST*/
 
 /*=============================================*/
-
+#define HX_CONFIG_FB
 /* Enable it if driver go into suspend/resume twice */
 /*#undef HX_CONFIG_FB*/
 
@@ -125,7 +125,7 @@ extern struct drm_panel gNotifier_dummy_panel;
 /* used for 102d overlay */
 /*#define HX_CODE_OVERLAY*/
 /*Independent threads run the notification chain notification function resume*/
-/*#define HX_CONTAINER_SPEED_UP*/
+#define HX_CONTAINER_SPEED_UP
 #else
 #define HX_TP_PROC_GUEST_INFO
 #endif
@@ -133,6 +133,7 @@ extern struct drm_panel gNotifier_dummy_panel;
 #if defined(HX_EXCP_RECOVERY) && defined(HX_ZERO_FLASH)
 /* used for 102e/p zero flash */
 /*#define HW_ED_EXCP_EVENT*/
+#define DD_VSN_RECOV_EXCP
 #endif
 
 #if defined(HX_BOOT_UPGRADE) || defined(HX_ZERO_FLASH)
@@ -168,7 +169,8 @@ extern uint32_t g_proj_id;
 #if defined(HX_CONTAINER_SPEED_UP)
 /*Resume queue delay work time after LCM RST (unit:ms)
  */
-#define DELAY_TIME 40
+
+#define DELAY_TIME 150
 #endif
 
 #if defined(HX_RST_PIN_FUNC)
@@ -250,7 +252,8 @@ enum HX_TS_PATH {
 	HX_REPORT_COORD_RAWDATA,
 };
 #define HX_ALL0_EXCPT_TIMES 2
-#define HX_ALL0_EXCPT_DD_TIMES 4
+#define HX_supend_ALL0_EXCPT_TIMES 5
+//#define HX_ALL0_EXCPT_DD_TIMES 3
 enum HX_TS_STATUS {
 	HX_TS_GET_DATA_FAIL = -4,
 	HX_EXCP_EVENT,
@@ -274,7 +277,7 @@ enum cell_type {
 };
 
 #if defined(HX_SMART_WAKEUP)
-#define HX_KEY_DOUBLE_CLICK KEY_POWER
+#define HX_KEY_DOUBLE_CLICK KEY_WAKEUP
 #define HX_KEY_UP           KEY_UP
 #define HX_KEY_DOWN         KEY_DOWN
 #define HX_KEY_LEFT         KEY_LEFT
@@ -467,6 +470,7 @@ struct himax_ts_data {
 	int use_irq;
 	int (*power)(int on);
 	int pre_finger_data[10][2];
+	int hx_headset_flag;
 
 	struct device *dev;
 	struct workqueue_struct *himax_wq;
@@ -537,6 +541,12 @@ struct himax_ts_data {
 	struct workqueue_struct *guest_info_wq;
 	struct work_struct guest_info_work;
 #endif
+#if defined(DD_VSN_RECOV_EXCP)
+int update_fw_fail;
+int update_fw_flag;
+int vsn_flag;
+bool gesture_fail_flag;
+#endif
 
 
 };
@@ -569,6 +579,10 @@ void himax_set_SMWP_func(uint8_t SMWP_enable);
 #define GEST_PT_MAX_NUM		(128)
 
 extern uint8_t *wake_event_buffer;
+#endif
+
+#if defined(HX_USB_DETECT_GLOBAL)
+extern bool USB_detect_flag;
 #endif
 
 extern int g_mmi_refcnt;
@@ -632,3 +646,4 @@ extern int hx_open_file(char *file_name);
 extern int hx_write_file(char *write_data, uint32_t write_size, loff_t pos);
 extern int hx_close_file(void);
 #endif
+int himax_headset_notifier_callback(struct notifier_block *self, unsigned long event, void *data);

@@ -166,7 +166,6 @@
 		status = "okay";
 	};
 };
-
 &i2c3 {
 	ext_buck_lp4@57 {
 		regulator-name ="ext_buck_vdd2";
@@ -191,16 +190,6 @@
 		fsm,re25-dft = <0x1E00>;
 	};
 };
-/*
-&wusb3801x_typec {
-	charger = <&bq2589x_chg>;
-	status = "okay";
-};
-&sgm7220_typec {
-	charger = <&bq2589x_chg>;
-	status = "okay";
-};
-*/
 
 &i2c5 {
 	sgm7220_typec: usb_type_c_sgm7220@47 {
@@ -244,6 +233,7 @@
 		status = "okay";
   };
 };
+
 
 &i2c6 {
 	ext_buck_vgpu@55 {
@@ -491,7 +481,7 @@
 			"aud_dat_miso_on",
 			"aud_smartpa_off",
 			"aud_smartpa_on",
-//Bug 682591 xiexiaoping,add,20210812,add hac support
+//ckl zhangxingyuan,add,20220725,add hac support
 			"hacamp_pullhigh",
 			"hacamp_pulllow";
 	pinctrl-0 = <&aud_clk_mosi_off>;
@@ -504,7 +494,7 @@
 	pinctrl-7 = <&aud_dat_miso_on>;
 	pinctrl-8 = <&aud_pins_smartpa_off>;
 	pinctrl-9 = <&aud_pins_smartpa_on>;
-//Bug 682591 xiexiaoping,add,20210812,add hac support
+//ckl zhangxingyuan,add,20220725,add hac support
 	pinctrl-10 = <&aud_pins_hacamp_high>;
 	pinctrl-11 = <&aud_pins_hacamp_low>;
 	status = "okay";
@@ -629,7 +619,7 @@
 	};
 	//- Bug 682591 xiexiaoping,add,20210812,add hac support
 };
-
+/* AUDIO end */
 &lk_charger{
 	/delete-property/ enable_pe_plus;
 	max_charger_voltage = <6500000>;
@@ -705,12 +695,6 @@
 	min_charge_temp_plus_x_degree = <0>;
 	max_charge_temp = <51>;
 	max_charge_temp_minus_x_degree = <51>;
-
-	wt,batt-cycle-ranges = <0   299  4400000
-		300 399  4380000
-		400 699  4360000
-		700 999  4340000
-		1000 999999  4290000>;
 };
 
 
@@ -767,21 +751,6 @@
 &charger {
 	charger = <&mtk_charger_type>;
 };
-
-/*
-&mtk_gauge {
-	charger = <&bq2589x_chg>;
-};
-
-&usb {
-	charger = <&bq2589x_chg>;
-};
-
-&charger {
-	charger = <&bq2589x_chg>;
-};
-*/
-
 #include <dt-bindings/iio/mt635x-auxadc.h>
 &mtk_gauge {
 	io-channels = <&pmic_auxadc AUXADC_BAT_TEMP>,
@@ -796,6 +765,24 @@
 			"pmic_ptim_voltage",
 			"pmic_ptim_r",
 			"battery_id";
+
+	wt,batt-cycle-ranges = <0   299  4400000
+				300 399  4368000
+				400 699  4336000
+				700 999  4304000
+				1000 999999  4272000>;
+	ACTIVE_TABLE = <(5)>;
+	g_FG_PSEUDO100 = <
+		101 100 100 100
+		101 100 100 100
+		101 100 100 100
+		101 100 100 100
+		101 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
 };
 
 &mt6370_pmu {
@@ -1059,8 +1046,9 @@
 	camaf_m1_pmic-supply = <&mt_pmic_vldo28_ldo_reg>;
 	status = "okay";
 };
+//+Bug 767787, yangchaojun.wt,add,resolve compilation errors
+#include <mediatek/S96516SA1/cust.dtsi>
 #include "mediatek/S96516SA1/cust_mt6765_lcm_module.dtsi"
-#include "mediatek/S96516SA1/cust.dtsi"
 //#include "mediatek/cust_mt6765_camera.dtsi"
 #include "mediatek/cust_mt6765_touch_720x1600.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/

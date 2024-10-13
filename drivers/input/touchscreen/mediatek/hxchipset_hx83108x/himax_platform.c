@@ -19,13 +19,17 @@
 #include "himax_platform.h"
 #include "himax_common.h"
 #include "himax_ic_core.h"
-
+#include <linux/power_supply.h>
+#include "../../../drivers/misc/mediatek/extcon/extcon-mtk-usb.h"
+#include "../../../../misc/mediatek/lcm/inc/panel_notifier.h"
 
 int i2c_error_count;
 bool ic_boot_done;
 #define DISABLE 0
 #define ENABLE 1
 bool himax_gesture_status = DISABLE;
+static struct notifier_block himax_charger_notifier;
+static struct notifier_block himax_headset_notifier;
 
 const struct of_device_id himax_match_table[] = {
 	{.compatible = "mediatek,cap_touch" },
@@ -331,13 +335,14 @@ void himax_rst_gpio_set(int pinnum, uint8_t value)
 
 int himax_gpio_power_config(struct himax_platform_data *pdata)
 {
+#if 0
 	int error = 0;
 
 	error = regulator_enable((*kp_tpd)->reg);
 
 	if (error != 0)
 		I("Failed to enable reg-vgp6: %d\n", error);
-
+#endif
 	msleep(100);
 #if defined(HX_RST_PIN_FUNC)
 	kp_tpd_gpio_output(himax_tpd_rst_gpio_number, 1);
@@ -591,6 +596,38 @@ int himax_ts_unregister_interrupt(void)
 	return ret;
 }
 
+int himax_charger_notifier_callback(
+	struct notifier_block *self,
+	unsigned long event,
+	void *data)
+{
+	struct power_supply *psy = data;
+	struct power_supply *type_psy;
+	union power_supply_propval pval;
+	int ret;
+	type_psy = power_supply_get_by_name("mtk_charger_type");
+	if (!type_psy)
+		return -ENODEV;
+
+	if (event != PSY_EVENT_PROP_CHANGED || psy != type_psy)
+		return NOTIFY_DONE;
+
+	ret = power_supply_get_property(psy,POWER_SUPPLY_PROP_ONLINE, &pval);
+	if (ret < 0) {
+               printk("failed to get online prop\n");
+               return NOTIFY_DONE;
+       }
+
+	E("himax_charger_nodifier_callback start pval.intval = %d\n",pval.intval);
+	if(pval.intval){
+		USB_detect_flag = 1;
+	}
+	else{
+		USB_detect_flag = 0;
+	}
+	E("himax_charger_nodifier_callback end\n");
+	return 0;
+}
 
 static int himax_common_probe_spi(struct spi_device *spi)
 {
@@ -653,6 +690,16 @@ static int himax_common_probe_spi(struct spi_device *spi)
 	}
 #endif
 #endif
+	himax_headset_notifier.notifier_call = himax_headset_notifier_callback;
+	if(panel_register_client(&himax_headset_notifier))
+			I("gcore_headset_nodifier register notifier failed!");
+
+	himax_charger_notifier.notifier_call = himax_charger_notifier_callback;
+	ret = power_supply_reg_notifier(&himax_charger_notifier);
+	if (ret) {
+		printk("fail to register notifer\n");
+		return ret;
+	}
 
 	return ret;
 
@@ -685,7 +732,7 @@ int himax_common_remove_spi(struct spi_device *spi)
 	return ret;
 }
 
-static void himax_common_suspend(struct device *dev)
+void himax_common_suspend(struct device *dev)
 {
 	struct himax_ts_data *ts = private_ts;
 
@@ -694,7 +741,7 @@ static void himax_common_suspend(struct device *dev)
 	I("%s: END\n", __func__);
 }
 
-static void himax_common_resume(struct device *dev)
+void himax_common_resume(struct device *dev)
 {
 	struct himax_ts_data *ts = private_ts;
 
@@ -705,6 +752,18 @@ static void himax_common_resume(struct device *dev)
 
 
 #if defined(HX_CONFIG_FB)
+static void himax_common_suspend_tpd(struct device *dev)
+{
+
+	I("%s: only return suspend;\n", __func__);
+
+}
+
+static void himax_common_resume_tpd(struct device *dev)
+{
+	I("%s: only return resume;\n", __func__);
+}
+
 int fb_notifier_callback(struct notifier_block *self,
 		unsigned long event, void *data)
 {
@@ -734,6 +793,11 @@ int fb_notifier_callback(struct notifier_block *self,
 			queue_delayed_work(ts->ts_int_workqueue,
 				&ts->ts_int_work,
 				msecs_to_jiffies(DELAY_TIME));
+#if defined(HX_SMART_WAKEUP)	
+		if (ts->SMWP_enable) {
+			himax_int_enable(0);
+		}
+#endif
 #else
 			himax_common_resume(ts->dev);
 #endif
@@ -776,12 +840,13 @@ static int himax_common_local_init(void)
 	int retval;
 
 	I("[Himax] Himax_ts SPI Touchscreen Driver local init\n");
-
+#if 0
 	(*kp_tpd)->reg = regulator_get((*kp_tpd)->tpd_dev, "vtouch");
 	retval = regulator_set_voltage((*kp_tpd)->reg, 2800000, 2800000);
 
 	if (retval != 0)
 		E("Failed to set voltage 2V8: %d\n", retval);
+#endif
 
 	retval = spi_register_driver(&himax_common_driver);
 	if (retval < 0) {
@@ -798,8 +863,15 @@ static int himax_common_local_init(void)
 static struct tpd_driver_t tpd_device_driver = {
 	.tpd_device_name = HIMAX_common_NAME,
 	.tpd_local_init = himax_common_local_init,
+
+#if defined(HX_CONFIG_FB)
+	.suspend = himax_common_suspend_tpd,
+	.resume = himax_common_resume_tpd,
+#else
 	.suspend = himax_common_suspend,
 	.resume = himax_common_resume,
+#endif
+
 #if defined(TPD_HAVE_BUTTON)
 	.tpd_have_button = 1,
 #else
@@ -838,11 +910,8 @@ static void __exit himax_common_exit(void)
 	kp_tpd_driver_remove(&tpd_device_driver);
 }
 
-#if defined(__HIMAX_MOD__)
 module_init(himax_common_init);
-#else
-late_initcall(himax_common_init);
-#endif
+
 module_exit(himax_common_exit);
 
 MODULE_DESCRIPTION("Himax_common driver");

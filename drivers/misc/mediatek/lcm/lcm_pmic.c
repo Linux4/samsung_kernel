@@ -70,15 +70,13 @@ int display_bias_enable(void)
 
 	display_bias_regulator_init();
 
-//+bug717431, chensibo.wt, modify, 20220118, lcd bring up
 	/* set voltage with min & max*/
-	ret = regulator_set_voltage(disp_bias_pos, 5500000, 5500000);
+	ret = regulator_set_voltage(disp_bias_pos, 5400000, 5400000);
 	if (ret < 0)
 		pr_info("set voltage disp_bias_pos fail, ret = %d\n", ret);
 	retval |= ret;
 
-	ret = regulator_set_voltage(disp_bias_neg, 5500000, 5500000);
-//-bug717431, chensibo.wt, modify, 20220118, lcd bring up
+	ret = regulator_set_voltage(disp_bias_neg, 5400000, 5400000);
 	if (ret < 0)
 		pr_info("set voltage disp_bias_neg fail, ret = %d\n", ret);
 	retval |= ret;

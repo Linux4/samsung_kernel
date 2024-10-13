@@ -583,6 +583,38 @@ config CHARGER_BQ2589X
 	help
 	  Say Y to enable support for the TI BQ2589X battery charger.
 
+config CHARGER_SD7601
+	tristate "SD7601 battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the SD7601 battery charger.
+
+config CHARGER_UPM6910
+	tristate "UPM6910 battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the UPM6910 battery charger.
+
+config CHARGER_SC89601
+	tristate "SC89601 battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the SC89601 battery charger.
+
+config CHARGER_PUMP
+	tristate "PUMP battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the PUMP battery charger.
+
 config CHARGER_SMB347
 	tristate "Summit Microelectronics SMB347 Battery Charger"
 	depends on I2C
@@ -833,9 +865,9 @@ config CHARGER_WINGTECH
 	  WT driver.
 	  It depends on
 	  the config MTK_CHARGER.
-
-config N21_CHARGER_PRIVATE
-	bool "N21_CHARGER_PRIVATE"
+	  
+config N23_CHARGER_PRIVATE
+    bool "N23_CHARGER_PRIVATE"
 	depends on MTK_CHARGER
 	default n
 	help
@@ -861,9 +893,19 @@ config N26_CHARGER_PRIVATE
 	  WT driver.
 	  It depends on
 	  the config MTK_CHARGER.
-	  
-config N23_CHARGER_PRIVATE
-    bool "N23_CHARGER_PRIVATE"
+
+config W2_CHARGER_PRIVATE
+    bool "W2_CHARGER_PRIVATE"
+	depends on MTK_CHARGER
+	default n
+	help
+	  Say Yes to enable
+	  WT driver.
+	  It depends on
+	  the config MTK_CHARGER.
+
+config N28_CHARGER_PRIVATE
+    bool "N28_CHARGER_PRIVATE"
 	depends on MTK_CHARGER
 	default n
 	help
@@ -949,4 +991,3 @@ endif
 
 endif # POWER_SUPPLY
 
-source "drivers/power/supply/sm/sm5714/Kconfig"

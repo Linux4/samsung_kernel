@@ -110,6 +110,8 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_MT6351 if MTK_PMIC_WRAP
 	select SND_SOC_MT6358
 	select SND_SOC_MT6359
+	select SND_SOC_FS1815N
+	select SND_SOC_SIA8159
 	select SND_SOC_MT6366
 	select SND_SOC_NAU8540 if I2C
 	select SND_SOC_NAU8810 if I2C
@@ -1079,6 +1081,7 @@ config SND_SOC_TWL4030
 config SND_SOC_TWL6040
 	tristate
 
+
 config SND_SOC_UDA134X
        tristate
 
@@ -1316,6 +1319,20 @@ config SND_SOC_AW87339
 	  It is a speaker amp which connect with MTK
 	  PMIC device which has no speaker protection
 	  function.
+
+
+config SND_SOC_FS1815N
+        default n
+	tristate "FOURSEMI FS1815N speaker amplifier"
+	help
+	  Config of FOURSEMI FS1815N speaker amplifier.
+	  It is a speaker amp which connect with MTK
+	  PMIC device which has no speaker protection
+	  function.
+
+config SND_SOC_SIA8159
+	default y
+	tristate
 
 config SND_SOC_LM4857
 	tristate

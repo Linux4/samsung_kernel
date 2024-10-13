@@ -52,6 +52,8 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 #include "mtk_mmc_block.h"
+#include "../host/mtk-sd-dbg.h"
+#include "block.h"
 
 /* The max erase timeout, used when host->max_busy_timeout isn't specified */
 #define MMC_ERASE_TIMEOUT_MS	(60 * 1000) /* 60 s */
@@ -167,6 +169,8 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 
 	trace_mmc_request_done(host, mrq);
 
+	dbg_add_host_log(host, 1, cmd->opcode, cmd->resp[0]);
+
 	/*
 	 * We list various conditions for the command to be considered
 	 * properly done:
@@ -183,7 +187,7 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 			led_trigger_event(host->led, LED_OFF);
 
 		if (mrq->sbc) {
-			pr_debug("%s: req done <CMD%u>: %d: %08x %08x %08x %08x\n",
+			pr_debug("%s: sbc req done <CMD%u>: %d: %08x %08x %08x %08x\n",
 				mmc_hostname(host), mrq->sbc->opcode,
 				mrq->sbc->error,
 				mrq->sbc->resp[0], mrq->sbc->resp[1],
@@ -283,8 +287,12 @@ static void mmc_mrq_pr_debug(struct mmc_host *host, struct mmc_request *mrq,
 			 mmc_hostname(host), cqe ? "CQE direct " : "",
 			 mrq->cmd->opcode, mrq->cmd->arg, mrq->cmd->flags);
 	} else if (cqe) {
-		pr_debug("%s: starting CQE transfer for tag %d blkaddr %u\n",
-			 mmc_hostname(host), mrq->tag, mrq->data->blk_addr);
+		if (mrq->data->flags & MMC_DATA_WRITE)
+			pr_debug("%s: starting CQE transfer for tag %d blkaddr %u, flags=0x%x WRITE\n",
+			mmc_hostname(host), mrq->tag, mrq->data->blk_addr, mrq->data->flags);
+		else if (mrq->data->flags & MMC_DATA_READ)
+			pr_debug("%s: starting CQE transfer for tag %d blkaddr %u, flags=0x%x READ\n",
+			mmc_hostname(host), mrq->tag, mrq->data->blk_addr, mrq->data->flags);
 	}
 
 	if (mrq->data) {
@@ -459,8 +467,10 @@ static int mmc_blk_status_check(struct mmc_card *card, unsigned int *status)
 	err = mmc_wait_for_cmd(card->host, &cmd, retries);
 	if (err == 0)
 		*status = cmd.resp[0];
-	else
+	else {
+		mmc_error_count_log(card, MMC_CMD_OFFSET, err, 0);
 		pr_info("%s: err %d\n", __func__, err);
+	}
 
 	return err;
 }
@@ -893,13 +903,14 @@ int mmc_run_queue_thread(void *data)
 	struct mmc_request *done_mrq = NULL;
 	unsigned int task_id, areq_cnt_chk, tmo;
 	bool is_done = false;
-	u32 status = 0;
 	int err;
 	u64 chk_time = 0;
+	u32 status = 0;
 
+#ifdef CONFIG_WT_PROJECT_S96516SA1
 	//up the emmc cmdq thread priority to 110 (nice=-10)
-	set_user_nice(current, -10);
-
+        set_user_nice(current, -10);
+#endif
 	pr_info("[CQ] start cmdq thread\n");
 	mt_bio_queue_alloc(current, NULL, false);
 
@@ -1138,6 +1149,7 @@ int mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 #ifdef CONFIG_MTK_EMMC_CQ_SUPPORT
 	if (mrq->done == mmc_wait_cmdq_done) {
 		mmc_enqueue_queue(host, mrq);
+		atomic_inc(&host->areq_cnt);
 		wake_up_process(host->cmdq_thread);
 		led_trigger_event(host->led, LED_FULL);
 		return 0;
@@ -1265,6 +1277,16 @@ int mmc_cqe_start_req(struct mmc_host *host, struct mmc_request *mrq)
 
 	mmc_mrq_pr_debug(host, mrq, true);
 
+	if(mrq->cmd)
+		dbg_add_host_log(host, 5, mrq->cmd->opcode, mrq->cmd->arg);
+
+	if(mrq->data){
+		if (mrq->data->flags & MMC_DATA_WRITE)
+			dbg_add_host_log(host, 5, MMC_EXECUTE_WRITE_TASK, mrq->data->blocks);//CMD47
+		else if (mrq->data->flags & MMC_DATA_READ)
+			dbg_add_host_log(host, 5, MMC_EXECUTE_READ_TASK, mrq->data->blocks);//CMD46
+	}
+
 	err = mmc_mrq_prep(host, mrq);
 	if (err)
 		goto out_err;
@@ -1311,15 +1333,24 @@ void mmc_cqe_request_done(struct mmc_host *host, struct mmc_request *mrq)
 	if (mrq->cmd) {
 		pr_debug("%s: CQE req done (direct CMD%u): %d\n",
 			 mmc_hostname(host), mrq->cmd->opcode, mrq->cmd->error);
+		dbg_add_host_log(host, 6, mrq->cmd->opcode, mrq->cmd->resp[0]);
 	} else {
 		pr_debug("%s: CQE transfer done tag %d\n",
 			 mmc_hostname(host), mrq->tag);
 	}
 
-	if (mrq->data) {
-		pr_debug("%s:     %d bytes transferred: %d\n",
-			 mmc_hostname(host),
-			 mrq->data->bytes_xfered, mrq->data->error);
+	if (mrq->data){
+		if (mrq->data->flags & MMC_DATA_WRITE){
+			pr_debug("%s:     %d bytes transferred: %d WRITE tag %d\n",
+				 mmc_hostname(host),
+				 mrq->data->bytes_xfered, mrq->data->error, mrq->tag);
+			dbg_add_host_log(host, 6, MMC_EXECUTE_WRITE_TASK, mrq->data->error);//CMD47
+		} else if (mrq->data->flags & MMC_DATA_READ){
+			pr_debug("%s:     %d bytes transferred: %d READ tag %d\n",
+				 mmc_hostname(host),
+				 mrq->data->bytes_xfered, mrq->data->error, mrq->tag);
+			dbg_add_host_log(host, 6, MMC_EXECUTE_READ_TASK, mrq->data->error);//CMD46
+		}
 	}
 
 	mrq->done(mrq);
@@ -1729,7 +1760,7 @@ static inline void mmc_set_ios(struct mmc_host *host)
 {
 	struct mmc_ios *ios = &host->ios;
 
-	pr_debug("%s: clock %uHz busmode %u powermode %u cs %u Vdd %u "
+	dev_info(host->parent, "%s: clock %uHz busmode %u powermode %u cs %u Vdd %u "
 		"width %u timing %u\n",
 		 mmc_hostname(host), ios->clock, ios->bus_mode,
 		 ios->power_mode, ios->chip_select, ios->vdd,
@@ -2897,7 +2928,8 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 			pr_err("%s: Card stuck in programming state! %s\n",
 				mmc_hostname(card->host), __func__);
 			err =  -EIO;
-			goto out;
+			mmc_error_count_log(card, MMC_BUSY_OFFSET, -ETIMEDOUT, cmd.resp[0]);
+			goto busy_out;
 		}
 		if ((cmd.resp[0] & R1_READY_FOR_DATA) &&
 		    R1_CURRENT_STATE(cmd.resp[0]) != R1_STATE_PRG)
@@ -2909,6 +2941,9 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 	} while (1);
 
 out:
+	if (err)
+		mmc_error_count_log(card, MMC_CMD_OFFSET, err, 0);
+busy_out:
 	mmc_retune_release(card->host);
 	return err;
 }

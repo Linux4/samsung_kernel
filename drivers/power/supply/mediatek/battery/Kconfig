@@ -13,10 +13,11 @@ config MTK_SMART_BATTERY
 
 config MTK_GAUGE_VERSION
 	int "MediaTek Fuel Gauge version"
-	default 20
+	default 0
 	help
 	  Select MTK Gauge Master version
 	  30: Gauge Master 3.0
+	  20: Gauge Master 2.0
 
 config MTK_DISABLE_GAUGE
 	bool "disable Gauge Master 3.0"

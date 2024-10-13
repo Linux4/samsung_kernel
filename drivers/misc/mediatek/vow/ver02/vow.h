@@ -130,7 +130,7 @@
 #define VOW_BARGEIN_IRQ_MAX_NUM       32
 
 #define KERNEL_VOW_DRV_VER              "2.1.0"
-#define DEFAULT_GOOGLE_ENGINE_VER       2147483647
+#define DEFAULT_GOOGLE_ENGINE_VER       1235201314  /* set meaningless default value */
 
 struct dump_package_t {
 	uint32_t dump_data_type;
@@ -198,7 +198,9 @@ enum vow_ipi_msgid_t {
 	IPIMSG_VOW_ALEXA_ENGINE_VER = 25,
 	IPIMSG_VOW_GOOGLE_ENGINE_VER = 26,
 	IPIMSG_VOW_GOOGLE_ARCH = 27,
-	IPIMSG_VOW_SET_CUSTOM_MODEL = 28
+	IPIMSG_VOW_SET_CUSTOM_MODEL = 28,
+	IPIMSG_VOW_HAL_REBOOT = 29,
+	IPIMSG_VOW_FLUSH = 30
 };
 
 enum vow_eint_status_t {

@@ -814,10 +814,10 @@ MMC_DEV_ATTR(life_time, "0x%02x 0x%02x\n",
 	card->ext_csd.device_life_time_est_typ_a,
 	card->ext_csd.device_life_time_est_typ_b);
 
-//+bug 720069, houdujing.wt, add, 2022.2.12, add emmc flash life_time, start
+//+++bug782977, linaiyu.wt, add, 2022.07.29, add emmc life time
 MMC_DEV_ATTR(life_time_est_typ_a, "0x%x\n",card->ext_csd.device_life_time_est_typ_a);
 MMC_DEV_ATTR(life_time_est_typ_b, "0x%x\n",card->ext_csd.device_life_time_est_typ_b);
-//+bug 720069, houdujing.wt, add, 2022.2.12, add emmc flash life_time, end
+//---bug782977, linaiyu.wt, add, 2022.07.29, add emmc life time
 
 MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
@@ -860,7 +860,7 @@ static ssize_t mmc_dsr_show(struct device *dev,
 }
 
 static DEVICE_ATTR(dsr, S_IRUGO, mmc_dsr_show, NULL);
-//bug 717429, linaiyu.wt, add, 2022.01.25, add emmc flash_name & vendor name, start
+//+++bug782977, linaiyu.wt, add, 2022.07.29, add emmc flash_name & vendor name
 static int calc_mem_size(void)
  {
      int temp_size;
@@ -913,8 +913,10 @@ static ssize_t flash_name_show(struct device *dev, struct device_attribute *attr
             break;
         case 0x13:
             vendor_name = "Micron";
-        if (strncmp(card->cid.prod_name, "DP6DAB", strlen("DP6DAB")) == 0)
-                emcp_name = "HTKMDP6001DA_B425";
+	    if (strncmp(card->cid.prod_name, "G2C213", strlen("G2C213")) == 0)
+		    emcp_name = "MT29VZZZAD9GUFSM_046_W213";
+	    else if (strncmp(card->cid.prod_name, "G2C219", strlen("G2C219")) == 0)
+		    emcp_name = "MT29VZZZAD8GUFSL_046_W219";
 	    break;
         case 0x15:
             vendor_name = "Samsung";
@@ -948,7 +950,11 @@ static ssize_t flash_name_show(struct device *dev, struct device_attribute *attr
             else if (strncmp(card->cid.prod_name, "DV6DBB", strlen("DV6DBB")) == 0)
 		emcp_name = "KMDV6001DB_B625";
 //+bug 720069, houdujing.wt, add, 2022.2.12, add emmc flash life_time, end
-            else
+//+bug S96818AA1-5244, wangchunhua2.wt, add, 2023.5.26, add emmc flash life_time, start
+	    else if (strncmp(card->cid.prod_name, "3V6CBB", strlen("3V6CBB")) == 0)
+		emcp_name = "KM3V6001CB_B708";
+//-bug S96818AA1-5244, wangchunhua2.wt, add, 2023.5.26, add emmc flash life_time, end
+	    else
                 emcp_name = NULL;
             break;
         case 0x45:
@@ -1024,7 +1030,8 @@ static ssize_t vendor_name_show(struct device *dev, struct device_attribute *att
     return sprintf(buf, "%s\n",vendor_name);
 }
 static DEVICE_ATTR(vendor, S_IRUGO, vendor_name_show, NULL);
-//bug 717429, linaiyu.wt, add, 2022.01.25, add emmc flash_name & vendor name, end
+//---bug782977, linaiyu.wt, add, 2022.07.29, add emmc flash_name & vendor name
+
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
 	&dev_attr_csd.attr,
@@ -1412,6 +1419,14 @@ static int mmc_select_hs400(struct mmc_card *card)
 	mmc_set_timing(host, MMC_TIMING_MMC_HS400);
 	mmc_set_bus_speed(card);
 
+	if (host->ops->execute_hs400_tuning) {
+		mmc_retune_disable(host);
+		err = host->ops->execute_hs400_tuning(host, card);
+		mmc_retune_enable(host);
+		if (err)
+			goto out_err;
+	}
+
 	if (host->ops->hs400_complete)
 		host->ops->hs400_complete(host);
 
@@ -1439,6 +1454,7 @@ int mmc_hs400_to_hs200(struct mmc_card *card)
 	int err;
 	u8 val;
 
+	dev_info(host->parent,"%s\n", __func__);
 	/* Reduce frequency to HS */
 	max_dtr = card->ext_csd.hs_max_dtr;
 	mmc_set_clock(host, max_dtr);
@@ -2253,9 +2269,12 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 		goto out;
 
 	if (mmc_can_poweroff_notify(host->card) &&
-		((host->caps2 & MMC_CAP2_FULL_PWR_CYCLE) || !is_suspend))
+		((host->caps2 & MMC_CAP2_FULL_PWR_CYCLE) || !is_suspend)) {
 		err = mmc_poweroff_notify(host->card, notify_type);
-	else if (mmc_can_sleep(host->card))
+		/* Add a delay before power off */
+		if (!err)
+			mmc_delay(2);
+	} else if (mmc_can_sleep(host->card))
 		err = mmc_sleep(host);
 	else if (!mmc_host_is_spi(host))
 		err = mmc_deselect_cards(host);

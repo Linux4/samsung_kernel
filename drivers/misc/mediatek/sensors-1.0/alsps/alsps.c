@@ -619,7 +619,6 @@ static ssize_t alscali_store(struct device *dev,
 	vfree(cali_buf);
 	return count;
 }
-//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 static ssize_t als_store_lcdinfo(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -644,7 +643,6 @@ static ssize_t als_store_lcdinfo(struct device *dev,
 	else
 		return count;
 }
-//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 #if !defined(CONFIG_NANOHUB) || !defined(CONFIG_MTK_ALSPSHUB)
 static int ps_enable_and_batch(void)
 {

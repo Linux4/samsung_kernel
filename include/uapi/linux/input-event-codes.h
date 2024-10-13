@@ -337,7 +337,7 @@
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
 
-#define KEY_RECENT   		254
+#define KEY_RECENT		254
 
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
@@ -643,6 +643,7 @@
 #define KEY_UNMUTE			0x274
 #define KEY_FASTREVERSE			0x275
 #define KEY_SLOWREVERSE			0x276
+#define KEY_INT_CANCEL          0x2be
 /*
  * Control a data application associated with the currently viewed channel,
  * e.g. teletext or data broadcast application (MHEG, MHP, HbbTV, etc.)
@@ -776,7 +777,7 @@
 #define ABS_MT_DISTANCE		0x3b	/* Contact hover distance */
 #define ABS_MT_TOOL_X		0x3c	/* Center X tool position */
 #define ABS_MT_TOOL_Y		0x3d	/* Center Y tool position */
-
+#define ABS_MT_CUSTOM       0x3e    /* Custom event */
 
 #define ABS_MAX			0x3f
 #define ABS_CNT			(ABS_MAX+1)

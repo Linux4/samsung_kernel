@@ -2187,8 +2187,15 @@ bool SetFmI2sConnection(unsigned int ConnectionState)
 
 bool SetFmAwbConnection(unsigned int ConnectionState)
 {
+#ifdef CONFIG_MTK_TC10_FEATURE
+	SetIntfConnection(ConnectionState, Soc_Aud_AFE_IO_Block_I2S_CONNSYS,
+			  Soc_Aud_AFE_IO_Block_HW_GAIN2_OUT);
+	SetIntfConnection(ConnectionState, Soc_Aud_AFE_IO_Block_HW_GAIN2_IN,
+			  Soc_Aud_AFE_IO_Block_MEM_VUL2);
+#else
 	SetIntfConnection(ConnectionState, Soc_Aud_AFE_IO_Block_I2S_CONNSYS,
 			  Soc_Aud_AFE_IO_Block_MEM_VUL2);
+#endif
 	return true;
 }
 

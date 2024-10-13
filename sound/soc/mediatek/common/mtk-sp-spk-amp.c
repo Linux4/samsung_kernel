@@ -38,6 +38,12 @@
 #include "aw87339.h"
 #endif
 
+//zhangsen
+#ifdef CONFIG_SND_SOC_FS1815N
+#include "../../codecs/fs1815/fsm_public.h"
+#endif
+//zhangsen
+
 #define MTK_SPK_NAME "Speaker Codec"
 #define MTK_SPK_REF_NAME "Speaker Codec Ref"
 static unsigned int mtk_spk_type;
@@ -157,6 +163,15 @@ void mtk_ext_spk_enable(int enable)
 #ifdef CONFIG_SND_SOC_AW87339
 	aw87339_spk_enable_set(enable);
 #endif
+//zhangsen
+#ifdef CONFIG_SND_SOC_FS1815N
+	if (enable) {
+		fsm_speaker_onn();
+	} else {
+		fsm_speaker_off();
+	}
+#endif
+//zhangsen
 }
 EXPORT_SYMBOL(mtk_ext_spk_enable);
 
@@ -435,6 +450,7 @@ int mtk_spk_send_ipi_buf_to_dsp(void *data_buffer, uint32_t data_size)
 
 	result = audio_send_ipi_buf_to_dsp(&ipi_msg, task_scene,
 					   AUDIO_DSP_TASK_AURISYS_SET_BUF,
+					   mtk_spk_get_type(),
 					   data_buffer, data_size);
 #endif
 	return result;
@@ -465,6 +481,7 @@ int mtk_spk_recv_ipi_buf_from_dsp(int8_t *buffer,
 	result = audio_recv_ipi_buf_from_dsp(&ipi_msg,
 					     task_scene,
 					     AUDIO_DSP_TASK_AURISYS_GET_BUF,
+					     mtk_spk_get_type(),
 					     buffer, size, buf_len);
 #endif
 	return result;

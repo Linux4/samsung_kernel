@@ -134,7 +134,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.hs_video_delay_frame = 2,
 	.slim_video_delay_frame = 2,
 
-	.isp_driving_current = ISP_DRIVING_6MA,
+	.isp_driving_current = ISP_DRIVING_4MA, //+bug 720367, wangmingli.wt,MODIFY,2022/6/30, optimize desense of depth camera.
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	.mipi_sensor_type = MIPI_OPHY_NCSI2,
 	.mipi_settle_delay_mode = MIPI_SETTLEDELAY_AUTO,

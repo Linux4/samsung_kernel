@@ -33,9 +33,8 @@ static long baro_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 	void __user *ptr = (void __user *)arg;
 	int data = 0;
 	uint32_t flag = 0;
-//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
+
 	int32_t caliData[2] = {0};
-//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	if (_IOC_DIR(cmd) & _IOC_READ)
 		err = !access_ok(VERIFY_WRITE, (void __user *)arg,
 				 _IOC_SIZE(cmd));
@@ -98,7 +97,6 @@ static long baro_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 			return -EINVAL;
 		}
 		return 0;
-//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	case BAROMETER_IOCTL_SET_CALI:
 		if(copy_from_user(&caliData, ptr, sizeof(caliData)))
 		    return -EINVAL;
@@ -114,7 +112,6 @@ static long baro_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 		    return -EINVAL;
 		}
 		return 0;
-//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	case BAROMETER_GET_TEMP_DATA:
 		return 0;
 	default:

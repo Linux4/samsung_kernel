@@ -19,7 +19,7 @@ config ONEKEY_REBOOT_NORMAL_MODE
 
 config TWOKEY_REBOOT_NORMAL_MODE
 	bool "Long press reboot by Powerkey + other key on normal mode"
-	default n
+	default y
 	---help---
 	  Say Y here if you want to use two key reboot noraml mode.
 

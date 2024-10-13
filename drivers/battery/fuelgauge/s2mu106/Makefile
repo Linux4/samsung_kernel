@@ -1,1 +1,0 @@
-obj-$(CONFIG_FUELGAUGE_S2MU106)		+= s2mu106_fuelgauge.o

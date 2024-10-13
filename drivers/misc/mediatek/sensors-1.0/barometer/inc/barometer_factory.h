@@ -33,9 +33,7 @@ struct baro_factory_fops {
 	int (*get_raw_data)(int32_t *data);
 	int (*enable_calibration)(void);
 	int (*clear_cali)(void);
-//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	int (*set_cali)(int32_t refvalue, int32_t offset);
-//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	int (*get_cali)(int32_t *offset);
 	int (*do_self_test)(void);
 };

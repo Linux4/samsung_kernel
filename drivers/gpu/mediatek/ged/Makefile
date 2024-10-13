@@ -53,6 +53,8 @@ ccflags-y += -DMTK_GPUFREQ_V1
 #ccflags-y += -DGED_KPI_MET_DEBUG
 ccflags-y += -DMTK_GED_KPI
 ccflags-y += -DGED_KPI_CPU_BOOST
+ccflags-y += -DGED_SKI_SUPPORT
+ged-y += src/ged_ski.o
 $(info $$GED: CONFIG_MTK_PLATFORM is defined [${CONFIG_MTK_PLATFORM}])
 
 ifeq ($(CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT),y)
@@ -189,6 +191,8 @@ ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6768"))
 #ccflags-y += -DGED_KPI_MET_DEBUG
 ccflags-y += -DMTK_GED_KPI
 ccflags-y += -DGED_KPI_CPU_BOOST
+ccflags-y += -DGED_SKI_SUPPORT
+ged-y += src/ged_ski.o
 
 ifeq ($(CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT),y)
 ccflags-y += -DGED_ENABLE_FB_DVFS
@@ -197,7 +201,7 @@ ccflags-y += -DGED_CONFIGURE_LOADING_BASE_DVFS_STEP
 ccflags-y += -DGED_ENABLE_TIMER_BASED_DVFS_MARGIN
 endif
 
-#ccflags-y += -DCONFIG_MTK_QOS_V1_SUPPORT
+ccflags-y += -DCONFIG_MTK_QOS_V1_SUPPORT
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3/$(subst ",,$(CONFIG_MTK_PLATFORM))
@@ -587,7 +591,8 @@ ccflags-y += \
     -I$(srctree)/drivers/misc/mediatek/lcm/inc/ \
     -I$(srctree)/drivers/misc/mediatek/dfrc/ \
     -I$(srctree)/drivers/gpu/mediatek/gpufreq/ \
-    -I$(srctree)/drivers/misc/mediatek/sspm/
+    -I$(srctree)/drivers/misc/mediatek/sspm/ \
+    -I$(srctree)/drivers/gpu/drm/mediatek/
 
 obj-$(CONFIG_MTK_GPU_SUPPORT) += ged.o
 

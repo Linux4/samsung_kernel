@@ -1,26 +1,56 @@
 # SPDX-License-Identifier: GPL-2.0
 menu "Device Drivers"
 
-#+bug717431, chensibo.wt, add, 20220118, add project macro
-config WT_PROJECT_S96717AA2
-	bool "Define for S96717AA2"
- 	help
- 	  Say Y here for distinguish different projects
-#-bug717431, chensibo.wt, add, 20220118, add project macro
+#[+Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
+config WT_FLASH_THERMAL_FEATURE
+	bool "Define flash thermal feature"
+	help
+	  Say Y here for enable flash thermal feature
+#[-Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
 
-#+bug549930, yangzheng.wt, add, 20220216, add project macro
+config WT_PROJECT_S96818AA1
+        bool "Define for S96818AA1"
+	help
+	Say Y here for distinguish different projects
+
+config WT_PROJECT_S96818BA1
+        bool "Define for S96818BA1"
+	help
+	Say Y here for distinguish different projects
+
+config WT_PROJECT_S96901AA1
+	bool "Define for S96901AA1"
+	help
+	 Say Y here for distinguish different projects
+
+config WT_PROJECT_S96902AA1
+	bool "Define for S96902AA1"
+	help
+	 Say Y here for distinguish different projects
+
+config WT_PROJECT_S96901WA1
+	bool "Define for S96901WA1"
+	help
+	 Say Y here for distinguish different projects
+
 config WT_PROJECT_S96516SA1
 	bool "Define for S96516SA1"
- 	help
- 	  Say Y here for distinguish different projects
-#-bug549930, yangzheng.wt, add, 20220216, add project macro
-
+	help
+	 Say Y here for distinguish different projects
 #+bug549930, yangzheng.wt, add, 20220216, add project macro
 config WT_PROJECT_S96616AA1
 	bool "Define for S96616AA1"
  	help
  	  Say Y here for distinguish different projects
 #-bug549930, yangzheng.wt, add, 20220216, add project macro
+
+#+S96818AA1-2426, wangzhuquan1.wt,add, 20230423,Volume down key + power key enter dump mode for 7 seconds
+config WT_FINAL_RELEASE
+        bool "Define for final release"
+        default n
+        help
+         Say Y here for final release
+#-S96818AA1-2426, wangzhuquan1.wt,add, 20230423,Volume down key + power key enter dump mode for 7 seconds
 
 source "drivers/amba/Kconfig"
 
@@ -248,11 +278,13 @@ source "drivers/interconnect/Kconfig"
 
 source "drivers/energy_model/Kconfig"
 
-source "drivers/muic/Kconfig"
+# source "drivers/muic/Kconfig"
 
-source "drivers/switch/Kconfig"
+# source "drivers/switch/Kconfig"
 
 source "drivers/samsung/Kconfig"
+
+#source "drivers/battery/Kconfig"
 
 source "drivers/sensors/Kconfig"
 

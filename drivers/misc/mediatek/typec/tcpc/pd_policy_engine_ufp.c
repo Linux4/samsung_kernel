@@ -109,6 +109,9 @@ void pe_ufp_uvdm_recv_entry(struct pd_port *pd_port)
 
 void pe_ufp_vdm_send_nak_entry(struct pd_port *pd_port)
 {
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	if (PD_VDO_CMD(pd_port->curr_vdm_hdr) != CMD_ATTENTION)
+#endif
 	pd_dpm_ufp_send_svdm_nak(pd_port);
 	VDM_STATE_DPM_INFORMED(pd_port);
 }

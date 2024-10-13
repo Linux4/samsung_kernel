@@ -865,8 +865,16 @@ static void SCP_sensorHub_init_sensor_state(void)
 
 	mSensorState[SENSOR_TYPE_WAKE_GESTURE].sensorType =
 		SENSOR_TYPE_WAKE_GESTURE;
-	mSensorState[SENSOR_TYPE_WAKE_GESTURE].rate = SENSOR_RATE_ONESHOT;
+    mSensorState[SENSOR_TYPE_WAKE_GESTURE].rate = SENSOR_RATE_ONESHOT;
 	mSensorState[SENSOR_TYPE_WAKE_GESTURE].timestamp_filter = false;
+
+//+S96818AA1-2213, liuling3.wt,ADD, 2023/06/15, add lift_to_wake
+#ifdef CONFIG_N28_LIFT_TO_WAKE
+    mSensorState[SENSOR_TYPE_LIFT_TO_WAKE].sensorType = SENSOR_TYPE_LIFT_TO_WAKE;
+    mSensorState[SENSOR_TYPE_LIFT_TO_WAKE].rate = SENSOR_RATE_ONCHANGE;
+    mSensorState[SENSOR_TYPE_LIFT_TO_WAKE].timestamp_filter = false;
+#endif
+//-S96818AA1-2213, liuling3.wt,ADD, 2023/06/15, add lift_to_wake
 
 	mSensorState[SENSOR_TYPE_ANSWER_CALL].sensorType =
 		SENSOR_TYPE_ANSWER_CALL;
@@ -907,6 +915,14 @@ static void SCP_sensorHub_init_sensor_state(void)
 
 	mSensorState[SENSOR_TYPE_SAR].sensorType = SENSOR_TYPE_SAR;
 	mSensorState[SENSOR_TYPE_SAR].timestamp_filter = false;
+
+//+S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+#ifdef CONFIG_N28_SMART_ALERT_HUB
+    mSensorState[SENSOR_TYPE_SMART_ALERT].sensorType = SENSOR_TYPE_SMART_ALERT;
+    mSensorState[SENSOR_TYPE_SMART_ALERT].rate = SENSOR_RATE_ONESHOT;
+    mSensorState[SENSOR_TYPE_SMART_ALERT].timestamp_filter = false;
+#endif
+//-S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
 }
 
 static void init_sensor_config_cmd(struct ConfigCmd *cmd,
@@ -1438,7 +1454,6 @@ int sensor_cfg_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 	}
 	return ret;
 }
-//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 int sensor_set_lcdname_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 {
 	struct ConfigCmd *cmd = NULL;
@@ -1465,7 +1480,6 @@ int sensor_set_lcdname_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 	}
 	return ret;
 }
-//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 int sensor_calibration_to_hub(uint8_t handle)
 {
 	uint8_t sensor_type = handle + ID_OFFSET;
@@ -1743,6 +1757,14 @@ int sensor_get_data_from_hub(uint8_t sensorType,
 		data->gesture_data_t.probability =
 			data_t->gesture_data_t.probability;
 		break;
+//+S96818AA1-2213, liuling3.wt,ADD, 2023/06/15, add lift_to_wake
+#ifdef CONFIG_N28_LIFT_TO_WAKE
+    case ID_LIFT_TO_WAKE:
+        data->time_stamp = data_t->time_stamp;
+        data->gesture_data_t.probability = data_t->gesture_data_t.probability;
+        break;
+#endif
+//-S96818AA1-2213, liuling3.wt,ADD, 2023/06/15, add lift_to_wake
 	case ID_GLANCE_GESTURE:
 		data->time_stamp = data_t->time_stamp;
 		data->gesture_data_t.probability =
@@ -1766,6 +1788,14 @@ int sensor_get_data_from_hub(uint8_t sensorType,
 		data->sar_event.data[1] = data_t->sar_event.data[1];
 		data->sar_event.data[2] = data_t->sar_event.data[2];
 		break;
+//+S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
+#ifdef CONFIG_N28_SMART_ALERT_HUB
+    case ID_SMART_ALERT:
+        data->time_stamp = data_t->time_stamp;
+        data->gesture_data_t.probability = data_t->gesture_data_t.probability;
+        break;
+#endif
+//-S96818AA1-2216, liuling3.wt,ADD, 2023/06/05, add smart alert sensor
 	default:
 		err = -1;
 		break;
@@ -1995,7 +2025,6 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 				custData) + sizeof(req.set_cust_req.getInfo);
 			break;
-//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 		case CUST_ACTION_SET_CALI:
 			req.set_cust_req.getInfo.action = CUST_ACTION_SET_CALI;
 			req.set_cust_req.setCali.int32_data[SCP_SENSOR_HUB_X]
@@ -2005,7 +2034,6 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 			    custData) + sizeof(req.set_cust_req.setCali);
 			break;
-//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 		default:
 			return -1;
 		}

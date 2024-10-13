@@ -78,6 +78,7 @@ enum {
 	SUPPLY_SEQ_CLK_BUF,
 	SUPPLY_SEQ_AUD_GLB,
 	SUPPLY_SEQ_CLKSQ,
+	SUPPLY_SEQ_ADC_SUPPLY,
 	SUPPLY_SEQ_AUD_VOW,
 	SUPPLY_SEQ_VOW_CLK,
 	SUPPLY_SEQ_VOW_LDO,
@@ -86,9 +87,8 @@ enum {
 	SUPPLY_SEQ_AUD_TOP,
 	SUPPLY_SEQ_AUD_TOP_LAST,
 	SUPPLY_SEQ_AFE,
-	SUPPLY_SEQ_MIC_BIAS,
 	/* capture */
-	SUPPLY_SEQ_ADC_SUPPLY,
+	SUPPLY_SEQ_MIC_BIAS,
 };
 
 enum {
@@ -115,6 +115,8 @@ enum {
 };
 
 #define REG_STRIDE 2
+static unsigned int switch_stay_off;
+static unsigned int pull_down_stay_enable;
 
 #ifdef ANALOG_HPTRIM
 struct ana_offset {
@@ -1593,9 +1595,10 @@ static int mtk_hp_enable(struct mt6358_priv *priv)
 	}
 #endif
 	dev_info(priv->dev, "+%s()\n", __func__);
-
-	/* Pull-down HPL/R to AVSS28_AUD */
-	hp_pull_down(priv, true);
+	if (!pull_down_stay_enable) {
+		/* Pull-down HPL/R to AVSS28_AUD */
+		hp_pull_down(priv, true);
+	}
 	/* release HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
 			   0x1 << 6, 0x1 << 6);
@@ -1805,6 +1808,11 @@ static int mtk_hp_disable(struct mt6358_priv *priv)
 	/* Set HPL/HPR gain to mute */
 	regmap_write(priv->regmap, MT6358_ZCD_CON2, DL_GAIN_N_10DB_REG);
 
+	if (switch_stay_off) {
+		/* Disable HPP/N STB enhance circuits */
+		regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
+				   0xff, 0x0);
+	}
 	/* Increase ESD resistance of AU_REFN */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
 			   0x1 << 14, 0x0);
@@ -1812,9 +1820,10 @@ static int mtk_hp_disable(struct mt6358_priv *priv)
 	/* Set HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
 			   0x1 << 6, 0x0);
-	/* disable Pull-down HPL/R to AVSS28_AUD */
-	hp_pull_down(priv, false);
-
+	if (!pull_down_stay_enable) {
+		/* disable Pull-down HPL/R to AVSS28_AUD */
+		hp_pull_down(priv, false);
+	}
 	return 0;
 }
 
@@ -1846,9 +1855,10 @@ static int mtk_hp_spk_enable(struct mt6358_priv *priv)
 	}
 #endif
 	dev_info(priv->dev, "+%s()\n", __func__);
-
-	/* Pull-down HPL/R to AVSS28_AUD */
-	hp_pull_down(priv, true);
+	if (!pull_down_stay_enable) {
+		/* Pull-down HPL/R to AVSS28_AUD */
+		hp_pull_down(priv, true);
+	}
 	/* release HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
 			0x1 << 6, 0x1 << 6);
@@ -2106,6 +2116,12 @@ static int mtk_hp_spk_disable(struct mt6358_priv *priv)
 
 	/* Set HPL/HPR gain to mute */
 	regmap_write(priv->regmap, MT6358_ZCD_CON2, DL_GAIN_N_40DB_REG);
+
+	if (switch_stay_off) {
+		/* Disable HPP/N STB enhance circuits */
+		regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
+				   0xff, 0x0);
+	}
 	/* Increase ESD resistance of AU_REFN */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
 			0x1 << 14, 0x0);
@@ -2113,8 +2129,10 @@ static int mtk_hp_spk_disable(struct mt6358_priv *priv)
 	/* Set HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
 			0x1 << 6, 0x0);
-	/* disable Pull-down HPL/R to AVSS28_AUD */
-	hp_pull_down(priv, false);
+	if (!pull_down_stay_enable) {
+		/* disable Pull-down HPL/R to AVSS28_AUD */
+		hp_pull_down(priv, false);
+	}
 
 	return 0;
 }
@@ -2516,6 +2534,11 @@ static int mtk_hp_impedance_disable(struct mt6358_priv *priv)
 	/* Disable AUD_CLK */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON13, 0x1, 0x0);
 
+	if (pull_down_stay_enable) {
+		/* Pull-down HPL/R to AVSS28_AUD */
+		hp_pull_down(priv, true);
+	}
+
 	/* Disable HP main output stage */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON1, 0x3, 0x0);
 
@@ -2548,9 +2571,15 @@ static int mtk_hp_impedance_disable(struct mt6358_priv *priv)
 	/* Set HPL/HPR gain to mute */
 	regmap_write(priv->regmap, MT6358_ZCD_CON2, DL_GAIN_N_10DB_REG);
 
-	/* Set HPP/N STB enhance circuits */
-	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2, 0xff, 0x33);
-
+	if (switch_stay_off) {
+		/* Disable HPP/N STB enhance circuits */
+		regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
+				   0xff, 0x0);
+	} else {
+		/* Set HPP/N STB enhance circuits */
+		regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
+				   0xff, 0x33);
+	}
 	/* Increase ESD resistance of AU_REFN */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
 			   0x1 << 14, 0x0);
@@ -3144,6 +3173,7 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 	unsigned int mux_pga_r = priv->mux_select[MUX_PGA_R];
 	int mic_gain_l = priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP1];
 	int mic_gain_r = priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP2];
+	unsigned int reg_value = 0, rc_1 = 0, rc_2 = 0;
 
 	dev_info(priv->dev, "%s(), mux, mic %u, pga l %u, pga r %u, mic_gain l %d, r %d\n",
 		 __func__, mic_type, mux_pga_l, mux_pga_r,
@@ -3175,20 +3205,24 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 					   0xff00, 0x0000);
 			break;
 		}
-		/* Enable MICBIAS0, MISBIAS0 = 1P9V */
+		/* +Req S96818AA1-2193 shenwenlei.wt 2023.04.17 audio bringup */
+		/* Enable MICBIAS0, MISBIAS0 = 2P5V */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON9,
-				   0xff, 0x21);
+				   0xff, 0x51);
+		/* -Req S96818AA1-2193 shenwenlei.wt 2023.04.17 audio bringup */
 	}
 
 	/* mic bias 1 */
 	if (mux_pga_l == PGA_MUX_AIN1 || mux_pga_r == PGA_MUX_AIN1) {
-		/* Enable MICBIAS1, MISBIAS1 = 2P6V */
+		/* +Req S96818AA1-2193 shenwenlei.wt 2023.04.17 audio bringup */
+		/* Enable MICBIAS1, MISBIAS1 = 2P5V */
 		if (mic_type == MIC_TYPE_MUX_DCC_ECM_SINGLE)
 			regmap_write(priv->regmap,
-				     MT6358_AUDENC_ANA_CON10, 0x0161);
+				     MT6358_AUDENC_ANA_CON10, 0x0151);
 		else
 			regmap_write(priv->regmap,
-				     MT6358_AUDENC_ANA_CON10, 0x0061);
+				     MT6358_AUDENC_ANA_CON10, 0x0051);
+		/* -Req S96818AA1-2193 shenwenlei.wt 2023.04.17 audio bringup */
 	}
 
 	/* set mic pga gain */
@@ -3202,15 +3236,15 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 	if (IS_DCC_BASE(mic_type)) {
 		/* Audio L/R preamplifier DCC precharge */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-				   0xf8ff, 0x0004);
+				   0xf8fd, 0x0004);
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
-				   0xf8ff, 0x0004);
+				   0xf8fd, 0x0004);
 	} else {
 		/* reset reg */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-				   0xf8ff, 0x0000);
+				   0xf8fd, 0x0000);
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
-				   0xf8ff, 0x0000);
+				   0xf8fd, 0x0000);
 	}
 
 	if (mux_pga_l != PGA_MUX_NONE) {
@@ -3224,18 +3258,12 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 				   RG_AUDPREAMPLON_MASK_SFT,
 				   0x1 << RG_AUDPREAMPLON_SFT);
 
-		if (IS_DCC_BASE(mic_type)) {
-			/* L preamplifier DCCEN */
-			regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-					   RG_AUDPREAMPLDCCEN_MASK_SFT,
-					   0x1 << RG_AUDPREAMPLDCCEN_SFT);
-		}
-
 		/* L ADC input sel : L PGA. Enable audio L ADC */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
 				   RG_AUDADCLINPUTSEL_MASK_SFT,
 				   ADC_MUX_PREAMPLIFIER <<
 				   RG_AUDADCLINPUTSEL_SFT);
+		usleep_range(1000, 1050);
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
 				   RG_AUDADCLPWRUP_MASK_SFT,
 				   0x1 << RG_AUDADCLPWRUP_SFT);
@@ -3252,18 +3280,12 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 				   RG_AUDPREAMPRON_MASK_SFT,
 				   0x1 << RG_AUDPREAMPRON_SFT);
 
-		if (IS_DCC_BASE(mic_type)) {
-			/* R preamplifier DCCEN */
-			regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
-					   RG_AUDPREAMPRDCCEN_MASK_SFT,
-					   0x1 << RG_AUDPREAMPRDCCEN_SFT);
-		}
-
 		/* R ADC input sel : R PGA. Enable audio R ADC */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
 				   RG_AUDADCRINPUTSEL_MASK_SFT,
 				   ADC_MUX_PREAMPLIFIER <<
 				   RG_AUDADCRINPUTSEL_SFT);
+		usleep_range(1000, 1050);
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
 				   RG_AUDADCRPWRUP_MASK_SFT,
 				   0x1 << RG_AUDADCRPWRUP_SFT);
@@ -3283,6 +3305,34 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 				   0x1 << 12, 0x0);
 	}
 
+	usleep_range(500, 520);
+	regmap_read(priv->regmap, MT6358_AUDENC_ANA_CON12, &reg_value);
+	rc_1 = reg_value & 0x1f;
+	rc_2 = (reg_value >> 8 ) & 0x1f;
+	dev_dbg(priv->dev, "%s(), MT6358_AUDENC_CON12(rc2, rc1) = 0x%x(0x%x, 0x%x)\n",
+		__func__, reg_value, rc_2, rc_1);
+	if ((rc_2 == 0) || (rc_1 == 0) || (rc_1 == 0x1f) || (rc_2 == 0x1f)) {
+		/* Disable audio L ADC */
+		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
+				   RG_AUDADCLPWRUP_MASK_SFT,
+				   0x0 << RG_AUDADCLPWRUP_SFT);
+		/* Disable audio R ADC */
+		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
+				   RG_AUDADCRPWRUP_MASK_SFT,
+				   0x0 << RG_AUDADCRPWRUP_SFT);
+		/* Enable audio L ADC */
+		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
+				   RG_AUDADCLPWRUP_MASK_SFT,
+				   0x1 << RG_AUDADCLPWRUP_SFT);
+		/* Enable audio R ADC */
+		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
+				   RG_AUDADCRPWRUP_MASK_SFT,
+				   0x1 << RG_AUDADCRPWRUP_SFT);
+	}
+	usleep_range(500, 520);
+	regmap_read(priv->regmap, MT6358_AUDENC_ANA_CON12, &reg_value);
+	dev_dbg(priv->dev, "%s(), final: MT6358_AUDENC_CON12 = 0x%x\n",
+		__func__, reg_value);
 	/* here to set digital part */
 	mt6358_mtkaif_tx_enable(priv);
 
@@ -3317,12 +3367,9 @@ static void mt6358_amic_disable(struct mt6358_priv *priv)
 	/* L ADC input sel : off, disable L ADC */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
 			   0xf000, 0x0000);
-	/* L preamplifier DCCEN */
-	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-			   0x1 << 1, 0x0);
 	/* L preamplifier input sel : off, L PGA 0 dB gain */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-			   0xfffb, 0x0000);
+			   0x0ff9, 0x0000);
 
 	/* disable L preamplifier DCC precharge */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
@@ -3331,12 +3378,9 @@ static void mt6358_amic_disable(struct mt6358_priv *priv)
 	/* R ADC input sel : off, disable R ADC */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
 			   0xf000, 0x0000);
-	/* R preamplifier DCCEN */
-	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
-			   0x1 << 1, 0x0);
 	/* R preamplifier input sel : off, R PGA 0 dB gain */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
-			   0x0ffb, 0x0000);
+			   0x0ff9, 0x0000);
 
 	/* disable R preamplifier DCC precharge */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
@@ -3495,11 +3539,11 @@ static int mt6358_vow_amic_enable(struct mt6358_priv *priv)
 	if (IS_DCC_BASE(mic_type)) {
 		/* Audio L preamplifier DCC precharge */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-				   0xf8ff, 0x0004);
+				   0xf8fd, 0x0004);
 	} else {
 		/* reset reg */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-				   0xf8ff, 0x0000);
+				   0xf8fd, 0x0000);
 
 	}
 	if (mux_pga_l != PGA_MUX_NONE) {
@@ -3512,13 +3556,6 @@ static int mt6358_vow_amic_enable(struct mt6358_priv *priv)
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
 				   RG_AUDPREAMPLON_MASK_SFT,
 				   0x1 << RG_AUDPREAMPLON_SFT);
-
-		if (IS_DCC_BASE(mic_type)) {
-			/* L preamplifier DCCEN */
-			regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-					   RG_AUDPREAMPLDCCEN_MASK_SFT,
-					   0x1 << RG_AUDPREAMPLDCCEN_SFT);
-		}
 
 		/* L ADC input sel : L PGA. Enable audio L ADC */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
@@ -3568,12 +3605,9 @@ static int mt6358_vow_amic_disable(struct mt6358_priv *priv)
 	/* L ADC input sel : off, disable L ADC */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
 			   0xf000, 0x0000);
-	/* L preamplifier DCCEN */
-	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-			   0x1 << 1, 0x0);
 	/* L preamplifier input sel : off, L PGA 0 dB gain */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
-			   0xfffb, 0x0000);
+			   0x0ff9, 0x0000);
 
 	/* disable L preamplifier DCC precharge */
 	regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
@@ -4544,10 +4578,10 @@ static void start_trim_hardware(struct mt6358_priv *priv, bool buffer_on)
 
 	/* Enable AUDGLB */
 	mt6358_set_aud_global_bias(priv, true);
-
-	/* Pull-down HPL/R to AVSS30_AUD */
-	hp_pull_down(priv, true);
-
+	if (!pull_down_stay_enable) {
+		/* Pull-down HPL/R to AVSS30_AUD */
+		hp_pull_down(priv, true);
+	}
 	/* release HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
 			   0x1 << 6, 0x1 << 6);
@@ -4804,6 +4838,12 @@ static void stop_trim_hardware(struct mt6358_priv *priv)
 
 	/* Set HPL/HPR gain to mute */
 	regmap_write(priv->regmap, MT6358_ZCD_CON2, DL_GAIN_N_40DB_REG);
+
+	if (switch_stay_off) {
+		/* Disable HPP/N STB enhance circuits */
+		regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
+				   0xff, 0x0);
+	}
 	/* Increase ESD resistance of AU_REFN */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
 			0x1 << 14, 0x0);
@@ -4833,10 +4873,10 @@ static void stop_trim_hardware(struct mt6358_priv *priv)
 	/* Set HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
 			   0x1 << 6, 0x0);
-
-	/* Disable Pull-down HPL/R to AVSS30_AUD  */
-	hp_pull_down(priv, false);
-
+	if (!pull_down_stay_enable) {
+		/* Disable Pull-down HPL/R to AVSS30_AUD  */
+		hp_pull_down(priv, false);
+	}
 	/* disable AUDGLB */
 	mt6358_set_aud_global_bias(priv, false);
 
@@ -4858,9 +4898,10 @@ static void start_trim_hardware_with_lo(struct mt6358_priv *priv,
 	/* Enable AUDGLB */
 	mt6358_set_aud_global_bias(priv, true);
 
-	/* Pull-down HPL/R to AVSS30_AUD */
-	hp_pull_down(priv, true);
-
+	if (!pull_down_stay_enable) {
+		/* Pull-down HPL/R to AVSS30_AUD */
+		hp_pull_down(priv, true);
+	}
 	/* release HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
 			   0x1 << 6, 0x1 << 6);
@@ -5153,6 +5194,11 @@ static void stop_trim_hardware_with_lo(struct mt6358_priv *priv)
 	/* Set HPL/HPR gain to mute */
 	regmap_write(priv->regmap, MT6358_ZCD_CON2, DL_GAIN_N_40DB_REG);
 
+	if (switch_stay_off) {
+		/* Disable HPP/N STB enhance circuits */
+		regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
+				   0xff, 0x0);
+	}
 	/* Increase ESD resistance of AU_REFN */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
 			0x1 << 14, 0x0);
@@ -5182,10 +5228,10 @@ static void stop_trim_hardware_with_lo(struct mt6358_priv *priv)
 	/* Set HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
 			   0x1 << 6, 0x0);
-
-	/* Disable Pull-down HPL/R to AVSS30_AUD  */
-	hp_pull_down(priv, false);
-
+	if (!pull_down_stay_enable) {
+		/* Disable Pull-down HPL/R to AVSS30_AUD  */
+		hp_pull_down(priv, false);
+	}
 	/* disable AUDGLB */
 	mt6358_set_aud_global_bias(priv, false);
 
@@ -6338,9 +6384,26 @@ static void get_hp_trim_offset(struct mt6358_priv *priv, bool force)
 		 dc_trim->hp_offset[CH_L], dc_trim->hp_offset[CH_R]);
 }
 
+static void mic_type_default_init(struct mt6358_priv *priv)
+{
+	if (IS_DCC_BASE(priv->mux_select[MUX_MIC_TYPE])) {
+		/* L preamplifier DCCEN */
+		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
+					RG_AUDPREAMPLDCCEN_MASK_SFT,
+					0x1 << RG_AUDPREAMPLDCCEN_SFT);
+		/* R preamplifier DCCEN */
+		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
+					RG_AUDPREAMPRDCCEN_MASK_SFT,
+					0x1 << RG_AUDPREAMPRDCCEN_SFT);
+	}
+}
+
 static int dc_trim_thread(void *arg)
 {
 	struct mt6358_priv *priv = arg;
+
+	if (pull_down_stay_enable)
+		hp_pull_down(priv, true);
 
 	get_hp_trim_offset(priv, false);
 #ifdef CONFIG_MTK_ACCDET
@@ -7096,6 +7159,9 @@ static int mt6358_codec_init_reg(struct mt6358_priv *priv)
 	/* set gpio */
 	playback_gpio_reset(priv);
 	capture_gpio_reset(priv);
+
+	/* mic type setting */
+	mic_type_default_init(priv);
 
 	/* disable clk buf */
 	regmap_update_bits(priv->regmap, MT6358_DCXO_CW14,
@@ -8130,6 +8196,7 @@ static int mt6358_platform_driver_probe(struct platform_device *pdev)
 #ifdef CONFIG_MTK_PMIC_WRAP
 	struct device_node *pwrap_node = NULL;
 #endif
+	int ret;
 
 	priv = devm_kzalloc(&pdev->dev,
 			    sizeof(struct mt6358_priv),
@@ -8155,6 +8222,27 @@ static int mt6358_platform_driver_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 #endif
+
+	/* get switch_stay_off flag */
+	ret = of_property_read_u32(pdev->dev.of_node,
+				   "mtk_switch_stay_off", &switch_stay_off);
+	if (ret) {
+		switch_stay_off = 0;
+		dev_info(&pdev->dev,
+			"%s(), get switch_stay_off fail, default 0\n",
+			__func__);
+	}
+
+	/* get pull_down_stay_enable flag */
+	ret = of_property_read_u32(pdev->dev.of_node,
+				   "mtk_pull_down_stay_enable",
+				   &pull_down_stay_enable);
+	if (ret) {
+		pull_down_stay_enable = 0;
+		dev_info(&pdev->dev,
+			"%s(), get pull_down_stay_enable fail, default 0\n",
+			__func__);
+	}
 
 	if (IS_ERR(priv->regmap))
 		return PTR_ERR(priv->regmap);

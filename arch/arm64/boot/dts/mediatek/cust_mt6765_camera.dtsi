@@ -299,7 +299,7 @@
 	status = "okay";
 
 };
-//-bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+
 &camera_af_hw_node {
 	camaf_m1_pmic-supply = <&mt_pmic_vldo28_ldo_reg>;
 	status = "okay";

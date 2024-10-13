@@ -158,7 +158,71 @@ static ssize_t torch_brightness_store(struct device *dev,
 
 	return rc;
 }
+#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+//+bug584789,zhanghengyuan.wt,MODIFY,2021/3/8,Add Samsung flashlight file node
+static ssize_t wt_flashlight_store_torch_brightness(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int rc;
+	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
+	long brightness;
 
+	rc = kstrtol(buf, 0, &brightness);
+	if (rc)
+		return rc;
+
+	rc = -ENXIO;
+
+	switch(brightness){
+		case 0:
+			brightness = 0x00;
+			break;
+		case 1001:
+			brightness = 0x02;
+			break;
+		case 1002:
+			brightness = 0x04;
+			break;
+		case 1003:
+			brightness = 0x06;
+			break;
+		case 1005:
+			brightness = 0x08;
+			break;
+		case 1007:
+			brightness = 0x0A;
+			break;
+		default:
+			brightness = 0x06;
+			break;
+    }
+
+
+	mutex_lock(&flashlight_dev->ops_lock);
+	if (flashlight_dev->ops &&
+	    flashlight_dev->ops->set_torch_brightness) {
+		if (brightness > flashlight_dev->props.torch_max_brightness)
+			rc = -EINVAL;
+		else {
+			pr_debug("flashlight: set torch brightness to %ld\n",
+				 brightness);
+			flashlight_dev->props.torch_brightness = brightness;
+			flashlight_dev->ops->set_torch_brightness(
+				flashlight_dev, brightness);
+			rc = count;
+		}
+	}
+	mutex_unlock(&flashlight_dev->ops_lock);
+
+	if(brightness > 0)
+		flashlight_set_mode(flashlight_dev,FLASHLIGHT_MODE_TORCH);
+	else
+		flashlight_set_mode(flashlight_dev,FLASHLIGHT_MODE_OFF);
+
+	return rc;
+}
+//-bug584789,zhanghengyuan.wt,MODIFY,2021/3/8,Add Samsung flashlight file node
+#endif
 static ssize_t torch_brightness_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -167,7 +231,15 @@ static ssize_t torch_brightness_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n",
 		       flashlight_dev->props.torch_brightness);
 }
+#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+//+bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+extern ssize_t flashlight_store_enable_flashlight(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
 
+extern ssize_t flashlight_show_enable_flashlight(struct device *dev,
+		struct device_attribute *attr, char *buf);
+//-bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+#endif
 static ssize_t strobe_brightness_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -211,7 +283,9 @@ static ssize_t strobe_brightness_show(struct device *dev,
 
 
 static struct class *flashlight_class;
-
+#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+static struct class *ss_flashlight_class;  //+bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+#endif
 static int flashlight_suspend(struct device *dev)
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
@@ -247,8 +321,21 @@ static DEVICE_ATTR_RO(color_temperature);
 static DEVICE_ATTR_RO(strobe_delay);
 static DEVICE_ATTR_RW(strobe_timeout);
 static DEVICE_ATTR_RW(torch_brightness);
+#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+//+bug584789,zhanghengyuan.wt,MODIFY,2021/3/8,Add Samsung flashlight file node
+static DEVICE_ATTR(rear_flash, 0664,
+	torch_brightness_show,
+	wt_flashlight_store_torch_brightness);
+//-bug584789,zhanghengyuan.wt,MODIFY,2021/3/8,Add Samsung flashlight file node
+#endif
 static DEVICE_ATTR_RW(strobe_brightness);
-
+#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+//+bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+static DEVICE_ATTR(enable_flashlight, 0664,
+	flashlight_show_enable_flashlight,
+	flashlight_store_enable_flashlight);
+//-bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+#endif
 static struct attribute *flashlight_class_attrs[] = {
 	&dev_attr_name.attr,
 	&dev_attr_type.attr,
@@ -260,6 +347,9 @@ static struct attribute *flashlight_class_attrs[] = {
 	&dev_attr_strobe_timeout.attr,
 	&dev_attr_torch_brightness.attr,
 	&dev_attr_strobe_brightness.attr,
+	#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+	&dev_attr_enable_flashlight.attr,     //+bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+	#endif
 	NULL,
 };
 
@@ -271,8 +361,23 @@ static const struct attribute_group *flashlight_groups[] = {
 	&flashlight_group,
 	NULL,
 };
+#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+//+bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+static struct attribute *ss_flashlight_class_attrs[] = {
+	&dev_attr_rear_flash.attr,  //+bug584789,zhanghengyuan.wt,MODIFY,2021/3/8,Add Samsung flashlight file node
+	NULL,
+};
 
+static const struct attribute_group ss_flashlight_group = {
+	.attrs = ss_flashlight_class_attrs,
+};
 
+static const struct attribute_group *ss_flashlight_groups[] = {
+	&ss_flashlight_group,
+	NULL,
+};
+//-bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+#endif
 
 /**
  * flashlight_device_register - create and register a new object of
@@ -293,6 +398,9 @@ struct flashlight_device *flashlight_device_register(const char *name,
 		const struct flashlight_properties *props)
 {
 	struct flashlight_device *flashlight_dev;
+	#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+	struct flashlight_device *ss_flashlight_dev;  //+bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+	#endif
 	int rc;
 
 	pr_debug("%s: name=%s\n", __func__, name);
@@ -317,6 +425,31 @@ struct flashlight_device *flashlight_device_register(const char *name,
 		return ERR_PTR(rc);
 	}
 	flashlight_dev->ops = ops;
+#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+	//+bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+	ss_flashlight_dev = kzalloc(sizeof(*ss_flashlight_dev), GFP_KERNEL);
+	if (!ss_flashlight_dev)
+		return ERR_PTR(-ENOMEM);
+
+	mutex_init(&ss_flashlight_dev->ops_lock);
+	ss_flashlight_dev->dev.class = ss_flashlight_class;
+	ss_flashlight_dev->dev.parent = parent;
+	ss_flashlight_dev->dev.release = flashlight_device_release;
+	dev_set_name(&ss_flashlight_dev->dev, "flash");
+	dev_set_drvdata(&ss_flashlight_dev->dev, devdata);
+	/* Copy properties */
+	if (props) {
+		memcpy(&ss_flashlight_dev->props, props,
+		       sizeof(struct flashlight_properties));
+	}
+	rc = device_register(&ss_flashlight_dev->dev);
+	if (rc) {
+		kfree(ss_flashlight_dev);
+		return ERR_PTR(rc);
+	}
+	ss_flashlight_dev->ops = ops;
+	//-bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+#endif
 	return flashlight_dev;
 }
 EXPORT_SYMBOL(flashlight_device_register);
@@ -559,6 +692,9 @@ static SIMPLE_DEV_PM_OPS(flashlight_pm_ops, flashlight_suspend,
 static void __exit flashlight_class_exit(void)
 {
 	class_destroy(flashlight_class);
+	#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+	class_destroy(ss_flashlight_class);  //+bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+	#endif
 }
 
 static int __init flashlight_class_init(void)
@@ -571,6 +707,17 @@ static int __init flashlight_class_init(void)
 	}
 	flashlight_class->dev_groups = flashlight_groups;
 	flashlight_class->pm = &flashlight_pm_ops;
+	#ifdef CONFIG_MTK_FLASHLIGHT_MT6360
+	//+bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+	ss_flashlight_class = class_create(THIS_MODULE, "camera");
+	if (IS_ERR(ss_flashlight_class)) {
+		pr_info("Unable to create ss_flashlight class; errno = %ld\n",
+		       PTR_ERR(ss_flashlight_class));
+		return PTR_ERR(ss_flashlight_class);
+	}
+	ss_flashlight_class->dev_groups = ss_flashlight_groups;
+	//-bug584789,zhanghengyuan.wt,MODIFY,2021/3/10,modify Samsung flashlight node dir
+	#endif
 	return 0;
 }
 

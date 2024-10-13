@@ -13,6 +13,14 @@
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	/*Below is commom sensor */
+	{W2S5KJN1REARTRULY_SENSOR_ID, 0xA0, Common_read_region},
+	{W2S5KJN1REARST_SENSOR_ID, 0xA0, Common_read_region},
+	{W2SC202CSMICROLH_SENSOR_ID, 0xA4, Common_read_region},
+	{W2GC02M1MICROCXT_SENSOR_ID, 0xA4, Common_read_region},
+	{W2BF2253LMICROSJ_SENSOR_ID, 0xA4, Common_read_region},
+    {W2SC1300MCSFRONTST_SENSOR_ID, 0xA0, Common_read_region},
+    {W2SC1300MCSFRONTTXD_SENSOR_ID, 0xA0, Common_read_region},
+	#if 0
 	{IMX586_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{IMX576_SENSOR_ID, 0xA2, Common_read_region},
 	{IMX519_SENSOR_ID, 0xA0, Common_read_region},
@@ -28,6 +36,7 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{IMX350_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX386_MONO_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX499_SENSOR_ID, 0xA0, Common_read_region},
+	#endif
 	/*  ADD before this line */
 	{0, 0, 0}       /*end of list */
 };

@@ -36,6 +36,7 @@
 #include <linux/uaccess.h>
 #include <uapi/linux/sched/types.h>
 #include <linux/syscalls.h>
+#include <linux/power_supply.h>
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)) \
 	|| (LINUX_VERSION_CODE > KERNEL_VERSION(4, 10, 0))
 #include <uapi/linux/sched/types.h>
@@ -179,7 +180,8 @@
 #define ENABLE     1
 #define DISABLE   0
 
-extern uint32_t lcm_name;
+extern uint32_t g_lcm_name;
+extern int gtp_charger_flag;
 
 static const struct of_device_id tpd_of_match[] = {
 	{.compatible = "gcore,touchscreen"},
@@ -316,6 +318,8 @@ struct gcore_dev {
 	struct input_dev *input_device;
 	struct task_struct *thread;
 	u8 *touch_data;
+	int tpd_charger_flag;
+	int tpd_headset_flag;
 
 #if defined(CONFIG_TOUCH_DRIVER_INTERFACE_I2C)
 	struct i2c_client *bus_device;
@@ -368,6 +372,8 @@ struct gcore_dev {
 #ifdef CONFIG_DRM
 	struct notifier_block drm_notifier;
 #endif
+
+	u8 *fw_mem;
 
 };
 
@@ -446,4 +452,6 @@ extern int gcore_ts_drm_notifier_callback(struct notifier_block *self, unsigned 
 
 extern int gcore_start_mp_test(void);
 extern int gcore_headset_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
+extern int gcore_charger_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
+extern int gcore_fw_event_notify(enum fw_event_type event);
 #endif /* GCORE_TPD_COMMON_H_  */

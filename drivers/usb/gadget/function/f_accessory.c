@@ -43,10 +43,6 @@
 #include <linux/configfs.h>
 #include <linux/usb/composite.h>
 
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-#include <linux/usblog_proc_notify.h>
-#endif
-
 #define MAX_INST_NAME_LEN        40
 #define BULK_BUFFER_SIZE    16384
 #define ACC_STRING_SIZE     256
@@ -663,7 +659,7 @@ requeue_req:
 		r = -EIO;
 		goto done;
 	} else {
-		pr_debug("rx %pK queue\n", req);
+		pr_debug("rx %p queue\n", req);
 	}
 
 	/* wait for a request to complete */
@@ -686,7 +682,7 @@ copy_data:
 		if (req->actual == 0)
 			goto requeue_req;
 
-		pr_debug("rx %pK %u\n", req, req->actual);
+		pr_debug("rx %p %u\n", req, req->actual);
 		xfer = (req->actual < count) ? req->actual : count;
 		r = xfer;
 		if (copy_to_user(buf, req->buf, xfer))
@@ -816,7 +812,6 @@ static int acc_open(struct inode *ip, struct file *fp)
 		return -ENODEV;
 
 	if (atomic_xchg(&dev->open_excl, 1)) {
-		printk(KERN_INFO "usb: acc_open_EBUSY\n");
 		put_acc_dev(dev);
 		return -EBUSY;
 	}
@@ -1006,6 +1001,26 @@ err:
 }
 EXPORT_SYMBOL_GPL(acc_ctrlrequest);
 
+int acc_ctrlrequest_composite(struct usb_composite_dev *cdev,
+			      const struct usb_ctrlrequest *ctrl)
+{
+	u16 w_length = le16_to_cpu(ctrl->wLength);
+
+	if (w_length > USB_COMP_EP0_BUFSIZ) {
+		if (ctrl->bRequestType & USB_DIR_IN) {
+			/* Cast away the const, we are going to overwrite on purpose. */
+			__le16 *temp = (__le16 *)&ctrl->wLength;
+
+			*temp = cpu_to_le16(USB_COMP_EP0_BUFSIZ);
+			w_length = USB_COMP_EP0_BUFSIZ;
+		} else {
+			return -EINVAL;
+		}
+	}
+	return acc_ctrlrequest(cdev, ctrl);
+}
+EXPORT_SYMBOL_GPL(acc_ctrlrequest_composite);
+
 static int
 __acc_function_bind(struct usb_configuration *c,
 			struct usb_function *f, bool configfs)
@@ -1015,7 +1030,7 @@ __acc_function_bind(struct usb_configuration *c,
 	int			id;
 	int			ret;
 
-	DBG(cdev, "acc_function_bind dev: %pK\n", dev);
+	DBG(cdev, "acc_function_bind dev: %p\n", dev);
 
 	if (configfs) {
 		if (acc_string_defs[INTERFACE_STRING_INDEX].id == 0) {
@@ -1072,10 +1087,6 @@ kill_all_hid_devices(struct acc_dev *dev)
 	struct list_head *entry, *temp;
 	unsigned long flags;
 
-	/* do nothing if usb accessory device doesn't exist */
-	if (!dev)
-		return;
-
 	spin_lock_irqsave(&dev->lock, flags);
 	list_for_each_safe(entry, temp, &dev->hid_list) {
 		hid = list_entry(entry, struct acc_hid_dev, list);
@@ -1121,11 +1132,8 @@ acc_function_unbind(struct usb_configuration *c, struct usb_function *f)
 static void acc_start_work(struct work_struct *data)
 {
 	char *envp[2] = { "ACCESSORY=START", NULL };
-	printk(KERN_INFO "usb: Send uevent, ACCESSORY=START\n");
+
 	kobject_uevent_env(&acc_device.this_device->kobj, KOBJ_CHANGE, envp);
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	store_usblog_notify(NOTIFY_USBSTATE, (void *)envp[0], NULL);
-#endif
 }
 
 static int acc_hid_init(struct acc_hid_dev *hdev)
@@ -1408,7 +1416,6 @@ static struct usb_function_instance *acc_alloc_inst(void)
 	err = acc_setup();
 	if (err) {
 		kfree(fi_acc);
-		pr_err("Error setting ACCESSORY\n");
 		return ERR_PTR(err);
 	}
 
@@ -1435,8 +1442,6 @@ int acc_ctrlrequest_configfs(struct usb_function *f,
 static struct usb_function *acc_alloc(struct usb_function_instance *fi)
 {
 	struct acc_dev *dev = get_acc_dev();
-
-	pr_info("acc_alloc\n");
 
 	dev->function.name = "accessory";
 	dev->function.strings = acc_strings,

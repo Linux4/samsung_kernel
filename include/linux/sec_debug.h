@@ -425,9 +425,6 @@ enum sec_debug_extra_buf_type {
 	INFO_SMPL,
 	INFO_ETC,
 	INFO_ESR,
-	INFO_PCB,
-	INFO_SMD,
-	INFO_CHI,
 	INFO_KLG,
 	INFO_LEVEL,
 	INFO_MAX_A,
@@ -592,7 +589,6 @@ extern void sec_debug_set_extra_info_bug_verbose(unsigned long addr);
 extern void sec_debug_set_extra_info_panic(char *str);
 extern void sec_debug_set_extra_info_backtrace(struct pt_regs *regs);
 extern void sec_debug_set_extra_info_wdt_lastpc(unsigned long stackframe[][WDT_FRAME], unsigned int kick, unsigned int check);
-extern void sec_debug_set_extra_info_dpm_timeout(char *devname);
 extern void sec_debug_set_extra_info_smpl(unsigned int count);
 extern void sec_debug_set_extra_info_esr(unsigned int esr);
 extern void sec_debug_set_extra_info_zswap(char *str);
@@ -654,35 +650,6 @@ extern int  sec_debug_is_enabled_for_ssr(void);
 extern void sec_debug_avc_log(char *fmt, ...);
 #else
 #define sec_debug_avc_log(a, ...)		do { } while(0)
-#endif
-
-/**
- * sec_debug_tsp_log : Leave tsp log in tsp_msg file.
- * ( Timestamp + Tsp logs )
- * sec_debug_tsp_log_msg : Leave tsp log in tsp_msg file and
- * add additional message between timestamp and tsp log.
- * ( Timestamp + additional Message + Tsp logs )
- */
-#ifdef CONFIG_SEC_DEBUG_TSP_LOG
-extern void sec_debug_tsp_log(char *fmt, ...);
-extern void sec_debug_tsp_log_msg(char *msg, char *fmt, ...);
-extern void sec_debug_tsp_raw_data(char *fmt, ...);
-extern void sec_debug_tsp_raw_data_msg(char *msg, char *fmt, ...);
-extern void sec_tsp_raw_data_clear(void);
-extern void sec_debug_tsp_command_history(char *buf);
-#else
-#define sec_debug_tsp_log(a, ...)		do { } while (0)
-#define sec_debug_tsp_log_msg(a, b, ...)		do { } while (0)
-#define sec_debug_tsp_raw_data(a, ...)			do { } while (0)
-#define sec_debug_tsp_raw_data_msg(a, b, ...)		do { } while (0)
-#define sec_tsp_raw_data_clear()			do { } while (0)
-#define sec_debug_tsp_command_history(a)	do { } while (0)
-#endif /* CONFIG_SEC_DEBUG_TSP_LOG */
-
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-struct tsp_dump_callbacks {
-	void (*inform_dump)(void);
-};
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_LAST_KMSG

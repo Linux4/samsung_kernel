@@ -82,6 +82,21 @@ void mtk_drm_refresh_tag_end(struct mtk_ddp_comp *ddp_comp)
 		hwc_pid, crtc_idx, 0);
 }
 
+void mtk_drm_default_tag(struct mtk_ddp_comp *ddp_comp, const char *tag, enum TRACE_PATTERN pat)
+{
+	struct mtk_drm_crtc *mtk_crtc = ddp_comp->mtk_crtc;
+
+	if (!mtk_crtc)
+		return;
+
+	if (pat == TRACE_MARK) {
+		mtk_drm_trace_default("%d|%s|%d", hwc_pid, tag, 1);
+		mtk_drm_trace_default("%d|%s|%d", hwc_pid, tag, 0);
+	} else {
+		mtk_drm_trace_default("%d|%s|%d", hwc_pid, tag, pat);
+	}
+}
+
 #ifdef DRM_MMPATH
 int get_HWC_gpid(struct mtk_ddp_comp *ddp_comp)
 {

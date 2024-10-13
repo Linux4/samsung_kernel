@@ -26,6 +26,7 @@ enum rtc_spare_enum {
 	RTC_PWRON_LOGO,
 	RTC_32K_LESS,
 	RTC_LP_DET,
+	RTC_ENABLE_BIND,//CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 	RTC_FG_INIT,
 	RTC_SPAR_NUM
 };

@@ -40,7 +40,12 @@
 
 
 #define ACCDET_DEVNAME "accdet"
-
+/* +Req S96818AA1-2210 shenwenlei.wt 20230501 add headphone status node */
+#if defined(CONFIG_WT_PROJECT_HEADPHONE_NODE)
+#define ACCDET_AUDIO_DEVNAME "audio"
+#define ACCDET_AUDIO_EARJACK_DEVNAME "earjack"
+#endif
+/* -Req S96818AA1-2210 shenwenlei.wt 20230501 add headphone status node */
 /****** SW ENV define *************************************/
 #define PMIC_ACCDET_KERNEL         1
 #define PMIC_ACCDET_CTP            0

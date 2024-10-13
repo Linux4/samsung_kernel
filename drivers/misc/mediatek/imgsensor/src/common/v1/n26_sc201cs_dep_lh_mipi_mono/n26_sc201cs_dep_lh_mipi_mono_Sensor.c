@@ -60,6 +60,8 @@
 	pr_info(PFX "[%s] " format, __func__, ##args)
 
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
+//bug760445 , liangyiyi.wt, MODIFY, 2022/6/9, modify for solving the 2st dep camera leakage during standby
+extern int iovdd_alway_on;
 
 
 static imgsensor_info_struct imgsensor_info = { 
@@ -152,7 +154,7 @@ static imgsensor_info_struct imgsensor_info = {
     .hs_video_delay_frame = 5,    //enter high speed video  delay frame num
     .slim_video_delay_frame = 5,//enter slim video delay frame num
 
-    .isp_driving_current = ISP_DRIVING_8MA, //mclk driving current
+    .isp_driving_current = ISP_DRIVING_4MA, //mclk driving current //+bug 720367, wangmingli.wt,MODIFY,2022/6/30, optimize desense of depth camera.
     .sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,//sensor_interface_type
     .mipi_sensor_type = MIPI_OPHY_NCSI2, //0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2
     .mipi_settle_delay_mode = MIPI_SETTLEDELAY_AUTO,//0,MIPI_SETTLEDELAY_AUTO; 1,MIPI_SETTLEDELAY_MANNUAL
@@ -797,7 +799,9 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
         do {
             *sensor_id = return_sensor_id() + 1;
             if (*sensor_id == imgsensor_info.sensor_id) {               
-                LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id,*sensor_id);      
+                LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id,*sensor_id);
+                //bug760445 , liangyiyi.wt, MODIFY, 2022/6/9, modify for solving the 2st dep camera leakage during standby
+                iovdd_alway_on=1;
                 return ERROR_NONE;
             }   
             LOG_INF("Read sensor id fail, i2c_write_id: 0x%x, sensor id:0x%x\n", imgsensor.i2c_write_id,*sensor_id);

@@ -195,12 +195,10 @@ bool check_print_msg_info(const struct ipi_msg_t *p_ipi_msg)
 	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_DLCOPY)
 		return false;
 
-	if (p_ipi_msg->task_scene == TASK_SCENE_CAPTURE_UL1 &&
-	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_ULCOPY)
-		return false;
-
-	if (p_ipi_msg->task_scene == TASK_SCENE_CAPTURE_RAW &&
-	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_ULCOPY)
+	if ((p_ipi_msg->task_scene == TASK_SCENE_CAPTURE_UL1 ||
+	     p_ipi_msg->task_scene == TASK_SCENE_CAPTURE_RAW ||
+	     p_ipi_msg->task_scene == TASK_SCENE_UL_PROCESS) &&
+	    (p_ipi_msg->msg_id == AUDIO_DSP_TASK_ULCOPY))
 		return false;
 
 	if (p_ipi_msg->task_scene == TASK_SCENE_FAST &&
@@ -225,38 +223,24 @@ bool check_print_msg_info(const struct ipi_msg_t *p_ipi_msg)
 static void audio_ipi_msg_dispatcher(int id, void *data, unsigned int len)
 {
 	struct ipi_msg_t *p_ipi_msg = NULL;
-	struct ipi_queue_handler_t *handler = NULL;
 
-	AUD_LOG_V("data = %p, len = %u", data, len);
-
-	if (data == NULL) {
-		pr_info("drop msg due to data = NULL");
+	if (data == NULL)
 		return;
-	}
-	if (len < IPI_MSG_HEADER_SIZE || len > MAX_IPI_MSG_BUF_SIZE) {
-		pr_info("drop msg due to len(%u) error!!", len);
+	if (len < IPI_MSG_HEADER_SIZE || len > MAX_IPI_MSG_BUF_SIZE)
 		return;
-	}
 
 	p_ipi_msg = (struct ipi_msg_t *)data;
-	if (check_msg_format(p_ipi_msg, len) != 0) {
-		pr_info("drop msg due to ipi fmt err");
+	if (check_msg_format(p_ipi_msg, len) != 0)
 		return;
-	}
 
 	if (p_ipi_msg->ack_type == AUDIO_IPI_MSG_ACK_BACK) {
-		if (check_print_msg_info(p_ipi_msg) == true)
-			DUMP_IPI_MSG("ack back", p_ipi_msg);
-		handler = get_ipi_queue_handler(p_ipi_msg->task_scene);
-		if (handler != NULL)
-			send_message_ack(handler, p_ipi_msg);
+		send_message_ack(get_ipi_queue_handler(p_ipi_msg->task_scene),
+				 p_ipi_msg);
 	} else if (p_ipi_msg->data_type == AUDIO_IPI_DMA &&
 		   p_ipi_msg->target_layer == AUDIO_IPI_LAYER_TO_HAL)
 		audio_ipi_dma_msg_to_hal(p_ipi_msg);
 	else {
-		if (recv_message_array[p_ipi_msg->task_scene] == NULL)
-			DUMP_IPI_MSG("task not reg cbk!!", p_ipi_msg);
-		else
+		if (recv_message_array[p_ipi_msg->task_scene] != NULL)
 			recv_message_array[p_ipi_msg->task_scene](p_ipi_msg);
 	}
 }
@@ -476,6 +460,7 @@ int audio_send_ipi_buf_to_dsp(
 	struct ipi_msg_t *p_ipi_msg,
 	uint8_t task_scene, /* task_scene_t */
 	uint16_t msg_id,
+	uint32_t param2,
 	void    *data_buffer,
 	uint32_t data_size)
 {
@@ -487,7 +472,7 @@ int audio_send_ipi_buf_to_dsp(
 		       AUDIO_IPI_MSG_NEED_ACK,
 		       msg_id,
 		       data_size,
-		       0,
+		       param2,
 		       data_buffer);
 }
 
@@ -496,6 +481,7 @@ int audio_recv_ipi_buf_from_dsp(
 	struct ipi_msg_t *p_ipi_msg,
 	uint8_t task_scene,
 	uint16_t msg_id,
+	uint32_t param2,
 	void    *data_buffer,
 	uint32_t max_data_size,
 	uint32_t *data_size)
@@ -534,6 +520,7 @@ int audio_recv_ipi_buf_from_dsp(
 	p_ipi_msg->ack_type     = AUDIO_IPI_MSG_NEED_ACK;
 	p_ipi_msg->msg_id       = msg_id;
 	p_ipi_msg->payload_size = sizeof(struct aud_data_t);
+	p_ipi_msg->param2       = param2;
 
 	/* alloc shared DRAM & put the addr info into payload */
 	if (p_ipi_msg->payload_size > MAX_IPI_MSG_PAYLOAD_SIZE) {

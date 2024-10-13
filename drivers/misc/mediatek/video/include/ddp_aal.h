@@ -150,6 +150,8 @@ struct DISP_AAL_PARAM {
 	aal_u32_handle_t dre30_gain;
 };
 
+extern struct cust_mt65xx_led *pled_dtsi;
+
 void disp_aal_on_end_of_frame(void);
 void disp_aal_on_end_of_frame_by_module(enum disp_aal_id_t id);
 void disp_aal_on_start_of_frame(enum disp_aal_id_t id);

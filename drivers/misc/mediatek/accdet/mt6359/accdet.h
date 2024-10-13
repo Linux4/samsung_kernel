@@ -151,6 +151,7 @@ struct head_dts_data {
 	unsigned int moisture_detect_enable;
 	unsigned int eint_detect_mode;
 	unsigned int eint_use_ext_res;
+	unsigned int eint_comp_vth;
 	unsigned int moisture_detect_mode;
 	unsigned int moisture_comp_vth;
 	unsigned int moisture_comp_vref2;

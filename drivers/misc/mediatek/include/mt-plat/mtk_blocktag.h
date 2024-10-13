@@ -33,7 +33,6 @@
 
 struct page_pid_logger {
 	short pid;
-	short mode;
 };
 
 #ifdef CONFIG_MTK_USE_RESERVED_EXT_MEM
@@ -269,7 +268,6 @@ void mtk_btag_klog(struct mtk_blocktag *btag, struct mtk_btag_trace *tr);
 void mtk_btag_pidlog_map_sg(struct request_queue *q, struct bio *bio,
 	struct bio_vec *bvec);
 void mtk_btag_pidlog_copy_pid(struct page *src, struct page *dst);
-int mtk_btag_pidlog_get_mode(struct page *p);
 void mtk_btag_pidlog_submit_bio(struct bio *bio);
 void mtk_btag_pidlog_set_pid(struct page *p, int mode, bool write);
 void mtk_btag_pidlog_set_pid_pages(struct page **page, int page_cnt,

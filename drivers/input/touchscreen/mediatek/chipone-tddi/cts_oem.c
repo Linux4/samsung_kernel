@@ -29,18 +29,18 @@ static struct platform_device hwinfo_device = {
 
 /* Default settings if device tree NOT exist */
 #define OEM_OF_DEF_PROPVAL_RAWDATA_FRAMES   1
-#define OEM_OF_DEF_PROPVAL_RAWDATA_MIN      1610
-#define OEM_OF_DEF_PROPVAL_RAWDATA_MAX      2990
+#define OEM_OF_DEF_PROPVAL_RAWDATA_MIN      1404
+#define OEM_OF_DEF_PROPVAL_RAWDATA_MAX      3294
 #define OEM_OF_DEF_PROPVAL_NOISE_FRAMES     50
-#define OEM_OF_DEF_PROPVAL_NOISE_MAX        80
-#define OEM_OF_DEF_PROPVAL_OPEN_MIN         3466
+#define OEM_OF_DEF_PROPVAL_NOISE_MAX        63
+#define OEM_OF_DEF_PROPVAL_OPEN_MIN         3465
 #define OEM_OF_DEF_PROPVAL_SHORT_MIN        500
 #define OEM_OF_DEF_PROPVAL_COMP_CAP_MIN     1
 #define OEM_OF_DEF_PROPVAL_COMP_CAP_MAX     126
 
 #define OEM_OF_LEAD_DEF_PROPVAL_RAWDATA_FRAMES   1
-#define OEM_OF_LEAD_DEF_PROPVAL_RAWDATA_MIN      1540
-#define OEM_OF_LEAD_DEF_PROPVAL_RAWDATA_MAX      2860
+#define OEM_OF_LEAD_DEF_PROPVAL_RAWDATA_MIN      1352
+#define OEM_OF_LEAD_DEF_PROPVAL_RAWDATA_MAX      3132
 #define OEM_OF_LEAD_DEF_PROPVAL_NOISE_FRAMES     50
 #define OEM_OF_LEAD_DEF_PROPVAL_NOISE_MAX        58
 #define OEM_OF_LEAD_DEF_PROPVAL_OPEN_MIN         3119
@@ -60,11 +60,11 @@ static struct platform_device hwinfo_device = {
 #define OEM_OF_DJN_DEF_PROPVAL_COMP_CAP_MAX     126
 
 #define OEM_OF_TM_DEF_PROPVAL_RAWDATA_FRAMES   1
-#define OEM_OF_TM_DEF_PROPVAL_RAWDATA_MIN      1228
-#define OEM_OF_TM_DEF_PROPVAL_RAWDATA_MAX      2848
+#define OEM_OF_TM_DEF_PROPVAL_RAWDATA_MIN      1475
+#define OEM_OF_TM_DEF_PROPVAL_RAWDATA_MAX      3415
 #define OEM_OF_TM_DEF_PROPVAL_NOISE_FRAMES     50
-#define OEM_OF_TM_DEF_PROPVAL_NOISE_MAX        76
-#define OEM_OF_TM_DEF_PROPVAL_OPEN_MIN         2772
+#define OEM_OF_TM_DEF_PROPVAL_NOISE_MAX        58
+#define OEM_OF_TM_DEF_PROPVAL_OPEN_MIN         3465
 #define OEM_OF_TM_DEF_PROPVAL_SHORT_MIN        500
 #define OEM_OF_TM_DEF_PROPVAL_COMP_CAP_MIN     1
 #define OEM_OF_TM_DEF_PROPVAL_COMP_CAP_MAX     126
@@ -1248,16 +1248,16 @@ static int32_t selftest_proc_open(struct inode *inode, struct file *file)
     cts_info("Open '/proc/" OEM_SELFTEST_PROC_FILENAME "'");
 
     if (!oem_data->test_config_from_dt_has_parsed) {
-        if (lcm_name == 6) {
-            ret = parse_selftest_dt(oem_data, cts_data->spi_client->dev.of_node);
-        }
-        if (lcm_name == 8) {
-            ret = parse_selftest_dt_lead(oem_data, cts_data->spi_client->dev.of_node);
-        }
-        if (lcm_name == 10) {
+        if (g_lcm_name == 6) {
             ret = parse_selftest_dt_djn(oem_data, cts_data->spi_client->dev.of_node);
         }
-        if (lcm_name == 16) {
+        if (g_lcm_name == 12) {
+            ret = parse_selftest_dt_lead(oem_data, cts_data->spi_client->dev.of_node);
+        }
+        if (g_lcm_name == 11) {
+            ret = parse_selftest_dt(oem_data, cts_data->spi_client->dev.of_node);
+        }
+        if (g_lcm_name == 16) {
             ret = parse_selftest_dt_tm(oem_data, cts_data->spi_client->dev.of_node);
         }
         if (ret) {

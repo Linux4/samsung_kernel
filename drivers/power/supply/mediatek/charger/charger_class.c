@@ -338,6 +338,26 @@ int charger_dev_get_mivr(struct charger_device *chg_dev, u32 *uV)
 }
 EXPORT_SYMBOL(charger_dev_get_mivr);
 
+int charger_dev_set_shipmode(struct charger_device *chg_dev, bool en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->set_shipmode)
+		return chg_dev->ops->set_shipmode(chg_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_shipmode);
+
+int charger_dev_set_shipmode_delay(struct charger_device *chg_dev, bool en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->set_shipmode)
+		return chg_dev->ops->set_shipmode_delay(chg_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_shipmode_delay);
+
 int charger_dev_enable_powerpath(struct charger_device *chg_dev, bool en)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -775,6 +795,15 @@ int charger_dev_enable_hidden_mode(struct charger_device *charger_dev, bool en)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_enable_hidden_mode);
+
+int charger_dev_hz_mode(struct charger_device *chg_dev, bool en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->hz_mode)
+		return chg_dev->ops->hz_mode(chg_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_hz_mode);
 
 int charger_dev_enable_bleed_discharge(struct charger_device *charger_dev,
 				       bool en)

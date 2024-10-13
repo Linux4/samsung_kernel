@@ -568,6 +568,68 @@ static int rtc_pm_event(struct notifier_block *notifier, unsigned long pm_event,
 	return NOTIFY_DONE;
 }
 
+//+CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
+#ifdef WT_COMPILE_FACTORY_VERSION
+struct mt6358_rtc *rtc_bind = NULL;
+static struct notifier_block mtk_restart_bind_handler;
+
+#if 0
+static void rtc_mark_bind(struct mt6358_rtc *rtc)
+{
+	pr_notice("%s\n", __func__);
+
+	mutex_lock(&rtc->lock);
+	regmap_field_write(rtc->spare[SPARE_BIND], 1);
+	mtk_rtc_write_trigger(rtc);
+	mutex_unlock(&rtc->lock);
+}
+#endif
+
+static void reboot_bind(char mode, const char *cmd)
+{
+	if(NULL == rtc_bind)
+	{
+		pr_err("%s\n", __func__);
+		return;
+	}
+	printk("%s,%d,cmd:%s\n",__func__,__LINE__,cmd);
+	if(strcmp(cmd,"bind") == 0)
+	{
+		printk("%s,%d,cmd:%s\n",__func__,__LINE__,cmd);
+		rtc_mark_bind();
+	}
+}
+
+static int mtk_reboot_bind_handle(struct notifier_block *this,
+        unsigned long mode, void *cmd)
+{
+	if(NULL == cmd)
+	{
+		pr_err("%s\n", __func__);
+		return NOTIFY_DONE;
+	}
+    pr_info("REBOOT BIND happen!!!\n");
+    reboot_bind(mode, cmd);
+    pr_info("REBOOT BIND end!!!!\n");
+    return NOTIFY_DONE;
+}
+
+static void reboot_bind_init(void)
+{
+    int ret;
+
+    mtk_restart_bind_handler.notifier_call = mtk_reboot_bind_handle;
+    mtk_restart_bind_handler.priority = 128;
+    pr_info("\n register_restart_handler- 0x%p, Notify call: - 0x%p\n",
+             &mtk_restart_bind_handler, mtk_restart_bind_handler.notifier_call);
+    ret = register_reboot_notifier(&mtk_restart_bind_handler);
+    if (ret)
+            pr_notice("REBOOT BIND cannot register mtk_restart_bind_handler!!!!\n");
+    pr_info("REBOOT BIND register mtk_restart_bind_handler  ok!!!!\n");
+}
+#endif
+//-CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
+
 static struct notifier_block rtc_pm_notifier_func = {
 	.notifier_call = rtc_pm_event,
 	.priority = 0,
@@ -630,7 +692,7 @@ void mtk_rtc_lp_exception(void)
 	rtc_read(RTC_PROT, &prot);
 	rtc_read(RTC_CON, &con);
 	rtc_read(RTC_TC_SEC, &sec1);
-	mdelay(2000);
+	msleep(2000);
 	rtc_read(RTC_TC_SEC, &sec2);
 
 	pr_emerg("!!! 32K WAS STOPPED !!!\n"
@@ -1193,6 +1255,14 @@ static int mtk_rtc_pdrv_probe(struct platform_device *pdev)
 		dev_notice(&pdev->dev,
 			"%s: failed to register mtk_rtc_dbg\n",	__func__);
 #endif
+
+//+CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
+#ifdef WT_COMPILE_FACTORY_VERSION
+	rtc_bind = rtc;
+	reboot_bind_init();
+#endif
+//-CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
+
 	return 0;
 out_free_irq:
 	free_irq(rtc->irq, rtc->rtc_dev);

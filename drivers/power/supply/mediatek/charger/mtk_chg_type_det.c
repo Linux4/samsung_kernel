@@ -43,8 +43,18 @@
 #include <mt-plat/v1/mtk_charger.h>
 #include <pmic.h>
 #include <tcpm.h>
+#include <tcpci_core.h>
 
 #include "mtk_charger_intf.h"
+
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+#include <../../../misc/mediatek/leds/leds-mtk-disp.h>
+#endif
+//zhaosidong.wt, power swap without usb disconnect
+bool g_ignore_usb;
+#ifdef CONFIG_MT6360_PMU_CHARGER
+extern bool mt6360_get_is_host(void);
+#endif
 
 struct tag_bootmode {
 	u32 size;
@@ -70,6 +80,9 @@ static const unsigned int usb_extcon_cable[] = {
 };
 #endif
 
+//zhaosidong.wt,CHG driver porting
+static enum charger_type g_chr_type;
+
 void __attribute__((weak)) fg_charger_in_handler(void)
 {
 	pr_notice("%s not defined\n", __func__);
@@ -94,6 +107,11 @@ struct chg_type_info {
 	bool ignore_usb;
 	bool plugin;
 	bool bypass_chgdet;
+//Bug770490,gudi.wt,sysfs node of typec cc polarity
+	int polarity_state;
+#ifdef CONFIG_MTK_TYPEC_WATER_DETECT
+	bool water_detected;
+#endif
 #ifdef CONFIG_MACH_MT6771
 	struct power_supply *chr_psy;
 	struct notifier_block psy_nb;
@@ -116,10 +134,12 @@ static const char * const mtk_chg_type_name[] = {
 	"Charging USB Host",
 	"Non-standard Charger",
 	"Standard Charger",
+	"Apple 2.4A Charger",
 	"Apple 2.1A Charger",
 	"Apple 1.0A Charger",
 	"Apple 0.5A Charger",
 	"Wireless Charger",
+	"Samsung Charger",
 };
 
 static void dump_charger_name(enum charger_type type)
@@ -130,9 +150,11 @@ static void dump_charger_name(enum charger_type type)
 	case CHARGING_HOST:
 	case NONSTANDARD_CHARGER:
 	case STANDARD_CHARGER:
+	case APPLE_2_4A_CHARGER:
 	case APPLE_2_1A_CHARGER:
 	case APPLE_1_0A_CHARGER:
 	case APPLE_0_5A_CHARGER:
+	case SAMSUNG_CHARGER:
 		pr_info("%s: charger type: %d, %s\n", __func__, type,
 			mtk_chg_type_name[type]);
 		break;
@@ -171,6 +193,9 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 	struct device_node *boot_node = NULL;
 	struct tag_bootmode *tag = NULL;
 	int boot_mode = 11;//UNKNOWN_BOOT
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	struct chg_type_info *cti = mtk_chg->cti;
+#endif
 	dev = mtk_chg->dev;
 	if (dev != NULL){
 		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
@@ -194,10 +219,23 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 		if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		    boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
 			pr_notice("%s: Unplug Charger/USB\n", __func__);
-			pr_notice("%s: system_state=%d\n", __func__,
-				system_state);
-			if (system_state != SYSTEM_POWER_OFF)
-				kernel_power_off();
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+			pr_info("%s error_recovery_once = %d\n", __func__,
+				cti->tcpc->pd_port.error_recovery_once);
+			if (cti->tcpc->pd_port.error_recovery_once != 1) {
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
+				pr_notice("%s: system_state=%d\n", __func__,
+					system_state);
+				if (system_state != SYSTEM_POWER_OFF) {
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+					mt_leds_brightness_set("lcd-backlight", 0);
+#endif
+					msleep(200);
+					kernel_power_off();
+				}
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+			}
+#endif
 		}
 	}
 
@@ -275,6 +313,7 @@ static int mt_charger_set_property(struct power_supply *psy,
 	#ifdef CONFIG_EXTCON_USB_CHG
 	struct usb_extcon_info *info;
 	#endif
+	bool is_host = 0;
 
 	pr_info("%s\n", __func__);
 
@@ -295,6 +334,7 @@ static int mt_charger_set_property(struct power_supply *psy,
 		return 0;
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		mtk_chg->chg_type = val->intval;
+		g_chr_type = val->intval;
 		if (mtk_chg->chg_type != CHARGER_UNKNOWN)
 			charger_manager_force_disable_power_path(
 				cti->chg_consumer, MAIN_CHARGER, false);
@@ -308,7 +348,11 @@ static int mt_charger_set_property(struct power_supply *psy,
 
 	dump_charger_name(mtk_chg->chg_type);
 
-	if (!cti->ignore_usb) {
+#ifdef CONFIG_MT6360_PMU_CHARGER
+	is_host = mt6360_get_is_host();
+#endif
+
+	if (!cti->ignore_usb && !is_host) {
 		/* usb */
 		if ((mtk_chg->chg_type == STANDARD_HOST) ||
 			(mtk_chg->chg_type == CHARGING_HOST) ||
@@ -318,21 +362,28 @@ static int mt_charger_set_property(struct power_supply *psy,
 
 				send_otg_notify(o_notify, NOTIFY_EVENT_USB_CABLE, 1);
 			}
-				mt_usb_connect_v1();
-#ifdef CONFIG_EXTCON_USB_CHG
+			mt_usb_connect_v1();
+			#ifdef CONFIG_EXTCON_USB_CHG
 			info->vbus_state = 1;
-#endif
+			#endif
 		} else {
 			struct otg_notify *o_notify = get_otg_notify();
 
 			send_otg_notify(o_notify, NOTIFY_EVENT_USB_CABLE, 0);
 			mt_usb_disconnect_v1();
-#ifdef CONFIG_EXTCON_USB_CHG
+			#ifdef CONFIG_EXTCON_USB_CHG
 			info->vbus_state = 0;
-#endif
+			#endif
+		}
+//zhaosidong.wt, pr or dr swap without usb disconnect
+	} else {
+		if (mtk_chg->chg_type != CHARGER_UNKNOWN){
+			pr_notice("%s:force Standard USB Host\n",__func__);
+			mtk_chg->chg_type = STANDARD_HOST;
 		}
 	}
 
+	dump_charger_name(mtk_chg->chg_type);
 	queue_work(cti->chg_in_wq, &cti->chg_in_work);
 	#ifdef CONFIG_EXTCON_USB_CHG
 	if (!IS_ERR(info->edev))
@@ -372,10 +423,16 @@ static int mt_ac_get_property(struct power_supply *psy,
 	return 0;
 }
 
+//Bug773998,gudi.wt,charging type report
+extern  bool mtk_is_pep_series_connect(struct charger_manager *info);
 static int mt_usb_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
 {
 	struct mt_charger *mtk_chg = power_supply_get_drvdata(psy);
+	struct charger_manager *cm = mtk_chg->cti->chg_consumer->cm;
+	struct chg_type_info *cti = NULL; //container_of(pnb,
+//		struct chg_type_info, pd_nb)
+	cti = mtk_chg->cti;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -390,6 +447,48 @@ static int mt_usb_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		val->intval = 5000000;
+		break;
+//zhaosidong.wt, 2020/12/16, sysfs node of typec cc polarity
+	case POWER_SUPPLY_PROP_TYPEC_POLARITY:
+		val->intval = mtk_chg->cti->polarity_state;
+		break;
+#ifdef CONFIG_AFC_CHARGER
+	case POWER_SUPPLY_PROP_AFC_FLAG:
+		val->intval = g_afc_work_status;
+		break;
+#endif
+//Bug790556,churui1.wt,ADD,20220808,charging pd flag
+#ifdef CONFIG_W2_CHARGER_PRIVATE
+	case POWER_SUPPLY_PROP_PD_FLAG:
+		val->intval = g_pd_work_status;
+		break;
+#endif
+//Bug773998,gudi.wt,charging type report
+	case POWER_SUPPLY_PROP_REAL_TYPE:
+		if (mtk_chg->chg_type == STANDARD_HOST){
+			//val->strval = "USB";
+			val->intval = 4;
+		}
+		else if (mtk_chg->chg_type == CHARGING_HOST){
+			//val->strval = "USB_CDP";
+			val->intval = 6;
+		}
+		else if ((mtk_chg->chg_type == STANDARD_CHARGER) ||(mtk_chg->chg_type == NONSTANDARD_CHARGER ) ){
+			#ifdef CONFIG_AFC_CHARGER
+			if (mtk_is_pep_series_connect(cm) ||mtk_pdc_check_charger(cm) || afc_get_is_connect(cm))
+			#else
+			if (mtk_is_pep_series_connect(cm) ||mtk_pdc_check_charger(cm))
+			#endif
+			//	val->strval = "USB_HVDCP";
+				val->intval = 12;
+			else
+				//val->strval = "USB_DCP";
+				val->intval = 5;
+		}
+		else{
+			//val->strval = "UNKNOWN";
+			val->intval = 0;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -410,11 +509,25 @@ static enum power_supply_property mt_usb_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
+//Bug770490,gudi.wt,sysfs node of typec cc polarity
+	POWER_SUPPLY_PROP_TYPEC_POLARITY,
+#ifdef CONFIG_AFC_CHARGER
+	POWER_SUPPLY_PROP_AFC_FLAG,
+#endif
+//Bug790556,churui1.wt,ADD,20220808,charging pd flag
+#ifdef CONFIG_W2_CHARGER_PRIVATE
+	POWER_SUPPLY_PROP_PD_FLAG,
+#endif
+	POWER_SUPPLY_PROP_REAL_TYPE,
 };
 
 static void tcpc_power_off_work_handler(struct work_struct *work)
 {
 	pr_info("%s\n", __func__);
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	mt_leds_brightness_set("lcd-backlight", 0);
+#endif
+	msleep(200);
 	kernel_power_off();
 }
 
@@ -427,18 +540,28 @@ static void charger_in_work_handler(struct work_struct *work)
 #ifdef CONFIG_TCPC_CLASS
 static void plug_in_out_handler(struct chg_type_info *cti, bool en, bool ignore)
 {
+#ifdef CONFIG_MTK_TYPEC_WATER_DETECT
+	if (cti->water_detected && cti->tcpc_kpoc) {
+		pr_info("%s: water detected in KPOC, bypass bc1.2\n",
+			__func__);
+		return;
+	}
+#endif
+
 	mutex_lock(&cti->chgdet_lock);
 	if (cti->chgdet_en == en)
 		goto skip;
 	cti->chgdet_en = en;
 	cti->ignore_usb = ignore;
 	cti->plugin = en;
+//zhaosidong.wt, power swap without usb disconnect
+	g_ignore_usb = ignore;
 	atomic_inc(&cti->chgdet_cnt);
 	wake_up_interruptible(&cti->waitq);
 skip:
 	mutex_unlock(&cti->chgdet_lock);
 }
-
+extern kpd_pwk_event(int pressed);
 static int pd_tcp_notifier_call(struct notifier_block *pnb,
 				unsigned long event, void *data)
 {
@@ -491,7 +614,25 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 		    noti->typec_state.old_state == TYPEC_ATTACHED_NORP_SRC ||
 		    noti->typec_state.old_state == TYPEC_ATTACHED_AUDIO)
 			&& noti->typec_state.new_state == TYPEC_UNATTACHED) {
+			pr_info("%s USB Plug out\n", __func__);//Bug522914,zhaosidong.wt,ADD,20191231, in LPM plug out TA will trigger reboot
+			if ((get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT) || (get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT)) {
+				kpd_pwk_event(1);
+				msleep(50);
+				kpd_pwk_event(0);
+				msleep(3000);
+			}
+			plug_in_out_handler(cti, false, false);
 			if (cti->tcpc_kpoc) {
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+				pr_info("%s error_recovery_once = %d\n", __func__,
+					cti->tcpc->pd_port.error_recovery_once);
+				if (cti->tcpc->pd_port.error_recovery_once == 1) {
+					pr_info("%s KPOC error recovery once\n",
+					__func__);
+					plug_in_out_handler(cti, false, false);
+					break;
+				}
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 				vbus = battery_get_vbus();
 				pr_info("%s KPOC Plug out, vbus = %d\n",
 					__func__, vbus);
@@ -504,8 +645,6 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 					      &cti->pwr_off_work);
 				break;
 			}
-			pr_info("%s USB Plug out\n", __func__);
-			plug_in_out_handler(cti, false, false);
 		} else if (noti->typec_state.old_state == TYPEC_ATTACHED_SRC &&
 			noti->typec_state.new_state == TYPEC_ATTACHED_SNK) {
 			pr_info("%s Source_to_Sink\n", __func__);
@@ -515,7 +654,39 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 			pr_info("%s Sink_to_Source\n", __func__);
 			plug_in_out_handler(cti, false, true);
 		}
+//Bug770490,gudi.wt,sysfs node of typec cc polarity
+		if(noti->typec_state.new_state != TYPEC_UNATTACHED){
+			cti->polarity_state = noti->typec_state.polarity+1;
+		}else{
+			cti->polarity_state = 0;
+		}
+
 		break;
+//Extb P210312-00394 lvyuanchuan.wt modify ,it cannot charging at power off with hub
+		case TCP_NOTIFY_DR_SWAP:
+		if (noti->swap_state.new_role == PD_ROLE_DFP){
+			pr_info("%s DFP state, ignore usb\n",__func__);
+			mutex_lock(&cti->chgdet_lock);
+			cti->ignore_usb = true;
+			mutex_unlock(&cti->chgdet_lock);
+		}else if(noti->swap_state.new_role == PD_ROLE_UFP){
+//Extb P210724-00630 lvyuanchuan.wt modify ,it cannot charging for unknown charger_type	
+			pr_info("%s UFP state, ignore usb\n",__func__);
+			mutex_lock(&cti->chgdet_lock);
+//Extb P210724-00582 lvyuanchuan.wt modify ,Connect pc to boot,It cannot be connect to USB at first time
+			//cti->ignore_usb = true;
+			g_ignore_usb = true;
+			mutex_unlock(&cti->chgdet_lock);
+		}
+		break;
+#ifdef CONFIG_MTK_TYPEC_WATER_DETECT
+	case TCP_NOTIFY_WD_STATUS:
+		if (noti->wd_status.water_detected)
+			cti->water_detected = true;
+		else
+			cti->water_detected = false;
+		break;
+#endif
 	}
 	return NOTIFY_OK;
 }

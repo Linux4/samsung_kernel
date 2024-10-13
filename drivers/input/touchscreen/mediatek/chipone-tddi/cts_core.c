@@ -1769,21 +1769,19 @@ static int cts_init_fwdata(struct cts_device *cts_dev)
     }
     cts_info("  %-24s: %04x", "Firmware version", fwdata->version);
 
-	/*bug715586, houzhengchuang.wt, modify, 20220211, TP bring up*/
-    if (lcm_name == 6) {
-        sprintf(Ctp_name,"TXD,ICNL9911C,FW:0x0%x",fwdata->version);
-        cts_info("cts_get_firmware_version Ctp_name is : %s",Ctp_name);
-    }
-    if (lcm_name == 8) {
-        sprintf(Ctp_name,"lead,ICNL9911C,FW:0x0%x",fwdata->version);
-        cts_info("cts_get_firmware_version Ctp_name is : %s",Ctp_name);
-    }
-	/*bug682591, dupan01.wt, modify, 20220221, n23S TP bring up*/
-    if (lcm_name == 10) {
+    if (g_lcm_name == 6) {
         sprintf(Ctp_name,"DJN,ICNL9911C,FW:0x0%x",fwdata->version);
         cts_info("cts_get_firmware_version Ctp_name is : %s",Ctp_name);
     }
-    if (lcm_name == 16) {
+	if (g_lcm_name == 11) {
+        sprintf(Ctp_name,"TXD,ICNL9911C,FW:0x0%x",fwdata->version);
+        cts_info("cts_get_firmware_version Ctp_name is : %s",Ctp_name);
+    }
+	if (g_lcm_name == 12) {
+        sprintf(Ctp_name,"lead,ICNL9911C,FW:0x0%x",fwdata->version);
+        cts_info("cts_get_firmware_version Ctp_name is : %s",Ctp_name);
+    }
+	if (g_lcm_name == 16) {
         sprintf(Ctp_name,"TM,ICNL9911C,FW:0x0%x",fwdata->version);
         cts_info("cts_get_firmware_version Ctp_name is : %s",Ctp_name);
     }

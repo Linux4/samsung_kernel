@@ -354,18 +354,39 @@ static void process_interrupt_register(struct sgm7220_chip *info)
 
 static inline void sgm7220_unattached_cc_entry(struct tcpc_device *tcpc_dev)
 {
-	if (tcpc_dev->typec_attach_old == TYPEC_ATTACHED_NORP_SRC) {		pr_err("%s TYPEC_ATTACHED_NORP_SRC set_cc sink\n", __func__);		tcpci_set_cc(tcpc_dev, TYPEC_CC_RD);		return;	}
-  switch (tcpc_dev->typec_role) {
-  case TYPEC_ROLE_SNK:
-    pr_info("%s set_cc sink\n", __func__);
-    tcpci_set_cc(tcpc_dev, TYPEC_CC_RD);
-    break;
-  case TYPEC_ROLE_DRP:
-    pr_info("%s set_cc drp\n", __func__);
-    tcpci_set_cc(tcpc_dev, TYPEC_CC_DRP);
-    break;
-  }
-}static int sgm7220_try_sink_off(struct tcpc_device *tcpc){	struct sgm7220_chip *chip = tcpc_get_dev_data(tcpc);	int ret = 0;	uint8_t val = 0;	pr_info("%s\n", __func__);	val = (0x0 << SET_I2C_SOURCE_PREF_SHIFT);	ret = sgm7220_update_reg(chip->client, REG_SET, val, SET_I2C_SOURCE_PREF);	if (ret < 0) {		pr_err("%s: SET_I2C_SOURCE_PREF update reg fail!\n", __func__);	}	return ret;	}
+	if (tcpc_dev->typec_attach_old == TYPEC_ATTACHED_NORP_SRC) {
+		pr_err("%s TYPEC_ATTACHED_NORP_SRC set_cc sink\n", __func__);
+		tcpci_set_cc(tcpc_dev, TYPEC_CC_RD);
+		return;
+	}
+
+	switch (tcpc_dev->typec_role) {
+	case TYPEC_ROLE_SNK:
+		pr_info("%s set_cc sink\n", __func__);
+		tcpci_set_cc(tcpc_dev, TYPEC_CC_RD);
+		break;
+	case TYPEC_ROLE_DRP:
+		pr_info("%s set_cc drp\n", __func__);
+		tcpci_set_cc(tcpc_dev, TYPEC_CC_DRP);
+		break;
+	}
+}
+
+static int sgm7220_try_sink_off(struct tcpc_device *tcpc)
+{
+	struct sgm7220_chip *chip = tcpc_get_dev_data(tcpc);
+	int ret = 0;
+	uint8_t val = 0;
+
+	pr_info("%s\n", __func__);
+
+	val = (0x0 << SET_I2C_SOURCE_PREF_SHIFT);
+	ret = sgm7220_update_reg(chip->client, REG_SET, val, SET_I2C_SOURCE_PREF);
+	if (ret < 0) {
+		pr_err("%s: SET_I2C_SOURCE_PREF update reg fail!\n", __func__);
+	}
+	return ret;	
+}
 
 static void sgm7220_process_tcpci_attach_state(struct sgm7220_chip *chip)
 {
@@ -845,8 +866,15 @@ static int sgm7220_set_cc(struct tcpc_device *tcpc, int pull)
 {
 	struct sgm7220_chip *chip = tcpc_get_dev_data(tcpc);
 	int ret;
-	uint8_t value = 0, mode = 0;	struct tcpc_device *tcpc_dev;
-	tcpc_dev = tcpc_dev_get_by_name("type_c_port0");	if (!tcpc_dev) {		pr_err("%s get tcpc device type_c_port0 fail\n", __func__);		return -ENOENT;	}
+	uint8_t value = 0, mode = 0;
+	struct tcpc_device *tcpc_dev;
+
+	tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
+	if (!tcpc_dev) {
+		pr_err("%s get tcpc device type_c_port0 fail\n", __func__);
+		return -ENOENT;
+	}
+
 	pr_info("%s enter pull = %d\n", __func__, pull);
 
 	value = 0x01;
@@ -855,7 +883,36 @@ static int sgm7220_set_cc(struct tcpc_device *tcpc, int pull)
 		pr_err("%s: init REG_SET fail!\n", __func__);
     	return ret;
 	}
-	pull = TYPEC_CC_PULL_GET_RES(pull);	pr_info("%s cyc_enter pull = %d\n", __func__, pull);	if (pull == TYPEC_CC_RP)		value = SET_MODE_SELECT_SRC;	else if (pull == TYPEC_CC_RD)		value = SET_MODE_SELECT_SNK;	else if (pull == TYPEC_CC_DRP)		value = SET_MODE_SELECT_DEFAULT;	else if (pull == TYPEC_CC_OPEN) {		value = SET_MODE_SELECT_DEFAULT;	} else {		pr_err("no support type\n");		goto skip;	}	sgm7220_read_reg(chip->client, REG_SET, &mode);	mode = (mode & SET_MODE_SELECT) >> SET_MODE_SELECT_SHIFT;	if (mode == value) {		pr_info("%s mode(%x) is same. skip\n", __func__, mode);		goto skip;	}	value = value << SET_MODE_SELECT_SHIFT;	ret = sgm7220_update_reg(chip->client, REG_SET, value, SET_MODE_SELECT);	if (ret < 0) {		pr_err("%s: update reg fail!\n", __func__);	}	if (pull == TYPEC_CC_DRP || pull == TYPEC_CC_OPEN)		sgm7220_try_sink_off(tcpc_dev);skip:
+	pull = TYPEC_CC_PULL_GET_RES(pull);
+	pr_info("%s cyc_enter pull = %d\n", __func__, pull);
+	if (pull == TYPEC_CC_RP)
+		value = SET_MODE_SELECT_SRC;
+	else if (pull == TYPEC_CC_RD)
+		value = SET_MODE_SELECT_SNK;
+	else if (pull == TYPEC_CC_DRP)
+		value = SET_MODE_SELECT_DEFAULT;
+	else if (pull == TYPEC_CC_OPEN) {
+		value = SET_MODE_SELECT_DEFAULT;
+	} else {
+		pr_err("no support type\n");
+		goto skip;
+	}
+
+	sgm7220_read_reg(chip->client, REG_SET, &mode);
+	mode = (mode & SET_MODE_SELECT) >> SET_MODE_SELECT_SHIFT;
+	if (mode == value) {
+		pr_info("%s mode(%x) is same. skip\n", __func__, mode);
+		goto skip;
+	}
+	value = value << SET_MODE_SELECT_SHIFT;
+	ret = sgm7220_update_reg(chip->client, REG_SET, value, SET_MODE_SELECT);
+	if (ret < 0) {
+		pr_err("%s: update reg fail!\n", __func__);
+	}
+
+	if (pull == TYPEC_CC_DRP || pull == TYPEC_CC_OPEN)
+		sgm7220_try_sink_off(tcpc_dev);
+skip:
 	value = 0x00;
 	ret = sgm7220_update_reg(chip->client, REG_SET, value, SET_I2C_DISABLE_TERM);
 	if (ret < 0) {

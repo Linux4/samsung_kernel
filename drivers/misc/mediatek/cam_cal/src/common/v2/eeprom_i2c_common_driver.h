@@ -22,6 +22,31 @@ unsigned int DW9763_write_region(struct i2c_client *client,
 				 unsigned char *data,
 				 unsigned int size);
 
+unsigned int Otp_read_region_S5K4HAYX(struct i2c_client *client,
+				unsigned int addr,
+				unsigned char *data,
+				unsigned int size);
+
+unsigned int Otp_read_region_S5K3L6(struct i2c_client *client,
+				unsigned int addr,
+				unsigned char *data,
+				unsigned int size);
+
+unsigned int Otp_read_region_SR846(struct i2c_client *client,
+				unsigned int addr,
+				unsigned char *data,
+				unsigned int size);
+
+unsigned int Otp_read_region_GC5035(struct i2c_client *client,
+				unsigned int addr,
+				unsigned char *data,
+				unsigned int size);
+
+unsigned int Otp_read_region_GC02M1B(struct i2c_client *client,
+				unsigned int addr,
+				unsigned char *data,
+				unsigned int size);
+
 unsigned int BL24SA64_write_region(struct i2c_client *client,
 				 unsigned int addr,
 				 unsigned char *data,

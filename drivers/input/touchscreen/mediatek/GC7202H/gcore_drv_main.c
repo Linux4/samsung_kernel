@@ -27,12 +27,14 @@
 #include <linux/kthread.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/power_supply.h>
 #ifdef CONFIG_DRM
 #include <drm/drm_panel.h>
 struct drm_panel *gcore_active_panel;
 #endif
 #include "../../../../misc/mediatek/lcm/inc/panel_notifier.h"
 static struct notifier_block gcore_headset_notifier;
+static struct notifier_block gcore_charger_notifier;
 
 #define GTP_TRANS_X(x, tpd_x_res, lcm_x_res)     (((x)*(lcm_x_res))/(tpd_x_res))
 #define GTP_TRANS_Y(y, tpd_y_res, lcm_y_res)     (((y)*(lcm_y_res))/(tpd_y_res))
@@ -1002,6 +1004,7 @@ int gcore_touch_probe(struct gcore_dev *gdev)
 	struct gcore_exp_fn *exp_fn = NULL;
 	struct gcore_exp_fn *exp_fn_temp = NULL;
 #endif
+	int ret;
 
 	GTP_DEBUG("tpd_registration start.");
 
@@ -1065,6 +1068,13 @@ int gcore_touch_probe(struct gcore_dev *gdev)
 	gcore_headset_notifier.notifier_call = gcore_headset_notifier_callback;
 	if(panel_register_client(&gcore_headset_notifier))
 			GTP_ERROR("gcore_headset_nodifier register notifier failed!");
+
+	 gcore_charger_notifier.notifier_call = gcore_charger_notifier_callback;
+        ret = power_supply_reg_notifier(&gcore_charger_notifier);
+        if (ret) {
+                printk("fail to register notifer\n");
+                return ret;
+        }
 	return 0;
 }
 

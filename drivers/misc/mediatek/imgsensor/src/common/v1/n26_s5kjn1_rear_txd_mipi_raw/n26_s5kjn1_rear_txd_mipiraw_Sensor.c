@@ -110,8 +110,8 @@ static struct imgsensor_info_struct imgsensor_info = {
 
     .cap = {
         .pclk = 560000000,
-        .linelength = 4584,
-        .framelength = 4054,
+        .linelength = 5096,
+        .framelength = 3654,
         .startx =0,
         .starty = 0,
         .grabwindow_width = 4080,
@@ -130,7 +130,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .grabwindow_width = 4080,
         .grabwindow_height = 2296,
         .mipi_data_lp2hs_settle_dc = 85,
-        .mipi_pixel_rate = 480000000,
+        .mipi_pixel_rate = 508800000,
         .max_framerate = 300,
     },
 
@@ -1236,8 +1236,8 @@ static kal_uint16 n26_txd_s5kjn103_capture_setting[] = {
     0x0310, 0x008A,
     0x0312, 0x0000,
     0x080E, 0x0000,
-    0x0340, 0x0FD6,
-    0x0342, 0x11E8,
+    0x0340, 0x0E46,
+    0x0342, 0x13E8,
     0x0702, 0x0000,
     0x0202, 0x0100,
     0x0200, 0x0100,
@@ -1524,7 +1524,6 @@ static kal_uint16 n26_txd_s5kjn103_preview_setting[] = {
     0x0D00, 0x0101,
     0x0D02, 0x0001,
     0x0D04, 0x0002,
-    0x011E, 0x0000,
     0x6226, 0x0000,
 };
 
@@ -1797,15 +1796,14 @@ static kal_uint16 n26_txd_s5kjn103_normal_video_setting[] = {
     0x0310, 0x005C,
     0x0312, 0x0000,
     0x080E, 0x0000,
-    0x0340, 0x0C60,
-    0x0342, 0x1700,
+    0x0340, 0x0C54,
+    0x0342, 0x1716,
     0x0702, 0x0000,
     0x0202, 0x0100,
     0x0200, 0x0100,
     0x0D00, 0x0101,
     0x0D02, 0x0101,
     0x0D04, 0x0102,
-    0x011E, 0x0000,
     0x6226, 0x0000,
 };
 

@@ -18,6 +18,7 @@
 #include <linux/firmware.h>
 #include "gcore_drv_common.h"
 #include "gcore_drv_firmware.h"
+#include "../../../drivers/misc/mediatek/extcon/extcon-mtk-usb.h"
 
 #define FW_BIN_NAME "GC7202H_Flash_Op.bin" //"V750_1.1.bin"
 #define FW_BIN_LC_NAME "GC7202H_Flash_Op_LC.bin"
@@ -693,10 +694,59 @@ int gcore_headset_notifier_callback(
 	void *data)
 {
 	GTP_ERROR("gcore_headset_nodifier_callback start event = %d\n",event);
-	gcore_fw_event_notify(event);
+	if(event == FW_HEADSET_PLUG)
+		fn_data.gdev->tpd_headset_flag = 1;
+	else if (event == FW_HEADSET_UNPLUG)
+		fn_data.gdev->tpd_headset_flag = 0;
+
+	if(fn_data.gdev->ts_stat == TS_NORMAL){
+		gcore_fw_event_notify(event);
+	} 
 	GTP_ERROR("gcore_headset_nodifier_callback end\n");
 	return 0;
 }
+
+int gcore_charger_notifier_callback(
+	struct notifier_block *self,
+	unsigned long event,
+	void *data)
+{
+	struct power_supply *psy = data;
+	struct power_supply *type_psy;
+	union power_supply_propval pval;
+	int ret;
+	type_psy = power_supply_get_by_name("mtk_charger_type");
+	if (!type_psy)
+    		return -ENODEV;
+
+	if (event != PSY_EVENT_PROP_CHANGED || psy != type_psy)
+		return NOTIFY_DONE;
+
+	ret = power_supply_get_property(psy,POWER_SUPPLY_PROP_ONLINE, &pval);
+	if (ret < 0) {
+               printk("failed to get online prop\n");
+               return NOTIFY_DONE;
+       }
+
+	GTP_ERROR("gcore_charger_nodifier_callback start pval.intval = %d\n",pval.intval);
+	if(pval.intval){
+		fn_data.gdev->tpd_charger_flag = 1;
+		if(fn_data.gdev->ts_stat == TS_NORMAL){
+			gcore_fw_event_notify(FW_CHARGER_PLUG);
+			GTP_ERROR("gcore_charger_nodifier_callback start FW_CHARGER_PLUG pval.intval = %d\n",pval.intval);
+		}
+	}
+	else{
+		fn_data.gdev->tpd_charger_flag = 2;
+		if(fn_data.gdev->ts_stat == TS_NORMAL){
+			gcore_fw_event_notify(FW_CHARGER_UNPLUG);
+			GTP_ERROR("gcore_charger_nodifier_callback start FW_CHARGER_UNPLUG pval.intval = %d\n",pval.intval);
+		}
+	}
+	GTP_ERROR("gcore_charger_nodifier_callback end\n");
+	return 0;
+}
+
 s32 gcore_fw_read_rawdata(u8 *buffer, s32 len)
 {
 	u8 cmd[11] = { 0x80, 0xB0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08 };
@@ -2886,6 +2936,7 @@ void gcore_request_firmware_update_work(struct work_struct *work)
 {
 	static u8 *fw_buf = NULL;
 	u8 fw_read_data[4] = { 0 };
+	int gcore_up_num;
 #ifdef CONFIG_UPDATE_FIRMWARE_BY_BIN_FILE
 	const struct firmware *fw = NULL;
 
@@ -2898,14 +2949,30 @@ void gcore_request_firmware_update_work(struct work_struct *work)
 		goto retry;
 	}
 
-	if (lcm_name == 14){
-		if (request_firmware(&fw, FW_BIN_NAME, &gdev_fwu->bus_device->dev)) {
-			GTP_ERROR("request firmware fail");
+	gdev_fwu->fw_mem = fw_buf;
+
+	if (g_lcm_name == 14){
+		for(gcore_up_num = 0; gcore_up_num < 3; gcore_up_num++){
+			if (request_firmware(&fw, FW_BIN_NAME, &gdev_fwu->bus_device->dev)) {
+				msleep(1000);
+				GTP_ERROR("request firmware fail");
+			}else
+				break;
+		}
+		if(gcore_up_num == 3){
+			GTP_ERROR("request firmware fail gcore_up_num = %d\n ", gcore_up_num);
 			return;
 		}
-	}else if (lcm_name == 15) {
-		if (request_firmware(&fw, FW_BIN_LC_NAME, &gdev_fwu->bus_device->dev)) {
-			GTP_ERROR("request firmware fail");
+	}else if (g_lcm_name == 15) {
+		for(gcore_up_num = 0; gcore_up_num < 3; gcore_up_num++){
+			if (request_firmware(&fw, FW_BIN_LC_NAME, &gdev_fwu->bus_device->dev)) {
+				msleep(1000);
+				GTP_ERROR("request firmware fail");
+			}else
+				break;
+		}
+		if(gcore_up_num == 3){
+			GTP_ERROR("request firmware fail gcore_up_num = %d\n", gcore_up_num);
 			return;
 		}
 	}
@@ -2958,10 +3025,10 @@ void gcore_request_firmware_update_work(struct work_struct *work)
 
 	GTP_ERROR("FW Ver:%d.%d.%d.%d\n",
 			 fw_read_data[1], fw_read_data[0], fw_read_data[3], fw_read_data[2]);
-	if (lcm_name == 14) {
+	if (g_lcm_name == 14) {
 		sprintf(Ctp_name,"TXD,GC7202H,FW:0x0%d",fw_read_data[2]);
 		GTP_ERROR("GC7202H_ic_get_fw_ver T00Ctp_name is : %s\n",Ctp_name);
-	} else if (lcm_name == 15){
+	} else if (g_lcm_name == 15){
 		sprintf(Ctp_name,"LC,GC7202H,FW:0x0%d",fw_read_data[2]);
 		GTP_ERROR("GC7202H_ic_get_fw_ver T00Ctp_name is : %s\n",Ctp_name);
 	}

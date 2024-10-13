@@ -401,11 +401,19 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 	tcpc->evt_wq = alloc_ordered_workqueue("%s", 0, tcpc_desc->name);
 	for (i = 0; i < TCP_NOTIFY_IDX_NR; i++)
 		srcu_init_notifier_head(&tcpc->evt_nh[i]);
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
+	init_completion(&tcpc->alert_done);
+	tcpc->is_rx_event = false;
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 	mutex_init(&tcpc->access_lock);
 	mutex_init(&tcpc->typec_lock);
 	mutex_init(&tcpc->timer_lock);
 	mutex_init(&tcpc->mr_lock);
+#ifdef CONFIG_WATER_DETECTION
+	mutex_init(&tcpc->wd_lock);
+#endif /* CONFIG_WATER_DETECTION */
 	sema_init(&tcpc->timer_enable_mask_lock, 1);
 	spin_lock_init(&tcpc->timer_tick_lock);
 
@@ -455,6 +463,11 @@ EXPORT_SYMBOL(tcpc_device_register);
 static int tcpc_device_irq_enable(struct tcpc_device *tcpc)
 {
 	int ret;
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+//	int seconds = 0;
+#else
+//	int seconds = 10;
+#endif
 
 	if (!tcpc->ops->init) {
 		pr_err("%s Please implment tcpc ops init function\n",
@@ -476,9 +489,9 @@ static int tcpc_device_irq_enable(struct tcpc_device *tcpc)
 		pr_err("%s : tcpc typec init fail\n", __func__);
 		return ret;
 	}
-
+	//Extb P210312-00394 lvyuanchuan.wt 2021/04/28 modify ,it cannot charging at power off with hub
 	schedule_delayed_work(
-		&tcpc->event_init_work, msecs_to_jiffies(10*1000));
+		&tcpc->event_init_work, msecs_to_jiffies(4*1000));
 
 	pr_info("%s : tcpc irq enable OK!\n", __func__);
 	return 0;

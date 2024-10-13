@@ -23,7 +23,7 @@
 #define Q_MAX_H_CURRENT 10000
 
 /* multiple battery profile compile options */
-/*#define MTK_GET_BATTERY_ID_BY_AUXADC*/
+#define MTK_GET_BATTERY_ID_BY_AUXADC
 
 
 /* if ACTIVE_TABLE == 0 && MULTI_BATTERY == 0
@@ -77,7 +77,7 @@ int g_Q_MAX_SYS_VOLTAGE[TOTAL_BATTERY_NUMBER] = { 3400, 3400, 3400, 3400};
 /* 0~0.5V for battery 0, 0.5~1V for battery 1*/
 /* 1~1.5V for battery 2, -1 for the last one (battery 3) */
 int g_battery_id_voltage[TOTAL_BATTERY_NUMBER] = {
-	500000, 1000000, 1500000, -1};
+	329, 439, -1, -1};
 
 int g_FG_PSEUDO1[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	/*bat1,   bat2,   bat3,    bat4*/
@@ -204,28 +204,37 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_10 == 1)
-struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
-		{-40, 195652},
-		{-35, 148171},
-		{-30, 113347},
-		{-25, 87559},
-		{-20, 68237},
-		{-15, 53650},
-		{-10, 42506},
-		{-5, 33892},
-		{0, 27219},
-		{5, 22021},
-		{10, 17926},
-		{15, 14674},
-		{20, 12081},
+//Bug493176,zhaosidong.wt,MODIFY,20191017,SW JEITA configuration
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[29] = {
+		{-40, 205200},
+		{-35, 154800},
+		{-30, 117900},
+		{-25, 90690},
+		{-20, 70370},
+		{-15, 55070},
+		{-10, 43440},
+		{-5, 34530},
+		{0, 27640},
+		{5, 22270},
+		{10, 18060},
+		{15, 14740},
+		{20, 12110},
 		{25, 10000},
-		{30, 8315},
-		{35, 6948},
-		{40, 5834},
-		{45, 4917},
-		{50, 4161},
-		{55, 3535},
-		{60, 3014}
+		{30, 8309},
+		{35, 6941},
+		{40, 5828},
+		{45, 4916},
+		{50, 4165},
+		{55, 3543},
+		{60, 3027},
+		{65, 2595},
+		{70, 2233},
+		{75, 1929},
+		{80, 1672},
+		{85, 1451},
+		{90, 1261},
+		{95, 1097},
+		{100, 956}
 };
 #endif
 

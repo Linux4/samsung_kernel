@@ -72,7 +72,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .grabwindow_width = 2592,
         .grabwindow_height = 1944,
         .mipi_data_lp2hs_settle_dc = 85,
-        .mipi_pixel_rate =150000000,
+        .mipi_pixel_rate =174000000,//bug727089, liangyiyi.wt,MODIFY, 2022.06.20, modify mipi clk to 870Mbsp for improve RF interference
         .max_framerate = 300,
     },
     .cap1 = {
@@ -809,14 +809,14 @@ static void capture_setting(kal_uint16 currefps)
         write_cmos_sensor(0x0307, 0x5F);  
         write_cmos_sensor(0x030D, 0x04);  
         write_cmos_sensor(0x030E, 0x00);  
-        write_cmos_sensor(0x030F, 0x92);  
+        write_cmos_sensor(0x030F, 0x91);//bug727089, liangyiyi.wt,MODIFY, 2022.06.20, modify mipi clk to 870Mbsp for improve RF interference
         write_cmos_sensor(0x3C1F, 0x00);  
         write_cmos_sensor(0x3C17, 0x00);  
         write_cmos_sensor(0x0112, 0x0A);  
         write_cmos_sensor(0x0113, 0x0A);  
         write_cmos_sensor(0x0114, 0x01);  
         write_cmos_sensor(0x0820, 0x03);  
-        write_cmos_sensor(0x0821, 0x6C);  
+        write_cmos_sensor(0x0821, 0x66);//bug727089, liangyiyi.wt,MODIFY, 2022.06.20, modify mipi clk to 870Mbsp for improve RF interference
         write_cmos_sensor(0x0822, 0x00);  
         write_cmos_sensor(0x0823, 0x00);  
         write_cmos_sensor(0x3929, 0x0F);  

@@ -219,6 +219,10 @@ struct chrlmt_handle *handle, int chr_input_curr_limit, int bat_char_curr_limit)
 	int min_bat_char_curr_limit = 0xFFFFFF;
 	if (!handle)
 		return -1;
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	printk("## no need thermal limit!!\n");
+	return 0;
+#endif
 
 	handle->chr_input_curr_limit = chr_input_curr_limit;
 	handle->bat_chr_curr_limit = bat_char_curr_limit;

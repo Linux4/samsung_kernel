@@ -111,6 +111,9 @@
 #endif
 #define DRIVER_VERSION			"3.0.7.0.210618"
 
+static struct workqueue_struct	*tpd_resume_wq;
+static struct work_struct	tpd_resume_work;
+
 /* Options */
 #define TDDI_INTERFACE			BUS_SPI /* BUS_I2C(0x18) or BUS_SPI(0x1C) */
 #define VDD_VOLTAGE			1800000
