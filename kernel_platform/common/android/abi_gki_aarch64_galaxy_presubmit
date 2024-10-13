@@ -1,0 +1,9 @@
+[abi_symbol_list]
+log_suspend_abort_reason
+usb_set_configuration
+__traceiter_android_vh_meminfo_proc_show
+__tracepoint_android_vh_meminfo_proc_show
+__traceiter_android_vh_si_meminfo_adjust
+__tracepoint_android_vh_si_meminfo_adjust
+copy_page
+cleancache_register_ops

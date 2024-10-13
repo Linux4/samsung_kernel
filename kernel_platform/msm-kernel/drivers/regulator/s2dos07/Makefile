@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0
+
+obj-$(CONFIG_REGULATOR_S2DOS07) += s2dos07.o
+
+ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG
+
