@@ -1,0 +1,10 @@
+menuconfig USDM_PANEL_ANA6710
+	tristate "ANA6710 DDI Panel Driver"
+	depends on USDM_PANEL
+	depends on USDM_PANEL_OLED_COMMON
+	default n
+	help
+		This enables ANA6710 DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the ANA6710 DDI.
+

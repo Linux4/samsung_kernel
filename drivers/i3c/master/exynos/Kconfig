@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config I3C_HCI_EXYNOS
+	tristate "EXYNOS I3C HCI driver"
+	depends on I3C
+	depends on HAS_IOMEM
+	help
+		I3C HCI protocol control device driver on EXYNOS SoC.
+		EXYNOS supports I3C HCI v1.0 protocol.
