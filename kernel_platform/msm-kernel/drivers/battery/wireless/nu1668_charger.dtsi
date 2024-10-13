@@ -1,0 +1,174 @@
+#include <dt-bindings/battery/sec-battery.h>
+
+&tlmm {
+	nu_irq_default: nu_irq_default {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,98, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pm8550_gpios {
+	nu_det_default: nu_det_default {
+		GPIO_CONFIG_PUD(PM,pm8550_gpios,9, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&tlmm {
+	nu_en_default: nu_en_default {
+		GPIO_CONFIG_PUD(AP,tlmm,167, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+
+&pm8550ve_f_gpios {
+	nu_pdrc_default: nu_pdrc_default {
+		GPIO_CONFIG_PUD(PM,pm8550ve_f_gpios,7, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+#if 1
+&tlmm {
+	nu_ping_nen_default: nu_ping_nen_default {
+		GPIO_CONFIG_PUD(AP,tlmm,91, FUNC_OUTPUT_HIGH, PULL_NONE);
+	};
+};
+#endif
+
+#if 1
+&tlmm {
+	nu_pdet_b_default: nu_pdet_b_default {
+		GPIO_CONFIG_PUD(AP,tlmm,62, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+#endif
+
+&sw_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+
+	nu1668_charger: nu1668-charger@41 {
+		compatible = "nuvolta,nu1668-charger";
+		reg = <0x41>;
+		status = "okay";
+
+		pinctrl-names = "default";
+#if 1
+		pinctrl-0 = <&nu_irq_default &nu_det_default &nu_en_default &nu_pdrc_default &nu_ping_nen_default &nu_pdet_b_default>;
+#else
+		pinctrl-0 = <&nu_irq_default &nu_det_default &nu_en_default &nu_pdrc_default>;
+#endif
+		battery,wpc_int = <SEC_GPIO_REF(AP,tlmm,98) 1>; /* MFC_AP_INT */
+		battery,wpc_det = <SEC_GPIO_REF(PM,pm8550_gpios,9) 0>; /* WPC_DET */
+#if 0
+		battery,mst_pwr_en = <SEC_GPIO_REF(${nu_pwr_en_gpio}) 0>; /* MST_PWR_EN */
+#endif
+#if 1
+		battery,wpc_ping_nen = <SEC_GPIO_REF(AP,tlmm,91) 1>; /* PING_NEN */
+#endif
+#if 1
+		battery,wpc_pdet_b = <SEC_GPIO_REF(AP,tlmm,62) 1>; /* PDET_B */
+#endif
+		battery,wpc_en = <SEC_GPIO_REF(AP,tlmm,167) 0>; /* WPC_EN */
+		battery,wpc_pdrc = <SEC_GPIO_REF(PM,pm8550ve_f_gpios,7) 1>; /* VRECT_INT */
+
+		battery,charger_name = "max77705-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "nu1668-charger";
+		battery,wc_cover_rpp = <0x44>;
+		battery,phone_fod_threshold = <0x3b>;
+		battery,wireless20_vout_list = <WIRELESS_VOUT_11V /* 0xA0 */
+						WIRELESS_VOUT_11V /* 0xA1 */
+						WIRELESS_VOUT_11V /* 0xA2 */
+						WIRELESS_VOUT_11V /* 0xA3 */
+						WIRELESS_VOUT_11V /* 0xA4 */
+						WIRELESS_VOUT_11V>; /* 0xA5 */
+		battery,wireless20_vrect_list = <MFC_AFC_CONF_12V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX>;
+		battery,wireless20_max_power_list = <SEC_WIRELESS_RX_POWER_12W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W>;
+
+		battery,buds_fod_ta_thresh = <0x0898>; /* 2200mW */
+		battery,wpc_vout_ctrl_full = <WIRELESS_VOUT_5V_STEP>;
+		battery,mis_align_guide;
+		battery,mis_align_target_vout = <5000>;
+		battery,enable_qfod_param;
+
+		fod_list {
+			count = <1>;
+
+			pad_0x00 { /* DEFAULT */
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(USE_CC) | SET_FOD_FULL(ADD) | SET_FOD_HV(NONE))>;
+				cc = <0x28 0x54 0x28 0x54 0x28 0x32 0x28 0x32 0x28 0x32
+					0x28 0x32 0x28 0x32 0x32 0x40 0x32 0x40 0x32 0x40>;
+				full = <0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F
+					0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F>;
+			};
+		};
+
+		qfod_list {
+			number = <1>;
+
+			rx_0x00 { /* DEFAULT */
+				sspth_value = <74>;
+				qbase_value = <1700>;
+				qfod_th0 = <51>;
+				qfod_th1 = <116>;
+				qfod_th2 = <51>;
+				qfod_th3 = <117>;
+				qfod_tws_th3 = <600>;
+				qfod_phone_th4 = <1100>;
+			};
+		};
+	};
+};
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/q5b5/wireless/nu1668/nu1668_charger.q5q.dtsi */
+#include <dt-bindings/battery/sec-battery.h>
+
+&nu_pdrc_default {
+	power-source = <1>; /* need to set default MV gpio to LV */
+};
+
+&nu_det_default {
+	power-source = <1>; /* need to set default MV gpio to LV */
+};
+
+&nu1668_charger {
+	battery,wireless20_vout_list = <WIRELESS_VOUT_9V /* 0xA0 */
+					WIRELESS_VOUT_11V /* 0xA1 */
+					WIRELESS_VOUT_11V /* 0xA2 */
+					WIRELESS_VOUT_11V /* 0xA3 */
+					WIRELESS_VOUT_11V /* 0xA4 */
+					WIRELESS_VOUT_11V>; /* 0xA5 */
+	battery,wireless20_vrect_list = <MFC_AFC_CONF_12V_TX
+					MFC_AFC_CONF_12_5V_TX
+					MFC_AFC_CONF_12_5V_TX
+					MFC_AFC_CONF_12_5V_TX
+					MFC_AFC_CONF_12_5V_TX
+					MFC_AFC_CONF_12_5V_TX>;
+	battery,wireless20_max_power_list = <SEC_WIRELESS_RX_POWER_12W
+					SEC_WIRELESS_RX_POWER_15W
+					SEC_WIRELESS_RX_POWER_15W
+					SEC_WIRELESS_RX_POWER_15W
+					SEC_WIRELESS_RX_POWER_15W
+					SEC_WIRELESS_RX_POWER_15W>;
+	battery,unknown_cmb_ctrl;
+	battery,default_clamp_volt;
+
+	fod_list {
+		pad_0x00 { /* DEFAULT */
+			flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(USE_CC) | SET_FOD_FULL(ADD) | SET_FOD_HV(NONE))>;
+			cc = <0x28 0x35 0x28 0x35 0x3C 0x31 0x3C 0x31 0x3C 0x2D
+				0x3C 0x46 0x32 0x7B 0x32 0x7B 0x32 0x40 0x32 0x40>;
+			full = <0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F
+				0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F>;
+		};
+	};
+};

@@ -1,0 +1,33 @@
+&qupv3_hub_i2c8 {
+	status = "okay";
+
+	pca9468_charger: pca9468@57 {
+		compatible = "nxp,pca9468";
+		reg = <0x57>;
+
+
+		pca9468,input-current-limit = <2550000>; /* 2.55A */
+		pca9468,charging-current = <6000000>; /* 6A */
+		pca9468,input-itopoff = <500000>; /* 500mA */
+		pca9468,sense-resistance = <0>; /* 5mOhm */
+		pca9468,switching-frequency = <3>; /* 980KHz */
+		pca9468,ntc-threshold = <0>; /* disable */
+		pca9468,ta-mode = <1>; /* 2:1 charging mode */
+		pca9468,ta-max-vol = <10500000>; /* 10.5V */
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/q5b5/charger/pca9468/pca9468_charger.q5q.dtsi */
+&pca9468_charger {
+	pca9468,switching-frequency-low = <8>; /* 440KHz */
+	pca9468,iin-low-frequency = <1700000>; /* 1700000uA */
+	pca9468,fg-vfloat = <1>; /* Use FG VNOW */
+	pca9468,default-vfloat = <4800000>; /* 4.800V */
+	pca9468,battery-connection = <1>; /* Same as FG VBAT */
+	pca9468,ta-volt-offset = <300000>; /* 300mV */
+	pca9468,fpdo_dc_input-itopoff = <1500000>; /* 1500mA */
+	pca9468,fpdo_dc_vnow-topoff = <5000000>; /* 5000mV */
+	pca9468,fpdo_dc_mainbat-topoff = <4237000>; /* 4237mV */
+	pca9468,fpdo_dc_subbat-topoff = <4203000>; /* 4203mV */
+	pca9468,ta-max-vol = <10000000>; /* 10.0V */
+};
