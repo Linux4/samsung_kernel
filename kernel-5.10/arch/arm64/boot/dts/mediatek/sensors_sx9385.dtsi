@@ -1,0 +1,192 @@
+#define SX9385 1
+#define SX9385_BUILT_IN 1
+#define SX9385_SUB 1
+#define SX9385_SUB_BUILT_IN 1
+#define SX9385_SUB2 1
+#define SX9385_SUB2_BUILT_IN 1
+
+#if SX9385
+&sw_i2c0 {
+	gpios = <SEC_GPIO_REF(AP,pio,104) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,103) 0>; /* scl */
+	pinctrl-0 = <&grip_i2c_sda
+				 &grip_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+
+	sx9385: sx9385-i2c@29 {
+		compatible = "sx9385";
+		reg = <0x29>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int
+#if 1
+					 &grip_ldo_en
+#endif
+					>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,12)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,12) 0 0>;
+
+#if 1
+		sx9385,ldo_en = <SEC_GPIO_REF(AP,pio,84) 0>;
+#else
+		sx9385,dvdd_vreg_name = "VDD_GRIP_3P3";
+#endif
+		sx9385,nirq-gpio = <SEC_GPIO_REF(AP,pio,12) 0>;
+		sx9385,unknown_sel = <3>;
+		sx9385,main-phases = <0x14>;
+		sx9385,ref-phases = <0xA>;
+		sx9385,num_of_channels = <2>;
+		sx9385,num_of_refs = <2>; /* lego! */
+	};
+};
+
+&pio {
+	grip_i2c_sda: grip-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(AP,pio,104, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+
+	grip_i2c_scl: grip-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(AP,pio,103, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+};
+&pio {
+	grip_int: grip-int {
+		GPIO_CONFIG_PUD_DRV(AP,pio,12, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+#if 1
+&pio {
+	grip_ldo_en: grip-ldo-en {
+		GPIO_CONFIG_PUD(AP,pio,84, FUNC_OUTPUT_HIGH, PULL_NONE);
+	};
+};
+#endif
+#endif
+
+#if GRIP_NONE
+&${i2c_grip_sub} {
+	gpios = <SEC_GPIO_REF(${gpio_grip_sub_i2c_sda}) 0 /* sda */
+			SEC_GPIO_REF(${gpio_grip_sub_i2c_scl}) 0>; /* scl */
+	pinctrl-0 = <&grip_sub_i2c_sda
+				 &grip_sub_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+	sx9385_sub: sx9385_sub-i2c@29 {
+		compatible = "sx9385_sub";
+		reg = <0x29>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub_int
+#if 0
+					 &grip_sub_ldo_en
+#endif
+		>;
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_sub_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_sub_irq}) 0 0>;
+#if 0
+		sx9385,ldo_en = <SEC_GPIO_REF(${gpio_grip_sub_en}) 0>;
+#elif 0
+		sx9385,dvdd_vreg_name = "VDD_GRIP_SUB_3P3";
+#endif
+
+		sx9385,nirq-gpio = <SEC_GPIO_REF(${gpio_grip_sub_irq}) 0>;
+#if 1
+		sx9385,unknown_sel = <3>;
+#endif
+		sx9385,main-phases = <0x14>;
+		sx9385,ref-phases = <0xA>;
+		sx9385,num_of_channels = <1>;
+		sx9385,num_of_refs = <2>; /* lego! */
+	};
+};
+
+&${gpio_grip_sub_i2c_parent} {
+	grip_sub_i2c_sda: grip-sub-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_i2c_sda}, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+	grip_sub_i2c_scl: grip-sub-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_i2c_scl}, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+};
+
+&${gpio_grip_sub_irq_parent} {
+	grip_sub_int: grip-sub-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+#if 0
+&${gpio_grip_sub_en_parent} {
+	grip_sub_ldo_en: grip-sub-ldo-en {
+		GPIO_CONFIG_PUD(${gpio_grip_sub_en}, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+#endif
+
+#endif
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/sx9385/dts/sx9385.a15.dtsi */
+/delete-node/ &grip_ldo_en;
+
+&pio {
+	grip_ldo_en: grip-ldo-en {
+		GPIO_CONFIG_PUD_DRV(AP,pio,84, FUNC_INPUT, PULL_DOWN, DRV_LV1);
+	};
+};
+
+&sx9385 {
+	sx9385,reg-num = <41>;
+	sx9385,reg-init = /bits/ 8 <
+		0x02 0x00
+		0x04 0x30
+		0x05 0x18
+		0x07 0xC0
+		0x08 0x11
+		0x0B 0x0A
+		0x0D 0x06
+		0x0E 0x66
+		0x47 0x56
+		0x4D 0x56
+		0x54 0x46
+		0x5A 0x46
+		0x48 0x05
+		0x4E 0x05
+		0x55 0x04
+		0x5B 0x04
+		0x49 0x27
+		0x4F 0x27
+		0x56 0x3F
+		0x5C 0x3F
+		0x79 0x12
+		0x7A 0x20
+		0x80 0x20
+		0x7B 0x60
+		0x7D 0x35
+		0x81 0x60
+		0x7C 0x4A
+		0x82 0x00
+		0x83 0x35
+		0x7E 0x14
+		0x84 0x80
+		0x7F 0x1B
+		0x91 0x00
+		0x92 0x00
+		0x9E 0x00
+		0x8C 0x00
+		0x4A 0x40
+		0x50 0x04
+		0x57 0x10
+		0x5D 0x01
+		0x09 0x78 /*Must write at the end*/
+	>;
+};

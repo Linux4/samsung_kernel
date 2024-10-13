@@ -1,0 +1,55 @@
+config DRM_MEDIATEK_V2
+	bool "Version 2 of DRM Support for Mediatek SoCs"
+	help
+	  Choose this option if you have a phone Mediatek
+	  SoCs. The module will be called mediatek-drm v2
+	  This driver provides kernel mode setting and
+	  buffer management to userspace.
+
+config DRM_MTK_DISABLE_AEE_LAYER
+	bool "Disable AEE Layer for the customer who don't want to produce AEE"
+	help
+	  Disable AEE Layer if you do not want to produce AEE.
+	  Default Mediatek SoCs will produce AEE when exception occurred.
+	  If this value is y, will not produce AEE.
+	  If this value is n, will produce AEE.
+	  If you do not produce AEE, please set it to Y in xxx_defconfig.
+
+config MTK_AAL_SUPPORT
+	bool "Support MTK ambient-light adaptive luma (AAL)"
+	help
+	  Decide whether to support ambient-light adaptive luma and
+	  display visual enhancement.
+	  This feature requires the cowork of AAL user-space algorithm process.
+
+config MTK_DRE30_SUPPORT
+	bool "Support DRE 30"
+	help
+	  Decide whether to support ambient-light adaptive luma and
+	  display visual enhancement ver.3.
+	  This feature requires the cowork of AAL user-space algorithm process.
+
+config MTK_DISP_LOGGER
+	bool "Default enable display logger function"
+	help
+	  Display logger would record display-related event
+	  for debug purpose.
+	  If this value is Y, display driver would
+	  initial display loggger during driver probe
+	  stage, but can still manual disable this function
+	  through debugfs or procfs.
+
+config MTK_RECU_FENCE_LOCK
+	bool "enable fence deadlock workarond for img_gpu"
+	help
+	  For IMG GPU, it will attach to display fence
+	  by callback, and it maybe occur deadlock when fence ref is
+	  reduced to zero in fence signal flow because of linux fence
+	  limitation. So the option will control whether display run
+	  workaround flow.
+
+config MTK_DISP_DEBUG
+	bool "DISP Debug Support for Mediatek SoCs"
+	help
+	  Choose this option if you have a Mediatek SoCs.
+	  This driver provides disp driver debug feature.

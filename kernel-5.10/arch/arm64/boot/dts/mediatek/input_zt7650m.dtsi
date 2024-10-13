@@ -1,0 +1,52 @@
+&pio {
+	tsp_int: tsp_int {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,10), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+
+&i2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	tsp_zxt: touchscreen@20 {
+		status = "ok";
+		compatible = "zinitix,zt_ts_device";
+		reg = <0x20>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&tsp_int>;
+		pinctrl-1 = <&tsp_int>;
+		tsp_avdd_ldo-supply = <&fixed_regulator0>;
+		sec,irq_gpio = <SEC_GPIO_REF(AP,pio,10) 0>;
+		sec,max_coords = <1081 2401>;
+
+		/* feature */
+		zinitix,mis_cal_check;
+		enable_settings_aot;
+		support_ear_detect_mode;
+		support_dex_mode;
+		support_open_short_test;
+
+		sec,enable_sysinput_enabled;
+		not_support_io_ldo;
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2023/touchscreen/zinitix/zt7650m/dts/input-mtk-tsp-zt7650m.a15.dtsi */
+&tsp_zxt {
+		sec,max_coords = <1081 2341>;
+		sec,bitmask_unload = <0x00FF00 0x004200>;
+
+		/* calibration */
+		sec,tclm_level = <2>;
+		sec,afe_base = <0x0006>;
+
+		/* This part is for firmware */
+		zinitix,chip_name = "ZT7650M";
+		sec,firmware_name = "zt7650m_a15.bin";
+		sec,bringup = <0>;
+};
