@@ -2512,7 +2512,8 @@ static irqreturn_t max77705_sysovlo_irq(int irq, void *data)
 	pr_info("%s\n", __func__);
 	__pm_wakeup_event(charger->sysovlo_ws, jiffies_to_msecs(HZ * 5));
 
-	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_SYSOVLO, value);
+	value.intval = POWER_SUPPLY_EXT_HEALTH_VSYS_OVP;
+	psy_do_property("battery", set, POWER_SUPPLY_PROP_HEALTH, value);
 
 	max77705_set_sysovlo(charger, 0);
 	return IRQ_HANDLED;

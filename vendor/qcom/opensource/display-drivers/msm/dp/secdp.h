@@ -48,6 +48,7 @@
 /*#define SECDP_EVENT_THREAD*/
 /*#define SECDP_TEST_HDCP2P2_REAUTH*/
 /*#define NOT_SUPPORT_DEX_RES_CHANGE*/
+#define REMOVE_YUV420_AT_PREFER
 
 #define DPCD_IEEE_OUI			0x500
 #define DPCD_DEVID_STR			0x503
@@ -504,6 +505,9 @@ struct secdp_misc {
 
 bool secdp_get_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
+
+bool secdp_adapter_check_parade(void);
+bool secdp_adapter_check_ps176(void);
 
 int  secdp_pdic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_phy_reset_check(void);

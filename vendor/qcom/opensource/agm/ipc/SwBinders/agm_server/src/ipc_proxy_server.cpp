@@ -753,21 +753,21 @@ void ipc_cb (uint32_t session_id, struct agm_event_cb_params *event_params,
         if (handle != NULL && handle->session_id == session_id &&
                               handle->client_data == client_data) {
             AGM_LOGV("%s: Found handle %p\n", __func__, handle);
-            pthread_mutex_unlock(&clbk_data_list_lock);
             break;
         }
     }
-    pthread_mutex_unlock(&clbk_data_list_lock);
 
     if (handle!= NULL) {
         sp<ICallback> cb_binder = handle->cb_binder;
         if (cb_binder == NULL) {
             AGM_LOGE("%s Invalid binder handle\n", __func__);
+            pthread_mutex_unlock(&clbk_data_list_lock);
             return;
         }
         cb_binder->event_cb(session_id, event_params,
                handle->client_data, handle->cb_func);
     }
+    pthread_mutex_unlock(&clbk_data_list_lock);
 }
 
 

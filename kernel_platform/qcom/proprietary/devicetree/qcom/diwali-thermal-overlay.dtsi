@@ -109,6 +109,16 @@
 				cooling-device = <&CPU4 0 THERMAL_NO_LIMIT>;
 			};
 
+			pm7325_cpu5_freq {
+				trip = <&pm7325_trip0>;
+				cooling-device = <&CPU5 10 THERMAL_NO_LIMIT>;
+			};
+
+			pm7325_cpu6_freq {
+				trip = <&pm7325_trip0>;
+				cooling-device = <&CPU6 10 THERMAL_NO_LIMIT>;
+			};
+
 			pm7325_cpu7_freq {
 				trip = <&pm7325_trip0>;
 				cooling-device = <&CPU7 0 THERMAL_NO_LIMIT>;

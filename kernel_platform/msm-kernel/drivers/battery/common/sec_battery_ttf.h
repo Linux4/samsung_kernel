@@ -20,10 +20,6 @@
 #ifndef __SEC_BATTERY_TTF_H
 #define __SEC_BATTERY_TTF_H __FILE__
 
-#define WFC10_WIRELESS_POWER	7500000 /* mW */
-#define WFC20_WIRELESS_POWER	12000000 /* mW */
-#define WFC21_WIRELESS_POWER 	15000000 /* mW */
-
 struct sec_cv_slope {
 		int fg_current;
 		int soc;
@@ -35,6 +31,7 @@ struct sec_battery_info;
 struct sec_ttf_data {
 	void *pdev;
 	int timetofull;
+	int old_timetofull;
 
 	unsigned int ttf_hv_12v_charge_current;
 	unsigned int ttf_hv_charge_current;

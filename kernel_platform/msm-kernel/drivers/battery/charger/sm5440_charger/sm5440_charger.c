@@ -24,7 +24,7 @@
 #endif
 #include "sm5440_charger.h"
 
-#define SM5440_DC_VERSION  "WE2"
+#define SM5440_DC_VERSION  "XA1"
 
 static int sm5440_read_reg(struct sm5440_charger *sm5440, u8 reg, u8 *dest)
 {
@@ -839,11 +839,12 @@ static int psy_chg_set_online(struct sm5440_charger *sm5440, int online)
 static int psy_chg_set_const_chg_voltage(struct sm5440_charger *sm5440, int vbat)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
+	int state = sm_dc_get_current_state(sm_dc);
 	int ret = 0;
 
 	dev_info(sm5440->dev, "%s: [%dmV] to [%dmV]\n", __func__, sm5440->target_vbat, vbat);
 
-	if (sm5440->target_vbat != vbat) {
+	if (sm5440->target_vbat != vbat || state < SM_DC_CHECK_VBAT) {
 		sm5440->target_vbat = vbat;
 		ret = sm_dc_set_target_vbat(sm_dc, sm5440->target_vbat);
 	}
@@ -864,11 +865,12 @@ static int psy_chg_set_chg_curr(struct sm5440_charger *sm5440, int ibat)
 static int psy_chg_set_input_curr(struct sm5440_charger *sm5440, int ibus)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
+	int state = sm_dc_get_current_state(sm_dc);
 	int ret = 0;
 
 	dev_info(sm5440->dev, "%s: ibus [%dmA] to [%dmA]\n", __func__, sm5440->target_ibus, ibus);
 
-	if (sm5440->target_ibus != ibus) {
+	if (sm5440->target_ibus != ibus || state < SM_DC_CHECK_VBAT) {
 		sm5440->target_ibus = ibus;
 		if (sm5440->target_ibus < SM5440_TA_MIN_CURRENT) {
 			dev_info(sm5440->dev, "%s: can't used less then ta_min_current(%dmA)\n",
@@ -1453,7 +1455,7 @@ static int sm5440_charger_parse_dt(struct device *dev,
 		dev_info(dev, "%s: sm5440,freq_byp is Empty\n", __func__);
 		pdata->freq_byp = 550;
 	}
-	dev_info(dev, "parse_dt: irq_gpio=%d\n, freq=%d, freq_byp=%d\n",
+	dev_info(dev, "parse_dt: irq_gpio=%d, freq=%d, freq_byp=%d\n",
 		pdata->irq_gpio, pdata->freq, pdata->freq_byp);
 
 	ret = of_property_read_u32(np_sm5440, "sm5440,r_ttl", &pdata->r_ttl);
@@ -1842,7 +1844,11 @@ err_devmem:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 static int sm5440_charger_remove(struct i2c_client *i2c)
+#else
+static void sm5440_charger_remove(struct i2c_client *i2c)
+#endif
 {
 	struct sm5440_charger *sm5440 = i2c_get_clientdata(i2c);
 
@@ -1854,8 +1860,9 @@ static int sm5440_charger_remove(struct i2c_client *i2c)
 	wakeup_source_unregister(sm5440->chg_ws);
 	sm_dc_destroy_instance(sm5440->pps_dc);
 	sm_dc_destroy_instance(sm5440->wpc_dc);
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	return 0;
+#endif
 }
 
 static void sm5440_charger_shutdown(struct i2c_client *i2c)

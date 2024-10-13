@@ -107,7 +107,7 @@ int sec_get_ttf_standard_curr(struct sec_battery_info *battery)
 		charge = battery->ttf_d->ttf_hv_12v_charge_current;
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
 	} else if (battery->cable_type == SEC_BATTERY_CABLE_WIRELESS_EPP ||
-		battery->cable_type == SEC_BATTERY_CABLE_WIRELESS_MPP) {
+		battery->cable_type == SEC_BATTERY_CABLE_WIRELESS_EPP_FAKE) {
 		if (battery->wc20_rx_power >= WFC21_WIRELESS_POWER) // need to fix hardcoding
 			charge = battery->ttf_d->ttf_wc21_wireless_charge_current;
 		else if (battery->wc20_rx_power >= WFC20_WIRELESS_POWER)
@@ -174,20 +174,47 @@ int sec_get_ttf_standard_curr(struct sec_battery_info *battery)
 }
 EXPORT_SYMBOL_KUNIT(sec_get_ttf_standard_curr);
 
+static int check_ttf_valid(struct sec_ttf_data *ttf_d, int ttf)
+{
+	if (ttf_d->timetofull < 0) {
+		ttf_d->old_timetofull = ttf;
+		return ttf;
+	}
+
+	if (ttf > ttf_d->timetofull) {
+		if (ttf > ttf_d->old_timetofull) {
+			int ret = ttf_d->old_timetofull;
+
+			ttf_d->old_timetofull = ttf;
+			return ret;
+		}
+	}
+
+	ttf_d->old_timetofull = ttf;
+	return ttf;
+}
+
+static void init_ttf(struct sec_ttf_data *ttf_d)
+{
+	ttf_d->timetofull = -1;
+	ttf_d->old_timetofull = -1;
+}
+
 void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 {
 	if (delayed_work_pending(&battery->ttf_d->timetofull_work)) {
 		pr_info("%s: keep time_to_full(%5d sec)\n", __func__, battery->ttf_d->timetofull);
 	} else if (check_ttf_state(battery->capacity, battery->status) &&
 		!battery->wc_tx_enable && !skip_ttf_event(battery->misc_event)) {
-		int charge = 0;
+		int charge = 0, ttf = 0;
 
 		charge = sec_get_ttf_standard_curr(battery);
-		battery->ttf_d->timetofull = sec_calc_ttf(battery, charge);
-		dev_info(battery->dev, "%s: T: %5d sec, passed time: %5ld, current: %d\n",
-				__func__, battery->ttf_d->timetofull, battery->charging_passed_time, charge);
+		ttf = sec_calc_ttf(battery, charge);
+		battery->ttf_d->timetofull = check_ttf_valid(battery->ttf_d, ttf);
+		dev_info(battery->dev, "%s: T: %5d|%5d sec, passed time: %5ld, current: %d\n",
+				__func__, battery->ttf_d->timetofull, ttf, battery->charging_passed_time, charge);
 	} else {
-		battery->ttf_d->timetofull = -1;
+		init_ttf(battery->ttf_d);
 	}
 }
 
@@ -379,7 +406,7 @@ void ttf_init(struct sec_battery_info *battery)
 		pr_err("Failed to allocate memory\n");
 	}
 	sec_ttf_parse_dt(battery);
-	battery->ttf_d->timetofull = -1;
+	init_ttf(battery->ttf_d);
 
 	INIT_DELAYED_WORK(&battery->ttf_d->timetofull_work, sec_bat_time_to_full_work);
 }

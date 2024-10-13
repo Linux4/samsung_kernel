@@ -2459,6 +2459,9 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
     size_t bt_param_size = 0;
 #endif
 #endif
+#ifdef SEC_AUDIO_HDMI  // { SUPPORT_VOIP_VIA_SMART_MONITOR
+    std::set<audio_devices_t> previousDevices = mAndroidOutDevices;
+#endif // }SUPPORT_VOIP_VIA_SMART_MONITOR
 
     stream_mutex_.lock();
     if (!mInitialized) {
@@ -2623,6 +2626,10 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
              strlcpy(mPalOutDevice->custom_config.custom_key, "HAC",
                     sizeof(mPalOutDevice->custom_config.custom_key));
         }
+#ifdef SEC_AUDIO_HDMI // { SUPPORT_VOIP_VIA_SMART_MONITOR
+        // update tx path with custom key if tx path is routed earlier than rx path.
+        sec_stream_out_->RerouteForVoipSmartMonitor(this, previousDevices);
+#endif // } SUPPORT_VOIP_VIA_SMART_MONITOR
 
 #ifndef SEC_AUDIO_COMMON
 #ifdef SEC_AUDIO_BLE_OFFLOAD
@@ -3862,6 +3869,11 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
 #endif // } CONFIG_EFFECTS_VIDEOCALL
 #ifdef SEC_AUDIO_COMMON
 #ifdef SEC_AUDIO_CALL_VOIP
+#ifdef SEC_AUDIO_HDMI // { SUPPORT_VOIP_VIA_SMART_MONITOR
+        // when creating voip_rx stream, update tx path by custom key if voip_tx path is active.
+        sec_stream_out_->RerouteForVoipSmartMonitor(this);
+#endif // } SUPPORT_VOIP_VIA_SMART_MONITOR
+
         if (adevice->voice_ && adevice->voice_->sec_voice_->cng_enable &&
             streamAttributes_.type == PAL_STREAM_VOIP_RX &&
             adevice->voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION) {
@@ -5698,6 +5710,23 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
         SEC_LEVEL_RUN(this->GetHandle(), SEC_LEVEL_IN_LAST, palBuffer.buffer, palBuffer.size);
     }
 #endif
+#endif
+
+#ifdef SEC_AUDIO_CAMCORDER
+    if ((palBuffer.buffer && palBuffer.size > 0) && (source_ == AUDIO_SOURCE_CAMCORDER) &&
+        (audio_channel_count_from_in_mask(config_.channel_mask) == 2) &&
+        AudioExtn::audio_devices_cmp(mAndroidInDevices, AUDIO_DEVICE_IN_2MIC) &&
+        adevice->sec_device_->tx_data_inversion) {
+        int32_t *iBuffer = (int32_t *)palBuffer.buffer;
+        int32_t left, right;
+        size_t i = 0;
+        for (i = (palBuffer.size >> 2); i > 0; i--) {
+            left = (*iBuffer & 0x0000FFFF);
+            right  = (((*iBuffer)>>16)& 0x0000FFFF);
+            *iBuffer = (left<<16|right);
+            iBuffer++;
+        }
+    }
 #endif
 
     // mute pcm data if sva client is reading lab data
