@@ -1,5 +1,0 @@
-config ${caps_test_prefix}
-	bool "KUnit test for ${test_prefix}"
-	depends on SEC_KUNIT
-	help
-	  TODO: Describe config fully.
