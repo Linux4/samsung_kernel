@@ -245,6 +245,33 @@ done:
 	return;
 }
 
+static void disconnect_usb_driver(struct usb_device *dev)
+{
+	struct usb_interface *intf = NULL;
+	struct usb_driver *driver = NULL;
+	int i;
+
+	if (!dev) {
+		pr_err("%s no dev\n", __func__);
+		goto done;
+	}
+
+	if (!dev->actconfig) {
+		pr_err("%s no set config\n", __func__);
+		goto done;
+	}
+
+	for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
+		intf = dev->actconfig->interface[i];
+		if (intf->dev.driver) {
+			driver = to_usb_driver(intf->dev.driver);
+			usb_driver_release_interface(driver, intf);
+		} 
+	}
+done:
+	return;
+}
+
 static int call_device_notify(struct usb_device *dev, int connect)
 {
 	struct otg_notify *o_notify = get_otg_notify();
@@ -270,13 +297,17 @@ static int call_device_notify(struct usb_device *dev, int connect)
 			seek_usb_interface(dev);
 
 			if (!usb_check_whitelist_for_mdm(dev)) {
-				pr_info("This deice will be noattached state.\n");
+				pr_info("This device will be noattached state.\n");
+				disconnect_usb_driver(dev);
 				usb_set_device_state(dev, USB_STATE_NOTATTACHED);
 			}
-		} else
+		} else {
+			send_otg_notify(o_notify,
+				NOTIFY_EVENT_DEVICE_CONNECT, 0);
 			store_usblog_notify(NOTIFY_PORT_DISCONNECT,
 				(void *)&dev->descriptor.idVendor,
 				(void *)&dev->descriptor.idProduct);
+		}
 	} else {
 		if (connect)
 			pr_info("%s root hub\n", __func__);
@@ -474,6 +505,8 @@ static int dev_notify(struct notifier_block *self,
 		set_hw_param(dev);
 #endif
 		check_unsupport_device(dev);
+		check_usbaudio(dev);
+		check_usbgroup(dev);
 		break;
 	case USB_DEVICE_REMOVE:
 		call_device_notify(dev, 0);
