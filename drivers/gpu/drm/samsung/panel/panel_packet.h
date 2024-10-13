@@ -192,5 +192,9 @@ int update_tx_packet(struct pktinfo *info);
 void *copy_pktinfo_data(void *dest, struct pktinfo *pkt);
 int add_tx_packet_on_pnobj_refs(struct pktinfo *pkt, struct pnobj_refs *pnobj_refs);
 void print_pktinfo(struct pktinfo *pkt, int index);
+struct keyinfo *create_key_packet(char *name, unsigned int level,
+		unsigned int key_type, struct pktinfo *pkt);
+struct keyinfo *duplicate_key_packet(struct keyinfo *key);
+void destroy_key_packet(struct keyinfo *key);
 #endif /* __PANEL_PACKET_H__ */
 

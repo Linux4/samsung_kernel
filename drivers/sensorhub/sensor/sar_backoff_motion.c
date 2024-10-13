@@ -20,7 +20,7 @@
 
 #include <linux/slab.h>
 
-#define SBM_CMD_RESET	128
+#define SBM_SUBCMD_RESET	128
 
 static int set_sar_backoff_reset_value(int32_t value)
 {
@@ -31,7 +31,8 @@ static int set_sar_backoff_reset_value(int32_t value)
 		return ret;
 	}
 
-	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_SAR_BACKOFF_MOTION, SBM_CMD_RESET, (char *)&value, sizeof(value));
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_SAR_BACKOFF_MOTION, SBM_SUBCMD_RESET,
+				(char *)&value, sizeof(value));
 	if (ret < 0) {
 		shub_errf("CMD fail %d", ret);
 		return ret;

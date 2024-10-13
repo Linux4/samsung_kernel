@@ -228,13 +228,6 @@ static u8 m34x_lpm_on_table[2][1] = {
 	[HLPM_MODE] = { 0x23 },
 };
 
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-static u8 m34x_vgh_table[][1] = {
-	{ 0xC0 },	/* off 7.0 V */
-	{ 0x60 },	/* on 6.2 V */
-};
-#endif
-
 static u8 m34x_ffc_table[MAX_S6E3FC3_M34X_HS_CLK][2] = {
 	[S6E3FC3_M34X_HS_CLK_1108] = {0x53, 0xC7}, // FFC for HS: 1108
 	[S6E3FC3_M34X_HS_CLK_1124] = {0x52, 0x96}, // FFC for HS: 1124
@@ -273,9 +266,6 @@ static struct maptbl m34x_maptbl[MAX_MAPTBL] = {
 	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(m34x_tset_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), NULL, &OLED_FUNC(OLED_MAPTBL_COPY_TSET)),
 	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(m34x_lpm_nit_table, &DDI_FUNC(S6E3FC3_MAPTBL_INIT_LPM_BRT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_LPM_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 	[LPM_EXIT_NIT_MAPTBL] = DEFINE_2D_MAPTBL(m34x_exit_lpm_nit_table, &DDI_FUNC(S6E3FC3_MAPTBL_INIT_LPM_BRT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_LPM_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-	[VGH_MAPTBL] = DEFINE_2D_MAPTBL(m34x_vgh_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_VGH), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
-#endif
 	[FPS_MAPTBL_1] = DEFINE_2D_MAPTBL(m34x_fps_table_1, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_VRR_FPS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 	[FPS_MAPTBL_2] = DEFINE_2D_MAPTBL(m34x_fps_table_2, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_VRR_FPS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 	[DIMMING_SPEED] = DEFINE_2D_MAPTBL(m34x_dimming_speep_table_1, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_SMOOTH_TRANSITION), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
@@ -531,16 +521,9 @@ static u8 M34X_PORCH_SET[] = {
 };
 static DEFINE_STATIC_PACKET(m34x_porch_set, DSI_PKT_TYPE_WR, M34X_PORCH_SET, 0x2E);
 
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-static u8 M34X_XTALK_MODE[] = { 0xD9, 0x60 };
-static DEFINE_PKTUI(m34x_xtalk_mode, &m34x_maptbl[VGH_MAPTBL], 1);
-static DEFINE_VARIABLE_PACKET(m34x_xtalk_mode, DSI_PKT_TYPE_WR, M34X_XTALK_MODE, 0x1C);
-#endif
-
 static u8 M34X_FPS_1[] = { 0x60, 0x08, 0x00 };
 static DEFINE_PKTUI(m34x_fps_1, &m34x_maptbl[FPS_MAPTBL_1], 1);
 static DEFINE_VARIABLE_PACKET(m34x_fps_1, DSI_PKT_TYPE_WR, M34X_FPS_1, 0);
-
 
 static u8 M34X_FPS_2[] = { 0x68, 0x02, };
 static DEFINE_PKTUI(m34x_fps_2, &m34x_maptbl[FPS_MAPTBL_2], 1);
@@ -566,6 +549,9 @@ static u8 M34X_GLOBAL_PARAM_SETTING[] = {
 	0xCE
 };
 static DEFINE_STATIC_PACKET(m34x_global_param_setting, DSI_PKT_TYPE_WR, M34X_GLOBAL_PARAM_SETTING, 0);
+
+static u8 M34X_CRC_ENABLE[] = { 0x6A, 0x01 };
+static DEFINE_STATIC_PACKET(m34x_crc_enable, DSI_PKT_TYPE_WR, M34X_CRC_ENABLE, 0x06);
 
 static u8 M34X_FOD_ENTER[] = {
 	0xB5, 0x14
@@ -694,8 +680,8 @@ static struct seqinfo SEQINFO(m34x_set_fps_param_seq);
 static struct seqinfo SEQINFO(m34x_res_init_seq);
 #endif
 
-static DEFINE_SETPROP_VALUE(m34x_set_separate_tx_off, PANEL_PROPERTY_SEPARATE_TX, SEPARATE_TX_OFF);
-static DEFINE_SETPROP_VALUE(m34x_set_separate_tx_on, PANEL_PROPERTY_SEPARATE_TX, SEPARATE_TX_ON);
+static DEFINE_PNOBJ_CONFIG(m34x_set_separate_tx_off, PANEL_PROPERTY_SEPARATE_TX, SEPARATE_TX_OFF);
+static DEFINE_PNOBJ_CONFIG(m34x_set_separate_tx_on, PANEL_PROPERTY_SEPARATE_TX, SEPARATE_TX_ON);
 
 static void *m34x_common_setting_cmdtbl[] = {
 	&KEYINFO(m34x_level1_key_enable),
@@ -704,6 +690,10 @@ static void *m34x_common_setting_cmdtbl[] = {
 
 	&PKTINFO(m34x_global_param_setting),
 	&PKTINFO(m34x_panel_update),
+
+	&DLYINFO(m34x_wait_1msec),
+
+	&PKTINFO(m34x_crc_enable),
 
 	&PKTINFO(m34x_te_on),
 	&PKTINFO(m34x_te_setting),
@@ -899,7 +889,6 @@ static void *m34x_exit_cmdtbl[] = {
 	&s6e3fc3_dmptbl[DUMP_ERR],
 	&s6e3fc3_dmptbl[DUMP_DSI_ERR],
 	&s6e3fc3_dmptbl[DUMP_SELF_DIAG],
-	&s6e3fc3_dmptbl[DUMP_SELF_MASK_CRC],
 #endif
 	&PKTINFO(m34x_sleep_in),
 	&KEYINFO(m34x_level3_key_disable),

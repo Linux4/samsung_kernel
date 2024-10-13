@@ -85,7 +85,7 @@ static ssize_t slsi_procfs_mutex_stats_read(struct file *file,  char __user *use
 
 	for (i = 1; i < CONFIG_SCSC_WLAN_MAX_INTERFACES + 1; i++) {
 		pos += scnprintf(buf + pos, bufsz - pos, "netdevvif %d\n", i);
-		dev = slsi_get_netdev_locked(sdev, i);
+		dev = sdev->netdev[i];
 		if (!dev)
 			continue;
 		ndev_vif = netdev_priv(dev);

@@ -1094,7 +1094,7 @@ static unsigned int pktproc_perftest_gen_rx_packet_sktbuf_mode(
 	u32 header_len = perftest_data[perf->mode].header_len;
 	u32 rear_ptr;
 	unsigned int space, loop_count;
-	u8 *src;
+	u8 *src = NULL;
 	u32 *seq;
 	u16 *dst_port;
 	u16 *dst_addr;
@@ -1115,10 +1115,16 @@ static unsigned int pktproc_perftest_gen_rx_packet_sktbuf_mode(
 		/* set data */
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
 		src = q->ioc.pf_buf[rear_ptr] + q->ppa->skb_padding_size;
+#elif IS_ENABLED(CONFIG_EXYNOS_CPIF_IOMMU)
+
 #else
 		src = desc[rear_ptr].cp_data_paddr -
 				q->cp_buff_pbase + q->q_buff_vbase;
 #endif
+		if (!src) {
+			mif_err_limited("src is null\n");
+			return -EINVAL;
+		}
 		memset(src, 0x0, desc[rear_ptr].length);
 		memcpy(src, perftest_data[perf->mode].header, header_len);
 		seq = (u32 *)(src + header_len);
@@ -1148,9 +1154,6 @@ static int pktproc_perftest_thread(void *arg)
 	struct pktproc_perftest *perf = &ppa->perftest;
 	bool session_queue = false;
 	int i, pkts;
-
-	if (perf->session > PKTPROC_MAX_QUEUE)
-		perf->session = PKTPROC_MAX_QUEUE;
 
 	if (ppa->use_exclusive_irq && (perf->session > 1) && (perf->session <= ppa->num_queue))
 		session_queue = true;
@@ -1201,6 +1204,7 @@ static ssize_t perftest_store(struct device *dev,
 	struct mem_link_device *mld = to_mem_link_device(ld);
 	struct pktproc_adaptor *ppa = &mld->pktproc;
 	struct pktproc_perftest *perf = &ppa->perftest;
+	unsigned int mode = 0, session, perf_cpu;
 
 	static struct task_struct *worker_task;
 	int ret;
@@ -1216,7 +1220,7 @@ static ssize_t perftest_store(struct device *dev,
 	switch (perf->mode) {
 	case PERFTEST_MODE_CLAT:
 		ret = sscanf(buf, "%d %d %hu %d %d %hx:%hx:%hx:%hx:%hx:%hx:%hx:%hx %d %d %d %d",
-			     &perf->mode, &perf->session, &perf->ch, &perf->cpu, &perf->udelay,
+			     &mode, &session, &perf->ch, &perf_cpu, &perf->udelay,
 			     &perf->clat_ipv6[0], &perf->clat_ipv6[1], &perf->clat_ipv6[2],
 			     &perf->clat_ipv6[3], &perf->clat_ipv6[4], &perf->clat_ipv6[5],
 			     &perf->clat_ipv6[6], &perf->clat_ipv6[7],
@@ -1225,14 +1229,19 @@ static ssize_t perftest_store(struct device *dev,
 		break;
 	default:
 		ret = sscanf(buf, "%d %d %hu %d %d %d %d %d %d",
-			     &perf->mode, &perf->session, &perf->ch, &perf->cpu, &perf->udelay,
+			     &mode, &session, &perf->ch, &perf_cpu, &perf->udelay,
 			     &perf->ipi_cpu[0], &perf->ipi_cpu[1], &perf->ipi_cpu[2],
 			     &perf->ipi_cpu[3]);
 		break;
 	}
 
-	if (ret < 1)
+	if (ret < 1 || mode > PERFTEST_MODE_MAX)
 		return -EINVAL;
+
+
+	perf->mode = mode;
+	perf->session = session > PKTPROC_MAX_QUEUE ? PKTPROC_MAX_QUEUE : session;
+	perf->cpu = perf_cpu > num_possible_cpus() ? num_possible_cpus() - 1 : perf_cpu;
 
 	switch (perf->mode) {
 	case PERFTEST_MODE_STOP:

@@ -503,7 +503,7 @@
 			reg = <0xfc4ab000 0x04>;
 		};
 
-		spmi@fc4c0000 {
+		spmi@fc4cf000 {
 			compatible = "qcom,spmi-pmic-arb";
 			reg = <0xfc4cf000 0x1000 0xfc4cb000 0x1000 0xfc4ca000 0x1000>;
 			reg-names = "core\0intr\0cnfg";
@@ -787,7 +787,7 @@
 		blsp_i2c5 = "/soc/i2c@f9967000";
 		gcc = "/soc/clock-controller@fc400000";
 		rpm_msg_ram = "/soc/memory@fc428000";
-		spmi_bus = "/soc/spmi@fc4c0000";
+		spmi_bus = "/soc/spmi@fc4cf000";
 		tcsr_mutex_regs = "/soc/syscon@fd484000";
 		tlmm = "/soc/pinctrl@fd510000";
 		blsp1_uart2_default = "/soc/pinctrl@fd510000/blsp1-uart2-default";

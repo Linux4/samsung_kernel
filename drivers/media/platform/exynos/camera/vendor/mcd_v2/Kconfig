@@ -94,3 +94,9 @@ config CAMERA_MMW_M34X
         default n
         help
           This camera is mmw_m34x
+config CAMERA_STX_V04
+        bool "This camera is stx_v04"
+        depends on CAMERA_VENDER_MCD_V2
+        default n
+        help
+          This camera is stx_v04

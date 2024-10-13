@@ -918,7 +918,7 @@ static int ec6xx_type_check(struct ec6xx_data *etspi)
 	 */
 
 	if ((buf2 == 0x11) && (buf3 == 0x06)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS EC617 sensor\n");
 	} else {
 		etspi->sensortype = SENSOR_FAILED;
@@ -1057,7 +1057,7 @@ static void ec6xx_work_func_debug(struct work_struct *work)
 	pr_info("ldo: %d, sleep: %d, tz: %d, spi_value: 0x%x, type: %s\n",
 		etspi->ldo_enabled, gpio_get_value(etspi->sleepPin),
 		etspi->tz_mode, etspi->spi_value,
-		sensor_status[etspi->sensortype + 2]);
+		etspi->sensortype > 0 ? etspi->chipid : sensor_status[etspi->sensortype + 2]);
 }
 
 static struct ec6xx_data *alloc_platformdata(struct device *dev)

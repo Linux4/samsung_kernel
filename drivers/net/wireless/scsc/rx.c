@@ -4115,8 +4115,10 @@ void slsi_rx_received_frame_ind(struct slsi_dev *sdev, struct net_device *dev, s
 		struct ethhdr *ehdr = (struct ethhdr *)fapi_get_data(skb);
 
 		/* Populate wake reason stats here */
-		if (unlikely(slsi_skb_cb_get(skb)->wakeup))
+		if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
+			skb->mark = SLSI_WAKEUP_PKT_MARK;
 			slsi_rx_update_wake_stats(sdev, ehdr, skb->len - fapi_get_siglen(skb));
+		}
 
 		peer = slsi_get_peer_from_mac(sdev, dev, ehdr->h_source);
 		if (!peer) {

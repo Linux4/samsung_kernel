@@ -82,7 +82,6 @@ enum scsc_wlbtd_response_codes {
 static const struct genl_multicast_group scsc_mcgrp[] = {
 	{ .name = "scsc_mdp_grp", },
 };
-
 int scsc_wlbtd_init(void);
 int scsc_wlbtd_deinit(void);
 int call_wlbtd(const char *script_path);

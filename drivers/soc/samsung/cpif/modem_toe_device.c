@@ -19,7 +19,9 @@ void toe_set_iod_clat_netdev(struct io_device *iod, void *args)
 {
 	struct clat_info *clat = (struct clat_info *) args;
 	struct net_device *ndev = NULL;
+#if IS_ENABLED(CONFIG_CPIF_TP_MONITOR)
 	struct link_device *ld = get_current_link(iod);
+#endif
 	unsigned long flags;
 
 	if (strncmp(iod->name, clat->ipv6_iface, IFNAMSIZ) != 0)

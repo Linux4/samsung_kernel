@@ -228,8 +228,10 @@ int pdic_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 				__func__, ret);
 
 	/* current pdic's attached_device status notify */
+	mutex_lock(&pdic_notifier.notify_mutex);
 	nb->notifier_call(nb, 0,
 			&(pdic_notifier.pdic_template));
+	mutex_unlock(&pdic_notifier.notify_mutex);
 
 	return ret;
 }

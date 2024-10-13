@@ -261,7 +261,7 @@ void destroy_tx_packet(struct pktinfo *tx_packet)
 	if (!tx_packet)
 		return;
 
-	free_pnobj_name(&tx_packet->base);
+	pnobj_deinit(&tx_packet->base);
 	if (tx_packet->initdata != tx_packet->txbuf)
 		kvfree(tx_packet->txbuf);
 	kfree(tx_packet->pktui);
@@ -291,6 +291,16 @@ struct rdinfo *create_rx_packet(char *name, u32 type, struct panel_rx_msg *msg)
 
 	if (!msg)
 		return NULL;
+
+	if (!msg->len) {
+		panel_err("len is 0\n");
+		return NULL;
+	}
+
+	if (!msg->addr) {
+		panel_err("addr is 0\n");
+		return NULL;
+	}
 
 	if (!IS_RX_PKT_TYPE(type))
 		return NULL;
@@ -330,7 +340,7 @@ void destroy_rx_packet(struct rdinfo *rx_packet)
 	if (!rx_packet)
 		return;
 
-	free_pnobj_name(&rx_packet->base);
+	pnobj_deinit(&rx_packet->base);
 	kvfree(rx_packet->data);
 	kfree(rx_packet);
 }
@@ -470,4 +480,46 @@ void print_pktinfo(struct pktinfo *pkt, int index)
 
 	snprintf_pktinfo_with_index(buf, ARRAY_SIZE(buf), pkt, index);
 	panel_dbg("%s\n", buf);
+}
+
+struct keyinfo *create_key_packet(char *name, unsigned int level,
+		unsigned int key_type, struct pktinfo *pkt)
+{
+	struct keyinfo *key;
+
+	if (!name)
+		return NULL;
+
+	if (key_type >= MAX_KEY_TYPE) {
+		panel_err("invalid key type(%d)\n", key_type);
+		return NULL;
+	}
+
+	if (!pkt) {
+		panel_err("packet is null\n");
+		return NULL;
+	}
+
+	key = kzalloc(sizeof(*key), GFP_KERNEL);
+	if (!key)
+		return NULL;
+
+	pnobj_init(&key->base, CMD_TYPE_KEY, name);
+	key->level = level;
+	key->en = key_type;
+	key->packet = pkt;
+
+	return key;
+}
+
+struct keyinfo *duplicate_key_packet(struct keyinfo *key)
+{
+	return create_key_packet(get_key_name(key),
+			key->level, key->en, key->packet);
+}
+
+void destroy_key_packet(struct keyinfo *key)
+{
+	pnobj_deinit(&key->base);
+	kfree(key);
 }

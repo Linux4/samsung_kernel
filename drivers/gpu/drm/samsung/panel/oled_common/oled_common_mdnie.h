@@ -23,6 +23,7 @@ int oled_maptbl_getidx_mdnie_night_mode(struct maptbl *tbl);
 int oled_maptbl_getidx_color_lens(struct maptbl *tbl);
 void oled_maptbl_copy_scr_white(struct maptbl *tbl, u8 *dst);
 void oled_maptbl_copy_scr_cr(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_scr_white_anti_glare(struct maptbl *tbl, u8 *dst);
 #ifdef CONFIG_USDM_MDNIE_AFC
 void oled_maptbl_copy_afc(struct maptbl *tbl, u8 *dst);
 #endif

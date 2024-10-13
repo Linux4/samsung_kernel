@@ -45,6 +45,7 @@ static void fw_update(void *device_data)
 	case TSP_SDCARD:
 #if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		update_type = TSP_SIGNED_SDCARD;
+		fallthrough;
 #endif
 	case TSP_BUILT_IN:
 	case TSP_SPU:
@@ -227,23 +228,6 @@ static void module_on_master(void *device_data)
 	goodix_ts_power_on(core_data);
 	core_data->hw_ops->irq_enable(core_data, true);
 
-	sec->cmd_state = SEC_CMD_STATUS_OK;
-}
-
-static void set_factory_level(void *device_data)
-{
-	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
-	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
-
-	if (sec->cmd_param[0] < OFFSET_FAC_SUB || sec->cmd_param[0] > OFFSET_FAC_MAIN) {
-		ts_err("cmd data is abnormal, %d", sec->cmd_param[0]);
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-		return;
-	}
-
-	core_data->factory_position = sec->cmd_param[0];
-
-	ts_info("%d", core_data->factory_position);
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 }
 
@@ -677,6 +661,11 @@ static void goodix_run_rawdata_read(void *device_data, struct goodix_ts_test_typ
 	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret = -EIO;
+	short rawcap[2] = {SHRT_MAX, SHRT_MIN};
+	short rawcap_edge[2] = {SHRT_MAX, SHRT_MIN};
+	u8 tx = core_data->ic_info.parm.drv_num;
+	u8 rx = core_data->ic_info.parm.sen_num;
+	int ii, jj;
 
 	if (!test->rawdata) {
 		ts_err("test failed, rawdata is null");
@@ -697,8 +686,36 @@ static void goodix_run_rawdata_read(void *device_data, struct goodix_ts_test_typ
 		goodix_ts_print_frame(core_data, test->rawdata);
 	}
 
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+	if (test->type == RAWDATA_TEST_TYPE_MUTUAL_RAW && test->frequency_flag == FREQ_NORMAL) {
+		for (ii = 0; ii < rx; ii++) {
+			for (jj = 0; jj < tx; jj++) {
+				short *rawcap_ptr;
+
+				if (ii == 0 || ii == rx - 1 || jj == 0 || jj == tx - 1)
+					rawcap_ptr = rawcap_edge;
+				else
+					rawcap_ptr = rawcap;
+
+				if (test->rawdata->data[(ii * tx) + jj] < rawcap_ptr[0])
+					rawcap_ptr[0] = test->rawdata->data[(ii * tx) + jj];
+				if (test->rawdata->data[(ii * tx) + jj] > rawcap_ptr[1])
+					rawcap_ptr[1] = test->rawdata->data[(ii * tx) + jj];
+			}
+		}
+		ts_raw_info("%s: rawcap:%d,%d rawcap_edge:%d,%d", __func__,
+					rawcap[0], rawcap[1], rawcap_edge[0], rawcap_edge[1]);
+	}
+
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
 		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), test->spec_name);
+		if (test->type == RAWDATA_TEST_TYPE_MUTUAL_RAW && test->frequency_flag == FREQ_NORMAL) {
+			snprintf(buff, SEC_CMD_STR_LEN, "%d,%d", rawcap[0], rawcap[1]);
+			sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "TSP_RAWCAP");
+			snprintf(buff, SEC_CMD_STR_LEN, "%d,%d", rawcap_edge[0], rawcap_edge[1]);
+			sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "TSP_RAWCAP_EDGE");
+		}
+	}
+
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	ts_raw_info("[type%d,freq%d] %s", test->type, test->frequency_flag, buff);
 }
@@ -2322,9 +2339,8 @@ static void fod_enable(void *device_data)
 
 	mutex_lock(&ts->modechange_mutex);
 
-	if (!atomic_read(&ts->plat_data->enabled) && !ts->plat_data->lowpower_mode && !ts->plat_data->pocket_mode
-			&& !ts->plat_data->ed_enable && !ts->plat_data->fod_lp_mode) {
-		if (device_may_wakeup(ts->bus->dev) && atomic_read(&ts->plat_data->power_state) == SEC_INPUT_STATE_LPM)
+	if (!atomic_read(&ts->plat_data->enabled) && sec_input_need_ic_off(ts->plat_data)) {
+		if (device_may_wakeup(ts->sec.fac_dev) && sec_input_cmp_ic_status(ts->bus->dev, CHECK_LPMODE))
 			disable_irq_wake(ts->irq);
 		ts->hw_ops->irq_enable(ts, false);
 		goodix_ts_power_off(ts);
@@ -2800,7 +2816,6 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_V2("get_chip_name", get_chip_name, NULL, CHECK_ALL, WAIT_RESULT),},
 	{SEC_CMD_V2("get_x_num", get_x_num, NULL, CHECK_ALL, WAIT_RESULT),},
 	{SEC_CMD_V2("get_y_num", get_y_num, NULL, CHECK_ALL, WAIT_RESULT),},
-	{SEC_CMD_V2("set_factory_level", set_factory_level, NULL, CHECK_ALL, WAIT_RESULT),},
 	{SEC_CMD_V2("run_cs_raw_read_all", run_cs_raw_read_all, NULL, CHECK_POWERON, WAIT_RESULT),},
 	{SEC_CMD_V2("run_cs_delta_read_all", run_cs_delta_read_all, NULL, CHECK_POWERON, WAIT_RESULT),},
 	{SEC_CMD_V2("run_rawdata_read", run_rawdata_read, NULL, CHECK_POWERON, WAIT_RESULT),},

@@ -1696,7 +1696,11 @@ static int rawdata_proc_show(struct seq_file *m, void *v)
 
 static int rawdata_proc_open(struct inode *inode, struct file *file)
 {
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	return single_open_size(file, rawdata_proc_show, pde_data(inode), PAGE_SIZE * 10);
+#else
 	return single_open_size(file, rawdata_proc_show, PDE_DATA(inode), PAGE_SIZE * 10);
+#endif
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))

@@ -1318,7 +1318,7 @@ bool is_vender_check_sensor(struct is_core *core)
 			}
 		}
 
-		if (sensor_probe_done == 4) {
+		if (sensor_probe_done == is_vendor_sensor_count) {
 			info("Retry count = %d\n", retry_count);
 			break;
 		}
@@ -1534,6 +1534,13 @@ int is_vender_hw_init(struct is_vender *vender)
 				err("is_sec_run_fw_sel for ROM_ID(%d) is fail(%d)", i, ret);
 #if defined(CAMERA_UWIDE_DUALIZED)
 				if(i == ROM_ID_REAR3) {
+					ret = is_sec_run_fw_sel(i);
+					if (ret) {
+						err("is_sec_run_fw_sel for dualized ROM_ID(%d) is fail(%d)", i, ret);
+					}
+				}
+#elif defined(FRONT_OTPROM_EEPROM)
+				if(i == ROM_ID_FRONT) {
 					ret = is_sec_run_fw_sel(i);
 					if (ret) {
 						err("is_sec_run_fw_sel for dualized ROM_ID(%d) is fail(%d)", i, ret);

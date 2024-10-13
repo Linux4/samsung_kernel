@@ -39,6 +39,7 @@ bool check_aod_seqtbl_exist(struct aod_dev_info *aod, char *seqname)
 
 	return check_seqtbl_exist(to_panel_device(aod), seqname);
 }
+EXPORT_SYMBOL(check_aod_seqtbl_exist);
 
 int panel_do_aod_seqtbl_by_name_nolock(struct aod_dev_info *aod, char *seqname)
 {
@@ -55,6 +56,7 @@ int panel_do_aod_seqtbl_by_name_nolock(struct aod_dev_info *aod, char *seqname)
 
 	return execute_sequence_nolock(to_panel_device(aod), seq);
 }
+EXPORT_SYMBOL(panel_do_aod_seqtbl_by_name_nolock);
 
 int panel_do_aod_seqtbl_by_name(struct aod_dev_info *aod, char *seqname)
 {
@@ -101,6 +103,15 @@ static int aod_init_panel(struct aod_dev_info *aod, int lock)
 			panel_err("failed to run sequence(%s)\n",
 					SELF_MASK_IMG_SEQ);
 			goto err;
+		}
+
+		if (aod->custom_ops && aod->custom_ops->self_mask_data_check) {
+			ret = aod->custom_ops->self_mask_data_check(aod);
+			if (ret < 0) {
+				panel_err("failed to run self_mask_data_check(%d)\n", ret);
+				goto err;
+			}
+			panel_info("self_mask_data_check passed!\n");
 		}
 	}
 
@@ -225,7 +236,6 @@ err:
 static int aod_exit_from_lpm(struct aod_dev_info *aod_dev)
 {
 	int ret = 0;
-
 	struct aod_ioctl_props *props = &aod_dev->props;
 
 	panel_mutex_lock(&aod_dev->lock);
@@ -296,20 +306,15 @@ err:
 
 static int aod_doze_suspend(struct aod_dev_info *aod_dev)
 {
-	int ret = 0;
-
 	panel_mutex_lock(&aod_dev->lock);
-
 	panel_info("was called\n");
-
 	panel_mutex_unlock(&aod_dev->lock);
 
-	return ret;
+	return 0;
 }
 
 static int aod_power_off(struct aod_dev_info *aod_dev)
 {
-	int ret = 0;
 	struct aod_ioctl_props *props = &aod_dev->props;
 
 	panel_mutex_lock(&aod_dev->lock);
@@ -331,14 +336,13 @@ static int aod_power_off(struct aod_dev_info *aod_dev)
 	props->self_reset_cnt = 0;
 	panel_mutex_unlock(&aod_dev->lock);
 
-	return ret;
+	return 0;
 }
 
 static int aod_black_grid_on(struct aod_dev_info *aod_dev)
 {
 	int ret;
 
-	panel_info("was called\n");
 	if (!check_aod_seqtbl_exist(aod_dev, ICON_GRID_ON_SEQ)) {
 		panel_dbg("seq does not exists\n");
 		return 0;
@@ -351,6 +355,8 @@ static int aod_black_grid_on(struct aod_dev_info *aod_dev)
 		return ret;
 	}
 
+	panel_info("was called\n");
+
 	return 0;
 }
 
@@ -358,7 +364,6 @@ static int aod_black_grid_off(struct aod_dev_info *aod_dev)
 {
 	int ret;
 
-	panel_info("was called\n");
 	if (!check_aod_seqtbl_exist(aod_dev, ICON_GRID_OFF_SEQ)) {
 		panel_dbg("seq does not exists\n");
 		return 0;
@@ -370,6 +375,8 @@ static int aod_black_grid_off(struct aod_dev_info *aod_dev)
 				ICON_GRID_OFF_SEQ);
 		return ret;
 	}
+
+	panel_info("was called\n");
 
 	return 0;
 }
@@ -1137,12 +1144,12 @@ int aod_drv_prepare(struct panel_device *panel,
 
 	props->self_mask_en = aod_tune->self_mask_en;
 	props->self_reset_cnt = 0;
-	if (aod_tune->self_mask_checksum_len > 0) {
-		props->self_mask_checksum =
-			kmemdup(aod_tune->self_mask_checksum,
-					aod_tune->self_mask_checksum_len, GFP_KERNEL);
-		props->self_mask_checksum_len =
-			aod_tune->self_mask_checksum_len;
+	if (aod_tune->self_mask_crc_len > 0) {
+		props->self_mask_crc =
+			kmemdup(aod_tune->self_mask_crc,
+					aod_tune->self_mask_crc_len, GFP_KERNEL);
+		props->self_mask_crc_len =
+			aod_tune->self_mask_crc_len;
 	}
 
 	return 0;
@@ -1153,9 +1160,9 @@ int aod_drv_unprepare(struct panel_device *panel)
 	struct aod_dev_info *aod = &panel->aod;
 	struct aod_ioctl_props *props = &aod->props;
 
-	kfree(props->self_mask_checksum);
-	props->self_mask_checksum = NULL;
-	props->self_mask_checksum_len = 0;
+	kfree(props->self_mask_crc);
+	props->self_mask_crc = NULL;
+	props->self_mask_crc_len = 0;
 
 	return 0;
 }
@@ -1180,6 +1187,8 @@ int aod_drv_probe(struct panel_device *panel, struct aod_tune *aod_tune)
 	props = &aod->props;
 
 	aod->ops = &aod_drv_ops;
+	aod->custom_ops = &aod_tune->custom_ops;
+
 	aod->reset_flag = 1;
 	props->first_clk_update = 1;
 

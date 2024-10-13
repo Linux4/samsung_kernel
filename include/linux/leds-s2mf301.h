@@ -138,6 +138,8 @@ struct s2mf301_fled_platform_data {
 	unsigned int factory_torch_current;
 	unsigned int factory_flash_current;
 	unsigned int flashlight_current[S2MF301_FLASH_LIGHT_MAX];
+	bool en_flash;
+	bool en_torch;
 };
 
 struct s2mf301_fled_data {

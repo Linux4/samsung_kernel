@@ -11,6 +11,7 @@ obj-y = execvp.o file.o helper.o irq.o main.o mem.o process.o \
 	umid.o user_syms.o util.o drivers/ skas/
 
 CFLAGS_signal.o += -Wframe-larger-than=4096
+
 obj-$(CONFIG_ARCH_REUSE_HOST_VSYSCALL_AREA) += elf_aux.o
 
 USER_OBJS := $(user-objs-y) elf_aux.o execvp.o file.o helper.o irq.o \

@@ -36,13 +36,16 @@ int init_default_func(struct shub_sensor *sensor, const char *name, int receive_
 	strcpy(sensor->name, name);
 	sensor->receive_event_size = receive_size;
 	sensor->report_event_size = report_size;
-	sensor->event_buffer.value = kzalloc(buffer_size, GFP_KERNEL);
-	if (!sensor->event_buffer.value)
-		goto err_no_mem;
 
-	sensor->last_event_buffer.value = kzalloc(buffer_size, GFP_KERNEL);
-	if (!sensor->last_event_buffer.value)
-		goto err_no_mem;
+	if (buffer_size > 0) {
+		sensor->event_buffer.value = kzalloc(buffer_size, GFP_KERNEL);
+		if (!sensor->event_buffer.value)
+			goto err_no_mem;
+
+		sensor->last_event_buffer.value = kzalloc(buffer_size, GFP_KERNEL);
+		if (!sensor->last_event_buffer.value)
+			goto err_no_mem;
+	}
 
 	return 0;
 

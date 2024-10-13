@@ -43,9 +43,11 @@ static int handle_log_kthread(void *arg)
 
 	while (!kthread_should_stop()) {
 		wait_event(chub->log_kthread_wait,
-			   !atomic_read(&chub->chub_sleep) &&
+			   (!atomic_read(&chub->chub_sleep) &&
 			   atomic_read(&chub->chub_status) == CHUB_ST_RUN &&
-			   ipc_logbuf_filled());
+			   ipc_logbuf_filled()) || atomic_read(&chub->in_reset));
+		if (atomic_read(&chub->in_reset))
+			continue;
 		if (contexthub_get_token(chub)) { // lock for chub reset
 			chub_wait_event(&chub->reset_lock, WAIT_TIMEOUT_MS * 2);
 			continue;
@@ -309,6 +311,25 @@ void chub_printf(struct device *dev, int level, int fw_idx, const char *fmt, ...
 	}
 }
 
+void contexthub_log_stop(void *chub_p)
+{
+	struct contexthub_ipc_info *chub = chub_p;
+	if (!chub->log_kthread)
+		return;
+	kthread_stop(chub->log_kthread);
+	chub->log_kthread = NULL;
+	dev_info(chub->dev, "%s", __func__);
+}
+
+void contexthub_log_start(void *chub_p)
+{
+	struct contexthub_ipc_info *chub = chub_p;
+	if (chub->log_kthread)
+		return;
+	chub->log_kthread = kthread_run(handle_log_kthread, chub, "chub_log_kthread");
+	dev_info(chub->dev, "%s", __func__);
+}
+
 int contexthub_log_init(void *chub_p)
 {
 	struct contexthub_ipc_info *chub = chub_p;
@@ -329,7 +350,7 @@ int contexthub_log_init(void *chub_p)
 	chub->chub_rt_log.wrap = false;
 
 	init_waitqueue_head(&chub->log_kthread_wait);
-	chub->log_kthread = kthread_run(handle_log_kthread, chub, "chub_log_kthread");
+	contexthub_log_start(chub);
 
 	return 0;
 }

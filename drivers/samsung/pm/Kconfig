@@ -33,7 +33,7 @@ config SEC_PM_THERMISTOR
 config SEC_PM_CPUFREQ
 	tristate "Enable Samsung Mobile CPU Frequency control support"
 	default n
-	depends on SEC_PM
+	depends on SEC_PM && SEC_FACTORY
 	help
 	  This option enables Samsung Mobile CPU Frequency control support.
 	  Adjust the minimum and maximum frequency for each CPU clusters.

@@ -7,7 +7,7 @@
 static struct dentry *debug_root;
 static struct dentry *status_all;
 static LIST_HEAD(vote_list);
-static struct mutex vote_lock;
+static DEFINE_MUTEX(vote_lock);
 struct sec_voter {
 		int enable;
 		int value;
@@ -410,15 +410,9 @@ EXPORT_SYMBOL(find_vote);
 struct sec_vote *sec_vote_init(const char *name, int type, int num, int init_val,
 		const char **voter_name, int(*cb)(void *data, int value), void *data)
 {
-	static int init = false;
 	struct sec_vote * vote = NULL;
 	struct sec_voter * voter = NULL;
 
-	if (!init) {
-		pr_info("%s: Init \n", __func__);
-		init = true;
-		mutex_init(&vote_lock);
-	}
 	mutex_lock(&vote_lock);
 	vote = find_vote(name);
 	if (vote) {
@@ -507,7 +501,6 @@ void sec_vote_destroy(struct sec_vote *vote)
 	kfree(vote->voter);
 	debugfs_remove_recursive(vote->root);
 	mutex_destroy(&vote->lock);
-	mutex_destroy(&vote_lock);
 	kfree(vote);
 }
 EXPORT_SYMBOL(sec_vote_destroy);

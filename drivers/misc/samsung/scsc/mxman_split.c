@@ -144,6 +144,12 @@ static char panic_record_dump[PANIC_RECORD_DUMP_BUFFER_SZ];
 static BLOCKING_NOTIFIER_HEAD(firmware_chain);
 
 /**
+ * This mxman reference is initialized/nullified via mxman_init/deinit
+ * called by scsc_mx_create/destroy on module probe/remove.
+ */
+static struct mxman *active_mxman;
+
+/**
  * This will be returned as fw version ONLY if Maxwell
  * was never found or was unloaded.
  */
@@ -215,6 +221,18 @@ static bool disable_recovery_from_memdump_file = true;
 static int memdump = -1;
 static bool disable_recovery_until_reboot;
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+static unsigned int wlbt_dcxo_caldata = 0;
+static int wlbt_temperature_value = 0;
+
+enum dcxo_config_state {
+	DCXO_CONFIG_NONE = 0,
+	DCXO_CONFIG_DEFAULT,
+	DCXO_CONFIG_SYSFS,
+};
+static enum dcxo_config_state set_dcxo_state = DCXO_CONFIG_NONE;
+#endif
+
 static uint scandump_trigger_fw_panic = 0;
 module_param(scandump_trigger_fw_panic, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(scandump_trigger_fw_panic, "Specify fw panic ID");
@@ -253,7 +271,11 @@ static int refcount;
 static ssize_t sysfs_show_memdump(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
 static ssize_t sysfs_store_memdump(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);
 static struct kobj_attribute memdump_attr = __ATTR(memdump, 0660, sysfs_show_memdump, sysfs_store_memdump);
-
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+static ssize_t sysfs_show_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t sysfs_store_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);
+static struct kobj_attribute dcxocal_attr = __ATTR(wlbt_dcxo_caldata, 0660, sysfs_show_wlbt_dcxo_caldata, sysfs_store_wlbt_dcxo_caldata);
+#endif
 /* Time stamps of last level7 resets in jiffies */
 static unsigned long syserr_level7_history[SYSERR_LEVEL7_HISTORY_SIZE] = { 0 };
 static int syserr_level7_history_index;
@@ -378,6 +400,97 @@ static ssize_t sysfs_store_memdump(struct kobject *kobj, struct kobj_attribute *
 	return (r == 0) ? count : 0;
 }
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+/* Retrieve wlbt_dcxo_caldata in sysfs global */
+static ssize_t sysfs_show_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u,%d\n", wlbt_dcxo_caldata, wlbt_temperature_value);
+}
+
+/* Update wlbt_dcxo_caldata in sysfs global */
+static ssize_t sysfs_store_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int r;
+	struct scsc_mif_abs *mif_abs;
+
+	if (active_mxman == NULL || active_mxman->mx == NULL) {
+		SCSC_TAG_ERR(MXMAN, "No active MXMAN\n");
+		return 0;
+	}
+
+	/* Extract dcxo cal tune value and temperature from caldata string */
+	r = sscanf(buf, "%u,%d", &wlbt_dcxo_caldata, &wlbt_temperature_value);
+	SCSC_TAG_INFO(MXMAN, "Overrided dcxo_cal: %u, temperature value: %d)\n", wlbt_dcxo_caldata, wlbt_temperature_value);
+
+	if (r > 0) {
+		SCSC_TAG_INFO(MXMAN, "wlbt_dcxo_caldata: %d(hex value:0x%x)\n", wlbt_dcxo_caldata, wlbt_dcxo_caldata);
+
+		mif_abs = scsc_mx_get_mif_abs(active_mxman->mx);
+
+		r = mifmboxman_set_dcxo_tune_value(mif_abs, wlbt_dcxo_caldata);
+
+		if (r)
+			SCSC_TAG_ERR(MX_PROC, "Failed to set DCXO Tune(return: %d)\n", r);
+		else {
+			set_dcxo_state = DCXO_CONFIG_SYSFS;
+			SCSC_TAG_INFO(MX_PROC, "Succeed to set %s DCXO Tune\n", "SYSFS");
+		}
+	}
+	else {
+		SCSC_TAG_ERR(MXMAN, "Invaild wlbt_dcxo_caldata value\n");
+		return -EINVAL;
+	}
+
+	return (r == 0) ? count : -EINVAL;
+}
+
+/* Set wlbt_dcxo_caldata with the default value of the specific path for vendor */
+static void mxman_set_default_dcxo_caldata(struct mxman *mxman)
+{
+	char *default_dcxo_path = "../etc/wifi/wlbt_dcxo_caldata";
+	const struct firmware *e = NULL;
+	int ret;
+	struct scsc_mif_abs *mif_abs;
+
+	if (set_dcxo_state != DCXO_CONFIG_NONE) {
+		SCSC_TAG_WARNING(MXMAN, "'%s' DCXO Config state is not allowed\n",
+			set_dcxo_state == DCXO_CONFIG_DEFAULT ? "DEFAULT":"SYSFS");
+		return;
+	}
+
+	ret = mx140_request_file(mxman->mx, default_dcxo_path, &e);
+	if (ret) {
+		SCSC_TAG_WARNING(MXMAN, "Error Loading %s\n", default_dcxo_path);
+		goto exit;
+	} else if (!e) {
+		SCSC_TAG_WARNING(MXMAN, "mx140_request_file() returned success, but firmware was null.\n");
+		goto exit;
+	}
+
+	ret = sscanf(e->data, "%u,%d", &wlbt_dcxo_caldata, &wlbt_temperature_value);
+	if (ret > 0) {
+		SCSC_TAG_INFO(MXMAN, "dcxo_cal: %u(0x%x), temperature value: %d)\n",
+			wlbt_dcxo_caldata, wlbt_dcxo_caldata, wlbt_temperature_value);
+
+		mif_abs = scsc_mx_get_mif_abs(mxman->mx);
+
+		ret = mifmboxman_set_dcxo_tune_value(mif_abs, wlbt_dcxo_caldata);
+
+		if (ret)
+			SCSC_TAG_ERR(MX_PROC, "Failed to set DCXO Tune(cause: %d)\n", ret);
+		else {
+			set_dcxo_state = DCXO_CONFIG_DEFAULT;
+			SCSC_TAG_INFO(MX_PROC, "Succeed to set %s DCXO Tune\n", "DEFAULT");
+		}
+	}
+	else {
+		SCSC_TAG_ERR(MXMAN, "Invaild format of wlbt_dcxo_caldata value!\n");
+	}
+exit:
+	mx140_release_file(mxman->mx, e);
+}
+#endif
+
 struct kobject *mxman_wifi_kobject_ref_get(void)
 {
 	if (refcount++ == 0) {
@@ -437,6 +550,43 @@ void mxman_destroy_sysfs_memdump(void)
 	/* Destroy /sys/wifi virtual dir */
 	mxman_wifi_kobject_ref_put();
 }
+
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+/* Register wlbt_dcxo_caldata override */
+void mxman_create_sysfs_wlbt_dcxo_caldata(void)
+{
+	int r;
+	struct kobject *kobj_ref = mxman_wifi_kobject_ref_get();
+
+	SCSC_TAG_INFO(MXMAN, "kobj_ref: 0x%p\n", kobj_ref);
+
+	if (kobj_ref) {
+		/* Create sysfs file /sys/wifi/wlbt_dcxo_caldata */
+		r = sysfs_create_file(kobj_ref, &dcxocal_attr.attr);
+		if (r) {
+			/* Failed, so clean up dir */
+			SCSC_TAG_ERR(MXMAN, "Can't create /sys/wifi/wlbt_dcxo_caldata\n");
+			mxman_wifi_kobject_ref_put();
+			return;
+		}
+	} else {
+		SCSC_TAG_ERR(MXMAN, "failed to create /sys/wifi directory");
+	}
+}
+
+/* Unregister wlbt_dcxo_caldata override */
+void mxman_destroy_sysfs_wlbt_dcxo_caldata(void)
+{
+	if (!wifi_kobj_ref)
+		return;
+
+	/* Destroy /sys/wifi/wlbt_dcxo_caldata file */
+	sysfs_remove_file(wifi_kobj_ref, &dcxocal_attr.attr);
+
+	/* Destroy /sys/wifi virtual dir */
+	mxman_wifi_kobject_ref_put();
+}
+#endif
 
 /* Track when WLBT reset fails to allow debug */
 static u64 reset_failed_time;
@@ -2073,6 +2223,12 @@ static int __mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data
 			SCSC_TAG_ERR(MXMAN, "Error mxman_res_init_common\n");
 			goto error;
 		}
+
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+		if (set_dcxo_state == DCXO_CONFIG_NONE) {
+			mxman_set_default_dcxo_caldata(mxman);
+		}
+#endif
 	}
 
 	/* Print information about any active services on any subsystem */
@@ -2660,6 +2816,9 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_create_sysfs_memdump();
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	mxman_create_sysfs_wlbt_dcxo_caldata();
+#endif
 #endif
 	scsc_lerna_init();
 
@@ -2682,6 +2841,9 @@ void mxman_deinit(struct mxman *mxman)
 	scsc_lerna_deinit();
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_destroy_sysfs_memdump();
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	mxman_destroy_sysfs_wlbt_dcxo_caldata();
+#endif
 #endif
 	active_mxman = NULL;
 	mxproc_remove_info_proc_dir(&mxman->mxproc);

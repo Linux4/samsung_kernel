@@ -53,6 +53,22 @@ void sec_input_multi_device_ready(struct sec_input_multi_device *mdev)
 }
 EXPORT_SYMBOL(sec_input_multi_device_ready);
 
+void sec_input_get_multi_device_debug_info(struct sec_input_multi_device *mdev, char *buf, ssize_t size)
+{
+	char mbuff[MULTI_DEV_DEBUG_INFO_SIZE] = { 0 };
+
+	if (IS_NOT_FOLD_DEV(mdev))
+		return;
+
+	snprintf(mbuff, sizeof(mbuff), "Multi Device Info(%s)\n", mdev->name);
+	strlcat(buf, mbuff, size);
+	snprintf(mbuff, sizeof(mbuff), "- status:%d / current:%d\n", mdev->flip_status, mdev->flip_status_current);
+	strlcat(buf, mbuff, size);
+	snprintf(mbuff, sizeof(mbuff), "- flip_mismatch_count:%d\n", mdev->flip_mismatch_count);
+	strlcat(buf, mbuff, size);
+}
+EXPORT_SYMBOL(sec_input_get_multi_device_debug_info);
+
 void sec_input_check_fold_status(struct sec_input_multi_device *mdev, bool flip_changed)
 {
 	struct sec_ts_plat_data *plat_data;
@@ -93,6 +109,7 @@ void sec_input_check_fold_status(struct sec_input_multi_device *mdev, bool flip_
 				}
 			}
 		} else {
+			mdev->flip_mismatch_count++;
 			if (mdev->flip_status_current == FOLD_STATUS_UNFOLDING) {
 				if (sec_input_cmp_ic_status(mdev->dev, CHECK_POWEROFF) && plat_data->lowpower_mode) {
 					input_info(true, mdev->dev, "%s: [%s] TSP IC OFF => LP mode[0x%X]\n",
@@ -133,6 +150,7 @@ void sec_input_check_fold_status(struct sec_input_multi_device *mdev, bool flip_
 				}
 			}
 		} else {
+			mdev->flip_mismatch_count++;
 			if (mdev->flip_status_current == FOLD_STATUS_FOLDING) {
 				if (sec_input_cmp_ic_status(mdev->dev, CHECK_POWEROFF) && plat_data->lowpower_mode) {
 					input_info(true, mdev->dev, "%s: [%s] TSP IC OFF => LP[0x%X]\n",

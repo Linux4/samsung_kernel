@@ -33,10 +33,14 @@ int oled_maptbl_init_default(struct maptbl *tbl)
 	return 0;
 }
 
-int oled_maptbl_getidx_default(struct maptbl *tbl)
+EXPORT_SYMBOL(oled_maptbl_init_default);
+
+int oled_maptbl_getidx_default(struct maptbl *m)
 {
-	return 0;
+	return maptbl_getidx_from_props(m);
 }
+
+EXPORT_SYMBOL(oled_maptbl_getidx_default);
 
 int oled_maptbl_getidx_gm2_brt(struct maptbl *tbl)
 {

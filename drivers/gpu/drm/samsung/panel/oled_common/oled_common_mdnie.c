@@ -27,7 +27,7 @@ int oled_maptbl_getidx_mdnie_scenario_mode(struct maptbl *tbl)
 	panel = tbl->pdata;
 	mdnie = &panel->mdnie;
 
-	return maptbl_index(tbl, mdnie->props.scenario, mdnie->props.mode, 0);
+	return maptbl_index(tbl, mdnie->props.scenario, mdnie->props.scenario_mode, 0);
 }
 
 #ifdef CONFIG_USDM_PANEL_HMD
@@ -87,7 +87,7 @@ int oled_maptbl_getidx_mdnie_night_mode(struct maptbl *tbl)
 	panel = tbl->pdata;
 	mdnie = &panel->mdnie;
 
-	if (mdnie->props.mode != AUTO)
+	if (mdnie->props.scenario_mode != AUTO)
 		mode = NIGHT_MODE_ON;
 
 	return maptbl_index(tbl, mode, mdnie->props.night_level, 0);
@@ -137,11 +137,11 @@ void oled_maptbl_copy_scr_white(struct maptbl *tbl, u8 *dst)
 	panel = tbl->pdata;
 	mdnie = &panel->mdnie;
 
-	if (mdnie->props.mode >= MODE_MAX) {
-		panel_err("invalid mode(%d)\n", mdnie->props.mode);
+	if (mdnie->props.scenario_mode >= MODE_MAX) {
+		panel_err("invalid mode(%d)\n", mdnie->props.scenario_mode);
 		return;
 	}
-	type = wcrd_type[mdnie->props.mode];
+	type = wcrd_type[mdnie->props.scenario_mode];
 
 	if (mdnie->props.scr_white_mode ==
 			SCR_WHITE_MODE_COLOR_COORDINATE) {
@@ -183,6 +183,34 @@ void oled_maptbl_copy_scr_cr(struct maptbl *tbl, u8 *dst)
 	mdnie = &panel->mdnie;
 
 	memcpy(dst, mdnie->props.scr, mdnie->props.sz_scr);
+}
+
+void oled_maptbl_copy_scr_white_anti_glare(struct maptbl *tbl, u8 *dst)
+{
+	struct panel_device *panel;
+	struct mdnie_info *mdnie;
+	int ratio;
+	u8 r, g, b;
+
+	if (!tbl || !tbl->pdata || !dst)
+		return;
+
+	panel = tbl->pdata;
+	mdnie = &panel->mdnie;
+
+	ratio = mdnie_get_anti_glare_ratio(mdnie);
+
+	r = (u8)((int)dst[RED * mdnie->props.scr_white_len] * ratio / 100);
+	g = (u8)((int)dst[GREEN * mdnie->props.scr_white_len] * ratio / 100);
+	b = (u8)((int)dst[BLUE * mdnie->props.scr_white_len] * ratio / 100);
+	mdnie_set_cur_wrgb(mdnie, r, g, b);
+
+	panel_dbg("r:%d g:%d b:%d (ratio:%d/100)\n",
+			r, g, b, ratio);
+
+	mdnie_update_wrgb(mdnie, r, g, b);
+	mdnie_cur_wrgb_to_byte_array(mdnie, dst,
+			mdnie->props.scr_white_len);
 }
 
 #ifdef CONFIG_USDM_MDNIE_AFC

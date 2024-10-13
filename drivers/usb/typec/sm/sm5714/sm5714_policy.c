@@ -27,7 +27,7 @@
 #include <linux/delay.h>
 #include <linux/completion.h>
 #include <linux/time.h>
-#if defined(CONFIG_USB_HOST_NOTIFY)
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 #include <linux/usb_notify.h>
 #endif
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
@@ -35,14 +35,41 @@
 #endif
 
 static unsigned int SRC_CHECK_LIST[][3] = {
-	{MODE_MSG, MSG_GET_SRC_CAP, PE_SRC_Send_Capabilities},
+	{MODE_MSG, MSG_GET_SRC_CAP, PE_SRC_Give_Source_Cap},
 	{MODE_MSG, MSG_GET_SNK_CAP, PE_SRC_Give_Sink_Cap},
 	{MODE_MSG, MSG_REQUEST, PE_SRC_Negotiate_Capability},
+	{MODE_MSG, MSG_ACCEPT, PE_SRC_Send_Soft_Reset},
+	{MODE_MSG, MSG_REJECT, PE_SRC_Send_Reject},
 	{MODE_MSG, MSG_PR_SWAP, PE_PRS_SRC_SNK_Evaluate_Swap},
 	{MODE_MSG, MSG_DR_SWAP, PE_DRS_Evaluate_Port},
 	{MODE_MSG, MSG_VCONN_SWAP, PE_VCS_Evaluate_Swap},
 	{MODE_MSG, MSG_BIST_M2, PE_BIST_CARRIER_M2},
-	{MODE_MSG, VDM_DISCOVER_IDENTITY, PE_UFP_VDM_Get_Identity_NAK},
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+	{MODE_MSG, MSG_NOT_SUPPORTED, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_SRC_CAP_EXT, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_FR_SWAP, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_PPS_STATUS, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_COUNTRY_CODES, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_SNK_CAP_EXT, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_BAT_STATUS, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_COUNTRY_INFO, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_SRC_CAP_EXT, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_BAT_CAP, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_BAT_STATUS, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_MANUF_INFO, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_MANUF_INFO, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_SECURITY_REQ, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_SECURITY_RES, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_FW_UPDATE_REQ, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_FW_UPDATE_RES, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_PPS_STATUS, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_COUNTRY_INFO, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_COUNTRY_CODES, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_SNK_CAP_EXT, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_SRC_INFO, PE_SRC_Send_Not_Supported},
+	{MODE_MSG, MSG_RESERVED, PE_SRC_Send_Not_Supported},
+#endif
+	{MODE_MSG, VDM_DISCOVER_IDENTITY, PE_DFP_VDM_Get_Identity},
 	{MODE_MSG, VDM_DISCOVER_SVID, PE_UFP_VDM_Get_SVIDs_NAK},
 	{MODE_MSG, VDM_DISCOVER_MODE, PE_UFP_VDM_Get_Modes_NAK},
 	{MODE_MSG, VDM_ENTER_MODE, PE_UFP_VDM_Evaluate_Mode_Entry},
@@ -69,6 +96,8 @@ static unsigned int SRC_CHECK_LIST[][3] = {
 };
 
 static unsigned int SNK_CHECK_LIST[][3] = {
+	{MODE_MSG, MSG_ACCEPT, PE_SNK_Send_Soft_Reset},
+	{MODE_MSG, MSG_REJECT, PE_SNK_Send_Reject},
 	{MODE_MSG, MSG_GET_SRC_CAP, PE_SNK_Give_Source_Cap},
 	{MODE_MSG, MSG_GET_SNK_CAP, PE_SNK_Give_Sink_Cap},
 	{MODE_MSG, MSG_SRC_CAP, PE_SNK_Evaluate_Capability},
@@ -78,7 +107,30 @@ static unsigned int SNK_CHECK_LIST[][3] = {
 	{MODE_MSG, MSG_BIST_M2, PE_BIST_CARRIER_M2},
 	{MODE_MSG, MSG_GET_STATUS, PE_SNK_Get_Source_Status},
 	{MODE_MSG, MSG_GET_PPS_STATUS, PE_SNK_Get_Source_PPS_Status},
-	{MODE_MSG, MSG_GET_SRC_CAP_EXT, PE_SNK_Get_Source_Cap_Ext},
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+	{MODE_MSG, MSG_NOT_SUPPORTED, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_SRC_CAP_EXT, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_FR_SWAP, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_COUNTRY_CODES, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_SNK_CAP_EXT, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_BAT_STATUS, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_COUNTRY_INFO, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_SRC_CAP_EXT, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_BAT_CAP, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_BAT_STATUS, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_GET_BAT_STATUS, PE_SNK_Give_Battery_Status},
+	{MODE_MSG, MSG_GET_MANUF_INFO, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_MANUF_INFO, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_SECURITY_REQ, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_SECURITY_RES, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_FW_UPDATE_REQ, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_FW_UPDATE_RES, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_PPS_STATUS, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_COUNTRY_INFO, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_COUNTRY_CODES, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_SNK_CAP_EXT, PE_SNK_Send_Not_Supported},
+	{MODE_MSG, MSG_RESERVED, PE_SNK_Send_Not_Supported},
+#endif
 	{MODE_MSG, VDM_DISCOVER_IDENTITY, PE_UFP_VDM_Get_Identity},
 	{MODE_MSG, VDM_DISCOVER_SVID, PE_UFP_VDM_Get_SVIDs},
 	{MODE_MSG, VDM_DISCOVER_MODE, PE_UFP_VDM_Get_Modes},
@@ -193,7 +245,7 @@ static policy_state sm5714_usbpd_policy_src_vdm_identity_request(
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
 			if (sm5714_usbpd_wait_msg(pd_data,
-					VDM_DISCOVER_IDENTITY, tVDMSenderResponse)) {
+					BITMSG(VDM_DISCOVER_IDENTITY), tVDMSenderResponse)) {
 				pd_data->counter.discover_identity_counter = 0;
 
 				dev_info(pd_data->dev, "Msg header objs(%d)\n",
@@ -243,6 +295,15 @@ static policy_state sm5714_usbpd_policy_src_send_capabilities(
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 	if (policy->last_state != policy->state) {
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+		if (!pdic_data->vconn_en && !pdic_data->pd_support) {
+			if ((policy->last_state == PE_SRC_Discovery) &&
+					(pd_data->policy.rx_msg_header.spec_revision == USBPD_REV_20))
+				pd_data->specification_revision = USBPD_REV_20;
+			else
+				pd_data->specification_revision = USBPD_REV_30;
+		}
+#endif
 		policy->tx_msg_header.word = pd_data->source_msg_header.word;
 		policy->tx_data_obj[0].object = pd_data->source_data_obj[0].object;
 		if (!pd_data->thermal_state)
@@ -253,10 +314,18 @@ static policy_state sm5714_usbpd_policy_src_send_capabilities(
 				&policy->tx_msg_header, policy->tx_data_obj);
 		return PE_SRC_Send_Capabilities;
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
-		if (sm5714_usbpd_wait_msg(pd_data,
-				MSG_REQUEST | MSG_GET_SNK_CAP, tSenderResponse)) {
+		u64 msg = 0;
+
+		msg |= BITMSG(MSG_REQUEST);
+		msg |= BITMSG(MSG_GET_SNK_CAP);
+		if (sm5714_usbpd_wait_msg(pd_data, msg, tSenderResponse)) {
 			if (policy->rx_msg_header.msg_type == USBPD_Request &&
 					policy->rx_msg_header.num_data_objs > 0) {
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+				if (!pdic_data->vconn_en &&
+						(pd_data->policy.rx_msg_header.spec_revision == USBPD_REV_20))
+					pd_data->specification_revision = USBPD_REV_20;
+#endif
 				pd_data->counter.hard_reset_counter = 0;
 				pd_data->counter.caps_counter = 0;
 				pd_data->source_request_obj.object
@@ -315,29 +384,21 @@ static policy_state sm5714_usbpd_policy_src_negotiate_capability(
 			sm5714_usbpd_send_ctrl_msg(pd_data, &policy->tx_msg_header,
 						USBPD_Accept, USBPD_DFP, USBPD_SOURCE);
 		else
-			sm5714_usbpd_send_ctrl_msg(pd_data, &policy->tx_msg_header,
-						USBPD_Reject, USBPD_DFP, USBPD_SOURCE);
+			return PE_SRC_Capability_Response;
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
-		if (sm5714_usbpd_match_request(pd_data) == 0) {
-			if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-				if (pd_data->source_request_obj.request_data_object.object_position == 1) {
-					if (!pdic_data->is_otg_vboost) {
-						pr_info("%s booster off\n", __func__);
-						sm5714_usbpd_turn_off_reverse_booster(pd_data);
-					}
-				} else if (pd_data->source_request_obj.request_data_object.object_position == 2) {
-					pr_info("%s otg off\n", __func__);
-					sm5714_vbus_turn_on_ctrl(pdic_data, 0);
+		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
+			if (pd_data->source_request_obj.request_data_object.object_position == 1) {
+				if (!pdic_data->is_otg_vboost) {
+					pr_info("%s booster off\n", __func__);
+					sm5714_usbpd_turn_off_reverse_booster(pd_data);
 				}
-				return PE_SRC_Transition_Supply;
-			} else
-				return PE_SRC_Send_Soft_Reset;
-		} else {
-			if (pd_data->protocol_tx.status == MESSAGE_SENT)
-				return PE_SRC_Capability_Response;
-			else
-				return PE_SRC_Send_Soft_Reset;
-		}
+			} else if (pd_data->source_request_obj.request_data_object.object_position == 2) {
+				pr_info("%s otg off\n", __func__);
+				sm5714_vbus_turn_on_ctrl(pdic_data, 0);
+			}
+			return PE_SRC_Transition_Supply;
+		} else
+			return PE_SRC_Send_Soft_Reset;
 	}
 	return PE_SRC_Negotiate_Capability;
 }
@@ -444,6 +505,7 @@ static policy_state sm5714_usbpd_policy_src_capability_response(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 
@@ -451,8 +513,13 @@ static policy_state sm5714_usbpd_policy_src_capability_response(
 		sm5714_usbpd_send_ctrl_msg(pd_data, &policy->tx_msg_header,
 					USBPD_Reject, USBPD_DFP, USBPD_SOURCE);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
-		if (pd_data->protocol_tx.status == MESSAGE_SENT)
-			return PE_SRC_Ready;
+		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
+			if (pdic_data->pd_support)
+				return PE_SRC_Ready;
+			else
+				return PE_SRC_Discovery;
+		} else
+			return PE_SRC_Hard_Reset;
 	}
 
 	return PE_SRC_Capability_Response;
@@ -539,10 +606,14 @@ static policy_state sm5714_usbpd_policy_src_give_source_cap(
 		sm5714_usbpd_send_msg(pd_data, &policy->tx_msg_header,
 					policy->tx_data_obj);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
-		if (pd_data->protocol_tx.status == MESSAGE_SENT)
-			return PE_SRC_Ready;
-		else
+		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
+			if (sm5714_usbpd_wait_msg(pd_data, BITMSG(MSG_REQUEST), tSenderResponse))
+				return PE_SRC_Negotiate_Capability;
+			else
+				return PE_SRC_Hard_Reset;
+		} else {
 			return PE_SRC_Send_Soft_Reset;
+		}
 	}
 	return PE_SRC_Give_Source_Cap;
 }
@@ -562,7 +633,7 @@ static policy_state sm5714_usbpd_policy_src_give_sink_cap(
 		policy->tx_msg_header.msg_type = USBPD_Sink_Capabilities;
 		policy->tx_msg_header.port_data_role = data_role;
 		policy->tx_msg_header.port_power_role = power_role;
-		policy->tx_msg_header.num_data_objs = 1;
+		policy->tx_msg_header.num_data_objs = 2;
 
 		policy->tx_data_obj[0].power_data_obj_sink.op_current = 3000 / 10;
 		policy->tx_data_obj[0].power_data_obj_sink.voltage = 5000 / 50;
@@ -573,6 +644,17 @@ static policy_state sm5714_usbpd_policy_src_give_sink_cap(
 		policy->tx_data_obj[0].power_data_obj_sink.higher_capability = 0;
 		policy->tx_data_obj[0].power_data_obj_sink.dual_role_power = 1;
 		policy->tx_data_obj[0].power_data_obj_sink.supply_type =
+								POWER_TYPE_FIXED;
+
+		policy->tx_data_obj[1].power_data_obj_sink.op_current = 2000 / 10;
+		policy->tx_data_obj[1].power_data_obj_sink.voltage = 9000 / 50;
+		policy->tx_data_obj[1].power_data_obj_sink.reserved = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.data_role_swap = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.usb_comm_capable = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.externally_powered = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.higher_capability = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.dual_role_power = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.supply_type =
 								POWER_TYPE_FIXED;
 
 		sm5714_usbpd_send_msg(pd_data, &policy->tx_msg_header,
@@ -616,7 +698,7 @@ static policy_state sm5714_usbpd_policy_src_get_sink_cap(
 				USBPD_Get_Sink_Cap, USBPD_DFP, USBPD_SOURCE);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (sm5714_usbpd_wait_msg(pd_data,
-				MSG_SNK_CAP, tSenderResponse)) {
+				BITMSG(MSG_SNK_CAP), tSenderResponse)) {
 			if (pd_data->protocol_tx.status == MESSAGE_SENT) {
 				dev_info(pd_data->dev, "got SinkCap.\n");
 				return PE_SRC_Ready;
@@ -653,7 +735,7 @@ static policy_state sm5714_usbpd_policy_src_send_soft_reset(
 				USBPD_Soft_Reset, USBPD_DFP, USBPD_SOURCE);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (sm5714_usbpd_wait_msg(pd_data,
-				MSG_ACCEPT, tSenderResponse)) {
+				BITMSG(MSG_ACCEPT), tSenderResponse)) {
 			if (pd_data->protocol_tx.status == MESSAGE_SENT)
 				return PE_SRC_Send_Capabilities;
 		} else {
@@ -679,6 +761,35 @@ static policy_state sm5714_usbpd_policy_src_soft_reset(
 			return PE_SRC_Hard_Reset;
 	}
 	return PE_SRC_Soft_Reset;
+}
+
+static policy_state sm5714_usbpd_policy_src_send_source_info(
+		struct sm5714_policy_data *policy)
+{
+	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+
+	dev_info(pd_data->dev, "%s\n", __func__);
+	if (policy->last_state != policy->state) {
+		policy->tx_msg_header.msg_type = USBPD_Source_Info;
+		policy->tx_msg_header.port_data_role = USBPD_DFP;
+		policy->tx_msg_header.port_power_role = USBPD_SOURCE;
+		policy->tx_msg_header.num_data_objs = 1;
+
+		policy->tx_data_obj[0].source_info.port_type = 1;
+		policy->tx_data_obj[0].source_info.reserved = 0;
+		policy->tx_data_obj[0].source_info.port_maximun_pdp = 25;
+		policy->tx_data_obj[0].source_info.port_present_pdp = 25;
+		policy->tx_data_obj[0].source_info.port_reported_pdp = 25;
+
+		sm5714_usbpd_send_msg(pd_data, &policy->tx_msg_header,
+					policy->tx_data_obj);
+	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
+		if (pd_data->protocol_tx.status == MESSAGE_SENT)
+			return PE_SRC_Ready;
+		else
+			return PE_SRC_Send_Soft_Reset;
+	}
+	return PE_SRC_Send_Source_Info;
 }
 
 static policy_state sm5714_usbpd_policy_snk_startup(
@@ -728,7 +839,7 @@ static policy_state sm5714_usbpd_policy_snk_wait_for_capabilities(
 	dev_info(pd_data->dev, "%s\n", __func__);
 
 	/* ST_PE_SNK_WAIT_CAP */
-	if (sm5714_usbpd_wait_msg(pd_data, MSG_SRC_CAP, tSinkWaitCap))
+	if (sm5714_usbpd_wait_msg(pd_data, BITMSG(MSG_SRC_CAP), tSinkWaitCap))
 		return PE_SNK_Evaluate_Capability;
 
 	if (policy->abnormal_state)
@@ -741,6 +852,14 @@ static policy_state sm5714_usbpd_policy_snk_wait_for_capabilities(
 		}
 		pd_data->counter.hard_reset_counter++;
 		return PE_SNK_Hard_Reset;
+	} else {
+#if IS_ENABLED(CONFIG_SEC_DISPLAYPORT) && defined(CONFIG_SM5714_SUPPORT_SBU)
+		if (pdic_data->is_1st_short && pdic_data->is_lpcharge)
+			sm5714_usbpd_delayed_sbu_short_notify(pd_data);
+#endif
+#if defined(CONFIG_USB_LPM_CHARGING_SYNC)
+		set_lpm_charging_type_done(get_otg_notify(), 1);
+#endif
 	}
 #endif
 	return PE_SNK_Wait_for_Capabilities;
@@ -750,6 +869,11 @@ static policy_state sm5714_usbpd_policy_snk_evaluate_capability(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
+	union power_supply_propval val;
+	struct power_supply *psy;
+#endif
 	int sink_request_obj_num = 0;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
@@ -768,7 +892,19 @@ static policy_state sm5714_usbpd_policy_snk_evaluate_capability(
 			sm5714_usbpd_evaluate_capability(pd_data);
 
 	if (sink_request_obj_num > 0) {
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		psy = power_supply_get_by_name("battery");
+		if (pdic_data->pd_support)
 		policy->source_cap_received = 1;
+		if (psy) {
+			if (!pdic_data->pd_support) {
+				val.intval = 1;
+				psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_SRCCAP, val);
+			}
+		} else {
+			pr_err("%s: Fail to get psy battery\n", __func__);
+		}
+#endif
 		return PE_SNK_Select_Capability;
 	} else
 		return PE_SNK_Hard_Reset;
@@ -792,20 +928,24 @@ static policy_state sm5714_usbpd_policy_snk_select_capability(
 		sm5714_usbpd_send_msg(pd_data, &policy->tx_msg_header,
 				policy->tx_data_obj);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
-		unsigned int msg;
+		u64 msg, msg_status = 0;
 
-		msg = sm5714_usbpd_wait_msg(pd_data, MSG_ACCEPT | MSG_REJECT
-				| MSG_WAIT | MSG_GET_SNK_CAP, tSenderResponse);
+		msg_status |= BITMSG(MSG_ACCEPT);
+		msg_status |= BITMSG(MSG_REJECT);
+		msg_status |= BITMSG(MSG_WAIT);
+		msg_status |= BITMSG(MSG_GET_SNK_CAP);
+
+		msg = sm5714_usbpd_wait_msg(pd_data, msg_status, tSenderResponse);
 		if (policy->abnormal_state)
 			return PE_SNK_Select_Capability;
-		if (msg & MSG_ACCEPT)
+		if (msg & BITMSG(MSG_ACCEPT))
 			return PE_SNK_Transition_Sink;
-		else if (msg & (MSG_REJECT | MSG_WAIT)) {
+		else if (msg & BITMSG(MSG_REJECT) || msg & BITMSG(MSG_WAIT)) {
 			if (pd_data->pd_noti.sink_status.current_pdo_num == 0)
 				return PE_SNK_Wait_for_Capabilities;
 			else
 				return PE_SNK_Ready;
-		} else if (msg & MSG_GET_SNK_CAP)
+		} else if (msg & BITMSG(MSG_GET_SNK_CAP))
 			return PE_SNK_Send_Soft_Reset;
 		else
 			return PE_SNK_Hard_Reset;
@@ -828,14 +968,11 @@ static policy_state sm5714_usbpd_policy_snk_transition_sink(
 	dev_info(pd_data->dev, "%s\n", __func__);
 	/* ST_PE_SNK_TRANSITION */
 	if (policy->last_state != policy->state) {
-		unsigned int msg;
+		u64 msg, msg_status = 0;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 		psy = power_supply_get_by_name("battery");
 		if (psy) {
-			if (!pdic_data->pd_support) {
-				val.intval = 1;
-				psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_SRCCAP, val);
-			} else if (pdic_data->pd_support && policy->source_cap_received) {
+			if (pdic_data->pd_support && policy->source_cap_received) {
 				policy->source_cap_received = 0;
 				val.intval = 0;
 				psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_SRCCAP, val);
@@ -847,11 +984,19 @@ static policy_state sm5714_usbpd_policy_snk_transition_sink(
 #if defined(CONFIG_SM5714_SUPPORT_SBU)
 		if (!pdic_data->pd_support)
 			sm5714_short_state_check(pdic_data);
+#if IS_ENABLED(CONFIG_SEC_DISPLAYPORT)
+		if (pdic_data->is_lpcharge && !pdic_data->is_sbu_vbus_short &&
+			!(pdic_data->is_1st_short & pdic_data->is_2nd_short))
+			pdic_data->is_sbu_abnormal_state = false;
 #endif
-		msg = sm5714_usbpd_wait_msg(pd_data,
-				MSG_PSRDY | MSG_GET_SNK_CAP, tPSTransition);
+#endif
+		msg_status |= BITMSG(MSG_PSRDY);
+		msg_status |= BITMSG(MSG_GET_SNK_CAP);
 
-		if (msg & MSG_PSRDY) {
+		msg = sm5714_usbpd_wait_msg(pd_data,
+				msg_status, tPSTransition);
+
+		if (msg & BITMSG(MSG_PSRDY)) {
 			dev_info(pd_data->dev, "got PS_READY.\n");
 			complete(&pd_data->pd_completion);
 			pd_data->pd_noti.sink_status.current_pdo_num =
@@ -935,6 +1080,10 @@ static policy_state sm5714_usbpd_policy_snk_give_sink_cap(
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
 
+	/* TEST.PD.PHY.PORT.1 Invalid Reset Signals */
+	if (policy->is_bist_test_mode)
+		return PE_SNK_Ready;
+
 	dev_info(pd_data->dev, "%s\n", __func__);
 	if (policy->last_state != policy->state) {
 		pd_data->pd_noti.sink_status.selected_pdo_num = 0;
@@ -942,7 +1091,7 @@ static policy_state sm5714_usbpd_policy_snk_give_sink_cap(
 		policy->tx_msg_header.msg_type = USBPD_Sink_Capabilities;
 		policy->tx_msg_header.port_data_role = USBPD_UFP;
 		policy->tx_msg_header.port_power_role = USBPD_SINK;
-		policy->tx_msg_header.num_data_objs = 1;
+		policy->tx_msg_header.num_data_objs = 2;
 
 		policy->tx_data_obj[0].power_data_obj_sink.op_current = 3000 / 10;
 		policy->tx_data_obj[0].power_data_obj_sink.voltage = 5000 / 50;
@@ -954,6 +1103,17 @@ static policy_state sm5714_usbpd_policy_snk_give_sink_cap(
 		policy->tx_data_obj[0].power_data_obj_sink.dual_role_power = 1;
 		policy->tx_data_obj[0].power_data_obj_sink.supply_type =
 					POWER_TYPE_FIXED;
+
+		policy->tx_data_obj[1].power_data_obj_sink.op_current = 2000 / 10;
+		policy->tx_data_obj[1].power_data_obj_sink.voltage = 9000 / 50;
+		policy->tx_data_obj[1].power_data_obj_sink.reserved = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.data_role_swap = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.usb_comm_capable = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.externally_powered = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.higher_capability = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.dual_role_power = 0;
+		policy->tx_data_obj[1].power_data_obj_sink.supply_type =
+								POWER_TYPE_FIXED;
 
 		policy->sink_cap_received = 1;
 
@@ -1037,6 +1197,42 @@ static policy_state sm5714_usbpd_policy_snk_get_source_cap(
 	return PE_SNK_Get_Source_Cap;
 }
 
+static policy_state sm5714_usbpd_policy_snk_give_battery_status(
+		struct sm5714_policy_data *policy)
+{
+	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+
+	dev_info(pd_data->dev, "%s\n", __func__);
+	if (policy->last_state != policy->state) {
+		policy->tx_msg_header.msg_type = USBPD_Battery_Status;
+		policy->tx_msg_header.port_data_role = USBPD_UFP;
+		policy->tx_msg_header.port_power_role = USBPD_SINK;
+		policy->tx_msg_header.num_data_objs = 1;
+
+		policy->tx_data_obj[0].battery_status.batt_present_capacity = 0xffff;
+		policy->tx_data_obj[0].battery_status.batt_info_reserved = 0;
+		if (policy->rx_data_obj[0].object != 0x00) {
+			policy->tx_data_obj[0].battery_status.batt_info_charging_status = 0;
+			policy->tx_data_obj[0].battery_status.batt_info_batt_present = 0;
+			policy->tx_data_obj[0].battery_status.batt_info_invalid_batt_ref = 1;
+		} else {
+			policy->tx_data_obj[0].battery_status.batt_info_charging_status = 2;
+			policy->tx_data_obj[0].battery_status.batt_info_batt_present = 1;
+			policy->tx_data_obj[0].battery_status.batt_info_invalid_batt_ref = 0;
+		}
+		policy->tx_data_obj[0].battery_status.reserved = 0;
+
+		sm5714_usbpd_send_msg(pd_data, &policy->tx_msg_header,
+					policy->tx_data_obj);
+	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
+		if (pd_data->protocol_tx.status == MESSAGE_SENT)
+			return PE_SNK_Ready;
+		else
+			return PE_SNK_Send_Soft_Reset;
+	}
+	return PE_SNK_Give_Battery_Status;
+}
+
 static policy_state sm5714_usbpd_policy_snk_send_soft_reset(
 		struct sm5714_policy_data *policy)
 {
@@ -1050,7 +1246,7 @@ static policy_state sm5714_usbpd_policy_snk_send_soft_reset(
 				USBPD_Soft_Reset, USBPD_UFP, USBPD_SINK);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (sm5714_usbpd_wait_msg(pd_data,
-				MSG_ACCEPT, tSenderResponse)) {
+				BITMSG(MSG_ACCEPT), tSenderResponse)) {
 			if (pd_data->protocol_tx.status == MESSAGE_SENT)
 				return PE_SNK_Wait_for_Capabilities;
 		} else {
@@ -1255,7 +1451,7 @@ static policy_state sm5714_usbpd_policy_drs_dfp_ufp_send_dr_swap(
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
 	int power_role = 0;
-	unsigned int msg;
+	u64 msg, msg_status = 0;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 	pd_data->phy_ops.get_power_role(pd_data, &power_role);
@@ -1265,9 +1461,12 @@ static policy_state sm5714_usbpd_policy_drs_dfp_ufp_send_dr_swap(
 				USBPD_DR_Swap, USBPD_DFP, power_role);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
+			msg_status |= BITMSG(MSG_ACCEPT);
+			msg_status |= BITMSG(MSG_REJECT);
+			msg_status |= BITMSG(MSG_WAIT);
 			msg = sm5714_usbpd_wait_msg(pd_data,
-					MSG_ACCEPT | MSG_REJECT | MSG_WAIT, tSenderResponse);
-			if (msg & MSG_ACCEPT)
+					msg_status, tSenderResponse);
+			if (msg & BITMSG(MSG_ACCEPT))
 				return PE_DRS_DFP_UFP_Change_to_UFP;
 			if (power_role == USBPD_SOURCE)
 				return PE_SRC_Ready;
@@ -1378,11 +1577,14 @@ static policy_state sm5714_usbpd_policy_drs_ufp_dfp_send_dr_swap(
 				USBPD_DR_Swap, USBPD_UFP, power_role);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			unsigned int msg;
+			u64 msg, msg_status = 0;
 
+			msg_status |= BITMSG(MSG_ACCEPT);
+			msg_status |= BITMSG(MSG_REJECT);
+			msg_status |= BITMSG(MSG_WAIT);
 			msg = sm5714_usbpd_wait_msg(pd_data,
-					MSG_ACCEPT | MSG_REJECT | MSG_WAIT, tSenderResponse);
-			if (msg & MSG_ACCEPT)
+					msg_status, tSenderResponse);
+			if (msg & BITMSG(MSG_ACCEPT))
 				return PE_DRS_UFP_DFP_Change_to_DFP;
 			if (power_role == USBPD_SOURCE)
 				return PE_SRC_Ready;
@@ -1458,11 +1660,13 @@ static policy_state sm5714_usbpd_policy_prs_src_snk_send_swap(
 				USBPD_PR_Swap, USBPD_DFP, USBPD_SOURCE);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			unsigned int msg;
+			u64 msg, msg_status = 0;
 
-			msg = sm5714_usbpd_wait_msg(pd_data, MSG_ACCEPT | MSG_REJECT
-				| MSG_WAIT, tSenderResponse);
-			if (msg & MSG_ACCEPT)
+			msg_status |= BITMSG(MSG_ACCEPT);
+			msg_status |= BITMSG(MSG_REJECT);
+			msg_status |= BITMSG(MSG_WAIT);
+			msg = sm5714_usbpd_wait_msg(pd_data, msg_status, tSenderResponse);
+			if (msg & BITMSG(MSG_ACCEPT))
 				return PE_PRS_SRC_SNK_Transition_off;
 			else
 				return PE_SRC_Ready;
@@ -1527,35 +1731,42 @@ static policy_state sm5714_usbpd_policy_prs_src_snk_wait_source_on(
 				USBPD_PS_RDY, USBPD_DFP, USBPD_SINK);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		/* need to check 'tx_done'? => tx error - error_recovery */
-		if (sm5714_usbpd_wait_msg(pd_data, MSG_PSRDY, tPSSourceOn)) {
-			pd_data->counter.swap_hard_reset_counter = 0;
-			dev_info(pd_data->dev, "got PSRDY.\n");
-			/* CC State Hold Off */
-			sm5714_cc_state_hold_on_off(pd_data, 0);
+		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
+			if (sm5714_usbpd_wait_msg(pd_data, BITMSG(MSG_PSRDY), tPSSourceOn)) {
+				pd_data->counter.swap_hard_reset_counter = 0;
+				dev_info(pd_data->dev, "got PSRDY.\n");
+				/* CC State Hold Off */
+				sm5714_cc_state_hold_on_off(pd_data, 0);
 #if defined(CONFIG_TYPEC)
-			if (pdic_data->typec_try_state_change == TRY_ROLE_SWAP_PR &&
-					pdic_data->pd_support) {
-				pdic_data->typec_power_role = TYPEC_SINK;
-				typec_set_pwr_role(pdic_data->port, pdic_data->typec_power_role);
-				/* Role change try and new mode detected */
-				dev_info(pd_data->dev, "%s - typec_reverse_completion\n", __func__);
-				pdic_data->typec_try_state_change = TRY_ROLE_SWAP_NONE;
-				complete(&pdic_data->typec_reverse_completion);
-			}
+				if (pdic_data->typec_try_state_change == TRY_ROLE_SWAP_PR &&
+						pdic_data->pd_support) {
+					pdic_data->typec_power_role = TYPEC_SINK;
+					typec_set_pwr_role(pdic_data->port, pdic_data->typec_power_role);
+					/* Role change try and new mode detected */
+					dev_info(pd_data->dev, "%s - typec_reverse_completion\n", __func__);
+					pdic_data->typec_try_state_change = TRY_ROLE_SWAP_NONE;
+					complete(&pdic_data->typec_reverse_completion);
+				}
 #endif
-			return PE_SNK_Startup;
-		}
-		if (policy->abnormal_state) /* Detach */
-			return PE_PRS_SRC_SNK_Wait_Source_on;
-		goto hard_reset; /* Timeout */
+				return PE_SNK_Startup;
+			}
+			if (policy->abnormal_state) /* Detach */
+				return PE_PRS_SRC_SNK_Wait_Source_on;
+			goto hard_reset; /* Timeout */
+		} else
+			return Error_Recovery;
 	}
 	return PE_PRS_SRC_SNK_Wait_Source_on;
 
 hard_reset:
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+	return Error_Recovery;
+#else
 	if (pd_data->counter.swap_hard_reset_counter > USBPD_nHardResetCount)
 		return Error_Recovery;
 
 	return PE_SNK_Hard_Reset;
+#endif
 }
 
 static policy_state sm5714_usbpd_policy_prs_snk_src_reject_swap(
@@ -1601,13 +1812,15 @@ static policy_state sm5714_usbpd_policy_prs_snk_src_send_swap(
 			USBPD_PR_Swap, USBPD_UFP, USBPD_SINK);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			unsigned int msg;
+			u64 msg, msg_status = 0;
 
-			msg = sm5714_usbpd_wait_msg(pd_data, MSG_ACCEPT | MSG_REJECT
-				| MSG_WAIT, tSenderResponse);
-			if (msg & MSG_ACCEPT)
+			msg_status |= BITMSG(MSG_ACCEPT);
+			msg_status |= BITMSG(MSG_REJECT);
+			msg_status |= BITMSG(MSG_WAIT);
+			msg = sm5714_usbpd_wait_msg(pd_data, msg_status, tSenderResponse);
+			if (msg & BITMSG(MSG_ACCEPT))
 				return PE_PRS_SNK_SRC_Transition_off;
-			else if (msg & MSG_REJECT || msg & MSG_WAIT)
+			else if (msg & BITMSG(MSG_REJECT) || msg & BITMSG(MSG_WAIT))
 				return PE_SNK_Ready;
 		}
 	}
@@ -1642,18 +1855,22 @@ static policy_state sm5714_usbpd_policy_prs_snk_src_transition_to_off(
 	if (policy->last_state != policy->state) {
 		sm5714_cc_state_hold_on_off(pd_data, 1); /* CC State Hold On */
 		sm5714_usbpd_turn_off_power_sink(pd_data);
-		if (sm5714_usbpd_wait_msg(pd_data, MSG_PSRDY, tPSSourceOff)) {
+		if (sm5714_usbpd_wait_msg(pd_data, BITMSG(MSG_PSRDY), tPSSourceOff)) {
 			pd_data->counter.swap_hard_reset_counter = 0;
 			dev_info(pd_data->dev, "got PSRDY.\n");
 			return PE_PRS_SNK_SRC_Assert_Rp;
 		}
 	}
-	if (pd_data->counter.swap_hard_reset_counter > USBPD_nHardResetCount)
-		return Error_Recovery;
 	if (policy->abnormal_state) /* Detach */
 		return PE_PRS_SNK_SRC_Transition_off;
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+	return Error_Recovery;
+#else
+	if (pd_data->counter.swap_hard_reset_counter > USBPD_nHardResetCount)
+		return Error_Recovery;
 	else
 		return PE_SNK_Hard_Reset;
+#endif
 	return PE_PRS_SNK_SRC_Transition_off;
 }
 
@@ -1789,7 +2006,7 @@ static policy_state sm5714_usbpd_policy_vcs_wait_for_vconn(
 	dev_info(pd_data->dev, "%s\n", __func__);
 	pd_data->phy_ops.get_power_role(pd_data, &power_role);
 	/* ST_PE_VC_SWAP_WAIT */
-	if (sm5714_usbpd_wait_msg(pd_data, MSG_PSRDY, tVCONNSourceTimeout)) {
+	if (sm5714_usbpd_wait_msg(pd_data, BITMSG(MSG_PSRDY), tVCONNSourceTimeout)) {
 		pd_data->counter.swap_hard_reset_counter = 0;
 		dev_info(pd_data->dev, "got PSRDY.\n");
 		return PE_VCS_Turn_Off_VCONN;
@@ -1921,7 +2138,12 @@ static policy_state sm5714_usbpd_policy_ufp_vdm_send_identity(
 		else
 #endif
 			policy->tx_data_obj[0].structured_vdm.version = 0;
-		policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+		if (policy->rx_msg_header.spec_revision == USBPD_REV_30)
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 1;
+		else
+#endif
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
 		policy->tx_data_obj[0].structured_vdm.obj_pos = 0;
 		policy->tx_data_obj[0].structured_vdm.command_type =
 					Responder_ACK;
@@ -1993,7 +2215,12 @@ static policy_state sm5714_usbpd_policy_ufp_vdm_get_identity_nak(
 		else
 #endif
 			policy->tx_data_obj[0].structured_vdm.version = 0;
-		policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+		if (policy->rx_msg_header.spec_revision == USBPD_REV_30)
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 1;
+		else
+#endif
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
 		policy->tx_data_obj[0].structured_vdm.obj_pos = 0;
 		policy->tx_data_obj[0].structured_vdm.command_type =
 					Responder_NAK;
@@ -2047,7 +2274,12 @@ static policy_state sm5714_usbpd_policy_ufp_vdm_send_svids(
 		else
 #endif
 			policy->tx_data_obj[0].structured_vdm.version = 0;
-		policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+		if (policy->rx_msg_header.spec_revision == USBPD_REV_30)
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 1;
+		else
+#endif
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
 		policy->tx_data_obj[0].structured_vdm.obj_pos = 0;
 		policy->tx_data_obj[0].structured_vdm.command_type =
 					Responder_ACK;
@@ -2093,7 +2325,12 @@ static policy_state sm5714_usbpd_policy_ufp_vdm_get_svids_nak(
 		else
 #endif
 			policy->tx_data_obj[0].structured_vdm.version = 0;
-		policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+		if (policy->rx_msg_header.spec_revision == USBPD_REV_30)
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 1;
+		else
+#endif
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
 		policy->tx_data_obj[0].structured_vdm.obj_pos = 0;
 		policy->tx_data_obj[0].structured_vdm.command_type =
 				Responder_NAK;
@@ -2688,7 +2925,12 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_identity_request(
 		else
 #endif
 			policy->tx_data_obj[0].structured_vdm.version = 0;
-		policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+		if (pd_data->specification_revision == USBPD_REV_30)
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 1;
+		else
+#endif
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
 		policy->tx_data_obj[0].structured_vdm.obj_pos = 0;
 		policy->tx_data_obj[0].structured_vdm.command_type = Initiator;
 		policy->tx_data_obj[0].structured_vdm.reserved1 = 0;
@@ -2701,7 +2943,7 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_identity_request(
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
 			if (sm5714_usbpd_wait_msg(pd_data,
-					VDM_DISCOVER_IDENTITY, tVDMSenderResponse)) {
+					BITMSG(VDM_DISCOVER_IDENTITY), tVDMSenderResponse)) {
 				pd_data->counter.discover_identity_counter = 0;
 				/* TD.PD.VDMD.E3 Incorrect Identity Fields */
 				if (policy->rx_data_obj[0].structured_vdm.command_type == Initiator)
@@ -2797,7 +3039,12 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_svids_request(
 		else
 #endif
 			policy->tx_data_obj[0].structured_vdm.version = 0;
-		policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+		if (policy->rx_msg_header.spec_revision == USBPD_REV_30)
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 1;
+		else
+#endif
+			policy->tx_data_obj[0].structured_vdm.reserved2 = 0;
 		policy->tx_data_obj[0].structured_vdm.obj_pos = 0;
 		policy->tx_data_obj[0].structured_vdm.command_type = Initiator;
 		policy->tx_data_obj[0].structured_vdm.reserved1 = 0;
@@ -2806,7 +3053,7 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_svids_request(
 		sm5714_usbpd_send_msg(pd_data, &policy->tx_msg_header, policy->tx_data_obj);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			if (sm5714_usbpd_wait_msg(pd_data, VDM_DISCOVER_SVID, tVDMSenderResponse)) {
+			if (sm5714_usbpd_wait_msg(pd_data, BITMSG(VDM_DISCOVER_SVID), tVDMSenderResponse)) {
 				if (policy->rx_data_obj[0].structured_vdm.command_type == Responder_ACK)
 					return PE_DFP_VDM_SVIDs_ACKed;
 				else
@@ -2875,7 +3122,7 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_modes_request(
 		sm5714_usbpd_send_msg(pd_data, &policy->tx_msg_header,	policy->tx_data_obj);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			if (sm5714_usbpd_wait_msg(pd_data, VDM_DISCOVER_MODE, tVDMSenderResponse)) {
+			if (sm5714_usbpd_wait_msg(pd_data, BITMSG(VDM_DISCOVER_MODE), tVDMSenderResponse)) {
 				if (policy->rx_data_obj[0].structured_vdm.command_type == Responder_ACK) {
 					if ((policy->rx_data_obj[0].structured_vdm.svid == PD_SID_1) &&
 						(manager->SVID_DP == PD_SID_1)) {
@@ -2977,7 +3224,7 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_entry_request(
 				policy->tx_data_obj);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			if (sm5714_usbpd_wait_msg(pd_data, VDM_ENTER_MODE, tVDMWaitModeEntry)) {
+			if (sm5714_usbpd_wait_msg(pd_data, BITMSG(VDM_ENTER_MODE), tVDMWaitModeEntry)) {
 				if (policy->rx_data_obj[0].structured_vdm.command_type == Responder_ACK)
 					return PE_DFP_VDM_Mode_Entry_ACKed;
 				else
@@ -3046,7 +3293,7 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_exit_request(
 		sm5714_usbpd_send_msg(pd_data, &policy->tx_msg_header, policy->tx_data_obj);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			if (sm5714_usbpd_wait_msg(pd_data, VDM_EXIT_MODE, tVDMWaitModeExit)) {
+			if (sm5714_usbpd_wait_msg(pd_data, BITMSG(VDM_EXIT_MODE), tVDMWaitModeExit)) {
 				if (policy->rx_data_obj[0].structured_vdm.command_type == Responder_ACK)
 					return PE_DFP_VDM_Mode_Exit_ACKed;
 				else
@@ -3167,7 +3414,7 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_status_update(
 				policy->tx_data_obj);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			if (sm5714_usbpd_wait_msg(pd_data, VDM_DP_STATUS_UPDATE, tVDMSenderResponse)) {
+			if (sm5714_usbpd_wait_msg(pd_data, BITMSG(VDM_DP_STATUS_UPDATE), tVDMSenderResponse)) {
 				pr_info("%s : command(%d), command_type(%d), obj_pos(%d), version(%d), vdm_type(%d)\n",
 					__func__, policy->rx_data_obj[0].structured_vdm.command,
 				policy->rx_data_obj[0].structured_vdm.command_type,
@@ -3394,7 +3641,7 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_displayport_configure(
 				policy->tx_data_obj);
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
-			if (sm5714_usbpd_wait_msg(pd_data, VDM_DP_CONFIGURE, tVDMSenderResponse)) {
+			if (sm5714_usbpd_wait_msg(pd_data, BITMSG(VDM_DP_CONFIGURE), tVDMSenderResponse)) {
 				if (policy->rx_data_obj[0].structured_vdm.command_type == Responder_ACK) {
 					if (manager->SVID_DP == PD_SID_1) {
 						/* Notify to DP_LINK_CONFIGURE */
@@ -3597,6 +3844,7 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 	dev_info(pd_data->dev, "%s Start, last_state = %x, state = %x\n",
 		__func__, policy->last_state, policy->state);
 
+	__pm_stay_awake(pd_data->policy_engine_wake);
 	do {
 		if (!policy->plug_valid) {
 			pr_info("%s : usbpd cable is empty\n", __func__);
@@ -3709,6 +3957,10 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 			policy->state =
 				sm5714_usbpd_policy_src_soft_reset(policy);
 			break;
+		case PE_SRC_Send_Source_Info:
+			policy->state =
+				sm5714_usbpd_policy_src_send_source_info(policy);
+			break;
 		case PE_SNK_Startup:
 			policy->state =
 				sm5714_usbpd_policy_snk_startup(policy);
@@ -3802,6 +4054,10 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 		case PE_SNK_Get_Source_PPS_Status:
 			policy->state =
 				sm5714_usbpd_policy_snk_get_source_pps_status(policy);
+			break;
+		case PE_SNK_Give_Battery_Status:
+			policy->state =
+				sm5714_usbpd_policy_snk_give_battery_status(policy);
 			break;
 		case PE_DRS_Evaluate_Port:
 			policy->state =
@@ -4241,6 +4497,7 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 		policy->last_state = next_state;
 	} while (policy->state != next_state);
 
+	__pm_relax(pd_data->policy_engine_wake);
 	dev_info(pd_data->dev, "%s Finished, last_state = %x\n",
 			__func__, policy->last_state);
 }
@@ -4267,6 +4524,7 @@ void sm5714_usbpd_init_policy(struct sm5714_usbpd_data *pd_data)
 	policy->source_cap_received = 0;
 	policy->send_sink_cap = 0;
 	policy->skip_ufp_svid_ack = 0;
+	policy->is_bist_test_mode = 0;
 	pd_data->pd_noti.sink_status.current_pdo_num = 0;
 	pd_data->pd_noti.sink_status.selected_pdo_num = 0;
 	pd_data->pd_noti.sink_status.available_pdo_num = 0;

@@ -36,6 +36,8 @@
 #include "mmv_v33x/is-vendor-config_mmv_v33x.h"
 #elif defined(CONFIG_CAMERA_MMW_M34X)
 #include "mmw_v34x/is-vendor-config_mmw_v34x.h"
+#elif defined(CONFIG_CAMERA_STX_V04)
+#include "stx_v04/is-vendor-config_stx_v04.h"
 #else
 #include "aav_v33x/is-vendor-config_aav_v33x.h"
 #endif

@@ -243,3 +243,10 @@ config MALI_EXYNOS_DEBUG_FAULT_DUMP
     default n
     help
       MALI_MIDGARD_ENABLE_TRACE must be enabled for more detailed logs
+
+config MALI_EXYNOS_GPU_MEM_DUMP
+    bool "Enable GPU MEM DUMP Option"
+    depends on MALI_MIDGARD
+    default n
+    help
+      Choose this option to enable checking GPU_MEM in the Mali tTRx DDK.

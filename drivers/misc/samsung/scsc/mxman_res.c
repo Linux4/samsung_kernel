@@ -674,8 +674,10 @@ static int mxman_res_transports_deinit_wlan(struct mxman *mxman)
 #ifdef CONFIG_SCSC_MX450_GDB_SUPPORT
 	gdb_transport_release(scsc_mx_get_gdb_transport_fxm_2(mxman->mx));
 #endif
-	if (mxman->data_mxconf)
+	if (mxman->data_mxconf){
 		miframman_free(scsc_mx_get_ramman(mxman->mx), mxman->data_mxconf);
+		mxman->data_mxconf = NULL;
+	}
 
 	mxlog_release(scsc_mx_get_mxlog(mxman->mx));
 	/* unregister channel handler */
@@ -689,8 +691,10 @@ static int mxman_res_transports_deinit_wpan(struct mxman *mxman)
 	mxlog_transport_release(scsc_mx_get_mxlog_transport_wpan(mxman->mx));
 	mxmgmt_transport_release(scsc_mx_get_mxmgmt_transport_wpan(mxman->mx));
 	gdb_transport_release(scsc_mx_get_gdb_transport_wpan(mxman->mx));
-	if (mxman->data_mxconf_wpan)
+	if (mxman->data_mxconf_wpan){
 		miframman_free(scsc_mx_get_ramman_wpan(mxman->mx), mxman->data_mxconf_wpan);
+		mxman->data_mxconf_wpan = NULL;
+	}
 
 	mxlog_release(scsc_mx_get_mxlog_wpan(mxman->mx));
 	/* unregister channel handler */
@@ -1120,6 +1124,7 @@ int mxman_res_init_subsystem(struct mxman *mxman, enum scsc_subsystem sub, void 
 			     mxmgmt_channel_handler handler)
 {
 	struct scsc_mif_abs *mif;
+	int r = -EIO;
 
 	mif = scsc_mx_get_mif_abs(mxman->mx);
 
@@ -1133,7 +1138,7 @@ int mxman_res_init_subsystem(struct mxman *mxman, enum scsc_subsystem sub, void 
 		/* Ignore return value */
 		mxlogger_init_channel(scsc_mx_get_mxlogger(mxman->mx), SCSC_MIF_ABS_TARGET_WLAN);
 #endif
-		mxman_res_transports_init_wlan(mxman, data, data_sz, handler);
+		r = mxman_res_transports_init_wlan(mxman, data, data_sz, handler);
 		break;
 	case SCSC_SUBSYSTEM_WPAN:
 		/* INTMIF init before allocating transports */
@@ -1142,14 +1147,14 @@ int mxman_res_init_subsystem(struct mxman *mxman, enum scsc_subsystem sub, void 
 		/* Mxlogger init before allocating transports*/
 		mxlogger_init_channel(scsc_mx_get_mxlogger(mxman->mx), SCSC_MIF_ABS_TARGET_WPAN);
 #endif
-		mxman_res_transports_init_wpan(mxman, data, data_sz, handler);
+		r = mxman_res_transports_init_wpan(mxman, data, data_sz, handler);
 		break;
 	default:
 		SCSC_TAG_ERR(MXMAN, "Subsystem %d not found\n", sub);
 		return -EIO;
 	}
 
-	return 0;
+	return r;
 }
 
 int mxman_res_reset(struct mxman *mxman, bool reset)

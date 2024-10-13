@@ -232,14 +232,19 @@ struct mbulk *mbulk_with_signal_alloc_by_pool(u8 pool_id, mbulk_colour colour,
 	/* check if this pool meets the size */
 	tot_bufsz = sig_bufsz + dat_bufsz;
 	if (dat_bufsz != MBULK_DAT_BUFSZ_REQ_BEST_MAGIC &&
-	    pool->seg_size < tot_bufsz)
+	    pool->seg_size < tot_bufsz) {
+		SLSI_ERR_NODEV("too large. Max:%d, sig:%d, payload:%d, total:%d\n", pool->seg_size, sig_bufsz,
+			       dat_bufsz, tot_bufsz);
 		return NULL;
+	}
 
 	m_ret = mbulk_seg_generic_alloc(pool, clas, sig_bufsz, dat_bufsz);
 
 	index = (((uintptr_t)pool->end_addr - (uintptr_t)m_ret) >> pool->shift) - 1;
-	if (index >= pool->tot_seg_num)
+	if (index >= pool->tot_seg_num) {
+		SLSI_ERR_NODEV("No free mbulk. tot_seg_num:%d, index:%d\n", pool->tot_seg_num, index);
 		return NULL;
+	}
 
 	pool->mbulk_tracker[index].colour = colour;
 
@@ -499,4 +504,9 @@ void mbulk_free_virt_host(struct mbulk *m)
 
 	/* put to the pool */
 	mbulk_pool_put(pool, m);
+}
+
+mbulk_len_t mbulk_pool_seg_size(u8 pool_id)
+{
+	return mbulk_pools[pool_id].seg_size;
 }

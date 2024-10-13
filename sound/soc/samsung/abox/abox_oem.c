@@ -35,6 +35,9 @@ static ssize_t abox_oem_resize_reserved_memory_slog(void)
 #if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX_CHANGE_RMEM_SIZE)
 	if (check_debug_level_low())
 		size = get_rmem_size_min(TYPE_ABOX_SLOG_SIZE);
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	size = get_rmem_size_min(TYPE_ABOX_SLOG_SIZE);
+#endif
 #endif
 
 	return size;

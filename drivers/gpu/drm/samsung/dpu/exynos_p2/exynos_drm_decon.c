@@ -415,6 +415,7 @@ static void decon_mode_update_bts(struct decon_device *decon,
 	decon->bts.vbp = vm.vback_porch;
 	decon->bts.vfp = vm.vfront_porch;
 	decon->bts.vsa = vm.vsync_len;
+	decon->bts.of_lines = OUTFIFO_PIXEL_NUM / vm.hactive;
 	decon_mode_update_bts_fps(decon->crtc);
 
 	/* the bts.win_config should be intialized only at full modeset */
@@ -1930,6 +1931,15 @@ static int decon_parse_dt(struct decon_device *decon, struct device_node *np)
 		decon_warn(decon, "WARN: rotator ppc is not defined in DT.\n");
 	}
 	decon_info(decon, "rotator ppc(%d)\n", decon->bts.ppc_rotator);
+
+	if (of_property_read_u32(np, "ppc_rotator_wr",
+				 (u32 *)&decon->bts.ppc_rot_w)) {
+		decon->bts.ppc_rot_w = 8U;
+		decon_warn(
+			decon,
+			"WARN: ppc for rotator write is not defined in DT.\n");
+	}
+	decon_info(decon, "rotator write ppc(%d)\n", decon->bts.ppc_rot_w);
 
 	if (of_property_read_u32(np, "ppc_scaler",
 					(u32 *)&decon->bts.ppc_scaler)) {

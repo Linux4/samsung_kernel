@@ -19,6 +19,23 @@
 
 #include <linux/slab.h>
 
+int init_pocket_pos_mode(bool en)
+{
+	int ret = 0;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_POCKET_POS_MODE);
+
+	if (!sensor)
+		return 0;
+
+	if (en) {
+		ret = init_default_func(sensor, "pocket_pos_mode", 15, 15, 15);
+	} else {
+		destroy_default_func(sensor);
+	}
+
+	return ret;
+}
+
 int init_pocket_mode_lite(bool en)
 {
 	int ret = 0;
@@ -36,3 +53,19 @@ int init_pocket_mode_lite(bool en)
 	return ret;
 }
 
+int init_pocket_mode(bool en)
+{
+	int ret = 0;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_POCKET_MODE);
+
+	if (!sensor)
+		return 0;
+
+	if (en) {
+		ret = init_default_func(sensor, "pocket_mode", 58, 58, 58);
+	} else {
+		destroy_default_func(sensor);
+	}
+
+	return ret;
+}

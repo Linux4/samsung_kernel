@@ -66,7 +66,7 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 	}
 
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
-	voltage = max(battery->voltage_pack_main, battery->voltage_pack_sub);
+	voltage = max(battery->voltage_avg_main, battery->voltage_avg_sub);
 #endif
 
 	if ((battery->status == POWER_SUPPLY_STATUS_CHARGING) ||
@@ -80,8 +80,8 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 			!(pcisd->state & CISD_STATE_OVER_VOLTAGE)) {
 			dev_info(battery->dev, "%s : [CISD] Battery Over Voltage Protection !! vbat(%d)mV\n",
 				__func__, voltage);
-			val.intval = true;
-			psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_VBAT_OVP,
+			val.intval = POWER_SUPPLY_EXT_HEALTH_VBAT_OVP;
+			psy_do_property("battery", set, POWER_SUPPLY_PROP_HEALTH,
 					val);
 			pcisd->data[CISD_DATA_VBAT_OVP]++;
 			pcisd->data[CISD_DATA_VBAT_OVP_PER_DAY]++;

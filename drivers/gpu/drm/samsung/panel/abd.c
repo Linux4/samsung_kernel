@@ -282,7 +282,13 @@ static int usdm_abd_simple_write_to_buffer(char *ibuf, size_t sizeof_ibuf,
 
 	ibuf = strim(ibuf);
 
-	if (ibuf[0] && !isalnum(ibuf[0]))
+	if (!ibuf[0])
+		return -EFAULT;
+
+	if (!isascii(ibuf[0]))
+		return -EFAULT;
+
+	if (!isalnum(ibuf[0]))
 		return -EFAULT;
 
 	return 0;

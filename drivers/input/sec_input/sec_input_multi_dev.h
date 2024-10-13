@@ -13,6 +13,8 @@
 
 #include "sec_input.h"
 
+#define MULTI_DEV_DEBUG_INFO_SIZE	256
+
 #define MULTI_DEV_NONE			0
 #define MULTI_DEV_MAIN			1
 #define MULTI_DEV_SUB			2
@@ -27,10 +29,10 @@
 #define GET_SEC_CLASS_DEVT_TSP(mdev)	(GET_DEV_COUNT(mdev) == MULTI_DEV_MAIN ? SEC_CLASS_DEVT_TSP1 \
 						: GET_DEV_COUNT(mdev) == MULTI_DEV_SUB ? SEC_CLASS_DEVT_TSP2 \
 						: SEC_CLASS_DEVT_TSP)
-
+#if IS_ENABLED(CONFIG_SEC_ABC)
 #define GET_INT_ABC_TYPE(mdev)    (GET_DEV_COUNT(mdev) == MULTI_DEV_SUB ? SEC_ABC_SEND_EVENT_TYPE_SUB \
                         : SEC_ABC_SEND_EVENT_TYPE)
-
+#endif
 
 struct sec_input_multi_device {
 	struct device *dev;
@@ -44,6 +46,8 @@ struct sec_input_multi_device {
 	int flip_status_current;
 	int change_flip_status;
 
+	unsigned int flip_mismatch_count;
+
 	struct delayed_work switching_work;
 };
 
@@ -54,6 +58,8 @@ void sec_input_multi_device_ready(struct sec_input_multi_device *mdev);
 
 void sec_input_multi_device_create(struct device *dev);
 void sec_input_multi_device_remove(struct sec_input_multi_device *mdev);
+void sec_input_get_multi_device_debug_info(struct sec_input_multi_device *mdev,
+		char *buf, ssize_t size);
 #else
 static inline bool sec_input_need_fold_off(struct sec_input_multi_device *mdev) { return false; }
 static inline void sec_input_set_fold_state(struct sec_input_multi_device *mdev, int state) {}
@@ -61,5 +67,7 @@ static inline void sec_input_multi_device_ready(struct sec_input_multi_device *m
 
 static inline void sec_input_multi_device_create(struct device *dev) {}
 static inline void sec_input_multi_device_remove(struct sec_input_multi_device *mdev) {}
+static inline void sec_input_get_multi_device_debug_info(struct sec_input_multi_device *mdev,
+		char *buf, ssize_t size) { return; }
 #endif
 #endif

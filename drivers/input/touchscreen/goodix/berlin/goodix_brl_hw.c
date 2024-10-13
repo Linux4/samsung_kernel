@@ -852,7 +852,6 @@ static int brl_read_version(struct goodix_ts_core *cd,
 	int ret, i;
 	struct goodix_ts_hw_ops *hw_ops = cd->hw_ops;
 	u8 buf[sizeof(struct goodix_fw_version)] = {0};
-	u8 temp_pid[8] = {0};
 
 	for (i = 0; i < 3; i++) {
 		ret = hw_ops->read(cd, GOODIX_FW_VERSION_ADDR, buf, sizeof(buf));
@@ -876,8 +875,7 @@ static int brl_read_version(struct goodix_ts_core *cd,
 		return ret;
 	}
 	memcpy(version, buf, sizeof(*version));
-	memcpy(temp_pid, version->rom_pid, sizeof(version->rom_pid));
-	ts_info("rom_pid:%s", temp_pid);
+	ts_info("rom_pid:%s", version->rom_pid);
 	ts_info("rom_vid:%*ph", (int)sizeof(version->rom_vid),
 			version->rom_vid);
 	ts_info("pid:%s", version->patch_pid);
@@ -1163,7 +1161,10 @@ static int brl_get_ic_info(struct goodix_ts_core *cd,
 	cd->plat_data->x_node_num = ic_info->parm.drv_num;
 	cd->plat_data->y_node_num = ic_info->parm.sen_num;
 
-	cd->plat_data->img_version_of_ic[0] = ic_info->sec.ic_vendor;
+	cd->plat_data->ic_vendor_name[0] = 'G';
+	cd->plat_data->ic_vendor_name[1] = 'T';
+
+	cd->plat_data->img_version_of_ic[0] = ic_info->sec.ic_name_list;
 	cd->plat_data->img_version_of_ic[1] = ic_info->sec.project_id;
 	cd->plat_data->img_version_of_ic[2] = ic_info->sec.module_version;
 	cd->plat_data->img_version_of_ic[3] = ic_info->sec.firmware_version;
@@ -1342,7 +1343,9 @@ static void goodix_parse_finger(struct goodix_ts_core *cd, unsigned int tid, u8 
 	pdata->coord[tid].noise_level = max(pdata->coord[tid].noise_level, buf[8]);
 	pdata->coord[tid].max_strength = max(pdata->coord[tid].max_strength, buf[9]);
 	pdata->coord[tid].hover_id_num = max(pdata->coord[tid].hover_id_num, (u8)(buf[10] & 0x0F));
+	pdata->coord[tid].noise_status = (buf[10] >> 4) & 0x03;
 	pdata->coord[tid].freq_id = buf[11] & 0x0F;
+	pdata->coord[tid].fod_debug = (buf[11] & 0xF0) >> 4;
 
 	if (!pdata->coord[tid].palm && (pdata->coord[tid].ttype == SEC_TS_TOUCHTYPE_PALM))
 		pdata->coord[tid].palm_count++;
@@ -1365,7 +1368,7 @@ static void goodix_ts_report_finger(struct goodix_ts_core *cd, unsigned int tid)
 	int recal_tc = 0;
 	static int prev_tc;
 
-	sec_input_coord_event(cd->bus->dev, tid);
+	sec_input_coord_event_fill_slot(cd->bus->dev, tid);
 
 	ts_debug("press_cnt: %d", cd->plat_data->touch_count);
 
@@ -1406,11 +1409,19 @@ static void goodix_parse_status(struct goodix_ts_core *cd, u8 *buf)
 static void goodix_ts_report_status(struct goodix_ts_core *cd, struct goodix_ts_event *ts_event)
 {
 	if (ts_event->status_type == TYPE_STATUS_EVENT_INFO) {
-		if (ts_event->status_id == SEC_TS_ACK_WET_MODE) {
+		if (ts_event->status_id == SEC_TS_READY_STATUS) {
+			ts_info("report ready status");
+		} else if (ts_event->status_id == SEC_TS_ACK_WET_MODE) {
 			cd->plat_data->wet_mode = ts_event->status_data[0];
 			ts_info("wet mode changed[%d]", cd->plat_data->wet_mode);
 			if (cd->plat_data->wet_mode)
 				cd->plat_data->hw_param.wet_count++;
+		} else if (ts_event->status_id == SEC_TS_NOISE_MODE) {
+			//status_data[0]: bit2-NF Mode, bit1-Lamp Mode, bit0-EFT Mode
+			atomic_set(&cd->plat_data->touch_noise_status, (ts_event->status_data[0] & 0x07) ? 1 : 0);
+			ts_info("TSP NOISE MODE %s", atomic_read(&cd->plat_data->touch_noise_status) ? "ON" : "OFF");
+			if (atomic_read(&cd->plat_data->touch_noise_status))
+				cd->plat_data->hw_param.noise_count++;
 		}
 	} else if (ts_event->status_type == TYPE_STATUS_EVENT_VENDOR_INFO) {
 		if (ts_event->status_id == STATUS_EVENT_VENDOR_PROXIMITY) {
@@ -1424,16 +1435,6 @@ static void goodix_ts_report_status(struct goodix_ts_core *cd, struct goodix_ts_
 			} else if (ts_event->status_data[0] == 6) {
 				ts_info("sleep changed");
 			}
-		} else if (ts_event->status_id == STATUS_EVENT_VENDOR_ACK_NOISE_STATUS_NOTI) {
-			atomic_set(&cd->plat_data->touch_noise_status, ts_event->status_data[0] & 0x0f);
-			ts_info("TSP NOISE MODE %s[%02x %02x]", atomic_read(&cd->plat_data->touch_noise_status) ? "ON" : "OFF",
-					ts_event->status_data[1], ts_event->status_data[2]);
-
-			if (atomic_read(&cd->plat_data->touch_noise_status))
-				cd->plat_data->hw_param.noise_count++;
-		} else if (ts_event->status_id == STATUS_EVENT_VENDOR_ACK_PRE_NOISE_STATUS_NOTI) {
-			atomic_set(&cd->plat_data->touch_pre_noise_status, ts_event->status_data[0] & 0x0f);
-			ts_info("TSP PRE NOISE MODE %s", atomic_read(&cd->plat_data->touch_pre_noise_status) ? "ON" : "OFF");
 		} else if (ts_event->status_id == STATUS_EVENT_VENDOR_ACK_CHARGER_STATUS_NOTI) {
 			ts_info("TSP CHARGER MODE %d", ts_event->status_data[0]);
 		}
@@ -1538,6 +1539,13 @@ restart:
 
 	if (buffer[0] == 0) {
 		ts_err("empty buffer[0] data");
+#if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_SEC_FACTORY)
+		cd->irq_empty_count++;
+		if (cd->irq_empty_count >= 100) {
+			cd->irq_empty_count = 0;
+			sec_abc_send_event(SEC_ABC_SEND_EVENT_TYPE);
+		}
+#endif
 		return -EINVAL;
 	}
 
@@ -1621,6 +1629,8 @@ restart:
 
 			event_data += BYTES_PER_POINT;
 		} while (--event_num);
+
+		sec_input_coord_event_sync_slot(cd->bus->dev);
 	} else if ((buffer[0] & 0x80) && (event_num == 0)) {
 		/* if event_num equal 0, realease all fingers */
 		ts_debug("event num is zero [%02x%02x%02x]", buffer[0], buffer[1], buffer[2]);

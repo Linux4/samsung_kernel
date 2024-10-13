@@ -250,7 +250,7 @@ static unsigned char m34x_mdnie_scenario_1_table[SCENARIO_MAX][MODE_MAX][S6E3FC3
 		[MOVIE] = {},
 		[AUTO] = {
 			0x00, 0xd0, 0x00, 0x00, 0x0c, 0xff, 0x02, 0x00, 0x00, 0xff, 0x00, 0xe3, 0xff, 0xff, 0x00, 0xff,
-			0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
+			0xff, 0xff, 0x00, 0xff, 0xff, 0xf8, 0xe9, 0x00, 0x00,
 		},
 	},
 	[EMAIL_MODE] = {
@@ -1427,7 +1427,7 @@ static DECLARE_PKTUI(m34x_mdnie_hbm_1) = {
 static DEFINE_VARIABLE_PACKET(m34x_mdnie_hbm_1, DSI_PKT_TYPE_WR, M34X_MDNIE_1, S6E3FC3_MDNIE_1_OFS);
 static DEFINE_PKTUI(m34x_mdnie_hbm_2, &m34x_mdnie_hbm_2_maptbl, S6E3FC3_DATA_OFS);
 static DEFINE_VARIABLE_PACKET(m34x_mdnie_hbm_2, DSI_PKT_TYPE_WR, M34X_MDNIE_2, S6E3FC3_MDNIE_2_OFS);
-static void *m34x_mdnie_hbm_cmdtbl[] = {
+static void *m34x_mdnie_hbm_ce_cmdtbl[] = {
 	&KEYINFO(m34x_level1_key_enable),
 	&KEYINFO(m34x_level2_key_enable),
 	&PKTINFO(m34x_multi_cmd_enable),
@@ -1546,7 +1546,7 @@ static struct seqinfo m34x_mdnie_seqtbl[] = {
 	SEQINFO_INIT(MDNIE_GRAYSCALE_NEGATIVE_SEQ, m34x_mdnie_grayscale_negative_cmdtbl),
 	SEQINFO_INIT(MDNIE_COLOR_BLIND_HBM_SEQ, m34x_mdnie_color_blind_hbm_cmdtbl),
 	SEQINFO_INIT(MDNIE_BYPASS_SEQ, m34x_mdnie_bypass_cmdtbl),
-	SEQINFO_INIT(MDNIE_HBM_SEQ, m34x_mdnie_hbm_cmdtbl),
+	SEQINFO_INIT(MDNIE_HBM_CE_SEQ, m34x_mdnie_hbm_ce_cmdtbl),
 	SEQINFO_INIT(MDNIE_HDR_SEQ, m34x_mdnie_hdr_cmdtbl),
 	SEQINFO_INIT(MDNIE_NIGHT_SEQ, m34x_mdnie_night_cmdtbl),
 	SEQINFO_INIT(MDNIE_LIGHT_NOTIFICATION_SEQ, m34x_mdnie_light_notification_cmdtbl),
@@ -1631,7 +1631,7 @@ static struct mdnie_tune s6e3fc3_m34x_mdnie_tune = {
 	.num_night_level = S6E3FC3_M34X_MAX_NIGHT_LEVEL,
 	.num_color_lens_color = COLOR_LENS_COLOR_MAX,
 	.num_color_lens_level = COLOR_LENS_LEVEL_MAX,
-	.hbm_ce_lux = 40000,
+	.hbm_ce_lux = { 40000 },
 	.scr_white_len = S6E3FC3_SCR_WHITE_LEN,
 	.scr_cr_ofs = S6E3FC3_SCR_CR_OFS,
 	.night_mode_ofs = S6E3FC3_NIGHT_MODE_OFS,

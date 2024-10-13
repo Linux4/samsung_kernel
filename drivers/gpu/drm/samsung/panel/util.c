@@ -17,6 +17,12 @@
 #include "panel_debug.h"
 #include "util.h"
 
+#ifdef CONFIG_UML
+#define rtc_time_to_tm(a, b)	(memset(b, 0, sizeof(struct rtc_time)))
+#else
+#define rtc_time_to_tm(a, b)	rtc_time64_to_tm(a, b)
+#endif
+
 /*
  * copy from slided source byte array to
  * continuous destination byte array
@@ -202,3 +208,29 @@ void usdm_print_bytes(int log_level, const void *buf, size_t len)
 	}
 }
 EXPORT_SYMBOL(usdm_print_bytes);
+
+#if IS_ENABLED(CONFIG_RTC_LIB)
+void usdm_get_rtc_time(struct rtc_time *tm)
+{
+	struct timespec64 now;
+	unsigned long local_time;
+
+	ktime_get_real_ts64(&now);
+	local_time = (now.tv_sec - (sys_tz.tz_minuteswest * 60));
+	rtc_time64_to_tm(local_time, tm);
+}
+
+int usdm_snprintf_rtc_time(char *buf, size_t size, struct rtc_time *tm)
+{
+	return snprintf(buf, size, "%02d-%02d %02d:%02d:%02d UTC",
+			tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+}
+
+int usdm_snprintf_current_rtc_time(char *buf, size_t size)
+{
+	struct rtc_time tm;
+
+	usdm_get_rtc_time(&tm);
+	return usdm_snprintf_rtc_time(buf, size, &tm);
+}
+#endif

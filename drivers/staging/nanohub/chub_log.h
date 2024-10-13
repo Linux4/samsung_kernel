@@ -66,4 +66,6 @@ void chub_printf(struct device * dev, int level, int fw_idx, const char *fmt, ..
 
 int contexthub_sync_memlogger(void *chub_p);
 int contexthub_log_init(void *chub_p);
+void contexthub_log_stop(void *chub_p);
+void contexthub_log_start(void *chub_p);
 #endif /* __CHUB_LOG_H_ */

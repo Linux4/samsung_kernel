@@ -47,13 +47,13 @@ int get_light_cct_sensor_value(char *dataframe, int *index, struct sensor_event 
 {
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
 	struct light_cct_event *sensor_value = (struct light_cct_event *)event->value;
-	int offset_raw_data = offsetof(struct light_cct_event, r);
 
-	if (!data->ddi_support)
-		offset_raw_data -= sizeof(sensor_value->roi);
-
-	memcpy(&sensor_value->lux, dataframe + *index, offset_raw_data);
-	*index += offset_raw_data;
+	memcpy(&sensor_value->lux, dataframe + *index, sizeof(sensor_value->lux));
+	*index += sizeof(sensor_value->lux);
+	memcpy(&sensor_value->cct, dataframe + *index, sizeof(sensor_value->cct));
+	*index += sizeof(sensor_value->cct);
+	memcpy(&sensor_value->raw_lux, dataframe + *index, sizeof(sensor_value->raw_lux));
+	*index += sizeof(sensor_value->raw_lux);
 
 	if (data->ddi_support) {
 		memcpy(&sensor_value->roi, dataframe + *index, sizeof(sensor_value->roi));

@@ -20,6 +20,7 @@ mcd-panel-y += timenval.o \
 				panel_packet.o \
 				panel_resource.o \
 				panel_dump.o \
+				panel_config.o \
 				panel.o \
 				panel_bl.o \
 				dimming.o \
@@ -48,6 +49,8 @@ mcd-panel-$(CONFIG_USDM_POC_SPI) += panel_poc.o panel_spi.o
 mcd-panel-$(CONFIG_USDM_BLIC_I2C) += panel_i2c.o
 mcd-panel-$(CONFIG_USDM_PANEL_BLIC) += panel_blic.o
 mcd-panel-$(CONFIG_USDM_LPD_AUTO_BR) += panel_lpd_cmd.o
+mcd-panel-$(CONFIG_USDM_ADAPTIVE_MIPI) += adaptive_mipi.o
+mcd-panel-$(CONFIG_USDM_SDP_ADAPTIVE_MIPI) += sdp_adaptive_mipi.o
 mcd-panel-$(CONFIG_USDM_PANEL_TESTMODE) += panel_testmode.o
 
 mcd-panel-$(CONFIG_USDM_PANEL_JSON) += \
@@ -63,6 +66,8 @@ subdir-ccflags-y += \
     -Wno-implicit-fallthrough
 
 subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
+    -Wformat-security \
+    -Wunused-const-variable \
     -Wframe-larger-than=8192 \
     -Wunused-variable \
     -Wunused-function \

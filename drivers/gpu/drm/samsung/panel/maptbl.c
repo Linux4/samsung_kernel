@@ -14,6 +14,7 @@
 #include "panel_obj.h"
 #include "maptbl.h"
 #include "panel_debug.h"
+#include "panel_property.h"
 
 int maptbl_alloc_buffer(struct maptbl *m, size_t size)
 {
@@ -60,6 +61,14 @@ void maptbl_set_ops(struct maptbl *m, struct maptbl_ops *ops)
 	memcpy(&m->ops, ops, sizeof(*ops));
 }
 
+void maptbl_set_props(struct maptbl *m, struct maptbl_props *props)
+{
+	if (!m || !props)
+		return;
+
+	memcpy(&m->props, props, sizeof(*props));
+}
+
 void maptbl_set_initialized(struct maptbl *m, bool initialized)
 {
 	if (!m)
@@ -100,7 +109,7 @@ void *maptbl_get_private_data(struct maptbl *m)
  * making a call to maptbl_destroy().
  */
 struct maptbl *maptbl_create(char *name, struct maptbl_shape *shape,
-		struct maptbl_ops *ops, void *init_data, void *priv)
+		struct maptbl_ops *ops, struct maptbl_props *props, void *init_data, void *priv)
 {
 	struct maptbl *m;
 	int ret;
@@ -114,6 +123,7 @@ struct maptbl *maptbl_create(char *name, struct maptbl_shape *shape,
 	maptbl_set_sizeof_copy(m,
 			maptbl_get_countof_n_dimen_element(m, NDARR_1D));
 	maptbl_set_ops(m, ops);
+	maptbl_set_props(m, props);
 	maptbl_set_private_data(m, priv);
 
 	if (!maptbl_get_sizeof_maptbl(m))
@@ -130,9 +140,7 @@ struct maptbl *maptbl_create(char *name, struct maptbl_shape *shape,
 	return m;
 
 err:
-	free_pnobj_name(&m->base);
-	kfree(m);
-
+	maptbl_destroy(m);
 	return NULL;
 }
 EXPORT_SYMBOL(maptbl_create);
@@ -156,7 +164,7 @@ struct maptbl *maptbl_clone(struct maptbl *src)
 		return NULL;
 
 	dst = maptbl_create(maptbl_get_name(src), &src->shape, &src->ops,
-			src->arr, maptbl_get_private_data(src));
+			&src->props, src->arr, maptbl_get_private_data(src));
 	maptbl_set_sizeof_copy(dst, src->sz_copy);
 
 	return dst;
@@ -188,6 +196,7 @@ struct maptbl *maptbl_deepcopy(struct maptbl *dst, struct maptbl *src)
 	maptbl_set_shape(dst, &src->shape);
 	maptbl_set_sizeof_copy(dst, src->sz_copy);
 	maptbl_set_ops(dst, &src->ops);
+	maptbl_set_props(dst, &src->props);
 	maptbl_set_private_data(dst, maptbl_get_private_data(src));
 	maptbl_free_buffer(dst);
 
@@ -197,7 +206,7 @@ struct maptbl *maptbl_deepcopy(struct maptbl *dst, struct maptbl *src)
 	ret = maptbl_alloc_buffer(dst, maptbl_get_sizeof_maptbl(src));
 	if (ret < 0) {
 		panel_err("failed to alloc maptbl buffer(ret:%d)\n", ret);
-		free_pnobj_name(&dst->base);
+		pnobj_deinit(&dst->base);
 		return NULL;
 	}
 
@@ -219,8 +228,8 @@ void maptbl_destroy(struct maptbl *m)
 	if (!m)
 		return;
 
+	pnobj_deinit(&m->base);
 	maptbl_free_buffer(m);
-	free_pnobj_name(&m->base);
 	kfree(m);
 }
 EXPORT_SYMBOL(maptbl_destroy);
@@ -605,3 +614,43 @@ void maptbl_print(struct maptbl *tbl)
 	pr_info("%s\n", buf);
 }
 EXPORT_SYMBOL(maptbl_print);
+
+static int maptbl_props_to_pos(struct maptbl *m, struct maptbl_pos *pos)
+{
+	struct panel_device *panel;
+	int dimen;
+
+	if (!m || !m->pdata)
+		return -EINVAL;
+
+	panel = m->pdata;
+	maptbl_for_each_dimen_reverse(m, dimen) {
+		int index = 0;
+
+		if (m->props.name[dimen]) {
+			index = panel_get_property_value(panel, m->props.name[dimen]);
+			if (index < 0) {
+				panel_err("%s: failed to get property(%s) value\n",
+						maptbl_get_name(m), m->props.name[dimen]);
+				return -EINVAL;
+			}
+		}
+		pos->index[dimen] = index;
+	}
+
+	return 0;
+}
+
+int maptbl_getidx_from_props(struct maptbl *m)
+{
+	struct maptbl_pos pos;
+
+	if (!m || !m->pdata)
+		return -EINVAL;
+
+	memset(&pos, 0, sizeof(pos));
+	maptbl_props_to_pos(m, &pos);
+
+	return maptbl_pos_to_index(m, &pos);
+}
+EXPORT_SYMBOL(maptbl_getidx_from_props);

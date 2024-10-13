@@ -110,11 +110,6 @@ config USDM_FACTORY_ECC_TEST
 	depends on USDM_PANEL
 	default n
 
-config USDM_MDNIE_TDMB
-	bool "Support TDMB Tuning"
-	depends on USDM_PANEL && TDMB_NOTIFIER
-	default n
-
 config USDM_PANEL_BACKLIGHT_PAC_3_0
 	bool "Support baclight PAC 3.0"
 	depends on USDM_PANEL
@@ -180,6 +175,11 @@ config USDM_FACTORY_BRIGHTDOT_TEST
 	depends on USDM_PANEL
 	default n
 
+config USDM_FACTORY_VGLHIGHDOT_TEST
+	bool "Support VGL Highdot Test"
+	depends on USDM_PANEL
+	default n
+
 config USDM_FACTORY_DSC_CRC_TEST
 	bool "Support panel decoder test"
 	depends on USDM_PANEL
@@ -212,7 +212,7 @@ config USDM_PANEL_BIG_LOCK
 
 config USDM_PANEL_RCD
 	bool "Support mcd panel rcd"
-	depends on USDM_PANEL
+	depends on USDM_PANEL && !USDM_FACTORY
 	default n
 
 config USDM_PANEL_ID_READ_REG_04
@@ -250,8 +250,39 @@ config USDM_PANEL_JSON
 	depends on USDM_PANEL
 	default n
 
+config USDM_PANEL_VCOM_TRIM_TEST
+	bool "Support VCOM TRIM test"
+	depends on USDM_PANEL
+	default n
+
 config USDM_LPD_AUTO_BR
 	bool "Support lpd auto brightness"
+	depends on USDM_PANEL
+	default n
+
+config USDM_ADAPTIVE_MIPI
+	bool "Support Adaptive MIPI"
+	depends on USDM_PANEL
+	default n
+
+config USDM_SDP_ADAPTIVE_MIPI
+	bool "Support SDP Adaptive MIPI"
+	depends on USDM_PANEL
+	depends on SDP
+	default n
+
+config USDM_USE_CUSTOM_SOFTDEP
+	bool "Support Custom softdep"
+	depends on USDM_PANEL
+	default n
+
+config USDM_PANEL_UEVENT_RECOVERY
+	bool "Support uevent recovery"
+	depends on USDM_PANEL
+	default n
+
+config USDM_PANEL_LATE_PROBE
+	bool "Support Late Probe"
 	depends on USDM_PANEL
 	default n
 

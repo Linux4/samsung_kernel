@@ -121,6 +121,9 @@ void mif_stream_release(struct mif_stream *stream)
 {
 	struct mifintrbit *intr;
 
+	if (!stream->mx)
+		return;
+
 #if defined(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 	if (stream->target == SCSC_MIF_ABS_TARGET_WPAN)
 		intr = scsc_mx_get_intrbit_wpan(stream->mx);
@@ -145,6 +148,8 @@ void mif_stream_release(struct mif_stream *stream)
 #endif
 	}
 	cpacketbuffer_release(&stream->buffer);
+
+	stream->mx = NULL;
 }
 
 uint32_t mif_stream_read(struct mif_stream *stream, void *buf, uint32_t num_bytes)
@@ -203,7 +208,12 @@ bool mif_stream_write(struct mif_stream *stream, const void *buf, uint32_t num_b
 
 bool mif_stream_write_gather(struct mif_stream *stream, const void **bufs, uint32_t *lengths, uint32_t num_bufs)
 {
-	struct scsc_mif_abs *mif_abs = scsc_mx_get_mif_abs(stream->mx);
+	struct scsc_mif_abs *mif_abs = NULL;
+
+	if (!stream->mx || !stream->buffer.mx)
+		return false;
+
+	mif_abs = scsc_mx_get_mif_abs(stream->mx);
 
 	if (!cpacketbuffer_write_gather(&stream->buffer, bufs, lengths, num_bufs))
 		return false;

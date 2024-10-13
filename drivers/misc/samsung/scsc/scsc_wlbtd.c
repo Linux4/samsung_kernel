@@ -1007,7 +1007,6 @@ int scsc_wlbtd_init(void)
 		SCSC_TAG_ERR(WLBTD, "Failed to register family. (%d)\n", r);
 		return -1;
 	}
-
 	return r;
 }
 

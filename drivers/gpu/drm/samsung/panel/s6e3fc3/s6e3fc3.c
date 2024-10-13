@@ -22,7 +22,9 @@
 #endif
 #include "../panel_drv.h"
 #include "../panel_debug.h"
+#include "../panel_property.h"
 #include "oled_common.h"
+#include "oled_property.h"
 
 #ifdef CONFIG_USDM_PANEL_DIMMING
 int generate_brt_step_table(struct brightness_table *brt_tbl)
@@ -109,27 +111,6 @@ int init_aod_dimming_table(struct maptbl *tbl)
 	return 0;
 }
 #endif
-#endif
-
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-int s6e3fc3_maptbl_getidx_vgh(struct maptbl *tbl)
-{
-	struct panel_device *panel = (struct panel_device *)tbl->pdata;
-	struct panel_info *panel_data;
-	int row = 0;
-
-	if (panel == NULL) {
-		panel_err("panel is null\n");
-		return -EINVAL;
-	}
-
-	panel_data = &panel->panel_data;
-
-	row = ((panel_data->props.xtalk_mode) ? 1 : 0);
-	panel_info("xtalk_mode %d\n", row);
-
-	return maptbl_index(tbl, 0, row, 0);
-}
 #endif
 
 int s6e3fc3_maptbl_getidx_hbm_transition(struct maptbl *tbl)
@@ -391,6 +372,49 @@ int s6e3fc3_maptbl_getidx_vrr_fps(struct maptbl *tbl)
 	return maptbl_index(tbl, layer, row, 0);
 }
 
+int find_s6e3fc3_vrr(struct panel_vrr *vrr)
+{
+	size_t i;
+
+	if (!vrr) {
+		panel_err("panel_vrr is null\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(S6E3FC3_VRR_FPS); i++) {
+		if (vrr->fps == S6E3FC3_VRR_FPS[i][S6E3FC3_VRR_KEY_REFRESH_RATE] &&
+				vrr->mode == S6E3FC3_VRR_FPS[i][S6E3FC3_VRR_KEY_REFRESH_MODE] &&
+				vrr->te_sw_skip_count == S6E3FC3_VRR_FPS[i][S6E3FC3_VRR_KEY_TE_SW_SKIP_COUNT] &&
+				vrr->te_hw_skip_count == S6E3FC3_VRR_FPS[i][S6E3FC3_VRR_KEY_TE_HW_SKIP_COUNT])
+			return (int)i;
+	}
+
+	return -EINVAL;
+}
+
+int s6e3fc3_maptbl_getidx_vrr(struct maptbl *tbl)
+{
+	struct panel_device *panel = (struct panel_device *)tbl->pdata;
+	struct panel_vrr *vrr;
+	int row = 0, layer = 0, index;
+
+	vrr = get_panel_vrr(panel);
+	if (vrr == NULL) {
+		panel_err("failed to get vrr\n");
+		return -EINVAL;
+	}
+
+	index = find_s6e3fc3_vrr(vrr);
+	if (index < 0) {
+		panel_warn("vrr not found\n");
+		row = 0;
+	} else {
+		row = index;
+	}
+
+	return maptbl_index(tbl, layer, row, 0);
+}
+
 #if defined(CONFIG_USDM_FACTORY) && defined(CONFIG_USDM_FACTORY_FAST_DISCHARGE)
 int s6e3fc3_maptbl_getidx_fast_discharge(struct maptbl *tbl)
 {
@@ -628,6 +652,92 @@ int s6e3fc3_get_manufacture_date(struct panel_device *panel, void *buf)
 	return 0;
 }
 
+static int s6e3fc3_normal_hbm_transition_property_update(struct panel_property *prop)
+{
+	struct panel_device *panel = prop->panel;
+	struct panel_bl_device *panel_bl = &panel->panel_bl;
+
+	return panel_property_set_value(prop,
+			s6e3fc3_get_normal_hbm_transition_type(panel_bl));
+}
+
+static struct panel_prop_enum_item s6e3fc3_normal_hbm_transition_enum_items[MAX_S6E3FC3_NORMAL_HBM_TRANSITION] = {
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_NORMAL_HBM_TRANSITION_NORMAL_TO_NORMAL),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_NORMAL_HBM_TRANSITION_NORMAL_TO_HBM),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_NORMAL_HBM_TRANSITION_HBM_TO_NORMAL),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_NORMAL_HBM_TRANSITION_HBM_TO_HBM),
+};
+
+static int s6e3fc3_acl_dim_property_update(struct panel_property *prop)
+{
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
+	struct panel_device *panel = prop->panel;
+	struct panel_bl_device *panel_bl = &panel->panel_bl;
+#endif
+	bool acl_dim_on = S6E3FC3_ACL_DIM_ON;
+
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
+	acl_dim_on = (panel_bl->props.mask_layer_br_hook == MASK_LAYER_HOOK_ON) ?
+		S6E3FC3_ACL_DIM_OFF : S6E3FC3_ACL_DIM_ON;
+#endif
+
+	return panel_property_set_value(prop, acl_dim_on);
+}
+
+static struct panel_prop_enum_item s6e3fc3_acl_dim_enum_items[MAX_S6E3FC3_ACL_DIM] = {
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_ACL_DIM_OFF),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_ACL_DIM_ON),
+};
+
+static int s6e3fc3_acl_opr_property_update(struct panel_property *prop)
+{
+	struct panel_device *panel = prop->panel;
+	struct panel_bl_device *panel_bl = &panel->panel_bl;
+
+	return panel_property_set_value(prop,
+			(panel_bl_get_acl_pwrsave(panel_bl) == ACL_PWRSAVE_OFF) ?
+			S6E3FC3_ACL_OPR_0 : panel_bl_get_acl_opr(panel_bl));
+}
+
+static struct panel_prop_enum_item s6e3fc3_acl_opr_enum_items[MAX_S6E3FC3_ACL_OPR] = {
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_ACL_OPR_0),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_ACL_OPR_1),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_ACL_OPR_2),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_ACL_OPR_3),
+};
+
+static int s6e3fc3_vrr_property_update(struct panel_property *prop)
+{
+	struct panel_device *panel = prop->panel;
+
+	return panel_property_set_value(prop,
+			find_s6e3fc3_vrr(get_panel_vrr(panel)));
+}
+
+static struct panel_prop_enum_item s6e3fc3_vrr_enum_items[MAX_S6E3FC3_VRR] = {
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_VRR_120HS),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_VRR_90HS),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_VRR_60HS_120HS_TE_HW_SKIP_1),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(S6E3FC3_VRR_60HS),
+};
+
+static struct panel_prop_list s6e3fc3_property_array[] = {
+	/* enum property */
+	__DIMEN_PROPERTY_ENUM_INITIALIZER(S6E3FC3_NORMAL_HBM_TRANSITION_PROPERTY,
+			S6E3FC3_NORMAL_HBM_TRANSITION_NORMAL_TO_NORMAL, s6e3fc3_normal_hbm_transition_enum_items,
+			s6e3fc3_normal_hbm_transition_property_update),
+	__DIMEN_PROPERTY_ENUM_INITIALIZER(S6E3FC3_ACL_DIM_PROPERTY,
+			S6E3FC3_ACL_DIM_OFF, s6e3fc3_acl_dim_enum_items,
+			s6e3fc3_acl_dim_property_update),
+	__DIMEN_PROPERTY_ENUM_INITIALIZER(S6E3FC3_ACL_OPR_PROPERTY,
+			S6E3FC3_ACL_OPR_0, s6e3fc3_acl_opr_enum_items,
+			s6e3fc3_acl_opr_property_update),
+	__DIMEN_PROPERTY_ENUM_INITIALIZER(S6E3FC3_VRR_PROPERTY,
+			S6E3FC3_VRR_120HS, s6e3fc3_vrr_enum_items,
+			s6e3fc3_vrr_property_update),
+	/* range property */
+};
+
 struct pnobj_func s6e3fc3_function_table[MAX_S6E3FC3_FUNCTION] = {
 	[S6E3FC3_MAPTBL_INIT_GAMMA_MODE2_BRT] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_INIT_GAMMA_MODE2_BRT, s6e3fc3_maptbl_init_gamma_mode2_brt),
 	[S6E3FC3_MAPTBL_GETIDX_HBM_TRANSITION] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_GETIDX_HBM_TRANSITION, s6e3fc3_maptbl_getidx_hbm_transition),
@@ -640,16 +750,14 @@ struct pnobj_func s6e3fc3_function_table[MAX_S6E3FC3_FUNCTION] = {
 	[S6E3FC3_MAPTBL_INIT_LPM_BRT] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_INIT_LPM_BRT, s6e3fc3_maptbl_init_lpm_brt),
 	[S6E3FC3_MAPTBL_GETIDX_LPM_BRT] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_GETIDX_LPM_BRT, s6e3fc3_maptbl_getidx_lpm_brt),
 	[S6E3FC3_MAPTBL_GETIDX_IRC_MODE] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_GETIDX_IRC_MODE, s6e3fc3_maptbl_getidx_irc_mode),
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-	[S6E3FC3_MAPTBL_GETIDX_VGH] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_GETIDX_VGH, s6e3fc3_maptbl_getidx_vgh),
-#endif
 #if defined(CONFIG_USDM_FACTORY) && defined(CONFIG_USDM_FACTORY_FAST_DISCHARGE)
 	[S6E3FC3_MAPTBL_GETIDX_FAST_DISCHARGE] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_GETIDX_FAST_DISCHARGE, s6e3fc3_maptbl_getidx_fast_discharge),
 #endif
 	[S6E3FC3_MAPTBL_GETIDX_VRR_FPS] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_GETIDX_VRR_FPS, s6e3fc3_maptbl_getidx_vrr_fps),
+	[S6E3FC3_MAPTBL_GETIDX_VRR] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_MAPTBL_GETIDX_VRR, s6e3fc3_maptbl_getidx_vrr),
 };
 
-int s6e3fc3_init(void)
+int s6e3fc3_init(struct common_panel_info *cpi)
 {
 	static bool once;
 	int ret;
@@ -661,6 +769,11 @@ int s6e3fc3_init(void)
 			ARRAY_SIZE(s6e3fc3_function_table));
 	if (ret < 0)
 		panel_err("failed to insert s6e3fc3_function_table\n");
+
+	cpi->prop_lists[USDM_DRV_LEVEL_COMMON] = oled_property_array;
+	cpi->num_prop_lists[USDM_DRV_LEVEL_COMMON] = oled_property_array_size;
+	cpi->prop_lists[USDM_DRV_LEVEL_DDI] = s6e3fc3_property_array;
+	cpi->num_prop_lists[USDM_DRV_LEVEL_DDI] = ARRAY_SIZE(s6e3fc3_property_array);
 
 	once = true;
 

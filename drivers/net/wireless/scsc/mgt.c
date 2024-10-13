@@ -1379,10 +1379,6 @@ static void slsi_clear_low_latency_state(struct net_device *dev)
 static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *dev, bool hw_available)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-	struct net_device *nan_mgmt_dev = slsi_get_netdev_locked(sdev, SLSI_NET_INDEX_NAN);
-	struct netdev_vif *ndev_vif_mgmt = netdev_priv(nan_mgmt_dev);
-#endif
 
 	SLSI_NET_DBG1(dev, SLSI_INIT_DEINIT, "Stopping netdev_up_count=%d, hw_available = %d\n", sdev->netdev_up_count, hw_available);
 
@@ -1427,10 +1423,6 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 
 	cancel_work_sync(&ndev_vif->set_multicast_filter_work);
 	cancel_work_sync(&ndev_vif->update_pkt_filter_work);
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-	if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
-		SLSI_MUTEX_LOCK(ndev_vif_mgmt->vif_mutex);
-#endif
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	slsi_vif_cleanup(sdev, dev, hw_available, 0);
 	slsi_spinlock_lock(&sdev->netdev_lock);
@@ -1443,11 +1435,6 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 	atomic_set(&ndev_vif->arp_tx_count, 0);
 #endif
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-	if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
-		SLSI_MUTEX_UNLOCK(ndev_vif_mgmt->vif_mutex);
-#endif
-
 
 	complete_all(&ndev_vif->sig_wait.completion);
 	slsi_stop_chip(sdev);
@@ -4247,7 +4234,7 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	if (slsi_is_proxy_arp_supported_on_ap(peer->assoc_resp_ie))
@@ -4599,7 +4586,7 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "Clear filters on Screen on");
@@ -4735,10 +4722,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return;
 
-	if (WARN_ON(!peer))
-		return;
-
-	if (WARN_ON(!peer->assoc_resp_ie))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return;
 
 #if !(IS_ENABLED(CONFIG_IPV6))
@@ -6132,6 +6116,8 @@ static u32 slsi_remap_reg_rule_flags(u8 flags)
 		remapped_flags |= NL80211_RRF_NO_INDOOR;
 	if (flags & SLSI_REGULATORY_NO_OUTDOOR)
 		remapped_flags |= NL80211_RRF_NO_OUTDOOR;
+	if (flags & SLSI_REGULATORY_NO_IR)
+		remapped_flags |= NL80211_RRF_NO_IR;
 
 	return remapped_flags;
 }
@@ -7997,9 +7983,11 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	total_header = sizeof(build_id_fw) + sizeof(build_id_drv);
 
+	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 	if (!sdev || !sdev->service) {
 		SLSI_ERR(sdev, "sdev/service is NULL\n");
 		dump_in_progress = 0;
+		SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 		return;
 	}
 
@@ -8009,6 +7997,7 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	if (size < total_header) {
 		SLSI_INFO(sdev, "Not enough space, size %zu header %zu\n", size, total_header);
+		SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 		return;
 	}
 
@@ -8017,7 +8006,6 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	SLSI_INFO(sdev, "SCSC_LOG_CHUNK_UDI chunk size %zu\n", size);
 
-	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 	if (sdev->device_state != SLSI_DEVICE_STATE_STARTED) {
 		SLSI_INFO(sdev, "Skip chipset_log in off state\n");
 		goto done;

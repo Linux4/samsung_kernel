@@ -405,9 +405,6 @@ static int slsi_net_open(struct net_device *dev)
 	}
 	SLSI_NET_INFO(dev, "ifnum:%d r:%d MAC:" MACSTR "\n", ndev_vif->ifnum, sdev->recovery_status, MAC2STR(dev->dev_addr));
 	ndev_vif->is_available = true;
-	if (ndev_vif->ifnum < SLSI_NAN_DATA_IFINDEX_START) {
-		netif_carrier_on(dev);
-	}
 	sdev->netdev_up_count++;
 
 #ifndef CONFIG_ARM

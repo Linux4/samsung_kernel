@@ -61,6 +61,17 @@
 #define MESSAGE_MAGIC			0xC0DECAFE
 #define MESSAGE_MARK			0xCAFEC0DE
 
+enum cmd_load_id {
+	COMMAND_LOAD_USER_NCP,
+	COMMAND_LOAD_HDR_COPY,
+};
+
+struct cmd_load_payload {
+	u32 addr; /* dma start addr */
+	u32 size;
+	u32 id; /* enum cmd_load_id */
+};
+
 /* payload size of load includes only ncp header */
 struct cmd_load {
 	u32				oid; /* object id */

@@ -3649,6 +3649,11 @@ static ssize_t store_dump_addr_info(struct file *fp, struct kobject *kobj,
 	if (ret)
 		return ret;
 
+	if (buff_size <= EXYNOS_BCM_KTIME_SIZE) {
+		BCM_ERR("%s: failed set dump info\n", __func__);
+		return size;
+	}
+
 	data->dump_addr.buff_size = buff_size;
 
 	ret = exynos_bcm_dbg_set_dump_info(data);
@@ -3854,6 +3859,12 @@ static ssize_t store_bcm_bw(struct device *dev,
 			&ip_idx[4], &ip_idx[5], &ip_idx[6], &ip_idx[7],
 			&ip_idx[8], &ip_idx[9]);
 
+	if (num_ip > 10) {
+		pr_info("num_ip should not be bigger than 10 (yours: %d)\n",
+			num_ip);
+		return count;
+	}
+
 	sample_cnt = exynos_bcm_get_sample_cnt(bcm_dbg_data);
 
 	if (sample_cnt < measure_time) {
@@ -3864,6 +3875,12 @@ static ssize_t store_bcm_bw(struct device *dev,
 
 	mutex_lock(&bcm_bw_lock);
 	if (enable) {
+		if (bcm_bw) {
+			pr_info("bcm_bw was already started\n");
+			mutex_unlock(&bcm_bw_lock);
+			return count;
+		}
+
 		bcm_bw = kzalloc(sizeof(struct exynos_bcm_bw), GFP_KERNEL);
 		bcm_bw->ip_idx = kcalloc(num_ip, sizeof(unsigned int), GFP_KERNEL);
 		bcm_bw->bw_data = kcalloc(num_ip, sizeof(struct exynos_bcm_bw_data), GFP_KERNEL);
@@ -4092,6 +4109,7 @@ static ssize_t show_bcm_dbg_show_mif_auto(struct file *fp, struct kobject *kobj,
 	ssize_t count = 0;
 	int i;
 	u64 temp, dump_time_total = 0;
+	unsigned int num_sample_local;
 
 	if (off > 0)
 		return 0;
@@ -4101,7 +4119,13 @@ static ssize_t show_bcm_dbg_show_mif_auto(struct file *fp, struct kobject *kobj,
 		return count;
 	}
 
-	for (i = 0; i < num_sample; i++) {
+	if (bcm_show_bw->enable_ctrl)
+		num_sample_local = 1;
+	else
+		num_sample_local = num_sample;
+
+
+	for (i = 0; i < num_sample_local; i++) {
 		if (i)
 			temp = bcm_show_bw->mem_bw[i] -
 				bcm_show_bw->mem_bw[i - 1];
@@ -4112,7 +4136,7 @@ static ssize_t show_bcm_dbg_show_mif_auto(struct file *fp, struct kobject *kobj,
 				  i, temp  * (1<<10) / bcm_show_bw->dump_time[i]);
 	}
 
-	for(i=0; i<num_sample; i++)
+	for (i=0; i < num_sample_local; i++)
 		dump_time_total += bcm_show_bw->dump_time[i];
 
 	/* just for preventing divide by zero */
@@ -4121,7 +4145,7 @@ static ssize_t show_bcm_dbg_show_mif_auto(struct file *fp, struct kobject *kobj,
 	count += snprintf(buf + count, PAGE_SIZE,
 				"Total Profile time is %llu msec, Total MIF BW: %llu MB/sec\n",
 				dump_time_total,
-				bcm_show_bw->mem_bw[num_sample - 1] * (1<<10) / dump_time_total);
+				bcm_show_bw->mem_bw[num_sample_local - 1] * (1<<10) / dump_time_total);
 
 	return count;
 }
@@ -4146,6 +4170,8 @@ static ssize_t store_bcm_dbg_show_mif_auto(struct file *fp, struct kobject *kobj
 
 	if (bcm_show_bw->mem_bw)
 		kfree(bcm_show_bw->mem_bw);
+	if (bcm_show_bw->dump_time)
+		kfree(bcm_show_bw->dump_time);
 
 	bcm_show_bw->mem_bw = kzalloc(sizeof(u64) * num_sample, GFP_KERNEL);
 	bcm_show_bw->dump_time = kzalloc(sizeof(u64) * num_sample, GFP_KERNEL);
@@ -4172,6 +4198,12 @@ static ssize_t store_bcm_dbg_show_mif_ctrl(struct file *fp, struct kobject *kobj
 
 	/* msec */
 	ret = sscanf(buf, "%u", &enable);
+	enable = !!enable;
+
+	if (bcm_show_bw->enable_ctrl == enable) {
+		BCM_ERR("%s: Your input was already applied\n", __func__);
+		return size;
+	}
 
 	bcm_show_bw->enable_ctrl = enable;
 
@@ -4179,7 +4211,8 @@ static ssize_t store_bcm_dbg_show_mif_ctrl(struct file *fp, struct kobject *kobj
 		exynos_bcm_calc_enable(enable);
 
 		mutex_lock(&bcm_show_bw->lock);
-		bcm_show_bw->mem_bw = kzalloc(sizeof(u64), GFP_KERNEL);
+		if (!bcm_show_bw->mem_bw)
+			bcm_show_bw->mem_bw = kzalloc(sizeof(u64), GFP_KERNEL);
 
 		schedule_delayed_work(&bcm_show_bw->bw_work,
 				msecs_to_jiffies(bcm_calc->sample_time));

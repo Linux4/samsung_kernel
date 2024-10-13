@@ -48,8 +48,24 @@ void destroy_pnobj_function(struct pnobj_func *pnobj_func)
 	if (!pnobj_func)
 		return;
 
-	free_pnobj_name(&pnobj_func->base);
+	pnobj_deinit(&pnobj_func->base);
 	kfree(pnobj_func);
+}
+
+struct pnobj_func *deepcopy_pnobj_function(struct pnobj_func *dst,
+		struct pnobj_func *src)
+{
+	if (!dst || !src)
+		return NULL;
+
+	if (dst == src)
+		return dst;
+
+	pnobj_init(&dst->base, CMD_TYPE_FUNC,
+			get_pnobj_function_name(src));
+	dst->symaddr = src->symaddr;
+
+	return dst;
 }
 
 int pnobj_function_list_add(struct pnobj_func *f, struct list_head *list)
@@ -141,10 +157,8 @@ void panel_function_deinit(void)
 {
 	struct pnobj *pos, *next;
 
-	list_for_each_entry_safe(pos, next, &panel_function_list, list) {
-		list_del(&pos->list);
+	list_for_each_entry_safe(pos, next, &panel_function_list, list)
 		destroy_pnobj_function(pnobj_container_of(pos, struct pnobj_func));
-	}
 }
 
 MODULE_DESCRIPTION("panel function driver");

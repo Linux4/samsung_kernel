@@ -22,6 +22,10 @@ u32 *mifmboxman_get_mbox_ptr(struct mifmboxman *mbox,  struct scsc_mif_abs *mif_
 #if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 u32 *mifmboxman_get_mbox_ptr_wpan(struct mifmboxman *mbox,  struct scsc_mif_abs *mif_abs, int mbox_index);
 #endif
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+int mifmboxman_set_dcxo_tune_value(struct scsc_mif_abs *mif_abs, u32 value);
+int mifmboxman_get_dcxo_tune_value(struct scsc_mif_abs *mif_abs, u32* value);
+#endif
 int mifmboxman_deinit(struct mifmboxman *mbox);
 
 #ifdef CONFIG_SOC_EXYNOS7570
@@ -32,6 +36,11 @@ int mifmboxman_deinit(struct mifmboxman *mbox);
 #define MIFMBOX_NUM 8
 #else /* default */
 #define MIFMBOX_NUM 4
+#endif
+
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+#define MIFMBOX_APM_OP_GET_TUNE (0x4)
+#define MIFMBOX_APM_OP_SET_TUNE (0x5)
 #endif
 
 /* Inclusion in core.c treat it as opaque */

@@ -101,6 +101,8 @@ struct npu_session {
 
 	// dynamic allocation, free is required, for ion alloc memory
 	struct npu_memory_buffer *ncp_mem_buf;
+	struct npu_memory_buffer *ncp_hdr_buf;
+	struct npu_memory_buffer *ncp_payload;
 	struct npu_memory_buffer *IOFM_mem_buf; // VISION_MAX_CONTAINERLIST * VISION_MAX_BUFFER
 	struct npu_memory_buffer *IMB_mem_buf; // IMB_cnt
 	struct npu_memory_buffer *sec_mem_buf; // secure memory
@@ -128,6 +130,9 @@ struct npu_session {
 	struct mbox_process_dat mbox_process_dat;
 
 	pid_t	pid;
+	char	comm[TASK_COMM_LEN];
+	pid_t	p_pid;
+	char	p_comm[TASK_COMM_LEN];
 
 	u32 address_vector_offset;
 	u32 address_vector_cnt;
@@ -160,6 +165,9 @@ struct npu_session {
 	u32     inferencefreq_window[NPU_Q_TIMEDIFF_WIN_MAX];        /* 0.01 unit */
 	u32     inferencefreq;/* can be max, min, avg, or avg2 depending on policy, usually avg*/
 #endif
+#if (CONFIG_NPU_NCP_VERSION >= 25)
+	char model_name[NCP_MODEL_NAME_LEN];
+#endif
 };
 
 typedef int (*session_cb)(struct npu_session *);
@@ -182,6 +190,8 @@ int npu_session_close(struct npu_session *session);
 int npu_session_s_graph(struct npu_session *session, struct vs4l_graph *info);
 int npu_session_param(struct npu_session *session, struct vs4l_param_list *plist);
 int npu_session_nw_sched_param(struct npu_session *session, struct vs4l_sched_param *param);
+void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size,
+					enum dma_data_direction dir);
 int npu_session_NW_CMD_LOAD(struct npu_session *session);
 int npu_session_NW_CMD_UNLOAD(struct npu_session *session);
 int npu_session_NW_CMD_STREAMON(struct npu_session *session);

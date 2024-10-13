@@ -192,12 +192,12 @@ const struct path *get_dc_target_dpath(struct defex_context *dc)
 {
 	const struct path *dpath;
 
-	if (dc->target_dpath)
+	if (dc->target_dpath && check_slab_ptr((void *)dc->target_dpath))
 		return dc->target_dpath;
 
 	if (dc->target_file) {
 		dpath = &(dc->target_file->f_path);
-		if (dpath->dentry && dpath->dentry->d_inode) {
+		if (check_slab_ptr((void *)dpath) && dpath->dentry && dpath->dentry->d_inode) {
 			dc->target_dpath = dpath;
 			return dpath;
 		}

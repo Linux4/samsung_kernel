@@ -46,6 +46,15 @@ bool is_resource_initialized(struct resinfo *res)
 }
 EXPORT_SYMBOL(is_resource_initialized);
 
+bool is_resource_mutable(struct resinfo *res)
+{
+	if (!res)
+		return false;
+
+	return (res->resui != NULL);
+}
+EXPORT_SYMBOL(is_resource_mutable);
+
 void set_resource_state(struct resinfo *res, int state)
 {
 	if (!res)
@@ -93,16 +102,27 @@ EXPORT_SYMBOL(copy_resource);
 
 static int snprintf_resource_head(char *buf, size_t size, struct resinfo *res)
 {
+	int i, len = 0;
+
 	if (!buf || !size || !res)
 		return 0;
 
-	return snprintf(buf, size, "resource:%s(%s)\n",
-			get_resource_name(res),
-			!is_resource_initialized(res) ?
-			"UNINITIALIZED" : "INITIALIZED");
+	len += snprintf(buf + len, size - len, "%s\n", get_resource_name(res));
+	len += snprintf(buf + len, size - len, "state: %d (%s)\n", res->state,
+			!is_resource_initialized(res) ? "UNINITIALIZED" : "INITIALIZED");
+
+	len += snprintf(buf + len, size - len, "resui: %d (%s)\n",
+			res->nr_resui, !is_resource_mutable(res) ? "IMMUTABLE" : "MUTABLE");
+	for (i = 0; i < res->nr_resui; i++)
+		len += snprintf(buf + len, size - len, "[%d]: offset: %d, rdi: %s\n",
+				i, res->resui[i].offset, get_rdinfo_name(res->resui[i].rditbl));
+
+	len += snprintf(buf + len, size - len, "size: %d", get_resource_size(res));
+
+	return len;
 }
 
-static int snprintf_resource_body(char *buf, size_t size, struct resinfo *res)
+int snprintf_resource_data(char *buf, size_t size, struct resinfo *res)
 {
 	int i, len = 0, resource_size;
 	const unsigned int align = 16;
@@ -117,14 +137,18 @@ static int snprintf_resource_body(char *buf, size_t size, struct resinfo *res)
 		return 0;
 
 	resource_size = get_resource_size(res);
-	for (i = 0; i < resource_size; i++)
-		len += snprintf(buf + len, size - len,
-				"%02X%s", res->data[i],
-				(!((i + 1) % align) ||
-				 (i + 1 == resource_size)) ? "\n" : " ");
+	for (i = 0; i < resource_size; i++) {
+		len += snprintf(buf + len, size - len, "%02X", res->data[i]);
+		if (i + 1 == resource_size)
+			break;
+		len += snprintf(buf + len, size - len, "%s",
+				!((i + 1) % align) ? "\n" : " ");
+	}
+
 
 	return len;
 }
+EXPORT_SYMBOL(snprintf_resource_data);
 
 int snprintf_resource(char *buf, size_t size, struct resinfo *res)
 {
@@ -134,7 +158,10 @@ int snprintf_resource(char *buf, size_t size, struct resinfo *res)
 		return 0;
 
 	len = snprintf_resource_head(buf, size, res);
-	len += snprintf_resource_body(buf + len, size - len, res);
+	if (is_resource_initialized(res)) {
+		len += snprintf(buf + len, size - len, "\ndata:\n");
+		len += snprintf_resource_data(buf + len, size - len, res);
+	}
 
 	return len;
 }
@@ -149,7 +176,7 @@ void print_resource(struct resinfo *res)
 		return;
 
 	panel_info("resource:%s\n", get_resource_name(res));
-	usdm_dbg_bytes(res->data, get_resource_size(res));
+	usdm_info_bytes(res->data, get_resource_size(res));
 }
 EXPORT_SYMBOL(print_resource);
 
@@ -225,7 +252,7 @@ void destroy_resource(struct resinfo *resource)
 	if (!resource)
 		return;
 
-	free_pnobj_name(&resource->base);
+	pnobj_deinit(&resource->base);
 	kvfree(resource->data);
 	kfree(resource->resui);
 	kfree(resource);

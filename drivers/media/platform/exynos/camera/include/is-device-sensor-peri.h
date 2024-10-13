@@ -75,6 +75,13 @@ enum cis_off_work_state {
 	CIS_OFF_WORK_MAX,
 };
 
+enum is_actuator_init_status {
+	ACTUATOR_NOT_INITIALIZED = 0,
+	ACTUATOR_INIT_INPROGRESS,
+	ACTUATOR_INIT_DONE,
+	ACTUATOR_INIT_FAILED,
+};
+
 struct seamless_mode_change_info {
 	int	width;
 	int	height;
@@ -208,8 +215,6 @@ struct is_actuator_data {
 	struct timer_list		timer_wait;
 	u32				check_time_out;
 
-	bool				actuator_init;
-
 	/* M2M AF */
 	struct hrtimer              	afwindow_timer;
 	struct work_struct		actuator_work;
@@ -253,7 +258,9 @@ struct is_actuator {
 	struct mutex            *i2c_lock;
 	struct work_struct			actuator_active_on;
 	struct work_struct			actuator_active_off;
-
+	struct work_struct			actuator_init_work;
+	struct mutex				control_init_lock;
+	enum is_actuator_init_status		actuator_init_state;
 	u32				vendor_product_id;
 	u32				vendor_sleep_to_standby_delay;
 	u32				vendor_active_to_standby_delay;

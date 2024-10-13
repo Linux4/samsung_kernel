@@ -215,3 +215,11 @@ config WLBT_AUTOGEN_PMUCAL
 	default y
 	help
 	  Enable auto gen pmu cal
+
+config WLBT_DCXO_TUNE
+	bool "Enable to Control DCXO Calibration Tune value"
+	default n
+	depends on SCSC_CORE
+	depends on SOC_S5E8825
+	help
+		Enable to Control DCXO Calibration Tune value

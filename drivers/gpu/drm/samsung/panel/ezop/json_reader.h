@@ -31,17 +31,22 @@ typedef struct json_reader json_reader_t;
 		} \
 	} while (0)
 
+#define JSMN_IS_PRIMITIVE(_t) ((_t)->type == JSMN_PRIMITIVE)
+#define JSMN_IS_OBJECT(_t) ((_t)->type == JSMN_OBJECT)
+#define JSMN_IS_ARRAY(_t) ((_t)->type == JSMN_ARRAY)
+#define JSMN_IS_STRING(_t) ((_t)->type == JSMN_STRING)
+
 #define JEXPECT_PRIMITIVE(_r, _t) \
-	JEXPECT(get_jsonr_buf(_r), (_t), (_t)->type == JSMN_PRIMITIVE, "expected primitive, but got %s", json_name(_t))
+	JEXPECT(get_jsonr_buf(_r), (_t), JSMN_IS_PRIMITIVE(_t), "expected primitive, but got %s", json_name(_t))
 
 #define JEXPECT_OBJECT(_r, _t) \
-	JEXPECT(get_jsonr_buf(_r), (_t), (_t)->type == JSMN_OBJECT, "expected object, but got %s", json_name(_t))
+	JEXPECT(get_jsonr_buf(_r), (_t), JSMN_IS_OBJECT(_t), "expected object, but got %s", json_name(_t))
 
 #define JEXPECT_ARRAY(_r, _t) \
-	JEXPECT(get_jsonr_buf(_r), (_t), (_t)->type == JSMN_ARRAY, "expected array, but got %s", json_name(_t))
+	JEXPECT(get_jsonr_buf(_r), (_t), JSMN_IS_ARRAY(_t), "expected array, but got %s", json_name(_t))
 
 #define JEXPECT_STRING(_r, _t) \
-	JEXPECT(get_jsonr_buf(_r), (_t), (_t)->type == JSMN_STRING, "expected string, but got %s", json_name(_t))
+	JEXPECT(get_jsonr_buf(_r), (_t), JSMN_IS_STRING(_t), "expected string, but got %s", json_name(_t))
 
 #define JEXPECT_STREQ(_r, _t, _str) \
 	JEXPECT_STRING((_r), _t); \

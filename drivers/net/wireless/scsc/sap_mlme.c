@@ -43,11 +43,6 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 	int level;
 	struct netdev_vif *ndev_vif;
 	bool is_recovery = false;
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-	struct net_device *nan_mgmt_dev = NULL;
-	struct netdev_vif *ndev_vif_mgmt = NULL;
-#endif
-
 
 	SLSI_INFO_NODEV("Notifier event received: %lu\n", event);
 	if (event >= SCSC_MAX_NOTIFIER)
@@ -59,10 +54,6 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 		sdev->mlme_blocked = true;
 		sdev->detect_vif_active = false;
 		/* cleanup all the VIFs and scan data */
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-		nan_mgmt_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_NAN);
-		ndev_vif_mgmt = netdev_priv(nan_mgmt_dev);
-#endif
 		SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
 		level = atomic_read(&sdev->cm_if.reset_level);
 		SLSI_INFO_NODEV("MLME BLOCKED system error level:%d\n", level);
@@ -82,10 +73,6 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 				if (level < SLSI_WIFI_CM_IF_SYSTEM_ERROR_PANIC && ndev_vif->vif_type == FAPI_VIFTYPE_AP)
 					vif_type_ap = true;
 				sdev->require_vif_delete[ndev_vif->ifnum] = false;
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-				if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
-					SLSI_MUTEX_LOCK(ndev_vif_mgmt->vif_mutex);
-#endif
 				SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 				slsi_vif_cleanup(sdev, sdev->netdev[i], 0, is_recovery);
 				if (level < SLSI_WIFI_CM_IF_SYSTEM_ERROR_PANIC && vif_type_ap)
@@ -96,10 +83,6 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 				atomic_set(&ndev_vif->arp_tx_count, 0);
 #endif
 				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-				if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
-					SLSI_MUTEX_UNLOCK(ndev_vif_mgmt->vif_mutex);
-#endif
 			}
 #if !defined(CONFIG_SCSC_WLAN_TX_API) && defined(CONFIG_SCSC_WLAN_ARP_FLOW_CONTROL)
 		if (atomic_read(&sdev->arp_tx_count) && atomic_read(&sdev->ctrl_pause_state))

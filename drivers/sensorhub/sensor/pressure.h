@@ -38,4 +38,6 @@ struct sensor_chipset_init_funcs *get_pressure_lps22df_function_pointer(char *na
 
 int save_pressure_sw_offset_file(int offset);
 
+#define PRESSURE_SUBCMD_ESN	126
+
 #endif /* __SHUB_PRESSURE_H_ */

@@ -21,12 +21,14 @@
 #include <linux/power_supply.h>
 #include "../../common/sec_charging_common.h"
 
+#if IS_ENABLED(CONFIG_MFD_SM5714)
 #include <linux/mfd/core.h>
 #include <linux/mfd/sm/sm5714/sm5714.h>
 #include <linux/mfd/sm/sm5714/sm5714-private.h>
 #include <linux/regulator/machine.h>
-
-
+#else
+#include "sm5714_fake_mfd_fg.h"
+#endif
 
 /* address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
@@ -286,7 +288,7 @@ struct sm5714_fuelgauge_platform_data {
 	int num_age_step;
 	int age_step;
 	int age_data_length;
-	sec_age_data_t *age_data;
+	unsigned int *age_data_soc;
 	unsigned int full_condition_soc;
 };
 
@@ -299,6 +301,8 @@ struct sm5714_fuelgauge_data {
 	struct sm5714_fuelgauge_platform_data *pdata; //long.vu
 	struct power_supply		*psy_fg;
 	struct delayed_work isr_work;
+
+	atomic_t shutdown_cnt;
 
 	u8 pmic_rev;
 	u8 vender_id;
@@ -328,6 +332,7 @@ struct sm5714_fuelgauge_data {
 #endif
 	unsigned int standard_capacity;
 
+	bool capacity_max_updated;
 	bool initial_update_of_soc;
 	bool sleep_initial_update_of_soc;
 	struct mutex fg_lock;

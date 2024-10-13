@@ -1438,6 +1438,42 @@ static ssize_t camera_rear3_dualcal_show(struct device *dev,
 
 	return copy_size;
 }
+
+static ssize_t camera_rear3_dualcal_size_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret;
+	int copy_size = 0;
+	char *temp_buf;
+
+	ret = is_get_dual_cal_buf(SENSOR_POSITION_REAR2, &temp_buf, &copy_size);
+	if (ret < 0) {
+		err("%s: Fail to get dualcal of %d", __func__, SENSOR_POSITION_REAR2);
+	} else {
+		info("%s: success to get dualcal of %d", __func__, SENSOR_POSITION_REAR2);
+		memcpy(buf, temp_buf, copy_size);
+	}
+
+#ifdef READ_DUAL_CAL_FIRMWARE_DATA
+	info("  load multical Cal Data %s \n", DUAL_CAL_DATA_PATH);
+	copy_size = DUAL_CAL_DATA_SIZE_DEFAULT;
+#ifdef USE_KERNEL_VFS_READ_WRITE
+	ret = is_dual_cal_read_firmware(DUAL_CAL_DATA_PATH, 0,
+			DUAL_CAL_DATA_SIZE_DEFAULT);
+#else
+	ret = is_dual_cal_read_firmware(dev, DUAL_CAL_DATA_PATH, DUAL_CAL_DATA_BIN_NAME, 0,
+			DUAL_CAL_DATA_SIZE_DEFAULT);
+#endif
+	if (ret < 0) {
+		err("CAL read %s is fail\n", DUAL_CAL_DATA_PATH);
+		return 0;
+	} else {
+		info("%s: success to get dualcal from firmware of %d", __func__, SENSOR_POSITION_REAR2);
+	}
+#endif
+
+	return sprintf(buf, "%d",copy_size );
+}
 #endif
 
 #ifdef CAMERA_FRONT_DUAL_CAL
@@ -3267,6 +3303,7 @@ static DEVICE_ATTR(SVC_rear_module, S_IRUGO, camera_rear_moduleid_show, NULL);
 static DEVICE_ATTR(rear_dualcal, S_IRUGO, camera_rear_dualcal_show, NULL);
 static DEVICE_ATTR(rear2_dualcal, S_IRUGO, camera_rear2_dualcal_show, NULL);
 static DEVICE_ATTR(rear3_dualcal, S_IRUGO, camera_rear3_dualcal_show, NULL);
+static DEVICE_ATTR(rear3_dualcal_size, S_IRUGO, camera_rear3_dualcal_size_show, NULL);
 #endif
 
 #ifdef CAMERA_FRONT_DUAL_CAL
@@ -3742,6 +3779,10 @@ int is_create_sysfs(struct is_core *core)
 			pr_err("failed to create rear device file, %s\n",
 					dev_attr_rear_dualcal.attr.name);
 		}
+		if (device_create_file(camera_rear_dev, &dev_attr_rear3_dualcal_size) < 0) {
+			pr_err("failed to create rear device file, %s\n",
+					dev_attr_rear_dualcal.attr.name);
+		}
 #endif
 
 #ifdef CAMERA_REAR2
@@ -4131,6 +4172,7 @@ int is_destroy_sysfs(struct is_core *core)
 		device_remove_file(camera_rear_dev, &dev_attr_rear_dualcal);
 		device_remove_file(camera_rear_dev, &dev_attr_rear2_dualcal);
 		device_remove_file(camera_rear_dev, &dev_attr_rear3_dualcal);
+		device_remove_file(camera_rear_dev, &dev_attr_rear3_dualcal_size);
 #endif
 #ifdef CAMERA_REAR2
 		device_remove_file(camera_rear_dev, &dev_attr_rear2_caminfo);

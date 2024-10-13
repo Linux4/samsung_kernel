@@ -342,8 +342,15 @@ static void log_session_ref(void)
 		sess = sess_entry->session;
 		if (likely(sess)) {
 			u_pid = (u64)sess->pid;
-			npu_info("Entry[%d] : Session UID[%u] PID[%llu] frame_id[%u]\n",
+			npu_info("Entry[%d] : Session UID[%u] PID[%llu] frame_id[%u]",
 				session_cnt, sess->uid, u_pid, sess->frame_id);
+#if (CONFIG_NPU_NCP_VERSION >= 25)
+			npu_info("CUR[%s] PPID[%d] PARENT[%s] MODEL[%s]",
+				sess->comm, sess->p_pid, sess->p_comm, sess->model_name);
+#else
+			npu_info("CUR[%s] PPID[%d] PARENT[%s]",
+				sess->comm, sess->p_pid, sess->p_comm);
+#endif
 		} else {
 			npu_info("Entry[%d] : NULL Session\n", session_cnt);
 		}

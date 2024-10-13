@@ -903,7 +903,11 @@ exit:
 
 static int rawdata_proc_open(struct inode *inode, struct file *file)
 {
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	return single_open_size(file, rawdata_proc_show, pde_data(inode), PAGE_SIZE * 10);
+#else
 	return single_open_size(file, rawdata_proc_show, PDE_DATA(inode), PAGE_SIZE * 10);
+#endif
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
@@ -1294,6 +1298,8 @@ static int goodix_ts_irq_setup(struct goodix_ts_core *core_data)
 		return -EINVAL;
 	}
 
+	core_data->irq_empty_count = 0;
+
 	core_data->irq_workqueue = create_singlethread_workqueue("goodix_ts_irq_wq");
 	if (!IS_ERR_OR_NULL(core_data->irq_workqueue)) {
 		INIT_WORK(&core_data->irq_work, goodix_ts_handler_wait_resume_work);
@@ -1531,10 +1537,7 @@ static int goodix_ts_suspend(struct goodix_ts_core *core_data)
 	hw_ops->irq_enable(core_data, false);
 
 	/* inform external module */
-	if (core_data->plat_data->lowpower_mode
-			|| core_data->plat_data->ed_enable
-			|| core_data->plat_data->pocket_mode
-			|| core_data->plat_data->fod_lp_mode) {
+	if (!sec_input_need_ic_off(core_data->plat_data)) {
 		mutex_lock(&goodix_modules.mutex);
 		if (!list_empty(&goodix_modules.head)) {
 			list_for_each_entry_safe(ext_module, next,
@@ -1855,9 +1858,6 @@ int goodix_ts_stage2_init(struct goodix_ts_core *cd)
 	cd->input_dev = cd->plat_data->input_dev;
 	cd->input_dev_proximity = cd->plat_data->input_dev_proximity;
 
-	cd->sec_ws = wakeup_source_register(cd->bus->dev, "tsp");
-	device_init_wakeup(cd->bus->dev, true);
-
 	/* request irq line */
 	ret = goodix_ts_irq_setup(cd);
 	if (ret < 0) {
@@ -1886,6 +1886,9 @@ int goodix_ts_stage2_init(struct goodix_ts_core *cd)
 	cd->plat_data->enable = goodix_ts_enable;
 	cd->plat_data->disable = goodix_ts_disable;
 	goodix_ts_cmd_init(cd);
+
+	cd->sec_ws = wakeup_source_register(cd->sec.fac_dev, "TSP");
+	device_init_wakeup(cd->sec.fac_dev, true);
 
 	goodix_ts_get_sponge_info(cd);
 

@@ -376,7 +376,7 @@ err_pdev:
 	return ret;
 }
 
-static int goodix_i2c_remove(struct i2c_client *client)
+static int goodix_i2c_dev_remove(struct i2c_client *client)
 {
 	if (!goodix_pdev)
 		return 0;
@@ -386,6 +386,19 @@ static int goodix_i2c_remove(struct i2c_client *client)
 	goodix_pdev = NULL;
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static void goodix_i2c_remove(struct i2c_client *client)
+{
+	goodix_i2c_dev_remove(client);
+}
+#else
+static int goodix_i2c_remove(struct i2c_client *client)
+{
+	goodix_i2c_dev_remove(client);
+	return 0;
+}
+#endif
 
 static void goodix_i2c_shutdown(struct i2c_client *client)
 {

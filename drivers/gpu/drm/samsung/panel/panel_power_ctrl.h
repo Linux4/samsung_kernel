@@ -27,6 +27,7 @@ enum panel_power_ctrl_action_type {
 	PANEL_POWER_CTRL_ACTION_REGULATOR_SSD_CURRENT = PCTRL_REGULATOR_SSD_CURRENT,
 	PANEL_POWER_CTRL_ACTION_GPIO_ENABLE = PCTRL_GPIO_ENABLE,
 	PANEL_POWER_CTRL_ACTION_GPIO_DISABLE = PCTRL_GPIO_DISABLE,
+	PANEL_POWER_CTRL_ACTION_REGULATOR_FORCE_DISABLE = PCTRL_REGULATOR_FORCE_DISABLE,
 	MAX_PANEL_POWER_CTRL_ACTION,
 };
 
@@ -83,5 +84,7 @@ bool panel_power_ctrl_exists(struct panel_device *panel,
 	const char *dev_name, const char *name);
 int panel_power_ctrl_execute(struct panel_device *panel,
 	const char *dev_name, const char *name);
-
+struct pwrctrl *create_pwrctrl(char *name, char *key);
+struct pwrctrl *duplicate_pwrctrl(struct pwrctrl *pwrctrl);
+void destroy_pwrctrl(struct pwrctrl *pwrctrl);
 #endif

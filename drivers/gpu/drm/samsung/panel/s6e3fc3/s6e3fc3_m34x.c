@@ -123,7 +123,7 @@ struct pnobj_func s6e3fc3_m34x_function_table[MAX_S6E3FC3_M34X_FUNCTION] = {
 
 static int __init s6e3fc3_m34x_panel_init(void)
 {
-	s6e3fc3_init();
+	s6e3fc3_init(&s6e3fc3_m34x_panel_info);
 	panel_function_insert_array(s6e3fc3_m34x_function_table, ARRAY_SIZE(s6e3fc3_m34x_function_table));
 	register_common_panel(&s6e3fc3_m34x_panel_info);
 

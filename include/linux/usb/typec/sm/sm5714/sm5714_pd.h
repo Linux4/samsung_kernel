@@ -56,7 +56,7 @@
 #define tSendSourceCap			(150)	/* 100 ~ 200 ms */
 #define tPSHardReset			(25)	/* 25~35 ms */
 #define tSinkWaitCap			(550)	/* 310~620 ms  */
-#define tPSTransition			(490)	/* 450~550 ms */
+#define tPSTransition			(480)	/* 450~550 ms */
 #define tVCONNSourceOff			(25)	/* 25 ms */
 #define tVCONNSourceOn			(10)	/* ~50 ms */
 #define tVCONNSourceTimeout 	(100)	/* 100~200 ms */
@@ -66,7 +66,7 @@
 #define tDiscoverIdentity		(50)	/* 40~50  ms */
 #define tSwapSourceStart		(20)	/* 20  ms */
 #define tSwapSinkReady			(10)	/* 10 ms */
-#define tSrcRecover				(670)	/* 660~1000 ms */
+#define tSrcRecover				(850)	/* 660~1000 ms */
 #define tChunkingNotSupported	(35)	/* 40~50 ms */
 
 #define BITMSG(msg) (1ULL << msg)
@@ -224,6 +224,7 @@ enum usbpd_data_msg_type {
 	USBPD_Battery_Status		= 0x5,
 	USBPD_Alert					= 0x6,
 	USBPD_Get_Country_Info		= 0x7,
+	USBPD_Source_Info			= 0xB,
 	USBPD_Vendor_Defined		= 0xF,
 };
 
@@ -421,7 +422,7 @@ typedef enum {
 	PE_Get_Battery_Cap	= 0xE7,
 	PE_Give_Battery_Cap	= 0xE8,
 	PE_Get_Battery_Status	= 0xE9,
-	PE_Give_Battery_Status	= 0xEA,
+	PE_SNK_Give_Battery_Status	= 0xEA,
 	PE_Get_Manufacturer_Info	= 0xEB,
 	PE_Give_Manufacturer_Info	= 0xEC,
 
@@ -435,6 +436,7 @@ typedef enum {
 	PE_Send_Firmware_Update_Request	= 0x14,
 	PE_Send_Firmware_Update_Response	= 0x15,
 	PE_Firmware_Update_Response_Received	= 0x16,
+	PE_SRC_Send_Source_Info	= 0x17,
 
 	Error_Recovery			= 0xFF
 } policy_state;
@@ -483,42 +485,64 @@ typedef enum sm5714_usbpd_manager_event {
 } sm5714_usbpd_manager_event_type;
 
 enum usbpd_msg_status {
-	MSG_GOODCRC				= 1<<0,
-	MSG_ACCEPT				= 1<<1,
-	MSG_PSRDY				= 1<<2,
-	MSG_REQUEST				= 1<<3,
-	MSG_REJECT				= 1<<4,
-	MSG_WAIT				= 1<<5,
-	MSG_ERROR				= 1<<6,
-	MSG_PING				= 1<<7,
-	MSG_GET_SNK_CAP			= 1<<8,
-	MSG_GET_SRC_CAP			= 1<<9,
-	MSG_SNK_CAP				= 1<<10,
-	MSG_SRC_CAP				= 1<<11,
-	MSG_PR_SWAP				= 1<<12,
-	MSG_DR_SWAP				= 1<<13,
-	MSG_VCONN_SWAP			= 1<<14,
-	VDM_DISCOVER_IDENTITY	= 1<<15,
-	VDM_DISCOVER_SVID		= 1<<16,
-	VDM_DISCOVER_MODE		= 1<<17,
-	VDM_ENTER_MODE			= 1<<18,
-	VDM_EXIT_MODE			= 1<<19,
-	VDM_ATTENTION			= 1<<20,
-	VDM_DP_STATUS_UPDATE	= 1<<21,
-	VDM_DP_CONFIGURE		= 1<<22,
-	MSG_SOFTRESET			= 1<<23,
-	PLUG_DETACH				= 1<<24,
-	PLUG_ATTACH				= 1<<25,
-	MSG_HARDRESET			= 1<<26,
-	MSG_BIST_M2				= 1<<27,
-	UVDM_MSG				= 1<<28,
-	MSG_PASS				= 1<<29,
-	MSG_RID					= 1<<30,
-	MSG_NONE				= 1<<31,
-	MSG_GET_BAT_STATUS		= 3<<2,
-	MSG_GET_STATUS			= 3<<3,
-	MSG_GET_PPS_STATUS		= 3<<4,
-	MSG_GET_SRC_CAP_EXT		= 3<<5,
+	MSG_GOODCRC				= 0,
+	MSG_ACCEPT				= 1,
+	MSG_PSRDY				= 2,
+	MSG_REQUEST				= 3,
+	MSG_REJECT				= 4,
+	MSG_WAIT				= 5,
+	MSG_ERROR				= 6,
+	MSG_PING				= 7,
+	MSG_GET_SNK_CAP			= 8,
+	MSG_GET_SRC_CAP			= 9,
+	MSG_SNK_CAP				= 10,
+	MSG_SRC_CAP				= 11,
+	MSG_PR_SWAP				= 12,
+	MSG_DR_SWAP				= 13,
+	MSG_VCONN_SWAP			= 14,
+	VDM_DISCOVER_IDENTITY	= 15,
+	VDM_DISCOVER_SVID		= 16,
+	VDM_DISCOVER_MODE		= 17,
+	VDM_ENTER_MODE			= 18,
+	VDM_EXIT_MODE			= 19,
+	VDM_ATTENTION			= 20,
+	VDM_DP_STATUS_UPDATE	= 21,
+	VDM_DP_CONFIGURE		= 22,
+	MSG_SOFTRESET			= 23,
+	PLUG_DETACH				= 24,
+	PLUG_ATTACH				= 25,
+	MSG_HARDRESET			= 26,
+	MSG_BIST_M2				= 27,
+	UVDM_MSG				= 28,
+	MSG_PASS				= 29,
+	MSG_RID					= 30,
+	MSG_NONE				= 31,
+	MSG_NOT_SUPPORTED		= 32,
+	MSG_GET_SRC_CAP_EXT		= 33,
+	MSG_GET_STATUS			= 34,
+	MSG_FR_SWAP				= 35,
+	MSG_GET_PPS_STATUS		= 36,
+	MSG_GET_COUNTRY_CODES	= 37,
+	MSG_GET_SNK_CAP_EXT		= 38,
+	MSG_BAT_STATUS			= 39,
+	MSG_GET_COUNTRY_INFO	= 40,
+	MSG_SRC_CAP_EXT			= 41,
+	MSG_STATUS				= 42,
+	MSG_GET_BAT_CAP			= 43,
+	MSG_GET_BAT_STATUS		= 44,
+	MSG_BAT_CAP				= 45,
+	MSG_GET_MANUF_INFO		= 46,
+	MSG_MANUF_INFO			= 47,
+	MSG_SECURITY_REQ		= 48,
+	MSG_SECURITY_RES		= 49,
+	MSG_FW_UPDATE_REQ		= 50,
+	MSG_FW_UPDATE_RES		= 51,
+	MSG_PPS_STATUS			= 52,
+	MSG_COUNTRY_INFO		= 53,
+	MSG_COUNTRY_CODES		= 54,
+	MSG_SNK_CAP_EXT			= 55,
+	MSG_GET_SRC_INFO		= 56,
+	MSG_RESERVED			= 57,
 };
 
 /* Timer */
@@ -796,6 +820,22 @@ typedef union {
 		unsigned source_pdp_rating:8;
 	} source_capabilities_extended_data6;
 
+	struct{
+		unsigned reserved:8;
+		unsigned batt_info_invalid_batt_ref:1;
+		unsigned batt_info_batt_present:1;
+		unsigned batt_info_charging_status:2;
+		unsigned batt_info_reserved:4;
+		unsigned batt_present_capacity:16;
+	} battery_status;
+
+	struct{
+		unsigned port_reported_pdp:8;
+		unsigned port_present_pdp:8;
+		unsigned port_maximun_pdp:8;
+		unsigned reserved:7;
+		unsigned port_type:1;
+	} source_info;
 } data_obj_type;
 
 typedef union {
@@ -824,7 +864,8 @@ typedef struct usbpd_phy_ops {
 	int    (*set_vconn_source)(void *, int);
 	int    (*get_vconn_source)(void *, int *);
 	int    (*set_check_msg_pass)(void *, int);
-	unsigned int  (*get_status)(void *pd_data, unsigned int status);
+	unsigned int (*get_status)(void *pd_data, unsigned int status);
+	u64	   (*get_pdmsg_status)(void *pd_data, u64 pd_status);
 	bool   (*poll_status)(void *, int);
 	void   (*driver_reset)(void *);
 	void   (*get_short_state)(void *, bool *);
@@ -849,6 +890,7 @@ struct sm5714_policy_data {
 	bool			source_cap_received;
 	bool			send_sink_cap;
 	bool			skip_ufp_svid_ack;
+	bool			is_bist_test_mode;
 };
 
 struct sm5714_protocol_data {
@@ -936,6 +978,8 @@ struct sm5714_usbpd_manager_data {
 	int vbus_adc;
 #endif
 	bool support_vpdo;
+	bool support_15w_vpdo;
+	int short_cable_current;
 };
 
 struct sm5714_usbpd_data {
@@ -953,9 +997,10 @@ struct sm5714_usbpd_data {
 	data_obj_type		source_request_obj;
 	struct sm5714_usbpd_manager_data	manager;
 	struct work_struct	worker;
+	struct wakeup_source	*policy_engine_wake;
 	struct completion	msg_arrived;
 	struct completion	pd_completion;
-	unsigned int            wait_for_msg_arrived;
+	u64			wait_for_msg_arrived;
 	int			specification_revision;
 	int			thermal_state;
 	int			auth_type;
@@ -1038,8 +1083,8 @@ extern bool sm5714_usbpd_send_msg(struct sm5714_usbpd_data *pd_data,
 extern bool sm5714_usbpd_send_ctrl_msg(struct sm5714_usbpd_data *pd_data,
 		msg_header_type *h, unsigned int msg, unsigned int dr,
 		unsigned int pr);
-extern unsigned int sm5714_usbpd_wait_msg(struct sm5714_usbpd_data *pd_data,
-		unsigned int msg_status, unsigned int ms);
+extern u64 sm5714_usbpd_wait_msg(struct sm5714_usbpd_data *pd_data,
+		u64 msg_status, unsigned int ms);
 extern void sm5714_usbpd_reinit(struct device *dev);
 extern void sm5714_usbpd_init_protocol(struct sm5714_usbpd_data *pd_data);
 extern int sm5714_usbpd_uvdm_in_request_message(void *data);
@@ -1057,6 +1102,7 @@ extern int (*fp_count_cisd_pd_data)(unsigned short vid, unsigned short pid);
 extern int dwc3_restart_usb_host_mode_hs(void);
 #endif
 #endif
+void sm5714_usbpd_change_source_cap(int enable, int max_cur, int init);
 void sm5714_usbpd_turn_on_reverse_booster(struct sm5714_usbpd_data *pd_data);
 void sm5714_usbpd_turn_off_reverse_booster(struct sm5714_usbpd_data *pd_data);
 #endif

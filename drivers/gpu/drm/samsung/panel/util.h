@@ -2,6 +2,7 @@
 #define __UTIL_H__
 
 #include <linux/types.h>
+#include <linux/rtc.h>
 
 #define STRINGFY(x)	(#x)
 
@@ -58,5 +59,15 @@ int usdm_snprintf_bytes(char *buf, size_t size,
 void usdm_print_bytes(int log_level, const void *buf, size_t len);
 #define usdm_dbg_bytes(_bytes, _len) do { usdm_print_bytes(7, _bytes, _len); } while (0)
 #define usdm_info_bytes(_bytes, _len) do { usdm_print_bytes(6, _bytes, _len); } while (0)
+
+#if IS_ENABLED(CONFIG_RTC_LIB)
+void usdm_get_rtc_time(struct rtc_time *tm);
+int usdm_snprintf_rtc_time(char *buf, size_t size, struct rtc_time *tm);
+int usdm_snprintf_current_rtc_time(char *buf, size_t size);
+#else
+static inline void usdm_get_rtc_time(struct rtc_time *tm) { return; }
+static inline int usdm_snprintf_rtc_time(char *buf, size_t size, struct rtc_time *tm) { return 0; }
+static inline int usdm_snprintf_current_rtc_time(char *buf, size_t size) { return 0; }
+#endif
 
 #endif /* __UTIL_H__ */

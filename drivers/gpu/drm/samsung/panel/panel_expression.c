@@ -466,11 +466,18 @@ struct panel_expr_node *panel_expr_from_infix(struct panel_expr_data *data, size
 
 	kfree(ops);
 
-	return list_first_entry_or_null(&head, struct panel_expr_node, list);
+	if (list_empty(&head))
+		return NULL;
+
+	return list_first_entry(&head, struct panel_expr_node, list);
 
 err:
 	kfree(ops);
-	exprtree_delete(list_first_entry_or_null(&head, struct panel_expr_node, list));
+
+	if (list_empty(&head))
+		return NULL;
+
+	exprtree_delete(list_first_entry(&head, struct panel_expr_node, list));
 
 	return NULL;
 }
@@ -506,10 +513,16 @@ struct panel_expr_node *panel_expr_from_postfix(struct panel_expr_data *data, si
 		}
 	}
 
-	return list_first_entry_or_null(&head, struct panel_expr_node, list);
+	if (list_empty(&head))
+		return NULL;
+
+	return list_first_entry(&head, struct panel_expr_node, list);
 
 err:
-	exprtree_delete(list_first_entry_or_null(&head, struct panel_expr_node, list));
+	if (list_empty(&head))
+		return NULL;
+
+	exprtree_delete(list_first_entry(&head, struct panel_expr_node, list));
 	return NULL;
 }
 
@@ -528,7 +541,7 @@ static int panel_expr_data_get_value(struct panel_device *panel, struct panel_ex
 		/* not implemented */
 		value = 0;
 	} else if (data->type == PANEL_EXPR_TYPE_OPERAND_PROP) {
-		value = panel_property_get_value(&panel->properties, data->op.str);
+		value = panel_get_property_value(panel, data->op.str);
 		if (value < 0) {
 			panel_err("failed to get property(%s) value\n", data->op.str);
 			return 0;

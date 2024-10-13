@@ -55,6 +55,7 @@ static void __iomem *usbdp_combo_phy_reg;
 void __iomem *phycon_base_addr;
 EXPORT_SYMBOL_GPL(phycon_base_addr);
 
+#ifdef CONFIG_EXYNOS_USBDRD_PHY30
 struct usb_eom_result_s *eom_result;
 
 /*u32 get_speed_and_disu1u2(void);*/
@@ -98,9 +99,7 @@ static ssize_t
 exynos_usbdrd_eom_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t n)
 {
-#ifdef CONFIG_EXYNOS_USBDRD_PHY30
 	struct exynos_usbdrd_phy *phy_drd = dev_get_drvdata(dev);
-#endif
 	int speed_val;
 
 	kfree(eom_result);
@@ -131,16 +130,15 @@ exynos_usbdrd_eom_store(struct device *dev,
 	else
 		speed_val = 0; /* Gen1 */
 
-#ifdef CONFIG_EXYNOS_USBDRD_PHY30
 	/* Start eom test */
 	phy_exynos_usbdp_g2_v4_eom(&phy_drd->usbphy_sub_info, eom_result, speed_val);
-#endif
 
 	return n;
 }
 
 static DEVICE_ATTR(eom, S_IWUSR | S_IRUSR | S_IRGRP,
 	exynos_usbdrd_eom_show, exynos_usbdrd_eom_store);
+#endif
 
 static ssize_t
 exynos_usbdrd_hs_phy_tune_show(struct device *dev,
@@ -2490,10 +2488,12 @@ skip_clock:
 		dev_err(dev, "%s - Couldn't create sysfs for HS PHY tune\n", __func__);
 	}
 
+#ifdef CONFIG_EXYNOS_USBDRD_PHY30
 	ret = sysfs_create_file(&dev->kobj, &dev_attr_eom.attr);
 	if (ret) {
 		dev_err(dev, "%s - Couldn't create sysfs for PHY EOM\n", __func__);
 	}
+#endif
 
 	pr_info("%s: ---\n", __func__);
 	return 0;

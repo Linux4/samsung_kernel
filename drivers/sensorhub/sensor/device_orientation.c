@@ -20,7 +20,7 @@
 
 #include <linux/slab.h>
 
-#define ORIENTATION_CMD_MODE	128
+#define ORIENTATION_SUBCMD_MODE	128
 
 struct orientation_data {
 	u8 mode;
@@ -35,7 +35,7 @@ int set_device_orientation_mode(struct orientation_data *data)
 		return ret;
 	}
 
-	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_DEVICE_ORIENTATION, ORIENTATION_CMD_MODE,
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_DEVICE_ORIENTATION, ORIENTATION_SUBCMD_MODE,
 				&data->mode, sizeof(data->mode));
 	if (ret < 0) {
 		shub_errf("CMD fail %d", ret);

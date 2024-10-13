@@ -23,7 +23,6 @@
 #include <linux/platform_device.h>
 #include <uapi/linux/sched/types.h>
 #include <linux/ems.h>
-#include <linux/sec_pm_cpufreq.h>
 
 #include <soc/samsung/debug-snapshot.h>
 #include <soc/samsung/cal-if.h>
@@ -1896,8 +1895,6 @@ static int acme_cpufreq_policy_notify_callback(struct notifier_block *nb,
 		pr_info("failed to init fops with err %d\n", ret);
 		return ret;
 	}
-
-	sec_pm_cpufreq_register(policy);
 
 	return NOTIFY_OK;
 }

@@ -313,6 +313,10 @@ struct sm5714_phydrv_data {
 	bool is_otg_vboost;
 	bool is_jig_case_on;
 	bool is_noti_src_adv;
+	bool is_lpcharge;
+	bool is_1st_short;
+	bool is_2nd_short;
+	bool is_sbu_vbus_short;
 	bool is_mpsm_exit;
 	bool suspended;
 	bool soft_reset;
@@ -396,6 +400,9 @@ void sm5714_short_state_check(void *_data);
 #endif
 void sm5714_cc_control_command(void *data, int is_off);
 void sm5714_set_enable_pd_function(void *_data, int enable);
+#if IS_ENABLED(CONFIG_SEC_DISPLAYPORT) && defined(CONFIG_SM5714_SUPPORT_SBU)
+void sm5714_usbpd_delayed_sbu_short_notify(void *_data);
+#endif
 void sm5714_vbus_turn_on_ctrl(struct sm5714_phydrv_data *usbpd_data, bool enable);
 void sm5714_src_transition_to_default(void *_data);
 void sm5714_src_transition_to_pwr_on(void *_data);

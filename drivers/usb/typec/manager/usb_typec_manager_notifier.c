@@ -778,6 +778,12 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 
 	switch (p_noti.id) {
 	case PDIC_NOTIFY_ID_POWER_STATUS:
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
+		if (typec_manager.water.detected) {
+			pr_err("%s: PD event is invalid in water state", __func__);
+			return 0;
+		}
+#endif
 		if (p_noti.sub1 && !typec_manager.pd_con_state) {
 #if IS_ENABLED(CONFIG_MTK_CHARGER)
 			if (!typec_manager.pdic_attach_state) {
@@ -786,6 +792,9 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 			}
 #endif
 			typec_manager.pd_con_state = 1;
+#ifdef CONFIG_USB_LPM_CHARGING_SYNC
+			set_lpm_charging_type_done(get_otg_notify(), 1);
+#endif
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 			store_usblog_notify(NOTIFY_MANAGER, (void *)&p_noti, NULL);
 #endif
@@ -817,6 +826,9 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 				}
 				manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_BATT,
 					PDIC_NOTIFY_ID_USB, 0, 0, PD_NONE_TYPE);
+#ifdef CONFIG_USB_LPM_CHARGING_SYNC
+				set_lpm_charging_type_done(get_otg_notify(), 1);
+#endif
 			}
 		break;
 	case PDIC_NOTIFY_ID_RID:
@@ -827,9 +839,17 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 		return 0;
 	case PDIC_NOTIFY_ID_WATER:
 		if (p_noti.sub1) {	/* attach */
-			if (!typec_manager.water.detected)
+			if (!typec_manager.water.detected) {
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
+				if (typec_manager.pd_con_state) {
+					typec_manager.pd_con_state = 0;
+					manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_BATT,
+						PDIC_NOTIFY_ID_ATTACH, PDIC_NOTIFY_DETACH, 0, ATTACHED_DEV_UNOFFICIAL_ID_ANY_MUIC);
+				}
+#endif
 				manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_MUIC,
 					PDIC_NOTIFY_ID_WATER, p_noti.sub1, p_noti.sub2, p_noti.sub3);
+			}
 			manager_water_status_update(p_noti.sub1);
 		} else {
 			manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_MUIC,
@@ -853,15 +873,20 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 			p_noti.id, p_noti.sub1, p_noti.sub2, p_noti.sub3);
 
 		if (p_noti.sub1) {
+			mutex_lock(&typec_manager.mo_lock);
 			/* Send water cable event to battery */
 			manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_BATT,
 					PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_ATTACH, p_noti.sub2,
 					typec_manager.water.report_type);
 
-			/* make detach event like hiccup case*/
-			manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_BATT,
-					PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, p_noti.sub2,
-					typec_manager.water.report_type);
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+			if (typec_manager.vbus_state == STATUS_VBUS_LOW)
+#endif
+				/* make detach event like hiccup case*/
+				manager_event_work(p_noti.src, PDIC_NOTIFY_DEV_BATT,
+						PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, p_noti.sub2,
+						typec_manager.water.report_type);
+			mutex_unlock(&typec_manager.mo_lock);
 		}
 		return 0;
 	case PDIC_NOTIFY_ID_DEVICE_INFO:
@@ -956,6 +981,38 @@ static void manager_handle_second_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 #endif
 }
 
+#ifdef CONFIG_USB_LPM_CHARGING_SYNC
+int check_lpm_charging_type_confirm(uint64_t cable_type)
+{
+	switch (cable_type) {
+	case ATTACHED_DEV_USB_MUIC:
+	case ATTACHED_DEV_CDP_MUIC:
+	case ATTACHED_DEV_TA_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_TA_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_TA_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_ANY_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_USB_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_CDP_MUIC:
+	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
+	case ATTACHED_DEV_TYPE1_CHG_MUIC:
+	case ATTACHED_DEV_TYPE2_CHG_MUIC:
+	case ATTACHED_DEV_TYPE3_MUIC:
+	case ATTACHED_DEV_TYPE3_MUIC_TA:
+	case ATTACHED_DEV_TYPE3_ADAPTER_MUIC:
+	case ATTACHED_DEV_TYPE3_CHARGER_MUIC:
+	case ATTACHED_DEV_UNSUPPORTED_ID_MUIC:
+	case ATTACHED_DEV_UNSUPPORTED_ID_VB_MUIC:
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
+	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
+		return 0;
+	default:
+		return 1;
+	}
+}
+#endif
+
 static void manager_handle_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 {
 	typec_manager.muic.attach_state = muic_evt.attach;
@@ -968,6 +1025,13 @@ static void manager_handle_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 
 	if (!muic_evt.attach)
 		typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_NONE;
+
+#ifdef CONFIG_USB_LPM_CHARGING_SYNC
+	if (muic_evt.attach) {
+		if (check_lpm_charging_type_confirm(muic_evt.cable_type))
+			set_lpm_charging_type_done(get_otg_notify(), 1);
+	}
+#endif
 
 	switch (muic_evt.cable_type) {
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
@@ -1311,6 +1375,19 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			nb->notifier_call(nb, m_noti.id, &(m_noti));
 		}
 #else
+		if (typec_manager.muic.attach_state) {
+			m_noti.src = PDIC_NOTIFY_DEV_MANAGER;
+			m_noti.dest = PDIC_NOTIFY_DEV_BATT;
+			m_noti.pd = typec_manager.pd;
+			m_noti.id = PDIC_NOTIFY_ID_ATTACH;
+			m_noti.sub1 = PDIC_NOTIFY_ATTACH;
+			m_noti.sub3 = typec_manager.muic.cable_type;
+
+			pr_info("%s: [BATTERY] id:%s, cable_type=%d %s\n", __func__,
+					pdic_event_id_string(m_noti.id),
+					m_noti.sub3, m_noti.sub1 ? "Attached" : "Detached");
+			nb->notifier_call(nb, m_noti.id, &(m_noti));
+		}
 		pr_info("%s: [BATTERY] Registration completed\n", __func__);
 #endif
 		manager_notify_pdic_battery_init = true;

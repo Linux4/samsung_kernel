@@ -25,6 +25,11 @@
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
 #endif
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
+#include "sdp_adaptive_mipi.h"
+#elif defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#include "adaptive_mipi.h"
+#endif
 #ifdef CONFIG_USDM_COPR_SPI
 #include "spi.h"
 #endif
@@ -36,6 +41,7 @@
 
 const char *cmd_type_name[MAX_CMD_TYPE] = {
 	[CMD_TYPE_NONE] = "NONE",
+	[CMD_TYPE_PROP] = "PROPERTY",
 	[CMD_TYPE_FUNC] = "FUNCTION",
 	[CMD_TYPE_DELAY] = "DELAY",
 	[CMD_TYPE_TIMER_DELAY] = "TIMER_DELAY",
@@ -51,7 +57,7 @@ const char *cmd_type_name[MAX_CMD_TYPE] = {
 	[CMD_TYPE_COND_EL] = "COND_EL",
 	[CMD_TYPE_COND_FI] = "COND_FI",
 	[CMD_TYPE_PCTRL] = "PWRCTRL",
-	[CMD_TYPE_PROP] = "PROP",
+	[CMD_TYPE_CFG] = "CONFIG",
 };
 
 const char *cmd_type_to_string(u32 type)
@@ -102,6 +108,8 @@ int register_common_panel(struct common_panel_info *info)
 			return -EINVAL;
 		}
 	}
+
+	panel_find_max_brightness_from_cpi(info);
 	panel_list[nr_panel++] = info;
 	panel_info("name:%s id:0x%06X rev:%d registered\n",
 			info->name, info->id, info->rev);
@@ -459,7 +467,7 @@ static int panel_do_timer_delay(struct panel_device *panel, struct delayinfo *in
 
 	target = ktime_add_us(begin, info->usec);
 	if (ktime_after(now, target)) {
-		panel_dbg("skip delay (elapsed %lld.%03lldms >= requested %d.%03dms)\n",
+		panel_dbg("skip delay (elapsed %lld.%03lld ms >= requested %d.%03d ms)\n",
 				ktime_to_us(ktime_sub(now, begin)) / 1000UL,
 				ktime_to_us(ktime_sub(now, begin)) % 1000UL,
 				info->usec / 1000, info->usec % 1000);
@@ -469,7 +477,7 @@ static int panel_do_timer_delay(struct panel_device *panel, struct delayinfo *in
 	remained_usec = ktime_to_us(ktime_sub(target, now));
 	if (remained_usec > 0) {
 		usleep_range((u32)remained_usec, (u32)remained_usec + 1);
-		panel_info("remained delay %lld.%03lldms\n",
+		panel_info("sleep remining %lld.%03lld ms\n",
 				remained_usec / 1000UL, remained_usec % 1000UL);
 	}
 
@@ -547,49 +555,6 @@ static int panel_cmdq_is_full(struct panel_device *panel)
 int panel_cmdq_get_size(struct panel_device *panel)
 {
 	return panel->cmdq.top + 1;
-}
-
-__visible_for_testing int panel_set_property_value(struct panel_device *panel, struct propinfo *info)
-{
-	int ret = 0;
-
-	if (panel == NULL || info == NULL) {
-		panel_err("got null ptr\n");
-		return -EINVAL;
-	}
-
-	switch (info->prop_type) {
-	case PANEL_PROP_TYPE_VALUE:
-		panel_info("prop_name:%s prop_value:%u\n", info->prop_name, info->value);
-		ret = panel_property_set_value(&panel->properties, info->prop_name, info->value);
-		break;
-
-	case PANEL_PROP_TYPE_STR:
-		panel_info("prop_name:%s prop_str:%s\n", info->prop_name, info->str);
-		ret = panel_property_set_str(&panel->properties, info->prop_name, info->str);
-		break;
-
-	default:
-		panel_err("property type is abnormal(%d)",
-				get_pnobj_cmd_type(&info->base));
-	}
-
-	return ret;
-}
-
-__visible_for_testing int panel_get_property_value(struct panel_device *panel, char *propname)
-{
-	if (panel == NULL) {
-		panel_err("got null ptr\n");
-		return -EINVAL;
-	}
-
-	if (propname == NULL) {
-		panel_err("propname is null\n");
-		return -EINVAL;
-	}
-
-	return panel_property_get_value(&panel->properties, propname);
 }
 
 DEFINE_REDIRECT_MOCKABLE(panel_cmdq_flush, RETURNS(int), PARAMS(struct panel_device *));
@@ -983,15 +948,23 @@ int panel_flush_image(struct panel_device *panel)
 	return call_panel_adapter_func(panel, flush_image);
 }
 
-#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
-int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_elem *elem)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP) ||\
+	defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
+int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_param *param)
 {
-	if (!elem)
+	if (!param)
 		return -EINVAL;
 
-	return call_panel_adapter_func(panel, set_freq_hop, elem);
+	return call_panel_adapter_func(panel, set_freq_hop, param);
 }
 #endif
+
+int panel_trigger_recovery(struct panel_device *panel)
+{
+	return call_panel_adapter_func(panel, trigger_recovery);
+}
+
 
 int panel_parse_ap_vendor_node(struct panel_device *panel, struct device_node *node)
 {
@@ -1590,11 +1563,11 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 		case CMD_TYPE_PCTRL:
 			ret = panel_do_power_ctrl(panel, (struct pwrctrl *)cmdtbl[i]);
 			break;
-		case CMD_TYPE_PROP:
+		case CMD_TYPE_CFG:
 			panel_mutex_lock(&panel->cmdq.lock);
 			panel_cmdq_flush(panel);
 			panel_mutex_unlock(&panel->cmdq.lock);
-			ret = panel_set_property_value(panel, (struct propinfo *)cmdtbl[i]);
+			ret = panel_apply_pnobj_config(panel, (struct pnobj_config *)cmdtbl[i]);
 			break;
 		case CMD_TYPE_NONE:
 		default:
@@ -2018,6 +1991,7 @@ read_err:
 	return ret;
 }
 #endif
+EXPORT_SYMBOL(read_panel_id);
 
 __visible_for_testing struct rdinfo *find_panel_rdinfo(struct panel_device *panel, char *name)
 {
@@ -2156,6 +2130,64 @@ int __mockable panel_resource_update_by_name(struct panel_device *panel, char *n
 }
 EXPORT_SYMBOL(panel_resource_update_by_name);
 
+struct dumpinfo *find_panel_dumpinfo(struct panel_device *panel, char *name)
+{
+	struct pnobj *pnobj;
+
+	if (!panel) {
+		panel_err("invalid panel\n");
+		return NULL;
+	}
+
+	pnobj = pnobj_find_by_name(&panel->dump_list, name);
+	if (!pnobj)
+		return NULL;
+
+	return pnobj_container_of(pnobj, struct dumpinfo);
+}
+EXPORT_SYMBOL(find_panel_dumpinfo);
+
+int panel_get_dump_result(struct panel_device *panel, char *name)
+{
+	struct dumpinfo *dump = find_panel_dumpinfo(panel, name);
+
+	if (!dump)
+		return -EINVAL;
+
+	return dump->result;
+}
+
+struct resinfo *panel_get_dump_resource(struct panel_device *panel, char *name)
+{
+	struct dumpinfo *dump = find_panel_dumpinfo(panel, name);
+
+	if (!dump)
+		return NULL;
+
+	return dump->res;
+}
+EXPORT_SYMBOL(panel_get_dump_resource);
+
+bool panel_is_dump_status_success(struct panel_device *panel, char *name)
+{
+	return panel_get_dump_result(panel, name) == DUMP_STATUS_SUCCESS;
+}
+EXPORT_SYMBOL(panel_is_dump_status_success);
+
+int panel_init_dumpinfo(struct panel_device *panel, char *name)
+{
+	struct dumpinfo *dump = find_panel_dumpinfo(panel, name);
+
+	if (!dump)
+		return -EINVAL;
+
+	dump->result = DUMP_STATUS_NONE;
+	set_resource_state(dump->res, RES_UNINITIALIZED);
+
+	return 0;
+}
+EXPORT_SYMBOL(panel_init_dumpinfo);
+
 int panel_dumpinfo_update(struct panel_device *panel, struct dumpinfo *info)
 {
 	int ret;
@@ -2171,6 +2203,7 @@ int panel_dumpinfo_update(struct panel_device *panel, struct dumpinfo *info)
 		return ret;
 	}
 
+	info->result = DUMP_STATUS_NONE;
 	ret = call_dump_func(info);
 	if (unlikely(ret < 0)) {
 		panel_err("dump:%s failed to show\n", get_dump_name(info));
