@@ -1,0 +1,9 @@
+config CUSTOM_KERNEL_SAR_SENSOR
+    bool "CUSTOM KERNEL sar Config"
+    help
+      If the platform is supported for sar, this
+      configuration should be configured, and the sar
+      driver configuration should be configured as well.
+
+source "drivers/misc/mediatek/sensors-1.0/o8_sar/sx9338/Kconfig"
+source "drivers/misc/mediatek/sensors-1.0/o8_sar/hx9031as/Kconfig"

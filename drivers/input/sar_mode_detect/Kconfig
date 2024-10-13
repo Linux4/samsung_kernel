@@ -1,0 +1,8 @@
+config SAR_MODE_DETECT
+    bool "sar mode detect interrupt pin register an input device"
+    default y
+    help
+        To support register an input device in sar model detect function.
+        if yes, then it is supported,
+        if no, it is disabled.
+        The option default enabled.

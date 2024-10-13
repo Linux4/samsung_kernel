@@ -1,0 +1,7 @@
+config TOUCHSCREEN_GALAXYCORE_IC_GC7272
+    tristate "For GALAXYCORE TOUCH"
+    default n
+    help
+        Say Y here if you have GCORE touch panel
+
+        If unsure, say N.

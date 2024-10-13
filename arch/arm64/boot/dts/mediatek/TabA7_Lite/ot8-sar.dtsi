@@ -1,0 +1,150 @@
+&i2c6 {
+    /*TabA7 Lite code for OT8-2816 by Hujincan at 20210207 start*/
+    abov_sar@20 {
+        status = "ok";
+        compatible = "abov,abov_sar";
+        reg = <0x20>;
+        gpio-irq = <9>;
+        gpio-irq-std =<&pio 9 0x0>;
+        label = "AbovCapSense";
+        reg_array_len = <0x02>;
+        reg_array_val = <0x07 0x00 0xFB 0x01>;
+        cap,use_channel_bottom = <0x00>;
+        cap,use_channel_top = <0x01>;
+    };
+    /*TabA7 Lite code for OT8-2816 by Hujincan at 20210207 end*/
+
+    /*TabA7 Lite code for OT8-2816|OT8-5204 by Hujincan at 20211019 start*/
+    Semtech_sx932x@28 {
+        compatible = "Semtech,sx932x";
+        reg = <0x28>;
+        gpio-irq = <9>;
+        Semtech,nirq-gpio = <&pio 9 0x0>;
+        status = "ok"; /**/
+        Semtech,reg-num = <40>;
+        /*total registers number to initialize for 3565*/
+        Semtech,reg-init-65 = /bits/ 8 < 0x10 0x0F
+                                         0x11 0x20
+                                         0x14 0x00
+                                         0x15 0x00
+                                         0x20 0x20
+                                         0x23 0x00
+                                         0x24 0xB7
+                                         0x26 0x00
+                                         0x27 0xB7
+                                         0x28 0x3D
+                                         0x29 0x37
+                                         0x2A 0x1F
+                                         0x2B 0x3F
+                                         0x2C 0x12
+                                         0x2D 0x06
+                                         0x30 0x11
+                                         0x31 0x11
+                                         0x32 0x20
+                                         0x33 0x20
+                                         0x34 0x0C
+                                         0x35 0x0F
+                                         0x36 0x18
+                                         0x37 0x0E
+                                         0x40 0x00
+                                         0x41 0x00
+                                         0x42 0x11
+                                         0x43 0x25
+                                         0x44 0x05
+                                         0x45 0x05
+                                         0x46 0x00
+                                         0x47 0x00
+                                         0x48 0x00
+                                         0x49 0x00
+                                         0x4A 0x00
+                                         0x4B 0x00
+                                         0x4C 0x00
+                                         0x05 0x70
+                                         0x06 0x00
+                                         0x07 0x80
+                                         0x11 0x27>;
+        /*total registers number to initialize for 3566*/
+        Semtech,reg-init-66 = /bits/ 8 < 0x10 0x0F
+                                         0x11 0x20
+                                         0x14 0x00
+                                         0x15 0x00
+                                         0x20 0x20
+                                         0x23 0x00
+                                         0x24 0xB7
+                                         0x26 0x00
+                                         0x27 0xB7
+                                         0x28 0x3D
+                                         0x29 0x37
+                                         0x2A 0x1F
+                                         0x2B 0x3F
+                                         0x2C 0x12
+                                         0x2D 0x06
+                                         0x30 0x11
+                                         0x31 0x11
+                                         0x32 0x20
+                                         0x33 0x20
+                                         0x34 0x0C
+                                         0x35 0x0F
+                                         0x36 0x18
+                                         0x37 0x0B
+                                         0x40 0x00
+                                         0x41 0x00
+                                         0x42 0x11
+                                         0x43 0x19
+                                         0x44 0x02
+                                         0x45 0x05
+                                         0x46 0x00
+                                         0x47 0x00
+                                         0x48 0x00
+                                         0x49 0x00
+                                         0x4A 0x00
+                                         0x4B 0x00
+                                         0x4C 0x00
+                                         0x05 0x70
+                                         0x06 0x00
+                                         0x07 0x80
+                                         0x11 0x27>;
+        /*total registers number to initialize for 3567*/
+        Semtech,reg-init-67 = /bits/ 8 < 0x10 0x0F
+                                         0x11 0x20
+                                         0x14 0x00
+                                         0x15 0x00
+                                         0x20 0x20
+                                         0x23 0x00
+                                         0x24 0xB7
+                                         0x26 0x00
+                                         0x27 0xB7
+                                         0x28 0x3D
+                                         0x29 0x37
+                                         0x2A 0x1F
+                                         0x2B 0x3F
+                                         0x2C 0x12
+                                         0x2D 0x06
+                                         0x30 0x11
+                                         0x31 0x11
+                                         0x32 0x20
+                                         0x33 0x20
+                                         0x34 0x0C
+                                         0x35 0x0F
+                                         0x36 0x18
+                                         0x37 0x0E
+                                         0x40 0x00
+                                         0x41 0x00
+                                         0x42 0x11
+                                         0x43 0x25
+                                         0x44 0x05
+                                         0x45 0x05
+                                         0x46 0x00
+                                         0x47 0x00
+                                         0x48 0x00
+                                         0x49 0x00
+                                         0x4A 0x00
+                                         0x4B 0x00
+                                         0x4C 0x00
+                                         0x05 0x70
+                                         0x06 0x00
+                                         0x07 0x80
+                                         0x11 0x25>;
+    };
+    /*TabA7 Lite code for OT8-2816|OT8-5204 by Hujincan at 20211019 end*/
+};

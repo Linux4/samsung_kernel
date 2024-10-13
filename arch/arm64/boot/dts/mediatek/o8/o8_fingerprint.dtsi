@@ -1,0 +1,241 @@
+/* A06 code for SR-AL7160A-01-54 by hehaoran at 20240407 start*/
+&spi1 {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    /delete-property/mediatek,pad-select;
+    mediatek,pad-select = <0>, <0>, <0>;
+    cs-gpios = <0>, <0>, <0>;
+    status = "okay";
+
+    silead_fp@0 {
+        compatible = "sil,silead_fp";
+        reg = <0>;
+        spi-id = <1>;
+        spi-irq = <138>;
+        spi-reg = <0x1100a000>;
+        spi-max-frequency = <8000000>;
+        avdd-gpio =<&pio 158 0x0>;
+        status = "okay";
+    };
+    /*A06 code for SR-AL7160A-01-16 by hehaoran at 20240422 start*/
+    jiiov_fp@1 {
+        compatible = "jiiov,fingerprint";
+        reg = <1>;
+        spi-max-frequency = <8000000>;
+        anc,vdd_use_gpio;
+        interrupt-parent = <&pio>;
+        anc,gpio_rst = <&pio 31 0x00>;
+        anc,gpio_irq = <&pio 10 0x00>;
+        anc,gpio_pwr = <&pio 158 0x0>;
+        status = "okay";
+        pinctrl-names = "anc_reset_low", "anc_reset_high",
+                    "anc_irq_default","fp_gpio_mode",
+                    "fp_spi_mode";
+        pinctrl-0 = <&anc_reset_low>;
+        pinctrl-1 = <&anc_reset_high>;
+        pinctrl-2 = <&anc_irq_default>;
+        pinctrl-3 = <&fp_gpio_mode>;
+        pinctrl-4 = <&fp_spi_mode>;
+    };
+    /*A06 code for SR-AL7160A-01-16 by hehaoran at 20240422 end*/
+    focaltech_fpspi@2 {
+        compatible = "focaltech,fpspi";
+        reg = <2>;
+        spi-max-frequency = <8000000>;
+        status = "okay";
+    };
+};
+/* A06 code for SR-AL7160A-01-54 by hehaoran at 20240407 end*/
+/*A06 code for SR-AL7160A-01-16 by hehaoran at 20240422 start*/
+&silead_fp {
+    interrupt-parent = <&pio>;
+    interrupts = <10 IRQ_TYPE_EDGE_RISING 10 0>;
+
+    pinctrl-names = "default", "rst-low", "rst-high" ,
+    "irq-init", "fp_spi_mode", "irq_rst-low", "irq_rst-high",
+    "avdd-enable", "avdd-disable","fp_gpio_mode";
+    pinctrl-0 = <&silfp_default>;
+    pinctrl-1 = <&silfp_rst_low>;
+    pinctrl-2 = <&silfp_rst_high>;
+    pinctrl-3 = <&silfp_irq>;
+    pinctrl-4 = <&fp_spi_mode>;
+    pinctrl-5 = <&silfp_irq_rst_low>;
+    pinctrl-6 = <&silfp_irq_rst_high>;
+    pinctrl-7 = <&silead_avdd_enable>;
+    pinctrl-8 = <&silead_avdd_disable>;
+    pinctrl-9 = <&fp_gpio_mode>;
+    status = "okay";
+};
+
+&pio {
+    fp_spi_mode: fp_spi_mode {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO85__FUNC_SPI1_A_MI>,
+            <PINMUX_GPIO87__FUNC_SPI1_A_MO>,
+            <PINMUX_GPIO86__FUNC_SPI1_A_CSB>,
+            <PINMUX_GPIO88__FUNC_SPI1_A_CLK>;
+        };
+    };
+    fp_gpio_mode: fp_gpio_mode {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO85__FUNC_GPIO85>,
+            <PINMUX_GPIO86__FUNC_GPIO86>,
+            <PINMUX_GPIO87__FUNC_GPIO87>,
+            <PINMUX_GPIO88__FUNC_GPIO88>;
+        };
+    };
+};
+/*A06 code for SR-AL7160A-01-16 by hehaoran at 20240422 end*/
+&pio {
+    silfp_default: silfpdefault {
+    };
+
+    silfp_rst_high: state_reset_high {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    silfp_rst_low: state_reset_low {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    silfp_irq_rst_high: state_irq_to_reset_high {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    silfp_irq_rst_low: state_irq_to_reset_low {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    silfp_irq: fp_eint@10 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
+            slew-rate = <0>;
+            output-low;
+        };
+    };
+
+    silead_avdd_enable: silead_avdd_enable {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    silead_avdd_disable: silead_avdd_disable {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+};
+/*A06 code for SR-AL7160A-01-16 by hehaoran at 20240422 start*/
+&pio {
+    anc_reset_low: anc_reset_low {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+    anc_reset_high: anc_reset_high {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+    anc_irq_default: anc_irq_default {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
+            slew-rate = <0>;
+            bias-pull-down;
+            input-enable;
+        };
+    };
+};
+
+/* A06 code for SR-AL7160A-01-4 by hehaoran at 20240401 start*/
+&focaltech_fp {
+    status = "okay";
+    interrupt-parent = <&pio>;
+    interrupts = <10 IRQ_TYPE_EDGE_RISING>;
+
+    focaltech_fp,reset-gpio = <&pio 31 0>;
+    focaltech_fp,irq-gpio = <&pio 10 0>;
+    focaltech_fp,vdd-gpio = <&pio 158 0>;
+    focaltech_fp,ldo-gpio = <&pio 158 0>;
+
+    //focaltech_fp,power-always-on;
+    //focaltech_fp,use-regulator;
+    //ff_vdd-supply = <&mt_pmic_vfp_ldo_reg>;
+
+    //focaltech_fp,ree;
+    //focaltech_fp,no-screen-on-off;
+    focaltech_fp,spiclk;
+
+    focaltech_fp,use-pinctrl;
+    pinctrl-names = "ff_pins_reset_low","ff_pins_reset_high",
+                "ff_pins_irq_as_int","ff_pins_power_low",
+                "ff_pins_power_high","fp_gpio_mode",
+                "fp_spi_mode";
+    pinctrl-0 = <&fp_pins_rst_output0>;
+    pinctrl-1 = <&fp_pins_rst_output1>;
+    pinctrl-2 = <&fp_pins_eint>;
+    pinctrl-3 = <&fp_pins_power_output0>;
+    pinctrl-4 = <&fp_pins_power_output1>;
+    pinctrl-5 = <&fp_gpio_mode>;
+    pinctrl-6 = <&fp_spi_mode>;
+};
+/*A06 code for SR-AL7160A-01-16 by hehaoran at 20240422 end*/
+&pio {
+    fp_pins_rst_output0: fprstout0 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+            output-low;
+        };
+    };
+    fp_pins_rst_output1: fprstout1 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+            output-high;
+        };
+    };
+    fp_pins_eint: fpeint {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
+            bias-disable;
+            input-enable;
+        };
+    };
+    fp_pins_power_output0: fppwrout0 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
+            output-low;
+        };
+    };
+    fp_pins_power_output1: fppwrout1 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
+            output-high;
+        };
+    };
+};
+/* A06 code for SR-AL7160A-01-4 by hehaoran at 20240401 end*/

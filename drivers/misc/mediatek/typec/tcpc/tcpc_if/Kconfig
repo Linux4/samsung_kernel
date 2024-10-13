@@ -1,0 +1,47 @@
+
+# A06 code for SR-AL7160A-01-347 by shixuanxuan at 20240323 start
+config TCPC_UPM6922
+	bool "TCPC_UPM6922 TypeC port Controller Driver"
+	depends on TCPC_CLASS
+	default n
+	help
+	  Say Y to enable
+	  TCPC_UPM6922
+	  TypeC port Controller
+	  Driver
+# A06 code for SR-AL7160A-01-347 by shixuanxuan at 20240323 end
+
+# A06 code for SR-AL7160A-01-275 by shixuanxuan at 20240325 start
+config TCPC_UPM7610
+	bool "TCPC_UPM7610 TypeC port Controller Driver"
+	depends on TCPC_CLASS
+	default n
+	help
+	  Say Y to enable
+	  TCPC_UPM7610
+	  TypeC port Controller
+	  Driver
+# A06 code for SR-AL7160A-01-275 by shixuanxuan at 20240325 end
+
+# A06 code for SR-AL7160A-01-274 by shixuanxuan at 20240326 start
+config TCPC_CPS8851
+	bool "TCPC_CPS8851 TypeC port Controller Driver"
+	depends on TCPC_CLASS
+	default n
+	help
+	  Say Y to enable
+	  TCPC_CPS8851
+	  TypeC port Controller
+	  Driver
+# A06 code for SR-AL7160A-01-274 by shixuanxuan at 20240326 end
+
+# A06 code for SR-AL7160A-01-291 by zhangziyi at 20240327 start
+config TCPC_WUSB3812
+	tristate "Willsemi WUSB3812 TypeC port Controller Driver"
+	depends on TCPC_CLASS
+	default n
+	help
+	  Say Y to enable Willsemi WUSB3812
+	  TypeC port Controller Driver
+	  Say N to disable
+# A06 code for SR-AL7160A-01-291 by zhangziyi at 20240327 end

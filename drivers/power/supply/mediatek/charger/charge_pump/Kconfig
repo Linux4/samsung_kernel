@@ -1,0 +1,8 @@
+config CHARGER_CP_PPS
+	tristate "charge pump pps support"
+	default n
+	bool "CHARGER_CP_PPS"
+        help
+	  Say Y to enable support for charge pump pps
+
+

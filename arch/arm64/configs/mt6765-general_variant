@@ -1,0 +1,15 @@
+#! /usr/bin/env bash
+# edit here
+# def/undef for local target
+
+# *** WARNING: Add enable/disable configs as newline ***
+
+a03s_00="
+CONFIG_PAGE_BOOST=y
+"
+
+m04_00="
+"
+
+a04e_00="
+"

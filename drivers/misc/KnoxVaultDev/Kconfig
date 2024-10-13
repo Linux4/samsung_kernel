@@ -1,0 +1,6 @@
+config I2C_KNOXVAULTDEV
+    bool "regulate control of I2C_KNOXVAULTDEV"
+    default n
+    help
+      Say y here if you have a I2C_KNOXVAULTDEV.
+      If unsure, say N.

@@ -1,0 +1,47 @@
+&spi2 {
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    /delete-property/mediatek,pad-select;
+    mediatek,pad-select = <0>,<0>,<0>,<0>;
+    cs-gpios = <0>,<0>,<0>,<0>;
+
+    himax_ts@0 {
+        compatible = "himax,hxcommon";
+        reg = <0>;
+        spi-max-frequency = <10000000>;
+        spi-cpha;
+        interrupt-parent = <&pio>;
+        // vdd-supply = <&pm8994_l14>;
+        // avdd-supply = <&pm8994_l22>;
+        himax,panel-coords = <0 720 0 1600>;
+        himax,display-coords = <0 720 0 1600>;
+        himax,irq-gpio = <&pio 1 0x00>;
+        himax,rst-gpio = <&pio 98 0x00>;
+        report_type = <1>;
+    };
+
+    focaltech_spi@1 {
+        compatible = "focaltech,fts";
+        reg = <1>;
+        spi-max-frequency = <6000000>;
+        interrupt-parent = <&pio>;
+        interrupts = <1 IRQ_TYPE_EDGE_FALLING 1 0>;
+        focaltech,reset-gpio = <&pio 98 0>;
+        focaltech,irq-gpio = <&pio 1 02>;
+        focaltech,max-touch-number = <10>;
+        /*A06 code for AL7160A-956 by yuli at 20240523 start*/
+        focaltech,display-coords =  <0 0 719 1599>;
+        /*A06 code for AL7160A-956 by yuli at 20240523 end*/
+        status = "okay";
+    };
+
+    galaxycore@2 {
+        compatible = "gcore,touchscreen";
+        reg = <2>;
+        status = "okay";
+        spi-max-frequency = <8000000>;
+        gcore,rst-gpio = <&pio 98 0x0>;
+        gcore,irq-gpio = <&pio 1 0x00>;
+    };
+};

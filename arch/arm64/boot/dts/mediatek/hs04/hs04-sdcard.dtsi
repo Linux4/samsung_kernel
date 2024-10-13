@@ -1,0 +1,13 @@
+/* HS03S code added for SR-AL5625-01-233 by zhaoxiangxiang at 20210423 start */
+&msdc1 {
+        cd_level = /bits/ 8 <MSDC_CD_HIGH>;
+};
+
+&odm {
+	sdcard_det:sdcard-det-pin {
+
+		compatible = "mediatek,sdcard-detect-pin";
+		mediatek,sdcard-detect-pin-no = <&pio 1 0>;
+	};
+};
+/* HS03S code added for SR-AL5625-01-233 by zhaoxiangxiang at 20210423 end */

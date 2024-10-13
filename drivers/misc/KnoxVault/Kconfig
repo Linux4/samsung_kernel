@@ -1,0 +1,6 @@
+config KNOXVAULT_POWER
+    bool "regulatore control of KnoxVault2"
+    default n
+    help
+      Say y here if you have a KnoxVault2.
+      If unsure, say N.

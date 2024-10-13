@@ -1,0 +1,30 @@
+menu "O8 Fingerprint support"
+    depends on INPUT
+
+config FINGER_O8
+	tristate "Export input device finger"
+	default n
+
+# a06 code for SR-AL7160A-01-39 by wenghailong at 20240326 start
+config MTK_FINGERPRINT_SUPPORT
+    bool "O8 Fingerprint support"
+    default n
+    help
+        Fingerprint mtk driver enable/disable
+        in the kernel.Say Y here if you want to
+        use mediatek fingerprint driver,fingerprint
+        driver will support fingerprint function
+
+config MTK_FINGERPRINT_SELECT
+    string "sensor type"
+    default "GF318M"
+
+source "drivers/input/fingerprint_O8/silead/Kconfig"
+# a06 code for SR-AL7160A-01-39 by wenghailong at 20240326 end
+# A06 code for SR-AL7160A-01-54 by hehaoran at 20240407 start
+source "drivers/input/fingerprint_O8/jiiov/Kconfig"
+source "drivers/input/fingerprint_O8/focaltech/Kconfig"
+# A06 code for SR-AL7160A-01-54 by hehaoran at 20240407 end
+
+endmenu
+

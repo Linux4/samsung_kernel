@@ -1,0 +1,12 @@
+#
+# Input misc drivers configuration
+#
+
+config INPUT_HX9031AS
+    tristate "hx9031as sar sensor"
+    depends on I2C
+    default n
+    help
+      Say Y to enable the SAR hx9031as detection application, if N here not to use the
+      this SAR sensor
+

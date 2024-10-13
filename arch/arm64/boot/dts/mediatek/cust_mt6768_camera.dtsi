@@ -1,0 +1,382 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+*/
+/* CAMERA GPIO standardization */
+/*hs14 code for AL6528A-277 by chenjun at 2022-10-15 start*/
+&pio {
+	camera0_mclk_2mA: camera0_mclk_2mA@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+			drive-strength = <MTK_DRIVE_2mA>;
+		};
+	};
+	camera0_mclk_4mA: camera0_mclk_4mA@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+			drive-strength = <MTK_DRIVE_4mA>;
+		};
+	};
+	camera0_mclk_6mA: camera0_mclk_6mA@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+			drive-strength = <MTK_DRIVE_6mA>;
+		};
+	};
+	camera0_mclk_8mA: camera0_mclk_8mA@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+			drive-strength = <7>;
+		};
+	};
+	camera0_mclk_off: camera0_mclk_gpio_mode@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_GPIO100>;
+			drive-strength = <MTK_DRIVE_4mA>;
+		};
+	};
+	camera1_mclk_2mA: camera1_mclk_2mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <MTK_DRIVE_2mA>;
+		};
+	};
+	camera1_mclk_4mA: camera1_mclk_4mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <MTK_DRIVE_4mA>;
+		};
+	};
+	camera1_mclk_6mA: camera1_mclk_6mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <MTK_DRIVE_6mA>;
+		};
+	};
+	camera1_mclk_8mA: camera1_mclk_8mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <7>;
+		};
+	};
+	camera1_mclk_off: camera1_mclk_gpio_mode@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_GPIO108>;
+			drive-strength = <MTK_DRIVE_4mA>;
+		};
+	};
+	camera2_mclk_2mA: camera2_mclk_2mA@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_CMMCLK3>;
+			drive-strength = <MTK_DRIVE_2mA>;
+		};
+	};
+	camera2_mclk_4mA: camera2_mclk_4mA@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_CMMCLK3>;
+			drive-strength = <MTK_DRIVE_4mA>;
+		};
+	};
+	camera2_mclk_6mA: camera2_mclk_6mA@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_CMMCLK3>;
+			drive-strength = <MTK_DRIVE_6mA>;
+		};
+	};
+	camera2_mclk_8mA: camera2_mclk_8mA@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_CMMCLK3>;
+			drive-strength = <7>;
+		};
+	};
+	camera2_mclk_off: camera2_mclk_gpio_mode@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
+			drive-strength = <MTK_DRIVE_4mA>;
+		};
+	};
+
+	camera4_mclk_2mA: camera4_mclk_2mA@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+			drive-strength = <MTK_DRIVE_2mA>;
+		};
+	};
+	camera4_mclk_4mA: camera4_mclk_4mA@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+			drive-strength = <MTK_DRIVE_4mA>;
+		};
+	};
+	camera4_mclk_6mA: camera4_mclk_6mA@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+			drive-strength = <MTK_DRIVE_6mA>;
+		};
+	};
+	camera4_mclk_8mA: camera4_mclk_8mA@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+			drive-strength = <7>;
+		};
+	};
+	camera4_mclk_off: camera4_mclk_gpio_mode@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_GPIO99>;
+			drive-strength = <MTK_DRIVE_4mA>;
+		};
+	};
+
+	camera0_rst_low: camera0_rst_output_low@gpio102 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			output-low;
+		};
+	};
+	camera0_rst_high: camera0_rst_output_high@gpio102 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			output-high;
+		};
+	};
+
+	camera1_rst_low: camera1_rst_output_low@gpio109 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			output-low;
+		};
+	};
+	camera1_rst_high: camera1_rst_output_high@gpio109 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			output-high;
+		};
+	};
+
+	camera1_dvdd_sel_1ow: camera1_dvdd_sel_1ow@gpio3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO3__FUNC_GPIO3>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera1_dvdd_sel_float: camera1_dvdd_sel_float@gpio3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO3__FUNC_GPIO3>;
+			bias-disable;
+			slew-rate = <0>;
+		};
+	};
+
+	camera2_rst_low: camera2_rst_output_low@gpio112 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO112__FUNC_GPIO112>;
+			output-low;
+		};
+	};
+	camera2_rst_high: camera2_rst_output_high@gpio112 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO112__FUNC_GPIO112>;
+			output-high;
+		};
+	};
+
+	camera4_rst_low: camera4_rst_output_low@gpio101 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_GPIO101>;
+			output-low;
+		};
+	};
+	camera4_rst_high: camera4_rst_output_high@gpio101 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_GPIO101>;
+			output-high;
+		};
+	};
+
+	camera1_vcamd_off: camera1_vcamd_output_low@gpio179 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO179__FUNC_GPIO179>;
+			output-low;
+		};
+	};
+	camera1_vcamd_on: camera1_vcamd_output_high@gpio179 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO179__FUNC_GPIO179>;
+			output-high;
+		};
+	};
+	camera2_vcamd_off: camera2_vcamd_output_low@gpio179 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO179__FUNC_GPIO179>;
+			output-low;
+		};
+	};
+	camera2_vcamd_on: camera2_vcamd_output_high@gpio179 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO179__FUNC_GPIO179>;
+			output-high;
+		};
+	};
+
+	camera_pins_default: camdefault {
+	};
+
+};
+
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
+&kd_camera_hw1 {
+	pinctrl-names = "default",
+			"cam0_rst0", "cam0_rst1",
+			"cam1_rst0", "cam1_rst1",
+			"cam2_rst0", "cam2_rst1",
+			"cam4_rst0", "cam4_rst1",
+			"cam1_vcamd_on",
+			"cam1_vcamd_off",
+			"cam2_vcamd_on",
+			"cam2_vcamd_off",
+			"cam0_mclk_off",
+			"cam0_mclk_2mA", "cam0_mclk_4mA",
+			"cam0_mclk_6mA", "cam0_mclk_8mA",
+			"cam1_mclk_off",
+			"cam1_mclk_2mA", "cam1_mclk_4mA",
+			"cam1_mclk_6mA", "cam1_mclk_8mA",
+			"cam2_mclk_off",
+			"cam2_mclk_2mA", "cam2_mclk_4mA",
+			"cam2_mclk_6mA", "cam2_mclk_8mA",
+			"cam4_mclk_off",
+			"cam4_mclk_2mA", "cam4_mclk_4mA",
+			"cam4_mclk_6mA", "cam4_mclk_8mA",
+			"cam1_pnd0", "cam1_pnd1",
+			"cam2_pnd0", "cam2_pnd1";
+
+	pinctrl-0 = <&camera_pins_default>;
+	pinctrl-1 = <&camera0_rst_low>;
+	pinctrl-2 = <&camera0_rst_high>;
+	pinctrl-3 = <&camera1_rst_low>;
+	pinctrl-4 = <&camera1_rst_high>;
+	pinctrl-5 = <&camera2_rst_low>;
+	pinctrl-6 = <&camera2_rst_high>;
+	pinctrl-7 = <&camera4_rst_low>;
+	pinctrl-8 = <&camera4_rst_high>;
+	pinctrl-9 = <&camera1_vcamd_on>;
+	pinctrl-10 = <&camera1_vcamd_off>;
+	pinctrl-11 = <&camera2_vcamd_on>;
+	pinctrl-12 = <&camera2_vcamd_off>;
+	pinctrl-13 = <&camera0_mclk_off>;
+	pinctrl-14 = <&camera0_mclk_2mA>;
+	pinctrl-15 = <&camera0_mclk_4mA>;
+	pinctrl-16 = <&camera0_mclk_6mA>;
+	pinctrl-17 = <&camera0_mclk_8mA>;
+	pinctrl-18 = <&camera1_mclk_off>;
+	pinctrl-19 = <&camera1_mclk_2mA>;
+	pinctrl-20 = <&camera1_mclk_4mA>;
+	pinctrl-21 = <&camera1_mclk_6mA>;
+	pinctrl-22 = <&camera1_mclk_8mA>;
+	pinctrl-23 = <&camera2_mclk_off>;
+	pinctrl-24 = <&camera2_mclk_2mA>;
+	pinctrl-25 = <&camera2_mclk_4mA>;
+	pinctrl-26 = <&camera2_mclk_6mA>;
+	pinctrl-27 = <&camera2_mclk_8mA>;
+	pinctrl-28 = <&camera4_mclk_off>;
+	pinctrl-29 = <&camera4_mclk_2mA>;
+	pinctrl-30 = <&camera4_mclk_4mA>;
+	pinctrl-31 = <&camera4_mclk_6mA>;
+	pinctrl-32 = <&camera4_mclk_8mA>;
+	pinctrl-33 = <&camera1_dvdd_sel_1ow>;	/* used for front cam dvdd select 1.2V */
+	pinctrl-34 = <&camera1_dvdd_sel_float>;	/* used for front cam dvdd select 1.1V */
+	pinctrl-35 = <&camera1_dvdd_sel_1ow>;	/* used for wide  cam dvdd select 1.2V */
+	pinctrl-36 = <&camera1_dvdd_sel_float>;	/* used for wide  cam dvdd select 1.1V */
+
+	cam0_vcama-supply = <&mt_pmic_vcama1_ldo_reg>;
+	cam1_vcama-supply = <&mt_pmic_vcama2_ldo_reg>;
+	cam2_vcama-supply = <&mt_pmic_vcama2_ldo_reg>;
+	cam4_vcama-supply = <&mt_pmic_vcama2_ldo_reg>;
+	cam0_vcamd-supply = <&mt_pmic_vcamd_ldo_reg>;
+	cam0_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam1_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam2_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam4_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam0_vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
+	cam0_enable_sensor = "a1401backs5kjn1hlt_mipi_raw a1402backhi5022qxl_mipi_raw a1403backhi5022qly_mipi_raw a1404backs5kjn1txd_mipi_raw";
+	cam1_enable_sensor = "a1401fronts5k3l6ly_mipi_raw a1402frontgc13a0xl_mipi_raw a1403frontsc1301cstxd_mipi_raw";
+	cam2_enable_sensor = "a1401widehi556wly_mipi_raw a1402widesc520cstxd_mipi_raw a1403wideov05ahlt_mipi_raw";
+	cam4_enable_sensor = "a1401macroov02b10ly_mipi_raw a1402macrosc202cscxt_mipi_raw a1403macrogc02m1hlt_mipi_raw";
+
+	status = "okay";
+
+};
+/* CAMERA GPIO end */
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
+/*hs14 code for AL6528A-277 by chenjun at 2022-10-15 end*/
+
+/* CAMERA AF */
+&camera_af_hw_node {
+	camaf_m1_pmic-supply = <&mt_pmic_vldo28_ldo_reg>;
+	status = "okay";
+};
+/* CAMERA AF end */
+
+&flashlights_sgm3785_gpio {
+	pinctrl-names = "flashlight_default", "flashlight_enm_gpio_low", "flashlight_enm_gpio_high", "flashlight_enm_pwm_low", "flashlight_enm_pwm_high",
+	"flashlight_enf_gpio_low","flashlight_enf_gpio_high";
+	pinctrl-0 = <&flashlight_pins_default>;
+	pinctrl-1 = <&flashlight_pins_enm_gpio_low>;
+	pinctrl-2 = <&flashlight_pins_enm_gpio_high>;
+	pinctrl-3 = <&flashlight_pins_enm_pwm_low>;
+	pinctrl-4 = <&flashlight_pins_enm_pwm_high>;
+	pinctrl-5 = <&flashlight_pins_enf_gpio_low>;
+	pinctrl-6 = <&flashlight_pins_enf_gpio_high>;
+	status = "okay";
+};
+
+&pio {
+	flashlight_pins_default: flashlight_default {
+	};
+	/*torch_en*/
+	flashlight_pins_enm_gpio_low: enm_gpio@0 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO153__FUNC_GPIO153>;/*GPIO_FL_ENM_PIN*/
+			slew-rate = <1>; /*direction 0:in, 1:out*/
+			output-low;/*direction out used only. output_low or high*/
+		};
+	};
+
+	flashlight_pins_enm_gpio_high: enm_gpio@1 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO153__FUNC_GPIO153>;/*GPIO_DISP_ENN_PIN*/
+			slew-rate = <1>; /*direction 0:in, 1:out*/
+			output-high;/*direction out used only. output_low or high*/
+		};
+	};
+	flashlight_pins_enm_pwm_low: enm_pwm@0 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO153__FUNC_PWM0>;/*GPIO_DISP_ENP_PIN*/
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+	flashlight_pins_enm_pwm_high: enm_pwm@1 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO153__FUNC_PWM0>;/*GPIO_DISP_ENP_PIN*/
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+
+	/*flash*/
+	flashlight_pins_enf_gpio_low: enf_gpio@0 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO152__FUNC_GPIO152>;/*GPIO_DISP_ENP_PIN*/
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	flashlight_pins_enf_gpio_high: enf_gpio@1 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO152__FUNC_GPIO152>;/*GPIO_DISP_ENP_PIN*/
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+};

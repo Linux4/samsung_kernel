@@ -1,0 +1,15 @@
+#include "hs04-sdcard.dtsi"
+#include "hs04-battery.dtsi"
+/* hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 start */
+#include "hs04-sar.dtsi"
+/* hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 end */
+/* HS03S code added for SR-AL5625-01-506 by fengzhigang at 20210604 start */
+#include "hs04-lcd-bias.dtsi"
+/* HS03S code added for SR-AL5625-01-506 by fengzhigang at 20210604 end */
+#include "hs04-fingerprint.dtsi"
+/*HS03s code for DEVAL5626S-9 by zoujiarong at 2022/02/18 start*/
+#include "hs04-nfc.dtsi"
+/*HS03s code for DEVAL5626S-9 by zoujiarong at 2022/02/18 end*/
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 start*/
+#include "mediatek/hs04/hs04-touchscreen.dtsi"
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 end*/

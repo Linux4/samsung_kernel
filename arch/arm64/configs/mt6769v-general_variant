@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+# edit here
+# def/undef for local target
+
+# *** WARNING: Add enable/disable configs as newline ***
+
+a14m_00="
+"
+
+a06_00="
+CONFIG_KSWAPD_CPU=0x3F
+"

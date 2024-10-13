@@ -1,0 +1,26 @@
+&i2c5 {
+	clock-frequency = <100000>;
+	eta6953: eta6953@69 {
+		compatible = "eta6953";
+		reg = <0x69>;
+		status = "okay";
+
+		interrupt-parent = <&pio>;
+		interrupts = <123 IRQ_TYPE_EDGE_FALLING>;
+		charger_name = "primary_chg";
+
+		eta6953,charge-detect-enable;
+		eta6953,usb-vlim = <4600>;
+		eta6953,usb-ilim = <500>;
+		eta6953,usb-vreg = <4400>;
+		eta6953,usb-ichg = <500>;
+
+		eta6953,precharge-current = <480>;
+		eta6953,termination-current = <180>;
+		eta6953,boost-voltage = <4998>;
+		eta6953,boost-current = <1200>;
+		eta6953,enable_term;
+		eta6953,stat-pin-ctrl = <3>;
+		eta6953,vac-ovp-threshold = <6500>;
+	};
+};

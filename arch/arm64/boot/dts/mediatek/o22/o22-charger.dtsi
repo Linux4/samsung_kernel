@@ -1,0 +1,232 @@
+/* AL6528A code for SR-AL6528A-01-307 by wenyaqi at 2022/08/30 start */
+&i2c7 {
+    sgm41513: sgm41513@1a {
+        compatible = "sgm41513";
+        reg = <0x1A>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <20 IRQ_TYPE_EDGE_FALLING>;
+        charger_name = "primary_chg";
+        sgm,intr_gpio = <&pio 20 0x0>; /* GPIO */
+        sgm,intr_gpio_num = <20>;
+
+        sgm41513,charge-detect-enable;
+        sgm41513,usb-vlim = <4600>;
+        sgm41513,usb-ilim = <500>;
+        sgm41513,usb-vreg = <4400>;
+        sgm41513,usb-ichg = <500>;
+
+        sgm41513,precharge-current = <480>;
+        sgm41513,termination-current = <180>;
+        /* hs14 code for AL6528A-341 by wenyaqi at 2022/10/20 start */
+        sgm41513,boost-voltage = <5000>;
+        /* hs14 code for AL6528A-341 by wenyaqi at 2022/10/20 end */
+        sgm41513,boost-current = <1200>;
+        sgm41513,enable_term;
+        sgm41513,stat-pin-ctrl = <3>;
+        /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 start */
+        sgm41513,vac-ovp-threshold = <10500>;
+        /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 end */
+    };
+
+    /* hs14 code for SR-AL6528A-01-305 by gaozhengwei at 2022/09/01 start */
+    sc8960x: sc8960x@6B {
+        compatible = "sc,sc89601d";
+        reg = <0x6B>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <20 IRQ_TYPE_EDGE_FALLING 123 0>;
+        sc,intr_gpio = <&pio 20 0x0>; /* GPIO */
+        sc,intr_gpio_num = <20>;
+        charger_name = "primary_chg";
+
+        sc,sc8960x,charge-detect-enable;
+        sc,sc8960x,usb-vlim = <4600>;
+        sc,sc8960x,usb-ilim = <500>;
+        sc,sc8960x,usb-vreg = <4400>;
+        sc,sc8960x,usb-ichg = <500>;
+
+        sc,sc8960x,precharge-current = <240>;
+        /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/09/23 start */
+        sc,sc8960x,termination-current = <180>;
+        /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/09/23 end */
+        sc,sc8960x,boost-voltage = <5100>;
+        sc,sc8960x,boost-current = <1200>;
+        sc,sc8960x,enable_term;
+        sc,sc8960x,stat-pin-ctrl = <3>;
+        /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 start */
+        sc,sc8960x,vac-ovp-threshold = <11000>;
+        /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 end */
+    };
+    /* hs14 code for SR-AL6528A-01-305 by gaozhengwei at 2022/09/01 end */
+
+    /* hs14 code for SR-AL6528A-01-304 by gaozhengwei at 2022/09/07 start */
+    upm6910@66 {
+        compatible = "upm,upm6910d";
+        reg = <0x66>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <20 IRQ_TYPE_EDGE_FALLING 123 0>;
+        upm,intr_gpio = <&pio 20 0x0>; /* GPIO */
+        upm,intr_gpio_num = <20>;
+        charger_name = "primary_chg";
+
+        upm,upm6910,charge-detect-enable;
+
+        upm,upm6910,usb-vlim = <4600>;
+        upm,upm6910,usb-ilim = <500>;
+        upm,upm6910,usb-vreg = <4400>;
+        upm,upm6910,usb-ichg = <500>;
+
+        upm,upm6910,precharge-current = <256>;
+        /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/09/23 start */
+        upm,upm6910,termination-current = <180>;
+        /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/09/23 end */
+        /* hs14 code for AL6528A-341 by wenyaqi at 2022/10/20 start */
+        upm,upm6910,boost-voltage = <5000>;
+        /* hs14 code for AL6528A-341 by wenyaqi at 2022/10/20 end */
+        upm,upm6910,boost-current = <1200>;
+        upm,upm6910,enable_term;
+        upm,upm6910,stat-pin-ctrl = <3>;
+        /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 start */
+        upm,upm6910,vac-ovp-threshold = <10500>;
+        /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 end */
+    };
+    /* hs14 code for SR-AL6528A-01-304 by gaozhengwei at 2022/09/07 end */
+};
+/* AL6528A code for SR-AL6528A-01-307 by wenyaqi at 2022/08/30 end */
+
+/* hs14 code for AL6528ADEU-248 by wenyaqi at 2022/10/02 start */
+&lk_charger {
+    max_charger_voltage = <10400000>;
+    ac_charger_input_current = <1500000>;
+
+    /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/10/26 start */
+    /* battery temperature protection */
+    temp_t4_threshold = <50>;
+    temp_t3_threshold = <45>;
+    temp_t2_threshold = <12>;
+    temp_t1_threshold = <5>;
+    temp_t0_threshold = <0>;
+    /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/10/26 end */
+};
+/* hs14 code for AL6528ADEU-248 by wenyaqi at 2022/10/02 end */
+
+/* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 start */
+&charger {
+    /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
+    max_charger_voltage = <6300000>;
+    hv_max_charger_voltage = <10400000>;
+    charger_voltage_drop = <700000>;
+    /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+    /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/20 start */
+    pd_charger_current = <2700000>;
+    pd_input_current = <1700000>;
+    /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/20 end */
+    pd_voltage_thr = <8000>;
+    pd_vbus_upper_bound = <10000000>;
+
+    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
+    /* AFC */
+    enable_afc;
+
+    afc_switch_gpio_num = <6>;
+    afc_switch_gpio = <&pio 6 0x0>;
+    afc_data_gpio_num = <5>;
+    afc_data_gpio = <&pio 5 0x0>;
+    pinctrl-names = "default", "active", "sleep";
+    pinctrl-0 = <&afc_data_default>;
+    pinctrl-1 = <&afc_data_active>;
+    pinctrl-2 = <&afc_data_sleep>;
+
+    afc_start_battery_soc = <0>;
+    afc_stop_battery_soc = <95>;
+    afc_pre_input_current = <500000>;
+    afc_charger_input_current = <1700000>;
+    afc_charger_current = <2700000>;
+    afc_ichg_level_threshold = <1000000>;
+    /* hs14 code for AL6528A-297 by gaozhengwei at 2022/10/13 start */
+    afc_min_charger_voltage = <4600000>;
+    /* hs14 code for AL6528A-297 by gaozhengwei at 2022/10/13 end */
+    afc_max_charger_voltage = <10050000>;
+    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+
+    /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/09/22 start */
+    /* common */
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/27 start */
+    battery_cv = <4380000>;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/27 end */
+
+    /* charging current */
+    ac_charger_current = <2000000>;
+    ac_charger_input_current = <1550000>;
+
+    /* sw jeita */
+    enable_sw_jeita;
+    jeita_temp_above_t4_cv = <4200000>;
+    jeita_temp_t3_to_t4_cv = <4200000>;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/27 start */
+    jeita_temp_t2_to_t3_cv = <4380000>;
+    jeita_temp_t1_to_t2_cv = <4380000>;
+    jeita_temp_t0_to_t1_cv = <4380000>;
+    jeita_temp_below_t0_cv = <4380000>;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/27 end */
+    jeita_temp_above_t4_cur = <0>;
+    jeita_temp_t3_to_t4_cur = <1750000>;
+    /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/23 start */
+    jeita_temp_t2_to_t3_cur = <2700000>;
+    /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/23 end */
+    jeita_temp_t1_to_t2_cur = <1500000>;
+    jeita_temp_t0_to_t1_cur = <500000>;
+    jeita_temp_below_t0_cur = <0>;
+    temp_t4_thres = <50>;
+    temp_t4_thres_minus_x_degree = <48>;
+    temp_t3_thres = <45>;
+    temp_t3_thres_minus_x_degree = <43>;
+    temp_t2_thres = <12>;
+    temp_t2_thres_plus_x_degree = <14>;
+    temp_t1_thres = <5>;
+    temp_t1_thres_plus_x_degree = <7>;
+    temp_t0_thres = <0>;
+    /* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
+    ss-batt-aging-enable;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/28 start */
+    ss,cv-ranges = <0 199 4380000
+                200 249 4360000
+                250 299 4340000
+                300 1000 4320000
+                1001 9999 4270000>;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/28 end */
+    /* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
+    temp_t0_thres_plus_x_degree = <2>;
+    temp_neg_10_thres = <0>;
+    /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/09/22 end */
+};
+/* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 end */
+
+/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
+&pio {
+    afc_data_default: afc_data_default {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO5__FUNC_GPIO5>;
+            bias-disable;
+        };
+    };
+    afc_data_active: afc_data_active {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO5__FUNC_GPIO5>;
+            bias-disable;
+        };
+    };
+    afc_data_sleep: afc_data_sleep {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO5__FUNC_GPIO5>;
+            bias-disable;
+            input-enable;
+        };
+    };
+};
+/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */

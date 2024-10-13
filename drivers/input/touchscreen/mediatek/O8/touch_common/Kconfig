@@ -1,0 +1,6 @@
+config ODM_SEC_COMMON
+    bool "add touch common sec"
+    help
+        this will add touch common sec.
+
+        If unsure, say N.

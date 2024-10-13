@@ -1,0 +1,486 @@
+/* AL6528A code for SR-AL6528A-01-307 by wenyaqi at 2022/08/30 start */
+&i2c7 {
+    sgm41513: sgm41513@1a {
+        compatible = "sgm41513";
+        reg = <0x1A>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <20 IRQ_TYPE_EDGE_FALLING>;
+        charger_name = "primary_chg";
+        sgm,intr_gpio = <&pio 20 0x0>; /* GPIO */
+        sgm,intr_gpio_num = <20>;
+
+        sgm41513,charge-detect-enable;
+        sgm41513,usb-vlim = <4600>;
+        sgm41513,usb-ilim = <500>;
+        sgm41513,usb-vreg = <4400>;
+        sgm41513,usb-ichg = <500>;
+        /* A06 code for SR-AL7160A-01-358 by zhangziyi at 20240409 start */
+        sgm41513,precharge-current = <240>;
+        sgm41513,termination-current = <240>;
+        /* A06 code for SR-AL7160A-01-358 by zhangziyi at 20240409 end */
+        /* hs14 code for AL6528A-341 by wenyaqi at 2022/10/20 start */
+        sgm41513,boost-voltage = <5000>;
+        /* hs14 code for AL6528A-341 by wenyaqi at 2022/10/20 end */
+        sgm41513,boost-current = <1200>;
+        sgm41513,enable_term;
+        sgm41513,stat-pin-ctrl = <3>;
+        /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 start */
+        sgm41513,vac-ovp-threshold = <10500>;
+        /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 end */
+    };
+
+    /* A06 code for SR-AL7160A-01-345 by zhangziyi at 20240325 start */
+    upm6922p@66 {
+        compatible = "up,upm6922p_charger";
+        reg = <0x66>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <20 IRQ_TYPE_EDGE_FALLING 123 0>;
+        upm,intr_gpio = <&pio 20 0x0>; /* GPIO */
+        upm,intr_gpio_num = <20>;
+        charger_name = "primary_chg";
+
+        upm,upm6922p,charge-detect-enable;
+
+        upm,upm6922p,usb-vlim = <4600>;
+        upm,upm6922p,usb-ilim = <500>;
+        upm,upm6922p,usb-vreg = <4400>;
+        upm,upm6922p,usb-ichg = <500>;
+        /* A06 code for SR-AL7160A-01-358 by zhangziyi at 20240409 start */
+        upm,upm6922p,precharge-current = <420>;
+        upm,upm6922p,termination-current = <240>;
+        /* A06 code for SR-AL7160A-01-358 by zhangziyi at 20240409 end */
+        upm,upm6922p,boost-voltage = <5000>;
+        upm,upm6922p,boost-current = <1200>;
+        upm,upm6922p,enable_term;
+        upm,upm6922p,stat-pin-ctrl = <3>;
+        upm,upm6922p,vac-ovp-threshold = <10500>;
+    };
+    /* A06 code for SR-AL7160A-01-345 by zhangziyi at 20240325 end */
+    /* A06 code for AL7160A-58 by zhangziyi at 20240415 start */
+    cx25601: cx25601@67 {
+        compatible = "cx2560x_charger";
+        reg = <0x67>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <20 IRQ_TYPE_EDGE_FALLING>;
+        charger_name = "primary_chg";
+        cx,intr_gpio = <&pio 20 0x0>; /* GPIO */
+        cx,intr_gpio_num = <20>;
+
+        /* A06 code for AL7160A-119 by liufurong at 20240425 start */
+        cx2560x,charge-detect-enable;
+        cx2560x,usb-vlim = <4600>;
+        cx2560x,usb-ilim = <500>;
+        cx2560x,usb-vreg = <4400>;
+        cx2560x,usb-ichg = <500>;
+        cx2560x,precharge-current = <260>;
+        cx2560x,termination-current = <240>;
+        cx2560x,boost-voltage = <5000>;
+        cx2560x,boost-current = <1200>;
+        cx2560x,stat-pin-ctrl = <0>;
+        cx2560x,vac-ovp-threshold = <10500>;
+        /* A06 code for AL7160A-119 by liufurong at 20240425 end */
+    };
+    /* A06 code for AL7160A-58 by zhangziyi at 20240415 end */
+    /* A06 code for SR-AL7160A-01-348 by jiashixian at 20240326 start*/
+    upm6720-charger@65{
+        status = "okay";
+        compatible = "unisemipower,upm6720-standalone";
+        reg = <0x65>;		//I2C1 SENSOR_I2C
+        upm6720,irq-gpio = <&pio 7 0>;
+        upm6720,bat-ovp-disable = <0>;
+        upm6720,bat-ocp-disable  = <0>;
+        /* A06 code for AL7160A-1466 by liufurong at 20240525 start */
+        // upm6720,bus-ucp-disable  = <0>;
+        // upm6720,bus-rcp-disable  = <0>;
+        /* A06 code for AL7160A-1466 by liufurong at 20240525 end */
+        upm6720,vout-ovp-disable = <0>;
+        upm6720,tdie-flt-disable;
+        upm6720,tsbus-flt-disable;
+        upm6720,tsbat-flt-disable;
+        upm6720,wdt-disable;
+        upm6720,vbus-errhi-disable;
+        upm6720,bat-ovp-threshold = <4525>;			/* unit: 1mV */
+        upm6720,bat-ocp-threshold = <8200>;			/* unit: 1mA */
+        upm6720,bus-ovp-threshold = <11000>;		/* unit: 1mV */
+        upm6720,bus-ocp-threshold = <5100>;			/* unit: 1mA */
+        upm6720,bus-ucp-threshold = <250>;			/* unit: 1mA */
+        upm6720,bus-rcp-threshold = <300>;			/* unit: 1mA */
+        /* A06 code for AL7160A-1417 by jiashixian at 20240522 start*/
+        upm6720,vac1-ovp-threshold = <12000>;		/* unit: 1mV */
+        upm6720,vac2-ovp-threshold = <12000>;		/* unit: 1mV */
+        /* A06 code for AL7160A-1417 by jiashixian at 20240522 end*/
+        upm6720,vout-ovp-threshold = <5000>;		/* unit: 1mV */
+        upm6720,tdie-flt-threshold = <140>;			/* unit: 1℃ */
+        upm6720,tsbus-flt-threshold = <4102>;		/* unit: 0.001% */
+        upm6720,tsbat-flt-threshold = <4102>;		/* unit: 0.001% */
+
+        // upm6720,bat-ovp-mask;
+        // upm6720,bat-ocp-mask;
+        // upm6720,bus-ovp-mask;
+        // upm6720,bus-ocp-mask;
+        // upm6720,bus-ucp-mask;
+        // upm6720,bus-rcp-mask;
+        // upm6720,vout-ovp-mask;
+        // upm6720,vac1-ovp-mask;
+        // upm6720,vac2-ovp-mask;
+        // upm6720,vout-present-mask;
+        // upm6720,vac1-present-mask;
+        // upm6720,vac2-present-mask;
+        // upm6720,vbus-present-mask;
+        // upm6720,acrb1-config-mask;
+        // upm6720,acrb2-config-mask;
+        // upm6720,cfly-short-mask;
+        // upm6720,adc-done-mask;
+        // upm6720,ss-timeout-mask;
+        // upm6720,tsbus-flt-mask;
+        // upm6720,tsbat-flt-mask;
+        // upm6720,tdie-flt-mask;
+        // upm6720,wd-mask;
+        // upm6720,regn-good-mask;
+        // upm6720,conv-active-mask;
+        // upm6720,vbus-errhi-mask;
+        // upm6720,bat-ovp-alm-disable;
+        // upm6720,bat-ocp-alm-disable;
+        // upm6720,bat-ucp-alm-disable;
+        // upm6720,bus-ovp-alm-disable;
+        // upm6720,tdie-alm-disable;
+        upm6720,bat-ovp-alm-threshold = <4510>;		/* unit: 1mV */
+        upm6720,bat-ocp-alm-threshold = <8000>;		/* unit: 1mA */
+        upm6720,bat-ucp-alm-threshold = <0>;		/* unit: 1mA */
+        upm6720,bus-ovp-alm-threshold = <11000>;	/* unit: 1mV */
+        upm6720,bus-ocp-alm-threshold = <4000>;		/* unit: 1mA */
+        upm6720,tdie-alm-threshold = <125>;			/* unit: 1℃ */
+        // upm6720,bat-ovp-alm-mask;
+        // upm6720,bat-ocp-alm-mask;
+        // upm6720,bat-ucp-alm-mask;
+        // upm6720,bus-ovp-alm-mask;
+        // upm6720,bus-ocp-alm-mask;
+        // upm6720,tsbus-tsbat-alm-mask;
+        // upm6720,tdie-alm-mask;
+        // upm6720,bus-pulldown-en;
+        // upm6720,vac1-pulldown-en;
+        // upm6720,vac2-pulldown-en;
+        upm6720,sense-resistor-mohm = <5>;	/* unit: 1mohm */
+        upm6720,ss-timeout = <10000>;		/* unit: 1ms */
+        upm6720,wdt-set = <30000>;			/* unit: 1ms */
+        upm6720,chg-config-1 = <1>;
+        upm6720,fsw-set = <500>;
+        upm6720,freq-shift = <0>;
+        upm6720,ibus-ucp-fall-dg-sel = <0>;
+        upm6720,adc-enable;
+        upm6720,adc-rate = <0>;
+        upm6720,adc-avg = <0>;
+        upm6720,adc-avg-init = <0>;
+        upm6720,adc-sample-bit = <0>;
+        // upm6720,ibus-adc-disable;
+        // upm6720,vbus-adc-disable;
+        // upm6720,vac1-adc-disable;
+        // upm6720,vac2-adc-disable;
+        // upm6720,vout-adc-disable;
+        // upm6720,vbat-adc-disable;
+        // upm6720,ibat-adc-disable;
+        // upm6720,tsbus-adc-disable;
+        // upm6720,tsbat-adc-disable;
+        // upm6720,tdie-adc-disable;
+    };
+    /* o8 code for SR-AL7160A-01-348 by jiashixian at 20240327 end*/
+    /* o8 code for SR-AL7160A-01-349 by jiashixian at 20240328 start*/
+    nu2115a@6d{
+        compatible = "nuvolta,nu2115a-standalone";
+        status = "okay";
+        reg = <0x6d>;
+        nu2115a,intr_gpio = <&pio 7 0>;
+        nuvolta,nu2115a,bat-ovp-disable = <0>;
+        nuvolta,nu2115a,bat-ocp-disable = <0>;
+        nuvolta,nu2115a,bus-ocp-disable = <0>;
+        nuvolta,nu2115a,bat-ovp-threshold = <4575>;
+        nuvolta,nu2115a,bat-ocp-threshold = <8000>;
+        nuvolta,nu2115a,bus-ovp-threshold = <11000>;
+        nuvolta,nu2115a,bus-ovp-alarm-threshold = <11000>;
+        nuvolta,nu2115a,bus-ocp-threshold = <4000>;
+        nuvolta,nu2115a,bus-ocp-alarm-threshold = <3500>;
+        nuvolta,nu2115a,ac-ovp-threshold = <11000>;
+        nuvolta,nu2115a,sense-resistor-mohm = <5>;
+    };
+    /* o8 code for SR-AL7160A-01-349 by jiashixian at 20240328 end*/
+    /*A06 code for SR-AL7160A-01-351 by shixuanxuan at 20240401 start*/
+    nx853x-charger@61{
+        compatible = "southchip,nx853x-standalone";
+        reg = <0x61>;
+        nx853x,intr_gpio = <&pio 7 0x0>; /* GPIO */
+        charger_name = "primary_dvchg";
+        charger_name_v4_19 = "primary_divider_chg";
+
+        sc,nx853x,vbat-ovp-dis = <0>;
+        sc,nx853x,vbat-ovp = <80>; /*3840 + val * 10*/
+        sc,nx853x,ibat-ocp-dis = <0>;
+        sc,nx853x,ibat-ocp = <82>; /*val * 100*/
+        sc,nx853x,vbus-ovp-dis = <0>;
+        sc,nx853x,vbus-ovp = <7>; /*9250 + val * 250*/
+        sc,nx853x,vac-ovp-dis = <0>;
+        sc,nx853x,vac-ovp = <1>; /*0:6.5V 1:11V 2:12V 3:13V 4:14V 5~7:15V*/
+        sc,nx853x,ibus-ocp-dis = <0>;
+        sc,nx853x,ibus-ocp = <100>; /*val * 50*/
+        sc,nx853x,pmid2out-ovp-dis = <0>;
+        /* A06 code for AL7160A-2699 by jiashixian at 20240607 start*/
+        sc,nx853x,pmid2out-ovp = <7>; /*400 + val * 100*/
+        /* A06 code for AL7160A-2699 by jiashixian at 20240607 end*/
+        sc,nx853x,pmid2out-uvp-dis = <0>;
+        /* A06 code for AL7160A-2699 by jiashixian at 20240607 start*/
+        sc,nx853x,pmid2out-uvp = <7>; /*100 + val * 50*/
+        /* A06 code for AL7160A-2699 by jiashixian at 20240607 end*/
+        sc,nx853x,ibatreg = <0>; /*200 + val * 100*/
+        sc,nx853x,ibusreg = <0>; /*100 + val * 50*/
+        sc,nx853x,vbatreg = <0>; /*50 + val * 50*/
+        sc,nx853x,tdiereg = <1>; /*0:90°C 1:100°C 2:110°C 3:120°C*/
+        sc,nx853x,them-flt = <24>; /*val * 25*/
+        sc,nx853x,ibat-sns-res = <1>; /*0:2hmo 1:5hmo*/
+        sc,nx853x,pmid-pd-en = <0>;
+        sc,nx853x,vbus-pd-en = <0>;
+        sc,nx853x,work-mode = <0>; /*0: 2:1charge   1: 1:1charge 2: 1:2converte 3: 1:1converte*/
+        sc,nx853x,ss-timeout = <7>; /*0:disable 1:10ms 2:20ms 3:400ms, 4:80ms 5:320ms 6:1.28s 7:10.24s*/
+        sc,nx853x,wd-timeout-dis = <1>;
+        sc,nx853x,wd-timeout = <0>; /*0:0.5s 1:1s 2:5s 3:30s*/
+        sc,nx853x,vout-ovp-dis = <0>;
+        sc,nx853x,vout-ovp = <3>; /*4700 + val * 100*/
+        sc,nx853x,fsw-freq = <7>; /*500 + val * 100*/
+        sc,nx853x,pin-diag-fall-dis = <0>;
+        sc,nx853x,them-flt-dis = <1>;
+        sc,nx853x,tshut-dis = <1>;
+        sc,nx853x,vbus-in-range-dis = <0>;
+        sc,nx853x,ibus-ucp-dis = <0>;
+        sc,nx853x,ibat-reg-dis = <1>;
+        sc,nx853x,ibus-reg-dis = <1>;
+        sc,nx853x,vbat-reg-dis = <1>;
+        sc,nx853x,tdie-reg-dis = <1>;
+        sc,nx853x,ibat-ocp-dg = <0>; /*0:160us 1:80us 2:320us 3:5ms*/
+        sc,nx853x,ibus-ucp-fall-dg = <1>; /*0:8us 1:5ms 2:40ms 3:160ms*/
+        sc,nx853x,ibus-ocp-dg = <0>; /*0:160us 1:80us 2:320us 3:5ms*/
+        sc,nx853x,vbat-ovp-dg = <0>; /*0:8us 1:160us 2:320us 3:5ms*/
+    };
+    /*A06 code for SR-AL7160A-01-351 by shixuanxuan at 20240401 end*/
+    /* A06 code for SR-AL7160A-01-350 by jiashixian at 20240401 start */
+    sgm41606S: sgm41606S@69 {
+        status = "okay";
+        compatible = "sgm,sgm41606S-standalone";
+        reg = <0x69>;
+        sgm41606S,intr_gpio = <&pio 7 0>;     //irq num base on hardware design
+        sgm,sgm41606S,vbat-ovp-dis = <0>;
+        sgm,sgm41606S,vbat-ovp = <105>; //3.5V+ BATOVP [6:0]*0.01V
+        sgm,sgm41606S,vbat-ovp-alm = <105>; // 3.5V+BUSOVPALM[6:0]*0.01V  3.5V(0000000) – 4.77V(1111111)
+        sgm,sgm41606S,ibat-ocp-dis = <0>;
+        sgm,sgm41606S,ibat-ocp  = <81>; //BATOCP < 8.5A,[6:0]*0.1A;>8.5A,8.5A+(BATOCP[6:0]-1010101b) *0.3A
+        sgm,sgm41606S,ibat-ocp_alm = <81>; //BATOCP_ALM[6:0]*0.1A
+        //sgm,sgm41606S,vac-ovp-en = <0>;
+        /* A06 code for AL7160A-1417 by jiashixian at 20240522 start*/
+        sgm,sgm41606S,vac-ovp = <2>;//000 = 6.5V,001 = 10.5V,010 = 12V,011 = 14V,100 = 16V,101 = 18V
+        sgm,sgm41606S,vac2-ovp = <2>;//000 = 6.5V,001 = 10.5V,010 = 12V,011 = 14V,100 = 16V,101 = 18V
+        /* A06 code for AL7160A-1417 by jiashixian at 20240522 end*/
+        //sgm,sgm41606S,vbus-ovp-en = <0>;
+        sgm,sgm41606S,vbus-ovp = <80>; // 7V+BUSOVP[6:0]*0.05V  7V(0000000) – 12.75V(1110011)
+        sgm,sgm41606S,vbus-ovp-alm = <80>; // 7V+BUSOVPALM[6:0]*0.05V  7V(0000000) – 12.75V(1110011)
+        sgm,sgm41606S,tdie-flt-dis = <1>;
+        /* A06 code for AL7160A-2699 by jiashixian at 20240607 start*/
+        sgm,sgm41606S,vbus-ucp-dis = <0>;
+        sgm,sgm41606S,vbus-ucp = <1>;
+        sgm,sgm41606S,vbus-rcp-dis = <0>;
+        /* A06 code for AL7160A-2699 by jiashixian at 20240607 end*/
+        sgm,sgm41606S,vbus-high-dis = <1>;
+        sgm,sgm41606S,ibus-ocp  = <14>; // 1A+BUSOCP[4:0]*0.25A ,1A (00000) – 6.5A (10110)
+        sgm,sgm41606S,ibat-ucp-dis = <0>;
+        sgm,sgm41606S,ibat-ucp-alm = <40>; /*0~4.5A,BATUCP_ALM[6:0]*0.05A*/
+        sgm,sgm41606S,tsbus-flt-dis = <1>;/*0:enable 1:disable*/
+        sgm,sgm41606S,tsbat-flt-dis = <1>;/*0:enable 1:disable*/
+        sgm,sgm41606S,vbus-low-en = <1>;
+        sgm,sgm41606S,vbus-high-en = <1>;
+
+        sgm,sgm41606S,fsw-set = <2>;/*0:187.5kHz 1:250 2:300 3:375 4:500 5:750 6:1000 7:1500*/
+        sgm,sgm41606S,wdt-dis = <1>;
+        sgm,sgm41606S,wd-timeout = <3>; /*0:0.5s 1:1s 2:2s 3:5s 4:10s 5:20s 6:40s 7:80s*/
+        sgm,sgm41606S,chg-en = <0>;
+        sgm,sgm41606S,mode = <0>; /*0:off 1:bypass */
+        sgm,sgm41606S,rsns = <1>; /*0:2mohm 1:5mohm*/
+        sgm,sgm41606S,voutovp-dis = <1>;
+        sgm,sgm41606S,enable-adc = <1>;/*0:disable 1:enable*/
+        sgm,sgm41606S,enable-vac1-adc = <0>;/*0:enable 1:disable*/
+    };
+    /* A06 code for SR-AL7160A-01-350 by jiashixian at 20240401 end */
+};
+/* AL6528A code for SR-AL6528A-01-307 by wenyaqi at 2022/08/30 end */
+
+/* hs14 code for AL6528ADEU-248 by wenyaqi at 2022/10/02 start */
+&lk_charger {
+    max_charger_voltage = <10400000>;
+    ac_charger_input_current = <1500000>;
+
+    /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/10/26 start */
+    /* battery temperature protection */
+    temp_t4_threshold = <50>;
+    temp_t3_threshold = <45>;
+    temp_t2_threshold = <12>;
+    temp_t1_threshold = <5>;
+    temp_t0_threshold = <0>;
+    /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/10/26 end */
+};
+/* hs14 code for AL6528ADEU-248 by wenyaqi at 2022/10/02 end */
+
+/* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 start */
+&charger {
+    /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
+    max_charger_voltage = <6300000>;
+    hv_max_charger_voltage = <10400000>;
+    charger_voltage_drop = <700000>;
+    /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+    /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/20 start */
+    pd_charger_current = <2700000>;
+    pd_input_current = <1700000>;
+    /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/20 end */
+    pd_voltage_thr = <8000>;
+    pd_vbus_upper_bound = <10000000>;
+
+    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
+    /* AFC */
+    enable_afc;
+
+    afc_switch_gpio_num = <6>;
+    afc_switch_gpio = <&pio 6 0x0>;
+    afc_data_gpio_num = <5>;
+    afc_data_gpio = <&pio 5 0x0>;
+    pinctrl-names = "default", "active", "sleep";
+    pinctrl-0 = <&afc_data_default>;
+    pinctrl-1 = <&afc_data_active>;
+    pinctrl-2 = <&afc_data_sleep>;
+
+    afc_start_battery_soc = <0>;
+    afc_stop_battery_soc = <95>;
+    afc_pre_input_current = <500000>;
+    afc_charger_input_current = <1700000>;
+    /* A06 code for SR-AL7160A-01-358 by zhangziyi at 20240409 start */
+    afc_charger_current = <3000000>;
+    /* A06 code for SR-AL7160A-01-358 by zhangziyi at 20240409 end */
+    afc_ichg_level_threshold = <1000000>;
+    /* hs14 code for AL6528A-297 by gaozhengwei at 2022/10/13 start */
+    afc_min_charger_voltage = <4600000>;
+    /* hs14 code for AL6528A-297 by gaozhengwei at 2022/10/13 end */
+    afc_max_charger_voltage = <10050000>;
+    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+
+    /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/09/22 start */
+    /* common */
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/27 start */
+    battery_cv = <4450000>;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/27 end */
+
+    /* charging current */
+    ac_charger_current = <2000000>;
+    ac_charger_input_current = <1550000>;
+
+    /* sw jeita */
+    /* A06 code for SR-AL7160A-01-358 by zhangziyi at 20240409 start */
+    enable_sw_jeita;
+    /* A06 code for AL7160A-108 by jiashixian at 20240423 start */
+    jeita_temp_above_t4_cv = <4250000>;
+    jeita_temp_t3_to_t4_cv = <4250000>;
+    /* A06 code for AL7160A-108 by jiashixian at 20240423 end */
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/27 start */
+    jeita_temp_t2_to_t3_cv = <4450000>;
+    jeita_temp_t1_to_t2_cv = <4450000>;
+    jeita_temp_t0_to_t1_cv = <4450000>;
+    jeita_temp_below_t0_cv = <4450000>;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/27 end */
+    jeita_temp_above_t4_cur = <0>;
+    jeita_temp_t3_to_t4_cur = <3000000>;
+    /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/23 start */
+    jeita_temp_t2_to_t3_cur = <3000000>;
+    /* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/23 end */
+    jeita_temp_t1_to_t2_cur = <1320000>;
+    jeita_temp_t0_to_t1_cur = <420000>;
+    jeita_temp_below_t0_cur = <0>;
+    temp_t4_thres = <52>;
+    temp_t4_thres_minus_x_degree = <50>;
+    temp_t3_thres = <42>;
+    temp_t3_thres_minus_x_degree = <40>;
+    /* A06 code for AL7160A-120 by zhangziyi at 20240425 start */
+    temp_t2_thres = <15>;
+    temp_t2_thres_plus_x_degree = <17>;
+    /* A06 code for AL7160A-120 by zhangziyi at 20240425 end */
+    temp_t1_thres = <8>;
+    temp_t1_thres_plus_x_degree = <10>;
+    temp_t0_thres = <0>;
+    /* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
+    ss-batt-aging-enable;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/28 start */
+    ss,cv-ranges = <0 199 4450000
+                200 249 4430000
+                250 299 4410000
+                300 1000 4390000
+                1001 9999 4340000>;
+    /* hs14_u code for AL6528AU-247 by liufurong at 2023/12/28 end */
+    /* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
+    temp_t0_thres_plus_x_degree = <2>;
+    /* A06 code for SR-AL7160A-01-358 by zhangziyi at 20240409 end */
+    temp_neg_10_thres = <0>;
+    /* hs14 code for SR-AL6528A-01-323 by gaozhengwei at 2022/09/22 end */
+};
+/* hs14 code for SR-AL6528A-01-322 by wenyaqi at 2022/09/15 end */
+
+/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
+&pio {
+    afc_data_default: afc_data_default {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO5__FUNC_GPIO5>;
+            bias-disable;
+        };
+    };
+    afc_data_active: afc_data_active {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO5__FUNC_GPIO5>;
+            bias-disable;
+        };
+    };
+    afc_data_sleep: afc_data_sleep {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO5__FUNC_GPIO5>;
+            bias-disable;
+            input-enable;
+        };
+    };
+};
+/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+/* o8 code for SR-AL7160A-01-348 by jiashixian at 20240327 start*/
+/* A06 code for AL7160A-67 by jiashixian at 20240415 start */
+/* A06 code for AL7160A-78 by jiashixian at 20240417 start */
+/* A06 code for AL7160A-108 by jiashixian at 20240423 start */
+&odm {
+    usbpd_pm {
+        compatible = "unisemipower,usbpd-pm";
+        pd-bat-volt-max = <4450>;
+        pd-bat-curr-max = <6000>;
+        pd-bus-volt-max = <14500>;
+        pd-bus-curr-max = <2770>;
+        pd-fc2-taper-curr = <1500>;
+        pd-fc2-one-step = <1>;
+        pd-adapter-min-vol-required = <11000>;
+        pd-adapter-min-curr-required = <2000>;
+        pd-fc2-min-vbat-for-cp = <3300>;
+        pd-fc2-second-cp-enable;
+        pd-fc2-disable-sw;
+    };
+};
+/* A06 code for AL7160A-108 by jiashixian at 20240423 end */
+/* A06 code for AL7160A-78 by jiashixian at 20240417 end */
+/* A06 code for AL7160A-67 by jiashixian at 20240415 end */
+/* o8 code for SR-AL7160A-01-348 by jiashixian at 20240327 end*/
+/* o8 code for SR-AL7160A-01-163 by jiashixian at 20240326 start*/
+&mt_pmic_vldo28_ldo_reg {
+    regulator-min-microvolt = <3000000>;
+    regulator-max-microvolt = <3000000>;
+    regulator-always-on;
+};
+/* o8 code for SR-AL7160A-01-163 by jiashixian at 20240326 end*/

@@ -1,0 +1,25 @@
+/* AL6528A code for SR-AL6528A-01-307 by wenyaqi at 2022/08/30 start */
+#include "o8_display.dtsi"
+#include "o8_touchscreen.dtsi"
+#include "o8-usb.dtsi"
+#include "o8-charger.dtsi"
+#include "o8_sx933x.dtsi"
+// /* AL6528A code for SR-AL6528A-01-307 by wenyaqi at 2022/08/30 end */
+// /* hs14 code for SR-AL6528A-01-376 by xiongxiaoliang at 2022/09/02 start */
+// #include "o8_sx933x.dtsi"
+// /* hs14 code for SR-AL6528A-01-376 by xiongxiaoliang at 2022/09/02 end */
+/* hs14 code for SR-AL6528A-01-182 by gaochao at 20220905 start */
+#include "o8-sdcard.dtsi"
+/* hs14 code for SR-AL6528A-01-182 by gaochao at 20220905 end */
+/* A06 code for SR-AL7160A-01-06 by gaochao at 20240320 start */
+#include "o8_KnoxVault2.dtsi"
+/* A06 code for SR-AL7160A-01-06 by gaochao at 20240320 end */
+// /* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 start*/
+#include "o8-battery.dtsi"
+// /* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 end*/
+// /*hs14 code for AL6528A-26 by zhangziyi at 2022/09/09 start*/
+#include "o8_fingerprint.dtsi"
+// /*hs14 code for AL6528A-26 by zhangziyi at 2022/09/09 end*/
+/* AL6528A code for SR-AL6528A-01-7 by lijun at 2022/09/03 start */
+#include "o8-nfc.dtsi"
+/* AL6528A code for SR-AL6528A-01-7 by lijun at 2022/09/03 end */

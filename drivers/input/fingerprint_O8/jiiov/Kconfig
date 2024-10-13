@@ -1,0 +1,8 @@
+config JIIOV_FP
+    tristate "JIIOV Fingerprint"
+    default y
+    help
+      If you say Y to this option, support will be included for
+      the JIIOV's fingerprint sensor. This driver supports
+      both REE and TEE. If in REE, CONFIG_SPI_SPIDEV must be set
+      to use the standard 'spidev' driver.

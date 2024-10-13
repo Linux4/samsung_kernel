@@ -1,0 +1,41 @@
+/* A06 code for SR-AL7160A-01-06 by gaochao at 20240423 start */
+#include <dt-bindings/clock/mt6768-clk.h>
+// k250a power control
+&odm {
+    k250a-dev {
+        status = "ok";
+        compatible = "sec,k250a";
+        // pmic ldo_vio18 power supply
+        // ldo_vio18-supply = <&mt6358_vio18_reg>;
+        // SECURITY_IC_POWER_SUPPLY_VIA_GPIO-gpio control power supply
+        sec,gpio_power = <&pio 29 0>;
+        // SECURITY_IC_ENABLE_I2C_VIA_I2C_CLK-I2C communicate
+        clocks = <&infracfg_ao CLK_IFR_I2C_AP>,
+                <&infracfg_ao CLK_IFR_AP_DMA>;
+        clock-names = "k250a-clk-main", "k250a-clk-dma";
+    };
+};
+/* A06 code for SR-AL7160A-01-06 by gaochao at 20240423 end */
+
+/* A06 code for SR-AL7160A-01-708 by gaochao at 20240423 start */
+/* A06 code for SR-AL7160A-01-08 by gaochao at 20240321 start */
+/*
+&i2c6 {
+    status = "ok";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    // clock-frequency = <400000>;
+    // mediatek,use-open-drain;
+
+    // read-0x47, write-0x46
+    k250a@23 {
+        status = "ok";
+        compatible = "sec_k250a";
+        reg = <0x23>;
+        // 1p8_pvdd-supply = <&ldo11>;
+        reset_gpio = <&pio 29 0>;
+    };
+};
+*/
+/* A06 code for SR-AL7160A-01-08 by gaochao at 20240321 end */
+/* A06 code for SR-AL7160A-01-708 by gaochao at 20240423 end */
