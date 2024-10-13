@@ -397,6 +397,12 @@ void in6_dev_finish_destroy(struct inet6_dev *idev);
 
 static inline void in6_dev_put(struct inet6_dev *idev)
 {
+	if (refcount_read(&idev->refcnt) == 0) {
+		pr_err("dev: %s, refcnt is already 0. force return\n",
+			idev->dev ? idev->dev->name : "None");
+		return;
+	}
+
 	if (refcount_dec_and_test(&idev->refcnt))
 		in6_dev_finish_destroy(idev);
 }

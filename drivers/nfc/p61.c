@@ -540,7 +540,7 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 #endif
 
 	if (!get_nfcc_dev_data()) {
-		NFC_LOG_ERR("%s:open fail,no nfc dev", __func__);
+		NFC_LOG_ERR("%s:open fail,no nfc dev\n", __func__);
 		return -EAGAIN;
 	}
 
@@ -557,7 +557,8 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	cancel_delayed_work_sync(&p61_dev->spi_release_work);
 #endif
-	msleep(60);
+	if (p61_dev->ap_vendor != AP_VENDOR_QCT)
+		msleep(60);
 #endif
 #if defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
 	if (p61_ese->ese_secure_check == NOT_CHECKED) {
@@ -839,7 +840,8 @@ static int p61_dev_release(struct inode *inode, struct file *file)
 #ifdef CONFIG_NFC_FEATURE_SN100U
 	do_reset_protection(false);
 	ese_spi_pinctrl(0);
-	msleep(60);
+	if (p61_dev->ap_vendor != AP_VENDOR_QCT)
+		msleep(60);
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	schedule_delayed_work(&p61_dev->spi_release_work,
 				msecs_to_jiffies(2000));

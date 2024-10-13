@@ -6000,6 +6000,7 @@
 					compatible = "samsung,s2mpb03pmic";
 					reg = <0x56>;
 					s2mpb03,wakeup;
+					phandle = <0x114>;
 
 					regulators {
 
@@ -6058,7 +6059,7 @@
 			sec_pm_debug {
 				compatible = "samsung,sec-ap-pmic";
 				status = "ok";
-				phandle = <0x114>;
+				phandle = <0x115>;
 			};
 		};
 	};
@@ -6255,7 +6256,7 @@
 				novatek,swrst-n8-addr = <0x3f0fe>;
 				novatek,spi-rd-fast-addr = <0x3f310>;
 				novatek,mp-support-dt;
-				phandle = <0x115>;
+				phandle = <0x116>;
 
 				novatek-mp-criteria-723C@0 {
 					#address-cells = <0x1>;
@@ -6633,7 +6634,7 @@
 				samsung,ub-con-det = <0xffffffff 0xc 0x0>;
 				samsung,esd-irq-gpio1 = <0xffffffff 0x35 0x0>;
 				qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
-				phandle = <0x116>;
+				phandle = <0x117>;
 
 				qcom,mdss-dsi-display-timings {
 
@@ -6740,7 +6741,7 @@
 		__overlay__ {
 
 			panel_jb3_ubcon_active {
-				phandle = <0x117>;
+				phandle = <0x118>;
 
 				mux {
 					pins = "gpio12";
@@ -6756,7 +6757,7 @@
 			};
 
 			panel_jb3_ubcon_suspend {
-				phandle = <0x118>;
+				phandle = <0x119>;
 
 				mux {
 					pins = "gpio12";
@@ -6779,7 +6780,7 @@
 		__overlay__ {
 
 			panel_jb3_esd_1_active {
-				phandle = <0x119>;
+				phandle = <0x11a>;
 
 				mux {
 					pins = "gpio53";
@@ -6795,7 +6796,7 @@
 			};
 
 			panel_jb3_esd_1_suspend {
-				phandle = <0x11a>;
+				phandle = <0x11b>;
 
 				mux {
 					pins = "gpio53";
@@ -7000,7 +7001,7 @@
 				pn547,clk_req_wake;
 				pn547,ldo_control;
 				nfc_pvdd-supply = <0xffffffff>;
-				phandle = <0x11b>;
+				phandle = <0x11c>;
 			};
 		};
 	};
@@ -7288,17 +7289,17 @@
 
 			qcom,dsi-display@1 {
 				label = "ss_dsi_panel_NT36672C_TL066FVMC02_FHD";
-				phandle = <0x11c>;
+				phandle = <0x11d>;
 			};
 
 			qcom,dsi-display@2 {
 				label = "ss_dsi_panel_NT36672C_PM6585JB3_M23_FHD";
-				phandle = <0x11d>;
+				phandle = <0x11e>;
 			};
 
 			qcom,dsi-display@0 {
 				label = "ss_dsi_panel_PBA_BOOTING_FHD";
-				phandle = <0x11e>;
+				phandle = <0x11f>;
 			};
 		};
 	};
@@ -7379,7 +7380,7 @@
 				qcom,wrapper-core = <0xffffffff>;
 				always-on-clock;
 				status = "ok";
-				phandle = <0x11f>;
+				phandle = <0x120>;
 			};
 		};
 	};
@@ -7390,7 +7391,7 @@
 		__overlay__ {
 
 			qupv3_se9_2hsuart_pins {
-				phandle = <0x120>;
+				phandle = <0x121>;
 
 				qupv3_se9_2hsuart_tx_active {
 					phandle = <0x67>;
@@ -7604,13 +7605,13 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xb1000000 0x0 0x900000>;
-				phandle = <0x121>;
+				phandle = <0x122>;
 			};
 
 			sec_debug_rdx_bootdev@0 {
 				no-ship;
 				reg = <0x1 0x0 0x0 0xad00000>;
-				phandle = <0x122>;
+				phandle = <0x123>;
 			};
 
 			ss_plog@B1900000 {
@@ -7632,20 +7633,20 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xb0c00000 0x0 0x100000>;
-				phandle = <0x123>;
+				phandle = <0x124>;
 			};
 
 			kaslr_region@B0FFF000 {
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xb0fff000 0x0 0x1000>;
-				phandle = <0x124>;
+				phandle = <0x125>;
 			};
 
 			fastuh_region@B0200000 {
 				compatible = "removed-dma-pool";
 				reg = <0x0 0xb0200000 0x0 0x200000>;
-				phandle = <0x125>;
+				phandle = <0x126>;
 			};
 
 			hdm_region@9FB00000 {
@@ -7808,7 +7809,7 @@
 				compatible = "samsung,usb-notifier";
 				qcom,disable_control_en = <0x1>;
 				qcom,unsupport_host_en = <0x0>;
-				phandle = <0x126>;
+				phandle = <0x127>;
 			};
 		};
 	};
@@ -8115,7 +8116,7 @@
 				pinctrl-0 = <0x77 0x78 0x79>;
 				reset-gpio = <0xffffffff 0x37 0x0>;
 				irq-gpio = <0xffffffff 0x36 0x0>;
-				phandle = <0x127>;
+				phandle = <0x128>;
 			};
 		};
 	};
@@ -8206,7 +8207,7 @@
 				size-cells = <0x0>;
 				pinctrl-names = "default";
 				pinctrl-0 = <0x7a>;
-				phandle = <0x128>;
+				phandle = <0x129>;
 
 				isg6320-i2c@28 {
 					compatible = "isg6320";
@@ -8222,7 +8223,7 @@
 					isg6320,hallic_cert_detect = <0x0>;
 					isg6320,reg_num = <0x69>;
 					isg6320,set_reg = [4b 41 31 00 17 3d 18 3b 19 00 1a 1f 1b 17 1c 1f 1d 36 1e 00 1f 08 20 17 21 17 22 27 23 36 24 08 25 27 26 36 27 08 28 17 2b 2a 38 54 60 05 61 1f 62 3f 91 3f 65 22 67 58 68 34 69 3e 6a 80 6c 80 6d 63 6e 44 6f 08 70 60 71 80 72 40 73 00 74 ed 75 40 76 ed 77 80 78 a0 79 a0 7c 15 7d 1a 89 01 8a 69 8b 7d 8c 7d 94 05 95 10 96 12 99 22 c5 12 9b 58 9c 34 9d 3e 9e 80 a0 80 a1 95 a2 44 a3 08 a4 60 a5 80 a6 40 a7 00 a8 ed a9 40 aa ed ab 80 ac a0 ad a0 b0 15 b1 1a bd 01 be 69 bf 7d c0 7d 51 08 52 13 55 10 56 30 59 20 5a 20 d1 08 d2 13 d5 10 d6 30 d9 20 da 20 37 33 90 13 c4 13 05 b8 06 80 07 0d 08 01 09 80 11 09 12 08 13 1c 14 33 2c 03];
-					phandle = <0x129>;
+					phandle = <0x12a>;
 				};
 			};
 		};
@@ -8651,7 +8652,7 @@
 			};
 
 			cam_flash_active {
-				phandle = <0x12a>;
+				phandle = <0x12b>;
 
 				mux {
 					pins = "gpio88", "gpio89";
@@ -8666,7 +8667,7 @@
 			};
 
 			cam_flash_suspend {
-				phandle = <0x12b>;
+				phandle = <0x12c>;
 
 				mux {
 					pins = "gpio88", "gpio89";
@@ -8682,7 +8683,7 @@
 			};
 
 			mcu_active {
-				phandle = <0x12c>;
+				phandle = <0x12d>;
 
 				mux {
 					pins = "gpio47", "gpio10";
@@ -8697,7 +8698,7 @@
 			};
 
 			mcu_suspend {
-				phandle = <0x12d>;
+				phandle = <0x12e>;
 
 				mux {
 					pins = "gpio47", "gpio10";
@@ -8837,7 +8838,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x12e>;
+				phandle = <0x12f>;
 			};
 
 			qcom,cam-sensor@2 {
@@ -8946,7 +8947,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x12f>;
+				phandle = <0x130>;
 			};
 
 			qcom,cam-sensor@1 {
@@ -9232,7 +9233,7 @@
 					qcom,init-voltage = <0x1b7740>;
 					regulator-always-on;
 					qcom,init-mode = <0x2>;
-					phandle = <0x130>;
+					phandle = <0x131>;
 				};
 			};
 		};
@@ -9437,6 +9438,7 @@
 		gpio_i2c_0_sda_default = "/fragment@46/__overlay__/gpio_i2c_0_sda/gpio_i2c_0_sda_default";
 		gpio_i2c_0_scl_default = "/fragment@47/__overlay__/gpio_i2c_0_scl/gpio_i2c_0_scl_default";
 		sw_i2c0 = "/fragment@model/__overlay__/i2c@30";
+		s2mpb03_pmic_0 = "/fragment@model/__overlay__/i2c@30/s2mpb03_pmic@56";
 		s2mpb03_0_l1 = "/fragment@model/__overlay__/i2c@30/s2mpb03_pmic@56/regulators/s2mpb03-ldo1";
 		s2mpb03_0_l2 = "/fragment@model/__overlay__/i2c@30/s2mpb03_pmic@56/regulators/s2mpb03-ldo2";
 		s2mpb03_0_l3 = "/fragment@model/__overlay__/i2c@30/s2mpb03_pmic@56/regulators/s2mpb03-ldo3";

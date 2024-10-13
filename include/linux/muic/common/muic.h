@@ -34,6 +34,9 @@
 #define SIOP (1 << 0)
 #define AFC_REQUEST_CHARGER SIOP
 #define FLED (1 << 1)
+#define AFC_REQUEST_MST (1 << 2)
+#define AFC_REQUEST_MFC (1 << 3)
+#define AFC_REQUEST_DETACH_CLEAR_BIT ((SIOP))
 /* Status of IF PMIC chip (suspend and resume) */
 enum {
 	MUIC_SUSPEND		= 0,
@@ -225,7 +228,8 @@ typedef enum {
 	ATTACHED_DEV_TURBO_CHARGER,
 	ATTACHED_DEV_SPECOUT_CHARGER_MUIC,
 	ATTACHED_DEV_UNKNOWN_MUIC,
-	ATTACHED_DEV_POGO_DOCK_MUIC,
+
+	ATTACHED_DEV_POGO_DOCK_MUIC = 81,
 	ATTACHED_DEV_POGO_DOCK_5V_MUIC,
 	ATTACHED_DEV_POGO_DOCK_9V_MUIC,
 	ATTACHED_DEV_POGO_DOCK_34K_MUIC,
@@ -234,6 +238,9 @@ typedef enum {
 	ATTACHED_DEV_RETRY_TIMEOUT_OPEN_MUIC,
 	ATTACHED_DEV_RETRY_AFC_CHARGER_5V_MUIC,
 	ATTACHED_DEV_RETRY_AFC_CHARGER_9V_MUIC,
+	ATTACHED_DEV_WIRELESS_TA_MUIC,
+
+	ATTACHED_DEV_LO_TA_MUIC = 91,
 	ATTACHED_DEV_NUM,
 } muic_attached_dev_t;
 
@@ -668,6 +675,8 @@ extern int muic_afc_get_voltage(void);
 extern int muic_afc_set_voltage(int voltage);
 extern int muic_afc_request_voltage(int cause, int voltage);
 extern int muic_afc_request_cause_clear(void);
+extern int muic_afc_get_request_cause(void);
+extern bool muic_is_enable_afc_request(void);
 extern int muic_hv_charger_disable(bool en);
 
 #else
@@ -682,6 +691,8 @@ static inline int muic_set_pogo_adc(int adc) {return 0};
 static inline int muic_afc_set_voltage(int voltage) {return 0; }
 static inline int muic_afc_request_voltage(int cause, int voltage);
 static inline int muic_afc_request_cause_clear(void);
+static inline int muic_afc_get_request_cause(void) {return 0;}
+static inline bool muic_is_enable_afc_request(void) {return false;}
 static inline int muic_hv_charger_disable(bool en) {return 0; }
 #endif
 

@@ -119,6 +119,7 @@ int mod_sendmsg(int type, int mod, struct priv_data* data)
 		if (payload->mod == MOD_BINDER) {
 			payload->code = data->code;
 			memcpy(payload->rpcname, data->rpcname, sizeof(data->rpcname));
+			payload->pkg_info.cmd = data->pkg_info.cmd;
 		}
 		if (payload->mod == MOD_PKG)
 			memcpy(&payload->pkg_info, &data->pkg_info, sizeof(pkg_info_t));
@@ -133,14 +134,16 @@ int mod_sendmsg(int type, int mod, struct priv_data* data)
 	return RET_OK;
 }
 
-int sig_report(struct task_struct *p)
+int sig_report(struct task_struct *p, bool report_pid)
 {
 	int ret = RET_OK;
 	struct priv_data data;
 	int target_pid = task_tgid_nr(p);
 	memset(&data, 0, sizeof(struct priv_data));
 	data.target_uid = task_uid(p).val;
-	data.flag = 0;
+	if (report_pid) {
+		data.flag = target_pid;
+	}
 	if (thread_group_is_frozen(p) && (target_pid != last_kill_pid)) {
 		last_kill_pid = target_pid;
 		ret = mod_sendmsg(MSG_TO_USER, MOD_SIG, &data);
@@ -158,8 +161,10 @@ int binder_report(struct task_struct *p, int code, const char *str, int flag)
 	data.flag = flag;
 	data.code = code;
 	strlcpy(data.rpcname, str, INTERFACETOKEN_BUFF_SIZE);
-	if(p)
+	if(p) {
 		data.target_uid = task_uid(p).val;
+		data.pkg_info.cmd = p->pid;
+	}
 	ret = mod_sendmsg(MSG_TO_USER, MOD_BINDER, &data);
 	return ret;
 }

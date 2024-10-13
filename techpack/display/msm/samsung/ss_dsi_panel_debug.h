@@ -124,6 +124,8 @@ void ss_image_logging_update(uint32_t plane_addr, int width, int height, int src
 
 void ss_inc_ftout_debug(const char *name);
 
+bool ss_is_panel_dead(int ndx);
+
 #if 0 // tmp, comment in until SS bsp team bringup sec debug feature...
 extern bool read_debug_partition(enum debug_partition_index index, void *value);
 extern bool write_debug_partition(enum debug_partition_index index, void *value);

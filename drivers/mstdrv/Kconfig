@@ -41,12 +41,6 @@ config MST_V2
 	help
 	This enables the MST V2 Code
 
-config MST_REGULATOR
-	bool "MST uses regulator API"
-	default n
-	help
-	This enables regulator API code
-
 config MST_SUPPORT_GPIO
 	bool "MST uses support gpio"
 	default n
@@ -86,24 +80,6 @@ config MST_TEEGRIS
 	default n
 	help
 	This enables the MST TEEGRIS function
-
-config MFC_LDO_COMMAND
-	bool "i2c patch for LDO on MFC IC IDT chip"
-	default n
-	help
-	This enables the i2c patch for LDO on MFC IC IDT chip
-
-config MST_LPM_DISABLE
-	bool "MST LPM Disable, this works only in eng binary version"
-	default n
-	help
-	This enables the MST LPM disable funtion in eng binary version
-
-config MST_LPM_CONTROL
-	bool "MST control LPM mode for performace"
-	default n
-	help
-	This enables the MST LPM control code
 
 config MST_DUMMY_DRV
 	bool "MST DUMMY DRVIER for MTK"

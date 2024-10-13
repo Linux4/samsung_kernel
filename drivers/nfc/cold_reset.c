@@ -261,11 +261,11 @@ int do_reset_protection(bool type)
 
 	pn547_dev = get_nfcc_dev_data();
 	if (!pn547_dev) {
-		pr_info("%s: exit, no nfc dev", __func__);
+		pr_info("%s: exit, no nfc dev\n", __func__);
 		return -ENODEV;
 	}
 
-	pr_info("%s: Enter cmd type: %d", __func__, type);
+	pr_info("%s: Enter cmd type: %d\n", __func__, type);
 
 	prop_cmd[RST_PROTECTION_CMD_INDEX] = (type) ? 1 : 0;
 
@@ -286,7 +286,7 @@ int do_reset_protection(bool type)
 	if (!type)
 		pn547_dev->state_flags &= ~RST_PROTECTION_ENABLED;
 
-	pr_info("%s: Exit, Status:%d state_flag : %x ", __func__, ret,
+	pr_info("%s: Exit, Status:%d state_flag : %x\n", __func__, ret,
 		pn547_dev->state_flags);
 
 	return ret;
@@ -324,7 +324,7 @@ int ese_cold_reset(enum ese_cold_reset_origin src)
 	bool status = false;
 	uint8_t ese_cld_reset[] = {0x2F, 0x1E, 0x00};
 
-	pr_info("%s: Enter origin:%d", __func__, src);
+	pr_info("%s: Enter origin:%d\n", __func__, src);
 
 	switch (src) {
 	case ESE_COLD_RESET_SOURCE_NFC:
@@ -332,13 +332,13 @@ int ese_cold_reset(enum ese_cold_reset_origin src)
 	case ESE_COLD_RESET_SOURCE_UWB:
 		break;
 	default:
-		pr_info("%s: Invalid argument", __func__);
+		pr_info("%s: Invalid argument\n", __func__);
 		return -EINVAL;
 	}
 
 	pn547_dev = get_nfcc_dev_data();
 	if (!pn547_dev) {
-		pr_info("%s: exit, no nfc dev", __func__);
+		pr_info("%s: exit, no nfc dev\n", __func__);
 		return -ENODEV;
 	}
 
@@ -374,7 +374,7 @@ int ese_cold_reset(enum ese_cold_reset_origin src)
 		/* wait for reboot guard timer*/
 		if (!ret && wait_for_completion_timeout(&ese_cold_reset_sema,
 			msecs_to_jiffies(ESE_COLD_RESET_REBOOT_GUARD_TIME)) == 0) {
-			pr_info("%s: guard Timeout", __func__);
+			pr_info("%s: guard Timeout\n", __func__);
 		}
 	} else {
 		if (IS_RESET_PROTECTION_ENABLED(pn547_dev->state_flags)) {
@@ -393,7 +393,7 @@ int ese_cold_reset(enum ese_cold_reset_origin src)
 	mutex_unlock(&ese_cold_reset_sync_mutex);
 
 	/* Return the status to the SPI/UWB Driver */
-	pr_info("%s:%d exit, Status:%d", __func__, src, ret);
+	pr_info("%s:%d exit, Status:%d\n", __func__, src, ret);
 
 	return ret;
 }

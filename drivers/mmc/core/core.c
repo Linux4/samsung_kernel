@@ -3760,6 +3760,16 @@ void mmc_rescan(struct work_struct *work)
 			host->bus_dead ? "DD" : "OK",
 			host->card ? "present" : "not present");
 
+#if defined(CONFIG_HDM)
+	/* check if hw interrupt is triggered */
+	if (!host->trigger_card_event && !host->card) {
+		pr_err("%s: no detect irq, skipping mmc_rescan\n", mmc_hostname(host));
+		if (wake_lock_active(&host->detect_wake_lock))
+			wake_unlock(&host->detect_wake_lock);
+		return;
+	}
+#endif
+
 	spin_lock_irqsave(&host->lock, flags);
 	if (host->rescan_disable) {
 		spin_unlock_irqrestore(&host->lock, flags);

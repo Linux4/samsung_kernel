@@ -9,3 +9,9 @@
  *
  */
 #include "../ss_dsi_panel_common.h"
+
+#if defined(CONFIG_PANEL_BUILTIN_BACKLIGHT)
+int ss_blic_s2dps01a01_init(void);
+int ss_blic_s2dps01a01_configure(u8 data[][2], int size);
+#endif
+

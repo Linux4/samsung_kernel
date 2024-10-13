@@ -424,7 +424,7 @@ void release_state_func(struct work_struct* work)
 		spin_unlock(&write_qos_lock);
 
 		qos_values[res.res_id] = get_qos_value(res.res_id);
-		pr_booster("Release State Func :::: Uniq(%d)'s Update Tail Val (%d), Qos_Val(%ld)",
+		pr_booster("Release State Func :::: Uniq(%d)'s Update Tail Val (%ld), Qos_Val(%ld)",
 			tv->uniq_id, tv->value, qos_values[res.res_id]);
 	}
 
@@ -472,7 +472,7 @@ void release_timeout_func(struct work_struct* work)
 			continue;
 		}
 
-		pr_booster("Release Timeout Func :::: Delete Uniq(%d)'s TV Val (%d)",
+		pr_booster("Release Timeout Func :::: Delete Uniq(%d)'s TV Val (%ld)",
 			tv->uniq_id, tv->value);
 
 		spin_lock(&write_qos_lock);
@@ -906,7 +906,7 @@ void input_booster_init(void)
 	for (i = 0; i < result; i++) {
 		allowed_mask |= (1<<allowed_resources[i]);
 		if (allowed_resources[i] >= max_resource_count) {
-			pr_err(ITAG" allow res index exceeds over max res count",
+			pr_err(ITAG" allow res index exceeds over max res count %d",
 				allowed_resources[i]);
 			goto out;
 		}
