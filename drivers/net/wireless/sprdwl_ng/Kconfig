@@ -1,0 +1,28 @@
+config SPRDWL_NG
+	tristate "SPRD Next Generation Wireless LAN Support"
+	depends on CFG80211
+	help
+	  This is a driver for the Spreadtrum IEEE802.11 WLAN devices.
+
+	  When compiled as a module, this driver will be called sprdwl_ng.
+
+choice
+	prompt  "Select H/W interface"
+	depends on SPRDWL_NG
+	default SPRDWL_NG_SDIO_BA
+
+config SPRDWL_NG_SDIO
+	bool "SDIO (pack/unpack)"
+	depends on SDIOM && MARLIN2
+	help
+	  Select this to enable support for the Spreadtrum SC2332
+	  chipsets running over SDIO(pack/unpack).
+
+config SPRDWL_NG_SDIO_BA
+	bool "SDIO"
+	depends on SDIODEV
+	help
+	  Select this to enable support for the Spreadtrum SC2331
+	  chipsets running over SDIO.
+
+endchoice

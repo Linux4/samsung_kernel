@@ -1,0 +1,13 @@
+config VIDEO_GSP_SPRD
+	tristate "SPRD GSP driver"
+	# depends on ARCH_SC8825
+	# default m
+	help
+	  Support GSP for SPRD
+
+config GSP_THREE_OVERLAY
+	tristate "SPRD GSP DRIVER THREE LAYER OVERLAY"
+	# depends on ARCH_SC8825
+	# default m
+	help
+  Support GSP for SPRD

@@ -1,0 +1,31 @@
+config SPRD_IODEBUG
+	bool "SPRD IO debug function."
+	depends on DEBUG_FS
+	help
+	  Support for SPRD IO debug feature.
+
+config SPRD_IODEBUG_HOTPOINT
+	bool "SPRD hotpoint debug function."
+	depends on SPRD_IODEBUG
+	help
+	  For IO debug, support for IO hotpoint monitor.
+
+config SPRD_IODEBUG_IOSCHEDULE
+	bool "SPRD page&buffer lock debug function."
+	depends on SPRD_IODEBUG
+	help
+	  debug for a longtime locked on a page&buffer.
+
+config SPRD_IODEBUG_VFS
+	bool "SPRD iodebug vfs function."
+	depends on SPRD_IODEBUG
+	default y
+	help
+	  For IO debug in VFS.
+
+config SPRD_IODEBUG_BDI
+	bool "SPRD iodebug bdi function."
+	depends on SPRD_IODEBUG
+	default y
+	help
+	  For IO debug in BDI.

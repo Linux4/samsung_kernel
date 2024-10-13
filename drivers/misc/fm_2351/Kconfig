@@ -1,0 +1,11 @@
+config SR2351_FM
+	tristate "SPRD 2351 FM Support"
+	---help---
+	  Say Y to enable built-in wireless MAC controller in the
+	  Spreadtrum SC88xx based System-on-Chip devices.
+
+config FM_SEEK_STEP_50KHZ
+	tristate "Trout FM Seek Step 50KHz Support "
+	default n
+	help
+	  If you say yes here you can support Step 50KHz for Trout FM.

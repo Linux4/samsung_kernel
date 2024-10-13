@@ -1,0 +1,49 @@
+/ {
+	lcd_dummy_mipi_720p: lcdffff {
+			hfp = <80>;
+			hbp = <60>;
+			hsync = <60>;
+			vfp = <38>;
+			vbp = <12>;
+			vsync = <4>;
+
+			work_mode = <1>;
+			bpp = <24>;
+			lan_number = <4>;
+			phy_feq = <450000>;
+			h_sync_pol = <0>;
+			v_sync_pol = <0>;
+			de_pol = <0>;
+			te_pol = <0>;
+			color_mode_pol = <1>;
+			shut_down_pol = <1>;
+
+			width = <720>;
+			height = <1280>;
+			fps = <60>;
+			direction = <0>;
+			dev_id = <0>;
+			type=<2>;
+			lcd_id = "0xffff";
+			esd_return_code = <28>;
+			//low_res_simu;
+			simu_width = <480>;
+			simu_height = <854>;
+			panle_name = "lcd_hx8394a_mipi";
+			init_data = [
+				39 64 00 01 29
+			];
+			sleep_in =  [
+			   39 00 00 02 28 00
+			   39 78 00 02 10 00
+			];
+			sleep_out = [
+				39 78 00 02 11 00
+				39 00 00 02 29 00
+			];
+	};
+
+};
+
+
+

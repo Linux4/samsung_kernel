@@ -1,0 +1,11 @@
+#
+# Spreadtrum SC2331 FM drivers
+#
+menu "SPREADTRUM SC2331 FM driver"
+config RADIO_SPRD2331
+	tristate "SPRD 2331 FM Support"
+	---help---
+	  Say Y to enable built-in FM controller in the
+	  Spreadtrum SC2331 based System-on-Chip devices.
+
+endmenu

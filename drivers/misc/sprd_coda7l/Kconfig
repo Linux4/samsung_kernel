@@ -1,0 +1,5 @@
+# to add sprd vsp configs in the future
+config SPRD_CODA7L
+	bool "sprd coda7l driver"
+	help
+	"enable coda7l device driver"

@@ -1,0 +1,250 @@
+/*
+* Copyright (C) 2016 Spreadtrum Communication Incorporated
+*		http://www.spreadtrum.com/
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*/
+
+/* This is the sprd sharkl modem cp1 default DTS */
+
+
+/* memory reserved for SMEM */
+/memreserve/ 0x87800000 0x480000; /* Offset:120M, Size:4.5M */
+
+/* memory reserved for LTE modem */
+/memreserve/ 0x89600000 0x3F80000; /* Offset:150M, Size:63.5M*/
+
+/include/ "skeleton.dtsi"
+
+/ {
+	/* sipc initializer */
+
+	sipc: sipc@0x87800000 {
+		compatible = "sprd,sipc";
+		reg = <0x87800000 0x480000>; /* <SMEM SIZE>*/
+		//#interrupt-cells = <2>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x09600000 0x89600000 0x3F80000>,
+				<0x07800000 0x87800000 0x480000>,
+				<0x01381000 0x8A981000 0x1000>,
+				<0x5000c000 0x5000c000 0x1000>;
+		sipc_lte@0x09600000 {
+			sprd,name = "sipc-lte";
+			sprd,dst = <5>;
+			/* it's unnecessary to config IPI info upon mailbox arch */
+			mailbox,core = <7>;
+			reg = <0x09600000 0x3F80000> , /* <CP_start_addr size> */
+				<0x07800000 0x480000>, /* <SMEM_phy_addr total_size> */
+				<0x01381000 0x1000>; /* smsg ring buffer <base size> */
+		};
+		sipc_pmsys@0x5000c000 {
+			sprd,name = "sipc-pmsys";
+			sprd,dst = <6>;
+			/* it's unnecessary to config IPI info upon mailbox arch */
+			mailbox,core = <1>;
+			reg = <0x5000c000 0x1000>; /* smsg ring buffer <base size> */
+		};
+          };
+
+	saudio_lte{
+		compatible = "sprd,saudio";
+		sprd,saudio-dst-id = <5>;		/* SIPC_ID_LTE */
+		sprd,ctrl_channel = <10>;		/* SMSG_CH_VBC */
+		sprd,playback_channel = <11>;	/* SMSG_CH_PLAYBACK */
+		sprd,capture_channel = <12>;	/* SMSG_CH_CAPTURE */
+		sprd,monitor_channel = <13>;	/*SMSG_CH_MONITOR_AUDIO */
+		sprd,saudio-names = "saudiolte";
+	};
+	saudio_voip{
+		compatible = "sprd,saudio";
+		sprd,saudio-dst-id = <5>;		/* SIPC_ID_LTE */
+		sprd,ctrl_channel = <14>;		/* SMSG_CH_CTRL_VOIP */
+		sprd,playback_channel = <15>;	/* SMSG_CH_PLAYBACK_VOIP */
+		sprd,capture_channel = <16>;	/* SMSG_CH_CAPTURE_VOIP */
+		sprd,monitor_channel = <17>;	/*SMSG_CH_MONITOR_VOIP */
+		sprd,saudio-names = "saudiovoip";
+	};
+
+	/* LTE modem virtual devices */
+
+	spipe_lte {
+		compatible = "sprd,spipe";
+		sprd,name = "spipe_lte";
+		sprd,dst = <5>;
+		sprd,channel = <4>;
+		sprd,ringnr = <15>;
+		sprd,size-rxbuf = <0x1000>; /* 4*1024 */
+		sprd,size-txbuf = <0x1000>; /* 4*1024 */
+	};
+
+	slog_lte {
+		compatible = "sprd,spipe";
+		sprd,name = "slog_lte";
+		sprd,dst = <5>;
+		sprd,channel = <5>;
+		sprd,ringnr = <1>;
+		sprd,size-rxbuf = <0x40000>; /* 256*1024*/
+		sprd,size-txbuf = <0x8000>; /* 32*1024 */
+	};
+
+        sdiag_lte {
+                compatible = "sprd,spipe";
+                sprd,name = "sdiag_lte";
+                sprd,dst = <5>;
+                sprd,channel = <21>;
+                sprd,ringnr = <1>;
+                sprd,size-rxbuf = <0x40000>; /* 256*1024*/
+                sprd,size-txbuf = <0x8000>; /* 32*1024 */
+        };
+
+	stty_lte {
+		compatible = "sprd,spipe";
+		sprd,name = "stty_lte";
+		sprd,dst = <5>;
+		sprd,channel = <6>;
+		sprd,ringnr = <32>;
+		sprd,size-rxbuf = <0x0800>; /* 2*1024*/
+		sprd,size-txbuf = <0x0800>; /* 2*1024 */
+	};
+	sipx_lte {
+		compatible = "sprd,sipx";
+		sprd,name = "sipx_lte";
+		sprd,dst = <5>;
+		sprd,dl-pool = <1024>;
+		sprd,dl-ack-pool = <256>;
+		sprd,ul-pool = <1024>;
+		sprd,ul-ack-pool = <1024>;
+	};
+	seth0_lte {
+		compatible = "sprd,seth";
+		sprd,name = "seth_lte0";
+		sprd,dst = <5>;
+		sprd,channel = <7>;
+		sprd,blknum = <512>;
+		sprd,poolsize = <16>;
+	};
+
+	seth1_lte {
+		compatible = "sprd,seth";
+		sprd,name = "seth_lte1";
+		sprd,dst = <5>;
+		sprd,channel = <8>;
+		sprd,blknum = <512>;
+		sprd,poolsize = <16>;
+	};
+
+	seth2_lte {
+		compatible = "sprd,seth";
+		sprd,name = "seth_lte2";
+		sprd,dst = <5>;
+		sprd,channel = <9>;
+		sprd,blknum = <512>;
+		sprd,poolsize = <16>;
+	};
+
+	seth3_lte {
+		compatible = "sprd,seth";
+		sprd,name = "seth_lte3";
+		sprd,dst = <5>;
+		sprd,channel = <18>;
+		sprd,blknum = <512>;
+		sprd,poolsize = <16>;
+	};
+
+	seth4_lte {
+		compatible = "sprd,seth";
+		sprd,name = "seth_lte4";
+		sprd,dst = <5>;
+		sprd,channel = <19>;
+		sprd,blknum = <512>;
+		sprd,poolsize = <16>;
+	};
+
+	seth5_lte {
+		compatible = "sprd,seth";
+		sprd,name = "seth_lte5";
+		sprd,dst = <5>;
+		sprd,channel = <20>;
+		sprd,blknum = <512>;
+		sprd,poolsize = <16>;
+	};
+
+	scproc_arm7: scproc@0x50800000 {
+		compatible = "sprd,scproc";
+		sprd,name = "cppmic";
+		sprd,ctrl-reg = <0x114 0xcc 0xb0 0xff>; /* <shut_down deep_sleep reset get_status> */
+		sprd,ctrl-mask = <0x01 0x200000 0x100 0xf0000>; /* masks <> */
+		sprd,iram-data = <0xe59f0000 0xe12fff10 0x0>; /* 3rd param equals modem_addr*/
+		reg = <0x50800000 0x8000>, /* <CP_start_addr total_size> = <+128M 26M> */
+			<0x50800000 0x0>, /* <iram1_base size> */
+			<0x402e0000 0x400>, /* <aon_apb_base size> */
+                        <0x402b0000 0x100>, /* <pmu_base size> */
+                        <0x402b0000 0x100>, /* <pmu_base size> */
+			<0x402b0000 0x100>; /* <pmu_base size> */
+		#address-cells = <1>;
+		#size-cells = <1>;
+		/* segnr=1 */
+		ranges = <0x0 0x50800000 0x8000>;
+		modem@0x0 {
+			cproc,name = "modem";
+			reg = <0x0 0x8000>; /* <modem_addr size> */
+		};
+	};
+
+	scproc_cp1: scproc@0x89600000 {
+		compatible = "sprd,scproc";
+		sprd,name = "cptl";
+		sprd,ctrl-reg = <0x0c 0xcc 0xb0 0x78>; /* <shut_down deep_sleep reset get_status> */
+                sprd,ctrl-mask = <0x100000 0x140000 0x02 0x1>; /* masks <> */
+		sprd,iram-data = <0xe59f0000 0xe12fff10 0x8AA89000>; /* 3rd param equals modem_addr*/
+		reg = <0x89600000 0x3F80000>, /* <CP_start_addr total_size> = <+63.5M> */
+			<0x50001000 0x0c>, /* <iram1_base size> */
+			<0x402e0000 0x100>, /* <aon_apb_base size> */
+                        <0x402b0000 0x100>, /* <pmu_base size> */
+                        <0x402b0000 0x100>, /* <pmu_base size> */
+			<0x402b0000 0x100>, /* <pmu_base size> */
+			<0x8A982000 0x800>;/* <mini_dump_base size> */
+		interrupts = <0 84 0x0>; /* cp1_wdg_int */
+		#address-cells = <1>;
+		#size-cells = <1>;
+		/* segnr=4 */
+		ranges = <0x1489000 0x8AA89000 0x00E00000>, /* ca5 code */
+			 <0x0020000 0x89620000 0x002E0000>,
+                         <0x0300000 0x89900000 0x1C0000>,
+                         <0x3800000 0x8CE00000 0x200000>, /* warm code */
+			 <0x1382800 0x8A982800 0x800>, /* cmdline */
+                         <0x1383000 0x8A983000 0x6C000>, /* fixnv */
+                         <0x13EF000 0x8A9EF000 0x90000>; /* run nv */
+		modem@0x1489000 {
+			cproc,name = "modem";
+			reg = <0x01489000 0x00E00000>; /* <modem_addr size> */
+		};
+		dsp@0x20000 {
+			cproc,name = "tgdsp";
+			reg = <0x20000 0x002e0000>; /* <dsp_addr size>*/
+		};
+		dsp@0x300000 {
+			cproc,name = "ldsp";
+			reg = <0x300000 0x1c0000>; /* <dsp_addr size>*/
+		};
+                modem@0x3800000 {
+			cproc,name = "warm";
+			reg = <0x3800000 0x200000>; /* <modem_addr size>*/
+		};
+		cpcmdline@0x1382800 {
+			cproc,name = "cpcmdline";
+			reg = <0x1382800 0x800>;
+		};
+		fixnv@0x1383000 {
+			cproc,name = "fixnv";
+			reg = <0x1383000 0x6c000>;
+		};
+		runnv@0x13EF000 {
+			cproc,name = "runnv";
+			reg = <0x13EF000 0x90000>;
+		};
+	};
+};

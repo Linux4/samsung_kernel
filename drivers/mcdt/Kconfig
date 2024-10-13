@@ -1,0 +1,14 @@
+menuconfig MCDT
+	bool "MCDT Hardware Support"
+	help
+	  MCDT is a Hardware module that can be used to transfer data between AP
+	  and DSP, normally we use it transfer audio data.
+	  Say Y if your platform supports hardware MCDT.
+
+if MCDT
+config MCDT_DRV
+	bool "MCDT driver"
+	help
+	  MCDT_DRV is the driver of MCDT.
+	  Say Y if you want support this driver.
+endif

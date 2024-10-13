@@ -1,0 +1,9 @@
+
+config SPRD_SIMDET
+	tristate "SPRD SIM CARD DETECT Driver"
+	default n
+config SPRD_SIMDET_IOCTL
+	bool "SPRD SIM CARD DETECT Driver IOCTL support"
+	depends on SPRD_SIMDET
+	default n
+	
