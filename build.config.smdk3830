@@ -1,0 +1,13 @@
+ARCH=arm64
+CROSS_COMPILE=aarch64-linux-android-
+CLANG_TRIPLE=aarch64-linux-gnu-
+DEFCONFIG=smdk3830_defconfig
+CLANG_VERSION=clang-4691093
+TARGET_SOC=exynos3830
+TARGET_DTBO_CFG=exynos3830_dtboimg.cfg
+FILES="
+arch/arm64/boot/Image:kernel
+arch/arm64/boot/dts/exynos/exynos3830.dtb:dtb.img
+dtbo.img:dtbo.img
+vmlinux:vmlinux
+"

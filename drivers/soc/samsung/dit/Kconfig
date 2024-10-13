@@ -1,0 +1,9 @@
+#
+# SAMSUNG DIT Driver
+#
+menuconfig HW_FORWARD
+	bool "HW(DIT) packet forwarding/translation"
+	default n
+	help
+	  HW packet forwarding and translation using DIT including
+	  NAT and CLAT.

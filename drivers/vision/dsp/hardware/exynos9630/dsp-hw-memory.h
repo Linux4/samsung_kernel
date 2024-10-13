@@ -1,0 +1,137 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Samsung Exynos SoC series dsp driver
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *              http://www.samsung.com/
+ */
+
+#ifndef __DSP_HW_MEMORY_H__
+#define __DSP_HW_MEMORY_H__
+
+#include <linux/iommu.h>
+
+#define DSP_MEMORY_MAX_SIZE	(SZ_16M)
+
+#define DSP_MASTER_FW_NAME	"dsp_master.bin"
+
+#define DSP_FW_STACK_IOVA	(0x10000000)
+#define DSP_FW_STACK_SIZE	(SZ_1M)
+
+#define DSP_FW_NAME		"dsp.bin"
+#define DSP_FW_IOVA		(DSP_FW_STACK_IOVA + DSP_FW_STACK_SIZE)
+#define DSP_FW_SIZE		(SZ_1M * 3)
+
+#define DSP_FW_LOG_IOVA		(DSP_FW_STACK_IOVA + DSP_MEMORY_MAX_SIZE)
+#define DSP_FW_LOG_SIZE		(SZ_1M)
+
+#define DSP_IVP_PM_NAME		"dsp_ivp_pm.bin"
+#define DSP_IVP_PM_IOVA		(DSP_FW_LOG_IOVA + DSP_MEMORY_MAX_SIZE)
+#define DSP_IVP_PM_SIZE		(SZ_16M)
+
+#define DSP_IVP_DM_NAME		"dsp_ivp_dm.bin"
+#define DSP_IVP_DM_IOVA		(DSP_IVP_PM_IOVA + DSP_MEMORY_MAX_SIZE)
+#define DSP_IVP_DM_SIZE		(SZ_128K)
+
+#define DSP_IAC_PM_NAME		"dsp_iac_pm.bin"
+#define DSP_IAC_PM_IOVA		(DSP_IVP_DM_IOVA + DSP_MEMORY_MAX_SIZE)
+#define DSP_IAC_PM_SIZE		(SZ_32K)
+
+#define DSP_IAC_DM_NAME		"dsp_iac_dm.bin"
+#define DSP_IAC_DM_IOVA		(DSP_IAC_PM_IOVA + DSP_MEMORY_MAX_SIZE)
+#define DSP_IAC_DM_SIZE		(SZ_32K)
+
+#define DSP_MBOX_MEMORY_IOVA	(DSP_IAC_DM_IOVA + DSP_MEMORY_MAX_SIZE)
+#define DSP_MBOX_MEMORY_SIZE	(SZ_8K)
+
+#define DSP_MBOX_POOL_IOVA	(DSP_MBOX_MEMORY_IOVA + DSP_MEMORY_MAX_SIZE)
+#define DSP_MBOX_POOL_SIZE	(SZ_128K)
+
+#define DSP_DL_OUT_IOVA		(DSP_MBOX_POOL_IOVA + DSP_MEMORY_MAX_SIZE)
+#define DSP_DL_OUT_SIZE		(SZ_1M)
+
+#define DSP_NPU_FW_NAME		"npu.bin" // test fw
+#define DSP_NPU_FW_SIZE		(SZ_16K)
+
+#define DSP_HW_BASE_ADDR	(0x40000000)
+#define DSP_SM_BASE_ADDR	(0x50000)
+#define DSP_SM(n)		(DSP_SM_BASE_ADDR + (n) * 4)
+
+#define DSP_SM_RESERVED_SIZE	(SZ_256)
+#define DSP_SM_RESERVED_BASE	(DSP_SM(1984))
+#define DSP_SM_RESERVED(n)	(DSP_SM_RESERVED_BASE + 0x4 * (n))
+
+#define DSP_SM_USERDEFINED_SIZE	(SZ_128)
+#define DSP_SM_USERDEFINED_BASE	(DSP_SM(0))
+#define DSP_SM_USERDEFINED(n)	(DSP_SM_USERDEFINED_BASE + 0x4 * (n))
+
+#define DSP_SM_FW_INFO_SIZE	(SZ_128)
+#define DSP_SM_FW_INFO_BASE	(DSP_SM(32))
+#define DSP_SM_FW_INFO(n)	(DSP_SM_FW_INFO_BASE + 0x4 * (n))
+
+enum dsp_sm_used_count {
+	/* 0x4005_1F00 */ TO_CA5_MBOX			= 0,
+	/* 0x4005_1F20 */ TO_HOST_MBOX			= 8,
+	/* 0x4005_1F40 */ LOG_QUEUE			= 16,
+	/* 0x4005_1F60 */ TO_CA5_INT_STATUS		= 24,
+	/* 0x4005_1F64 */ TO_HOST_INT_STATUS,
+	/* 0x4005_1F68 */ CA5_DSP_FW_RESERVED_SIZE,
+	/* 0x4005_1F6C */ IVP_PM_IOVA,
+	/* 0x4005_1F70 */ RESERVED0,
+	/* 0x4005_1F74 */ RESERVED1,
+	/* 0x4005_1F78 */ IVP_PM_SIZE,
+	/* 0x4005_1F7C */ IVP_DM_IOVA,
+	/* 0x4005_1F80 */ IVP_DM_SIZE,
+	/* 0x4005_1F84 */ IAC_PM_IOVA,
+	/* 0x4005_1F88 */ IAC_PM_SIZE,
+	/* 0x4005_1F8C */ IAC_DM_IOVA,
+	/* 0x4005_1F90 */ IAC_DM_SIZE,
+	/* 0x4005_1F94 */ MAILBOX_VERSION,
+	/* 0x4005_1F98 */ MESSAGE_VERSION,
+	/* 0x4005_1F9C */ FW_LOG_MEMORY_IOVA,
+	/* 0x4005_1FA0 */ FW_LOG_MEMORY_SIZE,
+	/* 0x4005_1FA4 */ TO_CA5_MBOX_MEMORY_IOVA,
+	/* 0x4005_1FA8 */ TO_CA5_MBOX_MEMORY_SIZE,
+	/* 0x4005_1FAC */ TO_CA5_MBOX_POOL_IOVA,
+	/* 0x4005_1FB0 */ TO_CA5_MBOX_POOL_SIZE,
+	/* 0x4005_1FB4 */ NPU_FW_IOVA,
+	/* 0x4005_1FB8 */ KERNEL_MODE,
+	/* 0x4005_1FBC */ DL_OUT_IOVA,
+	/* 0x4005_1FC0 */ DL_OUT_SIZE,
+	/* 0x4005_1FC4 */ DEBUG_LAYER_START,
+	/* 0x4005_1FC8 */ DEBUG_LAYER_END,
+	/* 0x4005_1FCC */ CHIPID_REV,
+	/* 0x4005_1FD0 */ PRODUCT_ID,
+	/* 0x4005_1FD4 */ TEMP_1FD4,
+	/* 0x4005_1FD8 */ TEMP_1FD8,
+	/* 0x4005_1FDC */ TEMP_1FDC,
+	/* 0x4005_1FE0 */ TEMP_1FE0,
+	/* 0x4005_1FE4 */ TEMP_1FE4,
+	/* 0x4005_1FE8 */ TEMP_1FE8,
+	/* 0x4005_1FEC */ TEMP_1FEC,
+	DSP_SM_USED_COUNT
+};
+
+struct dsp_priv_mem;
+
+enum dsp_priv_mem_id {
+	DSP_PRIV_MEM_FW_STACK,
+	DSP_PRIV_MEM_FW,
+	DSP_PRIV_MEM_FW_LOG,
+	DSP_PRIV_MEM_IVP_PM,
+	DSP_PRIV_MEM_IVP_DM,
+	DSP_PRIV_MEM_IAC_PM,
+	DSP_PRIV_MEM_IAC_DM,
+	DSP_PRIV_MEM_MBOX_MEMORY,
+	DSP_PRIV_MEM_MBOX_POOL,
+	DSP_PRIV_MEM_DL_OUT,
+	DSP_PRIV_MEM_COUNT,
+};
+
+struct dsp_memory {
+	struct device		*dev;
+	struct iommu_domain	*domain;
+	struct dsp_priv_mem	*priv_mem;
+};
+
+#endif
