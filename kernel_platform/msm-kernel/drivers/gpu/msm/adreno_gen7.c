@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -538,7 +538,7 @@ int gen7_start(struct adreno_device *adreno_dev)
 	 * the prefetch granularity size.
 	 */
 	if (adreno_is_gen7_0_0(adreno_dev) || adreno_is_gen7_0_1(adreno_dev) ||
-		adreno_is_gen7_4_0(adreno_dev)) {
+		adreno_is_gen7_4_0(adreno_dev) || adreno_is_gen7_6_0(adreno_dev)) {
 		kgsl_regwrite(device, GEN7_CP_CHICKEN_DBG, 0x1);
 		kgsl_regwrite(device, GEN7_CP_BV_CHICKEN_DBG, 0x1);
 		kgsl_regwrite(device, GEN7_CP_LPAC_CHICKEN_DBG, 0x1);
@@ -668,7 +668,7 @@ static int gen7_post_start(struct adreno_device *adreno_dev)
 	if (!adreno_is_preemption_enabled(adreno_dev))
 		return 0;
 
-	kmd_postamble_addr = PREEMPT_SCRATCH_ADDR(adreno_dev, KMD_POSTAMBLE_IDX);
+	kmd_postamble_addr = SCRATCH_POSTAMBLE_ADDR(KGSL_DEVICE(adreno_dev));
 	gen7_preemption_prepare_postamble(adreno_dev);
 
 	cmds = adreno_ringbuffer_allocspace(rb, (preempt->postamble_len ? 16 : 12));
@@ -941,8 +941,16 @@ static void gen7_err_callback(struct adreno_device *adreno_dev, int bit)
 
 	switch (bit) {
 	case GEN7_INT_AHBERROR:
-		dev_crit_ratelimited(dev, "CP: AHB bus error\n");
+		{
+		u32 err_details_0, err_details_1;
+
+		kgsl_regread(device, GEN7_CP_RL_ERROR_DETAILS_0, &err_details_0);
+		kgsl_regread(device, GEN7_CP_RL_ERROR_DETAILS_1, &err_details_1);
+		dev_crit_ratelimited(dev,
+			"CP: AHB bus error, CP_RL_ERROR_DETAILS_0:0x%x CP_RL_ERROR_DETAILS_1:0x%x\n",
+			err_details_0, err_details_1);
 		break;
+		}
 	case GEN7_INT_ATBASYNCFIFOOVERFLOW:
 		dev_crit_ratelimited(dev, "RBBM: ATB ASYNC overflow\n");
 		break;
@@ -1220,6 +1228,7 @@ int gen7_probe_common(struct platform_device *pdev,
 	struct adreno_device *adreno_dev, u32 chipid,
 	const struct adreno_gpu_core *gpucore)
 {
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	const struct adreno_gpudev *gpudev = gpucore->gpudev;
 	const struct adreno_gen7_core *gen7_core = container_of(gpucore,
 			struct adreno_gen7_core, base);
@@ -1236,6 +1245,7 @@ int gen7_probe_common(struct platform_device *pdev,
 	adreno_dev->preempt.skipsaverestore = true;
 	adreno_dev->preempt.usesgmem = true;
 
+	device->pwrctrl.rt_bus_hint = gen7_core->rt_bus_hint;
 	kgsl_pwrscale_fast_bus_hint(gen7_core->fast_bus_hint);
 
 	return adreno_device_probe(pdev, adreno_dev);
@@ -1341,7 +1351,7 @@ u64 gen7_read_alwayson(struct adreno_device *adreno_dev)
 
 static void gen7_remove(struct adreno_device *adreno_dev)
 {
-	if (ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION))
+	if (adreno_is_preemption_enabled(adreno_dev))
 		del_timer(&adreno_dev->preempt.timer);
 }
 

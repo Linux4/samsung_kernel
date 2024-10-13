@@ -72,6 +72,14 @@ static ssize_t adm_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", DETECT_ADM);
 }
 
+static ssize_t position_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct gf_device *gf_dev = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", gf_dev->position);
+}
+
 static ssize_t intcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
@@ -119,6 +127,7 @@ static DEVICE_ATTR_RO(type_check);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RO(position);
 static DEVICE_ATTR_RW(intcnt);
 static DEVICE_ATTR_RW(resetcnt);
 
@@ -128,6 +137,7 @@ static struct device_attribute *fp_attrs[] = {
 	&dev_attr_vendor,
 	&dev_attr_name,
 	&dev_attr_adm,
+	&dev_attr_position,
 	&dev_attr_intcnt,
 	&dev_attr_resetcnt,
 	NULL,
@@ -146,7 +156,7 @@ static void gw3x_enable_irq(struct gf_device *gf_dev)
 		if ((!IS_ERR_OR_NULL(desc)) && (desc->irq_data.chip->irq_ack))
 			desc->irq_data.chip->irq_ack(&desc->irq_data);
 #if KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
-		if (d->parent_data) /* QC case 05534084 */
+		if ((!IS_ERR_OR_NULL(d)) && (d->parent_data)) /* QC case 05534084 */
 			irq_chip_set_parent_state(d, IRQCHIP_STATE_PENDING, false);
 #endif
 		enable_irq(gf_dev->irq);
@@ -529,7 +539,7 @@ static void gw3x_work_func_debug(struct work_struct *work)
 
 	pr_info("ldo: %d, sleep: %d, irq: %d tz: %d type: %s\n",
 		gf_dev->ldo_onoff, rst_value, irq_value, gf_dev->tz_mode,
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype > 0 ? gf_dev->chipid : sensor_status[gf_dev->sensortype + 2]);
 }
 
 int gw3x_pin_control(struct gf_device *gf_dev, bool pin_set)
@@ -646,10 +656,12 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		gf_dev->btp_vdd = NULL;
 	} else {
 		gf_dev->regulator_3p3 = regulator_get(dev, gf_dev->btp_vdd);
-		if (IS_ERR(gf_dev->regulator_3p3) || (gf_dev->regulator_3p3) == NULL) {
+		if ((gf_dev->regulator_3p3) == NULL) {
 			pr_info("fail to get regulator_3p3\n");
-			gf_dev->regulator_3p3 = NULL;
 			return -EINVAL;
+		} else if (IS_ERR(gf_dev->regulator_3p3)) {
+			pr_info("fail to get regulator_3p3: %ld", PTR_ERR(gf_dev->regulator_3p3));
+			return PTR_ERR(gf_dev->regulator_3p3);
 		}
 		pr_info("btp_regulator ok\n");
 	}
@@ -658,8 +670,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	gf_dev->reset_gpio = of_get_named_gpio(np, "goodix,gpio_reset", 0);
 	if (!gpio_is_valid(gf_dev->reset_gpio)) {
 		pr_err("RESET GPIO is invalid.\n");
-		gf_dev->reset_gpio = 0;
-		return -EINVAL;
+		return gf_dev->reset_gpio;
 	}
 	pr_info("goodix_reset:%d\n", gf_dev->reset_gpio);
 	retval = gpio_request(gf_dev->reset_gpio, "goodix_reset");
@@ -672,8 +683,8 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	 /*get irq resourece*/
 	gf_dev->irq_gpio = of_get_named_gpio(np, "goodix,gpio_irq", 0);
 	if (!gpio_is_valid(gf_dev->irq_gpio)) {
-		pr_err("IRQ GPIO is invalid\n");
-		return -1;
+		pr_err("IRQ GPIO is invalid.\n");
+		return gf_dev->irq_gpio;
 	}
 	pr_info("irq_gpio:%d\n", gf_dev->irq_gpio);
 	retval = gpio_request(gf_dev->irq_gpio, "goodix_irq");
@@ -696,6 +707,11 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		gf_dev->orient = 0;
 	pr_info("orient: %d\n", gf_dev->orient);
 
+	if (of_property_read_string_index(np, "goodix,position", 0,
+			(const char **)&gf_dev->position))
+		gf_dev->position = "NA";
+	pr_info("position:%s\n", gf_dev->position);
+
 	if (of_property_read_u32(np, "goodix,spiclk_speed", &gf_dev->clk_setting->spi_speed))
 		gf_dev->clk_setting->spi_speed = gw3x_SPI_BAUD_RATE;
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
@@ -706,7 +722,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	gf_dev->p = pinctrl_get_select_default(dev);
 	if (IS_ERR(gf_dev->p)) {
 		pr_err("failed pinctrl_get\n");
-		return -EINVAL;
+		return PTR_ERR(gf_dev->p);
 	}
 
 #if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
@@ -720,7 +736,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		pr_err("could not get pins sleep_state (%li)\n",
 			PTR_ERR(gf_dev->pins_poweroff));
 		pinctrl_put(gf_dev->p);
-		return -EINVAL;
+		return PTR_ERR(gf_dev->pins_poweroff);
 	}
 
 #if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
@@ -734,7 +750,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		pr_err("could not get pins idle_state (%li)\n",
 			PTR_ERR(gf_dev->pins_poweron));
 		pinctrl_put(gf_dev->p);
-		return -EINVAL;
+		return PTR_ERR(gf_dev->pins_poweron);
 	}
 	return retval;
 }
@@ -775,59 +791,48 @@ int gw3x_type_check(struct gf_device *gf_dev)
 	pr_info("Sensor read mcuid32 : 0x%08x\n", mcuid32);
 	pr_info("Sensor read mcuid24 : 0x%08x\n", mcuid24);
 	if (mcuid24 == GF_GW32J_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW32J\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW32J\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW32N_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW32N\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW32N\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36H_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36H\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36H\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36C_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36C\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36C\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T1_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T1\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T1\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T2_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T2\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T2\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T3_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T3\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T3\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T1_SHIFT_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T1 SHIFT\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T1 SHIFT\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T2_SHIFT_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T2 SHIFT\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T2 SHIFT\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid24 == GF_GW36T3_SHIFT_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW36T3 SHIFT\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW36T3 SHIFT\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid32 == GF_GW39B_CHIP_ID) {
-		gf_dev->sensortype = SENSOR_GOODIX;
-		pr_info("%s sensor type is GW39B\n",
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW39B\n", gf_dev->chipid);
 		retval = 0;
 	} else {
 		gf_dev->sensortype = SENSOR_FAILED;
@@ -1078,10 +1083,6 @@ static int gw3x_probe(struct platform_device *pdev)
 
 gw3x_platform_probe_failed:
 	gf_dev = NULL;
-#if !IS_ENABLED(CONFIG_QGKI)
-	pr_err("deferred probe\n");
-	return -EPROBE_DEFER;
-#endif
 gw3x_platform_alloc_failed:
 	pr_err("is failed : %d\n", retval);
 	return retval;

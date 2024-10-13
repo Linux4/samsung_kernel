@@ -50,6 +50,8 @@
 #define TX_ID_CHECK_CNT		3
 #define MISALIGN_TX_TRY_CNT	3
 
+#define WL_TO_W 99
+
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 #define FOREACH_BOOT_MODE(GEN_BOOT_MODE) \
 	GEN_BOOT_MODE(NO_MODE) \
@@ -77,6 +79,12 @@ enum battery_thermal_zone {
 	BAT_THERMAL_WARM,
 	BAT_THERMAL_OVERHEAT,
 	BAT_THERMAL_OVERHEATLIMIT,
+};
+
+enum sb_wireless_mode {
+	SB_WRL_NONE = 0,
+	SB_WRL_RX_MODE = 1,
+	SB_WRL_TX_MODE = 2,
 };
 
 enum rx_device_type {
@@ -273,6 +281,13 @@ enum sec_battery_direct_charging_source_ctrl {
 	SEC_TEST_MODE = 0x1,
 	SEC_SEND_UVDM = 0x2,
 	SEC_STORE_MODE = 0x4,
+};
+
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
 };
 
 extern const char *sb_rx_type_str(int type);

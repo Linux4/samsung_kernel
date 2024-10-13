@@ -19,7 +19,7 @@ CONFIG_CAMERA_ADAPTIVE_MIPI := y
 CONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT := y
 endif
 
-ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q g0q r0q q4q b4q))
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q g0q r0q q4q b4q v4q e4q))
 CONFIG_CAMERA_HYPERLAPSE_300X := y
 endif
 
@@ -127,7 +127,7 @@ ccflags-y += -DCONFIG_CAMERA_ADAPTIVE_MIPI=1
 ccflags-y += -DCONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT=1
 endif
 
-ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q g0q r0q q4q b4q))
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q g0q r0q q4q b4q v4q e4q))
 ccflags-y += -DCONFIG_CAMERA_HYPERLAPSE_300X=1
 endif
 

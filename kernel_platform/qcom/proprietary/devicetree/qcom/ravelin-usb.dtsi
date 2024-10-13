@@ -44,10 +44,14 @@
 			0x144 /* GSI_RING_BASE_ADDR_H */
 			0x1a4>; /* GSI_IF_STS */
 
+		usb-role-switch;
+
 		interconnect-names = "usb-ddr", "usb-ipa", "ddr-usb";
 		interconnects = <&aggre2_noc MASTER_USB3_0 &mc_virt SLAVE_EBI1>,
 				<&aggre2_noc MASTER_USB3_0 &cnoc2 SLAVE_IPA_CFG>,
 				<&gem_noc MASTER_APPSS_PROC &cnoc2 SLAVE_USB3_0>;
+
+		extcon = <&eud>;
 
 		dwc3@a600000 {
 			compatible = "snps,dwc3";
@@ -70,6 +74,13 @@
 			tx-fifo-resize;
 			dr_mode = "otg";
 			maximum-speed = "super-speed";
+			usb-role-switch;
+		};
+
+		port {
+			usb_port0: endpoint {
+				remote-endpoint = <&usb_port0_connector>;
+			};
 		};
 	};
 
@@ -124,6 +135,9 @@
 			<&gcc GCC_USB3_PHY_PRIM_BCR>;
 		reset-names = "global_phy_reset", "phy_reset";
 
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb3phy_portselect_default>;
+
 		qcom,qmp-phy-reg-offset =
 			<USB3_DP_PCS_PCS_STATUS1
 			USB3_DP_PCS_USB3_AUTONOMOUS_MODE_CTRL
@@ -156,7 +170,7 @@
 			USB3_DP_QSERDES_COM_PLL_RCTRL_MODE1 0x16
 			USB3_DP_QSERDES_COM_PLL_CCTRL_MODE0 0x36
 			USB3_DP_QSERDES_COM_PLL_CCTRL_MODE1 0x36
-			USB3_DP_QSERDES_COM_SYSCLK_EN_SEL 0x04
+			USB3_DP_QSERDES_COM_SYSCLK_EN_SEL 0x1A
 			USB3_DP_QSERDES_COM_LOCK_CMP_EN 0x04
 			USB3_DP_QSERDES_COM_LOCK_CMP1_MODE0 0x14
 			USB3_DP_QSERDES_COM_LOCK_CMP2_MODE0 0x34
@@ -297,7 +311,7 @@
 
 	usb_audio_qmi_dev {
 		compatible = "qcom,usb-audio-qmi-dev";
-		iommus = <&apps_smmu 0x180f 0x0>;
+		iommus = <&apps_smmu 0x100f 0x0>;
 		qcom,iommu-dma = "disabled";
 		qcom,usb-audio-stream-id = <0xf>;
 		qcom,usb-audio-intr-num = <2>;

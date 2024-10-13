@@ -1,24 +1,18 @@
 #include <dt-bindings/thermal/thermal_qti.h>
 
 &thermal_zones {
-	pm7250b-ibat-lvl0 {
-		trips {
-			ibat-lvl0 {
-				temperature = <4000>;
-			};
-		};
-	};
-
-	pm7250b-ibat-lvl1 {
-		trips {
-			ibat-lvl1 {
-				temperature = <5000>;
-			};
-		};
-	};
-
 	pm6450_tz {
 		cooling-maps {
+			pm6450_lte {
+				trip = <&pm6450_trip0>;
+				cooling-device = <&modem_lte_dsc 255 255>;
+			};
+
+			pm6450_nr {
+				trip = <&pm6450_trip0>;
+				cooling-device = <&modem_nr_scg_dsc 255 255>;
+			};
+
 			pm6450_cpu0 {
 				trip = <&pm6450_trip0>;
 				cooling-device = <&cpu0_pause 1 1>;
@@ -52,6 +46,11 @@
 			pm6450_cpu6_7 {
 				trip = <&pm6450_trip0>;
 				cooling-device = <&cpu_6_7_pause 1 1>;
+			};
+
+			pm6450_gpu {
+				trip = <&pm6450_trip0>;
+				cooling-device = <&msm_gpu 3 THERMAL_NO_LIMIT>;
 			};
 		};
 	};

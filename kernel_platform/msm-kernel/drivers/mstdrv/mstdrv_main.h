@@ -16,6 +16,7 @@
 #ifndef MST_DRV_H
 #define MST_DRV_H
 
+#include <linux/of_gpio.h>
 #if defined(CONFIG_MST_ARCH_QCOM)
 #if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
 #include <linux/msm-bus.h>
@@ -26,16 +27,12 @@
 #include <linux/sched/core_ctl.h>
 #endif
 #include <linux/msm_pcie.h>
-#include <linux/qseecom.h>
 #if IS_ENABLED(CONFIG_QSEECOM_PROXY)
 #include <linux/qseecom_kernel.h>
 #endif
 #endif
 
 #if defined(CONFIG_MST_ARCH_EXYNOS)
-#if defined(CONFIG_MST_LPM_CONTROL) && defined(CONFIG_PCI_EXYNOS)
-#include <linux/exynos-pci-ctrl.h>
-#endif
 #include <linux/smc.h> // for Kinibi
 #endif
 
@@ -52,18 +49,6 @@
 #include "mstdrv_transmit_nonsecure.h"
 #endif
 
-/* defines */
-#define MST_DRV_DEV			"mst_drv"
-#define TAG				"[sec_mst]"
-
-#if defined(CONFIG_MST_ARCH_QCOM)
-#define SVC_MST_ID			0x000A0000	// need to check ID
-#define MST_CREATE_CMD(x)		(SVC_MST_ID | x)	// Create MST commands
-#define MST_TA				"mst"
-DEFINE_MUTEX(mst_mutex);
-DEFINE_MUTEX(transmit_mutex);
-#endif
-
 /* for logging */
 #include <linux/printk.h>
 void mst_printk(int level, const char *fmt, ...);
@@ -73,15 +58,14 @@ void mst_printk(int level, const char *fmt, ...);
 #define DEV_INFO		(4)
 #define DEV_DEBUG		(5)
 #define MST_LOG_LEVEL		DEV_INFO
+#define MST_DRV_DEV			"mst_drv"
+#define TAG				"[sec_mst]"
 
 #define mst_err(fmt, ...)	mst_printk(DEV_ERR, fmt, ## __VA_ARGS__);
 #define mst_warn(fmt, ...)	mst_printk(DEV_WARN, fmt, ## __VA_ARGS__);
 #define mst_noti(fmt, ...)	mst_printk(DEV_NOTI, fmt, ## __VA_ARGS__);
 #define mst_info(fmt, ...)	mst_printk(DEV_INFO, fmt, ## __VA_ARGS__);
 #define mst_debug(fmt, ...)	mst_printk(DEV_DEBUG, fmt, ## __VA_ARGS__);
-
-struct workqueue_struct *cluster_freq_ctrl_wq;
-struct delayed_work dwork;
 
 static uint32_t mode_set_wait = 40;
 
@@ -91,8 +75,22 @@ typedef enum {
 } mfc_chip_vendor;
 
 #if defined(CONFIG_MST_ARCH_QCOM)
-/* global variables */
-uint32_t ss_mst_bus_hdl;
+#if !defined(CONFIG_MST_NONSECURE)
+#define SVC_MST_ID			0x000A0000	// need to check ID
+#define MST_CREATE_CMD(x)		(SVC_MST_ID | x)	// Create MST commands
+#define MST_TA				"mst"
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 27))
+#define ADD_CPU(cpu) add_cpu(cpu)
+#else
+#define ADD_CPU(cpu) cpu_up(cpu)
+#endif
+
+#if IS_MODULE(CONFIG_MST_LDO)
+#define SCHED_SETAFFINITY(current, cpumask) set_cpus_allowed_ptr(current, &cpumask)
+#else
+#define SCHED_SETAFFINITY(current, cpumask) sched_setaffinity(0, &cpumask)
+#endif
 
 /* enum definitions */
 typedef enum {
@@ -129,6 +127,8 @@ extern int qseecom_shutdown_app(struct qseecom_handle **handle);
 extern int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 				uint32_t sbuf_len, void *resp_buf,
 				uint32_t rbuf_len);
+#endif
+DEFINE_MUTEX(transmit_mutex);
 #endif
 
 #if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
