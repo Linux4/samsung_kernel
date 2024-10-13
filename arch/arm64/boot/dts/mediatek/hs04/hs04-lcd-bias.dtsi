@@ -1,0 +1,63 @@
+&odm {
+	lcd_bias:lcd_bias {
+		compatible = "mediatek,gpio_lcd_bias";
+		lcm_bias,vsp = <&pio 21 0x00>;
+	};
+};
+
+// &i2c5 {
+// 	#address-cells = <1>;
+// 	#size-cells = <0>;
+// 	i2c_lcd_bias@3e {
+// 		compatible = "mediatek,i2c_lcd_bias";
+// 		reg = <0x3e>;
+// 		status = "okay";
+// 	};
+// };
+
+&lcd_bias {
+	pinctrl-names = "default", "lcd_bias_gpio_enp0", "lcd_bias_gpio_enp1", "lcd_bias_gpio_enn0", "lcd_bias_gpio_enn1";
+	pinctrl-0 = <&lcd_bias_pins_default>;
+	pinctrl-1 = <&lcd_bias_pins_enp0>;
+	pinctrl-2 = <&lcd_bias_pins_enp1>;
+	pinctrl-3 = <&lcd_bias_pins_enn0>;
+	pinctrl-4 = <&lcd_bias_pins_enn1>;
+	status = "okay";
+};
+
+&pio {
+	lcd_bias_pins_enp0: lcd_bias_pins_enp0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO21__FUNC_GPIO21>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	lcd_bias_pins_enp1: lcd_bias_pins_enp1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO21__FUNC_GPIO21>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	lcd_bias_pins_enn0: lcd_bias_pins_enn0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_GPIO22>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	lcd_bias_pins_enn1: lcd_bias_pins_enn1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_GPIO22>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	lcd_bias_pins_default: lcd_bias_pins_default {
+	};
+};

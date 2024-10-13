@@ -1,0 +1,26 @@
+&i2c5 {
+	clock-frequency = <100000>;
+	sy6974: sy6974@68 {
+		compatible = "sy6974";
+		reg = <0x68>;
+		status = "okay";
+
+		interrupt-parent = <&pio>;
+		interrupts = <123 IRQ_TYPE_EDGE_FALLING>;
+		charger_name = "primary_chg";
+
+		sy6974,charge-detect-enable;
+		sy6974,usb-vlim = <4600>;
+		sy6974,usb-ilim = <500>;
+		sy6974,usb-vreg = <4400>;
+		sy6974,usb-ichg = <500>;
+
+		sy6974,precharge-current = <480>;
+		sy6974,termination-current = <180>;
+		sy6974,boost-voltage = <4998>;
+		sy6974,boost-current = <1200>;
+		sy6974,enable_term;
+		sy6974,stat-pin-ctrl = <3>;
+		sy6974,vac-ovp-threshold = <6500>;
+	};
+};

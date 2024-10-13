@@ -1,0 +1,33 @@
+&nfc_mtk {
+		compatible = "mediatek,sec-nfc";
+		reg = <0x27>;
+		status = "okay";
+		sec-nfc,ven-gpio = <&pio 92 0>;     /*gpio_92   NFCPD*/
+		sec-nfc,firm-gpio = <&pio 159 0>;      /*gpio_159     NFC_WAKE_UP*/
+		sec-nfc,irq-gpio = <&pio 9 0>;       /*gpio_9     NFC_IRQ*/
+		sec-nfc,clk_req-gpio = <&pio 11 0>;  /*gpio_11    NFC_CLK_REQ*/
+        //clock-names = "OSC_NFC";
+        //clocks = <&clk26m>;
+	/* hs14 code for AL6258A-1050 by lijun at 2022/12/30 start */
+		pinctrl-names = "sleep", "active";
+		pinctrl-0 = <&nfc_data_sleep>;
+		pinctrl-1 = <&nfc_data_active>;
+        /* hs14 code for AL6258A-1050 by lijun at 2022/12/30 end */
+};
+
+
+&pio {
+	nfc_data_sleep: nfc_data_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO11__FUNC_GPIO11>;
+ 			bias-disable;
+		};
+	};
+
+	nfc_data_active: nfc_data_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO11__FUNC_SRCLKENAI0>;
+			bias-disable;
+		};
+	};
+};

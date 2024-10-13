@@ -1,0 +1,180 @@
+/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210425 start*/
+&pe {
+	ta_ac_12v_input_current = <2700000>;
+	ta_ac_9v_input_current = <2700000>;
+	ta_ac_7v_input_current = <2700000>;
+	pe_charger_current = <2700000>;
+};
+
+&pe2 {
+	/* single charger */
+	sc_input_current = <3200000>;
+	sc_charger_current = <2700000>;
+
+	/* dual charger in series */
+	dcs_input_current = <2700000>;
+	dcs_chg1_charger_current = <1300000>;
+	dcs_chg2_charger_current = <1300000>;
+};
+
+&pdc {
+	pd_vbus_upper_bound = <10000000>;
+
+	/* single charger */
+	sc_input_current = <3200000>;
+	sc_charger_current = <2700000>;
+
+	/* dual charger in series */
+	dcs_input_current = <2700000>;
+	dcs_chg1_charger_current = <1300000>;
+	dcs_chg2_charger_current = <1300000>;
+};
+
+&pe4 {
+	/* single charger */
+	sc_input_current = <3200000>;
+	sc_charger_current = <2700000>;
+};
+
+&charger {
+	charger = <&mtk_charger_type>;
+	/* common */
+	battery_cv = <4400000>;
+	max_charger_voltage = <10400000>;
+
+	/* sw jeita */
+	enable_sw_jeita;
+	jeita_temp_above_t4_cv = <4200000>;
+	jeita_temp_t3_to_t4_cv = <4200000>;
+	jeita_temp_t2_to_t3_cv = <4400000>;
+	jeita_temp_t1_to_t2_cv = <4400000>;
+	jeita_temp_t0_to_t1_cv = <4400000>;
+	jeita_temp_below_t0_cv = <4400000>;
+	jeita_temp_above_t4_cur = <0>;
+	jeita_temp_t3_to_t4_cur = <1750000>;
+	jeita_temp_t2_to_t3_cur = <2000000>;
+	jeita_temp_t1_to_t2_cur = <1500000>;
+	jeita_temp_t0_to_t1_cur = <500000>;
+	jeita_temp_below_t0_cur = <0>;
+	temp_t4_thres = <50>;
+	temp_t4_thres_minus_x_degree = <48>;
+	temp_t3_thres = <45>;
+	temp_t3_thres_minus_x_degree = <43>;
+	temp_t2_thres = <12>;
+	temp_t2_thres_plus_x_degree = <14>;
+	temp_t1_thres = <5>;
+	temp_t1_thres_plus_x_degree = <7>;
+	temp_t0_thres = <0>;
+	temp_t0_thres_plus_x_degree = <2>;
+	temp_neg_10_thres = <0>;
+	/* charging current */
+	ac_charger_current = <2000000>;
+	ac_charger_input_current = <1550000>;
+
+	/*HS03s for SR-AL5625-01-293 by wenyaqi at 20210426 start*/
+	ss-batt-aging-enable;
+	ss,cv-ranges = <0 299 4400000
+					300 399 4380000
+					400 699 4360000
+					700 999 4340000
+					1000 9999 4290000>;
+	/*HS03s for SR-AL5625-01-293 by wenyaqi at 20210426 end*/
+
+	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
+	enable_afc;
+	afc_switch_gpio_num = <5>;
+	afc_switch_gpio = <&pio 5 0x0>;
+	afc_data_gpio_num = <6>;
+	afc_data_gpio = <&pio 6 0x0>;
+	pinctrl-names = "default", "active", "sleep";
+	pinctrl-0 = <&afc_data_default>;
+	pinctrl-1 = <&afc_data_active>;
+	pinctrl-2 = <&afc_data_sleep>;
+
+	afc_start_battery_soc = <0>;
+	afc_stop_battery_soc = <95>;
+	afc_pre_input_current = <500000>;
+	afc_charger_input_current = <1650000>;
+	afc_charger_current = <2700000>;
+	afc_ichg_level_threshold = <1000000>;
+	afc_min_charger_voltage = <4200000>;
+	afc_max_charger_voltage = <10050000>;
+	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 end*/
+};
+/*HS03s for SR-AL5625-01-251 by wenyaqi at 20210425 end*/
+
+/*HS03s for SR-AL5625-01-251 by wenyaqi at 20210425 start*/
+&odm {
+	bat_id_adc: bat_id_adc {
+		compatible = "hq, bat_id_adc";
+		io-channels = <&auxadc 2>;
+		io-channel-names = "hq-battid";
+	};
+	/*HS03s for SR-AL5625-01-250 by wenyaqi at 20210426 start*/
+	/* VBUS control */
+	vbus_ctrl: vbus_ctrl {
+		compatible = "hq, vbus_ctrl";
+		vbus_ctrl_gpio_num = <171>;
+		vbus_ctrl_gpio = <&pio 171 0x0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vbus_ctrl_default>;
+	};
+	/*HS03s for SR-AL5625-01-250 by wenyaqi at 20210426 end*/
+};
+/*HS03s for SR-AL5625-01-251 by wenyaqi at 20210425 end*/
+
+/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
+&pio {
+	/*HS03s for SR-AL5625-01-250 by wenyaqi at 20210426 start*/
+	vbus_ctrl_default: vbus_ctrl_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO171__FUNC_GPIO171>;
+			bias-disable;
+		};
+	};
+	/*HS03s for SR-AL5625-01-250 by wenyaqi at 20210426 end*/
+	afc_data_default: afc_data_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO6__FUNC_GPIO6>;
+			bias-disable;
+		};
+	};
+	afc_data_active: afc_data_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO6__FUNC_GPIO6>;
+			bias-disable;
+		};
+	};
+	afc_data_sleep: afc_data_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO6__FUNC_GPIO6>;
+			bias-disable;
+			input-enable;
+		};
+	};
+};
+/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 end*/
+
+&mtk_charger_type {
+	bc12_active = <1>;
+};
+
+&usb {
+	charger = <&mtk_charger_type>;
+};
+
+/*HS03s for SR-AL5625-01-509 by wenyaqi at 20210527 start*/
+#include "bq2560x.dtsi"
+/*HS03s for SR-AL5625-01-509 by wenyaqi at 20210527 end*/
+/*HS03s for SR-AL5625-01-510 by wenyaqi at 20210531 start*/
+#include "sgm41511.dtsi"
+/*HS03s for SR-AL5625-01-510 by wenyaqi at 20210531 end*/
+/*HS03s for SR-AL5625-01-543 by wenyaqi at 20210611 start*/
+#include "eta6953.dtsi"
+/*HS03s for SR-AL5625-01-543 by wenyaqi at 20210611 end*/
+/*HS03s for SR-AL5625-01-542 by wenyaqi at 20210609 start*/
+#include "sy6974.dtsi"
+/*HS03s for SR-AL5625-01-542 by wenyaqi at 20210609 end*/
+/*hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 start*/
+#include "sgm41513.dtsi"
+/*hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 end*/
