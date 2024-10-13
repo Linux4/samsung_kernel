@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# For a description of the syntax of this configuration file,
+# see Documentation/kbuild/kconfig-language.txt.
+#
+mainmenu "Linux/$(ARCH) $(KERNELVERSION) Kernel Configuration"
+
+comment "Compiler: $(CC_VERSION_TEXT)"
+
+source "scripts/Kconfig.include"
+
+source "init/Kconfig"
+
+source "kernel/Kconfig.freezer"
+
+source "fs/Kconfig.binfmt"
+
+source "mm/Kconfig"
+
+source "net/Kconfig"
+
+source "drivers/Kconfig"
+
+source "fs/Kconfig"
+
+source "security/Kconfig"
+
+source "crypto/Kconfig"
+
+source "lib/Kconfig"
+
+source "lib/Kconfig.debug"
+
+source "techpack/camera/drivers/Kconfig"
+source "techpack/display/msm/samsung/NT36672C_PM6585JB3/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "techpack/display/msm/samsung/A23_ILI7807S_BS066FBM/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "techpack/display/msm/samsung/A23_NT36672C_TCFJ6606/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "techpack/display/msm/samsung/A23_FT8720_LPS066A767A/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "techpack/display/msm/samsung/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
