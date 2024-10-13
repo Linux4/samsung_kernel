@@ -179,6 +179,10 @@ static long vpu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case VPU_COMPLETE:
 		dev_dbg(dev, "vpu ioctl VPU_COMPLETE\n");
+		if (data->is_clock_enabled == 0) {
+			dev_err(dev, "clock is disable\n");
+			return -EFAULT;
+		}
 		ret = wait_event_interruptible_timeout(data->wait_queue_work,
 						       data->condition_work,
 						       msecs_to_jiffies
@@ -210,7 +214,10 @@ static long vpu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case VPU_RESET:
 		dev_dbg(dev, "vpu ioctl VPU_RESET\n");
-
+		if (data->is_clock_enabled == 0) {
+			dev_err(dev, "clock is disable\n");
+			return -EFAULT;
+		}
 		ret = regmap_update_bits(data->regs[RESET].gpr,
 			data->regs[RESET].reg,
 			data->regs[RESET].mask,
@@ -236,7 +243,10 @@ static long vpu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case VPU_HW_INFO:
 		dev_dbg(dev, "vpu ioctl VPU_HW_INFO\n");
-
+		if (data->is_clock_enabled == 0) {
+			dev_err(dev, "clock is disable\n");
+			return -EFAULT;
+		}
 		regmap_read(data->regs[VPU_DOMAIN_EB].gpr,
 			data->regs[VPU_DOMAIN_EB].reg, &mm_eb_reg);
 		mm_eb_reg &= data->regs[VPU_DOMAIN_EB].mask;

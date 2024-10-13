@@ -9,6 +9,7 @@
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_address.h>
@@ -19,7 +20,6 @@
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/sprd_iommu.h>
-#include <linux/sprd_ion.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/wait.h>
@@ -90,6 +90,9 @@ struct jpg_dev_t {
 	unsigned int jpg_reset_mask;
 	int max_freq_level;
 	bool jpg_qos_exist_flag;
+
+	struct mutex map_lock;
+	struct list_head map_list;
 };
 
 struct clock_name_map_t {

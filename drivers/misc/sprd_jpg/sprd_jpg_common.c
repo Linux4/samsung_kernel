@@ -13,11 +13,29 @@
 #include <linux/cdev.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/dma-buf.h>
 #include <linux/platform_device.h>
 #include <linux/sprd_iommu.h>
-#include <linux/sprd_ion.h>
 #include <uapi/video/sprd_jpg.h>
+#include "ion.h"
 #include "sprd_jpg_common.h"
+
+#ifdef pr_fmt
+#undef pr_fmt
+#endif
+#define pr_fmt(fmt) "sprd-jpg: " fmt
+
+struct jpg_iommu_map_entry {
+	struct list_head list;
+
+	int fd;
+	unsigned long iova_addr;
+	size_t iova_size;
+
+	struct dma_buf *dmabuf;
+	struct dma_buf_attachment *attachment;
+	struct sg_table *table;
+};
 
 #ifdef pr_fmt
 #undef pr_fmt
@@ -380,46 +398,80 @@ int jpg_get_iova(struct jpg_dev_t *jpg_hw_dev,
 	int ret = 0;
 	/*struct jpg_iommu_map_data mapdata; */
 	struct sprd_iommu_map_data iommu_map_data;
+	struct sprd_iommu_unmap_data iommu_ummap_data;
+	struct dma_buf *dmabuf;
+	struct dma_buf_attachment *attachment;
+	struct sg_table *table;
+	struct jpg_iommu_map_entry *entry;
 
 	if (sprd_iommu_attach_device(jpg_hw_dev->jpg_dev) == 0) {
-		ret = sprd_ion_get_buffer(mapdata->fd, NULL,
-					    &(iommu_map_data.buf),
-					    &iommu_map_data.iova_size);
-		if (ret) {
-			pr_err("get_sg_table failed, ret %d\n", ret);
-			return ret;
+		dmabuf = dma_buf_get(mapdata->fd);
+		if (IS_ERR_OR_NULL(dmabuf)) {
+			pr_err("get dmabuf failed\n");
+			ret = PTR_ERR(dmabuf);
+			goto err_get_dmabuf;
 		}
 
+		attachment = dma_buf_attach(dmabuf, jpg_hw_dev->jpg_dev);
+		if (IS_ERR_OR_NULL(attachment)) {
+			pr_err("Failed to attach dmabuf=%p\n", dmabuf);
+			ret = PTR_ERR(attachment);
+			goto err_attach;
+		}
+
+		table = dma_buf_map_attachment(attachment, DMA_BIDIRECTIONAL);
+		if (IS_ERR_OR_NULL(table)) {
+			pr_err("Failed to map attachment=%p\n", attachment);
+			ret = PTR_ERR(table);
+			goto err_map_attachment;
+		}
+
+		iommu_map_data.buf = dmabuf->priv;
+		iommu_map_data.iova_size = ((struct ion_buffer *)(dmabuf->priv))->size;
 		iommu_map_data.ch_type = SPRD_IOMMU_FM_CH_RW;
-		ret =
-		    sprd_iommu_map(jpg_hw_dev->jpg_dev, &iommu_map_data);
+		ret = sprd_iommu_map(jpg_hw_dev->jpg_dev, &iommu_map_data);
 		if (!ret) {
+			mutex_lock(&jpg_hw_dev->map_lock);
+			entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+			if (!entry) {
+				mutex_unlock(&jpg_hw_dev->map_lock);
+				pr_err("fatal error! kzalloc fail!\n");
+				iommu_ummap_data.iova_addr = iommu_map_data.iova_addr;
+				iommu_ummap_data.iova_size = iommu_map_data.iova_size;
+				iommu_ummap_data.ch_type = SPRD_IOMMU_FM_CH_RW;
+				iommu_ummap_data.buf = NULL;
+				ret = -ENOMEM;
+				goto err_kzalloc;
+			}
+			entry->fd = mapdata->fd;
+			entry->iova_addr = iommu_map_data.iova_addr;
+			entry->iova_size = iommu_map_data.iova_size;
+			entry->dmabuf = dmabuf;
+			entry->attachment = attachment;
+			entry->table = table;
+			list_add(&entry->list, &jpg_hw_dev->map_list);
+			mutex_unlock(&jpg_hw_dev->map_lock);
+
 			mapdata->iova_addr = iommu_map_data.iova_addr;
 			mapdata->size = iommu_map_data.iova_size;
+			pr_debug("jpg iommu map success iova addr=%llu size=%llu\n",
+				mapdata->iova_addr, mapdata->size);
 			ret =
-			    copy_to_user((void __user *)arg,
+				copy_to_user((void __user *)arg,
 					 (void *)mapdata,
 					 sizeof(struct jpg_iommu_map_data));
 			if (ret) {
-				pr_err("copy_to_user failed, ret %d\n", ret);
-				return -EFAULT;
+				pr_err("fatal error! copy_to_user failed, ret=%d\n", ret);
+				goto err_copy_to_user;
 			}
-
+			pr_debug("suceess to add map_node(iova_addr=%llu, size=%llu)\n",
+				mapdata->iova_addr, mapdata->size);
 		} else {
-			pr_err("vsp iommu map failed, ret %d\n", ret);
-			pr_err("map size 0x%zx\n", iommu_map_data.iova_size);
-		}
+			pr_err("jpg iommu map failed, ret=%d, map_size=%zu\n",
+				ret, iommu_map_data.iova_size);
+			goto err_iommu_map;
+			}
 	} else {
-		ret =
-		    sprd_ion_get_phys_addr(mapdata->fd, NULL,
-					   &mapdata->iova_addr, &mapdata->size);
-		if (ret) {
-			pr_err
-			    ("jpg sprd_ion_get_phys_addr failed, ret %d\n",
-			     ret);
-			return ret;
-		}
-
 		ret =
 		    copy_to_user((void __user *)arg,
 				 (void *)mapdata,
@@ -430,6 +482,27 @@ int jpg_get_iova(struct jpg_dev_t *jpg_hw_dev,
 		}
 	}
 	return ret;
+err_copy_to_user:
+	mutex_lock(&jpg_hw_dev->map_lock);
+	list_del(&entry->list);
+	kfree(entry);
+	mutex_unlock(&jpg_hw_dev->map_lock);
+err_kzalloc:
+	ret = sprd_iommu_unmap(jpg_hw_dev->jpg_dev, &iommu_ummap_data);
+	if (ret) {
+		pr_err("sprd_iommu_unmap failed, ret=%d, addr&size: 0x%lx 0x%zx\n",
+			ret, iommu_ummap_data.iova_addr, iommu_ummap_data.iova_size);
+	}
+err_iommu_map:
+	dma_buf_unmap_attachment(attachment, table, DMA_BIDIRECTIONAL);
+err_map_attachment:
+	dma_buf_detach(dmabuf, attachment);
+err_attach:
+	dma_buf_put(dmabuf);
+err_get_dmabuf:
+
+	return ret;
+
 }
 
 int jpg_free_iova(struct jpg_dev_t *jpg_hw_dev,
@@ -437,22 +510,49 @@ int jpg_free_iova(struct jpg_dev_t *jpg_hw_dev,
 {
 
 	int ret = 0;
+	struct jpg_iommu_map_entry *entry = NULL;
 	struct sprd_iommu_unmap_data iommu_ummap_data;
+	int b_find = 0;
 
 	if (sprd_iommu_attach_device(jpg_hw_dev->jpg_dev) == 0) {
-		iommu_ummap_data.iova_addr = ummapdata->iova_addr;
-		iommu_ummap_data.iova_size = ummapdata->size;
-		iommu_ummap_data.ch_type = SPRD_IOMMU_FM_CH_RW;
-		iommu_ummap_data.buf = NULL;
+		mutex_lock(&jpg_hw_dev->map_lock);
+		list_for_each_entry(entry, &jpg_hw_dev->map_list, list) {
+			if (entry->iova_addr == ummapdata->iova_addr) {
+				b_find = 1;
+				break;
+			}
+		}
+		if (b_find) {
+			iommu_ummap_data.iova_addr = entry->iova_addr;
+			iommu_ummap_data.iova_size = entry->iova_size;
+			iommu_ummap_data.ch_type = SPRD_IOMMU_FM_CH_RW;
+			iommu_ummap_data.buf = NULL;
+			list_del(&entry->list);
+			pr_debug("success to find node(iova_addr=%llu, size=%llu)\n",
+				ummapdata->iova_addr, ummapdata->size);
+		} else {
+			pr_err("fatal error! not find node(iova_addr=%llu, size=%llu)\n",
+				ummapdata->iova_addr, ummapdata->size);
+			mutex_unlock(&jpg_hw_dev->map_lock);
+			return -EFAULT;
+		}
+		mutex_unlock(&jpg_hw_dev->map_lock);
+
 		ret =
 		    sprd_iommu_unmap(jpg_hw_dev->jpg_dev,
-					  &iommu_ummap_data);
+					&iommu_ummap_data);
 
 		if (ret) {
-			pr_err("jpg iommu unmap failed ret %d\n", ret);
-			pr_err("unmap addr&size 0x%lx 0x%zx\n",
-			       ummapdata->iova_addr, ummapdata->size);
+			pr_err("sprd_iommu_unmap failed: ret=%d, iova_addr=%llu, size=%llu\n",
+				ret, ummapdata->iova_addr, ummapdata->size);
+			return ret;
 		}
+		pr_debug("sprd_iommu_unmap success: iova_addr=%llu size=%llu\n",
+			ummapdata->iova_addr, ummapdata->size);
+		dma_buf_unmap_attachment(entry->attachment, entry->table, DMA_BIDIRECTIONAL);
+		dma_buf_detach(entry->dmabuf, entry->attachment);
+		dma_buf_put(entry->dmabuf);
+		kfree(entry);
 	}
 
 	return ret;

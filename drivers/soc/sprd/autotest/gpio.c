@@ -36,6 +36,7 @@ static int gpio_test(struct autotest_handler *handler, void *arg)
 	int gpio_data, num, dir, val, ret = 0;
 	struct gpio_desc *desc;
 	struct gpio_chip *chip;
+	unsigned char *temp = NULL;
 
 	if (get_user(gpio_data, (int __user *)arg))
 		return -EFAULT;
@@ -49,6 +50,12 @@ static int gpio_test(struct autotest_handler *handler, void *arg)
 	chip = gpiod_to_chip(desc);
 	if (!chip) {
 		pr_err("get gpio chip failed.\n");
+		return -EINVAL;
+	}
+
+	temp = strstr(chip->label, "gpio");
+	if (!temp) {
+		pr_err("match gpio label failed.\n");
 		return -EINVAL;
 	}
 

@@ -16,6 +16,7 @@
 #include <linux/clk-provider.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
+#include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/mfd/syscon.h>
@@ -32,7 +33,6 @@
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/sprd_iommu.h>
-#include <linux/sprd_ion.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/wait.h>
@@ -254,9 +254,11 @@ static int jpg_parse_dt(struct platform_device *pdev)
 	jpg_hw_dev.dev_np = np;
 	jpg_hw_dev.jpg_dev = dev;
 
-	dev_info(dev, "sprd_jpg_phys jpg:  0X%lx\n", jpg_hw_dev.sprd_jpg_phys);
-	dev_info(dev, "sprd_jpg_virt jpg:  0x%lx\n", jpg_hw_dev.sprd_jpg_virt);
-	dev_info(dev, " jpg_hw_dev.irq  0X%x\n", jpg_hw_dev.irq);
+	/*
+	 *dev_info(dev, "sprd_jpg_phys jpg:  0X%lx\n", jpg_hw_dev.sprd_jpg_phys);
+	 *dev_info(dev, "sprd_jpg_virt jpg:  0x%lx\n", jpg_hw_dev.sprd_jpg_virt);
+	 *dev_info(dev, " jpg_hw_dev.irq  0X%x\n", jpg_hw_dev.irq);
+	 */
 
 	for (i = 0; i < ARRAY_SIZE(syscon_name); i++) {
 		pname = syscon_name[i];
@@ -681,6 +683,8 @@ static int jpg_probe(struct platform_device *pdev)
 
 	jpg_hw_dev.jpg_fp = NULL;
 
+	INIT_LIST_HEAD(&jpg_hw_dev.map_list);
+
 	ret = jpg_get_mm_clk(&jpg_hw_dev);
 	ret = 0;
 
@@ -689,6 +693,13 @@ static int jpg_probe(struct platform_device *pdev)
 		dev_err(dev, "cannot register miscdev on minor=%d (%d)\n",
 		       JPG_MINOR, ret);
 		goto errout;
+	}
+ 
+ 	if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64))) {
+		if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32)))
+			dev_err(dev, "jpg: failed to set dma mask!\n");
+	} else {
+		dev_info(dev, "jpg: set dma mask as 64bit\n");
 	}
 
 	/* register isr */

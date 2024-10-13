@@ -3,6 +3,8 @@
 
 #include <linux/semaphore.h>
 #include <uapi/video/sprd_vsp.h>
+#include <linux/dma-buf.h>
+#include <linux/mutex.h>
 
 #define VSP_MINOR MISC_DYNAMIC_MINOR
 #define VSP_AQUIRE_TIMEOUT_MS	500
@@ -71,6 +73,9 @@ struct vsp_dev_t {
 	bool light_sleep_en;
 	bool iommu_exist_flag;
 	bool vsp_qos_exist_flag;
+
+	struct mutex map_lock;
+	struct list_head map_list;
 };
 
 struct clock_name_map_t {
@@ -129,4 +134,6 @@ int handle_vsp_interrupt(struct vsp_dev_t *vsp_hw_dev, int *status,
 	void __iomem *sprd_vsp_base, void __iomem *vsp_glb_reg_base);
 void clr_vsp_interrupt_mask(struct vsp_dev_t *vsp_hw_dev,
 	void __iomem *sprd_vsp_base, void __iomem *vsp_glb_reg_base);
+int vsp_get_dmabuf(int fd, struct dma_buf **dmabuf,
+	void **buf, size_t *size);
 #endif

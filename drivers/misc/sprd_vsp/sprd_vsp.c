@@ -31,7 +31,7 @@
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/sprd_iommu.h>
-#include <linux/sprd_ion.h>
+#include <linux/dma-mapping.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/wait.h>
@@ -166,6 +166,10 @@ static long vsp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case VSP_COMPLETE:
 		pr_debug("vsp ioctl VSP_COMPLETE\n");
+		if (vsp_fp->is_clock_enabled == 0) {
+			pr_err("clock is disable\n");
+			return -EFAULT;
+		}
 		ret = wait_event_interruptible_timeout(vsp_fp->wait_queue_work,
 						       vsp_fp->condition_work,
 						       msecs_to_jiffies
@@ -199,7 +203,10 @@ static long vsp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case VSP_RESET:
 		pr_debug("vsp ioctl VSP_RESET\n");
-
+		if (vsp_fp->is_clock_enabled == 0) {
+			pr_err("clock is disable\n");
+			return -EFAULT;
+		}
 		if (vsp_hw_dev.version == SHARKL3)
 			need_rst_axi = (readl_relaxed(vsp_glb_reg_base +
 						VSP_AXI_STS_OFF) & 0x2) > 0;
@@ -267,7 +274,10 @@ static long vsp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case VSP_HW_INFO:
 
 		pr_debug("vsp ioctl VSP_HW_INFO\n");
-
+		if (vsp_fp->is_clock_enabled == 0) {
+			pr_err("clock is disable\n");
+			return -EFAULT;
+		}
 		ret = regmap_read(regs[VSP_DOMAIN_EB].gpr, regs[VSP_DOMAIN_EB].reg,
 					&mm_eb_reg);
 		if (ret) {
@@ -721,6 +731,8 @@ static int vsp_probe(struct platform_device *pdev)
 	vsp_hw_dev.clk_vsp_ahb_mmu_eb = NULL;
 	vsp_hw_dev.vsp_fp = NULL;
 	vsp_hw_dev.light_sleep_en = false;
+	mutex_init(&vsp_hw_dev.map_lock);
+	INIT_LIST_HEAD(&vsp_hw_dev.map_list);
 
 	ret = vsp_get_mm_clk(&vsp_hw_dev);
 	if (ret) {
@@ -736,6 +748,13 @@ static int vsp_probe(struct platform_device *pdev)
 		dev_err(dev, "cannot register miscdev on minor=%d (%d)\n",
 		       VSP_MINOR, ret);
 		return ret;
+	}
+
+	if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64))) {
+		if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32)))
+			dev_err(dev, "vsp: failed to set dma mask!\n");
+	} else {
+		dev_info(dev, "vsp: set dma mask as 64bit\n");
 	}
 
 	/* register isr */
