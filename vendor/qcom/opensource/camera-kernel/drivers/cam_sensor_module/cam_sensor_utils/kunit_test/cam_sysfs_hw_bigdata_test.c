@@ -13,12 +13,12 @@
 #define SYSFS_MODULE_ID_ERR_CNT_MAX -2
 #define SYSFS_FROM_MODULE_ID_SIZE 10
 
-extern uint8_t module_id[MAX_EEP_CAMID][FROM_MODULE_ID_SIZE + 1];
+extern uint8_t module_id[INDEX_MAX][FROM_MODULE_ID_SIZE + 1];
 
 void cam_sysfs_check_avail_cam_test(struct kunit *test)
 {
 	struct cam_hw_param *hw_param = NULL;
-	
+
 	camera_hw_param_check_avail_cam();
 
 	hw_bigdata_get_hw_param_static(&hw_param, HW_PARAM_REAR);
@@ -42,7 +42,7 @@ void cam_sysfs_check_avail_cam_test(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, (hw_param->cam_available == 1), TRUE);
 
 	hw_bigdata_get_hw_param_static(&hw_param, HW_PARAM_FRONT2);
-	CAM_INFO(CAM_SENSOR, "Front2 CAM Support : %s", (hw_param->cam_available == 1) ? "YES" : "NO");	
+	CAM_INFO(CAM_SENSOR, "Front2 CAM Support : %s", (hw_param->cam_available == 1) ? "YES" : "NO");
 	KUNIT_EXPECT_EQ(test, (hw_param->cam_available == 0), TRUE);
 }
 
@@ -56,41 +56,41 @@ void cam_sysfs_hw_bigdata_node_test(struct kunit *test)
 
 	if (buf != NULL) {
 		hw_bigdata_get_hw_param(&hw_param, HW_PARAM_REAR);
-		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[EEP_REAR], HW_PARAM_REAR);
+		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[INDEX_REAR], HW_PARAM_REAR);
 
 		CAM_INFO(CAM_SENSOR, "rear_hwparam : %d", ret);
 		KUNIT_EXPECT_EQ(test, (ret > 0), TRUE);
 
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 		hw_bigdata_get_hw_param(&hw_param, HW_PARAM_REAR2);
-		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[EEP_REAR2], HW_PARAM_REAR2);
+		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[INDEX_REAR2], HW_PARAM_REAR2);
 
 		CAM_INFO(CAM_SENSOR, "rear2_hwparam : %d", ret);
 		KUNIT_EXPECT_EQ(test, (ret > 0), TRUE);
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 		hw_bigdata_get_hw_param(&hw_param, HW_PARAM_REAR3);
-		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[EEP_REAR3], HW_PARAM_REAR3);
+		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[INDEX_REAR3], HW_PARAM_REAR3);
 
 		CAM_INFO(CAM_SENSOR, "rear3_hwparam : %d", ret);
 		KUNIT_EXPECT_EQ(test, (ret > 0), TRUE);
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
 		hw_bigdata_get_hw_param(&hw_param, HW_PARAM_REAR4);
-		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[EEP_REAR4], HW_PARAM_REAR4);
+		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[INDEX_REAR4], HW_PARAM_REAR4);
 
 		CAM_INFO(CAM_SENSOR, "rear4_hwparam : %d", ret);
 		KUNIT_EXPECT_EQ(test, (ret > 0), TRUE);
 #endif
 #endif
 		hw_bigdata_get_hw_param(&hw_param, HW_PARAM_FRONT);
-		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[EEP_FRONT], HW_PARAM_FRONT);
+		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[INDEX_FRONT], HW_PARAM_FRONT);
 
 		CAM_INFO(CAM_SENSOR, "front_hwparam : %d", ret);
 		KUNIT_EXPECT_EQ(test, (ret > 0), TRUE);
 
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 		hw_bigdata_get_hw_param(&hw_param, HW_PARAM_FRONT2);
-		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[EEP_FRONT2], HW_PARAM_FRONT2);
+		ret = fill_hw_bigdata_sysfs_node(buf, hw_param, module_id[INDEX_FRONT2], HW_PARAM_FRONT2);
 
 		CAM_INFO(CAM_SENSOR, "front2_hwparam : %d", ret);
 		KUNIT_EXPECT_EQ(test, (ret > 0), TRUE);

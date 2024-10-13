@@ -606,8 +606,10 @@ void max77705_vbus_turn_on_ctrl(struct max77705_usbc_platform_data *usbc_data, b
 	bool must_block_host = 0;
 	static int reserve_booster = 0;
 
+#ifdef CONFIG_DISABLE_LOCKSCREEN_USB_RESTRICTION
 	if (o_notify)
 		must_block_host = is_blocked(o_notify, NOTIFY_BLOCK_TYPE_HOST);
+#endif
 
 	pr_info("%s : enable=%d, auto_vbus_en=%d, must_block_host=%d, swaped=%d\n",
 		__func__, enable, usbc_data->auto_vbus_en, must_block_host, swaped);

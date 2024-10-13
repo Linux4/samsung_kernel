@@ -98,19 +98,19 @@ static void put_comms_select(struct vl53l8_k_module_t *p_module)
 	vl53l8_k_put_gpio(&p_module->gpio.comms_select,
 		 &p_module->gpio.comms_select_owned);
 }
-#endif
+
 static int get_interrupt(struct vl53l8_k_module_t *p_module)
 {
 	return vl53l8_k_get_gpio(&p_module->gpio.interrupt,
 			&p_module->gpio.interrupt_owned, 0);
 }
-
+#endif
 static void put_interrupt(struct vl53l8_k_module_t *p_module)
 {
 	vl53l8_k_put_gpio(&p_module->gpio.interrupt,
 		 &p_module->gpio.interrupt_owned);
 }
-
+#ifdef STM_VL53L8_SUPPORT_LEGACY_CODE
 int vl53l8_k_get_gpio(int *p_gpio, int *p_is_gpio_owned, int is_output)
 {
 	int status = 0;
@@ -158,7 +158,7 @@ request_failed:
 no_gpio:
 	return status;
 }
-
+#endif
 void vl53l8_k_put_gpio(int *p_gpio, int *p_is_gpio_owned)
 {
 	if (*p_is_gpio_owned) {
@@ -190,7 +190,7 @@ int vl53l8_k_set_gpio(int *p_gpio, uint8_t value)
 
 	return status;
 }
-
+#ifdef STM_VL53L8_SUPPORT_LEGACY_CODE
 int vl53l8_k_assign_gpios(struct vl53l8_k_module_t *p_module)
 {
 	int status = 0;
@@ -248,7 +248,7 @@ no_pwren:
 	LOG_FUNCTION_END(status);
 	return status;
 }
-
+#endif
 void vl53l8_k_release_gpios(struct vl53l8_k_module_t *p_module)
 {
 	LOG_FUNCTION_START("");

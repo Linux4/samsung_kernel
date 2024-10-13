@@ -67,10 +67,10 @@
 #define MAX_ERR_CNT 255
 int vl53l8_hash_func(struct vl53l8_k_module_t *p_module, int err)
 {
-	int hash = 5381;
+	unsigned int hash = 5381;
 	int cnt = 0;
 
-	vl53l8_k_log_error("debug err %d", err);
+	vl53l8_k_log_info("debug err %d\n", err);
 	hash = ((((hash << 4) + hash) + err) % (MAX_TABLE-1)) + 1;
 
 	while (cnt++ < MAX_TABLE-1) {
@@ -103,17 +103,16 @@ void vl53l8_last_error_counter(struct vl53l8_k_module_t *p_module, int err)
 	if (err == VL53L8_DELAYED_LOAD_FIRMWARE)
 		return;
 
-	if (err < -2000 || err >= 0)
-		return;
-
 	if (p_module->ldo_status != 0)
-		err = -1000 - p_module->ldo_status;
+		err = VL53L8_LDO_ERROR - p_module->ldo_status;
+
+	if (err >= 0)
+		return;
 
 	vl53l8_error_counter_by_hash(p_module, err);
 }
 #endif
 #endif
-
 
 void vl53l8_k_store_error(struct vl53l8_k_module_t *p_module,
 			  int32_t vl53l8_k_error)

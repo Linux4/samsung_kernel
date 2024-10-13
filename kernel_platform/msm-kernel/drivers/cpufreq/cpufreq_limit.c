@@ -911,6 +911,11 @@ static ssize_t vtable_show(struct kobject *kobj,
 	struct cpufreq_policy *policy = cpufreq_cpu_get(param.g_first);
 	unsigned int virt_clk = 0;
 
+	if (!policy) {
+		pr_err("%s: no cpu policy\n", __func__);
+		return len;
+	}
+
 	if (!cflm_vbf.count)
 		return len;
 

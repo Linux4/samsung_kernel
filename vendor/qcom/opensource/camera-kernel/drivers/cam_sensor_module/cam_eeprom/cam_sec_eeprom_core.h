@@ -34,7 +34,7 @@ extern int ois_sr_rear4_result;
 
 int cam_sec_eeprom_dump(uint32_t subdev_id, uint8_t *mapdata, uint32_t addr, uint32_t size);
 int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl);
-void cam_sec_eeprom_link_module_info(struct cam_eeprom_ctrl_t *e_ctrl, ModuleInfo_t *mInfo, eeprom_camera_id_type camera_id);
+void cam_sec_eeprom_link_module_info(struct cam_eeprom_ctrl_t *e_ctrl, ModuleInfo_t *mInfo);
 int32_t cam_sec_eeprom_check_firmware_cal(uint32_t camera_cal_crc, uint32_t camera_normal_cal_crc, ModuleInfo_t *mInfo);
 uint32_t cam_sec_eeprom_match_crc(struct cam_eeprom_memory_block_t *data, uint32_t subdev_id);
 int32_t cam_sec_eeprom_calc_calmap_size(struct cam_eeprom_ctrl_t *e_ctrl);

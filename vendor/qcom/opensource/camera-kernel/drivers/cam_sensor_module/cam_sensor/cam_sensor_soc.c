@@ -14,28 +14,9 @@
 #include "cam_soc_util.h"
 
 #if defined(CONFIG_CAMERA_SYSFS_V2)
-extern char rear_cam_info[150];
-extern char front_cam_info[150];
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-extern char front2_cam_info[150];
-#endif
-#if defined(CONFIG_SAMSUNG_FRONT_TOP)
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-extern char front3_cam_info[150];
-#else
-extern char front2_cam_info[150];
-#endif
-#endif
+#include "cam_eeprom_dev.h"
 
-#if defined(CONFIG_SAMSUNG_REAR_DUAL)
-extern char rear2_cam_info[150];
-#endif
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
-extern char rear3_cam_info[150];
-#endif
-#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
-extern char rear4_cam_info[150];
-#endif
+extern char cam_info[INDEX_MAX][150];
 
 struct caminfo_element {
 	char* property_name;
@@ -62,45 +43,45 @@ int cam_sensor_get_dt_camera_info(
 	struct device_node *of_node)
 {
 	int rc = 0, i = 0, idx = 0, offset = 0, cnt = 0;
-	char* cam_info = NULL;
+	char* info = NULL;
 	bool isValid = false;
 
 	/* camera information */
 	if (s_ctrl->id == SEC_WIDE_SENSOR)
-		cam_info = rear_cam_info;
+		info = cam_info[INDEX_REAR];
 	else if (s_ctrl->id == SEC_FRONT_SENSOR)
-		cam_info = front_cam_info;
+		info = cam_info[INDEX_FRONT];
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 	else if (s_ctrl->id == SEC_ULTRA_WIDE_SENSOR)
-		cam_info = rear2_cam_info;
+		info = cam_info[INDEX_REAR2];
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 	else if (s_ctrl->id == SEC_TELE_SENSOR)
-		cam_info = rear3_cam_info;
+		info = cam_info[INDEX_REAR3];
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
 	else if (s_ctrl->id == SEC_TELE2_SENSOR)
-		cam_info = rear4_cam_info;
+		info = cam_info[INDEX_REAR4];
 #endif
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 	else if (s_ctrl->id == SEC_FRONT_AUX1_SENSOR)
-		cam_info = front2_cam_info;
+		info = cam_info[INDEX_FRONT2];
 #endif
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 	else if (s_ctrl->id == SEC_FRONT_TOP_SENSOR)
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-		cam_info = front3_cam_info;
+		info = cam_info[INDEX_FRONT3];
 #else
-		cam_info = front2_cam_info;
+		info = cam_info[INDEX_FRONT2];
 #endif
 #endif
 	else
-		cam_info = NULL;
+		info = NULL;
 
-	if (cam_info == NULL)
+	if (info == NULL)
 		return 0;
 
-	memset(cam_info, 0, sizeof(char) * 150);
+	memset(info, 0, sizeof(char) * 150);
 
 	for (i = 0; i < ARRAY_SIZE(caminfos); i++) {
 		if (caminfos[i].property_name == NULL)
@@ -114,16 +95,16 @@ int cam_sensor_get_dt_camera_info(
 		}
 
 		isValid = (idx >= 0) && (idx < ARRAY_SIZE(caminfos[i].values));
-		cnt = scnprintf(&cam_info[offset], PAGE_SIZE, "%s=%s;",
+		cnt = scnprintf(&info[offset], PAGE_SIZE, "%s=%s;",
 			caminfos[i].prefix, (isValid ? caminfos[i].values[idx] : "NULL"));
 		offset += cnt;
 	}
-	cam_info[offset] = '\0';
+	info[offset] = '\0';
 
 	return 0;
 
 ERROR1:
-	strcpy(cam_info, "ISP=NULL;CALMEM=NULL;READVER=NULL;COREVOLT=NULL;UPGRADE=NULL;FWWRITE=NULL;FWDUMP=NULL;FW_CC=NULL;OIS=NULL;DUALOPEN=NULL");
+	strcpy(info, "ISP=NULL;CALMEM=NULL;READVER=NULL;COREVOLT=NULL;UPGRADE=NULL;FWWRITE=NULL;FWDUMP=NULL;FW_CC=NULL;OIS=NULL;DUALOPEN=NULL");
 	return rc;
 }
 #endif

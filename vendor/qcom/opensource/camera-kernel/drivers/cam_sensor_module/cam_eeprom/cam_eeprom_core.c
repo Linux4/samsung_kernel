@@ -24,14 +24,6 @@
 
 #define MAX_READ_SIZE  0x7FFFF
 
-#if defined(CONFIG_CAMERA_HW_ERROR_DETECT)
-extern char rear_retry_cnt[5];
-extern char rear2_retry_cnt[5];
-extern char rear3_retry_cnt[5];
-extern char rear4_retry_cnt[5];
-extern char front_retry_cnt[5];
-#endif
-
 /**
  * cam_eeprom_read_memory() - read map data into buffer
  * @e_ctrl:     eeprom control struct
@@ -1548,19 +1540,19 @@ eeropm_crc_check :
 				CAM_INFO(CAM_EEPROM, "All CRC values are matched.");
 				crc_check_retry_cnt = 0;
 			}
-			
+
 #if defined(CONFIG_CAMERA_HW_ERROR_DETECT)
 			if (crc_check_retry_cnt > 0) {
 				if (e_ctrl->soc_info.index == SEC_WIDE_SENSOR) {
-					sprintf(rear_retry_cnt, "%d\n", crc_check_retry_cnt);
+					sprintf(retry_cnt[INDEX_REAR], "%d\n", crc_check_retry_cnt);
 				} else if (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR) {
-					sprintf(rear2_retry_cnt, "%d\n", crc_check_retry_cnt);
+					sprintf(retry_cnt[INDEX_REAR2], "%d\n", crc_check_retry_cnt);
 				} else if (e_ctrl->soc_info.index == SEC_TELE_SENSOR) {
-					sprintf(rear3_retry_cnt, "%d\n", crc_check_retry_cnt);
+					sprintf(retry_cnt[INDEX_REAR3], "%d\n", crc_check_retry_cnt);
 				} else if (e_ctrl->soc_info.index == SEC_TELE2_SENSOR) {
-					sprintf(rear4_retry_cnt, "%d\n", crc_check_retry_cnt);
+					sprintf(retry_cnt[INDEX_REAR4], "%d\n", crc_check_retry_cnt);
 				} else if (e_ctrl->soc_info.index == SEC_FRONT_SENSOR) {
-					sprintf(front_retry_cnt, "%d\n", crc_check_retry_cnt);
+					sprintf(retry_cnt[INDEX_FRONT], "%d\n", crc_check_retry_cnt);
 				}
 			}
 #endif

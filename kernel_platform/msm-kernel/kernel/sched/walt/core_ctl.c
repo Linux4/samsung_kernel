@@ -724,7 +724,8 @@ static int compute_cluster_nr_strict_need(int index)
 	struct cluster_data *cluster;
 	int nr_strict_need = 0;
 
-	if (index != 0)
+	/* For single cluster skip configuration */
+	if ((index != 0) || (num_clusters < 2))
 		return 0;
 
 	for_each_cluster(cluster, index) {
@@ -1405,6 +1406,14 @@ static void __ref do_core_ctl(void)
 
 	core_ctl_pause_cpus(&cpus_to_pause);
 	core_ctl_resume_cpus(&cpus_to_unpause);
+
+	/* Update the final active cpus after the real resume and
+	 * pause actions.
+	 */
+	index = 0;
+	for_each_cluster(cluster, index) {
+		cluster->active_cpus = get_active_cpu_count(cluster);
+	}
 }
 
 static int __ref try_core_ctl(void *data)

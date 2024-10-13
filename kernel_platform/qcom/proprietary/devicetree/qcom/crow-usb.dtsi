@@ -55,6 +55,15 @@
 				<&aggre1_noc MASTER_USB3_0 &config_noc SLAVE_IPA_CFG>,
 				<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_USB3_0>;
 
+		qcom,interconnect-values-nom = /* NOMINAL Votes */
+			<1000000 6000000>,
+			<0 2400>,
+			<0 40000>;
+		qcom,interconnect-values-svs = /* SVS Votes */
+			<240000 2000000>,
+			<0 2400>,
+			<0 40000>;
+
 		dwc3@a600000 {
 			compatible = "snps,dwc3";
 			reg = <0xa600000 0xd93c>;
@@ -75,6 +84,7 @@
 			snps,dis-u2-entry-quirk;
 			snps,dis_u2_susphy_quirk;
 			snps,ssp-u3-u0-quirk;
+			tx-fifo-resize;
 			dr_mode = "otg";
 			maximum-speed = "super-speed-plus";
 			usb-role-switch;
@@ -107,6 +117,8 @@
 
 		resets = <&gcc GCC_QUSB2PHY_PRIM_BCR>;
 		reset-names = "phy_reset";
+		qcom,param-override-seq =
+			<0x00 0x58>; /* eUSB2 HPG version 1.0.2 update */
 	};
 
 

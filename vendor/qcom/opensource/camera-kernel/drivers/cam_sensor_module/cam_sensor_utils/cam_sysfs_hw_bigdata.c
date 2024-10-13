@@ -120,7 +120,7 @@ static ssize_t rear_camera_hw_param_show(struct device *dev,
 	hw_bigdata_get_hw_param(&ec_param, HW_PARAM_REAR);
 
 	if (ec_param != NULL) {
-		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[EEP_REAR], HW_PARAM_REAR);
+		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[INDEX_REAR], HW_PARAM_REAR);
 	}
 
 	if (rc)
@@ -154,7 +154,7 @@ static ssize_t front_camera_hw_param_show(struct device *dev,
 	hw_bigdata_get_hw_param(&ec_param, HW_PARAM_FRONT);
 
 	if (ec_param != NULL) {
-		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[EEP_FRONT], HW_PARAM_FRONT);
+		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[INDEX_FRONT], HW_PARAM_FRONT);
 	}
 
 	if (rc)
@@ -189,7 +189,7 @@ static ssize_t rear2_camera_hw_param_show(struct device *dev,
 	hw_bigdata_get_hw_param(&ec_param, HW_PARAM_REAR2);
 
 	if (ec_param != NULL) {
-		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[EEP_REAR2], HW_PARAM_REAR2);
+		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[INDEX_REAR2], HW_PARAM_REAR2);
 	}
 
 	return rc;
@@ -223,7 +223,7 @@ static ssize_t rear3_camera_hw_param_show(struct device *dev,
 	hw_bigdata_get_hw_param(&ec_param, HW_PARAM_REAR3);
 
 	if (ec_param != NULL) {
-		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[EEP_REAR3], HW_PARAM_REAR3);
+		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[INDEX_REAR3], HW_PARAM_REAR3);
 	}
 
 	if (rc)
@@ -259,7 +259,7 @@ static ssize_t rear4_camera_hw_param_show(struct device *dev,
 	hw_bigdata_get_hw_param(&ec_param, HW_PARAM_REAR4);
 
 	if (ec_param != NULL) {
-		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[EEP_REAR4], HW_PARAM_REAR4);
+		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[INDEX_REAR4], HW_PARAM_REAR4);
 	}
 
 	if (rc)
@@ -315,7 +315,7 @@ static ssize_t front2_camera_hw_param_show(struct device *dev,
 	hw_bigdata_get_hw_param(&ec_param, HW_PARAM_FRONT2);
 
 	if (ec_param != NULL) {
-		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[EEP_FRONT2], HW_PARAM_FRONT2);
+		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[INDEX_FRONT2], HW_PARAM_FRONT2);
 	}
 
 	if (rc)
@@ -352,7 +352,7 @@ static ssize_t front3_camera_hw_param_show(struct device *dev,
 	hw_bigdata_get_hw_param(&ec_param, HW_PARAM_FRONT3);
 
 	if (ec_param != NULL) {
-		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[EEP_FRONT3], HW_PARAM_FRONT3);
+		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[INDEX_FRONT3], HW_PARAM_FRONT3);
 	}
 
 	if (rc)
@@ -386,7 +386,7 @@ static ssize_t front2_camera_hw_param_show(struct device *dev,
 	hw_bigdata_get_hw_param(&ec_param, HW_PARAM_FRONT2);
 
 	if (ec_param != NULL) {
-		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[EEP_FRONT2], HW_PARAM_FRONT2);
+		rc = fill_hw_bigdata_sysfs_node(buf, ec_param, module_id[INDEX_FRONT2], HW_PARAM_FRONT2);
 	}
 
 	if (rc)

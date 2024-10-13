@@ -19,7 +19,6 @@
 #define PID_SIZE		10
 #define FASTRPC_MSG_MAX	256
 
-#define CDSP1_DOMAIN_ID	4
 #define SESSION_ID_INDEX (30)
 
 struct vfastrpc_channel_ctx {
@@ -53,6 +52,7 @@ struct vfastrpc_apps {
 	bool has_mmap;
 	bool has_control;
 	bool has_mem_map;
+	u32 signed_pd_control;
 
 	struct device *dev;
 	struct cdev cdev;

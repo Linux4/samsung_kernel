@@ -2396,6 +2396,8 @@ static DEVICE_ATTR(change_freq_value, 0444,
 		   isg6320_change_freq_value_show, NULL);
 static DEVICE_ATTR(change_freq, 0444, isg6320_change_freq_show, NULL);
 #endif
+static DEVICE_ATTR(grip_sar_enable, 0664, isg6320_enable_show,
+			isg6320_enable_store);
 
 static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_name,
@@ -2423,6 +2425,7 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_motion,
 	&dev_attr_unknown_state,
 	&dev_attr_noti_enable,
+    &dev_attr_grip_sar_enable,
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
 	&dev_attr_country_code,
 #endif
@@ -3133,10 +3136,10 @@ static int isg6320_probe(struct i2c_client *client,
 		memcpy(grip_sensor_attrs + sensor_attrs_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
 
-	ret = sensors_register(data->dev, data, grip_sensor_attrs,
+	ret = sensors_register(&data->dev, data, grip_sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #else
-	ret = sensors_register(data->dev, data, sensor_attrs,
+	ret = sensors_register(&data->dev, data, sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #endif
 	if (ret) {

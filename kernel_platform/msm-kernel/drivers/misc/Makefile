@@ -65,3 +65,4 @@ obj-$(CONFIG_QSEECOM_PROXY) 	+= qseecom_proxy.o
 obj-$(CONFIG_QPNP_MISC)		+= qpnp-misc.o
 obj-$(CONFIG_PROFILER)		+= profiler.o
 obj-$(CONFIG_MZ_USE_QSEECOM)	+= mz_tee_driver_qc.o
+obj-$(CONFIG_QRC)		+= qrc/

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -304,7 +304,9 @@ wlansap_filter_unsafe_ch(struct wlan_objmgr_psoc *psoc,
 	 */
 	for (i = 0; i < sap_ctx->acs_cfg->ch_list_count; i++) {
 		freq = sap_ctx->acs_cfg->freq_list[i];
-		if (!policy_mgr_is_sap_freq_allowed(psoc, freq)) {
+		if (!policy_mgr_is_sap_freq_allowed(psoc,
+				wlan_vdev_mlme_get_opmode(sap_ctx->vdev),
+				freq)) {
 			sap_debug("remove freq %d from acs list", freq);
 			continue;
 		}
@@ -1704,7 +1706,8 @@ void wlansap_process_chan_info_event(struct sap_context *sap_ctx,
 		goto exit;
 
 	if (!policy_mgr_is_sap_freq_allowed(mac->psoc,
-					    roam_info->chan_info_freq))
+				wlan_vdev_mlme_get_opmode(sap_ctx->vdev),
+				roam_info->chan_info_freq))
 		goto exit;
 	if (sap_ctx->acs_cfg->ch_width > CH_WIDTH_20MHZ) {
 		sap_mark_freq_as_clean(sap_ctx->clean_channel_array,

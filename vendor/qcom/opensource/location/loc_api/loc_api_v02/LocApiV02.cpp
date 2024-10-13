@@ -7193,12 +7193,6 @@ bool LocApiV02 :: convertGnssMeasurements(
     // carrierToNoiseDbHz
     measurementData.carrierToNoiseDbHz = gnss_measurement_info.CNo/10.0;
     measurementData.flags |= GNSS_MEASUREMENTS_DATA_SIGNAL_TO_NOISE_RATIO_BIT;
-
-    // < SEC_GPS :  compensate RF loss (fixed value)
-    if (measurementData.carrierToNoiseDbHz > 0) {
-        measurementData.carrierToNoiseDbHz += RF_LOSS;
-    }
-    // SEC_GPS >
     
     if (QMI_LOC_MASK_MEAS_STATUS_VELOCITY_FINE_V02 ==
         (gnss_measurement_info.measurementStatus & QMI_LOC_MASK_MEAS_STATUS_VELOCITY_FINE_V02)) {

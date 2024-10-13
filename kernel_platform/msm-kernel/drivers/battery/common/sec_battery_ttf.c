@@ -89,9 +89,11 @@ int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 	}
 
 	total_time = get_cc_cv_time(battery, ttf_curr, get_current_soc(battery->pdata->fuelgauge_name), true);
-	if (battery->batt_full_capacity > 0 && battery->batt_full_capacity < 100) {
-		pr_info("%s: time to %d percent\n", __func__, battery->batt_full_capacity);
-		total_time -= get_cc_cv_time(battery, ttf_curr, (battery->batt_full_capacity * 10), false);
+	if (is_full_capacity(battery->fs)) {
+		int now_full_cap = get_full_capacity(battery->fs);
+
+		pr_info("%s: time to %d percent\n", __func__, now_full_cap);
+		total_time -= get_cc_cv_time(battery, ttf_curr, (now_full_cap * 10), false);
 	}
 
 	return total_time;
@@ -107,7 +109,7 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 		unsigned int wc_budg_pwr = RX_POWER_NONE;
 		union power_supply_propval value = {0, };
 
-		if (is_wireless_fake_type(battery->cable_type)) {
+		if (is_wireless_all_type(battery->cable_type)) {
 			psy_do_property(battery->pdata->wireless_charger_name, get,
 				POWER_SUPPLY_EXT_PROP_TX_PWR_BUDG, value);
 			wc_budg_pwr = value.intval;

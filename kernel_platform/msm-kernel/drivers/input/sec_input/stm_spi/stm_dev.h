@@ -608,12 +608,6 @@ struct stm_ts_data {
 	int lpmode_change_delay;
 
 	u8 factory_position;
-	int proc_cmoffset_size;
-	int proc_cmoffset_all_size;
-	char *cmoffset_sdc_proc;
-	char *cmoffset_sub_proc;
-	char *cmoffset_main_proc;
-	char *cmoffset_all_proc;
 	char *miscal_proc;
 
 	int proc_fail_hist_size;
@@ -789,8 +783,6 @@ void stm_ts_check_rawdata(struct work_struct *work);
 void stm_ts_dump_tsp_log(struct device *dev);
 void stm_ts_sponge_dump_flush(struct stm_ts_data *ts, int dump_area);
 #endif
-void stm_ts_init_proc(struct stm_ts_data *ts);
-ssize_t get_cmoffset_dump(struct stm_ts_data *ts, char *buf, u8 position);
 
 //fw
 int stm_ts_fw_update_on_probe(struct stm_ts_data *ts);

@@ -2072,15 +2072,19 @@ static char secdp_tbox[][MON_NAME_LEN] = {
 static bool secdp_check_tbox(struct dp_panel *panel)
 {
 	unsigned long i, size = SECDP_TBOX_MAX;
+	size_t len = 0;
 	bool ret = false;
+
+	len = strlen(panel->monitor_name);
+	if (!len)
+		goto end;
 
 	size = min(ARRAY_SIZE(secdp_tbox), size);
 
 	for (i = 0; i < size; i++) {
 		int rc;
 
-		rc = strncmp(panel->monitor_name, secdp_tbox[i],
-				strlen(panel->monitor_name));
+		rc = strncmp(panel->monitor_name, secdp_tbox[i], len);
 		if (!rc) {
 			DP_INFO("<%s> detected!\n", panel->monitor_name);
 			ret = true;

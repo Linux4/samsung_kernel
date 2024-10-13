@@ -4850,6 +4850,33 @@
 				};
 			};
 
+			emac_rgmii_txc_suspend: emac_rgmii_txc_suspend {
+				mux {
+					pins = "gpio114";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio114";
+					output-low;
+					bias-disable;
+				};
+			};
+
+			emac_rgmii_txc_resume: emac_rgmii_txc_resume {
+				mux {
+					pins = "gpio114";
+					function = "rgmii";
+				};
+
+				config {
+					pins = "gpio114";
+					input-enable;
+					bias-pull-up;
+					drive-strength = <16>;
+				};
+			};
+
 			emac_rgmii_tx_ctl: emac_rgmii_tx_ctl {
 				mux {
 					pins = "gpio121";

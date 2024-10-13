@@ -136,6 +136,7 @@
 #define VL53L8_OPENCAL_ERROR								((int32_t) -1006)
 #define VL53L8_CALFILE_LOAD_ERROR							((int32_t) -1007)
 
+#define VL53L8_LDO_ERROR								    ((int32_t) -1010)
 #define VL53L8_LDO_AVDD_ERROR								((int32_t) -1011)
 #define VL53L8_LDO_IOVDD_ERROR								((int32_t) -1012)
 #define VL53L8_LDO_AVDD_IOVDD_ERROR							((int32_t) -1013)

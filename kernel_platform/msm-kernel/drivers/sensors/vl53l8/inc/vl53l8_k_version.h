@@ -62,9 +62,9 @@
 
 #define VL53L8_K_VER_MAJOR	1
 
-#define VL53L8_K_VER_MINOR	2
+#define VL53L8_K_VER_MINOR	4
 
-#define VL53L8_K_VER_BUILD	0
+#define VL53L8_K_VER_BUILD	2
 
 #define VL53L8_K_VER_REVISION	0
 

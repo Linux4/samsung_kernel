@@ -9,8 +9,10 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+
 #include "sec_battery.h"
 #include "battery_logger.h"
+#include "sb_full_soc.h"
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER) && !defined(CONFIG_SEC_FACTORY)
 extern int muic_set_hiccup_mode(int on_off);
@@ -217,7 +219,7 @@ void sec_bat_check_mix_temp(struct sec_battery_info *battery, int ct, int siop_l
 	chg_temp = battery->chg_temp;
 #endif
 
-	if (siop_level >= 100 && !battery->lcd_status && !is_wireless_fake_type(ct)) {
+	if (siop_level >= 100 && !battery->lcd_status && !is_wireless_all_type(ct)) {
 		if ((!battery->mix_limit && (temperature >= battery->pdata->mix_high_temp) &&
 					(chg_temp >= battery->pdata->mix_high_chg_temp)) ||
 			(battery->mix_limit && (temperature > battery->pdata->mix_high_temp_recovery))) {
@@ -653,7 +655,7 @@ void sec_bat_thermal_warm_wc_fod(struct sec_battery_info *battery, bool is_charg
 	if (!battery->pdata->wpc_warm_fod)
 		return;
 
-	if (!is_wireless_fake_type(battery->cable_type))
+	if (!is_wireless_all_type(battery->cable_type))
 		return;
 
 	value.intval = is_charging;
@@ -1217,7 +1219,7 @@ EXPORT_SYMBOL_KUNIT(sec_bat_check_afc_temp);
 
 void sec_bat_set_threshold(struct sec_battery_info *battery, int cable_type)
 {
-	if (is_wireless_fake_type(cable_type)) {
+	if (is_wireless_all_type(cable_type)) {
 		battery->cold_cool3_thresh = battery->pdata->wireless_cold_cool3_thresh;
 		battery->cool3_cool2_thresh = battery->pdata->wireless_cool3_cool2_thresh;
 		battery->cool2_cool1_thresh = battery->pdata->wireless_cool2_cool1_thresh;
@@ -1467,7 +1469,7 @@ int sec_bat_abnormal_wpc_check(struct sec_battery_info *battery, int pre_thermal
 
 	if (ret == BAT_THERMAL_OVERHEATLIMIT)
 		return ret;
-	if (!is_wireless_fake_type(battery->cable_type)) {
+	if (!is_wireless_all_type(battery->cable_type)) {
 		battery->abnormal_wpc = -1;
 		return ret;
 	}
@@ -1509,6 +1511,11 @@ int sec_bat_abnormal_wpc_check(struct sec_battery_info *battery, int pre_thermal
 
 void sec_bat_thermal_charging_status(struct sec_battery_info *battery)
 {
+	if (is_full_capacity(battery->fs) && (battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY)) {
+		pr_info("%s: prevent the status during is_full_cap\n", __func__);
+		return;
+	}
+
 #if defined(CONFIG_ENABLE_FULL_BY_SOC)
 	if ((battery->capacity >= 100) || (battery->status == POWER_SUPPLY_STATUS_FULL))
 		sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_FULL);
@@ -1723,7 +1730,7 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 				sec_bat_thermal_warm_wc_fod(battery, true);
 			}
 
-			if (is_wireless_fake_type(battery->cable_type)) {
+			if (is_wireless_all_type(battery->cable_type)) {
 				sec_vote(battery->fcc_vote, VOTER_SWELLING, true, battery->pdata->wireless_warm_current);
 #if defined(CONFIG_BATTERY_CISD)
 				battery->cisd.data[CISD_DATA_WC_HIGH_TEMP_SWELLING]++;
@@ -1753,11 +1760,11 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 			sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING_COOL1,
 				SEC_BAT_CURRENT_EVENT_SWELLING_MODE);
 			sec_bat_thermal_charging_status(battery);
-			if (is_wireless_fake_type(battery->cable_type)) {
+			if (is_wireless_all_type(battery->cable_type))
 				sec_vote(battery->fcc_vote, VOTER_SWELLING, true, battery->pdata->wireless_cool1_current);
-			} else {
+			else
 				sec_vote(battery->fcc_vote, VOTER_SWELLING, true, battery->pdata->wire_cool1_current);
-			}
+
 			sec_vote(battery->fv_vote, VOTER_SWELLING, true, battery->pdata->low_temp_float);
 			if (battery->dchg_dc_in_swelling)
 				sec_vote(battery->dc_fv_vote, VOTER_SWELLING, true, battery->pdata->low_temp_float);
@@ -1776,7 +1783,7 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 			sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING_COOL2,
 				SEC_BAT_CURRENT_EVENT_SWELLING_MODE);
 			sec_bat_thermal_charging_status(battery);
-			if (is_wireless_fake_type(battery->cable_type)) {
+			if (is_wireless_all_type(battery->cable_type)) {
 				sec_vote(battery->fcc_vote, VOTER_SWELLING, true, battery->pdata->wireless_cool2_current);
 			} else {
 				sec_vote(battery->fcc_vote, VOTER_SWELLING, true, battery->pdata->wire_cool2_current);
@@ -1799,7 +1806,7 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 			sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING_COOL3,
 				SEC_BAT_CURRENT_EVENT_SWELLING_MODE);
 			sec_bat_thermal_charging_status(battery);
-			if (is_wireless_fake_type(battery->cable_type)) {
+			if (is_wireless_all_type(battery->cable_type)) {
 				sec_vote(battery->fcc_vote, VOTER_SWELLING, true, battery->pdata->wireless_cool3_current);
 			} else {
 				sec_vote(battery->fcc_vote, VOTER_SWELLING, true, battery->pdata->wire_cool3_current);

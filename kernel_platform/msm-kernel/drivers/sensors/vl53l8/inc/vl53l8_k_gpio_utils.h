@@ -67,9 +67,9 @@ int vl53l8_k_get_gpio(int *p_gpio, int *p_is_gpio_owned, int is_output);
 void vl53l8_k_put_gpio(int *p_gpio, int *p_is_gpio_owned);
 
 int vl53l8_k_set_gpio(int *p_gpio, uint8_t value);
-
+#ifdef STM_VL53L8_SUPPORT_LEGACY_CODE
 int vl53l8_k_assign_gpios(struct vl53l8_k_module_t *p_module);
-
+#endif
 void vl53l8_k_release_gpios(struct vl53l8_k_module_t *p_module);
 
 #endif

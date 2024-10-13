@@ -28,6 +28,7 @@ power-domains.
 		    "qcom,sdxpinn-aoss-qmp"
 		    "qcom,sdxbaagha-aoss-qmp"
 		    "qcom,kona-aoss-qmp"
+		    "qcom,qcs605-aoss-qmp"
 
 - reg:
 	Usage: required
