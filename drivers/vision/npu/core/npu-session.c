@@ -664,6 +664,27 @@ p_err:
 	return ret;
 }
 
+static void npu_session_process_register(struct npu_session *session)
+{
+	struct task_struct *parent;
+
+	session->comm[0] = '\0';
+	session->p_comm[0] = '\0';
+
+	session->pid = task_pid_nr(current);
+
+	strncpy(session->comm, current->comm, TASK_COMM_LEN);
+
+	if (current->parent != NULL) {
+		parent = current->parent;
+		session->p_pid = task_pid_nr(parent);
+		strncpy(session->p_comm, parent->comm, TASK_COMM_LEN);
+	}
+
+	npu_info("pid(%d), current(%s), parent pid(%d), parent(%s)\n",
+		session->pid, session->comm, session->p_pid, session->p_comm);
+}
+
 int npu_session_open(struct npu_session **session, void *cookie, void *memory)
 {
 	int ret = 0;
@@ -722,6 +743,8 @@ int npu_session_open(struct npu_session **session, void *cookie, void *memory)
 	(*session)->sched_param.priority = NPU_PRIORITY_MIN_VAL; /* lower priority */
 
 	(*session)->pid	= task_pid_nr(current);
+
+	npu_session_process_register(*session);
 
 #ifdef CONFIG_DSP_USE_VS4L
 	INIT_LIST_HEAD(&(*session)->kernel_list);
@@ -1287,6 +1310,10 @@ int __update_iova_of_load_message_of_dsp(struct npu_session *session){
 
 	//display_graph_info(load_msg, session->ncp_mem_buf->size);
 	//esd_print_load_graph_info(load_msg);
+
+#if (CONFIG_NPU_NCP_VERSION >= 25)
+	strcpy(session->model_name, "dsp-kernel");
+#endif
 	return 0;
 p_err:
 	return ret;
@@ -1631,6 +1658,12 @@ int __pilot_parsing_ncp(struct npu_session *session, u32 *IFM_cnt, u32 *OFM_cnt,
 			}
 		}
 	}
+
+#if (CONFIG_NPU_NCP_VERSION >= 25)
+	ncp->model_name[NCP_MODEL_NAME_LEN - 1] = '\0';
+	strncpy(session->model_name, ncp->model_name, NCP_MODEL_NAME_LEN);
+#endif
+
 	return ret;
 }
 

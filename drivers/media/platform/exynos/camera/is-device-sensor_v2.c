@@ -79,6 +79,12 @@ int is_search_sensor_module_with_position(struct is_device_sensor *device,
 	module_enum = device->module_enum;
 	*module = NULL;
 
+	if (position < 0 || position >= SENSOR_POSITION_MAX) {
+		err("%s sensor position [%d] is invalid", __func__, position);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	sensor_id = priv->sensor_id[position];
 	sensor_name = priv->sensor_name[position];
 
@@ -3694,8 +3700,11 @@ int is_sensor_front_start(struct is_device_sensor *device,
 
 	/* Actuator Init because actuator init use cal data */
 	ret = v4l2_subdev_call(device->subdev_module, core, ioctl, V4L2_CID_SENSOR_NOTIFY_ACTUATOR_INIT, 0);
-	if (ret)
-		mwarn("Actuator init fail after first init done\n", device);
+	if (ret) {
+		merr("Actuator init fail **after first init done**\n", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
 
 	ret = v4l2_subdev_call(subdev_csi, video, s_stream, IS_ENABLE_STREAM);
 	if (ret) {

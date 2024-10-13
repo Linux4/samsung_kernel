@@ -14,210 +14,158 @@
  *
  */
 
+#include <linux/of.h>
 #include <linux/module.h>
-#include <linux/slab.h>
 #include <linux/pm_qos.h>
-#include <linux/sec_pm_cpufreq.h>
+#include <linux/suspend.h>
+#include <linux/cpumask.h>
+#include <linux/cpufreq.h>
+#include <linux/platform_device.h>
 #include <soc/samsung/freq-qos-tracer.h>
 
-static DEFINE_MUTEX(cpufreq_list_lock);
-static LIST_HEAD(sec_pm_cpufreq_list);
+struct sec_pm_cpufreq_info {
+	struct device			*dev;
+	struct delayed_work		release_work;
+	struct notifier_block		pm_nb;
+	unsigned int			policy_cpu;
+	unsigned int			resume_max_freq;
+	struct freq_qos_request		qos_req;
+};
 
-static unsigned long throttle_count;
-
-static int sec_pm_cpufreq_set_max_freq(struct sec_pm_cpufreq_dev *cpufreq_dev,
-				 unsigned int level)
+static void freq_qos_release(struct work_struct *work)
 {
-	if (WARN_ON(level > cpufreq_dev->max_level))
-		return -EINVAL;
+	struct sec_pm_cpufreq_info *info =
+				container_of(to_delayed_work(work),
+				struct sec_pm_cpufreq_info, release_work);
 
-	if (cpufreq_dev->cur_level == level)
+	freq_qos_update_request(&info->qos_req, PM_QOS_DEFAULT_VALUE);
+}
+
+static int sec_pm_cpufreq_pm_event(struct notifier_block *nb,
+				   unsigned long pm_event, void *unused)
+{
+	struct sec_pm_cpufreq_info *info = container_of(nb,
+					struct sec_pm_cpufreq_info, pm_nb);
+
+	switch (pm_event) {
+	case PM_SUSPEND_PREPARE:
+		cancel_delayed_work(&info->release_work);
+		freq_qos_update_request(&info->qos_req, PM_QOS_DEFAULT_VALUE);
+		dev_info(info->dev, "%s: cancel work(%u)\n", __func__, info->policy_cpu);
+		break;
+	case PM_POST_SUSPEND:
+		freq_qos_update_request(&info->qos_req,
+						info->resume_max_freq);
+		schedule_delayed_work(&info->release_work,
+				      msecs_to_jiffies(ktime_to_ms(ktime_set(3, 0))));
+		dev_info(info->dev, "%s: resume_max_freq(%u, %u)\n", __func__,
+				info->policy_cpu, info->resume_max_freq);
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
+static int sec_pm_cpufreq_parse_dt(struct platform_device *pdev)
+{
+	struct sec_pm_cpufreq_info *info = platform_get_drvdata(pdev);
+	struct device_node *dn;
+	const char *buf;
+	struct cpumask siblings;
+	u32 val;
+
+	if (!info || !pdev->dev.of_node)
+		return -ENODEV;
+
+	dn = pdev->dev.of_node;
+
+	if (!of_property_read_string(dn, "siblings", &buf)) {
+		cpulist_parse(buf, &siblings);
+		info->policy_cpu = cpumask_first(&siblings);
+	} else {
+		dev_err(info->dev, "%s: failed to get siblings\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!of_property_read_u32(dn, "resume_max_freq", &val)) {
+		info->resume_max_freq = val;
+	} else {
+		dev_err(info->dev, "%s: failed to get resume_max_freq\n", __func__);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int sec_pm_cpufreq_probe(struct platform_device *pdev)
+{
+	struct sec_pm_cpufreq_info *info;
+	struct cpufreq_policy *policy;
+	int ret;
+
+	info = devm_kzalloc(&pdev->dev, sizeof(*info), GFP_KERNEL);
+	if (!info)
+		return -ENOMEM;
+
+	platform_set_drvdata(pdev, info);
+	info->dev = &pdev->dev;
+
+	ret = sec_pm_cpufreq_parse_dt(pdev);
+	if (ret) {
+		dev_err(info->dev, "%s: fail to parse dt(%d)\n", __func__, ret);
+		return ret;
+	}
+
+	policy = cpufreq_cpu_get(info->policy_cpu);
+	freq_qos_tracer_add_request_name("sec_pm_cpufreq_max_limit",
+			&policy->constraints, &info->qos_req, FREQ_QOS_MAX,
+			PM_QOS_DEFAULT_VALUE);
+
+	INIT_DELAYED_WORK(&info->release_work, freq_qos_release);
+
+	info->pm_nb.notifier_call = sec_pm_cpufreq_pm_event;
+	ret = register_pm_notifier(&info->pm_nb);
+	if (ret) {
+		dev_err(info->dev, "%s: failed to register PM notifier(%d)\n",
+				__func__, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int sec_pm_cpufreq_remove(struct platform_device *pdev)
+{
+	struct sec_pm_cpufreq_info *info = platform_get_drvdata(pdev);
+
+	if (!info)
 		return 0;
 
-	cpufreq_dev->max_freq = cpufreq_dev->freq_table[level].frequency;
-	cpufreq_dev->cur_level = level;
+	dev_info(info->dev, "%s\n", __func__);
+	unregister_pm_notifier(&info->pm_nb);
+	freq_qos_tracer_remove_request(&info->qos_req);
 
-	pr_info("%s: throttle cpu%d : %u KHz\n", __func__,
-			cpufreq_dev->policy->cpu, cpufreq_dev->max_freq);
-
-	return freq_qos_update_request(&cpufreq_dev->qos_req,
-				cpufreq_dev->freq_table[level].frequency);
+	return 0;
 }
 
-static unsigned long get_level(struct sec_pm_cpufreq_dev *cpufreq_dev,
-			       unsigned long freq)
-{
-	struct cpufreq_frequency_table *freq_table = cpufreq_dev->freq_table;
-	unsigned long level;
+static const struct of_device_id sec_pm_cpufreq_match[] = {
+	{ .compatible = "samsung,sec-pm-cpufreq", },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, sec_pm_cpufreq_match);
 
-	for (level = 1; level <= cpufreq_dev->max_level; level++)
-		if (freq >= freq_table[level].frequency)
-			break;
+static struct platform_driver sec_pm_cpufreq_driver = {
+	.driver = {
+		.name = "sec-pm-cpufreq",
+		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(sec_pm_cpufreq_match),
+	},
+	.probe = sec_pm_cpufreq_probe,
+	.remove = sec_pm_cpufreq_remove,
+};
 
-	return level;
-}
-
-/* For SMPL_WARN interrupt */
-int sec_pm_cpufreq_throttle_by_one_step(void)
-{
-	struct sec_pm_cpufreq_dev *cpufreq_dev;
-	unsigned long level;
-	unsigned long freq;
-
-	++throttle_count;
-
-	list_for_each_entry(cpufreq_dev, &sec_pm_cpufreq_list, node) {
-		if (!cpufreq_dev->policy || !cpufreq_dev->freq_table) {
-			pr_warn("%s: No cpufreq_dev\n", __func__);
-			continue;
-		}
-
-		/* Skip LITTLE cluster */
-		if (!cpufreq_dev->policy->cpu)
-			continue;
-
-		freq = cpufreq_dev->freq_table[0].frequency / 2;
-		level = get_level(cpufreq_dev, freq);
-		level += throttle_count;
-
-		if (level > cpufreq_dev->max_level)
-			level = cpufreq_dev->max_level;
-
-		sec_pm_cpufreq_set_max_freq(cpufreq_dev, level);
-	}
-
-	return throttle_count;
-}
-EXPORT_SYMBOL_GPL(sec_pm_cpufreq_throttle_by_one_step);
-
-void sec_pm_cpufreq_unthrottle(void)
-{
-	struct sec_pm_cpufreq_dev *cpufreq_dev;
-
-	pr_info("%s: throttle_count: %lu\n", __func__, throttle_count);
-
-	if (!throttle_count)
-		return;
-
-	throttle_count = 0;
-
-	list_for_each_entry(cpufreq_dev, &sec_pm_cpufreq_list, node)
-		sec_pm_cpufreq_set_max_freq(cpufreq_dev, 0);
-}
-EXPORT_SYMBOL_GPL(sec_pm_cpufreq_unthrottle);
-
-static unsigned int find_next_max(struct cpufreq_frequency_table *table,
-				  unsigned int prev_max)
-{
-	struct cpufreq_frequency_table *pos;
-	unsigned int max = 0;
-
-	cpufreq_for_each_valid_entry(pos, table) {
-		if (pos->frequency > max && pos->frequency < prev_max)
-			max = pos->frequency;
-	}
-
-	return max;
-}
-
-static struct sec_pm_cpufreq_dev *
-__sec_pm_cpufreq_register(struct cpufreq_policy *policy)
-{
-	struct sec_pm_cpufreq_dev *cpufreq_dev;
-	int ret;
-	unsigned int freq, i;
-
-	if (IS_ERR_OR_NULL(policy)) {
-		pr_err("%s: cpufreq policy isn't valid: %pK\n", __func__, policy);
-		return ERR_PTR(-EINVAL);
-	}
-
-	i = cpufreq_table_count_valid_entries(policy);
-	if (!i) {
-		pr_err("%s: CPUFreq table not found or has no valid entries\n",
-			 __func__);
-		return ERR_PTR(-ENODEV);
-	}
-
-	cpufreq_dev = kzalloc(sizeof(*cpufreq_dev), GFP_KERNEL);
-	if (!cpufreq_dev)
-		return ERR_PTR(-ENOMEM);
-
-	cpufreq_dev->policy = policy;
-	cpufreq_dev->max_level = i - 1;
-
-	cpufreq_dev->freq_table = kmalloc_array(i,
-					sizeof(*cpufreq_dev->freq_table),
-					GFP_KERNEL);
-	if (!cpufreq_dev->freq_table) {
-		pr_err("%s: fail to allocate freq_table\n", __func__);
-		ret = -ENOMEM;
-		goto free_cpufreq_dev;
-	}
-
-	/* Fill freq-table in descending order of frequencies */
-	for (i = 0, freq = -1; i <= cpufreq_dev->max_level; i++) {
-		freq = find_next_max(policy->freq_table, freq);
-		cpufreq_dev->freq_table[i].frequency = freq;
-
-		/* Warn for duplicate entries */
-		if (!freq)
-			pr_warn("%s: table has duplicate entries\n", __func__);
-		else
-			pr_debug("%s: freq:%u KHz\n", __func__, freq);
-	}
-
-	cpufreq_dev->max_freq = cpufreq_dev->freq_table[0].frequency;
-
-	ret = freq_qos_tracer_add_request(&policy->constraints,
-				   &cpufreq_dev->qos_req, FREQ_QOS_MAX,
-				   cpufreq_dev->freq_table[0].frequency);
-	if (ret < 0) {
-		pr_err("%s: Failed to add freq constraint (%d)\n", __func__,
-		       ret);
-		goto free_table;
-	}
-
-	mutex_lock(&cpufreq_list_lock);
-	list_add(&cpufreq_dev->node, &sec_pm_cpufreq_list);
-	mutex_unlock(&cpufreq_list_lock);
-
-	return cpufreq_dev;
-
-free_table:
-	kfree(cpufreq_dev->freq_table);
-free_cpufreq_dev:
-	kfree(cpufreq_dev);
-
-	return ERR_PTR(ret);
-}
-
-struct sec_pm_cpufreq_dev *
-sec_pm_cpufreq_register(struct cpufreq_policy *policy)
-{
-	pr_info("%s\n", __func__);
-
-	return __sec_pm_cpufreq_register(policy);
-}
-EXPORT_SYMBOL_GPL(sec_pm_cpufreq_register);
-
-void sec_pm_cpufreq_unregister(struct sec_pm_cpufreq_dev *cpufreq_dev)
-{
-	pr_info("%s\n", __func__);
-
-	if (!cpufreq_dev)
-		return;
-
-	mutex_lock(&cpufreq_list_lock);
-	list_del(&cpufreq_dev->node);
-	mutex_unlock(&cpufreq_list_lock);
-
-	freq_qos_tracer_remove_request(&cpufreq_dev->qos_req);
-
-	kfree(cpufreq_dev->freq_table);
-	kfree(cpufreq_dev);
-}
-EXPORT_SYMBOL_GPL(sec_pm_cpufreq_unregister);
+module_platform_driver(sec_pm_cpufreq_driver);
 
 MODULE_AUTHOR("Minsung Kim <ms925.kim@samsung.com>");
 MODULE_DESCRIPTION("SEC PM CPU Frequency Control");

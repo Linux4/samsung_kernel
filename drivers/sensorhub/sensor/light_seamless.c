@@ -42,12 +42,12 @@ static int inject_light_seamless_additional_data(char *buf, int count)
 	while ((token = strsep(&input_tmp, ",")) != NULL && index < 2) {
 		ret = kstrtoint(token, 10, &thd[index++]);
 		if (ret < 0) {
-			shub_errf("%s - kstrtoint failed.(%d)\n", __func__, ret);
+			shub_errf("kstrtoint failed.(%d)", ret);
 			return ret;
 		}
 	}
 
-	shub_info("%s - thd[0] = %d thd[1] = %d", __func__, thd[0], thd[1]);
+	shub_infof("thd[0] = %d thd[1] = %d", thd[0], thd[1]);
 
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT_SEAMLESS, LIGHT_SUBCMD_THRESHOLD, (char *)&thd, sizeof(thd));
 

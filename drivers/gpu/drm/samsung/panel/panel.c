@@ -141,6 +141,8 @@ int register_common_panel(struct common_panel_info *info)
 			return -EINVAL;
 		}
 	}
+
+	panel_find_max_brightness_from_cpi(info);
 	panel_list[nr_panel++] = info;
 	panel_info("name:%s id:0x%06X rev:%d registered\n",
 			info->name, info->id, info->rev);
@@ -195,7 +197,7 @@ void print_panel_lut(struct panel_dt_lut *lut_info)
 	}
 }
 
-__visible_for_testing struct panel_dt_lut *find_panel_lut(struct panel_device *panel, u32 id)
+struct panel_dt_lut *find_panel_lut(struct panel_device *panel, u32 id)
 {
 	struct panel_dt_lut *lut_info = NULL, *default_lut = NULL;
 	struct panel_id_mask *id_mask = NULL;

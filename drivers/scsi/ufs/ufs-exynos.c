@@ -610,13 +610,14 @@ static void __requeue_after_reset(struct ufs_hba *hba, bool reset)
 
 	pr_err("%s: outstanding reqs=0x%lx\n", __func__, hba->outstanding_reqs);
 	for_each_set_bit(index, &completed_reqs, hba->nutrs) {
-		if (!test_and_clear_bit(index, &hba->outstanding_reqs))
-			continue;
 		lrbp = &hba->lrb[index];
 		lrbp->compl_time_stamp = ktime_get();
 		cmd = lrbp->cmd;
 		if (!cmd)
-			return;
+			continue;
+		if (!test_and_clear_bit(index, &hba->outstanding_reqs))
+			continue;
+
 		if (!reset) {
 			err = exynos_ufs_clear_cmd(hba, index);
 			if (err)

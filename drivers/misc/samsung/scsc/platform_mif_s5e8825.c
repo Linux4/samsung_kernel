@@ -78,6 +78,10 @@
 #include "pmu_cal.h"
 #endif
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+static u32 oldapm_intmr1_val;
+#endif
+
 static unsigned long sharedmem_base;
 static size_t sharedmem_size;
 
@@ -154,6 +158,18 @@ inline u32 platform_mif_reg_read_wpan(struct platform_mif *platform, u16 offset)
 {
 	return readl(platform->base_wpan + offset);
 }
+
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+inline void platform_mif_reg_write_apm(struct platform_mif *platform, u16 offset, u32 value)
+{
+	writel(value, platform->base_apm + offset);
+}
+
+inline u32 platform_mif_reg_read_apm(struct platform_mif *platform, u16 offset)
+{
+	return readl(platform->base_apm + offset);
+}
+#endif
 
 #ifdef CONFIG_SCSC_QOS
 static int platform_mif_set_affinity_cpu(struct scsc_mif_abs *interface, u8 cpu)
@@ -2256,6 +2272,100 @@ static void platform_mif_irq_reg_pmu_handler(struct scsc_mif_abs *interface, voi
 	spin_unlock_irqrestore(&platform->mif_spinlock, flags);
 }
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+static void platform_mif_send_dcxo_cmd(struct scsc_mif_abs *interface, u8 opcode, u32 val)
+{
+	struct platform_mif *platform = platform_mif_from_mif_abs(interface);
+	static u8 seq = 0;
+
+	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(ISSR(0)), BUILD_ISSR0_VALUE(opcode, seq));
+	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(ISSR(1)), val);
+	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Write APM MAILBOX: 0x%x\n", val);
+
+	seq = (seq + 1) % APM_CMD_MAX_SEQ_NUM;
+
+	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTGR0), (1 << APM_IRQ_BIT_DCXO_SHIFT) << 16);
+	SCSC_TAG_DEBUG_DEV(PLAT_MIF, platform->dev, "Setting INTGR0: bit 1 on target APM\n");
+}
+
+static int platform_mif_irq_register_mbox_apm(struct scsc_mif_abs *interface)
+{
+	struct platform_mif *platform = platform_mif_from_mif_abs(interface);
+	int	i;
+
+	/* Initialise MIF registers with documented defaults */
+	/* MBOXes */
+	for (i = 0; i < 8; i++) {
+		platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(ISSR(i)), 0x00000000);
+	}
+
+	// INTXR0 : AP/FW -> APM , INTXR1 : APM -> AP/FW
+	/* MRs */ /*1's - set bit 1 as unmasked */
+	oldapm_intmr1_val = platform_mif_reg_read_apm(platform, MAILBOX_WLBT_REG(INTMR1));
+	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "APM MAILBOX INTMR1 %x\n", oldapm_intmr1_val);
+	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTMR1),
+							   oldapm_intmr1_val & ~(1 << APM_IRQ_BIT_DCXO_SHIFT));
+	/* CRs */ /* 1's - clear all the interrupts */
+	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTCR1), (1 << APM_IRQ_BIT_DCXO_SHIFT));
+
+	/* Register MBOX irq APM */
+	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Registering MBOX APM\n");
+
+	return 0;
+}
+
+static void platform_mif_irq_unregister_mbox_apm(struct scsc_mif_abs *interface)
+{
+	struct platform_mif *platform = platform_mif_from_mif_abs(interface);
+
+	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Unregistering MBOX APM irq\n");
+
+	/* MRs */ /*1's - set all as Masked */
+	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTMR1), oldapm_intmr1_val);
+
+	/* CRs */ /* 1's - clear all the interrupts */
+	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTCR1), (1 << APM_IRQ_BIT_DCXO_SHIFT));
+}
+
+static int platform_mif_check_dcxo_ack(struct scsc_mif_abs *interface, u8 opcode, u32* val)
+{
+	struct platform_mif *platform = platform_mif_from_mif_abs(interface);
+	unsigned long timeout;
+	u32 irq_val;
+	int ret;
+
+	SCSC_TAG_INFO(PLAT_MIF, "wait for dcxo tune ack\n");
+
+	timeout = jiffies + msecs_to_jiffies(500);
+	do {
+		irq_val = platform_mif_reg_read_apm(platform, MAILBOX_WLBT_REG(INTMSR1));
+		if (irq_val & (1 << APM_IRQ_BIT_DCXO_SHIFT)) {
+			SCSC_TAG_DEBUG_DEV(PLAT_MIF, platform->dev, "APM MAILBOX INTMSR1 %x\n", irq_val);
+
+			irq_val = platform_mif_reg_read_apm(platform, MAILBOX_WLBT_REG(ISSR(2)));
+			SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Read Ack for setting DCXO tune: 0x%x\n", irq_val);
+
+			ret = (irq_val & MASK_DONE) >> SHIFT_DONE ? 0 : 1;
+
+			if (opcode == OP_GET_TUNE && val != NULL) {
+				irq_val = platform_mif_reg_read_apm(platform, MAILBOX_WLBT_REG(ISSR(3)));
+				SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Read tune value for DCXO: 0x%x\n", irq_val);
+
+				*val = irq_val;
+			}
+
+			platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTCR1), (1 << APM_IRQ_BIT_DCXO_SHIFT));
+			goto done;
+		}
+	} while (time_before(jiffies, timeout));
+
+	SCSC_TAG_INFO(PLAT_MIF, "timeout waiting for INTMSR1 bit 1 0x%08x\n", irq_val);
+	return -ECOMM;
+done:
+	return ret;
+}
+#endif
+
 static int platform_mif_wlbt_phandle_property_read_u32(struct scsc_mif_abs *interface,
 				const char *phandle_name, const char *propname, u32 *out_value, size_t size)
 {
@@ -2568,6 +2678,12 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
 	platform_if->wlbt_phandle_property_read_u32 = platform_mif_wlbt_phandle_property_read_u32;
 	platform->pmu_handler = platform_mif_irq_default_handler;
 	platform->irq_dev_pmu = NULL;
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	platform_if->send_dcxo_cmd = platform_mif_send_dcxo_cmd;
+	platform_if->check_dcxo_ack = platform_mif_check_dcxo_ack;
+	platform_if->irq_register_mbox_apm = platform_mif_irq_register_mbox_apm;
+	platform_if->irq_unregister_mbox_apm = platform_mif_irq_unregister_mbox_apm;
+#endif
 	/* Reset ka_patch pointer & size */
 	platform->ka_patch_fw = NULL;
 	platform->ka_patch_len = 0;
@@ -2652,6 +2768,17 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
 		err = PTR_ERR(platform->base_wpan);
 		goto error_exit;
 	}
+
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	reg_res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	platform->base_apm = devm_ioremap_resource(&pdev->dev, reg_res);
+	if (IS_ERR(platform->base_apm)) {
+		SCSC_TAG_ERR_DEV(PLAT_MIF, platform->dev,
+			"Error getting mem resource for MAILBOX_APM\n");
+		err = PTR_ERR(platform->base_apm);
+		goto error_exit;
+	}
+#endif
 
 	/* Get the 5 IRQ resources */
 	for (i = 0; i < 5; i++) {
@@ -2868,12 +2995,12 @@ void platform_mif_resume(struct scsc_mif_abs *interface)
 	platform_mif_reg_restore(platform);
 
 	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
-			  "Clear WLBT_ACTIVE_CLR flag\n");
+			  "Set TCXO_GATE bit\n");
 	/* Clear WLBT_ACTIVE_CLR flag in WLBT_CTRL_NS */
-	ret = regmap_update_bits(platform->pmureg, WLBT_CTRL_NS, WLBT_ACTIVE_CLR, WLBT_ACTIVE_CLR);
+	ret = regmap_write_bits(platform->pmureg, WLBT_CTRL_NS  | 0xc000, TCXO_GATE, TCXO_GATE);
 	if (ret < 0) {
 		SCSC_TAG_ERR_DEV(PLAT_MIF, platform->dev,
-			"Failed to Set WLBT_CTRL_NS[WLBT_ACTIVE_CLR]: %d\n", ret);
+			"Failed to Set WLBT_CTRL_NS[TCXO_GATE]: %d\n", ret);
 	}
 
 	if (platform->resume_handler)

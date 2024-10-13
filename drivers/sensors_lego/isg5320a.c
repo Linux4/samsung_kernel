@@ -2170,7 +2170,7 @@ static int isg5320a_probe(struct i2c_client *client,
 		goto err_sysfs_create_group;
 	}
 
-	ret = sensors_register(data->dev, data, sensor_attrs, (char *)isg5320a_module_name[data->ic_num]);
+	ret = sensors_register(&data->dev, data, sensor_attrs, (char *)isg5320a_module_name[data->ic_num]);
 	if (ret) {
 		GRIP_ERR("could not register sensor(%d).\n", ret);
 		goto err_sensor_register;

@@ -141,9 +141,11 @@ void sensors_remove_symlink(struct input_dev *inputdev)
 }
 EXPORT_SYMBOL_GPL(sensors_remove_symlink);
 
-int sensors_register(struct device *dev, void *drvdata,
+int sensors_register(struct device **pdev, void *drvdata,
                      struct device_attribute *attributes[], char *name)
 {
+	struct device* dev;
+
 	if (!sensors_class) {
 		sensors_class = class_create(THIS_MODULE, "sensors");
 		if (IS_ERR(sensors_class)) {
@@ -154,15 +156,15 @@ int sensors_register(struct device *dev, void *drvdata,
 	dev = device_create(sensors_class, NULL, 0, drvdata, "%s", name);
 
 	if (IS_ERR(dev)) {
-		int ret = 0;
-
-		ret = PTR_ERR(dev);
+		int ret = PTR_ERR(dev);
 		pr_err("[SENSORS CORE] device_create failed!"\
 		       "[%d]\n", ret);
 		return ret;
 	}
 
 	set_sensor_attr(dev, attributes);
+	*pdev = dev;
+
 	atomic_inc(&sensor_count);
 
 	return 0;

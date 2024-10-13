@@ -173,22 +173,45 @@ static ssize_t prox_trim_check_show(struct device *dev, struct device_attribute 
 	return sprintf(buf, "%u\n", prox_trim);
 }
 
-static ssize_t prox_cal_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
+static ssize_t prox_cal_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	int ret;
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
-	struct proximity_data *data = (struct proximity_data *)sensor->data;
-	int cal_data[2] = {0, 1};
+	int ret = 0;
+	char *buffer = NULL;
+	int buffer_length = 0;
 
-	if (data->cal_data_len == 0)
+	if (!get_sensor_probe_state(SENSOR_TYPE_PROXIMITY) || !is_shub_working()) {
+		shub_infof("proximity sensor is not connected");
 		return -EINVAL;
+	}
 
-	ret = sensor->funcs->open_calibration_file();
-	if (ret == data->cal_data_len)
-		memcpy(cal_data, data->cal_data, sizeof(cal_data));
+	ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_PROXIMITY, PROXIMITY_OFFSET, 1000, NULL, 0, &buffer,
+				     &buffer_length, true);
+	if (ret < 0) {
+		shub_errf("shub_send_command_wait Fail %d", ret);
+		return ret;
+	}
 
-	return snprintf(buf, PAGE_SIZE, "%d,%d\n", cal_data[0], cal_data[1]);
+	if (buffer_length != 4) {
+		shub_errf("buffer length error %d", buffer_length);
+		ret = snprintf(buf, PAGE_SIZE, "-1,0,0,0,0,0,0,0,0,0,0\n");
+		if (buffer != NULL)
+			kfree(buffer);
+
+		return -EINVAL;
+	}
+
+	if (buffer[1] > 0)
+		prox_trim = (buffer[0]) * (-1);
+	else
+		prox_trim = buffer[0];
+
+	shub_infof("%d, 0x%x, 0x%x, (%d,%d)", prox_trim, buffer[1], buffer[0], buffer[2], buffer[3]);
+
+	ret = snprintf(buf, PAGE_SIZE, "%d,%d,%d\n", prox_trim, buffer[2], buffer[3]);
+
+	kfree(buffer);
+
+	return ret;
 }
 
 static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)

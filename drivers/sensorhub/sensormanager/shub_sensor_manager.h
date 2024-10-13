@@ -24,12 +24,9 @@
 struct shub_sensor;
 
 struct sensor_manager_t {
-/*
- *	index 0 : for sensor legacy hal sensors, type < SENSOR_TYPE_LEGACY_MAX
- *	index 2,3 : for scontext sensors, type > SENSOR_TYPE_LEGACY_MAX
- */
 	struct shub_sensor *sensor_list[SENSOR_TYPE_MAX];
-	uint64_t sensor_probe_state[3];
+	uint64_t sensor_probe_state[2];
+	uint64_t scontext_probe_state[2];
 	struct sensor_spec_t *sensor_spec;
 	bool is_fs_ready;
 };
@@ -57,8 +54,8 @@ int refresh_sensors(struct device *dev);
 struct shub_sensor *get_sensor(int type);
 struct sensor_event *get_sensor_event(int type);
 
-uint64_t get_sensors_legacy_probe_state(void);
-uint64_t get_sensors_legacy_enable_state(void);
+int get_sensors_legacy_probe_state(uint64_t *buf);
+int get_sensors_legacy_enable_state(uint64_t *buf);
 int get_sensors_scontext_probe_state(uint64_t *buf);
 
 bool get_sensor_probe_state(int type);

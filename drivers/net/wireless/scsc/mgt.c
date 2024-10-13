@@ -1379,10 +1379,6 @@ static void slsi_clear_low_latency_state(struct net_device *dev)
 static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *dev, bool hw_available)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-	struct net_device *nan_mgmt_dev = slsi_get_netdev_locked(sdev, SLSI_NET_INDEX_NAN);
-	struct netdev_vif *ndev_vif_mgmt = netdev_priv(nan_mgmt_dev);
-#endif
 
 	SLSI_NET_DBG1(dev, SLSI_INIT_DEINIT, "Stopping netdev_up_count=%d, hw_available = %d\n", sdev->netdev_up_count, hw_available);
 
@@ -1427,10 +1423,6 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 
 	cancel_work_sync(&ndev_vif->set_multicast_filter_work);
 	cancel_work_sync(&ndev_vif->update_pkt_filter_work);
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-	if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
-		SLSI_MUTEX_LOCK(ndev_vif_mgmt->vif_mutex);
-#endif
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	slsi_vif_cleanup(sdev, dev, hw_available, 0);
 	slsi_spinlock_lock(&sdev->netdev_lock);
@@ -1443,11 +1435,6 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 	atomic_set(&ndev_vif->arp_tx_count, 0);
 #endif
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
-	if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
-		SLSI_MUTEX_UNLOCK(ndev_vif_mgmt->vif_mutex);
-#endif
-
 
 	complete_all(&ndev_vif->sig_wait.completion);
 	slsi_stop_chip(sdev);

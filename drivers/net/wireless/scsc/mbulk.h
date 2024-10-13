@@ -544,4 +544,5 @@ void mbulk_pool_dump(u8 pool_id, int max_cnt);
 /* Get pool colour */
 mbulk_colour mbulk_get_colour(u8 pool_id, struct mbulk *m);
 
+u16 mbulk_pool_seg_size(u8 pool_id);
 #endif /*__MBULK_H__*/

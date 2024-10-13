@@ -140,9 +140,9 @@ static struct device_node *exynos_udc_parse_dt(void)
 	if (np)
 		goto find;
 
-	np = of_find_compatible_node(NULL, NULL, "samsung,usb-notifier");
+	np = of_find_compatible_node(NULL, NULL, "samsung,origin-usb-notifier");
 	if (!np) {
-		pr_err("%s: failed to get the usb-notifier device node\n",
+		pr_err("%s: failed to get the origin-usb-notifier device node\n",
 			__func__);
 		goto err;
 	}
@@ -872,7 +872,7 @@ static int usb_notifier_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id usb_notifier_dt_ids[] = {
-	{ .compatible = "samsung,usb-notifier",
+	{ .compatible = "samsung,origin-usb-notifier",
 	},
 	{ },
 };

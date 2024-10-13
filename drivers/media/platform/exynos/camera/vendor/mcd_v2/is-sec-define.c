@@ -35,6 +35,8 @@
 #define I2C_DATA  1
 #define I2C_ADDR  0
 
+#define NUM_OF_DUALIZATION_CHECK 6
+
 bool force_caldata_dump = false;
 
 #ifdef USES_STANDARD_CAL_RELOAD
@@ -49,6 +51,11 @@ static struct is_rom_info sysfs_pinfo[ROM_ID_MAX];
 static bool rear3_dualized_rom_probe = false;
 static struct is_rom_info sysfs_finfo_rear3_otp;
 #endif
+#if defined(FRONT_OTPROM_EEPROM)
+static bool front_dualized_rom_probe = false;
+static struct is_rom_info sysfs_finfo_front_otp;
+#endif
+
 static char rom_buf[ROM_ID_MAX][IS_MAX_CAL_SIZE];
 #if defined(CONFIG_CAMERA_FROM) && defined(CAMERA_MODULE_DUALIZE)
 static char fw_buf[IS_MAX_FW_BUFFER_SIZE];
@@ -217,12 +224,27 @@ void is_sec_set_rear3_dualized_rom_probe(void) {
 EXPORT_SYMBOL_GPL(is_sec_set_rear3_dualized_rom_probe);
 #endif
 
+#if defined(FRONT_OTPROM_EEPROM)
+void is_sec_set_front_dualized_rom_probe(void) {
+	front_dualized_rom_probe = true;
+}
+EXPORT_SYMBOL_GPL(is_sec_set_front_dualized_rom_probe);
+#endif
+
 int is_sec_get_sysfs_finfo(struct is_rom_info **finfo, int rom_id)
 {
 #if defined(CAMERA_UWIDE_DUALIZED)
 	if(rom_id == ROM_ID_REAR3 && rear3_dualized_rom_probe) {
 		*finfo = &sysfs_finfo_rear3_otp;
 		rear3_dualized_rom_probe = false;
+	}
+	else {
+		*finfo = &sysfs_finfo[rom_id];
+	}
+#elif defined(FRONT_OTPROM_EEPROM)
+	if(rom_id == ROM_ID_FRONT && front_dualized_rom_probe) {
+		*finfo = &sysfs_finfo_front_otp;
+		front_dualized_rom_probe = false;
 	}
 	else {
 		*finfo = &sysfs_finfo[rom_id];
@@ -1188,80 +1210,135 @@ p_err:
 	return ret;
 }
 
-#if IS_REACHABLE(CONFIG_CAMERA_OTPROM_SUPPORT_REAR)
-static int is_sec_update_dualized_sensor(struct is_core *core, int rom_id) {
-	int ret = 0;
-	int i, position, sensorid_2nd;
-	u32 i2c_channel;
+int is_sec_check_is_sensor(struct is_core *core, int position, int nextSensorId,
+			   bool *bVerified)
+{
+	int ret;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct v4l2_subdev *subdev_cis = NULL;
-	position = is_vendor_get_position_from_rom_id(rom_id);
-	sensorid_2nd = is_vender_get_dualized_sensorid(position);
+	struct is_vender_specific *specific = core->vender.private_data;
+	int i;
+	u32 i2c_channel;
+	struct exynos_platform_is_module *module_pdata;
+	struct is_module_enum *module = NULL;
+	const u32 scenario = SENSOR_SCENARIO_NORMAL;
 
-	if (sensorid_2nd != SENSOR_NAME_NOTHING && !is_check_dualized_sensor[position]) {
-		struct exynos_platform_is_module *module_pdata;
-		struct is_module_enum *module = NULL;
-		u32 scenario = SENSOR_SCENARIO_NORMAL;
+	for (i = 0; i < IS_SENSOR_COUNT; i++) {
+		is_search_sensor_module_with_position(&core->sensor[i],
+							  position, &module);
+		if (module)
+			break;
+	}
 
-		for (i = 0; i < IS_SENSOR_COUNT; i++) {
-			is_search_sensor_module_with_position(&core->sensor[i], position, &module);
-			if (module)
-				break;
-		}
+	if (!module) {
+		err("%s: Could not find sensor id.", __func__);
+		ret = -EINVAL;
+		goto p_err;
+	}
+	module_pdata = module->pdata;
+	if (!module_pdata->gpio_cfg) {
+		err("gpio_cfg is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
 
-		if (!module) {
-			err("%s: Could not find sensor id.", __func__);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
-		module_pdata = module->pdata;
-
-		if (!module_pdata->gpio_cfg) {
-			err("gpio_cfg is NULL");
-			ret = -EINVAL;
-			goto p_err;
-		}
-		ret = module_pdata->gpio_cfg(module, scenario, GPIO_SCENARIO_ON);
-		if (ret) {
-			err("gpio_cfg is fail(%d)", ret);
-		} else {
-			sensor_peri = (struct is_device_sensor_peri *)module->private_data;
-			if (sensor_peri->subdev_cis) {
-				i2c_channel = module_pdata->sensor_i2c_ch;
-				if (i2c_channel < SENSOR_CONTROL_I2C_MAX) {
-					sensor_peri->cis.i2c_lock = &core->i2c_lock[i2c_channel];
-				} else {
-					warn("%s: wrong cis i2c_channel(%d)", __func__, i2c_channel);
-					ret = -EINVAL;
-					goto p_err;
-				}
-				subdev_cis = sensor_peri->subdev_cis;
-
-				/* Requested by HQE to meet the power guidance, Put enough time between MCLK and First I2C */
-				msleep(5);
-				ret = CALL_CISOPS(&sensor_peri->cis, cis_check_rev_on_init, subdev_cis);
-				if (ret < 0) {
-					err("%s CIS active test failed", __func__);
-					is_vender_replace_sensorid_with_second_sensorid(&core->vender, position);
-				} else {
-					info("%s CIS test passed", __func__);
-				}
-				ret = module_pdata->gpio_cfg(module, scenario, GPIO_SCENARIO_OFF);
-				if (ret) {
-					err("%s gpio_cfg is fail(%d)", __func__, ret);
-				}
-				/* Requested by HQE to meet the power guidance, add 20ms delay */
-				msleep(20);
+	ret = module_pdata->gpio_cfg(module, scenario, GPIO_SCENARIO_ON);
+	if (ret) {
+		err("gpio_cfg is fail(%d)", ret);
+	} else {
+		sensor_peri =
+			(struct is_device_sensor_peri *)module->private_data;
+		if (sensor_peri->subdev_cis) {
+			i2c_channel = module_pdata->sensor_i2c_ch;
+			if (i2c_channel < SENSOR_CONTROL_I2C_MAX) {
+				sensor_peri->cis.i2c_lock =
+					&core->i2c_lock[i2c_channel];
 			} else {
-				err("%s: subdev cis is NULL. dual_sensor check failed", __func__);
+				warn("%s: wrong cis i2c_channel(%d)", __func__,
+					 i2c_channel);
 				ret = -EINVAL;
 				goto p_err;
 			}
+		} else {
+			err("%s: subdev cis is NULL. dual_sensor check failed",
+				__func__);
+			ret = -EINVAL;
+			goto p_err;
+		}
+
+		subdev_cis = sensor_peri->subdev_cis;
+		ret = CALL_CISOPS(&sensor_peri->cis, cis_check_rev_on_init,
+				  subdev_cis);
+		if (ret < 0) {
+			*bVerified = false;
+			specific->sensor_id[position] = nextSensorId;
+			warn("CIS test failed, check the nextSensor");
+		} else {
+			*bVerified = true;
+			specific->sensor_name[position] =
+				module->sensor_name;
+			info("%s CIS test passed (sensorId[%d] = %d)", __func__,
+				 module->device, specific->sensor_id[position]);
+		}
+
+		ret = module_pdata->gpio_cfg(module, scenario,
+						 GPIO_SCENARIO_OFF);
+		if (ret) {
+			err("%s gpio_cfg is fail(%d)", __func__, ret);
+		}
+
+		/* Requested by HQE to meet the power guidance, add 20ms delay */
+#ifdef PUT_30MS_BETWEEN_EACH_CAL_LOADING
+		msleep(30);
+#else
+		msleep(20);
+#endif
+	}
+p_err:
+	return ret;
+}
+
+#if IS_REACHABLE(CONFIG_CAMERA_OTPROM_SUPPORT_REAR)
+static int is_sec_update_dualized_sensor(struct is_core *core, int rom_id) {
+	int ret = 0;
+	int position, sensorid_1st, sensorid_2nd;
+	struct is_vender_specific *specific = core->vender.private_data;
+
+	position = is_vendor_get_position_from_rom_id(rom_id);
+	sensorid_1st = specific->sensor_id[position];
+	sensorid_2nd = is_vender_get_dualized_sensorid(position);
+
+	if (sensorid_2nd != SENSOR_NAME_NOTHING && !is_check_dualized_sensor[position]) {
+		int count_check = NUM_OF_DUALIZATION_CHECK;
+		bool bVerified = false;
+
+		while (count_check-- > 0) {
+			ret = is_sec_check_is_sensor(core, position,
+							 sensorid_2nd, &bVerified);
+			if (ret) {
+				err("%s: Failed to check corresponding sensor equipped",
+					__func__);
+				break;
+			}
+
+			if (bVerified) {
+				is_check_dualized_sensor[position] = true;
+				break;
+			}
+
+			sensorid_2nd = sensorid_1st;
+			sensorid_1st = specific->sensor_id[position];
+
+			if (count_check < NUM_OF_DUALIZATION_CHECK - 2) {
+				err("Failed to find out both sensors on this device !!! (count : %d)",
+					count_check);
+				if (count_check <= 0)
+					err("None of camera was equipped (sensorid : %d, %d)",
+						sensorid_1st, sensorid_2nd);
+			}
 		}
 	}
-	is_check_dualized_sensor[position] = true;
-p_err:
+
 	return ret;
 }
 #endif
@@ -1729,6 +1806,9 @@ int is_sec_readcal_otprom_hi1339(int rom_id)
 	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
 	subdev_cis = sensor_peri->subdev_cis;
 
+#if defined(FRONT_OTPROM_EEPROM)
+	sysfs_finfo[ROM_ID_FRONT] = sysfs_finfo_front_otp;
+#endif
 	is_sec_get_sysfs_finfo(&finfo, rom_id);
 	is_sec_get_cal_buf(&buf, rom_id);
 	client = specific->otprom_client[rom_id];
@@ -2438,7 +2518,12 @@ int is_sec_readcal_otprom_gc5035(int rom_id)
 	u32 i2c_channel;
 	int position = is_vendor_get_position_from_rom_id(rom_id);
 
-	if(rom_id == 2) {
+	if(rom_id == 1) {
+		bank1_addr = GC5035_FRONT_OTP_START_ADDR_BANK1;
+		bank2_addr = GC5035_FRONT_OTP_START_ADDR_BANK2;
+		cal_size = GC5035_FRONT_OTP_USED_CAL_SIZE;
+	}
+	else if(rom_id == 2) {
 		bank1_addr = GC5035_BOKEH_OTP_START_ADDR_BANK1;
 		bank2_addr = GC5035_BOKEH_OTP_START_ADDR_BANK2;
 		cal_size = GC5035_BOKEH_OTP_USED_CAL_SIZE;

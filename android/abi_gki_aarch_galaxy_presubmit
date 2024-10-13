@@ -12,3 +12,5 @@ wakeup_sources_read_lock
 wakeup_sources_read_unlock
 # required by drivers/usb/notify/usb_notify_layer.ko
 usb_set_configuration
+# required by sound/soc/codecs/dbmdx/dbmdx_codec.ko
+snd_card_ref

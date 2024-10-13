@@ -42,6 +42,9 @@
 #endif
 #include <linux/android_kabi.h>
 #include <linux/android_vendor.h>
+#if IS_ENABLED(CONFIG_SKB_TRACER)
+#include <net/skb_tracer.h>
+#endif
 
 /* The interface for checksum offload between the stack and networking drivers
  * is as follows...
@@ -260,6 +263,7 @@ struct nf_bridge_info {
 	u8			pkt_otherhost:1;
 	u8			in_prerouting:1;
 	u8			bridged_dnat:1;
+	u8			sabotage_in_done:1;
 	__u16			frag_max_size;
 	struct net_device	*physindev;
 
@@ -297,6 +301,10 @@ struct sk_buff_head {
 
 	__u32		qlen;
 	spinlock_t	lock;
+
+#if IS_ENABLED(CONFIG_SKB_TRACER)
+	u64		mask;
+#endif
 };
 
 struct sk_buff;
@@ -1962,6 +1970,10 @@ static inline void __skb_insert(struct sk_buff *newsk,
 	WRITE_ONCE(next->prev, newsk);
 	WRITE_ONCE(prev->next, newsk);
 	WRITE_ONCE(list->qlen, list->qlen + 1);
+
+#if IS_ENABLED(CONFIG_SKB_TRACER)
+	skb_tracer_mask(newsk, list->mask);
+#endif
 }
 
 static inline void __skb_queue_splice(const struct sk_buff_head *list,
@@ -2118,6 +2130,10 @@ static inline void __skb_unlink(struct sk_buff *skb, struct sk_buff_head *list)
 	skb->next  = skb->prev = NULL;
 	WRITE_ONCE(next->prev, prev);
 	WRITE_ONCE(prev->next, next);
+
+#if IS_ENABLED(CONFIG_SKB_TRACER)
+	skb_tracer_unmask(skb, list->mask);
+#endif
 }
 
 /**
@@ -4212,6 +4228,9 @@ enum skb_ext_id {
 #if IS_ENABLED(CONFIG_MPTCP)
 	SKB_EXT_MPTCP,
 #endif
+#if IS_ENABLED(CONFIG_SKB_TRACER)
+	SKB_TRACER,
+#endif
 	SKB_EXT_NUM, /* must be last */
 };
 
@@ -4322,7 +4341,7 @@ static inline void nf_reset_ct(struct sk_buff *skb)
 
 static inline void nf_reset_trace(struct sk_buff *skb)
 {
-#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE) || defined(CONFIG_NF_TABLES)
+#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE) || IS_ENABLED(CONFIG_NF_TABLES)
 	skb->nf_trace = 0;
 #endif
 }
@@ -4342,7 +4361,7 @@ static inline void __nf_copy(struct sk_buff *dst, const struct sk_buff *src,
 	dst->_nfct = src->_nfct;
 	nf_conntrack_get(skb_nfct(src));
 #endif
-#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE) || defined(CONFIG_NF_TABLES)
+#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE) || IS_ENABLED(CONFIG_NF_TABLES)
 	if (copy)
 		dst->nf_trace = src->nf_trace;
 #endif

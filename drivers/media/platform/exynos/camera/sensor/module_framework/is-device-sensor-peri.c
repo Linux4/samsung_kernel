@@ -669,6 +669,51 @@ void is_sensor_actuator_active_off_work(struct work_struct *data)
 	info("[%s] X\n", __func__);
 }
 
+void is_sensor_actuator_init_work(struct work_struct *data)
+{
+	int ret = 0;
+	struct is_actuator *act = NULL;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	int retry = 0;
+	int act_state = ACTUATOR_INIT_DONE;
+
+	info("[%s] E\n", __func__);
+
+	if (!data) {
+		err("[%s] data is NULL!!", __func__);
+		return;
+	}
+
+	act = container_of(data, struct is_actuator, actuator_init_work);
+	if (!act) {
+		err("[%s] act is NULL!!", __func__);
+		return;
+	}
+
+	sensor_peri = act->sensor_peri;
+	if (!sensor_peri) {
+		err("[%s] sensor_peri is NULL!!", __func__);
+		return;
+	}
+
+	do {
+		ret = v4l2_subdev_call(sensor_peri->subdev_actuator, core, init, 0);
+		if (ret) {
+			msleep(100);
+			retry++;
+		}
+	} while (ret && retry < 10);
+
+	if (ret)
+		act_state = ACTUATOR_INIT_FAILED;
+
+	mutex_lock(&act->control_init_lock);
+	act->actuator_init_state = act_state;
+	mutex_unlock(&act->control_init_lock);
+
+	info("[%s] actuator_init_state[%d] retry[%dms] X\n", __func__, act_state, retry*100);
+}
+
 void is_sensor_ois_set_init_work(struct work_struct *data)
 {
 	int ret = 0;
@@ -1111,6 +1156,7 @@ int is_sensor_peri_notify_actuator_init(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
 	struct is_device_sensor_peri *sensor_peri = NULL;
+	bool is_act_init_require = false;
 
 	sensor_peri = get_sensor_peri(subdev);
 	if (!sensor_peri) {
@@ -1118,15 +1164,30 @@ int is_sensor_peri_notify_actuator_init(struct v4l2_subdev *subdev)
 		return -EINVAL;
 	}
 
-	if (test_bit(IS_SENSOR_ACTUATOR_AVAILABLE, &sensor_peri->peri_state) &&
-		(sensor_peri->actuator->actuator_data.actuator_init)) {
+	if (!test_bit(IS_SENSOR_ACTUATOR_AVAILABLE, &sensor_peri->peri_state))
+		return ret;
+
+	flush_work(&sensor_peri->actuator->actuator_init_work);
+
+	mutex_lock(&sensor_peri->actuator->control_init_lock);
+	if (sensor_peri->actuator->actuator_init_state == ACTUATOR_NOT_INITIALIZED) {
+		sensor_peri->actuator->actuator_init_state = ACTUATOR_INIT_INPROGRESS;
+		is_act_init_require = true;
+	} else if (sensor_peri->actuator->actuator_init_state == ACTUATOR_INIT_FAILED) {
+		ret = -1;
+	}
+	mutex_unlock(&sensor_peri->actuator->control_init_lock);
+
+	if (is_act_init_require) {
 
 		ret = v4l2_subdev_call(sensor_peri->subdev_actuator, core, init, 0);
 		if (ret)
 			warn("Actuator init fail\n");
-
-		sensor_peri->actuator->actuator_data.actuator_init = false;
 	}
+
+	mutex_lock(&sensor_peri->actuator->control_init_lock);
+	sensor_peri->actuator->actuator_init_state = ret ? ACTUATOR_INIT_FAILED : ACTUATOR_INIT_DONE;
+	mutex_unlock(&sensor_peri->actuator->control_init_lock);
 
 	return ret;
 }
@@ -1550,6 +1611,9 @@ void is_sensor_peri_init_work(struct is_device_sensor_peri *sensor_peri)
 	INIT_WORK(&sensor_peri->cis.cis_status_dump_work, is_sensor_cis_status_dump_work);
 
 	if (sensor_peri->actuator) {
+		sensor_peri->actuator->actuator_init_state = ACTUATOR_NOT_INITIALIZED;
+		mutex_init(&sensor_peri->actuator->control_init_lock);
+		INIT_WORK(&sensor_peri->actuator->actuator_init_work, is_sensor_actuator_init_work);
 		INIT_WORK(&sensor_peri->actuator->actuator_data.actuator_work, is_sensor_peri_m2m_actuator);
 		hrtimer_init(&sensor_peri->actuator->actuator_data.afwindow_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	}

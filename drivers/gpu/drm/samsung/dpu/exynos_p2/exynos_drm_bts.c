@@ -421,6 +421,51 @@ retry_hi_freq:
 	return rot_clk;
 }
 
+static u64 dpu_bts_calc_rotate_crop_aclk(struct decon_device *decon, u32 aclk_base,
+		struct dpu_bts_win_config *config)
+{
+	u64 rot_clk = 0;
+	u32 init_rot_lines;
+	u32 line_t_ns;
+	u32 tx_allow_rot_ns;
+	u32 of_lines = decon->bts.of_lines;
+	u32 rot_wr_cycle;
+	u32 ppc_rot_w = decon->bts.ppc_rot_w;
+	u32 init_crop;
+
+	init_crop = config->is_xflip ?
+			    config->src_f_w - config->src_w - config->src_x :
+			    config->src_x;
+
+	init_rot_lines = ROT_READ_LINE - (init_crop % ROT_READ_LINE);
+
+	/* 2x of_lines is required for operation without initial latency */
+	DPU_DEBUG_BTS(decon, "src_x:%d, fb_w:%d, fb_h:%d, src_w:%d, src_h:%d\n",
+		      config->src_x, config->src_f_w, config->src_f_h,
+		      config->src_w, config->src_h);
+	DPU_DEBUG_BTS(decon,
+		      "init_rot_line:%d, of_line:%d, ppc_rot_w:%d, xflip:%d\n",
+		      init_rot_lines, of_lines, ppc_rot_w, config->is_xflip);
+
+	if (init_rot_lines > of_lines && init_rot_lines <= of_lines * 2) {
+		line_t_ns = dpu_bts_get_one_line_time(decon);
+		rot_wr_cycle = (32 - of_lines) * config->src_h / ppc_rot_w;
+		tx_allow_rot_ns = line_t_ns * of_lines;
+		rot_clk = (u64)rot_wr_cycle * 1000U * 1000U / tx_allow_rot_ns;
+		DPU_DEBUG_BTS(
+			decon,
+			"rot_wr_cycle:%d, tx_allow_rot_ns:%d, rot_clk:%d\n",
+			rot_wr_cycle, tx_allow_rot_ns, rot_clk);
+	}
+
+	if (rot_clk < aclk_base)
+		rot_clk = aclk_base;
+
+	DPU_DEBUG_BTS(decon, "[ROT] AFTER OF level check: %d KHz\n", (u32)rot_clk);
+
+	return rot_clk;
+}
+
 u64 dpu_bts_calc_aclk_disp(struct decon_device *decon,
 		struct dpu_bts_win_config *config, u64 resol_clk, u32 max_clk)
 {
@@ -471,12 +516,15 @@ u64 dpu_bts_calc_aclk_disp(struct decon_device *decon,
 
 	if ((s_ratio_h != MULTI_FACTOR) || (s_ratio_v != MULTI_FACTOR))
 		is_scale = true;
+
 	if (decon->config.dsc.enabled)
 		is_dsc = true;
 
 	aclk_disp = dpu_bts_calc_rotate_aclk(decon, (u32)aclk_base,
 			(u32)ppc, config->format, src_w, config->dst_w, config->dst_y,
 			is_comp, is_scale, is_dsc);
+
+	aclk_disp = dpu_bts_calc_rotate_crop_aclk(decon, (u32)aclk_disp, config);
 
 	return aclk_disp;
 }

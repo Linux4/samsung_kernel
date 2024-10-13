@@ -14,6 +14,7 @@
 #include "module_4ha.dtsi"
 #include "module_gc02m1.dtsi"
 #include "module_hi1339.dtsi"
+#include "module_imx258.dtsi"
 
 / {
 	fragment@camera {
@@ -70,6 +71,27 @@
 						90 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpm10 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>;};
 					};
 
+				};
+			};
+
+			/* Dualized Front */
+			is_sensor_imx258: is_sensor_imx258@1A {
+				power_seq {
+					scenario_normal_on {
+						30 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm10 0 0x1>; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+					};
+
+					scenario_normal_off {
+						90 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpm10 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>;};
+					};
+
+					scenario_read_rom_on {
+						10 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_OUTPUT 1 5000>; gpio = <&gpm10 0 0x1>; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+					};
+
+					scenario_read_rom_off {
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_OUTPUT 0 20000>; gpio = <&gpm10 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>;};
+					};
 				};
 			};
 
@@ -400,6 +422,17 @@
 		sensor_f_number = <220>;	/* f number 2.2 */
 	};
 
+	is-imx258@34 {
+		compatible = "samsung,exynos-is-cis-imx258";
+		sensor-module = <&is_sensor_imx258>;
+		reg = <0x1A>; /* 1 bit right shift */
+		id = <1>; /* matching is_sensor id */
+		sensor_f_number = <220>;	/* f number 2.2 */
+		setfile = "setB";
+		use_initial_ae; /* for initial AE of face unlock */
+		status = "okay";
+	};
+
 	front_otprom@40 { /* Front otprom */
 		compatible = "samsung,front-otprom-i2c";
 		reg = <0x01>;
@@ -569,6 +602,51 @@
 
 		/* sensor ois - xgg ygg xcoef ycoef xsupper ysupper calmark */
 		rom_ois_list = <0x0158 0x015C 0x0164 0x0166 0x0180 0x0182 0x0178>;
+	};
+
+front_eeprom@A2 { /* Front EEPROM */
+		compatible = "samsung,front-eeprom-i2c";
+		reg = <0x51>;
+		rom_power_position = <1>;
+		rom_size = <0x1C84>;
+		cal_map_es_version = <1>;
+		camera_module_es_version = "A";
+		/*skip_cal_loading;*/
+
+		/* 0 header */
+		header_crc_check_list = <0x0000 0x0051 0x0052>;
+		/* 0 cross-talk */
+		/* 1 standard cal */
+		crc_check_list = <0x0056 0x0477 0x0478>;
+		/* Master */
+		rom_header_version_start_addr = <0x0A>;
+		rom_header_cal_data_start_addr = <0x00>;
+		rom_header_cal_map_ver_start_addr = <0x16>;
+		rom_header_project_name_start_addr = <0x1E>;
+		rom_header_module_id_addr = <0x36>; /* 0x28 + reserved bytes */
+		rom_header_sensor_id_addr = <0x40>;
+		rom_awb_master_addr = <0x0064>;
+
+		/* standard cal */
+		use_standard_cal;
+		rom_standard_cal_start_addr = <0x0056>;
+		rom_standard_cal_end_addr = <0x047B>;
+		rom_standard_cal_sec2lsi_end_addr = <0x1A63>;
+		rom_awb_start_addr = <0x0064>;
+		rom_awb_end_addr = <0x006B>;
+		rom_shading_start_addr = <0x006E>;
+		rom_shading_end_addr = <0x0466>;
+		rom_factory_start_addr = <0x047C>;
+		rom_factory_end_addr = <0x069B>;
+		rom_awb_sec2lsi_start_addr = <0x0064>;
+		rom_awb_sec2lsi_end_addr = <0x006B>;
+		rom_awb_sec2lsi_checksum_addr = <0x0070>;
+		rom_awb_sec2lsi_checksum_len = <0xC>;
+		rom_shading_sec2lsi_start_addr = <0x0074>;
+		rom_shading_sec2lsi_end_addr = <0x1A5B>;
+		rom_shading_sec2lsi_checksum_addr = <0x1A60>;
+		rom_shading_sec2lsi_checksum_len = <0x19EC>;
+		rom_factory_sec2lsi_start_addr = <0x1A64>;
 	};
 
 	rear4_eeprom@A4 { /* Macro eeprom */
@@ -769,7 +847,7 @@
 		max_camera_num = <5>;
 		sensor_id { /* sensor position = <sensor_id> */
 			0 = <72>;	/* JN1 */
-			1 = <225>;	/* HI1339 */
+			1 = <225 110>;	/* HI1339 IMX258*/
 			4 = <39>;	/* S5K4HA */
 			6 = <214>;	/* GC02M1 */
 		};

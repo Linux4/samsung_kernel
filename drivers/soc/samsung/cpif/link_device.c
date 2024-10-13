@@ -4548,11 +4548,9 @@ static int init_shmem_maps(u32 link_type, struct modem_data *modem,
 		 * Initialize SHMEM maps for VSS (physical map -> logical map)
 		 */
 		mld->vss_base = cp_shmem_get_region(cp_num, SHMEM_VSS);
-		if (!mld->vss_base) {
+		if (!mld->vss_base)
 			mif_err("Failed to vmap vss_region\n");
-			err = -ENOMEM;
-			goto error;
-		}
+
 		mif_info("vss_base=%pK\n", mld->vss_base);
 
 		/*

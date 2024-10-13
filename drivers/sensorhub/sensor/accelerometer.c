@@ -42,6 +42,18 @@ static get_init_chipset_funcs_ptr *get_accel_init_chipset_funcs(int *len)
 	return get_acc_funcs_ary;
 }
 
+static int init_accelerometer_variable(void)
+{
+	struct accelerometer_data *data = get_sensor(SENSOR_TYPE_ACCELEROMETER)->data;
+
+	if (is_support_system_feature(SF_ACCEL_16G))
+		data->range = 16;
+	else
+		data->range = 8;
+
+	return 0;
+}
+
 void parse_dt_accelerometer(struct device *dev)
 {
 	struct device_node *np = dev->of_node;
@@ -160,6 +172,7 @@ static struct sensor_funcs accelerometer_sensor_func = {
 	.get_position = get_accel_position,
 	.open_calibration_file = open_accel_calibration_file,
 	.parse_dt = parse_dt_accelerometer,
+	.init_variable = init_accelerometer_variable,
 	.get_init_chipset_funcs = get_accel_init_chipset_funcs,
 };
 
@@ -178,7 +191,7 @@ int init_accelerometer(bool en)
 
 		sensor->report_mode_continuous = true;
 		sensor->data = (void *)&accelerometer_data;
-		sensor->funcs = &accelerometer_sensor_func;		
+		sensor->funcs = &accelerometer_sensor_func;
 	} else {
 		destroy_default_func(sensor);
 	}
@@ -214,7 +227,7 @@ int init_accelerometer_uncal(bool en)
 		ret = init_default_func(sensor, "uncal_accel_sensor", 12, 12, sizeof(struct uncal_accel_event));
 
 		sensor->report_mode_continuous = true;
-		sensor->funcs = &accelerometer_uncal_sensor_func;		
+		sensor->funcs = &accelerometer_uncal_sensor_func;
 	} else {
 		destroy_default_func(sensor);
 	}

@@ -353,4 +353,11 @@ config BATTERY_SAMSUNG_REBOOT
 	 This options for only ARCH_EXYNOS.
 	 If this is Y, checking reboot when power off.
 
+config SBP_FG
+	bool "SBP FUELGAUGE"
+	default n
+	help
+	  Say Y here to enable
+	  Support for SBP FUELGAUGE.
+
 endmenu

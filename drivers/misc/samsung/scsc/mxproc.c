@@ -7,6 +7,9 @@
 #include <linux/proc_fs.h>
 #include <linux/version.h>
 #include <linux/seq_file.h>
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+#include <linux/file.h>
+#endif
 #include <scsc/scsc_release.h>
 #include <scsc/scsc_logring.h>
 #include "mxman.h"
@@ -88,6 +91,10 @@
 #define MX_DIRLEN 128
 static const char *procdir_ctrl = "driver/mxman_ctrl";
 static const char *procdir_info = "driver/mxman_info";
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+#define APM_OP_GET_TUNE (0x4)
+#define APM_OP_SET_TUNE (0x5)
+#endif
 
 static int mx_procfs_generic_open(struct inode *inode, struct file *file)
 {
@@ -411,12 +418,16 @@ static ssize_t mx_procfs_mx_suspend_write(struct file *file, const char __user *
 {
 	struct mxproc *mxproc = file->private_data;
 	int r;
+	char value = 0;
 
 	OS_UNUSED_PARAMETER(file);
 	OS_UNUSED_PARAMETER(ppos);
 
+	if (copy_from_user(&value, user_buf, 1))
+		return -EFAULT;
+
 	if (count && mxproc) {
-		switch (user_buf[0]) {
+		switch (value) {
 		case 'Y':
 			SCSC_TAG_INFO(MX_PROC, "force suspend\n");
 			r = mxman_suspend(mxproc->mxman);
@@ -430,7 +441,7 @@ static ssize_t mx_procfs_mx_suspend_write(struct file *file, const char __user *
 			mxman_resume(mxproc->mxman);
 			break;
 		default:
-			SCSC_TAG_INFO(MX_PROC, "invalid value %c\n", user_buf[0]);
+			SCSC_TAG_INFO(MX_PROC, "invalid value %c\n", value);
 			return -EINVAL;
 		}
 	}
@@ -695,6 +706,91 @@ static ssize_t mx_procfs_mx_ttid_read(struct file *file, char __user *user_buf, 
 
 MX_PROCFS_RO_FILE_OPS(mx_ttid);
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+static ssize_t mx_procfs_mx_dcxo_cal_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+	struct mxproc *mxproc = file->private_data;
+
+	OS_UNUSED_PARAMETER(mxproc);
+	OS_UNUSED_PARAMETER(file);
+	OS_UNUSED_PARAMETER(user_buf);
+	OS_UNUSED_PARAMETER(count);
+	OS_UNUSED_PARAMETER(ppos);
+
+	if (mxproc && mxproc->mxman && mxproc->mxman->mx) {
+		struct scsc_mif_abs *mif_abs = scsc_mx_get_mif_abs(mxproc->mxman->mx);
+		u32 val;
+		int ret;
+
+		ret = mif_abs->irq_register_mbox_apm(mif_abs);
+		if (ret) {
+			SCSC_TAG_ERR(MX_PROC, "error to register APM MAILBOX\n");
+			return count;
+		}
+		mif_abs->send_dcxo_cmd(mif_abs, APM_OP_GET_TUNE, 0);
+
+		ret = mif_abs->check_dcxo_ack(mif_abs, APM_OP_GET_TUNE, &val);
+		if (ret) {
+			SCSC_TAG_ERR(MX_PROC, "Failure to get DCXO Tune(cause: %d)\n", ret);
+		} else {
+			SCSC_TAG_INFO(MX_PROC, "Succeed to get DCXO Tune, and read value: 0x%x\n", val);
+		}
+
+		mif_abs->irq_unregister_mbox_apm(mif_abs);
+	}
+	SCSC_TAG_DEBUG(MX_PROC, "OK\n");
+	return 0;
+}
+
+static ssize_t mx_procfs_mx_dcxo_cal_write(struct file *file, const char __user *user_buf, size_t count, loff_t *ppos)
+{
+	struct mxproc *mxproc = file->private_data;
+
+	OS_UNUSED_PARAMETER(file);
+	OS_UNUSED_PARAMETER(user_buf);
+	OS_UNUSED_PARAMETER(count);
+	OS_UNUSED_PARAMETER(ppos);
+
+	if (mxproc && mxproc->mxman && mxproc->mxman->mx) {
+		struct scsc_mif_abs *mif_abs = scsc_mx_get_mif_abs(mxproc->mxman->mx);
+		u32 val = 0;
+		char buff[8];
+		int ret;
+
+		if (copy_from_user(buff, user_buf, count))
+			return -EFAULT;
+
+		ret = kstrtouint(buff, 10, &val);
+		if (ret) {
+			SCSC_TAG_ERR(MX_PROC, "error to convert string to int(%d)\n", ret);
+			return ret;
+		}
+		SCSC_TAG_INFO(MX_PROC, "Intended DCXO Cal value: 0x%x\n", val);
+
+		ret = mif_abs->irq_register_mbox_apm(mif_abs);
+		if (ret) {
+			SCSC_TAG_ERR(MX_PROC, "error to register APM MAILBOX\n");
+			return count;
+		}
+		mif_abs->send_dcxo_cmd(mif_abs, APM_OP_SET_TUNE, val);
+
+		ret = mif_abs->check_dcxo_ack(mif_abs, APM_OP_SET_TUNE, NULL);
+		if (ret) {
+			SCSC_TAG_ERR(MX_PROC, "Failure to set DCXO Tune(cause: %d)\n", ret);
+		} else {
+			SCSC_TAG_INFO(MX_PROC, "Succeed to set DCXO Tune\n");
+		}
+
+		mif_abs->irq_unregister_mbox_apm(mif_abs);
+	}
+	SCSC_TAG_INFO(MX_PROC, "OK\n");
+
+	return count;
+}
+
+MX_PROCFS_RW_FILE_OPS(mx_dcxo_cal);
+#endif
+
 int mxproc_create_info_proc_dir(struct mxproc *mxproc, struct mxman *mxman)
 {
 	char                  dir[MX_DIRLEN];
@@ -716,6 +812,9 @@ int mxproc_create_info_proc_dir(struct mxproc *mxproc, struct mxman *mxman)
 	MX_PROCFS_ADD_FILE(mxproc, mx_rf_hw_name, parent, S_IRUSR | S_IRGRP | S_IROTH);
 	MX_PROCFS_ADD_FILE(mxproc, mx_boot_count, parent, S_IRUSR | S_IRGRP | S_IROTH);
 	MX_PROCFS_ADD_FILE(mxproc, mx_ttid, parent, S_IRUSR | S_IRGRP | S_IROTH);
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	MX_PROCFS_ADD_FILE(mxproc, mx_dcxo_cal, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#endif
 	SCSC_TAG_DEBUG(MX_PROC, "created %s proc dir\n", dir);
 
 	return 0;
@@ -725,7 +824,9 @@ void mxproc_remove_info_proc_dir(struct mxproc *mxproc)
 {
 	if (mxproc->procfs_info_dir) {
 		char dir[MX_DIRLEN];
-
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+		MX_PROCFS_REMOVE_FILE(mx_dcxo_cal, mxproc->procfs_info_dir);
+#endif
 		MX_PROCFS_REMOVE_FILE(mx_ttid, mxproc->procfs_info_dir);
 		MX_PROCFS_REMOVE_FILE(mx_boot_count, mxproc->procfs_info_dir);
 		MX_PROCFS_REMOVE_FILE(mx_release, mxproc->procfs_info_dir);

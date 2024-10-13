@@ -43,6 +43,9 @@
 
 extern int dbg_snapshot_expire_watchdog(void);
 
+/* Out FIFO SIZE : 4K */
+#define OUTFIFO_PIXEL_NUM 4096
+
 enum decon_state {
 	DECON_STATE_INIT = 0,
 	DECON_STATE_ON,

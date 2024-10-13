@@ -289,6 +289,13 @@ address (provided it is within a permissible BAAW range).*/
 	int (*set_mbox_pmu)(struct scsc_mif_abs *interface, u32 val);
 	int (*load_pmu_fw)(struct scsc_mif_abs *interface, u32 *ka_patch, size_t ka_patch_len);
 	void (*irq_reg_pmu_handler)(struct scsc_mif_abs *interface, void (*handler)(int irq, void *data), void *dev);
+
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	void (*send_dcxo_cmd)(struct scsc_mif_abs *interface, u8 opcode, u32 val);
+	int (*check_dcxo_ack)(struct scsc_mif_abs *interface, u8 opcode, u32* val);
+	int (*irq_register_mbox_apm)(struct scsc_mif_abs *interface);
+	void (*irq_unregister_mbox_apm)(struct scsc_mif_abs *interface);
+#endif
 #endif
 	int (*wlbt_phandle_property_read_u32) (struct scsc_mif_abs *interface, const char *phandle_name,
 				      const char *propname, u32 *out_value, size_t size);

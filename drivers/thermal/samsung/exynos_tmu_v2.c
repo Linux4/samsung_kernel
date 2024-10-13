@@ -1925,7 +1925,7 @@ static ssize_t thermal_status_show(struct kobject *kobj, struct kobj_attribute *
 
 static struct bin_attribute thermal_log_bin_attr = {
 	.attr.name = "thermal_log",
-	.attr.mode = 0400,
+	.attr.mode = 0444,
 	.read = thermal_log_show,
 };
 

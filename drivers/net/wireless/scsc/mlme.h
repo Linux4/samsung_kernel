@@ -26,6 +26,9 @@ enum slsi_ac_index_wmm_pe {
 #define SLSI_WLAN_EID_INTERWORKING 107
 #define SLSI_WLAN_EID_EXTENSION 255
 
+/* Element ID Extension (EID 255) values */
+#define SLSI_WLAN_EID_EXT_OWE_DH_PARAM 32
+
 #define SLSI_WLAN_OUI_TYPE_WFA_HS20_IND 0x10
 #define SLSI_WLAN_OUI_TYPE_WFA_OSEN 0x12
 #define SLSI_WLAN_OUI_TYPE_WFA_MBO 0x16
@@ -169,6 +172,16 @@ struct slsi_mlme_pkt_filter_elem {
 #define SLSI_MLME_SUBTYPE_SCAN_TIMING  0x1
 #define SLSI_MLME_SUBTYPE_CHANNEL_LIST 0x2
 #define SLSI_MLME_SUBTYPE_SSID_FILTER  0x4
+
+#define SLSI_KEY_MGMT_PSK 0x000fac02
+#define SLSI_KEY_MGMT_PSK_SHA 0x000fac06
+#define SLSI_KEY_MGMT_FILS_SHA256 0x000fac0e
+#define SLSI_KEY_MGMT_FILS_SHA384 0x000fac0f
+#define SLSI_KEY_MGMT_FT_FILS_SHA256 0x000fac10
+#define SLSI_KEY_MGMT_FT_FILS_SHA384 0x000fac11
+#define SLSI_KEY_MGMT_OWE 0x000fac12
+#define SLSI_KEY_MGMT_802_1X_SUITE_B_192 0x000fac0c
+#define SLSI_KEY_MGMT_FT_802_1X_SHA384 0x000fac0d
 
 struct slsi_mlme_parameters {
 	u8 element_id;

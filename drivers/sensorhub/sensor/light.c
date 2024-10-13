@@ -47,7 +47,7 @@ static int init_light_variable(void)
 	else
 		data->raw_data_size = 2;
 
-	set_light_ddi_support(system_info->support_ddi);
+	set_light_ddi_support(system_info->system_feature);
 
 	return 0;
 }
@@ -142,15 +142,14 @@ int set_light_region(struct light_data *data)
 }
 #endif
 
-void set_light_ddi_support(uint32_t ddi_support)
+void set_light_ddi_support(uint32_t system_feature)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
 	struct light_data *data = sensor->data;
 
-	if (ddi_support == DDI_SUPPORT)
-		data->ddi_support = true;
+	data->ddi_support = is_support_system_feature(SF_DDI_SUPPORT);
 
-	shub_infof("%d", ddi_support);
+	shub_infof("%d", data->ddi_support);
 }
 
 int light_open_calibration(void)
@@ -174,7 +173,7 @@ static int set_light_cal(struct light_data *data)
 {
 	int ret = 0;
 
-	if (!data->use_cal_data)
+	if (!data->use_cal_data || is_panel_ubid_changed())
 		return 0;
 
 	shub_infof("%d %d %d", data->cal_data.result, data->cal_data.max, data->cal_data.lux);
@@ -195,7 +194,7 @@ static int set_panel_vendor(struct light_data *data)
 	if (data->panel_vendor < 0)
 		return ret;
 
-	shub_info("%s : %d", __func__, data->panel_vendor);
+	shub_infof("%d", data->panel_vendor);
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_PANEL_TYPE, (u8 *)(&data->panel_vendor),
 							sizeof(int8_t));
 	if (ret < 0)
@@ -208,7 +207,7 @@ static int set_hbm_finger(struct light_data *data)
 {
 	int ret = 0;
 
-	shub_info("%s : %d", __func__, data->hbm_finger);
+	shub_infof("%d", data->hbm_finger);
 	if (data->hbm_finger == true) {
 		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_HBM_FINGERPRINT,
 		(u8 *)(&data->hbm_finger), sizeof(data->hbm_finger));

@@ -37,7 +37,11 @@
 #include "is-resourcemgr.h"
 #include "is-dt.h"
 #include "is-cis-gc5035.h"
+#ifdef CONFIG_CAMERA_STX_V04
+#include "is-cis-gc5035-setA-5mp.h"
+#else
 #include "is-cis-gc5035-setA.h"
+#endif
 #include "is-cis-gc5035-setB.h"
 
 #include "is-helper-i2c.h"
@@ -1059,7 +1063,9 @@ int sensor_gc5035_cis_stream_on(struct v4l2_subdev *subdev)
 	/* Sensor Dual sync on/off */
 	if (single_mode) {
 		/* Delay for single mode */
-		msleep(50);
+		if (core->scenario != IS_SCENARIO_SECURE) {
+			msleep(50);
+		}
 
 		info("%s (single mode)\n", __func__);
 	} else {
@@ -1092,11 +1098,6 @@ int sensor_gc5035_cis_stream_on(struct v4l2_subdev *subdev)
 		goto p_i2c_err;
 	}
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
-	if (single_mode) {
-		/* Delay for single mode */
-		msleep(50);
-	}
 
 	cis_data->stream_on = true;
 
@@ -1964,7 +1965,6 @@ int sensor_gc5035_cis_wait_streamoff(struct v4l2_subdev *subdev)
 	/* Checking stream off */
 	do {
 		u8 read_value_3E = 0;
-		u8 read_value_2A = 0;
 
 		/* Page Selection */
 		ret = is_sensor_addr8_write8(client, 0xfd, 0x00);
@@ -1982,31 +1982,8 @@ int sensor_gc5035_cis_wait_streamoff(struct v4l2_subdev *subdev)
 			goto p_err;
 		}
 
-		ret = is_sensor_addr8_read8(client, 0x2A, &read_value_2A);
-		if (ret < 0) {
-			err("i2c transfer fail addr(%x) ret = %d\n", 0x2A, ret);
-			goto p_err;
-		}
-
-#if 1
-		if (read_value_3E == 0x00 && read_value_2A == 0x00)
+		if (read_value_3E == 0x00)
 			break;
-#else
-		if (read_value_3E == 0x00) {
-			if (read_value_2A == 0x01) {
-				warn("%s: sensor is not stream off yet!  0x2A=%#x\n", __func__ , read_value_2A);
-			} else if (read_value_2A == 0x00) {
-				info("%s: sensor is stream off! 0x3E=%#x, 0x2A=%#x\n", __func__ , read_value_3E, read_value_2A);
-				break;
-			} else {
-				warn("%s: stream off check value is wrong 0x2A=0x%#x\n", __func__, read_value_2A);
-			}
-		} else if (read_value_3E == 0x91) {
-			warn("%s: sensor is not stream off yet!  0x3E=%#x\n", __func__ , read_value_3E);
-		} else {
-			warn("%s: stream off check value is wrong 0x3E=%#x\n", __func__, read_value_3E);
-		}
-#endif
 
 		usleep_range(POLL_TIME_US, POLL_TIME_US);
 		poll_time_ms += POLL_TIME_MS;
@@ -2134,6 +2111,7 @@ static struct is_cis_ops cis_ops = {
 	.cis_wait_streamon = sensor_gc5035_cis_wait_streamon,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
 	.cis_set_totalgain = sensor_gc5035_cis_set_totalgain,
+	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
 };
 
 int cis_gc5035_probe(struct i2c_client *client,

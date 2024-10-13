@@ -263,8 +263,7 @@ static inline void ethr_ii_to_subframe_msdu(struct sk_buff *skb)
 #define SLSI_MAX_FREQUENCY_LIST 20
 #define SLSI_MAX_RX_BA_SESSIONS (8)
 #define SLSI_STA_ACTION_FRAME_BITMAP (SLSI_ACTION_FRAME_PUBLIC | SLSI_ACTION_FRAME_WMM | SLSI_ACTION_FRAME_WNM |\
-				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL |\
-				      SLSI_ACTION_FRAME_RADIO_MEASUREMENT)
+				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL)
 #define SLSI_STA_ACTION_FRAME_SUSPEND_BITMAP (SLSI_ACTION_FRAME_PUBLIC | SLSI_ACTION_FRAME_WMM | SLSI_ACTION_FRAME_WNM |\
 				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL)
 
@@ -797,6 +796,7 @@ struct slsi_vif_sta {
 	u16                            ch_width;
 	u16                            primary_chan_pos;
 	u16                            sae_auth_type;
+	u16                            owe_group_during_connection;
 };
 
 struct slsi_vif_unsync {
@@ -1900,6 +1900,8 @@ static inline int slsi_get_supported_mode(const u8 *peer_ie)
 	}
 	return SLSI_80211_MODE_11B;
 }
+
+#define SLSI_WAKEUP_PKT_MARK 0x80000000
 
 /* Names of full mode HCF files */
 extern char *slsi_mib_file;

@@ -927,8 +927,10 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 	eth_hdr = (struct ethhdr *)skb->data;
 
 	/* Populate wake reason stats here */
-	if (unlikely(slsi_skb_cb_get(skb)->wakeup))
+	if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
+		skb->mark = SLSI_WAKEUP_PKT_MARK;
 		slsi_rx_update_wake_stats(sdev, eth_hdr, skb->len);
+	}
 
 	SLSI_NET_DBG4(dev, SLSI_RX, "ma_unitdata_ind(vif:%d, dest:%pM, src:%pM, tid:%d, seq:%d, cipher:%d, discard:%X, is_amsdu:%d, is_tdls:%d)\n",
 		      ndev_vif->ifnum,

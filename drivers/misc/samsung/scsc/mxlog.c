@@ -393,16 +393,27 @@ void mxlog_init(struct mxlog *mxlog, struct scsc_mx *mx, char *fw_build_id)
 	struct mxlog_transport *mtrans;
 
 #if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
-	if (target == SCSC_MIF_ABS_TARGET_WLAN)
+	if (target == SCSC_MIF_ABS_TARGET_WLAN) {
 		mtrans = scsc_mx_get_mxlog_transport(mx);
-	else if (target == SCSC_MIF_ABS_TARGET_WPAN)
+	} else if (target == SCSC_MIF_ABS_TARGET_WPAN) {
 		mtrans = scsc_mx_get_mxlog_transport_wpan(mx);
-	else
+	} else {
+		SCSC_TAG_INFO(MX_FW, "mxlog_init for UNKNOWN target %d\n", target);
 		return;
+	}
+
+	if (target != mtrans->target) {
+		SCSC_TAG_INFO(MX_FW, "mxlog_init for target %d but mtrans is initialized for %d\n",
+			      target, mtrans->target);
+		return;
+	}
+
 	mxlog->target = target;
 #else
 	mtrans = scsc_mx_get_mxlog_transport(mx);
 #endif
+	SCSC_TAG_INFO(MX_FW, "mxlog_init for target %d and init with target %d\n",
+		      target, mxlog->target);
 	mxlog->mx = mx;
 	mxlog->index = 0;
 
@@ -458,6 +469,11 @@ void mxlog_release(struct mxlog *mxlog)
 {
 	struct mxlog_transport *mtrans;
 
+	if (!mxlog->mx) {
+		SCSC_TAG_ERR(MX_FW, "mxlog->mx is NULL\n");
+		return;
+	}
+
 #if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 	if (mxlog->target == SCSC_MIF_ABS_TARGET_WLAN)
 		mtrans = scsc_mx_get_mxlog_transport(mxlog->mx);
@@ -475,5 +491,6 @@ void mxlog_release(struct mxlog *mxlog)
 		mx140_release_file(mxlog->mx, mxlog->logstrings);
 	mxlog->logstrings = NULL;
 #endif
+	mxlog->mx = NULL;
 }
 

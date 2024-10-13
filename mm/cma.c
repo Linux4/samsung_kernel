@@ -441,7 +441,7 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 	struct page *page = NULL;
 	int ret = -ENOMEM;
 	int num_attempts = 0;
-	int max_retries = 5;
+	int max_retries = 10;
 	s64 ts;
 	struct cma_alloc_info cma_info = {0};
 

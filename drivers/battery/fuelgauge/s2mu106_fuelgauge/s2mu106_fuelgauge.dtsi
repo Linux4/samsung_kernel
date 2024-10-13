@@ -41,7 +41,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8816/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/s2mu106/s2mu106_fuelgauge.a33x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/s2mu106/s2mu106_fuelgauge.a33x.dtsi */
 
 &s2mu106_fuelgauge {
 	fuelgauge,capacity_full = <5000>;

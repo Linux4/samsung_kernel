@@ -72,6 +72,8 @@ struct dpu_bts_win_config {
 	u32 src_y;
 	u32 src_w;
 	u32 src_h;
+	u32 src_f_w;
+	u32 src_f_h;
 	int dst_x;
 	int dst_y;
 	u32 dst_w;
@@ -79,6 +81,7 @@ struct dpu_bts_win_config {
 	bool is_rot;
 	bool is_comp;
 	bool is_hdr;
+	bool is_xflip;
 	int dpp_ch;
 	u32 format;
 	u64 comp_src;
@@ -125,6 +128,7 @@ struct dpu_bts {
 	u32 prev_max_disp_freq;
 	u32 ppc;
 	u32 ppc_rotator;
+	u32 ppc_rot_w;
 	u32 ppc_scaler;
 	u32 delay_comp;
 	u32 delay_scaler;
@@ -132,6 +136,7 @@ struct dpu_bts {
 	u32 bus_width;
 	u32 rot_util;
 	u32 dfs_lv_cnt;
+	u32 of_lines;
 	u32 dfs_lv[BTS_DFS_MAX];
 	u32 vbp;
 	u32 vfp;

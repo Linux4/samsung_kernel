@@ -231,6 +231,7 @@ int panel_bl_remove(struct panel_bl_device *panel_bl);
 int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_cmd);
 int panel_update_brightness(struct panel_device *panel);
 int panel_update_brightness_cmd_skip(struct panel_device *panel);
+int max_brt_tbl(struct brightness_table *brt_tbl);
 int get_max_brightness(struct panel_bl_device *panel_bl);
 int get_brightness_pac_step_by_subdev_id(struct panel_bl_device *panel_bl, int id, int brightness);
 int get_brightness_pac_step(struct panel_bl_device *panel_bl, int brightness);

@@ -22,10 +22,22 @@
 #include "../../utility/shub_file_manager.h"
 #include "../../comm/shub_comm.h"
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 #include <linux/delay.h>
 #include <linux/slab.h>
 
-#define MAX_ACCEL_1G 4096
+#define MAX_ACCEL_1G_8G 4096
+#define MAX_ACCEL_1G_16G 2048
+#define MIN_ACCEL_1G_8G -4096
+#define MIN_ACCEL_1G_16G -2048
 #define MAX_ACCEL_2G 8192
 #define MIN_ACCEL_2G -8192
 #define MAX_ACCEL_4G 16384
@@ -77,7 +89,12 @@ static int accel_do_calibrate(int enable)
 	uint32_t backup_sampling_period = sensor->sampling_period;
 	uint32_t backup_max_report_latency = sensor->max_report_latency;
 	struct accelerometer_data *data = sensor->data;
+	int range = MAX_ACCEL_1G_8G;
 	struct accel_event *sensor_value = (struct accel_event *)sensor->event_buffer.value;
+
+	if (data->range == 16) {
+		range = MAX_ACCEL_1G_16G;
+	}
 
 	if (enable) {
 		int count;
@@ -107,9 +124,9 @@ static int accel_do_calibrate(int enable)
 		data->cal_data.z = (iSum[2] / CALIBRATION_DATA_AMOUNT);
 
 		if (data->cal_data.z > 0)
-			data->cal_data.z -= MAX_ACCEL_1G;
+			data->cal_data.z -= range;
 		else if (data->cal_data.z < 0)
-			data->cal_data.z += MAX_ACCEL_1G;
+			data->cal_data.z += range;
 
 	} else {
 		data->cal_data.x = 0;
@@ -300,7 +317,7 @@ static DEVICE_ATTR(reactive_alert, 0664, accel_reactive_alert_show, accel_reacti
 static DEVICE_ATTR(lowpassfilter, 0220, NULL, accel_lowpassfilter_store);
 static DEVICE_ATTR_RO(selftest);
 
-static struct device_attribute *acc_attrs[] = {
+__visible_for_testing struct device_attribute *acc_attrs[] = {
 	&dev_attr_name,
 	&dev_attr_vendor,
 	&dev_attr_calibration,

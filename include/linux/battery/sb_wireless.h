@@ -48,6 +48,8 @@ struct sb_wireless_op {
 	int (*get_auth_mode)(void *pdata);
 };
 
+const char *sb_wrl_op_mode_str(int op_mode);
+
 int sb_wireless_set_op(void *pdata, const struct sb_wireless_op *op);
 
 #endif /* __SB_WIRELESS_H__ */

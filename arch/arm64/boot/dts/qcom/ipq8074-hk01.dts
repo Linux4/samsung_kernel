@@ -168,7 +168,7 @@
 			clock-names = "aux\0cfg_ahb";
 			resets = <0x03 0x4e 0x03 0x4f>;
 			reset-names = "phy\0common";
-			status = "disabled";
+			status = "okay";
 			phandle = <0x1b>;
 
 			phy@84200 {
@@ -178,7 +178,6 @@
 				clocks = <0x03 0x73>;
 				clock-names = "pipe0";
 				clock-output-names = "pcie20_phy0_pipe_clk";
-				status = "okay";
 				phandle = <0x13>;
 			};
 		};
@@ -193,7 +192,7 @@
 			clock-names = "aux\0cfg_ahb";
 			resets = <0x03 0x52 0x03 0x53>;
 			reset-names = "phy\0common";
-			status = "disabled";
+			status = "okay";
 			phandle = <0x1c>;
 
 			phy@8e200 {
@@ -203,7 +202,6 @@
 				clocks = <0x03 0x79>;
 				clock-names = "pipe0";
 				clock-output-names = "pcie20_phy1_pipe_clk";
-				status = "okay";
 				phandle = <0x12>;
 			};
 		};
@@ -572,7 +570,7 @@
 			#size-cells = <0x02>;
 			phys = <0x12>;
 			phy-names = "pciephy";
-			ranges = <0x81000000 0x00 0x10200000 0x10200000 0x00 0x10000 0x82000000 0x00 0x10220000 0x10220000 0x00 0xfde0000>;
+			ranges = <0x81000000 0x00 0x00 0x10200000 0x00 0x10000 0x82000000 0x00 0x10220000 0x10220000 0x00 0xfde0000>;
 			interrupts = <0x00 0x55 0x04>;
 			interrupt-names = "msi";
 			#interrupt-cells = <0x01>;
@@ -600,7 +598,7 @@
 			#size-cells = <0x02>;
 			phys = <0x13>;
 			phy-names = "pciephy";
-			ranges = <0x81000000 0x00 0x20200000 0x20200000 0x00 0x10000 0x82000000 0x00 0x20220000 0x20220000 0x00 0xfde0000>;
+			ranges = <0x81000000 0x00 0x00 0x20200000 0x00 0x10000 0x82000000 0x00 0x20220000 0x20220000 0x00 0xfde0000>;
 			interrupts = <0x00 0x34 0x04>;
 			interrupt-names = "msi";
 			#interrupt-cells = <0x01>;

@@ -20,7 +20,11 @@
 
 #define PWR_ON_DELAY	5000 /* DW9808 need delay for 5msec after power-on */
 
+#if defined CONFIG_CAMERA_STX_V04
+#define DW9808_CAL_SAC_ADDR		0x0164
+#else
 #define DW9808_CAL_SAC_ADDR		0x2694
+#endif
 
 struct is_caldata_list_dw9808 {
 	u32 af_position_type;

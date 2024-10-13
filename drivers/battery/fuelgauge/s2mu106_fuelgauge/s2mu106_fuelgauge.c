@@ -1301,7 +1301,7 @@ static int s2mu106_get_current(struct s2mu106_fuelgauge_data *fuelgauge)
 	if (compliment & (0x1 << 15)) { /* Charging */
 		curr = ((~compliment) & 0xFFFF) + 1;
 		curr = (curr * 1000) >> 12;
-	} else { /* dischaging */
+	} else { /* discharging */
 		curr = compliment & 0x7FFF;
 		curr = (curr * (-1000)) >> 12;
 	}
@@ -1381,7 +1381,7 @@ static int s2mu106_get_avgcurrent(struct s2mu106_fuelgauge_data *fuelgauge)
 	if (compliment & (0x1 << 15)) { /* Charging */
 		curr = ((~compliment) & 0xFFFF) + 1;
 		curr = (curr * 1000) >> 12;
-	} else { /* dischaging */
+	} else { /* discharging */
 		curr = compliment & 0x7FFF;
 		curr = (curr * (-1000)) >> 12;
 	}
@@ -1574,7 +1574,7 @@ static void s2mu106_fg_adjust_capacity_max(
 
 		if ((diff >= 1) && (fuelgauge->capacity_max < fuelgauge->g_capacity_max)) {
 			fuelgauge->capacity_max++;
-		} else if ((fuelgauge->capacity_max >= fuelgauge->g_capacity_max) || (curr_raw_soc == 100)) {
+		} else if ((fuelgauge->capacity_max >= fuelgauge->g_capacity_max) || (curr_raw_soc == 1000)) {
 			fuelgauge->g_capacity_max = 0;
 			fuelgauge->capacity_max_conv = false;
 		}

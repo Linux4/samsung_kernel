@@ -674,8 +674,10 @@ static int mxman_res_transports_deinit_wlan(struct mxman *mxman)
 #ifdef CONFIG_SCSC_MX450_GDB_SUPPORT
 	gdb_transport_release(scsc_mx_get_gdb_transport_fxm_2(mxman->mx));
 #endif
-	if (mxman->data_mxconf)
+	if (mxman->data_mxconf){
 		miframman_free(scsc_mx_get_ramman(mxman->mx), mxman->data_mxconf);
+		mxman->data_mxconf = NULL;
+	}
 
 	mxlog_release(scsc_mx_get_mxlog(mxman->mx));
 	/* unregister channel handler */
@@ -689,8 +691,10 @@ static int mxman_res_transports_deinit_wpan(struct mxman *mxman)
 	mxlog_transport_release(scsc_mx_get_mxlog_transport_wpan(mxman->mx));
 	mxmgmt_transport_release(scsc_mx_get_mxmgmt_transport_wpan(mxman->mx));
 	gdb_transport_release(scsc_mx_get_gdb_transport_wpan(mxman->mx));
-	if (mxman->data_mxconf_wpan)
+	if (mxman->data_mxconf_wpan){
 		miframman_free(scsc_mx_get_ramman_wpan(mxman->mx), mxman->data_mxconf_wpan);
+		mxman->data_mxconf_wpan = NULL;
+	}
 
 	mxlog_release(scsc_mx_get_mxlog_wpan(mxman->mx));
 	/* unregister channel handler */

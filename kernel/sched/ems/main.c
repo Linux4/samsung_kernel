@@ -801,6 +801,11 @@ void ems_set_binder_priority(struct binder_transaction *t, struct task_struct *p
 {
 	if (t && t->need_reply && ems_boosted_tex(current))
 		ems_boosted_tex(p) = 1;
+
+	if (t && t->need_reply
+			&& emstune_get_cur_level() == 2
+			&& get_tex_level(current) < NOT_TEX)
+		ems_binder_task(p) = 1;
 }
 
 void ems_restore_binder_priority(struct binder_transaction *t, struct task_struct *p)
