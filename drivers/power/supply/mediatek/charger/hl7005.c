@@ -227,7 +227,7 @@ int hl7005_write_byte(unsigned char reg_num, u8 *wr_buf, int wr_len)
 		return -1;
 
 	w_buf[0] = reg_num;
-	memcpy(w_buf + 1, wr_buf, wr_len);
+	memcpy(w_buf + 1, wr_buf, wr_len - 1);
 
 	msg.addr = new_client->addr;
 	msg.flags = 0;

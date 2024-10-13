@@ -727,7 +727,6 @@ extern void sec_debug_set_extra_info_bug_verbose(unsigned long addr);
 extern void sec_debug_set_extra_info_panic(char *str);
 extern void sec_debug_set_extra_info_backtrace(struct pt_regs *regs);
 extern void sec_debug_set_extra_info_wdt_lastpc(unsigned long stackframe[][WDT_FRAME], unsigned int kick, unsigned int check);
-extern void sec_debug_set_extra_info_dpm_timeout(char *devname);
 extern void sec_debug_set_extra_info_smpl(unsigned int count);
 extern void sec_debug_set_extra_info_esr(unsigned int esr);
 extern void sec_debug_set_extra_info_zswap(char *str);

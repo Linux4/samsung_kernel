@@ -221,7 +221,7 @@ static ssize_t trim_check_show(struct device *dev, struct device_attribute *attr
 	memcpy(&trim_check, buffer, sizeof(trim_check));
 	kfree(buffer);
 
-	shub_infof("%d", __func__, trim_check);
+	shub_infof("%d", trim_check);
 
 	if (trim_check != 0 && trim_check != 1) {
 		shub_errf("hub read trim NG");
@@ -260,6 +260,7 @@ get_chipset_dev_attrs get_proximity_chipset_dev_attrs[] = {
 	get_proximity_tmd4912_dev_attrs,
 	get_proximity_stk3391x_dev_attrs,
 	get_proximity_stk33512_dev_attrs,
+	get_proximity_stk3afx_dev_attrs,
 };
 
 static void check_proximity_dev_attr(void)
@@ -278,7 +279,9 @@ static void check_proximity_dev_attr(void)
 			   position[4], position[5]);
 	}
 
-	if (sensor->spec.vendor == VENDOR_AMS || sensor->spec.vendor == VENDOR_SITRONIX) {
+	if (sensor->spec.vendor == VENDOR_AMS
+	|| sensor->spec.vendor == VENDOR_CAPELLA
+	|| sensor->spec.vendor == VENDOR_SITRONIX) {
 		if (index < ARRAY_SIZE(proximity_attrs))
 			proximity_attrs[index++] = &dev_attr_trim_check;
 	}
@@ -309,7 +312,7 @@ void initialize_proximity_sysfs(void)
 		if (chipset_attrs) {
 			ret = add_sensor_device_attr(proximity_sysfs_device, chipset_attrs);
 			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
 				return;
 			}
 			break;

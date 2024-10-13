@@ -167,6 +167,7 @@
 				goodix,gpio_irq = <SEC_GPIO_REF(AP,pio,58) 0>;
 				goodix,chip_id = "GW36T1";
 				goodix,orient = <1>;
+				goodix,position = "${fps_position}";
 			};
 #if !defined(CONFIG_SEC_FACTORY) && 1
 		};

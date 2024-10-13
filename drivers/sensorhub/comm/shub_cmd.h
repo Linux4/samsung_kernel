@@ -99,11 +99,19 @@ enum {
 	DDI_COPR,
 	TEST_COPR,
 	COPR_ROIX,
-	PANEL_STATE,
+	CMD_CTS_STATE_NOTIFICATION,
 	DEBUG_INFO,
 	MAGNETIC_COVER_MATRIX,
 	EXTRA_EXTERNAL_CLIENT_ADDED,
 	EXTRA_EXTERNAL_CLIENT_REMOVED,
+	TYPE_OPTIONAL_PROXIMITY = 71, // TYPE_OPTIONAL_PROXIMITY in SensorService side. @ref ISensorHubCmdProtocol.java
+	// 72 (0x48)                  // DISPLAY_REFRESH_RATE @ref SensorAdditionalInfo.java
+	// 73 (0x49)                  // WIFI_DATA_ACTIVITY_ @ref SensorAdditionalInfo.java
+	// 74 (0x50)                  // SENSORHUB_INFO_POWERSHARE_ @ref MotionRecognitionService.java
 	CMD_VALUE_MAX,
 };
+
+/* common operation for each sensor */
+#define DATA_INJECTION 125
+
 #endif
