@@ -2875,6 +2875,8 @@ extern void record_memsize_reserved(const char *name, phys_addr_t base,
 
 extern int want_old_faultaround_pte;
 
+extern inline bool need_memory_boosting(void);
+
 #ifdef CONFIG_PROCESS_RECLAIM
 struct reclaim_param {
 	struct vm_area_struct *vma;

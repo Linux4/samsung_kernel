@@ -202,10 +202,61 @@ static struct v4l2_file_operations g_cam_fops = {
 #endif
 };
 
+static void cam_v4l2_event_queue_notify_error(const struct v4l2_event *old,
+	struct v4l2_event *new)
+{
+	struct cam_req_mgr_message *ev_header;
+
+	ev_header = CAM_REQ_MGR_GET_PAYLOAD_PTR((*old),
+		struct cam_req_mgr_message);
+	switch (old->id) {
+	case V4L_EVENT_CAM_REQ_MGR_SOF:
+	case V4L_EVENT_CAM_REQ_MGR_SOF_BOOT_TS:
+		if (ev_header->u.frame_msg.request_id)
+			CAM_ERR(CAM_CRM,
+				"Failed to notify %s Sess %X FrameId %lld ReqId %lld link %X",
+				((old->id == V4L_EVENT_CAM_REQ_MGR_SOF) ?
+				"SOF_TS" : "BOOT_TS"),
+				ev_header->session_hdl,
+				ev_header->u.frame_msg.frame_id,
+				//ev_header->u.frame_msg.frame_id_meta,
+				ev_header->u.frame_msg.request_id,
+				ev_header->u.frame_msg.link_hdl);
+		else
+			CAM_ERR(CAM_CRM,
+				"Failed to notify %s Sess %X FrameId %lld ReqId %lld link %X",
+				((old->id == V4L_EVENT_CAM_REQ_MGR_SOF) ?
+				"SOF_TS" : "BOOT_TS"),
+				ev_header->session_hdl,
+				ev_header->u.frame_msg.frame_id,
+				//ev_header->u.frame_msg.frame_id_meta,
+				ev_header->u.frame_msg.request_id,
+				ev_header->u.frame_msg.link_hdl);
+		break;
+	case V4L_EVENT_CAM_REQ_MGR_ERROR:
+		CAM_ERR(CAM_CRM,
+			"Failed to notify ERROR Sess %X ReqId %d Link %X Type %d",
+			ev_header->session_hdl,
+			ev_header->u.err_msg.request_id,
+			ev_header->u.err_msg.link_hdl,
+			ev_header->u.err_msg.error_type);
+		break;
+	default:
+		CAM_ERR(CAM_CRM, "Failed to notify crm event id %d",
+			old->id);
+	}
+}
+
+static struct v4l2_subscribed_event_ops g_cam_v4l2_ops = {
+	.merge = cam_v4l2_event_queue_notify_error,
+};
+
+
 static int cam_subscribe_event(struct v4l2_fh *fh,
 	const struct v4l2_event_subscription *sub)
 {
-	return v4l2_event_subscribe(fh, sub, CAM_REQ_MGR_EVENT_MAX, NULL);
+	return v4l2_event_subscribe(fh, sub, CAM_REQ_MGR_EVENT_MAX,
+		&g_cam_v4l2_ops);
 }
 
 static int cam_unsubscribe_event(struct v4l2_fh *fh,

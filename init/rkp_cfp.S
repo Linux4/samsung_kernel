@@ -16,8 +16,9 @@
  */
 
 #include <linux/linkage.h>
-#include <asm/assembler.h>
 #include <linux/rkp_cfp.h>
+#include <asm/assembler.h>
+#include <asm/memory.h>
 
 .section .hyperdrive, "ax"
 .global _start_hyperdrive
@@ -40,6 +41,22 @@ nop
 	subs	RRX_32, RRX_32, #0xbe7, lsl #12
 	cmp	RRX_32, #0xbad
 	b.eq	1f
+
+	/* 
+	 * Allow the MODULE region
+	 */
+	mov_q	RRX, MODULES_VADDR
+	cmp	\reg, RRX
+	b.lt	2f 
+	mov_q	RRX, MODULES_END
+	cmp	\reg, RRX
+	b.hs	2f 
+
+1: // Pass
+	pop	RRX, xzr
+	br 	\reg
+
+2: // Fail
 #if 0
 	//Test code
 	push	x0, x1
@@ -68,9 +85,6 @@ nop
 #else
 	.inst	0xdeadc0de //crash for sure
 #endif
-1:
-	pop	RRX, xzr
-	br 	\reg
 	.endm
 
 	// Only add springboards for a register rX if there exists a "BLR rX" instruction in vmlinux to instrument

@@ -18,7 +18,7 @@
 #include "sde_kms.h"
 #include "sde_formats.h"
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 #include "ss_dsi_panel_common.h"
 #endif
 
@@ -1022,7 +1022,7 @@ static int _sde_format_populate_addrs_ubwc(
 	}
 done:
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	if (sec_debug_is_enabled()) {
 		ss_image_logging_update(base_addr,
 			layout->width, layout->height,

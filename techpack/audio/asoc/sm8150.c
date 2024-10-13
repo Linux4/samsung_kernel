@@ -8577,7 +8577,7 @@ static void msm_i2s_auxpcm_deinit(void)
 	}
 }
 
-#ifdef CONFIG_SEC_FACTORY
+#if defined(CONFIG_SEC_FACTORY)
 /*
 * If external components(Amplifier) is not connected to main PCB,
 * update the dai-link information and force to register soundcard
@@ -8599,7 +8599,7 @@ static void msm_update_dai_link(struct platform_device *pdev,
 		return;
 	}
 
-	if (soc_find_component(component_of_node, NULL) != NULL) {
+	if (soc_find_component_locked(component_of_node, NULL) != NULL) {
 		dev_dbg(&pdev->dev,
 			"%s: component devs are connected\n",
 			__func__);
@@ -8708,7 +8708,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
-#ifdef CONFIG_SEC_FACTORY
+#if defined(CONFIG_SEC_FACTORY)
 		msm_update_dai_link(pdev, card);
 #endif
 		if (codec_reg_done)

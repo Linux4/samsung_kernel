@@ -102,6 +102,12 @@ void sde_encoder_get_hw_resources(struct drm_encoder *encoder,
 		struct drm_connector_state *conn_state);
 
 /**
+ * sde_encoder_trigger_rsc_state_change - rsc state change.
+ * @encoder:Â»       encoder pointer
+ */
+void sde_encoder_trigger_rsc_state_change(struct drm_encoder *drm_enc);
+
+/**
  * sde_encoder_register_vblank_callback - provide callback to encoder that
  *	will be called on the next vblank.
  * @encoder:	encoder pointer

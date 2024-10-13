@@ -148,6 +148,10 @@ struct qcom_smp2p {
 
 	unsigned smem_items[SMP2P_OUTBOUND + 1];
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+	char name[32];
+#endif
+
 	unsigned valid_entries;
 
 	bool ssr_ack_enabled;
@@ -599,7 +603,11 @@ static int qcom_smp2p_alloc_item(struct platform_device *pdev,
 			list_add(&entry->node, &smp2p->outbound);
 		}
 	}
+#if IS_ENABLED(CONFIG_SEC_PM)
+	wakeup_source_init(&smp2p->ws, smp2p->name);
+#else
 	wakeup_source_init(&smp2p->ws, "smp2p");
+#endif
 
 	/* Kick the outgoing edge after allocating entries */
 	qcom_smp2p_kick(smp2p);
@@ -612,6 +620,9 @@ static int qcom_smp2p_probe(struct platform_device *pdev)
 	struct smp2p_entry *entry;
 	struct qcom_smp2p *smp2p;
 	const char *key;
+#if IS_ENABLED(CONFIG_SEC_PM)
+	const char *node_name;
+#endif
 	int ret;
 
 	if (!ilc)
@@ -653,6 +664,11 @@ static int qcom_smp2p_probe(struct platform_device *pdev)
 		return smp2p->irq;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+	node_name = of_node_full_name(pdev->dev.of_node);
+	snprintf(smp2p->name, 32, "%s", node_name + 5);
+#endif
+
 	smp2p->mbox_client.dev = &pdev->dev;
 	smp2p->mbox_client.knows_txdone = true;
 	smp2p->mbox_chan = mbox_request_channel(&smp2p->mbox_client, 0);
@@ -678,10 +694,17 @@ static int qcom_smp2p_probe(struct platform_device *pdev)
 		goto unwind_interfaces;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+	ret = devm_request_threaded_irq(&pdev->dev, smp2p->irq,
+					qcom_smp2p_isr, qcom_smp2p_intr,
+					IRQF_NO_SUSPEND | IRQF_ONESHOT,
+					smp2p->name, (void *)smp2p);
+#else
 	ret = devm_request_threaded_irq(&pdev->dev, smp2p->irq,
 					qcom_smp2p_isr, qcom_smp2p_intr,
 					IRQF_NO_SUSPEND | IRQF_ONESHOT,
 					"smp2p", (void *)smp2p);
+#endif
 	if (ret) {
 		dev_err(&pdev->dev, "failed to request interrupt\n");
 		goto unwind_interfaces;

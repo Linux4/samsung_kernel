@@ -105,7 +105,7 @@
 #define SDE_NAME_SIZE  12
 
 /* timeout in frames waiting for frame done */
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 /* case 03134585
  * sometimes, it is delayed for hundreds miliseconds
  * to call sde_crtc_frame_event_work(), by scheduling.
@@ -488,7 +488,11 @@ void *sde_debugfs_get_root(struct sde_kms *sde_kms);
  * These functions/definitions allow for building up a 'sde_info' structure
  * containing one or more "key=value\n" entries.
  */
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+#define SDE_KMS_INFO_MAX_SIZE	(4096 + 2048)
+#else
 #define SDE_KMS_INFO_MAX_SIZE	4096
+#endif
 
 /**
  * struct sde_kms_info - connector information structure container

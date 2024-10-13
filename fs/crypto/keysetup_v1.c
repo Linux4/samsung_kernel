@@ -37,9 +37,6 @@ static int setup_v1_file_key_derived(struct fscrypt_info *ci,
 				     const u8 *raw_master_key) __attribute__((unused));
 #endif
 #ifdef CONFIG_FSCRYPT_SDP
-static int derive_fek(struct inode *inode,
-		struct fscrypt_info *crypt_info,
-		u8 *fek, u32 fek_len);
 #ifdef CONFIG_FS_CRYPTO_SEC_EXTENSION
 static int __find_and_derive_v1_file_key_iv(
 					struct fscrypt_key *key,
@@ -308,7 +305,7 @@ static int setup_v1_file_key_derived_iv(struct fscrypt_info *ci,
 
 #ifdef CONFIG_FSCRYPT_SDP
 	if (fscrypt_sdp_is_classified(ci)) {
-		err = derive_fek(ci->ci_inode, ci, derived_key, ci->ci_mode->keysize);
+		err = derive_fek_v1(ci->ci_inode, ci, derived_key, ci->ci_mode->keysize);
 		if (err) {
 			if (fscrypt_sdp_is_sensitive(ci)) {
 				cmd = sdp_fs_command_alloc(FSOP_AUDIT_FAIL_DECRYPT,
@@ -392,7 +389,7 @@ static int setup_v1_file_key_derived(struct fscrypt_info *ci,
 		if (!derived_key)
 			return -ENOMEM;
 
-		err = derive_fek(ci->ci_inode, ci, derived_key, ci->ci_mode->keysize);
+		err = derive_fek_v1(ci->ci_inode, ci, derived_key, ci->ci_mode->keysize);
 		if (err) {
 			if (fscrypt_sdp_is_sensitive(ci)) {
 				cmd = sdp_fs_command_alloc(FSOP_AUDIT_FAIL_DECRYPT,
@@ -669,121 +666,30 @@ out_release_key:
 	return err;
 }
 
-/* The function is only for regular files */
-static int derive_fek(struct inode *inode,
-						struct fscrypt_info *crypt_info,
-						u8 *fek, u32 fek_len)
-{
-	int res = 0;
-	/*
-	 * 1. [ Native / Uninitialized / To_sensitive ]  --> Plain fek
-	 * 2. [ Native / Uninitialized / Non_sensitive ] --> Plain fek
-	 */
-	if (fscrypt_sdp_is_uninitialized(crypt_info))
-		res = fscrypt_sdp_derive_uninitialized_dek(crypt_info, fek, fek_len);
-	/*
-	 * 3. [ Native / Initialized / Sensitive ]     --> { fek }_SDPK
-	 * 4. [ Non_native / Initialized / Sensitive ] --> { fek }_SDPK
-	 */
-	else if (fscrypt_sdp_is_sensitive(crypt_info))
-		res = fscrypt_sdp_derive_dek(crypt_info, fek, fek_len);
-	/*
-	 * 5. [ Native / Initialized / Non_sensitive ] --> { fek }_cekey
-	 */
-	else if (fscrypt_sdp_is_native(crypt_info))
-		res = fscrypt_sdp_derive_fek(inode, crypt_info, fek, fek_len);
-	/*
-	 * else { N/A }
-	 *
-	 * Not classified file.
-	 * 6. [ Non_native / Initialized / Non_sensitive ]
-	 * 7. [ Non_native / Initialized / To_sensitive ]
-	 */
-	return res;
-}
-
-int fscrypt_get_encryption_key(
-		struct fscrypt_info *crypt_info,
-		struct fscrypt_key *key)
-{
-	struct fscrypt_key *kek = NULL;
-	int res;
-
-	if (!crypt_info)
-		return -EINVAL;
-
-	kek = kzalloc(sizeof(struct fscrypt_key), GFP_NOFS);
-	if (!kek)
-		return -ENOMEM;
-
-	res = fscrypt_get_encryption_kek(crypt_info, kek);
-	if (res)
-		goto out;
-
-#ifdef CONFIG_FS_CRYPTO_SEC_EXTENSION
-	res = __find_and_derive_v1_file_key_iv(key, crypt_info, kek->raw);
-#else
-	res = __find_and_derive_v1_file_key(key, crypt_info, kek->raw);
-#endif
-
-out:
-	kzfree(kek);
-	return res;
-}
-EXPORT_SYMBOL(fscrypt_get_encryption_key);
-
-int fscrypt_get_encryption_key_classified(
-		struct fscrypt_info *crypt_info,
-		struct fscrypt_key *key)
-{
-	u8 *derived_key;
-	int err;
-
-	if (!crypt_info)
-		return -EINVAL;
-
-	derived_key = kmalloc(crypt_info->ci_mode->keysize, GFP_NOFS);
-	if (!derived_key)
-		return -ENOMEM;
-
-	err = derive_fek(crypt_info->ci_inode, crypt_info, derived_key, crypt_info->ci_mode->keysize);
-	if (err)
-		goto out;
-
-	memcpy(key->raw, derived_key, crypt_info->ci_mode->keysize);
-	key->size = crypt_info->ci_mode->keysize;
-
-out:
-	kzfree(derived_key);
-	return err;
-}
-EXPORT_SYMBOL(fscrypt_get_encryption_key_classified);
-
-int fscrypt_get_encryption_kek(
+// calling static functions of v1 for keysetup.c
+int find_and_derive_v1_fskey(
 		struct fscrypt_info *crypt_info,
 		struct fscrypt_key *kek)
 {
-	int res;
-
-	if (!crypt_info)
-		return -EINVAL;
-
-	res = __find_and_derive_v1_fskey(crypt_info, kek);
-	return res;
+	return __find_and_derive_v1_fskey(crypt_info, kek);
 }
-EXPORT_SYMBOL(fscrypt_get_encryption_kek);
 
-void fscrypt_sdp_finalize_v1(struct fscrypt_info *ci)
+int find_and_derive_v1_file_key(
+					struct fscrypt_key *key,
+					struct fscrypt_info *ci,
+					const u8 *raw_master_key)
 {
-	int err;
-	struct fscrypt_key raw_key;
+#ifdef CONFIG_FS_CRYPTO_SEC_EXTENSION
+	return __find_and_derive_v1_file_key_iv(key, ci, raw_master_key);
+#else
+	return __find_and_derive_v1_file_key(key, ci, raw_master_key);
+#endif
+}
 
-	memset(&raw_key, 0, sizeof(struct fscrypt_key));
-
-	err = fscrypt_get_encryption_key_classified(ci, &raw_key);
-	if (err)
-		return;
-
-	fscrypt_sdp_finalize_tasks(ci->ci_inode, raw_key.raw, raw_key.size);
+int find_and_derive_v1_fskey_via_subscribed_keyrings(
+					const struct fscrypt_info *ci,
+					struct fscrypt_key *fskey)
+{
+	return __find_and_derive_v1_fskey_via_subscribed_keyrings(ci, fskey);
 }
 #endif

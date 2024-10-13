@@ -27,6 +27,10 @@
 #include "sde_crtc.h"
 #include "sde_core_perf.h"
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+#include "ss_dsi_panel_common.h"
+#endif
+
 #define SDE_PERF_MODE_STRING_SIZE	128
 
 static DEFINE_MUTEX(sde_core_perf_lock);
@@ -509,7 +513,7 @@ void sde_core_perf_crtc_update(struct drm_crtc *crtc,
 	old = &sde_crtc->cur_perf;
 	new = &sde_crtc->new_perf;
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	/* check only active crtc's request for mdp clock calculation (case 03876500, 03897887).
 	 * - Problem scenario.
 	 * 1) boot on dual display device, and turn on only main display.
@@ -631,6 +635,22 @@ void sde_core_perf_crtc_update(struct drm_crtc *crtc,
 	if (update_clk) {
 		clk_rate = _sde_core_perf_get_core_clk_rate(kms);
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+		{
+			/* This W/A will be replaced with QCT patch from case 04395530
+			 * During VRR transition, keep max SDE core clock.
+			 */
+			struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+			if (vdd->vrr.support_vrr_based_bl &&\
+					(vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr)) {
+				SDE_INFO("During VRR (%d|%d): keep max SDE core clock (%lld -> %lld hz)\n",
+						vdd->vrr.running_vrr_mdp,
+						vdd->vrr.running_vrr,
+						clk_rate, kms->perf.max_core_clk_rate);
+				clk_rate = kms->perf.max_core_clk_rate;
+			}
+		}
+#endif
 		SDE_EVT32(kms->dev, stop_req, clk_rate, params_changed,
 			old->core_clk_rate, new->core_clk_rate);
 		ret = sde_power_clk_set_rate(&priv->phandle,
@@ -796,6 +816,194 @@ static void sde_core_perf_debugfs_destroy(struct sde_core_perf *perf)
 int sde_core_perf_debugfs_init(struct sde_core_perf *perf,
 		struct dentry *parent)
 {
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+int ss_set_max_sde_core_clk(struct drm_device *ddev)
+{
+	struct sde_kms *sde_kms;
+	struct sde_core_perf *perf;
+	int ret = 0;
+
+	if (!ddev || !ddev_to_msm_kms(ddev)) {
+		SDE_ERROR("invalid ddev (%d)\n", ddev ? 1 : 0);
+		return -EINVAL;
+	}
+
+	sde_kms = to_sde_kms(ddev_to_msm_kms(ddev));
+	perf = &sde_kms->perf;
+	if (!perf) {
+		SDE_ERROR("invalid perf\n");
+		return -ENODEV;
+	}
+
+	/* To prevent sde clk setting failure, enable sde core clock. */
+	pm_runtime_get_sync(ddev->dev);
+	ret = sde_power_clk_set_rate(perf->phandle,
+			perf->clk_name, perf->max_core_clk_rate);
+	if (ret)
+		SDE_ERROR("failed to set %s clock rate %llu, ret: %d\n",
+				perf->clk_name, perf->max_core_clk_rate, ret);
+	pm_runtime_put_sync(ddev->dev);
+
+	SDE_INFO("set max core clk %lld hz\n", perf->max_core_clk_rate);
+
+	return 0;
+}
+
+int ss_set_normal_sde_core_clk(struct drm_device *ddev)
+{
+	struct sde_kms *sde_kms;
+	struct sde_core_perf *perf;
+	u64 clk_rate = 0;
+	int ret = 0;
+
+	if (!ddev || !ddev_to_msm_kms(ddev)) {
+		SDE_ERROR("invalid ddev (%d)\n", ddev ? 1 : 0);
+		return -EINVAL;
+	}
+
+	sde_kms = to_sde_kms(ddev_to_msm_kms(ddev));
+	perf = &sde_kms->perf;
+	if (!perf) {
+		SDE_ERROR("invalid perf\n");
+		return -ENODEV;
+	}
+
+	/* To prevent sde clk setting failure, enable sde core clock. */
+	pm_runtime_get_sync(ddev->dev);
+	clk_rate = _sde_core_perf_get_core_clk_rate(sde_kms);
+	ret = sde_power_clk_set_rate(perf->phandle, perf->clk_name, clk_rate);
+	if (ret)
+		SDE_ERROR("failed to set %s clock rate %llu, ret: %d\n",
+				perf->clk_name, clk_rate, ret);
+	pm_runtime_put_sync(ddev->dev);
+
+	SDE_INFO("set normal core clk %llu hz\n", clk_rate);
+
+	return ret;
+}
+
+static ssize_t sysfs_sde_core_perf_mode_read(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return 0;
+}
+
+static ssize_t sysfs_sde_core_perf_mode_write(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+	struct drm_device *ddev;
+	struct sde_kms *sde_kms;
+	struct sde_core_perf *perf;
+	struct sde_perf_cfg *cfg;
+	u32 perf_mode = 0;
+	int ret = 0;
+
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	/* This causes unexpected mdp clock issue.. disable the function until fix the issue.. */
+	LCD_INFO("skip sysfs perf_mode\n");
+	return count;
+#endif
+
+	ddev = dev_get_drvdata(dev);
+	if (!ddev || !ddev_to_msm_kms(ddev))
+		return -EINVAL;
+
+	sde_kms = to_sde_kms(ddev_to_msm_kms(ddev));
+
+	perf = &sde_kms->perf;
+
+	if (!perf)
+		return -ENODEV;
+
+	cfg = &perf->catalog->perf;
+
+	if (kstrtouint(buf, 0, &perf_mode))
+		return -EFAULT;
+
+	if (perf_mode >= SDE_PERF_MODE_MAX)
+		return -EFAULT;
+
+	if (vdd->vrr.delayed_perf_normal) {
+		vdd->vrr.delayed_perf_normal = false;
+		SDE_INFO("disable delayed_perf_normal with new perf intpu\n");
+	}
+
+	SDE_INFO("performance mode = %d\n", perf_mode);
+	SDE_EVT32(perf_mode, 0x1111);
+	SDE_ATRACE_BEGIN(__func__);
+	if (perf_mode == SDE_PERF_MODE_FIXED) {
+		SDE_INFO("fix performance mode\n");
+	} else if (perf_mode == SDE_PERF_MODE_MINIMUM) {
+		/* run the driver with max clk and BW vote */
+		perf->perf_tune.min_core_clk = perf->max_core_clk_rate;
+		perf->perf_tune.min_bus_vote =
+				(u64) cfg->max_bw_high * 1000;
+
+		ret = sde_power_clk_set_rate(perf->phandle,
+				perf->clk_name, perf->max_core_clk_rate);
+		if (ret) {
+			SDE_ERROR("failed to set %s clock rate %llu, ret: %d\n",
+					perf->clk_name,
+					perf->max_core_clk_rate, ret);
+			/* reset the perf tune params to 0 */
+			perf->perf_tune.min_core_clk = 0;
+			perf->perf_tune.min_bus_vote = 0;
+			perf->perf_tune.mode = SDE_PERF_MODE_NORMAL;
+
+			SDE_EVT32(perf->max_core_clk_rate, ret, 0xEEEE);
+			goto out;
+		}
+		else {
+			SDE_INFO("minimum performance mode\n");
+		}
+		SDE_EVT32(perf->max_core_clk_rate, ret);
+	} else if (perf_mode == SDE_PERF_MODE_NORMAL) {
+		if (vdd->vrr.is_support_delayed_perf && vdd->vrr.running_vrr) {
+			/* delay to reset perf until finish bridge RR */
+			vdd->vrr.delayed_perf_normal = true;
+			SDE_INFO("delay normal performance mode\n");
+			SDE_ATRACE_END(__func__);
+			goto out;
+		}
+
+		/* reset the perf tune params to 0 */
+		perf->perf_tune.min_core_clk = 0;
+		perf->perf_tune.min_bus_vote = 0;
+		SDE_INFO("normal performance mode\n");
+	}
+	perf->perf_tune.mode = perf_mode;
+out:
+	SDE_ATRACE_END(__func__);
+	SDE_EVT32(perf_mode, 0x2222);
+	return count;
+}
+
+static DEVICE_ATTR(perf_mode, 0644,
+		sysfs_sde_core_perf_mode_read,
+		sysfs_sde_core_perf_mode_write);
+
+int sde_core_perf_sysfs_init(struct sde_kms *sde_kms)
+{
+	int ret = 0;
+
+	ret = device_create_file(sde_kms->dev->dev, &dev_attr_perf_mode);
+	if (ret) {
+		pr_err("failed to register core perf sysfs nodes\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+int sde_core_perf_sysfs_deinit(struct sde_kms *sde_kms)
+{
+	device_remove_file(sde_kms->dev->dev, &dev_attr_perf_mode);
+
 	return 0;
 }
 #endif

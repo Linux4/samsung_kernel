@@ -34,6 +34,8 @@ else ifeq ($(CONFIG_SEC_R3Q_PROJECT), y)
 include $(srctree)/techpack/audio/config/sm8150_r3.conf
 else ifeq ($(CONFIG_SEC_R5Q_PROJECT), y)
 include $(srctree)/techpack/audio/config/sm8150_r5.conf
+else ifeq ($(CONFIG_SEC_A82XQ_PROJECT), y)
+include $(srctree)/techpack/audio/config/sm8150_a82.conf
 else
 include $(srctree)/techpack/audio/config/sm8150auto.conf
 endif
@@ -98,6 +100,9 @@ LINUXINCLUDE	+= \
 else ifeq ($(CONFIG_SEC_R5Q_PROJECT), y)
 LINUXINCLUDE	+= \
                 -include $(srctree)/techpack/audio/config/sm8150_r5.h
+else ifeq ($(CONFIG_SEC_A82XQ_PROJECT), y)
+LINUXINCLUDE	+= \
+                -include $(srctree)/techpack/audio/config/sm8150_a82.h
 else
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/sm8150autoconf.h

@@ -134,6 +134,10 @@ struct sde_power_data_bus_handle {
 	u64 ab_nrt;
 	u64 ib_nrt;
 	bool enable;
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	u64 in_ab_quota;
+	u64 in_ib_quota;
+#endif
 };
 
 /*

@@ -213,6 +213,9 @@ struct cam_ois_ctrl_t {
 	uint32_t reset_ctrl_gpio;
 	uint32_t boot0_ctrl_gpio;
 #endif
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//temp fix for ANR issue
+	bool is_init_done;
+#endif
 };
 
 #endif /*_CAM_OIS_DEV_H_ */

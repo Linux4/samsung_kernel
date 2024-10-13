@@ -566,6 +566,42 @@ static int s2dos05_pmic_dt_parse_pdata(struct s2dos05_dev *iodev,
 }
 #endif /* CONFIG_OF */
 
+#ifdef CONFIG_SEC_FACTORY
+#define VALID_REG	S2DOS05_REG_EN	/* register address for validation */
+#define VALID_MASK	0xE0		/* NA(reserved) bit */
+static ssize_t validation_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct i2c_client *i2c = s2dos05_info->iodev->i2c;
+	u8 val = 0xff;
+	bool result = false;
+
+	s2dos05_read_reg(i2c, VALID_REG, &val);
+	pr_info("%s: %s: init state: reg(0x%02x) data(0x%02x)\n",
+				MFD_DEV_NAME, __func__, VALID_REG, val);
+
+	s2dos05_update_reg(i2c, VALID_REG, VALID_MASK, VALID_MASK);
+
+	s2dos05_read_reg(i2c, VALID_REG, &val);
+	pr_info("%s: %s: updated state: reg(0x%02x) data(0x%02x)\n",
+				MFD_DEV_NAME, __func__, VALID_REG, val);
+
+	if ((val & VALID_MASK) == VALID_MASK)
+		result = true;
+
+	/* no need change to init value(0x00), but, do it */
+	s2dos05_update_reg(i2c, VALID_REG, 0x00, VALID_MASK);
+	s2dos05_read_reg(i2c, VALID_REG, &val);
+
+	pr_err("%s: %s: i2c operation is %s\n", MFD_DEV_NAME, __func__,
+						result ? "ok" : "not ok");
+
+	return sprintf(buf, "%d\n", result);
+}
+static DEVICE_ATTR(validation, 0444, validation_show, NULL);
+#endif
+
 #ifdef CONFIG_SEC_PM
 static ssize_t enable_fd_show(struct device *dev, struct device_attribute *attr,
 				char *buf)
@@ -693,6 +729,15 @@ static int s2dos05_sec_pm_init(struct s2dos05_dev *iodev, struct device *dev)
 		goto remove_sec_disp_pmic_dev;
 	}
 
+#ifdef CONFIG_SEC_FACTORY
+	ret = device_create_file(sec_disp_pmic_dev, &dev_attr_validation);
+	if (ret) {
+		dev_err(dev, "%s: Failed to create validation(%d)\n", __func__,
+				ret);
+		goto remove_sec_disp_pmic_dev;
+	}
+#endif
+
 	return 0;
 
 remove_sec_disp_pmic_dev:
@@ -706,6 +751,7 @@ static void s2dos05_sec_pm_deinit(void)
 	device_remove_file(sec_disp_pmic_dev, &dev_attr_enable_fd);
 #ifdef CONFIG_SEC_FACTORY
 	msm_drm_unregister_notifier_client(&fb_block);
+	device_remove_file(sec_disp_pmic_dev, &dev_attr_validation);
 #endif /* CONFIG_SEC_FACTORY */
 	sec_device_destroy(sec_disp_pmic_dev->devt);
 }

@@ -21,6 +21,11 @@
 #include "cam_sensor_i2c.h"
 #include <linux/ctype.h>
 
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+#define MAX_EFS_DATA_LENGTH_DUALTILT     (2060)
+#define REAR3_DUAL_CAL_EFS_PATH "/vendor/lib/camera/uw_dual_calibration.bin"
+#endif
+
 #define CAM_EEPROM_DBG  1
 //##define CAM_EEPROM_DBG_DUMP  1
 
@@ -716,7 +721,24 @@ static int cam_eeprom_module_info_set_rear_af(uint32_t st_addr_idx, AfIdx_t *af_
 	{
 		af_cal_str[0] = '\0';
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+		for(i = 0, j = 0; i < AF_CAL_IDX_MAX; i ++)
+		{
+			if(j < num_idx && i == af_idx[j].idx)
+			{
+				memcpy(&tempval, &pMapData[st_addr + af_idx[j].offset], 4);
+				sprintf(tempbuf, "%d ", tempval);
+				j ++;
+			}
+			else
+			{
+				sprintf(tempbuf, "N ");
+			}
+
+			strncat(af_cal_str, tempbuf, strlen(tempbuf));
+			CAM_DBG(CAM_EEPROM, "tempbuf: %s st_addr: 0x%04X af_cal_str: %s", tempbuf, st_addr, af_cal_str);
+		}
+#elif defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 		for(i = 0, j = 0; ((i < AF_CAL_IDX_MAX) && (j < num_idx)); i ++)
 		{
 			if(i == 0)	continue;
@@ -819,6 +841,62 @@ static int cam_eeprom_module_info_tof(uint8_t *pMapData, char *log_str,
 }
 #endif
 
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+long cam_dualtilt_read_tele_efs(char *efs_path, u8 *buf, int buflen)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	char *filename;
+	long ret = 0, fsize = MAX_EFS_DATA_LENGTH_DUALTILT;
+	loff_t file_offset = 0;
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	CAM_INFO(CAM_EEPROM, "read tele efs enter");
+
+	filename = __getname();
+	if (unlikely(!filename)) {
+		set_fs(old_fs);
+		return 0;
+	}
+
+	snprintf(filename, PATH_MAX, "%s", efs_path);
+
+	fp = filp_open(filename, O_RDONLY, 0440);
+	if (IS_ERR_OR_NULL(fp)) {
+		CAM_ERR(CAM_EEPROM, "File open error");
+		__putname(filename);
+		set_fs(old_fs);
+		return 0;
+	}
+
+	ret = vfs_read(fp, buf, fsize, &file_offset);
+	if (ret < 0) {
+		CAM_ERR(CAM_EEPROM, "Fail to Bin file");
+		ret = -1;
+		goto p_err;
+	}
+/*
+	nread = kernel_read(fp, buf, fsize, &file_offset);
+	if (nread != fsize) {
+		CAM_ERR(CAM_EEPROM, "kernel_read was failed(%ld != %ld)",
+			nread, fsize);
+		ret = 0;
+		goto p_err;
+	}
+*/
+	ret = fsize;
+
+p_err:
+	filp_close(fp, NULL);
+	fp = NULL;
+	set_fs(old_fs);
+
+	return ret;
+}
+#endif
+
 static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 {
 	int             rc = 0;
@@ -828,7 +906,10 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 
 	ModuleInfo_t 	mInfo;
 	ModuleInfo_t 	mInfoSub;
-
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	unsigned char *buffer = NULL;
+	long efs_size = 0;
+#endif
 	unsigned int rev = sec_hw_rev();
 
 	CAM_INFO(CAM_EEPROM, "e_ctrl->soc_info.index=%d E", e_ctrl->soc_info.index);
@@ -868,7 +949,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			mInfo.mVer.fw_user_ver             = cam_fw_user_ver;
 			mInfo.mVer.fw_factory_ver          = cam_fw_factory_ver;
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 			mInfo.mVer.sensor2_id              = rear3_sensor_id;
 
 			hasSubCaldata                      = 1;
@@ -1023,6 +1104,28 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			mInfo.mVer.fw_factory_ver          = front_tof_cam_fw_factory_ver;
 			break;
 #endif
+#if defined(CONFIG_SAMSUNG_REAR_MACRO)
+		case CAM_EEPROM_IDX_BACK_MACRO:
+			strlcpy(mInfo.typeStr, "Macro", FROM_MODULE_FW_INFO_SIZE);
+			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
+
+			mInfo.type                         = e_ctrl->soc_info.index;
+			mInfo.M_or_S                       = MAIN_MODULE;
+
+			mInfo.mVer.sensor_id               = rear3_sensor_id;
+			mInfo.mVer.sensor2_id              = rear3_sensor_id;
+			mInfo.mVer.module_id               = rear3_module_id;
+
+			mInfo.mVer.module_info             = module3_info;
+
+			mInfo.mVer.cam_cal_ack             = rear3_cam_cal_check;
+			mInfo.mVer.cam_fw_ver              = cam3_fw_ver;
+			mInfo.mVer.cam_fw_full_ver         = cam3_fw_full_ver;
+
+			mInfo.mVer.fw_user_ver             = cam3_fw_user_ver;
+			mInfo.mVer.fw_factory_ver          = cam3_fw_factory_ver;
+			break;
+#endif
 
 		default:
 			break;
@@ -1162,13 +1265,20 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 
 		CAM_DBG(CAM_EEPROM, "rear_af_cal == TEST ");
 		{
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+			/*rear af cal*/
+			AfIdx_t rear_idx[] = {
+				{AF_CAL_MACRO_IDX, 0x0004},
+				{AF_CAL_PAN_IDX, 0x0008}
+			};
+#else
 			/*rear af cal*/
 			AfIdx_t rear_idx[] = {
 				{AF_CAL_D10_IDX, AF_CAL_D10_OFFSET_FROM_AF},
 				{AF_CAL_D50_IDX, AF_CAL_D50_OFFSET_FROM_AF},
 				{AF_CAL_PAN_IDX, AF_CAL_PAN_OFFSET_FROM_AF}
 			};
-
+#endif
 			AfIdx_t rear3_idx[] = {
 				{AF_CAL_D50_IDX, AF_CAL_D50_OFFSET_FROM_AF},
 				{AF_CAL_PAN_IDX, AF_CAL_PAN_OFFSET_FROM_AF}
@@ -1180,6 +1290,16 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			cam_eeprom_module_info_set_rear_af(ADDR_S0_AF, rear3_idx, sizeof(rear3_idx)/sizeof(rear3_idx[0]),
 				e_ctrl->cal_data.mapdata, rear3_af_cal_str);
 		}
+#endif
+
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+		buffer = vmalloc(MAX_EFS_DATA_LENGTH_DUALTILT);
+		if (!buffer) {
+			CAM_ERR(CAM_EEPROM, "vmalloc failed");
+			return -1;
+		}
+		efs_size = cam_dualtilt_read_tele_efs(REAR3_DUAL_CAL_EFS_PATH, buffer, MAX_EFS_DATA_LENGTH_DUALTILT);
+		memcpy(rear3_dual_cal, buffer, MAX_EFS_DATA_LENGTH_DUALTILT);
 #endif
 
 #if !defined(CONFIG_SEC_GTS5L_PROJECT) && !defined(CONFIG_SEC_GTS6L_PROJECT) && !defined(CONFIG_SEC_GTS6X_PROJECT) && !defined(CONFIG_SEC_GTS6LWIFI_PROJECT) && (defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE))
@@ -1248,7 +1368,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			memcpy(ois_wide_xysr, &e_ctrl->cal_data.mapdata[ConfAddr], OIS_XYSR_SIZE);
 		}
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 		if(isValidIdx(ADDR_S_OIS, &ConfAddr) == 1) {
 
 			ConfAddr -= WIDE_OIS_CENTER_SHIFT_START_OFFSET;
@@ -1546,7 +1666,7 @@ int32_t cam_eeprom_check_firmware_cal(uint32_t camera_cal_crc, ModuleInfo_t *mIn
 	else
 		CAM_INFO(CAM_EEPROM, "ISP Ver : %c", version_isp);
 
-	if (version_isp != 'Q' && version_isp != 'U' && version_isp != 'A' && version_isp != 'X') {
+	if (version_isp != 'Q' && version_isp != 'U' && version_isp != 'A' && version_isp != 'X' && version_isp != 'E') {
 		CAM_ERR(CAM_EEPROM, "This is not Qualcomm module!");
 
 		if (mInfo->type == CAM_EEPROM_IDX_BACK) {
@@ -1992,6 +2112,10 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 	}
 
 	power_info->dev = soc_info->dev;
+
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	msleep(20);
+#endif
 
 	rc = cam_sensor_core_power_up(power_info, soc_info);
 	if (rc) {
@@ -2637,10 +2761,16 @@ static int32_t cam_eeprom_fill_configInfo(char *configString, uint32_t value, Co
 
 				case DEF_M_VER_SW:
 					memset(M_SW_INFO, 0x00, SW_INFO_MAX_SIZE);
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+					M_SW_INFO[0] = (value >> 24) & 0xFF;
+					M_SW_INFO[1] = (value >> 16) & 0xFF;
+					M_SW_INFO[2] = (value >>  8) & 0xFF;
+					sprintf(&M_SW_INFO[3], "%d", (value) & 0xFF);
+#else
 					M_SW_INFO[0] = (value >> 16) & 0xFF;
 					M_SW_INFO[1] = (value >>  8) & 0xFF;
 					sprintf(&M_SW_INFO[2], "%02d", (value) & 0xFF);
-
+#endif
 					CAM_INFO(CAM_EEPROM, "M_SW_INFO: %c %c %c%c",
 						M_SW_INFO[0], M_SW_INFO[1], M_SW_INFO[2], M_SW_INFO[3]);
 

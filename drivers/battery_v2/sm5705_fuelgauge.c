@@ -29,6 +29,8 @@
 #define IGNORE_N_I_OFFSET 1
 #define ABSOLUTE_ERROR_OCV_MATCH 1 
 //#define SM5705_FG_FULL_DEBUG 1
+#define I2C_RETRY_CNT 3
+
 enum battery_table_type {
 	DISCHARGE_TABLE = 0,
 	Q_TABLE,
@@ -67,15 +69,24 @@ static unsigned int sm5705_get_soc(struct i2c_client *client);
 static inline int sm5705_fg_read_device(struct i2c_client *client,
 						int reg, int bytes, void *dest)
 {
-	int ret;
+	int ret, i;
 
-	if (bytes > 1)
-		ret = i2c_smbus_read_i2c_block_data(client, reg, bytes, dest);
-	else {
-		ret = i2c_smbus_read_byte_data(client, reg);
-		if (ret < 0)
-			return ret;
-		*(unsigned char *)dest = (unsigned char)ret;
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		if (bytes > 1) {
+			ret = i2c_smbus_read_i2c_block_data(client, reg, bytes, dest);
+			if (ret >= 0)
+				break;
+			pr_info("%s: reg(%d), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, reg, ret, i + 1, I2C_RETRY_CNT);
+		} else {
+			ret = i2c_smbus_read_byte_data(client, reg);
+			if (ret >= 0) {
+				*(unsigned char *)dest = (unsigned char)ret;
+				break;
+			}
+			pr_info("%s: reg(%d), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, reg, ret, i + 1, I2C_RETRY_CNT);
+		}
 	}
 	
 	return ret;
@@ -98,12 +109,18 @@ static int32_t sm5705_fg_i2c_read_word(struct i2c_client *client, uint8_t reg_ad
 static int32_t sm5705_fg_i2c_write_word(struct i2c_client *client,
 						uint8_t reg_addr,uint16_t data)
 {
-	int ret;
+	int ret, i;
 
 	// not use big endian
 	//data = cpu_to_be16(data);
-	ret = i2c_smbus_write_i2c_block_data(client, reg_addr, 2, (uint8_t *)&data);
-	//pr_info("%s: ret = %d, addr = 0x%x, data = 0x%x\n", __func__, ret, reg_addr, data);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_write_i2c_block_data(client, reg_addr, 2, (uint8_t *)&data);
+		//pr_info("%s: ret = %d, addr = 0x%x, data = 0x%x\n", __func__, ret, reg_addr, data);
+		if (ret >= 0)
+			break;
+		pr_info("%s: reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			__func__, reg_addr, ret, i + 1, I2C_RETRY_CNT);
+	}
 
 	return ret;
 }
@@ -112,8 +129,9 @@ static int32_t sm5705_fg_i2c_verified_write_word(struct i2c_client *client,
 {
 	int ret;
 
+	// already retry logic
 	// not use big endian
-	//data = cpu_to_be16(data);
+	// data = cpu_to_be16(data);
 	ret = i2c_smbus_write_i2c_block_data(client, reg_addr, 2, (uint8_t *)&data);
 	if(ret<0) {
 		msleep(50);
@@ -2093,6 +2111,55 @@ static void sm5705_fg_reset_capacity_by_jig_connection(struct sec_fuelgauge_info
 	value.intval = 1079;
 	psy_do_property("battery", set,	POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
 }
+
+#define FULL_CAPACITY 850
+static int calc_ttf_to_full_capacity(struct sec_fuelgauge_info *fuelgauge,
+		    union power_supply_propval *val)
+{
+	int i;
+	int cc_time = 0, cv_time = 0;
+
+	int soc = FULL_CAPACITY;
+	int charge_current = val->intval;
+	struct cv_slope *cv_data = fuelgauge->cv_data;
+	int design_cap = fuelgauge->ttf_capacity;
+
+	if (!cv_data || (val->intval <= 0)) {
+		pr_info("%s: no cv_data or val: %d\n", __func__, val->intval);
+		return -1;
+	}
+	for (i = 0; i < fuelgauge->cv_data_length; i++) {
+		if (charge_current >= cv_data[i].fg_current)
+			break;
+	}
+	i = i >= fuelgauge->cv_data_length ? fuelgauge->cv_data_length - 1 : i;
+	if (cv_data[i].soc < soc) {
+		for (i = 0; i < fuelgauge->cv_data_length; i++) {
+			if (soc <= cv_data[i].soc)
+				break;
+		}
+		cv_time =
+		    ((cv_data[i - 1].time - cv_data[i].time) * (cv_data[i].soc - soc)
+		     / (cv_data[i].soc - cv_data[i - 1].soc)) + cv_data[i].time;
+	} else {		/* CC mode || NONE */
+		cv_time = cv_data[i].time;
+		cc_time = design_cap * (cv_data[i].soc - soc)
+		    / val->intval * 3600 / 1000;
+		pr_debug("%s: cc_time: %d\n", __func__, cc_time);
+		if (cc_time < 0)
+			cc_time = 0;
+	}
+
+	pr_debug
+	    ("%s: cap: %d, soc: %4d, T: %6d, cv soc: %4d, i: %4d, val: %d\n",
+	     __func__, design_cap, soc, cv_time + cc_time, cv_data[i].soc, i, val->intval);
+
+	if (cv_time + cc_time >= 0)
+		return cv_time + cc_time;
+	else
+		return 0;
+}
+
 static int calc_ttf(struct sec_fuelgauge_info *fuelgauge,
 		    union power_supply_propval *val)
 {
@@ -2260,6 +2327,9 @@ static int sm5705_fg_get_property(struct power_supply *psy, enum power_supply_pr
 		case POWER_SUPPLY_EXT_PROP_JIG_GPIO:
 			val->intval = gpio_get_value(fuelgauge->jig_gpio);
 			pr_info("%s: jig gpio = %d \n", __func__, val->intval);
+			break;
+		case POWER_SUPPLY_EXT_PROP_TTF_FULL_CAPACITY:
+			val->intval = calc_ttf_to_full_capacity(fuelgauge, val);
 			break;
 		default:
 			return -EINVAL;

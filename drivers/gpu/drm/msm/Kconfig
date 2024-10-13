@@ -1,4 +1,5 @@
 source "drivers/gpu/drm/msm/samsung/Kconfig"
+source "drivers/gpu/drm/msm/samsung_lego/Kconfig"
 
 config DRM_MSM
 	tristate "MSM DRM"

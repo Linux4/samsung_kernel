@@ -853,6 +853,28 @@ static void mhi_netdev_status_cb(struct mhi_device *mhi_dev, enum MHI_CB mhi_cb)
 	mhi_netdev->napi_scheduled = true;
 }
 
+#if defined(CONFIG_ARGOS)
+void mhi_set_napi_chained_rx(struct net_device *dev, bool enable) 
+{
+	struct mhi_netdev_priv *mhi_netdev_priv = netdev_priv(dev);
+	struct mhi_netdev *mhi_netdev = mhi_netdev_priv->mhi_netdev;
+	struct mhi_netdev *rsc_dev = mhi_netdev->rsc_dev;
+	
+	if (enable) {
+		pr_info("%s enabled\n", __func__);
+		mhi_netdev->chain_skb = true;
+		if (rsc_dev)
+			rsc_dev->chain_skb = true;
+	} else {
+		pr_info("%s disabled\n", __func__);
+		mhi_netdev->chain_skb = false;
+		if (rsc_dev)
+			rsc_dev->chain_skb = false;
+	}
+}
+EXPORT_SYMBOL(mhi_set_napi_chained_rx);
+#endif
+
 #ifdef CONFIG_DEBUG_FS
 
 struct dentry *dentry;
@@ -900,28 +922,6 @@ static int mhi_netdev_debugfs_chain(void *data, u64 val)
 
 DEFINE_DEBUGFS_ATTRIBUTE(debugfs_chain, NULL,
 			 mhi_netdev_debugfs_chain, "%llu\n");
-
-#if defined(CONFIG_ARGOS)
-void mhi_set_napi_chained_rx(struct net_device *dev, bool enable) 
-{
-	struct mhi_netdev_priv *mhi_netdev_priv = netdev_priv(dev);
-	struct mhi_netdev *mhi_netdev = mhi_netdev_priv->mhi_netdev;
-	struct mhi_netdev *rsc_dev = mhi_netdev->rsc_dev;
-	
-	if (enable) {
-		pr_info("%s enabled\n", __func__);
-		mhi_netdev->chain_skb = true;
-		if (rsc_dev)
-			rsc_dev->chain_skb = true;
-	} else {
-		pr_info("%s disabled\n", __func__);
-		mhi_netdev->chain_skb = false;
-		if (rsc_dev)
-			rsc_dev->chain_skb = false;
-	}
-}
-EXPORT_SYMBOL(mhi_set_napi_chained_rx);
-#endif
 
 static void mhi_netdev_create_debugfs(struct mhi_netdev *mhi_netdev)
 {

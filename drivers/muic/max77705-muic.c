@@ -1453,10 +1453,10 @@ handle_attach:
 
 #if defined(CONFIG_HV_MUIC_MAX77705_AFC)
 	if (max77705_muic_check_is_enable_afc(muic_data, new_dev)) {
-		/* Maxim's request, wait 500ms for checking HVDCP */
-		pr_info("%s afc work after 500ms\n", __func__);
+		/* Maxim's request, wait 580ms for checking HVDCP */
+		pr_info("%s afc work after 580ms\n", __func__);
 		cancel_delayed_work_sync(&(muic_data->afc_work));
-		schedule_delayed_work(&(muic_data->afc_work), msecs_to_jiffies(500));
+		schedule_delayed_work(&(muic_data->afc_work), msecs_to_jiffies(580));
 	}
 #endif /* CONFIG_HV_MUIC_MAX77705_AFC */
 

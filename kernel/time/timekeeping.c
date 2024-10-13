@@ -48,6 +48,10 @@ static struct {
 static DEFINE_RAW_SPINLOCK(timekeeper_lock);
 static struct timekeeper shadow_timekeeper;
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+static struct timespec64 sleep_duration;
+#endif
+
 /**
  * struct tk_fast - NMI safe timekeeper
  * @seq:	Sequence counter for protecting updates. The lowest bit
@@ -1566,8 +1570,20 @@ static void __timekeeping_inject_sleeptime(struct timekeeper *tk,
 	tk_xtime_add(tk, delta);
 	tk_set_wall_to_mono(tk, timespec64_sub(tk->wall_to_monotonic, *delta));
 	tk_update_sleep_time(tk, timespec64_to_ktime(*delta));
+#if IS_ENABLED(CONFIG_SEC_PM)
+	sleep_duration = *delta;
+#endif
 	tk_debug_account_sleep_time(delta);
 }
+
+#if IS_ENABLED(CONFIG_SEC_PM)
+void sec_debug_print_sleep_time(void)
+{
+	pr_info("PM: Timekeeping suspended for %lld.%03lu seconds\n",
+			   (s64)sleep_duration.tv_sec, sleep_duration.tv_nsec / NSEC_PER_MSEC);	
+}
+EXPORT_SYMBOL_GPL(sec_debug_print_sleep_time);
+#endif
 
 #if defined(CONFIG_PM_SLEEP) && defined(CONFIG_RTC_HCTOSYS_DEVICE)
 /**

@@ -825,6 +825,10 @@ static void dp_parser_dsc(struct dp_parser *parser)
 	if (rc || !parser->max_dp_dsc_input_width_pixs)
 		parser->dsc_feature_enable = false;
 
+#ifdef CONFIG_SEC_DISPLAYPORT
+	parser->dsc_feature_enable = false;
+#endif
+
 	pr_debug("dsc parsing successful. dsc:%d, blks:%d, width:%d\n",
 			parser->dsc_feature_enable,
 			parser->max_dp_dsc_blks,
@@ -837,6 +841,10 @@ static void dp_parser_fec(struct dp_parser *parser)
 
 	parser->fec_feature_enable = of_property_read_bool(dev->of_node,
 			"qcom,fec-feature-enable");
+
+#ifdef CONFIG_SEC_DISPLAYPORT
+	parser->fec_feature_enable = false;
+#endif
 
 	pr_debug("fec parsing successful. fec:%d\n",
 			parser->fec_feature_enable);

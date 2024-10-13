@@ -4118,17 +4118,37 @@ cleanup:
 
 	return ret;
 }
-#else
-static bool is_roam_ch_from_fw_supported(struct hdd_context *hdd_ctx)
-{
-	return false;
-}
 
-static uint32_t
-hdd_get_roam_chan_from_fw(struct hdd_adapter *adapter, uint32_t *chan_list,
-			  uint8_t *num_channels)
+int
+hdd_get_roam_scan_freq(struct hdd_adapter *adapter, mac_handle_t mac_handle,
+		       uint32_t *chan_list, uint8_t *num_channels)
 {
-	return QDF_STATUS_E_INVAL;
+	int ret = 0;
+
+	if (!adapter || !mac_handle || !chan_list || !num_channels) {
+		hdd_err("failed to get roam scan channel, invalid input");
+		return -EFAULT;
+	}
+
+	if (is_roam_ch_from_fw_supported(adapter->hdd_ctx)) {
+		ret = hdd_get_roam_chan_from_fw(adapter, chan_list,
+						num_channels);
+		if (ret != QDF_STATUS_SUCCESS) {
+			hdd_err("failed to get roam scan channel list from FW");
+			return -EFAULT;
+		}
+
+		return ret;
+	}
+
+	if (sme_get_roam_scan_channel_list(mac_handle, chan_list,
+					   num_channels, adapter->vdev_id) !=
+					   QDF_STATUS_SUCCESS) {
+		hdd_err("failed to get roam scan channel list");
+		return -EFAULT;
+	}
+
+	return ret;
 }
 #endif
 
@@ -4146,29 +4166,11 @@ static int drv_cmd_get_roam_scan_channels(struct hdd_adapter *adapter,
 	int len;
 	uint8_t chan;
 
-	if (is_roam_ch_from_fw_supported(hdd_ctx)) {
-		ret = hdd_get_roam_chan_from_fw(adapter, freq_list,
-						&num_channels);
-		if (ret == QDF_STATUS_SUCCESS) {
-			goto fill_ch_resp;
-		} else {
-			hdd_err("failed to get roam scan channel list from FW");
-			ret = -EFAULT;
-			goto exit;
-		}
-	}
-
-	if (QDF_STATUS_SUCCESS !=
-		sme_get_roam_scan_channel_list(hdd_ctx->mac_handle,
-					       freq_list,
-					       &num_channels,
-					       adapter->vdev_id)) {
-		hdd_err("failed to get roam scan channel list");
-		ret = -EFAULT;
+	ret = hdd_get_roam_scan_freq(adapter, hdd_ctx->mac_handle, freq_list,
+				     &num_channels);
+	if (ret != QDF_STATUS_SUCCESS)
 		goto exit;
-	}
 
-fill_ch_resp:
 	qdf_mtrace(QDF_MODULE_ID_HDD, QDF_MODULE_ID_HDD,
 		   TRACE_CODE_HDD_GETROAMSCANCHANNELS_IOCTL,
 		   adapter->vdev_id, num_channels);
@@ -7744,8 +7746,8 @@ static int drv_cmd_get_disable_chan_list(struct hdd_adapter *adapter,
 int cur_sec_sar_index = 0;
 
 #ifdef SEC_CONFIG_WLAN_BEACON_CHECK
-int hdd_set_bmiss_count_check(hdd_adapter_t *adapter,
-			      hdd_context_t *hdd_ctx, bool enable) {
+static int hdd_set_bmiss_count_check(struct hdd_adapter *adapter,
+			      struct hdd_context *hdd_ctx, bool enable) {
 	uint8_t ret_val;
 	mac_handle_t mac_handle = hdd_ctx->mac_handle;
 	struct mac_context *mac = MAC_CONTEXT(mac_handle);
@@ -7764,7 +7766,7 @@ int hdd_set_bmiss_count_check(hdd_adapter_t *adapter,
 			return ret_val;
 		}
 
-		ret_val = sme_set_bmiss_bcnt(adapter->sessionId, 10, 50);
+		ret_val = sme_set_bmiss_bcnt(adapter->vdev_id, 10, 50);
 		if (ret_val) {
 			hdd_err("Failed to set bmiss Bcnt");
 			return ret_val;
@@ -7772,7 +7774,7 @@ int hdd_set_bmiss_count_check(hdd_adapter_t *adapter,
 
 		hdd_debug("tx fail count 2048");
 		ret_val = sme_update_tx_fail_cnt_threshold(mac_handle,
-							   adapter->sessionId, 2048);
+							   adapter->vdev_id, 2048);
 		if (ret_val) {
 			hdd_err("Failed to set kickout count");
 			return ret_val;
@@ -7790,7 +7792,7 @@ int hdd_set_bmiss_count_check(hdd_adapter_t *adapter,
 			return ret_val;
 		}
 
-		ret_val = sme_set_bmiss_bcnt(adapter->sessionId,
+		ret_val = sme_set_bmiss_bcnt(adapter->vdev_id,
 			mac->mlme_cfg->lfr.roam_bmiss_first_bcnt,
 			mac->mlme_cfg->lfr.roam_bmiss_final_bcnt);
 		if (ret_val) {
@@ -7801,7 +7803,7 @@ int hdd_set_bmiss_count_check(hdd_adapter_t *adapter,
 		hdd_debug("tx fail count to %d",
 			  mac->mlme_cfg->gen.dropped_pkt_disconnect_thresh);
 		ret_val = sme_update_tx_fail_cnt_threshold(mac_handle,
-				   adapter->sessionId,
+				   adapter->vdev_id,
 				   mac->mlme_cfg->gen.dropped_pkt_disconnect_thresh);
 		if (ret_val) {
 			hdd_err("Failed to set kickout count");
@@ -7813,8 +7815,8 @@ int hdd_set_bmiss_count_check(hdd_adapter_t *adapter,
 
 void hdd_skip_bmiss_set_timer_handler(void *data)
 {
-	hdd_context_t *hdd_ctx = (hdd_context_t *) data;
-	hdd_adapter_t *adapter = NULL;
+	struct hdd_context *hdd_ctx = data;
+	struct hdd_adapter *adapter = NULL;
 
 	hdd_debug("Skip Bmiss set timer expired");
 
@@ -7880,6 +7882,8 @@ static int drv_cmd_grip_power_set_tx_power_calling(struct hdd_adapter *adapter,
 {
 	int status = 0;
 	int8_t set_value;
+	mac_handle_t mac_handle = hdd_ctx->mac_handle;
+	struct mac_context *mac = MAC_CONTEXT(mac_handle);
 
 	hdd_info("command %s UL %d, TL %d", command, priv_data->used_len,
 		 priv_data->total_len);
@@ -7976,7 +7980,7 @@ static int drv_cmd_grip_power_set_tx_power_calling(struct hdd_adapter *adapter,
 		if (QDF_TIMER_STATE_RUNNING != qdf_mc_timer_get_current_state(&hdd_ctx->skip_bmiss_set_timer)) {
 			hdd_set_bmiss_count_check(adapter, hdd_ctx, FALSE);
 			qdf_mc_timer_start(&hdd_ctx->skip_bmiss_set_timer,
-					   (hdd_ctx->config->nRoamBmissFirstBcnt + hdd_ctx->config->nRoamBmissFinalBcnt)*100);
+					   (mac->mlme_cfg->lfr.roam_bmiss_first_bcnt + mac->mlme_cfg->lfr.roam_bmiss_final_bcnt)*100);
 		}
 	}
 #endif /* SEC_CONFIG_WLAN_BEACON_CHECK */
@@ -8269,6 +8273,7 @@ static const struct hdd_drv_cmd hdd_drv_cmds[] = {
 	{"SETANTENNAMODE",            drv_cmd_set_antenna_mode, true},
 	{"GETANTENNAMODE",            drv_cmd_get_antenna_mode, false},
 #ifdef CONFIG_SEC
+	{"P2P_ECSA",                  drv_cmd_set_channel_switch, true},
 	{"SET_INDOOR_CHANNELS",       drv_cmd_set_disable_chan_list, true},
 	{"GET_INDOOR_CHANNELS",       drv_cmd_get_disable_chan_list, false},
 #else /* !CONFIG_SEC */

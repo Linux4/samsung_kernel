@@ -173,6 +173,9 @@ struct adm_param_interview_operating_mode {
 
 #define DIAMONDVOICE_REMOTEVOL_PARAM		0x10001012
 
+#define VOICE_MODULE_ECHO_REF_MUTE			0x1000B500
+#define VOICE_MODULE_ECHO_REF_MUTE_PARAM	0x1000105A
+
 struct vss_icommon_cmd_set_ui_property_v2_t {
 	uint32_t module_id;
 	uint16_t instance_id;
@@ -196,6 +199,48 @@ struct vss_icommon_cmd_set_loopback_enable_t {
 	uint16_t reserved_field;
 	/* Reserved, set to 0. */
 };
+
+struct vss_icommon_cmd_get_param_v3_t
+{
+  uint32_t mem_handle;
+  /**< Pointer to the unique identifier for an address (physical/virtual).
+
+       If the parameter data payload is within the message payload
+       (in-band), set this field to 0. The parameter data begins at the
+       specified data payload address.
+
+       If the parameter data is out-of-band, this field is the handle to the
+       physical address in the shared memory that holds the parameter data. */
+
+  uint64_t mem_address;
+  /**< Location to hold the parameter data.
+
+       A single %vss_icommon_param_data_v3_t that contains the header and the
+       algorithm's parameter data is placed at this location. If mem_handle
+       is 0, this field is ignored. */
+
+  uint16_t mem_size;
+  /**< Size of the memory in bytes to hold the parameter.
+
+       This field is applicable to both in-band and out-of-band parameters.
+       The size must be large enough to hold the algorithm's parameter data
+       plus the header %vss_icommon_param_data_v3_t.
+
+       For an out-of-band parameter, the size must also meet the requirement
+       as specified in Section @xref{dox:ShMemGuidelines}. */
+
+  uint32_t module_id;
+  /**< Valid ID of the module. */
+
+  uint16_t instance_id;
+    /**< Valid ID of the module instance. */
+
+  uint16_t reserved;
+  /**< This field must be set to 0. */
+
+  uint32_t param_id;
+  /**< Valid ID of the parameter. */
+} __packed;
 
 struct cvs_set_loopback_enable_cmd {
 	struct apr_hdr hdr;
@@ -247,6 +292,11 @@ struct cvp_set_spkmode_enable_cmd {
 struct cvp_set_device_info_cmd {
 	struct apr_hdr hdr;
 	struct vss_icommon_cmd_set_ui_property_v2_t cvp_set_device_info;
+} __packed;
+
+struct cvp_get_echo_ref_mute_cmd {
+	struct apr_hdr hdr;
+	struct vss_icommon_cmd_get_param_v3_t cvp_get_echo_ref_mute;
 } __packed;
 
 struct cvp_set_ref_lch_mute_enable_cmd {

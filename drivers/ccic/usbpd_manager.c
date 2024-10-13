@@ -1414,6 +1414,9 @@ int usbpd_manager_check_accessory(struct usbpd_manager_data *manager)
 				pr_info("%s : default device connected.\n", __func__);
 				break;
 			}
+		} else {
+			acc_type = CCIC_DOCK_NEW;
+			pr_info("%s : unknown device connected.\n",	__func__);
 		}
 		manager->acc_type = acc_type;
 	} else

@@ -27,6 +27,8 @@
 #include "cam_eeprom_dev.h"
 #include "cam_aperture_core.h"
 
+static int oisfw_force_update= 0;//0644;
+
 #define OIS_FW_STATUS_OFFSET	(0x00FC)
 #define OIS_FW_STATUS_SIZE		(4)
 #define OIS_HW_VERSION_SIZE 	(3)
@@ -43,6 +45,8 @@
 #define PROGCODE_SIZE			(1024 * 44)
 #define MAX_RETRY_COUNT 		 (3)
 #define OIS_GYRO_SCALE_FACTOR_LSM6DSO (114)
+#define MAX_EFS_DATA_LENGTH     (30)
+#define OIS_GYRO_CAL_VALUE_FROM_EFS "/efs/FactoryApp/camera_ois_gyro_cal"
 
 extern char ois_fw_full[40];
 extern char ois_debug[40];
@@ -89,7 +93,11 @@ int total_fw_size;
  *  2. Target I2C slave dddress
  */
 const uint32_t sysboot_i2c_startup_delay = 50; /* msec */
-const uint16_t sysboot_i2c_slave_address = 0x51;
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+const uint16_t sysboot_i2c_slave_address = 0xC4;
+#else
+const uint16_t sysboot_i2c_slave_address = 0xA2;
+#endif
 
 /* STM32MCU PID */
 const uint16_t product_id = 0x460;
@@ -192,14 +200,14 @@ void sysboot_disconnect(struct cam_ois_ctrl_t *o_ctrl)
 	CAM_INFO(CAM_OIS, "sysboot disconnect");
 	/* Change BOOT pins to Main flash */
 	gpio_direction_output(o_ctrl->boot0_ctrl_gpio, 0);
-	mdelay(1);
+	usleep_range(1000, 1100);
 	/* Assert NRST reset */
 	gpio_direction_output(o_ctrl->reset_ctrl_gpio, 0);
 	/* NRST should hold down (Vnf(NRST) > 300 ns), considering capacitor, give enough time */
-	mdelay(BOOT_NRST_PULSE_INTVL);
+	usleep_range(BOOT_NRST_PULSE_INTVL* 1000, BOOT_NRST_PULSE_INTVL* 1000 + 1000);
 	/* Release NRST reset */
 	gpio_direction_output(o_ctrl->reset_ctrl_gpio, 1);
-	mdelay(150);
+	msleep(150);
 }
 
 /**
@@ -316,7 +324,7 @@ static int sysboot_i2c_wait_ack(struct cam_ois_ctrl_t *o_ctrl, unsigned long tim
 				ret = -ETIMEDOUT;
 				break;
 			}
-			mdelay(BOOT_I2C_INTER_PKT_BACK_INTVL);
+			usleep_range(BOOT_I2C_INTER_PKT_BACK_INTVL * 1000, BOOT_I2C_INTER_PKT_BACK_INTVL * 1000 + 1000);
 		}
 	}
 	return -1;
@@ -347,7 +355,7 @@ static int sysboot_i2c_send(struct cam_ois_ctrl_t *o_ctrl, uint8_t *cmd, uint32_
                 ret = -ETIMEDOUT;
                 break;
             }
-            mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+            msleep(BOOT_I2C_SYNC_RETRY_INTVL);
             CAM_ERR(CAM_OIS, "[mcu] send data fail ");
             continue;
         }
@@ -384,7 +392,7 @@ static int sysboot_i2c_recv(struct cam_ois_ctrl_t *o_ctrl, uint8_t *recv, uint32
                 ret = -ETIMEDOUT;
                 break;
             }
-            mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+            msleep(BOOT_I2C_SYNC_RETRY_INTVL);
             CAM_ERR(CAM_OIS, "[mcu] recv data fail ");
             continue;
 
@@ -420,7 +428,7 @@ static int sysboot_i2c_get_info(struct cam_ois_ctrl_t *o_ctrl,
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "mcu send data fail ret = %d", ret);
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
@@ -428,7 +436,7 @@ static int sysboot_i2c_get_info(struct cam_ois_ctrl_t *o_ctrl,
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "mcu wait ack fail ret = %d", ret);
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* receive payload */
@@ -436,7 +444,7 @@ static int sysboot_i2c_get_info(struct cam_ois_ctrl_t *o_ctrl,
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "mcu receive payload fail ret = %d", ret);
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
@@ -444,7 +452,7 @@ static int sysboot_i2c_get_info(struct cam_ois_ctrl_t *o_ctrl,
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "mcu wait ack fail ret = %d", ret);
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -531,28 +539,28 @@ int sysboot_i2c_read(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, uint8_t *d
 		ret = i2c_master_send(o_ctrl->io_master_info.client, cmd, sizeof(cmd));
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_WAIT_RESP_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* transmit address */
 		ret = i2c_master_send(o_ctrl->io_master_info.client, startaddr, sizeof(startaddr));
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_WAIT_RESP_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -560,14 +568,14 @@ int sysboot_i2c_read(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, uint8_t *d
 		ret = i2c_master_send(o_ctrl->io_master_info.client, nbytes, sizeof(nbytes));
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_WAIT_RESP_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -575,7 +583,7 @@ int sysboot_i2c_read(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, uint8_t *d
 		ret = i2c_master_recv(o_ctrl->io_master_info.client, dst, len);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		return 0;
@@ -621,7 +629,7 @@ int sysboot_i2c_write(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, uint8_t *
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "[mcu] txdata fail ");
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
@@ -629,7 +637,7 @@ int sysboot_i2c_write(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, uint8_t *
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "[mcu]mcu_wait_ack fail after txdata ");
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -639,7 +647,7 @@ int sysboot_i2c_write(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, uint8_t *
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "[mcu] txdata fail ");
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
@@ -647,7 +655,7 @@ int sysboot_i2c_write(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, uint8_t *
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "[mcu]mcu_wait_ack fail after txdata ");
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -657,21 +665,21 @@ int sysboot_i2c_write(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, uint8_t *
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "[mcu] txdata fail ");
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
-		//mdelay(len);
+		//msleep(len);
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_WRITE_TMOUT);
 		if (ret < 0)
 		{
 			CAM_ERR(CAM_OIS, "[mcu]mcu_wait_ack fail after txdata ");
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 #if defined(CONFIG_SEC_D2XQ_PROJECT) || defined(CONFIG_SEC_D2Q_PROJECT) || defined(CONFIG_SEC_D1Q_PROJECT)\
-	|| defined(CONFIG_SEC_D2XQ2_PROJECT)
-		mdelay(2);
+	|| defined(CONFIG_SEC_D2XQ2_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
+		msleep(2);
 #endif
 		kfree(buf);
 
@@ -735,7 +743,7 @@ int sysboot_i2c_erase(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, size_t le
 		ret = i2c_master_send(o_ctrl->io_master_info.client, cmd, sizeof(cmd));
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -743,22 +751,22 @@ int sysboot_i2c_erase(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, size_t le
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_WAIT_RESP_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* transmit parameter */
 		ret = i2c_master_send(o_ctrl->io_master_info.client, xmit, xmit_bytes);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
-		//mdelay(2*32);
+		//msleep(2*32);
 		ret = sysboot_i2c_wait_ack(o_ctrl, (erase.page == 0xFFFF) ? BOOT_I2C_FULL_ERASE_TMOUT : BOOT_I2C_WAIT_RESP_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -782,7 +790,7 @@ int sysboot_i2c_erase(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, size_t le
 			ret = i2c_master_send(o_ctrl->io_master_info.client, xmit, xmit_bytes);
 			if (ret < 0)
 			{
-				mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+				msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 				continue;
 			}
 			//mdelay(2*32);
@@ -790,7 +798,7 @@ int sysboot_i2c_erase(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, size_t le
 			ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_PAGE_ERASE_TMOUT(erase.count + 1));
 			if (ret < 0)
 			{
-				mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+				msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 				continue;
 			}
 		}
@@ -831,28 +839,28 @@ int sysboot_i2c_go(struct cam_ois_ctrl_t *o_ctrl, uint32_t address)
 		ret = i2c_master_send(o_ctrl->io_master_info.client, cmd, sizeof(cmd));
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_WAIT_RESP_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* transmit address */
 		ret = i2c_master_send(o_ctrl->io_master_info.client, startaddr, sizeof(startaddr));
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_WAIT_RESP_TMOUT + 200); /* 200??? */
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -884,21 +892,21 @@ int sysboot_i2c_write_unprotect(struct cam_ois_ctrl_t *o_ctrl)
 		ret = i2c_master_send(o_ctrl->io_master_info.client, cmd, sizeof(cmd));
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_FULL_ERASE_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_FULL_ERASE_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -930,21 +938,21 @@ int sysboot_i2c_read_unprotect(struct cam_ois_ctrl_t *o_ctrl)
 		ret = i2c_master_send(o_ctrl->io_master_info.client, cmd, sizeof(cmd));
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_FULL_ERASE_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_FULL_ERASE_TMOUT);
 		if (ret < 0)
 		{
-			mdelay(BOOT_I2C_SYNC_RETRY_INTVL);
+			msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 
@@ -1100,7 +1108,7 @@ int target_option_update(struct cam_ois_ctrl_t *o_ctrl){
 	for(retry = 0; retry < 3; retry ++ ){
 		ret = sysboot_i2c_read(o_ctrl,memory_map.optionbyte, (uint8_t *)&optionbyte, sizeof(optionbyte));
 #if defined(CONFIG_SEC_D2XQ_PROJECT) || defined(CONFIG_SEC_D2Q_PROJECT) || defined(CONFIG_SEC_D1Q_PROJECT)\
-	|| defined(CONFIG_SEC_D2XQ2_PROJECT)
+	|| defined(CONFIG_SEC_D2XQ2_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
 		if((ret < 0) || ((optionbyte&0x000000ff) != 0xaa))
 #else
 		if(ret < 0)
@@ -1113,7 +1121,7 @@ int target_option_update(struct cam_ois_ctrl_t *o_ctrl){
 				CAM_INFO(CAM_OIS, "[mao]ois_mcu_read_unprotect ok ");
 			}
 #if defined(CONFIG_SEC_D2XQ_PROJECT) || defined(CONFIG_SEC_D2Q_PROJECT) || defined(CONFIG_SEC_D1Q_PROJECT)\
-	|| defined(CONFIG_SEC_D2XQ2_PROJECT)
+	|| defined(CONFIG_SEC_D2XQ2_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
 			msleep(60);
 			ret = sysboot_connect(o_ctrl);
 #endif
@@ -1226,8 +1234,8 @@ int target_empty_check_clear(struct cam_ois_ctrl_t * o_ctrl)
 
 	/* Put little delay for Target program option byte and self-reset */
 #if defined(CONFIG_SEC_D2XQ_PROJECT) || defined(CONFIG_SEC_D2Q_PROJECT) || defined(CONFIG_SEC_D1Q_PROJECT)\
-	|| defined(CONFIG_SEC_D2XQ2_PROJECT)
-	mdelay(150);
+	|| defined(CONFIG_SEC_D2XQ2_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
+	msleep(150);
 	/* Option byte read for checking protection status ------------------------ */
 	/* 1> Re-connect to the target */
 	ret = sysboot_connect(o_ctrl);
@@ -1248,11 +1256,11 @@ int target_empty_check_clear(struct cam_ois_ctrl_t * o_ctrl)
 			CAM_INFO(CAM_OIS,"Readout unprotect OK ... Host restart and try again");
 		}
 		/* Put little delay for Target erase all of pages */
-		mdelay(50);
+		msleep(50);
 		goto empty_check_clear_fail;
 	}
 #else
-	mdelay(50);
+	msleep(50);
 #endif
 
 	return 0;
@@ -1267,9 +1275,9 @@ int target_normal_on(struct cam_ois_ctrl_t * o_ctrl)
 	/* Release NRST reset */
 	gpio_direction_output(o_ctrl->reset_ctrl_gpio, 1);
 	/* Put little delay for the target prepared */
-	mdelay(1);
+	usleep_range(1000, 1100);
 	gpio_direction_output(o_ctrl->boot0_ctrl_gpio, 0);
-	mdelay(1);
+	usleep_range(1000, 1100);
 	return ret;
 }
 #endif
@@ -1404,7 +1412,7 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 {
 	uint32_t status = 0;
 #if !defined(CONFIG_SEC_D2XQ_PROJECT) && !defined(CONFIG_SEC_D2Q_PROJECT) && !defined(CONFIG_SEC_D1Q_PROJECT)\
-	&& !defined(CONFIG_SEC_D2XQ2_PROJECT)
+	&& !defined(CONFIG_SEC_D2XQ2_PROJECT) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	uint32_t read_value = 0;
 #endif
 	int rc = 0, retries = 0;
@@ -1415,13 +1423,31 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 
 	CAM_INFO(CAM_OIS, "E");
 
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//temp fix for ANR issue
+	o_ctrl->is_init_done = FALSE;
+	usleep_range(14000, 14050);
+#endif
+
 	retries = 20;
 	do {
 		rc = cam_ois_i2c_read(o_ctrl, 0x0001, &status,
 			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//temp fix for ANR issue
+		if (rc < 0) {
+			CAM_ERR(CAM_OIS, "failed due to i2c fail %d", rc);
+			return 0;
+		}
+#endif
 		if ((status == 0x01) ||
 			(status == 0x13))
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//temp fix for ANR issue
+			{
+				o_ctrl->is_init_done = TRUE;
+				break;
+			}
+#else
 			break;
+#endif
 		if (--retries < 0) {
 			if (rc < 0) {
 				CAM_ERR(CAM_OIS, "failed due to i2c fail %d", rc);
@@ -1549,7 +1575,7 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 	}
 
 #if !defined(CONFIG_SEC_D2XQ_PROJECT) && !defined(CONFIG_SEC_D2Q_PROJECT) && !defined(CONFIG_SEC_D1Q_PROJECT)\
-	&& !defined(CONFIG_SEC_D2XQ2_PROJECT)
+	&& !defined(CONFIG_SEC_D2XQ2_PROJECT) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	// OIS Hall Center Read
 	rc = cam_ois_i2c_read(o_ctrl, 0x021A, &read_value,
 		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD);
@@ -1967,6 +1993,11 @@ int cam_ois_shift_calibration(struct cam_ois_ctrl_t *o_ctrl, uint16_t af_positio
 		return 0;
 	}
 
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	if (!o_ctrl->is_init_done)
+		return 0;
+#endif
+
 	if (af_position >= NUM_AF_POSITION) {
 		CAM_ERR(CAM_OIS, "af position error %u", af_position);
 		return -1;
@@ -2178,7 +2209,7 @@ int32_t cam_ois_fw_update(struct cam_ois_ctrl_t *o_ctrl,
 	uint8_t sendData[OIS_FW_UPDATE_PACKET_SIZE] = "";
 	uint16_t checkSum = 0;
 #if !defined(CONFIG_SEC_D2XQ_PROJECT) && !defined(CONFIG_SEC_D2Q_PROJECT) && !defined(CONFIG_SEC_D1Q_PROJECT)\
-	&& !defined(CONFIG_SEC_D2XQ2_PROJECT)
+	&& !defined(CONFIG_SEC_D2XQ2_PROJECT) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	uint32_t val = 0;
 #endif
 	struct file *ois_filp = NULL;
@@ -2227,7 +2258,7 @@ int32_t cam_ois_fw_update(struct cam_ois_ctrl_t *o_ctrl,
 	}
 
 #if !defined(CONFIG_SEC_D2XQ_PROJECT) && !defined(CONFIG_SEC_D2Q_PROJECT) && !defined(CONFIG_SEC_D1Q_PROJECT)\
-	&& !defined(CONFIG_SEC_D2XQ2_PROJECT)
+	&& !defined(CONFIG_SEC_D2XQ2_PROJECT) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	/* update a program code */
 	cam_ois_i2c_write(o_ctrl, 0x0C, 0xB5,
 		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
@@ -2240,10 +2271,10 @@ int32_t cam_ois_fw_update(struct cam_ois_ctrl_t *o_ctrl,
 
 	//enter system bootloader mode
 	CAM_ERR(CAM_OIS,"need update MCU FW, enter system bootloader mode");
-	o_ctrl->io_master_info.client->addr = 0x51;
+	o_ctrl->io_master_info.client->addr = sysboot_i2c_slave_address >> 1;
 
 #if defined(CONFIG_SEC_D2XQ_PROJECT) || defined(CONFIG_SEC_D2Q_PROJECT) || defined(CONFIG_SEC_D1Q_PROJECT)\
-	|| defined(CONFIG_SEC_D2XQ2_PROJECT)
+	|| defined(CONFIG_SEC_D2XQ2_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
 	msleep(50);
 #endif
 
@@ -2288,7 +2319,7 @@ int32_t cam_ois_fw_update(struct cam_ois_ctrl_t *o_ctrl,
 	target_read_vdrinfo(o_ctrl);
 	if(empty_check_en > 0){
 #if defined(CONFIG_SEC_D2XQ_PROJECT) || defined(CONFIG_SEC_D2Q_PROJECT) || defined(CONFIG_SEC_D1Q_PROJECT)\
-	|| defined(CONFIG_SEC_D2XQ2_PROJECT)
+	|| defined(CONFIG_SEC_D2XQ2_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
 		if(target_empty_check_clear(o_ctrl)<0) {
 				ret = -1;
 				goto ERROR;
@@ -2301,10 +2332,10 @@ int32_t cam_ois_fw_update(struct cam_ois_ctrl_t *o_ctrl,
 	    //sysboot_disconnect
 	    sysboot_disconnect(o_ctrl);
 	}
-	o_ctrl->io_master_info.client->addr = 0xA2;
+	o_ctrl->io_master_info.client->addr = sysboot_i2c_slave_address;
 
 #if !defined(CONFIG_SEC_D2XQ_PROJECT) && !defined(CONFIG_SEC_D2Q_PROJECT) && !defined(CONFIG_SEC_D1Q_PROJECT)\
-	&& !defined(CONFIG_SEC_D2XQ2_PROJECT)
+	&& !defined(CONFIG_SEC_D2XQ2_PROJECT) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	/* write checkSum */
 	sendData[0] = (checkSum & 0x00FF);
 	sendData[1] = (checkSum & 0xFF00) >> 8;
@@ -2410,6 +2441,9 @@ int cam_ois_gyro_sensor_calibration(struct cam_ois_ctrl_t *o_ctrl,
 	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
 
 	CAM_ERR(CAM_OIS, "Enter");
+	if (!o_ctrl)
+		return 0;
+
 	do
 	{
 		rc = cam_ois_i2c_read(o_ctrl, 0x0001, &RcvData,
@@ -2452,6 +2486,9 @@ int cam_ois_gyro_sensor_calibration(struct cam_ois_ctrl_t *o_ctrl,
 	if((rc >= 0) && ((RcvData & 0x23) == 0x0)) /* OISERR register GXZEROERR & GYZEROERR & GCOMERR Bit = 0(No Error)*/
 	{
 		CAM_DBG(CAM_OIS, "gyro_sensor_calibration ok %d", RcvData);
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+		result = 1;
+#else
 		/* Execute OIS DATA AREA Write */
 		rc = cam_ois_i2c_write(o_ctrl, 0x0003, 0x01, // set OIS_W = 1
 			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE); /* OISDATAWRITE register(0x0003) 1byte send */
@@ -2483,6 +2520,7 @@ int cam_ois_gyro_sensor_calibration(struct cam_ois_ctrl_t *o_ctrl,
 			result = 0;
 			CAM_ERR(CAM_OIS, "different from 0XAA rc %d, RcvData %d", rc, RcvData);
 		}
+#endif
 	} else {
 		CAM_ERR(CAM_OIS, "gyro_sensor_calibration fail, rc %d, RcvData %d", rc, RcvData);
 		result = 0;
@@ -2528,6 +2566,9 @@ int cam_ois_offset_test(struct cam_ois_ctrl_t *o_ctrl,
 	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
 
 	CAM_DBG(CAM_OIS, "cam_ois_offset_test E");
+	if (!o_ctrl)
+		return -1;
+
 	if (cam_ois_wait_idle(o_ctrl, 5) < 0) {
 		CAM_ERR(CAM_OIS, "wait ois idle status failed");
 		return -1;
@@ -2601,6 +2642,149 @@ int cam_ois_offset_test(struct cam_ois_ctrl_t *o_ctrl,
 	return result;
 }
 
+static noinline_for_stack long __get_file_size(struct file *file)
+{
+	struct kstat st;
+	u32 request_mask = (STATX_MODE | STATX_SIZE);
+
+	if (vfs_getattr(&file->f_path, &st, request_mask, KSTAT_QUERY_FLAGS))
+		return -1;
+	if (!S_ISREG(st.mode))
+		return -1;
+	if (st.size != (long)st.size)
+		return -1;
+
+	return st.size;
+}
+
+long cam_ois_read_efs(char *efs_path, u8 *buf, int buflen)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	char *filename;
+	long ret = 0, fsize = 0, nread = 0;
+	loff_t file_offset = 0;
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	filename = __getname();
+	if (unlikely(!filename)) {
+		set_fs(old_fs);
+		return 0;
+	}
+
+	snprintf(filename, PATH_MAX, "%s", efs_path);
+
+	fp = filp_open(filename, O_RDONLY, 0);
+	if (IS_ERR_OR_NULL(fp)) {
+		__putname(filename);
+		set_fs(old_fs);
+		return 0;
+	}
+
+	fsize = __get_file_size(fp);
+	if (fsize <= 0 || fsize > buflen) {
+		CAM_ERR(CAM_OIS, " __get_file_size fail(%ld)", fsize);
+		ret = 0;
+		goto p_err;
+	}
+
+	nread = kernel_read(fp, buf, fsize, &file_offset);
+	if (nread != fsize) {
+		CAM_ERR(CAM_OIS, "kernel_read was failed(%ld != %ld)",
+			nread, fsize);
+		ret = 0;
+		goto p_err;
+	}
+
+	ret = fsize;
+
+p_err:
+	__putname(filename);
+	filp_close(fp, current->files);
+	set_fs(old_fs);
+
+	return ret;
+}
+
+int cam_ois_get_offset_data(struct cam_ois_ctrl_t *o_ctrl,
+	long *raw_data_x, long *raw_data_y)
+{
+	int ret = 0, i = 0, j = 0, comma_offset = 0;
+	bool detect_comma = false;
+	char efs_data[MAX_EFS_DATA_LENGTH] = { 0 };
+	unsigned char *buffer = NULL;
+	long efs_size = 0;
+
+	CAM_DBG(CAM_OIS, "cam_ois_get_offset_data E");
+	if (!o_ctrl)
+		return 0;
+
+	if (cam_ois_wait_idle(o_ctrl, 5) < 0) {
+		CAM_ERR(CAM_OIS, "wait ois idle status failed");
+		return -1;
+	}
+
+	buffer = vmalloc(MAX_EFS_DATA_LENGTH);
+	if (!buffer) {
+		CAM_ERR(CAM_OIS, "vmalloc failed");
+		return -1;
+	}
+
+	efs_size = cam_ois_read_efs(OIS_GYRO_CAL_VALUE_FROM_EFS, buffer, MAX_EFS_DATA_LENGTH);
+	if (efs_size == 0) {
+			CAM_ERR(CAM_OIS, "efs read failed");
+			ret = 0;
+			goto ERROR;
+	}
+
+	i = 0;
+	detect_comma = false;
+	for (i = 0; i < efs_size; i++) {
+		if (*(buffer + i) == ',') {
+			comma_offset = i;
+			detect_comma = true;
+			break;
+		}
+	}
+
+	if (detect_comma) {
+		memset(efs_data, 0x00, sizeof(efs_data));
+		j = 0;
+		for (i = 0; i < comma_offset; i++) {
+			if (buffer[i] != '.') {
+				efs_data[j] = buffer[i];
+				j++;
+			}
+		}
+		kstrtol(efs_data, 10, raw_data_x);
+
+		memset(efs_data, 0x00, sizeof(efs_data));
+		j = 0;
+		for (i = comma_offset + 1; i < efs_size; i++) {
+			if (buffer[i] != '.') {
+				efs_data[j] = buffer[i];
+				j++;
+			}
+		}
+		kstrtol(efs_data, 10, raw_data_y);
+	} else {
+		CAM_INFO(CAM_OIS, "cannot find delimeter");
+		ret = -1;
+	}
+	CAM_INFO(CAM_OIS, "cam_ois_get_offset_data : X raw_x = %ld, raw_y = %ld",
+		*raw_data_x, *raw_data_y);
+
+ERROR:
+	if (buffer) {
+		vfree(buffer);
+		buffer = NULL;
+	}
+
+	return ret;
+}
+
 /* ois module itselt has selftest function for line test.  */
 /* it excutes by setting register and return the result */
 uint32_t cam_ois_self_test(struct cam_ois_ctrl_t *o_ctrl)
@@ -2612,6 +2796,9 @@ uint32_t cam_ois_self_test(struct cam_ois_ctrl_t *o_ctrl)
 
 	/* OIS Status Check */
 	CAM_DBG(CAM_OIS, "GyroSensorSelfTest E");
+	if (!o_ctrl)
+		return -1;
+
 	if (cam_ois_wait_idle(o_ctrl, 5) < 0) {
 		CAM_ERR(CAM_OIS, "wait ois idle status failed");
 		return -1;
@@ -2684,6 +2871,8 @@ bool cam_ois_sine_wavecheck(struct cam_ois_ctrl_t *o_ctrl, int threshold,
 #else
 	int result_addr[1] = {0x00E4};
 #endif
+	if (!o_ctrl)
+		return false;
 
 	ret = cam_ois_i2c_write(o_ctrl, 0x0052, (uint16_t)threshold,
 		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE); /* error threshold level. */
@@ -2898,6 +3087,11 @@ FW_UPDATE_RETRY:
 	if(update_retries < 0){
 	    is_mcu_nack = false;
 	}
+
+	if (oisfw_force_update > 0) {
+		is_mcu_nack = true;
+		CAM_INFO(CAM_OIS, "Force update OIS FW");
+	}
  	if (!is_empty_cal_ver || is_mcu_nack == true) {
 		if (strncmp(o_ctrl->phone_ver, o_ctrl->module_ver, OIS_MCU_VERSION_SIZE) == '\0' || is_mcu_nack == true) { //check if it is same hw (phone ver = module ver)
 			if ((strncmp(o_ctrl->phone_ver, o_ctrl->module_ver, OIS_VER_SIZE) > '\0')
@@ -2953,7 +3147,10 @@ pwr_dwn:
 	cam_ois_power_down(o_ctrl);
 
 	if (is_need_retry)
+	{
+		CAM_DBG(CAM_OIS, "Re-try for FW update");
 		goto FW_UPDATE_RETRY;
+	}
 end:
 	CAM_INFO(CAM_OIS, "X");
 	return rc;
@@ -3000,8 +3197,13 @@ int cam_ois_set_ois_mode(struct cam_ois_ctrl_t *o_ctrl, uint16_t mode)
 	if (!o_ctrl)
 		return 0;
 
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	if (!o_ctrl->is_init_done)
+		return 0;
+#else
 	if (mode == o_ctrl->ois_mode)
 		return 0;
+#endif
 
 	if (o_ctrl->ois_mode == 0x16) {
 		CAM_INFO(CAM_OIS, "SensorHub Reset, Skip mode %u setting", mode);
@@ -3211,6 +3413,14 @@ int cam_ois_write_gyro_orientation(struct cam_ois_ctrl_t *o_ctrl)
 	}
 #endif
 
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	uint8_t data1[3] = { 0x01, 0x01, 0x00 };
+	uint8_t data2[2] = { 0x00, 0x00 };
+
+	memcpy(SendData1, data1, sizeof(data1));
+	memcpy(SendData2, data2, sizeof(data2));
+#endif
+
 	if (!o_ctrl)
 		return 0;
 
@@ -3234,6 +3444,49 @@ int cam_ois_write_gyro_orientation(struct cam_ois_ctrl_t *o_ctrl)
 	return rc;
 }
 
+int cam_ois_write_gyro_sensor_calibration(struct cam_ois_ctrl_t *o_ctrl)
+{
+	int ret = 0;
+	uint32_t val = 0;
+	int XGZERO = 0, YGZERO = 0;
+	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
+	long raw_data_x = 0, raw_data_y = 0;
+
+	ret = cam_ois_get_offset_data(o_ctrl, &raw_data_x, &raw_data_y);
+	if (ret < 0) {
+		CAM_ERR(CAM_OIS, "Failed to get gyro calibration data");
+		return -1;
+	}
+
+	CAM_INFO(CAM_OIS, "raw_data_x %ld, raw_data_y %ld", raw_data_x, raw_data_y);
+
+	XGZERO = raw_data_x * scale_factor / 1000;
+	if (XGZERO > 0x7FFF)
+		XGZERO = -((XGZERO ^ 0xFFFF) + 1);
+	CAM_DBG(CAM_OIS, "XGZERO 0x%x", XGZERO);
+
+	val = (XGZERO & 0xFF);
+	cam_ois_i2c_write(o_ctrl, 0x0248, val,
+		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+	val = ((XGZERO >> 8) & 0xFF);
+	cam_ois_i2c_write(o_ctrl, 0x0249, val,
+		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+
+	YGZERO = raw_data_y * scale_factor / 1000;
+	if (YGZERO > 0x7FFF)
+		YGZERO = -((YGZERO ^ 0xFFFF) + 1);
+	CAM_DBG(CAM_OIS, "YGZERO 0x%x", YGZERO);
+
+	val = (YGZERO & 0xFF);
+	cam_ois_i2c_write(o_ctrl, 0x024A, val,
+		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+	val = ((YGZERO >> 8) & 0xFF);
+	cam_ois_i2c_write(o_ctrl, 0x024B, val,
+		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+
+	return ret;
+}
+
 int cam_ois_mcu_init(struct cam_ois_ctrl_t *o_ctrl)
 {
 	int rc = 0;
@@ -3254,6 +3507,13 @@ int cam_ois_mcu_init(struct cam_ois_ctrl_t *o_ctrl)
 	rc = cam_ois_write_gyro_orientation(o_ctrl);
 	if (rc < 0)
 		CAM_ERR(CAM_OIS, "Write Gyro orientation to OIS MCU reg %d", rc);
+
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	// Write Gyro init offset to OIS MCU reg
+	rc = cam_ois_write_gyro_sensor_calibration(o_ctrl);
+	if (rc < 0)
+		CAM_ERR(CAM_OIS, "Write Gyro init to OIS MCU reg %d", rc);
+#endif
 
 	return rc;
 }

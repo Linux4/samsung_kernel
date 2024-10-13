@@ -1059,7 +1059,7 @@ void drm_wait_one_vblank(struct drm_device *dev, unsigned int pipe)
 
 	last = drm_vblank_count(dev, pipe);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	ret = wait_event_timeout(vblank->queue,
 				 last != drm_vblank_count(dev, pipe),
 				 msecs_to_jiffies(1000));

@@ -228,7 +228,11 @@ static inline void qcom_geni_i2c_calc_timeout(struct geni_i2c_dev *gi2c)
 							I2C_TIMEOUT_MIN_USEC;
 
 	gi2c->xfer_timeout = usecs_to_jiffies(xfer_max_usec);
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//OIS issue fix QC case 05086280
+	gi2c->xfer_timeout += 250;
+#else
 	gi2c->xfer_timeout += 50;
+#endif
 }
 
 static void geni_i2c_err(struct geni_i2c_dev *gi2c, int err)
@@ -880,9 +884,21 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 			}
 
 			if (!timeout) {
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//OIS issue fix QC case 05110239
+				GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+					"Cancel failed\n");
+				reinit_completion(&gi2c->xfer);
+ 				geni_abort_m_cmd(gi2c->base);
+				timeout =
+				wait_for_completion_timeout(&gi2c->xfer, HZ);
+				if (!timeout)
+					GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+						"Abort failed\n");
+#else
 				GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
 					"Abort\n");
 				geni_abort_m_cmd(gi2c->base);
+#endif
 			}
 		}
 		gi2c->cur_wr = 0;

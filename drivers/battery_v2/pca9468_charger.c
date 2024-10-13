@@ -193,7 +193,8 @@ static void pca9468_test_read(struct pca9468_charger *pca9468)
 		sprintf(str + strlen(str), "[0x%02x]0x%02x, ", address, val);
 	}
 
-	pr_info("## pca9468 : [DC_CPEN:%d]%s\n", gpio_get_value(pca9468->pdata->chgen_gpio), str);
+	if (pca9468->pdata->chgen_gpio >= 0)
+		pr_info("## pca9468 : [DC_CPEN:%d]%s\n", gpio_get_value(pca9468->pdata->chgen_gpio), str);
 }
 
 static void pca9468_monitor_work(struct pca9468_charger *pca9468)
@@ -3588,18 +3589,19 @@ static int pca9468_irq_init(struct pca9468_charger *pca9468,
 
 	pr_info("%s: =========START=========\n", __func__);
 
-	irq = gpio_to_irq(pdata->irq_gpio);
+	if (pdata->irq_gpio >= 0) {
+		irq = gpio_to_irq(pdata->irq_gpio);
 
-	ret = gpio_request_one(pdata->irq_gpio, GPIOF_IN, client->name);
-	if (ret < 0)
-		goto fail;
+		ret = gpio_request_one(pdata->irq_gpio, GPIOF_IN, client->name);
+		if (ret < 0)
+			goto fail;
 
-	ret = request_threaded_irq(irq, NULL, pca9468_interrupt_handler,
-				   IRQF_TRIGGER_LOW | IRQF_ONESHOT,
-				   client->name, pca9468);
-	if (ret < 0)
-		goto fail_gpio;
-
+		ret = request_threaded_irq(irq, NULL, pca9468_interrupt_handler,
+					   IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+					   client->name, pca9468);
+		if (ret < 0)
+			goto fail_gpio;
+	}
 	/*
 	 * Configure the Mask Register for interrupts: disable all interrupts by default.
 	 */
@@ -3621,7 +3623,8 @@ static int pca9468_irq_init(struct pca9468_charger *pca9468,
 fail_wirte:
 	free_irq(irq, pca9468);
 fail_gpio:
-	gpio_free(pdata->irq_gpio);
+	if (pdata->irq_gpio >= 0)
+		gpio_free(pdata->irq_gpio);
 fail:
 	client->irq = 0;
 	return ret;
@@ -4126,7 +4129,12 @@ static int pca9468_charger_parse_dt(struct device *dev, struct pca9468_platform_
 
 	/* irq gpio */
 	pdata->irq_gpio = of_get_named_gpio(np_pca9468, "pca9468,irq-gpio", 0);
-	pr_info("%s: irq-gpio: %u \n", __func__, pdata->irq_gpio);
+	if (pdata->irq_gpio < 0) {
+		pr_err("%s : cannot get irq-gpio : %d\n",
+			__func__, pdata->irq_gpio);
+	} else {
+		pr_info("%s: irq-gpio: %u\n", __func__, pdata->irq_gpio);
+	}
 
 	/* input current limit */
 	ret = of_property_read_u32(np_pca9468, "pca9468,input-current-limit",
@@ -4207,7 +4215,6 @@ static int pca9468_charger_parse_dt(struct device *dev, struct pca9468_platform_
 	if (pdata->chgen_gpio < 0) {
 		pr_err("%s : cannot get chgen gpio : %d\n",
 			__func__, pdata->chgen_gpio);
-		return -ENODATA;	
 	} else {
 		pr_info("%s: chgen gpio : %d\n", __func__, pdata->chgen_gpio);
 	}
@@ -4466,14 +4473,14 @@ static int pca9468_charger_probe(struct i2c_client *client,
 	}
 
 #if defined(CONFIG_BATTERY_SAMSUNG)
-	ret = gpio_request(pdata->chgen_gpio, "DC_CPEN");
-	if (ret) {
-		pr_info("%s : Request GPIO %d failed\n",
-				__func__, (int)pdata->chgen_gpio);
+	if (pdata->chgen_gpio >= 0) {
+		ret = gpio_request(pdata->chgen_gpio, "DC_CPEN");
+		if (ret) {
+			pr_info("%s : Request GPIO %d failed\n",
+					__func__, (int)pdata->chgen_gpio);
+		}
+		gpio_direction_output(pdata->chgen_gpio, false);
 	}
-
-	gpio_direction_output(pdata->chgen_gpio,
-			false);
 #endif
 
 	ret = pca9468_create_debugfs_entries(pca9468_chg);
@@ -4504,7 +4511,8 @@ static int pca9468_charger_remove(struct i2c_client *client)
 
 	if (client->irq) {
 		free_irq(client->irq, pca9468_chg);
-		gpio_free(pca9468_chg->pdata->irq_gpio);
+		if (pca9468_chg->pdata->irq_gpio >= 0)
+			gpio_free(pca9468_chg->pdata->irq_gpio);
 	}
 
 	wakeup_source_trash(&pca9468_chg->monitor_wake_lock);

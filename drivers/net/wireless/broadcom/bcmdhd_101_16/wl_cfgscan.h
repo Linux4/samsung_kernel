@@ -1,7 +1,7 @@
 /*
  * Header for Linux cfg80211 scan
  *
- * Copyright (C) 2020, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -136,6 +136,7 @@ extern chanspec_t wl_freq_to_chanspec(int freq);
 extern s32 wl_inform_single_bss(struct bcm_cfg80211 *cfg, wl_bss_info_t *bi, bool update_ssid);
 #ifdef WL_GET_RCC
 extern int wl_android_get_roam_scan_chanlist(struct bcm_cfg80211 *cfg);
+extern int wl_android_get_roam_scan_freqlist(struct bcm_cfg80211 *cfg);
 #endif /* WL_GET_RCC */
 extern s32 wl_get_assoc_channels(struct bcm_cfg80211 *cfg,
 	struct net_device *dev, wlcfg_assoc_info_t *info);
@@ -175,4 +176,7 @@ extern s32 wl_cfgscan_get_band_freq_list(struct bcm_cfg80211 *cfg, int band,
         uint16 *list, uint32 *num_channels);
 #endif /* DHD_GET_VALID_CHANNELS */
 extern int wl_android_get_sta_channel(struct bcm_cfg80211 *cfg);
+#ifdef WL_SCHED_SCAN
+extern void wl_cfgscan_sched_scan_stop_work(struct work_struct *work);
+#endif /* WL_SCHED_SCAN */
 #endif /* _wl_cfgscan_h_ */

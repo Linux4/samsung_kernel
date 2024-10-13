@@ -51,6 +51,13 @@ static bool pretest = false;
 
 #define QTICK_DIV_FACTOR	0x249F
 
+#ifdef CONFIG_SUPPORT_SSC_SPU
+#define SPU_FW_UPDATE_CMD	4
+#define SPU_FW_UPDATE_CMD_SIZE	9
+#define SPU_SUFFIX_SIZE		2
+#define SPU_SUFFIX_IDX		12
+#endif
+
 struct sns_ssc_control_s {
 	struct class *dev_class;
 	dev_t dev_num;
@@ -67,6 +74,15 @@ static ssize_t slpi_ssr_store(struct kobject *kobj,
 	struct kobj_attribute *attr,
 	const char *buf, size_t count);
 
+#ifdef CONFIG_SUPPORT_SSC_SPU
+static ssize_t slpi_cmd_store(struct kobject *kobj,
+	struct kobj_attribute *attr,
+	const char *buf, size_t count);
+
+static ssize_t slpi_cmd_result_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+#endif
+
 struct slpi_loader_private {
 	void *pil_h;
 	struct kobject *boot_slpi_obj;
@@ -79,11 +95,26 @@ static struct kobj_attribute slpi_boot_attribute =
 static struct kobj_attribute slpi_ssr_attribute =
 	__ATTR(ssr, 0220, NULL, slpi_ssr_store);
 
+#ifdef CONFIG_SUPPORT_SSC_SPU
+static struct kobj_attribute slpi_cmd_attribute =
+	__ATTR(cmd, 0220, NULL, slpi_cmd_store);
+
+static struct kobj_attribute slpi_cmd_result_attribute =
+	__ATTR(cmd_result, 0440, slpi_cmd_result_show, NULL);
+#endif
+
 static struct attribute *attrs[] = {
 	&slpi_boot_attribute.attr,
 	&slpi_ssr_attribute.attr,
+#ifdef CONFIG_SUPPORT_SSC_SPU
+	&slpi_cmd_attribute.attr,
+	&slpi_cmd_result_attribute.attr,
+#endif
 	NULL,
 };
+
+static struct platform_device *slpi_private;
+static struct work_struct slpi_ldr_work;
 
 #ifdef CONFIG_SUPPORT_SSC_SPU
 const char *ver_info_path[SSC_CNT_MAX] = {SLPI_SPU_VER_INFO, SLPI_VER_INFO};
@@ -152,10 +183,62 @@ fail:
 
         return false;
 }
-#endif
 
-static struct platform_device *slpi_private;
-static struct work_struct slpi_ldr_work;
+char cmd_result_buf[20] = {"fw_update,4:NG"};
+static ssize_t slpi_cmd_store(struct kobject *kobj,
+	struct kobj_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	struct subsys_device *sns_dev = NULL;
+	struct platform_device *pdev = slpi_private;
+	struct slpi_loader_private *priv = NULL;
+	char cmd_buf[15] = {0, };
+	int nval = 0, cmd = 0;
+
+	nval = sscanf(buf, "%9s,%d", cmd_buf, &cmd);
+	pr_info("%s: buf:%s, cmd:%d,%d\n", __func__, cmd_buf, cmd, nval);
+
+	if (!strncmp(cmd_buf, "fw_update", SPU_FW_UPDATE_CMD_SIZE)
+		&& cmd == SPU_FW_UPDATE_CMD) {
+		priv = platform_get_drvdata(pdev);
+		if (!priv) {
+			pr_err("fail, priv NULL");
+			return count;
+		}
+
+		sns_dev = (struct subsys_device *)priv->pil_h;
+		if (!sns_dev) {
+			pr_err("fail, sns_dev NULL");
+			return count;
+		} else {
+			int ret = 0;
+
+			pr_info("Start upload SPU firm");
+			ret = subsystem_set_fwname("slpi", "slpi_spu");
+			if (ret < 0) {
+				pr_err("fail, firmware name for PIL (%d)\n", ret);
+				return count;
+			}
+			subsys_set_fssr(sns_dev, true);
+		}
+
+		if (subsystem_restart_dev(sns_dev) != 0) {
+			pr_err("subsystem_restart_dev failed\n");
+			return count;
+		} else {
+			strncpy(&cmd_result_buf[SPU_SUFFIX_IDX], "OK", SPU_SUFFIX_SIZE);
+		}
+	}
+	return count;
+}
+
+static ssize_t slpi_cmd_result_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%s\n", cmd_result_buf);
+}
+#endif
 
 static void slpi_load_fw(struct work_struct *slpi_ldr_work)
 {

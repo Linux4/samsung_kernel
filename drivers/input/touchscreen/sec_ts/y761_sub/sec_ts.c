@@ -157,7 +157,7 @@ static ssize_t secure_touch_enable_store(struct device *dev,
 
 		sec_ts_irq_thread(ts->client->irq, ts);
 		complete(&ts->secure_interrupt);
-		complete(&ts->secure_powerdown);
+		complete_all(&ts->secure_powerdown);
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI_QC)
 		complete(&ts->st_irq_received);
 #endif
@@ -279,6 +279,7 @@ static int secure_touch_init(struct sec_ts_data *ts)
 
 static void secure_touch_stop(struct sec_ts_data *ts, bool stop)
 {
+	mutex_lock(&ts->st_lock);
 	if (atomic_read(&ts->secure_enabled)) {
 		atomic_set(&ts->secure_pending_irqs, -1);
 
@@ -293,6 +294,7 @@ static void secure_touch_stop(struct sec_ts_data *ts, bool stop)
 
 		input_info(true, &ts->client->dev, "%s: %d\n", __func__, stop);
 	}
+	mutex_unlock(&ts->st_lock);
 }
 #endif
 
@@ -2156,6 +2158,9 @@ static int sec_ts_parse_dt(struct i2c_client *client)
 	pdata->support_fod = of_property_read_bool(np, "support_fod");
 	pdata->enable_settings_aot = of_property_read_bool(np, "enable_settings_aot");
 	pdata->sync_reportrate_120 = of_property_read_bool(np, "sync-reportrate-120");
+	pdata->support_ear_detect = of_property_read_bool(np, "support_ear_detect_mode");
+	pdata->support_open_short_test = of_property_read_bool(np, "support_open_short_test");
+	pdata->support_mis_calibration_test = of_property_read_bool(np, "support_mis_calibration_test");
 
 	if (of_property_read_u32_array(np, "sec,area-size", px_zone, 3)) {
 		input_info(true, &client->dev, "Failed to get zone's size\n");
@@ -2523,6 +2528,9 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	mutex_init(&ts->eventlock);
 	mutex_init(&ts->modechange);
 	mutex_init(&ts->status_mutex);
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	mutex_init(&ts->st_lock);
+#endif
 
 	wake_lock_init(&ts->wakelock, WAKE_LOCK_SUSPEND, "tsp_wakelock");
 	init_completion(&ts->resume_done);
@@ -3296,6 +3304,7 @@ static int sec_ts_input_open(struct input_dev *dev)
 	mutex_lock(&ts->modechange);
 
 	ts->input_closed = false;
+	ts->prox_power_off = 0;
 
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
 	secure_touch_stop(ts, 0);
@@ -3393,8 +3402,6 @@ static void sec_ts_input_close(struct input_dev *dev)
 		sec_ts_stop_device(ts);
 
 	mutex_unlock(&ts->switching_mutex);
-
-	ts->prox_power_off = 0;
 	mutex_unlock(&ts->modechange);
 }
 #endif

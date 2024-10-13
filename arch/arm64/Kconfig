@@ -1116,6 +1116,13 @@ config UH_RKP
 	help
 		it protects a kernel text and etc.
 
+config RKP_MODULE_SUPPORT
+	bool "RKP (Realtime Kernel Protection) supports and protect modules"
+	depends on UH_RKP
+	default n
+	help
+	  it protects a kernel module text and etc.
+
 config RKP_TEST
 	bool "Enables rkp test"
 	depends on UH_RKP && !SAMSUNG_PRODUCT_SHIP
@@ -2435,6 +2442,20 @@ config MACH_ZODIAC_CHN_OPEN
         bool "Samsung ZODIAC CHN OPEN"
         help
           Support for Samsung ZODIAC CHN OPEN device.
+
+config SEC_A82XQ_PROJECT
+        depends on ARCH_SM8150
+        default n
+        bool "Samsung A82XQ Project"
+        help
+          Support for Samsung A82XQ Project
+
+config MACH_A82XQ_KOR_SKT
+        depends on SEC_A82XQ_PROJECT
+        default n
+        bool "Samsung A82XQ KOR SKT"
+        help
+          Support for Samsung A82XQ KOR SKT device.
 
 config LOD_SEC
 	bool "kernel security re-enforcement for Linux On Dex, including cap re-check and seccomp report"

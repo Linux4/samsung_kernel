@@ -470,6 +470,9 @@ static int process_received_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 #ifdef CONFIG_SUPPORT_PROX_POWER_ON_CAL
 		prox_factory_init_work();
 #endif
+#ifdef CONFIG_SUPPORT_PROX_CALIBRATION
+		prox_cal_init_work(data);
+#endif
 #ifdef CONFIG_SUPPORT_AK0997X
 		digital_hall_factory_auto_cal_init_work();
 #endif
@@ -546,7 +549,9 @@ static int __init factory_adsp_init(void)
 #ifdef CONFIG_SUPPORT_AK0997X
 	mutex_init(&data->digital_hall_mutex);
 #endif
-
+#ifdef CONFIG_SUPPORT_PROX_CALIBRATION
+	INIT_DELAYED_WORK(&data->prox_cal_work, prox_cal_read_work_func);
+#endif
 	pr_info("[FACTORY] %s: Timer Init\n", __func__);
 	return 0;
 }
@@ -562,7 +567,9 @@ static void __exit factory_adsp_exit(void)
 #ifdef CONFIG_SUPPORT_AK0997X
 	mutex_destroy(&data->digital_hall_mutex);
 #endif
-
+#ifdef CONFIG_SUPPORT_PROX_CALIBRATION
+	cancel_delayed_work_sync(&data->prox_cal_work);
+#endif
 	for (i = 0; i < MSG_SENSOR_MAX; i++)
 		kfree(data->msg_buf[i]);
 	pr_info("[FACTORY] %s\n", __func__);

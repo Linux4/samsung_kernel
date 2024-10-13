@@ -35,7 +35,11 @@
 #define MAX_AD_BL_SCALE_LEVEL 65535
 #define DSI_CMD_PPS_SIZE 135
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+#define DSI_MODE_MAX 32
+#else
 #define DSI_MODE_MAX 5
+#endif
 
 enum dsi_panel_rotation {
 	DSI_PANEL_ROTATE_NONE = 0,
@@ -151,7 +155,7 @@ enum esd_check_status_mode {
 	ESD_MODE_PANEL_TE,
 	ESD_MODE_SW_SIM_SUCCESS,
 	ESD_MODE_SW_SIM_FAILURE,
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	ESD_MODE_PANEL_IRQ,
 #endif
 	ESD_MODE_MAX
@@ -208,6 +212,9 @@ struct dsi_panel {
 	bool ulps_feature_enabled;
 	bool ulps_suspend_enabled;
 	bool allow_phy_power_off;
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	bool reset_gpio_always_on;
+#endif
 	atomic_t esd_recovery_pending;
 
 	bool panel_initialized;
@@ -215,14 +222,21 @@ struct dsi_panel {
 	u32 qsync_min_fps;
 
 	char dsc_pps_cmd[DSI_CMD_PPS_SIZE];
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	void *panel_private;
 	struct device_node *self_display_of_node;
 	struct dsi_parser_utils self_display_utils;
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	struct device_node *mafpc_of_node;
+	struct dsi_parser_utils mafpc_utils;
+#endif
 #endif
 	enum dsi_dms_mode dms_mode;
 
 	bool sync_broadcast_en;
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	int panel_test_gpio;
+#endif
 	int power_mode;
 	enum dsi_panel_physical_type panel_type;
 };
@@ -345,13 +359,18 @@ int dsi_panel_parse_esd_reg_read_configs(struct dsi_panel *panel);
 
 void dsi_panel_ext_bridge_put(struct dsi_panel *panel);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable);
 int dsi_panel_power_on(struct dsi_panel *panel);
 int dsi_panel_power_off(struct dsi_panel *panel);
 int dsi_panel_tx_cmd_set(struct dsi_panel *panel, enum dsi_cmd_set_type type);
 int ss_dsi_panel_parse_cmd_sets(struct dsi_panel_cmd_set *cmd_sets,
 			struct dsi_panel *panel);
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+#define SS_CMD_PROP_STR_LEN (100)
+void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
+		struct dsi_display_mode *mode, u32 frame_threshold_us);
+#endif
 #endif
 
 #endif /* _DSI_PANEL_H_ */

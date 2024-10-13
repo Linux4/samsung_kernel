@@ -57,7 +57,7 @@
 				| MSK_IRQSTAT_COMP)
 
 #if defined(CONFIG_FOLDER_HALL)
-#define HALLIC_PATH		"/sys/class/sec/sec_flip/flipStatus"
+#define HALLIC_PATH		"/sys/class/sec/hall_ic/flip_status"
 #else
 #define HALLIC_PATH		"/sys/class/sec/hall_ic/hall_detect"
 #endif

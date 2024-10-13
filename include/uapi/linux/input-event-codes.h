@@ -703,6 +703,10 @@
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
 
+#define BTN_HOTKEY_APP1 		0x2f5
+#define BTN_HOTKEY_APP2 		0x2f6
+#define BTN_HOTKEY_APP3 		0x2f7
+
 /* Custom fingerprint gestures keys */
 #define KEY_FP_GESTURE_UP		0x2e8
 #define KEY_FP_GESTURE_DOWN		0x2e9

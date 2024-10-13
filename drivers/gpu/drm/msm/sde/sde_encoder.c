@@ -40,7 +40,7 @@
 #include "sde_hw_top.h"
 #include "sde_hw_qdss.h"
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 #include <linux/interrupt.h>
 #include "ss_dsi_panel_common.h"
 #endif
@@ -1746,7 +1746,7 @@ static int _sde_encoder_dsc_setup(struct sde_encoder_virt *sde_enc,
 
 	if (sde_kms_rect_is_equal(&sde_enc->cur_conn_roi,
 			&sde_enc->prv_conn_roi))
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	{
 		/* QC display driver prevent DMS before without first frame update (commit).
 		 * In above case, it returns error for DMS and it causes kernel panic, in result.
@@ -1972,6 +1972,10 @@ static int _sde_encoder_update_rsc_client(
 	struct msm_drm_private *priv;
 	struct sde_kms *sde_kms;
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+#endif
+
 	if (!drm_enc || !drm_enc->dev) {
 		SDE_ERROR("invalid encoder arguments\n");
 		return -EINVAL;
@@ -2044,6 +2048,32 @@ static int _sde_encoder_update_rsc_client(
 	if (IS_SDE_MAJOR_SAME(sde_kms->core_rev, SDE_HW_VER_620) &&
 			(rsc_state == SDE_RSC_VID_STATE))
 		rsc_state = SDE_RSC_CLK_STATE;
+
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	if (vdd->rsc_4_frame_idle && rsc_state == SDE_RSC_CMD_STATE)
+		rsc_state = SDE_RSC_CLK_STATE;
+
+	if (vdd->vrr.support_vrr_based_bl) {
+		// if ((vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr) && (mode_info->frame_rate < 120)) { // JUN_TEMP
+		if ((vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr) && (mode_info.frame_rate < 120)) {
+			LCD_INFO("During VRR (%d|%d): set max frame_rate: %d --> 120\n",
+					vdd->vrr.running_vrr_mdp,
+					vdd->vrr.running_vrr,
+					mode_info.frame_rate);
+			/* set maximum 120hz rsc fps */
+			mode_info.frame_rate = 120;
+			vdd->vrr.keep_max_rsc_fps = true;
+		} else if (!vdd->vrr.keep_max_rsc_fps && mode_info.frame_rate != mode_info.frame_rate_org) {
+			LCD_INFO("VRR fin(%d|%d): restore mode frame_rate: %d -> %d\n",
+					vdd->vrr.running_vrr_mdp,
+					vdd->vrr.running_vrr,
+					mode_info.frame_rate,
+					mode_info.frame_rate_org);
+
+			mode_info.frame_rate = mode_info.frame_rate_org;
+		}
+	}
+#endif
 
 	SDE_EVT32(rsc_state, qsync_mode);
 
@@ -2341,7 +2371,7 @@ static void sde_encoder_input_event_handler(struct input_handle *handle,
 	struct sde_encoder_virt *sde_enc = NULL;
 	struct msm_drm_thread *disp_thread = NULL;
 	struct msm_drm_private *priv = NULL;
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	struct samsung_display_driver_data *vdd = NULL;
 #endif
 
@@ -2359,7 +2389,7 @@ static void sde_encoder_input_event_handler(struct input_handle *handle,
 	priv = drm_enc->dev->dev_private;
 	sde_enc = to_sde_encoder_virt(drm_enc);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	if (!sde_enc->crtc) {
 		SDE_DEBUG("invalid crtc\n");
 		return;
@@ -2458,6 +2488,18 @@ static int sde_encoder_resource_control(struct drm_encoder *drm_enc,
 
 		/* return if the resource control is already in ON state */
 		if (sde_enc->rc_state == SDE_ENC_RC_STATE_ON) {
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+			struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+			if (vdd->vrr.support_vrr_based_bl) {
+				if (vdd->vrr.keep_max_rsc_fps &&
+						!vdd->vrr.running_vrr_mdp &&
+						!vdd->vrr.running_vrr) {
+					LCD_INFO("VRR done, trigger rsc update to restore original rsc fps\n");
+					vdd->vrr.keep_max_rsc_fps = false;
+					_sde_encoder_update_rsc_client(drm_enc, NULL, true);
+				}
+			}
+#endif
 			SDE_DEBUG_ENC(sde_enc, "sw_event:%d, rc in ON state\n",
 					sw_event);
 			SDE_EVT32(DRMID(drm_enc), sw_event, sde_enc->rc_state,
@@ -3148,7 +3190,7 @@ static int _sde_encoder_input_handler_register(
 {
 	int rc = 0;
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
         static bool input_handler_registered = false;
 
         if (input_handler_registered)
@@ -3467,7 +3509,7 @@ static void sde_encoder_virt_disable(struct drm_encoder *drm_enc)
 	/* wait for idle */
 	sde_encoder_wait_for_event(drm_enc, MSM_ENC_TX_COMPLETE);
 
-#if !defined(CONFIG_DISPLAY_SAMSUNG)
+#if !(defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO))
 	/* CL 16617782 : Excessive delay in setPowerMode because of pending display off */
 	if (sde_enc->input_handler && sde_enc->input_handler_registered) {
 		input_unregister_handler(sde_enc->input_handler);
@@ -4300,6 +4342,45 @@ bool sde_encoder_check_curr_mode(struct drm_encoder *drm_enc, u32 mode)
 	return (disp_info->curr_panel_mode == mode);
 }
 
+void sde_encoder_trigger_rsc_state_change(struct drm_encoder *drm_enc)
+{
+	struct sde_encoder_virt *sde_enc = NULL;
+	int ret = 0;
+
+	sde_enc = to_sde_encoder_virt(drm_enc);
+
+	if (!sde_enc)
+		return;
+
+	mutex_lock(&sde_enc->rc_lock);
+	/*
+	 * In dual display case when secondary comes out of
+	 * idle make sure RSC solver mode is disabled before
+	 * setting CTL_PREPARE.
+	 */
+	if (!sde_enc->cur_master ||
+		!sde_encoder_check_curr_mode(drm_enc, MSM_DISPLAY_CMD_MODE) ||
+		sde_enc->disp_info.is_primary ||
+		sde_enc->rc_state != SDE_ENC_RC_STATE_IDLE)
+	goto end;
+
+	/* enable all the clks and resources */
+	ret = _sde_encoder_resource_control_helper(drm_enc, true);
+	if (ret) {
+		SDE_ERROR_ENC(sde_enc, "rc in state %d\n", sde_enc->rc_state);
+		SDE_EVT32(DRMID(drm_enc), sde_enc->rc_state, SDE_EVTLOG_ERROR);
+		goto end;
+	}
+
+	_sde_encoder_update_rsc_client(drm_enc, NULL, true);
+
+	SDE_EVT32(DRMID(drm_enc), sde_enc->rc_state, SDE_ENC_RC_STATE_ON);
+	sde_enc->rc_state = SDE_ENC_RC_STATE_ON;
+
+	end:
+	mutex_unlock(&sde_enc->rc_lock);
+}
+
 void sde_encoder_trigger_kickoff_pending(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc;
@@ -4689,7 +4770,7 @@ static int _helper_flush_qsync(struct sde_encoder_phys *phys_enc)
 	return 0;
 }
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 #include <drm/drm_encoder.h>
 int ss_get_vdd_ndx_from_state(struct drm_atomic_state *old_state)
 {
@@ -4708,8 +4789,11 @@ int ss_get_vdd_ndx_from_state(struct drm_atomic_state *old_state)
 	struct samsung_display_driver_data *vdd;
 	int ndx = -EINVAL;
 
-
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+#else
 	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+#endif
 		if (crtc->state->active) {
 			dev = crtc->dev;
 			list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
@@ -4724,8 +4808,11 @@ int ss_get_vdd_ndx_from_state(struct drm_atomic_state *old_state)
 
 	/* TOOD: remove below W/A and debug why panic occurs in video mode (DP) or writeback case */
         if (sde_enc->disp_info.intf_type != DRM_MODE_CONNECTOR_DSI)
-                return PRIMARY_DISPLAY_NDX;
-
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+		return MAX_DISPLAY_NDX;
+#else
+		return PRIMARY_DISPLAY_NDX;
+#endif
 
 	for (i = 0; i < sde_enc->num_phys_encs; i++) {
 		phys = sde_enc->phys_encs[i];
@@ -4885,7 +4972,7 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 	}
 
 	SDE_EVT32(_sde_encoder_is_dsc_enabled(drm_enc), sde_enc->cur_master, sde_enc->cur_master->cont_splash_enabled);
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	/* QC display driver prevent DMS before without first frame update (commit).
 	 * In above case, it returns error for DMS and it causes kernel panic, in result.
 	 * To prevent the limitation, allow DMS before first frame update, and sets proper DSC setting.

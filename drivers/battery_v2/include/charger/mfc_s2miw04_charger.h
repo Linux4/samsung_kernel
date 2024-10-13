@@ -921,5 +921,9 @@ struct mfc_charger_data {
 	int duty_min;
 	int tx_gear_phm;
 	int wpc_en_flag;
+
+	struct mutex fw_lock;
+	unsigned long fw_size;
+	u8 *fw_img;
 };
 #endif /* __WIRELESS_CHARGER_MFC_S2MIW04_H */

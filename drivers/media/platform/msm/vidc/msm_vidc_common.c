@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, 2021 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2473,6 +2473,7 @@ static bool is_eos_buffer(struct msm_vidc_inst *inst, u32 device_addr)
 	list_for_each_entry_safe(temp, next, &inst->eosbufs.list, list) {
 		if (temp->smem.device_addr == device_addr) {
 			found = true;
+			temp->is_queued = 0;
 			list_del(&temp->list);
 			msm_comm_smem_free(inst, &temp->smem);
 			kfree(temp);
@@ -3414,10 +3415,10 @@ static int msm_vidc_load_resources(int flipped_state,
 		dprintk(VIDC_ERR, "HW is overloaded, needed: %d max: %d\n",
 			num_mbs_per_sec, max_load_adj);
 		msm_vidc_print_running_insts(core);
-#if 0 /* Samsung skips the overloaded error return  */
+//#if 0 /* Samsung skips the overloaded error return  */
 		msm_comm_kill_session(inst);
 		return -EBUSY;
-#endif
+//#endif
 	}
 
 	hdev = core->device;
@@ -4100,6 +4101,9 @@ int msm_vidc_send_pending_eos_buffers(struct msm_vidc_inst *inst)
 
 	mutex_lock(&inst->eosbufs.lock);
 	list_for_each_entry_safe(binfo, temp, &inst->eosbufs.list, list) {
+		if (binfo->is_queued)
+			continue;
+
 		data.alloc_len = binfo->smem.size;
 		data.device_addr = binfo->smem.device_addr;
 		data.buffer_type = HAL_BUFFER_INPUT;
@@ -4115,6 +4119,7 @@ int msm_vidc_send_pending_eos_buffers(struct msm_vidc_inst *inst)
 
 		rc = call_hfi_op(hdev, session_etb, inst->session,
 				&data);
+		binfo->is_queued = 1;
 	}
 	mutex_unlock(&inst->eosbufs.lock);
 
@@ -4194,7 +4199,6 @@ int msm_vidc_comm_cmd(void *instance, union msm_v4l2_cmd *cmd)
 		mutex_lock(&inst->eosbufs.lock);
 		list_add_tail(&binfo->list, &inst->eosbufs.list);
 		mutex_unlock(&inst->eosbufs.lock);
-
 		rc = msm_vidc_send_pending_eos_buffers(inst);
 		if (rc) {
 			dprintk(VIDC_ERR,
@@ -4672,6 +4676,18 @@ int msm_comm_try_get_bufreqs(struct msm_vidc_inst *inst)
 				req.buffer_count_min, req.buffer_size);
 		}
 	}
+
+	/* Buffer size will be double when the resolution is
+	 * 360p < resolution <= 720p
+	 */
+	for (i = 0; i < HAL_BUFFER_MAX; i++) {
+		if ((inst->buff_req.buffer[i].buffer_type == HAL_BUFFER_OUTPUT) &&
+				(inst->buff_req.buffer[i].buffer_size >= 175000 &&
+				inst->buff_req.buffer[i].buffer_size <= 900000)) {
+			inst->buff_req.buffer[i].buffer_size *= 2;
+		}
+	}
+
 
 	dprintk(VIDC_DBG, "Buffer requirements driver adjusted:\n");
 	dprintk(VIDC_DBG, "%15s %8s %8s %8s %8s\n",
@@ -5581,9 +5597,9 @@ static int msm_vidc_load_supported(struct msm_vidc_inst *inst)
 				num_mbs_per_sec,
 				max_load_adj);
 			msm_vidc_print_running_insts(inst->core);
-#if 0 /* Samsung skips the overloaded error return  */
+//#if 0 /* Samsung skips the overloaded error return  */
 			return -EBUSY;
-#endif
+//#endif
 		}
 	}
 	return 0;
@@ -6629,25 +6645,24 @@ struct msm_vidc_buffer *msm_comm_get_vidc_buffer(struct msm_vidc_inst *inst,
 	struct vb2_v4l2_buffer *vbuf;
 	struct vb2_buffer *vb;
 	unsigned long dma_planes[VB2_MAX_PLANES] = {0};
-	struct msm_vidc_buffer *mbuf;
+	struct msm_vidc_buffer *mbuf = NULL;
 	bool found = false;
-	int i;
+	int i = 0, planes = 0;
 
 	if (!inst || !vb2) {
 		dprintk(VIDC_ERR, "%s: invalid params\n", __func__);
 		return NULL;
 	}
 
-	for (i = 0; i < vb2->num_planes; i++) {
+	for (planes = 0; planes < vb2->num_planes; planes++) {
 		/*
 		 * always compare dma_buf addresses which is guaranteed
 		 * to be same across the processes (duplicate fds).
 		 */
-		dma_planes[i] = (unsigned long)msm_smem_get_dma_buf(
-				vb2->planes[i].m.fd);
-		if (!dma_planes[i])
-			return NULL;
-		msm_smem_put_dma_buf((struct dma_buf *)dma_planes[i]);
+		dma_planes[planes] = (unsigned long)msm_smem_get_dma_buf(
+				vb2->planes[planes].m.fd);
+		if (!dma_planes[planes])
+			goto put_ref;
 	}
 
 	mutex_lock(&inst->registeredbufs.lock);
@@ -6750,27 +6765,21 @@ struct msm_vidc_buffer *msm_comm_get_vidc_buffer(struct msm_vidc_inst *inst,
 	if (!found)
 		list_add_tail(&mbuf->list, &inst->registeredbufs.list);
 
-	mutex_unlock(&inst->registeredbufs.lock);
-
-	/*
-	 * Return mbuf if decode batching is enabled as this buffer
-	 * may trigger queuing full batch to firmware, also this buffer
-	 * will not be queued to firmware while full batch queuing,
-	 * it will be queued when rbr event arrived from firmware.
-	 */
-	if (rc == -EEXIST && !inst->batch.enable)
-		return ERR_PTR(rc);
-
-	return mbuf;
-
 exit:
-	dprintk(VIDC_ERR, "%s: rc %d\n", __func__, rc);
-	msm_comm_unmap_vidc_buffer(inst, mbuf);
-	if (!found)
-		kref_put_mbuf(mbuf);
+	if (rc == -EEXIST) {
+		print_vidc_buffer(VIDC_DBG, "qbuf upon rbr", inst, mbuf);
+	} else if (rc) {
+		dprintk(VIDC_ERR, "%s: rc %d\n", __func__, rc);
+		msm_comm_unmap_vidc_buffer(inst, mbuf);
+		if (!found)
+			kref_put_mbuf(mbuf);
+	}
 	mutex_unlock(&inst->registeredbufs.lock);
+put_ref:
+	while (planes)
+		msm_smem_put_dma_buf((struct dma_buf *)dma_planes[--planes]);
 
-	return ERR_PTR(rc);
+	return rc ? ERR_PTR(rc) : mbuf;
 }
 
 void msm_comm_put_vidc_buffer(struct msm_vidc_inst *inst,

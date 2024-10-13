@@ -89,6 +89,94 @@ static unsigned int sec_hw_rev(void)
 #define CRITERION_REV	(0)
 #endif
 
+
+int cam_sensor_read_frame_count(struct cam_sensor_ctrl_t *s_ctrl, uint32_t* frame_cnt)
+{
+	int rc = 0;
+	uint32_t FRAME_COUNT_REG_ADDR = 0x0005;
+
+	rc = camera_io_dev_read(&s_ctrl->io_master_info, FRAME_COUNT_REG_ADDR,
+		frame_cnt, CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+	if (rc < 0)
+		CAM_ERR(CAM_SENSOR, "[CNT_DBG] Failed to read frame_cnt");
+
+	return rc;
+}
+
+int cam_sensor_wait_stream_on(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int rc = 0;
+	uint32_t frame_cnt = 0;
+	int retry_cnt = 10;
+
+	CAM_ERR(CAM_SENSOR, "E");
+	
+	if (s_ctrl->soc_info.index == 0){
+		do {
+			rc = cam_sensor_read_frame_count(s_ctrl, &frame_cnt);
+			if (rc < 0)
+				break;
+
+			if ((frame_cnt & 0x01)  == 0x01){
+				usleep_range(4000, 5000);
+
+				CAM_INFO(CAM_SENSOR, "[CNT_DBG] 0x%x : Last frame_cnt 0x%x",
+					s_ctrl->sensordata->slave_info.sensor_id, frame_cnt);
+				return 0;
+			}
+			CAM_INFO(CAM_SENSOR, "[CNT_DBG] retry cnt : %d, Stream off, frame_cnt : 0x%x", retry_cnt, frame_cnt);
+			retry_cnt--;
+			usleep_range(5000, 6000);
+		} while ((frame_cnt < 0x01 || frame_cnt == 0xFF) && (retry_cnt > 0));
+	}
+
+	CAM_DBG(CAM_SENSOR, "[CNT_DBG] wait fail rc %d retry cnt : %d, frame_cnt : 0x%x", rc, retry_cnt, frame_cnt);
+
+	CAM_INFO(CAM_SENSOR, "X");
+
+	return -1;
+}
+
+int cam_sensor_wait_stream_off(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int rc = 0;
+	uint32_t frame_cnt = 0;
+	int retry_cnt = 30;
+
+	CAM_ERR(CAM_SENSOR, "E");
+
+	usleep_range(2000, 3000);
+	if(s_ctrl->soc_info.index == 0){
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+		msleep(90);
+#else
+		msleep(10);
+#endif
+#if 0		
+		do {
+			rc = cam_sensor_read_frame_count(s_ctrl, &frame_cnt);
+			if (rc < 0)
+				break;
+
+			if ((frame_cnt & 0x01)  == 0x00) {
+				usleep_range(1000, 1010);
+				CAM_INFO(CAM_SENSOR, "X frame_cnt = 0x%x",frame_cnt);
+				return 0;
+			}
+			CAM_DBG(CAM_SENSOR, "[CNT_DBG] retry cnt : %d, Stream off, frame_cnt : 0x%x", retry_cnt, frame_cnt);
+			retry_cnt--;
+			usleep_range(5000, 6000);
+		} while ((frame_cnt != 0xFF) && (retry_cnt > 0));
+#endif		
+	}
+
+	CAM_DBG(CAM_SENSOR, "[CNT_DBG] wait fail rc %d retry cnt : %d, frame_cnt : 0x%x", rc, retry_cnt, frame_cnt);
+
+	CAM_INFO(CAM_SENSOR, "X");
+	return -1;
+}
+
+
 static void cam_sensor_update_req_mgr(
 	struct cam_sensor_ctrl_t *s_ctrl,
 	struct cam_packet *csl_packet)
@@ -1269,7 +1357,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		&s_ctrl->sensordata->power_info;
 
 #if !defined(CONFIG_SEC_GTS5L_PROJECT) && !defined(CONFIG_SEC_GTS5LWIFI_PROJECT) && !defined(CONFIG_SEC_GTS6X_PROJECT) && \
-	!defined(CONFIG_SEC_GTS6L_PROJECT) && !defined(CONFIG_SEC_GTS6LWIFI_PROJECT) && !defined(CONFIG_SEC_R3Q_PROJECT) //For factory module test
+	!defined(CONFIG_SEC_GTS6L_PROJECT) && !defined(CONFIG_SEC_GTS6LWIFI_PROJECT) && !defined(CONFIG_SEC_R3Q_PROJECT) && !defined(CONFIG_SEC_A82XQ_PROJECT) //For factory module test
 	uint32_t version_id = 0;
 	uint16_t sensor_id = 0;
 	uint16_t expected_version_id = 0;
@@ -1353,7 +1441,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #if !defined(CONFIG_SEC_WINNERLTE_PROJECT) && !defined(CONFIG_SEC_WINNERX_PROJECT) && !defined(CONFIG_SEC_ZODIAC_PROJECT)\
 	&& !defined(CONFIG_SEC_BEYONDXQ_PROJECT) && !defined(CONFIG_SEC_GTS5L_PROJECT) && !defined(CONFIG_SEC_GTS6L_PROJECT) && !defined(CONFIG_SEC_GTS6X_PROJECT)\
 	&& !defined(CONFIG_SEC_GTS5LWIFI_PROJECT)	&& !defined(CONFIG_SEC_GTS6LWIFI_PROJECT) && !defined(CONFIG_SEC_R3Q_PROJECT)\
-	&& !defined(CONFIG_SEC_BLOOMQ_PROJECT)
+	&& !defined(CONFIG_SEC_BLOOMQ_PROJECT) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 		//For factory module test
 		if (s_ctrl->soc_info.index == 3) { // check 3P8 or 3P9
 			sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
@@ -1392,7 +1480,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #endif
 
 #if !defined(CONFIG_SEC_R3Q_PROJECT) && !defined(CONFIG_SEC_GTS5L_PROJECT) && !defined(CONFIG_SEC_GTS6X_PROJECT) && !defined(CONFIG_SEC_GTS5LWIFI_PROJECT) && \
-	!defined(CONFIG_SEC_GTS6L_PROJECT) && !defined(CONFIG_SEC_GTS6LWIFI_PROJECT)
+	!defined(CONFIG_SEC_GTS6L_PROJECT) && !defined(CONFIG_SEC_GTS6LWIFI_PROJECT) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 		if (s_ctrl->soc_info.index == 0) { // check Rear sak2l4sx
 			sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
 			expected_version_id = s_ctrl->sensordata->slave_info.version_id;
@@ -1540,7 +1628,11 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #endif
 
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+					case CAMERA_10:
+#else
 					case CAMERA_4:
+#endif
 						if (!msm_is_sec_get_rear3_hw_param(&hw_param)) {
 							if (hw_param != NULL) {
 								CAM_ERR(CAM_HWB, "[R3][I2C] Err\n");
@@ -2427,6 +2519,11 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 			return 0;
 		}
 		if (i2c_set->is_settings_valid == 1) {
+			if (opcode == CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON)
+			{
+				cam_sensor_wait_stream_on(s_ctrl);
+			}
+
 			list_for_each_entry(i2c_list,
 				&(i2c_set->list_head), list) {
 				rc = cam_sensor_i2c_modes_util(
@@ -2439,6 +2536,11 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 						rc);
 					return rc;
 				}
+			}
+
+			if (opcode == CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF)
+			{
+				cam_sensor_wait_stream_off(s_ctrl);
 			}
 		}
 	} else {

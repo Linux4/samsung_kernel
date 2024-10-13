@@ -187,7 +187,7 @@ static ssize_t fts_secure_touch_enable_store(struct device *dev,
 
 		fts_interrupt_handler(info->client->irq, info);
 
-		complete(&info->st_powerdown);
+		complete_all(&info->st_powerdown);
 		complete(&info->st_interrupt);
 
 		input_info(true, &info->client->dev, "%s: secure_touch is disabled\n", __func__);
@@ -283,6 +283,7 @@ static void fts_secure_touch_init(struct fts_ts_info *info)
 
 static void fts_secure_touch_stop(struct fts_ts_info *info, int blocking)
 {
+	mutex_lock(&info->st_lock);
 	if (atomic_read(&info->st_enabled)) {
 		atomic_set(&info->st_pending_irqs, -1);
 		sysfs_notify(&info->input_dev->dev.kobj, NULL, "secure_touch");
@@ -290,6 +291,7 @@ static void fts_secure_touch_stop(struct fts_ts_info *info, int blocking)
 		if (blocking)
 			wait_for_completion_interruptible(&info->st_powerdown);
 	}
+	mutex_unlock(&info->st_lock);
 }
 
 static irqreturn_t fts_filter_interrupt(struct fts_ts_info *info)
@@ -2612,6 +2614,8 @@ static int fts_parse_dt(struct i2c_client *client)
 	pdata->support_dex = of_property_read_bool(np, "support_dex_mode");
 
 	pdata->sync_reportrate_120 = of_property_read_bool(np, "sync-reportrate-120");
+	pdata->support_open_short_test = of_property_read_bool(np, "support_open_short_test");
+	pdata->support_mis_calibration_test = of_property_read_bool(np, "support_mis_calibration_test");
 
 	of_property_read_u32(np, "stm,bringup", &pdata->bringup);
 
@@ -2977,6 +2981,9 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	mutex_init(&info->irq_mutex);
 	mutex_init(&info->eventlock);
 	mutex_init(&info->status_mutex);
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	mutex_init(&info->st_lock);
+#endif
 	init_completion(&info->resume_done);
 	complete_all(&info->resume_done);
 
@@ -3199,6 +3206,9 @@ err_register_input:
 	kfree(info->pFrame);
 #endif
 err_fts_init:
+#if defined(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	mutex_destroy(&info->st_lock);
+#endif
 	mutex_destroy(&info->device_mutex);
 	mutex_destroy(&info->i2c_mutex);
 	mutex_destroy(&info->status_mutex);

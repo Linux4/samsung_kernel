@@ -155,6 +155,55 @@ static int s2mu106_read_reg(struct i2c_client *client, int reg, u8 *buf)
 	return ret;
 }
 
+#define FULL_CAPACITY 850
+static int calc_ttf_to_full_capacity(struct s2mu106_fuelgauge_data *fuelgauge,
+		    union power_supply_propval *val)
+{
+	int i;
+	int cc_time = 0, cv_time = 0;
+
+	int soc = FULL_CAPACITY;
+	int charge_current = val->intval;
+	struct cv_slope *cv_data = fuelgauge->cv_data;
+	int design_cap = fuelgauge->ttf_capacity;
+
+	if (!cv_data || (val->intval <= 0)) {
+		pr_info("%s: no cv_data or val: %d\n", __func__, val->intval);
+		return -1;
+	}
+	for (i = 0; i < fuelgauge->cv_data_length; i++) {
+		if (charge_current >= cv_data[i].fg_current)
+			break;
+	}
+	i = i >= fuelgauge->cv_data_length ? fuelgauge->cv_data_length - 1 : i;
+	if (cv_data[i].soc < soc) {
+		for (i = 0; i < fuelgauge->cv_data_length; i++) {
+			if (soc <= cv_data[i].soc)
+				break;
+		}
+		cv_time =
+		    ((cv_data[i - 1].time - cv_data[i].time) * (cv_data[i].soc - soc)
+		     / (cv_data[i].soc - cv_data[i - 1].soc)) + cv_data[i].time;
+	} else {		/* CC mode || NONE */
+		cv_time = cv_data[i].time;
+		cc_time = design_cap * (cv_data[i].soc - soc)
+		    / val->intval * 3600 / 1000;
+		pr_debug("%s: cc_time: %d\n", __func__, cc_time);
+		if (cc_time < 0)
+			cc_time = 0;
+	}
+
+	pr_debug
+	    ("%s: cap: %d, soc: %4d, T: %6d, avg: %4d, cv soc: %4d, i: %4d, val: %d\n",
+	     __func__, design_cap, soc, cv_time + cc_time,
+	     fuelgauge->current_avg, cv_data[i].soc, i, val->intval);
+
+	if (cv_time + cc_time >= 0)
+		return cv_time + cc_time;
+	else
+		return 0;
+}
+
 static int calc_ttf(struct s2mu106_fuelgauge_data *fuelgauge,
 		    union power_supply_propval *val)
 {
@@ -525,10 +574,12 @@ static int s2mu106_get_comp_socr(struct s2mu106_fuelgauge_data *fuelgauge)
 
 	if (fuelgauge->temperature <= 0) {
 		i_socr = (-1) * fuelgauge->i_socr_coeff * fuelgauge->avg_curr;
-		t_socr = ((-223) * fuelgauge->temperature + fuelgauge->t_socr_coeff) / 1000;
+		t_socr = (((-1) * fuelgauge->low_t_compen_coeff) * fuelgauge->temperature
+				+ fuelgauge->t_socr_coeff) / 1000;
 	} else if (fuelgauge->temperature <= 200) {
 		i_socr = (-1) * fuelgauge->i_socr_coeff * fuelgauge->avg_curr;
-		t_socr = ((-75) * fuelgauge->temperature + fuelgauge->t_socr_coeff) / 1000;
+		t_socr = (((-1) * fuelgauge->t_compen_coeff) * fuelgauge->temperature
+				+ fuelgauge->t_socr_coeff) / 1000;
 	}
 
 	comp_socr = ((t_socr + 1) * i_socr) / 100000;
@@ -1933,6 +1984,9 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 				}
 			}
 			break;
+		case POWER_SUPPLY_EXT_PROP_TTF_FULL_CAPACITY:
+			val->intval = calc_ttf_to_full_capacity(fuelgauge, val);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -2198,6 +2252,22 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 			pr_err("%s There is no t_socr_coeff . Use default(15500)\n",
 					__func__);
 			fuelgauge->t_socr_coeff = 15500;
+		}
+
+		ret = of_property_read_u32(np, "fuelgauge,t_compen_coeff",
+				&fuelgauge->t_compen_coeff);
+		if (ret < 0) {
+			pr_err("%s There is no t_compen_coeff . Use default(75)\n",
+					__func__);
+			fuelgauge->t_compen_coeff = 75;
+		}
+
+		ret = of_property_read_u32(np, "fuelgauge,low_t_compen_coeff",
+				&fuelgauge->low_t_compen_coeff);
+		if (ret < 0) {
+			pr_err("%s There is no low_t_compen_coeff . Use default(223)\n",
+					__func__);
+			fuelgauge->low_t_compen_coeff = 223;
 		}
 
 		ret = of_property_read_u32(np, "fuelgauge,val_0x5C",

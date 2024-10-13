@@ -110,21 +110,37 @@ extern void sec_cmd_send_event_to_user(struct sec_cmd_data *data, char *test, ch
 extern void sec_virtual_tsp_register(struct sec_cmd_data *sec);
 #endif
 
-enum sec_input_notify {
-	SEC_INPUT_CUSTOM_NOTIFIER_NOTHING = 0,
-	SEC_INPUT_CUSTOM_NOTIFIER_MAIN_TOUCH_ON,
-	SEC_INPUT_CUSTOM_NOTIFIER_MAIN_TOUCH_OFF,
-	SEC_INPUT_CUSTOM_NOTIFIER_SUB_TOUCH_ON,
-	SEC_INPUT_CUSTOM_NOTIFIER_SUB_TOUCH_OFF,
-	SEC_INPUT_CUSTOM_NOTIFIER_SECURE_TOUCH_ENABLE,
-	SEC_INPUT_CUSTOM_NOTIFIER_SECURE_TOUCH_DISABLE,
-	SEC_INPUT_CUSTOM_NOTIFIER_VALUE_MAX,
+typedef enum {
+	NOTIFIER_NOTHING = 0,
+	NOTIFIER_MAIN_TOUCH_ON,
+	NOTIFIER_MAIN_TOUCH_OFF,
+	NOTIFIER_SUB_TOUCH_ON,
+	NOTIFIER_SUB_TOUCH_OFF,
+	NOTIFIER_SECURE_TOUCH_ENABLE,		/* secure touch is enabled */
+	NOTIFIER_SECURE_TOUCH_DISABLE,		/* secure touch is disabled */
+	NOTIFIER_TSP_BLOCKING_REQUEST,		/* wacom called tsp block enable */
+	NOTIFIER_TSP_BLOCKING_RELEASE,		/* wacom called tsp block disable */
+	NOTIFIER_WACOM_PEN_CHARGING_FINISHED,	/* to tsp: pen charging finished */
+	NOTIFIER_WACOM_PEN_CHARGING_STARTED,	/* to tsp: pen charging started */
+	NOTIFIER_WACOM_PEN_INSERT,		/* to tsp: pen is inserted */
+	NOTIFIER_WACOM_PEN_REMOVE,		/* to tsp: pen is removed */
+	NOTIFIER_LCD_VRR_LFD_LOCK_REQUEST,	/* to LCD: set LFD min lock */
+	NOTIFIER_LCD_VRR_LFD_LOCK_RELEASE,	/* to LCD: unset LFD min lock */
+	NOTIFIER_LCD_VRR_LFD_OFF_REQUEST,	/* to LCD: set LFD OFF */
+	NOTIFIER_LCD_VRR_LFD_OFF_RELEASE,	/* to LCD: unset LFD OFF */
+	NOTIFIER_VALUE_MAX,
+} sec_input_notify_t;
+
+#define MAIN_TOUCHSCREEN	0
+#define SUB_TOUCHSCREEN		1
+
+struct sec_input_notify_data {
+	u8 dual_policy;
 };
 
-void sec_input_register_notify(struct notifier_block *nb, notifier_fn_t notifier_call);
+void sec_input_register_notify(struct notifier_block *nb, notifier_fn_t notifier_call, int priority);
 void sec_input_unregister_notify(struct notifier_block *nb);
-void sec_input_notify(struct notifier_block *nb, unsigned long data);
-void sec_input_self_request_notify(struct notifier_block *nb);
+int sec_input_notify(struct notifier_block *nb, unsigned long noti, void *v);
+int sec_input_self_request_notify(struct notifier_block *nb);
 #endif /* _SEC_CMD_H_ */
-
 

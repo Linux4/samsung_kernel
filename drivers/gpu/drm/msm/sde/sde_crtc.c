@@ -3084,7 +3084,7 @@ static void _sde_crtc_set_input_fence_timeout(struct sde_crtc_state *cstate)
 		sde_crtc_get_property(cstate, CRTC_PROP_INPUT_FENCE_TIMEOUT);
 	cstate->input_fence_timeout_ns *= NSEC_PER_MSEC;
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	/* Increase fence timeout value to 20 sec (case 03381402 / P180412-02009) */
 	cstate->input_fence_timeout_ns *= 2;
 	SDE_DEBUG("input_fence_timeout_ns %llu \n ", cstate->input_fence_timeout_ns);
@@ -3758,6 +3758,7 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 		if (encoder->crtc != crtc)
 			continue;
 
+		sde_encoder_trigger_rsc_state_change(encoder);
 		/* encoder will trigger pending mask now */
 		sde_encoder_trigger_kickoff_pending(encoder);
 	}
@@ -4801,7 +4802,7 @@ static void sde_crtc_disable(struct drm_crtc *crtc)
 	u32 power_on;
 	bool in_cont_splash = false;
 	int ret, i;
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	int blank;
 #endif
 
@@ -4945,7 +4946,7 @@ static void sde_crtc_disable(struct drm_crtc *crtc)
 
 	mutex_unlock(&sde_crtc->crtc_lock);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	/* notify registered clients about suspend event */
 	blank = FB_BLANK_POWERDOWN;
 	__msm_drm_notifier_call_chain(FB_EVENT_BLANK, &blank);
@@ -4965,7 +4966,7 @@ static void sde_crtc_enable(struct drm_crtc *crtc,
 	u32 power_on;
 	int ret, i;
 	struct sde_crtc_state *cstate;
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	int blank;
 #endif
 
@@ -5050,7 +5051,7 @@ static void sde_crtc_enable(struct drm_crtc *crtc,
 	for (i = 0; i < cstate->num_connectors; i++)
 		sde_connector_schedule_status_work(cstate->connectors[i], true);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	/* notify registered clients about resume event */
 	blank = FB_BLANK_UNBLANK;
 	__msm_drm_notifier_call_chain(FB_EVENT_BLANK, &blank);

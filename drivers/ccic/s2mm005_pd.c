@@ -59,14 +59,19 @@ void s2mm005_select_pdo(int num)
 {
 	uint8_t CMD_DATA[3];
 	struct s2mm005_data *usbpd_data = pd_noti.pusbpd;
+	int is_src = 0;
 
 	if (!usbpd_data) {
 		pr_info(" %s : pusbpd is null\n", __func__);
 		return;
 	}
 
-	if (pd_noti.sink_status.selected_pdo_num == num)
+	if (pd_noti.sink_status.selected_pdo_num == num) {
+		is_src = (usbpd_data->func_state & (0x1 << 25) ? 1 : 0);
+		if (!is_src && usbpd_data->pd_state == State_PE_SNK_Ready)
+			ccic_event_work(usbpd_data, CCIC_NOTIFY_DEV_BATTERY, CCIC_NOTIFY_ID_POWER_STATUS, 1/*attach*/, 0, 0);
 		return;
+	}
 	else if (num > pd_noti.sink_status.available_pdo_num)
 		pd_noti.sink_status.selected_pdo_num = pd_noti.sink_status.available_pdo_num;
 	else if (num < 1)

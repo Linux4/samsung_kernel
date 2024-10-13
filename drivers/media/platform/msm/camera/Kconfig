@@ -151,6 +151,13 @@ config SAMSUNG_REAR_BOKEH
 	---help---
 	Enables support for bokeh camera
 
+config SAMSUNG_REAR_MACRO
+	tristate "macro camera"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for macro camera
+
 config LEDS_PMIC_QPNP
 	tristate "flash PMIC"
 	depends on SPECTRA_CAMERA

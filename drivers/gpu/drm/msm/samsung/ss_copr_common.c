@@ -851,7 +851,10 @@ void ss_read_copr_work(struct work_struct *work)
 	mutex_lock(&vdd->copr.copr_lock);
 
 	//ss_set_copr_sum(vdd);
-	ss_copr_read(vdd);
+	/* Remove copr read from ss_read_copr_work
+	 * PLM P210309-03447, P210308-02445 : Refer to CL 14576440
+	 */
+	//ss_copr_read(vdd);
 
 	LCD_DEBUG("COPR : %02x (%d) \n", vdd->copr.current_copr, vdd->copr.current_copr);
 

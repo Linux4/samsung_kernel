@@ -44,13 +44,12 @@
 
 /* Max hold time in micro seconds, 0 to disable detection*/
 #define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_IRQ         10000
-
 #define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK                 0
 
-#if QDF_LOCK_STATS 
-#define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_BH 2000000 
-#else 
-#define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_BH 1000000 
+#if QDF_LOCK_STATS
+#define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_BH        2000000
+#else
+#define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_BH        1000000
 #endif
 
 #if !QDF_LOCK_STATS

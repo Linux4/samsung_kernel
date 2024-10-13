@@ -8,6 +8,7 @@ obj-$(CONFIG_SUPPORT_AK0997X) += ak09970_digital_hall.o
 obj-$(CONFIG_VEML3328_FACTORY) += veml3328_light.o
 obj-$(CONFIG_LPS22HH_FACTORY) += lps22hh_pressure.o
 obj-$(CONFIG_TMD490X_FACTORY) += tmd490x_light.o tmd490x_prox.o
+obj-$(CONFIG_STK3A9X_FACTORY) += stk3a9x_light.o stk3a9x_prox.o
 obj-$(CONFIG_TCS3701_FACTORY) += tcs3701_light.o
 obj-$(CONFIG_STK3331_FACTORY) += stk3331_prox.o
 obj-$(CONFIG_SUPPORT_MOBEAM) += tmd490x_barcode_emul.o

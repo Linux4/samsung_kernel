@@ -29,6 +29,9 @@ typedef unsigned int  uint32;
 #define PERFLOG_HEADER_SIZE 			24
 #define PERFLOG_BUFF_STR_MAX_SIZE 		(PERFLOG_PACKET_SIZE - PERFLOG_HEADER_SIZE)
 #define PERFLOG_BUFF_STR_MAX_SIZE_FOR_MULTILINE	4096
+#define PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTI	PERFLOG_BUFF_STR_MAX_SIZE - PERFLOG_UINT16_SIZE
+#define PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTII	PERFLOG_BUFF_STR_MAX_SIZE - PERFLOG_UINT16_SIZE - PERFLOG_UINT16_SIZE
+#define PERFLOG_UINT16_SIZE			2
 
 /* PerfLog Phase 2 :: header format modification 
    should be changed to protobuff type 
@@ -59,19 +62,19 @@ typedef union{
 
 	struct {
 		uint16 param1;
-		char logbuffer[(PERFLOG_BUFF_STR_MAX_SIZE-2) + 1];
+		char logbuffer[PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTI + 1];
 	} EvtPacket;
 
 	struct {
 		uint16 param1;
 		uint16 param2;
-		char logbuffer[(PERFLOG_BUFF_STR_MAX_SIZE -2 -2) + 1];
+		char logbuffer[PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTII + 1];
 	} EvtIIPacket;
 
 		struct {
 		int param1;
 		int param2;
-		char logbuffer[(PERFLOG_BUFF_STR_MAX_SIZE -4 -4) + 1];
+		char logbuffer[PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTII + 1];
 	} EvtIntIntPacket;
 
 	char logbuffer[PERFLOG_BUFF_STR_MAX_SIZE + 1];

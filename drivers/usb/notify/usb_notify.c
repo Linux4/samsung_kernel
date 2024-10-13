@@ -87,6 +87,7 @@ struct usb_notify {
 	int disable_v_drive;
 	unsigned long c_type;
 	int c_status;
+	int disable_state;
 #if defined(CONFIG_USB_HW_PARAM)
 	unsigned long long hw_param[USB_CCIC_HW_PARAM_MAX];
 #endif
@@ -1187,8 +1188,16 @@ int set_notify_disable(struct usb_notify_dev *udev, int disable)
 		goto skip;
 	}
 
-	pr_info("%s disable=%s(%d)\n", __func__,
+	pr_info("%s prev=%s(%d) => disable=%s(%d)\n", __func__,
+			block_string(u_notify->disable_state), u_notify->disable_state,
 			block_string(disable), disable);
+
+	if (u_notify->disable_state == disable) {
+		pr_err("%s duplicated state\n", __func__);
+		goto skip;
+	}
+
+	u_notify->disable_state = disable;
 
 	switch (disable) {
 	case NOTIFY_BLOCK_TYPE_ALL:
@@ -1347,6 +1356,48 @@ int set_notify_disable(struct usb_notify_dev *udev, int disable)
 skip:
 	return 0;
 }
+
+void send_usb_err_uevent(int err_type, int mode)
+{
+	struct otg_notify *o_notify = get_otg_notify();
+	char *envp[4];
+	char *type = {"TYPE=usberr"};
+	char *state;
+	char *words;
+	int index = 0;
+
+	if (mode)
+		state = "STATE=ADD";
+	else
+		state = "STATE=REMOVE";
+
+	envp[index++] = type;
+	envp[index++] = state;
+
+	switch (err_type) {
+	case USB_ERR_ABNORMAL_RESET:
+		words = "WORDS=abnormal_reset";
+		if (mode)
+			inc_hw_param(o_notify,
+				USB_CLIENT_ANDROID_AUTO_RESET_POPUP_COUNT);
+		break;
+	default:
+		pr_err("%s invalid input\n", __func__);
+		goto err;
+	}
+
+	envp[index++] = words;
+	envp[index++] = NULL;
+
+	if (send_usb_notify_uevent(o_notify, envp)) {
+		pr_err("%s error\n", __func__);
+		goto err;
+	}
+	pr_info("%s: %s\n", __func__, words);
+err:
+	return;
+}
+EXPORT_SYMBOL(send_usb_err_uevent);
 
 int get_class_index(int ch9_class_num)
 {

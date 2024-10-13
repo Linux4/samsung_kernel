@@ -1557,7 +1557,7 @@ static void mms_set_input_prop_pad(struct mms_ts_info *info, struct input_dev *d
 	set_bit(KEY_INT_CANCEL, dev->keybit);
 
 	set_bit(INPUT_PROP_POINTER, dev->propbit);
-	set_bit(KEY_HOMEPAGE, dev->keybit);
+	set_bit(KEY_WAKEUP, dev->keybit);
 
 	input_set_abs_params(dev, ABS_MT_POSITION_X, 0, info->max_x, 0, 0);
 	input_set_abs_params(dev, ABS_MT_POSITION_Y, 0, info->max_y, 0, 0);

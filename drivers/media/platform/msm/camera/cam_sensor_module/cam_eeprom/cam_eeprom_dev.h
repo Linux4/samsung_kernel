@@ -165,6 +165,9 @@ typedef enum {
 	CAM_EEPROM_IDX_BACK,
 	CAM_EEPROM_IDX_FRONT,
 	CAM_EEPROM_IDX_BACK2,
+#if defined(CONFIG_SAMSUNG_REAR_MACRO)
+	CAM_EEPROM_IDX_BACK_MACRO,
+#endif
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 	CAM_EEPROM_IDX_FRONT2,
 #endif
@@ -234,6 +237,21 @@ typedef struct _cam_eeprom_module_info_t {
 	char                typeStr[FROM_MODULE_FW_INFO_SIZE];
 } ModuleInfo_t;
 
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+typedef enum _AfOffsetIdx {
+	AF_CAL_MACRO_IDX = 0,
+	AF_CAL_PAN_IDX,
+	AF_CAL_D10_IDX,
+	AF_CAL_D20_IDX,
+	AF_CAL_D30_IDX,
+	AF_CAL_D40_IDX,
+	AF_CAL_D50_IDX,
+	AF_CAL_D60_IDX,
+	AF_CAL_D70_IDX,
+	AF_CAL_D80_IDX,
+	AF_CAL_IDX_MAX
+} eAfOffsetIdx;
+#else
 typedef enum _AfOffsetIdx {
 	AF_CAL_MACRO_IDX = 0,
 	AF_CAL_D10_IDX,
@@ -247,6 +265,7 @@ typedef enum _AfOffsetIdx {
 	AF_CAL_PAN_IDX,
 	AF_CAL_IDX_MAX
 } eAfOffsetIdx;
+#endif
 
 typedef struct _cam_eeprom_af_idx_t {
 	eAfOffsetIdx idx;
@@ -419,6 +438,11 @@ extern uint8_t front2_module_id[FROM_MODULE_ID_SIZE + 1];
 extern char front_mtf_exif[FROM_MTF_SIZE + 1];
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 extern uint8_t front3_module_id[FROM_MODULE_ID_SIZE + 1];
+#endif
+
+#if defined(CONFIG_SAMSUNG_REAR_MACRO)
+extern char cam3_fw_user_ver[SYSFS_FW_VER_SIZE];
+extern char cam3_fw_factory_ver[SYSFS_FW_VER_SIZE];
 #endif
 
 extern char front_cam_fw_ver[SYSFS_FW_VER_SIZE];

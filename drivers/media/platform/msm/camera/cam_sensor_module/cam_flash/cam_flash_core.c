@@ -36,11 +36,19 @@ typedef struct {
 } FlashlightLevelInfo;
 
 FlashlightLevelInfo calibData[MAX_FLASHLIGHT_LEVEL] = {
-        {1001, 35},
-        {1002, 75},
-        {1004, 100},
-        {1006, 150},
-        {1009, 205}
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	{1001, 50},
+	{1002, 75},
+	{1004, 125},
+	{1006, 175},
+	{1009, 225}
+#else
+	{1001, 35},
+	{1002, 75},
+	{1004, 100},
+	{1006, 150},
+	{1009, 205}
+#endif
 };
 #endif
 
@@ -52,7 +60,7 @@ static int cam_flash_prepare(struct cam_flash_ctrl *flash_ctrl,
 		(struct cam_flash_private_soc *)
 		flash_ctrl->soc_info.soc_private;
 
-#if !defined(CONFIG_LEDS_S2MPB02)
+#if !defined(CONFIG_LEDS_S2MPB02) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	if (!(flash_ctrl->switch_trigger)) {
 		CAM_ERR(CAM_FLASH, "Invalid argument");
 		return -EINVAL;
@@ -224,7 +232,7 @@ int cam_flash_pmic_power_ops(struct cam_flash_ctrl *fctrl,
 {
 	int rc = 0;
 
-#if !defined(CONFIG_LEDS_S2MPB02)
+#if !defined(CONFIG_LEDS_S2MPB02) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	if (!(fctrl->switch_trigger)) {
 		CAM_ERR(CAM_FLASH, "Invalid argument");
 		return -EINVAL;
@@ -1969,6 +1977,14 @@ ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, con
             if (i >= MAX_FLASHLIGHT_LEVEL)
                 CAM_ERR(CAM_FLASH, "can't process, invalid value=%u", value_u32);
         }
+        else if (value_u32  == 100)
+        {
+            g_flash_data.led_current_ma[0] = 240;
+        }
+        else if (value_u32  == 200)
+        {
+            g_flash_data.led_current_ma[0] = 300;
+        }
 
         switch (buf[0]) {
         case '0':
@@ -1981,7 +1997,12 @@ ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, con
                 cam_flash_low(g_flash_ctrl,&g_flash_data);
                 CAM_INFO(CAM_FLASH,"torch on");
                 break;
-
+         case '2':
+                cam_torch_off(g_flash_ctrl);
+                g_flash_data.opcode = CAMERA_SENSOR_FLASH_OP_FIREHIGH;
+                cam_flash_high(g_flash_ctrl,&g_flash_data);
+                CAM_INFO(CAM_FLASH,"flash on");
+                break;
         default:
                 break;
         }

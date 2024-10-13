@@ -6,6 +6,7 @@ else ifeq ($(filter y,$(CONFIG_SEC_BLOOMQ_PROJECT)),y)
 else ifeq ($(filter y,$(CONFIG_SEC_BOLTQ5G_PROJECT)),y)
 else ifeq ($(filter y,$(CONFIG_SEC_R5Q_PROJECT) $(CONFIG_SEC_R3Q_PROJECT)),y)
 else ifeq ($(filter y,$(CONFIG_SEC_ZODIAC_PROJECT)),y)
+else ifeq ($(filter y,$(CONFIG_SEC_A82XQ_PROJECT)),y)
 endif
 
 ifeq ($(CONFIG_ARM64),y)

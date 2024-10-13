@@ -2108,6 +2108,11 @@ static void msm_pcm_routing_process_voice(u16 reg, u16 val, int set)
 
 	session_id = msm_pcm_routing_get_voc_sessionid(val);
 
+	if (!session_id) {
+		pr_err("%s: Invalid session_id %x\n", __func__, session_id);
+		return;
+	}
+
 	pr_debug("%s: FE DAI 0x%x session_id 0x%x\n",
 		__func__, val, session_id);
 
@@ -17862,7 +17867,8 @@ static bool q6audio_determine_curr_copp_idx(int stream, enum sb_type func_type)
 	case SB_ROTATION:
 		if ((stream == MSM_FRONTEND_DAI_MULTIMEDIA1) ||
 		    (stream == MSM_FRONTEND_DAI_MULTIMEDIA4) ||
-		    (stream == MSM_FRONTEND_DAI_MULTIMEDIA6))
+		    (stream == MSM_FRONTEND_DAI_MULTIMEDIA6) ||
+		    (stream == MSM_FRONTEND_DAI_MULTIMEDIA11))
 			ret = true;
 		break;
 	case SB_FLATMOTION:

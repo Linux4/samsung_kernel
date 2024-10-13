@@ -636,6 +636,7 @@ static int wdsp_get_devops_for_cmpnt(struct device *wdsp_dev,
 	return ret;
 }
 
+#ifdef CONFIG_DEBUG_FS
 static void wdsp_collect_ramdumps(struct wdsp_mgr_priv *wdsp)
 {
 	struct wdsp_img_section img_section;
@@ -707,6 +708,7 @@ err_read_dumps:
 done:
 	return;
 }
+#endif
 
 static void wdsp_ssr_work_fn(struct work_struct *work)
 {

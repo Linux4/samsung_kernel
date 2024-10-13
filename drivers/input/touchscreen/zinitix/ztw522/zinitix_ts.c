@@ -3917,7 +3917,7 @@ static void zt75xx_ts_close(struct input_dev *dev)
 			goto close_out;
 		}
 
-		if (info->main_tsp_status == SEC_INPUT_CUSTOM_NOTIFIER_MAIN_TOUCH_ON) {
+		if (info->main_tsp_status == NOTIFIER_MAIN_TOUCH_ON) {
 			input_info(true, &info->client->dev, "%s: main is on now, sub off\n", __func__);
 			zt75xx_ts_stop(info);
 			goto close_out;
@@ -3956,11 +3956,11 @@ static int zinitix_notifier_call(struct notifier_block *n, unsigned long data, v
 
 	input_dbg(true, &info->client->dev, "%s: %d\n", __func__, data);
 
-	if (data == SEC_INPUT_CUSTOM_NOTIFIER_MAIN_TOUCH_ON) {
+	if (data == NOTIFIER_MAIN_TOUCH_ON) {
 		info->main_tsp_status = data;
 		input_info(true, &info->client->dev, "%s: main_tsp open, stop device\n", __func__);
 		zt75xx_ts_stop(info);
-	} else if (data == SEC_INPUT_CUSTOM_NOTIFIER_MAIN_TOUCH_OFF) {
+	} else if (data == NOTIFIER_MAIN_TOUCH_OFF) {
 		info->main_tsp_status = data;
 		input_info(true, &info->client->dev, "%s: main_tsp close\n", __func__);
 	}
@@ -11201,7 +11201,7 @@ static int zt75xx_ts_probe(struct i2c_client *client,
 	mutex_init(&info->switching_mutex);
 	INIT_DELAYED_WORK(&info->switching_work, zt75xx_switching_work);
 
-	sec_input_register_notify(&info->nb, zinitix_notifier_call);
+	sec_input_register_notify(&info->nb, zinitix_notifier_call, 1);
 
 	/* Hall IC notify priority -> ftn -> register */
 	info->flip_status = -1;
