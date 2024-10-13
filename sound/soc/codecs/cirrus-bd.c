@@ -1,5 +1,5 @@
 /*
- * Big-data logging support for Cirrus Logic CS35L41 codec
+ * Big-data logging support for Cirrus Logic Smart Amplifiers
  *
  * Copyright 2017 Cirrus Logic
  *
@@ -26,6 +26,7 @@
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
 #include <linux/power_supply.h>
+#include <linux/pm_runtime.h>
 #include <linux/fs.h>
 #include <linux/ktime.h>
 
@@ -33,9 +34,44 @@
 #include <sound/cirrus/big_data.h>
 
 #include "wmfw.h"
+#include "wm_adsp.h"
 
 #define CIRRUS_BD_VERSION	"5.01.18"
 #define CIRRUS_BD_DIR_NAME	"cirrus_bd"
+
+int cirrus_bd_write_ctl(struct cirrus_amp *amp, const char *name,
+			int type, unsigned int id, unsigned int value)
+{
+	int ret;
+	char *ctl_name = kzalloc(PAGE_SIZE, GFP_KERNEL);
+
+	if (!ctl_name)
+		return -ENOMEM;
+
+	snprintf(ctl_name, PAGE_SIZE, "%s%s", amp->bd.bd_prefix, name);
+
+	ret = cirrus_amp_write_ctl(amp, ctl_name, type, id, value);
+	kfree(ctl_name);
+
+	return ret;
+}
+
+int cirrus_bd_read_ctl(struct cirrus_amp *amp, const char *name,
+			int type, unsigned int id, unsigned int *value)
+{
+	int ret;
+	char *ctl_name = kzalloc(PAGE_SIZE, GFP_KERNEL);
+
+	if (!ctl_name)
+		return -ENOMEM;
+
+	snprintf(ctl_name, PAGE_SIZE, "%s%s", amp->bd.bd_prefix, name);
+
+	ret = cirrus_amp_read_ctl(amp, ctl_name, type, id, value);
+	kfree(ctl_name);
+
+	return ret;
+}
 
 void cirrus_bd_store_values(const char *mfd_suffix)
 {
@@ -47,23 +83,28 @@ void cirrus_bd_store_values(const char *mfd_suffix)
 	if (!amp)
 		return;
 
+	if (amp->runtime_pm)
+		pm_runtime_get_sync(amp->component->dev);
+
 	regmap = amp->regmap;
 
-	cirrus_amp_read_ctl(amp, "BDLOG_MAX_TEMP", WMFW_ADSP2_XM,
-			    CIRRUS_AMP_ALG_ID_CSPL, &max_temp);
-	cirrus_amp_read_ctl(amp, "BDLOG_MAX_EXC", WMFW_ADSP2_XM,
-			    CIRRUS_AMP_ALG_ID_CSPL, &max_exc);
-	cirrus_amp_read_ctl(amp, "BDLOG_OVER_TEMP_COUNT", WMFW_ADSP2_XM,
-			    CIRRUS_AMP_ALG_ID_CSPL, &over_temp_count);
-	cirrus_amp_read_ctl(amp, "BDLOG_OVER_EXC_COUNT", WMFW_ADSP2_XM,
-			    CIRRUS_AMP_ALG_ID_CSPL, &over_exc_count);
-	cirrus_amp_read_ctl(amp, "BDLOG_ABNORMAL_MUTE", WMFW_ADSP2_XM,
-			    CIRRUS_AMP_ALG_ID_CSPL, &abnm_mute);
+	cirrus_bd_read_ctl(amp, "MAX_TEMP", WMFW_ADSP2_XM,
+			    amp->bd.bd_alg_id, &max_temp);
+	cirrus_bd_read_ctl(amp, "MAX_EXC", WMFW_ADSP2_XM,
+			    amp->bd.bd_alg_id, &max_exc);
+	cirrus_bd_read_ctl(amp, "OVER_TEMP_COUNT", WMFW_ADSP2_XM,
+			    amp->bd.bd_alg_id, &over_temp_count);
+	cirrus_bd_read_ctl(amp, "OVER_EXC_COUNT", WMFW_ADSP2_XM,
+			    amp->bd.bd_alg_id, &over_exc_count);
+	cirrus_bd_read_ctl(amp, "ABNORMAL_MUTE", WMFW_ADSP2_XM,
+			    amp->bd.bd_alg_id, &abnm_mute);
 
-	if (max_temp > (amp->bd.max_temp_limit * (1 << CS35L41_BD_TEMP_RADIX))
+	if (abnm_mute)
+		max_temp = CIRRUS_BD_ERR_TEMP;
+	else if (max_temp > (amp->bd.max_temp_limit * (1 << CIRRUS_BD_TEMP_RADIX))
 	    && over_temp_count == 0)
 		max_temp = (amp->bd.max_temp_limit *
-			    (1 << CS35L41_BD_TEMP_RADIX));
+			    (1 << CIRRUS_BD_TEMP_RADIX));
 
 	amp->bd.over_temp_count += over_temp_count;
 	amp->bd.over_exc_count += over_exc_count;
@@ -79,15 +120,15 @@ void cirrus_bd_store_values(const char *mfd_suffix)
 
 	dev_info(amp_group->bd_dev, "Values stored for amp%s:\n", mfd_suffix);
 	dev_info(amp_group->bd_dev, "Max Excursion:\t\t%d.%04d\n",
-		 amp->bd.max_exc >> CS35L41_BD_EXC_RADIX,
-		 (amp->bd.max_exc & (((1 << CS35L41_BD_EXC_RADIX) - 1))) *
-			10000 / (1 << CS35L41_BD_EXC_RADIX));
+		 amp->bd.max_exc >> CIRRUS_BD_EXC_RADIX,
+		 (amp->bd.max_exc & (((1 << CIRRUS_BD_EXC_RADIX) - 1))) *
+			10000 / (1 << CIRRUS_BD_EXC_RADIX));
 	dev_info(amp_group->bd_dev, "Over Excursion Count:\t%d\n",
 		 amp->bd.over_exc_count);
 	dev_info(amp_group->bd_dev, "Max Temp:\t\t\t%d.%04d\n",
-		 amp->bd.max_temp >> CS35L41_BD_TEMP_RADIX,
-		 (amp->bd.max_temp & (((1 << CS35L41_BD_TEMP_RADIX) - 1))) *
-			10000 / (1 << CS35L41_BD_TEMP_RADIX));
+		 amp->bd.max_temp >> CIRRUS_BD_TEMP_RADIX,
+		 (amp->bd.max_temp & (((1 << CIRRUS_BD_TEMP_RADIX) - 1))) *
+			10000 / (1 << CIRRUS_BD_TEMP_RADIX));
 	dev_info(amp_group->bd_dev, "Over Temp Count:\t\t%d\n",
 		 amp->bd.over_temp_count);
 	dev_info(amp_group->bd_dev, "Abnormal Mute:\t\t%d\n",
@@ -95,18 +136,48 @@ void cirrus_bd_store_values(const char *mfd_suffix)
 	dev_info(amp_group->bd_dev, "Timestamp:\t\t%llu\n",
 		 amp_group->last_bd_update);
 
-	cirrus_amp_write_ctl(amp, "BDLOG_MAX_TEMP", WMFW_ADSP2_XM,
-			     CIRRUS_AMP_ALG_ID_CSPL, 0);
-	cirrus_amp_write_ctl(amp, "BDLOG_MAX_EXC", WMFW_ADSP2_XM,
-			     CIRRUS_AMP_ALG_ID_CSPL, 0);
-	cirrus_amp_write_ctl(amp, "BDLOG_OVER_TEMP_COUNT", WMFW_ADSP2_XM,
-			     CIRRUS_AMP_ALG_ID_CSPL, 0);
-	cirrus_amp_write_ctl(amp, "BDLOG_OVER_EXC_COUNT", WMFW_ADSP2_XM,
-			     CIRRUS_AMP_ALG_ID_CSPL, 0);
-	cirrus_amp_write_ctl(amp, "BDLOG_ABNORMAL_MUTE", WMFW_ADSP2_XM,
-			     CIRRUS_AMP_ALG_ID_CSPL, 0);
+	cirrus_bd_write_ctl(amp, "MAX_TEMP", WMFW_ADSP2_XM,
+			     amp->bd.bd_alg_id, 0);
+	cirrus_bd_write_ctl(amp, "MAX_EXC", WMFW_ADSP2_XM,
+			     amp->bd.bd_alg_id, 0);
+	cirrus_bd_write_ctl(amp, "OVER_TEMP_COUNT", WMFW_ADSP2_XM,
+			     amp->bd.bd_alg_id, 0);
+	cirrus_bd_write_ctl(amp, "OVER_EXC_COUNT", WMFW_ADSP2_XM,
+			     amp->bd.bd_alg_id, 0);
+	cirrus_bd_write_ctl(amp, "ABNORMAL_MUTE", WMFW_ADSP2_XM,
+			     amp->bd.bd_alg_id, 0);
+
+	if (amp->runtime_pm) {
+		pm_runtime_mark_last_busy(amp->component->dev);
+		pm_runtime_put_autosuspend(amp->component->dev);
+	}
 }
 EXPORT_SYMBOL_GPL(cirrus_bd_store_values);
+
+
+void cirrus_bd_amp_err(const char *mfd_suffix)
+{
+	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(mfd_suffix);
+
+	if (!amp)
+		return;
+
+	if (amp->error_callback)
+		amp->error_callback(mfd_suffix);
+}
+EXPORT_SYMBOL_GPL(cirrus_bd_amp_err);
+
+void cirrus_bd_bst_short(const char *mfd_suffix)
+{
+	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(mfd_suffix);
+
+	if (!amp)
+		return;
+
+	if (amp->error_callback)
+		amp->error_callback(mfd_suffix);
+}
+EXPORT_SYMBOL_GPL(cirrus_bd_bst_short);
 
 /***** SYSFS Interfaces *****/
 
@@ -135,9 +206,9 @@ static ssize_t cirrus_bd_max_exc_show(struct device *dev,
 	if (!amp)
 		return 0;
 
-	ret = sprintf(buf, "%d.%04d\n", amp->bd.max_exc >> CS35L41_BD_EXC_RADIX,
-		      (amp->bd.max_exc & ((1 << CS35L41_BD_EXC_RADIX) - 1)) *
-			10000 / (1 << CS35L41_BD_EXC_RADIX));
+	ret = sprintf(buf, "%d.%04d\n", amp->bd.max_exc >> CIRRUS_BD_EXC_RADIX,
+		      (amp->bd.max_exc & ((1 << CIRRUS_BD_EXC_RADIX) - 1)) *
+			10000 / (1 << CIRRUS_BD_EXC_RADIX));
 
 	amp->bd.max_exc = 0;
 
@@ -188,9 +259,9 @@ static ssize_t cirrus_bd_max_temp_show(struct device *dev,
 		return 0;
 
 	ret = sprintf(buf, "%d.%04d\n",
-		      amp->bd.max_temp >> CS35L41_BD_TEMP_RADIX,
-		      (amp->bd.max_temp & ((1 << CS35L41_BD_TEMP_RADIX) - 1)) *
-			10000 / (1 << CS35L41_BD_TEMP_RADIX));
+		      amp->bd.max_temp >> CIRRUS_BD_TEMP_RADIX,
+		      (amp->bd.max_temp & ((1 << CIRRUS_BD_TEMP_RADIX) - 1)) *
+			10000 / (1 << CIRRUS_BD_TEMP_RADIX));
 
 	amp->bd.max_temp = 0;
 
@@ -216,10 +287,10 @@ static ssize_t cirrus_bd_max_temp_keep_show(struct device *dev,
 		return 0;
 
 	ret = sprintf(buf, "%d.%04d\n",
-		      amp->bd.max_temp_keep >> CS35L41_BD_TEMP_RADIX,
+		      amp->bd.max_temp_keep >> CIRRUS_BD_TEMP_RADIX,
 		      (amp->bd.max_temp_keep &
-			((1 << CS35L41_BD_TEMP_RADIX) - 1)) *
-			10000 / (1 << CS35L41_BD_TEMP_RADIX));
+			((1 << CIRRUS_BD_TEMP_RADIX) - 1)) *
+			10000 / (1 << CIRRUS_BD_TEMP_RADIX));
 
 	return ret;
 }

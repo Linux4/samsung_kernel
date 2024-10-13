@@ -639,7 +639,7 @@ static void sde_encoder_phys_vid_underrun_irq(void *arg, int irq_idx)
 #if defined(CONFIG_SEC_DEBUG)
 		if (sec_debug_is_enabled() && ss_panel_attach_get(vdd)) {
 			SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
-			SDE_DBG_DUMP_WQ("all", "dbg_bus", "vbif_dbg_bus", "panic");
+			/*SDE_DBG_DUMP_WQ("all", "dbg_bus", "vbif_dbg_bus", "panic");*/
 		}
 #endif
 	}
@@ -1131,7 +1131,7 @@ static void sde_encoder_phys_vid_disable(struct sde_encoder_phys *phys_enc)
 	struct sde_connector *sde_conn;
 	struct dsi_display *disp;
 	struct samsung_display_driver_data *vdd;
-	
+
 	if (conn) {
 		if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
 			sde_conn = to_sde_connector(conn);

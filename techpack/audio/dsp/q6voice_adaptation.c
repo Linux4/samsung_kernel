@@ -1432,6 +1432,98 @@ int sec_voice_isolation_mode(short mode)
 }
 EXPORT_SYMBOL(sec_voice_isolation_mode);
 
+static int sec_voice_send_bt_rvc_vol_cmd(struct voice_data *v, int vol)
+{
+	struct cvp_set_bt_rvc_vol_cmd cvp_bt_rvc_vol_cmd;
+	int ret = 0;
+	u16 cvp_handle;
+
+	if (v == NULL) {
+		pr_err("%s: v is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	if (this_cvp.apr == NULL) {
+		this_cvp.apr = apr_register("ADSP", "CVP",
+					q6audio_adaptation_cvp_callback,
+					SEC_ADAPTATAION_VOICE_SRC_PORT,
+					&this_cvp);
+	}
+	cvp_handle = voice_get_cvp_handle(v);
+
+	/* fill in the header */
+	cvp_bt_rvc_vol_cmd.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+				APR_HDR_LEN(APR_HDR_SIZE),
+				APR_PKT_VER);
+	cvp_bt_rvc_vol_cmd.hdr.pkt_size = APR_PKT_SIZE(APR_HDR_SIZE,
+		sizeof(cvp_bt_rvc_vol_cmd) - APR_HDR_SIZE);
+	cvp_bt_rvc_vol_cmd.hdr.src_port = SEC_ADAPTATAION_VOICE_SRC_PORT;
+	cvp_bt_rvc_vol_cmd.hdr.dest_port = cvp_handle;
+	cvp_bt_rvc_vol_cmd.hdr.token = 0;
+	cvp_bt_rvc_vol_cmd.hdr.opcode =
+		q6common_is_instance_id_supported() ? VSS_ICOMMON_CMD_SET_UI_PROPERTY_V2 :
+				VSS_ICOMMON_CMD_SET_UI_PROPERTY;
+	cvp_bt_rvc_vol_cmd.cvp_set_bt_rvc_vol.module_id = VOICE_VOICEMODE_MODULE;
+	cvp_bt_rvc_vol_cmd.cvp_set_bt_rvc_vol.instance_id =
+		INSTANCE_ID_0;
+	cvp_bt_rvc_vol_cmd.cvp_set_bt_rvc_vol.param_id = VOICE_BT_RVC_VOL_PARAM;
+	cvp_bt_rvc_vol_cmd.cvp_set_bt_rvc_vol.param_size = 4;
+	cvp_bt_rvc_vol_cmd.cvp_set_bt_rvc_vol.reserved = 0;
+	cvp_bt_rvc_vol_cmd.cvp_set_bt_rvc_vol.enable = vol;
+	cvp_bt_rvc_vol_cmd.cvp_set_bt_rvc_vol.reserved_field = 0;
+
+	pr_info("%s: volume index = %d\n", __func__,
+					cvp_bt_rvc_vol_cmd.cvp_set_bt_rvc_vol.enable);
+
+	atomic_set(&this_cvp.state, 1);
+	ret = apr_send_pkt(this_cvp.apr, (uint32_t *) &cvp_bt_rvc_vol_cmd);
+	if (ret < 0) {
+		pr_err("%s: Failed to send cvp_bt_rvc_vol_cmd\n", __func__);
+		goto fail;
+	}
+
+	ret = wait_event_timeout(this_cvp.wait,
+				(atomic_read(&this_cvp.state) == 0),
+				msecs_to_jiffies(TIMEOUT_MS));
+	if (!ret) {
+		pr_err("%s: wait_event timeout\n", __func__);
+		goto fail;
+	}
+	return 0;
+
+fail:
+	return ret;
+}
+
+int sec_voice_set_bt_rvc_vol(short vol)
+{
+	struct voice_data *v = NULL;
+	int ret = 0;
+	struct voice_session_itr itr;
+
+	pr_debug("%s: Enter\n", __func__);
+
+	voice_itr_init(&itr, ALL_SESSION_VSID);
+	while (voice_itr_get_next_session(&itr, &v)) {
+		if (v != NULL) {
+			mutex_lock(&v->lock);
+			if (is_voc_state_active(v->voc_state) &&
+				(v->lch_mode != VOICE_LCH_START) &&
+				!v->disable_topology)
+				ret = sec_voice_send_bt_rvc_vol_cmd(v, vol);
+			mutex_unlock(&v->lock);
+		} else {
+			pr_err("%s: invalid session\n", __func__);
+			ret = -EINVAL;
+			break;
+		}
+	}
+	pr_debug("%s: Exit, ret=%d\n", __func__, ret);
+
+	return ret;
+}
+EXPORT_SYMBOL(sec_voice_set_bt_rvc_vol);
+
 int sec_voice_get_loopback_enable(void)
 {
 	return loopback_mode;

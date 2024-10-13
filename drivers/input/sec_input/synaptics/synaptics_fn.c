@@ -1382,6 +1382,39 @@ exit:
 	return retval;
 }
 
+int synaptics_ts_set_up_report(struct synaptics_ts_data *ts)
+{
+	int ret;
+
+	/* disable the generic touchcomm touch report */
+	ret = synaptics_ts_enable_report(ts,
+			REPORT_TOUCH, false);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to disable touch report\n", __func__);
+		return -EIO;
+	}
+	/* enable the sec reports */
+	ret = synaptics_ts_enable_report(ts,
+			REPORT_SEC_SPONGE_GESTURE, true);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to enable sec gesture report\n", __func__);
+		return -EIO;
+	}
+	ret = synaptics_ts_enable_report(ts,
+			REPORT_SEC_COORDINATE_EVENT, true);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to enable sec coordinate report\n", __func__);
+		return -EIO;
+	}
+	ret = synaptics_ts_enable_report(ts,
+			REPORT_SEC_STATUS_EVENT, true);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to enable sec status report\n", __func__);
+		return -EIO;
+	}
+
+	return ret;
+}
 
 /**
  * syna_dev_set_up_app_fw()
@@ -1426,30 +1459,9 @@ int synaptics_ts_set_up_app_fw(struct synaptics_ts_data *ts)
 		return -EIO;
 	}
 
-	/* disable the generic touchcomm touch report */
-	retval = synaptics_ts_enable_report(ts,
-			REPORT_TOUCH, false);
+	retval = synaptics_ts_set_up_report(ts);
 	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: Fail to disable touch report\n", __func__);
-		return -EIO;
-	}
-	/* enable the sec reports */
-	retval = synaptics_ts_enable_report(ts,
-			REPORT_SEC_SPONGE_GESTURE, true);
-	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: Fail to enable sec gesture report\n", __func__);
-		return -EIO;
-	}
-	retval = synaptics_ts_enable_report(ts,
-			REPORT_SEC_COORDINATE_EVENT, true);
-	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: Fail to enable sec coordinate report\n", __func__);
-		return -EIO;
-	}
-	retval = synaptics_ts_enable_report(ts,
-			REPORT_SEC_STATUS_EVENT, true);
-	if (retval < 0) {
-		input_err(true, &ts->client->dev, "%s: Fail to enable sec status report\n", __func__);
+		input_err(true, &ts->client->dev, "%s: Fail to set up report\n", __func__);
 		return -EIO;
 	}
 

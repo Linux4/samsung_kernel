@@ -162,7 +162,9 @@ struct adsp_data {
 #ifdef CONFIG_SUPPORT_AK09973
 	struct delayed_work dhall_cal_work;
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 	struct delayed_work pressure_cal_work;
+#endif
 #ifdef CONFIG_SUPPORT_SENSOR_FOLD
 	struct sensor_fold_state fold_state;
 #endif
@@ -277,6 +279,8 @@ void flicker_eol_work_func(struct work_struct *work);
 #ifdef CONFIG_FLIP_COVER_DETECTOR_FACTORY
 void flip_cover_detector_init_work(struct adsp_data *data);
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 void pressure_factory_init_work(struct adsp_data *data);
 void pressure_cal_work_func(struct work_struct *work);
+#endif
 #endif /* __ADSP_SENSOR_H__ */

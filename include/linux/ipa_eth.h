@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA_ETH_H_
@@ -73,10 +75,13 @@ enum ipa_eth_pipe_direction {
  *
  * @bar_addr: bar PA to access NTN register
  * @tail_ptr_offs: tail ptr offset
+ * @ioc_mod_threshold: Descriptors # per interrupt request from
+ * NTN3 HW via descriptor bit as part of the protocol.
  */
 struct ipa_eth_ntn_setup_info {
 	phys_addr_t bar_addr;
 	phys_addr_t tail_ptr_offs;
+	uint16_t ioc_mod_threshold;
 };
 
 /**
@@ -104,13 +109,16 @@ struct ipa_eth_aqc_setup_info {
  * @bar_size: bar region size
  * @queue_number: Which RTK queue to check the status on
  * @dest_tail_ptr_offs: tail ptr offset
+ * @num_queues_enabled: Total queues to be enable
  */
 struct ipa_eth_realtek_setup_info {
 	phys_addr_t bar_addr;
 	u32 bar_size;
 	u8 queue_number;
 	phys_addr_t dest_tail_ptr_offs;
+	u8 num_queues_enabled;
 };
+
 
 /**
  * struct ipa_eth_buff_smmu_map -  IPA iova->pa SMMU mapping

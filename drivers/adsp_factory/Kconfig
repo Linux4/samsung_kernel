@@ -37,6 +37,15 @@ config AK09918_FACTORY
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
 
+config MXGX300_FACTORY
+	tristate "factory test for SSC - mxgx300"
+	default n
+	help
+	  mxgx300 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
 config SUPPORT_MAG_ABS_SUM
 	tristate "mag abs sum for SSC"
 	depends on AK09918_FACTORY
@@ -72,6 +81,15 @@ config TMD49XX_FACTORY
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
 
+config STK3A5X_FACTORY
+	tristate "factory test for SSC - stk3a5x"
+	default n
+	help
+	  stk3a5x factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
 config STK3A9X_FACTORY
 	tristate "factory test for SSC - stk3a9x"
 	default n
@@ -98,6 +116,12 @@ config SUPPORT_PROX_CALIBRATION
 	  provide sysfs for prox calibration.
 	  request prox cal to adsp_factory.
 	  receive cal value from adsp_factory.
+
+config SUPPORT_CONTROL_PROX_LED_GPIO
+	tristate "control prox led gpio for SSC"
+	default n
+	help
+	  Support to control prox led gpio.
 
 config TCS3701_FACTORY
 	tristate "factory test for SSC - TCS3701"

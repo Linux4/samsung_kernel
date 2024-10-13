@@ -87,6 +87,13 @@ static DEFINE_SPINLOCK(time_sync_lock);
 
 #define MHI_SUSPEND_RETRY_CNT		3
 
+#define AFC_SLOT_SIZE                   0x1000
+#define AFC_MAX_SLOT                    2
+#define AFC_MEM_SIZE                    (AFC_SLOT_SIZE * AFC_MAX_SLOT)
+#define AFC_AUTH_STATUS_OFFSET          1
+#define AFC_AUTH_SUCCESS                1
+#define AFC_AUTH_ERROR                  0
+
 static struct cnss_pci_reg ce_src[] = {
 	{ "SRC_RING_BASE_LSB", QCA6390_CE_SRC_RING_BASE_LSB_OFFSET },
 	{ "SRC_RING_BASE_MSB", QCA6390_CE_SRC_RING_BASE_MSB_OFFSET },
@@ -2997,8 +3004,12 @@ int cnss_pci_register_driver_hdlr(struct cnss_pci_data *pci_priv,
 
 int cnss_pci_unregister_driver_hdlr(struct cnss_pci_data *pci_priv)
 {
-	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
+	struct cnss_plat_data *plat_priv;
 
+	if (!pci_priv)
+		return -EINVAL;
+
+	plat_priv = pci_priv->plat_priv;
 	set_bit(CNSS_DRIVER_UNLOADING, &plat_priv->driver_state);
 	cnss_pci_dev_shutdown(pci_priv);
 	pci_priv->driver_ops = NULL;
@@ -3939,6 +3950,94 @@ int cnss_pci_qmi_send_put(struct cnss_pci_data *pci_priv)
 
 	return ret;
 }
+
+int cnss_send_buffer_to_afcmem(struct device *dev, char *afcdb, uint32_t len,
+			       uint8_t slotid)
+{
+	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
+	struct cnss_fw_mem *fw_mem;
+	void *mem = NULL;
+	int i, ret;
+	u32 *status;
+
+	if (!plat_priv)
+		return -EINVAL;
+
+	fw_mem = plat_priv->fw_mem;
+	if (slotid >= AFC_MAX_SLOT) {
+		cnss_pr_err("Invalid slot id %d\n", slotid);
+		ret = -EINVAL;
+		goto err;
+	}
+	if (len > AFC_SLOT_SIZE) {
+		cnss_pr_err("len %d greater than slot size", len);
+		ret = -EINVAL;
+		goto err;
+	}
+
+	for (i = 0; i < plat_priv->fw_mem_seg_len; i++) {
+		if (fw_mem[i].type == QMI_WLFW_AFC_MEM_V01) {
+			mem = fw_mem[i].va;
+			status = mem + (slotid * AFC_SLOT_SIZE);
+			break;
+		}
+	}
+
+	if (!mem) {
+		cnss_pr_err("AFC mem is not available\n");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	memcpy(mem + (slotid * AFC_SLOT_SIZE), afcdb, len);
+	if (len < AFC_SLOT_SIZE)
+		memset(mem + (slotid * AFC_SLOT_SIZE) + len,
+		       0, AFC_SLOT_SIZE - len);
+	status[AFC_AUTH_STATUS_OFFSET] = cpu_to_le32(AFC_AUTH_SUCCESS);
+
+	return 0;
+err:
+	return ret;
+}
+EXPORT_SYMBOL(cnss_send_buffer_to_afcmem);
+
+int cnss_reset_afcmem(struct device *dev, uint8_t slotid)
+{
+	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
+	struct cnss_fw_mem *fw_mem;
+	void *mem = NULL;
+	int i, ret;
+
+	if (!plat_priv)
+		return -EINVAL;
+
+	fw_mem = plat_priv->fw_mem;
+	if (slotid >= AFC_MAX_SLOT) {
+		cnss_pr_err("Invalid slot id %d\n", slotid);
+		ret = -EINVAL;
+		goto err;
+	}
+
+	for (i = 0; i < plat_priv->fw_mem_seg_len; i++) {
+		if (fw_mem[i].type == QMI_WLFW_AFC_MEM_V01) {
+			mem = fw_mem[i].va;
+			break;
+		}
+	}
+
+	if (!mem) {
+		cnss_pr_err("AFC mem is not available\n");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	memset(mem + (slotid * AFC_SLOT_SIZE), 0, AFC_SLOT_SIZE);
+	return 0;
+
+err:
+	return ret;
+}
+EXPORT_SYMBOL(cnss_reset_afcmem);
 
 int cnss_pci_alloc_fw_mem(struct cnss_pci_data *pci_priv)
 {
@@ -5585,7 +5684,9 @@ static void cnss_pci_unregister_mhi(struct cnss_pci_data *pci_priv)
 	mhi_unregister_mhi_controller(mhi_ctrl);
 	cnss_pci_mhi_ipc_logging_deinit(pci_priv);
 	kfree(mhi_ctrl->irq);
+	mhi_ctrl->irq = NULL;
 	mhi_free_controller(mhi_ctrl);
+	pci_priv->mhi_ctrl = NULL;
 }
 
 static void cnss_pci_config_regs(struct cnss_pci_data *pci_priv)
@@ -5964,6 +6065,7 @@ static void cnss_pci_remove(struct pci_dev *pci_dev)
 	struct cnss_plat_data *plat_priv =
 		cnss_bus_dev_to_plat_priv(&pci_dev->dev);
 
+	cnss_pci_unregister_driver_hdlr(pci_priv);
 	cnss_pci_free_m3_mem(pci_priv);
 	cnss_pci_free_fw_mem(pci_priv);
 	cnss_pci_free_qdss_mem(pci_priv);

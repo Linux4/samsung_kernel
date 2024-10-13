@@ -21,6 +21,12 @@
 #include "cam_cpas_api.h"
 #include "cam_subdev.h"
 #include "cam_tasklet_util.h"
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include <linux/ktime.h>
+extern char cdr_result[40];
+extern uint64_t cdr_start_ts;
+extern uint64_t cdr_end_ts;
+#endif
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 #include "cam_sensor_cmn_header.h"
@@ -4735,6 +4741,17 @@ end:
 	cam_csid_put_evt_payload(csid_hw, &evt_payload);
 	return 0;
 }
+#if defined(CONFIG_SEC_ABC)
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static void cam_ife_csid_cdr_store_result()
+{
+	cdr_end_ts	= ktime_get();
+	cdr_end_ts = cdr_end_ts / 1000 / 1000;
+	sprintf(cdr_result, "%d,%lld\n", 0, cdr_end_ts-cdr_start_ts);
+	CAM_INFO(CAM_ISP, "[CDR_DBG] mipi_overflow, time(ms): %llu", cdr_end_ts-cdr_start_ts);
+}
+#endif
+#endif
 
 static int cam_csid_handle_hw_err_irq(
 	struct cam_ife_csid_hw *csid_hw,
@@ -5640,8 +5657,12 @@ handle_fatal_error:
 #endif
 
 #if defined(CONFIG_SEC_ABC)
-	if (abc_err_report)
+	if (abc_err_report) {
 		sec_abc_send_event("MODULE=camera@ERROR=mipi_overflow");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_ife_csid_cdr_store_result();
+#endif		
+	}
 #endif
 
 	CAM_DBG(CAM_ISP, "IRQ Handling exit");

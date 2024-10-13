@@ -1349,6 +1349,7 @@ static struct clk_rcg2 gcc_qupv3_wrap2_s5_clk_src = {
 };
 
 static const struct freq_tbl ftbl_gcc_sdcc2_apps_clk_src[] = {
+	F(300000, P_BI_TCXO, 32, 1, 2),
 	F(400000, P_BI_TCXO, 12, 1, 4),
 	F(25000000, P_GCC_GPLL0_OUT_EVEN, 12, 0, 0),
 	F(50000000, P_GCC_GPLL0_OUT_EVEN, 6, 0, 0),
