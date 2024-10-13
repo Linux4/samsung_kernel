@@ -1419,6 +1419,48 @@ int muic_afc_request_cause_clear(void)
 }
 EXPORT_SYMBOL_GPL(muic_afc_request_cause_clear);
 
+int muic_afc_get_request_cause(void)
+{
+	struct muic_interface_t *muic_if;
+	int ret = -ENOENT;
+
+	if (static_pdata == NULL) {
+		return -ENOENT;
+	}
+
+	muic_if = static_pdata->muic_if;
+	
+	if (muic_if == NULL) {
+		return -ENOENT;
+	}
+
+	ret = muic_if->afc_request_cause;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(muic_afc_get_request_cause);
+
+bool muic_is_enable_afc_request(void)
+{
+	struct muic_interface_t *muic_if;
+	bool ret = 0;
+
+	if (static_pdata == NULL) {
+		return false;
+	}
+
+	muic_if = static_pdata->muic_if;
+	
+	if (muic_if == NULL) {
+		return false;
+	}
+
+	ret = muic_if->afc_request_cause == 0;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(muic_is_enable_afc_request);
+
 static int muic_afc_request_voltage_check(int cause, int vol)
 {
 	int ret = 0;

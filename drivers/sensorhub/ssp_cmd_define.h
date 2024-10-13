@@ -75,6 +75,8 @@ enum {
 	CMD_VALUE_MAX,
 };
 
+#define DATA_INJECT	125
+
 /* CONVERT VALUE FOR SEM CONTEXT*/
 #define SCONTEXT_AP_STATUS_SHUTDOWN                   0xD0
 #define SCONTEXT_AP_STATUS_WAKEUP                     0xD1

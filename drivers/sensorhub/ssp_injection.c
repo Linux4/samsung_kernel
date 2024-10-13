@@ -125,6 +125,11 @@ static int ssp_inject_additional_info(struct ssp_data *data,
 	}
 #endif
 
+	if (type != SENSOR_TYPE_DEVICE_ORIENTATION && type != SENSOR_TYPE_SAR_BACKOFF_MOTION &&
+	    type != SENSOR_TYPE_LIGHT && type != SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS) {
+		ret = set_additional_info(data, buf, count);
+	}
+
 	return ret;
 }
 

@@ -4503,13 +4503,11 @@ static int s2mu106_usbpd_probe(struct i2c_client *i2c,
 
 #if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
-	wakeup_source_init(pdic_data->water_wake, "water_wake");   // 4.19 R
 	if (!(pdic_data->water_wake)) {
 		pdic_data->water_wake = wakeup_source_create("water_wake"); // 4.19 Q
 		if (pdic_data->water_wake)
 			wakeup_source_add(pdic_data->water_wake);
 	}
-	wakeup_source_init(pdic_data->water_irq_wake, "water_irq_wake");   // 4.19 R
 	if (!(pdic_data->water_irq_wake)) {
 		pdic_data->water_irq_wake = wakeup_source_create("water_irq_wake"); // 4.19 Q
 		if (pdic_data->water_irq_wake)

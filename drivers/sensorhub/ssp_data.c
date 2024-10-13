@@ -450,6 +450,30 @@ int set_sensor_position(struct ssp_data *data)
 	return 0;
 }
 
+#define INJECT_BUF_MAX	51 /* SSP_CMD_SIZE (64) - SSP_MSG_HEADER_SIZE (13) */
+int set_additional_info(struct ssp_data *data, const char *buf, int count)
+{
+	int ret = 0;
+	int type = buf[0];
+	char inject_buf[INJECT_BUF_MAX];
+
+	if (!(data->sensor_probe_state & (1ULL << type))) {
+		ssp_infof("sensor is not connected(0x%llx)", data->sensor_probe_state);
+		return ret;
+	}
+
+	memcpy(inject_buf, &buf[1], INJECT_BUF_MAX);
+	ret = ssp_send_command(data, CMD_SETVALUE, type, DATA_INJECT, 0, inject_buf, INJECT_BUF_MAX, NULL, NULL);
+	if (ret < 0) {
+		ssp_errf("CMD fail %d", ret);
+		return ret;
+	}
+
+	ssp_infof("inject additional info, type : %d", type);
+
+	return ret;
+}
+
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY
 #ifdef CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL
 int set_proximity_threshold_addval(struct ssp_data *data)

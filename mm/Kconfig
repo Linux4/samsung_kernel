@@ -861,3 +861,5 @@ config MEMCG_SWAPFILE_ISOLATION
 	default n
 	help
 	  Let each memcg select its own private swapfile on demand.
+
+source "mm/sec_mm/Kconfig"

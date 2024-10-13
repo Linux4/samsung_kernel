@@ -3036,7 +3036,10 @@ static void init_sb_info(struct f2fs_sb_info *sbi)
 	spin_lock_init(&sbi->dev_lock);
 
 	/* FUA Mode : ROOT & Quota */
-	sbi->s_sec_cond_fua_mode = F2FS_SEC_FUA_ROOT;
+	if (raw_super->sec_fua_mode == F2FS_SEC_FUA_NONE)
+		sbi->s_sec_cond_fua_mode = F2FS_SEC_FUA_ROOT;
+	else
+		sbi->s_sec_cond_fua_mode = raw_super->sec_fua_mode;
 
 	init_rwsem(&sbi->sb_lock);
 }

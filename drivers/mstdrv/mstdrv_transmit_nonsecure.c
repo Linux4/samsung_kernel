@@ -14,12 +14,73 @@
  */
 
 #include "mstdrv_transmit_nonsecure.h"
+#include "mstdrv_main.h"
+static int mst_en;
+static int mst_data;
+static spinlock_t event_lock;
 
 /**
  * mst_change - change MST gpio pins based on input and current data bit
  * @mst_val: data bit to set
  * @mst_stat: current data bit
  */
+
+void init_spin_lock(void)
+{
+	spin_lock_init(&event_lock);
+}
+
+int init_mst_en_gpio(struct device *dev)
+{
+	int ret = 0;
+	mst_en = of_get_named_gpio(dev->of_node, "sec-mst,mst-en-gpio", 0);
+	if (mst_en < 0) {
+		mst_err("%s: fail to get en gpio, %d\n", __func__, mst_en);
+		ret = -1;
+		return ret;
+	}
+	
+	ret = gpio_request(mst_en, "sec-mst,mst-en-gpio");
+	if (ret) {
+		mst_err("%s: failed to request en gpio, %d, %d\n",
+			__func__, ret, mst_en);
+	}
+
+	mst_info("%s: gpio en inited. Data_Value_ mst_en : %d\n", __func__,mst_en);
+	
+	if (!(ret < 0) && (mst_en > 0)) {
+		gpio_direction_output(mst_en, 0);
+		mst_info("%s: mst_en output\n", __func__);
+	}
+
+	return ret;
+}
+
+int init_mst_data_gpio(struct device *dev)
+{
+	int ret = 0;
+	mst_data = of_get_named_gpio(dev->of_node, "sec-mst,mst-data-gpio", 0);
+	if (mst_data < 0) {
+		mst_err("%s: fail to get data gpio, %d\n", __func__, mst_data);
+		ret = -1;
+		return ret;
+	}
+	
+	ret = gpio_request(mst_data, "sec-mst,mst-data-gpio");
+	if (ret) {
+		mst_err("%s: failed to request data gpio, %d, %d\n",
+			__func__, ret, mst_data);
+	}
+
+	mst_info("%s: gpio data inited. Data_Value_ mst_data : %d\n", __func__,mst_data);
+	
+	if (!(ret < 0)  && (mst_data > 0)) {
+		gpio_direction_output(mst_data, 0);
+		mst_info("%s: mst_data output\n", __func__);
+	}
+
+	return ret;
+}
 int mst_change(int mst_val, int mst_stat, int mst_data)
 {
 	if (mst_stat) {
@@ -52,7 +113,7 @@ int mst_change(int mst_val, int mst_stat, int mst_data)
  * transmit_mst_data - Transmit test track data
  * @track: 1:track1, 2:track2
  */
-int transmit_mst_data(int track, int mst_en, int mst_data, spinlock_t event_lock)
+int transmit_mst_data(int track_num)
 {
 	int ret_val = 1;
 	int i = 0;
@@ -81,7 +142,7 @@ int transmit_mst_data(int track, int mst_en, int mst_data, spinlock_t event_lock
 	gpio_set_value(mst_en, ON);
 	msleep(PWR_EN_WAIT_TIME);
 
-	if (track == TRACK1) {
+	if (track_num == TRACK1) {
 		spin_lock_irqsave(&event_lock, flags);
 		for (i = 0; i < LEADING_ZEROES; i++) {
 			mst_stat = mst_change(OFF, mst_stat, mst_data);
@@ -108,7 +169,7 @@ int transmit_mst_data(int track, int mst_en, int mst_data, spinlock_t event_lock
 		gpio_set_value(mst_en, OFF);
 		gpio_set_value(mst_data, OFF);
 		//gpio_set_value(mst_pwr_en, OFF);
-	} else if (track == TRACK2) {
+	} else if (track_num == TRACK2) {
 		spin_lock_irqsave(&event_lock, flags);
 		for (i = 0; i < LEADING_ZEROES; i++) {
 			mst_stat = mst_change(OFF, mst_stat, mst_data);

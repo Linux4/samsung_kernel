@@ -88,8 +88,8 @@ static void __dsp_context_put_graph_info(struct dsp_context *dctx, void *ginfo)
 }
 
 static int __dsp_context_check_graph_info(struct dsp_context *dctx,
-		struct dsp_ioc_load_graph *load, unsigned int ginfo_size,
-		unsigned int param_list_size, void *kernel_name)
+		struct dsp_ioc_load_graph *load, unsigned long long ginfo_size,
+		unsigned long long param_list_size, void *kernel_name)
 {
 	int ret;
 	unsigned int *check;
@@ -99,14 +99,14 @@ static int __dsp_context_check_graph_info(struct dsp_context *dctx,
 	ginfo_size += param_list_size;
 	if (ginfo_size < param_list_size) {
 		ret = -EINVAL;
-		dsp_err("ginfo_size(%u/%u) is overflowed\n",
+		dsp_err("ginfo_size(%llu/%llu) is overflowed\n",
 				ginfo_size, param_list_size);
 		goto p_err;
 	}
 
 	if (ginfo_size != load->param_size) {
 		ret = -EINVAL;
-		dsp_err("param_size(%u/%u) is invalid\n",
+		dsp_err("param_size(%u/%llu) is invalid\n",
 				load->param_size, ginfo_size);
 		goto p_err;
 	}
@@ -178,7 +178,8 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 	struct dsp_common_graph_info_v2 *ginfo2;
 	struct dsp_common_graph_info_v3 *ginfo3;
 	struct dsp_graph *graph;
-	unsigned int version, ginfo_size, param_list_size;
+	unsigned int version;
+	unsigned long long ginfo_size, param_list_size;
 
 	dsp_enter();
 	dsp_dbg("load start\n");
@@ -226,13 +227,14 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 		ginfo_size = sizeof(*ginfo1);
 		if (args->param_size < ginfo_size) {
 			ret = -EINVAL;
-			dsp_err("param size is invalid(%u/%u)\n",
+			dsp_err("param size is invalid(%u/%llu)\n",
 					args->param_size, ginfo_size);
 			goto p_err_info;
 		}
 
-		param_list_size = (ginfo1->n_tsgd + ginfo1->n_param) *
-			sizeof(ginfo1->param_list[0]);
+		param_list_size = (unsigned long long)ginfo1->n_tsgd +
+			(unsigned long long)ginfo1->n_param;
+		param_list_size *= sizeof(ginfo1->param_list[0]);
 
 		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
 				param_list_size, kernel_name);
@@ -250,13 +252,14 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 		ginfo_size = sizeof(*ginfo2);
 		if (args->param_size < ginfo_size) {
 			ret = -EINVAL;
-			dsp_err("param size is invalid(%u/%u)\n",
+			dsp_err("param size is invalid(%u/%llu)\n",
 					args->param_size, ginfo_size);
 			goto p_err_info;
 		}
 
-		param_list_size = (ginfo2->n_tsgd + ginfo2->n_param) *
-			sizeof(ginfo2->param_list[0]);
+		param_list_size = (unsigned long long)ginfo2->n_tsgd +
+			(unsigned long long)ginfo2->n_param;
+		param_list_size *= sizeof(ginfo2->param_list[0]);
 
 		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
 				param_list_size, kernel_name);
@@ -274,13 +277,14 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 		ginfo_size = sizeof(*ginfo3);
 		if (args->param_size < ginfo_size) {
 			ret = -EINVAL;
-			dsp_err("param size is invalid(%u/%u)\n",
+			dsp_err("param size is invalid(%u/%llu)\n",
 					args->param_size, ginfo_size);
 			goto p_err_info;
 		}
 
-		param_list_size = (ginfo3->n_tsgd + ginfo3->n_param) *
-			sizeof(ginfo3->param_list[0]);
+		param_list_size = (unsigned long long)ginfo3->n_tsgd +
+			(unsigned long long)ginfo3->n_param;
+		param_list_size *= sizeof(ginfo3->param_list[0]);
 
 		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
 				param_list_size, kernel_name);
@@ -363,12 +367,14 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 	if (!graph) {
 		ret = -EINVAL;
 		dsp_err("graph is not loaded(%x)\n", args->global_id);
+		mutex_unlock(&gmgr->lock_for_unload);
 		goto p_err;
 	}
 
 	pool = dsp_mailbox_alloc_pool(&sys->mailbox, sizeof(args->global_id));
 	if (IS_ERR(pool)) {
 		ret = PTR_ERR(pool);
+		mutex_unlock(&gmgr->lock_for_unload);
 		goto p_err;
 	}
 	pool->pm_qos = args->request_qos;

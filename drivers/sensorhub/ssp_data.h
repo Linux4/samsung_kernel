@@ -35,6 +35,8 @@ void get_timestamp(struct ssp_data *, char *, int *, struct sensor_value *, int)
 
 int get_sensorname(struct ssp_data *data, int sensor_type, char *name, int size);
 
+int set_additional_info(struct ssp_data *data, const char *buf, int count);
+
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY
 int set_proximity_threshold(struct ssp_data *data);
 #ifdef CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL
