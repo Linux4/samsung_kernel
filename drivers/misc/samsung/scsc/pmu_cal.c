@@ -132,8 +132,15 @@ static int pmu_cal_read(struct platform_mif *platform, struct pmucal_data data)
 		}
 	} while (time_before(jiffies, timeout));
 
-	regmap_read(target, data.sfr, &val);
-	SCSC_TAG_INFO(PLAT_MIF, "timeout waiting %s 0x%08x\n", target_sfr, val);
+	regmap_read(target, data.sfr, &reg_val);
+	val = reg_val & BIT(data.field);
+	val >>= data.field;
+	if (val == data.value) {
+		SCSC_TAG_INFO(PLAT_MIF, "read %s[%d]  0x%08x\n",
+			      target_sfr, data.field, reg_val);
+		goto done;
+	}
+	SCSC_TAG_INFO(PLAT_MIF, "timeout waiting %s 0x%08x\n", target_sfr, reg_val);
 	return -EINVAL;
 
 done:

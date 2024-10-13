@@ -211,6 +211,7 @@ static char *task_cgroup_name[] = {
 	"system-background",
 	"nnapi-hal",
 	"camera-daemon",
+	"midground",
 };
 
 static inline void
@@ -1331,6 +1332,7 @@ static char *task_cgroup_simple_name[] = {
 	"syb",
 	"n-h",
 	"c-d",
+	"mg",
 };
 
 static const char *get_sched_class_str(int class)

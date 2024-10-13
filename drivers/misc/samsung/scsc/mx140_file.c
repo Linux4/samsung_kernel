@@ -358,13 +358,13 @@ static int __mx140_file_download_fw(struct scsc_mx *mx, void *dest, size_t dest_
 	SCSC_TAG_DBG4(MX_FILE, "FW Download, size %zu\n", firm->size);
 
 	if (dest) {
-	if (firm->size > dest_size) {
-		SCSC_TAG_ERR(MX_FILE, "firmware image too big for buffer (%zu > %u)", dest_size, *fw_image_size);
-		r = -EINVAL;
-	} else {
-		memcpy(dest, firm->data, firm->size);
-		*fw_image_size = firm->size;
-	}
+		if (firm->size > dest_size) {
+			SCSC_TAG_ERR(MX_FILE, "firmware image too big for buffer (%zu > %u)", dest_size, *fw_image_size);
+			r = -EINVAL;
+		} else {
+			memcpy(dest, firm->data, firm->size);
+			*fw_image_size = firm->size;
+		}
 	}
 	mx140_release_file(mx, firm);
 	return r;

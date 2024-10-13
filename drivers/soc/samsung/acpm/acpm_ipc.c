@@ -43,6 +43,9 @@ static u32 acpm_period = APM_PERITIMER_NS_PERIOD;
 static u32 last_acpm_peri_timer;
 
 unsigned int acpm_nfc_log_offset, acpm_nfc_log_len;
+#if IS_ENABLED(CONFIG_SOC_S5E8825)
+static unsigned int glb_fast_switch_tx_front;
+#endif
 
 int acpm_get_nfc_log_buf(struct nfc_clk_req_log **buf, u32 *last_ptr, u32 *len)
 {
@@ -715,6 +718,10 @@ int __acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg, bool w
 	}
 
 	writel(tmp_index, channel->tx_ch.front);
+#if IS_ENABLED(CONFIG_SOC_S5E8825)
+	if (channel->id == 11)
+		glb_fast_switch_tx_front = tmp_index;
+#endif
 
 	apm_interrupt_gen(channel->id);
 	spin_unlock_irqrestore(&channel->tx_lock, flags);
@@ -818,6 +825,12 @@ bool is_acpm_ipc_busy(unsigned ch_id)
 	channel = &acpm_ipc->channel[ch_id];
 	tx_front = __raw_readl(channel->tx_ch.front);
 	rx_front = __raw_readl(channel->rx_ch.front);
+#if IS_ENABLED(CONFIG_SOC_S5E8825)
+	if (tx_front != glb_fast_switch_tx_front) {
+		pr_err("%s: tx_front (%d), glb_tx_front (%d)\n", __func__,
+		       tx_front, glb_fast_switch_tx_front);
+	}
+#endif
 
 	return (tx_front != rx_front);
 }

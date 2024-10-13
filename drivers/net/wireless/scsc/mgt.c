@@ -4247,7 +4247,7 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	if (slsi_is_proxy_arp_supported_on_ap(peer->assoc_resp_ie))
@@ -4599,7 +4599,7 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "Clear filters on Screen on");
@@ -4735,10 +4735,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return;
 
-	if (WARN_ON(!peer))
-		return;
-
-	if (WARN_ON(!peer->assoc_resp_ie))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return;
 
 #if !(IS_ENABLED(CONFIG_IPV6))
@@ -6132,6 +6129,8 @@ static u32 slsi_remap_reg_rule_flags(u8 flags)
 		remapped_flags |= NL80211_RRF_NO_INDOOR;
 	if (flags & SLSI_REGULATORY_NO_OUTDOOR)
 		remapped_flags |= NL80211_RRF_NO_OUTDOOR;
+	if (flags & SLSI_REGULATORY_NO_IR)
+		remapped_flags |= NL80211_RRF_NO_IR;
 
 	return remapped_flags;
 }

@@ -13,6 +13,8 @@
 #ifndef NPU_MAILBOX_MSG_H_
 #define NPU_MAILBOX_MSG_H_
 
+/* Increase sub-version to support new load interface. */
+#define NPU_COMMAND_SUB_VERSION 1
 #if (CONFIG_NPU_COMMAND_VERSION == 7)
 #include "mailbox_msg_v7.h"
 #elif (CONFIG_NPU_COMMAND_VERSION == 8)

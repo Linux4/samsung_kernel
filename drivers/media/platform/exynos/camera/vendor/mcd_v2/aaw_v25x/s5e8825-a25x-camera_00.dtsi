@@ -433,6 +433,8 @@
 		rom_awb_end_addr	= <0x006B>;
 		rom_shading_start_addr	= <0x006E>;
 		rom_shading_end_addr	= <0x0466>;
+		rom_factory_start_addr = <0x047C>;
+		rom_factory_end_addr = <0x069B>;
 		rom_awb_sec2lsi_start_addr	= <0x0064>;
 		rom_awb_sec2lsi_end_addr	= <0x006B>;
 		rom_awb_sec2lsi_checksum_addr	= <0x0070>;
@@ -441,6 +443,7 @@
 		rom_shading_sec2lsi_end_addr	= <0x1A5B>;
 		rom_shading_sec2lsi_checksum_addr	= <0x1A60>;
 		rom_shading_sec2lsi_checksum_len	= <0x19EC>;
+		rom_factory_sec2lsi_start_addr = <0x1A64>;
 	};
 };
 
@@ -721,13 +724,13 @@
 			flash-gpio = <&gpp2 2 0>;
 			torch-gpio = <&gpp2 3 0>;
 
-			flash_current = <1300>;
+			flash_current = <1250>;
 			preflash_current = <200>;
-			torch_current = <50 80 130 180 230>;
+			torch_current = <50 80 130 170 210>;
 			movie_current = <200>;
 			factory_torch_current = <250>;
 			factory_flash_current = <250>;
-			flashlight_current = <50 80 130 180 230>;
+			flashlight_current = <50 80 130 170 210>;
 			status = "okay";
 		};
 	};

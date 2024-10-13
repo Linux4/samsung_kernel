@@ -238,9 +238,7 @@ static int s2mf301_fled_set_mode(struct s2mf301_fled_data *fled, int chan, int m
 		pr_err("%s: Wrong channel or mode.\n", __func__);
 		return -EFAULT;
 	}
-
-	pr_err("%s: channel: %d, mode: %d\n", __func__, chan, mode);
-
+	pr_info("%s: channel: %d, mode: %d\n", __func__, chan, mode);
 	gpio_request(gpio_torch, "s2mf301_gpio_torch");
 	gpio_request(gpio_flash, "s2mf301_gpio_flash");
 
@@ -273,6 +271,8 @@ static int s2mf301_fled_set_mode(struct s2mf301_fled_data *fled, int chan, int m
 		}
 		s2mf301_update_reg(fled->i2c, S2MF301_FLED_CTRL0, 0, S2MF301_EN_FLED_PRE);
 		s2mf301_fled_operating_mode(fled, AUTO_MODE);
+		fled->pdata->en_flash = false;
+		fled->pdata->en_torch = false;
 		break;
 	case S2MF301_FLED_MODE_FLASH:
 		s2mf301_update_reg(fled->i2c, S2MF301_FLED_CTRL0,
@@ -492,7 +492,6 @@ static void s2mf301_fled_init(struct s2mf301_fled_data *fled)
 #endif
 }
 
-#if IS_ENABLED(CONFIG_OF)
 static int s2mf301_led_dt_parse_pdata(struct device *dev, struct s2mf301_fled_platform_data *pdata)
 {
 	struct device_node *led_np, *np, *c_np;
@@ -618,7 +617,6 @@ dt_err:
 	pr_err("%s: DT parsing finish. ret = %d\n", __func__, ret);
 	return ret;
 }
-#endif /* CONFIG_OF */
 
 static ssize_t s2mf301_rear_flash_store(struct device *dev,
 				struct device_attribute *attr, const char *buf, size_t size)
@@ -628,22 +626,24 @@ static ssize_t s2mf301_rear_flash_store(struct device *dev,
 	int flash_current = 0;
 	int torch_current = 0;
 
-	pr_info("%s: rear_flash_store start\n", __func__);
+	if (g_fled_data == NULL) {
+		pr_err("s2mf301-fled: %s: g_fled_data is NULL\n", __func__);
+		return -ENODEV;
+	}
 
 	if ((buf == NULL) || kstrtouint(buf, 10, &value))
-		return -1;
+		return -ENXIO;
 
-	if ((value < 0)) {
-		pr_err("%s: Unsupported value: %d\n", __func__, value);
-		return -EFAULT;
-	}
 	pr_info("%s: %d: rear_flash_store:\n", __func__, value);
 	g_fled_data->sysfs_input_data = value;
 
 	flash_current = g_fled_data->pdata->default_current;
 	torch_current = g_fled_data->pdata->default_current;
 
-	if (value <= 0) {
+	if (value == 0) {
+		if (g_fled_data->pdata->en_flash == false && g_fled_data->pdata->en_torch == false) {
+			goto exit;
+		}
 		mode = S2MF301_FLED_MODE_OFF;
 	} else if (value == 1) {
 		mode = S2MF301_FLED_MODE_TORCH;
@@ -651,9 +651,17 @@ static ssize_t s2mf301_rear_flash_store(struct device *dev,
 		/* Factory Torch*/
 		torch_current = g_fled_data->factory_torch_current;
 		mode = S2MF301_FLED_MODE_TORCH;
-		pr_info("%s: factory torch current [%d]\n", __func__, torch_current);
+		g_fled_data->pdata->en_torch = true;
+		pr_info("%s: factory torch current [%d]\n", __func__,
+			torch_current);
 	} else if (value == 200) {
 		/* Factory Flash */
+		if (g_fled_data->pdata->en_flash == true) {
+			/* Turn off flash and torch if already on */
+			s2mf301_fled_set_flash_curr(g_fled_data, 1, 0);
+			s2mf301_fled_set_torch_curr(g_fled_data, 1, 0);
+			s2mf301_fled_set_mode(g_fled_data, 1, S2MF301_FLED_MODE_OFF);
+		}
 		flash_current = g_fled_data->factory_flash_current;
 		mode = S2MF301_FLED_MODE_FLASH;
 		pr_info("%s: factory flash current [%d]\n", __func__, flash_current);
@@ -677,19 +685,20 @@ static ssize_t s2mf301_rear_flash_store(struct device *dev,
 		mode = S2MF301_FLED_MODE_FLASH;
 	} else {
 		pr_err("%s Unsupported value : %d",  __func__, value);
-		return -1;
+		goto exit;
 	}
-
 	if (mode == S2MF301_FLED_MODE_TORCH) {
-		pr_info("%s: %d: S2MF301_FLED_MODE_FACTORY - %dmA\n", __func__, value, torch_current);
+		pr_info("%s: %d: S2MF301_FLED_MODE_TORCH - %dmA\n", __func__, value, torch_current);
 		/* torch current set */
 		s2mf301_fled_set_torch_curr(g_fled_data, 1, torch_current);
 		s2mf301_fled_set_mode(g_fled_data, 1, S2MF301_FLED_MODE_TORCH);
+		g_fled_data->pdata->en_torch = true;
 	} else if (mode == S2MF301_FLED_MODE_FLASH) {
 		pr_info("%s: %d: S2MF301_FLED_MODE_FLASH - %dmA\n", __func__, value, flash_current);
 		/* flash current set */
 		s2mf301_fled_set_flash_curr(g_fled_data, 1, flash_current);
 		s2mf301_fled_set_mode(g_fled_data, 1, S2MF301_FLED_MODE_FLASH);
+		g_fled_data->pdata->en_flash = true;
 	} else {
 		pr_info("%s: %d: S2MF301_FLED_MODE_OFF\n", __func__, value);
 		/* false torch current set for initial current */
@@ -699,10 +708,11 @@ static ssize_t s2mf301_rear_flash_store(struct device *dev,
 		s2mf301_fled_set_torch_curr(g_fled_data, 1, torch_current);
 		s2mf301_fled_set_mode(g_fled_data, 1, S2MF301_FLED_MODE_OFF);
 	}
-
 #if IS_ENABLED(DEBUG_TEST_READ)
 	s2mf301_fled_test_read(g_fled_data);
 #endif
+
+exit:
 	pr_info("%s: rear_flash_store END\n", __func__);
 	return size;
 }
@@ -782,7 +792,8 @@ static int s2mf301_led_probe(struct platform_device *pdev)
 		pr_err("%s: failed to allocate platform data\n", __func__);
 		return -ENOMEM;
 	}
-
+	fled_data->pdata->en_flash = false;
+	fled_data->pdata->en_torch = false;
 	fled_data->set_on_factory = 0;
 
 	if (s2mf301->dev->of_node) {

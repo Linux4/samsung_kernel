@@ -1562,16 +1562,13 @@ void sm5714_fg_fuelalert_set(struct sm5714_fuelgauge_data *fuelgauge,
 		if (fuelgauge->vempty_mode == VEMPTY_MODE_SW ||
 					fuelgauge->vempty_mode == VEMPTY_MODE_SW_VALERT) {
 			fuelgauge->vempty_mode = VEMPTY_MODE_SW_VALERT;
-		}
-#if defined(CONFIG_BATTERY_CISD)
-		else {
+		} else {
 			union power_supply_propval value;
 
 			value.intval = fuelgauge->vempty_mode;
 			psy_do_property("battery", set,
 					POWER_SUPPLY_PROP_VOLTAGE_MIN, value);
 		}
-#endif
 	}
 }
 
@@ -1722,11 +1719,11 @@ static void sm5714_fg_calculate_dynamic_scale(
 	if (capacity < 100)
 		fuelgauge->capacity_max_conv = false;  //Force full sequence , need to decrease capacity_max
 
-	if (raw_soc_val.intval < min_cap) {
-		pr_info("%s: raw soc(%d) is very low, skip routine\n",
-			__func__, raw_soc_val.intval);
+	if ((raw_soc_val.intval < min_cap) || (fuelgauge->capacity_max_conv)) {
+		pr_info("%s: skip routine - raw_soc(%d), min_cap(%d), cap_max_conv(%d)\n",
+				__func__, raw_soc_val.intval, min_cap, fuelgauge->capacity_max_conv);
 		return;
-	}
+}
 
 	if (capacity == 100)
 		scaling_factor = 2;
@@ -1762,7 +1759,10 @@ static void sm5714_fg_calculate_dynamic_scale(
 
 	raw_soc_val.intval = sm5714_get_soc(fuelgauge);
 
-	if (raw_soc_val.intval < min_cap) {
+	if (capacity < 100)
+		fuelgauge->capacity_max_updated = false;  //Force full sequence , need to decrease capacity_max
+
+	if (raw_soc_val.intval < min_cap || (fuelgauge->capacity_max_updated)) {
 		pr_info("%s: raw soc(%d) is very low, skip routine\n",
 			__func__, raw_soc_val.intval);
 		return;
@@ -1777,6 +1777,8 @@ static void sm5714_fg_calculate_dynamic_scale(
 			fuelgauge->capacity_max,
 			fuelgauge->pdata->capacity_max,
 			fuelgauge->pdata->capacity_max_margin);
+
+	fuelgauge->capacity_max_updated = true;
 
 	pr_info("%s: %d is used for capacity_max, capacity(%d)\n",
 		__func__, fuelgauge->capacity_max, capacity);
@@ -2042,6 +2044,13 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 		if ((val->intval == 100) && (fuelgauge->capacity_old < 100) &&
 			(fuelgauge->capacity_max_conv == true))
 			fuelgauge->capacity_max_conv = false;
+#else
+/* Check UI soc reached 100% from 99% via forced charge sequence,
+ * capacity_max needs to be updated again after cable disconnection.
+ */
+		if ((val->intval == 100) && (fuelgauge->capacity_old < 100) &&
+			(fuelgauge->capacity_max_updated == true))
+			fuelgauge->capacity_max_updated = false;
 #endif
 
 		/* (Only for atomic capacity)
@@ -3028,8 +3037,9 @@ static int sm5714_fuelgauge_probe(struct platform_device *pdev)
 	}
 	ret = sm5714_fuelgauge_parse_dt(fuelgauge);
 	if (ret < 0) {
-		pr_err("%s not found charger dt! ret[%d]\n",
+		pr_err("%s not found fuelgauge dt! ret[%d]\n",
 				__func__, ret);
+		goto err_data_free;
 	}
 #endif
 
