@@ -6,7 +6,12 @@
  * as published by the Free Software Foundation.
  */
 
+#include <linux/dcache.h>
+#include <linux/delay.h>
+#include <linux/fs.h>
+#include <linux/namei.h>
 #include <linux/kobject.h>
+#include <linux/kthread.h>
 #include <linux/types.h>
 #include <linux/version.h>
 
@@ -95,7 +100,27 @@ static const struct rules_file_struct rules_files[4] = {
 	{ "/dpolicy_system",		LOAD_FLAG_DPOLICY_SYSTEM }
 };
 static volatile unsigned int load_flags;
+static DEFINE_SPINLOCK(rules_data_lock);
 
+static unsigned int get_load_flags(void)
+{
+	unsigned int data;
+	spin_lock(&rules_data_lock);
+	data = load_flags; 
+	spin_unlock(&rules_data_lock);
+	return data;
+}
+
+static unsigned int update_load_flags(unsigned int new_flags)
+{
+	unsigned int data;
+	spin_lock(&rules_data_lock);
+	data = load_flags;
+	data |= new_flags;
+	load_flags = data;
+	spin_unlock(&rules_data_lock);
+	return data;
+}
 
 __visible_for_testing unsigned long get_current_sec(void)
 {
@@ -108,10 +133,14 @@ __visible_for_testing unsigned long get_current_sec(void)
 
 __visible_for_testing char *get_rules_ptr(int is_system)
 {
+	char *ptr;
+
+	spin_lock(&rules_data_lock);
 	if (load_flags & LOAD_FLAG_SYSTEM_FIRST)
 		is_system = !is_system;
-
-	return is_system ? (char *)packed_rules_secondary : (char *)packed_rules_primary;
+	ptr = is_system ? (char *)packed_rules_secondary : (char *)packed_rules_primary;
+	spin_unlock(&rules_data_lock);
+	return ptr;
 }
 
 __visible_for_testing int get_rules_size(int is_system)
@@ -141,7 +170,7 @@ __visible_for_testing int check_system_mount(void)
 		if (!IS_ERR(fp)) {
 			defex_log_crit("Recovery mode");
 			filp_close(fp, NULL);
-			load_flags |= LOAD_FLAG_RECOVERY;
+			update_load_flags(LOAD_FLAG_RECOVERY);
 		} else {
 			defex_log_crit("Normal mode");
 		}
@@ -320,20 +349,25 @@ __visible_for_testing int load_rules_common(struct file *f, int flags)
 
 	if (!res) {
 		const unsigned char *policy_data = NULL; /* where additional features like DTM could look for policy data */
-		if (!(load_flags & (LOAD_FLAG_DPOLICY | LOAD_FLAG_DPOLICY_SYSTEM))) {
+		if (!(get_load_flags() & (LOAD_FLAG_DPOLICY | LOAD_FLAG_DPOLICY_SYSTEM))) {
 			if (rules_size > sizeof(packed_rules_primary)) {
 				res = -1;
 				goto do_clean;
 			}
+			spin_lock(&rules_data_lock);
 			memcpy(packed_rules_primary, data_buff, rules_size);
+			spin_unlock(&rules_data_lock);
 			policy_data = packed_rules_primary;
 			if (flags & LOAD_FLAG_DPOLICY_SYSTEM)
-				load_flags |= LOAD_FLAG_SYSTEM_FIRST;
+				update_load_flags(LOAD_FLAG_SYSTEM_FIRST);
 			defex_log_info("Primary rules have been stored");
 		} else {
 			if (rules_size > 0) {
-				policy_data = packed_rules_secondary = data_buff;
+				spin_lock(&rules_data_lock);
+				packed_rules_secondary = data_buff;
 				data_buff = NULL;
+				spin_unlock(&rules_data_lock);
+				policy_data = packed_rules_secondary;
 				defex_log_info("Secondary rules have been stored");
 			}
 		}
@@ -343,12 +377,13 @@ __visible_for_testing int load_rules_common(struct file *f, int flags)
 #endif /* DEFEX_SHOW_RULES_ENABLE */
 #ifdef DEFEX_TRUSTED_MAP_ENABLE
 		if (policy_data && !dtm_tree.data) { /* DTM not yet initialized */
-			const unsigned char *dtm_section = find_policy_section(DEFEX_DTM_SECTION_NAME, policy_data, rules_size, 0);
+			const unsigned char *dtm_section = find_policy_section(DEFEX_DTM_SECTION_NAME,
+										policy_data, rules_size, 0);
 			if (dtm_section)
 				pptree_set_data(&dtm_tree, dtm_section);
 		}
 #endif
-		load_flags |= flags;
+		update_load_flags(flags);
 		res = rules_size;
 	}
 
@@ -358,18 +393,92 @@ do_clean:
 	return res;
 }
 
+int validate_file(const char *file_path)
+{
+	struct path a_path;
+	struct super_block *sb = NULL;
+	struct dentry *root_dentry;
+	int err, ret = 0;
+
+	err = kern_path(file_path, 0, &a_path);
+	if (err)
+		return ret;
+	sb = a_path.dentry->d_sb;
+	if (!sb)
+		goto do_clean;
+	if (!sb->s_type)
+		goto do_clean;
+	if (!sb->s_type->name || !sb->s_type->name[0])
+		goto do_clean;
+	root_dentry = dget(sb->s_root);
+	if (!root_dentry)
+		goto do_clean;
+	dput(root_dentry);
+	ret = 1;
+do_clean:
+	path_put(&a_path);
+	return ret;
+}
+
+int load_rules_thread(void *params)
+{
+	const unsigned int load_both_mask = (LOAD_FLAG_DPOLICY | LOAD_FLAG_DPOLICY_SYSTEM);
+	struct file *f = NULL;
+	int f_index;
+	const struct rules_file_struct *item;
+	unsigned long start_time, cur_time, last_time = 0;
+	int load_counter = 0;
+
+	(void)params;
+
+	start_time = get_current_sec();
+	while (!kthread_should_stop()) {
+		cur_time = get_current_sec();
+		if ((cur_time - last_time) < 5) {
+			if (msleep_interruptible(1000) != 0)
+				break;
+			continue;
+		}
+		last_time = cur_time;
+
+		if ((cur_time - start_time) > 600) {
+			update_load_flags(LOAD_FLAG_TIMEOUT);
+			defex_log_warn("Late load timeout. Try counter = %d", load_counter);
+			break;
+		}
+		load_counter++;
+
+		for (f_index = 0; f_index < ARRAY_SIZE(rules_files); f_index++) {
+			item = &rules_files[f_index];
+			if (!(get_load_flags() & item->flags) && validate_file(item->name)) {
+				f = local_fopen(item->name, O_RDONLY, 0);
+				if (!IS_ERR_OR_NULL(f)) {
+					defex_log_info("Late load rules file: %s", item->name);
+					break;
+				}
+			}
+		}
+		if (IS_ERR_OR_NULL(f)) {
+#ifdef DEFEX_KERNEL_ONLY
+			defex_log_err("Failed to open rules file (%ld)", (long)PTR_ERR(f));
+#endif /* DEFEX_KERNEL_ONLY */
+		} else
+			load_rules_common(f, item->flags);
+		if ((get_load_flags() & load_both_mask) == load_both_mask)
+			break;
+	}
+	return 0;
+}
+
+
 int load_rules_late(int forced_load)
 {
-	struct file *f = NULL;
-	int f_index, res = 0;
+	int res = 0;
 	static atomic_t load_lock = ATOMIC_INIT(1);
-	const struct rules_file_struct *item;
-	static unsigned long start_time;
-	static unsigned long last_time;
-	static int load_counter = 0;
-	unsigned long cur_time = get_current_sec();
+	static int first_entry;
+	struct task_struct *thread_ptr; 
 
-	if (load_flags & LOAD_FLAG_TIMEOUT)
+	if (get_load_flags() & LOAD_FLAG_TIMEOUT)
 		return -1;
 
 	if (!atomic_dec_and_test(&load_lock)) {
@@ -377,41 +486,17 @@ int load_rules_late(int forced_load)
 		return res;
 	}
 
-	/* The first try to load, initialize time values */
-	if (!start_time)
-		start_time = cur_time;
-	/* Skip this try, wait for next second */
-	if (!forced_load && (cur_time == last_time))
-		goto do_exit;
-	last_time = cur_time;
-	/* Load has been attempted for 20 seconds, give up. */
-	if ((cur_time - start_time) > 20) {
-		res = -1;
-		load_flags |= LOAD_FLAG_TIMEOUT;
-		defex_log_warn("Late load timeout. Try counter = %d", load_counter);
-		goto do_exit;
-	}
-	load_counter++;
-
-	for (f_index = 0; f_index < ARRAY_SIZE(rules_files); f_index++) {
-		item = &rules_files[f_index];
-		if (!(item->flags & load_flags)) {
-			f = local_fopen(item->name, O_RDONLY, 0);
-			if (!IS_ERR_OR_NULL(f)) {
-				defex_log_info("Late load rules file: %s", item->name);
-				break;
-			}
+	/* The first try to load, initialize time values and start the kernel thread */
+	if (!first_entry) {
+		first_entry = 1;
+		thread_ptr = kthread_create(load_rules_thread, NULL, "defex_load_thread");
+		if (IS_ERR_OR_NULL(thread_ptr)) {
+			res = -1;
+			update_load_flags(LOAD_FLAG_TIMEOUT);
+			goto do_exit;
 		}
+		wake_up_process(thread_ptr);
 	}
-	if (IS_ERR_OR_NULL(f)) {
-#ifdef DEFEX_KERNEL_ONLY
-		defex_log_err("Failed to open rules file (%ld)", (long)PTR_ERR(f));
-#endif /* DEFEX_KERNEL_ONLY */
-		goto do_exit;
-	}
-
-	res = load_rules_common(f, item->flags);
-	res = (res < 0) ? res : (res > 0);
 
 do_exit:
 	atomic_inc(&load_lock);
@@ -426,12 +511,12 @@ int __init do_load_rules(void)
 	const struct rules_file_struct *item;
 
 	if (boot_state_recovery)
-		load_flags |= LOAD_FLAG_RECOVERY;
+		update_load_flags(LOAD_FLAG_RECOVERY);
 
 load_next:
 	while (f_index < ARRAY_SIZE(rules_files)) {
 		item = &rules_files[f_index];
-		if (!(load_flags & item->flags)) {
+		if (!(get_load_flags() & item->flags)) {
 			f = local_fopen(item->name, O_RDONLY, 0);
 			if (!IS_ERR_OR_NULL(f)) {
 				defex_log_info("Load rules file: %s", item->name);
@@ -442,12 +527,12 @@ load_next:
 	};
 
 	if (f_index == ARRAY_SIZE(rules_files)) {
-		if (load_flags & (LOAD_FLAG_DPOLICY_SYSTEM | LOAD_FLAG_DPOLICY))
+		if (get_load_flags() & (LOAD_FLAG_DPOLICY_SYSTEM | LOAD_FLAG_DPOLICY))
 			return 0;
 		defex_log_err("Failed to open rules file (%ld)", (long)PTR_ERR(f));
 
 #ifdef DEFEX_KERNEL_ONLY
-		if (load_flags & LOAD_FLAG_RECOVERY)
+		if (get_load_flags() & LOAD_FLAG_RECOVERY)
 			res = 0;
 #endif /* DEFEX_KERNEL_ONLY */
 		return res;
@@ -457,7 +542,7 @@ load_next:
 	res = (res < 0) ? res : 0;
 
 #ifdef DEFEX_KERNEL_ONLY
-	if ((load_flags & LOAD_FLAG_RECOVERY) && res != 0) {
+	if ((get_load_flags() & LOAD_FLAG_RECOVERY) && res != 0) {
 		res = 0;
 		defex_log_info("Kernel Only & recovery mode, rules loading is passed");
 	}
@@ -472,35 +557,51 @@ load_next:
 __visible_for_testing struct rule_item_struct *lookup_dir(struct rule_item_struct *base,
 								const char *name,
 								int l,
-								int for_recovery,
+								int attribute,
 								char *base_start)
 {
-	struct rule_item_struct *item = NULL;
-	unsigned int offset;
+	struct rule_item_struct *item = NULL, *tmp_item_attr = NULL, *tmp_item_rec = NULL;
+	unsigned int offset, feature;
+	unsigned int feature_mask = attribute & (~feature_for_recovery);
+	unsigned int recovery_mask = attribute & feature_for_recovery;
 
-	if (!base || !base->next_level || !base_start)
+	if (!base || !base_start)
 		return item;
-	item = GET_ITEM_PTR(base->next_level, base_start);
-	do {
-		if ((!(item->feature_type & feature_is_file)
-			 || (!!(item->feature_type & feature_for_recovery)) == for_recovery)
-				&& item->size == l && !memcmp(name, item->name, l))
-			return item;
+	offset = base->next_level;
+	item = GET_ITEM_PTR(offset, base_start);
+	while (offset) {
+		if (item->size == l && !memcmp(name, item->name, l)) {
+			feature = item->feature_type;
+			if (!(feature & feature_is_file))
+				return item;
+			if ((feature & feature_mask) == feature_mask)
+				tmp_item_attr = item;
+			if ((feature & feature_for_recovery) == recovery_mask)
+				tmp_item_rec = item;
+			if (tmp_item_attr && tmp_item_attr == tmp_item_rec)
+				break;
+		}
 		offset = item->next_file;
 		item = GET_ITEM_PTR(offset, base_start);
-	} while (offset);
-	return NULL;
+	}
+	return (tmp_item_attr) ? tmp_item_attr : tmp_item_rec;
 }
 
-__visible_for_testing int lookup_tree(const char *file_path, int attribute, struct file *f)
+__visible_for_testing int lookup_tree(const char *file_path,
+					int attribute,
+					struct file *f,
+					struct rule_item_struct **found_item)
 {
 	const char *ptr, *next_separator;
 	struct rule_item_struct *base, *cur_item = NULL;
 	char *base_start;
-	int l, is_system, forced_load;
-	const int is_recovery = !!(load_flags & LOAD_FLAG_RECOVERY);
+	int l, is_system, forced_load = 0;
+	const int is_recovery = (get_load_flags() & LOAD_FLAG_RECOVERY) ? feature_for_recovery : 0;
 	const unsigned int load_both_mask = (LOAD_FLAG_DPOLICY | LOAD_FLAG_DPOLICY_SYSTEM);
 	int iterator = 0;
+
+	if (found_item)
+		*found_item = NULL;
 
 	if (!file_path || *file_path != '/')
 		return 0;
@@ -508,18 +609,16 @@ __visible_for_testing int lookup_tree(const char *file_path, int attribute, stru
 	is_system = ((strncmp("/system/", file_path, 8) == 0) ||
 			(strncmp("/product/", file_path, 9) == 0) ||
 			(strncmp("/apex/", file_path, 6) == 0) ||
-			(strncmp("/system_ext/", file_path, 12) == 0))?1:0;
+			(strncmp("/system_ext/", file_path, 12) == 0) ||
+			(strncmp("/postinstall/system/", file_path, 20) == 0)) ? 1 : 0;
 
-	forced_load = is_system &&
-			(attribute == feature_safeplace_path ||
-			 attribute == feature_umhbin_path);
-
-	if ((load_flags & load_both_mask) != load_both_mask &&
-			!(load_flags & LOAD_FLAG_TIMEOUT)) {
+	if ((get_load_flags() & load_both_mask) != load_both_mask &&
+			!(get_load_flags() & LOAD_FLAG_TIMEOUT)) {
 		/* allow all requests if rules were not loaded for Recovery mode */
 		if (!load_rules_late(forced_load) || is_recovery)
 			return (attribute == feature_ped_exception ||
-					attribute == feature_safeplace_path)?1:0;
+				attribute == feature_umhbin_path ||
+				attribute == feature_safeplace_path) ? 1 : 0;
 	}
 
 try_not_system:
@@ -541,11 +640,14 @@ try_not_system:
 			l = next_separator - ptr;
 		if (!l)
 			return 0;
-		cur_item = lookup_dir(base, ptr, l, is_recovery, base_start);
-		if (!cur_item)
-			cur_item = lookup_dir(base, ptr, l, !is_recovery, base_start);
+		cur_item = lookup_dir(base, ptr, l, attribute | is_recovery, base_start);
 		if (!cur_item)
 			break;
+
+		ptr += l;
+		if (next_separator)
+			ptr++;
+
 		if (cur_item->feature_type & attribute) {
 #ifdef DEFEX_INTEGRITY_ENABLE
 			/* Integrity acceptable only for files */
@@ -559,24 +661,23 @@ try_not_system:
 			if (attribute & (feature_immutable_path_open | feature_immutable_path_write)
 				&& !(cur_item->feature_type & feature_is_file)) {
 				/* Allow open the folder by default */
-				if (!next_separator || *(ptr + l + 1) == 0)
+				if (!*ptr)
 					return 0;
 			}
-			return 1;
+			if (found_item)
+				*found_item = cur_item;
+			return GET_ITEM_OFFSET(cur_item, base_start);
 		}
 		base = cur_item;
-		ptr += l;
-		if (next_separator)
-			ptr++;
 	} while (*ptr);
-	if ((load_flags & load_both_mask) == load_both_mask && ++iterator < 2) {
+	if ((get_load_flags() & load_both_mask) == load_both_mask && ++iterator < 2) {
 		is_system = !is_system;
 		goto try_not_system;
 	}
 	return 0;
 }
 
-int rules_lookup(const char *target_file, int attribute, struct file *f)
+int rules_lookup(const char *target_file, int attribute, struct file *f, struct rule_item_struct **found_item)
 {
 	int ret = 0;
 #if (defined(DEFEX_SAFEPLACE_ENABLE) || defined(DEFEX_IMMUTABLE_ENABLE) || defined(DEFEX_PED_ENABLE))
@@ -586,7 +687,7 @@ int rules_lookup(const char *target_file, int attribute, struct file *f)
 		!strncmp(target_file, system_root_txt, sizeof(system_root_txt) - 1))
 		target_file += (sizeof(system_root_txt) - 1);
 
-	ret = lookup_tree(target_file, attribute, f);
+	ret = lookup_tree(target_file, attribute, f, found_item);
 #endif
 	return ret;
 }

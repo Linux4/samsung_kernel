@@ -1642,7 +1642,7 @@ int32_t npu_host_unload_network(struct npu_client *client,
 	}
 
 	if (network->is_unloading) {
-		NPU_ERR("network is unloading\n");
+		pr_err("network is unloading\n");
 		network_put(network);
 		mutex_unlock(&host_ctx->lock);
 		return -EINVAL;
@@ -1890,7 +1890,7 @@ int32_t npu_host_exec_network_v2(struct npu_client *client,
 		npu_notify_cdsprm_cxlimit_activity(npu_dev, true);
 
 	if (network->is_unloading) {
-		NPU_ERR("network is unloading\n");
+		pr_err("network is unloading\n");
 		ret = -EINVAL;
 		goto exec_v2_done;
 	}

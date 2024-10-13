@@ -321,6 +321,7 @@ static void dwc3_gadget_del_and_unmap_request(struct dwc3_ep *dep,
 	list_del(&req->list);
 	req->remaining = 0;
 	req->needs_extra_trb = false;
+	req->num_trbs = 0;
 
 	if (req->request.status == -EINPROGRESS)
 		req->request.status = status;
@@ -855,7 +856,7 @@ out:
 	return 0;
 }
 
-static void dwc3_remove_requests(struct dwc3 *dwc, struct dwc3_ep *dep)
+void dwc3_remove_requests(struct dwc3 *dwc, struct dwc3_ep *dep)
 {
 	struct dwc3_request		*req;
 	int ret = -EINVAL;
@@ -887,6 +888,10 @@ static void dwc3_remove_requests(struct dwc3 *dwc, struct dwc3_ep *dep)
 	if (dep->flags & DWC3_EP_END_TRANSFER_PENDING)
 		dbg_log_string("ep end_xfer cmd completion timeout for %d",
 				dep->number);
+
+	/* If endxfer is delayed, avoid unmapping requests */
+	if (dep->flags & DWC3_EP_DELAY_STOP)
+		return;
 
 	/* - giveback all requests to gadget driver */
 	while (!list_empty(&dep->started_list)) {
@@ -1750,6 +1755,7 @@ static int __dwc3_gadget_ep_queue(struct dwc3_ep *dep, struct dwc3_request *req)
 	 */
 	if ((dep->flags & DWC3_EP_END_TRANSFER_PENDING) ||
 	    (dep->flags & DWC3_EP_WEDGE) ||
+	    (dep->flags & DWC3_EP_DELAY_STOP) ||
 	    (dep->flags & DWC3_EP_STALL)) {
 		dep->flags |= DWC3_EP_DELAY_START;
 		return 0;
@@ -1899,6 +1905,18 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 
 			dbg_log_string("req:%pK found started list",
 							&req->request);
+
+		/*
+		 * If a Setup packet is received but yet to DMA out, the controller will
+		 * not process the End Transfer command of any endpoint. Polling of its
+		 * DEPCMD.CmdAct may block setting up TRB for Setup packet, causing a
+		 * timeout. Delay issuing the End Transfer command until the Setup TRB is
+		 * prepared.
+		 */
+
+		if (dwc->ep0state != EP0_SETUP_PHASE && !dwc->delayed_status)
+			dep->flags |= DWC3_EP_DELAY_STOP;
+
 			/* wait until it is processed */
 			dwc3_stop_active_transfer(dep, true, true);
 
@@ -1993,10 +2011,11 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 		if (!list_empty(&dep->started_list))
 			dep->flags |= DWC3_EP_DELAY_START;
 
-			if (dep->flags & DWC3_EP_END_TRANSFER_PENDING) {
-				dep->flags |= DWC3_EP_PENDING_CLEAR_STALL;
-				if (protocol)
-					dwc->clear_stall_protocol = dep->number;
+		if (dep->flags & DWC3_EP_END_TRANSFER_PENDING ||
+				(dep->flags & DWC3_EP_DELAY_STOP)) {
+			dep->flags |= DWC3_EP_PENDING_CLEAR_STALL;
+			if (protocol)
+				dwc->clear_stall_protocol = dep->number;
 
 				return 0;
 			}
@@ -3795,6 +3814,7 @@ int dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force, bool interrupt)
 	}
 
 	if (!(dep->flags & DWC3_EP_TRANSFER_STARTED) ||
+	    (dep->flags & DWC3_EP_DELAY_STOP) ||
 	    (dep->flags & DWC3_EP_END_TRANSFER_PENDING))
 		return 0;
 
@@ -4881,6 +4901,8 @@ void dwc3_gadget_process_pending_events(struct dwc3 *dwc)
 {
 	if (dwc->pending_events) {
 		dwc3_interrupt(dwc->irq_gadget, dwc->ev_buf);
+		dwc3_thread_interrupt(dwc->irq_gadget, dwc->ev_buf);
+		pm_runtime_put(dwc->dev);
 		dwc->pending_events = false;
 		enable_irq(dwc->irq_gadget);
 	}

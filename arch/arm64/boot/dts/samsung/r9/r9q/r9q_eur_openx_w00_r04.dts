@@ -9387,6 +9387,7 @@
 				sec,lcdid_mask = <0xfff0f0>;
 				sec,select_lcdid = <0x804540 0x804580>;
 				sec,firmware_name = "s3908_r9.bin", "s3908_r9_slsi.bin";
+				synaptics,edgehandler_direction_max = <0x5>;
 				phandle = <0x187>;
 			};
 		};
