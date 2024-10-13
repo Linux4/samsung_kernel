@@ -99,6 +99,7 @@ int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg,
 int mtk_ddic_dsi_read_cmd(struct mtk_ddic_dsi_msg *cmd_msg, bool need_lock);
 int set_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg, int blocking);
 int read_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg);
+int mtk_drm_set_frame_skip(bool skip);
 #endif
 int mtk_disp_ioctl_debug_log_switch(struct drm_device *dev, void *data,
 	struct drm_file *file_priv);

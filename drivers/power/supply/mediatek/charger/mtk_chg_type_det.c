@@ -379,16 +379,6 @@ static int mt_charger_get_property(struct power_supply *psy,
 		break;
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
-/* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
-#ifndef HQ_FACTORY_BUILD
-	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
-        	if (info == NULL) {
-			return -EINVAL;
-		}
-		val->intval = info->data.ss_batt_cycle;
-		break;
-#endif
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
 /* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
 #ifndef HQ_FACTORY_BUILD
 	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
@@ -446,12 +436,6 @@ static int mt_charger__property_is_writeable(struct power_supply *psy,
 		return 1;
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
-/* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
-#ifndef HQ_FACTORY_BUILD
-	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
-		return 1;
-#endif
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
 /* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
 #ifndef HQ_FACTORY_BUILD
 	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
@@ -588,15 +572,7 @@ static int mt_charger_set_property(struct power_supply *psy,
 		break;
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
-/* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
 #ifndef HQ_FACTORY_BUILD
-	case  POWER_SUPPLY_PROP_BATTERY_CYCLE:
-		if (pinfo == NULL) {
-			return -EINVAL;
-		}
-		pinfo->data.ss_batt_cycle = val->intval;
-		break;
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
 /* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
 	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
 		if (pinfo == NULL) {
@@ -783,9 +759,6 @@ static enum power_supply_property mt_charger_properties[] = {
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 #ifndef HQ_FACTORY_BUILD
-/* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
-	POWER_SUPPLY_PROP_BATTERY_CYCLE,
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
 /* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
 	POWER_SUPPLY_PROP_BATT_PROTECT_FLAG,
 	POWER_SUPPLY_PROP_EN_BATT_PROTECT,

@@ -1,3 +1,0 @@
-#include "hs03sd-sdcard.dtsi"
-#include "hs03sd-battery.dtsi"
-#include "hs03sd-fingerprint.dtsi"
