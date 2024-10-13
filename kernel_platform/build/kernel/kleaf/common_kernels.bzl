@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Functions that are useful in the common kernel package (usually `//common`)."""
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load(
     ":kernel.bzl",
@@ -30,7 +30,6 @@ load(
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 load("//build/kernel/kleaf/artifact_tests:kernel_test.bzl", "initramfs_modules_options_test")
 load("//build/kernel/kleaf/impl:gki_artifacts.bzl", "gki_artifacts")
-load("//build/kernel/kleaf/impl:utils.bzl", "utils")
 load(
     "//build/kernel/kleaf/impl:constants.bzl",
     "MODULE_OUTS_FILE_OUTPUT_GROUP",
@@ -84,6 +83,7 @@ _KERNEL_BUILD_ABI_VALID_KEYS = [
     "abi_definition",
     "kmi_enforced",
     "module_implicit_outs",
+    "kmi_symbol_list_add_only",
 ]
 
 # Valid configs of the value of the target_config argument in
@@ -95,6 +95,9 @@ _TARGET_CONFIG_VALID_KEYS = _KERNEL_BUILD_ABI_VALID_KEYS + [
 
 # Always collect_unstripped_modules for common kernels.
 _COLLECT_UNSTRIPPED_MODULES = True
+
+# Always keep a copy of Module.symvers for common kernels.
+_KEEP_MODULE_SYMVERS = True
 
 # glob() must be executed in a BUILD thread, so this cannot be a global
 # variable.
@@ -174,6 +177,7 @@ def _filter_keys(d, valid_keys, what = "", allow_unknown_keys = False):
         ))
     return ret
 
+# buildifier: disable=unnamed-macro
 def define_common_kernels(
         branch = None,
         target_configs = None,
@@ -509,6 +513,7 @@ def define_common_kernels(
             # Sync with KMI_SYMBOL_LIST_MODULE_GROUPING
             module_grouping = None,
             collect_unstripped_modules = _COLLECT_UNSTRIPPED_MODULES,
+            keep_module_symvers = _KEEP_MODULE_SYMVERS,
             toolchain_version = toolchain_version,
             **kernel_build_abi_kwargs
         )
@@ -814,7 +819,7 @@ def _define_common_kernels_additional_tests(
 
     kernel_images(
         name = test_name + "_fake_images",
-        kernel_modules_install = kernel_build_name + "_modules_install",
+        kernel_modules_install = kernel_modules_install,
         build_initramfs = True,
         modules_options = fake_modules_options,
     )
@@ -833,7 +838,7 @@ def _define_common_kernels_additional_tests(
 
     kernel_images(
         name = test_name + "_empty_images",
-        kernel_modules_install = kernel_build_name + "_modules_install",
+        kernel_modules_install = kernel_modules_install,
         build_initramfs = True,
         # Not specify module_options
     )

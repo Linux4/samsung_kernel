@@ -440,14 +440,20 @@ static int s2m_elvss_fd_is_enabled(struct regulator_dev *rdev)
 }
 #endif
 
+#define DEFAULT_ENABLE_FD_DELAY_MS	500
+
 static int s2m_elvss_fd_enable(struct regulator_dev *rdev)
 {
 	int ret = 0;
 	struct s2dos05_data *info = rdev_get_drvdata(rdev);
+	unsigned int delay = info->iodev->pdata->enable_fd_delay_ms;
+
+	if (delay)
+		delay = msecs_to_jiffies(delay);
 
 	/* To guarantee fd_work is initialized */
 	if (info->fd_work_init) {
-		ret = schedule_delayed_work(&info->fd_work, msecs_to_jiffies(500));
+		ret = schedule_delayed_work(&info->fd_work, delay);
 		if(!ret)
 			pr_info("%s: schedule_delayed_work error!\n", __func__);
 	}
@@ -690,6 +696,13 @@ static int s2dos05_pmic_dt_parse_pdata(struct device *dev,
 	if (!ret) {
 		pdata->ocl_elvss = val;
 		dev_info(dev, "get ocl elvss value: %d\n", pdata->ocl_elvss);
+	}
+
+	pdata->enable_fd_delay_ms = DEFAULT_ENABLE_FD_DELAY_MS;
+	ret = of_property_read_u32(pmic_np, "enable_fd_delay_ms", &val);
+	if (!ret) {
+		pdata->enable_fd_delay_ms = val;
+		dev_info(dev, "enable_fd_delay_ms: %u\n", pdata->enable_fd_delay_ms);
 	}
 #endif
 

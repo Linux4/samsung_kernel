@@ -1494,10 +1494,15 @@
             <back_end_name>DISPLAY_PORT-RX</back_end_name>
             <max_channels>32</max_channels>
             <channels>2</channels>
-            <samplerate>48000</samplerate>
             <bit_width>24</bit_width>
             <snd_device_name>display-port</snd_device_name>
             <fractional_sr>1</fractional_sr>
+            <!--specify the supported bit format on DP end point -->
+            <!--this should be in the form of pal_audio_fmt_id-->
+            <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_3LE</supported_bit_format>-->
+            <!--We support 24 bit for DP as of now, as SPF needs to conform to IEC 60958 packet format -->
+            <!--This can be changed to PAL_AUDIO_FMT_PCM_S32_LE if 32 bit e2e support is required-->
+            <supported_bit_format>PAL_AUDIO_FMT_PCM_S24_3LE</supported_bit_format>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
@@ -1533,9 +1538,14 @@
             <max_channels>32</max_channels>
             <channels>2</channels>
             <fractional_sr>1</fractional_sr>
-            <samplerate>48000</samplerate>
             <bit_width>24</bit_width>
             <snd_device_name>display-port</snd_device_name>
+            <!--specify the supported bit format on DP end point -->
+            <!--this should be in the form of pal_audio_fmt_id-->
+            <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_3LE</supported_bit_format>-->
+            <!--We support 24 bit for DP as of now, as SPF needs to conform to IEC 60958 packet format -->
+            <!--This can be changed to PAL_AUDIO_FMT_PCM_S32_LE if 32 bit e2e support is required-->
+            <supported_bit_format>PAL_AUDIO_FMT_PCM_S24_3LE</supported_bit_format>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>

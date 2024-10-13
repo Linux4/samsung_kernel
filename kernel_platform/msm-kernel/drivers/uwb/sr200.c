@@ -380,7 +380,7 @@ static ssize_t sr200_dev_write(struct file *filp, const char *buf, size_t count,
     SR200_ERR_MSG("sr200_dev->tx_buffer is null %s \n", __func__);
     return ret;
   }
-  if (count > SR200_MAX_TX_BUF_SIZE || count > SR200_TXBUF_SIZE) {
+  if (count >= SR200_TXBUF_SIZE) {
     SR200_ERR_MSG("%s : write size exceeds\n", __func__);
     ret = -ENOBUFS;
     goto write_end;
@@ -441,7 +441,7 @@ static ssize_t sr200_dev_read(struct file *filp, char *buf, size_t count,
   if (!gpio_get_value(sr200_dev->irq_gpio)) {
     if (filp->f_flags & O_NONBLOCK) {
       ret = -EAGAIN;
-      goto read_end;
+      return ret;
     }
   }
   /*FW download packet read*/
@@ -456,7 +456,7 @@ first_irq_wait:
       if (ret != -ERESTARTSYS) {
         SR200_ERR_MSG("read_wq wait_event_interruptible() :%d Failed.\n", ret);
       }
-      goto read_end;
+      return ret;
     }
   }
   if (read_abort_requested) {
@@ -464,6 +464,7 @@ first_irq_wait:
     SR200_ERR_MSG("abort Read pending......\n");
     return ret;
   }
+  mutex_lock(&sr200_dev->sr200_read_count_lock);
   ret = sr200_dev_transceive(sr200_dev, SR200_READ_MODE, count);
   if (ret == spi_transcive_success) {
     sr200_dev->read_count -= DIRECTIONAL_BYTE_LEN;
@@ -473,7 +474,7 @@ first_irq_wait:
       goto read_end;
     }
 
-    if (sr200_dev->read_count - hdr_length > 0) {
+    if (sr200_dev->read_count > hdr_length) {
       sr200_dev->read_count -= DIRECTIONAL_BYTE_LEN;
       if (copy_to_user(&buf[hdr_length], &sr200_dev->rx_buffer[hdr_length+2*DIRECTIONAL_BYTE_LEN], (sr200_dev->read_count-hdr_length))) {
         SR200_ERR_MSG("sr200_dev_read: copy to user failed for payload\n");
@@ -484,6 +485,7 @@ first_irq_wait:
     ret = sr200_dev->read_count;
   } else if (ret == spi_irq_wait_request) {
     SR200_DBG_MSG(" irg is low due to write hence irq is requested again...\n");
+    mutex_unlock(&sr200_dev->sr200_read_count_lock);
     goto first_irq_wait;
   } else if (ret == spi_irq_wait_timeout) {
     SR200_DBG_MSG("second irq is not received..time out...\n");
@@ -496,6 +498,7 @@ first_irq_wait:
   UWB_LOG_REC("r %d\n", ret);
 #endif
 read_end:
+  mutex_unlock(&sr200_dev->sr200_read_count_lock);
   retry_count = 0;
   return ret;
 }
@@ -782,6 +785,8 @@ static int sr200_probe(struct spi_device *spi) {
   /* init mutex and queues */
   init_waitqueue_head(&sr200_dev->read_wq);
   mutex_init(&sr200_dev->sr200_access_lock);
+  mutex_init(&sr200_dev->sr200_read_count_lock);
+
   spin_lock_init(&sr200_dev->irq_enabled_lock);
   ret = misc_register(&sr200_dev->sr200_device);
   if (ret < 0) {
@@ -836,6 +841,7 @@ exit_free_dev:
 err_exit0:
   if (sr200_dev != NULL) {
     mutex_destroy(&sr200_dev->sr200_access_lock);
+    mutex_destroy(&sr200_dev->sr200_read_count_lock);
   }
 err_exit:
   if (sr200_dev != NULL)
@@ -888,6 +894,7 @@ static int sr200_remove(struct spi_device *spi) {
     sr200_regulator_onoff(&spi->dev, sr200_dev, false);
     gpio_free(sr200_dev->reset_gpio);
     mutex_destroy(&sr200_dev->sr200_access_lock);
+    mutex_destroy(&sr200_dev->sr200_read_count_lock);
     free_irq(sr200_dev->spi->irq, sr200_dev);
     gpio_free(sr200_dev->irq_gpio);
     if((int)sr200_dev->ant_connection_status_gpio > 0) {

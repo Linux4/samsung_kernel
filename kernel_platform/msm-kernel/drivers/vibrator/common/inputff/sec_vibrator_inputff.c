@@ -21,7 +21,7 @@
 #include <linux/vibrator/sec_vibrator_inputff.h>
 
 #if defined(CONFIG_SEC_KUNIT)
-#include "kunit_test/sec_vibrator_inputff_test.h"
+#include <kunit/mock.h>
 #else
 #define __visible_for_testing static
 #endif

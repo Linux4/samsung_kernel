@@ -5514,7 +5514,7 @@ static void set_grip_data(void *device_data)
 	if (sec->cmd_param[0] == 0) {	// edge handler
 		if (sec->cmd_param[1] == 0) {	// clear
 			ts->plat_data->grip_data.edgehandler_direction = 0;
-		} else if (sec->cmd_param[1] < 3) {
+		} else if (sec->cmd_param[1] < 5) {
 			ts->plat_data->grip_data.edgehandler_direction = sec->cmd_param[1];
 			ts->plat_data->grip_data.edgehandler_start_y = sec->cmd_param[2];
 			ts->plat_data->grip_data.edgehandler_end_y = sec->cmd_param[3];

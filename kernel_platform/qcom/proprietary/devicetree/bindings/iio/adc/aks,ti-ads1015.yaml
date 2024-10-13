@@ -11,11 +11,13 @@ maintainers:
 
 description: |
   Datasheet at: https://www.ti.com/lit/gpn/ads1015
-  Supports both single ended and differential channels.
+  Supports both single-ended and differential channels.
 
 properties:
   compatible:
-    const: aks,ti-ads1015
+    enum:
+      - aks,ti-ads1015-0
+      - aks,ti-ads1015-1
 
   reg:
     maxItems: 1
@@ -41,7 +43,7 @@ patternProperties:
   "^channel@[0-7]+$":
     type: object
     description:
-      Child nodes needed for each channel that the platform uses.
+      Child nodes are needed for each channel that the platform uses.
 
     properties:
       reg:
@@ -95,7 +97,7 @@ examples:
         #size-cells = <0>;
 
         adc@49 {
-            compatible = "aks,ti-ads1015";
+            compatible = "aks,ti-ads1015-0";
             reg = <0x49>;
             #address-cells = <1>;
             #size-cells = <0>;

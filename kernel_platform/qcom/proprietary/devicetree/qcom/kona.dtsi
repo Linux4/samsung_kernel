@@ -13,6 +13,7 @@
 #include <dt-bindings/interconnect/qcom,kona.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/soc/qcom,dcc_v2.h>
+#include <dt-bindings/clock/qcom,aop-qmp.h>
 
 / {
 	model = "Qualcomm Technologies, Inc. kona";
@@ -24,16 +25,29 @@
 	#size-cells = <2>;
 	memory { device_type = "memory"; reg = <0 0 0 0>; };
 
+	ddr-regions { };
+
 	chosen {
-		bootargs = "console=ttyMSM0,115200n8 loglevel=6 kpti=0 log_buf_len=256K kernel.panic_on_rcu_stall=1 rcupdate.rcu_expedited=1 rcu_nocbs=0-7 ftrace_dump_on_oops fw_devlink.strict=1 cpufreq.default_governor=performance printk.console_no_auto_verbose=1 kasan=off pcie_ports=compat";
+		bootargs = "console=ttyMSM0,115200n8 loglevel=6 kpti=0 log_buf_len=256K kernel.panic_on_rcu_stall=1 rcupdate.rcu_expedited=1 rcu_nocbs=0-7 ftrace_dump_on_oops fw_devlink.strict=1 cpufreq.default_governor=performance printk.console_no_auto_verbose=1 kasan=off pcie_ports=compat qcom_dma_heaps.enable_bitstream_contig_heap=y";
+	};
+
+	mem-offline {
+		compatible = "qcom,mem-offline";
+		offline-sizes = <0x1 0x40000000 0x0 0x40000000>,
+				<0x1 0xc0000000 0x0 0x80000000>,
+				<0x2 0xc0000000 0x1 0x40000000>;
+		granule = <512>;
+		mboxes = <&qmp_aop 0>;
+		ddr-old-version;
 	};
 
 	reserved_memory: reserved-memory { };
 
-	aliases {
+	aliases: aliases {
 		ufshc1 = &ufshc_mem; /* Embedded UFS slot */
 		serial0 = &qupv3_se12_2uart;
 		hsuart0 = &qupv3_se6_4uart;
+		hsuart1 = &qupv3_se13_4uart;
 		pci-domain0 = &pcie0; /* PCIe0 domain */
 		pci-domain1 = &pcie1; /* PCIe1 domain */
 		pci-domain2 = &pcie2; /* PCIe2 domain */
@@ -1650,7 +1664,7 @@
 
 			gold {
 				compatible = "qcom,memlat-mon";
-				qcom,cpulist = <&CPU4 &CPU5 &CPU6>;
+				qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 				qcom,sampling-enabled;
 				qcom,cpufreq-memfreq-tbl =
 					<  300000  200000 >,
@@ -1658,21 +1672,21 @@
 					<  806400  547000 >,
 					< 1017600  768000 >,
 					< 1228800 1017000 >,
-					< 1574400 1353000 >,
 					< 1804800 1555000 >,
 					< 2227200 1804000 >,
-					< 2380800 2094000 >;
+					< 2380800 2092000 >,
+					< 2476800 2736000 >;
 			};
 
 			gold-compute {
 				compatible = "qcom,memlat-mon";
-				qcom,cpulist = <&CPU4 &CPU5 &CPU6>;
+				qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 				qcom,sampling-enabled;
 				qcom,compute-mon;
 				qcom,cpufreq-memfreq-tbl =
 					< 1804800  200000 >,
 					< 2380800 1017000 >,
-					< 2500000 2092000 >;
+					< 2500000 2736000 >;
 			};
 		};
 
@@ -1695,7 +1709,7 @@
 
 			gold {
 				compatible = "qcom,memlat-mon";
-				qcom,cpulist = <&CPU4 &CPU5 &CPU6>;
+				qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 				qcom,sampling-enabled;
 				qcom,cpufreq-memfreq-tbl =
 					<  300000  150000 >,
@@ -1770,7 +1784,7 @@
 
 			ddrqos_gold_lat: gold {
 				compatible = "qcom,memlat-mon";
-				qcom,cpulist = <&CPU4 &CPU5 &CPU6>;
+				qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 				qcom,sampling-enabled;
 				qcom,cpufreq-memfreq-tbl =
 					<  300000 1 >,
@@ -2120,7 +2134,7 @@
 
 		llcc-perfmon {
 			compatible = "qcom,llcc-perfmon";
-			clocks = <&aoss_qmp>;
+			clocks = <&aoss_qmp QDSS_CLK>;
 			clock-names = "qdss_clk";
 		};
 	};

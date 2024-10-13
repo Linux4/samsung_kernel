@@ -1323,7 +1323,7 @@ void stm_set_grip_data_to_ic(struct device *dev, u8 flag)
 			data[1] = (ts->plat_data->grip_data.edgehandler_start_y << 4 & 0xF0)
 					| ((ts->plat_data->grip_data.edgehandler_end_y >> 8) & 0xF);
 			data[2] = ts->plat_data->grip_data.edgehandler_end_y & 0xFF;
-			data[3] = ts->plat_data->grip_data.edgehandler_direction & 0x3;
+			data[3] = ts->plat_data->grip_data.edgehandler_direction & 0xF;
 		}
 		address[1] = STM_TS_FUNCTION_EDGE_HANDLER;
 		ts->stm_ts_write(ts, address, 2, data, 4);

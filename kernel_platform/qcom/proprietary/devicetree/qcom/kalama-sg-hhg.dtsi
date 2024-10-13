@@ -121,7 +121,7 @@
 	status = "ok";
 
 	adcl: adc@48 {
-		compatible = "aks,ti-ads1015";
+		compatible = "aks,ti-ads1015-0";
 		reg = <0x48>;
 		ti,vdd-supply = <&L3N>;
 		regulator-name = "ti,vdd";
@@ -153,10 +153,8 @@
 	status = "ok";
 
 	adcr: adc@48 {
-		compatible = "aks,ti-ads1015";
+		compatible = "aks,ti-ads1015-1";
 		reg = <0x48>;
-		ti,vdd-supply = <&L3N>;
-		regulator-name = "ti,vdd";
 		#address-cells = <1>;
 		#size-cells = <0>;
 		#io-channel-cells = <1>;
@@ -208,7 +206,6 @@
 			linux,input-type = <1>;
 			linux,code = <KEY_FN>;
 			debounce-interval = <15>;
-			linux,can-disable;
 		};
 
 		btn_mode {
@@ -217,7 +214,6 @@
 			linux,input-type = <1>;
 			linux,code = <BTN_MODE>;
 			debounce-interval = <15>;
-			linux,can-disable;
 		};
 
 		btn_l1 {

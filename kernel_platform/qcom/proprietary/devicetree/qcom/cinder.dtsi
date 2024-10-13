@@ -1359,6 +1359,7 @@
 			qcom,pcie-active-config;
 			qcom,pcie-aggregated-irq;
 			qcom,pcie-mhi-a7-irq;
+			qcom,aoss-rst-clr;
 			qcom,phy-status-reg2 = <0x1214>;
 			qcom,mhi-soc-reset-offset = <0xb001b8>;
 			qcom,aux-clk = <0x11>;
@@ -1366,6 +1367,7 @@
 			qcom,tcsr-perst-separation-enable-offset= <0x14>;
 			qcom,tcsr-reset-separation-offset = <0x4>;
 			qcom,tcsr-perst-enable-offset = <0x8>;
+			qcom,pcie-disconnect-req-reg-b = <5>;
 			qcom,perst-raw-rst-status-b = <0>;
 
 			qcom,phy-init = <0x9040 0x01 0x0
