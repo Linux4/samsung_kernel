@@ -1,0 +1,19 @@
+/*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+package vendor.display.config@1.22;
+
+import @1.21::IDisplayConfig;
+import @1.0::IDisplayConfig;
+
+interface IDisplayConfig extends @1.21::IDisplayConfig {
+
+     /* take disp_id and LayerInfo as input and creates layer
+     *
+     * @return error as NONE if layer creation is successful
+     * @return relevant error code otherwise
+     */
+    @callflow(next="*")
+    createTunnelledLayerforDisplay(uint32_t disp_id, LayerInfo layer) generates (int32_t error);
+};

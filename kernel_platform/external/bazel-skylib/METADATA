@@ -1,0 +1,16 @@
+name: "bazel-skylib"
+description:
+    ""
+
+third_party {
+  url {
+    type: HOMEPAGE
+    value: "https://github.com/bazelbuild/bazel-skylib"
+  }
+  url {
+    type: GIT
+    value: "https://github.com/bazelbuild/bazel-skylib.git"
+  }
+  version: "1.2.1"
+  last_upgrade_date { year: 2022 month: 6 day: 21 }
+}

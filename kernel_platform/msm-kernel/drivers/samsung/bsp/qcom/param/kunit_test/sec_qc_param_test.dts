@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+/ {
+	sec_qcom_param: samsung,qcom-param {
+		compatible = "samsung,qcom-param";
+		status = "okay";
+		// sec,bdev_path = "/dev/sda7";
+		sec,bdev_path = "PARTUUID=b9c644b3-1ad5-48e6-a7ce-a300b6da8211";
+		sec,negative_offset = <0x200000>;	/* 2MB */
+	};
+};

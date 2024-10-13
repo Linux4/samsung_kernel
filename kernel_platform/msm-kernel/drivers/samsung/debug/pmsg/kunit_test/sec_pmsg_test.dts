@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/samsung/debug/sec_debug.h>
+
+/ {
+	/* TODO: I'm still finding how to use this 'reserved-memory' node
+	 * during unit testing.
+	 */
+	reserved-memory {
+		#address-cells = <0x02>;
+		#size-cells = <0x02>;
+
+		sec_pmsg_region: sec_pmsg_region@880900000 {
+			compatible = "samsung,carve-out";
+			// no-map;
+			reg = <0x8 0x80900000 0x0 0x00200000>;
+		};
+	};
+
+	sec_pmsg: samsung,pstore_pmsg {
+		compatible = "samsung,pstore_pmsg";
+		status = "okay";
+		sec,debug_level = <SEC_DEBUG_LEVEL_MID>, <SEC_DEBUG_LEVEL_HIGH>;
+		memory-region = <&sec_pmsg_region>;
+	};
+};

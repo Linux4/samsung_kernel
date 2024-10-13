@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+/ {
+	sec_reloc_gpio: samsung,reloc_gpio {
+		compatible = "samsung,reloc_gpio";
+		status = "okay";
+		/* see, '/sys/kernel/debug/pinctrl' */
+		sec,gpio-label = "sec,mock-gpio-0", "sec,mock-gpio-1";
+		sec,reloc-base = <0>, <256>;
+	};
+};

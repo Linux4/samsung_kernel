@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/input/linux-event-codes.h>
+
+#include <dt-bindings/samsung/debug/sec_debug.h>
+#include <dt-bindings/samsung/debug/sec_crashkey.h>
+
+/ {
+	sec_crashkey_test: samsung,crashkey_test {
+		compatible = "samsung,crashkey";
+		status = "okay";
+		// NOTE: This ts only verifies when 'sec,debug_level' is omitted.
+		// sec,debug_level = <SEC_DEBUG_LEVEL_LOW>, <SEC_DEBUG_LEVEL_MID>;
+
+		// NOTE: I don't care about other properties in this node because
+		// they will not be tested in this ts.
+	};
+};

@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+/ {
+	sec_reboot_cmd: samsung,reboot_cmd {
+		compatible = "samsung,reboot_cmd";
+		status = "okay";
+		sec,reboot_notifier-priority = <250>;
+		sec,restart_handler-priority = <220>;
+	};
+};

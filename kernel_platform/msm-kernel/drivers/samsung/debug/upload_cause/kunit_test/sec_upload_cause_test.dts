@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+/ {
+	sec_upload_cause: samsung,upload_cause {
+		compatible = "samsung,upload_cause";
+		status = "okay";
+		sec,panic_notifier-priority = <255>;
+	};
+};

@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+/ {
+	sec_qcom_reboot_cmd: samsung,qcom-reboot_cmd {
+		compatible = "samsung,qcom-reboot_cmd";
+		status = "okay";
+		sec,use-on_reboot;	// counter part of qcom-rboot-reason.c
+		sec,use-on_restart;	// counter part of msm-poweroff.c
+	};
+};

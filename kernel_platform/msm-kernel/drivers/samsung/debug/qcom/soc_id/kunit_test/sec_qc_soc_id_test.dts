@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+/ {
+	sec_qcom_soc_id: samsung,qcom-soc_id {
+		compatible = "samsung,qcom-soc_id";
+		status = "okay";
+
+		sec,use-qfprom_jtag;
+		sec,qfprom_jtag-addr = <0x4646A744>;
+		sec,use-jtag_id;
+		sec,jtag_id-addr = <0x830F8B24>;
+	};
+};

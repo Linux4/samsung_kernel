@@ -1,0 +1,25 @@
+/dts-v1/;
+/plugin/;
+
+#include "kalamap-hdk.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. KalamaP HDK";
+	compatible = "qcom,kalamap-hdk", "qcom,kalamap", "qcom,hdk";
+	qcom,msm-id = <536 0x10000>, <536 0x20000>, <601 0x20000>, <603 0x20000>;
+	qcom,board-id = <0x1001f 0>;
+};
+
+&pcie0 {
+	qcom,config-recovery;
+	qcom,drv-name = "lpass";
+	msi-map = <0x0 &gic_its 0x1400 0x1>,
+		  <0x100 &gic_its 0x1401 0x1>; /* 32 event IDs */
+
+};
+
+&pcie1 {
+	qcom,drv-name = "lpass";
+	msi-map = <0x0 &gic_its 0x1480 0x1>,
+		  <0x100 &gic_its 0x1481 0x1>; /* 32 event IDs */
+};

@@ -1,0 +1,2 @@
+# bengal_sec_userdebug_defconfig
+CONFIG_SEC_FORCE_ERR=y

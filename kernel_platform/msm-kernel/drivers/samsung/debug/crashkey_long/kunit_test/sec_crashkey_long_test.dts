@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/input/linux-event-codes.h>
+
+#include <dt-bindings/samsung/debug/sec_debug.h>
+
+/ {
+	sec_crashkey_long: samsung,crashkey-long {
+		compatible = "samsung,crashkey-long";
+		status = "okay";
+		sec,expire_msec = <100>;
+		sec,panic_msg = "Test Key Press";
+		sec,used_key = <KEY_VOLUMEDOWN KEY_VOLUMEUP>;
+	};
+};

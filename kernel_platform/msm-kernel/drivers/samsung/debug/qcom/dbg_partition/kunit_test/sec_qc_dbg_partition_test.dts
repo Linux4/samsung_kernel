@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+/ {
+	sec_qcom_debug_partition: samsung,qcom-debug_partition {
+		compatible = "samsung,qcom-debug_partition";
+		status = "okay";
+		// sec,bdev_path = "/dev/sda8";
+		sec,bdev_path = "PARTUUID=eb1e1dc7-3487-4854-a04f-097cc0c43c1d";
+		sec,part_table = /* <offset size> */
+			<0x0 0x1000>,		/* debug_index_reset_header */
+			<0x1000 0x1000>,	/* debug_index_reset_ex_info */
+			<0x2000 0x1000>,	/* debug_index_ap_health */
+			<0x3000 0x1000>,	/* debug_index_lcd_debug_info */
+			<0x4000 0xA000>,	/* debug_index_reset_history */
+			<0xE000 0x1000>,	/* debug_index_reserve_0 */
+			<0xF000 0x80000>,	/* debug_index_reserve_1 */
+			<0x8F000 0x1000>,	/* debug_index_onoff_history */
+			<0x90000 0x3000>,	/* debug_index_reset_tzlog */
+			<0x93000 0x1000>,	/* debug_index_reset_extrc_info */
+			<0x94000 0x1000>,	/* debug_index_auto_comment */
+			<0x95000 0x1000>,	/* debug_index_reset_rkplog */
+			<0xFD000 0x3000>,	/* debug_index_modem_info */
+			<0x100000 0x200000>,	/* debug_index_reset_klog */
+			<0x300000 0x200000>,	/* debug_index_reset_lpm_klog */
+			<0x500000 0x300000>;	/* debug_index_reset_summary */
+	};
+};
