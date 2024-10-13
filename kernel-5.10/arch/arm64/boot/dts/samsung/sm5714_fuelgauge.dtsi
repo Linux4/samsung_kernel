@@ -1,0 +1,128 @@
+/*
+ * sm5714 battery device tree common
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	sm5714_fuelgauge: sm5714-fuelgauge {
+		status = "okay";
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <300>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <0x1F>;
+		fuelgauge,using_temp_compensation;
+		fuelgauge,low_temp_limit = <100>;
+		fuelgauge,using_hw_vempty;
+		fuelgauge,sw_v_empty_voltage = <3200>;
+		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
+		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+		fuelgauge,capacity = <4000>;
+#if 0
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(${bat_id_single_gpio}) 0  /* BAT_ID_1 */
+				>;
+#elif 1
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(AP,pio,106) 0  /* BAT_ID_2 */
+				SEC_GPIO_REF(AP,pio,27) 0  /* BAT_ID_1 */
+				>;
+#endif
+
+	};
+};
+
+
+&smd {
+	battery {
+		battery,fgsrc_switch_name = "sm5714-fuelgauge";
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.a24.dtsi */
+/*
+ * A24 battery device tree common
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&sm5714_fuelgauge {
+	battery_params {
+		battery,id = <1>; /* default ID */
+		/*
+		 * BAT_ID_1/BAT_ID_2
+		 * 01: SDI, 00: BYD
+		 * 11: TBD, 10: TBD
+		 */
+
+		/* 01 : SDI battery data */
+		battery1,battery_type = <4450 0x25BF>; /* batt_v_max, cap */
+		battery1,battery_table0 = <
+			0x1400 0x19B1 0x1B73 0x1C32 0x1CB3 0x1D15 0x1D5D 0x1D75
+			0x1D84 0x1D8E 0x1DB5 0x1DED 0x1E47 0x1E78 0x1EB9 0x1EF3
+			0x1F43 0x1FC8 0x2027 0x2091 0x2140 0x21FC 0x233D 0x2400
+			>;
+		battery1,battery_table1 = <
+			0x0000 0x0066 0x00E6 0x0200 0x0300 0x0400 0x0519 0x0619
+			0x0899 0x0BB3 0x0E4C 0x1366 0x1DB3 0x2566 0x2D19 0x3233
+			0x374C 0x3C80 0x4199 0x46B3 0x4E66 0x5619 0x6400 0x64E6
+			>;
+		battery1,battery_table2 = <
+			0x5076 0x3B42 0x3236 0x292D 0x2426 0x2223 0x2021 0x1F1F
+			0x5076 0x3B42 0x3236 0x292D 0x2426 0x2223 0x2021 0x1F1F
+			>;
+		/*spare min max factor chg_factor dischg_factor manvalue*/
+		battery1,rs_value = <0x0048 0x0048 0x3800 0x010A 0x0599 0x0599 0x0050>;
+		battery1,v_alarm = <3100 200>;
+		battery1,topoff = <500>;
+		battery1,i_cal = <1 0x0 0x0800 0x0800 0 0x0 0x07C2 0x0800>;
+		battery1,v_cal = <1 0 0 1 0 0 0>;
+		battery1,temp_std = <25>;
+		battery1,tem_poff = <3400 50 3250 50>;
+		battery1,aux_ctrl = <0x322 0x5800>;
+		battery1,data_ver = <3>;
+		battery1,v_max_table = <0x233D 0x2314 0x22EB 0x22C2 0x2272>;
+		battery1,q_max_table = <0x25BF 0x2593 0x2567 0x253B 0x220E>;
+
+		/* 00 : BYD battery data */
+		battery0,battery_type = <4450 0x2558>; /* batt_v_max, cap */
+		battery0,battery_table0 = <
+			0x1400 0x1ADD 0x1B64 0x1C1C 0x1C9E 0x1D06 0x1D56 0x1D78
+			0x1D83 0x1D8F 0x1DE4 0x1E27 0x1E59 0x1E8E 0x1ED7 0x1F16
+			0x1F6D 0x1FC3 0x2062 0x20D2 0x218A 0x220B 0x2343 0x2400
+			>;
+		battery0,battery_table1 = <
+			0x0000 0x0080 0x0119 0x0219 0x0319 0x0433 0x0533 0x0633
+			0x07CC 0x0BE6 0x12B3 0x1A80 0x1F99 0x2766 0x2F33 0x344C
+			0x3980 0x3C19 0x43E6 0x4919 0x50CC 0x5600 0x6400 0x64E6
+			>;
+		battery0,battery_table2 = <
+			0x4456 0x373C 0x3033 0x282B 0x2526 0x2324 0x2122 0x2121
+			0x4456 0x373C 0x3033 0x282B 0x2526 0x2324 0x2122 0x2121
+			>;
+		/*spare min max factor chg_factor dischg_factor manvalue*/
+		battery0,rs_value = <0x0048 0x0048 0x3800 0x10A 0x599 0x599 0x0050>;
+		battery0,v_alarm = <3100 200>;
+		battery0,topoff = <500>;
+		battery0,i_cal = <1 0x0 0x0800 0x0800 0 0x0 0x0800 0x0800>;
+		battery0,v_cal = <1 0 0 1 0 0 0>;
+		battery0,temp_std = <25>;
+		battery0,tem_poff = <3400 50 3250 50>;
+		battery0,aux_ctrl = <0x322 0x5800>;
+		battery0,data_ver = <2>;
+		battery0,v_max_table = <0x2343 0x231A 0x22F1 0x22C8 0x226A>;
+		battery0,q_max_table = <0x2558 0x252D 0x2501 0x24D6 0x2156>;
+
+	};
+};

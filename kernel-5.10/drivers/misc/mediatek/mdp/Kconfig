@@ -1,0 +1,69 @@
+config MTK_MDP
+	tristate "enable MDP driver extension"
+	help
+	  This extension enable debug feature, such as mdp-status,
+	  cmdq-record, pre-dump, timeout error dump, first error buffer
+	  and aee db. Enable performance tools which add instruction
+	  inside packet and profiling.
+
+config MTK_MDP_MT6873
+	tristate "enable MDP MT6783 driver extension"
+	help
+	  This extension enable debug feature, such as mdp-status,
+	  cmdq-record, pre-dump, timeout error dump, first error buffer
+	  and aee db. Enable performance tools which add instruction
+	  inside packet and profiling.
+
+config MTK_MDP_MT6853
+	tristate "enable MDP MT6853 driver extension"
+	help
+	  This extension enable debug feature, such as mdp-status,
+	  cmdq-record, pre-dump, timeout error dump, first error buffer
+	  and aee db. Enable performance tools which add instruction
+	  inside packet and profiling.
+
+config MTK_MDP_MT6893
+	tristate "enable MDP MT6893 driver extension"
+	help
+	  This extension enable debug feature, such as mdp-status,
+	  cmdq-record, pre-dump, timeout error dump, first error buffer
+	  and aee db. Enable performance tools which add instruction
+	  inside packet and profiling.
+
+config MTK_MDP_MT6983
+        tristate "enable MDP MT6983 driver extension"
+        help
+          This extension enable debug feature, such as mdp-status,
+          cmdq-record, pre-dump, timeout error dump, first error buffer
+          and aee db. Enable performance tools which add instruction
+          inside packet and profiling.
+
+config MTK_MDP_MT6833
+	tristate "enable MDP MT6833 driver extension"
+	help
+	  This extension enable debug feature, such as mdp-status,
+	  cmdq-record, pre-dump, timeout error dump, first error buffer
+	  and aee db. Enable performance tools which add instruction
+	  inside packet and profiling.
+
+config MTK_MDP_MTEE_SUPPORT
+	tristate "enable MDP secure path for MTEE"
+	help
+	  This extension enable secure path in MTEE OS.
+	  In secure camera. secure video playback scenario, mdp need
+	  use send cmdq control request to config mdp secure register
+	  in secure world.
+
+config MTK_MDP_MT6789
+	tristate "enable MDP MT6789 driver extension"
+	help
+	  This extension enable debug feature, such as mdp-status,
+	  cmdq-record, pre-dump, timeout error dump, first error buffer
+	  and aee db. Enable performance tools which add instruction
+	  inside packet and profiling.
+
+config MTK_MDP_DEBUG
+	bool "MDP Debug Support for Mediatek SoCs"
+	help
+	  Choose this option if you have a Mediatek SoCs.
+	  This driver provides mdp driver debug feature.

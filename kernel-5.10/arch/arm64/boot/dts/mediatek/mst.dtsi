@@ -1,0 +1,88 @@
+/* Copyright (c) 2020, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#if !(0)
+&pio {
+	mst_pwr_en: sec-mst,mst-pwr-gpio {
+		GPIO_CONFIG_PUD(AP,pio,4, FUNC_OUTPUT_LOW, PULL_DOWN);
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
+		samsung,pin-con-pdn = <0>;
+		samsung,pin-pud-pdn = <1>;
+#endif
+	};
+};
+#endif
+
+#if 0
+&pio {
+	mst_en: sec-mst,mst-en-gpio {
+		GPIO_CONFIG_PUD(AP,pio,37, FUNC_OUTPUT_LOW, PULL_DOWN);
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
+		samsung,pin-con-pdn = <0>;
+		samsung,pin-pud-pdn = <1>;
+#endif
+	};
+};
+
+&pio {
+	mst_data: sec-mst,mst-data-gpio {
+		GPIO_CONFIG_PUD(AP,pio,36, FUNC_OUTPUT_LOW, PULL_DOWN);
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
+		samsung,pin-con-pdn = <0>;
+		samsung,pin-pud-pdn = <1>;
+#endif
+	};
+};
+#endif
+
+#if 0
+&${mst_support_parent} {
+	mst_support_gpio: sec-mst,mst-support-gpio {
+		GPIO_CONFIG_PUD(${mst_support}, FUNC_INPUT, PULL_NONE);
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
+		samsung,pin-con-pdn = <2>;
+		samsung,pin-pud-pdn = <0>;
+#endif
+	};
+};
+#endif
+
+&smd {
+	sec_mst: sec-mst{
+		compatible = "sec-mst";
+#if !(0)
+		sec-mst,mst-pwr-gpio = <SEC_GPIO_REF(AP,pio,4) 0>;
+#endif
+#if 0
+		sec-mst,mst-en-gpio = <SEC_GPIO_REF(AP,pio,37) 0>;
+		sec-mst,mst-data-gpio = <SEC_GPIO_REF(AP,pio,36) 0>;
+#endif
+#if 0
+		sec-mst,mst-support-gpio = <SEC_GPIO_REF(${mst_support}) 0>;
+#endif
+
+		pinctrl-names = "default";
+#if !(0) || 0 || 0
+		pinctrl-0 = <
+#if !(0)
+				&mst_pwr_en 
+#endif
+#if 0
+				&mst_en &mst_data
+#endif
+#if 0
+				&mst_support_gpio
+#endif
+				>;
+#endif
+	};
+};

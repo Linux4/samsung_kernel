@@ -1,0 +1,16 @@
+b/159148705 . All of our supported users have Linux 3.9+ at this point, so
+SO_REUSEPORT should be made available to anyone who wants to use it.
+
+diff --git a/sysroot/usr/include/asm-generic/socket.h b/sysroot/usr/include/asm-generic/socket.h
+index 2d32d07..316f06c 100644
+--- a/sysroot/usr/include/asm-generic/socket.h
++++ b/sysroot/usr/include/asm-generic/socket.h
+@@ -22,7 +22,7 @@
+ #define SO_PRIORITY	12
+ #define SO_LINGER	13
+ #define SO_BSDCOMPAT	14
+-/* To add :#define SO_REUSEPORT 15 */
++#define SO_REUSEPORT	15
+ 
+ #ifndef SO_PASSCRED /* powerpc only differs in these */
+ #define SO_PASSCRED	16

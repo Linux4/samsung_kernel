@@ -1,0 +1,6 @@
+#include <dt-bindings/clock/mt6789-clk.h>
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6789/ap_mtk_mt6789.a24_eur.06.dtsi */
+#include "../../mediatek/k6789v1_64_titan_sumatran_tiger/Board_00.dts"
+#include "../../mediatek/k6789v1_64_titan_sumatran_tiger/gpio06.dtsi"

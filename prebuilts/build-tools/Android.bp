@@ -1,0 +1,172 @@
+package {
+    default_applicable_licenses: ["prebuilts_build-tools_license"],
+}
+
+// Added automatically by a large-scale-change that took the approach of
+// 'apply every license found to every target'. While this makes sure we respect
+// every license restriction, it may not be entirely correct.
+//
+// e.g. GPL in an MIT project might only apply to the contrib/ directory.
+//
+// Please consider splitting the single license below into multiple licenses,
+// taking care not to lose any license_kind information, and overriding the
+// default license using the 'licenses: [...]' property on targets as needed.
+//
+// For unused files, consider creating a 'fileGroup' with "//visibility:private"
+// to attach the license to, and including a comment whether the files may be
+// used in the current project.
+// See: http://go/android-license-faq
+license {
+    name: "prebuilts_build-tools_license",
+    visibility: [":__subpackages__"],
+    license_kinds: [
+        "SPDX-license-identifier-0BSD",
+        "SPDX-license-identifier-Apache-2.0",
+        "SPDX-license-identifier-BSD",
+        "SPDX-license-identifier-GPL",
+        "SPDX-license-identifier-GPL-3.0",
+        "SPDX-license-identifier-MIT",
+        "SPDX-license-identifier-PSF-2.0",
+        "SPDX-license-identifier-Zlib",
+        "legacy_unencumbered",
+    ],
+    // large-scale-change unable to identify any license_text files
+}
+
+cc_library_headers {
+    name: "FlexLexer",
+    host_supported: true,
+    vendor_available: true,
+    // TODO(b/153609531): remove when no longer needed.
+    native_bridge_supported: true,
+    export_include_dirs: ["common/flex"],
+    notice: "common/flex/NOTICE",
+}
+
+prebuilt_build_tool {
+    name: "bison",
+    deps: ["common/bison/**/*"],
+    export_to_make_var: "BISON",
+    enabled: false,
+    arch: {
+        x86_64: {
+            enabled: true,
+        },
+    },
+    target: {
+        darwin: {
+            src: "darwin-x86/bin/bison",
+            deps: ["darwin-x86/lib64/libc++.dylib"],
+        },
+        linux: {
+            src: "linux-x86/bin/bison",
+            deps: ["linux-x86/lib64/libc++.so"],
+        },
+    },
+}
+
+prebuilt_build_tool {
+    name: "flex",
+    export_to_make_var: "LEX",
+    enabled: false,
+    arch: {
+        x86_64: {
+            enabled: true,
+        },
+    },
+    target: {
+        darwin: {
+            src: "darwin-x86/bin/flex",
+        },
+        linux: {
+            src: "linux-x86/bin/flex",
+        },
+    },
+}
+
+prebuilt_build_tool {
+    name: "m4",
+    export_to_make_var: "M4",
+    enabled: false,
+    arch: {
+        x86_64: {
+            enabled: true,
+        },
+    },
+    target: {
+        darwin: {
+            src: "darwin-x86/bin/m4",
+        },
+        linux: {
+            src: "linux-x86/bin/m4",
+        },
+    },
+}
+
+///
+// cpython3 host prebuilts
+///
+soong_config_module_type {
+    name: "cpython3_cc_prebuilt_binary",
+    module_type: "cc_prebuilt_binary",
+    config_namespace: "cpython3",
+    bool_variables: ["force_build_host"],
+    properties: ["prefer"],
+}
+
+cpython3_cc_prebuilt_binary {
+    name: "py3-launcher",
+    host_supported: true,
+    device_supported: false,
+    compile_multilib: "64",
+    stl: "none",
+    notice: "common/py3-stdlib/NOTICE",
+    target: {
+        linux_glibc_x86_64: {
+            srcs: ["linux-x86/bin/py3-launcher64"]
+        },
+        darwin_x86_64: {
+            srcs: ["darwin-x86/bin/py3-launcher64"],
+        },
+    },
+
+    // Use the prebuilts for most branches
+    prefer: true,
+    soong_config_variables: {
+        force_build_host: {
+            prefer: false,
+        },
+    },
+}
+
+cpython3_cc_prebuilt_binary {
+    name: "py3-launcher-autorun",
+    host_supported: true,
+    device_supported: false,
+    compile_multilib: "64",
+    stl: "none",
+    notice: "common/py3-stdlib/NOTICE",
+    target: {
+        linux_glibc_x86_64: {
+            srcs: ["linux-x86/bin/py3-launcher-autorun64"]
+        },
+        darwin_x86_64: {
+            srcs: ["darwin-x86/bin/py3-launcher-autorun64"],
+        },
+    },
+
+    // Use the prebuilts for most branches
+    prefer: true,
+    soong_config_variables: {
+        force_build_host: {
+            prefer: false,
+        },
+    },
+}
+
+filegroup {
+    name: "py3-stdlib-prebuilt-srcs",
+    visibility: ["//external/python/cpython3/Lib"],
+    srcs: ["common/py3-stdlib/**/*.py"],
+    path: "common/py3-stdlib",
+}

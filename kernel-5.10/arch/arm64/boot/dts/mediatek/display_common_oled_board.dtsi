@@ -1,0 +1,274 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#if 1
+#define ERR_FG_Disable
+#endif
+
+#if defined(ERR_FG_1)
+#define ERR_FG_TRUE
+#endif
+
+&pio {
+	disp_rst_default: disp-rst-default {
+		samsung,pins = SEC_GPIO(AP,pio,85);
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+
+#if 1
+&pio {
+	disp_det_default: disp_det_default {
+		GPIO_CONFIG_PUD(AP,pio,6, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_TRUE)
+&${err_fg_parent} {
+	err_fg_default: err_fg_default {
+		GPIO_CONFIG_PUD(${err_fg_gpio}, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if defined(ERR_FG_Falling_edge)
+&${err_fg_parent} {
+	err_fg_default: err_fg_default {
+		GPIO_CONFIG_PUD(${err_fg_gpio}, FUNC_INPUT, PULL_UP);
+	};
+};
+#endif
+
+#if 1
+&pio {
+	conn_det_default: conn_det_default {
+		samsung,pins = SEC_GPIO(AP,pio,35);
+		samsung,pin-funciton = <0>;			// IN
+		samsung,pin-pud = <0>;				// NP
+		samsung,pin-con-pdn = <2>;			// IN
+		samsung,pin-pud-pdn = <0>;			// NP in sleep
+	};
+};
+#endif
+#if 0
+&${disp_te_parent} {
+	disp_te_default: disp_te_default {
+		samsung,pins = SEC_GPIO(${disp_te_gpio});
+		samsung,pin-funciton = <0xf>;			// INT
+		samsung,pin-pud = <1>;					// PD
+		samsung,pin-con-pdn = <3>;				// PREV in sleep
+		samsung,pin-pud-pdn = <0>;				// NP in sleep
+	};
+};
+#endif
+#if 1
+&pio {
+	pcd_default: pcd_default {
+		GPIO_CONFIG_PUD(AP,pio,14, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if 0
+&${avdd_en_parent} {
+	avdd_en_default: avdd_en_default {
+		samsung,pins = SEC_GPIO(${avdd_en_gpio});
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+#endif
+
+#if 0
+&${poc_spi_parent} {
+	poc_spi_sleep_state_np: poc_spi_sleep_state_np {
+		samsung,pins = SEC_GPIO(${poc_spi_cs}), SEC_GPIO(${poc_spi_clk});
+		samsung,pin-functions = <0>;	// GPIO
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <2>;	// INPUT in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+	poc_spi_sleep_state_pd: poc_spi_sleep_state_pd {
+		samsung,pins = SEC_GPIO(${poc_spi_mosi}), SEC_GPIO(${poc_spi_miso});
+		samsung,pin-functions = <0>;	// GPIO
+		samsung,pin-pud = <1>;		// PD
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <2>;	// INPUT in sleep
+		samsung,pin-pud-pdn = <1>;	// PD in sleep
+	};
+};
+#endif
+
+#if 0
+&${lcd_vendor_check_parent} {
+	lcd_vendor_check_default: lcd_vendor_check_default {
+		GPIO_CONFIG_PUD(${lcd_vendor_check_gpio}, FUNC_INPUT, PULL_NONE);
+	};
+};
+#endif
+
+#if 1
+&fixed_regulator1 {
+	regulator-boot-on;
+};
+#endif
+
+#if 1
+&fixed_regulator2 {
+	regulator-boot-on;
+};
+#endif
+
+#if 0
+&${ddr_vddr_reg} {
+	regulator-boot-on;
+};
+#endif
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_drv_0: panel_drv_0 {
+				pinctrl-names = "default";
+				pinctrl-0 = <
+							&disp_rst_default
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_Falling_edge) || defined(ERR_FG_TRUE)
+							&err_fg_default
+#endif
+#if 1
+							&disp_det_default
+#endif
+#if 1
+							&conn_det_default
+#endif
+#if 0
+							&disp_te_default
+#endif
+#if 0
+							&avdd_en_default
+#endif
+#if 0
+							&poc_spi_sleep_state_np
+							&poc_spi_sleep_state_pd
+#endif
+#if 0
+							&lcd_vendor_check_default
+#endif
+				>;
+
+				gpios {
+					disp_reset: disp-reset {
+						gpios = <SEC_GPIO_REF(AP,pio,85) 1>;	/* ACTIVE_LOW */
+						dir = <0>;  /* OUT */
+						irq-type = <0x0>;   /* NONE */
+					};
+#if 1
+					disp_det: disp-det {
+						gpios = <SEC_GPIO_REF(AP,pio,6) 1>;  /* 0:OK, 1:NOK(active) */
+						dir = <1>;  /* IN */
+						irq-type = <0x2>;   /* FALLING EDGE */
+						irq-pend {
+							reg = <0x0 0x15850A34 0x0>;
+							bit = <0x2>;
+						};
+					};
+#endif
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_TRUE)
+					err_fg: err-fg {
+						gpios = <SEC_GPIO_REF(${err_fg_gpio}) 0>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <0x00002001>;	/* RISING EDGE | ONE_SHOT */
+					};
+
+#endif
+#if defined(ERR_FG_Falling_edge)
+					err_fg: err-fg {
+						gpios = <SEC_GPIO_REF(${err_fg_gpio}) 0>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <2>;	/* Falling EDGE | ONE_SHOT */
+					};
+#endif
+#if 1
+					conn_det: conn-det {
+						gpios = <SEC_GPIO_REF(AP,pio,35) 0>;
+						dir = <1>;
+						irq-type = <0x00002001>;	//RISING EDGE | ONE_SHOT
+					};
+#endif
+#if 1
+					pcd: pcd {
+						gpios = <SEC_GPIO_REF(AP,pio,14) 1>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <0x2>;   /* FALLING EDGE */
+					};
+#endif
+#if 0
+					disp_te: disp-te {
+						gpios = <SEC_GPIO_REF(${disp_te_gpio}) 0>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <0x0>;   /* NONE */
+					};
+#endif
+#if 0
+					avdd_en: avdd-en {
+						gpios = <SEC_GPIO_REF(${avdd_en_gpio}) 0>;
+						dir = <0>;
+						irq-type = <0x0>;   /* NONE */
+					};
+#endif
+				};
+
+				regulators {
+#if 1
+					ddi_vci: ddi-vci {
+						regulator = <&fixed_regulator1>;
+						type = <REGULATOR_TYPE_PWR>;
+						def-voltage = <3000000>;
+					};
+#endif
+#if 1
+					ddi_vdd3: ddi-vdd3 {
+						regulator = <&fixed_regulator2>;
+						type = <REGULATOR_TYPE_PWR>;
+						def-voltage = <1800000>;
+					};
+#endif
+#if 0
+					ddr_vddr: ddr-vddr {
+						regulator = <&${ddr_vddr_reg}>;
+						type = <REGULATOR_TYPE_PWR>;
+						def-voltage = <1600000>;
+					};
+#endif
+#if 0
+					fd_elvdd: fd-elvdd {
+						regulator = <&${fd_elvdd_reg}>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+#if 0
+					ssd_elvss: ssd-elvss {
+						regulator = <&${ssd_elvss_reg}>;
+						type = <REGULATOR_TYPE_SSD>;
+					};
+#endif
+				};
+			};
+		};
+	};
+};

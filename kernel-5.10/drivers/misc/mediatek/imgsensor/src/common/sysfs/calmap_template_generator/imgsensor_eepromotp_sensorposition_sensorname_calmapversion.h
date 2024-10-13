@@ -1,0 +1,9 @@
+#ifndef IMGSENSOR_EEPROMOTP_SENSORPOSITION_SENSORNAME_CALMAPVERSION_H
+#define IMGSENSOR_EEPROMOTP_SENSORPOSITION_SENSORNAME_CALMAPVERSION_H
+
+#include "imgsensor_vendor_specific.h"
+
+extern const struct imgsensor_vendor_rom_addr sensorposition_sensorname_cal_addr;
+
+#endif //IMGSENSOR_EEPROMOTP_SENSORPOSITION_SENSORNAME_CALMAPVERSION_H
+

@@ -1,0 +1,35 @@
+This patch is one of the motivating reasons for upgrading glibc from 2.15.
+
+Unfortunately, we couldn't upgrade to 2.19(*) due to some users having 2.17.
+
+* - which no longer needs the patch, since the #ifdefs around __gnu_inline__ are
+    worded so that compilers that don't have __GNUC_PREREQ(4, 3) can still get
+    the reasonable definition for __gnu_inline__
+
+-----
+diff --git a/amd64/usr/include/x86_64-linux-gnu/sys/cdefs.h b/amd64/usr/include/x86_64-linux-gnu/sys/cdefs.h
+index fb6c959..bd9ee92 100644
+--- a/usr/include/x86_64-linux-gnu/sys/cdefs.h
++++ b/usr/include/x86_64-linux-gnu/sys/cdefs.h
+@@ -320,7 +320,7 @@
+ 
+ /* GCC 4.3 and above with -std=c99 or -std=gnu99 implements ISO C99
+    inline semantics, unless -fgnu89-inline is used.  */
+-#if (!defined __cplusplus || __GNUC_PREREQ (4,3)) && defined __GNUC__
++#if (!defined __cplusplus || __GNUC_PREREQ (4,3) || defined __clang__) && defined __GNUC__
+ # if defined __GNUC_STDC_INLINE__ || defined __cplusplus
+ #  define __extern_inline extern __inline __attribute__ ((__gnu_inline__))
+ #  define __extern_always_inline \
+diff --git a/i386/usr/include/i386-linux-gnu/sys/cdefs.h b/i386/usr/include/i386-linux-gnu/sys/cdefs.h
+index fb6c959..bd9ee92 100644
+--- a/usr/include/i386-linux-gnu/sys/cdefs.h
++++ b/usr/include/i386-linux-gnu/sys/cdefs.h
+@@ -320,7 +320,7 @@
+ 
+ /* GCC 4.3 and above with -std=c99 or -std=gnu99 implements ISO C99
+    inline semantics, unless -fgnu89-inline is used.  */
+-#if (!defined __cplusplus || __GNUC_PREREQ (4,3)) && defined __GNUC__
++#if (!defined __cplusplus || __GNUC_PREREQ (4,3) || defined __clang__) && defined __GNUC__
+ # if defined __GNUC_STDC_INLINE__ || defined __cplusplus
+ #  define __extern_inline extern __inline __attribute__ ((__gnu_inline__))
+ #  define __extern_always_inline \
