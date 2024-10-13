@@ -1,0 +1,29 @@
+#
+# block tag trace
+#
+
+comment "Storage Block Tag"
+
+config MTK_BLOCK_IO_TRACER
+	tristate "Storage Block IO Tracer"
+	depends on BLOCK
+	help
+	  Enable block tagging at block driver, tag requester pid to
+	  the accessing pages. This allows MMC/UFS Block IO log to obtian
+	  IO statistics of each process. The Block Tag also provides
+	  utility functions to MMC/UFS Block IO log, such as throughput
+	  calculation, log printing, and ring trace handling.
+
+config MTK_FSCMD_TRACER
+	tristate "filesystem Syscall Tracer"
+	help
+	  If enable, record the syscall start and end timestamp.
+
+config MTK_BLOCK_IO_PM_DEBUG
+	bool "Enable Blocktag BLK PM Tracer"
+	depends on BLK_PM
+	help
+	  If it is enabled, there are some pm-related trace
+	  events will be created in block layer.
+	  Our blocktag module will registered these event and
+	  records the pm information.

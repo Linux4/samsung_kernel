@@ -1,0 +1,10 @@
+config FUELGAUGE_MTK
+	tristate "MTK fuel gauge battery driver"
+	default n
+	help
+	 Say Y to include support
+	 for MTK in-PMIC fuelgauge driver
+	 Ths is an empty driver file and only
+	 acts as a connector to mtk_fg_battery
+	 which has all the in-PMIC FG functionalities.
+

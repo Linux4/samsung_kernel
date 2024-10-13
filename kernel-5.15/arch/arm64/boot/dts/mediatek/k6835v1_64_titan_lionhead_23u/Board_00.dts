@@ -1,0 +1,307 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2022 MediaTek Inc.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/phy/phy.h>
+#include <dt-bindings/pinctrl/mt6835-pinfunc.h>
+#include "mediatek/mt6835_6377_no_mtk_battery.dtsi"
+//#include "mediatek/cust_mt6835_camera.dtsi"
+
+
+&mtk_leds {
+	compatible = "mediatek,i2c-leds";
+
+	backlight {
+		led_mode = <6>;
+		gate_enable = <1>;
+		pwm_config = <0 1 0 0 0>;
+	};
+};
+
+&pio {
+	mtkfb_pins_lcm_rst_out1_gpio: lcm_rst_out1_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO86__FUNC_GPIO86>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcm_rst_out0_gpio: lcm_rst_out0_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO86__FUNC_GPIO86>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcm_dsi_te: lcm_dsi_te {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO85__FUNC_DSI_TE>;
+		};
+	};
+};
+
+&mtkfb {
+	pinctrl-names = "lcm_rst_out1_gpio", "lcm_rst_out0_gpio";
+	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
+	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
+	status = "okay";
+};
+
+&dispsys_config {
+	pinctrl-names =
+		"lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
+		"mode_te_te";
+	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
+	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
+	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
+	status = "okay";
+};
+
+&mt6377_vio28 {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&mt6377_vtp {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&dsi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	panel1@0 {
+		compatible = "nt36672c,ktz8864,vdo";
+		reg = <0>;
+		reset-gpios = <&pio 86 0>;
+		bias-gpios = <&pio 104 0>,
+			<&pio 105 0>;
+		pinctrl-names = "default";
+		port {
+			panel_in1: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+	ports {
+		port {
+			dsi_out: endpoint {
+				remote-endpoint = <&panel_in1>;
+			};
+		};
+	};
+};
+
+/* usb typec mux start */
+&pio {
+	sel_up: sel_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO54__FUNC_GPIO54>;
+			output-high;
+		};
+	};
+
+	sel_down: sel_low  {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO54__FUNC_GPIO54>;
+			output-low;
+		};
+	};
+
+	sw_enable: sw_enable {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO30__FUNC_GPIO30>;
+			output-high;
+		};
+	};
+
+	sw_disable: sw_disable {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO30__FUNC_GPIO30>;
+			output-high;
+		};
+	};
+
+	ps_enable: ps_enable {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO141__FUNC_GPIO141>;
+			output-low;
+		};
+	};
+
+	ps_disable: ps_disable {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO141__FUNC_GPIO141>;
+			output-low;
+		};
+	};
+};
+
+&ps5169 {
+	pinctrl-names = "enable", "disable";
+	pinctrl-0 = <&ps_enable>;
+	pinctrl-1 = <&ps_disable>;
+	status = "okay";
+};
+
+&fusb304 {
+	pinctrl-names = "sel_up", "sel_down",
+		"enable", "disable";
+	pinctrl-0 = <&sel_up>;
+	pinctrl-1 = <&sel_down>;
+	pinctrl-2 = <&sw_enable>;
+	pinctrl-3 = <&sw_disable>;
+	status = "disabled";
+};
+
+&mt6375_typec {
+	tcpc,en-wd;
+	port {
+		tcpc_typec_usb: endpoint@0 {
+			remote-endpoint = <&ssusb_mux>;
+		};
+	};
+};
+
+&typec_mux_switch {
+	orientation-switch;
+	mode-switch;
+	accessory;
+	port {
+		ssusb_mux: endpoint@0 {
+			remote-endpoint = <&tcpc_typec_usb>;
+		};
+	};
+};
+/* usb typec mux end*/
+
+/* GPS GPIO standardization start */
+&pio {
+	gps_pins_default: gps_default {
+	};
+	gps_l1_lna_pins_ol: gps_l1_lna@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO36__FUNC_GPIO36>;
+			output-low;
+		};
+	};
+	gps_l1_lna_pins_dsp_ctrl: gps_l1_lna@1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO36__FUNC_GPS_L1_ELNA_EN>;
+		};
+	};
+	gps_l1_lna_pins_oh: gps_l1_lna@2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO36__FUNC_GPIO36>;
+			output-high;
+		};
+	};
+};
+
+&gps {
+	pinctrl-names = "default",
+		"gps_l1_lna_disable",
+		"gps_l1_lna_dsp_ctrl",
+		"gps_l1_lna_enable";
+	pinctrl-0 = <&gps_pins_default>;
+	pinctrl-1 = <&gps_l1_lna_pins_ol>;
+	pinctrl-2 = <&gps_l1_lna_pins_dsp_ctrl>;
+	pinctrl-3 = <&gps_l1_lna_pins_oh>;
+	status = "okay";
+};
+/* GPS GPIO standardization end */
+
+//#include "mediatek/cust_mt6835_camera_6377_v4l2.dtsi"
+//#include "mediatek/k6835v1_64_titan_lionhead_23u/cust_nt36672c_csot_x7-touch-spi.dtsi"
+
+&pdc {
+	pd_vbus_upper_bound = <12000000>;
+};
+
+&mt6375 {
+	interrupts = <10 IRQ_TYPE_LEVEL_LOW>;
+};
+
+&charger{
+	enable-vbat-mon = <0>;
+};
+
+&i2c6 {
+	spk: speaker_amp@5c {
+		compatible = "richtek,rt5512";
+		#sound-dai-cells = <0>;
+		reg = <0x5c>;
+		status = "okay";
+		sound-name-prefix = "Left";
+	};
+};
+
+&sound {
+	mediatek,spk-i2s = <3 0>;
+	mediatek,speaker-codec {
+		sound-dai = <&spk>;
+	};
+};
+
+&accdet {
+	headset-mode-setting = <0x500 0x500 1 0x1f0
+				0x2000 0x800 0x2000 0x44
+				0x0 0x7
+				0xe 0x9 0x9 0xd 0xe>;
+	no-use-comparator = <1>;
+	/*min_3pole--max_3pole--min_4pole--max_4pole--vol_bias*/
+	headset-vol-threshold = <0 590 591 2000 2600>;
+	headset-key-mode = <1>;
+	/*0--MD_MAX--UP_MAX--DW_MAX*/
+	headset-three-key-threshold = <0 163 278 501>;
+	/*0--MD_MAX--VOICE_MAX--UP_MAX--DW_MAX*/
+	headset-four-key-threshold = <0 163 196 278 501>;
+
+	/* moisture HW mode config start. Enable moisture detection or not */
+	/* default use HW mode for moisture detection */
+	moisture-detect-enable = <1>;
+	/* enable eint detection mode, if moisture detection enable */
+	/* eint_detect_mode = moisture_detect_mode;otherwise, select */
+	/* eint_detect_mode = 4 as DEFAULT */
+	eint-detect-mode = <6>;
+	/* enable moisture detection mode, if moisture detection enable */
+	/* eint_detect_mode = moisture_detect_mode */
+	moisture-detect-mode = <6>;
+	/* select 0: 2.8V; 1: 2.4V; 2: 2V; 3: VTH=MVTH(VTH2) */
+	moisture-comp-vth = <1>;
+	/* vref2 voltage for different water impedance */
+	moisture-comp-vref2 = <0>;
+	/* moisture HW mode config end */
+	/* moisture SW mode config start, use external resister or not. */
+	/* DEFAULT NOT NEED */
+	moisture-use-ext-res = <0>;
+	/* moisture external resister ohm, SW mode by auxadc */
+	moisture-external-r = <2000000>;
+	/* moisture internal resister ohm, SW mode by auxadc */
+	moisture-internal-r = <47000>;
+	/* moisture of water resister ohm, SW mode by auxadc*/
+	moisture-water-r = <10000>;
+	/* moisture SW mode config end */
+};
+
+/*svp start*/
+&mtee_svp {
+	mtee: MTEE {
+		compatible = "mediatek,mtk_svp_on_mtee_support";
+	};
+
+	svp: SecureVideoPath {
+		compatible = "mediatek,mtk_sec_video_path_support";
+	};
+};
+/*svp end*/
+
+#include "mediatek/k6835v1_64_titan_lionhead_23u/cust_msdc_titan_lionhead_23u.dtsi"
+//#include "mediatek/k6835v1_64_titan_lionhead_23u/gpio00.dtsi"
+/*End of this file, DO NOT ADD ANYTHING HERE*/

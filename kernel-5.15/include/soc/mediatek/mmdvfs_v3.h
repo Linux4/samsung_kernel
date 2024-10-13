@@ -1,0 +1,75 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2022 MediaTek Inc.
+ */
+
+#ifndef MTK_MMDVFS_V3_H
+#define MTK_MMDVFS_V3_H
+
+#include <linux/remoteproc/mtk_ccu.h>
+
+typedef int (*call_ccu)(struct platform_device *pdev,
+	enum mtk_ccu_feature_type featureType,
+	uint32_t msgId, void *inDataPtr, uint32_t inDataSize);
+
+enum {
+	CCU_PWR_USR_MMDVFS,
+	CCU_PWR_USR_IMG,
+	CCU_PWR_USR_NUM
+};
+
+enum {
+	VCP_PWR_USR_MMDVFS_INIT,
+	VCP_PWR_USR_MMDVFS_GENPD,
+	VCP_PWR_USR_MMDVFS_FORCE,
+	VCP_PWR_USR_MMDVFS_VOTE,
+	VCP_PWR_USR_MMDVFS_CCU,
+	VCP_PWR_USR_MMQOS,
+	VCP_PWR_USR_CAM,
+	VCP_PWR_USR_IMG,
+	VCP_PWR_USR_PDA,
+	VCP_PWR_USR_SENIF,
+	VCP_PWR_USR_VDEC,
+	VCP_PWR_USR_VFMT,
+	VCP_PWR_USR_SMI,
+	VCP_PWR_USR_NUM
+};
+
+enum {
+	VMM_USR_CAM,
+	VMM_USR_IMG,
+	VMM_USR_VDE = 1,
+	VMM_USR_NUM
+};
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+int mtk_mmdvfs_get_ipi_status(void);
+int mtk_mmdvfs_enable_vcp(const bool enable, const u8 idx);
+int mtk_mmdvfs_enable_ccu(const bool enable, const u8 idx);
+
+int mtk_mmdvfs_camera_notify(const bool enable);
+int mtk_mmdvfs_genpd_notify(const u8 idx, const bool enable);
+int mtk_mmdvfs_set_avs(const u8 idx, const u32 aging, const u32 fresh);
+
+int mtk_mmdvfs_v3_set_force_step(const u16 pwr_idx, const s16 opp);
+int mtk_mmdvfs_v3_set_vote_step(const u16 pwr_idx, const s16 opp);
+
+void mmdvfs_set_lp_mode(bool lp_mode);
+void mmdvfs_call_ccu_set_fp(call_ccu fp);
+#else
+static inline int mtk_mmdvfs_get_ipi_status(void) { return 0; }
+static inline int mtk_mmdvfs_enable_vcp(const bool enable, const u8 idx) { return 0; }
+static inline int mtk_mmdvfs_enable_ccu(const bool enable, const u8 idx) { return 0; }
+
+static inline int mtk_mmdvfs_camera_notify(const bool enable) { return 0; }
+static inline int mtk_mmdvfs_genpd_notify(const u8 idx, const bool enable) { return 0; }
+static inline int mtk_mmdvfs_set_avs(const u8 idx, const u32 aging, const u32 fresh) { return 0; }
+
+static inline int mtk_mmdvfs_v3_set_force_step(const u16 pwr_idx, const s16 opp) { return 0; }
+static inline int mtk_mmdvfs_v3_set_vote_step(const u16 pwr_idx, const s16 opp) { return 0; }
+
+static inline void mmdvfs_set_lp_mode(bool lp_mode) { return; }
+static inline void mmdvfs_call_ccu_set_fp(call_ccu fp) {return; }
+#endif
+
+#endif /* MTK_MMDVFS_V3_H */
