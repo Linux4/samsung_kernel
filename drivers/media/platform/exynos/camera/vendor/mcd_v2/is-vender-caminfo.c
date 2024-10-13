@@ -566,6 +566,11 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 
 		if (standard_cal_data->rom_awb_start_addr > 0) {
 			info("%s caminfo.awb_size is %d", __func__, caminfo.awb_size);
+			if (standard_cal_data->rom_awb_start_addr + caminfo.awb_size - 1 > IS_MAX_CAL_SIZE) {
+				err("%s Out of bound write for rom_awb_start_addr (0x%08X), awb_size = 0x%08x", __func__, standard_cal_data->rom_awb_start_addr, caminfo.awb_size);
+				ret = -EINVAL;
+				goto EXIT;
+			}
 			if (copy_from_user(&cal_buf[standard_cal_data->rom_awb_start_addr], caminfo.lsiBuf,
 				sizeof(uint8_t) * (caminfo.awb_size))) {
 				err("%s : failed to copy data from user", __func__);
@@ -576,6 +581,11 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 			info("%s sensor %d with rom_id %d does not have awb info", __func__, caminfo.camID, rom_id);
 		}
 		if (standard_cal_data->rom_shading_start_addr > 0) {
+			if (standard_cal_data->rom_shading_start_addr + caminfo.lsc_size - 1 > IS_MAX_CAL_SIZE) {
+				err("%s Out of bound write for rom_shading_start_addr (0x%08X), lsc_size = 0x%08x", __func__, standard_cal_data->rom_shading_start_addr, caminfo.lsc_size);
+				ret = -EINVAL;
+				goto EXIT;
+			}
 			info("%s  caminfo.lsc_size is %d", __func__, caminfo.lsc_size);
 			if (copy_from_user(&cal_buf[standard_cal_data->rom_shading_start_addr], caminfo.lsiBuf +
 				caminfo.awb_size, sizeof(uint8_t) * (caminfo.lsc_size))) {

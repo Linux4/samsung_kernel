@@ -244,7 +244,7 @@
 						30 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm10 0 0x1>; };
 						40 { pname = "gpio_rcam3_vdd_ldo_en"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm9 0 0x1>; };
 						50 { pname = "delay"; pin = <PIN_NONE 0 500>; };
-						60 { pname = "vdd_ldo22s"; pin = <PIN_REGULATOR 1 500>; };
+						60 { pname = "vdd_ldo22s"; pin = <PIN_REGULATOR 1 500 1100000>; };
 						70 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
 						80 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
 						90 { pname = "MCLK"; pin = <PIN_MCLK 1 500>; gpio = <&gpg0 3 0x1>; };
@@ -279,7 +279,7 @@
 						30 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm10 0 0x1>; };
 						40 { pname = "gpio_rcam3_vdd_ldo_en"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm9 0 0x1>; };
 						50 { pname = "delay"; pin = <PIN_NONE 0 500>; };
-						60 { pname = "vdd_ldo22s"; pin = <PIN_REGULATOR 1 500>; };
+						60 { pname = "vdd_ldo22s"; pin = <PIN_REGULATOR 1 500 1100000>; };
 						70 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
 						80 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
 						90 { pname = "MCLK"; pin = <PIN_MCLK 1 500>; gpio = <&gpg0 3 0x1>; };
@@ -312,7 +312,7 @@
 						30 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm10 0 0x1>; };
 						40 { pname = "gpio_rcam3_vdd_ldo_en"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm9 0 0x1>; };
 						50 { pname = "delay"; pin = <PIN_NONE 0 500>; };
-						60 { pname = "vdd_ldo22s"; pin = <PIN_REGULATOR 1 500>; };
+						60 { pname = "vdd_ldo22s"; pin = <PIN_REGULATOR 1 500 1100000>; };
 						70 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
 						80 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
 						90 { pname = "MCLK"; pin = <PIN_MCLK 1 500>; gpio = <&gpg0 3 0x1>; };

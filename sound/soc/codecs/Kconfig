@@ -1346,6 +1346,7 @@ config SND_SOC_STA529
 config SND_SOC_STAC9766
 	tristate
 	depends on SND_SOC_AC97_BUS
+	select REGMAP_AC97
 
 config SND_SOC_STI_SAS
 	tristate "codec Audio support for STI SAS codec"
@@ -1850,5 +1851,8 @@ source "sound/soc/codecs/tas2562/Kconfig"
 
 # TFA9878
 source "sound/soc/codecs/tfa9878/Kconfig"
+
+# DBMDx
+source "sound/soc/codecs/dbmdx/Kconfig"
 
 endmenu

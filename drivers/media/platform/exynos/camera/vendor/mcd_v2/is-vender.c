@@ -1539,6 +1539,13 @@ int is_vender_hw_init(struct is_vender *vender)
 						err("is_sec_run_fw_sel for dualized ROM_ID(%d) is fail(%d)", i, ret);
 					}
 				}
+#elif defined(FRONT_OTPROM_EEPROM)
+				if(i == ROM_ID_FRONT) {
+					ret = is_sec_run_fw_sel(i);
+					if (ret) {
+						err("is_sec_run_fw_sel for dualized ROM_ID(%d) is fail(%d)", i, ret);
+					}
+				}
 #endif
 			}
 		}

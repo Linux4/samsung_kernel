@@ -217,7 +217,7 @@ static inline bool trylock_vma_ref_count(struct vm_area_struct *vma)
 	 * If we have the only reference, swap the refcount to -1. This
 	 * will prevent other concurrent references by get_vma() for SPFs.
 	 */
-	return atomic_cmpxchg(&vma->vm_ref_count, 1, -1) == 1;
+	return atomic_cmpxchg_acquire(&vma->vm_ref_count, 1, -1) == 1;
 }
 
 /*
@@ -225,12 +225,13 @@ static inline bool trylock_vma_ref_count(struct vm_area_struct *vma)
  */
 static inline void unlock_vma_ref_count(struct vm_area_struct *vma)
 {
+	int old = atomic_xchg_release(&vma->vm_ref_count, 1);
+
 	/*
 	 * This should only be called after a corresponding,
 	 * successful trylock_vma_ref_count().
 	 */
-	VM_BUG_ON_VMA(atomic_cmpxchg(&vma->vm_ref_count, -1, 1) != -1,
-		      vma);
+	VM_BUG_ON_VMA(old != -1, vma);
 }
 #else	/* !CONFIG_SPECULATIVE_PAGE_FAULT */
 static inline bool trylock_vma_ref_count(struct vm_area_struct *vma)
@@ -318,11 +319,7 @@ static inline bool move_normal_pmd(struct vm_area_struct *vma,
 }
 #endif
 
-/*
- * Speculative page fault handlers will not detect page table changes done
- * without ptl locking.
- */
-#if defined(CONFIG_HAVE_MOVE_PUD) && !defined(CONFIG_SPECULATIVE_PAGE_FAULT)
+#ifdef CONFIG_HAVE_MOVE_PUD
 static bool move_normal_pud(struct vm_area_struct *vma, unsigned long old_addr,
 		  unsigned long new_addr, pud_t *old_pud, pud_t *new_pud)
 {

@@ -81,7 +81,8 @@ typedef struct _power_list {
 typedef struct sec_pd_sink_status
 {
 	POWER_LIST power_list[MAX_PDO_NUM+1];
- 	int has_apdo; // pd source has apdo or not
+	int has_apdo; // pd source has apdo or not
+	int has_vpdo;
 	int available_pdo_num; // the number of available PDO
 	int selected_pdo_num; // selected number of PDO to change
 	int current_pdo_num; // current number of PDO

@@ -167,6 +167,10 @@ void cpacketbuffer_release(struct cpacketbuffer *buffer)
 {
 	struct miframman *miframman;
 
+	/* Check if this is null pointer for abnormal case */
+	if (!buffer->mx)
+		return;
+
 #if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 	if (buffer->target == SCSC_MIF_ABS_TARGET_WPAN)
 		miframman = scsc_mx_get_ramman_wpan(buffer->mx);
@@ -178,6 +182,8 @@ void cpacketbuffer_release(struct cpacketbuffer *buffer)
 	miframman_free(miframman, buffer->read_index);
 	miframman_free(miframman, buffer->write_index);
 	miframman_free(miframman, buffer->buffer);
+
+	buffer->mx = NULL;
 }
 
 bool cpacketbuffer_write(struct cpacketbuffer *buffer, const void *buf, uint32_t num_bytes)

@@ -42,6 +42,7 @@ static struct adc_list batt_adc_list[SEC_BAT_ADC_CHANNEL_NUM] = {
 	{.name = "adc-usb-temp"},
 	{.name = "adc-sub-bat"},
 	{.name = "adc-blkt-temp"},
+	{.name = "adc-dc-temp"},
 };
 
 static int adc_init_count;

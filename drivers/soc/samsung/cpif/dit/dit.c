@@ -817,10 +817,13 @@ static int dit_fill_rx_dst_data_buffer(enum dit_desc_ring ring_num, unsigned int
 	if (!read)
 		return 0;
 
+	spin_lock(&dc->rx_buf_lock);
 	desc_info = &dc->desc_info[DIT_DIR_RX];
 
-	if (initial && desc_info->dst_skb_buf_filled[ring_num])
+	if (initial && desc_info->dst_skb_buf_filled[ring_num]) {
+		spin_unlock(&dc->rx_buf_lock);
 		return 0;
+	}
 
 	if (unlikely(!desc_info->dst_skb_buf[ring_num])) {
 		unsigned int buf_size = sizeof(struct sk_buff *) * desc_info->dst_desc_ring_len;
@@ -828,6 +831,7 @@ static int dit_fill_rx_dst_data_buffer(enum dit_desc_ring ring_num, unsigned int
 		desc_info->dst_skb_buf[ring_num] = kvzalloc(buf_size, GFP_KERNEL);
 		if (!desc_info->dst_skb_buf[ring_num]) {
 			mif_err("dit dst[%d] skb container alloc failed\n", ring_num);
+			spin_unlock(&dc->rx_buf_lock);
 			return -ENOMEM;
 		}
 	}
@@ -838,6 +842,7 @@ static int dit_fill_rx_dst_data_buffer(enum dit_desc_ring ring_num, unsigned int
 		desc_info->dst_skb_buf_daddr[ring_num] = kvzalloc(buf_size, GFP_KERNEL);
 		if (!desc_info->dst_skb_buf_daddr[ring_num]) {
 			mif_err("dit dst[%d] skb dma addr container alloc failed\n", ring_num);
+			spin_unlock(&dc->rx_buf_lock);
 			return -ENOMEM;
 		}
 	}
@@ -867,6 +872,7 @@ static int dit_fill_rx_dst_data_buffer(enum dit_desc_ring ring_num, unsigned int
 			if (!data) {
 				mif_err("dit dst[%d] skb[%d] recycle pg alloc failed\n",
 					ring_num, dst_rp_pos);
+				spin_unlock(&dc->rx_buf_lock);
 				return -ENOMEM;
 			}
 
@@ -885,6 +891,7 @@ static int dit_fill_rx_dst_data_buffer(enum dit_desc_ring ring_num, unsigned int
 
 		if (unlikely(!dst_skb[dst_rp_pos])) {
 			mif_err("dit dst[%d] skb[%d] build failed\n", ring_num, dst_rp_pos);
+			spin_unlock(&dc->rx_buf_lock);
 			return -ENOMEM;
 		}
 
@@ -905,6 +912,7 @@ dma_map:
 			if (dma_mapping_error(dc->dev, daddr)) {
 				mif_err("dit dst[%d] skb[%d] dma_map_single failed\n",
 					ring_num, dst_rp_pos);
+				spin_unlock(&dc->rx_buf_lock);
 				return -ENOMEM;
 			}
 
@@ -923,6 +931,7 @@ next:
 	if (initial)
 		desc_info->dst_skb_buf_filled[ring_num] = true;
 
+	spin_unlock(&dc->rx_buf_lock);
 	return 0;
 }
 
@@ -936,14 +945,18 @@ static int dit_free_dst_data_buffer(enum dit_direction dir, enum dit_desc_ring r
 	if (!dc)
 		return -EPERM;
 
+	spin_lock(&dc->rx_buf_lock);
 	desc_info = &dc->desc_info[dir];
 
-	if (unlikely(!desc_info->dst_skb_buf[ring_num]))
+	if (unlikely(!desc_info->dst_skb_buf[ring_num])) {
+		spin_unlock(&dc->rx_buf_lock);
 		return -EINVAL;
+	}
 
 	if (!circ_empty(desc_info->dst_wp[ring_num], desc_info->dst_rp[ring_num])) {
 		mif_err("skip free. dst[%d] is processing. wp:%d rp:%d\n", ring_num,
 			desc_info->dst_wp[ring_num], desc_info->dst_rp[ring_num]);
+		spin_unlock(&dc->rx_buf_lock);
 		return -EBUSY;
 	}
 
@@ -952,8 +965,10 @@ static int dit_free_dst_data_buffer(enum dit_direction dir, enum dit_desc_ring r
 
 	/* don't free dst_skb_buf if there are skbs will be handled in napi poll */
 	for (i = 0; i < desc_info->dst_desc_ring_len; i++) {
-		if (!dst_desc[i].dst_addr)
+		if (!dst_desc[i].dst_addr) {
+			spin_unlock(&dc->rx_buf_lock);
 			return -EFAULT;
+		}
 	}
 
 	for (i = 0; i < desc_info->dst_desc_ring_len; i++) {
@@ -986,6 +1001,7 @@ static int dit_free_dst_data_buffer(enum dit_direction dir, enum dit_desc_ring r
 	kvfree(dst_skb);
 	desc_info->dst_skb_buf[ring_num] = NULL;
 	desc_info->dst_skb_buf_filled[ring_num] = false;
+	spin_unlock(&dc->rx_buf_lock);
 
 	return 0;
 }
@@ -2265,6 +2281,8 @@ static ssize_t debug_pktgen_ch_store(struct device *dev,
 
 	dc->pktgen_ch = ch;
 
+	mif_info("dc->pktgen_ch = %d, 0x%x\n", dc->pktgen_ch, dc->pktgen_ch);
+
 	if (!dc->ld)
 		goto out;
 
@@ -2676,6 +2694,7 @@ int dit_create(struct platform_device *pdev)
 	INIT_LIST_HEAD(&dc->reg_value_q);
 	atomic_set(&dc->init_running, 0);
 	atomic_set(&dc->stop_napi_poll, 0);
+	spin_lock_init(&dc->rx_buf_lock);
 
 	dit_set_irq_affinity(dc->irq_affinity);
 	dev_set_drvdata(dev, dc);

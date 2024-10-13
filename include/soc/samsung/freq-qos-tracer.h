@@ -11,6 +11,9 @@
 #define freq_qos_tracer_add_request(arg...)	\
 	__freq_qos_tracer_add_request((char *)__func__, __LINE__, ##arg)
 
+#define freq_qos_tracer_add_request_name(func, arg...)  \
+	__freq_qos_tracer_add_request(func, __LINE__, ##arg)
+
 #if IS_ENABLED(CONFIG_ARM_FREQ_QOS_TRACER)
 extern int __freq_qos_tracer_add_request(char *, unsigned int,
 					 struct freq_constraints *,

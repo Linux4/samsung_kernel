@@ -25,6 +25,15 @@
 #include <linux/slab.h>
 #include <linux/notifier.h>
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 #define FILE_MANAGER	0xFB
 enum {
 	FM_READ = 0,
@@ -120,7 +129,7 @@ static int _shub_file_rw(char type, bool wait)
 	return result;
 }
 
-static int _shub_file_write(char *path, char *buf, int buf_len, long long pos, bool wait)
+__visible_for_testing int __mockable _shub_file_write(char *path, char *buf, int buf_len, long long pos, bool wait)
 {
 	int ret;
 
@@ -130,6 +139,9 @@ static int _shub_file_write(char *path, char *buf, int buf_len, long long pos, b
 	mutex_lock(&fm_mutex);
 	fm_msg.tx_buf_size =
 	    snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s,%d,%lld,%d,", path, buf_len, pos, wait);
+
+	buf_len = fm_msg.tx_buf_size + buf_len > sizeof(fm_msg.tx_buf) ?
+		  sizeof(fm_msg.tx_buf) - fm_msg.tx_buf_size : buf_len;
 	memcpy(&fm_msg.tx_buf[fm_msg.tx_buf_size], buf, buf_len);
 	fm_msg.tx_buf_size += buf_len;
 	ret = _shub_file_rw(FM_WRITE, wait);
@@ -152,7 +164,7 @@ int shub_file_write(char *path, char *buf, int buf_len, long long pos)
 	return _shub_file_write(path, buf, buf_len, pos, true);
 }
 
-int shub_file_read(char *path, char *buf, int buf_len, long long pos)
+int __mockable shub_file_read(char *path, char *buf, int buf_len, long long pos)
 {
 	int ret;
 
@@ -218,7 +230,8 @@ ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const
 		memset(fm_msg.rx_buf, 0, PAGE_SIZE);
 		memcpy(&fm_msg.result, &buf[1], sizeof(int32_t));
 		if (buf[0] == FM_READ && fm_msg.result > 0) {
-			fm_msg.rx_buf_size = fm_msg.result;
+			fm_msg.rx_buf_size = fm_msg.result > sizeof(fm_msg.rx_buf) ?
+					     sizeof(fm_msg.rx_buf) : fm_msg.result;
 			memcpy(fm_msg.rx_buf, &buf[5], fm_msg.rx_buf_size);
 		}
 

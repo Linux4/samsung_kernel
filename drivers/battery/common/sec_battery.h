@@ -123,7 +123,7 @@ extern const char *sb_charge_mode_str(int charge_mode);
 #define BATT_MISC_EVENT_DIRECT_POWER_MODE		0x00004000
 #define BATT_MISC_EVENT_BATTERY_HEALTH			0x000F0000
 #define BATT_MISC_EVENT_HEALTH_OVERHEATLIMIT		0x00100000
-#define BATT_MISC_EVENT_ABNORMAL_PAD		0x00200000
+//#define BATT_MISC_EVENT_ABNORMAL_PAD		0x00200000
 #define BATT_MISC_EVENT_WIRELESS_MISALIGN	0x00400000
 #define BATT_MISC_EVENT_FULL_CAPACITY		0x01000000
 #define BATT_MISC_EVENT_PASS_THROUGH		0x02000000
@@ -180,9 +180,17 @@ enum {
 #define HV_CHARGER_STATUS_STANDARD3 24500 /* mW */
 #define HV_CHARGER_STATUS_STANDARD4 40000 /* mW */
 
+#define WFC10_WIRELESS_POWER	7500000 /* mW */
+#define WFC20_WIRELESS_POWER	12000000 /* mW */
+#define WFC21_WIRELESS_POWER	15000000 /* mW */
+
 #define mW_by_mVmA(v, a)	((v) * (a) / 1000)
 #define mV_by_mWmA(w, a)	((a) ? (((w) * 1000) / (a)) : (0))
 #define mA_by_mWmV(w, v)	((v) ? (((w) * 1000) / (v)) : (0))
+
+#define DEFAULT_FULL_MARGIN 50 /* mV */
+#define DEFAULT_RCHG_MARGIN 70 /* mV */
+#define DEFAULT_LOW_SWELLING_RCHG_MARGIN 150 /* mV */
 
 enum battery_misc_test {
 	MISC_TEST_RESET = 0,
@@ -260,15 +268,6 @@ struct sec_siop_table {
 
 #define SIOP_SCENARIO_NUM_MAX		10
 
-struct sec_wireless_rx_power_info {
-	unsigned int vout;
-	unsigned int input_current_limit;
-	unsigned int fast_charging_current;
-	unsigned int ttf_charge_current;
-	unsigned int wireless_power_class;
-	unsigned int rx_power;
-};
-
 struct sec_bat_thm_info {
 	int source;
 	sec_bat_adc_table_data_t *adc_table;
@@ -279,6 +278,7 @@ struct sec_bat_thm_info {
 	int test;
 	int adc;
 	int channel;
+	unsigned int adc_rsense;
 };
 
 enum sec_battery_thm_info {
@@ -291,9 +291,6 @@ enum sec_battery_thm_info {
 	THM_INFO_BLK,
 	THM_INFO_DCHG,
 };
-
-#define sec_wireless_rx_power_info_t \
-	struct sec_wireless_rx_power_info
 
 /* LRP structure */
 #define LRP_PROPS 12
@@ -370,7 +367,6 @@ typedef struct sec_battery_platform_data {
 	sec_bat_adc_region_t *cable_adc_value;
 	/* charging current for type (0: not use) */
 	sec_charging_current_t charging_current[SEC_BATTERY_CABLE_MAX];
-	sec_wireless_rx_power_info_t *wireless_power_info;
 	unsigned int *polling_time;
 	char *chip_vendor;
 	/* NO NEED TO BE CHANGED */
@@ -394,7 +390,6 @@ typedef struct sec_battery_platform_data {
 
 	unsigned int swelling_high_rechg_voltage;
 	unsigned int swelling_low_rechg_voltage;
-	unsigned int swelling_low_rechg_soc;
 	unsigned int swelling_low_cool3_rechg_voltage;
 	bool chgen_over_swell_rechg_vol;
 
@@ -419,6 +414,7 @@ typedef struct sec_battery_platform_data {
 	unsigned int dc_step_cond_v_margin_sub;
 	unsigned int sc_vbat_thresh_main; /* main vbat threshold which dc to sc */
 	unsigned int sc_vbat_thresh_sub; /* sub vbat threshold which dc to sc */
+	unsigned int *dc_step_chg_vsublim;
 #endif
 	unsigned int dc_step_chg_cond_v_margin;
 	unsigned int **dc_step_chg_cond_vol;
@@ -510,6 +506,8 @@ typedef struct sec_battery_platform_data {
 	unsigned int limiter_main_cool3_current;
 	unsigned int limiter_sub_cool3_current;
 	unsigned int limiter_aging_float_offset;
+
+	unsigned int step_chg_vsublim;
 #endif
 
 	int buck_recovery_margin;
@@ -682,6 +680,7 @@ typedef struct sec_battery_platform_data {
 	int siop_wpc_icl;
 	int *siop_wpc_fcc;
 	int siop_hv_wpc_icl;
+	int rechg_hv_wpc_icl;
 	int *siop_hv_wpc_fcc;
 	int wireless_otg_input_current;
 	int wc_hero_stand_cc_cv;
@@ -712,6 +711,7 @@ typedef struct sec_battery_platform_data {
 	unsigned int rp_current_abnormal_rp3;
 
 	bool fake_capacity;
+	bool en_batt_full_status_usage;
 	bool en_auto_shipmode_temp_ctrl;
 	bool boosting_voltage_aicl;
 	bool tx_5v_disable;
@@ -829,9 +829,14 @@ typedef struct sec_battery_platform_data {
 	bool wpc_warm_fod;
 	unsigned int wpc_warm_fod_icc;
 
+	unsigned int max_wlc_icl_15w;
+	unsigned int max_wlc_icl_12w;
+
 	bool loosened_unknown_temp;
 
 	bool support_spsn_ctrl;
+
+	bool pogo_chgin;
 } sec_battery_platform_data_t;
 
 struct sec_ttf_data;
@@ -906,16 +911,25 @@ struct sec_battery_info {
 	int charge_counter;		/* remaining capacity (uAh) */
 	int current_adc;
 
-	int voltage_pack_main;		/* pack voltage main battery (mV) */
-	int voltage_pack_sub;		/* pack voltage sub battery (mV) */
+	int voltage_now_main;		/* pack voltage main battery (mV) */
+	int voltage_now_sub;		/* pack voltage sub battery (mV) */
+	int voltage_avg_main;		/* pack voltage main battery (mV) */
+	int voltage_avg_sub;		/* pack voltage sub battery (mV) */
 	int current_now_main;		/* current from main battery (mA) */
 	int current_now_sub;		/* current from sub battery (mA) */
+	int current_avg_main;		/* current from main battery (mA) */
+	int current_avg_sub;		/* current from sub battery (mA) */
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	unsigned int limiter_check;
 	bool set_lower_curr;
 #endif
 
 	unsigned int capacity;			/* SOC (%) */
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+	unsigned int main_capacity;		/* MAIN SOC (%) */
+	unsigned int sub_capacity;		/* SUB SOC (%) */
+#endif
+
 	unsigned int input_voltage;		/* CHGIN/WCIN input voltage (V) */
 	unsigned int charge_power;		/* charge power (mW) */
 	unsigned int max_charge_power;		/* max charge power (mW) */
@@ -1000,7 +1014,7 @@ struct sec_battery_info {
 	int dchg_temp;
 	int blkt_temp;		/* blanket temperature(instead of batt temp in mix_temp func for tablet model) */
 
-	int lrp;
+	int lrp; /* Linear Regression for Predicting Surface Temperature, this value is from SSRM */
 	int lrp_test;
 	unsigned int lrp_chg_src;
 
@@ -1159,8 +1173,6 @@ struct sec_battery_info {
 	unsigned int wc20_vout;
 	unsigned int wc20_power_class;
 	unsigned int wc20_rx_power;
-	unsigned int wc20_info_len;
-	unsigned int wc20_info_idx;
 	struct delayed_work wc20_current_work;
 	struct delayed_work wc_ept_timeout_work;
 	struct wakeup_source *wc20_current_ws;
@@ -1169,6 +1181,7 @@ struct sec_battery_info {
 	struct delayed_work slowcharging_work;
 	int batt_cycle;
 	int batt_asoc;
+	int batt_full_status_usage;
 #if IS_ENABLED(CONFIG_STEP_CHARGING)
 	bool step_charging_skip_lcd_on;
 	bool step_chg_en_in_factory;
@@ -1180,6 +1193,7 @@ struct sec_battery_info {
 	unsigned int wpc_step_chg_type;
 	unsigned int wpc_step_chg_charge_power;
 	int wpc_step_chg_step;
+	int wpc_step_chg_status;
 #endif
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
 	int dc_step_chg_step;
@@ -1245,10 +1259,10 @@ struct sec_battery_info {
 
 	int charging_night_mode;
 
-	/* MAIN LRPST compensation */
+	/* Linear Regression for Predicting Battery Temperature */
 	unsigned long lr_start_time;
 	unsigned long lr_time_span;
-	int lrp_temp;
+	int lr_bat_temp;
 	int lr_bat_t_1;
 
 	bool is_fpdo_dc;
@@ -1338,7 +1352,7 @@ extern void sec_bat_check_lrp_temp(struct sec_battery_info *battery, int ct, int
 extern void sec_bat_check_tx_temperature(struct sec_battery_info *battery);
 extern void sec_bat_change_default_current(struct sec_battery_info *battery, int cable_type, int input, int output);
 extern int sec_bat_set_charge(void *data, int chg_mode);
-extern int adjust_bat_temp(struct sec_battery_info *battery, int batt_temp, int sub_bat_temp);
+extern int lr_predict_bat_temp(struct sec_battery_info *battery, int batt_temp, int sub_bat_temp);
 extern int get_chg_power_type(int ct, int ws, int pd_max_pw, int max_pw);
 extern int sec_usb_conn_check(struct sec_battery_info *battery);
 #if !defined(CONFIG_SEC_FACTORY)
@@ -1354,8 +1368,8 @@ extern void sec_bat_ext_event_work_content(struct sec_battery_info *battery);
 extern void sec_bat_wpc_tx_work_content(struct sec_battery_info *battery);
 extern void sec_bat_wpc_tx_en_work_content(struct sec_battery_info *battery);
 extern void sec_bat_set_wc20_current(struct sec_battery_info *battery);
-extern void sec_wireless_otg_control(struct sec_battery_info *battery, int enable);
-extern void set_wireless_otg_input_current(struct sec_battery_info *battery);
+extern void sec_wireless_otg_vout_control(struct sec_battery_info *battery, int enable);
+extern void sec_wireless_otg_icl_control(struct sec_battery_info *battery);
 extern void sec_bat_set_mfc_off(struct sec_battery_info *battery, char flag, bool need_ept);
 extern void sec_bat_set_mfc_on(struct sec_battery_info *battery, char flag);
 extern int sec_bat_choose_cable_type(struct sec_battery_info *battery);
@@ -1373,6 +1387,8 @@ extern void sec_wireless_set_tx_enable(struct sec_battery_info *battery, bool wc
 extern void sec_bat_check_wc_re_auth(struct sec_battery_info *battery);
 extern unsigned int get_wc20_vout(unsigned int vout);
 extern void sec_bat_mfc_ldo_cntl(struct sec_battery_info *battery, bool en);
+extern int sec_bat_check_wpc_vout(struct sec_battery_info *battery, int ct, unsigned int chg_limit,
+		int pre_vout, unsigned int evt);
 #else
 static inline void sec_bat_set_mfc_off(struct sec_battery_info *battery, char flag, bool need_ept) {}
 static inline void sec_bat_set_mfc_on(struct sec_battery_info *battery, char flag) {}
@@ -1422,5 +1438,8 @@ int sec_bat_get_temperature(struct device *dev, struct sec_bat_thm_info *info, i
 		char *chg_name, char *fg_name, int batt_adc_type);
 int sec_bat_get_inbat_vol_ocv(struct sec_battery_info *battery);
 void sec_bat_smart_sw_src(struct sec_battery_info *battery, bool enable, int curr);
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+int sec_bat_dual_battery_vbat(struct sec_battery_info *battery, int battery_type);
+#endif
 
 #endif /* __SEC_BATTERY_H */

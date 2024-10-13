@@ -184,6 +184,80 @@ inline char *get_panel_state_names(enum panel_active_state idx)
 	return NULL;
 }
 
+static struct panel_device *panel_get_panel_device(void)
+{
+	struct panel_device *panel;
+	struct platform_device *pdev;
+	struct device_node *np;
+
+	np = of_find_compatible_node(NULL, NULL, "samsung,panel-drv");
+	if (!np) {
+		panel_err("compatible(\"samsung,panel-drv\") node not found\n");
+		return NULL;
+	}
+
+	pdev = of_find_device_by_node(np);
+	of_node_put(np);
+	if (!pdev) {
+		panel_err("mcd-panel device not found\n");
+		return NULL;
+	}
+
+	panel = (struct panel_device *)platform_get_drvdata(pdev);
+	if (!panel) {
+		panel_err("failed to get panel_device\n");
+		return NULL;
+	}
+
+	return panel;
+}
+
+int panel_find_max_brightness_from_cpi(struct common_panel_info *info)
+{
+	struct panel_dt_lut *lut_info = NULL;
+	int max_brightness = 0;
+	struct panel_device *panel;
+
+	panel = panel_get_panel_device();
+
+	if (!panel)
+		return -EINVAL;
+
+	if (!info)
+		return -EINVAL;
+
+	lut_info = find_panel_lut(panel, boot_panel_id);
+
+	if (IS_ERR_OR_NULL(lut_info)) {
+		panel_err("failed to find panel lookup table\n");
+		return -EINVAL;
+	}
+
+	if (strncmp(lut_info->name, info->name, 128))
+		return 0;
+
+	if (!info->panel_dim_info[PANEL_BL_SUBDEV_TYPE_DISP])
+		return 0;
+
+	max_brightness = max_brt_tbl(info->panel_dim_info[PANEL_BL_SUBDEV_TYPE_DISP]->brt_tbl);
+	if (max_brightness < 0) {
+		panel_err("failed to get max brightness\n");
+		return 0;
+	}
+
+	if (!panel->panel_bl.bd) {
+		panel_err("backlight device is null\n");
+		return 0;
+	}
+
+	panel->panel_bl.bd->props.max_brightness = max_brightness;
+
+	panel_info("%s: max brightness=%d\n", lut_info->name,
+			panel->panel_bl.bd->props.max_brightness);
+
+	return 0;
+}
+
 __visible_for_testing int panel_snprintf_bypass(struct panel_device *panel, char *buf, size_t size)
 {
 	if (!panel || !buf || !size)
@@ -3813,6 +3887,10 @@ static int panel_set_mask_layer(struct panel_device *panel, void *arg)
 				panel_do_seqtbl_by_index(panel, PANEL_MASK_LAYER_AFTER_SEQ);
 		} else if  (req_data->trigger_time  == MASK_LAYER_TRIGGER_AFTER)  {
 			/* 4. REQ OFF + FRAME START AFTER */
+			/* HOLD TE <-> DDI VSYNC Duration */
+			if (check_seqtbl_exist(&panel->panel_data, PANEL_MASK_LAYER_EXIT_AFTER_SEQ))
+				panel_do_seqtbl_by_index(panel, PANEL_MASK_LAYER_EXIT_AFTER_SEQ);
+
 			panel_bl->props.smooth_transition = SMOOTH_TRANS_ON;
 			panel_bl->props.mask_layer_br_actual = 0;
 			sysfs_notify(&panel->lcd_dev->kobj, NULL, "actual_mask_brightness");

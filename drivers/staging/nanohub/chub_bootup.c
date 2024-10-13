@@ -15,6 +15,7 @@
 #include <linux/slab.h>
 #include "chub.h"
 #include "chub_exynos.h"
+#include "chub_log.h"
 #include <linux/namei.h>
 
 #undef ALIVE_WORK
@@ -325,6 +326,7 @@ int contexthub_reset(struct contexthub_ipc_info *chub, bool force_load,
 	nanohub_dev_info(chub->dev, "%s: start reset status:%d\n", __func__,
 			 atomic_read(&chub->chub_status));
 
+	contexthub_log_stop(chub);
 	/* shutdown */
 	ret = contexthub_shutdown(chub);
 	if (ret) {
@@ -332,6 +334,7 @@ int contexthub_reset(struct contexthub_ipc_info *chub, bool force_load,
 				__func__, ret);
 		goto out;
 	}
+	contexthub_log_start(chub);
 
 	/* image download */
 	ret = contexthub_download_image(chub, chub->num_os);

@@ -9,6 +9,8 @@
 
 #define VENDER_PATH
 
+#define USE_IMX258_13MP_FULL_SIZE
+
 #define USE_CAMERA_HEAP
 #ifdef USE_CAMERA_HEAP
 #define CAMERA_HEAP_NAME	"camera"
@@ -64,4 +66,6 @@
 #define USE_LEDS_FLASH_CHARGING_VOLTAGE_CONTROL /* Flash config */
 
 #define USE_CAMERA_ADAPTIVE_MIPI
+
+#define FRONT_OTPROM_EEPROM
 #endif /* IS_VENDOR_CONFIG_AAW_V25X_H */

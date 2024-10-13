@@ -352,6 +352,9 @@ enum SLSI_NAN_EVT_ATTRIBUTES {
 #define SLSI_HAL_NAN_MAX_POSTDISCOVERY_LEN 5
 #define SLSI_HAL_NAN_MAX_SDEA_SERVICE_SPEC_INFO_LEN 1024
 #define SLSI_HAL_NAN_DP_MAX_APP_INFO_LEN 512
+#define SLSI_HAL_NAN_MAX_MESH_DATA_LEN 32
+#define SLSI_HAL_NAN_MAX_INFRA_DATA_LEN 32
+#define SLSI_HAL_NAN_MAX_FAM_CHANNELS 32
 
 enum slsi_wifi_hal_nan_status_type {
 	/* NAN Protocol Response Codes */
@@ -507,9 +510,9 @@ struct slsi_hal_nan_post_discovery_param {
 	u32 avail_interval_bitmap;
 	u8 addr[ETH_ALEN];
 	u16 mesh_id_len;
-	u8 mesh_id[32];
+	u8 mesh_id[SLSI_HAL_NAN_MAX_MESH_DATA_LEN];
 	u16 infrastructure_ssid_len;
-	u8 infrastructure_ssid_val[32];
+	u8 infrastructure_ssid_val[SLSI_HAL_NAN_MAX_INFRA_DATA_LEN];
 };
 
 struct slsi_hal_nan_further_availability_channel {
@@ -523,7 +526,7 @@ struct slsi_hal_nan_further_availability_channel {
 
 struct slsi_hal_nan_further_availability_map {
 	u8 numchans;
-	struct slsi_hal_nan_further_availability_channel famchan[32];
+	struct slsi_hal_nan_further_availability_channel famchan[SLSI_HAL_NAN_MAX_FAM_CHANNELS];
 };
 
 struct slsi_hal_nan_receive_post_discovery {
@@ -534,9 +537,9 @@ struct slsi_hal_nan_receive_post_discovery {
 	u8 mapid;
 	u8 addr[ETH_ALEN];
 	u16 mesh_id_len;
-	u8 mesh_id[32];
+	u8 mesh_id[SLSI_HAL_NAN_MAX_MESH_DATA_LEN];
 	u16 infrastructure_ssid_len;
-	u8 infrastructure_ssid_val[32];
+	u8 infrastructure_ssid_val[SLSI_HAL_NAN_MAX_INFRA_DATA_LEN];
 };
 
 struct slsi_nan_sdea_ctrl_params {

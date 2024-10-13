@@ -190,6 +190,10 @@ enum i2c_write_format {
 #define GC5035_OTP_READ_ADDR                         0x6c
 #define GC5035_BANK_SELECT_ADDR                      0x1000
 
+#define GC5035_FRONT_OTP_START_ADDR_BANK1            0x1008
+#define GC5035_FRONT_OTP_START_ADDR_BANK2            0x1808
+#define GC5035_FRONT_OTP_USED_CAL_SIZE               (0xFE + 0x1)
+
 #define GC5035_BOKEH_OTP_START_ADDR_BANK1            0x1080
 #define GC5035_BOKEH_OTP_START_ADDR_BANK2            0x1480
 #define GC5035_BOKEH_OTP_USED_CAL_SIZE               (0x6F + 0x1)
@@ -1109,6 +1113,9 @@ void remove_dump_fw_file(void);
 int is_get_dual_cal_buf(int slave_position, char **buf, int *size);
 #if defined(CAMERA_UWIDE_DUALIZED)
 void is_sec_set_rear3_dualized_rom_probe(void);
+#endif
+#if defined(FRONT_OTPROM_EEPROM)
+void is_sec_set_front_dualized_rom_probe(void);
 #endif
 
 int is_get_remosaic_cal_buf(int sensor_position, char **buf, int *size);

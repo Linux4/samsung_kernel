@@ -116,6 +116,14 @@ static netdev_tx_t vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 	/* Record the timestamp */
 	ktime_get_ts64(&ts);
 
+#ifdef CONFIG_SKB_TRACER
+	if (skb->sk && skb->sk->sk_tracer_mask) {
+		struct skb_tracer *tracer = skb_ext_find(skb, SKB_TRACER);
+		pr_info("tracer: %s(%s): sk: %p, skb: %p, mask: 0x%llx\n",
+				__func__, current->comm, skb->sk, skb, tracer ? tracer->skb_mask : 0);
+	}
+#endif
+
 	if (unlikely(!cp_online(mc))) {
 		if (!netif_queue_stopped(ndev))
 			netif_stop_queue(ndev);

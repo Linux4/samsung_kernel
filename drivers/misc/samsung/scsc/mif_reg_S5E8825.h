@@ -335,4 +335,23 @@
 /* TZASC (TrustZone Address Space Controller) config for Katmai onwards*/
 #define EXYNOS_SET_CONN_TZPC 0
 #define SMC_CMD_CONN_IF (0x82000710)
+
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+#define OP_GET_TUNE (0x4)
+#define OP_SET_TUNE (0x5)
+#define SHIFT_OPCODE (12)
+#define MASK_OPCODE (0xF)
+
+#define SHIFT_SEQ (16)
+#define MASK_SEQ (0x3F)
+
+#define MASK_DONE (0x2000)
+#define SHIFT_DONE (13)
+
+#define APM_CMD_MAX_SEQ_NUM (64)
+
+// for opcode OP_GET_TUNE or OP_SET_TUNE
+#define BUILD_ISSR0_VALUE(opcode, seq) 	(((opcode & MASK_OPCODE) << SHIFT_OPCODE) | ((seq & MASK_SEQ) << SHIFT_SEQ))
+#define APM_IRQ_BIT_DCXO_SHIFT (1)
+#endif
 #endif /* __MIF_REG_8825_H */

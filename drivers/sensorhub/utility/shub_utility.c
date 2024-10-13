@@ -34,5 +34,7 @@ void get_tm(struct rtc_time *tm)
 	struct timespec64 ts;
 
 	ktime_get_real_ts64(&ts);
+#ifndef CONFIG_SHUB_TEST_FOR_ONLY_UML
 	rtc_time64_to_tm(ts.tv_sec, tm);
+#endif
 }

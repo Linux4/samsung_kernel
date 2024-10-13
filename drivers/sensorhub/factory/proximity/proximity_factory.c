@@ -25,6 +25,15 @@
 #include "../../utility/shub_dev_core.h"
 #include "../../utility/shub_utility.h"
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else 
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
@@ -179,7 +188,7 @@ static DEVICE_ATTR(prox_avg, 0664, prox_avg_show, prox_avg_store);
 static DEVICE_ATTR_RO(prox_offset_pass);
 static DEVICE_ATTR_RO(trim_check);
 
-static struct device_attribute *proximity_attrs[] = {
+__visible_for_testing struct device_attribute *proximity_attrs[] = {
 	&dev_attr_prox_probe,
 	&dev_attr_thresh_high,
 	&dev_attr_thresh_low,

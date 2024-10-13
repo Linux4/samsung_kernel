@@ -119,6 +119,57 @@ u32 *mifmboxman_get_mbox_ptr_wpan(struct mifmboxman *mbox,  struct scsc_mif_abs 
 }
 #endif
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+int mifmboxman_set_dcxo_tune_value(struct scsc_mif_abs *mif_abs, u32 value)
+{
+	int ret;
+	if (!mif_abs) {
+		SCSC_TAG_ERR(MX_PROC, "Argument error\n");
+		return -EINVAL;
+	}
+
+	ret = mif_abs->irq_register_mbox_apm(mif_abs);
+	if (ret) {
+		SCSC_TAG_ERR(MX_PROC, "error to register APM MAILBOX\n");
+		return -ECOMM;
+	}
+
+	mif_abs->send_dcxo_cmd(mif_abs, MIFMBOX_APM_OP_SET_TUNE, value);
+
+	ret = mif_abs->check_dcxo_ack(mif_abs, MIFMBOX_APM_OP_SET_TUNE, NULL);
+
+	mif_abs->irq_unregister_mbox_apm(mif_abs);
+	return ret;
+}
+
+int mifmboxman_get_dcxo_tune_value(struct scsc_mif_abs *mif_abs, u32* value)
+{
+	int ret;
+	if (!mif_abs) {
+		SCSC_TAG_ERR(MX_PROC, "Argument error\n");
+		return -EINVAL;
+	}
+
+	ret = mif_abs->irq_register_mbox_apm(mif_abs);
+	if (ret) {
+		SCSC_TAG_ERR(MX_PROC, "error to register APM MAILBOX\n");
+		return -ECOMM;
+	}
+
+	mif_abs->send_dcxo_cmd(mif_abs, MIFMBOX_APM_OP_GET_TUNE, 0);
+
+	ret = mif_abs->check_dcxo_ack(mif_abs, MIFMBOX_APM_OP_GET_TUNE, value);
+	if (ret) {
+		SCSC_TAG_ERR(MX_PROC, "Failure to get DCXO Tune(cause: %d)\n", ret);
+	} else {
+		SCSC_TAG_INFO(MX_PROC, "Succeed to get DCXO Tune, and read value: 0x%x\n", *value);
+	}
+
+	mif_abs->irq_unregister_mbox_apm(mif_abs);
+	return ret;
+}
+#endif
+
 int mifmboxman_deinit(struct mifmboxman *mbox)
 {
 	mutex_lock(&mbox->lock);

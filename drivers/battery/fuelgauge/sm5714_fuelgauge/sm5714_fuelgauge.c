@@ -11,7 +11,6 @@
  */
 
 /* #define BATTERY_LOG_MESSAGE */
-#include <linux/mfd/sm/sm5714/sm5714-private.h>
 #include "sm5714_fuelgauge.h"
 #include <linux/of_gpio.h>
 #include <linux/debugfs.h>
@@ -1225,7 +1224,8 @@ unsigned int sm5714_get_soc(struct sm5714_fuelgauge_data *fuelgauge)
 					(fuelgauge->info.top_off/5)) ||
 					(fuelgauge->info.batt_avgcurrent <= 0)) {
 					if (fuelgauge->info.batt_soc == 999)
-						soc = soc - 1;
+						if (soc > 1)
+							soc = soc - 1;
 				}
 			}
 		}
@@ -1629,7 +1629,7 @@ static void sm5714_fg_adjust_capacity_max(
 
 		if ((diff >= 1) && (fuelgauge->capacity_max < fuelgauge->g_capacity_max)) {
 			fuelgauge->capacity_max++;
-		} else if ((fuelgauge->capacity_max >= fuelgauge->g_capacity_max) || (curr_raw_soc == 100)) {
+		} else if ((fuelgauge->capacity_max >= fuelgauge->g_capacity_max) || (curr_raw_soc == 1000)) {
 			fuelgauge->g_capacity_max = 0;
 			fuelgauge->capacity_max_conv = false;
 		}
@@ -2370,13 +2370,12 @@ static void temp_parse_dt(struct sm5714_fuelgauge_platform_data *pdata)
 	struct device_node *np = of_find_node_by_name(NULL, "battery");
 	int ret = 0, len = 0;
 	unsigned int i = 0;
-	bool age_data_by_offset = of_property_read_bool(np, "battery,age_data_by_offset");
+	bool age_data_by_common_offset = of_property_read_bool(np, "battery,age_data_by_common_offset");
 
-	pr_info("%s: age_data_by_offset is %s", __func__, (age_data_by_offset ? "true" : "false"));
+	pr_info("%s: age_data_by_common_offset is %s", __func__, (age_data_by_common_offset ? "true" : "false"));
 
-	if (age_data_by_offset) {
+	if (age_data_by_common_offset) {
 		char *age_data_soc_str = "battery,age_data_full_condition_soc";
-
 		len = of_property_count_u32_elems(np, age_data_soc_str);
 		if (len > 0) {
 			pdata->num_age_step = len;

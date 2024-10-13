@@ -38,15 +38,15 @@
 	} while (0)
 
 #define shub_dbgf(fmt, ...) do { \
-	pr_debug("[SHUB] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+	pr_debug("[SHUB] %20s(%4d) : " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
 	} while (0)
 
 #define shub_infof(fmt, ...) do { \
-	pr_info("[SHUB] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+	pr_info("[SHUB] %20s(%4d) : " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
 	} while (0)
 
 #define shub_errf(fmt, ...) do { \
-	pr_err("[SHUB] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+	pr_err("[SHUB] %20s(%4d) : " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
 	} while (0)
 
 #define MAKE_WORD(H,L) ((((u16)H) << 8 ) & 0xff00 ) | ((((u16)L)) & 0x00ff )

@@ -747,6 +747,7 @@ enum PANEL_SEQ {
 	PANEL_MASK_LAYER_AFTER_SEQ,
 	PANEL_MASK_LAYER_ENTER_BR_SEQ,
 	PANEL_MASK_LAYER_EXIT_BR_SEQ,
+	PANEL_MASK_LAYER_EXIT_AFTER_SEQ,
 #endif
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 	PANEL_BRIGHTDOT_TEST_SEQ,
@@ -1529,6 +1530,7 @@ int parse_sysfs_arg(int nargs, enum sysfs_arg_type type,
 		char *s, struct sysfs_arg_out *out);
 int panel_cmdq_get_size(struct panel_device *panel);
 DECLARE_REDIRECT_MOCKABLE(panel_cmdq_flush, RETURNS(int), PARAMS(struct panel_device *));
+struct panel_dt_lut *find_panel_lut(struct panel_device *panel, u32 id);
 #ifdef CONFIG_EXYNOS_DECON_LCD_SYSFS
 int panel_sysfs_probe(struct panel_device *panel);
 int panel_sysfs_remove(struct panel_device *panel);

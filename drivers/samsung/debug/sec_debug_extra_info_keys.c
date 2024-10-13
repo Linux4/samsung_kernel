@@ -19,7 +19,7 @@ static char key64[][MAX_ITEM_KEY_LEN] = {
 	"BAT", "FAULT", "EPD", "HLEHLD",
 	"PWR", "PWROFF", "PINT", "PSTAT",
 	"PWROFFS", "PINTS", "PSTATS", "FPMU",
-	"UFS",
+	"UFS", "CPS",
 };
 
 static char key256[][MAX_ITEM_KEY_LEN] = {
@@ -39,15 +39,15 @@ static char key1024[][MAX_ITEM_KEY_LEN] = {
 
 /* keys are grouped by sysfs node */
 static char akeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "RR", "ODR", "KTIME",
+	"ID", "RR", "ODR", "KTIME", "CPS",
 	"BIN", "DDRID", "RST", "ASB",
 	"BAT", "LEV", "RSTCNT", "WDGC", "WDGT",
 	"FAULT", "BUG", "BUS", "DSSBUS",
 	"FPMU", "PC", "LR", "PANIC", "UFS",
 	"SMU", "EPD", "ESR", "UP",
-	"DOWN", "SCI", "SPCNT", "FREQ", "LFRQ",
-	"STACK", "KLG", "EHLD", "UNFZ", "HLTYPE",
-	"HLDATA", "HLFREQ", "HLEHLD", "HLCPU",
+	"DOWN", "SCI", "SPCNT", "FREQ", "LFRQ", "STACK",
+	"KLG", "EHLD", "UNFZ", "HLTYPE", "HLDATA",
+	"HLFREQ", "HLEHLD", "HLCPU",
 };
 
 static char bkeys[][MAX_ITEM_KEY_LEN] = {

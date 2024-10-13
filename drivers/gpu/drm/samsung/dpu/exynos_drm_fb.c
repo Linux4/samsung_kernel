@@ -278,6 +278,8 @@ static void plane_state_to_win_config(struct dpu_bts_win_config *win_config,
 	win_config->src_y = plane_state->src.y1 >> 16;
 	win_config->src_w = drm_rect_width(&plane_state->src) >> 16;
 	win_config->src_h = drm_rect_height(&plane_state->src) >> 16;
+	win_config->src_f_w = fb->width;
+	win_config->src_f_h = fb->height;
 
 	win_config->dst_x = plane_state->dst.x1;
 	win_config->dst_y = plane_state->dst.y1;
@@ -311,8 +313,13 @@ static void plane_state_to_win_config(struct dpu_bts_win_config *win_config,
 			DRM_MODE_ROTATE_0 | DRM_MODE_ROTATE_90 |
 			DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y);
 	win_config->is_rot = false;
+	win_config->is_xflip = false;
 	if (simplified_rot & DRM_MODE_ROTATE_90)
 		win_config->is_rot = true;
+
+	if (simplified_rot & DRM_MODE_REFLECT_X)
+		win_config->is_xflip = true;
+
 	win_config->is_hdr = exynos_state->hdr_en;
 
 	DRM_DEBUG("src[%d %d %d %d], dst[%d %d %d %d]\n",

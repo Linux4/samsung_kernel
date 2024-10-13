@@ -908,15 +908,14 @@ void slsi_conn_log2us_auth_req(struct slsi_dev *sdev, struct net_device *dev, co
 	if (res)
 		SLSI_ERR(sdev, "Could not get rssi status = %d\n", res);
 
-	if (is_roaming)
-		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [CONN] ROAM AUTH REQ bssid=" MACSTR_NOMASK,
-				 time[0], time[1], MAC2STR_LOG(bssid));
-	else
-		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [CONN] AUTH REQ bssid=" MACSTR_NOMASK,
-				 time[0], time[1], MAC2STR_LOG(bssid));
+	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d][CONN] AUTH REQ bssid=" MACSTR_NOMASK,
+			 time[0], time[1], MAC2STR_LOG(bssid));
 	pos += scnprintf(log_buffer + pos, buf_size - pos, " rssi=%d auth_algo=%d type=%d sn=%d status=%d",
 			 rssi, auth_algo, sae_type, sn, status);
-	pos += scnprintf(log_buffer + pos, buf_size - pos, " tx_status=%s", tx_status_str);
+	if (is_roaming)
+		pos += scnprintf(log_buffer + pos, buf_size - pos, " tx_status=%s [ROAM]", tx_status_str);
+	else
+		pos += scnprintf(log_buffer + pos, buf_size - pos, " tx_status=%s", tx_status_str);
 
 	new_node->len = pos + 1;
 	enqueue_log_buffer(new_node, &sdev->conn_log2us_ctx);
@@ -944,14 +943,18 @@ void slsi_conn_log2us_auth_resp(struct slsi_dev *sdev, struct net_device *dev,
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
+	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d][CONN] AUTH RESP",
+			 time[0], time[1]);
 	if (is_roaming)
-		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [CONN] ROAM AUTH RESP", time[0], time[1]);
+		pos += scnprintf(log_buffer + pos, buf_size - pos, " bssid="
+				 MACSTR_NOMASK " auth_algo=%d "
+				 "type=%d sn=%d status=%d [ROAM]", MAC2STR_LOG(bssid),
+				 auth_algo, sae_type, sn, status);
 	else
-		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [CONN] AUTH RESP", time[0], time[1]);
-	pos += scnprintf(log_buffer + pos, buf_size - pos, " bssid="
-			 MACSTR_NOMASK " auth_algo=%d "
-			 "type=%d sn=%d status=%d", MAC2STR_LOG(bssid),
-			 auth_algo, sae_type, sn, status);
+		pos += scnprintf(log_buffer + pos, buf_size - pos, " bssid="
+				 MACSTR_NOMASK " auth_algo=%d "
+				 "type=%d sn=%d status=%d", MAC2STR_LOG(bssid),
+				 auth_algo, sae_type, sn, status);
 	new_node->len = pos + 1;
 	enqueue_log_buffer(new_node, &sdev->conn_log2us_ctx);
 	queue_work(sdev->conn_log2us_ctx.log2us_workq, &sdev->conn_log2us_ctx.log2us_work);

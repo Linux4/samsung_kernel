@@ -23,13 +23,14 @@
 #include "../sensorhub/shub_device.h"
 #include "../utility/shub_utility.h"
 #include "../utility/shub_dev_core.h"
+#include "../utility/shub_file_manager.h"
 #include "../utility/sensor_core.h"
 #include "../vendor/shub_vendor.h"
 #include "shub_sensor_dump.h"
 #include "shub_system_checker.h"
 #include "shub_debug.h"
 
-#define TIMEINFO_SIZE      50
+#define TIMEINFO_SIZE   50
 #define SUPPORT_SENSORLIST \
 do { \
 	{SENSOR_TYPE_ACCELEROMETER, SENSOR_TYPE_GYROSCOPE, SENSOR_TYPE_GEOMAGNETIC_FIELD, SENSOR_TYPE_PRESSURE, \
@@ -185,6 +186,22 @@ print_sensordump:
 		ret = snprintf(buf, PAGE_SIZE, "%s\n%s%s\n\n%s\n%s\n",
 				str_reg_dump_filter, sensor_dump, str_reg_dump_filter, reset_info, time_info);
 
+	if (shub_debug_level()) {
+		char file_path[255] = "";
+		struct rtc_time tm;
+		get_tm(&(tm));
+
+		memset(time_temp, 0, sizeof(time_temp));
+		snprintf(time_temp, sizeof(time_temp),
+				"%04d%02d%02d_%02d%02d%02d(%llu)", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+				tm.tm_hour, tm.tm_min, tm.tm_sec, get_current_timestamp());
+		snprintf(file_path, sizeof(file_path), "/data/vendor/sensorhub/register_dump_%s.txt", time_temp);
+
+		if (shub_file_write(file_path, sensor_dump, strlen(sensor_dump), 0) > 0) {
+			shub_info("save register_dump_%s", time_temp);
+		}
+	}
+
 	kfree(sensor_dump);
 	if (cnt > 0)
 		kfree(time_info);
@@ -282,7 +299,8 @@ static ssize_t sensor_axis_store(struct device *dev, struct device_attribute *at
 		return -EINVAL;
 	}
 
-	sensor->funcs->set_position(position);
+	if (sensor->funcs && sensor->funcs->set_position)
+		sensor->funcs->set_position(position);
 
 	return size;
 }

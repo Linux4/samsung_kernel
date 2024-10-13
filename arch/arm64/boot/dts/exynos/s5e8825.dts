@@ -4792,8 +4792,9 @@
 		out_type = <0x01>;
 		te_from = <0x00>;
 		svsync_time_us = <0x7d0>;
-		ppc = <0x02>;
+		ppc = <0x01>;
 		ppc_rotator = <0x02>;
+		ppc_rotator_wr = <0x04>;
 		ppc_scaler = <0x02>;
 		delay_comp = <0x04>;
 		delay_scaler = <0x03>;
@@ -4863,8 +4864,9 @@
 		trig_mode = <0x01>;
 		out_type = <0x100>;
 		te_from = <0x00>;
-		ppc = <0x02>;
+		ppc = <0x01>;
 		ppc_rotator = <0x02>;
+		ppc_rotator_wr = <0x04>;
 		ppc_scaler = <0x02>;
 		delay_comp = <0x04>;
 		delay_scaler = <0x03>;
@@ -5839,7 +5841,7 @@
 	scsc_wifibt@11A70000 {
 		compatible = "samsung,scsc_wifibt";
 		memory-region = <0xc3>;
-		reg = <0x00 0x11a70000 0x180 0x00 0x11a80000 0x180>;
+		reg = <0x00 0x11a70000 0x180 0x00 0x11a80000 0x180 0x00 0x119b0000 0x180>;
 		interrupts = <0x00 0x17 0x04 0x00 0x28 0x04 0x00 0x27 0x04 0x00 0x1a6 0x04 0x00 0x1a7 0x04>;
 		interrupt-names = "ALIVE\0MBOX_WLAN\0MBOX_WPAN\0CFG_REQ\0WDOG";
 		samsung,syscon-phandle = <0x94>;
@@ -5945,8 +5947,8 @@
 		phandle = <0xcb>;
 	};
 
-	usb_notifier {
-		compatible = "samsung,usb-notifier";
+	origin_usb_notifier {
+		compatible = "samsung,origin-usb-notifier";
 		udc = <0xcc>;
 		status = "okay";
 		disable_host_wakelock;
@@ -6579,7 +6581,7 @@
 
 		tex {
 			top-app = <0x01>;
-			prio = <0x6e>;
+			prio = <0x70>;
 		};
 
 		gsc {
@@ -6673,7 +6675,7 @@
 
 		tex {
 			top-app = <0x01>;
-			prio = <0x6e>;
+			prio = <0x70>;
 		};
 
 		gsc {
@@ -6746,7 +6748,7 @@
 
 		tex {
 			top-app = <0x01>;
-			prio = <0x6e>;
+			prio = <0x70>;
 		};
 
 		gsc {
@@ -6823,7 +6825,7 @@
 
 		tex {
 			top-app = <0x01>;
-			prio = <0x6e>;
+			prio = <0x70>;
 		};
 
 		gsc {
@@ -6945,7 +6947,7 @@
 
 		tex {
 			top-app = <0x01>;
-			prio = <0x6e>;
+			prio = <0x70>;
 		};
 
 		gsc {
@@ -7111,7 +7113,7 @@
 
 		tex {
 			top-app = <0x01>;
-			prio = <0x6e>;
+			prio = <0x70>;
 		};
 
 		gsc {
@@ -11730,7 +11732,7 @@
 			power-domains = <0x00>;
 		};
 
-		usb_notifier {
+		origin_usb_notifier {
 			udc = <0x00>;
 		};
 

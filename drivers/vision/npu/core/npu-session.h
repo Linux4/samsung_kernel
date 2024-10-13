@@ -130,6 +130,9 @@ struct npu_session {
 	struct mbox_process_dat mbox_process_dat;
 
 	pid_t	pid;
+	char	comm[TASK_COMM_LEN];
+	pid_t	p_pid;
+	char	p_comm[TASK_COMM_LEN];
 
 	u32 address_vector_offset;
 	u32 address_vector_cnt;
@@ -161,6 +164,9 @@ struct npu_session {
 	u64     last_q_time_stamp;
 	u32     inferencefreq_window[NPU_Q_TIMEDIFF_WIN_MAX];        /* 0.01 unit */
 	u32     inferencefreq;/* can be max, min, avg, or avg2 depending on policy, usually avg*/
+#endif
+#if (CONFIG_NPU_NCP_VERSION >= 25)
+	char model_name[NCP_MODEL_NAME_LEN];
 #endif
 };
 

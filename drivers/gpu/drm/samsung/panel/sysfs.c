@@ -39,6 +39,8 @@
 #include "dpui.h"
 #endif
 
+#define INVALID_CELL_ID_STR ("0000000000")
+
 static DEFINE_MUTEX(sysfs_lock);
 
 char *mcd_rs_name[MAX_MCD_RS] = {
@@ -595,6 +597,7 @@ static ssize_t manufacture_code_show(struct device *dev,
 	u8 code[5] = { 0, };
 	struct panel_info *panel_data;
 	struct panel_device *panel = dev_get_drvdata(dev);
+	int ret;
 
 	if (panel == NULL) {
 		panel_err("panel is null\n");
@@ -602,7 +605,12 @@ static ssize_t manufacture_code_show(struct device *dev,
 	}
 	panel_data = &panel->panel_data;
 
-	resource_copy_by_name(panel_data, code, "code");
+	ret = resource_copy_by_name(panel_data, code, "code");
+	if (ret < 0) {
+		panel_err("failed to copy resources\n");
+		snprintf(buf, PAGE_SIZE, "%s\n", INVALID_CELL_ID_STR);
+		return strlen(buf);
+	}
 
 	snprintf(buf, PAGE_SIZE, "%02X%02X%02X%02X%02X\n",
 		code[0], code[1], code[2], code[3], code[4]);
@@ -622,6 +630,7 @@ static ssize_t cell_id_show(struct device *dev,
 	u8 date[PANEL_DATE_LEN] = { 0, }, coordinate[4] = { 0, };
 	struct panel_info *panel_data;
 	struct panel_device *panel = dev_get_drvdata(dev);
+	int ret;
 
 	if (panel == NULL) {
 		panel_err("panel is null\n");
@@ -629,8 +638,14 @@ static ssize_t cell_id_show(struct device *dev,
 	}
 	panel_data = &panel->panel_data;
 
-	resource_copy_by_name(panel_data, date, "date");
-	resource_copy_by_name(panel_data, coordinate, "coordinate");
+	ret = resource_copy_by_name(panel_data, date, "date");
+	ret |= resource_copy_by_name(panel_data, coordinate, "coordinate");
+
+	if (ret < 0) {
+		panel_err("failed to copy resources\n");
+		snprintf(buf, PAGE_SIZE, "%s\n", INVALID_CELL_ID_STR);
+		return strlen(buf);
+	}
 
 	snprintf(buf, PAGE_SIZE, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
 		date[0], date[1], date[2], date[3], date[4], date[5], date[6],
@@ -649,18 +664,24 @@ static ssize_t octa_id_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int i, site, rework, poc;
-	u8 cell_id[16], octa_id[PANEL_OCTA_ID_LEN] = { 0, };
+	u8 cell_id[16], octa_id[PANEL_OCTA_ID_LEN] = { 0xFF, };
 	struct panel_info *panel_data;
 	struct panel_device *panel = dev_get_drvdata(dev);
 	int len = 0;
 	bool cell_id_exist = true;
+	int ret;
 
 	if (panel == NULL) {
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
 	panel_data = &panel->panel_data;
-	resource_copy_by_name(panel_data, octa_id, "octa_id");
+	ret = resource_copy_by_name(panel_data, octa_id, "octa_id");
+	if (ret < 0) {
+		panel_err("failed to copy resources\n");
+		snprintf(buf, PAGE_SIZE, "%s\n", INVALID_CELL_ID_STR);
+		return strlen(buf);
+	}
 
 	site = (octa_id[0] >> 4) & 0x0F;
 	rework = octa_id[0] & 0x0F;

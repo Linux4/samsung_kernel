@@ -112,7 +112,7 @@ static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr,
 
 	if (sysfs_streq(buf, "1")) { /* calibrate */
 		shub_infof("calibrate");
-	
+
 		prox_raw = get_prox_raw_data();
 		if (prox_raw > thd_data->prox_cal_thresh[PROX_THRESH_LOW]
 		    && prox_raw <= thd_data->prox_cal_thresh[PROX_THRESH_HIGH]) {
@@ -134,7 +134,7 @@ static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr,
 			shub_infof("crosstalk(%u)", prox_raw);
 		}
 	} else {
-		shub_errf("%s: invalid value %d", __func__, *buf);
+		shub_errf("invalid value %d", *buf);
 		ret = -EINVAL;
 	}
 

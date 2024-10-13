@@ -210,6 +210,7 @@ struct exynos_drm_crtc_state {
 	int64_t dqe_fd;
 	s32 __user *bts_fps_ptr;
 	u32 boost_bts_fps;
+	char *dqe_colormode_ctx;
 };
 
 int exynos_drm_crtc_add_crc_entry(struct drm_crtc *crtc, bool has_frame,

@@ -3225,7 +3225,7 @@ static int set_sif_params(struct abox_data *data, enum abox_dai id,
 	enum ABOX_CONFIGMSG msg_rate, msg_format;
 	unsigned int rate, channels;
 	snd_pcm_format_t format;
-	int ret = 0;
+	int mixp_channels, ret = 0;
 
 	ret = get_configmsg(id, &msg_rate, &msg_format);
 	if (ret < 0) {
@@ -3247,6 +3247,14 @@ static int set_sif_params(struct abox_data *data, enum abox_dai id,
 		set_sif_format(data, msg_format, format);
 		set_sif_channels(data, msg_format, channels);
 		format_put_ipc(adev, format, channels, msg_format);
+	}
+
+	if (msg_format == SET_SIFS0_FORMAT) {
+		mixp_channels = get_mixp_channels(data);
+		if (mixp_channels > channels) { /* input(mixp) ch > output ch */
+			format_put_ipc(adev, format, mixp_channels, msg_format);
+			set_sif_channels(data, msg_format, channels); /* update with output ch */
+		}
 	}
 
 	update_ch_num(adev, msg_format);
@@ -5628,6 +5636,44 @@ static const struct snd_kcontrol_new sifs6_out_controls[] = {
 	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
 };
 
+
+static const struct snd_kcontrol_new nsrc0_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc1_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc2_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc3_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc4_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc5_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc6_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc7_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc8_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc9_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc10_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+static const struct snd_kcontrol_new nsrc11_in_controls[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 1),
+};
+
 static const char *const sifsm_texts[] = {
 	"SPUS IN0", "SPUS IN1", "SPUS IN2", "SPUS IN3",
 	"SPUS IN4", "SPUS IN5", "SPUS IN6", "SPUS IN7",
@@ -6503,6 +6549,19 @@ static const struct snd_soc_dapm_widget cmpnt_widgets[] = {
 			nsrc11_event,
 			SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 
+	SND_SOC_DAPM_SWITCH("NSRC0 In", SND_SOC_NOPM, 0, 0,	nsrc0_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC1 In", SND_SOC_NOPM, 0, 0,	nsrc1_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC2 In", SND_SOC_NOPM, 0, 0,	nsrc2_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC3 In", SND_SOC_NOPM, 0, 0,	nsrc3_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC4 In", SND_SOC_NOPM, 0, 0,	nsrc4_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC5 In", SND_SOC_NOPM, 0, 0,	nsrc5_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC6 In", SND_SOC_NOPM, 0, 0,	nsrc6_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC7 In", SND_SOC_NOPM, 0, 0,	nsrc7_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC8 In", SND_SOC_NOPM, 0, 0,	nsrc8_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC9 In", SND_SOC_NOPM, 0, 0,	nsrc9_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC10 In", SND_SOC_NOPM, 0, 0, nsrc10_in_controls),
+	SND_SOC_DAPM_SWITCH("NSRC11 In", SND_SOC_NOPM, 0, 0, nsrc11_in_controls),
+
 	SND_SOC_DAPM_PGA("NSRC0 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
 	SND_SOC_DAPM_PGA("NSRC1 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
 	SND_SOC_DAPM_PGA("NSRC2 PGA", SND_SOC_NOPM, 0, 0, NULL, 0),
@@ -7204,18 +7263,31 @@ static const struct snd_soc_dapm_route cmpnt_routes[] = {
 	{"UDMA SIFM1", "SIFS5", "SIFS5 OUT"},
 	{"UDMA SIFM1", "SIFS6", "SIFS6 OUT"},
 
-	{"NSRC0 PGA", NULL, "NSRC0"},
-	{"NSRC1 PGA", NULL, "NSRC1"},
-	{"NSRC2 PGA", NULL, "NSRC2"},
-	{"NSRC3 PGA", NULL, "NSRC3"},
-	{"NSRC4 PGA", NULL, "NSRC4"},
-	{"NSRC5 PGA", NULL, "NSRC5"},
-	{"NSRC6 PGA", NULL, "NSRC6"},
-	{"NSRC7 PGA", NULL, "NSRC7"},
-	{"NSRC8 PGA", NULL, "NSRC8"},
-	{"NSRC9 PGA", NULL, "NSRC9"},
-	{"NSRC10 PGA", NULL, "NSRC10"},
-	{"NSRC11 PGA", NULL, "NSRC11"},
+	{"NSRC0 In", "Switch", "NSRC0"},
+	{"NSRC1 In", "Switch", "NSRC1"},
+	{"NSRC2 In", "Switch", "NSRC2"},
+	{"NSRC3 In", "Switch", "NSRC3"},
+	{"NSRC4 In", "Switch", "NSRC4"},
+	{"NSRC5 In", "Switch", "NSRC5"},
+	{"NSRC6 In", "Switch", "NSRC6"},
+	{"NSRC7 In", "Switch", "NSRC7"},
+	{"NSRC8 In", "Switch", "NSRC8"},
+	{"NSRC9 In", "Switch", "NSRC9"},
+	{"NSRC10 In", "Switch", "NSRC10"},
+	{"NSRC11 In", "Switch", "NSRC11"},
+
+	{"NSRC0 PGA", NULL, "NSRC0 In"},
+	{"NSRC1 PGA", NULL, "NSRC1 In"},
+	{"NSRC2 PGA", NULL, "NSRC2 In"},
+	{"NSRC3 PGA", NULL, "NSRC3 In"},
+	{"NSRC4 PGA", NULL, "NSRC4 In"},
+	{"NSRC5 PGA", NULL, "NSRC5 In"},
+	{"NSRC6 PGA", NULL, "NSRC6 In"},
+	{"NSRC7 PGA", NULL, "NSRC7 In"},
+	{"NSRC8 PGA", NULL, "NSRC8 In"},
+	{"NSRC9 PGA", NULL, "NSRC9 In"},
+	{"NSRC10 PGA", NULL, "NSRC10 In"},
+	{"NSRC11 PGA", NULL, "NSRC11 In"},
 
 	{"SPUM ASRC0", NULL, "NSRC0 PGA"},
 	{"SPUM ASRC1", NULL, "NSRC1 PGA"},

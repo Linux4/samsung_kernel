@@ -1476,6 +1476,25 @@ static int read_codec(struct device_node *np, struct device *dev,
 	return ret;
 }
 
+static void exynos8825_mic_always_on(struct snd_soc_card *card)
+{
+	struct _drvdata *drvdata = snd_soc_card_get_drvdata(card);
+	struct snd_soc_component *component = drvdata->codec_comp;
+	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
+
+	dev_info(card->dev, "%s\n", __func__);
+
+	if (of_find_property(card->dev->of_node, "mic-always-on", NULL) != NULL) {
+		snd_soc_dapm_force_enable_pin(dapm, "MICBIAS2");
+		snd_soc_dapm_sync(dapm);
+	} else {
+		dev_err(card->dev, "no mic_alway_on feature\n");
+		return;
+	}
+
+	dev_info(card->dev, "%s: mic-always-on is enabled\n", __func__);
+}
+
 static void exynos_register_card_work_func(struct work_struct *work)
 {
 	struct snd_soc_card *card = &exynos_card;
@@ -1484,6 +1503,8 @@ static void exynos_register_card_work_func(struct work_struct *work)
 	ret = devm_snd_soc_register_card(card->dev, card);
 	if (ret)
 		dev_err(card->dev, "sound card register failed: %d\n", ret);
+	else
+		exynos8825_mic_always_on(card);
 }
 DECLARE_WORK(exynos_register_card_work, exynos_register_card_work_func);
 

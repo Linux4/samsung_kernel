@@ -1604,7 +1604,7 @@ int sensor_4ha_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, 
 		coarse_int = cis_data->min_coarse_integration_time;
 	}
 
-	if (coarse_int <= 100) {
+	if (coarse_int <= 15) {
 		compensated_again = (*again * ((expo * vt_pic_clk_freq_mhz) - fine_int)) / (line_length_pck * coarse_int);
 
 		if (compensated_again < cis_data->min_analog_gain[1]) {
