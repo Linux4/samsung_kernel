@@ -1,0 +1,59 @@
+#
+# MUIC devices
+#
+
+comment "MUIC configs"
+
+config USE_MUIC
+	bool "Using MUIC device driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you will get support for
+	  the MUIC device driver.
+
+config MUIC_NOTIFIER
+	bool "MUIC notifier support"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  the MUIC attached device status change notification.
+
+config MUIC_S2MM001
+	bool "Using S2MM001 MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  for the S2MM001 MUIC chip.
+
+config MUIC_SM5703
+	bool "SM5703 MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the SM5703 MUIC chip.
+
+config MUIC_UART_SWITCH
+	bool "Using Exynos ModAP UART"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  for the Exynos ModAP chip.
+
+config MUIC_UNIVERSAL
+  	bool "UNIVERSAL MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for various MUIC chips.
+
+config MUIC_UNIVERSAL_SM5703
+  	bool "SM5703 MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the SM5703 MUIC chip.
+

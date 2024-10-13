@@ -1,0 +1,101 @@
+menuconfig TRACE
+	bool "TRACE driver support"
+	default y
+	help
+	  The "TRACE driver" is a kind of driver for debugging
+
+if TRACE
+
+config EXYNOS_DRAMTEST
+	bool "Exynos DRAMTEST driver"
+	help
+	  This driver is to test DRAM. It write all 2MB with data 1.
+
+config EXYNOS_BUSMONITOR
+	bool "Exynos BUS Monitor support(logging / timeout)"
+	default y
+	depends on ARCH_EXYNOS
+
+menuconfig EXYNOS_SNAPSHOT
+	bool "Exynos SnapShot(ESS) support for debugging"
+	default y
+	depends on ARCH_EXYNOS
+
+config EXYNOS_SNAPSHOT_CALLSTACK
+	int "shown callstack level"
+	depends on EXYNOS_SNAPSHOT
+	range 1 4
+	default 4
+
+config EXYNOS_SNAPSHOT_IRQ_EXIT
+	bool "Enable debugging of interrupt exit event by kevent"
+	depends on EXYNOS_SNAPSHOT && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default y
+
+config EXYNOS_SNAPSHOT_IRQ_EXIT_THRESHOLD
+	int "threshold of detection(microsecond)"
+	depends on EXYNOS_SNAPSHOT_IRQ_EXIT && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	range 0 1000000
+	default 0
+
+config EXYNOS_SNAPSHOT_IRQ_DISABLED
+	bool "Enable debugging of interrupt disable event by kevent(EXPERIMENTAL)"
+	depends on EXYNOS_SNAPSHOT && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default n
+
+config EXYNOS_SNAPSHOT_SPINLOCK
+	bool "Enable debugging of spinlock event by kevent(EXPERIMENTAL)"
+	depends on EXYNOS_SNAPSHOT && DEBUG_SPINLOCK && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default y
+
+config EXYNOS_SNAPSHOT_CLK
+	bool "Enable debugging of clock event by kevent(EXPERIMENTAL)"
+	depends on EXYNOS_SNAPSHOT && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default y
+
+config EXYNOS_SNAPSHOT_FREQ
+	bool "Enable debugging of frequence event by kevent(EXPERIMENTAL)"
+	depends on EXYNOS_SNAPSHOT && PM_DEVFREQ && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default y
+
+config EXYNOS_SNAPSHOT_HRTIMER
+	bool "Enable debugging of hrtimer by kevent"
+	depends on EXYNOS_SNAPSHOT && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default n
+
+config EXYNOS_SNAPSHOT_SOFTIRQ
+	bool "Enable debugging of softirq by kevent"
+	depends on EXYNOS_SNAPSHOT && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default y
+
+config EXYNOS_SNAPSHOT_REG
+	bool "Enable debugging of accessing register by kevent"
+	depends on EXYNOS_SNAPSHOT && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default n
+
+config EXYNOS_SNAPSHOT_MBOX
+	bool "Enable debugging of mailbox for transferring with APM"
+	depends on EXYNOS_SNAPSHOT && EXYNOS_MBOX && !EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	default y
+
+config EXYNOS_SNAPSHOT_HOOK_LOGGER
+	bool "Enable hooking android platform log for ramdump"
+	depends on EXYNOS_SNAPSHOT
+	default y
+
+config EXYNOS_SNAPSHOT_PANIC_REBOOT
+	bool "Enable forced reboot after panic for ramdump"
+	depends on EXYNOS_SNAPSHOT
+	default y
+
+config EXYNOS_SNAPSHOT_WATCHDOG_RESET
+	bool "Support watchdog reset when hardlockup detect"
+	depends on EXYNOS_SNAPSHOT && EXYNOS_SNAPSHOT_PANIC_REBOOT
+	default y
+
+config EXYNOS_SNAPSHOT_MINIMIZED_MODE
+	bool "Support minimized feature configuration"
+	depends on EXYNOS_SNAPSHOT
+	default n
+
+endif
