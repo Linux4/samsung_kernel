@@ -1,0 +1,145 @@
+
+build 7414587
+Drop python2 support, scripts are tested on python3.8 and python3.9.
+Refactor debug unwinding:
+  1. Add --keep-failed-unwinding-result and --keep-failed-unwinding-stack options
+     in record cmd, to generate additional records for failed unwinding cases.
+  2. Refactor debug-unwind cmd and debug_unwind_reporter.py to report failed
+     unwinding cases.
+Support recording and converting kernel ETM data in record cmd and inject cmd.
+Support using proguard mapping file for reporting.
+Support vmlinux file when building binary_cache.
+Support showing disassembly of vmlinux file in report_html.py. Use multithreading
+to speedup disassembling.
+Add app_type, android_sdk_version and android_build_type in meta_info of recording file.
+
+
+ndk r23
+build 7173446
+Add visualization tool purgatorio.
+Switch to llvm-objdump and llvm-readelf.
+
+build 7119240
+Reduce prepare recording time.
+Add --kprobe option in record cmd.
+Add --cpu option in report cmd.
+Add -i option in dump cmd.
+Add --exclude-perf option in inject cmd.
+Add merge cmd to merge recording files recorded in the same environment using
+the same event types.
+Add monitor cmd to record and report events in real time.
+Fix a few bugs about symbolization of kernel and kernel modules.
+Support parsing kernel etm data in inject cmd.
+Add --show-execution-type option in report-sample cmd.
+Don't hide art jni methods in report_lib and report-sample cmd.
+
+
+build 6859468
+Add --csv option in report cmd.
+Add --sort option in stat cmd.
+Add --tp-filter option to filter tracepoint events in record cmd.
+Add --addr-filter to filter etm recording in record cmd.
+Fix finding symbols from kernel modules.
+Better ART JIT support (dump jit symfiles to a single file instead of multiple
+temporary files).
+Support generic JIT symbols from symbol map file. See doc/jit_symbols.md.
+
+
+ndk r22
+build 6401870
+Support multiple record files in pprof_proto_generator.py.
+In stat cmd, add --per-thread and --per-core options to report per thread and per core.
+In record cmd, add --exclude-perf option to exclude simpleperf samples in system wide
+recording.
+In inject cmd, support decoding coresight etm data to branch list data in protobuf format.
+Fix and add doc for app_api, which can control simpleperf recording in app code.
+Support pmu event types:
+  list supported pmu events via `simpleperf list pmu`.
+  record/stat pmu events via options like -e armv8_pmuv3/cpu_cycles/.
+Switch to llvm-objdump.
+Add doc for line and disassembly annotation in README.md.
+Add doc for profiling profileable release app on Android >= Q.
+Remove dependency on libncurses.
+
+ndk r21
+In record cmd, support recording coresight etm data (via -e cs-etm option).
+Add inject cmd to decode coresight etm data.
+Add doc for downloading unstripped libraries on device.
+Fix scripts for using unstripped libraries without build ids for reporting.
+Switch to llvm-symbolizer.
+Add app_api and api_profiler.py, which can control simpleperf recording in app code.
+Fix pprof_proto_generator.py to support line and disassembly annotation via pprof.
+
+ndk r20
+Skipped.
+
+ndk r19
+Fix report-sample command on Windows.
+
+ndk r18
+Improve support of profiling JITed/interpreted Java code on Android >= P:
+  1) Support JITed/interpreted Java code in system wide recording.
+  2) Support dex files extracted to memory.
+  3) Fix some bugs and improve inefficient code.
+Improve record command:
+  1) Add a user space buffer and a high priority record reading thread to reduce sampe lost rate.
+  2) Record full process name instead of only the last 16 bytes.
+Improve report_html.py:
+  1) Generate flamegraphs in Javascript code instead of using inferno, thus
+	   reducing the time used to generate and load report.
+  2) Use bootstrap 4 to format UI.
+  3) Use progressbar to show progress of loading contents.
+  4) Add --binary_filter option to only annotate selected binaries.
+Export tracing data in simpleperf_report_lib.py.
+Test python scripts with both python2 and python3.
+Add document for using simpleperf in Android platform profiling.
+
+ndk r17
+(release)
+Use new Android unwinder, which can unwind for archs different from build.
+Support profiling interpreted and JITed java code on Android >= P.
+Refactor app_profiler.py: improve option interface, simplify profiling from launch,
+and improve native lib downloading.
+Fix ndk issues 638, 644, 499, 493.
+Add debug-unwind cmd and script to debug unwinding.
+Update document, including the way using wrap.sh to profile released apk.
+
+(beta 1)
+Add report_html.py, reporting profiling result in html interface.
+Improve inferno.
+Refactor document.
+Provide more complete dwarf based call graphs.
+
+ndk r16
+
+Add inferno, a flamegraph generator.
+Add --trace-offcpu option in simpleperf record command and app_profiler.py to trace offcpu time.
+Add --app option in simpleperf record command to remove need of using run-as.
+Add --profile_from_launch option in app_profiler.py to start recording from Activity launch time.
+Configure scripts from command lines, remove config files.
+Wrap simpleperf report command with report.py, in which GUI mode is enabled with --gui option.
+Add release tests for scripts.
+
+
+ndk r15
+
+Add three Android Studio project examples, show how to build optimized native libs containing
+debug info, show how to fully compile app on Android O.
+Add symbol info in perf.data by default, no need to add --dump-symbols in simpleperf record command.
+Report brief call-graph in simpleperf report command.
+Support raw cpu pmu events.
+
+
+ndk r14
+
+Add app_profiler.py to help recording profiling data.
+Add annotate.py to annotate source code.
+Add simpleperf_report_lib.py interface to support extracting samples from perf.data.
+Release simpleperf binaries on host to support reporting on host.
+
+
+ndk r13
+
+Release simpleperf binaries on device.
+Support recording and reporting stack frame based callgraphs and dwarf based callgraphs.
+Add simpleperf_report.py to show callgraphs in GUI.

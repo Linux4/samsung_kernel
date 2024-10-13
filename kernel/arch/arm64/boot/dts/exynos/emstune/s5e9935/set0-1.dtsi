@@ -1,0 +1,36 @@
+/ {
+	/* normal mode - touch boost */
+	set0_1: set@1 {
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 25   3   5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <21>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain2 {
+				cpus = "8";
+				lower-boundary = <43>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <50 50 50>;
+		};
+
+		tex {
+			top-app = <1>;
+			prio = <119>;
+		};
+	};
+};

@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2010 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<!--
+    - Build Info
+    Build.FINGERPRINT: samsung/e1sxeea/e1s:14/UP1A.230905.011/S921BXXU0AWH8:userdebug/test-keys
+    Build.DEVICE: e1s
+    Build.BOARD: s5e9945
+    Build.HARDWARE: s5e9945
+    Build.SOC_MODEL: s5e9945
+    Build.SOC_MANUFACTURER: Samsung
+    - Camera supported resolution
+    CameraId 0 , 3840x2160, 4000x1848, 1920x1440, 2336x1080, 1920x1080, 1920x886, 1440x1080, 1088x1088, 1280x720, 960x720, 720x480, 640x480, 640x360, 352x288, 320x240, 256x144, 176x144
+    CameraId 1 , 3840x2160, 4000x1848, 1920x1440, 2336x1080, 1920x1080, 1920x886, 1440x1080, 1088x1088, 1280x720, 960x720, 720x480, 640x480, 640x360, 352x288, 320x240, 256x144, 176x144
+    CameraId 2 , 3392x1908, 2544x2544, 3392x1564, 1920x1440, 2336x1080, 1920x1080, 1920x886, 1440x1080, 1088x1088, 1280x720, 960x720, 720x480, 640x480, 640x360, 352x288, 320x240, 256x144, 176x144
+    - Supported quality
+    CameraId 0: low:176x144|high:3840x2160|qcif:176x144|480p:720x480|720p:1280x720|1080p:1920x1080|qvga:320x240|2160p:3840x2160|timelapselow:176x144|timelapsehigh:3840x2160|timelapseqcif:176x144|timelapse480p:720x480|timelapse720p:1280x720|timelapse1080p:1920x1080|timelapseqvga:320x240|timelapse2160p:3840x2160|
+    CameraId 1: low:176x144|high:3840x2160|qcif:176x144|480p:720x480|720p:1280x720|1080p:1920x1080|qvga:320x240|2160p:3840x2160|timelapselow:176x144|timelapsehigh:3840x2160|timelapseqcif:176x144|timelapse480p:720x480|timelapse720p:1280x720|timelapse1080p:1920x1080|timelapseqvga:320x240|timelapse2160p:3840x2160|
+    CameraId 2: low:176x144|high:1920x1080|qcif:176x144|480p:720x480|720p:1280x720|1080p:1920x1080|qvga:320x240|timelapselow:176x144|timelapsehigh:1920x1080|timelapseqcif:176x144|timelapse480p:720x480|timelapse720p:1280x720|timelapse1080p:1920x1080|timelapseqvga:320x240|
+-->
+<!DOCTYPE MediaSettings [
+<!ELEMENT MediaSettings (CamcorderProfiles,
+                         EncoderOutputFileFormat+,
+                         VideoEncoderCap+,
+                         AudioEncoderCap+,
+                         VideoDecoderCap,
+                         AudioDecoderCap)>
+<!ELEMENT CamcorderProfiles (EncoderProfile+, ImageEncoding+, ImageDecoding, Camera)>
+<!ELEMENT EncoderProfile (Video, Audio)>
+<!ATTLIST EncoderProfile quality (low|high|qcif|qvga|480p|720p|1080p|qhd|2160p|timelapselow|timelapsehigh|timelapseqcif|timelapseqvga|timelapse480p|timelapse720p|timelapse1080p|timelapseqhd|timelapse2160p) #REQUIRED>
+<!ATTLIST EncoderProfile fileFormat (mp4|3gp) #REQUIRED>
+<!ATTLIST EncoderProfile duration (30|60) #REQUIRED>
+<!ATTLIST EncoderProfile cameraId (0|1|2|3) #REQUIRED>
+<!ELEMENT Video EMPTY>
+<!ATTLIST Video codec (hevc|h264|h263|m4v) #REQUIRED>
+<!ATTLIST Video bitRate CDATA #REQUIRED>
+<!ATTLIST Video width CDATA #REQUIRED>
+<!ATTLIST Video height CDATA #REQUIRED>
+<!ATTLIST Video frameRate CDATA #REQUIRED>
+<!ELEMENT Audio EMPTY>
+<!ATTLIST Audio codec (amrnb|amrwb|aac) #REQUIRED>
+<!ATTLIST Audio bitRate CDATA #REQUIRED>
+<!ATTLIST Audio sampleRate CDATA #REQUIRED>
+<!ATTLIST Audio channels (1|2) #REQUIRED>
+<!ELEMENT ImageEncoding EMPTY>
+<!ATTLIST ImageEncoding quality (90|80|70|60|50|40) #REQUIRED>
+<!ELEMENT ImageDecoding EMPTY>
+<!ATTLIST ImageDecoding memCap CDATA #REQUIRED>
+<!ELEMENT Camera EMPTY>
+<!ATTLIST Camera previewFrameRate CDATA #REQUIRED>
+<!ELEMENT EncoderOutputFileFormat EMPTY>
+<!ATTLIST EncoderOutputFileFormat name (mp4|3gp) #REQUIRED>
+<!ELEMENT VideoEncoderCap EMPTY>
+<!ATTLIST VideoEncoderCap name (hevc|h264|h263|m4v|wmv) #REQUIRED>
+<!ATTLIST VideoEncoderCap enabled (true|false) #REQUIRED>
+<!ATTLIST VideoEncoderCap minBitRate CDATA #REQUIRED>
+<!ATTLIST VideoEncoderCap maxBitRate CDATA #REQUIRED>
+<!ATTLIST VideoEncoderCap minFrameWidth CDATA #REQUIRED>
+<!ATTLIST VideoEncoderCap maxFrameWidth CDATA #REQUIRED>
+<!ATTLIST VideoEncoderCap minFrameHeight CDATA #REQUIRED>
+<!ATTLIST VideoEncoderCap maxFrameHeight CDATA #REQUIRED>
+<!ATTLIST VideoEncoderCap minFrameRate CDATA #REQUIRED>
+<!ATTLIST VideoEncoderCap maxFrameRate CDATA #REQUIRED>
+<!ELEMENT AudioEncoderCap EMPTY>
+<!ATTLIST AudioEncoderCap name (amrnb|amrwb|aac|wma) #REQUIRED>
+<!ATTLIST AudioEncoderCap enabled (true|false) #REQUIRED>
+<!ATTLIST AudioEncoderCap minBitRate CDATA #REQUIRED>
+<!ATTLIST AudioEncoderCap maxBitRate CDATA #REQUIRED>
+<!ATTLIST AudioEncoderCap minSampleRate CDATA #REQUIRED>
+<!ATTLIST AudioEncoderCap maxSampleRate CDATA #REQUIRED>
+<!ATTLIST AudioEncoderCap minChannels (1|2) #REQUIRED>
+<!ATTLIST AudioEncoderCap maxChannels (1|2) #REQUIRED>
+<!ELEMENT VideoDecoderCap EMPTY>
+<!ATTLIST VideoDecoderCap name (wmv) #REQUIRED>
+<!ATTLIST VideoDecoderCap enabled (true|false) #REQUIRED>
+<!ELEMENT AudioDecoderCap EMPTY>
+<!ATTLIST AudioDecoderCap name (wma) #REQUIRED>
+<!ATTLIST AudioDecoderCap enabled (true|false) #REQUIRED>
+]>
+<MediaSettings>
+    <CamcorderProfiles cameraId="0">
+        <EncoderProfile quality="low" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="high" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="48000000" width="3840" height="2160" frameRate="30"/>
+            <Video codec="hevc" bitRate="40800000" width="3840" height="2160" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qcif" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="480p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="30"/>
+            <Video codec="hevc" bitRate="2940000" width="720" height="480" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="720p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="30"/>
+            <Video codec="hevc" bitRate="10000000" width="1280" height="720" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="1080p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="30"/>
+            <Video codec="hevc" bitRate="14400000" width="1920" height="1080" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qvga" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="767000" width="320" height="240" frameRate="30"/>
+            <Video codec="hevc" bitRate="660000" width="320" height="240" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="2160p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="48000000" width="3840" height="2160" frameRate="30"/>
+            <Video codec="hevc" bitRate="40800000" width="3840" height="2160" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qhd" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapselow" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapsehigh" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="48000000" width="3840" height="2160" frameRate="30"/>
+            <Video codec="hevc" bitRate="40800000" width="3840" height="2160" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqcif" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse480p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="30"/>
+            <Video codec="hevc" bitRate="2940000" width="720" height="480" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse720p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="30"/>
+            <Video codec="hevc" bitRate="10000000" width="1280" height="720" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse1080p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="30"/>
+            <Video codec="hevc" bitRate="14400000" width="1920" height="1080" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqvga" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="767000" width="320" height="240" frameRate="30"/>
+            <Video codec="hevc" bitRate="660000" width="320" height="240" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse2160p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="48000000" width="3840" height="2160" frameRate="30"/>
+            <Video codec="hevc" bitRate="40800000" width="3840" height="2160" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqhd" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <ImageEncoding quality="95"/>
+        <ImageEncoding quality="80"/>
+        <ImageEncoding quality="70"/>
+        <ImageDecoding memCap="20000000"/>
+    </CamcorderProfiles>
+    <CamcorderProfiles cameraId="1">
+        <EncoderProfile quality="low" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="high" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="48000000" width="3840" height="2160" frameRate="30"/>
+            <Video codec="hevc" bitRate="40800000" width="3840" height="2160" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qcif" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="480p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="30"/>
+            <Video codec="hevc" bitRate="2940000" width="720" height="480" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="720p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="30"/>
+            <Video codec="hevc" bitRate="10000000" width="1280" height="720" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="1080p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="30"/>
+            <Video codec="hevc" bitRate="14400000" width="1920" height="1080" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qvga" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="767000" width="320" height="240" frameRate="30"/>
+            <Video codec="hevc" bitRate="660000" width="320" height="240" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="2160p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="48000000" width="3840" height="2160" frameRate="30"/>
+            <Video codec="hevc" bitRate="40800000" width="3840" height="2160" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qhd" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapselow" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapsehigh" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="48000000" width="3840" height="2160" frameRate="30"/>
+            <Video codec="hevc" bitRate="40800000" width="3840" height="2160" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqcif" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse480p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="30"/>
+            <Video codec="hevc" bitRate="2940000" width="720" height="480" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse720p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="30"/>
+            <Video codec="hevc" bitRate="10000000" width="1280" height="720" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse1080p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="30"/>
+            <Video codec="hevc" bitRate="14400000" width="1920" height="1080" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqvga" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="767000" width="320" height="240" frameRate="30"/>
+            <Video codec="hevc" bitRate="660000" width="320" height="240" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse2160p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="48000000" width="3840" height="2160" frameRate="30"/>
+            <Video codec="hevc" bitRate="40800000" width="3840" height="2160" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqhd" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <ImageEncoding quality="95"/>
+        <ImageEncoding quality="80"/>
+        <ImageEncoding quality="70"/>
+        <ImageDecoding memCap="20000000"/>
+    </CamcorderProfiles>
+    <CamcorderProfiles cameraId="2">
+        <EncoderProfile quality="low" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="high" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qcif" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="480p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="30"/>
+            <Video codec="hevc" bitRate="2940000" width="720" height="480" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="720p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="30"/>
+            <Video codec="hevc" bitRate="10000000" width="1280" height="720" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="1080p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="30"/>
+            <Video codec="hevc" bitRate="14400000" width="1920" height="1080" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qvga" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="767000" width="320" height="240" frameRate="30"/>
+            <Video codec="hevc" bitRate="660000" width="320" height="240" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qhd" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapselow" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapsehigh" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqcif" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse480p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="30"/>
+            <Video codec="hevc" bitRate="2940000" width="720" height="480" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse720p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="30"/>
+            <Video codec="hevc" bitRate="10000000" width="1280" height="720" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse1080p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="30"/>
+            <Video codec="hevc" bitRate="14400000" width="1920" height="1080" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqvga" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="767000" width="320" height="240" frameRate="30"/>
+            <Video codec="hevc" bitRate="660000" width="320" height="240" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqhd" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <ImageEncoding quality="95"/>
+        <ImageEncoding quality="80"/>
+        <ImageEncoding quality="70"/>
+        <ImageDecoding memCap="20000000"/>
+    </CamcorderProfiles>
+    <CamcorderProfiles cameraId="3">
+        <EncoderProfile quality="low" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="high" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qcif" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="480p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="30"/>
+            <Video codec="hevc" bitRate="2940000" width="720" height="480" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="720p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="30"/>
+            <Video codec="hevc" bitRate="10000000" width="1280" height="720" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="1080p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="30"/>
+            <Video codec="hevc" bitRate="14400000" width="1920" height="1080" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qvga" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="767000" width="320" height="240" frameRate="30"/>
+            <Video codec="hevc" bitRate="660000" width="320" height="240" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="qhd" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapselow" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapsehigh" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqcif" fileFormat="3gp" duration="30">
+            <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="30"/>
+            <Video codec="hevc" bitRate="327000" width="176" height="144" frameRate="30"/>
+            <Audio codec="amrnb" bitRate="12200" sampleRate="8000" channels="1"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse480p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="30"/>
+            <Video codec="hevc" bitRate="2940000" width="720" height="480" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse720p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="30"/>
+            <Video codec="hevc" bitRate="10000000" width="1280" height="720" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapse1080p" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="30"/>
+            <Video codec="hevc" bitRate="14400000" width="1920" height="1080" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqvga" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="767000" width="320" height="240" frameRate="30"/>
+            <Video codec="hevc" bitRate="660000" width="320" height="240" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <EncoderProfile quality="timelapseqhd" fileFormat="mp4" duration="30">
+            <Video codec="h264" bitRate="25000000" width="2560" height="1440" frameRate="30"/>
+            <Video codec="hevc" bitRate="21300000" width="2560" height="1440" frameRate="30"/>
+            <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="2"/>
+        </EncoderProfile>
+        <ImageEncoding quality="95"/>
+        <ImageEncoding quality="80"/>
+        <ImageEncoding quality="70"/>
+        <ImageDecoding memCap="20000000"/>
+    </CamcorderProfiles>
+    <EncoderOutputFileFormat name="3gp"/>
+    <EncoderOutputFileFormat name="mp4"/>
+    <VideoEncoderCap name="h264" enabled="true" minBitRate="1" maxBitRate="100000000" minFrameWidth="32" maxFrameWidth="3840" minFrameHeight="32" maxFrameHeight="2160" minFrameRate="1" maxFrameRate="60"/>
+    <VideoEncoderCap name="hevc" enabled="true" minBitRate="1" maxBitRate="100000000" minFrameWidth="64" maxFrameWidth="3840" minFrameHeight="64" maxFrameHeight="2160" minFrameRate="1" maxFrameRate="60"/>
+    <VideoEncoderCap name="h263" enabled="true" minBitRate="1" maxBitRate="128000" minFrameWidth="176" maxFrameWidth="176" minFrameHeight="144" maxFrameHeight="144" minFrameRate="1" maxFrameRate="30"/>
+    <VideoEncoderCap name="m4v" enabled="true" minBitRate="1" maxBitRate="64000" minFrameWidth="16" maxFrameWidth="176" minFrameHeight="16" maxFrameHeight="144" minFrameRate="12" maxFrameRate="60"/>
+    <AudioEncoderCap name="aac" enabled="true" minBitRate="8192" maxBitRate="256000" minSampleRate="8000" maxSampleRate="48000" minChannels="1" maxChannels="2"/>
+    <AudioEncoderCap name="heaac" enabled="true" minBitRate="8000" maxBitRate="64000" minSampleRate="16000" maxSampleRate="48000" minChannels="1" maxChannels="2"/>
+    <AudioEncoderCap name="aaceld" enabled="true" minBitRate="8000" maxBitRate="192000" minSampleRate="16000" maxSampleRate="48000" minChannels="1" maxChannels="2"/>
+    <AudioEncoderCap name="amrwb" enabled="true" minBitRate="6600" maxBitRate="23850" minSampleRate="16000" maxSampleRate="16000" minChannels="1" maxChannels="1"/>
+    <AudioEncoderCap name="amrnb" enabled="true" minBitRate="5525" maxBitRate="12200" minSampleRate="8000" maxSampleRate="8000" minChannels="1" maxChannels="1"/>
+    <VideoDecoderCap name="wmv" enabled="false"/>
+    <AudioDecoderCap name="wma" enabled="false"/>
+</MediaSettings>

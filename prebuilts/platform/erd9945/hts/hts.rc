@@ -1,0 +1,15 @@
+on init
+# HTS interfaces
+    chown system system /dev/hts
+    chown system system /sys/devices/platform/hts/knob/extended_control
+    chown system system /sys/devices/platform/hts/knob/extended_control2
+    chown system system /sys/devices/platform/hts/event/applaunch
+    chmod 664 /sys/devices/platform/hts/event/applaunch
+
+# hts daemon
+service htsd /vendor/bin/htsd -p /vendor/etc/hts.json
+    class main
+    user system
+    group system
+    seclabel u:r:htsd:s0
+    capabilities SYS_ADMIN

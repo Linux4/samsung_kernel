@@ -1,0 +1,60 @@
+
+&cs40l26a {
+	#sound-dai-cells = <1>;
+	compatible = "cirrus,cs40l26a";
+	pinctrl-names = "default";
+	pinctrl-0 = <&motor_int_default &motor_rst_default>;
+	irq-gpio = <SEC_GPIO_REF(AP,gpa3,gpa3,7) 0>;
+	reset-gpios = <SEC_GPIO_REF(AP,gpp2,gpp2,2) 1>;
+	cirrus,fw-defer;
+	/* cirrus,vibe-state; */
+	/* cirrus,pm-timer-timeout-ticks4 = <0>; */
+	cirrus,pm-active-timeout-ms = <0>;
+	cirrus,no-wait-ram-indices = <10 41 50 60 61>;
+	cirrus,asp-gain-scale-pct = <63>;
+	cirrus,ng-enable;
+	cirrus,ng-thld = <0>;
+	cirrus,ng-delay = <0>;
+	cirrus,aux-ng-enable;
+	cirrus,aux-ng-thld = <0>;
+	cirrus,aux-ng-delay = <2>;
+	samsung,owt-lib-compat-version = "1.0.0";
+	samsung,ap_chipset = "slsi";
+#if 1
+	samsung,f0-tracking;
+	samsung,f0-tracking-offset = <0>;
+#endif
+#if 0
+	VA-supply = <${vdd_va}>;
+	VP-supply = <${vdd_vp}>;
+#endif
+#if 1
+	cirrus,dbc-enable;
+	cirrus,dbc-env-rel-coef = <8369212>;
+	cirrus,dbc-rise-headroom = <750200>;
+	cirrus,dbc-fall-headroom = <750200>;
+	cirrus,dbc-tx-lvl-thresh-fs = <1837504>;
+	cirrus,dbc-tx-lvl-hold-off-ms = <0>;
+#endif
+#if 1
+	svc-le1 {
+		cirrus,min = <671>;
+		cirrus,max = <1509>;
+		cirrus,index = <1>;
+	};//cs40l26-svc1.bin, cs40l26-wt1.bin MPLUS LRA
+	svc-le2 {
+		cirrus,min = <1510>;
+		cirrus,max = <2348>;
+		cirrus,index = <2>;
+	};//cs40l26-svc2.bin, cs40l26-wt2.bin JAWHA LRA
+	svc-le3 {
+		cirrus,min = <2349>;
+		cirrus,max = <3356>;
+		cirrus,index = <3>;
+	};//cs40l26-svc3.bin, cs40l26-wt3.bin AAC LRA
+#endif
+#if 0
+	haptic,fold_open_ratio = <${vib_fold_open_ratio}>;
+	haptic,fold_close_ratio = <${vib_fold_close_ratio}>;
+#endif
+};

@@ -1,0 +1,6 @@
+# Ignore python temporary files
+__pycache__/
+*.py[cod]
+
+# Ignore Andoid Studio generated files
+package.xml

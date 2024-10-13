@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&pinctrl_0 {
+	if_pmic_irq: if_pmic_irq {
+		GPIO_CONFIG_PUD_DRV(AP,gpa0,gpa0,0, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+#if 0
+		power-source = <0>;
+#endif
+	};
+};
+
+&hsi2c_16 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	max77775: max77775@66 {
+		status = "okay";
+		compatible = "maxim,max77775";
+		reg = <0x66>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&if_pmic_irq>;
+		max77775,irq-gpio = <SEC_GPIO_REF(AP,gpa0,gpa0,0) 1>;
+		max77775,rev = <0x02>;
+#if 1
+		max77775,fw_product_id = <0x02>;
+#else
+		max77775,fw_product_id = <0x01>;
+#endif
+#if 1
+		max77775,extra_fw_enable = <0>;
+#else
+		max77775,extra_fw_enable = <0>;
+#endif
+		max77775,support-audio;
+#if 2
+		max77775,bc1p2_retry_count = <2>;
+#endif
+		/* same samples as MD15 */ 
+		max77775,snkcap_data = [04 2c 91 01 36 c8 d0 02 00 c8 90 41 8b 2e 21 dc c0];
+	};
+};
+
+&max77775 {
+	max77775_pdic {
+		status = "okay";
+		compatible = "maxim,max77775_pdic";
+		support_pd_role_swap;
+	};
+};

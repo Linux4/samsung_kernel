@@ -1,0 +1,2 @@
+#include <dt-bindings/clock/s5e9945.h>
+#include "../../exynos/board/erd/erd9945-pmic.dtsi"

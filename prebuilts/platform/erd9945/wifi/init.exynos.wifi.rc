@@ -1,0 +1,9 @@
+on property:vendor.system_dlkm.modules.ready=true
+    start insmod_sh_wifi
+
+service insmod_sh_wifi /vendor/bin/init.insmod.sh /vendor/etc/wifi/init.insmod.wifi.cfg
+    class main
+    user root
+    group root system
+    disabled
+    oneshot

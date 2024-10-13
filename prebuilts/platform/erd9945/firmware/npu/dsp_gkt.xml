@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<libs lib_count="1">
+  <kernels>
+    <lib kernel_count="1" name="libtemplate_gc.so" target="DSP">
+      <kernel exe="template" id="0" post="" pre="" />
+    </lib>
+  </kernels>
+</libs>

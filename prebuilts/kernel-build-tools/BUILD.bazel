@@ -1,0 +1,61 @@
+load(":cc.bzl", "import_libraries")
+
+_SHARED_LIBS = glob(["linux-x86/lib64/*.so"])
+
+filegroup(
+    name = "linux-x86",
+    srcs = glob(["linux-x86/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linux-x86-libs",
+    srcs = _SHARED_LIBS,
+    visibility = ["//visibility:public"],
+)
+
+import_libraries(
+    name = "linux_x86_imported_libs",
+    hdrs = glob(["linux-x86/include/**/*.h"]),
+    shared_libraries = _SHARED_LIBS,
+    strip_include_prefix = "linux-x86/include",
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+exports_files([
+    # keep sorted
+    "linux-x86/bin/avbtool",
+    "linux-x86/bin/blk_alloc_to_base_fs",
+    "linux-x86/bin/build_image",
+    "linux-x86/bin/build_super_image",
+    "linux-x86/bin/certify_bootimg",
+    "linux-x86/bin/depmod",
+    "linux-x86/bin/dtc",
+    "linux-x86/bin/e2fsck",
+    "linux-x86/bin/e2fsdroid",
+    "linux-x86/bin/fec",
+    "linux-x86/bin/img2simg",
+    "linux-x86/bin/interceptor",
+    "linux-x86/bin/interceptor_analysis",
+    "linux-x86/bin/lpmake",
+    "linux-x86/bin/lz4",
+    "linux-x86/bin/mkbootfs",
+    "linux-x86/bin/mkdtboimg",
+    "linux-x86/bin/mkdtimg",
+    "linux-x86/bin/mke2fs",
+    "linux-x86/bin/mkfs.erofs",
+    "linux-x86/bin/mkuserimg_mke2fs",
+    "linux-x86/bin/pahole",
+    "linux-x86/bin/simg2img",
+    "linux-x86/bin/soong_zip",
+    "linux-x86/bin/stg",
+    "linux-x86/bin/stgdiff",
+    "linux-x86/bin/swig",
+    "linux-x86/bin/tune2fs",
+    "linux-x86/bin/ufdt_apply_overlay",
+    "linux-x86/share/avb/testkey_rsa2048.pem",
+])

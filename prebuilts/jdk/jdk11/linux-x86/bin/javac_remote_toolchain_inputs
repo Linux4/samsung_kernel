@@ -1,0 +1,12 @@
+../lib/jli/libjli.so
+../lib/jvm.cfg
+../lib/server/libjvm.so
+../lib/libverify.so
+../lib/libjava.so
+../lib/libzip.so
+../lib/libjimage.so
+../lib/modules
+../lib/libnio.so
+../lib/libjimage.so
+../lib/libnet.so
+../lib/tzdb.dat

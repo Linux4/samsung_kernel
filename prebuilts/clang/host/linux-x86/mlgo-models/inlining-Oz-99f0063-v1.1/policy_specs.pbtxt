@@ -1,0 +1,506 @@
+dict_value {
+  fields {
+    key: "collect_data_spec"
+    value {
+      named_tuple_value {
+        name: "Trajectory"
+        values {
+          key: "step_type"
+          value {
+            tensor_spec_value {
+              name: "step_type"
+              shape {
+              }
+              dtype: DT_INT32
+            }
+          }
+        }
+        values {
+          key: "observation"
+          value {
+            dict_value {
+              fields {
+                key: "call_argument_setup"
+                value {
+                  tensor_spec_value {
+                    name: "call_argument_setup"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "call_penalty"
+                value {
+                  tensor_spec_value {
+                    name: "call_penalty"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "callee_basic_block_count"
+                value {
+                  tensor_spec_value {
+                    name: "callee_basic_block_count"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "callee_conditionally_executed_blocks"
+                value {
+                  tensor_spec_value {
+                    name: "callee_conditionally_executed_blocks"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "callee_users"
+                value {
+                  tensor_spec_value {
+                    name: "callee_users"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "caller_basic_block_count"
+                value {
+                  tensor_spec_value {
+                    name: "caller_basic_block_count"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "caller_conditionally_executed_blocks"
+                value {
+                  tensor_spec_value {
+                    name: "caller_conditionally_executed_blocks"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "caller_users"
+                value {
+                  tensor_spec_value {
+                    name: "caller_users"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "callsite_cost"
+                value {
+                  tensor_spec_value {
+                    name: "callsite_cost"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "callsite_height"
+                value {
+                  tensor_spec_value {
+                    name: "callsite_height"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "case_cluster_penalty"
+                value {
+                  tensor_spec_value {
+                    name: "case_cluster_penalty"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "cold_cc_penalty"
+                value {
+                  tensor_spec_value {
+                    name: "cold_cc_penalty"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "constant_args"
+                value {
+                  tensor_spec_value {
+                    name: "constant_args"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "constant_offset_ptr_args"
+                value {
+                  tensor_spec_value {
+                    name: "constant_offset_ptr_args"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "cost_estimate"
+                value {
+                  tensor_spec_value {
+                    name: "cost_estimate"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "dead_blocks"
+                value {
+                  tensor_spec_value {
+                    name: "dead_blocks"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "edge_count"
+                value {
+                  tensor_spec_value {
+                    name: "edge_count"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "indirect_call_penalty"
+                value {
+                  tensor_spec_value {
+                    name: "indirect_call_penalty"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "inlining_default"
+                value {
+                  tensor_spec_value {
+                    name: "inlining_default"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "is_multiple_blocks"
+                value {
+                  tensor_spec_value {
+                    name: "is_multiple_blocks"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "jump_table_penalty"
+                value {
+                  tensor_spec_value {
+                    name: "jump_table_penalty"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "last_call_to_static_bonus"
+                value {
+                  tensor_spec_value {
+                    name: "last_call_to_static_bonus"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "load_elimination"
+                value {
+                  tensor_spec_value {
+                    name: "load_elimination"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "load_relative_intrinsic"
+                value {
+                  tensor_spec_value {
+                    name: "load_relative_intrinsic"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "lowered_call_arg_setup"
+                value {
+                  tensor_spec_value {
+                    name: "lowered_call_arg_setup"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "nested_inline_cost_estimate"
+                value {
+                  tensor_spec_value {
+                    name: "nested_inline_cost_estimate"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "nested_inlines"
+                value {
+                  tensor_spec_value {
+                    name: "nested_inlines"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "node_count"
+                value {
+                  tensor_spec_value {
+                    name: "node_count"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "nr_ctant_params"
+                value {
+                  tensor_spec_value {
+                    name: "nr_ctant_params"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "num_loops"
+                value {
+                  tensor_spec_value {
+                    name: "num_loops"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "simplified_instructions"
+                value {
+                  tensor_spec_value {
+                    name: "simplified_instructions"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "sroa_losses"
+                value {
+                  tensor_spec_value {
+                    name: "sroa_losses"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "sroa_savings"
+                value {
+                  tensor_spec_value {
+                    name: "sroa_savings"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "switch_penalty"
+                value {
+                  tensor_spec_value {
+                    name: "switch_penalty"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "threshold"
+                value {
+                  tensor_spec_value {
+                    name: "threshold"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "unsimplified_common_instructions"
+                value {
+                  tensor_spec_value {
+                    name: "unsimplified_common_instructions"
+                    shape {
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+            }
+          }
+        }
+        values {
+          key: "action"
+          value {
+            bounded_tensor_spec_value {
+              name: "inlining_decision"
+              shape {
+              }
+              dtype: DT_INT64
+              minimum {
+                dtype: DT_INT64
+                tensor_shape {
+                }
+                int64_val: 0
+              }
+              maximum {
+                dtype: DT_INT64
+                tensor_shape {
+                }
+                int64_val: 1
+              }
+            }
+          }
+        }
+        values {
+          key: "policy_info"
+          value {
+            tuple_value {
+            }
+          }
+        }
+        values {
+          key: "next_step_type"
+          value {
+            tensor_spec_value {
+              name: "step_type"
+              shape {
+              }
+              dtype: DT_INT32
+            }
+          }
+        }
+        values {
+          key: "reward"
+          value {
+            tensor_spec_value {
+              name: "reward"
+              shape {
+              }
+              dtype: DT_FLOAT
+            }
+          }
+        }
+        values {
+          key: "discount"
+          value {
+            bounded_tensor_spec_value {
+              name: "discount"
+              shape {
+              }
+              dtype: DT_FLOAT
+              minimum {
+                dtype: DT_FLOAT
+                tensor_shape {
+                }
+                float_val: 0.0
+              }
+              maximum {
+                dtype: DT_FLOAT
+                tensor_shape {
+                }
+                float_val: 1.0
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  fields {
+    key: "policy_state_spec"
+    value {
+      tuple_value {
+      }
+    }
+  }
+}

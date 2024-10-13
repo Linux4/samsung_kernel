@@ -1,0 +1,105 @@
+
+/*
+ * SAMSUNG SGPU device tree sourceA
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#define CHIP_VANGOGH_LITE 30
+
+#define IFPO_DISABLED	0x0
+#define IFPO_ABORT	0x1
+#define IFPO_HALF_AUTO	0x2
+
+/{
+	/* sgpu */
+	sgpu: sgpu@16E00000 {
+		#address-cells = <0x2>;
+		#size-cells = <0x1>;
+		#cooling-cells = <2>; /* min followed by max */
+		compatible = "samsung-sgpu,samsung-sgpu";
+		reg = <
+			0x0 0x16E00000 0x100000
+			0x0 0x16F00000 0x2000
+			0x0 0x16DC0000 0x40000
+			0x0 0x16CD0000 0x10000
+			0x0 0x16C00000 0x2000
+			0x0 0x16C40000 0x10000
+			>;
+		reg-names = "gpu", "doorbell", "debug", "pwrctl", "sysreg", "htu";
+		interrupts = <GIC_SPI INTREQ__GPU_INT IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__HTU_G3D_INT IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names =  "SGPU", "GPU-AFM";
+		flags = <CHIP_VANGOGH_LITE>;
+		genID = <0x1>;
+		gl2acem_instances_count = <0x4>;
+		samsung,imgloader-s2mpu-support;
+		dma-coherent;
+		chip_revision = <0x01600100>;
+		power-domains = <&pd_g3dcore>;
+
+		/* GPU DVFS */
+		g3d_cmu_cal_id = <ACPM_DVFS_G3D>;
+		freq_table = <252000 350000 451000 545000 648000 711000 807000
+			      903000 999000 1095000 1210000 1306000 1402000>;
+		min_freq = <252000>;
+		max_freq = <1402000>;
+		min_threshold = "0 350000:60 451000:65 711000:78";
+		max_threshold = "75 350000:80 451000:85 648000:90 711000:95";
+		downstay_time = "32 545000:64 648000:96 903000:160";
+		mif_min_lock = "421000 451000:1352000 545000:1539000 807000:2288000 903000:2535000 999000:2730000 1095000:3738000";
+		mif_cl_boost_min_lock = "421000 451000:1014000 648000:1352000 807000:1539000 903000:1716000 999000:2028000";
+		cl_boost_freq = <999000>;
+		mo_scenario = "default 451000:g3d_performance";
+		llc_ways = "0 545000:16";
+		highspeed_freq = <545000>;
+		highspeed_load = <99>;
+		highspeed_delay = <0>;
+
+		gpu_power_coeff = <625>;
+		ect-coeff-index = <3>;
+		dm_type = <DM_G3D>;
+
+		/* GPU AFM */
+		interrupt-src = <3>; /* MAIN_PMIC=1, SUB_PMIC=2, EXTRA_PMIC=3 */
+		s2mps-afm-offset = <0x25>; /* VDD_G3D master buck BUCK1_AFM */
+		down-step = <1>;
+		release-duration = <15>;
+		register-duration = <15000>; /* GPU init faster than loading PMIC interface */
+
+		/* IFPO */
+		ifpo_type = <IFPO_DISABLED>;
+		ifpo_cal_id = <0x0>;
+
+		gpu_smntarg {
+			reg = <0x0 0x16E00000 0x100000>;
+			device_type = "gpu_smntarg";
+		};
+
+		gpu_doorbell {
+			reg = <0x0 0x16F00000 0x100000>;
+			device_type = "gpu_doorbell";
+		};
+
+		gpu_debug {
+			reg = <0x0 0x16DC0000 0x40000>;
+			device_type = "gpu_debug";
+		};
+
+		gpu_pm {
+			reg = <0x0 0x16CD0000 0x10000>;
+			device_type = "gpu_pm";
+		};
+
+		gpu_sysreg {
+			reg = <0x0 0x16C00000 0x2000>;
+			device_type = "gpu_sysreg";
+		};
+
+	};
+};

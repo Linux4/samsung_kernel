@@ -1,0 +1,48 @@
+#include <dt-bindings/clock/s5e9945.h>
+#if !defined(CONFIG_SEC_FACTORY_INTERPOSER)
+&hsi2c_32 {
+	status = "okay";
+	clock-frequency = <1000000>;
+
+	stk@47 {
+		status = "okay";
+		compatible = "stk,stk6d2x";
+
+#if 0
+		reg = <0x47 0x0 0x10>;
+		als_rear,i3c = <1>;
+#else
+		reg = <0x47>;
+#endif
+
+#if 1
+		als_rear,use_ext_clk;
+		clocks = <&clock DOUT_DIV_CLKCMU_CIS_CLK6>, <&clock GATE_DFTMUX_CMU_QCH_CIS_CLK6>;
+		clock-names = "div_clk", "mux_clk";
+
+		pinctrl-names = "default", "sleep", "active";
+		pinctrl-0 = <&sensor_mclk6_out>;
+		pinctrl-1 = <&sensor_mclk6_out>;
+		pinctrl-2 = <&sensor_mclk6_fn>;
+#endif
+		stk,als_scale = <1000>;
+		//stk,als_is_dri;
+#if 0
+		vdd_1p8-supply	= < &${flicker_ldo_vdd} >;
+#endif
+#if 0
+		vbus_1p8-supply	= < &${flicker_ldo_vbus} >;
+#endif
+	};
+};
+#endif
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/camera/lsi/optics/stk6d2x/stk6d2x.e1s.02.dtsi */
+#if !defined(CONFIG_SEC_FACTORY_INTERPOSER)
+&hsi2c_32 {
+	stk@47 {
+		vdd_1p8-supply	= < &_ldo10_reg >;
+	};
+};
+#endif

@@ -1,0 +1,82 @@
+on init
+# EPIC interfaces
+    chown system system /dev/mode
+    chown system system /dev/exynos-profiler
+    chown system system /sys/devices/platform/exynos-profiler/control/control_profile
+    chown system system /sys/devices/platform/exynos-profiler/control/set_margin
+    chown system system /sys/devices/platform/exynos-profiler/control/user_target_fps
+    chown system system /dev/cpu_dma_latency
+    chown system system /dev/cluster0_freq_min
+    chown system system /dev/cluster1_freq_min
+    chown system system /dev/cluster2_freq_min
+    chown system system /dev/cluster3_freq_min
+    chown system system /dev/cluster0_freq_max
+    chown system system /dev/cluster1_freq_max
+    chown system system /dev/cluster2_freq_max
+    chown system system /dev/cluster3_freq_max
+    chown system system /dev/cpu_online_min
+    chown system system /dev/cpu_online_max
+    chown system system /dev/gpu_freq_min
+    chown system system /dev/gpu_freq_max
+    chown system system /dev/bus_throughput
+    chown system system /dev/bus_throughput_max
+    chown system system /dev/device_throughput
+    chown system system /dev/device_throughput_max
+    chown system system /dev/intcam_throughput
+    chown system system /dev/intcam_throughput_max
+    chown system system /dev/display_throughput
+    chown system system /dev/display_throughput_max
+    chown system system /dev/cam_throughput
+    chown system system /dev/cam_throughput_max
+    chown system system /dev/npu_throughput
+    chown system system /dev/npu_throughput_max
+    chown system system /dev/npu0_throughput
+    chown system system /dev/npu0_throughput_max
+    chown system system /dev/npu1_throughput
+    chown system system /dev/npu1_throughput_max
+    chown system system /dev/aud_throughput
+    chown system system /dev/aud_throughput_max
+    chown system system /dev/dnc_throughput
+    chown system system /dev/dnc_throughput_max
+    chown system system /dev/mfc_throughput
+    chown system system /dev/mfc_throughput_max
+    chown system system /dev/mfc1_throughput
+    chown system system /dev/mfc1_throughput_max
+    chown system system /dev/isp_throughput
+    chown system system /dev/isp_throughput_max
+    chown system system /dev/mfc1_throughput
+    chown system system /dev/mfc1_throughput_max
+    chown system system /dev/dsp_throughput
+    chown system system /dev/dsp_throughput_max
+    chown system system /dev/alive_throughput
+    chown system system /dev/alive_throughput_max
+    chown system system /dev/vts_throughput
+    chown system system /dev/vts_throughput_max
+    chown system system /dev/hsi0_throughput
+    chown system system /dev/hsi0_throughput_max
+    chown system system /dev/ufd_throughput
+    chown system system /dev/ufd_throughput_max
+    chown system system /dev/mfd_throughput
+    chown system system /dev/mfd_throughput_max
+    chown system system /dev/vpc_throughput
+    chown system system /dev/vpc_throughput_max
+    chown system system /dev/chub_throughput
+    chown system system /dev/chub_throughput_max
+    chown system system /sys/kernel/gpu/gpu_ifpo_runtime_control
+    chown system system /sys/devices/platform/exynos-ufcc/ufc/cpufreq_min_limit
+    chown system system /sys/devices/platform/exynos-ufcc/ucc/cstate_control
+    chown system system /sys/devices/platform/exynos-ufcc/ucc/cstate_control_level
+    chown system system /sys/devices/platform/exynos-dsufreq/dsufreq/scaling_min_freq
+
+on post-fs-data
+# Epic data
+    mkdir /data/vendor/epic 0771 system system
+
+# epic daemon
+service epicd /vendor/bin/epic /vendor/etc/epic.json /vendor/etc/epic_sub.json /vendor/etc/epic_tc.json
+    socket epic dgram 666 system system u:object_r:epicd_socket:s0
+    class main
+    user system
+    group system
+    writepid /dev/cpuset/system-background/tasks
+    seclabel u:r:epicd:s0

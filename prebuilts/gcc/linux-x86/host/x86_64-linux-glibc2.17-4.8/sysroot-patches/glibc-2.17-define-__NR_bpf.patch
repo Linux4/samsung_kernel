@@ -1,0 +1,25 @@
+Generating BTF during kernel builds involves building host libbpf, which fails
+unless __NR_bpf is defined.
+
+diff --git a/sysroot/usr/include/x86_64-linux-gnu/asm/unistd_32.h b/sysroot/usr/include/x86_64-linux-gnu/asm/unistd_32.h
+index 45e32d0..6f6cb88 100644
+--- a/sysroot/usr/include/x86_64-linux-gnu/asm/unistd_32.h
++++ b/sysroot/usr/include/x86_64-linux-gnu/asm/unistd_32.h
+@@ -348,5 +348,6 @@
+ #define __NR_process_vm_writev 348
+ #define __NR_kcmp 349
+ #define __NR_finit_module 350
++#define __NR_bpf 357
+ 
+ #endif /* _ASM_X86_UNISTD_32_H */
+diff --git a/sysroot/usr/include/x86_64-linux-gnu/asm/unistd_64.h b/sysroot/usr/include/x86_64-linux-gnu/asm/unistd_64.h
+index 82e1308..550dade 100644
+--- a/sysroot/usr/include/x86_64-linux-gnu/asm/unistd_64.h
++++ b/sysroot/usr/include/x86_64-linux-gnu/asm/unistd_64.h
+@@ -315,5 +315,6 @@
+ #define __NR_process_vm_writev 311
+ #define __NR_kcmp 312
+ #define __NR_finit_module 313
++#define __NR_bpf 321
+ 
+ #endif /* _ASM_X86_UNISTD_64_H */

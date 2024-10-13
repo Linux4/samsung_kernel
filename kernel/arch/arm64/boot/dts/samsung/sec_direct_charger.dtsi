@@ -1,0 +1,33 @@
+
+&smd {
+	sec-direct-charger {
+		status = "okay";
+		compatible = "samsung,sec-direct-charger";
+
+		charger,battery_name = "battery";
+		charger,main_charger = "max77775-charger";
+		charger,direct_charger = "pca9481-charger";
+
+		charger,dchg_min_current = <2000>;
+
+		charger,ta_alert_wa;
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/stable/eureka/common/sec_direct_charger/dts/e1s/sec_direct_charger.dtsi */
+&smd {
+	sec-direct-charger {
+		charger,end_soc = <100>;
+		charger,fpdo_dc_max_vbat = <3900>;
+	};
+
+	pass-through {
+		start_delay = <5000>; /* msec */
+		init_delay = <5000>; /* msec */
+		min_cap = <200>; /* 0.1 % */
+		fixed_sc_cap = <900>; /* 0.1 % */
+		max_icl = <3000>; /* mA */
+		vfloat = <4450>; /* mV */
+	};
+};

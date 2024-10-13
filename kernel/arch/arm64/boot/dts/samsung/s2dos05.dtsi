@@ -1,0 +1,71 @@
+&pinctrl_0 {
+	s2dos05_irq: s2dos05_irq {
+		GPIO_CONFIG_PUD(AP,gpa2,gpa2,6, FUNC_INPUT, PULL_NONE);
+	};
+};
+
+&hsi2c_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	s2dos05_pmic@60 {
+		compatible = "samsung,s2dos05pmic";
+		reg = <0x60>;
+		s2dos05,wakeup;
+		pinctrl-names = "default";
+		pinctrl-0 = <&s2dos05_irq>;
+		sec_disp_pmic_name = "disp_pmic";
+		s2dos05,s2dos05_int = <SEC_GPIO_REF(AP,gpa2,gpa2,6) 0>;
+#if defined(CONFIG_SEC_FACTORY)
+		adc_mode = <2>;
+#else
+		adc_mode = <0>; /* 0 : disable, 1 : current meter, 2 : power meter */
+#endif
+		adc_sync_mode = <2>; /* 1 : sync mode, 2 : async mode */
+		regulators {
+			s2dos05_buck1: s2dos05-buck1 {
+				regulator-name = "s2dos05-buck1";
+				regulator-min-microvolt	= <850000>;
+				regulator-max-microvolt	= <2100000>;
+				regulator-boot-on;
+				 
+			};
+			s2dos05_l1: s2dos05-ldo1 {
+				regulator-name = "s2dos05-l1";
+				regulator-min-microvolt = <1500000>;
+				regulator-max-microvolt = <2000000>;
+				
+				 
+			};
+			s2dos05_l2: s2dos05-ldo2 {
+				regulator-name = "s2dos05-l2";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				
+				 
+			};
+			s2dos05_l3: s2dos05-ldo3 {
+				regulator-name = "s2dos05-l3";
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>;
+				
+				 
+			};
+			s2dos05_l4: s2dos05-ldo4 {
+				regulator-name = "s2dos05-l4";
+				regulator-min-microvolt = <2700000>;
+				regulator-max-microvolt = <3775000>;
+				
+				 
+			};
+			s2dos05_elvss: s2dos05-elvss-ssd {
+				regulator-name = "elvss_ssd";
+				regulator-min-microamp = <0>;
+				regulator-max-microamp = <8000>;
+			};
+			s2dos05_aee_fd: s2dos05-avdd-elvdd-elvss-fd {
+				regulator-name = "avdd_elvdd_elvss_fd";
+			};
+		};
+	};
+};

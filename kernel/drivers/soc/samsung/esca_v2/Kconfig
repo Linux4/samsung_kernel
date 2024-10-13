@@ -1,0 +1,37 @@
+#
+# ESCA driver configuration
+#
+
+menuconfig EXYNOS_ESCAV2
+	tristate "ESCA driver support"
+	depends on ARCH_EXYNOS
+	default n
+	help
+	  Enable ESCA support
+
+if EXYNOS_ESCAV2
+
+config EXYNOS_MFD_SPMI
+	bool "EXYNOS_MFD_SPMI support"
+	depends on EXYNOS_ESCAV2
+	default n
+	help
+	  Enable MFD_SPMI support
+
+config EXYNOS_ESCA_S2D
+	tristate "EXYNOS_ESCA_S2D support"
+	help
+	  Enable ESCA_S2D support
+
+config EXYNOS_ESCA_PLGDBG
+	tristate "EXYNOS ESCA plugin debugfs support"
+	help
+	  Enable PLUGIN_DBG support
+
+config EXYNOS_FLEXPMU_DBG
+        tristate "Exynos FLEXPMU debugging interface"
+	depends on SOC_S5E9935 || SOC_S5E8535 || SOC_S5E8835 || SOC_S5E9945 || SOC_S5E8845
+	help
+	Support FLEXPMU for Exynos SoC.
+
+endif

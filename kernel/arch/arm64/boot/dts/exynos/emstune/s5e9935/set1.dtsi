@@ -1,0 +1,44 @@
+/ {
+	/* power-scenario mode - default */
+	set1: set@100 {
+		frt {	   			/* LIT MED BIG */
+			active-ratio		= < 90 100 100>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <25>;
+			};
+			domain1 {
+				cpus = "4-8";
+				lower-boundary = <13>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <70 70 70>;
+		};
+
+		fclamp {
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		cpufreq_gov {
+				/* LIT MED BIG */
+			htask-boost = < 0 0 0 >;	/* disable heavy task boost */
+		};
+
+		support_uclamp {
+			enabled = <0>;
+		};
+	};
+};

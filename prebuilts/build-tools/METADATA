@@ -1,0 +1,10 @@
+third_party {
+  license_note: "would be NOTICE save for GPL in:\n"
+  "   common/bison/... see:\n"
+  "     common/bison/README.md\n"
+  "     common/bison/NOTICE\n"
+  "     plus copyright headers\n"
+  "   .../bin/make\n"
+  "   .../bin/m4"
+  license_type: RESTRICTED
+}

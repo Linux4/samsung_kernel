@@ -1,0 +1,14 @@
+sh_test(
+    name = "linux-x86_path_test",
+    data = [
+        "//prebuilts/build-tools:linux-x86",
+    ],
+    srcs = ["path_test.sh"],
+)
+
+test_suite(
+    name = "tests",
+    tests = [
+        ":linux-x86_path_test",
+    ],
+)

@@ -1,0 +1,148 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * EXYNOS DMA HEAP device tree source for reserved-memory
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ */
+
+/ {
+	dma_heap_exception_area {
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+	};
+
+	system_dma_heap {
+		compatible = "samsung,dma-heap-system";
+		dma-heap,name = "system";
+	};
+
+	crypto_dma_heap {
+		compatible = "samsung,dma-heap-cma";
+		memory-region = <&crypto>;
+		dma-heap,name = "crypto";
+	};
+
+	video_stream_dma_heap {
+		compatible = "samsung,dma-heap-cma";
+		memory-region = <&vstream>;
+		dma-heap,name = "system-secure-vstream";
+		dma-heap,secure;
+		dma-heap,protection_id = <3>;
+		dma-heap,alignment = <0x10000>;
+	};
+
+	video_frame_dma_heap {
+		compatible = "samsung,dma-heap-carveout";
+		memory-region = <&vframe>;
+		dma-heap,name = "vframe";
+		dma-heap,secure;
+		dma-heap,protection_id = <5>;
+		dma-heap,alignment = <0x10000>;
+	};
+
+	video_scaler_dma_heap {
+		compatible = "samsung,dma-heap-carveout";
+		memory-region = <&vscaler>;
+		dma-heap,name = "vscaler";
+		dma-heap,secure;
+		dma-heap,protection_id = <6>;
+		dma-heap,alignment = <0x10000>;
+	};
+
+	gpu_buffer_dma_heap {
+		compatible = "samsung,dma-heap-carveout";
+		memory-region = <&gpu_buffer>;
+		dma-heap,name = "system-secure-gpu_buffer";
+		dma-heap,secure;
+		dma-heap,protection_id = <9>;
+		dma-heap,alignment = <0x10000>;
+	};
+
+	secure_camera_dma_heap {
+		compatible = "samsung,dma-heap-cma";
+		memory-region = <&secure_camera>;
+		dma-heap,name = "secure_camera";
+		dma-heap,preallocated;
+		dma-heap,secure;
+		dma-heap,secure_sysmmu;
+		dma-heap,protection_id = <11>;
+		dma-heap,alignment = <0x10000>;
+
+		/* "dma-heap,alloc-size" means the size to be allocated in cma_alloc().
+		   The reg described in memory-region means the range to be cma_alloc().
+		   If this property is not written, it will be allocated the size of reg. */
+		dma-heap,alloc-size = <0x2000000>;
+	};
+
+	tui_dma_heap {
+		compatible = "samsung,dma-heap-cma";
+		memory-region = <&tui>;
+		dma-heap,name = "tui";
+		dma-heap,secure;
+		dma-heap,secure_sysmmu;
+		dma-heap,protection_id = <20>;
+		dma-heap,alignment = <0x10000>;
+	};
+
+};
+
+&reserved_memory {
+	#address-cells = <2>;
+	#size-cells = <1>;
+
+	crypto: crypto {
+		compatible = "shared-dma-pool";
+		size = <0x1800000>;
+		alloc-ranges =	<0x8 0xA0000000 0x60000000>,
+				<0x9 0x00000000 0x80000000>,
+				<0x9 0x80000000 0x80000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	vstream: vstream {
+		compatible = "shared-dma-pool";
+		size = <0x7000000>;
+		alloc-ranges =	<0x8 0xA0000000 0x60000000>,
+				<0x9 0x00000000 0x80000000>,
+				<0x9 0x80000000 0x80000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+
+	tui: tui {
+		compatible = "shared-dma-pool";
+		size = <0x4800000>;
+		alloc-ranges = <0x0 0x80000000 0x10000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	secure_camera: secure_camera {
+		compatible = "shared-dma-pool";
+		/* In reg, CMA allocation range(base ~ base + size) for secure camera is written.
+		   If base and size are modified, SECURE_CAMERA_MEM_ADDR and SECURE_CAMERA_MEM_SIZE
+		   defined in "is-config.h" must also be modified. */
+		reg = <0x0 0x96000000 0x4000000>;
+		alignment = <0x0 0x00010000>;
+		reusable;
+	};
+
+
+	vframe: vframe {
+		size = <0x32000000>; /* 800M, UHD VP9: ALIGN(12,442,112 x 50 + 4.34MB, 4MB) */
+		alignment = <0x0 0x00010000>;
+	};
+
+	vscaler: vscaler {
+		size = <0x6C00000>;
+		alignment = <0x0 0x00010000>;
+	};
+
+	gpu_buffer: gpu_buffer {
+		size = <0x4000000>;
+		alignment = <0x0 0x00010000>;
+	};
+};

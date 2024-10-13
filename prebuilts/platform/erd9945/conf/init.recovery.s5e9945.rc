@@ -1,0 +1,19 @@
+on init
+    write /proc/sys/kernel/hung_task_timeout_secs 0
+
+    start watchdogd
+
+on late-init
+    setprop sys.usb.controller 17900000.dwc3
+    setprop ro.debuggable 1
+    setprop service.adb.root 1
+    setprop sys.usb.configfs 1
+    setprop sys.usb.config adb
+
+on boot
+
+# Set watchdog timer to 30 seconds and fed it every 10 seconds to get a 20 second margin
+service watchdogd /system/bin/watchdogd 10 20
+    class core
+    oneshot
+    seclabel u:r:watchdogd:s0

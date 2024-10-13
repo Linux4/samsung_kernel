@@ -1,0 +1,37 @@
+on init
+
+chmod 0664 /dev/nanohub
+chmod 0664 /dev/nanohub_comms
+chmod 0664 /dev/chub_dev
+chown system system /dev/nanohub
+chown system system /dev/nanohub_comms
+chown system system /dev/chub_dev
+
+on boot
+chown system system /sys/class/nanohub/nanohub/chub_bin_dfs
+chown system system /sys/class/nanohub/nanohub/chub_bin_dram
+chown system system /sys/class/nanohub/nanohub/chub_bin_dump_registers
+chown system system /sys/class/nanohub/nanohub/chub_bin_dumped_sram
+chown system system /sys/class/nanohub/nanohub/chub_bin_logbuf_dram
+chown system system /sys/class/nanohub/nanohub/chub_bin_sram
+
+on post-fs
+## ensure correct calibration file permissions
+    chown root system mnt/vendor/efs/chub/sensorcal.json
+    chmod 0640 mnt/vendor/efs/chub/sensorcal.json
+## Update Nanohub FW if needed
+    start flash-nanohub-fw
+
+on post-fs-data
+    mkdir /data/vendor/sensor 0777 root system
+    mkdir /mnt/vendor/efs/chub 0777 root system
+
+service flash-nanohub-fw /vendor/bin/nanoapp_cmd download
+    oneshot
+    disabled
+
+service vendor.sensors-aidlhal /vendor/bin/android.hardware.sensors-service.aidl_exynos
+	class hal
+	user system
+	group system
+	rlimit rtprio 10 10

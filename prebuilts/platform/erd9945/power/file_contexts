@@ -1,0 +1,3 @@
+(/.*)?                                                      u:object_r:vendor_file:s0
+/bin/hw/android\.hardware\.power-service\.exynos(/.*)?            u:object_r:hal_power_default_exec:s0
+/bin/hw/android\.hardware\.power\.stats-service\.exynos(\.*)?     u:object_r:hal_power_stats_default_exec:s0

@@ -1,0 +1,2 @@
+This directory contains prebuilts which aid in debugging Bazel.
+These prebuilts should not be used in production or release builds.

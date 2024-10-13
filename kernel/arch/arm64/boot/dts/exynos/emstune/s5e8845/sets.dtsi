@@ -1,0 +1,22 @@
+#include "boot-set.dtsi"
+
+/* Normal mode */
+#include "set0.dtsi"
+#include "set0-1.dtsi"
+#include "set0-2.dtsi"
+/* Power-scenario mode */
+#include "set1.dtsi"
+#include "set1-1.dtsi"
+#include "set1-2.dtsi"
+/* Performance mode */
+#include "set2.dtsi"
+#include "set2-1.dtsi"
+#include "set2-2.dtsi"
+/* Game mode */
+#include "set3.dtsi"
+#include "set3-1.dtsi"
+#include "set3-2.dtsi"
+/* Balance mode */
+#include "set4.dtsi"
+#include "set4-1.dtsi"
+#include "set4-2.dtsi"

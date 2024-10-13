@@ -1,0 +1,12 @@
+
+&smd {
+	usb_notifier {
+		compatible = "samsung,usb-notifier";
+		udc = <&udc>;
+		status = "okay";
+#if 1
+		support_reverse_bypass_en;
+#endif
+	};
+};
+

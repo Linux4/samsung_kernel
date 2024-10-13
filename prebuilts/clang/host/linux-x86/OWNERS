@@ -1,0 +1,16 @@
+# Default maintainers and code reviewers:
+appujee@google.com
+pirama@google.com
+srhines@google.com
+yabinc@google.com
+yikong@google.com
+zijunzhao@google.com
+
+# Kernel maintainers
+elsk@google.com
+maennich@google.com
+umendez@google.com
+
+# mailing list cannot be a reviewer yet
+# android-llvm-dev+owners-review@google.com
+

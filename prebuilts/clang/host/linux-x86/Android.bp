@@ -1,0 +1,418 @@
+//
+// Copyright (C) 2017 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+package {
+    default_applicable_licenses: ["prebuilts_clang_host_linux-x86_license"],
+}
+
+// See: http://go/android-license-faq
+// SPDX-license-identifier-GPL and SPDX-license-identifier-LGPL removed
+// those files are dual-licensed 'OR PSF'
+license {
+    name: "prebuilts_clang_host_linux-x86_license",
+    visibility: [":__subpackages__"],
+    license_kinds: [
+        "SPDX-license-identifier-Apache-2.0",
+        "SPDX-license-identifier-BSD",
+        "SPDX-license-identifier-MIT",
+        "SPDX-license-identifier-NCSA",
+        "SPDX-license-identifier-PSF-2.0",
+        "SPDX-license-identifier-Zlib",
+        "legacy_unencumbered",
+    ],
+    // large-scale-change unable to identify any license_text files
+}
+
+llvm_prebuilt_library_static {
+    name: "libFuzzer",
+    vendor_available: true,
+    sdk_version: "minimum",
+    sanitize: {
+        never: true,
+    },
+}
+
+llvm_prebuilt_library_static {
+    name: "libomp",
+    sdk_version: "minimum",
+    vendor_available: true,
+    product_available: true,
+    sanitize: {
+        never: true,
+    },
+}
+
+cc_defaults {
+    name: "libclang_rt-prebuilt-default",
+    ramdisk_available: true,
+    vendor_ramdisk_available: true,
+    apex_available: [
+        "//apex_available:anyapex",
+        "//apex_available:platform",
+    ],
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.builtins",
+    defaults: ["libclang_rt-prebuilt-default"],
+    sdk_version: "minimum",
+    recovery_available: true,
+    vendor_available: true,
+    product_available: true,
+    native_bridge_supported: true,
+    host_supported: true,
+    sanitize: {
+        never: true,
+    },
+    stl: "none",
+    bazel_module: {
+        label: "//prebuilts/clang/host/linux-x86:libclang_rt",
+    },
+}
+
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.builtins-exported",
+    lib_name: "libclang_rt.builtins",
+    suffix: "-exported",
+    defaults: ["libclang_rt-prebuilt-default"],
+    sdk_version: "minimum",
+    recovery_available: true,
+    vendor_available: true,
+    product_available: true,
+    native_bridge_supported: true,
+    sanitize: {
+        never: true,
+    },
+    enabled: false,
+    target: {
+        android_arm: {
+            enabled: true,
+        },
+        android_x86: {
+            enabled: true,
+        },
+    },
+    stl: "none",
+    // This exported variant of the builtins library is only intended for use in
+    // libc.so and libm.so, which exports some builtins symbols for backwards
+    // compatibility.
+    visibility: [
+        "//bionic:__subpackages__",
+        "//frameworks/libs/native_bridge_support/libc:__subpackages__",
+    ],
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_shared {
+    name: "libclang_rt.asan",
+    defaults: ["libclang_rt-prebuilt-default"],
+    host_supported: true,
+    recovery_available: true,
+    native_bridge_supported: true,
+    sdk_version: "24",
+    check_elf_files: false,  // Bypass circular dependency between libc++
+    is_llndk: true,
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.asan.static",
+    defaults: ["libclang_rt-prebuilt-default"],
+    host_supported: true,
+    recovery_available: true,
+    native_bridge_supported: true,
+    sdk_version: "24",
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.asan_cxx.static",
+    defaults: ["libclang_rt-prebuilt-default"],
+    host_supported: true,
+    recovery_available: true,
+    native_bridge_supported: true,
+    sdk_version: "24",
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_shared {
+    name: "libclang_rt.ubsan_standalone",
+    defaults: ["libclang_rt-prebuilt-default"],
+    host_supported: true,
+    vendor_available: true,
+    product_available: true,
+    recovery_available: true,
+    double_loadable: true,
+    stl: "c++_shared",
+    vndk: {
+        enabled: true,
+    },
+    sdk_version: "24",
+    check_elf_files: false,  // Bypass circular dependency between libc++
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.ubsan_standalone.static",
+    defaults: ["libclang_rt-prebuilt-default"],
+    sdk_version: "24",
+    vendor_available: true,
+    product_available: true,
+    recovery_available: true,
+    double_loadable: true,
+    host_supported: true,
+    stl: "c++_static",
+    check_elf_files: false,  // Bypass circular dependency between libc++
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.ubsan_minimal",
+    defaults: ["libclang_rt-prebuilt-default"],
+    sdk_version: "24",
+    vendor_available: true,
+    product_available: true,
+    recovery_available: true,
+    double_loadable: true,
+    host_supported: true,
+    native_bridge_supported: true,
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.hwasan_static",
+    sdk_version: "minimum",
+    enabled: false,
+    recovery_available: true,
+    vendor_available: true,
+    product_available: true,
+    host_supported: true,
+    target: {
+        bionic_arm64: {
+            enabled: true,
+        },
+    },
+    defaults: [
+        "libclang_rt-prebuilt-default",
+    ],
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_shared {
+    name: "libclang_rt.hwasan",
+    sdk_version: "minimum",
+    enabled: false,
+    recovery_available: true,
+    host_supported: true,
+    target: {
+        bionic_arm64: {
+            enabled: true,
+        },
+    },
+    check_elf_files: false,  // Bypass circular dependency between libc++
+    is_llndk: true,
+    defaults: [
+        "libclang_rt-prebuilt-default",
+    ],
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.profile",
+    defaults: ["libclang_rt-prebuilt-default"],
+    host_supported: true,
+    sdk_version: "minimum",
+    recovery_available: true,
+    vendor_available: true,
+    product_available: true,
+    check_elf_files: false,  // Bypass circular dependency between libc++
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.fuzzer",
+    defaults: ["libclang_rt-prebuilt-default"],
+    sdk_version: "minimum",
+    host_supported: true,
+    recovery_available: true,
+    vendor_available: true,
+    product_available: true,
+    ramdisk_available: false,
+    vendor_ramdisk_available: false,
+    sanitize: {
+        never: true,
+    },
+}
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_library_static {
+    name: "libclang_rt.fuzzer_interceptors",
+    defaults: ["libclang_rt-prebuilt-default"],
+    sdk_version: "minimum",
+    host_supported: true,
+    recovery_available: true,
+    vendor_available: true,
+    product_available: true,
+    ramdisk_available: false,
+    vendor_ramdisk_available: false,
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+libclang_rt_prebuilt_object {
+    name: "clang_rt.crtbegin",
+    host_supported: true,
+    defaults: ["libclang_rt-prebuilt-default"],
+}
+
+libclang_rt_prebuilt_object {
+    name: "clang_rt.crtend",
+    host_supported: true,
+    defaults: ["libclang_rt-prebuilt-default"],
+}
+
+///////////////////////////////////////////////////////////////////////////////
+cc_defaults {
+    name: "libunwind-android-default",
+    defaults: [
+        "libclang_rt-prebuilt-default",
+        "linux_bionic_supported",
+    ],
+    sdk_version: "minimum",
+    recovery_available: true,
+    vendor_available: true,
+    product_available: true,
+    native_bridge_supported: true,
+    sanitize: {
+        never: true,
+    },
+    stl: "none",
+    // The unwinder needs functions from libc (and libdl), but libc.so links
+    // against libunwind*.a. Clear the system_shared_libs property so that Soong
+    // doesn't complain about the cyclic dependency.
+    system_shared_libs: [],
+}
+
+llvm_prebuilt_library_static {
+    name: "libunwind",
+    defaults: ["libunwind-android-default"],
+    target: {
+        musl: {
+            enabled: true,
+        },
+    },
+}
+
+llvm_prebuilt_library_static {
+    name: "libunwind-exported",
+    defaults: ["libunwind-android-default"],
+
+    // The libunwind-exported.a library is only intended for use with libc.so,
+    // which needs to export the unwinder API.
+    visibility: [
+        "//bionic:__subpackages__",
+        "//frameworks/libs/native_bridge_support/libc:__subpackages__",
+    ],
+}
+
+llvm_prebuilt_library_static {
+    name: "libsimpleperf_readelf",
+    host_supported: true,
+    sdk_version: "minimum",
+    sanitize: {
+        never: true,
+    },
+    target: {
+        windows: {
+            enabled: true,
+        },
+    },
+    visibility: [
+        "//cts/tests/tests/simpleperf",
+        "//system/extras/simpleperf",
+    ],
+}
+
+// -----------------------------------------------------------------------------
+// Export shared libraries for host tools (libLLVM, libclang, libc++).  These
+// are exported only when the LLVM_BUILD_HOST_TOOLS environment variable is set.
+// -----------------------------------------------------------------------------
+
+// Export LLVM_BUILD_HOST_TOOLS
+llvm_host_defaults {
+    name: "llvm-build-host-tools-defaults",
+}
+
+// Export libclang-cpp shared library
+llvm_host_prebuilt_library_shared {
+    name: "libclang-cpp_host",
+    sanitize: {
+        never: true,
+    },
+    compile_multilib: "64",
+    shared_libs: ["libc++_host"],
+    target: {
+        darwin: {
+            strip: {
+                none: true,
+            },
+        },
+    },
+}
+
+// Export libc++.so for the host LLVM tools
+llvm_host_prebuilt_library_shared {
+    name: "libc++_host",
+    sanitize: {
+        never: true,
+    },
+    compile_multilib: "64",
+    target: {
+        darwin: {
+            shared_libs: ["libc++abi_host"],
+        },
+    },
+}
+
+// Export libc++abi.so for the host LLVM tools
+llvm_host_prebuilt_library_shared {
+    name: "libc++abi_host",
+    sanitize: {
+        never: true,
+    },
+    compile_multilib: "64",
+}
+
+clang_builtin_headers {
+    name: "clang_builtin_headers_resources",
+    tool_files: ["soong/generate_clang_builtin_headers_resources.sh"],
+    out: ["clang_builtin_headers_resources.inc"],
+}
+
+// Export llvm tools as a filegroup which is packaged and available for CI
+// tests.
+llvm_tools_filegroup {
+    name: "llvm-tools",
+    visibility: ["//development/scripts:__subpackages__"],
+    // The tools and libs in the filegroup are in
+    // ./soong/clangprebuilts.go:llvmToolsFiles
+}
+
+subdirs = [
+    "soong",
+]

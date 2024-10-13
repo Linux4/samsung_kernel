@@ -1,0 +1,5 @@
+#!/tmpfs/src/git/out/python3/install/bin/python3.10
+
+from idlelib.pyshell import main
+if __name__ == '__main__':
+    main()

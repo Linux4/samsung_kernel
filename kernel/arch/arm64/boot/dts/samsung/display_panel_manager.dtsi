@@ -1,0 +1,58 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/display/panel-display.h>
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_drv_0: panel_drv_0 {
+				status = "okay";
+				compatible = "samsung,panel-drv";
+				panel,id = <0>;
+
+				panel-lut {
+#if 1
+					panel_0 = <&s6e3fac_mu1s>;
+#endif
+#if 1
+					panel_1 = <&s6e3fae_e1s>;
+#endif
+#if 0
+					panel_2 = <&${panel_name_2}>;
+#endif
+#if 0
+					panel_3 = <&${panel_name_3}>;
+#endif
+#if 0
+					panel_4 = <&${panel_name_4}>;
+#endif
+#if 0
+					panel_5 = <&${panel_name_5}>;
+#endif
+#if 0
+					panel_6 = <&${panel_name_6}>;
+#endif
+#if 0
+					panel_7 = <&${panel_name_7}>;
+#endif
+#if 0
+					panel_8 = <&${panel_name_8}>;
+#endif
+#if 0
+					panel_9 = <&${panel_name_9}>;
+#endif
+				};
+			};
+		};
+	};
+};
+

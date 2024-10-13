@@ -1,0 +1,60 @@
+&contexthub_0 {
+	multi-os = "disabled";
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/lsi/s5e9945/dts/sensorhub_s5e9945.e1s.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsvtr-position = <5>;
+				mag-ak09918c-position = <4>;
+				mag-ak09918c-array = /bits/ 8 <61 100 216 111 226 185 0 139 217 53 186 195 215 179 248 179 7 124 126 65 201 36 73 237 8 5 96>;
+				mag-ak09918c-cover-array = /bits/ 8 <216 99 63 167 146 156 255 222 214 52 75 105 32 254 248 49 6 175 143 150 200 37 196 222 9 110 231>;
+				light-position = /bits/ 32 <34 19 14 82 3 0>;
+				fcd-axis = <1>;
+				fcd-threshold = <(-1000)>;
+				brightness-array-len = <11>;
+				brightness-array = /bits/ 32 <19 48 54 58 63 67 70 73 75 77 100>;
+				model-name = "S921";
+			};
+		};
+	};
+};
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/lsi/s5e9945/dts/sensorhub_s5e9945.e1s.17.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsvtr-position = <6>;
+				fcd-threshold = <(-700)>;
+				mag-ak09918c-array = /bits/ 8 <228 95 15 157 148 252 0 97 231 53 1 242 76 211 244 247 7 9 212 254 202 38 95 195 8 242 240>;
+				mag-ak09918c-cover-array = /bits/ 8 <82 101 238 212 12 250 0 143 221 55 228 243 7 100 248 57 7 225 58 6 199 33 62 104 8 165 244>;
+			};
+		};
+	};
+};
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/lsi/s5e9945/dts/sensorhub_s5e9945.e1s_kor.13.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsvtr-position = <6>;
+			};
+		};
+	};
+};

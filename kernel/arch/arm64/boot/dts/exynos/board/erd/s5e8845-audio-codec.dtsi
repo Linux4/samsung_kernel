@@ -1,0 +1,96 @@
+
+&hsi2c_13 {
+	but_zones: but_zones {
+		#list-but-cells = <2>;
+	};
+
+	imp_range: imp_range {
+		#list-imp-cells = <5>;
+	};
+
+	mic_range: mic_range {
+		#list-imp-cells = <2>;
+	};
+
+	wtp_range: wtp_range {
+		#list-ldet-cells = <3>;
+	};
+};
+
+&pinctrl_1 {
+        s5m3700x_irq: s5m3700x-irq {
+                samsung,pins = "gpm14-0";
+                samsung,pin-function = <0xf>;
+                samsung,pin-pud = <3>;
+                samsung,pin-drv = <0>;
+        };
+
+	s5m3700x_resetb: s5m3700x_resetb {
+                samsung,pins = "gpm13-0";
+                samsung,pin-function = <0x1>;
+                samsung,pin-pud = <0x1>;
+                samsung,pin-drv = <0x0>;
+                samsung,pin-con-pdn = <0x3>;
+                samsung,pin-pud-pdn = <0x1>;
+        };
+
+        s5m3700x_external_ldo_1_2v: s5m3700x_external_ldo_1_2v {
+                samsung,pins = "gpm17-0";
+                samsung,pin-function = <0x1>;
+                samsung,pin-pud = <0x1>;
+                samsung,pin-drv = <0x0>;
+                samsung,pin-con-pdn = <0x3>;
+                samsung,pin-pud-pdn = <0x1>;
+        };
+};
+
+&hsi2c_13 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+
+	codec_s5m3700x: s5m3700x@14 {
+		status = "okay";
+		compatible = "samsung,s5m3700x";
+		#sound-dai-cells = <0>;
+		reg = <0x14>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&s5m3700x_resetb>,<&s5m3700x_external_ldo_1_2v>,<&s5m3700x_irq>;
+
+		s5m3700x-resetb = <&gpm13 0 1>;
+		/* s5m3700x-external-ldo-1-8v = <&gpc8 0 1>; not use on rose */
+		/* s5m3700x-external-ldo-3-4v = <&gpm24 0 1>; not use on rose */
+		s5m3700x-external-ldo-1-2v = <&gpm17 0 1>;
+		s5m3700x-power-always-on;
+
+		s5m3700x-codec-int = <&gpm14 0 0>;
+		
+		/* 0 : 32 ohms , 1 : 12 ohms, 2 :6 ohms */
+		s5m3700x-rcv_imp = <0>;
+
+		/* 3.5PI: 0, USB: 1 */
+		jack-type = <0>;
+		
+		/* micbias voltage */
+		mic-bias1-voltage = <5>;
+		mic-bias2-voltage = <15>;
+		mic-bias3-voltage = <5>;
+
+		/* threshold for pole decision */
+		mic-adc-range = <&mic_range 1120 4000>;
+
+		/* threshold for Left Impedance */
+		jack-imp-range = <&imp_range 1 6 33 51 111>;
+
+		/* threshold for WTP Impedance */
+		wtp-ldet-range = <&wtp_range 600 1000 3696>;
+
+		/* button threshold (min / max) */
+		but-zones-list = <&but_zones 0 117>, /* 0 ~ 70 ohm */
+			<&but_zones 175 280>, /* 110 ~ 180 ohm */
+			<&but_zones 315 430>, /* 210 ~ 290 ohm */
+			<&but_zones 505 855>; /* 360 ~ 680 ohm */
+	};
+};
+

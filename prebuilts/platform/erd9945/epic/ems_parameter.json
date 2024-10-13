@@ -1,0 +1,112 @@
+{
+	"parameters" : [
+	{
+		"_comment_name_" : "Camera mode - 0 NORMAL",
+		"main" : 5,
+		"sub" : 0,
+		"level" : 0,
+		"param" : [
+		{ "name" : "freqboost", "cpu" : 0, "group" : 3, "value" : "5" },
+		{ "name" : "freqboost", "cpu" : 4, "group" : 3, "value" : "5" },
+		{ "name" : "freqboost", "cpu" : 7, "group" : 3, "value" : "5" },
+		{ "name" : "freqboost", "cpu" : 9, "group" : 3, "value" : "5" },
+		{ "name" : "support_uclamp", "value" : "1" },
+		{ "name" : "cgroup_boost", "group" : 1, "value" : "1" },
+		{ "name" : "cgroup_boost", "group" : 3, "value" : "1" },
+		{ "name" : "cgroup_boost", "group" : 9, "value" : "1" },
+		{ "name" : "should_spread", "value" : "0" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 0, "value" : "150" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 4, "value" : "150" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 7, "value" : "150" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 9, "value" : "150" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 0, "value" : "2" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 4, "value" : "2" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 7, "value" : "2" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 9, "value" : "2" },
+		{ "name" : "et_default_idx", "value" : "2" },
+		{ "name" : "et_uarch_selection", "value" : "0" }
+		]
+	},
+	{
+		"_comment_name_" : "Camera mode - 1 BALANCE",
+		"main" : 5,
+		"sub" : 1,
+		"level" : 0,
+		"param" : [
+		{ "name" : "freqboost", "cpu" : 0, "group" : 3, "value" : "-10" },
+		{ "name" : "freqboost", "cpu" : 4, "group" : 3, "value" : "0" },
+		{ "name" : "freqboost", "cpu" : 7, "group" : 3, "value" : "0" },
+		{ "name" : "freqboost", "cpu" : 9, "group" : 3, "value" : "0" },
+		{ "name" : "support_uclamp", "value" : "1" },
+		{ "name" : "cgroup_boost", "group" : 1, "value" : "0" },
+		{ "name" : "cgroup_boost", "group" : 3, "value" : "0" },
+		{ "name" : "cgroup_boost", "group" : 9, "value" : "0" },
+		{ "name" : "should_spread", "value" : "0" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 0, "value" : "100" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 4, "value" : "100" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 7, "value" : "100" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 9, "value" : "100" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 0, "value" : "4" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 4, "value" : "4" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 7, "value" : "4" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 9, "value" : "4" },
+		{ "name" : "et_default_idx", "value" : "2" },
+		{ "name" : "et_uarch_selection", "value" : "0" }
+		]
+	},
+	{
+		"_comment_name_" : "Camera mode - 2 POWER",
+		"main" : 5,
+		"sub" : 2,
+		"level" : 0,
+		"param" : [
+		{ "name" : "freqboost", "cpu" : 0, "group" : 3, "value" : "-10" },
+		{ "name" : "freqboost", "cpu" : 4, "group" : 3, "value" : "-5" },
+		{ "name" : "freqboost", "cpu" : 7, "group" : 3, "value" : "-5" },
+		{ "name" : "freqboost", "cpu" : 9, "group" : 3, "value" : "-5" },
+		{ "name" : "support_uclamp", "value" : "0" },
+		{ "name" : "cgroup_boost", "group" : 1, "value" : "0" },
+		{ "name" : "cgroup_boost", "group" : 3, "value" : "0" },
+		{ "name" : "cgroup_boost", "group" : 9, "value" : "0" },
+		{ "name" : "should_spread", "value" : "0" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 0, "value" : "50" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 4, "value" : "50" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 7, "value" : "50" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 9, "value" : "50" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 0, "value" : "6" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 4, "value" : "6" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 7, "value" : "6" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 9, "value" : "6" },
+		{ "name" : "et_default_idx", "value" : "1" },
+		{ "name" : "et_uarch_selection", "value" : "1" }
+		]
+	},
+	{
+		"_comment_name_" : "Camera mode - 3 PERFORMANCE",
+		"main" : 5,
+		"sub" : 3,
+		"level" : 0,
+		"param" : [
+		{ "name" : "freqboost", "cpu" : 0, "group" : 3, "value" : "5" },
+		{ "name" : "freqboost", "cpu" : 4, "group" : 3, "value" : "5" },
+		{ "name" : "freqboost", "cpu" : 7, "group" : 3, "value" : "5" },
+		{ "name" : "freqboost", "cpu" : 9, "group" : 3, "value" : "5" },
+		{ "name" : "support_uclamp", "value" : "1" },
+		{ "name" : "cgroup_boost", "group" : 1, "value" : "1" },
+		{ "name" : "cgroup_boost", "group" : 3, "value" : "1" },
+		{ "name" : "cgroup_boost", "group" : 9, "value" : "1" },
+		{ "name" : "should_spread", "value" : "1" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 0, "value" : "150" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 4, "value" : "150" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 7, "value" : "150" },
+		{ "name" : "cpufreq_htask_boost", "cpu" : 9, "value" : "150" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 0, "value" : "2" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 4, "value" : "2" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 7, "value" : "2" },
+		{ "name" : "cpufreq_htask_window_count", "cpu" : 9, "value" : "2" },
+		{ "name" : "et_default_idx", "value" : "2" },
+		{ "name" : "et_uarch_selection", "value" : "0" }
+		]
+	}
+	]
+}

@@ -1,0 +1,260 @@
+/*
+ * SAMSUNG EXYNOS9945 SoC DVFS Manager device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS9945 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	acpm {
+		compatible = "samsung,exynos-acpm";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		acpm-ipc-channel = <4>;
+		use-plugin-library;
+		fvmap_offset = <0x30400>;
+		reg = <0x0 0x12830000 0x1000>;		/* TIMER_APM */
+		reg-names = "timer_apm";
+		peritimer-cnt = <0xFFFF>;
+	};
+
+	acpm_ipc {
+		compatible = "samsung,exynos-acpm-ipc";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		interrupts = <GIC_SPI INTREQ__MAILBOX_APM2AP IRQ_TYPE_LEVEL_HIGH>;	/* AP2APM MAILBOX SPI NUM*/
+		reg = <0x0 0x12990000 0x1000>,		/* AP2APM MAILBOX */
+			<0x0 0x2055000 0x3A000>;	/* APM SRAM */
+		initdata-base = <0x9D00>;
+		num-timestamps = <32>;
+		debug-log-level = <0>;
+		logging-period = <500>;
+		dump-base = <0x203F000>;		/* for cpif driver */
+		dump-size = <0x50000>;                  /* 320KB - 16KB(SACPM) = 304KB */
+		apm0-dump-base = <0x203F000>;
+		apm0-dump-size = <0x16000>;
+		apm0-dram-dump-base = <0x90028000>;
+		apm1-dump-base = <0x2055000>;
+		apm1-dump-size = <0x3a000>;
+		apm1-dram-dump-base = <0x9003E000>;
+		board-id = <0x10>;			/* unused */
+		board-rev = <0x0>;
+		interrupt-ch = <0>;
+	};
+
+	flexpmu_dbg {
+		compatible = "samsung,flexpmu-dbg";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		data-base = <0x2039000>;
+		data-size = <0x4B800>;
+		flexpmu-dbg-offset = <0x0004B300>;
+		reg = <0x0 0x12910000 0x1000>;
+		rtc-tick2us = <32>;
+		rtc-offset = <0x90>;
+		rtc-max = <0xfffff>;
+		nfc-clkreq-idx = <1>;
+		mif_requesters {
+			requester-name =
+				"MIF_AUD",
+				"MIF_VTS",
+				"MIF_CHUB",
+				"MIF_CP",
+				"MIF_GNSS",
+				"MIF_AP";
+		};
+	};
+
+	exynos-power-rail-dbg {
+		compatible = "samsung,exynos-power-rail-dbg";
+		power-rail-offset = <0x1BE0>;
+		power-rail-names =
+			"VDD_CPUCL0",
+			"VDD_CPUCL1_LF",
+			"VDD_CPUCL1_HF",
+			"VDD_ALIVE",
+			"VDD_CPUCL2",
+			"VDD_G3D",
+			"VDD_MM",
+			"VDD_NPU0",
+			"VDD_INT",
+			"VDD_MIF",
+			"VDD_DSU",
+			"VDD_CAM";
+		dvfs-domain-names =
+			"DVFS_MIF",
+			"DVFS_INT",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"DVFS_NPU0",
+			"DVFS_NPU1",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"DVFS_AUD",
+			"UNDEF",
+			"UNDEF",
+			"DVFS_INTCAM",
+			"DVFS_CAM",
+			"DVFS_DISP",
+			"DVFS_CSIS",
+			"DVFS_ISP",
+			"DVFS_MFC",
+			"DVFS_MFD",
+			"DVFS_INTSCI",
+			"DVFS_ICPU",
+			"DVFS_DSP",
+			"DVFS_DNC",
+			"UNDEF",
+			"DVFS_ALIVE",
+			"DVFS_CHUB",
+			"DVFS_VTS",
+			"DVFS_HSI0",
+			"DVFS_UFD",
+			"DVFS_CHUBVTS",
+			"DVFS_UNPU",
+			"UNDEF",
+			"DVFS_IP_DSU",
+			"DVFS_IP_CPUCL0",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"DVFS_IP_CPUCL1_LF",
+			"UNDEF",
+			"DVFS_IP_CPUCL1_HF",
+			"UNDEF",
+			"DVFS_IP_CPUCL2",
+			"UNDEF",
+			"DVFS_IP_G3D",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"UNDEF",
+			"IDLE_VOLT_ID";
+
+		power-rails {
+			VDD_CPUCL0 {
+				domain_id = <35 56>;
+			};
+			VDD_CPUCL1_LF {
+				domain_id = <39 56>;
+			};
+			VDD_CPUCL1_HF {
+				domain_id = <41 56>;
+			};
+			VDD_ALIVE {
+				domain_id = <26 27 28 29 30 31 32 56>;
+			};
+			VDD_CPUCL2 {
+				domain_id = <43 56>;
+			};
+			VDD_G3D {
+				domain_id = <45 56>;
+			};
+			VDD_MM {
+				domain_id = <7 11 16 22 56>;
+			};
+			VDD_NPU0 {
+				domain_id = <6 19 20 23 24 56>;
+			};
+			VDD_INT {
+				domain_id = <1 14 21 56>;
+			};
+			VDD_MIF {
+				domain_id = <0 56>;
+			};
+			VDD_DSU {
+				domain_id = <34 56>;
+			};
+			VDD_CAM {
+				domain_id = <15 17 18 56>;
+			};
+		};
+	};
+
+	acpm_mfd_bus0: acpm_mfd_bus@12960000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	acpm_mfd_bus1: acpm_mfd_bus@12961000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	acpm_mfd_bus2: acpm_mfd_bus@12962000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	acpm_mfd_bus3: acpm_mfd_bus@12963000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	acpm_mfd_bus4: acpm_mfd_bus@12964000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	acpm_mfd_bus5: acpm_mfd_bus@12965000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	acpm_mfd_bus6: acpm_mfd_bus@12966000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	acpm_mfd_bus7: acpm_mfd_bus@12967000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	dmc_plugin {
+		compatible = "samsung,exynos-acpm-plg-dbg";
+		acpm-ipc-channel = <9>;
+	};
+
+	esca {
+		compatible = "samsung,exynos-esca";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		acpm-ipc-channel = <0>;
+	};
+
+	esca_ipc {
+		compatible = "samsung,exynos-esca-ipc";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		interrupts = <GIC_SPI INTREQ__MAILBOX_ASM2AP IRQ_TYPE_LEVEL_HIGH>;	/* AP2ASM MAILBOX SPI NUM*/
+		reg = <0x0 0x12AB0000 0x1000>,		/* AP2ASM MAILBOX */
+			<0x0 0x208F000 0x8000>;		/* APM SRAM */
+		initdata-base = <0x6800>;
+		num-timestamps = <32>;
+		board-id = <0x00>;
+		board-rev = <0x0>;
+		interrupt-ch = <1>;
+		dump-base = <0x90078000>;
+		dump-size = <0x8000>;
+		dram-dump-base = <0x90080000>;
+		dram-dump-size = <0x44000>;
+	};
+};

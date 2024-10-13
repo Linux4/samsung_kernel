@@ -1,0 +1,259 @@
+#if 1
+#if 0 && 0
+&s1_l1_reg {
+	-name = "vdd_ldo1s1";
+	-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s1_l2_reg {
+	regulator-name = "vdd_ldo2s1";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s1_l3_reg {
+	regulator-name = "vdd_ldo3s1";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s1_l4_reg {
+	regulator-name = "vdd_ldo4s1";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s1_l5_reg {
+	regulator-name = "vdd_ldo5s1";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+#endif /* s2mps28_1_interface */
+
+#if 1
+#if 0 && 0
+&s2_l1_reg {
+	regulator-name = "vdd_ldo1s2";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s2_l2_reg {
+	regulator-name = "vdd_ldo2s2";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s2_l3_reg {
+	regulator-name = "vdd_ldo3s2";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s2_l4_reg {
+	regulator-name = "vdd_ldo4s2";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s2_l5_reg {
+	regulator-name = "vdd_ldo5s2";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+#endif /* s2mps28_2_interface */
+
+#if 1
+#if 0 && 0
+&s3_l1_reg {
+	regulator-name = "vdd_ldo1s3";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s3_l2_reg {
+	regulator-name = "vdd_ldo2s3";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s3_l3_reg {
+	regulator-name = "vdd_ldo3s3";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s3_l4_reg {
+	regulator-name = "vdd_ldo4s3";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s3_l5_reg {
+	regulator-name = "vdd_ldo5s3";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+#endif /* s2mps28_3_interface */
+
+#if 1
+#if 0 && 0
+&s4_l1_reg {
+	regulator-name = "vdd_ldo1s4";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s4_l2_reg {
+	regulator-name = "vdd_ldo2s4";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s4_l3_reg {
+	regulator-name = "vdd_ldo3s4";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s4_l4_reg {
+	regulator-name = "vdd_ldo4s4";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s4_l5_reg {
+	regulator-name = "vdd_ldo5s4";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+#endif /* s2mps28_4_interface */
+
+#if 1
+#if 0 && 0
+&s5_l1_reg {
+	regulator-name = "vdd_ldo1s5";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s5_l2_reg {
+	regulator-name = "vdd_ldo2s5";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s5_l3_reg {
+	regulator-name = "vdd_ldo3s5";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s5_l4_reg {
+	regulator-name = "vdd_ldo4s5";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s5_l5_reg {
+	regulator-name = "vdd_ldo5s5";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+#endif /* s2mps28_5_interface */

@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#if 0
+&${repeater_parent} {
+	eusb_ctrl: eusb_ctrl_sel {
+		GPIO_CONFIG_PUD_DRV(${repeater_gpio}, FUNC_OUTPUT_LOW, PULL_DOWN, DRV_LV1);
+	};
+};
+#endif
+
+&hsi2c_34 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	tusb2e11-repeater@3E {
+		compatible = "tusb2e11-repeater";
+		reg = <0x3E>;
+		status = "okay";
+#if 0
+		pinctrl-name = "default";
+		pinctrl-0 = <&eusb_ctrl>;
+		eusb,gpio_eusb_ctrl = <SEC_GPIO_REF(${repeater_gpio}) 1>;
+#endif
+		repeater_tune_param {
+			repeater_tune_cnt = /bits/ 8 <0x5>;
+			/* 0xffffffff means using default value */
+			repeater_tune1 {
+				tune_name = "usb2_tx_adjust_port1";
+				tune_value = /bits/ 8 <0x70 0x5d>;
+			};
+
+			repeater_tune2 {
+				tune_name = "usb2_hs_rx_pre_emphasus_p1";
+				tune_value = /bits/ 8 <0x71 0x2e>;
+			};
+
+			repeater_tune3 {
+				tune_name = "usb2_disconnect_squelch_port1";
+				tune_value = /bits/ 8 <0x73 0x86>;
+			};
+
+			repeater_tune4 {
+				tune_name = "eusb_rx_adjust_port1";
+				tune_value = /bits/ 8 <0x79 0x40>;
+			};
+
+			repeater_tune5 {
+				tune_name = "E_SOP_EOP";
+				tune_value = /bits/ 8 <0x76 0x27>;
+			};
+		};
+	};
+};
+

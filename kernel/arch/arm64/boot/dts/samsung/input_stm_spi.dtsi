@@ -1,0 +1,102 @@
+&pinctrl_0 {
+	tsp_int_active: tsp_int_active {
+		GPIO_CONFIG_PUD_DRV(AP,gpa1,gpa1,2, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+
+	tsp_int_sleep: tsp_int_sleep {
+		GPIO_CONFIG_PUD_DRV(AP,gpa1,gpa1,2, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&spi_9 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	dmas = <>;
+	tsp_stm_spi: touchscreen@0 {
+		status = "ok";
+		compatible = "stm,stm_ts_spi";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&tsp_int_active>;
+		pinctrl-1 = <&tsp_int_sleep>;
+		tsp_io_ldo-supply = <&l18_reg>;
+		tsp_avdd_ldo-supply = <&l9_reg>;
+		sec,irq_gpio = <SEC_GPIO_REF(AP,gpa1,gpa1,2) 0>;
+		sec,gpio_spi_cs = <SEC_GPIO_REF(AP,gpp9,gpp9,3) 0>;
+		/* This part is for firmware */
+		sec,project_name = "e1s";
+		sec,ss_touch_num = <1>;
+
+		sec,area-size = <133 266 341>; /* indicator: 24dp navigator:48dp edge:60px dpi=320 */
+		sec,max_coords = <4096 4096>; /* x y */
+		enable_settings_aot;
+		support_dex_mode;
+		support_mis_calibration_test;
+		support_ear_detect_mode;
+		support_open_short_test;
+		support_rawdata_map_num = <5>;
+		sec,enable_sysinput_enabled;
+
+		controller-data {
+			cs-gpio = <SEC_GPIO_REF(AP,gpp9,gpp9,3) 0>;
+			samsung,spi-feedback-delay = <0>;
+		};
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2023/touchscreen/stm/common/dts_spi/input-lsi-tsp-stm.e1s.dtsi */
+&pinctrl_6 {
+	tsp_spi_sleep: tsp_spi_sleep {
+		samsung,pins = "gpp9-3", "gpp9-2", "gpp9-1", "gpp9-0";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <2>;
+		samsung,pin-pud-pdn = <1>;
+	};
+
+	spi_bus: spi_bus {
+		samsung,pins = "gpp9-3", "gpp9-2", "gpp9-1", "gpp9-0";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+
+&usi_9 {
+	usi_v2_mode = "spi";
+	status = "okay";
+};
+
+&spi_9 {
+	pinctrl-0 = <&spi_bus>;
+};
+
+&tsp_stm_spi {
+	pinctrl-0 = <&tsp_int_active>;
+	pinctrl-1 = <&tsp_int_sleep &tsp_spi_sleep>;
+
+	sync-reportrate-120;
+	support_fod;
+	support_gesture_uevent;
+	sec,support_rawdata;
+	sec,support_rawdata_motion_palm;
+	sec,probe_queue_delay = <500>;
+	sec,dump_ic_ver = <1>;
+	sec,firmware_name = "tsp_stm/fts2ba61y_e1s.bin";
+	sec,tclm_level = <1>;
+	sec,afe_base = <0x0000>;
+	work_queue_probe_enabled;
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2023/touchscreen/stm/common/dts_spi/input-lsi-tsp-stm.e1s.13.dtsi */
+&tsp_stm_spi {
+	sec,firmware_name = "tsp_stm/fts2ba61c_e1.bin";
+	sec,tclm_level = <2>;
+	sec,afe_base = <0x0005>;
+};

@@ -1,0 +1,920 @@
+/*
+ * Samsung's Exynos9925 SoC Audio device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * Samsung's Exynos9925 SoC audio devices are listed.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	abox_gic: abox-gic@18cf0000 {
+		compatible = "samsung,abox-gic";
+		reg = <0x0 0x18cf1000 0x1000>, <0x0 0x18cf2000 0x1004>;
+		reg-names = "gicd", "gicc";
+		interrupts = <GIC_SPI INTREQ__AUD_ABOX_GIC400 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	abox: abox@18c50000 {
+		compatible = "samsung,abox";
+		reg = <0x0 0x18c50000 0x40000>, <0x0 0x18c10000 0x10000>,
+			<0x0 0x2100000 0x40000>, <0x0 0x18ce0000 0x10000>,
+			<0x0 0x14c30000 0x1000>, <0x0 0x1a320000 0x1000>;
+		reg-names = "sfr", "sysreg", "sram", "timer", "mailbox_apm", "cmu_top";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+		iommus = <&sysmmu_aud_s0>;
+		memory-region = <&abox_rmem>;
+		samsung,iommu-group = <&iommu_group_aud>;
+		power-domains = <&pd_aud>;
+		clocks = <&clock POUT_SHARED4_D1>, <&clock POUT_SHARED3_D1>,
+			<&clock DOUT_DIV_CLKCMU_AUD_AUDIF0>, <&clock DOUT_DIV_CLK_AUD_NOC>,
+			<&clock DOUT_DIV_CLK_AUD_CNT>, <&clock MOUT_MUX_CLK_AUD_SCLK>,
+			<&clock UMUX_CP_PCMC_CLK>, <&clock MOUT_MUX_CLK_AUD_PCMC>;
+		clock-names = "pll", "pll1", "audif", "bus", "cnt", "sclk", "cp_pcmc", "aud_pcmc";
+		#sound-dai-cells = <1>;
+		sound-name-prefix = "ABOX";
+		samsung,quirks = "try to asrc off", "silent reset";
+		samsung,ipc-tx-area = <0x1 0x400000 0x18000>;
+		samsung,ipc-rx-area = <0x1 0x418000 0x18000>;
+		samsung,shm-area = <0x1 0x477000 0x1000>;
+		samsung,handshake-area = <0x0 0x292e0 0x20>;
+		samsung,abox-bootargs-offset = <0x29500>;
+		samsung,abox-slogargs-offset = <0x295f8>;
+		samsung,abox-gic = <&abox_gic>;
+		samsung,abox-vts = <&vts>;
+		samsung,uaif-max-div = <512>;
+		samsung,pm-qos-int = <0 0 0 0 0>;
+		samsung,pm-qos-aud = <1210000 999000 800000 664000 533000 400000 332000 200000 134000>;
+		samsung,pm-qos-stable-min = <134000>;
+		samsung,pmu-pad-ret = <0x1860 0x00000800>;
+		samsung,pmu-silent-rst = <0x184c 0x00000004>;
+		samsung,sys-acp-con = <0x0404 0x10000>;
+		samsung,rate-pcmc = <76800000 49152000 73728000>;
+		samsung,abox-llc-way =
+			/* LCD on, off */
+			<4 4>, /* CALL */
+			<0 0>; /* OFFLOAD */
+
+		abox_core0: abox-core@18c55000 {
+			compatible = "samsung,abox-core";
+			reg = <0x0 0x18c55000 0x80>;
+			reg-names = "gpr";
+			samsung,id = <0>;
+			samsung,type = "CA32";
+			samsung,pmu_power = <0x3600 0x1>;
+			samsung,sys_standby = <0x0400 0x10000000>;
+			abox_firmware_sram0: abox-firmware-sram0 {
+				samsung,name = "calliope_sram.bin";
+				samsung,area = <0>; /* 0:SRAM, 1:DRAM */
+				samsung,offset = <0x0>;
+				samsung,fw-signed;
+				samsung,fw-id = <0>;
+			};
+			abox_firmware_dram0: abox-firmware-dram0 {
+				samsung,name = "calliope_dram.bin";
+				samsung,area = <1>; /* 0:SRAM, 1:DRAM */
+				samsung,offset = <0x0>;
+			};
+		};
+
+		abox_core1: abox-core@18c55080 {
+			compatible = "samsung,abox-core";
+			reg = <0x0 0x18c55080 0x80>;
+			reg-names = "gpr";
+			samsung,id = <1>;
+			samsung,type = "CA32";
+			samsung,pmu_power = <0x3640 0x1>;
+			samsung,sys_standby = <0x0400 0x20000000>;
+		};
+
+		abox_core2: abox-core@18c55100 {
+			compatible = "samsung,abox-core";
+			reg = <0x0 0x18c55100 0x80>, <0x0 0x18c55200 0x4>;
+			reg-names = "gpr", "status";
+			samsung,id = <2>;
+			samsung,type = "CA32";
+			samsung,pmu_power = <0x37c0 0x1>;
+			samsung,sys_standby = <0x0400 0x40080000>;
+		};
+
+		abox_rdma_0: abox-rdma@18c51000 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51000 0x100>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA0";
+		};
+
+		abox_rdma_1: abox-rdma@18c51100 {
+			compatible = "samsung,abox-rdma-compr";
+			reg = <0x0 0x18c51100 0x100>, <0x0 0x2129600 0x70>;
+			reg-names = "sfr", "mailbox";
+			memory-region = <&abox_rdma_compr>;
+			samsung,id = <1>;
+			samsung,type = "compress";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX ComprTx0";
+		};
+
+		abox_rdma_2: abox-rdma@18c51200 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51200 0x100>;
+			reg-names = "sfr";
+			samsung,id = <2>;
+			samsung,type = "normal";
+			samsung,buffer_type = "ion";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA2";
+		};
+
+		abox_rdma_3: abox-rdma@18c51300 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51300 0x100>;
+			reg-names = "sfr";
+			samsung,id = <3>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			samsung,asrc-id = <7>;
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA3";
+		};
+
+		abox_rdma_4: abox-rdma@18c51400 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51400 0x100>;
+			reg-names = "sfr";
+			samsung,id = <4>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA4";
+		};
+
+		abox_rdma_5: abox-rdma@18c51500 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51500 0x100>;
+			reg-names = "sfr";
+			samsung,id = <5>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA5";
+		};
+
+		abox_rdma_6: abox-rdma@18c51600 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51600 0x100>;
+			reg-names = "sfr";
+			samsung,id = <6>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA6";
+		};
+
+		abox_rdma_7: abox-rdma@18c51700 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51700 0x100>;
+			reg-names = "sfr";
+			samsung,id = <7>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA7";
+		};
+
+		abox_rdma_8: abox-rdma@18c51800 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51800 0x100>;
+			reg-names = "sfr";
+			samsung,id = <8>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA8";
+		};
+
+		abox_rdma_9: abox-rdma@18c51900 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51900 0x100>;
+			reg-names = "sfr";
+			samsung,id = <9>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA9";
+		};
+
+		abox_rdma_10: abox-rdma@18c51a00 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51a00 0x100>;
+			reg-names = "sfr";
+			samsung,id = <10>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA10";
+		};
+
+		abox_rdma_11: abox-rdma@18c51b00 {
+			compatible = "samsung,abox-rdma";
+			reg = <0x0 0x18c51b00 0x100>;
+			reg-names = "sfr";
+			samsung,id = <11>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX RDMA11";
+		};
+
+		abox_wdma_0: abox-wdma@18c53000 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53000 0x80>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA0";
+		};
+
+		abox_wdma_1: abox-wdma@18c53100 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53100 0x80>;
+			reg-names = "sfr";
+			samsung,id = <1>;
+			samsung,type = "normal";
+			samsung,buffer_type = "ion";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA1";
+		};
+
+		abox_wdma_2: abox-wdma@18c53200 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53200 0x80>;
+			reg-names = "sfr";
+			samsung,id = <2>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA2";
+		};
+
+		abox_wdma_3: abox-wdma@18c53300 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53300 0x80>;
+			reg-names = "sfr";
+			samsung,id = <3>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA3";
+		};
+
+		abox_wdma_4: abox-wdma@18c53400 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53400 0x80>;
+			reg-names = "sfr";
+			samsung,id = <4>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA4";
+		};
+
+		abox_wdma_5: abox-wdma@18c53500 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53500 0x80>;
+			reg-names = "sfr";
+			samsung,id = <5>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA5";
+		};
+
+		abox_wdma_6: abox-wdma@18c53600 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53600 0x80>;
+			reg-names = "sfr";
+			samsung,id = <6>;
+			samsung,type = "normal";
+			samsung,buffer_type = "ion";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA6";
+		};
+
+		abox_wdma_7: abox-wdma@18c53700 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53700 0x80>;
+			reg-names = "sfr";
+			samsung,id = <7>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA7";
+		};
+
+		abox_wdma_8: abox-wdma@18c53800 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53800 0x80>;
+			reg-names = "sfr";
+			samsung,id = <8>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA8";
+		};
+
+		abox_wdma_9: abox-wdma@18c53900 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53900 0x80>;
+			reg-names = "sfr";
+			samsung,id = <9>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA9";
+		};
+
+		abox_wdma_10: abox-wdma@18c53a00 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53a00 0x80>;
+			reg-names = "sfr";
+			samsung,id = <10>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA10";
+		};
+
+		abox_wdma_11: abox-wdma@18c53b00 {
+			compatible = "samsung,abox-wdma";
+			reg = <0x0 0x18c53b00 0x80>;
+			reg-names = "sfr";
+			samsung,id = <11>;
+			samsung,type = "normal";
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <1>;
+			sound-name-prefix = "ABOX WDMA11";
+		};
+
+		abox_dual_0: abox-dual@18c53080 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53080 0x80>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA0 DUAL";
+		};
+
+		abox_dual_1: abox-dual@18c53180 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53180 0x80>;
+			reg-names = "sfr";
+			samsung,id = <1>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA1 DUAL";
+		};
+
+		abox_dual_2: abox-dual@18c53280 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53280 0x80>;
+			reg-names = "sfr";
+			samsung,id = <2>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA2 DUAL";
+		};
+
+		abox_dual_3: abox-dual@18c53380 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53380 0x80>;
+			reg-names = "sfr";
+			samsung,id = <3>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA3 DUAL";
+		};
+
+		abox_dual_4: abox-dual@18c53480 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53480 0x80>;
+			reg-names = "sfr";
+			samsung,id = <4>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA4 DUAL";
+		};
+
+		abox_dual_5: abox-dual@18c53580 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53580 0x80>;
+			reg-names = "sfr";
+			samsung,id = <5>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA5 DUAL";
+		};
+
+		abox_dual_6: abox-dual@18c53680 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53680 0x80>;
+			reg-names = "sfr";
+			samsung,id = <6>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA6 DUAL";
+		};
+
+		abox_dual_7: abox-dual@18c53780 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53780 0x80>;
+			reg-names = "sfr";
+			samsung,id = <7>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA7 DUAL";
+		};
+
+		abox_dual_8: abox-dual@18c53880 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53880 0x80>;
+			reg-names = "sfr";
+			samsung,id = <8>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA8 DUAL";
+		};
+
+		abox_dual_9: abox-dual@18c53980 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53980 0x80>;
+			reg-names = "sfr";
+			samsung,id = <9>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA9 DUAL";
+		};
+
+		abox_dual_10: abox-dual@18c53a80 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53a80 0x80>;
+			reg-names = "sfr";
+			samsung,id = <10>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA10 DUAL";
+		};
+
+		abox_dual_11: abox-dual@18c53b80 {
+			compatible = "samsung,abox-dual";
+			reg = <0x0 0x18c53b80 0x80>;
+			reg-names = "sfr";
+			samsung,id = <11>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX WDMA11 DUAL";
+		};
+
+		abox_ddma_0: abox-ddma@18c56000 {
+			compatible = "samsung,abox-ddma";
+			reg = <0x0 0x18c56000 0x100>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX DBG0";
+		};
+
+		abox_ddma_1: abox-ddma@18c56100 {
+			compatible = "samsung,abox-ddma";
+			reg = <0x0 0x18c56100 0x100>;
+			reg-names = "sfr";
+			samsung,id = <1>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX DBG1";
+		};
+
+		abox_ddma_2: abox-ddma@18c56200 {
+			compatible = "samsung,abox-ddma";
+			reg = <0x0 0x18c56200 0x100>;
+			reg-names = "sfr";
+			samsung,id = <2>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX DBG2";
+		};
+
+		abox_ddma_3: abox-ddma@18c56300 {
+			compatible = "samsung,abox-ddma";
+			reg = <0x0 0x18c56300 0x100>;
+			reg-names = "sfr";
+			samsung,id = <3>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX DBG3";
+		};
+
+		abox_ddma_4: abox-ddma@18c56400 {
+			compatible = "samsung,abox-ddma";
+			reg = <0x0 0x18c56400 0x100>;
+			reg-names = "sfr";
+			samsung,id = <4>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX DBG4";
+		};
+
+		abox_ddma_5: abox-ddma@18c56500 {
+			compatible = "samsung,abox-ddma";
+			reg = <0x0 0x18c56500 0x100>;
+			reg-names = "sfr";
+			samsung,id = <5>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX DBG5";
+		};
+
+		abox_uaif_0: abox-uaif@18c50c00 {
+			compatible = "samsung,abox-uaif";
+			reg = <0x0 0x18c50c00 0x20>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			clocks = <&clock DOUT_DIV_CLK_AUD_UAIF0>, <&clock GATE_ABOX_QCH_BCLK0>,
+				<&clock MOUT_CLK_AUD_UAIF0>;
+			clock-names = "bclk", "bclk_gate", "mux";
+			pinctrl-names = "active", "idle";
+			pinctrl-0 = <&aud_i2s0_bus>;
+			pinctrl-1 = <&aud_i2s0_idle>;
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UAIF0";
+		};
+
+		abox_uaif_1: abox-uaif@18c50c20 {
+			compatible = "samsung,abox-uaif";
+			reg = <0x0 0x18c50c20 0x20>;
+			reg-names = "sfr";
+			samsung,id = <1>;
+			clocks = <&clock DOUT_DIV_CLK_AUD_UAIF1>, <&clock GATE_ABOX_QCH_BCLK1>,
+				<&clock MOUT_CLK_AUD_UAIF1>;
+			clock-names = "bclk", "bclk_gate", "mux";
+			pinctrl-names = "active", "idle";
+			pinctrl-0 = <&aud_i2s1_bus>;
+			pinctrl-1 = <&aud_i2s1_idle>;
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UAIF1";
+		};
+
+		abox_uaif_2: abox-uaif@18c50c40 {
+			compatible = "samsung,abox-uaif";
+			reg = <0x0 0x18c50c40 0x20>;
+			reg-names = "sfr";
+			samsung,id = <2>;
+			clocks = <&clock DOUT_DIV_CLK_AUD_UAIF2>, <&clock GATE_ABOX_QCH_BCLK2>,
+				<&clock MOUT_CLK_AUD_UAIF2>;
+			clock-names = "bclk", "bclk_gate", "mux";
+			pinctrl-names = "active", "idle";
+			pinctrl-0 = <&aud_i2s2_bus>;
+			pinctrl-1 = <&aud_i2s2_idle>;
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UAIF2";
+		};
+
+		abox_uaif_3: abox-uaif@18c50c60 {
+			compatible = "samsung,abox-uaif";
+			reg = <0x0 0x18c50c60 0x20>;
+			reg-names = "sfr";
+			samsung,id = <3>;
+			samsung,quirks = "chub gpio";
+			clocks = <&clock DOUT_DIV_CLK_AUD_UAIF3>, <&clock GATE_ABOX_QCH_BCLK3>,
+				<&clock MOUT_CLK_AUD_UAIF3>;
+			clock-names = "bclk", "bclk_gate", "mux";
+			pinctrl-names = "active", "idle";
+			pinctrl-0 = <&aud_i2s3_bus>;
+			pinctrl-1 = <&aud_i2s3_idle>;
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UAIF3";
+		};
+
+		abox_uaif_4: abox-uaif@18c50c80 {
+			compatible = "samsung,abox-uaif";
+			reg = <0x0 0x18c50c80 0x20>;
+			reg-names = "sfr";
+			samsung,id = <4>;
+			clocks = <&clock DOUT_DIV_CLK_AUD_UAIF4>, <&clock GATE_ABOX_QCH_BCLK4>,
+				<&clock MOUT_CLK_AUD_UAIF4>;
+			clock-names = "bclk", "bclk_gate", "mux";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UAIF4";
+		};
+
+		abox_uaif_5: abox-uaif@18c50ca0 {
+			compatible = "samsung,abox-uaif";
+			reg = <0x0 0x18c50ca0 0x20>;
+			reg-names = "sfr";
+			samsung,id = <5>;
+			clocks = <&clock DOUT_DIV_CLK_AUD_UAIF5>, <&clock GATE_ABOX_QCH_BCLK5>,
+				<&clock MOUT_CLK_AUD_UAIF5>;
+			clock-names = "bclk", "bclk_gate", "mux";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UAIF5";
+		};
+
+		abox_uaif_6: abox-uaif@18c50cc0 {
+			compatible = "samsung,abox-uaif";
+			reg = <0x0 0x18c50cc0 0x20>;
+			reg-names = "sfr";
+			samsung,id = <6>;
+			clocks = <&clock DOUT_DIV_CLK_AUD_UAIF6>, <&clock GATE_ABOX_QCH_BCLK6>,
+				<&clock MOUT_CLK_AUD_UAIF6>;
+			clock-names = "bclk", "bclk_gate", "mux";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UAIF6";
+		};
+
+		abox_dsif: abox-dsif@18c50de0 {
+			compatible = "samsung,abox-dsif";
+			reg = <0x0 0x18c50de0 0x10>;
+			reg-names = "sfr";
+			samsung,id = <7>;
+			clocks = <&clock DOUT_DIV_CLK_AUD_DSIF>, <&clock GATE_ABOX_QCH_BCLK_DSIF>;
+			clock-names = "bclk", "bclk_gate";
+			/* DSIF and UAIF1 shares GPIO
+			 * pinctrl-names = "default", "sleep";
+			 * pinctrl-0 = <&aud_dsd_bus>;
+			 * pinctrl-1 = <&aud_dsd_idle>;
+			 */
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX DSIF";
+		};
+
+		abox_udma_rd_0: abox-udma-rd@18c5c100 {
+			compatible = "samsung,abox-udma-rd";
+			reg = <0x0 0x18c5c100 0x80>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			samsung,buffer_type = "ram";
+			samsung,buffer-address = <0x3 0x2136000 0x3000>;
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UDMA RD0";
+		};
+
+		abox_udma_wr_0: abox-udma-wr@18c5c700 {
+			compatible = "samsung,abox-udma-wr";
+			reg = <0x0 0x18c5c700 0x80>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			samsung,buffer_type = "ram";
+			samsung,buffer-address = <0x3 0x212a000 0xc000>;
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UDMA WR0";
+		};
+
+		abox_udma_wr_dual_0: abox-udma-wr-dual@18c5c780 {
+			compatible = "samsung,abox-udma-wr-dual";
+			reg = <0x0 0x18c5c780 0x80>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UDMA WR0 DUAL";
+		};
+
+		abox_udma_wr_debug_0: abox-udma-wr-debug@18c5cd00 {
+			compatible = "samsung,abox-udma-wr-debug";
+			reg = <0x0 0x18c5cd00 0x80>;
+			reg-names = "sfr";
+			samsung,id = <0>;
+			samsung,buffer_type = "dma";
+			#sound-dai-cells = <0>;
+			sound-name-prefix = "ABOX UDMA DBG0";
+		};
+
+		abox_effect: abox-effect@2139000 {
+			compatible = "samsung,abox-effect";
+			reg = <0x0 0x2139000 0x1000>;
+			reg-names = "reg";
+		};
+
+		abox_debug: abox-debug@0 {
+			compatible = "samsung,abox-debug";
+			memory-region = <&abox_dbg &abox_slog>;
+			reg = <0x0 0x0 0x0>;
+		};
+
+		abox_vss: abox-vss@0 {
+			compatible = "samsung,abox-vss";
+			samsung,magic-offset = <0x700000>;
+			reg = <0x0 0x0 0x0>;
+		};
+
+		abox_tplg: abox-tplg@0 {
+			compatible = "samsung,abox-tplg";
+			reg = <0x0 0x0 0x0>;
+			sound-name-prefix = "ABOX";
+		};
+
+		abox_pci: abox-pci@0 {
+			compatible = "samsung,abox-pci";
+			status = "disabled";
+			memory-region = <&abox_pci_rmem>;
+			reg = <0x0 0x0 0x0>;
+			pinctrl-names = "pci_on", "sleep";
+			pinctrl-0 = <&aud_i2s3_pci>;
+			pinctrl-1 = <&aud_i2s3_idle>;
+			samsung,mailbox = <0x155a0000>; /* MAILBOX_AP_VTS */
+			samsung,doorbell_offset = <0x0>;
+		};
+	};
+
+	mailbox_vts: mailbox@153e0000 {
+		compatible = "samsung,mailbox-asoc";
+		reg = <0x0 0x153e0000 0x01000>;
+		reg-names = "sfr";
+		interrupts = <GIC_SPI INTREQ__MAILBOX_AP_VTS IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+
+	vts: vts@15310000 {
+		compatible = "samsung,vts";
+		sicd-base = <0x2053400>;
+		sicd-size = <0x400>;
+		reg = <0x0 0x15310000 0x1020>, <0x0 0x154f0000 0x10010>,
+			<0x0 0x15350000 0x8>, <0x0 0x15360000 0x8>,
+			<0x0 0x02500000 0x200000>, <0x0 0x15400000 0x50>,
+			<0x0 0x154c0000 0x8>, <0x0 0x154d0000 0x8>,
+			<0x0 0x154b0000 0x8>, <0x0 0x154e0000 0x8>,
+			<0x0 0x15340000 0x400>;
+		reg-names = "sfr", "baaw",
+			"dmic", "dmic1",
+			"sram", "gpr",
+			"intmem_code", "intmem_data",
+			"intmem_pcm", "intmem_data1",
+			"slif_vts";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+		pinctrl-names = "dmic0_default",
+			"dmic1_default",
+			"dmic2_default",
+			"amic0_default",
+			"amic1_default",
+			"amic2_default",
+			"dmic0_idle",
+			"dmic1_idle",
+			"dmic2_idle",
+			"default";
+		pinctrl-0 = <&dmic_bus_clk0 &dmic_pdm0_bus>;
+		pinctrl-1 = <&dmic_bus_clk1 &dmic_pdm1_bus>;
+		pinctrl-2 = <&dmic_bus_clk2 &dmic_pdm2_bus>;
+		pinctrl-3 = <&dmic_bus_clk0 &amic_pdm0_bus>;
+		pinctrl-4 = <&dmic_bus_clk1 &amic_pdm1_bus>;
+		pinctrl-5 = <&dmic_bus_clk2 &amic_pdm2_bus>;
+		pinctrl-6 = <&dmic_bus_clk0_idle &dmic_pdm0_idle>;
+		pinctrl-7 = <&dmic_bus_clk1_idle &dmic_pdm1_idle>;
+		pinctrl-8 = <&dmic_bus_clk2_idle &dmic_pdm2_idle>;
+		pinctrl-9 = <>;
+
+		power-domains = <&pd_vts>;
+
+		clocks = <&clock DOUT_CLKALIVE_CHUBVTS_NOC>,	/* 0 */
+			<&clock DOUT_DIV_CLK_VTS_CPU>,		/* 1 */
+			<&clock DOUT_DIV_CLK_VTS_SERIAL_LIF>,	/* 2 */
+			<&clock DOUT_DIV_CLK_VTS_DMIC_IF>,	/* 3 */
+			<&clock DOUT_DIV_CLK_VTS_DMIC_IF_DIV2>,	/* 4 */
+			<&clock DOUT_DIV_CLKVTS_AUD_DMIC>,	/* 5 */
+			<&clock MOUT_CLKALIVE_VTS_NOC_USER>,	/* 6 */
+			<&clock MOUT_CLKALIVE_VTS_RCO_USER>,	/* 7 */
+			<&clock UMUX_CLKCMU_VTS_DMIC_USER>,	/* 8 */
+			<&clock MOUT_CLK_VTS_DMIC>;		/* 9 */
+		clock-names = "clk_src0",
+			"clk_src1",
+			"clk_src2",
+			"clk_src3",
+			"clk_src4",
+			"clk_src5",
+			"clk_src6",
+			"clk_src7",
+			"clk_src8",
+			"clk_src9";
+		clk-name-list = "DOUT_CLKALIVE_CHUBVTS_NOC",	/* 0 */
+			"DOUT_DIV_CLK_VTS_CPU",			/* 1 */
+			"DOUT_DIV_CLK_VTS_SERIAL_LIF",		/* 2 */
+			"DOUT_DIV_CLK_VTS_DMIC_IF",		/* 3 */
+			"DOUT_DIV_CLK_VTS_DMIC_IF_DIV2",	/* 4 */
+			"DOUT_DIV_CLKVTS_AUD_DMIC",		/* 5 */
+			"MOUT_CLKALIVE_VTS_NOC_USER",		/* 6 */
+			"MOUT_CLKALIVE_VTS_RCO_USER",		/* 7 */
+			"UMUX_CLKCMU_VTS_DMIC_USER",		/* 8 */
+			"MOUT_CLK_VTS_DMIC";			/* 9 */
+		vts-init-clk = <0 400000000>;
+		vts-alive-clk = <6 393216000 7 49152000>;
+		vts-sys-clk = <1 196608000>;
+		vts-tri-clk = <9 49152000 5 12288000
+					3 1536000 4 768000 2 512000>;
+		vts-aud-clk = <9 73728000 5 12288000
+					3 6144000 4 3072000 2 1024000>;
+
+		mailbox = <&mailbox_vts>;
+		#sound-dai-cells = <1>;
+		sound-name-prefix = "VTS";
+		interrupt-parent = <&mailbox_vts>;
+		interrupts = <0>, <1>, <2>, <3>, <4>, <5>, <6>, <7>, <8>, <11>, <15>;
+		interrupt-names = "error", "boot_completed", "ipc_received", "voice_triggered",
+				"trigger_period_elapsed", "record_period_elapsed",
+				"debuglog_bufzero", "internal_rec_elapsed", "vts_status",
+				"slif_dump", "cp_wakeup";
+		samsung,imgloader-vts-support;
+		samsung,fw-id = <0>;
+		vts_dma0: vts_dma@0 {
+			compatible = "samsung,vts-dma";
+			vts = <&vts>;
+			id = <0>;
+			type = "vts-trigger";
+		};
+
+		vts_dma1: vts_dma@1 {
+			compatible = "samsung,vts-dma";
+			vts = <&vts>;
+			id = <1>;
+			type = "vts-record";
+		};
+		vts_dma2: vts_dma@2 {
+			compatible = "samsung,vts-dma";
+			vts = <&vts>;
+			id = <2>;
+			type = "vts-internal";
+		};
+	};
+
+	vts_s_lif: vts_s_lif@18f50000 {
+		compatible = "samsung,slif";
+		status = "okay";
+		power-domains = <&pd_aud>;
+		samsung,slif-vts = <&vts>;
+		id = <0>;
+		reg = <0x0 0x18f50000 0x400>, <0x0 0x18f60000 0x20>,
+			<0x0 0x18f70000 0x20>, <0x0 0x18f80000 0x20>;
+		reg-names = "sfr", "dmic_aud0", "dmic_aud1", "dmic_aud2";
+		clocks = <&clock UMUX_CLKCMU_VTS_DMIC_USER>,	/* 0 */
+			<&clock UMUX_CLKVTS_AUD_DMIC0>,		/* 1 */
+			<&clock MOUT_CLK_VTS_DMIC>,		/* 2 */
+			<&clock DOUT_DIV_CLKVTS_AUD_DMIC>,	/* 3 */
+			<&clock MOUT_CLK_AUD_SERIAL_LIF>,	/* 4 */
+			<&clock DOUT_DIV_CLK_AUD_SERIAL_LIF>,	/* 5 */
+			<&clock DOUT_DIV_CLK_VTS_DMIC_IF>,		/* 6 */
+			<&clock DOUT_DIV_CLK_VTS_DMIC_IF_DIV2>;	/* 7 */
+		clock-names = "clk_src0",
+			"clk_src1",
+			"clk_src2",
+			"clk_src3",
+			"clk_src4",
+			"clk_src5",
+			"clk_src6",
+			"clk_src7";
+		clk-name-list = "UMUX_CLKCMU_VTS_DMIC_USER",	/* 0 */
+			"UMUX_CLKVTS_AUD_DMIC0",		/* 1 */
+			"MOUT_CLK_VTS_DMIC",			/* 2 */
+			"DOUT_DIV_CLKVTS_AUD_DMIC",		/* 3 */
+			"MOUT_CLK_AUD_SERIAL_LIF",		/* 4 */
+			"DOUT_DIV_CLK_AUD_SERIAL_LIF",		/* 5 */
+			"DOUT_DIV_CLK_VTS_DMIC_IF",		/* 6 */
+			"DOUT_DIV_CLK_VTS_DMIC_IF_DIV2";	/* 7 */
+		slif-aud-clk = <0 73728000 2 73728000 3 12288000 1 12288000 4 73728000 6 6144000 7 3072000>;
+		slif-bclk = <5 4608000>;
+
+		#sound-dai-cells = <1>;
+	};
+
+	displayport_adma: dp_dma {
+		#sound-dai-cells = <1>;
+		compatible = "samsung,displayport-adma";
+		memory-region = <&dp_ado_rmem>;
+		samsung,dp_tx_addr = <0x10a80000>;
+		dp_dma0: dp_dma@0 {
+			compatible = "samsung,dp-dma";
+			id = <0>;
+			dmas = <&pdma0 28>;
+			dma-names = "tx";
+			samsung,fifo_addr = <0x10a85818>;
+			sound-name-prefix = "DP AUDIO0";
+			/* Trick for probe order with sound card */
+			#dma-cells = <0>;
+		};
+	};
+};

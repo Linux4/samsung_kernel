@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+[filegroup(
+    name = platform,
+    srcs = glob([
+        "%s/bin/*" % platform,
+        "%s/lib/*" % platform,
+        "%s/lib64/*" % platform,
+        "%s/clang-headers/*" % platform,
+    ]),
+) for platform in ("linux-x86", "darwin-x86")]

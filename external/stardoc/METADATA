@@ -1,0 +1,13 @@
+name: "Stardoc"
+description:
+    "Stardoc: Starlark Documentation Generator"
+
+third_party {
+  url {
+    type: GIT
+    value: "https://github.com/bazelbuild/stardoc"
+  }
+  version: "0.5.3"
+  last_upgrade_date { year: 2022 month: 11 day: 8 }
+  license_type: NOTICE
+}

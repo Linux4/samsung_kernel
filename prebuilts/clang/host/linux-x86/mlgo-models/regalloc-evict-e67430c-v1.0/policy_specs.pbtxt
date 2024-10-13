@@ -1,0 +1,437 @@
+dict_value {
+  fields {
+    key: "collect_data_spec"
+    value {
+      named_tuple_value {
+        name: "Trajectory"
+        values {
+          key: "step_type"
+          value {
+            tensor_spec_value {
+              name: "step_type"
+              shape {
+              }
+              dtype: DT_INT32
+            }
+          }
+        }
+        values {
+          key: "observation"
+          value {
+            dict_value {
+              fields {
+                key: "end_bb_freq_by_max"
+                value {
+                  tensor_spec_value {
+                    name: "end_bb_freq_by_max"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "hint_weights_by_max"
+                value {
+                  tensor_spec_value {
+                    name: "hint_weights_by_max"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "hottest_bb_freq_by_max"
+                value {
+                  tensor_spec_value {
+                    name: "hottest_bb_freq_by_max"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "is_free"
+                value {
+                  tensor_spec_value {
+                    name: "is_free"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "is_hint"
+                value {
+                  tensor_spec_value {
+                    name: "is_hint"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "is_local"
+                value {
+                  tensor_spec_value {
+                    name: "is_local"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "liverange_size"
+                value {
+                  tensor_spec_value {
+                    name: "liverange_size"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "mask"
+                value {
+                  tensor_spec_value {
+                    name: "mask"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_INT64
+                  }
+                }
+              }
+              fields {
+                key: "max_stage"
+                value {
+                  bounded_tensor_spec_value {
+                    name: "max_stage"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_INT64
+                    minimum {
+                      dtype: DT_INT64
+                      tensor_shape {
+                      }
+                      int64_val: 0
+                    }
+                    maximum {
+                      dtype: DT_INT64
+                      tensor_shape {
+                      }
+                      int64_val: 6
+                    }
+                  }
+                }
+              }
+              fields {
+                key: "min_stage"
+                value {
+                  bounded_tensor_spec_value {
+                    name: "min_stage"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_INT64
+                    minimum {
+                      dtype: DT_INT64
+                      tensor_shape {
+                      }
+                      int64_val: 0
+                    }
+                    maximum {
+                      dtype: DT_INT64
+                      tensor_shape {
+                      }
+                      int64_val: 6
+                    }
+                  }
+                }
+              }
+              fields {
+                key: "nr_broken_hints"
+                value {
+                  tensor_spec_value {
+                    name: "nr_broken_hints"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "nr_defs_and_uses"
+                value {
+                  tensor_spec_value {
+                    name: "nr_defs_and_uses"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "nr_rematerializable"
+                value {
+                  tensor_spec_value {
+                    name: "nr_rematerializable"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "nr_urgent"
+                value {
+                  tensor_spec_value {
+                    name: "nr_urgent"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "progress"
+                value {
+                  bounded_tensor_spec_value {
+                    name: "progress"
+                    shape {
+                    }
+                    dtype: DT_FLOAT
+                    minimum {
+                      dtype: DT_FLOAT
+                      tensor_shape {
+                      }
+                      float_val: 0.0
+                    }
+                    maximum {
+                      dtype: DT_FLOAT
+                      tensor_shape {
+                      }
+                      float_val: 1.0
+                    }
+                  }
+                }
+              }
+              fields {
+                key: "start_bb_freq_by_max"
+                value {
+                  tensor_spec_value {
+                    name: "start_bb_freq_by_max"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "use_def_density"
+                value {
+                  tensor_spec_value {
+                    name: "use_def_density"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "weighed_indvars_by_max"
+                value {
+                  tensor_spec_value {
+                    name: "weighed_indvars_by_max"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "weighed_read_writes_by_max"
+                value {
+                  tensor_spec_value {
+                    name: "weighed_read_writes_by_max"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "weighed_reads_by_max"
+                value {
+                  tensor_spec_value {
+                    name: "weighed_reads_by_max"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+              fields {
+                key: "weighed_writes_by_max"
+                value {
+                  tensor_spec_value {
+                    name: "weighed_writes_by_max"
+                    shape {
+                      dim {
+                        size: 33
+                      }
+                    }
+                    dtype: DT_FLOAT
+                  }
+                }
+              }
+            }
+          }
+        }
+        values {
+          key: "action"
+          value {
+            bounded_tensor_spec_value {
+              name: "index_to_evict"
+              shape {
+              }
+              dtype: DT_INT64
+              minimum {
+                dtype: DT_INT64
+                tensor_shape {
+                }
+                int64_val: 0
+              }
+              maximum {
+                dtype: DT_INT64
+                tensor_shape {
+                }
+                int64_val: 32
+              }
+            }
+          }
+        }
+        values {
+          key: "policy_info"
+          value {
+            tuple_value {
+            }
+          }
+        }
+        values {
+          key: "next_step_type"
+          value {
+            tensor_spec_value {
+              name: "step_type"
+              shape {
+              }
+              dtype: DT_INT32
+            }
+          }
+        }
+        values {
+          key: "reward"
+          value {
+            tensor_spec_value {
+              name: "reward"
+              shape {
+              }
+              dtype: DT_FLOAT
+            }
+          }
+        }
+        values {
+          key: "discount"
+          value {
+            bounded_tensor_spec_value {
+              name: "discount"
+              shape {
+              }
+              dtype: DT_FLOAT
+              minimum {
+                dtype: DT_FLOAT
+                tensor_shape {
+                }
+                float_val: 0.0
+              }
+              maximum {
+                dtype: DT_FLOAT
+                tensor_shape {
+                }
+                float_val: 1.0
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  fields {
+    key: "policy_state_spec"
+    value {
+      tuple_value {
+      }
+    }
+  }
+}

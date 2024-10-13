@@ -1,0 +1,83 @@
+/* USE_AS_AP_SUB_PMIC */
+#if !(1)
+#if 1800000 && 1800000
+&s_l1_reg {
+	regulator-name = "VDD_WIDE_TELE_OIS_1P8";
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	  regulator-ramp-delay = <12000>; regulator-initial-mode = <3>;
+	
+};
+#endif
+
+#if 0 && 0
+&s_l2_reg {
+	regulator-name = "vdd_ldo2s";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s_l3_reg {
+	regulator-name = "vdd_ldo3s";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&s_l4_reg {
+	regulator-name = "vdd_ldo4s";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+#else
+/* USE_AS_CAMERA_PMIC */
+#if 1800000 && 1800000
+&e_l1_reg {
+	regulator-name = "VDD_WIDE_TELE_OIS_1P8";
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	  regulator-ramp-delay = <12000>; regulator-initial-mode = <3>;
+	
+};
+#endif
+
+#if 0 && 0
+&e_l2_reg {
+	regulator-name = "vdd_ldo2s";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&e_l3_reg {
+	regulator-name = "vdd_ldo3s";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+
+#if 0 && 0
+&e_l4_reg {
+	regulator-name = "vdd_ldo4s";
+	regulator-min-microvolt = <0>;
+	regulator-max-microvolt = <0>;
+	 
+	
+};
+#endif
+#endif

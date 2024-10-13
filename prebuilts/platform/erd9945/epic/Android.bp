@@ -1,0 +1,54 @@
+// Copyright (C) 2020 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+soong_namespace {
+}
+
+cc_prebuilt_binary {
+    name: "epic",
+    srcs: ["epic"],
+    shared_libs: ["libc", "libdl", "liblog", "libm"],
+    vendor: true,
+    init_rc: ["epic.rc"]
+}
+
+cc_prebuilt_library_shared {
+    name: "libepic_helper",
+    arch: {
+        arm: {
+		srcs: ["libepic_helper_arm32.so"],
+        },
+        arm64: {
+		srcs: ["libepic_helper_arm64.so"],
+        }
+    },
+    shared_libs: ["libc", "libdl", "liblog", "libm"],
+    compile_multilib: "both",
+    vendor: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libems_service",
+    srcs: ["libems_service.so"],
+    compile_multilib: "64",
+    shared_libs: ["liblog"],
+    vendor: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libgmc",
+    srcs: ["libgmc.so"],
+    compile_multilib: "64",
+    shared_libs: ["liblog"],
+    vendor: true,
+}

@@ -1,0 +1,20 @@
+third_party {
+  license_note: "would be NOTICE save for LGPL in:\n"
+  "   clang-*/python3/lib/python3.8/site-packages/pip/_vendor/chardet/*\n"
+  "   clang-*/python3/lib/python3.8/urllib/robotparser.py\n"
+  "   clang-bootstrap/python3/lib/python3.8/site-packages/pip/_vendor/chardet/*\n"
+  "   clang-bootstrap/python3/lib/python3.8/urllib/robotparser.py\n"
+  "   clang-r383902/python3/lib/python3.8/site-packages/pip/_vendor/chardet/\n"
+  "   clang-r383902/python3/lib/python3.8/urllib/robotparser.py\n"
+  "   clang-r383902b/python3/lib/python3.8/site-packages/pip/_vendor/chardet/*\n"
+  "   clang-r383902b/python3/lib/python3.8/urllib/robotparser.py\n"
+  "   clang-r383902c/python3/lib/python3.8/site-packages/pip/_vendor/chardet\n"
+  "   clang-r383902c/python3/lib/python3.8/urllib/robotparser.py\n"
+  "   clang-r399163b/python3/lib/python3.8/site-packages/pip/_vendor/chardet/\n"
+  "   clang-r399163b/python3/lib/python3.8/urllib/robotparser.py\n"
+  "   clang-r407598/python3/lib/python3.8/site-packages/pip/_vendor/chardet/*\n"
+  "   clang-r407598/python3/lib/python3.8/urllib/robotparser.py\n"
+  "   clang-r407598b/python3/lib/python3.8/site-packages/pip/_vendor/chardet/*\n"
+  "   clang-r407598b/python3/lib/python3.8/urllib/robotparser.py\n"
+  license_type: RESTRICTED
+}

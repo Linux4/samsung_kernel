@@ -1,0 +1,43 @@
+/ {
+	/* camera mode - app boost */
+	set5_2: set@0502 {
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 25   3   5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <90>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <60>;
+				upper-boundary = <600>;
+			};
+			domain2 {
+				cpus = "8";
+				lower-boundary = <500>;
+				upper-boundary = <1024>;
+			};
+		};
+
+		ecs_dynamic { };
+
+		tex { };
+
+		gsc {
+			up_threshold = <0>;
+
+			monitor-group {
+				top-app = <1>;
+				foreground = <1>;
+			};
+		};
+	};
+};

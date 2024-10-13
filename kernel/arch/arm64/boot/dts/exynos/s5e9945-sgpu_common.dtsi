@@ -1,0 +1,82 @@
+/*
+ * SAMSUNG SGPU device tree sourceA
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#define CHIP_VANGOGH_LITE 30
+
+#define IFPO_DISABLED	0x0
+#define IFPO_ABORT	0x1
+#define IFPO_HALF_AUTO	0x2
+
+/{
+	/* sgpu */
+	sgpu: sgpu@22200000 {
+		#address-cells = <0x2>;
+		#size-cells = <0x1>;
+		#cooling-cells = <2>; /* min followed by max */
+		compatible = "samsung-sgpu,samsung-sgpu";
+		reg = <
+			0x0 0x22200000 0x100000
+			0x0 0x22300000 0x2000
+			0x0 0x220F0000 0x40000
+			0x0 0x220D0000 0x10000
+			0x0 0x22000000 0x2000
+			0x0 0x22040000 0x10000
+			>;
+		reg-names = "gpu", "doorbell", "debug", "pwrctl", "sysreg", "htu";
+		interrupts = <GIC_SPI INTREQ__GPU_INT IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__HTU_G3D_INT IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names =  "SGPU", "GPU-AFM";
+		flags = <CHIP_VANGOGH_LITE>;
+		genID = <0x1>;
+		gl2acem_instances_count = <0x4>;
+		samsung,imgloader-s2mpu-support;
+		dma-coherent;
+		power-domains = <&pd_g3dcore>;
+
+		g3d_cmu_cal_id = <ACPM_DVFS_G3D>;
+		gpu_power_coeff = <625>;
+		ect-coeff-index = <4>;
+		dm_type = <DM_G3D>;
+
+		/* GPU AFM */
+		interrupt-src = <2>; /* MAIN_PMIC=1, SUB_PMIC=2, EXTRA_PMIC=3 */
+		s2mps-afm-offset = <0x20>; /* VDD_G3D master buck BUCK1_AFM */
+		down-step = <1>;
+		release-duration = <15>;
+		register-duration = <15000>; /* GPU init faster than loading PMIC interface */
+
+		gpu_smntarg {
+			reg = <0x0 0x22200000 0x100000>;
+			device_type = "gpu_smntarg";
+		};
+
+		gpu_doorbell {
+			reg = <0x0 0x22300000 0x100000>;
+			device_type = "gpu_doorbell";
+		};
+
+		gpu_debug {
+			reg = <0x0 0x220F0000 0x40000>;
+			device_type = "gpu_debug";
+		};
+
+		gpu_pm {
+			reg = <0x0 0x220D0000 0x10000>;
+			device_type = "gpu_pm";
+		};
+
+		gpu_sysreg {
+			reg = <0x0 0x22000000 0x2000>;
+			device_type = "gpu_sysreg";
+		};
+
+	};
+};

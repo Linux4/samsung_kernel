@@ -1,0 +1,525 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/display/panel-display.h>
+#include <dt-bindings/display/exynos-display.h>
+#include "../display_s6e3fae_e1s_adaptive_mipi.dtsi"
+
+&dsim_modes {
+	/* FHD */
+	1080x2340@120hs {
+		exynos,pmsk = <
+			0x5 0x59 0x0 0xAC00
+			0x0 0x0 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1362>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <3452>;
+	};
+	1080x2340@80hs {
+		exynos,pmsk = <
+			0x5 0x59 0x0 0xAC00
+			0x0 0x0 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1362>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <3452>;
+	};
+	1080x2340@60hs {
+		exynos,pmsk = <
+			0x5 0x59 0x0 0xAC00
+			0x0 0x0 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1362>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <3452>;
+	};
+	1080x2340@48hs {
+		exynos,pmsk = <
+			0x5 0x59 0x0 0xAC00
+			0x0 0x0 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1362>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <3452>;
+	};
+	1080x2340@30hs {
+		exynos,pmsk = <
+			0x5 0x59 0x0 0xAC00
+			0x0 0x0 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1362>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <3452>;
+	};
+	1080x2340@24hs {
+		exynos,pmsk = <
+			0x5 0x59 0x0 0xAC00
+			0x0 0x0 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1362>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <3452>;
+	};
+	1080x2340@10hs {
+		exynos,pmsk = <
+			0x5 0x59 0x0 0xAC00
+			0x0 0x0 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1362>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <3452>;
+	};
+	1080x2340@30ns {
+		exynos,pmsk = <
+			0x5 0x59 0x0 0xAC00
+			0x0 0x0 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1362>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <24522>;
+	};
+};
+
+&drmdsim_0 {
+	hs_pll_timing = <&dsim_hs_pll_timing>;
+};
+
+/ {
+	fragment@panel_display_modes {
+		target-path = "/";
+		__overlay__ {
+			e1s_panel_display_modes:
+			e1s_panel_display_modes {
+				native-mode = <&e1s_panel_display_mode_1080x2340_120hs>;
+				exposed-mode = <
+					&e1s_panel_display_mode_1080x2340_120hs
+					&e1s_panel_display_mode_1080x2340_80hs
+					&e1s_panel_display_mode_1080x2340_60hs
+					&e1s_panel_display_mode_1080x2340_48hs
+					&e1s_panel_display_mode_1080x2340_30hs
+					&e1s_panel_display_mode_1080x2340_24hs
+					&e1s_panel_display_mode_1080x2340_10hs
+					&e1s_panel_display_mode_1080x2340_30hs_lp
+					&e1s_panel_display_mode_1080x2340_30ns_lp
+				>;
+
+				/* fhd */
+				e1s_panel_display_mode_1080x2340_120hs:
+				e1s_panel_display_mode_1080x2340_120hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_120HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <120>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 0>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <3730>;
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				e1s_panel_display_mode_1080x2340_80hs:
+				e1s_panel_display_mode_1080x2340_80hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_80HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <80>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <80>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 0>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <3730>;
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				e1s_panel_display_mode_1080x2340_60hs:
+				e1s_panel_display_mode_1080x2340_60hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_60HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <60>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <60>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 0>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <3730>;
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				e1s_panel_display_mode_1080x2340_48hs:
+				e1s_panel_display_mode_1080x2340_48hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_48HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <48>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <48>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 0>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <3730>;
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				e1s_panel_display_mode_1080x2340_30hs:
+				e1s_panel_display_mode_1080x2340_30hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_30HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <30>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <30>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 0>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <3730>;
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				e1s_panel_display_mode_1080x2340_24hs:
+				e1s_panel_display_mode_1080x2340_24hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_24HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <24>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <24>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 0>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <3730>;
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				e1s_panel_display_mode_1080x2340_10hs:
+				e1s_panel_display_mode_1080x2340_10hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_10HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <10>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <10>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <11>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 0>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <3730>;
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				e1s_panel_display_mode_1080x2340_30hs_lp:
+				e1s_panel_display_mode_1080x2340_30hs_lp {
+					id = PANEL_DISPLAY_MODE_1080x2340_30HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <30>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <30>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 1>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <3730>;
+					/*qos parameters */
+					disp_qos_fps = <120>;
+					doze_mode;
+				};
+
+				e1s_panel_display_mode_1080x2340_30ns_lp:
+				e1s_panel_display_mode_1080x2340_30ns_lp {
+					id = PANEL_DISPLAY_MODE_1080x2340_30NS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <30>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_NS>;
+					panel_refresh_rate = <30>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_NS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <64 0 0>;	/* panel vbp:48, vfp:16, but for ap vblank set vbp:48+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <2>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <60>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <24522>;
+					/*qos parameters */
+					disp_qos_fps = <30>;
+					doze_mode;
+					panel_lp_mode;
+				};
+			};
+		};
+	};
+};
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			mafpc_0: mafpc_0 {
+					 compatible = "samsung,panel-mafpc";
+					 status = "okay";
+			};
+
+			panel_drv_0: panel_drv_0 {
+				status = "okay";
+				compatible = "samsung,panel-drv";
+				panel,id = <0>;
+
+				s6e3fae_e1s_power_ctrl:
+				s6e3fae_e1s_power_ctrl {
+					actions {
+						fae_e1s_vci_on: vci-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddi_vci>;
+						};
+						fae_e1s_vdd3_on: vdd3-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddi_vdd3>;
+						};
+						fae_e1s_vddr_on: vddr-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddr_vddr>;
+						};
+						fae_e1s_vddr_off: vddr-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddr_vddr>;
+						};
+						fae_e1s_vci_off: vci-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddi_vci>;
+						};
+						fae_e1s_vdd3_off: vdd3-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddi_vdd3>;
+						};
+						fae_e1s_vddr_set_1p40: vddr-1p40 {
+							type = <PCTRL_REGULATOR_SET_VOLTAGE>;
+							reg = <&ddr_vddr>;
+							value = <1400000>;
+						};
+						fae_e1s_vddr_set_1p50: vddr-1p50 {
+							type = <PCTRL_REGULATOR_SET_VOLTAGE>;
+							reg = <&ddr_vddr>;
+							value = <1500000>;
+						};
+						fae_e1s_vddr_set_default: vddr-default {
+							type = <PCTRL_REGULATOR_SET_VOLTAGE>;
+							reg = <&ddr_vddr>;
+							value = <1600000>;
+						};
+						fae_e1s_delay_1ms: delay-1ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <1>;
+						};
+						fae_e1s_delay_2ms: delay-2ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <2>;
+						};
+						fae_e1s_delay_10ms: delay-10ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <10>;
+						};
+						fae_e1s_delay_11ms: delay-11ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <11>;
+						};
+						fae_e1s_delay_50ms: delay-50ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <50>;
+						};
+						fae_e1s_delay_200ms: delay-200ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <200>;
+						};
+						fae_e1s_reset_high: reset-high {
+							type = <PCTRL_GPIO_ENABLE>;
+							gpio = <&disp_reset>;
+						};
+						fae_e1s_reset_low: reset-low {
+							type = <PCTRL_GPIO_DISABLE>;
+							gpio = <&disp_reset>;
+						};
+						fae_e1s_fd_on: fd-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&fd_elvdd>;
+						};
+						fae_e1s_fd_off: fd-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&fd_elvdd>;
+						};
+					};
+					sequences {
+						panel_boot_on = <&fae_e1s_vdd3_on &fae_e1s_vddr_on &fae_e1s_vddr_set_1p40 &fae_e1s_vci_on &fae_e1s_fd_on>;
+						panel_power_on = <&fae_e1s_vdd3_on &fae_e1s_delay_1ms &fae_e1s_vddr_on &fae_e1s_delay_2ms &fae_e1s_vddr_set_1p40 &fae_e1s_delay_1ms &fae_e1s_vci_on &fae_e1s_delay_11ms &fae_e1s_reset_high &fae_e1s_delay_10ms>;
+						panel_power_off = <&fae_e1s_reset_low &fae_e1s_delay_1ms &fae_e1s_vci_off &fae_e1s_delay_1ms &fae_e1s_vddr_off &fae_e1s_vddr_set_default &fae_e1s_delay_1ms &fae_e1s_vdd3_off &fae_e1s_delay_50ms>;
+						panel_recovery_power_off = <&fae_e1s_reset_low &fae_e1s_delay_1ms &fae_e1s_vci_off &fae_e1s_delay_1ms &fae_e1s_vddr_off &fae_e1s_vddr_set_default &fae_e1s_delay_1ms &fae_e1s_vdd3_off &fae_e1s_delay_200ms>;
+						panel_power_aolce_on = <&fae_e1s_vddr_set_1p50>;
+						panel_power_aolce_off = <&fae_e1s_vddr_set_1p40>;
+						panel_fd_enable = <&fae_e1s_fd_on>;
+						panel_fd_disable = <&fae_e1s_fd_off>;
+					};
+				};
+
+				s6e3fae_e1s_ap:s6e3fae_e1s_ap {
+					/* S.LSI */
+					SLSI,size = <66 142>;
+					SLSI,hdr_formats = <(HDR_FORMAT_HDR10 | HDR_FORMAT_HLG | HDR_FORMAT_HDR10P)>;
+					SLSI,hdr_max_luma = <4500000>;	/* 450 */
+					SLSI,hdr_max_avg_luma = <1200000>;	/* 120 */
+					SLSI,hdr_min_luma = <5>;		/* 0.0005 */
+				};
+
+				panels {
+					s6e3fae_e1s: s6e3fae_e1s {
+						ap-vendor-setting = <&s6e3fae_e1s_ap>;
+						display-mode = <&e1s_panel_display_modes>;
+						power-ctrl = <&s6e3fae_e1s_power_ctrl>;
+						dqe-suffix = "s6e3fae_e1";
+						adaptive-mipi = <&s6e3fae_e1s_adaptive_mipi_info>;
+						sdp-adaptive-mipi = <&s6e3fae_e1s_sdp_adaptive_mipi_info>;
+						id-mask = <
+							PANEL_ID(0x000000) PANEL_MASK(0x000000)
+						>;
+					};
+				};
+			};
+		};
+	};
+};
+
