@@ -1,0 +1,8 @@
+config LIMITER_MAX17333
+	tristate "MAX17333 limiter support"
+	depends on I2C
+	help
+	  Say Y here to enable support for the MAX17333 limiter support.
+	  MAX17333 is a limiter IC.
+	  MAX17333 is dependent on I2C
+	  so it needs to be defined.

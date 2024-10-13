@@ -1,0 +1,7 @@
+&smd {
+	max77775-limiter {
+		status = "okay";
+		compatible = "samsung,max77775-limiter";
+		battery-type = <1>;     /* main */
+	};
+};
