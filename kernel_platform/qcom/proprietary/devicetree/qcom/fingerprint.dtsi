@@ -1,0 +1,53 @@
+/*m269 FP enable gpio*/
+&tlmm{
+	fingerprint_en: fingerprint_ldo_en {
+		mux {
+			pins = "gpio108";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio108";
+			output-high;
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+	};
+
+
+};
+/*m269 FP enable gpio*/
+
+
+&soc {
+	goodix_fp {
+		status = "okay";
+		compatible = "goodix,fingerprint";
+		interrupt-parent = <&tlmm>;
+		interrupts = <83 0x0>;
+		power_enable = <&tlmm 108 0x00>;
+		fp-gpio-irq = <&tlmm 83 0x00>;
+		fp-gpio-reset = <&tlmm 104 0x00>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&fingerprint_en>;
+	};
+	chipone_fp {
+		status = "okay";
+		compatible = "qcom,fingerprint-gpio";
+		interrupt-parent = <&tlmm>;
+		interrupts = <83 0x0>;
+		fp-gpio-int = <&tlmm 83 0x00>;
+		fp-gpio-reset = <&tlmm 104 0x00>;
+		fp-gpio-power = <&tlmm 108 0x00>;
+	};
+
+	fpc_fp {
+		status = "okay";
+		compatible = "fpc,fingerprint";
+		interrupt-parent = <&tlmm>;
+		interrupts = <83 0x0>;
+		fp-gpio-irq = <&tlmm 83 0x00>;
+		fp-gpio-reset = <&tlmm 104 0x00>;
+		fp-gpio-pwr = <&tlmm 108 0x00>;
+
+	};
+};

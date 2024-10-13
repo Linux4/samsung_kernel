@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * COPYRIGHT(C) 2023 Samsung Electronics Co., Ltd. All Right Reserved.
+ */
+
+#include "../../vendor/qcom/m269-sm6225-overlay.dts"
+#include "../khaje-sec-common.dtsi"
+
+&soc {
+
+};

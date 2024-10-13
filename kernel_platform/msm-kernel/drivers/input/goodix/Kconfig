@@ -1,0 +1,4 @@
+config FINGERPRINT_GOODIX
+	tristate "Finger print goodix"
+	default y
+

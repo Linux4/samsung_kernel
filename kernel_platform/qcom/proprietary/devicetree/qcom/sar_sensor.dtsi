@@ -1,0 +1,153 @@
+/*
+ * Copyright (C) 2020 - 2023 Semtech, Inc.
+ *
+ * $Revision: 1 $
+ * $Date: 2023-02-21 $
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ */
+&tlmm{
+	sar_int_en: sar__int {
+		mux {
+			pins = "gpio106";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio106";
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+	};
+};
+&tlmm{
+        psensor_ldo: psensor {
+                mux {
+                        pins = "gpio67";
+                        function = "gpio";
+                };
+                config {
+                        pins = "gpio67";
+                        drive-strength = <2>;
+                        bias-pull-up;
+                        output-high;
+                };
+        };
+};
+&qupv3_se2_i2c {
+	status = "okay";
+	sar_sx933x:sx933x@28 {
+		compatible = "Semtech,sx933x";
+		reg = <0x28>;
+		Semtech,nirq-gpio = <&tlmm 106 0>; /* IRQ */
+		pinctrl-names = "default";
+		pinctrl-0 = <&sar_int_en>, <&psensor_ldo>;
+		Semtech,main-phases = <0x0C>;
+		Semtech,ref-phases = <0x10>;
+		Semtech,reg-num = <83>;
+		Semtech,reg-init = <
+		0x4004 0x00000070
+		0x4008 0x00000000
+		0x4054 0x00000400
+		0x42C0 0x08000000
+		0x42C4 0x0000003F
+		0x800C 0x00000000
+		0x8010 0x00000000
+		0x8014 0x00000000
+		0x8018 0x00000000
+		0x801C 0x00000031
+		0x8020 0x001C001C
+		0x8028 0x3FFE82D8
+		0x802C 0x10000A86
+		0x8030 0x3FF78265
+		0x8034 0x10000A6E
+		0x8038 0x24B202C5
+		0x803C 0x10000A77
+		0x8040 0x25920268
+		0x8044 0x10000A96
+		0x8048 0x2C9202E0
+		0x804C 0x0000088E
+		0x8050 0x80001EE6
+		0x8054 0x10322F00
+		0x8058 0x20630030
+		0x805C 0x00005300
+		0x8060 0x00000000
+		0x8064 0x00000000
+		0x8068 0x00000000
+		0x806C 0x00000000
+		0x8070 0x00000000
+		0x8074 0x1652FF05
+		0x8078 0x20630030
+		0x807C 0x00005300
+		0x8080 0x00000000
+		0x8084 0x00000000
+		0x8088 0x00000000
+		0x808C 0x00000000
+		0x8090 0x10302805
+		0x8094 0x10321301
+		0x8098 0x20630030
+		0x809C 0x02005000
+		0x80A0 0x00000000
+		0x80A4 0x00000000
+		0x80A8 0x00000000
+		0x80AC 0x00020002
+		0x80B0 0x00020000
+		0x80B4 0x10322501
+		0x80B8 0x20630030
+		0x80BC 0x02005000
+		0x80C0 0x00000000
+		0x80C4 0x00000000
+		0x80C8 0x00000000
+		0x80CC 0x00200020
+		0x80D0 0x00020000
+		0x80D4 0x1632FF05
+		0x80D8 0x20630031
+		0x80DC 0x7F805300
+		0x80E0 0x00000000
+		0x80E4 0x00000000
+		0x80E8 0x00000000
+		0x80EC 0x00000000
+		0x80F0 0x00000000
+		0x80F4 0x10162800
+		0x80F8 0x20400031
+		0x80FC 0x54AC5300
+		0x8100 0x00000000
+		0x8104 0x00000000
+		0x8108 0x00000000
+		0x810C 0x00000000
+		0x8110 0x00000000
+		0x8124 0x0400000C
+		0x8128 0x0400000C
+		0x812C 0x00000000
+		0x8130 0x00000000
+		0x8134 0x00000000
+		0x8138 0x00000000
+		0x813C 0x00000000
+		0x8140 0x00000000
+		0x8144 0x00000000
+		0x8148 0x00000000
+		0x814C 0x00000000
+		0x81A4 0x01D00010
+		0x8024 0x10000A6E
+
+		>;
+	};
+        sar_hx9031as@29{
+                compatible = "tyhx,hx9031as";
+		reg = <0x29>;
+                i2c_num = <2>;
+                i2c_addr = <0x29 0 0 0>;
+                tyhx,irq-gpio = <&tlmm 106 0x0>;
+                tyhx,irq-flags = <2>;
+                tyhx,channel-flag = <0x03>;
+                status = "okay";
+        };
+};

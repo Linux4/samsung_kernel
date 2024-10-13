@@ -1,0 +1,8 @@
+################################################################################
+## Inheriting configs from msm bengal
+. ${ROOT_DIR}/msm-kernel/build.config.msm.m269
+
+################################################################################
+## Inheriting configs from samsung
+. ${KERNEL_DIR}/build.config.sec
+
