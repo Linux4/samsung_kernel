@@ -1,0 +1,113 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos7570-rmem.dtsi"
+#include "exynos7570-rev01.dtsi"
+#include "exynos7570-java_common.dtsi"
+#include "modem-ss305ap-pdata.dtsi"
+#include "exynos7570-javalte_battery_eur_00.dtsi"
+#include "exynos7570-javalte_eur_open_gpio_00.dtsi"
+
+/ {
+	model = "Samsung JAVA LTE EUR rev02 board based on Exynos7570";
+        model_info-chip = <7570>;
+        model_info-platform = "android";
+        model_info-subtype = "samsung";
+        model_info-hw_rev = <2>;
+        model_info-hw_rev_end = <2>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	i2c@13880000 {
+		status = "okay";
+
+		muic-sm5504@14 {
+			compatible = "sm5504,i2c";
+			reg = <0x14>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&muic_irq>;
+			sm5504,irq-gpio = <&gpa1 1 0>;
+		};
+	};
+
+	speedy@10510000 {
+		s2mpu06mfd@00 {
+			regulators {
+				buck1_reg: BUCK1 {
+					regulator-initial-mode = <3>;
+				};
+
+				buck3_reg: BUCK3 {
+					regulator-initial-mode = <3>;
+				};
+
+				ldo3_reg: LDO3 {
+					regulator-initial-mode = <3>;
+				};
+
+				ldo5_reg: LDO5 {
+					regulator-initial-mode = <3>;
+				};
+
+				ldo6_reg: LDO6 {
+					regulator-initial-mode = <3>;
+				};
+
+				ldo13_reg: LDO13 {
+					regulator-boot-on;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo18_reg: LDO18 {
+					regulator-initial-mode = <0>;
+				};
+
+				ldo22_reg: LDO22 {
+					regulator-initial-mode = <3>;
+				};
+
+				ldo23_reg: LDO23 {
+					regulator-initial-mode = <0>;
+				};
+
+				ldo24_reg: LDO24 {
+					regulator-initial-mode = <0>;
+				};
+			};
+		};
+	};
+
+	/* modem_interface */
+	mif_pdata {
+		reg = <0 0x10000 0x0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cp_gpio_iot>;
+
+		mif,ap_clk_table = <
+			/* khz */
+			962000
+			>;
+
+		mif,mif_clk_table = <
+			/* khz */
+			830000
+			700000
+			666000
+			415000
+			>;
+		mif,int_clk_table = <
+			/* khz */
+			467000
+			415000
+			>;
+	};
+};

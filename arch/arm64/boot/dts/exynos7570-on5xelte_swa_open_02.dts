@@ -1,0 +1,65 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos7570-rmem.dtsi"
+#include "exynos7570-on5xe_common.dtsi"
+#include "modem-ss305ap-pdata.dtsi"
+#include "exynos7570-on5xelte_battery_swa_02.dtsi"
+#include "exynos7570-on5xelte_swa_open_gpio_02.dtsi"
+#include "exynos7570-on5xelte_fingerprint-sensor_00.dtsi"
+
+/ {
+	model = "Samsung ON5XELTE SWA rev02 board based on Exynos7570";
+        model_info-chip = <7570>;
+        model_info-platform = "android";
+        model_info-subtype = "samsung";
+        model_info-hw_rev = <2>;
+        model_info-hw_rev_end = <2>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	i2c@138D0000 {
+		stk3013@48 {
+			stk,psctrl-reg = <0x71>;
+			stk,ledctrl-reg = <0xBF>;
+			stk,ps-thd-h = <20>;
+			stk,ps-thd-l = <13>;
+			stk,ps-default-offset = <3>;
+			stk,ps-cal-skip-adc = <10>;
+			stk,ps-cal-fail-adc = <23>;
+		};
+	};
+
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			sec_vib,ldo_type = <0>;		/* 0: pmic ldo, 1: external ldo */
+			sec_vib,regulator = "VDD21_MOTOR_3P0";
+		};
+	};
+
+	fm_gpio: fm@14840000 {
+		vol_3db_on = <1>; /* FM attenuate 3dB */
+	};
+
+	/* USIM DETECTION FOR CP */
+	usim_det {
+		pinctrl-names = "default";
+		pinctrl-0 = <&sim0_gpio_on5 &sim1_gpio_on5>;
+
+		mif,num_of_usim_det = <2>;
+		mif,usim-det0-gpio = <&gpa2 4 0>;
+		mif,usim-det1-gpio = <&gpa1 4 0>;
+		
+	};
+};

@@ -1,0 +1,206 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "exynos7570-rmem.dtsi"
+#include "exynos7570-j3y17lte_common.dtsi"
+#include "modem-ss305ap-pdata.dtsi"
+#include "exynos7570-j3y17lte_battery.dtsi"
+#include "exynos7570-j3y17lte_eur_open_gpio_00.dtsi"
+
+/ {
+	model = "Samsung J3Y17LTE board based on Exynos7570";
+	model_info-chip = <7570>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <0>;
+	model_info-hw_rev_end = <0>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	pinctrl@139B0000 {
+		fm_lna_en: fm-lna-en {
+			samsung,pins = "gpd1-0";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+		fm_dtv_ctrl: fm-dtv-ctrl {
+			samsung,pins = "gpd1-5";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+	};
+
+	fm_gpio: fm@14840000 {
+		elna_gpio = <&gpd1 0 0x1>; /* FM_LNA_EN */
+		dtv_ctrl_gpio = <&gpd1 5 0x1>; /* FM_DTV_CTRL */
+		pinctrl-names = "default";
+		pinctrl-0 = <&fm_lna_en &fm_dtv_ctrl>;
+		sw_mute_weak = <1>;
+		status = "okay";
+	};
+
+	pinctrl@139E0000 {
+		gpc7: gpc7 {
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
+	speedy@10510000 {
+		s2mpu06mfd@00 {
+			regulators {
+				ldo16_reg: LDO16 {
+					regulator-name = "VDD_MOTOR_3P3";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+			};
+		};
+	};
+
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			/* 0: pmic ldo, 1: external ldo */
+			sec_vib,ldo_type = <0>;
+			sec_vib,regulator = "VDD_MOTOR_3P3";
+		};
+	};
+
+	pinctrl@139F0000 {
+		dwmmc2_tflash_en: dwmmc2_tflash_en {
+			   samsung,pins = "gpa0-3";
+			   samsung,pin-function = <0x1>;
+			   samsung,pin-val = <1>;
+			   samsung,pin-pud = <0>;
+			   samsung,pin-drv = <4>;
+		};
+	};
+
+	dwmmc2@13560000 {
+		pinctrl-names = "default",
+			"fast-slew-rate-1x",
+			"fast-slew-rate-2x",
+			"fast-slew-rate-3x",
+			"fast-slew-rate-4x";
+		pinctrl-0 = <&sd2_clk &sd2_cmd &sd2_bus1 &sd2_bus4
+			     &dwmmc2_cd_ext_irq &dwmmc2_tflash_en>;
+		pinctrl-1 = <&sd2_clk_fast_slew_rate_1x>;
+		pinctrl-2 = <&sd2_clk_fast_slew_rate_2x>;
+		pinctrl-3 = <&sd2_clk_fast_slew_rate_3x>;
+		pinctrl-4 = <&sd2_clk_fast_slew_rate_4x>;
+	};
+
+	sd_fixed_vcc: fixedregulator@1 {
+		      compatible = "regulator-fixed";
+		      regulator-name = "vmmc";
+		      gpio = <&gpa0 3 1>;
+		      regulator-min-microvolt = <2800000>;
+		      regulator-max-microvolt = <2800000>;
+		      regulator-initial-mode = <0>;
+		      enable-active-high;
+		      regulator-boot-on;
+	};
+
+	pinctrl@139B0000 {
+		fimc_is_flash_host: fimc-is-flash-host {
+			samsung,pins = "gpf3-3";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		fimc_is_flash_is: fimc-is-flash-is {
+			samsung,pins = "gpf3-3";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	leds_ktd2692 {
+		compatible = "ktd2692";
+		flash_control = <&gpf3 3 0x1>;
+		status = "okay";
+		pinctrl-names ="default","host","is";
+		pinctrl-0 = <&fimc_is_flash_is>;
+		pinctrl-1 = <&fimc_is_flash_host>;
+		pinctrl-2 = <&fimc_is_flash_is>;
+	};
+
+	i2c@13840000 {
+		touchscreen@4b {
+			synaptics,project_name = "On5x","G570";
+			synaptics,firmware_name = "tsp_synaptics/td4100_on5xlte.fw";
+			synaptics,firmware_name_bl = "tsp_synaptics/td4100_on5xlte_recovery.fw";
+		};
+	};
+	
+	/* modem_interface */
+	mif_pdata {
+		reg = <0 0x10000 0x0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cp_gpio_j3y17_rev0>;
+	};
+
+	/* USIM DETECTION FOR CP */
+	usim_det {
+		pinctrl-names = "default";
+		pinctrl-0 = <&sim0_gpio_on5 &sim1_gpio_on5>;
+
+		mif,num_of_usim_det = <2>;
+		mif,usim-det0-gpio = <&gpa1 4 0>;
+		mif,usim-det1-gpio = <&gpa2 4 0>;
+
+	};
+
+	hsi2c_4: hsi2c@138B0000 {
+		sec-nfc@27 {
+			sec-nfc,nfc_clkint = <&gpa0 6 0>;
+			sec-nfc,manual_clkctrl;
+		};
+	};
+
+	td4100: td4100_hd {
+		mode = <0>; /* 0: video mode, 1: DP command mode, 2: MIPI command mode */
+		/* HD(720 x 1280) */
+		panel_name = "td4100";
+		resolution = <720 1280>;
+		dispif_resol = <720 1280>;
+		size = <62 106>;
+		timing,refresh = <60>;
+
+		/* dsim H porch : hbp, hfp, hsa */
+		timing,dsim_h-porch = <25 210 25>;
+		/* dsim V porch : VBP, VFP, VSA */
+		timing,dsim_v-porch = <13 400 2>;
+
+		/* decon H porch : hbp, hfp, hsa */
+		timing,decon_h-porch = <25 423 25>;
+		/* decon V porch : VBP, VFP, VSA */
+		timing,decon_v-porch = <13 400 2>;
+
+		timing,dsi-hs-clk = <728>;
+		timing,pms = <2 112 1>;
+		timing,dsi-escape-clk = <16>;
+
+		rev = <0>;
+	};
+};

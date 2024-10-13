@@ -1,0 +1,85 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos7570-rmem.dtsi"
+#include "exynos7570-xcover4lte_common.dtsi"
+#include "modem-ss305ap-pdata.dtsi"
+#include "exynos7570-xcover4lte_battery.dtsi"
+#include "exynos7570-xcover4lte_eur_open_gpio_00.dtsi"
+
+/ {
+	model = "Samsung XCOVER4LTE board based on Exynos7570";
+        model_info-chip = <7570>;
+        model_info-platform = "android";
+        model_info-subtype = "samsung";
+        model_info-hw_rev = <0>;
+        model_info-hw_rev_end = <0>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	pinctrl@139E0000 {
+		fm_lna_en: fm-lna-en {
+			samsung,pins = "gpc7-4";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+	};
+
+	fm_gpio: fm@14840000 {
+		elna_gpio = <&gpc7 4 0x1>; /* FM_LNA_EN */
+		pinctrl-names = "default";
+		pinctrl-0 = <&fm_lna_en>;
+		fm_iclk_aux = <0>;
+		fm_tc_on = <0>;
+		status = "okay";
+	};
+
+	pinctrl@139E0000 {
+		gpc7: gpc7 {
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
+	i2c@13840000 {
+		touchscreen@20 {
+			zinitix,bringup = "true";
+		};
+	};
+
+	speedy@10510000 {
+		s2mpu06mfd@00 {
+			regulators {
+				ldo16_reg: LDO16 {
+					regulator-name = "vmmc";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <3375000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+			};
+		};
+	};
+
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			sec_vib,ldo_type = <1>;		/* 0: pmic ldo, 1: external ldo */
+			sec_vib,ldo_en = <&gpa0 3 0>;
+		};
+	};
+};

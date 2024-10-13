@@ -1,0 +1,78 @@
+config SCSC_CORE_CM
+	tristate "Samsung SCSC Maxwell driver Core Module"
+	depends on SCSC_CORE
+
+config SCSC_CORE
+	tristate "Samsung SCSC Maxwell driver"
+	select SCSC_CORE_CM
+
+config SCSC_CORE_FW_LOCATION
+	string "SCSC FW location"
+	default "/system/etc/wifi"
+	---help---
+	  Select the FW location.
+
+config SCSC_PCIE
+	tristate "Samsung SCSC MIF PCIE implementation"
+	depends on SCSC_CORE
+	depends on PCI
+
+config SCSC_PLATFORM
+	tristate "Samsung SCSC MIF Platform driver implementation"
+	depends on SCSC_CORE
+
+config SCSC_CM_MX_CLIENT_TEST
+	tristate "Samsung SCSC Test Client"
+	depends on SCSC_CORE
+
+config SCSC_MX_ALWAYS_ON
+	tristate "Samsung SCSC MX140 always booted"
+	depends on SCSC_CM_MX_CLIENT_TEST
+
+config SCSC_CLK20MHZ
+	tristate "Samsung SCSC USB 20MHz Clock"
+	depends on SCSC_CORE
+
+config SCSC_CLK20MHZ_TEST
+	tristate "Samsung SCSC USB 20MHz Clock Test"
+	depends on SCSC_CLK20MHZ
+
+config SCSC_MMAP
+	tristate "Samsung SCSC MMAP/GDB User space interface"
+	depends on SCSC_CORE
+
+config SCSC_DBG_SAMPLER
+	tristate "Samsung SCSC Debug Sampler Service"
+	depends on SCSC_CORE
+
+config SCSC_DEBUG
+	tristate "Samsung SCSC Logging"
+	depends on SCSC_CORE
+	default n
+
+config SCSC_DEBUG_COMPATIBILITY
+	bool "Samsung SCSC Logging mode"
+	depends on SCSC_DEBUG
+	default y
+
+config SCSC_STATIC_RING
+	tristate "Samsung SCSC Logging use static ring"
+	depends on SCSC_CORE
+	default n
+
+config SCSC_STATIC_RING_SIZE
+	int "Size of the static ring"
+	depends on SCSC_CORE && SCSC_STATIC_RING
+	default "1048576"
+	range 1024 4194304
+
+config SCSC_CHV_SUPPORT
+	bool "Samsung CHV f/w support"
+	depends on SCSC_CORE
+	default n
+
+config SCSC_GPR4_CON_DEBUG
+	bool "GPR4 PIO muxes switching to the Maxwell Subsystem"
+	depends on SCSC_PLATFORM
+	default n
+

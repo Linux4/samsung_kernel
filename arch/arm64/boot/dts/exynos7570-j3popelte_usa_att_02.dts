@@ -1,0 +1,168 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos7570-rmem.dtsi"
+#include "exynos7570-j3pope_common.dtsi"
+#include "modem-ss305ap-pdata.dtsi"
+#include "exynos7570-j3popelte_battery.dtsi"
+#include "exynos7570-j3popelte_usa_att_gpio_00.dtsi"
+
+/ {
+	model = "Samsung J3POPELTE USA ATT rev00 board based on Exynos7570";
+        model_info-chip = <7570>;
+        model_info-platform = "android";
+        model_info-subtype = "samsung";
+        model_info-hw_rev = <2>;
+        model_info-hw_rev_end = <2>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	pinctrl@139B0000 {
+		fm_lna_en: fm-lna-en {
+			samsung,pins = "gpd1-0";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+	};
+
+	fm_gpio: fm@14840000 {
+		elna_gpio = <&gpd1 0 0x1>; /* FM_LNA_EN */
+		pinctrl-names = "default";
+		pinctrl-0 = <&fm_lna_en>;
+		fm_iclk_aux = <0>;
+		fm_tc_on = <0>;
+		status = "okay";
+	};
+
+	i2c@138D0000 {
+		samsung,i2c-sda-delay = <100>;
+		samsung,i2c-max-bus-freq = <400000>;
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+
+		cm36672p@60 {
+			compatible = "cm36672p";
+			reg = <0x60>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <0 0 0>;
+			cm36672p,irq_gpio = <&gpa1 0 0>;
+			cm36672p,vdd-supply = <&ldo22_reg>;
+			cm36672p,vdd_always_on = <1>;
+			cm36672p,regulator_divided = <1>;
+			cm36672p,default_hi_thd = <17>;
+			cm36672p,default_low_thd = <12>;
+			cm36672p,cancel_hi_thd = <10>;
+			cm36672p,cancel_low_thd = <7>;
+			cm36672p,offset_range_hi = <21>;
+			cm36672p,offset_range_low = <11>;
+			cm36672p,default_trim = <0>;
+			cm36672p,ps_duty = <2>;
+			cm36672p,ps_pers = <2>;
+			cm36672p,ps_it = <5>;
+			cm36672p,led_current = <5>;
+			cm36672p,ps_smart_pers = <1>;
+		};
+		yas537@2e {
+			compatible = "yas_magnetometer";
+			reg = <0x2e>;
+			yas,orientation = <7>;
+			yas,softiron = <10000 0 0 0 10000 0 0 0 10000>;
+			yas,softiron_sign = <2 1 1 1 2 1 1 1 2>;
+		};
+	};
+
+	pinctrl@139E0000 {
+		gpc7: gpc7 {
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		spi0_bus: spi0-bus {
+			samsung,pins = "gpc7-3", "gpc7-2", "gpc7-1", "gpc7-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <2>;
+		};
+	};
+
+	spi_0: spi@100C0000 {
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi0_bus>;
+
+		lsm6ds3@0 {
+			compatible = "st,lsm6ds3";
+			reg = <0>;
+			spi-max-frequency = <10000000>;
+			spi-cpol;
+			spi-cpha;
+			pinctrl-names = "default";
+			pinctrl-0 = <&gyro_int>;
+ 			interrupt-parent = <&gpa2>;
+			interrupts = <2 0 0>;
+			st,orientation = <1 0 1 0 1 1 1 1 0>;
+			st,drdy-int-pin = <1>;
+			st,irq_gpio = <&gpa2 2 0>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			controller-data {
+				samsung,spi-feedback-delay = <0>;
+				samsung,spi-chip-select-mode = <0>;
+			};
+		};
+	};
+
+	pinctrl@139F0000 {
+		gyro_int: gyro_int {
+			samsung,pins = "gpa2-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		prox_int: prox_int {
+			samsung,pins = "gpa1-0";
+			samsung,pin-function = <0x1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+
+	speedy@10510000 {
+		status = "okay";
+
+		fimc_is_flash@06 {
+			compatible = "samsung,sensor-flash-i2c";
+			reg = <0x06>;
+			id = <0>;
+			flash-gpio = <&gpa0 0 0>;
+			flash_current = <0>;
+			preflash_current = <160>;
+			movie_current = <160>;
+			torch_current = <80>;
+			factory_current = <160>;
+			i2c-speedy-address;
+		};
+	};
+};
