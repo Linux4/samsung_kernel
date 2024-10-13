@@ -114,8 +114,24 @@ enum otg_notify_data_role {
 	HNOTIFY_DFP,
 };
 
+enum usb_restrict_type {
+	USB_SECURE_RESTRICTED,
+	USB_SECURE_RELEASE,
+};
+
+enum usb_restrict_group {
+	USB_GROUP_AUDIO,
+	USB_GROUP_OTEHR,
+	USB_GROUP_MAX,
+};
+
 enum usb_err_type {
 	USB_ERR_ABNORMAL_RESET,
+};
+
+enum otg_notify_illegal_type {
+	NOTIFY_EVENT_AUDIO_DESCRIPTOR,
+	NOTIFY_EVENT_SECURE_DISCONNECTION,
 };
 
 struct otg_notify {
@@ -170,6 +186,9 @@ extern int is_usb_host(struct otg_notify *n);
 extern void send_usb_audio_uevent(struct usb_device *dev);
 extern int send_usb_notify_uevent
 		(struct otg_notify *n, char *envp_ext[]);
+extern int detect_illegal_condition(int type);
+extern int check_usbaudio(struct usb_device *dev);
+extern int check_usbgroup(struct usb_device *dev);
 extern void *get_notify_data(struct otg_notify *n);
 extern void set_notify_data(struct otg_notify *n, void *data);
 extern struct otg_notify *get_otg_notify(void);
@@ -206,6 +225,9 @@ static inline int is_usb_host(struct otg_notify *n) {return 0; }
 static inline void send_usb_audio_uevent(struct usb_device *dev) {}
 static inline int send_usb_notify_uevent
 			(struct otg_notify *n, char *envp_ext[]) {return 0; }
+static inline int detect_illegal_condition(int type) {return 0; }
+static inline int check_usbaudio(struct usb_device *dev) {return 0; }
+static inline int check_usbgroup(struct usb_device *dev) {return 0; }
 static inline void *get_notify_data(struct otg_notify *n) {return NULL; }
 static inline void set_notify_data(struct otg_notify *n, void *data) {}
 static inline struct otg_notify *get_otg_notify(void) {return NULL; }

@@ -53,6 +53,7 @@ struct dp_power_private {
 	bool strm1_clks_on;
 #ifdef CONFIG_SEC_DISPLAYPORT
 	bool aux_pullup_on;
+	struct mutex dp_clk_lock;
 
 	void (*redrv_onoff)(bool enable, int lane);
 	void (*redrv_aux_ctrl)(int cross);
@@ -350,7 +351,11 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 {
 	int rc = 0;
 	struct dss_module_power *mp;
+#if defined(CONFIG_SEC_DISPLAYPORT)
+	static bool prev[DP_MAX_PM];
 
+	mutex_lock(&power->dp_clk_lock);
+#endif
 	if (!power) {
 		pr_err("invalid power data\n");
 		rc = -EINVAL;
@@ -358,6 +363,13 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 	}
 
 	mp = &power->parser->mp[module];
+
+#if defined(CONFIG_SEC_DISPLAYPORT)
+	if (prev[module] == enable) {
+		pr_err("%d clk already %s\n", module, enable ? "enabled" : "disabled");
+		goto exit;
+	}
+#endif
 
 	if (enable) {
 		rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
@@ -378,7 +390,14 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 				goto exit;
 		}
 	}
+
+#if defined(CONFIG_SEC_DISPLAYPORT)
+	prev[module] = enable;
+#endif
 exit:
+#if defined(CONFIG_SEC_DISPLAYPORT)
+	mutex_unlock(&power->dp_clk_lock);
+#endif
 	return rc;
 }
 
@@ -439,40 +458,6 @@ static int dp_power_clk_enable(struct dp_power *dp_power,
 			return 0;
 		}
 	}
-
-#ifdef CONFIG_SEC_DISPLAYPORT
-	if (!enable) {
-		/* consider below abnormal sequence :
-		 * CCIC_NOTIFY_ATTACH
-		 * -> no CCIC_NOTIFY_ID_DP_LINK_CONF, no CCIC_NOTIFY_ID_DP_HPD
-		 * -> CCIC_NOTIFY_DETACH
-		 */
-		if ((pm_type == DP_CORE_PM) && (!power->core_clks_on)) {
-			pr_debug("core clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_CTRL_PM) && (!power->link_clks_on)) {
-			pr_debug("links clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_STREAM0_PM) && (!power->strm0_clks_on)) {
-			pr_debug("strm0 clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_STREAM1_PM) && (!power->strm1_clks_on)) {
-			pr_debug("strm1 clks already disabled\n");
-			return 0;
-		}
-
-		if (pm_type == DP_LINK_PM && !power->link_clks_on) {
-			pr_debug("links clks already disabled\n");
-			return 0;
-		}
-	}
-#endif
 
 	rc = dp_power_clk_set_rate(power, pm_type, enable);
 	if (rc) {
@@ -1211,6 +1196,7 @@ struct dp_power *dp_power_get(struct dp_parser *parser)
 
 #ifdef CONFIG_SEC_DISPLAYPORT
 	secdp_redriver_register(power);
+	mutex_init(&power->dp_clk_lock);
 	g_secdp_power = power;
 #endif
 

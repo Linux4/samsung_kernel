@@ -94,7 +94,7 @@ int do_swap_account __read_mostly;
 #define do_swap_account		0
 #endif
 
-extern int is_heimdall_enabled;
+int is_heimdall_enabled;
 
 /* Whether legacy memory+swap accounting is active */
 static bool do_memsw_account(void)

@@ -5597,9 +5597,7 @@ static int msm_vidc_load_supported(struct msm_vidc_inst *inst)
 				num_mbs_per_sec,
 				max_load_adj);
 			msm_vidc_print_running_insts(inst->core);
-//#if 0 /* Samsung skips the overloaded error return  */
 			return -EBUSY;
-//#endif
 		}
 	}
 	return 0;
