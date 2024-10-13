@@ -1,0 +1,78 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+&mdss_mdp {
+	connectors = <&sde_rscc &sde_wb &sde_dp>;
+};
+
+/* SEC displayport setting */
+	&tlmm {
+		/delete-node/ sde_dp_aux_active;
+		/delete-node/ sde_dp_aux_suspend;
+		/delete-node/ sde_dp_usbplug_cc_active;
+		/delete-node/ sde_dp_usbplug_cc_suspend;
+	};
+
+&pm660l_gpios {
+	sde_dp_aux_sel_active: sde_dp_aux_sel_active {
+		pins = "gpio4";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+		bias-disable;
+
+	};
+
+	sde_dp_aux_sel_suspend: sde_dp_aux_sel_suspend {
+		pins = "gpio4";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+		bias-disable;
+	 };
+
+	sde_dp_aux_en_active: sde_dp_aux_en_active {
+		pins = "gpio3";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+		bias-disable;
+	};
+
+	sde_dp_aux_en_suspend: sde_dp_aux_en_suspend {
+		pins = "gpio3";
+		function = "normal";
+		power-source = <0>;
+		output-high;
+		bias-disable;
+	};
+};
+
+&sde_dp {
+	vdda-1p2-supply = <&pm660_l1>;
+	vdda-0p9-supply = <&pm660l_l1>;
+	aux-pullup-supply = <&pm660l_l7>;
+
+	pinctrl-names = "mdss_dp_active", "mdss_dp_sleep";
+	pinctrl-0 = <&sde_dp_aux_sel_active &sde_dp_aux_en_active>;
+	pinctrl-1 = <&sde_dp_aux_sel_suspend &sde_dp_aux_en_suspend>;
+
+	qcom,ext-disp = <&ext_disp>;
+
+	secdp,aux-sw;
+	secdp,aux-redrv;
+
+	secdp,rev_hw = <5>;
+
+	qcom,aux-en-gpio = <&pm660l_gpios 3 0>;
+	qcom,aux-sel-gpio = <&pm660l_gpios 4 0>;
+	qcom,usbplug-cc-gpio = <&tlmm 25 0>;
+};

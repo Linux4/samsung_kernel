@@ -1,0 +1,191 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+ 
+#include <dt-bindings/spmi/spmi.h>
+
+&soc {
+	/* thermistor bringup base on REV 0.1 */
+	sec_thermistor@0 {
+		compatible = "samsung,sec-ap-thermistor";
+		qcom,therm-vadc = <&pm660_vadc>;
+		status = "okay";
+		adc_channel = <0x50>;
+		unused_mux_sel;
+		adc_array = <913 1101 1317 1741 2060 2430 2868 3425 4001 4705
+				5449 6235 7122 8044 8973 9986 10935 11892
+				12620
+				13360 13992
+				14529 14908>;
+
+		temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50
+				0
+				(-50) (-100)
+				(-150) (-200)>;
+	};
+	
+	/* PA Thermistor table */
+	sec_thermistor@1 {
+		compatible = "samsung,sec-pa-thermistor";
+		qcom,therm-vadc = <&pm660_vadc>;
+		status = "okay";
+		adc_channel = <0x4f>;
+		unused_mux_sel;
+		adc_array = <1085 1283 1507 1858 2186 2571 3018 3580 4185 4888
+					5645 6443 7336 8263 9209 10201 11131 12021
+					12822
+					13530 14139
+					14649 15024>;
+
+		temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50
+				0
+				(-50) (-100)
+				(-150) (-200)>;
+	};
+
+	/* BK Thermistor table */
+	sec_thermistor@2 {
+		compatible = "samsung,sec-bk-thermistor";
+		qcom,therm-vadc = <&pm660_vadc>;
+		status = "okay";
+		adc_channel = <0x4d>;
+		unused_mux_sel;
+		adc_array = <1133 1171 1209 1246 1284 1322 1369 1416 1463 1510
+				1557 1612 1668 1723 1779 1834 1898 1962 2026 2090
+				2154 2235 2315 2396 2476 2557 2642 2727 2811 2896
+				2981 3076 3171 3266 3361 3456 3571 3686 3801 3916
+				4031 4165 4299 4432 4566 4700 4851 5001 5152 5302
+				5453 5625 5797 5969 6141 6313 6484 6655 6825 6996
+				7167 7354 7541 7727 7914 8101 8291 8481 8672 8862
+				9052 9247 9443 9638 9834 10029 10211 10393 10575 10757
+				10939 11116 11293 11471 11648 11825 11990 12154 12319 12483
+				12648
+				12790 12931 13073 13214 13356 13488 13620 13753 13885 14017
+				14114 14211 14307 14404 14501 14598 14694 14791 14887 14984>;
+
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+				800 790 780 770 760 750 740 730 720 710
+				700 690 680 670 660 650 640 630 620 610 
+				600 590 580 570 560 550 540 530 520 510
+				500 490 480 470 460 450 440 430 420 410
+				400 390 380 370 360 350 340 330 320 310
+				300 290 280 270 260 250 240 230 220 210
+				200 190 180 170 160 150 140 130 120 110
+				100 90 80 70 60 50 40 30 20 10
+				0
+				(-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90) (-100)
+				(-110) (-120) (-130) (-140) (-150) (-160) (-170) (-180) (-190) (-200)>;
+	};
+};
+
+&pm660_vadc {
+	chan@4d {
+		label = "blkt_therm";
+		reg = <0x4d>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@4f {
+		label = "pa_therm0";
+		reg = <0x4f>;
+		qcom,decimation = <2>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@50 {
+		label = "sdm_therm";
+		reg = <0x50>;
+		qcom,decimation = <2>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
+&pm660l_l3 {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3312000>;
+	qcom,init-voltage = <3000000>;
+};
+
+&pm660l_l6 {
+	qcom,init-voltage = <3300000>;
+	regulator-system-load = <100000>;
+};
+
+&spmi_bus {
+	qcom,pm660l@2 {
+		pm660l_gpios: pinctrl@c000 {
+			compatible = "qcom,spmi-gpio";
+			reg = <0xc000 0xc00>;
+			interrupts = <0x2 0xc1 0 IRQ_TYPE_NONE>,
+					<0x2 0xc2 0 IRQ_TYPE_NONE>,
+					<0x2 0xc3 0 IRQ_TYPE_NONE>,
+					<0x2 0xc4 0 IRQ_TYPE_NONE>,
+					<0x2 0xc5 0 IRQ_TYPE_NONE>,
+					<0x2 0xc6 0 IRQ_TYPE_NONE>,
+					<0x2 0xc7 0 IRQ_TYPE_NONE>,
+					<0x2 0xc8 0 IRQ_TYPE_NONE>;
+			interrupt-names = "pm660l_gpio2", "pm660l_gpio3", "pm660l_gpio4",
+					"pm660l_gpio5", "pm660l_gpio6",
+					"pm660l_gpio7", "pm660l_gpio8",
+					"pm660l_gpio9";
+			gpio-controller;
+			#gpio-cells = <2>;
+			qcom,gpios-disallowed = <1 10 11 12>;
+		};
+	};
+};
+
+&pm660_0 {
+	compatible ="qcom,spmi-pmic";
+	reg = <0x0 SPMI_USID>;
+	#address-cells = <2>;
+	#size-cells = <0>;
+
+	pm660_gpios: pinctrl@c000 {
+		compatible = "qcom,spmi-gpio";
+		reg = <0xc000 0xd00>;
+		interrupts = <0x0 0xc1 0 IRQ_TYPE_NONE>,
+				<0x0 0xc2 0 IRQ_TYPE_NONE>,
+				<0x0 0xc3 0 IRQ_TYPE_NONE>,
+				<0x0 0xc5 0 IRQ_TYPE_NONE>,
+				<0x0 0xc8 0 IRQ_TYPE_NONE>,
+				<0x0 0xca 0 IRQ_TYPE_NONE>,
+				<0x0 0xcb 0 IRQ_TYPE_NONE>,
+				<0x0 0xcc 0 IRQ_TYPE_NONE>;
+		interrupt-names = "pm660_gpio2", "pm660_gpio3",
+				"pm660_gpio4", "pm660_gpio6",
+				"pm660_gpio9", "pm660_gpio11",
+				"pm660_gpio12", "pm660_gpio13";
+		gpio-controller;
+		#gpio-cells = <2>;
+		qcom,gpios-disallowed = <1 5 7 8 10>;
+	};
+};
+
+&pm660_l1 {
+	regulator-always-on;
+};
+

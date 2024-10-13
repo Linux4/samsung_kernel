@@ -1,0 +1,119 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		i2c17 = &i2c_17;
+		i2c18 = &i2c_18;
+	};
+};
+
+&soc {
+	/* Sensor */
+	rpmh-regulator-ldoa18 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		mboxes = <&apps_rsc 0>;
+		qcom,resource-name = "ldoa18";
+		qcom,regulator-type = "pmic4-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			 RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 1>;
+		pm660_l18: regulator-pm660-l18 {
+			regulator-name = "pm660_l18";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2900000>;
+			qcom,init-voltage = <2800000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
+			regulator-always-on;
+		};
+	};
+
+	/* Main Grip Sensor */
+	i2c_17: i2c@17 { /* SW I2C */
+		status = "ok";
+
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 91 0 /* sda */
+			 &tlmm 92 0 /* scl */>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_i2c_active>;
+
+		sx9360-i2c@28 {
+			compatible = "sx9360";
+			reg = <0x28>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int_active>;
+
+			interrupt-parent = <&tlmm>;
+			interrupts = <121 0>;
+			sx9360,nirq-gpio = <&tlmm 121 0>;
+
+			sx9360,reggnrlctrl2 = <0x32>;		/* scanperiod: 102ms */
+			sx9360,regafeparam1phm = <0x58>;	/* again : 7.5 pF, sampling freq : 62.50 khz */
+			sx9360,regafeparam1phr = <0x36>;	/* reference phase again : 5.25 pF, sampling freq : 83.33 khz */
+			sx9360,regproxctrl0phm = <0x19>;	/* gain: x4, rawfilt : 1-1/2 */
+			sx9360,regproxctrl0phr = <0x22>;	/* reference phase gain: x8, rawfilt : 1-1/4 */
+			sx9360,regproxctrl5 = <0x23>;		/* threshold: 612 */
+			sx9360,regproxctrl4 = <0x15>;		/* hysteresis: small, closedeb: 2 samples, fardeb: 2 samples */
+			sx9360,regproxctrl3 = <0x0C>;		/* AVGPOSFILT: 1/256, AVGNEGFILT: 1/2 */
+			sx9360,regafeparam0phm = <0x0F>;	/* resolution: 1024 */
+			sx9360,regafeparam0phr = <0x0F>;	/* reference phase  resolution: 1204 */
+			sx9360,hallic_detect = <1>;
+			sx9360,hallic_cert_detect = <1>;
+		};
+	};
+
+	/* Wifi Grip Sensor */
+	i2c_18: i2c@18 { /* SW I2C */
+		status = "okay";
+
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 40 0 /* sda */
+			 &tlmm 29 0 /* scl */>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_grip_i2c_active>;
+
+		sx9360-i2c@28 {
+			compatible = "sx9360_wifi";
+			reg = <0x28>;
+			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&wifi_grip_int_active>;
+			interrupt-parent = <&pm660l_gpios>;
+			interrupts = <125 0>;
+			sx9360_wifi,nirq-gpio = <&pm660l_gpios 5 0>;
+
+			sx9360_wifi,reggnrlctrl2 = <0x28>;	/* scanperiod: 82ms */
+			sx9360_wifi,regafeparam1phm = <0x14>;	/* again : 2.25 pF, sampling freq : 125 khz */
+			sx9360_wifi,regafeparam1phr = <0x36>;	/* reference phase again : 5.25 pF, sampling freq : 83.33 khz */
+			sx9360_wifi,regproxctrl0phm = <0x21>;	/* gain: x8, rawfilt : 1-1/2 */
+			sx9360_wifi,regproxctrl0phr = <0x22>;	/* reference phase gain: x8, rawfilt : 1-1/4 */
+			sx9360_wifi,regproxctrl5 = <0x45>;	/* threshold: 2380 */
+			sx9360_wifi,regproxctrl4 = <0x15>;	/* hysteresis: small, closedeb: 2 samples, fardeb: 2 samples */
+			sx9360_wifi,regproxctrl3 = <0x0D>;	/* AVGPOSFILT: 1/512, AVGNEGFILT: 1/2 */
+			sx9360_wifi,regafeparam0phm = <0x0E>;	/* resolution: 512 */
+			sx9360_wifi,regafeparam0phr = <0x0F>;	/* reference phase  resolution: 1204 */
+			sx9360_wifi,hallic_detect = <1>;
+			sx9360_wifi,hallic_cert_detect = <1>;
+		};
+	};
+};

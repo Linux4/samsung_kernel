@@ -1,0 +1,88 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+ 
+#include "sdm710-sec-a8sqlte-audio.dtsi"
+#include "sdm710-sec-a8sqlte-input-common.dtsi"
+
+/*
+/{
+	reserved-memory {
+
+	};
+};
+*/
+
+&sdhc_2 {
+	status = "disabled";
+};
+
+&soc {
+	qcom,lpass@62400000 {
+		qcom,gpio-sensor-ldo = <&tlmm 29 0>;
+		pinctrl-names = "default", "sleep", "idle";
+		pinctrl-0 = <&sensor_ldo_default>;
+		pinctrl-1 = <&sensor_ldo_active>;
+		pinctrl-2 = <&sensor_ldo_active>;
+	};
+	
+	i2c_17: i2c@17 { /* SW I2C */
+		status = "ok";
+
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 91 0 /* sda */
+			 &tlmm 92 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		a96t3x6@20 {
+			compatible = "a96t3x6";
+			reg = <0x20>;
+
+			interrupt-parent = <&pm660l_gpios>;
+			interrupts = <125 0>;
+
+			a96t3x6,irq_gpio = <&pm660l_gpios 5 0>;
+			a96t3x6,dvdd_vreg_name = "pm660_l18";
+			a96t3x6,fw_path = "abov/a96t326_a8sqlte.fw";
+			a96t3x6,firmup_cmd = <0x32>;
+			a96t3x6,usb_earjack = <1>;
+		};
+	};
+	sec_abc {
+				compatible = "samsung,sec_abc";
+				status = "okay";
+
+				gpu {
+					gpu,label="GPU fault";
+					gpu,threshold_count=<20>;
+					gpu,threshold_time=<1200>;
+				};
+				aicl {
+					aicl,label="battery aicl";
+					aicl,threshold_count=<5>;
+					aicl,threshold_time=<300>;
+				};
+			};
+
+	abc_hub {
+		compatible = "samsung,abc_hub";
+		status = "okay";
+
+		bootc {
+			bootc,time_spec_user = <100000>; /* user binary user build */
+			bootc,time_spec_eng = <100000>; /* user binary eng build */
+			bootc,time_spec_fac = <100000>; /* factory binary */
+		};
+	};
+};
