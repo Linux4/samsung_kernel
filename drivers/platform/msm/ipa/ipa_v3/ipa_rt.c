@@ -1084,6 +1084,20 @@ static int __ipa_del_rt_tbl(struct ipa3_rt_tbl *entry)
 	return 0;
 }
 
+static int __ipa_rt_validate_rule_id(u16 rule_id)
+{
+	if (!rule_id)
+		return 0;
+
+	if ((rule_id < IPA_RULE_ID_MIN) ||
+		(rule_id >= IPA_RULE_ID_MAX)) {
+		IPAERR_RL("Invalid rule_id provided 0x%x\n",
+			rule_id);
+		return -EPERM;
+	}
+
+	return 0;
+}
 static int __ipa_rt_validate_hndls(const struct ipa_rt_rule *rule,
 				struct ipa3_hdr_entry **hdr,
 				struct ipa3_hdr_proc_ctx_entry **proc_ctx)
@@ -1198,6 +1212,8 @@ static int __ipa_add_rt_rule(enum ipa_ip_type ip, const char *name,
 	if (__ipa_rt_validate_hndls(rule, &hdr, &proc_ctx))
 		goto error;
 
+	if (__ipa_rt_validate_rule_id(rule_id))
+		goto error;
 
 	tbl = __ipa_add_rt_tbl(ip, name);
 	if (tbl == NULL || (tbl->cookie != IPA_RT_TBL_COOKIE)) {
@@ -1206,13 +1222,12 @@ static int __ipa_add_rt_rule(enum ipa_ip_type ip, const char *name,
 		goto error;
 	}
 	/*
-	 * do not allow any rules to be added at end of the "default" routing
-	 * tables
+	 * do not allow any rule to be added at "default" routing
+	 * table
 	 */
 	if (!strcmp(tbl->name, IPA_DFLT_RT_TBL_NAME) &&
-	    (tbl->rule_cnt > 0) && (at_rear != 0)) {
-		IPAERR_RL("cannot add rule at end of tbl rule_cnt=%d at_rear=%d"
-				, tbl->rule_cnt, at_rear);
+	    (tbl->rule_cnt > 0)) {
+		IPAERR_RL("cannot add rules to default rt table\n");
 		goto error;
 	}
 
@@ -1417,13 +1432,12 @@ int ipa3_add_rt_rule_after(struct ipa_ioc_add_rt_rule_after *rules)
 	}
 
 	/*
-	 * do not allow any rules to be added at end of the "default" routing
-	 * tables
+	 * do not allow any rule to be added at "default" routing
+	 * table
 	 */
 	if (!strcmp(tbl->name, IPA_DFLT_RT_TBL_NAME) &&
-			(&entry->link == tbl->head_rt_rule_list.prev)) {
-		IPAERR_RL("cannot add rule at end of tbl rule_cnt=%d\n",
-			tbl->rule_cnt);
+		(tbl->rule_cnt > 0)) {
+		IPAERR_RL("cannot add rules to default rt table\n");
 		ret = -EINVAL;
 		goto bail;
 	}
@@ -1855,6 +1869,10 @@ static int __ipa_mdfy_rt_rule(struct ipa_rt_rule_mdfy *rtrule)
 		goto error;
 	}
 
+	if (!strcmp(entry->tbl->name, IPA_DFLT_RT_TBL_NAME)) {
+		IPAERR_RL("Default tbl rule cannot be modified\n");
+		return -EINVAL;
+	}
 	/* Adding check to confirm still
 	 * header entry present in header table or not
 	 */

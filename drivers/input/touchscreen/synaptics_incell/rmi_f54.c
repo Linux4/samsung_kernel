@@ -2538,6 +2538,17 @@ static void fw_update(void *dev_data)
 
 	set_default_result(data);
 
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+	if (data->cmd_param[0] == 1) {
+		snprintf(data->cmd_buff, CMD_RESULT_STR_LEN, "%s", tostring(OK));
+		data->cmd_state = CMD_STATUS_OK;
+		input_info(true, &rmi4_data->i2c_client->dev, "%s: success [%d]\n",
+				__func__, retval);
+		set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+		return;
+	}
+#endif
+
 	retval = synaptics_rmi4_fw_update_on_hidden_menu(rmi4_data,
 		data->cmd_param[0]);
 	msleep(1000);

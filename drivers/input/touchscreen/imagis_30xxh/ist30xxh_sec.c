@@ -238,6 +238,13 @@ static void fw_update(void *dev_data)
             sec->cmd_state = CMD_STATE_FAIL;
         break;
     case UMS:
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+	sec->cmd_state = CMD_STATE_OK;
+	snprintf(buf, sizeof(buf), "%s", "OK");
+	set_cmd_result(sec, buf, strnlen(buf, sizeof(buf)));
+	return;
+#endif
+
         sec->cmd_state = CMD_STATE_OK;
         old_fs = get_fs();
         set_fs(get_ds());

@@ -2323,6 +2323,9 @@ static ssize_t touchkey_fw_update(struct device *dev,
 		break;
 	case 'i':
 	case 'I':
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+		goto touchkey_fw_update_out;
+#endif
 		cmd = SDCARD;
 		break;
 	default:

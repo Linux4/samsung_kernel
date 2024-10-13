@@ -46,6 +46,6 @@ BRIEF DESCRIPTION:
 
 #define QWLAN_VERSION_BUILD            85
 
-#define QWLAN_VERSIONSTR               "3.0.11.85"
+#define QWLAN_VERSIONSTR               "3.0.11.85-PR210402"
 
 #endif /* QWLAN_VERSION_H */

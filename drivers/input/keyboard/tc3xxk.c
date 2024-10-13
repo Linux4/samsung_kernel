@@ -1451,6 +1451,10 @@ static ssize_t tc3xxk_update_store(struct device *dev,
 		break;
 	case 'i':
 	case 'I':
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+		return count;
+#endif
+
 		fw_path = FW_SDCARD;
 		break;
 	default:

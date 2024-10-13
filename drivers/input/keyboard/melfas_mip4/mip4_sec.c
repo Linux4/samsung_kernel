@@ -83,6 +83,10 @@ static ssize_t mip4_tk_cmd_fw_update(struct device *dev, struct device_attribute
 		break;
 	case 'i':
 	case 'I':
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+		info->firmware_state = 0;
+		goto exit;
+#endif
 		result = mip4_tk_fw_update_from_storage(info, info->fw_path_ext, true);
 		if (result)
 			info->firmware_state = 2;

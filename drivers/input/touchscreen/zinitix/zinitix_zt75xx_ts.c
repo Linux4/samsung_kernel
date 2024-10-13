@@ -3226,6 +3226,13 @@ static void fw_update(void *device_data)
 		break;
 
 	case UMS:
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		snprintf(result, sizeof(result), "%s", "OK");
+		sec_cmd_set_cmd_result(sec, result, strnlen(result, sizeof(result)));
+		return;
+#endif
+
 		old_fs = get_fs();
 		set_fs(get_ds());
 

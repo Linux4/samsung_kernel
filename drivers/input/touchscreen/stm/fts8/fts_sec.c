@@ -703,6 +703,16 @@ static void fw_update(void *device_data)
 		return;
 	}
 
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+	if (sec->cmd_param[0] == 1) {
+		snprintf(buff, sizeof(buff), "%s", "OK");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		input_info(true, &info->client->dev, "%s: success [%d]\n", __func__, retval);
+		return;
+	}
+#endif
+
 	retval = fts_fw_update_on_hidden_menu(info, sec->cmd_param[0]);
 
 	if (retval < 0) {
