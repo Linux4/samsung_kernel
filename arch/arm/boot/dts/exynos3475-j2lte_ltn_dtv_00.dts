@@ -1,0 +1,219 @@
+/*
+ * SAMSUNG EXYNOS3475 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos3475-j2_common.dtsi"
+#include "modem-ss308ap-pdata.dtsi"
+#include "exynos3475-j2lte_battery.dtsi"
+#include "exynos3475-j2lte_ltn_dtv_gpio_00.dtsi"
+#include "exynos3475-j2lte_ltn_dtv-isdbt_00.dtsi"
+
+/ {
+	model = "Samsung UNIVERSAL3475 board based on EXYNOS3475";
+	model_info-chip = <3475>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <0>;
+	model_info-hw_rev_end = <0>;
+	compatible = "samsung,UNIVERSAL3475", "samsung,exynos3475";
+
+	hsi2c@13870000 {
+		status = "okay";
+		sm5703-mfd@49 {
+			compatible = "siliconmitus,sm5703mfd";
+			reg = <0x49>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&chg_en &if_pmic_irq>;
+			sm5703,irq-gpio = <&gpa0 2 0>;
+			sm5703,mrstb-gpio = <&gpd0 0 0>;
+
+			sm5703_ldo1 {
+				compatible = "siliconmitus,sm5703-ldo1";
+				regulator-name = "VDD_CAM_SENSOR_A2P8";  /* change name by yourself */
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on;*/ /* = "yes"; optional, exist = enabled */
+				/* regulator-always-on;*/ /* = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo2 {
+				compatible = "siliconmitus,sm5703-ldo2";
+				regulator-name = "VDD_MOT_3P3"; /* change name by yourself */
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/*regulator-boot-on;*/  /* = "yes"; optional, exist = enabled */
+				/*regulator-always-on;*/  /* = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo3: sm5703_ldo3 {
+				compatible = "siliconmitus,sm5703-ldo3";
+				regulator-name = "VDD_3.0V_SENSOR"; /* change name by yourself */
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on =*/  /* "yes"; optional, exist = enabled */
+				regulator-always-on;
+			};
+
+			sm5703_buck {
+				compatible = "siliconmitus,sm5703-buck";
+				regulator-name = "VDDD_1.2V_CAM"; /* change name by yourself */
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_fled {
+				compatible = "siliconmitus,sm5703-fled";
+				enable = <1 1>;
+				flash_current = <1000>;
+				preflash_current = <120>;
+				movie_current = <180>;
+				torch_current = <60>;
+				factory_current = <240>;
+				sm5703,led1-gpio = <&gpd2 3 0>;
+				sm5703,led2-gpio = <&gpd0 7 0>;
+				pinctrl-names = "fled_default","fled_sleep";
+				pinctrl-0 = <&fled_flash_active>;
+				pinctrl-1 = <&fled_flash_sleep>;
+			};
+		};
+	};
+
+	hsi2c_7: hsi2c@138A0000 {
+		fimc-is-sensor-4ec@56 {
+			gpio_standby = <&gpc2 3 0x1>; /* MAIN_CAM_STBY */
+		};
+	};
+
+	hsi2c_8: hsi2c@138B0000 {
+		sr200_soc@20 {
+			gpio_standby = <&gpc2 2 0x1>; /* VT_CAM_STBY */
+		};
+
+		db8221a_soc@45 {
+			gpio_standby = <&gpc2 2 0x1>; /* VT_CAM_STBY */
+		};
+	};
+
+	hsi2c@104C0000 {
+		s2mpu04_pmic@66 {
+			regulators {
+				ldo22_reg: LDO22 {
+					regulator-name = "VDDAF_2.8V_CAM";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+				};
+				ldo23_reg: LDO23 {
+					regulator-name = "vdd_ldo23";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+					regulator-always-on;
+					regulator-initial-mode = <3>;
+				};
+			};
+		};
+	};
+
+	bluetooth {
+		compatible = "broadcom,bcm43xx";
+		gpios = <&gpd2 0 1	/*BT_EN*/
+				&gpd2 1 1	/*BT_WAKE*/
+				&gpa1 6 0xF	/*BT_HOST_WAKE*/ >;
+		pinctrl-names = "default";
+		pinctrl-0=<&bt_hostwake &bt_btwake &bt_reg_on>;
+		status = "okay";
+	};
+
+	pinctrl@139B0000 {
+		acc_int: acc_int {
+			samsung,pins = "gpa1-0";
+			samsung,pins-function = <0x0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		prox_int: prox_int {
+			samsung,pins = "gpa1-7";
+			samsung,pins-function = <0x0>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	i2c@13840000 {
+		touchscreen@20 {
+			zinitix,chip_name = "BT541";
+			zinitix,firmware_name = "tsp_zinitix/bt541_a3.fw";
+		};
+	};
+
+	i2c@13850000 {
+		status = "okay";
+
+		k2hh-i2c@1D {
+			compatible = "k2hh-i2c";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <0 0 0>;
+			k2hh,irq_gpio = <&gpa1 0 0>;
+			k2hh,vio-supply = <&ldo23_reg>;
+			k2hh,axis_map_x = <1>;
+			k2hh,axis_map_y = <0>;
+			k2hh,axis_map_z = <2>;
+			k2hh,negate_x = <1>;
+			k2hh,negate_y = <1>;
+			k2hh,negate_z = <0>;
+			k2hh,poll_interval = <100>;
+			k2hh,min_interval = <2>;
+		};
+
+		cm36672p@60 {
+			compatible = "cm36672p";
+			reg = <0x60>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <7 0 0>;
+			cm36672p,vdd-supply = <&sm5703_ldo3>;
+			cm36672p,vio-supply = <&ldo23_reg>;
+			cm36672p,vled-supply = <&ldo25_reg>;
+			cm36672p,irq_gpio = <&gpa1 7 0>;
+			cm36672p,default_hi_thd = <17>;
+			cm36672p,default_low_thd = <13>;
+			cm36672p,cancel_hi_thd = <10>;
+			cm36672p,cancel_low_thd = <7>;
+			cm36672p,ps_it = <4>;
+			cm36672p,led_current = <5>;
+			cm36672p,default_trim = <0>;
+		};
+	};
+
+	fimc_is@14400000 {
+		front_sensor_id = <302>;
+	};
+
+	/* modem_interface */
+	mif_pdata {
+		/* override from exynos3475-j2_common.dtsi */
+		gpios = <&gpc2 0 0x0>,	/* HW_REV0 */
+			<&gpc2 1 0x0>,	/* HW_REV1 */
+			<&gpd1 7 0x0>;	/* HW_REV2 */
+	};
+};

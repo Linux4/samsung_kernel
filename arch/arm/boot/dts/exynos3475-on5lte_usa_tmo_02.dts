@@ -1,0 +1,262 @@
+/*
+ * SAMSUNG EXYNOS3475 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos3475-on5_common.dtsi"
+#include "modem-ss308ap-pdata.dtsi"
+#include "exynos3475-on5lte_battery.dtsi"
+#include "exynos3475-on5lte_usa_tmo_gpio_02.dtsi"
+
+/ {
+	model = "Samsung UNIVERSAL3475 board based on EXYNOS3475";
+	model_info-chip = <3475>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <2>;
+	model_info-hw_rev_end = <4>;
+	compatible = "samsung,UNIVERSAL3475", "samsung,exynos3475";
+
+	hsi2c@13870000 {
+		status = "okay";
+		sm5703-mfd@49 {
+			compatible = "siliconmitus,sm5703mfd";
+			reg = <0x49>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&chg_en &if_pmic_irq>;
+			sm5703,irq-gpio = <&gpa0 2 0>;
+			sm5703,mrstb-gpio = <&gpd0 0 0>;
+
+			sm5703_ldo1 {
+				compatible = "siliconmitus,sm5703-ldo1";
+				regulator-name = "VDDAF_2.8V_CAM";  /* change name by yourself */
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on;*/ /* = "yes"; optional, exist = enabled */
+				/* regulator-always-on;*/ /* = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo2 {
+				compatible = "siliconmitus,sm5703-ldo2";
+				regulator-name = "VDD_MOT_3P3"; /* change name by yourself */
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/*regulator-boot-on;*/  /* = "yes"; optional, exist = enabled */
+				/*regulator-always-on;*/  /* = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo3: sm5703_ldo3 {
+				compatible = "siliconmitus,sm5703-ldo3";
+				regulator-name = "VDD_3.0V_SENSOR"; /* change name by yourself */
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on =*/  /* "yes"; optional, exist = enabled */
+				regulator-always-on;
+			};
+
+			sm5703_buck {
+				compatible = "siliconmitus,sm5703-buck";
+				regulator-name = "VDDD_1.2V_CAM"; /* change name by yourself */
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_fled {
+				compatible = "siliconmitus,sm5703-fled";
+				enable = <1 1>;
+				flash_current = <1000>;
+				preflash_current = <180>;
+				movie_current = <180>;
+				torch_current = <60>;
+				factory_current = <240>;
+				sm5703,led1-gpio = <&gpd2 3 0>;
+				sm5703,led2-gpio = <&gpd0 7 0>;
+				pinctrl-names = "fled_default","fled_sleep";
+				pinctrl-0 = <&fled_flash_active>;
+				pinctrl-1 = <&fled_flash_sleep>;
+			};
+		};
+	};
+
+	hsi2c@104C0000 {
+		s2mpu04_pmic@66 {
+			regulators {
+				ldo23_reg: LDO23 {
+					regulator-name = "vdd_ldo23";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+					regulator-always-on;
+					regulator-initial-mode = <3>;
+				};
+			};
+		};
+	};
+
+	bluetooth {
+		compatible = "broadcom,bcm43xx";
+		gpios = <&gpd2 0 1	/*BT_EN*/
+				&gpd2 1 1	/*BT_WAKE*/
+				&gpa1 6 0xF	/*BT_HOST_WAKE*/ >;
+		pinctrl-names = "default";
+		pinctrl-0=<&bt_hostwake &bt_btwake &bt_reg_on>;
+		status = "okay";
+	};
+	
+	pinctrl@138C0000 {
+		es704_reset: es704-reset {
+			samsung,pins ="gpc2-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-con-pdn =<3>;
+			samsung,pin-pud-pdn = <0>;
+			samsung,pin-val = <0>;
+		};
+	};
+
+	pinctrl@139B0000 {
+		es704_bclk: es704-bclk {
+			samsung,pins = "gpq0-2";
+			samsung,pin-function = <3>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <8>;
+		};
+
+		es704_bclk_idle: es704-bclk-idle {
+			samsung,pins = "gpq0-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139C0000 {
+		es704_wakeup: es704-wakeup {
+			samsung,pins ="gpd0-6";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <3>;
+			samsung,pin-con-pdn =<3>;
+			samsung,pin-pud-pdn = <3>;
+			samsung,pin-val = <1>;
+		};
+	};
+
+	s2803x: s2803x@148C0000 {
+		pinctrl-names = "default", "idle", "bt-idle";
+		pinctrl-0 = <&i2s_pmic_bus
+				&i2s_bt_bus
+				&es704_bclk>;
+		pinctrl-1 = <&i2s_pmic_bus_idle
+				&i2s_bt_bus_idle
+				&es704_bclk_idle>;
+		pinctrl-2 = <&i2s_pmic_bus
+				&i2s_bt_bus_idle
+				&es704_bclk>;
+		/delete-property/ bck-mcko-mode;
+	};
+
+	hsi2c@13880000 {
+		status = "okay";
+		samsung,hs-mode;
+		clock-frequency = <1000000>;
+		earSmart@3e {
+			compatible = "earSmart";
+			reg = <0x3e>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&es704_reset &es704_wakeup>;
+			esxxx-reset-gpio = <&gpc2 2 0>;
+			esxxx-wakeup-gpio = <&gpd0 6 0>;
+			adnc,firmware_name = "audience-es804-fw.bin";
+			adnc,use_dhwpt;
+			adnc,use_dhwpt_in_sbl;
+			adnc,dhwpt_mode = <72>;
+		};
+	};
+	
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			sec_vib,regulator = "VDD_MOT_3P3";
+		};
+	};
+
+	pinctrl@139B0000 {
+		acc_int: acc_int {
+			samsung,pins = "gpa1-0";
+			samsung,pins-function = <0x0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		prox_int: prox_int {
+			samsung,pins = "gpa1-7";
+			samsung,pins-function = <0x0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	i2c@13850000 {
+		status = "okay";
+
+		k2hh-i2c@1D {
+			compatible = "k2hh-i2c";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <0 0 0>;
+			k2hh,irq_gpio = <&gpa1 0 0>;
+			k2hh,vio-supply = <&ldo23_reg>;
+			k2hh,axis_map_x = <0>;
+			k2hh,axis_map_y = <1>;
+			k2hh,axis_map_z = <2>;
+			k2hh,negate_x = <1>;
+			k2hh,negate_y = <1>;
+			k2hh,negate_z = <1>;
+			k2hh,poll_interval = <100>;
+			k2hh,min_interval = <2>;
+		};
+
+		stk3013@48 {
+			compatible = "stk,stk3013";
+			reg = <0x48>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			interrupt-parent =  <&gpa1>;
+			interrupts = <7 0 0>;
+			stk,vdd-supply = <&sm5703_ldo3>;
+			stk,vio-supply = <&ldo25_reg>;
+			stk,irq-gpio = <&gpa1 7 0>;
+			stk,state-reg = <0x2d>;
+			stk,psctrl-reg = <0x72>;
+			stk,alsctrl-reg = <0x2A>;
+			stk,ledctrl-reg = <0xB8>;
+			stk,wait-reg = <0x03>;
+			stk,ps-thd-h = <20>;
+			stk,ps-thd-l = <13>;
+			stk,ps-cancel-thd-h = <9>;
+			stk,ps-cancel-thd-l = <6>;
+			stk,ps-cal-skip-adc = <8>;
+			stk,ps-cal-fail-adc = <17>;
+			stk,ps-default-offset = <0>;
+			stk,transmittance = <500>;
+		};
+	};
+};
