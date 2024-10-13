@@ -4149,6 +4149,10 @@ drm_extract_clrmetry_db(struct drm_connector *connector, const u8 *db)
 	DRM_DEBUG_KMS("colorimetry fmts = 0x%x\n", connector->color_enc_fmt);
 }
 
+#if defined(CONFIG_SEC_DISPLAYPORT)
+bool secdp_panel_hdr_supported(void);
+#endif
+
 /*
  * drm_extract_hdr_db - Parse the HDMI HDR extended block
  * @connector: connector corresponding to the HDMI sink
@@ -4164,6 +4168,14 @@ drm_extract_hdr_db(struct drm_connector *connector, const u8 *db)
 
 	if (!db)
 		return;
+
+#if defined(CONFIG_SEC_DISPLAYPORT)
+	if (!secdp_panel_hdr_supported()) {
+		pr_info("connected dongle does not support HDR:%d\n", connector->hdr_supported);
+		connector->hdr_supported = false;
+		return;
+	}
+#endif
 
 	len = db[0] & 0x1f;
 	/* Byte 3: Electro-Optical Transfer Functions */
