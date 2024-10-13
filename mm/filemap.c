@@ -1905,28 +1905,6 @@ static int page_cache_read(struct file *file, pgoff_t offset, gfp_t gfp_mask)
 	return ret;
 }
 
-static noinline void tracing_mark_write(bool start, struct file *file, pgoff_t offset, unsigned int size, bool sync)
-{
-	char buf[256], *path;
-
-	if (!tracing_is_on() || file == NULL || file->f_path.dentry == NULL)
-		return;
-
-	if (start) {
-		path = dentry_path(file->f_path.dentry, buf, 256);
-
-		if (!IS_ERR(path))
-			trace_printk("B|%d|%d , %s , %lu , %d\n", current->tgid, sync, path, offset, size);
-		else
-			trace_printk("B|%d|%d , %s , %lu , %d\n", current->tgid, sync, "dentry_path failed", offset, size);
-	} else {
-		trace_printk("E|%d\n", current->tgid);
-	}
-}
-
-#define trace_fault_file_path_start(...) tracing_mark_write(1, ##__VA_ARGS__)
-#define trace_fault_file_path_end(...) tracing_mark_write(0, ##__VA_ARGS__)
-
 #define MMAP_LOTSAMISS  (100)
 #if CONFIG_MMAP_READAROUND_LIMIT == 0
 int mmap_readaround_limit = (VM_MAX_READAHEAD / 4); 		/* page */
@@ -1953,10 +1931,8 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 		return;
 
 	if (vma->vm_flags & VM_SEQ_READ) {
-		trace_fault_file_path_start(file, offset, ra->ra_pages, 1);
 		page_cache_sync_readahead(mapping, ra, file, offset,
 					  ra->ra_pages);
-		trace_fault_file_path_end(file, offset, ra->ra_pages, 1);
 		return;
 	}
 
@@ -1978,9 +1954,7 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 	ra->start = max_t(long, 0, offset - ra_pages / 2);
 	ra->size = ra_pages;
 	ra->async_size = ra_pages / 4;
-	trace_fault_file_path_start(file, offset, ra_pages, 1);
 	ra_submit(ra, mapping, file);
-	trace_fault_file_path_end(file, offset, ra_pages, 1);
 }
 
 /*
@@ -2001,10 +1975,8 @@ static void do_async_mmap_readahead(struct vm_area_struct *vma,
 	if (ra->mmap_miss > 0)
 		ra->mmap_miss--;
 	if (PageReadahead(page))
-		trace_fault_file_path_start(file, offset, ra->ra_pages, 0);
 		page_cache_async_readahead(mapping, ra, file,
 					   page, offset, ra->ra_pages);
-		trace_fault_file_path_end(file, offset, ra->ra_pages, 0);
 }
 
 /**
@@ -2135,9 +2107,7 @@ page_not_uptodate:
 	 * and we need to check for errors.
 	 */
 	ClearPageError(page);
-	trace_fault_file_path_start(file, offset, 1, 1);
 	error = mapping->a_ops->readpage(file, page);
-	trace_fault_file_path_end(file, offset, 1, 1);
 	if (!error) {
 		wait_on_page_locked(page);
 		if (!PageUptodate(page))

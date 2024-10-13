@@ -759,6 +759,12 @@ config FAULT_AROUND_4KB
 	default n
 	help
 	  Reduce fault around bytes to 4KB
+
+config VMPRESSURE_LEVEL_MED
+	int "Threshold to account memory pressure"
+	default 60
+	help
+	  This supports to adjust vmpressure_level_med threshold value
 	  
 config VMPRESSURE_LEVEL_CRI
 	int "Threshold to account memory pressure"
@@ -781,6 +787,15 @@ config PAGE_BOOST_RECORDING
 	  Record Everything for the chosen process.
 	  As Android executes an app one by one, only allow 1 recording
 	  at a time.
+
+config MEM_BOOST_THRESHOLD_MB
+	int "skip swap only if file cache is bigger than threshold"
+	default 300
+	help
+	  Memboost feature is designed to skip swap when memboost is on.
+	  However when file cache is low, this could cause cache thrashing.
+	  Set appropriate value to protect minimum level of file cache.
+
 	  
 config PROCESS_RECLAIM
 	bool "Enable process reclaim"

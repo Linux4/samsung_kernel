@@ -1523,3 +1523,17 @@ usi_mode = "hsi2c0" or "hsi2c1" or "spi" or "uart"
 	};
 };
 
+&reserved_memory {
+		video_stream {
+			compatible = "exynos8890-ion,vstream";
+			ion,secure;
+			ion,reusable;
+			/* TUI : 1080x2220 32bpp 3frames < 28MiB*/
+			/* DRM : 76 MiB */
+			size = <0x4C00000>;
+			alignment = <0x0 0x00400000>;
+			id = <3>;
+			compat-id = <25 31>;
+			alloc-ranges = <0x0 0x80000000 0x80000000>;
+		};
+};
