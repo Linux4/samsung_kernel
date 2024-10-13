@@ -18,12 +18,12 @@
 		qcom,wlan;
 		qcom,wlan-rc-num = <0>;
 		qcom,wlan-ramdump-dynamic = <0x420000>;
-		qcom,wlan-cbc-enabled;
 		use-pm-domain;
 		cnss-enable-self-recovery;
 		qcom,same-dt-multi-dev;
 		mboxes = <&qmp_aop 0>;
 		qcom,vreg_ipa="s4f";
+		qcom,on-chip-pmic-support = <0xbb>;
 
 		vdd-wlan-dig-supply = <&S3B>;
 		qcom,vdd-wlan-dig-config = <950000 1120000 0 0 1>;

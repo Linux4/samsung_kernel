@@ -35,7 +35,7 @@
 	};
 };
 
-&qupv3_se11_i2c {
+&qupv3_se3_i2c {
 	status = "okay";
 
 	s2asl01_limiter_sub: s2asl01-limiter-sub@39 {

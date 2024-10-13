@@ -39,6 +39,7 @@ static inline struct cn_msg *buffer_to_cn_msg(__u8 *buffer)
 static atomic_t proc_event_num_listeners = ATOMIC_INIT(0);
 static struct cb_id cn_proc_event_id = { CN_IDX_PROC, CN_VAL_PROC };
 #ifdef CONFIG_PROC_CONNECTOR_SELECT_EVENTS
+extern int is_heimdall_enabled;
 #define MAX_PROC_EVENTS 32
 static atomic_t proc_event_selected[MAX_PROC_EVENTS] = {ATOMIC_INIT(0), };
 #endif
@@ -422,6 +423,9 @@ static void cn_proc_mcast_ctl(struct cn_msg *msg,
 	else
 		mask = *(uint32_t *)(mc_op + 1);
 	pr_info("%s: client connected with event mask=0x%x\n", __func__, mask);
+
+	if (msg->len != sizeof(*mc_op))
+		is_heimdall_enabled = 1;
 #endif
 
 	switch (*mc_op) {

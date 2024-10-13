@@ -1843,3 +1843,7 @@ config SND_SOC_TPA6130A2
 	depends on I2C
 
 endmenu
+
+config SND_SOC_CS40L26
+	tristate "Cirrus Logic CS40L26 Stub CODEC"
+

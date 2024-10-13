@@ -8,6 +8,7 @@
 #include <linux/device.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
+#include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/of.h>
@@ -25,6 +26,10 @@ struct log_buf_drvdata *sec_log_buf __read_mostly;
 
 static struct sec_log_buf_head *s_log_buf __read_mostly;
 static size_t sec_log_buf_size __read_mostly;
+
+const char *block_str[] = {
+	"init: Loading module",
+};
 
 static void (*__log_buf_memcpy_fromio)(void *, const void *, size_t) __read_mostly;
 static void (*__log_buf_memcpy_toio)(void *, const void *, size_t) __read_mostly;
@@ -71,6 +76,28 @@ ssize_t sec_log_buf_get_buf_size(void)
 	return ___log_buf_get_buf_size();
 }
 EXPORT_SYMBOL(sec_log_buf_get_buf_size);
+
+bool __log_buf_is_acceptable(const char *s, size_t count)
+{
+	static bool filter_en = !!IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP);
+	const char *magic_str = "init: init second stage started!";
+	size_t i;
+
+	if (likely(!filter_en))
+		return true;
+
+	if (strnstr(s, magic_str, count)) {
+		filter_en = false;
+		return true;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(block_str); i++) {
+		if (strnstr(s, block_str[i], count))
+			return false;
+	}
+
+	return true;
+}
 
 void notrace __log_buf_write(const char *s, size_t count)
 {
@@ -426,18 +453,88 @@ static int __log_buf_prepare_buffer(struct builder *bd)
 	return 0;
 }
 
+static ssize_t __pull_early_buffer(struct log_buf_drvdata *drvdata, char *buf)
+{
+	struct kmsg_dumper *dumper = &drvdata->dumper;
+	ssize_t copied;
+	char *line;
+	size_t len;
+
+	line = kvmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!line)
+		return -ENOMEM;
+
+	memset(buf, 0x0, drvdata->size);
+	copied = 0;
+	dumper->active = true;
+	kmsg_dump_rewind(dumper);
+	while (kmsg_dump_get_line(dumper, true, line, PAGE_SIZE, &len)) {
+		BUG_ON((copied + len) > drvdata->size);
+		memcpy_fromio(&buf[copied], line, len);
+		copied += len;
+	}
+
+	kvfree(line);
+
+	return copied;
+}
+
+static size_t __remove_till_end_of_line(char *substr)
+{
+	size_t i = 0;
+
+	while (substr[i] != '\n' && substr[i] != '\0')
+		substr[i++] = ' ';
+
+	return i;
+}
+
+static void ____remove_block_str(char *buf, size_t len, const char *keyword)
+{
+	size_t offset = 0;
+	char *substr;
+
+	while (offset < len) {
+		substr = strnstr(&buf[offset], keyword, len);
+		if (!substr)
+			break;
+
+		offset = substr - buf;
+		offset += __remove_till_end_of_line(substr);
+	}
+}
+
+static void __remove_block_str(char *buf, size_t len)
+{
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(block_str); i++)
+		____remove_block_str(buf, len, block_str[i]);
+}
+
 static int __log_buf_pull_early_buffer(struct builder *bd)
 {
 	struct log_buf_drvdata *drvdata =
 			container_of(bd, struct log_buf_drvdata, bd);
-	struct kmsg_dumper *dumper = &drvdata->dumper;
-	char line[256];
-	size_t len;
+	char *buf;
+	ssize_t copied;
 
-	dumper->active = true;
-	kmsg_dump_rewind(dumper);
-	while (kmsg_dump_get_line(dumper, true, line, sizeof(line), &len))
-		__log_buf_write(line, len);
+	buf = kvmalloc(drvdata->size, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	copied = __pull_early_buffer(drvdata, buf);
+	if (copied < 0) {
+		kvfree(buf);
+		return copied;
+	}
+
+	if (IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP))
+		__remove_block_str(buf, copied);
+
+	__log_buf_write(buf, copied);
+
+	kvfree(buf);
 
 	return 0;
 }
