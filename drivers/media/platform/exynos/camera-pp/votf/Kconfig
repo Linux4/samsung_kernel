@@ -1,6 +1,0 @@
-menuconfig VIDEO_EXYNOS_CAMERA_POSTPROCESS_VOTF
-	bool "EXYNOS CAMERA POSTPROCESS VOTF Driver"
-	depends on VIDEO_EXYNOS_CAMERA_POSTPROCESS
-	default y
-	help
-		This is a representative exynos CAMERA-PP VOTF device.
