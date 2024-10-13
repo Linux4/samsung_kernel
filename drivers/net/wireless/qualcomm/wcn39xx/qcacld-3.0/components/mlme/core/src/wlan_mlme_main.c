@@ -1854,6 +1854,8 @@ static void mlme_init_scoring_cfg(struct wlan_objmgr_psoc *psoc,
 		cfg_get(psoc, CFG_SCORING_CHAN_CONGESTION_WEIGHTAGE);
 	scoring_cfg->weight_cfg.oce_wan_weightage =
 		cfg_get(psoc, CFG_SCORING_OCE_WAN_WEIGHTAGE);
+	scoring_cfg->weight_cfg.sae_pk_ap_weightage =
+		cfg_get(psoc, CFG_SAE_PK_AP_WEIGHTAGE);
 
 	total_weight =  scoring_cfg->weight_cfg.rssi_weightage +
 			scoring_cfg->weight_cfg.ht_caps_weightage +
@@ -1865,7 +1867,8 @@ static void mlme_init_scoring_cfg(struct wlan_objmgr_psoc *psoc,
 			scoring_cfg->weight_cfg.beamforming_cap_weightage +
 			scoring_cfg->weight_cfg.pcl_weightage +
 			scoring_cfg->weight_cfg.channel_congestion_weightage +
-			scoring_cfg->weight_cfg.oce_wan_weightage;
+			scoring_cfg->weight_cfg.oce_wan_weightage +
+			scoring_cfg->weight_cfg.sae_pk_ap_weightage;
 
 	/*
 	 * If configured weights are greater than max weight,
@@ -1891,6 +1894,8 @@ static void mlme_init_scoring_cfg(struct wlan_objmgr_psoc *psoc,
 		scoring_cfg->weight_cfg.channel_congestion_weightage =
 						CHANNEL_CONGESTION_WEIGHTAGE;
 		scoring_cfg->weight_cfg.oce_wan_weightage = OCE_WAN_WEIGHTAGE;
+		scoring_cfg->weight_cfg.sae_pk_ap_weightage =
+						SAE_PK_AP_WEIGHTAGE;
 	}
 
 	scoring_cfg->rssi_score.best_rssi_threshold =

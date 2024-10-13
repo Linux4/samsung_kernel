@@ -1307,6 +1307,7 @@ void EA8076GA_AMS638VL01_FHD_init(struct samsung_display_driver_data *vdd);
 void S6E3FC3_AMS667YM01_FHD_init(struct samsung_display_driver_data *vdd);
 void S6E3FC3_AMS646YD04_FHD_init(struct samsung_display_driver_data *vdd);
 void S6E3FC3_AMS638YQ01_FHD_init(struct samsung_display_driver_data *vdd);
+void HX83102_TV104WUM_WUXGA_init(struct samsung_display_driver_data *vdd);
 
 struct panel_func {
 	/* ON/OFF */
@@ -2197,6 +2198,9 @@ struct samsung_display_driver_data {
 
 	int samsung_splash_enabled;
 
+	int cmd_set_on_splash_enabled;
+	int skip_cmd_set_on_splash_enabled;
+
 	/* UB CON DETECT */
 	struct ub_con_detect ub_con_det;
 
@@ -2240,6 +2244,37 @@ struct samsung_display_driver_data {
 		To keep high status panel power & reset
 	*/
 	bool aot_enable;
+
+	/* AOT support : tddi video panel (Himax)
+	 * Make reset from gpio to regulator
+	 * to control it with touch module
+	 * reset regulator name will be "panel_reset"
+	 * (Power on - reset)
+	 */
+	bool aot_reset_regulator;
+
+	/* To call reset seq later then LP11
+	 * (Power on - LP11 - Reset)
+	 * Only position change of aot_reset_regulator.
+	 * Should not be with panel->lp11_init
+	 */
+	bool aot_reset_regulator_late;
+
+	/*
+	 * Condition : TFT has boost_en
+	 * Boost_en should be turned off right after pwm 0 for Tabs7+Lite
+	 * To prevent (fault diode) reverse-voltage loading at backlight input
+	 */
+	bool boost_early_off;
+	/*
+	 * Condition : TFT has boost_en
+	 * Boost_en should be turned on if early off && br goes up for Tabs7+Lite
+	 */
+	bool boost_off_while_working;
+
+	/* Some TDDI (Himax) panel can get esd noti from touch driver */
+	bool esd_touch_notify;
+	struct notifier_block nb_esd_touch;
 
 	int check_fw_id; 	/* save ddi_fw id (revision)*/
 	bool is_recovery_mode;

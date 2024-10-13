@@ -3042,6 +3042,10 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 
 	pr_debug("unload app %d(%s), app_crash flag %d\n", data->client.app_id,
 			data->client.app_name, app_crash);
+    if (!memcmp(data->client.app_name, "dsms", strlen("dsms"))) {
+           pr_debug("Do not unload dsms app from tz\n");
+           goto unload_exit;
+    }
 
 	if (!memcmp(data->client.app_name, "keymaste", strlen("keymaste"))) {
 		pr_debug("Do not unload keymaster app from tz\n");
@@ -6420,7 +6424,7 @@ static int qseecom_create_key(struct qseecom_dev_handle *data,
 	struct qseecom_create_key_req create_key_req;
 	struct qseecom_key_generate_ireq generate_key_ireq;
 	struct qseecom_key_select_ireq set_key_ireq;
-	uint32_t entries = 0;
+	int32_t entries = 0;
 
 	ret = copy_from_user(&create_key_req, argp, sizeof(create_key_req));
 	if (ret) {
@@ -6565,7 +6569,7 @@ static int qseecom_wipe_key(struct qseecom_dev_handle *data,
 	struct qseecom_wipe_key_req wipe_key_req;
 	struct qseecom_key_delete_ireq delete_key_ireq;
 	struct qseecom_key_select_ireq clear_key_ireq;
-	uint32_t entries = 0;
+	int32_t entries = 0;
 
 	ret = copy_from_user(&wipe_key_req, argp, sizeof(wipe_key_req));
 	if (ret) {

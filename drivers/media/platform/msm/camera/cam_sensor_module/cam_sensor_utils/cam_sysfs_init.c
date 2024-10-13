@@ -242,6 +242,14 @@ static ssize_t rear_type_show(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
 }
+#elif defined(CONFIG_SEC_GTA4XLVE_PROJECT)
+static ssize_t rear_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	char cam_type_lsi[] = "SLSI_S5K4HA\n";
+
+	return scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
+}
 #else
 static ssize_t rear_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -331,7 +339,14 @@ static ssize_t front_camera_type_show(struct device *dev,
 		return rc;
 	return 0;
 }
+#elif defined(CONFIG_SEC_GTA4XLVE_PROJECT)
+static ssize_t front_camera_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	char cam_type[] = "SLSI_GC5035\n";
 
+	return scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+}
 #else
 static ssize_t front_camera_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -2983,7 +2998,9 @@ char supported_camera_ids[] = {
 #if defined(CONFIG_SAMSUNG_FRONT_TOF)
 	41,  //FRONT_TOF
 #endif
+#if !defined(CONFIG_SEC_GTA4XLVE_PROJECT)
 	50, //REAR_2ND = Rear UW
+#endif
 /*#if defined(CONFIG_SAMSUNG_FRONT_DUAL)  //Disabling Front 8M for factory mode.
 	51, //FRONT_2ND = Front UW
 #endif */

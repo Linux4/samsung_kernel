@@ -1215,4 +1215,7 @@ config SND_SOC_TFA9894
 	help
 	TFA9894 driver
 
+# DBMDx
+source "sound/soc/codecs/dbmdx/Kconfig"
+
 endmenu

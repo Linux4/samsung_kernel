@@ -19,6 +19,7 @@
 
 #include "input-event-codes.h"
 
+#ifndef CONFIG_SEC_DEBUG_TSP_LOG_LEGO
 /*
  * sys/class/sec/tsp/support_feature
  * bit value should be made a promise with InputFramework.
@@ -122,7 +123,7 @@
 #define input_log_fix()	{}
 #define input_raw_data_clear() {}
 #endif
-
+#endif
 
 /*
  * The event structure itself

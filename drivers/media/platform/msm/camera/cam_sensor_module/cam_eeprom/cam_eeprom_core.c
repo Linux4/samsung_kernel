@@ -301,7 +301,11 @@ static unsigned int is_cam_otp_enabled(struct cam_eeprom_ctrl_t *e_ctrl)
 		return TRUE;
 	}
 #endif
-
+#if defined(CONFIG_SAMSUNG_CAMERA_OTP_FRONT)
+	if (e_ctrl->soc_info.index == CAM_EEPROM_IDX_FRONT) {
+		return TRUE;
+	}
+#endif
 	return FALSE;
 }
 
@@ -2959,7 +2963,11 @@ static int cam_otp_gc5035_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
         if(e_ctrl->soc_info.index == 4)
             offset = 0xF4;
         else
+#if defined(CONFIG_SEC_GTA4XLVE_PROJECT)
+            offset = 0x100;
+#else
             offset = 0x80;
+#endif
         break;
 
     case 7:

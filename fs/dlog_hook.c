@@ -34,6 +34,7 @@ DEFINE_DLOG(dlog_rmdir);
 #define EXT_SHIFT		7
 #define MAX_EXT			(1 << 7)
 #define MAX_DEPTH		2
+#define MEDIA_MIN_SIZE		(512 * 1024)
 
 struct dlog_keyword {
 	struct hlist_node hlist;
@@ -53,6 +54,7 @@ enum {
 enum {
 	DLOG_SUPP_PART_DATA = 0,
 	DLOG_SUPP_PART_EFS,
+	DLOG_SUPP_PART_FUSE,
 	DLOG_SUPP_PART_MAX
 };
 
@@ -66,7 +68,7 @@ enum {
 static struct dlog_keyword_hash_tbl ht[DLOG_HT_MAX];
 
 static const char *support_part[] = {
-	"data", "efs", NULL,
+	"data", "efs", "emulated", NULL,
 };
 
 static const char *extensions[] = {
@@ -295,7 +297,8 @@ void dlog_hook(struct dentry *dentry, struct inode *inode, struct path *path)
 
 	/* for data partition`s only multimedia file */
 	if (is_ext(dentry->d_name.name, '.', &ht[DLOG_HT_EXTENSION])) {
-		store_log(dentry, inode, path, DLOG_MM, part_id);
+		if (i_size_read(inode) >= MEDIA_MIN_SIZE)
+			store_log(dentry, inode, path, DLOG_MM, part_id);
 		goto out;
 	}
 

@@ -269,12 +269,6 @@ enum {
 	USB_THM_GAP_OVER,
 };
 
-enum swelling_mode_state {
-	SWELLING_MODE_NONE = 0,
-	SWELLING_MODE_CHARGING,
-	SWELLING_MODE_FULL,
-};
-
 enum tx_switch_mode_state {
 	TX_SWITCH_MODE_OFF = 0,
 	TX_SWITCH_CHG_ONLY,
@@ -970,7 +964,6 @@ struct sec_battery_info {
 	int normal_warm_thresh;
 	int warm_overheat_thresh;
 	int thermal_zone;
-	bool swelling_mode;
 	int bat_thm_count;
 
 	/* charging */
@@ -1172,6 +1165,7 @@ struct sec_battery_info {
 	unsigned int batt_f_mode;
 #endif
 	int batt_full_capacity;
+	bool usb_slow_chg;
 };
 
 /* event check */

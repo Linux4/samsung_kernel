@@ -98,6 +98,9 @@
 
 		samsung,support-optical-fingerprint;
 
+		/* To avoid garbage image data from wakeup */
+		samsung,delayed-display-on = <1>;
+
 		samsung,support_vrr_based_bl; /* VRR Variable Refresh Rate */
 
 		samsung,esd-irq-trigger1 = "falling"; /* FG_ERR */
@@ -1300,9 +1303,26 @@
 		 *   APLPM
 		 * *************************************************************
 		 */
+
+		/* TIG Enable */
+		samsung,self_grid_on_revA = [
+			29 00 00 00 00 00 03 F0 5A 5A
+			29 00 00 00 00 00 03 BF 01 00
+			29 01 00 00 11 00 03 F0 A5 A5
+		];
+
+		/* TIG Disable */
+		samsung,self_grid_off_revA = [
+			29 01 00 00 11 00 03 F0 5A 5A	/* delay 17ms after dipslay_on */
+			29 00 00 00 00 00 03 BF 00 00
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+		
 		samsung,lpm_on_tx_cmds_revG = [
 			29 00 00 00 00 00 03 F0 5A 5A
-			29 00 00 00 00 00 03 91 01 01 /* AOD Setting */
+			29 00 00 00 00 00 04 B0 00 4C F4
+			29 00 00 00 00 00 02 F4 28		/* VAINT Setting */
+			29 00 00 00 00 00 03 91 01 01 	/* AOD Setting */
 			29 00 00 00 00 00 02 53 27
 			29 00 00 00 00 00 04 B0 01 88 CB
 			29 00 00 00 00 00 08 CB 40 0A 00 00 00 00 40 /* HFP Setting */
@@ -1316,6 +1336,8 @@
 
 		samsung,lpm_on_tx_cmds_revA = [
 			29 00 00 00 00 00 03 F0 5A 5A
+			29 00 00 00 00 00 04 B0 00 4C F4
+			29 00 00 00 00 00 02 F4 28	/* VAINT Setting */
 			29 00 00 00 00 00 03 91 01 01
 			29 01 00 00 00 00 02 53 26	/* 10ns dealy */
 			29 00 00 00 00 00 02 F7 0F

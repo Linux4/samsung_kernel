@@ -88,9 +88,9 @@
 			sx9360,refagainfreq_reg = <0x36>;	/* reference phase again : 5.25 pF, sampling freq : 83.33 khz */
 			sx9360,gainrawfilt_reg = <0x1A>;	/* gain: x4, rawfilt : 1-1/4 */
 			sx9360,refgainrawfilt_reg = <0x22>;	/* reference phase gain: x8, rawfilt : 1-1/4 */
-			sx9360,proxthresh_reg = <0x22>;		/* threshold: 614 */
-			sx9360,hyst_reg = <0x15>;		/* hysteresis: small, closedeb: 2 samples, fardeb: 2 samples */
-			sx9360,regproxctrl3_reg = <0x0C>;	/* AVGPOSFILT: 1/256, AVGNEGFILT: 1/2 */
+			sx9360,proxthresh_reg = <0x20>;		/* threshold: 512 */
+			sx9360,hyst_reg = <0x25>;           /* hysteresis: +-12% */
+			sx9360,regproxctrl3_reg = <0x0D>;	/* AVGPOSFILT: 1/512, AVGNEGFILT: 1/2 */
 			sx9360,resolution_reg = <0x0F>;		/* resolution: 1204 */
 			sx9360,refresolution_reg = <0x0F>;	/* reference phase  resolution: 1204 */
 			sx9360,hallic_cert_detect = <1>;

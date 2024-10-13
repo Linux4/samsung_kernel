@@ -795,7 +795,7 @@ static struct dsi_panel_cmd_set *ss_acl_off(struct samsung_display_driver_data *
 
 enum LPMON_CMD_ID {
 	LPM_BL_CMDID_CTRL = 1,
-	LPM_ON_CMDID_BL = 2,
+	LPM_ON_CMDID_BL = 4,
 };
 
 static void ss_set_panel_lpm_brightness(struct samsung_display_driver_data *vdd)
@@ -855,28 +855,9 @@ static void ss_update_panel_lpm_ctrl_cmd(struct samsung_display_driver_data *vdd
 
 	if (SS_IS_CMDS_NULL(set_lpm_on) || SS_IS_CMDS_NULL(set_lpm_off)) {
 		LCD_ERR("No cmds for TX_LPM_ON/OFF\n");
-		goto start_lpm_bl;
+		return;
 	}
 
-#if 0
-	/* LPM_ON: 1. HLPM/ALPM Control: 0x09: HLPM, 0x0B: ALPM */
-	/* LPM_OFF: 1. Seamless Control For HLPM: 0x01: HLPM, 0x03: ALPM */
-	switch (vdd->panel_lpm.mode) {
-	case HLPM_MODE_ON:
-		set_lpm_on->cmds[LPMON_CMDID_CTRL].ss_txbuf[1] = 0x029;
-		set_lpm_off->cmds[LPMOFF_CMDID_CTRL].ss_txbuf[1] = 0x01;
-		break;
-	case ALPM_MODE_ON:
-		set_lpm_on->cmds[LPMON_CMDID_CTRL].ss_txbuf[1] = 0x2B;
-		set_lpm_off->cmds[LPMOFF_CMDID_CTRL].ss_txbuf[1] = 0x03;
-		break;
-	default:
-		LCD_ERR("invalid lpm mode: %d\n", vdd->panel_lpm.mode);
-		break;
-	}
-#endif
-
-start_lpm_bl:
 	/* LPM_ON: 3. HLPM brightness */
 	/* should restore normal brightness in LPM off sequence to prevent flicker.. */
 	switch (vdd->panel_lpm.lpm_bl_level) {

@@ -12,6 +12,11 @@
 #include "sec_battery.h"
 #include "sec_battery_ttf.h"
 
+#define is_ttf_thermal_zone(thermal_zone) ( \
+	thermal_zone == BAT_THERMAL_NORMAL || \
+	thermal_zone == BAT_THERMAL_COOL1 || \
+	thermal_zone == BAT_THERMAL_COOL2)
+
 int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
@@ -133,7 +138,7 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 			charge = battery->ttf_d->ttf_wireless_charge_current;
 #if defined(CONFIG_PDIC_NOTIFIER)
 		} else if (is_pd_apdo_wire_type(battery->cable_type) ||
-			(is_pd_fpdo_wire_type(battery->cable_type) && battery->hv_pdo)) {
+			(is_pd_fpdo_wire_type(battery->cable_type) && battery->pdic_info.sink_status.available_pdo_num > 1)) {
 			if (battery->pd_max_charge_power > HV_CHARGER_STATUS_STANDARD4) {
 				charge = battery->ttf_d->ttf_dc45_charge_current;
 			} else if (battery->pd_max_charge_power > HV_CHARGER_STATUS_STANDARD3) {
@@ -328,7 +333,7 @@ int ttf_display(struct sec_battery_info *battery)
 
 	if (((battery->status == POWER_SUPPLY_STATUS_CHARGING) ||
 		(battery->status == POWER_SUPPLY_STATUS_FULL && battery->capacity != 100)) &&
-		!battery->swelling_mode)
+		is_ttf_thermal_zone(battery->thermal_zone))
 		return battery->ttf_d->timetofull;
 	else
 		return 0;

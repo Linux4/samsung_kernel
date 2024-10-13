@@ -164,7 +164,7 @@
 		battery,swelling_low_temp_block_3rd = <180>;
 		battery,swelling_low_temp_recov_3rd = <200>;
 
-		battery,swelling_low_temp_current = <1050>;	/* 0.3C */
+		battery,swelling_low_temp_current = <1000>;	/* 0.3C */
 		battery,swelling_low_temp_current_2nd = <400>;
 		battery,swelling_low_temp_current_3rd = <3100>;
 		battery,swelling_low_temp_topoff = <250>;	/* 0.05C */
