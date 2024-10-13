@@ -1,0 +1,52 @@
+/*
+ * Samsung Exynos SoC series Pablo driver
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
+#include "s5e8835-gts9fep-camera_00.dtsi"
+/delete-node/ &hsi2c16_bus_in;
+/delete-node/ &hsi2c23_bus_in;
+/delete-node/ &hsi2c14_bus_in;
+/delete-node/ &hsi2c25_bus_in;
+
+/* GPIO_PERI */
+&pinctrl_1 {
+	/* FRONT i2c1 */
+	hsi2c16_bus_in: hsi2c16-bus-in {
+			samsung,pins = "gpm6-0", "gpm7-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <5>;
+			samsung,pin-drv = <0>;
+	};
+
+	/* REAR Wide : i2c0 */
+	hsi2c23_bus_in: hsi2c23-bus-in {
+			samsung,pins = "gpm21-0", "gpm22-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+	};
+
+	/* EEP/AF i2c7 */
+	hsi2c14_bus_in: hsi2c14-bus-in {
+			samsung,pins = "gpm2-0", "gpm3-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+	};
+
+	/* REAR UW : i2c0 */
+	hsi2c25_bus_in: hsi2c25-bus-in {
+			samsung,pins = "gpm25-0", "gpm26-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <5>;
+			samsung,pin-drv = <0>;
+	};
+
+};
