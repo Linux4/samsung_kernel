@@ -1,0 +1,32 @@
+menuconfig MSM_VIBRATOR
+        tristate "MSM_VIBRATOR"
+	default n
+	help
+	Say Y to enable MSM_VIBRATOR support.
+
+menuconfig BLDC_VIBRATOR
+        tristate "BLDC_VIBRATOR"
+	default n
+	help
+	Say Y to enable BLDC_VIBRATOR support.
+
+menuconfig VIBETONZ
+	tristate "Vibetonz"
+	default n
+	help
+	Say Y to enable Vibetonz support.
+	-------------
+	-------------
+	-------------
+
+config TACTILE_ASSIST
+	tristate "Auto Haptic"
+	default n
+	depends on VIBETONZ
+
+menuconfig SM5703_VIBRATOR
+        tristate "SM5703_VIBRATOR"
+        default n
+        help
+          Say Y to enable SM5703_VIBRATOR support.
+
