@@ -1,0 +1,1 @@
+source "drivers/usb/typec/maxim/max77705/Kconfig"

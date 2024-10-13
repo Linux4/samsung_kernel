@@ -1,0 +1,8 @@
+
+config AFC_CHARGER
+	tristate "Using AFC charger driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the AFC charger driver.
+
