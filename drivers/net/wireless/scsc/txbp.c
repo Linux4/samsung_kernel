@@ -8,6 +8,7 @@
 #include <linux/netdevice.h>
 #include <linux/smp.h>
 #include <linux/list_sort.h>
+#include <net/sch_generic.h>
 #include <scsc/scsc_warn.h>
 
 #include "tx_api.h"
@@ -200,6 +201,17 @@ static void show_cod(struct tx_netdev_data *tx_priv)
 			      tx_priv->ac_cod[SLSI_TRAFFIC_Q_BK], tx_priv->ac_cod[SLSI_TRAFFIC_Q_VI],
 			      tx_priv->ac_cod[SLSI_TRAFFIC_Q_VO]);
 	}
+}
+
+int slsi_tx_get_gcod(void)
+{
+	int gcod;
+
+	read_lock_bh(&txbp_priv.cod_lock);
+	gcod = txbp_priv.cod;
+	read_unlock_bh(&txbp_priv.cod_lock);
+
+	return gcod;
 }
 
 static __always_inline u8 slsi_txbp_check_ac_presence(struct tx_netdev_data *tx_priv)
@@ -591,6 +603,9 @@ static int slsi_txbp_napi(struct napi_struct *napi, int budget)
 	if (!tx_priv)
 		goto tx_done;
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_mlme_tas_deferred_tx_sar_limit(sdev);
+#endif
 	slsi_txbp_update_presence(tx_priv);
 
 	if (!slsi_txbp_has_resource(tx_priv))
@@ -718,8 +733,10 @@ __always_inline bool slsi_peer_add_post(struct slsi_dev *sdev, struct net_device
 {
 	txbp_priv.peers++;
 	if (txbp_priv.peers == 1) {
-		txbp_priv.cod = 0;
 		memset(bp_cod, 0, sizeof(bp_cod));
+		write_lock(&txbp_priv.cod_lock);
+		txbp_priv.cod = 0;
+		write_unlock(&txbp_priv.cod_lock);
 	}
 	return true;
 }
@@ -983,18 +1000,19 @@ u16 slsi_tx_select_queue(struct net_device *dev, struct sk_buff *skb, void *acce
 		SLSI_NET_DBG3(dev, SLSI_TX, "ARP packet queue Selected\n");
 		return SLSI_TX_ARP_Q_INDEX;
 	case ETH_P_IP:
-		if (slsi_is_dhcp_packet(skb->data) != SLSI_TX_IS_NOT_DHCP) {
-			SLSI_NET_DBG3(dev, SLSI_TX, "DHCP packet queue(priority) Selected\n");
-			return SLSI_TX_PRIORITY_Q_INDEX;
-		}
+		if (slsi_is_dhcp_packet(skb->data) == SLSI_TX_IS_NOT_DHCP)
+			break;
+		SLSI_NET_DBG3(dev, SLSI_TX, "DHCP packet queue(priority) Selected\n");
+		return SLSI_TX_PRIORITY_Q_INDEX;
 	default:
-		slsi_spinlock_lock(&ndev_vif->peer_lock);
-		peer = slsi_get_peer_from_mac(sdev, dev, eth_hdr(skb)->h_dest);
-		slsi_txbp_set_priority(sdev, dev, peer, skb);
-		slsi_spinlock_unlock(&ndev_vif->peer_lock);
-
-		return slsi_frame_priority_to_ac_queue(skb->priority);
+		break;
 	}
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
+	peer = slsi_get_peer_from_mac(sdev, dev, eth_hdr(skb)->h_dest);
+	slsi_txbp_set_priority(sdev, dev, peer, skb);
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
+
+	return slsi_frame_priority_to_ac_queue(skb->priority);
 }
 
 __always_inline enum slsi_tx_packet_t slsi_tx_get_packet_type(struct sk_buff *skb)
@@ -1010,6 +1028,10 @@ __always_inline int slsi_tx_transmit_ctrl(struct slsi_dev *sdev, struct net_devi
 	int ret;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct tx_netdev_data *tx_priv = NULL;
+
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_mlme_tas_deferred_tx_sar_limit(sdev);
+#endif
 
 	switch (proto) {
 	default:

@@ -40,6 +40,7 @@ struct lvs_rh {
 	struct usb_port_status port_status;
 	int test_mode;
 	int test_stat;
+	int urb_complete;
 #if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 	struct lvs_dev lvs_d;
 	struct if_cb_manager *man;
@@ -525,9 +526,13 @@ static void lvs_rh_work(struct work_struct *work)
 		}
 	}
 
-	ret = usb_submit_urb(lvs->urb, GFP_KERNEL);
-	if (ret != 0 && ret != -ENODEV && ret != -EPERM)
-		dev_err(&intf->dev, "urb resubmit error %d\n", ret);
+	if (lvs->urb_complete) {
+		ret = usb_submit_urb(lvs->urb, GFP_KERNEL);
+		if (ret != 0 && ret != -ENODEV && ret != -EPERM)
+			dev_err(&intf->dev, "urb resubmit error %d\n", ret);
+		if (!ret)
+			lvs->urb_complete = 0;
+	}
 }
 
 static void lvs_rh_irq(struct urb *urb)
@@ -535,6 +540,7 @@ static void lvs_rh_irq(struct urb *urb)
 	struct lvs_rh *lvs = urb->context;
 
 	pr_info("%s\n", __func__);
+	lvs->urb_complete = 1;
 	schedule_work(&lvs->rh_work);
 }
 
@@ -590,12 +596,15 @@ static int lvs_rh_probe(struct usb_interface *intf,
 		dev_err(&intf->dev, "couldn't submit lvs urb %d\n", ret);
 		goto free_urb;
 	}
+	lvs->urb_complete = 0;
 #if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 	lvs->lvs_d.ops = NULL;
 	lvs->lvs_d.data = (void *)lvs;
 	lvs->man = register_lvs(&lvs->lvs_d);
 	usbpd_wait_entermode(lvs->man, 1);
 #endif
+	schedule_work(&lvs->rh_work);
+
 	return ret;
 
 free_urb:

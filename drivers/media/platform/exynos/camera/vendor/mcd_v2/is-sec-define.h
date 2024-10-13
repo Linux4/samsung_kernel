@@ -420,6 +420,10 @@ int is_sec_sensorid_find(struct is_core *core);
 int is_sec_sensorid_find_front(struct is_core *core);
 int is_sec_run_fw_sel(int rom_id);
 
+#ifdef RETRY_READING_CAL
+int is_sec_read_rom(int rom_id);
+#endif
+
 int is_sec_readfw(struct is_core *core);
 #ifdef CAMERA_MODULE_COMPRESSED_FW_DUMP
 int is_sec_inflate_fw(u8 **buf, unsigned long *size);
@@ -445,9 +449,6 @@ int is_sec_rom_power_on(struct is_core *core, int position);
 int is_sec_rom_power_off(struct is_core *core, int position);
 void remove_dump_fw_file(void);
 int is_get_dual_cal_buf(int slave_position, char **buf, int *size);
-#if defined(CAMERA_UWIDE_DUALIZED)
-void is_sec_set_rear3_dualized_rom_probe(void);
-#endif
 int is_sec_update_dualized_sensor(struct is_core *core, int position);
 
 int is_get_remosaic_cal_buf(int sensor_position, char **buf, int *size);

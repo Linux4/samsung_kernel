@@ -1140,7 +1140,7 @@ static ssize_t aio_tuner_store(struct device *dev,
 	_arg = arg0;
 	ptr = strsep(&_arg, ",");
 	i = 0;
-	while (ptr != NULL) {
+	while (ptr != NULL && (i < NUM_OF_KEY)) {
 		ret = kstrtol(ptr, 10, &val);
 		if (ret)
 			return ret;
@@ -1649,18 +1649,37 @@ static ssize_t task_boost_show(struct device *dev,
 	return ret;
 }
 
-static ssize_t task_boost_store(struct device *dev,
-                struct device_attribute *attr, const char *buf, size_t count)
+static int get_tid_and_val(int *data, char *buf)
 {
-	int tid;
+	char *arg, *ptr;
+	int i = 0, ret;
+
+	arg = buf;
+	ptr = strsep(&arg, ",");
+
+	while ((ptr != NULL) && (i < 2)) {
+		ret = kstrtoint(ptr, 10, &data[i]);
+		if (ret)
+			break;
+
+		i++;
+		ptr = strsep(&arg, ",");
+	}
+
+	return i;
+}
+
+enum {
+	TASK_BOOST_TYPE1 = 1,
+	TASK_BOOST_TYPE2,
+};
+
+static ssize_t task_boost_type1_store(int tid, size_t count)
+{
 	struct task_struct *task;
 
-	mutex_lock(&task_boost_mutex);
-
-	if (sscanf(buf, "%d", &tid) != 1) {
-		mutex_unlock(&task_boost_mutex);
+	if (tid <= 0)
 		return -EINVAL;
-	}
 
 	/* clear prev task_boost */
 	if (task_boost != 0) {
@@ -1668,6 +1687,8 @@ static ssize_t task_boost_store(struct device *dev,
 		if (task) {
 			ems_boosted_tex(task) = 0;
 			put_task_struct(task);
+
+			trace_emstune_task_boost(task, 0);
 		}
 	}
 
@@ -1676,12 +1697,66 @@ static ssize_t task_boost_store(struct device *dev,
 	if (task) {
 		ems_boosted_tex(task) = 1;
 		put_task_struct(task);
+
+		trace_emstune_task_boost(task, 1);
 	}
 
 	task_boost = tid;
 
-	mutex_unlock(&task_boost_mutex);
 	return count;
+};
+
+static ssize_t task_boost_type2_store(int tid, int val, size_t count)
+{
+	struct task_struct *task;
+
+	if (tid <= 0 || val < 0)
+		return -EINVAL;
+
+	task = get_pid_task(find_vpid(tid), PIDTYPE_PID);
+	if (!task)
+		return -ENOENT;
+
+	ems_boosted_tex(task) = val;
+
+	put_task_struct(task);
+
+	trace_emstune_task_boost(task, val);
+
+	return count;
+};
+
+static ssize_t task_boost_store(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+	char arg[100];
+	int data[2] = {-1, -1};
+	int type, ret;
+
+	mutex_lock(&task_boost_mutex);
+
+	if (sscanf(buf, "%99s", &arg) != 1) {
+		mutex_unlock(&task_boost_mutex);
+		return -EINVAL;
+	}
+
+	type = get_tid_and_val(data, arg);
+
+	switch (type) {
+		case TASK_BOOST_TYPE1:
+			ret = task_boost_type1_store(data[0], count);
+			break;
+		case TASK_BOOST_TYPE2:
+			ret = task_boost_type2_store(data[0], data[1], count);
+			break;
+		default:
+			ret = -EINVAL;
+			break;
+	}
+
+	mutex_unlock(&task_boost_mutex);
+
+	return ret;
 }
 DEVICE_ATTR_RW(task_boost);
 
@@ -1710,6 +1785,8 @@ static ssize_t task_boost_del_store(struct device *dev,
 	if (task) {
 		ems_boosted_tex(task) = 0;
 		put_task_struct(task);
+
+		trace_emstune_task_boost(task, 0);
 	}
 
 	/* clear task_boost at last task_boost_del */

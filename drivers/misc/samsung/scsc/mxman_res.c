@@ -754,7 +754,7 @@ static int mxman_res_transports_deinit_wpan(struct mxman *mxman)
 
 int mxman_res_deinit_subsystem(struct mxman *mxman, enum scsc_subsystem sub)
 {
-	SCSC_TAG_INFO(MXMAN, "Deinit %s subsystem\n", sub ? "WPAN" : "WLAN");
+	SCSC_TAG_INFO(MXMAN, "Deinit %s subsystem\n", (sub == SCSC_SUBSYSTEM_WPAN)? "WPAN" : "WLAN");
 
 	switch (sub) {
 	case SCSC_SUBSYSTEM_WLAN:

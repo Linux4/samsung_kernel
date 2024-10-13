@@ -109,8 +109,8 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_UHD_30FPS = 40,                                            /* 40: UHD 30fps (HDR Off) */
 	ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO = 41,                                   /* 41: UHD 30fps (HDR Auto) */
 	ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON = 42,                                     /* 42: UHD 30fps (HDR On) */
-	ISS_SUB_SCENARIO_UHD_60FPS = 43,                                            /* 43: UHD 60fps (HDR Off) */
-	ISS_SUB_SCENARIO_UHD_60FPS_WDR_AUTO = 44,                                   /* 44: UHD 60fps (HDR Auto) */
+	ISS_SUB_SCENARIO_IDCG_FHD_VIDEO = 43,                                       /* 43: FHD IDCG (Video FHD) */
+	ISS_SUB_SCENARIO_IDCG_UHD_VIDEO = 44,                                       /* 44: UHD IDCG (Video UHD) */
 	ISS_SUB_SCENARIO_UHD_60FPS_WDR_ON = 45,                                     /* 45: UHD 60fps (HDR On)0:fps */
 	ISS_SUB_SCENARIO_FHD_VIDEO_HDR10_WDR_AUTO = 46,                             /* 46: HDR10+ video (HDR Auto) : FHD 30fps	 */
 	ISS_SUB_SCENARIO_UHD_VIDEO_HDR10_WDR_AUTO = 47,                             /* 47: HDR10+ video (HDR Auto) : UHD 30fps */
@@ -157,8 +157,8 @@ enum is_subscenario_id {
 	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS)			\
 	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO)		\
 	|| ((setfile) == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON)		\
-	|| ((setfile) == ISS_SUB_SCENARIO_UHD_60FPS)			\
-	|| ((setfile) == ISS_SUB_SCENARIO_UHD_60FPS_WDR_AUTO)		\
+	|| ((setfile) == ISS_SUB_SCENARIO_IDCG_FHD_VIDEO)		\
+	|| ((setfile) == ISS_SUB_SCENARIO_IDCG_UHD_VIDEO)		\
 	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED)		\
 	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED_960FPS)	\
 	|| ((setfile) == ISS_SUB_SCENARIO_VIDEO_MERGED_HDR_AUTO))
@@ -1151,6 +1151,14 @@ enum aa_transient_action {
 	AA_TRANSIENT_ACTION_MANUAL_FOCUSING,
 };
 
+enum aa_captureExtraInfo_mask {
+	AA_CAPTURE_EXTRA_INFO_REMOSAIC_PROCESSED_BAYER = 1 << 0,   /* bit 0       */
+	AA_CAPTURE_EXTRA_INFO_CROPPED_REMOSAIC_SEAMLESS = 1 << 1,   /* bit 1       */
+	AA_CAPTURE_EXTRA_INFO_PREVIEW_CROPPED_REMOSAIC_SEAMLESS = 1 << 2,   /* bit 2       */
+	AA_CAPTURE_EXTRA_INFO_SUB_CAM_CAPTURE = 1 << 3,            /* bit 3       */
+	AA_CAPTURE_EXTRA_INFO_CROPPED_REMOSAIC_ZOOM = 0xFF << 24,  /* bit 24 ~ 31 */
+};
+
 enum aa_transient_capture_action {
 	AA_TRANSIENT_CAPTURE_ACTION_OFF = 0,
 	AA_TRANSIENT_CAPTURE_ACTION_FAST_CAPTURE = 1,
@@ -1330,7 +1338,9 @@ struct camera2_aa_dm {
 	uint32_t			vendor_touchBvChange;
 	float				vendor_objectDistanceCm;
 	int32_t				vendor_colorTempKelvin;
-	int32_t				vendor_dynamicShotValue[3];
+	int32_t				vendor_dynamicShotValue;        // DS Value
+	int32_t				vendor_dynamicShotDeviceLSB;    // DS Device Info LSB 32bit
+	int32_t				vendor_dynamicShotDeviceMSB;    // DS Device Info MSB 32bit
 	int32_t				vendor_lightConditionValue;
 	int32_t				vendor_dynamicShotExtraInfo;
 	struct aa_apexInfo		vendor_apexInfo;
@@ -1360,7 +1370,7 @@ struct camera2_aa_dm {
 	enum aa_moire_trigger		vendor_moireTrigger;
 	enum aa_sensor_state		vendor_sensorResultState;
 	enum aa_sensor_state		vendor_sensorAvailableState;
-	uint32_t			vendor_skipAFStateCapture; 
+	uint32_t			vendor_skipAFStateCapture;
 	uint32_t			vendor_nightModeSuggest; // 0(off), 1(on)
 	enum aa_night_indicator	vendor_nightIndicator;
 	uint32_t vendor_reserved[21];
@@ -2077,6 +2087,9 @@ enum camera_client_index {
 	CAMERA_APP_CATEGORY_TIKTOK             = 21,
 	CAMERA_APP_CATEGORY_SMART_STAY         = 22,
 	CAMERA_APP_CATEGORY_SABC               = 23,
+	CAMERA_APP_CATEGORY_SEAD               = 24,
+	CAMERA_APP_CATEGORY_POKEMONGO          = 25,
+	CAMERA_APP_CATEGORY_MEET               = 26,
 	CAMERA_APP_CATEGORY_MAX
 };
 
@@ -2131,6 +2144,23 @@ struct camera2_segmentationInfo_uctl
 	uint32_t version;
 	uint32_t resultType;
 	uint16_t object_roi[RECT_IDX_MAX];
+};
+
+struct optical_flow_block_Info {
+	int32_t left;
+	int32_t top;
+	int32_t right;
+	int32_t bottom;
+	int32_t x;
+	int32_t y;
+	int32_t blockMotionScore;
+};
+
+struct camera2_optical_flow_Info {
+	int32_t haveBlock;
+	int32_t motionScore;
+	struct optical_flow_block_Info blockInfos[5];
+	int32_t blocksNum;
 };
 
 /** \brief
@@ -2193,7 +2223,8 @@ struct camera2_uctl {
 	uint32_t			highResolutionMode;
 	enum camera_flip_mode sensorFlip;
 	enum camera_external_lens_mask externalLensType;
-    uint32_t			textDetectionInfo;
+	uint32_t			textDetectionInfo;
+	struct camera2_optical_flow_Info opticalFlowInfo;
 	uint32_t			reserved[46];
 };
 
@@ -2227,6 +2258,7 @@ struct camera2_udm {
 	uint32_t			localMotionIndex;
 	struct camera2_frame_info_udm	frame_info;
 	uint64_t			sensorVsyncTime;
+	uint32_t			globalMotionState;
 	uint32_t			reserved[46];
 };
 

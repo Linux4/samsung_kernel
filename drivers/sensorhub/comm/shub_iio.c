@@ -30,6 +30,15 @@
 #include "../sensormanager/shub_sensor_manager.h"
 #include "shub_kfifo_buf.h"
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 #define SCONTEXT_DATA_LEN       56
 #define SCONTEXT_HEADER_LEN     8
 
@@ -83,6 +92,8 @@ static struct iio_probe_device iio_probe_list[] = {
 	{SENSOR_TYPE_LIGHT_SEAMLESS, "light_seamless_sensor", 4 },
 	{SENSOR_TYPE_LED_COVER_EVENT, "led_cover_event_sensor", 1 },
 	{SENSOR_TYPE_LIGHT_IR, "light_ir_sensor", 24 },
+	{SENSOR_TYPE_DROP_CLASSIFIER, "drop_classifier", 25 },
+	{SENSOR_TYPE_SEQUENTIAL_STEP, "sequential_step", 4 },
 };
 
 struct shub_iio_device {
@@ -220,7 +231,7 @@ static inline void set_channel_spec(struct iio_chan_spec *iio_channel, int realb
 }
 
 /* this function should be called when sensor list of sensor manager is existed */
-int initialize_indio_dev(struct device *dev)
+int __mockable initialize_indio_dev(struct device *dev)
 {
 	int timestamp_len = sizeof(u64);
 	int type;

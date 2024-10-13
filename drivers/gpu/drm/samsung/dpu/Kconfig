@@ -143,11 +143,6 @@ config EXYNOS_LP_INSERT_TRANSFER
 	depends on DRM_SAMSUNG_DECON
 	default n
 
-config SKIP_MIPI_ERROR
-	bool "when DPU recieve mipi error from DDI, only print SFR dump and don't occured panic "
-	depends on DRM_SAMSUNG_DECON
-	default n
-
 source "drivers/gpu/drm/samsung/dpu/panel/Kconfig"
 source "drivers/gpu/drm/samsung/dpu/mcd_cal/Kconfig"
 endif

@@ -63,37 +63,26 @@ int wlbt_sysevent_notifier_cb(struct notifier_block *nb,
 						unsigned long code, void *nb_data)
 {
 	struct notif_data *notifdata = NULL;
-
 	notifdata = (struct notif_data *) nb_data;
+
+	if (!notifdata) {
+		pr_info("nb_data parameter is null\n");
+		return NOTIFY_DONE;
+	}
+
 	switch (code) {
 	case SYSTEM_EVENT_BEFORE_SHUTDOWN:
-		pr_info("%s: %s: %s\n", __func__, notifdata->pdev->name,
-			__stringify(SYSTEM_EVENT_BEFORE_SHUTDOWN));
-		break;
 	case SYSTEM_EVENT_AFTER_SHUTDOWN:
-		pr_info("%s: %s: %s\n", __func__, notifdata->pdev->name,
-			__stringify(SYSTEM_EVENT_AFTER_SHUTDOWN));
-		break;
 	case SYSTEM_EVENT_RAMDUMP_NOTIFICATION:
-		pr_info("%s: %s: %s\n", __func__, notifdata->pdev->name,
-			__stringify(SYSTEM_EVENT_RAMDUMP_NOTIFICATION));
-		break;
-	case SYSTEM_EVENT_BEFORE_POWERUP:
-		if (nb_data) {
-			notifdata = (struct notif_data *) nb_data;
-			pr_info("%s: %s: %s, crash_status:%d, enable_ramdump:%d\n",
-				__func__, notifdata->pdev->name,
-				__stringify(SYSTEM_EVENT_BEFORE_POWERUP),
-				notifdata->crashed, notifdata->enable_ramdump);
-		} else {
-			pr_info("%s: %s: %s\n", __func__,
-				notifdata->pdev->name,
-				__stringify(SYSTEM_EVENT_BEFORE_POWERUP));
-		}
-		break;
 	case SYSTEM_EVENT_AFTER_POWERUP:
 		pr_info("%s: %s: %s\n", __func__, notifdata->pdev->name,
-		__stringify(SYSTEM_EVENT_AFTER_POWERUP));
+			__stringify(code));
+		break;
+	case SYSTEM_EVENT_BEFORE_POWERUP:
+		pr_info("%s: %s: %s, crash_status:%d, enable_ramdump:%d\n",
+			__func__, notifdata->pdev->name,
+			__stringify(code),
+			notifdata->crashed, notifdata->enable_ramdump);
 		break;
 	default:
 		break;

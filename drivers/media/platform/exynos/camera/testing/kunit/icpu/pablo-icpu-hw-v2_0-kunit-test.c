@@ -90,7 +90,8 @@ static void pablo_icpu_hw_force_powerdown_kunit_test(struct kunit *test)
 
 	test_pdata.force_powerdown_seq[2].type = 0xBABEFACE;
 
-	HW_OPS(force_powerdown, test_pdata.num_force_powerdown_step, test_pdata.force_powerdown_seq);
+	HW_OPS(set_reg_sequence, test_pdata.num_force_powerdown_step,
+			test_pdata.force_powerdown_seq);
 
 	icpu_hw_reset_io_ops();
 }

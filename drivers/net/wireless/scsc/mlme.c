@@ -17,6 +17,9 @@
 #include "mib.h"
 #include "mgt.h"
 #include "cac.h"
+#if defined(CONFIG_SCSC_WLAN_TAS)
+#include "tx_api.h"
+#endif
 
 #define SLSI_NOA_CONFIG_REQUEST_ID          (1)
 #define SLSI_MLME_ARP_DROP_FREE_SLOTS_COUNT 16
@@ -234,6 +237,9 @@ static struct sk_buff *slsi_mlme_tx_rx(struct slsi_dev *sdev,
 	fapi_set_u16(skb, sender_pid, sig_wait->process_id);
 	spin_unlock_bh(&sig_wait->send_signal_lock);
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_mlme_tas_deferred_tx_sar_limit(sdev);
+#endif
 	err = slsi_tx_control(sdev, dev, skb);
 	if (err != 0) {
 		SLSI_ERR(sdev, "Failed to send mlme signal:0x%.4X, err=%d\n", req_id, err);
@@ -3955,7 +3961,8 @@ int slsi_mlme_send_frame_mgmt(struct slsi_dev *sdev, struct net_device *dev, con
 		return -EINVAL;
 	}
 
-	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_send_frame_req(vif:%d, message_type:%d,host_tag:%d)\n", ndev_vif->ifnum, msg_type, host_tag);
+	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_send_frame_req(vif:%d, message_type:%d,host_tag:%d, frame_len:%d)\n",
+		      ndev_vif->ifnum, msg_type, host_tag, frame_len);
 	slsi_debug_frame(sdev, dev, req, "TX");
 	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_SEND_FRAME_CFM);
 	if (!cfm)
@@ -6007,4 +6014,185 @@ int slsi_mlme_scheduled_pm_leaky_ap_detect(struct slsi_dev *sdev, struct net_dev
 	kfree_skb(cfm);
 	return r;
 }
+
+#if defined(CONFIG_SCSC_WLAN_TAS)
+int slsi_mlme_tas_req(struct slsi_dev *sdev, struct sk_buff *skb)
+{
+	int ret = 0;
+
+	fapi_set_u16(skb, sender_pid, SLSI_TX_PROCESS_ID_TAS_NO_CFM);
+
+	ret = slsi_tx_control(sdev, NULL, skb);
+	if (ret)
+		kfree_skb(skb);
+	return ret;
+}
+
+static struct sk_buff *slsi_mlme_tas_alloc_sar_limit(struct slsi_dev *sdev, struct tas_sar_param *sar_param)
+{
+	struct sk_buff *req = NULL;
+	struct fapi_vif_signal_header *header = NULL;
+	size_t sig_size = 0;
+
+	sig_size = fapi_sig_size(mlme_sar_req);
+	req = alloc_skb(sig_size, GFP_ATOMIC);
+	if (!req) {
+		SLSI_ERR(sdev, "fapi_alloc failed\n");
+		return NULL;
+	}
+
+	slsi_skb_cb_init(req)->sig_length = sig_size;
+	slsi_skb_cb_get(req)->data_length = sig_size;
+
+	header = (struct fapi_vif_signal_header *)skb_put(req, sig_size);
+	memset(header, 0, sig_size);
+	header->id = cpu_to_le16(MLME_SAR_REQ);
+	header->receiver_pid = 0;
+	header->sender_pid = 0;
+	header->fw_reference = 0;
+	header->vif = 0;
+
+	fapi_set_u16(req, u.mlme_sar_req.short_window_number, sar_param->win_num);
+	fapi_set_u16(req, u.mlme_sar_req.flags, sar_param->flags);
+	fapi_set_u16(req, u.mlme_sar_req.sar_limit, sar_param->sar_limit);
+
+	return req;
+}
+
+/* This function can be called on _BH disabled process */
+static void slsi_mlme_tas_set_tx_sar_limit_no_cfm(struct slsi_dev *sdev, struct tas_sar_param *sar_param)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct sk_buff *req = NULL;
+	int ret = 0;
+
+	req = slsi_mlme_tas_alloc_sar_limit(sdev, sar_param);
+	if (!req)
+		return;
+
+	ret = slsi_mlme_tas_req(sdev, req);
+	if (ret) {
+		SLSI_ERR(sdev, "slsi_mlme_req failed [%d]\n", ret);
+		return;
+	}
+
+	memcpy(&tas_info->previous_sar_param, sar_param, sizeof(tas_info->previous_sar_param));
+	SLSI_INFO(sdev, "TAS requested win_num [%d] flags [%d] limit [%d]\n",
+		  sar_param->win_num, sar_param->flags, sar_param->sar_limit);
+}
+
+/* it should be called after pcie claim */
+void slsi_mlme_tas_deferred_tx_sar_limit(struct slsi_dev *sdev)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct tas_sar_param sar_param = {0};
+
+	slsi_spinlock_lock(&tas_info->req_lock);
+
+	if (tas_info->deferred_sar_param.sar_limit) {
+		memcpy(&sar_param, &tas_info->deferred_sar_param, sizeof(sar_param));
+		memset(&tas_info->deferred_sar_param, 0x0, sizeof(tas_info->deferred_sar_param));
+
+		slsi_mlme_tas_set_tx_sar_limit_no_cfm(sdev, &sar_param);
+	}
+
+	slsi_spinlock_unlock(&tas_info->req_lock);
+}
+
+void slsi_mlme_tas_tx_sar_limit(struct slsi_dev *sdev, struct tas_sar_param *sar_param)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+
+	if (!sar_param) {
+		SLSI_ERR(sdev, "Invalid param : !sar_param\n");
+		return;
+	}
+
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	if (scsc_mx_service_claim(WLAN_MLME_REQ)) {
+		SLSI_ERR(sdev, "Failed to get the PCIe link\n");
+		return;
+	}
+#endif
+	slsi_spinlock_lock(&tas_info->req_lock);
+
+	memset(&tas_info->deferred_sar_param, 0x0, sizeof(tas_info->deferred_sar_param));
+
+	if (tas_info->previous_sar_param.sar_limit == sar_param->sar_limit)
+		goto release;
+
+	if (!slsi_tx_get_gcod()) {
+		memcpy(&tas_info->deferred_sar_param, sar_param, sizeof(tas_info->deferred_sar_param));
+		SLSI_INFO(sdev, "TAS deferred win_num [%d] flag [%d] sar_limit [%d]\n",
+			  tas_info->deferred_sar_param.win_num,
+			  tas_info->deferred_sar_param.flags,
+			  tas_info->deferred_sar_param.sar_limit);
+		goto release;
+	}
+
+	slsi_mlme_tas_set_tx_sar_limit_no_cfm(sdev, sar_param);
+release:
+	slsi_spinlock_unlock(&tas_info->req_lock);
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	scsc_mx_service_release(WLAN_MLME_REQ);
+#endif
+}
+
+static void slsi_mlme_tas_clear_param(struct slsi_dev *sdev)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+
+	memset(&tas_info->deferred_sar_param, 0x0, sizeof(tas_info->deferred_sar_param));
+	memset(&tas_info->previous_sar_param, 0x0, sizeof(tas_info->previous_sar_param));
+}
+
+void slsi_mlme_tas_set_short_win_num(struct slsi_dev *sdev, struct tas_sar_param *sar_param)
+{
+	struct sk_buff *req;
+	struct sk_buff *cfm;
+
+	slsi_mlme_tas_clear_param(sdev);
+
+	req = fapi_alloc(mlme_sar_req, MLME_SAR_REQ, 0, 0);
+	if (!req) {
+		SLSI_ERR(sdev, "fapi_alloc failed\n");
+		return;
+	}
+
+	fapi_set_u16(req, u.mlme_sar_req.short_window_number, sar_param->win_num);
+	fapi_set_u16(req, u.mlme_sar_req.flags, sar_param->flags);
+	fapi_set_u16(req, u.mlme_sar_req.sar_limit, sar_param->sar_limit);
+
+	SLSI_INFO(sdev, "TAS set win_num [%d] limit [%d]\n", sar_param->win_num, sar_param->sar_limit);
+	cfm = slsi_mlme_req_cfm(sdev, NULL, req, MLME_SAR_CFM);
+	if (!cfm) {
+		SLSI_ERR(sdev, "short window number set failed\n");
+		return;
+	}
+
+	if (fapi_get_u16(cfm, u.mlme_sar_cfm.result_code) != FAPI_RESULTCODE_SUCCESS)
+		SLSI_ERR(sdev, "mlme_sar_cfm (result:0x%04x) ERROR\n", fapi_get_u16(cfm, u.mlme_sar_cfm.result_code));
+
+	kfree_skb(cfm);
+}
+
+void slsi_mlme_tas_init(struct slsi_dev *sdev)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+
+	SLSI_INFO(sdev, "TAS mlme init\n");
+
+	slsi_mlme_tas_clear_param(sdev);
+	slsi_spinlock_create(&tas_info->req_lock);
+	slsi_wake_lock_init(NULL, &tas_info->wlan_wl_tas.ws, "wlan_tas");
+}
+
+void slsi_mlme_tas_deinit(struct slsi_dev *sdev)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+
+	SLSI_INFO(sdev, "TAS mlme deinit\n");
+	slsi_wake_lock_destroy(&tas_info->wlan_wl_tas);
+}
+#endif
 

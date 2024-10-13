@@ -26,6 +26,15 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
@@ -133,9 +142,14 @@ static ssize_t logging_data_show(struct device *dev, struct device_attribute *at
 
 static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct mag_power_event *sensor_value =
-	    (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
+	struct mag_power_event *sensor_value;
 
+	if (!get_sensor_probe_state(SENSOR_TYPE_GEOMAGNETIC_POWER)) {
+		shub_errf("sensor is not probed!");
+		return 0;
+	}
+
+	sensor_value = (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
 	shub_info("%d,%d,%d\n", sensor_value->x, sensor_value->y, sensor_value->z);
 
 	if (!get_sensor_enabled(SENSOR_TYPE_GEOMAGNETIC_POWER)) {
@@ -240,7 +254,7 @@ static DEVICE_ATTR_RO(dac);
 static DEVICE_ATTR_RO(status);
 static DEVICE_ATTR_RO(logging_data);
 
-static struct device_attribute *mag_attrs[] = {
+__visible_for_testing struct device_attribute *mag_attrs[] = {
 	&dev_attr_adc,
 	&dev_attr_dac,
 	&dev_attr_raw_data,

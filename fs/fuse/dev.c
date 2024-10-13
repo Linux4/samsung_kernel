@@ -1248,6 +1248,7 @@ static ssize_t fuse_dev_do_read(struct fuse_dev *fud, struct file *file,
 			   fc->max_write))
 		return -EINVAL;
 
+	/* @fs.sec -- 51ab84ba5e7a5c06d72ac60a9679ac69 -- */
 	if ((current->flags & PF_NOFREEZE) == 0) {
 		current->flags |= PF_NOFREEZE | PF_MEMALLOC_NOFS;
 		printk_ratelimited(KERN_WARNING "%s(%d): This thread should not be frozen\n",
@@ -1948,7 +1949,7 @@ static ssize_t fuse_dev_do_write(struct fuse_dev *fud,
 		err = copy_out_args(cs, req->args, nbytes);
 	fuse_copy_finish(cs);
 
-	if (!err && req->in.h.opcode == FUSE_CANONICAL_PATH) {
+	if (!err && req->in.h.opcode == FUSE_CANONICAL_PATH && !oh.error) {
 		char *path = (char *)req->args->out_args[0].value;
 
 		path[req->args->out_args[0].size - 1] = 0;

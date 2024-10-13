@@ -24,6 +24,7 @@
 #include "is-sec-define.h"
 #include "is-device-sensor-peri.h"
 #include "is-sysfs.h"
+#include "is-vender-test-sensor.h"
 
 static int is_vender_caminfo_open(struct inode *inode, struct file *file)
 {
@@ -343,6 +344,13 @@ static int is_vender_caminfo_sec2lsi_cmd_get_module_info(void __user *user_data)
 			info("index :%d", finfo->rom_header_version_start_addr);
 		}
 
+#ifdef RETRY_READING_CAL
+		if (!test_bit(IS_ROM_STATE_SKIP_CAL_LOADING, &finfo->rom_state) &&
+			!test_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state)) {
+			is_sec_read_rom(rom_id);
+		}
+#endif
+
 		if (!test_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state)) {
 			info("%s : ROM[%d] cal data not read, skipping sec2lsi", __func__, rom_id);
 			ret = -EINVAL;
@@ -657,7 +665,7 @@ static int is_vender_caminfo_cmd_perform_cal_reload(void __user *user_data)
 	/* Perform cal reload for all the sensors only when rear camera is opened */
 	if (rom_id == ROM_ID_REAR) {
 		for (curr_rom_id = 0; curr_rom_id < ROM_ID_MAX; curr_rom_id++) {
-			if (specific->rom_valid[curr_rom_id] == true) {
+			if (specific->rom_valid[curr_rom_id][0] == true) {
 				is_sec_get_sysfs_finfo(&finfo, curr_rom_id);
 				clear_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state);
 				ret = is_sec_run_fw_sel(curr_rom_id);
@@ -746,6 +754,14 @@ static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigne
 #ifdef CONFIG_OIS_USE
 	case CAMINFO_CMD_ID_GET_OIS_HALL_DATA:
 		ret = is_vender_caminfo_cmd_get_ois_hall_data(ioctl_cmd.data);
+		break;
+#endif
+#ifdef USE_SENSOR_DEBUG
+	case CAMINFO_CMD_ID_SET_MIPI_PHY:
+		ret = is_vender_caminfo_cmd_set_mipi_phy(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_MIPI_PHY:
+		ret = is_vender_caminfo_cmd_get_mipi_phy(ioctl_cmd.data);
 		break;
 #endif
 #ifdef CONFIG_SEC_CAL_ENABLE

@@ -24,7 +24,6 @@
 #include <linux/input/mt.h>
 #include <linux/of_gpio.h>
 #include <linux/of_irq.h>
-
 #include "nt36xxx.h"
 #if NVT_TOUCH_ESD_PROTECT
 #include <linux/jiffies.h>
@@ -2761,7 +2760,7 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 #endif
 
 	if (ts->power_status == LP_MODE_STATUS) {
-		pm_wakeup_event(&ts->input_dev->dev, 500);
+		__pm_wakeup_event(ts->nvt_ws, 500);
 
 		ret = wait_for_completion_interruptible_timeout(&ts->resume_done, msecs_to_jiffies(500));
 		if (ret == 0) {
@@ -3437,8 +3436,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		}
 	}
 
-	if (ts->platdata->support_ear_detect)
-		device_init_wakeup(&ts->input_dev->dev, 1);
+	ts->nvt_ws = wakeup_source_register(NULL, "tsp");
 
 	ret = nvt_ts_fw_update_on_probe();
 	if (ret) {
@@ -3485,8 +3483,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		input_err(true, &client->dev,"failed to init for factory function\n");
 		goto err_init_sec_fn;
 	}
-
-	device_init_wakeup(&client->dev, true);
 
 	init_completion(&ts->resume_done);
 	complete_all(&ts->resume_done);
@@ -3559,8 +3555,7 @@ err_flash_proc_init_failed:
 err_create_nvt_esd_check_wq_failed:
 #endif
 err_fw_update_failed:
-	if (ts->platdata->support_ear_detect)
-		device_init_wakeup(&ts->input_dev->dev, 0);
+	wakeup_source_unregister(ts->nvt_ws);
 	free_irq(client->irq, ts);
 err_int_request_failed:
 #if PROXIMITY_FUNCTION
@@ -3667,8 +3662,7 @@ static int32_t nvt_ts_remove(struct spi_device *client)
 
 	cancel_delayed_work_sync(&ts->work_read_info);
 
-	if (ts->platdata->support_ear_detect)
-		device_init_wakeup(&ts->input_dev->dev, 0);
+	wakeup_source_unregister(ts->nvt_ws);
 
 	nvt_irq_enable(false);
 	pinctrl_configure(ts, false);
@@ -3737,8 +3731,7 @@ static void nvt_ts_shutdown(struct spi_device *client)
 
 	ts->shutdown_called = true;
 
-	if (ts->platdata->support_ear_detect)
-		device_init_wakeup(&ts->input_dev->dev, 0);
+	wakeup_source_unregister(ts->nvt_ws);
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	cancel_delayed_work_sync(&ts->work_vbus);

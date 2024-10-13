@@ -596,7 +596,7 @@ static ssize_t sm5714_rear_flash_store(struct device *dev, struct device_attribu
 		fled_set_fled_current(fled, 0x0); /* Set fled current= 600mA */
 
 		if (fled->pdata->led.en_fled == true) {
-			goto out_skip;
+			sm5714_fled_control(FLED_MODE_OFF);
 		}
 		if (fled->flash_on_cnt == 0) {
 			sm5714_fled_check_vbus(fled);

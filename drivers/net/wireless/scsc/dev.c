@@ -54,6 +54,10 @@
 
 #include "qsfs.h"
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+#include "mlme.h"
+#endif
+
 char *slsi_mib_file = "wlan.hcf";
 module_param_named(mib_file, slsi_mib_file, charp, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mib_file, "mib data filename");
@@ -501,7 +505,9 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #ifdef CONFIG_SCSC_WLAN_GSCAN_ENABLE
 	slsi_nl80211_vendor_init(sdev);
 #endif
-
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_mlme_tas_init(sdev);
+#endif
 	if (slsi_cfg80211_register(sdev) != 0) {
 		SLSI_ERR(sdev, "failed to register with cfg80211\n");
 		goto err_udi_proc_init;
@@ -740,6 +746,9 @@ void slsi_dev_detach(struct slsi_dev *sdev)
 #ifdef CONFIG_SCSC_WLAN_GSCAN_ENABLE
 	slsi_nl80211_vendor_deinit(sdev);
 #endif
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_mlme_tas_deinit(sdev);
+#endif
 
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Unregister netif\n");
 	slsi_netif_remove_all(sdev, is_cfg80211);
@@ -824,6 +833,9 @@ int __init slsi_dev_load(void)
 #ifdef CONFIG_SCSC_WLAN_HOST_DPD
 	slsi_wlan_dpd_mmap_create();
 #endif
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_tas_nl_init();
+#endif
 	SLSI_INFO_NODEV("--- Maxwell Wi-Fi driver loaded successfully ---\n");
 	return 0;
 }
@@ -855,6 +867,9 @@ void __exit slsi_dev_unload(void)
 
 	slsi_udi_deinit();
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_tas_nl_deinit();
+#endif
 	SLSI_INFO_NODEV("--- Maxwell Wi-Fi driver unloaded successfully ---\n");
 }
 

@@ -5982,12 +5982,12 @@ void himax_run_rawdata_all(struct himax_ts_data *data)
 {
 	mutex_lock(&data->device_lock);
 	RI("%s\n", __func__);
-	get_rawcap(&data->sec);
-	get_open(&data->sec);
+	run_sram_test(&data->sec);
 	get_mic_open(&data->sec);
+	get_open(&data->sec);
 	get_short(&data->sec);
 	get_noise(&data->sec);
-	run_sram_test(&data->sec);
+	get_rawcap(&data->sec);
 	mutex_unlock(&data->device_lock);
 }
 

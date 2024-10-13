@@ -2,11 +2,8 @@
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
 #include <linux/uh.h>
-#include <linux/nsproxy.h>
 #include <linux/security.h>
-#include <../../fs/mount.h>
 #include <linux/sched/signal.h>
-
 #include <linux/kdp.h>
 
 struct task_security_struct {
@@ -27,7 +24,6 @@ struct test_case {
 enum __KDP_TEST {
 	CMD_ID_CRED = 0,
 	CMD_ID_SEC_CONTEXT,
-	CMD_ID_NS,
 };
 
 #define KDP_PA_READ		0
@@ -52,16 +48,6 @@ static void kdp_print(const char *fmt, ...)
 	va_start(aptr, fmt);
 	kdp_test_len += vsprintf(kdp_test_buf + kdp_test_len, fmt, aptr);
 	va_end(aptr);
-}
-
-static struct vfsmount *get_vfsmnt(struct task_struct *p)
-{
-	if (!p || !(p->nsproxy) ||
-		!(p->nsproxy->mnt_ns) ||
-		!(p->nsproxy->mnt_ns->root))
-		return NULL;
-
-	return ((struct kdp_mount *)p->nsproxy->mnt_ns->root)->mnt;
 }
 
 static bool hyp_check_page_ro(u64 va)
@@ -91,10 +77,6 @@ static int test_case_kdp_ro(int cmd_id)
 		case CMD_ID_SEC_CONTEXT:
 			/* Here dst points to process security context */
 			dst = (u64)__task_cred(p)->security;
-			break;
-		case CMD_ID_NS:
-			/* Here dst points to process security context */
-			dst = (u64)get_vfsmnt(p);
 			break;
 		}
 
@@ -191,12 +173,6 @@ static int test_case_sec_context_match_bp(void)
 	return test_case_match_bp(CMD_ID_SEC_CONTEXT);
 }
 
-static int test_case_ns_ro(void)
-{
-	kdp_print("NAMESPACE PROTECTION ");
-	return test_case_kdp_ro(CMD_ID_NS);
-}
-
 ssize_t kdp_test_read(struct file *filep, char __user *buffer, size_t count, loff_t *ppos)
 {
 	int ret = 0, temp_ret = 0, i = 0;
@@ -205,7 +181,6 @@ ssize_t kdp_test_read(struct file *filep, char __user *buffer, size_t count, lof
 		{test_case_sec_context_ro,	"TEST TASK_SECURITY_CONTEXT_RO"},
 		{test_case_cred_match_bp,	"TEST CRED_MATCH_BACKPOINTERS"},
 		{test_case_sec_context_match_bp,	"TEST TASK_SEC_CONTEXT_BACKPOINTER"},
-		{test_case_ns_ro,	"TEST NAMESPACE_RO"},
 	};
 	int tc_num = sizeof(tc_funcs)/sizeof(struct test_case);
 

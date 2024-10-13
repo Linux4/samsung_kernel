@@ -221,6 +221,7 @@ struct decon_config {
 	struct exynos_drm_pps	pps;
 	unsigned int		out_bpc;
 	unsigned int		in_bpc;
+	unsigned int		default_max_bpc;
 	unsigned int		fps;
 	unsigned int		rcd_en;
 	u32			svsync_time;

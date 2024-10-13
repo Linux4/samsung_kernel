@@ -71,7 +71,8 @@ enum {
 #define ENABLE_SELF_MOVE_SEQ ("enable_self_move_seq")
 #define DISABLE_SELF_MOVE_SEQ ("disable_self_move_seq")
 #endif
-#define SELF_MASK_CHECKSUM_SEQ ("self_mask_checksum_seq")
+#define SELF_MASK_CRC_SEQ ("self_mask_crc_seq")
+#define SELF_MASK_DATA_CHECK_SEQ ("self_mask_data_check_seq")
 
 enum AOD_MAPTBL {
 	SELF_MASK_CTRL_MAPTBL = 0,
@@ -99,6 +100,11 @@ enum AOD_MAPTBL {
 #endif
 	MAX_AOD_MAPTBL,
 };
+struct aod_dev_info;
+
+struct aod_custom_ops {
+	int (*self_mask_data_check)(struct aod_dev_info *aod);
+};
 
 struct aod_tune {
 	char *name;
@@ -107,8 +113,9 @@ struct aod_tune {
 	struct maptbl *maptbl;
 	u32 nr_maptbl;
 	int self_mask_en;
-	u8 *self_mask_checksum;
-	u32 self_mask_checksum_len;
+	u8 *self_mask_crc;
+	u32 self_mask_crc_len;
+	struct aod_custom_ops custom_ops;
 };
 
 struct clk_pos {
@@ -148,12 +155,12 @@ struct aod_ioctl_props {
 	int self_move_pattern;
 #endif
 	int prev_rotate;
-	u8* self_mask_checksum;
+	u8 *self_mask_crc;
 	/*
 		because len is different in each ddi
 		0 : unsupport
 	*/
-	int self_mask_checksum_len;
+	int self_mask_crc_len;
 };
 
 struct aod_dev_info {
@@ -165,6 +172,7 @@ struct aod_dev_info {
 	char *temp;
 
 	struct aod_ops *ops;
+	struct aod_custom_ops *custom_ops;
 	struct miscdevice dev;
 
 	struct img_info icon_img;
@@ -191,5 +199,6 @@ int aod_drv_unprepare(struct panel_device *panel);
 int aod_drv_probe(struct panel_device *panel, struct aod_tune *aod_tune);
 int aod_drv_remove(struct panel_device *panel);
 int panel_do_aod_seqtbl_by_name(struct aod_dev_info *aod, char *seqname);
-
+bool check_aod_seqtbl_exist(struct aod_dev_info *aod, char *seqname);
+int panel_do_aod_seqtbl_by_name_nolock(struct aod_dev_info *aod, char *seqname);
 #endif //__AOD_DRV_H__

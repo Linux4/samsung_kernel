@@ -307,6 +307,11 @@ uint32_t cpacketbuffer_read(struct cpacketbuffer *buffer, void *buf, uint32_t nu
 		/* Partial data packet read requested, this means we remove the whole thing */
 		++num_packets;
 
+	if (buffer->num_packets < cpacketbuffer_free_space(buffer) + 1) {
+		SCSC_TAG_ERR(CPKTBUFF, "Free space MUST NOT be bigger than total number of packets. \n");
+		return 0;
+	}
+
 	/* Ensure we have enough actual data to satisfy the read request, otherwise
 	 * truncate the read request to the amount of data available. */
 	num_available_packets = buffer->num_packets - (cpacketbuffer_free_space(buffer) + 1);

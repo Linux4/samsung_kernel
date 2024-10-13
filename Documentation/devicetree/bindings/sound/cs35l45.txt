@@ -60,6 +60,9 @@ Optional properties:
     for 'sync-num-slaves' number of parts to indicate PLL lock events before
     broadcasting MDSYNC power packets.
 
+  - cirrus,fast-switch : Specify file names for Fast Use Case Switching DSP
+    feature.  Files names are comma-separated strings.
+
 Optional Voltage Based Amplifier BPE Sub-node:
 
   Details found in section 4.10
@@ -343,8 +346,8 @@ cs35l45: cs35l45@30 {
 	cirrus,use-tdm-slots;
 	cirrus,asp-sdout-hiz-ctrl = <0x2>;
 	cirrus,dsp-part-name = "cs35l45";
-	cirrus,fast-switch = "sample_fast_switch1.txt",
-		"sample_fast_switch2.txt";
+	cirrus,fast-switch = "sample_fast_switch1.bin",
+		"sample_fast_switch2.bin";
 
 	cirrus,bpe-inst-config {
 		bpe-inst-thld = <0x1E 0x32 0x46 0x5A>;

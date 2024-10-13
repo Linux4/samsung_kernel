@@ -81,14 +81,18 @@ int pablo_icpu_boot(void)
 	}
 #endif
 
-	/* Prepare some hw dependencies */
-	pablo_icpu_hw_misc_prepare(pdata);
-
 	/* TODO: Check clk config ?? */
 
 	ret = load_firmware(get_icpu_dev(core));
-	if (ret)
-		return ret;
+	if (ret) {
+		ICPU_ERR("icpu load firmware fail: %d", ret);
+		goto err_load_firmware;
+	}
+
+	pablo_icpu_hw_set_sw_reset(pdata);
+
+	/* Prepare some hw dependencies */
+	pablo_icpu_hw_misc_prepare(pdata);
 
 	icpubuf = icpu_firmware_get_buf_bin();
 	fw_info = pablo_icpu_mem_get_buf_info(icpubuf);
@@ -128,6 +132,14 @@ int pablo_icpu_boot(void)
 		return ret;
 
 	return 0;
+
+err_load_firmware:
+	ICPU_INFO("pm_runtime_put_sync: E");
+	if (pm_runtime_put_sync(&core->pdev->dev))
+		ICPU_ERR("pm_runtime_put_sync is fail(%d)", ret);
+	ICPU_INFO("pm_runtime_put_sync: X");
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(pablo_icpu_boot);
 

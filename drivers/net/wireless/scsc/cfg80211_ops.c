@@ -1,6 +1,6 @@
 /***************************************************************************
  *
- * Copyright (c) 2014 - 2022 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -1631,10 +1631,15 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 		netif_dormant_on(dev);
 		goto exit_with_vif;
 	}
+
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
 	peer = slsi_peer_add(sdev, dev, (u8 *)bssid, SLSI_STA_PEER_QUEUESET + 1);
 	ndev_vif->sta.resp_id = 0;
-	if (!peer)
+	if (!peer) {
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 		goto exit_with_error;
+	}
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
 
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
 	if (ndev_vif->sta.drv_bss_selection) {
@@ -3751,6 +3756,7 @@ int slsi_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 		goto exit;
 	}
 
+	SLSI_NET_INFO(dev, "fc:%d, len:%d\n", mgmt->frame_control, len);
 	if (!(ieee80211_is_auth(mgmt->frame_control))) {
 		SLSI_NET_DBG2(dev, SLSI_CFG80211, "Mgmt Frame Tx: iface_num = %d, channel = %d, wait = %d, noAck = %d,"
 			      "offchannel = %d, mgmt->frame_control = %d, vif_type = %d\n", ndev_vif->ifnum, chan->hw_value,

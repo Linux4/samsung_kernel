@@ -3285,9 +3285,9 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 	int                         status = WLAN_STATUS_SUCCESS;
 	struct slsi_peer            *peer = NULL;
 	u8                          *assoc_ie = NULL;
-	int                         assoc_ie_len = 0;
+	size_t                      assoc_ie_len = 0;
 	u8                          *assoc_rsp_ie = NULL;
-	int                         assoc_rsp_ie_len = 0;
+	size_t                      assoc_rsp_ie_len = 0;
 	u8                          bssid[ETH_ALEN];
 	u16                         fw_result_code;
 	u16                         flow_id;
@@ -3834,8 +3834,10 @@ void slsi_rx_procedure_started_ind(struct slsi_dev *sdev, struct net_device *dev
 				goto exit_with_lock;
 			}
 
+			slsi_spinlock_lock(&ndev_vif->peer_lock);
 			peer = slsi_peer_add(sdev, dev, (fapi_get_mgmt(skb))->sa, aid);
 			if (!peer) {
+				slsi_spinlock_unlock(&ndev_vif->peer_lock);
 				SLSI_NET_ERR(dev, "Peer NOT Created\n");
 				goto exit_with_lock;
 			}
@@ -3850,7 +3852,7 @@ void slsi_rx_procedure_started_ind(struct slsi_dev *sdev, struct net_device *dev
 				SLSI_NET_DBG2(dev, SLSI_MLME,  "WPS IE is present. Setting peer->is_wps to TRUE\n");
 				peer->is_wps = true;
 			}
-
+			slsi_spinlock_unlock(&ndev_vif->peer_lock);
 			/* Take a wakelock to avoid platform suspend before
 			 * EAPOL exchanges (to avoid connection delay)
 			 */
@@ -4359,6 +4361,7 @@ void slsi_rx_received_frame_ind(struct slsi_dev *sdev, struct net_device *dev, s
 		/* Populate wake reason stats here */
 		if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
 			schedule_work(&sdev->wakeup_time_work);
+			skb->mark = SLSI_WAKEUP_PKT_MARK;
 			slsi_rx_update_wake_stats(sdev, ehdr, skb->len - fapi_get_siglen(skb), skb);
 		}
 
@@ -4511,6 +4514,19 @@ static int slsi_rx_wait_ind_match(u16 recv_id, u16 wait_id)
 	return 0;
 }
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+static bool slsi_rx_tas_drop_cfm(u16 id, u16 pid)
+{
+	/* TAS SAR.req signal uses no-cfm and cfm both.
+	 * In order to use SAR.req on BH disabled context (ndo_start_tx), cfm signal
+	 * should be dropped and in this case, there is no reason to need CFM.
+	 */
+	if (pid == SLSI_TX_PROCESS_ID_TAS_NO_CFM && id == MLME_SAR_CFM)
+		return true;
+	return false;
+}
+#endif
+
 int slsi_rx_blocking_signals(struct slsi_dev *sdev, struct sk_buff *skb)
 {
 	u16 pid, id;
@@ -4526,6 +4542,10 @@ int slsi_rx_blocking_signals(struct slsi_dev *sdev, struct sk_buff *skb)
 		struct net_device *dev;
 		struct netdev_vif *ndev_vif;
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+		if (slsi_rx_tas_drop_cfm(id, pid))
+			return 0;
+#endif
 		rcu_read_lock();
 		if (vif == SLSI_NET_INDEX_DETECT &&
 		    (id == MLME_ADD_VIF_CFM ||

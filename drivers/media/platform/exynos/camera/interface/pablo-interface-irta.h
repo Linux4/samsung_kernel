@@ -12,10 +12,7 @@
 #ifndef PABLO_INTERFACE_IRTA_H
 #define PABLO_INTERFACE_IRTA_H
 
-enum interface_irta_buf_type {
-	ITF_IRTA_BUF_TYPE_RESULT,
-	ITF_IRTA_BUF_TYPE_MAX,
-};
+#define ITF_IRTA_BUF_TYPE_MAX 10
 
 struct pablo_interface_irta {
 	u32 instance;
@@ -29,17 +26,14 @@ struct pablo_interface_irta {
 	dma_addr_t dva[ITF_IRTA_BUF_TYPE_MAX];
 };
 
-int pablo_interface_irta_dma_buf_attach(struct pablo_interface_irta *pii,
-				enum interface_irta_buf_type type, int fd);
-int pablo_interface_irta_dma_buf_detach(struct pablo_interface_irta *pii,
-				enum interface_irta_buf_type type);
-int pablo_interface_irta_kva_map(struct pablo_interface_irta *pii,
-				enum interface_irta_buf_type type);
-int pablo_interface_irta_kva_unmap(struct pablo_interface_irta *pii,
-				enum interface_irta_buf_type type);
+int pablo_interface_irta_dma_buf_attach(struct pablo_interface_irta *pii, u32 idx, int fd);
+int pablo_interface_irta_dma_buf_detach(struct pablo_interface_irta *pii, u32 idx);
+int pablo_interface_irta_kva_map(struct pablo_interface_irta *pii, u32 idx);
+int pablo_interface_irta_kva_unmap(struct pablo_interface_irta *pii, u32 idx);
+
 
 #if IS_ENABLED(CONFIG_PABLO_ICPU)
-int pablo_interface_irta_result_buf_set(struct pablo_interface_irta *pii, int fd);
+int pablo_interface_irta_result_buf_set(struct pablo_interface_irta *pii, int fd, u32 idx);
 int pablo_interface_irta_result_fcount_set(struct pablo_interface_irta *pii, u32 fcount);
 int pablo_interface_irta_start(struct pablo_interface_irta *pii);
 int pablo_interface_irta_open(struct pablo_interface_irta *pii, struct is_device_ischain *idi);
@@ -50,7 +44,7 @@ void pablo_interface_irta_set(struct pablo_interface_irta *pii);
 int pablo_interface_irta_probe(void);
 int pablo_interface_irta_remove(void);
 #else
-#define pablo_interface_irta_result_buf_set(pii, fd) 0
+#define pablo_interface_irta_result_buf_set(pii, fd, idx) 0
 #define pablo_interface_irta_result_fcount_set(pii, fcount) 0
 #define pablo_interface_irta_start(pii) 0
 #define pablo_interface_irta_open(pii, idi) 0

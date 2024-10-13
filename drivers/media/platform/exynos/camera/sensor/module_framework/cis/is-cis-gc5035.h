@@ -83,6 +83,10 @@ const u32 sensor_gc5035_analog_gain[][MAX_GAIN_INDEX] = {
 #define GC5035_MACRO_OTP_START_ADDR_BANK2            0x17C0
 #define GC5035_MACRO_OTP_USED_CAL_SIZE               (0xF3 + 0x1)
 
+#define GC5035_FRONT_OTP_START_ADDR_BANK1            0x1000
+#define GC5035_FRONT_OTP_START_ADDR_BANK2            0x1800
+#define GC5035_FRONT_OTP_USED_CAL_SIZE               (0xEF + 0x1)
+
 static const u32 sensor_gc5035_otp_global[] = {
 	0xfc, 0x01, 0x01,
 	0xf4, 0x40, 0x01,

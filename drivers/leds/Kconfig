@@ -821,7 +821,7 @@ config LEDS_SPI_BYTE
 config LEDS_TI_LMU_COMMON
 	tristate "LED driver for TI LMU"
 	depends on LEDS_CLASS
-	depends on REGMAP
+	select REGMAP
 	help
 	  Say Y to enable the LED driver for TI LMU devices.
 	  This supports common features between the TI LM3532, LM3631, LM3632,
@@ -848,6 +848,12 @@ config LEDS_SM5714
 	depends on MFD_SM5714
 	help
 	  This option enables support for the LEDs on the SM5714.
+
+config LEDS_AW36518
+	tristate "LED support for the AW36518"
+	depends on I2C
+	help
+	  This option enables support for the LEDs on the AW36518.
 
 config LEDS_TPS6105X
 	tristate "LED support for TI TPS6105X"

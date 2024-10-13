@@ -58,6 +58,7 @@ struct is_hw_cstat {
 	struct tasklet_struct		end_tasklet;
 	atomic_t			isr_run_count;
 	wait_queue_head_t		isr_wait_queue;
+	spinlock_t			slock_shot;
 
 	struct pablo_internal_subdev	subdev[IS_CSTAT_SUBDEV_NUM];
 	/* icpu */

@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 #include "dev.h"
@@ -775,7 +775,7 @@ int slsi_tx_control(struct slsi_dev *sdev, struct net_device *dev, struct sk_buf
 
 	slsi_debug_frame(sdev, dev, skb, "TX");
 	res = slsi_hip_transmit_frame(&sdev->hip, skb, true, 0, 0, 0);
-	if (res != NETDEV_TX_OK) {
+	if (res != NETDEV_TX_OK && res != -EINVAL) {
 		char reason[80];
 
 		SLSI_NET_ERR(dev, "%s (signal %d)\n", res == -ENOSPC ? "Queue is full. Flow control" : "Failed to transmit", fapi_get_sigid(skb));

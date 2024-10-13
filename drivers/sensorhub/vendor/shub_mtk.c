@@ -24,6 +24,11 @@
 #include <linux/notifier.h>
 #include <linux/version.h>
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#include "../../misc/mediatek/scp/rv/scp_helper.h"
+#include "../../misc/mediatek/scp/rv/scp_scpctl.h"
+#endif
+
 #define IPI_SHUB	    IPI_SENSOR
 #define IPI_DMA_LEN 8
 
@@ -193,6 +198,20 @@ bool sensorhub_is_working(void)
 
 int sensorhub_reset(void)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+	int ret;
+	struct scpctl_cmd_s cmd;
+
+	cmd.type = SCPCTL_DEBUG_LOGIN;
+	cmd.op = SCP_DEBUG_MAGIC_PATTERN;
+
+	ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_SCPCTL_1, 0, &cmd, PIN_OUT_SIZE_SCPCTL_1, 0);
+
+	if (ret != IPI_ACTION_DONE)
+		pr_notice("sending ipi failed, %d\n", ret);
+
+	mdelay(10);
+#endif
 	scp_wdt_reset(SCP_A_ID);
 	return 0;
 }

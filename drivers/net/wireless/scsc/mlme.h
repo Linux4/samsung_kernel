@@ -493,4 +493,14 @@ void slsi_rx_send_frame_cfm_async(struct slsi_dev *sdev, struct net_device *dev,
 #ifdef CONFIG_SCSC_WLAN_NUM_ANTENNAS
 int slsi_mlme_set_num_antennas(struct net_device *dev, const u16 num_of_antennas, int frame_type);
 #endif
+#if defined(CONFIG_SCSC_WLAN_TAS)
+#define SLSI_TAS_SET_CTRL_BACKOFF BIT(0)
+
+void slsi_mlme_tas_init(struct slsi_dev *sdev);
+void slsi_mlme_tas_deinit(struct slsi_dev *sdev);
+void slsi_mlme_tas_deferred_tx_sar_limit(struct slsi_dev *sdev);
+void slsi_mlme_tas_tx_sar_limit(struct slsi_dev *sdev, struct tas_sar_param *sar_param);
+void slsi_mlme_tas_set_tx_sar_limit(struct slsi_dev *sdev, bool deferred_req, struct tas_sar_param *sar_param);
+void slsi_mlme_tas_set_short_win_num(struct slsi_dev *sdev, struct tas_sar_param *sar_param);
+#endif
 #endif /*__SLSI_MLME_H__*/

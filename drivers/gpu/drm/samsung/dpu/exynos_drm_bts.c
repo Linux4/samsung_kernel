@@ -39,6 +39,26 @@ static int dpu_bts_log_level = 6;
 module_param(dpu_bts_log_level, int, 0600);
 MODULE_PARM_DESC(dpu_bts_log_level, "log level for dpu bts [default : 6]");
 
+#if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
+/* Workaround min lock for LPM & Recovery Scenario */
+static int boot_mode;
+module_param(boot_mode, int, 0444);
+/* bootm value definitions.
+ * #define SYS_BOOTM_NORMAL	(0x0<<16)
+ * #define SYS_BOOTM_UP		(0x1<<16)
+ * #define SYS_BOOTM_DOWN		(0x2<<16)
+ * #define SYS_BOOTM_LPM		(0x4<<16)
+ * #define SYS_BOOTM_RECOVERY	(0x8<<16)
+ * #define SYS_BOOTM_FASTBOOT	(0x10<<16)
+ */
+#define MIF_MINLOCK_FOR_LPM_RECOVERY (676 * 1000)
+
+static inline bool dpu_bts_is_normal_boot(void)
+{
+	return (boot_mode >> 16) ? false : true;
+}
+#endif
+
 #define DPU_DEBUG_BTS(decon, fmt, ...)	\
 	dpu_pr_debug("BTS", (decon)->id, dpu_bts_log_level, fmt, ##__VA_ARGS__)
 
@@ -1468,6 +1488,13 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 		if (new_exynos_crtc_state->wb_type == EXYNOS_WB_CWB)
 			DPU_DEBUG_BTS(decon, "\tCWB: "FREQ_FMT"\n", FREQ_ARG(&decon->bts));
 	}
+#if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
+	/* Workaround min lock for LPM / Recovery Scenario */
+	if (!dpu_bts_is_normal_boot()) {
+		if (exynos_pm_qos_request_active(&decon->bts.mif_qos))
+			exynos_pm_qos_update_request(&decon->bts.mif_qos, MIF_MINLOCK_FOR_LPM_RECOVERY);
+	}
+#endif
 
 	DPU_EVENT_LOG("BTS_UPDATE_BW", exynos_crtc, 0, FREQ_FMT, FREQ_ARG(&decon->bts));
 
@@ -1503,6 +1530,16 @@ void dpu_bts_release_bw(struct exynos_drm_crtc *exynos_crtc)
 			exynos_pm_qos_update_request(&decon->bts.disp_qos, 0);
 		else
 			DPU_ERR_BTS(decon, "disp qos setting error\n");
+#if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
+		/* Workaround min lock for LPM / Recovery Scenario */
+		if (!dpu_bts_is_normal_boot()) {
+			if (exynos_pm_qos_request_active(&decon->bts.mif_qos))
+				exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
+			else
+				DPU_ERR_BTS(decon, "mif qos setting error\n");
+		}
+#endif
+
 		decon->bts.prev_max_disp_freq = 0;
 	} else if (decon->config.out_type & DECON_OUT_DP) {
 		decon->bts.prev_total_bw = 0;
@@ -1595,6 +1632,12 @@ void dpu_bts_init(struct exynos_drm_crtc *exynos_crtc)
 	}
 
 	decon->bts.enabled = true;
+#if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
+	/* Workaround min lock for LPM / Recovery Scenario */
+	if (!dpu_bts_is_normal_boot() && (decon->config.out_type & DECON_OUT_DSI))
+		DPU_INFO_BTS(decon, "decon%d boot_mode:0x%02X. MIF minlock(%d) will work.\n",
+			decon->id, boot_mode >> 16, MIF_MINLOCK_FOR_LPM_RECOVERY);
+#endif
 
 	DPU_INFO_BTS(decon, "bts feature is enabled\n");
 }

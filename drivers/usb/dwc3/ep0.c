@@ -286,7 +286,7 @@ void dwc3_ep0_out_start(struct dwc3 *dwc)
 			DWC3_TRBCTL_CONTROL_SETUP, false);
 	ret = dwc3_ep0_start_trans(dep);
 	if (ret < 0)
-		dev_err(dwc->dev, "%s error, ret = %d", ret);
+		dev_err(dwc->dev, "ep0 trans error ret = %d", ret);
 	for (i = 2; i < DWC3_ENDPOINTS_NUM; i++) {
 		struct dwc3_ep *dwc3_ep;
 

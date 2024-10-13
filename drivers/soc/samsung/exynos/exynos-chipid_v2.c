@@ -239,6 +239,91 @@ static const struct attribute_group *chipid_sysfs_groups[] = {
 	NULL,
 };
 
+static ssize_t SVC_AP_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, 20, "%010llX\n",
+			(exynos_soc_info.unique_id));
+}
+
+static DEVICE_ATTR_RO(SVC_AP);
+
+static struct attribute *svc_ap_attrs[] = {
+	&dev_attr_SVC_AP.attr,
+	NULL,
+};
+
+static struct attribute_group svc_ap_group = {
+	.attrs = svc_ap_attrs,
+};
+
+static const struct attribute_group *svc_ap_groups[] = {
+	&svc_ap_group,
+	NULL,
+};
+
+static void svc_ap_release(struct device *dev)
+{
+	kfree(dev);
+}
+
+static int sysfs_create_svc_ap(void)
+{
+	struct kernfs_node *svc_sd;
+	struct kobject *data;
+	struct kobject *top_kobj = NULL;
+	struct device *dev;
+	int err;
+
+	/* To find svc kobject */
+	top_kobj = &exynos_soc_info.pdev->dev.kobj.kset->kobj;
+	if (!top_kobj) {
+		pr_err("No exynos_soc kobject\n");
+		return -ENODEV;
+	}
+		
+	svc_sd = sysfs_get_dirent(top_kobj->sd, "svc");
+	if (IS_ERR_OR_NULL(svc_sd)) {
+		/* try to create svc kobject */
+		data = kobject_create_and_add("svc", top_kobj);
+		if (IS_ERR_OR_NULL(data))
+			pr_info("Existing path /sys/devices/svc : 0x%pK\n", data);
+		else
+			pr_info("Created /sys/devices/svc svc : 0x%pK\n", data);
+	} else {
+		data = (struct kobject *)svc_sd->priv;
+		pr_info("Found svc_sd : 0x%pK svc : 0x%pK\n", svc_sd, data);
+	}
+
+	dev = kzalloc(sizeof(struct device), GFP_KERNEL);
+	if (!dev) {
+		pr_err("Error allocating svc_ap device\n");
+		return -ENOMEM;
+	}
+
+	err = dev_set_name(dev, "AP");
+	if (err < 0)
+		goto err_name;
+
+	dev->kobj.parent = data;
+	dev->groups = svc_ap_groups;
+	dev->release = svc_ap_release;
+
+	err = device_register(dev);
+	if (err < 0)
+		goto err_dev_reg;
+
+	exynos_soc_info.svc_dev = dev;
+	return 0;
+
+err_dev_reg:
+	put_device(dev);
+err_name:
+	kfree(dev);
+	dev = NULL;
+	return err;
+}
+
 static int chipid_sysfs_init(void)
 {
 	int ret = 0;
@@ -252,6 +337,10 @@ static int chipid_sysfs_init(void)
 			pr_err("fail to register chip-id subsys\n");
 		}
 	}
+
+	ret = sysfs_create_svc_ap();
+	if (ret)
+		pr_err("fail to create svc_ap sysfs\n");
 
 	return ret;
 }

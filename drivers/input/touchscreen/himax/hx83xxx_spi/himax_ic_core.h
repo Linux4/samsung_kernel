@@ -284,6 +284,7 @@ struct hx_guest_info {
 	#define fw_data_program_reload_break					0x15E75678
 	#define fw_addr_selftest_addr_en						0x10007F18
 	#define fw_addr_selftest_result_addr					0x10007f24
+	#define fw_addr_gesture_en								0x10007f24
 	#define fw_data_selftest_request						0x00006AA6
 	#define fw_addr_criteria_addr							0x10007f1c
 	#define fw_data_criteria_aa_top							0x64
@@ -623,6 +624,7 @@ struct fw_operation {
 	uint8_t addr_criteria_addr[4];
 	uint8_t addr_set_frame_addr[4];
 	uint8_t addr_selftest_result_addr[4];
+	uint8_t addr_gesture_en[4];
 	uint8_t addr_sorting_mode_en[4];
 	uint8_t addr_fw_mode_status[4];
 	uint8_t addr_icid_addr[4];

@@ -36,6 +36,7 @@
 #include <exynos_drm_format.h>
 #include <exynos_drm_hibernation.h>
 #include <exynos_drm_partial.h>
+#include <exynos_drm_decon.h>
 
 #include <dqe_cal.h>
 
@@ -92,11 +93,17 @@ static void exynos_crtc_check_input_bpc(struct drm_crtc *crtc,
 	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
 	struct drm_plane *plane;
 	const struct drm_plane_state *plane_state;
-	uint32_t max_bpc = 8; /* initial bpc value */
+	struct decon_device *decon = exynos_crtc->ctx;
+	uint32_t max_bpc = decon->config.default_max_bpc; /* initial bpc value */
 	bool atc_enabled = false;
 
 	if (new_exynos_state->wb_type == EXYNOS_WB_SWB) {
 		new_exynos_state->in_bpc = max_bpc;
+		return;
+	}
+
+	if (!crtc_state->plane_mask) {
+		new_exynos_state->in_bpc = 8;
 		return;
 	}
 
@@ -150,7 +157,7 @@ static void exynos_crtc_atomic_begin(struct drm_crtc *crtc,
 		return;
 #endif
 	if (exynos_crtc->ops->atomic_begin)
-		exynos_crtc->ops->atomic_begin(exynos_crtc);
+		exynos_crtc->ops->atomic_begin(exynos_crtc, old_state);
 }
 
 static void exynos_crtc_atomic_flush(struct drm_crtc *crtc,

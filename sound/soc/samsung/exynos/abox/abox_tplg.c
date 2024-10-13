@@ -1122,14 +1122,14 @@ static int abox_tplg_dapm_put_mux_virt(struct snd_kcontrol *kcontrol,
 	struct device *dev = cmpnt->dev;
 	unsigned int value = ucontrol->value.enumerated.item[0];
 
-	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
-			e->texts[value]);
-
 	if (value >= e->items) {
 		abox_err(dev, "%s: value=%d, items=%d\n",
 				kcontrol->id.name, value, e->items);
 		return -EINVAL;
 	}
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
+			e->texts[value]);
 
 	abox_tplg_kcontrol_check_usage(kdata, kdata);
 
@@ -1174,14 +1174,14 @@ static int abox_tplg_dapm_put_mux(struct snd_kcontrol *kcontrol,
 	unsigned int value = ucontrol->value.enumerated.item[0];
 	int ret;
 
-	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
-			e->texts[value]);
-
 	if (value >= e->items) {
 		abox_err(dev, "%s: value=%d, items=%d\n",
 				kcontrol->id.name, value, e->items);
 		return -EINVAL;
 	}
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
+			e->texts[value]);
 
 	abox_tplg_kcontrol_check_usage(kdata, kdata);
 

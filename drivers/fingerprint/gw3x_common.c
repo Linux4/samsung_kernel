@@ -834,6 +834,10 @@ int gw3x_type_check(struct gf_device *gf_dev)
 		gf_dev->sensortype = SENSOR_OK;
 		pr_info("%s sensor type is GW39B\n", gf_dev->chipid);
 		retval = 0;
+	}  else if (mcuid32 == GF_GW39U_CHIP_ID) {
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("%s sensor type is GW39U\n", gf_dev->chipid);
+		retval = 0;
 	} else {
 		gf_dev->sensortype = SENSOR_FAILED;
 		pr_err("sensor type is FAILED 0x%x\n", mcuid32);
@@ -1177,6 +1181,21 @@ static int gw3x_remove(struct platform_device *pdev)
 }
 
 #else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(6, 1, 0)
+static void gw3x_remove(struct spi_device *spi)
+{
+	struct gf_device *gf_dev = spi_get_drvdata(spi);
+
+	gw3x_free_buffer(gf_dev);
+	gw3x_remove_common(&spi->dev);
+
+	mutex_destroy(&gf_dev->buf_lock);
+	spin_lock_irq(&gf_dev->spi_lock);
+	gf_dev->spi = NULL;
+	spin_unlock_irq(&gf_dev->spi_lock);
+	gf_dev = NULL;
+}
+#else
 static int gw3x_remove(struct spi_device *spi)
 {
 	struct gf_device *gf_dev = spi_get_drvdata(spi);
@@ -1191,6 +1210,7 @@ static int gw3x_remove(struct spi_device *spi)
 	gf_dev = NULL;
 	return 0;
 }
+#endif
 #endif
 
 static int gw3x_pm_suspend(struct device *dev)

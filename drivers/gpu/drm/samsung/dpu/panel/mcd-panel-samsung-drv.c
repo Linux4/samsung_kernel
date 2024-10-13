@@ -965,7 +965,9 @@ static void exynos_panel_parse_vendor_pps(struct device *dev, struct exynos_pane
 
 	if (dsim != NULL) {
 		dsim->config.lp_force_en = of_property_read_bool(np, "SLSI,force-seperate-trans");
-		panel_info(ctx, "lp_force_en: %d\n", dsim->config.lp_force_en);
+		dsim->config.ignore_rx_trail = of_property_read_bool(np, "SLSI,ignore-rx-trail");
+		
+		panel_info(ctx, "lp_force_en: %d, ignore_rx_trail: %d\n", dsim->config.lp_force_en, dsim->config.ignore_rx_trail);
 	}
 }
 

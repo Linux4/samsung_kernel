@@ -203,6 +203,7 @@ struct is_cis {
 	enum cis_stream_state           stream_state;
 
 	struct work_struct		global_setting_work;
+	struct workqueue_struct	*global_setting_work_q;
 	struct work_struct		mode_setting_work;
 
 	/* cis_off work for streaming off onto vsync */
@@ -213,6 +214,8 @@ struct is_cis {
 
 	bool use_notify_vsync;
 	struct work_struct notify_vsync_work;
+
+	bool spc_done;
 };
 
 struct is_actuator_data {

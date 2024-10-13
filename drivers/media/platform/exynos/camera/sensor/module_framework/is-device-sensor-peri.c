@@ -19,6 +19,7 @@
 #include "is-device-sensor.h"
 #include "is-video.h"
 #include "is-device-csi.h"
+#include "is-vender.h"
 
 static struct is_device_sensor_peri *get_sensor_peri(struct v4l2_subdev *subdev)
 {
@@ -192,8 +193,8 @@ void is_sensor_deinit_sensor_thread(struct is_device_sensor_peri *sensor_peri)
 void is_sensor_ois_set_init_work(struct work_struct *data)
 {
 	int ret = 0;
-	struct is_ois *ois;
-	struct is_device_sensor_peri *sensor_peri;
+	struct is_ois *ois = NULL;
+	struct is_device_sensor_peri *sensor_peri = NULL;
 
 	WARN_ON(!data);
 
@@ -203,6 +204,9 @@ void is_sensor_ois_set_init_work(struct work_struct *data)
 
 	sensor_peri = ois->sensor_peri;
 
+#if defined(CONFIG_CAMERA_USE_INTERNAL_MCU)
+	is_vendor_mcu_power_on_wait();
+#endif
 	/* For dual camera project to reduce power consumption of ois */
 	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_power_mode, sensor_peri->subdev_mcu);
 	if (ret < 0)
@@ -1597,6 +1601,7 @@ void is_sensor_peri_probe(struct is_device_sensor_peri *sensor_peri)
 	clear_bit(IS_SENSOR_PREPROCESSOR_AVAILABLE, &sensor_peri->peri_state);
 	clear_bit(IS_SENSOR_OIS_AVAILABLE, &sensor_peri->peri_state);
 
+	sensor_peri->cis.global_setting_work_q = alloc_workqueue("sensor_global_work", WQ_UNBOUND|WQ_HIGHPRI|WQ_CPU_INTENSIVE, 1);
 	mutex_init(&sensor_peri->cis.control_lock);
 }
 
@@ -1906,7 +1911,7 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 			ret = CALL_CISOPS(cis, cis_wait_streamon, subdev_cis);
 			if (ret < 0) {
 				err("[%s]: sensor wait stream on fail\n", __func__);
-#ifdef CONFIG_CAMERA_VENDER_MCD
+#if defined(CONFIG_CAMERA_VENDER_MCD) || defined(CONFIG_CAMERA_VENDER_MCD_V2)
 				is_sensor_gpio_dbg(device);
 				if (cis->cis_ops->cis_recover_stream_on) {
 					ret = CALL_CISOPS(cis, cis_recover_stream_on, subdev_cis);
@@ -1955,7 +1960,7 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 			ret = CALL_CISOPS(cis, cis_wait_streamoff, subdev_cis);
 			if (ret < 0) {
 				err("[%s]: sensor wait stream off fail\n", __func__);
-#ifdef CONFIG_CAMERA_VENDER_MCD
+#if defined(CONFIG_CAMERA_VENDER_MCD) || defined(CONFIG_CAMERA_VENDER_MCD_V2)
 				CALL_CISOPS(cis, cis_log_status, subdev_cis);
 				if (cis->cis_ops->cis_recover_stream_off) {
 					ret = CALL_CISOPS(cis, cis_recover_stream_off, subdev_cis);
@@ -2356,6 +2361,8 @@ int is_sensor_peri_s_totalgain(struct is_device_sensor *device,
 	}
 
 	device->exposure_time = expo.long_val;
+	device->exposure_value[device->fcount % IS_EXP_BACKUP_COUNT] = expo.long_val;
+	device->exposure_fcount[device->fcount % IS_EXP_BACKUP_COUNT] = device->fcount;
 	/* 0: Previous input, 1: Current input */
 	sensor_peri->cis.cis_data->analog_gain[0] = sensor_peri->cis.cis_data->analog_gain[1];
 	sensor_peri->cis.cis_data->analog_gain[1] = again.long_val;

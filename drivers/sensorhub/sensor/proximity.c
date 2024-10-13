@@ -32,6 +32,7 @@ get_init_chipset_funcs_ptr get_prox_funcs_ary[] = {
 	get_proximity_stk3391x_function_pointer,
 	get_proximity_stk33512_function_pointer,
 	get_proximity_stk3afx_function_pointer,
+	get_proximity_tmd3725_function_pointer,
 };
 
 static get_init_chipset_funcs_ptr *get_proximity_init_chipset_funcs(int *len)
@@ -92,13 +93,16 @@ void set_proximity_threshold(void)
 		return;
 	}
 
-	memcpy(prox_th, data->prox_threshold, sizeof(prox_th));
-
-	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROXIMITY_THRESHOLD, (char *)prox_th,
-				sizeof(prox_th));
-	if (ret < 0) {
-		shub_err("SENSOR_PROXTHRESHOLD CMD fail %d", ret);
-		return;
+	if (chipset_funcs && chipset_funcs->set_proximity_threshold) {
+		chipset_funcs->set_proximity_threshold();
+	} else {
+		memcpy(prox_th, data->prox_threshold, sizeof(prox_th));
+		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROXIMITY_THRESHOLD, (char *)prox_th,
+					sizeof(prox_th));
+		if (ret < 0) {
+			shub_err("SENSOR_PROXTHRESHOLD CMD fail %d", ret);
+			return;
+		}
 	}
 
 	if (data->need_compensation) {
@@ -312,7 +316,6 @@ int open_default_proximity_setting_mode(void)
 
 	return ret;
 }
-
 
 static struct proximity_data proximity_data;
 static struct sensor_funcs proximity_sensor_funcs = {

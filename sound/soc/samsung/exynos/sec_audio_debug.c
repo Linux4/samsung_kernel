@@ -762,11 +762,15 @@ err_aboxlog_data:
 	p_debug_aboxlog_data = NULL;
 
 err_pmlog_data:
+	if (p_debug_pmlog_data->sz_log_buff)
+		free_sec_audio_log(p_debug_pmlog_data);
 	kfree_const(p_debug_pmlog_data->name);
 	kfree(p_debug_pmlog_data);
 	p_debug_pmlog_data = NULL;
 
 err_bootlog_data:
+	if (p_debug_bootlog_data->sz_log_buff)
+		free_sec_audio_log(p_debug_bootlog_data);
 	kfree_const(p_debug_bootlog_data->name);
 	kfree(p_debug_bootlog_data);
 	p_debug_bootlog_data = NULL;

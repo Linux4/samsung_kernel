@@ -24,7 +24,7 @@ config NPU_MAILBOX_VERSION
 
 config NPU_COMMAND_VERSION
 	int "NPU Command Version"
-	range 7 11
-	default 11
+	range 7 12
+	default 12
 	help
 	  NPU Command Version

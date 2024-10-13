@@ -285,6 +285,9 @@ static int find_recessive_cpu(struct task_struct *task,
 	prefer_dom = dom = *per_cpu_ptr(frt_rqs, 0);
 	do {
 		for_each_cpu_and(cpu, &dom->cpus, &candidate_cpus) {
+			if(get_tex_level(cpu_rq(cpu)->curr) < PRIO_TEX)
+				continue;
+
 			cpu_util = frt_cpu_util(cpu);
 
 			if (cpu_util < min_util ||

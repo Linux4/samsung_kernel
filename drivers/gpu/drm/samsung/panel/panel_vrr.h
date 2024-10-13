@@ -25,6 +25,7 @@ enum {
 	VRR_LFD_FREQ_HIGH = 1,
 	VRR_LFD_FREQ_LOW = 2,
 	VRR_LFD_FREQ_HIGH_UPTO_SCAN_FREQ = 3,
+	VRR_LFD_FREQ_LOW_HIGHDOT_TEST = 4,
 	MAX_VRR_LFD_FREQ
 };
 
@@ -108,7 +109,7 @@ const char *get_vrr_lfd_client_name(int index);
 int find_vrr_lfd_client_name(const char *name);
 const char *get_vrr_lfd_scope_name(int index);
 int find_vrr_lfd_scope_name(const char *name);
-int update_vrr_lfd(struct vrr_lfd_info *vrr_lfd_info);
+int update_vrr_lfd(struct panel_device *panel);
 struct panel_vrr *get_panel_vrr(struct panel_device *panel);
 int get_panel_refresh_rate(struct panel_device *panel);
 int get_panel_refresh_mode(struct panel_device *panel);

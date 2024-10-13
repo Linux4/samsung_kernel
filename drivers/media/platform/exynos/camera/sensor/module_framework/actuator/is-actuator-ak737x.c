@@ -58,12 +58,23 @@ static int sensor_ak737x_write_position(struct i2c_client *client,
 	val_high = (val & 0x0FFF) >> 4;
 	val_low = (val & 0x000F) << 4;
 
-	ret = actuator->ixc_ops->addr8_write8(client, AK737X_REG_POS_HIGH, val_high);
-	if (ret < 0)
-		goto p_err;
-	ret = actuator->ixc_ops->addr8_write8(client, AK737X_REG_POS_LOW, val_low);
-	if (ret < 0)
-		goto p_err;
+	if (actuator->vendor_product_id == AK737X_PRODUCT_ID_AK7314C) {
+		if (actuator->state != ACTUATOR_STATE_SLEEP) {
+			ret = actuator->ixc_ops->addr_data_write16(client, AK737X_REG_POS_HIGH, val_high, val_low);
+			if (ret < 0) {
+				err("Failed to write af position");
+				goto p_err;
+			}
+		} else
+			dbg_actuator("%s : set_position was skiped in sleep mode\n", __func__);
+	} else {
+		ret = actuator->ixc_ops->addr8_write8(client, AK737X_REG_POS_HIGH, val_high);
+		if (ret < 0)
+			goto p_err;
+		ret = actuator->ixc_ops->addr8_write8(client, AK737X_REG_POS_LOW, val_low);
+		if (ret < 0)
+			goto p_err;
+	}
 
 p_err:
 	return ret;
@@ -235,6 +246,11 @@ static int sensor_ak737x_init_position(struct i2c_client *client,
 
 p_err:
 	return ret;
+}
+
+static bool sensor_ak737x_actuator_perform_soft_landing_on_exit(struct v4l2_subdev *subdev)
+{
+	return false;
 }
 
 static int sensor_ak737x_soft_landing_on_recording(struct v4l2_subdev *subdev)
@@ -413,10 +429,10 @@ int sensor_ak737x_actuator_init(struct v4l2_subdev *subdev, u32 val)
 		}
 
 		pr_info("[%s][%d] dt[addr=0x%X,id=0x%X], product_id=0x%X\n",
-				__func__, actuator->device, product_id_list[i], product_id_list[i+1], product_id);
+				__func__, actuator->device, product_id_list[i], product_id_list[i + 1], product_id);
 
-		if (product_id_list[i+1] == product_id) {
-			actuator->vendor_product_id = product_id_list[i+1];
+		if (product_id_list[i + 1] == product_id) {
+			actuator->vendor_product_id = product_id_list[i + 1];
 			break;
 		}
 	}
@@ -693,6 +709,18 @@ static int sensor_ak737x_actuator_set_active(struct v4l2_subdev *subdev, int ena
 			usleep_range(actuator->vendor_sleep_to_standby_delay, actuator->vendor_sleep_to_standby_delay + 10);
 		else
 			usleep_range(actuator->vendor_active_to_standby_delay, actuator->vendor_active_to_standby_delay + 10);
+
+#ifdef USE_AK7314C_SUPPRESS_OVERSHOOT
+		/* AF Driver-IC Setting */
+		ret = actuator->ixc_ops->addr8_write8(client, 0xAE, 0x3B);
+		if (ret < 0) goto p_err;
+
+		ret = actuator->ixc_ops->addr8_write8(client, 0xC8, 0x09);
+		if (ret < 0) goto p_err;
+
+		ret = actuator->ixc_ops->addr8_write8(client, 0xAE, 0x00);
+		if (ret < 0) goto p_err;
+#endif
 	}
 
 	if (enable) {
@@ -738,6 +766,7 @@ static struct is_actuator_ops actuator_ops = {
 	.set_active = sensor_ak737x_actuator_set_active,
 #endif
 	.soft_landing_on_recording = sensor_ak737x_soft_landing_on_recording,
+	.perform_soft_landing_on_exit = sensor_ak737x_actuator_perform_soft_landing_on_exit,
 };
 
 static ssize_t focus_position_show(struct device *dev,

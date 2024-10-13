@@ -115,6 +115,28 @@ static void scsc_bt_shm_irq_handler(int irqbit, void *data)
 	}
 }
 
+static void scsc_bt_clear_paused_acl_rx(u16 conn_hdl)
+{
+	/* Adjust the index for reverse searching of acl_rx_transfer_ring */
+	u32 search = 0;
+	u32 dst = BSMHCP_PREV_INDEX(bt_service.mailbox_acl_rx_write, BSMHCP_TRANSFER_RING_ACL_SIZE);
+	u32 stop = BSMHCP_PREV_INDEX(bt_service.mailbox_acl_rx_read, BSMHCP_TRANSFER_RING_ACL_SIZE);
+
+	/* Clear all ACL data having data_paused_conn_hdl from acl_rx_transfer_ring */
+	for (search = dst; search != stop;
+	     search = BSMHCP_PREV_INDEX(search, BSMHCP_TRANSFER_RING_ACL_SIZE)) {
+		if (conn_hdl != bt_service.bsmhcp_protocol->acl_rx_transfer_ring[search].header.hci_connection_handle) {
+			if (search != dst)
+				memcpy(&bt_service.bsmhcp_protocol->acl_rx_transfer_ring[dst],
+				       &bt_service.bsmhcp_protocol->acl_rx_transfer_ring[search],
+				       sizeof(struct BSMHCP_TD_ACL_RX));
+
+			dst = BSMHCP_PREV_INDEX(dst, BSMHCP_TRANSFER_RING_ACL_SIZE);
+		} else
+			BSMHCP_INCREASE_INDEX(bt_service.mailbox_acl_rx_read, BSMHCP_TRANSFER_RING_ACL_SIZE);
+	}
+}
+
 /* Assign firmware/host interrupts */
 static int scsc_bt_shm_init_interrupt(void)
 {
@@ -1353,6 +1375,21 @@ static ssize_t scsc_bt_shm_h4_read_hci_evt(char __user *buf, size_t len)
 			/* Firmware does not have more ACL data - Mark the connection as inactive */
 			bt_service.connection_handle_list[td->hci_connection_handle].state = CONNECTION_NONE;
 
+			/* Clear the ACL and ISO data processing to allow for the ACL and ISO
+			 * disconnect event to be transferred to userspace
+			 */
+			if (bt_service.data_paused &&
+			    bt_service.data_paused_conn_hdl == td->hci_connection_handle) {
+				/* ACL and ISO data processing can now continue */
+				bt_service.data_paused = false;
+
+				/* Clear all ACL data having data_paused_conn_hdl from acl_rx_transfer_ring */
+				scsc_bt_clear_paused_acl_rx(bt_service.data_paused_conn_hdl);
+
+				/* Initialize the data_paused_conn_hdl for next data_paused */
+				bt_service.data_paused_conn_hdl = 0;
+			}
+
 		/* A group disconnection event has been detected by the firmware */
 		} else if (event_type == BSMHCP_EVENT_TYPE_BIG_DISCONNECTED) {
 			SCSC_TAG_DEBUG(BT_H4, "Isochronous Broadcaster destroyed (big_handle=0x%04x)\n", big_handle);
@@ -1570,6 +1607,7 @@ static bool scsc_rx_read_connection_active(uint16_t hci_connection_handle, uint8
 			       bt_service.connection_handle_list[hci_connection_handle].state);
 
 		bt_service.data_paused = true;
+		bt_service.data_paused_conn_hdl = hci_connection_handle;
 
 	/* If the connection state is disconnection the firmware sent ACL or ISO after the ACL or ISO
 	 * disconnect packet which is an FW error
@@ -1791,6 +1829,37 @@ ssize_t scsc_bt_shm_h4_queue_sync_helper(char __user *buf, size_t len)
 				bt_service.read_operation = BT_READ_OP_HCI_EVT;
 				bt_service.read_index = mailbox_hci_evt_read;
 				ret = scsc_hci_evt_read(buf, len);
+				break;
+			}
+
+			if (event_type == BSMHCP_EVENT_TYPE_DISCONNECTED &&
+			    bt_service.data_paused_conn_hdl == td->hci_connection_handle) {
+				SCSC_TAG_DEBUG(BT_H4,
+				       "disconnected (hci_connection_handle=0x%03x, state=%u)\n",
+				       td->hci_connection_handle,
+				       bt_service.connection_handle_list[td->hci_connection_handle].state);
+
+				/* If this ACL connection had an avdtp stream, mark it gone and interrupt the bg */
+				if (scsc_avdtp_detect_reset_connection_handle(td->hci_connection_handle))
+					wmb();
+
+				/* Firmware does not have more ACL data - Mark the connection as inactive */
+				bt_service.connection_handle_list[td->hci_connection_handle].state = CONNECTION_NONE;
+
+				/* ACL and ISO data processing can now continue */
+				bt_service.data_paused = false;
+
+				/* Clear all ACL data having data_paused_conn_hdl from acl_rx_transfer_ring */
+				scsc_bt_clear_paused_acl_rx(bt_service.data_paused_conn_hdl);
+
+				/* Initialize the data_paused_conn_hdl for next data_paused */
+				bt_service.data_paused_conn_hdl = 0;
+
+				/* Mark the event as processed */
+				bt_service.processed[mailbox_hci_evt_read] = true;
+
+				/* Indicate the event have been found */
+				found = true;
 				break;
 			}
 
@@ -2165,8 +2234,15 @@ ssize_t scsc_bt_shm_h4_write(struct file *file, const char __user *buf, size_t c
 
 	/* Has en error been detect then just return with an error */
 	if (atomic_read(&bt_service.error_count) != 0) {
+		ret = -EIO;
+		if (bt_service.recovery_waiting) {
+			SCSC_TAG_DEBUG(BT_H4, "waiting for reset after recovery\n");
+			ret = wait_event_interruptible_timeout(bt_service.read_wait, bt_service.recovery_waiting, HZ);
+			if (ret == 0)
+				ret = -EAGAIN;
+		}
 		atomic_dec(&bt_service.h4_writers);
-		return -EIO;
+		return ret;
 	}
 
 	while (written != count && ret == 0) {
@@ -2191,7 +2267,7 @@ ssize_t scsc_bt_shm_h4_write(struct file *file, const char __user *buf, size_t c
 			if ((length + bt_service.h4_write_offset) >= H4DMUX_HEADER_HCI &&
 			    h4_write_buffer[H4_HEADER_INDEX] == HCI_COMMAND_PKT) {
 				/* Extract the HCI command packet length */
-				hci_pkt_len = h4_write_buffer[3] + 3;
+				hci_pkt_len = (size_t)(h4_write_buffer[3] + 3);
 
 				/* Is it a complete packet available */
 				if ((hci_pkt_len + 1) <= (length + bt_service.h4_write_offset)) {
@@ -2334,6 +2410,12 @@ unsigned int scsc_bt_shm_h4_poll(struct file *file, poll_table *wait)
 	    (bt_service.read_operation != BT_READ_OP_STOP &&
 	     (atomic_read(&bt_service.error_count) != 0 ||
 	     bt_service.bsmhcp_protocol->header.panic_deathbed_confession))) {
+
+		if (bt_service.recovery_waiting) {
+			SCSC_TAG_DEBUG(BT_H4, "waiting for reset after recovery\n");
+			return 0;	/* skip */
+		}
+
 		SCSC_TAG_DEBUG(BT_H4, "queue(s) changed\n");
 		return POLLIN | POLLRDNORM; /* readeable */
 	}
@@ -2411,6 +2493,7 @@ void scsc_bt_shm_exit(void)
 	bt_service.iso_last_alloc = 0;
 	bt_service.hci_event_paused = false;
 	bt_service.data_paused = false;
+	bt_service.data_paused_conn_hdl = 0;
 	bt_service.bsmhcp_protocol = NULL;
 
 	memset(bt_service.allocated, 0, sizeof(bt_service.allocated));

@@ -14,6 +14,8 @@
 
 #if !defined(CONFIG_USE_SIGNED_BINARY)
 #define USE_SENSOR_DEBUG
+int is_vender_caminfo_cmd_set_mipi_phy(void __user *user_data);
+int is_vender_caminfo_cmd_get_mipi_phy(void __user *user_data);
 #endif
 
 #endif /* IS_VENDER_TEST_SENSOR_H */

@@ -1789,7 +1789,6 @@ int is_resource_put(struct is_resourcemgr *resourcemgr, u32 rsc_type)
 		/* for CSIS HWACG */
 		is_hw_csi_qchannel_enable_all(false);
 #endif
-		cancel_delayed_work_sync(&resourcemgr->dvfs_ctrl.dec_dwork);
 	}
 
 	/* local update */

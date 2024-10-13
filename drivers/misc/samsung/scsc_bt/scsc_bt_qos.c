@@ -73,10 +73,10 @@ static DEFINE_MUTEX(bt_qos_mutex);
 static void scsc_bt_qos_update_work(struct work_struct *data)
 {
 	mutex_lock(&bt_qos_mutex);
-	if (qos_service.enabled && qos_service.pending_state > qos_service.current_state) {
+	if (qos_service.enabled && qos_service.pending_state != qos_service.current_state) {
 		qos_service.current_state = qos_service.pending_state;
-		SCSC_TAG_DEBUG(BT_COMMON, "Bluetooth QoS update (State: %d)\n", 
-						(uint8_t)qos_service.current_state);
+		SCSC_TAG_DEBUG(BT_COMMON, "Bluetooth QoS update (State: %d)\n",
+				(uint8_t)qos_service.current_state);
 		scsc_service_pm_qos_update_request(bt_service.service, qos_service.current_state);
 	}
 	mutex_unlock(&bt_qos_mutex);
@@ -88,8 +88,8 @@ static void scsc_bt_qos_disable_work(struct work_struct *data)
 	if (qos_service.enabled && qos_service.disabling) {
 		qos_service.current_state = SCSC_QOS_DISABLED;
 		qos_service.disabling = false;
-		SCSC_TAG_DEBUG(BT_COMMON, "Bluetooth QoS disable (State: %d)\n", 
-						(uint8_t)qos_service.current_state);
+		SCSC_TAG_DEBUG(BT_COMMON, "Bluetooth QoS disable (State: %d)\n",
+				(uint8_t)qos_service.current_state);
 		scsc_service_pm_qos_update_request(bt_service.service, qos_service.current_state);
 	}
 	mutex_unlock(&bt_qos_mutex);
@@ -111,16 +111,27 @@ void scsc_bt_qos_update(uint32_t number_of_outstanding_hci_events,
 			next_state = SCSC_QOS_MIN;
 
 		mutex_lock(&bt_qos_mutex);
-		if (qos_service.disabling || next_state > qos_service.current_state) {
+		if ((qos_service.disabling || next_state != qos_service.current_state) &&
+		    next_state != SCSC_QOS_DISABLED) {
 			/* Update PM QoS settings without delay */
-			qos_service.pending_state = next_state;
-			qos_service.disabling = false;
-			schedule_work(&qos_service.update_work);
-		} else if (next_state == SCSC_QOS_DISABLED) {
+			if (next_state > qos_service.current_state ||
+			    next_state > qos_service.pending_state) {
+				qos_service.pending_state = next_state;
+				qos_service.disabling = false;
+				mod_delayed_work(system_wq, &qos_service.update_work, 0);
+			} else if (next_state < qos_service.current_state &&
+				   next_state < qos_service.pending_state) {
+				qos_service.pending_state = next_state;
+				qos_service.disabling = false;
+				mod_delayed_work(system_wq, &qos_service.update_work,
+						 msecs_to_jiffies(scsc_bt_qos_timeout));
+			}
+		} else if (qos_service.current_state != SCSC_QOS_DISABLED &&
+		           next_state == SCSC_QOS_DISABLED) {
 			/* Disable PM QoS settings with delay */
 			qos_service.disabling = true;
-			mod_delayed_work(system_wq, &qos_service.disable_work, 
-								msecs_to_jiffies(scsc_bt_qos_timeout));
+			mod_delayed_work(system_wq, &qos_service.disable_work,
+					 msecs_to_jiffies(scsc_bt_qos_timeout));
 		}
 		mutex_unlock(&bt_qos_mutex);
 	}
@@ -147,7 +158,7 @@ void scsc_bt_qos_service_start(void)
 	else
 		qos_service.enabled = false;
 
-	INIT_WORK(&qos_service.update_work, scsc_bt_qos_update_work);
+	INIT_DELAYED_WORK(&qos_service.update_work, scsc_bt_qos_update_work);
 	INIT_DELAYED_WORK(&qos_service.disable_work, scsc_bt_qos_disable_work);
 	SCSC_TAG_INFO(BT_COMMON, "QoS level: low(%d) med(%d) high(%d)\n",
 			scsc_bt_qos_low_level, scsc_bt_qos_medium_level,

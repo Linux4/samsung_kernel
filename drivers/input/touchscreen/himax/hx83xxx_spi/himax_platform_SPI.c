@@ -1348,12 +1348,12 @@ static int himax_stui_tsp_enter(void)
 
 	input_info(true, &spi->dev, ">> %s\n", __func__);
 
-	himax_int_enable(false);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 
 	ret = stui_spi_lock(spi->master);
 	if (ret < 0) {
 		pr_err("[STUI] stui_spi_lock failed : %d\n", ret);
-		himax_int_enable(true);
+		himax_int_enable(INT_ENABLE);
 		return -1;
 	}
 
@@ -1372,7 +1372,7 @@ static int himax_stui_tsp_exit(void)
 		pr_err("[STUI] stui_spi_unlock failed : %d\n", ret);
 	}
 
-	himax_int_enable(true);
+	himax_int_enable(INT_ENABLE);
 
 	return ret;
 }

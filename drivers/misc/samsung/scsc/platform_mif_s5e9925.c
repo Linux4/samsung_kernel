@@ -1281,13 +1281,15 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
 		struct device_node *np;
 
 		np = of_parse_phandle(platform->dev->of_node, "memory-region", 0);
-		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "module build register sharedmem np %x\n", np);
-		if (np) {
+		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
+				  "module build register sharedmem np %x\n", np);
+		if (np && of_reserved_mem_lookup(np)) {
 			platform->mem_start = of_reserved_mem_lookup(np)->base;
 			platform->mem_size = of_reserved_mem_lookup(np)->size;
 		}
 	} else {
-		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "built-in register sharedmem\n");
+		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
+				  "built-in register sharedmem\n");
 		platform->mem_start = sharedmem_base;
 		platform->mem_size = sharedmem_size;
 	}

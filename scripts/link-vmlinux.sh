@@ -430,3 +430,9 @@ fi
 
 # For fixdep
 echo "vmlinux: $0" > .vmlinux.d
+
+if [ -n "${CONFIG_CRYPTO_SKC_FIPS}" ]; then
+	echo '  FIPS : Generating hmac of crypto and updating vmlinux... '
+	PYTHONDONTWRITEBYTECODE=0 "${srctree}/scripts/crypto/fips_crypto_integrity.py" \
+		"${objtree}/vmlinux" "${objtree}/crypto" "${objtree}/arch/arm64/crypto"
+fi

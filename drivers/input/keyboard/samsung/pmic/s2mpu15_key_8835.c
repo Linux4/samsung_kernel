@@ -25,10 +25,6 @@
 
 static int force_key_irq_en = 0;
 
-#if IS_ENABLED(CONFIG_SEC_PMIC_PWRKEY)
-extern int (*pmic_key_is_pwron)(void);
-#endif
-
 struct pmic_button_data {
 	struct pmic_keys_button *button;
 	struct input_dev *input;
@@ -461,10 +457,6 @@ static int s2mpu15_keys_probe(struct platform_device *pdev)
 			__func__, ret);
 		goto fail2;
 	}
-
-#if IS_ENABLED(CONFIG_SEC_PMIC_PWRKEY)
-	pmic_key_is_pwron = pmic_read_pwrkey_status;
-#endif
 
 	s2mpu15_keys_force_en_irq(ddata);
 

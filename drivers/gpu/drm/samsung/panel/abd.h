@@ -278,5 +278,6 @@ extern int usdm_abd_pin_register_refresh_handler(struct abd_protect *abd, int id
 extern int usdm_abd_register_printer(struct abd_protect *abd, int (*show)(struct seq_file *, void *), void *data);
 extern void usdm_abd_con_register(struct abd_protect *abd);
 extern void usdm_abd_blank(struct abd_protect *abd);
+void usdm_abd_simple_print(struct abd_protect *abd, struct seq_file *m, void *unused);
 #endif	/* __ABD_H__ */
 

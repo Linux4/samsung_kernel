@@ -353,7 +353,7 @@ static int stm32_dev_suspend(struct device *dev)
 
 	reinit_completion(&stm32->resume_done);
 
-	if (stm32->connect_state && device_may_wakeup(dev)) {
+	if (stm32->connect_state) {
 		enable_irq_wake(stm32->dev_irq);
 		stm32->irq_wake = true;
 		pr_info("%s %s enable irq wake\n", SECLOG, __func__);

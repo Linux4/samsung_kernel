@@ -103,6 +103,7 @@ struct is_pdp {
 	struct list_head		list_of_paf_action;
 	spinlock_t			slock_paf_s_param;
 	spinlock_t			slock_oneshot;
+	spinlock_t			slock_shot;
 
 	atomic_t			frameptr_stat0;
 

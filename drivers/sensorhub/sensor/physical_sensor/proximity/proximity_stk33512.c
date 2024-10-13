@@ -61,8 +61,7 @@ int proximity_open_calibration_stk33512(void)
 
 void set_proximity_state_stk33512(struct proximity_data *data)
 {
-	if (!is_lcd_changed())
-		set_proximity_calibration();
+	set_proximity_calibration();
 }
 
 struct proximity_chipset_funcs prox_stk33512_funcs = {

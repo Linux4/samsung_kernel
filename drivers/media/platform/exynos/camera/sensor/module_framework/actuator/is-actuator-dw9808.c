@@ -394,6 +394,11 @@ int sensor_dw9808_actuator_wait_busy(struct v4l2_subdev *subdev)
 	return 0;
 }
 
+static bool sensor_dw9808_actuator_perform_soft_landing_on_exit(struct v4l2_subdev *subdev)
+{
+	return true;
+}
+
 static int sensor_dw9808_actuator_soft_landing(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -643,6 +648,7 @@ static const struct v4l2_subdev_ops subdev_ops = {
 
 static struct is_actuator_ops actuator_ops = {
 	.nrc_soft_landing = sensor_dw9808_actuator_soft_landing,
+	.perform_soft_landing_on_exit = sensor_dw9808_actuator_perform_soft_landing_on_exit,
 };
 
 int sensor_dw9808_actuator_probe_i2c(struct i2c_client *client,

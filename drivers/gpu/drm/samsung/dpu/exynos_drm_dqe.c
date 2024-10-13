@@ -249,22 +249,29 @@ static void dqe_reset_update_cnt(struct exynos_dqe *dqe,
 	dqe_debug(dqe, "%d updates reqired\n", atomic_read(&dqe->update_cnt));
 }
 
-#define DQE_CTRL_OFF 0x00
-#define DQE_CTRL_ON 0x01
-#define DQE_CTRL_AUTO 0x02
-#define DQE_CTRL_FORCEDOFF 0x10
+#define DQE_CTRL_ONOFF		BIT(0)
+#define DQE_CTRL_AUTO		BIT(1)
+#define DQE_CTRL_FORCEDOFF	BIT(2)
 
-#define DQE_CTRL_ONOFF_MASK 0x0F
-#define DQE_CTRL_FORCEDOFF_MASK 0xF0
+#define SET_FLAG(v, flag) ((v) | (flag))
+#define CLR_FLAG(v, flag) ((v) & (~(flag)))
+#define UPDATE_FLAG(en, v, flag) ((en > 0) ? SET_FLAG(v, flag) : CLR_FLAG(v, flag))
+#define CHECK_FLAG(v, flag) (((v) & (flag)) == (flag))
 
-static inline void dqe_ctrl_forcedoff(u32 *value, int forcedOff)
+static inline void dqe_ctrl_forcedoff(u32 *value, int en)
 {
 	if (!value)
 		return;
 
-	*value &= ~DQE_CTRL_FORCEDOFF_MASK;
-	if (forcedOff > 0)
-		*value |= DQE_CTRL_FORCEDOFF;
+	*value = UPDATE_FLAG(en, *value, DQE_CTRL_FORCEDOFF);
+}
+
+static inline void dqe_ctrl_auto(u32 *value, int en)
+{
+	if (!value)
+		return;
+
+	*value = UPDATE_FLAG(en, *value, DQE_CTRL_AUTO);
 }
 
 static inline void dqe_ctrl_onoff(u32 *value, u32 onOff, bool clrForced)
@@ -272,31 +279,39 @@ static inline void dqe_ctrl_onoff(u32 *value, u32 onOff, bool clrForced)
 	if (!value)
 		return;
 
-	*value &= ~DQE_CTRL_ONOFF_MASK;
 	if (clrForced)
-		*value &= ~DQE_CTRL_FORCEDOFF_MASK;
-	*value |= (onOff & DQE_CTRL_ONOFF_MASK);
-}
+		*value = CLR_FLAG(*value, DQE_CTRL_FORCEDOFF);
 
-static inline bool IS_DQE_ON(u32 *value)
-{
-	if (!value || (*value & DQE_CTRL_FORCEDOFF_MASK))
-		return false;
-	return ((*value & DQE_CTRL_ONOFF_MASK) == DQE_CTRL_ON);
-}
+	if (CHECK_FLAG(*value, DQE_CTRL_AUTO)) // on/off control not available
+		return;
 
-static inline bool IS_DQE_AUTO(u32 *value)
-{
-	if (!value || (*value & DQE_CTRL_FORCEDOFF_MASK))
-		return false;
-	return ((*value & DQE_CTRL_ONOFF_MASK) == DQE_CTRL_AUTO);
+	*value = UPDATE_FLAG(onOff, *value, DQE_CTRL_ONOFF);
 }
 
 static inline bool IS_DQE_FORCEDOFF(u32 *value)
 {
 	if (!value)
 		return false;
-	return ((*value & DQE_CTRL_FORCEDOFF_MASK) == DQE_CTRL_FORCEDOFF);
+	return CHECK_FLAG(*value, DQE_CTRL_FORCEDOFF);
+}
+
+static inline bool IS_DQE_ON(u32 *value)
+{
+	if (!value || IS_DQE_FORCEDOFF(value))
+		return false;
+	return CHECK_FLAG(*value, DQE_CTRL_ONOFF);
+}
+
+static inline bool IS_DQE_AUTO(u32 *value)
+{
+	if (!value || IS_DQE_FORCEDOFF(value))
+		return false;
+	return CHECK_FLAG(*value, DQE_CTRL_AUTO);
+}
+
+static inline bool IS_DISP_DITHER_REQUIRED(struct exynos_dqe *dqe)
+{
+	return (dqe->cfg.in_bpc >= 10 && dqe->cfg.out_bpc == 8);
 }
 
 static char *dqe_print_onoff(u32 *value)
@@ -429,7 +444,10 @@ static void dqe_load_context(struct exynos_dqe *dqe)
 	for (i = 0; i < DQE_DEGAMMA_REG_MAX; i++)
 		dqe_debug(dqe, "%08x ", dqe->ctx.degamma_lut[i]);
 
-	dqe_ctrl_onoff(&dqe->ctx.disp_dither_on, DQE_CTRL_AUTO, true);
+	if (IS_DQE_VER(dqe, DQE_VER_610))
+		dqe_ctrl_auto(&dqe->ctx.cgc_dither_on, true);
+	else
+		dqe_ctrl_auto(&dqe->ctx.disp_dither_on, true);
 }
 
 static bool dqe_check_crc(struct exynos_dqe *dqe, u8 id, const u8 attr[], u16 value)
@@ -607,9 +625,10 @@ static int dqe_restore_context(struct exynos_dqe *dqe)
 
 	/* DQE_DISP_DITHER */
 	if (IS_DQE_AUTO(&dqe->ctx.disp_dither_on)) { // Automatic by BPC
-		if (dqe->cfg.in_bpc >= 10 && dqe->cfg.out_bpc == 8)
+		if (IS_DISP_DITHER_REQUIRED(dqe)) {
+			dqe_reg_set_lut(id, DQE_REG_DISP_DITHER, 0, dqe->ctx.disp_dither, 0);
 			dqe_reg_set_lut_on(id, DQE_REG_DISP_DITHER, 1);
-		else
+		} else
 			dqe_reg_set_lut_on(id, DQE_REG_DISP_DITHER, 0);
 	} else {
 		if (IS_DQE_ON(&dqe->ctx.disp_dither_on)) {
@@ -621,7 +640,7 @@ static int dqe_restore_context(struct exynos_dqe *dqe)
 	}
 
 	/* DQE_CGC_DITHER */
-	if (IS_DQE_ON(&dqe->ctx.cgc_dither_on)) {
+	if (IS_DQE_AUTO(&dqe->ctx.cgc_dither_on) || IS_DQE_ON(&dqe->ctx.cgc_dither_on)) {
 		dqe_reg_set_lut(id, DQE_REG_CGC_DITHER, 0, dqe->ctx.cgc_dither, 0);
 		dqe_reg_set_lut_on(id, DQE_REG_CGC_DITHER, 1);
 	} else {
@@ -1608,10 +1627,10 @@ static void dqe_set_cgc17_lut(struct exynos_dqe *dqe,
 		CGC_MC_GAIN_R(lut->cgc17_con[9])
 	);
 
-	dqe_ctrl_onoff(&dqe->ctx.cgc_on, lut->cgc17_con[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.cgc_on, lut->cgc17_con[0], clrForced);
 	if (lut->cgc17_con[0]) {
-		dqe_ctrl_onoff(&dqe->ctx.degamma_on, DQE_CTRL_ON, clrForced);
-		dqe_ctrl_onoff(&dqe->ctx.regamma_on, DQE_CTRL_ON, clrForced);
+		dqe_ctrl_onoff(&dqe->ctx.degamma_on, 1, clrForced);
+		dqe_ctrl_onoff(&dqe->ctx.regamma_on, 1, clrForced);
 	}
 }
 
@@ -1630,25 +1649,33 @@ static void dqe_set_disp_dither(struct exynos_dqe *dqe,
 		DISP_DITHER_TABLE_SEL(disp_dither[6], 2)
 	);
 
-	dqe_ctrl_onoff(&dqe->ctx.disp_dither_on, disp_dither[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.disp_dither_on, disp_dither[0], clrForced);
 }
 
 static void dqe_set_cgc_dither(struct exynos_dqe *dqe,
 				struct dqe_ctx_int *lut, bool clrForced)
 {
 	u32 *cgc_dither = lut->cgc_dither;
+	int bit_ext = -1;
 
 	dqe_debug(dqe, "\n");
+
+	if (IS_DQE_AUTO(&dqe->ctx.cgc_dither_on))
+		bit_ext = IS_DISP_DITHER_REQUIRED(dqe) ? 1 : 0;
 
 	/* DQE0_CGC_DITHER*/
 	dqe->ctx.cgc_dither = (
 		CGC_DITHER_EN(cgc_dither[0]) | CGC_DITHER_MODE(cgc_dither[1]) |
 		CGC_DITHER_FRAME_CON(cgc_dither[2]) | CGC_DITHER_TABLE_SEL(cgc_dither[3], 0) |
 		CGC_DITHER_TABLE_SEL(cgc_dither[4], 1) | CGC_DITHER_TABLE_SEL(cgc_dither[5], 2) |
-		CGC_DITHER_BIT(cgc_dither[6]) | CGC_DITHER_FRAME_OFFSET(cgc_dither[7])
+		CGC_DITHER_BIT((bit_ext < 0) ? cgc_dither[6] : bit_ext) | CGC_DITHER_FRAME_OFFSET(cgc_dither[7])
 	);
 
-	dqe_ctrl_onoff(&dqe->ctx.cgc_dither_on, cgc_dither[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	/* DQE0_DISP_DITHER */
+	dqe->ctx.disp_dither &= ~DISP_DITHER_MODE_MASK;
+	dqe->ctx.disp_dither |= DISP_DITHER_MODE(cgc_dither[1]);
+
+	dqe_ctrl_onoff(&dqe->ctx.cgc_dither_on, cgc_dither[0], clrForced);
 }
 
 /*
@@ -1722,7 +1749,7 @@ static void dqe_set_gamma_matrix(struct exynos_dqe *dqe,
 
 	dqe->ctx.gamma_matrix[7] = GAMMA_MATRIX_OFFSET_2(gamma_mat_lut[15]);
 
-	dqe_ctrl_onoff(&dqe->ctx.gamma_matrix_on, gamma_matrix[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.gamma_matrix_on, gamma_matrix[0], clrForced);
 }
 
 static void dqe_set_gamma_lut(struct exynos_dqe *dqe,
@@ -1753,7 +1780,7 @@ static void dqe_set_gamma_lut(struct exynos_dqe *dqe,
 		dqe->ctx.regamma_lut[i] = (lut_h | lut_l);
 	}
 
-	dqe_ctrl_onoff(&dqe->ctx.regamma_on, regamma_lut[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.regamma_on, regamma_lut[0], clrForced);
 }
 
 static void dqe_set_degamma_lut(struct exynos_dqe *dqe,
@@ -1784,7 +1811,7 @@ static void dqe_set_degamma_lut(struct exynos_dqe *dqe,
 		dqe->ctx.degamma_lut[i] = (lut_h | lut_l);
 	}
 
-	dqe_ctrl_onoff(&dqe->ctx.degamma_on, degamma_lut[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.degamma_on, degamma_lut[0], clrForced);
 }
 
 static_assert(DQE_HSC_REG_CTRL_MAX > 19 && DQE_HSC_LUT_CTRL_MAX > (56-0));
@@ -1934,7 +1961,7 @@ static void dqe_set_hsc48_lut(struct exynos_dqe *dqe,
 		j += 2;
 	}
 
-	dqe_ctrl_onoff(&dqe->ctx.hsc_on, hsc48_lut[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.hsc_on, hsc48_lut[0], clrForced);
 }
 
 struct dqe_aps_range {
@@ -2118,7 +2145,7 @@ static void dqe_set_aps_lut(struct exynos_dqe *dqe,
 		dqe_err(dqe, "incorrect atc lut for dqe ver %d\n", dqe->ctx.version);
 		#endif
 	}
-	dqe_ctrl_onoff(&dqe->ctx.atc_on, atc_lut[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.atc_on, atc_lut[0], clrForced);
 }
 
 static void dqe_set_scl_lut(struct exynos_dqe *dqe,
@@ -2150,7 +2177,7 @@ static void dqe_set_scl_lut(struct exynos_dqe *dqe,
 	for (i = 0; i < DQE_SCL_REG_MAX; i++)
 		dqe->ctx.scl[i] = SCL_COEF(scl_lut[i]) & SCL_COEF_MASK;
 
-	dqe_ctrl_onoff(&dqe->ctx.scl_on, scl_input[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.scl_on, scl_input[0], clrForced);
 }
 
 static void dqe_set_de_lut(struct exynos_dqe *dqe,
@@ -2196,12 +2223,12 @@ static void dqe_set_de_lut(struct exynos_dqe *dqe,
 		DE_FLAT_DEGAIN_SHIFT(de_lut[17]) | DF_MAX_LUMINANCE(de_lut[18]>>shift)
 	);
 
-	dqe_ctrl_onoff(&dqe->ctx.de_on, de_lut[0] ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.de_on, de_lut[0], clrForced);
 }
 
 static void dqe_set_rcd_lut(struct exynos_dqe *dqe, bool clrForced)
 {
-	dqe_ctrl_onoff(&dqe->ctx.rcd_on, dqe->cfg.rcd_en ? DQE_CTRL_ON : DQE_CTRL_OFF, clrForced);
+	dqe_ctrl_onoff(&dqe->ctx.rcd_on, dqe->cfg.rcd_en, clrForced);
 }
 
 static void dqe_set_all_luts(struct exynos_dqe *dqe)
@@ -3139,7 +3166,6 @@ static ssize_t dqe_off_ctrl_store(struct exynos_dqe *dqe,
 		dqe_ctrl_forcedoff(&dqe->ctx.regamma_on, forced);
 		dqe_ctrl_forcedoff(&dqe->ctx.hsc_on, forced);
 		dqe_ctrl_forcedoff(&dqe->ctx.atc_on, forced);
-		dqe_ctrl_forcedoff(&dqe->ctx.cgc_dither_on, forced);
 		dqe_ctrl_forcedoff(&dqe->ctx.de_on, forced);
 		break;
 	case DQE_OFF_CTRL_CGC:

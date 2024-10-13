@@ -103,6 +103,7 @@ struct shub_sensor {
 
 	bool hal_sensor;
 
+	u64 change_timestamp;
 	u64 enable_timestamp;
 	u64 disable_timestamp;
 	struct rtc_time enable_time;

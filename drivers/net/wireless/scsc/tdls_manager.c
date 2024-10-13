@@ -464,11 +464,15 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 				}
 			} else if (err == -EOPNOTSUPP) {
 				list_for_each_entry_safe(entry_candidate, tmp_candidate, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+					if (entry_candidate->peer->state == SLSI_TDLS_PEER_INACTIVE)
+						continue;
 					entry_candidate->peer->state = SLSI_TDLS_PEER_CFM_EOPNOTSUPP;
 					enqueue_peer_state_transition(manager, entry_candidate->peer, SLSI_TDLS_PEER_INACTIVE, NULL);
 				}
 			} else {
 				list_for_each_entry_safe(entry_candidate, tmp_candidate, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+					if (entry_candidate->peer->state == SLSI_TDLS_PEER_INACTIVE)
+						continue;
 					entry_candidate->peer->state = SLSI_TDLS_PEER_CFM_EINVAL;
 					enqueue_peer_state_transition(manager, entry_candidate->peer, SLSI_TDLS_PEER_INACTIVE, NULL);
 				}
@@ -584,7 +588,7 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 			}
 			slsi_tdls_manager_remove_candidate_list(ndev_vif, manager, entry->peer);
 			spin_lock_bh(&manager->peer_hash_lock);
-			hlist_del(&entry->peer->hlist);
+			hlist_del_init(&entry->peer->hlist);
 			kfree(entry->peer);
 			spin_unlock_bh(&manager->peer_hash_lock);
 			break;
@@ -918,7 +922,7 @@ void slsi_tdls_manager_on_vif_deactivated(struct slsi_dev *sdev, struct net_devi
 				cancel_delayed_work_sync(&t_peer->tdls_peer_ind_timeout_work);
 			if (delayed_work_pending(&t_peer->tdls_peer_blocked_work))
 				cancel_delayed_work_sync(&t_peer->tdls_peer_blocked_work);
-			hlist_del(&t_peer->hlist);
+			hlist_del_init(&t_peer->hlist);
 			kfree(t_peer);
 		}
 	}
@@ -1024,14 +1028,13 @@ int slsi_tdls_manager_oper(struct wiphy *wiphy, struct net_device *dev, const u8
 		return -EOPNOTSUPP;
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
-	mutex_lock(&ndev_vif->sta.tdls_manager.state_transition_queue_mutex);
-
 	if (!ndev_vif->activated || SLSI_IS_VIF_INDEX_P2P_GROUP(sdev, ndev_vif) ||
 	    ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED) {
-		err = -EOPNOTSUPP;
-		goto exit_slsi_tdls_manager_oper;
+		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+		return -EOPNOTSUPP;
 	}
 
+	mutex_lock(&ndev_vif->sta.tdls_manager.state_transition_queue_mutex);
 	spin_lock_bh(&ndev_vif->sta.tdls_manager.peer_hash_lock);
 	t_peer = slsi_tdls_manager_find_peer(dev, &ndev_vif->sta.tdls_manager, peer);
 	spin_unlock_bh(&ndev_vif->sta.tdls_manager.peer_hash_lock);

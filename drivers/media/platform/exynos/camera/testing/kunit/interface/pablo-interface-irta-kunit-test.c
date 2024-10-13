@@ -70,6 +70,7 @@ static void pablo_interface_irta_dma_buf_attach_kunit_test(struct kunit *test)
 	int ret;
 	int instance = 0;
 	int dma_buf_fd;
+	u32 idx;
 	struct pablo_interface_irta *pii;
 	struct dma_buf *dma_buf;
 	dma_addr_t dva;
@@ -78,44 +79,55 @@ static void pablo_interface_irta_dma_buf_attach_kunit_test(struct kunit *test)
 	pii = pablo_interface_irta_get(instance);
 
 	dma_buf_fd = dma_heap_bufferfd_alloc(dma_heap_find("system"), SZ_4K, 0, 0);
-	ret = pablo_interface_irta_dma_buf_attach(pii, ITF_IRTA_BUF_TYPE_RESULT, dma_buf_fd);
-	KUNIT_EXPECT_EQ(test, ret, 0);
 
-	dma_buf = pii->dma_buf[ITF_IRTA_BUF_TYPE_RESULT];
-	KUNIT_EXPECT_NOT_ERR_OR_NULL(test, dma_buf);
+	for (idx = 0; idx < ITF_IRTA_BUF_TYPE_MAX; idx++) {
+		ret = pablo_interface_irta_dma_buf_attach(pii, idx, dma_buf_fd);
+		KUNIT_EXPECT_EQ(test, ret, 0);
 
-	dva = pii->dva[ITF_IRTA_BUF_TYPE_RESULT];
-	KUNIT_EXPECT_NOT_ERR_OR_NULL(test, (void *)dva);
+		dma_buf = pii->dma_buf[idx];
+		KUNIT_EXPECT_NOT_ERR_OR_NULL(test, dma_buf);
 
-	ret = pablo_interface_irta_dma_buf_detach(pii, ITF_IRTA_BUF_TYPE_RESULT);
-	KUNIT_EXPECT_EQ(test, ret, 0);
+		dva = pii->dva[idx];
+		KUNIT_EXPECT_NOT_ERR_OR_NULL(test, (void *)dva);
 
-	dva = pii->dva[ITF_IRTA_BUF_TYPE_RESULT];
-	KUNIT_EXPECT_EQ(test, (ulong)dva, 0UL);
+		ret = pablo_interface_irta_dma_buf_detach(pii, idx);
+		KUNIT_EXPECT_EQ(test, ret, 0);
+
+		dva = pii->dva[idx];
+		KUNIT_EXPECT_EQ(test, (ulong)dva, 0UL);
+	}
+
+	dma_heap_buffer_free(dma_buf_get(dma_buf_fd));
 
 	pablo_interface_irta_remove();
 }
+
 
 static void pablo_interface_irta_dma_buf_detach_kunit_test(struct kunit *test)
 {
 	int ret;
 	int instance = 0;
+	u32 idx;
 	struct pablo_interface_irta *pii;
 
 	pablo_interface_irta_probe();
 	pii = pablo_interface_irta_get(instance);
 
-	ret = pablo_interface_irta_dma_buf_detach(pii, ITF_IRTA_BUF_TYPE_RESULT);
-	KUNIT_EXPECT_NE(test, ret, 0);
+	for (idx = 0; idx < ITF_IRTA_BUF_TYPE_MAX; idx++) {
+		ret = pablo_interface_irta_dma_buf_detach(pii, idx);
+		KUNIT_EXPECT_NE(test, ret, 0);
+	}
 
 	pablo_interface_irta_remove();
 }
+
 
 static void pablo_interface_irta_kva_map_kunit_test(struct kunit *test)
 {
 	int ret;
 	int instance = 0;
 	int dma_buf_fd;
+	u32 idx;
 	struct pablo_interface_irta *pii;
 	void *kva;
 
@@ -124,22 +136,26 @@ static void pablo_interface_irta_kva_map_kunit_test(struct kunit *test)
 
 	dma_buf_fd = dma_heap_bufferfd_alloc(dma_heap_find("system"), SZ_4K, 0, 0);
 
-	ret = pablo_interface_irta_dma_buf_attach(pii, ITF_IRTA_BUF_TYPE_RESULT, dma_buf_fd);
-	KUNIT_EXPECT_EQ(test, ret, 0);
+	for (idx = 0; idx < ITF_IRTA_BUF_TYPE_MAX; idx++) {
+		ret = pablo_interface_irta_dma_buf_attach(pii, idx, dma_buf_fd);
+		KUNIT_EXPECT_EQ(test, ret, 0);
 
-	ret = pablo_interface_irta_kva_map(pii, ITF_IRTA_BUF_TYPE_RESULT);
-	KUNIT_EXPECT_EQ(test, ret, 0);
+		ret = pablo_interface_irta_kva_map(pii, idx);
+		KUNIT_EXPECT_EQ(test, ret, 0);
 
-	kva = pii->kva[ITF_IRTA_BUF_TYPE_RESULT];
-	KUNIT_EXPECT_NOT_ERR_OR_NULL(test, kva);
+		kva = pii->kva[idx];
+		KUNIT_EXPECT_NOT_ERR_OR_NULL(test, kva);
 
-	memset(kva, 0, SZ_4K);
+		memset(kva, 0, SZ_4K);
 
-	ret = pablo_interface_irta_kva_unmap(pii, ITF_IRTA_BUF_TYPE_RESULT);
-	KUNIT_EXPECT_EQ(test, ret, 0);
+		ret = pablo_interface_irta_kva_unmap(pii, idx);
+		KUNIT_EXPECT_EQ(test, ret, 0);
 
-	kva = pii->kva[ITF_IRTA_BUF_TYPE_RESULT];
-	KUNIT_EXPECT_EQ(test, (ulong)kva, 0UL);
+		kva = pii->kva[idx];
+		KUNIT_EXPECT_EQ(test, (ulong)kva, 0UL);
+	}
+
+	dma_heap_buffer_free(dma_buf_get(dma_buf_fd));
 
 	pablo_interface_irta_remove();
 }
@@ -148,22 +164,27 @@ static void pablo_interface_irta_kva_unmap_kunit_test(struct kunit *test)
 {
 	int ret;
 	int instance = 0;
+	u32 idx;
 	struct pablo_interface_irta *pii;
 	int dma_buf_fd;
 
 	pablo_interface_irta_probe();
 	pii = pablo_interface_irta_get(instance);
 
-	ret = pablo_interface_irta_kva_unmap(pii, ITF_IRTA_BUF_TYPE_RESULT);
-	KUNIT_EXPECT_NE(test, ret, 0);
-
 	dma_buf_fd = dma_heap_bufferfd_alloc(dma_heap_find("system"), SZ_4K, 0, 0);
 
-	ret = pablo_interface_irta_dma_buf_attach(pii, ITF_IRTA_BUF_TYPE_RESULT, dma_buf_fd);
-	KUNIT_EXPECT_EQ(test, ret, 0);
+	for (idx = 0; idx < ITF_IRTA_BUF_TYPE_MAX; idx++) {
+		ret = pablo_interface_irta_kva_unmap(pii, idx);
+		KUNIT_EXPECT_NE(test, ret, 0);
 
-	ret = pablo_interface_irta_kva_unmap(pii, ITF_IRTA_BUF_TYPE_RESULT);
-	KUNIT_EXPECT_EQ(test, ret, 0);
+		ret = pablo_interface_irta_dma_buf_attach(pii, idx, dma_buf_fd);
+		KUNIT_EXPECT_EQ(test, ret, 0);
+
+		ret = pablo_interface_irta_kva_unmap(pii, idx);
+		KUNIT_EXPECT_EQ(test, ret, 0);
+	}
+
+	dma_heap_buffer_free(dma_buf_get(dma_buf_fd));
 
 	pablo_interface_irta_remove();
 }
@@ -172,20 +193,31 @@ static void test_pablo_interface_irta_result_buf_set(struct kunit *test,
 				struct pablo_interface_irta *pii)
 {
 	int ret;
-	int dma_buf_fd = dma_heap_bufferfd_alloc(dma_heap_find("system"), SZ_4K, 0, 0);
+	int dma_buf_fd;
+	u32 idx;
 
-	ret = pablo_interface_irta_result_buf_set(pii, dma_buf_fd);
-	KUNIT_EXPECT_EQ(test, ret, 0);
+	dma_buf_fd = dma_heap_bufferfd_alloc(dma_heap_find("system"), SZ_4K, 0, 0);
 
-	KUNIT_EXPECT_EQ(test, dma_buf_fd,
-		pii->dma_buf_fd[ITF_IRTA_BUF_TYPE_RESULT]);
+	for (idx = 0; idx < ITF_IRTA_BUF_TYPE_MAX; idx++) {
+		ret = pablo_interface_irta_result_buf_set(pii, dma_buf_fd, idx);
+		KUNIT_EXPECT_EQ(test, ret, 0);
+
+		KUNIT_EXPECT_EQ(test, dma_buf_fd, pii->dma_buf_fd[idx]);
+	}
+
+	ret = pablo_interface_irta_result_buf_set(pii, dma_buf_fd, idx);
+	KUNIT_EXPECT_EQ(test, ret, -EINVAL);
+
+	dma_heap_buffer_free(dma_buf_get(dma_buf_fd));
 }
+
 
 static void pablo_interface_irta_result_buf_set_kunit_test(struct kunit *test)
 {
 	int ret;
 	int instance = 0;
 	int dma_buf_fd;
+	u32 idx;
 	struct pablo_interface_irta *pii;
 
 	pablo_interface_irta_probe();
@@ -194,10 +226,10 @@ static void pablo_interface_irta_result_buf_set_kunit_test(struct kunit *test)
 	test_pablo_interface_irta_result_buf_set(test, pii);
 
 	dma_buf_fd = -EBADF;
-	ret = pablo_interface_irta_result_buf_set(pii, dma_buf_fd);
-	KUNIT_EXPECT_EQ(test, ret, -EINVAL);
-
-	pablo_interface_irta_remove();
+	for (idx = 0; idx < ITF_IRTA_BUF_TYPE_MAX; idx++) {
+		ret = pablo_interface_irta_result_buf_set(pii, dma_buf_fd, 0);
+		KUNIT_EXPECT_EQ(test, ret, -EINVAL);
+	}
 }
 
 static void pablo_interface_irta_result_fcount_set_kunit_test(struct kunit *test)
@@ -252,31 +284,35 @@ static void pablo_interface_irta_open_kunit_test(struct kunit *test)
 	pablo_interface_irta_remove();
 }
 
-static void pablo_interface_irta_close_kunit_test(struct kunit *test)
+sstatic void pablo_interface_irta_close_kunit_test(struct kunit *test)
 {
 	int ret;
 	int instance = 0;
 	int dma_buf_fd;
+	u32 idx;
 	struct pablo_interface_irta *pii;
 	struct is_device_ischain *idi = &pkt_ctx.idi;
 
 	pablo_interface_irta_probe();
 	pii = pablo_interface_irta_get(instance);
 
-	ret = pablo_interface_irta_open(pii, idi);
-	KUNIT_EXPECT_EQ(test, ret, 0);
-
 	dma_buf_fd = dma_heap_bufferfd_alloc(dma_heap_find("system"), SZ_4K, 0, 0);
-	ret = pablo_interface_irta_result_buf_set(pii, dma_buf_fd);
-	KUNIT_EXPECT_EQ(test, ret, 0);
 
-	ret = pablo_interface_irta_close(pii);
-	KUNIT_EXPECT_EQ(test, ret, 0);
+	for (idx = 0; idx < ITF_IRTA_BUF_TYPE_MAX; idx++) {
+		ret = pablo_interface_irta_open(pii, idi);
+		KUNIT_EXPECT_EQ(test, ret, 0);
 
-	KUNIT_EXPECT_NE(test, dma_buf_fd,
-		pii->dma_buf_fd[ITF_IRTA_BUF_TYPE_RESULT]);
-	KUNIT_EXPECT_EQ(test, 0,
-		pii->dma_buf_fd[ITF_IRTA_BUF_TYPE_RESULT]);
+		ret = pablo_interface_irta_result_buf_set(pii, dma_buf_fd, idx);
+		KUNIT_EXPECT_EQ(test, ret, 0);
+
+		ret = pablo_interface_irta_close(pii);
+		KUNIT_EXPECT_EQ(test, ret, 0);
+
+		KUNIT_EXPECT_NE(test, dma_buf_fd, pii->dma_buf_fd[idx]);
+		KUNIT_EXPECT_EQ(test, 0, pii->dma_buf_fd[idx]);
+	}
+
+	dma_heap_buffer_free(dma_buf_get(dma_buf_fd));
 
 	pablo_interface_irta_remove();
 }

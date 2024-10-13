@@ -1471,6 +1471,7 @@ static int is_hw_pdp_open(struct is_hw_ip *hw_ip, u32 instance)
 	INIT_LIST_HEAD(&pdp->list_of_paf_action);
 	spin_lock_init(&pdp->slock_paf_s_param);
 	spin_lock_init(&pdp->slock_oneshot);
+	spin_lock_init(&pdp->slock_shot);
 
 	pablo_set_affinity_irq(pdp->irq[PDP_INT1], true);
 	pablo_set_affinity_irq(pdp->irq[PDP_INT2], true);
@@ -1954,7 +1955,7 @@ static int is_hw_pdp_disable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)
 	struct is_pdp *pdp;
 	struct is_framemgr *stat_framemgr;
 	struct is_frame *stat_frame;
-	unsigned long flags;
+	unsigned long flags, shot_flags;
 
 	FIMC_BUG(!hw_ip);
 
@@ -1976,7 +1977,7 @@ static int is_hw_pdp_disable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)
 		mserr_hw("failed to get PDP", instance, hw_ip);
 		return -ENODEV;
 	}
-
+	spin_lock_irqsave(&pdp->slock_shot, shot_flags);
 	if (atomic_read(&hw_ip->instance) == instance)
 		clear_bit(HW_CONFIG, &hw_ip->state);
 
@@ -1991,6 +1992,7 @@ static int is_hw_pdp_disable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)
 		framemgr_x_barrier_irqr(stat_framemgr, FMGR_IDX_30, flags);
 	}
 
+	spin_unlock_irqrestore(&pdp->slock_shot, shot_flags);
 	if (hw_ip->run_rsc_state)
 		return 0;
 
@@ -2004,7 +2006,7 @@ static int is_hw_pdp_disable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)
 	return ret;
 }
 
-static int is_hw_pdp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
+static int _is_hw_pdp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	ulong hw_map)
 {
 	int ret = 0;
@@ -2102,6 +2104,20 @@ static int is_hw_pdp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		if (pdp_hw_g_idle_state(pdp->base))
 			pdp_hw_s_one_shot_enable(pdp);
 	}
+
+	return ret;
+}
+
+static int is_hw_pdp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame, ulong hw_map)
+{
+	int ret;
+	unsigned long flag;
+	struct is_pdp *pdp;
+
+	pdp = (struct is_pdp *)hw_ip->priv_info;
+	spin_lock_irqsave(&pdp->slock_shot, flag);
+	ret = _is_hw_pdp_shot(hw_ip, frame, hw_map);
+	spin_unlock_irqrestore(&pdp->slock_shot, flag);
 
 	return ret;
 }

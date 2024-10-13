@@ -2967,7 +2967,6 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
 	platform_if->wlbt_property_read_u16 = platform_mif_wlbt_property_read_u16;
 	platform_if->wlbt_property_read_u32 = platform_mif_wlbt_property_read_u32;
 	platform_if->wlbt_property_read_string = platform_mif_wlbt_property_read_string;
-
 #ifdef CONFIG_OF_RESERVED_MEM
 	if (!sharedmem_base) {
 		struct device_node *np;
@@ -2975,7 +2974,7 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
 		np = of_parse_phandle(platform->dev->of_node, "memory-region", 0);
 		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
 				  "module build register sharedmem np %x\n", np);
-		if (np) {
+		if (np && of_reserved_mem_lookup(np)) {
 			platform->mem_start = of_reserved_mem_lookup(np)->base;
 			platform->mem_size = of_reserved_mem_lookup(np)->size;
 		}
