@@ -74,10 +74,9 @@ void secdp_logger_print(const char *fmt, ...)
 	if (!is_secdp_logger_init)
 		return;
 
-	if (!log_max_count)
+	if (log_max_count == 0)
 		return;
-
-	if (log_max_count > 0)
+	else if (log_max_count > 0)
 		log_max_count--;
 
 	time = local_clock();
@@ -112,10 +111,9 @@ void secdp_logger_hex_dump(void *buf, void *pref, size_t size)
 	if (!is_secdp_logger_init)
 		return;
 
-	if (!log_max_count)
+	if (log_max_count == 0)
 		return;
-
-	if (log_max_count > 0)
+	else if (log_max_count > 0)
 		log_max_count--;
 
 	for (i = 0; i < size; i++) {
@@ -127,10 +125,10 @@ void secdp_logger_hex_dump(void *buf, void *pref, size_t size)
 		}
 	}
 
-	if (i % 16) {
-		len = ptmp - tmp;
+	len = i % 16;
+	if (len != 0) {
 		tmp[len] = 0x0;
-		secdp_logger_print("%s%s\n", (char *)pref, tmp);
+		secdp_logger_print("%s\n", tmp);
 	}
 }
 

@@ -855,8 +855,6 @@ struct dp_soc_stats {
 			uint32_t dup_refill_link_desc;
 			/* Non Eapol pkt drop cnt due to peer not authorized */
 			uint32_t peer_unauth_rx_pkt_drop;
-			/* Rx invalid tid count */
-			uint32_t rx_invalid_tid_err;
 		} err;
 
 		/* packet count per core - per ring */
