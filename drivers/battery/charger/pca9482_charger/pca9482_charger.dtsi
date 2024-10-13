@@ -1,0 +1,39 @@
+&hsi2c_24 {
+	status = "okay";
+
+	pca9482_charger: pca9482@5D {
+		compatible = "nxp,pca9482";
+		reg = <0x5D>;
+
+		pca9482,input-current-limit = <3000000>; /* 3.0A */
+		pca9482,charging-current = <6000000>; /* 6.0A */
+		pca9482,float-voltage = <4400000>; /* 4.40V */
+		pca9482,input-itopoff = <500000>; /* 500mA */
+		pca9482,sense-resistance = <2>; /* 5mOhm */
+		pca9482,sense-config = <0>;	/* Bottom side */
+		pca9482,switching-frequency = <1000>; /* 1000kHz */
+		pca9482,switching-frequency-byp = <500>; /* 500kHz */
+		pca9482,switching-frequency-low = <500>; /* 500kHz */
+		pca9482,switching-frequency-fpdo = <500>; /* 500kHz */
+		pca9482,ntc0-threshold = <1110000>; /* 1.11V */
+		pca9482,ntc1-threshold = <495000>;	/* 0.495V */
+		pca9482,ntc-en = <0>; /* Disable NTC protection function */
+		pca9482,chg-mode = <1>; /* 2:1 direct charging mode */
+		pca9482,cv-polling = <2000>; /* 2000ms */
+		pca9482,step1-cv=<4200000>; /* 4200mV */
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/stable/r11/charger/pca9482/pca9482_charger.r11[qs].dtsi */
+&pca9482_charger {
+	pca9482,switching-frequency-low = <1000>; /* Keep same with PCA9482_FSW_CFG_DFT 1.0MHz(1000kHz) */
+	pca9482,iin-low-frequency = <1700000>; /* 1700000uA */
+	pca9482,fg-vfloat = <1>; /* Use FG VNOW */
+	/* pca9482,default-vfloat = <4500000>; 4.500V */
+	pca9482,input-itopoff = <400000>; /* 400mA */
+	pca9482,battery-connection = <1>; /* Same as FG VBAT */
+	pca9482,ta-volt-offset = <300000>; /* 300mV */
+	pca9482,fpdo_dc_input-itopoff = <1700000>; /* 1700mA */
+	pca9482,fpdo_dc_vnow-topoff = <4175000>; /* 4175mV */
+	pca9482,ta-min-vol = <9000000>; /* 9000000uV */
+};
