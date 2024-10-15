@@ -32,6 +32,28 @@ __always_inline bool is_msdu_enable(void)
 #include "scsc_wifilogger_rings.h"
 #endif
 
+static int slsi_get_miclen(struct net_device *dev, u32 akm_suite)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+
+	switch (akm_suite) {
+	case SLSI_KEY_MGMT_802_1X_SUITE_B_192:
+	case SLSI_KEY_MGMT_FT_802_1X_SHA384:
+	case SLSI_KEY_MGMT_802_1X_SUITE_B_192_REV:
+		return 24;
+	case SLSI_KEY_MGMT_OWE:
+	case SLSI_KEY_MGMT_OWE_REV:
+		if (ndev_vif->sta.owe_group_during_connection == 20)
+			return 24;
+		else if (ndev_vif->sta.owe_group_during_connection == 21)
+			return 32;
+		else
+			return 16;
+	default:
+		return 16;
+	}
+}
+
 int slsi_get_dwell_time_for_wps(struct slsi_dev *sdev, struct netdev_vif *ndev_vif, u8 *eapol, u16 eap_length)
 {
 	/**
@@ -61,15 +83,19 @@ int slsi_get_dwell_time_for_wps(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 
 int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
 {
-	struct netdev_vif	*ndev_vif = netdev_priv(dev);
-	struct slsi_peer	*peer;
-	u8			*eapol = NULL;
-	u16			msg_type = 0;
-	u16			proto = ntohs(skb->protocol);
-	int			ret = 0;
-	u32              dwell_time = sdev->fw_dwell_time;
-	u64			tx_bytes_tmp = 0;
-	u16                 eap_length = 0;
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_peer *peer;
+	u8 *eapol = NULL;
+	u16 msg_type = 0;
+	u16 proto = ntohs(skb->protocol);
+	int ret = 0;
+	u32 dwell_time = sdev->fw_dwell_time;
+	u64 tx_bytes_tmp = 0;
+	u16 eap_length = 0;
+	u16 frame_len = skb->len - sizeof(struct ethhdr);
+	struct slsi_wpa_eapol_key *key = NULL;
+	u8 *keydatalen_pos, *mic;
+	u16 keydatalen = 0;
 
 	slsi_spinlock_lock(&ndev_vif->peer_lock);
 	peer = slsi_get_peer_from_mac(sdev, dev, eth_hdr(skb)->h_dest);
@@ -89,31 +115,41 @@ int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff 
 		  * - ACK bit will not be set
 		  * - Secure bit will be set in key type RSN (WPA2/WPA3
 		  *   Personal/WPA3 Enterprise)
-		  * - Key Data length check for Zero is for WPA as Secure
-		  *   bit will not be set, MIC bit set in key info
+		  * - Key Data length check for Zero for wpa or RSN or
+		  *   Key Data length will be 16 when miclen is Zero and Encr data is set in RSN Key type
 		  */
-		if ((skb->len - sizeof(struct ethhdr)) >= 99)
-			eapol = skb->data + sizeof(struct ethhdr);
-		if (eapol && eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAPOL_KEY) {
-			msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M123;
+		if (frame_len < 4)
+			break;
 
-			if ((!(eapol[SLSI_EAPOL_KEY_INFO_LOWER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_ACK_BIT_IN_LOWER_BYTE)) &&
-			    eapol[SLSI_EAPOL_KEY_INFO_LOWER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_KEY_TYPE_BIT_IN_LOWER_BYTE &&
-			    ((eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_RSN_KEY &&
-			    eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_SECURE_BIT_IN_HIGHER_BYTE) ||
-			    (eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_WPA_KEY &&
-			    eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_MIC_BIT_IN_HIGHER_BYTE &&
-			    eapol[SLSI_EAPOL_KEY_DATA_LENGTH_HIGHER_BYTE_POS] == 0 && eapol[SLSI_EAPOL_KEY_DATA_LENGTH_LOWER_BYTE_POS] == 0))){
-				msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M4;
-				dwell_time = 0;
+		eapol = skb->data + sizeof(struct ethhdr);
+		key = (struct slsi_wpa_eapol_key *)(eapol);
+		mic = (u8 *)(key + 1);
+		keydatalen_pos  = (mic +  slsi_get_miclen(dev, ndev_vif->sta.crypto.akm_suites[0]));
+		keydatalen = ((keydatalen_pos[0] << 8) | keydatalen_pos[1]);
+
+		if (key->type == SLSI_IEEE8021X_TYPE_EAPOL_KEY && frame_len >= 99) {
+			msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M123;
+			if ((key->key_info[0] & SLSI_EAPOL_KEY_INFO_REQUEST_BIT_IN_HIGHER_BYTE) ||
+			    !(key->key_info[1] & SLSI_EAPOL_KEY_INFO_KEY_TYPE_BIT_IN_LOWER_BYTE)) {
+				msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M123;
+			} else {
+				if (!(key->key_info[1] & SLSI_EAPOL_KEY_INFO_ACK_BIT_IN_LOWER_BYTE)) {
+					if (keydatalen == 0 ||
+					    ((key->key_info[0] & SLSI_EAPOL_KEY_INFO_MIC_BIT_IN_HIGHER_BYTE) &&
+					    (key->key_info[0] & SLSI_EAPOL_KEY_INFO_ENCR_DATA_BIT_IN_HIGHER_BYTE) &&
+					    keydatalen == SLSI_AES_BLOCK_SIZE)) {
+						msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M4;
+						dwell_time = 0;
+					}
+				}
 			}
+
 		} else {
 			msg_type = FAPI_MESSAGETYPE_EAP_MESSAGE;
-			if ((skb->len - sizeof(struct ethhdr)) >= 9)
-				eapol = skb->data + sizeof(struct ethhdr);
 
 			dwell_time = 0;
-			if (eapol && eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAP_PACKET) {
+			if (frame_len >= 9 && eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] ==
+			    SLSI_IEEE8021X_TYPE_EAP_PACKET) {
 				sdev->conn_log2us_ctx.host_tag_eap_type = SLSI_IEEE8021X_TYPE_EAP_PACKET;
 				eap_length = (skb->len - sizeof(struct ethhdr)) - 4;
 				if (eapol[SLSI_EAP_CODE_POS] == SLSI_EAP_PACKET_REQUEST) {
@@ -132,12 +168,13 @@ int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff 
 				 * EAP identity frame for P2P
 				 */
 				dwell_time = slsi_get_dwell_time_for_wps(sdev, ndev_vif, eapol, eap_length);
-			} else if (ndev_vif->iftype == NL80211_IFTYPE_STATION && (eapol && eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAP_START)) {
+			} else if (ndev_vif->iftype == NL80211_IFTYPE_STATION &&
+				   (eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] ==
+				    SLSI_IEEE8021X_TYPE_EAP_START)) {
 				sdev->conn_log2us_ctx.host_tag_eap_type = SLSI_IEEE8021X_TYPE_EAP_START;
 				eap_length = (skb->len - sizeof(struct ethhdr)) - 4;
 				SLSI_INFO(sdev, "Send EAP-Start (%d)\n", eap_length);
-				if (ndev_vif->iftype == NL80211_IFTYPE_STATION)
-						sdev->conn_log2us_ctx.eap_start_len = eap_length;
+				sdev->conn_log2us_ctx.eap_start_len = eap_length;
 			}
 		}
 	break;

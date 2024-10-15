@@ -121,8 +121,7 @@ int get_reset_count(void);
 struct reset_info_t get_reset_info(void);
 
 bool is_shub_working(void);
-int shub_send_status_with_buffer(u8, char *, int);
-int shub_send_status(u8);
+int shub_send_status(u8, char *, int);
 int queue_refresh_task(void);
 
 int shub_probe(struct platform_device *pdev);

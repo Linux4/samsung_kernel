@@ -861,6 +861,7 @@ struct slsi_vif_sta {
 	u16                     sae_auth_type;
 	bool                    twt_allowed;
 	u16                     twt_peer_cap;
+	u16                     owe_group_during_connection;
 };
 
 struct slsi_vif_unsync {
@@ -1559,7 +1560,7 @@ struct slsi_dev {
 	struct scsc_service        *service;
 	struct slsi_chip_info_mib  chip_info_mib;
 	struct slsi_plat_info_mib  plat_info_mib;
-	u16                        reg_dom_version;
+	u32                        reg_dom_version;
 
 #ifdef CONFIG_SCSC_WLAN_MUTEX_DEBUG
 	struct slsi_mutex          netdev_add_remove_mutex;
@@ -1588,6 +1589,7 @@ struct slsi_dev {
 	struct work_struct recovery_work_on_start;   /* Work on chip recovery*/
 	struct work_struct trigger_wlan_fail_work;   /* Work on mlme cfm or ind timeout*/
 	struct work_struct system_error_user_fail_work;   /* Work on system error */
+	struct work_struct sablelog_logging_work;/* work struct for collect sable log in interrupt context */
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 	struct work_struct chipset_logging_work; /* Work for chipset logging */
 #endif
@@ -1606,6 +1608,12 @@ struct slsi_dev {
 	/* ProcFS */
 	int                        procfs_instance;
 	struct proc_dir_entry      *procfs_dir;
+#ifdef CONFIG_SCSC_WLAN_MUTEX_DEBUG
+	struct slsi_mutex          tspec_mutex;
+#else
+	/* a std mutex */
+	struct mutex               tspec_mutex;
+#endif
 
 	/* Configuration */
 	u8                         hw_addr[ETH_ALEN];

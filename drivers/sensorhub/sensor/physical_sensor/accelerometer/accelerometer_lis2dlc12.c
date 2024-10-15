@@ -37,7 +37,7 @@ struct sensor_chipset_init_funcs accel_lis2dlc12_ops = {
 	.parse_dt = parse_dt_accelerometer_lis2dlc12,
 };
 
-struct sensor_chipset_init_funcs *get_accelometer_lis2dlc12_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_accelerometer_lis2dlc12_function_pointer(char *name)
 {
 	if (strcmp(name, LIS2DLC12_NAME) != 0)
 		return NULL;

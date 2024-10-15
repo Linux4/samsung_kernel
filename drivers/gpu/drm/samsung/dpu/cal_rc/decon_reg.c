@@ -1021,6 +1021,10 @@ static void dsc_calc_pps_info(struct decon_config *config, u32 dscc_en,
 				config->vendor_pps.scale_increment_interval;
 		if (config->vendor_pps.final_offset)
 			dsc_enc->final_offset = config->vendor_pps.final_offset;
+		if (config->vendor_pps.nfl_bpg_offset)
+			dsc_enc->nfl_bpg_offset = config->vendor_pps.nfl_bpg_offset;
+		if (config->vendor_pps.slice_bpg_offset)
+			dsc_enc->slice_bpg_offset = config->vendor_pps.slice_bpg_offset;
 		if (config->vendor_pps.comp_cfg)
 			dsc_enc->comp_cfg = config->vendor_pps.comp_cfg;
 	}

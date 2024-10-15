@@ -55,19 +55,19 @@
 
 				power_seq {
 					scenario_normal_on {
-						20 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						30 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_normal_off {
-						100 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN0 0>; };
+						90 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_vision_on {
-						20 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						30 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_vision_off {
-						100 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN0 0>; };
+						90 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_ois_factory_on {
-						15 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_ois_factory_off {
 						40 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN0 0>; };
@@ -476,14 +476,14 @@
 	hsi2c13_bus: hsi2c13-bus {
 			samsung,pins = "gpm0-0", "gpm1-0";
 			samsung,pin-function = <2>;
-			samsung,pin-pud = <5>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 	};
 
 	hsi2c13_bus_in: hsi2c13-bus-in {
 			samsung,pins = "gpm0-0", "gpm1-0";
 			samsung,pin-function = <0>;
-			samsung,pin-pud = <5>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 	};
 
@@ -491,14 +491,14 @@
 	hsi2c16_bus: hsi2c16-bus {
 			samsung,pins = "gpm6-0", "gpm7-0";
 			samsung,pin-function = <3>;
-			samsung,pin-pud = <3>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 	};
 
 	hsi2c16_bus_in: hsi2c16-bus-in {
 			samsung,pins = "gpm6-0", "gpm7-0";
 			samsung,pin-function = <0>;
-			samsung,pin-pud = <3>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 	};
 
@@ -506,14 +506,14 @@
 	hsi2c22_bus: hsi2c22-bus {
 			samsung,pins = "gpm19-0", "gpm20-0";
 			samsung,pin-function = <3>;
-			samsung,pin-pud = <5>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 	};
 
 	hsi2c22_bus_in: hsi2c22-bus-in {
 			samsung,pins = "gpm19-0", "gpm20-0";
 			samsung,pin-function = <0>;
-			samsung,pin-pud = <5>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 	};
 
@@ -521,15 +521,28 @@
 	hsi2c21_bus: hsi2c21-bus {
 			samsung,pins = "gpm17-0", "gpm18-0";
 			samsung,pin-function = <2>;
-			samsung,pin-pud = <3>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 	};
 
 	hsi2c21_bus_in: hsi2c21-bus-in {
 			samsung,pins = "gpm17-0", "gpm18-0";
 			samsung,pin-function = <0>;
-			samsung,pin-pud = <3>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
+	};
+};
+
+&pinctrl_3 {
+	wide_ois_ldo_en: wide-ois-ldo-en {
+		samsung,pins = "gpp1-6";
+		samsung,pin-pud = <0>;
+		samsung,pin-pud-pdn = <0>;
+	};
+	wide_ldo_en: wide-ldo-en {
+		samsung,pins = "gpp1-7";
+		samsung,pin-pud = <0>;
+		samsung,pin-pud-pdn = <0>;
 	};
 };
 
@@ -551,13 +564,13 @@
 		sensor-module = <&is_sensor_4ha>;
 		reg = <0x40>; /* 1 bit right shift */
 		id = <4>; /* matching is_sensor id */
-		setfile = "setA";
+		setfile = "setB";
 		status = "okay";
 		rev_reg = <0x0000 2 0x48AB>;
 	};
 
-	rear3_otprom@5A { /* UW OTPROM */
-		compatible = "samsung,rear3-otprom-i2c";
+	rear2_otprom@5A { /* UW OTPROM */
+		compatible = "samsung,rear2-otprom-i2c";
 		reg = <0x01>;
 
 		rom_power_position = <4>;
@@ -874,6 +887,8 @@
 };
 
 &exynos_is {
+	pinctrl-names = "default";
+	pinctrl-0 = <&wide_ois_ldo_en &wide_ldo_en>;
 
 	vender {
 		use_module_check;

@@ -48,7 +48,8 @@
 #define SEC_BATTERY_CABLE_LO_TA			43
 #define SEC_BATTERY_CABLE_WIRELESS_EPP_NV	 44
 #define SEC_BATTERY_CABLE_WIRELESS_EPP_FAKE	 45
-#define SEC_BATTERY_CABLE_MAX			46
+#define SEC_BATTERY_CABLE_HV_WIRELESS_DC		46
+#define SEC_BATTERY_CABLE_MAX			47
 
 /* d2d support type */
 #define SB_D2D_NONE	0
@@ -374,5 +375,12 @@
 #define SET_FOD_CC(_flag)		(FOD_FLAG_ ##_flag)
 #define SET_FOD_CV(_flag)		(FOD_FLAG_ ##_flag << 4)
 #define SET_FOD_FULL(_flag)		(FOD_FLAG_ ##_flag << 8)
+
+#define	DC_MODE_NONE	0
+#define	DC_MODE_1TO1	1 /* Unused */
+#define	DC_MODE_2TO1	2
+#define	DC_MODE_3TO1	3
+#define	DC_MODE_4TO1	4
+#define	DC_MODE_MAX	10
 
 #endif /* _DT_BINDINGS_BATTERY_SEC_BATTERY_H */

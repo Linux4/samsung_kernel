@@ -25,6 +25,8 @@ init_sensor_factory init_sensor_factory_funcs[] = {
 	initialize_proximity_factory,
 	initialize_pressure_factory,
 	initialize_flip_cover_detector_factory,
+	initialize_accelerometer_sub_factory,
+	initialize_gyroscope_sub_factory,
 };
 
 int initialize_factory(void)

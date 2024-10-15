@@ -238,6 +238,8 @@ const struct file_operations ops_name = {				\
 #define KEY_FN_LOCK		0x2ca	/* fn_lock key */
 #define KEY_FN_UNLOCK		0x2cb	/* fn_unlock key */
 
+#define KEY_AI_HOT		0x2f8	/* ai hot key */
+
 #define ABS_MT_CUSTOM		0x3e	/* custom event */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))

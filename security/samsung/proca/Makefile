@@ -46,8 +46,7 @@ ccflags-y += -I$(srctree)/security/samsung/five/
 
 ifdef CONFIG_PROCA_S_OS
 
-obj-$(CONFIG_PROCA_CERTIFICATES_DB) += s_os/proca_vfs.o \
-                            s_os/proca_certificate_db.o \
+obj-$(CONFIG_PROCA_CERTIFICATES_DB) += s_os/proca_certificate_db.o \
                             s_os/proca_keyring.o \
                             proca_cert_builtin.o \
                             s_os/proca_storage_db.o
@@ -56,7 +55,9 @@ obj-$(CONFIG_PROCA_CERT_DEVICE) += s_os/proca_certificate_dev.o
 
 obj-$(CONFIG_PROCA_CERTIFICATES_XATTR) += s_os/proca_storage_xattr.o
 
-obj-$(CONFIG_PROCA) += s_os/proca_lsm.o
+obj-$(CONFIG_PROCA) += s_os/proca_lsm.o \
+                      s_os/proca_vfs.o \
+                      s_os/proca_audit.o
 
 ccflags-y += -Isecurity/samsung/proca/s_os
 else
@@ -81,7 +82,17 @@ endif
 subdir-ccflags-y += -Wformat
 
 # kunit tests options:
-ifeq ($(CONFIG_SEC_KUNIT)$(CONFIG_UML), yy)
+# //KERNEL/LEGO specific list. do no sync to other branches
+ENABLED_TARGETS_LIST = b0s g0s b0q g0q b5q q5q dm3q
+ifeq ($(CONFIG_SEC_KUNIT), y)
   GCOV_PROFILE := y
-  ccflags-$(CONFIG_PROCA) += -DPROCA_KUNIT_ENABLED
+  ifeq ($(CONFIG_UML), y)
+    ccflags-$(CONFIG_PROCA) += -DPROCA_KUNIT_ENABLED
+  else
+    ifneq ($(filter $(TARGET_DEVICE),$(ENABLED_TARGETS_LIST)),)
+      $(warning security/proca: TARGET_DEVICE: $(TARGET_DEVICE). build on-device kunit test)
+    else
+      $(warning security/proca: TARGET_DEVICE: $(TARGET_DEVICE). skip on-device kunit test)
+    endif
+  endif
 endif

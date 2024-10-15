@@ -38,10 +38,27 @@
 /* factory Sysfs                                                         */
 /*************************************************************************/
 
-static struct device *proximity_sysfs_device;
+__visible_for_testing struct device *proximity_sysfs_device;
 static struct device_attribute **chipset_attrs;
 
 static u32 position[6];
+
+static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
+
+	return sprintf(buf, "%s\n", sensor->spec.name);
+}
+
+static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
+	char vendor[VENDOR_MAX] = "";
+
+	get_sensor_vendor_name(sensor->spec.vendor, vendor);
+
+	return sprintf(buf, "%s\n", vendor);
+}
 
 static ssize_t prox_probe_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -69,11 +86,11 @@ u16 get_prox_raw_data(void)
 {
 	u16 raw_data = 0;
 	s32 ms_delay = 20;
-	char tmpe_buf[8] = { 0, };
+	char temp_buf[8] = { 0, };
 	struct prox_raw_event *sensor_value =
 	    (struct prox_raw_event *)(get_sensor_event(SENSOR_TYPE_PROXIMITY_RAW)->value);
 
-	memcpy(&tmpe_buf[0], &ms_delay, 4);
+	memcpy(&temp_buf[0], &ms_delay, 4);
 
 	if (!get_sensor_enabled(SENSOR_TYPE_PROXIMITY_RAW)) {
 		batch_sensor(SENSOR_TYPE_PROXIMITY_RAW, 20, 0);
@@ -179,6 +196,8 @@ static ssize_t trim_check_show(struct device *dev, struct device_attribute *attr
 	return snprintf(buf, PAGE_SIZE, "%s\n", (trim_check == 0) ? "TRIM" : "UNTRIM");
 }
 
+static DEVICE_ATTR_RO(name);
+static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(prox_position);
 static DEVICE_ATTR_RO(prox_probe);
 static DEVICE_ATTR_RO(thresh_high);
@@ -189,6 +208,8 @@ static DEVICE_ATTR_RO(prox_offset_pass);
 static DEVICE_ATTR_RO(trim_check);
 
 __visible_for_testing struct device_attribute *proximity_attrs[] = {
+	&dev_attr_name,
+	&dev_attr_vendor,
 	&dev_attr_prox_probe,
 	&dev_attr_thresh_high,
 	&dev_attr_thresh_low,

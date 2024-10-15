@@ -170,7 +170,7 @@ static ssize_t get_fw_ver_ic_show(struct device *dev, struct device_attribute *a
 	snprintf(buff, sizeof(buff), "%s_v%d.%d.%d.%d",
 			(stm32->keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL) ?
 			stm32->dtdata->model_name_row[stm32->ic_fw_ver.model_id] :
-			stm32->dtdata->model_name[stm32->ic_fw_ver.model_id],
+			stm32->dtdata->model_name[stm32->model_name_id],
 			stm32->ic_fw_ver.fw_major_ver,
 			stm32->ic_fw_ver.fw_minor_ver,
 			stm32->ic_fw_ver.model_id,
@@ -193,7 +193,7 @@ static ssize_t get_fw_ver_bin_show(struct device *dev, struct device_attribute *
 	snprintf(buff, sizeof(buff), "%s_v%d.%d.%d.%d",
 			(stm32->keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL) ?
 			stm32->dtdata->model_name_row[stm32->ic_fw_ver.model_id] :
-			stm32->dtdata->model_name[stm32->ic_fw_ver.model_id],
+			stm32->dtdata->model_name[stm32->model_name_id],
 			stm32->fw_header->boot_app_ver.fw_major_ver,
 			stm32->fw_header->boot_app_ver.fw_minor_ver,
 			stm32->fw_header->boot_app_ver.model_id,
@@ -558,7 +558,7 @@ static ssize_t get_tc_fw_ver_bin_show(struct device *dev, struct device_attribut
 	snprintf(buff, sizeof(buff), "%s-TC_v%02X%02X",
 			(stm32->keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL) ?
 			stm32->dtdata->model_name_row[stm32->ic_fw_ver.model_id] :
-			stm32->dtdata->model_name[stm32->ic_fw_ver.model_id],
+			stm32->dtdata->model_name[stm32->model_name_id],
 			stm32->tc_fw_ver_of_bin.major_ver & 0xFF, stm32->tc_fw_ver_of_bin.minor_ver & 0xFF);
 
 	input_info(true, &stm32->client->dev, "%s: %s\n", __func__, buff);
@@ -579,13 +579,13 @@ static ssize_t get_tc_fw_ver_ic_show(struct device *dev, struct device_attribute
 		snprintf(buff, sizeof(buff), "%s-TC_v%02X%02X",
 				(stm32->keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL) ?
 				stm32->dtdata->model_name_row[stm32->ic_fw_ver.model_id] :
-				stm32->dtdata->model_name[stm32->ic_fw_ver.model_id],
+				stm32->dtdata->model_name[stm32->model_name_id],
 				stm32->tc_fw_ver_of_ic.major_ver & 0xFF, stm32->tc_fw_ver_of_ic.minor_ver & 0xFF);
 	else
 		snprintf(buff, sizeof(buff), "%s-TC_v0000",
 				(stm32->keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL) ?
 				stm32->dtdata->model_name_row[stm32->ic_fw_ver.model_id] :
-				stm32->dtdata->model_name[stm32->ic_fw_ver.model_id]);
+				stm32->dtdata->model_name[stm32->model_name_id]);
 
 	input_info(true, &stm32->client->dev, "%s: %s\n", __func__, buff);
 	mutex_unlock(&stm32->dev_lock);

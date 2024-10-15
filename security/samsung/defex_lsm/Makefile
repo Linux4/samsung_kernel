@@ -53,8 +53,16 @@ defex-y += catch_engine/defex_ht.o
 defex-y += defex_rules.o
 defex-$(CONFIG_COMPAT) += catch_engine/defex_catch_list_compat.o
 
-# Immutable Feature is applied with permissive mode first.
-DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
+ifeq ($(filter b6s% b6q% q6aq% q6q%, $(TARGET_PRODUCT)),)
+    DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
+endif
+
+ifeq ($(CONFIG_SECURITY_DEFEX_SINGLE_FILE),y)
+    $(warning [DEFEX] Single rule file MODE.)
+    DEFEX_DEFINES += -DDEFEX_SINGLE_RULES_FILE
+else
+    $(warning [DEFEX] Multiple rule file MODE.)
+endif
 
 # Integrity Feature is applied with permissive mode first.
 DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT

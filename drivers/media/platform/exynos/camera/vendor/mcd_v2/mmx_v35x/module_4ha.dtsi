@@ -39,7 +39,7 @@
 
 				/* vendor */
 				rom_type = <3>; /* ROM_TYPE_OTPROM */
-				rom_id = <4>;
+				rom_id = <2>;
 				rom_cal_index = <0>;
 
 				vc_extra {
@@ -55,21 +55,21 @@
 					/* common = <width, height, fps, settle, mode, lane, speed, interleave, lrte, pd_mode> */
 					/* vcX = <map, hwformat, width, height, hwformat, type, width, height> */
 					mode0 {/* A-1 */
-						common = <3264 2448 30 0 0 CSI_DATA_LANES_4 671 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <3264 2448 30 0 0 CSI_DATA_LANES_4 696 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 3264 2448    /* out */ HW_FORMAT_RAW10 VC_NOTHING 3264 2448>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>; 
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode1 {/* K-1 */
-						common = <3264 1836 30 0 1 CSI_DATA_LANES_4 671 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
+						common = <3264 1836 30 0 1 CSI_DATA_LANES_4 696 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 3264 1836    /* out */ HW_FORMAT_RAW10 VC_NOTHING 3264 1836>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode2 {/* N-1 */
-						common = <2880 1980 30 0 2 CSI_DATA_LANES_4 671 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
+						common = <2880 1980 30 0 2 CSI_DATA_LANES_4 696 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2880 1980    /* out */ HW_FORMAT_RAW10 VC_NOTHING 2880 1980>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -77,35 +77,35 @@
 					};
 				
 					mode3 {/* J-1 */
-						common = <2640 1980 30 0 3 CSI_DATA_LANES_4 671 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
+						common = <2640 1980 30 0 3 CSI_DATA_LANES_4 696 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2640 1980    /* out */ HW_FORMAT_RAW10 VC_NOTHING 2640 1980>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode4 {/* M-1 */
-						common = <2608 1956 30 0 4 CSI_DATA_LANES_4 671 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
+						common = <2608 1956 30 0 4 CSI_DATA_LANES_4 696 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2608 1956    /* out */ HW_FORMAT_RAW10 VC_NOTHING 2608 1956>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode5 {/* M-1 */
-						common = <1632 1224 30 0 5 CSI_DATA_LANES_4 671 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
+						common = <1632 1224 30 0 5 CSI_DATA_LANES_4 696 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 1632 1224    /* out */ HW_FORMAT_RAW10 VC_NOTHING 1632 1224>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode6 {/* M-1 */
-						common = <1632 916 30 0 6 CSI_DATA_LANES_4 671 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
+						common = <1632 916 30 0 6 CSI_DATA_LANES_4 696 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 1632 916    /* out */ HW_FORMAT_RAW10 VC_NOTHING 1632 916>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode7 {/* M-1 */
-						common = <800 600 120 0 7 CSI_DATA_LANES_4 671 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
+						common = <800 600 120 0 7 CSI_DATA_LANES_4 696 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 800 600    /* out */ HW_FORMAT_RAW10 VC_NOTHING 800 600>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0       /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;

@@ -158,7 +158,7 @@ static void report_pressure_event(void)
 #endif
 }
 
-void print_pressure_debug(void)
+void print_pressure_debug(int type)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
 	struct sensor_event *event = &(sensor->last_event_buffer);
@@ -170,7 +170,7 @@ void print_pressure_debug(void)
 		  data->convert_coef, event->timestamp, sensor->sampling_period, sensor->max_report_latency);
 }
 
-static int open_pressure_files(void)
+static int open_pressure_files(int type)
 {
 	shub_infof("");
 	open_pressure_calibration_file();

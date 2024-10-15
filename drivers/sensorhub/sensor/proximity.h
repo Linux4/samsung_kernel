@@ -20,6 +20,8 @@
 
 #include <linux/device.h>
 
+#define PROX_RAW_ADDITIONAL_DEBUG_DATA_VERSION 2000
+
 #define PROX_THRESH_HIGH		0
 #define PROX_THRESH_LOW			1
 #define PROX_THRESH_SIZE		2
@@ -54,6 +56,11 @@ struct prox_event {
 
 struct prox_raw_event {
 	u16 prox_raw;
+	u16 prox;
+	u16 call_min;
+	u16 base_line;
+	u16 ps_off;
+	u16 ir_excpetion_state;
 } __attribute__((__packed__));
 
 struct prox_cal_event {

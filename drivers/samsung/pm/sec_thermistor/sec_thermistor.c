@@ -22,6 +22,7 @@
 
 #define ADC_SAMPLING_CNT	1
 #define THERMISTOR_NAME_LEN	32
+#define FAKE_TEMP	300
 
 struct sec_therm_info {
 	int id;
@@ -114,38 +115,36 @@ static int sec_therm_parse_dt(struct platform_device *pdev)
 static int sec_therm_parse_dt(struct platform_device *pdev) { return -ENODEV; }
 #endif
 
+static int sec_therm_read_adc_data(struct sec_therm_info *info, int *adc_data)
+{
+	int ret;
+
+	if (info->pdata->iio_processed)
+		ret = iio_read_channel_processed(info->chan, adc_data);
+	else
+		ret = iio_read_channel_raw(info->chan, adc_data);
+
+	if (ret < 0) {
+		dev_err(info->dev, "%s : err(%d), adc_data(%d) returned, skip read\n",
+			__func__, ret, *adc_data);
+	}
+
+	return ret;
+}
+
 static int sec_therm_get_adc_data(struct sec_therm_info *info)
 {
 	int adc_data, ret;
 	int adc_max = 0, adc_min = 0, adc_total = 0;
 	int i;
 
-	if (info->sampling_cnt < 3) {
-		if (info->pdata->iio_processed)
-			ret = iio_read_channel_processed(info->chan, &adc_data);
-		else
-			ret = iio_read_channel_raw(info->chan, &adc_data);
-
-		if (ret < 0) {
-			dev_err(info->dev, "%s : err(%d) returned, skip read\n",
-				__func__, adc_data);
-			return ret;
-		}
-
-		return adc_data;
-	}
-
 	for (i = 0; i < info->sampling_cnt; i++) {
-		if (info->pdata->iio_processed)
-			ret = iio_read_channel_processed(info->chan, &adc_data);
-		else
-			ret = iio_read_channel_raw(info->chan, &adc_data);
-
-		if (ret < 0) {
-			dev_err(info->dev, "%s : err(%d) returned, skip read\n",
-				__func__, adc_data);
+		ret = sec_therm_read_adc_data(info, &adc_data);
+		if (ret < 0)
 			return ret;
-		}
+
+		if (info->sampling_cnt < 3)
+			return adc_data;
 
 		if (i != 0) {
 			if (adc_data > adc_max)
@@ -162,46 +161,77 @@ static int sec_therm_get_adc_data(struct sec_therm_info *info)
 	return (adc_total - adc_max - adc_min) / (info->sampling_cnt - 2);
 }
 
-static int convert_adc_to_temper(struct sec_therm_info *info, unsigned int adc)
+static bool is_using_fake_temp(struct sec_therm_info *info)
+{
+	return !info->pdata->adc_table || !info->pdata->adc_arr_size;
+}
+
+static int get_closest_adc_table_idx(struct sec_therm_info *info, unsigned int adc)
 {
 	int low = 0;
-	int high = 0;
-	int temp = 0;
-	int temp2 = 0;
-
-	if (!info->pdata->adc_table || !info->pdata->adc_arr_size) {
-		/* using fake temp */
-		return 300;
-	}
-
-	high = info->pdata->adc_arr_size - 1;
+	int high = info->pdata->adc_arr_size - 1;
 
 	if (info->pdata->adc_table[low].adc >= adc)
-		return info->pdata->adc_table[low].temperature;
+		return low;
 	else if (info->pdata->adc_table[high].adc <= adc)
-		return info->pdata->adc_table[high].temperature;
+		return high;
 
-	while (low <= high) {
-		int mid = 0;
+	return -1;
+}
 
-		mid = (low + high) / 2;
-		if (info->pdata->adc_table[mid].adc > adc)
-			high = mid - 1;
-		else if (info->pdata->adc_table[mid].adc < adc)
-			low = mid + 1;
+static int find_appropriate_temp(int *low, int *high, int adc, struct sec_therm_info *info)
+{
+	int mid;
+	struct sec_therm_adc_table *mid_table;
+
+	while (*low <= *high) {
+		mid = (*low + *high) / 2;
+		mid_table = &info->pdata->adc_table[mid];
+
+		if (mid_table->adc > adc)
+			*high = mid - 1;
+		else if (mid_table->adc < adc)
+			*low = mid + 1;
 		else
-			return info->pdata->adc_table[mid].temperature;
+			return mid_table->temperature;
 	}
 
-	temp = info->pdata->adc_table[high].temperature;
+	return -1; // Not found
+}
 
-	temp2 = (info->pdata->adc_table[low].temperature -
-			info->pdata->adc_table[high].temperature) *
-			(adc - info->pdata->adc_table[high].adc);
+static int calculate_temp(int low, int high, int adc, struct sec_therm_info *info)
+{
+	int temp = info->pdata->adc_table[high].temperature;
+	int temp_diff = (info->pdata->adc_table[low].temperature -
+		info->pdata->adc_table[high].temperature) *
+		(adc - info->pdata->adc_table[high].adc);
 
-	temp += temp2 /
+	temp += temp_diff /
 		(info->pdata->adc_table[low].adc -
 			info->pdata->adc_table[high].adc);
+
+	return temp;
+}
+
+static int convert_adc_to_temp(struct sec_therm_info *info, unsigned int adc)
+{
+	int low = 0;
+	int high = info->pdata->adc_arr_size - 1;
+	int temp = 0;
+	int idx = 0;
+
+	if (is_using_fake_temp(info))
+		return FAKE_TEMP;
+
+	idx = get_closest_adc_table_idx(info, adc);
+	if (idx != -1)
+		return info->pdata->adc_table[idx].temperature;
+
+	temp = find_appropriate_temp(&low, &high, adc, info);
+	if (temp != -1)
+		return temp;
+
+	temp = calculate_temp(low, high, adc, info);
 
 	return temp;
 }
@@ -216,7 +246,7 @@ static ssize_t sec_therm_show_temperature(struct device *dev,
 	adc = sec_therm_get_adc_data(info);
 
 	if (adc >= 0)
-		temp = convert_adc_to_temper(info, adc);
+		temp = convert_adc_to_temp(info, adc);
 	else
 		return adc;
 
@@ -270,7 +300,7 @@ int sec_therm_get_ap_temperature(void)
 	adc = sec_therm_get_adc_data(g_ap_therm_info);
 
 	if (adc >= 0)
-		temp = convert_adc_to_temper(g_ap_therm_info, adc);
+		temp = convert_adc_to_temp(g_ap_therm_info, adc);
 	else
 		return adc;
 

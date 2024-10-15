@@ -27,6 +27,8 @@ void initialize_magnetometer_factory(bool en);
 void initialize_pressure_factory(bool en);
 void initialize_proximity_factory(bool en);
 void initialize_flip_cover_detector_factory(bool en);
+void initialize_accelerometer_sub_factory(bool en);
+void initialize_gyroscope_sub_factory(bool en);
 
 #endif
 

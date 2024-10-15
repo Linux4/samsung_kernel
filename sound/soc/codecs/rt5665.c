@@ -3810,6 +3810,7 @@ static int rt5665_mono_event(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 		snd_soc_dapm_to_component(w->dapm);
 	struct rt5665_priv *rt5665 = snd_soc_component_get_drvdata(component);
+	unsigned int reg112, reg007;
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
@@ -3820,7 +3821,18 @@ static int rt5665_mono_event(struct snd_soc_dapm_widget *w,
 		snd_soc_component_update_bits(component, RT5665_MONO_AMP_CALIB_CTRL_1, 0x40,
 			0x0);
 		snd_soc_component_update_bits(component, RT5665_MONO_OUT, 0x10, 0x10);
+
+		reg112 = snd_soc_component_read(component, RT5665_BIAS_CUR_CTRL_9);
+		reg007 = snd_soc_component_read(component, RT5665_MONO_GAIN);
+		snd_soc_component_write(component, RT5665_BIAS_CUR_CTRL_9, 0xaa8a);
+		snd_soc_component_write(component, RT5665_MONO_GAIN, 0x0300);
+
 		snd_soc_component_update_bits(component, RT5665_MONO_OUT, 0x20, 0x20);
+		usleep_range(30000, 30000);
+
+		snd_soc_component_write(component, RT5665_BIAS_CUR_CTRL_9, reg112);
+		snd_soc_component_write(component, RT5665_MONO_GAIN, reg007);
+
 		break;
 
 	case SND_SOC_DAPM_POST_PMD:

@@ -216,8 +216,13 @@ void is_sensor_ois_set_init_work(struct work_struct *data)
 	if (ret < 0)
 		err("v4l2_subdev_call(ois_init) is fail(%d)", ret);
 #endif
+#if defined(PLACE_OIS_CENTERING_AFTER_OIS_INIT)
+	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_mode, sensor_peri->subdev_mcu,
+		OPTICAL_STABILIZATION_MODE_CENTERING);
+#else
 	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_mode, sensor_peri->subdev_mcu,
 		sensor_peri->mcu->ois->ois_mode);
+#endif
 	if (ret < 0)
 		err("v4l2_subdev_call(ois_set_mode) is fail(%d)", ret);
 
@@ -2019,30 +2024,6 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 		}
 
 		if (sensor_peri->flash != NULL) {
-			/* single camera */
-			if (sensor_cnt <= 1) {
-				mutex_lock(&sensor_peri->cis.control_lock);
-				sensor_peri->flash->flash_data.mode = CAM2_FLASH_MODE_OFF;
-				sensor_peri->flash->flash_data.high_resolution_flash = false;
-				if (sensor_peri->flash->flash_data.flash_fired == true) {
-					sensor_peri->flash->flash_data.intensity = 0;
-					sensor_peri->flash->flash_data.firing_time_us = 0;
-
-					info("[%s] Flash OFF(%d), pow(%d), time(%d)\n",
-					__func__,
-						sensor_peri->flash->flash_data.mode,
-						sensor_peri->flash->flash_data.intensity,
-						sensor_peri->flash->flash_data.firing_time_us);
-
-					ret = is_sensor_flash_fire(sensor_peri, 0);
-					if (ret) {
-						err("failed to turn off flash at flash expired handler\n");
-					}
-					sensor_peri->flash->flash_ae.pre_fls_ae_reset = false;
-					sensor_peri->flash->flash_ae.frm_num_pre_fls = 0;
-				}
-				mutex_unlock(&sensor_peri->cis.control_lock);
-			}
 			memset(&sensor_peri->flash->expecting_flash_dm[0], 0, sizeof(camera2_flash_dm_t) * EXPECT_DM_NUM);
 		}
 

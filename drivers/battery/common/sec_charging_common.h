@@ -132,6 +132,12 @@ enum sec_battery_dual_mode {
 	SEC_DUAL_BATTERY_SUB,
 	SEC_DUAL_BATTERY_TOTAL,
 };
+
+enum sec_battery_dual_chg_mode {
+	SEC_DUAL_BATTERY_CHG_ON = 0,
+	SEC_DUAL_BATTERY_CHG_OFF,
+	SEC_DUAL_BATTERY_BUCK_OFF,
+};
 #endif
 
 enum sec_battery_capacity_mode {
@@ -285,6 +291,12 @@ enum sec_wireless_pad_id {
 #define is_3rd_pad(vendor_id) (\
 	(vendor_id == 0x6E00) || \
 	(vendor_id == 0x0066))
+
+#define is_3_1_wc_status(wc_stat) (\
+	(wc_stat == SEC_BATTERY_CABLE_HV_WIRELESS_DC))
+
+#define is_valid_2_1_forced_ta(vid) (\
+	(vid == 0x04E8))
 
 enum sec_battery_adc_channel {
 	SEC_BAT_ADC_CHANNEL_CABLE_CHECK = 0,
@@ -522,12 +534,24 @@ enum sec_battery_check {
   */
 #define SEC_FUELGAUGE_CAPACITY_TYPE_RESET	(-1)
 
-#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
  /* SEC_FUELGAUGE_CAPACITY_TYPE_RESET_SUB
   * use capacity information to reset sub fuel gauge
   * (only for driver algorithm, can NOT be set by user)
   */
 #define SEC_FUELGAUGE_CAPACITY_TYPE_RESET_SUB	(-2)
+
+ /* SEC_FUELGAUGE_CAPACITY_TYPE_RESET_SUB_PKCP
+  * use capacity information to reset sub fuel gauge using 523k
+  * (only for driver algorithm, can NOT be set by user)
+  */
+#define SEC_FUELGAUGE_CAPACITY_TYPE_RESET_SUB_PKCP	(-3)
+
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+ /* SEC_FUELGAUGE_CAPACITY_TYPE_RESET_DUAL
+  * use capacity information to reset dual fuel gauge
+  * (only for driver algorithm, can NOT be set by user)
+  */
+#define SEC_FUELGAUGE_CAPACITY_TYPE_RESET_DUAL	(-4)
 #endif
 
 /* SEC_FUELGAUGE_CAPACITY_TYPE_RAW

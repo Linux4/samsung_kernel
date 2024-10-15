@@ -36,6 +36,7 @@
 
 #define INIT_SENSOR_STATE   0x3FEFF
 #define EXECUTE_FUNC(sensor, f) if ((sensor) && (sensor)->funcs && f != NULL) f()
+#define EXECUTE_FUNC_TYPE(sensor, f) if ((sensor) && (sensor)->funcs && f != NULL) f(sensor->type)
 
 #define BIGDATA_KEY_MAX 30
 
@@ -49,12 +50,16 @@ struct init_func_t {
 struct init_func_t init_sensor_funcs[] = {
 	{SENSOR_TYPE_ACCELEROMETER, init_accelerometer},
 	{SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED, init_accelerometer_uncal},
+	{SENSOR_TYPE_ACCELEROMETER_SUB, init_accelerometer_sub},
+	{SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED_SUB, init_accelerometer_uncal_sub},
 	{SENSOR_TYPE_STEP_COUNTER, init_step_counter},
 	{SENSOR_TYPE_GEOMAGNETIC_FIELD, init_magnetometer},
 	{SENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED, init_magnetometer_uncal},
 	{SENSOR_TYPE_FLIP_COVER_DETECTOR, init_flip_cover_detector},
 	{SENSOR_TYPE_GYROSCOPE, init_gyroscope},
 	{SENSOR_TYPE_GYROSCOPE_UNCALIBRATED, init_gyroscope_uncal},
+	{SENSOR_TYPE_GYROSCOPE_SUB, init_gyroscope_sub},
+	{SENSOR_TYPE_GYROSCOPE_UNCALIBRATED_SUB, init_gyroscope_uncal_sub},
 	{SENSOR_TYPE_LIGHT, init_light},
 	{SENSOR_TYPE_LIGHT_CCT, init_light_cct},
 	{SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS, init_light_autobrightness},
@@ -91,6 +96,10 @@ struct init_func_t init_sensor_funcs[] = {
 	{SENSOR_TYPE_LIGHT_IR, init_light_ir},
 	{SENSOR_TYPE_DROP_CLASSIFIER, init_drop_classifier},
 	{SENSOR_TYPE_SEQUENTIAL_STEP, init_sequential_step},
+	{SENSOR_TYPE_FOLDING_ANGLE, init_folding_angle},
+	{SENSOR_TYPE_LID_ANGLE_FUSION, init_lid_angle_fusion},
+	{SENSOR_TYPE_HINGE_ANGLE, init_hinge_angle},
+	{SENSOR_TYPE_FOLDING_STATE_LPM, init_folding_state_lpm},
 };
 
 struct sensor_key_type {
@@ -427,7 +436,7 @@ void print_sensor_debug(int type)
 	if (!sensor)
 		return;
 
-	EXECUTE_FUNC(sensor, sensor->funcs->print_debug);
+	EXECUTE_FUNC_TYPE(sensor, sensor->funcs->print_debug);
 	if (sensor->funcs == NULL || sensor->funcs->print_debug == NULL) {
 		if (type <= SENSOR_TYPE_LEGACY_MAX) {
 			shub_info("%s(%u) : %ums, %dms(%lld)", sensor->name, type, sensor->sampling_period,
@@ -809,14 +818,12 @@ void exit_sensor_manager(struct device *dev)
 int open_sensors_calibration(void)
 {
 	int i;
-	//if (!sensor_manager->is_fs_ready)
-	//	return 0;
 
 	shub_infof();
 	for (i = 0; i < SENSOR_TYPE_MAX; i++) {
 		struct shub_sensor *sensor = sensor_manager->sensor_list[i];
 
-		EXECUTE_FUNC(sensor, sensor->funcs->open_calibration_file);
+		EXECUTE_FUNC_TYPE(sensor, sensor->funcs->open_calibration_file);
 	}
 
 	return 0;
@@ -826,14 +833,16 @@ int sync_sensors_attribute(void)
 {
 	int type;
 
-	if (!sensor_manager->is_fs_ready)
-		return 0;
+	if (!is_shub_working()) {
+		shub_errf("sensor hub is not working");
+		return -EINVAL;
+	}
 
 	shub_infof();
 	for (type = 0; type < SENSOR_TYPE_MAX; type++) {
 		struct shub_sensor *sensor = get_sensor(type);
 
-		EXECUTE_FUNC(sensor, sensor->funcs->sync_status);
+		EXECUTE_FUNC_TYPE(sensor, sensor->funcs->sync_status);
 	}
 
 	return 0;
@@ -1035,6 +1044,5 @@ int refresh_sensors(struct device *dev)
 
 void fs_ready_cb(void)
 {
-	sensor_manager->is_fs_ready = true;
 	sensorhub_fs_ready();
 }

@@ -281,10 +281,11 @@ __visible_for_testing int panel_i2c_probe(struct i2c_client *client,
 	return ret;
 }
 
-static int panel_i2c_remove(struct i2c_client *client)
-{
-	return 0;
-}
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+static int panel_i2c_remove(struct i2c_client *client) { return 0; }
+#else
+static void panel_i2c_remove(struct i2c_client *client) { return; }
+#endif
 
 
 static struct i2c_device_id panel_i2c_id[] = {

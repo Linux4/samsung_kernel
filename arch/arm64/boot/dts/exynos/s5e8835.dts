@@ -7353,6 +7353,15 @@
 			governor = <0x00>;
 			dfs_id = <0xb040006>;
 			phandle = <0x226>;
+
+			skew {
+
+				skew_1 {
+					master_dm_name = "DISP-INT";
+					constraint_dm_type = <0x01>;
+					constraint_type = <0x00>;
+				};
+			};
 		};
 
 		devfreq_aud@17000050 {

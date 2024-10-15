@@ -49,6 +49,7 @@ static const bool check_dex2oat_binary = true;
 static const bool check_memfd_file = true;
 
 static struct file *memfd_file __ro_after_init;
+static bool is_five_initialized __ro_after_init;
 
 static struct workqueue_struct *g_five_workqueue;
 
@@ -655,9 +656,6 @@ static void process_measurement(const struct processing_event_list *params)
 	file_verification_result_deinit(&file_result);
 }
 
-#define MFD_NAME_PREFIX "memfd:"
-#define MFD_NAME_PREFIX_LEN (sizeof(MFD_NAME_PREFIX) - 1)
-
 static bool is_memfd_file(struct file *file)
 {
 	struct inode *inode;
@@ -669,10 +667,7 @@ static bool is_memfd_file(struct file *file)
 	memfd_inode = file_inode(memfd_file);
 	inode = file_inode(file);
 	if (inode && memfd_inode && inode->i_sb == memfd_inode->i_sb)
-		if (file->f_path.dentry &&
-			!strncmp(file->f_path.dentry->d_iname, MFD_NAME_PREFIX,
-							MFD_NAME_PREFIX_LEN))
-			return true;
+		return true;
 
 	return false;
 }
@@ -691,7 +686,7 @@ int five_file_mmap(struct file *file, unsigned long prot)
 	struct task_struct *task = current;
 	struct task_integrity *tint = TASK_INTEGRITY(task);
 
-	if (five_check_params(task, file))
+	if (unlikely(!is_five_initialized) || five_check_params(task, file))
 		return 0;
 
 	if (check_memfd_file && is_memfd_file(file))
@@ -731,7 +726,7 @@ int five_bprm_check(struct linux_binprm *bprm)
 	struct task_struct *task = current;
 	struct task_integrity *old_tint = TASK_INTEGRITY(task);
 
-	if (unlikely(task->ptrace))
+	if (unlikely(!is_five_initialized) || unlikely(task->ptrace))
 		return rc;
 
 	if (bprm->recursion_depth > 0) {
@@ -894,10 +889,6 @@ static int __init init_five(void)
 	if (error)
 		return error;
 
-	error = five_hook_wq_init();
-	if (error)
-		return error;
-
 	error = register_reboot_notifier(&five_reboot_nb);
 	if (error)
 		return error;
@@ -935,6 +926,9 @@ static int __init init_five(void)
 
 	error = five_tint_init_dev();
 
+	if (!error)
+		is_five_initialized = true;
+
 	return error;
 }
 
@@ -961,9 +955,32 @@ int five_fcntl_verify_sync(struct file *file)
 	return -EINVAL;
 }
 
+struct bprm_hook_context {
+	struct work_struct data_work;
+	struct task_struct *task;
+	struct task_struct *child_task;
+};
+
+static void bprm_hook_handler(struct work_struct *in_data)
+{
+	struct bprm_hook_context *context = container_of(in_data,
+			struct bprm_hook_context, data_work);
+
+	if (unlikely(!context))
+		return;
+
+	five_hook_task_forked(context->task, context->child_task);
+
+	put_task_struct(context->task);
+	put_task_struct(context->child_task);
+
+	kfree(context);
+}
+
 int five_fork(struct task_struct *task, struct task_struct *child_task)
 {
 	int rc = 0;
+	struct bprm_hook_context *context;
 
 	spin_lock(&TASK_INTEGRITY(task)->list_lock);
 
@@ -1016,8 +1033,19 @@ int five_fork(struct task_struct *task, struct task_struct *child_task)
 		spin_unlock(&TASK_INTEGRITY(task)->list_lock);
 	}
 
-	if (!rc)
-		five_hook_task_forked(task, child_task);
+	if (rc)
+		return rc;
+
+	context = kmalloc(sizeof(struct bprm_hook_context), GFP_ATOMIC);
+	if (unlikely(!context))
+		return -ENOMEM;
+
+	get_task_struct(task);
+	get_task_struct(child_task);
+	context->task = task;
+	context->child_task = child_task;
+	INIT_WORK(&context->data_work, bprm_hook_handler);
+	rc = queue_work(g_five_workqueue, &context->data_work) ? 0 : 1;
 
 	return rc;
 }

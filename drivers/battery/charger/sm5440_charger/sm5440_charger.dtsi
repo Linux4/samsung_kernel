@@ -7,7 +7,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5440/sm5440_charger.gts9fe.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5440/sm5440_charger.gts9fe.dtsi */
 &sm5440_charger {
 	sm5440,freq = <850>;
 	sm5440,r_ttl = <520000>;

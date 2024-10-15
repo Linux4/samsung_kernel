@@ -219,6 +219,7 @@ struct a96t396_data {
 
 #if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
 	int is_tuning_mode;
+	int read_tuning_register_flag;
 	bool setup_reg_exist;
 	u8 setup_reg[TUNINGMAP_MAX * 2 + 1];
 	u32 checksum_msb;
@@ -437,10 +438,8 @@ static int a96t396_i2c_read_retry(struct i2c_client *client,
 {
 	struct a96t396_data *data = i2c_get_clientdata(client);
 	int ret = 0;
-	u8 i2c_fail_count = data->i2c_fail_count;
 
 	while (retry--) {
-		data->i2c_fail_count = i2c_fail_count;
 		ret = a96t396_i2c_read(data->client, reg, val, len);
 		if (ret >= 0)
 			break;
@@ -521,6 +520,22 @@ exit_i2c_write:
 	mutex_unlock(&data->lock);
 	return ret;
 }
+
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+static int a96t396_i2c_write_retry(struct i2c_client *client, u8 reg, u8 *val, int retry)
+{
+	struct a96t396_data *data = i2c_get_clientdata(client);
+	int ret = 0;
+
+	while (retry--) {
+		ret = a96t396_i2c_write(data->client, reg, val);
+		if (ret >= 0)
+			break;
+		GRIP_ERR("retry err %d,%d\n", retry, ret);
+	}
+	return ret;
+}
+#endif
 
 static void check_irq_status(struct a96t396_data *data, bool is_irq_func, bool is_enable_func)
 {
@@ -1690,9 +1705,25 @@ static ssize_t grip_reg_show(struct device *dev, struct device_attribute *attr, 
 
 #if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
 	if (data->is_tuning_mode) {
-		for (i = 0; i < 0x80; i++) {
-			a96t396_i2c_read(data->client, i, r_buf, 1);
-			p += snprintf(p, PAGE_SIZE, "(0x%02x)=0x%02x\n", i, r_buf[0]);
+		if (data->read_tuning_register_flag == 1) {
+			u8 cmd;
+
+			cmd = CHANGE_TUNING_MAP_CMD;
+			a96t396_i2c_write(data->client, REG_GRIP_TUNING_STATE, &cmd);
+			msleep(20);
+			for (i = 0; i < 0x80; i++) {
+				a96t396_i2c_read(data->client, i, r_buf, 1);
+				p += snprintf(p, PAGE_SIZE, "(0x%02x)=0x%02x\n", i, r_buf[0]);
+			}
+			cmd = CHANGE_REGISTER_MAP_CMD;
+			a96t396_i2c_write(data->client, REG_GRIP_TUNING_STATE, &cmd);
+
+			data->read_tuning_register_flag = 0;
+		} else {
+			for (i = 0; i < 0x80; i++) {
+				a96t396_i2c_read(data->client, i, r_buf, 1);
+				p += snprintf(p, PAGE_SIZE, "(0x%02x)=0x%02x\n", i, r_buf[0]);
+			}
 		}
 	} else {
 		for (i = 0; i < 0x91; i++) {
@@ -1721,7 +1752,7 @@ static ssize_t grip_reg_store(struct device *dev,
 	u8 i;
 
 	if (sscanf(buf, "%x,%x,%x", &reg, &val, &opt) == 3) {
-		GRIP_INFO("read reg 0x%02x\n", *(u8 *)&reg);
+		GRIP_INFO("read reg 0x%02x\n", reg);
 		data->read_reg = *((u8 *)&reg);
 		data->read_reg_count = *((u8 *)&val);
 		if (!opt)
@@ -1729,8 +1760,12 @@ static ssize_t grip_reg_store(struct device *dev,
 		else
 			data->read_flag = 0;
 	} else if (sscanf(buf, "%x,%x", &reg, &val) == 2) {
-		GRIP_INFO("reg 0x%02x, val 0x%02x\n", *(u8 *)&reg, (u8 *)&val);
+		GRIP_INFO("reg 0x%02x, val 0x%02x\n", reg, val);
 		a96t396_i2c_write(data->client, *((u8 *)&reg), (u8 *)&val);
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+	} else if (kstrtoint(buf, 10, &data->read_tuning_register_flag)) {
+		GRIP_INFO("check tuning register");
+#endif
 	} else {
 		sscanf(buf, "%511s", reg_temp_buf);
 		reg_buf_len = string_to_hex(reg_temp_buf, reg_buf);
@@ -2111,6 +2146,7 @@ static ssize_t read_fw_ver_show(struct device *dev,
 {
 	struct a96t396_data *data = dev_get_drvdata(dev);
 	int ret;
+	bool check_abnormal = data->check_abnormal_working;
 
 	data->check_abnormal_working = false;
 
@@ -2119,6 +2155,9 @@ static ssize_t read_fw_ver_show(struct device *dev,
 		GRIP_ERR("read err\n");
 		data->fw_ver = 0;
 	}
+
+	if (check_abnormal)
+		data->check_abnormal_working = true;
 
 	return snprintf(buf, PAGE_SIZE, "0x%02x%02x\n",
 		data->md_ver, data->fw_ver);
@@ -2329,7 +2368,6 @@ static int a96t396_flash_erase(struct a96t396_data *data)
 	}
 
 	return 0;
-
 }
 
 static int a96t396_fw_mode_exit(struct a96t396_data *data)
@@ -3091,9 +3129,9 @@ static void a96t396_tuning_check(struct delayed_work *work, int ic_num)
 
 	ret = a96t396_tuning_mode(data);
 	if (ret < 0) {
-		GRIP_INFO("fail to enter tuning mode");
+		GRIP_INFO("fail to check tuning mode");
 	} else {
-		GRIP_INFO("success to enter tuning mode");
+		GRIP_INFO("success to check tuning mode");
 	}
 }
 
@@ -3103,6 +3141,7 @@ static int a96t396_tuning_mode(struct a96t396_data *data)
 	u8 cmd;
 	u8 r_buf[2] = {0};
 	int index = 0;
+	bool is_register_setting_fail = 0;
 
 	grip_always_active(data, 1);
 
@@ -3125,7 +3164,8 @@ static int a96t396_tuning_mode(struct a96t396_data *data)
 	ret = a96t396_i2c_write(data->client, REG_GRIP_TUNING_STATE, &cmd);
 	if (ret < 0) {
 		GRIP_INFO("i2c write fail(%d)\n", ret);
-		return ret;
+		is_register_setting_fail = 1;
+		goto register_mode;
 	}
 
 	msleep(20);
@@ -3133,7 +3173,8 @@ static int a96t396_tuning_mode(struct a96t396_data *data)
 	ret = a96t396_i2c_read(data->client, REG_GRIP_TUNING_STATE, r_buf, 1);
 	if (ret < 0) {
 		GRIP_ERR("i2c read fail(%d)\n", ret);
-		return ret;
+		is_register_setting_fail = 1;
+		goto register_mode;
 	}
 
 	// change tuning mode success
@@ -3147,26 +3188,19 @@ static int a96t396_tuning_mode(struct a96t396_data *data)
 					&data->setup_reg[index + 1]);
 				if (ret < 0) {
 					GRIP_INFO("i2c write fail(%d)\n", ret);
-					return ret;
+					is_register_setting_fail = 1;
+					goto register_mode;
+				}
+
+				// verify
+				ret = a96t396_i2c_read(data->client,
+					data->setup_reg[index], r_buf, 1);
+				if (r_buf[0] != data->setup_reg[index + 1]) {
+					GRIP_INFO("%x, %x, %x\n", data->setup_reg[index], r_buf[0], data->setup_reg[index + 1]);
+					is_register_setting_fail = 1;
+					goto register_mode;
 				}
 			}
-		}
-	}
-
-	// verify
-	for (i = 0; i < TUNINGMAP_MAX - 2; i++) {
-		index = i << 1;
-		ret = a96t396_i2c_read(data->client, data->setup_reg[index],
-			r_buf, 1);
-
-		//GRIP_INFO("%x, %x, %x\n", data->setup_reg[index], r_buf[0], data->setup_reg[index + 1]);
-		if (r_buf[0] != data->setup_reg[index + 1]) {
-			ret = a96t396_i2c_write(data->client,
-				data->setup_reg[index], &data->setup_reg[index + 1]);
-				if (ret < 0) {
-					GRIP_INFO("i2c write fail(%d)\n", ret);
-					return ret;
-				}
 		}
 	}
 
@@ -3174,12 +3208,14 @@ static int a96t396_tuning_mode(struct a96t396_data *data)
 	ret = a96t396_check_tuning_checksum(data);
 	if (ret < 0) {
 		GRIP_INFO("tuning checksum fail(%d)\n", ret);
-		return ret;
+		is_register_setting_fail = 1;
+		goto register_mode;
 	}
 
+register_mode:
 	// check register mode
 	cmd = CHANGE_REGISTER_MAP_CMD;
-	ret = a96t396_i2c_write(data->client, REG_GRIP_TUNING_STATE, &cmd);
+	ret = a96t396_i2c_write_retry(data->client, REG_GRIP_TUNING_STATE, &cmd, 3);
 	if (ret < 0) {
 		GRIP_INFO("i2c write fail(%d)\n", ret);
 		return ret;
@@ -3187,16 +3223,23 @@ static int a96t396_tuning_mode(struct a96t396_data *data)
 
 	msleep(20);
 
-	ret = a96t396_i2c_read(data->client, REG_GRIP_TUNING_STATE, r_buf, 1);
+	ret = a96t396_i2c_read_retry(data->client, REG_GRIP_TUNING_STATE, r_buf, 1, 3);
 	if (ret < 0) {
 		GRIP_ERR("i2c read fail(%d)\n", ret);
 		return ret;
 	}
 
+	if (is_register_setting_fail) {
+		enter_error_mode(data, FAIL_SETUP_REGISTER);
+		return -1;
+	}
+
 	if (r_buf[0] == CHANGE_REGISTER_MAP_FINISHED) {
 		data->is_tuning_mode = 1;
+		GRIP_INFO("success to finish register mode!\n");
 		return 0;
 	} else {
+		GRIP_INFO("fail to finish register mode!\n");
 		return -1;
 	}
 }

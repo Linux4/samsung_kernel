@@ -3014,7 +3014,8 @@ int slsi_hip_setup(struct slsi_hip *hip)
 	if (!sdev || !sdev->service)
 		return -EIO;
 
-	if (atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_STARTED)
+	if (atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_STARTED &&
+	    atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_BLOCKED)
 		return -EIO;
 
 	service = sdev->service;
@@ -3069,6 +3070,7 @@ int slsi_hip_setup(struct slsi_hip *hip)
 	scsc_service_mifintrbit_bit_unmask(service, hip->hip_priv->intr_to_host_dpd);
 	slsi_wlan_dpd_mmap_user_space_event(SLSI_WLAN_DPD_DRV_MSG_ID_WLAN_ON);
 #endif
+	SLSI_INFO_NODEV("hip4 setup %d done\n", conf_hip4_ver);
 	return 0;
 }
 
@@ -3195,12 +3197,11 @@ void slsi_hip_freeze(struct slsi_hip *hip)
 	if (hip->hip_priv->pm_qos_state != SCSC_QOS_DISABLED)
 		scsc_service_pm_qos_update_request(sdev->service, SCSC_QOS_DISABLED);
 #endif
-	flush_workqueue(hip->hip_priv->hip4_workq);
-	destroy_workqueue(hip->hip_priv->hip4_workq);
 	atomic_set(&hip->hip_priv->watchdog_timer_active, 0);
 
 	/* Deactive the wd timer prior its expiration */
 	del_timer_sync(&hip->hip_priv->watchdog);
+	SLSI_INFO_NODEV("hip4 freeze done\n");
 }
 
 void slsi_hip_deinit(struct slsi_hip *hip)
@@ -3326,4 +3327,6 @@ void slsi_hip_deinit(struct slsi_hip *hip)
 	/* remove the pools */
 	mbulk_pool_remove(MBULK_POOL_ID_DATA);
 	mbulk_pool_remove(MBULK_POOL_ID_CTRL);
+
+	SLSI_INFO_NODEV("hip4 deinit done\n");
 }

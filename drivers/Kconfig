@@ -249,6 +249,8 @@ if EXYNOS_VARIANT1
 source "drivers/Kconfig.variant1"
 endif
 
+source "drivers/knox/Kconfig"
+
 source "drivers/gpu/drm/samsung/panel/tft_common/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/sec_panel_notifier_v2/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/samsung/debug/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

@@ -41,7 +41,7 @@ static get_init_chipset_funcs_ptr *get_proximity_init_chipset_funcs(int *len)
 	return get_prox_funcs_ary;
 }
 
-static int init_proximity_variable(void)
+static int init_proximity_variable(int type)
 {
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
 
@@ -119,7 +119,7 @@ void set_proximity_threshold(void)
 		  data->prox_threshold[PROX_THRESH_LOW]);
 }
 
-static int sync_proximity_status(void)
+static int sync_proximity_status(int type)
 {
 	int ret = 0;
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
@@ -134,7 +134,7 @@ static int sync_proximity_status(void)
 	return ret;
 }
 
-static void print_debug_proximity(void)
+static void print_debug_proximity(int type)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
 	struct sensor_event *event = &(sensor->event_buffer);
@@ -247,7 +247,7 @@ int open_default_proximity_calibration(void)
 	return ret;
 }
 
-static int open_proximity_calibration(void)
+static int open_proximity_calibration(int type)
 {
 	int ret = 0;
 	struct proximity_chipset_funcs *chipset_funcs = get_sensor(SENSOR_TYPE_PROXIMITY)->chipset_funcs;

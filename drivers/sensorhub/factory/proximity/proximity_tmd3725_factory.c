@@ -26,20 +26,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#define TMD3725_NAME   "TMD3725"
-#define TMD3725_VENDOR "AMS"
-
 static int prox_trim;
-
-static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", TMD3725_NAME);
-}
-
-static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", TMD3725_VENDOR);
-}
 
 static ssize_t thresh_detect_high_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -250,8 +237,6 @@ static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr,
 	return size;
 }
 
-static DEVICE_ATTR_RO(name);
-static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR(thresh_detect_high, 0664, thresh_detect_high_show, thresh_detect_high_store);
 static DEVICE_ATTR(thresh_detect_low, 0664, thresh_detect_low_show, thresh_detect_low_store);
 static DEVICE_ATTR_RO(prox_trim);
@@ -259,8 +244,6 @@ static DEVICE_ATTR_RO(prox_trim_check);
 static DEVICE_ATTR(prox_cal, 0660, prox_cal_show, prox_cal_store);
 
 static struct device_attribute *proximity_tmd3725_attrs[] = {
-	&dev_attr_name,
-	&dev_attr_vendor,
 	&dev_attr_thresh_detect_high,
 	&dev_attr_thresh_detect_low,
 	&dev_attr_prox_cal,
@@ -271,7 +254,7 @@ static struct device_attribute *proximity_tmd3725_attrs[] = {
 
 struct device_attribute **get_proximity_tmd3725_dev_attrs(char *name)
 {
-	if (strcmp(name, TMD3725_NAME) != 0)
+	if (strcmp(name, "TMD3725") != 0)
 		return NULL;
 
 	return proximity_tmd3725_attrs;

@@ -4186,6 +4186,12 @@ static int slsi_send_action_frame(struct net_device *dev, char *command, int buf
 		return 0;
 	}
 
+	if (strlen(ioctl_args->args[4]) < len) {
+		SLSI_ERR(sdev, "Input buffer len mismatch (%d) != len(%d)", strlen(ioctl_args->args[4]), len);
+		kfree(ioctl_args);
+		return -EINVAL;
+	}
+
 	buf = kmalloc((len + 1) / 2, GFP_KERNEL);
 
 	if (!buf) {
@@ -7181,6 +7187,11 @@ static int slsi_set_delayed_wakeup_type(struct net_device *dev, char *command, i
 			if (strncmp((char *)&ioctl_args->args[i][2], ":", 1) == 0) {
 				pos = &ioctl_args->args[i][0];
 				while (pos < (ioctl_args->args[i] + strlen(ioctl_args->args[i]))) {
+					if (mac_count >= 5) {
+						SLSI_ERR(sdev, "Invalid number of MAC addresses\n");
+						ret = -EINVAL;
+						goto exit;
+					}
 					slsi_machexstring_to_macarray(pos, macaddrlist[mac_count]);
 					mac_count++;
 					pos += (2 * ETH_ALEN) + 5 + 1;
@@ -7189,6 +7200,11 @@ static int slsi_set_delayed_wakeup_type(struct net_device *dev, char *command, i
 				token = strsep((char **)&ioctl_args->args[i], ",");
 
 				while (token) {
+					if (ipv6_count >= 5) {
+						SLSI_ERR(sdev, "Invalid number of ipv6 addr\n");
+						ret = -EINVAL;
+						goto exit;
+					}
 					if (in6_pton(token, strlen(token), ipv6addrlist[ipv6_count], -1, NULL) > 0) {
 						ipv6_count++;
 					} else {
@@ -7200,6 +7216,11 @@ static int slsi_set_delayed_wakeup_type(struct net_device *dev, char *command, i
 			} else {
 				token = strsep((char **)&ioctl_args->args[i], ",");
 				while (token) {
+					if (ipv4_count >= 5) {
+						SLSI_ERR(sdev, "Invalid number of ipv4 addr\n");
+						ret = -EINVAL;
+						goto exit;
+					}
 					if (in4_pton(token, strlen(token), ipv4addrlist[ipv4_count], -1, NULL) > 0) {
 						ipv4_count++;
 					} else {

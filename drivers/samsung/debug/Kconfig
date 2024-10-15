@@ -358,3 +358,10 @@ config SEC_DEBUG_CURRENT_TASKS
 	default n
 	help
 	  This option enables to display each core's current task status through a proc node
+
+config SEC_DEBUG_SLAB_INFO
+	tristate "Enable slab info for debugging"
+	default m
+	help
+	  This option enables slab info for debugging.
+	  Select the option to show slab info in case of data abort

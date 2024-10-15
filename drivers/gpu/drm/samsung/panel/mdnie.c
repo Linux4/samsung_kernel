@@ -33,6 +33,7 @@
 #ifdef CONFIG_USDM_PANEL_TESTMODE
 #include "panel_testmode.h"
 #endif
+#include "panel_wrapper.h"
 
 #ifdef MDNIE_SELF_TEST
 int g_coord_x = MIN_WCRD_X;
@@ -2083,7 +2084,7 @@ __visible_for_testing int mdnie_create_class(struct mdnie_info *mdnie)
 	if (!mdnie)
 		return -EINVAL;
 
-	mdnie->class = class_create(THIS_MODULE, mdnie_get_name(mdnie));
+	mdnie->class = class_create_wrapper(THIS_MODULE, mdnie_get_name(mdnie));
 	if (IS_ERR_OR_NULL(mdnie->class)) {
 		panel_err("failed to create mdnie class\n");
 		return -EINVAL;

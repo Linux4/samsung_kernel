@@ -550,9 +550,6 @@ static void process_measurement(const struct processing_event_list *params)
 	file_verification_result_deinit(&file_result);
 }
 
-#define MFD_NAME_PREFIX "memfd:"
-#define MFD_NAME_PREFIX_LEN (sizeof(MFD_NAME_PREFIX) - 1)
-
 static bool is_memfd_file(struct file *file)
 {
 	struct inode *inode;
@@ -564,10 +561,7 @@ static bool is_memfd_file(struct file *file)
 	memfd_inode = file_inode(memfd_file);
 	inode = file_inode(file);
 	if (inode && memfd_inode && inode->i_sb == memfd_inode->i_sb)
-		if (file->f_path.dentry &&
-			!strncmp(file->f_path.dentry->d_iname, MFD_NAME_PREFIX,
-							MFD_NAME_PREFIX_LEN))
-			return true;
+		return true;
 
 	return false;
 }
@@ -736,10 +730,6 @@ int __init init_five(void)
 	if (error)
 		return error;
 
-	error = five_hook_wq_init();
-	if (error)
-		return error;
-
 /**
  * This empty file is needed in is_memfd_file() function.
  * The only way to check whether the file was created using memfd_create()
@@ -791,9 +781,32 @@ int five_fcntl_verify_sync(struct file *file)
 	return -EINVAL;
 }
 
+struct bprm_hook_context {
+	struct work_struct data_work;
+	struct task_struct *task;
+	struct task_struct *child_task;
+};
+
+static void bprm_hook_handler(struct work_struct *in_data)
+{
+	struct bprm_hook_context *context = container_of(in_data,
+			struct bprm_hook_context, data_work);
+
+	if (unlikely(!context))
+		return;
+
+	five_hook_task_forked(context->task, context->child_task);
+
+	put_task_struct(context->task);
+	put_task_struct(context->child_task);
+
+	kfree(context);
+}
+
 int five_fork(struct task_struct *task, struct task_struct *child_task)
 {
 	int rc = 0;
+	struct bprm_hook_context *context;
 
 	spin_lock(&TASK_INTEGRITY(task)->list_lock);
 
@@ -846,8 +859,19 @@ int five_fork(struct task_struct *task, struct task_struct *child_task)
 		spin_unlock(&TASK_INTEGRITY(task)->list_lock);
 	}
 
-	if (!rc)
-		five_hook_task_forked(task, child_task);
+	if (rc)
+		return rc;
+
+	context = kmalloc(sizeof(struct bprm_hook_context), GFP_ATOMIC);
+	if (unlikely(!context))
+		return -ENOMEM;
+
+	get_task_struct(task);
+	get_task_struct(child_task);
+	context->task = task;
+	context->child_task = child_task;
+	INIT_WORK(&context->data_work, bprm_hook_handler);
+	rc = queue_work(g_five_workqueue, &context->data_work) ? 0 : 1;
 
 	return rc;
 }

@@ -29,7 +29,11 @@
 #endif
 
 #define LOAD_FLAG_DPOLICY		0x01
+#if defined(DEFEX_SINGLE_RULES_FILE)
+#define LOAD_FLAG_DPOLICY_SYSTEM	0x01
+#else
 #define LOAD_FLAG_DPOLICY_SYSTEM	0x02
+#endif
 #define LOAD_FLAG_SYSTEM_FIRST		0x04
 #define LOAD_FLAG_TIMEOUT		0x08
 #define LOAD_FLAG_RECOVERY		0x10
@@ -358,8 +362,10 @@ __visible_for_testing int load_rules_common(struct file *f, int flags)
 			memcpy(packed_rules_primary, data_buff, rules_size);
 			spin_unlock(&rules_data_lock);
 			policy_data = packed_rules_primary;
+#if !defined(DEFEX_SINGLE_RULES_FILE)
 			if (flags & LOAD_FLAG_DPOLICY_SYSTEM)
 				update_load_flags(LOAD_FLAG_SYSTEM_FIRST);
+#endif
 			defex_log_info("Primary rules have been stored");
 		} else {
 			if (rules_size > 0) {

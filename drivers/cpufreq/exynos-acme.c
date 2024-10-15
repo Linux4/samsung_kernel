@@ -28,7 +28,6 @@
 #include <soc/samsung/cal-if.h>
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/freq-qos-tracer.h>
-#include <soc/samsung/exynos-dm.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/acme.h>
@@ -78,55 +77,6 @@ static unsigned int resolve_freq(struct cpufreq_policy *policy,
 /******************************************************************************
  *                            FREQUENCY SCALING                               *
  ******************************************************************************/
-static unsigned int get_freq(struct exynos_cpufreq_domain *domain)
-{
-	unsigned int freq;
-
-	/* valid_freq_flag indicates whether boot freq is in the freq table or not.
-	 * so, to prevent cpufreq mulfuntion, return old freq instead of cal freq
-	 * until the frequency changes even once.
-	 */
-	if (unlikely(!domain->valid_freq_flag && domain->old))
-		return domain->old;
-
-	freq = (unsigned int)cal_dfs_get_rate(domain->cal_id);
-	if (!freq) {
-		/* On changing state, CAL returns 0 */
-		freq = domain->old;
-	}
-
-	return freq;
-}
-
-/*
-static int set_freq(struct exynos_cpufreq_domain *domain,
-					unsigned int target_freq)
-{
-	int err;
-
-	dbg_snapshot_printk("ID %d: %d -> %d (%d)\n",
-		domain->id, domain->old, target_freq, DSS_FLAG_IN);
-
-	if (domain->fast_switch_possible && domain->dvfs_mode == NON_BLOCKING) {
-		err = cal_dfs_set_rate_fast(domain->cal_id, target_freq);
-	}
-	else
-		err = cal_dfs_set_rate(domain->cal_id, target_freq);
-
-	if (err < 0)
-		pr_err("failed to scale frequency of domain%d (%d -> %d)\n",
-			domain->id, domain->old, target_freq);
-
-	if (!domain->fast_switch_possible || domain->dvfs_mode == BLOCKING)
-		trace_acme_scale_freq(domain->id, domain->old, target_freq, "end", 0);
-
-	dbg_snapshot_printk("ID %d: %d -> %d (%d)\n",
-		domain->id, domain->old, target_freq, DSS_FLAG_OUT);
-
-	return err;
-}
-*/
-
 static void debug_pre_scale(struct exynos_cpufreq_domain *domain,
 				unsigned int target_freq)
 {
@@ -960,33 +910,6 @@ init_fail:
 
 	return 0;
 }
-
-#if IS_ENABLED(CONFIG_SEC_BOOTSTAT)
-void sec_bootstat_get_cpuinfo(int *freq, int *online)
-{
-	int cpu;
-	int cluster;
-	struct exynos_cpufreq_domain *domain;
-
-	get_online_cpus();
-	*online = cpumask_bits(cpu_online_mask)[0];
-	for_each_online_cpu(cpu) {
-		domain = find_domain(cpu);
-		if (!domain)
-			continue;
-		pr_err("%s, dm type = %d\n", __func__, domain->dm_type);
-		cluster = 0;
-		if (domain->dm_type == DM_CPU_CL1)
-			cluster = 1;
-		else if (domain->dm_type == DM_CPU_CL2)
-			cluster = 2;
-
-		freq[cluster] = get_freq(domain);
-	}
-	put_online_cpus();
-}
-EXPORT_SYMBOL(sec_bootstat_get_cpuinfo);
-#endif
 
 /******************************************************************************
  *                             CPU HOTPLUG CALLBACK                           *

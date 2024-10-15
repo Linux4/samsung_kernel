@@ -195,6 +195,8 @@ struct decon_vendor_pps {
 	unsigned int initial_dec_delay;
 	unsigned int scale_increment_interval;
 	unsigned int final_offset;
+	unsigned int nfl_bpg_offset;
+	unsigned int slice_bpg_offset;
 	unsigned int comp_cfg;
 };
 

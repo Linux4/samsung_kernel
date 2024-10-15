@@ -39,7 +39,7 @@
 /* factory Sysfs                                                         */
 /*************************************************************************/
 
-static struct device *mag_sysfs_device;
+__visible_for_testing struct device *mag_sysfs_device;
 static struct device_attribute **chipset_attrs;
 static u8 chipset_index;
 
@@ -56,6 +56,23 @@ void get_magnetometer_sensor_value_s32(struct mag_power_event *event, s32 *senso
 	sensor_value[0] = (s32) event->x;
 	sensor_value[1] = (s32) event->y;
 	sensor_value[2] = (s32) event->z;
+}
+
+static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
+
+	return sprintf(buf, "%s\n", sensor->spec.name);
+}
+
+static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
+	char vendor[VENDOR_MAX] = "";
+
+	get_sensor_vendor_name(sensor->spec.vendor, vendor);
+
+	return sprintf(buf, "%s\n", vendor);
 }
 
 static ssize_t status_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -248,6 +265,8 @@ static ssize_t adc_show(struct device *dev, struct device_attribute *attr, char 
 	return sprintf(buf, "%s,%d,%d,%d\n", (bSuccess ? "OK" : "NG"), sensor_buf[0], sensor_buf[1], sensor_buf[2]);
 }
 
+static DEVICE_ATTR_RO(name);
+static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR(raw_data, 0664, raw_data_show, raw_data_store);
 static DEVICE_ATTR_RO(adc);
 static DEVICE_ATTR_RO(dac);
@@ -255,6 +274,8 @@ static DEVICE_ATTR_RO(status);
 static DEVICE_ATTR_RO(logging_data);
 
 __visible_for_testing struct device_attribute *mag_attrs[] = {
+	&dev_attr_name,
+	&dev_attr_vendor,
 	&dev_attr_adc,
 	&dev_attr_dac,
 	&dev_attr_raw_data,

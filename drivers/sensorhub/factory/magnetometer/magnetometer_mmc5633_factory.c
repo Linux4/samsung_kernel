@@ -24,7 +24,6 @@
 #include <linux/slab.h>
 
 #define MMC5633_NAME   "MMC5633"
-#define MMC5633_VENDOR "Memsic"
 
 #define GM_MMC_DATA_SPEC_MIN -6500
 #define GM_MMC_DATA_SPEC_MAX 6500
@@ -47,16 +46,6 @@ int check_mmc5633_adc_data_spec(s32 sensor_value[3])
 	} else {
 		return 0;
 	}
-}
-
-static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", MMC5633_NAME);
-}
-
-static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", MMC5633_VENDOR);
 }
 
 static ssize_t matrix_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -249,15 +238,11 @@ static ssize_t hw_offset_show(struct device *dev, struct device_attribute *attr,
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n", cal_data->offset_x, cal_data->offset_y, cal_data->offset_z);
 }
 
-static DEVICE_ATTR_RO(name);
-static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(selftest);
 static DEVICE_ATTR_RO(hw_offset);
 static DEVICE_ATTR(matrix, 0664, matrix_show, matrix_store);
 
 static struct device_attribute *mag_mmc5633_attrs[] = {
-	&dev_attr_name,
-	&dev_attr_vendor,
 	&dev_attr_selftest,
 	&dev_attr_matrix,
 	&dev_attr_hw_offset,

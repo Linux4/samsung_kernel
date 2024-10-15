@@ -233,7 +233,7 @@ static ssize_t sysfs_show_version_info(struct kobject *kobj,
 	struct slsi_dev *sdev = slsi_get_sdev();
 	char build_id_fw[128] = {0};
 	char build_id_drv[64] = {0};
-	int buf_size = 256;
+	int buf_size = 512;
 
 #ifndef SLSI_TEST_DEV
 	mxman_get_fw_version(build_id_fw, 128);
@@ -245,12 +245,10 @@ static ssize_t sysfs_show_version_info(struct kobject *kobj,
 			"f/w_ver: %s\n"
 			"hcf_ver_hw: %s\n"
 			"hcf_ver_sw: %s\n"
-			"regDom_ver: %d.%d\n",
-			build_id_drv,
-			build_id_fw,
-			sdev->mib[0].platform,
-			sdev->mib[1].platform,
-			((sdev->reg_dom_version >> 8) & 0xFF), (sdev->reg_dom_version & 0xFF));
+			"regDom_ver: %d.%d.%d\n",
+			build_id_drv, build_id_fw, sdev->mib[0].platform, sdev->mib[1].platform,
+			(sdev->reg_dom_version >> 16) & 0xFF, (sdev->reg_dom_version >> 8) & 0xFF,
+			sdev->reg_dom_version & 0xFF);
 }
 
 /* Register sysfs version information */
@@ -307,15 +305,26 @@ static ssize_t sysfs_store_debugdump(struct kobject *kobj,
 	int r;
 	struct slsi_dev *sdev = slsi_get_sdev();
 
+	if (!sdev) {
+		SLSI_INFO_NODEV("sdev is NULL can't proceed\n");
+		return count;
+	}
+
 	r = kstrtoint(buf, 10, &dump_in_progress);
-	if (r < 0)
+	if (r < 0) {
+		SLSI_INFO_NODEV("kstrtoint error:%d buf:%c\n", r, buf[0]);
 		dump_in_progress = 0;
+		return count;
+	}
 
 	SLSI_INFO_NODEV("dump_in_progress: %d\n", dump_in_progress);
+	if (dump_in_progress != 1) {
+		dump_in_progress = 0;
+		return count;
+	}
 
 	queue_work(sdev->device_wq, &sdev->chipset_logging_work);
 	return (r == 0) ? count : 0;
-
 }
 
 /* Register sysfs debug dump IMP buffer */
@@ -614,19 +623,15 @@ static void write_wifi_version_info_file(struct slsi_dev *sdev)
 		 "f/w_ver: %s\n"
 		 "hcf_ver_hw: %s\n"
 		 "hcf_ver_sw: %s\n"
-		 "regDom_ver: %d.%d\n",
-		 build_id_drv,
-		 build_id_fw,
-		 sdev->mib[0].platform,
-		 sdev->mib[1].platform,
-		 ((sdev->reg_dom_version >> 8) & 0xFF), (sdev->reg_dom_version & 0xFF));
+		 "regDom_ver: %d.%d.%d\n",
+		 build_id_drv, build_id_fw, sdev->mib[0].platform, sdev->mib[1].platform,
+		 (sdev->reg_dom_version >> 16) & 0xFF, (sdev->reg_dom_version >> 8) & 0xFF,
+		 sdev->reg_dom_version & 0xFF);
 #else
 	/* O-OS, or unknown */
-	snprintf(buf, sizeof(buf),
-		 "%s (f/w_ver: %s)\nregDom_ver: %d.%d\n",
-		 build_id_drv,
-		 build_id_fw,
-		 ((sdev->reg_dom_version >> 8) & 0xFF), (sdev->reg_dom_version & 0xFF));
+	snprintf(buf, sizeof(buf), "%s (f/w_ver: %s)\nregDom_ver: %d.%d.%d\n", build_id_drv, build_id_fw,
+		 (sdev->reg_dom_version >> 16) & 0xFF, (sdev->reg_dom_version >> 8) & 0xFF,
+		 sdev->reg_dom_version & 0xFF);
 #endif
 
 /* If SCSC_SEP_VERSION is not known, avoid writing the file, as it could go to the wrong
@@ -3292,8 +3297,11 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 		memset(ndev_vif->sta.keepalive_host_tag, 0, sizeof(ndev_vif->sta.keepalive_host_tag));
 
 		/* delete the TSPEC entries (if any) if it is a STA vif */
-		if (ndev_vif->iftype == NL80211_IFTYPE_STATION)
+		if (ndev_vif->iftype == NL80211_IFTYPE_STATION){
+			SLSI_MUTEX_LOCK(sdev->tspec_mutex);
 			cac_delete_tspec_list(sdev);
+			SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
+		}
 
 		if (ndev_vif->sta.tdls_enabled)
 			WLBT_WARN(ndev_vif->sta.tdls_peer_sta_records, "vif:%d, tdls_peer_sta_records:%d", ndev_vif->ifnum, ndev_vif->sta.tdls_peer_sta_records);
@@ -8175,10 +8183,10 @@ void slsi_wakeup_time_work(struct work_struct *work)
 	memset(&sdev->resume_tm, 0, sizeof(struct rtc_time));
 	if (slsi_hip_wlan_get_rtc_time(&sdev->resume_tm))
 		SLSI_ERR_NODEV("Error reading rtc\n");
-	SLSI_DBG3(sdev, SLSI_PM, "Last_Suspend_Time : %ld-%02d-%02d %02d:%02d:%02d\n",
+	SLSI_DBG3(sdev, SLSI_RX, "Last_Suspend_Time : %ld-%02d-%02d %02d:%02d:%02d\n",
 		  sdev->suspend_tm.tm_year + 1900, sdev->suspend_tm.tm_mon, sdev->suspend_tm.tm_mday,
 		  sdev->suspend_tm.tm_hour, sdev->suspend_tm.tm_min, sdev->suspend_tm.tm_sec);
-	SLSI_DBG3(sdev, SLSI_PM, "Wakeup_Time : %ld-%02d-%02d %02d:%02d:%02d\n",
+	SLSI_DBG3(sdev, SLSI_RX, "Wakeup_Time : %ld-%02d-%02d %02d:%02d:%02d\n",
 		  sdev->resume_tm.tm_year + 1900, sdev->resume_tm.tm_mon, sdev->resume_tm.tm_mday,
 		  sdev->resume_tm.tm_hour, sdev->resume_tm.tm_min, sdev->resume_tm.tm_sec);
 }
@@ -8623,7 +8631,9 @@ void slsi_rx_update_wake_stats(struct slsi_dev *sdev, struct ethhdr *ehdr, size_
 	struct slsi_wlan_driver_wake_reason_cnt *wake_reason_count = &sdev->wake_reason_stats;
 
 	sdev->data_wakeup_count++;
-	SLSI_DBG3(sdev, SLSI_PM, "Wakeup by DATA frame Count : %d\n", sdev->data_wakeup_count);
+	SLSI_DBG3(sdev, SLSI_PM, "Wakeup by DATA frame Count : %d, Wakeup_Time : %ld-%02d-%02d %02d:%02d:%02d\n", sdev->data_wakeup_count,
+		      sdev->resume_tm.tm_year + 1900, sdev->resume_tm.tm_mon, sdev->resume_tm.tm_mday,
+		      sdev->resume_tm.tm_hour, sdev->resume_tm.tm_min, sdev->resume_tm.tm_sec);
 
 	slsi_spinlock_lock(&sdev->wake_stats_lock);
 	wake_reason_count->total_rx_data_wake++;
@@ -8631,10 +8641,10 @@ void slsi_rx_update_wake_stats(struct slsi_dev *sdev, struct ethhdr *ehdr, size_
 		goto exit;
 	if (is_broadcast_ether_addr(ehdr->h_dest)) {
 		wake_reason_count->rx_wake_details.rx_broadcast_cnt++;
-		SLSI_DBG3(sdev, SLSI_PM, "Wakeup by broadcast rx data packet:%d\n", wake_reason_count->rx_wake_details.rx_broadcast_cnt);
+		SLSI_INFO(sdev, "Wakeup by broadcast rx data packet:%d\n", wake_reason_count->rx_wake_details.rx_broadcast_cnt);
 	}  else if (is_multicast_ether_addr(ehdr->h_dest)) {
 		wake_reason_count->rx_wake_details.rx_multicast_cnt++;
-		SLSI_DBG3(sdev, SLSI_PM, "Wakeup by multicast rx data packet:%d\n", wake_reason_count->rx_wake_details.rx_multicast_cnt);
+		SLSI_INFO(sdev, "Wakeup by multicast rx data packet:%d\n", wake_reason_count->rx_wake_details.rx_multicast_cnt);
 		if (be16_to_cpu(ehdr->h_proto) == ETH_P_IP)
 			wake_reason_count->rx_multicast_wake_pkt_info.ipv4_rx_multicast_addr_cnt++;
 		else if (be16_to_cpu(ehdr->h_proto) == ETH_P_IPV6)
@@ -8647,17 +8657,17 @@ void slsi_rx_update_wake_stats(struct slsi_dev *sdev, struct ethhdr *ehdr, size_
 	if (be16_to_cpu(ehdr->h_proto) == ETH_P_IP && buff_len - sizeof(struct ethhdr) >= sizeof(struct iphdr)) {
 		struct iphdr *ip = (struct iphdr *)(ehdr + 1);
 
-		SLSI_DBG3(sdev, SLSI_PM, "Wakeup by ip rx data packet protocol :%d\n", ip->protocol);
+		SLSI_INFO(sdev, "Wakeup by ip rx data packet protocol :%d\n", ip->protocol);
 		if (ip->protocol ==  IPPROTO_ICMP)
 			wake_reason_count->rx_wake_pkt_classification_info.icmp_pkt++;
 	} else if (be16_to_cpu(ehdr->h_proto) == ETH_P_IPV6 && buff_len - sizeof(struct ethhdr) >= sizeof(struct ipv6hdr)) {
 		struct ipv6hdr *ip = (struct ipv6hdr *)(ehdr + 1);
 
-		SLSI_DBG3(sdev, SLSI_PM, "Wakeup by ipv6 rx data packet next hdr:%d\n", ip->nexthdr);
+		SLSI_INFO(sdev, "Wakeup by ipv6 rx data packet next hdr:%d\n", ip->nexthdr);
 		if (ip->nexthdr == SLSI_ICMP6_PACKET) {
 			struct icmp6hdr *icmp6 = (struct icmp6hdr *)(ip + 1);
 
-			SLSI_DBG3(sdev, SLSI_PM, "Wakeup by icmpv6 rx data packet type:%d\n", icmp6->icmp6_type);
+			SLSI_INFO(sdev, "Wakeup by icmpv6 rx data packet type:%d\n", icmp6->icmp6_type);
 			wake_reason_count->rx_wake_pkt_classification_info.icmp6_pkt++;
 			if (buff_len - sizeof(struct ethhdr) - sizeof(struct ipv6hdr) < sizeof(struct icmp6hdr))
 				goto exit;
@@ -8725,6 +8735,8 @@ u8 *slsi_get_scan_extra_ies(struct slsi_dev *sdev, const u8 *ies, int total_len,
 	while (i < default_ie_len - 2) {
 		id = *(default_ies + i);
 		ie_len = *(default_ies + i + 1);
+		if (cur_len + ie_len + 2 > default_ie_len)
+			break;
 		if (!cfg80211_find_ie(id, ies, total_len)) {
 			memcpy(new_ies + cur_len, default_ies + i, ie_len + 2);
 			cur_len += (ie_len + 2);
@@ -8816,13 +8828,13 @@ int slsi_dump_eth_packet(struct slsi_dev *sdev, struct sk_buff *skb)
 			SLSI_INFO(sdev, "Invalid packet len\n");
 			return -EINVAL;
 		}
-		SCSC_BIN_TAG_INFO(BINARY, (u8 *)hdr + offset, remain_len > 2 * ETH_ALEN ? 2 * ETH_ALEN : remain_len);
+		SCSC_BIN_TAG_INFO(BIN_WIFI_PM, (u8 *)hdr + offset, remain_len > 2 * ETH_ALEN ? 2 * ETH_ALEN : remain_len);
 
 		offset += 2 * ETH_ALEN + LLC_SNAP_HDR_LEN;
 	} else {
 		SLSI_DBG4(sdev, SLSI_RX, "Packet is MSDU offset:%d\n", offset);
-		SCSC_BIN_TAG_INFO(BINARY, ieee80211_get_DA(hdr), ETH_ALEN);
-		SCSC_BIN_TAG_INFO(BINARY, ieee80211_get_SA(hdr), ETH_ALEN);
+		SCSC_BIN_TAG_INFO(BIN_WIFI_PM, ieee80211_get_DA(hdr), ETH_ALEN);
+		SCSC_BIN_TAG_INFO(BIN_WIFI_PM, ieee80211_get_SA(hdr), ETH_ALEN);
 
 		offset += LLC_SNAP_HDR_LEN - 2;
 	}

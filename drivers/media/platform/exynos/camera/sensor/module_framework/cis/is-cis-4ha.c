@@ -38,6 +38,7 @@
 #include "is-dt.h"
 #include "is-cis-4ha.h"
 #include "is-cis-4ha-setA.h"
+#include "is-cis-4ha-setB.h"
 
 #include "is-helper-ixc.h"
 
@@ -694,12 +695,14 @@ int cis_4ha_probe_i2c(struct i2c_client *client,
 		setfile = "default";
 	}
 
-	if (strcmp(setfile, "default") == 0 || strcmp(setfile, "setA") == 0)
+	if (strcmp(setfile, "default") == 0 || strcmp(setfile, "setA") == 0) {
 		probe_info("[%s] setfile_A mclk: 26Mhz \n", __func__);
-	else
+		cis->sensor_info = &sensor_4ha_info_A;
+	} else if (strcmp(setfile, "setB") == 0) {
+		probe_info("[%s] setfile_B mclk: 26Mhz \n", __func__);
+		cis->sensor_info = &sensor_4ha_info_B;
+	} else
 		err("setfile index out of bound, take default (setfile_A mclk: 26Mhz)");
-
-	cis->sensor_info = &sensor_4ha_info_A;
 
 	probe_info("%s done\n", __func__);
 

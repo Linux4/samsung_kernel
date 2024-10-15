@@ -37,7 +37,7 @@ struct sensor_chipset_init_funcs accel_lsm6dsotr_ops = {
 	.parse_dt = parse_dt_accelerometer_lsm6dsotr,
 };
 
-struct sensor_chipset_init_funcs *get_accelometer_lsm6dsotr_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_accelerometer_lsm6dsotr_function_pointer(char *name)
 {
 	if (strcmp(name, LSM6DSOTR_NAME) != 0)
 		return NULL;

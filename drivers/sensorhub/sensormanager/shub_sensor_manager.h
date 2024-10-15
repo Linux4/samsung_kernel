@@ -28,7 +28,6 @@ struct sensor_manager_t {
 	uint64_t sensor_probe_state[2];
 	uint64_t scontext_probe_state[2];
 	struct sensor_spec_t *sensor_spec;
-	bool is_fs_ready;
 };
 
 int init_sensor_manager(struct device *dev);

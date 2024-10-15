@@ -19,6 +19,7 @@
 #ifndef __SEC_BATTERY_COMMON_H
 #define __SEC_BATTERY_COMMON_H __FILE__
 
+#include <linux/version.h>
 #include <linux/power_supply.h>
 #include <dt-bindings/battery/sec-battery.h>
 
@@ -107,6 +108,9 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_DUAL_BAT_DET,
 	POWER_SUPPLY_EXT_PROP_FULL_CONDITION,
 	POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE,
+#ifdef CONFIG_IFPMIC_LIMITER
+	POWER_SUPPLY_EXT_PROP_TRACE_VTRACK,
+#endif
 #endif
 	POWER_SUPPLY_EXT_PROP_REPSOC,
 	POWER_SUPPLY_EXT_PROP_REPCAP,
@@ -119,6 +123,9 @@ enum power_supply_ext_property {
 #if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
 	POWER_SUPPLY_EXT_PROP_523K_JIG,
 	POWER_SUPPLY_EXT_PROP_FG_SOC,
+	POWER_SUPPLY_EXT_PROP_MAIN_ENERGY_FULL,
+	POWER_SUPPLY_EXT_PROP_SUB_ENERGY_FULL,
+	POWER_SUPPLY_EXT_PROP_CAPACITY_DUAL,
 #endif
 	POWER_SUPPLY_EXT_PROP_CURRENT_EVENT,
 	POWER_SUPPLY_EXT_PROP_CURRENT_EVENT_CLEAR,
@@ -244,6 +251,11 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_DIRECT_INPUT_CURRENT_MAX,
 	POWER_SUPPLY_EXT_PROP_LIMITER_CHG_ENABLE,
 	POWER_SUPPLY_EXT_PROP_WDT_KICK,
+	POWER_SUPPLY_EXT_PROP_WDT_KICK_TEST,
+	POWER_SUPPLY_EXT_PROP_WC_SELECT_PPS,
+	POWER_SUPPLY_EXT_PROP_WC_DC,
+	POWER_SUPPLY_EXT_PROP_FG_PROBE_STATUS,
+	POWER_SUPPLY_EXT_PROP_PRSWAP,
 	POWER_SUPPLY_EXT_PROP_MAX,
 };
 
@@ -251,6 +263,7 @@ enum {
 	POWER_SUPPLY_DC_REVERSE_STOP,	/* stop reverse mode */
 	POWER_SUPPLY_DC_REVERSE_BYP,	/* 1:1 reverse bypass mode */
 	POWER_SUPPLY_DC_REVERSE_1TO2,	/* 1:2 reverse switching mode */
+	POWER_SUPPLY_DC_REVERSE_1TO3,	/* 1:3 reverse switching mode */
 };
 
 enum {
@@ -365,6 +378,36 @@ static inline struct power_supply *get_power_supply_by_name(char *name)
 ({ \
 	pdata->path = of_property_read_bool(np, dt_name); \
 	pr_info("%s: %s - write "dt_name" to %d\n", __func__, np->name, pdata->path); \
+})
+#endif
+
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+#define sb_of_gpio_named_count(np, dt_name) \
+({ \
+	int ret = 0; \
+	ret = of_count_phandle_with_args(np, dt_name, "#gpio-cells"); \
+	ret;\
+})
+
+#define sb_of_get_named_gpio_flags(np, dt_name) \
+({ \
+	int ret = 0; \
+	ret = of_get_named_gpio(np, dt_name, 0); \
+	ret;\
+})
+#else
+#define sb_of_gpio_named_count(np, dt_name) \
+({ \
+	int ret = 0; \
+	ret = of_gpio_named_count(np, dt_name); \
+	ret;\
+})
+#define sb_of_get_named_gpio_flags(np, dt_name) \
+({ \
+	int ret = 0; \
+	enum of_gpio_flags irq_gpio_flags; \
+	ret = of_get_named_gpio_flags(np, dt_name, 0, &irq_gpio_flags); \
+	ret;\
 })
 #endif
 

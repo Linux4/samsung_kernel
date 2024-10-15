@@ -114,8 +114,8 @@ static ssize_t show_attrs(struct device *dev,
 
 		snprintf(temp_buf+strlen(temp_buf), size,
 			"%d,%d,%d,%d,",
-			battery->voltage_avg_main, battery->voltage_avg_sub,
-			battery->current_avg_main, battery->current_avg_sub);
+			battery->voltage_now_main, battery->voltage_now_sub,
+			battery->current_now_main, battery->current_now_sub);
 		size = sizeof(temp_buf) - strlen(temp_buf);
 
 		snprintf(temp_buf+strlen(temp_buf), size, "%d,", battery->batt_cycle);

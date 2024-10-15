@@ -39,8 +39,25 @@
 
 #define SELFTEST_REVISED 1
 
-static struct device *gyro_sysfs_device;
+__visible_for_testing struct device *gyro_sysfs_device;
+__visible_for_testing struct device *gyro_sub_sysfs_device;
 static struct device_attribute **chipset_attrs;
+
+int get_gyro_type(struct device *dev)
+{
+	const char *name = dev->kobj.name;
+
+	if (!strcmp(name, "gyro_sensor")) {
+		return SENSOR_TYPE_GYROSCOPE; 
+	}
+	else if(!strcmp(name, "gyro_sub_sensor")) {
+		return SENSOR_TYPE_GYROSCOPE_SUB;
+	}
+	else {
+		return SENSOR_TYPE_GYROSCOPE; 
+	}
+}
+
 
 static ssize_t power_off_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -62,9 +79,10 @@ static ssize_t temperature_show(struct device *dev, struct device_attribute *att
 	int buffer_length = 0;
 	unsigned char reg[2] = {0, };
 	short temperature = 0;
+	int type = get_gyro_type(dev);
 	int ret = 0;
 
-	ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_GYROSCOPE, GYROSCOPE_TEMPERATURE_FACTORY,
+	ret = shub_send_command_wait(CMD_GETVALUE, type, GYROSCOPE_TEMPERATURE_FACTORY,
 				     3000, NULL, 0, &buffer, &buffer_length, true);
 
 	if (ret < 0) {
@@ -137,44 +155,53 @@ get_chipset_dev_attrs get_gyro_chipset_dev_attrs[] = {
 	get_gyroscope_icm42632m_dev_attrs,
 };
 
-void initialize_gyroscope_sysfs(void)
+void initialize_gyroscope_sysfs(struct device **dev, struct device_attribute *attrs[], char *name)
 {
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GYROSCOPE);
+	struct shub_sensor *sensor = NULL;
 	int ret;
 	uint64_t i;
 
-	ret = sensor_device_create(&gyro_sysfs_device, NULL, "gyro_sensor");
+	ret = sensor_device_create(&(*dev), NULL, name);
 	if (ret < 0) {
-		shub_errf("fail to creat %s sysfs device", sensor->name);
+		shub_errf("fail to create %s sysfs device", name);
 		return;
 	}
 
-	ret = add_sensor_device_attr(gyro_sysfs_device, gyro_attrs);
+	ret = add_sensor_device_attr(*dev, attrs);
 	if (ret < 0) {
-		shub_errf("fail to add %s sysfs device attr", sensor->name);
+		shub_errf("fail to add %s sysfs device attr", name);
+		return;
+	}
+
+	sensor = get_sensor(get_gyro_type(*dev));
+
+	if (!sensor) {
+		shub_errf("fail to get %s sensor", name);
 		return;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(get_gyro_chipset_dev_attrs); i++) {
 		chipset_attrs = get_gyro_chipset_dev_attrs[i](sensor->spec.name);
-		if (chipset_attrs) {
-			ret = add_sensor_device_attr(gyro_sysfs_device, chipset_attrs);
-			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
-				return;
-			}
-			break;
+
+		if(!chipset_attrs)
+			continue;
+
+		ret = add_sensor_device_attr(*dev, chipset_attrs);
+		if (ret < 0) {
+			shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
+			return;
 		}
+		break;
 	}
 }
 
-void remove_gyroscope_sysfs(void)
+void remove_gyroscope_sysfs(struct device **dev, struct device_attribute *attrs[])
 {
 	if (chipset_attrs)
-		remove_sensor_device_attr(gyro_sysfs_device, chipset_attrs);
-	remove_sensor_device_attr(gyro_sysfs_device, gyro_attrs);
-	sensor_device_destroy(gyro_sysfs_device);
-	gyro_sysfs_device = NULL;
+		remove_sensor_device_attr(*dev, chipset_attrs);
+	remove_sensor_device_attr(*dev, attrs);
+	sensor_device_destroy(*dev);
+	*dev = NULL;
 }
 
 void initialize_gyroscope_factory(bool en)
@@ -182,7 +209,27 @@ void initialize_gyroscope_factory(bool en)
 	if (!get_sensor(SENSOR_TYPE_GYROSCOPE))
 		return;
 	if (en)
-		initialize_gyroscope_sysfs();
+		initialize_gyroscope_sysfs(&gyro_sysfs_device, gyro_attrs, "gyro_sensor");
 	else
-		remove_gyroscope_sysfs();
+		remove_gyroscope_sysfs(&gyro_sysfs_device, gyro_attrs);
+}
+
+
+__visible_for_testing struct device_attribute *gyro_sub_attrs[] = {
+	&dev_attr_power_on,
+	&dev_attr_power_off,
+	&dev_attr_temperature,
+	&dev_attr_selftest_dps,
+	&dev_attr_selftest_revised,
+	NULL,
+};
+
+void initialize_gyroscope_sub_factory(bool en)
+{
+	if (!get_sensor(SENSOR_TYPE_GYROSCOPE_SUB))
+		return;
+	if (en)
+		initialize_gyroscope_sysfs(&gyro_sub_sysfs_device, gyro_sub_attrs, "gyro_sub_sensor");
+	else
+		remove_gyroscope_sysfs(&gyro_sub_sysfs_device, gyro_sub_attrs);
 }

@@ -32,6 +32,7 @@
 #include <linux/fs_context.h>
 #include <linux/shmem_fs.h>
 #include <linux/mnt_idmapping.h>
+#include <linux/delay.h>
 #include <linux/fslog.h>
 #ifdef CONFIG_KDP_NS
 #include <linux/kdp.h>
@@ -3000,6 +3001,7 @@ static int do_remount(struct path *path, int ms_flags, int sb_flags,
 	struct super_block *sb = path->mnt->mnt_sb;
 	struct mount *mnt = real_mount(path->mnt);
 	struct fs_context *fc;
+	int retry = 10;
 
 	if (!check_mnt(mnt))
 		return -EINVAL;
@@ -3027,6 +3029,12 @@ static int do_remount(struct path *path, int ms_flags, int sb_flags,
 				unlock_mount_hash();
 			}
 		}
+
+		while (atomic_read(&f2fs_check_pkt_flag) && retry--) {
+			pr_info("%s: wait for end dquot_writback_dquots()!!!!!\n", __func__);
+			mdelay(1);
+		}
+
 		up_write(&sb->s_umount);
 	}
 

@@ -21,7 +21,7 @@
 #include "../../../utility/shub_utility.h"
 #include "../../../sensormanager/shub_sensor.h"
 #include "../../../sensormanager/shub_sensor_manager.h"
-
+#include "../../flip_cover_detector.h"
 #include "../../magnetometer.h"
 
 #define MXG4300S_NAME	"MXG4300S"
@@ -77,7 +77,7 @@ static void parse_dt_magnetometer_mxg4300s(struct device *dev)
 			shub_err("no mag-mxg4300s-nfc-array");
 	}
 
-	if (get_sensor(SENSOR_TYPE_FLIP_COVER_DETECTOR)) {
+	if (get_sensor(SENSOR_TYPE_FLIP_COVER_DETECTOR) && check_flip_cover_detector_supported()) {
 		if (of_property_read_u8_array(np, "mag-mxg4300s-cover-array", data->cover_matrix, data->mag_matrix_len))
 			shub_err("no mag-mxg4300s-cover-array, set as 0");
 	}

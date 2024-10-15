@@ -34,6 +34,7 @@
 #if !defined(KPERFMON_KMALLOC)
 #include <linux/vmalloc.h>
 #endif
+#include <linux/mm.h>
 #include <linux/sched/cputime.h>
 #include <linux/sched/signal.h>
 #include <asm/uaccess.h>
@@ -56,7 +57,10 @@ struct timeval {
 #if defined(KPERFMON_KMALLOC)
 #define BUFFER_SIZE			(5 * 1024)
 #else
-#define BUFFER_SIZE			(5 * 1024 * 1024)
+#define MEM_SZ_4G			0x100000000
+#define BUFFER_SIZE_2M			(2 * 1024 * 1024)
+#define BUFFER_SIZE_5M			(5 * 1024 * 1024)
+#define IS_MEMORY_UNDER_4GB(x)		(x <= (MEM_SZ_4G >> PAGE_SHIFT))
 #endif
 
 #define HEADER_SIZE			PERFLOG_HEADER_SIZE
@@ -590,7 +594,23 @@ static int __init kperfmon_init(void)
 	struct proc_dir_entry *entry;
 	// char kperfmon_version[KPERFMON_VERSION_LENGTH] = {0, };
 
+#if defined(KPERFMON_KMALLOC)
 	CreateBuffer(&buffer, BUFFER_SIZE);
+#else
+	char *context_buffer_size;
+	struct sysinfo si;
+
+	/* getting the usable main memory size from sysinfo */
+	si_meminfo(&si);
+
+	if (IS_MEMORY_UNDER_4GB(si.totalram)) {
+		CreateBuffer(&buffer, BUFFER_SIZE_2M);
+		context_buffer_size = "kperfmon buffer size [2M]";
+	} else {
+		CreateBuffer(&buffer, BUFFER_SIZE_5M);
+		context_buffer_size = "kperfmon buffer size [5M]";
+	}
+#endif
 
 	if (!buffer.data) {
 		pr_info("%s() - Error buffer allocation is failed!!!\n", __func__);
@@ -613,6 +633,9 @@ static int __init kperfmon_init(void)
 	process_version_function("  ");
 	// snprintf(kperfmon_version, KPERFMON_VERSION_LENGTH, "kperfmon_version [1.0.1]   kperfmon_read : 0x%x,  kperfmon_write : 0x%x", kperfmon_read, kperfmon_write);
 	// process_version_function(kperfmon_version);
+#if !defined(KPERFMON_KMALLOC)
+	process_version_function(context_buffer_size);
+#endif
 
 	pr_info("%s()\n", __func__);
 

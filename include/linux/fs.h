@@ -3730,4 +3730,5 @@ static inline int inode_drain_writes(struct inode *inode)
 	return filemap_write_and_wait(inode->i_mapping);
 }
 
+extern atomic_t f2fs_check_pkt_flag;
 #endif /* _LINUX_FS_H */

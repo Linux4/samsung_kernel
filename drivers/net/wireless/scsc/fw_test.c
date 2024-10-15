@@ -902,7 +902,7 @@ static void slsi_fw_test_ma_blockackreq_ind(struct slsi_dev *sdev, struct net_de
 	}
 
 	SLSI_NET_DBG1(dev, SLSI_FW_TEST, "MA Block Ack Req Indication(vif:%d)\n", ndev_vif->ifnum);
-	slsi_rx_blockack_ind(sdev, dev, skb);
+	slsi_rx_ma_blockack_ind(sdev, dev, skb);
 }
 
 void slsi_fw_test_work(struct work_struct *work)

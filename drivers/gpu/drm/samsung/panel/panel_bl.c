@@ -47,6 +47,16 @@ static struct panel_prop_enum_item night_dim_enum_items[] = {
 	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(NIGHT_DIM_ON),
 };
 
+static struct panel_prop_enum_item local_hbm_enum_items[] = {
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(LOCAL_HBM_OFF),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(LOCAL_HBM_ON),
+};
+
+static struct panel_prop_enum_item local_hbm_circle_enum_items[] = {
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(LOCAL_HBM_CIRCLE_OFF),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(LOCAL_HBM_CIRCLE_ON),
+};
+
 static struct panel_prop_list panel_bl_property_array[] = {
 	/* enum property */
 	__PANEL_PROPERTY_ENUM_INITIALIZER(PANEL_BL_PROPERTY_SMOOTH_TRANSITION,
@@ -55,6 +65,11 @@ static struct panel_prop_list panel_bl_property_array[] = {
 			ACL_PWRSAVE_OFF, acl_pwrsave_enum_items),
 	__PANEL_PROPERTY_ENUM_INITIALIZER(PANEL_BL_PROPERTY_NIGHT_DIM,
 			NIGHT_DIM_OFF, night_dim_enum_items),
+	__PANEL_PROPERTY_ENUM_INITIALIZER(PANEL_BL_PROPERTY_LOCAL_HBM,
+			LOCAL_HBM_OFF, local_hbm_enum_items),
+	__PANEL_PROPERTY_ENUM_INITIALIZER(PANEL_BL_PROPERTY_LOCAL_HBM_CIRLCE,
+			LOCAL_HBM_CIRCLE_OFF, local_hbm_circle_enum_items),
+
 	/* range property */
 	__PANEL_PROPERTY_RANGE_INITIALIZER(PANEL_BL_PROPERTY_BRIGHTNESS,
 			UI_DEF_BRIGHTNESS, 0, 1000000000),
@@ -105,6 +120,10 @@ int panel_bl_set_property(struct panel_bl_device *panel_bl,
 		propname = PANEL_BL_PROPERTY_ACL_PWRSAVE;
 	else if (property == &panel_bl->props.night_dim)
 		propname = PANEL_BL_PROPERTY_NIGHT_DIM;
+	else if (property == &panel_bl->props.local_hbm)
+		propname = PANEL_BL_PROPERTY_LOCAL_HBM;
+	else if (property == &panel_bl->props.local_hbm_circle)
+		propname = PANEL_BL_PROPERTY_LOCAL_HBM_CIRLCE;
 
 	if (!propname) {
 		panel_err("unknown property\n");

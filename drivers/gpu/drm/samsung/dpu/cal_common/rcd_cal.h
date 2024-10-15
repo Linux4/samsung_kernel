@@ -20,6 +20,9 @@ void rcd_reg_set_partial(u32 id, struct rcd_rect rect);
 void rcd_reg_set_block_mode(u32 id, bool en, u32 x, u32 y, u32 w, u32 h);
 u32 rcd_reg_get_irq_and_clear(u32 id);
 
+void rcd_reg_set_irq_enable(u32 id);
+void rcd_reg_set_irq_disable(u32 id);
+
 void rcd_regs_desc_init(void __iomem *regs, const char *name, unsigned int id);
 void rcd_dma_dump_regs(u32 id, void __iomem *dma_regs);
 

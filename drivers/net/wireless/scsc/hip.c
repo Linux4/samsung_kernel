@@ -137,12 +137,16 @@ static int slsi_hip_service_notifier(struct notifier_block *nb, unsigned long ev
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 		slsi_lbm_freeze();
 #endif
+		SLSI_WARN(sdev, "HIP state set to #SLSI_HIP_STATE_BLOCKED#\n");
+		atomic_set(&sdev->hip.hip_state, SLSI_HIP_STATE_BLOCKED);
+
 		mutex_unlock(&sdev->hip.hip_mutex);
 		break;
 
 	case SCSC_WIFI_FAILURE_RESET:
 		SLSI_INFO(sdev, "Set HIP up again\n");
 		mutex_lock(&sdev->hip.hip_mutex);
+
 		slsi_hip_setup(&sdev->hip);
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 		if (sdev->hip.hip_priv)
@@ -264,16 +268,8 @@ int slsi_hip_rx(struct slsi_dev *sdev, struct sk_buff *skb)
 		return 0;
 	}
 
-	if (fapi_is_ma(skb)) {
-		/* It is anomolous to handle the MA_BLOCKACKREQ_IND in the
-		 * MLME handler. But it is needed to serialize with peer
-		 * setup/teardown/roaming events.
-		 */
-		if (fapi_get_sigid(skb) == MA_BLOCKACKREQ_IND)
-			return hip_sap_cont.sap[SAP_MLME]->sap_handler(sdev, skb);
-		else
-			return hip_sap_cont.sap[SAP_MA]->sap_handler(sdev, skb);
-	}
+	if (fapi_is_ma(skb))
+		return hip_sap_cont.sap[SAP_MA]->sap_handler(sdev, skb);
 
 	if (fapi_is_mlme(skb))
 		return hip_sap_cont.sap[SAP_MLME]->sap_handler(sdev, skb);
@@ -337,7 +333,8 @@ int slsi_hip_stop(struct slsi_dev *sdev)
 {
 	mutex_lock(&sdev->hip.hip_mutex);
 
-	if (atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_STARTED) {
+	if (atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_STARTED &&
+	    atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_BLOCKED) {
 		mutex_unlock(&sdev->hip.hip_mutex);
 		return 0;
 	}

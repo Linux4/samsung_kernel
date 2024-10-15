@@ -35,14 +35,14 @@ static get_init_chipset_funcs_ptr *get_light_init_chipset_funcs(int *len)
 }
 
 
-static int init_light_variable(void)
+static int init_light_variable(int type)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
 	struct light_data *data = sensor->data;
 	struct shub_system_info *system_info = get_shub_system_info();
 
 	data->brightness = -1;
-	if(sensor->spec.version >= LIGHT_DEBIG_EVENT_SIZE_4BYTE_VERSION)
+	if(sensor->spec.version >= LIGHT_EVENT_SIZE_4BYTE_VERSION)
 		data->raw_data_size = 4;
 	else
 		data->raw_data_size = 2;
@@ -152,7 +152,7 @@ void set_light_ddi_support(uint32_t system_feature)
 	shub_infof("%d", data->ddi_support);
 }
 
-int light_open_calibration(void)
+int light_open_calibration(int type)
 {
 	int ret;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
@@ -218,7 +218,7 @@ static int set_hbm_finger(struct light_data *data)
 	return ret;
 }
 
-static int sync_light_status(void)
+static int sync_light_status(int type)
 {
 	int ret = 0;
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
@@ -257,7 +257,7 @@ static void report_event_light(void)
 	}
 }
 
-void print_light_debug(void)
+void print_light_debug(int type)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
 	struct sensor_event *event = &(sensor->last_event_buffer);
@@ -391,7 +391,7 @@ int init_light(bool en)
 
 	if (en) {
 		ret = init_default_func(sensor, "light_sensor",
-				sensor->spec.version >= LIGHT_DEBIG_EVENT_SIZE_4BYTE_VERSION ? 40 : 28, 4, sizeof(struct light_event));
+				sensor->spec.version >= LIGHT_EVENT_SIZE_4BYTE_VERSION ? 40 : 28, 4, sizeof(struct light_event));
 		sensor->data = (void *)&light_data;
 		sensor->funcs = &light_sensor_funcs;
 	} else {

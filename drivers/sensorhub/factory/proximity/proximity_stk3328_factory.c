@@ -27,19 +27,6 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#define STK3328_NAME   "STK3328"
-#define STK3328_VENDOR "Sitronix"
-
-static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", STK3328_NAME);
-}
-
-static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", STK3328_VENDOR);
-}
-
 static ssize_t prox_trim_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int ret = 0;
@@ -147,14 +134,10 @@ static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr,
 	return size;
 }
 
-static DEVICE_ATTR_RO(name);
-static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(prox_trim);
 static DEVICE_ATTR_WO(prox_cal);
 
 static struct device_attribute *proximity_stk3328_attrs[] = {
-	&dev_attr_name,
-	&dev_attr_vendor,
 	&dev_attr_prox_trim,
 	&dev_attr_prox_cal,
 	NULL,
@@ -162,7 +145,7 @@ static struct device_attribute *proximity_stk3328_attrs[] = {
 
 struct device_attribute **get_proximity_stk3328_dev_attrs(char *name)
 {
-	if (strcmp(name, STK3328_NAME) != 0)
+	if (strcmp(name, "STK3328") != 0)
 		return NULL;
 
 	return proximity_stk3328_attrs;

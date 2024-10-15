@@ -360,6 +360,12 @@ void slsi_add_log_to_system_error_buffer(struct slsi_dev *sdev, char *input_buff
 	mutex_unlock(&sdev->sys_error_log_buf.log_buf_mutex);
 }
 
+void slsi_collect_sablelog(struct work_struct *work)
+{
+	SLSI_INFO_NODEV("Sable log triggered because of some reasons.\n");
+	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_USER_REASON_PROC);
+}
+
 static void slsi_sys_error_log_init(struct slsi_dev *sdev)
 {
 	mutex_init(&sdev->sys_error_log_buf.log_buf_mutex);
@@ -410,6 +416,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	SLSI_MUTEX_INIT(sdev->start_stop_mutex);
 	SLSI_MUTEX_INIT(sdev->device_config_mutex);
 	SLSI_MUTEX_INIT(sdev->logger_mutex);
+	SLSI_MUTEX_INIT(sdev->tspec_mutex);
 	slsi_spinlock_create(&sdev->netdev_lock);
 	slsi_spinlock_create(&sdev->wake_stats_lock);
 	sdev->dev = dev;
@@ -625,6 +632,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	INIT_WORK(&sdev->recovery_work, slsi_subsystem_reset);
 	INIT_WORK(&sdev->recovery_work_on_start, slsi_chip_recovery);
 	INIT_WORK(&sdev->system_error_user_fail_work, slsi_system_error_recovery);
+	INIT_WORK(&sdev->sablelog_logging_work, slsi_collect_sablelog);
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 	INIT_WORK(&sdev->chipset_logging_work, slsi_collect_chipset_logs);
 #endif

@@ -29,3 +29,11 @@ config SECURITY_DEFEX_USER
 	help
 	  This lets defex to know whether USER build performed or not
 	  in case of TARGET_BUILD_VARIANT variable is empty.
+
+config SECURITY_DEFEX_SINGLE_FILE
+	bool "Defex single rule file"
+	depends on SECURITY_DEFEX
+	default n
+	help
+	  This lets defex to know whether device supports a single rule file or not.
+	  If you are unsure how to answer this question, answer N.

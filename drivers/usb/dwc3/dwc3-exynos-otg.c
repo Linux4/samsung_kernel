@@ -1043,7 +1043,7 @@ int dwc3_exynos_otg_init(struct dwc3 *dwc, struct dwc3_exynos *exynos)
 	exynos->dotg = dotg;
 	dotg->dwc = dwc;
 	dotg->exynos = exynos;
-	dev_info(dwc->dev, "%s, dotg = %8x\n", __func__, exynos->dotg);
+	dev_info(dwc->dev, "%s, dotg = %pK\n", __func__, exynos->dotg);
 
 	ret = of_property_read_u32(dwc->dev->of_node,
 				"usb-pm-qos-hsi0", &dotg->pm_qos_hsi0_val);

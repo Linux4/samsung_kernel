@@ -28,27 +28,6 @@
 #define EXYNOS_DM_RELATION_L		0
 #define EXYNOS_DM_RELATION_H		1
 
-enum exynos_dm_type {
-	DM_CPU_CL0 = 0,
-	DM_CPU_CL1,
-	DM_CPU_CL2,
-	DM_MIF,
-	DM_INT,
-	DM_NPU,
-	DM_DSU,
-	DM_DISP,
-	DM_AUD,
-	DM_GPU,
-	DM_INTCAM,
-	DM_CAM,
-	DM_CSIS,
-	DM_VPC,
-	DM_MFC,
-	DM_ISP,
-	DM_MFC1,
-	DM_TYPE_END
-};
-
 enum exynos_constraint_type {
 	CONSTRAINT_MIN = 0,
 	CONSTRAINT_MAX,

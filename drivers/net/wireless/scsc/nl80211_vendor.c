@@ -501,11 +501,16 @@ struct slsi_gscan_result *slsi_prepare_scan_result(struct sk_buff *skb, u16 anqp
 #endif
 	const u8                 *ssid_ie;
 	int                      mem_reqd;
-	int                      ie_len;
+	int                      ie_len = 0;
 	u8                       *ie;
 
 	ie = &mgmt->u.beacon.variable[0];
 	ie_len = fapi_get_datalen(skb) - (ie - (u8 *)mgmt) - anqp_length;
+
+	if (ie_len <= 0) {
+		SLSI_ERR_NODEV("invalid ie_len : %d\n", ie_len);
+		return NULL;
+	}
 
 	/* Exclude 1 byte for ie_data[1]. sizeof(u16) to include anqp_length, sizeof(int) for hs_id */
 	mem_reqd = (sizeof(struct slsi_gscan_result) - 1) + ie_len + anqp_length + sizeof(int) + sizeof(u16);
@@ -3125,7 +3130,7 @@ void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_
 	u32 i, tm;
 	u16 rtt_entry_count = fapi_get_u16(skb, u.mlme_range_ind.entries);
 	u16 rtt_id = fapi_get_u16(skb, u.mlme_range_ind.rtt_id);
-	u16 request_id = sdev->rtt_id_params[rtt_id - 1]->hal_request_id;
+	u16 request_id;
 	u32 tmac = fapi_get_u32(skb, u.mlme_range_ind.timestamp);
 	int data_len = fapi_get_datalen(skb);
 	u8                *ip_ptr, *start_ptr;
@@ -3146,6 +3151,21 @@ void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_
 	u32 temp_value;
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+
+	if (rtt_entry_count > SLSI_WIFI_RTT_RESULT_MAX_ENTRY) {
+		SLSI_WARN(sdev, "Invalid rtt result entry count : %d\n", rtt_entry_count);
+		goto exit;
+	}
+	if (data_len < SLSI_WIFI_RTT_RESULT_LENGTH + 2) {
+		SLSI_WARN(sdev, "Invalid rtt result length : %d\n", data_len);
+		goto exit;
+	}
+	if (rtt_id < SLSI_MIN_RTT_ID || rtt_id > SLSI_MAX_RTT_ID) {
+		SLSI_WARN(sdev, "Invalid rtt_id : %d\n", rtt_id);
+		goto exit;
+	}
+	request_id = sdev->rtt_id_params[rtt_id - 1]->hal_request_id;
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
 	nl_skb = cfg80211_vendor_event_alloc(sdev->wiphy, NULL, NLMSG_DEFAULT_SIZE,
 					     SLSI_NL80211_RTT_RESULT_EVENT, GFP_KERNEL);
@@ -3169,6 +3189,17 @@ void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_
 	res |= nla_put_u16(nl_skb, SLSI_RTT_ATTRIBUTE_TARGET_ID, request_id);
 	res |= nla_put_u8(nl_skb, SLSI_RTT_ATTRIBUTE_RESULTS_PER_TARGET, 1);
 	for (i = 0; i < rtt_entry_count; i++) {
+		if (ip_ptr[0] != SLSI_WIFI_RTT_RESULT_ID) {
+			SLSI_WARN(sdev, "rtt_entry : %d Invalid id : %d\n",
+				  i, ip_ptr[0]);
+			break;
+		}
+		if (ip_ptr[1] != SLSI_WIFI_RTT_RESULT_LENGTH) {
+			SLSI_WARN(sdev, "rtt_entry : %d Invalid len:%d\n",
+				  i, ip_ptr[1]);
+			break;
+		}
+
 		nlattr_nested = nla_nest_start(nl_skb, SLSI_RTT_ATTRIBUTE_RESULT);
 		if (!nlattr_nested) {
 			SLSI_ERR(sdev, "Error in nla_nest_start\n");
@@ -3280,7 +3311,14 @@ void slsi_rx_range_done_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	u16 rtt_id = fapi_get_u16(skb, u.mlme_range_ind.rtt_id);
-	u16 request_id = sdev->rtt_id_params[rtt_id - 1]->hal_request_id;
+	u16 request_id;
+
+	if (rtt_id < SLSI_MIN_RTT_ID || rtt_id > SLSI_MAX_RTT_ID) {
+		SLSI_WARN(sdev, "Invalid rtt_id : %d\n", rtt_id);
+		kfree_skb(skb);
+		return;
+	}
+	request_id = sdev->rtt_id_params[rtt_id - 1]->hal_request_id;
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 #ifdef CONFIG_SCSC_WLAN_DEBUG
@@ -3917,9 +3955,13 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 				tx_mpdu_total = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_NAN_RX_AVERAGE:
+				if (vendor_len > sizeof(slot_avg_rx))
+					vendor_len = sizeof(slot_avg_rx);
 				memcpy(slot_avg_rx, &tlv_data[i + 2], vendor_len);
 				break;
 			case SLSI_WIFI_TAG_VD_NAN_TX_AVERAGE:
+				if (vendor_len > sizeof(slot_avg_tx))
+					vendor_len = sizeof(slot_avg_tx);
 				memcpy(slot_avg_tx, &tlv_data[i + 2], vendor_len);
 				break;
 			case SLSI_WIFI_TAG_VD_PARAMETER_SET:
@@ -7398,9 +7440,13 @@ static bool is_req_noti;
 static int slsi_tas_tx_sar_limit_req(struct sk_buff *skb, struct genl_info *info)
 {
 	struct slsi_dev *sdev = slsi_get_sdev();
-	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct slsi_tas_info *tas_info = NULL;
 	struct tas_sar_param sar_param = {0};
 	int err = 0;
+
+	if (!sdev)
+		return -ENODEV;
+	tas_info = &sdev->tas_info;
 
 	if (!info || !info->attrs[SLSI_TAS_ATTR_TX_SAR_LIMIT] ||
 	    !info->attrs[SLSI_TAS_ATTR_SHORT_WIN_NUM] ||
@@ -7427,6 +7473,9 @@ static int slsi_tas_short_win_num_req(struct sk_buff *skb, struct genl_info *inf
 {
 	struct slsi_dev *sdev = slsi_get_sdev();
 	struct tas_sar_param sar_param = {0};
+
+	if (!sdev)
+		return -ENODEV;
 
 	if (!info || !info->attrs[SLSI_TAS_ATTR_TX_SAR_LIMIT] || !info->attrs[SLSI_TAS_ATTR_SHORT_WIN_NUM])
 		return -EINVAL;
@@ -7460,10 +7509,14 @@ static int slsi_tas_if_status_entry(struct sk_buff *msg, enum slsi_tas_if_type t
 static int slsi_tas_fill_config(struct sk_buff *msg, struct genl_info *info)
 {
 	struct slsi_dev *sdev = slsi_get_sdev();
-	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct slsi_tas_info *tas_info = NULL;
 	void *hdr = NULL;
 	struct nlattr *attr = NULL;
 	int type = 0;
+
+	if (!sdev)
+		return -ENODEV;
+	tas_info = &sdev->tas_info;
 
 	hdr = genlmsg_put(msg, info->snd_portid, info->snd_seq, &slsi_tas_fam, 0, SLSI_TAS_CMD_GET_CONFIG);
 	if (!hdr) {
@@ -7646,8 +7699,12 @@ int slsi_tas_notify_sar_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 static int slsi_tas_fill_if_status(struct sk_buff *msg, enum slsi_tas_if_type type, bool enabled)
 {
 	struct slsi_dev *sdev = slsi_get_sdev();
-	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct slsi_tas_info *tas_info = NULL;
 	void *hdr;
+
+	if (!sdev)
+		return -ENODEV;
+	tas_info = &sdev->tas_info;
 
 	hdr = genlmsg_put(msg, 0, 0, &slsi_tas_fam, 0, SLSI_TAS_CMD_IF_STATUS);
 	if (!hdr) {
@@ -7677,9 +7734,13 @@ static int slsi_tas_fill_if_status(struct sk_buff *msg, enum slsi_tas_if_type ty
 static void slsi_tas_notify_if_status(enum slsi_tas_if_type type, bool enabled)
 {
 	struct slsi_dev *sdev = slsi_get_sdev();
-	struct slsi_tas_info *tas_info = &sdev->tas_info;
+	struct slsi_tas_info *tas_info = NULL;
 	struct sk_buff *msg = NULL;
 	int ret = 0;
+
+	if (!sdev)
+		return;
+	tas_info = &sdev->tas_info;
 
 	if (!is_support_notification())
 		return;

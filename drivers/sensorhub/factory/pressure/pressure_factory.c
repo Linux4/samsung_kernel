@@ -40,7 +40,7 @@
 /* factory Sysfs                                                         */
 /*************************************************************************/
 
-static struct device *pressure_sysfs_device;
+__visible_for_testing struct device *pressure_sysfs_device;
 static struct device_attribute **chipset_attrs;
 
 static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -86,7 +86,7 @@ static ssize_t pressure_calibration_show(struct device *dev, struct device_attri
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
 	struct pressure_event *sensor_value = (struct pressure_event *)(sensor->event_buffer.value);
 
-	sensor->funcs->open_calibration_file();
+	sensor->funcs->open_calibration_file(SENSOR_TYPE_PRESSURE);
 
 	return sprintf(buf, "%d\n", sensor_value->pressure_cal);
 }

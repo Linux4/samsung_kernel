@@ -579,6 +579,7 @@ static int cac_create_tspec(struct slsi_dev *sdev, char *args)
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 
+	SLSI_MUTEX_LOCK(sdev->tspec_mutex);
 	if (args == NULL) {
 		/* No input for tid, so we use the auto increment*/
 		if (tspec_list_next_id <= 7) {
@@ -604,12 +605,14 @@ static int cac_create_tspec(struct slsi_dev *sdev, char *args)
 
 	if (id < TSID_MIN || id > TSID_MAX) {
 		SLSI_ERR(sdev, "CAC: Invalid TSID =%d, must be in range 0-7\n", id);
+		SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 		return -1;
 	}
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (entry == NULL) {
 		SLSI_ERR(sdev, "CAC: Failed to allocate TSPEC\n");
+		SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 		return -1;
 	}
 
@@ -628,6 +631,7 @@ static int cac_create_tspec(struct slsi_dev *sdev, char *args)
 	entry->next = tspec_list;
 	tspec_list = entry;
 	SLSI_DBG1(sdev, SLSI_MLME, "CAC: Created TSPEC entry for id  =%d\n", id);
+	SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 
 	return entry->id;
 }
@@ -806,9 +810,12 @@ int cac_ctrl_delete_tspec(struct slsi_dev *sdev, char *args)
 		SLSI_ERR(sdev, "CAC-DELETE-TSPEC: Invalid TSPEC ID\n");
 		return -1;
 	}
-
-	if (cac_delete_tspec(sdev, id) < 0)
+	SLSI_MUTEX_LOCK(sdev->tspec_mutex);
+	if (cac_delete_tspec(sdev, id) < 0){
+		SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 		return -1;
+	}
+	SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 
 	return 0;
 }
@@ -1041,6 +1048,7 @@ static void cac_process_addts_rsp(struct slsi_dev *sdev, struct net_device *netd
 	if (WLBT_WARN_ON(!peer))
 		return;
 
+	SLSI_MUTEX_LOCK(sdev->tspec_mutex);
 	itr = tspec_list;
 	while (itr != NULL) {
 		if (itr->dialog_token == rsp->hdr.dialog_token) {
@@ -1051,14 +1059,17 @@ static void cac_process_addts_rsp(struct slsi_dev *sdev, struct net_device *netd
 	}
 	if (itr == NULL) {
 		SLSI_ERR(sdev, "CAC: No matching TSPEC found for ADDTS response\n");
+		SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 		return;
 	}
 
 	if (rsp->hdr.status_code != ADDTS_STATUS_ACCEPTED) {
 		SLSI_ERR(sdev, "CAC: TSPEC rejected (status=0x%02X)", rsp->hdr.status_code);
 		cac_delete_tspec_by_state(sdev, itr->id, 0);
+		SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 		return;
 	}
+	SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 
 	if ((ccx_status == BSS_CCX_ENABLED) && cac_find_edca_ie(ie, ie_len, &tsid, &msdu_lifetime) != 0)
 		msdu_lifetime = MSDU_LIFETIME_DEFAULT;
@@ -1138,7 +1149,9 @@ static void cac_process_addts_rsp(struct slsi_dev *sdev, struct net_device *netd
 		  * Use UP from old entry so FW can replace the medium time
 		  * Delete the old entry in host, and replace UP in new entry.
 		  */
+		SLSI_MUTEX_LOCK(sdev->tspec_mutex);
 		cac_delete_tspec_by_state(sdev, entry->id, 1);
+		SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
 		if (priority != prev_priority) {
 			itr->tspec.ts_info[1] &= ~(7 << 3) ; /*clear the value*/
 			itr->tspec.ts_info[1] |= prev_priority << 3 ; /*set the value*/

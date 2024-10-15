@@ -1858,16 +1858,21 @@ int kbase_gpu_munmap(struct kbase_context *kctx, struct kbase_va_region *reg)
 			 * separately.
 			 */
 			for (i = 0; i < alloc->imported.alias.nents; i++) {
-				if (alloc->imported.alias.aliased[i].alloc) {
-					int err_loop = kbase_mmu_teardown_pages(
-						kctx->kbdev, &kctx->mmu,
-						reg->start_pfn + (i * alloc->imported.alias.stride),
-						alloc->pages + (i * alloc->imported.alias.stride),
-						alloc->imported.alias.aliased[i].length,
-						kctx->as_nr);
-					if (WARN_ON_ONCE(err_loop))
-						err = err_loop;
-				}
+				struct tagged_addr *phys_alloc = NULL;
+				int err_loop;
+
+				if (alloc->imported.alias.aliased[i].alloc != NULL)
+					phys_alloc = alloc->imported.alias.aliased[i].alloc->pages +
+						     alloc->imported.alias.aliased[i].offset;
+
+				err_loop = kbase_mmu_teardown_pages(
+					kctx->kbdev, &kctx->mmu,
+					reg->start_pfn + (i * alloc->imported.alias.stride),
+					phys_alloc, alloc->imported.alias.aliased[i].length,
+					kctx->as_nr);
+
+				if (WARN_ON_ONCE(err_loop))
+					err = err_loop;
 			}
 		}
 		break;

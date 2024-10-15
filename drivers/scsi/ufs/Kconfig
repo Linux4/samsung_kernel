@@ -291,3 +291,10 @@ config SCSI_UFS_HWMON
 	  a hardware monitoring device will be created for the UFS device.
 
 	  If unsure, say N.
+
+config EXYNOS_UFS_EOM
+	tristate "SEC UFS eom feature"
+	depends on SCSI_UFSHCD
+	help
+	  Enable UFS eom feature.
+	  defined and implemented by SEC.

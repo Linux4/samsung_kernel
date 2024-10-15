@@ -626,11 +626,46 @@ void gw3x_hw_reset(struct gf_device *gf_dev, u8 delay)
 	}
 }
 
+int gw3x_gpio_setup(struct gf_device *gf_dev)
+{
+	int retval = 0;
+
+	if (gf_dev->pwr_gpio) {
+		retval = gpio_request(gf_dev->pwr_gpio, "goodix_pwr");
+		if (retval < 0) {
+			pr_err("Failed to request PWR GPIO = %d\n", retval);
+			goto gw3x_gpio_setup_pwr_failed;
+		}
+		gpio_direction_output(gf_dev->pwr_gpio, 0);
+	}
+	retval = gpio_request(gf_dev->reset_gpio, "goodix_reset");
+	if (retval < 0) {
+		pr_err("Failed to request RESET GPIO = %d\n", retval);
+		goto gw3x_gpio_setup_reset_failed;
+	}
+	gpio_direction_output(gf_dev->reset_gpio, 0);
+	retval = gpio_request(gf_dev->irq_gpio, "goodix_irq");
+	if (retval < 0) {
+		pr_err("Failed to request IRQ GPIO. rc = %d\n", retval);
+		goto gw3x_gpio_setup_irq_failed;
+	}
+	gpio_direction_input(gf_dev->irq_gpio);
+	return retval;
+
+gw3x_gpio_setup_irq_failed:
+	if (gpio_is_valid(gf_dev->reset_gpio))
+		gpio_free(gf_dev->reset_gpio);
+gw3x_gpio_setup_reset_failed:
+	if (gpio_is_valid(gf_dev->pwr_gpio))
+		gpio_free(gf_dev->pwr_gpio);
+gw3x_gpio_setup_pwr_failed:
+	return retval;
+}
+
 /* GPIO pins reference */
 int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 {
 	struct device_node *np = dev->of_node;
-	int retval = 0;
 
 	gf_dev->p = NULL;
 	gf_dev->pins_poweroff = NULL;
@@ -643,12 +678,6 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		gf_dev->pwr_gpio = 0;
 	} else {
 		pr_info("goodix_pwr:%d\n", gf_dev->pwr_gpio);
-		retval = gpio_request(gf_dev->pwr_gpio, "goodix_pwr");
-		if (retval < 0) {
-			pr_err("Failed to request PWR GPIO = %d\n", retval);
-			return retval;
-		}
-		gpio_direction_output(gf_dev->pwr_gpio, 0);
 	}
 
 	if (of_property_read_string(np, "goodix,btp-regulator", &gf_dev->btp_vdd) < 0) {
@@ -673,12 +702,6 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		return gf_dev->reset_gpio;
 	}
 	pr_info("goodix_reset:%d\n", gf_dev->reset_gpio);
-	retval = gpio_request(gf_dev->reset_gpio, "goodix_reset");
-	if (retval < 0) {
-		pr_err("Failed to request RESET GPIO = %d\n", retval);
-		return retval;
-	}
-	gpio_direction_output(gf_dev->reset_gpio, 0);
 
 	 /*get irq resourece*/
 	gf_dev->irq_gpio = of_get_named_gpio(np, "goodix,gpio_irq", 0);
@@ -687,12 +710,6 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		return gf_dev->irq_gpio;
 	}
 	pr_info("irq_gpio:%d\n", gf_dev->irq_gpio);
-	retval = gpio_request(gf_dev->irq_gpio, "goodix_irq");
-	if (retval < 0) {
-		pr_err("Failed to request IRQ GPIO. rc = %d\n", retval);
-		return retval;
-	}
-	gpio_direction_input(gf_dev->irq_gpio);
 
 	if (of_property_read_u32(np, "goodix,min_cpufreq_limit",
 			&gf_dev->boosting->min_cpufreq_limit))
@@ -752,7 +769,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		pinctrl_put(gf_dev->p);
 		return PTR_ERR(gf_dev->pins_poweron);
 	}
-	return retval;
+	return 0;
 }
 
 void gw3x_cleanup_info(struct gf_device *gf_dev)
@@ -900,6 +917,12 @@ static int gw3x_probe_common(struct device *dev, struct gf_device *gf_dev)
 		pr_err("Failed to get gpio info:%d\n", retval);
 		goto gw3x_probe_get_gpio;
 	}
+	retval = gw3x_gpio_setup(gf_dev);
+	if (retval < 0) {
+		pr_err("Failed to set gpio up:%d\n", retval);
+		goto gw3x_probe_gpio_setup;
+	}
+
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	if (spi_setup(gf_dev->spi)) {
 		pr_err("failed to setup spi conf\n");
@@ -918,7 +941,11 @@ static int gw3x_probe_common(struct device *dev, struct gf_device *gf_dev)
 	}
 
 	/* create class */
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	gf_dev->class = class_create(GF_CLASS_NAME);
+#else
 	gf_dev->class = class_create(THIS_MODULE, GF_CLASS_NAME);
+#endif
 	if (IS_ERR(gf_dev->class)) {
 		pr_err("Failed to create class.\n");
 		retval = -ENODEV;
@@ -1057,6 +1084,7 @@ gw3x_probe_spi_clk_register:
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 gw3x_probe_spi_setup_failed:
 #endif
+gw3x_probe_gpio_setup:
 gw3x_probe_get_gpio:
 	pr_err("failed. %d", retval);
 	return retval;
@@ -1271,7 +1299,7 @@ static int __init gw3x_init(void)
 	}
 	return status;
 }
-module_init(gw3x_init);
+late_initcall(gw3x_init);
 
 static void __exit gw3x_exit(void)
 {

@@ -24,7 +24,6 @@
 #include <linux/delay.h>
 
 #define AK09918C_NAME	"AK09918C"
-#define AK09918C_VENDOR "AKM"
 
 #define GM_AKM_DATA_SPEC_MIN -16666
 #define GM_AKM_DATA_SPEC_MAX 16666
@@ -52,16 +51,6 @@ int check_ak09918c_adc_data_spec(s32 sensor_value[3])
 	} else {
 		return 0;
 	}
-}
-
-static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", AK09918C_NAME);
-}
-
-static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", AK09918C_VENDOR);
 }
 
 static ssize_t matrix_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -279,8 +268,6 @@ static ssize_t hw_offset_show(struct device *dev, struct device_attribute *attr,
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n", cal_data->offset_x, cal_data->offset_y, cal_data->offset_z);
 }
 
-static DEVICE_ATTR_RO(name);
-static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(selftest);
 static DEVICE_ATTR_RO(ak09911_asa);
 static DEVICE_ATTR_RO(hw_offset);
@@ -288,8 +275,6 @@ static DEVICE_ATTR(matrix, 0664, matrix_show, matrix_store);
 static DEVICE_ATTR(matrix2, 0664, cover_matrix_show, cover_matrix_store);
 
 static struct device_attribute *mag_ak09918c_attrs[] = {
-	&dev_attr_name,
-	&dev_attr_vendor,
 	&dev_attr_selftest,
 	&dev_attr_ak09911_asa,
 	&dev_attr_matrix,

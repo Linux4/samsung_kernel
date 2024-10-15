@@ -418,12 +418,16 @@ static ssize_t mx_procfs_mx_suspend_write(struct file *file, const char __user *
 {
 	struct mxproc *mxproc = file->private_data;
 	int r;
+	char value = 0;
 
 	OS_UNUSED_PARAMETER(file);
 	OS_UNUSED_PARAMETER(ppos);
 
+	if (copy_from_user(&value, user_buf, 1))
+		return -EFAULT;
+
 	if (count && mxproc) {
-		switch (user_buf[0]) {
+		switch (value) {
 		case 'Y':
 			SCSC_TAG_INFO(MX_PROC, "force suspend\n");
 			r = mxman_suspend(mxproc->mxman);
@@ -437,7 +441,7 @@ static ssize_t mx_procfs_mx_suspend_write(struct file *file, const char __user *
 			mxman_resume(mxproc->mxman);
 			break;
 		default:
-			SCSC_TAG_INFO(MX_PROC, "invalid value %c\n", user_buf[0]);
+			SCSC_TAG_INFO(MX_PROC, "invalid value %c\n", value);
 			return -EINVAL;
 		}
 	}

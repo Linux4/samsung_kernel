@@ -63,7 +63,6 @@ static int abc_fops_open(struct inode *inode, struct file *file)
 	struct mafpc_device *mafpc = container_of(miscdev, struct mafpc_device, miscdev);
 
 	file->private_data = mafpc;
-	panel_info("was called\n");
 
 	return 0;
 }
@@ -82,8 +81,8 @@ __visible_for_testing ssize_t write_comp_image(struct mafpc_device *mafpc, const
 	}
 
 	if (!mafpc->comp_img_buf || !mafpc->scale_buf) {
-		panel_err("invalid buffer");
-		return -EINVAL;
+		panel_warn("buffer is not prepared\n");
+		return -EAGAIN;
 	}
 
 	if (count != ABC_DATA_SIZE(mafpc) &&
@@ -116,6 +115,7 @@ __visible_for_testing ssize_t write_comp_image(struct mafpc_device *mafpc, const
 
 	}
 	mafpc_set_written_flag(mafpc, MAFPC_UPDATED_FROM_SVC);
+	panel_info("mafpc image write %ld done!\n", count);
 
 	return count;
 }
@@ -138,10 +138,10 @@ static ssize_t write_lut_table(struct mafpc_device *mafpc, const char __user *bu
 	}
 
 	comp_mem = &mafpc->comp_mem;
-	panel_info("lut_size: %d, count: %ld\n",
+	panel_info("lut_size: %ld, count: %ld\n",
 			comp_mem->lut_size, count);
 	if (comp_mem->lut_size != count) {
-		panel_err("invalid lut_size: %d\n", count);
+		panel_err("invalid lut_size: %ld\n", count);
 		return -EINVAL;
 	}
 
@@ -180,7 +180,7 @@ static ssize_t abc_fops_write(struct file *file, const char __user *buf,  size_t
 		return ret;
 	}
 
-	panel_info("count: %ld, header: %c\n",
+	panel_dbg("count: %ld, header: %c\n",
 			count, header[MAFPC_DATA_IDENTIFIER]);
 
 	switch (header[MAFPC_DATA_IDENTIFIER]) {
@@ -188,7 +188,7 @@ static ssize_t abc_fops_write(struct file *file, const char __user *buf,  size_t
 		ret = write_comp_image(mafpc, buf, count);
 		if (ret < 0) {
 			panel_err("failed to write compensation image\n");
-			return 0;
+			return ret;
 		}
 		break;
 #if IS_ENABLED(CONFIG_LPD_OLED_COMPENSATION)
@@ -434,8 +434,6 @@ static ssize_t abc_fops_read(struct file *file, char __user *buf, size_t count, 
 
 static int abc_fops_release(struct inode *inode, struct file *file)
 {
-	panel_info("was called\n");
-
 	return 0;
 }
 
@@ -572,10 +570,11 @@ int parse_lpd_rmem(struct mafpc_device *mafpc, struct device *dev)
 
 	comp_mem->reserved = true;
 
-	panel_info("LPD DRAM is reserved at addr %x total size %x\n", rmem->base, rmem->size);
+	panel_info("LPD DRAM is reserved at addr %x total size %d\n", (unsigned int)rmem->base, (unsigned int)rmem->size);
 
 	panel_info("image base: %x, size: %x, lut base: %x, size: %x, total rmem: %x\n",
-		comp_mem->image_base, comp_mem->image_size, comp_mem->lut_base, comp_mem->lut_size, rmem->size);
+		(unsigned int)comp_mem->image_base, (unsigned int)comp_mem->image_size,
+		(unsigned int)comp_mem->lut_base, (unsigned int)comp_mem->lut_size, (unsigned int)rmem->size);
 
 	return 0;
 }

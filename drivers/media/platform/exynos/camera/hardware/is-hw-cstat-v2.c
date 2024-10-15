@@ -24,7 +24,7 @@
 #include "pablo-icpu-adapter.h"
 #include "is-interface-sensor.h"
 
-#define REQ_START_2_SHOT	1000	/* 1ms */
+#define REQ_START_2_SHOT	2000	/* 2ms */
 #define REQ_SHOT_2_END		10000	/* 10ms */
 #define REQ_END_2_START		1000	/* 1ms */
 #define REQ_CINROW_RATIO	15	/* 15% */

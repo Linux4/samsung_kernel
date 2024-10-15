@@ -100,8 +100,10 @@ int sec_bat_check_wpc_vout(struct sec_battery_info *battery, int ct, unsigned in
 	int vout = 0;
 	bool check_flicker_wa = false;
 
-	if (!is_hv_wireless_type(ct))
-		return 0;
+	if (!is_hv_wireless_type(ct)) {
+		pr_info("%s:\n", __func__);
+		return WIRELESS_VOUT_5V;
+	}
 
 	if ((ct == SEC_BATTERY_CABLE_HV_WIRELESS_20) || (ct == SEC_BATTERY_CABLE_WIRELESS_EPP))
 		vout = battery->wpc_max_vout_level;
@@ -213,15 +215,17 @@ void sec_wireless_otg_vout_control(struct sec_battery_info *battery, int enable)
 	}
 }
 
-unsigned int get_wc20_vout(unsigned int vout)
+unsigned int get_wc_vout_mW(unsigned int vout)
 {
-	unsigned int ret = 0;
+	unsigned int ret = 5000;
 
 	switch (vout) {
 	case WIRELESS_VOUT_5V:
 		ret = 5000;
 		break;
 	case WIRELESS_VOUT_5_5V:
+	case WIRELESS_VOUT_5_5V_STEP:
+	case WIRELESS_VOUT_CC_CV_VOUT:
 		ret = 5500;
 		break;
 	case WIRELESS_VOUT_9V:
@@ -236,12 +240,15 @@ unsigned int get_wc20_vout(unsigned int vout)
 	case WIRELESS_VOUT_12V:
 		ret = 12000;
 		break;
+	case WIRELESS_VOUT_12_5V:
+		ret = 12500;
+		break;
 	default:
 		pr_err("%s vout is not supported\n", __func__);
 		break;
 	}
 
-	pr_info("%s vout(%d) - idx(%d)\n", __func__, vout, ret);
+	pr_info("%s vout(%d) -> vout(%dmV)\n", __func__, vout, ret);
 	return ret;
 }
 
@@ -1680,8 +1687,8 @@ void sec_wireless_set_tx_enable(struct sec_battery_info *battery, bool wc_tx_ena
 	battery->wc_tx_phm_mode = false;
 	battery->prev_tx_phm_mode = false;
 
-	/* FPDO DC concept */
-	if (wr_sts == SEC_BATTERY_CABLE_FPDO_DC && battery->wc_tx_enable) {
+	/* FPDO_DC & APDO concept */
+	if (is_pd_apdo_wire_type(wr_sts) && battery->wc_tx_enable) {
 		union power_supply_propval value = {0, };
 
 		value.intval = 0;

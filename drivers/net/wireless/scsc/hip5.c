@@ -1235,6 +1235,29 @@ static void hip5_traffic_monitor_logring_cb(void *client_ctx, u32 state, u32 tpu
 	struct slsi_hip *hip = hip_priv->hip;
 	struct slsi_dev *sdev = container_of(hip, struct slsi_dev, hip);
 
+	if (!hip_priv || !hip_priv->hip) {
+		SLSI_WARN_NODEV("invalid HIP instance\n");
+		return;
+	}
+	hip = hip_priv->hip;
+
+	/**
+	 * FIXME: slsi_hip_init is called without slsi_hip_deinit in some case.
+	 * Now, old hip_priv is dangling pointer and its callback still live in traffic_monitor.
+	 * In this case, old hip_priv->hip will point the valid hip as hip is in slsi_dev
+	 * and its address never changes as long as sdev is not re-allocated.
+	 *
+	 * Hence, (client_ctx = old_hip_priv)->hip->hip_priv can be null.
+	 * We should check, therefore, hip->hip_priv if none null.
+	 * This is temporal WA until we find why hip_priv is not properly
+	 * freed and re-allocated by slsi_hip_deinit
+	 */
+	if (!hip->hip_priv) {
+		SLSI_WARN_NODEV("hip_priv leak is detected\n");
+		return;
+	}
+
+	sdev = container_of(hip, struct slsi_dev, hip);
 	if (!sdev)
 		return;
 
@@ -1868,7 +1891,8 @@ int slsi_hip_setup(struct slsi_hip *hip)
 	if (!sdev || !sdev->service)
 		return -EIO;
 
-	if (atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_STARTED)
+	if (atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_STARTED &&
+	    atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_BLOCKED)
 		return -EIO;
 
 	service = sdev->service;
@@ -1904,6 +1928,8 @@ int slsi_hip_setup(struct slsi_hip *hip)
 	scsc_service_mifintrbit_bit_unmask(service, hip->hip_priv->intr_to_host_ctrl_fb);
 	scsc_service_mifintrbit_bit_unmask(service, hip->hip_priv->intr_to_host_data1);
 	scsc_service_mifintrbit_bit_unmask(service, hip->hip_priv->intr_to_host_data2);
+
+	SLSI_INFO_NODEV("hip5 setup done\n");
 	return 0;
 }
 
@@ -1991,8 +2017,7 @@ void slsi_hip_freeze(struct slsi_hip *hip)
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_to_host_data1);
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_to_host_data2);
 
-	flush_workqueue(hip->hip_priv->hip_workq);
-	destroy_workqueue(hip->hip_priv->hip_workq);
+	SLSI_INFO_NODEV("hip5 freeze done\n");
 }
 
 void slsi_hip_deinit(struct slsi_hip *hip)
@@ -2058,4 +2083,6 @@ void slsi_hip_deinit(struct slsi_hip *hip)
 	/* remove the pools */
 	mbulk_pool_remove(MBULK_POOL_ID_DATA);
 	mbulk_pool_remove(MBULK_POOL_ID_CTRL);
+
+	SLSI_INFO_NODEV("hip5 deinit done\n");
 }

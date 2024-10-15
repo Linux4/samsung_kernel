@@ -2090,6 +2090,8 @@ enum camera_client_index {
 	CAMERA_APP_CATEGORY_SEAD               = 24,
 	CAMERA_APP_CATEGORY_POKEMONGO          = 25,
 	CAMERA_APP_CATEGORY_MEET               = 26,
+	CAMERA_APP_CATEGORY_TEAMS              = 27,
+	CAMERA_APP_CATEGORY_KAKAO              = 28,
 	CAMERA_APP_CATEGORY_MAX
 };
 

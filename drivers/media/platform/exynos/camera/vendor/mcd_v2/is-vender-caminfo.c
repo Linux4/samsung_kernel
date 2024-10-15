@@ -303,6 +303,12 @@ static int is_vender_caminfo_sec2lsi_cmd_get_module_info(void __user *user_data)
 	struct is_rom_info *finfo;
 	char *cal_buf;
 	int rom_id;
+#ifdef RETRY_READING_CAL_CNT
+	int retry_cnt = RETRY_READING_CAL_CNT;
+	struct is_core *core = NULL;
+	int i = 0;
+	struct is_module_enum *module = NULL;
+#endif
 
 	if (copy_from_user((void *)&caminfo, user_data, sizeof(caminfo_romdata_sec2lsi))) {
 		err("%s : failed to copy data from user", __func__);
@@ -344,10 +350,29 @@ static int is_vender_caminfo_sec2lsi_cmd_get_module_info(void __user *user_data)
 			info("index :%d", finfo->rom_header_version_start_addr);
 		}
 
-#ifdef RETRY_READING_CAL
+#ifdef RETRY_READING_CAL_CNT
+		core = is_get_is_core();
+
 		if (!test_bit(IS_ROM_STATE_SKIP_CAL_LOADING, &finfo->rom_state) &&
 			!test_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state)) {
-			is_sec_read_rom(rom_id);
+			ret = is_sec_read_rom(rom_id);
+
+			while ((ret < 0) && (retry_cnt-- > 0)) {
+				ret = is_sec_read_rom(rom_id);
+				info("%s: Retry cal loading (cnt: %d)\n", __func__, retry_cnt);
+			}
+
+			for (i = 0; i < IS_SENSOR_COUNT; i++) {
+				is_search_sensor_module_with_position(&core->sensor[i], caminfo.camID, &module);
+				if (module)
+					break;
+			}
+			/* Sync cal to DDK */
+			if (module) {
+				ret =  is_vender_cal_load(&core->vender, module);
+				if (ret < 0)
+					err("(%s) Unable to sync cal, is_vender_cal_load failed\n", __func__);
+			}
 		}
 #endif
 

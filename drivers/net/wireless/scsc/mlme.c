@@ -2519,13 +2519,14 @@ static const u8 *slsi_mlme_connect_get_sec_ie(struct cfg80211_connect_params *sm
 /* If is_copy is true copy the required IEs from connect_ie to ie_dest. else
  * calculate the required ie length
  */
-static int slsi_mlme_connect_info_elems_ie_prep(struct slsi_dev *sdev, const u8 *connect_ie,
+static int slsi_mlme_connect_info_elems_ie_prep(struct slsi_dev *sdev, struct net_device *dev, const u8 *connect_ie,
 						const size_t connect_ie_len, bool is_copy, u8 *ie_dest, int ie_dest_len)
 {
 	const u8 *ie_pos = NULL;
 	int      info_elem_length = 0;
 	u16      curr_ie_len, rem_len;
 	int i = 0;
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	u8 ie_eid[] = {SLSI_WLAN_EID_INTERWORKING,
 		       SLSI_WLAN_EID_EXTENSION,
 		       WLAN_EID_VENDOR_SPECIFIC};  /*Vendor IE has to be the last element  */
@@ -2537,6 +2538,8 @@ static int slsi_mlme_connect_info_elems_ie_prep(struct slsi_dev *sdev, const u8 
 		ie_pos = cfg80211_find_ie(ie_eid[i], connect_ie, connect_ie_len);
 		while (ie_pos) {
 			curr_ie_len = *(ie_pos + 1) + 2;
+			if (ie_eid[i] == SLSI_WLAN_EID_EXTENSION && ie_pos[2] == SLSI_WLAN_EID_EXT_OWE_DH_PARAM)
+				ndev_vif->sta.owe_group_during_connection = ((ie_pos[4] << 8) | ie_pos[3]);
 			SLSI_DBG2(sdev, SLSI_MLME, "IE[%d] is present having length:%d\n", ie_eid[i], curr_ie_len);
 			if (is_copy) {
 				if (ie_dest_len >= curr_ie_len) {
@@ -2595,7 +2598,7 @@ static int slsi_mlme_connect_info_elements(struct slsi_dev *sdev, struct net_dev
 	int               r = 0;
 	u8                *p;
 
-	info_elem_length = slsi_mlme_connect_info_elems_ie_prep(sdev, sme->ie, sme->ie_len, false, NULL, 0);
+	info_elem_length = slsi_mlme_connect_info_elems_ie_prep(sdev, dev, sme->ie, sme->ie_len, false, NULL, 0);
 
 	/* NO IE required in MLME-ADD-INFO-ELEMENTS */
 	if (info_elem_length <= 0)
@@ -2614,7 +2617,7 @@ static int slsi_mlme_connect_info_elements(struct slsi_dev *sdev, struct net_dev
 		return -EINVAL;
 	}
 
-	(void)slsi_mlme_connect_info_elems_ie_prep(sdev, sme->ie, sme->ie_len, true, p, info_elem_length);
+	(void)slsi_mlme_connect_info_elems_ie_prep(sdev, dev, sme->ie, sme->ie_len, true, p, info_elem_length);
 
 	/* backup ies */
 	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {

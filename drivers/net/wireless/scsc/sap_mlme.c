@@ -10,6 +10,7 @@
 #include "sap_mlme.h"
 #include "hip.h"
 #include "mgt.h"
+#include "ba.h"
 #include "scsc_wifilogger_ring_pktfate_api.h"
 #ifdef CONFIG_SCSC_WLAN_ANDROID
 #include "scsc_wifilogger_rings.h"
@@ -234,8 +235,7 @@ static int slsi_rx_netdev_mlme(struct slsi_dev *sdev, struct net_device *dev, st
 		slsi_rx_frame_transmission_ind(sdev, dev, skb);
 		break;
 	case MLME_BLOCKACK_ACTION_IND:
-	case MA_BLOCKACKREQ_IND:
-		slsi_rx_blockack_ind(sdev, dev, skb);
+		slsi_rx_mlme_blockack_ind(sdev, dev, skb);
 		break;
 	case MLME_ROAMED_IND:
 		slsi_rx_roamed_ind(sdev, dev, skb);

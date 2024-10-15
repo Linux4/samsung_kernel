@@ -13,8 +13,9 @@
 #include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/device.h>
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
-
+#endif
 #include <linux/battery/sb_notify.h>
 
 #define SB_NOTIFY_NAME	"sb-notify"
@@ -52,6 +53,11 @@ static struct sbn_dev *sbn_create_device(const char *name, enum sb_dev_type type
 	ndev->name = name;
 	ndev->type = type;
 	return ndev;
+}
+
+static void sbn_destroy_device(struct sbn_dev *ndev)
+{
+	kfree(ndev);
 }
 
 static struct sbn_dev *sbn_find_device(struct notifier_block *nb)
@@ -152,6 +158,7 @@ int sb_notify_register(struct notifier_block *nb, notifier_fn_t notifier,
 	if (ret < 0) {
 		pr_err("%s: failed to register nb(%s, %d)",
 			__func__, name, ret);
+		sbn_destroy_device(ndev);
 		goto skip_register;
 	}
 
@@ -177,12 +184,8 @@ int sb_notify_register(struct notifier_block *nb, notifier_fn_t notifier,
 	list_add(&ndev->list, &sb_notify.dev_list);
 	sb_notify.dev_count++;
 
-	mutex_unlock(&noti_lock);
-	return ret;
-
 skip_register:
 	mutex_unlock(&noti_lock);
-	kfree(ndev);
 	return ret;
 }
 EXPORT_SYMBOL(sb_notify_register);

@@ -26,19 +26,6 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#define TMD4912_NAME   "TMD4912"
-#define TMD4912_VENDOR "AMS"
-
-static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", TMD4912_NAME);
-}
-
-static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", TMD4912_VENDOR);
-}
-
 static ssize_t prox_led_test_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int ret = 0;
@@ -84,7 +71,7 @@ static ssize_t prox_trim_show(struct device *dev, struct device_attribute *attr,
 	if (data->cal_data_len == 0)
 		return -EINVAL;
 
-	ret = sensor->funcs->open_calibration_file();
+	ret = sensor->funcs->open_calibration_file(SENSOR_TYPE_PROXIMITY);
 	if (ret == data->cal_data_len)
 		cal_data = (int *)data->cal_data;
 
@@ -116,7 +103,7 @@ static ssize_t prox_cal_show(struct device *dev,
 	if (data->cal_data_len == 0)
 		return -EINVAL;
 
-	ret = sensor->funcs->open_calibration_file();
+	ret = sensor->funcs->open_calibration_file(SENSOR_TYPE_PROXIMITY);
 	if (ret == data->cal_data_len)
 		memcpy(cal_data, data->cal_data, sizeof(cal_data));
 
@@ -159,16 +146,12 @@ static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr,
 	return size;
 }
 
-static DEVICE_ATTR_RO(name);
-static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(prox_led_test);
 static DEVICE_ATTR_RO(trim_check);
 static DEVICE_ATTR_RO(prox_trim);
 static DEVICE_ATTR(prox_cal, 0660, prox_cal_show, prox_cal_store);
 
 static struct device_attribute *proximity_tmd4912_attrs[] = {
-	&dev_attr_name,
-	&dev_attr_vendor,
 	&dev_attr_prox_led_test,
 	&dev_attr_prox_cal,
 	&dev_attr_prox_trim,
@@ -178,7 +161,7 @@ static struct device_attribute *proximity_tmd4912_attrs[] = {
 
 struct device_attribute **get_proximity_tmd4912_dev_attrs(char *name)
 {
-	if (strcmp(name, TMD4912_NAME) != 0)
+	if (strcmp(name, "TMD4912") != 0)
 		return NULL;
 
 	return proximity_tmd4912_attrs;

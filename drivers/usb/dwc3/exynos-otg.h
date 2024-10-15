@@ -88,7 +88,7 @@ static inline int dwc3_ext_otg_setup(struct dwc3_otg *dotg)
 {
 	struct device *dev = dotg->exynos->dev;
 
-	pr_info("%s, fsm = %8x\n", __func__, &dotg->fsm);
+	pr_info("%s, fsm = %pK\n", __func__, &dotg->fsm);
 
 	if (!dotg->ext_otg_ops->setup)
 		return -EOPNOTSUPP;

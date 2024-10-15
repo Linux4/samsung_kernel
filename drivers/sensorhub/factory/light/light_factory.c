@@ -41,12 +41,12 @@
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
-static struct device *light_sysfs_device;
+__visible_for_testing struct device *light_sysfs_device;
 __visible_for_testing s32 light_position[12];
 
 #define DUAL_CHECK_MODE 13
 static u8 fstate;
-static struct light_cal_data_legacy sub_cal_data;
+static struct light_cal_data sub_cal_data;
 
 static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -354,14 +354,20 @@ static ssize_t light_cal_store(struct device *dev, struct device_attribute *attr
 
 		if (sensor->spec.version >= LIGHT_CAL_CH0_SIZE_4BYTE_VERSION) {
 			memcpy(&(data->cal_data), buffer, sizeof(data->cal_data));
+			if (fstate == DUAL_CHECK_MODE)
+				memcpy(&sub_cal_data, &buffer[sizeof(data->cal_data)], sizeof(sub_cal_data));
 			file_write = data->cal_data.result;
 		} else {
 			memcpy(&(cal_data_legacy), buffer, sizeof(cal_data_legacy));
 			data->cal_data.result = cal_data_legacy.result;
 			data->cal_data.max = (u32)cal_data_legacy.max;
 			data->cal_data.lux = cal_data_legacy.lux;
-			if (fstate == DUAL_CHECK_MODE)
-				memcpy(&sub_cal_data, &buffer[sizeof(data->cal_data)], sizeof(sub_cal_data));
+			if (fstate == DUAL_CHECK_MODE) {
+				memcpy(&(cal_data_legacy), &buffer[sizeof(cal_data_legacy)], sizeof(cal_data_legacy));
+				sub_cal_data.result = cal_data_legacy.result;
+				sub_cal_data.max = (u32)cal_data_legacy.max;
+				sub_cal_data.lux = cal_data_legacy.lux;
+			}
 			file_write = data->cal_data.result;
 		}
 	} else {

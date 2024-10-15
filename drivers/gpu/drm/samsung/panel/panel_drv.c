@@ -45,6 +45,7 @@
 #include "panel_obj.h"
 #include "panel_function.h"
 #include "panel_firmware.h"
+#include "panel_wrapper.h"
 #include "maptbl.h"
 
 #include "dpui.h"
@@ -78,7 +79,11 @@
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+#if IS_ENABLED(CONFIG_SEC_INPUT_HEADER)
+#include <linux/input/sec_input.h>
+#else
 #include <drivers/input/sec_input/sec_input.h>
+#endif
 #endif
 
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
@@ -1449,6 +1454,11 @@ static int __panel_seq_init(struct panel_device *panel)
 	if (ret < 0 && ret != -ENODATA)
 		panel_err("failed to panel_power_init\n");
 
+	if (check_seqtbl_exist(panel, PANEL_PRE_INIT_SEQ)) {
+		ret = panel_do_seqtbl_by_name_nolock(panel, PANEL_PRE_INIT_SEQ);
+		if (ret)
+			panel_err("failed to panel-pre-init seq\n");
+	}
 	panel_mutex_unlock(&panel->op_lock);
 	panel_mutex_unlock(&panel_bl->lock);
 
@@ -3949,6 +3959,10 @@ static void panel_condition_handler(struct work_struct *work)
 	atomic_set(&w->running, 1);
 	panel_mutex_lock(&w->lock);
 	panel_info("%s\n", condition->str_state[condition->check_state]);
+	if (panel->state.disp_on == PANEL_DISPLAY_OFF) {
+		clear_check_wq_var(condition);
+		goto exit;
+	}
 
 	switch (condition->check_state) {
 	case PRINT_NORMAL_PANEL_INFO:
@@ -3978,6 +3992,7 @@ static void panel_condition_handler(struct work_struct *work)
 		clear_check_wq_var(condition);
 		break;
 	}
+exit:
 	panel_mutex_unlock(&w->lock);
 	atomic_set(&w->running, 0);
 	panel_wake_unlock(panel);
@@ -4192,7 +4207,7 @@ __visible_for_testing int panel_create_lcd_class(void)
 		return 0;
 	}
 
-	lcd_class = class_create(THIS_MODULE, "lcd");
+	lcd_class = class_create_wrapper(THIS_MODULE, "lcd");
 	if (IS_ERR_OR_NULL(lcd_class)) {
 		panel_err("failed to create lcd class\n");
 		return -EINVAL;
@@ -4877,7 +4892,7 @@ __visible_for_testing int panel_lock_from_commit(struct panel_device *panel)
 	mutex_lock(&panel->panel_mutex_big_lock);
 	panel->commit_thread_pid = current->pid;
 	panel->big_lock = true;
-	panel_info("--\n");
+	panel_info("-- (%d)\n", panel->commit_thread_pid);
 
 	return 0;
 }
@@ -4894,6 +4909,21 @@ __visible_for_testing int panel_unlock_from_commit(struct panel_device *panel)
 	panel_info("--\n");
 
 	return 0;
+}
+
+__visible_for_testing int panel_set_lock_pid(struct panel_device *panel, int pid)
+{
+	int old_pid = 0;
+
+	if (!panel->big_lock)
+		return 0;
+
+	panel_info("++\n");
+	old_pid = panel->commit_thread_pid;
+	panel->commit_thread_pid = pid;
+	panel_info("-- (%d)->(%d)\n", old_pid, panel->commit_thread_pid);
+
+	return old_pid;
 }
 #endif
 
@@ -4919,15 +4949,9 @@ __visible_for_testing int panel_reset_lp11(struct panel_device *panel)
 	prev_state = panel_get_cur_state(panel);
 
 	if (panel_get_cur_state(panel) == PANEL_STATE_ON) {
-		panel_mutex_lock(&panel_bl->lock);
-		panel_mutex_lock(&panel->op_lock);
-
 		ret = panel_drv_power_ctrl_execute(panel, "panel_reset_lp11");
 		if (ret < 0 && ret != -ENODATA)
 			panel_err("failed to panel_reset_lp11\n");
-
-		panel_mutex_unlock(&panel->op_lock);
-		panel_mutex_unlock(&panel_bl->lock);
 	}
 
 	return 0;
@@ -4958,15 +4982,9 @@ __visible_for_testing int panel_reset_disable(struct panel_device *panel)
 	prev_state = panel_get_cur_state(panel);
 
 	if (panel_get_cur_state(panel) == PANEL_STATE_ON) {
-		panel_mutex_lock(&panel_bl->lock);
-		panel_mutex_lock(&panel->op_lock);
-
 		ret = panel_drv_power_ctrl_execute(panel, "panel_reset_disable");
 		if (ret < 0 && ret != -ENODATA)
 			panel_err("failed to panel_reset_lp11\n");
-
-		panel_mutex_unlock(&panel->op_lock);
-		panel_mutex_unlock(&panel_bl->lock);
 	}
 
 	return 0;
@@ -5762,7 +5780,7 @@ static int panel_set_ffc_seq(struct panel_device *panel, u32 dsi_freq)
 		&panel->panel_data.props;
 	u32 origin = props->dsi_freq;
 
-	if ((props->dsi_freq == 0) ||
+	if ((props->dsi_freq == 0) || (!check_seqtbl_exist(panel, PANEL_FFC_SEQ)) ||
 		(props->dsi_freq == dsi_freq))
 		return 0;
 
@@ -5842,6 +5860,20 @@ int panel_ioctl_attach_adapter(struct panel_device *panel, void *arg)
 		panel_err("failed to parse ap vendor node\n");
 		return ret;
 	}
+
+	return 0;
+}
+
+int panel_set_adapter_fifo_size(struct panel_device *panel, unsigned int fifo_size)
+{
+	if (!panel) {
+		panel_err("invalid argument\n");
+		return -EINVAL;
+	}
+
+	panel->adapter.fifo_size = fifo_size;
+
+	panel_info("adapter fifo_size = (%d)\n", panel->adapter.fifo_size);
 
 	return 0;
 }
@@ -7332,6 +7364,7 @@ struct panel_drv_funcs panel_drv_funcs = {
 	.register_cb = panel_register_cb,
 	.get_panel_state = panel_ioctl_get_panel_state,
 	.attach_adapter = panel_ioctl_attach_adapter,
+	.set_adapter_fifo_size = panel_set_adapter_fifo_size,
 
 	.probe = panel_probe,
 	.sleep_in = panel_sleep_in,
@@ -7344,6 +7377,7 @@ struct panel_drv_funcs panel_drv_funcs = {
 #if IS_ENABLED(CONFIG_USDM_PANEL_BIG_LOCK)
 	.lock = panel_lock_from_commit,
 	.unlock = panel_unlock_from_commit,
+	.set_lock_pid = panel_set_lock_pid,
 #endif
 
 	.debug_dump = panel_debug_dump,

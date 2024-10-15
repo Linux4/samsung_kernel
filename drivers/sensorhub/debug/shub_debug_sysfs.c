@@ -266,15 +266,15 @@ static ssize_t sensor_axis_show(struct device *dev, struct device_attribute *att
 
 	sensor = get_sensor(SENSOR_TYPE_ACCELEROMETER);
 	if (sensor)
-		accel_position = sensor->funcs->get_position();
+		accel_position = sensor->funcs->get_position(sensor->type);
 
 	sensor = get_sensor(SENSOR_TYPE_GYROSCOPE);
 	if (sensor)
-		gyro_position = sensor->funcs->get_position();
+		gyro_position = sensor->funcs->get_position(sensor->type);
 
 	sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
 	if (sensor)
-		mag_position = sensor->funcs->get_position();
+		mag_position = sensor->funcs->get_position(sensor->type);
 
 	return snprintf(buf, PAGE_SIZE, "%d: %d\n%d: %d\n%d: %d\n",
 			SENSOR_TYPE_ACCELEROMETER, accel_position,
@@ -300,7 +300,7 @@ static ssize_t sensor_axis_store(struct device *dev, struct device_attribute *at
 	}
 
 	if (sensor->funcs && sensor->funcs->set_position)
-		sensor->funcs->set_position(position);
+		sensor->funcs->set_position(sensor->type, position);
 
 	return size;
 }
@@ -432,7 +432,7 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 				send_buf_len = 8;
 				send_buf = kzalloc(send_buf_len, GFP_KERNEL);
 				if (kstrtouint(token, 10, &arg[0])) {
-					shub_errf("parssing error");
+					shub_errf("parsing error");
 					goto exit;
 				}
 				memcpy(&send_buf[0], &arg[0], 4);
@@ -462,7 +462,7 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 				}
 			} else if (cmd == CMD_ADD) {
 				if (kstrtouint(token, 10, &arg[1])) {
-					shub_errf("parssing error");
+					shub_errf("parsing error");
 					goto exit;
 				}
 				memcpy(&send_buf[4], &arg[1], 4);

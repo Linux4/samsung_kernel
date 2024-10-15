@@ -391,6 +391,7 @@ struct stm32_dev {
 	struct firmware *fw;
 	struct stm32_fw_header *fw_header;
 	struct stm32_fw_version ic_fw_ver;
+	u8 model_name_id;
 	u32 crc_of_ic;
 	u32 crc_of_bin;
 
@@ -441,12 +442,12 @@ struct stm32_devicetree_data {
 	u32 irq_type;
 	u32 irq_conn_type;
 	struct regulator *vdd_vreg;
-	const char *model_name[3];
+	const char *model_name[KDB_SUPPORT_MODEL_CNT];
 	const char *mcu_fw_name;
 	const char *fota_fw_path;
 	int i2c_burstmax;
 	bool support_open_close;
-	const char *model_name_row[3];
+	const char *model_name_row[KDB_SUPPORT_MODEL_CNT];
 	u32 booster_power_models[KDB_SUPPORT_MODEL_CNT];
 	u32 booster_power_model_cnt;
 	u32 booster_power_voltage;

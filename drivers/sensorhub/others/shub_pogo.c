@@ -41,7 +41,7 @@ static int shub_pogo_notifier(struct notifier_block *nb, unsigned long action, v
 		enable_sensor(SENSOR_TYPE_POGO_REQUEST_HANDLER, NULL, 0);
 		break;
 	case POGO_NOTIFIER_ID_DETACHED:
-		shub_infof("pogo dettach");
+		shub_infof("pogo detach");
 		disable_sensor(SENSOR_TYPE_POGO_REQUEST_HANDLER, NULL, 0);
 		break;
 	};

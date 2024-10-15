@@ -23,6 +23,9 @@
 #include "../../common/sec_direct_charger.h"
 #endif
 #include "sm5440_charger.h"
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
 
 #define SM5440_DC_VERSION  "XA1"
 
@@ -43,10 +46,14 @@ static int sm5440_read_reg(struct sm5440_charger *sm5440, u8 reg, u8 *dest)
 			break;
 	}
 
-	if (ret < 0)
+	if (ret < 0) {
+#if IS_ENABLED(CONFIG_SEC_ABC) && !defined(CONFIG_SEC_FACTORY)
+		sec_abc_send_event("MODULE=battery@WARN=dc_i2c_fail");
+#endif
 		return ret;
-
-	*dest = (ret & 0xff);
+	} else {
+		*dest = (ret & 0xff);
+	}
 
 	return 0;
 }
@@ -68,6 +75,11 @@ int sm5440_bulk_read(struct sm5440_charger *sm5440, u8 reg, int count, u8 *buf)
 			break;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_ABC) && !defined(CONFIG_SEC_FACTORY)
+	if (ret < 0)
+		sec_abc_send_event("MODULE=battery@WARN=dc_i2c_fail");
+#endif
+
 	return ret;
 }
 
@@ -87,6 +99,11 @@ static int sm5440_write_reg(struct sm5440_charger *sm5440, u8 reg, u8 value)
 		else
 			break;
 	}
+
+#if IS_ENABLED(CONFIG_SEC_ABC) && !defined(CONFIG_SEC_FACTORY)
+	if (ret < 0)
+		sec_abc_send_event("MODULE=battery@WARN=dc_i2c_fail");
+#endif
 
 	return ret;
 }

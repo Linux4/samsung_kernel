@@ -61,6 +61,8 @@ struct dqe_ctx_reg {
 	u32 de_on;
 	u32 *lpd;
 	u32 rcd_on;
+	u32 *linear_matrix;
+	u32 linear_matrix_on;
 };
 
 struct dqe_config {

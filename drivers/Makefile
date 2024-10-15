@@ -198,6 +198,8 @@ obj-$(CONFIG_VISION_SUPPORT)	+= vision/
 # uH
 obj-$(CONFIG_UH)		+= uh/
 
+obj-y				+= knox/
+
 ifeq ($(CONFIG_EXYNOS_VARIANT1),y)
 include $(srctree)/drivers/Makefile.variant1
 endif

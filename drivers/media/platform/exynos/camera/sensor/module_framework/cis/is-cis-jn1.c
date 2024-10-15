@@ -238,87 +238,6 @@ int sensor_jn1_cis_check_cropped_remosaic(cis_shared_data *cis_data, unsigned in
 	return ret;
 }
 
-int sensor_jn1_cis_update_seamless_mode_on_vsync(struct v4l2_subdev *subdev)
-{
-	int ret = 0;
-	unsigned int mode = 0;
-	unsigned int next_mode = 0;
-	cis_shared_data *cis_data;
-	const struct sensor_cis_mode_info *next_mode_info;
-	struct is_cis *cis = sensor_cis_get_cis(subdev);
-
-	cis_data = cis->cis_data;
-	mode = cis_data->sens_config_index_cur;
-	next_mode = mode;
-
-	next_mode = sensor_jn1_mode_groups[SENSOR_JN1_MODE_DEFAULT];
-	if (next_mode == MODE_GROUP_NONE) {
-		err("mode group is none");
-		return -EINVAL;
-	}
-
-	sensor_jn1_cis_check_cropped_remosaic(cis->cis_data, mode, &next_mode);
-
-	if (mode == next_mode || next_mode == MODE_GROUP_NONE)
-		return ret;
-
-	next_mode_info = cis->sensor_info->mode_infos[next_mode];
-
-	/* New mode settings Update */
-	info("%s mode(%d) next_mode(%d)", __func__, mode, next_mode);
-	IXC_MUTEX_LOCK(cis->ixc_lock);
-
-	cis->ixc_ops->write8(cis->client, cis->reg_addr->group_param_hold, 0x01);
-	ret |= cis->ixc_ops->write16(cis->client, 0x0B32, 0x0000);
-
-	ret = sensor_cis_write_registers(subdev, next_mode_info->setfile);
-	if (ret < 0)
-		err("sensor_jn1_set_registers fail!!");
-
-	ret = cis->ixc_ops->write16(cis->client, 0xFCFC, 0x4000);
-
-	ret |= cis->ixc_ops->write16(cis->client, 0x0B30, next_mode_info->setfile_fcm_index);
-	ret |= cis->ixc_ops->write16(cis->client, 0x0340, next_mode_info->frame_length_lines);
-
-	ret |= cis->ixc_ops->write8(cis->client, cis->reg_addr->group_param_hold, 0x00);
-
-	cis_data->sens_config_index_pre = cis->cis_data->sens_config_index_cur;
-	cis_data->sens_config_index_cur = next_mode;
-	cis->cis_data->pre_12bit_mode = cis->cis_data->cur_12bit_mode;
-
-	CALL_CISOPS(cis, cis_data_calculation, subdev, next_mode);
-
-	IXC_MUTEX_UNLOCK(cis->ixc_lock);
-
-	info("[%s] pre(%d)->cur(%d), 12bit[%d] LN[%d] AEB[%d] zoom [%d]\n",
-		__func__,
-		cis->cis_data->sens_config_index_pre, cis->cis_data->sens_config_index_cur,
-		cis->cis_data->cur_12bit_mode,
-		cis->cis_data->cur_lownoise_mode,
-		cis->cis_data->cur_hdr_mode,
-		cis_data->cur_remosaic_zoom_ratio);
-
-	return ret;
-}
-
-int sensor_jn1_cis_get_seamless_mode_info(struct v4l2_subdev *subdev)
-{
-	struct is_cis *cis = sensor_cis_get_cis(subdev);
-	cis_shared_data *cis_data = cis->cis_data;
-	int ret = 0, cnt = 0;
-
-	if (sensor_jn1_mode_groups[SENSOR_JN1_MODE_RMS_CROP] != MODE_GROUP_NONE) {
-		cis_data->seamless_mode_info[cnt].mode = SENSOR_MODE_CROPPED_RMS;
-		sensor_cis_get_mode_info(subdev, sensor_jn1_mode_groups[SENSOR_JN1_MODE_RMS_CROP],
-			&cis_data->seamless_mode_info[cnt]);
-		cnt++;
-	}
-
-	cis_data->seamless_mode_cnt = cnt;
-
-	return ret;
-}
-
 int sensor_jn1_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 {
 	int ret = 0;
@@ -336,13 +255,6 @@ int sensor_jn1_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		goto p_err;
 	}
 
-	//sensor_jn1_cis_set_mode_group(mode);
-	//if (sensor_jn1_mode_groups[SENSOR_JN1_MODE_DEFAULT] != mode) {
-	//	info("[%s] sensor mode(%d) default mode(%d)\n", __func__, mode,
-	//			sensor_jn1_mode_groups[SENSOR_JN1_MODE_DEFAULT]);
-	//	mode = sensor_jn1_mode_groups[SENSOR_JN1_MODE_DEFAULT];
-	//}
-
 	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
 	info("[%s] sensor mode(%d)\n", __func__, mode);
 
@@ -350,15 +262,8 @@ int sensor_jn1_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	ret = sensor_cis_write_registers_locked(subdev, mode_info->setfile);
 	if (ret < 0) {
 		err("sensor_jn1_set_registers fail!!");
-		goto EXIT;
+		goto p_err;
 	}
-
-	//cis->cis_data->sens_config_index_cur = sensor_jn1_mode_groups[SENSOR_JN1_MODE_DEFAULT];
-
-	//if (sensor_jn1_mode_groups[SENSOR_JN1_MODE_RMS_CROP] == MODE_GROUP_NONE)
-	//	cis->use_notify_vsync = false;
-	//else
-	//	cis->use_notify_vsync = true;
 
 	cis->cis_data->sens_config_index_pre = mode;
 	cis->cis_data->remosaic_mode = mode_info->remosaic_mode;
@@ -376,8 +281,6 @@ int sensor_jn1_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-EXIT:
-	//sensor_jn1_cis_get_seamless_mode_info(subdev);
 p_err:
 	return ret;
 }
@@ -393,9 +296,9 @@ int sensor_jn1_cis_stream_on(struct v4l2_subdev *subdev)
 	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
 	WARN_ON(!device);
 
-	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
-
 	is_vendor_set_mipi_clock(device);
+
+	info("%s\n", __func__);
 
 	/* Sensor stream on */
 	IXC_MUTEX_LOCK(cis->ixc_lock);
@@ -420,49 +323,25 @@ int sensor_jn1_cis_stream_off(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
+	cis->cis_data->stream_on = false;
+
+	IXC_MUTEX_LOCK(cis->ixc_lock);
 	ret = CALL_CISOPS(cis, cis_group_param_hold, subdev, false);
 	if (ret < 0)
 		err("group_param_hold_func failed at stream off");
 
-	IXC_MUTEX_LOCK(cis->ixc_lock);
+	cis->ixc_ops->read8(cis->client, 0x0005, &frame_count);
 	ret = cis->ixc_ops->write16(cis->client, 0x6028, 0x4000);
 	ret = cis->ixc_ops->write8(cis->client, 0x0100, 0x00);
-	IXC_MUTEX_UNLOCK(cis->ixc_lock);
-
 	info("%s done frame_count(%d)\n", __func__, frame_count);
 
-	cis->cis_data->stream_on = false;
+	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 	return ret;
 }
-
-#if 0
-int sensor_jn1_cis_get_updated_binning_ratio(struct v4l2_subdev *subdev, u32 *binning_ratio)
-{
-	struct is_cis *cis = sensor_cis_get_cis(subdev);
-	cis_shared_data *cis_data = cis->cis_data;
-	u32 rms_mode = sensor_jn1_mode_groups[SENSOR_JN1_MODE_RMS_CROP];
-	u32 zoom_ratio;
-
-	if (rms_mode == MODE_GROUP_NONE)
-		return 0;
-
-	zoom_ratio = cis_data->pre_remosaic_zoom_ratio;
-
-	if (zoom_ratio == JN1_REMOSAIC_ZOOM_RATIO_X_2 && sensor_jn1_rms_binning_ratio[rms_mode])
-		*binning_ratio = sensor_jn1_rms_binning_ratio[rms_mode];
-
-	return 0;
-}
-
-int sensor_jn1_cis_notify_vsync(struct v4l2_subdev *subdev)
-{
-	return sensor_jn1_cis_update_seamless_mode_on_vsync(subdev);
-}
-#endif
 
 static struct is_cis_ops cis_ops_jn1 = {
 	.cis_init = sensor_jn1_cis_init,
@@ -498,9 +377,6 @@ static struct is_cis_ops cis_ops_jn1 = {
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
 	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
-	//.cis_set_wb_gains = sensor_jn1_cis_set_wb_gain,
-	//.cis_get_updated_binning_ratio = sensor_jn1_cis_get_updated_binning_ratio,
-	//.cis_notify_vsync = sensor_jn1_cis_notify_vsync,
 };
 
 int cis_jn1_probe_i2c(struct i2c_client *client,
@@ -523,8 +399,7 @@ int cis_jn1_probe_i2c(struct i2c_client *client,
 	cis->cis_ops = &cis_ops_jn1;
 	/* belows are depend on sensor cis. MUST check sensor spec */
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
-	cis->use_wb_gain = true;
-	//cis->use_seamless_mode = true;
+
 	cis->reg_addr = &sensor_jn1_reg_addr;
 
 	ret = of_property_read_string(dnode, "setfile", &setfile);

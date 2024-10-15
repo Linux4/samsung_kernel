@@ -420,7 +420,7 @@ int is_sec_sensorid_find(struct is_core *core);
 int is_sec_sensorid_find_front(struct is_core *core);
 int is_sec_run_fw_sel(int rom_id);
 
-#ifdef RETRY_READING_CAL
+#ifdef RETRY_READING_CAL_CNT
 int is_sec_read_rom(int rom_id);
 #endif
 

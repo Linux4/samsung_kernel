@@ -28,6 +28,7 @@ enum sec_chg_dev_info {
 	SC_DEV_SB_MFC = 0x20,
 	SC_DEV_MAIN_LIM = 0x40,
 	SC_DEV_SUB_LIM = 0x80,
+	SC_DEV_DUAL_FG = 0x100,
 };
 
 struct dev_init_info {

@@ -10,6 +10,7 @@
 #include "mgt.h"
 #include "sap.h"
 #include <scsc/scsc_warn.h>
+#include <linux/bitfield.h>
 
 /* Timeout (in milliseconds) for frames in MPDU reorder buffer
  *
@@ -205,7 +206,10 @@ static void ba_delete_ba_on_old_frame(struct net_device *dev, struct slsi_peer *
 	delba_req->header.receiver_pid = 0;
 	delba_req->header.sender_pid = 0;
 	delba_req->header.fw_reference = 0;
-	delba_req->vif = ndev_vif->ifnum;
+	if (ndev_vif->ifnum < SLSI_NAN_DATA_IFINDEX_START)
+		delba_req->vif = ndev_vif->ifnum;
+	else
+		delba_req->vif = peer->ndl_vif;
 
 	memcpy(delba_req->peer_qsta_address, peer->address, ETH_ALEN);
 	delba_req->sequence_number = sn;
@@ -689,6 +693,196 @@ void slsi_ba_update_window(struct net_device *dev,
 	slsi_ba_signal_process_complete(dev);
 #endif
 	slsi_spinlock_unlock(&ndev_vif->ba_lock);
+}
+
+void slsi_rx_ma_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct ieee80211_bar *bar = NULL;
+	struct slsi_peer  *peer = NULL;
+	u16 reason_code;
+	u16 priority;
+	u16 buffer_size = 0;
+	u16 sequence_num = 0;
+
+	SLSI_NET_DBG1(dev, SLSI_RX,
+		      "ma_blockackreq_ind(vif:%d, timestamp:%u)\n",
+		      fapi_get_vif(skb),
+		      fapi_get_buff(skb, u.ma_blockackreq_ind.timestamp));
+
+	if (fapi_get_datalen(skb) >= sizeof(struct ieee80211_bar)) {
+		bar = (struct ieee80211_bar *)fapi_get_data(skb);
+	} else {
+		SLSI_NET_DBG1(dev, SLSI_RX, "invalid fapidata length.\n");
+		goto invalid;
+	}
+
+	if (!bar) {
+		WLBT_WARN(1, "invalid bulkdata for BAR frame\n");
+		goto invalid;
+	}
+
+	peer = slsi_get_peer_from_mac(sdev, dev, bar->ta);
+	priority = (bar->control & IEEE80211_BAR_CTRL_TID_INFO_MASK) >> IEEE80211_BAR_CTRL_TID_INFO_SHIFT;
+	sequence_num = le16_to_cpu(bar->start_seq_num) >> 4;
+	reason_code = FAPI_REASONCODE_UNSPECIFIED_REASON;
+
+	if (peer) {
+		if (priority >= NUM_BA_SESSIONS_PER_PEER) {
+			SLSI_NET_DBG3(dev, SLSI_MLME, "priority is invalid (priority:%d)\n", priority);
+			goto invalid;
+		}
+
+		/* Buffering of frames before the mlme_connected_ind */
+		if (ndev_vif->vif_type == FAPI_VIFTYPE_AP && peer->connected_state == SLSI_STA_CONN_STATE_CONNECTING) {
+			SLSI_NET_DBG3(dev, SLSI_RX, "buffering MA_BLOCKACKREQ_IND\n");
+			skb_queue_tail(&peer->buffered_frames[priority], skb);
+			return;
+		}
+
+		/* Buffering of Block Ack Request frame before the Add BA Request */
+		if (reason_code == FAPI_REASONCODE_UNSPECIFIED_REASON && !peer->ba_session_rx[priority]) {
+			SLSI_NET_DBG3(dev, SLSI_RX, "buffering MA_BLOCKACKREQ_IND (peer:" MACSTR ", priority:%d)\n",
+				      MAC2STR(peer->address), priority);
+			skb_queue_tail(&peer->buffered_frames[priority], skb);
+			return;
+		}
+
+		slsi_handle_blockack(dev,
+				     peer,
+				     reason_code,
+				     priority,
+				     buffer_size,
+				     sequence_num
+				    );
+	}
+
+invalid:
+	kfree_skb(skb);
+}
+
+void slsi_rx_mlme_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct ieee80211_mgmt *mgmt;
+	struct slsi_peer  *peer = NULL;
+	int ies_len;
+	u8 *ies;
+	u8 ext_buf_size;
+	u8 *peer_mac_addr;
+	u16 params;
+	u16 reason_code;
+	u16 priority;
+	u16 buffer_size = 0;
+	u16 sequence_num = 0;
+
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	if (!ndev_vif->activated) {
+		SLSI_NET_DBG1(dev, SLSI_MLME, "VIF not activated\n");
+		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+		kfree_skb(skb);
+		return;
+	}
+
+	SLSI_NET_DBG1(dev, SLSI_MLME,
+		      "mlme_blockack_action_ind(vif:%d, peer_sta_address:" MACSTR ", priority:%d, timestamp:%u)\n",
+		      fapi_get_vif(skb),
+		      MAC2STR(fapi_get_buff(skb, u.mlme_blockack_action_ind.peer_sta_address)),
+		      fapi_get_u16(skb, u.mlme_blockack_action_ind.tid),
+		      fapi_get_u16(skb, u.mlme_blockack_action_ind.timestamp));
+
+	peer_mac_addr = fapi_get_buff(skb, u.mlme_blockack_action_ind.peer_sta_address);
+	mgmt = (fapi_get_mgmtlen(skb)) ? fapi_get_mgmt(skb) : NULL;
+	if (!mgmt) {
+		/* If no bulkdata is provided, Delete the Rx BlockAck
+		 * for specified Peer and TID.
+		 */
+		peer = slsi_get_peer_from_mac(sdev, dev, peer_mac_addr);
+		priority = fapi_get_u16(skb, u.mlme_blockack_action_ind.tid);
+		reason_code = FAPI_REASONCODE_END;
+	} else {
+		if (ieee80211_is_action(mgmt->frame_control) &&
+		    mgmt->u.action.category == WLAN_CATEGORY_BACK) {
+			switch (mgmt->u.action.u.addba_req.action_code) {
+			case WLAN_ACTION_ADDBA_REQ:
+				peer = slsi_get_peer_from_mac(sdev, dev, peer_mac_addr);
+				sequence_num = le16_to_cpu(mgmt->u.action.u.addba_req.start_seq_num) >> 4;
+				params = le16_to_cpu(mgmt->u.action.u.addba_req.capab);
+				priority = (params & IEEE80211_ADDBA_PARAM_TID_MASK) >> 2;
+				buffer_size = (params & IEEE80211_ADDBA_PARAM_BUF_SIZE_MASK) >> 6;
+				reason_code = FAPI_REASONCODE_START;
+				ies_len = fapi_get_mgmtlen(skb) -
+						offsetof(struct ieee80211_mgmt, u.action.u.addba_req.variable);
+				if (ies_len >= 3) {
+					ies = (u8 *)cfg80211_find_ie(WLAN_EID_ADDBA_EXT,
+									mgmt->u.action.u.addba_req.variable,
+									ies_len);
+
+					if (ies) {
+#if (KERNEL_VERSION(5, 15, 61) < LINUX_VERSION_CODE)
+						ext_buf_size = u8_get_bits(ies[2], IEEE80211_ADDBA_EXT_BUF_SIZE_MASK);
+						buffer_size |= ext_buf_size << IEEE80211_ADDBA_EXT_BUF_SIZE_SHIFT;
+#else
+#if (KERNEL_VERSION(4, 16, 0) < LINUX_VERSION_CODE)
+						ext_buf_size = u8_get_bits(ies[2], GENMASK(7, 5));
+#else
+						ext_buf_size = ies[2] & 0x7;
+#endif
+						buffer_size |= ext_buf_size << 10;
+#endif
+					}
+				}
+				break;
+			case WLAN_ACTION_DELBA:
+				peer = slsi_get_peer_from_mac(sdev, dev, peer_mac_addr);
+				params = le16_to_cpu(mgmt->u.action.u.delba.params);
+				priority = (params & IEEE80211_DELBA_PARAM_TID_MASK) >> 12;
+				reason_code = FAPI_REASONCODE_END;
+				break;
+			default:
+				SLSI_NET_WARN(dev, "invalid action frame\n");
+				break;
+			}
+		} else {
+			SLSI_NET_WARN(dev, "invalid frame, not an action frame or not BA category\n");
+		}
+	}
+
+	if (peer) {
+		if (priority >= NUM_BA_SESSIONS_PER_PEER) {
+			SLSI_NET_DBG3(dev, SLSI_MLME, "priority is invalid (priority:%d)\n", priority);
+			goto invalid;
+		}
+
+		/* Buffering of frames before the mlme_connected_ind */
+		if (ndev_vif->vif_type == FAPI_VIFTYPE_AP && peer->connected_state == SLSI_STA_CONN_STATE_CONNECTING) {
+			SLSI_NET_DBG3(dev, SLSI_MLME, "buffering MA_BLOCKACKREQ_IND\n");
+			skb_queue_tail(&peer->buffered_frames[priority], skb);
+			SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+			return;
+		}
+
+		/* Buffering of Block Ack Request frame before the Add BA Request */
+		if (reason_code == FAPI_REASONCODE_UNSPECIFIED_REASON && !peer->ba_session_rx[priority]) {
+			SLSI_NET_DBG3(dev, SLSI_MLME, "buffering MA_BLOCKACKREQ_IND (peer:" MACSTR ", priority:%d)\n",
+				      MAC2STR(peer->address), priority);
+			skb_queue_tail(&peer->buffered_frames[priority], skb);
+			SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+			return;
+		}
+
+		slsi_handle_blockack(dev,
+				     peer,
+				     reason_code,
+				     priority,
+				     buffer_size,
+				     sequence_num
+				    );
+	}
+invalid:
+	kfree_skb(skb);
+
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 }
 
 void slsi_handle_blockack(struct net_device *dev, struct slsi_peer *peer,

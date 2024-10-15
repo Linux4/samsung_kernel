@@ -34,6 +34,7 @@
 typedef enum _sec_direct_chg_src {
 	SEC_CHARGING_SOURCE_SWITCHING = 0,
 	SEC_CHARGING_SOURCE_DIRECT,
+	SEC_CHARGING_SOURCE_NONE,
 } sec_direct_chg_src_t;
 
 typedef enum _sec_direct_chg_mode {

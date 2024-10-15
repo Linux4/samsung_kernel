@@ -1397,12 +1397,7 @@ int is_sec_readcal_otprom(int rom_id)
 	int ret = 0;
 	char *buf = NULL;
 	struct is_rom_info *finfo = NULL;
-
-#ifdef PROJECT_CAL_RETRY_CNT
-	int cal_retry = PROJECT_CAL_RETRY_CNT;
-#endif
 	int retry = IS_CAL_RETRY_CNT;
-
 	int crc_check = false;
 	struct is_core *core = is_get_is_core();
 	struct is_vender_specific *specific = core->vender.private_data;
@@ -1465,14 +1460,6 @@ crc_retry:
 
 	/* 1. Get cal data */
 	ret = CALL_CISOPS(&sensor_peri->cis, cis_get_otprom_data, subdev_cis, buf, camera_running, rom_id);
-#ifdef PROJECT_CAL_RETRY_CNT
-	if ((ret < 0) && (cal_retry > 0)) {
-		info("retry getting otprom, retry cnt: %d\n", cal_retry);
-		cal_retry--;
-		goto crc_retry;
-	}
-	cal_retry = PROJECT_CAL_RETRY_CNT;
-#endif
 	if (ret < 0) {
 		err("failed to get otprom");
 		ret = -EINVAL;

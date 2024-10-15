@@ -21,7 +21,7 @@
 #include "../../../utility/shub_utility.h"
 #include "../../../sensormanager/shub_sensor.h"
 #include "../../../sensormanager/shub_sensor_manager.h"
-
+#include "../../flip_cover_detector.h"
 #include "../../magnetometer.h"
 
 #define AK09918C_NAME	"AK09918C"
@@ -77,7 +77,7 @@ static void parse_dt_magnetometer_ak09918c(struct device *dev)
 			shub_err("no mag-ak09918c-nfc-array");
 	}
 
-	if (get_sensor(SENSOR_TYPE_FLIP_COVER_DETECTOR)) {
+	if (get_sensor(SENSOR_TYPE_FLIP_COVER_DETECTOR) && check_flip_cover_detector_supported()) {
 		if (of_property_read_u8_array(np, "mag-ak09918c-cover-array", data->cover_matrix, data->mag_matrix_len))
 			shub_err("no mag-ak09918c-cover-array, set as 0");
 	}

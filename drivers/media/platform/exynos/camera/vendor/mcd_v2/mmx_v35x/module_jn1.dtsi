@@ -74,6 +74,7 @@
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						option { special_mode = <IS_SPECIAL_MODE_REMOSAIC>; };
 					};
 
 					mode3 {
@@ -82,6 +83,7 @@
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						option { special_mode = <IS_SPECIAL_MODE_REMOSAIC>; };
 					};
 
 					mode4 {
@@ -114,6 +116,7 @@
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0			/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						option { special_mode = <IS_SPECIAL_MODE_FASTAE>; };
 					};
 
 					mode8 {
@@ -144,11 +147,11 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value delay voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpg1 1 0x1>; };
-						15 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 1 500 3600000 3600000>; };
-						20 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; };
-						30 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpp1 7 0x1>; };
-						50 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpp1 6 0x1>; };
-						60 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 1 1000 1050000>; };
+						20 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 1 500 3600000 3600000>; };
+						30 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; };
+						40 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 1 1000 1050000>; };
+						50 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpp1 7 0x1>; };
+						60 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpp1 6 0x1>; };
 						70 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
 						80 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpg1 1 0x1>; };
 						90 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
@@ -166,11 +169,11 @@
 						30 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
 						40 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
 						50 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						60 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 0>; };
-						70 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 6 0x1>; };
-						90 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 7 0x1>; };
-						100 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; };
-						105 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 0 1000 3400000 3600000>; };
+						60 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 6 0x1>; };
+						70 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 7 0x1>; };
+						80 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 0>; };
+						90 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; };
+						100 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 0 1000 3400000 3600000>; };
 						110 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
 					};
 
@@ -181,11 +184,11 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value delay voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpg1 1 0x1>; };
-						15 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 1 500 3600000 3600000>; };
-						20 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; };
-						30 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpp1 7 0x1>; };
-						50 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpp1 6 0x1>; };
-						60 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 1 1000 1050000>; };
+						20 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 1 500 3600000 3600000>; };
+						30 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; };
+						40 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 1 1000 1050000>; };
+						50 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpp1 7 0x1>; };
+						60 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpp1 6 0x1>; };
 						70 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
 						80 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpg1 1 0x1>; };
 						90 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
@@ -203,11 +206,11 @@
 						30 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
 						40 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
 						50 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						60 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 0>; };
-						70 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 6 0x1>; };
-						90 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 7 0x1>; };
-						100 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; };
-						105 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 0 1000 3400000 3600000>; };
+						60 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 6 0x1>; };
+						70 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 7 0x1>; };
+						80 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 0>; };
+						90 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; };
+						100 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 0 1000 3400000 3600000>; };
 						110 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
 					};
 
@@ -218,11 +221,11 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value delay voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 1 500 3600000 3600000>; };
-						15 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; };
-						20 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpp1 7 0x1>; };
-						30 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpp1 6 0x1>; };
-						40 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 1 1000 1050000>; };
-						50 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
+						20 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 1 1000 1800000>; };
+						30 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 1 1000 1050000>; };
+						40 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpp1 7 0x1>; };
+						50 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpp1 6 0x1>; };
+						60 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
 					};
 
 					scenario_ois_factory_off {
@@ -231,12 +234,12 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value delay voltage>; gpio = <gpx# # 0x1>; */
-						10 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 0>; };
-						20 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 6 0x1>; };
-						30 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 7 0x1>; };
+						10 { pname = "VDD_OIS_3P3"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 6 0x1>; };
+						20 { pname = "VDD_WIDECAM_A_AF_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpp1 7 0x1>; };
+						30 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 0>; };
 						40 { pname = "vdd_ldo22"; pin = <PIN_REGULATOR 0 0>; };
-						45 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 0 1000 3400000 3600000>; };
-						50 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
+						50 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 0 1000 3400000 3600000>; };
+						60 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
 					};
 
 					scenario_read_rom_on {

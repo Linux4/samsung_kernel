@@ -46,6 +46,16 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/regulator/consumer.h>
+#include <linux/version.h>
+
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
 
 static struct shub_data_t *shub_data;
 
@@ -144,7 +154,7 @@ static int get_shub_system_info_from_hub(void)
 
 	if ((is_support_system_feature(SF_PROBE_V2) && buffer_length != SYSTEM_INFO_SIZE_V2) ||
 	    (!is_support_system_feature(SF_PROBE_V2) && buffer_length != SYSTEM_INFO_SIZE_V1)) {
-		shub_errf("buffer_lenght error : %d", buffer_length);
+		shub_errf("buffer_length error : %d", buffer_length);
 		ret = -EINVAL;
 	}
 
@@ -173,7 +183,7 @@ void set_model_name_to_hub(void)
 		strcpy(shub_data->model_name, model_name_string);
 		shub_send_command(CMD_SETVALUE, TYPE_HUB, MODEL_NAME_INFO, shub_data->model_name, MODEL_NAME_MAX);
 	} else {
-		shub_infof("model name dt doesn't exsist");
+		shub_infof("model name dt doesn't exist");
 	}
 }
 
@@ -190,7 +200,7 @@ static int send_pm_state(u8 pm_state)
 	return ret;
 }
 
-static int init_sensorhub(void)
+__visible_for_testing int init_sensorhub(void)
 {
 	int ret = 0;
 	char buf[][2] = { {0x00, shub_data->intent_screen_state}, {0x00, shub_data->display_screen_state}};
@@ -202,9 +212,9 @@ static int init_sensorhub(void)
 	set_model_name_to_hub();
 
 	send_pm_state(shub_data->pm_status);
-	shub_send_status(shub_data->lcd_status);
-	shub_send_status_with_buffer(SCREEN_STATE, buf[0], 2);
-	shub_send_status_with_buffer(SCREEN_STATE, buf[1], 2);
+	shub_send_status(shub_data->lcd_status, NULL, 0);
+	shub_send_status(SCREEN_STATE, buf[0], 2);
+	shub_send_status(SCREEN_STATE, buf[1], 2);
 
 	return ret;
 }
@@ -292,24 +302,11 @@ int queue_refresh_task(void)
 	return 0;
 }
 
-int shub_send_status_with_buffer(u8 state_sub_cmd, char *send_buf, int send_buf_len)
+int shub_send_status(u8 state_sub_cmd, char *send_buf, int send_buf_len)
 {
 	int ret;
 
 	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, state_sub_cmd, send_buf, send_buf_len);
-	if (ret < 0)
-		shub_errf("command %d failed", state_sub_cmd);
-	else
-		shub_infof("command %d", state_sub_cmd);
-
-	return ret;
-}
-
-int shub_send_status(u8 state_sub_cmd)
-{
-	int ret;
-
-	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, state_sub_cmd, NULL, 0);
 	if (ret < 0)
 		shub_errf("command %d failed", state_sub_cmd);
 	else
@@ -362,10 +359,10 @@ void reset_mcu(int reason)
 static int init_sensor_vdd(void)
 {
 	int ret = 0;
+	int sensor_ldo_en = 0;
 	int prox_ldo_en = 0;
 	const char *sensor_vdd;
 	struct device_node *np = shub_data->pdev->dev.of_node;
-	enum of_gpio_flags flags;
 
 	if (of_property_read_string(np, "sensor-vdd-regulator", &sensor_vdd) >= 0) {
 		shub_infof("regulator: %s", sensor_vdd);
@@ -379,29 +376,29 @@ static int init_sensor_vdd(void)
 			regulator_set_load(shub_data->sensor_vdd_regulator, 1800000);
 			shub_infof("sensor_vdd_regulator ok");
 		}
-	} else {
-		int sensor_ldo_en = of_get_named_gpio_flags(np, "sensor-ldo-en", 0, &flags);
-
-		if (sensor_ldo_en >= 0) {
-			shub_infof("sensor_ldo_en: %d", sensor_ldo_en);
-			shub_data->sensor_ldo_en = sensor_ldo_en;
-
-			ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
-			if (ret < 0) {
-				shub_errf("gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
-				return ret;
-			}
-			gpio_direction_output(shub_data->sensor_ldo_en, 1);
-			gpio_free(shub_data->sensor_ldo_en);
-		}
 	}
 
-	prox_ldo_en = of_get_named_gpio_flags(np, "prox-ldo-en", 0, &flags);
+	sensor_ldo_en = of_get_named_gpio(np, "sensor-ldo-en", 0);
+
+	if (sensor_ldo_en >= 0) {
+		shub_infof("sensor_ldo_en: %d", sensor_ldo_en);
+		shub_data->sensor_ldo_en = sensor_ldo_en;
+
+		ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
+		if (ret < 0) {
+			shub_errf("gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
+			return ret;
+		}
+		gpio_direction_output(shub_data->sensor_ldo_en, 1);
+		gpio_free(shub_data->sensor_ldo_en);
+	}
+
+	prox_ldo_en = of_get_named_gpio(np, "prox-ldo-en", 0);
 
 	if (prox_ldo_en >= 0) {
 		shub_infof("prox_ldo_en: %d", prox_ldo_en);
 
-		shub_data->sensor_ldo_en = prox_ldo_en;
+		shub_data->prox_ldo_en = prox_ldo_en;
 
 		ret = gpio_request(prox_ldo_en, "prox_ldo_en");
 		if (ret < 0) {
@@ -429,12 +426,15 @@ int enable_sensor_vdd(void)
 		} else {
 			shub_info("sensor vdd regulator is already enabled");
 		}
-	} else if (shub_data->sensor_ldo_en) {
+	}
+
+	if (shub_data->sensor_ldo_en) {
 		ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
 		if (ret < 0) {
 			shub_errf("sensor ldo en gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
 		} else {
 			gpio_set_value(shub_data->sensor_ldo_en, 1);
+			shub_info("sensor ldo en set");
 			gpio_free(shub_data->sensor_ldo_en);
 		}
 	}
@@ -465,7 +465,9 @@ int disable_sensor_vdd(void)
 		} else {
 			shub_info("sensor vdd regulator is already disabled");
 		}
-	} else if (shub_data->sensor_ldo_en) {
+	}
+
+	if (shub_data->sensor_ldo_en) {
 		ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
 		if (ret < 0) {
 			shub_errf("sensor ldo en gpio %d request failed %d", shub_data->sensor_ldo_en, ret);

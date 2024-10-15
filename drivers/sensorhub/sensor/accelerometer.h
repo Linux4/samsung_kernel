@@ -52,12 +52,13 @@ struct accelerometer_data {
 	int range;
 };
 
-struct sensor_chipset_init_funcs *get_accelometer_lsm6dsl_function_pointer(char *name);
-struct sensor_chipset_init_funcs *get_accelometer_icm42605m_function_pointer(char *name);
-struct sensor_chipset_init_funcs *get_accelometer_lis2dlc12_function_pointer(char *name);
-struct sensor_chipset_init_funcs *get_accelometer_lsm6dsotr_function_pointer(char *name);
-struct sensor_chipset_init_funcs *get_accelometer_icm42632m_function_pointer(char *name);
-struct sensor_chipset_init_funcs *get_accelometer_lsm6dsvtr_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_accelerometer_lsm6dsl_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_accelerometer_icm42605m_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_accelerometer_lis2dlc12_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_accelerometer_lsm6dsotr_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_accelerometer_icm42632m_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_accelerometer_lsm6dsvtr_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_accelerometer_lsm6dsvwtr_function_pointer(char *name);
 
 int set_accel_cal(struct accelerometer_data *data);
 #endif

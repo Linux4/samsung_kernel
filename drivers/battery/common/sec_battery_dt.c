@@ -980,6 +980,19 @@ int sec_bat_parse_dt(struct device *dev,
 		if (ret)
 			pr_info("%s : chg_temp_recovery is Empty\n", __func__);
 
+		if (sec_bat_get_lpmode()) {
+			ret = of_property_read_u32(np, "battery,chg_high_temp_lpm", &temp);
+			if (!ret)
+				pdata->chg_high_temp = (int)temp;
+
+			ret = of_property_read_u32(np, "battery,chg_high_temp_recovery_lpm", &temp);
+			if (!ret)
+				pdata->chg_high_temp_recovery = (int)temp;
+
+		}
+		pr_info("%s : chg_temp_high(%d,%d)\n", __func__,
+				pdata->chg_high_temp, pdata->chg_high_temp_recovery);
+
 		ret = of_property_read_u32(np, "battery,chg_charging_limit_current",
 					   &pdata->chg_charging_limit_current);
 		if (ret)
@@ -1129,6 +1142,8 @@ int sec_bat_parse_dt(struct device *dev,
 			of_property_read_bool(np, "battery,enable_check_wpc_temp_v2");
 
 		if (pdata->enable_check_wpc_temp_v2) {
+			pdata->wpc_high_check_with_nv = of_property_read_bool(np, "battery,wpc_high_check_with_nv");
+
 			ret = of_property_read_u32(np, "battery,wpc_temp_v2_cond", &pdata->wpc_temp_v2_cond);
 			if (ret) {
 				pr_info("%s : wpc_temp_v2_cond is Empty\n", __func__);
@@ -1702,6 +1717,16 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret)
 		pr_info("%s: limiter_sub_warm_current is Empty\n", __func__);
 
+	ret = of_property_read_u32(np, "battery,limiter_main_wireless_warm_current",
+					&pdata->limiter_main_wireless_warm_current);
+	if (ret)
+		pr_info("%s: limiter_main_wireless_warm_current is Empty\n", __func__);
+
+	ret = of_property_read_u32(np, "battery,limiter_sub_wireless_warm_current",
+					&pdata->limiter_sub_wireless_warm_current);
+	if (ret)
+		pr_info("%s: limiter_sub_wireless_warm_current is Empty\n", __func__);
+
 	ret = of_property_read_u32(np, "battery,limiter_main_cool1_current",
 					&pdata->limiter_main_cool1_current);
 	if (ret)
@@ -2196,6 +2221,22 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret) {
 		pdata->tx_aov_delay_phm_escape = 4000;
 		pr_err("%s: tx aov dealy phm escape is Empty. set %d\n", __func__, pdata->tx_aov_delay_phm_escape);
+	}
+
+	pdata->tx_lrp_temp_compensation = of_property_read_bool(np, "battery,tx_lrp_temp_compensation");
+	if (pdata->tx_lrp_temp_compensation) {
+		ret = of_property_read_u32(np, "battery,tx_lrp_temp_trig",
+				&pdata->tx_lrp_temp_trig);
+		if (ret) {
+			pr_err("%s: tx_lrp_temp_trig is Empty\n", __func__);
+			pdata->tx_lrp_temp_trig = 430;
+		}
+		ret = of_property_read_u32(np, "battery,tx_lrp_temp_recov",
+				&pdata->tx_lrp_temp_recov);
+		if (ret) {
+			pr_err("%s: tx_lrp_temp_recov is Empty\n", __func__);
+			pdata->tx_lrp_temp_recov = 420;
+		}
 	}
 
 	pdata->wpc_warm_fod = of_property_read_bool(np, "battery,wpc_warm_fod");

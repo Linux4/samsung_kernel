@@ -233,7 +233,17 @@ int __is_mcu_hw_set_clear_peri(void __iomem *base)
 
 	src = is_mcu_get_reg(base, R_OIS_PERI2_PUD_CTRL);
 	recover_val = src & 0xFFFF0000;
+#ifdef SET_OIS_SPI_NONE_AFTER_POWER_OFF
+	recover_val = src | 0x00000000;
+#endif
 	is_mcu_set_reg(base, R_OIS_PERI2_PUD_CTRL, recover_val);
+
+#ifdef SET_OIS_SPI_NONE_AFTER_POWER_OFF
+	src = is_mcu_get_reg(base, R_OIS_PERI2_PUDPDN_CTRL);
+	recover_val = src & 0xFFFF0000;
+	recover_val = src | 0x00000000;
+	is_mcu_set_reg(base, R_OIS_PERI2_PUDPDN_CTRL, recover_val);
+#endif
 
 	return ret;
 }

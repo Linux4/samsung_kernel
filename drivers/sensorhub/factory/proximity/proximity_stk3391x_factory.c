@@ -27,21 +27,6 @@
 #include "proximity_factory.h"
 #include "../../others/shub_panel.h"
 
-#define STK33910_NAME "STK33910"
-#define STK33915_NAME "STK33915"
-#define STK_VENDOR "Sitronix"
-
-static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
-	return sprintf(buf, "%s\n", sensor->spec.name);
-}
-
-static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", STK_VENDOR);
-}
-
 static ssize_t prox_trim_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct proximity_data *data = (struct proximity_data *)get_sensor(SENSOR_TYPE_PROXIMITY)->data;
@@ -129,14 +114,10 @@ static ssize_t proximity_cal_store(struct device *dev, struct device_attribute *
 	return size;
 }
 
-static DEVICE_ATTR_RO(name);
-static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(prox_trim);
 static DEVICE_ATTR(prox_cal, 0220, NULL, proximity_cal_store);
 
 static struct device_attribute *proximity_stk3391x_attrs[] = {
-	&dev_attr_name,
-	&dev_attr_vendor,
 	&dev_attr_prox_trim,
 	&dev_attr_prox_cal,
 	NULL,
@@ -144,7 +125,7 @@ static struct device_attribute *proximity_stk3391x_attrs[] = {
 
 struct device_attribute **get_proximity_stk3391x_dev_attrs(char *name)
 {
-	if (strcmp(name, STK33910_NAME) != 0 && strcmp(name, STK33915_NAME) != 0)
+	if (strcmp(name, "STK33910") != 0 && strcmp(name, "STK33915") != 0)
 		return NULL;
 
 	return proximity_stk3391x_attrs;

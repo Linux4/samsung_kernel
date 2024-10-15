@@ -191,7 +191,7 @@ int send_ub_state(void)
 					LIGHT_SUBCMD_UB_CONNECTED, &enable, sizeof(enable));
 
 	if (ub_state == PANEL_EVENT_UB_CON_STATE_DISCONNECTED)
-		ret = shub_send_status(get_lcd_status());
+		ret = shub_send_status(get_lcd_status(), NULL, 0);
 
 	return ret;
 }
