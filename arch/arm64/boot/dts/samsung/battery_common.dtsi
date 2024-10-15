@@ -514,7 +514,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/a34x/battery_common.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/a34x/battery_common.dtsi */
 #define MAX_FV 4440
 #define MAX_FCC 3000
 

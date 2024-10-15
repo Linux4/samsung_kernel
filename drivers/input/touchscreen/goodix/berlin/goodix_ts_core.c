@@ -1137,6 +1137,10 @@ static int goodix_parse_dt(struct device *dev, struct goodix_ts_core *core_data)
 	of_property_read_u32(node, "sec,specific_fw_update_ver", &core_data->specific_fw_update_ver);
 	ts_info("sec,specific_fw_update_ver:0x%x", core_data->specific_fw_update_ver);
 
+	if (of_property_read_u32(node, "goodix,edgehandler_direction_max", &core_data->edgehandler_direction_max))
+		core_data->edgehandler_direction_max = 3;
+	ts_info("goodix,edgehandler_direction_max:%d", core_data->edgehandler_direction_max);
+
 	r = goodix_parse_update_info(node, core_data);
 	if (r) {
 		ts_err("Failed to parse update info");
