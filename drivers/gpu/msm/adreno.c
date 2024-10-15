@@ -1518,7 +1518,6 @@ static int adreno_probe(struct platform_device *pdev)
 
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_USE_SHMEM))
 		device->flags |= KGSL_FLAG_USE_SHMEM;
-
 //+P230313-03140,liuyongliang.wt,add,20230403,close kgsl_reclaim 
 //	if (ADRENO_FEATURE(adreno_dev, ADRENO_PROCESS_RECLAIM)) {
 //		device->flags |= KGSL_FLAG_USE_SHMEM;
