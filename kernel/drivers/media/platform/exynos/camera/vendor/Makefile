@@ -1,0 +1,2 @@
+obj-$(CONFIG_CAMERA_VENDOR_DEFAULT) += default/
+obj-$(CONFIG_CAMERA_VENDOR_MCD) += mcd/

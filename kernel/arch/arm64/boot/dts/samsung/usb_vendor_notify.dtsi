@@ -1,0 +1,10 @@
+&smd {
+	usb_vendor_notify: usb_vendor_notify {
+		compatible = "samsung,usb_vendor_notify";
+	};
+
+	usb_vendor_receiver: usb_vendor_receiver {
+		compatible = "samsung,usb_vendor_receiver";
+		notify = <&usb_vendor_notify>;
+	};
+};

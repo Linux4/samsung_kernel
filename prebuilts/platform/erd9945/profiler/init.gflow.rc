@@ -1,0 +1,19 @@
+on init
+# gFlow interfaces
+    chown system system /dev/exynos-profiler
+    chown system system /sys/devices/platform/exynos-profiler/control/control_profile
+    chown system system /sys/devices/platform/exynos-profiler/control/set_margin
+    chown system system /sys/devices/platform/exynos-profiler/control/user_target_fps
+
+on post-fs-data
+# gFlow data
+    mkdir /data/vendor/gflow 0771 system system
+
+# gFlow daemon
+service gflowd /vendor/bin/gflow
+    class main
+    user system
+    group system
+    writepid /dev/cpuset/system-background/tasks
+    seclabel u:r:gflowd:s0
+

@@ -1,0 +1,148 @@
+/*
+ * SAMSUNG EXYNOS9935 SoC DVFS Manager device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS9935 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/soc/samsung/esca.h>
+#include <dt-bindings/soc/samsung/s5e9935-esca-ipc.h>
+
+/ {
+	esca_app_layer {
+		compatible = "samsung,exynos-esca";
+		esca-layer = <ESCA_LAYER__APP>;
+		#address-cells = <2>;
+		#size-cells = <1>;
+		reg = <0x0 0x2086000 0x8000>,		/* ASM SRAM */
+		    <0x0 0x14CB0000 0x1000>;	/* AP2ASM */
+		reg-names = "sram", "mbox";
+		initdata-base = <0x6800>;
+		esca-ipc-channel = <ESCA_IPC_APP__FRAMEWORK>;
+		ipc {
+			interrupts = <GIC_SPI INTREQ__MAILBOX_ASM2AP IRQ_TYPE_LEVEL_HIGH>;
+			esca-mbox-master = <ESCA_MBOX_MASTER0>;
+			interrupt-ch = <1>;
+		};
+		dump {
+			esca_app_sram {
+				dump-base = <0x90058000>;
+				size = <0x8000>;
+			};
+			esca_app_dram {
+				dump-base = <0x90068000>;
+				size = <0x48000>;
+			};
+		};
+	};
+	esca_phy0_layer {
+		compatible = "samsung,exynos-esca";
+		esca-layer = <ESCA_LAYER__PHY0>;
+		#address-cells = <2>;
+		#size-cells = <1>;
+		reg = <0x0 0x203c000 0x1c000>;		/* APM0 SRAM */
+		reg-names = "sram";
+		initdata-base = <0xDD00>;
+		dump {
+			esca_phy0_dram {
+				sram-base = <0x2042000>;
+				size = <0x16000>;
+			};
+			esca_phy0_sram {
+				dump-base = <0x90014000>;
+				size = <0x16000>;
+			};
+		};
+	};
+
+	esca_phy1_layer {
+		compatible = "samsung,exynos-esca";
+		esca-layer = <ESCA_LAYER__PHY1>;
+		#address-cells = <2>;
+		#size-cells = <1>;
+		reg = <0x0 0x2058000 0x2e000>,		/* APM1 SRAM */
+		    <0x0 0x15990000 0x1000>,	/* AP2APM */
+		    <0x0 0x15910090 0x1000>;	/* TIMER_APM */
+		reg-names = "sram", "mbox", "timer_apm";
+		initdata-base = <0x9D00>;
+		fvmap_offset = <0x24400>;
+		esca-ipc-channel = <ESCA_IPC_PHY__FRAMEWORK>;
+		timer {
+			timer_tick_max = <0xffff>;
+			timer_period = <30517>;
+		};
+		ipc {
+			interrupts = <GIC_SPI INTREQ__MAILBOX_APM2AP IRQ_TYPE_LEVEL_HIGH>;
+			esca-mbox-master = <ESCA_MBOX_MASTER1>;
+			interrupt-ch = <0>;
+		};
+		log {
+			debug-log-level = <0>;
+			logging-period = <500>;
+		};
+		dump {
+			esca_phy1_dram {
+				sram-base = <0x2058000>;
+				size = <0x2e000>;
+			};
+			esca_phy1_sram {
+				dump-base = <0x9002a000>;
+				size = <0x2e000>;
+			};
+		};
+	};
+
+	flexpmu_dbg {
+		compatible = "samsung,flexpmu-dbg";
+		esca-layer = <ESCA_LAYER__PHY0>;
+		pid = <2>;
+		#address-cells = <2>;
+		#size-cells = <1>;
+		reg = <0x0 0x15910000 0x1000>;
+		rtc-tick2us = <32>;
+		rtc-offset = <0x90>;
+		rtc-max = <0xfffff>;
+		nfc-clkreq-idx = <1>;
+		mif_requesters {
+			requester-name =
+				"MIF_AUD",
+				"MIF_VTS",
+				"MIF_CHUB",
+				"MIF_CP",
+				"MIF_GNSS";
+		};
+	};
+
+	esca_mfd_bus0: esca_mfd_bus@15960000 {
+		compatible = "samsung,exynos-esca-mfd-bus";
+		status = "okay";
+	};
+
+	esca_mfd_bus1: esca_mfd_bus@15961000 {
+		compatible = "samsung,exynos-esca-mfd-bus";
+		status = "okay";
+	};
+
+	esca_mfd_bus2: esca_mfd_bus@15962000 {
+		compatible = "samsung,exynos-esca-mfd-bus";
+		status = "okay";
+	};
+
+	esca_mfd_bus3: esca_mfd_bus@15963000 {
+		compatible = "samsung,exynos-esca-mfd-bus";
+		status = "okay";
+	};
+
+	dmc_plugin {
+		compatible = "samsung,exynos-esca-plg-dbg";
+		esca-ipc-channel = <ESCA_IPC_PHY__DMC>;
+	};
+};

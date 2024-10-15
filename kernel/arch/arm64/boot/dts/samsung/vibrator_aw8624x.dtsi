@@ -1,0 +1,30 @@
+#define VIB_CONNECTED_AP_slsi
+
+&pinctrl_0 {
+	motor_int_default: motor-int {
+		GPIO_CONFIG_PUD(AP,gpa3,gpa3,7, FUNC_INPUT_WAKEUP, PULL_UP);
+	};
+};
+
+&pinctrl_7 {
+	motor_rst_default: motor-rst {
+		GPIO_CONFIG_PUD_DRV(AP,gpp2,gpp2,2, FUNC_OUTPUT, PULL_NONE, DRV_LV1);
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+
+&hsi2c_4 {
+	status = "ok";
+	i2c-scl-hz = <400000>;
+	aw8624x: aw8624x_haptic@58 {
+		reg = <0x58>;
+		samsung,max_level_gain = <0x6E>;	/* max level gain */
+#if 1
+		samsung,f0-tracking;
+		samsung,f0-tracking-offset = <0>;
+#endif
+	};
+};
+
+#include "../aw8624x.dtsi"

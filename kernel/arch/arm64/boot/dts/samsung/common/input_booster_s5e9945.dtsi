@@ -1,0 +1,445 @@
+/*
+ * Samsung Mobile Input-Booster device tree
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		resValcount = "3";
+		max_resource_count = "7";
+		max_cluster_count = "3";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* Each Cpu Cluster Start Cpu */
+		cpu_cluster_policy = "7,4,0";
+		/* < CLUSTER2, CLUSTER1, CLUSTER0, MIF, INT, HMP, UCC> */
+		ib_release_values = "0,0,0,0,0,0,0";
+		/* Select Allowed Resource Index Group */
+		allowed_resources = "0,3,5";
+		
+		/* Mode Number 
+		 *	DEFAULT_MODE = 0;
+		 *	DISABLE_MODE = 1;
+		 *	SIP_MODE = 2;
+		 *	GAME_MODE = 3;
+		*/
+
+		booster@1 {
+			booster,label = "Disable_Mode";
+			booster,mode = "1";
+			booster_key@1 {
+				input_booster,label = "Touch_Disable";
+				input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+				/* Time table */
+				input_booster,head_time = <0>;
+				input_booster,tail_time = <0>;
+				input_booster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+				};
+			};
+		};
+
+		booster@2 {
+			booster,label = "Sip_Mode";
+			booster,mode = "2";
+			booster_key@1 {
+				input_booster,label = "sip_touch";
+				input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+				/* Time table */
+				input_booster,head_time = <200>;
+				input_booster,tail_time = <0>;
+				input_booster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <1152000 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 0>;
+					};
+				};
+			};
+		};
+
+		booster@3 {
+			booster,label = "Game_Mode";
+			booster,mode = "3";
+			booster_key@1 {
+				input_booster,label = "GAME_MT";
+				input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+				/* Time table */
+				input_booster,head_time = <0>;
+				input_booster,tail_time = <0>;
+				input_booster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <0 0>;
+					};
+				};
+			};
+			booster_key@2 {
+				input_booster,label = "GAME_TOUCH";
+				input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+				/* Time table */
+				input_booster,head_time = <0>;
+				input_booster,tail_time = <0>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <0 0>;
+					};
+				};
+			};
+		};
+
+		booster@4 {
+			booster,label = "input_booster";
+			booster,mode = "0";
+
+			booster_key@1 {
+				input_booster,label = "key";
+				input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+				/* Time table */
+				input_booster,head_time = <500>;
+				input_booster,tail_time = <0>;
+
+				/* resource Table Sequentially identified with index
+				 * CLUSTER2's ID & Index : 0 (or UFC)
+				 * CLUSTER1's ID & Index : 1
+				 * CLUSTER0's ID & Index : 2
+				 * MIF's ID & Index      : 3
+				 * INT's ID & Index      : 4
+				 * HMP's ID & Index      : 5
+				 * UCC's ID & Index      : 6
+				 */
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 0>;
+					};
+				};
+			};
+
+			booster_key@2 {
+				input_booster,label = "touchkey";
+				input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+				/* Time table */
+				input_booster,head_time = <200>;
+				input_booster,tail_time = <0>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 0>;
+					};
+				};
+			};
+
+			booster_key@3 {
+				input_booster,label = "touch";
+				input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+				/* Time table */
+				input_booster,head_time = <130>;
+				input_booster,tail_time = <500>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 1>;
+					};
+				};
+			};
+
+			booster_key@4 {
+				input_booster,label = "multitouch";
+				input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+				/* Time table */
+				input_booster,head_time = <1000>;
+				input_booster,tail_time = <500>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 1>;
+					};
+				};
+			};
+
+			booster_key@5 {
+				input_booster,label = "keyboard";
+				input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+				/* Time table */
+				input_booster,head_time = <130>;
+				input_booster,tail_time = <0>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 0>;
+					};
+				};
+			};
+
+			booster_key@6 {
+				input_booster,label = "MOUSE";
+				input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+				/* Time table */
+				input_booster,head_time = <130>;
+				input_booster,tail_time = <500>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 1>;
+					};
+				};
+			};
+
+			booster_key@7 {
+				input_booster,label = "mouse_wheel";
+				input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+				/* Time table */
+				input_booster,head_time = <130>;
+				input_booster,tail_time = <0>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 0>;
+					};
+				};
+			};
+
+			booster_key@8 {
+				input_booster,label = "pen_hover";
+				input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+				/* Time table */
+				input_booster,head_time = <130>;
+				input_booster,tail_time = <500>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 1>;
+					};
+				};
+			};
+
+			booster_key@9 {
+				input_booster,label = "pen";
+				input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+				/* Time table */
+				input_booster,head_time = <200>;
+				input_booster,tail_time = <600>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "cluster2";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@4 {
+						resource,label = "mif";
+						resource,id = "3";
+						resource,value = <0 0>;
+					};
+
+					resource@6 {
+						resource,label = "level";
+						resource,id = "5";
+						resource,value = <1 1>;
+					};
+				};
+			};
+			/* If you need to add new key type, add it this position */
+		};
+	};
+};

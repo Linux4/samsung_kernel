@@ -1,0 +1,10 @@
+config HARDENING_TEST
+	tristate "Exynos Kernel Hardening feature test"
+	default n
+
+config KCFI_PANIC_TEST
+	tristate "kCFI functional test in driver module"
+	depends on HARDENING_TEST
+	help
+		Select if intentional kernel panic test in CFI enalbed kernel
+		Only expert use this test modue with very careful examination

@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Calib_Data>
+  <version>06100000</version>
+  <mode name="NATIVE" mode_id="0" gamut_name="NATIVE" gamut_id="0" intent_name="COLORIMETRIC" intent_id="0">
+  </mode>
+  <mode name="NATIVE" mode_id="0" gamut_name="NATIVE" gamut_id="0" intent_name="TONE_MAP_COLORIMETRIC" intent_id="2">
+  </mode>
+  <mode name="NATIVE" mode_id="0" gamut_name="NATIVE" gamut_id="0" intent_name="ENHANCE" intent_id="1">
+  </mode>
+  <mode name="NATIVE" mode_id="0" gamut_name="NATIVE" gamut_id="0" intent_name="TONE_MAP_ENHANCE" intent_id="3">
+  </mode>
+  <mode name="DISPLAY_P3" mode_id="9" gamut_name="DISPLAY_P3" gamut_id="9" intent_name="COLORIMETRIC" intent_id="0">
+  </mode>
+  <mode name="DISPLAY_P3" mode_id="9" gamut_name="DISPLAY_P3" gamut_id="9" intent_name="TONE_MAP_COLORIMETRIC" intent_id="2">
+  </mode>
+  <mode name="DISPLAY_P3" mode_id="9" gamut_name="DISPLAY_P3" gamut_id="9" intent_name="ENHANCE" intent_id="1">
+  </mode>
+  <mode name="DISPLAY_P3" mode_id="9" gamut_name="DISPLAY_P3" gamut_id="9" intent_name="TONE_MAP_ENHANCE" intent_id="3">
+  </mode>
+  <mode name="SRGB" mode_id="7" gamut_name="SRGB" gamut_id="7" intent_name="COLORIMETRIC" intent_id="0">
+  </mode>
+  <mode name="SRGB" mode_id="7" gamut_name="SRGB" gamut_id="7" intent_name="TONE_MAP_COLORIMETRIC" intent_id="2">
+  </mode>
+  <mode name="SRGB" mode_id="7" gamut_name="SRGB" gamut_id="7" intent_name="ENHANCE" intent_id="1">
+  </mode>
+  <mode name="SRGB" mode_id="7" gamut_name="SRGB" gamut_id="7" intent_name="TONE_MAP_ENHANCE" intent_id="3">
+  </mode>
+</Calib_Data>

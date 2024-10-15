@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<device>
+  <partition lun="0">
+    <item filesys="2" blknum="524288" name="efs" fname=""/>
+    <item filesys="2" blknum="12484608" name="super" fname="super.img"/>
+    <item filesys="2" blknum="102400" name="metadata" fname=""/>
+    <item filesys="2" blknum="102400" name="persist" fname=""/>
+    <item filesys="1" blknum="102400" name="dtbo" fname=""/>
+    <item filesys="1" blknum="102400" name="boot" fname=""/>
+    <item filesys="1" blknum="102400" name="vendor_boot" fname=""/>
+    <item filesys="1" blknum="102400" name="vbmeta" fname="vbmeta.img"/>
+    <item filesys="2" blknum="102400" name="cache" fname=""/>
+    <item filesys="2" blknum="1024000" name="userdata" fname=""/>
+  </partition>
+</device>

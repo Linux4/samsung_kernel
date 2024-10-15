@@ -1,0 +1,194 @@
+/*
+ * SAMSUNG S5E8845 Display, Camera PMIC device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG S5E9945 Display, Camera PMIC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&pinctrl_0 {
+	camera_pmic_irq: camera-pmic-irq {
+		samsung,pins = "gpc6-0";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	dp_pmic_irq: dp-pmic-irq {
+		samsung,pins = "gpa0-4";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+};
+
+&hsi2c7_bus {
+	samsung,pin-pud = <3>;
+};
+
+&hsi2c_26 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	s2mpb03_pmic@56 {
+		compatible = "samsung,s2mpb03pmic";
+		reg = <0x56>;
+
+		s2mpb03,wakeup;
+
+		regulators {
+			__ldo1_reg: s2mpb03-ldo1 {
+				regulator-name = "VDDD_1.05V_SUB";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+			};
+
+			__ldo2_reg: s2mpb03-ldo2 {
+				regulator-name = "VDDD_1.05V_SUB2";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+			};
+
+			__ldo3_reg: s2mpb03-ldo3 {
+				regulator-name = "VDDIO_1.8V_CAM";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			__ldo4_reg: s2mpb03-ldo4 {
+				regulator-name = "S2MPB03_LD04";
+				regulator-min-microvolt = <700000>;
+				regulator-max-microvolt = <1100000>;
+			};
+
+			__ldo5_reg: s2mpb03-ldo5 {
+				regulator-name = "VDDA_2.95V_CAM";
+				regulator-min-microvolt = <2950000>;
+				regulator-max-microvolt = <2950000>;
+			};
+
+			__ldo6_reg: s2mpb03-ldo6 {
+				regulator-name = "VDDA_2.8V_VT";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			__ldo7_reg: s2mpb03-ldo7 {
+				regulator-name = "VDD_VM_2.8V_OIS";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+		};
+	};
+};
+
+&hsi2c_24 {
+	#address-cells = <3>;
+	#size-cells = <0>;
+	status = "okay";
+	s2mpb06_pmic@55 {
+		compatible = "s2mpb06,s2mpb06mfd";
+		reg = <0x55 0x0 0x10>;
+
+		s2mpb06,wakeup;
+		pinctrl-names = "default";
+		pinctrl-0 = <&camera_pmic_irq>;
+
+		regulators {
+			_ldo1_reg: s2mpb06-ldo1 {
+				regulator-name = "VDDD_1.05V_TELECAM";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+			};
+
+			_ldo2_reg: s2mpb06-ldo2 {
+				regulator-name = "VDDD_1.05V_UWCAM";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+			};
+
+			_ldo3_reg: s2mpb06-ldo3 {
+				regulator-name = "VDDA_2.8V_TELECAM";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			_ldo4_reg: s2mpb06-ldo4 {
+				regulator-name = "VDDA_2.8V_UWCAM";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			_ldo5_reg: s2mpb06-ldo5 {
+				regulator-name = "VDDIO_1.8V_CAMIO";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			_ldo6_reg: s2mpb06-ldo6 {
+				regulator-name = "VDDOIS_2.8V_TELECAM";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			_ldo7_reg: s2mpb06-ldo7 {
+				regulator-name = "VDDAF_2.8V_TELECAM";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+		};
+	};
+};
+
+&hsi2c_7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	s2dos05_pmic@60 {
+		compatible = "samsung,s2dos05pmic";
+		reg = <0x60>;
+		s2dos05,wakeup;
+		pinctrl-names = "default";
+		pinctrl-0 = <&dp_pmic_irq>;
+		s2dos05,s2dos05_int = <&gpa0 4 0>;
+		adc_mode = <1>; /* 0 : disable, 1 : current meter, 2 : power meter */
+		adc_sync_mode = <2>; /* 1 : sync mode, 2 : async mode */
+		regulators {
+			dp_buck: s2dos05-buck1 {
+				regulator-name = "vdd1";
+				regulator-min-microvolt = <850000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-boot-on;
+			};
+			dp_ldo1: s2dos05-ldo1 {
+				regulator-name = "vdd2";
+				regulator-min-microvolt = <1500000>;
+				regulator-max-microvolt = <2000000>;
+				regulator-boot-on;
+			};
+			dp_ldo2: s2dos05-ldo2 {
+				regulator-name = "vdd3";
+				regulator-min-microvolt = <1500000>;
+				regulator-max-microvolt = <2000000>;
+			};
+			dp_ldo3: s2dos05-ldo3{
+				regulator-name = "vdd4";
+				regulator-min-microvolt = <2700000>;
+				regulator-max-microvolt = <3775000>;
+			};
+			dp_ldo4: s2dos05-ldo4{
+				regulator-name = "vdd5";
+				regulator-min-microvolt = <2700000>;
+				regulator-max-microvolt = <3775000>;
+				regulator-boot-on;
+			};
+		};
+	};
+};

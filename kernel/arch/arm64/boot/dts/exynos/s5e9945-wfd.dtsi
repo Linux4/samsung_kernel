@@ -1,0 +1,30 @@
+/*
+ * SAMSUNG EXYNOS SoC WFD device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS SoC mfc device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	tsmux: tsmux@1E0E0000 {
+		compatible = "samsung,exynos-tsmux";
+		reg = <0x0 0x1E0E0000 0x1000>;
+		interrupts = <0 INTREQ__WFD IRQ_TYPE_LEVEL_HIGH>;
+		iommus = <&sysmmu_mfc_s0>;
+		samsung,iommu-group = <&iommu_group_mfc>;
+		power-domains = <&pd_mfc>;
+	};
+
+	repeater: repeater@0 {
+		compatible = "samsung,exynos-repeater";
+		power-domains = <&pd_mfc>;
+	};
+};

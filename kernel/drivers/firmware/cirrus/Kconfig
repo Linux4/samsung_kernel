@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config CS_DSP
+	tristate
+	default n
+
+config CL_DSP
+	tristate
+	default n

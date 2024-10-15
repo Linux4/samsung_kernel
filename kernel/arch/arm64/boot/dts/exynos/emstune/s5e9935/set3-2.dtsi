@@ -1,0 +1,21 @@
+/ {
+	/* game mode - app boost */
+	set3_2: set@302{
+		cpu-dsu-table-index = <0>;
+
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 25   3   5>;
+		};
+
+		tex { };
+
+		gsc {
+			up_threshold = <0>;
+
+			monitor-group {
+				top-app = <1>;
+				foreground = <1>;
+			};
+		};
+	};
+};

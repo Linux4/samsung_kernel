@@ -1,0 +1,637 @@
+/*
+ * SAMSUNG EXYNOS8845 SoC device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS8845 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/s5e8845.h>
+//#include <dt-bindings/clock/s5e8845.h>
+#include <dt-bindings/soc/samsung/s5e8845-devfreq.h>
+#include <dt-bindings/display/exynos-display.h>
+//#include "s5e8845-pinctrl.dtsi"
+#include "s5e8845-display-timing.dtsi"
+
+/ {
+	aliases {
+		dsimfc0 = &dma_dsimfc_0;
+		drmdsim0 = &drmdsim_0;
+		drmdecon0 = &drmdecon0;
+	};
+
+	drmdpp0: drmdpp@14890000 {	/* L0 */
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x14890000 0x1000>,	/* DPU_DMA */
+		      <0x0 0x14860000 0x1000>,	/* DPU_HDR_LSI */
+		      <0x0 0x14840000 0x1000>;	/* DPP */
+		reg-names = "dma", "hdr_lsi", "dpp";
+
+		/* DPU_DMA IRQ, DPP IRQ */
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_L0 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DPU_DPP_L0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma", "dpp";
+
+		attr = <(DPP_ATTR_FLIP | DPP_ATTR_IDMA |
+			DPP_ATTR_DPP | DPP_ATTR_WCG)>;
+		port = <0>; /* AXI port number */
+
+		/* 1: scale X, 2: 1/2x scale down, 4: 1/4x scale down */
+		scale_down = <1>;
+		/* 1: scale X, 2: 2x scale up, 4: 4x scale up */
+		scale_up = <1>;
+
+		dpp,id = <0>;
+		dpp,formats = <&dpp_gf_formats>;
+		dpp,restriction = <&dpp_restriction>;
+
+		reset,hdr_lsi = <0x4 0x0>;
+
+		/* rsc configuration are not required */
+	};
+
+	drmdpp1: drmdpp@14891000 {	/* L1 */
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x14891000 0x1000>,
+		      <0x0 0x14861000 0x1000>,	/* DPU_HDR_LSI */
+		      <0x0 0x14841000 0x1000>;
+		reg-names = "dma", "hdr_lsi", "dpp";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_L1 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DPU_DPP_L1 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma", "dpp";
+
+		/* Supports DPP_ATTR_SAJC, DPP_ATTR_SCALE, DPP_ATTR_SBWC */
+		attr = <(DPP_ATTR_FLIP | DPP_ATTR_ROT | DPP_ATTR_CSC |
+			DPP_ATTR_IDMA |	DPP_ATTR_DPP | DPP_ATTR_SCALE |
+			DPP_ATTR_SAJC | DPP_ATTR_SBWC |	DPP_ATTR_WCG |
+			DPP_ATTR_HDR | DPP_ATTR_HDR10_PLUS)>;
+		port = <0>;
+		scale_down = <2>;
+		scale_up = <8>;
+
+		dpp,id = <1>;
+		dpp,formats = <&dpp_vg_formats>;
+		dpp,restriction = <&dpp_restriction>;
+
+		reset,hdr_lsi = <0x0 0x0>;
+	};
+
+	drmdpp2: drmdpp@14892000 {	/* L2 */
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x14892000 0x1000>,
+		      <0x0 0x14862000 0x1000>,	/* DPU_HDR_LSI */
+		      <0x0 0x14842000 0x1000>;
+		reg-names = "dma", "hdr_lsi", "dpp";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_L2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DPU_DPP_L2 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma", "dpp";
+
+		/* Supports DPP_ATTR_SAJC */
+		attr = <(DPP_ATTR_FLIP | DPP_ATTR_IDMA |
+			DPP_ATTR_DPP | DPP_ATTR_SAJC | DPP_ATTR_WCG)>;
+		port = <0>;
+		scale_down = <1>;
+		scale_up = <1>;
+
+		dpp,id = <2>;
+		dpp,formats = <&dpp_gf_formats>;
+		dpp,restriction = <&dpp_restriction>;
+
+		reset,hdr_lsi = <0x4 0x0>;
+	};
+
+	drmdpp3: drmdpp@14893000 {	/* L3 */
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x14893000 0x1000>,
+		      <0x0 0x14863000 0x1000>,	/* DPU_HDR_LSI */
+		      <0x0 0x14843000 0x1000>;
+		reg-names = "dma", "hdr_lsi", "dpp";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_L3 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DPU_DPP_L3 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma", "dpp";
+
+		/* Supports DPP_ATTR_SCALE, DPP_ATTR_SBWC */
+		attr = <(DPP_ATTR_FLIP | DPP_ATTR_CSC | DPP_ATTR_SBWC |
+			DPP_ATTR_IDMA |	DPP_ATTR_DPP | DPP_ATTR_SCALE |
+			DPP_ATTR_WCG)>;
+		port = <0>;
+		scale_down = <2>;
+		scale_up = <8>;
+
+		dpp,id = <3>;
+		dpp,formats = <&dpp_vg_formats>;
+		dpp,restriction = <&dpp_restriction>;
+
+		reset,hdr_lsi = <0x4 0x0>;
+	};
+
+	drmdpp4: drmdpp@14894000 {	/* L4 */
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x14894000 0x1000>,
+		      <0x0 0x14864000 0x1000>,	/* DPU_HDR_LSI */
+		      <0x0 0x14844000 0x1000>;
+		reg-names = "dma", "hdr_lsi", "dpp";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_L4 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DPU_DPP_L4 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma", "dpp";
+
+		/* Supports DPP_ATTR_SAJC */
+		attr = <(DPP_ATTR_FLIP | DPP_ATTR_IDMA |
+			DPP_ATTR_DPP | DPP_ATTR_SAJC | DPP_ATTR_WCG)>;
+		port = <1>;
+		scale_down = <1>;
+		scale_up = <1>;
+
+		dpp,id = <4>;
+		dpp,formats = <&dpp_gf_formats>;
+		dpp,restriction = <&dpp_restriction>;
+
+		reset,hdr_lsi = <0x4 0x0>;
+	};
+
+	drmdpp5: drmdpp@14895000 {	/* L5 */
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x14895000 0x1000>,
+		      <0x0 0x14865000 0x1000>,	/* DPU_HDR_LSI */
+		      <0x0 0x14845000 0x1000>;
+		reg-names = "dma", "hdr_lsi", "dpp";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_L5 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DPU_DPP_L5 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma", "dpp";
+
+		attr = <(DPP_ATTR_FLIP | DPP_ATTR_CSC |
+			DPP_ATTR_IDMA |	DPP_ATTR_DPP | DPP_ATTR_WCG)>;
+		port = <1>;
+		scale_down = <1>;
+		scale_up = <1>;
+
+		dpp,id = <5>;
+		dpp,formats = <&dpp_vg_formats>;
+		dpp,restriction = <&dpp_restriction>;
+
+		reset,hdr_lsi = <0x4 0x0>;
+	};
+
+	drmdpp6: drmdpp@14896000 {	/* L6 */
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x14896000 0x1000>,
+		      <0x0 0x14866000 0x1000>,	/* DPU_HDR_LSI */
+		      <0x0 0x14846000 0x1000>;
+		reg-names = "dma", "hdr_lsi", "dpp";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_L6 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DPU_DPP_L6 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma", "dpp";
+
+		attr = <(DPP_ATTR_FLIP | DPP_ATTR_IDMA |
+			DPP_ATTR_DPP | DPP_ATTR_WCG)>;
+		port = <1>;
+		scale_down = <1>;
+		scale_up = <1>;
+
+		dpp,id = <6>;
+		dpp,formats = <&dpp_gf_formats>;
+		dpp,restriction = <&dpp_restriction>;
+
+		reset,hdr_lsi = <0x4 0x0>;
+	};
+
+	drmdpp7: drmdpp@14897000 {	/* L7 */
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x14897000 0x1000>,
+		      <0x0 0x14867000 0x1000>,	/* DPU_HDR_LSI */
+		      <0x0 0x14847000 0x1000>;
+		reg-names = "dma", "hdr_lsi", "dpp";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_L7 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DPU_DPP_L7 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma", "dpp";
+
+		/* Supports DPP_ATTR_SAJC, DPP_ATTR_SCALE, DPP_ATTR_SBWC */
+		attr = <(DPP_ATTR_FLIP | DPP_ATTR_CSC | DPP_ATTR_SAJC |
+			DPP_ATTR_IDMA |	DPP_ATTR_DPP | DPP_ATTR_SCALE |
+			DPP_ATTR_SBWC |	DPP_ATTR_WCG |
+			DPP_ATTR_HDR | DPP_ATTR_HDR10_PLUS)>;
+		port = <1>;
+		scale_down = <2>;
+		scale_up = <8>;
+
+		dpp,id = <7>;
+		dpp,formats = <&dpp_vg_formats>;
+		dpp,restriction = <&dpp_restriction>;
+
+		reset,hdr_lsi = <0x0 0x0>;
+	};
+
+	drmdpp8: drmdpp@14898000 {
+		compatible = "samsung,exynos-writeback";
+		reg = <0x0 0x14898000 0x1000>,
+		      <0x0 0x1484A000 0x1000>;
+		reg-names = "dma", "dpp";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_WB IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma";
+
+		iommus = <&sysmmu_dpu_s0>;
+		samsung,iommu-group = <&iommu_group_dpu>;
+
+		attr = <(DPP_ATTR_CSC | DPP_ATTR_ODMA | DPP_ATTR_DPP)>;
+		port = <1>;
+		scale_down = <1>;
+		scale_up = <1>;
+
+		dpp,id = <9>;
+		dpp,formats = <&writeback_formats>;
+		dpp,restriction = <&dpp_restriction>;
+	};
+
+	/* RCD */
+	drmdpp12: drmdpp@0x1489C000 {
+		compatible = "samsung,exynos-dpp";
+		reg = <0x0 0x1489C000 0x1000>;
+		reg-names = "dma";
+
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_RCD0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma";
+
+		attr = <DPP_ATTR_RCD>;
+		port = <0>;
+		scale_down = <1>;
+		scale_up = <1>;
+
+		/* RCD BLOCK mode configurations, based on panel size*/
+		rcd_block_mode_en = <1>;
+
+		/* block mode start offset (x,y) */
+		rcd_block_mode_x  = <0>;
+		rcd_block_mode_y  = <145>;
+
+		/* block mode width & height from offset (x,y) */
+		rcd_block_mode_w  = <1080>;
+		rcd_block_mode_h  = <2110>;
+
+		dpp,id = <8>;
+		dpp,formats = <&rcd_formats>;
+		dpp,restriction = <&dpp_restriction>;
+	};
+
+	dma_dsimfc_0: fcmd@1489A000 {	/* DPUF0_DSIMFC_L0 */
+		compatible = "samsung,exynos-dsimfc";
+		/* DPU_DMA */
+		reg = <0x0 0x1489A000 0x1000>;
+		/* DPU_DMA IRQ */
+		interrupts = <GIC_SPI INTREQ__DPU_DMA_DSIMFC0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dsimfc";
+		port = <0>; /* AXI port number */
+	};
+
+	disp_ss: disp_ss@14820000 {
+		compatible = "samsung,exynos9-disp_ss";
+		reg = <0x0 0x14821000 0x10>;
+		reg-names = "sys";
+	};
+
+	mipi_phy_dsim0_m4s0: dphy_m4s0_dsim0@11860000 {
+		compatible = "samsung,mipi-phy-m4s0";
+		samsung,pmu-syscon = <&pmu_system_controller>;
+		isolation = <0x0608>;	/* offset is changed on 8845 */
+		//power-gating = <0x640>;
+		owner = <0>; /* 0: DSI_0 1: DSI_1 */
+		#phy-cells = <1>;
+	};
+
+	drmdsim_0: drmdsim@148C0000 {
+		compatible = "samsung,exynos-dsim";
+		reg = <0x0 0x148C0000 0x300>,	/* DSIM0 */
+		      <0x0 0x148E0100 0x700>,	/* DCPHY_M4S0_TOP */
+		      <0x0 0x148E0000 0x100>;	/* DCPHY_M4S0_COMMON */
+		reg-names = "dsi", "dphy", "dphy-extra";
+
+		dsim,id = <0>;
+
+		interrupts = <GIC_SPI INTREQ__DPU_DSIM0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dsim";
+
+		iommus = <&sysmmu_dpu_s0>;
+		samsung,iommu-group = <&iommu_group_dpu>;
+
+		phys = <&mipi_phy_dsim0_m4s0 0>;
+		phy-names = "dsim_dphy";
+
+		//dsim,emul-mode;
+
+		/* MIPI Drive strength level
+		 * This property is for tuning drive strength of MIPI signal in HS Mode
+		 * by changing differential voltage value (VOD)
+		 * for DSI : 0:380mV, 1:390mV, 2:400mV(by Default), ..., 7:450mV
+		 * for CSI : 0:550mV, 1:530mV, 2:490mV(by Default), 3:450mV
+		 */
+		//dsi-drive-strength = <2>;
+		dsim_mode = <&dsim_modes>;
+
+		//clock-names = "oscclk_dsim";
+		//clocks = <&clock DOUT_DIV_CLK_DPUB_OSCCLK_DSIM>;
+
+		frequency-hopping;
+		pll-sleep = <DPHY_SLEEP_CTRL_DECON>;
+
+		/* Required only for video mode
+		 * In command mode, "memory-region" can be removed
+		 * along with "fb_handover" in the file
+		 * s5e8835-rmem.dtsi
+		 */
+		memory-region = <&fb_handover>;
+
+		/* In video mode, configure the winID used for
+		 * boot logo in LK.
+		 * (for FB handover feature, Only in Video mode)
+		 */
+		/* lk-fb-win-id = <0>; */
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	drmdecon0: drmdecon@14940000 {
+		compatible = "samsung,exynos-decon";
+		reg = <0x0 0x14940000 0xFFFF>,	/* DECON0_MAIN */
+		      <0x0 0x14950000 0xFFFF>,	/* DECON_WIN */
+		      <0x0 0x14960000 0xFFFF>,	/* DECON_SUB */
+		      <0x0 0x14970000 0xFFFF>,	/* DECON0_WINCON */
+		      <0x0 0x149B0000 0xFFFF>;	/* DQE */
+		reg-names = "main", "win", "sub", "wincon", "dqe";
+
+		decon,id = <0>;
+
+		interrupts = <GIC_SPI INTREQ__DPU_DECON0_FRAME_START
+				IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__DPU_DECON0_FRAME_DONE
+				IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__DPU_DECON0_EXTRA
+				IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "frame_start", "frame_done", "extra";
+
+		dpuf,pd-names = "pd_dpu";
+		iommus = <&sysmmu_dpu_s0>;
+		samsung,iommu-group = <&iommu_group_dpu>;
+
+		samsung,iommu-identity-map = <0x0 0xE8000000  0x01400000>,
+					<0x0 0xE9400000 0x02800000>;
+
+		/* To use secure buffer address range. If you not set this, */
+		/* normal buffer is transfered on DRM scenario */
+		samsung,tzmp;
+
+		/* devfreq index */
+		samsung,devfreq-idx = <DEVFREQ_MIF DEVFREQ_INT DEVFREQ_DISP>;
+
+		/* clock */
+		//clock-names = "aclk";
+		//clocks = <&clock UMUX_CLKCMU_DPUB_NOC>;
+
+		/* pinctrl */
+		pinctrl-names = "hw_te_on", "hw_te_off";
+		pinctrl-0 = <&decon_0_te_on>;
+		pinctrl-1 = <&decon_0_te_off>;
+
+		//decon,emul-mode;
+
+		max_win = <8>;
+		/* 0: video mode, 1: MIPI command mode 2: DP command mode */
+		op_mode = <1>;
+		trig_mode = <0>;   /* 0: hw trigger, 1: sw trigger */
+		out_type = <0x1>; /* BIT0:DSI0, BIT1:DSI1, BIT4:DP0, BIT5:DP1 */
+
+		/* 0: from DDI0, 1: from DDI1, 2: from DDI2 3: not receive TE */
+		te_from = <0>;
+
+		/* command mode svsync time (usec) */
+		svsync_time_us = <1000>;
+		svsync_on_fps = <60>;
+
+		/* BTS */
+		ppc = <1>;			/* pixel per clock */
+		ppc_rotator = <2>;		/* rotator ppc */
+		ppc_scaler = <2>;		/* scaler ppc */
+		delay_comp = <4>;		/* line delay for sajc or sbwc : DMA */
+		delay_scaler = <2>;		/* line delay for scaler : DPP */
+		inner_width = <16>;		/* internal processing width */
+		inner_util = <60>;		/* internal processing utill */
+
+		/* bus info */
+		bus_width = <16>;		/* 32-Byte : 256-bit bus */
+		rot_util = <45>;		/* MIF_UTIL(60%) - 15%: UTIL gets worse at rotation */
+
+		/* dpu dvfs */
+		dfs_lv = <666000 533000 444000 400000 333000 267000 200000 134000 80000>;
+
+		/* Urgent */
+		rd_en = <0>; /* defaultly disable */
+		rd_hi_thres = <0x800>;
+		rd_lo_thres = <0x400>;
+		rd_wait_cycle = <0x10>;
+		wr_en = <0>; /* defaultly disable */
+		wr_hi_thres = <0x0>;
+		wr_lo_thres = <0x0>;
+
+		/* DTA */
+		//dta_en = <0>; /* defaultly disable */
+		//dta_hi_thres = <0x3200>;
+		//dta_lo_thres = <0x600>;
+
+		/* DQE */
+		//dqe_preset_cnt = <0>;
+		/*
+		* <colormode(2Byte)|renderIntent(2Byte) x 4> for 1 preset
+		* 0xFFFFFFFF: not set, 0xFFFF for CM or RI: select all
+		* ex) 0xFFFF0006: all CM / 6 RI, 0x0001FFFF: 1 CM / all RI
+		*/
+		//dqe_preset = 	<>;
+                sram-retention;
+
+		/* EINT for TE */
+		gpios = <&gpg3 0 0xf>;
+
+		dpps = <&drmdpp0 &drmdpp1 &drmdpp2 &drmdpp3
+			&drmdpp4 &drmdpp5 &drmdpp6 &drmdpp7>;
+
+		/*
+		 * connector type that can be connected to the DECON. please
+		 * refer to enum exynos_drm_output_type in exynos_drm_drv.h
+		 *
+		 * DSI0(0x1), DSI1(0x2), VIDI(0x8)
+		 */
+		connector = <0x1>;
+
+		partial-update;
+		hibernation;
+		rcd = <&drmdpp12>;
+
+		/* reduce BW by considering vertiacal overlap */
+		//vote-overlap-bw;
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		/* sw te pending register */
+		te_eint {
+			/* NWEINT_GPG3_PEND */
+			reg = <0x0 0x13630A0C 0x4>;
+		};
+	};
+
+	drmdecon1: drmdecon@14941000 {
+		compatible = "samsung,exynos-decon";
+		reg = <0x0 0x14941000 0xFFFF>,	/* DECON0_MAIN */
+		      <0x0 0x14950000 0xFFFF>,	/* DECON_WIN */
+		      <0x0 0x14960000 0xFFFF>,	/* DECON_SUB */
+		      <0x0 0x14980000 0xFFFF>;	/* DECON0_WINCON */
+		reg-names = "main", "win", "sub", "wincon";
+
+		decon,id = <1>;
+
+		interrupts = <GIC_SPI INTREQ__DPU_DECON1_FRAME_START
+				IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__DPU_DECON1_FRAME_DONE
+				IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__DPU_DECON1_EXTRA
+				IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "frame_start", "frame_done", "extra";
+
+		dpuf,pd-names = "pd_dpu";
+		iommus = <&sysmmu_dpu_s0>;
+		samsung,iommu-group = <&iommu_group_dpu>;
+		samsung,tzmp;
+
+		/* devfreq index */
+		samsung,devfreq-idx = <DEVFREQ_MIF DEVFREQ_INT DEVFREQ_DISP>;
+
+		/* clock */
+		//clock-names = "aclk";
+		//clocks = <&clock UMUX_CLKCMU_DPUB_NOC>;
+
+		max_win = <8>;
+		op_mode = <1>;
+		trig_mode = <1>;	/* 0: hw trigger, 1: sw trigger */
+		out_type = <0x100>;	/* BIT8: WB */
+
+		te_from = <0>;
+
+		/* BTS */ /* TODO: check olympus */
+		ppc = <1>;		/* pixel per clock */
+		ppc_rotator = <2>;		/* rotator ppc */
+		ppc_scaler = <2>;		/* scaler ppc */
+		delay_comp = <4>;		/* line delay for sajc or sbwc : DMA */
+		delay_scaler = <2>;		/* line delay for scaler : DPP */
+		inner_width = <16>;		/* internal processing width */
+		inner_util = <60>;		/* internal processing utill */
+
+
+		/* dpu dvfs */
+		dfs_lv = <666000 533000 444000 400000 333000 267000 200000 134000 80000>;
+
+		dpps = <&drmdpp0 &drmdpp1 &drmdpp2 &drmdpp3
+			&drmdpp4 &drmdpp5 &drmdpp6 &drmdpp7>;
+		connector = <0x8>;
+		/* reduce BW by considering vertiacal overlap */
+		//vote-overlap-bw;
+	};
+
+	/* restriction has to be revisited */
+	dpp_restriction: dpp_restiction {
+		src_f_w = <64 65534 1>; /* min, max, align */
+		src_f_h = <16 8191 1>;
+		src_w = <64 4096 1>;
+		src_h = <16 4096 1>;
+		src_x_align = <1>;
+		src_y_align = <1>;
+
+		/* TBD: */
+		src_rgb_comp_f_w = <64 16256 16>;
+		src_rgb_comp_f_h = <16 8064 16>;
+		src_rgb_comp_w = <64 2048 1>;
+		src_rgb_comp_h = <16 4096 1>;
+
+		dst_f_w = <64 4096 1>;
+		dst_f_h = <16 4096 1>;
+		dst_w = <64 4096 1>;
+		dst_h = <16 4096 1>;
+		dst_x_align = <1>;
+		dst_y_align = <1>;
+
+		blk_w = <4 4096 1>;
+		blk_h = <1 4096 1>;
+		blk_x_align = <1>;
+		blk_y_align = <1>;
+
+		src_w_rot_max = <4096>;
+		src_h_rot_max = <2160>;
+	};
+
+	dpp_gf_formats: dpp_gf_formats {
+		formats = <
+			DRM_FORMAT_ARGB8888
+			DRM_FORMAT_ABGR8888
+			DRM_FORMAT_RGBA8888
+			DRM_FORMAT_BGRA8888
+			DRM_FORMAT_XRGB8888
+			DRM_FORMAT_XBGR8888
+			DRM_FORMAT_RGBX8888
+			DRM_FORMAT_BGRX8888
+			DRM_FORMAT_RGB565
+			DRM_FORMAT_BGR565
+			DRM_FORMAT_ARGB2101010
+			DRM_FORMAT_ABGR2101010
+			DRM_FORMAT_RGBA1010102
+			DRM_FORMAT_BGRA1010102
+		>;
+	};
+
+	dpp_vg_formats: dpp_vg_formats {
+		formats = <
+			DRM_FORMAT_ARGB8888
+			DRM_FORMAT_ABGR8888
+			DRM_FORMAT_RGBA8888
+			DRM_FORMAT_BGRA8888
+			DRM_FORMAT_XRGB8888
+			DRM_FORMAT_XBGR8888
+			DRM_FORMAT_RGBX8888
+			DRM_FORMAT_BGRX8888
+			DRM_FORMAT_RGB565
+			DRM_FORMAT_BGR565
+			DRM_FORMAT_ARGB2101010
+			DRM_FORMAT_ABGR2101010
+			DRM_FORMAT_RGBA1010102
+			DRM_FORMAT_BGRA1010102
+			DRM_FORMAT_NV12
+			DRM_FORMAT_NV21
+			DRM_FORMAT_P010
+		>;
+	};
+
+	writeback_formats: writeback_formats {
+		formats = <
+			DRM_FORMAT_ABGR8888
+			DRM_FORMAT_NV12
+		>;
+	};
+
+	rcd_formats: rcd_formats {
+		formats = <
+			DRM_FORMAT_C8
+			DRM_FORMAT_RGB888
+		>;
+	};
+};

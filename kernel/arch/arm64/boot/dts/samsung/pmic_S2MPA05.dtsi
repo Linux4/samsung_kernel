@@ -1,0 +1,83 @@
+/* USE_AS_AP_SUB_PMIC */
+#if !(1)
+#if 3300000 && 3300000
+&s_l1_reg {
+	regulator-name = "VDD_WIDECAM_AF_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	  regulator-ramp-delay = <12000>; regulator-initial-mode = <3>;
+	
+};
+#endif
+
+#if 2800000 && 2800000
+&s_l2_reg {
+	regulator-name = "VDD_TELECAM_AF_2P8_PM";
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
+	 
+	
+};
+#endif
+
+#if 3300000 && 3300000
+&s_l3_reg {
+	regulator-name = "VDD_WIDECAM_OIS_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	 
+	
+};
+#endif
+
+#if 1050000 && 1050000
+&s_l4_reg {
+	regulator-name = "VDD_UWCAM_1P05";
+	regulator-min-microvolt = <1050000>;
+	regulator-max-microvolt = <1050000>;
+	 
+	
+};
+#endif
+#else
+/* USE_AS_CAMERA_PMIC */
+#if 3300000 && 3300000
+&e_l1_reg {
+	regulator-name = "VDD_WIDECAM_AF_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	  regulator-ramp-delay = <12000>; regulator-initial-mode = <3>;
+	
+};
+#endif
+
+#if 2800000 && 2800000
+&e_l2_reg {
+	regulator-name = "VDD_TELECAM_AF_2P8_PM";
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
+	 
+	
+};
+#endif
+
+#if 3300000 && 3300000
+&e_l3_reg {
+	regulator-name = "VDD_WIDECAM_OIS_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	 
+	
+};
+#endif
+
+#if 1050000 && 1050000
+&e_l4_reg {
+	regulator-name = "VDD_UWCAM_1P05";
+	regulator-min-microvolt = <1050000>;
+	regulator-max-microvolt = <1050000>;
+	 
+	
+};
+#endif
+#endif

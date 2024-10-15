@@ -1,0 +1,2 @@
+/system_dlkm(/.*)?  u:object_r:system_dlkm_file:s0
+/vendor_dlkm(/.*)?                 u:object_r:vendor_file:s0

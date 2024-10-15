@@ -1,0 +1,83 @@
+/*
+ * SAMSUNG S5E9935 SoC DVFS Manager device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG S5E9935 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "s5e9935-dm.dtsi"
+#include "s5e9935-devfreq.dtsi"
+#include "s5e9935-thermal.dtsi"
+
+/ {
+	exynos-ect {
+		compatible = "samsung,exynos-ect";
+		memory-region = <&ect_binary>;
+	};
+
+	acpm_dvfs {
+		compatible = "samsung,exynos-acpm-dvfs";
+		acpm-ipc-channel = <5>;
+	};
+
+	exynos-wow {
+		compatible = "samsung,exynos-wow";
+
+		reg = <0x0 0x1A100000 0x1000>,
+			<0x0 0x1A110000 0x1000>,
+			<0x0 0x1A120000 0x1000>,
+			<0x0 0x1A130000 0x1000>,
+			<0x0 0x1A140000 0x1000>,
+			<0x0 0x1A150000 0x1000>,
+			<0x0 0x1A160000 0x1000>,
+			<0x0 0x1A170000 0x1000>,
+			<0x0 0x1A180000 0x1000>,
+			<0x0 0x1A190000 0x1000>,
+			<0x0 0x1A1A0000 0x1000>;
+
+		polling_delay = <60000>; /* ms */
+
+		wow-ip {
+			CPUCL0 {
+				bus_width = <32>;
+				nr_ppc = <1>;
+				nr_base = <2>;
+				reg_index = <0>, <1>;
+				ip_type = <0>;
+
+				use_latency;
+			};
+			G3D {
+				bus_width = <16>;
+				nr_ppc = <4>;
+				nr_base = <1>;
+				reg_index = <2>;
+				ip_type = <1>;
+			};
+			IRPS {
+				bus_width = <32>;
+				nr_ppc = <1>;
+				nr_base = <4>;
+				reg_index = <3>, <4>, <5>, <6>;
+				ip_type = <2>;
+			};
+			MIF {
+				bus_width = <16>;
+				nr_ppc = <1>;
+				nr_base = <4>;
+				reg_index = <7>, <8>, <9>, <10>;
+				ip_type = <3>;
+
+				monitor_only;
+			};
+		};
+	};
+};

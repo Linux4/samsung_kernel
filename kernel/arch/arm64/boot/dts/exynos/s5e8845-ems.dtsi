@@ -1,0 +1,344 @@
+/*
+ * SAMSUNG EXYNOS SoC EMS device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS SoC EMS device nodes are listed in this file.
+ * EXYNOS based board files should include this file.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+#include <dt-bindings/soc/samsung/ems.h>
+
+#include "emstune/s5e8845/sets.dtsi"
+
+/ {
+	ems {
+		compatible = "samsung,ems";
+		status = "okay";
+
+		pe-list {
+			#define CPU_CL0 "0-3"
+			#define CPU_CL1 "4-7"
+
+			list@0 {
+				cpus = CPU_CL0, CPU_CL1;
+			};
+			list@1 {
+				cpus = CPU_CL1, CPU_CL0;
+			};
+		};
+
+		cpu-selection-domain {
+			ananke {
+				cpus = "0-3";
+			};
+			hercules {
+				cpus = "4-7";
+			};
+		};
+
+		halo {
+			domain@0 {
+				cpus = "0-3";
+				expired-ratio = < 100 >;
+			};
+			domain@1 {
+				cpus = "4-7";
+				expired-ratio = < 100 >;
+			};
+		};
+
+		gsc {
+			enabled = <1>;
+			update_ms = <100>;
+			retain_ms = <250>;
+		};
+
+		ego {
+			thread-run-on = "0-3";
+
+			domain@0 {
+				cpus = "0-3";
+				ratio = < 1000 >;
+			};
+			domain@1 {
+				cpus = "4-7";
+				ratio = < 1000 >;
+			};
+		};
+
+		ecs {
+			default-gov = < 0 >;
+
+			domain0 {
+				cpus = "0-3";
+
+				stage0 {
+					cpus = "0-1";
+				};
+				stage1 {
+					cpus = "0-3";
+				};
+			};
+			domain1 {
+				cpus = "4-7";
+
+				stage0 {
+					cpus = "4-5";
+					busy-threshold = <0>;
+				};
+				stage1 {
+					cpus = "4-7";
+				};
+			};
+		};
+
+		ecs_dynamic {
+			default-gov = < 1 >;
+
+			domain0 {
+				cpus = "0-3";
+			};
+			domain1 {
+				cpus = "4-7";
+			};
+		};
+
+		freq-variant {
+			domain@0 {
+				cpus = "0-3";
+					/* Freq	  Resi */
+				table = < 864000  1500
+					  1344000 2000
+					  1728000 3000 >;
+			};
+			domain@1 {
+				cpus = "4-7";
+					/* Freq	  Resi */
+				table = < 960000  2000
+					  1728000 2500
+					  2400000 4000 >;
+			};
+		};
+
+		emstune {
+			boost-level = <2>;
+			boot-set = <&boot_set>;
+
+			mode0 {
+				desc = "normal";
+
+				level0 {
+					base = <&set0>;
+					set = <&set0>;
+				};
+				level1 {
+					base = <&set0>;
+					set = <&set0_1>;
+				};
+				level2 {
+					base = <&set0>;
+					set = <&set0_2>;
+				};
+			};
+			mode1 {
+				desc = "power-scenario";
+
+				level0 {
+					base = <&set1>;
+					set = <&set1>;
+				};
+				level1 {
+					base = <&set1>;
+					set = <&set1_1>;
+				};
+				level2 {
+					base = <&set1>;
+					set = <&set1_2>;
+				};
+			};
+			mode2 {
+				desc = "performance";
+
+				level0 {
+					base = <&set2>;
+					set = <&set2>;
+				};
+				level1 {
+					base = <&set2>;
+					set = <&set2_1>;
+				};
+				level2 {
+					base = <&set2>;
+					set = <&set2_2>;
+				};
+			};
+			mode3 {
+				desc = "game";
+
+				level0 {
+					base = <&set3>;
+					set = <&set3>;
+				};
+				level1 {
+					base = <&set3>;
+					set = <&set3_1>;
+				};
+				level2 {
+					base = <&set3>;
+					set = <&set3_2>;
+				};
+			};
+			mode4 {
+				desc = "balance";
+
+				level0 {
+					base = <&set4>;
+					set = <&set4>;
+				};
+				level1 {
+					base = <&set4>;
+					set = <&set4_1>;
+				};
+				level2 {
+					base = <&set4>;
+					set = <&set4_2>;
+				};
+			};
+			mode5 {
+				desc = "camera";
+
+				level0 {
+					base = <&set5>;
+					set = <&set5>;
+				};
+				level1 {
+					base = <&set5>;
+					set = <&set5_1>;
+				};
+				level2 {
+					base = <&set5>;
+					set = <&set5_2>;
+				};
+			};
+		};
+
+		pago {
+			thread-run-on = "0-3";
+
+			dsu {
+				desc = "group_dsu";
+
+				boost-min = < 1056000 >;
+				force-boost-ms = < 500 >;
+
+				domain@0 {
+					cpus = CPU_CL0;
+					cpu-mem-table =
+						<  400000  288000
+						   576000  384000
+						   672000  480000
+						   768000  576000
+						   960000  672000
+						  1056000  768000
+						  1152000  864000
+						  1344000  960000
+						  1440000 1056000
+						  1536000 1152000
+						  1728000 1248000
+						  1824000 1344000
+						  2016000 1440000
+						  2112000 1536000 >;
+				};
+				domain@1 {
+					cpus = CPU_CL1;
+					perf;
+					cpu-mem-table =
+						<  576000  384000
+						   672000  480000
+						   768000  576000
+						   960000  672000
+						  1056000  768000
+						  1248000  864000
+						  1344000  960000
+						  1536000 1056000
+						  1632000 1152000
+						  1824000 1248000
+						  1920000 1344000
+						  2112000 1440000
+						  2208000 1536000
+						  2400000 1632000
+						  2496000 1728000
+						  2688000 1824000
+						  2784000 1920000
+						  2880000 2016000 >;
+				};
+			};
+
+			mif {
+				desc = "group_mif";
+				pm-qos-class = < PM_QOS_BUS_THROUGHPUT >;
+				miss-idx = < 2 >;
+
+				boost-min = < 2028000 >;
+				force-boost-ms = < 16 >;
+
+				mif-table = <  421000
+					       546000
+					       676000
+					       845000
+					      1014000
+					      1352000
+					      1539000
+					      1794000
+					      2093000
+					      2288000
+					      2535000
+					      2730000
+					      3172000 >;
+
+				domain@0 {
+					cpus = CPU_CL0;
+					cpu-mem-table =
+						< 0 0 >;
+				};
+				domain@1 {
+					cpus = CPU_CL1;
+					mpki-threshold = <10>;
+					cpu-mem-table =
+						< 1824000 2288000
+						  2112000 2535000
+						  2304000 3172000 >;
+				};
+			};
+		};
+
+		sysbusy {
+			state0 {
+				state = < 0 >;
+				monitor-interval = < 1 >;
+				boost-duration = < 0 >;
+			};
+			state1 {
+				state = < 1 >;
+				monitor-interval = < 1 >;
+				boost-duration = < 1 >;
+			};
+			state2 {
+				state = < 2 >;
+				monitor-interval = < 1 >;
+				boost-duration = < 0 >;
+			};
+			state3 {
+				state = < 3 >;
+				monitor-interval = < 1 >;
+				boost-duration = < 250 >;
+			};
+		};
+	};
+};

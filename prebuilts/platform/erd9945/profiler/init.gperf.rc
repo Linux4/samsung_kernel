@@ -1,0 +1,19 @@
+on init
+# GPERF interfaces
+    chown system system /dev/exynos-profiler
+    chown system system /sys/devices/platform/exynos-profiler/control/control_profile
+    chown system system /sys/devices/platform/exynos-profiler/control/set_margin
+    chown system system /sys/devices/platform/exynos-profiler/control/user_target_fps
+
+on post-fs-data
+# GPERF data
+    mkdir /data/vendor/gperf 0771 system system
+
+# gperf daemon
+service gperfd /vendor/bin/gperf
+    class main
+    user system
+    group system
+    writepid /dev/cpuset/system-background/tasks
+    seclabel u:r:gperfd:s0
+

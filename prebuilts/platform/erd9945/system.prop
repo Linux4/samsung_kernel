@@ -1,0 +1,8 @@
+#
+# system.prop for erd9945
+#
+## IMS Packet Inital Start flag
+vendor.pktrouter=1
+
+# BSP Property for Netflix HD
+ro.netflix.bsp_rev=EXYNOS2400-37698-1

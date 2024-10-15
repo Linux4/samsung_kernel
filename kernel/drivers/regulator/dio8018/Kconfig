@@ -1,0 +1,10 @@
+if REGULATOR
+
+config REGULATOR_DIO8018
+	tristate "DIOO DIO8018 PMIC"
+	depends on I2C
+	help
+	  This driver controls a DIOO DIO8018 PMIC
+	  via I2C bus.
+
+endif

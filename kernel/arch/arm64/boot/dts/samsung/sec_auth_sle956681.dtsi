@@ -1,0 +1,40 @@
+&smd {
+	sec_auth_sle956681: sec-auth-sle956681 {
+			status = "okay";
+			compatible = "samsung,sec_auth_sle956681";
+
+			authon,power_mode = "indirect";
+			//authon,power_mode = "direct";
+
+#if 1
+			authon,1tau_value = <60>;
+			authon,3tau_value = <180>;
+			authon,5tau_value = <300>;
+			authon,response_timeout_value = <1530>;
+			authon,swi_gpio = <
+				SEC_GPIO_REF(AP,gpp3,gpp3,0) 0 /* SWI_GPIO */
+#if 0
+				SEC_GPIO_REF(${swi_gpio_2}) 0 /* SWI_GPIO_2 */
+#endif
+				>;
+#endif
+#if 0
+			authon,1tau_value2 = <60>;
+			authon,3tau_value2 = <180>;
+			authon,5tau_value2 = <300>;
+#endif
+			};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/battery_auth/sle956681/r12s/sec_auth_sle956681.dtsi */
+&sec_auth_sle956681 {
+	authon,1tau_value = <60>;
+	authon,3tau_value = <180>;
+	authon,5tau_value = <300>;
+	authon,response_timeout_value = <4500>;
+#if 1
+	authon,sub6_det_gpio1 = <SEC_GPIO_REF(PM,s2mpm07_gpio,gpio_r,1) 0 >;
+	authon,sub6_det_gpio2 = <SEC_GPIO_REF(PM,s2mpm07_gpio,gpio_r,2) 0 >;
+	authon,sub6_det_gpio3 = <SEC_GPIO_REF(PM,s2mpm07_gpio,gpio_r,3) 0 >;
+#endif
+};

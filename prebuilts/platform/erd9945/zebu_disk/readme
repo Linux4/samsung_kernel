@@ -1,0 +1,25 @@
+1. How to run
+1) put built files described for property named fname 'fname' of
+   gpt_layout_zebu.xml to here (root).
+
+   e.g. In this example, there are two necessary files, super.img and vbmeta.img
+    <item filesys="2" blknum="524288" name="efs" fname=""/>
+    <item filesys="2" blknum="12484608" name="super" fname="super.img"/> <<<
+    <item filesys="2" blknum="102400" name="metadata" fname=""/>
+    ..
+    <item filesys="1" blknum="102400" name="vendor_boot" fname=""/>
+    <item filesys="1" blknum="102400" name="vbmeta" fname="vbmeta.img"/> <<<
+    ..
+2) type ./zebu.py
+
+2. Partition size
+   You can change 'blknum' to change partition size with a value
+   aligned with 8 which means 4KB. But, too big value might not work
+   because of storage capacity. The unit is 512 bytes.
+
+   e.g. size = 524288 * 512 = 256MB
+    <item filesys="2" blknum="524288" <<<<< name="efs" fname=""/>
+
+3. Output file (in root)
+zebu_mmc.bin.gz
+

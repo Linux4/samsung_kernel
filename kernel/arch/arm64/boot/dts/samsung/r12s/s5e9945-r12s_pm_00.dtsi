@@ -1,0 +1,16 @@
+/*
+ * SAMSUNG S5E9945 Display, Camera PMIC device tree source
+ *
+ * Copyright (c) 2024 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "../s5e9945-sec_pm_common.dtsi"
+#include "s5e9945-r12s_pm_thermistor.dtsi"

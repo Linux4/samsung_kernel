@@ -1,0 +1,26 @@
+#ifndef __ANA6710_MDNIE_H__
+#define __ANA6710_MDNIE_H__
+
+#include "oled_common_mdnie.h"
+
+#define NR_ANA6710_MDNIE_REG	(2)
+
+#define ANA6710_MDNIE_0_REG		(0x64)
+#define ANA6710_MDNIE_0_OFS		(0)
+#define ANA6710_MDNIE_0_LEN		(24)
+
+#define ANA6710_MDNIE_1_REG		(0x65)
+#define ANA6710_MDNIE_1_OFS		(0)
+#define ANA6710_MDNIE_1_LEN		(167)
+
+#define ANA6710_SCR_CR_OFS	(3)
+#define ANA6710_SCR_WR_OFS	(21)
+#define ANA6710_SCR_WG_OFS	(22)
+#define ANA6710_SCR_WB_OFS	(23)
+#define ANA6710_SCR_WHITE_LEN (1)
+#define ANA6710_NIGHT_MODE_OFS	(ANA6710_SCR_CR_OFS)
+#define ANA6710_NIGHT_MODE_LEN	(21)
+#define ANA6710_COLOR_LENS_OFS	(ANA6710_SCR_CR_OFS)
+#define ANA6710_COLOR_LENS_LEN	(21)
+
+#endif /* __ANA6710_MDNIE_H__ */

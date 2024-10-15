@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config SAMSUNG_PDMA
+	tristate "PDMA driver for PL330 in Samsung SoC"
+	select DMA_ENGINE
+	depends on ARM_AMBA
+	help
+	  Select if your platform has one or more PL330 DMACs.
+	  You need to provide platform specific settings via
+	  platform_data for a dma-pl330 device.

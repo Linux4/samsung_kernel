@@ -1,0 +1,21 @@
+/ {
+	/* normal mode - touch boost */
+	set0_1: set@0001 {
+		ecs { };
+
+		ecs_dynamic {
+			dynamic-busy-ratio	= <50 50>;
+			min-cpus = "0-5";
+		};
+
+		gsc { };
+
+		tex {
+			top-app = <119>;
+		};
+
+		support_uclamp {
+			enabled = <1>;
+		};
+	};
+};

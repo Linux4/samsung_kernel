@@ -1,0 +1,46 @@
+/ {
+	/* camera mode - default */
+	set5: set@500 {
+		/* Boosting margin applied to frequency selection */
+		freqboost {			/* LIT MED-L MED-H BIG */
+			top-app			= <  5   5   5   5 >;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			top-app		= <1>;
+			foreground	= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <31>;
+			};
+			domain1 {
+				cpus = "4-6";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain2 {
+				cpus = "7-8";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain3 {
+				cpus = "9";
+				lower-boundary = <43>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio		= <70 70 70 70>;
+			min-cpus = "0-6";
+		};
+
+		et {
+			default-idx = < 2 >;
+			uarch-selection = < 0 >;
+		};
+	};
+};

@@ -1,0 +1,21 @@
+# Android fstab file.
+#<src>                  <mnt_point>         <type>    <mnt_flags and options>                               <fs_mgr_flags>
+# The filesystem that contains the filesystem checker binary (typically /system) cannot
+# specify MF_CHECK, and must come before any filesystems that do specify MF_CHECK
+
+system                                             /system             ext4      ro,barrier=1                                          wait,logical,first_stage_mount,avb=vbmeta_system,avb_keys=/avb/q-gsi.avbpubkey:/avb/r-gsi.avbpubkey:/avb/s-gsi.avbpubkey
+vendor                                             /vendor             ext4      ro,barrier=1                                          wait,logical,first_stage_mount,avb=vbmeta_system
+
+/dev/block/platform/112e0000.dwmmc2/by-name/boot      /boot               emmc      defaults                                              first_stage_mount,formattable,avb=boot
+/dev/block/platform/112e0000.dwmmc2/by-name/vendor_boot /vendor_boot      emmc      defaults                                              first_stage_mount,formattable,avb=vendor_boot
+/dev/block/platform/112e0000.dwmmc2/by-name/dtbo      /dtbo               emmc      defaults                                              first_stage_mount,formattable,avb=dtbo
+/dev/block/platform/112e0000.dwmmc2/by-name/vbmeta	/vbmeta		  emmc      defaults						  first_stage_mount,formattable,avb=vbmeta
+/dev/block/platform/112e0000.dwmmc2/by-name/vbmeta_system	/vbmeta_system		emmc      defaults				  first_stage_mount,formattable,avb=vbmeta_system
+/dev/block/platform/112e0000.dwmmc2/by-name/vbmeta_vendor       /vbmeta_vendor          emmc      defaults                                first_stage_mount,formattable,avb=vbmeta_vendor
+/dev/block/platform/112e0000.dwmmc2/by-name/metadata  /metadata           ext4      noatime,nosuid,nodev,sync                            wait,formattable,first_stage_mount,check
+/dev/block/platform/112e0000.dwmmc2/by-name/userdata    /data               ext4      noatime,nosuid,nodev,nomblk_io_submit,noauto_da_alloc,errors=panic   latemount,wait,encryptable=/cache/metadata
+/dev/block/platform/112e0000.dwmmc2/by-name/efs    /efs                ext4      defaults,rw                                           wait
+/dev/block/platform/112e0000.dwmmc2/by-name/persist   /mnt/vendor/persist ext4      noatime,nosuid,nodev,barrier=1,data=ordered,nodelalloc,nomblk_io_submit,errors=panic wait,notrim
+/dev/block/platform/112e0000.dwmmc2/by-name/misc      /misc               emmc      defaults                                              defaults
+/dev/block/platform/112e0000.dwmmc2/by-name/recovery  /recovery           emmc      defaults                                              defaults
+/dev/block/platform/112e0000.dwmmc2/by-name/cache    /cache              ext4      noatime,nosuid,nodev,nomblk_io_submit,errors=panic    wait

@@ -1,0 +1,50 @@
+  
+
+/*
+ * SAMSUNG S5E9945 board device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "s5e9945-mu1s_pm_00.dtsi"
+#include "s5e9945_evt0-mu1s_common.dtsi"
+#include "s5e9945-mu1s_bluetooth_00.dtsi"
+#include "../../exynos/board/erd/panel/samsung-emulation-video-panel.dtsi"
+#include "../../exynos/board/erd/panel/samsung-s6e3hae-1440-3088-command-panel.dtsi"
+#include "s5e9945-mu1s_wifi_00.dtsi"
+
+/ {
+	compatible = "samsung,MU1S EUR OPENX", "samsung,S5E9945";
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung MU1S EUR OPENX board based on S5E9945 EVT0";
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&serial_0 {
+	status = "okay";
+};
+
+&drmdsim_0 {
+	drmpanel {
+		default-panel = "s6e3hae_1440_3088_cmd";
+	};
+};
+
+&gpa3 {
+	interrupts = <GIC_SPI EXT_INTA3_OUT0 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 937 IRQ_TYPE_LEVEL_HIGH>,
+				 <GIC_SPI EXT_INTA3_OUT2 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI EXT_INTA3_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+				 <GIC_SPI EXT_INTA3_OUT4 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI EXT_INTA3_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+				 <GIC_SPI EXT_INTA3_OUT6 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI EXT_INTA3_OUT7 IRQ_TYPE_LEVEL_HIGH>;
+};

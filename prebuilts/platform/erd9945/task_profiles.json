@@ -1,0 +1,203 @@
+{
+  "Profiles": [
+    {
+      "Name": "GpisSfCpusetEnable",
+      "Actions": [
+        {
+          "Name": "SetAttribute",
+          "Params":
+          {
+            "Name": "GpisSfCpuset",
+            "Value": "4-8"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "GpisSfCpusetDisable",
+      "Actions": [
+        {
+          "Name": "SetAttribute",
+          "Params":
+          {
+            "Name": "GpisSfCpuset",
+            "Value": "0-8"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "HighEnergySaving",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/background/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/background/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "NormalPerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/system/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/system/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "ServicePerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/system-background/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/system-background/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "HighPerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/foreground/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/foreground/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "SystemServicePerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/foreground/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/foreground/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "MaxPerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/top-app/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/top-app/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "RealtimePerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/rt/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/rt/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "CameraServicePerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/camera-daemon/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/camera-daemon/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "NNApiHALPerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/nnapi-hal/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/nnapi-hal/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Dex2oatPerformance",
+      "Actions": [
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/dex2oat/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/dex2oat/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "MidgroundProcess",
+      "Actions": [
+        {
+          "Name": "JoinCgroup",
+          "Params":
+          {
+            "Controller": "cpuset",
+            "Path": "midground"
+          }
+        },
+        {
+          "Name": "WriteFile",
+          "Params":
+          {
+            "FilePath": "/sys/kernel/ems/taskgroup/midground/task",
+            "ProcFilePath": "/sys/kernel/ems/taskgroup/midground/proc",
+            "Value": "<pid>",
+            "LogFailures": "false"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+/***************** AWINIC Normal Voltage Haptic Driver ****************/
+&aw8624x {
+		compatible = "awinic,aw8624x_haptic";
+		pinctrl-names = "default";
+		pinctrl-0 = <&motor_int_default &motor_rst_default>;
+
+		reset-gpio = <SEC_GPIO_REF(AP,gpp2,gpp2,2) 0>;
+		irq-gpio = <SEC_GPIO_REF(AP,gpa3,gpa3,7) 0>;
+
+		/* LRA parameters */
+		vib_f0_pre = < 1700 >;			/* 10 * F0 of LRA */
+		vib_lra_vrms = < 900 >;		/* Motor rated voltage, mV */
+
+		/* cont mode parameters */
+		vib_d2s_gain = < 0x06 >;		/* brake gain based on LRA */
+		vib_f0_d2s_gain = < 0x01 >;		/* f0 brake gain based on LRA */
+		vib_cont_brk_gain = < 0x08 >;		/* brake gain(fine-tuning, mostly keep default) */
+		vib_cont_brk_time = < 0x06 >;		/* half cycle number based on LRA */
+		vib_cont_drv1_lvl = < 0x7F >;		/* overdrive voltage, keep default */
+		vib_cont_drv2_lvl = < 0x23 >;		/* overdrive voltage, keep default */
+		vib_cont_drv1_time = < 0x04 >;		/* half cycle number of overdrive, mostly keep default */
+		vib_cont_drv2_time = < 0x14 >;		/* half cycle number of rms drive based on LRA */
+		vib_cont_track_margin = < 0x0F >;	/* track margin, mostly keep default */
+
+		vib_f0_cali_percen = < 15 >;		/* f0 calibration range 15% */
+		/* vib_is_enabled_smart_loop; */
+		vib_is_enabled_inter_brake;
+		vib_is_enabled_auto_brk;
+		status = "okay";
+};
+/************************** AWINIC END *****************************/

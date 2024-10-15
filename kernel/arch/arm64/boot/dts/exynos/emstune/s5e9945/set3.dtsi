@@ -1,0 +1,67 @@
+/ {
+	/* game mode - default */
+	set3: set@300{
+		cpu-dsu-table-index = <1>;
+
+		/* Ontime Migration */
+		ontime {
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <66>;
+			};
+			domain1 {
+				cpus = "4-6";
+				lower-boundary = <12>;
+				upper-boundary = <54>;
+			};
+			domain2 {
+				cpus = "7-8";
+				lower-boundary = <6>;
+				upper-boundary = <100>;
+			};
+			domain3 {
+				cpus = "9";
+				lower-boundary = <43>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {};
+
+		/* cpus_binding applied to core selection */
+		cpus_binding {
+			target-sched-class = <0x8>;	/* fair */
+
+			background	= "0-3";
+		};
+
+		fclamp {
+			min-freq          = <       0 1248000 1248000 1248000>;
+			min-target-period = <       0       8       8       8>;
+			min-target-ratio  = <       0      90      90      90>;
+
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		cpufreq_gov {
+				/* LIT MED-L MED-H BIG */
+			htask-boost = < 150 150 150 150 >;
+		};
+
+		et {
+			default-idx = < 1 >;
+			uarch-selection = < 1 >;
+		};
+
+		tex {
+			top-app = <119>;
+		};
+
+		should_spread {
+			enabled = <1>;
+		};
+	};
+};

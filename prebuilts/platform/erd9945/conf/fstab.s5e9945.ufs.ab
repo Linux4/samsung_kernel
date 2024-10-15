@@ -1,0 +1,41 @@
+# Android fstab file.
+#<src>                  <mnt_point>         <type>    <mnt_flags and options>                               <fs_mgr_flags>
+# The filesystem that contains the filesystem checker binary (typically /system) cannot
+# specify MF_CHECK, and must come before any filesystems that do specify MF_CHECK
+
+system                                             /system             erofs      ro                                                   slotselect,wait,logical,first_stage_mount,avb=vbmeta_system,avb_keys=/avb
+# During compliance testing, the previous line would fail (because ESSI is ext4), and the next line would be used to mount ESSI.
+system                                             /system             ext4       ro,barrier=1                                         slotselect,wait,logical,first_stage_mount,avb=vbmeta_system,avb_keys=/avb
+vendor                                             /vendor             erofs      ro                                                   slotselect,wait,logical,first_stage_mount,avb=vbmeta_system
+system_dlkm                                        /system_dlkm        erofs      ro                                                   slotselect,wait,logical,first_stage_mount,avb=vbmeta_system,avb_keys=/avb
+# For GKI system_dlkm
+system_dlkm                                        /system_dlkm        ext4       noatime,ro,errors=panic                              slotselect,wait,logical,first_stage_mount,avb=vbmeta_system,avb_keys=/avb
+vendor_dlkm                                        /vendor_dlkm        erofs      ro                                                   slotselect,wait,logical,first_stage_mount,avb=vbmeta_vendor
+product                                            /product            erofs      ro                                                   slotselect,wait,logical,first_stage_mount,avb=vbmeta_system,nofail
+product                                            /product            ext4       noatime,ro,errors=panic                              slotselect,wait,logical,first_stage_mount,avb=vbmeta_system,nofail
+system_ext                                         /system_ext         erofs      ro                                                   slotselect,wait,logical,first_stage_mount,avb=vbmeta_system,nofail
+system_ext                                         /system_ext         ext4       noatime,ro,errors=panic                              slotselect,wait,logical,first_stage_mount,avb=vbmeta_system,nofail
+
+/dev/block/platform/17100000.ufs/by-name/boot      /boot               emmc      defaults                                              slotselect,first_stage_mount,formattable,avb=boot
+/dev/block/platform/17100000.ufs/by-name/init_boot /init_boot          emmc      defaults                                              slotselect,first_stage_mount,formattable,avb=init_boot
+/dev/block/platform/17100000.ufs/by-name/vendor_boot /vendor_boot      emmc      defaults                                              slotselect,first_stage_mount,formattable,avb=vendor_boot
+/dev/block/platform/17100000.ufs/by-name/dtbo      /dtbo               emmc      defaults                                              slotselect,first_stage_mount,formattable,avb=dtbo
+/dev/block/platform/17100000.ufs/by-name/vbmeta      /vbmeta               emmc      defaults					       slotselect,first_stage_mount,formattable,avb=vbmeta
+/dev/block/platform/17100000.ufs/by-name/vbmeta_system      /vbmeta_system      emmc      defaults                                     slotselect,first_stage_mount,formattable,avb=vbmeta_system
+/dev/block/platform/17100000.ufs/by-name/vbmeta_vendor      /vbmeta_vendor      emmc      defaults                                     slotselect,first_stage_mount,formattable,avb=vbmeta_vendor
+/dev/block/platform/17100000.ufs/by-name/metadata  /metadata           f2fs      noatime,nosuid,nodev,sync                            wait,formattable,first_stage_mount,check
+#/dev/block/platform/17100000.ufs/by-name/userdata   /data              f2fs      rw,noatime,nosuid,nodev,discard,fsync_mode=nobarrier  latemount,wait,check,quota,reservedsize=128M,encryptable=/cache/metadata
+/dev/block/platform/17100000.ufs/by-name/userdata   /data              f2fs      rw,noatime,nosuid,nodev,discard,reserve_root=32768,resgid=1065,fsync_mode=nobarrier,inlinecrypt latemount,wait,check,quota,checkpoint=fs,formattable,fileencryption=aes-256-xts:aes-256-cts:inlinecrypt_optimized+wrappedkey_v0,keydirectory=/metadata/vold/metadata_encryption,metadata_encryption=aes-256-xts:wrappedkey_v0
+/dev/block/platform/17100000.ufs/by-name/efs    /mnt/vendor/efs                ext4      rw,seclabel,noatime                                           wait,formattable
+#/dev/block/platform/17100000.ufs/by-name/persist   /mnt/vendor/persist ext4      noatime,nosuid,nodev,barrier=1,data=ordered,nodelalloc,nomblk_io_submit,errors=panic wait,notrim,formattable
+/dev/block/platform/17100000.ufs/by-name/misc      /misc               emmc      defaults                                              defaults
+#/dev/block/platform/17100000.ufs/by-name/recovery /recovery          emmc      defaults                                              defaults
+#/dev/block/platform/17100000.ufs/by-name/cache    /cache              ext4      noatime,nosuid,nodev,nomblk_io_submit,errors=panic    wait,formattable
+/dev/block/platform/17100000.ufs/by-name/slotinfo  /slotinfo           emmc      defaults                                              defaults
+
+# VOLD
+/devices/platform/17900000.usb*                    auto                vfat      default                                               voldmanaged=usb1:auto
+/devices/platform/17900000.usb*			   auto                vfat      default                                               voldmanaged=usb2:auto
+
+# SWAP
+/dev/block/zram0                                   none                swap      defaults                                              wait,zramsize=2147483648
