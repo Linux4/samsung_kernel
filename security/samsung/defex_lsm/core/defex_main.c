@@ -131,8 +131,9 @@ __visible_for_testing long kill_process(struct task_struct *p)
 #endif /* DEFEX_SAFEPLACE_ENABLE || DEFEX_TRUSTED_MAP_ENABLE || DEFEX_INTEGRITY_ENABLE */
 
 #ifdef DEFEX_PED_ENABLE
-__visible_for_testing long kill_process_group(struct task_struct *p, int tgid, int pid)
+__visible_for_testing long kill_process_group(int tgid, int pid)
 {
+	struct task_struct *p;
 	read_lock(&tasklist_lock);
 	for_each_process(p) {
 		if (p->tgid == tgid)
@@ -169,36 +170,30 @@ __visible_for_testing int task_defex_is_secured(struct defex_context *dc)
 
 	if (!get_dc_process_dpath(dc))
 		return is_secured;
-	is_secured = !rules_lookup(proc_name, feature_ped_exception, exe_file);
+	is_secured = !rules_lookup(proc_name, feature_ped_exception, exe_file, NULL);
 	return is_secured;
 }
 
 __visible_for_testing int at_same_group(unsigned int uid1, unsigned int uid2)
 {
-	static const unsigned int lod_base = 0x61A8;
-
 	/* allow the weaken privilege */
 	if (uid1 >= 10000 && uid2 < 10000) return 1;
 	/* allow traverse in the same class */
 	if ((uid1 / 1000) == (uid2 / 1000)) return 1;
 	/* allow traverse to isolated ranges */
 	if (uid1 >= 90000) return 1;
-	/* allow LoD process */
-	return ((uid1 >> 16) == lod_base) && ((uid2 >> 16) == lod_base);
+	return 0;
 }
 
 __visible_for_testing int at_same_group_gid(unsigned int gid1, unsigned int gid2)
 {
-	static const unsigned int lod_base = 0x61A8, inet = 3003;
-
 	/* allow the weaken privilege */
 	if (gid1 >= 10000 && gid2 < 10000) return 1;
 	/* allow traverse in the same class */
 	if ((gid1 / 1000) == (gid2 / 1000)) return 1;
 	/* allow traverse to isolated ranges */
 	if (gid1 >= 90000) return 1;
-	/* allow LoD process */
-	return (((gid1 >> 16) == lod_base) || (gid1 == inet)) && ((gid2 >> 16) == lod_base);
+	return 0;
 }
 
 #ifdef DEFEX_LP_ENABLE
@@ -280,7 +275,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 	cur_egid = uid_get_value(dc->cred->egid);
 
 	if (!ref_uid) {
-		if (p->tgid != p->pid && p->tgid != 1) {
+		if (p->tgid != p->pid && p->tgid != 1 && p->real_parent->pid != 1) {
 			path = get_dc_process_name(dc);
 			defex_log_crit("[6]: cred wasn't stored [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]",
 				p->comm, path, cur_uid, p->tgid, p->pid, p->real_parent->pid);
@@ -388,7 +383,7 @@ __visible_for_testing int task_defex_integrity(struct defex_context *dc)
 		goto out;
 
 	new_file = get_dc_target_name(dc);
-	is_violation = rules_lookup(new_file, feature_integrity_check, dc->target_file);
+	is_violation = rules_lookup(new_file, feature_integrity_check, dc->target_file, NULL);
 
 	if (is_violation == DEFEX_INTEGRITY_FAIL) {
 		ret = -DEFEX_DENY;
@@ -420,7 +415,7 @@ __visible_for_testing int task_defex_safeplace(struct defex_context *dc)
 		goto out;
 
 	new_file = get_dc_target_name(dc);
-	is_violation = !rules_lookup(new_file, feature_safeplace_path, dc->target_file);
+	is_violation = !rules_lookup(new_file, feature_safeplace_path, dc->target_file, NULL);
 
 	if (is_violation) {
 		ret = -DEFEX_DENY;
@@ -493,14 +488,22 @@ out:
 __visible_for_testing int task_defex_src_exception(struct defex_context *dc)
 {
 	struct file *exe_file = get_dc_process_file(dc);
-	char *proc_name = get_dc_process_name(dc);
-	int allow = 1;
+	char *target_name, *proc_name = get_dc_process_name(dc);
+	int offset, allow = 1;
+	struct rule_item_struct *found_item = NULL;
 
 	if (!get_dc_process_dpath(dc))
 		return allow;
 
 	exe_file = get_dc_process_file(dc);
-	allow = rules_lookup(proc_name, feature_immutable_src_exception, exe_file);
+	allow = rules_lookup(proc_name, feature_immutable_src_exception, exe_file, &found_item);
+	if (allow && found_item &&
+			(found_item->feature_type & feature_is_file) &&
+			found_item->next_level) {
+		target_name = get_dc_target_name(dc);
+		offset = rules_lookup(target_name, feature_immutable_dst_exception, dc->target_file, NULL);
+		allow = (offset == found_item->next_level);
+	}
 	return allow;
 }
 
@@ -515,7 +518,7 @@ __visible_for_testing int task_defex_immutable(struct defex_context *dc, int att
 		goto out;
 
 	new_file = get_dc_target_name(dc);
-	is_violation = rules_lookup(new_file, attribute, dc->target_file);
+	is_violation = rules_lookup(new_file, attribute, dc->target_file, NULL);
 
 	if (is_violation) {
 		/* Check the Source exception and self-access */
@@ -580,8 +583,8 @@ int task_defex_enforce(struct task_struct *p, struct file *f, int syscall, ...)
 		if (ret) {
 			if (!(feature_flag & FEATURE_CHECK_CREDS_SOFT)) {
 				release_defex_context(&dc);
+				kill_process_group(p->tgid, p->pid);
 				put_task_struct(p);
-				kill_process_group(p, p->tgid, p->pid);
 				return -DEFEX_DENY;
 			}
 		}
@@ -595,10 +598,8 @@ int task_defex_enforce(struct task_struct *p, struct file *f, int syscall, ...)
 			ret = task_defex_integrity(&dc);
 			if (ret == -DEFEX_DENY) {
 				if (!(feature_flag & FEATURE_INTEGRITY_SOFT)) {
-					release_defex_context(&dc);
-					put_task_struct(p);
 					kill_process(p);
-					return -DEFEX_DENY;
+					goto do_deny;
 				}
 			}
 		}
@@ -612,10 +613,8 @@ int task_defex_enforce(struct task_struct *p, struct file *f, int syscall, ...)
 			ret = task_defex_safeplace(&dc);
 			if (ret == -DEFEX_DENY) {
 				if (!(feature_flag & FEATURE_SAFEPLACE_SOFT)) {
-					release_defex_context(&dc);
-					put_task_struct(p);
 					kill_process(p);
-					return -DEFEX_DENY;
+					goto do_deny;
 				}
 			}
 		}
@@ -657,12 +656,10 @@ do_allow:
 	release_defex_context(&dc);
 	put_task_struct(p);
 	return DEFEX_ALLOW;
-#if defined(DEFEX_IMMUTABLE_ENABLE) || defined(DEFEX_TRUSTED_MAP_ENABLE)
 do_deny:
 	release_defex_context(&dc);
 	put_task_struct(p);
 	return -DEFEX_DENY;
-#endif /* DEFEX_IMMUTABLE_ENABLE || DEFEX_TRUSTED_MAP_ENABLE */
 }
 
 int task_defex_zero_creds(struct task_struct *tsk)
@@ -718,7 +715,7 @@ int task_defex_user_exec(const char *new_file)
 		filp_close(fp, NULL);
 	}
 
-	is_violation = !rules_lookup(new_file, feature_umhbin_path, NULL);
+	is_violation = !rules_lookup(new_file, feature_umhbin_path, NULL, NULL);
 	if (is_violation) {
 		defex_log_warn("UMH Exec Denied: %s", new_file);
 		res = DEFEX_DENY;

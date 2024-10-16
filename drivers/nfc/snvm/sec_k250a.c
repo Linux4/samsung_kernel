@@ -33,6 +33,8 @@
 #include <linux/ioctl.h>
 #include <linux/gpio.h>
 #include <linux/version.h>
+#include <linux/i2c.h>
+#include <linux/clk.h>
 #if defined(CONFIG_SEC_SNVM_PLATFORM_DRV)
 #include <linux/platform_device.h>
 #endif
@@ -59,16 +61,89 @@ struct k250a_dev {
 	struct pinctrl_state *pin_gpio;
 #endif
 	sec_star_t *star;
+#ifdef CONFIG_SEC_SNVM_I2C_CLOCK_CONTROL
+	struct clk *i2c_main_clk;
+	struct clk *i2c_dma_clk;
+	bool i2c_main_clk_enabled;
+	bool i2c_dma_clk_enabled;
+#endif
 };
 
 static struct k250a_dev g_k250a;
 
-static int k250a_poweron(void)
+#ifdef CONFIG_SEC_SNVM_I2C_CLOCK_CONTROL
+static void k250a_parse_i2c_clock(struct k250a_dev *k250a, struct device_node *np)
+{
+	struct device_node *i2c_np;
+
+	i2c_np = of_parse_phandle(np, "i2c_node", 0);
+	if (!i2c_np) {
+		INFO("i2c_node not found\n");
+		return;
+	}
+
+	INFO("i2c_node found\n");
+	k250a->i2c_main_clk = of_clk_get_by_name(i2c_np, "main");
+
+	if (IS_ERR(k250a->i2c_main_clk))
+		INFO("failed to get i2c main clock\n");
+	else
+		INFO("i2c main clock found");
+
+	k250a->i2c_dma_clk = of_clk_get_by_name(i2c_np, "dma");
+	if (IS_ERR(k250a->i2c_dma_clk))
+		INFO("failed to get i2c dma clock\n");
+	else
+		INFO("i2c dma clock found");
+}
+
+static void k250a_i2c_clock_enable(void)
 {
 	int ret = 0;
 
-	INFO("k250a_poweron\n");
+	if (!g_k250a.i2c_main_clk_enabled && !IS_ERR_OR_NULL(g_k250a.i2c_main_clk)) {
+		ret = clk_prepare_enable(g_k250a.i2c_main_clk);
+		if (ret)
+			ERR("failed to enable i2c main clock\n");
+		else
+			g_k250a.i2c_main_clk_enabled = true;
+	}
 
+	if (!g_k250a.i2c_dma_clk_enabled && !IS_ERR_OR_NULL(g_k250a.i2c_dma_clk)) {
+		ret = clk_prepare_enable(g_k250a.i2c_dma_clk);
+		if (ret)
+			ERR("failed to enable i2c dma clock\n");
+		else
+			g_k250a.i2c_dma_clk_enabled = true;
+	}
+}
+
+static void k250a_i2c_clock_disable(void)
+{
+	if (g_k250a.i2c_main_clk_enabled && !IS_ERR_OR_NULL(g_k250a.i2c_main_clk)) {
+		clk_disable_unprepare(g_k250a.i2c_main_clk);
+		g_k250a.i2c_main_clk_enabled = false;
+	}
+
+	if (g_k250a.i2c_dma_clk_enabled && !IS_ERR_OR_NULL(g_k250a.i2c_dma_clk)) {
+		clk_disable_unprepare(g_k250a.i2c_dma_clk);
+		g_k250a.i2c_dma_clk_enabled = false;
+	}
+}
+#endif
+
+static int k250a_poweron(void)
+{
+	int ret = 0;
+#ifdef CONFIG_SEC_SNVM_I2C_CLOCK_CONTROL
+	bool i2c_main_clk = !IS_ERR_OR_NULL(g_k250a.i2c_main_clk);
+	bool i2c_dma_clk = !IS_ERR_OR_NULL(g_k250a.i2c_dma_clk);
+
+	INFO("k250a_poweron (i2c clk:%s%s)\n",
+		i2c_main_clk ? " main" : "", i2c_dma_clk ? " dma" : "");
+#else
+	INFO("k250a_poweron\n");
+#endif
 	if (g_k250a.vdd == NULL) {
 		if (g_k250a.reset_gpio == 0) {
 			return 0;
@@ -166,6 +241,7 @@ static star_dev_t star_dev = {
 static int k250a_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct device_node *np = client->dev.of_node;
+
 	INFO("Entry : %s\n", __func__);
 
 	if (np) {
@@ -302,12 +378,20 @@ static void k250a_remove(struct i2c_client *client)
 static int k250a_dev_open(struct inode *inode, struct file *filp)
 {
 	k250a_poweron();
+#ifdef CONFIG_SEC_SNVM_I2C_CLOCK_CONTROL
+	k250a_i2c_clock_enable();
+#endif
+
 	return 0;
 }
 
 static int ese_dev_release(struct inode *inode, struct file *filp)
 {
+#ifdef CONFIG_SEC_SNVM_I2C_CLOCK_CONTROL
+	k250a_i2c_clock_disable();
+#endif
 	k250a_poweroff();
+
 	return 0;
 }
 
@@ -332,6 +416,10 @@ void k250a_parse_dt_for_platform_device(struct device *dev)
 	} else {
 		INFO("%s: regulator_get success\n", __func__);
 	}
+
+#ifdef CONFIG_SEC_SNVM_I2C_CLOCK_CONTROL
+	k250a_parse_i2c_clock(&g_k250a, dev->of_node);
+#endif
 }
 
 static int k250a_platform_probe(struct platform_device *pdev)

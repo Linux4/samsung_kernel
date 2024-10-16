@@ -270,7 +270,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(wc_param_info),
 #endif
 	SEC_BATTERY_ATTR(chg_info),
-	SEC_BATTERY_ATTR(batt_full_capacity),
 	SEC_BATTERY_ATTR(lrp),
 };
 
@@ -2032,10 +2031,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		sec_pd_get_vid_pid(&vid, &pid, &xid);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%04x %04x %08x\n", vid, pid, xid);
 	}
-		break;
-	case BATT_FULL_CAPACITY:
-		pr_info("%s: BATT_FULL_CAPACITY = %d\n", __func__, battery->batt_full_capacity);
-		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->batt_full_capacity);
 		break;
 	case LRP:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->lrp);
@@ -4013,20 +4008,6 @@ ssize_t sec_bat_store_attrs(
 			dev_info(battery->dev, "%s: LRP(%d)\n", __func__, x);
 			if ((x >= -200 && x <= 900) && (battery->lrp_test == 0))
 				battery->lrp = x;
-			ret = count;
-		}
-		break;
-	case BATT_FULL_CAPACITY:
-		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (x >= 0 && x <= 100) {
-				pr_info("%s: update BATT_FULL_CAPACITY(%d)\n", __func__, x);
-				battery->batt_full_capacity = x;
-				__pm_stay_awake(battery->monitor_ws);
-				queue_delayed_work(battery->monitor_wqueue,
-					&battery->monitor_work, 0);
-			} else {
-				pr_info("%s: out of range(%d)\n", __func__, x);
-			}
 			ret = count;
 		}
 		break;

@@ -478,10 +478,6 @@ static void sec_abc_work_func(struct work_struct *work)
 	struct abc_fault_info in, out;
 	struct abc_log_entry *abc_log;
 
-	struct timespec ts;
-	struct rtc_time tm;
-	unsigned long local_time;
-
 	char *c, *p, *p2;
 	char *uevent_str[ABC_UEVENT_MAX] = {0,};
 	char temp[ABC_BUFFER_MAX], timestamp[ABC_BUFFER_MAX], temp2[ABC_BUFFER_MAX];
@@ -504,11 +500,6 @@ static void sec_abc_work_func(struct work_struct *work)
 	ktime_rem = do_div(ktime, NSEC_PER_MSEC);
 	ktime_ms = (unsigned long)ktime;
 	ktime_rem = do_div(ktime, MSEC_PER_SEC);
-
-	/* Caculate current local time */
-	getnstimeofday(&ts);
-	local_time = (u32)(ts.tv_sec - (sys_tz.tz_minuteswest * 60));
-	rtc_time_to_tm(local_time, &tm);
 
 	/* Parse uevent string */
 	while ((c = strsep(&p, "@")) != NULL) {
@@ -563,9 +554,8 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	abc_log = kzalloc(sizeof(*abc_log), GFP_KERNEL);
 	if (abc_log) {
-		snprintf(abc_log->abc_log_str, ABC_LOG_STR_LEN, "[%5lu.%03d][%02d:%02d:%02d.%03lu]%s_%s",
-			 (unsigned long)ktime, (int)(ktime_rem / NSEC_PER_MSEC), tm.tm_hour, tm.tm_min,
-			 tm.tm_sec, ts.tv_nsec / 1000000, uevent_str[0] + 7, uevent_str[1] + 6);
+		snprintf(abc_log->abc_log_str, ABC_LOG_STR_LEN, "[%5lu.%03d]%s_%s",
+			 (unsigned long)ktime, (int)(ktime_rem / NSEC_PER_MSEC), uevent_str[0] + 7, uevent_str[1] + 6);
 		if (pinfo->log_list_cnt < ABC_LOG_MAX) {
 			list_add_tail(&abc_log->node, &pinfo->log_list);
 			pinfo->log_list_cnt++;

@@ -755,7 +755,7 @@ void slsi_set_grip_data_to_ic(struct device *dev, u8 flag)
 			data[1] = (ts->plat_data->grip_data.edgehandler_start_y << 4 & 0xF0)
 					| ((ts->plat_data->grip_data.edgehandler_end_y >> 8) & 0xF);
 			data[2] = ts->plat_data->grip_data.edgehandler_end_y & 0xFF;
-			data[3] = ts->plat_data->grip_data.edgehandler_direction & 0x3;
+			data[3] = ts->plat_data->grip_data.edgehandler_direction & 0xF;
 		}
 		ts->slsi_ts_i2c_write(ts, SLSI_TS_CMD_EDGE_HANDLER, data, 4);
 		input_info(true, &ts->client->dev, "%s: 0x%02X %02X,%02X,%02X,%02X\n",

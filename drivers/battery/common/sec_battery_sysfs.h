@@ -291,7 +291,6 @@ enum sec_bat_attrs {
 	WC_PARAM_INFO,
 #endif
 	CHG_INFO,
-	BATT_FULL_CAPACITY,
 	LRP,
 };
 

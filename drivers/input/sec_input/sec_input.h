@@ -245,6 +245,7 @@ const struct file_operations ops_name = {				\
 #else
 #define SW_PEN_INSERT		0x13  /* set = pen insert, remove */
 #endif
+#define SW_PEN_REVERSE_INSERT	0x0d  /* set = pen reverse insert, remove */
 
 #define EXYNOS_DISPLAY_INPUT_NOTIFIER ((IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU)) && IS_ENABLED(CONFIG_PANEL_NOTIFY))
 
