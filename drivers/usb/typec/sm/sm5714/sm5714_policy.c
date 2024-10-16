@@ -3071,10 +3071,21 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_svids_acked(
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
 
+#ifndef CONFIG_DISABLE_LOCKSCREEN_USB_RESTRICTION
+	dev_info(pd_data->dev, "%s, altmode : %d\n", __func__, pd_data->altmode_enable);
+
+	if (pd_data->altmode_enable)
+		return sm5714_usbpd_policy_dfp_vdm_response(policy,
+					MANAGER_DISCOVER_SVID_ACKED);
+	else
+		return sm5714_usbpd_policy_dfp_vdm_response(policy,
+					MANAGER_DISCOVER_SVID_NAKED);
+#else
 	dev_info(pd_data->dev, "%s\n", __func__);
 
 	return sm5714_usbpd_policy_dfp_vdm_response(policy,
 				MANAGER_DISCOVER_SVID_ACKED);
+#endif
 }
 
 static policy_state sm5714_usbpd_policy_dfp_vdm_svids_naked(

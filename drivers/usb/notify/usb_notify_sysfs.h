@@ -21,6 +21,12 @@
 #define MAX_CLASS_TYPE_NUM	USB_CLASS_VENDOR_SPEC
 #define MAX_USB_SPEED_STR_LEN 15
 
+#define ALLOWLIST_PREFIX_SIZE 5
+#define MAX_VID_PID_STRING 10
+#define MAX_ALLOWLIST_DEVICE_COUNT 100
+#define MAX_ALLOWLIST_DEVICE_BUFFER_INDEX (MAX_ALLOWLIST_DEVICE_COUNT*2)
+#define MAX_ALLOWLIST_BUFFER (MAX_VID_PID_STRING * MAX_ALLOWLIST_DEVICE_COUNT + ALLOWLIST_PREFIX_SIZE)
+
 enum u_interface_class_type {
 	U_CLASS_PER_INTERFACE = 1,
 	U_CLASS_AUDIO,
@@ -55,6 +61,7 @@ struct usb_notify_dev {
 	unsigned long usb_data_enabled;
 	unsigned long disable_state;
 	unsigned long secure_lock;
+	bool first_restrict;
 	int (*set_disable)(struct usb_notify_dev *udev, int param);
 	void (*set_mdm)(struct usb_notify_dev *udev, int mdm_disable);
 	int (*set_lock_state)(struct usb_notify_dev *udev);
@@ -64,6 +71,9 @@ struct usb_notify_dev {
 	char whitelist_str[MAX_WHITELIST_STR_LEN];
 	int whitelist_array_for_mdm[MAX_CLASS_TYPE_NUM+1];
 	struct usb_audio_info usb_audio_cards[MAX_USB_AUDIO_CARDS];
+	int allowlist_array_lockscreen_enabled_id[MAX_ALLOWLIST_DEVICE_BUFFER_INDEX];
+	char allowlist_str_lockscreen_enabled_id[MAX_ALLOWLIST_BUFFER];
+	struct mutex lockscreen_enabled_lock;
 };
 
 extern int usb_notify_dev_uevent(struct usb_notify_dev *udev,

@@ -205,7 +205,10 @@ static void ba_delete_ba_on_old_frame(struct net_device *dev, struct slsi_peer *
 	delba_req->header.receiver_pid = 0;
 	delba_req->header.sender_pid = 0;
 	delba_req->header.fw_reference = 0;
-	delba_req->vif = ndev_vif->ifnum;
+	if (ndev_vif->ifnum < SLSI_NAN_DATA_IFINDEX_START)
+		delba_req->vif = ndev_vif->ifnum;
+	else
+		delba_req->vif = peer->ndl_vif;
 
 	memcpy(delba_req->peer_qsta_address, peer->address, ETH_ALEN);
 	delba_req->sequence_number = sn;
@@ -731,8 +734,14 @@ void slsi_handle_blockack(struct net_device *dev, struct slsi_peer *peer,
 		}
 		break;
 	case FAPI_REASONCODE_UNSPECIFIED_REASON:
-		if (ba_session_rx)
+		if (ba_session_rx) {
+			/* highest_received_sn is used in BA engine as the WinEnd (end of the BlockAck window)
+			 * The SSN in BlockAck Request frame sets the WinStart: WinStart = SSN,
+			 * So highest_received_sn = WinEnd = SSN + WinSize -1
+			 */
+			ba_session_rx->highest_received_sn = (sequence_number + (ba_session_rx->buffer_size - 1)) & 0xFFF;
 			slsi_ba_update_window(dev, ba_session_rx, sequence_number);
+		}
 		break;
 	default:
 		SLSI_NET_ERR(dev, "Invalid value: reason_code=%d\n", reason_code);
