@@ -1,0 +1,6 @@
+#
+# MUIC devices
+#
+
+source "drivers/if-pmic/maxim/muic-mcd/Kconfig"
+source "drivers/if-pmic/maxim/usb/Kconfig"

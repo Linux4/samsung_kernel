@@ -1,0 +1,35 @@
+FourSemi fs1816 Audio Amplifier
+
+Required properties:
+
+  - compatible : "foursemi,fs1816"
+
+  - reg : The I2C address of the device
+
+  - intz-gpios : INTZ pin of the device
+  NOTE: INTZ pin must be hiZ/bias-disabled
+  when the machine powers up
+
+  - fs,rx_channel : Select input channel
+  left: 1, right: 2, mono: 3(default)
+
+  - fs,rx_volume : Playback digital volume
+  gain=(1023-vol)*-0.09375dB, 1023 as default, range: 0~1023
+
+Optional properties:
+
+  - sound-name-prefix : string using as prefix for the sink/source names of
+  the component, it's an optional property for multi-device application.
+  For example:
+  sound-name-prefix = "SPKx"; // x=spkr-id
+
+Example:
+
+fs1816@34 {
+	compatible = "foursemi,fs1816";
+	reg = <0x34>;
+	intz-gpios = <&tlmm xxx 0>;
+	fs,rx_channel = <3>;
+	fs,rx_volume = <1023>;
+	status = "ok";
+};
