@@ -1271,11 +1271,13 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	get_b_info(v->data_dev->name);
 #endif
 
+#ifdef CONFIG_DM_ANDROID_VERITY_AT_MOST_ONCE_DEFAULT_ENABLED
 	if (!v->validated_blocks) {
 		r = verity_alloc_most_once(v);
 		if (r)
 			goto bad;
 	}
+#endif
 
 	/* Root hash signature is  a optional parameter*/
 	r = verity_verify_root_hash(root_hash_digest_to_validate,

@@ -220,8 +220,12 @@ int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 	/* If use CIS_GLOBAL_WORK feature,
 	 * cis global setting need to start after other peri initialize finished
 	 */
-	if (IS_ENABLED(USE_CIS_GLOBAL_WORK) && device->pdata->scenario == SENSOR_SCENARIO_NORMAL)
-		schedule_work(&sensor_peri->cis.global_setting_work);
+	if (IS_ENABLED(USE_CIS_GLOBAL_WORK) && device->pdata->scenario == SENSOR_SCENARIO_NORMAL) {
+		if (sensor_peri->cis.global_setting_work_q != NULL)
+			queue_work(sensor_peri->cis.global_setting_work_q, &sensor_peri->cis.global_setting_work);
+		else
+			schedule_work(&sensor_peri->cis.global_setting_work);
+	}
 
 	pr_info("[MOD:%s] %s(%d)\n", module->sensor_name, __func__, val);
 

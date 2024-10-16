@@ -64,6 +64,9 @@ static void get_ems_frame_cnt(u64 *cnt, ktime_t *time)
 {
 	const struct exynos_migov *migov = primary_exynos_crtc->migov;
 
+	if (unlikely(!migov))
+		return;
+
 	*cnt = migov->ems_frame_cnt;
 	*time = migov->ems_frame_cnt_time;
 }
@@ -71,6 +74,9 @@ static void get_ems_frame_cnt(u64 *cnt, ktime_t *time)
 static void get_ems_fence_cnt(u64 *cnt, ktime_t *time)
 {
 	const struct exynos_migov *migov = primary_exynos_crtc->migov;
+
+	if (unlikely(!migov))
+		return;
 
 	*cnt = migov->ems_fence_cnt;
 	*time = migov->ems_fence_cnt_time;

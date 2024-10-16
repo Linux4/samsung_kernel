@@ -16,16 +16,23 @@
 
 #define IMX882_SETUP_MODE_SELECT_ADDR      (0x0100)
 #define IMX882_GROUP_PARAM_HOLD_ADDR       (0x0104)
-#define IMX882_EBD_CONTROL_ADDR            (0x3960)
+#define IMX882_EBD_CONTROL_ADDR            (0x3970)
 #define IMX882_ABS_GAIN_GR_SET_ADDR        (0x0B8E)
 
-/* Related Function Option */
-//#define SENSOR_IMX882_WRITE_SENSOR_CAL            (1)
+#define CIS_QSC_CAL     1
+#define CIS_SPC_CAL     1
 
-/* Related EEPROM CAL */
-#define IMX882_QSC_BASE_REAR     (0x01D0)
+#if IS_ENABLED(CIS_QSC_CAL)
+#define IMX882_QSC_CAL_ADDR      (0x01A0)
+#define IMX882_QSC_ADDR          (0xC000)
 #define IMX882_QSC_SIZE          (3072)
-#define IMX882_QSC_ADDR          (0xC800)
+#endif
+#if IS_ENABLED(CIS_SPC_CAL)
+#define IMX882_SPC_CAL_ADDR      (0x0DA0)
+#define IMX882_SPC_CAL_SIZE      (384)
+#define IMX882_SPC_1ST_ADDR      (0xD200)
+#define IMX882_SPC_2ND_ADDR      (0xD300)
+#endif
 
 #define IMX882_REMOSAIC_ZOOM_RATIO_X_2	20	/* x2.0 = 20 */
 
@@ -53,7 +60,19 @@
  */
 
 enum sensor_imx882_mode_enum {
-	SENSOR_IMX882_4080X3060_30FPS,
+	SENSOR_IMX882_VBIN_4080X3060_30FPS = 0,
+	SENSOR_IMX882_VBIN_4080X2296_30FPS,
+	SENSOR_IMX882_QBIN_4080X2296_60FPS,
+	SENSOR_IMX882_FULL_8160X6120_15FPS,
+	SENSOR_IMX882_FULL_8160X4592_15FPS,
+	SENSOR_IMX882_VBIN_V2H2_2040X1532_30FPS,
+	SENSOR_IMX882_VBIN_V2H2_2040X1532_120FPS,
+	SENSOR_IMX882_VBIN_V2H2_2040X1148_120FPS,
+	SENSOR_IMX882_VBIN_V2H2_2040X1148_240FPS,
+	SENSOR_IMX882_FULL_CROP_4080X3060_30FPS,
+	SENSOR_IMX882_FULL_CROP_4080X2296_30FPS,
+	SENSOR_IMX882_VBIN_4080X3060_30FPS_R12,
+	SENSOR_IMX882_VBIN_4080X2296_30FPS_R12,
 	SENSOR_IMX882_MODE_MAX,
 };
 
@@ -65,15 +84,20 @@ enum sensor_imx882_mode_group_enum {
 };
 u32 sensor_imx882_mode_groups[SENSOR_IMX882_MODE_MODE_GROUP_MAX];
 
+const u32 sensor_imx882_rms_binning_ratio[SENSOR_IMX882_MODE_MAX] = {
+	[SENSOR_IMX882_FULL_CROP_4080X3060_30FPS] = 1000,
+	[SENSOR_IMX882_FULL_CROP_4080X2296_30FPS] = 1000,
+};
+
 struct sensor_imx882_private_data {
 	const struct sensor_regs global;
 };
 
 static const struct sensor_reg_addr sensor_imx882_reg_addr = {
 	.fll = 0x0340,
-	.fll_shifter = 0, /* not supported */
+	.fll_shifter = 0x3161,
 	.cit = 0x0202,
-	.cit_shifter = 0x3128,
+	.cit_shifter = 0x3160,
 	.again = 0x0204,
 	.dgain = 0x020E,
 	.group_param_hold = 0x0104,

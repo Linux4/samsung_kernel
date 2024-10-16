@@ -134,6 +134,31 @@ int sensor_cis_write_registers(struct v4l2_subdev *subdev, const struct sensor_r
 			burst_num = 1;
 			break;
 
+		case IXC_MODE_BURST_DATA_8BIT:
+			index_next = i + IXC_NEXT + IXC_BYTE;
+			if ((index_next < regset.size) && (regset.regs[index_next] == IXC_MODE_BURST_DATA_8BIT)) {
+				burst_num++;
+				break;
+			}
+
+			burst_data = vmalloc(burst_num);
+			start_data = index_str + IXC_NEXT;
+			for (j = 0; j < burst_num; j++) {
+				burst_data[j] = regset.regs[j * IXC_NEXT + start_data];
+			}
+			ret = cis->ixc_ops->write8_sequential(client,
+				regset.regs[index_str], burst_data, burst_num);
+
+			if (ret < 0) {
+				err("write8_sequential(burst) fail, ret(%d), addr(%#x), data(%#x)",
+						ret, regset.regs[index_str], burst_data[0]);
+				vfree(burst_data);
+				goto p_err;
+			}
+			vfree(burst_data);
+			burst_num = 1;
+			break;
+
 		case IXC_MODE_DELAY_16BIT:
 			delay_time = (regset.regs[i + IXC_ADDR] * 1000) + regset.regs[i + IXC_DATA];
 			usleep_range(delay_time, delay_time + 10);
@@ -746,7 +771,7 @@ int sensor_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *ta
 	min_fine_int = cis_data->min_fine_integration_time;
 
 	cit_long = ((target_exposure->long_val * pclk_khz) / 1000 - min_fine_int) / line_length_pck;
-	cit_long = ALIGN_DOWN(cit_long, mode_info->align_cit);
+	cit_long = ALIGN_DOWN(cit_long - mode_info->align_offset_cit, mode_info->align_cit) + mode_info->align_offset_cit;
 	if (cit_long < cis_data->min_coarse_integration_time) {
 		dbg_sensor(1, "%s [%d][%s] vsync_cnt(%d), cit_long(%d) min(%d)\n",
 			__func__, cis->id, cis->sensor_info->name,
@@ -755,7 +780,7 @@ int sensor_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *ta
 	}
 
 	cit_short = ((target_exposure->short_val * pclk_khz) / 1000 - min_fine_int) / line_length_pck;
-	cit_short = ALIGN_DOWN(cit_short, mode_info->align_cit);
+	cit_short = ALIGN_DOWN(cit_short - mode_info->align_offset_cit, mode_info->align_cit) + mode_info->align_offset_cit;
 	if (cit_short < cis_data->min_coarse_integration_time) {
 		dbg_sensor(1, "%s [%d][%s] vsync_cnt(%d), cit_short(%d) min(%d)\n",
 			__func__, cis->id, cis->sensor_info->name,
@@ -877,8 +902,8 @@ int sensor_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max_expo)
 	frame_length_lines = cis_data->frame_length_lines;
 
 	max_coarse_margin = cis_data->max_margin_coarse_integration_time;
-	max_fine_margin = line_length_pck - cis_data->min_fine_integration_time;
-	max_coarse = frame_length_lines - max_coarse_margin;
+	max_fine_margin = ZERO_IF_NEG(line_length_pck - cis_data->min_fine_integration_time);
+	max_coarse = ZERO_IF_NEG(frame_length_lines - max_coarse_margin);
 	max_fine = cis_data->max_fine_integration_time;
 
 	max_integ_time = (u32)((u64)((line_length_pck * max_coarse) + max_fine) * 1000 / pclk_khz);
@@ -957,6 +982,8 @@ int sensor_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration
 	u32 line_length_pck = 0;
 	u16 frame_length_lines = 0;
 	u8 fll_shifter = 0;
+	const struct sensor_cis_mode_info *mode_info;
+	u32 mode;
 
 	WARN_ON(!subdev);
 
@@ -972,7 +999,16 @@ int sensor_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration
 		goto p_err;
 	}
 
+	if (!cis->sensor_info) {
+		err("sensor_info is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	cis_data = cis->cis_data;
+
+	mode = cis_data->sens_config_index_cur;
+	mode_info = cis->sensor_info->mode_infos[mode];
 
 	if (cis->long_term_mode.sen_strm_off_on_enable == false) {
 		if (frame_duration < cis_data->min_frame_us_time) {
@@ -1006,10 +1042,15 @@ int sensor_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration
 	if (cis->cis_data->cur_hdr_mode == SENSOR_HDR_MODE_2AEB_2VC) {
 		frame_duration /= 2;
 		frame_length_lines = (u16)((pclk_khz * frame_duration) / (line_length_pck * 1000));
+		if (mode_info->align_fll > 1)
+			frame_length_lines = ALIGN_UP(frame_length_lines, mode_info->align_fll);
 
 		ret |= cis->ixc_ops->write16(client, cis->reg_addr->fll_aeb_long, frame_length_lines);
 		ret |= cis->ixc_ops->write16(client, cis->reg_addr->fll_aeb_short, frame_length_lines);
 	} else {
+		if (mode_info->align_fll > 1)
+			frame_length_lines = ALIGN_UP(frame_length_lines, mode_info->align_fll);
+
 		ret |= cis->ixc_ops->write16(client, cis->reg_addr->fll, frame_length_lines);
 
 		if (cis->long_term_mode.sen_strm_off_on_enable == false
@@ -1237,6 +1278,8 @@ int sensor_cis_get_min_analog_gain(struct v4l2_subdev *subdev, u32 *min_again)
 	int ret = 0;
 	struct is_cis *cis;
 	cis_shared_data *cis_data;
+	const struct sensor_cis_mode_info *mode_info;
+	u32 mode;
 
 	WARN_ON(!subdev);
 	WARN_ON(!min_again);
@@ -1247,7 +1290,14 @@ int sensor_cis_get_min_analog_gain(struct v4l2_subdev *subdev, u32 *min_again)
 	WARN_ON(!cis->cis_data);
 
 	cis_data = cis->cis_data;
-	cis_data->min_analog_gain[0] = cis->sensor_info->min_analog_gain;
+	mode = cis_data->sens_config_index_cur;
+	mode_info = cis->sensor_info->mode_infos[mode];
+
+	if (mode_info->use_mode_analog_gain)
+		cis_data->min_analog_gain[0] = mode_info->min_analog_gain;
+	else
+		cis_data->min_analog_gain[0] = cis->sensor_info->min_analog_gain;
+
 	cis_data->min_analog_gain[1] = CALL_CISOPS(cis, cis_calc_again_permile, cis_data->min_analog_gain[0]);
 
 	*min_again = cis_data->min_analog_gain[1];
@@ -1474,7 +1524,7 @@ int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 
 	u64 pclk_khz = 0;
 	u32 llp = 0;
 	u32 min_fine_int = 0;
-	u16 cit = 0;
+	u32 cit = 0;
 	u32 again_input, again_comp = 0;
 	u32 dgain_input, dgain_comp = 0;
 	u16 cit_compensation_threshold = 15; /* default value for legacy driver */
@@ -1508,8 +1558,8 @@ int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 
 	if (cis->sensor_info) {
 		mode = cis_data->sens_config_index_cur;
 		mode_info = cis->sensor_info->mode_infos[mode];
-		cit = ALIGN_DOWN(cit, mode_info->align_cit);
-		cit_compensation_threshold = cis->sensor_info->cit_compensation_threshold * mode_info->align_cit;
+		cit = ALIGN_DOWN(cit - mode_info->align_offset_cit, mode_info->align_cit) + mode_info->align_offset_cit;
+		cit_compensation_threshold = cis->sensor_info->cit_compensation_threshold * mode_info->align_cit + mode_info->align_offset_cit;
 	}
 
 	if (cit < cis_data->min_coarse_integration_time) {
@@ -1616,7 +1666,7 @@ int sensor_cis_get_mode_info(struct v4l2_subdev *subdev, u32 mode, struct is_sen
 
 	/* calculate max_expo */
 	max_coarse_margin = max_margin_coarse_integration_time;
-	max_coarse = fll - max_coarse_margin;
+	max_coarse = ZERO_IF_NEG(fll - max_coarse_margin);
 	max_fine = max_fine_integration_time;
 
 	/* calculate min_expo */

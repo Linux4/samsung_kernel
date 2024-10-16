@@ -14,6 +14,7 @@
 #include "ufshcd.h"
 #include "ufshci.h"
 
+#include <linux/notifier.h>
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
@@ -112,9 +113,13 @@ struct ufs_sec_feature_info {
 	struct ufs_sec_wb_info *ufs_wb_backup;
 	struct ufs_sec_err_info *ufs_err;
 	struct ufs_sec_err_info *ufs_err_backup;
+	struct ufs_sec_err_info *ufs_err_hist;
 #if IS_ENABLED(CONFIG_SEC_UFS_CMD_LOGGING)
 	struct ufs_sec_cmd_log_info *ufs_cmd_log;
 #endif
+
+	struct notifier_block reboot_notify;
+	struct delayed_work noti_work;
 
 	u32 ext_ufs_feature_sup;
 
@@ -125,6 +130,8 @@ struct ufs_sec_feature_info {
 	enum dev_cmd_type qcmd_type;
 	bool qcmd_complete;
 };
+
+extern struct device *sec_ufs_cmd_dev;
 
 /* call by vendor module */
 void ufs_sec_config_features(struct ufs_hba *hba);
@@ -146,5 +153,5 @@ void ufs_sec_inc_op_err(struct ufs_hba *hba, enum ufs_event_type evt, void *data
 void ufs_sec_init_logging(struct device *dev);
 void ufs_sec_check_device_stuck(void);
 inline bool ufs_sec_is_cmd_log_allowed(void);
-
+void ufs_sec_print_err(void);
 #endif

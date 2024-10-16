@@ -442,6 +442,8 @@ struct xhci_device_context_array *xhci_exynos_alloc_dcbaa(struct xhci_hcd *xhci,
 			xhci->dcbaa->dev_context_ptrs[i] = 0x0;
 
 		xhci->dcbaa->dma = EXYNOS_URAM_DCBAA_ADDR;
+
+		g_hwinfo->need_first_probe = true;
 	} else
 		xhci_info(xhci, "URAM qurik is not set! Please check it\n");
 

@@ -1399,8 +1399,12 @@ static int __exynos_ufs_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 		return 0;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
 	if (hba->shutting_down)
 		ufs_sec_print_err_info(hba);
+	else
+		ufs_sec_print_err();
+#endif
 
 	if (ufs->always_on && !hba->shutting_down) {
 		/*

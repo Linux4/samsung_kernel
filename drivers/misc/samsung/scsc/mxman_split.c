@@ -854,7 +854,7 @@ static bool send_fw_config_to_active_mxman(uint32_t fw_runtime_flags, enum scsc_
 
 	mutex_lock(&active_mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(active_mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && (srvman->error != ALLOWED_START_STOP)) {
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		goto error;
 	}
@@ -893,7 +893,7 @@ static bool send_syserr_cmd_to_active_mxman(u32 syserr_cmd)
 
 	mutex_lock(&active_mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(active_mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && (srvman->error != ALLOWED_START_STOP)) {
 		mutex_unlock(&active_mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return ret;
@@ -2413,6 +2413,110 @@ static void mxman_close_on_start_failure(struct mxman *mxman, enum scsc_subsyste
 	}
 }
 
+/*
+ * When mxman_close called right after mxman_open failed,
+ * mutex_lock_nested can be happened. So we need a function
+ * do same thing like mxman_close without lock.
+ *
+ */
+
+static void mxman_close_without_lock(struct mxman *mxman, enum scsc_subsystem sub)
+{
+	struct srvman *srvman;
+	srvman = scsc_mx_get_srvman(mxman->mx);
+	if (srvman && !srvman_allow_close(srvman)) {
+		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
+		return;
+	}
+
+	SCSC_TAG_INFO(MXMAN, "mxman close sub = %d\n", sub);
+	SCSC_TAG_INFO(MXMAN, "mxman close %s subsystem\n", (sub == SCSC_SUBSYSTEM_WPAN) ? "WPAN" : "WLAN");
+	SCSC_TAG_INFO(MXMAN, "Mxman close current state %d users_wlan=%d users_wpan=%d\n", mxman->mxman_state, mxman->users, mxman->users_wpan);
+	switch (mxman->mxman_state) {
+	case MXMAN_STATE_STARTED_WLAN:
+		if (sub == SCSC_SUBSYSTEM_WPAN) {
+			SCSC_TAG_ERR(MXMAN, "Invalid mxman state=%d\n", mxman->mxman_state);
+			return;
+		} else if (sub == SCSC_SUBSYSTEM_WLAN) {
+			if (--(mxman->users) == 0) {
+				mxman_stop(mxman, sub);
+				mxman->mxman_state = MXMAN_STATE_STOPPED;
+			}
+		}
+		break;
+	case MXMAN_STATE_STARTED_WPAN:
+		if (sub == SCSC_SUBSYSTEM_WLAN) {
+			SCSC_TAG_ERR(MXMAN, "Invalid mxman state=%d\n", mxman->mxman_state);
+			return;
+		} else if (sub == SCSC_SUBSYSTEM_WPAN) {
+			if (--(mxman->users_wpan) == 0) {
+				mxman_stop(mxman, sub);
+				mxman->mxman_state = MXMAN_STATE_STOPPED;
+			}
+		}
+		break;
+	case MXMAN_STATE_STARTED_WLAN_WPAN:
+		if (sub == SCSC_SUBSYSTEM_WLAN) {
+			if (--(mxman->users) == 0) {
+				mxman_stop(mxman, sub);
+				mxman->mxman_state = MXMAN_STATE_STARTED_WPAN;
+			}
+		} else if (sub == SCSC_SUBSYSTEM_WPAN) {
+			if (--(mxman->users_wpan) == 0) {
+				mxman_stop(mxman, sub);
+				mxman->mxman_state = MXMAN_STATE_STARTED_WLAN;
+			}
+		}
+		break;
+	case MXMAN_STATE_FAILED_PMU:
+		mxman->mxman_state = MXMAN_STATE_STOPPED;
+		break;
+	case MXMAN_STATE_FAILED_WLAN:
+		if (--(mxman->users) == 0) {
+			mxman_stop(mxman, sub);
+			if (mxman->users_wpan)
+				mxman->mxman_state = MXMAN_STATE_STARTED_WPAN;
+			else
+				mxman->mxman_state = MXMAN_STATE_STOPPED;
+		}
+		break;
+	case MXMAN_STATE_FAILED_WPAN:
+		if (--(mxman->users_wpan) == 0) {
+			mxman_stop(mxman, sub);
+			if (mxman->users)
+				mxman->mxman_state = MXMAN_STATE_STARTED_WLAN;
+			else
+				mxman->mxman_state = MXMAN_STATE_STOPPED;
+		}
+		break;
+	case MXMAN_STATE_FAILED_WLAN_WPAN:
+		if (sub == SCSC_SUBSYSTEM_WLAN) {
+			if (--(mxman->users) == 0) {
+				mxman_stop(mxman, sub);
+				mxman->mxman_state = MXMAN_STATE_FAILED_WPAN;
+			}
+		} else if (sub == SCSC_SUBSYSTEM_WPAN) {
+			if (--(mxman->users_wpan) == 0) {
+				mxman_stop(mxman, sub);
+				mxman->mxman_state = MXMAN_STATE_FAILED_WLAN;
+			}
+		}
+		break;
+	default:
+		/* this state is an anomaly */
+		SCSC_TAG_ERR(MXMAN, "Invalid mxman state=%d\n", mxman->mxman_state);
+		return;
+	}
+
+	if (mxman->users || mxman->users_wpan) {
+		SCSC_TAG_INFO(MXMAN, "Current number of users_wlan=%d users_wpan=%d\n", mxman->users, mxman->users_wpan);
+		return;
+	}
+
+	/* For now reset chip only when we are shutting down last service on last active subsystem */
+	mxman_reset_chip(mxman);
+}
+
 static int __mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data, size_t data_sz)
 {
 	int ret;
@@ -2562,7 +2666,7 @@ int mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data, size_t 
 
 	SCSC_TAG_INFO(MXMAN, "Auto-recovery: %s\n", mxman_recovery_disabled() ? "off" : "on");
 	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && (srvman->error != ALLOWED_START_STOP)) {
 		mutex_unlock(&mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return -EINVAL;
@@ -2633,7 +2737,7 @@ int mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data, size_t 
 				mif->mif_cleanup(mif);
 
 			/* Stop WLBT */
-			mxman_close(mxman, sub);
+			mxman_close_without_lock(mxman, sub);
 
 			/* Select the new f/w for this hw ver */
 			mxman_select_next_fw(mxman);
@@ -2674,109 +2778,9 @@ int mxman_stop(struct mxman *mxman, enum scsc_subsystem sub)
 
 void mxman_close(struct mxman *mxman, enum scsc_subsystem sub)
 {
-	struct srvman *srvman;
-
 	mutex_lock(&mxman->mxman_mutex);
-	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && !srvman_allow_close(srvman)) {
-		mutex_unlock(&mxman->mxman_mutex);
-		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
-		return;
-	}
-
-	SCSC_TAG_INFO(MXMAN, "mxman close sub = %d\n", sub);
-	SCSC_TAG_INFO(MXMAN, "mxman close %s subsystem\n", sub ? "WPAN" : "WLAN");
-	SCSC_TAG_INFO(MXMAN, "Mxman close current state %d users_wlan=%d users_wpan=%d\n", mxman->mxman_state, mxman->users, mxman->users_wpan);
-	switch (mxman->mxman_state) {
-	case MXMAN_STATE_STARTED_WLAN:
-		if (sub == SCSC_SUBSYSTEM_WPAN) {
-			SCSC_TAG_ERR(MXMAN, "Invalid mxman state=%d\n", mxman->mxman_state);
-			goto err_wpan_not_exists;
-		} else if (sub == SCSC_SUBSYSTEM_WLAN) {
-			if (--(mxman->users) == 0) {
-				mxman_stop(mxman, sub);
-				mxman->mxman_state = MXMAN_STATE_STOPPED;
-			}
-		}
-		break;
-	case MXMAN_STATE_STARTED_WPAN:
-		if (sub == SCSC_SUBSYSTEM_WLAN) {
-			SCSC_TAG_ERR(MXMAN, "Invalid mxman state=%d\n", mxman->mxman_state);
-			goto err_wlan_not_exists;
-		} else if (sub == SCSC_SUBSYSTEM_WPAN) {
-			if (--(mxman->users_wpan) == 0) {
-				mxman_stop(mxman, sub);
-				mxman->mxman_state = MXMAN_STATE_STOPPED;
-			}
-		}
-		break;
-	case MXMAN_STATE_STARTED_WLAN_WPAN:
-		if (sub == SCSC_SUBSYSTEM_WLAN) {
-			if (--(mxman->users) == 0) {
-				mxman_stop(mxman, sub);
-				mxman->mxman_state = MXMAN_STATE_STARTED_WPAN;
-			}
-		} else if (sub == SCSC_SUBSYSTEM_WPAN) {
-			if (--(mxman->users_wpan) == 0) {
-				mxman_stop(mxman, sub);
-				mxman->mxman_state = MXMAN_STATE_STARTED_WLAN;
-			}
-		}
-		break;
-	case MXMAN_STATE_FAILED_PMU:
-		mxman->mxman_state = MXMAN_STATE_STOPPED;
-		break;
-	case MXMAN_STATE_FAILED_WLAN:
-		if (--(mxman->users) == 0) {
-			mxman_stop(mxman, sub);
-			if (mxman->users_wpan)
-				mxman->mxman_state = MXMAN_STATE_STARTED_WPAN;
-			else
-				mxman->mxman_state = MXMAN_STATE_STOPPED;
-		}
-		break;
-	case MXMAN_STATE_FAILED_WPAN:
-		if (--(mxman->users_wpan) == 0) {
-			mxman_stop(mxman, sub);
-			if (mxman->users)
-				mxman->mxman_state = MXMAN_STATE_STARTED_WLAN;
-			else
-				mxman->mxman_state = MXMAN_STATE_STOPPED;
-		}
-		break;
-	case MXMAN_STATE_FAILED_WLAN_WPAN:
-		if (sub == SCSC_SUBSYSTEM_WLAN) {
-			if (--(mxman->users) == 0) {
-				mxman_stop(mxman, sub);
-				mxman->mxman_state = MXMAN_STATE_FAILED_WPAN;
-			}
-		} else if (sub == SCSC_SUBSYSTEM_WPAN) {
-			if (--(mxman->users_wpan) == 0) {
-				mxman_stop(mxman, sub);
-				mxman->mxman_state = MXMAN_STATE_FAILED_WLAN;
-			}
-		}
-		break;
-	default:
-		/* this state is an anomaly */
-		SCSC_TAG_ERR(MXMAN, "Invalid mxman state=%d\n", mxman->mxman_state);
-		goto error;
-		break;
-	}
-
-	if (mxman->users || mxman->users_wpan) {
-		SCSC_TAG_INFO(MXMAN, "Current number of users_wlan=%d users_wpan=%d\n", mxman->users, mxman->users_wpan);
-		mutex_unlock(&mxman->mxman_mutex);
-		return;
-	}
-
-	/* For now reset chip only when we are shutting down last service on last active subsystem */
-	mxman_reset_chip(mxman);
-err_wpan_not_exists:
-err_wlan_not_exists:
-error:
+	mxman_close_without_lock(mxman, sub);
 	mutex_unlock(&mxman->mxman_mutex);
-	return;
 }
 
 void mxman_syserr(struct mxman *mxman, struct mx_syserr_decode *syserr)
@@ -3092,7 +3096,7 @@ int mxman_force_panic(struct mxman *mxman, enum scsc_subsystem sub)
 
 	mutex_lock(&mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && (srvman->error != ALLOWED_START_STOP)) {
 		mutex_unlock(&mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return -EINVAL;
@@ -3145,7 +3149,7 @@ int mxman_suspend(struct mxman *mxman)
 	mutex_lock(&mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(mxman->mx);
 
-	if (srvman && srvman->error) {
+	if (srvman && (srvman->error != ALLOWED_START_STOP)) {
 		mutex_unlock(&mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return 0;
@@ -3202,7 +3206,7 @@ void mxman_resume(struct mxman *mxman)
 
 	mutex_lock(&mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && (srvman->error != ALLOWED_START_STOP)) {
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		mutex_unlock(&mxman->mxman_mutex);
 		return;
@@ -3392,7 +3396,7 @@ int mxman_lerna_send(struct mxman *mxman, void *message, u32 message_size)
 
 	mutex_lock(&active_mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(active_mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && (srvman->error != ALLOWED_START_STOP)) {
 		mutex_unlock(&active_mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Lerna configuration called during error - ignore\n");
 		return 0;

@@ -1869,7 +1869,7 @@
 			};
 		};
 
-		camss@1b00000 {
+		camss@1b0ac00 {
 			compatible = "qcom,msm8916-camss";
 			reg = <0x1b0ac00 0x200 0x1b00030 0x04 0x1b0b000 0x200 0x1b00038 0x04 0x1b08000 0x100 0x1b08400 0x100 0x1b0a000 0x500 0x1b00020 0x10 0x1b10000 0x1000>;
 			reg-names = "csiphy0\0csiphy0_clk_mux\0csiphy1\0csiphy1_clk_mux\0csid0\0csid1\0ispif\0csi_clk_mux\0vfe0";
@@ -2702,6 +2702,7 @@
 					compatible = "qcom,wcnss";
 					qcom,smd-channels = "WCNSS_CTRL";
 					qcom,mmio = <0x89>;
+					phandle = <0xee>;
 
 					bt {
 						compatible = "qcom,wcnss-bt";
@@ -2822,7 +2823,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0xee>;
+					phandle = <0xef>;
 				};
 			};
 
@@ -2853,7 +2854,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0xef>;
+					phandle = <0xf0>;
 				};
 			};
 
@@ -2877,14 +2878,14 @@
 					temperature = <0x124f8>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xf0>;
+					phandle = <0xf1>;
 				};
 
 				gpu_crit {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0xf1>;
+					phandle = <0xf2>;
 				};
 			};
 		};
@@ -2900,7 +2901,7 @@
 					temperature = <0x124f8>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0xf2>;
+					phandle = <0xf3>;
 				};
 			};
 		};
@@ -2916,7 +2917,7 @@
 					temperature = <0x14c08>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0xf3>;
+					phandle = <0xf4>;
 				};
 			};
 		};
@@ -3164,7 +3165,7 @@
 		dsi0_in = "/soc/mdss@1a00000/dsi@1a98000/ports/port@0/endpoint";
 		dsi0_out = "/soc/mdss@1a00000/dsi@1a98000/ports/port@1/endpoint";
 		dsi_phy0 = "/soc/mdss@1a00000/dsi-phy@1a98300";
-		camss = "/soc/camss@1b00000";
+		camss = "/soc/camss@1b0ac00";
 		cci = "/soc/cci@1b0c000";
 		cci_i2c0 = "/soc/cci@1b0c000/i2c-bus@0";
 		gpu_opp_table = "/soc/gpu@1c00000/opp-table";
@@ -3207,6 +3208,7 @@
 		usb = "/soc/usb@78d9000";
 		usb_hs_phy = "/soc/usb@78d9000/ulpi/phy";
 		pronto = "/soc/remoteproc@a21b000";
+		wcnss_ctrl = "/soc/remoteproc@a21b000/smd-edge/wcnss";
 		intc = "/soc/interrupt-controller@b000000";
 		apcs = "/soc/mailbox@b011000";
 		a53pll = "/soc/clock@b016000";

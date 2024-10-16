@@ -44,13 +44,16 @@
 #define SENSOR_NAME "GC08A3"
 /* #define DEBUG_GC08A3_PLL */
 
-#define MAX_WAIT_STREAM_OFF_CNT (500)
+#define MAX_WAIT_STREAM_ON_CNT (100)
+#define MAX_WAIT_STREAM_OFF_CNT (100)
 
+#define GC08A3_ADDR_FRAME_COUNT                                 0x146
 #define GC08A3_OTP_ACCESS_ADDR_HIGH                             0xA69
 #define GC08A3_OTP_ACCESS_ADDR_LOW                              0xA6A
 #define GC08A3_OTP_READ_ADDR                                    0xA6C
 #define GC08A3_OTP_MODE_SEL_ADDR                                0x313
-#define GC08A3_READ_MODE                                        (1 << 5)
+#define GC08A3_READ_MODE                                         0x20
+#define GC08A3_OTP_ACC                                           0x12
 
 #define GC08A3_BANK_SELECT_ADDR                                 0x15A0
 #define GC08A3_OTP_START_ADDR_BANK1                             0x15C0
@@ -60,154 +63,23 @@
 #define GC08A3_OTP_USED_CAL_SIZE                                ((0x4A9F - 0x15C0 + 0x1) / 8)
 
 /*************************************************
- *  [GC08A3 Analog gain formular]
+ *  [GC08A3 Analog / Digital gain formular]
  *
- *  Analog Gain = (Reg value)/1024
+ *  Analog / Digital Gain = (Reg value) / 1024
  *
- *  Analog Gain Range = x1.0 to x16.0
+ *  Analog / Digital Gain Range = x1.0 to x16.0
  *
  *************************************************/
 
-u32 sensor_gc08a3_cis_calc_again_code(u32 permile)
+u32 sensor_gc08a3_cis_calc_gain_code(u32 permile)
 {
 	return ((permile * 1024) / 1000);
 }
 
-u32 sensor_gc08a3_cis_calc_again_permile(u32 code)
+u32 sensor_gc08a3_cis_calc_gain_permile(u32 code)
 {
 	return ((code * 1000 / 1024));
 }
-
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
-static const struct cam_mipi_sensor_mode *sensor_gc08a3_mipi_sensor_mode;
-static u32 sensor_gc08a3_mipi_sensor_mode_size;
-static const int *sensor_gc08a3_verify_sensor_mode;
-static int sensor_gc08a3_verify_sensor_mode_size;
-
-static int sensor_gc08a3_cis_set_mipi_clock(struct v4l2_subdev *subdev)
-{
-	int ret = 0;
-	struct is_cis *cis = sensor_cis_get_cis(subdev);
-	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
-	int mode = 0;
-
-	mode = cis->cis_data->sens_config_index_cur;
-
-	dbg_sensor(1, "%s : mipi_clock_index_cur(%d), new(%d)\n", __func__,
-		cis->mipi_clock_index_cur, cis->mipi_clock_index_new);
-
-	if (mode >= sensor_gc08a3_mipi_sensor_mode_size) {
-		err("sensor mode is out of bound");
-		return -1;
-	}
-
-	if (cis->mipi_clock_index_cur != cis->mipi_clock_index_new
-		&& cis->mipi_clock_index_new >= 0) {
-		cur_mipi_sensor_mode = &sensor_gc08a3_mipi_sensor_mode[mode];
-
-		if (cur_mipi_sensor_mode->sensor_setting == NULL) {
-			dbg_sensor(1, "no mipi setting for current sensor mode\n");
-		} else if (cis->mipi_clock_index_new < cur_mipi_sensor_mode->sensor_setting_size) {
-			info("%s: change mipi clock [%d %d]\n", __func__, mode, cis->mipi_clock_index_new);
-			sensor_cis_set_registers(subdev,
-				cur_mipi_sensor_mode->sensor_setting[cis->mipi_clock_index_new].setting,
-				cur_mipi_sensor_mode->sensor_setting[cis->mipi_clock_index_new].setting_size);
-
-			cis->mipi_clock_index_cur = cis->mipi_clock_index_new;
-		} else {
-			err("sensor setting index is out of bound %d %d",
-				cis->mipi_clock_index_new, cur_mipi_sensor_mode->sensor_setting_size);
-		}
-	}
-
-	return ret;
-}
-
-static int sensor_gc08a3_cis_update_mipi_info(struct v4l2_subdev *subdev)
-{
-	struct is_cis *cis = sensor_cis_get_cis(subdev);
-	struct is_device_sensor *device;
-	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
-	int found = -1;
-
-	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
-	if (device == NULL) {
-		err("device is NULL");
-		return -1;
-	}
-
-	if (device->cfg->mode >= sensor_gc08a3_mipi_sensor_mode_size) {
-		err("sensor mode is out of bound");
-		return -1;
-	}
-
-	cur_mipi_sensor_mode = &sensor_gc08a3_mipi_sensor_mode[device->cfg->mode];
-
-	if (cur_mipi_sensor_mode->mipi_channel_size == 0 ||
-		cur_mipi_sensor_mode->mipi_channel == NULL) {
-		dbg_sensor(1, "skip select mipi channel\n");
-		return -1;
-	}
-
-	found = is_vendor_select_mipi_by_rf_channel(cur_mipi_sensor_mode->mipi_channel,
-				cur_mipi_sensor_mode->mipi_channel_size);
-	if (found != -1) {
-		if (found < cur_mipi_sensor_mode->sensor_setting_size) {
-			device->cfg->mipi_speed = cur_mipi_sensor_mode->sensor_setting[found].mipi_rate;
-			cis->mipi_clock_index_new = found;
-			info("%s - update mipi rate : %d\n", __func__, device->cfg->mipi_speed);
-		} else {
-			err("sensor setting size is out of bound");
-		}
-	}
-
-	return 0;
-}
-
-static int sensor_gc08a3_cis_get_mipi_clock_string(struct v4l2_subdev *subdev, char *cur_mipi_str)
-{
-	struct is_cis *cis = sensor_cis_get_cis(subdev);;
-	struct is_device_sensor *device;
-	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
-	int mode = 0;
-
-	cur_mipi_str[0] = '\0';
-
-	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
-	if (device == NULL) {
-		err("device is NULL");
-		return -1;
-	}
-
-	if (cis->cis_data->stream_on) {
-		mode = cis->cis_data->sens_config_index_cur;
-
-		if (mode >= sensor_gc08a3_mipi_sensor_mode_size) {
-			err("sensor mode is out of bound");
-			return -1;
-		}
-
-		cur_mipi_sensor_mode = &sensor_gc08a3_mipi_sensor_mode[mode];
-
-		if (cur_mipi_sensor_mode->sensor_setting_size == 0 ||
-			cur_mipi_sensor_mode->sensor_setting == NULL) {
-			err("sensor_setting is not available");
-			return -1;
-		}
-
-		if (cis->mipi_clock_index_new < 0 ||
-			cur_mipi_sensor_mode->sensor_setting[cis->mipi_clock_index_new].str_mipi_clk == NULL) {
-			err("mipi_clock_index_new is not available");
-			return -1;
-		}
-
-		sprintf(cur_mipi_str, "%s",
-			cur_mipi_sensor_mode->sensor_setting[cis->mipi_clock_index_new].str_mipi_clk);
-	}
-
-	return 0;
-}
-#endif
 
 /* CIS OPS */
 int sensor_gc08a3_cis_init(struct v4l2_subdev *subdev)
@@ -229,6 +101,8 @@ int sensor_gc08a3_cis_init(struct v4l2_subdev *subdev)
 
 	CALL_CISOPS(cis, cis_data_calculation, subdev, cis->cis_data->sens_config_index_cur);
 
+	is_vendor_set_mipi_mode(cis);
+
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
@@ -238,12 +112,13 @@ int sensor_gc08a3_cis_init(struct v4l2_subdev *subdev)
 static const struct is_cis_log log_gc08a3[] = {
 	{I2C_READ, 16, 0x0000, 0, "model_id"},
 	{I2C_READ, 8, 0x0002, 0, "rev_number"},
-	{I2C_READ, 8, 0x0005, 0, "frame_count"},
+	{I2C_READ, 16, GC08A3_ADDR_FRAME_COUNT, 0, "frame_count"},
 	{I2C_READ, 8, 0x0100, 0, "mode_select"},
 	{I2C_READ, 16, 0x0136, 0, ""},
 	{I2C_READ, 16, 0x0202, 0, "cit"},
 	{I2C_READ, 16, 0x0204, 0, "again"},
 	{I2C_READ, 16, 0x0340, 0, "fll"},
+	{I2C_READ, 16, 0x0342, 0, "llp"},
 	{I2C_READ, 8, 0x3C02, 0, ""},
 	{I2C_READ, 8, 0x3C03, 0, ""},
 	{I2C_READ, 8, 0x3C05, 0, ""},
@@ -266,13 +141,13 @@ int sensor_gc08a3_cis_set_global_setting(struct v4l2_subdev *subdev)
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 	struct sensor_gc08a3_private_data *priv = (struct sensor_gc08a3_private_data *)cis->sensor_info->priv;
 
-	dbg_sensor(1, "[%s] start\n", __func__);
+	info("[%s] start\n", __func__);
 
 	ret = sensor_cis_write_registers_locked(subdev, priv->global);
 	if (ret < 0)
 		err("global setting fail!!");
 
-	info("[%s] global setting done\n", __func__);
+	info("[%s] done\n", __func__);
 
 	return ret;
 }
@@ -283,12 +158,14 @@ int sensor_gc08a3_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	const struct sensor_cis_mode_info *mode_info;
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 
-	if (mode > cis->sensor_info->mode_count) {
+	if (mode >= cis->sensor_info->mode_count) {
 		err("invalid mode(%d)!!", mode);
 		return -EINVAL;
 	}
 
 	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+
+	info("[%s] sensor mode(%d)\n", __func__, mode);
 
 	mode_info = cis->sensor_info->mode_infos[mode];
 
@@ -320,13 +197,12 @@ int sensor_gc08a3_cis_stream_on(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
-	sensor_gc08a3_cis_set_mipi_clock(subdev);
-#endif
+	is_vendor_set_mipi_clock(device);
 
 #ifdef DEBUG_GC08A3_PLL
 	{
 	u16 pll;
+	IXC_MUTEX_LOCK(cis->ixc_lock);
 	cis->ixc_ops->read16(cis->client, 0x0300, &pll);
 	dbg_sensor(1, "______ vt_pix_clk_div(%x)\n", pll);
 	cis->ixc_ops->read16(cis->client, 0x0302, &pll);
@@ -348,11 +224,17 @@ int sensor_gc08a3_cis_stream_on(struct v4l2_subdev *subdev)
 	dbg_sensor(1, "______ frame_length_lines(%x)\n", pll);
 	cis->ixc_ops->read16(cis->client, 0x0342, &pll);
 	dbg_sensor(1, "______ line_length_pck(%x)\n", pll);
+	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 	}
 #endif
 
 	/* first frame should be delayed */
-	msleep(50);
+	/* To resolve blinking issue */
+	if ((cis->cis_data->sens_config_index_cur == SENSOR_GC08A3_1632X1224_60FPS)
+		|| (cis_data->is_data.scene_mode == AA_SCENE_MODE_PANORAMA)
+		|| (cis_data->is_data.scene_mode == AA_SCENE_MODE_SUPER_NIGHT)
+		|| IS_VIDEO_SCENARIO(device->ischain->setfile & IS_SETFILE_MASK))
+		msleep(30);
 
 	IXC_MUTEX_LOCK(cis->ixc_lock);
 	/* Sensor stream on */
@@ -379,8 +261,8 @@ int sensor_gc08a3_cis_stream_off(struct v4l2_subdev *subdev)
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
 	IXC_MUTEX_LOCK(cis->ixc_lock);
+	cis->ixc_ops->read16(cis->client, GC08A3_ADDR_FRAME_COUNT, &frame_count);
 	/* Sensor stream off */
-	cis->ixc_ops->read16(cis->client, 0x0146, &frame_count);
 	ret = cis->ixc_ops->write8(cis->client, 0x0100, 0x00);
 	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
@@ -394,50 +276,75 @@ int sensor_gc08a3_cis_stream_off(struct v4l2_subdev *subdev)
 	return ret;
 }
 
-int sensor_gc08a3_cis_wait_streamoff(struct v4l2_subdev *subdev)
+int sensor_gc08a3_cis_wait_streamon(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	u32 poll_time_ms = 0;
-	struct is_cis *cis = sensor_cis_get_cis(subdev);
+	u32 polling_cnt = 0;
+	struct is_cis *cis;
+	struct i2c_client *client;
 	cis_shared_data *cis_data;
+	u16 prev_frame_value = 0;
+	u16 cur_frame_value = 0;
+
+	FIMC_BUG(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	if (unlikely(!cis)) {
+		err("cis is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
 
 	cis_data = cis->cis_data;
+	if (unlikely(!cis_data)) {
+		err("cis_data is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
 
 	IXC_MUTEX_LOCK(cis->ixc_lock);
-	/* Checking stream off */
-	do {
-		u8 frame_counter_msb = 0;
-		u8 frame_counter_lsb = 0;
-
-		/* Sensor stream off */
-		ret = cis->ixc_ops->read8(cis->client, 0x146, &frame_counter_msb);
-		if (ret < 0) {
-			err("i2c transfer fail addr(%x) ret = %d\n", 0x146, ret);
-			goto p_err;
-		}
-
-		ret = cis->ixc_ops->read8(cis->client, 0x147, &frame_counter_lsb);
-		if (ret < 0) {
-			err("i2c transfer fail addr(%x) ret = %d\n", 0x147, ret);
-			goto p_err;
-		}
-
-		/* frame count == 0 when stream off */
-		if (frame_counter_msb == 0x00 && frame_counter_lsb == 0x00)
-			break;
-
-		usleep_range(1000, 1100);
-		poll_time_ms++;
-	} while (poll_time_ms < MAX_WAIT_STREAM_OFF_CNT);
-
-	if (poll_time_ms < MAX_WAIT_STREAM_OFF_CNT)
-		info("%s: finished after %d ms\n", __func__, poll_time_ms);
-	else
-		warn("%s: finished : polling timeout occured after %d ms\n", __func__, poll_time_ms);
-
-p_err:
+	ret = cis->ixc_ops->read16(client, GC08A3_ADDR_FRAME_COUNT, &prev_frame_value);
 	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
+	if (ret < 0) {
+		err("i2c transfer fail addr(%x), val(%x), ret = %d\n", GC08A3_ADDR_FRAME_COUNT, prev_frame_value, ret);
+		goto p_err;
+	}
+
+	/* Checking stream on */
+	do {
+		IXC_MUTEX_LOCK(cis->ixc_lock);
+		ret = cis->ixc_ops->read16(client, GC08A3_ADDR_FRAME_COUNT, &cur_frame_value);
+		IXC_MUTEX_UNLOCK(cis->ixc_lock);
+		if (ret < 0) {
+			err("i2c transfer fail addr(%x), val(%x), ret = %d\n", GC08A3_ADDR_FRAME_COUNT, cur_frame_value, ret);
+			break;
+		}
+
+		if (cur_frame_value != prev_frame_value)
+			break;
+
+		prev_frame_value = cur_frame_value;
+
+		usleep_range(2000, 2100);
+		polling_cnt++;
+		dbg_sensor(1, "[MOD:D:%d] %s, fcount(%d), (polling_cnt(%d) < MAX_WAIT_STREAM_ON_CNT(%d))\n",
+				cis->id, __func__, prev_frame_value, polling_cnt, MAX_WAIT_STREAM_ON_CNT);
+	} while (polling_cnt < MAX_WAIT_STREAM_ON_CNT);
+
+	if (polling_cnt < MAX_WAIT_STREAM_ON_CNT)
+		info("%s: finished after %d ms\n", __func__, polling_cnt);
+	else
+		warn("%s: finished : polling timeout occurred after %d ms\n", __func__, polling_cnt);
+
+p_err:
 	return ret;
 }
 
@@ -457,7 +364,7 @@ int sensor_gc08a3_cis_recover_stream_on(struct v4l2_subdev *subdev)
 	ret = sensor_gc08a3_cis_stream_on(subdev);
 	if (ret < 0)
 		goto p_err;
-	ret = sensor_cis_wait_streamon(subdev);
+	ret = sensor_gc08a3_cis_wait_streamon(subdev);
 	if (ret < 0)
 		goto p_err;
 
@@ -479,6 +386,7 @@ int sensor_gc08a3_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 	u8 start_addr_l = 0;
 	int index;
 
+	info("%s-E\n", __func__);
 	sensor_peri = container_of(cis, struct is_device_sensor_peri, cis);
 	rom_type = sensor_peri->module->pdata->rom_type;
 
@@ -486,14 +394,14 @@ int sensor_gc08a3_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 
 	/* 1. prepare to otp read : sensor initial settings */
 	if (camera_running == false) {
-		ret = sensor_gc08a3_cis_set_global_setting(subdev);
+		ret = cis->ixc_ops->write8(cis->client, 0x031C, 0x60);
+		ret |= cis->ixc_ops->write8(cis->client, 0x0315, 0x80);
 		if (ret < 0) {
-			err("global setting fail!!");
-			return -EINVAL;
+			err("initial setting fail for OTP!!");
+			ret = -EINVAL;
+			goto exit;
 		}
 	}
-
-	IXC_MUTEX_LOCK(cis->ixc_lock);
 
 	ret = sensor_cis_write_registers(subdev, priv->otprom_init);
 	if (ret < 0) {
@@ -502,15 +410,18 @@ int sensor_gc08a3_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 		goto exit;
 	}
 
-	msleep(10); /* 10ms delay */
+	usleep_range(10000, 10100); /* 10ms delay */
 
 	/* 2. Read OTP page */
-	cis->ixc_ops->write8(cis->client, GC08A3_OTP_ACCESS_ADDR_HIGH, ((GC08A3_BANK_SELECT_ADDR >> 8) & 0xFF));
-	cis->ixc_ops->write8(cis->client, GC08A3_OTP_ACCESS_ADDR_LOW, (GC08A3_BANK_SELECT_ADDR & 0xFF));
-	cis->ixc_ops->write8(cis->client, GC08A3_OTP_MODE_SEL_ADDR, GC08A3_READ_MODE);
-
-	cis->ixc_ops->read8(cis->client, GC08A3_OTP_READ_ADDR, &otp_bank);
-	info("%s: otp_bank = 0x%x\n", __func__, otp_bank);
+	ret = cis->ixc_ops->write8(cis->client, GC08A3_OTP_ACCESS_ADDR_HIGH, ((GC08A3_BANK_SELECT_ADDR >> 8) & 0xFF));
+	ret |= cis->ixc_ops->write8(cis->client, GC08A3_OTP_ACCESS_ADDR_LOW, (GC08A3_BANK_SELECT_ADDR & 0xFF));
+	ret |= cis->ixc_ops->write8(cis->client, GC08A3_OTP_MODE_SEL_ADDR, GC08A3_READ_MODE);
+	ret |= cis->ixc_ops->read8(cis->client, GC08A3_OTP_READ_ADDR, &otp_bank);
+	if (ret < 0) {
+		err("failed to Read OTP page (%d)", ret);
+		ret = -EINVAL;
+		goto exit;
+	}
 
 	/* 3. Select start address */
 	switch (otp_bank) {
@@ -528,35 +439,52 @@ int sensor_gc08a3_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 		break;
 	}
 
-	info("%s: otp_start_addr = 0xs%x\n", __func__, start_addr);
-	if (unlikely(ret)) {
-		err("failed to is_sec_set_registers (%d)\n", ret);
-		ret = -EINVAL;
+	info("%s: otp_bank = 0x%x, otp_start_addr = 0x%x\n", __func__, otp_bank, start_addr);
+
+	/* 4. Read cal data */
+	usleep_range(10000, 10100); /* 10ms delay */
+
+	start_addr_h = ((start_addr >> 8) & 0xFF);
+	start_addr_l = (start_addr & 0xFF);
+
+	ret = cis->ixc_ops->write8(cis->client, GC08A3_OTP_ACCESS_ADDR_HIGH, start_addr_h);
+	ret |= cis->ixc_ops->write8(cis->client, GC08A3_OTP_ACCESS_ADDR_LOW, start_addr_l);
+	ret |= cis->ixc_ops->write8(cis->client, GC08A3_OTP_MODE_SEL_ADDR, GC08A3_READ_MODE);
+	ret |= cis->ixc_ops->write8(cis->client, GC08A3_OTP_MODE_SEL_ADDR, GC08A3_OTP_ACC);
+	if (ret < 0) {
+		err("%s failed to prepare read cal data from OTP bank(%d)", __func__, ret);
 		goto exit;
 	}
 
-	/* 4. Read cal data */
-	info("I2C read cal data\n");
-
+	usleep_range(2000, 2100); /* 2ms delay */
 	for (index = 0; index < GC08A3_OTP_USED_CAL_SIZE; index++) {
-		start_addr_h = ((start_addr >> 8) & 0xFF);
-		start_addr_l = (start_addr & 0xFF);
-
-		cis->ixc_ops->write8(cis->client, GC08A3_OTP_ACCESS_ADDR_HIGH, start_addr_h);
-		cis->ixc_ops->write8(cis->client, GC08A3_OTP_ACCESS_ADDR_LOW, start_addr_l);
-		cis->ixc_ops->write8(cis->client, GC08A3_OTP_MODE_SEL_ADDR, GC08A3_READ_MODE);
-
 		ret = cis->ixc_ops->read8(cis->client, GC08A3_OTP_READ_ADDR, &buf[index]);
-		if (unlikely(ret)) {
-			err("failed to is_sensor_addr16_read16 (%d)\n", ret);
+		if (ret < 0) {
+			err("failed to otp_read(index:%d, ret:%d)", index, ret);
 			goto exit;
 		}
-		start_addr += 8;
 	}
-
 exit:
-	IXC_MUTEX_UNLOCK(cis->ixc_lock);
-	info("%s X\n", __func__);
+	info("OTP Off\n");
+	cis->ixc_ops->write8(cis->client, 0x0ACE, 0x00);
+	cis->ixc_ops->write8(cis->client, GC08A3_OTP_MODE_SEL_ADDR, 0x00);
+	cis->ixc_ops->write8(cis->client, 0x0A67, 0x00);
+	cis->ixc_ops->write8(cis->client, 0x0316, 0x00);
+
+	cis->ixc_ops->write8(cis->client, 0x0315, 0x00);
+	cis->ixc_ops->write8(cis->client, 0x031C, 0x00);
+
+#ifdef USE_DEFAULT_CAL_GC08A3
+	if (ret < 0) {
+		info("set default cal - E\n");
+		memcpy((void *)buf, (void *)&gc08a3_default_cal, sizeof(gc08a3_default_cal));
+		info("set default cal - X\n");
+		ret = 0;
+	}
+#endif
+	usleep_range(2000, 2100); /* 2ms delay */
+
+	info("%s-X\n", __func__);
 	return ret;
 }
 
@@ -567,8 +495,8 @@ static struct is_cis_ops cis_ops = {
 	.cis_mode_change = sensor_gc08a3_cis_mode_change,
 	.cis_stream_on = sensor_gc08a3_cis_stream_on,
 	.cis_stream_off = sensor_gc08a3_cis_stream_off,
-	.cis_wait_streamon = sensor_cis_wait_streamon,
-	.cis_wait_streamoff = sensor_gc08a3_cis_wait_streamoff,
+	.cis_wait_streamon = sensor_gc08a3_cis_wait_streamon,
+	.cis_wait_streamoff = sensor_cis_wait_streamoff_mipi_end,
 	.cis_data_calculation = sensor_cis_data_calculation,
 	.cis_set_exposure_time = sensor_cis_set_exposure_time,
 	.cis_get_min_exposure_time = sensor_cis_get_min_exposure_time,
@@ -581,21 +509,21 @@ static struct is_cis_ops cis_ops = {
 	.cis_get_analog_gain = sensor_cis_get_analog_gain,
 	.cis_get_min_analog_gain = sensor_cis_get_min_analog_gain,
 	.cis_get_max_analog_gain = sensor_cis_get_max_analog_gain,
-	.cis_calc_again_code = sensor_gc08a3_cis_calc_again_code,
-	.cis_calc_again_permile = sensor_gc08a3_cis_calc_again_permile,
+	.cis_calc_again_code = sensor_gc08a3_cis_calc_gain_code,
+	.cis_calc_again_permile = sensor_gc08a3_cis_calc_gain_code,
+	.cis_calc_dgain_code = sensor_gc08a3_cis_calc_gain_code,
+	.cis_calc_dgain_permile = sensor_gc08a3_cis_calc_gain_code,
 	.cis_set_digital_gain = sensor_cis_set_digital_gain,
 	.cis_get_digital_gain = sensor_cis_get_digital_gain,
 	.cis_get_min_digital_gain = sensor_cis_get_min_digital_gain,
 	.cis_get_max_digital_gain = sensor_cis_get_max_digital_gain,
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
+#ifdef USE_CAMERA_RECOVER_GC08A3
 	.cis_recover_stream_on = sensor_gc08a3_cis_recover_stream_on,
+#endif
 	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
 	.cis_get_otprom_data = sensor_gc08a3_cis_get_otprom_data,
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
-	.cis_update_mipi_info = sensor_gc08a3_cis_update_mipi_info,
-	.cis_get_mipi_clock_string = sensor_gc08a3_cis_get_mipi_clock_string,
-#endif
 };
 
 int cis_gc08a3_probe(struct i2c_client *client,
@@ -620,7 +548,7 @@ int cis_gc08a3_probe(struct i2c_client *client,
 	/* belows are depend on sensor cis. MUST check sensor spec */
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_RG_GB;
 	cis->reg_addr = &sensor_gc08a3_reg_addr;
-	cis->use_dgain = true;
+	cis->use_dgain = false;
 	cis->hdr_ctrl_by_again = false;
 
 	cis->use_initial_ae = of_property_read_bool(dnode, "use_initial_ae");

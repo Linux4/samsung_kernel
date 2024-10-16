@@ -82,6 +82,8 @@ int sensor_3l6_cis_init(struct v4l2_subdev *subdev)
 
 	CALL_CISOPS(cis, cis_data_calculation, subdev, cis->cis_data->sens_config_index_cur);
 
+	is_vendor_set_mipi_mode(cis);
+
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
@@ -147,6 +149,8 @@ int sensor_3l6_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		goto p_err;
 	}
 
+	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+
 #if defined(USE_MS_PDAF)
 	/*PDAF and binning are connected.
 	if there is binning then padf is not applied.
@@ -188,11 +192,18 @@ int sensor_3l6_cis_stream_on(struct v4l2_subdev *subdev)
 	int ret = 0;
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 	cis_shared_data *cis_data;
+	struct is_device_sensor *device;
 	ktime_t st = ktime_get();
+
+	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
+	WARN_ON(!device);
 
 	cis_data = cis->cis_data;
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
+
+	is_vendor_set_mipi_clock(device);
+
 	IXC_MUTEX_LOCK(cis->ixc_lock);
 
 	/* Sensor stream on */
@@ -503,6 +514,10 @@ static struct is_cis_ops cis_ops = {
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
 	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
+#ifdef USE_CAMERA_RECOVER_3L6
+	.cis_recover_stream_on = sensor_cis_recover_stream_on,
+	.cis_recover_stream_off = sensor_cis_recover_stream_off,
+#endif
 	.cis_get_otprom_data = sensor_3l6_cis_get_otprom_data,
 };
 

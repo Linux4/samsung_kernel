@@ -41,16 +41,17 @@
 #include "is-cis-gn8-setA.h"
 
 #include "is-helper-ixc.h"
+#include "is-vender.h"
 #include "is-sec-define.h"
 
 #include "interface/is-interface-library.h"
 #include "is-interface-sensor.h"
 #define SENSOR_NAME "GN8"
 
-static bool sensor_gn8_cal_write_flag;
+static u16 firstBoot;
 
 /* temp change, remove once PDAF settings done */
-#define PDAF_DISABLE
+//#define PDAF_DISABLE
 #ifdef PDAF_DISABLE
 const u16 sensor_gn8_pdaf_off[] = {
 	0xFCFC,	0x2000,	0x02,
@@ -71,73 +72,154 @@ void sensor_gn8_cis_set_mode_group(u32 mode)
 	sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT] = mode;
 	sensor_gn8_mode_groups[SENSOR_GN8_MODE_RMS_CROP] = MODE_GROUP_NONE;
 
-#if 0
 	switch (mode) {
-	case SENSOR_GN8_4080X3060_30FPS:
+	case SENSOR_GN8_4080X3060_4SUM_2HVBIN_30FPS:
 		sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT] =
-			SENSOR_GN8_4080X3060_30FPS_FCM;
+			SENSOR_GN8_4080X3060_4SUM_2HVBIN_30FPS_FCM;
 		sensor_gn8_mode_groups[SENSOR_GN8_MODE_RMS_CROP] =
-			SENSOR_GN8_REMOSAIC_12MPCROP_4080x3060_30FPS_FCM;
+			SENSOR_GN8_4080X3060_REMOSAIC_CROP_30FPS_FCM;
 		break;
-	case SENSOR_GN8_4080X2296_30FPS:
+	case SENSOR_GN8_4080X2296_4SUM_2HVBIN_30FPS:
 		sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT] =
-			SENSOR_GN8_4080X2296_30FPS_FCM;
+			SENSOR_GN8_4080X2296_4SUM_2HVBIN_30FPS_FCM;
 		sensor_gn8_mode_groups[SENSOR_GN8_MODE_RMS_CROP] =
-			SENSOR_GN8_REMOSAIC_8MPCROP_4080x2296_30FPS_FCM;
+			SENSOR_GN8_4080X2296_REMOSAIC_CROP_30FPS_FCM;
 		break;
 	}
-#endif
 
 	info("[%s] default(%d) rms_crop(%d)\n", __func__,
 		sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT],
 		sensor_gn8_mode_groups[SENSOR_GN8_MODE_RMS_CROP]);
 }
 
-#if 0
-int sensor_gn8_cis_QuadSensCal_write(struct v4l2_subdev *subdev)
+#ifdef GN8_BURST_WRITE
+int sensor_gn8_cis_write16_burst(struct i2c_client *client, u16 addr, u8 *val, u32 num, bool endian)
+{
+	int ret = 0;
+	struct i2c_msg msg[1];
+	int i = 0;
+	u8 *wbuf;
+
+	if (val == NULL) {
+		pr_err("val array is null\n");
+		ret = -ENODEV;
+		goto p_err;
+	}
+
+	if (!client->adapter) {
+		pr_err("Could not find adapter!\n");
+		ret = -ENODEV;
+		goto p_err;
+	}
+
+	wbuf = kmalloc((2 + (num * 2)), GFP_KERNEL);
+	if (!wbuf) {
+		ret = -ENODEV;
+		goto p_err;
+	}
+
+	msg->addr = client->addr;
+	msg->flags = 0;
+	msg->len = 2 + (num * 2);
+	msg->buf = wbuf;
+	wbuf[0] = (addr & 0xFF00) >> 8;
+	wbuf[1] = (addr & 0xFF);
+	if (endian == GN8_BIG_ENDIAN) {
+		memcpy(wbuf+2, val, num * 2);
+	} else {
+		for (i = 0; i < num; i++) {
+			wbuf[(i * 2) + 2] = (val[(i * 2) + 1] & 0xFF);
+			wbuf[(i * 2) + 3] = (val[(i * 2)] & 0xFF);
+			ixc_info("I2CW16(%d) [0x%04x] : 0x%x%x\n",
+				client->addr, addr, (val[(i * 2)] & 0xFF), (val[(i * 2) + 1] & 0xFF));
+		}
+	}
+
+	ret = is_i2c_transfer(client->adapter, msg, 1);
+	if (ret < 0) {
+		pr_err("i2c transfer fail(%d)", ret);
+		goto p_err_free;
+	}
+
+	kfree(wbuf);
+	return 0;
+
+p_err_free:
+	kfree(wbuf);
+p_err:
+	return ret;
+}
+#endif
+
+int sensor_gn8_cis_XTC_write(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 	struct is_device_sensor_peri *sensor_peri = NULL;
+	int position, cal_size = 0;
+	u16 start_addr, end_addr;
 
-	int position;
 	ulong cal_addr;
-	u8 cal_data[GN8_QSC_SIZE] = {0, };
-	char *rom_cal_buf = NULL;
-	ktime_t st = ktime_get();
+	u8 *cal_data = NULL;
+	char *cal_buf = NULL;
+	struct sensor_gn8_private_data *priv = (struct sensor_gn8_private_data *)cis->sensor_info->priv;
 
 	sensor_peri = container_of(cis, struct is_device_sensor_peri, cis);
 	WARN_ON(!sensor_peri);
 
 	position = sensor_peri->module->position;
 
-	ret = is_sec_get_cal_buf(&rom_cal_buf, position);
+	ret = is_sec_get_cal_buf(&cal_buf, position);
 	if (ret < 0)
 		goto p_err;
 
-	cal_addr = (ulong)rom_cal_buf;
+	cal_addr = (ulong)cal_buf;
+
 	if (position == SENSOR_POSITION_REAR) {
-		cal_addr += GN8_QSC_BASE_REAR;
+		cal_addr += SENSOR_GN8_UXTC_SENS_CAL_ADDR;
+		start_addr = SENSOR_GN8_UXTC_SENS_CAL_ADDR;
+		cal_size = SENSOR_GN8_UXTC_SENS_CAL_SIZE;
 	} else {
 		err("cis_gn8 position(%d) is invalid!\n", position);
 		goto p_err;
 	}
 
-	memcpy(cal_data, (u16 *)cal_addr, GN8_QSC_SIZE);
+	cal_data = (u8 *)cal_addr;
+	end_addr = start_addr + cal_size;
 
-	ret = cis->ixc_ops->write8_sequential(cis->client, GN8_QSC_ADDR, cal_data, GN8_QSC_SIZE);
-	if (ret < 0)
-		err("cis_gn8 QSC write Error(%d)\n", ret);
+	info("[%s] xtc_prefix write start\n", __func__);
+	ret = sensor_cis_write_registers(subdev, priv->xtc_prefix);
 
-	ret = cis->ixc_ops->write8(cis->client, 0x86A9, 0x4E);
+#ifdef GN8_BURST_WRITE
+	ret |= cis->ixc_ops->write16(cis->client, 0xFCFC, 0x4000);
+	ret |= cis->ixc_ops->write16(cis->client, 0x6004, 0x0001); // Burst mode enable
+	ret |= cis->ixc_ops->write16(cis->client, 0x6028, 0x2003);
 
-	if (IS_ENABLED(DEBUG_SENSOR_TIME))
-		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
+	ret |= cis->ixc_ops->write16(cis->client, 0x602A, 0xB330);
+
+	/* XTC data */
+	info("[%s] rom_xtc_cal burst write start(0x%X) end(0x%X) size(%d)\n",
+			__func__, start_addr, end_addr, cal_size);
+	ret = sensor_gn8_cis_write16_burst(cis->client, 0x6F12,
+			cal_data, cal_size/2, GN8_BIG_ENDIAN);
+	if (ret < 0) {
+		err("sensor_gn8_cis_write16_burst fail!!");
+		goto p_err;
+	}
+	ret |= cis->ixc_ops->write16(cis->client, 0xFCFC, 0x4000);
+	ret |= cis->ixc_ops->write16(cis->client, 0x6004, 0x0000); // Burst mode disable
+#else
+	ret = cis->ixc_ops->write8_sequential(cis->client, 0xB330, cal_data, cal_size);
+#endif
+
+	info("[%s] eeprom write done, xtc_postfix write start\n", __func__);
+
+	ret = sensor_cis_write_registers(subdev, priv->xtc_postfix);
 
 p_err:
+	info("[%s] done (ret:%d)\n", __func__, ret);
 	return ret;
 }
-#endif
 
 /* CIS OPS */
 int sensor_gn8_cis_init(struct v4l2_subdev *subdev)
@@ -145,13 +227,6 @@ int sensor_gn8_cis_init(struct v4l2_subdev *subdev)
 	int ret = 0;
 	ktime_t st = ktime_get();
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
-
-/***********************************************************************
-***** Check that QSC Cal is written for Remosaic Capture.
-***** false : Not yet write the QSC
-***** true  : Written the QSC Or Skip
-***********************************************************************/
-	sensor_gn8_cal_write_flag = false;
 
 	cis->cis_data->stream_on = false;
 	cis->cis_data->cur_width = cis->sensor_info->max_width;
@@ -167,11 +242,15 @@ int sensor_gn8_cis_init(struct v4l2_subdev *subdev)
 	cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
 	cis->cis_data->cur_pattern_mode = SENSOR_TEST_PATTERN_MODE_OFF;
 
+	sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT] = MODE_GROUP_NONE;
+	sensor_gn8_mode_groups[SENSOR_GN8_MODE_RMS_CROP] = MODE_GROUP_NONE;
+	firstBoot = 0;
+
 	cis->cis_data->sens_config_index_pre = SENSOR_GN8_MODE_MAX;
 	cis->cis_data->sens_config_index_cur = 0;
 	CALL_CISOPS(cis, cis_data_calculation, subdev, cis->cis_data->sens_config_index_cur);
 
-	//is_vendor_set_mipi_mode(cis);
+	is_vendor_set_mipi_mode(cis);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -203,8 +282,9 @@ int sensor_gn8_cis_set_global_setting(struct v4l2_subdev *subdev)
 	int ret = 0;
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 	struct sensor_gn8_private_data *priv = (struct sensor_gn8_private_data *)cis->sensor_info->priv;
+	int i = 0;
 
-	dbg_sensor(1, "[%s] start\n", __func__);
+	info("[%s] start\n", __func__);
 
 	ret = sensor_cis_write_registers_locked(subdev, priv->global);
 	if (ret < 0)
@@ -212,10 +292,28 @@ int sensor_gn8_cis_set_global_setting(struct v4l2_subdev *subdev)
 
 	info("[%s] global setting done\n", __func__);
 
-	// Check that QSC and DPC Cal is written for Remosaic Capture.
-	// false : Not yet write the QSC and DPC
-	// true  : Written the QSC and DPC
-	sensor_gn8_cal_write_flag = false;
+	ret = cis->ixc_ops->write16(cis->client, 0xFCFC, 0x4000);
+	/* load sram index */
+	for (i = 0; i < priv->max_load_sram_num; i++) {
+		info("[%s] max_load_sram_num%d", __func__, priv->max_load_sram_num);
+		IXC_MUTEX_LOCK(cis->ixc_lock);
+		ret = sensor_cis_write_registers(subdev, priv->load_sram[i]);
+		IXC_MUTEX_UNLOCK(cis->ixc_lock);
+		if (ret < 0)
+			err("sensor_gn8_set_registers fail!!");
+	}
+
+	/* XTC caliberation write */
+	sensor_gn8_cis_XTC_write(subdev);
+
+	ret = sensor_cis_write_registers_locked(subdev, priv->prepare_fcm); //prepare FCM settings from #5 sequence
+	if (ret < 0)
+		err("prepare_fcm fail!!");
+
+	firstBoot = 0;
+
+	info("[%s] prepare_fcm done\n", __func__);
+
 	return ret;
 }
 
@@ -260,35 +358,70 @@ int sensor_gn8_cis_update_seamless_mode_on_vsync(struct v4l2_subdev *subdev)
 	}
 
 	sensor_gn8_cis_check_cropped_remosaic(cis->cis_data, mode, &next_mode);
-	next_mode_info = cis->sensor_info->mode_infos[next_mode];
 
 	if (mode == next_mode || next_mode == MODE_GROUP_NONE)
 		return ret;
 
+	next_mode_info = cis->sensor_info->mode_infos[next_mode];
+
 	/* New mode settings Update */
-	info("%s mode(%d) next_mode(%d)", __func__, mode, next_mode);
+	info("%s mode(%d) next_mode(%d)\n", __func__, mode, next_mode);
+
 	IXC_MUTEX_LOCK(cis->ixc_lock);
-	ret |= cis->ixc_ops->write8(cis->client, 0x0104, 0x01);
-	ret |= cis->ixc_ops->write8(cis->client, 0x3010, 0x02);
-	ret |= sensor_cis_write_registers(subdev, next_mode_info->setfile);
-	ret |= cis->ixc_ops->write8(cis->client, 0x0104, 0x00);
+
+	cis->ixc_ops->write16(cis->client, 0xFCFC, 0x4000);
+	cis->ixc_ops->write16(cis->client, 0x6000, 0x0005);
+	cis->ixc_ops->write16(cis->client, cis->reg_addr->group_param_hold, 0x0101);
+
+	ret = sensor_cis_write_registers(subdev, next_mode_info->setfile);
+	if (ret < 0)
+		err("sensor_gn8_set_registers fail!!");
+
+	cis->ixc_ops->write16(cis->client, 0xFCFC, 0x4000);
+	cis->ixc_ops->write16(cis->client, 0x0B32, 0x0000);
+
+	ret = cis->ixc_ops->write16(cis->client, 0x0B30, next_mode_info->setfile_fcm_index);
+	ret |= cis->ixc_ops->write16(cis->client, 0x0340, next_mode_info->frame_length_lines);
+	cis->ixc_ops->write16(cis->client, 0x6000, 0x0085);
+
 	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
-	if (ret < 0) {
-		err("%s sensor_gn8_set_registers fail!!", __func__);
-		return ret;
-	}
-
-	info("%s sensor_cis_set_registers done for mode %d", __func__, next_mode);
+	if (ret < 0)
+		err("setting fcm index fail!!");
 
 	cis_data->sens_config_index_pre = cis->cis_data->sens_config_index_cur;
 	cis_data->sens_config_index_cur = next_mode;
+	cis->cis_data->pre_12bit_mode = cis->cis_data->cur_12bit_mode;
 
 	CALL_CISOPS(cis, cis_data_calculation, subdev, next_mode);
 
-	info("[%s] pre(%d)->cur(%d), zoom [%d]\n",
+	ret = CALL_CISOPS(cis, cis_set_analog_gain, cis->subdev, &cis_data->last_again);
+	if (ret < 0)
+		err("err!!! cis_set_analog_gain ret(%d)", ret);
+
+	ret = CALL_CISOPS(cis, cis_set_digital_gain, cis->subdev, &cis_data->last_dgain);
+	if (ret < 0)
+		err("err!!! cis_set_digital_gain ret(%d)", ret);
+
+	ret = CALL_CISOPS(cis, cis_set_exposure_time, cis->subdev, &cis_data->last_exp);
+	if (ret < 0)
+		err("err!!! cis_set_exposure_time ret(%d)", ret);
+
+#ifdef PDAF_DISABLE
+	sensor_cis_write_registers(subdev, pdaf_off);
+	info("[%s] test only (pdaf_off)\n", __func__);
+#endif
+
+	IXC_MUTEX_LOCK(cis->ixc_lock);
+	cis->ixc_ops->write16(cis->client, cis->reg_addr->group_param_hold, 0x0001);
+	IXC_MUTEX_UNLOCK(cis->ixc_lock);
+
+	info("[%s] pre(%d)->cur(%d), 12bit[%d] LN[%d] AEB[%d] zoom [%d]\n",
 		__func__,
-		cis_data->sens_config_index_pre, cis_data->sens_config_index_cur,
+		cis->cis_data->sens_config_index_pre, cis->cis_data->sens_config_index_cur,
+		cis->cis_data->cur_12bit_mode,
+		cis->cis_data->cur_lownoise_mode,
+		cis->cis_data->cur_hdr_mode,
 		cis_data->cur_remosaic_zoom_ratio);
 
 	return ret;
@@ -328,11 +461,24 @@ int sensor_gn8_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		ret = -EINVAL;
 		goto p_err;
 	}
-	
+
+	sensor_gn8_cis_set_mode_group(mode);
+	if (SENSOR_GN8_4080X2296_4SUM_2HVBIN_30FPS == mode || (SENSOR_GN8_4080X3060_4SUM_2HVBIN_30FPS == mode && firstBoot == 0)) {
+		info("[%s] sensor mode(%d) default mode(%d)\n", __func__, mode, sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT]);
+		mode = sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT];
+	}
+
 	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+	info("[%s] sensor mode(%d)\n", __func__, mode);
 
+	ret = cis->ixc_ops->write16(cis->client, 0xFCFC, 0x4000);
+	if (mode == SENSOR_GN8_4080X3060_4SUM_2HVBIN_30FPS_FCM || mode == SENSOR_GN8_4080X2296_4SUM_2HVBIN_30FPS_FCM) {
+		ret |= cis->ixc_ops->write16(cis->client, 0x0B30, 0x0101);
+		ret |= cis->ixc_ops->write16(cis->client, 0x0340, 0x19A0);
+	} else {
+		ret |= cis->ixc_ops->write16(cis->client, 0x0B30, 0x01FF);
+	}
 
-	info("[%s] SKDBG sensor mode(%d)\n", __func__, mode);
 
 	mode_info = cis->sensor_info->mode_infos[mode];
 	ret = sensor_cis_write_registers_locked(subdev, mode_info->setfile);
@@ -341,8 +487,7 @@ int sensor_gn8_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		goto EXIT;
 	}
 
-	//sensor_gn8_cis_set_mode_group(mode);
-	//cis->cis_data->sens_config_index_cur = sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT];
+	cis->cis_data->sens_config_index_cur = sensor_gn8_mode_groups[SENSOR_GN8_MODE_DEFAULT];
 
 	if (sensor_gn8_mode_groups[SENSOR_GN8_MODE_RMS_CROP] == MODE_GROUP_NONE)
 		cis->use_notify_vsync = false;
@@ -353,6 +498,7 @@ int sensor_gn8_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	cis->cis_data->remosaic_mode = mode_info->remosaic_mode;
 	cis->cis_data->pre_remosaic_zoom_ratio = 0;
 	cis->cis_data->cur_remosaic_zoom_ratio = 0;
+	cis->cis_data->pre_12bit_mode = mode_info->state_12bit;
 
 	/* Disable Embedded Data Line */
 	IXC_MUTEX_LOCK(cis->ixc_lock);
@@ -369,8 +515,13 @@ int sensor_gn8_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
+	firstBoot = 0;
+	if (SENSOR_GN8_2040X1532_4SUM_4HVBIN_120FPS == mode) {
+		firstBoot = 1;
+	}
+
 EXIT:
-	//sensor_gn8_cis_get_seamless_mode_info(subdev);
+	sensor_gn8_cis_get_seamless_mode_info(subdev);
 p_err:
 	return ret;
 }
@@ -380,16 +531,15 @@ int sensor_gn8_cis_stream_on(struct v4l2_subdev *subdev)
 	int ret = 0;
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 	struct is_device_sensor *device;
-	//u8 test0, test1, test2;
+
 	ktime_t st = ktime_get();
 
 	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
 	WARN_ON(!device);
 
-	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
+	is_vendor_set_mipi_clock(device);
 
-	//is_vendor_set_mipi_clock(device);
-	//cis->ixc_ops->write16(cis->client, 0x0BCC, 0x0000); // Enable mipi signal
+	info("%s\n", __func__);
 
 	/* Sensor stream on */
 	IXC_MUTEX_LOCK(cis->ixc_lock);
@@ -397,13 +547,10 @@ int sensor_gn8_cis_stream_on(struct v4l2_subdev *subdev)
 	ret = cis->ixc_ops->write16(cis->client, 0x6000, 0x0005);
 	ret = cis->ixc_ops->write16(cis->client, 0x0100, 0x0100);
 	ret = cis->ixc_ops->write16(cis->client, 0x6000, 0x0085);
-	//cis->ixc_ops->read8(cis->client, 0x0808, &test0);
-	//cis->ixc_ops->read8(cis->client, 0x084F, &test1);
-	//cis->ixc_ops->read8(cis->client, 0x0853, &test2);
+
 	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
 	cis->cis_data->stream_on = true;
-	//info("%s done (ctrl 0x%x : 0x%x, 0x%x)\n", __func__, test0, test1, test2);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -419,7 +566,7 @@ int sensor_gn8_cis_stream_off(struct v4l2_subdev *subdev)
 	ktime_t st = ktime_get();
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
-	
+
 	ret = CALL_CISOPS(cis, cis_group_param_hold, subdev, false);
 	if (ret < 0)
 		err("group_param_hold_func failed at stream off");
@@ -443,9 +590,10 @@ int sensor_gn8_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb_ga
 {
 	int ret = 0;
 	int mode = 0;
-	struct is_cis *cis = sensor_cis_get_cis(subdev);
+	u16 abs_gains[3] = {0, }; /* R, G, B */
+	u32 avg_g = 0;
 	const struct sensor_cis_mode_info *mode_info;
-	u16 abs_gains[4] = {0, };	/* [0]=gr, [1]=r, [2]=b, [3]=gb */
+	struct is_cis *cis = sensor_cis_get_cis(subdev);
 	ktime_t st = ktime_get();
 
 	if (!cis->use_wb_gain)
@@ -457,19 +605,33 @@ int sensor_gn8_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb_ga
 	if (!mode_info->wb_gain_support)
 		return ret;
 
+	if (wb_gains.gr != wb_gains.gb) {
+		err("gr, gb not euqal"); /* check DDK layer */
+		return -EINVAL;
+	}
+
+	if (wb_gains.gr != 1024) {
+		err("invalid gr,gb %d", wb_gains.gr); /* check DDK layer */
+		return -EINVAL;
+	}
+
 	dbg_sensor(1, "[SEN:%d]%s:DDK vlaue: wb_gain_gr(%d), wb_gain_r(%d), wb_gain_b(%d), wb_gain_gb(%d)\n",
 		cis->id, __func__, wb_gains.gr, wb_gains.r, wb_gains.b, wb_gains.gb);
 
-	abs_gains[0] = (u16)((wb_gains.gr / 4) & 0xFFFF);
-	abs_gains[1] = (u16)((wb_gains.r / 4) & 0xFFFF);
-	abs_gains[2] = (u16)((wb_gains.b / 4) & 0xFFFF);
-	abs_gains[3] = (u16)((wb_gains.gb / 4) & 0xFFFF);
+	avg_g = (wb_gains.gr + wb_gains.gb) / 2;
+	abs_gains[0] = (u16)(wb_gains.r & 0xFFFF);
+	abs_gains[1] = (u16)(avg_g & 0xFFFF);
+	abs_gains[2] = (u16)(wb_gains.b & 0xFFFF);
 
-	dbg_sensor(1, "[SEN:%d]%s, abs_gain_gr(0x%4X), abs_gain_r(0x%4X), abs_gain_b(0x%4X), abs_gain_gb(0x%4X)\n",
-		cis->id, __func__, abs_gains[0], abs_gains[1], abs_gains[2], abs_gains[3]);
+	dbg_sensor(1, "[SEN:%d]%s, abs_gain_r(0x%4X), abs_gain_g(0x%4X), abs_gain_b(0x%4X)\n",
+		cis->id, __func__, abs_gains[0], abs_gains[1], abs_gains[2]);
+
 
 	IXC_MUTEX_LOCK(cis->ixc_lock);
-	ret = cis->ixc_ops->write16_array(cis->client, GN8_ABS_GAIN_GR_SET_ADDR, abs_gains, 4);
+	ret |= cis->ixc_ops->write16(cis->client, 0xFCFC, 0x4000);
+	ret |= cis->ixc_ops->write16(cis->client, 0x0D82, abs_gains[0]);
+	ret |= cis->ixc_ops->write16(cis->client, 0x0D84, abs_gains[1]);
+	ret |= cis->ixc_ops->write16(cis->client, 0x0D86, abs_gains[2]);
 	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
 	if (ret < 0)
@@ -481,7 +643,6 @@ int sensor_gn8_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb_ga
 	return ret;
 }
 
-#if 0
 int sensor_gn8_cis_get_updated_binning_ratio(struct v4l2_subdev *subdev, u32 *binning_ratio)
 {
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
@@ -499,7 +660,6 @@ int sensor_gn8_cis_get_updated_binning_ratio(struct v4l2_subdev *subdev, u32 *bi
 
 	return 0;
 }
-#endif
 
 int sensor_gn8_cis_notify_vsync(struct v4l2_subdev *subdev)
 {
@@ -509,7 +669,7 @@ int sensor_gn8_cis_notify_vsync(struct v4l2_subdev *subdev)
 static struct is_cis_ops cis_ops_gn8 = {
 	.cis_init = sensor_gn8_cis_init,
 	.cis_log_status = sensor_gn8_cis_log_status,
-	//.cis_group_param_hold = sensor_cis_set_group_param_hold,
+	.cis_group_param_hold = sensor_cis_set_group_param_hold,
 	.cis_set_global_setting = sensor_gn8_cis_set_global_setting,
 	.cis_mode_change = sensor_gn8_cis_mode_change,
 	.cis_stream_on = sensor_gn8_cis_stream_on,
@@ -520,7 +680,7 @@ static struct is_cis_ops cis_ops_gn8 = {
 	.cis_set_exposure_time = sensor_cis_set_exposure_time,
 	.cis_get_min_exposure_time = sensor_cis_get_min_exposure_time,
 	.cis_get_max_exposure_time = sensor_cis_get_max_exposure_time,
-	//.cis_set_long_term_exposure = sensor_cis_long_term_exposure,
+	.cis_set_long_term_exposure = sensor_cis_long_term_exposure,
 	.cis_adjust_frame_duration = sensor_cis_adjust_frame_duration,
 	.cis_set_frame_duration = sensor_cis_set_frame_duration,
 	.cis_set_frame_rate = sensor_cis_set_frame_rate,
@@ -540,9 +700,9 @@ static struct is_cis_ops cis_ops_gn8 = {
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
 	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
-	//.cis_set_wb_gains = sensor_gn8_cis_set_wb_gain,
-	//.cis_get_updated_binning_ratio = sensor_gn8_cis_get_updated_binning_ratio,
-	//.cis_notify_vsync = sensor_gn8_cis_notify_vsync,
+	.cis_set_wb_gains = sensor_gn8_cis_set_wb_gain,
+	.cis_get_updated_binning_ratio = sensor_gn8_cis_get_updated_binning_ratio,
+	.cis_notify_vsync = sensor_gn8_cis_notify_vsync,
 };
 
 int cis_gn8_probe_i2c(struct i2c_client *client,
@@ -564,9 +724,9 @@ int cis_gn8_probe_i2c(struct i2c_client *client,
 	cis->ctrl_delay = N_PLUS_TWO_FRAME;
 	cis->cis_ops = &cis_ops_gn8;
 	/* belows are depend on sensor cis. MUST check sensor spec */
-	cis->bayer_order = OTF_INPUT_ORDER_BAYER_RG_GB;
+	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
 	cis->use_wb_gain = true;
-	cis->use_seamless_mode = false;
+	cis->use_seamless_mode = true;
 	cis->reg_addr = &sensor_gn8_reg_addr;
 
 	ret = of_property_read_string(dnode, "setfile", &setfile);

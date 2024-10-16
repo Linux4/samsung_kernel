@@ -2250,6 +2250,31 @@ TRACE_EVENT(mhdvfs_kick_cpufreq,
 	TP_printk("cpu=%d ipc=%llu ratio=%d",
 		__entry->cpu, __entry->ipc, __entry->ratio)
 );
+
+/*
+ * Tracepoint for emstune task boost
+ */
+TRACE_EVENT(emstune_task_boost,
+
+	TP_PROTO(struct task_struct *p, int val),
+
+	TP_ARGS(p, val),
+
+	TP_STRUCT__entry(
+		__array(	char,		comm,	TASK_COMM_LEN	)
+		__field(	pid_t,		pid			)
+		__array(	char,		val,	10		)
+	),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
+		__entry->pid = p->pid;
+		strncpy(__entry->val, val ? "on" : "off", 9);
+	),
+
+	TP_printk("comm=%s pid=%d val=%s",
+		__entry->comm, __entry->pid, __entry->val)
+);
 #endif /* _TRACE_EMS_DEBUG_H */
 
 /* This part must be outside protection */

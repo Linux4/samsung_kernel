@@ -331,12 +331,12 @@ static int slsi_mbssid_to_ssid_list(struct slsi_dev *sdev, struct netdev_vif *nd
 	return 0;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
 static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 				const struct ieee80211_mgmt *mgmt,
 				struct sk_buff *skb, u8 akm_type)
 {
-	u8 *transmitter_bssid;
+	u8 *transmitter_bssid, *profile;
 	const u8 *probe_beacon;
 	const u8 *ie;
 	int ie_len;
@@ -344,6 +344,9 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 	u16 current_freq;
 	size_t mgmt_len;
 	const struct element *elem, *sub_elem;
+
+	if (!sdev->wiphy->support_mbssid)
+		return 0;
 
 	mgmt_len = fapi_get_mgmtlen(skb);
 	current_rssi = fapi_get_s16(skb, u.mlme_scan_ind.rssi);
@@ -358,6 +361,16 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 		ie_len = mgmt_len - (mgmt->u.probe_resp.variable - (u8 *)mgmt);
 	}
 	ie = probe_beacon;
+	
+		if (sdev->wiphy->support_only_he_mbssid &&
+	    !cfg80211_find_ext_elem(WLAN_EID_EXT_HE_CAPABILITY, ie, ie_len))
+	    return 0;
+
+	profile = kmalloc(ie_len, GFP_KERNEL);
+	if (!profile) {
+		SLSI_ERR(sdev, "kmalloc failed len [%d]\n", ie_len);
+		return 0;
+	}
 
 	for_each_element_id(elem, WLAN_EID_MULTIPLE_BSSID, ie, ie_len) {
 		if ((elem->data - ie) + elem->datalen > ie_len) {
@@ -367,6 +380,8 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 
 		if (elem->datalen < 4)
 			continue;
+		if (elem->data[0] < 1 || (int)elem->data[0] > 8)
+			continue;
 
 		SLSI_DBG1_NODEV(SLSI_MLME, "MBSSID IE Found\n");
 		for_each_element(sub_elem, elem->data + 1, elem->datalen - 1) {
@@ -375,6 +390,7 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 			const u8 *index;
 			const u8 *ssid_ie;
 			int ssid_len = 0;
+			u8 profile_len = 0;
 
 			if ((sub_elem->data - (u8 *)elem) + sub_elem->datalen > elem->datalen + 2) {
 				SLSI_WARN(sdev, "Invalid mbssid sub element length found\n");
@@ -396,14 +412,16 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 				continue;
 			}
 
+			memset(profile, 0, ie_len);
+			profile_len = cfg80211_merge_profile(ie, ie_len, elem, sub_elem, profile, ie_len);
 			/* found a Nontransmitted BSSID Profile */
 			index = cfg80211_find_ie(WLAN_EID_MULTI_BSSID_IDX,
-						 sub_elem->data, sub_elem->datalen);
+						 profile, profile_len);
 			if (!index || index[1] < 1 || index[2] == 0) {
 				/* Invalid MBSSID Index element */
 				continue;
 			}
-			ssid_ie = cfg80211_find_ie(WLAN_EID_SSID, sub_elem->data, sub_elem->datalen);
+			ssid_ie = cfg80211_find_ie(WLAN_EID_SSID, profile, profile_len);
 			if (!ssid_ie || ssid_ie[1] >= IEEE80211_MAX_SSID_LEN)
 				continue;
 			ssid_len = ssid_ie[1];
@@ -415,6 +433,7 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 		}
 	}
 
+	kfree(profile);
 	return 0;
 }
 #else
@@ -989,8 +1008,12 @@ void slsi_rx_rcl_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_bu
 	SLSI_DBG3(sdev, SLSI_MLME, "RCL Channel List Indication received\n");
 	ptr =  fapi_get_data(skb);
 	sig_data_len = fapi_get_datalen(skb);
-	if (sig_data_len)
+	if (sig_data_len >= 2) {
 		ie_len = ptr[1];
+	} else {
+		SLSI_ERR(sdev, "ERR: Failed to get Fapi data\n");
+		goto exit;
+	}
 
 	while (i < sig_data_len) {
 		le16_ptr = (__le16 *)&ptr[i];
@@ -1022,6 +1045,7 @@ void slsi_rx_rcl_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_bu
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	if (ret)
 		SLSI_ERR(sdev, "ERR: Failed to send RCL channel list\n");
+exit:
 	kfree_skb(skb);
 }
 
@@ -2154,7 +2178,12 @@ void __slsi_rx_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 			      fapi_get_vif(skb),
 			      fapi_get_buff(skb, u.ma_blockackreq_ind.timestamp));
 
-		bar = (fapi_get_datalen(skb)) ? (struct ieee80211_bar *)fapi_get_data(skb) : NULL;
+		if (fapi_get_datalen(skb) >= sizeof(struct ieee80211_bar)) {
+			bar = (struct ieee80211_bar *)fapi_get_data(skb);
+		} else {
+			SLSI_NET_DBG1(dev, SLSI_MLME, "invalid fapidata length.\n");
+			goto invalid;
+		}
 
 		if (!bar) {
 			WLBT_WARN(1, "invalid bulkdata for BAR frame\n");
@@ -2481,9 +2510,7 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 	cancel_work_sync(&ndev_vif->update_pkt_filter_work);
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-	SLSI_NET_DBG1(dev, SLSI_MLME, "mlme_roamed_ind(vif:%d) Roaming to %pM\n",
-		      fapi_get_vif(skb),
-		      mgmt->bssid);
+	SLSI_NET_DBG1(dev, SLSI_MLME, "mlme_roamed_ind(vif:%d)\n", fapi_get_vif(skb));
 	if (!ndev_vif->activated) {
 		SLSI_NET_DBG1(dev, SLSI_MLME, "VIF not activated\n");
 		goto exit;
@@ -2498,7 +2525,14 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 
 	slsi_rx_ba_stop_all(dev, peer);
 
-	SLSI_ETHER_COPY(peer->address, mgmt->bssid);
+	if (fapi_get_mgmtlen(skb) >= (offsetof(struct ieee80211_mgmt, bssid) + ETH_ALEN)) {
+		SLSI_NET_DBG1(dev, SLSI_MLME, "mlme_roamed_ind : Roaming to " MACSTR "\n",
+			      MAC2STR(mgmt->bssid));
+		SLSI_ETHER_COPY(peer->address, mgmt->bssid);
+	} else {
+		SLSI_NET_ERR(dev, "invalid fapi mgmt length.\n");
+		goto exit;
+	}
 
 	slsi_wake_lock(&sdev->wlan_wl_roam);
 
@@ -3285,9 +3319,9 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 	int                         status = WLAN_STATUS_SUCCESS;
 	struct slsi_peer            *peer = NULL;
 	u8                          *assoc_ie = NULL;
-	int                         assoc_ie_len = 0;
+	size_t                      assoc_ie_len = 0;
 	u8                          *assoc_rsp_ie = NULL;
-	int                         assoc_rsp_ie_len = 0;
+	size_t                      assoc_rsp_ie_len = 0;
 	u8                          bssid[ETH_ALEN];
 	u16                         fw_result_code;
 	u16                         flow_id;
@@ -3834,8 +3868,10 @@ void slsi_rx_procedure_started_ind(struct slsi_dev *sdev, struct net_device *dev
 				goto exit_with_lock;
 			}
 
+			slsi_spinlock_lock(&ndev_vif->peer_lock);
 			peer = slsi_peer_add(sdev, dev, (fapi_get_mgmt(skb))->sa, aid);
 			if (!peer) {
+				slsi_spinlock_unlock(&ndev_vif->peer_lock);
 				SLSI_NET_ERR(dev, "Peer NOT Created\n");
 				goto exit_with_lock;
 			}
@@ -3850,7 +3886,7 @@ void slsi_rx_procedure_started_ind(struct slsi_dev *sdev, struct net_device *dev
 				SLSI_NET_DBG2(dev, SLSI_MLME,  "WPS IE is present. Setting peer->is_wps to TRUE\n");
 				peer->is_wps = true;
 			}
-
+			slsi_spinlock_unlock(&ndev_vif->peer_lock);
 			/* Take a wakelock to avoid platform suspend before
 			 * EAPOL exchanges (to avoid connection delay)
 			 */
@@ -4214,8 +4250,10 @@ void slsi_rx_received_frame_ind(struct slsi_dev *sdev, struct net_device *dev, s
 		int mgmt_len;
 
 		mgmt_len = fapi_get_mgmtlen(skb);
-		if (!mgmt_len)
+		if (mgmt_len < offsetof(struct ieee80211_mgmt, frame_control) + 2) {
+			SLSI_NET_ERR(dev, "invalid fapi mgmt data\n");
 			goto exit;
+		}
 		mgmt = fapi_get_mgmt(skb);
 		if (ieee80211_is_auth(mgmt->frame_control)) {
 			cfg80211_rx_mgmt(&ndev_vif->wdev, frequency, 0, (const u8 *)mgmt, mgmt_len, GFP_ATOMIC);
@@ -4359,9 +4397,15 @@ void slsi_rx_received_frame_ind(struct slsi_dev *sdev, struct net_device *dev, s
 		/* Populate wake reason stats here */
 		if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
 			schedule_work(&sdev->wakeup_time_work);
+			skb->mark = SLSI_WAKEUP_PKT_MARK;
 			slsi_rx_update_wake_stats(sdev, ehdr, skb->len - fapi_get_siglen(skb), skb);
 		}
-
+		
+		if (fapi_get_datalen(skb) < sizeof(struct ethhdr)) {
+			SLSI_DBG1(sdev, SLSI_RX, "invalid fapi data length.\n");
+			goto exit;
+		}
+		
 		peer = slsi_get_peer_from_mac(sdev, dev, ehdr->h_source);
 		if (!peer) {
 			SLSI_DBG1(sdev, SLSI_RX, "drop packet as No peer found\n");
@@ -4511,6 +4555,19 @@ static int slsi_rx_wait_ind_match(u16 recv_id, u16 wait_id)
 	return 0;
 }
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+static bool slsi_rx_tas_drop_cfm(u16 id, u16 pid)
+{
+	/* TAS SAR.req signal uses no-cfm and cfm both.
+	 * In order to use SAR.req on BH disabled context (ndo_start_tx), cfm signal
+	 * should be dropped and in this case, there is no reason to need CFM.
+	 */
+	if (pid == SLSI_TX_PROCESS_ID_TAS_NO_CFM && id == MLME_SAR_CFM)
+		return true;
+	return false;
+}
+#endif
+
 int slsi_rx_blocking_signals(struct slsi_dev *sdev, struct sk_buff *skb)
 {
 	u16 pid, id;
@@ -4526,6 +4583,10 @@ int slsi_rx_blocking_signals(struct slsi_dev *sdev, struct sk_buff *skb)
 		struct net_device *dev;
 		struct netdev_vif *ndev_vif;
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+		if (slsi_rx_tas_drop_cfm(id, pid))
+			return 0;
+#endif
 		rcu_read_lock();
 		if (vif == SLSI_NET_INDEX_DETECT &&
 		    (id == MLME_ADD_VIF_CFM ||

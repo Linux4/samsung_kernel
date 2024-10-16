@@ -153,10 +153,14 @@ int sensor_hi1339_cis_init(struct v4l2_subdev *subdev)
 	cis->need_mode_change = false;
 	cis->long_term_mode.sen_strm_off_on_step = 0;
 
+	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+	cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
 	cis->cis_data->sens_config_index_pre = SENSOR_HI1339_MODE_MAX;
 	cis->cis_data->sens_config_index_cur = 0;
 
 	CALL_CISOPS(cis, cis_data_calculation, subdev, cis->cis_data->sens_config_index_cur);
+
+	is_vendor_set_mipi_mode(cis);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus\n", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -323,6 +327,8 @@ int sensor_hi1339_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		}
 	}
 
+	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+
 	mode_info = cis->sensor_info->mode_infos[mode];
 
 	info("[%s] sensor mode(%d)\n", __func__, mode);
@@ -393,13 +399,19 @@ p_err:
 int sensor_hi1339_cis_stream_on(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
+	struct is_device_sensor *device;
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 	cis_shared_data *cis_data = NULL;
 	ktime_t st = ktime_get();
 
+	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
+	WARN_ON(!device);
+
 	cis_data = cis->cis_data;
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
+
+	is_vendor_set_mipi_clock(device);
 
 	IXC_MUTEX_LOCK(cis->ixc_lock);
 
@@ -1078,7 +1090,7 @@ int cis_hi1339_probe(struct i2c_client *client,
 	cis->cis_ops = &cis_ops_hi1339;
 	/* belows are depend on sensor cis. MUST check sensor spec */
 
-	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
+	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GB_RG;
 
 	cis->use_total_gain = true;
 	cis->use_wb_gain = true;
@@ -1099,6 +1111,8 @@ int cis_hi1339_probe(struct i2c_client *client,
 		//sensor_hi1339_setfile_fsync_info = sensor_hi1339_setfile_A_fsync_info;
 		cis->sensor_info = &sensor_hi1339_info_A;
 	}
+
+	is_vendor_set_mipi_mode(cis);
 
 	probe_info("%s done\n", __func__);
 	return ret;

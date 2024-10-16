@@ -228,13 +228,16 @@ static void slsi_fw_test_connect_start_station(struct slsi_dev *sdev, struct net
 	if (WLBT_WARN(slsi_vif_activated(sdev, dev) != 0, "slsi_vif_activated() Failed"))
 		return;
 
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
 	peer = slsi_peer_add(sdev, dev, bssid, SLSI_STA_PEER_QUEUESET + 1);
 	if (WLBT_WARN(!peer, "slsi_peer_add(%pM) Failed", bssid)) {
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 		slsi_vif_deactivated(sdev, dev);
 		return;
 	}
 
 	slsi_peer_update_assoc_req(sdev, dev, peer, skb_copy(skb, GFP_KERNEL));
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
 }
 
 static void slsi_fw_test_connect_station(struct slsi_dev *sdev, struct net_device *dev, struct slsi_fw_test *fwtest, struct sk_buff *skb)
@@ -365,12 +368,16 @@ static void slsi_fw_test_connect_start_ap(struct slsi_dev *sdev, struct net_devi
 	flow_id = fapi_get_u16(skb, u.mlme_procedure_started_ind.flow_id);
 	peer_index = (flow_id >> 8);
 
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
 	peer = slsi_peer_add(sdev, dev, mgmt->sa, peer_index);
-	if (WLBT_WARN_ON(!peer))
+	if (WLBT_WARN_ON(!peer)) {
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 		return;
+	}
 
 	slsi_peer_update_assoc_req(sdev, dev, peer, skb_copy(skb, GFP_KERNEL));
 	peer->connected_state = SLSI_STA_CONN_STATE_CONNECTING;
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
 }
 
 static void slsi_fw_test_connected_network(struct slsi_dev *sdev, struct net_device *dev, struct slsi_fw_test *fwtest, struct sk_buff *skb)
@@ -685,8 +692,10 @@ static void slsi_fw_test_tdls_event_connected(struct slsi_dev *sdev, struct net_
 		goto out;
 	}
 
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
 	peer = slsi_peer_add(sdev, dev, fapi_get_buff(skb, u.mlme_tdls_peer_ind.peer_sta_address), peer_index);
 	if (!peer) {
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 		SLSI_NET_ERR(dev, "peer add failed\n");
 		goto out;
 	}
@@ -703,6 +712,7 @@ static void slsi_fw_test_tdls_event_connected(struct slsi_dev *sdev, struct net_
 	/* move TDLS packets from STA Q to TDLS Q */
 	slsi_tdls_move_packets(sdev, dev, ndev_vif->peer_sta_record[SLSI_STA_PEER_QUEUESET], peer, true);
 #endif
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
 out:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 }

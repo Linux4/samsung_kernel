@@ -668,6 +668,7 @@ static int sensor_gc5035_cis_dpc_enable(struct v4l2_subdev *subdev) {
 		info("[%s] Enable DPC", __func__);
 		sensor_gc5035_setfiles = sensor_gc5035_dpc_setfiles_A;
 		sensor_gc5035_setfile_sizes = sensor_gc5035_dpc_setfile_A_sizes;
+		sensor_gc5035_max_setfile_num = ARRAY_SIZE(sensor_gc5035_dpc_setfiles_A);
 	}
 
 	IXC_MUTEX_LOCK(cis->ixc_lock);
@@ -1051,8 +1052,9 @@ int sensor_gc5035_cis_stream_on(struct v4l2_subdev *subdev)
 	/* Sensor Dual sync on/off */
 	if (single_mode) {
 		/* Delay for single mode */
-		msleep(50);
-
+		if (core->scenario != IS_SCENARIO_SECURE) {
+			msleep(50);
+		}
 		info("%s (single mode)\n", __func__);
 	} else {
 		info("%s (dual slave mode)\n", __func__);
@@ -1084,11 +1086,6 @@ int sensor_gc5035_cis_stream_on(struct v4l2_subdev *subdev)
 		goto p_i2c_err;
 	}
 	IXC_MUTEX_UNLOCK(cis->ixc_lock);
-
-	if (single_mode) {
-		/* Delay for single mode */
-		msleep(50);
-	}
 
 	cis_data->stream_on = true;
 
@@ -1956,13 +1953,8 @@ int sensor_gc5035_cis_wait_streamoff(struct v4l2_subdev *subdev)
 	/* Checking stream off */
 	do {
 		u8 read_value_3E = 0;
-		u8 read_value_2A = 0;
 
 		/* Page Selection */
-		ret = cis->ixc_ops->addr8_write8(client, 0xfd, 0x00);
-		if (ret < 0)
-			 goto p_err;
-
 		ret = cis->ixc_ops->addr8_write8(client, 0xfe, 0x00);
 		if (ret < 0)
 			 goto p_err;
@@ -1974,31 +1966,8 @@ int sensor_gc5035_cis_wait_streamoff(struct v4l2_subdev *subdev)
 			goto p_err;
 		}
 
-		ret = cis->ixc_ops->addr8_read8(client, 0x2A, &read_value_2A);
-		if (ret < 0) {
-			err("i2c transfer fail addr(%x) ret = %d\n", 0x2A, ret);
-			goto p_err;
-		}
-
-#if 1
-		if (read_value_3E == 0x00 && read_value_2A == 0x00)
+		if (read_value_3E == 0x00)
 			break;
-#else
-		if (read_value_3E == 0x00) {
-			if (read_value_2A == 0x01) {
-				warn("%s: sensor is not stream off yet!  0x2A=%#x\n", __func__ , read_value_2A);
-			} else if (read_value_2A == 0x00) {
-				info("%s: sensor is stream off! 0x3E=%#x, 0x2A=%#x\n", __func__ , read_value_3E, read_value_2A);
-				break;
-			} else {
-				warn("%s: stream off check value is wrong 0x2A=0x%#x\n", __func__, read_value_2A);
-			}
-		} else if (read_value_3E == 0x91) {
-			warn("%s: sensor is not stream off yet!  0x3E=%#x\n", __func__ , read_value_3E);
-		} else {
-			warn("%s: stream off check value is wrong 0x3E=%#x\n", __func__, read_value_3E);
-		}
-#endif
 
 		usleep_range(POLL_TIME_US, POLL_TIME_US);
 		poll_time_ms += POLL_TIME_MS;

@@ -372,22 +372,22 @@
 					phandle = <0xb5>;
 
 					s3 {
-						regulator-min-microvolt = <0x5b8d8>;
-						regulator-max-microvolt = <0x17d590>;
+						regulator-min-microvolt = <0x1312d0>;
+						regulator-max-microvolt = <0x149970>;
 						phandle = <0x10>;
 					};
 
 					s4 {
-						regulator-min-microvolt = <0x1b7740>;
-						regulator-max-microvolt = <0x1b7740>;
+						regulator-min-microvolt = <0x1c3a90>;
+						regulator-max-microvolt = <0x20ce70>;
 						regulator-always-on;
 						regulator-boot-on;
 						phandle = <0x11>;
 					};
 
 					l1 {
-						regulator-min-microvolt = <0x5b8d8>;
-						regulator-max-microvolt = <0x174508>;
+						regulator-min-microvolt = <0x12b128>;
+						regulator-max-microvolt = <0x12b128>;
 						phandle = <0xb6>;
 					};
 
@@ -398,14 +398,14 @@
 					};
 
 					l4 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x1f47d0>;
+						regulator-max-microvolt = <0x1f47d0>;
 						phandle = <0xb7>;
 					};
 
 					l5 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x1b7740>;
+						regulator-max-microvolt = <0x1b7740>;
 						phandle = <0x4b>;
 					};
 
@@ -416,65 +416,70 @@
 					};
 
 					l7 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x1b7740>;
+						regulator-max-microvolt = <0x1b7740>;
 						phandle = <0x51>;
 					};
 
 					l8 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x2c4020>;
+						regulator-max-microvolt = <0x2c4020>;
 						phandle = <0x5e>;
 					};
 
 					l9 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x325aa0>;
+						regulator-max-microvolt = <0x325aa0>;
 						phandle = <0x9e>;
 					};
 
 					l10 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x2ab980>;
+						regulator-max-microvolt = <0x2ab980>;
 						phandle = <0xb8>;
 					};
 
 					l11 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x2d0370>;
+						regulator-max-microvolt = <0x2d0370>;
 						regulator-allow-set-load;
 						regulator-system-load = <0x30d40>;
 						phandle = <0x65>;
 					};
 
 					l12 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x1b7740>;
+						regulator-max-microvolt = <0x2d0370>;
 						phandle = <0x66>;
 					};
 
 					l13 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x2eebb8>;
+						regulator-max-microvolt = <0x2eebb8>;
 						phandle = <0x4c>;
 					};
 
 					l14 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x1b7740>;
+						regulator-max-microvolt = <0x325aa0>;
 						phandle = <0xb9>;
 					};
 
 					l15 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x1b7740>;
+						regulator-max-microvolt = <0x1b7740>;
+						regulator-system-load = <0xc350>;
+						regulator-allow-set-load;
 						regulator-always-on;
 						phandle = <0xba>;
 					};
 
 					l16 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x1b7740>;
+						regulator-max-microvolt = <0x1b7740>;
+						regulator-system-load = <0xc350>;
+						regulator-allow-set-load;
+						regulator-always-on;
 						phandle = <0xbb>;
 					};
 
@@ -485,8 +490,8 @@
 					};
 
 					l18 {
-						regulator-min-microvolt = <0x1ab3f0>;
-						regulator-max-microvolt = <0x32eb28>;
+						regulator-min-microvolt = <0x2932e0>;
+						regulator-max-microvolt = <0x2932e0>;
 						phandle = <0xbc>;
 					};
 				};
@@ -1867,7 +1872,7 @@
 			};
 		};
 
-		camss@1b00000 {
+		camss@1b0ac00 {
 			compatible = "qcom,msm8916-camss";
 			reg = <0x1b0ac00 0x200 0x1b00030 0x04 0x1b0b000 0x200 0x1b00038 0x04 0x1b08000 0x100 0x1b08400 0x100 0x1b0a000 0x500 0x1b00020 0x10 0x1b10000 0x1000>;
 			reg-names = "csiphy0\0csiphy0_clk_mux\0csiphy1\0csiphy1_clk_mux\0csid0\0csid1\0ispif\0csi_clk_mux\0vfe0";
@@ -2170,7 +2175,7 @@
 					pinctrl-0 = <0x49>;
 					phandle = <0xac>;
 
-					pm8916-mpp4 {
+					pm8916-mpp4-state {
 						pins = "mpp4";
 						function = "digital";
 						output-low;
@@ -2178,7 +2183,7 @@
 						phandle = <0x49>;
 					};
 
-					pm8916-mpps-leds {
+					pm8916-mpps-state {
 						pins = "mpp2\0mpp3";
 						function = "digital";
 						output-low;
@@ -2286,8 +2291,9 @@
 			resets = <0x50 0x00>;
 			reset-names = "mss_restart";
 			qcom,halt-regs = <0x0a 0x18000 0x19000 0x1a000>;
-			status = "disabled";
+			status = "okay";
 			pll-supply = <0x51>;
+			firmware-name = "qcom/apq8016/mba.mbn\0qcom/apq8016/modem.mbn";
 			phandle = <0xe7>;
 
 			mba {
@@ -2775,6 +2781,7 @@
 			pinctrl-0 = <0x9d>;
 			status = "okay";
 			vddpx-supply = <0x51>;
+			firmware-name = "qcom/apq8016/wcnss.mbn";
 			phandle = <0x9f>;
 
 			iris {
@@ -2798,6 +2805,8 @@
 					compatible = "qcom,wcnss";
 					qcom,smd-channels = "WCNSS_CTRL";
 					qcom,mmio = <0x9f>;
+					firmware-name = "qcom/apq8016/WCNSS_qcom_wlan_nv_sbc.bin";
+					phandle = <0xf9>;
 
 					bt {
 						compatible = "qcom,wcnss-bt";
@@ -2918,7 +2927,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0xf9>;
+					phandle = <0xfa>;
 				};
 			};
 
@@ -2949,7 +2958,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0xfa>;
+					phandle = <0xfb>;
 				};
 			};
 
@@ -2973,14 +2982,14 @@
 					temperature = <0x124f8>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xfb>;
+					phandle = <0xfc>;
 				};
 
 				gpu_crit {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0xfc>;
+					phandle = <0xfd>;
 				};
 			};
 		};
@@ -2996,7 +3005,7 @@
 					temperature = <0x124f8>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0xfd>;
+					phandle = <0xfe>;
 				};
 			};
 		};
@@ -3012,7 +3021,7 @@
 					temperature = <0x14c08>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0xfe>;
+					phandle = <0xff>;
 				};
 			};
 		};
@@ -3327,8 +3336,8 @@
 		dsi0_in = "/soc/mdss@1a00000/dsi@1a98000/ports/port@0/endpoint";
 		dsi0_out = "/soc/mdss@1a00000/dsi@1a98000/ports/port@1/endpoint";
 		dsi_phy0 = "/soc/mdss@1a00000/dsi-phy@1a98300";
-		camss = "/soc/camss@1b00000";
-		csiphy0_ep = "/soc/camss@1b00000/ports/port@0/endpoint";
+		camss = "/soc/camss@1b0ac00";
+		csiphy0_ep = "/soc/camss@1b0ac00/ports/port@0/endpoint";
 		cci = "/soc/cci@1b0c000";
 		cci_i2c0 = "/soc/cci@1b0c000/i2c-bus@0";
 		ov5640_ep = "/soc/cci@1b0c000/i2c-bus@0/camera_rear@3b/port/endpoint";
@@ -3342,8 +3351,8 @@
 		pm8916_temp = "/soc/spmi@200f000/pmic@0/temp-alarm@2400";
 		pm8916_vadc = "/soc/spmi@200f000/pmic@0/adc@3100";
 		pm8916_mpps = "/soc/spmi@200f000/pmic@0/mpps@a000";
-		ls_exp_gpio_f = "/soc/spmi@200f000/pmic@0/mpps@a000/pm8916-mpp4";
-		pm8916_mpps_leds = "/soc/spmi@200f000/pmic@0/mpps@a000/pm8916-mpps-leds";
+		ls_exp_gpio_f = "/soc/spmi@200f000/pmic@0/mpps@a000/pm8916-mpp4-state";
+		pm8916_mpps_leds = "/soc/spmi@200f000/pmic@0/mpps@a000/pm8916-mpps-state";
 		pm8916_gpios = "/soc/spmi@200f000/pmic@0/gpios@c000";
 		usb_hub_reset_pm = "/soc/spmi@200f000/pmic@0/gpios@c000/usb-hub-reset-pm";
 		usb_hub_reset_pm_device = "/soc/spmi@200f000/pmic@0/gpios@c000/usb-hub-reset-pm-device";
@@ -3380,6 +3389,7 @@
 		usb = "/soc/usb@78d9000";
 		usb_hs_phy = "/soc/usb@78d9000/ulpi/phy";
 		pronto = "/soc/remoteproc@a21b000";
+		wcnss_ctrl = "/soc/remoteproc@a21b000/smd-edge/wcnss";
 		intc = "/soc/interrupt-controller@b000000";
 		apcs = "/soc/mailbox@b011000";
 		a53pll = "/soc/clock@b016000";

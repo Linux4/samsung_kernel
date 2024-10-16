@@ -338,10 +338,6 @@
 			connected to one of 16 gameports
 			Format: <type1>,<type2>,..<type16>
 
-	android_kmalloc_64_create [MM]
-			Creates all kmalloc variants of the 64-byte slab cache,
-			if the hardware supports it.
-
 	apc=		[HW,SPARC]
 			Power management functions (SPARCstation-4/5 + deriv.)
 			Format: noidle
@@ -919,10 +915,6 @@
 			Default value is set in build-time with a kernel configuration.
 
 	debugpat	[X86] Enable PAT debugging
-
-	decnet.addr=	[HW,NET]
-			Format: <area>[,<node>]
-			See also Documentation/networking/decnet.rst.
 
 	default_hugepagesz=
 			[HW] The size of the default HugeTLB page. This is

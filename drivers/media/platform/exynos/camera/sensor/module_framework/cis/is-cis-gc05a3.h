@@ -37,15 +37,6 @@ static const struct sensor_reg_addr sensor_gc05a3_reg_addr = {
 	.group_param_hold = 0x0104,
 };
 
-//Gain Table
-const u32 sensor_gc05a3_analog_gain[][2] = {
-	{0x0400, 1000},
-	{0x0800, 2000},
-	{0x1000, 4000},
-	{0x2000, 8000},
-	{0x4000, 16000},
-};
-
 /*GC05a3 otprom data*/
 #define GC05A3_BANK_SELECT_ADDR                      0x2000
 

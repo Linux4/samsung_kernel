@@ -525,6 +525,7 @@ enum {
 
 extern void set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se);
 extern bool is_boosted_tex_task(struct task_struct *p);
+extern bool is_important_task(struct task_struct *p);
 extern void tex_enqueue_task(struct task_struct *p, int cpu);
 extern void tex_dequeue_task(struct task_struct *p, int cpu);
 extern void tex_replace_next_task_fair(struct rq *rq, struct task_struct **p_ptr,
@@ -1051,6 +1052,16 @@ static inline bool is_small_task(struct task_struct *p)
 	unsigned long threshold = 25; /* FIXME */
 
 	return util < threshold;
+}
+
+static inline bool is_top_app_task(struct task_struct *p)
+{
+	return cpuctl_task_group_idx(p) == CGROUP_TOPAPP;
+}
+
+static inline bool is_rt_task(struct task_struct *p)
+{
+	return p->prio < MAX_RT_PRIO;
 }
 
 static inline bool ems_task_fits_max_cap(struct task_struct *p, int cpu)

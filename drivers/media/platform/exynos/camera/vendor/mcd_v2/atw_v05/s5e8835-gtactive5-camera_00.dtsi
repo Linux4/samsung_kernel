@@ -88,19 +88,19 @@
 						20 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 1 100>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_normal_off {
-						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_RELEASE SHARED_PIN0 0>; };
+						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 9000>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_vision_on {
 						20 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 1 100>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_vision_off {
-						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_RELEASE SHARED_PIN0 0>; };
+						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 9000>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_read_rom_on {
 						20 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 1 100>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_read_rom_off {
-						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_RELEASE SHARED_PIN0 0>; };
+						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 9000>; gpio = <&s2mpu16_gpio 8 0x1>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 				};
 			};
@@ -260,6 +260,7 @@
 		id = <1>; /* matching is_sensor id */
 		setfile = "setA";
 		status = "okay";
+		use_initial_ae;
 	};
 
 	front_otprom@6E { 

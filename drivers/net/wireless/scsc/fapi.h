@@ -1994,9 +1994,14 @@ extern "C" {
 #define MLME_SET_NUM_TX_ANTENNAS_REQ          0x2062
 #define MLME_SET_ELNA_BYPASS_REQ              0x2063
 #define MLME_SET_MAX_TX_POWER_REQ             0x2064
-#define MLME_SPARE_SIGNAL_1_REQ               0x2065
-#define MLME_SPARE_SIGNAL_2_REQ               0x2066
-#define MLME_SPARE_SIGNAL_3_REQ               0x2067
+#define MLME_SET_UWBCX_REQ                    0x2065
+#define MLME_GET_ELNA_BYPASS_REQ              0x2066
+#define MLME_SET_SCAN_TIMINGS_REQ             0x2067
+#define MLME_SET_LOW_LATENCY_MODE_REQ         0x2068
+#define MLME_SAR_REQ                          0x2069
+#define MLME_SPARE_SIGNAL_1_REQ               0x206a
+#define MLME_SPARE_SIGNAL_2_REQ               0x206b
+#define MLME_SPARE_SIGNAL_3_REQ               0x206c
 #define MLME_GET_CFM                          0x2101
 #define MLME_SET_CFM                          0x2102
 #define MLME_POWERMGT_CFM                     0x2103
@@ -2087,9 +2092,14 @@ extern "C" {
 #define MLME_SET_NUM_TX_ANTENNAS_CFM          0x2162
 #define MLME_SET_ELNA_BYPASS_CFM              0x2163
 #define MLME_SET_MAX_TX_POWER_CFM             0x2164
-#define MLME_SPARE_SIGNAL_1_CFM               0x2165
-#define MLME_SPARE_SIGNAL_2_CFM               0x2166
-#define MLME_SPARE_SIGNAL_3_CFM               0x2167
+#define MLME_SET_UWBCX_CFM                    0x2165
+#define MLME_GET_ELNA_BYPASS_CFM              0x2166
+#define MLME_SET_SCAN_TIMINGS_CFM             0x2167
+#define MLME_SET_LOW_LATENCY_MODE_CFM         0x2168
+#define MLME_SAR_CFM                          0x2169
+#define MLME_SPARE_SIGNAL_1_CFM               0x216a
+#define MLME_SPARE_SIGNAL_2_CFM               0x216b
+#define MLME_SPARE_SIGNAL_3_CFM               0x216c
 #define MLME_CONNECT_RES                      0x2200
 #define MLME_CONNECTED_RES                    0x2201
 #define MLME_REASSOCIATE_RES                  0x2202
@@ -2147,9 +2157,12 @@ extern "C" {
 #define MLME_BLOCKACK_ACTION_IND              0x232f
 #define MLME_SCHEDULED_PM_TEARDOWN_IND        0x2330
 #define MLME_SCHEDULED_PM_LEAKY_AP_DETECT_IND 0x2331
-#define MLME_SPARE_SIGNAL_1_IND               0x2332
-#define MLME_SPARE_SIGNAL_2_IND               0x2333
-#define MLME_SPARE_SIGNAL_3_IND               0x2334
+#define MLME_DELAYED_WAKEUP_IND               0x2332
+#define MLME_SAR_IND                          0x2333
+#define MLME_SAR_LIMIT_UPPER_IND              0x2336
+#define MLME_SPARE_SIGNAL_1_IND               0x2337
+#define MLME_SPARE_SIGNAL_2_IND               0x2338
+#define MLME_SPARE_SIGNAL_3_IND               0x2339
 #define DEBUG_SPARE_1_REQ                     0x8000
 #define DEBUG_SPARE_2_REQ                     0x8001
 #define DEBUG_SPARE_3_REQ                     0x8002
@@ -3300,6 +3313,57 @@ struct fapi_signal {
 		} __packed mlme_set_max_tx_power_req;
 		struct {
 			__le16 vif;
+			__le16 uwbcx_enabled;
+			u8     startch6g;
+			u8     endch6g;
+			u8     startch5g;
+			u8     endch5g;
+			u8     prepare_time;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_uwbcx_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_get_elna_bypass_req;
+		struct {
+			__le16 vif;
+			__le16 max_channel_active_time;
+			__le16 away_time;
+			__le16 home_time;
+			__le16 max_channel_passive_time;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_scan_timings_req;
+		struct {
+			__le16 vif;
+			__le16 low_latency_mode;
+			__le16 power_save_configuration;
+			__le16 soft_roaming_scans_allowed;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_low_latency_mode_req;
+		struct {
+			__le16 vif;
+			__le16 short_window_number;
+			__le16 flags;
+			__le16 sar_limit;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_sar_req;
+		struct {
+			__le16 vif;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -4145,6 +4209,52 @@ struct fapi_signal {
 		struct {
 			__le16 vif;
 			__le16 result_code;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_uwbcx_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le16 elna_setting;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_get_elna_bypass_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_scan_timings_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_low_latency_mode_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_sar_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -4696,6 +4806,34 @@ struct fapi_signal {
 			__le32 spare_3;
 			u8     dr[0];
 		} __packed mlme_scheduled_pm_leaky_ap_detect_ind;
+		struct {
+			__le16 vif;
+			u8     wakeup_reason;
+			u8     number_of_inds;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_delayed_wakeup_ind;
+		struct {
+			__le16 vif;
+			__le16 short_window_number;
+			__le16 sar;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_sar_ind;
+		struct {
+			__le16 vif;
+			__le16 sar_limit_upper;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_sar_limit_upper_ind;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -5847,6 +5985,11 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_set_num_tx_antennas_req),
 		fapi_sig_size(mlme_set_elna_bypass_req),
 		fapi_sig_size(mlme_set_max_tx_power_req),
+		fapi_sig_size(mlme_set_uwbcx_req),
+		fapi_sig_size(mlme_get_elna_bypass_req),
+		fapi_sig_size(mlme_set_scan_timings_req),
+		fapi_sig_size(mlme_set_low_latency_mode_req),
+		fapi_sig_size(mlme_sar_req),
 		fapi_sig_size(mlme_spare_signal_1_req),
 		fapi_sig_size(mlme_spare_signal_2_req),
 		fapi_sig_size(mlme_spare_signal_3_req),
@@ -6005,6 +6148,11 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_set_num_tx_antennas_cfm),
 		fapi_sig_size(mlme_set_elna_bypass_cfm),
 		fapi_sig_size(mlme_set_max_tx_power_cfm),
+		fapi_sig_size(mlme_set_uwbcx_cfm),
+		fapi_sig_size(mlme_get_elna_bypass_cfm),
+		fapi_sig_size(mlme_set_scan_timings_cfm),
+		fapi_sig_size(mlme_set_low_latency_mode_cfm),
+		fapi_sig_size(mlme_sar_cfm),
 		fapi_sig_size(mlme_spare_signal_1_cfm),
 		fapi_sig_size(mlme_spare_signal_2_cfm),
 		fapi_sig_size(mlme_spare_signal_3_cfm),
@@ -6115,6 +6263,11 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_blockack_action_ind),
 		fapi_sig_size(mlme_scheduled_pm_teardown_ind),
 		fapi_sig_size(mlme_scheduled_pm_leaky_ap_detect_ind),
+		fapi_sig_size(mlme_delayed_wakeup_ind),
+		fapi_sig_size(mlme_sar_ind),
+		0,
+		0,
+		fapi_sig_size(mlme_sar_limit_upper_ind),
 		fapi_sig_size(mlme_spare_signal_1_ind),
 		fapi_sig_size(mlme_spare_signal_2_ind),
 		fapi_sig_size(mlme_spare_signal_3_ind),

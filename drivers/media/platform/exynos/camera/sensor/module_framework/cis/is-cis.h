@@ -98,13 +98,17 @@ struct sensor_cis_mode_info {
 	u64 pclk;
 	u16 frame_length_lines;
 	u16 line_length_pck;
+	u16 min_analog_gain;
 	u16 max_analog_gain;
 	u16 max_digital_gain;
 	u16 min_cit;
 	u16 max_cit_margin;
 	u16 align_cit;
+	u16 align_offset_cit;
+	u16 align_fll;
 	u16 fine_integration_time;
 
+	bool use_mode_analog_gain;
 	bool wb_gain_support;
 	bool remosaic_mode;
 	enum is_sensor_12bit_state state_12bit;

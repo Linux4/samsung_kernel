@@ -17,6 +17,7 @@
 struct icpu_platform_data;
 int pablo_icpu_hw_set_base_address(struct icpu_platform_data *pdata, u32 dst_addr);
 void pablo_icpu_hw_misc_prepare(struct icpu_platform_data *pdata);
+void pablo_icpu_hw_set_sw_reset(struct icpu_platform_data *pdata);
 int pablo_icpu_hw_reset(struct icpu_platform_data *pdata, int on);
 int pablo_icpu_hw_wait_teardown_timeout(struct icpu_platform_data *pdata, u32 ms);
 void pablo_icpu_hw_force_powerdown(struct icpu_platform_data *pdata);

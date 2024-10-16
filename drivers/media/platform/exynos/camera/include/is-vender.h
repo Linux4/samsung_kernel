@@ -42,6 +42,9 @@
 #define MANUAL_LIST_SIZE  5
 #endif
 
+#define ZERO_IF_NEG(val) ((val) > 0 ? (val) : 0)
+#define ALIGN_UP(x, a) (((x) + (a) - 1) & ~((a) - 1))
+
 struct is_vender {
 	char fw_path[IS_PATH_LEN];
 	char request_fw_path[IS_PATH_LEN];
@@ -219,6 +222,7 @@ void is_vender_resource_get(struct is_vender *vender, u32 rsc_type);
 void is_vender_resource_put(struct is_vender *vender, u32 rsc_type);
 void is_vender_mcu_power_on(bool use_shared_rsc);
 void is_vender_mcu_power_off(bool use_shared_rsc);
+void is_vendor_mcu_power_on_wait(void);
 long is_vender_read_efs(char *efs_path, u8 *buf, int buflen);
 int is_vendor_get_module_from_position(int position, struct is_module_enum ** module);
 int is_vendor_get_rom_id_from_position(int position);

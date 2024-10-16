@@ -135,8 +135,8 @@
 						50 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
 						60 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
 						70 { pname = "VDDA_FCAM_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 3 0x1>;};
-						80 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 1000>; };
-						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						80 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 9000>; };
+						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 9000>; gpio = <&s2mpu16_gpio 8 0x1>;};
 					};
 
 					scenario_vision_on {
@@ -168,8 +168,8 @@
 						50 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
 						60 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
 						70 { pname = "VDDA_FCAM_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 3 0x1>;};
-						80 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 1000>; };
-						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						80 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 9000>; };
+						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 9000>; gpio = <&s2mpu16_gpio 8 0x1>;};
 					};
 
 					scenario_read_rom_on {
@@ -201,8 +201,8 @@
 						50 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
 						60 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
 						70 { pname = "VDDA_FCAM_2P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 3 0x1>;};
-						80 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 1000>; };
-						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 1000>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						80 { pname = "vdd_ldo31"; pin = <PIN_REGULATOR 0 9000>; };
+						90 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 9000>; gpio = <&s2mpu16_gpio 8 0x1>;};
 					};
 				};
 			};

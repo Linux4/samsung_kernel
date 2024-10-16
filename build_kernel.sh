@@ -12,5 +12,5 @@ export LLVM=1
 export DEPMOD=depmod
 export ARCH=arm64
 export TARGET_SOC=s5e8835
-make s5e8835-a54xzh_defconfig
+make s5e8835-a54xzc_defconfig
 make

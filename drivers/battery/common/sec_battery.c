@@ -1704,7 +1704,7 @@ void sec_bat_set_charging_status(struct sec_battery_info *battery, int status)
 	case POWER_SUPPLY_STATUS_DISCHARGING:
 		if ((battery->status == POWER_SUPPLY_STATUS_FULL ||
 			(battery->capacity == 100 && !is_slate_mode(battery))) &&
-			!battery->store_mode) {
+			!battery->store_mode && !is_eu_eco_rechg(battery->fs)) {
 
 			pr_info("%s : Update fg scale to 101%%\n", __func__);
 			value.intval = 100;
@@ -2036,7 +2036,6 @@ __visible_for_testing bool sec_bat_check_recharge(struct sec_battery_info *batte
 				recharging_voltage = battery->pdata->swelling_low_cool3_rechg_voltage;
 			else
 				recharging_voltage = battery->pdata->swelling_low_rechg_voltage;
-			recharging_soc = battery->pdata->swelling_low_rechg_soc;
 		}
 		dev_info(battery->dev, "%s: recharging voltage(%d) soc(%d) %s\n",
 			__func__, recharging_voltage, recharging_soc,
@@ -2138,8 +2137,6 @@ static bool sec_bat_voltage_check(struct sec_battery_info *battery)
 #else
 		int soc_ref = battery->pdata->full_condition_soc;
 #endif
-		pr_info("%s: chg mode (%d), voltage_ref(%d), voltage_now(%d)\n",
-			__func__, battery->charging_mode, voltage_ref, voltage_now);
 
 		if (battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP_MODE) {
 			if (battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING_COOL3)
@@ -2148,9 +2145,9 @@ static bool sec_bat_voltage_check(struct sec_battery_info *battery)
 				voltage_ref = battery->pdata->swelling_low_rechg_voltage - 50;
 		}
 
-		value.intval = 0;
-		psy_do_property(battery->pdata->fuelgauge_name, get,
-			POWER_SUPPLY_PROP_CAPACITY, value);
+		if (is_eu_eco_rechg(battery->fs))
+			soc_ref = (soc_ref > battery->pdata->recharge_condition_soc) ?
+				battery->pdata->recharge_condition_soc : soc_ref;
 
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 		if (battery->pdata->recharge_condition_type &
@@ -2158,6 +2155,14 @@ static bool sec_bat_voltage_check(struct sec_battery_info *battery)
 			voltage_now = max(battery->voltage_pack_main, battery->voltage_pack_sub);
 		}
 #endif
+
+		value.intval = 0;
+		psy_do_property(battery->pdata->fuelgauge_name, get,
+			POWER_SUPPLY_PROP_CAPACITY, value);
+
+		pr_info("%s: chg mode (%d), voltage_ref(%d), voltage_now(%d), soc_ref(%d), capacity(%d)\n",
+			__func__, battery->charging_mode, voltage_ref, voltage_now, soc_ref, value.intval);
+
 		if (value.intval < soc_ref && voltage_now < voltage_ref) {
 			sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_CHARGING);
 			battery->is_recharging = false;
@@ -3859,9 +3864,9 @@ __visible_for_testing void sec_bat_fw_init_work(struct work_struct *work)
 	struct sec_battery_info *battery = container_of(work,
 				struct sec_battery_info, fw_init_work.work);
 
+#if defined(CONFIG_WIRELESS_IC_PARAM)
 	union power_supply_propval value = {0, };
 
-#if defined(CONFIG_WIRELESS_IC_PARAM)
 	psy_do_property(battery->pdata->wireless_charger_name, get,
 		POWER_SUPPLY_EXT_PROP_WIRELESS_CHECK_FW_VER, value);
 	if (value.intval) {
@@ -4269,6 +4274,10 @@ static void sb_monitor_nonurgent_checks(struct sec_battery_info *battery)
 	/* 5. full charging check */
 	if (!(battery->current_event & SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING))
 		sec_bat_fullcharged_check(battery);
+
+	/* 5-1. eu eco check */
+	if (check_eu_eco_full_status(battery))
+		sec_bat_do_fullcharged(battery, true);
 
 	/* 6. additional check */
 	if (battery->pdata->monitor_additional_check)
@@ -6227,6 +6236,51 @@ static int sec_bat_set_property(struct power_supply *psy,
 	return 0;
 }
 
+static int sec_bat_check_status(struct sec_battery_info *battery)
+{
+	/* need to update for DPM UI */
+	if (battery->misc_event & BATT_MISC_EVENT_DIRECT_POWER_MODE)
+		return POWER_SUPPLY_STATUS_NOT_CHARGING;
+
+	if ((battery->health == POWER_SUPPLY_HEALTH_OVERVOLTAGE) ||
+		(battery->health == POWER_SUPPLY_EXT_HEALTH_UNDERVOLTAGE))
+		return POWER_SUPPLY_STATUS_DISCHARGING;
+
+	if ((battery->pdata->cable_check_type &
+		SEC_BATTERY_CABLE_CHECK_NOUSBCHARGE) &&
+		!sec_bat_get_lpmode()) {
+		switch (battery->cable_type) {
+		case SEC_BATTERY_CABLE_USB:
+		case SEC_BATTERY_CABLE_USB_CDP:
+			return POWER_SUPPLY_STATUS_DISCHARGING;
+		}
+	}
+
+#if defined(CONFIG_STORE_MODE)
+	if (battery->store_mode && !sec_bat_get_lpmode() &&
+		!is_nocharge_type(battery->cable_type) &&
+		battery->status == POWER_SUPPLY_STATUS_DISCHARGING)
+		return POWER_SUPPLY_STATUS_CHARGING;
+#endif
+
+	if (is_eu_eco_rechg(battery->fs) &&
+		(battery->status == POWER_SUPPLY_STATUS_FULL)) {
+		if (battery->is_recharging) {
+#if defined(CONFIG_ENABLE_FULL_BY_SOC)
+			if (battery->capacity < 100)
+				return POWER_SUPPLY_STATUS_CHARGING;
+#else
+			return POWER_SUPPLY_STATUS_CHARGING;
+#endif
+		}
+
+		if (check_eu_eco_rechg_ui_condition(battery))
+			return POWER_SUPPLY_STATUS_CHARGING;
+	}
+
+	return battery->status;
+}
+
 static int sec_bat_get_property(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
@@ -6237,35 +6291,7 @@ static int sec_bat_get_property(struct power_supply *psy,
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-		/* need to update for DPM UI */
-		if (battery->misc_event & BATT_MISC_EVENT_DIRECT_POWER_MODE) {
-			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
-			return 0;
-		}
-		if ((battery->health == POWER_SUPPLY_HEALTH_OVERVOLTAGE) ||
-			(battery->health == POWER_SUPPLY_EXT_HEALTH_UNDERVOLTAGE)) {
-				val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
-		} else {
-			if ((battery->pdata->cable_check_type &
-				SEC_BATTERY_CABLE_CHECK_NOUSBCHARGE) &&
-				!sec_bat_get_lpmode()) {
-				switch (battery->cable_type) {
-				case SEC_BATTERY_CABLE_USB:
-				case SEC_BATTERY_CABLE_USB_CDP:
-					val->intval =
-						POWER_SUPPLY_STATUS_DISCHARGING;
-					return 0;
-				}
-			}
-#if defined(CONFIG_STORE_MODE)
-			if (battery->store_mode && !sec_bat_get_lpmode() &&
-				!is_nocharge_type(battery->cable_type) &&
-				battery->status == POWER_SUPPLY_STATUS_DISCHARGING) {
-				val->intval = POWER_SUPPLY_STATUS_CHARGING;
-			} else
-#endif
-				val->intval = battery->status;
-		}
+		val->intval = sec_bat_check_status(battery);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 	{

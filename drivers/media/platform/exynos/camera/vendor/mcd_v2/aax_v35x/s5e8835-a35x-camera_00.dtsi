@@ -26,6 +26,9 @@
 
 			/* Wide CAMERA */
 			is_sensor_gn8: is_sensor_gn8@7A {
+				preload_setfile;
+				pinning_setfile;
+
 				pinctrl-names = "pin0", "pin1", "pin2", "release";
 				pinctrl-0 = <>;
 				pinctrl-1 = <&sensor_mclk0_out>;
@@ -46,33 +49,29 @@
 					product_name = <18>; /* ACTUATOR_NAME_AK737X : ak7371 or ak7374 or ak7377*/
 					i2c_ch = <3>; /* SENSOR_CONTROL_I2C3 */
 				};
-#if 0
-				preprocessor {
-					product_name = <100>; /* NOTHING */
-				};
-#endif
+
 				mcu {
 					product_name = <2>; /* INTERNAL */
 				};
 
 				power_seq {
 					scenario_normal_on {
-						50 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_normal_off {
-						60 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
+						100 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_vision_on {
-						50 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_vision_off {
-						60 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
+						100 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_ois_factory_on {
-						50 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_ois_factory_off {
-						60 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
+						100 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_read_rom_on {
 						10 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
@@ -85,6 +84,9 @@
 			};
 
 			is_sensor_imx882: is_sensor_imx882@66 {
+				preload_setfile;
+				pinning_setfile;
+
 				pinctrl-names = "pin0", "pin1", "pin2", "release";
 				pinctrl-0 = <>;
 				pinctrl-1 = <&sensor_mclk0_out>;
@@ -106,11 +108,6 @@
 					i2c_ch = <3>; /* SENSOR_CONTROL_I2C3 */
 				};
 
-#if 0
-				preprocessor {
-					product_name = <100>; /* NOTHING */
-				};
-#endif
 				mcu {
 					product_name = <2>; /* INTERNAL */
 				};
@@ -254,27 +251,27 @@
 
 				power_seq {
 					scenario_normal_on {
-						30 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
-						40 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						40 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1500>; gpio = <&gpm12 0 0x1>; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
 					};
 					scenario_normal_off {
-						80 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>; };
+						70 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>; };
 						90 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_vision_on {
-						30 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
-						40 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						40 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1500>; gpio = <&gpm12 0 0x1>; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
 					};
 					scenario_vision_off {
-						80 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>; };
+						70 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>; };
 						90 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_read_rom_on {
-						30 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
-						40 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						40 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 3000>; gpio = <&gpm12 0 0x1>; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
 					};
 					scenario_read_rom_off {
-						80 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>; };
+						70 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; share = <SRT_RELEASE SHARED_PIN1 0>; };
 						90 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 				};
@@ -349,9 +346,9 @@
 
 					/* Clock lane */
 					9 = <0x0004 0 32 0x000028A0 IDX_FIX_VAL 0>; /* SC_GNR_CON1 */
-					10 = <0x0008 0 32 0x00000001 IDX_FIX_VAL 0>; /* SC_ANA_CON0 */
-					11 = <0x000C 0 32 0x0000EA60 IDX_FIX_VAL 0>; /* SC_ANA_CON1 */
-					12 = <0x0010 0 32 0x00000203 IDX_FIX_VAL 0>; /* SC_ANA_CON2 */
+					10 = <0x0008 0 32 0x00000005 IDX_FIX_VAL 0>; /* SC_ANA_CON0 */
+					11 = <0x000C 0 32 0x0000E840 IDX_FIX_VAL 0>; /* SC_ANA_CON1 */
+					12 = <0x0010 0 32 0x00000202 IDX_FIX_VAL 0>; /* SC_ANA_CON2 */
 					13 = <0x0014 0 32 0x00008600 IDX_FIX_VAL 0>; /* SC_ANA_CON3 */
 					14 = <0x0018 0 32 0x00004000 IDX_FIX_VAL 0>; /* SC_ANA_CON4 */
 					15 = <0x0030 0 32 0x00000308 IDX_FIX_VAL 0>; /* SC_TIME_CON0 */
@@ -363,9 +360,9 @@
 
 				lane {
 					0  = <0x0004 0 32 0x000028A0 IDX_FIX_VAL 4>; /* SD_GNR_CON1 */
-					1  = <0x0008 0 32 0x00000001 IDX_FIX_VAL 4>; /* SD_ANA_CON0 */
-					2  = <0x000C 0 32 0x0000EA60 IDX_FIX_VAL 4>; /* SD_ANA_CON1 */
-					3  = <0x0010 0 32 0x00000203 IDX_FIX_VAL 4>; /* SD_ANA_CON2 */
+					1  = <0x0008 0 32 0x00000005 IDX_FIX_VAL 4>; /* SD_ANA_CON0 */
+					2  = <0x000C 0 32 0x0000E840 IDX_FIX_VAL 4>; /* SD_ANA_CON1 */
+					3  = <0x0010 0 32 0x00000202 IDX_FIX_VAL 4>; /* SD_ANA_CON2 */
 					4  = <0x0010 8  2 0x00000000 IDX_SKW_DLY 4>; /* SD_ANA_CON2 */
 					5  = <0x0014 0 32 0x00008600 IDX_FIX_VAL 4>; /* SD_ANA_CON3 */
 					6  = <0x0018 0 32 0x00004000 IDX_FIX_VAL 4>; /* SD_ANA_CON4 */
@@ -460,7 +457,7 @@
 				interrupts = <0 INTREQ__CSIS0 IRQ_TYPE_LEVEL_HIGH>; /*MIPI-CSI0 */
 				interrupt-names = "csi";
 				phys = <&mipi_phy_csis0_m0s4s4s4s4_s22 0>;
-				phy_setfile = <&dcphy_setfile_cphy>;
+				phy_setfile = <&dcphy_setfile_cphy>, <&dcphy_setfile_cphy>;
 				phy_tune_default_mode = "4080 3060 30";
 			};
 
@@ -495,6 +492,7 @@
 				status = "okay";
 				use_cphy = <0>;
 
+
 				interrupts = <0 INTREQ__CSIS3 IRQ_TYPE_LEVEL_HIGH>; /* MIPI-CSI3 */
 				phys = <&mipi_phy_csis3_m0s4s4s4s4_s22 0>;
 				phy_setfile = <&dphy_setfile>;
@@ -516,7 +514,7 @@
 				interrupt-names = "csi";
 				phys = <&mipi_phy_csis1_m0s4s4s4s4_s22 0>;
 				phy_setfile = <&dphy_setfile>;
-				phy_tune_default_mode = "4000 3000 30";
+				phy_tune_default_mode = "3264 2448 30";
 			};
 
 			is_sensor3: is_sensor3@15060000 {
@@ -548,6 +546,15 @@
 	status = "okay";
 };
 
+/*
+ * [Pin control reference]
+ * samsung,pin-function = <0: Input, 1: Output, 2~3: Func>;
+ * samsung,pin-pud = <0: NP, 1: PD, 3: PU(2KOhm), 5: PU(0.8KOhm)>;
+ * samsung,pin-drv = <0: x1, 1: x2, 2: x3, 3: x4>;
+ * samsung,pin-con-pdn = <0: Output0, 1: Output1, 2: Input, 3:Prev>;
+ * samsung,pin-pud-pdn = <0: NP, 1: PD, 3: PU>;
+ */
+
 /* GPIO_PERI */
 &pinctrl_1 {
 	/* FRONT i2c1 */
@@ -568,16 +575,16 @@
 	/* UW,MACRO : i2c2 */
 	hsi2c16_bus: hsi2c16-bus {
 			samsung,pins = "gpm6-0", "gpm7-0";
-			samsung,pin-function = <3>;	/* 0: Input, 1: Output, 2: Func */
-			samsung,pin-pud = <3>;		/* 0: NP, 1: PD, 2: Reserved, 3: PU */
-			samsung,pin-drv = <0>;		/* 0: x1, 1: x2, 2: x3, 3: x4 */
+			samsung,pin-function = <3>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
 	};
 
 	hsi2c16_bus_in: hsi2c16-bus-in {
 			samsung,pins = "gpm6-0", "gpm7-0";
-			samsung,pin-function = <0>;	/* 0: Input, 1: Output, 2: Func */
-			samsung,pin-pud = <3>;		/* 0: NP, 1: PD, 2: Reserved, 3: PU */
-			samsung,pin-drv = <0>;		/* 0: x1, 1: x2, 2: x3, 3: x4 */
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
 	};
 
 	/* REAR Wide : i2c0 */
@@ -634,8 +641,9 @@
 		setfile = "setA";
 		status = "okay";
 		// vendor_use_adaptive_mipi;
-		// rev_reg = <0x0002 1>;
+		rev_reg = <0x0002 1 0xA1>;
 		sensor_f_number = <180>;	/* f number 1.8 */
+		vendor_use_adaptive_mipi;
 	};
 
 	is-imx882@66 {
@@ -646,8 +654,9 @@
 		setfile = "setA";
 		status = "okay";
 		// vendor_use_adaptive_mipi;
-		// rev_reg = <0x0002 1>;
+		rev_reg = <0x0016 2 0x8202>;
 		sensor_f_number = <180>;	/* f number 1.8 */
+		vendor_use_adaptive_mipi;
 	};
 };
 
@@ -671,6 +680,8 @@
 		id = <1>; /* matching is_sensor id */
 		setfile = "setA";
 		status = "okay";
+		rev_reg = <0x0002 1 0xB0>;
+		vendor_use_adaptive_mipi;
 		sensor_f_number = <220>;	/* f number 2.2 */
 	};
 
@@ -682,6 +693,7 @@
 		setfile = "setA";
 		status = "okay";
 		sensor_f_number = <220>;	/* f number 2.2 */
+		vendor_use_adaptive_mipi;
 	};
 
 	front_otprom@40 { /* Front Otprom */
@@ -705,6 +717,7 @@
 		rom_header_project_name_start_addr = <0x1E>;
 		rom_header_module_id_addr = <0x0036>; /* 0x002C + reserved bytes */
 		rom_header_sensor_id_addr = <0x0040>;
+		rom_header_mtf_data_addr = <0x47C>; /* Resolution Data */
 		rom_awb_master_addr = <0x0064>;
 
 		/* standard cal */
@@ -750,7 +763,9 @@
 		id = <4>; /* matching is_sensor id */
 		setfile = "setA";
 		status = "okay";
+		rev_reg = <0x03f0 2 0x08A3>;
 		sensor_f_number = <220>;	/* f number 2.2 */
+		vendor_use_adaptive_mipi;
 	};
 
 	rear2_otprom@62 {
@@ -775,6 +790,7 @@
 		rom_header_project_name_start_addr = <0x1C>;
 		rom_header_module_id_addr = <0x0032>; /* 0x002C + reserved bytes */
 		rom_header_sensor_id_addr = <0x003C>;
+		rom_header_mtf_data_addr = <0x464>; /* Resolution Data */
 		rom_awb_master_addr = <0x005C>;
 
 		/* standard cal */
@@ -799,7 +815,6 @@
 		rom_factory_sec2lsi_start_addr = <0x1A5C>;
 	};
 
-
 	is-gc05a3@7E {
 		compatible = "samsung,exynos-is-cis-gc05a3-macro";
 		sensor-module = <&is_sensor_gc05a3_macro>;
@@ -807,7 +822,9 @@
 		id = <3>; /* matching is_sensor id */
 		setfile = "setA";
 		status = "okay";
+		rev_reg = <0x03f0 2 0x05A3>;
 		sensor_f_number = <240>;	/* f number 2.4 */
+		vendor_use_adaptive_mipi;
 	};
 
 	rear4_otprom@7E { /* Macro otprom */
@@ -831,6 +848,7 @@
 		rom_header_project_name_start_addr = <0x1C>;
 		rom_header_module_id_addr = <0x32>; /* 0x2C + reserved bytes */
 		rom_header_sensor_id_addr = <0x3C>;
+		rom_header_mtf_data_addr = <0x464>; /* Resolution Data */
 		rom_awb_master_addr = <0x5C>;
 
 		/* standard cal */
@@ -854,7 +872,6 @@
 		rom_shading_sec2lsi_checksum_len = <0x19EC>;
 		rom_factory_sec2lsi_start_addr = <0x1A5C>;
 	};
-
 };
 
 /* Flash */
@@ -905,6 +922,7 @@
 			0x01A0 0x1D8B 0x1D8C
 			0x26A0 0x26EB 0x26EC
 			0x26F0 0x301B 0x301C
+			0x3AB0 0x3ACB 0x3ACC
 			0x3AD0 0x3ECB 0x3ECC
 		>;
 		/* Master */
@@ -915,7 +933,8 @@
 		rom_header_module_id_addr = <0xB6>;
 		rom_header_sensor_id_addr = <0xC0>;
 		rom_awb_master_addr = <0x3AB0>;
-		rom_af_cal_addr = <0x26AC 0x26A0 0x26A4 0x26A8>; /*AF position <Near Far Mddle1 Middle2>*/
+		rom_af_cal_addr = <0x26AC 0x26A0>; /* AF position <Near Far Middle1 Middle2> */
+		rom_header_mtf_data_addr = <0x3ED0>; /* Resolution Data */
 
 		/* Rear Crosstalk Cal data */
 		rom_xtc_cal_data_start_addr = <0x01A0>;
@@ -928,22 +947,23 @@
 		rom_standard_cal_end_addr = <0x3ECF>;
 		rom_standard_cal_sec2lsi_end_addr = <0x54AF>;
 		rom_awb_start_addr = <0x3AB0>;
-		rom_awb_end_addr = <0x3ACB>;
+		rom_awb_end_addr = <0x3AB7>;
 		rom_shading_start_addr = <0x3AD0>;
 		rom_shading_end_addr = <0x3EC8>;
 		rom_factory_start_addr = <0x3ED0>;
 		rom_factory_end_addr = <0x3FFF>;
 		rom_awb_sec2lsi_start_addr = <0x3AB0>;
-		rom_awb_sec2lsi_end_addr = <0x3ABB>;
+		rom_awb_sec2lsi_end_addr = <0x3AB7>;
 		rom_awb_sec2lsi_checksum_addr = <0x3ABC>;
 		rom_awb_sec2lsi_checksum_len = <0xC>;
 		rom_shading_sec2lsi_start_addr = <0x3AC0>;
 		rom_shading_sec2lsi_end_addr = <0x54A7>;
 		rom_shading_sec2lsi_checksum_addr = <0x54AC>;
 		rom_shading_sec2lsi_checksum_len = <0x19EC>;
+		rom_factory_sec2lsi_start_addr = <0x54B0>;
 
 		/* sensor ois - xgg ygg xcoef ycoef xsupper ysupper calmark */
-		rom_ois_list = <0x0180 0x0184 0x018C 0x018E 0x01A8 0x01AA 0x01A0>;
+		rom_ois_list = <0x0150 0x0154 0x015C 0x015E 0x0178 0x017A 0x0170>;
 		
 		/* Dualized sensor details; */
 		/* 20230905_A35_5G_CAM1(Wide_50M_IMX882)_EEPROM_Rear_Cal map V008.001_QC_LSI_MTK_공용_Map */
@@ -967,8 +987,9 @@
 		rom_dualized_header_project_name_start_addr = <0x98>;
 		rom_dualized_header_module_id_addr = <0xB6>; /* 0xB0 + reserved bytes */
 		rom_dualized_header_sensor_id_addr = <0xC0>;
+		rom_dualized_header_mtf_data_addr = <0x3070>; /* Resolution Data */
 		rom_dualized_awb_master_addr = <0x2C50>;
-		rom_dualized_af_cal_addr = <0x184C 0x1840 0x1844 0x1848>; /*AF position <Near Far Mddle1 Middle2>*/
+		rom_dualized_af_cal_addr = <0x184C 0x1840>; /* AF position <Near Far Middle1 Middle2> */
 
 		/* Front Crosstalk Cal data */
 		rom_dualized_xtc_cal_data_start_addr = <0x1A0>;
@@ -995,6 +1016,9 @@
 		rom_dualized_shading_sec2lsi_checksum_addr = <0x464C>;
 		rom_dualized_shading_sec2lsi_checksum_len = <0x19EC>;
 		rom_dualized_factory_sec2lsi_start_addr = <0x4650>;
+
+		/* sensor ois - xgg ygg xcoef ycoef xsupper ysupper calmark */
+		rom_dualized_ois_list = <0x0150 0x0154 0x015C 0x015E 0x0178 0x017A 0x0170>;
 	};
 
 	front_eeprom@A2 { /* Front eeprom [3L6]*/
@@ -1018,6 +1042,7 @@
 		rom_header_project_name_start_addr = <0x1E>;
 		rom_header_module_id_addr = <0x36>;
 		rom_header_sensor_id_addr = <0x40>;
+		rom_header_mtf_data_addr = <0x47C>; /* Resolution Data */
 		rom_awb_master_addr = <0x0064>;
 
 		/* standard cal */
@@ -1048,14 +1073,14 @@
 		reg = <0x0C>;
 		id = <0>; /* matching sensor id */
 		/* DW9825A: addr 0xF3, data 0x0E */
-		vendor_product_id = <0xF3 0x0E 0xF3 0x00 0xF3 0x19 0xF3 0x13>;
+		vendor_product_id = <0xF3 0x0E 0xF3 0x1E 0xF3 0x19 0xF3 0x13>;
 		vendor_first_pos = <960>; /* 12bits */
 		vendor_first_delay = <2000>;
-		//vendor_use_sleep_mode;
-		//vendor_use_standby_mode; /* with vendor_use_sleep_mode */
+		vendor_use_sleep_mode;
+		vendor_use_standby_mode; /* with vendor_use_sleep_mode */
 		/* delay settings for DW9825A */
-		//vendor_sleep_to_standby_delay = <2200>;
-		//vendor_active_to_standby_delay = <300>;
+		vendor_sleep_to_standby_delay = <2200>;
+		vendor_active_to_standby_delay = <300>;
 		status = "okay";
 	};
 };
@@ -1072,7 +1097,7 @@
 		is_vendor_sensor_count = <4>;
 		max_supported_camera = <4>;
 		supported_cameraId = <0 1 58 60>;
-		ois_gyro_list = <0x01 0x00 0x01>;
+		ois_gyro_list = <0x01 0x01 0x11>;
 
 		/*
 		* Wide(0)
@@ -1093,7 +1118,6 @@
 			1 = <59 225>;	/* S5K3L6 HI1339*/
 			4 = <219>;	/* GC08A3 */
 			6 = <226>;	/* GC05A3 */
-
 		};
 
 		camera_info0 {			/* 0 : sysfs rear */
@@ -1384,4 +1408,3 @@
 		};
 	};
 };
-

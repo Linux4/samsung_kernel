@@ -1348,7 +1348,7 @@
 					pinctrl-0 = <0x60>;
 					interrupt-parent = <0x37>;
 					interrupts = <0x3a 0x02>;
-					vcc-supply = <0x61>;
+					vdd-supply = <0x61>;
 					hid-descr-addr = <0x20>;
 					wakeup-source;
 					phandle = <0x146>;

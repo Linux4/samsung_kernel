@@ -47,36 +47,54 @@
 #include "is-interface-sensor.h"
 #define SENSOR_NAME "IMX882"
 
-static bool sensor_imx882_cal_write_flag;
+/* temp change, remove once PDAF settings done */
+#define PDAF_DISABLE
+#ifdef PDAF_DISABLE
+const u16 sensor_imx882_pdaf_off[] = {
+	0x3104, 0x00, 0x01,
+	0x3103, 0x00, 0x01,
+	0x3422, 0x00, 0x01,
+	0x3423, 0x00, 0x01,
+	0x30A4, 0x00, 0x01,
+	0x30A6, 0x00, 0x01,
+	0x30A2, 0x00, 0x01,
+	0x30F1, 0x00, 0x01,
+	0x30A5, 0x00, 0x01,
+	0x30A7, 0x00, 0x01,
+	0x30A2, 0x00, 0x01,
+	0x30F1, 0x00, 0x01,
+	0x30A3, 0x00, 0x01,
+};
+
+const struct sensor_regs pdaf_off = SENSOR_REGS(sensor_imx882_pdaf_off);
+#endif
 
 void sensor_imx882_cis_set_mode_group(u32 mode)
 {
 	sensor_imx882_mode_groups[SENSOR_IMX882_MODE_DEFAULT] = mode;
 	sensor_imx882_mode_groups[SENSOR_IMX882_MODE_RMS_CROP] = MODE_GROUP_NONE;
 
-#if 0
 	switch (mode) {
-	case SENSOR_IMX882_4080X3060_30FPS:
+	case SENSOR_IMX882_VBIN_4080X3060_30FPS:
 		sensor_imx882_mode_groups[SENSOR_IMX882_MODE_DEFAULT] =
-			SENSOR_IMX882_4080X3060_30FPS_FCM;
+			SENSOR_IMX882_VBIN_4080X3060_30FPS;
 		sensor_imx882_mode_groups[SENSOR_IMX882_MODE_RMS_CROP] =
-			SENSOR_IMX882_REMOSAIC_12MPCROP_4080x3060_30FPS_FCM;
+			SENSOR_IMX882_FULL_CROP_4080X3060_30FPS;
 		break;
-	case SENSOR_IMX882_4080X2296_30FPS:
+	case SENSOR_IMX882_VBIN_4080X2296_30FPS:
 		sensor_imx882_mode_groups[SENSOR_IMX882_MODE_DEFAULT] =
-			SENSOR_IMX882_4080X2296_30FPS_FCM;
+			SENSOR_IMX882_VBIN_4080X2296_30FPS;
 		sensor_imx882_mode_groups[SENSOR_IMX882_MODE_RMS_CROP] =
-			SENSOR_IMX882_REMOSAIC_8MPCROP_4080x2296_30FPS_FCM;
+			SENSOR_IMX882_FULL_CROP_4080X2296_30FPS;
 		break;
 	}
-#endif
 
 	info("[%s] default(%d) rms_crop(%d)\n", __func__,
 		sensor_imx882_mode_groups[SENSOR_IMX882_MODE_DEFAULT],
 		sensor_imx882_mode_groups[SENSOR_IMX882_MODE_RMS_CROP]);
 }
 
-#if 0
+#if IS_ENABLED(CIS_QSC_CAL)
 int sensor_imx882_cis_QuadSensCal_write(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -100,7 +118,7 @@ int sensor_imx882_cis_QuadSensCal_write(struct v4l2_subdev *subdev)
 
 	cal_addr = (ulong)rom_cal_buf;
 	if (position == SENSOR_POSITION_REAR) {
-		cal_addr += IMX882_QSC_BASE_REAR;
+		cal_addr += IMX882_QSC_CAL_ADDR;
 	} else {
 		err("cis_imx882 position(%d) is invalid!\n", position);
 		goto p_err;
@@ -108,11 +126,61 @@ int sensor_imx882_cis_QuadSensCal_write(struct v4l2_subdev *subdev)
 
 	memcpy(cal_data, (u16 *)cal_addr, IMX882_QSC_SIZE);
 
+	IXC_MUTEX_LOCK(cis->ixc_lock);
 	ret = cis->ixc_ops->write8_sequential(cis->client, IMX882_QSC_ADDR, cal_data, IMX882_QSC_SIZE);
 	if (ret < 0)
 		err("cis_imx882 QSC write Error(%d)\n", ret);
+	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
-	ret = cis->ixc_ops->write8(cis->client, 0x86A9, 0x4E);
+	if (IS_ENABLED(DEBUG_SENSOR_TIME))
+		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
+
+p_err:
+	return ret;
+}
+#endif
+
+#if IS_ENABLED(CIS_SPC_CAL)
+int sensor_imx882_cis_spc_write(struct v4l2_subdev *subdev)
+{
+	int ret = 0;
+	struct is_cis *cis = sensor_cis_get_cis(subdev);
+	struct is_device_sensor_peri *sensor_peri = NULL;
+
+	int position;
+	ulong cal_addr;
+	u8 cal_data[IMX882_SPC_CAL_SIZE] = {0, };
+	char *rom_cal_buf = NULL;
+	ktime_t st = ktime_get();
+
+	sensor_peri = container_of(cis, struct is_device_sensor_peri, cis);
+	WARN_ON(!sensor_peri);
+
+	position = sensor_peri->module->position;
+
+	ret = is_sec_get_cal_buf(&rom_cal_buf, position);
+	if (ret < 0)
+		goto p_err;
+
+	cal_addr = (ulong)rom_cal_buf;
+	if (position == SENSOR_POSITION_REAR) {
+		cal_addr += IMX882_SPC_CAL_ADDR;
+	} else {
+		err("cis_imx882 position(%d) is invalid!\n", position);
+		goto p_err;
+	}
+
+	memcpy(cal_data, (u16 *)cal_addr, IMX882_SPC_CAL_SIZE);
+
+	IXC_MUTEX_LOCK(cis->ixc_lock);
+	ret = cis->ixc_ops->write8_sequential(cis->client, IMX882_SPC_1ST_ADDR, cal_data, IMX882_SPC_CAL_SIZE / 2);
+	if (ret < 0)
+		err("cis_imx882 SPC write Error(%d)\n", ret);
+
+	ret = cis->ixc_ops->write8_sequential(cis->client, IMX882_SPC_2ND_ADDR, cal_data, IMX882_SPC_CAL_SIZE / 2);
+	if (ret < 0)
+		err("cis_imx882 SPC write Error(%d)\n", ret);
+	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -155,13 +223,6 @@ int sensor_imx882_cis_init(struct v4l2_subdev *subdev)
 	ktime_t st = ktime_get();
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 
-/***********************************************************************
-***** Check that QSC Cal is written for Remosaic Capture.
-***** false : Not yet write the QSC
-***** true  : Written the QSC Or Skip
-***********************************************************************/
-	sensor_imx882_cal_write_flag = false;
-
 	cis->cis_data->stream_on = false;
 	cis->cis_data->cur_width = cis->sensor_info->max_width;
 	cis->cis_data->cur_height = cis->sensor_info->max_height;
@@ -176,11 +237,18 @@ int sensor_imx882_cis_init(struct v4l2_subdev *subdev)
 	cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
 	cis->cis_data->cur_pattern_mode = SENSOR_TEST_PATTERN_MODE_OFF;
 
+	sensor_imx882_mode_groups[SENSOR_IMX882_MODE_DEFAULT] = MODE_GROUP_NONE;
+	sensor_imx882_mode_groups[SENSOR_IMX882_MODE_RMS_CROP] = MODE_GROUP_NONE;
+
 	cis->cis_data->sens_config_index_pre = SENSOR_IMX882_MODE_MAX;
 	cis->cis_data->sens_config_index_cur = 0;
+#if IS_ENABLED(CIS_SPC_CAL)
+	cis->spc_done = false;
+#endif
+
 	CALL_CISOPS(cis, cis_data_calculation, subdev, cis->cis_data->sens_config_index_cur);
 
-	//is_vendor_set_mipi_mode(cis);
+	is_vendor_set_mipi_mode(cis);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -227,10 +295,13 @@ int sensor_imx882_cis_set_global_setting(struct v4l2_subdev *subdev)
 
 	info("[%s] global setting done\n", __func__);
 
-	// Check that QSC and DPC Cal is written for Remosaic Capture.
-	// false : Not yet write the QSC and DPC
-	// true  : Written the QSC and DPC
-	sensor_imx882_cal_write_flag = false;
+#if IS_ENABLED(CIS_QSC_CAL)
+	info("[%s] Write QSC data.\n", __func__);
+	ret = sensor_imx882_cis_QuadSensCal_write(subdev);
+	if (ret < 0)
+		err("sensor_imx882_Quad_Sens_Cal_write fail!! (%d)", ret);
+#endif
+
 	return ret;
 }
 
@@ -263,6 +334,7 @@ int sensor_imx882_cis_update_seamless_mode_on_vsync(struct v4l2_subdev *subdev)
 	cis_shared_data *cis_data;
 	const struct sensor_cis_mode_info *next_mode_info;
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
+	ktime_t st = ktime_get();
 
 	cis_data = cis->cis_data;
 	mode = cis_data->sens_config_index_cur;
@@ -275,36 +347,56 @@ int sensor_imx882_cis_update_seamless_mode_on_vsync(struct v4l2_subdev *subdev)
 	}
 
 	sensor_imx882_cis_check_cropped_remosaic(cis->cis_data, mode, &next_mode);
-	next_mode_info = cis->sensor_info->mode_infos[next_mode];
 
 	if (mode == next_mode || next_mode == MODE_GROUP_NONE)
 		return ret;
 
+	next_mode_info = cis->sensor_info->mode_infos[next_mode];
+
 	/* New mode settings Update */
-	info("%s mode(%d) next_mode(%d)", __func__, mode, next_mode);
+	info("[%s][%d] mode(%d) next_mode(%d)\n", __func__, cis->cis_data->sen_vsync_count, mode, next_mode);
+
 	IXC_MUTEX_LOCK(cis->ixc_lock);
-	ret |= cis->ixc_ops->write8(cis->client, 0x0104, 0x01);
+	ret = cis->ixc_ops->write8(cis->client, 0x0104, 0x01);
 	ret |= cis->ixc_ops->write8(cis->client, 0x3010, 0x02);
-	ret |= sensor_cis_write_registers(subdev, next_mode_info->setfile);
-	ret |= cis->ixc_ops->write8(cis->client, 0x0104, 0x00);
+	if (next_mode_info->setfile_fcm.size == 0)
+		ret |= sensor_cis_write_registers(subdev, next_mode_info->setfile);
+	else
+		ret |= sensor_cis_write_registers(subdev, next_mode_info->setfile_fcm);
 	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
-	if (ret < 0) {
+	if (ret < 0)
 		err("%s sensor_imx882_set_registers fail!!", __func__);
-		return ret;
-	}
-
-	info("%s sensor_cis_set_registers done for mode %d", __func__, next_mode);
 
 	cis_data->sens_config_index_pre = cis->cis_data->sens_config_index_cur;
 	cis_data->sens_config_index_cur = next_mode;
+	cis->cis_data->pre_12bit_mode = cis->cis_data->cur_12bit_mode;
 
 	CALL_CISOPS(cis, cis_data_calculation, subdev, next_mode);
 
-	info("[%s] pre(%d)->cur(%d), zoom [%d]\n",
-		__func__,
-		cis_data->sens_config_index_pre, cis_data->sens_config_index_cur,
-		cis_data->cur_remosaic_zoom_ratio);
+	ret = CALL_CISOPS(cis, cis_set_analog_gain, cis->subdev, &cis_data->last_again);
+	if (ret < 0)
+		err("err!!! cis_set_analog_gain ret(%d)", ret);
+
+	ret = CALL_CISOPS(cis, cis_set_digital_gain, cis->subdev, &cis_data->last_dgain);
+	if (ret < 0)
+		err("err!!! cis_set_digital_gain ret(%d)", ret);
+
+	ret = CALL_CISOPS(cis, cis_set_exposure_time, cis->subdev, &cis_data->last_exp);
+	if (ret < 0)
+		err("err!!! cis_set_exposure_time ret(%d)", ret);
+
+	IXC_MUTEX_LOCK(cis->ixc_lock);
+	cis->ixc_ops->write8(cis->client, 0x0104, 0x00);
+	IXC_MUTEX_UNLOCK(cis->ixc_lock);
+
+	info("[%s][%d] pre(%d)->cur(%d), 12bit[%d] LN[%d] zoom [%d] time %lldus\n",
+		__func__, cis->cis_data->sen_vsync_count,
+		cis->cis_data->sens_config_index_pre, cis->cis_data->sens_config_index_cur,
+		cis->cis_data->cur_12bit_mode,
+		cis->cis_data->cur_lownoise_mode,
+		cis_data->cur_remosaic_zoom_ratio,
+		PABLO_KTIME_US_DELTA_NOW(st));
 
 	return ret;
 }
@@ -343,10 +435,24 @@ int sensor_imx882_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		ret = -EINVAL;
 		goto p_err;
 	}
-	
+
 	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
 
 	info("[%s] sensor mode(%d)\n", __func__, mode);
+
+#if IS_ENABLED(CIS_SPC_CAL)
+	/* To compensate partial PD, SPC should be written in following modes */
+	if (mode == SENSOR_IMX882_QBIN_4080X2296_60FPS || mode == SENSOR_IMX882_VBIN_V2H2_2040X1148_240FPS) {
+		if (cis->spc_done == false) {
+			info("[%s] Write SPC data.\n", __func__);
+			ret = sensor_imx882_cis_spc_write(subdev);
+			if (ret < 0)
+				err("sensor_imx882_cis_spc_write fail!! (%d)", ret);
+			else
+				cis->spc_done = true;
+		}
+	}
+#endif
 
 	mode_info = cis->sensor_info->mode_infos[mode];
 	ret = sensor_cis_write_registers_locked(subdev, mode_info->setfile);
@@ -367,36 +473,29 @@ int sensor_imx882_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	cis->cis_data->remosaic_mode = mode_info->remosaic_mode;
 	cis->cis_data->pre_remosaic_zoom_ratio = 0;
 	cis->cis_data->cur_remosaic_zoom_ratio = 0;
+	cis->cis_data->pre_12bit_mode = mode_info->state_12bit;
+
+#ifdef PDAF_DISABLE /* temp till PDAF disabled settings for remosaic, ssm is received */
+	if (mode != SENSOR_IMX882_VBIN_4080X3060_30FPS && mode != SENSOR_IMX882_VBIN_4080X2296_30FPS
+		&& mode != SENSOR_IMX882_VBIN_4080X3060_30FPS_R12 && mode != SENSOR_IMX882_VBIN_4080X2296_30FPS_R12
+		&& mode != SENSOR_IMX882_QBIN_4080X2296_60FPS) {
+		sensor_cis_write_registers(subdev, pdaf_off);
+		info("[%s] pdaf_off for non-PDAF sensor mode:(%d)\n", __func__, mode);
+	}
+#endif
 
 	/* Disable Embedded Data Line */
 	IXC_MUTEX_LOCK(cis->ixc_lock);
 	cis->ixc_ops->write8(cis->client, IMX882_EBD_CONTROL_ADDR, 0x00);
 	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
-#if 0
-	/* Apply QSC for not only remosaic modes that use AF */
-	if ((mode == SENSOR_IMX882_4080X3060_30FPS
-		|| mode == SENSOR_IMX882_4080X2296_30FPS
-		|| mode == SENSOR_IMX882_3840x2160_60FPS
-		|| mode == SENSOR_IMX882_REMOSAIC_FULL_8160x6120_10FPS)
-		&& sensor_imx882_cal_write_flag == false) {
-		sensor_imx882_cal_write_flag = true;
-
-		info("[%s] mode is %d. Write QSC data.\n", __func__, mode);
-		IXC_MUTEX_LOCK(cis->ixc_lock);
-		ret = sensor_imx882_cis_QuadSensCal_write(subdev);
-		IXC_MUTEX_UNLOCK(cis->ixc_lock);
-		if (ret < 0)
-			err("sensor_imx576_Quad_Sens_Cal_write fail!! (%d)", ret);
-	}
-#endif
 	info("[%s] mode changed(%d)\n", __func__, mode);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 EXIT:
-	//sensor_imx882_cis_get_seamless_mode_info(subdev);
+	sensor_imx882_cis_get_seamless_mode_info(subdev);
 p_err:
 	return ret;
 }
@@ -414,7 +513,7 @@ int sensor_imx882_cis_stream_on(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	//is_vendor_set_mipi_clock(device);
+	is_vendor_set_mipi_clock(device);
 
 	/* Sensor stream on */
 	IXC_MUTEX_LOCK(cis->ixc_lock);
@@ -441,7 +540,7 @@ int sensor_imx882_cis_stream_off(struct v4l2_subdev *subdev)
 	ktime_t st = ktime_get();
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
-	
+
 	ret = CALL_CISOPS(cis, cis_group_param_hold, subdev, false);
 	if (ret < 0)
 		err("group_param_hold_func failed at stream off");
@@ -503,7 +602,6 @@ int sensor_imx882_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb
 	return ret;
 }
 
-#if 0
 int sensor_imx882_cis_get_updated_binning_ratio(struct v4l2_subdev *subdev, u32 *binning_ratio)
 {
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
@@ -521,7 +619,6 @@ int sensor_imx882_cis_get_updated_binning_ratio(struct v4l2_subdev *subdev, u32 
 
 	return 0;
 }
-#endif
 
 int sensor_imx882_cis_notify_vsync(struct v4l2_subdev *subdev)
 {
@@ -563,8 +660,8 @@ static struct is_cis_ops cis_ops_imx882 = {
 	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
 	.cis_set_wb_gains = sensor_imx882_cis_set_wb_gain,
-	//.cis_get_updated_binning_ratio = sensor_imx882_cis_get_updated_binning_ratio,
-	//.cis_notify_vsync = sensor_imx882_cis_notify_vsync,
+	.cis_get_updated_binning_ratio = sensor_imx882_cis_get_updated_binning_ratio,
+	.cis_notify_vsync = sensor_imx882_cis_notify_vsync,
 };
 
 int cis_imx882_probe_i2c(struct i2c_client *client,
@@ -588,7 +685,7 @@ int cis_imx882_probe_i2c(struct i2c_client *client,
 	/* belows are depend on sensor cis. MUST check sensor spec */
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_RG_GB;
 	cis->use_wb_gain = true;
-	cis->use_seamless_mode = false;
+	cis->use_seamless_mode = true;
 	cis->reg_addr = &sensor_imx882_reg_addr;
 
 	ret = of_property_read_string(dnode, "setfile", &setfile);

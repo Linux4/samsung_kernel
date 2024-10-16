@@ -14,6 +14,9 @@
 
 #include "is-cis.h"
 #include "is-cis-gc05a3.h"
+#ifdef USE_CAMERA_ADAPTIVE_MIPI
+#include "is-cis-gc05a3-setA-adaptive-mipi.h"
+#endif
 
 /* Reference : MCLK26M-GC05A3 
  * EXT_MCLK : 26MHz
@@ -566,8 +569,6 @@ const u16 sensor_gc05a3_setfile_A_2576x1932_30fps[] = {
 	0x0343, 0xe8, 0x01,
 	0x0220, 0x07, 0x01,
 	0x0221, 0xd0, 0x01,
-	0x0202, 0x07, 0x01,
-	0x0203, 0x32, 0x01,
 	0x0340, 0x07, 0x01,
 	0x0341, 0xf0, 0x01,
 	0x0219, 0x00, 0x01,
@@ -666,8 +667,6 @@ const u16 sensor_gc05a3_setfile_A_2560x1440_30fps[] = {
 	0x0343, 0xe8, 0x01,
 	0x0220, 0x07, 0x01,
 	0x0221, 0xd0, 0x01,
-	0x0202, 0x07, 0x01,
-	0x0203, 0x32, 0x01,
 	0x0340, 0x07, 0x01,
 	0x0341, 0xf0, 0x01,
 	0x0219, 0x00, 0x01,
@@ -844,10 +843,10 @@ const struct sensor_cis_mode_info sensor_gc05a3_mode_info_A_2576x1932_30fps = {
 	.pclk = 216700000ULL,
 	.frame_length_lines = 2032,
 	.line_length_pck = 3536,
-	.max_analog_gain = 0x4000,
-	.min_cit = 0x8,
-	.max_cit_margin = 48,
-	.align_cit = 2,
+	.max_analog_gain = 0x4000, /* x16 */
+	.min_cit = 0x4,
+	.max_cit_margin = 0x10,
+	.align_cit = 1,
 	.wb_gain_support = false,
 	.remosaic_mode = false,
 	.state_12bit = SENSOR_12BIT_STATE_OFF,
@@ -860,10 +859,10 @@ const struct sensor_cis_mode_info sensor_gc05a3_mode_info_A_2560x1440_30fps = {
 	.pclk = 216700000ULL,
 	.frame_length_lines = 2032,
 	.line_length_pck = 3536,
-	.max_analog_gain = 0x4000,
-	.min_cit = 0x8,
-	.max_cit_margin = 48,
-	.align_cit = 2,
+	.max_analog_gain = 0x4000, /* x16 */
+	.min_cit = 0x4,
+	.max_cit_margin = 0x10,
+	.align_cit = 1,
 	.wb_gain_support = false,
 	.remosaic_mode = false,
 	.state_12bit = SENSOR_12BIT_STATE_OFF,
@@ -876,10 +875,10 @@ const struct sensor_cis_mode_info sensor_gc05a3_mode_info_A_640x480_120fps = {
 	.pclk = 216700000ULL,
 	.frame_length_lines = 540,
 	.line_length_pck = 3332,
-	.max_analog_gain = 0x4000,
-	.min_cit = 0x8,
-	.max_cit_margin = 48,
-	.align_cit = 2,
+	.max_analog_gain = 0x4000, /* x16 */
+	.min_cit = 0x4,
+	.max_cit_margin = 0x10,
+	.align_cit = 1,
 	.wb_gain_support = false,
 	.remosaic_mode = false,
 	.state_12bit = SENSOR_12BIT_STATE_OFF,
@@ -897,15 +896,19 @@ static const struct sensor_gc05a3_private_data sensor_gc05a3_private_data_A = {
 
 static const struct sensor_cis_info sensor_gc05a3_info_A = {
 	.name = "gc05a3",
-	.version = "GC05A3 setfile V0.8_20230927",
+	.version = "GC05A3 setfile V0.9_20231107",
 	.max_width = 2576,
 	.max_height = 1932,
-	.min_analog_gain = 0x0400,
+	.min_analog_gain = 0x0400, /* x1 */
 	.fine_integration_time = 0x0,
 	.cit_compensation_threshold = 30,
 	.use_group_param_hold = false,
 	.mode_infos = sensor_gc05a3_mode_infos_A,
 	.mode_count = ARRAY_SIZE(sensor_gc05a3_mode_infos_A),
+#ifdef USE_CAMERA_ADAPTIVE_MIPI
+	.mipi_mode = sensor_gc05a3_setfile_A_mipi_sensor_mode,
+	.mipi_mode_count = ARRAY_SIZE(sensor_gc05a3_setfile_A_mipi_sensor_mode),
+#endif
 	.priv = (void *)&sensor_gc05a3_private_data_A,
 };
 #endif

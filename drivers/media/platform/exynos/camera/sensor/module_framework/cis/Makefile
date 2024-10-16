@@ -56,6 +56,7 @@ obj-$(CONFIG_CAMERA_CIS_3P9_OBJ) += is-cis-3p9.o
 obj-$(CONFIG_CAMERA_CIS_4HA_OBJ) += is-cis-4ha.o
 obj-$(CONFIG_CAMERA_CIS_GC5035_OBJ) += is-cis-gc5035.o
 obj-$(CONFIG_CAMERA_CIS_GC02M1_OBJ) += is-cis-gc02m1.o
+obj-$(CONFIG_CAMERA_CIS_GC02M2_OBJ) += is-cis-gc02m2.o
 obj-$(CONFIG_CAMERA_CIS_GM1SP_OBJ) += is-cis-gm1sp.o
 obj-$(CONFIG_CAMERA_CIS_IMX316_OBJ) += is-cis-imx316.o
 obj-$(CONFIG_CAMERA_CIS_IMX374_OBJ) += is-cis-imx374.o
@@ -80,6 +81,7 @@ obj-$(CONFIG_CAMERA_CIS_GD1_TELE_OBJ) += is-cis-gd1-tele.o
 obj-$(CONFIG_CAMERA_CIS_3M5_FOLD_OBJ) += is-cis-3m5-fold.o
 obj-$(CONFIG_CAMERA_CIS_GC05A3_OBJ) += is-cis-gc05a3.o
 obj-$(CONFIG_CAMERA_CIS_GC08A3_OBJ) += is-cis-gc08a3.o
+obj-$(CONFIG_CAMERA_CIS_JN1_OBJ) += is-cis-jn1.o
 
 EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera
 EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera/include

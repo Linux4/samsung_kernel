@@ -339,10 +339,11 @@ static int writeback_check_cwb(const struct writeback_device *wb,
 static int writeback_check_swb(const struct writeback_device *wb,
 		struct drm_crtc_state *crtc_state, const struct drm_framebuffer *fb)
 {
-	/* frameupdate w/o out-buffer are not supported in SWB */
 	if (!fb && crtc_state->active && crtc_state->plane_mask) {
-		wb_err(wb, "SWB commit is requested w/o out-buffer\n");
-		return -EINVAL;
+		struct exynos_drm_crtc_state *exynos_crtc_state = to_exynos_crtc_state(crtc_state);
+
+		exynos_crtc_state->modeset_only = true;
+		wb_warn(wb, "SWB commit is requested w/o out-buffer\n");
 	}
 
 	/* the fb bigger than 4K x 4K are not supported */

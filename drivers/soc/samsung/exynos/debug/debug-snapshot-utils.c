@@ -1319,7 +1319,6 @@ static inline bool is_event_supported(unsigned int type, unsigned int code)
 			code == dss_desc.trigger_key);
 }
 
-#if !IS_ENABLED(CONFIG_SEC_KEY_NOTIFIER)
 static void dbg_snanpshot_event(struct input_handle *handle, unsigned int type,
 		unsigned int code, int value)
 {
@@ -1329,6 +1328,11 @@ static void dbg_snanpshot_event(struct input_handle *handle, unsigned int type,
 
 	if (!is_event_supported(type, code))
 		return;
+
+	if (!dbg_snapshot_is_scratch()) {
+		dev_info(dss_desc.dev, "KEY event happend, but scratch is not set\n");
+		return;
+	}
 
 	dev_info(dss_desc.dev, "KEY(%d) %s\n",
 			code, value ? "pressed" : "released");
@@ -1411,7 +1415,6 @@ static struct input_handler dbg_snapshot_input_handler = {
 	.name		= "dss_input_handler",
 	.id_table	= dbg_snanpshot_ids,
 };
-#endif
 
 static void set_smc_pre_reading_ecc_sysreg(struct device *dev)
 {
@@ -1461,10 +1464,8 @@ void dbg_snapshot_init_utils(struct device *dev)
 	atomic_notifier_chain_register(&panic_notifier_list, &nb_pre_panic_block);
 	atomic_notifier_chain_register(&panic_notifier_list, &nb_post_panic_block);
 	register_trace_android_vh_ipi_stop(dbg_snapshot_ipi_stop, NULL);
-#if !IS_ENABLED(CONFIG_SEC_KEY_NOTIFIER)
 	if (input_register_handler(&dbg_snapshot_input_handler))
 		dev_info(dev, "skip registering input handler\n");
-#endif
 
 	smp_call_function(dbg_snapshot_save_system, NULL, 1);
 	dbg_snapshot_save_system(NULL);

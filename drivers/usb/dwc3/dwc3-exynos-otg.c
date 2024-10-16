@@ -621,6 +621,9 @@ static int dwc3_otg_start_gadget(struct otg_fsm *fsm, int on)
 
 	dev_info(dev, "Turn %s gadget %s\n",
 			on ? "on" : "off", otg->gadget->name);
+
+	dwc->softconnect = on;
+
 #if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
 	vbus_session_notify(dwc->gadget, on, EAGAIN);
 #endif

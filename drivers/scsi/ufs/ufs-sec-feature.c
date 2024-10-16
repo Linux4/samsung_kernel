@@ -14,9 +14,12 @@
 #include <asm/unaligned.h>
 #include <trace/hooks/ufshcd.h>
 #include <linux/panic_notifier.h>
+#include <linux/reboot.h>
 
 #include "ufs-sec-feature.h"
 #include "ufs-sec-sysfs.h"
+
+#define NOTI_WORK_DELAY_MS 500
 
 void (*ufs_sec_wb_reset_notify)(void);
 
@@ -177,12 +180,12 @@ static void ufs_sec_wb_update_info(struct ufs_hba *hba, int write_transfer_len)
 bool ufs_sec_is_wb_supported(void)
 {
 	struct ufs_sec_wb_info *ufs_wb = ufs_sec_features.ufs_wb;
-	struct ufs_vendor_dev_info *ufs_vdi = ufs_sec_features.vdi;
+	struct ufs_vendor_dev_info *vdi = ufs_sec_features.vdi;
 
 	if (!ufs_wb)
 		return false;
 
-	if (ufs_vdi->lt >= UFS_WB_DISABLE_THRESHOLD_LT)
+	if (vdi->lt >= UFS_WB_DISABLE_THRESHOLD_LT)
 		ufs_wb->support = false;
 
 	return ufs_wb->support;
@@ -862,19 +865,23 @@ static void ufs_sec_init_error_logging(struct device *dev)
 {
 	struct ufs_sec_err_info *ufs_err = NULL;
 	struct ufs_sec_err_info *ufs_err_backup = NULL;
+	struct ufs_sec_err_info *ufs_err_hist = NULL;
 
 	ufs_err = devm_kzalloc(dev, sizeof(struct ufs_sec_err_info), GFP_KERNEL);
 	ufs_err_backup = devm_kzalloc(dev, sizeof(struct ufs_sec_err_info), GFP_KERNEL);
-	if (!ufs_err || !ufs_err_backup) {
+	ufs_err_hist = devm_kzalloc(dev, sizeof(struct ufs_sec_err_info), GFP_KERNEL);
+	if (!ufs_err || !ufs_err_backup || !ufs_err_hist) {
 		dev_err(dev, "%s: Failed allocating ufs_err(backup)(%lu)",
 				__func__, sizeof(struct ufs_sec_err_info));
 		devm_kfree(dev, ufs_err);
 		devm_kfree(dev, ufs_err_backup);
+		devm_kfree(dev, ufs_err_hist);
 		return;
 	}
 
 	ufs_sec_features.ufs_err = ufs_err;
 	ufs_sec_features.ufs_err_backup = ufs_err_backup;
+	ufs_sec_features.ufs_err_hist = ufs_err_hist;
 
 	ufs_sec_features.ucmd_complete = true;
 	ufs_sec_features.qcmd_complete = true;
@@ -1005,6 +1012,36 @@ static void ufs_sec_init_cmd_logging(struct device *dev)
 /* SEC cmd log : end */
 #endif
 
+/*
+ * ufs_sec_check_and_is_err - Check and compare UFS Error counts
+ * @buf: has to be filled by using SEC_UFS_ERR_SUM() or SEC_UFS_ERR_HIST_SUM()
+ *
+ * Returns
+ *  0     - If the buf has no error counts
+ *  other - If the buf is invalid or has error count value
+ */
+static int ufs_sec_check_and_is_err(char *buf)
+{
+	const char *no_err = "U0I0H0L0X0Q0R0W0F0SM0SH0";
+
+	if (!buf || strlen(buf) < strlen(no_err))
+		return -EINVAL;
+
+	return strncmp(buf, no_err, strlen(no_err));
+}
+
+void ufs_sec_print_err(void)
+{
+	char err_buf[ERR_SUM_SIZE];
+	char hist_buf[ERR_HIST_SUM_SIZE];
+
+	SEC_UFS_ERR_SUM(err_buf);
+	SEC_UFS_ERR_HIST_SUM(hist_buf);
+
+	if (ufs_sec_check_and_is_err(hist_buf))
+		pr_info("ufs: %s, hist: %s", err_buf, hist_buf);
+}
+
 /* panic notifier : begin */
 static void ufs_sec_print_evt(struct ufs_hba *hba, u32 id,
 			     char *err_name)
@@ -1054,65 +1091,23 @@ static void ufs_sec_print_evt_hist(struct ufs_hba *hba)
 	ufs_sec_print_evt(hba, UFS_EVT_ABORT, "task_abort");
 }
 
-/**
- * ufs_sec_panic_callback - Print and Send UFS Error Information to AP
- * Format : U0I0H0L0X0Q0R0W0F0SM0SH0
- * U : UTP cmd error count
- * I : UIC error count
- * H : HWRESET count
- * L : Link startup failure count
- * X : Link Lost Error count
- * Q : UTMR QUERY_TASK error count
- * R : READ error count
- * W : WRITE error count
- * F : Device Fatal Error count
- * SM : Sense Medium error count
- * SH : Sense Hardware error count
- **/
 static int ufs_sec_panic_callback(struct notifier_block *nfb,
 		unsigned long event, void *panic_msg)
 {
-	struct ufs_vendor_dev_info *ufs_vdi = ufs_sec_features.vdi;
-	char buf[25];
+	struct ufs_vendor_dev_info *vdi = ufs_sec_features.vdi;
+	char err_buf[ERR_SUM_SIZE];
+	char hist_buf[ERR_HIST_SUM_SIZE];
 	char *str = (char *)panic_msg;
 	bool is_FSpanic = !strncmp(str, "F2FS", 4) || !strncmp(str, "EXT4", 4);
 
-	// if it's not FS panic, return immediately.
-	if (!is_FSpanic)
-		return NOTIFY_OK;
+	SEC_UFS_ERR_SUM(err_buf);
+	SEC_UFS_ERR_HIST_SUM(hist_buf);
+	pr_info("ufs: %s, hist: %s", err_buf, hist_buf);
 
-	/* print min(9, err_value) */
-	sprintf(buf, "U%uI%uH%uL%uX%uQ%uR%uW%uF%uSM%uSH%u",
-			/* UTP Error */
-			get_min_errinfo(u32, 9, UTP_cnt, UTP_err),
-			/* UIC Error */
-			get_min_errinfo(u32, 9, UIC_err_cnt, UIC_err),
-			/* HW reset */
-			get_min_errinfo(u32, 9, op_cnt, HW_RESET_cnt),
-			/* Link Startup fail */
-			get_min_errinfo(u32, 9, op_cnt, link_startup_cnt),
-			/* Link Lost */
-			get_min_errinfo(u8, 9, Fatal_err_cnt, LLE),
-			/* Query task */
-			get_min_errinfo(u8, 9, UTP_cnt, UTMR_query_task_cnt),
-			/* UTRR */
-			get_min_errinfo(u8, 9, UTP_cnt, UTR_read_err),
-			/* UTRW */
-			get_min_errinfo(u8, 9, UTP_cnt, UTR_write_err),
-			/* Device Fatal Error */
-			get_min_errinfo(u8, 9, Fatal_err_cnt, DFE),
-			/* Medium Error */
-			get_min_errinfo(u32, 9, sense_cnt, scsi_medium_err),
-			/* Hardware Error */
-			get_min_errinfo(u32, 9, sense_cnt, scsi_hw_err));
+	secdbg_exin_set_ufs(err_buf);
 
-	pr_err("%s: Send UFS information to AP : %s\n", __func__, buf);
-
-#if IS_ENABLED(CONFIG_SEC_USER_RESET_DEBUG)
-	sec_debug_store_additional_dbg(DBG_1_UFS_ERR, 0, "%s", buf);
-#endif
-	if (ufs_vdi)
-		ufs_sec_print_evt_hist(ufs_vdi->hba);
+	if (vdi && is_FSpanic && ufs_sec_check_and_is_err(err_buf))
+		ufs_sec_print_evt_hist(vdi->hba);
 
 	return NOTIFY_OK;
 }
@@ -1123,9 +1118,80 @@ static struct notifier_block ufs_sec_panic_notifier = {
 };
 /* panic notifier : end */
 
+/* reboot notifier : begin */
+static int ufs_sec_reboot_notify(struct notifier_block *notify_block,
+		unsigned long event, void *unused)
+{
+	char buf[ERR_HIST_SUM_SIZE];
+
+	SEC_UFS_ERR_HIST_SUM(buf);
+	pr_info("%s: UFS Info : %s", __func__, buf);
+
+	return NOTIFY_OK;
+}
+/* reboot notifier : end */
+
+/* I/O error uevent : begin */
+static void ufs_sec_err_noti_work(struct work_struct *work)
+{
+	int ret;
+	char buf[ERR_SUM_SIZE];
+
+	SEC_UFS_ERR_SUM(buf);
+	pr_info("%s: UFS Info: %s\n", __func__, buf);
+
+	ret = kobject_uevent(&sec_ufs_cmd_dev->kobj, KOBJ_CHANGE);
+	if (ret)
+		pr_err("%s: Failed to send uevent with err %d\n", __func__, ret);
+}
+
+static int ufs_sec_err_uevent(struct device *dev, struct kobj_uevent_env *env)
+{
+	char buf[ERR_SUM_SIZE];
+
+	add_uevent_var(env, "DEVNAME=%s", dev->kobj.name);
+	add_uevent_var(env, "NAME=UFSINFO");
+
+	SEC_UFS_ERR_SUM(buf);
+	return add_uevent_var(env, "DATA=%s", buf);
+}
+
+static struct device_type ufs_type = {
+	.uevent = ufs_sec_err_uevent,
+};
+
+static inline bool ufs_sec_is_uevent_condition(u32 hw_rst_cnt)
+{
+	return ((hw_rst_cnt == 1) || !(hw_rst_cnt % 10));
+}
+
+static void ufs_sec_trigger_err_noti_uevent(struct ufs_hba *hba)
+{
+	u32 hw_rst_cnt = SEC_UFS_ERR_INFO_GET_VALUE(op_cnt, HW_RESET_cnt);
+	char buf[ERR_SUM_SIZE];
+
+	/* eh_flags is only set during error handling */
+	if (!hba->eh_flags)
+		return;
+
+	SEC_UFS_ERR_SUM(buf);
+
+	if (!ufs_sec_check_and_is_err(buf))
+		return;
+
+	if (!ufs_sec_is_uevent_condition(hw_rst_cnt))
+		return;
+
+	if (sec_ufs_cmd_dev)
+		schedule_delayed_work(&ufs_sec_features.noti_work,
+				msecs_to_jiffies(NOTI_WORK_DELAY_MS));
+}
+/* I/O error uevent : end */
+
 void ufs_sec_config_features(struct ufs_hba *hba)
 {
 	ufs_sec_wb_config(hba);
+	ufs_sec_trigger_err_noti_uevent(hba);
 }
 
 void ufs_sec_adjust_caps_quirks(struct ufs_hba *hba)
@@ -1153,7 +1219,7 @@ void ufs_sec_set_features(struct ufs_hba *hba)
 
 	vdi = devm_kzalloc(hba->dev, sizeof(struct ufs_vendor_dev_info), GFP_KERNEL);
 	if (!vdi) {
-		dev_err(hba->dev, "%s: Failed allocating ufs_vdi(%lu)",
+		dev_err(hba->dev, "%s: Failed allocating vdi(%lu)",
 				__func__, sizeof(struct ufs_vendor_dev_info));
 		return;
 	}
@@ -1188,6 +1254,11 @@ void ufs_sec_set_features(struct ufs_hba *hba)
 	atomic_notifier_chain_register(&panic_notifier_list,
 			&ufs_sec_panic_notifier);
 
+	ufs_sec_features.reboot_notify.notifier_call = ufs_sec_reboot_notify;
+	register_reboot_notifier(&ufs_sec_features.reboot_notify);
+	sec_ufs_cmd_dev->type = &ufs_type;
+	INIT_DELAYED_WORK(&ufs_sec_features.noti_work, ufs_sec_err_noti_work);
+
 out:
 	kfree(desc_buf);
 }
@@ -1195,6 +1266,7 @@ out:
 void ufs_sec_remove_features(struct ufs_hba *hba)
 {
 	ufs_sec_remove_sysfs_nodes(hba);
+	unregister_reboot_notifier(&ufs_sec_features.reboot_notify);
 }
 
 static bool ufs_sec_get_scsi_cmd_info(struct ufshcd_lrb *lrbp,

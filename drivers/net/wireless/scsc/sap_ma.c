@@ -967,6 +967,7 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 	/* Populate wake reason stats here */
 	if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
 		schedule_work(&sdev->wakeup_time_work);
+		skb->mark = SLSI_WAKEUP_PKT_MARK;
 		slsi_rx_update_wake_stats(sdev, eth_hdr, skb->len, skb);
 	}
 

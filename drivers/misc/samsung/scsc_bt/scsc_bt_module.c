@@ -179,6 +179,10 @@ static bool bt_stop_on_failure(struct scsc_service_client *client, struct mx_sys
 
 	/* Allocate system_error_info and build hci_vse_system_error_info */
 	p = kmalloc(HCI_VSE_SYSTEM_ERROR_INFO_LEN, GFP_KERNEL);
+	if (bt_service.system_error_info != NULL)
+		kfree(bt_service.system_error_info);
+	bt_service.system_error_info = p;
+
 	if (p != NULL) {
 		*p++ = HCI_EVENT_PKT;
 		*p++ = HCI_EVENT_VENDOR_SPECIFIC_EVENT;
@@ -188,10 +192,7 @@ static bool bt_stop_on_failure(struct scsc_service_client *client, struct mx_sys
 	} else
 		SCSC_TAG_ERR(BT_COMMON, "Failed to alloc system_error_info memory\n");
 
-	if (bt_service.system_error_info != NULL)
-		kfree(bt_service.system_error_info);
-	bt_service.system_error_info = p;
-
+	bt_service.recovery_waiting = true;
 	atomic_inc(&bt_service.error_count);
 
 	/* Zero the shared memory on error. The A-Box does not stop using this
@@ -218,6 +219,7 @@ static void bt_failure_reset(struct scsc_service_client *client, u8 level, u16 s
 
 	SCSC_TAG_ERR(BT_COMMON, "\n");
 
+	bt_service.recovery_waiting = false;
 	wake_up(&bt_service.read_wait);
 }
 
@@ -1615,6 +1617,8 @@ static int scsc_bt_h4_release(struct inode *inode, struct file *file)
 #endif
 
 		bt_service.recovery_level = 0;
+		bt_service.recovery_waiting = false;
+
 		if (bt_service.system_error_info != NULL) {
 			kfree(bt_service.system_error_info);
 			bt_service.system_error_info = NULL;
@@ -1941,6 +1945,7 @@ void slsi_bt_service_probe(struct scsc_mx_module_client *module_client,
 		bt_service.recovery_level = 0;
 	}
 #endif
+	bt_service.recovery_waiting = false;
 
 	slsi_bt_notify_probe(bt_service.dev,
 			     &scsc_bt_shm_fops,

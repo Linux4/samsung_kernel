@@ -2234,8 +2234,15 @@ ssize_t scsc_bt_shm_h4_write(struct file *file, const char __user *buf, size_t c
 
 	/* Has en error been detect then just return with an error */
 	if (atomic_read(&bt_service.error_count) != 0) {
+		ret = -EIO;
+		if (bt_service.recovery_waiting) {
+			SCSC_TAG_DEBUG(BT_H4, "waiting for reset after recovery\n");
+			ret = wait_event_interruptible_timeout(bt_service.read_wait, bt_service.recovery_waiting, HZ);
+			if (ret == 0)
+				ret = -EAGAIN;
+		}
 		atomic_dec(&bt_service.h4_writers);
-		return -EIO;
+		return ret;
 	}
 
 	while (written != count && ret == 0) {
@@ -2403,6 +2410,12 @@ unsigned int scsc_bt_shm_h4_poll(struct file *file, poll_table *wait)
 	    (bt_service.read_operation != BT_READ_OP_STOP &&
 	     (atomic_read(&bt_service.error_count) != 0 ||
 	     bt_service.bsmhcp_protocol->header.panic_deathbed_confession))) {
+
+		if (bt_service.recovery_waiting) {
+			SCSC_TAG_DEBUG(BT_H4, "waiting for reset after recovery\n");
+			return 0;	/* skip */
+		}
+
 		SCSC_TAG_DEBUG(BT_H4, "queue(s) changed\n");
 		return POLLIN | POLLRDNORM; /* readeable */
 	}

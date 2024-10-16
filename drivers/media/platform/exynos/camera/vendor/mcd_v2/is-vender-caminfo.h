@@ -46,6 +46,8 @@ enum caminfo_cmd_id
 	CAMINFO_CMD_ID_GET_AWB_DATA_ADDR = 4,
 	CAMINFO_CMD_ID_PERFORM_CAL_RELOAD = 5,
 	CAMINFO_CMD_ID_GET_OIS_HALL_DATA = 6,
+	CAMINFO_CMD_ID_SET_MIPI_PHY = 8,
+	CAMINFO_CMD_ID_GET_MIPI_PHY = 9,
 #ifdef CONFIG_SEC_CAL_ENABLE
 	/* Standard CAL */
 	CAMINFO_CMD_ID_GET_MODULE_INFO = 20,
@@ -130,5 +132,48 @@ typedef struct
 #ifdef CONFIG_SEC_CAL_ENABLE
 bool is_need_use_standard_cal(uint32_t rom_id);
 #endif
+
+#ifdef USE_SENSOR_DEBUG
+#define MIPI_PHY_DATA_MAX_SIZE 3000
+struct caminfo_mipi_phy_data {
+	uint32_t position;
+	uint8_t *mipi_phy_buf;
+	uint32_t mipi_phy_size;
+};
+
+#define MIPI_PHY_REG_MAX_SIZE 40
+struct caminfo_mipi_phy_reg {
+	uint32_t reg;
+	char *reg_name;
+};
+
+static struct caminfo_mipi_phy_reg caminfo_mipi_phy_reg_list[MIPI_PHY_REG_MAX_SIZE] = {
+	{0x1000, "M_BIAS_CON0"},
+	{0x1004, "M_BIAS_CON1"},
+	{0x1008, "M_BIAS_CON2"},
+	{0x1010, "M_BIAS_CON4"},
+	{0x1114, "M_PLL_CON5"},
+	{0x1118, "M_PLL_CON6"},
+	{0x111C, "M_PLL_CON7"},
+	{0x1120, "M_PLL_CON8"},
+	{0x1124, "M_PLL_CON9"},
+	{0x0004, "SD_GNR_CON1"},
+	{0x0008, "SD_ANA_CON0"},
+	{0x000C, "SD_ANA_CON1"},
+	{0x0010, "SD_ANA_CON2"},
+	{0x0014, "SD_ANA_CON3"},
+	{0x0018, "SD_ANA_CON4"},
+	{0x001C, "SD_ANA_CON5"},
+	{0x0020, "SD_ANA_CON6"},
+	{0x0024, "SD_ANA_CON7"},
+	{0x0030, "SD_TIME_CON0"},
+	{0x0034, "SD_TIME_CON1"},
+	{0x005C, "SD_CRC_DLY_CON0"},
+	{0x0064, "SD_CRC_CON1"},
+	{0x0068, "SD_CRC_CON2"},
+	{0x009c, "SD_CRC_DLY_CON3"},
+	{0x0000, "SD_GNR_CON0"},
+};
+#endif /* USE_SENSOR_DEBUG */
 
 #endif /* IS_VENDER_CAMINFO_H */

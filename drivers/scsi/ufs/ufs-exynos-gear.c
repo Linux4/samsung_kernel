@@ -96,17 +96,15 @@ int ufs_gear_change(struct ufs_hba *hba, bool en)
 	struct ufs_perf *perf = ufs->perf;
 	struct ufs_perf_stat_v2 *stat = &perf->stat_v2;
 	unsigned long flags;
-	int prev, ret = 0;
+	int prev, ret = 0, val;
 
 	prev = act_pmd->gear;
 	if (en) {
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
-		int val;
-
 		val = (pmd->gear == UFS_HS_G5) ? ufs->pm_qos_gear5_int :
 			ufs->pm_qos_int_value;
 		if (val)
-			exynos_pm_qos_update_request(&ufs->pm_qos_int, val);
+			exynos_pm_qos_update_request(&stat->pm_qos_int, val);
 #endif
 		act_pmd->gear = pmd->gear;
 	} else {
@@ -115,6 +113,9 @@ int ufs_gear_change(struct ufs_hba *hba, bool en)
 
 	if (prev == act_pmd->gear)
 		return ret;
+
+	pr_info("%s: prev: %u, target gear = %u\n", __func__, prev,
+			(u32)act_pmd->gear);
 
 	/* pre pmc */
 	ufs->cal_param.pmd = act_pmd;
@@ -157,12 +158,23 @@ int ufs_gear_change(struct ufs_hba *hba, bool en)
 
 	trace_ufs_perf_gear("gear change", prev, act_pmd->gear);
 
-	if (act_pmd->gear == UFS_HS_G1) {
+	if (act_pmd->gear > UFS_HS_G1) {
+		val = (pmd->gear == UFS_HS_G5) ? ufs->pm_qos_gear5_int :
+			ufs->pm_qos_int_value;
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
 		if (ufs->pm_qos_int_value)
-			exynos_pm_qos_update_request(&ufs->pm_qos_int, 0);
+			exynos_pm_qos_update_request(&ufs->pm_qos_int, val);
+#endif
+	} else {
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+		exynos_pm_qos_update_request(&ufs->pm_qos_int, 0);
 #endif
 	}
+
+	/* release gear-scale minlock */
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+	exynos_pm_qos_update_request(&stat->pm_qos_int, 0);
+#endif
 
 	return ret;
 out:
@@ -311,6 +323,15 @@ int ufs_gear_scale_update(struct ufs_perf *perf)
 	return ret;
 }
 
+void ufs_gear_scale_exit(struct ufs_perf *perf)
+{
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+	struct ufs_perf_stat_v2 *stat = &perf->stat_v2;
+
+	exynos_pm_qos_remove_request(&stat->pm_qos_int);
+#endif
+}
+
 void ufs_gear_scale_init(struct ufs_perf *perf)
 {
 	struct ufs_perf_stat_v2 *stat = &perf->stat_v2;
@@ -338,6 +359,11 @@ void ufs_gear_scale_init(struct ufs_perf *perf)
 	INIT_WORK(&stat->gear_work, ufs_g_scale_handler);
 	INIT_DELAYED_WORK(&stat->devfreq_work, exynos_get_devfreq_noti);
 	schedule_delayed_work(&stat->devfreq_work, msecs_to_jiffies(10000));
+
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+	exynos_pm_qos_add_request(&stat->pm_qos_int,
+				  PM_QOS_DEVICE_THROUGHPUT, 0);
+#endif
 }
 
 MODULE_DESCRIPTION("Exynos UFS gear scale");

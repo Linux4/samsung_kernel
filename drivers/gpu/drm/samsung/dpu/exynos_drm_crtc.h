@@ -149,7 +149,8 @@ struct exynos_drm_crtc_ops {
 		const struct drm_display_mode *adjusted_mode);
 	int (*atomic_check)(struct exynos_drm_crtc *crtc,
 			    struct drm_atomic_state *state);
-	void (*atomic_begin)(struct exynos_drm_crtc *crtc);
+	void (*atomic_begin)(struct exynos_drm_crtc *crtc,
+			     struct drm_atomic_state *state);
 	void (*update_plane)(struct exynos_drm_crtc *crtc,
 			     struct exynos_drm_plane *plane);
 	void (*disable_plane)(struct exynos_drm_crtc *crtc,

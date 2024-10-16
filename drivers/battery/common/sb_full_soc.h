@@ -26,6 +26,8 @@ int get_full_capacity(struct sb_full_soc *fs);
 bool is_full_capacity(struct sb_full_soc *fs);
 bool is_eu_eco_rechg(struct sb_full_soc *fs);
 
+bool check_eu_eco_full_status(struct sec_battery_info *battery);
+bool check_eu_eco_rechg_ui_condition(struct sec_battery_info *battery);
 void sec_bat_recov_full_capacity(struct sec_battery_info *battery);
 void sec_bat_check_full_capacity(struct sec_battery_info *battery);
 

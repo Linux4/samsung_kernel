@@ -688,6 +688,7 @@ static struct mbulk *hip4_skb_to_mbulk(struct hip_priv *hip, struct sk_buff *skb
 	/* Get signal handler */
 	sig = mbulk_get_signal(m);
 	if (!sig) {
+		SLSI_ERR_NODEV("no sig in mbulk\n");
 		mbulk_free_virt_host(m);
 		return NULL;
 	}
@@ -702,6 +703,7 @@ static struct mbulk *hip4_skb_to_mbulk(struct hip_priv *hip, struct sk_buff *skb
 		/* Get head pointer */
 		b_data = mbulk_dat_rw(m);
 		if (!b_data) {
+			SLSI_ERR_NODEV("head pointer is NULL\n");
 			mbulk_free_virt_host(m);
 			return NULL;
 		}
@@ -2842,6 +2844,22 @@ int slsi_hip_free_control_slots_count(struct slsi_hip *hip)
 	return mbulk_pool_get_free_count(MBULK_POOL_ID_CTRL);
 }
 
+static bool slsi_hip_validate_size(struct sk_buff *skb, bool ctrl_packet, u8 head_tail_room)
+{
+	size_t payload, total_size;
+	struct slsi_skb_cb *cb = slsi_skb_cb_get(skb);
+
+	payload = skb->len - cb->sig_length;
+	if (payload)
+		total_size = cb->sig_length + head_tail_room;
+	else
+		total_size = cb->sig_length;
+
+	if (mbulk_pool_seg_size(ctrl_packet ? MBULK_POOL_ID_CTRL : MBULK_POOL_ID_DATA) < total_size)
+		return false;
+	return true;
+}
+
 /**
  * This function is in charge to transmit a frame through the HIP.
  * It does NOT take ownership of the SKB unless it successfully transmit it;
@@ -2904,8 +2922,14 @@ int slsi_hip_transmit_frame(struct slsi_hip *hip, struct sk_buff *skb, bool ctrl
 	m = hip4_skb_to_mbulk(hip->hip_priv, skb, ctrl_packet, colour);
 	if (!m) {
 		SCSC_HIP4_SAMPLER_MFULL(hip->hip_priv->minor);
-		ret = -ENOSPC;
-		SLSI_ERR_NODEV("mbulk is NULL\n");
+		if (!slsi_hip_validate_size(skb, ctrl_packet,
+					    hip->hip_priv->unidat_req_headroom + hip->hip_priv->unidat_req_tailroom)) {
+			ret = -ENOSPC;
+			SLSI_ERR_NODEV("mbulk is NULL\n");
+		} else {
+			ret = -EINVAL;
+			SLSI_ERR_NODEV("High payload length\n");
+		}
 		goto error;
 	}
 

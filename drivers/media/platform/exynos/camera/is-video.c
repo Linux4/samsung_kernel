@@ -3799,7 +3799,7 @@ int is_vidioc_s_ctrl(struct file *file, void *fh, struct v4l2_control *a)
 		break;
 	case V4L2_CID_IS_S_IRTA_RESULT_BUF:
 		idi = GET_DEVICE_ISCHAIN(ivc);
-		return pablo_interface_irta_result_buf_set(idi->pii, a->value);
+		return pablo_interface_irta_result_buf_set(idi->pii, a->value, 0);
 	case V4L2_CID_IS_S_IRTA_RESULT_IDX:
 		idi = GET_DEVICE_ISCHAIN(ivc);
 		return pablo_interface_irta_result_fcount_set(idi->pii, a->value);
@@ -3825,6 +3825,7 @@ int is_vidioc_s_ext_ctrls(struct file *file, void *fh, struct v4l2_ext_controls 
 	u32 instance = get_instance_video_ctx(ivc);
 	struct v4l2_ext_control *ext_ctrl;
 	struct v4l2_control ctrl;
+	struct is_device_ischain *idi;
 	int i, ret;
 
 	mdbgv_video(ivc, iv, __func__);
@@ -3837,13 +3838,20 @@ int is_vidioc_s_ext_ctrls(struct file *file, void *fh, struct v4l2_ext_controls 
 	for (i = 0; i < a->count; i++) {
 		ext_ctrl = (a->controls + i);
 
-		ctrl.id = ext_ctrl->id;
-		ctrl.value = ext_ctrl->value;
+		switch (ext_ctrl->id) {
+		case V4L2_CID_IS_S_IRTA_RESULT_BUF:
+			idi = GET_DEVICE_ISCHAIN(ivc);
+			return pablo_interface_irta_result_buf_set(
+				idi->pii, a->request_fd, ext_ctrl->value);
+		default:
+			ctrl.id = ext_ctrl->id;
+			ctrl.value = ext_ctrl->value;
 
-		ret = is_vidioc_s_ctrl(file, fh, &ctrl);
-		if (ret) {
-			mierr("failure in is_vidioc_s_ctrl(): %d", instance, ret);
-			return ret;
+			ret = is_vidioc_s_ctrl(file, fh, &ctrl);
+			if (ret) {
+				mierr("failure in is_vidioc_s_ctrl(): %d", instance, ret);
+				return ret;
+			}
 		}
 	}
 

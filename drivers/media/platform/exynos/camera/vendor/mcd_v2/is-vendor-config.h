@@ -37,6 +37,8 @@
 #include "stw_v50/is-vendor-config_stw_v50.h"
 #elif defined(CONFIG_CAMERA_AAX_A35X)
 #include "aax_v35x/is-vendor-config_aax_v35x.h"
+#elif defined(CONFIG_CAMERA_MMX_M35X)
+#include "mmx_v35x/is-vendor-config_mmx_v35x.h"
 #else
 #include "aaw_v54x/is-vendor-config_aaw_v54x.h"
 #endif

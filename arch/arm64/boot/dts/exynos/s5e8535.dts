@@ -2419,6 +2419,7 @@
 		samsung,sys-acp-con = <0x404 0x10000>;
 		samsung,rate-pcmc = <0x3197500 0x2ee0000 0x2ee0000>;
 		samsung,abox-llc-way = <0x06 0x0a 0x00 0x00>;
+		samsung,conf-file-name = "abox_solution.conf\0abox_system.conf";
 		phandle = <0x139>;
 
 		abox-core@14e55000 {
@@ -3856,20 +3857,26 @@
 		};
 
 		vframe {
+			compatible = "shared-dma-pool";
 			size = <0x32000000>;
 			alignment = <0x00 0x10000>;
+			reusable;
 			phandle = <0x52>;
 		};
 
 		vscaler {
+			compatible = "shared-dma-pool";
 			size = <0x6c00000>;
 			alignment = <0x00 0x10000>;
+			reusable;
 			phandle = <0x53>;
 		};
 
 		gpu_buffer {
+			compatible = "shared-dma-pool";
 			size = <0x4000000>;
 			alignment = <0x00 0x10000>;
+			reusable;
 			phandle = <0x54>;
 		};
 	};
@@ -3908,7 +3915,7 @@
 	};
 
 	video_frame_dma_heap {
-		compatible = "samsung,dma-heap-carveout";
+		compatible = "samsung,dma-heap-chunk";
 		memory-region = <0x52>;
 		dma-heap,name = "vframe";
 		dma-heap,secure;
@@ -3917,7 +3924,7 @@
 	};
 
 	video_scaler_dma_heap {
-		compatible = "samsung,dma-heap-carveout";
+		compatible = "samsung,dma-heap-chunk";
 		memory-region = <0x53>;
 		dma-heap,name = "vscaler";
 		dma-heap,secure;
@@ -3926,7 +3933,7 @@
 	};
 
 	gpu_buffer_dma_heap {
-		compatible = "samsung,dma-heap-carveout";
+		compatible = "samsung,dma-heap-chunk";
 		memory-region = <0x54>;
 		dma-heap,name = "system-secure-gpu_buffer";
 		dma-heap,secure;

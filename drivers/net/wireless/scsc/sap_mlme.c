@@ -350,6 +350,14 @@ static int slsi_rx_netdev_mlme(struct slsi_dev *sdev, struct net_device *dev, st
 	case MLME_SCHEDULED_PM_LEAKY_AP_DETECT_IND:
 		slsi_rx_scheduled_pm_leaky_ap_detect_indication(sdev, dev, skb);
 		break;
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	case MLME_SAR_IND:
+		slsi_tas_notify_sar_ind(sdev, dev, skb);
+		break;
+	case MLME_SAR_LIMIT_UPPER_IND:
+		slsi_tas_notify_sar_limit_upper(sdev, dev, skb);
+		break;
+#endif
 	default:
 		kfree_skb(skb);
 		SLSI_NET_ERR(dev, "Unhandled Ind/Cfm: 0x%.4x\n", id);
@@ -585,6 +593,11 @@ static int sap_mlme_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)
 				rcu_read_unlock();
 				return slsi_rx_enqueue_netdev_mlme(sdev, skb, vif);
 			}
+#if defined(CONFIG_SCSC_WLAN_TAS)
+		case MLME_SAR_IND:
+		case MLME_SAR_LIMIT_UPPER_IND:
+			return slsi_rx_enqueue_netdev_mlme(sdev, skb, SLSI_NET_INDEX_WLAN);
+#endif
 		default:
 			if (vif == 0) {
 				SLSI_WARN(sdev, "Received signal 0x%04x on VIF 0, return error\n", fapi_get_sigid(skb));

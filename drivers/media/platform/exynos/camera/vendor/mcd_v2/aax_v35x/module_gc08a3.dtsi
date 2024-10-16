@@ -116,6 +116,15 @@
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						option { special_mode = <IS_SPECIAL_MODE_FASTAE>; };
+					};
+					/* 8 : 1280x720@90fps 4:3 */
+					mode8 {
+						common = <1280 720 90 0 8 CSI_DATA_LANES_4 280 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 1280 720	/* out */ HW_FORMAT_RAW10 VC_NOTHING 1280 720>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 				};
 
@@ -130,13 +139,13 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name";	pin = <act value dealy voltage>;		gpio = <gpx# # 0x1>;	*/
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm3 0 0x1>; };
-						20 { pname = "VDDD_1.05V_FRONT"; pin = <PIN_REGULATOR 1 1000 1200000>; };
-						30 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm12 0 0x1>; };
-						40 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; };
-						60 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm3 0 0x1>; };
-						70 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
-						80 { pname = "pin"; pin = <PIN_FUNCTION 2 1000>; };
-						90 { pname = "MCLK"; pin = <PIN_MCLK 1 0>; gpio = <&gpg0 3 0x1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 500>; };
+						30 { pname = "VDDD_1.2V_UW"; pin = <PIN_REGULATOR 1 500>; };
+						40 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1500>; gpio = <&gpm12 0 0x1>; };
+						60 { pname = "on_i2c"; pin = <PIN_I2C 1 500>; };
+						70 { pname = "pin"; pin = <PIN_FUNCTION 2 500>; };
+						80 { pname = "MCLK"; pin = <PIN_MCLK 1 1000>; gpio = <&gpg0 3 0x1>; };
+						90 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpm3 0 0x1>; };
 					};
 
 					scenario_normal_off {
@@ -146,13 +155,14 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name";		pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
 						10 { pname = "delay"; pin = <PIN_NONE 0 500>; };
-						20 { pname = "MCLK"; pin = <PIN_MCLK 0 500>; gpio = <&gpg0 3 0x1>; };
-						30 { pname = "pin"; pin = <PIN_FUNCTION 1 500>; };
-						40 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						50 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
-						60 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm3 0 0x1>; };
-						70 { pname = "VDDD_1.05V_FRONT"; pin = <PIN_REGULATOR 0 100>; };
-						80 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; };
+						20 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm3 0 0x1>; };
+						30 { pname = "MCLK"; pin = <PIN_MCLK 0 500>; gpio = <&gpg0 3 0x1>; };
+						35 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						40 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						50 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						60 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
+						70 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; };
+						80 { pname = "VDDD_1.2V_UW"; pin = <PIN_REGULATOR 0 100>; };
 						90 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; };
 					};
 
@@ -163,13 +173,13 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm3 0 0x1>; };
-						20 { pname = "VDDD_1.05V_FRONT"; pin = <PIN_REGULATOR 1 1000 1200000>; };
-						30 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm12 0 0x1>; };
-						40 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; };
-						60 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm3 0 0x1>; };
-						70 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
-						80 { pname = "pin"; pin = <PIN_FUNCTION 2 1000>; };
-						90 { pname = "MCLK"; pin = <PIN_MCLK 1 0>; gpio = <&gpg0 3 0x1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 500>; };
+						30 { pname = "VDDD_1.2V_UW"; pin = <PIN_REGULATOR 1 500>; };
+						40 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1500>; gpio = <&gpm12 0 0x1>; };
+						60 { pname = "on_i2c"; pin = <PIN_I2C 1 500>; };
+						70 { pname = "pin"; pin = <PIN_FUNCTION 2 500>; };
+						80 { pname = "MCLK"; pin = <PIN_MCLK 1 1000>; gpio = <&gpg0 3 0x1>; };
+						90 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpm3 0 0x1>; };
 					};
 
 					scenario_vision_off {
@@ -179,13 +189,14 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "delay"; pin = <PIN_NONE 0 500>; };
-						20 { pname = "MCLK"; pin = <PIN_MCLK 0 500>; gpio = <&gpg0 3 0x1>; };
-						30 { pname = "pin"; pin = <PIN_FUNCTION 1 500>; };
-						40 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						50 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
-						60 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm3 0 0x1>; };
-						70 { pname = "VDDD_1.05V_FRONT"; pin = <PIN_REGULATOR 0 100>; };
-						80 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; };
+						20 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm3 0 0x1>; };
+						30 { pname = "MCLK"; pin = <PIN_MCLK 0 500>; gpio = <&gpg0 3 0x1>; };
+						35 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						40 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						50 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						60 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
+						70 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; };
+						80 { pname = "VDDD_1.2V_UW"; pin = <PIN_REGULATOR 0 100>; };
 						90 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; };
 					};
 
@@ -196,13 +207,13 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name";	pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm3 0 0x1>; };
-						20 { pname = "VDDD_1.05V_FRONT"; pin = <PIN_REGULATOR 1 1000 1200000>; };
-						30 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm12 0 0x1>; };
-						40 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; };
-						60 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm3 0 0x1>; };
-						70 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
-						80 { pname = "pin"; pin = <PIN_FUNCTION 2 1000>; };
-						90 { pname = "MCLK"; pin = <PIN_MCLK 1 0>; gpio = <&gpg0 3 0x1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 500>; };
+						30 { pname = "VDDD_1.2V_UW"; pin = <PIN_REGULATOR 1 500>; };
+						40 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 1 3000>; gpio = <&gpm12 0 0x1>; };
+						60 { pname = "on_i2c"; pin = <PIN_I2C 1 500>; };
+						70 { pname = "pin"; pin = <PIN_FUNCTION 2 500>; };
+						80 { pname = "MCLK"; pin = <PIN_MCLK 1 1000>; gpio = <&gpg0 3 0x1>; };
+						90 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 10000>; gpio = <&gpm3 0 0x1>; };
 					};
 
 					scenario_read_rom_off {
@@ -212,13 +223,14 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "delay"; pin = <PIN_NONE 0 500>; };
-						20 { pname = "MCLK"; pin = <PIN_MCLK 0 500>; gpio = <&gpg0 3 0x1>; };
-						30 { pname = "pin"; pin = <PIN_FUNCTION 1 500>; };
-						40 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
-						50 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
-						60 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm3 0 0x1>; };
-						70 { pname = "VDDD_1.05V_FRONT"; pin = <PIN_REGULATOR 0 100>; };
-						80 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; };
+						20 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm3 0 0x1>; };
+						30 { pname = "MCLK"; pin = <PIN_MCLK 0 500>; gpio = <&gpg0 3 0x1>; };
+						35 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						40 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						50 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						60 { pname = "off_i2c"; pin = <PIN_I2C 0 0>; };
+						70 { pname = "VT_RACM3_RCAM4_LDO_EN"; pin = <PIN_OUTPUT 0 1000>; gpio = <&gpm12 0 0x1>; };
+						80 { pname = "VDDD_1.2V_UW"; pin = <PIN_REGULATOR 0 100>; };
 						90 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; };
 					};
 				}; /* power_seq */

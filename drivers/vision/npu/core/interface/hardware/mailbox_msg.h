@@ -23,6 +23,8 @@
 #include "mailbox_msg_v10.h"
 #elif (CONFIG_NPU_COMMAND_VERSION == 11)
 #include "mailbox_msg_v11.h"
+#elif (CONFIG_NPU_COMMAND_VERSION == 12)
+#include "mailbox_msg_v12.h"
 #else
 #error Unsupported Command version
 #endif

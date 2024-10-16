@@ -488,7 +488,7 @@ static DEFINE_STATIC_PACKET(a54x_te_shift, DSI_PKT_TYPE_WR, A54X_TE_SHIFT, 0);
 
 static u8 A54X_TE_SHIFT_HLPM[] = {
 	0xB9,
-	0x04, 0x00, 0x00, 0x00, 0x09, 0x36, 0x00, 0x0F // 130us
+	0x04, 0x00, 0x00, 0x00, 0x09, 0x1D, 0x00, 0x0F // 300us
 };
 static DEFINE_STATIC_PACKET(a54x_te_shift_hlpm, DSI_PKT_TYPE_WR, A54X_TE_SHIFT_HLPM, 0);
 

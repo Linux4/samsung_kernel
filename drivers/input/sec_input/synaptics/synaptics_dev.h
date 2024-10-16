@@ -703,6 +703,7 @@ struct synaptics_ts_data {
 
 	bool support_immediate_cmd;
 	bool do_set_up_report;
+	u32 edgehandler_direction_max;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;

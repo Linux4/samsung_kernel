@@ -94,3 +94,9 @@ config CAMERA_ATW_V05
         default n
         help
          This camera is atw_v05
+config CAMERA_MMX_M35X
+        bool "This camera is mmx_v35x"
+        depends on CAMERA_VENDER_MCD_V2
+        default n
+        help
+         This camera is mmx_v35x

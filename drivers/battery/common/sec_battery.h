@@ -394,7 +394,6 @@ typedef struct sec_battery_platform_data {
 
 	unsigned int swelling_high_rechg_voltage;
 	unsigned int swelling_low_rechg_voltage;
-	unsigned int swelling_low_rechg_soc;
 	unsigned int swelling_low_cool3_rechg_voltage;
 	bool chgen_over_swell_rechg_vol;
 

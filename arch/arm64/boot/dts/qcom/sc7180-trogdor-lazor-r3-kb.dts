@@ -544,13 +544,13 @@
 
 		opp-2208000000 {
 			opp-hz = <0x00 0x839b6800>;
-			opp-peak-kBps = <0x6e1b80 0x1563000>;
+			opp-peak-kBps = <0x823020 0x1644000>;
 			phandle = <0x11d>;
 		};
 
 		opp-2323200000 {
 			opp-hz = <0x00 0x8a793800>;
-			opp-peak-kBps = <0x6e1b80 0x1563000>;
+			opp-peak-kBps = <0x823020 0x1644000>;
 			phandle = <0x11e>;
 		};
 

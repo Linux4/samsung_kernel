@@ -52,9 +52,9 @@ struct is_vender_specific {
 	bool			ois_ver_read;
 #endif /* CONFIG_OIS_USE */
 
-	struct i2c_client	*rom_client[ROM_ID_MAX];
+	struct i2c_client	*rom_client[ROM_ID_MAX][2];
 
-	bool		rom_valid[ROM_ID_MAX];
+	bool		rom_valid[ROM_ID_MAX][2];
 
 	u32			sensor_id[SENSOR_POSITION_MAX];
 	const char		*sensor_name[SENSOR_POSITION_MAX];

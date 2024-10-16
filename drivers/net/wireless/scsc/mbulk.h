@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright (c) 2014 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 
@@ -549,5 +549,5 @@ mbulk_colour mbulk_get_colour(u8 pool_id, struct mbulk *m);
 #if !defined(CONFIG_SCSC_WLAN_TX_API) && defined(CONFIG_SCSC_WLAN_TPUT_MONITOR)
 int mbulk_pool_get_count(u8 pool_id, enum mbulk_class clas, int *free, int *inuse);
 #endif
-
+u16 mbulk_pool_seg_size(u8 pool_id);
 #endif /*__MBULK_H__*/

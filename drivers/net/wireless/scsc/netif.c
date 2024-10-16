@@ -407,12 +407,14 @@ static int slsi_net_open(struct net_device *dev)
 		}
 	}
 	SLSI_NET_INFO(dev, "ifnum:%d r:%d MAC:" MACSTR "\n", ndev_vif->ifnum, sdev->recovery_status, MAC2STR(dev->dev_addr));
+	slsi_spinlock_lock(&sdev->netdev_lock);
 	ndev_vif->is_available = true;
 	if (ndev_vif->ifnum < SLSI_NAN_DATA_IFINDEX_START) {
 		netif_carrier_on(dev);
 		netif_dormant_on(dev);
 	}
 	sdev->netdev_up_count++;
+	slsi_spinlock_unlock(&sdev->netdev_lock);
 
 #ifndef CONFIG_ARM
 	slsi_netif_tcp_ack_suppression_start(dev);
