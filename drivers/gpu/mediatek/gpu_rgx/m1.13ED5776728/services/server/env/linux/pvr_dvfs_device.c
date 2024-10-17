@@ -62,6 +62,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "pvr_dvfs_device.h"
 
+#include <linux/mm_types.h>
 #include "kernel_compatibility.h"
 
 static PVRSRV_DEVICE_NODE *gpsDeviceNode;

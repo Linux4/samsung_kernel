@@ -426,7 +426,8 @@ int load_file_list(const char *name)
 				!strncmp(str, "/data/", 6) ||
 #endif
 				!strncmp(str, "/apex/", 6) ||
-				!strncmp(str, "/system_ext/", 12))) {
+				!strncmp(str, "/system_ext/", 12) ||
+				!strncmp(str, "/postinstall/", 13))) {
 			remove_substr(str, "/root/");
 			found = remove_substr(str, "/recovery/");
 			file_list_count++;

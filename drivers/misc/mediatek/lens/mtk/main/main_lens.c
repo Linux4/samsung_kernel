@@ -112,6 +112,12 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 N28TRULYHI5021Q_AW8601WAF_Release, N28TRULYHI5021Q_AW8601WAF_GetFileName, NULL},
 	{1, AFDRV_N28HI5021QDC_DW9800WAF, N28HI5021QDC_DW9800WAF_SetI2Cclient, N28HI5021QDC_DW9800WAF_Ioctl,
 	 N28HI5021QDC_DW9800WAF_Release, N28HI5021QDC_DW9800WAF_GetFileName, NULL},
+	{1, AFDRV_N28GC50E0GKW_GT9778AF, N28GC50E0GKW_GT9778AF_SetI2Cclient, N28GC50E0GKW_GT9778AF_Ioctl,
+	 N28GC50E0GKW_GT9778AF_Release, N28GC50E0GKW_GT9778AF_GetFileName, NULL},
+	{1, AFDRV_N28S5KJN1TRULY_GT9778AF, N28S5KJN1TRULY_GT9778AF_SetI2Cclient, N28S5KJN1TRULY_GT9778AF_Ioctl,
+	 N28S5KJN1TRULY_GT9778AF_Release, N28S5KJN1TRULY_GT9778AF_GetFileName, NULL},
+	{1, AFDRV_N28S5KJN1DC_GT9778AF, N28S5KJN1DC_GT9778AF_SetI2Cclient, N28S5KJN1DC_GT9778AF_Ioctl,
+	 N28S5KJN1DC_GT9778AF_Release, N28S5KJN1DC_GT9778AF_GetFileName, NULL},
 	//-bug S96818AA1-1936, liudijin.wt, Modify, 2023/4/20, hi5021 af bringup
 	#if 0
 	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl,
@@ -258,7 +264,9 @@ static void camaf_power_init(void)
 static void camaf_power_on(void)
 {
 	int ret;
-
+#ifdef CONFIG_MTK_S96818_CAMERA
+	LOG_INF("camaf_power_on with sensor (%d)\n", ret);
+#else
 	if (vcamaf_ldo) {
 		ret = regulator_enable(vcamaf_ldo);
 		LOG_INF("regulator enable (%d)\n", ret);
@@ -268,12 +276,15 @@ static void camaf_power_on(void)
 		ret = pinctrl_select_state(vcamaf_pio, vcamaf_pio_on);
 		LOG_INF("pinctrl enable (%d)\n", ret);
 	}
+#endif
 }
 
 static void camaf_power_off(void)
 {
 	int ret;
-
+#ifdef CONFIG_MTK_S96818_CAMERA
+	LOG_INF("camaf_power_off with sensor (%d)\n", ret);
+#else
 	if (vcamaf_ldo) {
 		ret = regulator_disable(vcamaf_ldo);
 		LOG_INF("regulator disable (%d)\n", ret);
@@ -283,6 +294,7 @@ static void camaf_power_off(void)
 		ret = pinctrl_select_state(vcamaf_pio, vcamaf_pio_off);
 		LOG_INF("pinctrl disable (%d)\n", ret);
 	}
+#endif
 }
 
 #ifdef CONFIG_MACH_MT6765

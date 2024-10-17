@@ -190,6 +190,38 @@ static int aw35615_retransmit(struct tcpc_device *tcpc)
 	return 0;
 }
 
+void aw_retry_source_cap(int cur)
+{
+	struct aw35615_chip *chip = aw35615_GetChip();
+	int bak_cur;
+
+	chip->port.USBPDTxFlag = AW_TRUE;
+	chip->port.PDTransmitHeader.word = chip->port.src_cap_header.word;
+	bak_cur = chip->port.src_caps[0].FPDOSupply.MaxCurrent;
+	chip->port.src_caps[0].FPDOSupply.MaxCurrent = cur / 10;
+
+	if ((!chip->queued) && (chip->port.PolicyState == peSourceReady)) {
+		chip->queued = AW_TRUE;
+		queue_work(chip->highpri_wq, &chip->sm_worker);
+		usleep_range(4000, 5000);
+		AW_LOG("queue_work --> send source cap\n");
+		do {
+			if ((chip->port.PolicyState == peSourceSendSoftReset) ||
+					(chip->port.PolicyState == peSourceSendHardReset) ||
+					(chip->port.PolicyState == peSourceTransitionDefault) ||
+					(chip->port.PolicyState == peDisabled)) {
+				AW_LOG("source cap fail\n");
+				return;
+			}
+			usleep_range(500, 1000);
+		} while ((chip->port.PolicyState != peSourceNegotiateCap) || (chip->queued == AW_TRUE));
+		return;
+	}
+
+	chip->port.src_caps[0].FPDOSupply.MaxCurrent = bak_cur;
+	return;
+}
+
 static struct tcpc_ops aw35615_tcpc_ops = {
 	.init = aw35615_tcpc_init,
 	.alert_status_clear = aw35615_alert_status_clear,
@@ -260,7 +292,7 @@ static void aw35615_init_delay_work(struct work_struct *work)
 
 	AW_LOG("Core is initialized!\n");
 }
-
+int is_aw35615 = false;
 static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct aw35615_chip *chip;
@@ -358,6 +390,7 @@ static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *
 	/* +Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
 	hardwareinfo_set_prop(HARDWARE_PD_CHARGER, "AW35615CSR");
 	/* -Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
+	is_aw35615 = true;
 	return ret;
 }
 

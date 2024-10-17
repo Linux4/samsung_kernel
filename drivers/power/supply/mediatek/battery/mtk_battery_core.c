@@ -1330,7 +1330,7 @@ static void fg_custom_part_ntc_table(const struct device_node *np,
 #endif
 }
 
-#if defined (CONFIG_W2_CHARGER_PRIVATE)
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
 int wt_set_batt_cycle_fv(bool update)
 {
 	int i = 0; 
@@ -1358,6 +1358,46 @@ int wt_set_batt_cycle_fv(bool update)
 EXPORT_SYMBOL_GPL(wt_set_batt_cycle_fv);
 #endif
 
+#if defined (CONFIG_N28_CHARGER_PRIVATE)
+extern int temp_cycle;
+extern bool is_upm6910;
+int wt_get_cv_by_cycle(void)
+{
+	static int cycle = 0;
+	int cycle_fv = 0;
+	if(temp_cycle != -1)
+		cycle = temp_cycle;
+	else
+		cycle = gm.bat_cycle;
+	if(is_upm6910){
+		if(cycle > 999)
+			cycle_fv = 4240000;
+		else if (cycle > 699)
+			cycle_fv = 4280000;
+		else if (cycle > 399)
+			cycle_fv = 4310000;
+		else if (cycle > 299)
+			cycle_fv = 4330000;
+		else
+			cycle_fv = 4350000;
+	}else{
+		if(cycle > 999)
+			cycle_fv = 4240000;
+		else if (cycle > 699)
+			cycle_fv = 4272000;
+		else if (cycle > 399)
+			cycle_fv = 4304000;
+		else if (cycle > 299)
+			cycle_fv = 4352000;
+		else
+			cycle_fv = 4368000;
+	}
+	printk("N28 charger ic is %s,cycle = %d,cv = %d",is_upm6910 ? "UPM6910":"SGM41513",cycle,cycle_fv);
+	return cycle_fv;
+}
+EXPORT_SYMBOL_GPL(wt_get_cv_by_cycle);
+#endif
+
 void fg_custom_init_from_dts(struct platform_device *dev)
 {
 	struct device_node *np = dev->dev.of_node;
@@ -1366,7 +1406,7 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	int r_pseudo100_raw = 0, r_pseudo100_col = 0;
 	char node_name[128];
 
-#if defined (CONFIG_W2_CHARGER_PRIVATE)
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
 	int cycle_fv, byte_len;
 
 	if (of_find_property(np, "wt,batt-cycle-ranges", &byte_len)) {
@@ -1826,7 +1866,7 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 			i*TOTAL_BATTERY_NUMBER+gm.battery_id,
 			&(fg_table_cust_data.fg_profile[i].pseudo1),
 			UNIT_TRANS_100);
-#if defined (CONFIG_W2_CHARGER_PRIVATE)
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
 		if (cycle_fv != 0) {
 			sprintf(node_name, "g_FG_PSEUDO100_cv%d", cycle_fv / 1000);
 			fg_read_dts_val_by_idx(np, node_name,

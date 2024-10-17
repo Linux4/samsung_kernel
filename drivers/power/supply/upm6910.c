@@ -383,8 +383,23 @@ int upm6910_set_chargevolt(struct upm6910 *upm, int volt)
 
 	if (volt < REG04_VREG_BASE)
 		volt = REG04_VREG_BASE;
-
-	val = (volt - REG04_VREG_BASE) / REG04_VREG_LSB;
+	
+	if(is_upm6910){
+		if(volt == 4350)
+			val = 16;
+		else if(volt == 4330)
+			val = 15;
+		else if(volt == 4310)
+			val = 14;
+		else if(volt == 4280)
+			val = 13;
+		else if(volt == 4240)
+			val = 12;
+		else
+			val = (volt - REG04_VREG_BASE) / REG04_VREG_LSB;
+	}else{
+		val = (volt - REG04_VREG_BASE) / REG04_VREG_LSB;
+	}
 	return upm6910_update_bits(upm, UPM6910_REG_04, REG04_VREG_MASK,
 				   val << REG04_VREG_SHIFT);
 }
@@ -1087,7 +1102,9 @@ static int upm6910_get_charger_type(struct upm6910 *upm)
 		break;
 	case REG08_VBUS_TYPE_UNKNOWN:
     	upm->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
-		upm->chg_type = STANDARD_HOST;
+//+P240223-04343,guhan01.wt 20240327,When the charging type is unrecognized, it is defined as non-standard charging
+		upm->chg_type = NONSTANDARD_CHARGER;
+//-P240223-04343,guhan01.wt 20240327,When the charging type is unrecognized, it is defined as non-standard charging
 		upm->psy_desc.type = POWER_SUPPLY_TYPE_USB;
 		break;
 	case REG08_VBUS_TYPE_NON_STD:
@@ -1693,7 +1710,7 @@ static int upm6910_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 
 	vbus_stat = (reg_val & REG08_VBUS_STAT_MASK);
 	vbus_stat >>= REG08_VBUS_STAT_SHIFT;
-	if(vbus_stat != REG08_VBUS_TYPE_SDP) {
+	if(vbus_stat != REG08_VBUS_TYPE_SDP && vbus_stat != REG08_VBUS_TYPE_CDP) {
 		pr_err("vbus_stat = %d\n",vbus_stat);
 		return -1;
 	}

@@ -14,6 +14,9 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
     //+S96818AA1-1936,liudijin.wt,ADD,2023/04/29,add hi5021 otp bring up code.
     {N28HI5021QREARTRULY_SENSOR_ID, 0xA0, Common_read_region},
     {N28HI5021QREARDC_SENSOR_ID, 0xA0, Common_read_region},
+    {N28GC50E0REARGKW_SENSOR_ID, 0xA0, Common_read_region},
+    {N28S5KJN1REARTRULY_SENSOR_ID, 0xA0, Common_read_region},
+    {N28S5KJN1REARDC_SENSOR_ID, 0xA0, Common_read_region},
     {N28SC800CSFRONTDC_SENSOR_ID, 0xA0, Common_read_region},
     //-S96818AA1-1936,liudijin.wt,ADD,2023/04/29,add hi5021 otp bring up code.
     #if 0

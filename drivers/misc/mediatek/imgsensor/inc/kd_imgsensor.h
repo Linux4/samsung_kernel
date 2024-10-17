@@ -767,6 +767,16 @@
 #define N28HI5022QREARTXD_SENSOR_ID  0x5022+1
 #define SENSOR_DRVNAME_N28HI5022QREARTXD_MIPI_RAW "n28hi5022qreartxd_mipi_raw"
 //+S96818AA1-1936,liudijin.wt,ADD,2023/04/11,hi5022 main sensor bringup
+//+S96818AA1-1936,yangjiayuan.wt,ADD,2023/12/09,gc50e0 main sensor bringup
+#define N28GC50E0REARGKW_SENSOR_ID  0x50e0
+#define SENSOR_DRVNAME_N28GC50E0REARGKW_MIPI_RAW "n28gc50e0reargkw_mipi_raw"
+//-S96818AA1-1936,yangjiayuan.wt,ADD,2023/12/09,gc50e0 main sensor bringup
+//+S96818AA1-1936,guomin2.wt,ADD,2024/06/11,s5kjn1 main sensor bringup
+#define N28S5KJN1REARTRULY_SENSOR_ID  0x38E1
+#define SENSOR_DRVNAME_N28S5KJN1REARTRULY_MIPI_RAW "n28s5kjn1reartruly_mipi_raw"
+#define N28S5KJN1REARDC_SENSOR_ID  0x38E1+1
+#define SENSOR_DRVNAME_N28S5KJN1REARDC_MIPI_RAW "n28s5kjn1reardc_mipi_raw"
+//-S96818AA1-1936,guomin2.wt,ADD,2024/06/11,s5kjn1 main sensor bringup
 //+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,hi846 sub sensor bringup
 #define N28HI846FRONTTRULY_SENSOR_ID              0x0846
 #define SENSOR_DRVNAME_N28HI846FRONTTRULY_MIPI_RAW "n28hi846fronttruly_mipi_raw"
@@ -793,12 +803,32 @@
 #define N28C2519DEPCXT2_SENSOR_ID  0x020f+1
 #define SENSOR_DRVNAME_N28C2519DEPCXT2_MIPI_MONO "n28c2519depcxt2_mipi_mono"
 //-S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
+//+S96818AA1-1936,yangjiayuan.wt,ADD,2023/12/14,dual camera bringup
+#define N28C2519DEPCXT3_SENSOR_ID  0x020f+2
+#define SENSOR_DRVNAME_N28C2519DEPCXT3_MIPI_MONO "n28c2519depcxt3_mipi_mono"
+//-S96818AA1-1936,yangjiayuan.wt,ADD,2023/12/14,dual camera bringup
+//+S96818AA1-1936,guomin2.wt,ADD,2024/06/11,s5kjn1 main sensor bringup
+#define N28C2519DEPCXT4_SENSOR_ID  0x020f+3
+#define SENSOR_DRVNAME_N28C2519DEPCXT4_MIPI_MONO "n28c2519depcxt4_mipi_mono"
+#define N28C2519DEPCXT5_SENSOR_ID  0x020f+4
+#define SENSOR_DRVNAME_N28C2519DEPCXT5_MIPI_MONO "n28c2519depcxt5_mipi_mono"
+//-S96818AA1-1936,guomin2.wt,ADD,2024/06/11,s5kjn1 main sensor bringup
 //+S96818AA1-1936,chenming.wt,ADD,2023/04/24,gc2375h depth sensor bringup
 #define N28GC2375HDEPLH_SENSOR_ID  0x2375
 #define SENSOR_DRVNAME_N28GC2375HDEPLH_MIPI_RAW "n28gc2375hdeplh_mipi_raw"
 #define N28GC2375HDEPLH2_SENSOR_ID  0x2375+1
 #define SENSOR_DRVNAME_N28GC2375HDEPLH2_MIPI_RAW "n28gc2375hdeplh2_mipi_raw"
 //-S96818AA1-1936,chenming.wt,ADD,2023/04/24,gc2375h depth sensor bringup
+//+S96818AA1-1936,yangjiayuan.wt,ADD,2023/12/14,dual camera bringup
+#define N28GC2375HDEPLH3_SENSOR_ID  0x2375+2
+#define SENSOR_DRVNAME_N28GC2375HDEPLH3_MIPI_RAW "n28gc2375hdeplh3_mipi_raw"
+//-S96818AA1-1936,yangjiayuan.wt,ADD,2023/12/14,dual camera bringup
+//+S96818AA1-1936,guomin2.wt,ADD,2024/06/11,s5kjn1 main sensor bringup
+#define N28GC2375HDEPLH4_SENSOR_ID  0x2375+3
+#define SENSOR_DRVNAME_N28GC2375HDEPLH4_MIPI_RAW "n28gc2375hdeplh4_mipi_raw"
+#define N28GC2375HDEPLH5_SENSOR_ID  0x2375+4
+#define SENSOR_DRVNAME_N28GC2375HDEPLH5_MIPI_RAW "n28gc2375hdeplh5_mipi_raw"
+//-S96818AA1-1936,guomin2.wt,ADD,2024/06/11,s5kjn1 main sensor bringup
 #endif
 /******************************************************************************
  *

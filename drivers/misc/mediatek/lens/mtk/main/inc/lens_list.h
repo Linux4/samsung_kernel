@@ -510,5 +510,47 @@ extern long N28HI5021QDC_DW9800WAF_Ioctl(struct file *a_pstFile, unsigned int a_
 extern int N28HI5021QDC_DW9800WAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
 extern int N28HI5021QDC_DW9800WAF_GetFileName(unsigned char *pFileName);
 extern struct regulator *regulator_get_regVCAMAF(void);
+
+#define N28GC50E0GKW_GT9778AF_SetI2Cclient N28GC50E0GKW_GT9778AF_SetI2Cclient_Main
+#define N28GC50E0GKW_GT9778AF_Ioctl N28GC50E0GKW_GT9778AF_Ioctl_Main
+#define N28GC50E0GKW_GT9778AF_Release N28GC50E0GKW_GT9778AF_Release_Main
+#define N28GC50E0GKW_GT9778AF_PowerDown N28GC50E0GKW_GT9778AF_PowerDown_Main
+#define N28GC50E0GKW_GT9778AF_GetFileName N28GC50E0GKW_GT9778AF_GetFileName_Main
+extern int N28GC50E0GKW_GT9778AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+	spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long N28GC50E0GKW_GT9778AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+	unsigned long a_u4Param);
+extern int N28GC50E0GKW_GT9778AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int N28GC50E0GKW_GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient, int *pAF_Opened);
+extern int N28GC50E0GKW_GT9778AF_GetFileName(unsigned char *pFileName);
+extern struct regulator *regulator_get_regVCAMAF(void);
+
+#define N28S5KJN1TRULY_GT9778AF_SetI2Cclient N28S5KJN1TRULY_GT9778AF_SetI2Cclient_Main
+#define N28S5KJN1TRULY_GT9778AF_Ioctl N28S5KJN1TRULY_GT9778AF_Ioctl_Main
+#define N28S5KJN1TRULY_GT9778AF_Release N28S5KJN1TRULY_GT9778AF_Release_Main
+#define N28S5KJN1TRULY_GT9778AF_PowerDown N28S5KJN1TRULY_GT9778AF_PowerDown_Main
+#define N28S5KJN1TRULY_GT9778AF_GetFileName N28S5KJN1TRULY_GT9778AF_GetFileName_Main
+extern int N28S5KJN1TRULY_GT9778AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+	spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long N28S5KJN1TRULY_GT9778AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+	unsigned long a_u4Param);
+extern int N28S5KJN1TRULY_GT9778AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int N28S5KJN1TRULY_GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient, int *pAF_Opened);
+extern int N28S5KJN1TRULY_GT9778AF_GetFileName(unsigned char *pFileName);
+extern struct regulator *regulator_get_regVCAMAF(void);
+
+#define N28S5KJN1DC_GT9778AF_SetI2Cclient N28S5KJN1DC_GT9778AF_SetI2Cclient_Main
+#define N28S5KJN1DC_GT9778AF_Ioctl N28S5KJN1DC_GT9778AF_Ioctl_Main
+#define N28S5KJN1DC_GT9778AF_Release N28S5KJN1DC_GT9778AF_Release_Main
+#define N28S5KJN1DC_GT9778AF_PowerDown N28S5KJN1DC_GT9778AF_PowerDown_Main
+#define N28S5KJN1DC_GT9778AF_GetFileName N28S5KJN1DC_GT9778AF_GetFileName_Main
+extern int N28S5KJN1DC_GT9778AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+	spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long N28S5KJN1DC_GT9778AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+	unsigned long a_u4Param);
+extern int N28S5KJN1DC_GT9778AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int N28S5KJN1DC_GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient, int *pAF_Opened);
+extern int N28S5KJN1DC_GT9778AF_GetFileName(unsigned char *pFileName);
+extern struct regulator *regulator_get_regVCAMAF(void);
 //-bug S96818AA1-1936, liudijin.wt, Modify, 2023/4/20, hi5021 af bringup
 #endif

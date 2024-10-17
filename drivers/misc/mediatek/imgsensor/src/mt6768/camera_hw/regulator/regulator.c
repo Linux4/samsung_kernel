@@ -35,6 +35,7 @@ static struct reg_oc_debug_t
 static const int regulator_voltage[] = {
 	REGULATOR_VOLTAGE_0,
 	REGULATOR_VOLTAGE_1000,
+	REGULATOR_VOLTAGE_1050,
 	REGULATOR_VOLTAGE_1100,
 	REGULATOR_VOLTAGE_1200,
 	REGULATOR_VOLTAGE_1210,
@@ -54,6 +55,15 @@ struct REGULATOR_CTRL regulator_control[REGULATOR_TYPE_MAX_NUM] = {
 
 static struct REGULATOR reg_instance;
 
+#ifdef CONFIG_MTK_S96818_CAMERA
+extern struct platform_device *gpimgsensor_hw_platform_device;
+static struct regulator *regVCAMAF = NULL;
+struct regulator *regulator_get_regVCAMAF_S96818(void)
+{
+	return regulator_get(&(gpimgsensor_hw_platform_device->dev), "cam0_vcamaf");
+}
+EXPORT_SYMBOL(regulator_get_regVCAMAF_S96818);
+#endif
 static int regulator_oc_notify(
 	struct notifier_block *nb, unsigned long event, void *data)
 {
@@ -235,6 +245,44 @@ static enum IMGSENSOR_RETURN regulator_set(
 	int reg_type_offset;
 	atomic_t	*enable_cnt;
 
+#ifdef CONFIG_MTK_S96818_CAMERA
+	{
+		regVCAMAF = regulator_get_regVCAMAF_S96818();
+		if (IS_ERR(regVCAMAF)) {
+			pr_err("get main af regulator fail");
+			regVCAMAF = NULL;
+		}
+		if (pin == IMGSENSOR_HW_PIN_AFVDD)
+		{
+			if (pin_state == IMGSENSOR_HW_PIN_STATE_LEVEL_0)
+			{
+				if (regulator_set_voltage(regVCAMAF,regulator_voltage[IMGSENSOR_HW_PIN_STATE_LEVEL_0],regulator_voltage[IMGSENSOR_HW_PIN_STATE_LEVEL_0]))
+				{
+					pr_debug("[regulator]fail to regulator_set_voltage, powerId:%d\n", regulator_voltage[IMGSENSOR_HW_PIN_STATE_LEVEL_0]);
+				}
+				if (regulator_disable(regVCAMAF))
+				{
+					pr_debug("[regulator]fail to regulator_disable gVCamIO\n");
+					return IMGSENSOR_RETURN_ERROR;
+				}
+			}
+			else
+			{
+				if (regulator_set_voltage(regVCAMAF, regulator_voltage[pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0],regulator_voltage[pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0]))
+				{
+					pr_debug("[regulator]fail to regulator_set_voltage, powerId:%d\n",regulator_voltage[pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0]);
+				}
+				if (regulator_enable(regVCAMAF))
+				{
+					pr_debug("[regulator]fail to regulator_enable\n");
+					return IMGSENSOR_RETURN_ERROR;
+				}
+			}
+			return IMGSENSOR_RETURN_SUCCESS;
+		}
+	}
+#endif
+
 	if (pin > IMGSENSOR_HW_PIN_DOVDD   ||
 	    pin < IMGSENSOR_HW_PIN_AVDD    ||
 	    pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
@@ -251,6 +299,16 @@ static enum IMGSENSOR_RETURN regulator_set(
 	enable_cnt =
 		&preg->enable_cnt[(unsigned int)sensor_idx][
 			reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
+
+#ifdef CONFIG_MTK_S96818_CAMERA
+    if ((pin == IMGSENSOR_HW_PIN_DVDD) && (pin_state == IMGSENSOR_HW_PIN_STATE_LEVEL_1050)) {
+     pmic_config_interface(0x1eae, 0x405, 0xfff, 0);   //set dvdd voltage 1.05V
+    }else if ((pin == IMGSENSOR_HW_PIN_DVDD) && (pin_state == IMGSENSOR_HW_PIN_STATE_LEVEL_1200)){
+     pmic_config_interface(0x1eae, 0x600, 0xfff, 0);   //set dvdd voltage 1.2V
+    }else if ((pin == IMGSENSOR_HW_PIN_DVDD) && (pin_state == IMGSENSOR_HW_PIN_STATE_LEVEL_1100)){
+     pmic_config_interface(0x1eae, 0x500, 0xfff, 0);   //set dvdd voltage 1.1V
+    }
+#endif
 
 	if (pregulator) {
 		if (pin_state != IMGSENSOR_HW_PIN_STATE_LEVEL_0) {
@@ -280,7 +338,7 @@ static enum IMGSENSOR_RETURN regulator_set(
 			atomic_inc(enable_cnt);
 		} else {
 			if (regulator_is_enabled(pregulator)) {
-				/*pr_debug("[regulator]%d is enabled\n", pin);*/
+				/*pr_err("[regulator]%d is enabled\n", pin);*/
 
 				if (regulator_disable(pregulator)) {
 					pr_err(

@@ -275,7 +275,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 	cur_egid = uid_get_value(dc->cred->egid);
 
 	if (!ref_uid) {
-		if (p->tgid != p->pid && p->tgid != 1) {
+		if (p->tgid != p->pid && p->tgid != 1 && p->real_parent->pid != 1) {
 			path = get_dc_process_name(dc);
 			defex_log_crit("[6]: cred wasn't stored [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]",
 				p->comm, path, cur_uid, p->tgid, p->pid, p->real_parent->pid);
