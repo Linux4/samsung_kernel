@@ -1,0 +1,49 @@
+/ {
+	/* camera mode - default */
+	set5: set@500 {
+		/* Boosting margin applied to frequency selection */
+		freqboost {			/* LIT BIG */
+			top-app			= <  5   5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <36>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <6>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <70 70>;
+			min-cpus = "0-5";
+		};
+
+		fclamp {
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		cpufreq_gov {
+				/* LIT BIG */
+			htask-boost = < 150 150 >;
+		};
+
+		support_uclamp {
+			enabled = <0>;
+		};
+
+		ntu {
+			top-app		= <12>;
+		};
+	};
+};

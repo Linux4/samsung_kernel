@@ -1,0 +1,42 @@
+/ {
+	/* camera mode - app boost */
+	set5_2: set@502 {
+		/* Ontime Migration */
+		ontime {
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <21>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+		};
+
+		ecs_dynamic { };
+
+		tex {
+			top-app = <110>;
+			foreground = <110>;
+		};
+
+		cpuidle_gov {
+			expired-ratio = < 50 50 >;
+		};
+
+		ntu {
+			top-app			= <0>;
+		};
+
+		support_uclamp {
+			enabled = <1>;
+		};
+
+		cgroup_boost {
+			top-app = <1>;
+			foreground = <1>;
+		};
+	};
+};

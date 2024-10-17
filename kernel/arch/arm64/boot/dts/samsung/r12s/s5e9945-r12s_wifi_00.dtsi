@@ -1,0 +1,93 @@
+/* Qualcomm CNSS KIWI V2 device tree source */
+
+/ {
+    fragment@model {
+        target-path = "/";
+        __overlay__ {
+
+            wlan: qcom,cnss-kiwi {
+                compatible = "qcom,cnss-kiwi";
+                wlan-en-gpio = <&gpb1 3 0>;
+/*                 wlan-host-sol-gpio = <&gpa2 1 0x0>; */
+/*                wlan-dev-sol-gpio = <&gpp2 3 0x0>; */
+                pinctrl-names = "wlan_en_active", "wlan_en_sleep";
+                pinctrl-0 = <&cnss_wlan_en_active>;
+                pinctrl-1 = <&cnss_wlan_en_sleep>;
+                wlan,regulator_name = "vreg_wlan";
+                memory-region = <&wifi_memory>;
+                wlan-pci-wake-gpio = <&gpa3 4 0x0>;
+                wlan-clk-req-gpio = <&gpa3 1 0x0>;
+                qcom,wlan-rc-num = <0>;
+                qcom,wlan-ramdump-dynamic = <0x780000>;
+                qcom,wlan-cbc-enabled;
+                qcom,same-dt-multi-dev;
+                qcom,wlan;
+                use-pm-domain;
+                status = "disabled";
+            };
+        };
+    };
+};
+
+&pcie_0 {
+    compatible = "exynos-pcie-rc,wifi_qc";
+    pinctrl-names = "active","idle";
+    pinctrl-0 = <&pcie0_clkreq &pcie0_perst &wlan_host_wake &wlan_clk_req_wake>;
+    pinctrl-1 = <&pcie0_clkreq &pcie0_perst &wlan_host_wake>;
+    pcie,wlan-gpio = <&gpb1 3 0x1>;
+    status = "disabled";
+    dma-coherent;
+    use-sysmmu = "true";
+    ip-ver = <0x994500>;
+    use-ia = "true";
+    /* use-msi = "true"; */
+    /* ep-device-name = "WIFI"; */
+    ep-device-type = <EP_TYPE_QC_WIFI>;
+    max-link-speed = <LINK_SPEED_GEN1>;
+};
+
+&reserved_memory {
+    wifi_memory: wifi_region {
+        compatible = "shared-dma-pool";
+        alloc-ranges = <0x0 0x80000000 0x80000000>;
+        reusable;
+        alignment = <0 0x400000>;
+        size = <0x4800000>;
+        status = "disabled";
+    };
+};
+
+&pinctrl_0 {
+    wlan_host_wake: wlan_host_wake {
+        samsung,pins = "gpa0-2";
+        samsung,pin-function = <0xf>;
+        samsung,pin-pud = <1>;
+    };
+
+    wlan_clk_req_wake: wlan_clk_req_wake {
+        samsung,pins = "gpa3-1";
+        samsung,pin-function = <0xf>;
+        samsung,pin-pud = <1>;
+    };
+};
+
+&pinctrl_7 {
+    pinctrl_wlan: pinctrl-wlan {
+        cnss_wlan_en_active: cnss_wlan_en_active {
+            samsung,pins = "gpb1-3";
+            samsung,pin-function = <1>;
+            samsung,pin-pud = <3>;
+            samsung,pin-drv = <3>;
+            samsung,pin-val = <1>;
+			samsung,pin-con-pdn = <3>;
+        };
+        cnss_wlan_en_sleep: cnss_wlan_en_sleep {
+            samsung,pins = "gpb1-3";
+            samsung,pin-function = <1>;
+            samsung,pin-pud = <1>;
+            samsung,pin-drv = <3>;
+            samsung,pin-val = <0>;
+			samsung,pin-con-pdn = <3>;
+        };
+    };
+};

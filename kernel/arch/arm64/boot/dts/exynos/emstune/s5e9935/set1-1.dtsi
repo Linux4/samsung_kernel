@@ -1,0 +1,13 @@
+/ {
+	/* power-scenario mode - touch boost */
+	set1_1: set@101 {
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <50 50 50>;
+		};
+
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 25   3   5>;
+		};
+	};
+};

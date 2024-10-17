@@ -1,0 +1,76 @@
+#if 1
+&l14_reg {
+	regulator-name = "VDD_SENSOR_1P8";
+};
+#endif
+#if 0
+&${gpio_sensor_ldo_en_parent} {
+	shub_sensor_ldo_en: shub-sensor-ldo-en {
+		samsung,pins = SEC_GPIO(${gpio_sensor_ldo_en});
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+#endif
+#if 0
+&${gpio_prox_ldo_en_parent} {
+	shub_prox_ldo_en: shub-prox-ldo-en {
+		samsung,pins = SEC_GPIO(${gpio_prox_ldo_en});
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+#endif
+#if 0
+&${gpio_pogo_int_parent} {
+	shub_pogo_int: shub-pogo-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_pogo_int}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+#endif
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				pinctrl-names = "default";
+#if 0 || 0 || 0
+				pinctrl-0 = <
+#if 0
+				&shub_sensor_ldo_en
+#endif
+#if 0
+				&shub_prox_ldo_en
+#endif
+#if 0
+				&shub_pogo_int
+#endif
+>;
+#endif
+
+#if 1
+				sensor-vdd-regulator = "VDD_SENSOR_1P8";
+#endif
+
+#if 0
+				mag-check-nfc = <SEC_GPIO_REF(${gpio_nfc_check}) 0>;
+#endif
+
+#if 0
+				pogo-int = <SEC_GPIO_REF(${gpio_pogo_int}) 0>;
+#endif
+
+#if 0
+				sensor-ldo-en = <SEC_GPIO_REF(${gpio_sensor_ldo_en}) 0>;
+#endif
+#if 0
+				prox-ldo-en = <SEC_GPIO_REF(${gpio_prox_ldo_en}) 0>;
+#endif
+			};
+		};
+	};
+};

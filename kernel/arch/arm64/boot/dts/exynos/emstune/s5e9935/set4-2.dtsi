@@ -1,0 +1,55 @@
+/ {
+	/* balance mode - app boost */
+	set4_2: set@402{
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 25   3   5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <21>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain2 {
+				cpus = "8";
+				lower-boundary = <43>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic { };
+
+		tex { };
+
+		gsc {
+			up_threshold = <0>;
+
+			monitor-group {
+				top-app = <1>;
+				foreground = <1>;
+			};
+		};
+
+		ntu {
+			root			= <0>;
+			foreground 		= <0>;
+			background		= <0>;
+			top-app			= <0>;
+			rt			= <0>;
+			system			= <0>;
+			system-background	= <0>;
+			nnapi-hal		= <0>;
+			camera-daemon		= <0>;
+		};
+	};
+};

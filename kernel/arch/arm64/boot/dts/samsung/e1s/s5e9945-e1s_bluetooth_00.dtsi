@@ -1,0 +1,64 @@
+/*
+ * SAMSUNG S5E9945 board device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			pinctrl@11030000 {
+				bt_btwake: bt-btwake {
+					samsung,pins = "gpc4-0";
+					samsung,pin-function = <1>;
+					samsung,pin-pud = <0>;
+					samsung,pin-con-pdn = <3>;
+					samsung,pin-pud-pdn = <0>;
+				};
+			};
+			
+			pinctrl@12850000  {
+					bt_hostwake: bt-hostwake {
+					samsung,pins = "gpa0-3";
+					samsung,pin-function = <0xF>;
+					samsung,pin-pud = <1>;
+				};
+			};
+		
+			bluetooth: bt_kiwi {
+				compatible = "qcom,kiwi";
+				gpios = <&s2mps28_2_gpio 1 GPIO_ACTIVE_HIGH      /*BT_EN*/
+					&gpc4 0 GPIO_ACTIVE_HIGH     /*BT_WAKE*/
+					&gpa0 3 GPIO_ACTIVE_HIGH     /*BT_HOST_WAKE*/ >;
+				qcom,wl-reset-gpio = <&gpb1 3 0>; /* WL_EN */
+				qcom,vreg_wlan = &vreg_wlan; /* WIFI_BUCK_EN */
+				pinctrl-names = "default";
+				pinctrl-0=<&bt_en &bt_btwake &bt_hostwake>;
+				samsung,vreg-wlan-dt;
+				status = "okay";
+			};/* end of bluetooth */
+		};
+	};
+};
+
+&serial_1 {
+	samsung,rts-trig-level = <1>;
+	samsung,rts-gpio-control;
+	samsung,uart-logging;
+	samsung,uart-panic-log;
+	status = "okay";
+};
+
+&s2mps28_2_gpio {
+	bt_en: bt-en {
+		pins = "gpio_s1";
+		pmic-gpio,pull-disable;
+		pmic-gpio,output-low;
+	};
+};

@@ -1,0 +1,94 @@
+/*
+ * SAMSUNG S5E9935 PCIe device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG S5E9935 SoC device nodes are listed in this file.
+ * S5E9935 based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/pci/pci.h>
+#include <dt-bindings/soc/samsung,sysmmu-v9.h>
+/ {
+	/* HSI1 PCIe channel0 - GEN3 1Lane */
+	pcie_0: pcie@18100000 {
+		compatible = "exynos-pcie-rc,wifi_bcm";
+		gpios = <&gpf0 1 0x1 /* PERST */>;
+		reg = <0x0 0x18100000 0x40000	/* PHY base */
+			0x0 0x18140000 0x3000	/* SSC(Sub-System Custom) base */
+			0x0 0x18180000 0x1000	/* I/A space */
+			0x0 0x18190000 0x1000	/* I/A1 space */
+			0x0 0x181B0000 0x10000	/* SOC Control base */
+			0x0 0x18400000 0x381000	/* DBI base */
+			0x1 0x01000000 0x2000>;	/* Configuration space */
+		reg-names = "phy", "ssc", "ia", "ia1", "ctrl", "dbi", "config";
+		interrupts = <GIC_SPI INTREQ__PCIE_GEN4_2L_0_subsystem_int IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_msi_recieved_from_EP_NUM_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_msi_recieved_from_EP_NUM_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_msi_recieved_from_EP_NUM_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_msi_recieved_from_EP_NUM_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_msi_recieved_from_EP_NUM_4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_msi_recieved_from_EP_NUM_5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_msi_recieved_from_EP_NUM_6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_msi_recieved_from_EP_NUM_7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__PCIE_GEN4_2L_0_SOC_CTRL  IRQ_TYPE_LEVEL_HIGH>;
+		/* !!Keep the 'interrupt-names' like below!! */
+		interrupt-names = "pcie_int", "msi0", "msi1";
+		#interrupt-cells = <1>;
+		samsung,pmu-phandle = <&pmu_system_controller>;
+		samsung,sysreg-phandle = <&pcie_sysreg_controller>;
+		pinctrl-names = "active", "idle";
+		pinctrl-0 = <&pcie0_clkreq &pcie0_perst>;
+		pinctrl-1 = <&pcie0_clkreq &pcie0_perst>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		device_type = "pci";
+		/* non-prefetchable memory */
+		ranges = <0x83000000 0x1 0x00000000 0x1 0x00000000 0 0x1000000>;
+		bus-range = <0x0 0x1>;
+		ip-ver = <0x994500>;
+		num-lanes = <1>;
+		ch-num = <0>;
+		linux,pci-domain = <0>;
+		pcie-pm-qos-int = <267000>;
+		use-sysmmu = "false";
+		use-ia = "false";
+
+		/* PMU/SYSREG registers offset */
+		/* pmu-phy-isolation = <0x610>; It will be handled by PMU at HSI block off */
+		pmu-gpio-retention = <0x3B20>;
+		sysreg-sharability = <0x1100>;
+		sysreg-ia0-channel-sel = <0x1008>;
+		sysreg-ia1-channel-sel = <0x100c>;
+		sysreg-ia2-channel-sel = <0x1010>;
+
+		max-link-speed = <LINK_SPEED_GEN3>;
+		power-domains = <&pd_hsi1>;
+		status = "disabled";
+	};
+
+	sysmmu_pcie: sysmmu@18060000 {
+		compatible = "samsung,pcie-sysmmu";
+		reg = <0x0 0x18060000 0x10000>;
+		interrupts = <0 INTREQ__SYSMMU_HSI1_S0_STAGE1_NONSECURE IRQ_TYPE_LEVEL_HIGH>;
+		qos = <15>;
+		num_pmmu = <1>;
+		port-name = "PCIe";
+		#iommu-cells = <0>;
+		power-domains = <&pd_hsi1>;
+
+		pmmu0,default_stream =
+			<STREAM_CFG(PTLB_ID(0x0), STLB_ID(0x0), FETCH_SIZE(SIZE1), PTLB_DIS, STLB_DIS)>;
+	};
+
+	pcie_sysreg_controller: pcie-sysreg-controller@18020000 {
+		compatible = "samsung,pcie-sysreg", "syscon";
+		reg = <0x0 0x18020000 0x2000>;
+	};
+};

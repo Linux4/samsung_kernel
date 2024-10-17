@@ -1,0 +1,14 @@
+/ {
+	/* performance mode - app boost */
+	set2_2: set@202 {
+		tex {
+			top-app = <110>;
+			foreground = <110>;
+		};
+
+		cgroup_boost {
+			top-app = <1>;
+			foreground = <1>;
+		};
+	};
+};

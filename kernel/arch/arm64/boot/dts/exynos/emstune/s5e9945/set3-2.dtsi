@@ -1,0 +1,16 @@
+/ {
+	/* game mode - app boost */
+	set3_2: set@302{
+		cpu-dsu-table-index = <0>;
+
+		tex {
+			top-app = <110>;
+			foreground = <110>;
+		};
+
+		cgroup_boost {
+			top-app = <1>;
+			foreground = <1>;
+		};
+	};
+};

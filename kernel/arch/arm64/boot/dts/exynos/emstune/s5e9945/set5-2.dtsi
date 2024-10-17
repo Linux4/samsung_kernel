@@ -1,0 +1,43 @@
+/ {
+	/* camera mode - app boost */
+	set5_2: set@502 {
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <21>;
+			};
+			domain1 {
+				cpus = "4-6";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain2 {
+				cpus = "7-8";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain3 {
+				cpus = "9";
+				lower-boundary = <43>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic { };
+
+		tex {
+			top-app = <110>;
+			foreground = <110>;
+		};
+
+		cgroup_boost {
+			top-app = <1>;
+			foreground = <1>;
+		};
+	};
+};

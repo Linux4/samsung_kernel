@@ -1,0 +1,56 @@
+/*
+ * Exynos CPU Performance
+ * Device driver handle for testing kernel memcpy bandwidth
+ */
+
+/ {
+	xperf {
+		compatible = "samsung,exynos-perf";
+		status = "ok";
+
+			     /*	cl0	cl1	cl2 */
+		power-coeff = <	376	620	952 >;
+
+		pago {
+			gov-ms = <200>;
+			gov-run = <0>;
+
+				     /*	state0	state1	state2	state3 */
+			power-limit = <	8000	8000	8000	8000 >;
+
+				     /*	cl0	cl1	cl2 */
+			multi-volt = <	2000	1050	1050 >;
+			batt-tz-names = "battery";
+			batt-temp-thd = <20000>;
+		};
+
+		gmc {
+			run = <0>;
+			bind-cpu = <0>;
+			polling-ms = <1000>;
+
+			cpu-tz-names = "LITTLE", "MID", "BIG";
+			gpu-tz-names = "G3D";
+
+			type0 {	/* gpu perf */
+				boost-cnt = <0>;
+				boost-step = <0>;
+				cpu-maxlock = < 1152000 1536000 1536000 >;
+
+				fps-drop = <10>;
+
+				trigger {
+					gpu-fps = <30>;
+					gpu-freq = <900000>;
+					gpu-temp = <60000>;
+					cpu-temp = <60000 60000 60000>;
+				};
+				release {
+					gpu-fps = <10>;
+					gpu-temp = <55000>;
+					cpu-temp = <55000 55000 55000>;
+				};
+			};
+		};
+	};
+};

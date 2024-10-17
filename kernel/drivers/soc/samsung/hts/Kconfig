@@ -1,0 +1,20 @@
+#
+# Hedgin Tactics System
+#
+
+menuconfig HTS
+	tristate "HTS driver support"
+	depends on ARCH_EXYNOS
+	default n
+	help
+	 Enable HTS driver support
+
+if HTS
+
+config HTS_DEBUG
+	bool "Debugging HTS"
+	default n
+	help
+	 Enable HTS debugging support
+
+endif

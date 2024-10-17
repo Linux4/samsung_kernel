@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Samsung's SoC UFS device tree source
+//
+// Copyright (C) 2022 Samsung Electronics Co., Ltd.
+
+//#include <dt-bindings/ufs/ufs.h>
+
+/ {
+	ufs: ufs@0x13500000 {
+		/* ----------------------- */
+		/* 1. SYSTEM CONFIGURATION */
+		/* ----------------------- */
+		compatible ="samsung,exynos-ufs";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		reg =
+			<0x0 0x13500000 0x3000>,	/* 0: HCI standard */
+			<0x0 0x13580000 0x8000>,	/* 1: UNIPRO */
+			<0x0 0x135A0000 0xA014>,	/* 2: UFS protector */
+			<0x0 0x13504000 0x4000>,	/* 3: PHY */
+			<0x0 0x13503000 0x804>;		/* 4: CPORT */
+		reg-names = "ufs_mem", "unipro", "fmp", "phy", "cport";
+		interrupts = <GIC_SPI INTREQ__UFS_EMBD IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ufs_rst_n &ufs_refclk_out>;
+		clocks =
+			/* aclk clock */
+			<&clock GATE_UFS_EMBD_QCH>,
+			/* unipro clocks */
+			<&clock DOUT_CLKCMU_UFS_UFS_EMBD>;
+
+		clock-names =
+			/* aclk clocks */
+			"GATE_UFS_EMBD",
+			/* unipro clocks */
+			"UFS_EMBD";
+
+		/* board type for UFS CAL */
+		brd-for-cal = /bits/ 8 <1>;  /* (1:SMDK, 16:UNIV) board */
+
+		/* ----------------------- */
+		/* 2. UFS COMMON           */
+		/* ----------------------- */
+		freq-table-hz = <0 0>, <0 0>;
+
+		/* ----------------------- */
+		/* 3. UFS EXYNOS           */
+		/* ----------------------- */
+
+		/* power mode change */
+		ufs,pmd-attr-lane = /bits/ 8 <2>;
+		ufs,pmd-attr-gear = /bits/ 8 <4>;
+
+		/* evt version for UFS CAL */
+		evt-ver = /bits/ 8 <0>;
+
+		gear-max-frequency = <332000000>;
+		/* DMA coherent callback, should be coupled with 'ufs-sys' */
+//		dma-coherent;
+		/* UFS PHY isolation and TCXO control */
+		samsung,pmu-phandle = <&pmu_system_controller>;
+		/* UFS IO coherency  */
+//		samsung,sysreg-phandle = <&sysreg_ufs>;
+		/* UFS support Auto hibern8 */
+		samsung,support-ah8;
+		/* gear scale flags */
+//		samsung,ufs-gear-scale;
+		devfreq = <&devfreq_1>;
+		/* ----------------------- */
+		/* 4. ADDITIONAL NODES     */
+		/* ----------------------- */
+
+		/* Node name: offset mask val */
+		ufs,phy_iso = <0x618 0x1 0x1>; /* UFS_BIT(0) */
+
+		ufs-pm-qos {
+			perf-int = <666000>;
+			perf-mif = <3172000>;
+			cpufreq-qos-levels = <8 7>; /* 1690000 1690000 */
+		};
+	};
+
+};
+

@@ -1,0 +1,111 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/display/hdr-info.h>
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+
+			ffc_1328_OSC_96_5: ffc_1328_OSC_96_5 {
+				osc = <96500>;
+				hs-clk = <1328>;
+				command = [C5 11 10 50 2E 82 2E 82];
+			};
+
+			ffc_1362_OSC_96_5: ffc_1362_OSC_96_5 {
+				osc = <96500>;
+				hs-clk = <1362>;
+				command = [C5 11 10 50 2D 58 2D 58];
+			};
+
+			ffc_1368_OSC_96_5: ffc_1368_OSC_96_5 {
+				osc = <96500>;
+				hs-clk = <1368>;
+				command = [C5 11 10 50 2D 25 2D 25];
+			};
+
+			ffc_1328_OSC_94_5: ffc_1328_OSC_94_5 {
+				osc = <94500>;
+				hs-clk = <1328>;
+				command = [C5 11 10 50 2D 8B 2D 8B];
+			};
+
+			ffc_1362_OSC_94_5: ffc_1362_OSC_94_5 {
+				osc = <94500>;
+				hs-clk = <1362>;
+				command = [C5 11 10 50 2C 68 2C 68];
+			};
+
+			ffc_1368_OSC_94_5: ffc_1368_OSC_94_5 {
+				osc = <94500>;
+				hs-clk = <1368>;
+				command = [C5 11 10 50 2C 36 2C 36];
+			};
+
+			ffc_off: ffc_off {
+				hs-clk = <0>;
+				command = [C5 11 10 50 2D 58 2D 58];
+			};
+
+			s6e3hae: s6e3hae_ddi {
+				id = <0x001083>;
+				mode = <2>;
+				resolution = <1080 2316>;
+				size = <70 155>;
+				timing,refresh = <60>;
+				timing,h-porch = <2 2 2>;
+				timing,v-porch = <15 8 1>;
+				timing,dsi-hs-clk = <1362>;
+				timing,pmsk = <
+					0x02 0x69 0x00 0xC4EC
+					0x0D 0x04 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				timing,dsi-escape-clk = <20>;
+				mic_en = <0>;			/* 0: Disable, 1: Enable */
+				mic_ratio = <2>;		/* 0: 1/2 mic, 1: 1/3 mic */
+				mic_ver = <2>;			/* 0: mic v1.1, 1: v1.2, 2: v2.0 */
+				type_of_ddi = <0>;		/* 0: Samsung Mobile, 1: MAGNA, 2: Normal(Etc) */
+				dsc_en = <1>;			/* 0: Disable, 1: Enable */
+				dsc_cnt = <2>;			/* used DSC count */
+				dsc_slice_num = <2>;		/* count of dsc slice */
+				dsc_slice_h = <193>;		/* height of dsc slice */
+				data_lane = <4>;		/* number of using data lane */
+				cmd_underrun_cnt = <9935>;	/* for underrun detect*/
+				mres_en = <1>;
+				mres_number = <1>;
+				mres_width = <1080>;
+				mres_height = <2316>;
+				mres_dsc_width = <540>;
+				mres_dsc_height = <193>;
+				mres_dsc_en = <1>;
+				default_mode = <1>;
+				/* <xres : yres : fps : lp_ref : dsc_en : slice_w : slice_h> */
+				display_mode = <1080 2316 120 3337 1 540 193>,
+							 <1080 2316 96 5093 1 540 193>,
+							 <1080 2316 60 9935 1 540 193>,
+							 <1080 2316 48 13873 1 540 193>;
+				hdr_num = <3>;			/* max: 4 */
+				hdr_type = <HDR_HDR10 HDR_HLG HDR_HDR10_PLUS>;
+				hdr_max_luma = <4500000>;	/* 450 */
+				hdr_max_avg_luma = <1200000>;	/* 120 */
+				hdr_min_luma = <5>;		/* 0.0005 */
+				color_mode = <0 7 9>;  /* color mode : NATIVE, SRGB, P3 */
+			};
+
+			mafpc_0: mafpc_0 {
+				compatible = "samsung,panel-mafpc";
+				status = "okay";
+			};
+		};
+	};
+};

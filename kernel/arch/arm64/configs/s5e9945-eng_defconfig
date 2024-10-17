@@ -1,0 +1,41 @@
+#
+# please don't remove new line on this file
+#
+
+# SensorHub
+CONFIG_SHUB_DEBUG=y
+# Power Management
+CONFIG_PINCTRL_SEC_GPIO_DVS=m
+
+# Displayport test
+CONFIG_SEC_DISPLAYPORT_SELFTEST=y
+CONFIG_SEC_DISPLAYPORT_DBG=y
+
+# DDAR KeyManagement Test for MDFPP evaluation
+CONFIG_DDAR_KEY_DUMP=y
+
+# Battery driver
+CONFIG_ENG_BATTERY_CONCEPT=y
+
+# Debugging
+CONFIG_DEBUG_PREEMPT=y
+CONFIG_DEBUG_RWSEMS=y
+CONFIG_DEBUG_ATOMIC_SLEEP=y
+
+# Memory Debugging
+CONFIG_DEBUG_OBJECTS=y
+CONFIG_DEBUG_OBJECTS_FREE=y
+CONFIG_DEBUG_OBJECTS_TIMERS=y
+CONFIG_DEBUG_OBJECTS_WORK=y
+CONFIG_DEBUG_OBJECTS_RCU_HEAD=y
+CONFIG_DEBUG_OBJECTS_PERCPU_COUNTER=y
+
+# Watchdog Device Drivers
+CONFIG_S3C2410_BUILTIN_WATCHDOG=y
+
+# Camera
+CONFIG_PABLO_UNIT_TEST=m
+
+#
+# please don't remove new line on this file
+#

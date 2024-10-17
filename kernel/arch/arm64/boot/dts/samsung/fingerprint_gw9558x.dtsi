@@ -1,0 +1,140 @@
+/*
+ * SAMSUNG EXYNOS9630 board device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&pinctrl_0 {
+	gw9558x_rst: gw9558x-rst {
+		samsung,pins = SEC_GPIO(AP,gpa0,gpa0,6);
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <1>;
+	};
+};
+
+#if 0
+&${fps_ldo_vdd_1p8_parent} {
+	gw9558x_ldo: gw9558x-ldo {
+		samsung,pins = SEC_GPIO(${fps_ldo_vdd_1p8});
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <1>;
+	};
+};
+#endif
+
+#if 1
+&r_l11_reg {
+	regulator-name = "VDD_BTP_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	regulator-ramp-delay = <12000>;
+};
+#endif
+
+&pinctrl_7 {
+	spi_fp_bus_inactive: spi-fp-bus-inactive {
+		samsung,pins = SEC_GPIO(AP,gpp11,gpp11,3), SEC_GPIO(AP,gpp11,gpp11,0), SEC_GPIO(AP,gpp11,gpp11,1);
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <1>;
+		samsung,pin-val = <0>;
+	};
+
+	spi_fp_miso_inactive: spi-fp-miso-inactive {
+		samsung,pins = SEC_GPIO(AP,gpp11,gpp11,2);
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <1>;
+	};
+
+	spi_fp_clk: spi-fp-clk {
+		samsung,pins = SEC_GPIO(AP,gpp11,gpp11,0);
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <4>;
+	};
+
+	spi_fp_cs: spi-fp-cs {
+		samsung,pins = SEC_GPIO(AP,gpp11,gpp11,3);
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <3>;
+		samsung,pin-drv = <4>;
+	};
+
+	spi_fp_miso: spi-fp-miso {
+		samsung,pins = SEC_GPIO(AP,gpp11,gpp11,2);
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <4>;
+	};
+
+	spi_fp_mosi: spi-fp-mosi {
+		samsung,pins = SEC_GPIO(AP,gpp11,gpp11,1);
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <4>;
+	};
+};
+
+#if defined(CONFIG_SEC_FACTORY) || !1
+&spi_11 {
+	status = "okay";
+	pinctrl-names = "";
+	qos_trig_lvl = <51200>;
+	int_qos_val = <100000>;
+	dma-mode;
+	swap-mode = <1>;
+#else
+&smd {
+#endif
+	gw9558 {
+		compatible = "goodix,gw9558x";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+#if !defined(CONFIG_SEC_FACTORY) && 1
+		clocks = <&clock GATE_PERIC2_CMU_PERIC2_QCH>, <&clock DOUT_DIV_CLK_PERIC2_USI11>;
+		clock-names = "gate_spi_clk", "ipclk_spi";
+#endif
+		pinctrl-names = "default", "pins_poweron", "pins_poweroff";
+#if 0
+		pinctrl-0 = <&gw9558x_ldo &gw9558x_rst>;
+#else
+		pinctrl-0 = <&gw9558x_rst>;
+#endif
+		pinctrl-1 = <&spi_fp_clk &spi_fp_cs &spi_fp_miso &spi_fp_mosi>;
+		pinctrl-2 = <&spi_fp_bus_inactive &spi_fp_miso_inactive>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+#if 0
+		goodix,gpio_pwr = <SEC_GPIO_REF(${fps_ldo_vdd_1p8}) 0>;
+#endif
+#if 1
+		goodix,btp-regulator = "VDD_BTP_3P3";
+		VDD_BTP_3P3-supply = <&r_l11_reg>;
+#endif
+		goodix,gpio_reset = <SEC_GPIO_REF(AP,gpa0,gpa0,6) 0>;
+		goodix,chip_id = "GW9588";
+		goodix,position = "12.34,0.00,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
+		goodix,modelinfo = "S721";
+		goodix,rb = "647,-1,-1,FFFFFF";
+
+		controller-data {
+			cs-gpio = <SEC_GPIO_REF(AP,gpp11,gpp11,3) 0>;
+			samsung,spi-feedback-delay = <0>;
+			samsung,spi-chip-select-mode = <0>;
+		};
+	};
+};

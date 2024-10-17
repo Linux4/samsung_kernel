@@ -1,0 +1,68 @@
+&pinctrl_0 {
+	gpio_int_init: gpio_int_init {
+		GPIO_CONFIG_PUD(AP,gpa1,gpa1,2, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+
+	gpio_int_sleep: gpio_int_sleep {
+		GPIO_CONFIG_PUD(AP,gpa1,gpa1,2, FUNC_INPUT, PULL_NONE);
+	};
+};
+
+
+&hsi2c_46 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	clock-frequency = <400000>;
+	samsung,reset-before-trans;
+	samsung,stop-after-trans;	/* LSI IC ONLY */
+	tsp_synaptics_i2c: touchscreen@20 {
+		status = "ok";
+		compatible = "synaptics,s3908t";
+		reg = <0x20>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&gpio_int_init>;
+		pinctrl-1 = <&gpio_int_sleep>;
+		tsp_io_ldo-supply = <&l9_reg>;
+		tsp_avdd_ldo-supply = <&l18_reg>;
+		sec,irq_gpio = <SEC_GPIO_REF(AP,gpa1,gpa1,2) 0>;
+		sec,ss_touch_num = <1>;
+
+		sec,max_coords = <4096 4096>; /* x y */
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2024/touchscreen/synaptics/s3908t/dts_i2c/input-lsi-tsp-synaptics.r12s.dtsi */
+&tsp_synaptics_i2c {
+	sec,area-size = <133 266 341>; /* indicator: 24dp navigator:48dp edge:60px dpi=320 */
+
+	sec,tclm_level = <2>;
+	sec,afe_base = <0x0007>;
+	support_dex_mode;
+	support_mis_calibration_test;
+	support_ear_detect_mode;
+	support_open_short_test;
+	support_vbus_notifier;
+	support_refresh_rate_mode;
+	enable_settings_aot;
+	support_fod;
+	support_fod_lp_mode;
+	sec,firmware_name = "tsp_synaptics/s3908t_r12s.bin";
+	sec,bringup = <0>;
+	synaptics,tcm_drv_name = "synaptics_tcm_i2c";
+	synaptics,tcm_dev_name = "tcm_i2c";
+	synaptics,fw_delay = <0 0>; /* erase_delay, write_block_delay */
+	synaptics,support_immediate_cmd;
+	sec,enable_sysinput_enabled;
+	sec,bitmask_unload = <0xFFFF00 0x804000>; /* bitshift bitmask. this is for goodix panel */
+
+	sec_cmd,not_support_cmds = "rawdata_init";
+	work_queue_probe_enabled;
+};
+
+&hsi2c46_bus {
+	samsung,pin-con-pdn = <3>;
+	samsung,pin-pud-pdn = <3>;
+};
+

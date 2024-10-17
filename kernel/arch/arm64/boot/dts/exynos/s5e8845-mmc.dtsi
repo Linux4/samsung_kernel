@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Samsung's SoC MMC device tree source
+//
+// Copyright (C) 2022 Samsung Electronics Co., Ltd.
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/s5e8845.h>
+
+/ {
+	aliases {
+		mshc2 = &dwmmc_2;
+	};
+
+	dwmmc_2: dwmmc2@12BE0000 {
+		compatible = "samsung,exynos-dw-mshc";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x0 0x12BE0000 0x2000>;
+		reg-names = "dw_mmc";
+		interrupts = <GIC_SPI INTREQ__MMC_CARD IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock DOUT_CLKCMU_PERIC_MMC_CARD>, <&clock GATE_MMC_CARD_QCH>;
+		clock-names = "ciu", "ciu_gate";
+		status = "okay";
+		no-sdio;
+		no-mmc;
+		cap-sd-highspeed;
+		bus-width = <4>;
+		sd-uhs-sdr50;
+		sd-uhs-sdr104;
+		use-dline;
+		sdr50-dline = <0x60>; //4.9ns
+		sdr104-dline = <0x2D>; //2.4ns
+		card-detect-gpio;
+		card-init-hwacg-ctrl;
+		ssc-rate-mfr = <6>;
+		ssc-rate-mrr = <24>;
+		qos-dvfs-level = <267000>;
+		fifo-depth = <0x40>;
+		desc-size = <4>;
+		card-detect-delay = <200>;
+		data-timeout = <200>;
+		hto-timeout = <80>;
+		samsung,dw-mshc-ciu-div = <3>;
+		clock-frequency = <800000000>;
+		samsung,dw-mshc-sdr-timing = <3 0 2 0>;
+		samsung,dw-mshc-ls-timing = <3 0 4 0>;
+		samsung,dw-mshc-ds-timing = <3 0 2 3>;
+		samsung,dw-mshc-hs-timing = <3 0 2 1>;
+		samsung,dw-mshc-ddr-timing = <3 0 2 1>;
+		samsung,dw-mshc-sdr50-timing = <3 0 3 2>;
+		samsung,dw-mshc-sdr104-timing = <3 0 3 0>;
+
+		num-ref-clks = <9>;
+		ciu_clkin = <25 50 50 25 50 100 200 50 50>;
+
+		/* Swapping clock drive strength */
+		clk-drive-number = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sd2_clk &sd2_cmd &sd2_bus1 &sd2_bus4>;
+
+		card-detect = <&gpc0 0 0xf>;
+
+		disable-wp;
+	};
+};

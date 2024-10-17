@@ -1,0 +1,16 @@
+&smd {
+	kq-mesh {
+		compatible = "samsung,kq-mesh";
+		status = "okay";
+
+		features {
+			user_nad {
+				user_nad,copy_area_len = <2>;
+				/* address-cells=<2>, .align PAGE_SIZE */
+				user_nad,copy_area_address_arr = <0x8 0x80100000 0x8 0x92800000>;
+				/* size-cells=<1>, .align PAGE_SIZE */
+				user_nad,copy_area_size_arr = <0x0D700000 0x0CE00000>;
+			};
+		};
+	};
+};

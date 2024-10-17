@@ -1,0 +1,37 @@
+/ {
+	/* power-scenario mode - default */
+	set1: set@0100 {
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <42>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <10>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio	= <70 70>;
+			min-cpus = "0-5";
+		};
+
+		fclamp {
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		cpufreq_gov {
+				/* LIT BIG */
+			htask-boost = < 0 0 >;	/* disable heavy task boost */
+		};
+	};
+};

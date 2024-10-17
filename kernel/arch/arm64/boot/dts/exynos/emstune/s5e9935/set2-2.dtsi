@@ -1,0 +1,19 @@
+/ {
+	/* performance mode - app boost */
+	set2_2: set@202 {
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 25   3   5>;
+		};
+
+		tex { };
+
+		gsc {
+			up_threshold = <0>;
+
+			monitor-group {
+				top-app = <1>;
+				foreground = <1>;
+			};
+		};
+	};
+};

@@ -1,0 +1,196 @@
+/*
+ * SAMSUNG S5E9935 SoC security device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *              http://www.samsung.com
+ *
+ * SAMSUNG S5E9935 SoC security device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/interrupt-controller/s5e9935.h>
+
+/ {
+	s2mpu {
+		compatible = "samsung,exynos-s2mpu";
+		memory_region = <&s2mpu_table>;
+		subsystem-num = <24>;
+		subsystem-names = "MFC0",
+				  "MFC1",
+				  "ABOX",
+				  "VTS",
+				  "DNC",
+				  "CHUB",
+				  "GNSS",
+				  "G3D_TMR",
+				  "ISP_ICPU",
+				  "PCIE_GEN3_WIFI",
+				  "PCIE_GEN3",
+				  "MODEM_PP",
+				  "DIT",
+				  "APM",
+				  "G3D_NORMAL",
+				  "DPU",
+				  "CAMERA",
+				  "MEDIA",
+				  "SYSTEM",
+				  "TZMP2_MFC0",
+				  "TZMP2_MFC1",
+				  "TZMP2_SCALER",
+				  "TZMP2_DPU",
+				  "TZMP2_GPU";
+		instance-num = <25>;
+		instance-names = "AUD_S0",
+				 "BRP_S0",
+				 "CSIS_S0",
+				 "CSTAT_S0",
+				 "DNC_S0",
+				 "DNC_S1",
+				 "DPUF_S0",
+				 "DPUF_S1",
+				 "HSI1_S0",
+				 "ICPU_S0",
+				 "LME_S0",
+				 "M2M_S0",
+				 "MCFP_S0",
+				 "MCFP_S1",
+				 "MFC_S0",
+				 "MFD_S0",
+				 "RGBP_S0",
+				 "UFD_S0",
+				 "YUVP_S0",
+				 "MODEM_S0",
+				 "ALIVE_S0",
+				 "G3D_S0",
+				 "NOCL1B_S0",
+				 "HSI0_S0",
+				 "UFS_S0";
+		irqcnt = <25>;
+		interrupts = <GIC_SPI INTREQ__SYSMMU_AUD_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_BRP_S0_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_CSIS_S0_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_CSTAT_S0_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_DNC_SYSMMU_DNC_S0_O_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_DNC_SYSMMU_DNC_S1_O_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__DPUF0_SYSMMU_DPUF_S0_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__DPUF0_SYSMMU_DPUF_S1_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_HSI1_S0_STAGE2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_ICPU_S0_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_LME_S0_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_M2M_S0_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_MCFP_S0_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_MCFP_S1_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_MFC_S0_interrupt_s2_ns IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_MFD_S0_interrupt_s2_ns IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_RGBP_S0_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_UFD_S0_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_YUVP_S0_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_MODEM_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__S2MPU_ALIVE_S0_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_G3D_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__S2MPU_NOCL1B_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI O_INTERRUPT_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_UFS_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>;
+		/* PM QoS for SSS */
+		pm-qos-sss-support;
+		sss-freq-domain = "INT";
+		qos-sss-freq = <400000>;
+
+		/* S2MPU version */
+		s2mpu-version = <0x90>;
+	};
+
+	exynos-el2 {
+		compatible = "samsung,exynos-el2";
+		interrupts = <GIC_SPI INTREQ__S2_LV3_TABLE_ALLOC IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* tbase */
+	tee {
+		compatible = "samsung,exynos-tee";
+		interrupts = <GIC_SPI INTREQ__TBASE IRQ_TYPE_EDGE_RISING>;
+	};
+//
+//	tee-tui {
+//		compatible = "samsung,exynos-tui";
+//		samsung,tzmp;
+//	};
+//
+	/* Secure Log */
+	seclog {
+		compatible = "samsung,exynos-seclog";
+		interrupts = <GIC_SPI INTREQ__SECURE_LOG IRQ_TYPE_LEVEL_HIGH>;
+		memory-region = <&seclog_mem>;
+	};
+
+//	tzasc {
+//		compatible = "samsung,exynos-tzasc";
+//		channel = <4>;
+//		tzc_ver = <400>;
+//		irqcnt = <4>;
+//		interrupts = <GIC_SPI INTREQ__DMC_TZCINT_MIF0 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_TZCINT_MIF1 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_TZCINT_MIF2 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_TZCINT_MIF3 IRQ_TYPE_LEVEL_HIGH>;
+//	};
+//
+	seh {
+		compatible = "samsung,exynos-seh";
+	};
+//
+//	ppmpu {
+//		compatible = "samsung,exynos-ppmpu";
+//		channel = <4>;
+//		tzc_ver = <400>;
+//		irqcnt = <4>;
+//		interrupts = <GIC_SPI INTREQ__DMC_PPMPINT_MIF0 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF1 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF2 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF3 IRQ_TYPE_LEVEL_HIGH>;
+//	};
+//
+//	hdcp {
+//		compatible = "samsung,exynos-hdcp";
+//		interrupts = <GIC_SPI INTREQ__HDCP IRQ_TYPE_LEVEL_HIGH>;
+//	};
+
+	secmem {
+		compatible = "samsung,exynos-secmem";
+		memory-region = <&crypto>, <&vstream>;
+	};
+//
+//	/* Secure RPMB */
+//	ufs-srpmb {
+//		compatible = "samsung,ufs-srpmb";
+//		interrupts = <GIC_SPI INTREQ__RPMB IRQ_TYPE_LEVEL_HIGH>;
+//	};
+//
+//	fmp {
+//		compatible = "samsung,exynos-fmp";
+//	};
+//
+//	ssp: ssp {
+//		compatible = "samsung,exynos-ssp";
+//		power-domains = <&pd_strong>;
+//		interrupts = <GIC_SPI INTREQ__STRONG_0 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__STRONG_CPU_WDTRESET IRQ_TYPE_LEVEL_HIGH>;
+//	};
+//
+//	camellia_test {
+//		compatible = "samsung,exynos-camellia-test";
+//	};
+//
+//	/* CryptoManager */
+//	cryptomanager {
+//		compatible = "samsung,exynos-cm";
+//		cryptomanager-ver="CryptoManagerV70";
+//		sysreg_addr = <0x18221018>;
+//		ap_addr = <0x18290000>;
+//		cp_addr = <0x18280000>;
+//	};
+};

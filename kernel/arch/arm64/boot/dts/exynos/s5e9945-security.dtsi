@@ -1,0 +1,335 @@
+/*
+ * SAMSUNG S5E9945 SoC security device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *              http://www.samsung.com
+ *
+ * SAMSUNG S5E9945 SoC security device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/interrupt-controller/s5e9945.h>
+
+/ {
+	s2mpu {
+		compatible = "samsung,exynos-s2mpu";
+		memory_region = <&s2mpu_table>;
+		subsystem-num = <19>;
+		subsystem-names = "MFC0",
+				  "MFC1",
+				  "ABOX",
+				  "VTS",
+				  "DNC",
+				  "CHUB",
+				  "GNSS",
+				  "G3D_TMR",
+				  "ISP_ICPU",
+				  "UNPU",
+				  "PCIE_GEN4_2L",
+				  "MFC2",
+				  "SYSTEM",
+				  "TZMP2_MFC0",
+				  "TZMP2_MFC1",
+				  "TZMP2_MFC2",
+				  "TZMP2_SCALER",
+				  "TZMP2_DPU",
+				  "TZMP2_GPU";
+		instance-num = <25>;
+		instance-names = "AUD_S0",
+				 "BRP_S0",
+				 "CSIS_S0",
+				 "CSTAT_S0",
+				 "SDMA_S0",
+				 "SDMA_S1",
+				 "DPUF_S0",
+				 "HSI1_S0",
+				 "ICPU_S0",
+				 "LME_S0",
+				 "DLNE_S0",
+				 "M2M_S0",
+				 "MCFP_S0",
+				 "MFC_S0",
+				 "MFD_S0",
+				 "MFD_S1",
+				 "RGBP_S0",
+				 "UFD_S0",
+				 "YUVP_S0",
+				 "MODEM_S0",
+				 "G3D_S0",
+				 "ALIVE_S0",
+				 "PERIS_S0",
+				 "HSI0_S0",
+				 "UFS_S0";
+		irqcnt = <25>;
+		interrupts = <GIC_SPI INTREQ__SYSMMU_AUD_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_BRP_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_CSIS_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_CSTAT_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_SDMA_SYSMMU_SDMA_S0_O_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_SDMA_SYSMMU_SDMA_S1_O_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__DPUF0_SYSMMU_S0_DPUF_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_HSI1_S0_STAGE2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_ICPU_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_LME_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_DLNE_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_M2M_S0_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_MCFP_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_MFC_S0_interrupt_s2_ns IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_MFD_S0_interrupt_s2_ns IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_MFD_S1_interrupt_s2_ns IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_RGBP_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_UFD_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_YUVP_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_S0_MODEM_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_G3D_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__S2MPU_NOCL1B_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__S2MPU_PERIS_S2_NS IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI O_INTERRUPT_STAGE2_NONSEC IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__SYSMMU_UFS_S2_NONSECURE IRQ_TYPE_LEVEL_HIGH>;
+		/* PM QoS for SSS */
+		pm-qos-sss-support;
+		sss-freq-domain = "INT";
+		qos-sss-freq = <400000>;
+
+		/* S2MPU version */
+		s2mpu-version = <0x90>;
+
+		/* S2MPU Revision version */
+		s2mpu-revision = <0x1>;
+	};
+
+	exynos-el2 {
+		compatible = "samsung,exynos-el2";
+		interrupts = <GIC_SPI INTREQ__S2_LV3_TABLE_ALLOC IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	harx_binary: harx_binary@C0000000 {
+		compatible = "pkvm,protected-region";
+		reg = <0x00 0xC0000000 0x400000>;
+	};
+
+	exynos-hypervisor {
+		compatible = "samsung,exynos-hyp";
+		memory_region = <&harx_binary>;
+	};
+
+	drm_plugin: drm_plugin@C2800000 {
+		compatible = "pkvm,protected-region";
+		reg = <0x0 0xC2800000 0x300000>;
+	};
+
+	s2mpu_aud_s0: pkvm-s2mpu@12170000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x12170000 0x10000>;
+	};
+
+	s2mpu_brp_s0: pkvm-s2mpu@1B850000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1B850000 0x10000>;
+	};
+
+	s2mpu_csis_s0: pkvm-s2mpu@1A1C0000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1A1C0000 0x10000>;
+	};
+
+	s2mpu_cstat_s2: pkvm-s2mpu@1A960000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1A960000 0x10000>;
+	};
+
+	s2mpu_sdma_s0: pkvm-s2mpu@21260000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x21260000 0x10000>;
+	};
+
+	s2mpu_sdma_s1: pkvm-s2mpu@21290000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x21290000 0x10000>;
+	};
+
+	s2mpu_dpuf_s0: pkvm-s2mpu@19860000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x19860000 0x10000>;
+	};
+
+	s2mpu_hsi1_s0: pkvm-s2mpu@18080000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x18080000 0x10000>;
+	};
+
+	s2mpu_icpu_s0: pkvm-s2mpu@1E870000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1E870000 0x10000>;
+	};
+
+	s2mpu_lme_s0: pkvm-s2mpu@28080000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x28080000 0x10000>;
+	};
+
+	s2mpu_dlne_s0: pkvm-s2mpu@288C0000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x288C0000 0x10000>;
+	};
+
+	s2mpu_m2m_s0: pkvm-s2mpu@27920000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x27920000 0x10000>;
+	};
+
+	s2mpu_mcfp_s0: pkvm-s2mpu@1F890000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1F890000 0x10000>;
+	};
+
+	s2mpu_mfc_s0: pkvm-s2mpu@1E0A0000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1E0A0000 0x10000>;
+	};
+
+	s2mpu_mfd_s0: pkvm-s2mpu@1F0A0000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1F0A0000 0x10000>;
+	};
+
+	s2mpu_mfd_s1: pkvm-s2mpu@1F120000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1F120000 0x10000>;
+	};
+
+	s2mpu_rgbp_s0: pkvm-s2mpu@1B050000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1B050000 0x10000>;
+	};
+
+	s2mpu_ufd_s0: pkvm-s2mpu@14880000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x14880000 0x10000>;
+	};
+
+	s2mpu_yuvp_s0: pkvm-s2mpu@1C090000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x1C090000 0x10000>;
+	};
+
+	s2mpu_modem_s0: pkvm-s2mpu@22AF0000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x22AF0000 0x10000>;
+	};
+
+	s2mpu_g3d_s0: pkvm-s2mpu@22A50000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x22A50000 0x10000>;
+	};
+
+	s2mpu_alive_s0: pkvm-s2mpu@248F0000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x248F0000 0x10000>;
+	};
+
+	s2mpu_peris_s0: pkvm-s2mpu@10170000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x10170000 0x10000>;
+	};
+
+	s2mpu_hsi0_s0: pkvm-s2mpu@17870000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x17870000 0x10000>;
+	};
+
+	s2mpu_ufs_s0: pkvm-s2mpu@17030000 {
+		compatible = "samsung,pkvm-s2mpu";
+		reg = <0x0 0x17030000 0x10000>;
+	};
+
+	/* TEEGRIS */
+	teegris {
+		compatible = "samsung,teegris";
+		interrupts =  <GIC_SPI INTREQ__TEEGRIS_EVENT IRQ_TYPE_LEVEL_HIGH>,
+		              <GIC_SPI INTREQ__TEEGRIS_PANIC IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	tee-tui {
+		compatible = "samsung,exynos-tui";
+		samsung,tzmp;
+	};
+
+	/* Secure Log */
+	seclog {
+		compatible = "samsung,exynos-seclog";
+		interrupts = <GIC_SPI INTREQ__SECURE_LOG IRQ_TYPE_LEVEL_HIGH>;
+		memory-region = <&seclog_mem>;
+	};
+
+	tzasc {
+		compatible = "samsung,exynos-tzasc";
+		channel = <4>;
+		tzc_ver = <400>;
+		irqcnt = <4>;
+		interrupts = <GIC_SPI INTREQ__DMC_TZCINT_MIF0 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_TZCINT_MIF1 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_TZCINT_MIF2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_TZCINT_MIF3 IRQ_TYPE_LEVEL_HIGH>;
+		/* give affinity to core #2 for TZASC interrupt */
+		interrupt-affinity = <0x4>;
+	};
+
+	seh {
+		compatible = "samsung,exynos-seh";
+	};
+
+//	ppmpu {
+//		compatible = "samsung,exynos-ppmpu";
+//		channel = <4>;
+//		tzc_ver = <400>;
+//		irqcnt = <4>;
+//		interrupts = <GIC_SPI INTREQ__DMC_PPMPINT_MIF0 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF1 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF2 IRQ_TYPE_LEVEL_HIGH>,
+//			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF3 IRQ_TYPE_LEVEL_HIGH>;
+//	};
+
+	hdcp {
+		compatible = "samsung,exynos-hdcp";
+		interrupts = <GIC_SPI INTREQ__HDCP IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	secmem {
+		compatible = "samsung,exynos-secmem";
+		memory-region = <&crypto>, <&vstream>;
+	};
+
+	/* Secure RPMB */
+	ufs-srpmb {
+		compatible = "samsung,ufs-srpmb";
+		interrupts = <GIC_SPI INTREQ__RPMB IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+//	fmp {
+//		compatible = "samsung,exynos-fmp";
+//	};
+//
+	ssp: ssp {
+		compatible = "samsung,exynos-ssp";
+		power-domains = <&pd_strong>;
+	};
+//
+//	camellia_test {
+//		compatible = "samsung,exynos-camellia-test";
+//	};
+//
+//	/* CryptoManager */
+//	cryptomanager {
+//		compatible = "samsung,exynos-cm";
+//		cryptomanager-ver="CryptoManagerV70";
+//		sysreg_addr = <0x18221018>;
+//		ap_addr = <0x18290000>;
+//		cp_addr = <0x18280000>;
+//	};
+};

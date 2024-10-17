@@ -1,0 +1,23 @@
+#
+# AW8624X Driver
+#
+
+config INPUT_AW8624X_HAPTIC
+	tristate "Awinic AW8624X Input Haptic Driver"
+	depends on I2C
+	help
+		Say Y here if you have Awinic AW8624X controller
+		chip in your system.
+		If unsure, say N.
+		To compile this driver as a module, choose M here: the
+		module will be called AW8624X driver.
+
+config AW8624X_SAMSUNG_FEATURE
+	bool "AWINIC AW8624X Haptic Driver for Samsung feature"
+	depends on INPUT_AW8624X_HAPTIC
+	default n
+	help
+		Say Y to enable AW8624X_SAMSUNG_FEATURE
+		codes featured with this comment
+		aren't the original code from AWINIC.
+		To use samsung concept, please enable this.

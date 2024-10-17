@@ -1,0 +1,97 @@
+/*
+ * SAMSUNG S5E9945 SoC device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG S5E9945 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "exynos_gpio_config_macros.dtsi"
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "S5E9945";
+
+			sec_reloc_gpio: samsung,reloc_gpio {
+				compatible = "samsung,reloc_gpio";
+				status = "okay";
+				/* see, '/sys/kernel/debug/pinctrl' */
+				sec,gpio-label = "reloc_gpio";
+				sec,reloc-base = <0>;
+				pinctrl-names = "default";
+				pinctrl-0=<&interposer_det_1 &interposer_det_2
+					&interposer_det_3 &interposer_det_4>;
+			};
+
+			sec-bootstat {
+				thermal-zones {
+					/* max number of thermal-zones is 10 */
+					/* max length of display-name is 4 */
+					zone_big {
+						zone-name = "BIG";
+						display-name = "BIG";
+					};
+					zone_midh {
+						zone-name = "MIDH";
+						display-name = "MIDH";
+					};
+					zone_midl {
+						zone-name = "MIDL";
+						display-name = "MIDL";
+					};
+					zone_lit {
+						zone-name = "LITTLE";
+						display-name = "LIT";
+					};
+					zone_g3d {
+						zone-name = "G3D";
+						display-name = "G3D";
+					};
+					zone_isp {
+						zone-name = "ISP";
+						display-name = "ISP";
+					};
+					zone_npu {
+						zone-name = "NPU";
+						display-name = "NPU";
+					};
+				};
+			};
+
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&s2mps28_3_gpio {
+	interposer_det_1: interposer-det-1 {	/* INTPOSER_DET_1 */
+		pins = "gpio_s4";
+		pmic-gpio,pull-up;
+	};
+	interposer_det_2: interposer-det-2 {	/* INTPOSER_DET_2 */
+		pins = "gpio_s5";
+		pmic-gpio,pull-up;
+	};
+};
+
+&s2mps28_4_gpio {
+	interposer_det_3: interposer-det-3 {	/* INTPOSER_DET_3 */
+		pins = "gpio_s2";
+		pmic-gpio,pull-up;
+	};
+	interposer_det_4: interposer-det-4 {	/* INTPOSER_DET_4 */
+		pins = "gpio_s3";
+		pmic-gpio,pull-up;
+	};
+};
