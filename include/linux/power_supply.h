@@ -42,6 +42,16 @@ enum {
 	POWER_SUPPLY_STATUS_CMD_DISCHARGING,
 };
 
+/*P231128-06029 */
+/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
+};
+/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
+
 /*HS03s for SR-AL5625-01-278 by wenyaqi at 20210427 start*/
 #ifndef HQ_FACTORY_BUILD	//ss version
 enum {
@@ -269,6 +279,9 @@ enum power_supply_property {
 	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 #ifndef HQ_FACTORY_BUILD
 	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+	POWER_SUPPLY_PROP_BATT_SOC_RECHG,
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
 #endif
 	POWER_SUPPLY_PROP_SHIPMODE,
 	POWER_SUPPLY_PROP_SHIPMODE_REG,
@@ -320,6 +333,9 @@ enum power_supply_property {
 	/*TabA7 Lite code for OT8-739 discharging over 80 by wenyaqi at 20210104 end*/
         #ifndef HQ_FACTORY_BUILD
 	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+	POWER_SUPPLY_PROP_BATT_SOC_RECHG,
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
         #endif
 #elif defined(CONFIG_HQ_PROJECT_O22)
 	/* hs14 code for  SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 start*/
@@ -342,12 +358,60 @@ enum power_supply_property {
 #ifndef HQ_FACTORY_BUILD
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 start */
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+	POWER_SUPPLY_PROP_BATTERY_CYCLE_DEBUG,
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
 	POWER_SUPPLY_PROP_BATT_CURRENT_UA_NOW,
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	POWER_SUPPLY_PROP_BATT_PROTECT_FLAG,
-	POWER_SUPPLY_PROP_EN_BATT_PROTECT,
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
+	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 start*/
+	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
+	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 end*/
+	/* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
+	POWER_SUPPLY_PROP_BATT_FULL_CAPICITY,
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	POWER_SUPPLY_PROP_BATT_SOC_RECHG,
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
+	POWER_SUPPLY_PROP_BATT_MISC_EVENT,
+	/* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
+	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
+	POWER_SUPPLY_PROP_BATT_SLATE_MODE,
+	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+	POWER_SUPPLY_PROP_STORE_MODE,
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	POWER_SUPPLY_PROP_BATT_TEMP,
+	POWER_SUPPLY_PROP_BATT_DISCHARGE_LEVEL,
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+#ifdef HQ_FACTORY_BUILD
+	POWER_SUPPLY_PROP_BATT_CAP_CONTROL,
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+#elif defined(CONFIG_HQ_PROJECT_A06)
+	/* hs14 code for  SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 start*/
+	POWER_SUPPLY_PROP_SHIPMODE,
+	POWER_SUPPLY_PROP_SHIPMODE_REG,
+	/* hs14 code for  SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 end*/
+	/* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 20220930 start*/
+	POWER_SUPPLY_PROP_CHARGE_STATUS,
+	/* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 20220930 end*/
+	/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 start */
+	POWER_SUPPLY_PROP_DUMP_CHARGER_IC,
+	/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 end */
+/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
+#ifdef CONFIG_AFC_CHARGER
+	POWER_SUPPLY_PROP_HV_CHARGER_STATUS,
+	POWER_SUPPLY_PROP_AFC_RESULT,
+	POWER_SUPPLY_PROP_HV_DISABLE,
+#endif
+/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+#ifndef HQ_FACTORY_BUILD
+	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 start */
+	POWER_SUPPLY_PROP_BATTERY_CYCLE,
+	POWER_SUPPLY_PROP_BATT_CURRENT_UA_NOW,
+	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 start*/
 	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 end*/
@@ -361,6 +425,10 @@ enum power_supply_property {
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 	POWER_SUPPLY_PROP_STORE_MODE,
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	POWER_SUPPLY_PROP_BATT_TEMP,
+	POWER_SUPPLY_PROP_BATT_DISCHARGE_LEVEL,
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 #ifdef HQ_FACTORY_BUILD
@@ -603,6 +671,19 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_CHG_INFO,
 	POWER_SUPPLY_PROP_TCPC_INFO,
 	/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+#ifndef HQ_FACTORY_BUILD
+	POWER_SUPPLY_PROP_BATT_TYPE,
+#endif
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
+#elif defined(CONFIG_HQ_PROJECT_A06)
+	/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 start */
+	POWER_SUPPLY_PROP_CHG_INFO,
+	POWER_SUPPLY_PROP_TCPC_INFO,
+	/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 end */
+#ifndef HQ_FACTORY_BUILD
+	POWER_SUPPLY_PROP_BATT_TYPE,
+#endif
 #else
 	// no add new power_supply
 #endif
@@ -711,7 +792,7 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_POWER_SHARING,
 	POWER_SUPPLY_TYPE_HV_MAINS,
 	POWER_SUPPLY_TYPE_HV_MAINS_12V,
-	POWER_SUPPLY_TYPE_HV_PREPARE_MAINS, 
+	POWER_SUPPLY_TYPE_HV_PREPARE_MAINS,
 	POWER_SUPPLY_TYPE_HV_ERR,
 	POWER_SUPPLY_TYPE_MHL_USB_100,
 	POWER_SUPPLY_TYPE_MHL_2000,
@@ -1050,5 +1131,14 @@ static inline bool power_supply_is_watt_property(enum power_supply_property psp)
 
 	return 0;
 }
+
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+typedef enum batt_protection {
+	BASE_MODE,
+	OPTION_MODE,
+	SLEEP_MODE,
+	HIGHSOC_MODE
+} BATT_PROTECTION_T;
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
 
 #endif /* __LINUX_POWER_SUPPLY_H__ */

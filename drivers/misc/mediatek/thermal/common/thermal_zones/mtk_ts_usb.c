@@ -1314,6 +1314,8 @@ static int mtktsusb_pdrv_remove(struct platform_device *pdev)
 #ifdef CONFIG_OF
 #if defined(CONFIG_HQ_PROJECT_O22)
 const struct of_device_id mt_thermistor_of_match4[2] = {
+#elif defined(CONFIG_HQ_PROJECT_A06)
+const struct of_device_id mt_thermistor_of_match4[2] = {
 #else
 const struct of_device_id mt_thermistor_of_match3[2] = {
 #endif
@@ -1330,6 +1332,8 @@ static struct platform_driver mtktsusb_driver = {
 		.name = THERMAL_THERMISTOR_NAME,
 #ifdef CONFIG_OF
 #if defined(CONFIG_HQ_PROJECT_O22)
+		.of_match_table = mt_thermistor_of_match4,
+#elif defined(CONFIG_HQ_PROJECT_A06)
 		.of_match_table = mt_thermistor_of_match4,
 #else
 		.of_match_table = mt_thermistor_of_match3,

@@ -40,6 +40,22 @@ struct lcd_id_info
 	char *lcd_strdata;
 };
 #endif
+
+#ifdef CONFIG_HQ_PROJECT_A06
+enum lcd_id {
+	LCD_NONE,
+	LCD_FIRST,
+	LCD_SECOND,
+	LCD_THIRD,
+	LCD_FOURTH,
+};
+
+struct lcd_id_info
+{
+	enum lcd_id hwid;
+	char *lcd_strdata;
+};
+#endif
 /*hs14 code for AL6528A-190 by houxin at 2022/09/28 end*/
 
 #endif

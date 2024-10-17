@@ -1091,6 +1091,54 @@ static int als_set_cali(uint8_t *data, uint8_t count)
 /* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 end */
 #endif
 
+#ifdef CONFIG_HQ_PROJECT_A06
+/* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 start */
+/* hs14 code for SR-AL6528A-01-437|AL6528A-190 by houxin at 2022/09/28 start */
+struct lcd_id_info lcd_info[] = {
+    {LCD_FIRST, "hwid:0x13"},
+    {LCD_SECOND, "hwid:0x23"},
+    {LCD_THIRD, "hwid:0x33"},
+    {LCD_FOURTH, "hwid:0x43"},
+};
+static void lcd_info_judge(uint8_t *data)
+{
+    int i = 0;
+    char *command_line = saved_command_line;
+    data[2] = LCD_NONE;
+
+    pr_info("command_line = %s\n", command_line);
+    for (i = 0; i < sizeof(lcd_info) / sizeof(lcd_info[0]); i++) {
+        if (NULL != strstr(command_line, lcd_info[i].lcd_strdata)) {
+            pr_info("find lcd : %d!\n", lcd_info[i].hwid);
+            data[2] = lcd_info[i].hwid;
+            break;
+        }
+    }
+
+    if (data[2] == LCD_NONE) {
+        pr_info("can't find lcd!\n");
+    }
+}
+
+static int als_set_cali(uint8_t *data, uint8_t count)
+{
+    int32_t *buf = (int32_t *)data;
+    struct alspshub_ipi_data *obj = obj_ipi_data;
+
+    spin_lock(&calibration_lock);
+    atomic_set(&obj->als_cali, buf[0]);
+    if(atomic_read(&obj->als_cali) == 0){
+        atomic_set(&obj->als_cali, 1000);
+    }
+    lcd_info_judge(data);
+    pr_info("%d\n", atomic_read(&obj->als_cali));
+    spin_unlock(&calibration_lock);
+    return sensor_cfg_to_hub(ID_LIGHT, data, 3);
+}
+/* hs14 code for SR-AL6528A-01-437|AL6528A-190 by houxin at 2022/09/28 end */
+/* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 end */
+#endif
+
 static int rgbw_enable(int en)
 {
 	int res = 0;

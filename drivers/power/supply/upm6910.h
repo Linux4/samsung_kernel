@@ -337,4 +337,8 @@ struct upm6910_platform_data {
 #define REG0B_DEV_REV_MASK          0x03
 #define REG0B_DEV_REV_SHIFT         0
 
+/*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 start*/
+#define ICHG_OCP_THRESHOLD_MA       900
+/*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 end*/
+
 #endif

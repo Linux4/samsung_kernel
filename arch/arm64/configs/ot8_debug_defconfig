@@ -674,6 +674,9 @@ CONFIG_BATTERY_ID_ADC=y
 CONFIG_AFC_CHARGER=y
 CONFIG_MTK_C2K_LTE_MODE=0
 #TabA7 Lite  code for SR-AX3565-01-282 by yanghui at 2020/11/25 end
+# Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start
+CONFIG_BATT_TIME_TO_FULL=y
+# Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end
 CONFIG_SWITCH=y
 
 # [ SEC_SELINUX_PORTING_COMMON

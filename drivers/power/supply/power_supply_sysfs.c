@@ -124,6 +124,35 @@ static const char * const power_supply_typec_src_rp_text[] = {
 	"Rp-Default", "Rp-1.5A", "Rp-3A"
 };
 
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+#if defined(CONFIG_HQ_PROJECT_OT8) && (!defined(HQ_FACTORY_BUILD))
+static char power_supply_protection_mode[32] = {
+	"100"
+};
+#endif
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
+
+/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+#if defined(CONFIG_HQ_PROJECT_HS04) && (!defined(HQ_FACTORY_BUILD))
+static char power_supply_protection_mode[32] = {
+	"100"
+};
+#endif
+/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
+
+/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+static char power_supply_batt_type[32] = {
+	"Unknown"
+};
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+static char power_supply_protection_mode[32] = {
+	"100"
+};
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
+#endif
+/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
+
 static ssize_t power_supply_show_usb_type(struct device *dev,
 					  enum power_supply_usb_type *usb_types,
 					  ssize_t num_usb_types,
@@ -262,6 +291,13 @@ static ssize_t power_supply_store_property(struct device *dev,
 	int store_mode;
 	#endif
 	/*HS03s for SR-AL5625-01-277 by wenyaqi at 20210427 end*/
+/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_OT8) || defined(CONFIG_HQ_PROJECT_HS04) && (!defined(HQ_FACTORY_BUILD))
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
+	char *type_str = NULL;
+#endif
+/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -282,6 +318,17 @@ static ssize_t power_supply_store_property(struct device *dev,
 	case POWER_SUPPLY_PROP_SCOPE:
 		ret = match_string(power_supply_scope_text, ARRAY_SIZE(power_supply_scope_text), buf);
 		break;
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+	#if defined(CONFIG_HQ_PROJECT_HS04)
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		strncpy(power_supply_protection_mode, buf, count);
+		power_supply_protection_mode[count] = '\0';
+		type_str = power_supply_protection_mode;
+		dev_info(dev, "power_supply_protection_mode= %s \n", type_str);
+		value.strval = type_str;
+		break;
+	#endif
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
 	/*HS03s for SR-AL5625-01-277 by wenyaqi at 20210427 start*/
 #if defined(CONFIG_HQ_PROJECT_O22)
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
@@ -293,9 +340,37 @@ static ssize_t power_supply_store_property(struct device *dev,
 			ret = 0;
 		dev_info(dev, "buf:%s store_mode:%d\n", buf, ret);
 		break;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	case POWER_SUPPLY_PROP_BATT_TYPE:
+		strncpy(power_supply_batt_type, buf, count);
+		power_supply_batt_type[count] = '\0';
+		type_str = power_supply_batt_type;
+		dev_info(dev, "batt_type type_str= %s \n", type_str);
+		break;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPICITY:
+		strncpy(power_supply_protection_mode, buf, count);
+		power_supply_protection_mode[count] = '\0';
+		type_str = power_supply_protection_mode;
+		dev_info(dev, "power_supply_protection_mode= %s \n", type_str);
+		break;
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
 	#endif
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
 #else
+#if defined(CONFIG_HQ_PROJECT_OT8)
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		strncpy(power_supply_protection_mode, buf, count);
+		power_supply_protection_mode[count] = '\0';
+		type_str = power_supply_protection_mode;
+		dev_info(dev, "power_supply_protection_mode= %s \n", type_str);
+		break;
+	#endif
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
+#endif
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_STORE_MODE:
 		if (sscanf(buf, "%10d\n", &store_mode) == 1) {
@@ -325,7 +400,19 @@ static ssize_t power_supply_store_property(struct device *dev,
 		ret = long_val;
 	}
 
+/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_OT8) && (!defined(HQ_FACTORY_BUILD))
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
+	if (type_str != NULL) {
+		value.strval = type_str;
+	} else {
+		value.intval = ret;
+	}
+#else
 	value.intval = ret;
+#endif
+/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 
 	ret = power_supply_set_property(psy, psp, &value);
 	if (ret < 0)
@@ -418,6 +505,9 @@ static struct device_attribute power_supply_attrs[] = {
 	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 #ifndef HQ_FACTORY_BUILD
 	POWER_SUPPLY_ATTR(batt_full_capacity),
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+	POWER_SUPPLY_ATTR(batt_soc_rechg),
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
 #endif
 	POWER_SUPPLY_ATTR(shipmode),
 	POWER_SUPPLY_ATTR(shipmode_reg),
@@ -470,6 +560,9 @@ static struct device_attribute power_supply_attrs[] = {
 	/* TabA7 Lite code for OT8-5454 by shixuanxuan at 20220404 start */
 	#ifndef HQ_FACTORY_BUILD
 	POWER_SUPPLY_ATTR(batt_full_capacity),
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+	POWER_SUPPLY_ATTR(batt_soc_rechg),
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
 	#endif
 	/* TabA7 Lite code for OT8-5454 by shixuanxuan at 20220404 end */
 	/* hs14 code for SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 start*/
@@ -493,12 +586,59 @@ static struct device_attribute power_supply_attrs[] = {
 #ifndef HQ_FACTORY_BUILD
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 start */
 	POWER_SUPPLY_ATTR(battery_cycle),
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+	POWER_SUPPLY_ATTR(battery_cycle_debug),
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
 	POWER_SUPPLY_ATTR(batt_current_ua_now),
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	POWER_SUPPLY_ATTR(batt_protect_flag),
-	POWER_SUPPLY_ATTR(en_batt_protect),
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
+	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 start*/
+	POWER_SUPPLY_ATTR(batt_current_event),
+	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 end*/
+	/* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
+	POWER_SUPPLY_ATTR(batt_full_capacity),
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	POWER_SUPPLY_ATTR(batt_soc_rechg),
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
+	POWER_SUPPLY_ATTR(batt_misc_event),
+	/* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
+	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
+	POWER_SUPPLY_ATTR(batt_slate_mode),
+	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+	POWER_SUPPLY_ATTR(store_mode),
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	POWER_SUPPLY_ATTR(batt_temp),
+	POWER_SUPPLY_ATTR(batt_discharge_level),
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+#ifdef HQ_FACTORY_BUILD
+	POWER_SUPPLY_ATTR(batt_cap_control),
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+#elif defined(CONFIG_HQ_PROJECT_A06)
+	POWER_SUPPLY_ATTR(shipmode),
+	POWER_SUPPLY_ATTR(shipmode_reg),
+	/* hs14 code for SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 end*/
+	/* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 2022/09/30 start*/
+	POWER_SUPPLY_ATTR(charge_status),
+	/* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 2022/09/30 end*/
+	/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 start */
+	POWER_SUPPLY_ATTR(dump_charger_ic),
+	/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 end */
+/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
+#ifdef CONFIG_AFC_CHARGER
+	POWER_SUPPLY_ATTR(hv_charger_status),
+	POWER_SUPPLY_ATTR(afc_result),
+	POWER_SUPPLY_ATTR(hv_disable),
+#endif
+/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+#ifndef HQ_FACTORY_BUILD
+	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 start */
+	POWER_SUPPLY_ATTR(battery_cycle),
+	POWER_SUPPLY_ATTR(batt_current_ua_now),
+	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 start*/
 	POWER_SUPPLY_ATTR(batt_current_event),
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 end*/
@@ -512,6 +652,10 @@ static struct device_attribute power_supply_attrs[] = {
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 	POWER_SUPPLY_ATTR(store_mode),
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	POWER_SUPPLY_ATTR(batt_temp),
+	POWER_SUPPLY_ATTR(batt_discharge_level),
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 #ifdef HQ_FACTORY_BUILD
@@ -754,6 +898,11 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(chg_info),
 	POWER_SUPPLY_ATTR(tcpc_info),
 	/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+#ifndef HQ_FACTORY_BUILD	//ss version
+	POWER_SUPPLY_ATTR(batt_type),
+#endif
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #else
 	// no add new power_supply
 #endif

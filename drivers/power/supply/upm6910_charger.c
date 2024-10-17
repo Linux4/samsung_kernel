@@ -199,11 +199,60 @@ int upm6910_set_chargecurrent(struct upm6910 *upm, int curr)
     }
 
     ichg = (curr - REG02_ICHG_BASE) / REG02_ICHG_LSB;
+    /*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 start*/
+    pr_err("%s: charge curr = %d\n", __func__, curr);
+    /*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 end*/
 
     return upm6910_update_bits(upm, UPM6910_REG_02, REG02_ICHG_MASK,
                     ichg << REG02_ICHG_SHIFT);
 
 }
+
+/*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 start*/
+int upm6910_get_chargecurrent(struct upm6910 *upm, int *curr_ma)
+{
+    u8 reg_val = 0;
+    int ichg = 0;
+    int ret = 0;
+
+    if (!upm) {
+        pr_err("%s device is null\n", __func__);
+        return -ENODEV;
+    }
+
+    ret = upm6910_read_byte(upm, UPM6910_REG_02, &reg_val);
+    if (!ret) {
+        ichg = (reg_val & REG02_ICHG_MASK) >> REG02_ICHG_SHIFT;
+        ichg = ichg * REG02_ICHG_LSB + REG02_ICHG_BASE;
+        *curr_ma = ichg;
+    }
+
+    return ret;
+}
+
+int upm6910_chargecurrent_recheck(struct upm6910 *upm)
+{
+    int curr_val = 0;
+    int ret = 0;
+
+    if (!upm) {
+        pr_err("%s device is null\n", __func__);
+        return -ENODEV;
+    }
+
+    ret = upm6910_get_chargecurrent(upm, &curr_val);
+    if (!ret) {
+        pr_info("%s the curr value is %d\n", __func__, curr_val);
+        if (curr_val < ICHG_OCP_THRESHOLD_MA) {
+            ret = upm6910_set_chargecurrent(upm, ICHG_OCP_THRESHOLD_MA);
+        } else {
+            pr_err("%s get charge current failed\n", __func__);
+        }
+    }
+
+    return ret;
+}
+/*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 end*/
 
 int upm6910_set_term_current(struct upm6910 *upm, int curr)
 {
@@ -942,17 +991,22 @@ static int upm6910_plug_in(struct charger_device *chg_dev)
     return ret;
 }
 
+/*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 start*/
 static int upm6910_plug_out(struct charger_device *chg_dev)
 {
+    struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
     int ret;
 
     ret = upm6910_charging(chg_dev, false);
+
+    upm6910_chargecurrent_recheck(upm);
 
     if (ret)
         pr_err("Failed to disable charging:%d\n", ret);
 
     return ret;
 }
+/*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 end*/
 
 static int upm6910_dump_register(struct charger_device *chg_dev)
 {
@@ -1009,7 +1063,21 @@ static int upm6910_is_charging_done(struct charger_device *chg_dev, bool *done)
 static int upm6910_set_ichg(struct charger_device *chg_dev, u32 curr)
 {
     struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
+    /*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 start*/
+    int ret = 0;
+    u8 reg_val = 0;
+    bool power_good = false;
 
+    ret = upm6910_read_byte(upm, UPM6910_REG_08, &reg_val);
+
+    if (!ret) {
+        power_good = !!(reg_val & REG08_PG_STAT_MASK);
+        if (!power_good) {
+            curr = ICHG_OCP_THRESHOLD_MA * 1000;
+        }
+    }
+
+    /*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 end*/
     pr_err("charge curr = %d\n", curr);
 
     return upm6910_set_chargecurrent(upm, curr / 1000);
@@ -1529,6 +1597,14 @@ static int upm6910_charger_probe(struct i2c_client *client,
         dev_notice(&client->dev, "Fail to register power supply dev\n");
         ret = PTR_ERR(upm->psy);
     }
+
+    /*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 start*/
+    ret = upm6910_set_chargecurrent(upm, ICHG_OCP_THRESHOLD_MA);
+    if (ret) {
+        pr_err("set charge current failed!\n");
+        return -ENODEV;
+    }
+    /*hs04 code for AL6398ADEU-249 by shanxinkai at 2023/04/12 end*/
 
 	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
 	set_hardinfo_charger_data(CHG_INFO, "UPM6910");

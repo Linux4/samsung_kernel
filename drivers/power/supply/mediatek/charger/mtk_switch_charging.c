@@ -580,12 +580,44 @@ static int get_val(struct range_data *range, int threshold, int *val)
 
 	return 0;
 }
-
+/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
 static int ss_battery_aging_update(struct charger_manager *info)
 {
-	int rc, cycle_count = 0, vbat = 0;
+	struct power_supply *bat_psy = NULL;
+	int rc, cycle_count = 0, vbat = 0, ret = 0;
 	union power_supply_propval prop = {0, };
+	union power_supply_propval cycle_val;
 	static int battery_cv_old = 0;
+
+	bat_psy = power_supply_get_by_name("battery");
+	if (bat_psy != NULL) {
+		ret = power_supply_get_property(bat_psy,
+			POWER_SUPPLY_PROP_BATTERY_CYCLE, &cycle_val);
+		if (ret) {
+			chr_err("[%s] get battery_cycle failed\n", __func__);
+			info->data.ss_batt_cycle = 0;
+		/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+		} else {
+			info->data.ss_batt_cycle = cycle_val.intval;
+		}
+		ret = power_supply_get_property(bat_psy,
+			POWER_SUPPLY_PROP_BATTERY_CYCLE_DEBUG, &cycle_val);
+		if (ret) {
+			chr_err("[%s] get battery_cycle debug failed\n", __func__);
+		} else {
+			if (cycle_val.intval != 0) {
+				info->data.ss_batt_cycle = cycle_val.intval;
+				chr_err("[%s] get battery_cycle debug = %d\n", __func__, info->data.ss_batt_cycle);
+			}
+		}
+		/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
+
+	} else {
+		chr_err("[%s] get bat_psy failed\n", __func__);
+		info->data.ss_batt_cycle = 0;
+	}
+
+	chr_info("[%s] get battery_cycle success, value = %d\n", __func__, info->data.ss_batt_cycle);
 
 	cycle_count = info->data.ss_batt_cycle;
 	rc = get_val(info->data.batt_cv_data, cycle_count, &vbat);
@@ -606,7 +638,7 @@ static int ss_battery_aging_update(struct charger_manager *info)
 
 	return 0;
 }
-
+/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 static void swchg_select_cv(struct charger_manager *info)
 {
 	u32 constant_voltage;

@@ -749,6 +749,30 @@ static void mtk_ddic_send_cb(struct cmdq_cb_data data)
 	CRTC_MMP_MARK(0, ddic_send_cmd, 1, 1);
 }
 
+int mtk_drm_set_frame_skip(bool skip)
+{
+	struct drm_crtc *crtc;
+	struct mtk_drm_crtc *mtk_crtc;
+
+	crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
+				typeof(*crtc), head);
+	if (!crtc) {
+		pr_info("find crtc fail\n");
+		return 0;
+	}
+	mtk_crtc = to_mtk_crtc(crtc);
+	if (skip) {
+		mtk_crtc->skip_frame = true;
+		pr_info("skip frame set 1\n");
+	} else {
+		mtk_crtc->skip_frame = false;
+		pr_info("skip frame set 0\n");
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(mtk_drm_set_frame_skip);
+
 int mtk_crtc_lock_control(bool en)
 {
 	struct drm_crtc *crtc;
@@ -884,8 +908,7 @@ int read_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg)
 		return -EINVAL;
 	}
 
-	recursive_check = (((int)mtk_crtc->need_lock_tid == 0) &&
-							((int)mtk_crtc->need_lock_tid !=
+	recursive_check = (((int)mtk_crtc->need_lock_tid !=
 							(int)current_tid) &&
 							(int)current_tid != INIT_TID);
 
@@ -896,8 +919,7 @@ int read_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg)
 
 	if (recursive_check)
 		ret = mtk_ddic_dsi_read_cmd(cmd_msg, need_lock);
-	else if (mtk_crtc->set_lcm_scn > SET_LCM_CMDQ_AVAILABLE &&
-				mtk_crtc->set_lcm_scn < SET_LCM_CMDQ_FRAME_DONE)
+	else if (mtk_crtc->set_lcm_scn > SET_LCM_CMDQ_FRAME_DONE)
 		ret = mtk_ddic_dsi_read_cmd(cmd_msg, recursive_check);
 	else
 		ret = mtk_ddp_comp_io_cmd(output_comp, NULL,
@@ -1931,13 +1953,16 @@ static void process_dbg_opt(const char *opt)
 		/*ex: echo helper:DISP_OPT_BYPASS_OVL,0 > /d/mtkfb */
 		char option[100] = "";
 		char *tmp;
-		int value, i;
+		int value, i, limited;
 		enum MTK_DRM_HELPER_OPT helper_opt;
 		struct mtk_drm_private *priv = drm_dev->dev_private;
 		int ret;
 
 		tmp = (char *)(opt + 7);
-		for (i = 0; i < 100; i++) {
+		limited = strlen(tmp);
+		for (i = 0; i < 99; i++) { /* option[99] should be '\0' to aviod oob */
+			if (i >= limited)
+				return;
 			if (tmp[i] != ',' && tmp[i] != ' ')
 				option[i] = tmp[i];
 			else

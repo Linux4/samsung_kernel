@@ -369,9 +369,9 @@ int xhci_mtk_add_ep_quirk(struct usb_hcd *hcd, struct usb_device *udev,
 	list_add_tail(&sch_ep->endpoint, &sch_bw->bw_ep_list);
 	sch_ep->ep = ep;
 
-	ep_ctx->reserved[0] |= cpu_to_le32(EP_BPKTS(sch_ep->pkts)
+	ep_ctx->reserved[0] = cpu_to_le32(EP_BPKTS(sch_ep->pkts)
 		| EP_BCSCOUNT(sch_ep->cs_count) | EP_BBM(sch_ep->burst_mode));
-	ep_ctx->reserved[1] |= cpu_to_le32(EP_BOFFSET(sch_ep->offset)
+	ep_ctx->reserved[1] = cpu_to_le32(EP_BOFFSET(sch_ep->offset)
 		| EP_BREPEAT(sch_ep->repeat));
 
 	xhci_dbg(xhci, " PKTS:%x, CSCOUNT:%x, BM:%x, OFFSET:%x, REPEAT:%x\n",

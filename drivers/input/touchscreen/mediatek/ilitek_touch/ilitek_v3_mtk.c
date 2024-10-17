@@ -480,6 +480,12 @@ static int __init ilitek_plat_dev_init(void)
     //             ILI_INFO("this is not %s panel\n",lcd_identify_name);
     //             return -ENODEV;
     //     };
+	/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+	if ((tp_get_boot_mode() != NORMAL_BOOT) && (tp_get_boot_mode() != ALARM_BOOT)) {
+		ILI_ERR("tp init fail because boot_mode = %d\n",tp_get_boot_mode());
+		return -EINVAL;
+	}
+	/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 
 	tpd_get_dts_info();
 	ret = tpd_driver_add(&tpd_device_driver);

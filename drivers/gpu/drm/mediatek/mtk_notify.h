@@ -33,8 +33,8 @@ enum {
 	DISP_NONE = -1,
 	DISP_OFF = 0,
 	DISP_ON = 1,
-	DISP_DOZE = 2,
-	DISP_DOZE_SUSPEND = 3,
+	DISP_DOZE_SUSPEND = 2,
+	DISP_DOZE = 3,
 };
 
 struct mtk_uevent_dev {
@@ -54,7 +54,7 @@ int uevent_dev_register(struct mtk_uevent_dev *sdev);
 int noti_uevent_user(struct mtk_uevent_dev *sdev, int state);
 int mtk_notifier_activate(void);
 int mtk_register_client(struct notifier_block *nb);
-
+int mtk_check_powermode(struct drm_atomic_state *state, int mode);
 int noti_uevent_user_by_drm(struct drm_device *drm, int state);
 
 #endif

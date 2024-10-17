@@ -20,7 +20,7 @@ ifeq ($(DSMS_PREBOOT_BUFFER), true)
 endif
 
 # kunit tests options:
-ifeq ($(CONFIG_KUNIT), y)
+ifeq ($(CONFIG_SEC_KUNIT), y)
     GCOV_PROFILE := y
     ccflags-y += -DDSMS_KUNIT_ENABLED
 endif

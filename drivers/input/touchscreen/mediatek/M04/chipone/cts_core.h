@@ -2,6 +2,11 @@
 #define CTS_CORE_H
 
 #include "cts_config.h"
+
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 start*/
+#include "hal_kpd.h"
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 end*/
+
 #include <linux/input/sec_cmd.h>
 /*hs04 code for DEAL6398A-1067 by tangsumian1 at 20220827 start*/
 #include <linux/notifier.h>

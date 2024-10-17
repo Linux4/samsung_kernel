@@ -24,7 +24,9 @@
 	charger: charger {
 		compatible = "mediatek,charger";
 		/* common */
-		battery_cv = <4400000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 start */
+		battery_cv = <4380000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 end */
 		/*TabA7 Lite code for OT8-602 modify sw_ovp function by wenyaqi at 20210107 start*/
 		max_charger_voltage = <10400000>;
 		/*TabA7 Lite code for OT8-602 modify sw_ovp function by wenyaqi at 20210107 end*/
@@ -35,10 +37,12 @@
 		enable_sw_jeita;
 		jeita_temp_above_t4_cv = <4100000>;
 		jeita_temp_t3_to_t4_cv = <4100000>;
-		jeita_temp_t2_to_t3_cv = <4400000>;
-		jeita_temp_t1_to_t2_cv = <4400000>;
-		jeita_temp_t0_to_t1_cv = <4400000>;
-		jeita_temp_below_t0_cv = <4400000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 start */
+		jeita_temp_t2_to_t3_cv = <4380000>;
+		jeita_temp_t1_to_t2_cv = <4380000>;
+		jeita_temp_t0_to_t1_cv = <4380000>;
+		jeita_temp_below_t0_cv = <4380000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 end */
 		jeita_temp_above_t4_cur = <0>;
 		jeita_temp_t3_to_t4_cur = <1750000>;
 		jeita_temp_t2_to_t3_cur = <2000000>;
@@ -67,11 +71,13 @@
 
 		/*TabA7 Lite code for SR-AX3565-01-124 Import battery aging by wenyaqi at 20201221 start*/
 		ss-batt-aging-enable;
-		ss,cv-ranges = <0 299 4400000
-						300 399 4380000
-						400 699 4360000
-						700 999 4340000
-						1000 9999 4290000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 start */
+		ss,cv-ranges = <0 199 4380000
+						200 249 4360000
+						250 299 4340000
+						300 1000 4320000
+						1001 9999 4270000>;
+		/* Tab A7 lite_U code for AX3565AU-306 by shanxinkai at 20240125 end */
 		/*TabA7 Lite code for SR-AX3565-01-124 Import battery aging by wenyaqi at 20201221 end*/
 
 		/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 start*/
@@ -115,6 +121,25 @@
 		pinctrl-0 = <&vbus_ctrl_default>;
 	};
 	/*TabA7 Lite code for OT8-89 add USB temp protection by wenyaqi at 20201213 end*/
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+	gxy_battery_ttf: gxy_battery_ttf {
+		status = "okay";
+		battery,ttf_dcp_charge_current = <1500>;
+		battery,ttf_hv_charge_current = <2655>;
+		battery,ttf_pd25_charge_current = <2655>;
+		battery,ttf_pd45_charge_current = <2655>;
+		battery,ttf_capacity = <4980>;
+		/*fg_current soc cv_time*/
+		battery,cv_data = <
+			2655  75  5220   /*45W, not support in this project, use 15W*/
+			2655  75  5220   /*25w, not support in this project, use 15W*/
+			2655  75  5220   /*15W*/
+			1585 86 4380    /* hv_disable true or 7.75W*/
+			979 93  3060   /*CDP*/
+			495  95  2820   /*SDP*/
+		>;
+	};
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
 };
 
 /*TabA7 Lite code for OT8-89 add USB temp protection by wenyaqi at 20201213 start*/

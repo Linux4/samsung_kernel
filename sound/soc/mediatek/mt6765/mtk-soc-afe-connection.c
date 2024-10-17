@@ -155,11 +155,21 @@ bool SetAdcToVulData2(unsigned int ConnectionState)
 
 bool SetDl1ToI2s1Dac2(unsigned int ConnectionState)
 {
+	/* TabA7 Lite code for change speaker-L/R by libiao at 20230804 start */
+#if defined(CONFIG_HQ_PROJECT_OT8) && !defined(HQ_FACTORY_BUILD)
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I05,
+			   Soc_Aud_InterConnectionOutput_O04);
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I06,
+			   Soc_Aud_InterConnectionOutput_O03);
+	return true;
+#else
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I05,
 			   Soc_Aud_InterConnectionOutput_O28);
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I06,
 			   Soc_Aud_InterConnectionOutput_O29);
 	return true;
+#endif //CONFIG_HQ_PROJECT_OT8 && !HQ_FACTORY_BUILD
+	/* TabA7 Lite code for P230725-08807 by libiao at 20230804 end */
 }
 
 bool SetDl1ToAwb(unsigned int ConnectionState)
@@ -234,11 +244,21 @@ bool SetDl2ToI2s1Dac(unsigned int ConnectionState)
 
 bool SetDl2ToI2s1Dac2(unsigned int ConnectionState)
 {
+	/* TabA7 Lite code for change speaker-L/R by libiao at 20230804 start */
+#if defined(CONFIG_HQ_PROJECT_OT8) && !defined(HQ_FACTORY_BUILD)
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I07,
+			   Soc_Aud_InterConnectionOutput_O04);
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I08,
+			   Soc_Aud_InterConnectionOutput_O03);
+	return true;
+#else
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I07,
 			   Soc_Aud_InterConnectionOutput_O28);
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I08,
 			   Soc_Aud_InterConnectionOutput_O29);
 	return true;
+#endif //CONFIG_HQ_PROJECT_OT8 && !HQ_FACTORY_BUILD
+	/* TabA7 Lite code for P230725-08807 by libiao at 20230804 end */
 }
 
 bool SetDl2ToVul(unsigned int ConnectionState)
@@ -333,11 +353,21 @@ bool SetHwGain1InToI2s1Dac(unsigned int ConnectionState)
 
 bool SetHwGain1InToI2s1Dac2(unsigned int ConnectionState)
 {
+	/* TabA7 Lite code for change speaker-L/R by libiao at 20230804 start */
+#if defined(CONFIG_HQ_PROJECT_OT8) && !defined(HQ_FACTORY_BUILD)
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I10,
+			   Soc_Aud_InterConnectionOutput_O04);
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I11,
+			   Soc_Aud_InterConnectionOutput_O03);
+	return true;
+#else
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I10,
 			   Soc_Aud_InterConnectionOutput_O28);
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I11,
 			   Soc_Aud_InterConnectionOutput_O29);
 	return true;
+#endif //CONFIG_HQ_PROJECT_OT8 && !HQ_FACTORY_BUILD
+	/* TabA7 Lite code for P230725-08807 by libiao at 20230804 end */
 }
 
 bool SetHwGain1InToI2s3(unsigned int ConnectionState)

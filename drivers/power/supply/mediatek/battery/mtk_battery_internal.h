@@ -282,6 +282,7 @@ enum Fg_data_type {
 	FG_DATA_TYPE_NUMBER
 };
 
+#define DATA_SIZE 2048
 struct fgd_cmd_param_t_6 {
 	unsigned int type;
 	unsigned int total_size;
@@ -668,6 +669,15 @@ struct battery_data {
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 #ifndef HQ_FACTORY_BUILD
 	int cust_batt_cap;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	const char *cust_batt_type;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	int cust_batt_rechg;
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+	int battery_cycle_debug;
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
 #endif
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
 };

@@ -76,6 +76,12 @@
 #include <linux/power_supply.h>
 #endif
 /* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
+
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+#ifdef CONFIG_GXY_BATT_TIME_TO_FULL
+#include "../charger/gxy_battery_ttf.h"
+#endif
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
 /* ============================================================ */
 /* define */
 /* ============================================================ */
@@ -131,9 +137,7 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
 /*hs14 code for SR-AL6528A-01-256 by chengyuanhang at 2022/10/03 start*/
-#ifdef CONFIG_TIME_TO_FULL_NOW
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
-#endif
 /*hs14 code for SR-AL6528A-01-256 by chengyuanhang at 2022/10/03 end*/
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	/* hs14 code for SR-AL6528A-01-299 by gaozhengwei at 2022/09/02 start */
@@ -170,17 +174,19 @@ static enum power_supply_property battery_props[] = {
 	/* hs14 code for SR-AL6528A-01-344 by zhouyuhang at 2022/10/08 end*/
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 start */
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+	POWER_SUPPLY_PROP_BATTERY_CYCLE_DEBUG,
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
 	POWER_SUPPLY_PROP_BATT_CURRENT_UA_NOW,
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	POWER_SUPPLY_PROP_BATT_PROTECT_FLAG,
-	POWER_SUPPLY_PROP_EN_BATT_PROTECT,
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/12 start*/
 	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/12 end*/
 	/* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 	POWER_SUPPLY_PROP_BATT_FULL_CAPICITY,
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	POWER_SUPPLY_PROP_BATT_SOC_RECHG,
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
 	POWER_SUPPLY_PROP_BATT_MISC_EVENT,
 	/* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
 	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
@@ -189,6 +195,11 @@ static enum power_supply_property battery_props[] = {
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 	POWER_SUPPLY_PROP_STORE_MODE,
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	POWER_SUPPLY_PROP_BATT_TYPE,
+	POWER_SUPPLY_PROP_BATT_TEMP,
+	POWER_SUPPLY_PROP_BATT_DISCHARGE_LEVEL,
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 #ifdef HQ_FACTORY_BUILD
@@ -215,6 +226,15 @@ static const char * const tcpc_series[] = {
 enum chg_ic_supplier chg_info = UNKNOWN_CHG;
 enum tcpc_cc_supplier tcpc_info = UNKNOWN_CC;
 /* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 end */
+
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+static const char * const batt_protection_series[] = {
+	"100",
+	"80 OPTION",
+	"80 SLEEP",
+	"80 HIGHSOC"
+};
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
 
 /* boot mode */
 struct tag_bootmode {
@@ -854,6 +874,11 @@ static int battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = data->BAT_batt_vol * 1000;
 		break;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+#ifndef HQ_FACTORY_BUILD	//ss version
+	case POWER_SUPPLY_PROP_BATT_TEMP:
+#endif
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = gm.tbat_precise;
 		break;
@@ -861,9 +886,12 @@ static int battery_get_property(struct power_supply *psy,
 		val->intval = check_cap_level(data->BAT_CAPACITY);
 		break;
 /*hs14 code for SR-AL6528A-01-256 by chengyuanhang at 2022/10/03 start*/
-#ifdef CONFIG_TIME_TO_FULL_NOW
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
 		/* full or unknown must return 0 */
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+#ifdef CONFIG_GXY_BATT_TIME_TO_FULL
+		val->intval = gxy_ttf_display();
+#else
 		ret = check_cap_level(data->BAT_CAPACITY);
 		if ((ret == POWER_SUPPLY_CAPACITY_LEVEL_FULL) ||
 			(ret == POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN))
@@ -887,8 +915,9 @@ static int battery_get_property(struct power_supply *psy,
 			val->intval = abs(time_to_full);
 		}
 		ret = 0;
-		break;
 #endif
+		break;
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
 /*hs14 code for SR-AL6528A-01-256 by chengyuanhang at 2022/10/03 end*/
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		if (check_cap_level(data->BAT_CAPACITY) ==
@@ -914,6 +943,13 @@ static int battery_get_property(struct power_supply *psy,
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 #ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+		if (!psys) {
+			return -EINVAL;
+		}
+		power_supply_get_property(psys, POWER_SUPPLY_PROP_BATT_SLATE_MODE, val);
+		break;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 #endif
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */
 	/* hs14 code for SR-AL6528A-01-299 by gaozhengwei at 2022/09/02 start */
@@ -1001,36 +1037,25 @@ static int battery_get_property(struct power_supply *psy,
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 #ifndef HQ_FACTORY_BUILD
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
+/* hs14 code for SR-AL6528A-01-338 | AL6528A-1055 by qiaodan at 2023/01/18 start */
 	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
-		if (!psys) {
-			val->intval = 0;
-		} else {
-			power_supply_get_property(psys, POWER_SUPPLY_PROP_BATTERY_CYCLE, val);
-		}
+		val->intval = gm.bat_cycle;
 		break;
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-		if (!psys) {
-			val->intval = 0;
-		} else {
-			power_supply_get_property(psys, POWER_SUPPLY_PROP_BATT_PROTECT_FLAG, val);
-		}
+/* hs14 code for SR-AL6528A-01-338 | AL6528A-1055 by qiaodan at 2023/01/18 end */
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+	case POWER_SUPPLY_PROP_BATTERY_CYCLE_DEBUG:
+		val->intval = data->battery_cycle_debug;
 		break;
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		if (!psys) {
-			val->intval = 0;
-		} else {
-			power_supply_get_property(psys, POWER_SUPPLY_PROP_EN_BATT_PROTECT, val);
-		}
-		break;
-
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPICITY:
 		val->intval = data->cust_batt_cap;
 		break;
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	case POWER_SUPPLY_PROP_BATT_SOC_RECHG:
+		val->intval = data->cust_batt_rechg;
+		break;
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
 	case POWER_SUPPLY_PROP_BATT_MISC_EVENT:
 		ss_get_prop_batt_misc_event(data, val);
 		break;
@@ -1044,6 +1069,15 @@ static int battery_get_property(struct power_supply *psy,
 		}
 		break;
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	case POWER_SUPPLY_PROP_BATT_TYPE:
+		val->strval = data->cust_batt_type;
+		break;
+	case POWER_SUPPLY_PROP_BATT_DISCHARGE_LEVEL:
+		val->intval = (gm.bat_cycle * 100 ) +
+				(abs(gm.gdev->fg_hw_info.ncar) * 100 / gm.bat_cycle_thr);
+		break;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 #ifdef HQ_FACTORY_BUILD //factory version
@@ -1087,6 +1121,14 @@ static int battery_set_property(struct power_supply *psy,
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 #ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+		if (!psys) {
+			return -EINVAL;
+		}
+		ret = power_supply_set_property(psys,
+				POWER_SUPPLY_PROP_BATT_SLATE_MODE, val);
+		break;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 #endif
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */
 	case POWER_SUPPLY_PROP_INPUT_SUSPEND:
@@ -1121,46 +1163,60 @@ static int battery_set_property(struct power_supply *psy,
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 #ifndef HQ_FACTORY_BUILD
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
-	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
-		if (!psys) {
-			return -EINVAL;
-		}
-		ret = power_supply_set_property(psys,
-				POWER_SUPPLY_PROP_BATTERY_CYCLE, val);
-		break;
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-		if (!psys) {
-			return -EINVAL;
-		}
-		ret = power_supply_set_property(psys,
-			POWER_SUPPLY_PROP_BATT_PROTECT_FLAG, val);
-		break;
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		if (!psys) {
-			return -EINVAL;
-		}
-		ret = power_supply_set_property(psys,
-			POWER_SUPPLY_PROP_EN_BATT_PROTECT, val);
-		break;
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-261|SR-AL6528A-01-343|AL6528ADEU-643 by chengyuanhang at 2022/10/13 start */
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPICITY:
-		if (data != NULL) {
-			data->cust_batt_cap = val->intval;
-		}
-		/* hs14 code for P221216-05713 by shanxinkai at 2022/12/19 start */
-		if (ssinfo == NULL) {
+		/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+		printk("[%s], enter line= %d, strlen = %d\n",  __func__, __LINE__, strlen(val->strval));
+		if (data != NULL && ssinfo != NULL) {
+			if (!strncmp(val->strval, batt_protection_series[BASE_MODE],
+				strlen(val->strval) - 1)) {
+				ssinfo->batt_protection_mode = BASE_MODE;
+			} else if (!strncmp(val->strval, batt_protection_series[OPTION_MODE],
+				strlen(val->strval) - 1)) {
+				ssinfo->batt_protection_mode = OPTION_MODE;
+			} else if (!strncmp(val->strval, batt_protection_series[SLEEP_MODE],
+				strlen(val->strval) - 1)) {
+				ssinfo->batt_protection_mode = SLEEP_MODE;
+			} else if (!strncmp(val->strval, batt_protection_series[HIGHSOC_MODE],
+				strlen(val->strval) - 1)) {
+				ssinfo->batt_protection_mode = HIGHSOC_MODE;
+			} else {
+				ssinfo->batt_protection_mode = BASE_MODE;
+			}
+			if (ssinfo->batt_protection_mode == BASE_MODE) {
+				data->cust_batt_cap = 100;
+			} else {
+				data->cust_batt_cap = 80;
+			}
+			printk("[%s] val->strval = %s\n", __func__, val->strval);
+			printk("[%s] ssinfo->batt_protection_mode = %d, data->cust_batt_cap = %d",
+					__func__, ssinfo->batt_protection_mode, data->cust_batt_cap);
+		} else {
+			printk("[%s], data or ssinfo is null\n",  __func__);
 			return -EINVAL;
 		}
+		/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
+
 		ss_charger_check_status(ssinfo);
 
 		power_supply_changed(psy);
 		/* hs14 code for P221216-05713 by shanxinkai at 2022/12/19 end */
 		break;
 /* hs14 code for SR-AL6528A-01-261|SR-AL6528A-01-343|AL6528ADEU-643 by chengyuanhang at 2022/10/13 end */
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	case POWER_SUPPLY_PROP_BATT_SOC_RECHG:
+		if (data != NULL) {
+			data->cust_batt_rechg = val->intval;
+		}
+		break;
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+	case POWER_SUPPLY_PROP_BATTERY_CYCLE_DEBUG:
+		if (data != NULL) {
+			data->battery_cycle_debug = val->intval;
+		}
+		break;
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 	case POWER_SUPPLY_PROP_STORE_MODE:
 		if (!psys) {
@@ -1170,6 +1226,13 @@ static int battery_set_property(struct power_supply *psy,
 			POWER_SUPPLY_PROP_STORE_MODE, val);
 		break;
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	case POWER_SUPPLY_PROP_BATT_TYPE:
+		if (data != NULL) {
+			data->cust_batt_type = val->strval;
+		}
+		break;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 #ifdef HQ_FACTORY_BUILD //factory version
@@ -1208,19 +1271,18 @@ static int battery_property_is_writeable(struct power_supply *psy,
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 #ifndef HQ_FACTORY_BUILD
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
-	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
-		return 1;
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		return 1;
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPICITY:
 		return 1;
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+	case POWER_SUPPLY_PROP_BATTERY_CYCLE_DEBUG:
+		return 1;
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	case POWER_SUPPLY_PROP_BATT_SOC_RECHG:
+		return 1;
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
 		return 1;
@@ -1229,6 +1291,10 @@ static int battery_property_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_STORE_MODE:
 		return 1;
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	case POWER_SUPPLY_PROP_BATT_TYPE:
+		return 1;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 #ifdef HQ_FACTORY_BUILD //factory version

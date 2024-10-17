@@ -19,7 +19,11 @@
 #ifdef CONFIG_HQ_PROJECT_O22
     #define CAM_MODULE_INFO_CONFIG 0
 #else
+#ifdef CONFIG_HQ_PROJECT_A06
+    #define CAM_MODULE_INFO_CONFIG 0
+#else
     #define CAM_MODULE_INFO_CONFIG 1
+#endif
 #endif
 /*hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/24 end*/
 extern char mtk_ccm_name[camera_info_size];

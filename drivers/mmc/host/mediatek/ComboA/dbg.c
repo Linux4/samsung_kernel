@@ -2284,11 +2284,13 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 			goto invalid_host_id;
 
 		host = mtk_msdc_host[id];
+		mmc_claim_host(host->mmc);
 		if (cmd == SD_TOOL_REG_ACCESS) {
 			base = host->base;
 			msdc_map_offset = MSDC_REGISTER_MAP_OFFSET;
 			if ((offset == 0x18 || offset == 0x1C) && p1 != 4) {
 				seq_puts(m, "[SD_Debug] Err: Accessing TXDATA and RXDATA is forbidden\n");
+				mmc_release_host(host->mmc);
 				goto out;
 			}
 		} else {
@@ -2322,6 +2324,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 		} else if (p1 == 5) {
 			msdc_dump_info(NULL, 0, NULL, host->id);
 		}
+		mmc_release_host(host->mmc);
 	} else if (cmd == SD_TOOL_SET_DRIVING) {
 		char *device_str, *get_set_str;
 
@@ -2417,7 +2420,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 	} else if (cmd == RW_BIT_BY_BIT_COMPARE) {
 		id = p1;
 		compare_count = p2;
-		if (id >= HOST_MAX_NUM || id < 0)
+		if (id >= HOST_MAX_NUM || id < 0 || mtk_msdc_host[id] == NULL)
 			goto invalid_host_id;
 		if (compare_count < 0) {
 			seq_printf(m, "[SD_Debug]: bad compare count: %d\n",
@@ -2436,7 +2439,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 	} else if (cmd == MSDC_READ_WRITE) {
 		id = p1;
 		mode = p2;	/* 0:stop, 1:read, 2:write */
-		if (id >= HOST_MAX_NUM || id < 0)
+		if (id >= HOST_MAX_NUM || id < 0 || mtk_msdc_host[id] == NULL)
 			goto invalid_host_id;
 		if (mode > 2 || mode < 0) {
 			seq_printf(m, "[SD_Debug]: bad mode: %d\n", mode);
@@ -2483,7 +2486,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 		msdc_get_host_mode_speed(m, host->mmc);
 	} else if (cmd == SD_TOOL_DMA_STATUS) {
 		id = p1;
-		if (id >= HOST_MAX_NUM || id < 0)
+		if (id >= HOST_MAX_NUM || id < 0 || mtk_msdc_host[id] == NULL)
 			goto invalid_host_id;
 		if (p2 == 0) {
 			static char const * const str[] = {
@@ -2527,7 +2530,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 	} else if (cmd == MMC_EDC_EMMC_CACHE) {
 		seq_puts(m, "==== MSDC Cache Feature Test ====\n");
 		id = p1;
-		if (id >= HOST_MAX_NUM || id < 0)
+		if (id >= HOST_MAX_NUM || id < 0 || mtk_msdc_host[id] == NULL)
 			goto invalid_host_id;
 
 		host = mtk_msdc_host[id];
@@ -2547,7 +2550,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 	} else if (cmd == MMC_DUMP_GPD) {
 		seq_puts(m, "==== MSDC DUMP GPD/BD ====\n");
 		id = p1;
-		if (id >= HOST_MAX_NUM || id < 0)
+		if (id >= HOST_MAX_NUM || id < 0 || mtk_msdc_host[id] == NULL)
 			goto invalid_host_id;
 		else
 			msdc_dump_gpd_bd(id);
@@ -2696,6 +2699,8 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 		id = p1;
 		vcore = p2;
 		mode = p3;
+		if (id >= HOST_MAX_NUM || id < 0 || mtk_msdc_host[id] == NULL)
+			goto invalid_host_id;
 		host = mtk_msdc_host[id];
 		/* pr_info("[****AutoK test****]msdc host_id<%d>
 		 * vcore<%d> mode<%d>\n", id, vcore, mode);
@@ -2720,7 +2725,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 	else if (cmd == MMC_CMDQ_STATUS) {
 		seq_puts(m, "==== eMMC CMDQ Feature ====\n");
 		id = p1;
-		if (id >= HOST_MAX_NUM || id < 0)
+		if (id >= HOST_MAX_NUM || id < 0 || mtk_msdc_host[id] == NULL)
 			goto invalid_host_id;
 		host = mtk_msdc_host[id];
 		msdc_cmdq_func(host, p2, m);
@@ -2732,6 +2737,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 
 #endif
 		msdc_proc_dump(m, 0);
+		msdc_proc_dump(m, 1);
 	}
 
 out:

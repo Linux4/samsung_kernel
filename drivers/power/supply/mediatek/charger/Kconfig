@@ -249,3 +249,12 @@ config AFC_CHARGER
 	  If you say yes here you will get support for
 	  the AFC device driver.
 # hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end
+
+# hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start
+config GXY_BATT_TIME_TO_FULL
+	bool "Using gxy time to full feature"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the gxy batt time to full.
+# hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end

@@ -31,6 +31,7 @@
 #include <linux/tcp.h>
 #include <linux/ipv6.h>
 #include <net/ipv6.h>
+#include <linux/suspend.h>
 
 #include "ccci_core.h"
 #include "modem_sys.h"
@@ -2460,7 +2461,7 @@ static int dpmaif_tx_release(unsigned char q_num, unsigned short budget)
 	dpmaif_ctrl->tx_done_last_count[q_num] = real_rel_cnt;
 #endif
 
-	if (real_rel_cnt < 0 || txq->que_started == false)
+	if (txq->que_started == false)
 		return ERROR_STOP;
 	else {
 		atomic_set(&s_tx_busy_num[q_num], 0);
@@ -2478,6 +2479,7 @@ static int dpmaif_wait_resume_done(void)
 			CCCI_NORMAL_LOG(-1, TAG,
 				"[%s] warning: suspend_flag = 1; (cnt: %d)",
 				__func__, cnt);
+			pm_system_wakeup();
 			return -1;
 		}
 	}
@@ -2534,6 +2536,14 @@ int dpmaif_tx_done_kernel_thread(void *arg)
 				__func__, txq->index);
 			continue;
 		}
+
+		if (dpmaif_wait_resume_done()) {
+			//if resume not done, will waiting 1ms
+			hrtimer_start(&txq->tx_done_timer,
+				ktime_set(0, 1000000), HRTIMER_MODE_REL);
+			continue;
+		}
+
 		if (atomic_read(&txq->tx_resume_done)) {
 			CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
 				"txq%d done/resume: 0x%x, 0x%x, 0x%x\n",
@@ -2753,6 +2763,12 @@ static void record_drb_skb(unsigned char q_num, unsigned short cur_idx,
 #ifdef DPMAIF_DEBUG_LOG
 	unsigned int *temp;
 #endif
+
+	if (drb_skb == NULL) {
+		CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
+			"%s idx=%u,drb_skb is NULL\n", __func__, cur_idx);
+		return;
+	}
 
 	drb_skb->skb = skb;
 	drb_skb->phy_addr = phy_addr;
@@ -3636,6 +3652,7 @@ static int dpmaif_rxq_init(struct dpmaif_rx_queue *queue)
 static int dpmaif_tx_buf_init(struct dpmaif_tx_queue *txq)
 {
 	int ret = 0;
+	unsigned int retry;
 
 	/* DRB buffer init */
 	txq->drb_size_cnt = DPMAIF_UL_DRB_ENTRY_SIZE;
@@ -3661,14 +3678,22 @@ static int dpmaif_tx_buf_init(struct dpmaif_tx_queue *txq)
 		return LOW_MEMORY_DRB;
 	}
 	memset(txq->drb_base, 0, DPMAIF_UL_DRB_SIZE);
+
 	/* alloc buffer for AP SW */
-	txq->drb_skb_base =
-		kzalloc((txq->drb_size_cnt * sizeof(struct dpmaif_drb_skb)),
-				GFP_KERNEL);
+	for (retry = 0; retry < 5; retry++) {
+		txq->drb_skb_base =
+			kzalloc((txq->drb_size_cnt * sizeof(struct dpmaif_drb_skb)),
+			GFP_KERNEL|__GFP_RETRY_MAYFAIL);
+		if (txq->drb_skb_base)
+			break;
+		CCCI_ERROR_LOG(-1, TAG, "alloc txq->drb_skb_base fail %u\n", retry);
+	}
+
 	if (!txq->drb_skb_base) {
 		CCCI_ERROR_LOG(-1, TAG, "drb skb buffer request fail\n");
 		return LOW_MEMORY_DRB;
 	}
+
 	return ret;
 }
 
@@ -3783,13 +3808,11 @@ int dpmaif_late_init(unsigned char hif_id)
 			dpmaif_ctrl->dpmaif_irq_id, ret);
 		return ret;
 	}
-#ifdef MT6297
 	ret = irq_set_irq_wake(dpmaif_ctrl->dpmaif_irq_id, 1);
 	if (ret)
 		CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
 			"irq_set_irq_wake dpmaif irq(%d) error %d\n",
 			dpmaif_ctrl->dpmaif_irq_id, ret);
-#endif
 	atomic_set(&dpmaif_ctrl->dpmaif_irq_enabled, 1); /* init */
 	dpmaif_disable_irq(dpmaif_ctrl);
 
@@ -3815,7 +3838,9 @@ int dpmaif_late_init(unsigned char hif_id)
 	for (i = 0; i < DPMAIF_RXQ_NUM; i++) {
 		rx_q = &dpmaif_ctrl->rxq[i];
 		rx_q->index = i;
-		dpmaif_rxq_init(rx_q);
+		ret = dpmaif_rxq_init(rx_q);
+		if (ret < 0)
+			return ret;
 		rx_q->skb_idx = -1;
 	}
 
@@ -3831,7 +3856,9 @@ int dpmaif_late_init(unsigned char hif_id)
 	for (i = 0; i < DPMAIF_TXQ_NUM; i++) {
 		tx_q = &dpmaif_ctrl->txq[i];
 		tx_q->index = i;
-		dpmaif_txq_init(tx_q);
+		ret = dpmaif_txq_init(tx_q);
+		if (ret < 0)
+			return ret;
 	}
 
 	/* wakeup source init */
@@ -4313,10 +4340,9 @@ void dpmaif_hw_reset(unsigned char md_id)
 
 	/* pre- DPMAIF HW reset: bus-protect */
 #ifdef MT6297
-	regmap_read(dpmaif_ctrl->plat_val.infra_ao_base, 0, &reg_value);
+	reg_value = ccci_read32(infra_ao_mem_base, 0);
 	reg_value &= ~INFRA_PROT_DPMAIF_BIT;
-	regmap_write(dpmaif_ctrl->plat_val.infra_ao_base,
-		0,reg_value);
+	ccci_write32(infra_ao_mem_base, 0, reg_value);
 	CCCI_REPEAT_LOG(md_id, TAG, "%s:set prot:0x%x\n", __func__, reg_value);
 #else
 	regmap_write(dpmaif_ctrl->plat_val.infra_ao_base,
@@ -4337,6 +4363,8 @@ void dpmaif_hw_reset(unsigned char md_id)
 	CCCI_NORMAL_LOG(md_id, TAG,
 		"infra_topaxi_protecten_1: 0x%x\n", reg_value);
 #endif
+	udelay(500);
+
 	/* DPMAIF HW reset */
 	CCCI_DEBUG_LOG(md_id, TAG, "%s:rst dpmaif\n", __func__);
 	/* reset dpmaif hw: AO Domain */
@@ -4350,6 +4378,8 @@ void dpmaif_hw_reset(unsigned char md_id)
 #endif
 	regmap_write(dpmaif_ctrl->plat_val.infra_ao_base,
 		INFRA_RST0_REG_AO, reg_value);
+	udelay(500);
+
 	CCCI_BOOTUP_LOG(md_id, TAG, "%s:clear reset\n", __func__);
 	/* reset dpmaif clr */
 #ifndef MT6297
@@ -4361,6 +4391,8 @@ void dpmaif_hw_reset(unsigned char md_id)
 	regmap_write(dpmaif_ctrl->plat_val.infra_ao_base,
 		INFRA_RST1_REG_AO, reg_value);
 	CCCI_BOOTUP_LOG(md_id, TAG, "%s:done\n", __func__);
+
+	udelay(500);
 
 	/* reset dpmaif hw: PD Domain */
 #ifdef MT6297
@@ -4374,6 +4406,9 @@ void dpmaif_hw_reset(unsigned char md_id)
 	regmap_write(dpmaif_ctrl->plat_val.infra_ao_base,
 		INFRA_RST0_REG_PD, reg_value);
 	CCCI_BOOTUP_LOG(md_id, TAG, "%s:clear reset\n", __func__);
+
+	udelay(500);
+
 	/* reset dpmaif clr */
 #ifndef MT6297
 	reg_value = regmap_read(dpmaif_ctrl->plat_val.infra_ao_base,
@@ -4417,17 +4452,10 @@ int dpmaif_stop(unsigned char hif_id)
 	/* stop debug mechnism */
 	del_timer(&dpmaif_ctrl->traffic_monitor);
 
-#ifdef MT6297
 	/* CG set */
 	ccci_hif_dpmaif_set_clk(0);
 	/* 3. todo: reset IP */
 	dpmaif_hw_reset(dpmaif_ctrl->md_id);
-#else
-	/* 3. todo: reset IP */
-	dpmaif_hw_reset(dpmaif_ctrl->md_id);
-	/* CG set */
-	ccci_hif_dpmaif_set_clk(0);
-#endif
 
 #ifdef DPMAIF_DEBUG_LOG
 	CCCI_HISTORY_LOG(-1, TAG, "dpmaif:stop end\n");
@@ -4573,6 +4601,11 @@ static int dpmaif_pre_stop(unsigned char hif_id)
 {
 	if (hif_id != DPMAIF_HIF_ID)
 		return -1;
+
+	if (dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_PWROFF
+		|| dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_MIN)
+		return 0;
+
 	dpmaif_stop_hw();
 	return 0;
 }

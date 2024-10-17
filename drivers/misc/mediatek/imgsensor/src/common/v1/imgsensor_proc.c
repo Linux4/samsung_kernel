@@ -636,6 +636,50 @@ static const struct file_operations hqextend_cameraModuleInfo_fops = {
     .write = hqextend_cameraModuleInfo_write,
 };
 #endif
+
+#ifdef CONFIG_HQ_PROJECT_A06
+#define HQEXTEND_CAM_MODULE_INFO "cameraModuleInfo"
+static char hqextend_cameraModuleInfo[255];
+static struct proc_dir_entry *hqextend_proc_entry;
+
+static ssize_t hqextend_cameraModuleInfo_read
+    (struct file *file, char __user *page, size_t size, loff_t *ppos)
+{
+    char buf[255] = {0};
+    int rc = 0;
+    pr_info("E");
+    snprintf(buf, 255,
+            "%s",
+            hqextend_cameraModuleInfo);
+
+    rc = simple_read_from_buffer(page, size, ppos, buf, strlen(buf));
+    pr_info("X");
+
+    return rc;
+}
+static ssize_t hqextend_cameraModuleInfo_write
+    (struct file *filp, const char __user *buffer,
+    size_t count, loff_t *off)
+{
+    pr_info("E");
+    memset(hqextend_cameraModuleInfo,0,strlen(hqextend_cameraModuleInfo));
+    if (copy_from_user(hqextend_cameraModuleInfo, buffer, count))
+    {
+        pr_err("[cameradebug] write fail");
+        return -EFAULT;
+    }
+
+    pr_info("[cameradebug] buffer=%s",hqextend_cameraModuleInfo);
+    pr_info("X");
+    return 0;
+}
+
+static const struct file_operations hqextend_cameraModuleInfo_fops = {
+    .owner = THIS_MODULE,
+    .read = hqextend_cameraModuleInfo_read,
+    .write = hqextend_cameraModuleInfo_write,
+};
+#endif
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */
 
 enum IMGSENSOR_RETURN imgsensor_proc_init(void)
@@ -657,6 +701,15 @@ enum IMGSENSOR_RETURN imgsensor_proc_init(void)
     proc_create(CAM_MODULE_INFO, 0664, NULL, &cameraModuleInfo_fops);
 #endif
 #ifdef CONFIG_HQ_PROJECT_O22
+    hqextend_proc_entry=proc_create(HQEXTEND_CAM_MODULE_INFO,
+                                0664, NULL,
+                                &hqextend_cameraModuleInfo_fops);
+    if (NULL == hqextend_proc_entry) {
+            pr_err("[cameradebug]create hqextend_proc_entry-cameraModuleInfo failed");
+            remove_proc_entry(HQEXTEND_CAM_MODULE_INFO, NULL);
+    }
+#endif
+#ifdef CONFIG_HQ_PROJECT_A06
     hqextend_proc_entry=proc_create(HQEXTEND_CAM_MODULE_INFO,
                                 0664, NULL,
                                 &hqextend_cameraModuleInfo_fops);

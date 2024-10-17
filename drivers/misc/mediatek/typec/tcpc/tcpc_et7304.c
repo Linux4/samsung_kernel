@@ -1554,25 +1554,26 @@ static int et7304_tcpcdev_init(struct et7304_chip *chip, struct device *dev)
 #define ETEK_7304_VID	0x6dcf //0x29cf
 #define ETEK_7304_PID	0x1711
 
+/*HS14_U code for AL6528AU-251 by liufurong at 20231227 start*/
 static inline int et7304_try_to_reset(struct i2c_client *client)
 {
-	unsigned short slave;
+	unsigned short addr;
 	union i2c_smbus_data data;
-	int i = 0;
 
 	data.byte = 1;
 
-	for (slave = 0x40; i < 16; i++) {
-		if (!i2c_smbus_xfer(client->adapter, slave, client->flags,
+	for (addr = 0x40; addr <= 0x4F; addr++) {
+		if (!i2c_smbus_xfer(client->adapter, addr, client->flags,
 					I2C_SMBUS_WRITE, 0xA0, I2C_SMBUS_BYTE_DATA,
 					&data)) {
-			dev_info(&client->dev, "reset et7304 at 0x%2x\n", slave);
+			dev_info(&client->dev, "reset et7304 at 0x%2x\n", addr);
 			return 0;
 		}
 	}
 
 	return -EIO;
 }
+/*HS14_U code for AL6528AU-251 by liufurong at 20231227 end*/
 
 static inline int et7304_check_revision(struct i2c_client *client)
 {

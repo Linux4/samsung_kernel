@@ -489,10 +489,18 @@ struct tcpc_device {
 #ifdef CONFIG_WATER_DETECTION
 	int usbid_calib;
 	struct delayed_work wd_status_work;
+	struct task_struct *wd_task;
+	struct alarm wd_wakeup_timer;
+	atomic_t wd_wakeup;
+	atomic_t wd_thread_stop;
+	wait_queue_head_t wd_wait_queue;
+	struct wakeup_source wd_thread_wlock;
 #ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
 	bool init_pwroff_check;
 #endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
 	bool water_state;
+	bool is_water_checked;
+	bool retry_wd;
 #endif /* CONFIG_WATER_DETECTION */
 #ifdef CONFIG_CABLE_TYPE_DETECTION
 	enum tcpc_cable_type typec_cable_type;

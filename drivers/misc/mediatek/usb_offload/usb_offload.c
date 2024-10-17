@@ -296,11 +296,6 @@ static bool is_uainfo_valid(struct usb_audio_stream_info *uainfo)
 		return false;
 	}
 
-	if (uainfo->number_of_ch > 2) {
-		USB_OFFLOAD_ERR("uainfo->number_of_ch invalid (%d)\n", uainfo->number_of_ch);
-		return false;
-	}
-
 	if (uainfo->direction > 1) {
 		USB_OFFLOAD_ERR("uainfo->direction invalid (%d)\n", uainfo->direction);
 		return false;
@@ -1021,6 +1016,14 @@ static int usb_offload_enable_stream(struct usb_audio_stream_info *uainfo)
 	ret = send_uas_ipi_msg_to_adsp(&msg);
 	USB_OFFLOAD_INFO("send_ipi_msg_to_adsp msg, ret: %d\n", ret);
 	/* wait response */
+	if(uainfo->enable && !ret) {
+		/* remove the qos request */
+		if (pm_qos_request_active(&subs->pm_qos)) {
+			pm_qos_remove_request(&subs->pm_qos);
+			USB_OFFLOAD_INFO("(pm_qos @%p) remove\n", &subs->pm_qos);
+		} else
+			USB_OFFLOAD_INFO("(pm_qos @%p) not active\n", &subs->pm_qos);
+	}
 
 done:
 	if ((!uainfo->enable && ret != -EINVAL && ret != -ENODEV) ||

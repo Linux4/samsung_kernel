@@ -151,6 +151,42 @@ int pd_dpm_send_sink_caps(struct pd_port *pd_port)
 	return pd_send_sop_data_msg(pd_port, PD_DATA_SINK_CAP,
 		snk_cap->nr, snk_cap->pdos);
 }
+/* HS14_U/TabA7 Lite U for AL6528AU-249/AX3565AU-309 by liufurong at 20231212 start */
+static struct pd_port_power_caps g_src_cap_5v0a = {
+	.nr = 1,
+	.pdos[0] = 0x00019000,
+};
+
+static struct pd_port_power_caps g_src_cap_5v500ma = {
+	.nr = 1,
+	.pdos[0] = 0x00019032,
+};
+
+void pd_dpm_send_source_caps_switch(int cur)
+{
+	static struct tcpc_device *tcpc = NULL;
+	struct pd_port_power_caps *src_cap = NULL;
+
+	if (tcpc == NULL) {
+		tcpc = tcpc_dev_get_by_name("type_c_port0");
+		if (tcpc == NULL) {
+			printk("get tcpc dev fail\n");
+		}
+	}
+
+	if (cur == 0) {
+		src_cap = &g_src_cap_5v0a;
+	} else if (cur == 500) {
+		src_cap = &g_src_cap_5v500ma;
+	} else {
+		src_cap = &tcpc->pd_port.local_src_cap_default;
+	}
+	printk("set src cap is %d ma, src_cap->pdos[0] = 0x%x", cur, src_cap->pdos[0]);
+	pd_send_sop_data_msg(&tcpc->pd_port, PD_DATA_SOURCE_CAP, src_cap->nr, src_cap->pdos);
+
+	return;
+}
+/* HS14_U/TabA7 Lite U for AL6528AU-249/AX3565AU-309 by liufurong at 20231212 end */
 
 int pd_dpm_send_source_caps(struct pd_port *pd_port)
 {

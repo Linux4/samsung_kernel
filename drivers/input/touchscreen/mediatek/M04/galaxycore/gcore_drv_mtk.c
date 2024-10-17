@@ -105,6 +105,12 @@ static int __init tpd_driver_init(void)
     /*hs04 code for DEAL6398A-1067 by tangsumian at 20220820 start*/
     if (NULL != saved_command_line && NULL != strstr(saved_command_line, "gc7202")){
         GTP_DEBUG("it is GC lcd,tpd_driver_init start.\n");
+        /*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 start*/
+        if ((tp_get_boot_mode() != NORMAL_BOOT) && (tp_get_boot_mode() != ALARM_BOOT)) {
+            GTP_ERROR("tp init fail because boot_mode = %d\n",tp_get_boot_mode());
+            return -EINVAL;
+        }
+        /*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 end*/
         tpd_get_dts_info();
         if (tpd_driver_add(&tpd_device_driver) < 0) {
             GTP_ERROR("add generic driver failed\n");

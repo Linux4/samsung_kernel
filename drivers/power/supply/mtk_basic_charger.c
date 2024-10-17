@@ -125,7 +125,7 @@ static int ss_battery_aging_update(struct mtk_charger *info)
 
 	info->data.battery_cv = prop.intval;
 	battery_cv_old = info->data.battery_cv;
-	chr_debug("%s cycle_count=%d, battery_cv=%d\n", __func__,
+	chr_info("%s cycle_count=%d, battery_cv=%d\n", __func__,
 		cycle_count, info->data.battery_cv);
 
 	return 0;
@@ -447,7 +447,7 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 		}
 	} else
 		info->setting.input_current_limit2 = -1;
-	
+
 	if (info->setting.input_current_limit1 == -1 &&
 		info->setting.input_current_limit2 == -1 &&
 		info->setting.charging_current_limit1 == -1 &&
@@ -1105,6 +1105,3 @@ int mtk_basic_charger_init(struct mtk_charger *info)
 	//info->change_current_setting = mtk_basic_charging_current;
 	return 0;
 }
-
-
-

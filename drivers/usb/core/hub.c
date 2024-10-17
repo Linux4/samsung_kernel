@@ -69,6 +69,13 @@ int g_usb_connected_unconfigured = 0;
 EXPORT_SYMBOL(g_usb_connected_unconfigured);
 #endif
 #endif
+#ifdef CONFIG_HQ_PROJECT_A06
+    /* modify code for O22 */
+#ifndef HQ_FACTORY_BUILD	//ss version
+int g_usb_connected_unconfigured = 0;
+EXPORT_SYMBOL(g_usb_connected_unconfigured);
+#endif
+#endif
 #ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 /*HS03s for SR-AL5625-01-282 by wenyaqi at 20210426 start*/

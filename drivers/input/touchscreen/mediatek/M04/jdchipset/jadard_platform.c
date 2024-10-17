@@ -549,6 +549,12 @@ static int __init jadard_common_init(void)
 		JD_E("the command_line is NULL or it is not jadard lcd\n");
 		goto ERR;
 	}
+	/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 start*/
+	if ((tp_get_boot_mode() != NORMAL_BOOT) && (tp_get_boot_mode() != ALARM_BOOT)) {
+		JD_E("tp init fail because boot_mode = %d\n",tp_get_boot_mode());
+		return -EINVAL;
+	}
+	/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 end*/
 	/*hs04 code for DEAL6398A-1067 by tangsumian at 20220820 end*/
 	if (jd_g_mmi_refcnt++ > 0) {
 		JD_I("Jadard driver has been loaded! ignoring....\n");

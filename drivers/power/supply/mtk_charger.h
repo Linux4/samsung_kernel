@@ -10,6 +10,9 @@
 #include "charger_class.h"
 #include "adapter_class.h"
 #include "mtk_charger_algorithm_class.h"
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+#include <linux/power_supply.h>
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
 /*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
 #ifdef CONFIG_AFC_CHARGER
 #include "afc_charger_intf.h"
@@ -659,6 +662,9 @@ struct mtk_charger {
 /*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 start*/
 	bool input_suspend;
 	/*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 end*/
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+	int batt_slate_mode;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 	/*TabA7 Lite code for OT8-592 update battery/status when input_suspend or sw_ovp by wenyaqi at 20201231 start*/
 	bool ovp_disable;
 	/*TabA7 Lite code for OT8-592 update battery/status when input_suspend or sw_ovp by wenyaqi at 20201231 end*/
@@ -735,6 +741,18 @@ struct mtk_charger {
 	/*TabA7 Lite  code for SR-AX3565-01-107 by gaoxugang at 20201124 end*/
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	struct delayed_work poweroff_dwork;
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+	#ifdef CONFIG_HQ_PROJECT_OT8
+	int cust_batt_rechg;
+	BATT_PROTECTION_T batt_protection_mode;
+	#endif
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+	#ifdef CONFIG_HQ_PROJECT_HS04
+	int cust_batt_rechg;
+	BATT_PROTECTION_T batt_protection_mode;
+	#endif
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
 	#endif
 
     /* modify code for O8 */
@@ -760,7 +778,15 @@ struct mtk_charger {
 	int capacity;
 };
 
-
+/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+typedef enum batt_full_state {
+	ENABLE_CHARGE,
+	DISABLE_CHARGE,
+	DISABLE_CHARGE_HISOC,
+} batt_full_state_t;
+#endif
+/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
 /* functions which framework needs*/
 extern int mtk_basic_charger_init(struct mtk_charger *info);
 extern int mtk_pulse_charger_init(struct mtk_charger *info);

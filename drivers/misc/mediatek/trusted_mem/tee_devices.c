@@ -32,7 +32,7 @@
 #if defined(CONFIG_MTK_GZ_KREE)
 #include "mtee_impl/mtee_invoke.h"
 #endif
-
+#include "tee_impl/tee_invoke.h"
 static struct trusted_mem_configs tee_smem_general_configs = {
 	.session_keep_alive_enable = false,
 	.minimal_chunk_size = SIZE_64K,
@@ -63,8 +63,8 @@ static struct tmem_device_description tee_smem_devs[] = {
 			.tee_cmds[TEE_OP_REGION_DISABLE] = CMD_SEC_MEM_DISABLE,
 		},
 		/* clang-format on */
-		.notify_remote = false,
-		.notify_remote_fn = NULL,
+		.notify_remote = true,
+		.notify_remote_fn = secmem_fr_set_svp_region,
 		.mem_cfg = &tee_smem_general_configs,
 		.dev_name = "SECMEM_SVP",
 	},

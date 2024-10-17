@@ -46,3 +46,9 @@ void kpd_enable(int enable);
 void kpd_double_key_enable(int en);
 
 #endif
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+#ifndef CONFIG_HQ_PROJECT_O22
+#include <mt-plat/mtk_boot_common.h>
+extern enum boot_mode_t tp_get_boot_mode(void);
+#endif
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
