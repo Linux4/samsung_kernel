@@ -527,18 +527,23 @@ static ssize_t perftest_store(struct device *dev,
 	struct mem_link_device *mld = to_mem_link_device(ld);
 	struct pktproc_adaptor *ppa = &mld->pktproc;
 	struct pktproc_perftest *perf = &ppa->perftest;
+	unsigned int mode = 0, session;
 
 	static struct task_struct *worker_task;
 	int ret;
 	int cpu = 5;
 
 	ret = sscanf(buf, "%d %d %d %d %d %x:%x:%x:%x:%x:%x:%x:%x",
-		&perf->mode, &perf->session, &perf->ch, &cpu, &perf->udelay,
+		&mode, &session, &perf->ch, &cpu, &perf->udelay,
 		&perf->clat_ipv6[0], &perf->clat_ipv6[1], &perf->clat_ipv6[2], &perf->clat_ipv6[3],
 		&perf->clat_ipv6[4], &perf->clat_ipv6[5], &perf->clat_ipv6[6], &perf->clat_ipv6[7]);
 
-	if (ret < 1)
+	if (ret < 1 || mode > PERFTEST_MODE_MAX)
 		return -EINVAL;
+
+	perf->mode = mode;
+	perf->session = session > PKTPROC_MAX_QUEUE ? PKTPROC_MAX_QUEUE : session;
+	cpu = cpu > num_possible_cpus() ? num_possible_cpus() - 1 : cpu;
 
 	switch (perf->mode) {
 	case PERFTEST_MODE_STOP:
