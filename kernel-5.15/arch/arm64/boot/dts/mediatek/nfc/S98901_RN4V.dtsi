@@ -1,0 +1,14 @@
+&i2c3 {
+    clock-frequency = <400000>;
+    sec-nfc@27 {
+        compatible = "sec-nfc";
+        reg = <0x27>;
+        status = "okay";
+        sec-nfc,ven-gpio = <&pio 13 0>;
+        sec-nfc,firm-gpio = <&pio 18 0>;
+        sec-nfc,irq-gpio = <&pio 19 0>;
+        sec-nfc,clk_req-gpio = <&pio 2 0>;
+  };
+};
+
+

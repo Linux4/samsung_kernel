@@ -1,0 +1,14 @@
+&i2c3 {
+	/delete-property/ clock-frequency;
+	clock-frequency = <400000>;
+	nfc@28 {
+        status = "okay";
+		compatible = "tms,nfc";
+		reg = <0x28>;
+		tms,device-name   = "tms_nfc";
+		tms,irq-gpio      = <&pio 19 0x0>;
+		tms,ven-gpio      = <&pio 13 0x0>;
+		tms,download-gpio = <&pio 18 0x0>;
+                interrupt-parent = <&pio>;
+	};
+};

@@ -1,0 +1,1 @@
+obj-$(CONFIG_INPUT_HX9036) += hx9036.o

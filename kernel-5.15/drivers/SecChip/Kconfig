@@ -1,0 +1,3 @@
+config SEC_CHIP
+       default n
+       tristate "KnoxVault support"

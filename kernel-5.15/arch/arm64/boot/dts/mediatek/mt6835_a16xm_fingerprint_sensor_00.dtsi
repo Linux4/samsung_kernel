@@ -1,0 +1,144 @@
+/*
+ * SAMSUNG EXYNOS board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/clock/mt6835-clk.h>
+
+&pio {
+	gfspi_drdypin_active: gfspi_drdypin_active {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO15__FUNC_GPIO15>;
+			bias-disable;
+			drive-strength = <1>;
+		};
+	};
+	gfspi_drdypin_suspend: gfspi_drdypin_suspend {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO15__FUNC_GPIO15>;
+			bias-pull-down;
+			drive-strength = <1>;
+		};
+	};
+};
+
+&pio {
+	gfspi_rstpin: gfspi_rstpin {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO7__FUNC_GPIO7>;
+			bias-pull-down;
+			drive-strength = <1>;
+		};
+	};
+};
+
+&pio {
+	fps_set_miso: set_miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO71__FUNC_SPI3_MI>;
+			drive-strength = <4>;
+		};
+	};
+	fps_set_cs: set_cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO69__FUNC_SPI3_CSB>;
+			drive-strength = <4>;
+		};
+	};
+	fps_set_mosi: set_mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO70__FUNC_SPI3_MO>;
+			drive-strength = <4>;
+		};
+	};
+	fps_set_clk: set_clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO68__FUNC_SPI3_CLK>;
+			drive-strength = <4>;
+		};
+	};
+	fps_clr_miso: clr_miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO71__FUNC_GPIO71>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+			drive-strength = <1>;
+		};
+	};
+	fps_clr_cs: clr_cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO69__FUNC_GPIO69>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	fps_clr_mosi: clr_mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO70__FUNC_GPIO70>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	fps_clr_clk: clr_clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO68__FUNC_GPIO68>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+};
+
+&mt6377_vfp {
+	regulator-name = "VDD_BTP_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3375000>;
+};
+
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			gw3x {
+				compatible = "goodix,fingerprint";
+				reg = <0x00>;
+				spi-max-frequency = <9600000>;
+				clocks = <&topckgen_clk CLK_TOP_UNIVPLL_D6_D2>,
+					<&topckgen_clk CLK_TOP_SPI_SEL>,
+					<&pericfg_ao_clk CLK_PERAOP_SPI3_BCLK>;
+				clock-names = "parent-clk", "sel-clk", "spi-clk";
+				pinctrl-names = "default", "pins_poweron", "pins_poweroff"
+								, "pins_poweron_tz", "pins_poweroff_tz";
+				pinctrl-0 = <&gfspi_rstpin &gfspi_drdypin_suspend>;
+				pinctrl-1 = <&gfspi_drdypin_active &fps_set_miso &fps_set_cs &fps_set_mosi &fps_set_clk>;
+				pinctrl-2 = <&gfspi_drdypin_suspend &fps_clr_miso &fps_clr_cs &fps_clr_mosi &fps_clr_clk>;
+				pinctrl-3 = <&gfspi_drdypin_active>;
+				pinctrl-4 = <&gfspi_drdypin_suspend>;
+
+				gpio-controller;
+				#gpio-cells = <2>;
+
+				goodix,btp-regulator = "VDD_BTP_3P3";
+				VDD_BTP_3P3-supply = <&mt6377_vfp>;
+
+				goodix,gpio_reset = <&pio 7 0>;
+				goodix,gpio_irq = <&pio 15 0>;
+				goodix,chip_id = "GW39B";
+				goodix,orient = <0>;
+				goodix,position = "51.7,13.39";
+			};
+		};
+	};
+};

@@ -1,0 +1,34 @@
+config WT_SECURITY_MODULE
+	default n
+	tristate "Enable WT Secure Module in Kernel."
+	help
+	  WT_SECURITY_MODULE is the kernel config of security module designed by WT.
+	  If we config this, we can enable some other security feature of WT DEVLOP .
+
+config WT_SECUREBOOT_FUSE
+	default n
+	tristate "Enable Get Secure Boot Status in Kernel."
+	help
+	  WT_SECUREBOOT_FUSE is the kernel config of secureboot feature designed by WT.
+	  If we enable this, we can get secureboot status in /proc/secboot_fuse_reg.
+
+config WT_SERIAL_NUM
+	default n
+	tristate "Enable Get serial num in Kernel."
+	help
+	  WT_SERIAL_NUM is the kernel config of serial num feature designed by WT.
+	  If we enable this, we can get serial num status in /proc/serial_num.
+
+config WT_EM
+	default n
+	tristate "Enable Get Device Type Status in Kernel."
+	help
+	  WT_EM is the kernel config of get device type feature designed by WT.
+	  If we enable this, we can get device type status in /proc/wt_em.
+
+config WT_RP_VALUE
+	default n
+	tristate "Enable Get rp_value in Kernel."
+	help
+	  WT_RP_VALUE is the kernel config of rp value feature designed by WT.
+	  If we enable this, we can get rp value in /proc/wt_rp.

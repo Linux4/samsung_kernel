@@ -1,0 +1,6 @@
+config INPUT_STK501XX
+	tristate "STK501XX for MediaTek package"
+	default n
+	help
+	  Say Y to enable the SAR detection application, if N here not to use the
+          this SAR sensor

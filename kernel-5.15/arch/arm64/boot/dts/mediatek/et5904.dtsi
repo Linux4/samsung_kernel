@@ -1,0 +1,30 @@
+&i2c9 {
+    	et5904: et5904@28 {
+		status = "okay";
+		compatible = "etek,et5904";
+		reg = <0x28>;
+
+		regulators {
+			et04_ldo1: et04_ldo1 {
+				regulator-name = "et04_ldo1";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+			};
+			et04_ldo2: et04_ldo2 {
+				regulator-name = "et04_ldo2";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1200000>;
+			};
+			et04_ldo3: et04_ldo3 {
+				regulator-name = "et04_ldo3";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+			et04_ldo4: et04_ldo4 {
+				regulator-name = "et04_ldo4";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+		};
+	};
+};

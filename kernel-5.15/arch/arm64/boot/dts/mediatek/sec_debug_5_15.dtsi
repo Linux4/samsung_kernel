@@ -1,0 +1,75 @@
+/* SAMSUNG DEBUG device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/* 
+	--------------------------------------------  sec-initlog
+	-             INIT_LOG_SIZE 1M             -
+	--------------------------------------------  sec-autocomment
+	-      AC_BUFFER_SIZE+AC_INFO_SIZE 64K     -  
+	--------------------------------------------  debug-history
+	-           DEBUG_HIST_SIZE 512K           -
+	--------------------------------------------  dbore
+	-           DEBUG_BORE_SIZE 512K           -
+	--------------------------------------------  sec-extrainfo
+    -	           REMAINED_SIZE			   -
+    --------------------------------------------  end of reserved sec_debug
+*/
+
+&reserved_memory {
+		secdbg-kernel-log {
+			compatible = "samsung,secdbg-kernel-log";
+			reg = <0 0x4F700000 0 0x200000>;
+		};
+
+		secdbg-last-klog {
+			compatible = "samsung,secdbg-last-klog";
+			reg = <0 0x4F900000 0 0x200000>;
+		};
+
+		secdbg-pmsg-log {
+			compatible = "samsung,secdbg-pmsg-log";
+			reg = <0 0x4FB00000 0 0x400000>;
+		};
+
+		secdbg-init-log {
+			compatible = "samsung,secdbg-init-log";
+			reg = <0 0x4FF00000 0 0x100000>;
+		};
+
+		secdbg-auto-comment {
+			compatible = "samsung,secdbg-auto-comment";
+			reg = <0 0x50000000 0 0x10000>;
+		};
+
+		secdbg-debug-history {
+			compatible = "samsung,secdbg-debug-history";
+			reg = <0 0x50010000 0 0x100000>;
+		};
+
+		secdbg-extra-info {
+			compatible = "samsung,secdbg-extra-info";
+			reg = <0 0x50110000 0 0x1F0000>;
+		};
+
+/*
+		sec_rdx_bootdev@0xA9000000 {
+			compatible = "samsung,sec_rdx_bootdev";
+			no-ship;
+			reg = <0 0xA9000000 0 0x4000000>;
+		};
+*/
+};
+
+/ {
+	sec_debug {
+		compatible = "samsung,sec_debug";
+		status = "okay";
+	};
+};

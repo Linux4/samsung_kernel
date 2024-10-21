@@ -1,0 +1,78 @@
+# drivers/staging/samsung/Kconfig
+#
+# Copyright (c) 2010-2016 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+
+config SEC_DEBUG
+	tristate "Enable Samsung debugging feature"
+	default m
+	help
+	  Samsung TN debugging feature.
+
+config SEC_DEBUG_AUTO_COMMENT
+	tristate "Enable Samsung kernel fault auto comment"
+	depends on PRINTK
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables kernel fault auto comment feature.
+	  This option also requires bootloader change that enables auto comment
+	  extraction along with ramdump.
+
+config SEC_DEBUG_HISTORY_LOG
+	tristate "support storing debug history log"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables to store debug history log.
+
+config SEC_DEBUG_EXTRA_INFO
+	tristate "Enable Samsung reset reason extra info"
+	depends on SEC_DEBUG
+	default m
+	help
+	  This option enables storing reset reason extra info
+	  This option enables ap reset info bigdata based on reset reason extra info
+
+config SEC_DEBUG_HW_PARAM
+	tristate "Enable Samsung HW PARAM bigdata info"
+	depends on SEC_DEBUG && SEC_DEBUG_EXTRA_INFO
+	default n
+	help
+	  This option enables storing hw param bigdata info
+
+config SEC_DEBUG_SOFTDOG_PWDT
+	tristate "Enable Soft Watchdog for Platform"
+	default m
+	depends on WATCHDOG
+	select SOFT_WATCHDOG	
+	help
+	  This option enables soft watchdog device and soft_panic.
+
+config SEC_DEBUG_SOFTDOG
+	tristate "Enable enhanced softdog info"
+	depends on SEC_DEBUG && SOFT_WATCHDOG
+	default n
+	help
+	  This option enables enhanced softdog info.
+	  Select the option to show related task info.
+
+config SEC_DEBUG_BUG_ON_SLUB_CORRUPTION
+	bool "Trigger a BUG when slub corruption is detected"
+	depends on SEC_DEBUG
+	default n
+	help
+	  Select this option if the kernel should BUG when it encounters
+	  slub corruption when they get checked for validity.
+
+config SEC_DEBUG_PRINT_UART_TXRX
+	bool "Print UART TX/RX to kernel log"
+	depends on SEC_FACTORY	
+	default y
+	help
+	  This option is enabled by Factory build option and
+	  print uart tx/rx information to kernel log
+
