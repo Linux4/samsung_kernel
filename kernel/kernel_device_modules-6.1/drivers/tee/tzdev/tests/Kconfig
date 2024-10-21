@@ -1,0 +1,73 @@
+if TZDEV_DEBUG
+
+config TZ_PRINTK_TEST
+	bool "TZ printk test helper module"
+	default n
+	help
+	  Provide the way to minimally mimic iwlog in NWd and
+	  spam messages into linux kmsg.
+
+config TZASC_TEST
+	bool "TZASC test helper module"
+	default n
+	help
+	  Provide the way to allocate a region of DRAM suitable for protection by
+	  a TZASC, get its physical address, and mmap it into userspace.
+
+config TZASC_TEST_PAGE_ORDER
+	int "TZASC test page allocation order"
+	depends on TZASC_TEST
+	help
+	  Select TZASC test buffer page allocation order.
+
+config TZPC_TEST
+	bool "TZPC test helper module"
+	default n
+	help
+	  Provide the way to try access to SSS device.
+
+config TZ_MEMDUMP_TEST
+	bool "TZ memdump test helper module"
+	default n
+	help
+	  Provide the way to try to memdump from physical location.
+
+config TZ_MMAP_TEST
+	bool "TZ mmap test helper module"
+	default n
+	help
+	  Provide the way to get physical address of a location with known
+	  contents.
+
+config EFUSE_TEST
+	bool "efuse test Kernel Module"
+	default n
+	help
+	  Say Y to enable efuse test kernel modules.
+
+config TZ_CHTEST
+	bool "Custom handler test Kernel Module"
+	default n
+	help
+	  Provide ioctl to test custom handler functionality from NWd.
+
+config TZ_CLK_TEST_HELPER
+	bool "clk enable/disable helper module"
+	default n
+	help
+	  Provide the way to enable and disable clocks for peripheral devices
+	  from NWd.
+
+config TZ_TEE_KERNEL_API_TEST
+	bool "Kernel TEE client API test Kernel Module"
+	default n
+	help
+	  Provide the way to test kernel-space implementation of TEE API.
+
+config TZ_SCMA_TEST
+	bool "SCMA test Kernel Module"
+	default n
+	help
+	  Provide the way to map physical memory into userspace.
+
+endif #TZDEV_DEBUG

@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config MTK_HW_SEMAPHORE
+	tristate "MediaTek mm hw semaphore driver"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	help
+	  This driver is for the Multimedia Infrastructure in MediaTek SoCs.
+	  The hw semaphore driver mainly help power control, For checking the
+	  real power status, such as mminfra, display, camera, mdp and video
+	  codec.

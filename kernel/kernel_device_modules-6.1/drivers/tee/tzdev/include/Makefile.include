@@ -1,0 +1,1 @@
+ccflags-$(CONFIG_TZDEV) += -I$(DEVICE_MODULES_PATH)/drivers/tee/tzdev/include

@@ -1,0 +1,138 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menu "MediaTek pinctrl drivers"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+
+config DEVICE_MODULES_EINT_MTK
+	tristate "MediaTek External Interrupt Support"
+	depends on PINCTRL_MTK || PINCTRL_MTK_MOORE || DEVICE_MODULES_PINCTRL_MTK_PARIS || COMPILE_TEST
+	select GPIOLIB
+	select IRQ_DOMAIN
+	default y if PINCTRL_MTK || PINCTRL_MTK_MOORE
+	default DEVICE_MODULES_PINCTRL_MTK_PARIS
+
+config DEVICE_MODULES_PINCTRL_MTK_V2
+	tristate
+
+config DEVICE_MODULES_PINCTRL_MTK_PARIS
+	tristate
+	depends on OF
+	select PINMUX
+	select GENERIC_PINCONF
+	select GPIOLIB
+	select DEVICE_MODULES_EINT_MTK
+	select OF_GPIO
+	select DEVICE_MODULES_PINCTRL_MTK_V2
+
+config PINCTRL_MT6363
+	tristate "Mediatek MT6363 pin control"
+	depends on OF
+	depends on MFD_MTK_SPMI_PMIC
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  This is the pin controller and gpio driver for mediatek
+	  mt6363 chipset. It will enable mediatek common v2,
+	  paris and eint core driver.
+	  Say Y here to enable it.
+
+config PINCTRL_MT6373
+	tristate "Mediatek MT6373 pin control"
+	depends on OF
+	depends on MFD_MTK_SPMI_PMIC
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  This is the pin controller and gpio driver for mediatek
+	  mt6373 chipset. It will enable mediatek common v2,
+	  paris and eint core driver.
+	  Say Y here to enable it.
+
+config DEVICE_MODULES_PINCTRL_MT6779
+	tristate "Mediatek MT6779 pin control"
+	depends on OF
+	depends on ARM64 || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  Say yes here to support pin controller and gpio driver
+	  on Mediatek MT6779 SoC.
+	  In MTK platform, we support virtual gpio and use it to
+	  map specific eint which doesn't have real gpio pin.
+
+config PINCTRL_MT6878
+	tristate "Mediatek MT6878 pin control"
+	depends on OF || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  This is the pin controller and gpio driver for mediatek
+	  mt6886 chipset. It will enable mediatek common v2,
+	  paris and eint core driver.
+	  Say Y here to enable it.
+
+config PINCTRL_MT6886
+	tristate "Mediatek MT6886 pin control"
+	depends on OF || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  This is the pin controller and gpio driver for mediatek
+	  mt6886 chipset. It will enable mediatek common v2,
+	  paris and eint core driver.
+	  Say Y here to enable it.
+
+config PINCTRL_MT6897
+	tristate "Mediatek MT6897 pin control"
+	depends on OF || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  This is the pin controller and gpio driver for mediatek
+	  mt6897 chipset. It will enable mediatek common v2,
+	  paris and eint core driver.
+	  Say Y here to enable it.
+
+config PINCTRL_MT6983
+	tristate "Mediatek MT6983 pin control"
+	depends on OF || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  This is the pin controller and gpio driver for mediatek
+	  mt6983 chipset. It will enable mediatek common v2,
+	  paris and eint core driver.
+	  Say Y here to enable it.
+
+config PINCTRL_MT6985
+	tristate "Mediatek MT6985 pin control"
+	depends on OF || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  This is the pin controller and gpio driver for mediatek
+	  mt6985 chipset. It will enable mediatek common v2,
+	  paris and eint core driver.
+	  Say Y here to enable it.
+
+config PINCTRL_MT6989
+	tristate "Mediatek MT6989 pin control"
+	depends on OF || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+	help
+	  This is the pin controller and gpio driver for mediatek
+	  mt6989 chipset. It will enable mediatek common v2,
+	  paris and eint core driver.
+	  Say Y here to enable it.
+
+config DEVICE_MODULES_PINCTRL_MT8188
+	tristate "Mediatek MT8188 pin control"
+	depends on OF
+	depends on ARM64 || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+
+config DEVICE_MODULES_PINCTRL_MT8195
+	tristate "Mediatek MT8195 pin control"
+	depends on OF
+	depends on ARM64 || COMPILE_TEST
+	select DEVICE_MODULES_PINCTRL_MTK_PARIS
+
+config SEC_GPIO_DVS
+	tristate "setting Samsung GPIO debugging and verification system"
+	default n
+	help
+	To verify gpio configurations of devices, set this feature.
+	This feature should be enabled for user-debug mode.
+
+endmenu

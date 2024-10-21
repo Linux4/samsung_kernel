@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config MFD_MT6338
+	tristate "MediaTek MT6338 PMIC Support"
+	select MFD_CORE
+	select REGMAP_I2C
+	depends on I2C
+	help
+	  Say yes here to add support for MediaTek MT6338 PMIC.
+	  This driver provides common support for accessing the MT6338 register.
+	  Note, that this will only be useful paired with descriptions
+	  of the independent functions as children nodes in the device tree.
+
+config DEVICE_MODULES_MFD_MT6360
+	tristate "Mediatek MT6360 SubPMIC"
+	select MFD_CORE
+	select REGMAP_I2C
+	select REGMAP_IRQ
+	select CRC8
+	depends on I2C
+	help
+	  Say Y here to enable MT6360 PMU/PMIC/LDO functional support.
+	  PMU part includes Charger, Flashlight, RGB LED
+	  PMIC part includes 2-channel BUCKs and 2-channel LDOs
+	  LDO part includes 4-channel LDOs
+
+config DEVICE_MODULES_MFD_MT6397
+	tristate "MediaTek MT6397 PMIC Support"
+	select MFD_CORE
+	select IRQ_DOMAIN
+	help
+	  Say yes here to add support for MediaTek MT6397 PMIC. This is
+	  a Power Management IC. This driver provides common support for
+	  accessing the device; additional drivers must be enabled in order
+	  to use the functionality of the device.
+
+config MFD_MT6375
+	tristate "Mediatek MT6375 PMIC support"
+	depends on OF && I2C
+	select REGMAP_I2C
+	select REGMAP_IRQ
+	help
+	  Say yes here to add support for Mediatek MT6375 PMIC. This is
+	  a Power Management IC. This driver provides common support for
+	  accessing the device; additional drivers must be enabled in order
+	  to use the functionality of the device.
+
+config MFD_MT6681
+	tristate "MediaTek MT6681 PMIC Support"
+	select MFD_CORE
+	select REGMAP_I2C
+	depends on I2C
+	help
+	  Say yes here to add support for MediaTek MT6681 PMIC.
+	  This driver provides common support for accessing the MT6681 register.
+	  Note, that this will only be useful paired with descriptions
+	  of the independent functions as children nodes in the device tree.
+
+config MT6685_AUDCLK
+	tristate "MT6685 AUD CLK"
+	depends on MFD_MT6685
+	help
+	  This enables support for MT6685 audio clk control.
+	  These PMICs are currently used with the Mediatek series of
+	  SoCs.  Note, that this will only be useful paired with descriptions
+	  of the independent functions as children nodes in the device tree.
+
+config MFD_MT6685
+	tristate "MT6685 SPMI PMIC"
+	depends on OF
+	depends on SPMI
+	select REGMAP_SPMI
+	select REGMAP_IRQ
+	help
+	  This enables support for the Mediatek SPMI PMICs.
+	  These PMICs are currently used with the Mediatek series of
+	  SoCs.  Note, that this will only be useful paired with descriptions
+	  of the independent functions as children nodes in the device tree.
+
+config MFD_MTK_SPMI_PMIC
+	tristate "Mediatek SPMI PMICs"
+	depends on OF
+	depends on SPMI
+	select REGMAP_SPMI
+	help
+	  This enables support for the Mediatek SPMI PMICs.
+	  These PMICs are currently used with the MT63xx series of
+	  SoCs.  Note, that this will only be useful paired with descriptions
+	  of the independent functions as children nodes in the device tree.
+
+	  Say M here if you want to include support for the SPMI PMIC
+	  series as a module.  The module will be called "mtk-spmi-pmic".
+
+config MFD_RT9490
+	tristate "Richtek RT9490 Buck-Boost Switching Battery Charger"
+	depends on I2C
+	select MFD_CORE
+	select REGMAP_I2C
+	select IRQ_DOMAIN
+	help
+	  Say Y here to support Richtek RT9490. The RT9490 is a high-integrated
+	  5A Buck-Boost switch mode battery charge management and system power
+	  path management device for 1 to 4 cell Li-Ion and Li-Polymer battery.
+	  Except the charger circuit, it also includes ADCs to sense the
+	  charger voltage and current like as VBUS/IBUS/VBAT/IBAT.

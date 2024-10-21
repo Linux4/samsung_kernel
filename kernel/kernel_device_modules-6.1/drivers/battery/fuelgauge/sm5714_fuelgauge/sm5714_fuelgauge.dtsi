@@ -1,0 +1,116 @@
+/*
+ * sm5714 battery device tree common
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	sm5714_fuelgauge: sm5714-fuelgauge {
+		status = "okay";
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <300>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <0x1F>;
+		fuelgauge,using_temp_compensation;
+		fuelgauge,low_temp_limit = <100>;
+		fuelgauge,using_hw_vempty;
+		fuelgauge,sw_v_empty_voltage = <3200>;
+		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
+		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+		fuelgauge,capacity = <4000>;
+#if 0
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(${bat_id_single_gpio}) 0  /* BAT_ID_1 */
+				>;
+#elif 0
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(${bat_id_gpio_02}) 0  /* BAT_ID_2 */
+				SEC_GPIO_REF(${bat_id_gpio_01}) 0  /* BAT_ID_1 */
+				>;
+#endif
+
+	};
+};
+
+
+&smd {
+	battery {
+		battery,fgsrc_switch_name = "sm5714-fuelgauge";
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.gts10u(wifi).dtsi */
+/*
+ * Gts9u battery device tree common
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	sm5714-fuelgauge {
+		status = "okay";
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <300>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <0x1F>;
+		fuelgauge,using_temp_compensation;
+		fuelgauge,low_temp_limit = <100>;
+		fuelgauge,using_hw_vempty;
+		fuelgauge,sw_v_empty_voltage = <3200>;
+		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
+		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+		fuelgauge,capacity = <10090>;
+		fuelgauge,jigvbatmode;
+		fuelgauge,scaling_factor = <1>;
+		battery_params {
+			battery,id = <0>;
+			battery0,battery_type = <4440 0x54F2>; /* batt_v_max, cap */
+			battery0,battery_table0 = <
+				0x1400 0x1A7F 0x1B2D 0x1C0B 0x1C9C 0x1D0F 0x1D61 0x1D76
+				0x1D88 0x1D9B 0x1DBC 0x1DEF 0x1E53 0x1E7B 0x1EB7 0x1EED
+				0x1F48 0x1F91 0x1FE6 0x20AD 0x215D 0x221A 0x2326 0x2400
+				>;
+			battery0,battery_table1 = <
+				0x0000 0x004C 0x00CC 0x01CC 0x02CC 0x03CC 0x04E6 0x0566
+				0x06E6 0x0BE6 0x0E00 0x1200 0x1EB3 0x264C 0x2DE6 0x32E6
+				0x3800 0x3A80 0x3F99 0x49B3 0x514C 0x58E6 0x6400 0x64E6
+				>;
+			battery0,battery_table2 = <
+				0x375E 0x252B 0x1F21 0x1A1C 0x1819 0x1617 0x1515 0x1414
+				0x375E 0x252B 0x1F21 0x1A1C 0x1819 0x1617 0x1515 0x1414
+				>;
+			/*spare min max factor chg_factor dischg_factor manvalue*/
+			battery0,rs_value = <0x003D 0x003D 0x3800 0x010A 0x0599 0x0599 0x0045>;
+			battery0,v_alarm = <3100 200>;
+			battery0,topoff = <1100>;
+			battery0,i_cal = <1 0x0 0x0800 0x0800 0 0x0 0x07F1 0x080F>;
+			battery0,v_cal = <1 0 0 1 0 0 0>;
+			battery0,temp_std = <25>;
+			battery0,tem_poff = <3450 50 3450 50>;
+			battery0,aux_ctrl = <0x3322 0x5800>;
+			battery0,data_ver = <2>;
+			battery0,v_max_table = <0x2326 0x22FE 0x22D5 0x2232>;
+			battery0,q_max_table = <0x54F2 0x548F 0x542C 0x4C4F>;
+		};
+	};
+};
+
+
+&smd {
+		battery {
+			battery,fuelgauge_name = "sm5714-fuelgauge";
+			battery,fgsrc_switch_name = "sm5714-fuelgauge";
+		};
+};

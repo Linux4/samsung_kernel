@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/*
+ * Copyright (c) 2022 MediaTek Inc.
+ */
+#include <dt-bindings/spmi/spmi.h>
+
+&spmi {
+	mt6685_mfd: mt6685_mfd {
+		compatible = "mediatek,mt6685";
+		reg = <0x9 SPMI_USID>;
+		mt6685_clkbuf: mt6685-clkbuf {
+			compatible = "mediatek,mt6685-clkbuf";
+			XO-BBCK1 {
+				perms = <0xfffc>;
+				xo-id = <0>;
+			};
+			XO-BBCK2 {
+				perms = <0x10ffff>;
+				xo-id = <1>;
+			};
+			XO-BBCK3 {
+				xo-id = <2>;
+			};
+			XO-BBCK4 {
+				xo-id = <3>;
+			};
+			XO-BBCK5 {
+				xo-id = <4>;
+			};
+			XO-RFCK1A {
+				xo-id = <5>;
+			};
+			XO-RFCK1B {
+				xo-id = <6>;
+			};
+			XO-RFCK1C {
+				xo-id = <7>;
+			};
+			XO-RFCK2A {
+				xo-id = <8>;
+			};
+			XO-RFCK2B {
+				xo-id = <9>;
+			};
+			XO-RFCK2C {
+				xo-id = <10>;
+			};
+			XO-CONCK1 {
+				xo-id = <11>;
+			};
+			XO-CONCK2 {
+				xo-id = <12>;
+			};
+
+		};
+
+		mt6685_rtc: mt6685_rtc {
+			status = "disabled";
+			compatible = "mediatek,mt6685-rtc";
+			interrupts = <0x9 IRQ_TYPE_NONE>;
+			interrupt-names = "rtc";
+			base = <0x580>;
+
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			fg_init: fg_init {
+				reg = <0 0x1>;
+			};
+			fg_soc: fg_soc {
+				reg = <1 0x1>;
+			};
+			ext_32k: ext_32k {
+				reg = <2 0x1>;
+				bits = <6 1>;
+			};
+		};
+	};
+};

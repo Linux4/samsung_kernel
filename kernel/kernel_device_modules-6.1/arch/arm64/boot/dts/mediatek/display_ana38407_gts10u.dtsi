@@ -1,0 +1,332 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/display/panel-display.h>
+#include "../display_ana38407_gts10u_adaptive_mipi.dtsi"
+
+&mtk_leds {
+	compatible = "mediatek,disp-leds";
+	backlight {
+		label = "lcd-backlight";
+		led-mode = <4>;
+		min-brightness = <0>;
+		min-hw-brightness = <0>;
+		max-brightness = <5470>;
+		max-hw-brightness = <5470>;
+	};
+};
+
+/ {
+	fragment@panel_display_mode {
+		target-path = "/";
+		__overlay__ {
+			gts10u_ana38407_panel_dsc_picture_parameter_set_default:
+			gts10u_ana38407_panel_dsc_picture_parameter_set_default {
+					picture_parameter_set = /bits/ 8 <
+						0x11 0x00 0x00 0x89 0x30 0x80 0x07 0x38
+						0x0B 0x90 0x00 0x4D 0x05 0xC8 0x05 0xC8
+						0x02 0x00 0x03 0xE5 0x00 0x20 0x0B 0x07
+						0x00 0x14 0x00 0x0C 0x01 0x44 0x00 0x7A
+						0x18 0x00 0x10 0xD0 0x03 0x0C 0x20 0x00
+						0x06 0x0B 0x0B 0x33 0x0E 0x1C 0x2A 0x38
+						0x46 0x54 0x62 0x69 0x70 0x77 0x79 0x7B
+						0x7D 0x7E 0x01 0x02 0x01 0x00 0x09 0x40
+						0x09 0xBE 0x19 0xFC 0x19 0xFA 0x19 0xF8
+						0x1A 0x38 0x1A 0x78 0x1A 0xB6 0x2A 0xF6
+						0x2B 0x34 0x2B 0x74 0x3B 0x74 0x6B 0xF4
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+					>;
+			};
+
+			gts10u_ana38407_panel_display_modes:
+			gts10u_ana38407_panel_display_modes {
+				native-mode = <&gts10u_ana38407_panel_display_mode_2960x1848_60hs>;
+				exposed-mode = <
+					&gts10u_ana38407_panel_display_mode_2960x1848_120hs
+					&gts10u_ana38407_panel_display_mode_2960x1848_60phs
+					&gts10u_ana38407_panel_display_mode_2960x1848_60hs
+					&gts10u_ana38407_panel_display_mode_2960x1848_30phs
+					&gts10u_ana38407_panel_display_mode_2960x1848_30hs
+				>;
+
+				/* fhd */
+				gts10u_ana38407_panel_display_mode_2960x1848_120hs:
+				gts10u_ana38407_panel_display_mode_2960x1848_120hs {
+					id = PANEL_DISPLAY_MODE_2960x1848_120HS;
+					width = <2960>;
+					height = <1848>;
+					/* timing parameters */
+					refresh_rate = <120>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1480>;	/* width of dsc slice */
+					dsc_slice_h = <77>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10u_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				gts10u_ana38407_panel_display_mode_2960x1848_60phs:
+				gts10u_ana38407_panel_display_mode_2960x1848_60phs {
+					id = PANEL_DISPLAY_MODE_2960x1848_60HS_120HS_TE_HW_SKIP_1;
+					width = <2960>;
+					height = <1848>;
+					/* timing parameters */
+					refresh_rate = <60>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_PASSIVE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <1>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1480>;	/* width of dsc slice */
+					dsc_slice_h = <77>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10u_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+
+					/*qos parameters */
+					disp_qos_fps = <120>;
+
+				};
+
+				gts10u_ana38407_panel_display_mode_2960x1848_60hs:
+				gts10u_ana38407_panel_display_mode_2960x1848_60hs {
+					id = PANEL_DISPLAY_MODE_2960x1848_60HS;
+					width = <2960>;
+					height = <1848>;
+					/* timing parameters */
+					refresh_rate = <60>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <60>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1480>;	/* width of dsc slice */
+					dsc_slice_h = <77>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10u_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <7991>;
+
+					/*qos parameters */
+					disp_qos_fps = <60>;
+				};
+
+				gts10u_ana38407_panel_display_mode_2960x1848_30phs:
+				gts10u_ana38407_panel_display_mode_2960x1848_30phs {
+					id = PANEL_DISPLAY_MODE_2960x1848_30HS_120HS_TE_HW_SKIP_3;
+					width = <2960>;
+					height = <1848>;
+					/* timing parameters */
+					refresh_rate = <30>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_PASSIVE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <3>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1480>;	/* width of dsc slice */
+					dsc_slice_h = <77>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10u_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				gts10u_ana38407_panel_display_mode_2960x1848_30hs:
+				gts10u_ana38407_panel_display_mode_2960x1848_30hs {
+					id = PANEL_DISPLAY_MODE_2960x1848_30HS_60HS_TE_HW_SKIP_1;
+					width = <2960>;
+					height = <1848>;
+					/* timing parameters */
+					refresh_rate = <30>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <60>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <1>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1480>;	/* width of dsc slice */
+					dsc_slice_h = <77>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10u_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+
+					/*qos parameters */
+					disp_qos_fps = <60>;
+				};
+			};
+		};
+	};
+};
+
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_drv_0: panel_drv_0 {
+				status = "okay";
+				compatible = "samsung,panel-drv";
+				panel,id = <0>;
+
+				ana38407_gts10u_power_ctrl:
+				ana38407_gts10u_power_ctrl {
+					actions {
+						ana38407_gts10u_vci_on: vci-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddi_vci>;
+						};
+
+						ana38407_gts10u_vci_off: vci-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddi_vci>;
+						};
+
+						ana38407_gts10u_delay_2ms: delay-2ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <2>;
+						};
+
+						ana38407_gts10u_delay_11ms: delay-11ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <11>;
+						};
+						ana38407_gts10u_delay_21ms: delay-21ms {
+							type = <PCTRL_DELAY_USLEEP>;
+							value = <21000>;
+						};
+
+						ana38407_gts10u_reset_high: reset-high {
+							type = <PCTRL_GPIO_ENABLE>;
+							gpio = <&disp_reset>;
+						};
+						ana38407_gts10u_reset_low: reset-low {
+							type = <PCTRL_GPIO_DISABLE>;
+							gpio = <&disp_reset>;
+						};
+
+						ana38407_gts10u_reset_wait_low: reset-rdy-wait-low{
+							type = <PCTRL_GPIO_WAIT_LOW>;
+							gpio = <&disp_reset_ready>;
+							value = <1000>;
+						};
+						ana38407_gts10u_reset_wait_high: reset-rdy-wait-high{
+							type = <PCTRL_GPIO_WAIT_HIGH>;
+							gpio = <&disp_reset_ready>;
+							value = <1000>;
+						};
+					};
+					sequences {
+						panel_boot_on = <
+								&ana38407_gts10u_vci_on
+						>;
+						panel_power_on = <
+								&ana38407_gts10u_vci_on
+								&ana38407_gts10u_delay_11ms
+						>;
+
+						panel_reset_lp11 = <
+								&ana38407_gts10u_delay_11ms
+								&ana38407_gts10u_reset_high
+								&ana38407_gts10u_reset_wait_high
+						>;
+
+						panel_power_off = <
+								&ana38407_gts10u_reset_low
+								&ana38407_gts10u_delay_11ms
+								&ana38407_gts10u_vci_off
+						>;
+					};
+				};
+
+				ana38407_gts10u_ap:ana38407_gts10u_ap {
+					MTK,size = <314 196>;  /* need to check */ /* 313.76 mm x 195.888 mm */
+					MTK,timing,dsi-hs-clk = <1524>;
+					MTK,data_lane = <4>;		/* number of using data lane */
+					MTK,multi_drop = <0>;
+					MTK,lcm_degree = <270>;
+					MTK,lcm_color_mode = "MTK_DRM_COLOR_MODE_DISPLAY_P3";
+					MTK,silkybrightnessdelay = <2000>;
+				};
+
+				panels {
+					/* find ana38407_gts10u panel header */
+					ana38407_gts10u: ana38407_gts10u {
+						ap-vendor-setting = <&ana38407_gts10u_ap>;
+						display-mode = <&gts10u_ana38407_panel_display_modes>;
+						power-ctrl = <&ana38407_gts10u_power_ctrl>;
+						dqe-suffix = "ana38407_gts10u";
+						sdp-adaptive-mipi = <&ana38407_gts10u_sdp_adaptive_mipi_info>;
+						id-mask = <
+							PANEL_ID(0x800000) PANEL_MASK(0xFF0000)
+							PANEL_ID(0x000000) PANEL_MASK(0x000000)
+						>;
+					};
+				};
+			};
+		};
+	};
+};
+

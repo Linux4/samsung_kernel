@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config MTK_SYSIRQ
+	tristate "Mediatek interrupt polarity controller"
+	help
+	  Interrupt polarity controller driver to swap polarity for
+	  interrupts for Mediatek mobile chips.

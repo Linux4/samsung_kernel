@@ -1,0 +1,93 @@
+config SPECIFY_IMGSENSOR
+	bool "Specify image sensor name"
+	depends on MTK_IMGSENSOR
+	help
+	  Specify name of each sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_MAIN
+	string "Custom main image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of main sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_MAIN2
+	string "Custom main2 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of main2 sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_SUB
+	string "Custom sub image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of sub sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_SUB2
+	string "Custom sub2 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of sub2 sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_MAIN3
+	string "Custom main3 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of main3 sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_CUSTOM_CAMERA
+	bool "Use custom camera set"
+	help
+	  Use custom camera set
+
+config IMGSENSOR_SYSFS
+	bool "Imgsensor sysfs"
+	default n
+	help
+	  If CONFIG_IMGSENSOR_SYSFS is y, then "Samsung sysfs" is built.
+	  This is for camera bringup without sysfs implementation.
+	  Set this config to n, while bringup the camera.
+
+config CAMERA_ADAPTIVE_MIPI
+	bool "camera adaptive mipi"
+	default n
+	help
+	  If CAMERA_ADAPTIVE_MIPI is y, then "Samsung adaptive mipi" is built.
+	  This is for camera bringup without adaptive-mipi implementation.
+	  Set this config to n, while bringup the camera.
+
+if IMGSENSOR_CUSTOM_CAMERA
+choice IMGSENSOR_CAMERA_SET_CHOICE
+	prompt "Choose the proper camera set"
+config CAMERA_STX_V10P
+	bool "Camera stx _v10p"
+	help
+	  For STX_V10P camera set
+config CAMERA_STX_V10U
+	bool "Camera stx _v10u"
+	help
+	  For STX_V10U camera set
+endchoice
+
+config CAMERA_SAMSUNG_MODEL_NAME
+	string "Camera samsung model name"
+	help
+	  Current model name.
+endif

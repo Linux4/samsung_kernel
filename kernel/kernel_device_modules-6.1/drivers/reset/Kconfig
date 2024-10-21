@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-only
+if RESET_CONTROLLER
+
+config DEVICE_MODULES_RESET_TI_SYSCON
+	tristate "TI SYSCON Reset Driver"
+	depends on HAS_IOMEM
+	select MFD_SYSCON
+	help
+	  This enables the reset driver support for TI devices with
+	  memory-mapped reset registers as part of a syscon device node. If
+	  you wish to use the reset framework for such memory-mapped devices,
+	  say Y here. Otherwise, say N.
+
+endif

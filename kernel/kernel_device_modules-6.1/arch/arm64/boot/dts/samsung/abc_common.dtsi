@@ -1,0 +1,11 @@
+&smd {
+	abc_hub {
+		compatible = "samsung,abc_hub";
+		status = "okay";
+		bootc {
+			bootc,time_spec_user = <100000>; /* user binary user build */
+			bootc,time_spec_eng = <150000>; /* user binary eng build */
+			bootc,time_spec_fac = <100000>; /* factory binary */
+		};
+	};
+};

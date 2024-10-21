@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# RTC class/drivers configuration
+#
+
+if RTC_CLASS
+
+config DEVICE_MODULES_RTC_DRV_MT6397
+	tristate "MediaTek PMIC based RTC"
+	depends on DEVICE_MODULES_MFD_MT6397 || (COMPILE_TEST && IRQ_DOMAIN)
+	help
+	  This selects the MediaTek(R) RTC driver. RTC is part of MediaTek
+	  MT6397 PMIC. You should enable MT6397 PMIC MFD before select
+	  MediaTek(R) RTC driver.
+
+	  If you want to use MediaTek(R) RTC interface, select Y or M here.
+
+config RTC_DRV_MT6685
+	tristate "Mediatek Real Time Clock driver"
+	depends on MFD_MT6685 || (COMPILE_TEST && IRQ_DOMAIN)
+	help
+	  This selects the Mediatek(R) RTC driver. RTC is part of Mediatek
+	  MT6685. You should enable MT6685 MFD before select
+	  Mediatek(R) RTC driver.
+
+	  If you want to use Mediatek(R) RTC interface, select Y or M here.
+
+endif # RTC_CLASS

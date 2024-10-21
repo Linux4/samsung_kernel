@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config MTK_MMDEBUG
+	tristate "MediaTek MMDebug Support"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	help
+	  Say yes here to add support for the MediaTek Multimedia DEBUG (MMDEBUG)
+	  driver. The MMDEBUG is used to debug for Mediatek multimedia drivers
+	  , such as smi and mmdvfs. Say no if your device does not need to do
+	  DEBUG for Multimedia drivers.

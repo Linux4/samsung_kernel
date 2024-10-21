@@ -1,0 +1,7 @@
+#include <dt-bindings/clock/mt6989-clk.h>
+
+#define infracfg_ao_clk pericfg_ao_clk
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6989/ap_mtk_mt6989.gts10u.03.dtsi */
+#include "../../mediatek/k6989v1_64_titan_golddragon_24u/Board_00.dts"
+#include "../../mediatek/k6989v1_64_titan_golddragon_24u/gpio03_ultra.dtsi"

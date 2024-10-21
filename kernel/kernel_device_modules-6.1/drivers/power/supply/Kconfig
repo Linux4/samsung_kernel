@@ -1,0 +1,189 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config MTK_CHARGER
+	tristate "MediaTek Charging Driver"
+	depends on MTK_USB_TYPEC
+	help
+	  Say yes here to enable MediaTek charging driver.
+	  This driver contains charging control flow and
+	  maintains charging status.
+	  Say no if not using MediaTek charging driver.
+
+config MTK_PUMP_EXPRESS_PLUS_SUPPORT
+	tristate "MediaTek PUMP EXPRESS PLUS"
+	depends on MTK_CHARGER
+	help
+	  Fast charging technology using switch charger and current pattern
+	  to achive better charging ability.
+	  Set Yes to enable PE+
+	  Set No to disable PE+
+
+config MTK_PUMP_EXPRESS_PLUS_20_SUPPORT
+	tristate "MediaTek PUMP EXPRESS PLUS 2.0"
+	depends on MTK_CHARGER
+	help
+	  Fast charging technology using switch charger and current pattern
+	  to achive better charging ability. It has higher charging efficiency
+	  and has better thermal performance than PE+.
+	  Set Yes to enable PE+2.0
+	  Set No to disable PE+2.0
+
+config MTK_PUMP_EXPRESS_40_SUPPORT
+	tristate "MediaTek PUMP EXPRESS 4.0"
+	depends on MTK_CHARGER
+	help
+	  Fast charging technology supports request adjustments of source output
+	  voltage in increments as small as 50 mV to achive better charging ability.
+	  It has higher charging efficiency and has better thermal performance than
+	  PE+/PE+2.0.
+	  Set Yes to enable PE 4.0
+	  Set No to disable PE 4.0
+
+config MTK_PUMP_EXPRESS_45_SUPPORT
+	tristate "MediaTek PUMP EXPRESS 4.0 PLUS"
+	depends on MTK_CHARGER
+	help
+	  Fast charging technology supports request adjustments of source output
+	  voltage in increments as small as 50 mV to achive better charging ability.
+	  It has higher charging efficiency and has better thermal performance than
+	  PE+/PE+2.0.
+	  Set Yes to enable PE 4.5
+	  Set No to disable PE 4.5
+
+config MTK_PUMP_EXPRESS_50_SUPPORT
+	tristate "MediaTek PUMP EXPRESS 5.0"
+	depends on MTK_CHARGER
+	help
+	  Fast charging technology using divider charger
+	  to achive better charging ability. It has higher charging efficiency
+	  and has better thermal performance than PE+.
+	  Set Yes to enable PE 5.0
+	  Set No to disable PE 5.0
+
+config MTK_PUMP_EXPRESS_50_PLUS_SUPPORT
+	tristate "MediaTek PUMP EXPRESS 5.0 PLUS"
+	depends on MTK_CHARGER
+	help
+	  Fast charging technology using divider charger
+	  to achive better charging ability. It has higher charging efficiency
+	  and has better thermal performance than PE+.
+	  Set Yes to enable PE 5.0 PLUS
+	  Set No to disable PE 5.0 PLUS
+
+config MTK_HVBP_SUPPORT
+	tristate "MediaTek High Voltage Bypass Charging"
+	depends on MTK_CHARGER
+	help
+	  Fast charging technology using high voltage direct charger
+	  to achive better charging ability. It has higher charging efficiency
+	  and has better thermal performance than PE+.
+	  Set Yes to enable HVBP charging
+	  Set No to disable HVBP charging
+
+config CHARGER_RT9759
+	tristate "Charger Driver for Richtek RT9759 Charger IC"
+	default n
+	depends on MTK_CHARGER
+	help
+	  Say Yes to enable Richtek RT9759 driver.
+	  It is mainly used as cap divider charger
+	  for Mediatek Pump Express 5.0.
+	  It depends on config MTK_CHARGER
+
+config CHARGER_MT6985_ALPHA_SUPPORT
+	tristate "Specify Alpha Charger Platform is mt6985"
+	help
+		Select Alpha Charger Platform is mt6985.
+		To compile this dirver for used charger IC.
+		Set Y or M to select this feature for specific platform-mt6985,
+		and set N to disable.
+
+config CHARGER_RT9490
+	tristate "Richtek RT9490 charger support"
+	depends on MFD_RT9490
+	depends on MTK_CHARGER
+	help
+	  Say Y here to enable support for Richtek RT9490 charger.
+	  Richtek RT9490 is a buck-boost switch type charger, and can support
+	  1-4 cell battery with up to 5A charging current.
+	  Say N to disable.
+
+config CHARGER_RT9758
+	tristate "Richtek RT9758 HV DV2 charger support"
+	depends on I2C
+	depends on MTK_CHARGER
+	select REGMAP_I2C
+	select LINEAR_RANGES
+	help
+	  Say Y here to enable support for Richtek RT9758 HV DV2 charger.
+	  RT9758 is a high efficiency, and high charge current charger for
+	  high voltage application. The maximum charge current is up to 5A.
+	  Say N to disable.
+
+config BATTERY_MT6359P
+	tristate "MT6359P fuel gauge support"
+	depends on DEVICE_MODULES_MFD_MT6397
+	default m
+	help
+	  Say Y to enable support for MT6359P battery driver.
+	  it measure battery current and temperature to provide
+	  battery information , It issues interrupt when trigger
+	  threshold is met.
+
+config DEVICE_MODULES_CHARGER_MT6360
+	tristate "Mediatek MT6360 Charger Driver"
+	depends on DEVICE_MODULES_MFD_MT6360
+	depends on MTK_USB_TYPEC
+	depends on REGULATOR
+	select LINEAR_RANGES
+	help
+	  Say Y here to enable MT6360 Charger Part.
+	  The device supports High-Accuracy Voltage/Current Regulation,
+	  Average Input Current Regulation, Battery Temperature Sensing,
+	  Over-Temperature Protection, DPDM Detection for BC1.2.
+
+config CHARGER_MT6362
+	tristate "MT6362 SPMI CHG driver"
+	depends on MFD_MT6362
+	help
+	  Say yes here to have support for the MT6362 CHG
+	  It supports BC1.2 and OTG boost.
+	  The driver can also be build as a module.
+	  If so, the module will be called mt6362_chg
+
+config CHARGER_MT6375
+	tristate "MT6375 charger driver"
+	depends on MFD_MT6375
+	depends on MTK_CHARGER
+	help
+	  Say Y to enable support for the MT6375 charger.
+	  The driver supports controlling switching charger and OTG
+	  with high-accuracy current and voltage regulation.
+	  The device is compliant with the USB Battery Charging Specification
+	  Revision 1.2.
+
+config GAUGE_MT6375
+	tristate "MT6375 fuel gauge driver"
+	depends on MFD_MT6375
+	help
+	  Say Y to enable support for the MT6375 gauge.
+	  This adds support for battery fuel gauge in Mediatek MT6375 PMIC.
+	  The fuelgauge calculates and determines the battery state of charge
+	  according to battery open circuit voltage.
+
+config GAUGE_BQ28Z610
+	tristate "TI BQ28Z610 gauge support"
+	depends on I2C
+	help
+	  Say Y here to enable support for TI BQ28Z610 gauge.
+	  This adds support for bq28z610 fuel gauge
+	  Select Alpha gauge Platform is mt6985
+	  Say N to disable.
+
+config MTK_CHARGER_TYPE_DETECT
+	tristate "Mediatek Charger Type Detect Driver"
+	depends on TCPC_CLASS
+	help
+	  Say Y here to enable Mediatek Charger Type Detect.
+	  Support enable charger type detect when receiving
+	  typec attach notify.
+	  Say N to disable.
