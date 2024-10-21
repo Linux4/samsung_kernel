@@ -3,6 +3,14 @@
 # Cryptographic API
 #
 
+# CMVP functional test
+#ccflags-y += -DCONFIG_CRYPTO_SKC_FIPS_FUNC_TEST
+obj-$(CONFIG_CRYPTO_SKC_FIPS) += fips140_out.o
+obj-$(CONFIG_CRYPTO_SKC_FIPS) += fips140_integrity.o
+obj-$(CONFIG_CRYPTO_SKC_FIPS) += fips140_post.o
+obj-$(CONFIG_CRYPTO_SKC_FIPS) += fips140_test.o
+obj-$(CONFIG_CRYPTO_SKC_FIPS) += fips140_3_services.o
+
 obj-$(CONFIG_CRYPTO) += crypto.o
 crypto-y := api.o cipher.o compress.o
 
@@ -160,6 +168,7 @@ obj-$(CONFIG_CRYPTO_842) += 842.o
 obj-$(CONFIG_CRYPTO_RNG2) += rng.o
 obj-$(CONFIG_CRYPTO_ANSI_CPRNG) += ansi_cprng.o
 obj-$(CONFIG_CRYPTO_DRBG) += drbg.o
+obj-$(CONFIG_CRYPTO_SKC_FIPS) += drbg_mdfpp_cast.o
 obj-$(CONFIG_CRYPTO_JITTERENTROPY) += jitterentropy_rng.o
 CFLAGS_jitterentropy.o = -O0
 KASAN_SANITIZE_jitterentropy.o = n

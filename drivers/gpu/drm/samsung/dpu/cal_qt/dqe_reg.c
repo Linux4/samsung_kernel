@@ -116,48 +116,45 @@ void __dqe_dump(u32 id, struct dqe_regs *regs, bool en_lut)
 	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x0000, 0x100);
 
 	cal_log_info(id, "=== DQE_ATC SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x400, 0x40);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_ATC_CONTROL, 0x40);
 	cal_log_info(id, "=== DQE_ATC SHADOW SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x400 + SHADOW_DQE_OFFSET, 0x40);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_ATC_CONTROL + SHADOW_DQE_OFFSET, 0x40);
 
 	cal_log_info(id, "=== DQE_HSC SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x800, 0x760);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_HSC_CONTROL, 0x760);
 
 	cal_log_info(id, "=== DQE_GAMMA_MATRIX SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x1400, 0x20);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_GAMMA_MATRIX_CON, 0x20);
 
 	cal_log_info(id, "=== DQE_DEGAMMA SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x1800, 0x100);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_DEGAMMA_CON, 0x100);
+
+	cal_log_info(id, "=== DQE_LINEAR_MATRIX SFR DUMP ===\n");
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_LINEAR_MATRIX_CON, 0x20);
 
 	cal_log_info(id, "=== DQE_CGC SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x2000, 0x20);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_CGC_CON, 0x20);
 
 	cal_log_info(id, "=== DQE_REGAMMA SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x2400, 0x200);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_REGAMMA_CON, 0x200);
 
 	cal_log_info(id, "=== DQE_CGC_DITHER SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x2800, 0x20);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_CGC_DITHER, 0x20);
 
 	cal_log_info(id, "=== DQE_DISP_DITHER SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x2C00, 0x20);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_DISP_DITHER, 0x20);
 
 	cal_log_info(id, "=== DQE_RCD SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x3000, 0x20);
-
-	cal_log_info(id, "=== DQE_DE SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x3200, 0x20);
-
-	cal_log_info(id, "=== DQE_SCL SFR DUMP ===\n");
-	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x3400, 0x200);
+	dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_RCD, 0x20);
 
 	if (en_lut) {
 		cal_log_info(id, "=== DQE_CGC_LUT SFR DUMP ===\n");
 		cal_log_info(id, "== [ RED CGC LUT ] ==\n");
-		dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x4000, 0x2664);
+		dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_CGC_LUT_R(0), 0x2664);
 		cal_log_info(id, "== [ GREEN CGC LUT ] ==\n");
-		dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0x8000, 0x2664);
+		dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_CGC_LUT_G(0), 0x2664);
 		cal_log_info(id, "== [ BLUE CGC LUT ] ==\n");
-		dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + 0xC000, 0x2664);
+		dpu_print_hex_dump(dqe_base_regs, dqe_base_regs + DQE_CGC_LUT_B(0), 0x2664);
 	}
 
 	if (edma_base_regs) {
@@ -177,6 +174,11 @@ static inline u32 dqe_reg_get_lut_addr(u32 id, enum dqe_reg_type type,
 	u32 addr = 0;
 
 	switch (type) {
+	case DQE_REG_LINEAR_MATRIX:
+		if (index >= DQE_LINEAR_MATRIX_REG_MAX)
+			return 0;
+		addr = DQE_LINEAR_MATRIX_LUT(index);
+		break;
 	case DQE_REG_GAMMA_MATRIX:
 		if (index >= DQE_GAMMA_MATRIX_REG_MAX)
 			return 0;
@@ -275,6 +277,56 @@ void dqe_reg_set_lut(u32 id, enum dqe_reg_type type, u32 index, u32 value, u32 o
 	dqe_write_relaxed(id, addr, value);
 }
 
+void dqe_reg_set_linear_matrix(u32 *ctx, int *lut, u32 shift)
+{
+	int i;
+	u32 linear_mat_lut[17] = {0,};
+	int bound, tmp;
+
+	linear_mat_lut[0] = lut[0];
+
+	/* Coefficient - value range : -32768 ~ 32767 */
+	for (i = 0; i < 12; i++)
+		linear_mat_lut[i + 1] = (lut[i + 1] >> 3);
+	/* Offset - value range : -8192 ~ 8191 */
+	bound = 4095 >> shift; // 10bit: -4095~4095, 8bit: -1023~1023
+	for (i = 12; i < 16; i++) {
+		tmp = (lut[i + 1] >> (4+shift));
+		if (tmp > bound)
+			tmp = bound;
+		if (tmp < -bound)
+			tmp = -bound;
+		linear_mat_lut[i + 1] = tmp;
+	}
+	ctx[0] = LINEAR_MATRIX_EN(linear_mat_lut[0]);
+
+	/* LINEAR_MATRIX_COEFF */
+	ctx[1] = (
+		LINEAR_MATRIX_COEFF_H(linear_mat_lut[5]) | LINEAR_MATRIX_COEFF_L(linear_mat_lut[1])
+	);
+
+	ctx[2] = (
+		LINEAR_MATRIX_COEFF_H(linear_mat_lut[2]) | LINEAR_MATRIX_COEFF_L(linear_mat_lut[9])
+	);
+
+	ctx[3] = (
+		LINEAR_MATRIX_COEFF_H(linear_mat_lut[10]) | LINEAR_MATRIX_COEFF_L(linear_mat_lut[6])
+	);
+
+	ctx[4] = (
+		LINEAR_MATRIX_COEFF_H(linear_mat_lut[7]) | LINEAR_MATRIX_COEFF_L(linear_mat_lut[3])
+	);
+
+	ctx[5] = LINEAR_MATRIX_COEFF_L(linear_mat_lut[11]);
+
+	/* LINEAR_MATRIX_OFFSET */
+	ctx[6] = (
+		LINEAR_MATRIX_OFFSET_1(linear_mat_lut[14]) | LINEAR_MATRIX_OFFSET_0(linear_mat_lut[13])
+	);
+
+	ctx[7] = LINEAR_MATRIX_OFFSET_2(linear_mat_lut[15]);
+}
+
 void dqe_reg_set_lut_on(u32 id, enum dqe_reg_type type, u32 on)
 {
 	u32 addr;
@@ -282,6 +334,11 @@ void dqe_reg_set_lut_on(u32 id, enum dqe_reg_type type, u32 on)
 	u32 mask;
 
 	switch (type) {
+	case DQE_REG_LINEAR_MATRIX:
+		addr = DQE_LINEAR_MATRIX_CON;
+		value = LINEAR_MATRIX_EN(on);
+		mask = LINEAR_MATRIX_EN_MASK;
+		break;
 	case DQE_REG_GAMMA_MATRIX:
 		addr = DQE_GAMMA_MATRIX_CON;
 		value = GAMMA_MATRIX_EN(on);

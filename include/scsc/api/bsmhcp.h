@@ -139,6 +139,9 @@
 #define BSMHCP_INCREASE_INDEX(index, limit) \
 		((index) = ((index) + 1) % (limit))
 
+#define BSMHCP_PREV_INDEX(index, limit) \
+		(((index) == 0) ? ((limit) - 1) : ((index) - 1))
+
 /*
  * For a ring where read == write indicates empty this returns false
  * if adding one more would cause it to see the ring as empty

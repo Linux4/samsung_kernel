@@ -183,6 +183,7 @@ struct dsim_reg_config {
 	u32			drive_strength;
 	bool			emul_mode;
 	bool			lp_force_en;
+	bool			ignore_rx_trail;
 };
 
 #define DSIM_CAL_LINE_CNT_CPHY		3

@@ -39,6 +39,7 @@ shub-y += factory/proximity/proximity_tmd4912_factory.o
 shub-y += factory/proximity/proximity_stk3391x_factory.o
 shub-y += factory/proximity/proximity_stk33512_factory.o
 shub-y += factory/proximity/proximity_stk3afx_factory.o
+shub-y += factory/proximity/proximity_tmd3725_factory.o
 
 shub-y += others/shub_motor_callback.o
 shub-y += others/shub_panel.o
@@ -74,17 +75,24 @@ shub-y += sensor/pogo_request_handler.o
 shub-y += sensor/aois.o
 shub-y += sensor/rotation_vector.o
 shub-y += sensor/game_rotation_vector.o
+shub-y += sensor/drop_classifier.o
+shub-y += sensor/folding_angle.o
+shub-y += sensor/lid_angle_fusion.o
+shub-y += sensor/hinge_angle.o
+shub-y += sensor/folding_state_lpm.o
 
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42605m.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsl.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lis2dlc12.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsotr.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsvtr.o
+shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsvwtr.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42632m.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_icm42605m.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsl.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsotr.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsvtr.o
+shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsvwtr.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_icm42632m.o
 
 shub-y += sensor/physical_sensor/magnetometer/magnetometer_ak09918c.o
@@ -98,6 +106,7 @@ shub-y += sensor/physical_sensor/proximity/proximity_tmd4912.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk33512.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk3391x.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk3afx.o
+shub-y += sensor/physical_sensor/proximity/proximity_tmd3725.o
 shub-y += sensor/physical_sensor/light/light_stk_common.o
 
 shub-y += sensor/physical_sensor/pressure/pressure_bmp580.o
@@ -122,12 +131,22 @@ shub-y += utility/shub_file_manager.o
 
 shub-$(CONFIG_SHUB_MTK) += vendor/shub_mtk.o
 ccflags-$(CONFIG_MTK_TINYSYS_SCP_RV_SUPPORT) += -I$(srctree)/drivers/misc/mediatek/scp/include
+ifneq ($(DEVICE_MODULES_PATH),)
+ccflags-$(CONFIG_SHUB_MTK_SCP_INCLUDE) += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/scp/include
+else
 ccflags-$(CONFIG_SHUB_MTK_SCP_INCLUDE) += -I$(srctree)/drivers/misc/mediatek/scp/include
+endif
 
 shub-$(CONFIG_SHUB_LSI) += vendor/shub_lsi.o
 
-ifneq (,$(filter y ,$(CONFIG_ARCH_EXYNOS) $(CONFIG_ARCH_MEDIATEK) $(CONFIG_MTK_TINYSYS_SCP_SUPPORT)))
+ifneq (,$(filter y ,$(CONFIG_ARCH_EXYNOS) $(CONFIG_ARCH_MEDIATEK) $(CONFIG_MTK_TINYSYS_SCP_SUPPORT) $(CONFIG_SHUB_KUNIT)))
 obj-$(CONFIG_SHUB) += shub.o
 endif
+
+ifneq (,$(filter y ,$(CONFIG_SHUB_KUNIT)))
+endif
+
+obj-$(CONFIG_SHUB_TEST_FOR_ONLY_UML)			+= vendor/shub_dummy.o
+GCOV_PROFILE_shub.o		:= $(CONFIG_SHUB_KUNIT)
 
 obj-$(CONFIG_SHUB) += utility/sensor_core.o

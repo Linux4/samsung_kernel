@@ -959,6 +959,7 @@ static void *hx83122a_gts9fep_csot_init_cmdtbl[] = {
 	&PKTINFO(hx83122a_gts9fep_csot_sleep_out),
 	&DLYINFO(hx83122a_gts9fep_csot_wait_120msec),
 	&PKTINFO(hx83122a_gts9fep_csot_display_on),
+	&DLYINFO(hx83122a_gts9fep_csot_wait_20msec),
 	&PNOBJ_CONFIG(hx83122a_gts9fep_csot_set_wait_tx_done_property_auto),
 };
 

@@ -29,13 +29,6 @@ static unsigned long osc_clk_rate;
 static unsigned int mct_int_type;
 static int mct_irqs[MCT_NR_COMPS];
 static DEFINE_SPINLOCK(comp_lock);
-static u64 exynos_mct_start;
-
-u64 exynos_get_mct_start(void)
-{
-	return exynos_mct_start;
-}
-EXPORT_SYMBOL_GPL(exynos_get_mct_start);
 
 static void exynos_mct_set_compensation(unsigned long osc, unsigned long rtc)
 {
@@ -486,23 +479,9 @@ static int mct_init_dt(struct device_node *np, unsigned int int_type)
 
 	pr_info("## exynos_clockevent_init\n");
 
-	if (IS_ENABLED(CONFIG_SEC_BOOTSTAT)) {
-		unsigned long __osc_clk_rate;
-		u64 ts_msec;
-
-		exynos_mct_start = exynos_read_count_32();
-		__osc_clk_rate = osc_clk_rate / 1000;
-		if (__osc_clk_rate)
-			exynos_mct_start /= __osc_clk_rate;
-
-		ts_msec = local_clock();
-		do_div(ts_msec, 1000000);
-
-		exynos_mct_start -= ts_msec;
-	}
-
 	return exynos_clockevent_init();
 }
+
 
 static int mct_init_spi(struct device_node *np)
 {

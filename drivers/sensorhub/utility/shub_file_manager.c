@@ -25,6 +25,15 @@
 #include <linux/slab.h>
 #include <linux/notifier.h>
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 #define FILE_MANAGER	0xFB
 enum {
 	FM_READ = 0,
@@ -35,7 +44,7 @@ enum {
 
 static BLOCKING_NOTIFIER_HEAD(fm_ready_notifier_list);
 struct mutex fm_ready_notifier_mutex;
-struct work_struct fm_nofifier_work;
+struct work_struct fm_notifier_work;
 
 struct mutex fm_mutex;
 struct completion fm_done;
@@ -64,7 +73,7 @@ static void fm_notifier_work_func(struct work_struct *work)
 static void file_manager_ready(void)
 {
 	shub_infof("");
-	shub_queue_work(&fm_nofifier_work);
+	shub_queue_work(&fm_notifier_work);
 }
 
 void unregister_file_manager_ready_callback(struct notifier_block *nb)
@@ -120,7 +129,7 @@ static int _shub_file_rw(char type, bool wait)
 	return result;
 }
 
-static int _shub_file_write(char *path, char *buf, int buf_len, long long pos, bool wait)
+__visible_for_testing int __mockable _shub_file_write(char *path, char *buf, int buf_len, long long pos, bool wait)
 {
 	int ret;
 
@@ -130,6 +139,9 @@ static int _shub_file_write(char *path, char *buf, int buf_len, long long pos, b
 	mutex_lock(&fm_mutex);
 	fm_msg.tx_buf_size =
 	    snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s,%d,%lld,%d,", path, buf_len, pos, wait);
+
+	buf_len = fm_msg.tx_buf_size + buf_len > sizeof(fm_msg.tx_buf) ?
+		  sizeof(fm_msg.tx_buf) - fm_msg.tx_buf_size : buf_len;
 	memcpy(&fm_msg.tx_buf[fm_msg.tx_buf_size], buf, buf_len);
 	fm_msg.tx_buf_size += buf_len;
 	ret = _shub_file_rw(FM_WRITE, wait);
@@ -152,7 +164,7 @@ int shub_file_write(char *path, char *buf, int buf_len, long long pos)
 	return _shub_file_write(path, buf, buf_len, pos, true);
 }
 
-int shub_file_read(char *path, char *buf, int buf_len, long long pos)
+int __mockable shub_file_read(char *path, char *buf, int buf_len, long long pos)
 {
 	int ret;
 
@@ -218,7 +230,8 @@ ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const
 		memset(fm_msg.rx_buf, 0, PAGE_SIZE);
 		memcpy(&fm_msg.result, &buf[1], sizeof(int32_t));
 		if (buf[0] == FM_READ && fm_msg.result > 0) {
-			fm_msg.rx_buf_size = fm_msg.result;
+			fm_msg.rx_buf_size = fm_msg.result > sizeof(fm_msg.rx_buf) ?
+					     sizeof(fm_msg.rx_buf) : fm_msg.result;
 			memcpy(fm_msg.rx_buf, &buf[5], fm_msg.rx_buf_size);
 		}
 
@@ -241,7 +254,7 @@ int init_file_manager(void)
 
 	mutex_init(&fm_mutex);
 	mutex_init(&fm_ready_notifier_mutex);
-	INIT_WORK(&fm_nofifier_work, fm_notifier_work_func);
+	INIT_WORK(&fm_notifier_work, fm_notifier_work_func);
 
 	ret = sensor_device_create(&data->sysfs_dev, data, "ssp_sensor");
 	if (ret < 0) {
@@ -260,7 +273,7 @@ void remove_file_manager(void)
 {
 	struct shub_data_t *data = get_shub_data();
 
-	cancel_work_sync(&fm_nofifier_work);
+	cancel_work_sync(&fm_notifier_work);
 	mutex_destroy(&fm_ready_notifier_mutex);
 	mutex_destroy(&fm_mutex);
 	remove_sensor_device_attr(data->sysfs_dev, shub_attrs);

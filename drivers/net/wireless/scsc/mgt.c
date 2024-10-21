@@ -233,7 +233,7 @@ static ssize_t sysfs_show_version_info(struct kobject *kobj,
 	struct slsi_dev *sdev = slsi_get_sdev();
 	char build_id_fw[128] = {0};
 	char build_id_drv[64] = {0};
-	int buf_size = 256;
+	int buf_size = 512;
 
 #ifndef SLSI_TEST_DEV
 	mxman_get_fw_version(build_id_fw, 128);
@@ -245,12 +245,10 @@ static ssize_t sysfs_show_version_info(struct kobject *kobj,
 			"f/w_ver: %s\n"
 			"hcf_ver_hw: %s\n"
 			"hcf_ver_sw: %s\n"
-			"regDom_ver: %d.%d\n",
-			build_id_drv,
-			build_id_fw,
-			sdev->mib[0].platform,
-			sdev->mib[1].platform,
-			((sdev->reg_dom_version >> 8) & 0xFF), (sdev->reg_dom_version & 0xFF));
+			"regDom_ver: %d.%d.%d\n",
+			build_id_drv, build_id_fw, sdev->mib[0].platform, sdev->mib[1].platform,
+			(sdev->reg_dom_version >> 16) & 0xFF, (sdev->reg_dom_version >> 8) & 0xFF,
+			sdev->reg_dom_version & 0xFF);
 }
 
 /* Register sysfs version information */
@@ -307,15 +305,26 @@ static ssize_t sysfs_store_debugdump(struct kobject *kobj,
 	int r;
 	struct slsi_dev *sdev = slsi_get_sdev();
 
+	if (!sdev) {
+		SLSI_INFO_NODEV("sdev is NULL can't proceed\n");
+		return count;
+	}
+
 	r = kstrtoint(buf, 10, &dump_in_progress);
-	if (r < 0)
+	if (r < 0) {
+		SLSI_INFO_NODEV("kstrtoint error:%d buf:%c\n", r, buf[0]);
 		dump_in_progress = 0;
+		return count;
+	}
 
 	SLSI_INFO_NODEV("dump_in_progress: %d\n", dump_in_progress);
+	if (dump_in_progress != 1) {
+		dump_in_progress = 0;
+		return count;
+	}
 
 	queue_work(sdev->device_wq, &sdev->chipset_logging_work);
 	return (r == 0) ? count : 0;
-
 }
 
 /* Register sysfs debug dump IMP buffer */
@@ -614,19 +623,15 @@ static void write_wifi_version_info_file(struct slsi_dev *sdev)
 		 "f/w_ver: %s\n"
 		 "hcf_ver_hw: %s\n"
 		 "hcf_ver_sw: %s\n"
-		 "regDom_ver: %d.%d\n",
-		 build_id_drv,
-		 build_id_fw,
-		 sdev->mib[0].platform,
-		 sdev->mib[1].platform,
-		 ((sdev->reg_dom_version >> 8) & 0xFF), (sdev->reg_dom_version & 0xFF));
+		 "regDom_ver: %d.%d.%d\n",
+		 build_id_drv, build_id_fw, sdev->mib[0].platform, sdev->mib[1].platform,
+		 (sdev->reg_dom_version >> 16) & 0xFF, (sdev->reg_dom_version >> 8) & 0xFF,
+		 sdev->reg_dom_version & 0xFF);
 #else
 	/* O-OS, or unknown */
-	snprintf(buf, sizeof(buf),
-		 "%s (f/w_ver: %s)\nregDom_ver: %d.%d\n",
-		 build_id_drv,
-		 build_id_fw,
-		 ((sdev->reg_dom_version >> 8) & 0xFF), (sdev->reg_dom_version & 0xFF));
+	snprintf(buf, sizeof(buf), "%s (f/w_ver: %s)\nregDom_ver: %d.%d.%d\n", build_id_drv, build_id_fw,
+		 (sdev->reg_dom_version >> 16) & 0xFF, (sdev->reg_dom_version >> 8) & 0xFF,
+		 sdev->reg_dom_version & 0xFF);
 #endif
 
 /* If SCSC_SEP_VERSION is not known, avoid writing the file, as it could go to the wrong
@@ -1032,7 +1037,9 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 
 	slsi_kic_system_event(slsi_kic_system_event_category_initialisation,
 			      slsi_kic_system_events_wifi_service_driver_started, GFP_KERNEL);
-
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_tas_notify_wifi_status(true);
+#endif
 	return err;
 
 err_hip_started:
@@ -1158,6 +1165,9 @@ void slsi_stop_chip(struct slsi_dev *sdev)
 	slsi_kic_system_event(slsi_kic_system_event_category_deinitialisation,
 			      slsi_kic_system_events_wifi_off, GFP_KERNEL);
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_tas_notify_wifi_status(false);
+#endif
 #if !defined(CONFIG_SCSC_WLAN_TX_API) && defined(CONFIG_SCSC_WLAN_ARP_FLOW_CONTROL)
 	if (atomic_read(&sdev->ctrl_pause_state))
 		scsc_wifi_unpause_arp_q_all_vif(sdev);
@@ -1944,6 +1954,18 @@ static void slsi_get_ht_vht_capabilities(struct slsi_dev *sdev, struct slsi_mib_
 	}
 }
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+static void slsi_tas_get_config(struct slsi_dev *sdev, struct slsi_mib_value *values, int *mib_index)
+{
+	struct slsi_tas_info *tas_info = &sdev->tas_info;
+
+	if (values[++*mib_index].type != SLSI_MIB_TYPE_NONE)
+		tas_info->sar_compliance = values[*mib_index].u.uintValue;
+	else
+		SLSI_ERR(sdev, "SAR reading SAR Compliance\n");
+}
+#endif
+
 static int slsi_get_mib_entry_value(struct slsi_dev *sdev, struct slsi_mib_value *values)
 {
 	int mib_index = 0;
@@ -2137,9 +2159,17 @@ static int slsi_get_mib_entry_value(struct slsi_dev *sdev, struct slsi_mib_value
 	} else {
 		SLSI_WARN(sdev, "Error reading mib UnifiSaeDwellTime\n");
 	}
+
+#if defined(CONFIG_SCSC_WLAN_TAS)
+	slsi_tas_get_config(sdev, values, &mib_index);
+#endif
 	return r;
 }
 
+#if defined(CONFIG_SCSC_WLAN_TAS)
+/* TODO: To be removed here after autogen */
+#define SLSI_PSID_UNIFI_SAR_ALLOWANCE 6222
+#endif
 static int slsi_mib_initial_get(struct slsi_dev *sdev)
 {
 	struct slsi_mib_data mibreq = { 0, NULL };
@@ -2148,50 +2178,55 @@ static int slsi_mib_initial_get(struct slsi_dev *sdev)
 	int r;
 	struct slsi_mib_value *values;
 
-	static const struct slsi_mib_get_entry get_values[] = {{ SLSI_PSID_UNIFI_CHIP_VERSION,            { 0, 0 } },
-							       { SLSI_PSID_UNIFI_SUPPORTED_CHANNELS,      { 0, 0 } },
-							       { SLSI_PSID_UNIFI_HT_ACTIVATED, {0, 0} },
-							       { SLSI_PSID_UNIFI_VHT_ACTIVATED, {0, 0} },
-							       { SLSI_PSID_UNIFI_HT_CAPABILITIES, {0, 0} },
-							       { SLSI_PSID_UNIFI_VHT_CAPABILITIES, {0, 0} },
-							       { SLSI_PSID_UNIFI_HARDWARE_PLATFORM, {0, 0} },
-							       { SLSI_PSID_UNIFI_NAN_ACTIVATED, {0, 0} },
-							       { SLSI_PSID_UNIFI_DEFAULT_DWELL_TIME, {0, 0} },
+	static const struct slsi_mib_get_entry get_values[] = {
+		{ SLSI_PSID_UNIFI_CHIP_VERSION,            { 0, 0 } },
+		{ SLSI_PSID_UNIFI_SUPPORTED_CHANNELS,      { 0, 0 } },
+		{ SLSI_PSID_UNIFI_HT_ACTIVATED, {0, 0} },
+		{ SLSI_PSID_UNIFI_VHT_ACTIVATED, {0, 0} },
+		{ SLSI_PSID_UNIFI_HT_CAPABILITIES, {0, 0} },
+		{ SLSI_PSID_UNIFI_VHT_CAPABILITIES, {0, 0} },
+		{ SLSI_PSID_UNIFI_HARDWARE_PLATFORM, {0, 0} },
+		{ SLSI_PSID_UNIFI_NAN_ACTIVATED, {0, 0} },
+		{ SLSI_PSID_UNIFI_DEFAULT_DWELL_TIME, {0, 0} },
 #ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-							       { SLSI_PSID_UNIFI_WI_FI_SHARING5_GHZ_CHANNEL, {0, 0} },
+		{ SLSI_PSID_UNIFI_WI_FI_SHARING5_GHZ_CHANNEL, {0, 0} },
 #endif
-							       { SLSI_PSID_UNIFI_DUAL_BAND_CONCURRENCY, {0, 0} },
+		{ SLSI_PSID_UNIFI_DUAL_BAND_CONCURRENCY, {0, 0} },
 #ifdef SCSC_SEP_VERSION
-							       { SLSI_PSID_UNIFI_MAX_CLIENT, {0, 0} },
+		{ SLSI_PSID_UNIFI_MAX_CLIENT, {0, 0} },
 #endif
 #ifdef CONFIG_SCSC_WLAN_ENABLE_MAC_RANDOMISATION
-							       { SLSI_PSID_UNIFI_MAC_ADDRESS_RANDOMISATION, {0, 0} },
+		{ SLSI_PSID_UNIFI_MAC_ADDRESS_RANDOMISATION, {0, 0} },
 #endif
-							       { SLSI_PSID_UNIFI_DEFAULT_COUNTRY_WITHOUT_CH12_CH13, {0, 0} },
+		{ SLSI_PSID_UNIFI_DEFAULT_COUNTRY_WITHOUT_CH12_CH13, {0, 0} },
 #ifdef CONFIG_SCSC_WLAN_STA_ENHANCED_ARP_DETECT
-							       { SLSI_PSID_UNIFI_ARP_DETECT_ACTIVATED, {0, 0} },
+		{ SLSI_PSID_UNIFI_ARP_DETECT_ACTIVATED, {0, 0} },
 #endif
 #if !defined(CONFIG_SCSC_WLAN_TX_API) && defined(CONFIG_SCSC_WLAN_ARP_FLOW_CONTROL)
-							       { SLSI_PSID_UNIFI_ARP_OUTSTANDING_MAX, {0, 0} },
+		{ SLSI_PSID_UNIFI_ARP_OUTSTANDING_MAX, {0, 0} },
 #endif
-							       { SLSI_PSID_UNIFI_APF_ACTIVATED, {0, 0} },
-							       { SLSI_PSID_UNIFI_SOFT_AP40_MHZ_ON24G, {0, 0} },
-							       { SLSI_PSID_UNIFI_MAX_NUM_ANTENNA_TO_USE, {0, 0} },
-							       { SLSI_PSID_UNIFI_EXTENDED_CAPABILITIES, {0, 0} },
-							       { SLSI_PSID_UNIFI_IGMP_OFFLOAD_ACTIVATED, {0, 0} },
+		{ SLSI_PSID_UNIFI_APF_ACTIVATED, {0, 0} },
+		{ SLSI_PSID_UNIFI_SOFT_AP40_MHZ_ON24G, {0, 0} },
+		{ SLSI_PSID_UNIFI_MAX_NUM_ANTENNA_TO_USE, {0, 0} },
+		{ SLSI_PSID_UNIFI_EXTENDED_CAPABILITIES, {0, 0} },
+		{ SLSI_PSID_UNIFI_IGMP_OFFLOAD_ACTIVATED, {0, 0} },
 #ifdef CONFIG_SCSC_WLAN_SUPPORT_6G
-							       { SLSI_PSID_UNIFI6_GHZ_ENABLED, {0, 0} },
-							       { SLSI_PSID_UNIFI_HE6_GHZ_BAND_CAPABILITIES, {0, 0} },
-							       { SLSI_PSID_UNIFI_HE_CAPABILITIES_SOFT_AP, {0, 0} },
+		{ SLSI_PSID_UNIFI6_GHZ_ENABLED, {0, 0} },
+		{ SLSI_PSID_UNIFI_HE6_GHZ_BAND_CAPABILITIES, {0, 0} },
+		{ SLSI_PSID_UNIFI_HE_CAPABILITIES_SOFT_AP, {0, 0} },
 #endif
-							       { SLSI_PSID_UNIFI_SAE_DWELL_TIME, {0, 0} },
-							      };/*Check the mibrsp.dataLength when a new mib is added*/
+		{ SLSI_PSID_UNIFI_SAE_DWELL_TIME, {0, 0} },
+#if defined(CONFIG_SCSC_WLAN_TAS)
+		{ SLSI_PSID_UNIFI_SAR_ALLOWANCE, {0, 0} },
+#endif
+
+	};/*Check the mibrsp.dataLength when a new mib is added*/
 
 	r = slsi_mib_encode_get_list(&mibreq, sizeof(get_values) / sizeof(struct slsi_mib_get_entry), get_values);
 	if (r != SLSI_MIB_STATUS_SUCCESS)
 		return -ENOMEM;
 
-	mibrsp.dataLength = 270;
+	mibrsp.dataLength = 280;
 	mibrsp.data = kmalloc(mibrsp.dataLength, GFP_KERNEL);
 	if (!mibrsp.data) {
 		kfree(mibreq.data);
@@ -3262,8 +3297,11 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 		memset(ndev_vif->sta.keepalive_host_tag, 0, sizeof(ndev_vif->sta.keepalive_host_tag));
 
 		/* delete the TSPEC entries (if any) if it is a STA vif */
-		if (ndev_vif->iftype == NL80211_IFTYPE_STATION)
+		if (ndev_vif->iftype == NL80211_IFTYPE_STATION){
+			SLSI_MUTEX_LOCK(sdev->tspec_mutex);
 			cac_delete_tspec_list(sdev);
+			SLSI_MUTEX_UNLOCK(sdev->tspec_mutex);
+		}
 
 		if (ndev_vif->sta.tdls_enabled)
 			WLBT_WARN(ndev_vif->sta.tdls_peer_sta_records, "vif:%d, tdls_peer_sta_records:%d", ndev_vif->ifnum, ndev_vif->sta.tdls_peer_sta_records);
@@ -3379,6 +3417,20 @@ int slsi_sta_ieee80211_mode(struct net_device *dev, u16 current_bss_channel_freq
 	struct netdev_vif    *ndev_vif = netdev_priv(dev);
 	const u8             *ie;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0))
+	ie = (u8*)cfg80211_find_ext_elem(WLAN_EID_EXT_EHT_OPERATION, ndev_vif->sta.sta_bss->ies->data,
+					 ndev_vif->sta.sta_bss->ies->len);
+	if (ie)
+		return SLSI_80211_MODE_11BE;
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+	ie = (u8*)cfg80211_find_ext_elem(WLAN_EID_EXT_HE_OPERATION, ndev_vif->sta.sta_bss->ies->data,
+					 ndev_vif->sta.sta_bss->ies->len);
+	if (ie)
+		return SLSI_80211_MODE_11AX;
+#endif
+
 	ie = cfg80211_find_ie(WLAN_EID_VHT_OPERATION, ndev_vif->sta.sta_bss->ies->data,
 			      ndev_vif->sta.sta_bss->ies->len);
 	if (ie)
@@ -3406,7 +3458,7 @@ int slsi_populate_bss_record(struct net_device *dev)
 	const u8                 *ie, *ext_capab, *rm_capab, *ext_data, *rm_data, *bss_load;
 	int                      ext_capab_ie_len, rm_capab_ie_len;
 	bool                     neighbor_report_bit = 0, btm = 0;
-	u16                                     fw_tx_rate;
+	u32                      fw_tx_rate;
 	struct slsi_mib_get_entry get_values[] = { { SLSI_PSID_UNIFI_CURRENT_BSS_CHANNEL_FREQUENCY, { 0, 0 } },
 							       { SLSI_PSID_UNIFI_CURRENT_BSS_BANDWIDTH, { 0, 0 } },
 							       { SLSI_PSID_UNIFI_CURRENT_BSS_NSS, {0, 0} },
@@ -3474,7 +3526,7 @@ int slsi_populate_bss_record(struct net_device *dev)
 	if (values[7].type != SLSI_MIB_TYPE_NONE) {    /* TX_DATA_RATE */
 		SLSI_CHECK_TYPE(sdev, values[7].type, SLSI_MIB_TYPE_UINT);
 		fw_tx_rate = values[7].u.uintValue;
-		slsi_decode_fw_rate((u32)fw_tx_rate, NULL,
+		slsi_decode_fw_rate(fw_tx_rate, NULL,
 				    (unsigned long *)(&ndev_vif->sta.last_connected_bss.tx_data_rate));
 	}
 
@@ -3586,6 +3638,10 @@ static int slsi_fill_ap_sta_info_from_peer(struct net_device *dev,
 	int                  i = 0;
 	const u8             *supported_oper_class_ie = NULL;
 
+	if (!peer || !peer->assoc_ie) {
+		SLSI_ERR(sdev, "peer or peer->assoc_ie is null\n");
+		return -EINVAL;
+	}
 	ap_sta_info->support_mode = SLSI_MODE_LEGACY_HT;
 #if (KERNEL_VERSION(5, 0, 0) <= LINUX_VERSION_CODE)
 	if (cfg80211_find_ext_ie(WLAN_EID_EXT_HE_CAPABILITY, peer->assoc_ie->data,
@@ -3636,39 +3692,56 @@ skip_supported_band:
 	if (ndev_vif->ap.mode == SLSI_80211_MODE_11AC) { /*AP supports VHT*/
 		peer_ie = cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, peer->assoc_ie->data,
 					   peer->assoc_ie->len);
-		if (peer_ie)
-			return SLSI_80211_MODE_11AC;
+		if (peer_ie) {
+			ap_sta_info->mode = SLSI_80211_MODE_11AC;
+			return 0;
+		}
 
 		peer_ie = cfg80211_find_ie(WLAN_EID_HT_CAPABILITY, peer->assoc_ie->data,
 					   peer->assoc_ie->len);
-		if (peer_ie)
-			return SLSI_80211_MODE_11N;
-		return  SLSI_80211_MODE_11A;
+		if (peer_ie) {
+			ap_sta_info->mode = SLSI_80211_MODE_11N;
+			return 0;
+		}
+
+		ap_sta_info->mode = SLSI_80211_MODE_11A;
+		return 0;
 	}
 	if (ndev_vif->ap.mode == SLSI_80211_MODE_11N) { /*AP supports HT*/
 		peer_ie = cfg80211_find_ie(WLAN_EID_HT_CAPABILITY, peer->assoc_ie->data,
 					   peer->assoc_ie->len);
-		if (peer_ie)
-			return SLSI_80211_MODE_11N;
-		if (ndev_vif->ap.channel_freq > 5000)
-			return SLSI_80211_MODE_11A;
+		if (peer_ie) {
+			ap_sta_info->mode = SLSI_80211_MODE_11N;
+			return 0;
+		}
+		if (ndev_vif->ap.channel_freq > 5000) {
+			ap_sta_info->mode = SLSI_80211_MODE_11A;
+			return 0;
+		}
 		peer_ie = cfg80211_find_ie(WLAN_EID_SUPP_RATES, peer->assoc_ie->data,
 					   peer->assoc_ie->len);
-		if (peer_ie)
-			return slsi_get_supported_mode(peer_ie);
+		if (peer_ie) {
+			ap_sta_info->mode = slsi_get_supported_mode(peer_ie);
+			return 0;
+		}
 	}
 
-	if (ndev_vif->ap.channel_freq > 5000)
-		return SLSI_80211_MODE_11A;
+	if (ndev_vif->ap.channel_freq > 5000) {
+		ap_sta_info->mode = SLSI_80211_MODE_11A;
+		return 0;
+	}
 
 	if (ndev_vif->ap.mode == SLSI_80211_MODE_11G) {	/*AP supports 11g mode */
 		peer_ie = cfg80211_find_ie(WLAN_EID_SUPP_RATES, peer->assoc_ie->data,
 					   peer->assoc_ie->len);
-		if (peer_ie)
-			return slsi_get_supported_mode(peer_ie);
+		if (peer_ie) {
+			ap_sta_info->mode = slsi_get_supported_mode(peer_ie);
+			return 0;
+		}
 	}
 
-	return SLSI_80211_MODE_11B;
+	ap_sta_info->mode = SLSI_80211_MODE_11B;
+	return 0;
 }
 
 /*TODO: define will be removed when autogen to be done*/
@@ -3727,7 +3800,7 @@ int slsi_fill_ap_sta_info(struct slsi_dev *sdev, struct net_device *dev,
 	struct slsi_peer          *sta_peer;
 	struct slsi_mib_data      mibrsp = { 0, NULL };
 	struct slsi_mib_value     *values = NULL;
-	u16                       fw_tx_rate;
+	u32                       fw_tx_rate;
 	struct slsi_mib_get_entry get_values[] = { { SLSI_PSID_UNIFI_PEER_BANDWIDTH, { 0, 0 } },
 						   { SLSI_PSID_UNIFI_CURRENT_PEER_NSS, {0, 0} },
 						   { SLSI_PSID_UNIFI_PEER_RSSI, { 0, 0 } },
@@ -3746,7 +3819,9 @@ int slsi_fill_ap_sta_info(struct slsi_dev *sdev, struct net_device *dev,
 		SLSI_NET_ERR(dev, "Peer not found\n");
 		return -EINVAL;
 	}
-	ap_sta_info->mode = slsi_fill_ap_sta_info_from_peer(dev, ap_sta_info, sta_peer);
+	if (slsi_fill_ap_sta_info_from_peer(dev, ap_sta_info, sta_peer))
+		return -EINVAL;
+
 	for (i = 0; i < ARRAY_SIZE(get_values); i++)
 		get_values[i].index[0] = sta_peer->aid;
 
@@ -3803,7 +3878,7 @@ int slsi_fill_ap_sta_info(struct slsi_dev *sdev, struct net_device *dev,
 	if (values[3].type != SLSI_MIB_TYPE_NONE) {    /* PEER_TX_DATA_RATE */
 		SLSI_CHECK_TYPE(sdev, values[3].type, SLSI_MIB_TYPE_UINT);
 		fw_tx_rate = values[3].u.uintValue;
-		slsi_decode_fw_rate((u32)fw_tx_rate, NULL,
+		slsi_decode_fw_rate(fw_tx_rate, NULL,
 				    (unsigned long *)&ap_sta_info->tx_data_rate);
 	}
 	if (values[4].type != SLSI_MIB_TYPE_NONE) {   /* PEER_RX_RETRY_COUNTS */
@@ -4549,7 +4624,7 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 	if (WLBT_WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WLBT_WARN_ON(!peer))
+	if (WLBT_WARN_ON(!peer) || WLBT_WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	if (slsi_is_proxy_arp_supported_on_ap(peer->assoc_resp_ie))
@@ -4903,7 +4978,7 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WLBT_WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WLBT_WARN_ON(!peer))
+	if (WLBT_WARN_ON(!peer) || WLBT_WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "Clear filters on Screen on");
@@ -5039,10 +5114,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WLBT_WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return;
 
-	if (WLBT_WARN_ON(!peer))
-		return;
-
-	if (WLBT_WARN_ON(!peer->assoc_resp_ie))
+	if (WLBT_WARN_ON(!peer) || WLBT_WARN_ON(!peer->assoc_resp_ie))
 		return;
 
 #if !(IS_ENABLED(CONFIG_IPV6))
@@ -6221,6 +6293,11 @@ void slsi_roam_channel_cache_add(struct slsi_dev *sdev, struct net_device *dev, 
 		else
 			chan = ieee80211_frequency_to_channel(freq);
 		band = NL80211_BAND_2GHZ;
+
+		if (!ieee80211_channel_to_frequency(chan, band)) {
+			SLSI_ERR(sdev, "Channel [%d] is invalid\n", chan);
+			return;
+		}
 	} else {
 		struct ieee80211_channel *channel = NULL;
 
@@ -8106,10 +8183,10 @@ void slsi_wakeup_time_work(struct work_struct *work)
 	memset(&sdev->resume_tm, 0, sizeof(struct rtc_time));
 	if (slsi_hip_wlan_get_rtc_time(&sdev->resume_tm))
 		SLSI_ERR_NODEV("Error reading rtc\n");
-	SLSI_DBG3(sdev, SLSI_PM, "Last_Suspend_Time : %ld-%02d-%02d %02d:%02d:%02d\n",
+	SLSI_DBG3(sdev, SLSI_RX, "Last_Suspend_Time : %ld-%02d-%02d %02d:%02d:%02d\n",
 		  sdev->suspend_tm.tm_year + 1900, sdev->suspend_tm.tm_mon, sdev->suspend_tm.tm_mday,
 		  sdev->suspend_tm.tm_hour, sdev->suspend_tm.tm_min, sdev->suspend_tm.tm_sec);
-	SLSI_DBG3(sdev, SLSI_PM, "Wakeup_Time : %ld-%02d-%02d %02d:%02d:%02d\n",
+	SLSI_DBG3(sdev, SLSI_RX, "Wakeup_Time : %ld-%02d-%02d %02d:%02d:%02d\n",
 		  sdev->resume_tm.tm_year + 1900, sdev->resume_tm.tm_mon, sdev->resume_tm.tm_mday,
 		  sdev->resume_tm.tm_hour, sdev->resume_tm.tm_min, sdev->resume_tm.tm_sec);
 }
@@ -8554,7 +8631,9 @@ void slsi_rx_update_wake_stats(struct slsi_dev *sdev, struct ethhdr *ehdr, size_
 	struct slsi_wlan_driver_wake_reason_cnt *wake_reason_count = &sdev->wake_reason_stats;
 
 	sdev->data_wakeup_count++;
-	SLSI_DBG3(sdev, SLSI_PM, "Wakeup by DATA frame Count : %d\n", sdev->data_wakeup_count);
+	SLSI_DBG3(sdev, SLSI_PM, "Wakeup by DATA frame Count : %d, Wakeup_Time : %ld-%02d-%02d %02d:%02d:%02d\n", sdev->data_wakeup_count,
+		      sdev->resume_tm.tm_year + 1900, sdev->resume_tm.tm_mon, sdev->resume_tm.tm_mday,
+		      sdev->resume_tm.tm_hour, sdev->resume_tm.tm_min, sdev->resume_tm.tm_sec);
 
 	slsi_spinlock_lock(&sdev->wake_stats_lock);
 	wake_reason_count->total_rx_data_wake++;
@@ -8562,10 +8641,10 @@ void slsi_rx_update_wake_stats(struct slsi_dev *sdev, struct ethhdr *ehdr, size_
 		goto exit;
 	if (is_broadcast_ether_addr(ehdr->h_dest)) {
 		wake_reason_count->rx_wake_details.rx_broadcast_cnt++;
-		SLSI_DBG3(sdev, SLSI_PM, "Wakeup by broadcast rx data packet:%d\n", wake_reason_count->rx_wake_details.rx_broadcast_cnt);
+		SLSI_INFO(sdev, "Wakeup by broadcast rx data packet:%d\n", wake_reason_count->rx_wake_details.rx_broadcast_cnt);
 	}  else if (is_multicast_ether_addr(ehdr->h_dest)) {
 		wake_reason_count->rx_wake_details.rx_multicast_cnt++;
-		SLSI_DBG3(sdev, SLSI_PM, "Wakeup by multicast rx data packet:%d\n", wake_reason_count->rx_wake_details.rx_multicast_cnt);
+		SLSI_INFO(sdev, "Wakeup by multicast rx data packet:%d\n", wake_reason_count->rx_wake_details.rx_multicast_cnt);
 		if (be16_to_cpu(ehdr->h_proto) == ETH_P_IP)
 			wake_reason_count->rx_multicast_wake_pkt_info.ipv4_rx_multicast_addr_cnt++;
 		else if (be16_to_cpu(ehdr->h_proto) == ETH_P_IPV6)
@@ -8578,17 +8657,17 @@ void slsi_rx_update_wake_stats(struct slsi_dev *sdev, struct ethhdr *ehdr, size_
 	if (be16_to_cpu(ehdr->h_proto) == ETH_P_IP && buff_len - sizeof(struct ethhdr) >= sizeof(struct iphdr)) {
 		struct iphdr *ip = (struct iphdr *)(ehdr + 1);
 
-		SLSI_DBG3(sdev, SLSI_PM, "Wakeup by ip rx data packet protocol :%d\n", ip->protocol);
+		SLSI_INFO(sdev, "Wakeup by ip rx data packet protocol :%d\n", ip->protocol);
 		if (ip->protocol ==  IPPROTO_ICMP)
 			wake_reason_count->rx_wake_pkt_classification_info.icmp_pkt++;
 	} else if (be16_to_cpu(ehdr->h_proto) == ETH_P_IPV6 && buff_len - sizeof(struct ethhdr) >= sizeof(struct ipv6hdr)) {
 		struct ipv6hdr *ip = (struct ipv6hdr *)(ehdr + 1);
 
-		SLSI_DBG3(sdev, SLSI_PM, "Wakeup by ipv6 rx data packet next hdr:%d\n", ip->nexthdr);
+		SLSI_INFO(sdev, "Wakeup by ipv6 rx data packet next hdr:%d\n", ip->nexthdr);
 		if (ip->nexthdr == SLSI_ICMP6_PACKET) {
 			struct icmp6hdr *icmp6 = (struct icmp6hdr *)(ip + 1);
 
-			SLSI_DBG3(sdev, SLSI_PM, "Wakeup by icmpv6 rx data packet type:%d\n", icmp6->icmp6_type);
+			SLSI_INFO(sdev, "Wakeup by icmpv6 rx data packet type:%d\n", icmp6->icmp6_type);
 			wake_reason_count->rx_wake_pkt_classification_info.icmp6_pkt++;
 			if (buff_len - sizeof(struct ethhdr) - sizeof(struct ipv6hdr) < sizeof(struct icmp6hdr))
 				goto exit;
@@ -8656,6 +8735,8 @@ u8 *slsi_get_scan_extra_ies(struct slsi_dev *sdev, const u8 *ies, int total_len,
 	while (i < default_ie_len - 2) {
 		id = *(default_ies + i);
 		ie_len = *(default_ies + i + 1);
+		if (cur_len + ie_len + 2 > default_ie_len)
+			break;
 		if (!cfg80211_find_ie(id, ies, total_len)) {
 			memcpy(new_ies + cur_len, default_ies + i, ie_len + 2);
 			cur_len += (ie_len + 2);
@@ -8747,13 +8828,13 @@ int slsi_dump_eth_packet(struct slsi_dev *sdev, struct sk_buff *skb)
 			SLSI_INFO(sdev, "Invalid packet len\n");
 			return -EINVAL;
 		}
-		SCSC_BIN_TAG_INFO(BINARY, (u8 *)hdr + offset, remain_len > 2 * ETH_ALEN ? 2 * ETH_ALEN : remain_len);
+		SCSC_BIN_TAG_INFO(BIN_WIFI_PM, (u8 *)hdr + offset, remain_len > 2 * ETH_ALEN ? 2 * ETH_ALEN : remain_len);
 
 		offset += 2 * ETH_ALEN + LLC_SNAP_HDR_LEN;
 	} else {
 		SLSI_DBG4(sdev, SLSI_RX, "Packet is MSDU offset:%d\n", offset);
-		SCSC_BIN_TAG_INFO(BINARY, ieee80211_get_DA(hdr), ETH_ALEN);
-		SCSC_BIN_TAG_INFO(BINARY, ieee80211_get_SA(hdr), ETH_ALEN);
+		SCSC_BIN_TAG_INFO(BIN_WIFI_PM, ieee80211_get_DA(hdr), ETH_ALEN);
+		SCSC_BIN_TAG_INFO(BIN_WIFI_PM, ieee80211_get_SA(hdr), ETH_ALEN);
 
 		offset += LLC_SNAP_HDR_LEN - 2;
 	}

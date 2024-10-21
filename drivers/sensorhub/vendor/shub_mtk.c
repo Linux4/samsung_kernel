@@ -24,6 +24,11 @@
 #include <linux/notifier.h>
 #include <linux/version.h>
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#include "../../misc/mediatek/scp/rv/scp_helper.h"
+#include "../../misc/mediatek/scp/rv/scp_scpctl.h"
+#endif
+
 #define IPI_SHUB	    IPI_SENSOR
 #define IPI_DMA_LEN 8
 
@@ -62,7 +67,7 @@ static int notify_scp_state(struct notifier_block *this, unsigned long event, vo
 {
 	unsigned long flags = 0;
 
-	shub_infof("notify event %d", event);
+	shub_infof("notify event %lu", event);
 
 	if (event == SCP_EVENT_STOP) { // 1
 		spin_lock_irqsave(&scp_state_lock, flags);
@@ -112,7 +117,7 @@ static int shub_dump_notifier(struct notifier_block *nb, unsigned long val, void
 	struct shub_data_t *shub_data = get_shub_data();
 	struct shub_dump *dump_data = (struct shub_dump *)data;
 
-	shub_infof("ram_dump : %x mini_dump : %x", dump_data->dump, dump_data->mini_dump);
+	shub_infof("ram_dump : %p mini_dump : %p", dump_data->dump, dump_data->mini_dump);
 	shub_dump_write_file(dump_data->dump, dump_data->size);
 	memcpy(shub_data->mini_dump, dump_data->mini_dump, MINI_DUMP_LENGTH);
 	return 0;
@@ -130,6 +135,8 @@ int sensorhub_probe(void)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 	shub_dump_notifier_register(&shub_dump_nb);
 #endif
+
+	enable_sensor_vdd();
 	return 0;
 }
 
@@ -193,6 +200,20 @@ bool sensorhub_is_working(void)
 
 int sensorhub_reset(void)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+	int ret;
+	struct scpctl_cmd_s cmd;
+
+	cmd.type = SCPCTL_DEBUG_LOGIN;
+	cmd.op = SCP_DEBUG_MAGIC_PATTERN;
+
+	ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_SCPCTL_1, 0, &cmd, PIN_OUT_SIZE_SCPCTL_1, 0);
+
+	if (ret != IPI_ACTION_DONE)
+		pr_notice("sending ipi failed, %d\n", ret);
+
+	mdelay(10);
+#endif
 	scp_wdt_reset(SCP_A_ID);
 	return 0;
 }

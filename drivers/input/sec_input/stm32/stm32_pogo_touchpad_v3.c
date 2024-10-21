@@ -144,7 +144,7 @@ struct stm32_touchpad_dev {
 	bool btn_area_flag[STM32_TOUCH_MAX_FINGER_NUM];
 	struct stm32_edge_touch edge_touch[STM32_TOUCH_MAX_FINGER_NUM];
 	struct stm32_edge_touch coord[STM32_TOUCH_MAX_FINGER_NUM];
-	u32 support_keyboard_model[3];
+	u32 support_keyboard_model[KDB_SUPPORT_MODEL_CNT];
 };
 
 extern void pogo_get_tc_resolution(int *x, int *y);
@@ -654,11 +654,13 @@ static int stm32_touchpad_set_input_dev(struct stm32_touchpad_dev *device_data)
 
 static bool stm32_touchpad_check_input_dev(struct stm32_touchpad_dev *device_data, struct pogo_data_struct pogo_data)
 {
-	if (pogo_data.keyboard_model == device_data->support_keyboard_model[0] ||
-		pogo_data.keyboard_model == device_data->support_keyboard_model[1] ||
-		pogo_data.keyboard_model == device_data->support_keyboard_model[2])
-		return true;
-	else if (pogo_data.keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL)
+	int i = 0;
+
+	for (i = 0; i < KDB_SUPPORT_MODEL_CNT; i++)
+		if (pogo_data.keyboard_model == device_data->support_keyboard_model[i])
+			return true;
+
+	if (pogo_data.keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL)
 		return true;
 	else
 		return false;

@@ -78,6 +78,7 @@ unsigned int get_resource_size(struct resinfo *res);
 int copy_resource(u8 *dst, struct resinfo *res);
 int copy_resource_slice(u8 *dst, struct resinfo *res, u32 offset, u32 len);
 void set_resource_state(struct resinfo *res, int state);
+int snprintf_resource_data(char *buf, size_t size, struct resinfo *res);
 int snprintf_resource(char *buf, size_t size, struct resinfo *res);
 void print_resource(struct resinfo *res);
 bool is_valid_resource(struct resinfo *res);

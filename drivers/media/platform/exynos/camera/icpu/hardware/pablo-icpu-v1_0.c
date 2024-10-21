@@ -188,12 +188,12 @@ static int __wait_wfi_state_timeout(void __iomem *base_addr, u32 timeout_ms)
 	return ret;
 }
 
-static void __force_powerdown(u32 num_step, struct icpu_io_sequence *seq)
+static void __set_reg_sequence(u32 num_step, struct icpu_io_sequence *seq)
 {
 	int ret;
 	int i;
 
-	ICPU_INFO("Enter force powerdown sequence");
+	ICPU_INFO("E\n");
 
 	for (i = 0; i < num_step; i++) {
 		if (seq[i].type == 0) {
@@ -209,7 +209,7 @@ static void __force_powerdown(u32 num_step, struct icpu_io_sequence *seq)
 		}
 	}
 
-	ICPU_INFO("Exit force powerdown sequence");
+	ICPU_INFO("E\n");
 }
 
 static void __panic_handler(void __iomem *sysctrl_base)
@@ -254,7 +254,7 @@ void icpu_hw_init(struct icpu_hw *hw)
 #endif
 	hw->reset = __set_icpu_reset;
 	hw->wait_wfi_state_timeout = __wait_wfi_state_timeout;
-	hw->force_powerdown = __force_powerdown;
+	hw->set_reg_sequence = __set_reg_sequence;
 	hw->panic_handler = __panic_handler;
 	hw->set_debug_reg = __set_debug_reg;
 

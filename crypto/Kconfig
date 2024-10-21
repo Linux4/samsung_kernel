@@ -33,6 +33,28 @@ config CRYPTO_FIPS
 	  certification.  You should say no unless you know what
 	  this is.
 
+config CRYPTO_SKC_FIPS
+	bool "FIPS 140-3 compliance"
+	select CRYPTO_HMAC
+	select CRYPTO_SHA512
+	select CRYPTO_SHA256
+	select CRYPTO_SHA1
+	select CRYPTO_ECB
+	select CRYPTO_CBC
+	select CRYPTO_GCM
+	select CRYPTO_AUTHENC
+	select CRYPTO_DRBG_HMAC
+	select CRYPTO_JITTERENTROPY
+	select CRYPTO_SEQIV
+	select CRYPTO_ECHAINIV
+	select CRYPTO_SHA1_ARM64_CE
+	select CRYPTO_SHA2_ARM64_CE
+	select CRYPTO_AES_ARM64_CE_BLK
+
+	help
+	  This option enables FIPS 140-3 capability which meets
+	  CMVP requirement.
+
 # CRYPTO_FIPS140 just enables the support in the kernel for loading fips140.ko.
 # The module still needs to be built and loaded if you need FIPS 140 compliance.
 config CRYPTO_FIPS140
@@ -232,7 +254,7 @@ config CRYPTO_AUTHENC
 
 config CRYPTO_TEST
 	tristate "Testing module"
-	depends on m || EXPERT
+	default n
 	select CRYPTO_MANAGER
 	help
 	  Quick & dirty crypto test module.

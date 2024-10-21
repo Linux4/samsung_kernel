@@ -102,10 +102,25 @@ static void cma_clear_bitmap(struct cma *cma, unsigned long pfn,
 	spin_unlock_irqrestore(&cma->lock, flags);
 }
 
+static const char *skipped_activate_name[] = {
+	"vframe",
+	"vscaler",
+	"gpu_buffer",
+};
+
 static void __init cma_activate_area(struct cma *cma)
 {
 	unsigned long base_pfn = cma->base_pfn, pfn;
 	struct zone *zone;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(skipped_activate_name); i++) {
+		if (!strcmp(skipped_activate_name[i], cma->name)) {
+			snprintf(cma->name,
+				 sizeof(cma->name), "empty_%s", skipped_activate_name[i]);
+			goto skip_activate;
+		}
+	}
 
 	cma->bitmap = bitmap_zalloc(cma_bitmap_maxno(cma), GFP_KERNEL);
 	if (!cma->bitmap)
@@ -140,12 +155,13 @@ static void __init cma_activate_area(struct cma *cma)
 not_in_zone:
 	bitmap_free(cma->bitmap);
 out_error:
+	pr_err("CMA area %s could not be activated\n", cma->name);
+skip_activate:
 	/* Expose all pages to the buddy, they are useless for CMA. */
 	for (pfn = base_pfn; pfn < base_pfn + cma->count; pfn++)
 		free_reserved_page(pfn_to_page(pfn));
 	totalcma_pages -= cma->count;
 	cma->count = 0;
-	pr_err("CMA area %s could not be activated\n", cma->name);
 	return;
 }
 
@@ -441,6 +457,12 @@ struct page *cma_alloc(struct cma *cma, unsigned long count,
 	int ret = -ENOMEM;
 	int num_attempts = 0;
 	int max_retries = 5;
+	bool bypass = false;
+
+	trace_android_vh_cma_alloc_bypass(cma, count, align, no_warn,
+				&page, &bypass);
+	if (bypass)
+		return page;
 
 	if (!cma || !cma->count || !cma->bitmap)
 		goto out;

@@ -405,6 +405,11 @@ static inline struct io_device *link_get_iod_with_format(
 static inline struct io_device *get_iod_with_channel(
 			struct modem_shared *msd, unsigned int channel)
 {
+	if (channel > EXYNOS_CH_ID_MAX) {
+		mif_err("ERR - channel number too large(Max 255)\n");
+		return NULL;
+	}
+
 	return msd->ch2iod[channel];
 }
 

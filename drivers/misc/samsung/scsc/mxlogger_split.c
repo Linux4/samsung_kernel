@@ -358,20 +358,22 @@ static int __mxlogger_generate_sync_record(struct mxlogger *mxlogger, u8 channel
 #else
 	struct timeval t;
 #endif
-	struct mxlogger_channel *chan = &mxlogger->chan[channel];
+	struct mxlogger_channel *chan;
 	struct log_msg_packet msg = {};
 	unsigned long int jd;
 	void *mem;
 	ktime_t t1, t2;
 
-	if (!chan->enabled) {
-		SCSC_TAG_INFO(MXMAN, "Channel %s disabled\n", (chan->target == SCSC_MIF_ABS_TARGET_WPAN) ? "WPAN" : "WLAN");
-		return -EIO;
-	}
-
 	/* Assume mxlogger->lock mutex is held */
-	if (!mxlogger || !mxlogger->configured)
-		return -EIO;
+        if (!mxlogger || !mxlogger->configured)
+                return -EIO;
+
+	chan = &mxlogger->chan[channel];
+
+	if (!chan->enabled) {
+                SCSC_TAG_ERR(MXMAN, "Channel %s disabled\n", (chan->target == SCSC_MIF_ABS_TARGET_WPAN) ? "WPAN" : "WLAN");
+                return -EIO;
+        }
 
 	if (chan->target == SCSC_MIF_ABS_TARGET_WLAN)
 		mxmgmt_transport = scsc_mx_get_mxmgmt_transport(mxlogger->mx);

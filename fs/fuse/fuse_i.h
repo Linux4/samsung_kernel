@@ -83,7 +83,13 @@ struct fuse_dentry {
 		u64 time;
 		struct rcu_head rcu;
 	};
+
+#ifdef CONFIG_FUSE_BPF
 	struct path backing_path;
+
+	/* bpf program *only* set for negative dentries */
+	struct bpf_prog *bpf;
+#endif
 };
 
 static inline struct fuse_dentry *get_fuse_dentry(const struct dentry *entry)
@@ -1510,14 +1516,11 @@ void *fuse_link_finalize(struct fuse_bpf_args *fa, struct dentry *entry,
 			 struct inode *dir, struct dentry *newent);
 
 int fuse_release_initialize(struct fuse_bpf_args *fa, struct fuse_release_in *fri,
-			    struct inode *inode, struct file *file);
-int fuse_releasedir_initialize(struct fuse_bpf_args *fa,
-			struct fuse_release_in *fri,
-			struct inode *inode, struct file *file);
+			    struct inode *inode, struct fuse_file *ff);
 int fuse_release_backing(struct fuse_bpf_args *fa,
-			 struct inode *inode, struct file *file);
+			 struct inode *inode, struct fuse_file *ff);
 void *fuse_release_finalize(struct fuse_bpf_args *fa,
-			    struct inode *inode, struct file *file);
+			    struct inode *inode, struct fuse_file *ff);
 
 int fuse_flush_initialize(struct fuse_bpf_args *fa, struct fuse_flush_in *ffi,
 			  struct file *file, fl_owner_t id);
@@ -1641,6 +1644,9 @@ int fuse_file_write_iter_backing(struct fuse_bpf_args *fa,
 void *fuse_file_write_iter_finalize(struct fuse_bpf_args *fa,
 		struct kiocb *iocb, struct iov_iter *from);
 
+long fuse_backing_ioctl(struct file *file, unsigned int command, unsigned long arg, int flags);
+
+int fuse_file_flock_backing(struct file *file, int cmd, struct file_lock *fl);
 ssize_t fuse_backing_mmap(struct file *file, struct vm_area_struct *vma);
 
 int fuse_file_fallocate_initialize(struct fuse_bpf_args *fa,
@@ -1891,6 +1897,16 @@ void __exit fuse_bpf_cleanup(void);
 
 ssize_t fuse_bpf_simple_request(struct fuse_mount *fm, struct fuse_bpf_args *args);
 
+static inline int fuse_bpf_run(struct bpf_prog *prog, struct fuse_bpf_args *fba)
+{
+	int ret;
+
+	migrate_disable();
+	ret = bpf_prog_run(prog, fba);
+	migrate_enable();
+	return ret;
+}
+
 /*
  * expression statement to wrap the backing filter logic
  * struct inode *inode: inode with bpf and backing inode
@@ -1942,7 +1958,7 @@ ssize_t fuse_bpf_simple_request(struct fuse_mount *fm, struct fuse_bpf_args *arg
 		fa.out_numargs = fa.in_numargs;				\
 									\
 		ext_flags = fuse_inode->bpf ?				\
-			bpf_prog_run(fuse_inode->bpf, &fa) :		\
+			fuse_bpf_run(fuse_inode->bpf, &fa) :		\
 			FUSE_BPF_BACKING;				\
 		if (ext_flags < 0) {					\
 			fer = (struct fuse_err_ret) {			\
@@ -1997,7 +2013,7 @@ ssize_t fuse_bpf_simple_request(struct fuse_mount *fm, struct fuse_bpf_args *arg
 					.size = fa.out_args[i].size,	\
 					.value = fa.out_args[i].value,	\
 				};					\
-		ext_flags = bpf_prog_run(fuse_inode->bpf, &fa);		\
+		ext_flags = fuse_bpf_run(fuse_inode->bpf, &fa);		\
 		if (ext_flags < 0) {					\
 			fer = (struct fuse_err_ret) {			\
 				ERR_PTR(ext_flags),			\

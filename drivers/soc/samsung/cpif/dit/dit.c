@@ -2267,6 +2267,8 @@ static ssize_t debug_pktgen_ch_store(struct device *dev,
 	if (ret)
 		return -EINVAL;
 
+	mif_info("dc->pktgen_ch = %d, 0x%x\n", dc->pktgen_ch, dc->pktgen_ch);
+
 	dc->pktgen_ch = ch;
 
 	if (!dc->ld)

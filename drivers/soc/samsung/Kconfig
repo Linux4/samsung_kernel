@@ -201,6 +201,10 @@ config EXYNOS_PD
         depends on CAL_IF && CMUCAL
 	depends on PM
 	select PM_GENERIC_DOMAINS
+config EXYNOS_VTS_ALWAYS_ON
+	tristate "Exynos VTS domain always on"
+        depends on EXYNOS_PD
+	default n
 
 config EXYNOS_PD_DBG
 	tristate "Exynos PM domain Support"

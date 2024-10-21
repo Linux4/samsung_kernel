@@ -34,6 +34,7 @@
 typedef enum _sec_direct_chg_src {
 	SEC_CHARGING_SOURCE_SWITCHING = 0,
 	SEC_CHARGING_SOURCE_DIRECT,
+	SEC_CHARGING_SOURCE_NONE,
 } sec_direct_chg_src_t;
 
 typedef enum _sec_direct_chg_mode {
@@ -82,6 +83,7 @@ struct sec_direct_charger_platform_data {
 	int fpdo_dc_max_main_vbat;
 	int fpdo_dc_max_sub_vbat;
 #endif
+	bool chgen_over_swell_rechg_vol;
 };
 
 struct sec_direct_charger_info {
@@ -114,6 +116,7 @@ struct sec_direct_charger_info {
 	bool now_isApdo;
 	bool store_mode;
 	int vbat_min_src;
+	bool dc_rcp;
 
 	int bat_temp;
 

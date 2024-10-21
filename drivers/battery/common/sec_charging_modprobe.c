@@ -49,6 +49,9 @@ void sec_chg_check_modprobe(void)
 	check_dev |= SC_DEV_SB_MFC;
 #endif
 #endif
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+	check_dev |= SC_DEV_DUAL_FG;
+#endif
 
 	if (!wait_event_timeout(gdev_init.dev_wait,
 		gdev_init.dev == check_dev, msecs_to_jiffies(MODPROB_TIMEOUT)))

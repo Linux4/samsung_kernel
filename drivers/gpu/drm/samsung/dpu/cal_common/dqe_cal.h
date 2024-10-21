@@ -36,6 +36,7 @@ enum dqe_reg_type {
 	DQE_REG_DE,
 	DQE_REG_LPD,
 	DQE_REG_RCD,
+	DQE_REG_LINEAR_MATRIX,
 	DQE_REG_MAX,
 };
 

@@ -94,10 +94,12 @@ static struct sec_audio_log_data *p_debug_pmlog_data;
 static unsigned int debug_buff_switch;
 
 int aboxlog_file_opened;
+static DEFINE_MUTEX(aboxlog_file_lock);
 int half2_buff_use;
 #define ABOXLOG_BUFF_SIZE SZ_2M
 
 ssize_t aboxlog_file_index;
+static DEFINE_MUTEX(aboxlog_file_index_lock);
 struct abox_log_kernel_buffer {
 	char *buffer;
 	unsigned int index;
@@ -521,17 +523,22 @@ static int aboxhalflog_file_open(struct inode *inode, struct  file *file)
 {
 	pr_debug("%s\n", __func__);
 
+	mutex_lock(&aboxlog_file_lock);
 	if (aboxlog_file_opened) {
 		pr_err("%s: already opened\n", __func__);
+		mutex_unlock(&aboxlog_file_lock);
 		return -EBUSY;
 	}
 
 	aboxlog_file_opened = 1;
+	mutex_unlock(&aboxlog_file_lock);
 
+	mutex_lock(&aboxlog_file_index_lock);
 	if (read_half_buff_id == 0)
 		aboxlog_file_index = 0;
 	else
 		aboxlog_file_index = ABOXLOG_BUFF_SIZE / 2;
+	mutex_unlock(&aboxlog_file_index_lock);
 
 	return 0;
 }
@@ -540,7 +547,9 @@ static int aboxhalflog_file_release(struct inode *inode, struct file *file)
 {
 	pr_debug("%s\n", __func__);
 
+	mutex_lock(&aboxlog_file_lock);
 	aboxlog_file_opened = 0;
+	mutex_unlock(&aboxlog_file_lock);
 
 	return 0;
 }
@@ -558,8 +567,10 @@ static ssize_t aboxhalflog_file_read(struct file *file, char __user *user_buf,
 	else
 		end = ABOXLOG_BUFF_SIZE - 1;
 
+	mutex_lock(&aboxlog_file_index_lock);
 	if (aboxlog_file_index > end) {
 		pr_err("%s: read done\n", __func__);
+		mutex_unlock(&aboxlog_file_index_lock);
 		return copy_len;
 	}
 
@@ -570,9 +581,11 @@ static ssize_t aboxhalflog_file_read(struct file *file, char __user *user_buf,
 			copy_len);
 	if (ret) {
 		pr_err("%s: copy fail %d\n", __func__, (int) ret);
+		mutex_unlock(&aboxlog_file_index_lock);
 		return -EFAULT;
 	}
 	aboxlog_file_index += copy_len;
+	mutex_unlock(&aboxlog_file_index_lock);
 
 	return copy_len;
 }
@@ -762,11 +775,15 @@ err_aboxlog_data:
 	p_debug_aboxlog_data = NULL;
 
 err_pmlog_data:
+	if (p_debug_pmlog_data->sz_log_buff)
+		free_sec_audio_log(p_debug_pmlog_data);
 	kfree_const(p_debug_pmlog_data->name);
 	kfree(p_debug_pmlog_data);
 	p_debug_pmlog_data = NULL;
 
 err_bootlog_data:
+	if (p_debug_bootlog_data->sz_log_buff)
+		free_sec_audio_log(p_debug_bootlog_data);
 	kfree_const(p_debug_bootlog_data->name);
 	kfree(p_debug_bootlog_data);
 	p_debug_bootlog_data = NULL;

@@ -26,6 +26,9 @@ enum slsi_ac_index_wmm_pe {
 #define SLSI_WLAN_EID_INTERWORKING 107
 #define SLSI_WLAN_EID_EXTENSION 255
 
+/* Element ID Extension (EID 255) values */
+#define SLSI_WLAN_EID_EXT_OWE_DH_PARAM 32
+
 #define SLSI_WLAN_OUI_TYPE_WFA_HS20_IND 0x10
 #define SLSI_WLAN_OUI_TYPE_WFA_OSEN 0x12
 #define SLSI_WLAN_OUI_TYPE_WFA_MBO 0x16
@@ -231,6 +234,18 @@ struct ap_rps_params {
 #define SLSI_MLME_SUBTYPE_IPV4 0x01
 #define SLSI_MLME_SUBTYPE_IPV6 0x02
 #define SLSI_MLME_SUBTYPE_RESERVED 0x00
+
+#define SLSI_KEY_MGMT_PSK 0x000fac02
+#define SLSI_KEY_MGMT_PSK_SHA 0x000fac06
+#define SLSI_KEY_MGMT_FILS_SHA256 0x000fac0e
+#define SLSI_KEY_MGMT_FILS_SHA384 0x000fac0f
+#define SLSI_KEY_MGMT_FT_FILS_SHA256 0x000fac10
+#define SLSI_KEY_MGMT_FT_FILS_SHA384 0x000fac11
+#define SLSI_KEY_MGMT_OWE 0x000fac12
+#define SLSI_KEY_MGMT_OWE_REV 0x12ac0f00
+#define SLSI_KEY_MGMT_802_1X_SUITE_B_192 0x000fac0c
+#define SLSI_KEY_MGMT_802_1X_SUITE_B_192_REV 0x0cac0f00
+#define SLSI_KEY_MGMT_FT_802_1X_SHA384 0x000fac0d
 
 struct slsi_mlme_parameters {
 	u8 element_id;
@@ -492,5 +507,15 @@ void slsi_rx_send_frame_cfm_async(struct slsi_dev *sdev, struct net_device *dev,
 #endif
 #ifdef CONFIG_SCSC_WLAN_NUM_ANTENNAS
 int slsi_mlme_set_num_antennas(struct net_device *dev, const u16 num_of_antennas, int frame_type);
+#endif
+#if defined(CONFIG_SCSC_WLAN_TAS)
+#define SLSI_TAS_SET_CTRL_BACKOFF BIT(0)
+
+void slsi_mlme_tas_init(struct slsi_dev *sdev);
+void slsi_mlme_tas_deinit(struct slsi_dev *sdev);
+void slsi_mlme_tas_deferred_tx_sar_limit(struct slsi_dev *sdev);
+void slsi_mlme_tas_tx_sar_limit(struct slsi_dev *sdev, struct tas_sar_param *sar_param);
+void slsi_mlme_tas_set_tx_sar_limit(struct slsi_dev *sdev, bool deferred_req, struct tas_sar_param *sar_param);
+void slsi_mlme_tas_set_short_win_num(struct slsi_dev *sdev, struct tas_sar_param *sar_param);
 #endif
 #endif /*__SLSI_MLME_H__*/

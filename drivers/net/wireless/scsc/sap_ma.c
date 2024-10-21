@@ -967,6 +967,7 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 	/* Populate wake reason stats here */
 	if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
 		schedule_work(&sdev->wakeup_time_work);
+		skb->mark = SLSI_WAKEUP_PKT_MARK;
 		slsi_rx_update_wake_stats(sdev, eth_hdr, skb->len, skb);
 	}
 
@@ -1074,6 +1075,17 @@ static int slsi_rx_napi_process(struct slsi_dev *sdev, struct sk_buff *skb)
 
 	slsi_debug_frame(sdev, dev, skb, "RX");
 	switch (fapi_get_u16(skb, id)) {
+	case MA_BLOCKACKREQ_IND:
+		slsi_rx_ma_blockack_ind(sdev, dev, skb);
+
+		/* SKBs in a BA session are not passed yet */
+		slsi_spinlock_lock(&ndev_vif->ba_lock);
+		if (atomic_read(&ndev_vif->ba_flush)) {
+			atomic_set(&ndev_vif->ba_flush, 0);
+			slsi_ba_process_complete(dev, true);
+		}
+		slsi_spinlock_unlock(&ndev_vif->ba_lock);
+		break;
 	case MA_UNITDATA_IND:
 		slsi_rx_data_ind(sdev, dev, skb);
 
@@ -1200,6 +1212,12 @@ static int sap_ma_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)
 #endif
 
 	switch (fapi_get_sigid(skb)) {
+	case MA_BLOCKACKREQ_IND:
+#ifdef CONFIG_SCSC_WLAN_RX_NAPI
+		return slsi_rx_napi_process(sdev, skb);
+#else
+		return slsi_rx_enqueue_netdev_mlme(sdev, skb, slsi_mlme_get_vif(sdev, skb));
+#endif
 	case MA_UNITDATA_IND:
 #ifdef CONFIG_SCSC_SMAPPER
 		/* Check SMAPPER to nullify entry*/

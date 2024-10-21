@@ -42,7 +42,7 @@
 #define AW_READ_CHIPID_RETRY_DELAY	5	/* 5 ms */
 
 static unsigned int g_aw882xx_dev_cnt = 0;
-static unsigned int g_print_dbg = 1;
+static unsigned int g_print_dbg = 0;
 static unsigned int g_algo_rx_en = false;
 static unsigned int g_algo_tx_en = false;
 static unsigned int g_algo_copp_en = false;

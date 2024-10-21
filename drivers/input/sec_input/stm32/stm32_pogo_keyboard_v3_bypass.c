@@ -56,18 +56,15 @@ static int keypad_set_input_dev_bypass(struct stm32_keypad_dev *stm32, struct po
 	stm32->input_dev->dev.parent = &stm32->pdev->dev;
 	stm32->keyboard_model = pogo_data.keyboard_model;
 
-	if (stm32->keyboard_model == stm32->support_keyboard_model[0] ||
-		stm32->keyboard_model == stm32->support_keyboard_model[1] ||
-		stm32->keyboard_model == stm32->support_keyboard_model[2]) {
-		if (stm32->keyboard_model == stm32->support_keyboard_model[0])
-			stm32->input_dev->name = stm32->dtdata->input_name[0];
-		else if (stm32->keyboard_model == stm32->support_keyboard_model[1])
-			stm32->input_dev->name = stm32->dtdata->input_name[1];
-		else if (stm32->keyboard_model == stm32->support_keyboard_model[2])
-			stm32->input_dev->name = stm32->dtdata->input_name[2];
-		else
-			stm32->input_dev->name = "Book Cover Keyboard";
+	for (i = 0; i < KDB_SUPPORT_MODEL_CNT; i++) {
+		if (stm32->keyboard_model == stm32->support_keyboard_model[i]) {
+			stm32->input_dev->name = stm32->dtdata->input_name[i];
+			break;
+		}
 	}
+
+	if (!stm32->input_dev->name)
+		stm32->input_dev->name = "Book Cover Keyboard";
 
 	input_info(true, &stm32->pdev->dev, "%s: input_name: %s\n", __func__, stm32->input_dev->name);
 	stm32->input_dev->id.bustype = BUS_I2C;
@@ -84,6 +81,12 @@ static int keypad_set_input_dev_bypass(struct stm32_keypad_dev *stm32, struct po
 	for (i = 0; i < STM32_KEY_MAX; i++) {
 		if ((i >= STM32_GAMEPAD_KEY_START && i <= STM32_GAMEPAD_KEY_END) || i == BTN_TOUCH)
 			continue;
+		if (i == KEY_AI_HOT) {
+			if (!((stm32->keyboard_model >= 0xd1 && stm32->keyboard_model <= 0xd6) || stm32->keyboard_model  == 0x03)) {
+				input_info(true, &stm32->pdev->dev, "%s: skip keycode %d\n", __func__, KEY_AI_HOT);
+				continue;
+			}
+		}
 		set_bit(i, input_dev->keybit);
 		stm32->key_state[i] = 0;
 	}

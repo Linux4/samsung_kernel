@@ -38,6 +38,10 @@ DECLARE_HOOK(android_vh_enable_thermal_power_throttle,
 	TP_PROTO(bool *enable, bool *override),
 	TP_ARGS(enable, override));
 
+DECLARE_HOOK(android_vh_modify_thermal_throttle_update,
+	TP_PROTO(struct thermal_zone_device *tz, bool *update),
+	TP_ARGS(tz, update));
+
 DECLARE_HOOK(android_vh_thermal_power_cap,
 	TP_PROTO(u32 *power_range),
 	TP_ARGS(power_range));
@@ -53,6 +57,10 @@ DECLARE_HOOK(android_vh_disable_thermal_cooling_stats,
 DECLARE_HOOK(android_vh_modify_thermal_cpu_get_power,
 	TP_PROTO(struct cpufreq_policy *policy, u32 *power),
 	TP_ARGS(policy, power));
+
+DECLARE_HOOK(android_vh_enable_thermal_genl_check,
+	TP_PROTO(int event, int tz_id, int *enable_thermal_genl),
+	TP_ARGS(event, tz_id, enable_thermal_genl));
 
 #endif /* _TRACE_HOOK_THERMAL_H */
 /* This part must be outside protection */

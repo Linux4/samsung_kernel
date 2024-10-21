@@ -374,27 +374,36 @@ enum dqe_regs_type {
 #define DQE_DEGAMMA_LUT_MAX		(1+DQE_DEGAMMA_LUT_CNT) 		// 66 CON+LUT
 
 /*----------------------[LINEAR MATRIX]----------------------------------------*/
-#define DQE_LINEAR_MATRIX_CON		(0x1C00)
+#define DQE_LINEAR_MATRIX_CON           (0x1C00)
+#define LINEAR_MATRIX_EN(_v)		(((_v) & 0x1) << 0)
+#define LINEAR_MATRIX_EN_MASK		(0x1 << 0)
 
 #define DQE_LINEAR_MATRIX_COEFF(_n)	(0x1C04 + ((_n) * 0x4))
-#define LINEAR_MATRIX_COEFF_H(_v)	(((_v) & 0x1FFF) << 16)
-#define LINEAR_MATRIX_COEFF_L(_v)	(((_v) & 0x1FFF) << 0)
+#define DQE_LINEAR_MATRIX_COEFF0	(0x1C04)
+#define DQE_LINEAR_MATRIX_COEFF1	(0x1C08)
+#define DQE_LINEAR_MATRIX_COEFF2	(0x1C0C)
+#define DQE_LINEAR_MATRIX_COEFF3	(0x1C10)
+#define DQE_LINEAR_MATRIX_COEFF4	(0x1C14)
+
+#define LINEAR_MATRIX_COEFF_H(_v)	(((_v) & 0xFFFF) << 16)
+#define LINEAR_MATRIX_COEFF_H_MASK	(0xFFFF << 16)
+#define LINEAR_MATRIX_COEFF_L(_v)	(((_v) & 0xFFFF) << 0)
+#define LINEAR_MATRIX_COEFF_L_MASK	(0xFFFF << 0)
 
 #define DQE_LINEAR_MATRIX_OFFSET0	(0x1C18)
-#define LINEAR_MATRIX_OFFSET_1(_v)	(((_v) & 0xFFF) << 16)
-#define LINEAR_MATRIX_OFFSET_1_MASK	(0xFFF << 16)
-#define LINEAR_MATRIX_OFFSET_0(_v)	(((_v) & 0xFFF) << 0)
-#define LINEAR_MATRIX_OFFSET_0_MASK	(0xFFF << 0)
+#define LINEAR_MATRIX_OFFSET_1(_v)	(((_v) & 0x3FFF) << 16)
+#define LINEAR_MATRIX_OFFSET_1_MASK	(0x3FFF << 16)
+#define LINEAR_MATRIX_OFFSET_0(_v)	(((_v) & 0x3FFF) << 0)
+#define LINEAR_MATRIX_OFFSET_0_MASK	(0x3FFF << 0)
 
 #define DQE_LINEAR_MATRIX_OFFSET1	(0x1C1C)
-#define LINEAR_MATRIX_OFFSET_2(_v)	(((_v) & 0xFFF) << 0)
-#define LINEAR_MATRIX_OFFSET_2_MASK	(0xFFF << 0)
+#define LINEAR_MATRIX_OFFSET_2(_v)	(((_v) & 0x3FFF) << 0)
+#define LINEAR_MATRIX_OFFSET_2_MASK	(0x3FFF << 0)
 
-#define LINEAR_MATRIX_LUT(_n)		(0x1C00 + ((_n) * 0x4))
+#define DQE_LINEAR_MATRIX_LUT(_n)	(0x1C00 + ((_n) * 0x4))
 
-#define DQE_LINEAR_MATRIX_LUT_CNT	(9)
-#define DQE_LINEAR_MATRIX_REG_MAX	(1+(DQE_LINEAR_MATRIX_LUT_CNT/2+1)) 	// 6 CON+LUT/2
-#define DQE_LINEAR_MATRIX_LUT_MAX	(1+DQE_LINEAR_MATRIX_LUT_CNT)		// 10 CON+LUT
+#define DQE_LINEAR_MATRIX_REG_MAX	(8)
+#define DQE_LINEAR_MATRIX_LUT_MAX	(17)
 
 /*----------------------[CGC]------------------------------------------------*/
 #define DQE_CGC_CON			(0x2000)

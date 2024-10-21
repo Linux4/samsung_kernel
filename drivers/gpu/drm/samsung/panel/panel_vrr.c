@@ -78,15 +78,14 @@ int find_vrr_lfd_scope_name(const char *name)
 	return i;
 }
 
-int update_vrr_lfd(struct vrr_lfd_info *vrr_lfd_info)
+int update_vrr_lfd(struct panel_device *panel)
 {
 	int i, scope;
 	u32 lfd_fix, lfd_min, lfd_max, lfd_scalability;
-	static struct vrr_lfd_info old_vrr_lfd_info;
+	struct panel_properties *props = &panel->panel_data.props;
+	struct vrr_lfd_info *prev_vrr_lfd_info = &props->prev_vrr_lfd_info;
+	struct vrr_lfd_info *vrr_lfd_info = &props->vrr_lfd_info;
 	int updated = VRR_LFD_NOT_UPDATED;
-
-	if (vrr_lfd_info == NULL)
-		return -EINVAL;
 
 	/* fix */
 	for (scope = 0; scope < MAX_VRR_LFD_SCOPE; scope++) {
@@ -102,11 +101,11 @@ int update_vrr_lfd(struct vrr_lfd_info *vrr_lfd_info)
 			}
 		}
 
-		vrr_lfd_info->cur[scope].fix = lfd_fix;
-		if (old_vrr_lfd_info.cur[scope].fix != vrr_lfd_info->cur[scope].fix) {
+		panel_set_property(panel, &vrr_lfd_info->cur[scope].fix, lfd_fix);
+		if (prev_vrr_lfd_info->cur[scope].fix != vrr_lfd_info->cur[scope].fix) {
 			panel_info("scope:%s fix:%d->%d\n",
 					get_vrr_lfd_scope_name(scope),
-					old_vrr_lfd_info.cur[scope].fix,
+					prev_vrr_lfd_info->cur[scope].fix,
 					vrr_lfd_info->cur[scope].fix);
 			updated = VRR_LFD_UPDATED;
 		}
@@ -130,11 +129,11 @@ int update_vrr_lfd(struct vrr_lfd_info *vrr_lfd_info)
 		vrr_lfd_info->cur[scope].scalability =
 			(lfd_scalability == VRR_LFD_SCALABILITY_MAX) ?
 			VRR_LFD_SCALABILITY_NONE : lfd_scalability;
-		if (old_vrr_lfd_info.cur[scope].scalability !=
+		if (prev_vrr_lfd_info->cur[scope].scalability !=
 				vrr_lfd_info->cur[scope].scalability) {
 			panel_info("scope:%s scalability:%d->%d\n",
 					get_vrr_lfd_scope_name(scope),
-					old_vrr_lfd_info.cur[scope].scalability,
+					prev_vrr_lfd_info->cur[scope].scalability,
 					vrr_lfd_info->cur[scope].scalability);
 			updated = VRR_LFD_UPDATED;
 		}
@@ -153,11 +152,11 @@ int update_vrr_lfd(struct vrr_lfd_info *vrr_lfd_info)
 		}
 
 		vrr_lfd_info->cur[scope].min = lfd_min;
-		if (old_vrr_lfd_info.cur[scope].min !=
+		if (prev_vrr_lfd_info->cur[scope].min !=
 				vrr_lfd_info->cur[scope].min) {
 			panel_info("scope:%s min:%d->%d\n",
 					get_vrr_lfd_scope_name(scope),
-					old_vrr_lfd_info.cur[scope].min,
+					prev_vrr_lfd_info->cur[scope].min,
 					vrr_lfd_info->cur[scope].min);
 			updated = VRR_LFD_UPDATED;
 		}
@@ -176,18 +175,18 @@ int update_vrr_lfd(struct vrr_lfd_info *vrr_lfd_info)
 		}
 
 		vrr_lfd_info->cur[scope].max = lfd_max;
-		if (old_vrr_lfd_info.cur[scope].max !=
+		if (prev_vrr_lfd_info->cur[scope].max !=
 				vrr_lfd_info->cur[scope].max) {
 			panel_info("scope:%s max:%d->%d\n",
 					get_vrr_lfd_scope_name(scope),
-					old_vrr_lfd_info.cur[scope].max,
+					prev_vrr_lfd_info->cur[scope].max,
 					vrr_lfd_info->cur[scope].max);
 			updated = VRR_LFD_UPDATED;
 		}
 	}
 
-	memcpy(&old_vrr_lfd_info,
-			vrr_lfd_info, sizeof(struct vrr_lfd_info));
+	memcpy(prev_vrr_lfd_info,
+			vrr_lfd_info, sizeof(*prev_vrr_lfd_info));
 
 	return updated;
 }

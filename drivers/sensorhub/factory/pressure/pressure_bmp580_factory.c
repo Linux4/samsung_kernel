@@ -23,10 +23,34 @@ static ssize_t pressure_temperature_show(struct device *dev, struct device_attri
 	return sprintf(buf, "%d.%02d\n", (temperature / 100), float_temperature);
 }
 
+
+static ssize_t pressure_esn_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	char *buffer = NULL;
+	int buffer_length = 0;
+	int ret = 0;
+
+	ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_PRESSURE, PRESSURE_SUBCMD_ESN, 1000, NULL, 0,
+					&buffer, &buffer_length, true);
+	if (ret < 0) {
+		shub_errf("shub_send_command_wait Fail %d", ret);
+		return ret;
+	}
+
+	ret = sprintf(buf, "%s\n", buffer);
+
+	if (buffer != NULL)
+		kfree(buffer);
+
+	return ret;
+}
+
 static DEVICE_ATTR(temperature, S_IRUGO, pressure_temperature_show, NULL);
+static DEVICE_ATTR(esn, S_IRUGO, pressure_esn_show, NULL);
 
 static struct device_attribute *pressure_bmp580_attrs[] = {
 	&dev_attr_temperature,
+	&dev_attr_esn,
 	NULL,
 };
 

@@ -522,8 +522,7 @@ static void decon_check_display_config(struct exynos_drm_crtc *exynos_crtc,
 	struct decon_device *decon = exynos_crtc->ctx;
 
 	if ((__is_recovery_supported(decon) && __is_recovery_begin(decon)) ||
-			(new_exynos_crtc_state->seamless_modeset &&
-			 new_exynos_crtc_state->modeset_only) ||
+			 new_exynos_crtc_state->modeset_only ||
 			(!crtc_state->planes_changed && (crtc_state->plane_mask != 0)))
 				new_exynos_crtc_state->skip_frameupdate = true;
 
@@ -600,9 +599,14 @@ static int decon_atomic_check(struct exynos_drm_crtc *exynos_crtc,
 }
 
 #define TIMEOUT_CNT (1)
-static void decon_atomic_begin(struct exynos_drm_crtc *crtc)
+static void decon_atomic_begin(struct exynos_drm_crtc *crtc,
+			       struct drm_atomic_state *old_state)
 {
 	struct decon_device *decon = crtc->ctx;
+	struct drm_crtc_state *new_crtc_state =
+			drm_atomic_get_new_crtc_state(old_state, &crtc->base);
+	struct exynos_drm_crtc_state *new_exynos_crtc_state =
+					to_exynos_crtc_state(new_crtc_state);
 
 	decon_debug(decon, "+\n");
 	DPU_EVENT_LOG("ATOMIC_BEGIN", crtc, 0, NULL);
@@ -614,6 +618,9 @@ static void decon_atomic_begin(struct exynos_drm_crtc *crtc)
 		decon_err(decon, "decon update timeout\n");
 		dpu_dump(crtc);
 	}
+
+	decon->config.in_bpc = new_exynos_crtc_state->in_bpc;
+	decon_reg_set_bpc_and_dither(decon->id, &decon->config);
 
 	decon_debug(decon, "-\n");
 }
@@ -961,14 +968,22 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 #endif
 	}
 
-	decon->config.in_bpc = new_exynos_crtc_state->in_bpc;
-	decon_reg_set_bpc_and_dither(decon->id, &decon->config);
 	exynos_dqe_update(exynos_crtc->dqe, new_crtc_state);
 
 	exynos_drm_sfr_dma_update();
 
 	if (new_exynos_crtc_state->seamless_modeset)
 		decon_seamless_set_mode(new_crtc_state, old_crtc_state->state);
+
+	if (new_exynos_crtc_state->modeset_only) {
+		int win_id;
+		const unsigned long win_mask =
+			new_exynos_crtc_state->reserved_win_mask;
+
+		for_each_set_bit(win_id, &win_mask, MAX_WIN_PER_DECON)
+			decon_reg_set_win_enable(decon->id, win_id, 0);
+		decon_info(decon, "modeset_only\n");
+	}
 
 	/* only for video mode tui */
 	exynos_tui_sec_win_shadow_update_req(decon,
@@ -1386,16 +1401,6 @@ static void decon_mode_set(struct exynos_drm_crtc *crtc,
 		}
 	}
 #endif
-
-	if (new_exynos_crtc_state->modeset_only) {
-		int win_id;
-		const unsigned long win_mask =
-			new_exynos_crtc_state->reserved_win_mask;
-
-		for_each_set_bit(win_id, &win_mask, MAX_WIN_PER_DECON)
-			decon_reg_set_win_enable(decon->id, win_id, 0);
-		decon_info(decon, "modeset_only\n");
-	}
 }
 
 #if IS_ENABLED(CONFIG_EXYNOS_PD)
@@ -2042,6 +2047,12 @@ static int decon_parse_dt(struct decon_device *decon, struct device_node *np)
 	if (ret) {
 		decon_err(decon, "failed to parse output type(%d)\n", ret);
 		return ret;
+	}
+
+	ret = of_property_read_u32(np, "default_max_bpc", &decon->config.default_max_bpc);
+	if (ret) {
+		decon_debug(decon, "failed to parse default max bpc(%d)\n", ret);
+		decon->config.default_max_bpc = 8;
 	}
 
 	decon->config.vote_overlap_bw = of_property_read_bool(np, "vote-overlap-bw");

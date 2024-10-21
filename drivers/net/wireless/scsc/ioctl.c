@@ -1915,7 +1915,7 @@ static int slsi_ioctl_set_roam_band(struct net_device *dev, char *command, int c
 }
 
 #ifdef CONFIG_SCSC_WLAN_WES_NCHO
-uint slsi_band_to_fw_band_maping(uint band)
+static int slsi_band_to_fw_band_maping(uint band)
 {
 	switch (band) {
 	case SLSI_FREQ_BAND_AUTO:
@@ -1943,7 +1943,7 @@ static int slsi_ioctl_set_band(struct net_device *dev, char *command, int cmd_le
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_dev *sdev = ndev_vif->sdev;
 	uint band = 0;
-	uint internal_band = 0; /* used for driver and firmware mapping */
+	int internal_band = 0; /* used for driver and firmware mapping */
 	int ret = 0;
 	struct slsi_ioctl_args *ioctl_args = NULL;
 
@@ -1983,7 +1983,7 @@ static int slsi_ioctl_set_band(struct net_device *dev, char *command, int cmd_le
 		return -EINVAL;
 	}
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
-	ret = slsi_mlme_set_band_req(sdev, dev, internal_band, 0);
+	ret = slsi_mlme_set_band_req(sdev, dev, (uint)internal_band, 0);
 	if (ret == -EIO) {
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		kfree(ioctl_args);
@@ -4186,6 +4186,12 @@ static int slsi_send_action_frame(struct net_device *dev, char *command, int buf
 		return 0;
 	}
 
+	if (strlen(ioctl_args->args[4]) < len) {
+		SLSI_ERR(sdev, "Input buffer len mismatch (%d) != len(%d)", strlen(ioctl_args->args[4]), len);
+		kfree(ioctl_args);
+		return -EINVAL;
+	}
+
 	buf = kmalloc((len + 1) / 2, GFP_KERNEL);
 
 	if (!buf) {
@@ -5241,7 +5247,7 @@ static char *slsi_get_assoc_status(u16 fw_result_code)
 static int slsi_copy_ap_sta_info_stats_to_buf(char *command, int buf_len, int len, int support_mode, u32 *rate_stats)
 {
 	if (buf_len <= len)
-		return len;
+		return buf_len;
 
 	switch (support_mode) {
 	case SLSI_MODE_HE:
@@ -5296,7 +5302,7 @@ static int slsi_copy_ap_sta_info_to_buf(struct netdev_vif *ndev_vif, char *comma
 					int len, struct slsi_ap_sta_info *peer_info)
 {
 	if (buf_len <= len)
-		return len;
+		return buf_len;
 
 	len += snprintf(&command[len], (buf_len - len),
 		   "GETSTAINFO %pM Rx_Retry_Pkts=%d Rx_BcMc_Pkts=%d CAP=%04x %02x:%02x:%02x ",
@@ -5309,7 +5315,7 @@ static int slsi_copy_ap_sta_info_to_buf(struct netdev_vif *ndev_vif, char *comma
 		   peer_info->address[2]);
 
 	if (buf_len <= len)
-		return len;
+		return buf_len;
 
 	len += snprintf(&command[len], (buf_len - len), "%d %d %d %d %d %d %d %u %d %d ",
 		   ieee80211_frequency_to_channel(ndev_vif->ap.channel_freq),
@@ -5324,7 +5330,7 @@ static int slsi_copy_ap_sta_info_to_buf(struct netdev_vif *ndev_vif, char *comma
 						 peer_info->tx_rate_stats);
 
 	if (buf_len <= len)
-		return len;
+		return buf_len;
 
 	len += snprintf(&command[len], (buf_len - len), "%d %d %d ",
 		   peer_info->tx_success_packets, peer_info->tx_failure_packets,
@@ -5334,7 +5340,7 @@ static int slsi_copy_ap_sta_info_to_buf(struct netdev_vif *ndev_vif, char *comma
 						 peer_info->rx_rate_stats);
 
 	if (buf_len <= len)
-		return len;
+		return buf_len;
 
 	len += snprintf(&command[len], (buf_len - len), "%d %d %d\n",
 		   peer_info->rx_success_packets, peer_info->rx_failure_packets,
@@ -5391,8 +5397,8 @@ int slsi_get_sta_info(struct net_device *dev, char *command, int buf_len)
 		kfree(ioctl_args);
 		SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-		len += slsi_copy_ap_sta_info_to_buf(ndev_vif, command, buf_len, len,
-						    &ndev_vif->ap.last_disconnected_sta);
+		len = slsi_copy_ap_sta_info_to_buf(ndev_vif, command, buf_len, len,
+						   &ndev_vif->ap.last_disconnected_sta);
 
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 
@@ -5411,15 +5417,13 @@ int slsi_get_sta_info(struct net_device *dev, char *command, int buf_len)
 		int i = 0;
 
 		for (i = 0; i < SLSI_PEER_INDEX_MAX; i++) {
-			SLSI_INFO(sdev, "%02X:%02X:%02X:%02X:%02X:%02X - valid:%d, buf_len:%d, len:%d\n",
-				  ndev_vif->peer_sta_record[i]->address[0], ndev_vif->peer_sta_record[i]->address[1],
-				  ndev_vif->peer_sta_record[i]->address[2], ndev_vif->peer_sta_record[i]->address[3],
-				  ndev_vif->peer_sta_record[i]->address[4], ndev_vif->peer_sta_record[i]->address[5],
-				  ndev_vif->peer_sta_record[i]->valid, buf_len, len);
 			if (ndev_vif->peer_sta_record[i] && ndev_vif->peer_sta_record[i]->valid &&
 			    slsi_fill_ap_sta_info(sdev, dev, ndev_vif->peer_sta_record[i]->address,
 						  &sta_info, 0) == 0) {
-				len += slsi_copy_ap_sta_info_to_buf(ndev_vif, command, buf_len, len, &sta_info);
+				SLSI_INFO(sdev, "%pM - valid:%d, buf_len:%d, len:%d\n",
+					  ndev_vif->peer_sta_record[i]->address,
+					  ndev_vif->peer_sta_record[i]->valid, buf_len, len);
+				len = slsi_copy_ap_sta_info_to_buf(ndev_vif, command, buf_len, len, &sta_info);
 				if (buf_len <= len)
 					break;
 				memset(&sta_info, 0, sizeof(sta_info));
@@ -5438,7 +5442,7 @@ int slsi_get_sta_info(struct net_device *dev, char *command, int buf_len)
 			return -EINVAL;
 		}
 		if (slsi_fill_ap_sta_info(sdev, dev, u, &sta_info, 0) == 0)
-			len += slsi_copy_ap_sta_info_to_buf(ndev_vif, command, buf_len, len, &sta_info);
+			len = slsi_copy_ap_sta_info_to_buf(ndev_vif, command, buf_len, len, &sta_info);
 	}
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 
@@ -5465,9 +5469,10 @@ static int slsi_get_bss_info(struct net_device *dev, char *command, int buf_len)
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-	len = snprintf(command, buf_len, "%02x:%02x:%02x %u %u %d %u %u %u %u %u %d %d %u %u %u %u",
+	len = snprintf(command, buf_len, "%02x:%02x:%02x %.*s %u %u %d %u %u %u %u %u %d %d %u %u %u %u",
 		       ndev_vif->sta.last_connected_bss.address[0],  ndev_vif->sta.last_connected_bss.address[1],
 		       ndev_vif->sta.last_connected_bss.address[2],
+		       (int)ndev_vif->sta.last_connected_bss.ssid_len, ndev_vif->sta.last_connected_bss.ssid,
 		       ndev_vif->sta.last_connected_bss.channel_freq, ndev_vif->sta.last_connected_bss.bandwidth,
 		       ndev_vif->sta.last_connected_bss.rssi, ndev_vif->sta.last_connected_bss.tx_data_rate,
 		       ndev_vif->sta.last_connected_bss.mode, ndev_vif->sta.last_connected_bss.antenna_mode,
@@ -7182,6 +7187,11 @@ static int slsi_set_delayed_wakeup_type(struct net_device *dev, char *command, i
 			if (strncmp((char *)&ioctl_args->args[i][2], ":", 1) == 0) {
 				pos = &ioctl_args->args[i][0];
 				while (pos < (ioctl_args->args[i] + strlen(ioctl_args->args[i]))) {
+					if (mac_count >= 5) {
+						SLSI_ERR(sdev, "Invalid number of MAC addresses\n");
+						ret = -EINVAL;
+						goto exit;
+					}
 					slsi_machexstring_to_macarray(pos, macaddrlist[mac_count]);
 					mac_count++;
 					pos += (2 * ETH_ALEN) + 5 + 1;
@@ -7190,6 +7200,11 @@ static int slsi_set_delayed_wakeup_type(struct net_device *dev, char *command, i
 				token = strsep((char **)&ioctl_args->args[i], ",");
 
 				while (token) {
+					if (ipv6_count >= 5) {
+						SLSI_ERR(sdev, "Invalid number of ipv6 addr\n");
+						ret = -EINVAL;
+						goto exit;
+					}
 					if (in6_pton(token, strlen(token), ipv6addrlist[ipv6_count], -1, NULL) > 0) {
 						ipv6_count++;
 					} else {
@@ -7201,6 +7216,11 @@ static int slsi_set_delayed_wakeup_type(struct net_device *dev, char *command, i
 			} else {
 				token = strsep((char **)&ioctl_args->args[i], ",");
 				while (token) {
+					if (ipv4_count >= 5) {
+						SLSI_ERR(sdev, "Invalid number of ipv4 addr\n");
+						ret = -EINVAL;
+						goto exit;
+					}
 					if (in4_pton(token, strlen(token), ipv4addrlist[ipv4_count], -1, NULL) > 0) {
 						ipv4_count++;
 					} else {

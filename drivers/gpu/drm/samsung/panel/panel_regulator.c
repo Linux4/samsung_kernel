@@ -30,6 +30,12 @@ __visible_for_testing int REAL_ID(regulator_disable_wrapper)(struct regulator *r
 	return regulator_disable(regulator);
 }
 
+__visible_for_testing DEFINE_REDIRECT_MOCKABLE(regulator_force_disable_wrapper, RETURNS(int), PARAMS(struct regulator *));
+__visible_for_testing int REAL_ID(regulator_force_disable_wrapper)(struct regulator *regulator)
+{
+	return regulator_force_disable(regulator);
+}
+
 __visible_for_testing DEFINE_REDIRECT_MOCKABLE(regulator_get_voltage_wrapper, RETURNS(int), PARAMS(struct regulator *));
 __visible_for_testing int REAL_ID(regulator_get_voltage_wrapper)(struct regulator *regulator)
 {
@@ -72,6 +78,8 @@ static int panel_regulator_init(struct panel_regulator *regulator)
 		panel_err("failed to get regulator %s\n", regulator->name);
 		return -ENODEV;
 	}
+
+	mutex_init(&regulator->lock);
 	panel_info("initialize regulator(%s)\n", regulator->name);
 
 	return 0;
@@ -79,7 +87,7 @@ static int panel_regulator_init(struct panel_regulator *regulator)
 
 static int panel_regulator_enable(struct panel_regulator *regulator)
 {
-	int ret;
+	int ret = 0;
 
 	if (!regulator)
 		return -EINVAL;
@@ -90,19 +98,60 @@ static int panel_regulator_enable(struct panel_regulator *regulator)
 	if (regulator->type != PANEL_REGULATOR_TYPE_PWR)
 		return 0;
 
+	mutex_lock(&regulator->lock);
+	if (regulator->enabled) {
+		panel_warn("regulator(%s) already enabled, skip\n", regulator->name);
+		goto exit;
+	}
+
 	ret = regulator_enable_wrapper(regulator->reg);
 	if (ret) {
 		panel_err("failed to enable regulator(%s), ret:%d\n",
 				regulator->name, ret);
-		return ret;
+		goto exit;
 	}
-
+	regulator->enabled = true;
 	panel_info("enable regulator(%s)\n", regulator->name);
 
-	return 0;
+exit:
+	mutex_unlock(&regulator->lock);
+	return ret;
 }
 
 static int panel_regulator_disable(struct panel_regulator *regulator)
+{
+	int ret = 0;
+
+	if (!regulator)
+		return -EINVAL;
+
+	if (IS_ERR_OR_NULL(regulator->reg))
+		return -EINVAL;
+
+	if (regulator->type != PANEL_REGULATOR_TYPE_PWR)
+		return 0;
+
+	mutex_lock(&regulator->lock);
+	if (!(regulator->enabled)) {
+		panel_warn("regulator(%s) already disabled, skip\n", regulator->name);
+		goto exit;
+	}
+
+	ret = regulator_disable_wrapper(regulator->reg);
+	if (ret) {
+		panel_err("failed to disable regulator(%s), ret:%d\n",
+				regulator->name, ret);
+		goto exit;
+	}
+	regulator->enabled = false;
+	panel_info("disable regulator(%s)\n", regulator->name);
+
+exit:
+	mutex_unlock(&regulator->lock);
+	return ret;
+}
+
+static int panel_regulator_force_disable(struct panel_regulator *regulator)
 {
 	int ret;
 
@@ -115,14 +164,14 @@ static int panel_regulator_disable(struct panel_regulator *regulator)
 	if (regulator->type != PANEL_REGULATOR_TYPE_PWR)
 		return 0;
 
-	ret = regulator_disable_wrapper(regulator->reg);
+	ret = regulator_force_disable_wrapper(regulator->reg);
 	if (ret) {
-		panel_err("failed to disable regulator(%s), ret:%d\n",
+		panel_err("failed to force_disable regulator(%s), ret:%d\n",
 				regulator->name, ret);
 		return ret;
 	}
 
-	panel_info("disable regulator(%s)\n", regulator->name);
+	panel_info("force_disable regulator(%s)\n", regulator->name);
 
 	return 0;
 }
@@ -207,6 +256,7 @@ struct panel_regulator_funcs panel_regulator_funcs = {
 	.disable = panel_regulator_disable,
 	.set_voltage = panel_regulator_set_voltage,
 	.set_current_limit = panel_regulator_set_current_limit,
+	.force_disable = panel_regulator_force_disable,
 };
 
 int panel_regulator_helper_init(struct panel_regulator *regulator)
@@ -231,6 +281,14 @@ int panel_regulator_helper_disable(struct panel_regulator *regulator)
 		return -EINVAL;
 
 	return call_panel_regulator_func(regulator, disable);
+}
+
+int panel_regulator_helper_force_disable(struct panel_regulator *regulator)
+{
+	if (!regulator)
+		return -EINVAL;
+
+	return call_panel_regulator_func(regulator, force_disable);
 }
 
 int panel_regulator_helper_set_voltage(struct panel_regulator *regulator, int uV)

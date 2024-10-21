@@ -15,14 +15,16 @@ void stm32_setup_probe_keypad(struct stm32_keypad_dev *stm32)
 
 static enum stm32_model keypad_check_input_dev(struct stm32_keypad_dev *stm32, struct pogo_data_struct pogo_data)
 {
-	if (pogo_data.keyboard_model == stm32->support_keyboard_model[0] ||
-		pogo_data.keyboard_model == stm32->support_keyboard_model[1] ||
-		pogo_data.keyboard_model == stm32->support_keyboard_model[2])
-		return STM32_BYPASS_MODEL;
-	else if (pogo_data.keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL)
+	int i = 0;
+
+	if (pogo_data.keyboard_model == STM32_KEYBOARD_ROW_DATA_MODEL)
 		return STM32_ROW_MODEL;
-	else
-		return STM32_NOT_SUPPORT_MODEL;
+
+	for (i = 0; i < KDB_SUPPORT_MODEL_CNT; i++)
+		if (pogo_data.keyboard_model == stm32->support_keyboard_model[i])
+			return STM32_BYPASS_MODEL;
+
+	return STM32_NOT_SUPPORT_MODEL;
 }
 
 int stm32_setup_attach_keypad(struct stm32_keypad_dev *stm32, struct pogo_data_struct pogo_data)

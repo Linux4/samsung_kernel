@@ -880,11 +880,12 @@ int sensor_hi1337_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 
 	read_addr = 0x0308; /*OTP Bank data stored at 0x0308*/
 
+	IXC_MUTEX_LOCK(cis->ixc_lock);
 	ret = cis->ixc_ops->write8(cis->client, 0x0B00, 0x00); /* standby off */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0B00, 0x0000);
-		return ret;
+		goto p_err_unlock;
 	}
 
 	usleep_range(10000, 10000); /* sleep 10msec */
@@ -893,25 +894,60 @@ int sensor_hi1337_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0260, 0x10);
-		return ret;
+		goto exit;
 	}
 
 	ret = cis->ixc_ops->write8(cis->client, 0x030F, 0x14); /* OTP status */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x030F, 0x14);
-		return ret;
+		goto exit;
 	}
 
 	ret = cis->ixc_ops->write8(cis->client, 0x0B00, 0x01); /* standby on */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0B00, 0x01);
-		return ret;
+		goto exit;
 	}
 	usleep_range(1000, 1000); /* sleep 1msec */
 
 	/* read otp bank */
+	ret = cis->ixc_ops->write8(cis->client, 0x030A, ((HI1337_OTP_BANK_SEL_ADDR) >> 8) & 0xFF); /* upper 8bit */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x030A, ((HI1337_OTP_BANK_SEL_ADDR) >> 8) & 0xFF);
+		goto exit;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x030B, HI1337_OTP_BANK_SEL_ADDR & 0xFF); /* lower 8bit */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x030B, HI1337_OTP_BANK_SEL_ADDR & 0xFF);
+		goto exit;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x031C, 0x00); /* OTP Signal */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x031C, 0x01);
+		goto exit;
+	}
+	
+	ret = cis->ixc_ops->write8(cis->client, 0x031D, 0x00); /* OTP Signal */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x031D, 0x01);
+		goto exit;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x0302, 0x01); /* read mode */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0302, 0x01);
+		goto exit;
+	}
+
 	ret = cis->ixc_ops->read8(cis->client, read_addr, &bank);
 	if (unlikely(ret)) {
 		err("failed to read OTP bank address (%d)\n", ret);
@@ -936,37 +972,46 @@ int sensor_hi1337_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 		start_addr = HI1337_OTP_START_ADDR_BANK1;
 		break;
 	}
-	info("%s: otp_bank = %d start_addr = %x\n", __func__, bank, start_addr);
+	info("%s: otp_bank = 0x%x start_addr = 0x%x\n", __func__, bank, start_addr);
 
 	/* OTP burst read */
 	ret = cis->ixc_ops->write8(cis->client, 0x030A, ((start_addr) >> 8) & 0xFF); /* upper 8bit */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x030A, ((start_addr) >> 8) & 0xFF);
-		return ret;
+		goto exit;
 	}
 	ret = cis->ixc_ops->write8(cis->client, 0x030B, start_addr & 0xFF); /* lower 8bit */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x030B, start_addr & 0xFF);
-		return ret;
+		goto exit;
 	}
 
 	ret = cis->ixc_ops->write8(cis->client, 0x031C, 0x00); /* OTP Signal */
-
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x031C, 0x00);
+		goto exit;
+	}
 	ret = cis->ixc_ops->write8(cis->client, 0x031D, 0x00); /* OTP Signal */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x031D, 0x00);
+		goto exit;
+	}
 
 	ret = cis->ixc_ops->write8(cis->client, 0x0302, 0x01); /* read mode */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0302, 0x01);
-		return ret;
+		goto exit;
 	}
 	ret = cis->ixc_ops->write8(cis->client, 0x0712, 0x01); /* burst read register on */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0712, 0x01);
-		return ret;
+		goto exit;
 	}
 
 	info("Camera: I2C read cal data for rom_id:%d\n", rom_id);
@@ -981,9 +1026,8 @@ int sensor_hi1337_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0712, 0x00);
-		return ret;
+		goto exit;
 	}
-
 
 exit:
 	/* streaming mode change */
@@ -991,33 +1035,37 @@ exit:
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0809, 0x00);
-		return ret;
+		goto p_err_unlock;
 	}
-	ret = cis->ixc_ops->write8(cis->client, 0x0b00, 0x00); /* stream off */
+	ret = cis->ixc_ops->write8(cis->client, 0x0B00, 0x00); /* stream off */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
-			ret, 0x0b00, 0x00);
-		return ret;
+			ret, 0x0B00, 0x00);
+		goto p_err_unlock;
 	}
 	usleep_range(10000, 10000); /* sleep 10msec */
 	ret = cis->ixc_ops->write8(cis->client, 0x0260, 0x00); /* OTP mode disable */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0260, 0x00);
-		return ret;
+		goto p_err_unlock;
 	}
 	ret = cis->ixc_ops->write8(cis->client, 0x0809, 0x01); /* stream on */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0809, 0x01);
-		return ret;
+		goto p_err_unlock;
 	}
-	ret = cis->ixc_ops->write8(cis->client, 0x0b00, 0x01); /* stream on */
+	ret = cis->ixc_ops->write8(cis->client, 0x0B00, 0x01); /* stream on */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
-			ret, 0x0b00, 0x01);
-		return ret;
+			ret, 0x0B00, 0x01);
+		goto p_err_unlock;
 	}
+
+p_err_unlock:
+	IXC_MUTEX_UNLOCK(cis->ixc_lock);
+
 	usleep_range(1000, 1000); /* sleep 1msec */
 	return ret;
 }

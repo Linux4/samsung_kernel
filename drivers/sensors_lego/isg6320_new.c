@@ -45,8 +45,12 @@
 #define HALL_DETACH		0
 #endif
 
-#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+#include "../input/sec_input/stm32/pogo_notifier_v3.h"
+#elif IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 #include <linux/input/pogo_i2c_notifier.h>
+#endif
 #endif
 
 #include "isg6320_reg.h"
@@ -152,7 +156,9 @@ struct isg6320_data {
 	struct notifier_block hall_nb;
 #endif
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	struct notifier_block pogo_nb;
+#endif
 #endif
 #if IS_ENABLED(CONFIG_FLIP_COVER_DETECTOR_NOTIFIER)
 	struct notifier_block fcd_nb;
@@ -255,13 +261,13 @@ static void enter_error_mode(struct isg6320_data *data, enum grip_error_state er
 		data->is_irq_active = false;
 	}
 
+	isg6320_set_channel_disable(data); //To reduce current consumption
 	data->check_abnormal_working = true;
 	data->err_state |= 0x1 << err_state;
 	enter_unknown_mode(data, TYPE_FORCE);
 #if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
 	update_grip_error(data->ic_num, data->err_state);
 #endif
-	isg6320_set_channel_disable(data); //To reduce current consumption
 	pr_info("[GRIP_%d] %s - %d exit\n", data->ic_num, __func__, data->err_state);
 }
 
@@ -391,32 +397,31 @@ static void isg6320_set_channel_disable(struct isg6320_data *data)
 {
 	int ret = 0;
 
-	mutex_lock(&data->lock);
-
-	data->i2c_fail_count = 0;
+	if (data->check_abnormal_working || data->i2c_fail_count >= 3)
+		return;
 
 	ret = isg6320_i2c_write(data, ISG6320_WUTDATA_REG, 0x01);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] scan rate H failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	ret = isg6320_i2c_write(data, ISG6320_WUTDATA_LSB_REG, 0x80);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] scan rate L failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	ret = isg6320_i2c_write(data, ISG6320_ACTSCAN_REG, ISG6320_CHANNEL_DISABLE);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] channel disable failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, ISG6320_DFE_ENABLE);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] DFE off failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	usleep_range(1000, 1100);
@@ -424,7 +429,7 @@ static void isg6320_set_channel_disable(struct isg6320_data *data)
 	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, ISG6320_SCAN_STOP);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] scan off(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	msleep(100);
@@ -432,12 +437,8 @@ static void isg6320_set_channel_disable(struct isg6320_data *data)
 	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, ISG6320_CFCAL_START);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] calibration failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
-
-exit_channel_disable:
-	data->i2c_fail_count = 3;
-	mutex_unlock(&data->lock);
 }
 
 static int isg6320_reset(struct isg6320_data *data)
@@ -1339,6 +1340,7 @@ static void isg6320_set_debug_work(struct isg6320_data *data, bool enable,
 static void isg6320_set_enable(struct isg6320_data *data, int enable)
 {
 	u8 state = 0;
+	u8 buf = 0;
 	int ret = 0;
 	int retry = 3;
 
@@ -1431,7 +1433,7 @@ static void isg6320_set_enable(struct isg6320_data *data, int enable)
 		}
 		input_sync(data->input_dev);
 
-		ret = isg6320_i2c_read_retry(data, ISG6320_IRQSRC_REG, &state, 1, 3);
+		ret = isg6320_i2c_read_retry(data, ISG6320_IRQSRC_REG, &buf, 1, 3);
 		if (ret < 0)
 			pr_err("[GRIP_%d] %s IRQSRC read fail\n", data->ic_num, __func__);
 
@@ -3207,6 +3209,7 @@ static int isg6320_fcd_notifier(struct notifier_block *nb,
 #endif
 
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 static int isg6320_pogo_notifier(struct notifier_block *nb,
 		unsigned long action, void *pogo_data)
 {
@@ -3226,6 +3229,7 @@ static int isg6320_pogo_notifier(struct notifier_block *nb,
 
 	return 0;
 }
+#endif
 #endif
 
 static int isg6320_parse_dt(struct isg6320_data *data, struct device *dev)
@@ -3513,6 +3517,13 @@ static int isg6320_probe(struct i2c_client *client,
 		goto err_register_input_dev;
 	}
 
+	ret = input_register_device(noti_input_dev);
+	if (ret) {
+		input_free_device(noti_input_dev);
+		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
+		goto err_register_input_dev_noti;
+	}
+
 #if defined(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_create_symlink(&input_dev->dev.kobj,
 					 input_dev->name);
@@ -3550,12 +3561,6 @@ static int isg6320_probe(struct i2c_client *client,
 		pr_err("[GRIP_%d] fail to reg sensor(%d)\n", data->ic_num, ret);
 		goto err_sensor_register;
 	}
-	ret = input_register_device(noti_input_dev);
-	if (ret) {
-		input_free_device(noti_input_dev);
-		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
-	}
 #else //!CONFIG_SENSORS_CORE_AP
 	ret = sensors_create_symlink(input_dev);
 	if (ret < 0) {
@@ -3582,21 +3587,15 @@ static int isg6320_probe(struct i2c_client *client,
 		memcpy(grip_sensor_attrs + sensor_attrs_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
 
-	ret = sensors_register(data->dev, data, grip_sensor_attrs,
+	ret = sensors_register(&data->dev, data, grip_sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #else
-	ret = sensors_register(data->dev, data, sensor_attrs,
+	ret = sensors_register(&data->dev, data, sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #endif
 	if (ret) {
 		pr_err("[GRIP_%d] fail to reg sensor(%d).\n", data->ic_num, ret);
 		goto err_sensor_register;
-	}
-	ret = input_register_device(noti_input_dev);
-	if (ret) {
-		input_free_device(noti_input_dev);
-		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
 	}
 #endif
 
@@ -3638,7 +3637,9 @@ static int isg6320_probe(struct i2c_client *client,
 #endif
 
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	pogo_notifier_register(&data->pogo_nb, isg6320_pogo_notifier, POGO_NOTIFY_DEV_SENSOR);
+#endif
 #endif
 #if defined(CONFIG_SENSORS_DUMP_DATA)
 	//for sec dump  -----
@@ -3656,7 +3657,6 @@ static int isg6320_probe(struct i2c_client *client,
 	return 0;
 
 err_sensor_register:
-err_register_input_dev_noti:
 	sysfs_remove_group(&input_dev->dev.kobj, &isg6320_attribute_group);
 err_sysfs_create_group:
 #if defined(CONFIG_SENSORS_CORE_AP)
@@ -3665,6 +3665,8 @@ err_sysfs_create_group:
 	sensors_remove_symlink(input_dev);
 #endif
 err_create_symlink:
+	input_unregister_device(noti_input_dev);
+err_register_input_dev_noti:
 	input_unregister_device(input_dev);
 err_register_input_dev:
 	mutex_destroy(&data->lock);
@@ -3709,6 +3711,7 @@ static int isg6320_remove(struct i2c_client *client)
 	sensors_remove_symlink(data->input_dev);
 #endif
 	sysfs_remove_group(&data->input_dev->dev.kobj, &isg6320_attribute_group);
+	input_unregister_device(data->noti_input_dev);
 	input_unregister_device(data->input_dev);
 	mutex_destroy(&data->lock);
 

@@ -300,6 +300,24 @@ int sec_pd_vpdo_auth(int auth, int d2d_type)
 }
 EXPORT_SYMBOL(sec_pd_vpdo_auth);
 
+int sec_pd_change_src(int max_cur)
+{
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return -1;
+	}
+
+	if (!g_psink_status->fp_sec_pd_change_src) {
+		pr_err("%s: not exist\n", __func__);
+		return -1;
+	}
+
+	g_psink_status->fp_sec_pd_change_src(max_cur);
+
+	return 0;
+}
+EXPORT_SYMBOL(sec_pd_change_src);
+
 int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr)
 {
 	int i;
@@ -373,6 +391,16 @@ int sec_pd_register_chg_info_cb(void *cb)
 	return 0;
 }
 EXPORT_SYMBOL(sec_pd_register_chg_info_cb);
+
+void sec_pd_get_vid(unsigned short *vid)
+{
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return;
+	}
+	*vid = g_psink_status->vid;
+}
+EXPORT_SYMBOL(sec_pd_get_vid);
 
 void sec_pd_get_vid_pid(unsigned short *vid, unsigned short *pid, unsigned int *xid)
 {

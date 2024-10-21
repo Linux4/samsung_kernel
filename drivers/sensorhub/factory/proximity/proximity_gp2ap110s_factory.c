@@ -25,20 +25,7 @@
 #include "../../sensorhub/shub_device.h"
 #include "proximity_factory.h"
 
-#define GP2AP110S_NAME    "GP2AP110S"
-#define GP2AP110S_VENDOR  "SHARP"
-
 #define PROX_SETTINGS_FILE_PATH     "/efs/FactoryApp/prox_settings"
-
-static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", GP2AP110S_NAME);
-}
-
-static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", GP2AP110S_VENDOR);
-}
 
 static ssize_t proximity_modify_settings_show(struct device *dev,
 					      struct device_attribute *attr, char *buf)
@@ -46,7 +33,7 @@ static ssize_t proximity_modify_settings_show(struct device *dev,
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
 	struct proximity_data *data = sensor->data;
 
-	sensor->funcs->open_calibration_file();
+	sensor->funcs->open_calibration_file(SENSOR_TYPE_PROXIMITY);
 	return snprintf(buf, PAGE_SIZE, "%d\n", data->setting_mode);
 }
 
@@ -194,8 +181,6 @@ static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr,
 	return size;
 }
 
-static DEVICE_ATTR_RO(name);
-static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(prox_trim);
 static DEVICE_ATTR_WO(prox_cal);
 static DEVICE_ATTR(modify_settings, 0664, proximity_modify_settings_show, proximity_modify_settings_store);
@@ -203,8 +188,6 @@ static DEVICE_ATTR(settings_thd_high, 0664, proximity_settings_thresh_high_show,
 static DEVICE_ATTR(settings_thd_low, 0664, proximity_settings_thresh_low_show, proximity_settings_thresh_low_store);
 
 static struct device_attribute *proximity_gp2ap110s_attrs[] = {
-	&dev_attr_name,
-	&dev_attr_vendor,
 	&dev_attr_modify_settings,
 	&dev_attr_settings_thd_high,
 	&dev_attr_settings_thd_low,
@@ -215,7 +198,7 @@ static struct device_attribute *proximity_gp2ap110s_attrs[] = {
 
 struct device_attribute **get_proximity_gp2ap110s_dev_attrs(char *name)
 {
-	if (strcmp(name, GP2AP110S_NAME) != 0)
+	if (strcmp(name, "GP2AP110S") != 0)
 		return NULL;
 
 	return proximity_gp2ap110s_attrs;

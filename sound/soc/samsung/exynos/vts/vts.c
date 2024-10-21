@@ -381,7 +381,6 @@ int vts_chk_dmic_clk_mode(struct device *dev)
 {
 	struct vts_data *data = dev_get_drvdata(dev);
 	int ret = 0;
-	int syssel_rate_value = 1;
 	u32 values[3] = {0, 0, 0};
 
 	vts_dev_info(dev, "%s state %d %d (%d)\n",
@@ -392,13 +391,11 @@ int vts_chk_dmic_clk_mode(struct device *dev)
 	/* already started recognization mode and dmic_if clk is 3.072MHz*/
 	/* VTS worked + Serial LIF */
 	if (data->clk_path == VTS_CLK_SRC_RCO)
-		syssel_rate_value = 1;
+		data->syssel_rate = 1;
 	else
-		syssel_rate_value = 4;
+		data->syssel_rate = 4;
 
 	if (data->vts_state == VTS_STATE_RECOG_STARTED) {
-		data->syssel_rate = syssel_rate_value;
-
 		/* restart VTS to update mic and clock setting */
 		data->poll_event_type |= EVENT_RESTART|EVENT_READY;
 		wake_up(&data->poll_wait_queue);
@@ -407,7 +404,6 @@ int vts_chk_dmic_clk_mode(struct device *dev)
 	if (data->vts_state == VTS_STATE_RECOG_TRIGGERED) {
 		ret = vts_start_ipc_transaction(dev, data, VTS_IRQ_AP_STOP_COPY,
 			&values, 1, 1);
-		data->syssel_rate = syssel_rate_value;
 		if (data->syssel_rate == 1) {
 			vts_clk_set_rate(dev, data->tri_clk_path);
 		} else {
@@ -426,7 +422,6 @@ int vts_chk_dmic_clk_mode(struct device *dev)
 	if (data->vts_rec_state == VTS_REC_STATE_START) {
 		ret = vts_start_ipc_transaction(dev, data,
 			VTS_IRQ_AP_STOP_REC, &values, 1, 1);
-		data->syssel_rate = syssel_rate_value;
 		if (data->syssel_rate == 1) {
 			vts_clk_set_rate(dev, data->tri_clk_path);
 		} else {
@@ -438,7 +433,7 @@ int vts_chk_dmic_clk_mode(struct device *dev)
 		if (ret < 0)
 			vts_dev_err(dev, "%s: MIC control failed\n", __func__);
 		vts_dev_info(dev, "VTS Recoding : Change SYS_SEL : %d\n",
-			syssel_rate_value);
+			data->syssel_rate);
 		ret = vts_start_ipc_transaction(dev, data,
 			VTS_IRQ_AP_START_REC, &values, 1, 1);
 	}
@@ -1034,10 +1029,6 @@ void vts_dbg_dump_fw_gpr(struct device *dev, struct vts_data *data, unsigned int
 	case VTS_FW_NOT_READY:
 	case VTS_IPC_TRANS_FAIL:
 	case VTS_FW_ERROR:
-		if (data->sram_dump.sram_magic) {
-			vts_dev_info(dev, "already dump\n");
-			break;
-		}
 #if defined(CONFIG_SOC_S5E9935) || defined(CONFIG_SOC_S5E8835)
 		for (i = 0; i <= GPR_DUMP_CNT; i++) {
 			vts_dev_info(dev, "R%d: %x\n", i, readl(data->gpr_base + VTS_CM4_R(i)));
@@ -1082,7 +1073,6 @@ void vts_dbg_dump_fw_gpr(struct device *dev, struct vts_data *data, unsigned int
 
 static void exynos_vts_panic_handler(void)
 {
-	static bool has_run;
 	struct vts_data *data = p_vts_data;
 	struct device *dev =
 		data ? (data->pdev ? &data->pdev->dev : NULL) : NULL;
@@ -1090,12 +1080,6 @@ static void exynos_vts_panic_handler(void)
 	vts_dev_dbg(dev, "%s\n", __func__);
 
 	if (vts_is_on() && dev) {
-		if (has_run) {
-			vts_dev_info(dev, "already dumped\n");
-			return;
-		}
-		has_run = true;
-
 		/* Dump VTS GPR register & SRAM */
 		vts_dbg_dump_fw_gpr(dev, data, KERNEL_PANIC_DUMP);
 	} else {

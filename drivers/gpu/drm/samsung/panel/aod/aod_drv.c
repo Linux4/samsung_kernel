@@ -39,6 +39,7 @@ bool check_aod_seqtbl_exist(struct aod_dev_info *aod, char *seqname)
 
 	return check_seqtbl_exist(to_panel_device(aod), seqname);
 }
+EXPORT_SYMBOL(check_aod_seqtbl_exist);
 
 int panel_do_aod_seqtbl_by_name_nolock(struct aod_dev_info *aod, char *seqname)
 {
@@ -55,6 +56,7 @@ int panel_do_aod_seqtbl_by_name_nolock(struct aod_dev_info *aod, char *seqname)
 
 	return execute_sequence_nolock(to_panel_device(aod), seq);
 }
+EXPORT_SYMBOL(panel_do_aod_seqtbl_by_name_nolock);
 
 int panel_do_aod_seqtbl_by_name(struct aod_dev_info *aod, char *seqname)
 {
@@ -74,7 +76,7 @@ int panel_do_aod_seqtbl_by_name(struct aod_dev_info *aod, char *seqname)
 
 static int aod_init_panel(struct aod_dev_info *aod, int lock)
 {
-	int ret;
+	int ret = 0;
 	struct aod_ioctl_props *props;
 	struct panel_device *panel;
 
@@ -102,15 +104,25 @@ static int aod_init_panel(struct aod_dev_info *aod, int lock)
 					SELF_MASK_IMG_SEQ);
 			goto err;
 		}
+
+		if (aod->custom_ops && aod->custom_ops->self_mask_data_check) {
+			ret = aod->custom_ops->self_mask_data_check(aod);
+			if (ret < 0) {
+				panel_err("failed to run self_mask_data_check(%d)\n", ret);
+				goto err;
+			}
+			panel_info("self_mask_data_check passed!\n");
+		}
 	}
 
-	ret = panel_do_aod_seqtbl_by_name_nolock(aod, SELF_MASK_ENA_SEQ);
-	if (ret < 0) {
-		panel_err("failed to run sequence(%s)\n",
-				SELF_MASK_ENA_SEQ);
-		goto err;
+	if (check_aod_seqtbl_exist(aod, SELF_MASK_ENA_SEQ)) {
+		ret = panel_do_aod_seqtbl_by_name_nolock(aod, SELF_MASK_ENA_SEQ);
+		if (ret < 0) {
+			panel_err("failed to run sequence(%s)\n",
+					SELF_MASK_ENA_SEQ);
+			goto err;
+		}
 	}
-
 err:
 	if (lock == INIT_WITH_LOCK)
 		panel_mutex_unlock(&panel->op_lock);
@@ -1133,12 +1145,12 @@ int aod_drv_prepare(struct panel_device *panel,
 
 	props->self_mask_en = aod_tune->self_mask_en;
 	props->self_reset_cnt = 0;
-	if (aod_tune->self_mask_checksum_len > 0) {
-		props->self_mask_checksum =
-			kmemdup(aod_tune->self_mask_checksum,
-					aod_tune->self_mask_checksum_len, GFP_KERNEL);
-		props->self_mask_checksum_len =
-			aod_tune->self_mask_checksum_len;
+	if (aod_tune->self_mask_crc_len > 0) {
+		props->self_mask_crc =
+			kmemdup(aod_tune->self_mask_crc,
+					aod_tune->self_mask_crc_len, GFP_KERNEL);
+		props->self_mask_crc_len =
+			aod_tune->self_mask_crc_len;
 	}
 
 	return 0;
@@ -1149,9 +1161,9 @@ int aod_drv_unprepare(struct panel_device *panel)
 	struct aod_dev_info *aod = &panel->aod;
 	struct aod_ioctl_props *props = &aod->props;
 
-	kfree(props->self_mask_checksum);
-	props->self_mask_checksum = NULL;
-	props->self_mask_checksum_len = 0;
+	kfree(props->self_mask_crc);
+	props->self_mask_crc = NULL;
+	props->self_mask_crc_len = 0;
 
 	return 0;
 }
@@ -1176,6 +1188,8 @@ int aod_drv_probe(struct panel_device *panel, struct aod_tune *aod_tune)
 	props = &aod->props;
 
 	aod->ops = &aod_drv_ops;
+	aod->custom_ops = &aod_tune->custom_ops;
+
 	aod->reset_flag = 1;
 	props->first_clk_update = 1;
 

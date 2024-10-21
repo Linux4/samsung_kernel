@@ -438,7 +438,7 @@ static void exynos_ufs_config_host(struct exynos_ufs *ufs)
 	hci_writel(handle, PRDT_SET_SIZE(12), HCI_RXPRDT_ENTRY_SIZE);
 
 	/* I_T_L_Q isn't used at the beginning */
-	ufs->nexus = 0;
+	ufs->nexus = 0xFFFFFFFF;
 	hci_writel(handle, ufs->nexus, HCI_UTRL_NEXUS_TYPE);
 	hci_writel(handle, 0xFFFFFFFF, HCI_UTMRL_NEXUS_TYPE);
 
@@ -1129,6 +1129,8 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 	struct ufshcd_lrb *lrbp;
 	struct ufs_vs_handle *handle = &ufs->handle;
 	ufs_perf_op op = UFS_PERF_OP_NONE;
+	int timeout_cnt = 50000 / 10;
+	int wait_ns = 10;
 
 	if (!IS_C_STATE_ON(ufs) ||
 			(ufs->h_state != H_LINK_UP &&
@@ -1167,10 +1169,10 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 		exynos_ufs_cmd_log_start(handle, hba, scmd);
 	}
 
-	/*
-	 * check if an update is needed. not require protection
-	 * because this functions is wrapped with spin lock outside
-	 */
+	/* check if an update is needed */
+	while (test_and_set_bit(EXYNOS_UFS_BIT_CHK_NEXUS, &ufs->flag)
+	       && timeout_cnt--)
+		ndelay(wait_ns);
 
 	if (cmd) {
 		if (test_and_set_bit(tag, &ufs->nexus))
@@ -1181,6 +1183,7 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 	}
 	hci_writel(handle, (u32)ufs->nexus, HCI_UTRL_NEXUS_TYPE);
 out:
+	clear_bit(EXYNOS_UFS_BIT_CHK_NEXUS, &ufs->flag);
 	ufs->h_state = H_REQ_BUSY;
 }
 
@@ -1396,8 +1399,12 @@ static int __exynos_ufs_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 		return 0;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
 	if (hba->shutting_down)
 		ufs_sec_print_err_info(hba);
+	else
+		ufs_sec_print_err();
+#endif
 
 	if (ufs->always_on && !hba->shutting_down) {
 		/*
@@ -2032,68 +2039,6 @@ static ssize_t exynos_ufs_sysfs_default_show(struct exynos_ufs *ufs, char *buf,
 	return snprintf(buf, PAGE_SIZE, "%u\n", ufs->params[id]);
 }
 
-#define UFS_S_RO(_name, _id)						\
-	static struct exynos_ufs_sysfs_attr ufs_s_##_name = {		\
-		.attr = { .name = #_name, .mode = 0444 },		\
-		.id = _id,						\
-		.show = exynos_ufs_sysfs_default_show,			\
-	}
-
-#define UFS_S_RW(_name, _id)						\
-	static struct exynos_ufs_sysfs_attr ufs_s_##_name = {		\
-		.attr = { .name = #_name, .mode = 0666 },		\
-		.id = _id,						\
-		.show = exynos_ufs_sysfs_default_show,			\
-	}
-
-UFS_S_RO(eom_version, UFS_S_PARAM_EOM_VER);
-
-static ssize_t
-exynos_ufs_sysfs_ufs_eom_show(struct exynos_ufs *ufs, char *buf,
-		exynos_ufs_param_id id)
-{
-	struct ufs_eom_result_s *p;
-	int len = 0;
-	int i;
-
-	p = ufs->cal_param.eom[ufs->params[UFS_S_PARAM_LANE]];
-	p += ufs->params[UFS_S_PARAM_EOM_OFS];
-
-	for (i = 0; i < EOM_DEF_VREF_MAX; i++) {
-		len += snprintf(buf + len, PAGE_SIZE, "%u %u %u\n", p->v_phase,
-				p->v_vref, p->v_err);
-		p++;
-	}
-
-	return len;
-}
-
-static int exynos_ufs_sysfs_ufs_eom_store(struct exynos_ufs *ufs,
-				const char *buf, exynos_ufs_param_id id)
-{
-	int value, offset;
-	int ret;
-
-	ret = sscanf(buf, "%d %d", &value, &offset);
-	if (value >= ufs->num_rx_lanes) {
-		dev_err(ufs->dev, "Fail set lane to %u. Its max is %u\n", value,
-				ufs->num_rx_lanes);
-		return -EINVAL;
-	}
-
-	ufs->params[UFS_S_PARAM_LANE] = value;
-	ufs->params[UFS_S_PARAM_EOM_OFS] = offset * EOM_DEF_VREF_MAX;
-
-	return 0;
-}
-
-static struct exynos_ufs_sysfs_attr ufs_s_ufs_eom = {
-	.attr = { .name = "ufs_eom", .mode = 0666 },
-	.id = UFS_S_PARAM_LANE,
-	.show = exynos_ufs_sysfs_ufs_eom_show,
-	.store = exynos_ufs_sysfs_ufs_eom_store,
-};
-
 static int exynos_ufs_sysfs_mon_store(struct exynos_ufs *ufs, const char *buf,
 				      exynos_ufs_param_id id)
 {
@@ -2160,6 +2105,69 @@ static struct exynos_ufs_sysfs_attr ufs_s_ah8_cnt = {
 	.show = exynos_ufs_sysfs_show_ah8_cnt,
 };
 
+#if IS_ENABLED(CONFIG_EXYNOS_UFS_EOM)
+#define UFS_S_RO(_name, _id)						\
+	static struct exynos_ufs_sysfs_attr ufs_s_##_name = {		\
+		.attr = { .name = #_name, .mode = 0444 },		\
+		.id = _id,						\
+		.show = exynos_ufs_sysfs_default_show,			\
+	}
+
+#define UFS_S_RW(_name, _id)						\
+	static struct exynos_ufs_sysfs_attr ufs_s_##_name = {		\
+		.attr = { .name = #_name, .mode = 0666 },		\
+		.id = _id,						\
+		.show = exynos_ufs_sysfs_default_show,			\
+	}
+
+UFS_S_RO(eom_version, UFS_S_PARAM_EOM_VER);
+
+static ssize_t
+exynos_ufs_sysfs_ufs_eom_show(struct exynos_ufs *ufs, char *buf,
+		exynos_ufs_param_id id)
+{
+	struct ufs_eom_result_s *p;
+	int len = 0;
+	int i;
+
+	p = ufs->cal_param.eom[ufs->params[UFS_S_PARAM_LANE]];
+	p += ufs->params[UFS_S_PARAM_EOM_OFS];
+
+	for (i = 0; i < EOM_DEF_VREF_MAX; i++) {
+		len += snprintf(buf + len, PAGE_SIZE, "%u %u %u\n", p->v_phase,
+				p->v_vref, p->v_err);
+		p++;
+	}
+
+	return len;
+}
+
+static int exynos_ufs_sysfs_ufs_eom_store(struct exynos_ufs *ufs,
+				const char *buf, exynos_ufs_param_id id)
+{
+	int value, offset;
+	int ret;
+
+	ret = sscanf(buf, "%d %d", &value, &offset);
+	if (value >= ufs->num_rx_lanes) {
+		dev_err(ufs->dev, "Fail set lane to %u. Its max is %u\n", value,
+				ufs->num_rx_lanes);
+		return -EINVAL;
+	}
+
+	ufs->params[UFS_S_PARAM_LANE] = value;
+	ufs->params[UFS_S_PARAM_EOM_OFS] = offset * EOM_DEF_VREF_MAX;
+
+	return 0;
+}
+
+static struct exynos_ufs_sysfs_attr ufs_s_ufs_eom = {
+	.attr = { .name = "ufs_eom", .mode = 0666 },
+	.id = UFS_S_PARAM_LANE,
+	.show = exynos_ufs_sysfs_ufs_eom_show,
+	.store = exynos_ufs_sysfs_ufs_eom_store,
+};
+
 static int exynos_ufs_sysfs_eom_store(struct exynos_ufs *ufs, const char *buf,
 				      exynos_ufs_param_id id)
 {
@@ -2181,6 +2189,7 @@ static struct exynos_ufs_sysfs_attr ufs_s_eom = {
 	.attr = { .name = "eom", .mode = 0222 },
 	.store = exynos_ufs_sysfs_eom_store,
 };
+#endif
 
 /* Convert Auto-Hibernate Idle Timer register value to microseconds */
 static int exynos_ufs_ahit_to_us(u32 ahit)
@@ -2369,9 +2378,11 @@ static struct exynos_ufs_sysfs_attr ufs_s_gear_scale = {
 };
 
 const static struct attribute *ufs_s_sysfs_attrs[] = {
+#if IS_ENABLED(CONFIG_EXYNOS_UFS_EOM)
 	&ufs_s_eom_version.attr,
 	&ufs_s_ufs_eom.attr,
 	&ufs_s_eom.attr,
+#endif
 	&ufs_s_h8_delay_ms.attr,
 	&ufs_s_monitor.attr,
 	&ufs_s_auto_hibern8.attr,
@@ -2427,21 +2438,6 @@ static struct kobj_type ufs_s_ktype = {
 static int exynos_ufs_sysfs_init(struct exynos_ufs *ufs)
 {
 	int error = -ENOMEM;
-	int i;
-	struct ufs_eom_result_s *p;
-
-	/* allocate memory for eom per lane */
-	for (i = 0; i < MAX_LANE; i++) {
-		ufs->cal_param.eom[i] =
-			devm_kcalloc(ufs->dev, EOM_MAX_SIZE,
-				     sizeof(struct ufs_eom_result_s),
-				     GFP_KERNEL);
-		p = ufs->cal_param.eom[i];
-		if (!p) {
-			dev_err(ufs->dev, "Fail to allocate eom data\n");
-			goto fail_mem;
-		}
-	}
 
 	/* create a path of /sys/kernel/ufs_x */
 	kobject_init(&ufs->sysfs_kobj, &ufs_s_ktype);
@@ -2475,14 +2471,41 @@ static int exynos_ufs_sysfs_init(struct exynos_ufs *ufs)
 
 fail_kobj:
 	kobject_put(&ufs->sysfs_kobj);
+
+	return error;
+}
+
+#if IS_ENABLED(CONFIG_EXYNOS_UFS_EOM)
+static int exynos_ufs_eom_init(struct exynos_ufs *ufs)
+{
+	int i;
+	struct ufs_eom_result_s *p;
+
+	/* allocate memory for eom per lane */
+	for (i = 0; i < MAX_LANE; i++) {
+		ufs->cal_param.eom[i] =
+			devm_kcalloc(ufs->dev, EOM_MAX_SIZE,
+				     sizeof(struct ufs_eom_result_s),
+				     GFP_KERNEL);
+		p = ufs->cal_param.eom[i];
+		if (!p) {
+			dev_err(ufs->dev, "Fail to allocate eom data\n");
+			goto fail_mem;
+		}
+	}
+
+	return 0;
+
 fail_mem:
 	for (i = 0; i < MAX_LANE; i++) {
 		if (ufs->cal_param.eom[i])
 			devm_kfree(ufs->dev, ufs->cal_param.eom[i]);
 		ufs->cal_param.eom[i] = NULL;
 	}
-	return error;
+
+	return -ENOMEM;
 }
+#endif
 
 static inline void exynos_ufs_sysfs_exit(struct exynos_ufs *ufs)
 {
@@ -2594,6 +2617,11 @@ static int exynos_ufs_probe(struct platform_device *pdev)
 
 	/* init sysfs */
 	exynos_ufs_sysfs_init(ufs);
+
+#if IS_ENABLED(CONFIG_EXYNOS_UFS_EOM)
+	/* init for eom */
+	exynos_ufs_eom_init(ufs);
+#endif
 
 	/* init specific states */
 	ufs->h_state = H_DISABLED;

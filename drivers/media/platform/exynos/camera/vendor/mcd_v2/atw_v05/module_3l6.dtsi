@@ -1,0 +1,198 @@
+/* SAMSUNG EXYNOSxxxx board camera device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/camera/exynos_is_dt.h>
+
+/ {
+	fragment@camera {
+		target-path = "/";
+		__overlay__ {
+			is_sensor_3l6: is_sensor_3l6@5A {
+				compatible = "samsung,sensor-module";
+
+				/* common */
+				sensor_id = <SENSOR_NAME_S5K3L6>;
+				active_width = <4128>;
+				active_height = <3096>;
+				margin_left = <0>;
+				margin_right = <0>;
+				margin_top = <0>;
+				margin_bottom = <0>;
+				max_framerate = <120>;
+				bitwidth = <10>;
+				use_retention_mode = <SENSOR_RETENTION_UNSUPPORTED>;
+				sensor_maker = "SLSI";
+				sensor_name = "S5K3L6";
+				setfile_name = "setfile_3l6.bin";
+				pinning_setfile;
+				preload_setfile;
+
+				status = "okay";
+
+				/* vendor */
+				rom_type = <2>; /* ROM_TYPE_EEPROM */
+				rom_id = <0>;
+				rom_cal_index = <0>;
+
+				vc_extra {
+					/* ex) statX = <stat_type, sensor_mode, max_width, max_height, max_element> */
+					stat0 = </* not avaliable */>;	/* VC_BUF_DATA_TYPE_SENSOR_STAT1 */
+					stat1 = </* not avaliable */>;	/* VC_BUF_DATA_TYPE_GENERAL_STAT1 */
+					stat2 = </* not avaliable */>;	/* VC_BUF_DATA_TYPE_SENSOR_STAT2 */
+					stat3 = </* not avaliable */>;	/* VC_BUF_DATA_TYPE_GENERAL_STAT2 */
+				};
+
+				/* sensor modes */
+				modes {
+					/* common = <width, height, fps, settle, mode, lane, speed, interleave, lrte, pd_mode> */
+					/* vcX = <map, hwformat, width, height, hwformat, type, width, height> */
+					mode0 {
+						common = <4128 3096 30 0 0 CSI_DATA_LANES_4 1196 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4128 3096    /* out */ HW_FORMAT_RAW10 VC_NOTHING 4128 3096>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>; 
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					mode1 {
+						common = <4128 2576 30 0 1 CSI_DATA_LANES_4 1196 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4128 2576    /* out */ HW_FORMAT_RAW10 VC_NOTHING 4128 2576>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>; 
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					mode2 {
+						common = <4128 2324 30 0 2 CSI_DATA_LANES_4 1196 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4128 2324    /* out */ HW_FORMAT_RAW10 VC_NOTHING 4128 2324>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>; 
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					mode3 {
+						common = <2072 1552 30 0 8 CSI_DATA_LANES_4 1196 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 2072 1552    /* out */ HW_FORMAT_RAW10 VC_NOTHING 2072 1552>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>; 
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					mode4 {
+						common = <2072 1162 30 0 9 CSI_DATA_LANES_4 1196 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 2072 1162    /* out */ HW_FORMAT_RAW10 VC_NOTHING 2072 1162>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>; 
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					mode5 {
+						common = <1028 772 120 0 5 CSI_DATA_LANES_4 1196 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 1028 772    /* out */ HW_FORMAT_RAW10 VC_NOTHING 1028 772>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>; 
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						option { special_mode = <IS_SPECIAL_MODE_FASTAE>; };
+					};
+				};
+
+				power_seq {
+					use = <1>;
+					gpio_mclk = <&gpg0 3 0x1>;
+					scenario_normal_on {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm8 0 0x1>; };
+						20 { pname = "VDD_RCAM_A2P8"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpc9 0 0x1>; };
+						30 { pname = "VDD_RCAM_CORE_1P05"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpc9 0 0x1>;};
+						40 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 1 0>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						50 { pname = "VDD_RCAM_AF_2P8"; pin = <PIN_OUTPUT 1 0>; gpio = <&s2mpu16_gpio 7 0x1>;};
+						60 { pname = "pin"; pin = <PIN_FUNCTION 2 1500>; };
+						70 { pname = "MCLK"; pin = <PIN_MCLK 1 1500>; gpio = <&gpg0 3 0x1>; };
+						80 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpm8 0 0x1>; };
+						90 { pname = "on_i2c"; pin = <PIN_I2C 1 5000>; };
+					};
+
+					scenario_normal_off {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "off_i2c"; pin = <PIN_I2C 0 200>; };
+						20 { pname = "MCLK"; pin = <PIN_MCLK 0 1500>; gpio = <&gpg0 3 0x1>; };
+						30 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm8 0 0x1>; };
+						40 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						50 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						60 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						70 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 500>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						80 { pname = "VDD_RCAM_CORE_1P05"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpc9 0 0x1>;};
+						90 { pname = "VDD_RCAM_A2P8"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpc9 0 0x1>; };
+						100 { pname = "VDD_RCAM_AF_2P8"; pin = <PIN_OUTPUT 0 0>; gpio = <&s2mpu16_gpio 7 0x1>;};
+					};
+
+					scenario_vision_on {
+						sensor_scenario = <SENSOR_SCENARIO_VISION>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm8 0 0x1>; };
+						20 { pname = "VDD_RCAM_A2P8"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpc9 0 0x1>; };
+						30 { pname = "VDD_RCAM_CORE_1P05"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpc9 0 0x1>;};
+						40 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 1 0>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						50 { pname = "VDD_RCAM_AF_2P8"; pin = <PIN_OUTPUT 1 0>; gpio = <&s2mpu16_gpio 7 0x1>;};
+						60 { pname = "pin"; pin = <PIN_FUNCTION 2 1500>; };
+						70 { pname = "MCLK"; pin = <PIN_MCLK 1 1500>; gpio = <&gpg0 3 0x1>; };
+						80 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpm8 0 0x1>; };
+						90 { pname = "on_i2c"; pin = <PIN_I2C 1 5000>; };
+					};
+
+					scenario_vision_off {
+						sensor_scenario = <SENSOR_SCENARIO_VISION>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "off_i2c"; pin = <PIN_I2C 0 200>; };
+						20 { pname = "MCLK"; pin = <PIN_MCLK 0 1500>; gpio = <&gpg0 3 0x1>; };
+						30 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm8 0 0x1>; };
+						40 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						50 { pname = "pin"; pin = <PIN_FUNCTION 1 0>; };
+						60 { pname = "pin"; pin = <PIN_FUNCTION 0 0>; };
+						70 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 500>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						80 { pname = "VDD_RCAM_CORE_1P05"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpc9 0 0x1>;};
+						90 { pname = "VDD_RCAM_A2P8"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpc9 0 0x1>; };
+						100 { pname = "VDD_RCAM_AF_2P8"; pin = <PIN_OUTPUT 0 0>; gpio = <&s2mpu16_gpio 7 0x1>;};
+					};
+
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						10 { pname = "VDD_RCAM_AF_2P8"; pin = <PIN_OUTPUT 1 6000>; gpio = <&s2mpu16_gpio 7 0x1>;};
+						20 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 1 6000>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						30 { pname = "on_i2c"; pin = <PIN_I2C 1 5000>; };
+					};
+
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+						10 { pname = "off_i2c"; pin = <PIN_I2C 0 100>; };
+						20 { pname = "CAM_VDDIO_1P8"; pin = <PIN_OUTPUT 0 2000>; gpio = <&s2mpu16_gpio 8 0x1>;};
+						30 { pname = "VDD_RCAM_AF_2P8"; pin = <PIN_OUTPUT 0 100>; gpio = <&s2mpu16_gpio 7 0x1>;};
+					};
+				};
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

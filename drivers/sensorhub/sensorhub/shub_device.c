@@ -46,6 +46,16 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/regulator/consumer.h>
+#include <linux/version.h>
+
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
 
 static struct shub_data_t *shub_data;
 
@@ -70,7 +80,7 @@ static void timestamp_sync_work_func(struct work_struct *work)
 {
 	int ret;
 
-	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, RTC_TIME, NULL, 0);
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, TIME_SYNC, NULL, 0);
 	if (ret < 0)
 		shub_errf("comm fail %d", ret);
 }
@@ -102,11 +112,20 @@ static int initialize_timestamp_sync_timer(void)
 	return 0;
 }
 
+#define SYSTEM_INFO_SIZE_V1	40
+#define SYSTEM_INFO_SIZE_V2	48 /* SF_PROBE_V2 */
+#define COPY_FIELD(dst, buffer, index, size) \
+	memcpy(&dst, (buffer + index), (size)); \
+	(index) += (size)
+
 static int get_shub_system_info_from_hub(void)
 {
 	int ret = 0;
 	char *buffer = NULL;
 	unsigned int buffer_length;
+	struct shub_system_info *system_info = &shub_data->system_info;
+	unsigned int sensor_probe_size;
+	unsigned int index = 0;
 
 	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_HUB, HUB_SYSTEM_INFO, 1000, NULL, 0, &buffer, &buffer_length,
 				     true);
@@ -116,12 +135,29 @@ static int get_shub_system_info_from_hub(void)
 		return ret;
 	}
 
-	if (buffer_length != sizeof(shub_data->system_info)) {
+	if (buffer_length == SYSTEM_INFO_SIZE_V1) {
+		sensor_probe_size = sizeof(system_info->scan_sensor_probe[0]);
+	} else if (buffer_length == SYSTEM_INFO_SIZE_V2) {
+		sensor_probe_size = sizeof(system_info->scan_sensor_probe);
+	} else {
 		shub_errf("buffer length error %d", buffer_length);
+		kfree(buffer);
 		return -EINVAL;
 	}
 
-	memcpy(&shub_data->system_info, buffer, sizeof(shub_data->system_info));
+	COPY_FIELD(system_info->fw_version, buffer, index, sizeof(system_info->fw_version));
+	COPY_FIELD(system_info->scan_sensor_probe, buffer, index, sensor_probe_size);
+	COPY_FIELD(system_info->scan_scontext_probe, buffer, index, sizeof(system_info->scan_scontext_probe));
+	COPY_FIELD(system_info->system_feature, buffer, index, sizeof(system_info->system_feature));
+	COPY_FIELD(system_info->reserved_1, buffer, index, sizeof(system_info->reserved_1));
+	COPY_FIELD(system_info->reserved_2, buffer, index, sizeof(system_info->reserved_2));
+
+	if ((is_support_system_feature(SF_PROBE_V2) && buffer_length != SYSTEM_INFO_SIZE_V2) ||
+	    (!is_support_system_feature(SF_PROBE_V2) && buffer_length != SYSTEM_INFO_SIZE_V1)) {
+		shub_errf("buffer_length error : %d", buffer_length);
+		ret = -EINVAL;
+	}
+
 	kfree(buffer);
 
 	return ret;
@@ -130,6 +166,25 @@ static int get_shub_system_info_from_hub(void)
 struct shub_system_info *get_shub_system_info(void)
 {
 	return &shub_data->system_info;
+}
+
+bool is_support_system_feature(int feature)
+{
+	return (shub_data->system_info.system_feature & (1 << feature));
+}
+
+void set_model_name_to_hub(void)
+{
+	struct device_node *np = shub_data->pdev->dev.of_node;
+	const char *model_name_string;
+
+	if (of_property_read_string(np, "model-name", &model_name_string) >= 0) {
+		shub_infof("model_name_string: %s", model_name_string);
+		strcpy(shub_data->model_name, model_name_string);
+		shub_send_command(CMD_SETVALUE, TYPE_HUB, MODEL_NAME_INFO, shub_data->model_name, MODEL_NAME_MAX);
+	} else {
+		shub_infof("model name dt doesn't exist");
+	}
 }
 
 static int send_pm_state(u8 pm_state)
@@ -145,16 +200,21 @@ static int send_pm_state(u8 pm_state)
 	return ret;
 }
 
-static int init_sensorhub(void)
+__visible_for_testing int init_sensorhub(void)
 {
 	int ret = 0;
+	char buf[][2] = { {0x00, shub_data->intent_screen_state}, {0x00, shub_data->display_screen_state}};
 
 	ret = get_shub_system_info_from_hub();
 	if (ret < 0)
 		return ret;
 
+	set_model_name_to_hub();
+
 	send_pm_state(shub_data->pm_status);
-	shub_send_status(shub_data->lcd_status);
+	shub_send_status(shub_data->lcd_status, NULL, 0);
+	shub_send_status(SCREEN_STATE, buf[0], 2);
+	shub_send_status(SCREEN_STATE, buf[1], 2);
 
 	return ret;
 }
@@ -162,6 +222,7 @@ static int init_sensorhub(void)
 void init_others(void)
 {
 	sync_motor_state();
+	sync_panel_state();
 }
 
 struct reset_info_t get_reset_info(void)
@@ -241,11 +302,11 @@ int queue_refresh_task(void)
 	return 0;
 }
 
-int shub_send_status(u8 state_sub_cmd)
+int shub_send_status(u8 state_sub_cmd, char *send_buf, int send_buf_len)
 {
 	int ret;
 
-	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, state_sub_cmd, NULL, 0);
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, state_sub_cmd, send_buf, send_buf_len);
 	if (ret < 0)
 		shub_errf("command %d failed", state_sub_cmd);
 	else
@@ -298,9 +359,10 @@ void reset_mcu(int reason)
 static int init_sensor_vdd(void)
 {
 	int ret = 0;
+	int sensor_ldo_en = 0;
+	int prox_ldo_en = 0;
 	const char *sensor_vdd;
 	struct device_node *np = shub_data->pdev->dev.of_node;
-	enum of_gpio_flags flags;
 
 	if (of_property_read_string(np, "sensor-vdd-regulator", &sensor_vdd) >= 0) {
 		shub_infof("regulator: %s", sensor_vdd);
@@ -314,21 +376,37 @@ static int init_sensor_vdd(void)
 			regulator_set_load(shub_data->sensor_vdd_regulator, 1800000);
 			shub_infof("sensor_vdd_regulator ok");
 		}
-	} else {
-		int sensor_ldo_en = of_get_named_gpio_flags(np, "sensor-ldo-en", 0, &flags);
+	}
 
-		if (sensor_ldo_en >= 0) {
-			shub_infof("sensor_ldo_en: %d", sensor_ldo_en);
-			shub_data->sensor_ldo_en = sensor_ldo_en;
+	sensor_ldo_en = of_get_named_gpio(np, "sensor-ldo-en", 0);
 
-			ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
-			if (ret < 0) {
-				shub_errf("gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
-				return ret;
-			}
-			gpio_direction_output(shub_data->sensor_ldo_en, 1);
-			gpio_free(shub_data->sensor_ldo_en);
+	if (sensor_ldo_en >= 0) {
+		shub_infof("sensor_ldo_en: %d", sensor_ldo_en);
+		shub_data->sensor_ldo_en = sensor_ldo_en;
+
+		ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
+		if (ret < 0) {
+			shub_errf("gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
+			return ret;
 		}
+		gpio_direction_output(shub_data->sensor_ldo_en, 1);
+		gpio_free(shub_data->sensor_ldo_en);
+	}
+
+	prox_ldo_en = of_get_named_gpio(np, "prox-ldo-en", 0);
+
+	if (prox_ldo_en >= 0) {
+		shub_infof("prox_ldo_en: %d", prox_ldo_en);
+
+		shub_data->prox_ldo_en = prox_ldo_en;
+
+		ret = gpio_request(prox_ldo_en, "prox_ldo_en");
+		if (ret < 0) {
+			shub_errf("gpio %d request failed %d", prox_ldo_en, ret);
+			return ret;
+		}
+		gpio_direction_output(prox_ldo_en, 1);
+		gpio_free(prox_ldo_en);
 	}
 
 	return 0;
@@ -348,16 +426,28 @@ int enable_sensor_vdd(void)
 		} else {
 			shub_info("sensor vdd regulator is already enabled");
 		}
-	} else if (shub_data->sensor_ldo_en) {
+	}
+
+	if (shub_data->sensor_ldo_en) {
 		ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
 		if (ret < 0) {
 			shub_errf("sensor ldo en gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
 		} else {
 			gpio_set_value(shub_data->sensor_ldo_en, 1);
+			shub_info("sensor ldo en set");
 			gpio_free(shub_data->sensor_ldo_en);
 		}
 	}
 
+	if (shub_data->prox_ldo_en) {
+		ret = gpio_request(shub_data->prox_ldo_en, "prox_ldo_en");
+		if (ret < 0) {
+			shub_errf("prox ldo en gpio %d request failed %d", shub_data->prox_ldo_en, ret);
+		} else {
+			gpio_set_value(shub_data->prox_ldo_en, 1);
+			gpio_free(shub_data->prox_ldo_en);
+		}
+	}
 	return ret;
 }
 
@@ -375,7 +465,9 @@ int disable_sensor_vdd(void)
 		} else {
 			shub_info("sensor vdd regulator is already disabled");
 		}
-	} else if (shub_data->sensor_ldo_en) {
+	}
+
+	if (shub_data->sensor_ldo_en) {
 		ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
 		if (ret < 0) {
 			shub_errf("sensor ldo en gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
@@ -385,6 +477,15 @@ int disable_sensor_vdd(void)
 		}
 	}
 
+	if (shub_data->prox_ldo_en) {
+		ret = gpio_request(shub_data->prox_ldo_en, "prox_ldo_en");
+		if (ret < 0) {
+			shub_errf("prox ldo en gpio %d request failed %d", shub_data->prox_ldo_en, ret);
+		} else {
+			gpio_set_value(shub_data->prox_ldo_en, 0);
+			gpio_free(shub_data->prox_ldo_en);
+		}
+	}
 	return ret;
 }
 

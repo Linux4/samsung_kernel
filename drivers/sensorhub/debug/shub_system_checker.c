@@ -35,7 +35,7 @@ struct sensor_rate {
 };
 
 struct system_env_backup {
-	uint64_t pre_sensor_state;
+	uint64_t pre_sensor_state[2];
 	struct sensor_rate pre_rate[SENSOR_TYPE_LEGACY_MAX];
 	int32_t pre_enabled_count[SENSOR_TYPE_LEGACY_MAX];
 };
@@ -348,6 +348,8 @@ void order_test_cb(int32_t type, uint64_t timestamp)
 static void restore_test_env(void)
 {
 	int32_t type = 0;
+	int32_t index = 0;
+	int32_t interval = sizeof(ssc.env_backup.pre_sensor_state[0]) * BITS_PER_BYTE;
 	struct shub_sensor *sensor;
 
 	shub_infof("");
@@ -355,7 +357,8 @@ static void restore_test_env(void)
 		sensor = get_sensor(type);
 		if (sensor) {
 			mutex_lock(&sensor->enabled_mutex);
-			sensor->enabled = (ssc.env_backup.pre_sensor_state & (1ULL << type));
+			index = type > interval ? 0 : 1;
+			sensor->enabled = (ssc.env_backup.pre_sensor_state[index] & (1ULL << type % interval));
 			sensor->enabled_cnt = ssc.env_backup.pre_enabled_count[type];
 			mutex_unlock(&sensor->enabled_mutex);
 
@@ -511,7 +514,7 @@ static void prepare_test_env(void)
 	memset(&ssc, 0, sizeof(ssc));
 
 	// backup shub env
-	ssc.env_backup.pre_sensor_state = get_sensors_legacy_enable_state();
+	get_sensors_legacy_enable_state(ssc.env_backup.pre_sensor_state);
 	for (type = SENSOR_TYPE_ACCELEROMETER; type < SENSOR_TYPE_LEGACY_MAX; type++) {
 		sensor = get_sensor(type);
 		if (sensor) {

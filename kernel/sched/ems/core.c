@@ -57,6 +57,20 @@ static bool is_prio_tex_task(struct task_struct *p)
 	return p->prio <= tex.prio;
 }
 
+bool is_important_task(struct task_struct *p)
+{
+	if (ems_boosted_tex(p))
+		return true;
+
+	if (is_binder_tex_task(p))
+		return true;
+
+	if (is_prio_tex_task(p))
+		return true;
+
+	return false;
+}
+
 static bool is_expired_tex(struct task_struct *p)
 {
 	return ems_tex_chances(p) <= 0;
@@ -226,6 +240,9 @@ static int tex_boosted_fit_cpus(struct tp_env *env)
 			spare_cap = capacity_cpu_orig(cpu) - cpu_util;
 
 			if (ems_rq_migrated(cpu_rq(cpu)))
+				continue;
+
+			if (is_boosted_tex_task(cpu_rq(cpu)->curr))
 				continue;
 
 			if (available_idle_cpu(cpu)) {

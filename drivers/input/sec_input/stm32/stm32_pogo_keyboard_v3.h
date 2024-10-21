@@ -67,7 +67,7 @@ struct stm32_keypad_dtdata_row {
 };
 
 struct stm32_keypad_dtdata {
-	const char *input_name[3];
+	const char *input_name[KDB_SUPPORT_MODEL_CNT];
 };
 
 struct stm32_keypad_dev {
@@ -81,7 +81,7 @@ struct stm32_keypad_dev {
 	struct notifier_block pogo_nb;
 	char key_name[716][10];
 	unsigned short *keycode;
-	u32 support_keyboard_model[3];
+	u32 support_keyboard_model[KDB_SUPPORT_MODEL_CNT];
 	u32 keyboard_model;
 	void (*release_all_key)(struct stm32_keypad_dev *stm32);
 	int (*keypad_set_input_dev)(struct stm32_keypad_dev *stm32, struct pogo_data_struct pogo_data);

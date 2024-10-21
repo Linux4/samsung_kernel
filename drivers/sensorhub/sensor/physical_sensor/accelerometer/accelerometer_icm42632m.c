@@ -37,7 +37,7 @@ struct sensor_chipset_init_funcs accel_icm42632m_ops = {
 	.parse_dt = parse_dt_accelerometer_icm42632m,
 };
 
-struct sensor_chipset_init_funcs *get_accelometer_icm42632m_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_accelerometer_icm42632m_function_pointer(char *name)
 {
 	if (strcmp(name, ICM42632M_NAME) != 0)
 		return NULL;

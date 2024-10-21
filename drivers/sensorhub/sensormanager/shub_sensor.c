@@ -86,7 +86,7 @@ int init_shub_sensor(struct shub_sensor *sensor)
 	}
 
 	if (sensor->funcs->init_variable) {
-		ret = sensor->funcs->init_variable();
+		ret = sensor->funcs->init_variable(sensor->type);
 		if (ret) {
 			shub_errf("%s init variable ret %d", sensor->name, ret);
 			return ret;

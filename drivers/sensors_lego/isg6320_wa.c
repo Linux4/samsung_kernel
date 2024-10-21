@@ -3364,6 +3364,12 @@ static int isg6320_probe(struct i2c_client *client,
 		goto err_register_input_dev;
 	}
 
+	ret = input_register_device(noti_input_dev);
+	if (ret) {
+		input_free_device(noti_input_dev);
+		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
+		goto err_register_input_dev_noti;
+	}
 #if defined(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_create_symlink(&input_dev->dev.kobj,
 					 input_dev->name);
@@ -3401,12 +3407,6 @@ static int isg6320_probe(struct i2c_client *client,
 		pr_err("[GRIP_%d] fail to reg sensor(%d)\n", data->ic_num, ret);
 		goto err_sensor_register;
 	}
-	ret = input_register_device(noti_input_dev);
-	if (ret) {
-		input_free_device(noti_input_dev);
-		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
-	}
 #else //!CONFIG_SENSORS_CORE_AP
 	ret = sensors_create_symlink(input_dev);
 	if (ret < 0) {
@@ -3433,24 +3433,17 @@ static int isg6320_probe(struct i2c_client *client,
 		memcpy(grip_sensor_attrs + sensor_attrs_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
 
-	ret = sensors_register(data->dev, data, grip_sensor_attrs,
+	ret = sensors_register(&data->dev, data, grip_sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #else
-	ret = sensors_register(data->dev, data, sensor_attrs,
+	ret = sensors_register(&data->dev, data, sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #endif
 	if (ret) {
 		pr_err("[GRIP_%d] fail to reg sensor(%d).\n", data->ic_num, ret);
 		goto err_sensor_register;
 	}
-	ret = input_register_device(noti_input_dev);
-	if (ret) {
-		input_free_device(noti_input_dev);
-		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
-	}
 #endif
-
 	data->grip_ws = wakeup_source_register(&client->dev, "grip_wake_lock");
 	INIT_WORK(&data->irq_work, irq_work_func);
 	INIT_WORK(&data->cfcal_work, cfcal_work_func);
@@ -3507,7 +3500,6 @@ static int isg6320_probe(struct i2c_client *client,
 	return 0;
 
 err_sensor_register:
-err_register_input_dev_noti:
 	sysfs_remove_group(&input_dev->dev.kobj, &isg6320_attribute_group);
 err_sysfs_create_group:
 #if defined(CONFIG_SENSORS_CORE_AP)
@@ -3516,6 +3508,8 @@ err_sysfs_create_group:
 	sensors_remove_symlink(input_dev);
 #endif
 err_create_symlink:
+	input_unregister_device(noti_input_dev);
+err_register_input_dev_noti:
 	input_unregister_device(input_dev);
 err_register_input_dev:
 	mutex_destroy(&data->lock);
@@ -3560,6 +3554,7 @@ static int isg6320_remove(struct i2c_client *client)
 	sensors_remove_symlink(data->input_dev);
 #endif
 	sysfs_remove_group(&data->input_dev->dev.kobj, &isg6320_attribute_group);
+	input_unregister_device(data->noti_input_dev);
 	input_unregister_device(data->input_dev);
 	mutex_destroy(&data->lock);
 

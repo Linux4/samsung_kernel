@@ -1332,7 +1332,7 @@
 			phys = <0x1f>;
 			phy-names = "pciephy";
 			status = "disabled";
-			ranges = <0x1000000 0x00 0x1b200000 0x1b200000 0x00 0x100000 0x2000000 0x00 0x1b300000 0x1b300000 0x00 0xd00000>;
+			ranges = <0x1000000 0x00 0x00 0x1b200000 0x00 0x100000 0x2000000 0x00 0x1b300000 0x1b300000 0x00 0xd00000>;
 			#interrupt-cells = <0x01>;
 			interrupts = <0x00 0x195 0x04>;
 			interrupt-names = "msi";
@@ -1361,7 +1361,7 @@
 			vdda-pll-supply = <0x24>;
 			phandle = <0xde>;
 
-			lane@1c06800 {
+			phy@1c06800 {
 				reg = <0x1c06200 0x128 0x1c06400 0x1fc 0x1c06800 0x20c>;
 				#phy-cells = <0x00>;
 				clocks = <0x20 0x5e>;
@@ -1416,7 +1416,7 @@
 			vddp-ref-clk-always-on;
 			phandle = <0xdf>;
 
-			lanes@1da7400 {
+			phy@1da7400 {
 				reg = <0x1da7400 0x128 0x1da7600 0x1fc 0x1da7c00 0x1dc 0x1da7800 0x128 0x1da7a00 0x1fc>;
 				#phy-cells = <0x00>;
 				phandle = <0x25>;
@@ -1852,7 +1852,7 @@
 		stm@6002000 {
 			compatible = "arm,coresight-stm\0arm,primecell";
 			reg = <0x6002000 0x1000 0x16280000 0x180000>;
-			reg-names = "stm-base\0stm-data-base";
+			reg-names = "stm-base\0stm-stimulus-base";
 			status = "disabled";
 			clocks = <0x26 0x08 0x26 0x09>;
 			clock-names = "apb_pclk\0atclk";
@@ -2601,7 +2601,7 @@
 			reset-names = "phy\0common";
 			phandle = <0x10b>;
 
-			lane@c010200 {
+			phy@c010200 {
 				reg = <0xc010200 0x128 0xc010400 0x200 0xc010c00 0x20c 0xc010600 0x128 0xc010800 0x200>;
 				#phy-cells = <0x00>;
 				clocks = <0x20 0x78>;
@@ -3269,10 +3269,10 @@
 		anoc2_smmu = "/soc/iommu@16c0000";
 		pcie0 = "/soc/pci@1c00000";
 		pcie_phy = "/soc/phy@1c06000";
-		pciephy = "/soc/phy@1c06000/lane@1c06800";
+		pciephy = "/soc/phy@1c06000/phy@1c06800";
 		ufshc = "/soc/ufshc@1da4000";
 		ufsphy = "/soc/phy@1da7000";
-		ufsphy_lanes = "/soc/phy@1da7000/lanes@1da7400";
+		ufsphy_lanes = "/soc/phy@1da7000/phy@1da7400";
 		tcsr_mutex_regs = "/soc/syscon@1f40000";
 		tlmm = "/soc/pinctrl@3400000";
 		sdc2_clk_on = "/soc/pinctrl@3400000/sdc2_clk_on";
@@ -3386,7 +3386,7 @@
 		usb3 = "/soc/usb@a8f8800";
 		usb3_dwc3 = "/soc/usb@a8f8800/dwc3@a800000";
 		usb3phy = "/soc/phy@c010000";
-		usb1_ssphy = "/soc/phy@c010000/lane@c010200";
+		usb1_ssphy = "/soc/phy@c010000/phy@c010200";
 		qusb2phy = "/soc/phy@c012000";
 		sdhc2 = "/soc/sdhci@c0a4900";
 		blsp1_dma = "/soc/dma-controller@c144000";

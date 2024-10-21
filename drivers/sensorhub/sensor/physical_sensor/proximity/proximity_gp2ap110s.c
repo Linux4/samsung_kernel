@@ -87,7 +87,7 @@ int open_proximity_setting_mode(void)
 		shub_infof("prox_settings %d", data->setting_mode);
 		if (data->setting_mode != 1 && data->setting_mode != 2) {
 			data->setting_mode = 1;
-			shub_errf("leg_reg_val is wrong. set defulat setting");
+			shub_errf("leg_reg_val is wrong. set default setting");
 		}
 	}
 

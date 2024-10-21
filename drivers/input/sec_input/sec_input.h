@@ -238,6 +238,8 @@ const struct file_operations ops_name = {				\
 #define KEY_FN_LOCK		0x2ca	/* fn_lock key */
 #define KEY_FN_UNLOCK		0x2cb	/* fn_unlock key */
 
+#define KEY_AI_HOT		0x2f8	/* ai hot key */
+
 #define ABS_MT_CUSTOM		0x3e	/* custom event */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
@@ -245,6 +247,7 @@ const struct file_operations ops_name = {				\
 #else
 #define SW_PEN_INSERT		0x13  /* set = pen insert, remove */
 #endif
+#define SW_PEN_REVERSE_INSERT	0x0d  /* set = pen reverse insert, remove */
 
 #define EXYNOS_DISPLAY_INPUT_NOTIFIER ((IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU)) && IS_ENABLED(CONFIG_PANEL_NOTIFY))
 
@@ -661,6 +664,8 @@ struct sec_ts_plat_data {
 
 	struct sec_ts_coordinate coord[SEC_TS_SUPPORT_TOUCH_COUNT];
 	struct sec_ts_coordinate prev_coord[SEC_TS_SUPPORT_TOUCH_COUNT];
+	bool fill_slot;
+
 	int touch_count;
 	unsigned int palm_flag;
 	volatile u8 touch_noise_status;
@@ -829,7 +834,8 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata);
 
 void sec_input_proximity_report(struct device *dev, int data);
 void sec_input_gesture_report(struct device *dev, int id, int x, int y);
-void sec_input_coord_event(struct device *dev, int t_id);
+void sec_input_coord_event_fill_slot(struct device *dev, int t_id);
+void sec_input_coord_event_sync_slot(struct device *dev);
 void sec_input_release_all_finger(struct device *dev);
 int sec_input_device_register(struct device *dev, void *data);
 void sec_tclm_parse_dt(struct device *dev, struct sec_tclm_data *tdata);

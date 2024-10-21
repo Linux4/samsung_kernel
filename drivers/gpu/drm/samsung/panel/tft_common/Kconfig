@@ -8,6 +8,14 @@ menuconfig USDM_PANEL_TFT_COMMON
 		the TFT_COMMON DDI.
 
 
+########## FOR KUNIT ##########
+
+config TFT_COMMON_TEST
+	bool "KUnit test for tft_common ddi driver"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
 menuconfig USDM_PANEL_HX83122A_GTS9FEP_CSOT
 	tristate "HX83122A_GTS9FEP_CSOT DDI Panel Driver"
 	depends on USDM_PANEL_TFT_COMMON
@@ -17,6 +25,14 @@ menuconfig USDM_PANEL_HX83122A_GTS9FEP_CSOT
 		common panel driver. say Y, if you have a panel based on
 		the HX83122A_GTS9FEP_CSOT DDI.
 
+########## FOR KUNIT ##########
+
+config HX83122A_GTS9FEP_CSOT_TEST
+	bool "KUnit test for tft_common ddi driver"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
 menuconfig USDM_PANEL_HX83122A_GTS9FEP_BOE
 	tristate "HX83122A_GTS9FEP_BOE DDI Panel Driver"
 	depends on USDM_PANEL_TFT_COMMON
@@ -25,3 +41,11 @@ menuconfig USDM_PANEL_HX83122A_GTS9FEP_BOE
 		This enables HX83122A_GTS9FEP_BOE DDI dependent panel drivers of
 		common panel driver. say Y, if you have a panel based on
 		the HX83122A_GTS9FEP_BOE DDI.
+
+########## FOR KUNIT ##########
+
+config HX83122A_GTS9FEP_BOE_TEST
+	bool "KUnit test for tft_common ddi driver"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.

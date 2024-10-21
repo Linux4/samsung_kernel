@@ -474,26 +474,61 @@ int sensor_hi847_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, bool
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0260, 0x10);
-		goto p_err_unlock;
+		goto exit;
 	}
 
 	ret = cis->ixc_ops->write8(cis->client, 0x030F, 0x14); /* OTP status */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x030F, 0x14);
-		goto p_err_unlock;
+		goto exit;
 	}
 
 	ret = cis->ixc_ops->write8(cis->client, 0x0B00, 0x01); /* standby on */
 	if (ret < 0) {
 		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
 			ret, 0x0B00, 0x01);
-		goto p_err_unlock;
+		goto exit;
 	}
 
 	usleep_range(1000, 1000); /* sleep 1msec */
 
 	/* read otp bank */
+	ret = cis->ixc_ops->write8(cis->client, 0x030A, ((HI847_OTP_BANK_SEL_ADDR) >> 8) & 0xFF); /* upper 8bit */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x030A, ((HI847_OTP_BANK_SEL_ADDR) >> 8) & 0xFF);
+		goto exit;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x030B, HI847_OTP_BANK_SEL_ADDR & 0xFF); /* lower 8bit */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x030B, HI847_OTP_BANK_SEL_ADDR & 0xFF);
+		goto exit;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x031C, 0x00); /* OTP Signal */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x031C, 0x00);
+		goto exit;
+	}
+	
+	ret = cis->ixc_ops->write8(cis->client, 0x031D, 0x00); /* OTP Signal */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x031D, 0x00);
+		goto exit;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x0302, 0x01); /* read mode */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0302, 0x01);
+		goto exit;
+	}
+
 	ret = cis->ixc_ops->read8(cis->client, read_addr, &bank);
 	if (unlikely(ret)) {
 		err("failed to read OTP bank address (%d)\n", ret);
@@ -519,7 +554,7 @@ int sensor_hi847_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, bool
 		break;
 	}
 
-	info("%s: otp_bank = %d start_addr = %x\n", __func__, bank, start_addr);
+	info("%s: otp_bank = 0x%x start_addr = 0x%x\n", __func__, bank, start_addr);
 
 	/* OTP burst read */
 	ret = cis->ixc_ops->write8(cis->client, 0x030A, ((start_addr) >> 8) & 0xFF); /* upper 8bit */

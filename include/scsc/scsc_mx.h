@@ -440,6 +440,9 @@ int scsc_service_register_observer(struct scsc_service *service, char *name);
 /* Unregister an observer */
 int scsc_service_unregister_observer(struct scsc_service *service, char *name);
 
+int scsc_service_register_check_bt_status_cb(void(*status_cb)(bool bt_on));
+int scsc_service_unregister_check_bt_status_cb(void);
+
 /* Reads a configuration file into memory.
  *
  * Path is relative to the currently selected firmware configuration

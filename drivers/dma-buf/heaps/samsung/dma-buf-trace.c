@@ -221,10 +221,11 @@ void __show_dmabuf_trace_info(struct memlog_obj *obj)
 			break;
 		}
 	}
-	mutex_unlock(&trace_lock);
 
-	if (!num_buffer)
+	if (!num_buffer) {
+		mutex_unlock(&trace_lock);
 		return;
+	}
 
 	sort(sorted_array, num_buffer, sizeof(*sorted_array),
 	     dmabuf_trace_buffer_size_compare, NULL);
@@ -244,6 +245,8 @@ void __show_dmabuf_trace_info(struct memlog_obj *obj)
 		count = 1;
 	}
 	prlogger(obj, "%10zu : %8d\n", size / 1024, count);
+
+	mutex_unlock(&trace_lock);
 }
 
 void show_dmabuf_dva(struct device *dev)

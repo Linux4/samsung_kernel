@@ -2553,7 +2553,7 @@ p_skip_sync:
 	is_group_debug_aa_shot(group, frame);
 #endif
 
-	is_group_set_torch(group, frame);
+//	is_group_set_torch(group, frame);
 
 	ret = group->shot_callback(device, group, frame);
 	if (unlikely(ret)) {
@@ -2575,6 +2575,8 @@ p_skip_sync:
 	clear_bit(IS_GROUP_SHOT, &group->state);
 	PROGRAM_COUNT(12);
 	TIME_SHOT(TMS_SHOT1);
+
+	is_group_set_torch(group, frame);
 
 	return 0;
 

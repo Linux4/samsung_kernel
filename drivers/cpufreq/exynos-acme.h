@@ -31,11 +31,6 @@ struct exynos_cpufreq_file_operations {
 	unsigned int			default_value;
 };
 
-enum {
-	NON_BLOCKING = 0,
-	BLOCKING,
-};
-
 struct exynos_cpufreq_domain {
 	/* list of domain */
 	struct list_head		list;
@@ -78,20 +73,14 @@ struct exynos_cpufreq_domain {
 	struct exynos_cpufreq_file_operations	max_qos_fops;
 
 	/* fast-switch */
-	bool				fast_switch_possible;
 	bool				fast_switch;
 	raw_spinlock_t			fast_switch_lock;
 
 	/* list head of DVFS Manager constraints */
 	struct list_head		dm_list;
 
-	bool				dvfs_mode;
-
 	/* per-domain sysfs support */
 	struct kobject			kobj;
-
-	/* fake boot freq flag */
-	bool				valid_freq_flag;
 };
 
 /*

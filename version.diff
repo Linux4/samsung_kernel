@@ -1,0 +1,11 @@
+diff --git a/drivers/soc/samsung/cpif/cpif_version.h b/drivers/soc/samsung/cpif/cpif_version.h
+index 60af9ffe47ba..53f64c91913f 100644
+--- a/drivers/soc/samsung/cpif/cpif_version.h
++++ b/drivers/soc/samsung/cpif/cpif_version.h
+@@ -8,5 +8,5 @@
+ #define __CPIF_VERSION_H__
+ 
+ /* Should not exceed CPIF_VERSION_SIZE */
+-static const char cpif_driver_version[] = "CPIF-20230713R1";
++static const char cpif_driver_version[] = "CPIF-20240119R1";
+ #endif /* __CPIF_VERSION_H__ */

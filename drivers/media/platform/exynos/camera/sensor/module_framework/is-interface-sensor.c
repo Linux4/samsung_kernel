@@ -2646,6 +2646,11 @@ int request_flash(struct is_sensor_interface *itf,
 		return -ENXIO;
 	}
 
+	if (!sensor_peri->cis.cis_data->stream_on) {
+		err("[%s] Do not update flash value.Stream is already turned off.\n", __func__);
+		goto p_err;
+	}
+
 	flash = sensor_peri->flash;
 
 	vsync_cnt = get_vsync_count(itf);

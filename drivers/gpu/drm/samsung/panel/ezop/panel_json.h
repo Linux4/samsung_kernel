@@ -38,6 +38,8 @@ int jsonr_all(json_reader_t *r);
 int panel_json_parse(char *json, size_t size, struct list_head *pnobj_list);
 
 /* json writer */
+int jsonw_pnobj_list(json_writer_t *w, u32 pnobj_cmd_type, struct list_head *pnobj_list);
+int jsonw_sorted_pnobj_list(json_writer_t *w, u32 pnobj_cmd_type, struct list_head *pnobj_list);
 int jsonw_maptbl(json_writer_t *w, struct maptbl *m);
 int jsonw_tx_packet(json_writer_t *w, struct pktinfo *pkt);
 int jsonw_keyinfo(json_writer_t *w, struct keyinfo *key);

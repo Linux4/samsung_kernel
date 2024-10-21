@@ -460,15 +460,9 @@ static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_HSEN_ops, himax_HSEN_rea
 
 int himax_set_gesture(int gesture_state)
 {
-	uint8_t addr[4];
 	uint8_t data[4];
 	uint8_t rec_data[DATA_LEN_4] = {0};
 	int retry = 0;
-
-	addr[3] = 0x10;
-	addr[2] = 0x00;
-	addr[1] = 0x7f;
-	addr[0] = 0x24;
 
 	data[3] = 0x00;
 	data[2] = 0x00;
@@ -476,10 +470,10 @@ int himax_set_gesture(int gesture_state)
 	data[0] = gesture_state & 0xFF;
 
 	do {
-		g_core_fp.fp_register_write(addr, DATA_LEN_4, data, 0);
+		g_core_fp.fp_register_write(pfw_op->addr_gesture_en, DATA_LEN_4, data, 0);
 		usleep_range(1000, 1001);
 
-		g_core_fp.fp_register_read(addr, DATA_LEN_4, rec_data, 0);
+		g_core_fp.fp_register_read(pfw_op->addr_gesture_en, DATA_LEN_4, rec_data, 0);
 		I("%s: Now retry=%d, data=0x%02X%02X%02X%02X\n", __func__, retry,
 			rec_data[3], rec_data[2], rec_data[1], rec_data[0]);
 	} while ((retry++ < 10) && (rec_data[3] != data[3] || rec_data[2] != data[2] || rec_data[1] != data[1] || rec_data[0] != data[0]) && !atomic_read(&private_ts->shutdown));
@@ -3274,7 +3268,7 @@ int himax_chip_common_init(void)
 	ts->gesture_cust_en[0] = 0;
 	ts->gesture_cust_en[1] = 0;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 110))
-	ts->ts_SMWP_wake_lock = wakeup_source_register(ts->dev, HIMAX_common_NAME);
+	ts->ts_SMWP_wake_lock = wakeup_source_register(NULL, HIMAX_common_NAME);
 #else
 	wakeup_source_init(ts->ts_SMWP_wake_lock, HIMAX_common_NAME);
 #endif

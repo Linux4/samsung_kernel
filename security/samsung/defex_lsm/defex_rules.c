@@ -168,6 +168,7 @@
 	{feature_safeplace_path,"/system/bin/awk"},
 	{feature_safeplace_path,"/system/bin/bc"},
 	{feature_safeplace_path,"/system/bin/rdxd"},
+	{feature_safeplace_path,"/system/bin/ztd"},
 	{feature_safeplace_path,"/system/system_ext/bin/dpmd"},
 	{feature_safeplace_path,"/vendor/bin/init.qti.dcvs.sh"},
 	{feature_safeplace_path,"/vendor/bin/vendor_modprobe.sh"},
@@ -178,6 +179,7 @@
 	{feature_safeplace_path,"/vendor/bin/init.qti.kernel.sh"},
 	{feature_safeplace_path,"/vendor/bin/init.kernel.post_boot.sh"},
 	{feature_safeplace_path,"/vendor/bin/init.kernel.post_boot-lahaina.sh"},
+	{feature_safeplace_path,"/vendor/bin/init.qti.early_init.sh"},
 	{feature_safeplace_path,"/vendor/bin/init.qti.keymaster.sh"},
 	{feature_safeplace_path,"/vendor/bin/init.qti.write.sh"},
 	{feature_safeplace_path,"/vendor/bin/vmmgr"},
@@ -233,6 +235,8 @@
 	{feature_safeplace_path,"/system/bin/bpfloader"},
 	{feature_safeplace_path,"/system/bin/btfloader"},
 	{feature_safeplace_path,"/vendor/bin/system_dlkm_modprobe.sh"},
+	{feature_safeplace_path,"/apex/com.android.sdkext/bin/derive_classpath"},
+	{feature_safeplace_path,"/apex/com.android.sdkext@340819010.tmp/bin/derive_classpath"},
 	{feature_safeplace_path,"/tmp/update_binary;updater_intermediates/updater;obj/EXECUTABLES"},
 	{feature_safeplace_path,"/tmp/update-binary"},
 	{feature_safeplace_path,"/system/bin/install-recovery.sh"},	/* DEFAULT */
@@ -262,10 +266,13 @@
 	{feature_immutable_src_exception,"/system/bin/lshal"},
 	{feature_immutable_src_exception,"/apex/com.android.runtime/bin/crash_dump32"},	/* DEFAULT */
 	{feature_immutable_src_exception,"/apex/com.android.runtime/bin/crash_dump64"},	/* DEFAULT */
+	{feature_immutable_src_exception,"/data/local/tests/unrestricted/CtsBionicTestCases/arm64/CtsBionicTestCases"},	/* DEFAULT */
+	{feature_immutable_src_exception,"/data/local/tests/unrestricted/CtsBionicTestCases/arm/CtsBionicTestCases"},	/* DEFAULT */
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.gatekeeper@1.0-service"},
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.keymaster@4.0-service"},
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.security.keymint-service"},
 	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.tlc.kg@1.0-service"},
+	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.security.wsm-service"},
 	{feature_integrity_check,"/vendor/bin/vendor.samsung.hardware.security.wsm@1.0-service"},
 	{feature_integrity_check,"/vendor/bin/vaultkeeperd"},
 	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.tlc.kg@1.1-service"},

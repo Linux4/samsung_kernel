@@ -1251,10 +1251,6 @@ static void exynos_panel_bridge_mode_set(struct drm_bridge *bridge,
 			funcs->mode_set(ctx, pmode, exynos_state->seamless_modeset);
 		}
 
-		if (SEAMLESS_MODESET_VREF & exynos_state->seamless_modeset &&
-				ctx->enabled)
-			exynos_state->adjusted_fps = drm_mode_vrefresh(&pmode->mode);
-
 		exynos_panel_update_rcd(ctx, pmode);
 	}
 
@@ -1339,12 +1335,20 @@ static void exynos_panel_parse_vendor_params(struct device *dev, struct exynos_p
 				&decon->config.vendor_pps.scale_increment_interval);
 		of_property_read_u32(np, "final_offset",
 				&decon->config.vendor_pps.final_offset);
+		of_property_read_u32(np, "nfl_bpg_offset",
+				&decon->config.vendor_pps.nfl_bpg_offset);
+		of_property_read_u32(np, "slice_bpg_offset",
+				&decon->config.vendor_pps.slice_bpg_offset);
 		of_property_read_u32(np, "comp_cfg",
 				&decon->config.vendor_pps.comp_cfg);
 
-		if (dsim != NULL)
+		if (dsim != NULL) {
 			dsim->config.lp_force_en = of_property_read_bool(
 				np, "samsung,force-seperate-trans");
+
+			dsim->config.ignore_rx_trail = of_property_read_bool(
+				np, "samsung,ignore-rx-trail");
+		}
 }
 
 static void exynos_panel_parse_vfp_detail(struct exynos_panel *ctx)

@@ -461,8 +461,8 @@
 			compatible = "qcom,msm8996-qusb2-phy";
 			reg = <0x1613000 0x180>;
 			#phy-cells = <0x00>;
-			clocks = <0x11 0x00 0x13 0x0f>;
-			clock-names = "ref\0cfg_ahb";
+			clocks = <0x13 0x0f 0x11 0x00>;
+			clock-names = "cfg_ahb\0ref";
 			resets = <0x13 0x00>;
 			status = "okay";
 			phandle = <0x17>;
@@ -477,7 +477,7 @@
 		sdhci@4744000 {
 			compatible = "qcom,sm6125-sdhci\0qcom,sdhci-msm-v5";
 			reg = <0x4744000 0x1000 0x4745000 0x1000>;
-			reg-names = "hc\0core";
+			reg-names = "hc\0cqhci";
 			interrupts = <0x00 0x15c 0x04 0x00 0x160 0x04>;
 			interrupt-names = "hc_irq\0pwr_irq";
 			clocks = <0x13 0xa3 0x13 0xa4 0x14>;

@@ -238,8 +238,6 @@ static  bool wlan_stop_on_failure_v2(struct scsc_service_client *client, struct 
 		 * stop and start).
 		 */
 		if (sdev->recovery_next_state != SCSC_WIFI_CM_IF_STATE_STOPPING) {
-			slsi_hip_block_bh(sdev);
-
 			/* Stop wlan operations. Send event to registered parties */
 			mutex_unlock(&slsi_start_mutex);
 			SLSI_INFO_NODEV("Nofity registered functions\n");

@@ -32,6 +32,7 @@ struct seqinfo SEQINFO(_seqname) = SEQINFO_INIT((#_seqname), (_cmdtbl))
 
 bool is_valid_sequence(struct seqinfo *seq);
 char *get_sequence_name(struct seqinfo *seq);
+int snprintf_sequence(char *buf, size_t size, struct seqinfo *seq);
 struct seqinfo *create_sequence(char *name, size_t size);
 void destroy_sequence(struct seqinfo *seq);
 

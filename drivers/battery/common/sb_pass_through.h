@@ -25,6 +25,7 @@ enum pass_through_mode {
 	PTM_NONE = 0,
 	PTM_1TO1,
 	PTM_2TO1,
+	PTM_3TO1,
 };
 
 struct sb_pt;

@@ -4,7 +4,6 @@ obj-$(CONFIG_SEC_MISC)		+= misc/
 obj-$(CONFIG_SEC_PM)		+= pm/
 
 obj-$(CONFIG_SEC_REBOOT)        += sec_reboot.o
-obj-$(CONFIG_SEC_KEY_NOTIFIER)	+= sec_crash_key.o
 obj-$(CONFIG_SEC_KEY_NOTIFIER)	+= sec_crash_key_user.o
 obj-$(CONFIG_SEC_KEY_NOTIFIER)	+= sec_hard_reset_hook.o
 obj-$(CONFIG_SEC_KEY_NOTIFIER)	+= sec_key_notifier.o

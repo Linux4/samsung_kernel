@@ -661,6 +661,8 @@ IS_TIMER_FUNC(interface_timer)
 				is_resource_cdump();
 			else
 				is_resource_dump();
+
+			set_bit(IS_SENSOR_ESD_RECOVERY, &sensor->state);
 #endif
 			return;
 		}

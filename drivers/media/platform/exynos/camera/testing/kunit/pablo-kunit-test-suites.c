@@ -145,4 +145,5 @@ static const struct kernel_param_ops __run_kunit_ops = {
 
 module_param_cb(run_kunit_test, &__run_kunit_ops, NULL, 0644);
 
+MODULE_IMPORT_NS(DMA_BUF);
 MODULE_LICENSE("GPL");

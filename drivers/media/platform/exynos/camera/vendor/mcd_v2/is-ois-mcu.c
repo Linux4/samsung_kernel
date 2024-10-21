@@ -3628,8 +3628,9 @@ bool ois_mcu_check_fw(struct is_core *core)
 	}
 
 	specific = core->vender.private_data;
+#ifdef CONFIG_OIS_USE
 	specific->ois_ver_read = true;
-
+#endif
 	return true;
 }
 
@@ -3802,6 +3803,25 @@ static int ps_notifier_cb(struct notifier_block *nb, unsigned long event, void *
 	return NOTIFY_OK;
 }
 #endif
+
+void ois_mcu_power_on_work(struct work_struct *data)
+{
+	struct ois_mcu_dev *mcu = NULL;
+
+	FIMC_BUG_VOID(!data);
+
+	mcu = container_of(data, struct ois_mcu_dev, mcu_power_on_work);
+
+	if (mcu == NULL) {
+		err_mcu("%s ois_mcu_dev NULL! power on failed", __func__);
+		return;
+	}
+	ois_mcu_power_ctrl(mcu, 0x1);
+	ois_mcu_load_binary(mcu);
+	ois_mcu_core_ctrl(mcu, 0x1);
+
+	info_mcu("%s: mcu on.\n", __func__);
+}
 
 static int ois_mcu_probe(struct platform_device *pdev)
 {
@@ -4031,10 +4051,12 @@ static int ois_mcu_probe(struct platform_device *pdev)
 	core->mcu = mcu;
 	atomic_set(&mcu->shared_rsc_count, 0);
 	mutex_init(&mcu->power_mutex);
+	INIT_WORK(&mcu->mcu_power_on_work, ois_mcu_power_on_work);
 
 	specific = core->vender.private_data;
+#ifdef CONFIG_OIS_USE
 	specific->ois_ver_read = false;
-
+#endif
 	ois_device->ois_ops = &ois_ops_mcu;
 
 	for (i = 0; i < sensor_id_len; i++) {

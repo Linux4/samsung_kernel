@@ -27,13 +27,22 @@
 #include <linux/mutex.h>
 #include <linux/slab.h>
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 #define SHUB2AP_BYPASS_DATA	0x37
 #define SHUB2AP_LIBRARY_DATA	0x01
 #define SHUB2AP_DEBUG_DATA	0x03
 #define SHUB2AP_META_DATA	0x05
 #define SHUB2AP_GYRO_CAL	0x08
 #define SHUB2AP_PROX_THRESH	0x09
-#define SHUB2AP_REQ_RESET	0x0A
+#define SHUB2AP_HUB_REQ		0x0A
 #define SHUB2AP_MAG_CAL		0x0B
 #define SHUB2AP_LOG_DUMP	0x12
 #define SHUB2AP_SYSTEM_INFO	0x31
@@ -86,6 +95,14 @@ static void clean_msg(struct shub_msg *msg, bool buf_free)
 	kfree(msg);
 }
 
+static void delete_list(struct shub_msg *msg)
+{
+	mutex_lock(&pending_mutex);
+	if ((msg->list.next != NULL) && (msg->list.next != LIST_POISON1))
+		list_del(&msg->list);
+	mutex_unlock(&pending_mutex);
+}
+
 static int comm_to_sensorhub(struct shub_msg *msg)
 {
 	int ret;
@@ -126,7 +143,7 @@ static int comm_to_sensorhub(struct shub_msg *msg)
 	return ret;
 }
 
-int shub_send_command(u8 cmd, u8 type, u8 subcmd, char *send_buf, int send_buf_len)
+int __mockable shub_send_command(u8 cmd, u8 type, u8 subcmd, char *send_buf, int send_buf_len)
 {
 	int ret = 0;
 	struct shub_msg *msg = make_msg(cmd, type, subcmd, send_buf, send_buf_len);
@@ -143,7 +160,7 @@ int shub_send_command(u8 cmd, u8 type, u8 subcmd, char *send_buf, int send_buf_l
 	return ret;
 }
 
-int shub_send_command_wait(u8 cmd, u8 type, u8 subcmd, int timeout, char *send_buf, int send_buf_len,
+int __mockable shub_send_command_wait(u8 cmd, u8 type, u8 subcmd, int timeout, char *send_buf, int send_buf_len,
 			   char **receive_buf, int *receive_buf_len, bool reset)
 {
 	int ret = 0;
@@ -171,10 +188,7 @@ int shub_send_command_wait(u8 cmd, u8 type, u8 subcmd, int timeout, char *send_b
 	ret = comm_to_sensorhub(msg);
 	if (ret < 0) {
 		shub_errf("comm_to_sensorhub FAILED.");
-
-		mutex_lock(&pending_mutex);
-		list_del(&msg->list);
-		mutex_unlock(&pending_mutex);
+		delete_list(msg);
 		goto exit;
 	}
 
@@ -185,15 +199,12 @@ int shub_send_command_wait(u8 cmd, u8 type, u8 subcmd, int timeout, char *send_b
 		msg->is_empty_pending_list = false;
 		goto exit;
 	}
-
 	/* when timeout happen */
 	if (!ret) {
 		bool is_shub_shutdown = !is_shub_working();
 
 		msg->done = NULL;
-		mutex_lock(&pending_mutex);
-		list_del(&msg->list);
-		mutex_unlock(&pending_mutex);
+		delete_list(msg);
 		cnt_timeout += (is_shub_shutdown) ? 0 : 1;
 
 		shub_errf("timeout(%d %d %d). cnt_timeout %d, shub_down %d", cmd, type, subcmd, cnt_timeout,
@@ -234,6 +245,25 @@ void clean_pending_list(void)
 	mutex_unlock(&pending_mutex);
 }
 
+static int parsing_hub_request(int *index, char *dataframe)
+{
+	int ret = 0;
+	int req_type = dataframe[(*index)++];
+
+	if (req_type == HUB_RESET_REQ_NO_EVENT) {
+		int no_event_type = dataframe[(*index)++];
+		shub_infof("Hub request reset[0x%x] No Event type %d", req_type, no_event_type);
+		reset_mcu(RESET_TYPE_HUB_NO_EVENT);
+	} else if (req_type == HUB_RESET_REQ_TASK_FAILURE) {
+		shub_infof("Hub request reset[0x%x] request task failure", req_type);
+		reset_mcu(RESET_TYPE_HUB_REQ_TASK_FAILURE);
+	} else {
+		shub_infof("Hub [0x%x] invalid request", req_type);
+		ret = -EINVAL;
+	}
+	return ret;
+}
+
 static int parse_dataframe(char *dataframe, int frame_len)
 {
 	int index;
@@ -249,8 +279,6 @@ static int parse_dataframe(char *dataframe, int frame_len)
 
 	for (index = 0; index < frame_len && (ret == 0);) {
 		int cmd = dataframe[index++];
-		int reset_type, no_event_type;
-
 		switch (cmd) {
 		case SHUB2AP_DEBUG_DATA:
 			ret = print_mcu_debug(dataframe, &index, frame_len);
@@ -277,23 +305,8 @@ static int parse_dataframe(char *dataframe, int frame_len)
 		case SHUB2AP_SYSTEM_INFO:
 			ret = print_system_info(dataframe + index, &index, frame_len);
 			break;
-		case SHUB2AP_REQ_RESET:
-			if (index + 2 <= frame_len) {
-				reset_type = dataframe[index++];
-				no_event_type = dataframe[index++];
-				if (reset_type == HUB_RESET_REQ_NO_EVENT) {
-					shub_infof("Hub request reset[0x%x] No Event type %d", reset_type, no_event_type);
-					reset_mcu(RESET_TYPE_HUB_NO_EVENT);
-				} else if (reset_type == HUB_RESET_REQ_TASK_FAILURE) {
-					shub_infof("Hub request reset[0x%x] request task failure", reset_type);
-					reset_mcu(RESET_TYPE_HUB_REQ_TASK_FAILURE);
-				} else {
-					shub_infof("Hub request rest[0x%x] invalid request", reset_type);
-				}
-			} else {
-				shub_errf("parsing error");
-				ret = -EINVAL;
-			}
+		case SHUB2AP_HUB_REQ:
+			ret = parsing_hub_request(&index, dataframe);
 			break;
 		case SHUB2AP_PROX_THRESH:
 			sensor = get_sensor(SENSOR_TYPE_PROXIMITY);

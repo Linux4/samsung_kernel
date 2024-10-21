@@ -16,6 +16,8 @@ enum {
 	MAX_PANEL_FIRMWARE_LOAD_STATUS
 };
 
+#define PANEL_BUILT_IN_FW_NAME ("built-in")
+
 struct panel_firmware {
 	char *name;
 	u32 load_count;
@@ -31,7 +33,9 @@ bool is_panel_firmwarel_load_success(struct panel_device *panel);
 int panel_firmware_get_load_count(struct panel_device *panel);
 struct timespec64 panel_firmware_get_load_time(struct panel_device *panel);
 u64 panel_firmware_get_csum(struct panel_device *panel);
+#if defined(CONFIG_USDM_PANEL_JSON)
 int panel_firmware_load(struct panel_device *panel,
-		char *firmware_name, struct list_head *pnobj_list);
+		char *firmware_name, const char *ezop_json, struct list_head *pnobj_list);
+#endif
 
 #endif /* __PANEL_FIRMWARE_H__ */

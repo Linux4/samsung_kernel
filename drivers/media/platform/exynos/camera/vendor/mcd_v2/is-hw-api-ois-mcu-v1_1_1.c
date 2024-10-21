@@ -93,15 +93,28 @@ int __is_mcu_mcu_state(void __iomem *base, int *state)
 int __is_mcu_pmu_control(int on)
 {
 	int ret = 0;
-
+	int val = 0;
+	int retries = 15;
 	if (on)
 		ret = exynos_pmu_update(ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
 			pmu_ois_mcu_masks[R_OIS_CPU_CONFIGURATION].sfr_offset, 0x1);
-	else
+	else {
 		ret = exynos_pmu_update(ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
 			pmu_ois_mcu_masks[R_OIS_CPU_CONFIGURATION].sfr_offset, 0x0);
+		
+		while (retries-- > 0) {
+			ret = exynos_pmu_read(ois_mcu_regs[R_OIS_CPU_STATES].sfr_offset, &val);
+			if (ret < 0)
+				err_mcu("Failed to read pmu (%d)", ret);
+		
+			if ((val & 0xFF) == PMU_POWER_STATE_POWER_DOWN)
+				break;
+		
+			usleep_range(200, 210);
+		}
+	}
 	if (ret)
-		err_mcu("%s Failed to write pmu (%d)", __func__, ret);
+		err_mcu("Failed to write pmu (%d)", ret);
 
 	info_mcu("%s onoff = %d", __func__, on);
 	return ret;
@@ -220,7 +233,17 @@ int __is_mcu_hw_set_clear_peri(void __iomem *base)
 
 	src = is_mcu_get_reg(base, R_OIS_PERI2_PUD_CTRL);
 	recover_val = src & 0xFFFF0000;
+#ifdef SET_OIS_SPI_NONE_AFTER_POWER_OFF
+	recover_val = src | 0x00000000;
+#endif
 	is_mcu_set_reg(base, R_OIS_PERI2_PUD_CTRL, recover_val);
+
+#ifdef SET_OIS_SPI_NONE_AFTER_POWER_OFF
+	src = is_mcu_get_reg(base, R_OIS_PERI2_PUDPDN_CTRL);
+	recover_val = src & 0xFFFF0000;
+	recover_val = src | 0x00000000;
+	is_mcu_set_reg(base, R_OIS_PERI2_PUDPDN_CTRL, recover_val);
+#endif
 
 	return ret;
 }

@@ -36,6 +36,7 @@
 #include <exynos_drm_format.h>
 #include <exynos_drm_hibernation.h>
 #include <exynos_drm_partial.h>
+#include <exynos_drm_decon.h>
 
 #include <dqe_cal.h>
 
@@ -92,11 +93,17 @@ static void exynos_crtc_check_input_bpc(struct drm_crtc *crtc,
 	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
 	struct drm_plane *plane;
 	const struct drm_plane_state *plane_state;
-	uint32_t max_bpc = 8; /* initial bpc value */
+	struct decon_device *decon = exynos_crtc->ctx;
+	uint32_t max_bpc = decon->config.default_max_bpc; /* initial bpc value */
 	bool atc_enabled = false;
 
 	if (new_exynos_state->wb_type == EXYNOS_WB_SWB) {
 		new_exynos_state->in_bpc = max_bpc;
+		return;
+	}
+
+	if (!crtc_state->plane_mask) {
+		new_exynos_state->in_bpc = 8;
 		return;
 	}
 
@@ -150,7 +157,7 @@ static void exynos_crtc_atomic_begin(struct drm_crtc *crtc,
 		return;
 #endif
 	if (exynos_crtc->ops->atomic_begin)
-		exynos_crtc->ops->atomic_begin(exynos_crtc);
+		exynos_crtc->ops->atomic_begin(exynos_crtc, old_state);
 }
 
 static void exynos_crtc_atomic_flush(struct drm_crtc *crtc,
@@ -461,12 +468,12 @@ static int exynos_drm_crtc_set_property(struct drm_crtc *crtc,
 	return ret;
 }
 
-#define NEXT_ADJ_VBLANK_OFFSET	2
+#define NEXT_ADJ_VBLANK_OFFSET	1
 static int get_next_adjusted_vblank_timestamp(struct drm_crtc *crtc, uint64_t *val)
 {
 	struct drm_vblank_crtc *vblank;
 	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
-	int count = 0;
+	int count = NEXT_ADJ_VBLANK_OFFSET;
 	ktime_t timestamp, cur_time, diff;
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 	s64 elapsed_time;
@@ -491,8 +498,7 @@ static int get_next_adjusted_vblank_timestamp(struct drm_crtc *crtc, uint64_t *v
 #endif
 
 	vblank = &crtc->dev->vblank[drm_crtc_index(crtc)];
-	timestamp = vblank->time + (count + NEXT_ADJ_VBLANK_OFFSET) *
-		vblank->framedur_ns;
+	timestamp = vblank->time + count * vblank->framedur_ns;
 	cur_time = ktime_get();
 	if (cur_time > timestamp) {
 		diff = cur_time - timestamp;

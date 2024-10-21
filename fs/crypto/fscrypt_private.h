@@ -42,6 +42,9 @@ struct fscrypt_context_v1 {
 	u8 flags;
 	u8 master_key_descriptor[FSCRYPT_KEY_DESCRIPTOR_SIZE];
 	u8 nonce[FSCRYPT_FILE_NONCE_SIZE];
+#ifdef CONFIG_DDAR
+	u32 knox_flags;
+#endif
 };
 
 struct fscrypt_context_v2 {
@@ -52,6 +55,9 @@ struct fscrypt_context_v2 {
 	u8 __reserved[4];
 	u8 master_key_identifier[FSCRYPT_KEY_IDENTIFIER_SIZE];
 	u8 nonce[FSCRYPT_FILE_NONCE_SIZE];
+#ifdef CONFIG_DDAR
+	u32 knox_flags;
+#endif
 };
 
 /*
@@ -78,10 +84,18 @@ static inline int fscrypt_context_size(const union fscrypt_context *ctx)
 {
 	switch (ctx->version) {
 	case FSCRYPT_CONTEXT_V1:
+#ifdef CONFIG_DDAR
+		BUILD_BUG_ON(sizeof(ctx->v1) != 32);
+#else
 		BUILD_BUG_ON(sizeof(ctx->v1) != 28);
+#endif
 		return sizeof(ctx->v1);
 	case FSCRYPT_CONTEXT_V2:
+#ifdef CONFIG_DDAR
+		BUILD_BUG_ON(sizeof(ctx->v2) != 44);
+#else
 		BUILD_BUG_ON(sizeof(ctx->v2) != 40);
+#endif
 		return sizeof(ctx->v2);
 	}
 	return 0;

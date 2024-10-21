@@ -1348,7 +1348,7 @@
 					pinctrl-0 = <0x60>;
 					interrupt-parent = <0x37>;
 					interrupts = <0x3a 0x02>;
-					vcc-supply = <0x61>;
+					vdd-supply = <0x61>;
 					hid-descr-addr = <0x20>;
 					wakeup-source;
 					phandle = <0x146>;
@@ -4086,8 +4086,8 @@
 			interrupts-extended = <0x78 0x01 0x04>;
 			qcom,ee = <0x00>;
 			qcom,channel = <0x00>;
-			#address-cells = <0x01>;
-			#size-cells = <0x01>;
+			#address-cells = <0x02>;
+			#size-cells = <0x00>;
 			interrupt-controller;
 			#interrupt-cells = <0x04>;
 			cell-index = <0x00>;

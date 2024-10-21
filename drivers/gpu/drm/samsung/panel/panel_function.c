@@ -52,6 +52,22 @@ void destroy_pnobj_function(struct pnobj_func *pnobj_func)
 	kfree(pnobj_func);
 }
 
+struct pnobj_func *deepcopy_pnobj_function(struct pnobj_func *dst,
+		struct pnobj_func *src)
+{
+	if (!dst || !src)
+		return NULL;
+
+	if (dst == src)
+		return dst;
+
+	pnobj_init(&dst->base, CMD_TYPE_FUNC,
+			get_pnobj_function_name(src));
+	dst->symaddr = src->symaddr;
+
+	return dst;
+}
+
 int pnobj_function_list_add(struct pnobj_func *f, struct list_head *list)
 {
 	struct pnobj_func *pnobj_func;

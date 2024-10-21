@@ -1031,7 +1031,7 @@
 			reg = <0xfc4ab000 0x04>;
 		};
 
-		spmi@fc4c0000 {
+		spmi@fc4cf000 {
 			compatible = "qcom,spmi-pmic-arb";
 			reg = <0xfc4cf000 0x1000 0xfc4cb000 0x1000 0xfc4ca000 0x1000>;
 			reg-names = "core\0intr\0cnfg";
@@ -1195,8 +1195,7 @@
 					#size-cells = <0x01>;
 					phandle = <0x93>;
 
-					s2@1700 {
-						reg = <0x1700 0x100>;
+					s2 {
 						regulator-name = "VDD_GFX";
 						regulator-min-microvolt = <0xef420>;
 						regulator-max-microvolt = <0xef420>;
@@ -1730,18 +1729,18 @@
 		blsp2_i2c5 = "/soc/i2c@f9967000";
 		gcc = "/soc/clock-controller@fc400000";
 		rpm_msg_ram = "/soc/sram@fc428000";
-		spmi_bus = "/soc/spmi@fc4c0000";
-		pm8994_pon = "/soc/spmi@fc4c0000/pmic@0/pon@800";
-		pm8994_resin = "/soc/spmi@fc4c0000/pmic@0/pon@800/resin";
-		pm8994_temp = "/soc/spmi@fc4c0000/pmic@0/temp-alarm@2400";
-		pm8994_vadc = "/soc/spmi@fc4c0000/pmic@0/adc@3100";
-		pm8994_gpios = "/soc/spmi@fc4c0000/pmic@0/gpios@c000";
-		pm8994_mpps = "/soc/spmi@fc4c0000/pmic@0/mpps@a000";
-		pm8994_spmi_regulators = "/soc/spmi@fc4c0000/pmic@1/regulators";
-		pmi8994_gpios = "/soc/spmi@fc4c0000/pmic@2/gpios@c000";
-		pmi8994_spmi_regulators = "/soc/spmi@fc4c0000/pmic@3/regulators";
-		vdd_gfx = "/soc/spmi@fc4c0000/pmic@3/regulators/s2@1700";
-		pmi8994_wled = "/soc/spmi@fc4c0000/pmic@3/wled@d800";
+		spmi_bus = "/soc/spmi@fc4cf000";
+		pm8994_pon = "/soc/spmi@fc4cf000/pmic@0/pon@800";
+		pm8994_resin = "/soc/spmi@fc4cf000/pmic@0/pon@800/resin";
+		pm8994_temp = "/soc/spmi@fc4cf000/pmic@0/temp-alarm@2400";
+		pm8994_vadc = "/soc/spmi@fc4cf000/pmic@0/adc@3100";
+		pm8994_gpios = "/soc/spmi@fc4cf000/pmic@0/gpios@c000";
+		pm8994_mpps = "/soc/spmi@fc4cf000/pmic@0/mpps@a000";
+		pm8994_spmi_regulators = "/soc/spmi@fc4cf000/pmic@1/regulators";
+		pmi8994_gpios = "/soc/spmi@fc4cf000/pmic@2/gpios@c000";
+		pmi8994_spmi_regulators = "/soc/spmi@fc4cf000/pmic@3/regulators";
+		vdd_gfx = "/soc/spmi@fc4cf000/pmic@3/regulators/s2";
+		pmi8994_wled = "/soc/spmi@fc4cf000/pmic@3/wled@d800";
 		tcsr_mutex_regs = "/soc/syscon@fd484000";
 		tlmm = "/soc/pinctrl@fd510000";
 		blsp1_uart2_default = "/soc/pinctrl@fd510000/blsp1-uart2-default";

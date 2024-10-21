@@ -81,7 +81,7 @@ bool is_panel_firmwarel_load_success(struct panel_device *panel)
 		PANEL_FIRMWARE_LOAD_STATUS_SUCCESS;
 }
 
-static u32 calc_csum(const void *p, size_t len)
+u32 calc_csum(const void *p, size_t len)
 {
 	u32 csum = 0;
 	const unsigned char *_p = p;
@@ -93,7 +93,7 @@ static u32 calc_csum(const void *p, size_t len)
 	return csum;
 }
 
-static void panel_firmware_set_csum(struct panel_device *panel, u32 csum)
+void panel_firmware_set_csum(struct panel_device *panel, u32 csum)
 {
 	if (!panel)
 		return;
@@ -106,7 +106,7 @@ u64 panel_firmware_get_csum(struct panel_device *panel)
 	return panel->fw.csum;
 }
 
-static void panel_firmware_set_load_time(struct panel_device *panel,
+void panel_firmware_set_load_time(struct panel_device *panel,
 		struct timespec64 time)
 {
 	panel->fw.time = time;
@@ -117,7 +117,8 @@ struct timespec64 panel_firmware_get_load_time(struct panel_device *panel)
 	return panel->fw.time;
 }
 
-int panel_firmware_load(struct panel_device *panel,
+#if defined(CONFIG_USDM_PANEL_JSON)
+int panel_vendor_firmware_load(struct panel_device *panel,
 		char *firmware_name, struct list_head *pnobj_list)
 {
 	const struct firmware *fw_entry = NULL;
@@ -129,7 +130,10 @@ int panel_firmware_load(struct panel_device *panel,
 
 	ret = request_firmware_direct(&fw_entry, firmware_name, panel->dev);
 	if (ret < 0) {
-		panel_err("failed to request firmware(%s)\n", firmware_name);
+		if (ret != -ENOENT)
+			panel_err("failed to request firmware(%s)\n", firmware_name);
+		else
+			panel_dbg("no such firmware(%s)\n", firmware_name);
 		return ret;
 	}
 
@@ -144,11 +148,9 @@ int panel_firmware_load(struct panel_device *panel,
 	memcpy(json, fw_entry->data, fw_entry->size);
 	csum = calc_csum(json, fw_entry->size);
 
-#if defined(CONFIG_USDM_PANEL_JSON)
 	ret = panel_json_parse(json, fw_entry->size, pnobj_list);
 	if (ret < 0)
 		goto err;
-#endif
 
 	kvfree(json);
 	release_firmware(fw_entry);
@@ -171,10 +173,76 @@ err:
 	release_firmware(fw_entry);
 	panel_firmware_set_load_status(panel, PANEL_FIRMWARE_LOAD_STATUS_FAILURE);
 
-	panel_info("failed to load firmware(%s) (ret:%d)\n", firmware_name, ret);
+	panel_err("failed to load firmware(%s) (ret:%d)\n", firmware_name, ret);
 
 	return ret;
 }
+
+int panel_builtin_firmware_load(struct panel_device *panel,
+		char *json, struct list_head *pnobj_list)
+{
+	struct pnobj *pos, *next;
+	int ret;
+	u32 csum;
+	struct timespec64 time;
+	char *firmware_name = PANEL_BUILT_IN_FW_NAME;
+	size_t size;
+
+	if (!json) {
+		ret = -EINVAL;
+		goto err;
+	}
+
+	size = strlen(json);
+	csum = calc_csum(json, size);
+	ret = panel_json_parse(json, size, pnobj_list);
+	if (ret < 0)
+		goto err;
+
+	panel_firmware_set_name(panel, firmware_name);
+	panel_firmware_set_load_status(panel, PANEL_FIRMWARE_LOAD_STATUS_SUCCESS);
+	ktime_get_ts64(&time);
+	panel_firmware_set_load_time(panel, time);
+	panel_firmware_inc_load_count(panel);
+	panel_firmware_set_csum(panel, csum);
+
+	panel_info("firmware(%s) has been loaded successfully\n", firmware_name);
+
+	return 0;
+
+err:
+	list_for_each_entry_safe(pos, next, pnobj_list, list)
+		destroy_panel_object(pos);
+	panel_firmware_set_load_status(panel, PANEL_FIRMWARE_LOAD_STATUS_FAILURE);
+
+	panel_err("failed to load firmware(%s) (ret:%d)\n", firmware_name, ret);
+
+	return ret;
+}
+
+int panel_firmware_load(struct panel_device *panel,
+		char *firmware_name, const char *ezop_json, struct list_head *pnobj_list)
+{
+	int ret = 0;
+
+	if (firmware_name) {
+		ret = panel_vendor_firmware_load(panel, firmware_name, pnobj_list);
+		if (!ret)
+			return 0;
+	}
+
+	if (ezop_json) {
+		ret = panel_builtin_firmware_load(panel, (char *)ezop_json, pnobj_list);
+		if (!ret)
+			return 0;
+
+		if (!IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP))
+			panic("panel ezop(%s) loading failure\n", PANEL_BUILT_IN_FW_NAME);
+	}
+
+	return -EINVAL;
+}
+#endif
 
 MODULE_DESCRIPTION("firmware driver for panel");
 MODULE_LICENSE("GPL");

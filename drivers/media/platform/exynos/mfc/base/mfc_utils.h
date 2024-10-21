@@ -325,6 +325,59 @@ void mfc_calc_base_addr(struct mfc_ctx *ctx, struct vb2_buffer *vb, struct mfc_f
 void mfc_assign_internal_dpb(struct mfc_ctx *ctx);
 int mfc_find_buf_dpb_table(struct mfc_ctx *ctx, dma_addr_t dspl_y_addr);
 
+static inline u32 mfc_dec_get_strm_size(struct mfc_ctx *ctx, struct mfc_buf *src_mb)
+{
+	struct vb2_plane *vb_plane;
+	struct mfc_dec *dec = ctx->dec_priv;
+	unsigned int strm_size;
+
+	/*
+	 * struct v4l2_plane data_offset is included in bytesused.
+	 * So the size of image is bytesused - data_offset from start of the plane.
+	 * And the dec->consumed is cumulate-decoded size.
+	 */
+	vb_plane = &src_mb->vb.vb2_buf.planes[0];
+	if (!vb_plane->bytesused) {
+		strm_size = 0;
+	} else if (vb_plane->bytesused > vb_plane->data_offset) {
+		strm_size = vb_plane->bytesused - vb_plane->data_offset;
+	} else {
+		strm_size = vb_plane->bytesused;
+		mfc_ctx_info("[STREAM] invalid offset (bytesused %d, data_offset: %d)\n",
+				vb_plane->bytesused, vb_plane->data_offset);
+	}
+
+	if (dec->consumed) {
+		if (strm_size > dec->consumed) {
+			strm_size -= dec->consumed;
+		} else {
+			mfc_ctx_info("[STREAM] invalid consumed (strm_size: %d, consumed: %d)",
+					strm_size, dec->consumed);
+		}
+	}
+
+	mfc_ctx_debug(2, "[STREAM] strm_size: %d (bytesused %d, data_offset %d, consumed %d)\n",
+			strm_size, vb_plane->bytesused, vb_plane->data_offset, dec->consumed);
+	return strm_size;
+}
+
+static inline int mfc_dec_get_strm_offset(struct mfc_ctx *ctx, struct mfc_buf *src_mb)
+{
+	struct vb2_plane *vb_plane;
+	struct mfc_dec *dec = ctx->dec_priv;
+	unsigned int offset;
+
+	vb_plane = &src_mb->vb.vb2_buf.planes[0];
+	offset = vb_plane->data_offset;
+	if (dec->consumed)
+		offset += dec->consumed;
+
+	mfc_ctx_debug(2, "[STREAM] offset: %d (bytesused %d, data_offset %d, consumed %d)\n",
+			offset, vb_plane->bytesused, vb_plane->data_offset, dec->consumed);
+
+	return offset;
+}
+
 static inline int mfc_dec_status_decoding(unsigned int dst_frame_status)
 {
 	if (dst_frame_status == MFC_REG_DEC_STATUS_DECODING_DISPLAY ||

@@ -25,6 +25,12 @@ struct dump_ops {
 	struct pnobj_func *show;
 };
 
+enum {
+	DUMP_STATUS_NONE,
+	DUMP_STATUS_FAILURE,
+	DUMP_STATUS_SUCCESS,
+};
+
 struct dumpinfo {
 	struct pnobj base;
 	struct resinfo *res;
@@ -32,6 +38,7 @@ struct dumpinfo {
 	struct dump_expect *expects;
 	unsigned int nr_expects;
 	char **abd_print;
+	int result;
 };
 
 #define call_dump_func(_dump) \

@@ -18,10 +18,10 @@
 
 #define DUMPREGISTER_MAX_SIZE           130
 #define NUM_LINE_ITEM                   16
-#define LENGTH_1BYTE_HEXA_WITH_BLANK    3       /* example : 'ff '*/
+#define LENGTH_1BYTE_HEXA_WITH_BLANK    3       /* example : 'ff ' 'ff\n' */
 #define LENGTH_EXTRA_STRING             1       /* '\0' */
 #define LENGTH_SENSOR_NAME_MAX          30
-#define LENGTH_SENSOR_TYPE_MAX          3       /* SENSOR_MAX digits = 3 */
+#define LENGTH_SENSOR_TYPE_MAX          11      /* @@TYPE:1##\n */
 
 #define sensor_dump_length(x)  (x*LENGTH_1BYTE_HEXA_WITH_BLANK+LENGTH_EXTRA_STRING)
 
@@ -31,6 +31,7 @@
 
 int send_sensor_dump_command(u8 sensor_type);
 int send_all_sensor_dump_command(void);
+void clear_sensor_dump(void);
 char **get_sensor_dump_data(void);
 
 #endif

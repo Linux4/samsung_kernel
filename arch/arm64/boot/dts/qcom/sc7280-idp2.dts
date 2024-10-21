@@ -1492,8 +1492,8 @@
 			interrupts-extended = <0x61 0x01 0x04>;
 			qcom,ee = <0x00>;
 			qcom,channel = <0x00>;
-			#address-cells = <0x01>;
-			#size-cells = <0x01>;
+			#address-cells = <0x02>;
+			#size-cells = <0x00>;
 			interrupt-controller;
 			#interrupt-cells = <0x04>;
 			phandle = <0xac>;
@@ -1560,8 +1560,9 @@
 				phandle = <0xaf>;
 
 				pon@1300 {
-					compatible = "qcom,pm8998-pon";
-					reg = <0x1300>;
+					compatible = "qcom,pmk8350-pon";
+					reg = <0x1300 0x800>;
+					reg-names = "hlos\0pbs";
 					phandle = <0xb0>;
 
 					pwrkey {

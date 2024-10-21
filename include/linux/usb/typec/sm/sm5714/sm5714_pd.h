@@ -979,6 +979,7 @@ struct sm5714_usbpd_manager_data {
 #endif
 	bool support_vpdo;
 	bool support_15w_vpdo;
+	int short_cable_current;
 };
 
 struct sm5714_usbpd_data {
@@ -1101,6 +1102,7 @@ extern int (*fp_count_cisd_pd_data)(unsigned short vid, unsigned short pid);
 extern int dwc3_restart_usb_host_mode_hs(void);
 #endif
 #endif
+void sm5714_usbpd_change_source_cap(int enable, int max_cur, int init);
 void sm5714_usbpd_turn_on_reverse_booster(struct sm5714_usbpd_data *pd_data);
 void sm5714_usbpd_turn_off_reverse_booster(struct sm5714_usbpd_data *pd_data);
 #endif

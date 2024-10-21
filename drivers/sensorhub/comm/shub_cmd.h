@@ -33,11 +33,11 @@ typedef enum
 
 /* sub command */
 enum {
-	AP_SHUTDOWN = 0,
+	SCREEN_STATE = 0,
 	AP_RESUME,
 	AP_SUSPEND,
-	SYSTEM_TIME,
-	RTC_TIME,
+	TIME_SYNC,
+	LCD_LPM, // Reserved
 	LCD_ON,
 	LCD_OFF,
 	POW_CONNECTED,
@@ -69,8 +69,8 @@ enum {
 	PROXIMITY_OFFSET,
 	LIGHT_COEF,
 	CAL_DATA,
-	ACCELOMETER_REACTIVE_ALERT,
-	ACCELOMETER_LPF_ON_OFF,
+	ACCELEROMETER_REACTIVE_ALERT,
+	ACCELEROMETER_LPF_ON_OFF,
 	GYROSCOPE_TEMPERATURE_FACTORY,
 	MAGNETIC_LOGGING,
 	PROXIMITY_SETTING = 40,
@@ -108,6 +108,7 @@ enum {
 	// 72 (0x48)                  // DISPLAY_REFRESH_RATE @ref SensorAdditionalInfo.java
 	// 73 (0x49)                  // WIFI_DATA_ACTIVITY_ @ref SensorAdditionalInfo.java
 	// 74 (0x50)                  // SENSORHUB_INFO_POWERSHARE_ @ref MotionRecognitionService.java
+	MODEL_NAME_INFO = 75,
 	CMD_VALUE_MAX,
 };
 

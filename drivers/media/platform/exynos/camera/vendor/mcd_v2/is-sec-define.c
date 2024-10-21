@@ -37,10 +37,6 @@ bool sec2lsi_reload = false;
 
 static struct is_rom_info sysfs_finfo[ROM_ID_MAX];
 static struct is_rom_info sysfs_pinfo[ROM_ID_MAX];
-#if defined(CAMERA_UWIDE_DUALIZED)
-static bool rear3_dualized_rom_probe = false;
-static struct is_rom_info sysfs_finfo_rear3_otp;
-#endif
 static char rom_buf[ROM_ID_MAX][IS_MAX_CAL_SIZE];
 char loaded_fw[IS_HEADER_VER_SIZE + 1] = {0, };
 char loaded_companion_fw[30] = {0, };
@@ -163,32 +159,12 @@ int is_sec_set_force_caldata_dump(bool fcd)
 	return 0;
 }
 
-#if defined(CAMERA_UWIDE_DUALIZED)
-void is_sec_set_rear3_dualized_rom_probe(void) {
-	rear3_dualized_rom_probe = true;
-}
-EXPORT_SYMBOL_GPL(is_sec_set_rear3_dualized_rom_probe);
-#endif
-
 int is_sec_get_sysfs_finfo(struct is_rom_info **finfo, int rom_id)
 {
-#if defined(CAMERA_UWIDE_DUALIZED)
-	if(rom_id == ROM_ID_REAR3 && rear3_dualized_rom_probe) {
-		*finfo = &sysfs_finfo_rear3_otp;
-		rear3_dualized_rom_probe = false;
-	}
-	else {
-		if (rom_id < ROM_ID_MAX)
-			*finfo = &sysfs_finfo[rom_id];
-		else
-			*finfo = 0;
-	}
-#else
 	if (rom_id < ROM_ID_MAX)
 		*finfo = &sysfs_finfo[rom_id];
 	else
 		*finfo = 0;
-#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(is_sec_get_sysfs_finfo);
@@ -325,7 +301,7 @@ int is_sec_get_max_cal_size(struct is_core *core, int rom_id)
 	struct is_vender_specific *specific = core->vender.private_data;
 	struct is_rom_info *finfo = NULL;
 
-	if (!specific->rom_valid[rom_id]) {
+	if (!specific->rom_valid[rom_id][0]) {
 		err("Invalid rom_id[%d]. This rom_id don't have rom!\n", rom_id);
 		return size;
 	}
@@ -1042,14 +1018,6 @@ int is_sec_update_dualized_sensor(struct is_core *core, int position)
 			sensorid_2nd = sensorid_1st;
 			sensorid_1st = specific->sensor_id[position];
 
-#if 0
-			/* Update specific for dualized for OTPROM */
-			if (specific->rom_data[position].rom_type == ROM_TYPE_OTPROM) {
-				specific->rom_client[position] = specific->dualized_rom_client[position];
-				specific->rom_cal_map_addr[position] = specific->dualized_rom_cal_map_addr[position];
-			}
-#endif
-
 			if (count_check < NUM_OF_DUALIZATION_CHECK - 2) {
 				err("Failed to find out both sensors on this device !!! (count : %d)", count_check);
 				if (count_check <= 0)
@@ -1331,7 +1299,7 @@ int is_sec_read_eeprom_header(int rom_id)
 	struct is_device_eeprom *eeprom;
 
 	specific = core->vender.private_data;
-	client = specific->rom_client[rom_id];
+	client = specific->rom_client[rom_id][0];
 
 	eeprom = i2c_get_clientdata(client);
 
@@ -1378,9 +1346,16 @@ int is_sec_read_otprom_header(int rom_id)
 	struct i2c_client *client;
 	struct is_rom_info *finfo = NULL;
 	struct is_device_otprom *otprom;
+	int position = is_vendor_get_position_from_rom_id(rom_id);
+	int sensor_id = is_vendor_get_sensor_id_from_position(position);
+	int dualized_sensor_id = is_vender_get_dualized_sensorid(position);
 
 	specific = core->vender.private_data;
-	client = specific->rom_client[rom_id];
+	if (specific->rom_valid[rom_id][1] &&
+				sensor_id == dualized_sensor_id)
+		client = specific->rom_client[rom_id][1];
+	else 
+		client = specific->rom_client[rom_id][0];
 
 	otprom = i2c_get_clientdata(client);
 
@@ -1436,6 +1411,7 @@ int is_sec_readcal_otprom(int rom_id)
 	u32 i2c_channel;
 	int position = is_vendor_get_position_from_rom_id(rom_id);
 	int sensor_id = is_vendor_get_sensor_id_from_position(position);
+	int dualized_sensor_id = is_vender_get_dualized_sensorid(position);
 
 #ifdef CONFIG_SEC_CAL_ENABLE
 	char *buf_rom_data = NULL;
@@ -1459,8 +1435,11 @@ int is_sec_readcal_otprom(int rom_id)
 		err("cis is NULL");
 		return -1;
 	}
-
-	client = specific->rom_client[rom_id];
+	if (specific->rom_valid[rom_id][1] &&
+				sensor_id == dualized_sensor_id)
+		client = specific->rom_client[rom_id][1];
+	else 
+		client = specific->rom_client[rom_id][0];
 
 	cal_size = finfo->rom_size;
 	info("Camera: read cal data from OTPROM (rom_id:%d, cal_size:%d, sensor_id:%d)\n", rom_id, cal_size, sensor_id);
@@ -1493,8 +1472,10 @@ crc_retry:
 		retry--;
 		goto crc_retry;
 	}
-	if (!crc_check)
+	if (!crc_check) {
 		err("crc error : check the cis_get_otprom_data func");
+		ret = -EINVAL;
+	}
 
 	/* 3. parse rom info */
 	is_sec_parse_rom_info(finfo, buf, rom_id);
@@ -1731,7 +1712,7 @@ int is_sec_readcal_eeprom(int rom_id)
 	is_sec_get_sysfs_finfo(&finfo, rom_id);
 	is_sec_get_cal_buf(&buf, rom_id);
 
-	client = specific->rom_client[rom_id];
+	client = specific->rom_client[rom_id][0];
 	eeprom = i2c_get_clientdata(client);
 	cal_size = finfo->rom_size;
 
@@ -1754,7 +1735,7 @@ int is_sec_readcal_eeprom(int rom_id)
 	rom_type = module->pdata->rom_type;
 
 /* to do check : Do not use a specific sensor id in common code. */
-	if (!(sensor_id == SENSOR_NAME_IMX616))	//put all dualized sensor names here
+	if (!(sensor_id == SENSOR_NAME_IMX616 || sensor_id == SENSOR_NAME_IMX882))	//put all dualized sensor names here
 		finfo->is_read_dualized_values = true;
 	if (!(finfo->is_read_dualized_values)){
 		is_sec_readcal_eeprom_dualized(rom_id); // call this function only once for EEPROM dualized sensors
@@ -1955,6 +1936,8 @@ int is_sec_read_rom(int rom_id)
 	struct is_module_enum *module = NULL;
 	int rom_type;
 	int position = is_vendor_get_position_from_rom_id(rom_id);
+	int sensor_id = is_vendor_get_sensor_id_from_position(position);
+	int dualized_sensor_id = is_vender_get_dualized_sensorid(position);
 
 	if (position == SENSOR_POSITION_MAX) {
 		err("position is invalid");
@@ -1997,7 +1980,11 @@ int is_sec_read_rom(int rom_id)
 		sensor_peri = (struct is_device_sensor_peri *)module->private_data;
 
 		if (sensor_peri->cis.client) {
-			specific->rom_client[rom_id] = sensor_peri->cis.client;
+			if (specific->rom_valid[rom_id][1] &&
+				sensor_id == dualized_sensor_id)
+				specific->rom_client[rom_id][1] = sensor_peri->cis.client;
+			else
+				specific->rom_client[rom_id][0] = sensor_peri->cis.client;
 			info("%s sensor client will be used for otprom", __func__);
 		}
 

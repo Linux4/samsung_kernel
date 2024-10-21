@@ -138,6 +138,7 @@ void store_dc_step_charging_menu(struct sec_battery_info *battery, int tc,
 {
 	int res, i;
 	unsigned int dc_step_chg_type = 0;
+	int dc_op_mode = get_sec_vote_resultf("DCHG_OP");
 
 	for (i = 0; i < battery->dc_step_chg_step; i++)
 		dc_step_chg_type |= battery->dc_step_chg_type[i];
@@ -171,10 +172,10 @@ void store_dc_step_charging_menu(struct sec_battery_info *battery, int tc,
 		}
 		if (dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) {
 			for (i = 0; i < (battery->dc_step_chg_step - 1); i++) {
-				battery->pdata->dc_step_chg_cond_iin[i] =
+				battery->pdata->dc_step_chg_cond_iin[dc_op_mode][i] =
 					battery->pdata->dc_step_chg_val_iout[battery->pdata->age_step][i+1] / 2;
 				ca_log("Condition Iin [step %d] %dmA",
-					i, battery->pdata->dc_step_chg_cond_iin[i]);
+					i, battery->pdata->dc_step_chg_cond_iin[dc_op_mode][i]);
 			}
 		}
 	}

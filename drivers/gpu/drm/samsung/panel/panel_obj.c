@@ -144,10 +144,10 @@ struct pnobj *pnobj_find_by_pnobj(struct list_head *head, struct pnobj *_pnobj)
 
 /* Compare two pnobj items. */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
-int pnobj_type_compare(void *priv,
+static int pnobj_type_compare(void *priv,
 		struct list_head *a, struct list_head *b)
 #else
-int pnobj_type_compare(void *priv,
+static int pnobj_type_compare(void *priv,
 		const struct list_head *a, const struct list_head *b)
 #endif
 {
@@ -167,6 +167,71 @@ int pnobj_type_compare(void *priv,
 			cmd_type_to_pnobj_type(type_b);
 
 	return type_a - type_b;
+}
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+static int pnobj_name_compare(void *priv,
+		struct list_head *a, struct list_head *b)
+#else
+static int pnobj_name_compare(void *priv,
+		const struct list_head *a, const struct list_head *b)
+#endif
+{
+	struct pnobj *pnobj_a;
+	struct pnobj *pnobj_b;
+	char *name_a, *name_b;
+
+	pnobj_a = container_of(a, struct pnobj, list);
+	pnobj_b = container_of(b, struct pnobj, list);
+
+	name_a = get_pnobj_name(pnobj_a);
+	name_b = get_pnobj_name(pnobj_b);
+
+	return strncmp(name_a, name_b, PNOBJ_NAME_LEN);
+}
+
+/* Compare two pnobj items. */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+int pnobj_compare(void *priv,
+		struct list_head *a, struct list_head *b)
+#else
+int pnobj_compare(void *priv,
+		const struct list_head *a, const struct list_head *b)
+#endif
+{
+	int diff;
+
+	diff = pnobj_type_compare(priv, a, b);
+	if (diff)
+		return diff;
+
+	return pnobj_name_compare(priv, a, b);
+}
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+int pnobj_ref_compare(void *priv,
+		struct list_head *a, struct list_head *b)
+#else
+int pnobj_ref_compare(void *priv,
+		const struct list_head *a, const struct list_head *b)
+#endif
+{
+	struct pnobj_ref *ref_a;
+	struct pnobj_ref *ref_b;
+	int diff;
+
+	ref_a = container_of(a, struct pnobj_ref, list);
+	ref_b = container_of(b, struct pnobj_ref, list);
+
+	diff = pnobj_type_compare(priv,
+			get_pnobj_list(ref_a->pnobj),
+			get_pnobj_list(ref_b->pnobj));
+	if (diff)
+		return diff;
+
+	return pnobj_name_compare(priv,
+			get_pnobj_list(ref_a->pnobj),
+			get_pnobj_list(ref_b->pnobj));
 }
 
 struct pnobj_refs *create_pnobj_refs(void)
@@ -283,6 +348,29 @@ struct pnobj_refs *pnobj_refs_filter(bool (*filter_func)(struct pnobj *), struct
 
 err:
 	remove_pnobj_refs(filtered_refs);
+	return NULL;
+}
+
+struct pnobj_refs *pnobj_list_to_pnobj_refs(struct list_head *pnobj_list)
+{
+	struct pnobj_refs *refs;
+	struct pnobj *pnobj;
+	int ret;
+
+	refs = create_pnobj_refs();
+	if (!refs)
+		return NULL;
+
+	list_for_each_entry(pnobj, pnobj_list, list) {
+		ret = add_pnobj_ref(refs, pnobj);
+		if (ret < 0)
+			goto err;
+	}
+
+	return refs;
+
+err:
+	remove_pnobj_refs(refs);
 	return NULL;
 }
 

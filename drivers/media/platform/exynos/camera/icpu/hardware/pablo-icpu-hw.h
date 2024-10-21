@@ -57,6 +57,9 @@ struct icpu_platform_data {
 
 	u32 num_force_powerdown_step;
 	struct icpu_io_sequence *force_powerdown_seq;
+
+	u32 num_sw_reset_step;
+	struct icpu_io_sequence *sw_reset_seq;
 };
 
 struct icpu_hw {
@@ -65,7 +68,7 @@ struct icpu_hw {
 	int (*reset)(struct regmap *reg_reset,
 			unsigned int bit, unsigned int on);
 	int (*wait_wfi_state_timeout)(void __iomem *, u32);
-	void (*force_powerdown)(u32, struct icpu_io_sequence *);
+	void (*set_reg_sequence)(u32 num_step, struct icpu_io_sequence *seq);
 	void (*panic_handler)(void __iomem *);
 	void (*set_debug_reg)(void __iomem *, u32, u32);
 };

@@ -2190,22 +2190,22 @@ static int dsim_read_data(struct dsim_device *dsim, const struct mipi_dsi_msg *m
 
 	if (!dsim_reg_rx_fifo_is_empty(dsim->id)) {
 		dsim_err(dsim, "RX FIFO is not empty\n");
+		if (dsim->config.ignore_rx_trail) {
+			ret = rx_size;
+			goto exit;
+		}
+		
 		rx_fifo = dsim_reg_get_rx_fifo(dsim->id);
 		if (rx_fifo && 0xFF == MIPI_DSI_RX_ACKNOWLEDGE_AND_ERROR_REPORT)
 			dsim_reg_rx_err_handler(dsim->id, rx_fifo);
 
 		dsim_dump(dsim);
-		dsim_clear_rx_fifo(dsim);
-#if defined(CONFIG_SKIP_MIPI_ERROR)
-		ret = rx_size;
-#else
 		ret = -EBUSY;
-#endif
-	} else  {
+	} else {
 		ret = rx_size;
 	}
 exit:
-
+	dsim_clear_rx_fifo(dsim);
 	return ret;
 }
 

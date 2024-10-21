@@ -1,6 +1,6 @@
 /***************************************************************************
  *
- * Copyright (c) 2014 - 2022 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -1631,10 +1631,15 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 		netif_dormant_on(dev);
 		goto exit_with_vif;
 	}
+
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
 	peer = slsi_peer_add(sdev, dev, (u8 *)bssid, SLSI_STA_PEER_QUEUESET + 1);
 	ndev_vif->sta.resp_id = 0;
-	if (!peer)
+	if (!peer) {
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 		goto exit_with_error;
+	}
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
 
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
 	if (ndev_vif->sta.drv_bss_selection) {
@@ -2190,12 +2195,12 @@ int slsi_set_pmksa(struct wiphy *wiphy, struct net_device *dev,
 		SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 		if (ndev_vif->sta.rsn_ie) {
 			rsnie_len = ndev_vif->sta.rsn_ie_len;
-			rsnie = kmalloc(rsnie_len + 2 + PMKID_LEN, GFP_KERNEL); /* Length of RSNIE + PMKID */
+			/* Tag and Len + Length of RSNIE + PMKID Count + PMKID */
+			rsnie = kmalloc(2 + rsnie_len + 2 + PMKID_LEN, GFP_KERNEL);
 			if (rsnie) {
 				memset(rsnie, 0, rsnie_len + 2 + PMKID_LEN);
 				/* parse the RSN IE and copy PMKID to Required position in RSN IE*/
 				left = rsnie_len + 2; //FOR RSN IE TAG and Length
-
 				pos = 4; /* RSN IE ID, LEN, and Version*/
 				left -= 4;
 				if (left < 4) {
@@ -2220,18 +2225,22 @@ int slsi_set_pmksa(struct wiphy *wiphy, struct net_device *dev,
 				}
 				pos += 2; /* RSN Capabilities */
 				left -= 2;
-				count = le16_to_cpu(*(u16 *)(&ndev_vif->sta.rsn_ie[pos]));  /* PMKID count */
-				pos += 2; /* PMKID count */
-				left -= 2;
 				memcpy(rsnie, ndev_vif->sta.rsn_ie, pos);
+				count = 0;
+				if (left > 0 && left >= 2) {
+					count = le16_to_cpu(*(u16 *)(&ndev_vif->sta.rsn_ie[pos]));  /* PMKID count */
+					left -= 2;
+				}
+				pos += 2; /* PMKID count */
 				rsnie[pos - 2] = 1;
 				rsnie[pos - 1] = 0;
+
 				memcpy(&rsnie[pos], pmksa->pmkid, PMKID_LEN); /* copy PMKID */
 				pos += PMKID_LEN;
-				if (count) {
-					left -= PMKID_LEN;
-					memcpy(&rsnie[pos], &ndev_vif->sta.rsn_ie[pos], left);
-				} else {
+				if (count && left > 0) {
+					left -= (count * PMKID_LEN);
+					memcpy(&rsnie[pos], &ndev_vif->sta.rsn_ie[pos + ((count - 1) * PMKID_LEN)], left);
+				} else if (left > 0) {
 					memcpy(&rsnie[pos], &ndev_vif->sta.rsn_ie[pos - PMKID_LEN], left);
 				}
 				pos += left;
@@ -3751,6 +3760,7 @@ int slsi_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 		goto exit;
 	}
 
+	SLSI_NET_INFO(dev, "fc:%d, len:%d\n", mgmt->frame_control, len);
 	if (!(ieee80211_is_auth(mgmt->frame_control))) {
 		SLSI_NET_DBG2(dev, SLSI_CFG80211, "Mgmt Frame Tx: iface_num = %d, channel = %d, wait = %d, noAck = %d,"
 			      "offchannel = %d, mgmt->frame_control = %d, vif_type = %d\n", ndev_vif->ifnum, chan->hw_value,

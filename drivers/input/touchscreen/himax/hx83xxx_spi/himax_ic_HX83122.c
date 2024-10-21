@@ -373,6 +373,7 @@ void himax_hx83122a_cmd_init(void)
 	himax_in_parse_assign_cmd(hx122a_fw_addr_criteria_addr, pfw_op->addr_criteria_addr, sizeof(pfw_op->addr_criteria_addr));
 	himax_in_parse_assign_cmd(hx122a_fw_addr_set_frame_addr, pfw_op->addr_set_frame_addr, sizeof(pfw_op->addr_set_frame_addr));
 	himax_in_parse_assign_cmd(hx122a_fw_addr_selftest_result_addr, pfw_op->addr_selftest_result_addr, sizeof(pfw_op->addr_selftest_result_addr));
+	himax_in_parse_assign_cmd(hx122a_fw_addr_gesture_en, pfw_op->addr_gesture_en, sizeof(pfw_op->addr_gesture_en));
 	himax_in_parse_assign_cmd(hx122a_fw_addr_sorting_mode_en, pfw_op->addr_sorting_mode_en, sizeof(pfw_op->addr_sorting_mode_en));
 	himax_in_parse_assign_cmd(hx122a_fw_addr_fw_mode_status, pfw_op->addr_fw_mode_status, sizeof(pfw_op->addr_fw_mode_status));
 	himax_in_parse_assign_cmd(fw_addr_icid_addr, pfw_op->addr_icid_addr, sizeof(pfw_op->addr_icid_addr));

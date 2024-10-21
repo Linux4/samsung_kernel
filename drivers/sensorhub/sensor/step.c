@@ -32,7 +32,7 @@ static void report_event_step_counter(void)
 	sensor_value->step_total += sensor_value->step_diff;
 }
 
-void print_step_counter_debug(void)
+void print_step_counter_debug(int type)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_STEP_COUNTER);
 	struct sensor_event *event = &(sensor->last_event_buffer);
@@ -77,6 +77,23 @@ int init_step_detector(bool en)
 
 	if (en) {
 		ret = init_default_func(sensor, "step_det_sensor", 1, 1, 1);
+	} else {
+		destroy_default_func(sensor);
+	}
+
+	return ret;
+}
+
+int init_sequential_step(bool en)
+{
+	int ret = 0;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_SEQUENTIAL_STEP);
+
+	if (!sensor)
+		return 0;
+
+	if (en) {
+		ret = init_default_func(sensor, "sequential_step", 4, 4, 4);
 	} else {
 		destroy_default_func(sensor);
 	}

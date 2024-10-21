@@ -16,11 +16,16 @@
 struct ssg_wb_data {
 	int on_rqs;
 	int off_rqs;
-	int on_write_bytes;
-	int off_write_bytes;
+	int on_dirty_bytes;
+	int off_dirty_bytes;
 	int on_sync_write_bytes;
 	int off_sync_write_bytes;
+	int on_dirty_busy_written_pages;
+	int on_dirty_busy_jiffies;
 	int off_delay_jiffies;
+
+	unsigned long dirty_busy_start_jiffies;
+	unsigned long dirty_busy_start_written_pages;
 
 	atomic_t wb_triggered;
 
@@ -31,8 +36,8 @@ struct ssg_wb_data {
 
 struct io_amount_data {
 	unsigned int allocated_rqs;
-	unsigned int write_bytes;
 	unsigned int sync_write_bytes;
+	unsigned long dirty_bytes;
 };
 
 struct ssg_wb_iter_data {
@@ -43,19 +48,24 @@ struct ssg_wb_iter_data {
 
 static const int _on_rqs_ratio = 90;
 static const int _off_rqs_ratio = 40;
-static const int _on_write_bytes = 30*1024*1024;
-static const int _off_write_bytes = 4*1024*1024;
+static const int _on_dirty_bytes = 50*1024*1024;
+static const int _off_dirty_bytes = 25*1024*1024;
 static const int _on_sync_write_bytes = 2*1024*1024;
 static const int _off_sync_write_bytes = 1*1024*1024;
+static const int _on_dirty_busy_written_bytes = 100*1024*1024;
+static const int _on_dirty_busy_msecs = 1000;
 static const int _off_delay_msecs = 5000;
 
 #define may_wb_on(io_amount, ssg_wb) \
 	((io_amount).allocated_rqs >= (ssg_wb)->on_rqs || \
-	(io_amount).write_bytes >= (ssg_wb)->on_write_bytes || \
-	(io_amount).sync_write_bytes >= (ssg_wb)->on_sync_write_bytes)
+	(io_amount).dirty_bytes >= (ssg_wb)->on_dirty_bytes || \
+	(io_amount).sync_write_bytes >= (ssg_wb)->on_sync_write_bytes || \
+	(ssg_wb->dirty_busy_start_written_pages && \
+	(global_node_page_state(NR_WRITTEN) - (ssg_wb)->dirty_busy_start_written_pages) \
+	> (ssg_wb)->on_dirty_busy_written_pages))
 #define may_wb_off(io_amount, ssg_wb) \
 	((io_amount).allocated_rqs < (ssg_wb)->off_rqs && \
-	(io_amount).write_bytes < (ssg_wb)->off_write_bytes && \
+	(io_amount).dirty_bytes < (ssg_wb)->off_dirty_bytes && \
 	(io_amount).sync_write_bytes < (ssg_wb)->off_sync_write_bytes)
 
 static void trigger_wb_on(struct ssg_wb_data *ssg_wb)
@@ -94,11 +104,8 @@ static bool wb_count_io(struct sbitmap *bitmap, unsigned int bitnr, void *data)
 		return true;
 
 	io_amount->allocated_rqs++;
-	if (req_op(rq) == REQ_OP_WRITE) {
-		io_amount->write_bytes += blk_rq_bytes(rq);
-		if (rq->cmd_flags & REQ_SYNC)
-			io_amount->sync_write_bytes += blk_rq_bytes(rq);
-	}
+	if (req_op(rq) == REQ_OP_WRITE && rq->cmd_flags & REQ_SYNC)
+		io_amount->sync_write_bytes += blk_rq_bytes(rq);
 
 	return true;
 }
@@ -127,10 +134,22 @@ static void wb_ctrl_work(struct work_struct *work)
 						struct ssg_wb_data, wb_ctrl_work);
 	struct io_amount_data io_amount = {
 		.allocated_rqs = 0,
-		.write_bytes = 0,
+		.sync_write_bytes = 0,
 	};
 
 	wb_get_io_amount(ssg_wb->queue, &io_amount);
+	io_amount.dirty_bytes = (global_node_page_state(NR_FILE_DIRTY) +
+			global_node_page_state(NR_WRITEBACK)) * PAGE_SIZE;
+
+	if (time_after(jiffies, ssg_wb->dirty_busy_start_jiffies + ssg_wb->on_dirty_busy_jiffies)) {
+		ssg_wb->dirty_busy_start_jiffies = 0;
+		ssg_wb->dirty_busy_start_written_pages = 0;
+	}
+
+	if (!ssg_wb->dirty_busy_start_jiffies && io_amount.dirty_bytes >= ssg_wb->off_dirty_bytes) {
+		ssg_wb->dirty_busy_start_jiffies = jiffies;
+		ssg_wb->dirty_busy_start_written_pages = global_node_page_state(NR_WRITTEN);
+	}
 
 	if (atomic_read(&ssg_wb->wb_triggered)) {
 		if (may_wb_off(io_amount, ssg_wb))
@@ -195,10 +214,14 @@ void ssg_wb_init(struct ssg_data *ssg)
 
 	ssg_wb->on_rqs = ssg->queue->nr_requests * _on_rqs_ratio / 100U;
 	ssg_wb->off_rqs = ssg->queue->nr_requests * _off_rqs_ratio / 100U;
-	ssg_wb->on_write_bytes = _on_write_bytes;
-	ssg_wb->off_write_bytes = _off_write_bytes;
+	ssg_wb->on_dirty_bytes = _on_dirty_bytes;
+	ssg_wb->off_dirty_bytes = _off_dirty_bytes;
 	ssg_wb->on_sync_write_bytes = _on_sync_write_bytes;
 	ssg_wb->off_sync_write_bytes = _off_sync_write_bytes;
+	ssg_wb->on_dirty_busy_written_pages = _on_dirty_busy_written_bytes / PAGE_SIZE;
+	ssg_wb->on_dirty_busy_jiffies = msecs_to_jiffies(_on_dirty_busy_msecs);
+	ssg_wb->dirty_busy_start_written_pages = 0;
+	ssg_wb->dirty_busy_start_jiffies = 0;
 	ssg_wb->off_delay_jiffies = msecs_to_jiffies(_off_delay_msecs);
 	ssg_wb->queue = ssg->queue;
 
@@ -233,8 +256,10 @@ ssize_t ssg_wb_##__NAME##_show(struct elevator_queue *e, char *page)	\
 	if (!ssg_wb)							\
 		return 0;						\
 									\
-	if (__CONV)							\
+	if (__CONV == 1)						\
 		val = jiffies_to_msecs(__VAR);				\
+	else if (__CONV == 2)						\
+		val = __VAR * PAGE_SIZE;				\
 	else								\
 		val = __VAR;						\
 									\
@@ -242,10 +267,12 @@ ssize_t ssg_wb_##__NAME##_show(struct elevator_queue *e, char *page)	\
 }
 SHOW_FUNC(on_rqs, ssg_wb->on_rqs, 0);
 SHOW_FUNC(off_rqs, ssg_wb->off_rqs, 0);
-SHOW_FUNC(on_write_bytes, ssg_wb->on_write_bytes, 0);
-SHOW_FUNC(off_write_bytes, ssg_wb->off_write_bytes, 0);
+SHOW_FUNC(on_dirty_bytes, ssg_wb->on_dirty_bytes, 0);
+SHOW_FUNC(off_dirty_bytes, ssg_wb->off_dirty_bytes, 0);
 SHOW_FUNC(on_sync_write_bytes, ssg_wb->on_sync_write_bytes, 0);
 SHOW_FUNC(off_sync_write_bytes, ssg_wb->off_sync_write_bytes, 0);
+SHOW_FUNC(on_dirty_busy_written_bytes, ssg_wb->on_dirty_busy_written_pages, 2);
+SHOW_FUNC(on_dirty_busy_msecs, ssg_wb->on_dirty_busy_jiffies, 1);
 SHOW_FUNC(off_delay_msecs, ssg_wb->off_delay_jiffies, 1);
 #undef SHOW_FUNC
 
@@ -266,8 +293,10 @@ ssize_t ssg_wb_##__NAME##_store(struct elevator_queue *e,	\
 	if (!(__COND))						\
 		return count;					\
 								\
-	if (__CONV)						\
+	if (__CONV == 1)					\
 		*(__PTR) = msecs_to_jiffies(__VAR);		\
+	else if (__CONV == 2)					\
+		*(__PTR) = __VAR / PAGE_SIZE;			\
 	else							\
 		*(__PTR) = __VAR;				\
 								\
@@ -277,14 +306,18 @@ STORE_FUNC(on_rqs, &ssg_wb->on_rqs, val,
 		val >= ssg_wb->off_rqs, 0);
 STORE_FUNC(off_rqs, &ssg_wb->off_rqs, val,
 		val >= 0 && val <= ssg_wb->on_rqs, 0);
-STORE_FUNC(on_write_bytes, &ssg_wb->on_write_bytes, val,
-		val >= ssg_wb->off_write_bytes, 0);
-STORE_FUNC(off_write_bytes, &ssg_wb->off_write_bytes, val,
-		val >= 0 && val <= ssg_wb->on_write_bytes, 0);
+STORE_FUNC(on_dirty_bytes, &ssg_wb->on_dirty_bytes, val,
+		val >= ssg_wb->off_dirty_bytes, 0);
+STORE_FUNC(off_dirty_bytes, &ssg_wb->off_dirty_bytes, val,
+		val >= 0 && val <= ssg_wb->on_dirty_bytes, 0);
 STORE_FUNC(on_sync_write_bytes, &ssg_wb->on_sync_write_bytes, val,
 		val >= ssg_wb->off_sync_write_bytes, 0);
 STORE_FUNC(off_sync_write_bytes, &ssg_wb->off_sync_write_bytes, val,
 		val >= 0 && val <= ssg_wb->on_sync_write_bytes, 0);
+STORE_FUNC(on_dirty_busy_written_bytes, &ssg_wb->on_dirty_busy_written_pages, val,
+		val >= 0, 2);
+STORE_FUNC(on_dirty_busy_msecs, &ssg_wb->on_dirty_busy_jiffies, val,
+		val >= 0, 1);
 STORE_FUNC(off_delay_msecs, &ssg_wb->off_delay_jiffies, val, val >= 0, 1);
 #undef STORE_FUNC
 

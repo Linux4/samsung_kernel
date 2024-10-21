@@ -479,6 +479,7 @@ void slsi_mib_encode_get(struct slsi_mib_data *buffer, u16 psid, u16 idx)
 	slsi_mib_buf_append(buffer, size, tmp_buffer);
 }
 
+#define SLSI_MIB_MIN_LENGTH (4)
 u8 *slsi_mib_find(struct slsi_mib_data *buffer, const struct slsi_mib_get_entry *entry)
 {
 	size_t buffer_length = buffer->dataLength;
@@ -488,7 +489,7 @@ u8 *slsi_mib_find(struct slsi_mib_data *buffer, const struct slsi_mib_get_entry 
 		SLSI_WARN_NODEV("buffer_length(%d) %% 2 != 0 (Invalid Mib data Detected)\n", (int)buffer_length);
 		return NULL;
 	}
-	while (buffer_length >= 4) {
+	while (buffer_length >= SLSI_MIB_MIN_LENGTH) {
 		u16    psid = SLSI_BUFF_LE_TO_U16(buff);
 		size_t length = 4U + SLSI_BUFF_LE_TO_U16(&buff[2]);
 
@@ -514,7 +515,10 @@ u8 *slsi_mib_find(struct slsi_mib_data *buffer, const struct slsi_mib_get_entry 
 			 * there if it is Even it will not be.
 			 */
 			length++;
-
+		if (buffer_length < length) {
+			SLSI_WARN_NODEV("Invalid Mib data: buffer_length(%u) length(%u)\n", buffer_length, length);
+			break;
+		}
 		buff += length;
 		buffer_length -= length;
 	}

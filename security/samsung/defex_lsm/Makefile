@@ -9,9 +9,21 @@ IMMUTABLE_ENABLE=true
 LP_ENABLE=true
 UMH_RESTRICTION_ENABLE=true
 TRUSTED_MAP_ENABLE=false
+USER_BUILD=false
 
 # Additional debug
 LOG_BUFFER_ENABLE=false
+SHOW_RULES_ENABLE=false
+
+ifeq (,$(TARGET_BUILD_VARIANT))
+    ifeq ($(CONFIG_SECURITY_DEFEX_USER),y)
+        USER_BUILD := true
+    endif
+else
+    ifeq ($(TARGET_BUILD_VARIANT),user)
+        USER_BUILD := true
+    endif
+endif
 
 ifneq ($(wildcard $(srctree)/include/crypto/internal/rsa.h),)
     $(warning [DEFEX] INTEGRITY_ENABLE)
@@ -41,8 +53,16 @@ defex-y += catch_engine/defex_ht.o
 defex-y += defex_rules.o
 defex-$(CONFIG_COMPAT) += catch_engine/defex_catch_list_compat.o
 
-# Immutable Feature is applied with permissive mode first.
-DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
+ifeq ($(filter b6s% b6q% q6aq% q6q%, $(TARGET_PRODUCT)),)
+    DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
+endif
+
+ifeq ($(CONFIG_SECURITY_DEFEX_SINGLE_FILE),y)
+    $(warning [DEFEX] Single rule file MODE.)
+    DEFEX_DEFINES += -DDEFEX_SINGLE_RULES_FILE
+else
+    $(warning [DEFEX] Multiple rule file MODE.)
+endif
 
 # Integrity Feature is applied with permissive mode first.
 DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
@@ -64,11 +84,16 @@ ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
 	ifeq ($(LOG_BUFFER_ENABLE), true)
 	    DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
 	endif
+	ifeq ($(SHOW_RULES_ENABLE), true)
+	    defex-y += debug/defex_rules_show.o
+	    DEFEX_DEFINES += -DDEFEX_SHOW_RULES_ENABLE
+	endif
     endif
 endif
 
 ifeq ($(CONFIG_SEC_FACTORY), y)
     DEFEX_DEFINES += -DDEFEX_FACTORY_ENABLE
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
 endif
 
 ifeq ($(PED_ENABLE), true)
@@ -129,7 +154,13 @@ ifeq ($(TRUSTED_MAP_ENABLE), true)
     defex-y += feature_trusted_map/ptree.o
 endif
 
-ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+ifeq ($(USER_BUILD), true)
+    $(warning [DEFEX] DEBUG_DISABLE)
+    ifeq ($(CONFIG_SECURITY_DSMS), y)
+        DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
+    endif
+else
+    $(warning [DEFEX] DEBUG_ENABLE)
     defex-y += debug/defex_debug.o
     defex-y += core/defex_sysfs.o
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
@@ -139,11 +170,11 @@ ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
     DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
     ifeq ($(LOG_BUFFER_ENABLE), true)
-	DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
+        DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
     endif
-else
-    ifeq ($(CONFIG_SECURITY_DSMS), y)
-        DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
+    ifeq ($(SHOW_RULES_ENABLE), true)
+	defex-y += debug/defex_rules_show.o
+	DEFEX_DEFINES += -DDEFEX_SHOW_RULES_ENABLE
     endif
 endif
 
@@ -168,7 +199,7 @@ ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
     hostprogs := pack_rules
     hostprogs-y := pack_rules
     HOST_EXTRACFLAGS += $(DEFEX_DEFINES)
-    clean-files := $(srctree)/$(src)/defex_packed_rules.inc
+    clean-files := $(obj)/defex_packed_rules.inc
     DEPEND_LIST := $(obj)/pack_rules
 
     quiet_cmd_pack = PACK    $<
@@ -177,7 +208,7 @@ ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
     quiet_cmd_mkey = MAKEKEY $<
           cmd_mkey = cp -n $< $@ 2>/dev/null || true
 
-    $(obj)/core/defex_rules_proc.o: $(obj)/pack_rules $(srctree)/$(src)/defex_packed_rules.inc
+    $(obj)/core/defex_rules_proc.o: $(obj)/pack_rules $(obj)/defex_packed_rules.inc
 
     $(obj)/cert/defex_cert.o: $(obj)/cert/pubkey_eng.der $(obj)/cert/pubkey_user.der
 
@@ -202,7 +233,7 @@ ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
 		$(call cmd,reduce)
     endif
 
-    $(srctree)/$(src)/defex_packed_rules.inc: $(SOURCE_RULES) $(DEPEND_LIST)
+    $(obj)/defex_packed_rules.inc: $(SOURCE_RULES) $(DEPEND_LIST)
 	$(call cmd,pack)
 	@cp -n $(obj)/pack_rules $(srctree)/$(src)/pack_rules 2>/dev/null || true
 

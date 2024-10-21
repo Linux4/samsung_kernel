@@ -1803,8 +1803,8 @@
 			status = "disabled";
 			phandle = <0x14a>;
 
-			lanes@1d87400 {
-				reg = <0x00 0x1d87400 0x00 0x108 0x00 0x1d87600 0x00 0x1e0 0x00 0x1d87c00 0x00 0x1dc 0x00 0x1d87800 0x00 0x108 0x00 0x1d87a00 0x00 0x1e0>;
+			phy@1d87400 {
+				reg = <0x00 0x1d87400 0x00 0x16c 0x00 0x1d87600 0x00 0x200 0x00 0x1d87c00 0x00 0x200 0x00 0x1d87800 0x00 0x16c 0x00 0x1d87a00 0x00 0x200>;
 				#phy-cells = <0x00>;
 				phandle = <0x57>;
 			};
@@ -3182,7 +3182,7 @@
 			vdda-pll-supply = <0x9b>;
 			phandle = <0x150>;
 
-			lanes@88e9200 {
+			phy@88e9200 {
 				reg = <0x00 0x88e9200 0x00 0x200 0x00 0x88e9400 0x00 0x200 0x00 0x88e9c00 0x00 0x218 0x00 0x88e9600 0x00 0x200 0x00 0x88e9800 0x00 0x200 0x00 0x88e9a00 0x00 0x100>;
 				#clock-cells = <0x00>;
 				#phy-cells = <0x00>;
@@ -3206,7 +3206,7 @@
 			reset-names = "phy\0common";
 			phandle = <0x151>;
 
-			lane@88eb200 {
+			phy@88eb200 {
 				reg = <0x00 0x88eb200 0x00 0x200 0x00 0x88eb400 0x00 0x200 0x00 0x88eb800 0x00 0x800 0x00 0x88eb600 0x00 0x200>;
 				#clock-cells = <0x00>;
 				#phy-cells = <0x00>;
@@ -4061,6 +4061,7 @@
 					regulator-max-microvolt = <0x2d2a80>;
 					regulator-initial-mode = <0x03>;
 					regulator-allow-set-load;
+					regulator-allowed-modes = <0x01 0x03>;
 					phandle = <0x182>;
 				};
 
@@ -4083,6 +4084,7 @@
 					regulator-max-microvolt = <0x2d2a80>;
 					regulator-initial-mode = <0x03>;
 					regulator-allow-set-load;
+					regulator-allowed-modes = <0x01 0x03>;
 					phandle = <0x185>;
 				};
 
@@ -5210,7 +5212,7 @@
 		mmss_noc = "/soc@0/interconnect@1740000";
 		ufs_mem_hc = "/soc@0/ufshc@1d84000";
 		ufs_mem_phy = "/soc@0/phy@1d87000";
-		ufs_mem_phy_lanes = "/soc@0/phy@1d87000/lanes@1d87400";
+		ufs_mem_phy_lanes = "/soc@0/phy@1d87000/phy@1d87400";
 		ipa_virt = "/soc@0/interconnect@1e00000";
 		tcsr_mutex_regs = "/soc@0/syscon@1f40000";
 		remoteproc_slpi = "/soc@0/remoteproc@2400000";
@@ -5310,9 +5312,9 @@
 		usb_1_hsphy = "/soc@0/phy@88e2000";
 		usb_2_hsphy = "/soc@0/phy@88e3000";
 		usb_1_qmpphy = "/soc@0/phy@88e9000";
-		usb_1_ssphy = "/soc@0/phy@88e9000/lanes@88e9200";
+		usb_1_ssphy = "/soc@0/phy@88e9000/phy@88e9200";
 		usb_2_qmpphy = "/soc@0/phy@88eb000";
-		usb_2_ssphy = "/soc@0/phy@88eb000/lane@88eb200";
+		usb_2_ssphy = "/soc@0/phy@88eb000/phy@88eb200";
 		dc_noc = "/soc@0/interconnect@9160000";
 		gem_noc = "/soc@0/interconnect@9680000";
 		usb_1 = "/soc@0/usb@a6f8800";

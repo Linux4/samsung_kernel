@@ -195,6 +195,8 @@ struct decon_vendor_pps {
 	unsigned int initial_dec_delay;
 	unsigned int scale_increment_interval;
 	unsigned int final_offset;
+	unsigned int nfl_bpg_offset;
+	unsigned int slice_bpg_offset;
 	unsigned int comp_cfg;
 };
 
@@ -221,6 +223,7 @@ struct decon_config {
 	struct exynos_drm_pps	pps;
 	unsigned int		out_bpc;
 	unsigned int		in_bpc;
+	unsigned int		default_max_bpc;
 	unsigned int		fps;
 	unsigned int		rcd_en;
 	u32			svsync_time;

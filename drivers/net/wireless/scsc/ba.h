@@ -24,6 +24,10 @@ enum slsi_rx_ba_event {
 void slsi_rx_ba_update_timer(struct slsi_dev *sdev, struct net_device *dev,
 			  enum slsi_rx_ba_event ba_event);
 
+void slsi_rx_ma_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
+
+void slsi_rx_mlme_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
+
 void slsi_handle_blockack(struct net_device *dev, struct slsi_peer *peer,
 			  u16 reason_code, u16 user_priority, u16 buffer_size, u16 sequence_number);
 

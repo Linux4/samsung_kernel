@@ -33,6 +33,7 @@
 	GENERATE(VOTER_SYSOVLO)	\
 	GENERATE(VOTER_VBAT_OVP)	\
 	GENERATE(VOTER_STEP_CHARGE)	\
+	GENERATE(VOTER_WPC_STEP_CHARGE)	\
 	GENERATE(VOTER_DC_STEP_CHARGE)	\
 	GENERATE(VOTER_TOPOFF_CHANGE)	\
 	GENERATE(VOTER_HMT)	\
@@ -41,6 +42,7 @@
 	GENERATE(VOTER_FULL_CAPACITY)	\
 	GENERATE(VOTER_WDT_EXPIRE)	\
 	GENERATE(VOTER_BATTERY)	\
+	GENERATE(VOTER_IFCON_WA)	\
 	GENERATE(VOTER_USB_FAC_100MA)	\
 	GENERATE(VOTER_PASS_THROUGH)	\
 	GENERATE(VOTER_NO_BATTERY)	\
@@ -52,6 +54,9 @@
 	GENERATE(VOTER_FW)	\
 	GENERATE(VOTER_WL_TO_W)	\
 	GENERATE(VOTER_ABNORMAL_TA)	\
+	GENERATE(VOTER_PHM)	\
+	GENERATE(VOTER_DC_OP_MODE_F)	\
+	GENERATE(VOTER_DC_OP_MODE_SYSFS)	\
 	GENERATE(VOTER_MAX)
 
 #define GENERATE_ENUM(ENUM) ENUM,
@@ -105,6 +110,46 @@ do { \
 		break; \
 	} \
 	_sec_vote(vote, event, en, value, __func__, __LINE__); \
-} while (0) \
+} while (0)
 
+#define sec_vote_refreshf(name) \
+do { \
+	struct sec_vote *vote = find_vote(name); \
+\
+	if (!vote) { \
+		pr_err("%s: failed to find vote(%s)\n", __func__, (name)); \
+		break; \
+	} \
+	sec_vote_refresh(vote); \
+} while (0)
+
+#define get_sec_voter_statusf(name, id, value) ({ \
+int ret; \
+do { \
+	struct sec_vote *vote = find_vote(name); \
+\
+	if (!vote) { \
+		pr_err("%s: failed to find vote(%s)\n", __func__, (name)); \
+		ret = -EINVAL; \
+		break; \
+	} \
+	ret = get_sec_voter_status(vote, id, value); \
+} while (0); \
+ret; \
+})
+
+#define get_sec_vote_resultf(name) ({ \
+int ret; \
+do { \
+	struct sec_vote *vote = find_vote(name); \
+\
+	if (!vote) { \
+		pr_err("%s: failed to find vote(%s)\n", __func__, (name)); \
+		ret = -EINVAL; \
+		break; \
+	} \
+	ret = get_sec_vote_result(vote); \
+} while (0); \
+ret; \
+})
 #endif

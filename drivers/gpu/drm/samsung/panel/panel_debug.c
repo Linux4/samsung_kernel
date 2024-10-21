@@ -13,6 +13,7 @@
 #include "panel_drv.h"
 #include "panel_firmware.h"
 #include "panel_debug.h"
+#include "panel_property.h"
 
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
@@ -27,27 +28,65 @@
 #include "ezop/panel_json.h"
 #endif
 
-#define MAX_NAME_SIZE       32
-
-const char *panel_debugfs_name[] = {
-	[PANEL_DEBUGFS_LOG] = "log",
-	[PANEL_DEBUGFS_CMD_LOG] = "cmd_log",
-	[PANEL_DEBUGFS_SEQUENCE] = "sequence",
-	[PANEL_DEBUGFS_RESOURCE] = "resource",
+const char *panel_debugfs_file_name[MAX_PANEL_DEBUGFS_FILE] = {
+	[PANEL_DEBUGFS_FILE_LOG] = "log",
+	[PANEL_DEBUGFS_FILE_CMD_LOG] = "cmd_log",
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
-	[PANEL_DEBUGFS_FREQ_HOP] = "freq_hop",
+	[PANEL_DEBUGFS_FILE_FREQ_HOP] = "freq_hop",
 #endif
 #if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2)
-	[PANEL_DEBUGFS_PANEL_EVENT] = "panel_event",
+	[PANEL_DEBUGFS_FILE_PANEL_EVENT] = "panel_event",
 #endif
 #if defined(CONFIG_USDM_PANEL_JSON)
-	[PANEL_DEBUGFS_EZOP] = "ezop",
-	[PANEL_DEBUGFS_FIRMWARE] = "firmware",
+	[PANEL_DEBUGFS_FILE_EZOP] = "ezop",
+	[PANEL_DEBUGFS_FILE_FIRMWARE] = "firmware",
 #endif
 #if defined(CONFIG_USDM_ADAPTIVE_MIPI)
-	[PANEL_DEBUGFS_ADAPTIVE_MIPI] = "adaptive_mipi",
+	[PANEL_DEBUGFS_FILE_ADAPTIVE_MIPI] = "adaptive_mipi",
 #endif
 };
+
+const char *panel_debugfs_dir_name[MAX_PANEL_DEBUGFS_DIR] = {
+	[PANEL_DEBUGFS_DIR_SEQUENCE] = "sequence",
+	[PANEL_DEBUGFS_DIR_RESOURCE] = "resource",
+	[PANEL_DEBUGFS_DIR_PROPERTY] = "property",
+};
+
+static int string_to_debugfs_file_id(const char *str)
+{
+	int i;
+
+	if (!str)
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(panel_debugfs_file_name); i++) {
+		if (!panel_debugfs_file_name[i])
+			continue;
+
+		if (!strcmp(panel_debugfs_file_name[i], str))
+			return i;
+	}
+
+	return -EINVAL;
+}
+
+static int string_to_debugfs_dir_id(const char *str)
+{
+	int i;
+
+	if (!str)
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(panel_debugfs_dir_name); i++) {
+		if (!panel_debugfs_dir_name[i])
+			continue;
+
+		if (!strcmp(panel_debugfs_dir_name[i], str))
+			return i;
+	}
+
+	return -EINVAL;
+}
 
 static int panel_debug_log_show(struct seq_file *s)
 {
@@ -67,10 +106,15 @@ static int panel_debug_sequence_show(struct seq_file *s)
 {
 	struct panel_debugfs *debugfs = s->private;
 	struct panel_device *panel = debugfs->private;
-	struct pnobj *pos;
+	char *buf = kzalloc(SZ_1K, GFP_KERNEL);
 
-	list_for_each_entry(pos, &panel->seq_list, list)
-		seq_printf(s, "%s\n", get_pnobj_name(pos));
+	if (!buf)
+		return 0;
+
+	snprintf_sequence(buf, SZ_1K,
+			find_panel_seq_by_name(panel, debugfs->name));
+	seq_printf(s, "%s\n", buf);
+	kfree(buf);
 
 	return 0;
 }
@@ -78,32 +122,22 @@ static int panel_debug_sequence_show(struct seq_file *s)
 static int panel_debug_sequence_store(struct panel_device *panel,
 		char *seqname)
 {
-	struct seqinfo *seq =
-		find_panel_seq_by_name(panel, seqname);
-	int ret;
-
-	if (seq == NULL) {
-		panel_info("sequence(%s) not found\n", seqname);
-		return 0;
-	}
-
-	ret = panel_do_seqtbl_by_name(panel, seqname);
-	if (ret < 0) {
-		panel_err("failed to execute sequence(%s)\n", seqname);
-		return ret;
-	}
-
-	return 0;
+	return panel_do_seqtbl_by_name(panel, seqname);
 }
 
 static int panel_debug_resource_show(struct seq_file *s)
 {
 	struct panel_debugfs *debugfs = s->private;
 	struct panel_device *panel = debugfs->private;
-	struct pnobj *pos;
+	char *buf = kzalloc(SZ_1K, GFP_KERNEL);
 
-	list_for_each_entry(pos, &panel->res_list, list)
-		seq_printf(s, "%s\n", get_pnobj_name(pos));
+	if (!buf)
+		return 0;
+
+	snprintf_resource(buf, SZ_1K,
+			find_panel_resource(panel, debugfs->name));
+	seq_printf(s, "%s\n", buf);
+	kfree(buf);
 
 	return 0;
 }
@@ -111,24 +145,31 @@ static int panel_debug_resource_show(struct seq_file *s)
 static int panel_debug_resource_store(struct panel_device *panel,
 		char *resname)
 {
-	struct resinfo *resource =
-		find_panel_resource(panel, resname);
-	char buf[SZ_512];
+	return panel_resource_update_by_name(panel, resname);
+}
 
-	if (resource == NULL) {
-		panel_info("resource(%s) not found\n", resname);
+static int panel_debug_property_show(struct seq_file *s)
+{
+	struct panel_debugfs *debugfs = s->private;
+	struct panel_device *panel = debugfs->private;
+	char *buf = kzalloc(SZ_1K, GFP_KERNEL);
+
+	if (!buf)
 		return 0;
-	}
 
-	if (!is_valid_resource(resource)) {
-		panel_warn("invalid resource(%s)\n", resname);
-		return 0;
-	}
-
-	snprintf_resource(buf, ARRAY_SIZE(buf), resource);
-	panel_info("\n%s", buf);
+	snprintf_property(buf, SZ_1K,
+			panel_find_property(panel, debugfs->name));
+	seq_printf(s, "%s\n", buf);
+	kfree(buf);
 
 	return 0;
+}
+
+static int panel_debug_property_store(struct panel_device *panel,
+		char *propname, int value)
+{
+	return panel_property_set_value(
+			panel_find_property(panel, propname), value);
 }
 
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
@@ -438,6 +479,7 @@ int panel_debug_ezop_jsonw_all(struct panel_device *panel, struct seq_file *s)
 {
 	json_writer_t *w;
 	char *p;
+	int i;
 
 	json_buffer = kvmalloc(SZ_16M, GFP_KERNEL);
 	if (!json_buffer) {
@@ -453,21 +495,9 @@ int panel_debug_ezop_jsonw_all(struct panel_device *panel, struct seq_file *s)
 
 	jsonw_pretty(w, true);
 	jsonw_start_object(w);
-	jsonw_property_list(w, &panel->prop_list);
-	jsonw_function_list(w, &panel->func_list);
-	jsonw_maptbl_list(w, &panel->maptbl_list);
-	jsonw_delay_list(w, &panel->dly_list);
-	jsonw_condition_list(w, &panel->cond_list);
-	jsonw_power_ctrl_list(w, &panel->pwrctrl_list);
-	jsonw_config_list(w, &panel->cfg_list);
-	jsonw_rx_packet_list(w, &panel->rdi_list);
-	jsonw_tx_packet_list(w, &panel->pkt_list);
-	jsonw_key_list(w, &panel->key_list);
-	jsonw_resource_list(w, &panel->res_list);
-	jsonw_dumpinfo_list(w, &panel->dump_list);
-	jsonw_sequence_list(w, &panel->seq_list);
+	for (i = CMD_TYPE_PROP; i < MAX_CMD_TYPE; i++)
+		jsonw_sorted_pnobj_list(w, i, panel_get_object_list(panel, i));
 	jsonw_end_object(w);
-
 	pr_info("dump json done\n");
 
 	while ((p = strsep(&json_buffer, "\n")) != NULL) {
@@ -504,11 +534,23 @@ static int panel_debug_ezop_load_json(struct panel_device *panel,
 
 	INIT_LIST_HEAD(&new_pnobj_list);
 
-	ret = panel_firmware_load(panel, json_filename, &new_pnobj_list);
-	if (ret != 0) {
-		panel_info("firmware not exist\n");
-		return 0;
+	if (!strncmp(json_filename, PANEL_BUILT_IN_FW_NAME,
+				strlen(PANEL_BUILT_IN_FW_NAME) + 1)) {
+		if (!panel->panel_data.ezop_json) {
+			panel_err("no such firmware(%s)\n", PANEL_BUILT_IN_FW_NAME);
+			return 0;
+		}
+		ret = panel_firmware_load(panel,
+				NULL, panel->panel_data.ezop_json, &new_pnobj_list);
+	} else {
+		ret = panel_firmware_load(panel,
+				json_filename, NULL, &new_pnobj_list);
+		if (ret == -ENOENT)
+			panel_err("no such firmware(%s)\n", json_filename);
 	}
+
+	if (ret < 0)
+		return 0;
 
 	return panel_reprobe_with_pnobj_list(panel, &new_pnobj_list);
 }
@@ -541,40 +583,51 @@ static int panel_debug_firmware_show(struct seq_file *s)
 static int panel_debug_simple_show(struct seq_file *s, void *unused)
 {
 	struct panel_debugfs *debugfs = s->private;
+	struct panel_debugfs *parent = debugfs->parent;
+	int id;
 
-	switch (debugfs->id) {
-	case PANEL_DEBUGFS_LOG:
+	if (!parent)
+		return -EINVAL;
+
+	id = string_to_debugfs_dir_id(parent->name);
+	if (id == PANEL_DEBUGFS_DIR_SEQUENCE)
+		return panel_debug_sequence_show(s);
+	else if (id == PANEL_DEBUGFS_DIR_RESOURCE)
+		return panel_debug_resource_show(s);
+	else if (id == PANEL_DEBUGFS_DIR_PROPERTY)
+		return panel_debug_property_show(s);
+
+	id = string_to_debugfs_file_id(debugfs->name);
+	if (id < 0)
+		return -EINVAL;
+
+	switch (id) {
+	case PANEL_DEBUGFS_FILE_LOG:
 		panel_debug_log_show(s);
 		break;
-	case PANEL_DEBUGFS_CMD_LOG:
+	case PANEL_DEBUGFS_FILE_CMD_LOG:
 		panel_debug_cmd_log_show(s);
 		break;
-	case PANEL_DEBUGFS_SEQUENCE:
-		panel_debug_sequence_show(s);
-		break;
-	case PANEL_DEBUGFS_RESOURCE:
-		panel_debug_resource_show(s);
-		break;
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
-	case PANEL_DEBUGFS_FREQ_HOP:
+	case PANEL_DEBUGFS_FILE_FREQ_HOP:
 		panel_debug_freq_hop_show(s);
 		break;
 #endif
 #if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2)
-	case PANEL_DEBUGFS_PANEL_EVENT:
+	case PANEL_DEBUGFS_FILE_PANEL_EVENT:
 		panel_debug_panel_event_show(s);
 		break;
 #endif
 #if defined(CONFIG_USDM_PANEL_JSON)
-	case PANEL_DEBUGFS_EZOP:
+	case PANEL_DEBUGFS_FILE_EZOP:
 		panel_debug_ezop_show(s);
 		break;
-	case PANEL_DEBUGFS_FIRMWARE:
+	case PANEL_DEBUGFS_FILE_FIRMWARE:
 		panel_debug_firmware_show(s);
 		break;
 #endif
 #if defined(CONFIG_USDM_ADAPTIVE_MIPI)
-	case PANEL_DEBUGFS_ADAPTIVE_MIPI:
+	case PANEL_DEBUGFS_FILE_ADAPTIVE_MIPI:
 		panel_debug_adaptive_mipi_show(s);
 		break;
 #endif
@@ -588,21 +641,43 @@ static int panel_debug_simple_show(struct seq_file *s, void *unused)
 static ssize_t panel_debug_simple_write(struct file *file,
 		const char __user *buf, size_t count, loff_t *f_ops)
 {
-	struct seq_file *s;
-	struct panel_debugfs *debugfs;
-	struct panel_device *panel;
+	struct seq_file *s = file->private_data;
+	struct panel_debugfs *debugfs = s->private;
+	struct panel_debugfs *parent = debugfs->parent;
+	struct panel_device *panel = debugfs->private;
 	char argbuf[SZ_256];
-	int rc = 0;
-	int res = 0;
+	int rc = 0, res = 0, id;
 
-	s = file->private_data;
-	debugfs = s->private;
-	panel = debugfs->private;
+	if (!parent)
+		return -EINVAL;
 
-	panel_info("%s called\n", __func__);
+	id = string_to_debugfs_dir_id(parent->name);
+	if (id >= 0) {
+		if (id == PANEL_DEBUGFS_DIR_SEQUENCE) {
+			rc = panel_debug_sequence_store(panel, debugfs->name);
+			if (rc)
+				return rc;
+		} else if (id == PANEL_DEBUGFS_DIR_RESOURCE) {
+			rc = panel_debug_resource_store(panel, debugfs->name);
+			if (rc)
+				return rc;
+		} else if (id == PANEL_DEBUGFS_DIR_PROPERTY) {
+			rc = kstrtoint_from_user(buf, count, 10, &res);
+			if (rc)
+				return rc;
+			rc = panel_debug_property_store(panel, debugfs->name, res);
+			if (rc)
+				return rc;
+		}
+		return count;
+	}
 
-	switch (debugfs->id) {
-	case PANEL_DEBUGFS_LOG:
+	id = string_to_debugfs_file_id(debugfs->name);
+	if (id < 0)
+		return -EINVAL;
+
+	switch (id) {
+	case PANEL_DEBUGFS_FILE_LOG:
 		rc = kstrtoint_from_user(buf, count, 10, &res);
 		if (rc)
 			return rc;
@@ -610,7 +685,7 @@ static ssize_t panel_debug_simple_write(struct file *file,
 		panel_log_level = res;
 		panel_info("panel_log_level: %d\n", panel_log_level);
 		break;
-	case PANEL_DEBUGFS_CMD_LOG:
+	case PANEL_DEBUGFS_FILE_CMD_LOG:
 		rc = kstrtoint_from_user(buf, count, 10, &res);
 		if (rc)
 			return rc;
@@ -618,34 +693,8 @@ static ssize_t panel_debug_simple_write(struct file *file,
 		panel_cmd_log = res;
 		panel_info("panel_cmd_log: %d\n", panel_cmd_log);
 		break;
-	case PANEL_DEBUGFS_SEQUENCE:
-		if (count >= ARRAY_SIZE(argbuf))
-			return -EINVAL;
-
-		if (copy_from_user(argbuf, buf, count))
-			return -EOVERFLOW;
-
-		argbuf[count] = '\0';
-		rc = panel_debug_sequence_store(panel, strstrip(argbuf));
-		if (rc)
-			return rc;
-
-		break;
-	case PANEL_DEBUGFS_RESOURCE:
-		if (count >= ARRAY_SIZE(argbuf))
-			return -EINVAL;
-
-		if (copy_from_user(argbuf, buf, count))
-			return -EOVERFLOW;
-
-		argbuf[count] = '\0';
-		rc = panel_debug_resource_store(panel, strstrip(argbuf));
-		if (rc)
-			return rc;
-
-		break;
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
-	case PANEL_DEBUGFS_FREQ_HOP:
+	case PANEL_DEBUGFS_FILE_FREQ_HOP:
 		if (count >= ARRAY_SIZE(argbuf))
 			return -EINVAL;
 
@@ -660,7 +709,7 @@ static ssize_t panel_debug_simple_write(struct file *file,
 		break;
 #endif
 #if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2)
-	case PANEL_DEBUGFS_PANEL_EVENT:
+	case PANEL_DEBUGFS_FILE_PANEL_EVENT:
 		if (count >= ARRAY_SIZE(argbuf))
 			return -EINVAL;
 
@@ -675,7 +724,7 @@ static ssize_t panel_debug_simple_write(struct file *file,
 		break;
 #endif
 #if defined(CONFIG_USDM_PANEL_JSON)
-	case PANEL_DEBUGFS_EZOP:
+	case PANEL_DEBUGFS_FILE_EZOP:
 		if (count >= ARRAY_SIZE(argbuf))
 			return -EINVAL;
 
@@ -690,7 +739,7 @@ static ssize_t panel_debug_simple_write(struct file *file,
 		break;
 #endif
 #if defined(CONFIG_USDM_ADAPTIVE_MIPI)
-	case PANEL_DEBUGFS_ADAPTIVE_MIPI:
+	case PANEL_DEBUGFS_FILE_ADAPTIVE_MIPI:
 		if (count >= ARRAY_SIZE(argbuf))
 			return -EINVAL;
 
@@ -723,54 +772,189 @@ static const struct file_operations panel_debugfs_simple_fops = {
 	.release = seq_release,
 };
 
-int panel_create_debugfs(struct panel_device *panel)
+static struct panel_debugfs *
+panel_create_debugfs_dir(struct panel_device *panel,
+		char *name, struct panel_debugfs *dir)
 {
 	struct panel_debugfs *debugfs;
-	char name[MAX_NAME_SIZE];
+
+	debugfs = kzalloc(sizeof(struct panel_debugfs), GFP_KERNEL);
+	if (!debugfs)
+		return NULL;
+
+	debugfs->private = panel;
+	strncpy(debugfs->name, name, MAX_PANEL_DEBUGFS_NAME_SIZE);
+	debugfs->name[MAX_PANEL_DEBUGFS_NAME_SIZE-1] = '\0';
+	debugfs->parent = dir;
+	debugfs->dir = debugfs_create_dir(name, dir ? dir->dir : NULL);
+	if (!debugfs->dir) {
+		panel_err("failed to create debugfs dir(%s)\n", name);
+		kfree(debugfs);
+		return NULL;
+	}
+	INIT_LIST_HEAD(&debugfs->dirs);
+	if (dir)
+		list_add_tail(&debugfs->list, &dir->dirs);
+	panel_dbg("dir:%s\n", name);
+
+	return debugfs;
+}
+
+static struct panel_debugfs *
+panel_create_debugfs_file(struct panel_device *panel,
+		char *name, struct panel_debugfs *dir)
+{
+	struct panel_debugfs *debugfs;
+
+	if (!dir) {
+		panel_err("directory is null\n");
+		return NULL;
+	}
+
+	debugfs = kzalloc(sizeof(struct panel_debugfs), GFP_KERNEL);
+	if (!debugfs)
+		return NULL;
+
+	debugfs->private = panel;
+	strncpy(debugfs->name, name, MAX_PANEL_DEBUGFS_NAME_SIZE);
+	debugfs->name[MAX_PANEL_DEBUGFS_NAME_SIZE-1] = '\0';
+	debugfs->parent = dir;
+	debugfs->file = debugfs_create_file(name, 0660,
+			dir->dir, debugfs, &panel_debugfs_simple_fops);
+	if (!debugfs->file) {
+		panel_err("failed to create debugfs file(%s)\n", name);
+		kfree(debugfs);
+		return NULL;
+	}
+	INIT_LIST_HEAD(&debugfs->dirs);
+	list_add_tail(&debugfs->list, &dir->dirs);
+	panel_dbg("file:%s\n", name);
+
+	return debugfs;
+}
+
+int panel_create_pnobjs_debugfs(struct panel_device *panel,
+		char *name, struct panel_debugfs *root)
+{
+	struct list_head *head = NULL;
+	struct panel_debugfs *entry;
+	struct panel_debugfs *dir;
+	struct pnobj *pos;
+	int id, cmd_type = CMD_TYPE_NONE;
+
+	dir = panel_create_debugfs_dir(panel, name, root);
+	if (!dir)
+		return -ENOENT;
+
+	id = string_to_debugfs_dir_id(dir->name);
+	if (id < 0) {
+		panel_warn("debugfs_dir(%s) not found\n",
+				dir->name);
+		return -EINVAL;
+	}
+
+	if (id == PANEL_DEBUGFS_DIR_SEQUENCE)
+		cmd_type = CMD_TYPE_SEQ;
+	else if (id == PANEL_DEBUGFS_DIR_RESOURCE)
+		cmd_type = CMD_TYPE_RES;
+	else if (id == PANEL_DEBUGFS_DIR_PROPERTY)
+		cmd_type = CMD_TYPE_PROP;
+
+	if (cmd_type == CMD_TYPE_NONE) {
+		panel_warn("cmd type none\n");
+		return -EINVAL;
+	}
+
+	head = panel_get_object_list(panel, cmd_type);
+	if (!head) {
+		panel_warn("failed to get pnobj(%s) list\n",
+				cmd_type_to_string(cmd_type));
+		return -EINVAL;
+	}
+
+	list_for_each_entry(pos, head, list) {
+		entry = panel_create_debugfs_file(panel,
+				get_pnobj_name(pos), dir);
+		if (!entry)
+			return -ENOENT;
+	}
+
+	return 0;
+}
+
+int panel_create_debugfs(struct panel_device *panel)
+{
+	struct panel_debugfs *entry;
+	char name[MAX_PANEL_DEBUGFS_NAME_SIZE];
 	int i;
 
 	if (!panel)
 		return -EINVAL;
 
 	if (panel->id == 0)
-		snprintf(name, MAX_NAME_SIZE, "panel");
+		snprintf(name, MAX_PANEL_DEBUGFS_NAME_SIZE, "panel");
 	else
-		snprintf(name, MAX_NAME_SIZE, "panel%d", panel->id);
+		snprintf(name, MAX_PANEL_DEBUGFS_NAME_SIZE, "panel%d", panel->id);
 
-	panel->d.dir = debugfs_create_dir(name, NULL);
-	if (!panel->d.dir) {
+	panel->d.root = panel_create_debugfs_dir(panel, name, NULL);
+	if (!panel->d.root) {
 		panel_err("failed to create debugfs directory(%s).\n", name);
 		return -ENOENT;
 	}
 
-	for (i = 0; i < MAX_PANEL_DEBUGFS; i++) {
-		debugfs = kmalloc(sizeof(struct panel_debugfs), GFP_KERNEL);
-		if (!debugfs)
-			return -ENOMEM;
-
-		debugfs->private = panel;
-		debugfs->id = i;
-		debugfs->file = debugfs_create_file(panel_debugfs_name[i], 0660,
-				panel->d.dir, debugfs, &panel_debugfs_simple_fops);
-		if (!debugfs->file) {
-			panel_err("failed to create debugfs file(%s)\n",
-					panel_debugfs_name[i]);
-			kfree(debugfs);
-			return -ENOMEM;
-		}
-		panel->d.debugfs[i] = debugfs;
+	for (i = 0; i < MAX_PANEL_DEBUGFS_FILE; i++) {
+		entry = panel_create_debugfs_file(panel,
+				(char *)panel_debugfs_file_name[i], panel->d.root);
+		if (!entry)
+			return -ENOENT;
 	}
 
 	return 0;
 }
 
+void panel_destroy_debugfs_entry(struct panel_debugfs *debugfs)
+{
+	struct panel_debugfs *pos, *next;
+
+	if (!debugfs)
+		return;
+
+	list_for_each_entry_safe(pos, next, &debugfs->dirs, list)
+		panel_destroy_debugfs_entry(pos);
+
+	if (debugfs->dir)
+		debugfs_remove(debugfs->dir);
+	if (debugfs->file)
+		debugfs_remove(debugfs->file);
+	list_del(&debugfs->list);
+	kfree(debugfs);
+}
+
 void panel_destroy_debugfs(struct panel_device *panel)
 {
-	int i;
+	panel_destroy_debugfs_entry(panel->d.root);
+}
 
-	debugfs_remove_recursive(panel->d.dir);
-	for (i = 0; i < MAX_PANEL_DEBUGFS; i++) {
-		kfree(panel->d.debugfs[i]);
-		panel->d.debugfs[i] = NULL;
+int panel_create_panel_object_debugfs(struct panel_device *panel)
+{
+	int i, ret;
+
+	for (i = 0; i < MAX_PANEL_DEBUGFS_DIR; i++) {
+		ret = panel_create_pnobjs_debugfs(panel,
+				(char *)panel_debugfs_dir_name[i], panel->d.root);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
+void panel_destroy_panel_object_debugfs(struct panel_device *panel)
+{
+	struct panel_debugfs *pos, *next;
+
+	list_for_each_entry_safe(pos, next, &panel->d.root->dirs, list) {
+		if (string_to_debugfs_dir_id(pos->name) >= 0)
+			panel_destroy_debugfs_entry(pos);
 	}
 }

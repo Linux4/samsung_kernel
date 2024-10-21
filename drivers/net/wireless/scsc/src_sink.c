@@ -44,8 +44,10 @@ static int slsi_src_sink_fake_sta_start(struct slsi_dev *sdev, struct net_device
 		return -EFAULT;
 	}
 
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
 	peer = slsi_peer_add(sdev, dev, fake_peer_mac, SLSI_STA_PEER_QUEUESET + 1);
 	if (WLBT_WARN(!peer, "add fake peer failed")) {
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 		slsi_vif_deactivated(sdev, dev);
 		if (slsi_mlme_del_vif(sdev, dev) != 0)
 			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
@@ -54,6 +56,7 @@ static int slsi_src_sink_fake_sta_start(struct slsi_dev *sdev, struct net_device
 	}
 	peer->qos_enabled = true;
 	slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_CONNECTED);
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
 	netif_carrier_on(dev);
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	return 0;

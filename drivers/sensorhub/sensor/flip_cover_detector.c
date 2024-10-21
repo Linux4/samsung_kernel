@@ -83,7 +83,7 @@ int set_nfc_cover_status(void)
 	return ret;
 }
 
-int sync_flip_cover_detector_status(void)
+int sync_flip_cover_detector_status(int type)
 {
 	int ret = 0;
 
@@ -99,7 +99,7 @@ int sync_flip_cover_detector_status(void)
 	return ret;
 }
 
-void print_flip_cover_detector_debug(void)
+void print_flip_cover_detector_debug(int type)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_FLIP_COVER_DETECTOR);
 	struct sensor_event *event = &(sensor->last_event_buffer);

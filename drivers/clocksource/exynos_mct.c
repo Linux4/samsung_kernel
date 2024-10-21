@@ -20,7 +20,6 @@
 #include <linux/of_address.h>
 #include <linux/clocksource.h>
 #include <linux/sched_clock.h>
-#include <linux/sched/clock.h>
 
 #define EXYNOS4_MCTREG(x)		(x)
 #define EXYNOS4_MCT_G_CNT_L		EXYNOS4_MCTREG(0x100)
@@ -86,19 +85,12 @@ static void __iomem *reg_base;
 static unsigned long clk_rate;
 static unsigned int mct_int_type;
 static int mct_irqs[MCT_NR_IRQS];
-static u64 exynos_mct_start;
 
 struct mct_clock_event_device {
 	struct clock_event_device evt;
 	unsigned long base;
 	char name[10];
 };
-
-u64 exynos_get_mct_start(void)
-{
-	return exynos_mct_start;
-}
-EXPORT_SYMBOL_GPL(exynos_get_mct_start);
 
 static void exynos4_mct_write(unsigned int value, unsigned long offset)
 {
@@ -631,21 +623,6 @@ static int __init mct_init_dt(struct device_node *np, unsigned int int_type)
 	ret = exynos4_clocksource_init();
 	if (ret)
 		return ret;
-
-	if (IS_ENABLED(CONFIG_SEC_BOOTSTAT)) {
-		unsigned long __clk_rate;
-		u64 ts_msec;
-
-		exynos_mct_start = exynos4_read_count_64();
-		__clk_rate = clk_rate / 1000;
-		if (__clk_rate)
-			exynos_mct_start /= __clk_rate;
-
-		ts_msec = local_clock();
-		do_div(ts_msec, 1000000);
-
-		exynos_mct_start -= ts_msec;
-	}
 
 	return exynos4_clockevent_init();
 }

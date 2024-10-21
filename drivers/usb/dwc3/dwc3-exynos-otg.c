@@ -621,6 +621,9 @@ static int dwc3_otg_start_gadget(struct otg_fsm *fsm, int on)
 
 	dev_info(dev, "Turn %s gadget %s\n",
 			on ? "on" : "off", otg->gadget->name);
+
+	dwc->softconnect = on;
+
 #if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
 	vbus_session_notify(dwc->gadget, on, EAGAIN);
 #endif
@@ -1040,7 +1043,7 @@ int dwc3_exynos_otg_init(struct dwc3 *dwc, struct dwc3_exynos *exynos)
 	exynos->dotg = dotg;
 	dotg->dwc = dwc;
 	dotg->exynos = exynos;
-	dev_info(dwc->dev, "%s, dotg = %8x\n", __func__, exynos->dotg);
+	dev_info(dwc->dev, "%s, dotg = %pK\n", __func__, exynos->dotg);
 
 	ret = of_property_read_u32(dwc->dev->of_node,
 				"usb-pm-qos-hsi0", &dotg->pm_qos_hsi0_val);

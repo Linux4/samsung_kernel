@@ -102,6 +102,7 @@ struct ois_mcu_dev {
 #ifdef USE_OIS_STABILIZATION_DELAY
 	bool			is_mcu_active;
 #endif
+	struct work_struct	mcu_power_on_work; 
 };
 
 enum is_efs_state {

@@ -27,6 +27,9 @@
 #include <linux/ratelimit.h>
 #include <crypto/skcipher.h>
 #include "fscrypt_private.h"
+#ifdef CONFIG_DDAR
+#include "ddar/ddar_crypto.h"
+#endif
 
 static unsigned int num_prealloc_crypto_pages = 32;
 
@@ -184,6 +187,13 @@ struct page *fscrypt_encrypt_pagecache_blocks(struct page *page,
 	unsigned int i;
 	int err;
 
+#ifdef CONFIG_DDAR
+	if (fscrypt_dd_encrypted_inode(inode)) {
+		// Invert crypto order. OEM crypto must perform after 3rd party crypto
+		return NULL;
+	}
+#endif
+
 	if (WARN_ON_ONCE(!PageLocked(page)))
 		return ERR_PTR(-EINVAL);
 
@@ -230,6 +240,12 @@ int fscrypt_encrypt_block_inplace(const struct inode *inode, struct page *page,
 				  unsigned int len, unsigned int offs,
 				  u64 lblk_num, gfp_t gfp_flags)
 {
+#ifdef CONFIG_DDAR
+	if (fscrypt_dd_encrypted_inode(inode)) {
+		// Invert crypto order. OEM crypto must perform after 3rd party crypto
+		return 0;
+	}
+#endif
 	return fscrypt_crypt_block(inode, FS_ENCRYPT, lblk_num, page, page,
 				   len, offs, gfp_flags);
 }
@@ -262,6 +278,13 @@ int fscrypt_decrypt_pagecache_blocks(struct page *page, unsigned int len,
 		       (offs >> blockbits);
 	unsigned int i;
 	int err;
+
+#ifdef CONFIG_DDAR
+	if (fscrypt_dd_encrypted_inode(inode)) {
+		// Invert crypto order. OEM crypto must perform after 3rd party crypto
+		return 0;
+	}
+#endif
 
 	if (WARN_ON_ONCE(!PageLocked(page)))
 		return -EINVAL;
@@ -299,6 +322,12 @@ int fscrypt_decrypt_block_inplace(const struct inode *inode, struct page *page,
 				  unsigned int len, unsigned int offs,
 				  u64 lblk_num)
 {
+#ifdef CONFIG_DDAR
+	if (fscrypt_dd_encrypted_inode(inode)) {
+		// Invert crypto order. OEM crypto must perform after 3rd party crypto
+		return 0;
+	}
+#endif
 	return fscrypt_crypt_block(inode, FS_DECRYPT, lblk_num, page, page,
 				   len, offs, GFP_NOFS);
 }
@@ -384,7 +413,11 @@ static int __init fscrypt_init(void)
 	if (!fscrypt_read_workqueue)
 		goto fail;
 
+#ifdef CONFIG_DDAR
+	fscrypt_info_cachep = KMEM_CACHE(ext_fscrypt_info, SLAB_RECLAIM_ACCOUNT);
+#else
 	fscrypt_info_cachep = KMEM_CACHE(fscrypt_info, SLAB_RECLAIM_ACCOUNT);
+#endif
 	if (!fscrypt_info_cachep)
 		goto fail_free_queue;
 
@@ -392,6 +425,9 @@ static int __init fscrypt_init(void)
 	if (err)
 		goto fail_free_info;
 
+#ifdef CONFIG_DDAR
+	ddar_crypto_init();
+#endif
 	return 0;
 
 fail_free_info:

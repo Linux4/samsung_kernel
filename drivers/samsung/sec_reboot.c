@@ -27,7 +27,6 @@
 #include <linux/sti/abc_common.h>
 #endif
 
-extern void hard_reset_delay(void);
 #if defined(CONFIG_BATTERY_SAMSUNG_REBOOT)
 #include <linux/battery/sec_battery_common.h>
 #endif
@@ -323,8 +322,6 @@ static int sec_reboot(struct notifier_block *this,
 				unsigned long mode, void *cmd)
 {
 	local_irq_disable();
-
-	hard_reset_delay();
 
 	if (sec_reboot_on_panic && !cmd)
 		cmd = panic_str;

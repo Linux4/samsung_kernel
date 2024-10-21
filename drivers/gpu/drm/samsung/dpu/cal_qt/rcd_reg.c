@@ -81,12 +81,12 @@ static void rcd_reg_clear_irq(u32 id, u32 irq)
 	rcd_write_mask(id, DMA_RCD_IRQ, ~0, irq);
 }
 
-static void rcd_reg_set_irq_enable(u32 id)
+void rcd_reg_set_irq_enable(u32 id)
 {
 	rcd_write_mask(id, DMA_RCD_IRQ, ~0, DMA_RCD_IRQ_ENABLE);
 }
 
-static void rcd_reg_set_irq_disable(u32 id)
+void rcd_reg_set_irq_disable(u32 id)
 {
 	rcd_write_mask(id, DMA_RCD_IRQ, 0, DMA_RCD_IRQ_ENABLE);
 }

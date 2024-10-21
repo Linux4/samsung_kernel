@@ -50,6 +50,7 @@ mcd-panel-$(CONFIG_USDM_BLIC_I2C) += panel_i2c.o
 mcd-panel-$(CONFIG_USDM_PANEL_BLIC) += panel_blic.o
 mcd-panel-$(CONFIG_USDM_LPD_AUTO_BR) += panel_lpd_cmd.o
 mcd-panel-$(CONFIG_USDM_ADAPTIVE_MIPI) += adaptive_mipi.o
+mcd-panel-$(CONFIG_USDM_SDP_ADAPTIVE_MIPI) += sdp_adaptive_mipi.o
 mcd-panel-$(CONFIG_USDM_PANEL_TESTMODE) += panel_testmode.o
 
 mcd-panel-$(CONFIG_USDM_PANEL_JSON) += \
@@ -65,6 +66,8 @@ subdir-ccflags-y += \
     -Wno-implicit-fallthrough
 
 subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
+    -Wformat-security \
+    -Wunused-const-variable \
     -Wframe-larger-than=8192 \
     -Wunused-variable \
     -Wunused-function \

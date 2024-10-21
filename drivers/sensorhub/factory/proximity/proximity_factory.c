@@ -25,14 +25,40 @@
 #include "../../utility/shub_dev_core.h"
 #include "../../utility/shub_utility.h"
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else 
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
 
-static struct device *proximity_sysfs_device;
+__visible_for_testing struct device *proximity_sysfs_device;
 static struct device_attribute **chipset_attrs;
 
 static u32 position[6];
+
+static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
+
+	return sprintf(buf, "%s\n", sensor->spec.name);
+}
+
+static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
+	char vendor[VENDOR_MAX] = "";
+
+	get_sensor_vendor_name(sensor->spec.vendor, vendor);
+
+	return sprintf(buf, "%s\n", vendor);
+}
 
 static ssize_t prox_probe_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -60,11 +86,11 @@ u16 get_prox_raw_data(void)
 {
 	u16 raw_data = 0;
 	s32 ms_delay = 20;
-	char tmpe_buf[8] = { 0, };
+	char temp_buf[8] = { 0, };
 	struct prox_raw_event *sensor_value =
 	    (struct prox_raw_event *)(get_sensor_event(SENSOR_TYPE_PROXIMITY_RAW)->value);
 
-	memcpy(&tmpe_buf[0], &ms_delay, 4);
+	memcpy(&temp_buf[0], &ms_delay, 4);
 
 	if (!get_sensor_enabled(SENSOR_TYPE_PROXIMITY_RAW)) {
 		batch_sensor(SENSOR_TYPE_PROXIMITY_RAW, 20, 0);
@@ -83,6 +109,11 @@ u16 get_prox_raw_data(void)
 
 static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
+	if (!get_sensor_probe_state(SENSOR_TYPE_PROXIMITY_RAW)) {
+		shub_errf("sensor is not probed!");
+		return 0;
+	}
+
 	return sprintf(buf, "%u\n", get_prox_raw_data());
 }
 
@@ -165,6 +196,8 @@ static ssize_t trim_check_show(struct device *dev, struct device_attribute *attr
 	return snprintf(buf, PAGE_SIZE, "%s\n", (trim_check == 0) ? "TRIM" : "UNTRIM");
 }
 
+static DEVICE_ATTR_RO(name);
+static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(prox_position);
 static DEVICE_ATTR_RO(prox_probe);
 static DEVICE_ATTR_RO(thresh_high);
@@ -174,7 +207,9 @@ static DEVICE_ATTR(prox_avg, 0664, prox_avg_show, prox_avg_store);
 static DEVICE_ATTR_RO(prox_offset_pass);
 static DEVICE_ATTR_RO(trim_check);
 
-static struct device_attribute *proximity_attrs[] = {
+__visible_for_testing struct device_attribute *proximity_attrs[] = {
+	&dev_attr_name,
+	&dev_attr_vendor,
 	&dev_attr_prox_probe,
 	&dev_attr_thresh_high,
 	&dev_attr_thresh_low,
@@ -191,6 +226,7 @@ get_chipset_dev_attrs get_proximity_chipset_dev_attrs[] = {
 	get_proximity_gp2ap110s_dev_attrs,
 	get_proximity_stk3x6x_dev_attrs,
 	get_proximity_stk3328_dev_attrs,
+	get_proximity_tmd3725_dev_attrs,
 	get_proximity_tmd4912_dev_attrs,
 	get_proximity_stk3391x_dev_attrs,
 	get_proximity_stk33512_dev_attrs,

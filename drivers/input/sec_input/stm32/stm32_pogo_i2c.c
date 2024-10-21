@@ -645,9 +645,7 @@ static void stm32_get_tc_fw_info_of_bin(struct stm32_dev *stm32)
 static int stm32_load_fw_from_fota(struct stm32_dev *stm32, u8 ed_id)
 {
 	struct firmware *fw;
-	const struct firmware *fw_entry;
 	int error = 0;
-	char fw_path[128] = { 0 };
 
 	if (ed_id == ID_MCU) {
 		fw = stm32->fw;
@@ -658,32 +656,16 @@ static int stm32_load_fw_from_fota(struct stm32_dev *stm32, u8 ed_id)
 		return -EINVAL;
 	}
 
-	snprintf(fw_path, sizeof(fw_path), "%s%s%s.bin", stm32->dtdata->fota_fw_path,
-			stm32->dtdata->model_name[stm32->ic_fw_ver.model_id],
-			ed_id == ID_TOUCHPAD ? "TOUCH" : "");
-
-	input_info(true, &stm32->client->dev, "%s: path:%s\n", __func__, fw_path);
-
-	error = request_firmware(&fw_entry, fw_path, &stm32->client->dev);
-	if (error) {
-		input_err(true, &stm32->client->dev, "%s: failed to open fw\n", __func__);
-		error = -ENOENT;
-		goto err_request_fw;
-	}
-
-	input_info(true, &stm32->client->dev, "%s: size %ld Bytes\n", __func__, fw_entry->size);
-
-	memcpy((void *)fw->data, (void *)fw_entry->data, fw_entry->size);
-	fw->size = fw_entry->size;
+	memcpy((void *)fw->data, (void *)stm32->sec_pogo_keyboard_fw, stm32->sec_pogo_keyboard_size);
+	fw->size = stm32->sec_pogo_keyboard_size;
 
 	if (ed_id == ID_MCU)
 		stm32_get_fw_info_of_bin(stm32);
 	else if (ed_id == ID_TOUCHPAD)
 		stm32_get_tc_fw_info_of_bin(stm32);
 
-	release_firmware(fw_entry);
-err_request_fw:
 	return error;
+
 }
 
 static bool stm32_check_fw_update(struct stm32_dev *stm32)
@@ -1599,6 +1581,8 @@ static int stm32_fw_update(struct stm32_dev *stm32)
 	if (strncmp(STM32_MAGIC_WORD, stm32->fw_header->magic_word, 5) != 0) {
 		input_info(true, &stm32->client->dev, "%s: firmware file is wrong : %s\n",
 				__func__, stm32->fw_header->magic_word);
+		memset(stm32->sec_pogo_keyboard_fw, 0x0, stm32->sec_pogo_keyboard_size);
+		stm32->sec_pogo_keyboard_size = 0;
 		return -ENOENT;
 	}
 
@@ -1606,6 +1590,8 @@ static int stm32_fw_update(struct stm32_dev *stm32)
 	if (ret < 0) {
 		input_err(true, &stm32->client->dev,
 				"%s: failed to set DFU mode\n", __func__);
+		memset(stm32->sec_pogo_keyboard_fw, 0x0, stm32->sec_pogo_keyboard_size);
+		stm32->sec_pogo_keyboard_size = 0;
 		return ret;
 	}
 
@@ -1683,9 +1669,14 @@ static int stm32_fw_update(struct stm32_dev *stm32)
 
 	if (stm32->connect_state)
 		stm32_enable_irq(stm32, INT_ENABLE);
+
+	memset(stm32->sec_pogo_keyboard_fw, 0x0, stm32->sec_pogo_keyboard_size);
+	stm32->sec_pogo_keyboard_size = 0;
 	return 0;
 
 out:
+	memset(stm32->sec_pogo_keyboard_fw, 0x0, stm32->sec_pogo_keyboard_size);
+	stm32->sec_pogo_keyboard_size = 0;
 	stm32_delay(1000);
 
 	/* leave the DFU mode without switching to target bank */
@@ -1880,6 +1871,8 @@ static int stm32_tc_fw_update(struct stm32_dev *stm32)
 	if (ret < 0) {
 		input_err(true, &stm32->client->dev,
 				"%s: failed to set DFU mode\n", __func__);
+		memset(stm32->sec_pogo_keyboard_fw, 0x0, stm32->sec_pogo_keyboard_size);
+		stm32->sec_pogo_keyboard_size = 0;
 		return ret;
 	}
 
@@ -1947,6 +1940,9 @@ static int stm32_tc_fw_update(struct stm32_dev *stm32)
 	}
 
 out:
+	memset(stm32->sec_pogo_keyboard_fw, 0x0, stm32->sec_pogo_keyboard_size);
+	stm32->sec_pogo_keyboard_size = 0;
+
 	if (stm32_i2c_reg_write(stm32->client, ID_MCU, STM32_CMD_ABORT) < 0)
 		return -EIO;
 
@@ -2072,6 +2068,34 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 }
 #endif
 
+static ssize_t sec_pogo_keyboard_fw_store(struct device *dev, struct device_attribute *attr, const char *buf,
+						size_t count)
+{
+	struct stm32_dev *stm32 = dev_get_drvdata(dev);
+	ssize_t ret;
+
+	if (!stm32->sec_pogo_keyboard_fw)
+		return 0;
+
+	ret = -EINVAL;
+	if (count > PAGE_SIZE) {
+		input_err(true, &stm32->client->dev, "%s error count %ld %ld\n", __func__, count, PAGE_SIZE);
+		return ret;
+	}
+
+	if (stm32->sec_pogo_keyboard_size + count > STM32_FW_SIZE) {
+		input_err(true, &stm32->client->dev, "%s overflow error totalsize:%ld\n",
+				__func__, stm32->sec_pogo_keyboard_size + count);
+		return ret;
+	}
+
+	memcpy(stm32->sec_pogo_keyboard_fw + stm32->sec_pogo_keyboard_size, buf, count);
+
+	stm32->sec_pogo_keyboard_size += count;
+
+	return count;
+}
+
 static DEVICE_ATTR(keyboard_connected, 0644, keyboard_connected_show, keyboard_connected_store);
 static DEVICE_ATTR(hw_reset, 0444, hw_reset_show, NULL);
 static DEVICE_ATTR(get_fw_ver_bin, 0444, pogo_get_fw_ver_bin, NULL);
@@ -2093,6 +2117,7 @@ static DEVICE_ATTR(get_mcu_fw_ver, 0444, get_mcu_fw_ver, NULL);
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 #endif
+static DEVICE_ATTR_WO(sec_pogo_keyboard_fw);
 
 
 static struct attribute *key_attributes[] = {
@@ -2117,6 +2142,7 @@ static struct attribute *key_attributes[] = {
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	&dev_attr_enabled.attr,
 #endif
+	&dev_attr_sec_pogo_keyboard_fw.attr,
 	NULL,
 };
 
@@ -2236,6 +2262,12 @@ static int stm32_dev_probe(struct i2c_client *client,
 
 	device_data->tc_fw->data = kzalloc(STM32_FW_SIZE, GFP_KERNEL);
 	if (!device_data->tc_fw->data) {
+		ret = -ENOMEM;
+		goto err_alloc_tc_fw_data;
+	}
+
+	device_data->sec_pogo_keyboard_fw = devm_kmalloc(&client->dev, STM32_KEYBOARD_FW_SIZE, GFP_KERNEL | __GFP_COMP);
+	if (!device_data->sec_pogo_keyboard_fw) {
 		ret = -ENOMEM;
 		goto err_alloc_tc_fw_data;
 	}

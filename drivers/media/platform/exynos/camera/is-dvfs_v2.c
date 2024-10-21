@@ -52,12 +52,28 @@ static int is_hw_dvfs_get_frame_tick(int id)
 
 static void is_dvfs_dec_dwork_fn(struct work_struct *data)
 {
-	struct is_dvfs_ctrl *dvfs_ctrl
-		= container_of((void *)data, struct is_dvfs_ctrl, dec_dwork);
-	struct is_device_ischain *idi = is_get_ischain_device(dvfs_ctrl->cur_instance);
+	struct is_device_sensor *ids;
+	struct is_device_ischain *idi = NULL;
+	u32 device_id;
+
+	for (device_id = 0; device_id < IS_SENSOR_COUNT; device_id++) {
+		ids = is_get_sensor_device(device_id);
+		if (!ids || !test_bit(IS_SENSOR_START, &ids->state))
+			continue;
+		if (ids->position > SENSOR_POSITION_MAX) {
+			merr("[DVFS]Invalid sensor position(%d)", ids, ids->position);
+			continue;
+		}
+		if (ids->ischain && test_bit(IS_ISCHAIN_START, &ids->ischain->state)) {
+			idi = ids->ischain;
+			break;
+		}
+	}
 
 	if (idi)
 		pablo_set_static_dvfs(idi, "", IS_DVFS_SN_END, IS_DVFS_PATH_OTF);
+	else
+		err("[DVFS]no active sensor");
 }
 
 int is_dvfs_init(struct is_resourcemgr *resourcemgr)
@@ -381,10 +397,13 @@ int is_remove_dvfs(struct is_core *core, int scenario_id)
 
 	struct is_pm_qos_request *exynos_isp_pm_qos;
 	u32 dvfs_t;
+	struct is_resourcemgr *resourcemgr = &core->resourcemgr;
 
 	exynos_isp_pm_qos = is_get_pm_qos();
 
 	info("[RSC] %s", __func__);
+
+	cancel_delayed_work_sync(&resourcemgr->dvfs_ctrl.dec_dwork);
 
 	for (dvfs_t = 0; dvfs_t < IS_DVFS_END; dvfs_t++)
 		_is_remove_dvfs(core, scenario_id, exynos_isp_pm_qos, dvfs_t);
@@ -580,7 +599,9 @@ int pablo_set_static_dvfs(struct is_device_ischain *device,
 void is_set_static_dvfs(struct is_device_ischain *device, bool stream_on)
 {
 	struct is_resourcemgr *rscmgr = device->resourcemgr;
+	struct is_dvfs_ctrl *dvfs_ctrl = &rscmgr->dvfs_ctrl;
 	int scn;
+	bool cancel_dec_dwork = false;
 
 	if (stream_on) {
 		scn = pablo_set_static_dvfs(device, "FAST_LAUNCH", IS_DVFS_SN_DEFAULT,
@@ -589,6 +610,17 @@ void is_set_static_dvfs(struct is_device_ischain *device, bool stream_on)
 		/* set bts_scen by scenario, even though it is error value */
 		is_hw_configure_bts_scen(rscmgr, scn);
 	} else {
+		mutex_lock(&dvfs_ctrl->lock);
+		if (device->instance == dvfs_ctrl->cur_instance) {
+			cancel_dec_dwork = true;
+		}
+		mutex_unlock(&dvfs_ctrl->lock);
+
+		if (cancel_dec_dwork) {
+			minfo("[DVFS] cancel dec_dwork to stream off\n", device);
+			cancel_delayed_work_sync(&dvfs_ctrl->dec_dwork);
+		}
+
 		pablo_set_static_dvfs(device, "", IS_DVFS_SN_DEFAULT, IS_DVFS_PATH_OTF);
 	}
 }

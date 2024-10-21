@@ -231,12 +231,8 @@ void stui_close_display(void)
 	/* Disable STUI driver / Activate linux UI drivers */
 	stui_clear_mask(STUI_MODE_DISPLAY_SEC);
 	stui_finish_tui();
-#if IS_ENABLED(CONFIG_SOC_S5E8825) || IS_ENABLED(CONFIG_SOC_S5E8535)
 	if (!g_stui_disp_if)
 		stui_free_video_space();
-#else
-	stui_free_video_space();
-#endif
 
 	pr_debug(TUIHW_LOG_TAG " %s <<\n", __func__);
 }

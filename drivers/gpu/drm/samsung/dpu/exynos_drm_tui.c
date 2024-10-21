@@ -26,6 +26,9 @@
 
 #include <cal_common/decon_cal.h>
 #include <cal_common/dpp_cal.h>
+#if IS_ENABLED(CONFIG_EXYNOS_DMA_RCD)
+#include <cal_common/rcd_cal.h>
+#endif
 #include <exynos_drm_dsim.h>
 #include <exynos_drm_decon.h>
 #include <exynos_drm_crtc.h>
@@ -247,12 +250,6 @@ int exynos_atomic_enter_tui(void)
 			new_exynos_plane_state = to_exynos_plane_state(new_plane_state);
 			new_exynos_plane_state->hdr_fd = -1;
 		}
-
-		decon_reg_set_interrupts(0, false);
-		for (id = 0; id <= REGS_DPP7_ID; id++) {
-			idma_reg_set_irq_disable(id);
-			dpp_reg_set_irq_disable(id);
-		}
 	} else {
 		for_each_new_plane_in_state(new_state, plane, new_plane_state, i) {
 			new_exynos_plane_state = to_exynos_plane_state(new_plane_state);
@@ -275,6 +272,17 @@ int exynos_atomic_enter_tui(void)
 	ret = drm_atomic_commit(new_state);
 	if (ret < 0)
 		goto err_new_state;
+
+	if (op_mode & MIPI_DSI_MODE_VIDEO) {
+		decon_reg_set_interrupts(0, false);
+		for (id = 0; id <= REGS_DPP7_ID; id++) {
+			idma_reg_set_irq_disable(id);
+			dpp_reg_set_irq_disable(id);
+		}
+#if IS_ENABLED(CONFIG_EXYNOS_DMA_RCD)
+		rcd_reg_set_irq_disable(0);
+#endif
+	}
 
 	/* shoule set the default disp clock for tui */
 	if (IS_ENABLED(CONFIG_EXYNOS_BTS) && (!(op_mode & MIPI_DSI_MODE_VIDEO))) {
@@ -391,6 +399,9 @@ int exynos_atomic_exit_tui(void)
                    idma_reg_set_irq_enable(id);
                    dpp_reg_set_irq_enable(id);
            }
+#if IS_ENABLED(CONFIG_EXYNOS_DMA_RCD)
+		rcd_reg_set_irq_enable(0);
+#endif
 	}
 
 	ret = drm_atomic_helper_commit_duplicated_state(suspend_state, &ctx);
@@ -558,7 +569,7 @@ int exynos_tui_get_panel_info(u64 *buf, int size)
 	max = (timing->hfp > max) ? timing->hfp : max;
 	max = (timing->hsa > max) ? timing->hsa : max;
 	max = (timing->hbp > max) ? timing->hbp : max;
-	if (max >= 100) {
+	if (max < 100) {
 		data = ((u64)timing->vfp * 10000000000)
 			+ ((u64)timing->vsa * 100000000)
 			+ ((u64)timing->vbp * 1000000)
