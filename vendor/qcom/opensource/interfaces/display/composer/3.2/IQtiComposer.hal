@@ -1,0 +1,24 @@
+/* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+*/
+
+package vendor.qti.hardware.display.composer@3.2;
+
+import @3.1::IQtiComposer;
+import IQtiComposerClient;
+import android.hardware.graphics.composer@2.1::Error;
+
+interface IQtiComposer extends @3.1::IQtiComposer {
+      /**
+     * Creates a v3.2 client of the composer.
+     *
+     * @return error is NONE upon success. Otherwise,
+     *         NO_RESOURCES when the client could not be created.
+     * @return client is the newly created client.
+     */
+    @entry
+    @callflow(next="*")
+    createClient_3_2() generates (Error error, IQtiComposerClient client);
+
+};
+

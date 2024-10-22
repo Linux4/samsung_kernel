@@ -1,0 +1,1 @@
+obj-$(CONFIG_KZT) += kzt.o kzt_ioctl.o kzt_offset.o

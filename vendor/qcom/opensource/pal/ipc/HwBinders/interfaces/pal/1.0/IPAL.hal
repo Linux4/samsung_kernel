@@ -1,0 +1,108 @@
+/*
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
+package vendor.qti.hardware.pal@1.0;
+
+import IPALCallback;
+interface IPAL
+{
+    ipc_pal_stream_open(vec<PalStreamAttributes> attributes, uint32_t noOfDevices,
+         vec<PalDevice> devices, uint32_t noOfModifiers,
+         vec<ModifierKV> modifiers, IPALCallback cb,
+         uint64_t ipc_clt_data)
+         generates (int32_t ret, PalStreamHandle streamHandleRet);
+    ipc_pal_stream_close(PalStreamHandle streamHandle) generates (int32_t ret);
+    ipc_pal_stream_start(PalStreamHandle streamHandle) generates (int32_t ret);
+    ipc_pal_stream_stop(PalStreamHandle streamHandle ) generates (int32_t ret);
+    ipc_pal_stream_pause(PalStreamHandle streamHandle ) generates (int32_t ret);
+    ipc_pal_stream_drain(PalStreamHandle streamHandle, PalDrainType type)
+                         generates(int32_t ret);
+    ipc_pal_stream_flush(PalStreamHandle streamHandle ) generates (int32_t ret);
+    ipc_pal_stream_suspend(PalStreamHandle streamHandle ) generates (int32_t ret);
+    ipc_pal_stream_resume(PalStreamHandle streamHandle ) generates (int32_t ret);
+    ipc_pal_stream_set_buffer_size(PalStreamHandle streamHandle,
+                                    PalBufferConfig rx_config, PalBufferConfig tx_config)
+                    generates (int32_t ret, PalBufferConfig rx_config_ret,
+                               PalBufferConfig tx_config_ret);
+    ipc_pal_stream_get_buffer_size(PalStreamHandle streamHandle,
+                    uint32_t in_buf_size, uint32_t out_buf_size)
+                    generates (int32_t ret, uint32_t in_buf_size_ret,
+                               uint32_t out_buf_size_ret);
+    ipc_pal_stream_read(PalStreamHandle streamHandle, vec<PalBuffer> buffer)
+                    generates (int32_t ret, vec<PalBuffer> buffer);
+    ipc_pal_stream_write(PalStreamHandle streamHandle,
+                    vec<PalBuffer> buffer) generates (int32_t ret);
+    ipc_pal_stream_set_param(PalStreamHandle streamHandle, uint32_t param_id,
+                             uint32_t payloadSize, memory paramPayload)
+                             generates (int32_t ret);
+    ipc_pal_stream_get_param(PalStreamHandle streamHandle, uint32_t param_id)
+                             generates (int32_t ret, vec<PalParamPayload> paramPayload);
+    ipc_pal_stream_get_device(PalStreamHandle streamHandle)
+                             generates (int32_t ret, vec<PalDevice> devices,
+                                        uint32_t noOfDevices);
+    ipc_pal_stream_set_device(PalStreamHandle streamHandle, uint32_t noOfDevices,
+                              vec<PalDevice> devices)
+                             generates (int32_t ret);
+    ipc_pal_stream_get_volume(PalStreamHandle streamHandle)
+                               generates (int32_t ret, vec<PalVolumeData> vol);
+    ipc_pal_stream_set_volume(PalStreamHandle streamHandle, vec<PalVolumeData> vol)
+                               generates (int32_t ret);
+    ipc_pal_stream_get_mute(PalStreamHandle streamHandle)
+                             generates (int32_t ret, bool ret_state);
+    ipc_pal_stream_set_mute(PalStreamHandle streamHandle, bool state)
+                             generates (int32_t ret);
+    ipc_pal_get_mic_mute() generates (int32_t ret, bool ret_state);
+    ipc_pal_set_mic_mute(bool state) generates (int32_t ret);
+    ipc_pal_get_timestamp(PalStreamHandle streamHandle)
+                          generates(int32_t ret, vec<PalSessionTime> sessTime);
+    ipc_pal_add_remove_effect(PalStreamHandle streamHandle,
+                              PalAudioEffect effect, bool enable)
+                              generates(int32_t ret);
+    ipc_pal_set_param(uint32_t paramId,
+                      vec<uint8_t> payload, uint32_t size)
+                      generates (int32_t ret);
+    ipc_pal_get_param(uint32_t paramId)
+                      generates(int32_t ret, vec<uint8_t> payload_ret,
+                                 uint32_t size);
+    ipc_pal_stream_create_mmap_buffer(PalStreamHandle streamHandle,
+                              int32_t min_size_frames)
+                              generates(int32_t ret, vec<PalMmapBuffer> info);
+    ipc_pal_stream_get_mmap_position(PalStreamHandle streamHandle)
+                              generates(int32_t ret, vec<PalMmapPosition> pos);
+    ipc_pal_register_global_callback(IPALCallback cb, uint64_t cookie)
+                              generates(int32_t ret);
+    ipc_pal_gef_rw_param(uint32_t paramId, vec<uint8_t> param_payload, int32_t payload_size,
+                         PalDeviceId dev_id, PalStreamType strm_type, uint8_t dir)
+                              generates(int32_t ret, vec<uint8_t> param_payload);
+    ipc_pal_stream_get_tags_with_module_info(PalStreamHandle stream_handle, uint32_t size)
+                              generates(int32_t ret, uint32_t size_ret, vec<uint8_t> payload);
+};

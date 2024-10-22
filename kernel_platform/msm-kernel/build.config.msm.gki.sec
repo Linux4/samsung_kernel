@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0
+# COPYRIGHT(C) 2023 Samsung Electronics Co., Ltd. All Right Reserved.
+
+if [ -f ${ROOT_DIR}/${KERNEL_DIR}/build.config.sec_env ]; then
+	. ${ROOT_DIR}/${KERNEL_DIR}/build.config.sec_env
+fi
+
+function build_defconfig_sec_fragments() {
+	apply_defconfig_fragment ${KERNEL_DIR}/arch/${ARCH}/configs/oem/${MSM_ARCH}_sec_defconfig \
+			oem/${MSM_ARCH}-gki_defconfig
+
+	if [ -n "${TARGET_BUILD_VARIANT}" ] && [ "${TARGET_BUILD_VARIANT}" != "user" ]; then
+		apply_defconfig_fragment ${KERNEL_DIR}/arch/${ARCH}/configs/oem/${MSM_ARCH}_sec_${TARGET_BUILD_VARIANT}_defconfig \
+				oem/${MSM_ARCH}-gki_defconfig
+	fi
+}
+build_defconfig_sec_fragments

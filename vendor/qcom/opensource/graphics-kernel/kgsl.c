@@ -260,6 +260,7 @@ static struct kgsl_mem_entry *kgsl_mem_entry_create(void)
 		/* put this ref in userspace memory alloc and map ioctls */
 		kref_get(&entry->refcount);
 		atomic_set(&entry->map_count, 0);
+		atomic_set(&entry->vbo_count, 0);
 	}
 
 	return entry;
@@ -637,7 +638,7 @@ static int _kgsl_get_context_id(struct kgsl_device *device)
 	write_lock(&device->context_lock);
 	/* Allocate the slot but don't put a pointer in it yet */
 	id = idr_alloc(&device->context_idr, NULL, 1,
-		KGSL_MEMSTORE_MAX, GFP_NOWAIT);
+		KGSL_GLOBAL_CTXT_ID, GFP_NOWAIT);
 	write_unlock(&device->context_lock);
 	idr_preload_end();
 
