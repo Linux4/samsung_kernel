@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Sensor device configuration
+#
+
+menu "I2C Hardware Bus support"
+	depends on HAS_IOMEM
+
+config DEVICE_MODULES_I2C_MT65XX
+	tristate "MediaTek I2C adapter"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	help
+	  This selects the MediaTek(R) Integrated Inter Circuit bus driver
+	  for MT65xx and MT81xx.
+	  If you want to use MediaTek(R) I2C interface, say Y or M here.
+	  If unsure, say N.
+
+endmenu

@@ -1,0 +1,28 @@
+menuconfig USDM_PANEL_ANA38407
+	tristate "ANA38407 DDI Panel Driver"
+	depends on USDM_PANEL
+	depends on USDM_PANEL_OLED_COMMON
+	default n
+	help
+		This enables ANA38407 DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the ANA38407 DDI.
+
+
+########## FOR KUNIT ##########
+
+config ANA38407_TEST
+	bool "KUnit test for ana38407 ddi driver"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+
+
+########## FOR KUNIT ##########
+
+config ANA38407_GTS10P_TEST
+	bool "KUnit test for tft_common ddi driver"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.

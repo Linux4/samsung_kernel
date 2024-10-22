@@ -1,0 +1,57 @@
+config SEC_DISPLAYPORT
+	tristate "Enable featuring of CONFIG_SEC_DISPLAYPORT"
+	default n
+	help
+	  This option enables the support for the Samsung DisplayPort feature.
+	  It provides functions for managing DisplayPort connections and
+	  interactions with the device.
+	  And other modules refer this option to know if Displayport supports.
+
+config SEC_DISPLAYPORT_DBG
+	bool "SEC_DISPLAYPORT_DBG feature"
+	depends on SEC_DISPLAYPORT
+	help
+	  This option enables debugging features for the Samsung DisplayPort
+	  driver.
+	  It provide some interfaces and logs to analyze issues related to
+	  DisplayPort connections and interactions with the device.
+
+config SEC_DISPLAYPORT_EXT_FUNCTION
+	tristate "DISPLAYPORT self test"
+	depends on SEC_DISPLAYPORT
+	default n
+	help
+	 This config is for supporting additional functions.
+	 1. logger
+	 2. bigdata
+	 3. selftest
+
+config SEC_DISPLAYPORT_LOGGER
+	bool "DISPLAYPORT logger"
+	depends on SEC_DISPLAYPORT
+	default n
+	help
+	  This option enables the DisplayPort logger feature.
+	  It provides a mechanism for logging DisplayPort events
+	  and record it to proc/.
+	  and this will be added to a separate section of the dumpstate.
+
+config SEC_DISPLAYPORT_BIGDATA
+	bool "DISPLAYPORT bigdata"
+	depends on SEC_DISPLAYPORT && !SEC_FACTORY
+	default n
+	help
+	  This option enables the DisplayPort bigdata feature.
+	  It provides a mechanism for collecting data related to
+	  DisplayPort connections and interactions with the device.
+	  and also collect some debug data.
+
+config SEC_DISPLAYPORT_SELFTEST
+	bool "DISPLAYPORT self test"
+	depends on SEC_DISPLAYPORT
+	default n
+	help
+	 This config is for supporting DISPLAYPORT self test.
+	 1. check if displayport is enabled.
+	 2. check if resolution is correct.
+	 3. additional functions can be added.

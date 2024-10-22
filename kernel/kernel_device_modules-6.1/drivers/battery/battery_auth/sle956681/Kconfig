@@ -1,0 +1,9 @@
+#
+# Infineon Authenticate IC
+#
+
+config BATTERY_AUTH_SLE956681
+	tristate "Infineon Authenticate IC"
+	default n
+	help
+	  Say Y to Infineon Authenticate IC.

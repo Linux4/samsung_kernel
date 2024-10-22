@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: GPL-2.0
+
+ifeq ($(CONFIG_DEVICE_MODULES_ALLOW_BUILTIN),y)
+
+LINUXINCLUDE := $(DEVCIE_MODULES_INCLUDE) $(LINUXINCLUDE)
+
+subdir-ccflags-y += -Werror \
+		-I$(srctree)/$(src)/include \
+		-I$(srctree)/$(src)/include/uapi \
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/memory/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/iio/adc/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/mfd/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/nvmem/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/dma/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/ufs/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/char/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/clk/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/clocksource/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/cpufreq/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/soc/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/watchdog/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/dma-buf/heaps/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/regulator/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/leds/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/pinctrl/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/power/supply/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/rtc/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/remoteproc/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/rpmsg/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/input/keyboard/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/phy/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/thermal/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/spmi/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/tty/serial/8250/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/reset/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/mailbox/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/interconnect/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/i2c/busses/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/pwm/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/spi/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/iommu/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/mmc/host/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/tee/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/gpu/drm/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/input/touchscreen/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/gpu/drm/panel/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/gpu/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/media/platform/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/usb/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/devfreq/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/misc/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/sound/soc/codecs/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/sound/soc/mediatek/
+
+obj-y += ../$(DEVICE_MODULES_REL_DIR)/drivers/pci/controller/
+
+endif

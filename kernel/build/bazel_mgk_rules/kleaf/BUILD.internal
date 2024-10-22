@@ -1,0 +1,7 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+
+bool_flag(
+    name = "mgk_internal",
+    build_setting_default = len(glob(["internal/*_enable"])) > 0,
+    visibility = ["//visibility:public"],
+)

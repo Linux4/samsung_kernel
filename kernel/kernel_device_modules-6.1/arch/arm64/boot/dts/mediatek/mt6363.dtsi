@@ -1,0 +1,487 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2023 MediaTek Inc.
+ */
+#include <dt-bindings/iio/mt635x-auxadc.h>
+#include <dt-bindings/spmi/spmi.h>
+
+&spmi {
+	main_pmic: pmic@4 {
+		compatible = "mediatek,mt6363";
+		reg = <0x4 SPMI_USID>;
+		interrupts = <4>;
+		#address-cells = <0>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
+		mtk-spmi-pmic-debug {
+			compatible = "mediatek,spmi-pmic-debug";
+		};
+
+		pmic_adc: mt6363-auxadc {
+			compatible = "mediatek,mt6363-auxadc";
+			#io-channel-cells = <1>;
+
+			batadc {
+				channel = <AUXADC_BATADC>;
+				resistance-ratio = <4 1>;
+				avg-num = <64>;
+			};
+			bat-temp {
+				channel = <AUXADC_BAT_TEMP>;
+				resistance-ratio = <3 2>;
+			};
+			chip-temp {
+				channel = <AUXADC_CHIP_TEMP>;
+			};
+			vcore-temp {
+				channel = <AUXADC_VCORE_TEMP>;
+			};
+			vproc-temp {
+				channel = <AUXADC_VPROC_TEMP>;
+			};
+			vgpu-temp {
+				channel = <AUXADC_VGPU_TEMP>;
+			};
+			vtref {
+				channel = <AUXADC_VTREF>;
+				resistance-ratio = <3 2>;
+			};
+			vsyssns {
+				channel = <AUXADC_VSYSSNS>;
+				resistance-ratio = <3 1>;
+				avg-num = <64>;
+			};
+			imp {
+				channel = <AUXADC_IMP>;
+				resistance-ratio = <4 1>;
+			};
+			vin1-100k {
+				channel = <AUXADC_VIN1>;
+				pures = <ADC_PURES_100K>;
+			};
+			vin1-open {
+				channel = <AUXADC_VIN1>;
+				pures = <ADC_PURES_OPEN>;
+			};
+			vin2-100k {
+				channel = <AUXADC_VIN2>;
+				pures = <ADC_PURES_100K>;
+			};
+			vin2-open {
+				channel = <AUXADC_VIN2>;
+				pures = <ADC_PURES_OPEN>;
+			};
+			vin3-100k {
+				channel = <AUXADC_VIN3>;
+				pures = <ADC_PURES_100K>;
+			};
+			vin3-open {
+				channel = <AUXADC_VIN3>;
+				pures = <ADC_PURES_OPEN>;
+			};
+			vin4-100k {
+				channel = <AUXADC_VIN4>;
+				pures = <ADC_PURES_100K>;
+			};
+			vin4-open {
+				channel = <AUXADC_VIN4>;
+				pures = <ADC_PURES_OPEN>;
+			};
+			vin5-100k {
+				channel = <AUXADC_VIN5>;
+				pures = <ADC_PURES_100K>;
+			};
+			vin5-open {
+				channel = <AUXADC_VIN5>;
+				pures = <ADC_PURES_OPEN>;
+			};
+			vin6-100k {
+				channel = <AUXADC_VIN6>;
+				pures = <ADC_PURES_100K>;
+			};
+			vin6-open {
+				channel = <AUXADC_VIN6>;
+				pures = <ADC_PURES_OPEN>;
+			};
+			vin7-100k {
+				channel = <AUXADC_VIN7>;
+				pures = <ADC_PURES_100K>;
+			};
+			vin7-open {
+				channel = <AUXADC_VIN7>;
+				pures = <ADC_PURES_OPEN>;
+			};
+		};
+
+		mt6363-efuse {
+			compatible = "mediatek,mt6363-efuse";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			mt6363_thermal_efuse: mt6363_e_data {
+				reg = <0x5e 8>;
+			};
+		};
+
+		mt6363-consys {
+			compatible = "mediatek,mt6363-consys";
+		};
+
+		mt6363keys: mt6363keys {
+			compatible = "mediatek,mt6363-keys";
+			mediatek,long-press-mode = <1>;
+			power-off-time-sec = <0>;
+
+			power {
+				linux,keycodes = <116>;
+				wakeup-source;
+			};
+
+			home {
+				linux,keycodes = <115>;
+			};
+		};
+
+		mt6363_pio: mt6363-pinctrl {
+			compatible = "mediatek,mt6363-pinctrl";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&mt6363_pio 0 0 10>;
+		};
+
+		regulators {
+			mt6363_vs2: vs2 {
+				regulator-compatible = "VS2";
+				regulator-name = "mt6363_vs2";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1600000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 1 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_vbuck1: vbuck1 {
+				regulator-compatible = "VBUCK1";
+				regulator-name = "mt6363_vbuck1";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 1 2>;
+			};
+			mt6363_vbuck2: vbuck2 {
+				regulator-compatible = "VBUCK2";
+				regulator-name = "mt6363_vbuck2";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <200>;
+				regulator-allowed-modes = <0 1 2>;
+			};
+			mt6363_vbuck3: vbuck3 {
+				regulator-compatible = "VBUCK3";
+				regulator-name = "mt6363_vbuck3";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <200>;
+				regulator-allowed-modes = <0 1 2>;
+			};
+			mt6363_vbuck4: vbuck4 {
+				regulator-compatible = "VBUCK4";
+				regulator-name = "mt6363_vbuck4";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <200>;
+				regulator-allowed-modes = <0 1 2>;
+			};
+			mt6363_vbuck5: vbuck5 {
+				regulator-compatible = "VBUCK5";
+				regulator-name = "mt6363_vbuck5";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <200>;
+				regulator-allowed-modes = <0 1 2>;
+			};
+			mt6363_vbuck6: vbuck6 {
+				regulator-compatible = "VBUCK6";
+				regulator-name = "mt6363_vbuck6";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <300>;
+				regulator-allowed-modes = <0 1 2>;
+			};
+			mt6363_vbuck7: vbuck7 {
+				regulator-compatible = "VBUCK7";
+				regulator-name = "mt6363_vbuck7";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <300>;
+				regulator-allowed-modes = <0 1 2>;
+			};
+			mt6363_vs1: vs1 {
+				regulator-compatible = "VS1";
+				regulator-name = "mt6363_vs1";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <2200000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 1 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_vs3: vs3 {
+				regulator-compatible = "VS3";
+				regulator-name = "mt6363_vs3";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 1 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_vbuck1_sshub: vbuck1-sshub {
+				regulator-compatible = "VBUCK1_SSHUB";
+				regulator-name = "mt6363_vbuck1_sshub";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+			};
+			mt6363_vbuck2_sshub: vbuck2-sshub {
+				regulator-compatible = "VBUCK2_SSHUB";
+				regulator-name = "mt6363_vbuck2_sshub";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+			};
+			mt6363_vbuck4_sshub: vbuck4-sshub {
+				regulator-compatible = "VBUCK4_SSHUB";
+				regulator-name = "mt6363_vbuck4_sshub";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1193750>;
+			};
+			mt6363_vsram_digrf: vsram-digrf {
+				regulator-compatible = "VSRAM_DIGRF";
+				regulator-name = "mt6363_vsram_digrf";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+			};
+			mt6363_vsram_mdfe: vsram-mdfe {
+				regulator-compatible = "VSRAM_MDFE";
+				regulator-name = "mt6363_vsram_mdfe";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+			};
+			mt6363_vsram_modem: vsram-modem {
+				regulator-compatible = "VSRAM_MODEM";
+				regulator-name = "mt6363_vsram_modem";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+			};
+			mt6363_vsram_cpub: vsram-cpub {
+				regulator-compatible = "VSRAM_CPUB";
+				regulator-name = "mt6363_vsram_cpub";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+			};
+			mt6363_vsram_cpum: vsram-cpum {
+				regulator-compatible = "VSRAM_CPUM";
+				regulator-name = "mt6363_vsram_cpum";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+			};
+			mt6363_vsram_cpul: vsram-cpul {
+				regulator-compatible = "VSRAM_CPUL";
+				regulator-name = "mt6363_vsram_cpul";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+			};
+			mt6363_vsram_apu: vsram-apu {
+				regulator-compatible = "VSRAM_APU";
+				regulator-name = "mt6363_vsram_apu";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1193750>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+			};
+			mt6363_vemc: vemc {
+				regulator-compatible = "VEMC";
+				regulator-name = "mt6363_vemc";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3500000>;
+				regulator-enable-ramp-delay = <680>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_vcn13: vcn13 {
+				regulator-compatible = "VCN13";
+				regulator-name = "mt6363_vcn13";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <1810000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_vtref18: vtref18 {
+				regulator-compatible = "VTREF18";
+				regulator-name = "mt6363_vtref18";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <240>;
+				regulator-allowed-modes = <0 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_vaux18: vaux18 {
+				regulator-compatible = "VAUX18";
+				regulator-name = "mt6363_vaux18";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <240>;
+				regulator-allowed-modes = <0 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_vcn15: vcn15 {
+				regulator-compatible = "VCN15";
+				regulator-name = "mt6363_vcn15";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_vufs18: vufs18 {
+				regulator-compatible = "VUFS18";
+				regulator-name = "mt6363_vufs18";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <680>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_vio18: vio18 {
+				regulator-compatible = "VIO18";
+				regulator-name = "mt6363_vio18";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <680>;
+				regulator-allowed-modes = <0 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_vm18: vm18 {
+				regulator-compatible = "VM18";
+				regulator-name = "mt6363_vm18";
+				regulator-min-microvolt = <550000>;
+				regulator-max-microvolt = <1850000>;
+				regulator-enable-ramp-delay = <280>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_va15: va15 {
+				regulator-compatible = "VA15";
+				regulator-name = "mt6363_va15";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_vrf18: vrf18 {
+				regulator-compatible = "VRF18";
+				regulator-name = "mt6363_vrf18";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_vrfio18: vrfio18 {
+				regulator-compatible = "VRFIO18";
+				regulator-name = "mt6363_vrfio18";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_vio075: vio075 {
+				regulator-compatible = "VIO075";
+				regulator-name = "mt6363_vio075";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <800000>;
+				regulator-enable-ramp-delay = <3000>;
+				regulator-allowed-modes = <0 2>;
+				regulator-always-on;
+			};
+			mt6363_vufs12: vufs12 {
+				regulator-compatible = "VUFS12";
+				regulator-name = "mt6363_vufs12";
+				regulator-min-microvolt = <550000>;
+				regulator-max-microvolt = <1850000>;
+				regulator-enable-ramp-delay = <280>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_va12_1: va12-1 {
+				regulator-compatible = "VA12_1";
+				regulator-name = "mt6363_va12_1";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_va12_2: va12-2 {
+				regulator-compatible = "VA12_2";
+				regulator-name = "mt6363_va12_2";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-always-on;
+				regulator-allow-set-load;
+			};
+			mt6363_vrf12: vrf12 {
+				regulator-compatible = "VRF12";
+				regulator-name = "mt6363_vrf12";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_vrf13: vrf13 {
+				regulator-compatible = "VRF13";
+				regulator-name = "mt6363_vrf13";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <1810000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_vrf09: vrf09 {
+				regulator-compatible = "VRF09";
+				regulator-name = "mt6363_vrf09";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <1810000>;
+				regulator-enable-ramp-delay = <180>;
+				regulator-allowed-modes = <0 2>;
+				regulator-allow-set-load;
+			};
+			mt6363_isink_load: isink-load {
+				regulator-compatible = "isink_load";
+				regulator-name = "mt6363_isink_load";
+			};
+		};
+	};
+};

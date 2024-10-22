@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ */
+/*
+&pio {
+	fst1ba90a_attn_irq: fst1ba90a-attn-irq {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO4__FUNC_GPIO4>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	fst1ba90a_attn_irq_suspend: fst1ba90a-attn-irq-suspend {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO4__FUNC_GPIO4>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+
+&i2c13 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	tsp_stm: touchscreen@49 {
+		status = "okay";
+		compatible = "stm,stm_ts_fst1ba90a";
+		reg = <0x49>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&fst1ba90a_attn_irq>;
+		pinctrl-1 = <&fst1ba90a_attn_irq_suspend>;
+		tsp-io-ldo-supply = <&mt6373_vrfio18_aif>;
+		tsp-avdd-ldo-supply = <&mt6373_vcn33_2>;
+		sec,irq-gpio = <&pio 4 0>;
+
+		sec,max-coords = <1752 2800>;
+		sec,tclm-level = <1>;
+
+		sec,firmware-name = "TAB_S10+_FW_v0035_CFG_v0002_REL_ST022F0002_SDC_20240206.bin";
+		sec,regulator-boot-on;
+		sec,bringup = <0>;
+		sec,afe-base = <0x00>;
+
+		stm,lpmode-change-delay = <50>;
+	};
+};
+*/

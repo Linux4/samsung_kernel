@@ -1,0 +1,8 @@
+config MTK_CG_PEAK_POWER_THROTTLING
+	tristate "MTK CPU GPU peak power throttling"
+	help
+	  For MediaTek CPU GPU peak power throttling.
+	  Throttle MTK CPU GPU power when MTK peak power throttling triggers
+	  Select "y" if you want to enable MTK CPU GPU peak power throttling
+	  feature
+	  Select "n" if unsure.

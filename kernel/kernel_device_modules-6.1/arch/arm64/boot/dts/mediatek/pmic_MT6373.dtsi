@@ -1,0 +1,206 @@
+#if 0 && 0
+&mt6373_vusb {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vaux18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vrf13_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vrf18_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 1800000 && 1800000
+&mt6373_vrfio18_aif {
+    regulator-min-microvolt = <1800000>;
+    regulator-max-microvolt = <1800000>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vrf09_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vrf12_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vant18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vsram_digrf_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vibr {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 1800000 && 1800000
+&mt6373_vio28 {
+    regulator-min-microvolt = <1800000>;
+    regulator-max-microvolt = <1800000>;
+    regulator-always-on;regulator-boot-on;
+     
+};
+#endif
+
+#if 3300000 && 3300000
+&mt6373_vfp {
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    
+     
+};
+#endif
+
+#if 3000000 && 3000000
+&mt6373_vtp {
+    regulator-min-microvolt = <3000000>;
+    regulator-max-microvolt = <3000000>;
+    regulator-boot-on;regulator-always-on;
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vmch {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vmc {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vaud18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 3300000 && 3300000
+&mt6373_vcn33_1 {
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    
+     
+};
+#endif
+
+#if 3300000 && 3300000
+&mt6373_vcn33_2 {
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vcn33_3 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 1800000 && 1800000
+&mt6373_vcn18io {
+    regulator-min-microvolt = <1800000>;
+    regulator-max-microvolt = <1800000>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vefuse {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vmch_eint_high {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vmch_eint_low {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif

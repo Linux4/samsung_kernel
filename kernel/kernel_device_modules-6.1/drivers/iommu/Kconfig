@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+if IOMMU_SUPPORT
+
+config DEVICE_MODULES_ARM_SMMU_V3
+	tristate "ARM Ltd. System MMU Version 3 (SMMUv3) Support"
+	depends on ARM64
+	select IOMMU_API
+	select IOMMU_IO_PGTABLE_LPAE
+	select GENERIC_MSI_IRQ_DOMAIN
+	help
+	  Support for implementations of the ARM System MMU architecture
+	  version 3 providing translation support to a PCIe root complex.
+
+	  Say Y here if your system includes an IOMMU device implementing
+	  the ARM SMMUv3 architecture.
+
+config DEVICE_MODULES_MTK_IOMMU
+	tristate "MediaTek IOMMU Support"
+	depends on ARM || ARM64
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	select ARM_DMA_USE_IOMMU
+	select IOMMU_API
+	select IOMMU_IO_PGTABLE_ARMV7S
+	select MEMORY
+	select DEVICE_MODULES_MTK_SMI
+	help
+	  Support for the M4U on certain Mediatek SOCs. M4U is MultiMedia
+	  Memory Management Unit. This option enables remapping of DMA memory
+	  accesses for the multimedia subsystem.
+
+	  If unsure, say N here.
+
+config DEVICE_MODULES_MTK_SMMU_V3_PMU
+	tristate "MediaTek SMMUV3 PMU Support"
+	depends on DEVICE_MODULES_ARM_SMMU_V3
+
+	help
+	  Support for the SMMU v3 PMU on mediatek SOCs.
+
+	  If unsure, say N here.
+
+config DEVICE_MODULES_MTK_SMMU_V3_LMU
+	tristate "MediaTek SMMUV3 LMU Support"
+	depends on DEVICE_MODULES_ARM_SMMU_V3
+
+	help
+	  Support for the SMMU v3 Latency Meter Unit on mediatek SOCs.
+	  LMU is used to get the information of how many cycles spent
+	  for masters or a particular master in the SMMU.
+
+	  If unsure, say N here.
+
+config DEVICE_MODULES_MTK_SMMU_V3_MPAM_MON
+	tristate "MediaTek SMMUV3 MPAM Resource Monitor Support"
+	depends on DEVICE_MODULES_ARM_SMMU_V3
+
+	help
+	  Support for the SMMU v3 MPAM resource monitor on mediatek SOCs.
+	  MPAM resource monitor is used to monitor the cache storage usage
+	  in the SMMU TCU and TBUs.
+
+	  If unsure, say N here.
+
+endif # IOMMU_SUPPORT

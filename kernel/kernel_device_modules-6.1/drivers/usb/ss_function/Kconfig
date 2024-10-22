@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# USB Gadget support on a system involves
+#    (a) a peripheral controller, and
+#    (b) the gadget driver using it.
+#
+# NOTE:  Gadget support ** DOES NOT ** depend on host-side CONFIG_USB !!
+#
+#  - Host systems (like PCs) need CONFIG_USB (with "A" jacks).
+#  - Peripherals (like PDAs) need CONFIG_USB_GADGET (with "B" jacks).
+#  - Some systems have both kinds of controllers.
+#
+# With help from a special transceiver and a "Mini-AB" jack, systems with
+# both kinds of controller can also support "USB On-the-Go" (CONFIG_USB_OTG).
+#
+
+config DEVICE_MODULES_USB_SS_FUNCTIONS
+	tristate "USB Gadget module Support"
+	depends on USB_GADGET
+	help
+	  Say Y here if you want to use the Samsung USB Functios
+
+if DEVICE_MODULES_USB_SS_FUNCTIONS
+
+#
+# SS USB Gadget Functios
+#
+
+# composite based drivers
+config USB_F_DM
+	tristate
+
+config USB_F_CONN_GADGET
+	tristate
+
+config USB_F_SS_MON_GADGET
+	tristate
+
+# this first set of drivers all depend on bulk-capable hardware.
+
+config USB_CONFIGFS_F_DM
+        tristate "DM gadget"
+        depends on USB_CONFIGFS
+        select USB_F_DM
+        help
+          USB gadget DM(Diagnosis Monitor) support
+
+config USB_CONFIGFS_F_CONN_GADGET
+	tristate "Conn gadget function"
+	depends on USB_CONFIGFS
+	select USB_F_CONN_GADGET
+	help
+	  USB Sidesync function support
+
+config USB_CONFIGFS_F_SS_MON_GADGET
+	tristate "F_SAMSUNG gadget"
+	depends on USB_CONFIGFS
+	select USB_F_SS_MON_GADGET
+	help
+	 Driver for control to Samsung Usb device layer
+	 For Samung working scenario and saving debug log, etc
+
+endif # DEVICE_SS_USB_GADGET
+

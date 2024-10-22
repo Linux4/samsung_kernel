@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config MTK_F2FS_DEBUG
+	bool "mtk F2FS debug patch for userdebug and eng load"
+	help
+	  mtk F2FS debug patch for userdebug and eng load

@@ -1,0 +1,16 @@
+ARCH=arm
+CROSS_COMPILE=arm-linux-gnueabi-
+LLVM=1
+# DEFCONFIG=defconfig
+KERNEL_DIR=kernel-5.15
+# for check scripts
+#CC=clang
+#LD=ld.lld
+#AR=llvm-ar
+#NM=llvm-nm
+#OBJCOPY=llvm-objcopy
+#OBJDUMP=llvm-objdump
+#READELF=llvm-readelf
+#OBJSIZE=llvm-size
+#STRIP=llvm-strip
+DTC='${OUT_DIR}/scripts/dtc/dtc'

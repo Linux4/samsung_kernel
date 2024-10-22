@@ -1,0 +1,37 @@
+DEVICE_MODULES_DIR=${KERNEL_DIR}
+# Compile these modules with the GKI kernel
+KERNEL_DIR="kernel-6.1"
+# Compute the path of this project relative to KERNEL_DIR
+DEVICE_MODULES_REL_DIR=$(realpath ${DEVICE_MODULES_DIR} --relative-to ${KERNEL_DIR})
+# for builtin support
+GKI_DEVICE_MODULES_REL_DIR=${DEVICE_MODULES_REL_DIR}
+KCONFIG_EXT_PREFIX=${DEVICE_MODULES_DIR}
+
+. ${ROOT_DIR}/${DEVICE_MODULES_DIR}/build.config.mtk.aarch64.mgk
+
+MAKE_GOALS="$MAKE_GOALS
+modules
+"
+
+# These paths need to be relative to KERNEL_DIR.
+FILES="
+"
+
+EXT_MODULES+="
+kernel_device_modules-6.1
+../vendor/mediatek/kernel_modules/connectivity/common
+../vendor/mediatek/kernel_modules/connectivity/conninfra
+../vendor/mediatek/kernel_modules/connectivity/connfem
+../vendor/mediatek/kernel_modules/connectivity/gps/gps_stp
+../vendor/mediatek/kernel_modules/connectivity/gps/data_link
+../vendor/mediatek/kernel_modules/connectivity/gps/gps_pwr
+../vendor/mediatek/kernel_modules/connectivity/gps/gps_scp
+../vendor/mediatek/kernel_modules/gpu
+../vendor/mediatek/kernel_modules/connectivity/fmradio
+../vendor/mediatek/kernel_modules/connectivity/wlan/adaptor
+../vendor/mediatek/kernel_modules/connectivity/wlan/adaptor/wlan_page_pool
+../vendor/mediatek/kernel_modules/connectivity/bt/linux_v2
+../vendor/mediatek/kernel_modules/hbt_driver_cus
+../vendor/mediatek/kernel_modules/mtkcam
+../vendor/mediatek/tests/kernel/ktf_testcase
+"

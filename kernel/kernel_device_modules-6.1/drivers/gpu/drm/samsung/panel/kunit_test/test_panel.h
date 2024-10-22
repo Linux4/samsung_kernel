@@ -1,0 +1,46 @@
+#ifndef __TEST_PANEL_H__
+#define __TEST_PANEL_H__
+
+enum {
+	ACL_OPR_MAPTBL,
+	DIA_ONOFF_MAPTBL,
+	NOT_EXIST_MAPTBL,
+	MAX_PANEL_MAPTBL,
+};
+
+enum {
+	READ_ID,
+	READ_COORDINATE,
+	READ_CODE,
+	READ_DATE,
+	READ_OCTA_ID,
+	READ_CHIP_ID,
+	READ_RDDPM,
+	READ_RDDSM,
+	READ_NOT_EXIST,
+	MAX_PANEL_READ,
+};
+
+enum {
+	RES_ID,
+	RES_COORDINATE,
+	RES_CODE,
+	RES_DATE,
+	RES_OCTA_ID,
+	RES_CHIP_ID,
+	RES_RDDPM,
+	RES_RDDSM,
+	RES_NOT_EXIST,
+	MAX_PANEL_RES,
+};
+
+enum {
+	DUMP_RDDPM = 0,
+	DUMP_RDDSM,
+	DUMP_NOT_EXIST,
+	MAX_PANEL_DUMP,
+};
+
+extern struct common_panel_info test_panel_info;
+
+#endif /* __TEST_PANEL_H__ */
