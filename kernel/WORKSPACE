@@ -1,0 +1,1 @@
+build/bazel_mgk_rules/kleaf/bazel.WORKSPACE

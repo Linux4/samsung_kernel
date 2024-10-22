@@ -1,0 +1,9 @@
+config MTK_CLKBUF_CTRL
+	tristate "Mediatek Clock Buffer Driver Support"
+	select REGMAP
+	help
+	  Select yes for Mediatek Clock Buffer driver support. The
+	  driver support for SW debug control to DCXO which output
+	  26MHz to other HW module such as BB_MD/WCN/NFC/RF/UFS etc.
+	  Moreover, the driver also allowed user control FPM, BBLPM,
+	  LPM DCXO mode.

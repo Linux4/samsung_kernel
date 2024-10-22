@@ -1,0 +1,108 @@
+# drivers/samsung/Kconfig
+#
+# Copyright (c) 2010-2019 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+config SEC_EXT
+	tristate "Samsung Extension Feature"
+	default m
+
+config SEC_REBOOT
+	tristate "Enable TN reboot features"
+	depends on SEC_EXT
+	default m
+	help
+	  Samsung TN reboot extension Feature. Do additional work when reboot.
+
+config SEC_PARAM
+	tristate "Enable Param modification"
+	depends on SEC_DEBUG
+	default n
+	help
+	  Samsung TN Param Feature.
+
+config CM_OFFSET
+	int "Charging Mode Offset"
+	default 0
+	depends on SEC_PARAM
+	help
+	  set Charging Mode Offset when you enable SEC_PARAM.
+
+config WC_OFFSET
+	int "Wireless Charging IC Offset"
+	default 0
+	depends on SEC_PARAM
+	help
+	  set Wireless Charging IC Info Offset.
+
+comment "Samsung sysfs Feature"
+config DRV_SAMSUNG
+	tristate "Samsung sec class/sysfs Feature"
+	default m
+	depends on SEC_EXT
+	help
+	  Samsung sysfs name 'sec' directory create.
+	  
+config SEC_KEY_NOTIFIER
+	tristate "Enable Samsung key event notifier"
+	depends on SEC_EXT
+	default m
+	help
+	  Samsung Key input event notifier
+
+config SEC_BOOTSTAT
+	tristate "Enable Samsung Bootstat logging"
+	default m
+	help
+	  Samsung TN Bootstat Feature.
+
+config SEC_CHIPID
+	tristate "Enable Samsung CHIPID"
+	default m
+	depends on SEC_EXT
+	help
+	  Samsung TN CHIPID Feature.
+
+comment "Samsung TN Build Options"
+config SEC_FACTORY
+	bool "SAMSUNG Factory build option"
+	depends on SEC_EXT && SEC_DEBUG
+	default n
+	help
+	  Include some codes for Factory binary.
+	  This option is enabled by Factory build option.
+	  In samsung build script, '-F' enables this option.
+
+config ENABLE_BOOTING_CLK_LIMIT
+	bool "enable cpu max frequency limiting"
+	default n
+	help
+	  This option is to enable the code for CPU_BOOTING_CLK_LIMIT
+
+config CPU_BOOTING_CLK_LIMIT
+	bool "limit cpu max frequency on booting"
+	depends on SEC_FACTORY || ENABLE_BOOTING_CLK_LIMIT
+	default y
+	help
+	  This option is enabled only for Factory build or
+	  the build to limit cpu booting clk frequency
+
+comment "Samsung TN BSP Options"
+config SAMSUNG_PRODUCT_SHIP
+	bool "set up for product shipping"
+	depends on SEC_EXT
+	default n
+
+config ARGOS
+	tristate "Throughput monitoring Feature"
+	default n
+	help
+	  This option enables monitoring the data throughput and doing several actions for
+	  enhancing the performance such as adjusting the CPU freqency, allocating the tasks
+	  to the appropriate CPU and so on
+
+source "$(KCONFIG_EXT_PREFIX)drivers/samsung/debug/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/samsung/misc/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/samsung/pm/Kconfig"

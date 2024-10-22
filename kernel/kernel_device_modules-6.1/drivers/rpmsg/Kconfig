@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menu "Rpmsg drivers"
+
+# RPMSG always gets selected by whoever wants it
+
+config RPMSG_MTK
+	tristate "MediaTek TinySys RPM driver"
+	depends on MTK_MBOX
+	select RPMSG
+	help
+	  Say y here to enable support communication channels to remote
+	  processors in MediaTek platforms. This uses MTK MBOX driver to
+	  communicate with remote processors base on rpmsg framework. It
+	  provide channels, endpoints creation and send operations.
+
+config RPMSG_MTK_CCD
+	tristate "MediaTek CCD rpmsg driver"
+	select RPMSG
+	help
+	  Say y here to enable support communication channels to remote
+	  processors in MediaTek platforms. This uses MTK ccd driver to
+	  communicate with Camera Control Daemon base on rpmsg framework. It
+	  provide channels, endpoints creation and send operations.
+
+endmenu

@@ -1,0 +1,8 @@
+config MTK_IPS_HELPER
+	tristate "MTK IPS Helper debugging Support"
+	help
+	  This kernel config can be used to enable IPS support.
+	  When enable this option, it support reporting current
+	  measured Vmin value for voltage droop detector.
+	  If unsure, say N.
+

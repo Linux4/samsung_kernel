@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config DEVICE_MODULES_DRM_MEDIATEK
+	tristate "DRM Support for Mediatek SoCs"
+	depends on DRM
+	depends on ARCH_MEDIATEK || (ARM && COMPILE_TEST)
+	depends on COMMON_CLK
+	depends on HAVE_ARM_SMCCC
+	depends on OF
+	depends on DEVICE_MODULES_MTK_MMSYS
+	select DRM_DISPLAY_DP_HELPER
+	select DRM_DISPLAY_HELPER
+	select DRM_GEM_DMA_HELPER
+	select DRM_KMS_HELPER
+	select DRM_MIPI_DSI
+	select DRM_PANEL
+	select MEMORY
+	select DEVICE_MODULES_MTK_SMI
+	select PHY_MTK_MIPI_DSI
+	select VIDEOMODE_HELPERS
+	help
+	  Choose this option if you have a Mediatek SoCs.
+	  The module will be called mediatek-drm
+	  This driver provides kernel mode setting and
+	  buffer management to userspace.
+
+source "$(KCONFIG_EXT_PREFIX)drivers/gpu/drm/mediatek/mediatek_v2/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/gpu/drm/mediatek/mml/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/gpu/drm/mediatek/dummy_drm/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/gpu/drm/mediatek/dpc/Kconfig"

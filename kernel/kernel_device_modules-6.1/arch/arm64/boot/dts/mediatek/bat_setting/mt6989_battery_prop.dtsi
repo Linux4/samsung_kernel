@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2021 MediaTek Inc.
+ * Author: Wy Chuang<wy.chuang@mediatek.com>
+ *
+ */
+
+&mtk_gauge {
+	difference-fullocv-ith = <(200)>;
+	/* Charging termination current */
+	shutdown-1-time = <(60)>;
+	/* If ui_soc shows 1% more than X minites, system will shutdown */
+	keep-100-percent = <(1)>;
+	curr-measure-20a = <(0)>;
+	unit-multiple = <(1)>;
+	r-fg-value = <(1)>;
+	/* Rsense resistance */
+	embedded-sel = <(0)>;
+	/* Configures whether using embedded battery or not */
+	pmic-shutdown-current = <(20)>;
+	/* System shutdown current */
+	fg-meter-resistance = <(70)>;
+	/* The resistance of PCB */
+	car-tune-value = <(100)>;
+	/* Tune value for current measurement */
+	pmic-min-vol = <(30000)>;
+	/* vboot voltage for gauge 0%*/
+	poweron-system-iboot = <(500)>;
+	/* power on system iboot */
+	shutdown-gauge0-voltage = <(30000)>;
+	/* shutdown gauge 0% voltage */
+	temperature-t0 = <(50)>;
+	/* Battery temperature T0 */
+	temperature-t1 = <(25)>;
+	/* Battery temperature T1 */
+	temperature-t2 = <(10)>;
+	/* Battery temperature T2 */
+	temperature-t3 = <(0)>;
+	/* Battery temperature T3 */
+	temperature-t4 = <(-7)>;
+	/* Battery temperature T4 */
+	temperature-t5 = <(-10)>;
+	/* Battery temperature T5 */
+	g-fg-pseudo100-t0 = <(100)>;
+	/* Pseudo 100% percentage at T0 */
+	g-fg-pseudo100-t1 = <(100)>;
+	/* Pseudo 100% percentage at T1 */
+	g-fg-pseudo100-t2 = <(100)>;
+	/* Pseudo 100% percentage at T2 */
+	g-fg-pseudo100-t3 = <(100)>;
+	/* Pseudo 100% percentage at T3 */
+	g-fg-pseudo100-t4 = <(100)>;
+	/* Pseudo 100% percentage at T4 */
+	q-max-sys-voltage-bat0 = <(3000)>;
+	/* Pseudo1 for hide percentage */
+	q-max-sys-voltage-bat1 = <(3000)>;
+	/* Pseudo1 for hide percentage */
+	q-max-sys-voltage-bat2 = <(3000)>;
+	/* Pseudo1 for hide percentage */
+	q-max-sys-voltage-bat3 = <(3000)>;
+	/* Pseudo1 for hide percentage */
+	com-fg-meter-resistance = <(70)>;
+	/* compensate The resistance of PCB */
+	com-r-fg-value = <(0)>;
+	/* compensate R_sense resistance */
+	enable-tmp-intr-suspend = <(0)>;
+	/* Enable update temp when suspend */
+	active-table = <(6)>;
+	/* Table numbers per battery */
+	multi-temp-gauge0 = <(1)>;
+	/* Multi gauge0 enable */
+	rbat-pull-up-volt = <(1840)>;
+	/* detect-bat-type only for internal*/
+	detect-bat-type = <(1)>;
+	/* disable battery temp compensate*/
+	no-bat-temp-compensate = <(1)>;
+#include "mt6989_battery_table.dtsi"
+#include "mt6989_battery_prop_dim2_ext.dtsi"
+};

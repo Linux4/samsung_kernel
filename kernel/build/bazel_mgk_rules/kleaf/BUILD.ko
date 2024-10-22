@@ -1,0 +1,18 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@bazel_skylib//lib:selects.bzl", "selects")
+
+bool_flag(
+    name = "msync2_lic",
+    build_setting_default = len(glob(["msync2_frd_cus/*"])) > 0,
+    visibility = ["//visibility:public"],
+)
+config_setting(name = "msync2_lic_set", flag_values = {":msync2_lic": "true"})
+
+selects.config_setting_group(
+    name = "msync2_lic_6.1_set",
+    match_all = [":msync2_lic_set", "@//build/bazel_mgk_rules:kernel_version_6.1"]
+)
+selects.config_setting_group(
+    name = "msync2_lic_mainline_set",
+    match_all = [":msync2_lic_set", "@//build/bazel_mgk_rules:kernel_version_mainline"]
+)

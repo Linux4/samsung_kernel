@@ -1,0 +1,15 @@
+config DIRECT_CHARGING
+	tristate "support for direct charging"
+	help
+	 Say Y to include support for direct charging
+	 support for direct charging models.
+	 Direct charging models should enable this charging option.
+	 it include some charging scenario for direct charging models.
+
+config MULTI_DIRECT_CHARGER
+	tristate "support for multiple direct chargers"
+	help
+	 Say Y to include support for multiple direct chargers.
+	 By enabling this feature a model can support
+	 multiple direct charging ICs.
+	 It controls in run-time the loading of the correct IC.

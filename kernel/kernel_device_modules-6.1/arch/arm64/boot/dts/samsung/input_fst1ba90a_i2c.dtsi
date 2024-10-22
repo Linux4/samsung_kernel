@@ -1,0 +1,53 @@
+&pio {
+	fst1ba90a_attn_irq: fst1ba90a_attn_irq {
+		GPIO_CONFIG_PUD(AP,pio,4, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+
+	fst1ba90a_attn_irq_suspend: fst1ba90a_attn_irq_suspend {
+		GPIO_CONFIG_PUD(AP,pio,4, FUNC_INPUT, PULL_DOWN);
+	};
+};
+
+&i2c13 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+
+	tsp_stm: touchscreen@49 {
+		status = "okay";
+		compatible = "stm,stm_ts_fst1ba90a";
+		reg = <0x49>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&fst1ba90a_attn_irq>;
+		pinctrl-1 = <&fst1ba90a_attn_irq_suspend>;
+		tsp_io_ldo-supply = <&mt6373_vrfio18_aif>;
+		tsp_avdd_ldo-supply = <&mt6373_vcn33_2>;
+		sec,irq_gpio = <SEC_GPIO_REF(AP,pio,4) 0>;
+
+		sec,bringup = <0>;
+		sec,max_coords = <1752 2800>;
+		sec,tclm_level = <1>;
+		sec,afe_base = <0x00>;
+		sec,enable_sysinput_enabled;
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2024/touchscreen/stm/fst1ba90a_i2c/dts/input-mtk-tsp-stm.gts10p(wifi).dtsi */
+&tsp_stm {
+	sec,max_coords = <1752 2800>;
+	sec,firmware_name = "tsp_stm/fst1ba90a_gts10p.bin";
+	sec,regulator_boot_on;
+	sec,bringup = <0>;
+	sec,tclm_level = <2>;
+	sec,afe_base = <0x0004>;
+
+	enable_settings_aot;
+	support_dex_mode;
+	support_fod;
+	support_fod_lp_mode;
+	support_open_short_test;
+	support_mis_calibration_test;
+	support_vbus_notifier;
+	stm,lpmode_change_delay = <50>;
+};

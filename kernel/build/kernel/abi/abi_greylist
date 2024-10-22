@@ -1,0 +1,6 @@
+#
+# Following symbols must be loaded on second stage
+# All symbols should be separated by new line
+#
+[abi_symbol_list]
+

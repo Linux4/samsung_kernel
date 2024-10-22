@@ -1,0 +1,1 @@
+../stx_v10u/imgsensor_otp_rear2_hi847.c

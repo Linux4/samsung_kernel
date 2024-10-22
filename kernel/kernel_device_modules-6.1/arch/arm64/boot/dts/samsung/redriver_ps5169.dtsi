@@ -1,0 +1,24 @@
+&sw_i2c0 {
+	status = "ok";
+
+	ps5169@28 {
+		compatible = "ps5169_driver";
+		reg = <0x28>;
+		combo,con_sel = <SEC_GPIO_REF(AP,pio,210) 0>;
+#if 0
+		combo,redriver_en = <SEC_GPIO_REF(${rdrv_en}) 0>;
+#endif
+#if 1
+		ps5619,reg_50 = <0x10>;
+#endif
+#if 1
+		ps5619,reg_51 = <0x70>;
+#endif
+#if 1
+		ps5619,reg_54 = <0x02>;
+#endif
+#if 1
+		ps5619,reg_5D = <0x30>;
+#endif
+	};
+};

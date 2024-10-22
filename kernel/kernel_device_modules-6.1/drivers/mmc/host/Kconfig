@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# MMC/SD host controller drivers
+#
+
+comment "MMC/SD/SDIO Host Controller Drivers"
+
+config DEVICE_MODULES_MMC_DEBUG
+    tristate "MMC host drivers debugging"
+    depends on MMC != n
+    help
+      This is an option for use by developers; most people should
+      say N here. This enables MMC host driver debugging. And further
+      added host drivers please don't invent their private macro for
+      debugging.
+
+config DEVICE_MODULES_MMC_MTK
+	tristate "MediaTek SD/MMC Card Interface support"
+	depends on HAS_DMA
+	depends on COMMON_CLK
+	select REGULATOR
+	select DEVICE_MODULES_MMC_CQHCI
+	help
+	  This selects the MediaTek(R) Secure digital and Multimedia card Interface.
+	  If you have a machine with a integrated SD/MMC card reader, say Y or M here.
+	  This is needed if support for any SD/SDIO/MMC devices is required.
+	  If unsure, say N.
+
+config MMC_MTK_PRO
+	tristate "MediaTek SD/MMC Card Proprietary Interface support"
+	depends on !DEVICE_MODULES_MMC_MTK
+	help
+	  This selects the MediaTek(R) Secure digital and Multimedia card
+	  Interface. If you have a machine with a integrated SD/MMC card
+	  reader, say Y or M here.
+
+	  If unsure, say N.
+
+config SEC_MMC_FEATURE
+	tristate "SEC specific MMC/SD feature"
+	depends on MMC_MTK_PRO
+	help
+	  Enable Samsung MMC/SD feature support.
+	  Enabling this allows kernel to use SEC specific feature
+	  defined and implemented by SEC.
+
+config DEVICE_MODULES_MMC_CQHCI
+	tristate "Command Queue Host Controller Interface support"
+	depends on HAS_DMA
+	help
+	  This selects the Command Queue Host Controller Interface (CQHCI)
+	  support present in host controllers of Qualcomm Technologies, Inc
+	  amongst others.
+	  This controller supports eMMC devices with command queue support.
+
+	  If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N.
+
+config MMC_AUTOK
+	tristate "MediaTek SD/MMC Card Auto Calibration support"
+	help
+	  This selects the MediaTek(R) Secure digital and Multimedia card
+	  Online Tune Interface. If you have a controller with this interface,
+	  say Y or M here.
+	  If unsure, say N.
+
+config DEVICE_MODULES_MMC_MTK_WP
+	tristate "MediaTek eMMC Write Protect Group support"
+	help
+	  Set read-only on the partitions belonging to eMMC write protect groups.
+	  If you set write protect on eMMC,
+	  say Y or M here.
+	  If unsure, say N.

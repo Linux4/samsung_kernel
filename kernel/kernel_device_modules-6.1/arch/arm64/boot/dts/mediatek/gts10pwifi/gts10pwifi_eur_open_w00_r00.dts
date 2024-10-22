@@ -1,0 +1,5510 @@
+
+/*
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *              http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+/plugin/;
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			smd: samsung_mobile_device {
+				compatible = "simple-bus";
+			};
+		};
+	};
+};
+
+/* #include "../sec_vibrator.dtsi" */                /* From sec_vibrator.py */
+
+&smd {
+	sec_vibrator {
+		status = "okay";
+		compatible = "sec_vibrator";
+
+		haptic,normal_ratio = <100>;
+		haptic,high_temp_ref = <48>;
+		haptic,high_temp_ratio = <65>;
+	};
+};
+
+
+/* #include "../display_ana38407_gts10p.dtsi" */     /* From display_ana38407_gts10p.py */
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/display/panel-display.h>
+#include "../display_ana38407_gts10p_adaptive_mipi.dtsi"
+
+&mtk_leds {
+	compatible = "mediatek,disp-leds";
+	backlight {
+		label = "lcd-backlight";
+		led-mode = <4>;
+		min-brightness = <0>;
+		min-hw-brightness = <0>;
+		max-brightness = <3950>;
+		max-hw-brightness = <3950>;
+	};
+};
+
+/ {
+	fragment@panel_display_mode {
+		target-path = "/";
+		__overlay__ {
+			gts10p_ana38407_panel_dsc_picture_parameter_set_default:
+			gts10p_ana38407_panel_dsc_picture_parameter_set_default {
+					picture_parameter_set = /bits/ 8 <
+						0x11 0x00 0x00 0x89 0x30 0x80 0x06 0xD8
+						0x0A 0xF0 0x00 0x49 0x05 0x78 0x05 0x78
+						0x02 0x00 0x03 0xBD 0x00 0x20 0x0A 0x4A
+						0x00 0x13 0x00 0x0C 0x01 0x56 0x00 0x88
+						0x18 0x00 0x10 0xD0 0x03 0x0C 0x20 0x00
+						0x06 0x0B 0x0B 0x33 0x0E 0x1C 0x2A 0x38
+						0x46 0x54 0x62 0x69 0x70 0x77 0x79 0x7B
+						0x7D 0x7E 0x01 0x02 0x01 0x00 0x09 0x40
+						0x09 0xBE 0x19 0xFC 0x19 0xFA 0x19 0xF8
+						0x1A 0x38 0x1A 0x78 0x1A 0xB6 0x2A 0xF6
+						0x2B 0x34 0x2B 0x74 0x3B 0x74 0x6B 0xF4
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+						0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+					>;
+			};
+
+			gts10p_ana38407_panel_display_modes:
+			gts10p_ana38407_panel_display_modes {
+				native-mode = <&gts10p_ana38407_panel_display_mode_2800x1752_60hs>;
+				exposed-mode = <
+					&gts10p_ana38407_panel_display_mode_2800x1752_120hs
+					&gts10p_ana38407_panel_display_mode_2800x1752_60phs
+					&gts10p_ana38407_panel_display_mode_2800x1752_60hs
+					&gts10p_ana38407_panel_display_mode_2800x1752_30phs
+					&gts10p_ana38407_panel_display_mode_2800x1752_30hs
+				>;
+
+				/* fhd */
+				gts10p_ana38407_panel_display_mode_2800x1752_120hs:
+				gts10p_ana38407_panel_display_mode_2800x1752_120hs {
+					id = PANEL_DISPLAY_MODE_2800x1752_120HS;
+					width = <2800>;
+					height = <1752>;
+					/* timing parameters */
+					refresh_rate = <120>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1400>;	/* width of dsc slice */
+					dsc_slice_h = <73>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10p_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				gts10p_ana38407_panel_display_mode_2800x1752_60phs:
+				gts10p_ana38407_panel_display_mode_2800x1752_60phs {
+					id = PANEL_DISPLAY_MODE_2800x1752_60HS_120HS_TE_HW_SKIP_1;
+					width = <2800>;
+					height = <1752>;
+					/* timing parameters */
+					refresh_rate = <60>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_PASSIVE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <1>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1400>;	/* width of dsc slice */
+					dsc_slice_h = <73>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10p_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+
+					/*qos parameters */
+					disp_qos_fps = <120>;
+
+				};
+
+				gts10p_ana38407_panel_display_mode_2800x1752_60hs:
+				gts10p_ana38407_panel_display_mode_2800x1752_60hs {
+					id = PANEL_DISPLAY_MODE_2800x1752_60HS;
+					width = <2800>;
+					height = <1752>;
+					/* timing parameters */
+					refresh_rate = <60>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <60>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1400>;	/* width of dsc slice */
+					dsc_slice_h = <73>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10p_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <7991>;
+
+					/*qos parameters */
+					disp_qos_fps = <60>;
+				};
+				gts10p_ana38407_panel_display_mode_2800x1752_30phs:
+				gts10p_ana38407_panel_display_mode_2800x1752_30phs {
+					id = PANEL_DISPLAY_MODE_2800x1752_30HS_120HS_TE_HW_SKIP_3;
+					width = <2800>;
+					height = <1752>;
+					/* timing parameters */
+					refresh_rate = <30>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_PASSIVE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <3>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1400>;	/* width of dsc slice */
+					dsc_slice_h = <73>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10p_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+
+					/*qos parameters */
+					disp_qos_fps = <120>;
+				};
+
+				gts10p_ana38407_panel_display_mode_2800x1752_30hs:
+				gts10p_ana38407_panel_display_mode_2800x1752_30hs {
+					id = PANEL_DISPLAY_MODE_2800x1752_30HS_60HS_TE_HW_SKIP_1;
+					width = <2800>;
+					height = <1752>;
+					/* timing parameters */
+					refresh_rate = <30>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <60>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <1>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <24 0 0>;	/* panel vbp:8, vfp:16, but for ap vblank set vbp:8+16, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <1400>;	/* width of dsc slice */
+					dsc_slice_h = <73>;	/* height of dsc slice */
+					dsc_picture_parameter_set = <&gts10p_ana38407_panel_dsc_picture_parameter_set_default>;
+
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+
+					/*qos parameters */
+					disp_qos_fps = <60>;
+				};
+			};
+		};
+	};
+};
+
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_drv_0: panel_drv_0 {
+				status = "okay";
+				compatible = "samsung,panel-drv";
+				panel,id = <0>;
+
+				ana38407_gts10p_power_ctrl:
+				ana38407_gts10p_power_ctrl {
+					actions {
+						ana38407_gts10p_vci_on: vci-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddi_vci>;
+						};
+
+						ana38407_gts10p_vci_off: vci-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddi_vci>;
+						};
+
+						ana38407_gts10p_delay_2ms: delay-2ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <2>;
+						};
+
+						ana38407_gts10p_delay_11ms: delay-11ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <11>;
+						};
+						ana38407_gts10p_delay_21ms: delay-21ms {
+							type = <PCTRL_DELAY_USLEEP>;
+							value = <21000>;
+						};
+
+						ana38407_gts10p_reset_high: reset-high {
+							type = <PCTRL_GPIO_ENABLE>;
+							gpio = <&disp_reset>;
+						};
+						ana38407_gts10p_reset_low: reset-low {
+							type = <PCTRL_GPIO_DISABLE>;
+							gpio = <&disp_reset>;
+						};
+
+						ana38407_gts10p_reset_wait_low: reset-rdy-wait-low{
+							type = <PCTRL_GPIO_WAIT_LOW>;
+							gpio = <&disp_reset_ready>;
+							value = <1000>;
+						};
+						ana38407_gts10p_reset_wait_high: reset-rdy-wait-high{
+							type = <PCTRL_GPIO_WAIT_HIGH>;
+							gpio = <&disp_reset_ready>;
+							value = <1000>;
+						};
+					};
+					sequences {
+						panel_boot_on = <
+								&ana38407_gts10p_vci_on
+						>;
+						panel_power_on = <
+								&ana38407_gts10p_vci_on
+								&ana38407_gts10p_delay_11ms
+						>;
+
+						panel_reset_lp11 = <
+								&ana38407_gts10p_delay_11ms
+								&ana38407_gts10p_reset_high
+								&ana38407_gts10p_reset_wait_high
+						>;
+
+						panel_power_off = <
+								&ana38407_gts10p_reset_low
+								&ana38407_gts10p_delay_11ms
+								&ana38407_gts10p_vci_off
+						>;
+					};
+				};
+
+				ana38407_gts10p_ap:ana38407_gts10p_ap {
+					MTK,size = <267 167>;  /* need to check */ /* 267.12 mm x 167.14 mm */
+					MTK,timing,dsi-hs-clk = <1524>;
+					MTK,data_lane = <4>;		/* number of using data lane */
+					MTK,multi_drop = <0>;
+					MTK,lcm_degree = <270>;
+					MTK,lcm_color_mode = "MTK_DRM_COLOR_MODE_DISPLAY_P3";
+					MTK,silkybrightnessdelay = <3000>;
+				};
+
+				panels {
+					/* find ana38407_gts10p panel header */
+					ana38407_gts10p: ana38407_gts10p {
+						ap-vendor-setting = <&ana38407_gts10p_ap>;
+						display-mode = <&gts10p_ana38407_panel_display_modes>;
+						power-ctrl = <&ana38407_gts10p_power_ctrl>;
+						dqe-suffix = "ana38407_gts10p";
+						sdp-adaptive-mipi = <&ana38407_gts10p_sdp_adaptive_mipi_info>;
+						id-mask = <
+							PANEL_ID(0x800000) PANEL_MASK(0xFF0000)
+							PANEL_ID(0x000000) PANEL_MASK(0x000000)
+						>;
+					};
+				};
+			};
+		};
+	};
+};
+
+
+/* #include "../displayport_redriver.dtsi" */        /* From displayport_redriver.py */
+/* displayport mtk redriver */
+
+/ {
+	fragment@displayport_redriver {
+		target-path = "/";
+		__overlay__ {
+			displayport_redriver: displayport_redriver {
+
+				redriver_name = "ps5169";
+
+#if 1
+				rbr-eq0 = [70 70 70 70	/* swing 0 */
+					70 70 70 70		/* swing 1 */
+					70 70 70 70		/* swing 2 */
+					70 70 70 70];		/* swing 3 */
+				rbr-eq1 = [03 03 03 03
+					03 03 03 03
+					03 03 03 03
+					03 03 03 03];
+
+				hbr-eq0 = [70 70 70 70
+					70 70 70 70
+					70 70 70 70
+					70 70 70 70];
+				hbr-eq1 = [03 03 03 03
+					03 03 03 03
+					03 03 03 03
+					03 03 03 03];
+
+				hbr2-eq0 = [70 70 70 70
+					70 70 70 70
+					70 70 70 70
+					70 70 70 70];
+				hbr2-eq1 = [03 03 03 03
+					03 03 03 03
+					03 03 03 03
+					03 03 03 03];
+
+				hbr3-eq0 = [70 70 70 70
+					70 70 70 70
+					70 70 70 70
+					70 70 70 70];
+				hbr3-eq1 = [03 03 03 03
+					03 03 03 03
+					03 03 03 03
+					03 03 03 03];
+#endif
+			};
+		};
+	};
+};
+
+/* #include "../vibrator_vib_info.dtsi" */           /* From vibrator_vib_info.py */
+
+&smd {
+	vib_info: vibrator_info {
+		status = "okay";
+		compatible = "samsung,vib-info";
+		functions = "";
+#if 0
+		samsung,intensities = <>;
+#else
+		samsung,intensities = <>;
+#endif
+
+#if 0
+		samsung,haptic_intensities = <>;
+#else
+		samsung,haptic_intensities = <>;
+#endif
+	};
+};
+
+/* #include "../nc.dtsi" */                          /* From nc.py */
+#define LEGO_IS_USE_NC
+#define LEGO_IS_USE(x, ...) !defined(LEGO_IS_USE_##x)
+
+/* #include "../sec_pinctrl_wrapper.dtsi" */         /* From sec_pinctrl_wrapper.py */
+#define PIN_FUNC_INPUT		input-enable
+#define PIN_FUNC_INPUT_WAKEUP	input-enable
+#define PIN_FUNC_OUTPUT		output-enable
+#define PIN_FUNC_OUTPUT_HIGH		output-high
+#define PIN_FUNC_OUTPUT_LOW		output-low
+
+#define PIN_PULL_NONE	bias-disable
+#define PIN_PULL_DOWN	bias-pull-down
+#define PIN_PULL_UP	bias-pull-up
+#define PIN_PULL_OPEN	bias-high-impedance
+
+/*
+ * MTK_DRIVE_2mA  2
+ * MTK_DRIVE_4mA  4
+ * MTK_DRIVE_6mA  6
+ * MTK_DRIVE_8mA  8
+ * MTK_DRIVE_10mA 10
+ * MTK_DRIVE_12mA 12
+ * MTK_DRIVE_14mA 14
+ * MTK_DRIVE_16mA 16
+ */
+
+#define PIN_DRV_LV1	2
+#define PIN_DRV_LV2	4
+#define PIN_DRV_LV3	6
+#define PIN_DRV_LV4	8
+#define PIN_DRV_LV5	10
+#define PIN_DRV_LV6	12
+#define PIN_DRV_LV7	14
+#define PIN_DRV_LV8	16
+
+#define PIN_EXPAND(pin) #pin
+
+#define SEC_GPIO(src, type, num)	PIN_EXPAND(gpio##num)
+#define SEC_GPIO_REF(src, type, num)	&type num
+#define SEC_GPIO_NUM(src, type, num)	num
+#define SEC_GPIO_TYPE(src, type, num)	&type
+#define SEC_GPIO_PHANDLE_ACTIVE(src, type, num)	SEC_GPIO_PHANDLE(type, num, active)
+#define SEC_GPIO_PHANDLE_SLEEP(src, type, num)	SEC_GPIO_PHANDLE(type, num, sleep)
+#define SEC_GPIO_PHANDLE(type, num, mode)	type##_##num##_##mode
+
+#define MTK_PINMUX(gpio, func) (MTK_PIN_NO(gpio) | func)
+
+#define GPIO_CONFIG(_src, _type, _num, _func)		\
+	pins_cmd_dat{					\
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(_src, _type, _num), 0)>;	\
+		PIN_ ##_func;		\
+	}
+
+#define GPIO_CONFIG_PUD(_src, _type, _num, _func, _pull)	\
+	pins_cmd_dat{					\
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(_src, _type, _num), 0)>;	\
+		PIN_ ##_pull;				\
+		PIN_ ##_func;		\
+	}
+
+#define GPIO_CONFIG_PUD_DRV(_src, _type, _num, _func, _pull, _drv)	\
+	pins_cmd_dat{					\
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(_src, _type, _num), 0)>;	\
+		PIN_ ##_pull;				\
+		PIN_ ##_func;		\
+		drive-strength = <PIN_ ##_drv>;	\
+	}
+
+#define SEC_ADC(type, num) <&type num>
+#define SEC_ADC_OPT(type, num) ,<&type num>
+#define SEC_ADC_NUM(type, num) <num>
+
+/* #include "../input_booster.dtsi" */               /* From input_booster.py */
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&smd {
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		resValcount = "2";
+		max_resource_count = "2";
+		max_cluster_count = "3";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* Each Cpu Cluster Start Cpu */
+		cpu_cluster_policy = "7,4,0";
+
+		/* < CPU, DDR, SCHEDBOOST > */
+		ib_release_values = "-1,16";
+
+		/* Select Allowed Resource Index Group */
+		allowed_resources = "0,1";
+
+		booster@1 {
+			booster,label = "Disable_Mode";
+			booster,mode = "1";
+			booster_key@1 {
+				input_booster,label = "Touch_Disable";
+				input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+				/* Time table */
+				input_booster,head_time = <0>;
+				input_booster,tail_time = <0>;
+				input_booster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+				};
+			};
+		};
+
+		booster@2 {
+			booster,label = "Sip_Mode";
+			booster,mode = "2";
+			booster_key@1 {
+				input_booster,label = "sip_touch";
+				input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+				/* Time table */
+				input_booster,head_time = <120>;
+				input_booster,tail_time = <0>;
+				input_booster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <1100000 0>;
+					};
+				};
+			};
+		};
+
+		booster@3 {
+			booster,label = "Game_Mode";
+			booster,mode = "3";
+			booster_key@1 {
+				input_booster,label = "GAME_MT";
+				input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+				/* Time table */
+				input_booster,head_time = <0>;
+				input_booster,tail_time = <0>;
+				input_booster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+				};
+			};
+		};
+
+		booster@4 {
+			booster,label = "input_booster";
+			booster,mode = "0";
+
+			booster_key@1 {
+				input_booster,label = "key";
+				input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+				/* Time table */
+				input_booster,head_time = <500>;
+				input_booster,tail_time = <0>;
+
+				/* Resource Table Sequentially identified with index
+				 * CPU's ID & Index : 0
+				 * DDR's ID & Index : 1
+				 * HMP's ID & Index : 2
+				 * LPM's ID & Index : 3
+				*/
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <1100000 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+				};
+			};
+
+			booster_key@2 {
+				input_booster,label = "touchkey";
+				input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+				/* Time table */
+				input_booster,head_time = <1>;
+				input_booster,tail_time = <500>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+				};
+			};
+
+			booster_key@3 {
+				input_booster,label = "touch";
+				input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+				/* Time table */
+				input_booster,head_time = <200>;
+				input_booster,tail_time = <300>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+				};
+			};
+
+			booster_key@4 {
+				input_booster,label = "multitouch";
+				input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+				/* Time table */
+				input_booster,head_time = <200>;
+				input_booster,tail_time = <800>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+				};
+			};
+
+			booster_key@5 {
+				input_booster,label = "keyboard";
+				input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+				/* Time table */
+				input_booster,head_time = <130>;
+				input_booster,tail_time = <130>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+				};
+			};
+
+			booster_key@6 {
+				input_booster,label = "MOUSE";
+				input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+				/* Time table */
+				input_booster,head_time = <200>;
+				input_booster,tail_time = <300>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+				};
+			};
+
+			booster_key@7 {
+				input_booster,label = "mouse_wheel";
+				input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+				/* Time table */
+				input_booster,head_time = <200>;
+				input_booster,tail_time = <0>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+				};
+			};
+
+			booster_key@8 {
+				input_booster,label = "pen_hover";
+				input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+				/* Time table */
+				input_booster,head_time = <130>;
+				input_booster,tail_time = <500>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+
+				};
+			};
+
+			booster_key@9 {
+				input_booster,label = "pen";
+				input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+				/* Time table */
+				input_booster,head_time = <200>;
+				input_booster,tail_time = <600>;
+
+				/* Input Booster Resource Frequency */
+				inputbooster,resource {
+					compatible = "resource";
+					resource@1 {
+						resource,label = "CPU";
+						resource,id = "0";
+						resource,value = <0 0>;
+					};
+
+					resource@2 {
+						resource,label = "DDR";
+						resource,id = "1";
+						resource,value = <0 0>;
+					};
+				};
+			};
+			/* If you need to add new key type, add it this position */
+		};
+	};
+};
+
+/* #include "../sensorhub_mt6989_shub.dtsi" */       /* From sensorhub_mt6989_shub.py */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6989_shub/dts/sensorhub_mt6989_shub.gts10pwifi.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsvtr-position = <3>;
+				mag-ak09918c-position = <4>;
+				mag-ak09918c-array = /bits/ 8 <0 0 0 0 0 0 0 0 0
+								0 0 0 0 0 0 0 0 0
+								0 0 0 0 0 0 0 0 0>;
+				light-dual;
+				light-position = /bits/ 32 <172 3 143 6 2 1 71 0 (-3) 8 2 1>;
+			};
+		};
+	};
+};
+
+/* #include "../sm5714_charger.dtsi" */              /* From sm5714_charger.py */
+#if 0
+&${pogo_int_gpio_parent} {
+	pogo_int_default: pogo_int_default {
+		GPIO_CONFIG_PUD(${pogo_int_gpio}, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+#endif
+
+&smd {
+    sm5714_charger: sm5714-charger {
+		status = "disable";
+		compatible = "samsung,sm5714-charger";
+
+#if 0
+		pinctrl-names = "default";
+		pinctrl-0 = <&pogo_int_default>;
+		charger,pogo_int = <SEC_GPIO_REF(${pogo_int_gpio}) 0>; /* POGO_INT */
+#endif
+	};
+
+	battery {
+		battery,otg_name = "sm5714-otg";
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5714/sm5714_charger.gts10p(wifi).dtsi */
+&sm5714_charger {
+	sm5714,chg_float_voltage_down_en = <1>;
+	sm5714,chg_float_voltage_down_offset_mv = <20>;
+};
+
+/* #include "../abc_spec_manager_type1.dtsi" */      /* From abc_spec_manager_type1.py */
+&smd {
+	sec_abc {
+		compatible = "samsung,sec_abc";
+		status = "okay";
+		abc_spec_type1 {
+			module_list = "gpu", "gpu_qc", "gpu_qc", "camera", "camera", "vib", "tsp", "tsp_sub", "mm", "camera", "camera", "camera", "camera", "camera", "camera", "camera", "camera", "camera", "gpu";
+			name_list = "gpu_fault", "gpu_fault", "gpu_page_fault", "mipi_overflow", "i2c_fail", "int_gnd_short", "tsp_int_fault", "tsp_int_fault", "venus_hung", "mipi_error_rw1", "mipi_error_rs1", "mipi_error_rt1", "mipi_error_fw1", "mipi_error_rt2", "mipi_error_uw1", "mipi_error_rm1", "mipi_error_rb1", "mipi_error_fs1", "gpu_job_timeout";
+#ifndef CONFIG_SEC_FACTORY
+			threshold_cnt = <20>, <2>, <20>, <1>, <1>, <25>, <2>, <2>, <10>, <1>, <1>, <1>, <1>, <1>, <1>, <1>, <1>, <1>, <1>;
+			threshold_time = <1200>, <1200>, <1200>, <0>, <0>, <5>, <5>, <5>, <3>, <0>, <0>, <0>, <0>, <0>, <0>, <0>, <0>, <0>, <0>;
+#else
+			threshold_cnt = <20>, <2>, <20>, <4>, <4>, <25>, <2>, <2>, <10>, <4>, <4>, <4>, <4>, <4>, <4>, <4>, <4>, <4>, <1>;
+			threshold_time = <1200>, <1200>, <1200>, <120>, <120>, <5>, <5>, <5>, <3>, <120>, <120>, <120>, <120>, <120>, <120>, <120>, <120>, <120>, <0>;
+#endif
+		};
+	};
+};
+
+/* #include "../display_panel_manager.dtsi" */       /* From display_panel_manager.py */
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/display/panel-display.h>
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_drv_0: panel_drv_0 {
+				status = "okay";
+				compatible = "samsung,panel-drv";
+				panel,id = <0>;
+
+				panel-lut {
+#if 1
+					panel_0 = <&ana38407_gts10p>;
+#endif
+#if 0
+					panel_1 = <&${panel_name_1}>;
+#endif
+#if 0
+					panel_2 = <&${panel_name_2}>;
+#endif
+#if 0
+					panel_3 = <&${panel_name_3}>;
+#endif
+#if 0
+					panel_4 = <&${panel_name_4}>;
+#endif
+#if 0
+					panel_5 = <&${panel_name_5}>;
+#endif
+#if 0
+					panel_6 = <&${panel_name_6}>;
+#endif
+#if 0
+					panel_7 = <&${panel_name_7}>;
+#endif
+#if 0
+					panel_8 = <&${panel_name_8}>;
+#endif
+#if 0
+					panel_9 = <&${panel_name_9}>;
+#endif
+				};
+			};
+		};
+	};
+};
+
+
+/* #include "../ap_mtk_mt6989.dtsi" */               /* From ap_mtk_mt6989.py */
+#include <dt-bindings/clock/mt6989-clk.h>
+
+#define infracfg_ao_clk pericfg_ao_clk
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6989/ap_mtk_mt6989.gts10pwifi.00.dtsi */
+#include "../../mediatek/k6989v1_64_titan_golddragon_24u_wifi/Board_00.dts"
+#include "../../mediatek/k6989v1_64_titan_golddragon_24u_wifi/gpio00.dtsi"
+
+/* #include "../usb_notifier.dtsi" */                /* From usb_notifier.py */
+
+&smd {
+	usb_notifier {
+		compatible = "samsung,usb-notifier";
+		status = "okay";
+#if 0
+		support_reverse_bypass_en;
+#endif
+	};
+};
+
+
+/* #include "../abc_common.dtsi" */                  /* From abc_common.py */
+&smd {
+	abc_hub {
+		compatible = "samsung,abc_hub";
+		status = "okay";
+		bootc {
+			bootc,time_spec_user = <100000>; /* user binary user build */
+			bootc,time_spec_eng = <150000>; /* user binary eng build */
+			bootc,time_spec_fac = <100000>; /* factory binary */
+		};
+	};
+};
+
+/* #include "../pmic_MT6373.dtsi" */                 /* From pmic_MT6373.py */
+#if 0 && 0
+&mt6373_vusb {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vaux18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vrf13_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vrf18_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 1800000 && 1800000
+&mt6373_vrfio18_aif {
+    regulator-min-microvolt = <1800000>;
+    regulator-max-microvolt = <1800000>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vrf09_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vrf12_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vant18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vsram_digrf_aif {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vibr {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 1800000 && 1800000
+&mt6373_vio28 {
+    regulator-min-microvolt = <1800000>;
+    regulator-max-microvolt = <1800000>;
+    regulator-always-on;regulator-boot-on;
+     
+};
+#endif
+
+#if 3300000 && 3300000
+&mt6373_vfp {
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    
+     
+};
+#endif
+
+#if 3000000 && 3000000
+&mt6373_vtp {
+    regulator-min-microvolt = <3000000>;
+    regulator-max-microvolt = <3000000>;
+    regulator-always-on;regulator-boot-on;
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vmch {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vmc {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vaud18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 3300000 && 3300000
+&mt6373_vcn33_1 {
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    
+     
+};
+#endif
+
+#if 3300000 && 3300000
+&mt6373_vcn33_2 {
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vcn33_3 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 1800000 && 1800000
+&mt6373_vcn18io {
+    regulator-min-microvolt = <1800000>;
+    regulator-max-microvolt = <1800000>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vefuse {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vmch_eint_high {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6373_vmch_eint_low {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+/* #include "../i2c-gpio-2.dtsi" */                  /* From i2c-gpio.py */
+&pio {
+       gpio_i2c_2_sda {
+               gpio_i2c_2_sda_default: gpio_i2c_2_sda_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,190, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&pio {
+       gpio_i2c_2_scl {
+               gpio_i2c_2_scl_default: gpio_i2c_2_scl_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,189, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+	        __overlay__ {
+			aliases {
+				  i2c52 = "/i2c@52";
+			};
+			/* Software I2C */
+			sw_i2c2: i2c@52 {
+				cell-index = <52>;
+				compatible = "i2c-gpio";
+				gpios = <
+					SEC_GPIO_REF(AP,pio,190) 0 /* SDA */
+					SEC_GPIO_REF(AP,pio,189) 0 /* SCL */
+					>;
+				#i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <
+					&gpio_i2c_2_sda_default
+					&gpio_i2c_2_scl_default
+					>;
+
+				status = "disabled";
+			};
+		};
+	};
+};
+
+
+/* #include "../i2c-gpio-3.dtsi" */                  /* From i2c-gpio.py */
+&pio {
+       gpio_i2c_3_sda {
+               gpio_i2c_3_sda_default: gpio_i2c_3_sda_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,186, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&pio {
+       gpio_i2c_3_scl {
+               gpio_i2c_3_scl_default: gpio_i2c_3_scl_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,185, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+	        __overlay__ {
+			aliases {
+				  i2c53 = "/i2c@53";
+			};
+			/* Software I2C */
+			sw_i2c3: i2c@53 {
+				cell-index = <53>;
+				compatible = "i2c-gpio";
+				gpios = <
+					SEC_GPIO_REF(AP,pio,186) 0 /* SDA */
+					SEC_GPIO_REF(AP,pio,185) 0 /* SCL */
+					>;
+				#i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <
+					&gpio_i2c_3_sda_default
+					&gpio_i2c_3_scl_default
+					>;
+
+				status = "disabled";
+			};
+		};
+	};
+};
+
+
+/* #include "../i2c-gpio.dtsi" */                    /* From i2c-gpio.py */
+&pio {
+       gpio_i2c_0_sda {
+               gpio_i2c_0_sda_default: gpio_i2c_0_sda_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,115, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&pio {
+       gpio_i2c_0_scl {
+               gpio_i2c_0_scl_default: gpio_i2c_0_scl_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,114, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+	        __overlay__ {
+			aliases {
+				  i2c50 = "/i2c@50";
+			};
+			/* Software I2C */
+			sw_i2c0: i2c@50 {
+				cell-index = <50>;
+				compatible = "i2c-gpio";
+				gpios = <
+					SEC_GPIO_REF(AP,pio,115) 0 /* SDA */
+					SEC_GPIO_REF(AP,pio,114) 0 /* SCL */
+					>;
+				#i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <
+					&gpio_i2c_0_sda_default
+					&gpio_i2c_0_scl_default
+					>;
+
+				status = "disabled";
+			};
+		};
+	};
+};
+
+
+/* #include "../i2c-gpio-1.dtsi" */                  /* From i2c-gpio.py */
+&pio {
+       gpio_i2c_1_sda {
+               gpio_i2c_1_sda_default: gpio_i2c_1_sda_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,33, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&pio {
+       gpio_i2c_1_scl {
+               gpio_i2c_1_scl_default: gpio_i2c_1_scl_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,32, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+	        __overlay__ {
+			aliases {
+				  i2c51 = "/i2c@51";
+			};
+			/* Software I2C */
+			sw_i2c1: i2c@51 {
+				cell-index = <51>;
+				compatible = "i2c-gpio";
+				gpios = <
+					SEC_GPIO_REF(AP,pio,33) 0 /* SDA */
+					SEC_GPIO_REF(AP,pio,32) 0 /* SCL */
+					>;
+				#i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <
+					&gpio_i2c_1_sda_default
+					&gpio_i2c_1_scl_default
+					>;
+
+				status = "disabled";
+			};
+		};
+	};
+};
+
+
+/* #include "../i2c-gpio-4.dtsi" */                  /* From i2c-gpio.py */
+&pio {
+       gpio_i2c_4_sda {
+               gpio_i2c_4_sda_default: gpio_i2c_4_sda_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,184, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&pio {
+       gpio_i2c_4_scl {
+               gpio_i2c_4_scl_default: gpio_i2c_4_scl_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,183, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+	        __overlay__ {
+			aliases {
+				  i2c54 = "/i2c@54";
+			};
+			/* Software I2C */
+			sw_i2c4: i2c@54 {
+				cell-index = <54>;
+				compatible = "i2c-gpio";
+				gpios = <
+					SEC_GPIO_REF(AP,pio,184) 0 /* SDA */
+					SEC_GPIO_REF(AP,pio,183) 0 /* SCL */
+					>;
+				#i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <
+					&gpio_i2c_4_sda_default
+					&gpio_i2c_4_scl_default
+					>;
+
+				status = "disabled";
+			};
+		};
+	};
+};
+
+
+/* #include "../pmic_MT6685.dtsi" */                 /* From pmic_MT6685.py */
+
+/* #include "../dc_vibrator.dtsi" */                 /* From dc_vibrator.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+			__overlay__ {
+				samsung_mobile_device {
+					dc_vibrator {
+						compatible = "samsung,dc_vibrator";
+						status = "okay";
+						dc_vib,motor_type = "COINDC";
+#if 1
+						dc_vib,gpio_en = <SEC_GPIO_REF(AP,pio,110) 0>;
+#endif
+#if 0
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&${motor_regul_vdd_3p3}>;
+#endif
+					};
+				};
+			};
+	};
+};
+
+/* #include "../sm5714.dtsi" */                      /* From sm5714.py */
+&pio {
+	if_pmic_irq: if_pmic_irq {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,8), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+	usbpd_irq: usbpd_irq {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,14), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+#if 0
+	usbpd_vbus_discharging: usbpd_vbus_discharging {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${usbpd_vbus_discharging_gpio}), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+#endif
+};
+
+&i2c5 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	sm5714@49{
+		status = "okay";
+		compatible = "siliconmitus,sm5714mfd";
+		reg = <0x49>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&if_pmic_irq>;
+		sm5714,irq-gpio = <SEC_GPIO_REF(AP,pio,8) 0>;
+		sm5714,wakeup;
+	};
+};
+
+&i2c1 {
+	i2c-gpio,delay-us = <5>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+
+	usbpd_sm5714: usbpd-sm5714@33 {
+		status = "okay";
+		compatible = "sm5714-usbpd";
+		reg = <0x33>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usbpd_irq
+#if 0
+				&usbpd_vbus_discharging
+#endif
+		>;
+		usbpd,usbpd_int = <SEC_GPIO_REF(AP,pio,14) 0>;
+#if 0
+		usbpd,vbus_discharging = <SEC_GPIO_REF(${usbpd_vbus_discharging_gpio}) 0>;
+#endif
+#if 1
+		vconn-en;
+#endif
+		support_pd_role_swap;
+		pdic-manager {
+			/* sink */
+			pdic,max_power = <5000>;
+			pdic_op_power = <2500>;
+			pdic_max_voltage = <6000>;
+			pdic_max_current = <2000>;
+			pdic,min_current = <500>;
+
+			pdic,giveback = <0>;
+			pdic,usb_com_capable = <1>;
+			pdic,no_usb_suspend = <1>;
+
+			/* source */
+			source,max_voltage = <5000>;
+			source,min_voltage = <4000>;
+			source,max_power = <2500>;
+		};
+	};
+};
+
+
+/* #include "../pmic_MT6363.dtsi" */                 /* From pmic_MT6363.py */
+#if 0 && 0
+&mt6363_vemc {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vcn13 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vtref18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vaux18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vcn15 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vufs18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vio18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vm18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_va15 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrf18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrfio18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vio075 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vufs12 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_va12_1 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_va12_2 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrf12 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrf13 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrf09 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+/* #include "../displayport_mtk.dtsi" */             /* From displayport_mtk.py */
+/* SEC Displayport mtk dtsi */
+
+#if 1
+&pio {
+	aux_sw_oe: aux_sw_oe {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,87), 0)>;
+			output-high;
+			bias-disable;
+		};
+	};
+};
+
+&pio {
+	sbu_sw_sel: sbu_sw_sel {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,84), 0)>;
+			output-low;
+			bias-disable;
+		};
+	};
+};
+#endif
+
+&dp_tx {
+	status = "okay";
+
+#if 1
+	/delete-property/ dptx,phy-params;
+	dptx,phy-params = <0x211a1614 0x28241f1c 0x00003027
+		0x0f080400 0x020c0500 0x00000009>;
+#endif
+};
+
+/ {
+	fragment@sec_displayport_mtk {
+		target-path = "/";
+		__overlay__ {
+			sec_displayport_mtk: sec_displayport_mtk {
+				compatible = "sec,dp_mtk_platform";
+
+#if 1
+				pinctrl-names = "default";
+				pinctrl-0 = <&aux_sw_oe &sbu_sw_sel>;
+
+				dp,aux_sw_oe = <SEC_GPIO_REF(AP,pio,87) 1>;
+				dp,sbu_sw_sel = <SEC_GPIO_REF(AP,pio,84) 0>;
+#endif
+
+#if 1
+				dp,usb_cc_dir = <SEC_GPIO_REF(AP,pio,210) 0>;
+#endif
+				dp,aux_tuning_level = <0xf>;
+#if 1
+				redriver_node = <&displayport_redriver>;
+#endif
+			};
+		};
+	};
+};
+/* #include "../display_oled_buck_max77816.dtsi" */  /* From display_oled_buck_max77816.py */
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&pio {
+	buck_i2c_default: buck_i2c_default {
+		samsung,pins = SEC_GPIO(AP,pio,64), SEC_GPIO(AP,pio,65);
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <3>;
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <3>;				// PREV in sleep
+		samsung,pin-pud-pdn = <3>;				// PU
+	};
+};
+
+&pio {
+	buck_en_gpio_default: buck-en-gpio-default {
+		samsung,pins = SEC_GPIO(AP,pio,86);
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+
+&i2c12 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	clock-frequency = <400000>;
+
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&buck_i2c_default
+		&buck_en_gpio_default
+	>;
+
+	panel_drv_buck_i2c@0x18 {
+		compatible = "panel_drv,i2c";
+		reg = <0x18>;
+		len,addr= <1>;
+		len,data= <1>;
+	};
+};
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_drv_0: panel_drv_0 {
+				blic = <&panel_blic>;
+			};
+
+			/* define regulator */
+			max77816_regulator: max77816_regulator {
+				regulator-name = "max77816_regulator";
+				regulator-desc-name = "ddi-buck-booster";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-boot-on;
+			};
+
+			panel_blic: panel_blic {
+				max77816 {
+					name = "max77816";
+					i2c,reg = <0x18>;
+					i2c,match = <0x00 0x00 0x00>; /* addr mask val */
+
+					/* register regulator */
+					regulator = <&max77816_regulator>;
+
+					gpios {
+						gpio_hwen: gpio_hwen {
+							gpios = <SEC_GPIO_REF(AP,pio,86) 1>;
+							dir = <0>;  /* OUT */
+							irq-type = <0x0>;   /* NONE */
+						};
+					};
+
+					power_ctrl {
+						actions {
+							max77816_gpio_hwen_on: max77816_gpio_hwen_on {
+								type = <PCTRL_GPIO_ENABLE>;
+								gpio = <&gpio_hwen>;
+							};
+							max77816_gpio_hwen_off: max77816_gpio_hwen_off {
+								type = <PCTRL_GPIO_DISABLE>;
+								gpio = <&gpio_hwen>;
+							};
+							max77816_delay_2ms: max77816_delay_2ms {
+								type = <PCTRL_DELAY_MSLEEP>;
+								value = <2>;
+							};
+						};
+
+						sequences {
+							panel_blic_pre_on = <&max77816_gpio_hwen_on &max77816_delay_2ms>;
+							panel_blic_post_off = <&max77816_delay_2ms &max77816_gpio_hwen_off>;
+						};
+					};
+				};
+			};
+		};
+	};
+};
+
+
+/* #include "../hall_ic.dtsi" */                     /* From hall_ic.py */
+/*
+ * Hall ic device tree source
+ *
+ * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	hall_ic: hall_ic {
+		status = "okay";
+		compatible = "hall_ic";
+		pinctrl-names = "default";
+		pinctrl-0 = <
+#if 1
+		&hall_irq
+#endif
+#if 0
+		&certify_hall_irq
+#endif
+#if 1
+		&hall_wacom_irq
+#endif
+		>;
+#if 1
+		hall_ic,debounce-interval = <50>;
+#endif
+#if 1
+		hall: hall {
+			name = "hall";
+			event = <0x15>;
+			gpios = <SEC_GPIO_REF(AP,pio,19) 1>;
+			flags = <0x01>;
+		};
+#endif
+#if 0
+		certify_hall: certify_hall {
+			name = "certify_hall";
+			event = <0x1b>;
+			gpios = <SEC_GPIO_REF(${certify_hall_gpio}) 1>;
+			flags = <0x01>;
+		};
+#endif
+#if 1
+		hall_wacom: hall_wacom {
+			name = "hall_wacom";
+			event = <0x1e>;
+			gpios = <SEC_GPIO_REF(AP,pio,20) 1>;
+			flags = <0x01>;
+		};
+#endif
+	};
+#if 1
+	hall_logical {
+		status = "okay";
+		compatible = "hall_logical";
+	};
+#endif
+};
+
+#if 1
+&pio {
+	hall_irq: hall_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,19), 0)>;
+		bias-disable;
+	};
+};
+#endif
+
+#if 0
+&${certify_hall_parent} {
+	certify_hall_irq: certify_hall_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${certify_hall_gpio}), 0)>;
+		bias-disable;
+	};
+};
+#endif
+
+#if 1
+&pio {
+	hall_wacom_irq: hall_wacom_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,20), 0)>;
+		bias-disable;
+	};
+};
+#endif
+
+/* #include "../regulator-fixed.dtsi" */             /* From regulator-fixed.py */
+/* 
+ * This pinctrl code is only for PULL state change.
+ * IN-OUT setting is set to OUTPUT at fixed-regulator probe.
+ */
+
+&pio {
+        ldo_gpio0: ldo_gpio0 {
+#if 0
+		GPIO_CONFIG_PUD(AP,pio,174, ${set_gpio_output}, PULL_NONE);
+#else
+		GPIO_CONFIG_PUD(AP,pio,174, FUNC_OUTPUT_HIGH, PULL_NONE);
+#endif
+#if 0
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+#endif
+#if 0
+		${input_gpio_properties}
+#endif
+        };
+};
+
+&smd {
+	fixed_regulator0: fixed_regulator@0 {
+		compatible = "regulator-fixed";
+#if 1
+		regulator-name = "fixed_regulator${#}";
+#else
+		regulator-name = "fixed_regulator0";
+#endif
+		gpio = <SEC_GPIO_REF(AP,pio,174) 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ldo_gpio0>;
+		enable-active-high;
+	};
+};
+
+
+/* #include "../sm5714_fuelgauge.dtsi" */            /* From sm5714_fuelgauge.py */
+/*
+ * sm5714 battery device tree common
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	sm5714_fuelgauge: sm5714-fuelgauge {
+		status = "okay";
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <300>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <0x1F>;
+		fuelgauge,using_temp_compensation;
+		fuelgauge,low_temp_limit = <100>;
+		fuelgauge,using_hw_vempty;
+		fuelgauge,sw_v_empty_voltage = <3200>;
+		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
+		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+		fuelgauge,capacity = <4000>;
+#if 1
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(PM,mt6373_pio,10) 0  /* BAT_ID_1 */
+				>;
+#elif 0
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(${bat_id_gpio_02}) 0  /* BAT_ID_2 */
+				SEC_GPIO_REF(${bat_id_gpio_01}) 0  /* BAT_ID_1 */
+				>;
+#endif
+
+	};
+};
+
+
+&smd {
+	battery {
+		battery,fgsrc_switch_name = "sm5714-fuelgauge";
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.gts10p(wifi).dtsi */
+/*
+ * Gts9p battery device tree common
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	sm5714-fuelgauge {
+		status = "okay";
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <300>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <0x1F>;
+		fuelgauge,using_temp_compensation;
+		fuelgauge,low_temp_limit = <100>;
+		fuelgauge,using_hw_vempty;
+		fuelgauge,sw_v_empty_voltage = <3200>;
+		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
+		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+		fuelgauge,capacity = <10090>;
+		fuelgauge,jigvbatmode;
+		fuelgauge,scaling_factor = <1>;
+		battery_params {
+		/*
+		 * BAT_ID_1
+		 * 0: BYD, 1: ATL
+		 */
+			battery,id = <1>;
+
+			/* 0 : battery data  */
+			battery0,battery_type = <4400 0x4A3A>; /* batt_v_max, cap */
+			battery0,battery_table0 = <
+				0x1400 0x1ADE 0x1B56 0x1C0C 0x1C95 0x1D01 0x1D54 0x1D7C
+				0x1D91 0x1DA1 0x1DE4 0x1E2A 0x1E6F 0x1E91 0x1ED2 0x1F29
+				0x1F7B 0x1FCB 0x2006 0x2064 0x2139 0x21AD 0x22E8 0x2400
+				>;
+			battery0,battery_table1 = <
+				0x0000 0x0080 0x0100 0x0219 0x0319 0x0419 0x0533 0x0633
+				0x09CC 0x0D80 0x12B3 0x1A66 0x2233 0x2766 0x2F33 0x36E6
+				0x3C19 0x3EB3 0x414C 0x4680 0x50CC 0x5600 0x6400 0x64E6
+				>;
+			battery0,battery_table2 = <
+				0x314B 0x2328 0x1D20 0x181A 0x1617 0x1415 0x1313 0x1212
+				0x314B 0x2328 0x1D20 0x181A 0x1617 0x1415 0x1313 0x1212
+				>;
+			/*spare min max factor chg_factor dischg_factor manvalue*/
+			battery0,rs_value = <0x003D 0x003D 0x3800 0x010A 0x0599 0x0599 0x0045>;
+			battery0,v_alarm = <3100 200>;
+			battery0,topoff = <1000>;
+			battery0,i_cal = <1 0x0 0x0800 0x0800 0 0x0 0x07E2 0x085A>;
+			battery0,v_cal = <1 0 0 1 0 0 0>;
+			battery0,temp_std = <25>;
+			battery0,tem_poff = <3450 50 3450 50>;
+			battery0,aux_ctrl = <0x3322 0x5800>;
+			battery0,data_ver = <0x04>;
+			battery0,v_max_table = <0x22E8 0x22BF 0x2296 0x226D 0x220A>;
+			battery0,q_max_table = <0x4A3A 0x49E3 0x498C 0x4935 0x42B0>;
+
+			/* 1 : battery data  */
+			battery1,battery_type = <4400 0x4A8D>; /* batt_v_max, cap */
+			battery1,battery_table0 = <
+				0x1400 0x1A85 0x1B32 0x1C12 0x1CA4 0x1D10 0x1D61 0x1D76
+				0x1D8B 0x1D97 0x1DEE 0x1E16 0x1E43 0x1E80 0x1EBC 0x1F13
+				0x1F46 0x1F8E 0x203C 0x20A1 0x210E 0x2182 0x22CF 0x2400
+				>;
+			battery1,battery_table1 = <
+				0x0000 0x004C 0x00CC 0x01E6 0x02E6 0x03E6 0x0500 0x0580
+				0x0799 0x0BB3 0x1280 0x17B3 0x1CE6 0x274C 0x2F00 0x36CC
+				0x3966 0x3C00 0x4666 0x4B99 0x50CC 0x5600 0x6400 0x64E6
+				>;
+			battery1,battery_table2 = <
+				0x3E64 0x2A31 0x2326 0x1C1F 0x191B 0x1718 0x1617 0x1515
+				0x3E64 0x2A31 0x2326 0x1C1F 0x191B 0x1718 0x1617 0x1515
+				>;
+			/*spare min max factor chg_factor dischg_factor manvalue*/
+			battery1,rs_value = <0x003D 0x003D 0x3800 0x010A 0x0599 0x0599 0x0045>;
+			battery1,v_alarm = <3100 200>;
+			battery1,topoff = <1000>;
+			battery1,i_cal = <1 0x0 0x0800 0x0800 0 0x0 0x07F1 0x080F>;
+			battery1,v_cal = <1 0 0 1 0 0 0>;
+			battery1,temp_std = <25>;
+			battery1,tem_poff = <3450 50 3450 50>;
+			battery1,aux_ctrl = <0x3322 0x5800>;
+			battery1,data_ver = <0x03>;
+			battery1,v_max_table = <0x22CF 0x22A6 0x227D 0x2254 0x21E3>;
+			battery1,q_max_table = <0x4A8D 0x4A35 0x49DD 0x451C 0x42E2>;
+		};
+	};
+};
+
+&smd {
+		battery {
+			battery,fuelgauge_name = "sm5714-fuelgauge";
+			battery,fgsrc_switch_name = "sm5714-fuelgauge";
+		};
+};
+
+/* #include "../sec_thermistor-3.dtsi" */            /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_lp_thermistor: sec_thermistor@3 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-lp-thermistor";
+					id = <3>;
+
+					io-channels = SEC_ADC(mt6373_adc,0x15);
+					io-channel-names = "lp_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* #include "../sec_thermistor.dtsi" */              /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_ap_thermistor: sec_thermistor@0 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-ap-thermistor";
+					id = <0>;
+
+					io-channels = SEC_ADC(tia_auxadc,0x00);
+					io-channel-names = "ap_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* #include "../sec_thermistor-1.dtsi" */            /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_pa0_thermistor: sec_thermistor@1 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-pa0-thermistor";
+					id = <1>;
+
+					io-channels = SEC_ADC(tia_auxadc,0x01);
+					io-channel-names = "pa0_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* #include "../sec_thermistor-4.dtsi" */            /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_wf_thermistor: sec_thermistor@4 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-wf-thermistor";
+					id = <4>;
+
+					io-channels = SEC_ADC(pmic_adc,0x14);
+					io-channel-names = "wf_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* #include "../sec_thermistor-2.dtsi" */            /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_pa1_thermistor: sec_thermistor@2 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-pa1-thermistor";
+					id = <2>;
+
+					io-channels = SEC_ADC(tia_auxadc,0x02);
+					io-channel-names = "pa1_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sec_pm/sec_thermistor/dts/sec_thermistor_mtk.gts10pwifi.dtsi */
+&sec_ap_thermistor {
+	adc_array = <1931 2340 2808 3278 3943 4669 5530 6543 7711 9029
+				10507 12156 13751 15802 17733 19744 21580 23419 25049 26532
+				27800 29063 29930>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
+
+&sec_pa0_thermistor {
+	adc_array = <2215 2600 3045 3572 4186 4926 5785 6785 7931 9238
+				10711 12355 14135 16026 17953 19974 21799 23602 25238 26712
+				27964 29261 30085>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
+
+&sec_pa1_thermistor {
+	adc_array = <2277 2665 3129 3677 4321 5074 5952 6975 8150 9484
+				10987 12652 14445 16346 18256 20221 22048 23822 25434 26870
+				28085 29180 29978>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
+
+&sec_lp_thermistor {
+	adc_array = <2130 2524 2986 3530 4172 4936 5822 6859 8040 9394
+				10903 12548 14329 16210 18150 20116 22029 23948 25519 26933
+				28164 29145 29950>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
+
+&sec_wf_thermistor {
+	adc_array = <2361 2731 3167 3681 4280 5002 5846 6824 7948 9230
+				10676 12295 14051 15924 17844 19854 21679 23498 25154 26649
+				27922 29352 30100>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
+
+/* #include "../sec_auth_ds28e30.dtsi" */            /* From sec_auth_ds28e30.py */
+&smd {
+	sec_auth_ds28e30: sec-auth-ds28e30 {
+			status = "okay";
+			compatible = "samsung,sec_auth_ds28e30";
+#if 1
+			sec_auth_ds28e30,swi_gpio = <
+				SEC_GPIO_REF(AP,pio,85) 0 /* SWI_GPIO */
+#if 0
+				SEC_GPIO_REF(${swi_gpio_2}) 0 /* SWI_GPIO_2 */
+#endif
+			>;
+#endif
+			};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/battery_auth/ds28e30/gts10pwifi/sec_auth_ds28e30.dtsi */
+#if 1
+&pio {
+		sec_auth_gpio_init: sec_auth_gpio_init {
+			GPIO_CONFIG_PUD(AP,pio,85, FUNC_OUTPUT_HIGH, PULL_NONE);
+		};
+		sec_auth_gpio_sleep: sec_auth_gpio_sleep {
+			GPIO_CONFIG_PUD(AP,pio,85, FUNC_OUTPUT_HIGH, PULL_NONE);
+		};
+	};
+#endif
+
+&smd {
+	sec_auth_ds28e30: sec-auth-ds28e30 {
+		status = "okay";
+		compatible = "samsung,sec_auth_ds28e30";
+
+#if 1
+		/* SWI_GPIO */
+		ds28e30,swi_gpio = <SEC_GPIO_REF(AP,pio,85) 0 >;
+		/* Change according to AP and GPIO */
+		ds28e30,base_phys_addr = <0x10005000 0x224>;
+		/* control_set , control_clr , data_set , data_clr , data_read */
+		ds28e30,offset = <0x24 0x28 0x124 0x128 0x220>;
+		/* Control bit is 21st , Data bit is 21st --> Change according to AP and GPIO */
+		ds28e30,bit_pos = <21 21>;
+		/* 400ns delay for tW1L , 400ns delay for tRL, 500ns delay for tSETUP */
+		ds28e30,rw_delay_ns = <400 400 500>;
+
+		pinctrl-names = "init", "sleep";
+		pinctrl-0 = <&sec_auth_gpio_init >;
+		pinctrl-1 = <&sec_auth_gpio_sleep >;
+#endif
+#if 1
+		/*EUR_DETECTION_NODE*/
+		ds28e30,eur_detection = <SEC_GPIO_REF(PM,mt6373_pio,13) 0 >;
+#endif
+	};
+};
+
+/* #include "../sensorhub_shub.dtsi" */              /* From sensorhub_shub.py */
+#if 1
+&mt6373_vio28 {
+	regulator-name = "VDD_SENSOR_1P8";
+};
+#endif
+#if 0
+&${gpio_sensor_ldo_en_parent} {
+	shub_sensor_ldo_en: shub-sensor-ldo-en {
+		samsung,pins = SEC_GPIO(${gpio_sensor_ldo_en});
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+#endif
+#if 0
+&${gpio_prox_ldo_en_parent} {
+	shub_prox_ldo_en: shub-prox-ldo-en {
+		samsung,pins = SEC_GPIO(${gpio_prox_ldo_en});
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+#endif
+#if 1
+&pio {
+	shub_pogo_int: shub-pogo-int {
+		GPIO_CONFIG_PUD_DRV(AP,pio,9, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+#endif
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				pinctrl-names = "default";
+#if 0 || 0 || 1
+				pinctrl-0 = <
+#if 0
+				&shub_sensor_ldo_en
+#endif
+#if 0
+				&shub_prox_ldo_en
+#endif
+#if 1
+				&shub_pogo_int
+#endif
+>;
+#endif
+
+#if 1
+				sensor-vdd-regulator = "VDD_SENSOR_1P8";
+#endif
+
+#if 0
+				mag-check-nfc = <SEC_GPIO_REF(${gpio_nfc_check}) 0>;
+#endif
+
+#if 1
+				pogo-int = <SEC_GPIO_REF(AP,pio,9) 0>;
+#endif
+
+#if 0
+				sensor-ldo-en = <SEC_GPIO_REF(${gpio_sensor_ldo_en}) 0>;
+#endif
+#if 0
+				prox-ldo-en = <SEC_GPIO_REF(${gpio_prox_ldo_en}) 0>;
+#endif
+			};
+		};
+	};
+};
+
+/* #include "../snvm_k250a.dtsi" */                  /* From snvm_k250a.py */
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	snvm_i2c_on: snvm_i2c_on {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,78), 1)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(AP,pio,79), 1)>;
+#if 1
+			bias-pull-up;
+#else
+			bias-disable;
+#endif
+		};
+	};
+	snvm_i2c_off: snvm_i2c_off {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,78), 0)>,
+					<MTK_PINMUX(SEC_GPIO_NUM(AP,pio,79), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&i2c3 {
+	clock-frequency = <400000>;
+#if 1	
+	status = "disabled";
+#else
+	status = "okay";
+#endif
+	pinctrl-names = "default", "nvm_on","nvm_off";
+	pinctrl-0 = <&snvm_i2c_off>;
+	pinctrl-1 = <&snvm_i2c_on>;
+	pinctrl-2 = <&snvm_i2c_off>;
+	k250a@23 {
+		compatible = "sec_k250a";
+		1p8_pvdd-supply = <&mt6373_vcn18io>;
+		reg = <0x23>;
+	};
+};
+
+#if 1
+/ {
+	fragment@k250a_platform {
+		target-path = "/";
+		__overlay__ {
+			k250a_platform {
+				status = "ok";
+				compatible = "sec_k250a_platform";
+				1p8_pvdd-supply = <&mt6373_vcn18io>;
+#if 1
+				i2c_node = <&i2c3>;
+#endif
+			};
+		};
+	};
+};
+#endif
+/* #include "../display_common_oled_board.dtsi" */   /* From display_common_oled_board.py */
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#if 1
+#define ERR_FG_Falling_edge_pull_down
+#endif
+
+#if defined(ERR_FG_1)
+#define ERR_FG_TRUE
+#endif
+
+&pio {
+	disp_rst_default: disp-rst-default {
+		samsung,pins = SEC_GPIO(AP,pio,230);
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+
+#if 0
+&${disp_det_parent} {
+	disp_det_default: disp_det_default {
+		GPIO_CONFIG_PUD(${disp_det_gpio}, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_TRUE)
+&pio {
+	err_fg_default: err_fg_default {
+		GPIO_CONFIG_PUD(AP,pio,16, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if defined(ERR_FG_Falling_edge)
+&pio {
+	err_fg_default: err_fg_default {
+		GPIO_CONFIG_PUD(AP,pio,16, FUNC_INPUT, PULL_UP);
+	};
+};
+#endif
+
+#if defined(ERR_FG_Falling_edge_pull_down)
+&pio {
+	err_fg_default: err_fg_default {
+		GPIO_CONFIG_PUD(AP,pio,16, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if 1
+&pio {
+	conn_det_default: conn_det_default {
+		samsung,pins = SEC_GPIO(AP,pio,211);
+		samsung,pin-funciton = <0>;			// IN
+		samsung,pin-pud = <0>;				// NP
+		samsung,pin-con-pdn = <2>;			// IN
+		samsung,pin-pud-pdn = <0>;			// NP in sleep
+	};
+};
+#endif
+#if 0
+&${disp_te_parent} {
+	disp_te_default: disp_te_default {
+		samsung,pins = SEC_GPIO(${disp_te_gpio});
+		samsung,pin-funciton = <0xf>;			// INT
+		samsung,pin-pud = <1>;					// PD
+		samsung,pin-con-pdn = <3>;				// PREV in sleep
+		samsung,pin-pud-pdn = <0>;				// NP in sleep
+	};
+};
+#endif
+#if 0
+&${pcd_parent} {
+	pcd_default: pcd_default {
+		GPIO_CONFIG_PUD(${pcd_gpio}, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if 0
+&${avdd_en_parent} {
+	avdd_en_default: avdd_en_default {
+		samsung,pins = SEC_GPIO(${avdd_en_gpio});
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+#endif
+
+#if 0
+&${poc_spi_parent} {
+	poc_spi_sleep_state_np: poc_spi_sleep_state_np {
+		samsung,pins = SEC_GPIO(${poc_spi_cs}), SEC_GPIO(${poc_spi_clk});
+		samsung,pin-functions = <0>;	// GPIO
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <2>;	// INPUT in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+	poc_spi_sleep_state_pd: poc_spi_sleep_state_pd {
+		samsung,pins = SEC_GPIO(${poc_spi_mosi}), SEC_GPIO(${poc_spi_miso});
+		samsung,pin-functions = <0>;	// GPIO
+		samsung,pin-pud = <1>;		// PD
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <2>;	// INPUT in sleep
+		samsung,pin-pud-pdn = <1>;	// PD in sleep
+	};
+};
+#endif
+
+#if 0
+&${lcd_vendor_check_parent} {
+	lcd_vendor_check_default: lcd_vendor_check_default {
+		GPIO_CONFIG_PUD(${lcd_vendor_check_gpio}, FUNC_INPUT, PULL_NONE);
+	};
+};
+#endif
+
+#if 1
+&pio {
+	rst_ready_default: rst_ready_default {
+		GPIO_CONFIG_PUD(AP,pio,3, FUNC_INPUT, PULL_DOWN);
+	};
+};
+#endif
+
+#if 1
+&max77816_regulator {
+	regulator-boot-on;
+};
+#endif
+
+#if 0
+&${ddi_vdd3_reg} {
+	regulator-boot-on;
+};
+#endif
+
+#if 0
+&${ddr_vddr_reg} {
+	regulator-boot-on;
+};
+#endif
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_drv_0: panel_drv_0 {
+				pinctrl-names = "default";
+				pinctrl-0 = <
+							&disp_rst_default
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_Falling_edge) || defined(ERR_FG_TRUE) || defined(ERR_FG_Falling_edge_pull_down)
+							&err_fg_default
+#endif
+#if 0
+							&disp_det_default
+#endif
+#if 1
+							&conn_det_default
+#endif
+#if 0
+							&disp_te_default
+#endif
+#if 0
+							&avdd_en_default
+#endif
+#if 0
+							&poc_spi_sleep_state_np
+							&poc_spi_sleep_state_pd
+#endif
+#if 0
+							&lcd_vendor_check_default
+#endif
+#if 1
+							&rst_ready_default
+#endif
+				>;
+
+				gpios {
+					disp_reset: disp-reset {
+						gpios = <SEC_GPIO_REF(AP,pio,230) 1>;	/* ACTIVE_LOW */
+						dir = <0>;  /* OUT */
+						irq-type = <0x0>;   /* NONE */
+					};
+#if 0
+					disp_det: disp-det {
+						gpios = <SEC_GPIO_REF(${disp_det_gpio}) 1>;  /* 0:OK, 1:NOK(active) */
+						dir = <1>;  /* IN */
+						irq-type = <0x2>;   /* FALLING EDGE */
+						irq-pend {
+							reg = <0x0 0x15850A34 0x0>;
+							bit = <0x2>;
+						};
+					};
+#endif
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_TRUE)
+					err_fg: err-fg {
+						gpios = <SEC_GPIO_REF(AP,pio,16) 0>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <0x00002001>;	/* RISING EDGE | ONE_SHOT */
+					};
+
+#endif
+#if defined(ERR_FG_Falling_edge) || defined(ERR_FG_Falling_edge_pull_down)
+					err_fg: err-fg {
+						gpios = <SEC_GPIO_REF(AP,pio,16) 0>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <2>;	/* Falling EDGE | ONE_SHOT */
+					};
+#endif
+#if 1
+					conn_det: conn-det {
+						gpios = <SEC_GPIO_REF(AP,pio,211) 0>;
+						dir = <1>;
+						irq-type = <0x00002001>;	//RISING EDGE | ONE_SHOT
+					};
+#endif
+#if 0
+					pcd: pcd {
+						gpios = <SEC_GPIO_REF(${pcd_gpio}) 1>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <0x2>;   /* FALLING EDGE */
+					};
+#endif
+#if 0
+					disp_te: disp-te {
+						gpios = <SEC_GPIO_REF(${disp_te_gpio}) 0>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <0x0>;   /* NONE */
+					};
+#endif
+#if 0
+					avdd_en: avdd-en {
+						gpios = <SEC_GPIO_REF(${avdd_en_gpio}) 0>;
+						dir = <0>;
+						irq-type = <0x0>;   /* NONE */
+					};
+#endif
+#if 1
+					disp_reset_ready: disp_reset_ready {
+						gpios = <SEC_GPIO_REF(AP,pio,3) 1>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <0x0>;   /* NONE */
+					};
+#endif
+
+				};
+
+				regulators {
+#if 1
+					ddi_vci: ddi-vci {
+						regulator = <&max77816_regulator>;
+						type = <REGULATOR_TYPE_PWR>;
+						def-voltage = <3000000>;
+					};
+#endif
+#if 0
+					ddi_vdd3: ddi-vdd3 {
+						regulator = <&${ddi_vdd3_reg}>;
+						type = <REGULATOR_TYPE_PWR>;
+						def-voltage = <1800000>;
+					};
+#endif
+#if 0
+					ddr_vddr: ddr-vddr {
+						regulator = <&${ddr_vddr_reg}>;
+						type = <REGULATOR_TYPE_PWR>;
+						def-voltage = <1600000>;
+					};
+#endif
+#if 0
+					fd_elvdd: fd-elvdd {
+						regulator = <&${fd_elvdd_reg}>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+#if 0
+					ssd_elvss: ssd-elvss {
+						regulator = <&${ssd_elvss_reg}>;
+						type = <REGULATOR_TYPE_SSD>;
+					};
+#endif
+#if 0
+					dpmic_elvdd_elvss: dpmic-elvdd-elvss {
+						regulator = <&${dpmic_elvdd_elvss_reg}>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
+				};
+			};
+		};
+	};
+};
+
+/* #include "../fingerprint_el7xx.dtsi" */           /* From fingerprint_el7xx.py */
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	btp_sleep: btp_sleep_enable {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,197), 0)>;
+#if 1
+			bias-pull-down = <MTK_PUPD_SET_R1R0_11>;
+#else
+			bias-pull-down;
+#endif
+			drive-strength = <1>;
+		};
+	};
+};
+
+#if 0
+&${fps_ldo_vdd_3p3_parent} {
+	btp_ldo_en: btp_ldo_enable {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${fps_ldo_vdd_3p3}), 0)>;
+			bias-pull-down;
+			drive-strength = <1>;
+		};
+	};
+};
+#endif
+
+&pio {
+	spi2_set_miso: set_miso {
+		pins_cmd_dat{
+#if 1
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 2)>;
+#else
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 1)>;
+#endif
+			drive-strength = <4>;
+		};
+	};
+	spi2_set_cs: set_cs {
+		pins_cmd_dat{
+#if 1
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,67), 2)>;
+#else
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,67), 1)>;
+#endif
+			drive-strength = <4>;
+		};
+	};
+	spi2_set_mosi: set_mosi {
+		pins_cmd_dat{
+#if 1
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,68), 2)>;
+#else
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,68), 1)>;
+#endif
+			drive-strength = <4>;
+		};
+	};
+	spi2_set_clk: set_clk {
+		pins_cmd_dat{
+#if 1
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,66), 2)>;
+#else
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,66), 1)>;
+#endif
+			drive-strength = <4>;
+		};
+	};
+	spi2_clr_miso: clr_miso {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+			drive-strength = <1>;
+		};
+	};
+	spi2_clr_cs: clr_cs {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,67), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	spi2_clr_mosi: clr_mosi {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,68), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	spi2_clr_clk: clr_clk {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,66), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+};
+
+#if 1
+&mt6373_vfp {
+	regulator-name = "VDD_BTP_3P3";
+};
+#endif
+
+#if defined(CONFIG_SEC_FACTORY) || !1
+&spi2 {
+	status = "okay";
+	max-dma = <0x40000>;
+#else
+&smd {
+#endif
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	etspi-spi@0 {
+		compatible = "etspi,el7xx";
+		reg = <0x00>;
+		spi-max-frequency = <25000000>;
+#if !defined(CONFIG_SEC_FACTORY) && 1
+		clocks = <&topckgen_clk CLK_TOP_UNIVPLL_D6_D2>,
+			<&topckgen_clk CLK_TOP_SPI2_BCLK_SEL>,
+			<&infracfg_ao_clk CLK_PERAOP_SPI2_B>;
+		clock-names = "parent-clk", "sel-clk", "spi-clk";
+#endif
+
+		pinctrl-names = "default", "pins_poweron", "pins_poweroff";
+#if 0
+		pinctrl-0 = <&btp_sleep &btp_ldo_en>;
+#else
+		pinctrl-0 = <&btp_sleep>;
+#endif
+		pinctrl-1 = <&spi2_set_miso &spi2_set_cs &spi2_set_mosi &spi2_set_clk>;
+		pinctrl-2 = <&spi2_clr_miso &spi2_clr_cs &spi2_clr_mosi &spi2_clr_clk>;
+
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		etspi-sleepPin = <SEC_GPIO_REF(AP,pio,197) 0>;
+#if 1
+		etspi-regulator = "VDD_BTP_3P3";
+#endif
+#if 0
+		etspi-ldoPin = <SEC_GPIO_REF(${fps_ldo_vdd_3p3}) 0>;
+#endif
+		etspi-chipid = "EL721";
+		etspi-modelinfo = "X826";
+		etspi-position = "13.30,0.00,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
+		etspi-rb = "585,-1,-1,FFFFFF";
+		controller-data {
+			mediatek,tckdly = <1>;
+		};
+	};
+};
+
+/* #include "../sec_auth_sle956681.dtsi" */          /* From sec_auth_sle956681.py */
+&smd {
+	sec_auth_sle956681: sec-auth-sle956681 {
+			status = "okay";
+			compatible = "samsung,sec_auth_sle956681";
+
+			authon,power_mode = "indirect";
+			//authon,power_mode = "direct";
+
+#if 1
+			authon,1tau_value = <60>;
+			authon,3tau_value = <180>;
+			authon,5tau_value = <300>;
+			authon,response_timeout_value = <1530>;
+			authon,swi_gpio = <
+				SEC_GPIO_REF(AP,pio,85) 0 /* SWI_GPIO */
+#if 0
+				SEC_GPIO_REF(${swi_gpio_2}) 0 /* SWI_GPIO_2 */
+#endif
+				>;
+#endif
+#if 0
+			authon,1tau_value2 = <60>;
+			authon,3tau_value2 = <180>;
+			authon,5tau_value2 = <300>;
+#endif
+			};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/battery_auth/sle956681/gts10pwifi/sec_auth_sle956681.dtsi */
+&sec_auth_sle956681 {
+	authon,1tau_value = <60>;
+	authon,3tau_value = <180>;
+	authon,5tau_value = <300>;
+	authon,response_timeout_value = <4500>;
+#if 1
+	/*EUR_DETECTION_NODE*/
+	authon,eur_detection = <SEC_GPIO_REF(PM,mt6373_pio,13) 0 >;
+#endif
+};
+
+/* #include "../redriver_ps5169.dtsi" */             /* From redriver_ps5169.py */
+&sw_i2c0 {
+	status = "ok";
+
+	ps5169@28 {
+		compatible = "ps5169_driver";
+		reg = <0x28>;
+		combo,con_sel = <SEC_GPIO_REF(AP,pio,210) 0>;
+#if 0
+		combo,redriver_en = <SEC_GPIO_REF(${rdrv_en}) 0>;
+#endif
+#if 1
+		ps5619,reg_50 = <0x10>;
+#endif
+#if 1
+		ps5619,reg_51 = <0x70>;
+#endif
+#if 1
+		ps5619,reg_54 = <0x02>;
+#endif
+#if 1
+		ps5619,reg_5D = <0x30>;
+#endif
+	};
+};
+
+/* #include "../input_wez01_tablet.dtsi" */          /* From input_wez01_tablet.py */
+&pio {
+	epen_int_active: epen-int-active {
+		GPIO_CONFIG_PUD(AP,pio,17, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&pio {
+	epen_pdct_active: epen-pdct-active {
+		GPIO_CONFIG_PUD(AP,pio,13, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&i2c11 {
+	status = "ok";
+	clock-frequency = <400000>;
+
+	wacom: wacom@56 {
+		status = "okay";
+		compatible = "wacom,wez01";
+		reg = <0x56>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&epen_int_active &epen_pdct_active>;
+		sec,avdd_name = "wacom_avdd";
+		wacom_avdd-supply = <&mt6373_vcn33_1>;
+		/* gpios */
+		sec,irq_gpio = <SEC_GPIO_REF(AP,pio,17) 0>;
+		wacom,fwe-gpio = <SEC_GPIO_REF(AP,pio,215) 0>;
+		wacom,pdct-gpio = <SEC_GPIO_REF(AP,pio,13) 0>;
+
+		sec,area-size = <0 0 0>; /* recalculate in driver */
+
+		/*support feature*/
+		sec,enable_sysinput_enabled;
+
+		/* features */
+		wacom,boot_addr = <0x09>;
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2024/wacom/wez01_tablet/dts/input-mtk-wacom.gts10p(wifi).dtsi */
+&wacom {
+	sec,firmware_name = "wez01_gts10p.bin";
+	sec,max_coords = <16715 26713>;
+
+	wacom,support_aop_mode = "1"; /* S-note want to check to use aop */
+	wacom,module_ver = <0x2>; /* this value use to distinguish open/short test (0x1 : only open test, 0x2: open/short test) */
+	wacom,table_swap = <0x2>; /* bit set: 0 ~ 1(kbd) 1(dex station)*/
+	wacom,support_cover_noti;
+	wacom,support_cover_detection;
+	wacom,support_pogo_cover;
+	wacom,support_dual_garage;
+	wacom,support_garage_open_test = <0>;
+	chip_on_board;
+
+	wacom_elec0 { /* main */
+		spec_ver = <1 4>;
+		max_channel = <42 26>; /* x y */
+		shift_value = <4>;
+
+		xx_ref = /bits/ 64 < 3965 3957 2543 2581 2629 2717 2709 2702 2728 2821 2703 2725 2820 2675 2598 2569 2634 2645 2617 2651 2668 2701 2706 2739 2741 2707 2741 2743 2676 2658 2671 2672 2658 2659 2611 2561 2645 2439 2447 2474 3703 3706 >;
+		xy_ref = /bits/ 64 < 395 457 232 215 243 233 201 199 197 195 246 336 277 387 188 131 134 126 141 189 222 210 203 194 180 189 195 141 206 144 222 165 235 136 143 262 145 264 173 328 465 593 >;
+		yx_ref = /bits/ 64 < 381 377 226 222 211 220 233 221 219 219 220 225 205 589 327 330 222 242 265 265 233 226 233 243 447 361 >;
+		yy_ref = /bits/ 64 < 5411 5400 4167 4167 4321 4363 4394 4359 4386 4404 4408 4406 4401 4406 4404 4351 4406 4425 4391 4405 4426 4391 4249 4144 4700 4703 >;
+
+		xx_spec = /bits/ 64 < 5551 5540 3560 3613 3681 3805 3793 3784 3820 3949 3785 3816 3949 3745 3638 3596 3687 3703 3664 3711 3736 3782 3789 3834 3838 3790 3837 3840 3746 3721 3740 3741 3722 3722 3655 3586 3703 3415 3426 3464 5184 5188 >;
+		xy_spec = /bits/ 64 < 553 640 324 302 341 326 282 278 276 273 345 471 388 543 264 184 187 176 197 265 312 294 284 272 253 265 273 197 289 202 311 231 330 190 201 367 203 369 242 459 651 830 >;
+		yx_spec = /bits/ 64 < 534 528 317 311 296 308 327 310 307 307 309 316 288 825 458 462 312 340 371 371 326 317 326 340 626 505 >;
+		yy_spec = /bits/ 64 < 7575 7560 5835 5834 6049 6108 6152 6102 6141 6165 6171 6168 6162 6168 6165 6091 6168 6195 6147 6167 6196 6147 5948 5802 6581 6584 >;
+
+		rxx_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		rxy_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		ryx_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		ryy_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+
+		drxx_spec = /bits/ 64 < 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 >;
+		drxy_spec = /bits/ 64 < 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 >;
+		dryx_spec = /bits/ 64 < 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 >;
+		dryy_spec = /bits/ 64 < 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 >;
+
+		drxy_spec_edg = /bits/ 64 < 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 >;
+		dryx_spec_edg = /bits/ 64 < 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 >;
+		xy_ref_edg = /bits/ 64 < 348 384 179 168 111 74 64 68 98 132 153 23 164 38 137 31 66 90 93 152 174 171 163 140 103 68 59 68 97 111 94 80 86 72 44 58 69 77 65 124 362 288 >;
+		yx_ref_edg = /bits/ 64 < 310 365 208 188 192 189 191 211 206 206 207 208 175 275 227 221 146 176 211 220 208 211 206 210 362 303 >;
+
+		xx_spec_self = /bits/ 64 < 22000 20000 20000 21000 21000 20000 21000 21000 20000 20000 20000 20000 21000 21000 20000 21000 21000 21000 22000 22000 22000 22000 22000 23000 22000 23000 24000 24000 24000 23000 23000 23000 23000 23000 24000 24000 24000 24000 24000 24000 22000 23000 >;
+		yy_spec_self = /bits/ 64 < 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 >;
+	};
+
+	wacom_elec1 { /* assay */
+		spec_ver = <3 0>;
+		max_channel = <42 26>; /* x y */
+		shift_value = <4>;
+
+		xx_ref = /bits/ 64 < 4796 4785 2596 2581 2598 2696 2680 2653 2705 2837 2705 2702 2836 2707 2652 2672 2677 2698 2674 2680 2701 2641 2638 2676 2674 2639 2676 2677 2626 2614 2627 2663 2686 2688 2664 2686 2687 2577 2564 2567 4669 4671 >;
+		xy_ref = /bits/ 64 < 581 682 412 500 485 370 270 245 236 228 278 359 350 469 318 264 234 235 241 237 242 238 241 239 239 240 243 246 239 244 238 242 235 219 218 266 246 267 299 428 744 693 >;
+		yx_ref = /bits/ 64 < 512 690 576 526 541 435 311 257 248 246 250 287 263 689 358 364 233 237 254 259 302 423 544 581 741 535 >;
+		yy_ref = /bits/ 64 < 6869 6850 4186 4216 4336 4344 4346 4335 4348 4357 4356 4352 4350 4368 4389 4370 4386 4397 4371 4383 4395 4362 4310 4242 6176 6181 >;
+
+		xx_spec = /bits/ 64 < 6475 6460 3505 3485 3508 3640 3618 3581 3651 3831 3653 3648 3829 3654 3580 3608 3614 3643 3610 3618 3647 3565 3562 3612 3610 3562 3613 3615 3545 3529 3547 3595 3626 3629 3596 3626 3628 3479 3461 3465 6303 6306 >;
+		xy_spec = /bits/ 64 < 784 921 556 676 655 500 365 332 318 308 375 485 473 634 430 357 316 317 325 320 327 322 325 323 323 324 328 332 323 330 322 326 317 296 294 359 332 361 403 578 1004 936 >;
+		yx_spec = /bits/ 64 < 692 931 778 710 730 587 420 347 335 333 338 387 356 930 483 492 314 319 343 350 408 571 734 784 1000 722 >;
+		yy_spec = /bits/ 64 < 9273 9248 5651 5692 5853 5865 5867 5852 5869 5882 5881 5876 5873 5897 5925 5899 5921 5936 5901 5918 5934 5889 5819 5727 8338 8345 >;
+
+		rxx_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		rxy_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		ryx_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		ryy_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+
+		drxx_spec = /bits/ 64 < 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 >;
+		drxy_spec = /bits/ 64 < 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 >;
+		dryx_spec = /bits/ 64 < 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 >;
+		dryy_spec = /bits/ 64 < 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 >;
+
+		drxy_spec_edg = /bits/ 64 < 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 >;
+		dryx_spec_edg = /bits/ 64 < 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 >;
+		xy_ref_edg = /bits/ 64 < 446 550 372 269 224 215 212 209 207 206 202 37 186 120 275 127 200 204 205 204 205 203 205 205 207 204 207 208 206 206 204 207 201 176 165 185 214 233 289 400 691 552 >;
+		yx_ref_edg = /bits/ 64 < 450 542 432 514 391 289 257 246 238 233 232 231 225 293 247 246 170 201 235 244 268 345 473 566 673 471 >;
+
+		xx_spec_self = /bits/ 64 < 24000 21000 22000 22000 22000 21000 22000 21000 20000 20000 21000 20000 22000 22000 21000 22000 21000 22000 22000 22000 23000 22000 23000 23000 23000 23000 25000 25000 25000 24000 24000 24000 24000 24000 24000 25000 25000 25000 25000 25000 24000 25000 >;
+		yy_spec_self = /bits/ 64 < 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 >;
+	};
+
+	wacom_elec2 { /* unit */
+		spec_ver = <3 0>;
+		max_channel = <42 26>; /* x y */
+		shift_value = <4>;
+
+		xx_ref = /bits/ 64 < 4796 4785 2596 2581 2598 2696 2680 2653 2705 2837 2705 2702 2836 2707 2652 2672 2677 2698 2674 2680 2701 2641 2638 2676 2674 2639 2676 2677 2626 2614 2627 2663 2686 2688 2664 2686 2687 2577 2564 2567 4669 4671 >;
+		xy_ref = /bits/ 64 < 581 682 412 500 485 370 270 245 236 228 278 359 350 469 318 264 234 235 241 237 242 238 241 239 239 240 243 246 239 244 238 242 235 219 218 266 246 267 299 428 744 693 >;
+		yx_ref = /bits/ 64 < 512 690 576 526 541 435 311 257 248 246 250 287 263 689 358 364 233 237 254 259 302 423 544 581 741 535 >;
+		yy_ref = /bits/ 64 < 6869 6850 4186 4216 4336 4344 4346 4335 4348 4357 4356 4352 4350 4368 4389 4370 4386 4397 4371 4383 4395 4362 4310 4242 6176 6181 >;
+
+		xx_spec = /bits/ 64 < 6475 6460 3505 3485 3508 3640 3618 3581 3651 3831 3653 3648 3829 3654 3580 3608 3614 3643 3610 3618 3647 3565 3562 3612 3610 3562 3613 3615 3545 3529 3547 3595 3626 3629 3596 3626 3628 3479 3461 3465 6303 6306 >;
+		xy_spec = /bits/ 64 < 784 921 556 676 655 500 365 332 318 308 375 485 473 634 430 357 316 317 325 320 327 322 325 323 323 324 328 332 323 330 322 326 317 296 294 359 332 361 403 578 1004 936 >;
+		yx_spec = /bits/ 64 < 692 931 778 710 730 587 420 347 335 333 338 387 356 930 483 492 314 319 343 350 408 571 734 784 1000 722 >;
+		yy_spec = /bits/ 64 < 9273 9248 5651 5692 5853 5865 5867 5852 5869 5882 5881 5876 5873 5897 5925 5899 5921 5936 5901 5918 5934 5889 5819 5727 8338 8345 >;
+
+		rxx_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		rxy_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		ryx_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+		ryy_ref = /bits/ 64 < 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 >;
+
+		drxx_spec = /bits/ 64 < 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 >;
+		drxy_spec = /bits/ 64 < 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 >;
+		dryx_spec = /bits/ 64 < 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 4000 >;
+		dryy_spec = /bits/ 64 < 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 3500 >;
+
+		drxy_spec_edg = /bits/ 64 < 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 >;
+		dryx_spec_edg = /bits/ 64 < 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 990000 >;
+		xy_ref_edg = /bits/ 64 < 446 550 372 269 224 215 212 209 207 206 202 37 186 120 275 127 200 204 205 204 205 203 205 205 207 204 207 208 206 206 204 207 201 176 165 185 214 233 289 400 691 552 >;
+		yx_ref_edg = /bits/ 64 < 450 542 432 514 391 289 257 246 238 233 232 231 225 293 247 246 170 201 235 244 268 345 473 566 673 471 >;
+
+		xx_spec_self = /bits/ 64 < 24000 21000 22000 22000 22000 21000 22000 21000 20000 20000 21000 20000 22000 22000 21000 22000 21000 22000 22000 22000 23000 22000 23000 23000 23000 23000 25000 25000 25000 24000 24000 24000 24000 24000 24000 25000 25000 25000 25000 25000 24000 25000 >;
+		yy_spec_self = /bits/ 64 < 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 25000 >;
+	};
+};
+
+/* #include "../input_fst1ba90a_i2c.dtsi" */         /* From input_fst1ba90a_i2c.py */
+&pio {
+	fst1ba90a_attn_irq: fst1ba90a_attn_irq {
+		GPIO_CONFIG_PUD(AP,pio,4, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+
+	fst1ba90a_attn_irq_suspend: fst1ba90a_attn_irq_suspend {
+		GPIO_CONFIG_PUD(AP,pio,4, FUNC_INPUT, PULL_DOWN);
+	};
+};
+
+&i2c13 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+
+	tsp_stm: touchscreen@49 {
+		status = "okay";
+		compatible = "stm,stm_ts_fst1ba90a";
+		reg = <0x49>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&fst1ba90a_attn_irq>;
+		pinctrl-1 = <&fst1ba90a_attn_irq_suspend>;
+		tsp_io_ldo-supply = <&mt6373_vrfio18_aif>;
+		tsp_avdd_ldo-supply = <&mt6373_vcn33_2>;
+		sec,irq_gpio = <SEC_GPIO_REF(AP,pio,4) 0>;
+
+		sec,bringup = <0>;
+		sec,max_coords = <1752 2800>;
+		sec,tclm_level = <1>;
+		sec,afe_base = <0x00>;
+		sec,enable_sysinput_enabled;
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2024/touchscreen/stm/fst1ba90a_i2c/dts/input-mtk-tsp-stm.gts10p(wifi).dtsi */
+&tsp_stm {
+	sec,max_coords = <1752 2800>;
+	sec,firmware_name = "tsp_stm/fst1ba90a_gts10p.bin";
+	sec,regulator_boot_on;
+	sec,bringup = <0>;
+	sec,tclm_level = <2>;
+	sec,afe_base = <0x0004>;
+
+	enable_settings_aot;
+	support_dex_mode;
+	support_fod;
+	support_fod_lp_mode;
+	support_open_short_test;
+	support_mis_calibration_test;
+	support_vbus_notifier;
+	stm,lpmode_change_delay = <50>;
+};
+
+/* #include "../sm5440_charger.dtsi" */              /* From sm5440_charger.py */
+&sw_i2c1 {
+	status = "okay";
+
+	sm5440_charger: sm5440@63 {
+		compatible = "siliconmitus,sm5440";
+		reg = <0x63>;
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5440/sm5440_charger.gts10p(wifi).dtsi */
+&sm5440_charger {
+	sm5440,freq = <850>;
+	sm5440,r_ttl = <460000>;
+	sm5440,freq_siop = <450 650>;
+	sm5440,en_vbatreg = <0>;
+};
+
+/* #include "../sensors_a96t396.dtsi" */             /* From sensors_a96t396.py */
+#if 1
+
+&pio {
+	grip_i2c_sda: grip-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(AP,pio,184, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+	grip_i2c_scl: grip-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(AP,pio,183, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+};
+
+&pio {
+	grip_int: grip-int {
+		GPIO_CONFIG_PUD_DRV(AP,pio,5, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&sw_i2c4 {
+	gpios = <SEC_GPIO_REF(AP,pio,184) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,183) 0>; /* scl */
+	pinctrl-0 = <&grip_i2c_sda
+				 &grip_i2c_scl
+				 >;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t396: a96t396@20 {
+		compatible = "a96t396";
+		reg = <0x20>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,5)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,5) 0>;
+
+		irq_gpio = <SEC_GPIO_REF(AP,pio,5) 0>;
+#if 0
+		dvdd_vreg_name = "VDD_GRIP_3P3";
+#else
+#if 1
+		ldo_en = <SEC_GPIO_REF(AP,pio,208) 0>;
+#endif
+#endif
+		multi_use = <1>;
+#if 1
+		unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
+#endif
+#if 1
+		fail_safe_concept = <0>;
+#endif
+		fw_path = "abov/a96t396_a13x_main.bin";
+		firmup_cmd = <0x90>;
+		checksum_msb = <0x0B>;
+		checksum_lsb = <0x19>;
+		set_reg = /bits/ 8 <
+		0x00 0x05
+0x01 0x4C
+0x02 0x21
+0x03 0x01
+0x04 0x2F
+0x05 0x34
+0x06 0x18
+0x07 0x20
+0x08 0x2A
+0x09 0x10
+0x0A 0x28
+0x0B 0x28
+0x0C 0x44
+0x0D 0x00
+0x0E 0x33
+0x0F 0x01
+0x10 0x90
+0x11 0x01
+0x12 0x90
+0x13 0x01
+0x14 0x2C
+0x15 0x01
+0x16 0x2C
+0x17 0x00
+0x18 0xC8
+0x19 0x00
+0x1A 0xC8
+0x1B 0x00
+0x1C 0x00
+0x1D 0x00
+0x1E 0x00
+0x1F 0x00
+0x20 0x00
+0x21 0x00
+0x22 0x00
+0x23 0x33
+0x24 0x00
+0x25 0x00
+0x26 0x00
+0x27 0x11
+0x28 0x01
+0x29 0x01
+0x2A 0x14
+0x2B 0x33
+0x2C 0x00
+0x2D 0x00
+0x2E 0x00
+0x2F 0x00
+0x30 0x00
+0x31 0x09
+0x32 0x02
+0x33 0x02
+0x34 0x00
+0x35 0x32
+0x36 0x64
+0x37 0x05
+0x38 0x01
+0x39 0x0E
+0x3A 0x05
+0x3B 0x1E
+0x3C 0x32
+0x3D 0x32
+0x3E 0x00
+0x3F 0x00
+0x40 0x0A
+0x41 0x04
+0x42 0x04
+0x43 0x20
+0x44 0x20
+0x45 0x34
+0x46 0x33
+0x47 0x28
+0x48 0x28
+0x49 0x19
+0x4A 0x19
+0x4B 0x05
+0x4C 0x50
+0x4D 0x07
+0x4E 0x0A
+0x4F 0x1E
+0x50 0x1E
+0x51 0x00
+0x52 0x00
+0x53 0x0F
+0x54 0x1A
+0x55 0x1A
+0x56 0x0A
+0x57 0x01
+0x58 0x0A
+0x59 0x0A
+0x5A 0x23
+0x5B 0x0A
+0x5C 0x0A
+0x5D 0x0A
+0x5E 0x0A
+0x5F 0x00
+0x60 0x00
+0x61 0x00
+0x62 0x00
+0x63 0x32
+0x64 0x0A
+0x65 0x14
+0x66 0x21
+0x67 0x0A
+0x68 0x14
+0x69 0x0A
+0x6A 0x50
+0x6B 0x02
+0x6C 0x0A
+0x6D 0x50
+0x6E 0x14
+0x6F 0x0A
+0x70 0x32
+0x71 0x04
+0x72 0x00
+0x73 0x00
+0x74 0x00
+0x75 0x10
+0x76 0x00
+0x77 0x00
+0x78 0x00
+0x79 0x00
+0x7A 0x00
+0x7B 0x00
+0x7C 0x00
+0x7D 0x00
+		>;
+	};
+};
+#endif
+
+/* ---- SUB GRIP---- */
+#if 0
+
+&${gpio_grip_sub_i2c_parent} {
+	grip_sub_i2c_sda: grip-sub-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_i2c_sda}, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+	grip_sub_i2c_scl: grip-sub-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_i2c_scl}, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+};
+
+&${gpio_grip_sub_irq_parent} {
+	grip_sub_int: grip-sub-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&${i2c_grip_sub} {
+	gpios = <SEC_GPIO_REF(${gpio_grip_sub_i2c_sda}) 0 /* sda */
+			SEC_GPIO_REF(${gpio_grip_sub_i2c_scl}) 0>; /* scl */
+	pinctrl-0 = <&grip_sub_i2c_sda
+				 &grip_sub_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t396_sub: a96t396_sub@21 {
+
+		compatible = "a96t396_sub";
+		reg = <0x21>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_sub_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_sub_irq}) 0>;
+
+		irq_gpio = <SEC_GPIO_REF(${gpio_grip_sub_irq}) 0>;
+#if 0
+		dvdd_vreg_name = "VDD_GRIP_3P3";
+#else
+#if 1
+		ldo_en = <SEC_GPIO_REF(AP,pio,207) 0>;
+#else
+		ldo_en = <SEC_GPIO_REF(AP,pio,208) 0>;
+#endif
+#endif
+		multi_use = <1>;
+#if 1
+		unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
+#endif
+#if 1
+		fail_safe_concept = <0>;
+#endif
+		fw_path = "abov/a96t396_a13x_sub.bin";
+		firmup_cmd = <0x90>;
+		checksum_msb = <0x0B>;
+		checksum_lsb = <0x1C>;
+		set_reg = /bits/ 8 <
+		0x00 0x05
+0x01 0x4E
+0x02 0x11
+0x03 0x01
+0x04 0x40
+0x05 0x10
+0x06 0x18
+0x07 0x34
+0x08 0x10
+0x09 0x10
+0x0A 0x26
+0x0B 0x20
+0x0C 0x34
+0x0D 0x00
+0x0E 0x34
+0x0F 0x01
+0x10 0x90
+0x11 0x01
+0x12 0x90
+0x13 0x01
+0x14 0x2C
+0x15 0x01
+0x16 0x2C
+0x17 0x00
+0x18 0xC8
+0x19 0x00
+0x1A 0xC8
+0x1B 0x00
+0x1C 0x00
+0x1D 0x00
+0x1E 0x00
+0x1F 0x00
+0x20 0x00
+0x21 0x00
+0x22 0x00
+0x23 0x33
+0x24 0x00
+0x25 0x00
+0x26 0x00
+0x27 0x11
+0x28 0x00
+0x29 0x03
+0x2A 0x1B
+0x2B 0x44
+0x2C 0x00
+0x2D 0x00
+0x2E 0x00
+0x2F 0x00
+0x30 0x00
+0x31 0x09
+0x32 0x02
+0x33 0x02
+0x34 0x00
+0x35 0x32
+0x36 0x64
+0x37 0x05
+0x38 0x01
+0x39 0x0E
+0x3A 0x05
+0x3B 0x1E
+0x3C 0x32
+0x3D 0x32
+0x3E 0x00
+0x3F 0x00
+0x40 0x0A
+0x41 0x04
+0x42 0x04
+0x43 0x20
+0x44 0x20
+0x45 0x34
+0x46 0x33
+0x47 0x28
+0x48 0x28
+0x49 0x19
+0x4A 0x19
+0x4B 0x05
+0x4C 0x50
+0x4D 0x07
+0x4E 0x0A
+0x4F 0x1E
+0x50 0x1E
+0x51 0x00
+0x52 0x00
+0x53 0x0F
+0x54 0x0D
+0x55 0x1B
+0x56 0x0A
+0x57 0x01
+0x58 0x0A
+0x59 0x0A
+0x5A 0x23
+0x5B 0x0A
+0x5C 0x0A
+0x5D 0x0F
+0x5E 0x0F
+0x5F 0x00
+0x60 0x00
+0x61 0x00
+0x62 0x00
+0x63 0x32
+0x64 0x0A
+0x65 0x14
+0x66 0x21
+0x67 0x0A
+0x68 0x14
+0x69 0x0A
+0x6A 0x50
+0x6B 0x02
+0x6C 0x0A
+0x6D 0x50
+0x6E 0x14
+0x6F 0x0A
+0x70 0x32
+0x71 0x04
+0x72 0x00
+0x73 0x00
+0x74 0x00
+0x75 0x3C
+0x76 0x00
+0x77 0x00
+0x78 0x00
+0x79 0x00
+0x7A 0x00
+0x7B 0x00
+0x7C 0x00
+0x7D 0x00
+		>;
+	};
+};
+#endif
+
+/* ---- SUB2 GRIP---- */
+#if 0
+&${gpio_grip_sub2_i2c_parent} {
+	grip_sub2_i2c_sda: grip-sub2-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_i2c_sda}, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+	grip_sub2_i2c_scl: grip-sub2-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_i2c_scl}, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+};
+
+&${gpio_grip_sub2_irq_parent} {
+	grip_sub2_int: grip-sub2-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&${i2c_grip_sub2} {
+	gpios = <SEC_GPIO_REF(${gpio_grip_sub2_i2c_sda}) 0 /* sda */
+			SEC_GPIO_REF(${gpio_grip_sub2_i2c_scl}) 0>; /* scl */
+	pinctrl-0 = <&grip_sub2_i2c_sda
+				 &grip_sub2_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t396_sub2: a96t396_sub2@20 {
+
+		compatible = "a96t396_sub2";
+		reg = <0x20>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub2_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_sub2_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_sub2_irq}) 0>;
+
+		irq_gpio = <SEC_GPIO_REF(${gpio_grip_sub2_irq}) 0>;
+#if 0
+		dvdd_vreg_name = "VDD_GRIP_3P3";
+#else
+#if 1
+		ldo_en = <SEC_GPIO_REF(AP,pio,207) 0>;
+#else
+		ldo_en = <SEC_GPIO_REF(AP,pio,208) 0>;
+#endif
+#endif
+		multi_use = <1>;
+#if 1
+		unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
+#endif
+#if 1
+		fail_safe_concept = <0>;
+#endif
+		fw_path = "abov/a96t396_a13x_sub2.bin";
+		firmup_cmd = <0x90>;
+		checksum_msb = <0x0B>;
+		checksum_lsb = <0x70>;
+		set_reg = /bits/ 8 <
+		0x00 0x05
+0x01 0x4F
+0x02 0x21
+0x03 0x10
+0x04 0x3C
+0x05 0x3B
+0x06 0x20
+0x07 0x32
+0x08 0x28
+0x09 0x10
+0x0A 0x3A
+0x0B 0x24
+0x0C 0x34
+0x0D 0x00
+0x0E 0x44
+0x0F 0x01
+0x10 0x90
+0x11 0x01
+0x12 0x90
+0x13 0x01
+0x14 0x2C
+0x15 0x01
+0x16 0x2C
+0x17 0x00
+0x18 0xC8
+0x19 0x00
+0x1A 0xC8
+0x1B 0x00
+0x1C 0x00
+0x1D 0x00
+0x1E 0x00
+0x1F 0x00
+0x20 0x00
+0x21 0x00
+0x22 0x00
+0x23 0x00
+0x24 0x00
+0x25 0x00
+0x26 0x00
+0x27 0x12
+0x28 0x00
+0x29 0x1B
+0x2A 0x05
+0x2B 0x33
+0x2C 0x00
+0x2D 0x00
+0x2E 0x00
+0x2F 0x00
+0x30 0x00
+0x31 0x09
+0x32 0x02
+0x33 0x02
+0x34 0x00
+0x35 0x32
+0x36 0x64
+0x37 0x05
+0x38 0x01
+0x39 0x0E
+0x3A 0x05
+0x3B 0x1E
+0x3C 0x32
+0x3D 0x32
+0x3E 0x00
+0x3F 0x00
+0x40 0x0A
+0x41 0x04
+0x42 0x04
+0x43 0x20
+0x44 0x20
+0x45 0x34
+0x46 0x33
+0x47 0x28
+0x48 0x28
+0x49 0x19
+0x4A 0x19
+0x4B 0x05
+0x4C 0x50
+0x4D 0x07
+0x4E 0x0A
+0x4F 0x1E
+0x50 0x1E
+0x51 0x00
+0x52 0x00
+0x53 0x0F
+0x54 0x28
+0x55 0x12
+0x56 0x0A
+0x57 0x01
+0x58 0x0A
+0x59 0x0A
+0x5A 0x23
+0x5B 0x0A
+0x5C 0x0A
+0x5D 0x0F
+0x5E 0x0F
+0x5F 0x00
+0x60 0x00
+0x61 0x00
+0x62 0x00
+0x63 0x32
+0x64 0x0A
+0x65 0x14
+0x66 0x21
+0x67 0x0A
+0x68 0x14
+0x69 0x0A
+0x6A 0x50
+0x6B 0x02
+0x6C 0x0A
+0x6D 0x50
+0x6E 0x14
+0x6F 0x0A
+0x70 0x32
+0x71 0x04
+0x72 0x00
+0x73 0x00
+0x74 0x00
+0x75 0x32
+0x76 0x00
+0x77 0x00
+0x78 0x00
+0x79 0x00
+0x7A 0x00
+0x7B 0x00
+0x7C 0x00
+0x7D 0x00
+		>;
+	};
+};
+#endif
+
+/* ---- WIFI GRIP---- */
+#if 1
+
+&pio {
+	grip_wifi_i2c_sda: grip-wifi-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(AP,pio,186, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+	grip_wifi_i2c_scl: grip-wifi-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(AP,pio,185, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+};
+
+&pio {
+	grip_wifi_int: grip-wifi-int {
+		GPIO_CONFIG_PUD_DRV(AP,pio,193, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&sw_i2c3 {
+	gpios = <SEC_GPIO_REF(AP,pio,186) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,185) 0>; /* scl */
+	pinctrl-0 = <&grip_wifi_i2c_sda
+				 &grip_wifi_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t396_wifi: a96t396_wifi@20 {
+
+		compatible = "a96t396_wifi";
+		reg = <0x20>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_wifi_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,193)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,193) 0>;
+
+		irq_gpio = <SEC_GPIO_REF(AP,pio,193) 0>;
+#if 0
+		dvdd_vreg_name = "VDD_GRIP_3P3";
+#else
+#if 1
+		ldo_en = <SEC_GPIO_REF(AP,pio,209) 0>;
+#else
+		ldo_en = <SEC_GPIO_REF(AP,pio,208) 0>;
+#endif
+#endif
+		multi_use = <1>;
+#if 1
+		unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
+#endif
+#if 1
+		fail_safe_concept = <0>;
+#endif
+		fw_path = "abov/a96t396_a13x_wifi.bin";
+		firmup_cmd = <0x90>;
+		checksum_msb = <0x0B>;
+		checksum_lsb = <0x11>;
+		set_reg = /bits/ 8 <
+		0x00 0x05
+0x01 0x4D
+0x02 0x11
+0x03 0x01
+0x04 0x2F
+0x05 0x10
+0x06 0x18
+0x07 0x24
+0x08 0x10
+0x09 0x10
+0x0A 0x20
+0x0B 0x10
+0x0C 0x34
+0x0D 0x00
+0x0E 0x34
+0x0F 0x01
+0x10 0x90
+0x11 0x01
+0x12 0x90
+0x13 0x01
+0x14 0x2C
+0x15 0x01
+0x16 0x2C
+0x17 0x00
+0x18 0xC8
+0x19 0x00
+0x1A 0xC8
+0x1B 0x00
+0x1C 0x00
+0x1D 0x00
+0x1E 0x00
+0x1F 0x00
+0x20 0x00
+0x21 0x00
+0x22 0x00
+0x23 0x33
+0x24 0x00
+0x25 0x00
+0x26 0x00
+0x27 0x11
+0x28 0x00
+0x29 0x28
+0x2A 0x10
+0x2B 0x34
+0x2C 0x00
+0x2D 0x00
+0x2E 0x00
+0x2F 0x00
+0x30 0x00
+0x31 0x09
+0x32 0x02
+0x33 0x02
+0x34 0x00
+0x35 0x32
+0x36 0x64
+0x37 0x05
+0x38 0x01
+0x39 0x0E
+0x3A 0x05
+0x3B 0x1E
+0x3C 0x32
+0x3D 0x32
+0x3E 0x00
+0x3F 0x00
+0x40 0x0A
+0x41 0x04
+0x42 0x04
+0x43 0x20
+0x44 0x20
+0x45 0x34
+0x46 0x33
+0x47 0x28
+0x48 0x28
+0x49 0x19
+0x4A 0x19
+0x4B 0x05
+0x4C 0x50
+0x4D 0x07
+0x4E 0x0A
+0x4F 0x1E
+0x50 0x1E
+0x51 0x00
+0x52 0x00
+0x53 0x0F
+0x54 0x41
+0x55 0x40
+0x56 0x0A
+0x57 0x01
+0x58 0x0A
+0x59 0x0A
+0x5A 0x23
+0x5B 0x0A
+0x5C 0x0A
+0x5D 0x0A
+0x5E 0x0A
+0x5F 0x00
+0x60 0x00
+0x61 0x00
+0x62 0x00
+0x63 0x32
+0x64 0x0A
+0x65 0x14
+0x66 0x21
+0x67 0x0A
+0x68 0x14
+0x69 0x0A
+0x6A 0x50
+0x6B 0x02
+0x6C 0x0A
+0x6D 0x50
+0x6E 0x14
+0x6F 0x0A
+0x70 0x32
+0x71 0x04
+0x72 0x00
+0x73 0x00
+0x74 0x00
+0x75 0x10
+0x76 0x00
+0x77 0x00
+0x78 0x00
+0x79 0x00
+0x7A 0x00
+0x7B 0x00
+0x7C 0x00
+0x7D 0x00
+		>;
+	};
+};
+#endif
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/a96t396/dts/a96t396_hwparam.gts10pwifi.dtsi */
+#if 1
+&grip_i2c_sda {
+	pins_cmd_dat {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,184), 1)>;
+		bias-disable;
+	};
+};
+&grip_i2c_scl {
+	pins_cmd_dat {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,183), 1)>;
+		bias-disable;
+	};
+};
+
+&a96t396 {
+	fw_path = "abov/a96t396_gts10pwifi_main.bin";
+};
+#endif
+
+#if 1
+&grip_wifi_i2c_sda {
+	pins_cmd_dat {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,186), 1)>;
+		bias-disable;
+	};
+};
+&grip_wifi_i2c_scl {
+	pins_cmd_dat {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,185), 1)>;
+		bias-disable;
+	};
+};
+&a96t396_wifi {
+	fw_path = "abov/a96t396_gts10pwifi_wifi.bin";
+};
+#endif
+
+/* #include "../input_keyboard_stm.dtsi" */          /* From input_keyboard_stm.py */
+&pio {
+	attn_irq: attn_irq {
+		GPIO_CONFIG_PUD_DRV(AP,pio,18, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pio {
+	conn_irq: conn_irq {
+		GPIO_CONFIG_PUD_DRV(AP,pio,15, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pio {
+	swclk_gpio: swclk_gpio {
+		GPIO_CONFIG_PUD_DRV(AP,pio,153, FUNC_OUTPUT_LOW, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pio {
+	nrst_gpio: nrst_gpio {
+		GPIO_CONFIG_PUD_DRV(AP,pio,155, FUNC_OUTPUT_HIGH, PULL_NONE, DRV_LV1);
+	};
+};
+
+&i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	clock-frequency = <400000>;
+	/* pogo i2c */
+	keyboard_stm: stm32@2a {
+		status = "ok";
+		compatible = "stm,stm32_pogo";
+		reg = <0x2a>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&attn_irq &conn_irq &swclk_gpio &nrst_gpio>;
+		stm32_vddo-supply = <&fixed_regulator0>;
+		stm32,irq_gpio = <SEC_GPIO_REF(AP,pio,18) 0>;
+		stm32,irq_conn = <SEC_GPIO_REF(AP,pio,15) 0>;
+		stm32,irq_type = <8200>;
+		stm32,irq_conn_type = <0x2003>;
+		stm32,mcu_swclk = <SEC_GPIO_REF(AP,pio,153) 0>;
+		stm32,mcu_nrst = <SEC_GPIO_REF(AP,pio,155) 0>;
+		stm32,sda_gpio = <SEC_GPIO_REF(AP,pio,224) 0>;
+		stm32,scl_gpio = <SEC_GPIO_REF(AP,pio,223) 0>;
+		stm32,fw_name = "keyboard_stm/stm32_gts7llite.bin";
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2024/keyboard/stm32/dts/input-mtk-keyboard-stm32.gts10p(wifi).dtsi */
+&keyboard_stm {
+	stm32,fw_name = "keyboard_stm/stm32_gts10family.bin";
+	stm32,fota_fw_path = "";
+	support_open_close;
+	stm32,model_type = <1>; /* 0: basic, 1: plus, 2: ultra */
+};
+
+&smd {
+	pogo_touchpad {
+		compatible = "stm,touchpad";
+		touchpad,invert = <0 1 1>; /* x invert, y invert, xy switch */
+	};
+
+	pogo_kpd {
+		compatible = "stm,keypad";
+		keypad,num-rows = <8>;
+		keypad,num-columns = <24>;	//  row   colume   keycode		key map		keyvalue
+		linux,keymap1 = <0x00000000	//   0       0     KEY_RESERVED		0
+				0x00010000	//   0       1     KEY_RESERVED		0
+				0x00020000	//   0       2     KEY_RESERVED		0
+				0x00030000	//   0       3     KEY_RESERVED		0
+				0x0004002C	//   0       4     KEY_Z		46		44
+				0x00050056	//   0       5     KEY_BACKSLASH	45		86
+				0x00060000	//   0       6     KEY_RESERVED		0
+				0x0007002F	//   0       7     KEY_V		49		47
+				0x00080032	//   0       8     KEY_M		52		50
+				0x0009006C	//   0       9     KEY_DOWN		84		108
+				0x000A0000	//   0       10    KEY_RESERVED		0
+				0x000B0039	//   0       11    KEY_SPACE		61		57
+				0x000C0067	//   0       12    KEY_UP		83		103
+				0x000D0000	//   0       13    KEY_RESERVED		0
+				0x000E0000	//   0       14    KEY_RESERVED		0
+				0x000F0000	//   0       15    KEY_RESERVED		0
+				0x00100001	//   0       16    KEY_ESC		0
+				0x00110072	//   0       17    KEY_VOLUMEDOWN	0		114
+				0x00120000	//   0       18    KEY_RESERVED		0
+				0x00130000	//   0       19    KEY_RESERVED		0
+				0x00140000	//   0       20    KEY_RESERVED		0
+				0x00150000	//   0       21    KEY_RESERVED		0
+				0x001602C2	//   0       22    706(virtual keypad)	706
+				0x00170000	//   0       23    KEY_RESERVED		0
+
+				0x01000000	//   1       0     KEY_RESERVED		0
+				0x01010000	//   1       1     KEY_RESERVED		0
+				0x010201d0	//   1       2     KEY_FN		59
+				0x0103007D	//   1       3     KEY_LEFTMETA		meta_left	125
+				0x0104001E	//   1       4     KEY_A		31		30
+				0x0105002D	//   1       5     KEY_X		47		45
+				0x01060020	//   1       6     KEY_D		33		32
+				0x01070030	//   1       7     KEY_B		50		48
+				0x01080000	//   1       8     KEY_RESERVED		0
+				0x01090033	//   1       9     KEY_COMMA		53	51
+				0x010A0034	//   1       10    KEY_DOT		54	52
+				0x010B0035	//   1       11    KEY_SLASH		55	53
+				0x010C0000	//   1       12    KEY_RESERVED		0
+				0x010D0000	//   1	     13    KEY_RESERVED 	0
+				0x010E0000	//   1	     14    KEY_RESERVED 	0
+				0x010F0000	//   1	     15    KEY_RESERVED 	0
+				0x011002C1	//   0	     16    KEY_APPS	 	0	705
+				0x01110073	//   0	     17    KEY_VOLUMEUP	 	0	115
+				0x01120000	//   0	     18    KEY_RESERVED 	0
+				0x01130000	//   0	     19    KEY_RESERVED 	0
+				0x01140000	//   0	     20    KEY_RESERVED 	0
+				0x01150000	//   0	     21    KEY_RESERVED 	0
+				0x01160066	//   0	     22    KEY_HOME 		0
+				0x01170000	//   0	     23    KEY_RESERVED 	0
+
+				0x02000000	//   2       0     KEY_RESERVED		0
+				0x02010000	//   2       1     KEY_RESERVED		0
+				0x0202007A	//   2       2     KEY_HANGEUL		lang	122
+				0x02030000	//   2       3     KEY_RESERVED		0
+				0x02040010	//   2       4     KEY_Q		17	16
+				0x02050000	//   2       5     KEY_RESERVED		0
+				0x0206002E	//   2       6     KEY_C		48	46
+				0x02070021	//   2       7     KEY_F		34	33
+				0x02080024	//   2       8     KEY_J		37	36
+				0x02090025	//   2       9     KEY_K		38	37
+				0x020A0026	//   2       10    KEY_L		39	38
+				0x020B0027	//   2       11    KEY_SEMICOLON	40	39
+				0x020C0000	//   2       12    KEY_RESERVED		0
+				0x020D001C	//   2       13    KEY_ENTER		43	28
+				0x020E0000	//   2       14    KEY_RESERVED		0
+				0x020F0000	//   2       15    KEY_RESERVED		0
+				0x021000FE	//   0	     16    KEY_RECENT		0	254
+				0x021100A5	//   0	     17    KEY_PREVIOUSSONG	0	165
+				0x02120000	//   0	     18    KEY_RESERVED 	0
+				0x02130000	//   0	     19    KEY_RESERVED 	0
+				0x02140000	//   0	     20    KEY_RESERVED 	0
+				0x02150000	//   0	     21    KEY_RESERVED 	0
+				0x02160068	//   0	     22    KEY_PAGEUP	 	104
+				0x02170000	//   0	     23    KEY_RESERVED 	0
+
+				0x03000000	//   3       0     KEY_RESERVED		0
+				0x03010000	//   3       1     KEY_RESERVED		0
+				0x03020038	//   3       2     KEY_LEFTALT		60	56
+				0x03030000	//   3       3     KEY_RESERVED		0
+				0x0304000F	//   3       4     KEY_TAB		16	15
+				0x03050011	//   3       5     KEY_W		18	17
+				0x03060012	//   3       6     KEY_E		19	18
+				0x03070022	//   3       7     KEY_G		35	34
+				0x03080023	//   3       8     KEY_H		36	35
+				0x03090017	//   3       9     KEY_I		24	23
+				0x030A0028	//   3       10    KEY_APOSTROPHE	41	40
+				0x030B0019	//   3       11    KEY_P		26	25
+				0x030C0000	//   3       12    KEY_RESERVED		0
+				0x030D0000	//   3       13    KEY_RESERVED		0
+				0x030E0000	//   3       14    KEY_RESERVED		0
+				0x030F0000	//   3       15    KEY_RESERVED		0
+				0x031000AC	//   0	     16    KEY_HOMEPAGE	 	0	172
+				0x031100A4	//   0	     17    KEY_PLAYPAUSE	0	164
+				0x03120000	//   0	     18    KEY_RESERVED 	0
+				0x03130000	//   0	     19    KEY_RESERVED 	0
+				0x03140000	//   0	     20    KEY_RESERVED 	0
+				0x03150000	//   0	     21    KEY_RESERVED 	0
+				0x0316006D	//   0	     22    KEY_PAGEDOWN 	109
+				0x03170000	//   0	     23    KEY_RESERVED 	0
+
+				0x0400003A	//   4       0     KEY_CAPSLOCK		30	58
+				0x04010064	//   4       1     KEY_RIGHTALT		62	100
+				0x04020000	//   4       2     KEY_RESERVED		0
+				0x04030000	//   4       3     KEY_RESERVED		0
+				0x04040002	//   4       4     KEY_1		2	2
+				0x04050003	//   4       5     KEY_2		3	3
+				0x04060004	//   4       6     KEY_3		4	4
+				0x04070013	//   4       7     KEY_R		20	19
+				0x04080016	//   4       8     KEY_U		23	22
+				0x04090009	//   4       9     KEY_8		9	9
+				0x040A0018	//   4       10    KEY_O		25	24
+				0x040B000B	//   4       11    KEY_0		11	11
+				0x040C0000	//   4       12    KEY_RESERVED		0
+				0x040D0000	//   4       13    KEY_RESERVED		0
+				0x040E0000	//   4       14    KEY_RESERVED		0
+				0x040F002B	//   4       15    KEY_APOSTROPHE	29/42	43
+				0x041000E0	//   0	     16    KEY_BRIGHTNESSDOWN 	0	224
+				0x041100A3	//   0	     17    KEY_NEXTSONG 	0	163
+				0x04120000	//   0	     18    KEY_RESERVED 	0
+				0x04130000	//   0	     19    KEY_RESERVED 	0
+				0x04140000	//   0	     20    KEY_RESERVED 	0
+				0x04150000	//   0	     21    KEY_RESERVED 	0
+				0x0416006B	//   0	     22    KEY_END 		107
+				0x04170000	//   0	     23    KEY_RESERVED 	0
+
+				0x05000000	//   5       0     KEY_RESERVED		0
+				0x0501001D	//   5       1     KEY_LEFTCTRL		58	29
+				0x05020000	//   5       2     KEY_RESERVED		0
+				0x0503006A	//   5       3     KEY_RIGHT		89	106
+				0x05040029	//   5       4     KEY_GRAVE		1	41
+				0x0505003E	//   5       5     KEY_F4		115	62
+				0x05060041	//   5       6     KEY_F7		118	65
+				0x05070014	//   5       7     KEY_T		21	20
+				0x05080015	//   5       8     KEY_Y		22	21
+				0x05090044	//   5       9     KEY_F10		121	68
+				0x050A001A	//   5       10    KEY_LEFTBRACE	27	26
+				0x050B000E	//   5       11    KEY_BACKSPACE	15	14
+				0x050C0000	//   5       12    KEY_RESERVED		0
+				0x050D000C	//   5       13    KEY_MINUS		12	12
+				0x050E0000	//   5       14    KEY_RESERVED		0
+				0x050F001B	//   5       15    KEY_RIGHTBRACE	28	27
+				0x051000E1	//   0	     16    KEY_BRIGHTNESSUP 	0	225
+				0x051102C5	//   0	     17    709(setting) 	0	709
+				0x05120000	//   0	     18    KEY_RESERVED 	0
+				0x05130000	//   0	     19    KEY_RESERVED 	0
+				0x05140000	//   0	     20    KEY_RESERVED 	0
+				0x051502BD	//   0	     21    KEY_DEX_ON		0
+				0x051602CB	//   0	     22    FN_UNLOCK	0
+				0x05170000	//   0	     23    KEY_RESERVED 	0
+
+				0x06000036	//   6       0     KEY_RIGHTSHIFT	57	54
+				0x06010069	//   6       1     KEY_LEFT		79	105
+				0x06020000	//   6       2     KEY_RESERVED		0
+				0x06030000	//   6       3     KEY_RESERVED		0
+				0x0604003B	//   6       4     KEY_F1		112	59
+				0x0605003D	//   6       5     KEY_F3		114	61
+				0x06060040	//   6       6     KEY_F6		117	64
+				0x06070005	//   6       7     KEY_4		5	5
+				0x06080008	//   6       8     KEY_7		8	8
+				0x06090043	//   6       9     KEY_F9		120	67
+				0x060A000A	//   6       10    KEY_9		10	10
+				0x060B0058	//   6       11    KEY_F12		123	88
+				0x060C0031	//   6       12    KEY_N		51	49
+				0x060D0000	//   6       13    KEY_RESERVED		0
+				0x060E0000	//   6       14    KEY_RESERVED		0
+				0x060F0000	//   6       15    KEY_RESERVED		0
+				0x0610007D	//   0	     16    KEY_LEFTMETA		0	125
+				0x0611006F	//   0	     17    KEY_DELETE 		0
+				0x06120000	//   0	     18    KEY_RESERVED 	0
+				0x06130000	//   0	     19    KEY_RESERVED 	0
+				0x06140000	//   0	     20    KEY_RESERVED 	0
+				0x06150000	//   0	     21    KEY_RESERVED 	0
+				0x061602CA	//   0	     22    FN_LOCK			0
+				0x06170000	//   0	     23    KEY_RESERVED 	0
+
+				0x0700002A	//   7       0     KEY_LEFTSHIFT	44	42
+				0x070102C6	//   7       1     710			s-finder710
+				0x07020000	//   7       2     KEY_RESERVED		0
+				0x0703001F	//   7       3     KEY_S		32	31
+				0x07040001	//   7       4     KEY_ESC		110	1
+				0x0705003C	//   7       5     KEY_F2		113	60
+				0x0706003F	//   7       6     KEY_F5		116	63
+				0x07070006	//   7       7     KEY_5		6	6
+				0x07080007	//   7       8     KEY_6		7	7
+				0x07090042	//   7       9     KEY_F8		119	66
+				0x070A000D	//   7       10    KEY_EQUAL		13	13
+				0x070B0057	//   7       11    KEY_F11		122	87
+				0x070C0000	//   7       12    KEY_RESERVED		0
+				0x070D0063	//   7       13    KEY_SYSRQ	 	75/nrdex 99
+				0x070E006F	//   7       14    KEY_DELETE		76	111
+				0x070F0000	//   7       15    KEY_RESERVED		0
+				0x07100071	//   0	     16    KEY_MUTE	 	0	113
+				0x07110214	//   0	     17    KEY_TOUCHPAD_OFF 	0
+				0x07120213	//   0	     18    KEY_TOUCHPAD_ON 	0
+				0x07130000	//   0	     19    KEY_RESERVED 	0
+				0x07140000	//   0	     20    KEY_RESERVED 	0
+				0x07150000	//   0	     21    KEY_RESERVED 	0
+				0x07160000	//   0	     22    KEY_RESERVED 	0
+				0x07170000>;	//   0	     23    KEY_RESERVED 	0
+
+		linux,keymap2 = <0x00000000	//   0       0     KEY_RESERVED		0
+				0x00010000	//   0       1     KEY_RESERVED		0
+				0x00020000	//   0       2     KEY_RESERVED		0
+				0x00030000	//   0       3     KEY_RESERVED		0
+				0x0004002C	//   0       4     KEY_Z		46		44
+				0x00050056	//   0       5     KEY_BACKSLASH	45		86
+				0x00060000	//   0       6     KEY_RESERVED		0
+				0x0007002F	//   0       7     KEY_V		49		47
+				0x00080032	//   0       8     KEY_M		52		50
+				0x0009006C	//   0       9     KEY_DOWN		84		108
+				0x000A0000	//   0       10    KEY_RESERVED		0
+				0x000B0039	//   0       11    KEY_SPACE		61		57
+				0x000C0067	//   0       12    KEY_UP		83		103
+				0x000D0000	//   0       13    KEY_RESERVED		0
+				0x000E0000	//   0       14    KEY_RESERVED		0
+				0x000F0000	//   0       15    KEY_RESERVED		0
+				0x00100001	//   0       16    KEY_ESC		0
+				0x00110072	//   0       17    KEY_VOLUMEDOWN	0		114
+				0x00120000	//   0       18    KEY_RESERVED		0
+				0x00130000	//   0       19    KEY_RESERVED		0
+				0x00140000	//   0       20    KEY_RESERVED		0
+				0x00150000	//   0       21    KEY_RESERVED		0
+				0x001602C2	//   0       22    706(virtual keypad)	706
+				0x00170000	//   0       23    KEY_RESERVED		0
+
+				0x01000000	//   1       0     KEY_RESERVED		0
+				0x01010000	//   1       1     KEY_RESERVED		0
+				0x010201d0	//   1       2     KEY_FN		59
+				0x0103007D	//   1       3     KEY_LEFTMETA		meta_left	125
+				0x0104001E	//   1       4     KEY_A		31		30
+				0x0105002D	//   1       5     KEY_X		47		45
+				0x01060020	//   1       6     KEY_D		33		32
+				0x01070030	//   1       7     KEY_B		50		48
+				0x01080000	//   1       8     KEY_RESERVED		0
+				0x01090033	//   1       9     KEY_COMMA		53	51
+				0x010A0034	//   1       10    KEY_DOT		54	52
+				0x010B0035	//   1       11    KEY_SLASH		55	53
+				0x010C0000	//   1       12    KEY_RESERVED		0
+				0x010D0000	//   1	     13    KEY_RESERVED 	0
+				0x010E0000	//   1	     14    KEY_RESERVED 	0
+				0x010F0000	//   1	     15    KEY_RESERVED 	0
+				0x011002C1	//   0	     16    KEY_APPS	 	0	705
+				0x01110073	//   0	     17    KEY_VOLUMEUP	 	0	115
+				0x01120000	//   0	     18    KEY_RESERVED 	0
+				0x01130000	//   0	     19    KEY_RESERVED 	0
+				0x01140000	//   0	     20    KEY_RESERVED 	0
+				0x01150000	//   0	     21    KEY_RESERVED 	0
+				0x01160066	//   0	     22    KEY_HOME 		0
+				0x01170000	//   0	     23    KEY_RESERVED 	0
+
+				0x02000000	//   2       0     KEY_RESERVED		0
+				0x02010000	//   2       1     KEY_RESERVED		0
+				0x0202007A	//   2       2     KEY_HANGEUL		lang	122
+				0x02030000	//   2       3     KEY_RESERVED		0
+				0x02040010	//   2       4     KEY_Q		17	16
+				0x02050000	//   2       5     KEY_RESERVED		0
+				0x0206002E	//   2       6     KEY_C		48	46
+				0x02070021	//   2       7     KEY_F		34	33
+				0x02080024	//   2       8     KEY_J		37	36
+				0x02090025	//   2       9     KEY_K		38	37
+				0x020A0026	//   2       10    KEY_L		39	38
+				0x020B0027	//   2       11    KEY_SEMICOLON	40	39
+				0x020C0000	//   2       12    KEY_RESERVED		0
+				0x020D001C	//   2       13    KEY_ENTER		43	28
+				0x020E0000	//   2       14    KEY_RESERVED		0
+				0x020F0000	//   2       15    KEY_RESERVED		0
+				0x021000FE	//   0	     16    KEY_RECENT		0	254
+				0x021100A5	//   0	     17    KEY_PREVIOUSSONG	0	165
+				0x02120000	//   0	     18    KEY_RESERVED 	0
+				0x02130000	//   0	     19    KEY_RESERVED 	0
+				0x02140000	//   0	     20    KEY_RESERVED 	0
+				0x02150000	//   0	     21    KEY_RESERVED 	0
+				0x02160068	//   0	     22    KEY_PAGEUP	 	104
+				0x02170000	//   0	     23    KEY_RESERVED 	0
+
+				0x03000000	//   3       0     KEY_RESERVED		0
+				0x03010000	//   3       1     KEY_RESERVED		0
+				0x03020038	//   3       2     KEY_LEFTALT		60	56
+				0x03030000	//   3       3     KEY_RESERVED		0
+				0x0304000F	//   3       4     KEY_TAB		16	15
+				0x03050011	//   3       5     KEY_W		18	17
+				0x03060012	//   3       6     KEY_E		19	18
+				0x03070022	//   3       7     KEY_G		35	34
+				0x03080023	//   3       8     KEY_H		36	35
+				0x03090017	//   3       9     KEY_I		24	23
+				0x030A0028	//   3       10    KEY_APOSTROPHE	41	40
+				0x030B0019	//   3       11    KEY_P		26	25
+				0x030C0000	//   3       12    KEY_RESERVED		0
+				0x030D0000	//   3       13    KEY_RESERVED		0
+				0x030E0000	//   3       14    KEY_RESERVED		0
+				0x030F0000	//   3       15    KEY_RESERVED		0
+				0x031000AC	//   0	     16    KEY_HOMEPAGE	 	0	172
+				0x031100A4	//   0	     17    KEY_PLAYPAUSE	0	164
+				0x03120000	//   0	     18    KEY_RESERVED 	0
+				0x03130000	//   0	     19    KEY_RESERVED 	0
+				0x03140000	//   0	     20    KEY_RESERVED 	0
+				0x03150000	//   0	     21    KEY_RESERVED 	0
+				0x0316006D	//   0	     22    KEY_PAGEDOWN 	109
+				0x03170000	//   0	     23    KEY_RESERVED 	0
+
+				0x0400003A	//   4       0     KEY_CAPSLOCK		30	58
+				0x04010064	//   4       1     KEY_RIGHTALT		62	100
+				0x04020000	//   4       2     KEY_RESERVED		0
+				0x04030000	//   4       3     KEY_RESERVED		0
+				0x04040002	//   4       4     KEY_1		2	2
+				0x04050003	//   4       5     KEY_2		3	3
+				0x04060004	//   4       6     KEY_3		4	4
+				0x04070013	//   4       7     KEY_R		20	19
+				0x04080016	//   4       8     KEY_U		23	22
+				0x04090009	//   4       9     KEY_8		9	9
+				0x040A0018	//   4       10    KEY_O		25	24
+				0x040B000B	//   4       11    KEY_0		11	11
+				0x040C0000	//   4       12    KEY_RESERVED		0
+				0x040D0000	//   4       13    KEY_RESERVED		0
+				0x040E0000	//   4       14    KEY_RESERVED		0
+				0x040F002B	//   4       15    KEY_APOSTROPHE	29/42	43
+				0x041000E0	//   0	     16    KEY_BRIGHTNESSDOWN 	0	224
+				0x041100A3	//   0	     17    KEY_NEXTSONG 	0	163
+				0x04120000	//   0	     18    KEY_RESERVED 	0
+				0x04130000	//   0	     19    KEY_RESERVED 	0
+				0x04140000	//   0	     20    KEY_RESERVED 	0
+				0x04150000	//   0	     21    KEY_RESERVED 	0
+				0x0416006B	//   0	     22    KEY_END 		107
+				0x04170000	//   0	     23    KEY_RESERVED 	0
+
+				0x05000000	//   5       0     KEY_RESERVED		0
+				0x0501001D	//   5       1     KEY_LEFTCTRL		58	29
+				0x05020000	//   5       2     KEY_RESERVED		0
+				0x0503006A	//   5       3     KEY_RIGHT		89	106
+				0x05040029	//   5       4     KEY_GRAVE		1	41
+				0x0505003E	//   5       5     KEY_F4		115	62
+				0x05060041	//   5       6     KEY_F7		118	65
+				0x05070014	//   5       7     KEY_T		21	20
+				0x05080015	//   5       8     KEY_Y		22	21
+				0x05090044	//   5       9     KEY_F10		121	68
+				0x050A001A	//   5       10    KEY_LEFTBRACE	27	26
+				0x050B000E	//   5       11    KEY_BACKSPACE	15	14
+				0x050C0000	//   5       12    KEY_RESERVED		0
+				0x050D000C	//   5       13    KEY_MINUS		12	12
+				0x050E0000	//   5       14    KEY_RESERVED		0
+				0x050F001B	//   5       15    KEY_RIGHTBRACE	28	27
+				0x051000E1	//   0	     16    KEY_BRIGHTNESSUP 	0	225
+				0x051102C5	//   0	     17    709(setting) 	0	709
+				0x05120000	//   0	     18    KEY_RESERVED 	0
+				0x05130000	//   0	     19    KEY_RESERVED 	0
+				0x05140000	//   0	     20    KEY_RESERVED 	0
+				0x051502BD	//   0	     21    KEY_DEX_ON		0
+				0x051602CB	//   0	     22    FN_UNLOCK		0
+				0x05170000	//   0	     23    KEY_RESERVED 	0
+
+				0x06000036	//   6       0     KEY_RIGHTSHIFT	57	54
+				0x06010069	//   6       1     KEY_LEFT		79	105
+				0x06020000	//   6       2     KEY_RESERVED		0
+				0x06030000	//   6       3     KEY_RESERVED		0
+				0x0604003B	//   6       4     KEY_F1		112	59
+				0x0605003D	//   6       5     KEY_F3		114	61
+				0x06060040	//   6       6     KEY_F6		117	64
+				0x06070005	//   6       7     KEY_4		5	5
+				0x06080008	//   6       8     KEY_7		8	8
+				0x06090043	//   6       9     KEY_F9		120	67
+				0x060A000A	//   6       10    KEY_9		10	10
+				0x060B0058	//   6       11    KEY_F12		123	88
+				0x060C0031	//   6       12    KEY_N		51	49
+				0x060D0000	//   6       13    KEY_RESERVED		0
+				0x060E0000	//   6       14    KEY_RESERVED		0
+				0x060F0000	//   6       15    KEY_RESERVED		0
+				0x0610007D	//   0	     16    KEY_LEFTMETA		0	125
+				0x0611006F	//   0	     17    KEY_DELETE 		0
+				0x06120000	//   0	     18    KEY_RESERVED 	0
+				0x06130000	//   0	     19    KEY_RESERVED 	0
+				0x06140000	//   0	     20    KEY_RESERVED 	0
+				0x06150000	//   0	     21    KEY_RESERVED 	0
+				0x061602CA	//   0	     22    FN_LOCK		 	0
+				0x06170000	//   0	     23    KEY_RESERVED 	0
+
+				0x0700002A	//   7       0     KEY_LEFTSHIFT	44	42
+				0x070102C6	//   7       1     710			s-finder710
+				0x07020000	//   7       2     KEY_RESERVED		0
+				0x0703001F	//   7       3     KEY_S		32	31
+				0x07040001	//   7       4     KEY_ESC		110	1
+				0x0705003C	//   7       5     KEY_F2		113	60
+				0x0706003F	//   7       6     KEY_F5		116	63
+				0x07070006	//   7       7     KEY_5		6	6
+				0x07080007	//   7       8     KEY_6		7	7
+				0x07090042	//   7       9     KEY_F8		119	66
+				0x070A000D	//   7       10    KEY_EQUAL		13	13
+				0x070B0057	//   7       11    KEY_F11		122	87
+				0x070C0000	//   7       12    KEY_RESERVED		0
+				0x070D0063	//   7       13    KEY_SYSRQ	 	75/nrdex 99
+				0x070E006F	//   7       14    KEY_DELETE		76	111
+				0x070F0000	//   7       15    KEY_RESERVED		0
+				0x07100071	//   0	     16    KEY_MUTE	 	0	113
+				0x071102C9	//   0	     17    713			 	0
+				0x07120000	//   0	     18    KEY_RESERVED 	0
+				0x07130000	//   0	     19    KEY_RESERVED 	0
+				0x07140000	//   0	     20    KEY_RESERVED 	0
+				0x07150000	//   0	     21    KEY_RESERVED 	0
+				0x07160000	//   0	     22    KEY_RESERVED 	0
+				0x07170000>;	//   0	     23    KEY_RESERVED 	0
+	};
+};
+
+/* #include "../sec_direct_charger.dtsi" */          /* From sec_direct_charger.py */
+
+&smd {
+	sec-direct-charger {
+		status = "okay";
+		compatible = "samsung,sec-direct-charger";
+
+		charger,battery_name = "battery";
+		charger,main_charger = "sm5714-charger";
+		charger,direct_charger = "sm5440-charger";
+
+	#if 0
+		charger,direct_chargers =
+				"sm5440-charger",
+				"${direct_charger_name2}";
+	#endif
+
+		charger,dchg_min_current = <2000>;
+
+		charger,ta_alert_wa;
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/sec_direct_charger/dts/gts10pwifi/sec_direct_charger.dtsi */
+
+&smd {
+	sec-direct-charger {
+		charger,dchg_min_vbat = <3400>;
+	};
+
+	pass-through {
+		start_delay = <5000>; /* msec */
+		init_delay = <5000>; /* msec */
+		min_cap = <200>; /* 0.1 % */
+		fixed_sc_cap = <900>; /* 0.1 % */
+		max_icl = <3000>; /* mA */
+		vfloat = <4450>; /* mV */
+	};
+};
+
+
+/* #include "../battery_common.dtsi" */              /* From battery_common.py */
+#include <dt-bindings/battery/sec-battery.h>
+
+&smd {
+	sec_battery: battery {
+		status = "okay";
+		compatible = "samsung,sec-battery";
+		battery,vendor = "Battery";
+		battery,charger_name = "sec-direct-charger";
+		battery,fuelgauge_name = "sm5714-fuelgauge";
+		battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
+		battery,chip_vendor = "NONE";
+
+		battery,batt_data_version = <1>;
+
+		battery,adc_check_count = <5>;
+		battery,temp_check_type = <SEC_BATTERY_TEMP_CHECK_NONE>;
+		battery,usb_temp_check_type = <SEC_BATTERY_TEMP_CHECK_NONE>;
+		battery,chg_temp_check_type = <SEC_BATTERY_TEMP_CHECK_NONE>;
+		battery,wpc_temp_check_type = <SEC_BATTERY_TEMP_CHECK_NONE>;
+		battery,lrp_temp_check_type = <SEC_BATTERY_TEMP_CHECK_NONE>;
+
+		battery,thermal_source = <SEC_BATTERY_THERMAL_SOURCE_NONE>; /* SEC_BATTERY_THERMAL_SOURCE_NONE */
+		battery,usb_thermal_source = <SEC_BATTERY_THERMAL_SOURCE_NONE>; /* SEC_BATTERY_THERMAL_SOURCE_NONE */
+		battery,chg_thermal_source = <SEC_BATTERY_THERMAL_SOURCE_NONE>; /* SEC_BATTERY_THERMAL_SOURCE_NONE */
+		battery,wpc_thermal_source = <SEC_BATTERY_THERMAL_SOURCE_NONE>; /* SEC_BATTERY_THERMAL_SOURCE_NONE */
+
+		battery,inbat_ocv_type =  <SEC_BATTERY_OCV_NONE>;
+
+		battery,polling_time = <10 30 30 30 3600>;
+
+		battery,cable_check_type = <SEC_BATTERY_CABLE_CHECK_PSY>;
+		battery,cable_source_type = <SEC_BATTERY_CABLE_SOURCE_EXTERNAL>;
+		battery,polling_type = <SEC_BATTERY_MONITOR_ALARM>; /* SEC_BATTERY_MONITOR_ALARM */
+		battery,monitor_initial_count = <0>;
+
+		battery,battery_check_type = <0>; /* SEC_BATTERY_CHECK_NONE */
+
+		battery,ovp_uvlo_check_type = <SEC_BATTERY_OVP_UVLO_CHGPOLLING>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
+
+		battery,temp_check_count = <1>;
+
+		battery,usb_protection_temp = <610>;
+		battery,temp_gap_bat_usb = <200>;
+		battery,overheatlimit_threshold = <700>;
+		battery,overheatlimit_recovery = <680>;
+		battery,wire_warm_overheat_thresh = <500>;
+		battery,wire_normal_warm_thresh = <420>;
+		battery,wire_cool1_normal_thresh = <180>;
+		battery,wire_cool2_cool1_thresh = <150>;
+		battery,wire_cool3_cool2_thresh = <50>;
+		battery,wire_cold_cool3_thresh = <0>;
+		battery,wireless_warm_overheat_thresh = <500>;
+		battery,wireless_normal_warm_thresh = <420>;
+		battery,wireless_cool1_normal_thresh = <180>;
+		battery,wireless_cool2_cool1_thresh = <150>;
+		battery,wireless_cool3_cool2_thresh = <50>;
+		battery,wireless_cold_cool3_thresh = <0>;
+		battery,tx_high_threshold = <500>;
+		battery,tx_high_recovery = <450>;
+		battery,tx_low_threshold = <0>;
+		battery,tx_low_recovery = <50>;
+
+		battery,wire_warm_current = <1573>;	/* 0.36C */
+		battery,wire_cool1_current = <3146>;	/* 0.72C */
+		battery,wire_cool2_current = <1048>;	/* 0.24C */
+		battery,wire_cool3_current = <437>;	/* 0.1C */
+		battery,wireless_warm_current = <1048>;		/* 0.24C */
+		battery,wireless_cool1_current = <3146>;	/* 0.72C */
+		battery,wireless_cool2_current = <1048>;	/* 0.24C */
+		battery,wireless_cool3_current = <437>;		/* 0.1C */
+
+		battery,full_check_type = <SEC_BATTERY_FULLCHARGED_CHGPSY>;
+		battery,full_check_type_2nd = <SEC_BATTERY_FULLCHARGED_CHGPSY>;
+		battery,full_check_count = <1>;
+		battery,chg_gpio_full_check = <0>;
+		battery,chg_polarity_full_check = <1>;
+
+		battery,chg_high_temp = <470>;
+		battery,chg_high_temp_recovery = <450>;
+		battery,chg_input_limit_current = <1000>;
+		battery,chg_charging_limit_current = <1900>;
+
+		battery,dchg_high_temp = <520>;
+		battery,dchg_high_temp_recovery = <460>;
+		battery,dchg_high_batt_temp = <400>;
+		battery,dchg_high_batt_temp_recovery = <380>;
+		battery,dchg_input_limit_current = <1000>;
+		battery,dchg_charging_limit_current = <2000>;
+
+		battery,wpc_temp_control_source = <TEMP_CONTROL_SOURCE_BAT_THM>;
+		battery,wpc_high_temp = <400>;
+		battery,wpc_high_temp_recovery = <380>;
+		battery,wpc_input_limit_current = <800>;
+		battery,wpc_charging_limit_current = <1000>;
+		battery,wpc_temp_lcd_on_control_source = <TEMP_CONTROL_SOURCE_BAT_THM>;
+		battery,wpc_lcd_on_input_limit_current = <800>;
+
+		battery,wpc_store_high_temp = <360>;
+		battery,wpc_store_high_temp_recovery = <340>;
+		battery,wpc_store_charging_limit_current = <400>;
+		battery,wpc_store_lcd_on_high_temp = <360>;
+		battery,wpc_store_lcd_on_high_temp_rec = <300>;
+		battery,wpc_store_lcd_on_charging_limit_current = <400>;
+
+		battery,fcc_by_tx = <1200>;
+
+		battery,sleep_mode_limit_current = <800>;
+		battery,wc_full_input_limit_current = <100>;
+
+		battery,ta_alert_wa;
+
+		battery,mix_high_temp = <420>;
+		battery,mix_high_chg_temp = <500>;
+		battery,mix_high_temp_recovery = <390>;
+
+		/* battery,usb_conn_slope_avg = <9>; */
+
+		/* battery,enable_mix_v2; */
+		/* if you want to use mix_v2 concept, add "battery,enable_mix_v2;" */
+		battery,mix_v2_lrp_recov = <460>;
+		battery,mix_v2_lrp_cond = <480>;
+		battery,mix_v2_bat_cond = <480>;
+		battery,mix_v2_chg_cond = <0>;	/* 0 means no use chg thm condition */
+		battery,mix_v2_dchg_cond = <0>; /* 0 means no use dchg thm condition */
+
+		battery,full_condition_type = <(SEC_BATTERY_FULL_CONDITION_NOTIMEFULL | SEC_BATTERY_FULL_CONDITION_VCELL)>;
+		battery,full_condition_soc = <93>;
+		/* battery,full_condition_vcell = FV - 50mV set when variable is parsed */
+
+		battery,recharge_check_count = <1>;
+		battery,recharge_condition_type = <SEC_BATTERY_RECHARGE_CONDITION_VCELL>;
+		battery,recharge_condition_soc = <98>;
+		/* battery,recharge_condition_vcell = FV - 70mV set when variable is parsed */
+
+		battery,charging_reset_time = <0>;
+
+		battery,chg_float_voltage = <4350>;
+
+		battery,pre_afc_work_delay = <2000>;
+		battery,pre_wc_afc_work_delay = <4000>;
+		battery,pre_afc_input_current = <500>;
+		battery,pre_wc_afc_input_current = <500>;
+
+		battery,swelling_high_rechg_voltage = <4000>;
+		/*battery,swelling_low_rechg_voltage = FV - 150mA set when variable is parsed */
+
+		battery,siop_icl = <1200>;
+		battery,siop_fcc = <1800>;
+		battery,siop_hv_icl = <700>;
+		battery,siop_hv_icl_2nd = <550>;
+		battery,siop_hv_fcc = <1800>;
+		battery,siop_apdo_icl = <1000>;
+		battery,siop_apdo_fcc = <2000>;
+
+		battery,siop_wpc_icl = <600>;
+		battery,siop_wpc_fcc = <1000 500 100>; /* siop_level 70 10 0 */
+		battery,siop_hv_wpc_icl = <700>;
+		battery,siop_hv_wpc_fcc = <1000 500 100>; /* siop_level 70 10 0 */
+		battery,siop_store_hv_wpc_icl = <450>;
+		battery,store_mode_buckoff;
+
+		/* trig, recov */
+		battery,temp_table_LRP_45W = <385 365>;
+
+		battery,rp_current_rp1 = <500>;
+		battery,rp_current_rp2 = <1500>;
+		battery,rp_current_rp3 = <3000>;
+		battery,rp_current_rdu_rp3 = <2100>;
+		battery,rp_current_abnormal_rp3 = <1800>;
+
+		battery,pd_charging_charge_power = <15000>;
+		battery,max_charging_current = <2350>;
+
+		battery,store_mode_charging_max = <70>;
+		battery,store_mode_charging_min = <60>;
+
+		battery,wireless_cc_cv = <85>;
+		battery,wireless_otg_input_current = <900>;
+
+		/* Calculate Based on Offsets from float voltage, full_condition_vcell and recharge_condition_vcell */
+		/* if you want to use age_data_by_common_offset concept add battery,age_data_by_common_offset; */
+
+		battery,age_data_cycle = <0 300 400 700 1000>;
+		battery,age_data_full_condition_soc = <93 92 91 90 89>;
+		battery,age_data_common_offset = <0 20 40 110>;
+		/* battery,age_data_max_charging_current_offset = <0 100 200 300 400>; */
+
+		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc, step charging condition */
+		battery,age_data = <0 4350 4280 4250 93
+			300 4330 4260 4230 92
+			400 4310 4240 4210 91
+			700 4290 4220 4190 90
+			1000 4240 4170 4140 89>;
+
+
+		battery,health_condition_cycle = <900 1200 1500>;
+		battery,health_condition_asoc = <0 0 0>; /* Default ASOC Disabled */
+
+		battery,max_input_voltage = <9000>; /* mV */
+		battery,max_input_current = <3000>;  /* mA */
+
+		battery,cisd_alg_index = <8>;
+		battery,cisd_max_voltage_thr = <4400>; /* batttery ovp dettection voltage */
+		battery,ignore_cisd_index = <0 0>;
+		battery,ignore_cisd_index_d = <0 80>; /* Do not use BUCK_OFF_PER_DAY, DROP_SENSOR_PER_DAY */
+
+		battery,expired_time = <10800>;
+		battery,recharging_expired_time = <5400>;
+
+		battery,battery_full_capacity = <3300>;
+
+		battery,ttf_capacity = <3500>;
+		battery,cv_data = <
+				3228	864	1534
+				3133	866	1524
+				3067	872	1493
+				3019	874	1483
+				2929	879	1452
+				2896	881	1442
+				2843	883	1431
+				2792	885	1421
+				2754	887	1411
+				2695	892	1380
+				2660	893	1370
+				2625	895	1360
+				2580	897	1349
+				2531	898	1339
+				2492	902	1319
+				2450	903	1309
+				2410	905	1298
+				2348	908	1278
+				2296	909	1268
+				2263	910	1257
+				2214	915	1227
+				2182	916	1216
+				2147	919	1196
+				2103	920	1186
+				2051	922	1175
+				2019	924	1155
+				1981	927	1134
+				1948	928	1124
+				1911	930	1104
+				1879	932	1093
+				1834	933	1083
+				1795	935	1063
+				1761	938	1032
+				1722	942	1001
+				1689	944	981
+				1649	946	960
+				1592	948	940
+				1532	950	919
+				1493	954	878
+				1462	955	868
+				1410	958	827
+				1362	959	817
+				1338	960	807
+				1291	964	756
+				1264	968	715
+				1237	968	704
+				1213	969	694
+				1169	974	633
+				1127	975	622
+				1105	975	612
+				1073	980	541
+				1049	982	510
+				1010	983	489
+				993	984	479
+				972	986	448
+				955	988	407
+				932	990	387
+				881	990	377
+				864	996	356
+				761	1000	307
+				710	1000	297
+				688	1000	287
+				668	1000	235
+				658	1000	215
+				647	1000	184
+				635	1000	153
+				622	1000	123
+				610	1000	92
+				596	1000	61
+				583	1000	31
+				571	1000	0
+				>;
+
+#if 1
+		io-channels = <&pmic_adc 0x15>, <&pmic_adc 0x16>, <&pmic_adc 0x17>, <&pmic_adc 0x18>;
+		io-channel-names = "adc-temp", "adc-chg-temp", "adc-blkt-temp", "adc-usb-temp", "n/a", "n/a", "n/a", "n/a";
+#endif
+#if 0
+	/*EUR_DETECTION_NODE*/
+	battery,eur_detection = <SEC_GPIO_REF(${eur_detection}) 0 >;
+#endif
+	};
+
+	/* sec_battery_cable
+	 *   0	UNKNOWN,
+	 *   1	NONE,
+	 *   2	PREPARE_TA,
+	 *   3	TA,
+	 *   4	USB,
+	 *   5	USB_CDP,
+	 *   6	9V_TA,
+	 *   7	9V_ERR,
+	 *   8	9V_UNKNOWN,
+	 *   9	12V_TA,
+	 *  10	WIRELESS,
+	 *  11	HV_WIRELESS,
+	 *  12	PMA_WIRELESS,
+	 *  13	WIRELESS_PACK,
+	 *  14	CABLE_WIRELESS_HV_PACK,
+	 *  15	WIRELESS_STAND,
+	 *  16	WIRELESS_HV_STAND,
+	 *  17	QC20,
+	 *  18	QC30,
+	 *  19	PDIC,
+	 *  20	UARTOFF,
+	 *  21	OTG,
+	 *  22	LAN_HUB,
+	 *  23	POWER_SHARING,
+	 *  24	HMT_CONNECTED,
+	 *  25	HMT_CHARGE,
+	 *  26	HV_TA_CHG_LIMIT,
+	 *  27	WIRELESS_VEHICLE,
+	 *  28	WIRELESS_HV_VEHICLE,
+	 *  29	PREPARE_WIRELESS_HV,
+	 *  30  TIMEOUT,
+	 *  31  SMART_OTG,
+	 *  32  SMART_NOTG,
+	 *  33  WIRELESS_TX,
+	 *  34	HV_WIRELESS_20,
+	 *  35	HV_WIRELESS_20_LIMIT,
+	 *  36	WIRELESS_FAKE,
+	 *  37  PREPARE_WIRELESS_20,
+	 *  38	CABLE_PDIC_APDO,
+	 *  39  CABLE_POGO,
+	 *  40  CABLE_POGO_9V,
+	 *  41  FPDO_DC,
+	 *  42	CABLE_MAX,
+	 */
+	sec_battery_cable: cable-info {
+		default_input_current = <1800>;
+		default_charging_current = <2100>;
+		full_check_current_1st = <350>;
+		full_check_current_2nd = <200>;
+
+		current_group_1 {
+			cable_number = <
+				SEC_BATTERY_CABLE_PREPARE_TA
+				SEC_BATTERY_CABLE_PDIC
+				SEC_BATTERY_CABLE_OTG
+				SEC_BATTERY_CABLE_LAN_HUB
+				SEC_BATTERY_CABLE_POWER_SHARING>;
+			input_current = <500>;
+			charging_current = <500>;
+		};
+		current_group_2 {
+			cable_number = <
+				SEC_BATTERY_CABLE_HMT_CHARGE
+				SEC_BATTERY_CABLE_SMART_OTG>;
+			input_current = <1000>;
+			charging_current = <1000>;
+		};
+		current_group_3 {
+			cable_number = <
+				SEC_BATTERY_CABLE_USB_CDP
+				SEC_BATTERY_CABLE_SMART_NOTG>;
+			input_current = <1500>;
+			charging_current = <1500>;
+		};
+		current_group_4 {
+			cable_number = <SEC_BATTERY_CABLE_9V_TA SEC_BATTERY_CABLE_9V_ERR
+				SEC_BATTERY_CABLE_9V_UNKNOWN SEC_BATTERY_CABLE_QC20 SEC_BATTERY_CABLE_QC30>;
+			input_current = <1650>;
+			charging_current = <2350>;
+		};
+		current_group_5 {
+			cable_number = <SEC_BATTERY_CABLE_12V_TA>;
+			input_current = <1650>;
+			charging_current = <2350>;
+		};
+		current_group_6 {
+			cable_number = <
+				SEC_BATTERY_CABLE_WIRELESS
+				SEC_BATTERY_CABLE_PMA_WIRELESS
+				SEC_BATTERY_CABLE_WIRELESS_STAND
+				SEC_BATTERY_CABLE_WIRELESS_VEHICLE
+				SEC_BATTERY_CABLE_WIRELESS_FAKE>;
+			input_current = <800>;
+			charging_current = <2350>;
+		};
+		current_group_7 {
+			cable_number = <SEC_BATTERY_CABLE_WIRELESS_PACK>;
+			input_current = <700>;
+			charging_current = <2350>;
+		};
+		current_group_8 {
+			cable_number = <SEC_BATTERY_CABLE_HMT_CONNECTED>;
+			input_current = <1000>;
+			charging_current = <450>;
+		};
+		current_group_9 {
+			cable_number = <SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT>;
+			input_current = <1800>;
+			charging_current = <1800>;
+		};
+		current_group_10 {
+			cable_number = <
+				SEC_BATTERY_CABLE_HV_WIRELESS
+				SEC_BATTERY_CABLE_WIRELESS_HV_PACK
+				SEC_BATTERY_CABLE_WIRELESS_HV_STAND
+				SEC_BATTERY_CABLE_WIRELESS_HV_VEHICLE
+				SEC_BATTERY_CABLE_HV_WIRELESS_20_LIMIT>;
+			input_current = <650>;
+			charging_current = <2350>;
+		};
+		current_group_11 {
+			cable_number = <
+				SEC_BATTERY_CABLE_PREPARE_WIRELESS_HV
+				SEC_BATTERY_CABLE_PREPARE_WIRELESS_20>;
+			input_current = <500>;
+			charging_current = <1200>;
+		};
+		current_group_12 {
+			cable_number = <
+				SEC_BATTERY_CABLE_NONE
+				SEC_BATTERY_CABLE_USB
+				SEC_BATTERY_CABLE_TIMEOUT>;
+			input_current = <475>;
+			charging_current = <550>;
+		};
+		current_group_13 {
+			cable_number = <SEC_BATTERY_CABLE_HV_WIRELESS_20>;
+			input_current = <1200>;
+			charging_current = <2350>;
+		};
+		current_group_14 {
+			cable_number = <SEC_BATTERY_CABLE_WIRELESS_TX>;
+			input_current = <800>;
+			charging_current = <2350>;
+		};
+	};
+	sec_battery_wireless_power_info: wireless-power-info {
+		count = <10>;
+		current_group_0 {
+			wireless_power_class = <2>;
+			vout = <9000>;
+			input_current_limit = <830>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <1500>;
+			rx_power = <7500>;
+		};
+		current_group_1 {
+			wireless_power_class = <2>;
+			vout = <10000>;
+			input_current_limit = <750>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <1500>;
+			rx_power = <7500>;
+		};
+		current_group_2 {
+			wireless_power_class = <2>;
+			vout = <11000>;
+			input_current_limit = <680>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <1500>;
+			rx_power = <7500>;
+		};
+		current_group_3 {
+			wireless_power_class = <2>;
+			vout = <12000>;
+			input_current_limit = <625>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <1500>;
+			rx_power = <7500>;
+		};
+		current_group_4 {
+			wireless_power_class = <2>;
+			vout = <9000>;
+			input_current_limit = <1330>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2175>;
+			rx_power = <12000>;
+		};
+		current_group_5 {
+			wireless_power_class = <2>;
+			vout = <11000>;
+			input_current_limit = <1090>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2100>;
+			rx_power = <12000>;
+		};
+		current_group_6 {
+			wireless_power_class = <2>;
+			vout = <12000>;
+			input_current_limit = <1000>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2100>;
+			rx_power = <12000>;
+		};
+		current_group_7 {
+			wireless_power_class = <2>;
+			vout = <11000>;
+			input_current_limit = <1360>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2300>;
+			rx_power = <15000>;
+		};
+		current_group_8 {
+			wireless_power_class = <2>;
+			vout = <12000>;
+			input_current_limit = <1250>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2300>;
+			rx_power = <15000>;
+		};
+		current_group_9 {
+			wireless_power_class = <2>;
+			vout = <13000>;
+			input_current_limit = <1150>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2300>;
+			rx_power = <15000>;
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/gts10pwifi/battery_common.dtsi */
+#include <dt-bindings/battery/sec-battery.h>
+
+#define MAX_FV 4400
+#define MAX_FCC 3150
+#define STD_CURR 8400
+
+#if 1
+&pio {
+	ovp_pwr_flagb_default: ovp_pwr_flagb_default {
+			 GPIO_CONFIG_PUD_DRV(AP,pio,175, FUNC_INPUT, PULL_NONE, DRV_LV1);
+		 };
+};
+
+&smd {
+	sec-cisd {
+		ovp_power = <SEC_GPIO_REF(AP,pio,175) 0>; /* OVP_PWR_FLAGB */
+	};
+};
+#endif
+
+&sec_battery {
+
+	pinctrl-names = "default";
+	battery,chip_vendor = "MTK";
+
+#if 1
+	pinctrl-0 = <&ovp_pwr_flagb_default>;
+#endif
+
+	battery,batt_data_version = <0>;
+	battery,ap_wake_chg;
+
+	battery,adc_read_type = <SEC_BATTERY_ADC_RAW>;
+	battery,temp_check_type = <SEC_BATTERY_TEMP_CHECK_TEMP>;
+	battery,chg_temp_check_type = <SEC_BATTERY_TEMP_CHECK_TEMP>;
+	battery,blkt_temp_check_type = <SEC_BATTERY_TEMP_CHECK_TEMP>;
+	battery,usb_temp_check_type = <SEC_BATTERY_TEMP_CHECK_TEMP>;
+	battery,dchg_temp_check_type = <SEC_BATTERY_TEMP_CHECK_TEMP>;
+	battery,lrp_temp_check_type = <SEC_BATTERY_TEMP_CHECK_TEMP>;
+
+	battery,thermal_source = <SEC_BATTERY_THERMAL_SOURCE_ADC>;
+	battery,chg_thermal_source = <SEC_BATTERY_THERMAL_SOURCE_ADC>;
+	battery,blkt_thermal_source = <SEC_BATTERY_THERMAL_SOURCE_ADC>;
+	battery,usb_thermal_source = <SEC_BATTERY_THERMAL_SOURCE_ADC>;
+	battery,dchg_thermal_source = <SEC_BATTERY_THERMAL_SOURCE_ADC>;
+	battery,dctp_by_cgtp;
+
+	battery,temp_table_adc = <
+		2519 2889 3350 3897 4544 5287 6168 7181 8356 9692
+		11188 12841 14629 16531 18418 20374 22213 23974 25585 27001
+		28224 29260 30027
+		>;
+	battery,temp_table_data = <
+		900 850 800 750 700 650 600 550 500 450
+		400 350 300 250 200 150 100 50 0 (-50)
+		(-100) (-150) (-200)
+		>;
+
+	battery,chg_temp_table_adc = <
+		2409 2792 3250 3789 4423 5165 6041 7050 8217 9543
+		11030 12680 14463 16365 18260 20208 22038 23817 25441 26879
+		28106 29168 29940
+		>;
+	battery,chg_temp_table_data = <
+		900 850 800 750 700 650 600 550 500 450
+		400 350 300 250 200 150 100 50 0 (-50)
+		(-100) (-150) (-200)
+		>;
+
+	battery,blkt_temp_table_adc = <
+		2332 2712 3160 3687 4299 5032 5894 6892 8042 9348
+		10818 12452 14225 16115 18018 19963 21806 23607 25257 26621
+		27969 29038 29836
+		>;
+	battery,blkt_temp_table_data = <
+		900 850 800 750 700 650 600 550 500 450
+		400 350 300 250 200 150 100 50 0 (-50)
+		(-100) (-150) (-200)
+		>;
+
+	battery,usb_temp_table_adc = <
+		2524 2896 3359 3907 4555 5300 6183 7198 8373 9711
+		11206 12861 14648 16542 18425 20394 22225 23987 25594 27010
+		28228 29263 30028
+		>;
+	battery,usb_temp_table_data = <
+		900 850 800 750 700 650 600 550 500 450
+		400 350 300 250 200 150 100 50 0 (-50)
+		(-100) (-150) (-200)
+		>;
+
+	battery,mass_with_usb_thm;
+	battery,support_usb_conn_check;
+	battery,usb_protection_temp = <500>;
+	battery,temp_gap_bat_usb = <150>;
+
+	battery,wire_cool3_cool2_thresh = <80>;
+
+	battery,chg_float_voltage = <MAX_FV>;
+	battery,high_temp_float = <4150>;
+	battery,low_temp_float = <MAX_FV>;
+	battery,swelling_high_rechg_voltage = <4000>;
+
+	battery,wire_warm_current = <7050>;
+	battery,wire_cool1_current = <MAX_FCC>; /* Switching Charger in Cool 1 Zone */
+	battery,wire_cool2_current = <2350>;/* 0.24C */
+	battery,wire_cool3_current = <925>;	/* 0.1C */
+	battery,wire_cool3_cool2_thresh = <80>; /* Charging Spec 3.3 */
+
+	battery,full_check_type = <SEC_BATTERY_FULLCHARGED_FG_CURRENT>;
+	battery,full_check_type_2nd = <SEC_BATTERY_FULLCHARGED_FG_CURRENT>;
+
+	battery,chg_high_temp = <800>;
+	battery,chg_high_temp_recovery = <770>;
+	battery,dchg_high_temp = <650>;
+	battery,dchg_high_temp_recovery = <420>;
+	battery,dchg_high_batt_temp = <900>;
+	battery,dchg_high_batt_temp_recovery = <390>;
+	battery,dctp_bootmode_en;
+	battery,dchg_dc_in_swelling;
+
+	battery,mix_high_temp = <460>;
+
+	battery,standard_curr = <STD_CURR>;
+	battery,expired_time = <9900>;     /* 105 + 60 = 165 mins*/
+	battery,recharging_expired_time = <5400>;     /*90 mins*/
+
+	battery,charging_reset_time = <0>;
+
+	battery,max_charging_current = <MAX_FCC>;
+	battery,max_charging_charge_power = <45000>; /* 45W */
+
+	battery,chg_ocp_current = <0>;
+
+	battery,siop_scenarios = <20 0>;
+	battery,siop_curr_type_num = <3>;
+	/* nv, hv, fpdo */
+	battery,siop_icl_20 = <1000 1000 1000>;
+	battery,siop_fcc_20 = <SIOP_DEFAULT SIOP_DEFAULT SIOP_DEFAULT>;
+	battery,siop_icl_0 = <SIOP_DEFAULT SIOP_DEFAULT SIOP_DEFAULT>;
+	battery,siop_fcc_0 = <100 100 100>;
+
+	battery,store_mode_max_input_power = <9000>;
+
+	battery,battery_full_capacity = <9800>;
+
+	battery,factory_chg_limit_max = <70>;
+	battery,factory_chg_limit_min = <65>;
+
+	battery,temp_table_LRP_NORMAL = <
+		390 380 /* trig_step2_LCD_OFF, recov_step2_LCD_OFF, */
+		380 370 /* trig_step1_LCD_OFF, recov_step1_LCD_OFF, */
+		390 370 /* trig_step2_LCD_ON, recov_step2_LCD_ON, */
+		380 360 /* trig_step1_LCD_ON, recov_step1_LCD_ON, */
+		1000 2000 /* st1_icl, st1_fcc, */
+		1200 1800 /* st2_icl, st2_fcc */
+		>;
+	battery,temp_table_LRP_25W = <
+		410 400 /* trig_step2_LCD_OFF, recov_step2_LCD_OFF, */
+		390 380 /* trig_step1_LCD_OFF, recov_step1_LCD_OFF, */
+		400 380 /* trig_step2_LCD_ON, recov_step2_LCD_ON, */
+		380 360 /* trig_step1_LCD_ON, recov_step1_LCD_ON, */
+		2200 4400 /* st1_icl, st1_fcc, */
+		1700 3400 /* st2_icl, st2_fcc */
+		>;
+	battery,temp_table_LRP_45W = <
+		410 400 /* trig_step2_LCD_OFF, recov_step2_LCD_OFF, */
+		390 380 /* trig_step1_LCD_OFF, recov_step1_LCD_OFF, */
+		400 380 /* trig_step2_LCD_ON, recov_step2_LCD_ON, */
+		380 360 /* trig_step1_LCD_ON, recov_step1_LCD_ON, */
+		2200 4400 /* st1_icl, st1_fcc, */
+		1700 3400 /* st2_icl, st2_fcc */
+		>;
+
+	/* cycle, full_condition_soc, common_offset */
+	battery,age_data_by_common_offset; /* Calculate Based on Common Offset */
+	battery,age_data_cycle = <0 200 250 300 1001>;
+	battery,age_data_full_condition_soc = <93 92 91 90 89>;
+	battery,age_data_common_offset = <0 20 40 60 110>;
+	battery,en_batt_full_status_usage;
+
+	battery,health_condition_asoc = <75 65 55>;
+
+	/* step charging option */
+	battery,step_chg_type = <0>;
+
+	/* direct step charging option */
+	battery,dc_step_chg_type = <0xE9>;
+	battery,dc_step_chg_charge_power = <22000>;
+	battery,dc_step_chg_step = <1>;
+	battery,dc_step_chg_cond_vol = <MAX_FV>; /*<45w 1step> STEP_CHARGING_CONDITION_VOLTAGE */
+	battery,dc_step_chg_iin_check_cnt = <3>;
+	battery,dc_step_chg_cond_soc = <100>; /* <45w 1step> STEP_CHARGING_CONDITION_SOC */
+	battery,dc_step_chg_val_vfloat = <MAX_FV>; /* <45w 1step> STEP_CHARGING_CONDITION_FLOAT_VOLTAGE */
+	battery,dc_step_chg_val_iout = <STD_CURR>; /* <45w 1step> */
+
+	battery,boosting_voltage_aicl;
+	battery,set_fledon_buckoff_state;
+
+	battery,cisd_max_voltage_thr = <4520>; /* battery ovp detection voltage */
+	battery,cisd_alg_index = <8>;
+	battery,ignore_cisd_index = <0 0>;
+	battery,ignore_cisd_index_d = <0 80>; /* Do not use BUCK_OFF_PER_DAY, DROP_SENSOR_PER_DAY */
+
+	battery,d2d_check_type = <SB_D2D_SRCSNK>;
+	battery,support_vpdo;
+	battery,support_15w_vpdo;
+	battery,support_src_vpdo;
+	battery,set_factory_619k;
+	battery,ovp_bypass_mode;
+
+	battery,ttf_hv_charge_current = <2950>;
+	battery,ttf_dc25_charge_current = <5370>;
+	battery,ttf_dc45_charge_current = <8454>;
+	battery,ttf_capacity = <9604>;
+	battery,cv_data = <
+			8174	810	2171
+			7329	830	2080
+			6514	850	1978
+			5588	870	1856
+			4792	890	1725
+			4063	910	1573
+			3266	930	1370
+			2573	950	1126
+			1961	970	791
+			1187	990	60
+			956	1000	0
+			>;
+};
+
+&sec_battery_cable {
+	default_input_current = <1800>;
+	default_charging_current = <2200>;
+	full_check_current_1st = <1000>;
+	full_check_current_2nd = <500>;
+
+	current_group_1 {
+		cable_number = <
+			SEC_BATTERY_CABLE_PREPARE_TA
+			SEC_BATTERY_CABLE_PDIC
+			SEC_BATTERY_CABLE_OTG
+			SEC_BATTERY_CABLE_LAN_HUB
+			SEC_BATTERY_CABLE_POWER_SHARING
+			SEC_BATTERY_CABLE_TIMEOUT>;
+		input_current = <500>;
+		charging_current = <500>;
+	};
+	current_group_2 {
+		cable_number = <
+			SEC_BATTERY_CABLE_HMT_CHARGE
+			SEC_BATTERY_CABLE_SMART_OTG>;
+		input_current = <1000>;
+		charging_current = <1000>;
+	};
+	current_group_3 {
+		cable_number = <
+			SEC_BATTERY_CABLE_USB_CDP
+			SEC_BATTERY_CABLE_SMART_NOTG>;
+		input_current = <1500>;
+		charging_current = <1500>;
+	};
+	current_group_4 {
+		cable_number = <
+			SEC_BATTERY_CABLE_9V_TA
+			SEC_BATTERY_CABLE_9V_ERR
+			SEC_BATTERY_CABLE_9V_UNKNOWN>;
+		input_current = <1650>;
+		charging_current = <MAX_FCC>;
+	};
+	current_group_5 {
+		cable_number = <SEC_BATTERY_CABLE_12V_TA>;
+		input_current = <1650>;
+		charging_current = <MAX_FCC>;
+	};
+	current_group_8 {
+		cable_number = <SEC_BATTERY_CABLE_HMT_CONNECTED>;
+		input_current = <1000>;
+		charging_current = <450>;
+	};
+	current_group_9 {
+		cable_number = <SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT>;
+		input_current = <2000>;
+		charging_current = <1800>;
+	};
+	current_group_12 {
+		cable_number = <
+			SEC_BATTERY_CABLE_NONE
+			SEC_BATTERY_CABLE_USB>;
+		input_current = <475>;
+		charging_current = <550>;
+	};
+	current_group_15 {
+		cable_number = <SEC_BATTERY_CABLE_POGO>;
+		input_current = <1650>;
+		charging_current = <2100>;
+	};
+	current_group_16 {
+		cable_number = <SEC_BATTERY_CABLE_POGO_9V>;
+		input_current = <1650>;
+		charging_current = <2800>;
+	};
+};
+
+/* revision devicetree for general */
+#include "mt6989.gts10pwifi_eur_open.00.dtsi"
+
+/ {
+	compatible = "Mediatek,MT6989","Samsung,GTS10PWIFI EUR OPEN";
+	dtbo-hw_rev = <0>;
+	dtbo-hw_rev_end = <1>;
+};

@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+#
+config SND_SOC_SAMSUNG_AUDIO
+	tristate "Audio support for Samsung Projects"
+	help
+	  Say Y here to enable audio support for the Samsung Audio.

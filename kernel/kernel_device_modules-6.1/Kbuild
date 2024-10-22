@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: GPL-2.0
+
+ifneq ($(CONFIG_DEVICE_MODULES_ALLOW_BUILTIN),y)
+
+LINUXINCLUDE := $(DEVCIE_MODULES_INCLUDE) $(LINUXINCLUDE)
+
+subdir-ccflags-y += -Werror \
+		-I$(srctree)/$(src)/include \
+		-I$(srctree)/$(src)/include/uapi \
+
+obj-y += drivers/memory/
+
+obj-y += drivers/iio/adc/
+
+obj-y += drivers/mfd/
+
+obj-y += drivers/nvmem/
+
+obj-y += drivers/dma/mediatek/
+
+obj-y += drivers/ufs/
+
+obj-y += drivers/char/
+
+obj-y += drivers/clk/mediatek/
+
+obj-y += drivers/clocksource/
+
+obj-y += drivers/cpufreq/
+
+obj-y += drivers/soc/mediatek/
+
+obj-y += drivers/watchdog/
+
+obj-y += drivers/dma-buf/heaps/
+
+obj-y += drivers/regulator/
+
+obj-y += drivers/leds/
+
+obj-y += drivers/pinctrl/mediatek/
+
+obj-y += drivers/power/supply/
+
+obj-y += drivers/rtc/
+
+obj-y += drivers/remoteproc/
+
+obj-y += drivers/rpmsg/
+
+obj-y += drivers/input/keyboard/
+
+obj-y += drivers/phy/mediatek/
+
+obj-y += drivers/thermal/mediatek/
+
+obj-y += drivers/spmi/
+
+obj-y += drivers/tty/serial/8250/
+
+obj-y += drivers/reset/
+
+obj-y += drivers/mailbox/
+
+obj-y += drivers/interconnect/
+
+obj-y += drivers/i2c/busses/
+
+obj-y += drivers/pwm/
+
+obj-y += drivers/spi/
+
+obj-y += drivers/iommu/
+
+obj-y += drivers/mmc/host/
+
+obj-y += drivers/tee/
+
+obj-y += drivers/gpu/drm/mediatek/
+
+obj-y += drivers/input/touchscreen/
+
+obj-y += drivers/gpu/drm/panel/
+
+obj-y += drivers/gpu/mediatek/
+
+obj-y += drivers/media/platform/
+
+obj-y += drivers/usb/
+
+obj-y += drivers/devfreq/
+
+obj-y += drivers/misc/mediatek/
+
+obj-y += drivers/firmware/cirrus/
+
+obj-y += sound/soc/codecs/
+
+obj-y += sound/soc/mediatek/
+
+obj-y += sound/soc/samsung/
+
+obj-y += drivers/pci/controller/
+
+obj-y += drivers/samsung/
+
+obj-y += block/
+
+endif
+obj-y += drivers/sec_panel_notifier_v2/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/usb/typec/manager/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/input/sec_input/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/muic/common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/staging/android/switch/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/gpu/drm/panel/mcd_panel/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/vibrator/common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/sdp/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/usb/common/vbus_notifier/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/misc/drb/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/gpu/drm/samsung/panel/ana38407/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/gpu/drm/samsung/panel/ana38407/kunit_test/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/gpu/drm/samsung/panel/oled_common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/vibrator/common/vib_info/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/input/input_boost/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/input/touchscreen/goodix/berlin/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/battery/core/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/kperfmon/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/usb/notify/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/knox/hdm/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/fingerprint/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/battery/charger/sm5714_charger/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/usb/typec/common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/gpu/drm/samsung/panel/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/sti/abc/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/vibrator/dc/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/mfd/sm/sm5714/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/gpu/drm/mediatek/sec_dp/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/input/misc/hall/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/battery/fuelgauge/sm5714_fuelgauge/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/muic/sm/sm5714/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/samsung/pm/sec_thermistor/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/battery/battery_auth/ds28e30/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/sensorhub/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/nfc/snvm/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/battery/battery_auth/sle956681/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/redriver/ps5169/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/input/wacom/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/input/sec_input/stm_fst1ba90a_i2c/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/usb/typec/sm/sm5714/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/battery/charger/sm5440_charger/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/sensors_lego/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/input/sec_input/stm32/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += drivers/battery/common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

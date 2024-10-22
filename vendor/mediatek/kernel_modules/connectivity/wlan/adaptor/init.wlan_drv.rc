@@ -1,0 +1,41 @@
+
+# load wifi driver after wmt_loader finish
+on property:vendor.connsys.driver.ready=yes
+  insmod /vendor/lib/modules/${ro.vendor.wlan.chrdev}.ko
+  insmod /vendor/lib/modules/wlan_drv_${ro.vendor.wlan.gen}.ko
+  start wlan_assistant
+# for WIFI MEMDUMP
+  chown wifi wifi /sys/wifi/memdump
+  chmod 0644 /sys/wifi/memdump
+
+# for WIFI WIFIVERSION
+  chown wifi wifi /sys/wifi/wifiver
+  chmod 0640 /sys/wifi/wifiver
+
+# for WIFI cable detection
+  chown wifi root /sys/wifi/wificable
+  chmod 0664 /sys/wifi/wificable
+
+# for WIFI Antenna Selection
+  chown wifi wifi /sys/wifi/ant
+  chmod 0640 /sys/wifi/ant
+
+# for WIFI PSM
+  chown wifi wifi /sys/wifi/pm
+  chmod 0640 /sys/wifi/pm
+
+# for WIFI SOFTAP
+  chown wifi wifi /sys/wifi/softap
+  chmod 0640 /sys/wifi/softap
+
+# for WIFI MAC
+  chown wifi wifi /sys/wifi/mac_addr
+  chmod 0640 /sys/wifi/mac_addr
+
+# for WIFI FEATURE
+  chown wifi wifi /sys/wifi/feature
+  chmod 0640 /sys/wifi/feature
+
+# for WiFiFWLogger
+  chown wifi wifi /sys/wifi/dump_in_progress
+  chmod 0660 /sys/wifi/dump_in_progress

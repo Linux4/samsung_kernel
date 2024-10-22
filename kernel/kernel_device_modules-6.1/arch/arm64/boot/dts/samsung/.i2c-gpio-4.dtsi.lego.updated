@@ -1,0 +1,47 @@
+&pio {
+       gpio_i2c_4_sda {
+               gpio_i2c_4_sda_default: gpio_i2c_4_sda_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,184, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&pio {
+       gpio_i2c_4_scl {
+               gpio_i2c_4_scl_default: gpio_i2c_4_scl_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,183, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+	        __overlay__ {
+			aliases {
+				  i2c54 = "/i2c@54";
+			};
+			/* Software I2C */
+			sw_i2c4: i2c@54 {
+				cell-index = <54>;
+				compatible = "i2c-gpio";
+				gpios = <
+					SEC_GPIO_REF(AP,pio,184) 0 /* SDA */
+					SEC_GPIO_REF(AP,pio,183) 0 /* SCL */
+					>;
+				#i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <
+					&gpio_i2c_4_sda_default
+					&gpio_i2c_4_scl_default
+					>;
+
+				status = "disabled";
+			};
+		};
+	};
+};
+

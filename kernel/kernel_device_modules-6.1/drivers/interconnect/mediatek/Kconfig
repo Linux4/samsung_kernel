@@ -1,0 +1,115 @@
+config INTERCONNECT_MTK
+	bool "Mediatek Network-on-Chip interconnect drivers"
+	depends on ARCH_MEDIATEK
+	help
+	  Support for Mediatek's Network-on-Chip interconnect hardware.
+
+config INTERCONNECT_MTK_EMI
+	tristate "Mediatek EMI interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on (MTK_DVFSRC && OF)
+	help
+	  This is a driver for the Mediatek Network-on-Chip on DVFSRC-based
+	  platforms.
+
+config INTERCONNECT_MTK_MMQOS_COMMON
+	tristate "Mediatek MMQoS support"
+	select INTERCONNECT_MTK_EXTENSION
+	help
+	  Support for multimedia QoS in Mediatek's SoCs.
+	  The Mediatek MMQoS(Multimedia Quality of Service) Interconnect
+	  driver will collect BW requests from MM users, such as display,
+	  camera, mdp and video codec, and configure SMI settings dynamically
+	  according to the aggregated BW.
+
+config INTERCONNECT_MTK_MMQOS_MT6873
+	tristate "Mediatek MT6873 MMQoS interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	select INTERCONNECT_MTK_MMQOS_COMMON
+	help
+	  Support MT6873 multimedia QoS.
+
+config INTERCONNECT_MTK_MMQOS_MT6853
+	tristate "Mediatek MT6853 MMQoS interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	select INTERCONNECT_MTK_MMQOS_COMMON
+	help
+	  Support MT6853 multimedia QoS.
+
+config INTERCONNECT_MTK_MMQOS_MT6886
+	tristate "Mediatek MT6886 MMQoS interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	select INTERCONNECT_MTK_MMQOS_COMMON
+	help
+	  Support MT6886 for multimedia QoS in Mediatek's SoCs.
+	  The Mediatek MMQoS(Multimedia Quality of Service) Interconnect
+	  driver will collect BW requests from MM users, such as display,
+	  camera, mdp and video codec, and configure SMI settings dynamically
+	  according to the aggregated BW.
+
+config INTERCONNECT_MTK_MMQOS_MT6897
+	tristate "Mediatek MT6897 MMQoS interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	select INTERCONNECT_MTK_MMQOS_COMMON
+	help
+	  Support MT6897 for multimedia QoS in Mediatek's SoCs.
+	  The Mediatek MMQoS(Multimedia Quality of Service) Interconnect
+	  driver will collect BW requests from MM users, such as display,
+	  camera, mdp and video codec, and configure SMI settings dynamically
+	  according to the aggregated BW.
+
+config INTERCONNECT_MTK_MMQOS_MT6983
+	tristate "Mediatek MT6983 MMQoS interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	select INTERCONNECT_MTK_MMQOS_COMMON
+	help
+	  Support MT6983 multimedia QoS.
+
+config INTERCONNECT_MTK_MMQOS_MT6985
+	tristate "Mediatek MT6985 MMQoS interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	select INTERCONNECT_MTK_MMQOS_COMMON
+	help
+	  Support MT6985 multimedia QoS.
+
+config MTK_MMQOS_VCP
+	tristate "MediaTek MMQOS VCP Support"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	help
+	  Say yes here to add support for the MediaTek Multimedia QoS (MMQOS)
+	  for Video Control Processor (VCP). The MMQOS is used to set bw
+	  for Mediatek multimedia hardwares, such as display, camera, mdp and
+	  video codec. And VCP support is for video codec set bw in tinysys vcp.
+	  Say no if your device does not need to MMQoS support in VCP.
+
+config INTERCONNECT_MTK_MMQOS_MT6989
+	tristate "Mediatek MT6989 MMQoS interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	select INTERCONNECT_MTK_MMQOS_COMMON
+	help
+	  Support MT6989 for multimedia QoS in Mediatek's SoCs.
+	  The Mediatek MMQoS(Multimedia Quality of Service) Interconnect
+	  driver will collect BW requests from MM users, such as display,
+	  camera, mdp and video codec, and configure SMI settings dynamically
+	  according to the aggregated BW.
+
+config INTERCONNECT_MTK_MMQOS_MT6878
+	tristate "Mediatek MT6878 MMQoS interconnect driver"
+	depends on INTERCONNECT_MTK
+	depends on DEVICE_MODULES_MTK_SMI
+	select INTERCONNECT_MTK_MMQOS_COMMON
+	help
+	  Support MT6878 for multimedia QoS in Mediatek's SoCs.
+	  The Mediatek MMQoS(Multimedia Quality of Service) Interconnect
+	  driver will collect BW requests from MM users, such as display,
+	  camera, mdp and video codec, and configure SMI settings dynamically
+	  according to the aggregated BW.

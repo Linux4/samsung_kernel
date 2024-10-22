@@ -1,0 +1,7 @@
+config MTK_DPC
+	tristate "MTK Display Power Controller"
+	help
+	  Choose this option if you have a Mediatek SoCs.
+	  This driver is used to optimize the power control
+	  of display vidle, it has low latency MTCMOS ctrl
+	  and flexible display triggers.

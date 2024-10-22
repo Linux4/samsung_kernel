@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config MTK_USB_LOGGER
+	tristate "MediaTek USB LOGGER"
+	depends on DEVICE_MODULES_USB_MTU3
+	depends on DEVICE_MODULES_USB_XHCI_MTK
+	help
+	  USB logger would record usb-related event
+	  for debug purpose. We can manual enable or
+	  disable this function through debugfs or procfs.
+
+	  If you don't know what this is, please say N.

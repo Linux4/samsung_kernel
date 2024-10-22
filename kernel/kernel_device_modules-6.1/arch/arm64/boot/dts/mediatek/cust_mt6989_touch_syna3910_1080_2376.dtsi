@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2022 MediaTek Inc.
+ */
+
+/* TOUCH start */
+&spi6 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default"; // "pmx_ts_i2c_mode";
+	pinctrl-0 = <&ctp_gt9916_pins_default>;
+
+	synaptic-tcm@0 {
+		compatible = "synaptics,tcm-spi";
+		reg = <0>; //Same as CS ID
+		spi-max-frequency = <1000000>;
+
+		pinctrl-names = "default"; // "pmx_ts_i2c_mode";
+		// pinctrl-0 = <&ctp_gt9916_pins_default>;
+		pinctrl-0 = <&ctp_gt9916_spi_mode>;
+
+		synaptics,bus-reg-name = "iovdd";
+		iovdd-supply = <&mt6373_vant18>;
+		synaptics,pwr-reg-name = "avdd";
+		avdd-supply = <&mt6373_vcn33_3>;
+
+		synaptics,reset-gpio = <&pio 3 0x0>;
+		synaptics,irq-gpio = <&pio 4 0x2008>;
+		synaptics,irq-flags = <2>; /* 1:rising, 2:falling;*/
+
+		synaptics,irq-on-state = <0>;
+		synaptics,reset-on-state = <0>;
+		synaptics,power-on-state = <1>;
+		synaptics,reset-active-ms = <20>;
+		synaptics,reset-delay-ms = <30>;
+		synaptics,power-delay-ms = <60>;
+		synaptics,ubl-i2c-addr = <0x2c>;
+	};
+};
+
+&pio {
+	ctp_gt9916_pins_default: pins-default {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO47__FUNC_GPIO47>;
+			output-low;
+		};
+	};
+	ctp_gt9916_int_active: int1-active {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO4__FUNC_GPIO4>;
+			input-enable;
+		};
+	};
+	ctp_gt9916_reset_active: reset1-active {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO3__FUNC_GPIO3>;
+			output-high;
+		};
+	};
+	ctp_gt9916_int_suspend: int1-suspend {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO4__FUNC_GPIO4>;
+			output-low;
+		};
+	};
+	ctp_gt9916_reset_suspend: reset1-suspend {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO3__FUNC_GPIO3>;
+			output-low;
+		};
+	};
+	ctp_gt9916_spi_mode: spimode-default {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO231__FUNC_SPI6_B_CLK>,
+				<PINMUX_GPIO232__FUNC_SPI6_B_CSB>,
+				<PINMUX_GPIO233__FUNC_SPI6_B_MO>,
+				<PINMUX_GPIO234__FUNC_SPI6_B_MI>;
+			drive-strength = <4>;
+		};
+	};
+};

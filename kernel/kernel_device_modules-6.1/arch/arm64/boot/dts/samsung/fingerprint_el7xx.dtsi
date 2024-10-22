@@ -1,0 +1,174 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	btp_sleep: btp_sleep_enable {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,197), 0)>;
+#if 1
+			bias-pull-down = <MTK_PUPD_SET_R1R0_11>;
+#else
+			bias-pull-down;
+#endif
+			drive-strength = <1>;
+		};
+	};
+};
+
+#if 0
+&${fps_ldo_vdd_3p3_parent} {
+	btp_ldo_en: btp_ldo_enable {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${fps_ldo_vdd_3p3}), 0)>;
+			bias-pull-down;
+			drive-strength = <1>;
+		};
+	};
+};
+#endif
+
+&pio {
+	spi2_set_miso: set_miso {
+		pins_cmd_dat{
+#if 1
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 2)>;
+#else
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 1)>;
+#endif
+			drive-strength = <4>;
+		};
+	};
+	spi2_set_cs: set_cs {
+		pins_cmd_dat{
+#if 1
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,67), 2)>;
+#else
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,67), 1)>;
+#endif
+			drive-strength = <4>;
+		};
+	};
+	spi2_set_mosi: set_mosi {
+		pins_cmd_dat{
+#if 1
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,68), 2)>;
+#else
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,68), 1)>;
+#endif
+			drive-strength = <4>;
+		};
+	};
+	spi2_set_clk: set_clk {
+		pins_cmd_dat{
+#if 1
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,66), 2)>;
+#else
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,66), 1)>;
+#endif
+			drive-strength = <4>;
+		};
+	};
+	spi2_clr_miso: clr_miso {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+			drive-strength = <1>;
+		};
+	};
+	spi2_clr_cs: clr_cs {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,67), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	spi2_clr_mosi: clr_mosi {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,68), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	spi2_clr_clk: clr_clk {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,66), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+};
+
+#if 1
+&mt6373_vfp {
+	regulator-name = "VDD_BTP_3P3";
+};
+#endif
+
+#if defined(CONFIG_SEC_FACTORY) || !1
+&spi2 {
+	status = "okay";
+	max-dma = <0x40000>;
+#else
+&smd {
+#endif
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	etspi-spi@0 {
+		compatible = "etspi,el7xx";
+		reg = <0x00>;
+		spi-max-frequency = <25000000>;
+#if !defined(CONFIG_SEC_FACTORY) && 1
+		clocks = <&topckgen_clk CLK_TOP_UNIVPLL_D6_D2>,
+			<&topckgen_clk CLK_TOP_SPI2_BCLK_SEL>,
+			<&infracfg_ao_clk CLK_PERAOP_SPI2_B>;
+		clock-names = "parent-clk", "sel-clk", "spi-clk";
+#endif
+
+		pinctrl-names = "default", "pins_poweron", "pins_poweroff";
+#if 0
+		pinctrl-0 = <&btp_sleep &btp_ldo_en>;
+#else
+		pinctrl-0 = <&btp_sleep>;
+#endif
+		pinctrl-1 = <&spi2_set_miso &spi2_set_cs &spi2_set_mosi &spi2_set_clk>;
+		pinctrl-2 = <&spi2_clr_miso &spi2_clr_cs &spi2_clr_mosi &spi2_clr_clk>;
+
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		etspi-sleepPin = <SEC_GPIO_REF(AP,pio,197) 0>;
+#if 1
+		etspi-regulator = "VDD_BTP_3P3";
+#endif
+#if 0
+		etspi-ldoPin = <SEC_GPIO_REF(${fps_ldo_vdd_3p3}) 0>;
+#endif
+		etspi-chipid = "EL721";
+		etspi-modelinfo = "X826";
+		etspi-position = "13.30,0.00,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
+		etspi-rb = "585,-1,-1,FFFFFF";
+		controller-data {
+			mediatek,tckdly = <1>;
+		};
+	};
+};

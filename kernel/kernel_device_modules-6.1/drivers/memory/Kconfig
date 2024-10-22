@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config DEVICE_MODULES_MTK_SMI
+	tristate "MediaTek SoC Memory Controller driver" if COMPILE_TEST
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	help
+	  This driver is for the Memory Controller module in MediaTek SoCs,
+	  mainly help enable/disable iommu and control the power domain and
+	  clocks for each local arbiter.
+
+config MTK_SMI_DEBUG
+	tristate "enable mtk smi debug extension"
+	help
+	  This extension enables debug features for smi driver. We only default
+	  enable this in userdebug/eng load. With this extension enabled, you
+	  can use adb command to dynamically dump smi status, or do some
+	  experiments like close some smi larbs. This extension is by default
+	  disabled on user load for security concern.
+
+source "$(KCONFIG_EXT_PREFIX)drivers/memory/mediatek/Kconfig"

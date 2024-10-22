@@ -1,0 +1,76 @@
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+
+load("//build/bazel_mgk_rules:mgk.bzl", "define_mgk")
+
+mgk_kmi_symbol_list = "//kernel-6.1:android/abi_gki_aarch64_mtk"
+
+filegroup(
+        name = "mgk_configs",
+        srcs = glob([
+            "arch/arm64/configs/*",
+            "kernel/configs/**",
+            "**/Kconfig",
+            "drivers/cpufreq/Kconfig.*",
+        ]) + [
+            "Kconfig.ext",
+            # FIXME
+            "Makefile.ext",
+            "certs/mtk_signing_key.pem",
+        ],
+)
+filegroup(
+        name = "mgk_dt-bindings",
+        srcs = glob([
+            "include/dt-bindings/**",
+            "include/dtc/**",
+        ]),
+)
+
+# mgk_64_k61
+load("//kernel_device_modules-6.1:kernel/kleaf/mgk_64_k61.bzl",
+     "mgk_64_k61_defconfig",
+     "mgk_64_k61_kleaf_modules",
+     "mgk_64_k61_kleaf_eng_modules",
+     "mgk_64_k61_kleaf_userdebug_modules",
+     "mgk_64_k61_kleaf_user_modules",
+     "mgk_64_k61_common_modules",
+     "mgk_64_k61_common_eng_modules",
+     "mgk_64_k61_common_userdebug_modules",
+     "mgk_64_k61_common_user_modules",
+     "mgk_64_k61_device_modules",
+     "mgk_64_k61_platform_device_modules",
+     "mgk_64_k61_device_eng_modules",
+     "mgk_64_k61_platform_device_eng_modules",
+     "mgk_64_k61_device_userdebug_modules",
+     "mgk_64_k61_platform_device_userdebug_modules",
+     "mgk_64_k61_device_user_modules",
+     "mgk_64_k61_platform_device_user_modules"
+)
+
+define_mgk(
+    name = "mgk_64_k61",
+    defconfig = mgk_64_k61_defconfig,
+    kleaf_modules = mgk_64_k61_kleaf_modules,
+    kleaf_eng_modules = mgk_64_k61_kleaf_eng_modules,
+    kleaf_userdebug_modules = mgk_64_k61_kleaf_userdebug_modules,
+    kleaf_user_modules = mgk_64_k61_kleaf_user_modules,
+    common_modules = mgk_64_k61_common_modules,
+    common_eng_modules = mgk_64_k61_common_eng_modules,
+    common_userdebug_modules = mgk_64_k61_common_userdebug_modules,
+    common_user_modules = mgk_64_k61_common_user_modules,
+    device_modules = mgk_64_k61_device_modules,
+    platform_device_modules = mgk_64_k61_platform_device_modules,
+    device_eng_modules = mgk_64_k61_device_eng_modules,
+    platform_device_eng_modules = mgk_64_k61_platform_device_eng_modules,
+    device_userdebug_modules = mgk_64_k61_device_userdebug_modules,
+    platform_device_userdebug_modules = mgk_64_k61_platform_device_userdebug_modules,
+    device_user_modules = mgk_64_k61_device_user_modules,
+    platform_device_user_modules = mgk_64_k61_platform_device_user_modules,
+    symbol_list = mgk_kmi_symbol_list,
+)
+

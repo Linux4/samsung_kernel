@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Block layer core configuration
+#
+
+if BLOCK
+
+config BLK_SEC_COMMON
+	tristate "Samsung specific module in block layer"
+	default n
+	help
+	  Say Y here if you want to be enable samsung specific module
+	  in block layer.
+
+config BLK_SEC_STATS
+	tristate "Samsung statistics module in block layer"
+	default n
+	select BLK_SEC_COMMON
+	help
+	  Say Y here if you want to be enable samsung statistics module
+	  in block layer.
+
+config BLK_SEC_WB
+	tristate "Samsung Write Booster module in block layer"
+	default n
+	select BLK_SEC_COMMON
+	help
+	  Say Y here if you want to be enable samsung write booster module
+	  in block layer.
+
+config MQ_IOSCHED_SSG
+	tristate "SamSung Generic I/O scheduler"
+	default n
+	help
+	  SamSung Generic IO scheduler.
+
+config MQ_IOSCHED_SSG_CGROUP
+	tristate "Control Group for SamSung Generic I/O scheduler"
+	default n
+	depends on BLK_CGROUP
+	depends on MQ_IOSCHED_SSG
+	help
+	  Control Group for SamSung Generic IO scheduler.
+
+config MQ_IOSCHED_SSG_WB
+	tristate "Write Booster for SamSung Generic I/O scheduler"
+	default n
+	depends on MQ_IOSCHED_SSG
+	help
+	  Write Booster for SamSung Generic IO scheduler.
+
+endif # BLOCK

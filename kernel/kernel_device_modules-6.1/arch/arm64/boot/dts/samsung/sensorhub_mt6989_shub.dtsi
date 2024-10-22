@@ -1,0 +1,40 @@
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6989_shub/dts/sensorhub_mt6989_shub.gts10pwifi.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsvtr-position = <3>;
+				mag-ak09918c-position = <4>;
+				mag-ak09918c-array = /bits/ 8 <0 0 0 0 0 0 0 0 0
+								0 0 0 0 0 0 0 0 0
+								0 0 0 0 0 0 0 0 0>;
+				light-dual;
+				light-position = /bits/ 32 <172 3 143 6 2 1 71 0 (-3) 8 2 1>;
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6989_shub/dts/sensorhub_mt6989_shub.gts10pwifi.04.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				mag-ak09918c-array = /bits/ 8 <106 82 71 13 15 15 253 130 218 54 239 111 172 28 254 232 255 212 20 213 193 253 127 204 11 77 245>;
+			};
+		};
+	};
+};

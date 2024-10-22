@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2023 MediaTek Inc.
+ * Author: Owen Chen <owen.chen@mediatek.com>
+ */
+
+&clkitg {
+	status = "okay";
+	bring-up@0 {
+		compatible = "mediatek,clk-bring-up";
+		reg = <0>;
+		clocks =
+			<&topckgen_clk CLK_TOP_DSP_SEL>,
+			<&topckgen_clk CLK_TOP_EMI_INTERFACE_546_SEL>,
+			<&topckgen_clk CLK_TOP_SSR_SEJ_SEL>,
+			<&infracfg_ao_clk CLK_IFRAO_RG_SOCSYS_FATB>;
+	};
+};

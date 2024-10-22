@@ -1,0 +1,60 @@
+/* SEC Displayport mtk dtsi */
+
+#if 1
+&pio {
+	aux_sw_oe: aux_sw_oe {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,87), 0)>;
+			output-high;
+			bias-disable;
+		};
+	};
+};
+
+&pio {
+	sbu_sw_sel: sbu_sw_sel {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,84), 0)>;
+			output-low;
+			bias-disable;
+		};
+	};
+};
+#endif
+
+&dp_tx {
+	status = "okay";
+
+#if 1
+	/delete-property/ dptx,phy-params;
+	dptx,phy-params = <0x211a1614 0x28241f1c 0x00003027
+		0x0f080400 0x020c0500 0x00000009>;
+#endif
+};
+
+/ {
+	fragment@sec_displayport_mtk {
+		target-path = "/";
+		__overlay__ {
+			sec_displayport_mtk: sec_displayport_mtk {
+				compatible = "sec,dp_mtk_platform";
+
+#if 1
+				pinctrl-names = "default";
+				pinctrl-0 = <&aux_sw_oe &sbu_sw_sel>;
+
+				dp,aux_sw_oe = <SEC_GPIO_REF(AP,pio,87) 1>;
+				dp,sbu_sw_sel = <SEC_GPIO_REF(AP,pio,84) 0>;
+#endif
+
+#if 1
+				dp,usb_cc_dir = <SEC_GPIO_REF(AP,pio,210) 0>;
+#endif
+				dp,aux_tuning_level = <0xf>;
+#if 1
+				redriver_node = <&displayport_redriver>;
+#endif
+			};
+		};
+	};
+};

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menu "Clock Source drivers"
+	depends on GENERIC_CLOCKEVENTS
+
+config DEVICE_MODULES_MTK_TIMER
+	tristate "Mediatek timer driver"
+	depends on HAS_IOMEM
+	select TIMER_OF
+	select CLKSRC_MMIO
+	help
+	  Support for Mediatek timer driver.
+
+endmenu

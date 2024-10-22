@@ -1,0 +1,11 @@
+#source files
+LPM_CPUIDLE_GOV_OBJS += lpm-mhsp.o
+
+LPM_CPUIDLE_GOV_NAME=lpm-gov-$(subst ",,${CONFIG_MTK_CPU_IDLE_GOV_VERSION})
+
+#Generic build
+BUILD_MTK_GOV=${LPM_CPUIDLE_GOV_NAME}
+obj-$(CONFIG_MTK_CPU_IDLE_GOV) += ${BUILD_MTK_GOV}.o
+
+${BUILD_MTK_GOV}-objs += $(LPM_CPUIDLE_GOV_OBJS)
+CFLAGS_$(LPM_CPUIDLE_GOV_OBJS) := -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/lpm/governors/MHSP

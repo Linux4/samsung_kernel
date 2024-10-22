@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config DEVICE_MODULES_ALLOW_BUILTIN
+	bool "allow builtin drivers into kernel image"
+	help
+	  All modules are default built as kernel modules.
+	  Set DEVICE_MODULES_ALLOW_BUILTIN=y to build modules
+	  into the kernel image.
+	  If unsure, say N.
+
+source "$(KCONFIG_EXT_PREFIX)drivers/memory/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/iio/adc/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/mfd/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/nvmem/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/dma/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/ufs/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/char/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/clk/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/clocksource/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/cpufreq/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/soc/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/watchdog/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/dma-buf/heaps/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/regulator/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/leds/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/pinctrl/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/power/supply/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/rtc/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/remoteproc/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/rpmsg/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/input/keyboard/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/phy/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/thermal/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/spmi/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/tty/serial/8250/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/reset/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/mailbox/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/interconnect/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/i2c/busses/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/pwm/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/spi/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/iommu/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/tee/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/mmc/host/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/gpu/drm/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/input/touchscreen/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/gpu/drm/panel/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/gpu/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/media/platform/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/usb/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/devfreq/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/firmware/cirrus/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)sound/soc/codecs/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)sound/soc/mediatek/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)sound/soc/samsung/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/pci/controller/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/pinctrl/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/media/platform/mtk-isp/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)fs/f2fs/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/samsung/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)block/Kconfig"

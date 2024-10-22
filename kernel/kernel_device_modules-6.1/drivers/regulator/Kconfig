@@ -1,0 +1,210 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menuconfig REGULATOR
+	bool "Voltage and Current Regulator Support"
+	select LINEAR_RANGES
+	help
+	  Generic Voltage and Current Regulator support.
+
+	  This framework is designed to provide a generic interface to voltage
+	  and current regulators within the Linux kernel. It's intended to
+	  provide voltage and current control to client or consumer drivers and
+	  also provide status information to user space applications through a
+	  sysfs interface.
+
+	  The intention is to allow systems to dynamically control regulator
+	  output in order to save power and prolong battery life. This applies
+	  to both voltage regulators (where voltage output is controllable) and
+	  current sinks (where current output is controllable).
+
+	  This framework safely compiles out if not selected so that client
+	  drivers can still be used in systems with no software controllable
+	  regulators.
+
+	  If unsure, say no.
+
+
+if REGULATOR
+
+config DEVICE_MODULES_REGULATOR_MT6315
+	tristate "MediaTek MT6315 PMIC"
+	depends on SPMI
+	select REGMAP_SPMI
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6315 PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+config DEVICE_MODULES_REGULATOR_MT6316
+	tristate "MediaTek MT6316 PMIC"
+	depends on SPMI
+	select REGMAP_SPMI
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6316 PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+config REGULATOR_MT6359P
+	tristate "MediaTek MT6359P PMIC"
+	depends on DEVICE_MODULES_MFD_MT6397
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6359P PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+config DEVICE_MODULES_REGULATOR_MT6360
+	tristate "MT6360 SubPMIC Regulator"
+	depends on DEVICE_MODULES_MFD_MT6360
+	help
+	  Say Y here to enable MT6360 regulator support.
+	  This is support MT6360 PMIC/LDO part include
+	  2-channel buck with Thermal Shutdown and Overload Protection
+	  6-channel High PSRR and Low Dropout LDO.
+
+config REGULATOR_MT6362
+	tristate "MT6362 SPMI Regulator driver"
+	depends on MFD_MT6362
+	help
+	  Say yes here to have support for the MT6362 Regulator
+	  Include six BUCKs and seven LDOs.
+
+	  The driver can also be build as a module.
+	  If so, the module will be called mt6362_regulator
+
+config REGULATOR_MT6363
+	tristate "MT6363 SPMI Regulator driver"
+	depends on MFD_MTK_SPMI_PMIC
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6363 PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+	  The driver can also be build as a module.
+	  If so, the module will be called mt6363_regulator
+
+config REGULATOR_MT6368
+	tristate "MT6368 SPMI Regulator driver"
+	depends on MFD_MTK_SPMI_PMIC
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6368 PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+	  The driver can also be build as a module.
+	  If so, the module will be called mt6368_regulator
+
+config REGULATOR_MT6369
+	tristate "MT6369 SPMI Regulator driver"
+	depends on MFD_MTK_SPMI_PMIC
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6369 PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+	  The driver can also be build as a module.
+	  If so, the module will be called mt6369_regulator
+
+config REGULATOR_MT6373
+	tristate "MT6373 SPMI Regulator driver"
+	depends on MFD_MTK_SPMI_PMIC
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6373 PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+	  The driver can also be build as a module.
+	  If so, the module will be called mt6373_regulator
+
+config REGULATOR_MT6681
+	tristate "MT6681 SPMI Regulator driver"
+	depends on MFD_MTK_SPMI_PMIC
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6681 PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+	  The driver can also be build as a module.
+	  If so, the module will be called mt6681_regulator
+
+config DEVICE_MODULES_REGULATOR_MTK_DVFSRC
+	tristate "MediaTek DVFSRC regulator driver"
+	depends on MTK_DVFSRC
+	help
+	  Say y here to control regulator by DVFSRC (dynamic voltage
+	  and frequency scaling resource collector).
+	  This driver supports to control regulators via the DVFSRC
+	  of Mediatek. It allows for voting on regulator state
+	  between multiple users.
+
+config REGULATOR_MTK_VMM_ISP71
+	tristate "MediaTek ISPDVFS regulator driver"
+	depends on MTK_CCU_RPROC
+	help
+	  Say y here to control regulator by ISPDVFS (dynamic voltage
+	  and frequency scaling resource collector).
+	  This driver supports to control regulators via the ISPDVFS
+	  of Mediatek. It allows for voting on regulator state
+	  between multiple users.
+
+config REGULATOR_RT4803
+	tristate "Richtek RT4803 boost regualtor"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  This adds support for RT4803 boost converter that integrates the
+	  bypass switch. If the input voltage is low than the required voltage,
+	  RT4803 will enter boost mode. Otherwise, enable internal bypass
+	  switch to enter bypass mode.
+
+config REGULATOR_RT5133
+	tristate "Richtek RT5133 regulator driver"
+	depends on I2C && GPIOLIB
+	select REGMAP
+	select CRC8
+	select OF_GPIO
+	select REGULATOR_FIXED_VOLTAGE
+	select MTK_SUBPMIC_MISC
+	help
+	  RT5133 is an integrated chip. It includes 8 LDOs and 3 GPIOs that
+	  can be used to drive output high/low purpose. The dependency of the
+	  GPIO block is internally LDO1 voltage. If LDO1 voltage output disabled,
+	  GPIO cannot be used to drive output high. It need to pay more
+	  attention on the usage.
+
+config REGULATOR_MAX77816
+	tristate "Maxim MAX77816 boost regualtor"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  This adds support for MAX77816 boost converter that integrates the
+	  bypass switch. If the input voltage is low than the required voltage,
+	  MAX77816 will enter boost mode. Otherwise, enable internal bypass
+	  switch to enter bypass mode.
+
+config DEVICE_MODULES_REGULATOR_RT6160
+	tristate "Richtek RT6160 BuckBoost voltage regulator"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  This adds support for voltage regulator in Richtek RT6160.
+	  This device automatically change voltage output mode from
+	  Buck or Boost. The mode transition depend on the input source voltage.
+	  The wide output range is from 2025mV to 5200mV and can be used on most
+	  common application scenario.
+
+config REGULATOR_MT6878_ALPHA_SUPPORT
+	tristate "Specify Alpha REGULATOR Platform is mt6878"
+	help
+	  Select Alpha REGULATOR Platform is mt6878.
+	  To compile this dirver for used touch IC.
+	  Set Y or M to select this feature for specific platform-mt6878,
+	  and set N to disable.
+endif
+

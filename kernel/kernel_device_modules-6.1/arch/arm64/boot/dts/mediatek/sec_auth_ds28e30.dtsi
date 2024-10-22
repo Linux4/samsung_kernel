@@ -1,0 +1,55 @@
+&smd {
+	sec_auth_ds28e30: sec-auth-ds28e30 {
+			status = "okay";
+			compatible = "samsung,sec_auth_ds28e30";
+#if 1
+			sec_auth_ds28e30,swi_gpio = <
+				SEC_GPIO_REF(AP,pio,85) 0 /* SWI_GPIO */
+#if 0
+				SEC_GPIO_REF(${swi_gpio_2}) 0 /* SWI_GPIO_2 */
+#endif
+			>;
+#endif
+			};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/battery_auth/ds28e30/gts10pwifi/sec_auth_ds28e30.dtsi */
+#if 1
+&pio {
+		sec_auth_gpio_init: sec_auth_gpio_init {
+			GPIO_CONFIG_PUD(AP,pio,85, FUNC_OUTPUT_HIGH, PULL_NONE);
+		};
+		sec_auth_gpio_sleep: sec_auth_gpio_sleep {
+			GPIO_CONFIG_PUD(AP,pio,85, FUNC_OUTPUT_HIGH, PULL_NONE);
+		};
+	};
+#endif
+
+&smd {
+	sec_auth_ds28e30: sec-auth-ds28e30 {
+		status = "okay";
+		compatible = "samsung,sec_auth_ds28e30";
+
+#if 1
+		/* SWI_GPIO */
+		ds28e30,swi_gpio = <SEC_GPIO_REF(AP,pio,85) 0 >;
+		/* Change according to AP and GPIO */
+		ds28e30,base_phys_addr = <0x10005000 0x224>;
+		/* control_set , control_clr , data_set , data_clr , data_read */
+		ds28e30,offset = <0x24 0x28 0x124 0x128 0x220>;
+		/* Control bit is 21st , Data bit is 21st --> Change according to AP and GPIO */
+		ds28e30,bit_pos = <21 21>;
+		/* 400ns delay for tW1L , 400ns delay for tRL, 500ns delay for tSETUP */
+		ds28e30,rw_delay_ns = <400 400 500>;
+
+		pinctrl-names = "init", "sleep";
+		pinctrl-0 = <&sec_auth_gpio_init >;
+		pinctrl-1 = <&sec_auth_gpio_sleep >;
+#endif
+#if 1
+		/*EUR_DETECTION_NODE*/
+		ds28e30,eur_detection = <SEC_GPIO_REF(PM,mt6373_pio,13) 0 >;
+#endif
+	};
+};

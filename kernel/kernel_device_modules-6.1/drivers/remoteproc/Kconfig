@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menu "Remoteproc drivers"
+
+if REMOTEPROC
+
+config MTK_CCD_REMOTEPROC
+	tristate "MediaTek CCD driver"
+	depends on RPMSG_MTK_CCD
+	help
+	  Say y here to enable support communication channels to remote
+	  processors in MediaTek platforms. This uses MTK ccd driver to
+	  communicate with Camera Control Daemon base on rpmsg framework. It
+	  provide channels, endpoints creation and send operations.
+
+config MTK_CCU_RPROC
+	tristate "MediaTek CCU driver"
+	depends on RPMSG_MTK_CCD
+	help
+	  Say y here to support Camera Control Unit's remote processors via
+	  the remote processor framework. Support MTK Camera module using
+	  CCU hardware to do hard-real time task. Offers speed up of 3A,
+	  including faster control flow and stabler frame rate
+
+config MTK_CCU_DEBUG
+	bool "Debugging log for Mediatek CCU"
+	depends on MTK_CCU_RPROC
+	help
+	  Select this to output the CCU uP log message on
+	  engeering load or user debug load.The user space
+	  logging procedure mmaps the ccu_rproc node.
+	  For security concerns, register ccu_rproc node
+	  only on engeering load or user debug load.
+
+	  If unsure, say N.
+
+endif # REMOTEPROC
+
+endmenu
