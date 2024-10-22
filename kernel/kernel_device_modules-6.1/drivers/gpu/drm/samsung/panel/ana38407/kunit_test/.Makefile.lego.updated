@@ -1,0 +1,1 @@
+obj-$(CONFIG_ANA38407_TEST)		+= ana38407_test.o

@@ -1,0 +1,788 @@
+// SPDX-License-Identifier: GPL-2.0
+/* Copyright (c) 2023 MediaTek Inc. */
+#include <dt-bindings/clock/mt6989-clk.h>
+
+/********  TAB S10U Board  ****************
+ *    SW               :   HW   : Sensor
+ * camera0(Wide)       : RCAM1  : Hi1337
+ * camera1(Front Wide) : FCAM   : Hi1337
+ * camera2(UW)         : RCAM2  : Hi847
+ * camera3(Front UW)   : FCAM2  : Hi1337
+ ******************************************/
+
+/*************************
+ *     Mipi Channel 
+ *************************/
+&seninf_top {
+		seninf_csi_port_0: seninf-csi-port-0 {
+			compatible = "mediatek,seninf";
+			csi-port = "0";
+
+			nvmem-cells = <&csi_efuse0>;
+			nvmem-cell-names = "rg_csi";
+
+			port {
+				seninf_csi_port_0_in: endpoint {
+					remote-endpoint = <&sensor3_out>;
+				};
+			};
+		};
+
+		seninf_csi_port_1: seninf-csi-port-1 {
+			compatible = "mediatek,seninf";
+			csi-port = "1";
+
+			nvmem-cells = <&csi_efuse1>;
+			nvmem-cell-names = "rg_csi";
+
+			port {
+				seninf_csi_port_1_in: endpoint {
+					remote-endpoint = <&sensor1_out>;
+				};
+			};
+		};
+
+		seninf_csi_port_2: seninf-csi-port-2 {
+			compatible = "mediatek,seninf";
+			csi-port = "2";
+
+			nvmem-cells = <&csi_efuse2>;
+			nvmem-cell-names = "rg_csi";
+
+			port {
+				seninf_csi_port_2_in: endpoint {
+					remote-endpoint = <&sensor0_out>;
+				};
+			};
+		};
+		seninf_csi_port_3: seninf-csi-port-3 {
+			compatible = "mediatek,seninf";
+			csi-port = "3";
+
+			nvmem-cells = <&csi_efuse3>;
+			nvmem-cell-names = "rg_csi";
+
+			port {
+				seninf_csi_port_3_in: endpoint {
+					remote-endpoint = <&sensor2_out>;
+				};
+			};
+		};
+};
+
+&camera_sysfs {
+	vendor {
+		rear_sensor_id   = <1337>;   /* SENSOR_NAME_HI1337 */
+		front_sensor_id  = <1338>;   /* SENSOR_NAME_HI1337F */
+		rear2_sensor_id  = <847>;    /* SENSOR_NAME_HI847 */
+		front2_sensor_id = <1339>;   /* SENSOR_NAME_HI1337FU */
+
+		//use_dualcam_set_cal;
+		use_module_check;
+
+		skip_cal_loading;         /* for test without cal loading */
+		//check_final_cam_module;   /* use after DVR */
+		max_supported_camera = <4>;
+		supported_cameraId = <56 1 58 3>; /* REAR, FRONT, REAR2 FRONT2 */
+
+		max_camera_num = <4>;
+		camera_info0 {             /* 0 : rear - HI1337 */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <2>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <0>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			//includes_sub = <4>;    /* include this for common eeprom. <_position_> - position of the sub camera */
+			afcal_type=<20>;       /* output format - 1: Near, Middle..., Far , 20: Near, Far, Middle... */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+		};
+		camera_info1 {             /* 1 : front1 - HI1337F */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <2>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <1>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+		};
+		camera_info2 {             /* 2 : rear2 - HI847 */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <3>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <2>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+		};
+		camera_info3 {             /* 2 : front2 - HI1337FU */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <2>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <2>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+		};
+	};
+};
+
+/* CAMERA GPIO standardization */
+&pio {
+	/****************  Camera0  ***************/
+	// MCLK
+	camera_pins_cam0_mclk_off: camera-pins-cam0-mclk-off {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO116__FUNC_GPIO116>;
+			drive-strength = <1>;
+		};
+	};
+	camera_pins_cam0_mclk_2ma: camera-pins-cam0-mclk-2ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO116__FUNC_CMMCLK2>;
+			drive-strength = <0>;
+		};
+	};
+	camera_pins_cam0_mclk_4ma: camera-pins-cam0-mclk-4ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO116__FUNC_CMMCLK2>;
+			drive-strength = <1>;
+		};
+	};
+	camera_pins_cam0_mclk_6ma: camera-pins-cam0-mclk-6ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO116__FUNC_CMMCLK2>;
+			drive-strength = <2>;
+		};
+	};
+	camera_pins_cam0_mclk_8ma: camera-pins-cam0-mclk-8ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO116__FUNC_CMMCLK2>;
+			drive-strength = <3>;
+		};
+	};
+
+	// Reset
+	camera_pins_cam0_rst_0: cam0@0 {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO112__FUNC_GPIO112>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_rst_1: cam0@1 {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO112__FUNC_GPIO112>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// DVDD
+	camera_pins_cam0_dvdd_0: cam0@vcam0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_GPIO125>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_dvdd_1: cam0@vcam1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_GPIO125>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// AVDD
+	camera_pins_cam0_avdd_0: cam0@vcam2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_GPIO125>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_avdd_1: cam0@vcam3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_GPIO125>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// AFVDD
+	camera_pins_cam0_afvdd_0: cam0@vcam4 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_GPIO125>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_afvdd_1: cam0@vcam5 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO125__FUNC_GPIO125>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	/****************  Camera1  ***************/
+	//MCLK
+	camera_pins_cam1_mclk_off: camera-pins-cam1-mclk-off {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_GPIO106>;
+			drive-strength = <1>;
+		};
+	};
+	camera_pins_cam1_mclk_2ma: camera-pins-cam1-mclk-2ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_CMMCLK4>;
+			drive-strength = <0>;
+		};
+	};
+	camera_pins_cam1_mclk_4ma: camera-pins-cam1-mclk-4ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_CMMCLK4>;
+			drive-strength = <1>;
+		};
+	};
+	camera_pins_cam1_mclk_6ma: camera-pins-cam1-mclk-6ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_CMMCLK4>;
+			drive-strength = <2>;
+		};
+	};
+	camera_pins_cam1_mclk_8ma: camera-pins-cam1-mclk-8ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_CMMCLK4>;
+			drive-strength = <3>;
+		};
+	};
+
+	// Reset
+	camera_pins_cam1_rst_0: cam1@0 {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam1_rst_1: cam1@1 {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// DVDD
+	camera_pins_cam1_dvdd_0: cam1@vcam0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam1_dvdd_1: cam1@vcam1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// AVDD
+	camera_pins_cam1_avdd_0: cam1@vcam2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam1_avdd_1: cam1@vcam3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	/****************  Camera2  ***************/
+	//MCLK
+	camera_pins_cam2_mclk_off: camera-pins-cam2-mclk-off {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO117__FUNC_GPIO117>;
+			drive-strength = <1>;
+		};
+	};
+	camera_pins_cam2_mclk_2ma: camera-pins-cam2-mclk-2ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO117__FUNC_CMMCLK3>;
+			drive-strength = <0>;
+		};
+	};
+	camera_pins_cam2_mclk_4ma: camera-pins-cam2-mclk-4ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO117__FUNC_CMMCLK3>;
+			drive-strength = <1>;
+		};
+	};
+	camera_pins_cam2_mclk_6ma: camera-pins-cam2-mclk-6ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO117__FUNC_CMMCLK3>;
+			drive-strength = <2>;
+		};
+	};
+	camera_pins_cam2_mclk_8ma: camera-pins-cam2-mclk-8ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO117__FUNC_CMMCLK3>;
+			drive-strength = <3>;
+		};
+	};
+
+	// Reset
+	camera_pins_cam2_rst_0: cam2@0 {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO113__FUNC_GPIO113>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam2_rst_1: cam2@1 {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO113__FUNC_GPIO113>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// DVDD
+	camera_pins_cam2_dvdd_0: cam2@vcam0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO124__FUNC_GPIO124>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam2_dvdd_1: cam2@vcam1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO124__FUNC_GPIO124>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// AVDD
+	camera_pins_cam2_avdd_0: cam2@vcam2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO124__FUNC_GPIO124>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam2_avdd_1: cam2@vcam3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO124__FUNC_GPIO124>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	/****************  Camera3  ***************/
+	// MCLK
+	camera_pins_cam3_mclk_off: camera-pins-cam3-mclk-off {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_GPIO106>;
+			drive-strength = <1>;
+		};
+	};
+	camera_pins_cam3_mclk_2ma: camera-pins-cam3-mclk-2ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_CMMCLK4>;
+			drive-strength = <0>;
+		};
+	};
+	camera_pins_cam3_mclk_4ma: camera-pins-cam3-mclk-4ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_CMMCLK4>;
+			drive-strength = <1>;
+		};
+	};
+	camera_pins_cam3_mclk_6ma: camera-pins-cam3-mclk-6ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_CMMCLK4>;
+			drive-strength = <2>;
+		};
+	};
+	camera_pins_cam3_mclk_8ma: camera-pins-cam3-mclk-8ma {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO106__FUNC_CMMCLK4>;
+			drive-strength = <3>;
+		};
+	};
+
+	// Reset
+	camera_pins_cam3_rst_0: cam3@0 {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO127__FUNC_GPIO127>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam3_rst_1: cam3@1 {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO127__FUNC_GPIO127>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// DVDD
+	camera_pins_cam3_dvdd_0: cam3@vcam0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO126__FUNC_GPIO126>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam3_dvdd_1: cam3@vcam1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO126__FUNC_GPIO126>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	// AVDD
+	camera_pins_cam3_avdd_0: cam3@vcam2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO126__FUNC_GPIO126>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam3_avdd_1: cam3@vcam3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO126__FUNC_GPIO126>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_default: camdefault {
+	};
+};
+/* CAMERA GPIO end */
+
+/* Actuator */
+&mtk_composite_v4l2_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	port@0 {
+		reg = <0>;
+		main_af_endpoint: endpoint {
+			remote-endpoint = <&main_af>;
+		};
+	};
+};
+
+/*************************
+ *     Cmaera I2C
+ *************************/
+&i2c2 {
+	status = "okay";
+	clock-frequency = <1000000>;
+
+	sensor1: sensor1@10 {
+		compatible = "mediatek,imgsensor";
+		sensor-names = "hi1337f_mipi_raw";
+		reg = <0x10>;
+
+		#thermal-sensor-cells = <0>;
+
+		pinctrl-names = "mclk_off",
+				"mclk_2mA",
+				"mclk_4mA",
+				"mclk_6mA",
+				"mclk_8mA",
+				"rst_low",
+				"rst_high",
+				"dvdd_off",
+				"dvdd_on",
+				"avdd_off",
+				"avdd_on";
+		pinctrl-0 = <&camera_pins_cam1_mclk_off>;
+		pinctrl-1 = <&camera_pins_cam1_mclk_2ma>;
+		pinctrl-2 = <&camera_pins_cam1_mclk_4ma>;
+		pinctrl-3 = <&camera_pins_cam1_mclk_6ma>;
+		pinctrl-4 = <&camera_pins_cam1_mclk_8ma>;
+		pinctrl-5 = <&camera_pins_cam1_rst_0>;
+		pinctrl-6 = <&camera_pins_cam1_rst_1>;
+		pinctrl-7 = <&camera_pins_cam1_dvdd_0>;
+		pinctrl-8 = <&camera_pins_cam1_dvdd_1>;
+		pinctrl-9 = <&camera_pins_cam1_avdd_0>;
+		pinctrl-10 = <&camera_pins_cam1_avdd_1>;
+
+		dovdd-supply = <&mt6373_vant18>;
+
+		// mclk4
+		clocks = <&topckgen_clk CLK_TOP_UNIVPLL2_192M_D32>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D16>,
+			<&topckgen_clk CLK_TOP_F26M_CK_D2>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D10>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D8>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_D6_D16>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_D6_D8>,
+			<&topckgen_clk CLK_TOP_CAMTG4_SEL>;
+		clock-names = "6", "12", "13", "19.2", "24", "26", "52", "mclk";
+
+		status = "okay";
+		port {
+			sensor1_out: endpoint {
+				remote-endpoint = <&seninf_csi_port_1_in>;
+			};
+		};
+	};
+};
+
+&i2c4 {
+	status = "okay";
+	clock-frequency = <1000000>;
+
+	sensor2: sensor2@10 {
+		compatible = "mediatek,imgsensor";
+		sensor-names = "hi847_mipi_raw";
+		reg = <0x10>;
+
+		#thermal-sensor-cells = <0>;
+
+		pinctrl-names = "mclk_off",
+				"mclk_2mA",
+				"mclk_4mA",
+				"mclk_6mA",
+				"mclk_8mA",
+				"rst_low",
+				"rst_high",
+				"dvdd_off",
+				"dvdd_on",
+				"avdd_off",
+				"avdd_on";
+		pinctrl-0 = <&camera_pins_cam2_mclk_off>;
+		pinctrl-1 = <&camera_pins_cam2_mclk_2ma>;
+		pinctrl-2 = <&camera_pins_cam2_mclk_4ma>;
+		pinctrl-3 = <&camera_pins_cam2_mclk_6ma>;
+		pinctrl-4 = <&camera_pins_cam2_mclk_8ma>;
+		pinctrl-5 = <&camera_pins_cam2_rst_0>;
+		pinctrl-6 = <&camera_pins_cam2_rst_1>;
+		pinctrl-7 = <&camera_pins_cam2_dvdd_0>;
+		pinctrl-8 = <&camera_pins_cam2_dvdd_1>;
+		pinctrl-9 = <&camera_pins_cam2_avdd_0>;
+		pinctrl-10 = <&camera_pins_cam2_avdd_1>;
+
+		dovdd-supply = <&mt6373_vant18>;
+
+		// mclk3
+		clocks = <&topckgen_clk CLK_TOP_UNIVPLL2_192M_D32>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D16>,
+			<&topckgen_clk CLK_TOP_F26M_CK_D2>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D10>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D8>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_D6_D16>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_D6_D8>,
+			<&topckgen_clk CLK_TOP_CAMTG3_SEL>;
+		clock-names = "6", "12", "13", "19.2", "24", "26", "52", "mclk";
+
+		status = "okay";
+		port {
+			sensor2_out: endpoint {
+				remote-endpoint = <&seninf_csi_port_3_in>;
+			};
+		};
+	};
+
+	mtk_camera_eeprom2:camera-eeprom2@50 {
+		compatible = "mediatek,camera_eeprom";
+		reg = <0x50>;
+		status = "okay";
+	};
+};
+
+&i2c7 {
+	status = "okay";
+	clock-frequency = <1000000>;
+
+	sensor0: sensor0@10 {
+		compatible = "mediatek,imgsensor";
+		sensor-names = "hi1337_mipi_raw";
+		reg = <0x10>;
+
+		#thermal-sensor-cells = <0>;
+
+		pinctrl-names = "mclk_off",
+				"mclk_2mA",
+				"mclk_4mA",
+				"mclk_6mA",
+				"mclk_8mA",
+				"rst_low",
+				"rst_high",
+				"dvdd_off",
+				"dvdd_on",
+				"avdd_off",
+				"avdd_on";
+		pinctrl-0 = <&camera_pins_cam0_mclk_off>;
+		pinctrl-1 = <&camera_pins_cam0_mclk_2ma>;
+		pinctrl-2 = <&camera_pins_cam0_mclk_4ma>;
+		pinctrl-3 = <&camera_pins_cam0_mclk_6ma>;
+		pinctrl-4 = <&camera_pins_cam0_mclk_8ma>;
+		pinctrl-5 = <&camera_pins_cam0_rst_0>;
+		pinctrl-6 = <&camera_pins_cam0_rst_1>;
+		pinctrl-7 = <&camera_pins_cam0_dvdd_0>;
+		pinctrl-8 = <&camera_pins_cam0_dvdd_1>;
+		pinctrl-9 = <&camera_pins_cam0_avdd_0>;
+		pinctrl-10 = <&camera_pins_cam0_avdd_1>;
+
+		dovdd-supply = <&mt6373_vant18>;
+		afvdd-supply = <&mt6373_vcn33_3>;
+
+		// mclk2
+		clocks = <&topckgen_clk CLK_TOP_UNIVPLL2_192M_D32>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D16>,
+			<&topckgen_clk CLK_TOP_F26M_CK_D2>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D10>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D8>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_D6_D16>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_D6_D8>,
+			<&topckgen_clk CLK_TOP_CAMTG2_SEL>;
+		clock-names = "6", "12", "13", "19.2", "24", "26", "52", "mclk";
+
+		status = "okay";
+		port {
+			sensor0_out: endpoint {
+				remote-endpoint = <&seninf_csi_port_2_in>;
+			};
+		};
+	};
+};
+
+&i2c8 {
+	status = "okay";
+	clock-frequency = <1000000>;
+
+	sensor3: sensor3@10 {
+		compatible = "mediatek,imgsensor";
+		sensor-names = "hi1337fu_mipi_raw";
+		reg = <0x10>;
+
+		#thermal-sensor-cells = <0>;
+
+		pinctrl-names = "mclk_off",
+				"mclk_2mA",
+				"mclk_4mA",
+				"mclk_6mA",
+				"mclk_8mA",
+				"rst_low",
+				"rst_high",
+				"dvdd_off",
+				"dvdd_on",
+				"avdd_off",
+				"avdd_on";
+		pinctrl-0 = <&camera_pins_cam3_mclk_off>;
+		pinctrl-1 = <&camera_pins_cam3_mclk_2ma>;
+		pinctrl-2 = <&camera_pins_cam3_mclk_4ma>;
+		pinctrl-3 = <&camera_pins_cam3_mclk_6ma>;
+		pinctrl-4 = <&camera_pins_cam3_mclk_8ma>;
+		pinctrl-5 = <&camera_pins_cam3_rst_0>;
+		pinctrl-6 = <&camera_pins_cam3_rst_1>;
+		pinctrl-7 = <&camera_pins_cam3_dvdd_0>;
+		pinctrl-8 = <&camera_pins_cam3_dvdd_1>;
+		pinctrl-9 = <&camera_pins_cam3_avdd_0>;
+		pinctrl-10 = <&camera_pins_cam3_avdd_1>;
+
+		dovdd-supply = <&mt6373_vant18>;
+
+		// mclk4
+		clocks = <&topckgen_clk CLK_TOP_UNIVPLL2_192M_D32>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D16>,
+			<&topckgen_clk CLK_TOP_F26M_CK_D2>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D10>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_192M_D8>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_D6_D16>,
+			<&topckgen_clk CLK_TOP_UNIVPLL2_D6_D8>,
+			<&topckgen_clk CLK_TOP_CAMTG4_SEL>;
+		clock-names = "6", "12", "13", "19.2", "24", "26", "52", "mclk";
+
+		status = "okay";
+		port {
+			sensor3_out: endpoint {
+				remote-endpoint = <&seninf_csi_port_0_in>;
+			};
+		};
+	};
+};
+
+&i2c9 {
+	status = "okay";
+	clock-frequency = <1000000>;
+
+	mtk_camera_eeprom0:camera-eeprom0@50 {
+		compatible = "mediatek,camera_eeprom";
+		reg = <0x50>;
+		status = "okay";
+	};
+
+	mtk_camera_eeprom1:camera-eeprom1@60 {
+		compatible = "mediatek,camera_eeprom";
+		reg = <0x60>;
+		status = "okay";
+	};
+
+	mtk_camera_eeprom3:camera-eeprom3@70 {
+		compatible = "mediatek,camera_eeprom";
+		reg = <0x70>;
+		status = "okay";
+	};
+
+	camera-af-main@a {
+		compatible = "mediatek,main_vcm";
+		reg = <0x0a>;
+		port {
+			main_af: endpoint {
+				remote-endpoint = <&main_af_endpoint>;
+			};
+		};
+	};
+};
+
+/* FLASH */
+&i2c5 {
+	sm5714@49 {
+		sm5714-fled {
+			status = "okay";
+			compatible = "siliconmitus,sm5714-fled";
+			flash-en-gpio = <&pio 97 0>;
+			torch-en-gpio = <&pio 96 0>;
+
+			flash-brightness = <0xA>; //0x0(300mA) ~ 0xF(1500mA) : 50mA Step
+			preflash-brightness = <0x4>;
+			torch-brightness = <0x4>; //0x0(50mA) ~ 0x7(225mA) : 25mA Step
+			factory_current = <0x6>; //0x0(300mA)
+			flashlight_current = <0 1 2 5 7>;
+			timeout = <0xff>;
+		};
+	};
+};

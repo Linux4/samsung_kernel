@@ -1,0 +1,14 @@
+# drivers/samsung/Kconfig
+#
+# Copyright (c) 2010-2022 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+config SEC_PM_DEBUG
+    tristate "Enable Samsung Mobile Power management debug support"
+    default n
+    depends on SEC_PM
+    help
+      This option enables Samsung Mobile Power management debug support.
+      Intended for test and debug only.

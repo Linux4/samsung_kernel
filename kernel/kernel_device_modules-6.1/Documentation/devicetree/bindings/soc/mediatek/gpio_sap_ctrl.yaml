@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+# # Copyright 2023 MediaTek Inc.
+%YAML 1.2
+---
+$id: "http://devicetree.org/schemas/soc/mediatek/gpio_sap_ctrl.yaml#"
+$schema: "http://devicetree.org/meta-schemas/core.yaml#"
+
+title: MediaTek GPIO Controller For Aligning State Of sAP
+
+maintainers:
+  - Pei-Huai Ciou <pei-huai.ciou@mediatek.com>
+
+description: |
+  The GPIO Controller For Aligning State Of sAP (gpio_sap_ctrl) is used to
+  control our gpio state in response for algining the state on sAP. In the case
+  of host controlling slave power, there might be a path from some host pin with
+  non-zero voltage to unpower slave and finally to another host pin. In this
+  case, the pins might be in something like 50% high voltage, which is invalid
+  in such digital pins.
+
+properties:
+  compatible:
+    enum:
+      - mediatek,gpio_sap_ctrl
+
+required:
+  - compatible
+
+additionalProperties: false
+
+examples:
+  - |
+  gpio_sap_ctrl: gpio-sap-ctrl {
+    compatible = "mediatek,gpio_sap_ctrl";
+  };

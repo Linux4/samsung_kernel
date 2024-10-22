@@ -1,0 +1,8 @@
+config MTK_PGBOOST
+	tristate "MTK pgboost feature"
+	depends on DMA_CMA && SPARSEMEM
+	help
+	  A new option CONFIG_MTK_PGBOOST for the feature.
+	  This is used for the improvement of dual rank impact
+	  over some scenarios. If you are not sure about whether
+	  to enable it or not, please set n.

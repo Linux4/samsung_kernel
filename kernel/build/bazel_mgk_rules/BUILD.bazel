@@ -1,0 +1,20 @@
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+
+load(
+    "@bazel_skylib//rules:common_settings.bzl",
+    "bool_flag",
+    "string_flag",
+)
+
+
+string_flag(name = "kernel_version" , build_setting_default = "6.1")
+config_setting(name = "kernel_version_6.1"     , flag_values = {":kernel_version": "6.1"})
+config_setting(name = "kernel_version_mainline", flag_values = {":kernel_version": "mainline"})
+
+bool_flag(name = "internal_config", build_setting_default = False)
+config_setting(name = "internal_set", flag_values = {":internal_config": "true"})

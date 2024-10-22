@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menuconfig PWM
+	bool "Pulse-Width Modulation (PWM) Support"
+	help
+	  Generic Pulse-Width Modulation (PWM) support.
+
+	  In Pulse-Width Modulation, a variation of the width of pulses
+	  in a rectangular pulse signal is used as a means to alter the
+	  average power of the signal. Applications include efficient
+	  power delivery and voltage regulation. In computer systems,
+	  PWMs are commonly used to control fans or the brightness of
+	  display backlights.
+
+	  This framework provides a generic interface to PWM devices
+	  within the Linux kernel. On the driver side it provides an API
+	  to register and unregister a PWM chip, an abstraction of a PWM
+	  controller, that supports one or more PWM devices. Client
+	  drivers can request PWM devices and use the generic framework
+	  to configure as well as enable and disable them.
+
+	  This generic framework replaces the legacy PWM framework which
+	  allows only a single driver implementing the required API. Not
+	  all legacy implementations have been ported to the framework
+	  yet. The framework provides an API that is backward compatible
+	  with the legacy framework so that existing client drivers
+	  continue to work as expected.
+
+	  If unsure, say no.
+
+if PWM
+
+config DEVICE_MODULES_PWM_MTK_DISP
+	tristate "MediaTek display PWM driver"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	depends on HAS_IOMEM
+	help
+	  Generic PWM framework driver for MediaTek disp-pwm device.
+	  The PWM is used to control the backlight brightness for display.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-mtk-disp.
+
+endif

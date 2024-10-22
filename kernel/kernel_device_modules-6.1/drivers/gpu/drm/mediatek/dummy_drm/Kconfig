@@ -1,0 +1,10 @@
+config DRM_MEDIATEK_DUMMY
+	tristate "MTK Virtual KMS"
+	depends on DRM
+	select DRM_KMS_HELPER
+	select CRC32
+	help
+	  MTK Virtual Kernel Mode-Setting (VKMS) is used for FPGA early porting without
+          display HW stage. Choose this option to get
+	  a MTK VKMS.
+	  If M is selected the module will be called vkms.

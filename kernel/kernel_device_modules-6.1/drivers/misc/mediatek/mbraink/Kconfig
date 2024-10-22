@@ -1,0 +1,15 @@
+config MTK_MBRAINK
+	tristate "MTK MBRAINK support"
+	help
+          MBRAINK is a MediaTek in-house kernel module which can
+          communicate with android MBrain.
+          Set Y to enable this feature.
+          If unsure, Set N to stay with legancy feature.
+
+config MTK_MBRAINK_EXPORT_DEPENDED
+	tristate "MTK MBRAINK EXPORT DEPENDED support"
+	help
+	  MBRAINK EXPORT DEPENDED option which
+	  needs to export extra function in upstram kernel.
+	  Set Y to enable this feature.
+	  If unsure, Set N to stay with legancy feature.

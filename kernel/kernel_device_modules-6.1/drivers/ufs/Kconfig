@@ -1,0 +1,84 @@
+#
+# Kernel configuration file for the UFS Host Controller
+#
+# This code is based on drivers/ufs/Kconfig
+# Copyright (C) 2011-2013 Samsung India Software Operations
+#
+# Authors:
+#	Santosh Yaraganavi <santosh.sy@samsung.com>
+#	Vinayak Holikatti <h.vinayak@samsung.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# See the COPYING file in the top-level directory or visit
+# <http://www.gnu.org/licenses/gpl-2.0.html>
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# This program is provided "AS IS" and "WITH ALL FAULTS" and
+# without warranty of any kind. You are solely responsible for
+# determining the appropriateness of using and distributing
+# the program and assume all risks associated with your exercise
+# of rights with respect to the program, including but not limited
+# to infringement of third party rights, the risks and costs of
+# program errors, damage to or loss of data, programs or equipment,
+# and unavailability or interruption of operations. Under no
+# circumstances will the contributor of this Program be liable for
+# any damages of any kind arising from your use or distribution of
+# this program.
+
+config DEVICE_MODULES_SCSI_UFS_MEDIATEK
+	tristate "Mediatek specific hooks to UFS controller platform driver"
+	depends on SCSI_UFSHCD_PLATFORM && ARCH_MEDIATEK
+	select DEVICE_MODULES_PHY_MTK_UFS
+	select DEVICE_MODULES_RESET_TI_SYSCON
+	help
+	  This selects the Mediatek specific additions to UFSHCD platform driver.
+	  UFS host on Mediatek needs some vendor specific configuration before
+	  accessing the hardware which includes PHY configuration and vendor
+	  specific registers.
+
+	  Select this if you have UFS controller on Mediatek chipset.
+
+	  If unsure, say N.
+
+config SCSI_UFS_MEDIATEK_DBG
+	tristate "Debugging facility for MediaTek UFS platforms"
+	depends on DEVICE_MODULES_SCSI_UFS_MEDIATEK
+	help
+	  This selects the debugging facility for Mediatek UFS platforms.
+	  Provide UFS command history and connection to MediaTek Block IO
+	  Tracer.
+
+	  Select this if you want to enable above facilities.
+
+	  If unsure, say N.
+
+source "$(KCONFIG_EXT_PREFIX)drivers/ufs/vendor/Kconfig"
+
+config MTK_UFS_DEBUG
+	bool "Support Mediatek UFS upstreaming features"
+	depends on SCSI_UFSHCD
+	help
+	  If it is enabled, all code sections that is under
+	  upstream process or not pulled from the mainstream
+	  are enabled.
+
+	  If unsure, say N.
+
+config MTK_UFS_DEBUG_BUILD
+	bool "Support Mediatek UFS facilities in debug build only"
+	depends on SCSI_UFSHCD
+	help
+	  This selects the debugging facility for Mediatek UFS platforms
+	  existed in debug build only.
+
+	  Select this if you want to enable above facilities.
+
+	  If unsure, say N.
+

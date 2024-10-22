@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Input core configuration
+#
+
+if INPUT_KEYBOARD
+
+config KEYBOARD_MTK_KPD
+	tristate "MediaTek Keypad Support"
+	depends on OF && HAVE_CLK
+	help
+	  Say Y here if you want to use the keypad on MediaTek SoCs.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here: the
+	  module will be called mtk-kpd.
+
+config DEVICE_MODULES_KEYBOARD_MTK_PMIC
+	tristate "MediaTek PMIC keys support"
+	depends on DEVICE_MODULES_MFD_MT6397
+	help
+	  Say Y here if you want to use the pmic keys (powerkey/homekey).
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mtk-pmic-keys.
+
+endif

@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+if MAILBOX
+
+config DEVICE_MODULES_MTK_CMDQ_MBOX
+	tristate "MediaTek CMDQ Mailbox Support"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	select MTK_INFRACFG
+	help
+	  Say yes here to add support for the MediaTek Command Queue (CMDQ)
+	  mailbox driver. The CMDQ is used to help read/write registers with
+	  critical time limitation, such as updating display configuration
+	  during the vblank.
+
+config MTK_TINYSYS_MBOX
+	tristate "MediaTek TINYSYS MBOX Mailbox Support"
+	help
+	  Say yes here to add support for the MediaTek TINYSYS mailbox driver.
+	  This uses MTK MBOX driver to communicate with remote processors
+	  base on ipic framework. It provide channels, controller creation
+	  and send operations.
+
+config MTK_ISE_MBOX
+	tristate "MediaTek ISE Mailbox Support"
+	help
+	  Say yes here to add support for the MediaTek ISE mailbox driver.
+	  The driver is the transport to communicate with remote secure
+	  processor. It provides init and request operations for local user
+	  to communicate with remote user.
+
+config MTK_SCMI_TIMEOUT_HOOK
+	bool "MediaTek SCMI Timeout Hook Support"
+	help
+	  Say yes here to add support for the MediaTek SCMI Timeout Hook.
+	  SCMI protocol is a set of operating system-independent software
+	  interfaces that are used in system management.
+
+	  This uses to revise MediaTek SCMI Timeout settings. Driver can
+	  revise timeout paremeter for debug and development.
+
+endif

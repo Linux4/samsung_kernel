@@ -1,0 +1,133 @@
+config MTK_LOW_POWER_MODULE
+	tristate "Meditaek Low Power Module"
+	help
+	  For MediaTek Low Power Module, such as CPU idle,
+	  CPU suspend low power enhencement.
+	  Select "y" if you want to enable low power features.
+	  Select "n" if unsure.
+
+config MTK_LPM_DBG_COMMON
+	bool "Meditaek Low Power common debug Module"
+	help
+	  Select MTK_LPM_DBG_COMMON then Mediatek low module
+	  common debug feature will be enabled. The common debug
+	  feature will support basic debug control and show the
+	  information to console.
+
+
+config MTK_LPM_GS_DUMP_SUPPORT
+	bool "Meditaek Low Power golden setting checker"
+	help
+	  Select MTK_LPM_GS_DUMP_SUPPORT then Mediatek low module
+	  golden setting dump mechanism enable.
+	  Select "y" if you want to enable gs dump features.
+	  Select "n" if unsure.
+
+config MTK_LPM_GS_DUMP_VERSION
+	string "Meditaek Low Power golden setting checker version"
+	default "v1"
+	help
+	  Set MTK_LPM_GS_DUMP_VERSION for Mediatek low module
+	  golden setting dump mechanism version.
+
+config MTK_LPM_MODULE_NAME
+	string "Set mtk-lpm module output name"
+	default "generic" if MTK_PLATFORM = ""
+	default MTK_PLATFORM if MTK_PLATFORM != ""
+	help
+	  Customize the debug module output name.
+	  Set the specific name for kernel module.
+	  The platform name will be set as default
+	  name if the MTK_LPM_MODULE_NAME didn't
+	  set before.
+
+config MTK_LPM_MT6878
+	tristate "Specify Mediatek LPM Platform is MT6878"
+	depends on MTK_LOW_POWER_MODULE
+	select MTK_LPM_DBG_COMMON
+	help
+	  Select MediaTek Low Power Module Platform is MT6878
+	  for power management.
+	  Set Y to select this feature for specific platform-mt6878.
+	  If unsure, set N to disable.
+
+config MTK_LPM_MT6886
+	tristate "Specify Mediatek LPM Platform is MT6886"
+	depends on MTK_LOW_POWER_MODULE
+	select MTK_LPM_DBG_COMMON
+	help
+	  Select MediaTek Low Power Module Platform is MT6886
+	  for power management.
+	  Set Y to select this feature for specific platform-mt6886.
+	  If unsure, set N to disable.
+
+config MTK_LPM_MT6897
+	tristate "Specify Mediatek LPM Platform is MT6897"
+	depends on MTK_LOW_POWER_MODULE
+	select MTK_LPM_DBG_COMMON
+	help
+	  Select MediaTek Low Power Module Platform is MT6897
+	  for power management.
+	  Set Y to select this feature for specific platform-mt6897.
+	  If unsure, set N to disable.
+
+config MTK_LPM_MT6983
+	tristate "Specify Mediatek LPM Platform is MT6983"
+	depends on MTK_LOW_POWER_MODULE
+	select MTK_LPM_DBG_COMMON
+	help
+	  Select MediaTek Low Power Module Platform is MT6983
+	  for power management.
+	  Set Y to select this feature for specific platform-mt6983.
+	  If unsure, set N to disable.
+
+config MTK_LPM_MT6985
+	tristate "Specify Mediatek LPM Platform is MT6985"
+	depends on MTK_LOW_POWER_MODULE
+	select MTK_LPM_DBG_COMMON
+	help
+	  Select MediaTek Low Power Module Platform is MT6985
+	  for power management.
+	  Set Y to select this feature for specific platform-mt6985.
+	  If unsure, set N to disable.
+
+config MTK_LPM_MT6989
+	tristate "Specify Mediatek LPM Platform is MT6989"
+	depends on MTK_LOW_POWER_MODULE
+	select MTK_LPM_DBG_COMMON
+	help
+	  Select MediaTek Low Power Module Platform is MT6989
+	  for power management.
+	  Set Y to select this feature for specific platform-mt6989.
+	  If unsure, set N to disable.
+
+config MTK_CPU_IDLE_GOV
+	tristate "Meditaek cpuidle governor support"
+	help
+	  For MediaTek cpuidle policy.
+	  The policy is used to select suitable cpu idle state.
+	  Select "y/m" if you want to enable mtk cpuidle policy.
+	  Select "n" if unsure.
+
+config MTK_CPU_IDLE_GOV_VERSION
+	string "Meditaek Idle governor version"
+	default "MHSP"
+	help
+	  Set MTK_IDLE_GOV_VERSION for Mediatek cpuidle policy.
+
+config MTK_CPU_IDLE_IPI_SUPPORT
+	bool "Meditaek Idle governor support ipi prediction"
+	default n
+	help
+	  Set MTK_CPU_IDLE_IPI_SUPPORT for
+	  Mediatek cpuidle ipi prediction policy.
+	  The mechanism is based on ipi duration to
+	  predict this cpu idle time.
+
+config MTK_SYS_RES_DBG_SUPPORT
+	tristate "Meditaek System Resource Debug Info Support"
+	help
+	  Select MTK_SYS_RES_DBG_SUPPORT to enable
+	  MediaTek system resource debug information dump.
+	  Select "m" if you want to enable.
+	  Select "n" if unsure.

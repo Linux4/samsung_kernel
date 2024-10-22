@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+if INTERCONNECT
+
+source "$(KCONFIG_EXT_PREFIX)drivers/interconnect/mediatek/Kconfig"
+
+endif

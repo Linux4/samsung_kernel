@@ -1,0 +1,11 @@
+#
+# ise_lpm
+#
+
+config MTK_ISE_LPM_SUPPORT
+	tristate "Specify Interface Support iSE low power control"
+	help
+	  support iSE power control
+	  Set Y to enable this feature.
+	  If unsure,
+	  Set N to stay with legancy feature.

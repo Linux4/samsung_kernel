@@ -1,0 +1,161 @@
+#if 0 && 0
+&mt6363_vemc {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vcn13 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vtref18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vaux18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vcn15 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vufs18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vio18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vm18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_va15 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrf18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrfio18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vio075 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vufs12 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_va12_1 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_va12_2 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrf12 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrf13 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6363_vrf09 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif

@@ -1,0 +1,81 @@
+&pio {
+	attn_irq: attn_irq {
+		GPIO_CONFIG_PUD_DRV(AP,pio,18, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pio {
+	conn_irq: conn_irq {
+		GPIO_CONFIG_PUD_DRV(AP,pio,15, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pio {
+	swclk_gpio: swclk_gpio {
+		GPIO_CONFIG_PUD_DRV(AP,pio,153, FUNC_OUTPUT_LOW, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pio {
+	nrst_gpio: nrst_gpio {
+		GPIO_CONFIG_PUD_DRV(AP,pio,155, FUNC_OUTPUT_HIGH, PULL_NONE, DRV_LV1);
+	};
+};
+
+&i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	clock-frequency = <400000>;
+	/* pogo i2c */
+	keyboard_stm: stm32@2a {
+		status = "ok";
+		compatible = "stm,stm32_pogo";
+		reg = <0x2a>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&attn_irq &conn_irq &swclk_gpio &nrst_gpio>;
+		stm32_vddo-supply = <&fixed_regulator0>;
+		stm32,irq_gpio = <SEC_GPIO_REF(AP,pio,18) 0>;
+		stm32,irq_conn = <SEC_GPIO_REF(AP,pio,15) 0>;
+		stm32,irq_type = <8200>;
+		stm32,irq_conn_type = <0x2003>;
+		stm32,mcu_swclk = <SEC_GPIO_REF(AP,pio,153) 0>;
+		stm32,mcu_nrst = <SEC_GPIO_REF(AP,pio,155) 0>;
+		stm32,sda_gpio = <SEC_GPIO_REF(AP,pio,224) 0>;
+		stm32,scl_gpio = <SEC_GPIO_REF(AP,pio,223) 0>;
+		stm32,fw_name = "keyboard_stm/stm32_gts7llite.bin";
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2024/keyboard/stm32/dts/input-mtk-keyboard-stm32.gts10u(wifi).dtsi */
+&keyboard_stm {
+	stm32,fw_name = "keyboard_stm/stm32_gts10family.bin";
+	stm32,fota_fw_path = "";
+	support_open_close;
+	stm32,model_type = <2>; /* 0: basic, 1: plus, 2: ultra */
+	stm32,booster_power_voltage = <514000>;
+};
+
+&smd {
+	pogo_touchpad {
+		compatible = "stm,touchpad";
+		touchpad,invert = <0 1 1>; /* x invert, y invert, xy switch */
+	};
+
+	pogo_kpd {
+		compatible = "stm,keypad";
+	};
+};
+
+#if 1
+&sw_i2c5 {
+	status = "okay";
+
+	kbd_boost@18{
+		status = "okay";
+		compatible = "max77816,kbd_boost";
+		reg = <0x18>;
+	};
+};
+#endif

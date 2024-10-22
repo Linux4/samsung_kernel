@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menu "CPU Frequency scaling"
+
+if ARM || ARM64
+source "$(KCONFIG_EXT_PREFIX)drivers/cpufreq/Kconfig.arm"
+endif
+
+endmenu

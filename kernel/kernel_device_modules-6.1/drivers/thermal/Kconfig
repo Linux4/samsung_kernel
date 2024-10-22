@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Generic thermal drivers configuration
+#
+
+if THERMAL
+
+menu "Mediatek thermal drivers"
+depends on ARCH_MEDIATEK || COMPILE_TEST
+source "$(KCONFIG_EXT_PREFIX)drivers/thermal/mediatek/Kconfig"
+endmenu

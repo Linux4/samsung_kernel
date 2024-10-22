@@ -1,0 +1,25 @@
+config MTK_SUBPMIC_MISC
+	tristate "Mediatek Subpmic Miscellaneous"
+	help
+	  Enable to support Mediatek subpmic miscellaneous functions.
+	  For example, customized debugfs for different chips.
+	  Other platform dependent operations,
+	  e.g., communication between modem and AP.
+
+config MTK_SUBPMIC_DEBUGFS
+	tristate "Mediatek Subpmic Debugfs"
+	depends on DEBUG_FS
+	help
+	  Enable to support Mediatek Submic Debugfs
+	  Say Y here to create debugfs node in
+	  /d/ext_dev_io/ folder
+	  Say N here to disable
+
+config SUBPMIC_DBG
+	tristate "Mediatek subpmic Debug core"
+	depends on MTK_SUBPMIC_MISC
+	help
+	  Say Y here to enable Mediatek subpmic debug support.
+	  Say N here to disable.
+	  Provide Read/Write interface by debugfs ext_dev_io.
+	  Also support multiple size condition.

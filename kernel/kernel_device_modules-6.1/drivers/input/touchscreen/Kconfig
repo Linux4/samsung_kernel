@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Touchscreen driver configuration
+#
+
+if INPUT_TOUCHSCREEN
+
+config TOUCHSCREEN_MTK_TOUCH
+       string "Touch IC name for Mediatek package"
+       help
+         Set touch IC name if you have touch panel.
+
+         To compile this dirver for used touch IC.
+
+config TOUCHSCREEN_MT6985_ALPHA_SUPPORT
+       tristate "Specify Alpha Touch Platform is mt6985"
+       help
+         Select Alpha Touch Platform is mt6985.
+         To compile this dirver for used touch IC.
+         Set Y or M to select this feature for specific platform-mt6985,
+         and set N to disable.
+
+source "$(KCONFIG_EXT_PREFIX)drivers/input/touchscreen/NT36532/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/input/touchscreen/GT6936/Kconfig"
+
+endif

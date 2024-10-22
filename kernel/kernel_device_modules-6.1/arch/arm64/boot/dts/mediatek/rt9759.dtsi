@@ -1,0 +1,186 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2021 MediaTek Inc.
+ */
+
+&i2c6 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	rt9759-slave@66 {
+		compatible = "richtek,rt9759";
+		status = "okay";
+		reg = <0x66>;
+		/* Please modify this to rt9759_slave if there is dual rt9759 */
+		rm-name = "rt9759_slave";
+		rm-slave-addr = /bits/ 8 <0x66>;
+		rt9759,intr-gpios = <&pio 40 0x0>;
+		standalone {
+			chg-name = "primary_dvchg";
+			vbatovp = <4500000>;
+			vbatovp-alm = <4400000>;
+			ibatocp = <6100000>;
+			ibatocp-alm = <6000000>;
+			ibatucp-alm = <1000000>;
+			vbusovp = <10000000>;
+			vbusovp-alm = <9000000>;
+			ibusocp = <4250000>;
+			ibusocp-alm = <4000000>;
+			vacovp = <11000000>;
+			wdt = <30000000>;
+			ibat-rsense = <0>; /* 0: 2mohm, 1: 5mohm */
+			ibusucpf-deglitch = <1>; /* 0: 10us, 1: 5ms */
+			/* vbatovp-dis; */
+			/* vbatovp-alm-dis; */
+			/* ibatocp-dis; */
+			ibatocp-alm-dis;
+			ibatucp-alm-dis;
+			/* vbusovp-alm-dis; */
+			/* ibusocp-dis; */
+			ibusocp-alm-dis;
+			/* wdt-dis; */
+			/* tsbusotp-dis; */
+			/* tsbatotp-dis; */
+			/* tdieotp-dis; */
+			/* reg-en; */
+			/* voutovp-dis; */
+			/* ibusadc-dis; */
+			/* vbusadc-dis; */
+			/* vacadc-dis; */
+			/* voutadc-dis; */
+			/* vbatadc-dis; */
+			/* ibatadc-dis; */
+			/* tsbusadc-dis; */
+			/* tsbatadc-dis; */
+			/* tdieadc-dis; */
+			ibat-rsense-half;
+		};
+		slave {
+			chg-name = "secondary_dvchg";
+			vbatovp = <4500000>;
+			vbatovp-alm = <4400000>;
+			ibatocp = <6100000>;
+			ibatocp-alm = <6000000>;
+			ibatucp-alm = <1000000>;
+			vbusovp = <10000000>;
+			vbusovp-alm = <9000000>;
+			ibusocp = <4250000>;
+			ibusocp-alm = <4000000>;
+			vacovp = <11000000>;
+			wdt = <1000000>;
+			ibat-rsense = <0>; /* 0: 2mohm, 1: 5mohm */
+			ibusucpf-deglitch = <1>; /* 0: 10us, 1: 5ms */
+			vbatovp-dis;
+			vbatovp-alm-dis;
+			ibatocp-dis;
+			ibatocp-alm-dis;
+			ibatucp-alm-dis;
+			vbusovp-alm-dis;
+			/* ibusocp-dis; */
+			ibusocp-alm-dis;
+			wdt-dis;
+			/* tsbusotp-dis; */
+			/* tsbatotp-dis; */
+			/* tdieotp-dis; */
+			/* reg-en; */
+			/* voutovp-dis; */
+			/* ibusadc-dis; */
+			/* vbusadc-dis; */
+			/* vacadc-dis; */
+			/* voutadc-dis; */
+			vbatadc-dis;
+			ibatadc-dis;
+			/* tsbusadc-dis; */
+			/* tsbatadc-dis; */
+			/* tdieadc-dis; */
+			ibat-rsense-half;
+		};
+	};
+	rt9759-master@65 {
+		compatible = "richtek,rt9759";
+		status = "okay";
+		reg = <0x65>;
+		rm-name = "rt9759_master";
+		rm-slave-addr = /bits/ 8 <0x65>;
+		rt9759,intr-gpios = <&pio 38 0x0>;
+		standalone {
+			chg-name = "primary_dvchg";
+			vbatovp = <4500000>;
+			vbatovp-alm = <4400000>;
+			ibatocp = <6100000>;
+			ibatocp-alm = <6000000>;
+			ibatucp-alm = <1000000>;
+			vbusovp = <10000000>;
+			vbusovp-alm = <9000000>;
+			ibusocp = <4250000>;
+			ibusocp-alm = <4000000>;
+			vacovp = <11000000>;
+			wdt = <30000000>;
+			ibat-rsense = <0>; /* 0: 2mohm, 1: 5mohm */
+			ibusucpf-deglitch = <1>; /* 0: 10us, 1: 5ms */
+			/* vbatovp-dis; */
+			/* vbatovp-alm-dis; */
+			/* ibatocp-dis; */
+			ibatocp-alm-dis;
+			ibatucp-alm-dis;
+			/* vbusovp-alm-dis; */
+			/* ibusocp-dis; */
+			ibusocp-alm-dis;
+			/* wdt-dis; */
+			/* tsbusotp-dis; */
+			/* tsbatotp-dis; */
+			/* tdieotp-dis; */
+			/* reg-en; */
+			/* voutovp-dis; */
+			/* ibusadc-dis; */
+			/* vbusadc-dis; */
+			/* vacadc-dis; */
+			/* voutadc-dis; */
+			/* vbatadc-dis; */
+			/* ibatadc-dis; */
+			/* tsbusadc-dis; */
+			/* tsbatadc-dis; */
+			/* tdieadc-dis; */
+			ibat-rsense-half;
+		};
+		master {
+			chg-name = "primary_dvchg";
+			vbatovp = <4500000>;
+			vbatovp-alm = <4400000>;
+			ibatocp = <6100000>;
+			ibatocp-alm = <6000000>;
+			ibatucp-alm = <1000000>;
+			vbusovp = <10000000>;
+			vbusovp-alm = <9000000>;
+			ibusocp = <4250000>;
+			ibusocp-alm = <4000000>;
+			vacovp = <11000000>;
+			wdt = <30000000>;
+			ibat-rsense = <0>; /* 0: 2mohm, 1: 5mohm */
+			ibusucpf-deglitch = <1>; /* 0: 10us, 1: 5ms */
+			/* vbatovp-dis; */
+			/* vbatovp-alm-dis; */
+			/* ibatocp-dis; */
+			ibatocp-alm-dis;
+			/* ibatucp-alm-dis; */
+			/* vbusovp-alm-dis; */
+			/* ibusocp-dis; */
+			ibusocp-alm-dis;
+			/* wdt-dis; */
+			tsbusotp-dis;
+			tsbatotp-dis;
+			/* tdieotp-dis; */
+			/* reg-en; */
+			/* voutovp-dis; */
+			/* ibusadc-dis; */
+			/* vbusadc-dis; */
+			/* vacadc-dis; */
+			/* voutadc-dis; */
+			/* vbatadc-dis; */
+			/* ibatadc-dis; */
+			tsbusadc-dis;
+			tsbatadc-dis;
+			/* tdieadc-dis; */
+			ibat-rsense-half;
+		};
+	};
+};

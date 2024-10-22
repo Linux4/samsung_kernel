@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config MTK_DCACHE_INVAL
+	tristate "export DCACHE_INVAL API"
+	help
+	  MTK_DCACHE_INVAL is the kernel config of export API.
+	  Fix dma cache issue.
