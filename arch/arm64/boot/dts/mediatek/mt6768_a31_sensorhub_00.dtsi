@@ -1,0 +1,78 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/*
+&pio {
+	scp_spi0_miso: scp_spi0_miso@gpio13 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO13__FUNC_SCP_SPI0_MI>;
+		};
+	};
+	scp_spi0_cs: scp_spi0_cs@gpio14 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO13__FUNC_SCP_SPI0_MI>;
+		};
+	};
+	scp_spi0_mosi: scp_spi0_mosi@gpio15 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO13__FUNC_SCP_SPI0_MI>;
+		};
+	};
+	scp_spi0_clk: scp_spi0_clk@gpio16 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO13__FUNC_SCP_SPI0_MI>;
+		};
+	};
+	scp_i2c0_scl: scp_i2c0_scl@gpio175 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO175__FUNC_SCP_SCL0>;
+		};
+	};
+	scp_i2c0_sda: scp_i2c0_sda@gpio176 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO176__FUNC_SCP_SDA0>;
+		};
+
+	};
+};
+
+&spi5 {
+	status = "disabled";
+};
+
+&i2c7 {
+	status = "disabled";
+};
+*/
+/ {
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			ssp {
+				compatible = "ssp";
+/*
+				pinctrl-names = "defulat";
+				pinctrl-0 = <&scp_spi0_miso &scp_spi0_cs &scp_spi0_mosi &scp_spi0_clk &scp_i2c0_scl &scp_i2c0_sda>;
+*/
+				ssp-acc-position = <6>;
+				ssp-mag-position = <7>;
+				ssp-prox-thresh-addval = /bits/ 16 <40 20 30>;
+				ssp-mag-array = /bits/ 8 <0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0>;
+				ssp-light-position = /bits/ 32 <51 81 2 59 1 8>;
+				ssp-brightness-array-len = <5>;
+				ssp-brightness-array = /bits/ 32 <15 40 50 77 255>;
+			};
+		};
+	};
+};
+

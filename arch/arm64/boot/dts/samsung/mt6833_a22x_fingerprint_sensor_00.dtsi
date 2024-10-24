@@ -1,0 +1,133 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	btp_irq: btp-irq {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO18__FUNC_GPIO18>;
+			bias-disable;
+			drive-strength = <1>;
+		};
+	};
+	btp_irq_sleep: btp-irq-sleep {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO18__FUNC_GPIO18>;
+			bias-pull-down;
+			input-enable;
+			drive-strength = <1>;
+		};
+	};
+	btp_sleep: btp_sleep_enable {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO17__FUNC_GPIO17>;
+			bias-pull-down;
+			drive-strength = <1>;
+		};
+	};
+	spi5_set_miso: set_miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO38__FUNC_SPI5_MI>;
+			drive-strength = <4>;
+		};
+	};
+	spi5_set_cs: set_cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO36__FUNC_SPI5_CSB>;
+			drive-strength = <4>;
+		};
+	};
+	spi5_set_mosi: set_mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO37__FUNC_SPI5_MO>;
+			drive-strength = <4>;
+		};
+	};
+	spi5_set_clk: set_clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO35__FUNC_SPI5_CLK>;
+			drive-strength = <4>;
+		};
+	};
+	spi5_clr_miso: clr_miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO38__FUNC_GPIO38>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+			drive-strength = <1>;
+		};
+	};
+	spi5_clr_cs: clr_cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO36__FUNC_GPIO36>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	spi5_clr_mosi: clr_mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO37__FUNC_GPIO37>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	spi5_clr_clk: clr_clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO35__FUNC_GPIO35>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+};
+
+&mt_pmic_vfp_ldo_reg {
+	regulator-name = "VDD_BTP_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+};
+
+&spi5 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	etspi-spi@1 {
+		compatible = "etspi,et5xx";
+		reg = <1>;
+		spi-max-frequency = <12500000>;
+		pinctrl-names = "default", "pins_poweron", "pins_poweroff", "pins_poweron_tz", "pins_poweroff_tz";
+
+		pinctrl-0 = <&btp_sleep &btp_irq>;
+		pinctrl-1 = <&spi5_set_miso &spi5_set_cs &spi5_set_mosi &spi5_set_clk>;
+		pinctrl-2 = <&btp_sleep &spi5_clr_miso &spi5_clr_cs &spi5_clr_mosi &spi5_clr_clk>;
+		pinctrl-3 = <&btp_irq>;
+		pinctrl-4 = <&btp_irq_sleep>;
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		etspi-regulator = "VDD_BTP_3P3";
+		etspi-sleepPin = <&pio 17 0>;
+		etspi-drdyPin = <&pio 18 0>;
+		etspi-chipid = "ET528";
+		etspi-orient = <2>;
+		controller-data {
+			mediatek,tckdly = <1>;	/* It'll be used after tckdly patch */
+		};
+	};
+};

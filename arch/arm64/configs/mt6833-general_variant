@@ -1,0 +1,26 @@
+#! /usr/bin/env bash
+# edit here
+# def/undef for local target
+
+# *** WARNING: Add enable/disable configs as newline ***
+
+a22x_00="""
+"""
+
+a22xlgt_00="""
+CONFIG_SENSORS_ET5XX=y
+CONFIG_SENSORS_FINGERPRINT=y
+CONFIG_MTK_FINGERPRINT_SUPPORT=n
+"""
+
+f42x_00="""
+"""
+
+f42xskt_00="""
+CONFIG_SENSORS_ET5XX=y
+CONFIG_SENSORS_FINGERPRINT=y
+CONFIG_MTK_FINGERPRINT_SUPPORT=n
+"""
+
+m32x_00="""
+"""

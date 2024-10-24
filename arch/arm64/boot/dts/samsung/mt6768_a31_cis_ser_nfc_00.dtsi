@@ -1,0 +1,24 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+&i2c5 {
+	status = "ok";
+	pn547@2B {
+		compatible = "pn547";
+		reg = <0x2B>;
+		interrupt-parent = <&pio>;
+		interrupts = <3 0>;
+		pn547,irq-gpio = <&pio 3 0>;
+		pn547,ven-gpio = <&pio 159 0>;
+		pn547,firm-gpio = <&pio 158 0>;
+		pn547,clk_req-gpio = <&pio 11 0>;
+		pn547,pvdd-gpio = <&expander_gpios0 10 0>;
+	};
+};
