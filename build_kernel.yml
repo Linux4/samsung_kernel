@@ -1,0 +1,49 @@
+name: Build M30s Kernel
+
+on:
+  push:
+    branches:
+      - SM-M3070
+  workflow_dispatch:
+
+jobs:
+  build_kernel:
+    runs-on: ubuntu-latest
+
+    env:
+      ARCH: arm64
+      KERNEL_DEFCONFIG: m3070_defconfig
+      TOOLCHAIN_URL: https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/master/aarch64-linux-android-4.9.tar.gz
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential libncurses-dev bison flex libssl-dev bc unzip zip
+
+    - name: Download toolchain
+      run: |
+        wget -O toolchain.tar.gz $TOOLCHAIN_URL
+        mkdir toolchain
+        tar -xvf toolchain.tar.gz -C toolchain
+        echo "PATH=$PWD/toolchain/aarch64-linux-android-4.9/bin:$PATH" >> $GITHUB_ENV
+
+    - name: Build kernel
+      run: |
+        make $KERNEL_DEFCONFIG
+        make -j$(nproc)
+
+    - name: Package kernel zip
+      run: |
+        mkdir -p out
+        cp arch/arm64/boot/Image.gz-dtb out/
+        zip -r M30s_kernel.zip out
+
+    - name: Upload kernel artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: M30s-kernel
+        path: M30s_kernel.zip
